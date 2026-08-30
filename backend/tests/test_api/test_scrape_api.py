@@ -22,32 +22,168 @@ def _result(bib, nom):
 
 def test_detect(client):
     resp = client.get("/api/v1/scrape/detect", params={"url": "https://www.klikego.com/x"})
-    assert resp.json() == {"provider": "klikego", "supported": True}
+    assert resp.json() == {
+        "provider": "klikego", "supported": True,
+        "fanout": True, "default_single_heat": False,
+    }
 
 
 @pytest.mark.parametrize(
-    ("url", "provider"),
+    ("url", "provider", "fanout", "default_single_heat"),
     [
-        ("https://www.ironman.com/races/im703-vichy/results", "competitor"),
-        ("https://my.raceresult.com/406211/results", "raceresult"),
-        ("https://chronoplace.fr/evenement/x", "chronoplace"),
+        ("https://www.ironman.com/races/im703-vichy/results", "competitor", False, True),
+        ("https://my.raceresult.com/406211/results", "raceresult", True, False),
+        ("https://chronoplace.fr/evenement/x", "chronoplace", True, False),
     ],
 )
-def test_detect_expose_le_support_des_providers_recents(client, url, provider):
+def test_detect_expose_le_support_des_providers_recents(
+    client, url, provider, fanout, default_single_heat,
+):
     """`supported` est dérivé du registre, jamais d'une liste à tenir à jour.
 
     Le front affichait « Non supporté (competitor) » sur une URL ironman.com :
     il portait sa propre liste de providers, figée à six noms — Competitor,
     RaceResult et Chronoplace en étaient absents (même piège de définition
     dupliquée que #76). C'est l'API qui tranche désormais.
+
+    `fanout`/`default_single_heat` (#698) : Competitor n'est pas fan-out, donc
+    `default_single_heat` y vaut `True` (rien à fan-outer). RaceResult et
+    Chronoplace le sont, et n'ont aucun sélecteur de sous-unité dans leur URL :
+    leur `single_heat=True` rendrait le même volume de participants que le
+    fan-out en perdant la `source_url` par sous-unité et son cache — le défaut
+    y est donc `False`, c'est-à-dire le fan-out (revue finale #698).
     """
     resp = client.get("/api/v1/scrape/detect", params={"url": url})
-    assert resp.json() == {"provider": provider, "supported": True}
+    assert resp.json() == {
+        "provider": provider, "supported": True,
+        "fanout": fanout, "default_single_heat": default_single_heat,
+    }
 
 
 def test_detect_url_inconnue_reste_non_supportee(client):
     resp = client.get("/api/v1/scrape/detect", params={"url": "https://chronopuce.test/x"})
-    assert resp.json() == {"provider": "", "supported": False}
+    assert resp.json() == {
+        "provider": "", "supported": False,
+        "fanout": False, "default_single_heat": True,
+    }
+
+
+def test_detect_expose_default_single_heat_vrai_klikego_avec_heat(client):
+    """URL Klikego portant déjà `?heat=` : `single_heat=True` est un chemin
+    testé, le front peut proposer « import unique » coché par défaut (#698)."""
+    resp = client.get(
+        "/api/v1/scrape/detect",
+        params={"url": "https://www.klikego.com/resultats/foo/1?heat=triathlon-m"},
+    )
+    assert resp.json() == {
+        "provider": "klikego", "supported": True,
+        "fanout": True, "default_single_heat": True,
+    }
+
+
+def test_detect_expose_default_single_heat_faux_sans_selecteur_breizhchrono(client):
+    """URL BreizhChrono nue (sans heat) : `single_heat=True` viserait un chemin
+    jamais exécuté en production — le front ne le pré-coche pas (#698)."""
+    resp = client.get(
+        "/api/v1/scrape/detect",
+        params={"url": "https://resultats.breizhchrono.com/resultats-courses/tri-42"},
+    )
+    assert resp.json() == {
+        "provider": "breizhchrono", "supported": True,
+        "fanout": True, "default_single_heat": False,
+    }
+
+
+def test_detect_expose_default_single_heat_vrai_prolivesport_avec_race(client):
+    """URL ProLiveSport portant un jeton `race` : `scrape_event_all` cible et
+    filtre cette course, le front peut pré-cocher « import unique » (#698)."""
+    resp = client.get(
+        "/api/v1/scrape/detect",
+        params={
+            "url": (
+                "https://www.prolivesport.fr/index.php"
+                "?chap=event&sub=liveV3&eventId=979&race=Triathlon%20M"
+            )
+        },
+    )
+    assert resp.json() == {
+        "provider": "prolivesport", "supported": True,
+        "fanout": True, "default_single_heat": True,
+    }
+
+
+def test_detect_expose_default_single_heat_faux_prolivesport_sans_race(client):
+    """URL ProLiveSport sans jeton `race` : `_resolve_race` retomberait sur la
+    première course de l'événement — un défaut, pas une cible choisie. Le
+    fan-out reste donc le défaut proposé (#698)."""
+    resp = client.get(
+        "/api/v1/scrape/detect",
+        params={
+            "url": "https://www.prolivesport.fr/index.php?chap=event&sub=liveV3&eventId=979"
+        },
+    )
+    assert resp.json() == {
+        "provider": "prolivesport", "supported": True,
+        "fanout": True, "default_single_heat": False,
+    }
+
+
+def test_detect_prolivesport_url_de_serie_ne_leve_pas_500(client):
+    """`prolivesport._parse_url` **lève** sur une page de série (aucun
+    `eventId`). `targets_single_heat` avale ce refus : la détection répond, et
+    c'est le scrape qui expliquera pourquoi cette URL n'est pas importable."""
+    resp = client.get(
+        "/api/v1/scrape/detect",
+        params={"url": "https://www.prolivesport.fr/fftri/grand-prix-duathlon"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["default_single_heat"] is False
+
+
+def test_detect_raceresult_avec_contest_dans_url_reste_fanout(client):
+    """Un `contest=` dans l'URL RaceResult ne change **rien** au scrape.
+
+    Vérifié en revue finale de #698 : `raceresult.scrape_event_all(url)` passe
+    par `_run_pipeline`, qui ne lit de l'URL que l'identifiant d'épreuve
+    (`_resolve_event_id`) et énumère ensuite **toutes** les listes annoncées par
+    la config. Le contest de l'URL n'est jamais parsé, donc `single_heat=True`
+    rendrait le même volume qu'un fan-out en perdant le découpage par contest.
+    Le défaut reste le fan-out, avec ou sans ce paramètre.
+    """
+    resp = client.get(
+        "/api/v1/scrape/detect",
+        params={"url": "https://my.raceresult.com/406211/results?contest=3"},
+    )
+    assert resp.json() == {
+        "provider": "raceresult", "supported": True,
+        "fanout": True, "default_single_heat": False,
+    }
+
+
+def test_detect_masque_la_bascule_sur_une_url_breizhchrono_deja_ciblee(client):
+    """URL BreizhChrono fixant déjà un heat → `fanout: false`, donc pas de choix.
+
+    `BreizhChronoProvider.scrape_event_all` teste `if heat or single_heat:` :
+    sur une telle URL, il fait le scrape mono-heat **même** avec
+    `single_heat=False`. Offrir « tout l'événement » serait donc un mensonge —
+    la réponse masque le contrôle plutôt que de laisser le backend ignorer le
+    choix en silence (revue finale #698). Le provider reste bel et bien un
+    `FanoutProvider` : c'est le contrat de la réponse qui change, pas le
+    registre.
+    """
+    resp = client.get(
+        "/api/v1/scrape/detect",
+        params={
+            "url": (
+                "https://resultats.breizhchrono.com/resultats-courses"
+                "/tri-mesquer-2026-42/triathlon-m"
+            )
+        },
+    )
+    assert resp.json() == {
+        "provider": "breizhchrono", "supported": True,
+        "fanout": False, "default_single_heat": True,
+    }
 
 
 def test_detect_sur_host_ipv6_malforme_ne_leve_pas_500(client):
@@ -123,7 +259,7 @@ def test_import_event_stream_serializes_reassignments(client, monkeypatch):
     """
     from app.services import import_service
 
-    def fake_iter_import_event(db, url, settings, force=False, persist=True):
+    def fake_iter_import_event(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "scraping", "message": "Récupération des participants…"}
         yield {
             "phase": "done",
@@ -169,7 +305,7 @@ def test_import_event_stream_emet_un_padding_initial(client, monkeypatch):
     """
     from app.services import import_service
 
-    def fake_iter_import_event(db, url, settings, force=False, persist=True):
+    def fake_iter_import_event(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "done", "imported": 0, "updated": 0, "skipped": 0,
                "reconciled": 0, "reassignments": [], "total": 0, "courses": []}
 
@@ -213,7 +349,7 @@ def test_import_event_stream_emet_un_battement_sur_phase_longue(client, monkeypa
 
     monkeypatch.setattr(scrape, "_SSE_HEARTBEAT_INTERVAL_SECONDS", 0.05)
 
-    def fake_iter_import_event(db, url, settings, force=False, persist=True):
+    def fake_iter_import_event(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "scraping", "message": "Récupération des participants…"}
         time_module.sleep(0.2)  # > intervalle de battement : simule la pause
         yield {"phase": "done", "imported": 0, "updated": 0, "skipped": 0,
@@ -242,7 +378,7 @@ def test_import_event_stream_emet_error_si_iter_import_event_leve(client, monkey
     """
     from app.services import import_service
 
-    def fake_iter_import_event(db, url, settings, force=False, persist=True):
+    def fake_iter_import_event(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "scraping", "message": "Récupération des participants…"}
         raise RuntimeError("boom")
 
@@ -276,7 +412,7 @@ def test_import_event_stream_expose_les_courses_touchees(client, monkeypatch):
     """
     from app.services import import_service
 
-    def fake_iter_import_event(db, url, settings, force=False, persist=True):
+    def fake_iter_import_event(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "scraping", "message": "Récupération des participants…"}
         yield {
             "phase": "done",
@@ -394,3 +530,68 @@ def test_httpurl_normalise_la_cle_de_cache(url, attendu):
     from app.schemas.scrape import ScrapeRequest
 
     assert str(ScrapeRequest(url=url).url) == attendu
+
+
+def test_scrape_event_single_heat_defaut_vrai_si_omis(client, monkeypatch):
+    """Le schéma par défaut à `True` (#698) : import unique si le front
+    n'envoie rien — moins de surprise sur le volume importé."""
+    from app.services import import_service
+
+    captured = {}
+
+    def fake_import_event(db, url, settings, force=False, persist=True, *, single_heat=False):
+        captured["single_heat"] = single_heat
+        return {
+            "imported": 0, "updated": 0, "skipped": 0, "reconciled": 0,
+            "passive_sources": [], "courses": [],
+        }
+
+    monkeypatch.setattr(import_service, "import_event", fake_import_event)
+    client.post("/api/v1/scrape/event", json={"url": "https://www.klikego.com/x"})
+    assert captured["single_heat"] is True
+
+
+def test_scrape_event_forwards_single_heat(client, monkeypatch):
+    """`single_heat` du corps de requête atteint `import_service.import_event` (#698)."""
+    from app.services import import_service
+
+    captured = {}
+
+    def fake_import_event(db, url, settings, force=False, persist=True, *, single_heat=False):
+        captured["single_heat"] = single_heat
+        return {
+            "imported": 0, "updated": 0, "skipped": 0, "reconciled": 0,
+            "passive_sources": [], "courses": [],
+        }
+
+    monkeypatch.setattr(import_service, "import_event", fake_import_event)
+    client.post(
+        "/api/v1/scrape/event",
+        json={"url": "https://www.klikego.com/x", "single_heat": False},
+    )
+    assert captured["single_heat"] is False
+
+
+def test_scrape_event_stream_forwards_single_heat(client, monkeypatch):
+    """Même relais côté SSE (#698)."""
+    from app.services import import_service
+
+    captured = {}
+
+    def fake_iter_import_event(
+        db, url, settings, force=False, persist=True, *, single_heat=False,
+    ):
+        captured["single_heat"] = single_heat
+        yield {
+            "phase": "done", "imported": 0, "updated": 0, "skipped": 0,
+            "reconciled": 0, "reassignments": [], "passive_sources": [],
+            "total": 0, "courses": [],
+        }
+
+    monkeypatch.setattr(import_service, "iter_import_event", fake_iter_import_event)
+    with client.stream(
+        "POST", "/api/v1/scrape/event/stream",
+        json={"url": "https://www.klikego.com/x", "single_heat": False},
+    ) as resp:
+        list(resp.iter_text())
+    assert captured["single_heat"] is False

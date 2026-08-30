@@ -482,6 +482,7 @@ def _scrape_single_heat(
 
 def scrape_event_all(
     event_id: str, heat: str, event_name: str, slug: str,
+    *, on_detail_progress: Callable[[int, int], None] | None = None,
 ) -> list["ScrapedResult"]:
     """Scrape un seul heat Klikego — contrat historique.
 
@@ -490,11 +491,19 @@ def scrape_event_all(
     heat par heat. Ici on préserve la signature originale pour tous les
     appelants directs (tests, batch, `--single-heat`) : sans libellé de heat
     connu à cet appel, `event_name` reste nu (pas de suffixe vide).
+
+    `on_detail_progress(done, total)` (mot-clé, défaut `None` — les appelants
+    historiques ne le passent pas) relaie la progression de la phase C à
+    `_scrape_single_heat`, qui la rapporte déjà au fan-out. Sans lui, le flux
+    SSE d'un import mono-heat restait **muet** de bout en bout, alors même que
+    la phase C est la partie lente (jusqu'à ~250 finishers dans un seul heat,
+    #583) — revue finale de #698.
     """
     with http.client(timeout=30, headers=HEADERS) as client:
         _, event_date = _fetch_event_meta(event_id, slug, client)
         return _scrape_single_heat(
             event_id, heat, "", event_name, slug, event_date, client,
+            on_detail_progress=on_detail_progress,
         )
 
 

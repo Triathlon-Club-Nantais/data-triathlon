@@ -1,12 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { apiClient } from "@/lib/api/client";
+import { apiClient, type DetectedProvider } from "@/lib/api/client";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useProviders } from "@/lib/queries/batches";
 import { providerLabel } from "@/lib/constants";
 import { FormatChip } from "@/components/tcn";
-
-type Detected = { provider: string; supported: boolean };
 
 /** Hauteur du verdict, réservée avant qu'il n'existe.
  *
@@ -36,15 +34,17 @@ export function ProviderDetector({
 }: {
   url: string;
   /** Relaie chaque détection au parent — `null` tant qu'aucune n'est connue —
-   *  pour qu'un écran puisse réagir sans dupliquer l'appel `detectProvider`. */
-  onDetected?: (detected: Detected | null) => void;
+   *  pour qu'un écran puisse réagir sans dupliquer l'appel `detectProvider`.
+   *  Le type vient de `client.ts` : le déclarer ici en avait fait une version
+   *  étroite, qui rabotait `fanout`/`default_single_heat` en route (#698). */
+  onDetected?: (detected: DetectedProvider | null) => void;
   /** La sortie offerte sur adresse non reconnue. Absent, rien n'est proposé :
    *  c'est le cas quand une participation vient d'être saisie à la main, et que
    *  réinviter à la saisir contredirait l'accusé de réception. */
   onSaisieManuelle?: () => void;
 }) {
   const debounced = useDebounce(url, 400);
-  const [detected, setDetected] = useState<Detected | null>(null);
+  const [detected, setDetected] = useState<DetectedProvider | null>(null);
 
   useEffect(() => {
     if (!debounced || !debounced.startsWith("http")) {

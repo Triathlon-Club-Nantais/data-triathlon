@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { captureEvent } from "@/lib/posthog";
 import { Card, Input, Button, Alert, PendingBadge, AnnonceStatut } from "@/components/tcn";
-import { apiClient } from "@/lib/api/client";
+import { apiClient, type DetectedProvider } from "@/lib/api/client";
 import { eventTypeLabel } from "@/lib/constants";
 import { eventTypeColor } from "@/lib/sport-colors";
 import { formatEventName } from "@/lib/utils/event";
@@ -31,9 +31,17 @@ export function TcnScrapeForm() {
   // d'import : elle permet d'avertir avant même le clic sur « Enregistrer les
   // résultats », plutôt que d'attendre l'échec réel du scrape.
   const [providerUnsupported, setProviderUnsupported] = useState(false);
+  // Portée de l'import (#698) : le contrôle ne s'affiche que si `fanout` est
+  // vrai, et `singleHeat` est réinitialisé au défaut serveur à chaque
+  // nouvelle détection — le front ne recalcule jamais ce défaut lui-même,
+  // même principe que `providerUnsupported`.
+  const [fanout, setFanout] = useState(false);
+  const [singleHeat, setSingleHeat] = useState(true);
   const handleProviderDetected = useCallback(
-    (detected: { provider: string; supported: boolean } | null) => {
+    (detected: DetectedProvider | null) => {
       setProviderUnsupported(detected !== null && !detected.supported);
+      setFanout(detected?.fanout ?? false);
+      setSingleHeat(detected?.default_single_heat ?? true);
     },
     [],
   );
@@ -129,8 +137,8 @@ export function TcnScrapeForm() {
     setSecondes(0);
     setSaved(null);
     captureEvent("results_import_started", { url: v });
-    importStream.start(v);
-  }, [url, running, providerUnsupported, importStream]);
+    importStream.start(v, singleHeat);
+  }, [url, running, providerUnsupported, singleHeat, importStream]);
 
   // Sur échec de lecture **avéré** : signaler le fournisseur + proposer la
   // saisie manuelle. Un plafond de débit ou un service muet ne disent rien de
@@ -313,6 +321,42 @@ export function TcnScrapeForm() {
                 onSaisieManuelle={saved || running ? undefined : () => setManual(true)}
               />
             </div>
+            {/* `<fieldset>`/`<legend>` plutôt qu'un `role="radiogroup"` porté par
+                une div et nommé par `aria-label` : ce dernier est **invisible**
+                aux yeux, et l'utilisateur voyait deux options sans savoir de
+                quoi elles étaient les deux faces. Patron déjà en place dans
+                `PermissionGrid`. Le `role="group"` implicite du `<fieldset>`
+                remplace `radiogroup` : les deux boutons restent groupés par la
+                frontière du fieldset et par leur `name` commun. */}
+            {fanout && (
+              <fieldset
+                style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4, fontSize: 14 }}
+              >
+                <legend style={{ fontWeight: 600, color: "var(--tcn-text-body)", marginBottom: 2 }}>
+                  Portée de l&apos;import
+                </legend>
+                <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="radio"
+                    name="scrape-scope"
+                    checked={singleHeat}
+                    onChange={() => setSingleHeat(true)}
+                    disabled={running}
+                  />
+                  Importer uniquement cette page
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <input
+                    type="radio"
+                    name="scrape-scope"
+                    checked={!singleHeat}
+                    onChange={() => setSingleHeat(false)}
+                    disabled={running}
+                  />
+                  Importer tout l&apos;événement (toutes ses épreuves)
+                </label>
+              </fieldset>
+            )}
           </div>
           {/* `providerUnsupported` dans `disabled` : le bouton restait actif et
               promettait le contraire du verdict affiché sous le champ (ACT-6).

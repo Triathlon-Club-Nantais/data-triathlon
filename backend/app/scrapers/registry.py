@@ -151,6 +151,27 @@ class FanoutProvider(HostMatchedProvider):
     def __init__(self) -> None:
         self.last_trace: FanoutTrace | None = None
 
+    def targets_single_heat(self, url: str) -> bool:
+        """Vrai si l'URL cible déjà une sous-unité précise (#698).
+
+        Défaut `False` : ces providers fan-out n'ont aucun sélecteur de
+        sous-unité dans l'URL — Wiclax, RaceResult, OkTime, Sporthive,
+        ChronoWeb, Chronoplace. Leur `single_heat=True` vaut « pas de
+        fan-out », jamais « cibler cette sous-unité précise » : il rend
+        **exactement le même volume** de participants que le fan-out, en
+        perdant au passage la `source_url` par sous-unité, le cache TTL par
+        sous-unité et la vraie `FanoutTrace`. Le défaut est donc bien `False`
+        pour eux — pré-cocher « import unique » y serait strictement moins bon
+        pour zéro contrepartie (revue finale #698).
+
+        Trois la surchargent, parce que leur URL porte réellement le sélecteur
+        que `single_heat=True` honore : Klikego (`?heat=`), BreizhChrono
+        (segment de chemin ou `?heat=` côté live) et ProLiveSport (`race=`).
+        `GET /scrape/detect` s'en sert pour ne proposer « import unique » par
+        défaut que sur une URL où ce chemin cible vraiment quelque chose.
+        """
+        return False
+
     def scrape_event_all(
         self, url: str,
         *,
@@ -232,6 +253,11 @@ class KlikegoProvider(FanoutProvider):
         event_name = slug.replace("-", " ").title() if slug else ""
         return event_id, heat, slug, event_name
 
+    def targets_single_heat(self, url: str) -> bool:
+        """Vrai si l'URL porte déjà un `?heat=` non vide (#698)."""
+        _, heat_query, _, _ = self._parse_url(url)
+        return bool(heat_query)
+
     def scrape_event_all(
         self, url: str,
         *,
@@ -244,7 +270,12 @@ class KlikegoProvider(FanoutProvider):
 
         `on_detail_progress` (#583) : seul Klikego a une phase C coûteuse par
         participant — c'est pourquoi ce paramètre n'existe que sur ce provider,
-        et pas sur `FanoutProvider.scrape_event_all`.
+        et pas sur `FanoutProvider.scrape_event_all`. Il vaut sur **les deux**
+        chemins depuis la revue finale de #698 : un heat unique de 250
+        finishers est justement le cas où le flux SSE resterait muet le plus
+        longtemps. Le heat visé étant seul, il est notifié en `1/1`, avec son
+        jeton d'URL pour libellé — Klikego ne publie le libellé d'un heat que
+        dans la page d'événement, que le chemin mono-heat ne charge pas.
         """
         event_id, heat_query, slug, event_name = self._parse_url(url)
 
@@ -252,8 +283,15 @@ class KlikegoProvider(FanoutProvider):
             # Chemin échappatoire (--single-heat) : nécessite ?heat=X dans l'URL.
             # La validation CLI (validators) doit refuser une URL nue avant d'arriver ici.
             self.last_trace = FanoutTrace(heats_enumerated=1)
+            detail_progress = None
+            if on_detail_progress is not None:
+                def detail_progress(done: int, total: int) -> None:
+                    on_detail_progress(heat_query, heat_query, 1, 1, done, total)
             try:
-                return klikego.scrape_event_all(event_id, heat_query, event_name, slug)
+                return klikego.scrape_event_all(
+                    event_id, heat_query, event_name, slug,
+                    on_detail_progress=detail_progress,
+                )
             except Exception as exc:
                 self.last_trace.failures.append(
                     {"heat_slug": heat_query, "reason": str(exc)}
@@ -287,6 +325,17 @@ class BreizhChronoProvider(FanoutProvider):
     """
     name = "breizhchrono"
     _HOSTS = ("breizhchrono.com",)
+
+    def targets_single_heat(self, url: str) -> bool:
+        """Vrai si l'URL fixe déjà un heat — chemin classique ou `?heat=` live
+        (#698). Même détection que `scrape_event_all`, sans effet de bord."""
+        from app.scrapers.breizhchrono import _parse_bc_url, _parse_live_url
+
+        if _url_host(url) == breizhchrono.LIVE_HOST:
+            _, heat = _parse_live_url(url)
+            return bool(heat)
+        _, heat, _ = _parse_bc_url(url)
+        return bool(heat)
 
     def scrape_event_all(
         self, url: str,
@@ -418,14 +467,25 @@ class ChronoplaceProvider(FanoutProvider):
 
     _module = chronoplace
 
-    # Pas d'échappatoire `single_heat` : la signature ne l'accepte pas, une URL
-    # Chronoplace désigne toujours l'événement entier.
     def scrape_event_all(
         self, url: str,
         *,
         cache_probe: Callable[[str], bool] | None = None,
         on_heat_start: Callable[[str, str, int, int], None] | None = None,
+        single_heat: bool = False,
     ) -> list[ScrapedResult]:
+        """Fan-out par défaut ; `single_heat=True` (#698) retombe sur l'épreuve
+        visée par l'URL seule, sans ses onglets sœurs — même patron que
+        `ChronoWebProvider.scrape_event_all`. Chronoplace n'a pas de sélecteur
+        de sous-unité dans l'URL : `targets_single_heat` reste le défaut
+        `False` de `FanoutProvider`, comme Wiclax, RaceResult, OkTime,
+        Sporthive et ChronoWeb — les 5 autres providers fan-out sans sélecteur
+        d'URL (les noms plutôt qu'un compte : un compte se périme en silence au
+        prochain provider, comme constaté en revue finale de #698).
+        """
+        if single_heat:
+            self.last_trace = FanoutTrace()
+            return chronoplace.scrape_event_all(url)
         results, trace = chronoplace.scrape_event_fanout(
             url, cache_probe=cache_probe, on_heat_start=on_heat_start,
         )
@@ -549,6 +609,26 @@ class ProLiveSportProvider(FanoutProvider):
     _HOSTS = ("prolivesport.fr",)
 
     _module = prolivesport
+
+    def targets_single_heat(self, url: str) -> bool:
+        """Vrai si l'URL porte déjà un jeton `race` non vide (#698).
+
+        C'est exactement ce que lit `scrape_event_all` : `_parse_url` rend le
+        `?race=` de la query ou le second segment de `/result/{eventId}/{race}`,
+        puis `_resolve_race` le résout en code de course et le scrape **filtre**
+        les lignes dessus. Jeton vide, `_resolve_race` retombe sur la première
+        course de l'événement — un défaut, pas une cible choisie par l'utilisateur.
+
+        `_parse_url` **lève** sur une URL de série (aucun `eventId` à en tirer).
+        On rend `False` plutôt que de laisser `GET /scrape/detect` répondre 500 :
+        la détection n'a pas à trancher ici ce que le scrape refusera de toute
+        façon, avec son message à lui.
+        """
+        try:
+            _, race = prolivesport._parse_url(url)
+        except ValueError:
+            return False
+        return bool(race)
 
 
 class T2AreaProvider:

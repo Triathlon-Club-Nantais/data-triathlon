@@ -140,13 +140,33 @@ async function upload<T>(path: string, form: FormData): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** Réponse de `GET /scrape/detect` — le contrat, écrit **une seule fois**.
+ *
+ *  `ProviderDetector` le relaie tel quel à son parent, `TcnScrapeForm` en tire
+ *  la portée de l'import : la forme était déclarée dans les trois fichiers, la
+ *  plus étroite (`{provider, supported}`) rabotant au passage les deux champs
+ *  de #698 pour qui lisait celle-là. Un champ ajouté ici arrive désormais
+ *  partout, ou nulle part.
+ *
+ *  `fanout`/`default_single_heat` sont optionnels : c'est un contrat `/api/v1`
+ *  publié, et le front doit rester lisible face à un backend antérieur à #698.
+ */
+export type DetectedProvider = {
+  provider: string;
+  supported: boolean;
+  /** Le provider fan-oute-t-il, et la bascule a-t-elle un sens sur **cette**
+   *  URL ? `false` aussi quand le backend sait que le choix serait ignoré
+   *  (URL BreizhChrono fixant déjà un heat). */
+  fanout?: boolean;
+  /** Ce que le backend recommande de pré-cocher — jamais recalculé ici. */
+  default_single_heat?: boolean;
+};
+
 export const apiClient = {
   // `supported` vient du registre backend : le front ne tient aucune liste de
   // providers (la sienne avait divergé, cf. ProviderDetector).
   detectProvider: (url: string) =>
-    request<{ provider: string; supported: boolean }>(
-      `/scrape/detect${toQuery({ url })}`,
-    ),
+    request<DetectedProvider>(`/scrape/detect${toQuery({ url })}`),
 
   // Même registre, même ordre de détection : le sélecteur de fournisseur du
   // batch ne peut donc proposer que des noms que le lancement accepte.

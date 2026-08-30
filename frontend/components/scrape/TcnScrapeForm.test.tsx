@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { act, render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { HeatFailure, ImportedCourse } from "@/lib/types";
@@ -254,7 +254,7 @@ describe("TcnScrapeForm — validation de l'URL avant appel backend (#249)", () 
     expect(bouton).not.toBeDisabled();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     await userEvent.click(bouton);
-    expect(importMock.start).toHaveBeenCalledWith("https://www.klikego.com/resultats/x");
+    expect(importMock.start).toHaveBeenCalledWith("https://www.klikego.com/resultats/x", true);
   });
 });
 
@@ -389,6 +389,80 @@ describe("TcnScrapeForm — un seul verdict avant d'essayer (#492, ACT-6)", () =
   });
 });
 
+describe("TcnScrapeForm — portée de l'import (#698)", () => {
+  it("n'affiche pas le contrôle pour un provider sans fanout", async () => {
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({
+      provider: "timepulse", supported: true, fanout: false, default_single_heat: true,
+    });
+    renderForm();
+    await userEvent.type(champUrl(), "https://timepulse.fr/x");
+    // Le verdict d'abord : `toHaveBeenCalled` ne prouve que l'**appel**, et
+    // l'absence était donc constatée avant même que la réponse résolue ait été
+    // rendue — un négatif qui serait passé quoi qu'affiche le composant.
+    await screen.findByText(/Chronométreur reconnu/);
+    expect(screen.queryByRole("group", { name: /Portée de l'import/ })).not.toBeInTheDocument();
+  });
+
+  it("nomme le groupe d'options à l'écran, pas seulement aux lecteurs d'écran", async () => {
+    // `aria-label` sur un `role="radiogroup"` est invisible aux yeux : les deux
+    // options s'affichaient sans que rien ne dise de quoi elles sont les deux
+    // faces. `<fieldset>`/`<legend>` nomme le groupe pour tout le monde.
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({
+      provider: "klikego", supported: true, fanout: true, default_single_heat: true,
+    });
+    renderForm();
+    await userEvent.type(champUrl(), "https://www.klikego.com/resultats/foo/1?heat=x");
+
+    const groupe = await screen.findByRole("group", { name: /Portée de l'import/ });
+    expect(within(groupe).getByText("Portée de l'import")).toBeVisible();
+  });
+
+  it("affiche le contrôle et pré-coche « import unique » quand le serveur le recommande", async () => {
+    // Klikego sur une URL portant `?heat=` : depuis la revue finale de #698,
+    // c'est le seul genre de réponse où le backend recommande vraiment
+    // « import unique » — un fan-out sans sélecteur d'URL rend `false`.
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({
+      provider: "klikego", supported: true, fanout: true, default_single_heat: true,
+    });
+    renderForm();
+    await userEvent.type(champUrl(), "https://www.klikego.com/resultats/foo/1?heat=triathlon-s");
+    await waitFor(() =>
+      expect(screen.getByRole("radio", { name: /uniquement cette page/ })).toBeChecked(),
+    );
+    expect(screen.getByRole("radio", { name: /tout l.événement/ })).not.toBeChecked();
+  });
+
+  it("pré-coche « fanout complet » quand le serveur le recommande (Klikego sans sélecteur)", async () => {
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({
+      provider: "klikego", supported: true, fanout: true, default_single_heat: false,
+    });
+    renderForm();
+    await userEvent.type(champUrl(), "https://www.klikego.com/resultats/foo/1");
+    await waitFor(() =>
+      expect(screen.getByRole("radio", { name: /tout l.événement/ })).toBeChecked(),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Enregistrer les résultats/ }));
+    expect(importMock.start).toHaveBeenCalledWith(
+      "https://www.klikego.com/resultats/foo/1", false,
+    );
+  });
+
+  it("permet de basculer vers le fanout complet, et `start` reçoit `false`", async () => {
+    const url = "https://www.klikego.com/resultats/foo/1?heat=triathlon-s";
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({
+      provider: "klikego", supported: true, fanout: true, default_single_heat: true,
+    });
+    renderForm();
+    await userEvent.type(champUrl(), url);
+    await waitFor(() =>
+      expect(screen.getByRole("radio", { name: /tout l.événement/ })).toBeInTheDocument(),
+    );
+    await userEvent.click(screen.getByRole("radio", { name: /tout l.événement/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Enregistrer les résultats/ }));
+    expect(importMock.start).toHaveBeenCalledWith(url, false);
+  });
+});
+
 describe("TcnScrapeForm — le champ URL au doigt (#492, ACT-5)", () => {
   it("déclare le clavier que ce champ attend", async () => {
     renderForm();
@@ -476,7 +550,7 @@ describe("TcnScrapeForm — trois échecs, trois écrans (#491, ACT-2)", () => {
     expect(apiClient.reportPendingProvider).not.toHaveBeenCalled();
 
     await userEvent.click(screen.getByRole("button", { name: "Réessayer" }));
-    expect(importMock.start).toHaveBeenCalledWith("https://www.klikego.com/resultats/x");
+    expect(importMock.start).toHaveBeenCalledWith("https://www.klikego.com/resultats/x", true);
   });
 
   it("coupure réseau : même écran que le service muet", async () => {
