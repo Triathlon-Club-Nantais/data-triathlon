@@ -59,6 +59,8 @@ CODES_ATTENDUS = {
     "counter_scope:manage",
     "club_aliases:manage",
     "admin_log:read",
+    "benevolat:read",
+    "benevolat:manage",
 }
 
 

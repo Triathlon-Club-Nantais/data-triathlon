@@ -1146,6 +1146,37 @@ export interface FeedbackCreated {
   status: string;
 }
 
+/** Corps de `POST /api/v1/volunteer-declarations` (#751) — self-service, aucun
+ * champ bénéficiaire (déduit de la session côté serveur). */
+export interface VolunteerDeclarationCreate {
+  title: string;
+  description: string;
+}
+
+export interface VolunteerDeclaration {
+  id: number;
+  title: string;
+  description: string;
+  status: "en_attente" | "validee";
+  beneficiary_user_id: number;
+  author_user_id: number;
+  created_at: string;
+}
+
+/** Corps de `POST /admin/volunteer-declarations` — réservé à `benevolat:manage`. */
+export interface AdminVolunteerDeclarationCreate {
+  title: string;
+  description: string;
+  beneficiary_user_id: number;
+}
+
+/** Étend `VolunteerDeclaration` avec l'identité du bénéficiaire, pour la vue
+ * d'ensemble admin. */
+export interface AdminVolunteerDeclaration extends VolunteerDeclaration {
+  beneficiary_display_name: string;
+  beneficiary_email: string;
+}
+
 /** Un retour utilisateur, tel que rendu à un pouvoir `feedback:read`. */
 export interface Feedback {
   id: number;

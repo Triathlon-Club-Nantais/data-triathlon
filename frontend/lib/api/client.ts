@@ -5,6 +5,8 @@ import type {
   AdminAthleteUpdate,
   AdminCourseUpdate,
   AdminUser,
+  AdminVolunteerDeclaration,
+  AdminVolunteerDeclarationCreate,
   AllowedEmail,
   AthleteBrief,
   AthleteDetail,
@@ -64,6 +66,8 @@ import type {
   SeasonValidation,
   ValidationQueueHistory,
   VolunteerAction,
+  VolunteerDeclaration,
+  VolunteerDeclarationCreate,
 } from "@/lib/types";
 
 const BASE = "/api/v1";
@@ -647,4 +651,31 @@ export const apiClient = {
       method: "PATCH",
       body: JSON.stringify(champs),
     }),
+
+  // ── Déclarations de bénévolat (#751) ───────────────────────────────────────
+  // Self-service, authentifié (`current_user`) — aucun pouvoir RBAC requis.
+  createVolunteerDeclaration: (body: VolunteerDeclarationCreate) =>
+    request<VolunteerDeclaration>("/volunteer-declarations", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  listMyVolunteerDeclarations: () =>
+    request<VolunteerDeclaration[]>("/volunteer-declarations"),
+  deleteMyVolunteerDeclaration: (id: number) =>
+    request<void>(`/volunteer-declarations/${id}`, { method: "DELETE" }),
+
+  // Admin — `benevolat:read`/`benevolat:manage`.
+  listAllVolunteerDeclarations: () =>
+    request<AdminVolunteerDeclaration[]>("/admin/volunteer-declarations"),
+  adminCreateVolunteerDeclaration: (body: AdminVolunteerDeclarationCreate) =>
+    request<AdminVolunteerDeclaration>("/admin/volunteer-declarations", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  validateVolunteerDeclaration: (id: number) =>
+    request<AdminVolunteerDeclaration>(`/admin/volunteer-declarations/${id}/validate`, {
+      method: "POST",
+    }),
+  adminDeleteVolunteerDeclaration: (id: number) =>
+    request<void>(`/admin/volunteer-declarations/${id}`, { method: "DELETE" }),
 };
