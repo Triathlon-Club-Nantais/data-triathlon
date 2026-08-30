@@ -236,6 +236,14 @@ export const NAV: NavSection[] = [
         permission: "counter_scope:manage",
       },
       {
+        id: "a-variantes-club",
+        label: "Variantes de club",
+        description:
+          "Regrouper les orthographes d'un même club — hors TCN, qui garde son propre réglage — sous un nom affiché commun, pour « Top clubs » et le filtre du classement.",
+        href: "/admin/variantes-club",
+        permission: "club_aliases:manage",
+      },
+      {
         id: "a-journal",
         label: "Journal d'administration",
         description:
