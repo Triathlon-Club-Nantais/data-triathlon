@@ -98,8 +98,9 @@ Trois choses à ne pas défaire :
   histogramme, `split_keys` — et c'est ce qui garantit que chercher un nom ne
   fait pas tomber l'histogramme à une barre. Elle fixe aussi les colonnes de
   splits du tableau : les déduire des vingt lignes affichées les ferait changer
-  d'une page à l'autre. Une seule requête, six colonnes, aucun objet ORM
-  hydraté ; l'agrégation est en Python parce que l'histogramme n'a pas
+  d'une page à l'autre. Deux requêtes bornées : les participations (six
+  colonnes, aucun objet ORM hydraté), puis la carte des alias de club (#635) ;
+  l'agrégation est en Python parce que l'histogramme n'a pas
   d'expression SQL portable (les temps sont des chaînes `HH:MM:SS`) et que
   `is_tcn` est une liste blanche Python. Les ex æquo de catégories et de clubs
   sont départagés par libellé : `Counter.most_common` les ordonnait par ordre de
