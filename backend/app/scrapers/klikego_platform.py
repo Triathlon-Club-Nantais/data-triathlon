@@ -228,13 +228,24 @@ def parse_data_row(fields: list[str], *, event_id: str, heat: str) -> dict:
     f = (fields + [""] * 12)[:12]
     # `gender_raw` = champ `sexe` du data block (cf. docstring du module) ; on
     # le normalise en `gender` ("M"/"F"), le nom utilisé côté modèle.
-    dossard, _diploma, clt, cltcat, nom, cat, gender_raw, club, _inter, officiel, _reel, _end = f
+    dossard, _diploma, clt, cltcat, nom, cat, gender_raw, club, _inter, officiel, reel, _end = f
 
     status = _STATUS_BY_TOKEN.get(clt.strip().upper(), "")
     nom_fam, prenom = _athlete_identity(nom.strip(), dossard.strip(), event_id=event_id, heat=heat)
     gender = gender_raw.strip().upper()
     if gender == "H":  # alias utilisé par certains systèmes
         gender = "M"
+
+    # #757 — `officiel` (temps canon, décalé par la vague de départ) est le
+    # référentiel nominal, mais certaines épreuves (constaté : Dinard 2024,
+    # Audencia 2024) le publient vide et ne renseignent que `reel` (chrono
+    # net) : sans repli, un finisher bel et bien classé (`clt` numérique)
+    # ressortait sans `total_time`, et `services/mapping.derive_status`
+    # (`STATUS_FINISHER if total_time else STATUS_DNF`) le reclassait en DNF
+    # — d'où le `rank_overall` peuplé sur des participations DNF observé en
+    # base, et le `rank_gap` massif qui en découle (`services/quality.py`,
+    # ranks des finishers restants non contigus).
+    temps = officiel.strip() or reel.strip()
 
     return {
         "bib_number": dossard.strip(),
@@ -245,7 +256,7 @@ def parse_data_row(fields: list[str], *, event_id: str, heat: str) -> dict:
         "club": club.strip(),
         "rank_overall": None if status else _parse_rank(clt),
         "rank_category": None if status else _parse_rank(cltcat),
-        "total_time": "" if status == STATUS_DNS else normalize_time(officiel.strip()),
+        "total_time": "" if status == STATUS_DNS else normalize_time(temps),
         "status": status,
     }
 
