@@ -1422,6 +1422,53 @@ def test_les_filtres_se_cumulent_avec_la_recherche_et_la_portee_club(db_session)
     assert [p.id for p in rows] == [lignes["tcn_v2"].id]
 
 
+def test_le_filtre_club_resout_les_alias_declares(db_session):
+    """Généralisation à tout club de la fusion TCN (#635, suite #200/#215)."""
+    from app.repositories import club_alias_repository
+
+    course, lignes = _classement_filtrable(db_session)
+    club_alias_repository.create_entry(
+        db_session, canonical_name="Blain Triathlon", alias_normalized="blain triathlon",
+        created_by_user_id=None,
+    )
+    db_session.flush()
+
+    rows, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, club="Blain Triathlon"
+    )
+
+    assert total == 2
+    assert {p.id for p in rows} == {lignes["blain_v2"].id, lignes["blain_s1"].id}
+    # « BLAIN TRIATHLON JEUNES » reste hors du filtre : ce n'est pas l'alias déclaré.
+    assert lignes["blain_jeunes"].id not in {p.id for p in rows}
+
+
+def test_le_filtre_club_sans_alias_declare_reste_inchange(db_session):
+    """Additif (Principe IV) : un libellé jamais aliasé garde le comportement d'avant #635."""
+    course, lignes = _classement_filtrable(db_session)
+
+    rows, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, club="TRIATHLON CLUB NANTAIS"
+    )
+
+    assert total == 1
+    assert [p.id for p in rows] == [lignes["tcn_v2"].id]
+
+
+def test_le_filtre_club_resout_le_registre_tcn_sans_passer_par_club_alias(db_session):
+    """Le TCN garde son propre registre (`counter_scope`), séparé de
+    `club_alias` (#635) — demander « TCN » retrouve un participant enregistré
+    sous une autre orthographe TCN, sans qu'aucun alias `club_alias` n'existe."""
+    course, lignes = _classement_filtrable(db_session)
+
+    rows, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, club="TCN"
+    )
+
+    assert total == 1
+    assert [p.id for p in rows] == [lignes["tcn_v2"].id]
+
+
 def test_une_valeur_inconnue_rend_une_selection_vide(db_session):
     course, _ = _classement_filtrable(db_session)
 

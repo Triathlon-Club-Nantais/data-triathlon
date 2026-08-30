@@ -6,13 +6,18 @@ from typing import NamedTuple
 from sqlalchemy import and_, case, func, or_
 from sqlalchemy.orm import Session, aliased, contains_eager, joinedload
 
-from app.core.club import tcn_clause
+from app.core import counter_scope
+
+# `_normalise_sql` est module-privé (`core/club.py`) mais réutilisé tel quel —
+# même miroir SQL que `tcn_clause`, single source of truth (cf. plan #635).
+from app.core.club import _normalise_sql, is_tcn, normalize_club, tcn_clause
 from app.core.discipline import federal_clause
 from app.core.season import season_bounds, season_of
 from app.core.validation import validated_clause
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
+from app.repositories import club_alias_repository
 from app.repositories.athlete_repository import name_filter
 from app.scrapers.base import STATUS_FINISHER
 
@@ -598,6 +603,21 @@ def _ordre_affichage():
     )
 
 
+def _club_filter_targets(db: Session, club: str) -> set[str]:
+    """Les formes normalisées qu'un filtre `club=` doit retenir (#635).
+
+    Additif par rapport à l'égalité stricte d'avant #635 : un libellé sans
+    alias déclaré retombe sur sa seule forme normalisée — comportement
+    inchangé, rien de ce qui matchait avant ne cesse de matcher (Principe IV).
+    Le TCN reste gouverné par son propre registre
+    (`counter_scope.tcn_club_labels`), jamais par `club_alias` : les deux
+    mécanismes restent séparés (cf. design #635).
+    """
+    if is_tcn(club):
+        return set(counter_scope.tcn_club_labels())
+    return club_alias_repository.aliases_for_canonical(db, club) | {normalize_club(club)}
+
+
 def list_page_for_course(
     db: Session,
     course_id: int,
@@ -616,12 +636,17 @@ def list_page_for_course(
     catégorie comprises —, pas sur l'épreuve : les décomptes d'épreuve vivent
     dans la synthèse.
 
-    `club` et `category` filtrent en **égalité exacte** (#486). Les valeurs
-    proposées à l'écran sont littéralement les chaînes stockées, puisqu'elles
-    viennent d'un `Counter` sur ces deux colonnes : une comparaison partielle
-    ferait « BLAIN TRIATHLON » ramasser « BLAIN TRIATHLON JEUNES », et le
-    compteur de la carte divergerait du total du classement — le défaut que le
-    lot #485 vient de corriger.
+    `category` filtre en **égalité exacte** (#486) : les valeurs proposées à
+    l'écran sont littéralement les chaînes stockées, puisqu'elles viennent
+    d'un `Counter` sur cette colonne. `club`, lui, compare des formes
+    **normalisées** depuis #635 (`_club_filter_targets`) : un alias déclaré
+    dans `club_aliases`, ou — pour le TCN — le registre séparé
+    `counter_scope.tcn_club_labels`, élargit la comparaison au-delà de la
+    valeur brute demandée. Additif : un libellé sans alias déclaré retombe sur
+    sa seule forme normalisée, donc un « BLAIN TRIATHLON JEUNES » stocké ne
+    se fait toujours pas ramasser par un filtre « BLAIN TRIATHLON » tant
+    qu'aucun alias ne les relie explicitement — le défaut que le lot #485
+    avait corrigé reste corrigé.
 
     `club` n'a rien à voir avec `club_only`, qui porte la sémantique **TCN**
     arbitrée par `app/core/club.py` (dépositaire unique, #76). Les deux se
@@ -650,7 +675,7 @@ def list_page_for_course(
     if club_only:
         query = query.filter(tcn_clause(Participation.club))
     if club:
-        query = query.filter(Participation.club == club)
+        query = query.filter(_normalise_sql(Participation.club).in_(_club_filter_targets(db, club)))
     if category:
         query = query.filter(Participation.category == category)
     terme = (q or "").strip()
