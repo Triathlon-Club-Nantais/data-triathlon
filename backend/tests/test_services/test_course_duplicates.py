@@ -18,9 +18,15 @@ from datetime import date
 import pytest
 
 from app.core import sql_observability
+from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.models.athlete import Athlete
 from app.models.participation import Participation
-from app.repositories import course_repository
+from app.repositories import (
+    admin_action_log_repository,
+    course_repository,
+    ignored_course_duplicate_repository,
+    user_repository,
+)
 from app.services import course_duplicates
 
 # --- Les URLs réelles des trois cas connus -----------------------------------
@@ -131,6 +137,12 @@ def _epreuve(
         )
     db_session.flush()
     return course
+
+
+def _auteur(db_session, email="admin@exemple.fr"):
+    user = user_repository.create(db_session, email=email)
+    db_session.flush()
+    return user
 
 
 def _motifs_par_paire(candidats) -> dict[tuple[int, int], str]:
@@ -427,16 +439,22 @@ def test_une_paire_ne_sort_qu_une_fois_sous_son_motif_le_plus_precis(db_session)
     }
 
 
-def test_la_detection_tient_en_une_requete_quel_que_soit_le_nombre_d_epreuves(
+def test_la_detection_tient_en_deux_requetes_quel_que_soit_le_nombre_d_epreuves(
     db_session, compteur_sql
 ):
-    """AC5 — une requête agrégée, et **aucun** N+1 sur les participations.
+    """AC5 — deux requêtes agrégées, et **aucun** N+1 sur les participations.
 
     Le compteur SQL est le seul filet qui le prouve : lire
     `course.participations` par épreuve donnerait la même réponse, en une requête
     par ligne — invisible en test fonctionnel, et c'est justement le défaut que
     `core/sql_observability` existe pour rendre visible (« 1812 requêtes pour
     1810 participants »).
+
+    Deux et non une depuis #754 : `find_candidates` lit aussi
+    `ignored_course_duplicate_repository.all_pairs` pour filtrer les paires déjà
+    écartées, en une requête supplémentaire — constante elle aussi, jamais une
+    par paire candidate. C'est le compte qui ne bouge pas entre deux et dix
+    épreuves qui prouve l'absence de N+1, pas le chiffre littéral.
     """
     for numero in range(2):
         _epreuve(
@@ -466,8 +484,8 @@ def test_la_detection_tient_en_une_requete_quel_que_soit_le_nombre_d_epreuves(
     with sql_observability.measure_queries("dix épreuves") as dix:
         course_duplicates.find_candidates(db_session)
 
-    assert deux.count == 1
-    assert dix.count == 1
+    assert deux.count == 2
+    assert dix.count == 2
 
 
 def test_categories_frenchkid_par_annee_de_naissance_ne_sont_pas_un_doublon(db_session):
@@ -583,3 +601,204 @@ def test_close_names_reste_couvert_quand_un_seul_cote_porte_un_heat_slug(db_sess
     assert _motifs_par_paire(course_duplicates.find_candidates(db_session)) == {
         (vertou_avec_heat.id, vertou_sans_heat.id): "close_names"
     }
+
+
+# --- Écarter une paire (#754) -------------------------------------------------
+
+
+def test_find_candidates_exclut_une_paire_ecartee(db_session):
+    """Le geste « Ignorer » retire la paire des résultats suivants, pour de bon."""
+    gauche = _epreuve(
+        db_session,
+        name="Triathlon de Vertou - S-Open",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        url=VERTOU_WICLAX,
+        provider="wiclax",
+    )
+    droite = _epreuve(
+        db_session,
+        name="Triathlon de Vertou 2026 - S-Open",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        url=VERTOU_CHRONOSMETRON,
+        provider="wiclax",
+    )
+    auteur = _auteur(db_session)
+    course_duplicates.ignore_pair(
+        db_session, course_id_a=gauche.id, course_id_b=droite.id, user_id=auteur.id
+    )
+
+    assert course_duplicates.find_candidates(db_session) == []
+
+
+def test_find_candidates_n_exclut_que_la_paire_ecartee(db_session):
+    """Écarter une paire ne doit pas faire disparaître les autres suspicions."""
+    vertou_wiclax = _epreuve(
+        db_session,
+        name="Triathlon de Vertou - S-Open",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        url=VERTOU_WICLAX,
+        provider="wiclax",
+    )
+    vertou_chronosmetron = _epreuve(
+        db_session,
+        name="Triathlon de Vertou 2026 - S-Open",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        url=VERTOU_CHRONOSMETRON,
+        provider="wiclax",
+    )
+    nozeen_klikego = _epreuve(
+        db_session,
+        name="6e Duathlon Nozéen 2026",
+        event_date=date(2026, 4, 12),
+        event_type="duathlon-s",
+        url=NOZEEN_2026_KLIKEGO,
+        provider="klikego",
+    )
+    nozeen_breizh = _epreuve(
+        db_session,
+        name="Duathlon Nozéen - Duathlon S Open",
+        event_date=date(2026, 4, 12),
+        event_type="duathlon-s",
+        url=NOZEEN_2026_BREIZH,
+        provider="breizhchrono",
+    )
+    auteur = _auteur(db_session)
+    course_duplicates.ignore_pair(
+        db_session,
+        course_id_a=vertou_wiclax.id,
+        course_id_b=vertou_chronosmetron.id,
+        user_id=auteur.id,
+    )
+
+    assert _motifs_par_paire(course_duplicates.find_candidates(db_session)) == {
+        (nozeen_klikego.id, nozeen_breizh.id): "shared_event_id",
+    }
+
+
+def test_ignore_pair_consigne_l_entree_de_journal(db_session):
+    """Même patron que `course.merge` (`test_admin_course_merge_api.py::_fusions`) :
+    l'audit trail est ce qui rend la décision non répudiable, pas seulement les
+    colonnes `ignored_by_user_id`/`ignored_at` de la ligne elle-même."""
+    gauche = _epreuve(
+        db_session,
+        name="A",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        url="https://www.chronosmetron.com/a",
+        provider="wiclax",
+    )
+    droite = _epreuve(
+        db_session,
+        name="B",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        url="https://www.chronosmetron.com/b",
+        provider="wiclax",
+    )
+    auteur = _auteur(db_session)
+
+    course_duplicates.ignore_pair(
+        db_session, course_id_a=droite.id, course_id_b=gauche.id, user_id=auteur.id
+    )
+
+    (entree,) = admin_action_log_repository.list_for_entity(
+        db_session, entity_type="course_duplicate", entity_id=min(gauche.id, droite.id)
+    )
+    assert entree.action == "course_duplicate.ignore"
+    assert entree.user_id == auteur.id
+    assert entree.payload == {"course_id_a": droite.id, "course_id_b": gauche.id}
+
+
+def test_ignore_pair_persiste_la_decision_normalisee(db_session):
+    """La paire est retrouvable par `exists`, quel que soit l'ordre des ids reçus."""
+    gauche = _epreuve(
+        db_session,
+        name="A",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        url="https://www.chronosmetron.com/a",
+        provider="wiclax",
+    )
+    droite = _epreuve(
+        db_session,
+        name="B",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        url="https://www.chronosmetron.com/b",
+        provider="wiclax",
+    )
+    auteur = _auteur(db_session)
+
+    course_duplicates.ignore_pair(
+        db_session, course_id_a=droite.id, course_id_b=gauche.id, user_id=auteur.id
+    )
+
+    assert ignored_course_duplicate_repository.exists(
+        db_session, course_id_a=gauche.id, course_id_b=droite.id
+    )
+
+
+def test_ignore_pair_refuse_une_epreuve_avec_elle_meme(db_session):
+    course = _epreuve(
+        db_session,
+        name="A",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        url="https://www.chronosmetron.com/a",
+        provider="wiclax",
+    )
+    auteur = _auteur(db_session)
+
+    with pytest.raises(DomainError):
+        course_duplicates.ignore_pair(
+            db_session, course_id_a=course.id, course_id_b=course.id, user_id=auteur.id
+        )
+
+
+def test_ignore_pair_refuse_une_epreuve_inconnue(db_session):
+    course = _epreuve(
+        db_session,
+        name="A",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        url="https://www.chronosmetron.com/a",
+        provider="wiclax",
+    )
+    auteur = _auteur(db_session)
+
+    with pytest.raises(NotFoundError):
+        course_duplicates.ignore_pair(
+            db_session, course_id_a=course.id, course_id_b=999999, user_id=auteur.id
+        )
+
+
+def test_ignore_pair_refuse_une_paire_deja_ecartee(db_session):
+    gauche = _epreuve(
+        db_session,
+        name="A",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        url="https://www.chronosmetron.com/a",
+        provider="wiclax",
+    )
+    droite = _epreuve(
+        db_session,
+        name="B",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        url="https://www.chronosmetron.com/b",
+        provider="wiclax",
+    )
+    auteur = _auteur(db_session)
+    course_duplicates.ignore_pair(
+        db_session, course_id_a=gauche.id, course_id_b=droite.id, user_id=auteur.id
+    )
+
+    with pytest.raises(DuplicateError):
+        course_duplicates.ignore_pair(
+            db_session, course_id_a=droite.id, course_id_b=gauche.id, user_id=auteur.id
+        )

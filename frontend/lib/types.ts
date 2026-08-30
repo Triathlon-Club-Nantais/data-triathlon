@@ -899,6 +899,13 @@ export interface DuplicateCandidateList {
   candidates: DuplicateCandidate[];
 }
 
+/** Ce que l'écran reçoit après avoir écarté une paire de doublons (#754). */
+export interface DuplicateIgnoreResult {
+  course_id_a: number;
+  course_id_b: number;
+  ignored_at: string;
+}
+
 /**
  * Une fiche coureur **complète**, servie derrière le pouvoir `athletes:read` (#117).
  *

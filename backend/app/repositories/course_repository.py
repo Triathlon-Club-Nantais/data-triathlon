@@ -9,6 +9,7 @@ from app.core.time import utcnow
 from app.core.validation import validated_clause
 from app.models.course import Course
 from app.models.course_source import CourseSource
+from app.repositories import ignored_course_duplicate_repository
 
 
 def get(db: Session, course_id: int) -> Course | None:
@@ -307,7 +308,15 @@ def delete(db: Session, course: Course) -> None:
     ligne — quelques secondes pour une épreuve de 3 000 finishers, sur un geste
     d'administration ponctuel. Si le volume change de nature, la sortie est un
     delete en masse plus un `ondelete` en base, avec le PRAGMA qui va avec.
+
+    **`ignored_course_duplicate_repository.delete_for_course` d'abord** (#754) :
+    cette table n'a ni cascade ORM ni `ondelete` vers `courses.id` — sans ce
+    nettoyage, une paire ignorée impliquant cette épreuve survivrait au
+    `db.delete(course)` qui suit, invisible en SQLite mais un
+    `ForeignKeyViolation` en PostgreSQL. Ce même appel couvre la fusion (#287),
+    qui supprime l'absorbée par ce chemin.
     """
+    ignored_course_duplicate_repository.delete_for_course(db, course.id)
     db.delete(course)
 
 
@@ -335,11 +344,17 @@ def delete_all(db: Session) -> int:
     instance encore en mémoire. Un appelant qui relirait une épreuve dans la
     **même** session avant ce `commit` obtiendrait une instance périmée ;
     aucun appelant de ce dépôt ne le fait aujourd'hui.
+
+    **`ignored_course_duplicate_repository.delete_all` avant `courses`** (#754),
+    même raison que dans `delete()` : cette table n'a ni cascade ORM ni
+    `ondelete` vers `courses.id`, et une seule paire jamais ignorée suffirait à
+    faire échouer ce `DELETE` de masse en PostgreSQL.
     """
     from app.models.participation import Participation
 
     db.query(Participation).delete(synchronize_session=False)
     db.query(CourseSource).delete(synchronize_session=False)
+    ignored_course_duplicate_repository.delete_all(db)
     efface = db.query(Course).delete(synchronize_session=False)
     db.flush()
     return efface

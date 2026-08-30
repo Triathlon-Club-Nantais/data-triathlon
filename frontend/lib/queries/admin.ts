@@ -282,6 +282,26 @@ export function useMergeCourses() {
 }
 
 /**
+ * Écarte une paire de doublons suspects (#754) : un faux positif vérifié une
+ * fois par un humain ne doit plus revenir au chargement suivant.
+ *
+ * Contrairement à `useMergeCourses`, aucune invalidation de `CACHES_ADMIN.courses` :
+ * ignorer une paire ne touche à aucune donnée d'épreuve, seulement à l'état
+ * d'exclusion que `find_candidates` filtre côté serveur. `queryKeys.courseDuplicates()`
+ * suffit à périmer aussi le compte (#726) — même préfixe, à dessein.
+ */
+export function useIgnoreCourseDuplicate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ courseIdA, courseIdB }: { courseIdA: number; courseIdB: number }) =>
+      apiClient.ignoreCourseDuplicate(courseIdA, courseIdB),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.courseDuplicates() });
+    },
+  });
+}
+
+/**
  * Recherche de coureurs réservée — la seule lecture qui rend une date de naissance.
  *
  * `enabled` sur une saisie non vide : sans lui, l'ouverture d'une modale

@@ -175,3 +175,94 @@ def test_une_base_sans_doublon_rend_un_compte_a_zero(client, ouvrir_session, db_
 
     assert reponse.status_code == 200
     assert reponse.json() == {"total": 0}
+
+
+# --- POST /admin/courses/duplicates/ignore (#754) ---------------------------
+
+IGNORE_URL = "/api/v1/admin/courses/duplicates/ignore"
+
+
+def test_sans_session_ignorer_est_refuse(client, mesquer, db_session):
+    (swimrun, triathlon) = course_repository.list_identities_with_counts(db_session)[:2]
+
+    reponse = client.post(
+        IGNORE_URL, json={"course_id_a": swimrun.id, "course_id_b": triathlon.id}
+    )
+
+    assert reponse.status_code == 401
+
+
+def test_un_autre_pouvoir_ne_permet_pas_d_ignorer(client, ouvrir_session, mesquer, db_session):
+    """`courses:write` ne suffit pas — même garde que la liste et le compte."""
+    ouvrir_session(P.COURSES_WRITE)
+    (swimrun, triathlon) = course_repository.list_identities_with_counts(db_session)[:2]
+
+    reponse = client.post(
+        IGNORE_URL, json={"course_id_a": swimrun.id, "course_id_b": triathlon.id}
+    )
+
+    assert reponse.status_code == 403
+
+
+def test_courses_sources_suffit_a_ignorer_une_paire(client, ouvrir_session, mesquer, db_session):
+    """`courses:sources` seul, sans `courses:delete` : ignorer ne détruit rien (#754)."""
+    ouvrir_session(P.COURSES_SOURCES)
+    (swimrun, triathlon) = course_repository.list_identities_with_counts(db_session)[:2]
+
+    reponse = client.post(
+        IGNORE_URL, json={"course_id_a": swimrun.id, "course_id_b": triathlon.id}
+    )
+
+    assert reponse.status_code == 201
+    corps = reponse.json()
+    assert {corps["course_id_a"], corps["course_id_b"]} == {swimrun.id, triathlon.id}
+    assert corps["ignored_at"]
+
+
+def test_une_paire_ignoree_ne_revient_plus_dans_la_liste(
+    client, ouvrir_session, mesquer, db_session
+):
+    ouvrir_session(P.COURSES_SOURCES)
+    (swimrun, triathlon) = course_repository.list_identities_with_counts(db_session)[:2]
+    client.post(IGNORE_URL, json={"course_id_a": swimrun.id, "course_id_b": triathlon.id})
+
+    reponse = client.get(URL)
+
+    assert reponse.status_code == 200
+    assert reponse.json() == {"candidates": []}
+
+
+def test_ignorer_deux_fois_la_meme_paire_est_un_409(client, ouvrir_session, mesquer, db_session):
+    ouvrir_session(P.COURSES_SOURCES)
+    (swimrun, triathlon) = course_repository.list_identities_with_counts(db_session)[:2]
+    client.post(IGNORE_URL, json={"course_id_a": swimrun.id, "course_id_b": triathlon.id})
+
+    reponse = client.post(
+        IGNORE_URL, json={"course_id_a": triathlon.id, "course_id_b": swimrun.id}
+    )
+
+    assert reponse.status_code == 409
+
+
+def test_ignorer_une_epreuve_avec_elle_meme_est_un_400(
+    client, ouvrir_session, mesquer, db_session
+):
+    ouvrir_session(P.COURSES_SOURCES)
+    (swimrun, _) = course_repository.list_identities_with_counts(db_session)[:2]
+
+    reponse = client.post(
+        IGNORE_URL, json={"course_id_a": swimrun.id, "course_id_b": swimrun.id}
+    )
+
+    assert reponse.status_code == 400
+
+
+def test_ignorer_une_epreuve_inconnue_est_un_404(client, ouvrir_session, mesquer, db_session):
+    ouvrir_session(P.COURSES_SOURCES)
+    (swimrun, _) = course_repository.list_identities_with_counts(db_session)[:2]
+
+    reponse = client.post(
+        IGNORE_URL, json={"course_id_a": swimrun.id, "course_id_b": 999999}
+    )
+
+    assert reponse.status_code == 404

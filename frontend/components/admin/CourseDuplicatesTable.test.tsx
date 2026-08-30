@@ -1,18 +1,30 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
+import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
+import { confirmerDansLeDialog } from "@/components/admin/__tests__/dangerConfirm";
 import type { DuplicateCandidateList, SessionUser } from "@/lib/types";
 
-const { listCourseDuplicates, getSession } = vi.hoisted(() => ({
-  listCourseDuplicates: vi.fn(),
-  getSession: vi.fn(),
-}));
+const { listCourseDuplicates, getSession, ignoreCourseDuplicate, toastError, toastSuccess } =
+  vi.hoisted(() => ({
+    listCourseDuplicates: vi.fn(),
+    getSession: vi.fn(),
+    ignoreCourseDuplicate: vi.fn(),
+    toastError: vi.fn(),
+    toastSuccess: vi.fn(),
+  }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { listCourseDuplicates, getSession } };
+  return {
+    ...original,
+    apiClient: { listCourseDuplicates, getSession, ignoreCourseDuplicate },
+  };
 });
+
+vi.mock("sonner", () => ({ toast: { error: toastError, success: toastSuccess } }));
 
 import { CourseDuplicatesTable } from "./CourseDuplicatesTable";
 
@@ -72,7 +84,9 @@ function afficher() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <CourseDuplicatesTable />
+      <DangerConfirmProvider>
+        <CourseDuplicatesTable />
+      </DangerConfirmProvider>
     </QueryClientProvider>,
   );
 }
@@ -153,5 +167,86 @@ describe("CourseDuplicatesTable", () => {
 
     expect(await screen.findByText(/accès refusé/i)).toBeInTheDocument();
     expect(screen.queryByText(/aucun doublon suspect/i)).not.toBeInTheDocument();
+  });
+
+  // --- Écarter une paire (#754) -----------------------------------------------
+
+  it("propose d'écarter à un porteur du seul courses:sources, sans courses:delete", async () => {
+    getSession.mockResolvedValue(SANS_SUPPRESSION);
+    listCourseDuplicates.mockResolvedValue(PAIRE);
+
+    afficher();
+
+    expect(await screen.findByRole("button", { name: /écarter/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /fusionner/i })).not.toBeInTheDocument();
+  });
+
+  it("ne peint pas le bouton « Écarter » en destructif — le geste ne supprime rien", async () => {
+    getSession.mockResolvedValue(AVEC_DROIT);
+    listCourseDuplicates.mockResolvedValue(PAIRE);
+
+    afficher();
+
+    expect(
+      (await screen.findByRole("button", { name: /écarter/i })).className,
+    ).not.toContain("bg-destructive");
+  });
+
+  it("demande confirmation avant d'écarter — le geste n'a pas d'écran retour (#754)", async () => {
+    const user = userEvent.setup();
+    getSession.mockResolvedValue(AVEC_DROIT);
+    listCourseDuplicates.mockResolvedValue(PAIRE);
+
+    afficher();
+    await user.click(await screen.findByRole("button", { name: /écarter/i }));
+
+    expect(await screen.findByText("Écarter cette paire ?")).toBeInTheDocument();
+    expect(ignoreCourseDuplicate).not.toHaveBeenCalled();
+  });
+
+  it("renoncer dans le dialog n'écarte rien", async () => {
+    const user = userEvent.setup();
+    getSession.mockResolvedValue(AVEC_DROIT);
+    listCourseDuplicates.mockResolvedValue(PAIRE);
+
+    afficher();
+    await user.click(await screen.findByRole("button", { name: /écarter/i }));
+    await user.click(await screen.findByRole("button", { name: "Renoncer" }));
+
+    expect(ignoreCourseDuplicate).not.toHaveBeenCalled();
+  });
+
+  it("écarte la paire une fois la confirmation donnée, et confirme par un toast", async () => {
+    const user = userEvent.setup();
+    getSession.mockResolvedValue(AVEC_DROIT);
+    listCourseDuplicates.mockResolvedValue(PAIRE);
+    ignoreCourseDuplicate.mockResolvedValue({
+      course_id_a: 38,
+      course_id_b: 50,
+      ignored_at: "2026-08-30T12:00:00Z",
+    });
+
+    afficher();
+    await user.click(await screen.findByRole("button", { name: /écarter/i }));
+    await confirmerDansLeDialog("Écarter");
+
+    expect(ignoreCourseDuplicate).toHaveBeenCalledWith(38, 50);
+    await vi.waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
+  it("affiche le message du refus si l'écart échoue", async () => {
+    const user = userEvent.setup();
+    getSession.mockResolvedValue(AVEC_DROIT);
+    listCourseDuplicates.mockResolvedValue(PAIRE);
+    ignoreCourseDuplicate.mockRejectedValue(new ApiError(409, "Cette paire d'épreuves est déjà écartée."));
+
+    afficher();
+    await user.click(await screen.findByRole("button", { name: /écarter/i }));
+    await confirmerDansLeDialog("Écarter");
+
+    await vi.waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith("Cette paire d'épreuves est déjà écartée."),
+    );
   });
 });

@@ -23,6 +23,7 @@ const ACTION_LABELS: Record<string, string> = {
   "participation.unreject": "Annulation d'un rejet",
   "participation.correct_fields": "Correction d'un résultat en attente",
   "athlete.update": "Correction d'une fiche coureur",
+  "course_duplicate.ignore": "Paire de doublons suspects écartée",
 };
 
 /** Le libellé français d'un geste, ou son code brut si le catalogue l'ignore. */
@@ -68,6 +69,8 @@ const PAYLOAD_KEY_LABELS: Record<string, string> = {
   id: "Identifiant",
   notes: "Note",
   computed: "Verdict calculé",
+  course_id_a: "Première épreuve",
+  course_id_b: "Seconde épreuve",
 };
 
 function labelFor(key: string): string {
