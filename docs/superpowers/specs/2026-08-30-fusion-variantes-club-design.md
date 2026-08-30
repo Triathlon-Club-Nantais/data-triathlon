@@ -80,7 +80,7 @@ rattaché à deux noms canoniques différents — le service refuse en 409
 **Pas de registre en mémoire.** `counter_scope` en a besoin parce que `is_tcn`
 est appelé ligne à ligne par le thread d'import en tâche de fond,
 performance-critique. Le nouveau mécanisme n'est consulté qu'à la demande —
-synthèse d'épreuve, filtre — jamais pendant le scrape. Une lecture base
+synthèse d'épreuve, filtre — jamais pendant le scrape. Une lecture en base
 classique (une requête par appel, jamais par ligne) suffit : plus simple, sans
 la contrainte de réassignation atomique de `counter_scope.load`.
 
@@ -127,12 +127,14 @@ verbatim — le filtre et l'agrégat d'affichage divergent silencieusement depui
 
 ## Administration
 
-Nouvel écran, sur le patron de `CounterScopeCard.tsx` : un formulaire nom
-canonique + alias en texte libre, une liste des alias existants groupés par nom
-canonique, un geste de retrait par alias (`DangerConfirm`, cohérent avec les
-gestes destructifs du back-office, #499 — un retrait ne supprime aucune
-donnée, juste une association d'affichage, donc geste **neutre**, sans
-confirmation renforcée, à la différence du retrait d'un libellé TCN).
+Nouvel écran, sur le patron de `CounterScopeCard.tsx` pour le formulaire et le
+groupement, mais **pas** pour le retrait : un retrait d'alias ne supprime
+aucune donnée, juste une association d'affichage, entièrement rejouable en une
+saisie — le geste **neutre, sans confirmation** de #499
+(`frontend/AGENTS.md` : « Neutre et sans confirmation pour tout ce qui se
+refait »), à la différence du retrait d'un libellé TCN
+(`CounterScopeCard.tsx`), dont l'effet immédiat sur les compteurs `scope=club`
+justifie la couleur destructive et `DangerConfirm`.
 
 Aucune protection « dernier alias » n'est nécessaire (contrairement à
 `LastClubLabelError` pour les libellés TCN) : retirer le seul alias d'un

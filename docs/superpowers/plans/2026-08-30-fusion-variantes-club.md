@@ -50,7 +50,7 @@ lignes qui partagent le même `canonical_name`.
 
 Pas de registre en mémoire, contrairement à `counter_scope` : ce mécanisme
 n'est jamais lu ligne à ligne pendant l'import en tâche de fond — seulement à
-la demande (synthèse d'épreuve, filtre) — une lecture base classique suffit.
+la demande (synthèse d'épreuve, filtre) — une lecture en base classique suffit.
 """
 from datetime import datetime
 

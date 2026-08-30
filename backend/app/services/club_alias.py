@@ -7,7 +7,7 @@ reste réservé au comptage `scope=club`. Design :
 """
 from sqlalchemy.orm import Session
 
-from app.core.club import normalize_club
+from app.core.club import is_tcn, normalize_club
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.models.club_alias import ClubAlias
 from app.repositories import club_alias_repository
@@ -26,6 +26,12 @@ def add_entry(
     alias_normalise = normalize_club(alias)
     if not alias_normalise:
         raise DomainError("L'alias ne peut pas être vide.")
+
+    if is_tcn(alias):
+        raise DomainError(
+            f"« {alias_normalise} » est déjà un libellé reconnu du TCN — "
+            "il est géré par la portée des compteurs, pas par ce registre."
+        )
 
     if club_alias_repository.find_by_alias(db, alias_normalized=alias_normalise) is not None:
         raise DuplicateError(f"« {alias_normalise} » est déjà rattaché à un club.")

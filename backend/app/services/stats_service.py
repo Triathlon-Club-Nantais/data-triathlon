@@ -256,6 +256,13 @@ def course_summary(db: Session, course_id: int) -> dict:
     male = female = tcn_count = 0
     categories: Counter[str] = Counter()
     clubs: Counter[str] = Counter()
+    # Forme normalisée -> premier libellé brut vu pour cette forme. Sert à
+    # fusionner l'affichage des variantes de casse/espacement sans alias
+    # déclaré — depuis #635, `_club_filter_targets` matche déjà ces variantes
+    # au filtre (comparaison normalisée), et laisser l'affichage bucketer par
+    # casse ferait diverger le compteur de la carte du total que le filtre
+    # rendrait (même défaut que #485 avait corrigé pour `category`).
+    libelles_par_forme: dict[str, str] = {}
     split_keys: dict[str, None] = {}
     secondes: list[int] = []
     ecarts: list[float | None] = []
@@ -297,12 +304,16 @@ def course_summary(db: Session, course_id: int) -> dict:
             # clubs » (#200, #635). Sans quoi le même club apparaissait sur
             # plusieurs lignes selon les saisies du chronométreur. Le TCN
             # reste gouverné par `is_tcn` (registre séparé, #95) ; tout autre
-            # club par `alias_map`, chargé une fois plus haut. La base garde
-            # le verbatim — seul l'agrégat d'affichage bascule.
-            libelle = (
-                TCN_CANONICAL_NAME if is_tcn(club)
-                else alias_map.get(normalize_club(club)) or club.strip()
-            )
+            # club par `alias_map`, chargé une fois plus haut, avec repli sur
+            # la forme normalisée (`libelles_par_forme`) pour rester
+            # cohérent avec ce que `_club_filter_targets` matche déjà sans
+            # alias déclaré. La base garde le verbatim — seul l'agrégat
+            # d'affichage bascule.
+            if is_tcn(club):
+                libelle = TCN_CANONICAL_NAME
+            else:
+                forme = normalize_club(club)
+                libelle = alias_map.get(forme) or libelles_par_forme.setdefault(forme, club.strip())
             clubs[libelle] += 1
         if is_tcn(club):
             tcn_count += 1
