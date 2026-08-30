@@ -58,7 +58,12 @@ export type DangerConfirmProps = {
  * de ses appelants sont sous `/admin`, ce qui laisse intacte la frontière
  * gelée par #460 — seule exception, `app/benevoles/page.tsx` depuis #490, qui
  * monte son propre `DangerConfirmProvider` (`app/benevoles/layout.tsx`) plutôt
- * que d'ajouter un second mécanisme de confirmation hors back-office.
+ * que d'ajouter un second mécanisme de confirmation hors back-office. Seconde
+ * exception depuis #739 : `CourseSourcesPanel` (`components/courses/`)
+ * importe `DangerConfirm` — jamais `useDangerConfirm` — parce qu'il se rend
+ * aussi sur la page publique de l'épreuve, hors de tout `DangerConfirmProvider`
+ * (monté seulement sous `/admin` et `/benevoles`) ; la forme déclarative ne
+ * dépend d'aucun provider, donc aucun second mécanisme n'est ajouté.
  */
 export function DangerConfirm({
   open,

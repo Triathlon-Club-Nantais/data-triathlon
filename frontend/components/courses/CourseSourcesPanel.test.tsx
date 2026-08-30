@@ -4,15 +4,17 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { CourseSource, SessionUser } from "@/lib/types";
 
-const { getSession, switchSourceEventStream, rescrapeEventStream } = vi.hoisted(() => ({
-  getSession: vi.fn(),
-  switchSourceEventStream: vi.fn(),
-  rescrapeEventStream: vi.fn(),
-}));
+const { getSession, switchSourceEventStream, rescrapeEventStream, deleteCourseSource } =
+  vi.hoisted(() => ({
+    getSession: vi.fn(),
+    switchSourceEventStream: vi.fn(),
+    rescrapeEventStream: vi.fn(),
+    deleteCourseSource: vi.fn(),
+  }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { getSession } };
+  return { ...original, apiClient: { getSession, deleteCourseSource } };
 });
 
 vi.mock("@/lib/api/sse", () => ({ rescrapeEventStream, switchSourceEventStream }));
@@ -276,5 +278,77 @@ describe("CourseSourcesPanel", () => {
     await screen.findByRole("button", { name: /activer.*breizh chrono/i });
     const boutons = screen.getAllByRole("button", { name: /re-scraper/i });
     expect(boutons).toHaveLength(1);
+  });
+
+  // --- Supprimer une source inactive (#739) --------------------------------
+
+  it("ne propose aucun bouton « Supprimer » sur l'unique source (toujours active)", async () => {
+    getSession.mockResolvedValue(ADMIN);
+    afficher(UNE_SOURCE);
+
+    await screen.findByText("Klikego");
+    expect(screen.queryByRole("button", { name: /supprimer/i })).not.toBeInTheDocument();
+  });
+
+  it("ne propose aucun bouton « Supprimer » à un visiteur anonyme", async () => {
+    getSession.mockResolvedValue(ANONYME);
+    afficher(DEUX_SOURCES);
+
+    await screen.findByText("Breizh Chrono");
+    expect(screen.queryByRole("button", { name: /supprimer/i })).not.toBeInTheDocument();
+  });
+
+  it("propose « Supprimer » sur la source passive, jamais sur l'active", async () => {
+    getSession.mockResolvedValue(ADMIN);
+    afficher(DEUX_SOURCES);
+
+    expect(
+      await screen.findByRole("button", { name: /supprimer.*breizh chrono/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /supprimer.*klikego/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("supprime après confirmation, retire la source de l'affichage et notifie le succès", async () => {
+    getSession.mockResolvedValue(ADMIN);
+    deleteCourseSource.mockResolvedValue(undefined);
+    const user = userEvent.setup();
+    afficher(DEUX_SOURCES);
+
+    await user.click(await screen.findByRole("button", { name: /supprimer.*breizh chrono/i }));
+    await user.click(await screen.findByRole("button", { name: /supprimer définitivement/i }));
+
+    await waitFor(() => expect(deleteCourseSource).toHaveBeenCalledWith(42, 2));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    expect(screen.queryByText("Breizh Chrono")).not.toBeInTheDocument();
+    expect(await screen.findByText("Klikego")).toBeInTheDocument();
+  });
+
+  it("annuler ne supprime rien", async () => {
+    getSession.mockResolvedValue(ADMIN);
+    const user = userEvent.setup();
+    afficher(DEUX_SOURCES);
+
+    await user.click(await screen.findByRole("button", { name: /supprimer.*breizh chrono/i }));
+    await user.click(await screen.findByRole("button", { name: /renoncer/i }));
+
+    expect(deleteCourseSource).not.toHaveBeenCalled();
+    expect(await screen.findByText("Breizh Chrono")).toBeInTheDocument();
+  });
+
+  it("notifie l'échec de suppression sans modifier l'affichage", async () => {
+    getSession.mockResolvedValue(ADMIN);
+    deleteCourseSource.mockRejectedValue(new Error("Impossible de supprimer la source active."));
+    const user = userEvent.setup();
+    afficher(DEUX_SOURCES);
+
+    await user.click(await screen.findByRole("button", { name: /supprimer.*breizh chrono/i }));
+    await user.click(await screen.findByRole("button", { name: /supprimer définitivement/i }));
+
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith("Impossible de supprimer la source active."),
+    );
+    expect(await screen.findByText("Breizh Chrono")).toBeInTheDocument();
   });
 });

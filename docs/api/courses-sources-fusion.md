@@ -75,6 +75,31 @@ La purge des fiches coureur devenues vides relève ses candidats **avant** la
 suppression et ne tranche qu'**après** le réimport — même primitive et même piège
 que `DELETE /admin/courses/{id}`.
 
+## Supprimer une source inactive : `DELETE /admin/courses/{id}/sources/{source_id}` (#739)
+
+Garde `courses:sources`, comme la bascule — pas `courses:delete` : contrairement
+à `DELETE /admin/courses/{id}`, ce geste **n'affecte aucun résultat déjà
+importé**. Les participations sont portées par la `Course`, jamais par la
+source (`models/AGENTS.md`) ; supprimer une source ne fait donc disparaître que
+la ligne de provenance (URL, fournisseur), rien du classement affiché.
+
+**Instantané et sans SSE**, contrairement à la bascule et au re-scrape : ce
+geste ne scrape rien, `Depends(get_db)` suffit — pas de session `SessionLocal()`
+dédiée à faire survivre à la requête.
+
+**Refuse l'active**, en 400, avant toute écriture — même raison que le refus de
+`is_active: false` du PATCH : l'index partiel autorise zéro active, mais une
+épreuve sans active n'est plus scrapée (#282) ni affichée avec sa source (#279).
+Pour supprimer la source qui fait actuellement foi, il faut d'abord en basculer
+une autre. Une source introuvable pour cette épreuve — y compris une source
+valide mais rattachée à une autre — est un **404**, jamais un 403 : l'adresse ne
+désigne rien pour cette épreuve, elle n'est pas interdite (même raison que le
+404 du PATCH).
+
+204 sans corps sur succès : ce qui reste du geste est son entrée au journal
+(`admin_action_log`, action `course_source.delete`, portant `course_id`, `url`
+et `provider`), même contrat que `DELETE /admin/courses/{id}`.
+
 ## Re-scraper une épreuve à la demande : `POST /admin/courses/{id}/rescrape` (#118)
 
 La promesse faite par la section précédente : même module SSE que

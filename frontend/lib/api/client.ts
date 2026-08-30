@@ -24,6 +24,7 @@ import type {
   CourseMergeResult,
   CourseQuery,
   CourseReliability,
+  CourseSource,
   ClubRosterRank,
   CourseSummary,
   CoursesWipeImpact,
@@ -204,6 +205,7 @@ export const apiClient = {
   getCourse: (id: number, opts: CourseQuery = {}) =>
     request<CourseDetail>(`/courses/${id}${toQuery(opts as Record<string, unknown>)}`),
   getCourseSummary: (id: number) => request<CourseSummary>(`/courses/${id}/summary`),
+  getCourseSources: (id: number) => request<CourseSource[]>(`/courses/${id}/sources`),
 
   listEvents: (filters: ParticipationFilters = {}) =>
     request<EventPage>(`/courses/events${toQuery(filters as Record<string, unknown>)}`),
@@ -257,6 +259,9 @@ export const apiClient = {
     request<CourseDeletionImpact>(`/admin/courses/${id}/deletion-impact`),
   deleteCourse: (id: number) =>
     request<null>(`/admin/courses/${id}`, { method: "DELETE" }),
+  // Source inactive uniquement — l'active est refusée côté serveur (#739).
+  deleteCourseSource: (courseId: number, sourceId: number) =>
+    request<null>(`/admin/courses/${courseId}/sources/${sourceId}`, { method: "DELETE" }),
 
   // ── Purge totale des résultats (#384) ──────────────────────────────────────
   // `participations:wipe_all`. Vide `participations` entièrement ; `courses`

@@ -352,6 +352,45 @@ def iter_switch_course_source(
     )
 
 
+def delete_course_source(
+    db: Session, *, course_id: int, source_id: int, user_id: int
+) -> None:
+    """Supprime une source inactive (#739). N'affecte aucun résultat déjà
+    importé : les participations sont portées par la `Course`, jamais par la
+    source (`models/AGENTS.md`).
+
+    Refuse l'active — même garde que `switch_course_source` sur `is_active`
+    à `false` : l'index partiel autorise zéro active, mais une épreuve sans
+    active n'est plus scrapée (#282) ni affichée avec sa source (#279).
+    """
+    _course_or_404(db, course_id)
+    source = course_source_repository.find_on_course(
+        db, course_id=course_id, source_id=source_id
+    )
+    if source is None:
+        raise NotFoundError("Source introuvable pour cette épreuve.")
+    if source.is_active:
+        raise DomainError(
+            "Impossible de supprimer la source active — basculez d'abord une "
+            "autre source."
+        )
+
+    payload = {"course_id": course_id, "url": source.url, "provider": source.provider}
+    course_source_repository.remove(db, source)
+    admin_action_log_repository.create(
+        db,
+        user_id=user_id,
+        action="course_source.delete",
+        entity_type="course_source",
+        entity_id=source_id,
+        payload=payload,
+    )
+    logger.info(
+        "Admin %s deleted source %s (%s) from course %s",
+        user_id, source_id, payload["url"], course_id,
+    )
+
+
 def _stream_switch_course_source(
     db: Session,
     *,
