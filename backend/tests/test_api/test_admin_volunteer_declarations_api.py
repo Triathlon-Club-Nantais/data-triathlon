@@ -180,7 +180,9 @@ def test_supprimer_journalise_ladmin_action_log(client, db_session):
 
 
 def test_supprimer_un_id_inconnu_rend_404(client):
-    assert client.delete(f"{_URL}/999999").status_code == 404
+    reponse = client.delete(f"{_URL}/999999")
+
+    assert reponse.status_code == 404
 
 
 def test_supprimer_sans_le_pouvoir_rend_403(client, db_session):
@@ -188,7 +190,9 @@ def test_supprimer_sans_le_pouvoir_rend_403(client, db_session):
     declaration = _en_attente(db_session, beneficiaire.id)
     _session_etroite(client, db_session)
 
-    assert client.delete(f"{_URL}/{declaration.id}").status_code == 403
+    reponse = client.delete(f"{_URL}/{declaration.id}")
+
+    assert reponse.status_code == 403
 
 
 # --- Vue d'ensemble (US5) ------------------------------------------------------
