@@ -449,6 +449,15 @@ export function useSeasonQuota(athleteId: number, season: number, enabled: boole
   });
 }
 
+/** Actions de bénévolat validées d'un athlète, fiche publique (#781). */
+export function useValidatedVolunteerActions(athleteId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["validated-volunteer-actions", athleteId],
+    queryFn: () => apiClient.listValidatedVolunteerActions(athleteId),
+    enabled,
+  });
+}
+
 export function useValidateSeason() {
   const qc = useQueryClient();
   return useMutation({

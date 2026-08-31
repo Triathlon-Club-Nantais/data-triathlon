@@ -40,18 +40,18 @@ Aucune tâche distincte — une seule user story, tout tombe dans sa phase.
 - [X] T001 [P] [US1] Test repository : `list_validated_for_athlete()` ne rend que les lignes `"validee"` de l'athlète donné, triées `created_at desc`, aucune autre saison/athlète mélangée dans `backend/tests/test_repositories/test_volunteer_action_repository.py`
 - [X] T002 [P] [US1] Test service : `list_validated_for_athlete()` délègue au repository dans `backend/tests/test_services/test_volunteer_action_service.py`
 - [X] T003 [P] [US1] Test API : `GET /admin/athletes/{id}/volunteer-actions/validated` — `200` liste filtrée (title/description `null` toléré), `403` sans `athletes:volunteer_validate`, liste vide sur athlète sans action validée dans `backend/tests/test_api/test_admin_volunteer_actions_api.py`
-- [ ] T004 [P] [US1] Test composant : `VolunteerActionsList` — rendu nul sans le pouvoir, liste avec titre/description si habilité, état vide explicite si aucune validée, repli d'affichage sur title/description `null` dans `frontend/components/athletes/VolunteerActionsList.test.tsx` (NEW)
+- [X] T004 [P] [US1] Test composant : `VolunteerActionsList` — rendu nul sans le pouvoir, liste avec titre/description si habilité, état vide explicite si aucune validée, repli d'affichage sur title/description `null` dans `frontend/components/athletes/VolunteerActionsList.test.tsx` (NEW)
 
 ### Implementation for User Story 1
 
 - [X] T005 [US1] Implémenter `list_validated_for_athlete()` dans `backend/app/repositories/volunteer_action_repository.py` — fait passer T001
 - [X] T006 [US1] Implémenter `volunteer_action_service.list_validated_for_athlete()` dans `backend/app/services/volunteer_action_service.py` — fait passer T002 (depends on T005)
 - [X] T007 [US1] Ajouter `GET /admin/athletes/{athlete_id}/volunteer-actions/validated` au router `backend/app/api/v1/admin_volunteer_actions.py`, gardé par `require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)` — fait passer T003 (depends on T006)
-- [ ] T008 [P] [US1] Ajouter le type `AdminVolunteerActionOut` (title/description `string | null`) dans `frontend/lib/types.ts`
-- [ ] T009 [US1] Ajouter `listValidatedVolunteerActions(athleteId)` dans `frontend/lib/api/client.ts` (depends on T008 pour le type de retour ; `/speckit-analyze` finding I1 — retrait du `[P]` contradictoire)
-- [ ] T010 [US1] Ajouter `useValidatedVolunteerActions(athleteId, enabled)` dans `frontend/lib/queries/admin.ts` (depends on T009)
-- [ ] T011 [US1] Implémenter `VolunteerActionsList.tsx` (garde `session.data?.permissions.includes("athletes:volunteer_validate")`, rendu nul sinon, patron `.tcn-table` simplifié, état vide, repli « — » sur title/description `null`) dans `frontend/components/athletes/VolunteerActionsList.tsx` (NEW) — fait passer T004 (depends on T010)
-- [ ] T012 [US1] Monter `<VolunteerActionsList>` après `<EventsTable>` dans `frontend/app/(public_restricted)/athletes/[id]/page.tsx` (depends on T011)
+- [X] T008 [P] [US1] Ajouter le type `AdminVolunteerActionOut` (title/description `string | null`) dans `frontend/lib/types.ts`
+- [X] T009 [US1] Ajouter `listValidatedVolunteerActions(athleteId)` dans `frontend/lib/api/client.ts` (depends on T008 pour le type de retour ; `/speckit-analyze` finding I1 — retrait du `[P]` contradictoire)
+- [X] T010 [US1] Ajouter `useValidatedVolunteerActions(athleteId, enabled)` dans `frontend/lib/queries/admin.ts` (depends on T009)
+- [X] T011 [US1] Implémenter `VolunteerActionsList.tsx` (garde `session.data?.permissions.includes("athletes:volunteer_validate")`, rendu nul sinon, patron `.tcn-table` simplifié, état vide, repli « — » sur title/description `null`) dans `frontend/components/athletes/VolunteerActionsList.tsx` (NEW) — fait passer T004 (depends on T010)
+- [X] T012 [US1] Monter `<VolunteerActionsList>` après `<EventsTable>` dans `frontend/app/(public_restricted)/athletes/[id]/page.tsx` (depends on T011)
 
 **Checkpoint**: US1 fonctionnelle et testable de bout en bout.
 
