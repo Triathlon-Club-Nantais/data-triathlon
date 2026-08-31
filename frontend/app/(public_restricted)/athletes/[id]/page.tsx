@@ -5,9 +5,8 @@ import { StatCard, MetaPill, Card, Eyebrow } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AthleteAvatar } from "./AthleteAvatar";
-import { AthleteSelection } from "./AthleteSelection";
+import { AthleteHeaderActions } from "./AthleteHeaderActions";
 import { EventsTable } from "./EventsTable";
-import { AthleteAdminPanel } from "@/components/athletes/AthleteAdminPanel";
 import { SeasonValidationPanel } from "@/components/athletes/SeasonValidationPanel";
 import { formatToken, disciplineBreakdownBySeason, genderShort, ordinalFr } from "@/lib/utils/format";
 import { BarList } from "@/components/charts/BarList";
@@ -88,8 +87,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
           title={fullName}
           actions={
             <>
-              <AthleteSelection athlete={{ id: athlete.id, prenom: athlete.prenom, nom: athlete.nom }} />
-              <AthleteAdminPanel
+              <AthleteHeaderActions
                 athlete={{ id: athlete.id, nom: athlete.nom, prenom: athlete.prenom, club: athlete.club }}
               />
               <SeasonValidationPanel

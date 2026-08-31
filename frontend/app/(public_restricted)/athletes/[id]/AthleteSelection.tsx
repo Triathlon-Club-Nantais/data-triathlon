@@ -29,8 +29,18 @@ const BENEFICE_ID = "choisir-athlete-benefice";
  *
  * La hiérarchie des boutons s'inverse avec l'état : primaire quand il reste à
  * choisir, secondaire quand il ne reste qu'à révoquer.
+ *
+ * `primary` (#753) laisse `AthleteHeaderActions` reléguer ce bloc en
+ * secondaire pour un visiteur `athletes:write`, sans toucher au bénéfice
+ * affiché sous le bouton — seul le poids visuel change, pas l'accompagnement.
  */
-export function AthleteSelection({ athlete }: { athlete: PickedAthlete }) {
+export function AthleteSelection({
+  athlete,
+  primary = true,
+}: {
+  athlete: PickedAthlete;
+  primary?: boolean;
+}) {
   const retenu = useIsSelectedAthlete(athlete.id);
   const nom = nomComplet(athlete);
 
@@ -63,7 +73,7 @@ export function AthleteSelection({ athlete }: { athlete: PickedAthlete }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8, maxWidth: 300 }}>
       <Button
-        variant="primary"
+        variant={primary ? "primary" : "secondary"}
         aria-describedby={BENEFICE_ID}
         aria-label={`Choisir cet athlète, ${nom}`}
         onClick={() => writeAthlete(athlete)}
