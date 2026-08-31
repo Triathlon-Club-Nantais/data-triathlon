@@ -159,6 +159,18 @@ describe("CourseSourcesPanel", () => {
     await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
   });
 
+  it("porte la couleur destructive sur le bouton de confirmation « Basculer » (#749)", async () => {
+    getSession.mockResolvedValue(ADMIN);
+    const user = userEvent.setup();
+    afficher(DEUX_SOURCES);
+
+    await user.click(await screen.findByRole("button", { name: /activer.*breizh chrono/i }));
+
+    expect(await screen.findByRole("button", { name: /^basculer$/i })).toHaveClass(
+      "tcn-btn--destructive",
+    );
+  });
+
   it("annuler ne bascule rien", async () => {
     getSession.mockResolvedValue(ADMIN);
     const user = userEvent.setup();

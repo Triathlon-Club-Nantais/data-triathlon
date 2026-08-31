@@ -279,7 +279,7 @@ export function CourseSourcesPanel({
               >
                 Annuler
               </Button>
-              <Button onClick={confirmer} disabled={bascule.state.running}>
+              <Button variant="destructive" onClick={confirmer} disabled={bascule.state.running}>
                 {bascule.state.running ? "Bascule en cours…" : "Basculer"}
               </Button>
             </div>

@@ -398,6 +398,17 @@
   .tcn-btn--ghost:hover:not(:disabled) {
     background: var(--tcn-border);
   }
+  /* Geste destructif (#499, #749) : même construction que `--primary`, teinte
+     `--tcn-danger` — blanc à 7,6:1 dessus, tenu sans jeton de survol dédié via
+     `color-mix`, patron déjà en place sur `ui/button` (variant `secondary`). */
+  .tcn-btn--destructive {
+    background: var(--tcn-danger);
+    color: #fff;
+    font-weight: 800;
+  }
+  .tcn-btn--destructive:hover:not(:disabled) {
+    background: color-mix(in oklch, var(--tcn-danger), black 15%);
+  }
 
   /* Micro-libellé : petites capitales condensées des badges et des segments
      (SportBadge, ResultCard, MonthlyTrend, PodiumsList). Dans `base` comme

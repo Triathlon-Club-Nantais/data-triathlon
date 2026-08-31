@@ -22,6 +22,14 @@ describe("Button", () => {
     expect(bouton).not.toHaveClass("tcn-btn--md", "tcn-btn--primary");
   });
 
+  it("décline le variant destructif en classe", () => {
+    render(<Button variant="destructive">Basculer</Button>);
+
+    const bouton = screen.getByRole("button", { name: "Basculer" });
+    expect(bouton).toHaveClass("tcn-btn--destructive");
+    expect(bouton).not.toHaveClass("tcn-btn--primary");
+  });
+
   it("ajoute la classe de l'appelant au lieu de l'écraser", () => {
     // `className` arrivait par `...rest` et remplaçait le nôtre en silence.
     render(<Button className="w-full">Se connecter</Button>);
