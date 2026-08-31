@@ -933,6 +933,25 @@ export interface VolunteerAction {
   created_at: string;
 }
 
+// Miroir de VolunteerActionSelfCreate/Out backend (#778) — formulaire public,
+// noms distincts de VolunteerAction ci-dessus (flux admin, inchangé).
+export interface VolunteerActionSelfCreate {
+  athlete_id: number;
+  title: string;
+  description: string;
+}
+
+export interface VolunteerActionSelfOut {
+  id: number;
+  athlete_id: number;
+  season: number;
+  title: string;
+  description: string;
+  status: string;
+  declared_by_user_id: number;
+  created_at: string;
+}
+
 // Miroir de SeasonValidationOut backend (#709).
 export interface SeasonValidation {
   athlete_id: number;
