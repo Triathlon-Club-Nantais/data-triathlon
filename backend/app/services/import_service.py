@@ -33,6 +33,7 @@ from app.repositories import athlete_repository, course_repository, participatio
 from app.scrapers import registry
 from app.scrapers import scrape_event_all as registry_scrape_event_all
 from app.scrapers.base import STATUS_DNF, STATUS_FINISHER, FanoutTrace, ScrapedResult
+from app.scrapers.utils import to_seconds
 from app.services import cache, mapping, quality
 
 logger = logging.getLogger(__name__)
@@ -989,6 +990,68 @@ def _renumber_relay_split_ranks(results: list[ScrapedResult]) -> None:
                 scraped.rank_overall = local_rank
 
 
+def _renumber_duplicate_ranks(results: list[ScrapedResult]) -> None:
+    """Renumérote `rank_overall` en 1..N par temps quand la source rend un rang
+    qui n'est pas global pour cette `Course` (#757, #785).
+
+    Mesuré sur RaceResult (3 façades) : certaines épreuves publient leur champ
+    de rang (`AUTORANK`) **par groupe d'affichage** — le genre, le plus
+    souvent — et non pour l'épreuve entière. Deux finishers de groupes
+    différents peuvent alors partager le même `rank_overall` sans qu'aucun ne
+    soit réellement premier (constaté en direct : deux rangs 1, temps
+    09:17:39 et 10:28:19), ce qui casse l'hypothèse de
+    `services/quality.py::_rank_anomalies` (`ANOMALY_DUPLICATE_RANK`).
+
+    Ne touche que les groupes portant un doublon dans **ce** lot (`Counter`
+    sur `rank_overall` des seuls finishers, comme
+    `services/quality.py::_rank_anomalies`) : une épreuve dont le rang est
+    authentiquement global n'a aucun doublon et sort inchangée. Un DNF/DNS/DSQ
+    n'a normalement pas de `rank_overall` (les scrapers, RaceResult compris,
+    le mettent à `None`), mais on ne s'y fie pas pour l'inclusion dans le
+    lot renuméroté : seul un finisher y entre, sans quoi un rang parasite sur
+    un non-finisher entrerait dans le tri par temps.
+
+    Renumérotation par **temps croissant** (`utils.to_seconds(strict=True)`,
+    un temps illisible partant en **fin** de classement plutôt qu'à `0` — le
+    défaut non strict, pensé pour un cumul, promouvait à tort un temps vide
+    au rang 1), et non par tri stable du rang d'origine comme
+    `_renumber_relay_split_ranks` (#672) : celui-ci suppose un ordre déjà
+    correct mais globalement décalé, ce qui ne tient pas ici — le rang
+    d'origine mélange deux ordres indépendants (un par groupe), que seul le
+    temps permet de départager.
+
+    Appelée **avant** `_renumber_relay_split_ranks` par les deux points
+    d'appel : un tri stable sur un rang déjà doublonné le laisserait tel
+    quel (« déjà 1..N » d'après son propre critère), ce qui « uniquifierait »
+    silencieusement le doublon avant que ce correctif-ci ait pu le détecter.
+    """
+    groups: dict[tuple[str, object, str, bool], list[ScrapedResult]] = {}
+    for scraped in results:
+        key = (
+            scraped.event_name, scraped.event_date, scraped.event_type,
+            bool(scraped.is_relay),
+        )
+        groups.setdefault(key, []).append(scraped)
+
+    for group in groups.values():
+        ranked = [
+            r for r in group
+            if r.rank_overall is not None
+            and (r.status or "").strip().lower() == STATUS_FINISHER
+        ]
+        rangs = Counter(r.rank_overall for r in ranked)
+        if not any(count > 1 for count in rangs.values()):
+            continue  # aucun doublon dans ce lot : rang déjà fiable
+
+        def _cle_temps(r: ScrapedResult) -> tuple[bool, int]:
+            secondes = to_seconds(r.total_time, strict=True)
+            return (secondes is None, secondes or 0)
+
+        ranked.sort(key=_cle_temps)
+        for local_rank, scraped in enumerate(ranked, start=1):
+            scraped.rank_overall = local_rank
+
+
 def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict:
     """Écrit des résultats déjà scrapés. **Ne clôt pas la transaction.**
 
@@ -1003,6 +1066,7 @@ def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict
     l'écriture.
     """
     _reclassify_heats(db, url, results)
+    _renumber_duplicate_ranks(results)
     _renumber_relay_split_ranks(results)
     persister = _Persister(db, url)
     for scraped in results:
@@ -1173,12 +1237,14 @@ def iter_import_event(
         yield {"phase": "saving", "total": total, "imported": 0, "updated": 0, "skipped": 0, "progress": 0}
         try:
             # Le chemin SSE ré-implémente la boucle de `persist_results` pour émettre
-            # sa progression : le rattrapage de classification (#294) et la
-            # renumérotation solo/relais (#672) doivent donc y être posés eux
+            # sa progression : le rattrapage de classification (#294), la
+            # renumérotation solo/relais (#672) et la renumérotation par
+            # doublon de rang (#757, #785) doivent donc y être posées elles
             # aussi, et **avant** la première ligne, sinon la seconde `Course`
-            # est déjà née — ou déjà écrite avec son rang combiné — quand on la
-            # cherche.
+            # est déjà née — ou déjà écrite avec son rang combiné/dupliqué —
+            # quand on la cherche.
             _reclassify_heats(db, url, results)
+            _renumber_duplicate_ranks(results)
             _renumber_relay_split_ranks(results)
             for i, scraped in enumerate(results):
                 persister.add(scraped)
