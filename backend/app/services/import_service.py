@@ -951,7 +951,7 @@ def _reclassify_heats(db: Session, event_url: str, results: list[ScrapedResult])
             course_repository.reclassify(db, course, event_type)
 
 
-def _renumber_relay_split_ranks(results: list[ScrapedResult]) -> None:
+def _renumber_relay_split_ranks(db: Session, results: list[ScrapedResult]) -> None:
     """Renumérote `rank_overall` en 1..N quand la scission par `is_relay` a lieu (#672).
 
     L'identité `Course` (`name, event_date, event_type, is_relay`) scinde en
@@ -972,16 +972,40 @@ def _renumber_relay_split_ranks(results: list[ScrapedResult]) -> None:
     event_type)`) : une épreuve dont la source publie déjà un classement
     local par heat n'est pas concernée, et y toucher serait sans effet — tri
     stable sur le rang d'origine, donc déjà 1..N ne change pas.
+
+    **Lot partiel (#764)** : une source dont le jeu de lignes rendu varie
+    d'un appel à l'autre (mesuré sur ProLiveSport, cf.
+    `docs/scrapers/prolivesport.md`) peut présenter un sous-groupe plus petit
+    que ce qui est déjà persisté — renuméroter 1..N dessus écraserait un
+    classement complet et correct par un classement partiel et faux, sans
+    jamais converger. `Course.participation_count`, déjà en base au moment où
+    cette fonction tourne (elle précède la persistance du lot), sert de
+    garde : un sous-groupe plus petit que le compte persisté n'est pas
+    renuméroté — et son `rank_overall` (le rang **combiné** de la source, pas
+    encore local) est effacé plutôt que laissé tel quel, sans quoi la fusion
+    prudente (`_merge_fields`, qui n'écrase que sur une valeur non vide) le
+    prendrait pour un rang local légitime et écraserait le bon rang déjà en
+    base. Un rescrape ultérieur au jeu complet renumérotera correctement.
     """
     groups: dict[tuple[str, object, str], dict[bool, list[ScrapedResult]]] = {}
     for scraped in results:
         key = (scraped.event_name, scraped.event_date, scraped.event_type)
         groups.setdefault(key, {}).setdefault(bool(scraped.is_relay), []).append(scraped)
 
-    for by_relay in groups.values():
+    for (name, event_date, event_type), by_relay in groups.items():
         if len(by_relay) < 2:
             continue  # pas de scission is_relay pour cette épreuve dans ce lot
-        for subgroup in by_relay.values():
+        for is_relay, subgroup in by_relay.items():
+            course = course_repository.get_by_identity(db, name, event_date, event_type, is_relay)
+            if course is not None and len(subgroup) < course.participation_count:
+                logger.warning(
+                    "Renumérotation solo/relais ignorée pour %r (%s, is_relay=%s) : "
+                    "lot de %d ligne(s) < %d déjà persistées (#764)",
+                    name, event_type, is_relay, len(subgroup), course.participation_count,
+                )
+                for scraped in subgroup:
+                    scraped.rank_overall = None
+                continue
             ranked = sorted(
                 (r for r in subgroup if r.rank_overall is not None),
                 key=lambda r: r.rank_overall,
@@ -1067,7 +1091,7 @@ def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict
     """
     _reclassify_heats(db, url, results)
     _renumber_duplicate_ranks(results)
-    _renumber_relay_split_ranks(results)
+    _renumber_relay_split_ranks(db, results)
     persister = _Persister(db, url)
     for scraped in results:
         persister.add(scraped)
@@ -1245,7 +1269,7 @@ def iter_import_event(
             # quand on la cherche.
             _reclassify_heats(db, url, results)
             _renumber_duplicate_ranks(results)
-            _renumber_relay_split_ranks(results)
+            _renumber_relay_split_ranks(db, results)
             for i, scraped in enumerate(results):
                 persister.add(scraped)
                 if (i + 1) % 20 == 0 or i == total - 1:
