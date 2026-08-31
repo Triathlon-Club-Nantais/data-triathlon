@@ -132,6 +132,49 @@ def test_sans_scission_dans_le_lot_le_rang_source_est_conserve(db_session, patch
     assert ranks == [597, 598, 599]
 
 
+def test_lot_partiel_ne_renumerote_pas_le_sous_groupe_incomplet(db_session, patch_scraper):
+    """#764 : une source instable (ProLiveSport, cf. docs/scrapers/prolivesport.md)
+    peut omettre une ligne d'un essai à l'autre — renuméroter le sous-groupe
+    restant écraserait un classement complet et correct par un classement
+    partiel et faux, sans jamais converger."""
+    patch_scraper(
+        [
+            _result("1", 1, is_relay=False),
+            _result("2", 2, is_relay=False),
+            _result("3", 3, is_relay=False),
+            _result("R1", 597, is_relay=True),
+            _result("R2", 598, is_relay=True),
+            _result("R3", 599, is_relay=True),
+        ]
+    )
+    import_service.import_event(db_session, URL, _settings())
+
+    relais = course_repository.get_by_identity(db_session, NOM, JOUR, TYPE, True)
+    assert relais.participation_count == 3
+
+    # Rescrape : R1 a disparu du jeu de lignes rendu par la source cette
+    # fois-ci — le lot ne couvre plus que 2 des 3 lignes déjà persistées.
+    patch_scraper(
+        [
+            _result("1", 1, is_relay=False),
+            _result("2", 2, is_relay=False),
+            _result("3", 3, is_relay=False),
+            _result("R2", 598, is_relay=True),
+            _result("R3", 599, is_relay=True),
+        ]
+    )
+    import_service.import_event(db_session, URL, _settings(), force=True)
+
+    ranks_relais = {
+        p.bib_number: p.rank_overall
+        for p in participation_repository.list_for_course(db_session, relais.id)
+    }
+    # R2/R3 gardent leur rang local déjà correct (2, 3) — ni écrasés par le
+    # rang combiné brut de la source (598, 599), ni renumérotés en 1..2 sur un
+    # sous-groupe incomplet. R1, absent de ce lot, reste inchangé (1).
+    assert ranks_relais == {"R1": 1, "R2": 2, "R3": 3}
+
+
 def test_lot_deja_scinde_et_numerote_localement_reste_inchange(db_session, patch_scraper):
     """Sécurité : quand chaque sous-groupe `is_relay` du lot est déjà classé
     localement en 1..N (ex. deux heats de la source, déjà distincts), la
