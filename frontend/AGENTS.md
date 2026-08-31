@@ -374,6 +374,15 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   (`StatCardsRank.tsx`, `PodiumsList.tsx`, `EventList.tsx`,
   `RaceFinishers.tsx`) ; `MaSaison.tsx` avait été le seul à s'en écarter, et la
   revue l'a rattrapé.
+- **Hiérarchie des deux commandes en tête de fiche athlète, conditionnelle au
+  pouvoir** (#753) — `AthleteHeaderActions.tsx` lit `athletes:write` et
+  décide ordre et variant de `AthleteSelection` et `AthleteAdminPanel` : sans
+  ce pouvoir, rien ne change (sélection primaire, corrections absentes) ;
+  avec, « Corriger la fiche » passe en tête et en primaire, la sélection en
+  secondaire — sa tâche répétée profil après profil l'emporte sur une action
+  self-service hors sujet pour ce visiteur. Le bénéfice affiché sous le
+  bouton de sélection **reste visible** malgré la relégation (arbitrage de
+  l'issue) : seul `primary` change son variant, jamais le paragraphe.
 - **Rail replié, cookie de largeur, nav mobile** (#482) — le rail replié
   porte désormais un monogramme texte lié à `/dashboard` en plus du bouton de
   pliage (l'en-tête passe en colonne à cet état, faute de place pour les

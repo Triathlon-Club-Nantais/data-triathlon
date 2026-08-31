@@ -81,8 +81,18 @@ function Champ({
  * exactement ces corrections, et rien d'autre. Une session **illisible** n'est
  * pas une session sans pouvoirs, mais l'écran n'affirme ni l'un ni l'autre — il
  * n'offre rien (FR-008).
+ *
+ * `primary` (#753) : `AthleteHeaderActions` le pose pour un visiteur
+ * `athletes:write`, faisant de cette correction — sa tâche probable sur cette
+ * page — l'action primaire plutôt que l'action self-service `AthleteSelection`.
  */
-export function AthleteAdminPanel({ athlete }: { athlete: CoureurACorriger }) {
+export function AthleteAdminPanel({
+  athlete,
+  primary = false,
+}: {
+  athlete: CoureurACorriger;
+  primary?: boolean;
+}) {
   const session = useSession();
   const peutCorriger = session.data?.permissions.includes("athletes:write") ?? false;
   const peutLireLaFiche = session.data?.permissions.includes("athletes:read") ?? false;
@@ -178,7 +188,11 @@ export function AthleteAdminPanel({ athlete }: { athlete: CoureurACorriger }) {
 
   return (
     <>
-      <Button variant="secondary" onClick={ouvrir} aria-label={`Corriger la fiche de ${nomComplet}`}>
+      <Button
+        variant={primary ? "primary" : "secondary"}
+        onClick={ouvrir}
+        aria-label={`Corriger la fiche de ${nomComplet}`}
+      >
         Corriger la fiche
       </Button>
 
