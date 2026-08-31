@@ -434,6 +434,7 @@ def _scrape_single_heat(
         source_url=source_url,
         event_date=event_date,
         client=client,
+        client_factory=lambda: http.client(timeout=30, headers=HEADERS),
     )
     for r in results:
         r.event_name = plat.course_name(r.event_name, heat_label)
