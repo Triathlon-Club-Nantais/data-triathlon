@@ -69,6 +69,30 @@ DINARD_LIVE = (
     "https://live.breizhchrono.com/external/live5/classements.jsp"
     "?version=new&reference=1488071608761-688&heat="
 )
+#: Frenchkid Aquathlon (klikego), cas 1 de #756 : les heats nomment leurs
+#: catégories par année de naissance, que `_YEAR` efface comme un millésime.
+FRENCHKID_2013_2014_FILLE = (
+    "https://www.klikego.com/resultats/medoc-atlantique-frenchman-carcans-2026/"
+    "1700000000000-1?heat=frenchkid-aquathlon---2013-2014---fille"
+)
+FRENCHKID_2015_FILLE = (
+    "https://www.klikego.com/resultats/medoc-atlantique-frenchman-carcans-2026/"
+    "1700000000000-1?heat=frenchkid-aquathlon---2015---fille"
+)
+#: Audencia La Baule 2024, cas 2 de #756 : trois heats de relais distincts,
+#: le même identifiant Breizh Chrono sous deux façades.
+TRI_RELAIS_ENTREPRISES = (
+    "https://resultats.breizhchrono.com/resultats-courses/"
+    "audencia-la-baule-2024-1234567890123-4/tri-relais-entreprises-et-partenaires"
+)
+TRI_RELAIS_GRAND_PUBLIC = (
+    "https://live.breizhchrono.com/external/live5/classements.jsp"
+    "?version=new&reference=1234567890123-4&heat=tri-relais-grand-public"
+)
+TRI_RELAIS_MIXTE = (
+    "https://live.breizhchrono.com/external/live5/classements.jsp"
+    "?version=new&reference=1234567890123-4&heat=tri-relais-mixte"
+)
 
 
 def _epreuve(
@@ -444,3 +468,118 @@ def test_la_detection_tient_en_une_requete_quel_que_soit_le_nombre_d_epreuves(
 
     assert deux.count == 1
     assert dix.count == 1
+
+
+def test_categories_frenchkid_par_annee_de_naissance_ne_sont_pas_un_doublon(db_session):
+    """Cas 1 de #756 — l'année de naissance de la catégorie n'est pas le millésime.
+
+    Les heats « Frenchkid Aquathlon » de klikego nomment leurs catégories par
+    année de naissance (`- 2013/2014 - Fille`, `- 2015 - Fille`). `_YEAR` efface
+    ces nombres comme s'ils étaient le millésime de l'édition — pensé pour
+    Vertou (`Triathlon de Vertou 2026` → `Triathlon de Vertou`) — et les deux
+    noms se ramènent tous deux à `frenchkid aquathlon fille`, même
+    `event_type`, même `is_relay`, même date : `close_names` les confond alors
+    que ce sont deux catégories réellement distinctes, chacune avec son propre
+    heat slug klikego.
+    """
+    _epreuve(
+        db_session,
+        name="Frenchkid Aquathlon - 2013/2014 - Fille",
+        event_date=date(2026, 6, 14),
+        event_type="aquathlon",
+        url=FRENCHKID_2013_2014_FILLE,
+        provider="klikego",
+        participations=5,
+    )
+    _epreuve(
+        db_session,
+        name="Frenchkid Aquathlon - 2015 - Fille",
+        event_date=date(2026, 6, 14),
+        event_type="aquathlon",
+        url=FRENCHKID_2015_FILLE,
+        provider="klikego",
+        participations=4,
+    )
+
+    assert course_duplicates.find_candidates(db_session) == []
+
+
+def test_heats_de_relais_distincts_sous_deux_facades_ne_sont_pas_un_doublon(db_session):
+    """Cas 2 de #756 — le heat slug doit aussi coïncider entre façades.
+
+    Audencia La Baule 2024 : trois heats de relais légitimement distincts
+    (entreprises, grand public, mixte) partagent l'identifiant d'événement
+    Breizh Chrono, publiés sous deux façades
+    (`resultats.breizhchrono.com` / `live.breizhchrono.com`).
+    `shared_event_id` ne vérifiait que le host (`_facades_differ`), pas le heat
+    slug : deux heats distincts sous des façades distinctes en ressortaient à
+    tort. Seul le host différait déjà entre `entreprises` et les deux autres,
+    donc sans la vérification du heat slug ces deux paires seraient de faux
+    doublons.
+    """
+    _epreuve(
+        db_session,
+        name="Tri Relais Entreprises et Partenaires",
+        event_date=date(2024, 9, 8),
+        event_type="triathlon-relais",
+        url=TRI_RELAIS_ENTREPRISES,
+        provider="breizhchrono",
+        is_relay=True,
+        participations=6,
+    )
+    _epreuve(
+        db_session,
+        name="Tri Relais Grand Public",
+        event_date=date(2024, 9, 8),
+        event_type="triathlon-relais",
+        url=TRI_RELAIS_GRAND_PUBLIC,
+        provider="breizhchrono",
+        is_relay=True,
+        participations=10,
+    )
+    _epreuve(
+        db_session,
+        name="Tri Relais Mixte",
+        event_date=date(2024, 9, 8),
+        event_type="triathlon-relais",
+        url=TRI_RELAIS_MIXTE,
+        provider="breizhchrono",
+        is_relay=True,
+        participations=8,
+    )
+
+    assert course_duplicates.find_candidates(db_session) == []
+
+
+def test_close_names_reste_couvert_quand_un_seul_cote_porte_un_heat_slug(db_session):
+    """Vertou avec un heat d'un seul côté : `close_names` doit toujours le sortir.
+
+    La demande de #756 (cas 1) ne bloque le motif que si les **deux** heat
+    slugs sont non vides et différents — pas si un seul côté en porte un. C'est
+    ce qui garantit « pas de perte de couverture » sur Vertou, dont le sondage
+    d'origine ne mesure qu'un heat identique ou absent des deux côtés : ce test
+    couvre le troisième cas possible, un heat présent d'un seul côté, jamais
+    exercé par les fixtures existantes.
+    """
+    vertou_avec_heat = _epreuve(
+        db_session,
+        name="Triathlon de Vertou - S-Open",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        url="https://www.chronosmetron.wiclax-results.com/Triathlon%20de%20Vertou%202026/?heat=s-open",
+        provider="wiclax",
+        participations=2,
+    )
+    vertou_sans_heat = _epreuve(
+        db_session,
+        name="Triathlon de Vertou 2026 - S-Open",
+        event_date=date(2026, 5, 3),
+        event_type="triathlon-s",
+        url=VERTOU_CHRONOSMETRON,
+        provider="wiclax",
+        participations=2,
+    )
+
+    assert _motifs_par_paire(course_duplicates.find_candidates(db_session)) == {
+        (vertou_avec_heat.id, vertou_sans_heat.id): "close_names"
+    }

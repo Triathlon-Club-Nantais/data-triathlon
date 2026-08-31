@@ -132,15 +132,15 @@ describe("RaceFinishers", () => {
     expect(screen.getByText("TRIATHLON CLUB NANTAIS").style.color).toBe("var(--tcn-orange-deeper)");
   });
 
-  it("ventile le pied de tableau : participants · finishers · abandons (pas « X finishers au total »)", () => {
+  it("ventile le pied de tableau : participants · arrivants · abandons (pas « X arrivants au total »)", () => {
     afficher();
-    expect(screen.getByText("3 participants · 1 finisher · 2 abandons")).toBeInTheDocument();
+    expect(screen.getByText("3 participants · 1 arrivant · 2 abandons")).toBeInTheDocument();
   });
 
   it("ajoute les « indéterminés » au pied de tableau pour réconcilier avec le total", () => {
     afficher({ summary: synthese({ total: 4, finishers: 1, non_finishers: 1, dnf: 1, unknown: 2 }) });
     expect(
-      screen.getByText("4 participants · 1 finisher · 1 abandon · 2 indéterminés"),
+      screen.getByText("4 participants · 1 arrivant · 1 abandon · 2 indéterminés"),
     ).toBeInTheDocument();
   });
 
@@ -158,7 +158,7 @@ describe("RaceFinishers", () => {
       summary: synthese({ total: 11, finishers: 3, non_finishers: 8, dnf: 5, dns: 2, dsq: 1 }),
     });
     expect(
-      screen.getByText("11 participants · 3 finishers · 5 abandons · 2 non-partants · 1 disqualifié"),
+      screen.getByText("11 participants · 3 arrivants · 5 abandons · 2 non-partants · 1 disqualifié"),
     ).toBeInTheDocument();
   });
 

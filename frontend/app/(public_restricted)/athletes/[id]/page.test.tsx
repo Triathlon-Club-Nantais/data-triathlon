@@ -418,7 +418,7 @@ describe("AthletePage", () => {
   it("propose de sélectionner l'athlète affiché depuis son profil (#323)", async () => {
     await renderAthlete([part({ id: 1, rank_overall: 12 })]);
 
-    expect(await screen.findByRole("button", { name: "Choisir cet athlète" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Choisir cet athlète, Jean DUPONT" })).toBeInTheDocument();
   });
 
   // --- L'athlète retenu, un état signifié dans l'en-tête (#467) ---

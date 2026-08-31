@@ -1,7 +1,13 @@
 "use client";
 
 import { Button, MetaPill } from "@/components/tcn";
-import { clearAthlete, useIsSelectedAthlete, writeAthlete, type PickedAthlete } from "@/components/layout/AthletePicker";
+import {
+  clearAthlete,
+  nomComplet,
+  useIsSelectedAthlete,
+  writeAthlete,
+  type PickedAthlete,
+} from "@/components/layout/AthletePicker";
 
 const BENEFICE_ID = "choisir-athlete-benefice";
 
@@ -26,19 +32,28 @@ const BENEFICE_ID = "choisir-athlete-benefice";
  */
 export function AthleteSelection({ athlete }: { athlete: PickedAthlete }) {
   const retenu = useIsSelectedAthlete(athlete.id);
+  const nom = nomComplet(athlete);
 
   // Même verbe que l'autre point d'entrée vers cette action (`AthletePicker`
   // aria-label « Choisir {nom} ») — la revue UI/UX a relevé la divergence
   // avec « Sélectionner »/« Relâcher » (issue #323). L'objet de l'action
   // reste nommé même sur l'état retenu, pour un lecteur d'écran qui saute
-  // directement au bouton.
+  // directement au bouton — via `aria-label`. Celui-ci **complète** le texte
+  // visible (le nom en suffixe) plutôt que de le remplacer : un `aria-label`
+  // qui ne contient plus le texte affiché casse WCAG 2.5.3 pour un
+  // utilisateur de commande vocale, qui dit ce qu'il voit à l'écran
+  // (relevé en revue UI/UX finale de #752).
   if (retenu) {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10 }}>
         <MetaPill accent dot>
           C&apos;est vous
         </MetaPill>
-        <Button variant="secondary" onClick={() => clearAthlete()}>
+        <Button
+          variant="secondary"
+          onClick={() => clearAthlete()}
+          aria-label={`Ne plus choisir cet athlète, ${nom}`}
+        >
           Ne plus choisir cet athlète
         </Button>
       </div>
@@ -47,7 +62,12 @@ export function AthleteSelection({ athlete }: { athlete: PickedAthlete }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8, maxWidth: 300 }}>
-      <Button variant="primary" aria-describedby={BENEFICE_ID} onClick={() => writeAthlete(athlete)}>
+      <Button
+        variant="primary"
+        aria-describedby={BENEFICE_ID}
+        aria-label={`Choisir cet athlète, ${nom}`}
+        onClick={() => writeAthlete(athlete)}
+      >
         Choisir cet athlète
       </Button>
       <p id={BENEFICE_ID} style={{ margin: 0, fontSize: 13, lineHeight: 1.45, color: "var(--tcn-text-muted)" }}>

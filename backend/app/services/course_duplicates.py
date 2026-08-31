@@ -172,9 +172,12 @@ def _shared_event_id(course: dict) -> tuple | None:
     différents (#261). L'identifiant `1517534975128-8`, lui, est le même — c'est
     le chronométreur qui le porte, pas nous.
 
-    `event_type` et `is_relay` dans la clé, et le **host** dans la comparaison
-    (cf. `_facades_differ`) : sans eux, les six swimruns de Dinard, qui partagent
-    identifiant, type et caractère relais, sortaient en 15 paires fausses.
+    `event_type` et `is_relay` dans la clé, et le **host** et le **heat slug**
+    dans la comparaison (cf. `_shared_event_id_guard`) : sans le host, les six
+    swimruns de Dinard, qui partagent identifiant, type et caractère relais,
+    sortaient en 15 paires fausses ; sans le heat slug, trois heats de relais
+    distincts d'Audencia La Baule, partagés sous deux façades Breizh Chrono,
+    sortaient en 2 paires fausses (#756, cas 2).
     """
     identifiant = _event_id(course["source_url"], course["provider"])
     if not identifiant:
@@ -192,7 +195,11 @@ def _close_names(course: dict) -> tuple | None:
     d'une saisie manuelle.
 
     C'est le plus lâche des trois : le nom seul rapproche 37 paires fausses sur
-    la base de développement. `event_type`, `is_relay` et la date le ramènent à 0.
+    la base de développement. `event_type`, `is_relay` et la date le ramènent à
+    0 — sauf pour les heats qui, comme Frenchkid Aquathlon, nomment leur
+    catégorie par année de naissance : `_YEAR` l'efface comme un millésime, et
+    deux catégories distinctes se retrouvent avec le même nom comparable. C'est
+    `_heat_slugs_conflict`, dans la comparaison, qui les sépare (#756, cas 1).
     """
     if course["event_date"] is None:
         return None
@@ -220,6 +227,43 @@ def _dates_are_close(gauche: dict, droite: dict) -> bool:
     return abs(gauche["event_date"] - droite["event_date"]) <= DATE_TOLERANCE
 
 
+def _heat_slugs_conflict(gauche: dict, droite: dict) -> bool:
+    """Les deux heat slugs sont-ils non vides et différents ? (#756, cas 1)
+
+    Le cas Frenchkid Aquathlon : deux catégories du même événement, distinguées
+    par l'année de naissance dans le nom (`- 2013/2014 - Fille`, `- 2015 -
+    Fille`), que `_YEAR` efface comme un millésime — `_comparable_name` les rend
+    donc identiques. Le heat slug, lui, reste ce que le chronométreur distingue
+    réellement : deux slugs non vides et différents signent deux catégories,
+    jamais un doublon, quand bien même le nom et la date coïncident.
+    """
+    gauche_heat = _heat_slug(gauche["source_url"])
+    droite_heat = _heat_slug(droite["source_url"])
+    return bool(gauche_heat) and bool(droite_heat) and gauche_heat != droite_heat
+
+
+def _shared_event_id_guard(gauche: dict, droite: dict) -> bool:
+    """Deux façades distinctes, et le même heat. (#756, cas 2)
+
+    Le host seul ne suffit pas : Audencia La Baule 2024 publie trois heats de
+    relais légitimement distincts (entreprises, grand public, mixte) sous
+    l'identifiant Breizh Chrono commun de l'événement, répartis sur deux
+    façades — deux d'entre eux se retrouvaient appariés à tort, façade
+    différente mais heat différent aussi. Le heat slug tranche : Nozéen, lui,
+    porte le même heat (`duathlon-s---open`) des deux côtés.
+    """
+    if not _facades_differ(gauche, droite):
+        return False
+    return _heat_slug(gauche["source_url"]) == _heat_slug(droite["source_url"])
+
+
+def _close_names_guard(gauche: dict, droite: dict) -> bool:
+    """La date rapproche, et le heat slug ne les distingue pas. (#756, cas 1)"""
+    if not _dates_are_close(gauche, droite):
+        return False
+    return not _heat_slugs_conflict(gauche, droite)
+
+
 #: Les trois motifs, du plus spécifique au plus lâche : `(code, clé, garde)`.
 #: L'ordre porte la priorité — une paire reconnue par deux motifs sort sous le
 #: premier. Ensemble **fermé** : trois formes observées, pas un moteur de règles.
@@ -232,8 +276,8 @@ _REASONS: tuple[
     ...,
 ] = (
     ("same_source_url", _same_source_url, None),
-    ("shared_event_id", _shared_event_id, _facades_differ),
-    ("close_names", _close_names, _dates_are_close),
+    ("shared_event_id", _shared_event_id, _shared_event_id_guard),
+    ("close_names", _close_names, _close_names_guard),
 )
 
 

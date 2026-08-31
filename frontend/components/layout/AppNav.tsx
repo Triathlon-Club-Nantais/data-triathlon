@@ -863,7 +863,7 @@ const eyebrow: CSSProperties = {
   fontSize: 10,
   letterSpacing: "var(--tcn-eyebrow-tracking)",
   textTransform: "uppercase",
-  color: "var(--tcn-text-disabled)",
+  color: "var(--tcn-orange-deeper)",
   padding: "0 2px 2px",
 };
 
