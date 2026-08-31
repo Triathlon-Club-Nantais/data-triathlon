@@ -76,7 +76,7 @@ backend/
 │   └── <new>_add_title_description_status_to_volunteer_actions.py   # NEW
 ├── app/
 │   ├── models/volunteer_action.py                # MODIFIED — 3 colonnes
-│   ├── schemas/volunteer_action.py                # NEW — VolunteerActionCreate/Out self-service
+│   ├── schemas/volunteer_action.py                # NEW — VolunteerActionSelfCreate/Out (nom distinct de admin.py, /speckit-analyze finding C1)
 │   ├── repositories/volunteer_action_repository.py  # MODIFIED — + create_pending()
 │   ├── services/volunteer_action_service.py        # NEW — create_pending(), patron volunteer_declaration_service.py
 │   └── api/v1/
@@ -90,7 +90,7 @@ backend/
 frontend/
 ├── lib/
 │   ├── api/client.ts                     # MODIFIED — createVolunteerAction, searchAthletesConnected
-│   ├── types.ts                          # MODIFIED — VolunteerActionCreate/Out
+│   ├── types.ts                          # MODIFIED — VolunteerActionSelfCreate/Out (distinct de VolunteerAction existant, l.928)
 │   └── queries/volunteer-actions.ts      # NEW — useCreateVolunteerAction (patron volunteer-declarations.ts)
 ├── components/benevolat/
 │   └── VolunteerActionForm.tsx           # NEW — recherche athlète (patron ReattributionField.tsx) + titre/description

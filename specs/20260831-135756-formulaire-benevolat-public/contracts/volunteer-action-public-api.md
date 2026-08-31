@@ -15,11 +15,17 @@ de `require_site_access` à l'inclusion, comme `volunteer_declarations`.
 
 Crée une déclaration de bénévolat pour l'athlète choisi, à l'état
 `"en_attente"` (FR-001 à FR-004, FR-009). `season` dérivé côté serveur
-(`current_season()`, research.md D5) — absent du corps de requête.
+(`current_season()`, research.md D5) — absent du corps de requête. Schéma
+`VolunteerActionSelfCreate` (nommé ainsi pour ne pas collisionner avec
+`VolunteerActionCreate` de `schemas/admin.py`, distinct et inchangé).
 
 **Request**:
 ```json
-{ "athlete_id": 42, "title": "string, non vide", "description": "string, non vide" }
+{
+  "athlete_id": 42,
+  "title": "string, 1-200 caractères",
+  "description": "string, 1-10 000 caractères"
+}
 ```
 
 **Response** `201`:
@@ -37,7 +43,7 @@ Crée une déclaration de bénévolat pour l'athlète choisi, à l'état
 ```
 
 **Errors**:
-- `422` — `title`/`description` vide (validation Pydantic, FR-004).
+- `422` — `title`/`description` vide ou hors bornes (validation Pydantic, FR-004).
 - `404` — `athlete_id` introuvable.
 - `401` — pas de session.
 
