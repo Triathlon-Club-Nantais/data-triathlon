@@ -23,6 +23,7 @@ const nomComplet = (a: AthleteBrief) => `${a.prenom} ${a.nom}`;
 export function VolunteerActionForm() {
   const [recherche, setRecherche] = useState("");
   const [resultats, setResultats] = useState<AthleteBrief[] | null>(null);
+  const [rechercheErreur, setRechercheErreur] = useState<string | null>(null);
   const [athlete, setAthlete] = useState<AthleteBrief | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -37,19 +38,29 @@ export function VolunteerActionForm() {
     requestTokenRef.current++;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setResultats(null);
+    setRechercheErreur(null);
   }, [recherche]);
 
   useEffect(() => {
     if (debounced.trim().length < 2) return;
 
     const token = ++requestTokenRef.current;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setRechercheErreur(null);
     apiClient
       .searchAthletesConnected(debounced)
       .then((resultSet) => {
         if (token === requestTokenRef.current) setResultats(resultSet);
       })
       .catch(() => {
-        if (token === requestTokenRef.current) setResultats([]);
+        // `null` et non `[]` : rendre une liste vide affichait « aucun
+        // athlète trouvé » sur une recherche en échec (même piège relevé en
+        // #513 sur ReattributionField.tsx) — un membre en conclurait que
+        // l'athlète n'existe pas plutôt que de réessayer.
+        if (token === requestTokenRef.current) {
+          setResultats(null);
+          setRechercheErreur("Recherche impossible pour le moment. Réessayez dans un instant.");
+        }
       });
   }, [debounced]);
 
@@ -112,7 +123,12 @@ export function VolunteerActionForm() {
               onChange={(e) => setRecherche(e.target.value)}
               placeholder="Nom du coureur"
             />
-            {resultats !== null && resultats.length === 0 && (
+            {rechercheErreur && (
+              <div style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
+                {rechercheErreur}
+              </div>
+            )}
+            {!rechercheErreur && resultats !== null && resultats.length === 0 && (
               <div style={{ color: "var(--tcn-text-faint)", fontSize: 13, marginTop: 8 }}>
                 Aucun athlète trouvé.
               </div>

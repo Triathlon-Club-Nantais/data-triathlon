@@ -62,6 +62,17 @@ describe("VolunteerActionForm", () => {
     await waitFor(() => expect(screen.getByText(/Aucun athlète trouvé/)).toBeInTheDocument());
   });
 
+  it("distingue une recherche en échec d'une recherche sans résultat", async () => {
+    searchAthletesConnected.mockRejectedValue(new Error("réseau"));
+    afficher();
+    await userEvent.type(screen.getByLabelText(/athlète/i), "Ker");
+
+    await waitFor(() =>
+      expect(screen.getByText(/Recherche impossible pour le moment/)).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/Aucun athlète trouvé/)).not.toBeInTheDocument();
+  });
+
   it("les résultats n'affichent que nom/prénom/club, jamais de date de naissance", async () => {
     searchAthletesConnected.mockResolvedValue([CIBLE]);
     afficher();
