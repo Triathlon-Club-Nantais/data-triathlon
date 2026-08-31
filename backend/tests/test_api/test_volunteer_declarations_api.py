@@ -143,4 +143,6 @@ def test_supprimer_deux_fois_la_meme_declaration_rend_404_la_seconde_fois(client
 def test_supprimer_sans_session_rend_401(client):
     client.cookies.clear()
 
-    assert client.delete(f"{_URL}/999999").status_code == 401
+    reponse = client.delete(f"{_URL}/999999")
+
+    assert reponse.status_code == 401
