@@ -35,6 +35,11 @@ def list_pending(db: Session) -> list[VolunteerAction]:
     return volunteer_action_repository.list_pending(db)
 
 
+def list_validated_for_athlete(db: Session, *, athlete_id: int) -> list[VolunteerAction]:
+    """Fiche athlète (#781 FR-001/FR-002/FR-004)."""
+    return volunteer_action_repository.list_validated_for_athlete(db, athlete_id=athlete_id)
+
+
 def _action_ou_404(db: Session, action_id: int) -> VolunteerAction:
     action = volunteer_action_repository.get(db, action_id)
     if action is None:

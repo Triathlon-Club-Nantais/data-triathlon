@@ -51,3 +51,19 @@ def refuser(
     db.commit()
     db.refresh(action)
     return action
+
+
+@router.get(
+    "/admin/athletes/{athlete_id}/volunteer-actions/validated",
+    response_model=list[AdminVolunteerActionOut],
+)
+def lister_les_actions_validees_dun_athlete(
+    athlete_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)),
+):
+    """Fiche athlète (#781) — suffixe `/validated` distinct du chemin de
+    création admin (`POST .../volunteer-actions`, `admin_data.py`, #709),
+    pour ne pas faire porter deux pouvoirs différents au même chemin
+    (research.md D1)."""
+    return volunteer_action_service.list_validated_for_athlete(db, athlete_id=athlete_id)

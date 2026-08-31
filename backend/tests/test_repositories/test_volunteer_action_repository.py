@@ -196,3 +196,40 @@ def test_exists_for_athlete_season_vrai_des_une_ligne_validee(db_session):
     assert volunteer_action_repository.exists_for_athlete_season(
         db_session, athlete_id=athlete.id, season=2025
     )
+
+
+def test_list_validated_for_athlete_ne_rend_que_les_lignes_validees(db_session):
+    auteur = _auteur(db_session)
+    athlete = _athlete(db_session)
+    autre_athlete = _athlete(db_session, nom="MARTIN")
+
+    en_attente = volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2024, declared_by_user_id=auteur.id,
+        title="A", description="B",
+    )
+    refusee = volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2024, declared_by_user_id=auteur.id,
+        title="C", description="D",
+    )
+    volunteer_action_repository.set_status(db_session, refusee.id, "refusee")
+    validee_ancienne = volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2024, declared_by_user_id=auteur.id,
+        title="E", description="F",
+    )
+    volunteer_action_repository.set_status(db_session, validee_ancienne.id, "validee")
+    validee_recente = volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id,
+        title="G", description="H",
+    )
+    volunteer_action_repository.set_status(db_session, validee_recente.id, "validee")
+    validee_autre_athlete = volunteer_action_repository.create_pending(
+        db_session, athlete_id=autre_athlete.id, season=2025, declared_by_user_id=auteur.id,
+        title="I", description="J",
+    )
+    volunteer_action_repository.set_status(db_session, validee_autre_athlete.id, "validee")
+    db_session.flush()
+
+    resultat = volunteer_action_repository.list_validated_for_athlete(db_session, athlete_id=athlete.id)
+
+    assert [a.id for a in resultat] == [validee_recente.id, validee_ancienne.id]
+    assert en_attente.id not in [a.id for a in resultat]
