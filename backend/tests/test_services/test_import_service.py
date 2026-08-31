@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import event
+from sqlalchemy.exc import OperationalError
 
 from app.core.config import Settings
 from app.core.exceptions import ProviderNotSupportedError
@@ -745,6 +746,33 @@ def test_iter_import_event_accuse_de_commit_perdu_confirme_en_base(db_session, p
     done = phases[-1]
     assert done["phase"] == "done"
     assert done["imported"] == 1
+    assert course_repository.get_latest_by_source_url(db_session, URL) is not None
+
+
+def test_iter_import_event_deadlock_est_rejoue(db_session, patch_scraper, monkeypatch):
+    """#771 : un deadlock Postgres (concurrence `rescrape-db` entre chronométreurs,
+    #690) ne doit pas perdre l'épreuve entière — rien n'a été commité, un
+    nouvel essai suffit."""
+    patch_scraper([_result("1", "DUPONT")])
+    original_commit = db_session.commit
+    appels: list[int] = []
+
+    def _commit_deadlock_puis_ok():
+        appels.append(1)
+        if len(appels) == 1:
+            raise OperationalError(
+                "UPDATE athletes ...", {}, SimpleNamespace(pgcode="40P01")
+            )
+        original_commit()
+
+    monkeypatch.setattr(db_session, "commit", _commit_deadlock_puis_ok)
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    done = phases[-1]
+    assert done["phase"] == "done"
+    assert done["imported"] == 1
+    assert len(appels) == 2
     assert course_repository.get_latest_by_source_url(db_session, URL) is not None
 
 
