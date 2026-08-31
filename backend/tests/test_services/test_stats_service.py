@@ -336,6 +336,73 @@ def test_course_summary_club_et_compteur_tcn(db_session):
     assert clubs_par_nom["ASPTT"]["count"] == 1
 
 
+def test_course_summary_fusionne_les_alias_de_club_declares(db_session):
+    """Généralisation à tout club de la fusion TCN (#635, suite #200/#215).
+
+    Deux abrégations du même club, ni la casse ni les espaces ne les
+    rapprochent (`normalize_club` seul ne fusionnerait pas) — seule la
+    déclaration explicite d'alias les regroupe.
+    """
+    from app.repositories import club_alias_repository
+
+    course = _epreuve(
+        db_session,
+        [
+            ("A", "Un", "M", "LA ROCHE VENDEE TRIATHLON", None, "finisher", None, None),
+            ("B", "Deux", "M", "LA ROCHE VENDEE TRI", None, "finisher", None, None),
+            ("C", "Trois", "M", "ASPTT", None, "finisher", None, None),
+        ],
+    )
+    club_alias_repository.create_entry(
+        db_session, canonical_name="La Roche Vendée Triathlon",
+        alias_normalized="la roche vendee triathlon", created_by_user_id=None,
+    )
+    club_alias_repository.create_entry(
+        db_session, canonical_name="La Roche Vendée Triathlon",
+        alias_normalized="la roche vendee tri", created_by_user_id=None,
+    )
+    db_session.flush()
+
+    synthese = stats_service.course_summary(db_session, course.id)
+
+    clubs_par_nom = {c["name"]: c for c in synthese["clubs"]}
+    assert set(clubs_par_nom) == {"La Roche Vendée Triathlon", "ASPTT"}
+    assert clubs_par_nom["La Roche Vendée Triathlon"]["count"] == 2
+    assert clubs_par_nom["La Roche Vendée Triathlon"]["is_tcn"] is False
+
+
+def test_course_summary_sans_alias_declare_garde_le_libelle_brut(db_session):
+    """Un club jamais déclaré reste affiché tel quel — comportement inchangé (#635)."""
+    course = _epreuve(
+        db_session, [("A", "Un", "M", "ASPTT", None, "finisher", None, None)]
+    )
+
+    synthese = stats_service.course_summary(db_session, course.id)
+
+    assert {c["name"] for c in synthese["clubs"]} == {"ASPTT"}
+
+
+def test_course_summary_fusionne_les_variantes_de_casse_sans_alias_declare(db_session):
+    """Le compteur de « Top clubs » doit rester cohérent avec le filtre :
+    #635 a rendu le filtre `club=` insensible à la casse même sans alias
+    déclaré (comparaison normalisée), donc l'agrégat d'affichage doit
+    fusionner les mêmes variantes, sous peine de diverger du total que le
+    filtre rendrait."""
+    course = _epreuve(
+        db_session,
+        [
+            ("A", "Un", "M", "BLAIN TRIATHLON", None, "finisher", None, None),
+            ("B", "Deux", "M", "Blain Triathlon", None, "finisher", None, None),
+        ],
+    )
+
+    synthese = stats_service.course_summary(db_session, course.id)
+
+    assert len(synthese["clubs"]) == 1
+    assert synthese["clubs"][0]["count"] == 2
+    assert synthese["clubs"][0]["name"] == "BLAIN TRIATHLON"
+
+
 def test_course_summary_borne_categories_a_8_et_clubs_a_9(db_session):
     lignes = []
     for index in range(12):
@@ -382,10 +449,13 @@ def test_course_summary_split_keys_vues_sur_au_moins_une_participation(db_sessio
 
 
 def test_course_summary_ne_charge_que_les_colonnes_utiles(db_session):
-    """FR-022 : pas d'objet ORM hydraté, pas de relation chargée, une requête.
+    """FR-022 : pas d'objet ORM hydraté, pas de relation chargée sur les participations.
 
     Sans ce garde, un `joinedload` réintroduit un jour ferait retomber la
     synthèse dans le coût que la feature #163 supprime, sans rien signaler.
+    Depuis #635, `course_summary` porte une deuxième requête bornée — la carte
+    des alias de club, chargée une fois pour l'appel entier — d'où deux
+    requêtes au total et non plus une seule.
     """
     from sqlalchemy import event
 
@@ -412,7 +482,7 @@ def test_course_summary_ne_charge_que_les_colonnes_utiles(db_session):
         stats_service.course_summary(db_session, course.id)
     finally:
         event.remove(engine, "before_cursor_execute", _mouchard)
-    assert len(requetes) == 1, requetes
+    assert len(requetes) == 2, requetes
 
 
 def test_course_summary_histogramme_meme_decoupage_que_le_front(db_session):

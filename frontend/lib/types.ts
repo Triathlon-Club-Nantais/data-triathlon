@@ -498,6 +498,20 @@ export interface CounterScope {
   club_labels: CounterScopeEntry[];
 }
 
+/** Une variante de libellé rattachée à un nom canonique affiché (#635). */
+export interface ClubAlias {
+  id: number;
+  canonical_name: string;
+  /** La forme normalisée du libellé brut — casse et espaces aplatis. */
+  alias: string;
+  created_at: string;
+  created_by: string | null;
+}
+
+export interface ClubAliasList {
+  entries: ClubAlias[];
+}
+
 /**
  * Un rôle et sa composition (#115).
  *

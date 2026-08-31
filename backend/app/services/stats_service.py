@@ -4,8 +4,8 @@ from collections import Counter
 from sqlalchemy.orm import Session
 
 from app.core import season as season_module
-from app.core.club import TCN_CANONICAL_NAME, is_tcn
-from app.repositories import course_repository, participation_repository
+from app.core.club import TCN_CANONICAL_NAME, is_tcn, normalize_club
+from app.repositories import club_alias_repository, course_repository, participation_repository
 from app.scrapers.base import STATUS_FINISHER
 from app.scrapers.utils import to_seconds
 from app.services import split_gap
@@ -256,6 +256,13 @@ def course_summary(db: Session, course_id: int) -> dict:
     male = female = tcn_count = 0
     categories: Counter[str] = Counter()
     clubs: Counter[str] = Counter()
+    # Forme normalisée -> premier libellé brut vu pour cette forme. Sert à
+    # fusionner l'affichage des variantes de casse/espacement sans alias
+    # déclaré — depuis #635, `_club_filter_targets` matche déjà ces variantes
+    # au filtre (comparaison normalisée), et laisser l'affichage bucketer par
+    # casse ferait diverger le compteur de la carte du total que le filtre
+    # rendrait (même défaut que #485 avait corrigé pour `category`).
+    libelles_par_forme: dict[str, str] = {}
     split_keys: dict[str, None] = {}
     secondes: list[int] = []
     ecarts: list[float | None] = []
@@ -263,6 +270,9 @@ def course_summary(db: Session, course_id: int) -> dict:
     # L'épreuve, lue une fois : le sport et le caractère de relais commandent le
     # schéma de segments de l'écart, et ne varient pas d'une ligne à l'autre.
     course = course_repository.get(db, course_id)
+    # Alias de club déclarés (#635) — chargés une fois, jamais par ligne : une
+    # épreuve porte jusqu'à ~1800 participations (#163).
+    alias_map = club_alias_repository.canonical_map(db)
     lignes = participation_repository.summary_rows_for_course(db, course_id)
     for status, club, category, total_time, splits, gender in lignes:
         statut = (status or "").strip()
@@ -288,13 +298,22 @@ def course_summary(db: Session, course_id: int) -> dict:
         if category and category.strip():
             categories[category.strip()] += 1
         if club and club.strip():
-            # Les variantes de libellé TCN (« TRI CLUB NANTAIS », « TCN »,
-            # « Triathlon club nantais »… — verbatim du chronométreur) sont
-            # fusionnées sous le libellé canonique dans « Top clubs » (#200).
-            # Sans quoi le même club apparaissait sur deux à trois lignes selon
-            # les saisies du speaker. `is_tcn` reste la définition unique — la
-            # base garde le verbatim, seul l'agrégat d'affichage bascule.
-            libelle = TCN_CANONICAL_NAME if is_tcn(club) else club.strip()
+            # Les variantes de libellé d'un même club (« TRI CLUB NANTAIS »,
+            # « TCN »… pour le TCN ; des alias déclarés pour tout autre club,
+            # #635) sont fusionnées sous un libellé canonique dans « Top
+            # clubs » (#200, #635). Sans quoi le même club apparaissait sur
+            # plusieurs lignes selon les saisies du chronométreur. Le TCN
+            # reste gouverné par `is_tcn` (registre séparé, #95) ; tout autre
+            # club par `alias_map`, chargé une fois plus haut, avec repli sur
+            # la forme normalisée (`libelles_par_forme`) pour rester
+            # cohérent avec ce que `_club_filter_targets` matche déjà sans
+            # alias déclaré. La base garde le verbatim — seul l'agrégat
+            # d'affichage bascule.
+            if is_tcn(club):
+                libelle = TCN_CANONICAL_NAME
+            else:
+                forme = normalize_club(club)
+                libelle = alias_map.get(forme) or libelles_par_forme.setdefault(forme, club.strip())
             clubs[libelle] += 1
         if is_tcn(club):
             tcn_count += 1

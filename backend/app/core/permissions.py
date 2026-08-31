@@ -39,6 +39,9 @@ FEATURE_ADMIN_LOG = "Journal d'administration"
 #: Distincte des Épreuves — corriger une épreuve rectifie une ligne, changer
 #: cette configuration redéfinit ce que tous les compteurs additionnent.
 FEATURE_COUNTER_SCOPE = "Portée des compteurs"
+#: Fusion des variantes de libellé, généralisée à tout club (#635) —
+#: distincte de la portée des compteurs, réservée au TCN.
+FEATURE_CLUB_ALIASES = "Variantes de club"
 
 
 @dataclass(frozen=True, slots=True)
@@ -279,6 +282,14 @@ class P:
         "côté. Une modification change ce que tous les compteurs additionnent.",
         FEATURE_COUNTER_SCOPE,
     )
+    CLUB_ALIASES_MANAGE = Permission(
+        "club_aliases:manage",
+        "Gérer les variantes de club",
+        "Regrouper les orthographes d'un même club sous un nom affiché "
+        "commun, pour « Top clubs » et le filtre du classement. Distinct de "
+        "la portée des compteurs, réservée au TCN.",
+        FEATURE_CLUB_ALIASES,
+    )
     ADMIN_LOG_READ = Permission(
         "admin_log:read",
         "Consulter le journal d'administration",
@@ -321,6 +332,7 @@ ALL: tuple[Permission, ...] = (
     P.FEEDBACK_READ,
     P.FEEDBACK_MANAGE,
     P.COUNTER_SCOPE_MANAGE,
+    P.CLUB_ALIASES_MANAGE,
     P.ADMIN_LOG_READ,
 )
 

@@ -57,6 +57,7 @@ CODES_ATTENDUS = {
     "feedback:read",
     "feedback:manage",
     "counter_scope:manage",
+    "club_aliases:manage",
     "admin_log:read",
 }
 
