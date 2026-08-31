@@ -1,11 +1,14 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
+import { currentSeason } from "@/lib/utils/season";
 
 const listEvents = vi.fn();
+const listSeasons = vi.fn();
 
 vi.mock("@/lib/api/server", () => ({
   apiServer: {
     listEvents: (filters: unknown, fetchOpts?: unknown) => listEvents(filters, fetchOpts),
+    listSeasons: (opts: unknown, fetchOpts?: unknown) => listSeasons(opts, fetchOpts),
   },
   SHORT_REVALIDATE_SECONDS: 30,
 }));
@@ -42,11 +45,24 @@ const FIRST_PAGE = {
 describe("ResultatsPage", () => {
   it("récupère la page 1 avec la fenêtre de revalidation courte (#623)", async () => {
     listEvents.mockResolvedValue(FIRST_PAGE);
+    listSeasons.mockResolvedValue([]);
 
     const jsx = await ResultatsPage({ searchParams: Promise.resolve({}) });
     render(jsx);
 
     expect(listEvents).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
+  });
+
+  it("scope la couverture sur la saison courante par défaut (#772)", async () => {
+    listEvents.mockResolvedValue(FIRST_PAGE);
+    listSeasons.mockResolvedValue([]);
+
+    const jsx = await ResultatsPage({ searchParams: Promise.resolve({}) });
+    render(jsx);
+
+    const calls = listEvents.mock.calls as [{ page_size?: number; seasons?: number[] }][];
+    const coverageCall = calls.find(([filters]) => filters.page_size === 200);
+    expect(coverageCall?.[0]).toMatchObject({ seasons: [currentSeason()] });
   });
 
   it("un ?sort= inconnu dans l'URL ne remonte pas tel quel à l'API (#711)", async () => {

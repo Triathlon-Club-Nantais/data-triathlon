@@ -4,9 +4,12 @@ import type { MonthCoverage } from "@/lib/utils/coverage";
 
 /**
  * Vue d'ensemble mensuelle des épreuves couvertes, mois vides compris — à la
- * différence de `MonthlyTrend` (12 derniers mois glissants), cette vue porte
- * l'historique complet pour que les trous restent visibles (#466, US11).
- * Défilement horizontal propre : l'historique peut dépasser plusieurs années.
+ * différence de `MonthlyTrend` (12 derniers mois glissants), cette vue peut
+ * porter plusieurs saisons pour que les trous restent visibles (#466, US11).
+ * `months` reflète déjà la sélection de saison(s) faite par l'appelant
+ * (`/resultats`, `SeasonSelector`, défaut : saison en cours — #772) ; ce
+ * composant reste sans opinion sur la portée, purement présentationnel.
+ * Défilement horizontal propre : plusieurs saisons peuvent dépasser une année.
  */
 export function CoverageTimeline({ months }: { months: MonthCoverage[] }) {
   if (months.length === 0) {
