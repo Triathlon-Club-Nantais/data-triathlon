@@ -59,10 +59,10 @@ Aucune tâche distincte — une seule user story, tout tombe dans sa phase.
 
 ## Phase 4: Polish & Cross-Cutting Concerns
 
-- [ ] T013 [P] Rejouer les 3 scénarios de `quickstart.md` contre le serveur de dev réel
-- [ ] T014 [P] `cd backend && uv run pytest -m "not integration"` — suite complète verte
-- [ ] T015 [P] `cd backend && uv run ruff check .`
-- [ ] T016 [P] `cd frontend && npm test && npm run lint && npx tsc --noEmit && npm run build`
+- [X] T013 [P] Rejouer les 3 scénarios de `quickstart.md` contre le serveur de dev réel
+- [X] T014 [P] `cd backend && uv run pytest -m "not integration"` — suite complète verte
+- [X] T015 [P] `cd backend && uv run ruff check .`
+- [X] T016 [P] `cd frontend && npm test && npm run lint && npx tsc --noEmit && npm run build`
 
 ---
 
