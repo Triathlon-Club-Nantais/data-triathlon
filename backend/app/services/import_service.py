@@ -986,6 +986,18 @@ def _renumber_relay_split_ranks(db: Session, results: list[ScrapedResult]) -> No
     prudente (`_merge_fields`, qui n'écrase que sur une valeur non vide) le
     prendrait pour un rang local légitime et écraserait le bon rang déjà en
     base. Un rescrape ultérieur au jeu complet renumérotera correctement.
+
+    Limite acceptée : la comparaison porte sur un **compte**, pas sur
+    l'ensemble des dossards. Une ligne perdue et une ligne neuve arrivant dans
+    le **même** lot pour le même sous-groupe peuvent se compenser en taille —
+    le lot resterait alors `>= participation_count` et se ferait renuméroter
+    malgré une composition différente de celle persistée. Non traité : la
+    coïncidence (perte **et** arrivée simultanées sur le même sous-groupe,
+    dans le même lot) est plus étroite que le cas mesuré (#764, une ligne qui
+    disparaît simplement), et `participation_count` ne peut que **descendre**
+    par suppression manuelle explicite (jamais par un rescrape qui omet une
+    ligne, cf. `finalize()` plus bas) — la garde reste donc sûre dans le cas
+    dominant.
     """
     groups: dict[tuple[str, object, str], dict[bool, list[ScrapedResult]]] = {}
     for scraped in results:
@@ -999,9 +1011,10 @@ def _renumber_relay_split_ranks(db: Session, results: list[ScrapedResult]) -> No
             course = course_repository.get_by_identity(db, name, event_date, event_type, is_relay)
             if course is not None and len(subgroup) < course.participation_count:
                 logger.warning(
-                    "Renumérotation solo/relais ignorée pour %r (%s, is_relay=%s) : "
-                    "lot de %d ligne(s) < %d déjà persistées (#764)",
-                    name, event_type, is_relay, len(subgroup), course.participation_count,
+                    "Renumérotation solo/relais ignorée pour la course %d %r "
+                    "(%s, %s, is_relay=%s) : lot de %d ligne(s) < %d déjà persistées (#764)",
+                    course.id, name, event_date, event_type, is_relay,
+                    len(subgroup), course.participation_count,
                 )
                 for scraped in subgroup:
                     scraped.rank_overall = None
