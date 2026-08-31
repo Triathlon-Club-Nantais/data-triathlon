@@ -1003,13 +1003,27 @@ def _renumber_duplicate_ranks(results: list[ScrapedResult]) -> None:
     `services/quality.py::_rank_anomalies` (`ANOMALY_DUPLICATE_RANK`).
 
     Ne touche que les groupes portant un doublon dans **ce** lot (`Counter`
-    sur `rank_overall`) : une épreuve dont le rang est authentiquement global
-    n'a aucun doublon et sort inchangée. Renumérotation par **temps
-    croissant** (`utils.to_seconds`), et non par tri stable du rang d'origine
-    comme `_renumber_relay_split_ranks` (#672) : celui-ci suppose un ordre
-    déjà correct mais globalement décalé, ce qui ne tient pas ici — le rang
+    sur `rank_overall` des seuls finishers, comme
+    `services/quality.py::_rank_anomalies`) : une épreuve dont le rang est
+    authentiquement global n'a aucun doublon et sort inchangée. Un DNF/DNS/DSQ
+    n'a normalement pas de `rank_overall` (les scrapers, RaceResult compris,
+    le mettent à `None`), mais on ne s'y fie pas pour l'inclusion dans le
+    lot renuméroté : seul un finisher y entre, sans quoi un rang parasite sur
+    un non-finisher entrerait dans le tri par temps.
+
+    Renumérotation par **temps croissant** (`utils.to_seconds(strict=True)`,
+    un temps illisible partant en **fin** de classement plutôt qu'à `0` — le
+    défaut non strict, pensé pour un cumul, promouvait à tort un temps vide
+    au rang 1), et non par tri stable du rang d'origine comme
+    `_renumber_relay_split_ranks` (#672) : celui-ci suppose un ordre déjà
+    correct mais globalement décalé, ce qui ne tient pas ici — le rang
     d'origine mélange deux ordres indépendants (un par groupe), que seul le
     temps permet de départager.
+
+    Appelée **avant** `_renumber_relay_split_ranks` par les deux points
+    d'appel : un tri stable sur un rang déjà doublonné le laisserait tel
+    quel (« déjà 1..N » d'après son propre critère), ce qui « uniquifierait »
+    silencieusement le doublon avant que ce correctif-ci ait pu le détecter.
     """
     groups: dict[tuple[str, object, str, bool], list[ScrapedResult]] = {}
     for scraped in results:
@@ -1020,11 +1034,20 @@ def _renumber_duplicate_ranks(results: list[ScrapedResult]) -> None:
         groups.setdefault(key, []).append(scraped)
 
     for group in groups.values():
-        ranked = [r for r in group if r.rank_overall is not None]
+        ranked = [
+            r for r in group
+            if r.rank_overall is not None
+            and (r.status or "").strip().lower() == STATUS_FINISHER
+        ]
         rangs = Counter(r.rank_overall for r in ranked)
         if not any(count > 1 for count in rangs.values()):
             continue  # aucun doublon dans ce lot : rang déjà fiable
-        ranked.sort(key=lambda r: to_seconds(r.total_time))
+
+        def _cle_temps(r: ScrapedResult) -> tuple[bool, int]:
+            secondes = to_seconds(r.total_time, strict=True)
+            return (secondes is None, secondes or 0)
+
+        ranked.sort(key=_cle_temps)
         for local_rank, scraped in enumerate(ranked, start=1):
             scraped.rank_overall = local_rank
 
@@ -1043,8 +1066,8 @@ def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict
     l'écriture.
     """
     _reclassify_heats(db, url, results)
-    _renumber_relay_split_ranks(results)
     _renumber_duplicate_ranks(results)
+    _renumber_relay_split_ranks(results)
     persister = _Persister(db, url)
     for scraped in results:
         persister.add(scraped)
@@ -1221,8 +1244,8 @@ def iter_import_event(
             # est déjà née — ou déjà écrite avec son rang combiné/dupliqué —
             # quand on la cherche.
             _reclassify_heats(db, url, results)
-            _renumber_relay_split_ranks(results)
             _renumber_duplicate_ranks(results)
+            _renumber_relay_split_ranks(results)
             for i, scraped in enumerate(results):
                 persister.add(scraped)
                 if (i + 1) % 20 == 0 or i == total - 1:
