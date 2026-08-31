@@ -853,6 +853,30 @@ def test_fetch_indiv_stable_retient_le_plus_complet_si_ca_ne_converge_jamais(mon
     assert len(lignes) == 5  # le plus complet observé, pas le dernier (3)
 
 
+def test_fetch_indiv_stable_garde_la_reponse_en_main_si_la_confirmation_echoue(monkeypatch):
+    """Revue de #764 : une confirmation qui échoue (500 persistants, budget
+    `_ESSAIS_INDIV` épuisé) ne doit pas faire perdre la réponse en débordement
+    déjà obtenue — sans quoi une course qui aurait réussi sans le fix (un seul
+    appel, non confirmé) devient un échec pur à cause de la seule tentative de
+    confirmation."""
+    appels = {"n": 0}
+
+    def indiv(race):
+        appels["n"] += 1
+        if appels["n"] == 1:
+            return EVENEMENT_979  # succès initial, en débordement
+        return _Reponse(None, status_code=500)  # toute confirmation échoue
+
+    api = _api(monkeypatch, indiv=indiv)
+
+    lignes, vues = prolivesport._fetch_indiv_stable("979", "Triathlon M", api)
+
+    assert len(lignes) == 5  # la réponse initiale, pas une exception
+    assert vues == {"Triathlon XS", "Triathlon S", "Triathlon M"}
+    # 1 appel initial + le budget des 500 épuisé sur la seule confirmation tentée.
+    assert len(api.appels_indiv) == 1 + prolivesport._ESSAIS_INDIV
+
+
 # --- le chemin mono-course (échappatoire `--single-heat`) -------------------
 
 def test_scrape_event_all_ne_garde_que_les_lignes_de_la_course(monkeypatch):

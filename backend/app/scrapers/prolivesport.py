@@ -251,13 +251,19 @@ def _fetch_indiv(event_id: str, race: str, client: httpx.Client) -> list[dict]:
 #: Confirmations supplémentaires d'une réponse en débordement (#757, #764) —
 #: jamais sur une réponse qui honore son filtre (constat n° 4 du sondage :
 #: un seul GET par course, chacun jusqu'à 14,7 Mo, en refaire un par course
-#: serait absurde).
+#: serait absurde). Pire cas : chaque confirmation peut elle-même épuiser
+#: `_ESSAIS_INDIV` sur des 500 intermittents avant d'échouer, soit jusqu'à
+#: `(1 + _ESSAIS_STABILITE_DEBORDEMENT) * _ESSAIS_INDIV` requêtes de 14,7 Mo
+#: dans le pire cas — accepté : l'objectif est d'éviter le coût systématique
+#: sur le chemin courant, pas de borner le pire cas.
 _ESSAIS_STABILITE_DEBORDEMENT = 2
 
 
 def _empreinte(lignes: list[dict]) -> frozenset:
     """Identité d'un jeu de lignes, insensible à l'ordre : (course, dossard)."""
-    return frozenset((ligne.get("race"), ligne.get("number")) for ligne in lignes)
+    return frozenset(
+        ((ligne.get("race") or "").strip(), ligne.get("number")) for ligne in lignes
+    )
 
 
 def _fetch_indiv_stable(
@@ -284,7 +290,19 @@ def _fetch_indiv_stable(
     meilleure = reponse
     empreinte_precedente = _empreinte(reponse)
     for _essai in range(_ESSAIS_STABILITE_DEBORDEMENT):
-        suivante = _fetch_indiv(event_id, race, client)
+        try:
+            suivante = _fetch_indiv(event_id, race, client)
+        except Exception as exc:
+            # Une confirmation qui échoue (budget des 500 épuisé, `success:
+            # false`…) ne doit pas faire perdre une réponse déjà en main :
+            # `meilleure` reste la meilleure vue jusqu'ici, jamais pire que le
+            # comportement d'avant #764 (un seul appel, non confirmé).
+            logger.warning(
+                "Prolivesport indiv %s/%s : confirmation échouée (%s), "
+                "on garde la réponse en main (%d lignes)",
+                event_id, race, exc, len(meilleure),
+            )
+            break
         empreinte = _empreinte(suivante)
         if empreinte == empreinte_precedente:
             meilleure = suivante
