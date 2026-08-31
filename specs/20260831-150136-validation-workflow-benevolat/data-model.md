@@ -9,7 +9,7 @@ significatives au lieu d'un champ posé sans être jamais relu.
 |---|---|---|
 | `"en_attente"` | défaut DB ; création self-service (#778) ou admin (#709) | → `"validee"` (accept) ou `"refusee"` (reject) |
 | `"validee"` | `accept()` | → `"refusee"` (reject, US3 Scenario 3) ; idempotent sur `accept()` |
-| `"refusee"` | `reject()` | idempotent sur `reject()` ; pas de retour vers `"validee"` (hors périmètre) |
+| `"refusee"` | `reject()` | idempotent sur `reject()` ; `accept()` sur une ligne `"refusee"` est un **no-op** (pas de transition vers `"validee"`, aucune erreur — même règle que le no-op déjà défini sur `"validee"`, généralisée à tout statut ≠ `"en_attente"`, cf. `/speckit-analyze` finding U1) |
 
 ```
         création (self-service #778 ou admin #709)
@@ -23,8 +23,9 @@ significatives au lieu d'un champ posé sans être jamais relu.
 
 ### Validation rules (FR ↔ code)
 
-- FR-003/FR-004 : `accept()` — `"en_attente"` → `"validee"` ; no-op si déjà
-  `"validee"`.
+- FR-003/FR-004 : `accept()` — `"en_attente"` → `"validee"` ; no-op pour
+  tout autre statut de départ (`"validee"` **ou** `"refusee"`), jamais
+  d'erreur.
 - FR-005/FR-006 : `reject()` — `"en_attente"` ou `"validee"` → `"refusee"` ;
   no-op si déjà `"refusee"`.
 - FR-008 : `volunteer_action_repository.exists_for_athlete_season` filtre

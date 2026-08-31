@@ -72,9 +72,12 @@ validation Pydantic. Nommé `AdminVolunteerActionOut`, sur le patron
 
 **Rationale** : posé en Assumptions de spec.md — un admin doit pouvoir
 revenir sur une acceptation erronée. `accept()`, symétriquement, n'accepte
-que `"en_attente"` en entrée significative (idempotent si déjà
-`"validee"`) : valider une ligne `"refusee"` n'est couvert par aucun FR de
-cette itération (hors périmètre explicite, spec.md Assumptions).
+que `"en_attente"` en entrée significative : pour tout autre statut de
+départ — `"validee"` (déjà couvert) **et** `"refusee"` (finding U1 de
+`/speckit-analyze`, précisé après coup) —, c'est un no-op, jamais une
+erreur ni une transition. Valider une ligne `"refusee"` reste hors
+périmètre fonctionnel (aucun FR ne l'exige), mais le comportement du code
+sur ce cas n'est plus laissé à l'implémentation : no-op, explicitement.
 
 ## D7 — Journal d'administration : `entity_type="athlete"`, pas
 `"volunteer_action"`

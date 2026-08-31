@@ -72,12 +72,12 @@ trois user stories — aucune ne peut être testée sans eux.
 
 ### Tests for User Story 2
 
-- [ ] T012 [P] [US2] Test service : `accept()` fait passer `"en_attente"` → `"validee"`, idempotent si déjà `"validee"`, `NotFoundError` si id inconnu dans `backend/tests/test_services/test_volunteer_action_service.py`
+- [ ] T012 [P] [US2] Test service : `accept()` fait passer `"en_attente"` → `"validee"` ; no-op (pas d'erreur, pas de transition) si déjà `"validee"` **ou** si `"refusee"` (`/speckit-analyze` finding U1) ; `NotFoundError` si id inconnu dans `backend/tests/test_services/test_volunteer_action_service.py`
 - [ ] T013 [P] [US2] Test API : `POST /admin/volunteer-actions/{id}/accept` — `200` statut `"validee"`, `404` id inconnu, `403` sans pouvoir, et `GET .../season-quota` reflète `has_volunteer_action: true` après acceptation dans `backend/tests/test_api/test_admin_volunteer_actions_api.py`
 
 ### Implementation for User Story 2
 
-- [ ] T014 [US2] Implémenter `volunteer_action_service.accept()` (idempotent, journalise sauf no-op) dans `backend/app/services/volunteer_action_service.py` — fait passer T012 (depends on T005, T006)
+- [ ] T014 [US2] Implémenter `volunteer_action_service.accept()` (transition uniquement depuis `"en_attente"` ; no-op pour tout autre statut de départ, journalise seulement la vraie transition) dans `backend/app/services/volunteer_action_service.py` — fait passer T012 (depends on T005, T006)
 - [ ] T015 [US2] Ajouter `POST /admin/volunteer-actions/{action_id}/accept` au router `admin_volunteer_actions.py` — fait passer T013 (depends on T014, T010)
 
 **Checkpoint**: US1 et US2 fonctionnelles.
@@ -93,7 +93,7 @@ trois user stories — aucune ne peut être testée sans eux.
 ### Tests for User Story 3
 
 - [ ] T016 [P] [US3] Test service : `reject()` fait passer `"en_attente"` **ou** `"validee"` → `"refusee"`, idempotent si déjà `"refusee"` dans `backend/tests/test_services/test_volunteer_action_service.py`
-- [ ] T017 [P] [US3] Test API : `POST /admin/volunteer-actions/{id}/reject` — `200` statut `"refusee"` depuis `"en_attente"` et depuis `"validee"`, `has_volunteer_action` redevient `false` si c'était la seule ligne validée dans `backend/tests/test_api/test_admin_volunteer_actions_api.py`
+- [ ] T017 [P] [US3] Test API : `POST /admin/volunteer-actions/{id}/reject` — `200` statut `"refusee"` depuis `"en_attente"` et depuis `"validee"`, `403` sans pouvoir dédié (`/speckit-analyze` finding E1 — FR-007 non testé sur ce endpoint), `has_volunteer_action` redevient `false` si c'était la seule ligne validée dans `backend/tests/test_api/test_admin_volunteer_actions_api.py`
 
 ### Implementation for User Story 3
 
