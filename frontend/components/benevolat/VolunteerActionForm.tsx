@@ -24,11 +24,13 @@ export function VolunteerActionForm() {
   const [recherche, setRecherche] = useState("");
   const [resultats, setResultats] = useState<AthleteBrief[] | null>(null);
   const [rechercheErreur, setRechercheErreur] = useState<string | null>(null);
+  const [rechercheEnCours, setRechercheEnCours] = useState(false);
   const [athlete, setAthlete] = useState<AthleteBrief | null>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
   const descriptionId = useId();
+  const rechercheErreurId = useId();
   const debounced = useDebounce(recherche, 300);
   const requestTokenRef = useRef(0);
   const create = useCreateVolunteerAction();
@@ -39,6 +41,7 @@ export function VolunteerActionForm() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setResultats(null);
     setRechercheErreur(null);
+    setRechercheEnCours(false);
   }, [recherche]);
 
   useEffect(() => {
@@ -47,6 +50,7 @@ export function VolunteerActionForm() {
     const token = ++requestTokenRef.current;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setRechercheErreur(null);
+    setRechercheEnCours(true);
     apiClient
       .searchAthletesConnected(debounced)
       .then((resultSet) => {
@@ -61,6 +65,9 @@ export function VolunteerActionForm() {
           setResultats(null);
           setRechercheErreur("Recherche impossible pour le moment. Réessayez dans un instant.");
         }
+      })
+      .finally(() => {
+        if (token === requestTokenRef.current) setRechercheEnCours(false);
       });
   }, [debounced]);
 
@@ -104,7 +111,7 @@ export function VolunteerActionForm() {
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Athlète</div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <strong>{nomComplet(athlete)}</strong>
-              <Button variant="ghost" onClick={() => setAthlete(null)}>
+              <Button variant="ghost" onClick={() => setAthlete(null)} disabled={create.isPending}>
                 Changer d&apos;athlète
               </Button>
             </div>
@@ -122,13 +129,23 @@ export function VolunteerActionForm() {
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
               placeholder="Nom du coureur"
+              aria-describedby={rechercheErreur ? rechercheErreurId : undefined}
             />
+            {rechercheEnCours && (
+              <div role="status" style={{ color: "var(--tcn-text-faint)", fontSize: 13, marginTop: 8 }}>
+                Recherche…
+              </div>
+            )}
             {rechercheErreur && (
-              <div style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}>
+              <div
+                id={rechercheErreurId}
+                role="alert"
+                style={{ color: "var(--tcn-danger-text)", fontSize: 13, marginTop: 8 }}
+              >
                 {rechercheErreur}
               </div>
             )}
-            {!rechercheErreur && resultats !== null && resultats.length === 0 && (
+            {!rechercheEnCours && !rechercheErreur && resultats !== null && resultats.length === 0 && (
               <div style={{ color: "var(--tcn-text-faint)", fontSize: 13, marginTop: 8 }}>
                 Aucun athlète trouvé.
               </div>

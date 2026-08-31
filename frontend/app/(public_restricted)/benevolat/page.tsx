@@ -47,11 +47,20 @@ export default function BenevolatPage() {
               <VolunteerDeclarationList />
             </div>
             <div className="space-y-6">
-              <PageHeader
-                eyebrow="Quota de saison"
-                title="Créditer un athlète pour le quota de saison"
-                description="Recherchez un athlète et décrivez l'activité de bénévolat qu'il a effectuée. La déclaration est instruite par un administrateur avant de compter pour son quota."
-              />
+              {/* `h2`, pas un second `PageHeader` (qui rend toujours un `h1`,
+                  WCAG 1.3.1) — deux sections sur une même page, une seule
+                  hiérarchie de titres. */}
+              <div className="space-y-1.5">
+                <div className="eyebrow">Quota de saison</div>
+                <h2 className="font-heading text-[22px] leading-none tracking-tight text-foreground sm:text-[28px]">
+                  Créditer un athlète pour le quota de saison
+                </h2>
+                <p className="max-w-2xl text-sm text-[var(--tcn-text-faint)]">
+                  Recherchez un athlète et décrivez l&apos;activité de bénévolat qu&apos;il a
+                  effectuée. La déclaration est instruite par un administrateur avant de compter
+                  pour son quota.
+                </p>
+              </div>
               <VolunteerActionForm />
             </div>
           </div>

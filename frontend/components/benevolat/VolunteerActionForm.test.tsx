@@ -62,15 +62,31 @@ describe("VolunteerActionForm", () => {
     await waitFor(() => expect(screen.getByText(/Aucun athlète trouvé/)).toBeInTheDocument());
   });
 
-  it("distingue une recherche en échec d'une recherche sans résultat", async () => {
+  it("distingue une recherche en échec d'une recherche sans résultat, et l'annonce au lecteur d'écran", async () => {
     searchAthletesConnected.mockRejectedValue(new Error("réseau"));
     afficher();
     await userEvent.type(screen.getByLabelText(/athlète/i), "Ker");
 
-    await waitFor(() =>
-      expect(screen.getByText(/Recherche impossible pour le moment/)).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/Recherche impossible/));
     expect(screen.queryByText(/Aucun athlète trouvé/)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/athlète/i)).toHaveAttribute(
+      "aria-describedby",
+      screen.getByRole("alert").id,
+    );
+  });
+
+  it("annonce la recherche en cours au lecteur d'écran (#608)", async () => {
+    let resoudre: (value: AthleteBrief[]) => void;
+    searchAthletesConnected.mockReturnValue(
+      new Promise<AthleteBrief[]>((resolve) => (resoudre = resolve)),
+    );
+    afficher();
+    await userEvent.type(screen.getByLabelText(/athlète/i), "Ker");
+
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Recherche…"));
+
+    resoudre!([CIBLE]);
+    await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument());
   });
 
   it("les résultats n'affichent que nom/prénom/club, jamais de date de naissance", async () => {
@@ -161,6 +177,7 @@ describe("VolunteerActionForm", () => {
     await userEvent.click(screen.getByRole("button", { name: /déclarer/i }));
 
     expect(screen.getByRole("button", { name: /déclarer/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /changer d'athlète/i })).toBeDisabled();
     resoudre!({
       id: 1,
       athlete_id: 2,
