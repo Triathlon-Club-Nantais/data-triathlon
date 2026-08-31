@@ -753,6 +753,7 @@ def test_iter_import_event_deadlock_est_rejoue(db_session, patch_scraper, monkey
     """#771 : un deadlock Postgres (concurrence `rescrape-db` entre chronométreurs,
     #690) ne doit pas perdre l'épreuve entière — rien n'a été commité, un
     nouvel essai suffit."""
+    monkeypatch.setattr(import_service.time, "sleep", lambda *_: None)
     patch_scraper([_result("1", "DUPONT")])
     original_commit = db_session.commit
     appels: list[int] = []
@@ -774,6 +775,50 @@ def test_iter_import_event_deadlock_est_rejoue(db_session, patch_scraper, monkey
     assert done["imported"] == 1
     assert len(appels) == 2
     assert course_repository.get_latest_by_source_url(db_session, URL) is not None
+
+
+def test_iter_import_event_deadlock_persistant_reste_une_erreur(
+    db_session, patch_scraper, monkeypatch,
+):
+    """#771 : au-delà de `_DEADLOCK_MAX_ATTEMPTS`, un deadlock qui persiste
+    reste une erreur — pas de ré-essai infini, l'épreuve échoue proprement."""
+    monkeypatch.setattr(import_service.time, "sleep", lambda *_: None)
+    patch_scraper([_result("1", "DUPONT")])
+    appels: list[int] = []
+
+    def _commit_deadlock_toujours():
+        appels.append(1)
+        raise OperationalError("UPDATE athletes ...", {}, SimpleNamespace(pgcode="40P01"))
+
+    monkeypatch.setattr(db_session, "commit", _commit_deadlock_toujours)
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    assert phases[-1]["phase"] == "error"
+    assert len(appels) == import_service._DEADLOCK_MAX_ATTEMPTS
+    assert course_repository.get_latest_by_source_url(db_session, URL) is None
+
+
+def test_iter_import_event_erreur_non_deadlock_n_est_pas_rejouee(
+    db_session, patch_scraper, monkeypatch,
+):
+    """#771 : seul un deadlock Postgres (`40P01`) déclenche un ré-essai — toute
+    autre erreur reste traitée en un seul essai, comme avant #771."""
+    patch_scraper([_result("1", "DUPONT")])
+    appels: list[int] = []
+
+    def _commit_erreur_non_deadlock():
+        appels.append(1)
+        raise OperationalError(
+            "UPDATE athletes ...", {}, SimpleNamespace(pgcode="23505")
+        )
+
+    monkeypatch.setattr(db_session, "commit", _commit_erreur_non_deadlock)
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    assert phases[-1]["phase"] == "error"
+    assert len(appels) == 1
 
 
 def test_iter_import_event_commit_reellement_echoue_reste_une_erreur(db_session, patch_scraper, monkeypatch):
