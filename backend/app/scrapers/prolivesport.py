@@ -248,6 +248,60 @@ def _fetch_indiv(event_id: str, race: str, client: httpx.Client) -> list[dict]:
     )
 
 
+#: Confirmations supplémentaires d'une réponse en débordement (#757, #764) —
+#: jamais sur une réponse qui honore son filtre (constat n° 4 du sondage :
+#: un seul GET par course, chacun jusqu'à 14,7 Mo, en refaire un par course
+#: serait absurde).
+_ESSAIS_STABILITE_DEBORDEMENT = 2
+
+
+def _empreinte(lignes: list[dict]) -> frozenset:
+    """Identité d'un jeu de lignes, insensible à l'ordre : (course, dossard)."""
+    return frozenset((ligne.get("race"), ligne.get("number")) for ligne in lignes)
+
+
+def _fetch_indiv_stable(
+    event_id: str, race: str, client: httpx.Client
+) -> tuple[list[dict], set[str]]:
+    """`_fetch_indiv`, confirmé quand la réponse déborde de la course demandée.
+
+    Mesuré (#757, #764) : une réponse `result/indiv` en débordement — celle
+    que `_lignes_par_course` réutilise pour l'événement entier — peut rendre
+    un jeu de lignes différent d'un appel à l'autre sans jamais renvoyer de
+    5xx (un dossard présent à un appel a disparu au suivant, quelques minutes
+    plus tard, même URL). L'incomplétude se propage alors à **toutes** les
+    courses restantes, qui réutilisent cette même réponse.
+
+    Une réponse qui n'a jamais débordé (filtre honoré) ressort inchangée
+    après le seul appel de `_fetch_indiv` — aucun coût réseau ajouté sur ce
+    chemin, qui n'a jamais montré l'instabilité mesurée.
+    """
+    reponse = _fetch_indiv(event_id, race, client)
+    vues = {(ligne.get("race") or "").strip() for ligne in reponse}
+    if not (vues - {race}):
+        return reponse, vues
+
+    meilleure = reponse
+    empreinte_precedente = _empreinte(reponse)
+    for _essai in range(_ESSAIS_STABILITE_DEBORDEMENT):
+        suivante = _fetch_indiv(event_id, race, client)
+        empreinte = _empreinte(suivante)
+        if empreinte == empreinte_precedente:
+            meilleure = suivante
+            break
+        logger.warning(
+            "Prolivesport indiv %s/%s : jeu de lignes instable en débordement "
+            "(%d puis %d lignes)",
+            event_id, race, len(meilleure), len(suivante),
+        )
+        if len(suivante) > len(meilleure):
+            meilleure = suivante
+        empreinte_precedente = empreinte
+
+    vues_finales = {(ligne.get("race") or "").strip() for ligne in meilleure}
+    return meilleure, vues_finales
+
+
 def _fetch_splits(event_id: str, client: httpx.Client) -> list[dict]:
     """Points de passage publiés, pour l'événement **entier**.
 
@@ -425,7 +479,7 @@ def _lignes_par_course(
         if race in couvertes:
             continue
         try:
-            reponse = _fetch_indiv(event_id, race, client)
+            reponse, vues = _fetch_indiv_stable(event_id, race, client)
         except Exception as exc:
             logger.warning(
                 "Course prolivesport %s de l'événement %s en échec : %s",
@@ -434,10 +488,8 @@ def _lignes_par_course(
             trace.failures.append({"heat_slug": race, "reason": str(exc)})
             continue
 
-        vues: set[str] = set()
         for ligne in reponse:
             code = (ligne.get("race") or "").strip()
-            vues.add(code)
             if code in attendues and code not in couvertes:
                 lignes.setdefault(code, []).append(ligne)
         couvertes.update(courses if vues - {race} else {race})

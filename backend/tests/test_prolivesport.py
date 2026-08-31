@@ -529,13 +529,15 @@ def test_fanout_regroupe_les_lignes_par_course_quand_lapi_ignore_le_filtre(monke
 
 
 def test_fanout_reutilise_une_reponse_qui_couvre_plusieurs_courses(monkeypatch):
-    """Un seul GET pour les 3 courses : les réponses pèsent jusqu'à 14,7 Mo,
-    en refaire une par course serait absurde (constat n° 4 du sondage)."""
+    """Un seul GET **par course restante** pour les 3 courses : les réponses
+    pèsent jusqu'à 14,7 Mo, en refaire une par course serait absurde (constat
+    n° 4 du sondage). La réponse en débordement est confirmée une fois
+    (#757, #764) : 1 appel initial + 1 confirmation, pas 3."""
     api = _api(monkeypatch)
 
     prolivesport.scrape_event_fanout(URL_979)
 
-    assert len(api.appels_indiv) == 1
+    assert len(api.appels_indiv) == 2
 
 
 def test_fanout_fuite_tardive_ne_duplique_pas_une_course_deja_couverte(monkeypatch):
@@ -556,7 +558,9 @@ def test_fanout_fuite_tardive_ne_duplique_pas_une_course_deja_couverte(monkeypat
 
     resultats, _trace = prolivesport.scrape_event_fanout(URL_979)
 
-    assert len(api.appels_indiv) == 2  # XS (directe) + S (fuite) ; M réutilise la fuite
+    # XS (directe, filtre honoré, non confirmée) + S (fuite, confirmée une
+    # fois #757/#764) ; M réutilise la fuite.
+    assert len(api.appels_indiv) == 3
     assert len(resultats) == 5  # et non 6 : la ligne XS n'est pas comptée deux fois
     tailles = {url: len(rs) for url, rs in _par_course(resultats).items()}
     assert tailles == {
@@ -791,6 +795,62 @@ def test_fetch_indiv_abandonne_apres_les_essais(monkeypatch):
         prolivesport._fetch_indiv("979", "Triathlon M", api)
 
     assert len(api.appels_indiv) == prolivesport._ESSAIS_INDIV
+
+
+# --- confirmation d'une réponse en débordement (#757, #764) -----------------
+
+def test_fetch_indiv_stable_ne_confirme_pas_un_filtre_honore(monkeypatch):
+    """Filtre honoré (aucun débordement) : un seul appel, jamais confirmé —
+    l'instabilité n'a jamais été mesurée sur ce chemin (constat n° 4 du
+    sondage : pas de second GET à 14,7 Mo sans raison)."""
+    api = _api(monkeypatch, indiv=lambda race: [
+        ligne for ligne in EVENEMENT_979 if ligne["race"] == race
+    ])
+
+    lignes, vues = prolivesport._fetch_indiv_stable("979", "Triathlon M", api)
+
+    assert len(api.appels_indiv) == 1
+    assert len(lignes) == 2
+    assert vues == {"Triathlon M"}
+
+
+def test_fetch_indiv_stable_retente_si_le_jeu_de_lignes_est_instable(monkeypatch):
+    """Mesuré (#757, #764) : une réponse en débordement peut perdre une ligne
+    d'un appel à l'autre sans jamais rendre de 5xx (dossard 750 présent puis
+    absent, même URL, quelques minutes plus tard). Un second appel confirme
+    la stabilité et récupère la ligne manquante."""
+    incomplet = EVENEMENT_979[:-1]  # dossard "5" (Triathlon M) manque
+    appels = {"n": 0}
+
+    def indiv(race):
+        appels["n"] += 1
+        return incomplet if appels["n"] == 1 else EVENEMENT_979
+
+    api = _api(monkeypatch, indiv=indiv)
+
+    lignes, vues = prolivesport._fetch_indiv_stable("979", "Triathlon M", api)
+
+    assert appels["n"] == 3  # 1er appel (incomplet) + 2 confirmations, converge à la 2e
+    assert len(lignes) == 5
+    assert vues == {"Triathlon XS", "Triathlon S", "Triathlon M"}
+
+
+def test_fetch_indiv_stable_retient_le_plus_complet_si_ca_ne_converge_jamais(monkeypatch):
+    """Budget de confirmation épuisé sans stabilité : on ne lève pas, on
+    retient le jeu le plus complet observé plutôt que le dernier ou le
+    premier — mieux vaut une course quasi complète qu'arbitrairement tronquée."""
+    tailles = iter([3, 4, 5])  # jamais deux tailles consécutives égales
+
+    def indiv(race):
+        return EVENEMENT_979[: next(tailles)]
+
+    api = _api(monkeypatch, indiv=indiv)
+
+    lignes, _vues = prolivesport._fetch_indiv_stable("979", "Triathlon M", api)
+
+    # 1 appel initial + _ESSAIS_STABILITE_DEBORDEMENT confirmations, budget épuisé.
+    assert len(api.appels_indiv) == 1 + prolivesport._ESSAIS_STABILITE_DEBORDEMENT
+    assert len(lignes) == 5  # le plus complet observé, pas le dernier (3)
 
 
 # --- le chemin mono-course (échappatoire `--single-heat`) -------------------
