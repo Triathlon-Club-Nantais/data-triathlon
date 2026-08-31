@@ -8,13 +8,16 @@ et un générateur de progression pour le streaming SSE.
 """
 import logging
 import queue
+import random
 import threading
+import time
 from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import urlparse
 
+import psycopg2.errorcodes
 from sqlalchemy.orm import Session
 
 from app.core.club import is_tcn
@@ -1082,6 +1085,19 @@ def _confirm_committed(db: Session, courses: list[dict], since: datetime) -> boo
     return True
 
 
+_DEADLOCK_MAX_ATTEMPTS = 3
+
+
+def _is_deadlock(exc: Exception) -> bool:
+    """Deadlock Postgres (#771) : `rescrape-db` traite plusieurs chronométreurs
+    en parallèle (#690), chacun dans sa propre transaction — un même athlète TCN
+    mis à jour par deux transactions concurrentes peut faire cycler leurs verrous.
+    Le SQLSTATE `40P01` identifie ce cas précis, indépendamment du message
+    (localisable, versionné selon le driver)."""
+    orig = getattr(exc, "orig", None)
+    return getattr(orig, "pgcode", None) == psycopg2.errorcodes.DEADLOCK_DETECTED
+
+
 def iter_import_event(
     db: Session, url: str, settings: Settings, force: bool = False, persist: bool = True,
     *, single_heat: bool = False,
@@ -1151,53 +1167,65 @@ def iter_import_event(
         }
         return
 
-    persister = _Persister(db, url)
-    yield {"phase": "saving", "total": total, "imported": 0, "updated": 0, "skipped": 0, "progress": 0}
     attempt_started_at = utcnow()
-    try:
-        # Le chemin SSE ré-implémente la boucle de `persist_results` pour émettre
-        # sa progression : le rattrapage de classification (#294) et la
-        # renumérotation solo/relais (#672) doivent donc y être posés eux
-        # aussi, et **avant** la première ligne, sinon la seconde `Course`
-        # est déjà née — ou déjà écrite avec son rang combiné — quand on la
-        # cherche.
-        _reclassify_heats(db, url, results)
-        _renumber_relay_split_ranks(results)
-        for i, scraped in enumerate(results):
-            persister.add(scraped)
-            if (i + 1) % 20 == 0 or i == total - 1:
-                yield {
-                    "phase": "saving",
-                    "total": total,
-                    "imported": persister.imported,
-                    "updated": persister.updated,
-                    "skipped": persister.skipped,
-                    "progress": i + 1,
-                }
-        persister.finalize()
-        if persist:
-            db.commit()
-        else:
-            db.rollback()  # dry-run : traverser la persistance, ne rien écrire
-    except Exception as exc:
-        db.rollback()
-        confirmed = False
-        if persist:
-            try:
-                confirmed = _confirm_committed(db, persister.courses_summary(), attempt_started_at)
-            except Exception:
-                # La re-vérification elle-même peut échouer (connexion vraiment
-                # perdue, pas seulement un accusé égaré) : on ne laisse jamais
-                # cette panne secondaire faire disparaître la phase `error` que
-                # le flux SSE doit toujours émettre.
-                logger.exception("Échec de la re-vérification post-commit pour %s", url)
-        if not confirmed:
-            logger.error("Rollback de l'import streaming %s", url, exc_info=exc)
-            yield {"phase": "error", "message": "Erreur lors de l'enregistrement des résultats."}
-            return
-        logger.warning(
-            "Accusé de commit perdu mais écriture confirmée en base pour %s", url, exc_info=exc
-        )
+    for tentative in range(1, _DEADLOCK_MAX_ATTEMPTS + 1):
+        persister = _Persister(db, url)
+        yield {"phase": "saving", "total": total, "imported": 0, "updated": 0, "skipped": 0, "progress": 0}
+        try:
+            # Le chemin SSE ré-implémente la boucle de `persist_results` pour émettre
+            # sa progression : le rattrapage de classification (#294) et la
+            # renumérotation solo/relais (#672) doivent donc y être posés eux
+            # aussi, et **avant** la première ligne, sinon la seconde `Course`
+            # est déjà née — ou déjà écrite avec son rang combiné — quand on la
+            # cherche.
+            _reclassify_heats(db, url, results)
+            _renumber_relay_split_ranks(results)
+            for i, scraped in enumerate(results):
+                persister.add(scraped)
+                if (i + 1) % 20 == 0 or i == total - 1:
+                    yield {
+                        "phase": "saving",
+                        "total": total,
+                        "imported": persister.imported,
+                        "updated": persister.updated,
+                        "skipped": persister.skipped,
+                        "progress": i + 1,
+                    }
+            persister.finalize()
+            if persist:
+                db.commit()
+            else:
+                db.rollback()  # dry-run : traverser la persistance, ne rien écrire
+            break
+        except Exception as exc:
+            db.rollback()
+            if _is_deadlock(exc) and tentative < _DEADLOCK_MAX_ATTEMPTS:
+                # Rien n'a été commité : un nouvel essai repart d'une
+                # transaction propre, avec un `_Persister` neuf (#771).
+                logger.warning(
+                    "Deadlock Postgres pour %s (tentative %d/%d), nouvel essai",
+                    url, tentative, _DEADLOCK_MAX_ATTEMPTS, exc_info=exc,
+                )
+                time.sleep(random.uniform(0.05, 0.2) * tentative)  # noqa: S311 — jitter anti-collision, pas cryptographique
+                continue
+            confirmed = False
+            if persist:
+                try:
+                    confirmed = _confirm_committed(db, persister.courses_summary(), attempt_started_at)
+                except Exception:
+                    # La re-vérification elle-même peut échouer (connexion vraiment
+                    # perdue, pas seulement un accusé égaré) : on ne laisse jamais
+                    # cette panne secondaire faire disparaître la phase `error` que
+                    # le flux SSE doit toujours émettre.
+                    logger.exception("Échec de la re-vérification post-commit pour %s", url)
+            if not confirmed:
+                logger.error("Rollback de l'import streaming %s", url, exc_info=exc)
+                yield {"phase": "error", "message": "Erreur lors de l'enregistrement des résultats."}
+                return
+            logger.warning(
+                "Accusé de commit perdu mais écriture confirmée en base pour %s", url, exc_info=exc
+            )
+            break
 
     yield {
         "phase": "done",
