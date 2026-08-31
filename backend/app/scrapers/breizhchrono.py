@@ -228,6 +228,7 @@ def _import_one_heat(
         source_url=source_url,
         event_date=event_date,
         client=client,
+        client_factory=lambda: http.client(timeout=30, headers=HEADERS),
     )
     # Composé APRÈS build_heat_results, jamais avant (#701) : le <title> d'une
     # page de heat BC porte souvent déjà le libellé du heat, et

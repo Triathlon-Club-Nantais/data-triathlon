@@ -1358,6 +1358,145 @@ def test_fetch_inter_splits_collects_per_slot(monkeypatch):
     assert splits["358"] == {"swim": "00:06:24", "bike": "00:19:28"}
 
 
+def test_fetch_inter_splits_fetches_checkpoints_concurrently_via_client_factory():
+    """#760 — chaque checkpoint mappable doit être fetché sur son propre client,
+    en parallèle, quand `client_factory` est fourni : sinon la pagination
+    complète du heat est répétée séquentiellement une fois par checkpoint
+    (confirmé : 35 requêtes séquentielles pour un heat à 324 inscrits et 4
+    checkpoints, cf. investigation #760).
+
+    Une barrière à 3 parties ne se libère que si les 3 checkpoints sont
+    fetchés en même temps : un fetch séquentiel bloquerait indéfiniment sur
+    le premier `wait()` (timeout -> BrokenBarrierError -> test en échec).
+    """
+    import threading
+
+    barrier = threading.Barrier(3, timeout=2)
+    created_clients = []
+
+    class FakeClient:
+        def __init__(self, tag):
+            self.tag = tag
+            self.closed = False
+
+        def get(self, url):
+            barrier.wait()  # ne se libère que si les 3 clients fetchent en parallèle
+            payload = f"1|true|1|1|NOM Prenom|S1|M|CLUB|00:0{self.tag}:00|||"
+            return httpx.Response(200, text=_block([payload]))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            self.closed = True
+
+    def client_factory():
+        c = FakeClient(len(created_clients))
+        created_clients.append(c)
+        return c
+
+    options = [("cp0", "Natation"), ("cp1", "Vélo"), ("cp2", "T1")]
+    splits = plat.fetch_inter_splits(
+        "https://x", "evt", "heat", options, client=None, client_factory=client_factory,
+    )
+
+    assert len(created_clients) == 3
+    assert all(c.closed for c in created_clients)  # chaque client fermé après usage
+    assert splits["1"] == {"swim": "00:00:00", "bike": "00:01:00", "t1": "00:02:00"}
+
+
+def test_fetch_inter_splits_closes_factory_client_on_single_checkpoint():
+    """#760 (revue) — un seul checkpoint mappé + `client_factory` sans `client`
+    reste séquentiel (pas de gain à paralléliser un seul appel), mais doit
+    quand même fermer le client obtenu via la factory : sinon fuite de
+    connexion sur ce chemin (repli séquentiel de `fetch_inter_splits`).
+    """
+
+    class FakeClient:
+        def __init__(self):
+            self.closed = False
+
+        def get(self, url):
+            return httpx.Response(200, text=_block(["1|true|1|1|NOM Prenom|S1|M|CLUB|00:05:00|||"]))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            self.closed = True
+
+    created = []
+
+    def client_factory():
+        c = FakeClient()
+        created.append(c)
+        return c
+
+    options = [("cp0", "Natation")]
+    splits = plat.fetch_inter_splits(
+        "https://x", "evt", "heat", options, client=None, client_factory=client_factory,
+    )
+
+    assert len(created) == 1
+    assert created[0].closed, "le client obtenu via client_factory doit être fermé après usage"
+    assert splits["1"] == {"swim": "00:05:00"}
+
+
+def test_fetch_inter_splits_last_declared_checkpoint_wins_on_slot_collision():
+    """#760 (revue) — en cas de collision de slot entre deux checkpoints
+    déclarés (deux labels mappant sur le même slot), le **dernier déclaré**
+    doit l'emporter — comportement historique du `for` séquentiel — et non le
+    dernier à *terminer* sa requête réseau.
+
+    Le checkpoint déclaré en premier (A) est délibérément le plus LENT, celui
+    déclaré en second (B) le plus RAPIDE : un merge basé sur l'ordre de
+    complétion (`as_completed`) ferait gagner A (qui termine après B), alors
+    que l'ordre déclaré attend B.
+    """
+    import threading
+    import time
+
+    class FakeClient:
+        def __init__(self, delay: float, value: str):
+            self.delay = delay
+            self.value = value
+
+        def get(self, url):
+            time.sleep(self.delay)
+            return httpx.Response(
+                200,
+                text=_block([f"1|true|1|1|NOM Prenom|S1|M|CLUB|{self.value}|||"]),
+            )
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    calls = {"n": 0}
+    lock = threading.Lock()
+
+    def client_factory():
+        with lock:
+            calls["n"] += 1
+            n = calls["n"]
+        # 1er appel (checkpoint A, déclaré en premier) : lent.
+        # 2e appel (checkpoint B, déclaré en second) : rapide.
+        return FakeClient(delay=0.15, value="00:09:00") if n == 1 else FakeClient(delay=0, value="00:01:00")
+
+    # Deux checkpoints distincts mappant tous deux sur le slot "swim".
+    options = [("cpA", "Natation"), ("cpB", "Nat")]
+    splits = plat.fetch_inter_splits(
+        "https://x", "evt", "heat", options, client=None, client_factory=client_factory,
+    )
+
+    assert splits["1"]["swim"] == "00:01:00", (
+        "le checkpoint déclaré en dernier (B) doit gagner la collision de slot, "
+        f"pas celui qui termine en dernier réseau — obtenu {splits['1']['swim']!r}"
+    )
+
+
 # ── build_heat_results — assemblage des ScrapedResult complets d'un heat ─────
 
 
@@ -1818,6 +1957,71 @@ def test_scrape_event_all_phase_c_paralleles_avec_plafond(monkeypatch):
         f"les requêtes de détail devraient partir en parallèle, pic={concurrency['peak']}"
     )
     assert concurrency["peak"] <= 10, f"plafond de 10 workers dépassé : pic={concurrency['peak']}"
+
+
+def test_scrape_event_all_phase_b_checkpoints_paralleles(monkeypatch):
+    """Phase B : les checkpoints inter partent en parallèle (#760).
+
+    Bout en bout via `scrape_event_all` (client_factory câblé au vrai appel de
+    production), pour prouver que le câblage — pas seulement `fetch_inter_splits`
+    en isolation — parallélise bien les checkpoints. Sonde de concurrence sur les
+    GET `course-result.jsp?inter=<checkpoint>` : une boucle séquentielle ne
+    dépasserait jamais 1.
+    """
+    import threading
+    import time
+
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+
+    heat_page_html = """
+    <html><body>
+      <select name="inter" id="inter">
+        <option value="">Arrivée</option>
+        <option value="cp0">Natation</option>
+        <option value="cp1">Vélo</option>
+        <option value="cp2">T1</option>
+      </select>
+    </body></html>
+    """
+
+    concurrency = {"current": 0, "peak": 0}
+    lock = threading.Lock()
+
+    class FakeResp:
+        def __init__(self, t, code=200):
+            self.text, self.status_code = t, code
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+        def get(self, url):
+            if "klikego.com/resultats/" in url and "heat=" in url:
+                return FakeResp(heat_page_html)
+            if "course-result.jsp" in url and "inter=&page=0" in url:
+                return FakeResp(page0)
+            if "course-result.jsp" in url and any(f"inter=cp{i}" in url for i in range(3)):
+                with lock:
+                    concurrency["current"] += 1
+                    concurrency["peak"] = max(concurrency["peak"], concurrency["current"])
+                time.sleep(0.05)
+                with lock:
+                    concurrency["current"] -= 1
+                return FakeResp("<html></html>")  # data block vide : stoppe après 1 page
+            return FakeResp("<html></html>")
+
+    monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
+    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("triathlon-s-light", None))
+
+    klikego.scrape_event_all(
+        "1488071608761-572", "triathlon-s-light",
+        "Triathlon Test 2024", "triathlon-test-2024",
+    )
+
+    assert concurrency["peak"] > 1, (
+        f"les checkpoints inter devraient partir en parallèle, pic={concurrency['peak']}"
+    )
 
 
 def test_scrape_event_all_phase_c_ignore_les_echecs_reseau_par_participant(monkeypatch, caplog):

@@ -13,6 +13,8 @@ Format d'une ligne (séparateur `|`), 12 champs :
 """
 import base64
 import re
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date as _date
 from urllib.parse import urlencode
 
@@ -24,6 +26,14 @@ from .utils import normalize_time, strip_accents
 
 _XOR_KEY = ord("K")
 _PAGE_SIZE = 50
+
+#: #760 — concurrence des checkpoints inter (natation/T1/vélo/T2...) de
+#: `fetch_inter_splits`. Chacun répète la pagination complète du heat
+#: (`fetch_heat_rows`) : en séquentiel, un heat à 4 checkpoints multiplie par
+#: 4 le nombre de requêtes déjà fait par `fetch_heat_rows` seul (confirmé :
+#: 35 requêtes séquentielles pour un heat à 324 inscrits / 4 checkpoints).
+#: Même prudence que `klikego._DETAIL_MAX_WORKERS` envers cette JSP dynamique.
+_INTER_MAX_WORKERS = 10
 
 # Les deux fronts terminent le <title> par «  - {code postal} - {ville} » ; ce
 # marqueur borne le nom de l'épreuve, qui peut lui-même contenir des « - »
@@ -348,29 +358,72 @@ def inter_label_to_slot(label: str) -> str | None:
     return None
 
 
+def _rows_to_splits(rows: list[list[str]], slot: str) -> list[tuple[str, str, str]]:
+    out = []
+    for row in rows:
+        f = (row + [""] * 12)[:12]
+        bib, inter_time = f[0].strip(), normalize_time(f[8].strip())
+        if bib and inter_time:
+            out.append((bib, slot, inter_time))
+    return out
+
+
 def fetch_inter_splits(
     base: str,
     event_id: str,
     heat: str,
     inter_options: list[tuple[str, str]],
-    client: httpx.Client,
+    client: httpx.Client | None = None,
+    *,
+    client_factory: Callable[[], httpx.Client] | None = None,
 ) -> dict[str, dict[str, str]]:
     """Collecte les temps de checkpoints pour tous les participants.
 
     Pour chaque option `inter` mappable sur un slot, pagine le data block et lit
     le champ `inter` (idx 8). Retourne `{bib: {slot: "HH:MM:SS"}}`.
     Les checkpoints dont le label ne mappe sur aucun slot sont ignorés.
+
+    Chaque checkpoint mappé répète la pagination complète du heat
+    (`fetch_heat_rows`) — un simple `for` séquentiel multiplie donc le nombre
+    de requêtes par le nombre de checkpoints (#760). Quand `client_factory`
+    est fourni, les checkpoints sont fetchés **en parallèle**, chacun sur son
+    propre client (même patron que `klikego._fetch_and_apply_detail`, #583 :
+    un client par tâche, pas de verrou nécessaire au-delà). Sans
+    `client_factory` (défaut), comportement séquentiel inchangé sur `client`.
     """
+    mapped = [
+        (value, slot)
+        for value, label in inter_options
+        if (slot := inter_label_to_slot(label)) is not None
+    ]
+    # Un slot par tâche (indexé, pas juste accumulé) : une collision entre deux
+    # checkpoints déclarés sur le même slot doit trancher sur l'**ordre
+    # déclaré** — dernier gagne, comportement historique du `for` séquentiel —
+    # et non sur l'ordre d'achèvement réseau, que `as_completed` rendrait
+    # nondéterministe en parallèle.
+    results: list[list[tuple[str, str, str]] | None] = [None] * len(mapped)
+
+    if client_factory is not None and len(mapped) > 1:
+        with ThreadPoolExecutor(max_workers=min(len(mapped), _INTER_MAX_WORKERS)) as pool:
+            def _task(value: str, slot: str) -> list[tuple[str, str, str]]:
+                with client_factory() as c:
+                    return _rows_to_splits(fetch_heat_rows(base, event_id, heat, c, inter=value), slot)
+
+            futures = {pool.submit(_task, value, slot): i for i, (value, slot) in enumerate(mapped)}
+            for future in as_completed(futures):
+                results[futures[future]] = future.result()
+    elif client is not None:
+        for i, (value, slot) in enumerate(mapped):
+            results[i] = _rows_to_splits(fetch_heat_rows(base, event_id, heat, client, inter=value), slot)
+    else:
+        with client_factory() as c:
+            for i, (value, slot) in enumerate(mapped):
+                results[i] = _rows_to_splits(fetch_heat_rows(base, event_id, heat, c, inter=value), slot)
+
     out: dict[str, dict[str, str]] = {}
-    for value, label in inter_options:
-        slot = inter_label_to_slot(label)
-        if slot is None:
-            continue
-        for row in fetch_heat_rows(base, event_id, heat, client, inter=value):
-            f = (row + [""] * 12)[:12]
-            bib, inter_time = f[0].strip(), normalize_time(f[8].strip())
-            if bib and inter_time:
-                out.setdefault(bib, {})[slot] = inter_time
+    for rows in results:
+        for bib, slot, inter_time in rows or []:
+            out.setdefault(bib, {})[slot] = inter_time
     return out
 
 
@@ -387,11 +440,19 @@ def build_heat_results(
     source_url: str,
     event_date: _date | None,
     client: httpx.Client,
+    client_factory: Callable[[], httpx.Client] | None = None,
 ) -> list[ScrapedResult]:
-    """Assemble la liste complète d'un heat (finishers + DNF/DNS/DSQ) avec splits inter."""
+    """Assemble la liste complète d'un heat (finishers + DNF/DNS/DSQ) avec splits inter.
+
+    `client_factory` (optionnel) accélère la collecte des splits inter en
+    parallélisant ses checkpoints (#760) — voir `fetch_inter_splits`.
+    """
     rows = fetch_heat_rows(base, event_id, heat, client)
     inter_options = discover_inter_options(heat_page_html)
-    splits = fetch_inter_splits(base, event_id, heat, inter_options, client) if inter_options else {}
+    splits = (
+        fetch_inter_splits(base, event_id, heat, inter_options, client, client_factory=client_factory)
+        if inter_options else {}
+    )
 
     # Le nom porté par la page prime sur celui dérivé du slug d'URL (accents,
     # casse, esperluette) ; le slug reste le repli quand la page n'en donne pas.
