@@ -90,10 +90,10 @@ phase n'ajoute qu'un test dédié qui verrouille la propriété côté composant
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
-- [ ] T018 [P] Rejouer les 4 scénarios de `quickstart.md` contre le serveur de dev réel
-- [ ] T019 [P] `cd backend && uv run pytest -m "not integration"` — suite complète verte
-- [ ] T020 [P] `cd backend && uv run ruff check .`
-- [ ] T021 [P] `cd frontend && npm test && npm run lint && npx tsc --noEmit && npm run build`
+- [X] T018 [P] Rejouer les 4 scénarios de `quickstart.md` contre le serveur de dev réel
+- [X] T019 [P] `cd backend && uv run pytest -m "not integration"` — suite complète verte
+- [X] T020 [P] `cd backend && uv run ruff check .`
+- [X] T021 [P] `cd frontend && npm test && npm run lint && npx tsc --noEmit && npm run build`
 
 ---
 
