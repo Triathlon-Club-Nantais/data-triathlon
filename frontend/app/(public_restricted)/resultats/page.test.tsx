@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "@testing-library/react";
 import { currentSeason } from "@/lib/utils/season";
 
@@ -43,10 +43,13 @@ const FIRST_PAGE = {
 };
 
 describe("ResultatsPage", () => {
-  it("récupère la page 1 avec la fenêtre de revalidation courte (#623)", async () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
     listEvents.mockResolvedValue(FIRST_PAGE);
     listSeasons.mockResolvedValue([]);
+  });
 
+  it("récupère la page 1 avec la fenêtre de revalidation courte (#623)", async () => {
     const jsx = await ResultatsPage({ searchParams: Promise.resolve({}) });
     render(jsx);
 
@@ -54,9 +57,6 @@ describe("ResultatsPage", () => {
   });
 
   it("scope la couverture sur la saison courante par défaut (#772)", async () => {
-    listEvents.mockResolvedValue(FIRST_PAGE);
-    listSeasons.mockResolvedValue([]);
-
     const jsx = await ResultatsPage({ searchParams: Promise.resolve({}) });
     render(jsx);
 
@@ -65,9 +65,16 @@ describe("ResultatsPage", () => {
     expect(coverageCall?.[0]).toMatchObject({ seasons: [currentSeason()] });
   });
 
-  it("un ?sort= inconnu dans l'URL ne remonte pas tel quel à l'API (#711)", async () => {
-    listEvents.mockResolvedValue(FIRST_PAGE);
+  it("?seasons= explicite (comparaison de plusieurs saisons) propage à la couverture (#772)", async () => {
+    const jsx = await ResultatsPage({ searchParams: Promise.resolve({ seasons: "2023,2024" }) });
+    render(jsx);
 
+    const calls = listEvents.mock.calls as [{ page_size?: number; seasons?: number[] }][];
+    const coverageCall = calls.find(([filters]) => filters.page_size === 200);
+    expect(coverageCall?.[0]).toMatchObject({ seasons: [2023, 2024] });
+  });
+
+  it("un ?sort= inconnu dans l'URL ne remonte pas tel quel à l'API (#711)", async () => {
     const jsx = await ResultatsPage({ searchParams: Promise.resolve({ sort: "banana" }) });
     render(jsx);
 
