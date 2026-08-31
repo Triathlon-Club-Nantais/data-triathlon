@@ -1,4 +1,5 @@
-"""DTO du formulaire public de déclaration de bénévolat (#778).
+"""DTO du formulaire public de déclaration de bénévolat (#778) et de son
+workflow de validation admin (#779).
 
 Noms distincts de `VolunteerActionCreate`/`VolunteerActionOut` de
 `schemas/admin.py` (chemin admin existant, #709, inchangé) — collision de
@@ -30,6 +31,23 @@ class VolunteerActionSelfOut(BaseModel):
     season: int
     title: str
     description: str
+    status: str
+    declared_by_user_id: int
+    created_at: datetime
+
+
+class AdminVolunteerActionOut(BaseModel):
+    """File d'attente admin (#779) — `title`/`description` optionnels : le
+    chemin de création admin existant (#709) ne les renseigne jamais
+    (research.md D5 de #779)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    athlete_id: int
+    season: int
+    title: str | None
+    description: str | None
     status: str
     declared_by_user_id: int
     created_at: datetime

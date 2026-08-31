@@ -61,7 +61,9 @@ def test_exists_for_athlete_season_faux_sans_declaration(db_session):
     )
 
 
-def test_exists_for_athlete_season_vrai_des_une_declaration(db_session):
+def test_exists_for_athlete_season_faux_pour_une_declaration_en_attente(db_session):
+    """#779 FR-008 : une simple existence ne suffit plus — il faut « validée »
+    (cf. `test_exists_for_athlete_season_vrai_des_une_ligne_validee`)."""
     auteur = _auteur(db_session)
     athlete = _athlete(db_session)
     volunteer_action_repository.create(
@@ -69,7 +71,7 @@ def test_exists_for_athlete_season_vrai_des_une_declaration(db_session):
     )
     db_session.flush()
 
-    assert volunteer_action_repository.exists_for_athlete_season(
+    assert not volunteer_action_repository.exists_for_athlete_season(
         db_session, athlete_id=athlete.id, season=2025
     )
 
@@ -122,3 +124,75 @@ def test_create_pending_consigne_titre_description_et_statut_en_attente(db_sessi
     assert action.title == "Ravitaillement"
     assert action.description == "Tenue du poste de ravitaillement km 15."
     assert action.status == "en_attente"
+
+
+def test_list_pending_ne_rend_que_les_lignes_en_attente(db_session):
+    auteur = _auteur(db_session)
+    athlete = _athlete(db_session)
+    en_attente = volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id,
+        title="A", description="B",
+    )
+    validee = volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id,
+        title="C", description="D",
+    )
+    volunteer_action_repository.set_status(db_session, validee.id, "validee")
+    db_session.flush()
+
+    en_cours = volunteer_action_repository.list_pending(db_session)
+
+    assert [a.id for a in en_cours] == [en_attente.id]
+
+
+def test_get_rend_none_sur_id_inconnu(db_session):
+    assert volunteer_action_repository.get(db_session, 999999) is None
+
+
+def test_set_status_change_et_relit_le_statut(db_session):
+    auteur = _auteur(db_session)
+    athlete = _athlete(db_session)
+    action = volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id,
+        title="A", description="B",
+    )
+    db_session.flush()
+
+    mise_a_jour = volunteer_action_repository.set_status(db_session, action.id, "validee")
+
+    assert mise_a_jour.status == "validee"
+    assert volunteer_action_repository.get(db_session, action.id).status == "validee"
+
+
+def test_exists_for_athlete_season_ignore_en_attente_et_refusee(db_session):
+    auteur = _auteur(db_session)
+    athlete = _athlete(db_session)
+    volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id,
+        title="A", description="B",
+    )
+    refusee = volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id,
+        title="C", description="D",
+    )
+    volunteer_action_repository.set_status(db_session, refusee.id, "refusee")
+    db_session.flush()
+
+    assert not volunteer_action_repository.exists_for_athlete_season(
+        db_session, athlete_id=athlete.id, season=2025
+    )
+
+
+def test_exists_for_athlete_season_vrai_des_une_ligne_validee(db_session):
+    auteur = _auteur(db_session)
+    athlete = _athlete(db_session)
+    action = volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id,
+        title="A", description="B",
+    )
+    volunteer_action_repository.set_status(db_session, action.id, "validee")
+    db_session.flush()
+
+    assert volunteer_action_repository.exists_for_athlete_season(
+        db_session, athlete_id=athlete.id, season=2025
+    )

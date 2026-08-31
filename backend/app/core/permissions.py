@@ -218,6 +218,19 @@ class P:
         "club, geste humain distinct du calcul des compteurs.",
         FEATURE_ATHLETES,
     )
+    # Distinct de ATHLETES_VOLUNTEER_MANAGE (création directe, #709) : ce
+    # pouvoir-ci instruit — consulte la file d'attente, accepte ou refuse —
+    # sans jamais créer de déclaration. Distinct aussi de BENEVOLAT_READ/
+    # _MANAGE (#751, VolunteerDeclaration, domaine indépendant sans rapport
+    # avec le quota de saison — #779, research.md D2).
+    ATHLETES_VOLUNTEER_VALIDATE = Permission(
+        "athletes:volunteer_validate",
+        "Instruire les déclarations de bénévolat",
+        "Consulter la file d'attente des déclarations de bénévolat en "
+        "attente, puis les accepter ou les refuser pour le quota de "
+        "validation de saison.",
+        FEATURE_ATHLETES,
+    )
     # `participations:write` a existé (#115) puis a été retiré (#270) :
     # POST /participations est redevenue publique, la mise en quarantaine
     # d'un résultat déclaré (`is_pending_validation`) protégeant désormais
@@ -344,6 +357,7 @@ ALL: tuple[Permission, ...] = (
     P.ATHLETES_WRITE,
     P.ATHLETES_VOLUNTEER_MANAGE,
     P.ATHLETES_SEASON_VALIDATE,
+    P.ATHLETES_VOLUNTEER_VALIDATE,
     P.PARTICIPATIONS_DELETE,
     P.PARTICIPATIONS_REASSIGN,
     P.PARTICIPATIONS_WIPE_ALL,

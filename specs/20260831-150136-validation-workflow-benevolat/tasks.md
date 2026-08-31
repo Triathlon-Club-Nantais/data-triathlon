@@ -29,15 +29,15 @@ trois user stories — aucune ne peut être testée sans eux.
 
 > **Écrire ces tests d'abord, vérifier qu'ils échouent avant implémentation.**
 
-- [ ] T001 [P] Test repository : `list_pending()` rend uniquement les lignes `status="en_attente"` ; `get()` rend `None` sur id inconnu ; `set_status()` change le statut et le relit dans `backend/tests/test_repositories/test_volunteer_action_repository.py`
-- [ ] T002 [P] Test repository : `exists_for_athlete_season` ignore désormais les lignes `"en_attente"`/`"refusee"`, ne compte que `"validee"` dans `backend/tests/test_repositories/test_volunteer_action_repository.py`
+- [X] T001 [P] Test repository : `list_pending()` rend uniquement les lignes `status="en_attente"` ; `get()` rend `None` sur id inconnu ; `set_status()` change le statut et le relit dans `backend/tests/test_repositories/test_volunteer_action_repository.py`
+- [X] T002 [P] Test repository : `exists_for_athlete_season` ignore désormais les lignes `"en_attente"`/`"refusee"`, ne compte que `"validee"` dans `backend/tests/test_repositories/test_volunteer_action_repository.py`
 
 ### Implementation
 
-- [ ] T003 [P] Ajouter `ATHLETES_VOLUNTEER_VALIDATE` (`"athletes:volunteer_validate"`) dans `backend/app/core/permissions.py` — `FEATURE_ATHLETES`, ajouté à `ALL`
-- [ ] T004 [P] Ajouter `AdminVolunteerActionOut` (title/description optionnels) dans `backend/app/schemas/volunteer_action.py`
-- [ ] T005 Implémenter `list_pending()`, `get()`, `set_status()` dans `backend/app/repositories/volunteer_action_repository.py` — fait passer T001
-- [ ] T006 Modifier `exists_for_athlete_season()` pour filtrer `status == "validee"` dans `backend/app/repositories/volunteer_action_repository.py` — fait passer T002 (depends on T005, même fichier)
+- [X] T003 [P] Ajouter `ATHLETES_VOLUNTEER_VALIDATE` (`"athletes:volunteer_validate"`) dans `backend/app/core/permissions.py` — `FEATURE_ATHLETES`, ajouté à `ALL`
+- [X] T004 [P] Ajouter `AdminVolunteerActionOut` (title/description optionnels) dans `backend/app/schemas/volunteer_action.py`
+- [X] T005 Implémenter `list_pending()`, `get()`, `set_status()` dans `backend/app/repositories/volunteer_action_repository.py` — fait passer T001
+- [X] T006 Modifier `exists_for_athlete_season()` pour filtrer `status == "validee"` dans `backend/app/repositories/volunteer_action_repository.py` — fait passer T002 (depends on T005, même fichier)
 
 **Checkpoint**: fondations posées, les trois user stories peuvent démarrer.
 
@@ -51,14 +51,14 @@ trois user stories — aucune ne peut être testée sans eux.
 
 ### Tests for User Story 1
 
-- [ ] T007 [P] [US1] Test service : `list_pending()` ne rend que les lignes en attente dans `backend/tests/test_services/test_volunteer_action_service.py`
-- [ ] T008 [P] [US1] Test API : `GET /admin/volunteer-actions/pending` — `200` liste filtrée (title/description `null` pour une ligne créée par le chemin admin), `403` sans le pouvoir dédié dans `backend/tests/test_api/test_admin_volunteer_actions_api.py` (NEW)
+- [X] T007 [P] [US1] Test service : `list_pending()` ne rend que les lignes en attente dans `backend/tests/test_services/test_volunteer_action_service.py`
+- [X] T008 [P] [US1] Test API : `GET /admin/volunteer-actions/pending` — `200` liste filtrée (title/description `null` pour une ligne créée par le chemin admin), `403` sans le pouvoir dédié dans `backend/tests/test_api/test_admin_volunteer_actions_api.py` (NEW)
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Implémenter `volunteer_action_service.list_pending()` dans `backend/app/services/volunteer_action_service.py` — fait passer T007 (depends on T005)
-- [ ] T010 [US1] Créer le router `backend/app/api/v1/admin_volunteer_actions.py` (NEW) avec `GET /admin/volunteer-actions/pending`, gardé par `require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)` — fait passer T008 (depends on T009, T004, T003)
-- [ ] T011 [US1] Enregistrer le nouveau router dans `backend/app/api/v1/router.py` (depends on T010)
+- [X] T009 [US1] Implémenter `volunteer_action_service.list_pending()` dans `backend/app/services/volunteer_action_service.py` — fait passer T007 (depends on T005)
+- [X] T010 [US1] Créer le router `backend/app/api/v1/admin_volunteer_actions.py` (NEW) avec `GET /admin/volunteer-actions/pending`, gardé par `require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)` — fait passer T008 (depends on T009, T004, T003)
+- [X] T011 [US1] Enregistrer le nouveau router dans `backend/app/api/v1/router.py` (depends on T010)
 
 **Checkpoint**: US1 fonctionnelle et testable.
 
@@ -72,13 +72,13 @@ trois user stories — aucune ne peut être testée sans eux.
 
 ### Tests for User Story 2
 
-- [ ] T012 [P] [US2] Test service : `accept()` fait passer `"en_attente"` → `"validee"` ; no-op (pas d'erreur, pas de transition) si déjà `"validee"` **ou** si `"refusee"` (`/speckit-analyze` finding U1) ; `NotFoundError` si id inconnu dans `backend/tests/test_services/test_volunteer_action_service.py`
-- [ ] T013 [P] [US2] Test API : `POST /admin/volunteer-actions/{id}/accept` — `200` statut `"validee"`, `404` id inconnu, `403` sans pouvoir, et `GET .../season-quota` reflète `has_volunteer_action: true` après acceptation dans `backend/tests/test_api/test_admin_volunteer_actions_api.py`
+- [X] T012 [P] [US2] Test service : `accept()` fait passer `"en_attente"` → `"validee"` ; no-op (pas d'erreur, pas de transition) si déjà `"validee"` **ou** si `"refusee"` (`/speckit-analyze` finding U1) ; `NotFoundError` si id inconnu dans `backend/tests/test_services/test_volunteer_action_service.py`
+- [X] T013 [P] [US2] Test API : `POST /admin/volunteer-actions/{id}/accept` — `200` statut `"validee"`, `404` id inconnu, `403` sans pouvoir, et `GET .../season-quota` reflète `has_volunteer_action: true` après acceptation dans `backend/tests/test_api/test_admin_volunteer_actions_api.py`
 
 ### Implementation for User Story 2
 
-- [ ] T014 [US2] Implémenter `volunteer_action_service.accept()` (transition uniquement depuis `"en_attente"` ; no-op pour tout autre statut de départ, journalise seulement la vraie transition) dans `backend/app/services/volunteer_action_service.py` — fait passer T012 (depends on T005, T006)
-- [ ] T015 [US2] Ajouter `POST /admin/volunteer-actions/{action_id}/accept` au router `admin_volunteer_actions.py` — fait passer T013 (depends on T014, T010)
+- [X] T014 [US2] Implémenter `volunteer_action_service.accept()` (transition uniquement depuis `"en_attente"` ; no-op pour tout autre statut de départ, journalise seulement la vraie transition) dans `backend/app/services/volunteer_action_service.py` — fait passer T012 (depends on T005, T006)
+- [X] T015 [US2] Ajouter `POST /admin/volunteer-actions/{action_id}/accept` au router `admin_volunteer_actions.py` — fait passer T013 (depends on T014, T010)
 
 **Checkpoint**: US1 et US2 fonctionnelles.
 
@@ -92,13 +92,13 @@ trois user stories — aucune ne peut être testée sans eux.
 
 ### Tests for User Story 3
 
-- [ ] T016 [P] [US3] Test service : `reject()` fait passer `"en_attente"` **ou** `"validee"` → `"refusee"`, idempotent si déjà `"refusee"` dans `backend/tests/test_services/test_volunteer_action_service.py`
-- [ ] T017 [P] [US3] Test API : `POST /admin/volunteer-actions/{id}/reject` — `200` statut `"refusee"` depuis `"en_attente"` et depuis `"validee"`, `403` sans pouvoir dédié (`/speckit-analyze` finding E1 — FR-007 non testé sur ce endpoint), `has_volunteer_action` redevient `false` si c'était la seule ligne validée dans `backend/tests/test_api/test_admin_volunteer_actions_api.py`
+- [X] T016 [P] [US3] Test service : `reject()` fait passer `"en_attente"` **ou** `"validee"` → `"refusee"`, idempotent si déjà `"refusee"` dans `backend/tests/test_services/test_volunteer_action_service.py`
+- [X] T017 [P] [US3] Test API : `POST /admin/volunteer-actions/{id}/reject` — `200` statut `"refusee"` depuis `"en_attente"` et depuis `"validee"`, `403` sans pouvoir dédié (`/speckit-analyze` finding E1 — FR-007 non testé sur ce endpoint), `has_volunteer_action` redevient `false` si c'était la seule ligne validée dans `backend/tests/test_api/test_admin_volunteer_actions_api.py`
 
 ### Implementation for User Story 3
 
-- [ ] T018 [US3] Implémenter `volunteer_action_service.reject()` dans `backend/app/services/volunteer_action_service.py` — fait passer T016 (depends on T005, T006)
-- [ ] T019 [US3] Ajouter `POST /admin/volunteer-actions/{action_id}/reject` au router `admin_volunteer_actions.py` — fait passer T017 (depends on T018, T010)
+- [X] T018 [US3] Implémenter `volunteer_action_service.reject()` dans `backend/app/services/volunteer_action_service.py` — fait passer T016 (depends on T005, T006)
+- [X] T019 [US3] Ajouter `POST /admin/volunteer-actions/{action_id}/reject` au router `admin_volunteer_actions.py` — fait passer T017 (depends on T018, T010)
 
 **Checkpoint**: les trois user stories fonctionnelles indépendamment.
 
@@ -106,9 +106,9 @@ trois user stories — aucune ne peut être testée sans eux.
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T020 [P] Rejouer les 4 scénarios de `quickstart.md` contre le serveur de dev réel
-- [ ] T021 [P] `cd backend && uv run pytest -m "not integration"` — suite complète verte
-- [ ] T022 [P] `cd backend && uv run ruff check .`
+- [X] T020 [P] Rejouer les 4 scénarios de `quickstart.md` contre le serveur de dev réel
+- [X] T021 [P] `cd backend && uv run pytest -m "not integration"` — suite complète verte
+- [X] T022 [P] `cd backend && uv run ruff check .`
 
 ---
 

@@ -49,6 +49,7 @@ CODES_ATTENDUS = {
     "athletes:write",
     "athletes:volunteer_manage",
     "athletes:season_validate",
+    "athletes:volunteer_validate",
     "participations:delete",
     "participations:reassign",
     "participations:wipe_all",
