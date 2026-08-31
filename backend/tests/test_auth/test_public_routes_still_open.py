@@ -89,10 +89,19 @@ ROUTES_VOLUNTEER_DECLARATIONS_FERMEES = {
     ("DELETE", "/api/v1/volunteer-declarations/{declaration_id}"),
 }
 
+#: Le formulaire public de déclaration de bénévolat pour un athlète (#778) —
+#: self-service, hors `/admin/`, fermé par `current_user` (session SSO, pas de
+#: pouvoir RBAC) : une déclaration porte toujours l'identité de son auteur, un
+#: anonyme n'en a pas.
+ROUTES_VOLUNTEER_ACTIONS_FERMEES = {
+    ("POST", "/api/v1/volunteer-actions"),
+}
+
 ROUTES_FERMEES = {
     ("DELETE", "/api/v1/participations/{participation_id}"),
     *ROUTES_BENEVOLES_FERMEES,
     *ROUTES_VOLUNTEER_DECLARATIONS_FERMEES,
+    *ROUTES_VOLUNTEER_ACTIONS_FERMEES,
 }
 
 #: Corps minimal des routes qui en exigent un. Un 422 de validation est une

@@ -42,20 +42,20 @@ quickstart.md Scénarios 1, 2, 4.
 
 > **Écrire ces tests d'abord, vérifier qu'ils échouent avant implémentation.**
 
-- [ ] T001 [P] [US1] Test repository : `create_pending()` crée une ligne `status="en_attente"` avec `title`/`description` ; `create()` existant (chemin admin) reste inchangé (title/description restent `None`, `status` prend le défaut DB) dans `backend/tests/test_repositories/test_volunteer_action_repository.py`
-- [ ] T002 [P] [US1] Test service : `volunteer_action_service.create_pending` crée pour l'athlète choisi, saison = `current_season()`, lève `NotFoundError` si `athlete_id` inconnu dans `backend/tests/test_services/test_volunteer_action_service.py` (NEW)
-- [ ] T003 [P] [US1] Test API : `POST /api/v1/volunteer-actions` — `201` corps valide, `422` titre/description vide **et** `422` titre >200 ou description >10 000 caractères, `401` sans session, `404` `athlete_id` inconnu dans `backend/tests/test_api/test_volunteer_actions_api.py` (NEW)
+- [X] T001 [P] [US1] Test repository : `create_pending()` crée une ligne `status="en_attente"` avec `title`/`description` ; `create()` existant (chemin admin) reste inchangé (title/description restent `None`, `status` prend le défaut DB) dans `backend/tests/test_repositories/test_volunteer_action_repository.py`
+- [X] T002 [P] [US1] Test service : `volunteer_action_service.create_pending` crée pour l'athlète choisi, saison = `current_season()`, lève `NotFoundError` si `athlete_id` inconnu dans `backend/tests/test_services/test_volunteer_action_service.py` (NEW)
+- [X] T003 [P] [US1] Test API : `POST /api/v1/volunteer-actions` — `201` corps valide, `422` titre/description vide **et** `422` titre >200 ou description >10 000 caractères, `401` sans session, `404` `athlete_id` inconnu dans `backend/tests/test_api/test_volunteer_actions_api.py` (NEW)
 - [ ] T004 [P] [US1] Test composant : `VolunteerActionForm` — aucune requête sous 2 caractères, recherche déclenchée à partir de 2 caractères, état vide explicite si aucun athlète ne correspond, sélection d'un athlète, soumission désactivée si titre/description vide, bouton désactivé pendant la requête dans `frontend/components/benevolat/VolunteerActionForm.test.tsx` (NEW)
 
 ### Implementation for User Story 1
 
-- [ ] T005 [US1] Ajouter les colonnes `title` (nullable), `description` (nullable), `status` (`NOT NULL`, défaut `"en_attente"`) à `VolunteerAction` dans `backend/app/models/volunteer_action.py`
-- [ ] T006 [US1] Générer et relire la migration Alembic (`uv run alembic revision --autogenerate -m "add title/description/status to volunteer_actions"`) dans `backend/alembic/versions/` (depends on T005)
-- [ ] T007 [P] [US1] Créer `VolunteerActionSelfCreate` (`athlete_id`, `title` 1-200, `description` 1-10 000 — noms distincts de `VolunteerActionCreate`/`Out` de `admin.py`, cf. `/speckit-analyze` finding C1) et `VolunteerActionSelfOut` dans `backend/app/schemas/volunteer_action.py` (NEW) (depends on T005)
-- [ ] T008 [US1] Implémenter `create_pending()` dans `backend/app/repositories/volunteer_action_repository.py` — fait passer T001 (depends on T005)
-- [ ] T009 [US1] Implémenter `volunteer_action_service.create_pending()` (résout l'athlète ou `NotFoundError`, saison via `app.core.season.current_season()`, délègue au repository) dans `backend/app/services/volunteer_action_service.py` (NEW) — fait passer T002 (depends on T007, T008)
-- [ ] T010 [US1] Implémenter `POST /volunteer-actions` (garde `current_user`, aucun pouvoir RBAC) dans `backend/app/api/v1/volunteer_actions.py` (NEW) — fait passer T003 (depends on T009)
-- [ ] T011 [US1] Enregistrer le nouveau router (hors `_EXEMPTES_DE_LA_GARDE_SITE`) dans `backend/app/api/v1/router.py` (depends on T010)
+- [X] T005 [US1] Ajouter les colonnes `title` (nullable), `description` (nullable), `status` (`NOT NULL`, défaut `"en_attente"`) à `VolunteerAction` dans `backend/app/models/volunteer_action.py`
+- [X] T006 [US1] Générer et relire la migration Alembic (`uv run alembic revision --autogenerate -m "add title/description/status to volunteer_actions"`) dans `backend/alembic/versions/` (depends on T005)
+- [X] T007 [P] [US1] Créer `VolunteerActionSelfCreate` (`athlete_id`, `title` 1-200, `description` 1-10 000 — noms distincts de `VolunteerActionCreate`/`Out` de `admin.py`, cf. `/speckit-analyze` finding C1) et `VolunteerActionSelfOut` dans `backend/app/schemas/volunteer_action.py` (NEW) (depends on T005)
+- [X] T008 [US1] Implémenter `create_pending()` dans `backend/app/repositories/volunteer_action_repository.py` — fait passer T001 (depends on T005)
+- [X] T009 [US1] Implémenter `volunteer_action_service.create_pending()` (résout l'athlète ou `NotFoundError`, saison via `app.core.season.current_season()`, délègue au repository) dans `backend/app/services/volunteer_action_service.py` (NEW) — fait passer T002 (depends on T007, T008)
+- [X] T010 [US1] Implémenter `POST /volunteer-actions` (garde `current_user`, aucun pouvoir RBAC) dans `backend/app/api/v1/volunteer_actions.py` (NEW) — fait passer T003 (depends on T009)
+- [X] T011 [US1] Enregistrer le nouveau router (hors `_EXEMPTES_DE_LA_GARDE_SITE`) dans `backend/app/api/v1/router.py` (depends on T010)
 - [ ] T012 [P] [US1] Ajouter `createVolunteerAction` et `searchAthletesConnected` (réutilise `GET /athletes`, cf. research.md D2) dans `frontend/lib/api/client.ts` (depends on T007 pour la forme du contrat)
 - [ ] T013 [P] [US1] Ajouter les types `VolunteerActionSelfCreate`/`VolunteerActionSelfOut` dans `frontend/lib/types.ts` — noms distincts de l'interface `VolunteerAction` déjà existante (l.928, flux admin, cf. `/speckit-analyze` finding C2) (depends on T007)
 - [ ] T014 [US1] Créer `useCreateVolunteerAction` (mutation) dans `frontend/lib/queries/volunteer-actions.ts` (NEW) (depends on T012, T013)
