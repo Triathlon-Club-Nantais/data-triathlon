@@ -1405,6 +1405,98 @@ def test_fetch_inter_splits_fetches_checkpoints_concurrently_via_client_factory(
     assert splits["1"] == {"swim": "00:00:00", "bike": "00:01:00", "t1": "00:02:00"}
 
 
+def test_fetch_inter_splits_closes_factory_client_on_single_checkpoint():
+    """#760 (revue) — un seul checkpoint mappé + `client_factory` sans `client`
+    reste séquentiel (pas de gain à paralléliser un seul appel), mais doit
+    quand même fermer le client obtenu via la factory : sinon fuite de
+    connexion sur ce chemin (repli séquentiel de `fetch_inter_splits`).
+    """
+
+    class FakeClient:
+        def __init__(self):
+            self.closed = False
+
+        def get(self, url):
+            return httpx.Response(200, text=_block(["1|true|1|1|NOM Prenom|S1|M|CLUB|00:05:00|||"]))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            self.closed = True
+
+    created = []
+
+    def client_factory():
+        c = FakeClient()
+        created.append(c)
+        return c
+
+    options = [("cp0", "Natation")]
+    splits = plat.fetch_inter_splits(
+        "https://x", "evt", "heat", options, client=None, client_factory=client_factory,
+    )
+
+    assert len(created) == 1
+    assert created[0].closed, "le client obtenu via client_factory doit être fermé après usage"
+    assert splits["1"] == {"swim": "00:05:00"}
+
+
+def test_fetch_inter_splits_last_declared_checkpoint_wins_on_slot_collision():
+    """#760 (revue) — en cas de collision de slot entre deux checkpoints
+    déclarés (deux labels mappant sur le même slot), le **dernier déclaré**
+    doit l'emporter — comportement historique du `for` séquentiel — et non le
+    dernier à *terminer* sa requête réseau.
+
+    Le checkpoint déclaré en premier (A) est délibérément le plus LENT, celui
+    déclaré en second (B) le plus RAPIDE : un merge basé sur l'ordre de
+    complétion (`as_completed`) ferait gagner A (qui termine après B), alors
+    que l'ordre déclaré attend B.
+    """
+    import threading
+    import time
+
+    class FakeClient:
+        def __init__(self, delay: float, value: str):
+            self.delay = delay
+            self.value = value
+
+        def get(self, url):
+            time.sleep(self.delay)
+            return httpx.Response(
+                200,
+                text=_block([f"1|true|1|1|NOM Prenom|S1|M|CLUB|{self.value}|||"]),
+            )
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    calls = {"n": 0}
+    lock = threading.Lock()
+
+    def client_factory():
+        with lock:
+            calls["n"] += 1
+            n = calls["n"]
+        # 1er appel (checkpoint A, déclaré en premier) : lent.
+        # 2e appel (checkpoint B, déclaré en second) : rapide.
+        return FakeClient(delay=0.15, value="00:09:00") if n == 1 else FakeClient(delay=0, value="00:01:00")
+
+    # Deux checkpoints distincts mappant tous deux sur le slot "swim".
+    options = [("cpA", "Natation"), ("cpB", "Nat")]
+    splits = plat.fetch_inter_splits(
+        "https://x", "evt", "heat", options, client=None, client_factory=client_factory,
+    )
+
+    assert splits["1"]["swim"] == "00:01:00", (
+        "le checkpoint déclaré en dernier (B) doit gagner la collision de slot, "
+        f"pas celui qui termine en dernier réseau — obtenu {splits['1']['swim']!r}"
+    )
+
+
 # ── build_heat_results — assemblage des ScrapedResult complets d'un heat ─────
 
 

@@ -396,7 +396,12 @@ def fetch_inter_splits(
         for value, label in inter_options
         if (slot := inter_label_to_slot(label)) is not None
     ]
-    merged: list[tuple[str, str, str]] = []
+    # Un slot par tâche (indexé, pas juste accumulé) : une collision entre deux
+    # checkpoints déclarés sur le même slot doit trancher sur l'**ordre
+    # déclaré** — dernier gagne, comportement historique du `for` séquentiel —
+    # et non sur l'ordre d'achèvement réseau, que `as_completed` rendrait
+    # nondéterministe en parallèle.
+    results: list[list[tuple[str, str, str]] | None] = [None] * len(mapped)
 
     if client_factory is not None and len(mapped) > 1:
         with ThreadPoolExecutor(max_workers=min(len(mapped), _INTER_MAX_WORKERS)) as pool:
@@ -404,17 +409,21 @@ def fetch_inter_splits(
                 with client_factory() as c:
                     return _rows_to_splits(fetch_heat_rows(base, event_id, heat, c, inter=value), slot)
 
-            futures = [pool.submit(_task, value, slot) for value, slot in mapped]
+            futures = {pool.submit(_task, value, slot): i for i, (value, slot) in enumerate(mapped)}
             for future in as_completed(futures):
-                merged.extend(future.result())
+                results[futures[future]] = future.result()
+    elif client is not None:
+        for i, (value, slot) in enumerate(mapped):
+            results[i] = _rows_to_splits(fetch_heat_rows(base, event_id, heat, client, inter=value), slot)
     else:
-        c = client if client is not None else client_factory()
-        for value, slot in mapped:
-            merged.extend(_rows_to_splits(fetch_heat_rows(base, event_id, heat, c, inter=value), slot))
+        with client_factory() as c:
+            for i, (value, slot) in enumerate(mapped):
+                results[i] = _rows_to_splits(fetch_heat_rows(base, event_id, heat, c, inter=value), slot)
 
     out: dict[str, dict[str, str]] = {}
-    for bib, slot, inter_time in merged:
-        out.setdefault(bib, {})[slot] = inter_time
+    for rows in results:
+        for bib, slot, inter_time in rows or []:
+            out.setdefault(bib, {})[slot] = inter_time
     return out
 
 
