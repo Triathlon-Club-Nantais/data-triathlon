@@ -388,6 +388,32 @@ def test_scrape_event_all_event_type_from_parcours(monkeypatch):
     assert by_bib["40"].event_type == "triathlon"  # repli nom global
 
 
+def test_scrape_event_all_skips_entry_without_parcours_and_name(monkeypatch):
+    """Une entrée sans parcours NI nom est un artefact source, pas un
+    participant réel : l'exclure plutôt que de dupliquer l'identité globale
+    de l'épreuve à chaque rescrape.
+
+    Cas réel (#784, épreuve 3201 « Trail + Run and Bike du Bignon ») :
+    qualify_event_name(event_name, "") rend le nom non qualifié, recréant
+    systématiquement une `Course` fantôme homonyme de l'épreuve globale.
+    """
+    xml = make_xml(
+        athletes=[
+            ("10", "ALPHA Jean", "SEH", "M", "Trail 9 km"),
+            ("99", "", "", "", ""),  # entrée incomplète côté TimePulse
+        ],
+        results=[
+            ("10", "01:00:00", {}),
+        ],
+        event_name="Trail + Run and Bike du Bignon",
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/resultats/3201")
+
+    assert [r.bib_number for r in results] == ["10"]
+
+
 def test_scrape_event_all_qualifies_name_when_parcours_share_event_type(monkeypatch):
     """Deux parcours distincts partageant le même event_type ne fusionnent pas
     en une seule Course (issue #674).

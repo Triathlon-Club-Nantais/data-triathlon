@@ -361,11 +361,20 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         if not bib:
             continue
 
+        parcours = ea.get("p", "")
+        full_name = ea.get("n", "")
+        if not parcours and not full_name:
+            # Entrée incomplète côté TimePulse (dossard technique/réutilisé,
+            # pas un vrai participant) : sans parcours ni nom,
+            # qualify_event_name(event_name, "") rend le nom non qualifié et
+            # recrée systématiquement une Course fantôme homonyme de
+            # l'épreuve globale à chaque rescrape (#784).
+            continue
+
         result = ScrapedResult(source_url=url, provider="timepulse", bib_number=bib)
         result.event_date = event_date_val
         # Le format (S/M/L) est porté par le parcours `p` de chaque <E>, pas par
         # le nom global de l'épreuve (ex. « LE NORTH MAY » → Triathlon S/M/L SOLO).
-        parcours = ea.get("p", "")
         result.event_type = (
             classify_event_type(parcours) if parcours else event_type_fallback
         )
@@ -379,7 +388,6 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         # épreuve 3201 « Trail + Run and Bike du Bignon »).
         result.event_name = qualify_event_name(event_name, parcours)
 
-        full_name = ea.get("n", "")
         surname, firstname = split_athlete_name(full_name)
         result.athlete_name = surname
         result.athlete_firstname = firstname
