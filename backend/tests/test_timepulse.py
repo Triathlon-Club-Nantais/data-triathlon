@@ -435,6 +435,58 @@ def test_scrape_event_all_skips_entry_with_blank_parcours_and_name(monkeypatch):
     assert [r.bib_number for r in results] == ["10"]
 
 
+def test_scrape_event_all_computes_rank_overall_without_category(monkeypatch):
+    """`rank_overall` ne doit pas dépendre de `category` : `_compute_ranks`
+    ne s'en sert que pour `rank_category` (#787). Cas réel (Bignon Trail
+    12 km, course 875) : 28/178 finishers ont `category` vide côté source
+    et se retrouvaient donc sans AUCUN rang, `rank_overall` inclus.
+    """
+    xml = make_xml(
+        athletes=[
+            ("10", "ALPHA Jean", "SEH", "M", "p1"),
+            ("20", "BETA Marie", "", "F", "p1"),  # catégorie absente
+            ("30", "GAMMA Paul", "SEH", "M", "p1"),
+        ],
+        results=[
+            ("10", "01:00:00", {}),
+            ("20", "01:10:00", {}),
+            ("30", "01:20:00", {}),
+        ],
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/resultats/1")
+    by_bib = {r.bib_number: r for r in results}
+
+    assert by_bib["20"].rank_overall == 2
+    assert by_bib["20"].rank_gender == 1
+    assert by_bib["20"].rank_category is None
+
+
+def test_scrape_event_all_computes_rank_overall_without_gender(monkeypatch):
+    """Même défaut, côté `gender` cette fois (symétrique à #787)."""
+    xml = make_xml(
+        athletes=[
+            ("10", "ALPHA Jean", "SEH", "M", "p1"),
+            ("20", "BETA Marie", "SEF", "", "p1"),  # genre absent
+            ("30", "GAMMA Paul", "SEH", "M", "p1"),
+        ],
+        results=[
+            ("10", "01:00:00", {}),
+            ("20", "01:10:00", {}),
+            ("30", "01:20:00", {}),
+        ],
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/resultats/1")
+    by_bib = {r.bib_number: r for r in results}
+
+    assert by_bib["20"].rank_overall == 2
+    assert by_bib["20"].rank_gender is None
+    assert by_bib["20"].rank_category is None
+
+
 def test_scrape_event_all_qualifies_name_when_parcours_share_event_type(monkeypatch):
     """Deux parcours distincts partageant le même event_type ne fusionnent pas
     en une seule Course (issue #674).

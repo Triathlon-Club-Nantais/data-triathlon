@@ -427,11 +427,20 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
             if not result.run_time:
                 _derive_late_splits(result, ra)
 
-            if parcours and result.gender and result.category:
+            if parcours:
+                # rank_overall ne dépend que du parcours (tri des temps <R>) :
+                # gender/category ne servent qu'à rank_gender/rank_category en
+                # aval dans _compute_ranks. Les exiger tous les trois privait
+                # d'un rang_overall par ailleurs valide tout participant dont
+                # l'un des deux est vide côté source (#787, cas réel : 28/178
+                # finishers Bignon Trail 12 km sans `category`).
                 ro, rg, rc = _compute_ranks(xml, bib, parcours, result.gender, result.category)
                 result.rank_overall = ro
-                result.rank_gender = rg
-                result.rank_category = rc
+                result.rank_gender = rg if result.gender else None
+                # rank_category filtre aussi par gender dans _compute_ranks
+                # (catégories genrées, ex. V1H/V1F) : sans gender, rc compterait
+                # les seuls autres participants au gender tout aussi vide.
+                result.rank_category = rc if (result.gender and result.category) else None
 
         results.append(result)
 
