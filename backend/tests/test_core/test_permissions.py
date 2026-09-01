@@ -47,7 +47,6 @@ CODES_ATTENDUS = {
     "courses:wipe_all",
     "athletes:read",
     "athletes:write",
-    "athletes:volunteer_manage",
     "athletes:season_validate",
     "athletes:volunteer_validate",
     "participations:delete",

@@ -4,6 +4,7 @@ Plusieurs déclarations peuvent coexister pour le même `(athlete_id, season)` �
 le barème de validation de saison (FR-012) est satisfait dès qu'il en existe
 au moins une.
 """
+from app.models.volunteer_action import VolunteerAction
 from app.repositories import athlete_repository, user_repository, volunteer_action_repository
 
 
@@ -19,31 +20,18 @@ def _athlete(db_session, nom="DUPONT"):
     return athlete
 
 
-def test_create_consigne_les_quatre_champs_du_contrat(db_session):
-    auteur = _auteur(db_session)
-    athlete = _athlete(db_session)
-
-    action = volunteer_action_repository.create(
-        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id
-    )
-    db_session.flush()
-
-    assert action.athlete_id == athlete.id
-    assert action.season == 2025
-    assert action.declared_by_user_id == auteur.id
-    assert action.created_at is not None
-
-
-def test_create_autorise_plusieurs_declarations_pour_le_meme_athlete_et_la_meme_saison(db_session):
+def test_create_pending_autorise_plusieurs_declarations_pour_le_meme_athlete_et_la_meme_saison(db_session):
     """research.md D4 — journal, pas un indicateur unique."""
     auteur = _auteur(db_session)
     athlete = _athlete(db_session)
 
-    volunteer_action_repository.create(
-        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id
+    volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id,
+        title="A", description="B",
     )
-    volunteer_action_repository.create(
-        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id
+    volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id,
+        title="C", description="D",
     )
     db_session.flush()
 
@@ -66,8 +54,9 @@ def test_exists_for_athlete_season_faux_pour_une_declaration_en_attente(db_sessi
     (cf. `test_exists_for_athlete_season_vrai_des_une_ligne_validee`)."""
     auteur = _auteur(db_session)
     athlete = _athlete(db_session)
-    volunteer_action_repository.create(
-        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id
+    volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id,
+        title="A", description="B",
     )
     db_session.flush()
 
@@ -79,8 +68,9 @@ def test_exists_for_athlete_season_faux_pour_une_declaration_en_attente(db_sessi
 def test_exists_for_athlete_season_ne_traverse_pas_les_saisons(db_session):
     auteur = _auteur(db_session)
     athlete = _athlete(db_session)
-    volunteer_action_repository.create(
-        db_session, athlete_id=athlete.id, season=2024, declared_by_user_id=auteur.id
+    volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2024, declared_by_user_id=auteur.id,
+        title="A", description="B",
     )
     db_session.flush()
 
@@ -89,14 +79,15 @@ def test_exists_for_athlete_season_ne_traverse_pas_les_saisons(db_session):
     )
 
 
-def test_create_laisse_title_description_a_none_et_status_au_defaut(db_session):
-    """Chemin admin existant (#778 FR-008) : aucune régression sur `create()`."""
+def test_une_ligne_historique_sans_titre_ni_description_reste_lisible(db_session):
+    """#780 — le chemin admin qui créait ces lignes (`create()`) est retiré,
+    mais des lignes NULL existent déjà en production (research.md D3) : la
+    colonne doit rester tolérante, sans passer par un repository."""
     auteur = _auteur(db_session)
     athlete = _athlete(db_session)
 
-    action = volunteer_action_repository.create(
-        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id
-    )
+    action = VolunteerAction(athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id)
+    db_session.add(action)
     db_session.flush()
 
     assert action.title is None

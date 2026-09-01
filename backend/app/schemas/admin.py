@@ -246,22 +246,6 @@ class ParticipationReassign(BaseModel):
     athlete_id: int
 
 
-class VolunteerActionCreate(BaseModel):
-    """Déclaration d'une action de bénévolat pour une saison (#709, FR-006)."""
-
-    season: int
-
-
-class VolunteerActionOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    athlete_id: int
-    season: int
-    declared_by_user_id: int
-    created_at: datetime
-
-
 class SeasonValidationCreate(BaseModel):
     """Demande de validation d'une saison (#709, FR-009)."""
 

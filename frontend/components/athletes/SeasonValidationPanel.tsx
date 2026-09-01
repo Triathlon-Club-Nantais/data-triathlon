@@ -1,12 +1,7 @@
 "use client";
 import { toast } from "sonner";
 import { Button, Card } from "@/components/tcn";
-import {
-  useDeclareVolunteerAction,
-  useSeasonQuota,
-  useUnvalidateSeason,
-  useValidateSeason,
-} from "@/lib/queries/admin";
+import { useSeasonQuota, useUnvalidateSeason, useValidateSeason } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { currentSeason } from "@/lib/utils/season";
 
@@ -16,55 +11,28 @@ export type CoureurAValider = {
   prenom: string;
 };
 
-const ECHEC_DECLARATION = "La déclaration n'a pas abouti. Réessayez dans un instant.";
 const ECHEC_VALIDATION = "La saison n'a pas pu être validée. Réessayez dans un instant.";
 const ECHEC_DEVALIDATION = "La saison n'a pas pu être dévalidée. Réessayez dans un instant.";
 
 /**
  * Actions d'administration du quota de saison d'un coureur (#709) — sur la
- * fiche publique, comme `AthleteAdminPanel`, invisible sans le pouvoir dédié.
- * Deux sections indépendantes : déclarer un bénévolat (US2) et
- * valider/dévalider la saison (US3) — deux pouvoirs distincts (FR-007, FR-009).
+ * fiche publique, comme `AthleteAdminPanel`, invisible sans le pouvoir dédié
+ * `athletes:season_validate` (FR-009). Le geste admin de déclaration de
+ * bénévolat qui vivait ici a été retiré (#780) — le seul chemin restant est
+ * le formulaire public self-service (#778).
  */
 export function SeasonValidationPanel({ athlete }: { athlete: CoureurAValider }) {
   const session = useSession();
-  const peutDeclarerBenevolat =
-    session.data?.permissions.includes("athletes:volunteer_manage") ?? false;
   const peutValiderSaison = session.data?.permissions.includes("athletes:season_validate") ?? false;
 
-  if (!peutDeclarerBenevolat && !peutValiderSaison) return null;
+  if (!peutValiderSaison) return null;
 
   return (
     <Card>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {peutDeclarerBenevolat && <DeclarerBenevolat athleteId={athlete.id} />}
-        {peutValiderSaison && <ValiderSaison athleteId={athlete.id} />}
+        <ValiderSaison athleteId={athlete.id} />
       </div>
     </Card>
-  );
-}
-
-function DeclarerBenevolat({ athleteId }: { athleteId: number }) {
-  const declarer = useDeclareVolunteerAction();
-
-  async function handleDeclarer() {
-    try {
-      await declarer.mutateAsync({ athleteId, season: currentSeason() });
-      toast.success("Action de bénévolat déclarée.");
-    } catch {
-      toast.error(ECHEC_DECLARATION);
-    }
-  }
-
-  return (
-    <Button
-      variant="secondary"
-      onClick={handleDeclarer}
-      disabled={declarer.isPending}
-      aria-busy={declarer.isPending}
-    >
-      Déclarer une action de bénévolat
-    </Button>
   );
 }
 

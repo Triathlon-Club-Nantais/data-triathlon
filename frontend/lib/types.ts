@@ -924,17 +924,8 @@ export interface AdminAthlete {
   participations: number;
 }
 
-// Miroir de VolunteerActionOut backend (#709).
-export interface VolunteerAction {
-  id: number;
-  athlete_id: number;
-  season: number;
-  declared_by_user_id: number;
-  created_at: string;
-}
-
 // Miroir de VolunteerActionSelfCreate/Out backend (#778) — formulaire public,
-// noms distincts de VolunteerAction ci-dessus (flux admin, inchangé).
+// seul chemin de création restant (#780).
 export interface VolunteerActionSelfCreate {
   athlete_id: number;
   title: string;

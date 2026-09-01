@@ -1,4 +1,4 @@
-"""Router d'administration des données (#117) — dix ressources, onze gardes
+"""Router d'administration des données (#117) — neuf ressources, dix gardes
 (les deux lectures de `athletes:read` partagent une ressource, pas leur garde).
 
 **Chacune porte sa garde individuellement, et nomme un pouvoir, jamais un rôle**
@@ -33,8 +33,6 @@ from app.schemas.admin import (
     ParticipationsWipeResult,
     SeasonValidationCreate,
     SeasonValidationOut,
-    VolunteerActionCreate,
-    VolunteerActionOut,
 )
 from app.schemas.course import CourseBrief
 from app.schemas.participation import ParticipationOut
@@ -246,25 +244,6 @@ def update_athlete(
         properties={"fields_changed": list(champs.keys())},
     )
     return _fiche(athlete, participation_repository.count_for_athlete(db, athlete_id))
-
-
-@router.post(
-    "/admin/athletes/{athlete_id}/volunteer-actions",
-    response_model=VolunteerActionOut,
-    status_code=201,
-)
-def declare_volunteer_action(
-    athlete_id: int,
-    body: VolunteerActionCreate,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_MANAGE)),
-):
-    """Déclare une action de bénévolat pour un coureur et une saison (#709)."""
-    action = admin_actions.declare_volunteer_action(
-        db, athlete_id=athlete_id, season=body.season, user_id=user.id
-    )
-    db.commit()
-    return action
 
 
 @router.get("/admin/athletes/{athlete_id}/season-quota")

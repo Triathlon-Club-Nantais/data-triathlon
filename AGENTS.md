@@ -203,5 +203,5 @@ Guidelines d'écriture de code, valables dans les trois voies du workflow IA.
 <!-- SPECKIT START -->
 For additional context about technologies to be used, project structure,
 shell commands, and other important information, read the current plan
-at specs/20260831-152635-liste-actions-validees/plan.md
+at specs/20260901-101332-retrait-bouton-admin/plan.md
 <!-- SPECKIT END -->

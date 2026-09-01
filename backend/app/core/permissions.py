@@ -202,15 +202,6 @@ class P:
         "les clubs portés par les résultats déjà enregistrés ne bougent pas.",
         FEATURE_ATHLETES,
     )
-    # Distinct de la validation de saison (#709) : un titulaire peut déclarer
-    # du bénévolat sans pouvoir valider une saison, et réciproquement.
-    ATHLETES_VOLUNTEER_MANAGE = Permission(
-        "athletes:volunteer_manage",
-        "Déclarer une action de bénévolat",
-        "Enregistrer qu'un coureur du club a réalisé une action de bénévolat "
-        "sur une saison, pour le quota de validation de saison.",
-        FEATURE_ATHLETES,
-    )
     ATHLETES_SEASON_VALIDATE = Permission(
         "athletes:season_validate",
         "Valider la saison d'un coureur",
@@ -218,11 +209,10 @@ class P:
         "club, geste humain distinct du calcul des compteurs.",
         FEATURE_ATHLETES,
     )
-    # Distinct de ATHLETES_VOLUNTEER_MANAGE (création directe, #709) : ce
-    # pouvoir-ci instruit — consulte la file d'attente, accepte ou refuse —
-    # sans jamais créer de déclaration. Distinct aussi de BENEVOLAT_READ/
-    # _MANAGE (#751, VolunteerDeclaration, domaine indépendant sans rapport
-    # avec le quota de saison — #779, research.md D2).
+    # Instruit — consulte la file d'attente des déclarations self-service
+    # (#778), accepte ou refuse — sans jamais créer de déclaration lui-même.
+    # Distinct de BENEVOLAT_READ/_MANAGE (#751, VolunteerDeclaration, domaine
+    # indépendant sans rapport avec le quota de saison — #779, research.md D2).
     ATHLETES_VOLUNTEER_VALIDATE = Permission(
         "athletes:volunteer_validate",
         "Instruire les déclarations de bénévolat",
@@ -313,7 +303,7 @@ class P:
     )
     # Distinct de FEEDBACK_READ/_MANAGE : même patron (consultation vs geste),
     # mais une ressource sans rapport (#751). Distinct aussi de
-    # ATHLETES_VOLUNTEER_MANAGE (#709), scopé au quota de saison — cette
+    # ATHLETES_VOLUNTEER_VALIDATE, scopé au quota de saison — cette
     # déclaration-ci n'a aucun lien avec le quota.
     BENEVOLAT_READ = Permission(
         "benevolat:read",
@@ -355,7 +345,6 @@ ALL: tuple[Permission, ...] = (
     P.COURSES_WIPE_ALL,
     P.ATHLETES_READ,
     P.ATHLETES_WRITE,
-    P.ATHLETES_VOLUNTEER_MANAGE,
     P.ATHLETES_SEASON_VALIDATE,
     P.ATHLETES_VOLUNTEER_VALIDATE,
     P.PARTICIPATIONS_DELETE,

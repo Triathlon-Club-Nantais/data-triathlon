@@ -5,11 +5,12 @@ c'est un journal, pas un indicateur unique (research.md D4) — le barème de
 validation de saison est satisfait dès qu'il en existe au moins une.
 
 `title`/`description`/`status` (#778) : nullable pour les deux premiers —
-le bouton admin existant (`declare_volunteer_action`) n'en fixe aucun, et ne
-doit pas casser à la migration (research.md D3 de la feature #778). `status`
-est `NOT NULL` avec un défaut DB : contrairement à `title`/`description`, une
+le chemin admin qui les créait sans titre ni description a été retiré (#780),
+mais des lignes historiques `NULL` en production doivent rester lisibles
+sans migration (research.md D2/D3 de la feature #780). `status` est
+`NOT NULL` avec un défaut DB : contrairement à `title`/`description`, une
 valeur par défaut a un sens pour toute ligne, ancienne ou nouvelle
-(research.md D4).
+(research.md D4 de la feature #778).
 """
 from datetime import datetime
 
