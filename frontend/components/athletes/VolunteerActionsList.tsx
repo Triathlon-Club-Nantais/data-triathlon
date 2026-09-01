@@ -11,10 +11,14 @@ const REPLI = "—";
  * `SeasonValidationPanel`/`AthleteAdminPanel` (#439) : aucune trace pour un
  * visiteur non habilité, ni section ni message de pouvoir manquant.
  *
- * Patron `.tcn-table` simplifié — deux colonnes de texte seulement (titre,
- * description) ne débordent jamais un écran étroit comme le font les six
- * colonnes d'`EventsTable`, donc pas de duplication grille/cartes (#461,
- * research.md D5 de la feature).
+ * Deux colonnes de texte seulement (titre, description) ne débordent jamais
+ * un écran étroit comme le font les six colonnes d'`EventsTable`, donc pas
+ * de duplication grille/cartes (#461, research.md D5 de la feature) — et
+ * pas non plus `.tcn-table` (qui exige `display: grid` +
+ * `gridTemplateColumns` sur chaque `<tr>` pour aligner les colonnes,
+ * `frontend/AGENTS.md` #481) : un `<table>` natif aligne déjà correctement
+ * deux colonnes sans geste supplémentaire, et porte sa propre sémantique de
+ * tableau sans le moindre rôle ARIA à redéclarer.
  */
 export function VolunteerActionsList({ athleteId }: { athleteId: number }) {
   const session = useSession();
@@ -46,10 +50,9 @@ export function VolunteerActionsList({ athleteId }: { athleteId: number }) {
         </div>
       ) : (
         <div style={{ overflowX: "auto" }}>
-          <table className="tcn-table" role="table" style={{ width: "100%" }}>
-            <thead role="rowgroup">
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
               <tr
-                role="row"
                 style={{
                   fontSize: 12,
                   fontWeight: 700,
@@ -59,28 +62,23 @@ export function VolunteerActionsList({ athleteId }: { athleteId: number }) {
                   borderBottom: "1px solid var(--tcn-border)",
                 }}
               >
-                <th role="columnheader" scope="col" style={{ textAlign: "left", padding: "0 26px 12px" }}>
+                <th scope="col" style={{ textAlign: "left", padding: "0 26px 12px" }}>
                   Titre
                 </th>
-                <th role="columnheader" scope="col" style={{ textAlign: "left", padding: "0 26px 12px" }}>
+                <th scope="col" style={{ textAlign: "left", padding: "0 26px 12px" }}>
                   Description
                 </th>
               </tr>
             </thead>
-            <tbody role="rowgroup">
+            <tbody>
               {actions.data.map((action) => (
-                <tr
-                  key={action.id}
-                  role="row"
-                  style={{ borderTop: "1px solid var(--tcn-border-faint)" }}
-                >
+                <tr key={action.id} style={{ borderTop: "1px solid var(--tcn-border-faint)" }}>
                   <td
-                    role="cell"
                     style={{ padding: "12px 26px", fontSize: 15, color: "var(--tcn-ink)", fontWeight: 700 }}
                   >
                     {action.title ?? REPLI}
                   </td>
-                  <td role="cell" style={{ padding: "12px 26px", fontSize: 14, color: "var(--tcn-text-body)" }}>
+                  <td style={{ padding: "12px 26px", fontSize: 14, color: "var(--tcn-text-body)" }}>
                     {action.description ?? REPLI}
                   </td>
                 </tr>
