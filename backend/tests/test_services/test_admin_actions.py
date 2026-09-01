@@ -18,6 +18,7 @@ from app.repositories import (
     course_source_repository,
     participation_repository,
     user_repository,
+    volunteer_action_repository,
 )
 from app.scrapers.base import ScrapedResult
 from app.services import admin_actions, import_service
@@ -2060,11 +2061,15 @@ def test_unvalidate_season_non_validee_refuse(db_session, auteur):
 
 
 def test_season_quota_reflete_les_trois_signaux(db_session, auteur):
-    """FR-012 — 3 épreuves validées + 1 bénévolat déclaré + statut de validation."""
+    """FR-012 — 3 épreuves validées + 1 bénévolat accepté + statut de validation.
+
+    Depuis #779 (FR-008), une déclaration compte pour le quota une fois
+    « validée » seulement — plus à sa simple création (#709)."""
     athlete = _coureur(db_session, "QUOTA")
     for dossard in ("1", "2", "3"):
         _inscrit(db_session, athlete, _epreuve(db_session, f"Épreuve {dossard}", date(2025, 9, 1 + int(dossard))), dossard)
-    admin_actions.declare_volunteer_action(db_session, athlete_id=athlete.id, season=2025, user_id=auteur.id)
+    action = admin_actions.declare_volunteer_action(db_session, athlete_id=athlete.id, season=2025, user_id=auteur.id)
+    volunteer_action_repository.set_status(db_session, action.id, "validee")
     admin_actions.validate_season(db_session, athlete_id=athlete.id, season=2025, user_id=auteur.id)
 
     quota = admin_actions.season_quota(db_session, athlete_id=athlete.id, season=2025)
