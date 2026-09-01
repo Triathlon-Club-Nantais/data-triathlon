@@ -230,6 +230,18 @@ describe("CounterScopeCard", () => {
     );
   });
 
+  it("laisse le focus sur la ligne quand on renonce au retrait", async () => {
+    afficher();
+
+    const boutonRetirer = screen.getByRole("button", { name: /retirer « tcn »/i });
+    await userEvent.click(boutonRetirer);
+    const dialogue = await screen.findByRole("dialog");
+    await userEvent.click(within(dialogue).getByRole("button", { name: /renoncer/i }));
+
+    await waitFor(() => expect(boutonRetirer).toHaveFocus());
+    expect(removeCounterScopeEntry).not.toHaveBeenCalled();
+  });
+
   it("explique « Discipline inconnue » en texte, pas dans une infobulle native", () => {
     afficher({
       kind: "disciplines",

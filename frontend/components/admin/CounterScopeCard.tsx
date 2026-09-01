@@ -91,6 +91,13 @@ export function CounterScopeCard({
   const [aRetirer, setARetirer] = useState<CounterScopeEntry | null>(null);
   const champDAjout = useRef<HTMLInputElement>(null);
   const declencheurDuChoix = useRef<HTMLButtonElement>(null);
+  /**
+   * `finalFocus` (Base UI) s'applique à **toute** fermeture du dialog —
+   * Renoncer, Échap, clic hors du dialog, échec du retrait — et pas seulement
+   * au succès. Sans ce garde-fou, renoncer redirigerait le focus vers le champ
+   * d'ajout au lieu de le laisser sur le bouton de la ligne, intacte.
+   */
+  const retraitReussi = useRef(false);
 
   const choixDansLaNomenclature = kind === "disciplines";
 
@@ -126,6 +133,7 @@ export function CounterScopeCard({
     try {
       await retirer.mutateAsync({ kind, entryId: aRetirer.id });
       toast.success(`« ${aRetirer.value} » retiré des ${nom}.`);
+      retraitReussi.current = true;
       setARetirer(null);
     } catch (e) {
       setARetirer(null);
@@ -291,7 +299,10 @@ export function CounterScopeCard({
                     <Button
                       variant="destructive"
                       size="sm"
-                      onClick={() => setARetirer(entree)}
+                      onClick={() => {
+                        retraitReussi.current = false;
+                        setARetirer(entree);
+                      }}
                       aria-label={`Retirer « ${entree.value} »`}
                     >
                       Retirer
@@ -358,11 +369,15 @@ export function CounterScopeCard({
         enAttente={retirer.isPending}
         onConfirm={confirmerRetrait}
         // La ligne — et son bouton, celui qui avait le focus — quitte le DOM à
-        // la fermeture du dialog : sans repli, le focus retombe sur `<body>`
-        // et un utilisateur au clavier repart du haut du document à chaque
-        // retrait (même patron que `FeedbackTable`). Confié à Base UI plutôt
-        // qu'à un `.focus()` manuel après `onConfirm` (#801).
-        finalFocus={() => champDAjout.current ?? declencheurDuChoix.current ?? true}
+        // la fermeture du dialog **une fois le retrait effectif** : sans
+        // repli, le focus retombe sur `<body>` et un utilisateur au clavier
+        // repart du haut du document à chaque retrait (même patron que
+        // `FeedbackTable`). Confié à Base UI plutôt qu'à un `.focus()` manuel
+        // après `onConfirm` (#801). `true` sur Renoncer/Échap/échec : la
+        // ligne reste en place, le focus doit y rester aussi.
+        finalFocus={() =>
+          retraitReussi.current ? (champDAjout.current ?? declencheurDuChoix.current ?? true) : true
+        }
       />
     </Card>
   );
