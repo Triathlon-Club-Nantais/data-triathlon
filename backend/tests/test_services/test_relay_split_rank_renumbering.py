@@ -94,9 +94,13 @@ def test_chronoplace_scission_solo_relais_sur_rang_scratch_global(db_session, pa
 
     Cas réel (#788, « Spay'cific Races 2025 - SwimRun », courses 157/158) :
     les rangs solo (20 participants) et relais (21 participants) sont
-    exactement complémentaires sur 1..41. Non reproduit dans `chronoplace.py`
-    — la scission a lieu en amont, au niveau `Course` — donc rien à corriger
-    dans le scraper lui-même : un rescrape suffit, cette renumérotation
+    exactement complémentaires sur 1..41 — signature d'une seule colonne de
+    rang partagée, donc d'un unique tableau HTML mêlant les deux catégories
+    (confirmé par lecture de `chronoplace._epreuve_results`/`_build_result` :
+    une position par ligne, `is_relay` dérivé par ligne, `event_name` commun
+    à tout le tableau). Pas de fixture HTML dédiée ici — la scission a lieu
+    en amont, au niveau `Course`, donc rien à corriger dans le scraper
+    lui-même : un rescrape suffit, cette renumérotation
     tournant déjà avant la persistance.
     """
     rangs_solo = [1, 4, 8, 9, 11, 16, 18, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30, 36, 38, 41]
