@@ -939,7 +939,7 @@ export interface VolunteerActionSelfOut {
   title: string;
   description: string;
   status: string;
-  declared_by_user_id: number;
+  declared_by_user_id: number | null;
   created_at: string;
 }
 
@@ -953,7 +953,7 @@ export interface AdminVolunteerActionOut {
   title: string | null;
   description: string | null;
   status: string;
-  declared_by_user_id: number;
+  declared_by_user_id: number | null;
   created_at: string;
 }
 
