@@ -931,3 +931,28 @@ export function useAdminActionLog(page = 1) {
     placeholderData: (precedent) => precedent,
   });
 }
+
+// ── Validation admin des déclarations de crédit d'athlète (#779/#817) ────────
+
+export function usePendingVolunteerActions() {
+  return useQuery({
+    queryKey: queryKeys.pendingVolunteerActions(),
+    queryFn: () => apiClient.listPendingVolunteerActions(),
+  });
+}
+
+export function useAcceptVolunteerAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiClient.acceptVolunteerAction(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.pendingVolunteerActions() }),
+  });
+}
+
+export function useRejectVolunteerAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiClient.rejectVolunteerAction(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.pendingVolunteerActions() }),
+  });
+}

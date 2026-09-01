@@ -208,6 +208,18 @@ export const NAV: NavSection[] = [
         permission: "feedback:read",
         badge: "feedback",
       },
+      // Validation des déclarations de crédit d'athlète (#779, #817) —
+      // l'API existait déjà, l'écran non. Id distinct de l'ancien
+      // `a-benevolat` (auto-déclaration, #751, retiré par #816) : pas de
+      // réutilisation, ressource neuve.
+      {
+        id: "a-benevolat-validation",
+        label: "Bénévolat",
+        description:
+          "Déclarations de crédit d'athlète en attente, soumises depuis /benevolat : accepter ou refuser.",
+        href: "/admin/benevolat",
+        permission: "athletes:volunteer_validate",
+      },
       // Les deux purges globales vivaient en pied de `/admin/courses`, l'écran
       // où l'on vient corriger une date : feuilleter le catalogue jusqu'au bout
       // menait à un clic de la destruction de toute la base (#499, ADM-7). Un
