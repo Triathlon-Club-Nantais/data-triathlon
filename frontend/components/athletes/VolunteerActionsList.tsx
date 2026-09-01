@@ -1,9 +1,17 @@
 "use client";
 import { Card } from "@/components/tcn";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { messageDeRefus } from "@/lib/api/refus";
 import { useValidatedVolunteerActions } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 
 const REPLI = "—";
+
+const REFUS = {
+  sujet: "actions de bénévolat validées",
+  action: "consulter les actions de bénévolat validées",
+};
 
 /**
  * Actions de bénévolat validées d'un athlète, sur sa fiche publique (#781).
@@ -44,9 +52,21 @@ export function VolunteerActionsList({ athleteId }: { athleteId: number }) {
         </h2>
       </div>
 
-      {!actions.data || actions.data.length === 0 ? (
-        <div style={{ padding: "0 26px 24px", color: "var(--tcn-text-faint)", fontSize: 14 }}>
-          {actions.isPending ? null : "Aucune action de bénévolat validée pour cet athlète."}
+      {actions.isPending ? (
+        <div style={{ padding: "0 26px 24px" }}>
+          <Skeleton data-testid="volunteer-actions-skeleton" className="h-16 w-full" />
+        </div>
+      ) : actions.isError ? (
+        <div style={{ padding: "0 26px 24px" }}>
+          <EmptyState bare {...messageDeRefus(actions.error, REFUS)} />
+        </div>
+      ) : !actions.data || actions.data.length === 0 ? (
+        <div style={{ padding: "0 26px 24px" }}>
+          <EmptyState
+            bare
+            title="Aucune action de bénévolat validée"
+            description="Les actions déclarées par l'athlète ou depuis l'administration apparaîtront ici une fois acceptées."
+          />
         </div>
       ) : (
         <div style={{ overflowX: "auto" }}>

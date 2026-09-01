@@ -99,4 +99,23 @@ describe("VolunteerActionsList", () => {
 
     expect(await screen.findByText(/aucune action de bénévolat validée/i)).toBeInTheDocument();
   });
+
+  it("affiche un squelette de chargement plutôt qu'un espace vide muet", async () => {
+    getSession.mockResolvedValue(session(["athletes:volunteer_validate"]));
+    listValidatedVolunteerActions.mockReturnValue(new Promise(() => {}));
+
+    afficher();
+
+    expect(await screen.findByTestId("volunteer-actions-skeleton")).toBeInTheDocument();
+  });
+
+  it("distingue un échec de chargement d'une liste vide", async () => {
+    getSession.mockResolvedValue(session(["athletes:volunteer_validate"]));
+    listValidatedVolunteerActions.mockRejectedValue(new Error("Boum"));
+
+    afficher();
+
+    expect(await screen.findByText(/n'ont pas pu être charg/i)).toBeInTheDocument();
+    expect(screen.queryByText(/aucune action de bénévolat validée/i)).not.toBeInTheDocument();
+  });
 });
