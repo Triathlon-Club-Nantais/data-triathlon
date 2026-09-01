@@ -42,7 +42,6 @@ FEATURE_COUNTER_SCOPE = "Portée des compteurs"
 #: Fusion des variantes de libellé, généralisée à tout club (#635) —
 #: distincte de la portée des compteurs, réservée au TCN.
 FEATURE_CLUB_ALIASES = "Variantes de club"
-FEATURE_VOLUNTEERING = "Déclarations de bénévolat"
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,8 +210,6 @@ class P:
     )
     # Instruit — consulte la file d'attente des déclarations self-service
     # (#778), accepte ou refuse — sans jamais créer de déclaration lui-même.
-    # Distinct de BENEVOLAT_READ/_MANAGE (#751, VolunteerDeclaration, domaine
-    # indépendant sans rapport avec le quota de saison — #779, research.md D2).
     ATHLETES_VOLUNTEER_VALIDATE = Permission(
         "athletes:volunteer_validate",
         "Instruire les déclarations de bénévolat",
@@ -301,25 +298,6 @@ class P:
         "données — qui, quoi, quand.",
         FEATURE_ADMIN_LOG,
     )
-    # Distinct de FEEDBACK_READ/_MANAGE : même patron (consultation vs geste),
-    # mais une ressource sans rapport (#751). Distinct aussi de
-    # ATHLETES_VOLUNTEER_VALIDATE, scopé au quota de saison — cette
-    # déclaration-ci n'a aucun lien avec le quota.
-    BENEVOLAT_READ = Permission(
-        "benevolat:read",
-        "Consulter les déclarations de bénévolat",
-        "Voir la vue d'ensemble des déclarations de bénévolat de tous les "
-        "membres, tous statuts confondus.",
-        FEATURE_VOLUNTEERING,
-    )
-    BENEVOLAT_MANAGE = Permission(
-        "benevolat:manage",
-        "Instruire les déclarations de bénévolat",
-        "Déclarer une activité de bénévolat pour n'importe quel membre "
-        "(validée d'office), valider une auto-déclaration en attente, ou "
-        "supprimer la déclaration d'un tiers.",
-        FEATURE_VOLUNTEERING,
-    )
 
 
 #: L'inventaire, dans l'ordre d'affichage. `P` en est la façade d'appel ; un
@@ -357,8 +335,6 @@ ALL: tuple[Permission, ...] = (
     P.COUNTER_SCOPE_MANAGE,
     P.CLUB_ALIASES_MANAGE,
     P.ADMIN_LOG_READ,
-    P.BENEVOLAT_READ,
-    P.BENEVOLAT_MANAGE,
 )
 
 _BY_CODE: dict[str, Permission] = {pouvoir.code: pouvoir for pouvoir in ALL}

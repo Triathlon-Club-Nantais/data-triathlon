@@ -3,7 +3,7 @@ contracts/admin-volunteer-actions-api.md.
 
 `session_de_saisie` (autouse, `tests/test_api/conftest.py`) ouvre une session
 superutilisateur — les tests de refus utilisent `_session_etroite` pour
-l'écraser (patron `test_admin_volunteer_declarations_api.py`).
+l'écraser.
 """
 from app.api.v1.auth import session_cookie_name
 from app.core.config import get_settings

@@ -23,7 +23,6 @@ from app.models.user_group import UserGroup
 from app.models.user_role import UserRole
 from app.models.user_session import UserSession
 from app.models.volunteer_action import VolunteerAction
-from app.models.volunteer_declaration import VolunteerDeclaration
 
 __all__ = [
     "AdminActionLog",
@@ -50,5 +49,4 @@ __all__ = [
     "UserRole",
     "UserSession",
     "VolunteerAction",
-    "VolunteerDeclaration",
 ]
