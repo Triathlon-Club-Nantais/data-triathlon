@@ -28,6 +28,8 @@ function session(permissions: string[]): SessionUser {
 const VALIDEE: AdminVolunteerActionOut = {
   id: 1,
   athlete_id: 42,
+  athlete_nom: "LEMÉE",
+  athlete_prenom: "Jean-Marc",
   season: 2025,
   title: "Ravitaillement",
   description: "Poste eau km 15.",
@@ -39,6 +41,8 @@ const VALIDEE: AdminVolunteerActionOut = {
 const SANS_TITRE: AdminVolunteerActionOut = {
   id: 2,
   athlete_id: 42,
+  athlete_nom: "LEMÉE",
+  athlete_prenom: "Jean-Marc",
   season: 2024,
   title: null,
   description: null,
