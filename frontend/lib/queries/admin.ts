@@ -4,7 +4,6 @@ import { queryKeys } from "./keys";
 import type {
   AdminAthleteUpdate,
   AdminCourseUpdate,
-  AdminVolunteerDeclarationCreate,
   Feedback,
   RoleCreate,
   RoleUpdate,
@@ -930,39 +929,5 @@ export function useAdminActionLog(page = 1) {
     queryKey: queryKeys.adminActionLog(page),
     queryFn: () => apiClient.getActionLog(page, TAILLE_PAGE_JOURNAL),
     placeholderData: (precedent) => precedent,
-  });
-}
-
-// ── Déclarations de bénévolat, vue admin (#751) ─────────────────────────────
-
-export function useAllVolunteerDeclarations() {
-  return useQuery({
-    queryKey: queryKeys.adminVolunteerDeclarations(),
-    queryFn: () => apiClient.listAllVolunteerDeclarations(),
-  });
-}
-
-export function useAdminCreateVolunteerDeclaration() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: AdminVolunteerDeclarationCreate) =>
-      apiClient.adminCreateVolunteerDeclaration(body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.adminVolunteerDeclarations() }),
-  });
-}
-
-export function useValidateVolunteerDeclaration() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => apiClient.validateVolunteerDeclaration(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.adminVolunteerDeclarations() }),
-  });
-}
-
-export function useAdminDeleteVolunteerDeclaration() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => apiClient.adminDeleteVolunteerDeclaration(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.adminVolunteerDeclarations() }),
   });
 }
