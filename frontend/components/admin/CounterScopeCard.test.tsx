@@ -274,7 +274,7 @@ describe("CounterScopeCard, côté disciplines", () => {
 
     await userEvent.click(screen.getByRole("combobox", { name: /nouveau libellé/i }));
 
-    const options = screen.getAllByRole("option").map((o) => o.textContent);
+    const options = (await screen.findAllByRole("option")).map((o) => o.textContent);
     expect(options).toContain("Triathlon");
     expect(options).not.toContain("Trail");
   });
