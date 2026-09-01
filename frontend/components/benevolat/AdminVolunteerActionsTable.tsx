@@ -125,7 +125,7 @@ export function AdminVolunteerActionsTable() {
                     size="sm"
                     variant="outline"
                     onClick={() => onAccept(action.id)}
-                    disabled={accepter.isPending || refuser.isPending}
+                    disabled={accepter.isPending || refuser.isPending || supprimer.isPending}
                     aria-label={`Accepter — ${action.athlete_prenom} ${action.athlete_nom}`}
                   >
                     Accepter
@@ -134,7 +134,7 @@ export function AdminVolunteerActionsTable() {
                     size="sm"
                     variant="outline"
                     onClick={() => onReject(action.id)}
-                    disabled={accepter.isPending || refuser.isPending}
+                    disabled={accepter.isPending || refuser.isPending || supprimer.isPending}
                     aria-label={`Refuser — ${action.athlete_prenom} ${action.athlete_nom}`}
                   >
                     Refuser

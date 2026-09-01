@@ -184,4 +184,21 @@ describe("AdminVolunteerActionsTable", () => {
     await waitFor(() => expect(deleteVolunteerAction).toHaveBeenCalledWith(1));
     await waitFor(() => expect(screen.queryByText("Ravitaillement")).not.toBeInTheDocument());
   });
+
+  it("désactive Accepter et Refuser pendant qu'une suppression est en cours", async () => {
+    listPendingVolunteerActions.mockResolvedValue([EN_ATTENTE]);
+    let resoudre: (v: null) => void = () => {};
+    deleteVolunteerAction.mockReturnValue(new Promise((r) => (resoudre = r)));
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /supprimer/i }));
+    await confirmerDansLeDialog("Supprimer définitivement");
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /accepter/i })).toBeDisabled(),
+    );
+    expect(screen.getByRole("button", { name: /refuser/i })).toBeDisabled();
+
+    resoudre(null);
+  });
 });
