@@ -60,12 +60,12 @@ describe("BenevolatPage — ouverture au mot de passe du site (#809)", () => {
     expect(screen.getByTestId("volunteer-declaration-list")).toBeInTheDocument();
   });
 
-  it("n'affiche rien pendant la résolution de la session, hors formulaire de crédit", () => {
+  it("n'affiche rien pendant la résolution de la session — évite le décalage de mise en page constaté en ui-ux-review", () => {
     useSession.mockReturnValue({ data: undefined, isPending: true });
 
     render(<BenevolatPage />);
 
-    expect(screen.getByTestId("volunteer-action-form")).toBeInTheDocument();
+    expect(screen.queryByTestId("volunteer-action-form")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /se connecter/i })).not.toBeInTheDocument();
     expect(screen.queryByTestId("volunteer-declaration-form")).not.toBeInTheDocument();
   });
