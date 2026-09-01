@@ -922,6 +922,32 @@ def test_sub_source_url_parcours_vide_pas_de_qualif():
     assert "parcours=" not in _sub_source_url(url, "")
 
 
+def test_sub_source_url_normalise_host_www_et_double_encodage():
+    """`www.`, la casse du host et un double encodage accidentel de la query
+    (%2520 → %20) ne doivent pas produire une URL canonique distincte (#786) :
+    trois façons de désigner la même ressource dédupliquent au même `attach()`.
+    """
+    from app.scrapers.wiclax import _sub_source_url
+
+    reference = _sub_source_url(
+        "https://chronosmetron.wiclax-results.com/G-Live/g-live.html"
+        "?f=..%2FTriathlon+de+Montreuil.clax",
+        "Triathlon M",
+    )
+    avec_www_et_majuscules = _sub_source_url(
+        "https://WWW.Chronosmetron.wiclax-results.com/G-Live/g-live.html"
+        "?f=..%2FTriathlon+de+Montreuil.clax",
+        "Triathlon M",
+    )
+    double_encodage = _sub_source_url(
+        "https://www.chronosmetron.wiclax-results.com/G-Live/g-live.html"
+        "?f=..%2FTriathlon%2520de%2520Montreuil.clax",
+        "Triathlon M",
+    )
+    assert avec_www_et_majuscules == reference
+    assert double_encodage == reference
+
+
 def test_scrape_event_fanout_nominal_returns_trace(monkeypatch):
     """Fan-out sans cache_probe : 3 parcours énumérés, tous scrapés, trace complète."""
     from app.scrapers.base import FanoutTrace
