@@ -1136,31 +1136,6 @@ def update_course(db: Session, *, course_id: int, champs: dict, user_id: int) ->
     return course
 
 
-def declare_volunteer_action(db: Session, *, athlete_id: int, season: int, user_id: int):
-    """Déclare une action de bénévolat pour un athlète et une saison (#709, FR-006 à FR-008).
-
-    Plusieurs déclarations coexistent pour le même `(athlete_id, season)` —
-    un journal, pas un indicateur unique (research.md D4) : cette fonction ne
-    vérifie donc aucune unicité avant d'écrire, à la différence de
-    `update_athlete`.
-    """
-    _athlete_or_404(db, athlete_id)
-
-    action = volunteer_action_repository.create(
-        db, athlete_id=athlete_id, season=season, declared_by_user_id=user_id
-    )
-    admin_action_log_repository.create(
-        db,
-        user_id=user_id,
-        action="athlete.volunteer_action.create",
-        entity_type="athlete",
-        entity_id=athlete_id,
-        payload={"season": season},
-    )
-    logger.info("Admin %s declared volunteer action for athlete %s season %s", user_id, athlete_id, season)
-    return action
-
-
 def validate_season(db: Session, *, athlete_id: int, season: int, user_id: int):
     """Valide la saison d'un athlète (#709, FR-009 à FR-013).
 

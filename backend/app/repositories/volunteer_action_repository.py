@@ -1,22 +1,15 @@
 """Accès données pour VolunteerAction — seule couche qui touche la Session (Principe II).
 
-`create` (chemin admin, #709) et `create_pending` (formulaire self-service,
-#778) consignent une déclaration. `set_status` (#779) est la seule mise à
-jour — le statut, posé sans être jamais relu jusqu'ici, devient
-significatif pour le workflow de validation admin. Pas de suppression.
+`create_pending` (formulaire self-service, #778) est le seul point de création
+restant — le chemin admin (`create`, #709) a été retiré (#780) : des lignes
+`title`/`description` `NULL` peuvent néanmoins subsister en production,
+héritées de ce chemin. `set_status` (#779) est la seule mise à jour — le
+statut, posé sans être jamais relu jusqu'ici, devient significatif pour le
+workflow de validation admin. Pas de suppression.
 """
 from sqlalchemy.orm import Session
 
 from app.models.volunteer_action import VolunteerAction
-
-
-def create(db: Session, *, athlete_id: int, season: int, declared_by_user_id: int) -> VolunteerAction:
-    action = VolunteerAction(
-        athlete_id=athlete_id, season=season, declared_by_user_id=declared_by_user_id
-    )
-    db.add(action)
-    db.flush()
-    return action
 
 
 def create_pending(

@@ -9,6 +9,7 @@ from app.api.v1.auth import session_cookie_name
 from app.core.config import get_settings
 from app.models.organisation import Organisation
 from app.models.role_permission import RolePermission
+from app.models.volunteer_action import VolunteerAction
 from app.repositories import (
     athlete_repository,
     role_repository,
@@ -75,14 +76,14 @@ def test_lister_ne_rend_que_les_declarations_en_attente(client, db_session):
     assert [d["id"] for d in corps] == [en_attente.id]
 
 
-def test_lister_rend_null_pour_une_ligne_creee_par_le_chemin_admin(client, db_session):
-    """Chemin admin existant (#709) — jamais de titre ni de description."""
+def test_lister_rend_null_pour_une_ligne_historique_sans_titre(client, db_session):
+    """Ligne historique (#780) — le chemin admin qui les créait est retiré,
+    mais des lignes NULL existent déjà en production (research.md D4)."""
     athlete = _athlete(db_session)
     auteur = user_repository.create(db_session, email="admin@exemple.fr")
     db_session.flush()
-    action = volunteer_action_repository.create(
-        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id
-    )
+    action = VolunteerAction(athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id)
+    db_session.add(action)
     db_session.commit()
 
     reponse = client.get(f"{_URL}/pending")
@@ -182,13 +183,14 @@ def test_lister_les_validees_dun_athlete_exclut_les_autres_statuts(client, db_se
     assert [d["id"] for d in reponse.json()] == [validee.id]
 
 
-def test_lister_les_validees_rend_null_pour_une_ligne_creee_par_le_chemin_admin(client, db_session):
+def test_lister_les_validees_rend_null_pour_une_ligne_historique_sans_titre(client, db_session):
+    """Ligne historique (#780) — voir test_lister_rend_null_pour_une_ligne_historique_sans_titre."""
     athlete = _athlete(db_session)
     auteur = user_repository.create(db_session, email="admin-createur@exemple.fr")
     db_session.flush()
-    action = volunteer_action_repository.create(
-        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id
-    )
+    action = VolunteerAction(athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id)
+    db_session.add(action)
+    db_session.flush()
     volunteer_action_repository.set_status(db_session, action.id, "validee")
     db_session.commit()
 
