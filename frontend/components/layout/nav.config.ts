@@ -221,7 +221,7 @@ export const NAV: NavSection[] = [
         id: "a-benevolat-validation",
         label: "Bénévolat",
         description:
-          "Déclarations de crédit d'athlète en attente, soumises depuis /benevolat : accepter ou refuser.",
+          "Déclarations de crédit d'athlète en attente, soumises par un membre depuis la page publique de bénévolat : accepter ou refuser.",
         href: "/admin/benevolat",
         permission: "athletes:volunteer_validate",
       },
