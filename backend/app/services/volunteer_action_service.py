@@ -13,7 +13,7 @@ from app.repositories import (
 
 
 def create_pending(
-    db: Session, *, declared_by_user_id: int, athlete_id: int, title: str, description: str
+    db: Session, *, declared_by_user_id: int | None, athlete_id: int, title: str, description: str
 ) -> VolunteerAction:
     """Un adhérent connecté crédite l'athlète de son choix pour la saison en
     cours, toujours à l'état « en attente » (FR-001 à FR-004, FR-009)."""

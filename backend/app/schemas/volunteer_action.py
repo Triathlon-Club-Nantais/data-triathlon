@@ -32,7 +32,7 @@ class VolunteerActionSelfOut(BaseModel):
     title: str
     description: str
     status: str
-    declared_by_user_id: int
+    declared_by_user_id: int | None
     created_at: datetime
 
 
@@ -49,5 +49,5 @@ class AdminVolunteerActionOut(BaseModel):
     title: str | None
     description: str | None
     status: str
-    declared_by_user_id: int
+    declared_by_user_id: int | None
     created_at: datetime

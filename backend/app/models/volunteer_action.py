@@ -11,6 +11,11 @@ sans migration (research.md D2/D3 de la feature #780). `status` est
 `NOT NULL` avec un défaut DB : contrairement à `title`/`description`, une
 valeur par défaut a un sens pour toute ligne, ancienne ou nouvelle
 (research.md D4 de la feature #778).
+
+`declared_by_user_id` (#809) : nullable — un visiteur qui n'a franchi que le
+mot de passe partagé du site, sans session SSO individuelle, peut déclarer
+sans identité associée, sur le patron de `UserFeedback.user_id`
+(research.md D2 de la feature #809).
 """
 from datetime import datetime
 
@@ -27,7 +32,7 @@ class VolunteerAction(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     athlete_id: Mapped[int] = mapped_column(ForeignKey("athletes.id"), index=True)
     season: Mapped[int] = mapped_column(Integer, index=True)
-    declared_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    declared_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     title: Mapped[str | None] = mapped_column(String, nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

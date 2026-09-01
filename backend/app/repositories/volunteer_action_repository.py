@@ -17,7 +17,7 @@ def create_pending(
     *,
     athlete_id: int,
     season: int,
-    declared_by_user_id: int,
+    declared_by_user_id: int | None,
     title: str,
     description: str,
 ) -> VolunteerAction:
