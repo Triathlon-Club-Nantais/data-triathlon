@@ -1,10 +1,16 @@
 "use client";
+import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { Card } from "@/components/tcn";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { messageDeRefus } from "@/lib/api/refus";
-import { useValidatedVolunteerActions } from "@/lib/queries/admin";
+import { useDeleteVolunteerAction, useValidatedVolunteerActions } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
+import type { AdminVolunteerActionOut } from "@/lib/types";
 
 const REPLI = "—";
 
@@ -29,12 +35,32 @@ const REFUS = {
  * tableau sans le moindre rôle ARIA à redéclarer.
  */
 export function VolunteerActionsList({ athleteId }: { athleteId: number }) {
+  const qc = useQueryClient();
   const session = useSession();
   const peutConsulter =
     session.data?.permissions.includes("athletes:volunteer_validate") ?? false;
   const actions = useValidatedVolunteerActions(athleteId, peutConsulter);
+  const supprimer = useDeleteVolunteerAction();
+  const [pourSuppression, setPourSuppression] = useState<AdminVolunteerActionOut | null>(null);
 
   if (!peutConsulter) return null;
+
+  async function confirmerSuppression() {
+    if (!pourSuppression) return;
+    const action = pourSuppression;
+    try {
+      await supprimer.mutateAsync(action.id, {
+        onSuccess: () => {
+          qc.invalidateQueries({ queryKey: ["validated-volunteer-actions", athleteId] });
+          qc.invalidateQueries({ queryKey: ["season-quota", athleteId, action.season] });
+        },
+      });
+      toast.success("Déclaration supprimée.");
+      setPourSuppression(null);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
 
   return (
     <Card padding={0} style={{ overflow: "hidden" }}>
@@ -88,6 +114,9 @@ export function VolunteerActionsList({ athleteId }: { athleteId: number }) {
                 <th scope="col" style={{ textAlign: "left", padding: "0 26px 12px" }}>
                   Description
                 </th>
+                <th scope="col" style={{ padding: "0 26px 12px" }}>
+                  <span className="sr-only">Actions</span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -101,12 +130,37 @@ export function VolunteerActionsList({ athleteId }: { athleteId: number }) {
                   <td style={{ padding: "12px 26px", fontSize: 14, color: "var(--tcn-text-body)" }}>
                     {action.description ?? REPLI}
                   </td>
+                  <td style={{ padding: "12px 26px", textAlign: "right" }}>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setPourSuppression(action)}
+                      aria-label={`Supprimer — ${action.title ?? "déclaration sans titre"}`}
+                    >
+                      Supprimer
+                    </Button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* Déclaratif, pas `useDangerConfirm()` : cette liste se rend sur la
+          fiche athlète publique, hors de tout `DangerConfirmProvider`
+          (monté seulement sous `/admin` et `/benevoles`), patron de
+          `CourseSourcesPanel` (#739). */}
+      <DangerConfirm
+        open={pourSuppression !== null}
+        onOpenChange={(ouvert) => {
+          if (!ouvert && !supprimer.isPending) setPourSuppression(null);
+        }}
+        titre={pourSuppression ? `Supprimer « ${pourSuppression.title ?? REPLI} » ?` : ""}
+        description="La déclaration disparaît définitivement, y compris du quota de saison si elle était déjà validée."
+        enAttente={supprimer.isPending}
+        onConfirm={confirmerSuppression}
+      />
     </Card>
   );
 }

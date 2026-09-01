@@ -139,7 +139,7 @@ rechargement manuel ; annuler → rien ne change.
 
 ### Tests for User Story 2
 
-- [ ] T013 [P] [US2] Tests `VolunteerActionsList` : bouton de suppression par
+- [X] T013 [P] [US2] Tests `VolunteerActionsList` : bouton de suppression par
       ligne ouvre le `<DangerConfirm>` déclaratif (pas de
       `DangerConfirmProvider` monté dans le test, cf. research.md D2) ;
       confirmer appelle la mutation et invalide
@@ -152,7 +152,7 @@ rechargement manuel ; annuler → rien ne change.
 
 ### Implementation for User Story 2
 
-- [ ] T014 [US2] Dans `VolunteerActionsList.tsx`, appeler
+- [X] T014 [US2] Dans `VolunteerActionsList.tsx`, appeler
       `useDeleteVolunteerAction()` (T010, réutilisée telle quelle — pas de
       second hook) avec un `onSuccess` invalidant
       `["validated-volunteer-actions", athleteId]` et
@@ -160,12 +160,13 @@ rechargement manuel ; annuler → rien ne change.
       lu sur la ligne ciblée par le clic (chaque déclaration porte sa
       propre saison — la liste couvre toutes les saisons sans filtre,
       cf. `list_validated_for_athlete`) (dépend de T010)
-- [ ] T015 [US2] Ajouter le geste de suppression dans
+- [X] T015 [US2] Ajouter le geste de suppression dans
       `VolunteerActionsList.tsx` : bouton par ligne, `<DangerConfirm>`
       déclaratif géré en state local du composant (pas de
       `useDangerConfirm`, cf. research.md D2), `toast` succès/erreur
       (dépend de T014) — fait passer T013
-- [ ] T016 [US2] Lancer `npm test -- VolunteerActionsList` depuis `frontend/`
+- [X] T016 [US2] Lancer `npm test -- VolunteerActionsList` depuis
+      `frontend/` — 9/9 passed
 
 **Checkpoint** : US1 et US2 fonctionnelles indépendamment.
 

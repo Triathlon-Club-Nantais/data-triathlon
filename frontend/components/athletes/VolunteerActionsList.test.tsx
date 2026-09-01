@@ -1,17 +1,22 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminVolunteerActionOut, SessionUser } from "@/lib/types";
 import { VolunteerActionsList } from "./VolunteerActionsList";
 
-const { getSession, listValidatedVolunteerActions } = vi.hoisted(() => ({
+const { getSession, listValidatedVolunteerActions, deleteVolunteerAction } = vi.hoisted(() => ({
   getSession: vi.fn(),
   listValidatedVolunteerActions: vi.fn(),
+  deleteVolunteerAction: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { ...original.apiClient, getSession, listValidatedVolunteerActions } };
+  return {
+    ...original,
+    apiClient: { ...original.apiClient, getSession, listValidatedVolunteerActions, deleteVolunteerAction },
+  };
 });
 
 function session(permissions: string[]): SessionUser {
@@ -54,11 +59,12 @@ const SANS_TITRE: AdminVolunteerActionOut = {
 function afficher() {
   document.cookie = "tcn_logged_in=1; path=/";
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const utils = render(
     <QueryClientProvider client={client}>
       <VolunteerActionsList athleteId={42} />
     </QueryClientProvider>,
   );
+  return { ...utils, client };
 }
 
 beforeEach(() => {
@@ -121,5 +127,53 @@ describe("VolunteerActionsList", () => {
 
     expect(await screen.findByText(/n'ont pas pu être charg/i)).toBeInTheDocument();
     expect(screen.queryByText(/aucune action de bénévolat validée/i)).not.toBeInTheDocument();
+  });
+
+  it("supprimer demande une confirmation avant d'agir", async () => {
+    getSession.mockResolvedValue(session(["athletes:volunteer_validate"]));
+    listValidatedVolunteerActions.mockResolvedValue([VALIDEE]);
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /supprimer/i }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(deleteVolunteerAction).not.toHaveBeenCalled();
+  });
+
+  it("annuler la confirmation laisse la ligne intacte", async () => {
+    getSession.mockResolvedValue(session(["athletes:volunteer_validate"]));
+    listValidatedVolunteerActions.mockResolvedValue([VALIDEE]);
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /supprimer/i }));
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Renoncer" }));
+
+    expect(deleteVolunteerAction).not.toHaveBeenCalled();
+    expect(screen.getByText("Ravitaillement")).toBeInTheDocument();
+  });
+
+  it("confirmer supprime la déclaration, invalide la liste et le quota de sa propre saison", async () => {
+    getSession.mockResolvedValue(session(["athletes:volunteer_validate"]));
+    listValidatedVolunteerActions.mockResolvedValueOnce([VALIDEE, SANS_TITRE]).mockResolvedValue([SANS_TITRE]);
+    deleteVolunteerAction.mockResolvedValue(null);
+
+    const { client } = afficher();
+    const invalider = vi.spyOn(client, "invalidateQueries");
+    await screen.findByText("Ravitaillement");
+    const boutons = await screen.findAllByRole("button", { name: /supprimer/i });
+    await userEvent.click(boutons[0]);
+    const dialog = await screen.findByRole("dialog");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Supprimer définitivement" }));
+
+    await waitFor(() => expect(deleteVolunteerAction).toHaveBeenCalledWith(VALIDEE.id));
+    await waitFor(() =>
+      expect(invalider).toHaveBeenCalledWith({
+        queryKey: ["validated-volunteer-actions", 42],
+      }),
+    );
+    // VALIDEE.season = 2025 (la ligne supprimée), pas SANS_TITRE.season = 2024.
+    expect(invalider).toHaveBeenCalledWith({ queryKey: ["season-quota", 42, 2025] });
+    expect(invalider).not.toHaveBeenCalledWith({ queryKey: ["season-quota", 42, 2024] });
   });
 });
