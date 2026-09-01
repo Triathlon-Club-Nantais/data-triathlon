@@ -67,13 +67,16 @@ def _declaration(db_session, *, status="en_attente", auteur_id=None):
 
 
 def test_lister_ne_rend_que_les_declarations_en_attente(client, db_session):
-    _, en_attente = _declaration(db_session)
+    athlete, en_attente = _declaration(db_session)
     _declaration(db_session, status="validee")
 
     reponse = client.get(f"{_URL}/pending")
 
     corps = reponse.json()
     assert [d["id"] for d in corps] == [en_attente.id]
+    # #817 — l'admin doit voir pour qui la déclaration a été soumise.
+    assert corps[0]["athlete_nom"] == athlete.nom
+    assert corps[0]["athlete_prenom"] == athlete.prenom
 
 
 def test_lister_rend_null_pour_une_ligne_historique_sans_titre(client, db_session):

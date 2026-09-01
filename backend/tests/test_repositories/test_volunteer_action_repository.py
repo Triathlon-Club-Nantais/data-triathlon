@@ -153,6 +153,22 @@ def test_list_pending_ne_rend_que_les_lignes_en_attente(db_session):
     assert [a.id for a in en_cours] == [en_attente.id]
 
 
+def test_list_pending_expose_le_nom_de_lathlete(db_session):
+    """#817 — l'écran de validation admin doit dire pour qui."""
+    auteur = _auteur(db_session)
+    athlete = _athlete(db_session)
+    volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id,
+        title="A", description="B",
+    )
+    db_session.flush()
+
+    en_cours = volunteer_action_repository.list_pending(db_session)
+
+    assert en_cours[0].athlete_nom == athlete.nom
+    assert en_cours[0].athlete_prenom == athlete.prenom
+
+
 def test_get_rend_none_sur_id_inconnu(db_session):
     assert volunteer_action_repository.get(db_session, 999999) is None
 
