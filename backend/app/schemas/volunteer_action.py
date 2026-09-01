@@ -39,12 +39,15 @@ class VolunteerActionSelfOut(BaseModel):
 class AdminVolunteerActionOut(BaseModel):
     """File d'attente admin (#779) — `title`/`description` optionnels : le
     chemin de création admin existant (#709) ne les renseigne jamais
-    (research.md D5 de #779)."""
+    (research.md D5 de #779). `athlete_nom`/`athlete_prenom` (#817) — le nom
+    courant de l'athlète, lu via la relation du modèle."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     athlete_id: int
+    athlete_nom: str
+    athlete_prenom: str
     season: int
     title: str | None
     description: str | None
