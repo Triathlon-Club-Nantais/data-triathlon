@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
@@ -21,6 +22,15 @@ export default async function AthletesSeasonPage({
   const fromUrl = parseSeasonsParam(sp.seasons);
   const seasons = fromUrl.length > 0 ? fromUrl : [currentSeason()];
   const federal_only = federalOnlyFromParam(sp.sports);
+
+  // Gardée par `pages:preview` (#811) : l'API refuse déjà `listAthleteSeasonActivity`
+  // sans ce pouvoir, mais l'y laisser tomber rendrait l'écran d'erreur générique
+  // plutôt qu'un renvoi vers l'espace club — d'où la vérification avant le
+  // `Promise.all` des deux fetchs de données, jamais en parallèle avec eux.
+  const session = await apiServer.getSession();
+  if (!session?.permissions.includes("pages:preview")) {
+    redirect("/club");
+  }
 
   const [athletes, availableSeasons] = await Promise.all([
     apiServer.listAthleteSeasonActivity({ scope: SCOPE_CLUB, seasons, federal_only }),

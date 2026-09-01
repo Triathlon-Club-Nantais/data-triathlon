@@ -94,9 +94,11 @@ export const NAV: NavSection[] = [
     items: [
       { id: "dashboard", label: "Tableau de bord", href: "/dashboard", icon: LayoutGrid },
       { id: "resultats", label: "Résultats", href: "/resultats", icon: List },
-      // `MapView.tsx` existe déjà ; l'onglet était masqué (#10, #28) et le reste
-      // tant que son rendu sans données n'a pas été vérifié.
-      { id: "carte", label: "Carte", icon: Map, soon: true },
+      // `MapView.tsx` existe déjà, et la route `/carte` répond déjà en
+      // direct : `soon` ne masque que l'entrée du rail (#10, #28), pas la
+      // page. `pages:preview` (#811) la débloque en avant-première, pour un
+      // profil qui veut vérifier son rendu avant l'ouverture au grand public.
+      { id: "carte", label: "Carte", href: "/carte", icon: Map, soon: true, permission: "pages:preview" },
     ],
   },
   {
@@ -113,12 +115,15 @@ export const NAV: NavSection[] = [
       { id: "stats", label: "Statistiques", soon: true },
       // Page dédiée, distincte de « Espace club » (#274) : liste nominative
       // par saison, pas une synthèse.
+      // Restreinte à `pages:preview` (#811) : la liste par saison reste
+      // invisible tant que ce pouvoir n'est pas accordé, anonyme ou connecté.
       {
         id: "athletes-saison",
         label: "Athlètes par saison",
         labelCourt: "Athlètes",
         href: "/club/athletes",
         icon: Users,
+        permission: "pages:preview",
       },
     ],
   },
@@ -369,13 +374,18 @@ export function estVisible(
   pouvoirs: Set<string>,
   rank: number,
 ): item is NavItem & { href: string } {
+  const aLePouvoir =
+    !item.permission ||
+    (Array.isArray(item.permission)
+      ? item.permission.some((code) => pouvoirs.has(code))
+      : pouvoirs.has(item.permission));
+
   return (
     !!item.href &&
-    !item.soon &&
+    // `soon` masque par défaut ; seul un `permission` explicite et satisfait
+    // (`pages:preview`, #811) lève le masque — jamais son absence.
+    (!item.soon || (!!item.permission && aLePouvoir)) &&
     rank >= (item.minRole ?? ROLE.ANON) &&
-    (!item.permission ||
-      (Array.isArray(item.permission)
-        ? item.permission.some((code) => pouvoirs.has(code))
-        : pouvoirs.has(item.permission)))
+    aLePouvoir
   );
 }

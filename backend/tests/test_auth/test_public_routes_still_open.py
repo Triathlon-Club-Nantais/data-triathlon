@@ -91,6 +91,9 @@ ROUTES_VOLUNTEER_DECLARATIONS_FERMEES = {
 
 ROUTES_FERMEES = {
     ("DELETE", "/api/v1/participations/{participation_id}"),
+    # #811 — pages:preview restreint la liste des athlètes par saison, dont
+    # l'entrée de nav reste masquée sans ce pouvoir.
+    ("GET", "/api/v1/athletes/season-activity"),
     *ROUTES_BENEVOLES_FERMEES,
     *ROUTES_VOLUNTEER_DECLARATIONS_FERMEES,
 }

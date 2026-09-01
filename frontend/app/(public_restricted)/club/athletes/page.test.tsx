@@ -4,11 +4,13 @@ import { currentSeason } from "@/lib/utils/season";
 
 const listAthleteSeasonActivity = vi.fn();
 const listSeasons = vi.fn();
+const getSession = vi.fn();
 
 vi.mock("@/lib/api/server", () => ({
   apiServer: {
     listAthleteSeasonActivity: (opts: unknown) => listAthleteSeasonActivity(opts),
     listSeasons: (opts: unknown) => listSeasons(opts),
+    getSession: () => getSession(),
   },
 }));
 
@@ -17,16 +19,39 @@ vi.mock("@/lib/api/server", () => ({
 // query string est mutable : la ligne de tags ne se rend qu'à deux saisons.
 const url = vi.hoisted(() => ({ qs: "" }));
 
+// `vi.hoisted` : le shorthand `{ redirect }` du mock ci-dessous évalue la
+// variable au moment où la factory s'exécute, pas à l'appel — un simple
+// `const` plus bas serait encore non initialisé (patron d'`app/admin/layout.test.tsx`).
+const { redirect } = vi.hoisted(() => ({
+  redirect: vi.fn(() => {
+    // `redirect()` de Next interrompt le rendu en levant : le simuler à
+    // l'identique est ce qui prouve que rien n'est rendu après la garde.
+    throw new Error("NEXT_REDIRECT");
+  }),
+}));
+
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
   usePathname: () => "/club/athletes",
   useSearchParams: () => new URLSearchParams(url.qs),
+  redirect,
 }));
 
 import AthletesSeasonPage from "./page";
 
+const SESSION_AVEC_POUVOIR = {
+  id: 1,
+  email: "contributeur@exemple.fr",
+  display_name: "contributeur",
+  created_at: "2026-08-01T14:54:28Z",
+  permissions: ["pages:preview"],
+  roles: [],
+};
+
 beforeEach(() => {
+  vi.clearAllMocks();
   url.qs = "";
+  getSession.mockResolvedValue(SESSION_AVEC_POUVOIR);
   listAthleteSeasonActivity.mockReset().mockResolvedValue([
     { id: 1, nom: "DUPONT", prenom: "Jean", participation_count: 2 },
   ]);
@@ -121,5 +146,33 @@ describe("/club/athletes", () => {
     await renderPage();
 
     expect(screen.getByRole("link", { name: /Espace club/ })).toHaveAttribute("href", "/club");
+  });
+
+  // #811 — la garde côté écran, jumelle de celle posée sur l'API.
+  describe("garde pages:preview (#811)", () => {
+    it("redirige vers /club pour un anonyme", async () => {
+      getSession.mockResolvedValue(null);
+
+      await expect(renderPage()).rejects.toThrow("NEXT_REDIRECT");
+
+      expect(redirect).toHaveBeenCalledWith("/club");
+      expect(listAthleteSeasonActivity).not.toHaveBeenCalled();
+    });
+
+    it("redirige vers /club pour un connecté sans le pouvoir", async () => {
+      getSession.mockResolvedValue({ ...SESSION_AVEC_POUVOIR, permissions: [] });
+
+      await expect(renderPage()).rejects.toThrow("NEXT_REDIRECT");
+
+      expect(redirect).toHaveBeenCalledWith("/club");
+      expect(listAthleteSeasonActivity).not.toHaveBeenCalled();
+    });
+
+    it("rend la page pour qui détient pages:preview", async () => {
+      await renderPage();
+
+      expect(redirect).not.toHaveBeenCalled();
+      expect(screen.getByText("DUPONT")).toBeInTheDocument();
+    });
   });
 });

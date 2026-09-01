@@ -1,8 +1,8 @@
 """Les trois issues de chaque ressource fermée par #115 (SC-003, SC-004).
 
-401 anonyme, 403 connecté sans le pouvoir, succès avec. Sur les **trois**
-routes que la feature ferme encore aujourd'hui — `GET`/`DELETE
-/admin/pending-providers` et `DELETE /participations/{id}`.
+401 anonyme, 403 connecté sans le pouvoir, succès avec. Sur `GET`/`DELETE
+/admin/pending-providers`, `DELETE /participations/{id}`, et depuis #811
+`GET /athletes/season-activity`.
 
 `POST /participations` a rejoint ce lot un temps (#115), puis en est ressortie
 (#270) : la mise en quarantaine du résultat créé (`is_pending_validation`)
@@ -225,6 +225,36 @@ def test_un_refus_precede_toute_ecriture(client, db_session, organisation, parti
 
     assert db_session.query(Participation).count() == 1
     assert db_session.query(AdminActionLog).count() == 0
+
+
+# --- GET /athletes/season-activity ------------------------------------------
+
+
+def test_lister_les_athletes_par_saison_sans_session_rend_401(client):
+    reponse = client.get("/api/v1/athletes/season-activity")
+
+    assert reponse.status_code == 401
+
+
+def test_lister_les_athletes_par_saison_sans_le_pouvoir_rend_403(
+    client, db_session, organisation
+):
+    connecte(client, db_session, organisation, P.PENDING_PROVIDERS_READ.code)
+
+    reponse = client.get("/api/v1/athletes/season-activity")
+
+    assert reponse.status_code == 403
+
+
+def test_lister_les_athletes_par_saison_avec_le_pouvoir_rend_la_liste(
+    client, db_session, organisation
+):
+    connecte(client, db_session, organisation, P.PAGES_PREVIEW.code)
+
+    reponse = client.get("/api/v1/athletes/season-activity")
+
+    assert reponse.status_code == 200
+    assert reponse.json() == []
 
 
 # --- Le signalement anonyme, qui ne bouge pas -------------------------------
