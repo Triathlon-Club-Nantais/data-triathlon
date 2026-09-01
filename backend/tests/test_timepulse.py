@@ -414,6 +414,27 @@ def test_scrape_event_all_skips_entry_without_parcours_and_name(monkeypatch):
     assert [r.bib_number for r in results] == ["10"]
 
 
+def test_scrape_event_all_skips_entry_with_blank_parcours_and_name(monkeypatch):
+    """Un `p`/`n` réduit à des espaces est aussi vide : le guard doit trimmer,
+    sans quoi une valeur non-vide-mais-blanche reproduirait le bug de #784.
+    """
+    xml = make_xml(
+        athletes=[
+            ("10", "ALPHA Jean", "SEH", "M", "Trail 9 km"),
+            ("99", "  ", "", "M", " "),
+        ],
+        results=[
+            ("10", "01:00:00", {}),
+        ],
+        event_name="Trail + Run and Bike du Bignon",
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    results = scrape_event_all("https://www.timepulse.fr/resultats/3201")
+
+    assert [r.bib_number for r in results] == ["10"]
+
+
 def test_scrape_event_all_qualifies_name_when_parcours_share_event_type(monkeypatch):
     """Deux parcours distincts partageant le même event_type ne fusionnent pas
     en une seule Course (issue #674).

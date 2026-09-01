@@ -363,7 +363,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
 
         parcours = ea.get("p", "")
         full_name = ea.get("n", "")
-        if not parcours and not full_name:
+        if not parcours.strip() and not full_name.strip():
             # Entrée incomplète côté TimePulse (dossard technique/réutilisé,
             # pas un vrai participant) : sans parcours ni nom,
             # qualify_event_name(event_name, "") rend le nom non qualifié et
