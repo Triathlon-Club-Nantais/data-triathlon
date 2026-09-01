@@ -16,6 +16,8 @@ import { useAcceptVolunteerAction, usePendingVolunteerActions, useRejectVoluntee
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
 
+const REPLI = "—";
+
 const REFUS = {
   sujet: "déclarations de crédit d'athlète",
   action: "instruire les déclarations de crédit d'athlète",
@@ -83,8 +85,8 @@ export function AdminVolunteerActionsTable() {
               <TableCell>
                 {action.athlete_prenom} {action.athlete_nom}
               </TableCell>
-              <TableCell className="max-w-xs truncate">{action.title}</TableCell>
-              <TableCell className="max-w-md truncate">{action.description}</TableCell>
+              <TableCell className="max-w-xs truncate">{action.title ?? REPLI}</TableCell>
+              <TableCell className="max-w-md truncate">{action.description ?? REPLI}</TableCell>
               <TableCell>{formatDate(action.created_at)}</TableCell>
               <TableCell className="flex gap-2">
                 <Button

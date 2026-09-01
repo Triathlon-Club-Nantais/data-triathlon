@@ -45,6 +45,19 @@ const EN_ATTENTE: AdminVolunteerActionOut = {
   created_at: "2026-08-28T13:00:00Z",
 };
 
+const SANS_TITRE: AdminVolunteerActionOut = {
+  id: 2,
+  athlete_id: 43,
+  athlete_nom: "KERMARREC",
+  athlete_prenom: "Hadrien",
+  season: 2024,
+  title: null,
+  description: null,
+  status: "en_attente",
+  declared_by_user_id: null,
+  created_at: "2025-06-01T13:00:00Z",
+};
+
 function afficher() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -94,6 +107,16 @@ describe("AdminVolunteerActionsTable", () => {
     expect(screen.getByText("Poste eau km 15.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /accepter/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /refuser/i })).toBeInTheDocument();
+  });
+
+  it("affiche un repli pour une ligne historique sans titre ni description", async () => {
+    listPendingVolunteerActions.mockResolvedValue([SANS_TITRE]);
+
+    afficher();
+
+    expect(await screen.findByText(/kermarrec/i)).toBeInTheDocument();
+    const replis = await screen.findAllByText("—");
+    expect(replis).toHaveLength(2);
   });
 
   it("accepter retire la ligne de la liste", async () => {
