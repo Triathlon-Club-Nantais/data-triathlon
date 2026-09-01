@@ -11,6 +11,10 @@ Aucune migration — schéma inchangé.
 
 ## Scénario 1 — Le bouton a disparu
 
+**À dérouler avant la fusion** — `athletes:volunteer_manage` n'existe plus
+dans le catalogue une fois cette branche fusionnée, donc aucun compte ne
+peut plus en être détenteur après coup.
+
 1. Se connecter avec un compte détenant `athletes:volunteer_manage` (et
    seulement ce pouvoir).
 2. Ouvrir la fiche d'un athlète.
