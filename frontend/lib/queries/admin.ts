@@ -425,21 +425,6 @@ export function useUpdateAthlete() {
   });
 }
 
-/** Déclare une action de bénévolat pour un coureur et une saison (#709). */
-export function useDeclareVolunteerAction() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ athleteId, season }: { athleteId: number; season: number }) =>
-      apiClient.declareVolunteerAction(athleteId, season),
-    onSuccess: (_data, { athleteId, season }) => {
-      qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
-      // #709 — sans ça, l'indicateur de quota (FR-012) reste sur
-      // « bénévolat non déclaré » juste après l'avoir déclaré.
-      qc.invalidateQueries({ queryKey: ["season-quota", athleteId, season] });
-    },
-  });
-}
-
 /** Les trois signaux du barème de validation d'une saison (#709, FR-012). */
 export function useSeasonQuota(athleteId: number, season: number, enabled: boolean) {
   return useQuery({
