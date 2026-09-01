@@ -7,7 +7,7 @@ héritées de ce chemin. `set_status` (#779) est la seule mise à jour — le
 statut, posé sans être jamais relu jusqu'ici, devient significatif pour le
 workflow de validation admin. Pas de suppression.
 """
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.volunteer_action import VolunteerAction
 
@@ -60,9 +60,13 @@ def exists_for_athlete_season(db: Session, *, athlete_id: int, season: int) -> b
 
 
 def list_pending(db: Session) -> list[VolunteerAction]:
-    """File d'attente admin (#779, FR-001) — tous athlètes confondus."""
+    """File d'attente admin (#779, FR-001) — tous athlètes confondus.
+
+    `selectinload` (#817) : l'écran affiche le nom de l'athlète sur chaque
+    ligne, un `selectinload` évite un aller-retour base par ligne."""
     return (
         db.query(VolunteerAction)
+        .options(selectinload(VolunteerAction.athlete))
         .filter(VolunteerAction.status == "en_attente")
         .order_by(VolunteerAction.created_at.desc())
         .all()

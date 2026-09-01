@@ -39,3 +39,14 @@ class VolunteerAction(Base):
     status: Mapped[str] = mapped_column(String, nullable=False, server_default="en_attente")
 
     declared_by: Mapped["User"] = relationship()  # noqa: F821
+    athlete: Mapped["Athlete"] = relationship()  # noqa: F821
+
+    @property
+    def athlete_nom(self) -> str:
+        """Nom courant de l'athlète (#817) — jamais un instantané au moment
+        de la déclaration, cohérent avec le reste du dépôt."""
+        return self.athlete.nom
+
+    @property
+    def athlete_prenom(self) -> str:
+        return self.athlete.prenom
