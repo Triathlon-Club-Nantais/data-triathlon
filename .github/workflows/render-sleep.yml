@@ -7,15 +7,15 @@ run-name: "render-sleep · ${{ inputs.action || github.event.schedule }} · ${{ 
 #
 # Deux régimes, pas un :
 #
-# - la **production** dort la nuit et se rallume au matin (1 h → 4 h UTC) ;
+# - la **production** dort la nuit et se rallume au matin (23 h → 4 h UTC) ;
 # - la **preview** ne se rallume jamais toute seule — c'est `deploy.yml` qui la
 #   reprend avant son deploy hook, le temps de la vérification post-déploiement —
 #   et elle se recouche **à l'heure pile suivante**, pas à la nuit suivante
 #   (#560). C'est là qu'est le gros du quota : un mois fait 730 h, donc deux
 #   services éveillés en permanence en réclament 1460 pour 750 disponibles, et
 #   une journée à plusieurs merges laissait la preview éveillée du premier
-#   déploiement jusqu'au cron de 1 h — quand la fenêtre nocturne seule ne rend
-#   que ~90 h par service.
+#   déploiement jusqu'au cron de 23 h — quand la fenêtre nocturne seule ne
+#   rend que ~150 h par service.
 #
 # **Le cron horaire ne coupe jamais un déploiement**, et ce n'est pas une
 # supposition sur ce que fait l'API Render d'un `suspend` reçu en plein build :
@@ -25,14 +25,14 @@ run-name: "render-sleep · ${{ inputs.action || github.event.schedule }} · ${{ 
 # davantage.
 #
 # **Heure UTC, pas heure de Paris** : le cron d'Actions ignore l'heure d'été, si
-# bien que la coupure tombe entre 2 h et 5 h l'hiver, 3 h et 6 h l'été. Viser
+# bien que la coupure tombe entre minuit et 5 h l'hiver, 1 h et 6 h l'été. Viser
 # Paris à la minute demanderait deux jeux de crons et une bascule saisonnière à
 # entretenir, pour une fenêtre qui reste nocturne dans les deux cas.
 #
 # **Une planification muette est une panne invisible**, et elle coûte plus cher
 # ici que dans `batch.yml` : GitHub désactive les workflows planifiés d'un dépôt
 # sans activité depuis 60 jours (D13, `docs/ci-cd.md`), sans rien dire — et si
-# la désactivation tombe entre le cron de 1 h et celui de 4 h, la production
+# la désactivation tombe entre le cron de 23 h et celui de 4 h, la production
 # reste **éteinte** jusqu'à ce que quelqu'un s'en aperçoive. Deux filets, tous
 # deux volontaires : le `workflow_dispatch` ci-dessous, et le `resume` que
 # `deploy.yml` exécute avant chaque deploy hook — un déploiement rallume donc
@@ -46,7 +46,7 @@ on:
     # Coucher de la production. La preview n'est **pas** visée ici : l'heure
     # pile s'en charge déjà, et deux mécanismes qui se chevauchent se lisent
     # moins bien qu'un seul (#560).
-    - cron: "0 1 * * *"
+    - cron: "0 23 * * *"
     # Lever : la production seule — la preview attend son prochain déploiement.
     - cron: "0 4 * * *"
   workflow_dispatch:
@@ -62,7 +62,7 @@ on:
         options: [preview, production, both]
         default: preview
 
-# Le cron horaire croise celui de 1 h et celui de 4 h deux fois par jour : les
+# Le cron horaire croise celui de 23 h et celui de 4 h deux fois par jour : les
 # deux exécutions se sérialisent ici plutôt que de courir l'une sur l'autre.
 # `cancel-in-progress: false` est ce qui compte — un coucher de production annulé
 # à mi-course, ou un lever perdu, ne se verrait pas.
@@ -86,7 +86,7 @@ permissions:
 # dont on n'attend pas le nom de cron (une entrée ajoutée sans être branchée
 # ici, par exemple), mieux vaut rallumer que couper.
 env:
-  ACTION: ${{ inputs.action || ((github.event.schedule == '0 * * * *' || github.event.schedule == '0 1 * * *') && 'suspend' || 'resume') }}
+  ACTION: ${{ inputs.action || ((github.event.schedule == '0 * * * *' || github.event.schedule == '0 23 * * *') && 'suspend' || 'resume') }}
   TARGET: ${{ inputs.target || (github.event.schedule == '0 * * * *' && 'preview' || 'production') }}
 
 jobs:

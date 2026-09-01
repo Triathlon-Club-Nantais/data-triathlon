@@ -686,12 +686,12 @@ au niveau dépôt).
 
 | Service | Coucher | Lever |
 |---|---|---|
-| **production** | cron `0 1 * * *` | cron `0 4 * * *` |
+| **production** | cron `0 23 * * *` | cron `0 4 * * *` |
 | **preview** | cron `0 * * * *` — **à chaque heure pile** (#560) | **jamais par cron** — `deploy.yml` la reprend avant son deploy hook |
 
 La preview ne se rallume que pour servir la vérification post-déploiement, puis
 se recouche à l'heure pile suivante. C'est là qu'est le gros du quota : la
-fenêtre nocturne seule ne rend que ~90 h par mois et par service, quand une
+fenêtre nocturne seule ne rend que ~150 h par mois et par service, quand une
 preview qui ne s'éveille qu'à la demande en rend plusieurs centaines.
 
 **Pourquoi l'heure pile et non la nuit** (#560). Le régime d'origine ne
@@ -724,7 +724,7 @@ laisser la production éteinte sur la foi d'un champ périmé coûte plus cher q
 appel inutile.
 
 **Heure UTC, pas heure de Paris.** Le cron d'Actions ignore l'heure d'été : la
-coupure de production tombe entre 2 h et 5 h l'hiver, 3 h et 6 h l'été. Viser
+coupure de production tombe entre minuit et 5 h l'hiver, 1 h et 6 h l'été. Viser
 Paris à la minute demanderait deux jeux de crons et une bascule saisonnière à
 entretenir, pour une fenêtre qui reste nocturne dans les deux cas. Un cron
 d'Actions peut aussi être retardé ou sauté quand la plateforme est chargée : sur
@@ -737,7 +737,7 @@ c'est aussi le filet du paragraphe suivant.
 
 **Le piège, le même que celui de `batch.yml` mais plus cher.** GitHub désactive
 les workflows planifiés d'un dépôt sans activité depuis 60 jours (D13), sans
-rien dire. Si la désactivation tombe entre le cron de 1 h et celui de 4 h, la
+rien dire. Si la désactivation tombe entre le cron de 23 h et celui de 4 h, la
 production reste **éteinte** jusqu'à ce que quelqu'un s'en aperçoive. Deux
 parades, volontaires toutes les deux : le `workflow_dispatch` (`action: resume`,
 `target: production`), et le `resume` de `deploy.yml` — un déploiement rallume
