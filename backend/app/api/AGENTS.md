@@ -334,7 +334,7 @@ bouger. Un groupe **n'accorde rien** : la garde ne les lit jamais, et
 
 Six sujets indépendants, chacun sous `/admin/` ou son pendant public, chacun
 gardé par son propre pouvoir (jamais le préfixe, cf. ci-dessus) : révocation
-d'urgence des sessions (#169), les dix ressources de `admin_data.py` (#117),
+d'urgence des sessions (#169), les neuf ressources de `admin_data.py` (#117),
 doublons suspects (#288), le journal d'administration en lecture (#501) —
 détail dans `docs/api/admin-donnees.md` ; retours utilisateurs (#267) et
 statistiques détaillées d'une participation (#272) —

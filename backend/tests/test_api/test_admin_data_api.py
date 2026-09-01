@@ -936,68 +936,6 @@ def test_lire_une_fiche_coureur_sans_le_pouvoir_rend_403(client, db_session, cou
     assert client.get(f"/api/v1/admin/athletes/{coureur.id}").status_code == 403
 
 
-# --- POST /admin/athletes/{id}/volunteer-actions (#709, US2) ----------------
-
-
-def test_declarer_un_benevolat_rend_201(client, db_session, coureur):
-    _session_etroite(client, db_session, P.ATHLETES_VOLUNTEER_MANAGE)
-
-    reponse = client.post(
-        f"/api/v1/admin/athletes/{coureur.id}/volunteer-actions", json={"season": 2025}
-    )
-
-    assert reponse.status_code == 201
-    body = reponse.json()
-    assert body["athlete_id"] == coureur.id
-    assert body["season"] == 2025
-
-
-def test_declarer_un_benevolat_deux_fois_de_suite_est_accepte(client, db_session, coureur):
-    """research.md D4 — journal, pas un indicateur unique."""
-    _session_etroite(client, db_session, P.ATHLETES_VOLUNTEER_MANAGE)
-
-    premier = client.post(
-        f"/api/v1/admin/athletes/{coureur.id}/volunteer-actions", json={"season": 2025}
-    )
-    second = client.post(
-        f"/api/v1/admin/athletes/{coureur.id}/volunteer-actions", json={"season": 2025}
-    )
-
-    assert premier.status_code == 201
-    assert second.status_code == 201
-    assert premier.json()["id"] != second.json()["id"]
-
-
-def test_declarer_un_benevolat_sans_le_pouvoir_rend_403(client, db_session, coureur):
-    _session_etroite(client, db_session)
-
-    reponse = client.post(
-        f"/api/v1/admin/athletes/{coureur.id}/volunteer-actions", json={"season": 2025}
-    )
-
-    assert reponse.status_code == 403
-
-
-def test_declarer_un_benevolat_sans_session_rend_401(client, coureur):
-    client.cookies.clear()
-
-    reponse = client.post(
-        f"/api/v1/admin/athletes/{coureur.id}/volunteer-actions", json={"season": 2025}
-    )
-
-    assert reponse.status_code == 401
-
-
-def test_declarer_un_benevolat_sur_coureur_inconnu_rend_404(client, db_session):
-    _session_etroite(client, db_session, P.ATHLETES_VOLUNTEER_MANAGE)
-
-    reponse = client.post(
-        "/api/v1/admin/athletes/4242/volunteer-actions", json={"season": 2025}
-    )
-
-    assert reponse.status_code == 404
-
-
 # --- POST/DELETE /admin/athletes/{id}/season-validations (#709, US3) --------
 
 

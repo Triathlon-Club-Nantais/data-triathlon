@@ -5,6 +5,7 @@ import type {
   AdminAthleteUpdate,
   AdminCourseUpdate,
   AdminUser,
+  AdminVolunteerActionOut,
   AdminVolunteerDeclaration,
   AdminVolunteerDeclarationCreate,
   AllowedEmail,
@@ -65,7 +66,8 @@ import type {
   SeasonQuota,
   SeasonValidation,
   ValidationQueueHistory,
-  VolunteerAction,
+  VolunteerActionSelfCreate,
+  VolunteerActionSelfOut,
   VolunteerDeclaration,
   VolunteerDeclarationCreate,
 } from "@/lib/types";
@@ -368,13 +370,10 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify({ athlete_id: athleteId }),
     }),
-  declareVolunteerAction: (athleteId: number, season: number) =>
-    request<VolunteerAction>(`/admin/athletes/${athleteId}/volunteer-actions`, {
-      method: "POST",
-      body: JSON.stringify({ season }),
-    }),
   getSeasonQuota: (athleteId: number, season: number) =>
     request<SeasonQuota>(`/admin/athletes/${athleteId}/season-quota${toQuery({ season })}`),
+  listValidatedVolunteerActions: (athleteId: number) =>
+    request<AdminVolunteerActionOut[]>(`/admin/athletes/${athleteId}/volunteer-actions/validated`),
   validateSeason: (athleteId: number, season: number) =>
     request<SeasonValidation>(`/admin/athletes/${athleteId}/season-validations`, {
       method: "POST",
@@ -678,4 +677,18 @@ export const apiClient = {
     }),
   adminDeleteVolunteerDeclaration: (id: number) =>
     request<void>(`/admin/volunteer-declarations/${id}`, { method: "DELETE" }),
+
+  // ── Formulaire public de déclaration de bénévolat pour un athlète (#778) ───
+  // Self-service, authentifié (`current_user`) — aucun pouvoir RBAC requis.
+  // Réutilise `GET /athletes` pour la recherche (research.md D2 de la
+  // feature) : cette page vit déjà sous `(public_restricted)`, donc la
+  // population a passé le mot de passe du site que `searchAthletesBenevole`
+  // (son twin sous `/benevoles/`) suppose absent.
+  searchAthletesConnected: (name: string) =>
+    request<AthleteBrief[]>(`/athletes${toQuery({ name })}`),
+  createVolunteerAction: (body: VolunteerActionSelfCreate) =>
+    request<VolunteerActionSelfOut>("/volunteer-actions", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 };

@@ -23,6 +23,7 @@ from app.api.v1 import (
     admin_roles,
     admin_sessions,
     admin_site_access,
+    admin_volunteer_actions,
     admin_volunteer_declarations,
     athletes,
     auth,
@@ -35,6 +36,7 @@ from app.api.v1 import (
     scrape,
     site_access,
     stats,
+    volunteer_actions,
     volunteer_declarations,
 )
 
@@ -93,7 +95,9 @@ for module in (
     admin_roles,
     admin_groups,
     admin_sessions,
+    admin_volunteer_actions,
     admin_volunteer_declarations,
+    volunteer_actions,
     volunteer_declarations,
 ):
     api_router.include_router(module.router, dependencies=[Depends(require_site_access)])
