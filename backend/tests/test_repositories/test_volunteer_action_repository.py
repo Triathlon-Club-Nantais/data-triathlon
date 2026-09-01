@@ -85,3 +85,40 @@ def test_exists_for_athlete_season_ne_traverse_pas_les_saisons(db_session):
     assert not volunteer_action_repository.exists_for_athlete_season(
         db_session, athlete_id=athlete.id, season=2025
     )
+
+
+def test_create_laisse_title_description_a_none_et_status_au_defaut(db_session):
+    """Chemin admin existant (#778 FR-008) : aucune régression sur `create()`."""
+    auteur = _auteur(db_session)
+    athlete = _athlete(db_session)
+
+    action = volunteer_action_repository.create(
+        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id
+    )
+    db_session.flush()
+
+    assert action.title is None
+    assert action.description is None
+    assert action.status == "en_attente"
+
+
+def test_create_pending_consigne_titre_description_et_statut_en_attente(db_session):
+    auteur = _auteur(db_session)
+    athlete = _athlete(db_session)
+
+    action = volunteer_action_repository.create_pending(
+        db_session,
+        athlete_id=athlete.id,
+        season=2025,
+        declared_by_user_id=auteur.id,
+        title="Ravitaillement",
+        description="Tenue du poste de ravitaillement km 15.",
+    )
+    db_session.flush()
+
+    assert action.athlete_id == athlete.id
+    assert action.season == 2025
+    assert action.declared_by_user_id == auteur.id
+    assert action.title == "Ravitaillement"
+    assert action.description == "Tenue du poste de ravitaillement km 15."
+    assert action.status == "en_attente"
