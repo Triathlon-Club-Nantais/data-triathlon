@@ -1867,6 +1867,17 @@ def test_enrichir_promeut_finisher_quand_le_temps_ne_vient_que_du_hidden():
     assert existant.status == "finisher"
 
 
+def test_enrichir_ne_promeut_jamais_un_statut_de_non_finisher_deja_etabli():
+    """Pendant de la promotion #813 : un abandon déjà qualifié côté publié
+    (`status="DNF"`, `total_time=""`) ne doit **jamais** devenir `finisher`
+    même si la ligne `hidden` apporte, par ailleurs, un `total_time` réel —
+    la garde ne s'applique qu'à `status==""`, jamais à un statut établi."""
+    existant = _res(status="DNF", total_time="", rank_overall=None)
+    apport = _res(status="finisher", total_time="09:17:39")
+    raceresult._enrichir(existant, apport)
+    assert existant.status == "DNF"
+
+
 def test_enrichir_n_ecrase_jamais_un_scalaire_renseigne():
     existant = _res(total_time="01:00:00", club="ASPTT")
     apport = _res(total_time="09:99:99", club="AUTRE")
