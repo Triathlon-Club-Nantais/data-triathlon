@@ -96,7 +96,7 @@ rechargement manuel ; annuler la confirmation → elle reste.
 > en bloc (patron déjà en place dans `AdminVolunteerActionsTable.test.tsx`
 > pour `accept`/`reject`). Pas de tâche séparée pour `deleteVolunteerAction`.
 
-- [ ] T008 [US1] Tests `AdminVolunteerActionsTable` : bouton de suppression
+- [X] T008 [US1] Tests `AdminVolunteerActionsTable` : bouton de suppression
       par ligne ouvre `DangerConfirm` (`useDangerConfirm`) ; confirmer
       appelle la mutation (`@/lib/api/client` mocké) et retire la ligne
       (via invalidation de `queryKeys.pendingVolunteerActions()`) ; annuler
@@ -105,22 +105,22 @@ rechargement manuel ; annuler la confirmation → elle reste.
 
 ### Implementation for User Story 1
 
-- [ ] T009 [US1] Ajouter `deleteVolunteerAction: (id: number) => request<void>(...)`
+- [X] T009 [US1] Ajouter `deleteVolunteerAction: (id: number) => request<void>(...)`
       dans `frontend/lib/api/client.ts` (contracts/delete-volunteer-action.md)
-- [ ] T010 [US1] Ajouter **une seule** mutation `useDeleteVolunteerAction()`
+- [X] T010 [US1] Ajouter **une seule** mutation `useDeleteVolunteerAction()`
       dans `frontend/lib/queries/admin.ts`, appelant `apiClient.
       deleteVolunteerAction(id)` et acceptant un callback `onSuccess`
       optionnel — l'appelant (T011 ou T014) décide quoi invalider ; pas de
       second hook dédié à US2 (dépend de T009)
-- [ ] T011 [US1] Ajouter le geste de suppression dans
+- [X] T011 [US1] Ajouter le geste de suppression dans
       `AdminVolunteerActionsTable.tsx` : bouton par ligne (couleur
       destructive), `useDangerConfirm()` pour la confirmation,
       `useDeleteVolunteerAction()` avec invalidation de
       `queryKeys.pendingVolunteerActions()` dans son `onSuccess`, `toast`
       succès/erreur sur le patron d'`onAccept`/`onReject` (dépend de T010)
       — fait passer T008
-- [ ] T012 [US1] Lancer `npm test -- AdminVolunteerActionsTable` depuis
-      `frontend/`
+- [X] T012 [US1] Lancer `npm test -- AdminVolunteerActionsTable` depuis
+      `frontend/` — 10/10 passed
 
 **Checkpoint** : US1 fonctionnelle et testable seule — MVP livrable.
 

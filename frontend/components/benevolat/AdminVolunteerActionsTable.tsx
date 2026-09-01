@@ -1,4 +1,5 @@
 "use client";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Table,
@@ -12,9 +13,17 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useAcceptVolunteerAction, usePendingVolunteerActions, useRejectVolunteerAction } from "@/lib/queries/admin";
+import { useDangerConfirm } from "@/components/admin/DangerConfirm";
+import {
+  useAcceptVolunteerAction,
+  useDeleteVolunteerAction,
+  usePendingVolunteerActions,
+  useRejectVolunteerAction,
+} from "@/lib/queries/admin";
+import { queryKeys } from "@/lib/queries/keys";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
+import type { AdminVolunteerActionOut } from "@/lib/types";
 
 const REPLI = "—";
 
@@ -34,9 +43,12 @@ const REFUS = {
  * destructive, est #818.
  */
 export function AdminVolunteerActionsTable() {
+  const qc = useQueryClient();
   const { data, isLoading, error } = usePendingVolunteerActions();
   const accepter = useAcceptVolunteerAction();
   const refuser = useRejectVolunteerAction();
+  const supprimer = useDeleteVolunteerAction();
+  const confirmerLeDanger = useDangerConfirm();
 
   if (isLoading) return <Skeleton data-testid="admin-volunteer-actions-skeleton" className="h-40 w-full" />;
   if (error) return <EmptyState {...messageDeRefus(error, REFUS)} />;
@@ -62,6 +74,25 @@ export function AdminVolunteerActionsTable() {
     try {
       await refuser.mutateAsync(id);
       toast.success("Déclaration refusée.");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function onDelete(action: AdminVolunteerActionOut) {
+    if (
+      !(await confirmerLeDanger({
+        titre: `Supprimer la déclaration de ${action.athlete_prenom} ${action.athlete_nom} ?`,
+        description: "La déclaration disparaît définitivement.",
+      }))
+    ) {
+      return;
+    }
+    try {
+      await supprimer.mutateAsync(action.id, {
+        onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.pendingVolunteerActions() }),
+      });
+      toast.success("Déclaration supprimée.");
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -107,6 +138,15 @@ export function AdminVolunteerActionsTable() {
                     aria-label={`Refuser — ${action.athlete_prenom} ${action.athlete_nom}`}
                   >
                     Refuser
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => onDelete(action)}
+                    disabled={accepter.isPending || refuser.isPending || supprimer.isPending}
+                    aria-label={`Supprimer — ${action.athlete_prenom} ${action.athlete_nom}`}
+                  >
+                    Supprimer
                   </Button>
                 </div>
               </TableCell>
