@@ -43,7 +43,7 @@ from bs4 import BeautifulSoup
 
 from app.core import http
 
-from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
+from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER, ScrapedResult
 from .classify import classify_event_type
 from .utils import (
     DEFAULT_HEADERS,
@@ -1284,14 +1284,25 @@ def _enrichir(existant: ScrapedResult, apport: ScrapedResult) -> None:
       inférence évitée) — cf. §7 du design.
     - **Scalaires** (`_CHAMPS_SCALAIRES_ENRICHISSABLES`) : remplis s'ils sont
       vides côté publié.
-    - **Rien d'autre** : identité, rangs, statut, dossard et event_* restent ceux
-      du publié. Un enrichissement ne peut pas dégrader ce qui est déjà établi.
+    - **Rien d'autre** : identité, rangs, dossard et event_* restent ceux du
+      publié. Un enrichissement ne peut pas dégrader ce qui est déjà établi.
+    - **Exception, le statut** (#813) : quand le publié ne porte ni statut ni
+      `total_time` (Embrunman — seul le `hidden` publie le chrono), la clôture
+      de `_build_result` (`total_time` présent ⇒ `finisher`) ne s'est jamais
+      déclenchée côté publié faute de matière. Combler `total_time` sans
+      reproduire cette promotion laisse `status=""`, que
+      `_renumber_duplicate_ranks` (#785) ignore silencieusement — le doublon de
+      rang qu'il doit corriger reste alors intact. Un `status` déjà établi
+      (finisher ou non-finisher) côté publié n'est jamais reconsidéré : seul le
+      cas « rien à établir » l'est.
     """
     if not existant.segments and apport.segments:
         existant.segments = apport.segments
     for champ in _CHAMPS_SCALAIRES_ENRICHISSABLES:
         if not getattr(existant, champ) and getattr(apport, champ):
             setattr(existant, champ, getattr(apport, champ))
+    if not existant.status and existant.total_time:
+        existant.status = STATUS_FINISHER
 
 
 def _identite_pliee(r: ScrapedResult) -> tuple[str, str]:

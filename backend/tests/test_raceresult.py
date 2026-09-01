@@ -1849,6 +1849,24 @@ def test_enrichir_remplit_les_scalaires_vides():
     )
 
 
+def test_enrichir_promeut_finisher_quand_le_temps_ne_vient_que_du_hidden():
+    """#813 : la liste publiée d'Embrunman ne porte ni statut ni `total_time`
+    pour ses finishers (seul le classement `hidden` porte le chrono réel) —
+    `_build_result` laisse alors `status=""` côté publié, faute de `total_time`
+    au moment de sa construction (#785, `_renumber_duplicate_ranks`) exclut ces
+    lignes de son filtre `status == "finisher"` : le correctif ne voit plus
+    aucun doublon à renuméroter et laisse les rangs dupliqués intacts.
+
+    `_enrichir` doit reproduire la promotion de `_build_result` (`total_time`
+    présent + aucun statut de non-finisher déjà établi ⇒ `finisher`) quand
+    c'est lui qui comble le `total_time`, pas seulement le laisser vide."""
+    existant = _res(status="", total_time="", rank_overall=5)
+    apport = _res(status="finisher", total_time="09:17:39")
+    raceresult._enrichir(existant, apport)
+    assert existant.total_time == "09:17:39"
+    assert existant.status == "finisher"
+
+
 def test_enrichir_n_ecrase_jamais_un_scalaire_renseigne():
     existant = _res(total_time="01:00:00", club="ASPTT")
     apport = _res(total_time="09:99:99", club="AUTRE")
