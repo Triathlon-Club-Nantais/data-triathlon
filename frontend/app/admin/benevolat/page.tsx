@@ -1,16 +1,16 @@
 import { PageHeader } from "@/components/layout/PageHeader";
-import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
-import { AdminVolunteerDeclarationCreateForm } from "@/components/benevolat/AdminVolunteerDeclarationCreateForm";
-import { AdminVolunteerDeclarationTable } from "@/components/benevolat/AdminVolunteerDeclarationTable";
 
+/**
+ * Reconstruite par #817 (écran de validation des déclarations de crédit
+ * d'athlète) dans la même fenêtre de travail que ce retrait (#816,
+ * research.md D3) — état minimal temporaire, jamais poussé seul.
+ */
 export default function AdminBenevolatPage() {
   return (
     <PageShell>
       <div className="space-y-6">
-        <PageHeader {...ecran("/admin/benevolat")} />
-        <AdminVolunteerDeclarationCreateForm />
-        <AdminVolunteerDeclarationTable />
+        <PageHeader eyebrow="Bénévolat" title="Bénévolat" description="" />
       </div>
     </PageShell>
   );
