@@ -922,6 +922,36 @@ def test_sub_source_url_parcours_vide_pas_de_qualif():
     assert "parcours=" not in _sub_source_url(url, "")
 
 
+def test_sub_source_url_normalise_www_et_casse_host():
+    """`www.` et la casse du host ne doivent pas produire une source distincte (#786)."""
+    from app.scrapers.wiclax import _sub_source_url
+
+    sans_www = _sub_source_url(
+        "https://chronosmetron.wiclax-results.com/E/?parcours=triathlon-m", "S-Open Femmes",
+    )
+    avec_www = _sub_source_url(
+        "https://WWW.Chronosmetron.Wiclax-Results.com/E/?parcours=triathlon-m", "S-Open Femmes",
+    )
+    assert sans_www == avec_www
+
+
+def test_sub_source_url_canonicalise_le_double_encodage():
+    """Un lien copié déjà ré-encodé (`%2520`) rejoint l'URL simplement encodée (#786)."""
+    from app.scrapers.wiclax import _sub_source_url
+
+    simple = _sub_source_url(
+        "https://x.wiclax-results.com/G-Live/g-live.html"
+        "?f=..%2FTriathlon%20de%20Montreuil.clax",
+        "S-Open Femmes",
+    )
+    double = _sub_source_url(
+        "https://x.wiclax-results.com/G-Live/g-live.html"
+        "?f=..%2FTriathlon%2520de%2520Montreuil.clax",
+        "S-Open Femmes",
+    )
+    assert simple == double
+
+
 def test_scrape_event_fanout_nominal_returns_trace(monkeypatch):
     """Fan-out sans cache_probe : 3 parcours énumérés, tous scrapés, trace complète."""
     from app.scrapers.base import FanoutTrace

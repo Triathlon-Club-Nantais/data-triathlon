@@ -502,6 +502,23 @@ def _parcours_slug(parcours: str) -> str:
     return slug
 
 
+def _fully_unquote(value: str) -> str:
+    """Décode les échappements `%XX` jusqu'à stabilité (au plus 3 passes).
+
+    Un lien Wiclax copié depuis le navigateur peut arriver déjà ré-encodé
+    (`%2520` pour un espace) : un unique `unquote()` laisse `%20` littéral
+    dans la valeur, ce qui produit une URL canonique différente de celle du
+    même lien encodé une seule fois — la dédup de `course_source_repository`
+    manque alors la source déjà connue (#786).
+    """
+    for _ in range(3):
+        decoded = unquote(value)
+        if decoded == value:
+            return value
+        value = decoded
+    return value
+
+
 def _sub_source_url(url: str, parcours: str) -> str:
     """URL canonique d'un parcours Wiclax — clé de cache TTL et de dédup source_url.
 
@@ -509,22 +526,32 @@ def _sub_source_url(url: str, parcours: str) -> str:
     neuf `parcours=<slug>` ajouté. `p=` n'est PAS employé : la source Wiclax
     l'utilise déjà en query sur certains flux, on ne veut pas rentrer en collision.
     Un parcours vide → URL sans qualification (compat rétro `.clax` monoparcours).
+
+    Host normalisé (minuscules, préfixe `www.` retiré) et chemin/paramètres
+    décodés puis ré-encodés une seule fois : deux liens vers le même parcours
+    qui ne diffèrent que par ces détails de forme (rescrape manuel, lien copié
+    depuis une autre page du même site) doivent produire la même URL, sans
+    quoi `attach()` les traite comme deux sources distinctes (#786).
     """
     parsed = urlparse(_strip_athlete_param(url))
+    netloc = parsed.netloc.lower()
+    if netloc.startswith("www."):
+        netloc = netloc[len("www."):]
+    path = quote(_fully_unquote(parsed.path), safe="/")
     params = [(k, v) for k, v in parse_qs(parsed.query, keep_blank_values=True).items()]
     # parse_qs rend {clé: [valeurs]} → aplatir en liste de paires pour préserver
     # l'unicité (pas de reconstruction de liste sur des paramètres non répétés).
     flat: list[tuple[str, str]] = []
     for key, values in params:
         for value in values:
-            flat.append((key, value))
+            flat.append((key, _fully_unquote(value)))
     slug = _parcours_slug(parcours)
     if slug:
         # Écrase toute valeur `parcours=` préexistante — l'URL entrante ne doit pas
         # trancher à la place du fan-out.
         flat = [(k, v) for k, v in flat if k != "parcours"]
         flat.append(("parcours", slug))
-    return urlunparse(parsed._replace(query=urlencode(flat)))
+    return urlunparse(parsed._replace(netloc=netloc, path=path, query=urlencode(flat)))
 
 
 def _drop_orphelins(
