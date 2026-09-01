@@ -67,3 +67,15 @@ def lister_les_actions_validees_dun_athlete(
     pour ne pas faire porter deux pouvoirs différents au même chemin
     (research.md D1)."""
     return volunteer_action_service.list_validated_for_athlete(db, athlete_id=athlete_id)
+
+
+@router.delete("/admin/volunteer-actions/{action_id}", status_code=204)
+def supprimer(
+    action_id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)),
+):
+    """Supprime une déclaration, quel que soit son statut (#818) — même
+    pouvoir que `accepter`/`refuser`, pas de garde dédiée (research.md D1)."""
+    volunteer_action_service.delete(db, admin_user_id=admin.id, action_id=action_id)
+    db.commit()

@@ -87,3 +87,20 @@ def reject(db: Session, *, admin_user_id: int, action_id: int) -> VolunteerActio
         payload={"season": action.season, "action_id": action_id},
     )
     return mise_a_jour
+
+
+def delete(db: Session, *, admin_user_id: int, action_id: int) -> None:
+    """Supprime une déclaration, quel que soit son statut (#818 FR-001)."""
+    action = _action_ou_404(db, action_id)
+    payload = {"season": action.season, "action_id": action_id, "status": action.status}
+    athlete_id = action.athlete_id
+
+    volunteer_action_repository.delete(db, action)
+    admin_action_log_repository.create(
+        db,
+        user_id=admin_user_id,
+        action="athlete.volunteer_action.delete",
+        entity_type="athlete",
+        entity_id=athlete_id,
+        payload=payload,
+    )

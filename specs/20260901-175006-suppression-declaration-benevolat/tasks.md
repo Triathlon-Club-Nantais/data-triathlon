@@ -42,14 +42,14 @@ Aucune dépendance nouvelle, aucune migration.
 
 > Écrire ces tests d'abord, les voir échouer (Principe III).
 
-- [ ] T001 [P] Test repository `delete()` — retire la ligne, `db.get` renvoie
+- [X] T001 [P] Test repository `delete()` — retire la ligne, `db.get` renvoie
       `None` ensuite — dans `backend/tests/test_repositories/test_volunteer_action_repository.py`
-- [ ] T002 [P] Tests service `delete()` : succès sur les trois statuts
+- [X] T002 [P] Tests service `delete()` : succès sur les trois statuts
       (`en_attente`/`validee`/`refusee`), `NotFoundError` sur id inexistant,
       écriture d'une ligne `AdminActionLog` (`action="athlete.volunteer_action.delete"`,
       `entity_type="athlete"`, `entity_id=athlete_id`, payload avec `season`/`action_id`/`status`)
       — dans `backend/tests/test_services/test_volunteer_action_service.py`
-- [ ] T003 [P] Tests API `DELETE /admin/volunteer-actions/{id}` : `204` sur
+- [X] T003 [P] Tests API `DELETE /admin/volunteer-actions/{id}` : `204` sur
       succès (vérifier la ligne absente en base après), `404` sur id
       inexistant ou déjà supprimé (double suppression), `401` sans session,
       `403` sans `athletes:volunteer_validate` (via `_session_etroite`) —
@@ -57,22 +57,23 @@ Aucune dépendance nouvelle, aucune migration.
 
 ### Implementation (Phase 2)
 
-- [ ] T004 Ajouter `delete(db: Session, action: VolunteerAction) -> None`
+- [X] T004 Ajouter `delete(db: Session, action: VolunteerAction) -> None`
       dans `backend/app/repositories/volunteer_action_repository.py`
       (`db.delete(action)` + `db.flush()`, patron
       `course_source_repository.remove`) — fait passer T001
-- [ ] T005 Ajouter `delete(db: Session, *, admin_user_id: int, action_id: int) -> None`
+- [X] T005 Ajouter `delete(db: Session, *, admin_user_id: int, action_id: int) -> None`
       dans `backend/app/services/volunteer_action_service.py` : `_action_ou_404`,
       capture du payload avant suppression, appel au repository (T004),
       `admin_action_log_repository.create(...)` (dépend de T004) — fait
       passer T002
-- [ ] T006 Ajouter la route `DELETE /admin/volunteer-actions/{action_id}`
+- [X] T006 Ajouter la route `DELETE /admin/volunteer-actions/{action_id}`
       (`status_code=204`) dans `backend/app/api/v1/admin_volunteer_actions.py`,
       gardée par `require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)`, déléguant
       à `volunteer_action_service.delete` (dépend de T005) — fait passer T003
-- [ ] T007 Lancer `uv run pytest tests/test_repositories/test_volunteer_action_repository.py tests/test_services/test_volunteer_action_service.py tests/test_api/test_admin_volunteer_actions_api.py -k delete`
+- [X] T007 Lancer `uv run pytest tests/test_repositories/test_volunteer_action_repository.py tests/test_services/test_volunteer_action_service.py tests/test_api/test_admin_volunteer_actions_api.py -k delete`
       et `uv run pytest -m "not integration"` (suite complète, aucune
-      régression) — depuis `backend/`
+      régression) — depuis `backend/` — 4575 passed, 1 échec pré-existant
+      sans rapport (`test_cors_origins_defaut`, dépend de `backend/.env`)
 
 **Checkpoint** : le geste de suppression existe et est gardé côté API — les
 deux stories front peuvent commencer, indépendamment l'une de l'autre.

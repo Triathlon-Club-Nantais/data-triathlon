@@ -257,3 +257,19 @@ def test_list_validated_for_athlete_ne_rend_que_les_lignes_validees(db_session):
 
     assert [a.id for a in resultat] == [validee_recente.id, validee_ancienne.id]
     assert en_attente.id not in [a.id for a in resultat]
+
+
+def test_delete_retire_la_ligne(db_session):
+    """#818 — la ligne est absente de la table après suppression."""
+    auteur = _auteur(db_session)
+    athlete = _athlete(db_session)
+    action = volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id,
+        title="A", description="B",
+    )
+    db_session.flush()
+    action_id = action.id
+
+    volunteer_action_repository.delete(db_session, action)
+
+    assert volunteer_action_repository.get(db_session, action_id) is None

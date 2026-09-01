@@ -93,3 +93,9 @@ def list_validated_for_athlete(db: Session, *, athlete_id: int) -> list[Voluntee
         .order_by(VolunteerAction.created_at.desc())
         .all()
     )
+
+
+def delete(db: Session, action: VolunteerAction) -> None:
+    """Retire une déclaration, quel que soit son statut (#818)."""
+    db.delete(action)
+    db.flush()
