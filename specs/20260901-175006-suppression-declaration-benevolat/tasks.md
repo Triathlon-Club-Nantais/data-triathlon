@@ -90,30 +90,35 @@ rechargement manuel ; annuler la confirmation → elle reste.
 
 ### Tests for User Story 1
 
-- [ ] T008 [P] [US1] Test client `apiClient.deleteVolunteerAction(id)` —
-      appelle `DELETE /admin/volunteer-actions/{id}` — ajouté au bloc de
-      test existant de `frontend/lib/api/client.test.ts` (ou fichier jumeau
-      s'il existe déjà pour ce client)
-- [ ] T009 [P] [US1] Tests `AdminVolunteerActionsTable` : bouton de
-      suppression par ligne ouvre `DangerConfirm` (`useDangerConfirm`) ;
-      confirmer appelle la mutation et retire la ligne (via invalidation de
-      `queryKeys.pendingVolunteerActions()`) ; annuler laisse la ligne
-      intacte — dans `frontend/components/benevolat/AdminVolunteerActionsTable.test.tsx`
+> `client.ts` n'a pas de fichier de test dédié dans ce dépôt — ses wrappers
+> sont exercés via le composant qui les consomme, `@/lib/api/client` mocké
+> en bloc (patron déjà en place dans `AdminVolunteerActionsTable.test.tsx`
+> pour `accept`/`reject`). Pas de tâche séparée pour `deleteVolunteerAction`.
+
+- [ ] T008 [US1] Tests `AdminVolunteerActionsTable` : bouton de suppression
+      par ligne ouvre `DangerConfirm` (`useDangerConfirm`) ; confirmer
+      appelle la mutation (`@/lib/api/client` mocké) et retire la ligne
+      (via invalidation de `queryKeys.pendingVolunteerActions()`) ; annuler
+      laisse la ligne intacte — dans
+      `frontend/components/benevolat/AdminVolunteerActionsTable.test.tsx`
 
 ### Implementation for User Story 1
 
-- [ ] T010 [US1] Ajouter `deleteVolunteerAction: (id: number) => request<void>(...)`
+- [ ] T009 [US1] Ajouter `deleteVolunteerAction: (id: number) => request<void>(...)`
       dans `frontend/lib/api/client.ts` (contracts/delete-volunteer-action.md)
-      — fait passer T008
-- [ ] T011 [US1] Ajouter `useDeleteVolunteerAction()` dans
-      `frontend/lib/queries/admin.ts`, invalidant
-      `queryKeys.pendingVolunteerActions()` sur succès (dépend de T010)
-- [ ] T012 [US1] Ajouter le geste de suppression dans
+- [ ] T010 [US1] Ajouter **une seule** mutation `useDeleteVolunteerAction()`
+      dans `frontend/lib/queries/admin.ts`, appelant `apiClient.
+      deleteVolunteerAction(id)` et acceptant un callback `onSuccess`
+      optionnel — l'appelant (T011 ou T014) décide quoi invalider ; pas de
+      second hook dédié à US2 (dépend de T009)
+- [ ] T011 [US1] Ajouter le geste de suppression dans
       `AdminVolunteerActionsTable.tsx` : bouton par ligne (couleur
-      destructive), `useDangerConfirm()` pour la confirmation, `toast`
-      succès/erreur sur le patron d'`onAccept`/`onReject` (dépend de T011)
-      — fait passer T009
-- [ ] T013 [US1] Lancer `npm test -- AdminVolunteerActionsTable client` depuis
+      destructive), `useDangerConfirm()` pour la confirmation,
+      `useDeleteVolunteerAction()` avec invalidation de
+      `queryKeys.pendingVolunteerActions()` dans son `onSuccess`, `toast`
+      succès/erreur sur le patron d'`onAccept`/`onReject` (dépend de T010)
+      — fait passer T008
+- [ ] T012 [US1] Lancer `npm test -- AdminVolunteerActionsTable` depuis
       `frontend/`
 
 **Checkpoint** : US1 fonctionnelle et testable seule — MVP livrable.
@@ -133,27 +138,33 @@ rechargement manuel ; annuler → rien ne change.
 
 ### Tests for User Story 2
 
-- [ ] T014 [P] [US2] Tests `VolunteerActionsList` : bouton de suppression par
+- [ ] T013 [P] [US2] Tests `VolunteerActionsList` : bouton de suppression par
       ligne ouvre le `<DangerConfirm>` déclaratif (pas de
       `DangerConfirmProvider` monté dans le test, cf. research.md D2) ;
       confirmer appelle la mutation et invalide
       `["validated-volunteer-actions", athleteId]` **et**
-      `["season-quota", athleteId, season]` ; annuler laisse la ligne
-      intacte — dans `frontend/components/athletes/VolunteerActionsList.test.tsx`
+      `["season-quota", athleteId, action.season]` — inclure un cas avec
+      deux lignes de saisons différentes pour vérifier que c'est la saison
+      **de la ligne supprimée** qui est invalidée, pas une saison figée ;
+      annuler laisse la ligne intacte — dans
+      `frontend/components/athletes/VolunteerActionsList.test.tsx`
 
 ### Implementation for User Story 2
 
-- [ ] T015 [US2] Ajouter `useDeleteValidatedVolunteerAction()` (ou réutiliser
-      `useDeleteVolunteerAction` de T011 en lui passant `athleteId`/`season`
-      pour l'invalidation ciblée) dans `frontend/lib/queries/admin.ts`,
-      invalidant `["validated-volunteer-actions", athleteId]` et
-      `["season-quota", athleteId, season]` sur succès (dépend de T010)
-- [ ] T016 [US2] Ajouter le geste de suppression dans
+- [ ] T014 [US2] Dans `VolunteerActionsList.tsx`, appeler
+      `useDeleteVolunteerAction()` (T010, réutilisée telle quelle — pas de
+      second hook) avec un `onSuccess` invalidant
+      `["validated-volunteer-actions", athleteId]` et
+      `["season-quota", athleteId, action.season]`, où `action.season` est
+      lu sur la ligne ciblée par le clic (chaque déclaration porte sa
+      propre saison — la liste couvre toutes les saisons sans filtre,
+      cf. `list_validated_for_athlete`) (dépend de T010)
+- [ ] T015 [US2] Ajouter le geste de suppression dans
       `VolunteerActionsList.tsx` : bouton par ligne, `<DangerConfirm>`
       déclaratif géré en state local du composant (pas de
       `useDangerConfirm`, cf. research.md D2), `toast` succès/erreur
-      (dépend de T015) — fait passer T014
-- [ ] T017 [US2] Lancer `npm test -- VolunteerActionsList` depuis `frontend/`
+      (dépend de T014) — fait passer T013
+- [ ] T016 [US2] Lancer `npm test -- VolunteerActionsList` depuis `frontend/`
 
 **Checkpoint** : US1 et US2 fonctionnelles indépendamment.
 
@@ -161,11 +172,11 @@ rechargement manuel ; annuler → rien ne change.
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
-- [ ] T018 [P] `uv run ruff check backend/` et `npm run lint` (frontend) —
+- [ ] T017 [P] `uv run ruff check backend/` et `npm run lint` (frontend) —
       aucune régression de lint
-- [ ] T019 Rejouer `quickstart.md` en entier (scénarios manuels US1, US2,
+- [ ] T018 Rejouer `quickstart.md` en entier (scénarios manuels US1, US2,
       refus de pouvoir, double suppression)
-- [ ] T020 `uv run pytest -m "not integration"` et `npm test` — suites
+- [ ] T019 `uv run pytest -m "not integration"` et `npm test` — suites
       complètes vertes avant `requesting-code-review`
 
 ---
@@ -176,19 +187,20 @@ rechargement manuel ; annuler → rien ne change.
 
 - **Foundational (Phase 2)** : aucune dépendance — bloque US1 et US2.
 - **US1 (Phase 3)** : dépend de Phase 2 uniquement. MVP.
-- **US2 (Phase 4)** : dépend de Phase 2 uniquement (T010 partagé avec US1,
-  mais T015/T016 n'attendent pas T012/T013 — les deux stories touchent des
-  fichiers front distincts et sont livrables dans n'importe quel ordre une
-  fois T010 posé).
+- **US2 (Phase 4)** : dépend de Phase 2 uniquement (T009/T010 partagés avec
+  US1, mais T014/T015 n'attendent pas T011/T012 — les deux stories touchent
+  des fichiers front distincts et sont livrables dans n'importe quel ordre
+  une fois T009/T010 posés).
 - **Polish (Phase 5)** : dépend de US1 et US2.
 
 ### Parallel Opportunities
 
 - T001/T002/T003 en parallèle (fichiers de test distincts).
 - Une fois T007 vert, US1 (Phase 3) et US2 (Phase 4) peuvent avancer en
-  parallèle par deux développeurs — seul T010 (client API) est un point de
-  jonction, à poser une fois avant que T011 et T015 s'en servent chacun.
-- T008/T009 en parallèle entre eux ; T014 est seule dans sa story.
+  parallèle par deux développeurs — seuls T009/T010 (client + mutation
+  partagée) sont un point de jonction, à poser une fois avant que T011 et
+  T014 s'en servent chacun.
+- T013 est seule dans sa story (aucune tâche de test parallèle en US2).
 
 ---
 
