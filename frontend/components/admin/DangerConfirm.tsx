@@ -1,5 +1,6 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useId, useState, type ReactNode } from "react";
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,6 +41,13 @@ export type DangerConfirmProps = {
   onConfirm: () => void | Promise<void>;
   /** Le corps chiffré, quand le geste annonce son ampleur avant d'agir. */
   children?: ReactNode;
+  /**
+   * Cible du focus à la fermeture, confiée à Base UI plutôt qu'à un `.focus()`
+   * manuel posé après `onConfirm` : ce dernier arrive avant que le dialog n'ait
+   * démonté dans le DOM, et perd la course contre la restauration native de
+   * focus (piège constaté sur #801 — flake ~1/25 sur `CounterScopeCard`).
+   */
+  finalFocus?: DialogPrimitive.Popup.Props["finalFocus"];
 };
 
 /**
@@ -78,6 +86,7 @@ export function DangerConfirm({
   enAttente = false,
   onConfirm,
   children,
+  finalFocus,
 }: DangerConfirmProps) {
   const [saisie, setSaisie] = useState("");
   const champ = useId();
@@ -95,7 +104,7 @@ export function DangerConfirm({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent finalFocus={finalFocus}>
         <DialogHeader>
           <DialogTitle>{titre}</DialogTitle>
           {/* L'avertissement vit **dans** la description : Base UI câble

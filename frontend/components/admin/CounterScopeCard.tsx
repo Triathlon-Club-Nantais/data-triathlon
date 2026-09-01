@@ -127,11 +127,6 @@ export function CounterScopeCard({
       await retirer.mutateAsync({ kind, entryId: aRetirer.id });
       toast.success(`« ${aRetirer.value} » retiré des ${nom}.`);
       setARetirer(null);
-      // La ligne — et son bouton, celui qui avait le focus — quitte le DOM à la
-      // fermeture du dialog : sans cela le focus retombe sur `<body>` et un
-      // utilisateur au clavier repart du haut du document à chaque retrait
-      // (même patron que `FeedbackTable`).
-      (champDAjout.current ?? declencheurDuChoix.current)?.focus();
     } catch (e) {
       setARetirer(null);
       toast.error((e as Error).message);
@@ -362,6 +357,12 @@ export function CounterScopeCard({
         libelleAction="Retirer"
         enAttente={retirer.isPending}
         onConfirm={confirmerRetrait}
+        // La ligne — et son bouton, celui qui avait le focus — quitte le DOM à
+        // la fermeture du dialog : sans repli, le focus retombe sur `<body>`
+        // et un utilisateur au clavier repart du haut du document à chaque
+        // retrait (même patron que `FeedbackTable`). Confié à Base UI plutôt
+        // qu'à un `.focus()` manuel après `onConfirm` (#801).
+        finalFocus={() => champDAjout.current ?? declencheurDuChoix.current ?? true}
       />
     </Card>
   );
