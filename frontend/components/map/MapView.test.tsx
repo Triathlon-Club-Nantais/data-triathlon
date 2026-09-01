@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { GeoEvent } from "@/lib/types";
 
@@ -118,14 +118,18 @@ describe("MapView", () => {
     render(<MapView />);
     await screen.findByTestId("carte");
 
-    expect(dragging.disable).toHaveBeenCalled();
+    // `VerrouGlisse` (enfant de `MapContainer`) verrouille dans un `useEffect`,
+    // flushé après le commit — `findByTestId` résout dès que le DOM porte le
+    // testid, un instant plus tôt. Sans `waitFor`, l'assertion course contre
+    // cet effet (#808, même piège que #801).
+    await waitFor(() => expect(dragging.disable).toHaveBeenCalled());
     expect(dragging.enable).not.toHaveBeenCalled();
 
     const voile = screen.getByRole("button", { name: "Toucher pour activer la carte" });
     await userEvent.click(voile);
 
     expect(screen.queryByRole("button", { name: "Toucher pour activer la carte" })).not.toBeInTheDocument();
-    expect(dragging.enable).toHaveBeenCalled();
+    await waitFor(() => expect(dragging.enable).toHaveBeenCalled());
   });
 
   it("sur pointeur fin, ne pose aucun voile et laisse la carte se glisser", async () => {
@@ -134,7 +138,7 @@ describe("MapView", () => {
 
     await screen.findByTestId("carte");
     expect(screen.queryByRole("button", { name: "Toucher pour activer la carte" })).not.toBeInTheDocument();
-    expect(dragging.enable).toHaveBeenCalled();
+    await waitFor(() => expect(dragging.enable).toHaveBeenCalled());
     expect(dragging.disable).not.toHaveBeenCalled();
   });
 });
