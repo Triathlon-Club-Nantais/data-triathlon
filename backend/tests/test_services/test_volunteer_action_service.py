@@ -41,6 +41,24 @@ def test_create_pending_credite_lathlete_choisi_a_la_saison_courante(db_session,
     assert action.status == "en_attente"
 
 
+def test_create_pending_accepte_declared_by_user_id_a_none(db_session, monkeypatch):
+    """#809 — un visiteur sans session SSO n'a pas d'identité individuelle."""
+    from app.core import season as season_module
+
+    monkeypatch.setattr(season_module, "current_season", lambda: 2025)
+    athlete = _athlete(db_session)
+
+    action = volunteer_action_service.create_pending(
+        db_session,
+        declared_by_user_id=None,
+        athlete_id=athlete.id,
+        title="Ravitaillement",
+        description="Tenue du poste de ravitaillement km 15.",
+    )
+
+    assert action.declared_by_user_id is None
+
+
 def test_create_pending_leve_notfounderror_si_athlete_inconnu(db_session):
     auteur = _auteur(db_session)
 

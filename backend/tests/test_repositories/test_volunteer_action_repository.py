@@ -117,6 +117,23 @@ def test_create_pending_consigne_titre_description_et_statut_en_attente(db_sessi
     assert action.status == "en_attente"
 
 
+def test_create_pending_accepte_declared_by_user_id_a_none(db_session):
+    """#809 — un visiteur sans session SSO n'a pas d'identité individuelle."""
+    athlete = _athlete(db_session)
+
+    action = volunteer_action_repository.create_pending(
+        db_session,
+        athlete_id=athlete.id,
+        season=2025,
+        declared_by_user_id=None,
+        title="Ravitaillement",
+        description="Tenue du poste de ravitaillement km 15.",
+    )
+    db_session.flush()
+
+    assert action.declared_by_user_id is None
+
+
 def test_list_pending_ne_rend_que_les_lignes_en_attente(db_session):
     auteur = _auteur(db_session)
     athlete = _athlete(db_session)
