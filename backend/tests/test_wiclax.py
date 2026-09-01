@@ -952,6 +952,21 @@ def test_sub_source_url_canonicalise_le_double_encodage():
     assert simple == double
 
 
+def test_sub_source_url_canonicalise_le_double_encodage_du_path():
+    """Le double encodage se corrige aussi sur le chemin, pas que sur la query (#786)."""
+    from app.scrapers.wiclax import _sub_source_url
+
+    simple = _sub_source_url(
+        "https://x.wiclax-results.com/Triathlon%20de%20Montreuil/?parcours=triathlon-m",
+        "S-Open Femmes",
+    )
+    double = _sub_source_url(
+        "https://x.wiclax-results.com/Triathlon%2520de%2520Montreuil/?parcours=triathlon-m",
+        "S-Open Femmes",
+    )
+    assert simple == double
+
+
 def test_scrape_event_fanout_nominal_returns_trace(monkeypatch):
     """Fan-out sans cache_probe : 3 parcours énumérés, tous scrapés, trace complète."""
     from app.scrapers.base import FanoutTrace
