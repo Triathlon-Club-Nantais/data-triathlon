@@ -11,7 +11,15 @@ import logging
 import re
 import xml.etree.ElementTree as ET  # annotations de type seulement
 from collections.abc import Callable
-from urllib.parse import parse_qs, quote, unquote, urlencode, urljoin, urlparse, urlunparse
+from urllib.parse import (
+    parse_qs,
+    quote,
+    unquote,
+    urlencode,
+    urljoin,
+    urlparse,
+    urlunparse,
+)
 
 import httpx
 from bs4 import BeautifulSoup
@@ -502,6 +510,37 @@ def _parcours_slug(parcours: str) -> str:
     return slug
 
 
+def _fully_unquote(value: str) -> str:
+    """`unquote` répété jusqu'à stabilité.
+
+    Absorbe un double encodage accidentel (`%2520` → `%20` → « espace ») — un
+    lien copié depuis une page déjà encodée re-subit un encodage complet au
+    lieu d'être repris tel quel (#786). `unquote` et non `unquote_plus` :
+    `parse_qs` a déjà décodé un éventuel `+` en espace une fois, à l'entrée du
+    query string — un `+` restant à ce stade est un `+` littéral, encodé
+    `%2B` dans l'URL source (nom de fichier `.clax` avec un `+`), pas un
+    second espace mal encodé. Le relire comme un espace corromprait
+    silencieusement le nom de fichier réutilisé tel quel par `rescrape-db`.
+    """
+    while True:
+        decoded = unquote(value)
+        if decoded == value:
+            return value
+        value = decoded
+
+
+def _normalize_wiclax_host(netloc: str) -> str:
+    """Host insensible à la casse et au préfixe `www.` (#786).
+
+    `chronosmetron.com` et `chronosmetron.wiclax-results.com` restent deux
+    hosts distincts (page vitrine Joomla vs moteur G-Live — contenus
+    différents, vérifié en prod) : seul le `www.` optionnel d'un **même** host
+    est visé ici, pas un rapprochement entre alias.
+    """
+    netloc = netloc.lower()
+    return netloc.removeprefix("www.")
+
+
 def _sub_source_url(url: str, parcours: str) -> str:
     """URL canonique d'un parcours Wiclax — clé de cache TTL et de dédup source_url.
 
@@ -509,6 +548,11 @@ def _sub_source_url(url: str, parcours: str) -> str:
     neuf `parcours=<slug>` ajouté. `p=` n'est PAS employé : la source Wiclax
     l'utilise déjà en query sur certains flux, on ne veut pas rentrer en collision.
     Un parcours vide → URL sans qualification (compat rétro `.clax` monoparcours).
+
+    Host et path/query normalisés (casse, `www.`, encodage) pour que deux URLs
+    de forme différente mais de même ressource dédupliquent au même `attach()`
+    (#786) — sinon la comparaison stricte de `course_source_repository.attach`
+    y voit deux sources distinctes.
     """
     parsed = urlparse(_strip_athlete_param(url))
     params = [(k, v) for k, v in parse_qs(parsed.query, keep_blank_values=True).items()]
@@ -517,14 +561,16 @@ def _sub_source_url(url: str, parcours: str) -> str:
     flat: list[tuple[str, str]] = []
     for key, values in params:
         for value in values:
-            flat.append((key, value))
+            flat.append((key, _fully_unquote(value)))
     slug = _parcours_slug(parcours)
     if slug:
         # Écrase toute valeur `parcours=` préexistante — l'URL entrante ne doit pas
         # trancher à la place du fan-out.
         flat = [(k, v) for k, v in flat if k != "parcours"]
         flat.append(("parcours", slug))
-    return urlunparse(parsed._replace(query=urlencode(flat)))
+    netloc = _normalize_wiclax_host(parsed.netloc)
+    path = quote(_fully_unquote(parsed.path), safe="/")
+    return urlunparse(parsed._replace(netloc=netloc, path=path, query=urlencode(flat)))
 
 
 def _drop_orphelins(

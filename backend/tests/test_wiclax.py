@@ -922,6 +922,65 @@ def test_sub_source_url_parcours_vide_pas_de_qualif():
     assert "parcours=" not in _sub_source_url(url, "")
 
 
+def test_sub_source_url_normalise_host_www_et_double_encodage():
+    """`www.`, la casse du host et un double encodage accidentel de la query
+    (%2520 → %20) ne doivent pas produire une URL canonique distincte (#786) :
+    trois façons de désigner la même ressource dédupliquent au même `attach()`.
+    """
+    from app.scrapers.wiclax import _sub_source_url
+
+    reference = _sub_source_url(
+        "https://chronosmetron.wiclax-results.com/G-Live/g-live.html"
+        "?f=..%2FTriathlon+de+Montreuil.clax",
+        "Triathlon M",
+    )
+    avec_www_et_majuscules = _sub_source_url(
+        "https://WWW.Chronosmetron.wiclax-results.com/G-Live/g-live.html"
+        "?f=..%2FTriathlon+de+Montreuil.clax",
+        "Triathlon M",
+    )
+    double_encodage = _sub_source_url(
+        "https://www.chronosmetron.wiclax-results.com/G-Live/g-live.html"
+        "?f=..%2FTriathlon%2520de%2520Montreuil.clax",
+        "Triathlon M",
+    )
+    assert avec_www_et_majuscules == reference
+    assert double_encodage == reference
+
+
+def test_sub_source_url_preserve_plus_litteral_dans_la_query():
+    """Un `+` littéral (`%2B` dans l'URL source) n'est pas un espace mal encodé.
+
+    Revue de code sur #786 : absorber le double encodage ne doit pas
+    réinterpréter un `+` déjà décodé une fois par `parse_qs` comme un espace —
+    ce serait corrompre le nom de fichier `.clax` réutilisé tel quel comme URL
+    de re-fetch par `rescrape-db`.
+    """
+    from app.scrapers.wiclax import _sub_source_url
+
+    url = "https://x.wiclax-results.com/G-Live/g-live.html?f=..%2FTriathlon%2BForce.clax"
+    # `urlencode` réencode un `+` littéral en `%2B` (sinon ambigu avec un espace) :
+    # `%2BForce` survivant prouve que le `+` n'a pas été lu comme un espace.
+    assert "Triathlon%2BForce.clax" in _sub_source_url(url, "")
+
+
+def test_sub_source_url_ne_fusionne_pas_chronosmetron_com_et_wiclax_results():
+    """`chronosmetron.com` (vitrine Joomla) et `chronosmetron.wiclax-results.com`
+    (moteur G-Live) restent deux hosts distincts (#786) : la normalisation
+    n'absorbe que `www.`/casse d'un **même** host, jamais un alias de domaine —
+    les deux servent un contenu différent (vérifié en prod)."""
+    from app.scrapers.wiclax import _sub_source_url
+
+    vitrine = _sub_source_url(
+        "https://www.chronosmetron.com/761-triathlon-de-montreuil-2026-dim", ""
+    )
+    moteur = _sub_source_url(
+        "https://www.chronosmetron.wiclax-results.com/761-triathlon-de-montreuil-2026-dim",
+        "",
+    )
+    assert vitrine != moteur
+
+
 def test_scrape_event_fanout_nominal_returns_trace(monkeypatch):
     """Fan-out sans cache_probe : 3 parcours énumérés, tous scrapés, trace complète."""
     from app.scrapers.base import FanoutTrace
