@@ -19,8 +19,8 @@ import { formatDate } from "@/lib/utils/date";
 const REPLI = "—";
 
 const REFUS = {
-  sujet: "déclarations de crédit d'athlète",
-  action: "instruire les déclarations de crédit d'athlète",
+  sujet: "crédits d'athlète en attente",
+  action: "traiter les déclarations de crédit d'athlète",
 };
 
 /**
@@ -44,7 +44,7 @@ export function AdminVolunteerActionsTable() {
     return (
       <EmptyState
         title="Aucune déclaration en attente"
-        description="Les déclarations soumises depuis /benevolat pour créditer un athlète apparaîtront ici."
+        description="Les déclarations soumises par un membre depuis la page publique de bénévolat apparaîtront ici."
       />
     );
   }
@@ -88,23 +88,27 @@ export function AdminVolunteerActionsTable() {
               <TableCell className="max-w-xs truncate">{action.title ?? REPLI}</TableCell>
               <TableCell className="max-w-md truncate">{action.description ?? REPLI}</TableCell>
               <TableCell>{formatDate(action.created_at)}</TableCell>
-              <TableCell className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onAccept(action.id)}
-                  disabled={accepter.isPending || refuser.isPending}
-                >
-                  Accepter
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => onReject(action.id)}
-                  disabled={accepter.isPending || refuser.isPending}
-                >
-                  Refuser
-                </Button>
+              <TableCell>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onAccept(action.id)}
+                    disabled={accepter.isPending || refuser.isPending}
+                    aria-label={`Accepter — ${action.athlete_prenom} ${action.athlete_nom}`}
+                  >
+                    Accepter
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onReject(action.id)}
+                    disabled={accepter.isPending || refuser.isPending}
+                    aria-label={`Refuser — ${action.athlete_prenom} ${action.athlete_nom}`}
+                  >
+                    Refuser
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}
