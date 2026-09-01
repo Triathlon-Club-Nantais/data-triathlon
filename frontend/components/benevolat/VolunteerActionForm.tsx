@@ -11,9 +11,8 @@ const nomComplet = (a: AthleteBrief) => `${a.prenom} ${a.nom}`;
 
 /**
  * Formulaire public self-service — crédite l'athlète choisi pour le quota de
- * saison (#778). Distinct de `VolunteerDeclarationForm` (#751, toujours une
- * auto-déclaration, sans recherche d'athlète) : ici l'auteur choisit
- * n'importe quel athlète, jamais lui-même par défaut.
+ * saison (#778), seul chemin de déclaration de bénévolat depuis le retrait
+ * de l'auto-déclaration (#751, #816).
  *
  * Recherche : patron `ReattributionField.tsx` (débounce 300 ms, seuil 2
  * caractères, anti-course par jeton) adapté à `searchAthletesConnected`

@@ -213,17 +213,6 @@ export const NAV: NavSection[] = [
         permission: "feedback:read",
         badge: "feedback",
       },
-      // Auto-déclaration self-service depuis `/benevolat` — même contraste que
-      // « Retours utilisateurs » : la déclaration est ouverte à tout membre
-      // connecté, la consulter/instruire exige `benevolat:read` (#751).
-      {
-        id: "a-benevolat",
-        label: "Déclarations de bénévolat",
-        description:
-          "Auto-déclarations en attente de validation, et déclarations pour un membre.",
-        href: "/admin/benevolat",
-        permission: "benevolat:read",
-      },
       // Les deux purges globales vivaient en pied de `/admin/courses`, l'écran
       // où l'on vient corriger une date : feuilleter le catalogue jusqu'au bout
       // menait à un clic de la destruction de toute la base (#499, ADM-7). Un
@@ -267,7 +256,6 @@ export const NAV: NavSection[] = [
         href: "/admin/journal",
         permission: "admin_log:read",
       },
-      { id: "a-benevolat", label: "Bénévolat", soon: true },
       // Pas d'entrée « Sessions » : #169 a livré la révocation **dans**
       // « Accès au back-office » — par adresse ligne à ligne, globale en bas de
       // page. Un second écran pour un unique bouton aurait coûté une entrée de

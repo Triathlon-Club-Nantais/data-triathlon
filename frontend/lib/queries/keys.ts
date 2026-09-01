@@ -67,6 +67,4 @@ export const queryKeys = {
   // incohérent avec la liste sous les yeux.
   clubRosterRank: (athleteId: number, federalOnly: boolean) =>
     ["club-roster-rank", athleteId, federalOnly] as const,
-  myVolunteerDeclarations: () => ["my-volunteer-declarations"] as const,
-  adminVolunteerDeclarations: () => ["admin-volunteer-declarations"] as const,
 };
