@@ -660,4 +660,12 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+
+  // ── Validation admin des déclarations de crédit d'athlète (#779/#817) ──────
+  listPendingVolunteerActions: () =>
+    request<AdminVolunteerActionOut[]>("/admin/volunteer-actions/pending"),
+  acceptVolunteerAction: (id: number) =>
+    request<AdminVolunteerActionOut>(`/admin/volunteer-actions/${id}/accept`, { method: "POST" }),
+  rejectVolunteerAction: (id: number) =>
+    request<AdminVolunteerActionOut>(`/admin/volunteer-actions/${id}/reject`, { method: "POST" }),
 };
