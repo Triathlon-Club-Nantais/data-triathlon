@@ -166,3 +166,52 @@ def test_refuser_sans_le_pouvoir_rend_403(client, db_session):
     _session_etroite(client, db_session)
 
     assert client.post(f"{_URL}/{action.id}/reject").status_code == 403
+
+
+# --- Liste des actions validées d'un athlète (#781) ---------------------------
+
+
+def test_lister_les_validees_dun_athlete_exclut_les_autres_statuts(client, db_session):
+    athlete, validee = _declaration(db_session, status="validee")
+    _declaration(db_session, status="en_attente")
+    _declaration(db_session, status="refusee")
+
+    reponse = client.get(f"/api/v1/admin/athletes/{athlete.id}/volunteer-actions/validated")
+
+    assert reponse.status_code == 200
+    assert [d["id"] for d in reponse.json()] == [validee.id]
+
+
+def test_lister_les_validees_rend_null_pour_une_ligne_creee_par_le_chemin_admin(client, db_session):
+    athlete = _athlete(db_session)
+    auteur = user_repository.create(db_session, email="admin-createur@exemple.fr")
+    db_session.flush()
+    action = volunteer_action_repository.create(
+        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id
+    )
+    volunteer_action_repository.set_status(db_session, action.id, "validee")
+    db_session.commit()
+
+    reponse = client.get(f"/api/v1/admin/athletes/{athlete.id}/volunteer-actions/validated")
+
+    corps = reponse.json()[0]
+    assert corps["title"] is None
+    assert corps["description"] is None
+
+
+def test_lister_les_validees_dun_athlete_sans_action_rend_liste_vide(client, db_session):
+    athlete = _athlete(db_session)
+
+    reponse = client.get(f"/api/v1/admin/athletes/{athlete.id}/volunteer-actions/validated")
+
+    assert reponse.json() == []
+
+
+def test_lister_les_validees_sans_le_pouvoir_rend_403(client, db_session):
+    athlete, _ = _declaration(db_session, status="validee")
+    _session_etroite(client, db_session)
+
+    assert (
+        client.get(f"/api/v1/admin/athletes/{athlete.id}/volunteer-actions/validated").status_code
+        == 403
+    )

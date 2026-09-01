@@ -5,6 +5,7 @@ import type {
   AdminAthleteUpdate,
   AdminCourseUpdate,
   AdminUser,
+  AdminVolunteerActionOut,
   AdminVolunteerDeclaration,
   AdminVolunteerDeclarationCreate,
   AllowedEmail,
@@ -377,6 +378,8 @@ export const apiClient = {
     }),
   getSeasonQuota: (athleteId: number, season: number) =>
     request<SeasonQuota>(`/admin/athletes/${athleteId}/season-quota${toQuery({ season })}`),
+  listValidatedVolunteerActions: (athleteId: number) =>
+    request<AdminVolunteerActionOut[]>(`/admin/athletes/${athleteId}/volunteer-actions/validated`),
   validateSeason: (athleteId: number, season: number) =>
     request<SeasonValidation>(`/admin/athletes/${athleteId}/season-validations`, {
       method: "POST",

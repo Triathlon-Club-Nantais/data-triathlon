@@ -85,3 +85,14 @@ def set_status(db: Session, action_id: int, status: str) -> VolunteerAction:
     action.status = status
     db.flush()
     return action
+
+
+def list_validated_for_athlete(db: Session, *, athlete_id: int) -> list[VolunteerAction]:
+    """Fiche athlète (#781, FR-001/FR-002/FR-004) — toutes saisons, sans
+    filtre : la lecture ne porte pas les mêmes bornes que le quota."""
+    return (
+        db.query(VolunteerAction)
+        .filter(VolunteerAction.athlete_id == athlete_id, VolunteerAction.status == "validee")
+        .order_by(VolunteerAction.created_at.desc())
+        .all()
+    )

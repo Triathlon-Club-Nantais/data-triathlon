@@ -9,6 +9,7 @@ import { AthleteSelection } from "./AthleteSelection";
 import { EventsTable } from "./EventsTable";
 import { AthleteAdminPanel } from "@/components/athletes/AthleteAdminPanel";
 import { SeasonValidationPanel } from "@/components/athletes/SeasonValidationPanel";
+import { VolunteerActionsList } from "@/components/athletes/VolunteerActionsList";
 import { formatToken, disciplineBreakdownBySeason, genderShort, ordinalFr } from "@/lib/utils/format";
 import { BarList } from "@/components/charts/BarList";
 import { CAT_COLORS } from "@/components/charts/CategoryBars";
@@ -238,6 +239,8 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
         {validated.length > 0 && <AthleteComparisonChart mine={validated} />}
 
         <EventsTable participations={participations} athleteId={athlete.id} athleteName={fullName} />
+
+        <VolunteerActionsList athleteId={athlete.id} />
       </div>
     </PageShell>
   );

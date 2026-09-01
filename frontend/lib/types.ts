@@ -952,6 +952,20 @@ export interface VolunteerActionSelfOut {
   created_at: string;
 }
 
+// Miroir de AdminVolunteerActionOut backend (#779/#781) — file d'admin et
+// liste des actions validées d'un athlète. title/description optionnels :
+// une ligne créée par le chemin admin existant (#709) ne les renseigne jamais.
+export interface AdminVolunteerActionOut {
+  id: number;
+  athlete_id: number;
+  season: number;
+  title: string | null;
+  description: string | null;
+  status: string;
+  declared_by_user_id: number;
+  created_at: string;
+}
+
 // Miroir de SeasonValidationOut backend (#709).
 export interface SeasonValidation {
   athlete_id: number;

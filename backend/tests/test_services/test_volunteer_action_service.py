@@ -131,3 +131,12 @@ def test_reject_est_idempotent_si_deja_refusee(db_session):
     mise_a_jour = volunteer_action_service.reject(db_session, admin_user_id=admin.id, action_id=action.id)
 
     assert mise_a_jour.status == "refusee"
+
+
+def test_list_validated_for_athlete_delegue_au_repository(db_session):
+    _, en_attente = _declaration(db_session)
+    admin, action = _declaration(db_session, status="validee")
+
+    resultat = volunteer_action_service.list_validated_for_athlete(db_session, athlete_id=action.athlete_id)
+
+    assert [a.id for a in resultat] == [action.id]
