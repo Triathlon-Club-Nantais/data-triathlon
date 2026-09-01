@@ -15,7 +15,6 @@ from urllib.parse import (
     parse_qs,
     quote,
     unquote,
-    unquote_plus,
     urlencode,
     urljoin,
     urlparse,
@@ -512,14 +511,19 @@ def _parcours_slug(parcours: str) -> str:
 
 
 def _fully_unquote(value: str) -> str:
-    """`unquote_plus` répété jusqu'à stabilité.
+    """`unquote` répété jusqu'à stabilité.
 
     Absorbe un double encodage accidentel (`%2520` → `%20` → « espace ») — un
     lien copié depuis une page déjà encodée re-subit un encodage complet au
-    lieu d'être repris tel quel (#786).
+    lieu d'être repris tel quel (#786). `unquote` et non `unquote_plus` :
+    `parse_qs` a déjà décodé un éventuel `+` en espace une fois, à l'entrée du
+    query string — un `+` restant à ce stade est un `+` littéral, encodé
+    `%2B` dans l'URL source (nom de fichier `.clax` avec un `+`), pas un
+    second espace mal encodé. Le relire comme un espace corromprait
+    silencieusement le nom de fichier réutilisé tel quel par `rescrape-db`.
     """
     while True:
-        decoded = unquote_plus(value)
+        decoded = unquote(value)
         if decoded == value:
             return value
         value = decoded
