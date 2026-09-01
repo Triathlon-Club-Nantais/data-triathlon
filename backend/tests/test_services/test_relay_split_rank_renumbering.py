@@ -86,6 +86,65 @@ def test_la_scission_solo_relais_renumerote_le_rang_du_petit_lot(db_session, pat
     assert solo.quality_issues == {}
 
 
+def test_chronoplace_scission_solo_relais_sur_rang_scratch_global(db_session, patch_scraper):
+    """Chronoplace persiste un `rank_overall` scratch global (solo+relais
+    mêlés dans une seule colonne « position »), scindé en deux `Course` par
+    `is_relay` : même défaut que ProLiveSport, déjà couvert par le fix
+    générique #672 (`import_service`, agnostique du scraper).
+
+    Cas réel (#788, « Spay'cific Races 2025 - SwimRun », courses 157/158) :
+    les rangs solo (20 participants) et relais (21 participants) sont
+    exactement complémentaires sur 1..41. Non reproduit dans `chronoplace.py`
+    — la scission a lieu en amont, au niveau `Course` — donc rien à corriger
+    dans le scraper lui-même : un rescrape suffit, cette renumérotation
+    tournant déjà avant la persistance.
+    """
+    rangs_solo = [1, 4, 8, 9, 11, 16, 18, 20, 22, 23, 24, 25, 26, 27, 28, 29, 30, 36, 38, 41]
+    rangs_relais = [2, 3, 5, 6, 7, 10, 12, 13, 14, 15, 17, 19, 21, 31, 32, 33, 34, 35, 37, 39, 40]
+    assert sorted(rangs_solo + rangs_relais) == list(range(1, 42))  # complémentaires sur 1..41
+
+    nom = "Spay'cific Races 2025 - SwimRun"
+    jour = date(2025, 6, 1)
+    type_epreuve = "swimrun"
+    url = "https://www.chronoplace.com/classement/spaycific-races-2025"
+
+    def _resultat_chronoplace(bib: str, rang: int, *, is_relay: bool) -> ScrapedResult:
+        return ScrapedResult(
+            source_url=url,
+            provider="chronoplace",
+            athlete_name=f"NOM-{bib}",
+            athlete_firstname="Jean",
+            bib_number=bib,
+            event_name=nom,
+            event_date=jour,
+            event_type=type_epreuve,
+            is_relay=is_relay,
+            rank_overall=rang,
+            total_time="01:59:00",
+        )
+
+    patch_scraper(
+        [_resultat_chronoplace(f"S{i}", r, is_relay=False) for i, r in enumerate(rangs_solo, 1)]
+        + [_resultat_chronoplace(f"R{i}", r, is_relay=True) for i, r in enumerate(rangs_relais, 1)]
+    )
+    import_service.import_event(db_session, url, _settings())
+
+    solo = course_repository.get_by_identity(db_session, nom, jour, type_epreuve, False)
+    relais = course_repository.get_by_identity(db_session, nom, jour, type_epreuve, True)
+    assert solo is not None and relais is not None
+
+    assert sorted(
+        p.rank_overall for p in participation_repository.list_for_course(db_session, solo.id)
+    ) == list(range(1, 21))
+    assert sorted(
+        p.rank_overall for p in participation_repository.list_for_course(db_session, relais.id)
+    ) == list(range(1, 22))
+    assert solo.is_reliable is True
+    assert solo.quality_issues == {}
+    assert relais.is_reliable is True
+    assert relais.quality_issues == {}
+
+
 def test_ordre_relatif_du_rang_source_preserve_apres_renumerotation(db_session, patch_scraper):
     """Le tri de renumérotation respecte l'ordre du rang combiné d'origine,
     même si les lignes n'arrivent pas déjà triées dans le scrape."""
