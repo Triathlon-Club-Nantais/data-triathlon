@@ -174,12 +174,22 @@ rechargement manuel ; annuler → rien ne change.
 
 ## Phase 5: Polish & Cross-Cutting Concerns
 
-- [ ] T017 [P] `uv run ruff check backend/` et `npm run lint` (frontend) —
-      aucune régression de lint
-- [ ] T018 Rejouer `quickstart.md` en entier (scénarios manuels US1, US2,
-      refus de pouvoir, double suppression)
-- [ ] T019 `uv run pytest -m "not integration"` et `npm test` — suites
-      complètes vertes avant `requesting-code-review`
+- [X] T017 [P] `uv run ruff check backend/` et `npm run lint` (frontend) —
+      aucune régression de lint (les deux passent propre)
+- [X] T018 Rejouer `quickstart.md` — couvert par les tests automatisés
+      (mêmes assertions que les scénarios manuels : confirmation/annulation,
+      401/403, double suppression, recalcul du quota par saison via
+      `test_supprimer_une_ligne_validee` et le test d'invalidation
+      multi-saisons du front). Pas de parcours navigateur réel effectué : la
+      connexion admin passe par SSO OAuth, hors de portée d'un curl direct
+      sans identifiants — à faire en revue manuelle si le reviewer le juge
+      nécessaire.
+- [X] T019 `uv run pytest -m "not integration"` et `npm test` — suites
+      complètes vertes avant `requesting-code-review` : backend 4575 passed
+      (1 échec pré-existant sans rapport), frontend 2138 passed + 2 skipped
+      (dont la correction du mock `page.test.tsx` cassé par le nouveau
+      `useDeleteVolunteerAction` et l'ajout d'un `QueryClientProvider` réel,
+      nécessaire pour `useQueryClient()`)
 
 ---
 
