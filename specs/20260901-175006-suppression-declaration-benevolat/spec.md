@@ -90,7 +90,12 @@ son quota de saison se recalcule sans elle.
   attente.
 - **FR-003**: Le geste de suppression DOIT être exposé depuis la liste des
   déclarations de bénévolat sur la fiche d'un athlète (#781) pour les
-  déclarations déjà traitées (validées ou refusées).
+  déclarations validées — seul statut que cette liste affiche
+  (`list_validated_for_athlete`, hérité de #781). Aucun écran n'affiche
+  aujourd'hui les déclarations refusées ; leur suppression reste possible
+  côté backend (FR-001) mais n'est atteignable que par appel API direct,
+  hors périmètre UI de #818 (constat en revue de code, cf. commentaire sur
+  l'issue du 2026-09-01).
 - **FR-004**: Le système DOIT demander une confirmation explicite avant toute
   suppression (geste destructif, irréversible).
 - **FR-005**: Une déclaration supprimée ne DOIT plus apparaître dans aucune
