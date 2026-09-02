@@ -5,9 +5,8 @@ Aucune session individuelle exigée (#809) — seul le mot de passe partagé du
 site (`require_site_access`, posé en amont sur tout le routeur) ferme cette
 route, sur le patron de `feedback.py` (#267) : `optional_user` résout une
 session SSO si présente (l'auteur reste alors tracé) et rend `None` sinon,
-sans jamais lever 401. Aucun pouvoir RBAC n'est exigé. L'endpoint admin
-existant (`admin_data.py`,
-`POST /admin/athletes/{athlete_id}/volunteer-actions`) n'est pas touché.
+sans jamais lever 401. Aucun pouvoir RBAC n'est exigé. Seul chemin de
+création restant depuis le retrait de l'ancien geste admin (#780).
 """
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session

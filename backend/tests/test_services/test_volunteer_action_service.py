@@ -3,7 +3,12 @@ de son workflow de validation admin (#779)."""
 import pytest
 
 from app.core.exceptions import NotFoundError
-from app.repositories import athlete_repository, user_repository, volunteer_action_repository
+from app.repositories import (
+    admin_action_log_repository,
+    athlete_repository,
+    user_repository,
+    volunteer_action_repository,
+)
 from app.services import volunteer_action_service
 
 
@@ -158,3 +163,46 @@ def test_list_validated_for_athlete_delegue_au_repository(db_session):
     resultat = volunteer_action_service.list_validated_for_athlete(db_session, athlete_id=action.athlete_id)
 
     assert [a.id for a in resultat] == [action.id]
+
+
+@pytest.mark.parametrize("status", ["en_attente", "validee", "refusee"])
+def test_delete_supprime_quel_que_soit_le_statut(db_session, status):
+    """#818 FR-001 — les trois statuts sont supprimables."""
+    admin, action = _declaration(db_session, status=status)
+    action_id = action.id
+
+    volunteer_action_service.delete(db_session, admin_user_id=admin.id, action_id=action_id)
+
+    assert volunteer_action_repository.get(db_session, action_id) is None
+
+
+def test_delete_leve_notfounderror_si_id_inconnu(db_session):
+    admin = _auteur(db_session)
+
+    with pytest.raises(NotFoundError):
+        volunteer_action_service.delete(db_session, admin_user_id=admin.id, action_id=999999)
+
+
+def test_delete_leve_notfounderror_sur_double_suppression(db_session):
+    """#818 FR-008 — la seconde tentative échoue proprement."""
+    admin, action = _declaration(db_session)
+    volunteer_action_service.delete(db_session, admin_user_id=admin.id, action_id=action.id)
+
+    with pytest.raises(NotFoundError):
+        volunteer_action_service.delete(db_session, admin_user_id=admin.id, action_id=action.id)
+
+
+def test_delete_journalise_le_geste(db_session):
+    """#818 FR-006/SC-003 — trace journalisée sur l'athlète, patron accept/reject."""
+    admin, action = _declaration(db_session, status="validee")
+    athlete_id = action.athlete_id
+    action_id = action.id
+
+    volunteer_action_service.delete(db_session, admin_user_id=admin.id, action_id=action_id)
+
+    (entree,) = admin_action_log_repository.list_for_entity(
+        db_session, entity_type="athlete", entity_id=athlete_id
+    )
+    assert entree.user_id == admin.id
+    assert entree.action == "athlete.volunteer_action.delete"
+    assert entree.payload == {"season": 2025, "action_id": action_id, "status": "validee"}

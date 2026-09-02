@@ -60,8 +60,6 @@ CODES_ATTENDUS = {
     "club_aliases:manage",
     "admin_log:read",
     "pages:preview",
-    "benevolat:read",
-    "benevolat:manage",
 }
 
 

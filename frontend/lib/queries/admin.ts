@@ -4,7 +4,6 @@ import { queryKeys } from "./keys";
 import type {
   AdminAthleteUpdate,
   AdminCourseUpdate,
-  AdminVolunteerDeclarationCreate,
   Feedback,
   RoleCreate,
   RoleUpdate,
@@ -933,36 +932,39 @@ export function useAdminActionLog(page = 1) {
   });
 }
 
-// ── Déclarations de bénévolat, vue admin (#751) ─────────────────────────────
+// ── Validation admin des déclarations de crédit d'athlète (#779/#817) ────────
 
-export function useAllVolunteerDeclarations() {
+export function usePendingVolunteerActions() {
   return useQuery({
-    queryKey: queryKeys.adminVolunteerDeclarations(),
-    queryFn: () => apiClient.listAllVolunteerDeclarations(),
+    queryKey: queryKeys.pendingVolunteerActions(),
+    queryFn: () => apiClient.listPendingVolunteerActions(),
   });
 }
 
-export function useAdminCreateVolunteerDeclaration() {
+export function useAcceptVolunteerAction() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: AdminVolunteerDeclarationCreate) =>
-      apiClient.adminCreateVolunteerDeclaration(body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.adminVolunteerDeclarations() }),
+    mutationFn: (id: number) => apiClient.acceptVolunteerAction(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.pendingVolunteerActions() }),
   });
 }
 
-export function useValidateVolunteerDeclaration() {
+export function useRejectVolunteerAction() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => apiClient.validateVolunteerDeclaration(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.adminVolunteerDeclarations() }),
+    mutationFn: (id: number) => apiClient.rejectVolunteerAction(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.pendingVolunteerActions() }),
   });
 }
 
-export function useAdminDeleteVolunteerDeclaration() {
-  const qc = useQueryClient();
+/**
+ * Suppression d'une déclaration (#818), commune aux deux écrans où elle
+ * s'affiche (file d'attente, fiche athlète) — chacun invalide une query key
+ * différente, donc pas d'`onSuccess` fixé ici : l'appelant le passe à
+ * `mutateAsync(id, { onSuccess })`.
+ */
+export function useDeleteVolunteerAction() {
   return useMutation({
-    mutationFn: (id: number) => apiClient.adminDeleteVolunteerDeclaration(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.adminVolunteerDeclarations() }),
+    mutationFn: (id: number) => apiClient.deleteVolunteerAction(id),
   });
 }

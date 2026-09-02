@@ -80,22 +80,12 @@ ROUTES_BENEVOLES_FERMEES = {
     ("PATCH", "/api/v1/benevoles/participations/{participation_id}"),
 }
 
-#: Les déclarations de bénévolat (#751) — self-service, hors `/admin/`, mais
-#: fermées par `current_user` (session SSO, pas de pouvoir RBAC) : une
-#: déclaration porte toujours l'identité de son auteur, un anonyme n'en a pas.
-ROUTES_VOLUNTEER_DECLARATIONS_FERMEES = {
-    ("POST", "/api/v1/volunteer-declarations"),
-    ("GET", "/api/v1/volunteer-declarations"),
-    ("DELETE", "/api/v1/volunteer-declarations/{declaration_id}"),
-}
-
 ROUTES_FERMEES = {
     ("DELETE", "/api/v1/participations/{participation_id}"),
     # #811 — pages:preview restreint la liste des athlètes par saison, dont
     # l'entrée de nav reste masquée sans ce pouvoir.
     ("GET", "/api/v1/athletes/season-activity"),
     *ROUTES_BENEVOLES_FERMEES,
-    *ROUTES_VOLUNTEER_DECLARATIONS_FERMEES,
 }
 
 #: Corps minimal des routes qui en exigent un. Un 422 de validation est une

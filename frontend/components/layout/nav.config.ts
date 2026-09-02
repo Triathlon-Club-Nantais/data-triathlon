@@ -213,16 +213,17 @@ export const NAV: NavSection[] = [
         permission: "feedback:read",
         badge: "feedback",
       },
-      // Auto-déclaration self-service depuis `/benevolat` — même contraste que
-      // « Retours utilisateurs » : la déclaration est ouverte à tout membre
-      // connecté, la consulter/instruire exige `benevolat:read` (#751).
+      // Validation des déclarations de crédit d'athlète (#779, #817) —
+      // l'API existait déjà, l'écran non. Id distinct de l'ancien
+      // `a-benevolat` (auto-déclaration, #751, retiré par #816) : pas de
+      // réutilisation, ressource neuve.
       {
-        id: "a-benevolat",
-        label: "Déclarations de bénévolat",
+        id: "a-benevolat-validation",
+        label: "Bénévolat",
         description:
-          "Auto-déclarations en attente de validation, et déclarations pour un membre.",
+          "Déclarations de crédit d'athlète en attente, soumises par un membre depuis la page publique de bénévolat : accepter ou refuser.",
         href: "/admin/benevolat",
-        permission: "benevolat:read",
+        permission: "athletes:volunteer_validate",
       },
       // Les deux purges globales vivaient en pied de `/admin/courses`, l'écran
       // où l'on vient corriger une date : feuilleter le catalogue jusqu'au bout
@@ -267,7 +268,6 @@ export const NAV: NavSection[] = [
         href: "/admin/journal",
         permission: "admin_log:read",
       },
-      { id: "a-benevolat", label: "Bénévolat", soon: true },
       // Pas d'entrée « Sessions » : #169 a livré la révocation **dans**
       // « Accès au back-office » — par adresse ligne à ligne, globale en bas de
       // page. Un second écran pour un unique bouton aurait coûté une entrée de
