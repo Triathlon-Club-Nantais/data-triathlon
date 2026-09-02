@@ -3,8 +3,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
-import { Card } from "@/components/tcn";
-import { Button } from "@/components/ui/button";
+import { Button, Card } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { messageDeRefus } from "@/lib/api/refus";
@@ -25,14 +24,14 @@ const REFUS = {
  * `SeasonValidationPanel`/`AthleteAdminPanel` (#439) : aucune trace pour un
  * visiteur non habilité, ni section ni message de pouvoir manquant.
  *
- * Deux colonnes de texte seulement (titre, description) ne débordent jamais
- * un écran étroit comme le font les six colonnes d'`EventsTable`, donc pas
- * de duplication grille/cartes (#461, research.md D5 de la feature) — et
- * pas non plus `.tcn-table` (qui exige `display: grid` +
- * `gridTemplateColumns` sur chaque `<tr>` pour aligner les colonnes,
- * `frontend/AGENTS.md` #481) : un `<table>` natif aligne déjà correctement
- * deux colonnes sans geste supplémentaire, et porte sa propre sémantique de
- * tableau sans le moindre rôle ARIA à redéclarer.
+ * Trois colonnes seulement (titre, description, geste de suppression #818)
+ * ne débordent jamais un écran étroit comme le font les six colonnes
+ * d'`EventsTable`, donc pas de duplication grille/cartes (#461, research.md
+ * D5 de la feature) — et pas non plus `.tcn-table` (qui exige
+ * `display: grid` + `gridTemplateColumns` sur chaque `<tr>` pour aligner
+ * les colonnes, `frontend/AGENTS.md` #481) : un `<table>` natif aligne déjà
+ * correctement ces colonnes sans geste supplémentaire, et porte sa propre
+ * sémantique de tableau sans le moindre rôle ARIA à redéclarer.
  */
 export function VolunteerActionsList({ athleteId }: { athleteId: number }) {
   const qc = useQueryClient();
@@ -156,7 +155,11 @@ export function VolunteerActionsList({ athleteId }: { athleteId: number }) {
         onOpenChange={(ouvert) => {
           if (!ouvert && !supprimer.isPending) setPourSuppression(null);
         }}
-        titre={pourSuppression ? `Supprimer « ${pourSuppression.title ?? REPLI} » ?` : ""}
+        titre={
+          pourSuppression
+            ? `Supprimer « ${pourSuppression.title ?? "cette déclaration sans titre"} » ?`
+            : ""
+        }
         description="La déclaration disparaît définitivement, y compris du quota de saison si elle était déjà validée."
         enAttente={supprimer.isPending}
         onConfirm={confirmerSuppression}
