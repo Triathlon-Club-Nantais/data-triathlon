@@ -668,4 +668,6 @@ export const apiClient = {
     request<AdminVolunteerActionOut>(`/admin/volunteer-actions/${id}/accept`, { method: "POST" }),
   rejectVolunteerAction: (id: number) =>
     request<AdminVolunteerActionOut>(`/admin/volunteer-actions/${id}/reject`, { method: "POST" }),
+  deleteVolunteerAction: (id: number) =>
+    request<null>(`/admin/volunteer-actions/${id}`, { method: "DELETE" }),
 };

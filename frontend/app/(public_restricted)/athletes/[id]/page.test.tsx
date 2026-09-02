@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Participation } from "@/lib/types";
 
 const getAthlete = vi.fn();
@@ -33,6 +34,7 @@ vi.mock("@/lib/queries/admin", () => ({
   useValidateSeason: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUnvalidateSeason: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useValidatedVolunteerActions: () => ({ data: undefined, isPending: false }),
+  useDeleteVolunteerAction: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteParticipation: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useReassignParticipation: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useAdminAthleteSearch: () => ({ data: undefined, isFetching: false }),
@@ -76,10 +78,19 @@ function part(over: Partial<Participation> & { id: number }): Participation {
   };
 }
 
+// `useQueryClient()` de `VolunteerActionsList` (#818) exige le contexte réel
+// même quand `@/lib/queries/admin` est mocké au-dessus — les deux sont
+// indépendants : mocker les hooks de requête ne fournit pas le contexte que
+// `useQueryClient()` lit directement.
+function renderPage(ui: Awaited<ReturnType<typeof AthletePage>>) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
+
 async function renderAthlete(participations: Participation[]) {
   getAthlete.mockResolvedValue({ athlete: ATHLETE, participations });
   const ui = await AthletePage({ params: Promise.resolve({ id: "7" }) });
-  return render(ui);
+  return renderPage(ui);
 }
 
 beforeEach(() => {
@@ -555,7 +566,7 @@ describe("AthletePage — l'en-tête identifie l'athlète (PROF-5, #488)", () =>
       athlete: { ...ATHLETE, club: "Triathlon Club Nantais" },
       participations: [part({ id: 1, rank_overall: 12, category: "V2H" })],
     });
-    render(await AthletePage({ params: Promise.resolve({ id: "7" }) }));
+    renderPage(await AthletePage({ params: Promise.resolve({ id: "7" }) }));
 
     expect(screen.getByText("Triathlon Club Nantais")).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "Jean DUPONT" })).toBeInTheDocument();
@@ -580,7 +591,7 @@ describe("AthletePage — l'en-tête identifie l'athlète (PROF-5, #488)", () =>
       athlete: { ...ATHLETE, club: null },
       participations: [part({ id: 1, rank_overall: 12 })],
     });
-    render(await AthletePage({ params: Promise.resolve({ id: "7" }) }));
+    renderPage(await AthletePage({ params: Promise.resolve({ id: "7" }) }));
 
     expect(screen.getByText("Résultats enregistrés")).toBeInTheDocument();
   });

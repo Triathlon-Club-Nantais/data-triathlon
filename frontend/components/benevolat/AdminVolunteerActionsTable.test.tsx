@@ -3,15 +3,21 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminVolunteerActionOut } from "@/lib/types";
+import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
+import { confirmerDansLeDialog } from "@/components/admin/__tests__/dangerConfirm";
 import { AdminVolunteerActionsTable } from "./AdminVolunteerActionsTable";
 
-const { listPendingVolunteerActions, acceptVolunteerAction, rejectVolunteerAction } = vi.hoisted(
-  () => ({
-    listPendingVolunteerActions: vi.fn(),
-    acceptVolunteerAction: vi.fn(),
-    rejectVolunteerAction: vi.fn(),
-  }),
-);
+const {
+  listPendingVolunteerActions,
+  acceptVolunteerAction,
+  rejectVolunteerAction,
+  deleteVolunteerAction,
+} = vi.hoisted(() => ({
+  listPendingVolunteerActions: vi.fn(),
+  acceptVolunteerAction: vi.fn(),
+  rejectVolunteerAction: vi.fn(),
+  deleteVolunteerAction: vi.fn(),
+}));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
@@ -22,6 +28,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       listPendingVolunteerActions,
       acceptVolunteerAction,
       rejectVolunteerAction,
+      deleteVolunteerAction,
     },
   };
 });
@@ -62,7 +69,9 @@ function afficher() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <AdminVolunteerActionsTable />
+      <DangerConfirmProvider>
+        <AdminVolunteerActionsTable />
+      </DangerConfirmProvider>
     </QueryClientProvider>,
   );
 }
@@ -141,5 +150,55 @@ describe("AdminVolunteerActionsTable", () => {
 
     await waitFor(() => expect(rejectVolunteerAction).toHaveBeenCalledWith(1));
     await waitFor(() => expect(screen.queryByText("Ravitaillement")).not.toBeInTheDocument());
+  });
+
+  it("supprimer demande une confirmation avant d'agir", async () => {
+    listPendingVolunteerActions.mockResolvedValue([EN_ATTENTE]);
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /supprimer/i }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(deleteVolunteerAction).not.toHaveBeenCalled();
+  });
+
+  it("annuler la confirmation laisse la ligne intacte", async () => {
+    listPendingVolunteerActions.mockResolvedValue([EN_ATTENTE]);
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /supprimer/i }));
+    await confirmerDansLeDialog("Renoncer");
+
+    expect(deleteVolunteerAction).not.toHaveBeenCalled();
+    expect(screen.getByText("Ravitaillement")).toBeInTheDocument();
+  });
+
+  it("confirmer supprime la déclaration et retire la ligne", async () => {
+    listPendingVolunteerActions.mockResolvedValueOnce([EN_ATTENTE]).mockResolvedValueOnce([]);
+    deleteVolunteerAction.mockResolvedValue(null);
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /supprimer/i }));
+    await confirmerDansLeDialog("Supprimer définitivement");
+
+    await waitFor(() => expect(deleteVolunteerAction).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(screen.queryByText("Ravitaillement")).not.toBeInTheDocument());
+  });
+
+  it("désactive Accepter et Refuser pendant qu'une suppression est en cours", async () => {
+    listPendingVolunteerActions.mockResolvedValue([EN_ATTENTE]);
+    let resoudre: (v: null) => void = () => {};
+    deleteVolunteerAction.mockReturnValue(new Promise((r) => (resoudre = r)));
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /supprimer/i }));
+    await confirmerDansLeDialog("Supprimer définitivement");
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /accepter/i })).toBeDisabled(),
+    );
+    expect(screen.getByRole("button", { name: /refuser/i })).toBeDisabled();
+
+    resoudre(null);
   });
 });

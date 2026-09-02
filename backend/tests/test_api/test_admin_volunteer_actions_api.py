@@ -220,3 +220,54 @@ def test_lister_les_validees_sans_le_pouvoir_rend_403(client, db_session):
         client.get(f"/api/v1/admin/athletes/{athlete.id}/volunteer-actions/validated").status_code
         == 403
     )
+
+
+# --- Supprimer (#818) ----------------------------------------------------------
+
+
+def test_supprimer_rend_204_et_retire_la_ligne(client, db_session):
+    _, action = _declaration(db_session)
+
+    reponse = client.delete(f"{_URL}/{action.id}")
+
+    assert reponse.status_code == 204
+    assert volunteer_action_repository.get(db_session, action.id) is None
+
+
+def test_supprimer_une_ligne_validee(client, db_session):
+    athlete, action = _declaration(db_session, status="validee")
+
+    reponse = client.delete(f"{_URL}/{action.id}")
+
+    assert reponse.status_code == 204
+    quota = client.get(f"/api/v1/admin/athletes/{athlete.id}/season-quota", params={"season": 2025})
+    assert quota.json()["has_volunteer_action"] is False
+
+
+def test_supprimer_un_id_inconnu_rend_404(client):
+    assert client.delete(f"{_URL}/999999").status_code == 404
+
+
+def test_supprimer_deux_fois_la_meme_ligne_rend_404_la_seconde_fois(client, db_session):
+    """#818 FR-008 — double suppression, écran non rafraîchi."""
+    _, action = _declaration(db_session)
+
+    premiere = client.delete(f"{_URL}/{action.id}")
+    seconde = client.delete(f"{_URL}/{action.id}")
+
+    assert premiere.status_code == 204
+    assert seconde.status_code == 404
+
+
+def test_supprimer_sans_session_rend_401(client, db_session):
+    _, action = _declaration(db_session)
+    client.cookies.clear()
+
+    assert client.delete(f"{_URL}/{action.id}").status_code == 401
+
+
+def test_supprimer_sans_le_pouvoir_rend_403(client, db_session):
+    _, action = _declaration(db_session)
+    _session_etroite(client, db_session)
+
+    assert client.delete(f"{_URL}/{action.id}").status_code == 403

@@ -956,3 +956,15 @@ export function useRejectVolunteerAction() {
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.pendingVolunteerActions() }),
   });
 }
+
+/**
+ * Suppression d'une déclaration (#818), commune aux deux écrans où elle
+ * s'affiche (file d'attente, fiche athlète) — chacun invalide une query key
+ * différente, donc pas d'`onSuccess` fixé ici : l'appelant le passe à
+ * `mutateAsync(id, { onSuccess })`.
+ */
+export function useDeleteVolunteerAction() {
+  return useMutation({
+    mutationFn: (id: number) => apiClient.deleteVolunteerAction(id),
+  });
+}
