@@ -143,11 +143,14 @@ def test_season_activity_saison_sans_activite_rend_une_liste_vide(client, db_ses
     assert resp.json() == []
 
 
-def test_season_activity_accessible_sans_authentification(client, db_session):
-    """FR-006 — pas de cookie de session : `client` n'en pose jamais."""
+def test_season_activity_refuse_l_anonyme(client, db_session):
+    """#811 — la route exige désormais `pages:preview` ; retrait explicite du
+    cookie superutilisateur que `session_de_saisie` (autouse) pose sinon."""
+    client.cookies.clear()
+
     resp = client.get("/api/v1/athletes/season-activity")
 
-    assert resp.status_code == 200
+    assert resp.status_code == 401
 
 
 def test_season_activity_season_validated_null_par_defaut(client, db_session):

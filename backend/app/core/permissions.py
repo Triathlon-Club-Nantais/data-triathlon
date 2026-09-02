@@ -39,6 +39,11 @@ FEATURE_ADMIN_LOG = "Journal d'administration"
 #: Distincte des Épreuves — corriger une épreuve rectifie une ligne, changer
 #: cette configuration redéfinit ce que tous les compteurs additionnent.
 FEATURE_COUNTER_SCOPE = "Portée des compteurs"
+#: Écrans publics retirés du grand public — livrés mais restreints
+#: (`athletes-saison`) ou pas encore jugés prêts (`carte`, #811). Distincte des
+#: autres fonctionnalités : ce pouvoir ne gouverne aucune ressource
+#: d'administration, seulement la visibilité de pages publiques.
+FEATURE_PAGES_PREVIEW = "Pages en avant-première"
 #: Fusion des variantes de libellé, généralisée à tout club (#635) —
 #: distincte de la portée des compteurs, réservée au TCN.
 FEATURE_CLUB_ALIASES = "Variantes de club"
@@ -301,6 +306,14 @@ class P:
         "données — qui, quoi, quand.",
         FEATURE_ADMIN_LOG,
     )
+    PAGES_PREVIEW = Permission(
+        "pages:preview",
+        "Voir les pages en avant-première",
+        "Rend visibles, dans le rail de navigation, la liste des athlètes par "
+        "saison et les pages encore marquées « bientôt » — la carte "
+        "notamment — avant leur ouverture au grand public.",
+        FEATURE_PAGES_PREVIEW,
+    )
     # Distinct de FEEDBACK_READ/_MANAGE : même patron (consultation vs geste),
     # mais une ressource sans rapport (#751). Distinct aussi de
     # ATHLETES_VOLUNTEER_VALIDATE, scopé au quota de saison — cette
@@ -357,6 +370,7 @@ ALL: tuple[Permission, ...] = (
     P.COUNTER_SCOPE_MANAGE,
     P.CLUB_ALIASES_MANAGE,
     P.ADMIN_LOG_READ,
+    P.PAGES_PREVIEW,
     P.BENEVOLAT_READ,
     P.BENEVOLAT_MANAGE,
 )

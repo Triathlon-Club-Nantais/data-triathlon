@@ -35,6 +35,36 @@ describe("nav.config — Club (#487)", () => {
   });
 });
 
+describe("nav.config — pages en avant-première (#811)", () => {
+  const ATHLETES_SAISON = NAV.flatMap((s) => s.items).find((i) => i.id === "athletes-saison")!;
+  const CARTE = NAV.flatMap((s) => s.items).find((i) => i.id === "carte")!;
+
+  it("masque « Athlètes par saison » sans le pouvoir pages:preview", () => {
+    expect(estVisible(ATHLETES_SAISON, new Set(), ROLE.ANON)).toBe(false);
+    expect(estVisible(ATHLETES_SAISON, new Set(), ROLE.CONNECTED)).toBe(false);
+  });
+
+  it("montre « Athlètes par saison » avec le pouvoir pages:preview", () => {
+    expect(estVisible(ATHLETES_SAISON, new Set(["pages:preview"]), ROLE.CONNECTED)).toBe(true);
+  });
+
+  it("garde « Carte » masquée par défaut malgré son href", () => {
+    expect(CARTE.href).toBe("/carte");
+    expect(estVisible(CARTE, new Set(), ROLE.ANON)).toBe(false);
+  });
+
+  it("montre « Carte » à qui détient pages:preview", () => {
+    expect(estVisible(CARTE, new Set(["pages:preview"]), ROLE.CONNECTED)).toBe(true);
+  });
+
+  it("garde une entrée `soon` sans permission nommée invisible même pourvu(e)", () => {
+    // `stats` reste `soon` sans `permission` : aucun pouvoir ne doit pouvoir la
+    // débloquer par accident (elle n'a de toute façon pas de `href`).
+    const STATS = NAV.flatMap((s) => s.items).find((i) => i.id === "stats")!;
+    expect(estVisible(STATS, new Set(["pages:preview"]), ROLE.CONNECTED)).toBe(false);
+  });
+});
+
 describe("permission en OU", () => {
   const MAINTENANCE = NAV.flatMap((s) => s.items).find((i) => i.id === "a-maintenance")!;
 

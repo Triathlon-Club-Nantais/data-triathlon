@@ -613,7 +613,7 @@ describe("AppNav — arborescence", () => {
     expect(within(rail).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats");
 
     // Une entrée `soon` reste déclarée dans `nav.config.ts` — feuille de route
-    // de la navigation — mais n'est plus rendue nulle part.
+    // de la navigation — et reste masquée à l'anonyme sans `pages:preview` (#811).
     expect(screen.queryByText("Carte")).not.toBeInTheDocument();
     expect(screen.queryByText("À VENIR")).not.toBeInTheDocument();
   });
@@ -635,13 +635,17 @@ describe("AppNav — arborescence", () => {
   });
 
   it("relie les deux écrans club depuis le rail (#487)", async () => {
-    afficher(null);
+    // `pages:preview` (#811) : sans lui, « Athlètes par saison » resterait masquée.
+    afficher(habilite("pages:preview"));
     // Scopé au rail : la barre basse mobile porte les mêmes libellés.
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
 
     // Deux destinations livrées : le bouton dépliant reprend sa place.
-    expect(within(rail).getByRole("button", { name: "Club" })).toBeInTheDocument();
-    expect(screen.queryByLabelText("Carte")).not.toBeInTheDocument();
+    // (« Carte » est elle aussi visible avec `pages:preview` — couvert par
+    // `nav.config.test.ts`, hors du périmètre de ce test-ci.)
+    await waitFor(() =>
+      expect(within(rail).getByRole("button", { name: "Club" })).toBeInTheDocument(),
+    );
 
     // Rail déplié, les destinations d'une section sont rendues à plat.
     await deplier();
@@ -1143,16 +1147,19 @@ describe("AppNav — infobulles du rail replié remplacent les title (#482, NAV-
 });
 
 describe("AppNav — barre basse mobile (#482, NAV-4)", () => {
-  it("porte les destinations publiques, avec libellé visible", () => {
-    afficher(null);
+  it("porte les destinations publiques, avec libellé visible", async () => {
+    // `pages:preview` (#811) : sans lui, « Athlètes par saison » resterait masquée.
+    afficher(habilite("pages:preview"));
 
     const barre = screen.getByRole("navigation", { name: "Navigation" });
     expect(within(barre).getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("href", "/dashboard");
     expect(within(barre).getByRole("link", { name: "Espace club" })).toHaveAttribute("href", "/club");
     expect(within(barre).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats");
-    expect(within(barre).getByRole("link", { name: "Athlètes par saison" })).toHaveAttribute(
-      "href",
-      "/club/athletes",
+    await waitFor(() =>
+      expect(within(barre).getByRole("link", { name: "Athlètes par saison" })).toHaveAttribute(
+        "href",
+        "/club/athletes",
+      ),
     );
   });
 
@@ -1160,11 +1167,13 @@ describe("AppNav — barre basse mobile (#482, NAV-4)", () => {
   // soit ~93 px sur un écran de 375 px. « Athlètes par saison » n'y tient
   // plus. Le libellé **visible** raccourcit ; le nom accessible reste entier,
   // sans quoi le lecteur d'écran annoncerait « Athlètes » pour deux écrans.
-  it("raccourcit le libellé visible sans toucher au nom accessible", () => {
-    afficher(null);
+  it("raccourcit le libellé visible sans toucher au nom accessible", async () => {
+    afficher(habilite("pages:preview"));
 
     const barre = screen.getByRole("navigation", { name: "Navigation" });
-    const lien = within(barre).getByRole("link", { name: "Athlètes par saison" });
+    const lien = await waitFor(() =>
+      within(barre).getByRole("link", { name: "Athlètes par saison" }),
+    );
     expect(lien).toHaveTextContent("Athlètes");
     expect(lien).not.toHaveTextContent("par saison");
 

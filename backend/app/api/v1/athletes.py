@@ -2,10 +2,13 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.api.deps import require_permission
 from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
+from app.core.permissions import P
 from app.core.season import parse_seasons
+from app.models.user import User
 from app.repositories import (
     athlete_repository,
     participation_repository,
@@ -38,6 +41,7 @@ def list_athletes_season_activity(
     seasons: str | None = Query(None),
     federal_only: bool = Query(False, description="Retire trail, course à pied et cyclisme."),
     db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.PAGES_PREVIEW)),
 ):
     """Athlètes ayant ≥1 participation sur `seasons`, avec leurs compteurs (#274, #382, #709)."""
     saisons = parse_seasons(seasons)
