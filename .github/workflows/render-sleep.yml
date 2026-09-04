@@ -205,6 +205,27 @@ jobs:
             fi
           fi
 
-          render_api -X POST "https://api.render.com/v1/services/$service_id/$ACTION"
+          # Le filet du lever de 4 h part toujours, y compris sur un service
+          # déjà éveillé (commentaire ci-dessus) — et Render n'y voit pas un
+          # no-op : il répond 400 « only services suspended by a user can be
+          # resumed », que `--fail-with-body` fait remonter en échec (#829).
+          # Symétrique à l'abstention de `suspend` ci-dessus, mais après coup :
+          # l'état ne peut être lu qu'une fois l'appel tenté, pas avant.
+          if [ "$ACTION" = resume ]; then
+            set +e
+            body=$(render_api -X POST "https://api.render.com/v1/services/$service_id/$ACTION")
+            status=$?
+            set -e
+            if [ "$status" -ne 0 ]; then
+              if [ "$(jq -r '.message // empty' <<<"$body" 2>/dev/null)" = "only services suspended by a user can be resumed" ]; then
+                echo "Service ${{ matrix.environment }} déjà éveillé — rien à faire."
+                exit 0
+              fi
+              echo "$body" >&2
+              exit "$status"
+            fi
+          else
+            render_api -X POST "https://api.render.com/v1/services/$service_id/$ACTION"
+          fi
           echo
           echo "$ACTION appliqué au service ${{ matrix.environment }}"
