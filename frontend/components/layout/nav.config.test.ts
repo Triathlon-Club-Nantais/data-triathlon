@@ -65,6 +65,22 @@ describe("nav.config — pages en avant-première (#811)", () => {
   });
 });
 
+describe("nav.config — Bénévolat et Bénévoles (#830, #832)", () => {
+  it("annonce « Bénévolat » vers /benevolat, visible sans pouvoir", () => {
+    const item = NAV.flatMap((s) => s.items).find((i) => i.id === "benevolat");
+    expect(item).toBeDefined();
+    expect(item?.href).toBe("/benevolat");
+    expect(estVisible(item!, new Set(), ROLE.ANON)).toBe(true);
+  });
+
+  it("annonce « Bénévoles » vers /benevoles, visible sans pouvoir", () => {
+    const item = NAV.flatMap((s) => s.items).find((i) => i.id === "benevoles");
+    expect(item).toBeDefined();
+    expect(item?.href).toBe("/benevoles");
+    expect(estVisible(item!, new Set(), ROLE.ANON)).toBe(true);
+  });
+});
+
 describe("permission en OU", () => {
   const MAINTENANCE = NAV.flatMap((s) => s.items).find((i) => i.id === "a-maintenance")!;
 

@@ -846,8 +846,15 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
       screen.getByRole("link", { name: "Revalidation qualité" }),
     ).toHaveAttribute("href", "/admin/quality");
 
-    // « Bénévolat », elle, reste `soon` : toujours pas de lien à afficher.
-    expect(screen.queryByText("Bénévolat")).not.toBeInTheDocument();
+    // « Bénévolat » (`a-benevolat-validation`, admin) reste hors des pouvoirs
+    // accordés ici : pas de lien vers `/admin/benevolat`. Assertion scopée au
+    // rail : la section « Club » porte depuis #830 sa propre entrée publique
+    // de même libellé, vers `/benevolat`, qui elle est toujours affichée.
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    expect(within(rail).getByRole("link", { name: "Bénévolat" })).toHaveAttribute(
+      "href",
+      "/benevolat",
+    );
   });
 });
 
