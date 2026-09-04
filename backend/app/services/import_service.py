@@ -1131,7 +1131,9 @@ def import_event(
     conditionnel. `passive_sources` reste hors du schéma public `ImportResult`,
     même parti pris que `reconciled` : le front consomme le SSE.
 
-    force=True saute le cache TTL (`_cached_result`) → le scraping a toujours lieu.
+    force=True saute le cache TTL (`_cached_result`) **et** `cache_probe` (#810) :
+    le fan-out (Klikego, Wiclax, RaceResult…) sauterait sinon en silence tout
+    heat scrapé il y a moins de 30 j, malgré le rescrape explicitement demandé.
     persist=False traverse tout le chemin de persistance (scrape, add, finalize)
     puis annule la transaction (dry-run) : rien n'est écrit.
     """
@@ -1142,7 +1144,9 @@ def import_event(
         if cached is not None:
             return {**cached, **_fanout_counters(None)}
 
-    results, trace = _scrape_all(url, db, settings, single_heat=single_heat)
+    results, trace = _scrape_all(
+        url, db, settings, single_heat=single_heat, use_cache_probe=not force,
+    )
     if not results:
         return {
             "imported": 0, "updated": 0, "skipped": 0, "reconciled": 0,
@@ -1215,13 +1219,12 @@ def iter_import_event(
     consommateur SSE / batch n'ait aucun champ conditionnel à gérer. `courses`
     reste **vide** si aucun résultat n'a été scrapé (aucune `Course` touchée).
 
-    force=True saute le cache TTL (`_cached_result`).
+    force=True saute le cache TTL (`_cached_result`) **et** `cache_probe` (#810) :
+    `rescrape-db` (`batch.run_batch` → ce générateur) attend d'un rescrape forcé
+    qu'il retraite vraiment un heat fan-out scrapé il y a moins de 30 j, pas
+    qu'il le saute en silence.
     persist=False traverse tout le chemin de persistance (scrape, add, finalize)
     puis annule la transaction (dry-run) : rien n'est écrit.
-
-    Pas de `use_cache_probe` ici : #118 (re-scrape admin) appelle
-    `_scrape_all_streaming` **directement**, pas ce générateur — l'ajouter ici
-    aurait été un paramètre sans appelant (revue de code, retiré).
     """
     try:
         url = _validate_url(url)
@@ -1246,7 +1249,7 @@ def iter_import_event(
         # directement et laissait donc le flux **muet** pendant tout le scrape,
         # y compris sur un heat Klikego de 250 finishers (revue finale #698).
         results, trace = yield from _scrape_all_streaming(
-            url, db, settings, single_heat=single_heat,
+            url, db, settings, single_heat=single_heat, use_cache_probe=not force,
         )
     except (ProviderNotSupportedError, ScraperError) as exc:
         yield {"phase": "error", "message": exc.message}

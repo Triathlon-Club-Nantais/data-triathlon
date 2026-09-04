@@ -426,6 +426,69 @@ def test_iter_import_event_force_bypasse_le_cache_ttl(db_session, patch_scraper)
     assert len(participation_repository.list_participations(db_session, page_size=100)) == 2
 
 
+def _patch_fanout_cache_probe_capture(monkeypatch):
+    """Route un provider fan-out vers `registry_scrape_event_all` et capture le
+    `cache_probe` qui lui est effectivement passé."""
+    from app.scrapers import registry
+
+    provider = registry.KlikegoProvider()
+    provider.last_trace = FanoutTrace(heats_enumerated=1)
+    monkeypatch.setattr(import_service.registry, "get_provider", lambda url: provider)
+
+    captured = {}
+
+    def fake_scrape(url, *, cache_probe=None, on_heat_start=None, **kwargs):
+        captured["cache_probe"] = cache_probe
+        return [_result("1", "DUPONT")]
+
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
+    return captured
+
+
+def test_import_event_force_desarme_le_cache_probe_fan_out(db_session, monkeypatch):
+    """#810 — `force=True` doit aussi désarmer `cache_probe` (cache **par heat**),
+    pas seulement le cache TTL global (`_cached_result`).
+
+    Sans ça, `rescrape-db --url` sur une épreuve fan-out (Klikego, Wiclax,
+    RaceResult…) scrapée il y a moins de 30 j saute silencieusement tous ses
+    heats jugés frais : `updated: 0` alors qu'un rescrape a été explicitement
+    demandé.
+    """
+    captured = _patch_fanout_cache_probe_capture(monkeypatch)
+
+    import_service.import_event(db_session, URL, _settings(), force=True)
+
+    assert captured["cache_probe"] is None
+
+
+def test_import_event_sans_force_garde_le_cache_probe_fan_out(db_session, monkeypatch):
+    """Contrôle négatif : sans `force`, `cache_probe` doit rester actif."""
+    captured = _patch_fanout_cache_probe_capture(monkeypatch)
+
+    import_service.import_event(db_session, URL, _settings())
+
+    assert captured["cache_probe"] is not None
+
+
+def test_iter_import_event_force_desarme_le_cache_probe_fan_out(db_session, monkeypatch):
+    """Même garde que ci-dessus, sur le générateur — le chemin réellement
+    consommé par `rescrape-db` (`batch.run_batch` → `iter_import_event`)."""
+    captured = _patch_fanout_cache_probe_capture(monkeypatch)
+
+    list(import_service.iter_import_event(db_session, URL, _settings(), force=True))
+
+    assert captured["cache_probe"] is None
+
+
+def test_iter_import_event_sans_force_garde_le_cache_probe_fan_out(db_session, monkeypatch):
+    """Contrôle négatif : sans `force`, `cache_probe` doit rester actif."""
+    captured = _patch_fanout_cache_probe_capture(monkeypatch)
+
+    list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    assert captured["cache_probe"] is not None
+
+
 # ── Garde-fou : une épreuve sans nom n'est jamais persistée ──────────────────
 
 
