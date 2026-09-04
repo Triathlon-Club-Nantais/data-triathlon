@@ -149,23 +149,35 @@ describe("/club/athletes", () => {
   });
 
   // #811 — la garde côté écran, jumelle de celle posée sur l'API.
-  describe("garde pages:preview (#811)", () => {
-    it("redirige vers /club pour un anonyme", async () => {
+  // #831 — un message explicite en place, plus jamais un renvoi silencieux.
+  describe("garde pages:preview (#811, #831)", () => {
+    it("affiche un message explicite pour un anonyme, sans rediriger", async () => {
       getSession.mockResolvedValue(null);
 
-      await expect(renderPage()).rejects.toThrow("NEXT_REDIRECT");
+      await renderPage();
 
-      expect(redirect).toHaveBeenCalledWith("/club");
+      expect(redirect).not.toHaveBeenCalled();
       expect(listAthleteSeasonActivity).not.toHaveBeenCalled();
+      expect(screen.getByText(/Vous n'avez pas la permission nécessaire/)).toBeInTheDocument();
+      expect(screen.getByText(/Voir les pages en avant-première/)).toBeInTheDocument();
     });
 
-    it("redirige vers /club pour un connecté sans le pouvoir", async () => {
+    it("affiche un message explicite pour un connecté sans le pouvoir, sans rediriger", async () => {
       getSession.mockResolvedValue({ ...SESSION_AVEC_POUVOIR, permissions: [] });
 
-      await expect(renderPage()).rejects.toThrow("NEXT_REDIRECT");
+      await renderPage();
 
-      expect(redirect).toHaveBeenCalledWith("/club");
+      expect(redirect).not.toHaveBeenCalled();
       expect(listAthleteSeasonActivity).not.toHaveBeenCalled();
+      expect(screen.getByText(/Vous n'avez pas la permission nécessaire/)).toBeInTheDocument();
+    });
+
+    it("garde le lien de retour vers /club sur l'écran de refus", async () => {
+      getSession.mockResolvedValue({ ...SESSION_AVEC_POUVOIR, permissions: [] });
+
+      await renderPage();
+
+      expect(screen.getByRole("link", { name: /Espace club/ })).toHaveAttribute("href", "/club");
     });
 
     it("rend la page pour qui détient pages:preview", async () => {
