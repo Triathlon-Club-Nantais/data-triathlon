@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { Briefcase, Gauge, LayoutGrid, List, Map, UserCog, Users } from "lucide-react";
+import { Briefcase, Gauge, HeartHandshake, LayoutGrid, List, Map, UserCheck, UserCog, Users } from "lucide-react";
 
 /**
  * Table de configuration **unique** de la navigation (proto « Navigation TCN »).
@@ -125,6 +125,16 @@ export const NAV: NavSection[] = [
         icon: Users,
         permission: "pages:preview",
       },
+      // Formulaire de crédit bénévole (#815/#823), sous le mot de passe du
+      // site comme le reste du groupe `(public_restricted)` — pas de
+      // `permission` : aucune garde au-delà de ce mot de passe (#830).
+      { id: "benevolat", label: "Bénévolat", href: "/benevolat", icon: HeartHandshake },
+      // `/benevoles` reste hors du groupe `(public_restricted)` et garde sa
+      // propre porte (`AccessGate`, #271) : un bénévole n'a jamais le mot de
+      // passe du site, donc pas de `permission` ici non plus — l'entrée ne
+      // sert qu'à faire trouver la connexion, jusque-là atteignable en URL
+      // directe seulement (#832).
+      { id: "benevoles", label: "Bénévoles", href: "/benevoles", icon: UserCheck },
     ],
   },
   {
