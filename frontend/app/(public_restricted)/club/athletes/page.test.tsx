@@ -158,6 +158,7 @@ describe("/club/athletes", () => {
 
       expect(redirect).not.toHaveBeenCalled();
       expect(listAthleteSeasonActivity).not.toHaveBeenCalled();
+      expect(listSeasons).not.toHaveBeenCalled();
       expect(screen.getByText(/Vous n'avez pas la permission nécessaire/)).toBeInTheDocument();
       expect(screen.getByText(/Voir les pages en avant-première/)).toBeInTheDocument();
     });
@@ -169,6 +170,7 @@ describe("/club/athletes", () => {
 
       expect(redirect).not.toHaveBeenCalled();
       expect(listAthleteSeasonActivity).not.toHaveBeenCalled();
+      expect(listSeasons).not.toHaveBeenCalled();
       expect(screen.getByText(/Vous n'avez pas la permission nécessaire/)).toBeInTheDocument();
     });
 
