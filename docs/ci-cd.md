@@ -33,7 +33,7 @@ Toute PR déclenche la CI seule (aucun déploiement).
   lance `deploy-preview` (sur `main`) ou `deploy-production` (sur tag `v*`).
 - **`.github/workflows/render-sleep.yml`** — suspend et reprend les deux
   services Render pour tenir les 750 h/mois du plan free (#528, décision #530).
-  `schedule` à l'heure pile pour coucher la preview (#560), plus deux crons
+  `schedule` à chaque heure pour coucher la preview (#560), plus deux crons
   nocturnes pour la production, plus un `workflow_dispatch` de secours. Voir
   « Veille des services Render » plus bas.
 - **`.github/workflows/pages.yml`** — publie ce site de documentation
@@ -686,8 +686,8 @@ au niveau dépôt).
 
 | Service | Coucher | Lever |
 |---|---|---|
-| **production** | cron `0 23 * * *` | cron `0 4 * * *` |
-| **preview** | cron `0 * * * *` — **à chaque heure pile** (#560) | **jamais par cron** — `deploy.yml` la reprend avant son deploy hook |
+| **production** | cron `15 23 * * *` | cron `15 4 * * *` |
+| **preview** | cron `15 * * * *` — **à chaque heure** (#560) | **jamais par cron** — `deploy.yml` la reprend avant son deploy hook |
 
 La preview ne se rallume que pour servir la vérification post-déploiement, puis
 se recouche à l'heure pile suivante. C'est là qu'est le gros du quota : la
@@ -729,6 +729,15 @@ Paris à la minute demanderait deux jeux de crons et une bascule saisonnière à
 entretenir, pour une fenêtre qui reste nocturne dans les deux cas. Un cron
 d'Actions peut aussi être retardé ou sauté quand la plateforme est chargée : sur
 le cron horaire, une occurrence manquée ne coûte qu'une heure d'instance de plus.
+
+**Minute 15, pas minute pile** (#842). GitHub documente que les workflows
+planifiés à l'heure pile (minute 0) tombent dans le créneau de plus forte
+charge de la plateforme et recommande de décaler la minute pour limiter le
+retard. Constaté sur l'historique réel des runs : les crons de 23 h et 4 h
+démarraient avec 1 h 40 à plus de 4 h de retard, systématiquement — bien
+au-delà de l'écart DST ci-dessus. Les trois crons du workflow sont passés à la
+minute 15, en restant à la même minute entre eux pour préserver le croisement
+intentionnel décrit ci-dessus (#560).
 
 **La procédure de vérification ci-dessous n'est pas touchée** : le `resume`
 précède le deploy hook dans `deploy.yml`, sur les deux environnements. C'est
