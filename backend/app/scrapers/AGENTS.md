@@ -69,7 +69,7 @@ fournisseur — à lire **avant** de toucher au module correspondant.
 
 | Fournisseur | En bref | Détail |
 | --- | --- | --- |
-| Klikego, Breizh Chrono | même back-office : Breizh Chrono **réutilise** `klikego._parse_detail` — factoriser dans `klikego.py`, ne jamais dupliquer. Deux façades (`resultats.`, `live.`), et splits fins sur la page détail, donc **seuls les membres du TCN** sont chargés. | `docs/scrapers/breizhchrono.md` (Breizh Chrono) |
+| Klikego, Breizh Chrono | même back-office : Breizh Chrono **réutilise** `klikego._parse_detail` — factoriser dans `klikego.py`, ne jamais dupliquer. Deux façades (`resultats.`, `live.`), et splits fins sur la page détail, requêtée pour **tous** les participants chez Klikego (phase C parallélisée, #583) ; Breizh Chrono, lui, n'a pas cette parallélisation et continue de réserver sa page détail aux seuls membres du TCN. | `docs/scrapers/breizhchrono.md` (Breizh Chrono) |
 | TimePulse, Sportinnovation | rien au-delà des conventions ci-dessus. | — |
 | ProLiveSport | API JSON publique, mais `result/indiv/{event}/{race}/` **ignore son filtre** sur une partie des événements et rend l'événement entier : le regroupement par course se fait **toujours** côté client, sur le champ `race` de chaque ligne. | `docs/scrapers/prolivesport.md` |
 | Chronoplace | Laravel + Livewire, lu en `GET ?perPage=all` — pas de POST Livewire — et importe **toutes** les épreuves de l'événement pointé par l'URL. | — |
