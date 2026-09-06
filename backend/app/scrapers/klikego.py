@@ -401,8 +401,8 @@ def _scrape_single_heat(
 
     Phase A' — HTML de la page heat (options inter).
     Phase B — liste complète + splits inter pour tous (moteur partagé).
-    Phase C — splits fins via page détail, réservée aux membres du TCN (#699),
-    priment sur les splits grossiers de la phase B.
+    Phase C — splits fins via page détail pour tous les participants, priment
+    sur les splits grossiers de la phase B.
 
     `heat_label` (libellé publié, ex. « Triathlon Pupilles (10-11 ans) ») suffixe
     `event_name` via `klikego_platform.course_name` — la même fonction que Breizh
@@ -438,28 +438,28 @@ def _scrape_single_heat(
     )
     for r in results:
         r.event_name = plat.course_name(r.event_name, heat_label)
-    bib_to_result = {r.bib_number: r for r in results}
 
-    # Phase C — splits fins via la page détail, réservée aux membres du TCN
-    # (#699) : sans ce filtre, un événement multi-heats déclenche une requête
-    # de détail par participant de tous clubs, jusqu'à un millier sur un gros
-    # événement multi-courses — même patron que Breizh Chrono
-    # (`breizhchrono._fetch_tcn_fine_splits`). Les autres participants gardent
-    # les splits grossiers de la phase B.
+    # Phase C — splits fins via la page détail pour TOUS les participants.
     # La page détail (natation/T1/vélo/T2/course) est la source fine ; elle
     # prime sur les splits inter grossiers de la phase B quand elle en fournit.
     # Parallélisée (#583) : 94 % des requêtes d'un import Klikego étaient une
     # requête séquentielle par participant, jusqu'à ~4 min sur 250 inscrits.
     # Chaque `r` n'est touché que par le worker de son propre bib — aucun état
     # partagé entre tâches, donc aucun verrou requis au-delà du client HTTP.
-    from app.core.club import is_tcn
-    tcn_bib_to_result = {bib: r for bib, r in bib_to_result.items() if is_tcn(r.club)}
-    total = len(tcn_bib_to_result)
+    #
+    # #699 avait restreint cette phase aux seuls membres du TCN (`is_tcn`) pour
+    # borner le volume de requêtes sur un événement multi-heats. #841 revient
+    # dessus : la parallélisation ci-dessus, posée deux jours plus tôt par
+    # #583, tenait déjà cette promesse sans qu'il soit nécessaire de sacrifier
+    # les splits des non-adhérents — l'événement le plus gros connu (Mesquer,
+    # 8 heats × 250 inscrits) reste largement dans un budget de requêtes
+    # raisonnable une fois parallélisé à `_DETAIL_MAX_WORKERS`.
+    total = len(results)
     done = 0
     with ThreadPoolExecutor(max_workers=_DETAIL_MAX_WORKERS) as pool:
         futures = {
-            pool.submit(_fetch_and_apply_detail, event_id, heat, bib, r): bib
-            for bib, r in tcn_bib_to_result.items()
+            pool.submit(_fetch_and_apply_detail, event_id, heat, r.bib_number, r): r.bib_number
+            for r in results
         }
         for future in as_completed(futures):
             future.result()
