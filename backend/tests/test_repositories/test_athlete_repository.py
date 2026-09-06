@@ -527,6 +527,34 @@ def test_count_all_compte_toute_la_base(db_session):
     assert athlete_repository.count_all(db_session) == 2
 
 
+def test_saison_dns_valide_ne_compte_pas_dans_validees_ni_affiliees_club(db_session):
+    """#845 — un DNS validé par un bénévole ne doit pas compter comme
+    participation active, ni dans `validated_count` ni dans
+    `club_affiliated_count` (même règle que `season_quota`, cf. `admin_actions.py`)."""
+    from app.repositories import participation_repository
+
+    course = _epreuve_datee(db_session, "Avec DNS", date(2025, 9, 15))
+    athlete = athlete_repository.get_or_create(db_session, nom="ABSENT", prenom="A", club="TCN")
+    db_session.flush()
+    participation_repository.create(
+        db_session,
+        athlete_id=athlete.id,
+        course_id=course.id,
+        bib_number="1",
+        club="TCN",
+        status="DNS",
+    )
+    db_session.flush()
+
+    resultats = athlete_repository.list_with_season_participation_count(
+        db_session, seasons=[2025], club_only=False
+    )
+
+    assert len(resultats) == 1
+    _, total, validees, affiliees_club = resultats[0]
+    assert (total, validees, affiliees_club) == (1, 0, 0)
+
+
 def test_saison_federal_only_retire_les_disciplines_hors_federation(db_session):
     """#382 — même défaut neutre (`federal_only=False`) et même liste d'exclusion que #76."""
     from app.repositories import course_repository
