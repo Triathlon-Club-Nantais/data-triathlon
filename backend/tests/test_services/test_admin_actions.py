@@ -31,12 +31,12 @@ def auteur(db_session):
     return user
 
 
-def _epreuve(db_session, nom="Triathlon de Nantes", event_date=date(2026, 5, 17)):
+def _epreuve(db_session, nom="Triathlon de Nantes", event_date=date(2026, 5, 17), event_type="triathlon-m"):
     course = course_repository.get_or_create(
         db_session,
         name=nom,
         event_date=event_date,
-        event_type="triathlon-m",
+        event_type=event_type,
         source_url=f"https://k/{nom}",
         provider="klikego",
     )
@@ -2040,3 +2040,26 @@ def test_season_quota_sur_athlete_sans_activite(db_session, auteur):
         "has_volunteer_action": False,
         "season_validated": False,
     }
+
+
+def test_season_quota_exclut_les_dns_et_les_courses_non_federales(db_session, auteur):
+    """#845 — un DNS ou une discipline hors FFTRI ne doit pas compter dans les 3."""
+    athlete = _coureur(db_session, "DNS")
+    _inscrit(db_session, athlete, _epreuve(db_session, "Terminée", date(2025, 9, 1)), "1")
+    participation_repository.create(
+        db_session,
+        athlete_id=athlete.id,
+        course_id=_epreuve(db_session, "Non-partant", date(2025, 9, 2)).id,
+        bib_number="2",
+        status="DNS",
+    )
+    _inscrit(
+        db_session,
+        athlete,
+        _epreuve(db_session, "Trail de Nantes", date(2025, 9, 3), event_type="trail"),
+        "3",
+    )
+
+    quota = admin_actions.season_quota(db_session, athlete_id=athlete.id, season=2025)
+
+    assert quota["validated_count"] == 1
