@@ -382,36 +382,11 @@ describe("RankingEvolutionChart", () => {
     expect(screen.getByText("Classement par étape indisponible")).toBeTruthy();
   });
 
-  it("US5 : trace l'allure (temps cumulé) en complément du classement", () => {
+  it("#855 : n'affiche plus le graphique « Allure », qui traçait du temps cumulé et non une allure", () => {
     const { container } = renderChart();
 
-    const points = container.querySelectorAll('[data-role="pace"]');
-    expect([...points].map((p) => p.getAttribute("data-step"))).toEqual([
-      "swim",
-      "t1",
-      "bike",
-      "t2",
-      "run",
-    ]);
-  });
-
-  it("US5 : écrit le temps cumulé de chaque étape en clair, sans survol", () => {
-    renderChart();
-
-    // 1200s → 0:20:00, 7440s → 2:04:00.
-    expect(screen.getByText("0:20:00")).toBeTruthy();
-    expect(screen.getByText("2:04:00")).toBeTruthy();
-  });
-
-  it("US5 : n'affiche pas le bloc d'allure quand aucune étape n'a de temps cumulé", () => {
-    render(
-      <RankingEvolutionChart
-        steps={[{ segment: "swim", scratch_position: 1, segment_position: 1 }]}
-        eventType="triathlon-m"
-      />,
-    );
-
     expect(screen.queryByText(/allure/i)).toBeNull();
+    expect(container.querySelectorAll('[data-role="pace"]').length).toBe(0);
   });
 
   it("colore la légende avec un token déclaré dans la palette", () => {
