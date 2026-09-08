@@ -204,4 +204,33 @@ describe("ComparisonTable", () => {
     const total = screen.getByRole("columnheader", { name: "Total" });
     expect(total.title).toMatch(/ensemble de la course/i);
   });
+
+  // #853 : la barre de taille par cellule a été retirée au profit d'un léger
+  // dégradé de fond (orange = plus lent, vert = plus rapide que la référence).
+  it("#853 : teinte en orange une cellule au-dessus de 100 % (plus lent que la référence)", () => {
+    renderTable([{ position_label: "1er", rank: 1, percentages: { bike: 124.9, total: 128.0 } }]);
+
+    const ligne = screen.getByRole("row", { name: /1er/ });
+    const cellule = within(ligne).getByText("124,9 %").closest("td") as HTMLElement;
+    expect(cellule.style.background).toContain("var(--tcn-orange)");
+  });
+
+  it("#853 : teinte en vert une cellule au-dessous de 100 % (plus rapide que la référence)", () => {
+    renderTable([{ position_label: "1er", rank: 1, percentages: { bike: 90.0, total: 92.0 } }]);
+
+    const ligne = screen.getByRole("row", { name: /1er/ });
+    const cellule = within(ligne).getByText("90,0 %").closest("td") as HTMLElement;
+    expect(cellule.style.background).toContain("var(--tcn-success)");
+  });
+
+  it("#853 : ne teinte pas une cellule exactement à 100 % ou sans pourcentage calculé", () => {
+    renderTable([{ position_label: "1er", rank: 1, percentages: { bike: 100.0, total: 118.0 } }]);
+
+    const ligne = screen.getByRole("row", { name: /1er/ });
+    const celluleEgale = within(ligne).getByText("100,0 %").closest("td") as HTMLElement;
+    expect(celluleEgale.style.background).toBe("");
+
+    const celluleAbsente = within(ligne).getAllByText("—")[0].closest("td") as HTMLElement;
+    expect(celluleAbsente.style.background).toBe("");
+  });
 });

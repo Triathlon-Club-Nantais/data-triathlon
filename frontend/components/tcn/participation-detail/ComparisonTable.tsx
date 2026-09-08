@@ -118,16 +118,23 @@ function formatPercentage(value: number | undefined): string {
 // remplace par un très léger dégradé de fond de cellule (orange = plus lent,
 // vert = plus rapide que la référence), plafonné bas pour rester discret —
 // même ordre de grandeur que `--tcn-orange-08`/`-12` déjà utilisés ailleurs
-// comme fonds de survol.
-const TEINTE_ALPHA_MAX = 0.1;
-const ECART_POUR_ALPHA_MAX = 50;
+// comme fonds de survol. `color-mix()` plutôt qu'un `rgba()` recopiant les
+// tokens à la main (patron de `lib/sport-colors.ts`/`RaceFinishers.tsx`) :
+// une retouche de `--tcn-orange`/`--tcn-success` ne peut pas désynchroniser
+// ce fichier en silence.
+const TEINTE_POURCENTAGE_MAX = 10;
+const ECART_POUR_TEINTE_MAX = 50;
 
 function pctTint(value: number | undefined): string | undefined {
   if (value == null) return undefined;
   const ecart = value - 100;
-  const alpha = Math.min(TEINTE_ALPHA_MAX, (Math.abs(ecart) / ECART_POUR_ALPHA_MAX) * TEINTE_ALPHA_MAX);
-  const teinte = ecart > 0 ? "233, 83, 14" /* --tcn-orange */ : "31, 138, 77" /* --tcn-success */;
-  return `rgba(${teinte}, ${alpha.toFixed(3)})`;
+  if (ecart === 0) return undefined;
+  const pourcentage = Math.min(
+    TEINTE_POURCENTAGE_MAX,
+    (Math.abs(ecart) / ECART_POUR_TEINTE_MAX) * TEINTE_POURCENTAGE_MAX,
+  );
+  const teinte = ecart > 0 ? "var(--tcn-orange)" : "var(--tcn-success)";
+  return `color-mix(in srgb, ${teinte} ${pourcentage.toFixed(2)}%, transparent)`;
 }
 
 /**
