@@ -77,12 +77,16 @@ export function ComparisonTable({
                 {row.position_label}
               </th>
               {columns.map((column) => (
-                <td key={column.key} className={classeColonne(column.small)} style={cellStyle}>
+                <td
+                  key={column.key}
+                  className={classeColonne(column.small)}
+                  style={{ ...cellStyle, background: pctTint(row.percentages[column.key]) }}
+                >
                   {formatPercentage(row.percentages[column.key])}
                   <DeltaSeconds mine={row.mine_seconds?.[column.key]} theirs={row.theirs_seconds?.[column.key]} />
                 </td>
               ))}
-              <td style={{ ...cellStyle, fontWeight: 700 }}>
+              <td style={{ ...cellStyle, fontWeight: 700, background: pctTint(row.percentages[TOTAL_KEY]) }}>
                 {formatPercentage(row.percentages[TOTAL_KEY])}
                 <DeltaSeconds mine={row.mine_seconds?.[TOTAL_KEY]} theirs={row.theirs_seconds?.[TOTAL_KEY]} />
               </td>
@@ -109,27 +113,34 @@ function formatPercentage(value: number | undefined): string {
   return value == null ? "—" : `${pctFr(value)} %`;
 }
 
+// #853 : une barre de taille par cellule d'écart, cumulée sur tout le
+// tableau, nuisait à la lisibilité plus qu'elle n'aidait. `pctTint` la
+// remplace par un très léger dégradé de fond de cellule (orange = plus lent,
+// vert = plus rapide que la référence), plafonné bas pour rester discret —
+// même ordre de grandeur que `--tcn-orange-08`/`-12` déjà utilisés ailleurs
+// comme fonds de survol.
+const TEINTE_ALPHA_MAX = 0.1;
+const ECART_POUR_ALPHA_MAX = 50;
+
+function pctTint(value: number | undefined): string | undefined {
+  if (value == null) return undefined;
+  const ecart = value - 100;
+  const alpha = Math.min(TEINTE_ALPHA_MAX, (Math.abs(ecart) / ECART_POUR_ALPHA_MAX) * TEINTE_ALPHA_MAX);
+  const teinte = ecart > 0 ? "233, 83, 14" /* --tcn-orange */ : "31, 138, 77" /* --tcn-success */;
+  return `rgba(${teinte}, ${alpha.toFixed(3)})`;
+}
+
 /**
- * Écart brut en secondes sous le pourcentage — représentation visuelle en
+ * Écart brut en secondes sous le pourcentage — représentation textuelle en
  * plus du ratio, un « 128 % » ne dit rien du temps réellement perdu (US4,
- * #466). Une barre marque l'ampleur de l'écart ; le texte porte le signe.
+ * #466). Le texte porte le signe ; l'ampleur de l'écart se lit désormais dans
+ * le fond de cellule (`pctTint`), pas dans une barre dédiée (#853).
  */
 function DeltaSeconds({ mine, theirs }: { mine: number | undefined; theirs: number | undefined }) {
   if (mine == null || theirs == null) return null;
   const delta = mine - theirs;
-  const width = Math.min(100, (Math.abs(delta) / theirs) * 100 * 4);
   return (
     <div style={{ marginTop: 3 }}>
-      <div
-        aria-hidden
-        style={{
-          height: 3,
-          width: `${width}%`,
-          marginLeft: "auto",
-          background: delta > 0 ? "var(--tcn-orange)" : "var(--tcn-text-faint)",
-          borderRadius: 2,
-        }}
-      />
       <span style={{ fontSize: 11, color: "var(--tcn-text-faint)" }}>{formatDeltaSeconds(delta)}</span>
     </div>
   );
