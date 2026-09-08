@@ -379,16 +379,22 @@ export function RankingEvolutionChart({
                 color: "var(--tcn-text-faint)",
               }}
             >
-              {/* `textAlign: "left"` sur ce seul span : centré, un texte écrêté
-                  à l'ellipse est rogné des deux côtés et ne reçoit l'ellipse
-                  qu'à droite — le début disparaît sans aucun marqueur visuel
-                  (même défaut déjà corrigé sur `DisciplineBar`, ce lot doit
-                  rester cohérent avec lui-même). Aligné à gauche, seule la fin
-                  se perd, et l'ellipse la signale. La position, elle, reste
-                  centrée et entière : elle n'est jamais écrêtée. */}
+              {/* `inline-block` + `maxWidth: 100%` : la boîte épouse le texte
+                  quand il tient, et le `textAlign: center` hérité de la
+                  rangée la centre alors sur le rang (#854). Un `display:
+                  block` pleine largeur restait, lui, centré par la position
+                  du texte dans une boîte que le rang partage sans l'occuper
+                  en entier — d'où le décalage visuel signalé. `textAlign:
+                  left` reste nécessaire pour le cas où le texte dépasse
+                  l'entraxe : centré, un texte écrêté à l'ellipse est rogné
+                  des deux côtés et ne reçoit l'ellipse qu'à droite — le début
+                  disparaît sans aucun marqueur visuel. Aligné à gauche, seule
+                  la fin se perd, et l'ellipse la signale. La position, elle,
+                  reste centrée et entière : elle n'est jamais écrêtée. */}
               <span
                 style={{
-                  display: "block",
+                  display: "inline-block",
+                  maxWidth: "100%",
                   textAlign: "left",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
