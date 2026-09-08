@@ -382,15 +382,16 @@ export function RankingEvolutionChart({
               {/* `inline-block` + `maxWidth: 100%` : la boîte épouse le texte
                   quand il tient, et le `textAlign: center` hérité de la
                   rangée la centre alors sur le rang (#854). Un `display:
-                  block` pleine largeur restait, lui, centré par la position
-                  du texte dans une boîte que le rang partage sans l'occuper
-                  en entier — d'où le décalage visuel signalé. `textAlign:
-                  left` reste nécessaire pour le cas où le texte dépasse
-                  l'entraxe : centré, un texte écrêté à l'ellipse est rogné
-                  des deux côtés et ne reçoit l'ellipse qu'à droite — le début
-                  disparaît sans aucun marqueur visuel. Aligné à gauche, seule
-                  la fin se perd, et l'ellipse la signale. La position, elle,
-                  reste centrée et entière : elle n'est jamais écrêtée. */}
+                  block` pleine largeur gardait, lui, le texte ancré à gauche
+                  de cette boîte pleine largeur (`textAlign: left`), quand le
+                  rang restait centré dans la même boîte — d'où le décalage
+                  visuel signalé. `textAlign: left` reste nécessaire pour le
+                  cas où le texte dépasse l'entraxe : centré, un texte écrêté
+                  à l'ellipse est rogné des deux côtés et ne reçoit l'ellipse
+                  qu'à droite — le début disparaît sans aucun marqueur visuel.
+                  Aligné à gauche, seule la fin se perd, et l'ellipse la
+                  signale. La position, elle, reste centrée et entière : elle
+                  n'est jamais écrêtée. */}
               <span
                 style={{
                   display: "inline-block",
