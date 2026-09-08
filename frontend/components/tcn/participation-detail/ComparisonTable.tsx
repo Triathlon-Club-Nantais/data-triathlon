@@ -119,13 +119,16 @@ function formatPercentage(value: number | undefined): string {
 // vert = plus rapide que la référence), plafonné bas pour rester discret —
 // même ordre de grandeur que `--tcn-orange-08`/`-12` déjà utilisés ailleurs
 // comme fonds de survol. `color-mix()` plutôt qu'un `rgba()` recopiant les
-// tokens à la main (patron de `lib/sport-colors.ts`/`RaceFinishers.tsx`) :
-// une retouche de `--tcn-orange`/`--tcn-success` ne peut pas désynchroniser
-// ce fichier en silence.
+// tokens à la main (patron de `lib/sport-colors.ts`) : une retouche de
+// `--tcn-orange`/`--tcn-success` ne peut pas désynchroniser ce fichier en
+// silence. Espace `oklab`, comme `sport-colors.ts` : mélanger avec
+// `transparent` ne change que l'alpha, jamais la teinte, donc le choix
+// d'espace n'affecte pas le rendu ici — il aligne juste ce fichier sur le
+// seul espace que verrouille `test/couleur.ts`.
 const TEINTE_POURCENTAGE_MAX = 10;
 const ECART_POUR_TEINTE_MAX = 50;
 
-function pctTint(value: number | undefined): string | undefined {
+export function pctTint(value: number | undefined): string | undefined {
   if (value == null) return undefined;
   const ecart = value - 100;
   if (ecart === 0) return undefined;
@@ -134,7 +137,7 @@ function pctTint(value: number | undefined): string | undefined {
     (Math.abs(ecart) / ECART_POUR_TEINTE_MAX) * TEINTE_POURCENTAGE_MAX,
   );
   const teinte = ecart > 0 ? "var(--tcn-orange)" : "var(--tcn-success)";
-  return `color-mix(in srgb, ${teinte} ${pourcentage.toFixed(2)}%, transparent)`;
+  return `color-mix(in oklab, ${teinte} ${pourcentage.toFixed(2)}%, transparent)`;
 }
 
 /**

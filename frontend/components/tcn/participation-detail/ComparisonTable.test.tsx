@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import type { ComparisonRow } from "@/lib/types";
-import { ComparisonTable } from "./ComparisonTable";
+import { ComparisonTable, pctTint } from "./ComparisonTable";
+import { contrast, evalue, resolve, surSurface } from "@/test/couleur";
 
 const SEGMENTS = ["swim", "t1", "bike", "t2", "run"];
 
@@ -233,4 +234,39 @@ describe("ComparisonTable", () => {
     const celluleAbsente = within(ligne).getAllByText("—")[0].closest("td") as HTMLElement;
     expect(celluleAbsente.style.background).toBe("");
   });
+});
+
+describe("#853 : contraste WCAG 1.4.3 du dégradé de teinte", () => {
+  // La teinte est un fond composite (`color-mix(..., transparent)` sur la
+  // carte, `--tcn-surface`) : c'est ce mélange, pas le token seul, qui porte
+  // le texte. Au plafond (10 %, ≥ 50 points d'écart, un cas réaliste — comparer
+  // un temps de club à une position de référence élite), relevé en revue
+  // ui-ux à 4,594:1 / 4,595:1 — au-dessus du seuil mais avec ~2 % de marge.
+  // Verrouillé ici pour qu'une retouche future de `--tcn-orange`,
+  // `--tcn-success` ou `--tcn-text-faint` ne le fasse pas passer sous AA en
+  // silence (patron de `lib/sport-colors.test.ts`).
+  const SURFACE = resolve("--tcn-surface"); // fond réel de la carte qui porte le tableau
+  const CAS_LIMITES = [
+    { nom: "orange (plus lent, écart maximal)", pourcentage: 150 },
+    { nom: "vert (plus rapide, écart maximal)", pourcentage: 50 },
+  ];
+
+  it.each(CAS_LIMITES)(
+    "le sous-texte d'écart (`--tcn-text-faint`) reste ≥ 4,5:1 sur la teinte $nom",
+    ({ pourcentage }) => {
+      const fond = pctTint(pourcentage);
+      expect(fond).toBeDefined();
+      const composite = surSurface(evalue(fond as string), SURFACE);
+      expect(contrast(resolve("--tcn-text-faint"), composite)).toBeGreaterThanOrEqual(4.5);
+    },
+  );
+
+  it.each(CAS_LIMITES)(
+    "le pourcentage (`--tcn-text-body`) reste ≥ 4,5:1 sur la teinte $nom",
+    ({ pourcentage }) => {
+      const fond = pctTint(pourcentage);
+      const composite = surSurface(evalue(fond as string), SURFACE);
+      expect(contrast(resolve("--tcn-text-body"), composite)).toBeGreaterThanOrEqual(4.5);
+    },
+  );
 });
