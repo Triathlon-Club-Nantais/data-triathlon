@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import type { ComparisonRow } from "@/lib/types";
-import { ComparisonTable } from "./ComparisonTable";
+import { ComparisonTable, pctTint } from "./ComparisonTable";
+import { contrast, evalue, resolve, surSurface } from "@/test/couleur";
 
 const SEGMENTS = ["swim", "t1", "bike", "t2", "run"];
 
@@ -204,4 +205,68 @@ describe("ComparisonTable", () => {
     const total = screen.getByRole("columnheader", { name: "Total" });
     expect(total.title).toMatch(/ensemble de la course/i);
   });
+
+  // #853 : la barre de taille par cellule a été retirée au profit d'un léger
+  // dégradé de fond (orange = plus lent, vert = plus rapide que la référence).
+  it("#853 : teinte en orange une cellule au-dessus de 100 % (plus lent que la référence)", () => {
+    renderTable([{ position_label: "1er", rank: 1, percentages: { bike: 124.9, total: 128.0 } }]);
+
+    const ligne = screen.getByRole("row", { name: /1er/ });
+    const cellule = within(ligne).getByText("124,9 %").closest("td") as HTMLElement;
+    expect(cellule.style.background).toContain("var(--tcn-orange)");
+  });
+
+  it("#853 : teinte en vert une cellule au-dessous de 100 % (plus rapide que la référence)", () => {
+    renderTable([{ position_label: "1er", rank: 1, percentages: { bike: 90.0, total: 92.0 } }]);
+
+    const ligne = screen.getByRole("row", { name: /1er/ });
+    const cellule = within(ligne).getByText("90,0 %").closest("td") as HTMLElement;
+    expect(cellule.style.background).toContain("var(--tcn-success)");
+  });
+
+  it("#853 : ne teinte pas une cellule exactement à 100 % ou sans pourcentage calculé", () => {
+    renderTable([{ position_label: "1er", rank: 1, percentages: { bike: 100.0, total: 118.0 } }]);
+
+    const ligne = screen.getByRole("row", { name: /1er/ });
+    const celluleEgale = within(ligne).getByText("100,0 %").closest("td") as HTMLElement;
+    expect(celluleEgale.style.background).toBe("");
+
+    const celluleAbsente = within(ligne).getAllByText("—")[0].closest("td") as HTMLElement;
+    expect(celluleAbsente.style.background).toBe("");
+  });
+});
+
+describe("#853 : contraste WCAG 1.4.3 du dégradé de teinte", () => {
+  // La teinte est un fond composite (`color-mix(..., transparent)` sur la
+  // carte, `--tcn-surface`) : c'est ce mélange, pas le token seul, qui porte
+  // le texte. Au plafond (10 %, ≥ 50 points d'écart, un cas réaliste — comparer
+  // un temps de club à une position de référence élite), relevé en revue
+  // ui-ux à 4,594:1 / 4,595:1 — au-dessus du seuil mais avec ~2 % de marge.
+  // Verrouillé ici pour qu'une retouche future de `--tcn-orange`,
+  // `--tcn-success` ou `--tcn-text-faint` ne le fasse pas passer sous AA en
+  // silence (patron de `lib/sport-colors.test.ts`).
+  const SURFACE = resolve("--tcn-surface"); // fond réel de la carte qui porte le tableau
+  const CAS_LIMITES = [
+    { nom: "orange (plus lent, écart maximal)", pourcentage: 150 },
+    { nom: "vert (plus rapide, écart maximal)", pourcentage: 50 },
+  ];
+
+  it.each(CAS_LIMITES)(
+    "le sous-texte d'écart (`--tcn-text-faint`) reste ≥ 4,5:1 sur la teinte $nom",
+    ({ pourcentage }) => {
+      const fond = pctTint(pourcentage);
+      expect(fond).toBeDefined();
+      const composite = surSurface(evalue(fond as string), SURFACE);
+      expect(contrast(resolve("--tcn-text-faint"), composite)).toBeGreaterThanOrEqual(4.5);
+    },
+  );
+
+  it.each(CAS_LIMITES)(
+    "le pourcentage (`--tcn-text-body`) reste ≥ 4,5:1 sur la teinte $nom",
+    ({ pourcentage }) => {
+      const fond = pctTint(pourcentage);
+      const composite = surSurface(evalue(fond as string), SURFACE);
+      expect(contrast(resolve("--tcn-text-body"), composite)).toBeGreaterThanOrEqual(4.5);
+    },
+  );
 });
