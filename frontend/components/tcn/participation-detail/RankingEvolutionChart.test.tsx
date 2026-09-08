@@ -361,6 +361,28 @@ describe("RankingEvolutionChart", () => {
     expect(position.style.textAlign).toBe("");
   });
 
+  it("recentre le libellé d'étape sur le rang qu'il annote (#854)", () => {
+    // `display: block` sans largeur explicite prend toute la largeur de
+    // l'entraxe : un `textAlign: left` posé dessus décale visuellement le nom
+    // par rapport au rang, resté centré dans la même boîte pleine largeur. La
+    // boîte du nom doit au contraire épouser son texte (`inline-block` +
+    // `maxWidth: 100%`) pour que le `textAlign: center` hérité de la rangée la
+    // centre quand le texte tient — l'ellipse à droite ne joue que si le texte
+    // dépasse l'entraxe, sans réintroduire la troncature à double sens.
+    const { container } = render(
+      <RankingEvolutionChart
+        steps={[{ segment: "COURSE A PIED", scratch_position: 12, segment_position: 9 }]}
+        eventType="format-inconnu"
+      />,
+    );
+
+    const label = container.querySelector("[data-step-label]") as HTMLElement;
+    const name = label.querySelector("span") as HTMLElement;
+
+    expect(name.style.display).toBe("inline-block");
+    expect(name.style.maxWidth).toBe("100%");
+  });
+
   it("nomme le graphique par un récapitulatif chiffré, sur le patron « X : liste. »", () => {
     // Fix D (#480) : seul récapitulatif du lot à ne rendre aucun chiffre — les
     // cinq autres graphiques suivent « X : liste. » ou « X, de A à B. ».
