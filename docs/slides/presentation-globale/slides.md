@@ -334,6 +334,6 @@ class: infographic-slide
   </div>
 
   <p v-motion :initial="{ opacity: 0 }" :enter="{ opacity: 1, transition: { duration: 400, delay: 750 } }" class="text-sm opacity-70 mt-8">
-    Une question ? Thomas Jarrier (jarriert@gmail.com) · Mathieu Herrmann (mathieu.herrmann44@gmail.com)
+    Une question ? Thomas Jarrier (jarriert+tcn@gmail.com) · Mathieu Herrmann (mathieu.herrmann44@gmail.com)
   </p>
 </div>
