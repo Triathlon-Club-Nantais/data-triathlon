@@ -1,0 +1,231 @@
+/* Palette reprise telle quelle de frontend/app/globals.css (tokens --tcn-*). */
+:root {
+  --tcn-orange: #e9530e;
+  --tcn-orange-bright: #ff6620;
+  --tcn-orange-deep: #d64000;
+  --tcn-orange-deeper: #b83a00;
+  --tcn-orange-grad: linear-gradient(150deg, #d64000, #b83a00);
+  --tcn-orange-300: #f2864a;
+  --tcn-orange-200: #f8b58c;
+  --tcn-ink: #1c1e22;
+  --tcn-ink-2: #3a3d44;
+  --tcn-text-body: #3a3833;
+  --tcn-text-muted: #726c61;
+  --tcn-paper: #f4f3f0;
+  --tcn-surface: #ffffff;
+  --tcn-border: #ebe8e2;
+  --tcn-border-input: #d8d4cc;
+  --tcn-success: #1f8a4d;
+  --tcn-warning: #e6b020;
+
+  --slidev-theme-primary: var(--tcn-orange);
+}
+
+/* Bug connu Slidev (#2534) : le dialogue "Goto" (touche g) se cache en le
+   décalant à top:-80px, mais sa liste d'autocomplétion peut dépasser cette
+   marge dès 3-4 slides et reste visible en haut à droite. */
+#slidev-goto-dialog.-top-20 {
+  visibility: hidden;
+}
+
+.slidev-layout {
+  background: var(--tcn-surface);
+  color: var(--tcn-text-body);
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+}
+
+.slidev-layout h1,
+.slidev-layout h2 {
+  color: var(--tcn-ink);
+  font-weight: 700;
+}
+
+.slidev-layout a {
+  color: var(--tcn-orange);
+}
+
+/* Le layout "default" de Slidev n'aligne le contenu qu'en haut, ce qui
+   laisse la moitié basse vide sur une slide à un seul bloc. On centre
+   verticalement (layout:center et layout:two-cols gèrent déjà leur propre
+   centrage, donc pas touchés ici). */
+.slidev-layout.default {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.slidev-layout.two-columns .col-left,
+.slidev-layout.two-columns .col-right {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Bloc fonctionnalité : icône + titre + description, réutilisé sur chaque
+   slide "feature" pour garder une grille identique d'une slide à l'autre.
+   Carte blanche à liseré orange plutôt qu'un aplat plein : plus sobre,
+   l'orange reste un accent plutôt qu'un fond. */
+.feature-card {
+  background: var(--tcn-surface);
+  color: var(--tcn-ink);
+  border-radius: 10px;
+  border-left: 4px solid var(--tcn-orange);
+  box-shadow: 0 2px 12px rgba(28, 30, 34, 0.08);
+  padding: 1.25rem 1.5rem;
+}
+
+.feature-card .icon,
+.feature-card strong {
+  color: var(--tcn-orange-deep);
+}
+
+/* Numéro d'étape, même traitement que .feature-card (carte blanche, accent
+   orange) pour un parcours en 3 temps (slide "Ajouter un résultat"). */
+.step-number {
+  color: var(--tcn-orange-deep);
+  font-weight: 800;
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+/* Étiquette de filtre (slide "Tous les résultats"). */
+.pill {
+  display: inline-block;
+  border: 1px solid var(--tcn-orange-300);
+  color: var(--tcn-ink);
+  border-radius: 999px;
+  padding: 0.3rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+/* Tuile chiffre clé (slide "Dashboard"). */
+.stat-tile {
+  background: var(--tcn-surface);
+  border-top: 4px solid var(--tcn-orange);
+  box-shadow: 0 2px 12px rgba(28, 30, 34, 0.08);
+  border-radius: 10px;
+  padding: 1.25rem;
+  text-align: center;
+}
+
+.stat-tile .stat-number {
+  color: var(--tcn-orange-deep);
+  font-weight: 800;
+  font-size: 2rem;
+  display: block;
+}
+
+/* Barre de progression illustrative (slide "Import automatique"). */
+.progress-track {
+  background: var(--tcn-border);
+  border-radius: 999px;
+  height: 0.75rem;
+  overflow: hidden;
+}
+
+.progress-fill {
+  background: var(--tcn-orange);
+  height: 100%;
+  border-radius: 999px;
+}
+
+/* Barre de recherche factice (slide "Recherche globale"). */
+.fake-search {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: var(--tcn-surface);
+  border: 1px solid var(--tcn-border-input);
+  border-radius: 999px;
+  padding: 0.7rem 1.2rem;
+  color: var(--tcn-text-muted);
+  max-width: 28rem;
+  margin: 0 auto;
+  box-shadow: 0 1px 2px rgba(28, 30, 34, 0.06);
+}
+
+.brand-dot {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: var(--tcn-orange);
+}
+
+/* Trois disciplines, trois points (slide de couverture "nouveaux"). */
+.tri-dot {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+}
+
+/* Slide infographie finale : dégradé de marque (identique au token
+   --tcn-orange-grad de l'app), livrable autonome pour la journée des
+   nouveaux. Un seul aplat fort plutôt qu'un fond neutre : c'est ce qui doit
+   porter, seul, sur la slide d'un tiers. */
+.infographic-slide {
+  background: linear-gradient(
+    150deg,
+    var(--tcn-ink) 0%,
+    var(--tcn-orange-deep) 65%,
+    var(--tcn-orange-deeper) 100%
+  );
+  color: #ffffff;
+  position: relative;
+  overflow: hidden;
+}
+
+.infographic-slide h1,
+.infographic-slide h2 {
+  color: #ffffff;
+}
+
+.infographic-slide::before {
+  content: "";
+  position: absolute;
+  width: 46rem;
+  height: 46rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  top: -18rem;
+  right: -14rem;
+}
+
+.infographic-slide::after {
+  content: "";
+  position: absolute;
+  width: 30rem;
+  height: 30rem;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.08);
+  bottom: -14rem;
+  left: -10rem;
+}
+
+.infographic-slide .stat-value {
+  color: #ffffff;
+  font-weight: 800;
+}
+
+.infographic-slide .stat-block {
+  border-left: 3px solid rgba(255, 255, 255, 0.7);
+  padding-left: 1rem;
+  position: relative;
+}
+
+/* Bloc d'accès (QR + URL + mot de passe) en pied de l'infographie. */
+.access-panel {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+  padding: 1rem 1.5rem;
+}
