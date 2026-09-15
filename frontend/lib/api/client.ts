@@ -34,6 +34,8 @@ import type {
   CoursesWipeResult,
   DuplicateCandidateList,
   DuplicateIgnoreResult,
+  Entrainement,
+  EntrainementDetail,
   EventPage,
   Feedback,
   FeedbackCounts,
@@ -49,6 +51,8 @@ import type {
   ParticipationsWipeResult,
   PendingProvider,
   PermissionGroup,
+  Profile,
+  ProfileDetail,
   RescrapeLaunch,
   Role,
   RoleCreate,
@@ -477,6 +481,89 @@ export const apiClient = {
     }),
   removeGroupMember: (groupId: number, userId: number) =>
     request<null>(`/admin/groups/${groupId}/members/${userId}`, { method: "DELETE" }),
+  // ── Calendrier des entraînements jeunes (#868, epic #863) ─────────────────
+  // Lecture sous `jeunes:read`, écriture sous `jeunes:write` — deux pouvoirs
+  // réellement distincts (cf. `contracts/api.md` de la feature).
+  listEntrainements: () => request<Entrainement[]>("/admin/jeunes/entrainements"),
+  getEntrainement: (id: number) =>
+    request<EntrainementDetail>(`/admin/jeunes/entrainements/${id}`),
+  createEntrainement: (body: {
+    date: string;
+    heure_debut?: string | null;
+    lieu?: string | null;
+    type_seance?: string | null;
+  }) =>
+    request<EntrainementDetail>("/admin/jeunes/entrainements", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateEntrainement: (
+    id: number,
+    champs: {
+      date?: string;
+      heure_debut?: string | null;
+      lieu?: string | null;
+      type_seance?: string | null;
+      note?: string;
+    }
+  ) =>
+    request<EntrainementDetail>(`/admin/jeunes/entrainements/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(champs),
+    }),
+  // `present` (#869) pointe le jeune au même geste que son inscription —
+  // optionnel, patron de `body.present` côté backend (`ParticipantAdd`).
+  addEntrainementParticipant: (entrainementId: number, jeuneId: number, present?: boolean) =>
+    request<EntrainementDetail>(`/admin/jeunes/entrainements/${entrainementId}/participants`, {
+      method: "POST",
+      body: JSON.stringify({ jeune_id: jeuneId, present }),
+    }),
+  removeEntrainementParticipant: (entrainementId: number, jeuneId: number) =>
+    request<null>(
+      `/admin/jeunes/entrainements/${entrainementId}/participants/${jeuneId}`,
+      { method: "DELETE" }
+    ),
+  // ── Appel de présence (#869, epic #863) ─────────────────────────────────
+  setEntrainementParticipantPresence: (entrainementId: number, jeuneId: number, present: boolean) =>
+    request<EntrainementDetail>(
+      `/admin/jeunes/entrainements/${entrainementId}/participants/${jeuneId}/presence`,
+      { method: "PATCH", body: JSON.stringify({ present }) }
+    ),
+  // ── Profils individuels (#867, epic #863) ──────────────────────────────────
+  // Schéma générique côté backend ; `jeunes:read` pour les deux lectures,
+  // `jeunes:write` pour la création, la modification et le journal de bord.
+  listProfiles: () => request<Profile[]>("/admin/profiles"),
+  getProfile: (id: number) => request<ProfileDetail>(`/admin/profiles/${id}`),
+  createProfile: (body: {
+    first_name: string;
+    last_name: string;
+    birth_date?: string | null;
+    emergency_contact?: string;
+    notes?: string;
+  }) =>
+    request<ProfileDetail>("/admin/profiles", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateProfile: (
+    id: number,
+    champs: {
+      first_name?: string;
+      last_name?: string;
+      birth_date?: string | null;
+      emergency_contact?: string;
+      notes?: string;
+    },
+  ) =>
+    request<ProfileDetail>(`/admin/profiles/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(champs),
+    }),
+  addProfileLogEntry: (id: number, text: string) =>
+    request<ProfileDetail>(`/admin/profiles/${id}/log-entries`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
   // ── Composition des rôles (#115, écran #240) ───────────────────────────────
   // Lecture sous `roles:read`, écriture sous `roles:write`. `listRoles` est
   // celle de l'attribution ci-dessus — même ressource, même cache.

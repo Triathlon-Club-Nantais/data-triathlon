@@ -570,6 +570,73 @@ export interface GroupDetail extends Group {
 }
 
 /**
+ * Un entraînement jeunes tel qu'il apparaît dans le calendrier (#868).
+ *
+ * Seule `date` est garantie renseignée — les trois champs optionnels viennent
+ * `null` plutôt qu'absents quand ils ne sont pas saisis. `note` (#869) est une
+ * note de séance en texte libre, `""` par défaut — jamais `null`.
+ */
+export interface Entrainement {
+  id: number;
+  date: string;
+  heure_debut: string | null;
+  lieu: string | null;
+  type_seance: string | null;
+  note: string;
+  participant_count: number;
+}
+
+/**
+ * Un jeune inscrit à un entraînement.
+ *
+ * `jeune_id` seul — le profil du jeune référencé (#867) est hors du contrat de
+ * cette ressource. `present` (#869) est le statut de l'appel de début :
+ * `null` = pas encore pointé, `true`/`false` = le dernier statut enregistré.
+ */
+export interface EntrainementParticipant {
+  jeune_id: number;
+  present: boolean | null;
+  created_at: string;
+}
+
+/** Un entraînement et sa liste de participants inscrits. */
+export interface EntrainementDetail extends Entrainement {
+  participants: EntrainementParticipant[];
+}
+
+/**
+ * Un profil individuel tel qu'il apparaît dans la liste (#867, epic #863).
+ *
+ * Schéma générique côté backend (`personal_profiles`, pas de préfixe
+ * « jeune ») — c'est la garde `jeunes:read`/`jeunes:write` qui réserve cet
+ * écran aux jeunes pour cette itération, jamais le nom des champs.
+ */
+export interface Profile {
+  id: number;
+  organisation_id: number;
+  first_name: string;
+  last_name: string;
+  birth_date: string | null;
+  created_at: string;
+}
+
+/** Une entrée du journal de bord — un historique, jamais une valeur unique. */
+export interface ProfileLogEntry {
+  id: number;
+  entry_date: string;
+  text: string;
+  created_by_name: string | null;
+  created_at: string;
+}
+
+/** Un profil **et** son journal — ce que rend le détail. */
+export interface ProfileDetail extends Profile {
+  emergency_contact: string;
+  notes: string;
+  log_entries: ProfileLogEntry[];
+}
+
+/**
  * Un utilisateur vu depuis l'administration (#115).
  *
  * `is_active: false` est l'effet d'un retrait de la liste d'autorisation

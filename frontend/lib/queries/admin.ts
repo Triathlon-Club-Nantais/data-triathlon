@@ -775,6 +775,188 @@ export function useRemoveGroupMember() {
   });
 }
 
+// ── Calendrier des entraînements jeunes (#868, epic #863) ───────────────────
+
+export function useEntrainements() {
+  return useQuery({
+    queryKey: queryKeys.entrainements(),
+    queryFn: () => apiClient.listEntrainements(),
+  });
+}
+
+/**
+ * Le détail d'un entraînement, chargé **à l'ouverture** de sa fiche.
+ *
+ * `enabled` plutôt qu'un appel au montage, même patron que `useGroup` : un
+ * calendrier de vingt séances ne doit pas demander vingt listes de
+ * participants que personne ne regardera.
+ */
+export function useEntrainement(entrainementId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.entrainement(entrainementId ?? 0),
+    queryFn: () => apiClient.getEntrainement(entrainementId as number),
+    enabled: entrainementId !== null,
+  });
+}
+
+export function useCreateEntrainement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (entrainement: {
+      date: string;
+      heure_debut?: string | null;
+      lieu?: string | null;
+      type_seance?: string | null;
+    }) => apiClient.createEntrainement(entrainement),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.entrainements() }),
+  });
+}
+
+export function useUpdateEntrainement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      champs,
+    }: {
+      id: number;
+      champs: {
+        date?: string;
+        heure_debut?: string | null;
+        lieu?: string | null;
+        type_seance?: string | null;
+        note?: string;
+      };
+    }) => apiClient.updateEntrainement(id, champs),
+    onSuccess: (_donnees, { id }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.entrainements() });
+      qc.invalidateQueries({ queryKey: queryKeys.entrainement(id) });
+    },
+  });
+}
+
+export function useAddEntrainementParticipant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      entrainementId,
+      jeuneId,
+      present,
+    }: {
+      entrainementId: number;
+      jeuneId: number;
+      present?: boolean;
+    }) => apiClient.addEntrainementParticipant(entrainementId, jeuneId, present),
+    onSuccess: (_donnees, { entrainementId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.entrainements() });
+      qc.invalidateQueries({ queryKey: queryKeys.entrainement(entrainementId) });
+    },
+  });
+}
+
+export function useRemoveEntrainementParticipant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ entrainementId, jeuneId }: { entrainementId: number; jeuneId: number }) =>
+      apiClient.removeEntrainementParticipant(entrainementId, jeuneId),
+    onSuccess: (_donnees, { entrainementId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.entrainements() });
+      qc.invalidateQueries({ queryKey: queryKeys.entrainement(entrainementId) });
+    },
+  });
+}
+
+/** Bascule le statut présent/absent d'un jeune déjà inscrit (#869, appel de
+ * début). Ne crée jamais d'inscription — `useAddEntrainementParticipant`
+ * s'en charge. */
+export function useSetPresence() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      entrainementId,
+      jeuneId,
+      present,
+    }: {
+      entrainementId: number;
+      jeuneId: number;
+      present: boolean;
+    }) => apiClient.setEntrainementParticipantPresence(entrainementId, jeuneId, present),
+    onSuccess: (_donnees, { entrainementId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.entrainements() });
+      qc.invalidateQueries({ queryKey: queryKeys.entrainement(entrainementId) });
+    },
+  });
+}
+
+// ── Profils individuels (#867, epic #863) ────────────────────────────────────
+
+export function useProfiles() {
+  return useQuery({
+    queryKey: queryKeys.profiles(),
+    queryFn: () => apiClient.listProfiles(),
+  });
+}
+
+/**
+ * Le détail d'un profil, journal compris, chargé **à l'ouverture** de l'écran
+ * de détail — patron `useGroup`.
+ */
+export function useProfile(profileId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.profile(profileId ?? 0),
+    queryFn: () => apiClient.getProfile(profileId as number),
+    enabled: profileId !== null,
+  });
+}
+
+export function useCreateProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (profil: {
+      first_name: string;
+      last_name: string;
+      birth_date?: string | null;
+      emergency_contact?: string;
+      notes?: string;
+    }) => apiClient.createProfile(profil),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.profiles() }),
+  });
+}
+
+export function useUpdateProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      champs,
+    }: {
+      id: number;
+      champs: {
+        first_name?: string;
+        last_name?: string;
+        birth_date?: string | null;
+        emergency_contact?: string;
+        notes?: string;
+      };
+    }) => apiClient.updateProfile(id, champs),
+    onSuccess: (_donnees, { id }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.profiles() });
+      qc.invalidateQueries({ queryKey: queryKeys.profile(id) });
+    },
+  });
+}
+
+export function useAddProfileLogEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, text }: { id: number; text: string }) =>
+      apiClient.addProfileLogEntry(id, text),
+    onSuccess: (_donnees, { id }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.profile(id) });
+    },
+  });
+}
+
 // ── Composition des rôles (#115, écran #240) ─────────────────────────────────
 
 /**
