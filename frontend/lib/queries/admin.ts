@@ -825,6 +825,7 @@ export function useUpdateEntrainement() {
         heure_debut?: string | null;
         lieu?: string | null;
         type_seance?: string | null;
+        note?: string;
       };
     }) => apiClient.updateEntrainement(id, champs),
     onSuccess: (_donnees, { id }) => {
@@ -837,8 +838,15 @@ export function useUpdateEntrainement() {
 export function useAddEntrainementParticipant() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ entrainementId, jeuneId }: { entrainementId: number; jeuneId: number }) =>
-      apiClient.addEntrainementParticipant(entrainementId, jeuneId),
+    mutationFn: ({
+      entrainementId,
+      jeuneId,
+      present,
+    }: {
+      entrainementId: number;
+      jeuneId: number;
+      present?: boolean;
+    }) => apiClient.addEntrainementParticipant(entrainementId, jeuneId, present),
     onSuccess: (_donnees, { entrainementId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.entrainements() });
       qc.invalidateQueries({ queryKey: queryKeys.entrainement(entrainementId) });
@@ -851,6 +859,28 @@ export function useRemoveEntrainementParticipant() {
   return useMutation({
     mutationFn: ({ entrainementId, jeuneId }: { entrainementId: number; jeuneId: number }) =>
       apiClient.removeEntrainementParticipant(entrainementId, jeuneId),
+    onSuccess: (_donnees, { entrainementId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.entrainements() });
+      qc.invalidateQueries({ queryKey: queryKeys.entrainement(entrainementId) });
+    },
+  });
+}
+
+/** Bascule le statut présent/absent d'un jeune déjà inscrit (#869, appel de
+ * début). Ne crée jamais d'inscription — `useAddEntrainementParticipant`
+ * s'en charge. */
+export function useSetPresence() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      entrainementId,
+      jeuneId,
+      present,
+    }: {
+      entrainementId: number;
+      jeuneId: number;
+      present: boolean;
+    }) => apiClient.setEntrainementParticipantPresence(entrainementId, jeuneId, present),
     onSuccess: (_donnees, { entrainementId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.entrainements() });
       qc.invalidateQueries({ queryKey: queryKeys.entrainement(entrainementId) });

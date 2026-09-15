@@ -81,6 +81,36 @@ describe("nav.config — Bénévolat et Bénévoles (#830, #832)", () => {
   });
 });
 
+describe("nav.config — section « Jeunes » unifiée (#869)", () => {
+  // #868 et #867 avaient chacune ajouté leur propre entrée « Jeunes » en
+  // parallèle (l'une sous « Administration », l'autre en section racine) —
+  // #869 les fusionne en une seule section à trois destinations.
+  it("n'a plus qu'une seule section « jeunes »", () => {
+    const sections = NAV.filter((s) => s.id === "jeunes");
+    expect(sections).toHaveLength(1);
+  });
+
+  it("retire l'ancienne entrée a-jeunes de la section Administration", () => {
+    const admin = NAV.find((s) => s.id === "admin")!;
+    expect(admin.items.find((i) => i.id === "a-jeunes")).toBeUndefined();
+  });
+
+  it("propose les trois destinations profils, calendrier, appel", () => {
+    const jeunes = NAV.find((s) => s.id === "jeunes")!;
+    const hrefs = jeunes.items.map((i) => i.href);
+    expect(hrefs).toContain("/admin/jeunes");
+    expect(hrefs).toContain("/admin/jeunes/calendrier");
+    expect(hrefs).toContain("/admin/jeunes/appel");
+  });
+
+  it("garde les trois destinations derrière jeunes:read", () => {
+    const jeunes = NAV.find((s) => s.id === "jeunes")!;
+    for (const item of jeunes.items) {
+      expect(item.permission, item.href).toBe("jeunes:read");
+    }
+  });
+});
+
 describe("permission en OU", () => {
   const MAINTENANCE = NAV.flatMap((s) => s.items).find((i) => i.id === "a-maintenance")!;
 

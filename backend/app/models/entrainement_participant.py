@@ -2,7 +2,7 @@
 (#868, epic #863)."""
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -48,6 +48,13 @@ class EntrainementParticipant(Base):
     jeune_id: Mapped[int] = mapped_column(
         ForeignKey("personal_profiles.id"), index=True, nullable=False
     )
+    #: Statut de l'appel de **début** (#869) pour ce jeune, à cette séance.
+    #: `NULL` = pas encore pointé, `True`/`False` = le dernier statut
+    #: enregistré fait foi (aucun historique des changements). Même
+    #: granularité que la ligne elle-même : une colonne sur la relation
+    #: plutôt qu'une table de présence séparée (cf. research.md D1 de
+    #: `specs/20260915-141516-appel-jeunes/`).
+    present: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     entrainement: Mapped["Entrainement"] = relationship(  # noqa: F821

@@ -48,6 +48,7 @@ def entrainement_view(db: Session, entrainement: Entrainement) -> dict:
         "heure_debut": entrainement.heure_debut,
         "lieu": entrainement.lieu,
         "type_seance": entrainement.type_seance,
+        "note": entrainement.note,
         "participant_count": entrainement_repository.participant_count(db, entrainement.id),
     }
 
@@ -56,7 +57,11 @@ def entrainement_detail_view(db: Session, entrainement: Entrainement) -> dict:
     """La forme rendue par le détail : l'entraînement **et** ses inscrits."""
     return entrainement_view(db, entrainement) | {
         "participants": [
-            {"jeune_id": participant.jeune_id, "created_at": participant.created_at}
+            {
+                "jeune_id": participant.jeune_id,
+                "present": participant.present,
+                "created_at": participant.created_at,
+            }
             for participant in entrainement_repository.list_participants(db, entrainement.id)
         ]
     }
@@ -75,7 +80,9 @@ def create_entrainement(
     lieu: str | None = None,
     type_seance: str | None = None,
 ) -> Entrainement:
-    """Crée un entraînement. Il naît sans participant."""
+    """Crée un entraînement. Il naît sans participant, note vide (`""`) — la
+    note de séance (#869) s'ajoute après coup via `update_entrainement`,
+    jamais à la création."""
     entrainement = entrainement_repository.create(
         db, date=date, heure_debut=heure_debut, lieu=lieu, type_seance=type_seance
     )
@@ -94,6 +101,7 @@ def update_entrainement(
     heure_debut=...,
     lieu=...,
     type_seance=...,
+    note=...,
 ) -> Entrainement:
     """Corrige un entraînement. Seuls les champs fournis sont écrits."""
     entrainement_repository.update(
@@ -103,29 +111,60 @@ def update_entrainement(
         heure_debut=heure_debut,
         lieu=lieu,
         type_seance=type_seance,
+        note=note,
     )
     logger.info("Entrainement updated: actor=%s entrainement=%s", actor.id, entrainement.id)
     return entrainement
 
 
 def add_participant(
-    db: Session, actor: User, entrainement: Entrainement, *, jeune_id: int
+    db: Session,
+    actor: User,
+    entrainement: Entrainement,
+    *,
+    jeune_id: int,
+    present: bool | None = None,
 ) -> None:
     """Inscrit un jeune. **Idempotent** — réinscrire est un succès.
 
     404 si le jeune n'existe pas (`_jeune_existant`) — jamais laissé à la
-    seule contrainte SQL.
+    seule contrainte SQL. `present` (#869) pointe le jeune au même geste que
+    son inscription — cf. `entrainement_repository.add_participant`.
     """
     _jeune_existant(db, jeune_id)
     _, created = entrainement_repository.add_participant(
-        db, entrainement_id=entrainement.id, jeune_id=jeune_id
+        db, entrainement_id=entrainement.id, jeune_id=jeune_id, present=present
     )
     logger.info(
-        "Participant added: actor=%s entrainement=%s jeune=%s new=%s",
+        "Participant added: actor=%s entrainement=%s jeune=%s new=%s present=%s",
         actor.id,
         entrainement.id,
         jeune_id,
         created,
+        present,
+    )
+
+
+def set_presence(
+    db: Session, actor: User, entrainement: Entrainement, *, jeune_id: int, present: bool
+) -> None:
+    """Pointe un jeune déjà inscrit présent ou absent (#869, appel de début).
+
+    404 si le jeune n'est pas inscrit à cette séance — cohérent avec le 404
+    d'`add_participant` sur un profil inexistant : cette route ne crée jamais
+    d'inscription.
+    """
+    resultat = entrainement_repository.set_presence(
+        db, entrainement_id=entrainement.id, jeune_id=jeune_id, present=present
+    )
+    if resultat is None:
+        raise NotFoundError("Ce jeune n'est pas inscrit à cet entraînement.")
+    logger.info(
+        "Presence set: actor=%s entrainement=%s jeune=%s present=%s",
+        actor.id,
+        entrainement.id,
+        jeune_id,
+        present,
     )
 
 

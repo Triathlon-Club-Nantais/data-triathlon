@@ -32,6 +32,7 @@ const SEANCE: Entrainement = {
   heure_debut: "18:00:00",
   lieu: "Base nautique",
   type_seance: "Natation",
+  note: "",
   participant_count: 2,
 };
 
@@ -41,6 +42,7 @@ const SEANCE_SANS_CHAMPS: Entrainement = {
   heure_debut: null,
   lieu: null,
   type_seance: null,
+  note: "",
   participant_count: 0,
 };
 

@@ -79,13 +79,14 @@ def update(
     heure_debut=...,
     lieu=...,
     type_seance=...,
+    note=...,
 ) -> Entrainement:
     """Écrit uniquement les champs fournis.
 
-    `heure_debut`/`lieu`/`type_seance` acceptent explicitement `None` comme
-    valeur voulue (effacer le champ) — le défaut `...` (sentinelle) distingue
-    « champ absent du `PATCH` » de « champ remis à vide », que `None` seul ne
-    pourrait pas distinguer.
+    `heure_debut`/`lieu`/`type_seance`/`note` acceptent explicitement `None`
+    comme valeur voulue (effacer le champ) — le défaut `...` (sentinelle)
+    distingue « champ absent du `PATCH` » de « champ remis à vide », que
+    `None` seul ne pourrait pas distinguer.
     """
     if date is not None:
         entrainement.date = date
@@ -95,6 +96,8 @@ def update(
         entrainement.lieu = lieu
     if type_seance is not ...:
         entrainement.type_seance = type_seance
+    if note is not ...:
+        entrainement.note = note
     db.flush()
     return entrainement
 
@@ -111,7 +114,7 @@ def find_participant(
 
 
 def add_participant(
-    db: Session, *, entrainement_id: int, jeune_id: int
+    db: Session, *, entrainement_id: int, jeune_id: int, present: bool | None = None
 ) -> tuple[EntrainementParticipant, bool]:
     """Inscrit le jeune. Rend `(inscription, créée)` — **idempotent**.
 
@@ -119,8 +122,16 @@ def add_participant(
     préalable serait franchie par deux exploitants simultanés, là où
     `UNIQUE(entrainement_id, jeune_id)` ne l'est jamais — reprise exacte de
     `group_repository.add_member`.
+
+    `present` (#869) permet d'inscrire un jeune et de le pointer présent en
+    un seul geste, pendant l'appel — généralisation du paramètre, jamais un
+    second chemin d'écriture (research.md D4). Fourni sur une inscription déjà
+    existante, il met aussi à jour son statut : re-pointer quelqu'un déjà
+    inscrit reste le même geste, idempotent des deux côtés.
     """
-    inscription = EntrainementParticipant(entrainement_id=entrainement_id, jeune_id=jeune_id)
+    inscription = EntrainementParticipant(
+        entrainement_id=entrainement_id, jeune_id=jeune_id, present=present
+    )
     try:
         with db.begin_nested():
             db.add(inscription)
@@ -129,8 +140,29 @@ def add_participant(
         existante = find_participant(db, entrainement_id=entrainement_id, jeune_id=jeune_id)
         if existante is None:  # pragma: no cover — une autre contrainte a cédé
             raise
+        if present is not None:
+            existante.present = present
+            db.flush()
         return existante, False
     return inscription, True
+
+
+def set_presence(
+    db: Session, *, entrainement_id: int, jeune_id: int, present: bool
+) -> EntrainementParticipant | None:
+    """Bascule le statut de présence d'une inscription déjà existante (#869).
+
+    Rend `None` si le jeune n'est pas inscrit à cette séance — cette fonction
+    ne crée jamais d'inscription (`add_participant` s'en charge), elle ne
+    modifie qu'une ligne déjà existante. Seul le dernier statut écrit fait
+    foi (FR-005) : aucun historique des changements.
+    """
+    inscription = find_participant(db, entrainement_id=entrainement_id, jeune_id=jeune_id)
+    if inscription is None:
+        return None
+    inscription.present = present
+    db.flush()
+    return inscription
 
 
 def remove_participant(db: Session, *, entrainement_id: int, jeune_id: int) -> bool:
