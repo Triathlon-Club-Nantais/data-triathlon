@@ -13,6 +13,8 @@ from app.models.ignored_course_duplicate import IgnoredCourseDuplicate
 from app.models.organisation import Organisation
 from app.models.participation import Participation
 from app.models.pending_provider import PendingProvider
+from app.models.personal_profile import PersonalProfile
+from app.models.profile_log_entry import ProfileLogEntry
 from app.models.role import Role
 from app.models.role_permission import RolePermission
 from app.models.season_validation import SeasonValidation
@@ -39,6 +41,8 @@ __all__ = [
     "Organisation",
     "Participation",
     "PendingProvider",
+    "PersonalProfile",
+    "ProfileLogEntry",
     "Role",
     "RolePermission",
     "SeasonValidation",
