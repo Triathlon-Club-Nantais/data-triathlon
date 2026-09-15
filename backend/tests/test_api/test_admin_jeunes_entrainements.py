@@ -176,6 +176,92 @@ def test_adding_a_participant_to_an_unknown_entrainement_returns_404(client):
     )
 
 
+# --- Appel de présence (#869) ----------------------------------------------
+
+
+def test_adding_a_participant_can_mark_it_present_in_the_same_call(client, jeune_id):
+    created = client.post(BASE, json={"date": "2026-09-20"}).json()
+
+    response = client.post(
+        f"{BASE}/{created['id']}/participants", json={"jeune_id": jeune_id, "present": True}
+    )
+
+    assert response.status_code == 201
+    participant = response.json()["participants"][0]
+    assert participant["present"] is True
+
+
+def test_a_new_participant_defaults_to_not_yet_pointed(client, jeune_id):
+    created = client.post(BASE, json={"date": "2026-09-20"}).json()
+
+    response = client.post(f"{BASE}/{created['id']}/participants", json={"jeune_id": jeune_id})
+
+    assert response.json()["participants"][0]["present"] is None
+
+
+def test_setting_presence_updates_the_participant(client, jeune_id):
+    created = client.post(BASE, json={"date": "2026-09-20"}).json()
+    client.post(f"{BASE}/{created['id']}/participants", json={"jeune_id": jeune_id})
+
+    response = client.patch(
+        f"{BASE}/{created['id']}/participants/{jeune_id}/presence", json={"present": True}
+    )
+
+    assert response.status_code == 200
+    participant = response.json()["participants"][0]
+    assert participant["present"] is True
+
+
+def test_setting_presence_survives_a_subsequent_get(client, jeune_id):
+    """SC-002 : le statut posé par le `PATCH` reste identique à une lecture
+    ultérieure, indépendante de la réponse du `PATCH` lui-même."""
+    created = client.post(BASE, json={"date": "2026-09-20"}).json()
+    client.post(f"{BASE}/{created['id']}/participants", json={"jeune_id": jeune_id})
+    client.patch(f"{BASE}/{created['id']}/participants/{jeune_id}/presence", json={"present": True})
+
+    relu = client.get(f"{BASE}/{created['id']}").json()
+
+    assert relu["participants"][0]["present"] is True
+
+
+def test_setting_presence_can_be_corrected(client, jeune_id):
+    """Seul le dernier statut fait foi (FR-005) — pas d'historique."""
+    created = client.post(BASE, json={"date": "2026-09-20"}).json()
+    client.post(f"{BASE}/{created['id']}/participants", json={"jeune_id": jeune_id})
+    client.patch(f"{BASE}/{created['id']}/participants/{jeune_id}/presence", json={"present": False})
+
+    response = client.patch(
+        f"{BASE}/{created['id']}/participants/{jeune_id}/presence", json={"present": True}
+    )
+
+    assert response.json()["participants"][0]["present"] is True
+
+
+def test_setting_presence_for_an_unregistered_jeune_returns_404(client, jeune_id):
+    created = client.post(BASE, json={"date": "2026-09-20"}).json()
+
+    response = client.patch(
+        f"{BASE}/{created['id']}/participants/{jeune_id}/presence", json={"present": True}
+    )
+
+    assert response.status_code == 404
+
+
+def test_setting_presence_for_an_unknown_entrainement_returns_404(client):
+    response = client.patch(f"{BASE}/9999/participants/1/presence", json={"present": True})
+
+    assert response.status_code == 404
+
+
+def test_the_seance_note_can_be_read_and_updated(client):
+    created = client.post(BASE, json={"date": "2026-09-20"}).json()
+    assert created["note"] == ""
+
+    response = client.patch(f"{BASE}/{created['id']}", json={"note": "Bassin partagé."})
+
+    assert response.json()["note"] == "Bassin partagé."
+
+
 # --- Gardes ---------------------------------------------------------------
 
 READS = [("GET", BASE), ("GET", f"{BASE}/1")]
@@ -184,6 +270,7 @@ WRITES = [
     ("PATCH", f"{BASE}/1", {"lieu": "Gymnase"}),
     ("POST", f"{BASE}/1/participants", {"jeune_id": 1}),
     ("DELETE", f"{BASE}/1/participants/1", None),
+    ("PATCH", f"{BASE}/1/participants/1/presence", {"present": True}),
 ]
 
 

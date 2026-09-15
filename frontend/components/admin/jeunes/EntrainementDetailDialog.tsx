@@ -1,5 +1,7 @@
 "use client";
+import Link from "next/link";
 import { toast } from "sonner";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -64,6 +66,15 @@ export function EntrainementDetailDialog({
             libelleSoumission="Enregistrer"
           />
         )}
+
+        {/* Appel de présence (#869) — route dédiée, mobile-first : ce détail
+            reste le point d'entrée le plus court depuis le calendrier. */}
+        <Link
+          href={`/admin/jeunes/appel/${entrainement.id}`}
+          className={buttonVariants({ variant: "outline", size: "sm", className: "w-fit" })}
+        >
+          Ouvrir l&apos;appel
+        </Link>
 
         <ParticipantsList entrainementId={entrainement.id} peutEcrire={peutEcrire} />
       </DialogContent>

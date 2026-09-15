@@ -504,21 +504,30 @@ export const apiClient = {
       heure_debut?: string | null;
       lieu?: string | null;
       type_seance?: string | null;
+      note?: string;
     }
   ) =>
     request<EntrainementDetail>(`/admin/jeunes/entrainements/${id}`, {
       method: "PATCH",
       body: JSON.stringify(champs),
     }),
-  addEntrainementParticipant: (entrainementId: number, jeuneId: number) =>
+  // `present` (#869) pointe le jeune au même geste que son inscription —
+  // optionnel, patron de `body.present` côté backend (`ParticipantAdd`).
+  addEntrainementParticipant: (entrainementId: number, jeuneId: number, present?: boolean) =>
     request<EntrainementDetail>(`/admin/jeunes/entrainements/${entrainementId}/participants`, {
       method: "POST",
-      body: JSON.stringify({ jeune_id: jeuneId }),
+      body: JSON.stringify({ jeune_id: jeuneId, present }),
     }),
   removeEntrainementParticipant: (entrainementId: number, jeuneId: number) =>
     request<null>(
       `/admin/jeunes/entrainements/${entrainementId}/participants/${jeuneId}`,
       { method: "DELETE" }
+    ),
+  // ── Appel de présence (#869, epic #863) ─────────────────────────────────
+  setEntrainementParticipantPresence: (entrainementId: number, jeuneId: number, present: boolean) =>
+    request<EntrainementDetail>(
+      `/admin/jeunes/entrainements/${entrainementId}/participants/${jeuneId}/presence`,
+      { method: "PATCH", body: JSON.stringify({ present }) }
     ),
   // ── Profils individuels (#867, epic #863) ──────────────────────────────────
   // Schéma générique côté backend ; `jeunes:read` pour les deux lectures,
