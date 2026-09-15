@@ -1,9 +1,11 @@
-"""Router du calendrier des entraînements jeunes (#868, epic #863).
+"""Router du calendrier des entraînements jeunes (#868, epic #863) et de
+l'appel de présence (#869).
 
-Cinq ressources, deux pouvoirs : `jeunes:read` pour les deux lectures,
-`jeunes:write` pour le cycle de vie d'un entraînement et sa liste de
-participants — même patron que `admin_groups.py`. Aucune route n'est protégée
-par son préfixe : chaque route porte sa garde individuellement.
+Six ressources, deux pouvoirs : `jeunes:read` pour les deux lectures,
+`jeunes:write` pour le cycle de vie d'un entraînement, sa liste de
+participants et leur statut de présence — même patron que `admin_groups.py`.
+Aucune route n'est protégée par son préfixe : chaque route porte sa garde
+individuellement.
 """
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -18,6 +20,7 @@ from app.schemas.entrainement import (
     EntrainementRead,
     EntrainementUpdate,
     ParticipantAdd,
+    PresenceUpdate,
 )
 from app.services.jeunes import entrainements as entrainement_service
 
@@ -80,10 +83,16 @@ def update_entrainement(
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.JEUNES_WRITE)),
 ):
-    """Corrige la date, l'heure, le lieu ou le type. Seuls les champs fournis
-    sont écrits."""
+    """Corrige la date, l'heure, le lieu, le type ou la note. Seuls les
+    champs fournis sont écrits."""
     entrainement = entrainement_service.get_entrainement_or_404(db, entrainement_id)
     champs_fournis = body.model_dump(exclude_unset=True)
+    # `note` n'est pas nullable côté modèle : un `null` explicite (sans
+    # objet réel — « pas de note » se dit `""`) est traité comme « champ
+    # absent », jamais comme une tentative d'écrire `NULL` en base.
+    note_fournie = champs_fournis.get("note", ...)
+    if note_fournie is None:
+        note_fournie = ...
     entrainement_service.update_entrainement(
         db,
         actor,
@@ -92,6 +101,7 @@ def update_entrainement(
         heure_debut=champs_fournis.get("heure_debut", ...),
         lieu=champs_fournis.get("lieu", ...),
         type_seance=champs_fournis.get("type_seance", ...),
+        note=note_fournie,
     )
     view = entrainement_service.entrainement_detail_view(db, entrainement)
     db.commit()
@@ -109,9 +119,13 @@ def add_participant(
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.JEUNES_WRITE)),
 ):
-    """Inscrit un jeune. **Idempotent** — réinscrire est un succès."""
+    """Inscrit un jeune. **Idempotent** — réinscrire est un succès.
+
+    `present` (#869) le pointe au même geste, pendant l'appel de début."""
     entrainement = entrainement_service.get_entrainement_or_404(db, entrainement_id)
-    entrainement_service.add_participant(db, actor, entrainement, jeune_id=body.jeune_id)
+    entrainement_service.add_participant(
+        db, actor, entrainement, jeune_id=body.jeune_id, present=body.present
+    )
     view = entrainement_service.entrainement_detail_view(db, entrainement)
     db.commit()
     return view
@@ -131,3 +145,27 @@ def remove_participant(
     entrainement = entrainement_service.get_entrainement_or_404(db, entrainement_id)
     entrainement_service.remove_participant(db, actor, entrainement, jeune_id=jeune_id)
     db.commit()
+
+
+@router.patch(
+    "/admin/jeunes/entrainements/{entrainement_id}/participants/{jeune_id}/presence",
+    response_model=EntrainementDetailRead,
+)
+def set_presence(
+    entrainement_id: int,
+    jeune_id: int,
+    body: PresenceUpdate,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+):
+    """Pointe un jeune déjà inscrit présent ou absent (#869, appel de début).
+
+    404 si le jeune n'est pas inscrit à cette séance — cette route ne crée
+    jamais d'inscription (`POST .../participants` s'en charge)."""
+    entrainement = entrainement_service.get_entrainement_or_404(db, entrainement_id)
+    entrainement_service.set_presence(
+        db, actor, entrainement, jeune_id=jeune_id, present=body.present
+    )
+    view = entrainement_service.entrainement_detail_view(db, entrainement)
+    db.commit()
+    return view

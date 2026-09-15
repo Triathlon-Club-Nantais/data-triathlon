@@ -100,3 +100,68 @@ def test_remove_participant_removes_only_this_entrainement(db_session):
 
     assert supprime is True
     assert entrainement_repository.list_participants(db_session, entrainement.id) == []
+
+
+def test_add_participant_defaults_to_not_yet_pointed(db_session):
+    entrainement = _create(db_session, date=date(2026, 9, 20))
+
+    participant, _ = entrainement_repository.add_participant(
+        db_session, entrainement_id=entrainement.id, jeune_id=42
+    )
+
+    assert participant.present is None
+
+
+def test_add_participant_can_be_pointed_present_in_the_same_call(db_session):
+    entrainement = _create(db_session, date=date(2026, 9, 20))
+
+    participant, cree = entrainement_repository.add_participant(
+        db_session, entrainement_id=entrainement.id, jeune_id=42, present=True
+    )
+
+    assert cree is True
+    assert participant.present is True
+
+
+def test_set_presence_updates_the_existing_registration(db_session):
+    entrainement = _create(db_session, date=date(2026, 9, 20))
+    entrainement_repository.add_participant(db_session, entrainement_id=entrainement.id, jeune_id=42)
+
+    resultat = entrainement_repository.set_presence(
+        db_session, entrainement_id=entrainement.id, jeune_id=42, present=True
+    )
+
+    assert resultat.present is True
+    # Seul le dernier statut fait foi (FR-005) : pas d'historique.
+    resultat_2 = entrainement_repository.set_presence(
+        db_session, entrainement_id=entrainement.id, jeune_id=42, present=False
+    )
+    assert resultat_2.present is False
+
+
+def test_set_presence_returns_none_when_not_registered(db_session):
+    entrainement = _create(db_session, date=date(2026, 9, 20))
+
+    resultat = entrainement_repository.set_presence(
+        db_session, entrainement_id=entrainement.id, jeune_id=99, present=True
+    )
+
+    assert resultat is None
+
+
+def test_update_can_change_the_seance_note(db_session):
+    entrainement = _create(db_session, date=date(2026, 9, 20))
+    assert entrainement.note == ""
+
+    entrainement_repository.update(db_session, entrainement, note="Bassin partagé.")
+
+    assert entrainement.note == "Bassin partagé."
+
+
+def test_update_without_note_does_not_erase_it(db_session):
+    entrainement = _create(db_session, date=date(2026, 9, 20))
+    entrainement_repository.update(db_session, entrainement, note="Bassin partagé.")
+
+    entrainement_repository.update(db_session, entrainement, lieu="Base nautique")
+
+    assert entrainement.note == "Bassin partagé."

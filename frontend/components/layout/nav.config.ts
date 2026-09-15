@@ -250,19 +250,6 @@ export const NAV: NavSection[] = [
       // où l'on vient corriger une date : feuilleter le catalogue jusqu'au bout
       // menait à un clic de la destruction de toute la base (#499, ADM-7). Un
       // écran à elles, et le voisinage disparaît.
-      // Référencement des jeunes encadrés par le club (#867, epic #863) —
-      // profil (contact d'urgence, âge, notes) et journal de bord. Pouvoir de
-      // lecture : l'écran se consulte avec `jeunes:read` seul, `jeunes:write`
-      // n'ouvre que les formulaires d'édition, patron `u-groupes` ci-dessous.
-      {
-        id: "a-jeunes",
-        label: "Jeunes",
-        description:
-          "Profils des jeunes encadrés par le club — contact d'urgence, âge, notes et journal de bord. Données personnelles, fermées à qui ne porte pas ce pouvoir.",
-        href: "/admin/jeunes",
-        permission: "jeunes:read",
-        icon: Users,
-      },
       {
         id: "a-maintenance",
         label: "Maintenance",
@@ -383,17 +370,50 @@ export const NAV: NavSection[] = [
     // soit le rôle par ailleurs (`FEATURE_JEUNES`, `core/permissions.py`).
     // Section à part, jamais fondue dans « Administration » : ce n'est pas de
     // l'administration du site, c'est de l'encadrement sportif.
+    //
+    // Trois destinations, fusionnées en une seule section par #869 : #867
+    // (profils) et #868 (calendrier) avaient chacune ajouté leur propre
+    // entrée « Jeunes » en parallèle sur deux branches distinctes de l'epic
+    // — l'une sous « Administration » (`a-jeunes`, aujourd'hui retirée),
+    // l'autre en section racine à item unique. Deux entrées identiques
+    // auraient obligé à deviner laquelle mène où, et l'appel, troisième
+    // destination du même domaine, aurait aggravé la confusion en
+    // s'ajoutant arbitrairement à l'une des deux (research.md D5 de
+    // `specs/20260915-141516-appel-jeunes/`). Les trois items partagent
+    // `jeunes:read` : l'écran se consulte avec ce seul pouvoir,
+    // `jeunes:write` n'ouvrant que les formulaires d'édition (patron
+    // `u-groupes` ci-dessus).
     id: "jeunes",
     label: "Jeunes",
     icon: CalendarDays,
     minRole: ROLE.CONNECTED,
     items: [
       {
+        id: "j-profils",
+        label: "Profils",
+        description:
+          "Profils des jeunes encadrés par le club — contact d'urgence, âge, notes et journal de bord. Données personnelles, fermées à qui ne porte pas ce pouvoir.",
+        href: "/admin/jeunes",
+        permission: "jeunes:read",
+      },
+      {
         id: "j-calendrier",
         label: "Calendrier des entraînements",
         description:
           "Les séances d'entraînement jeunes et leurs participants inscrits.",
         href: "/admin/jeunes/calendrier",
+        permission: "jeunes:read",
+      },
+      // Appel de présence (#869) — pointage présent/absent d'une séance,
+      // note de séance, notes sur un jeune. Consultable avec `jeunes:read`
+      // seul ; marquer présent/absent ou ajouter un jeune exige
+      // `jeunes:write`, gardé côté écran (patron #496) et côté API.
+      {
+        id: "j-appel",
+        label: "Appel",
+        description:
+          "Pointer les jeunes présents ou absents à une séance, vérifier qu'aucun n'est manquant en fin de séance, et consigner une note.",
+        href: "/admin/jeunes/appel",
         permission: "jeunes:read",
       },
     ],
