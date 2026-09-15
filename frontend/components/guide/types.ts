@@ -2,6 +2,8 @@
 export type GuideCapture = {
   src: string;
   alt: string;
+  /** Image "Capture à venir" plutôt qu'un vrai rendu de l'écran (#874). */
+  placeholder?: boolean;
 };
 
 /** Le contenu d'une section du guide (une fonctionnalité documentée). */

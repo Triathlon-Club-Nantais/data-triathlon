@@ -67,8 +67,8 @@ describe("Garde des écrans d'administration (FR-040)", () => {
 
   it("propose un lien vers le guide (#865), hors du système de permissions par écran", async () => {
     // Volontairement hors de `nav.config.ts` : la garde ci-dessus (≥ 1
-    // pouvoir admin) suffit déjà, voir le commentaire sur `a-flags` dans ce
-    // fichier de config.
+    // pouvoir admin) suffit déjà, voir le commentaire sur `a-flags` dans
+    // nav.config.ts.
     getSession.mockResolvedValue(SESSION);
     listAuthMethods.mockResolvedValue(GITHUB);
 
