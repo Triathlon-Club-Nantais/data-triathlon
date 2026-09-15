@@ -570,6 +570,37 @@ export interface GroupDetail extends Group {
 }
 
 /**
+ * Un entraînement jeunes tel qu'il apparaît dans le calendrier (#868).
+ *
+ * Seule `date` est garantie renseignée — les trois autres champs viennent
+ * `null` plutôt qu'absents quand ils ne sont pas saisis.
+ */
+export interface Entrainement {
+  id: number;
+  date: string;
+  heure_debut: string | null;
+  lieu: string | null;
+  type_seance: string | null;
+  participant_count: number;
+}
+
+/**
+ * Un jeune inscrit à un entraînement.
+ *
+ * `jeune_id` seul — le profil du jeune référencé (#867) est hors du contrat de
+ * cette ressource.
+ */
+export interface EntrainementParticipant {
+  jeune_id: number;
+  created_at: string;
+}
+
+/** Un entraînement et sa liste de participants inscrits. */
+export interface EntrainementDetail extends Entrainement {
+  participants: EntrainementParticipant[];
+}
+
+/**
  * Un profil individuel tel qu'il apparaît dans la liste (#867, epic #863).
  *
  * Schéma générique côté backend (`personal_profiles`, pas de préfixe
