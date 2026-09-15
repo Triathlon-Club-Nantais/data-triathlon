@@ -34,6 +34,8 @@ import type {
   CoursesWipeResult,
   DuplicateCandidateList,
   DuplicateIgnoreResult,
+  Entrainement,
+  EntrainementDetail,
   EventPage,
   Feedback,
   FeedbackCounts,
@@ -477,6 +479,45 @@ export const apiClient = {
     }),
   removeGroupMember: (groupId: number, userId: number) =>
     request<null>(`/admin/groups/${groupId}/members/${userId}`, { method: "DELETE" }),
+  // ── Calendrier des entraînements jeunes (#868, epic #863) ─────────────────
+  // Lecture sous `jeunes:read`, écriture sous `jeunes:write` — deux pouvoirs
+  // réellement distincts (cf. `contracts/api.md` de la feature).
+  listEntrainements: () => request<Entrainement[]>("/admin/jeunes/entrainements"),
+  getEntrainement: (id: number) =>
+    request<EntrainementDetail>(`/admin/jeunes/entrainements/${id}`),
+  createEntrainement: (body: {
+    date: string;
+    heure_debut?: string | null;
+    lieu?: string | null;
+    type_seance?: string | null;
+  }) =>
+    request<EntrainementDetail>("/admin/jeunes/entrainements", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateEntrainement: (
+    id: number,
+    champs: {
+      date?: string;
+      heure_debut?: string | null;
+      lieu?: string | null;
+      type_seance?: string | null;
+    }
+  ) =>
+    request<EntrainementDetail>(`/admin/jeunes/entrainements/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(champs),
+    }),
+  addEntrainementParticipant: (entrainementId: number, jeuneId: number) =>
+    request<EntrainementDetail>(`/admin/jeunes/entrainements/${entrainementId}/participants`, {
+      method: "POST",
+      body: JSON.stringify({ jeune_id: jeuneId }),
+    }),
+  removeEntrainementParticipant: (entrainementId: number, jeuneId: number) =>
+    request<null>(
+      `/admin/jeunes/entrainements/${entrainementId}/participants/${jeuneId}`,
+      { method: "DELETE" }
+    ),
   // ── Composition des rôles (#115, écran #240) ───────────────────────────────
   // Lecture sous `roles:read`, écriture sous `roles:write`. `listRoles` est
   // celle de l'attribution ci-dessus — même ressource, même cache.

@@ -35,10 +35,7 @@ ROUTERS = Path(__file__).resolve().parents[1] / "app" / "api"
 #: après la fermeture de l'epic serait exactement le mensonge d'écran que ce
 #: test existe pour empêcher — ce n'est pas une échappatoire générale, et
 #: l'ajouter sans sous-issue de suivi n'a pas de sens.
-GARDE_A_VENIR: dict[str, str] = {
-    "jeunes:read": "#867 (profils) ou #868 (calendrier)",
-    "jeunes:write": "#869 (appel de présence)",
-}
+GARDE_A_VENIR: dict[str, str] = {}
 
 #: Les tables que seule une ressource gardée a le droit d'écrire (FR-031).
 TABLES_DE_POUVOIR = {"Role", "RolePermission", "UserRole"}

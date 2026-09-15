@@ -1,5 +1,16 @@
 import type { LucideIcon } from "lucide-react";
-import { Briefcase, Gauge, HeartHandshake, LayoutGrid, List, Map, UserCheck, UserCog, Users } from "lucide-react";
+import {
+  Briefcase,
+  CalendarDays,
+  Gauge,
+  HeartHandshake,
+  LayoutGrid,
+  List,
+  Map,
+  UserCheck,
+  UserCog,
+  Users,
+} from "lucide-react";
 
 /**
  * Table de configuration **unique** de la navigation (proto « Navigation TCN »).
@@ -341,6 +352,27 @@ export const NAV: NavSection[] = [
           "À quoi chacun appartient — le Codir, les officiels, une section. Un groupe n'accorde aucun droit : ce que l'on peut faire vient des rôles.",
         href: "/admin/groupes",
         permission: "groups:assign",
+      },
+    ],
+  },
+  {
+    // Encadrement et suivi des jeunes triathlètes (epic #863) — données
+    // personnelles et sensibles (mineurs), fermées par pouvoir RBAC quel que
+    // soit le rôle par ailleurs (`FEATURE_JEUNES`, `core/permissions.py`).
+    // Section à part, jamais fondue dans « Administration » : ce n'est pas de
+    // l'administration du site, c'est de l'encadrement sportif.
+    id: "jeunes",
+    label: "Jeunes",
+    icon: CalendarDays,
+    minRole: ROLE.CONNECTED,
+    items: [
+      {
+        id: "j-calendrier",
+        label: "Calendrier des entraînements",
+        description:
+          "Les séances d'entraînement jeunes et leurs participants inscrits.",
+        href: "/admin/jeunes/calendrier",
+        permission: "jeunes:read",
       },
     ],
   },
