@@ -41,6 +41,7 @@ from app.repositories import (
     volunteer_action_repository,
 )
 from app.schemas.course import CourseSourceOut
+from app.scrapers.base import STATUS_FINISHER
 from app.services import import_service
 
 logger = logging.getLogger(__name__)
@@ -1188,10 +1189,18 @@ def season_quota(db: Session, *, athlete_id: int, season: int) -> dict:
     `validated_count` recompte en Python plutôt que de réutiliser l'agrégat SQL
     d'`athlete_repository.list_with_season_participation_count` : un seul
     athlète, un coût négligeable à l'échelle du club. Même sémantique que là-bas
-    (`not is_pending_validation`) — à garder synchronisée si l'une des deux change.
+    (`not is_pending_validation`, `federal_only`, statut `finisher`) — à garder
+    synchronisée si l'une des deux change (#845 : un DNS ou une discipline hors
+    FFTRI ne doit pas compter dans les 3 épreuves requises).
     """
-    participations = participation_repository.list_for_athlete(db, athlete_id, seasons=[season])
-    validated_count = sum(1 for p in participations if not p.is_pending_validation)
+    participations = participation_repository.list_for_athlete(
+        db, athlete_id, seasons=[season], federal_only=True
+    )
+    validated_count = sum(
+        1
+        for p in participations
+        if not p.is_pending_validation and p.status.lower() == STATUS_FINISHER
+    )
     return {
         "validated_count": validated_count,
         "has_volunteer_action": volunteer_action_repository.exists_for_athlete_season(

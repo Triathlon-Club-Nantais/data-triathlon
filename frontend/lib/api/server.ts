@@ -166,6 +166,32 @@ async function serverFetchAuthed<T>(path: string): Promise<T | null> {
  * remonter l'échec réseau) sur tout ce qui n'est ni 200 ni 401, à charge pour
  * l'appelant — `app/(public_restricted)/layout.tsx` — de les traiter comme lui.
  */
+/**
+ * Variante de `serverFetch` pour une route protégée par un pouvoir RBAC
+ * (`require_permission`), en plus du mot de passe du site (#845).
+ *
+ * `serverFetch` ne relaie que le cookie d'accès au site (#586) — suffisant
+ * pour les six routes ouvertes à tout adhérent du site. `GET
+ * /athletes/season-activity` exige en plus `current_user` (pouvoir
+ * `pages:preview`, #811/#825), jamais relayé par `serverFetch` : un admin qui
+ * porte ce pouvoir recevait quand même un 401 systématique de la part du
+ * rendu serveur, remontant en `ApiError` non rattrapée jusqu'à l'écran
+ * d'erreur générique. Relaie donc le jar entier comme `serverFetchAuthed`,
+ * mais lève sur **tout** non-OK, 401 compris : `page.tsx` a déjà vérifié le
+ * pouvoir via `getSession()` avant d'appeler cette route.
+ */
+async function serverFetchPermissioned<T>(path: string): Promise<T> {
+  const jar = await cookies();
+  const res = await fetch(`${BASE}${path}`, {
+    cache: "no-store",
+    headers: { cookie: cookieHeader(jar) },
+  });
+  if (!res.ok) {
+    throw new ApiError(res.status, await errorDetail(res));
+  }
+  return res.json() as Promise<T>;
+}
+
 async function serverFetchAuthedRaw(path: string): Promise<boolean> {
   const jar = await cookies();
   const res = await fetch(`${BASE}${path}`, {
@@ -189,7 +215,7 @@ export const apiServer = {
   listAthleteSeasonActivity: (
     opts: { scope?: string; seasons?: number[]; federal_only?: boolean } = {},
   ) =>
-    serverFetch<AthleteSeasonActivity[]>(
+    serverFetchPermissioned<AthleteSeasonActivity[]>(
       `/athletes/season-activity${toQuery(opts as Record<string, unknown>)}`,
     ),
   /**

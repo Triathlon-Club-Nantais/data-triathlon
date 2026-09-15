@@ -37,18 +37,26 @@ run-name: "render-sleep · ${{ inputs.action || github.event.schedule }} · ${{ 
 # deux volontaires : le `workflow_dispatch` ci-dessous, et le `resume` que
 # `deploy.yml` exécute avant chaque deploy hook — un déploiement rallume donc
 # toujours sa cible, quel que soit l'état du cron.
+#
+# **Minute 15, pas minute pile** : GitHub documente que les crons programmés à
+# l'heure pile (minute 0) tombent dans le créneau de plus forte charge de la
+# plateforme et recommande de décaler la minute pour limiter le retard. Constaté
+# sur l'historique réel (#842) : les crons de 23 h et 4 h démarraient
+# systématiquement avec 1 h 40 à plus de 4 h de retard, bien au-delà de l'écart
+# DST ci-dessus. Les trois crons restent à la même minute entre eux pour
+# préserver le croisement intentionnel décrit plus bas.
 on:
   schedule:
-    # Coucher de la preview : à chaque heure pile. Un cron d'Actions peut être
+    # Coucher de la preview, à chaque heure. Un cron d'Actions peut être
     # retardé ou sauté quand la plateforme est chargée ; le prix d'une heure
     # manquée est une heure d'instance de plus, pas une panne.
-    - cron: "0 * * * *"
-    # Coucher de la production. La preview n'est **pas** visée ici : l'heure
-    # pile s'en charge déjà, et deux mécanismes qui se chevauchent se lisent
+    - cron: "15 * * * *"
+    # Coucher de la production. La preview n'est **pas** visée ici : le cron
+    # horaire s'en charge déjà, et deux mécanismes qui se chevauchent se lisent
     # moins bien qu'un seul (#560).
-    - cron: "0 23 * * *"
+    - cron: "15 23 * * *"
     # Lever : la production seule — la preview attend son prochain déploiement.
-    - cron: "0 4 * * *"
+    - cron: "15 4 * * *"
   workflow_dispatch:
     inputs:
       action:
@@ -86,8 +94,8 @@ permissions:
 # dont on n'attend pas le nom de cron (une entrée ajoutée sans être branchée
 # ici, par exemple), mieux vaut rallumer que couper.
 env:
-  ACTION: ${{ inputs.action || ((github.event.schedule == '0 * * * *' || github.event.schedule == '0 23 * * *') && 'suspend' || 'resume') }}
-  TARGET: ${{ inputs.target || (github.event.schedule == '0 * * * *' && 'preview' || 'production') }}
+  ACTION: ${{ inputs.action || ((github.event.schedule == '15 * * * *' || github.event.schedule == '15 23 * * *') && 'suspend' || 'resume') }}
+  TARGET: ${{ inputs.target || (github.event.schedule == '15 * * * *' && 'preview' || 'production') }}
 
 jobs:
   render:

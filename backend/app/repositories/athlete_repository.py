@@ -12,6 +12,7 @@ from app.core.validation import validated_clause
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
+from app.scrapers.base import STATUS_FINISHER
 
 
 def _escape_like(word: str) -> str:
@@ -357,15 +358,22 @@ def list_with_season_participation_count(
     Trois agrégats indépendants sur les mêmes lignes jointes (research.md D2),
     chacun nommé pour ce qu'il compte : `total_count` (toute participation de
     la saison, validée ou non — identique à `list_for_athlete`, FR-001),
-    `validated_count` (validées uniquement, FR-002), `club_affiliated_count`
-    (validées **et** affiliées au club sur la ligne de résultat — comportement
-    historique de cette fonction avant #709, conservé à l'identique, FR-003).
+    `validated_count` (validées **et** statut `finisher`, FR-002),
+    `club_affiliated_count` (idem **et** affiliées au club sur la ligne de
+    résultat — comportement historique de cette fonction avant #709, conservé
+    à l'identique, FR-003). Le filtre `finisher` (#845) évite qu'un DNS validé
+    par un bénévole compte comme participation active — même règle que
+    `admin_actions.season_quota`, à garder synchronisées si l'une des deux
+    change.
     """
     # Import local : participation_repository importe name_filter d'ici depuis
     # #357, un import en tête de module créerait un cycle.
     from app.repositories.participation_repository import season_clause
 
-    est_valide = validated_clause(Participation.is_pending_validation)
+    est_valide = and_(
+        validated_clause(Participation.is_pending_validation),
+        func.lower(Participation.status) == STATUS_FINISHER,
+    )
     total = func.count(Participation.id)
     validees = func.sum(case((est_valide, 1), else_=0))
     affiliees_club = func.sum(

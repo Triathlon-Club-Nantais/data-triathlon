@@ -106,6 +106,27 @@ describe("serverFetch — relais du cookie d'accès au site (#526)", () => {
   });
 });
 
+describe("listAthleteSeasonActivity — route gardée par pages:preview (#845)", () => {
+  it("relaie aussi la session SSO, pas seulement le cookie d'accès au site", async () => {
+    getAll.mockReturnValue([
+      { name: "tcn_site_session", value: "jeton-de-test" },
+      { name: "tcn_session", value: "session-sso" },
+    ]);
+    const fetchMock = mockFetchOk([]);
+
+    await apiServer.listAthleteSeasonActivity({ scope: "club", seasons: [2026] });
+
+    // `GET /athletes/season-activity` exige `require_permission(P.PAGES_PREVIEW)`
+    // depuis #811/#825, donc `current_user` (session SSO) en plus du mot de
+    // passe du site. `serverFetch` (#586) ne relayait que le second : un admin
+    // avec le pouvoir recevait quand même un 401 systématique côté serveur.
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.headers).toEqual({
+      cookie: "tcn_site_session=jeton-de-test; tcn_session=session-sso",
+    });
+  });
+});
+
 describe("serverFetchAuthed / serverFetchAuthedRaw — relaient le jar entier (#586)", () => {
   it("`getSession` relaie la session SSO — elle n'est jamais mise en cache, aucun coût de clé à réduire", async () => {
     getAll.mockReturnValue([

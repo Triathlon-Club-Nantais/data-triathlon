@@ -361,6 +361,28 @@ describe("RankingEvolutionChart", () => {
     expect(position.style.textAlign).toBe("");
   });
 
+  it("recentre le libellé d'étape sur le rang qu'il annote (#854)", () => {
+    // `display: block` sans largeur explicite prend toute la largeur de
+    // l'entraxe : un `textAlign: left` posé dessus décale visuellement le nom
+    // par rapport au rang, resté centré dans la même boîte pleine largeur. La
+    // boîte du nom doit au contraire épouser son texte (`inline-block` +
+    // `maxWidth: 100%`) pour que le `textAlign: center` hérité de la rangée la
+    // centre quand le texte tient — l'ellipse à droite ne joue que si le texte
+    // dépasse l'entraxe, sans réintroduire la troncature à double sens.
+    const { container } = render(
+      <RankingEvolutionChart
+        steps={[{ segment: "COURSE A PIED", scratch_position: 12, segment_position: 9 }]}
+        eventType="format-inconnu"
+      />,
+    );
+
+    const label = container.querySelector("[data-step-label]") as HTMLElement;
+    const name = label.querySelector("span") as HTMLElement;
+
+    expect(name.style.display).toBe("inline-block");
+    expect(name.style.maxWidth).toBe("100%");
+  });
+
   it("nomme le graphique par un récapitulatif chiffré, sur le patron « X : liste. »", () => {
     // Fix D (#480) : seul récapitulatif du lot à ne rendre aucun chiffre — les
     // cinq autres graphiques suivent « X : liste. » ou « X, de A à B. ».
@@ -382,36 +404,11 @@ describe("RankingEvolutionChart", () => {
     expect(screen.getByText("Classement par étape indisponible")).toBeTruthy();
   });
 
-  it("US5 : trace l'allure (temps cumulé) en complément du classement", () => {
+  it("#855 : n'affiche plus le graphique « Allure », qui traçait du temps cumulé et non une allure", () => {
     const { container } = renderChart();
 
-    const points = container.querySelectorAll('[data-role="pace"]');
-    expect([...points].map((p) => p.getAttribute("data-step"))).toEqual([
-      "swim",
-      "t1",
-      "bike",
-      "t2",
-      "run",
-    ]);
-  });
-
-  it("US5 : écrit le temps cumulé de chaque étape en clair, sans survol", () => {
-    renderChart();
-
-    // 1200s → 0:20:00, 7440s → 2:04:00.
-    expect(screen.getByText("0:20:00")).toBeTruthy();
-    expect(screen.getByText("2:04:00")).toBeTruthy();
-  });
-
-  it("US5 : n'affiche pas le bloc d'allure quand aucune étape n'a de temps cumulé", () => {
-    render(
-      <RankingEvolutionChart
-        steps={[{ segment: "swim", scratch_position: 1, segment_position: 1 }]}
-        eventType="triathlon-m"
-      />,
-    );
-
     expect(screen.queryByText(/allure/i)).toBeNull();
+    expect(container.querySelectorAll('[data-role="pace"]').length).toBe(0);
   });
 
   it("colore la légende avec un token déclaré dans la palette", () => {
