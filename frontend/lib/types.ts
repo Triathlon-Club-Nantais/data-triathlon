@@ -570,6 +570,38 @@ export interface GroupDetail extends Group {
 }
 
 /**
+ * Un profil individuel tel qu'il apparaît dans la liste (#867, epic #863).
+ *
+ * Schéma générique côté backend (`personal_profiles`, pas de préfixe
+ * « jeune ») — c'est la garde `jeunes:read`/`jeunes:write` qui réserve cet
+ * écran aux jeunes pour cette itération, jamais le nom des champs.
+ */
+export interface Profile {
+  id: number;
+  organisation_id: number;
+  first_name: string;
+  last_name: string;
+  birth_date: string | null;
+  created_at: string;
+}
+
+/** Une entrée du journal de bord — un historique, jamais une valeur unique. */
+export interface ProfileLogEntry {
+  id: number;
+  entry_date: string;
+  text: string;
+  created_by_name: string | null;
+  created_at: string;
+}
+
+/** Un profil **et** son journal — ce que rend le détail. */
+export interface ProfileDetail extends Profile {
+  emergency_contact: string;
+  notes: string;
+  log_entries: ProfileLogEntry[];
+}
+
+/**
  * Un utilisateur vu depuis l'administration (#115).
  *
  * `is_active: false` est l'effet d'un retrait de la liste d'autorisation
