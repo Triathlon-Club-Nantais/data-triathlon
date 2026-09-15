@@ -88,9 +88,9 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   return (
     <DangerConfirmProvider>
       {/* Lien fixe vers le guide (#865), hors de `nav.config.ts` par choix
-          délibéré : voir le commentaire sur `a-flags` dans ce fichier. La
-          garde ci-dessus (≥ 1 pouvoir admin) suffit, aucun `permission` par
-          écran n'est donc nécessaire ici. */}
+          délibéré : voir le commentaire sur `a-flags` dans nav.config.ts et
+          research.md. La garde ci-dessus (≥ 1 pouvoir admin) suffit, aucun
+          `permission` par écran n'est donc nécessaire ici. */}
       <div
         className="mx-auto flex justify-end px-4 pt-4 sm:px-8 md:px-10"
         style={{ maxWidth: "var(--tcn-content-max)" }}

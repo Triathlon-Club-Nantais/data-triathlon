@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Card } from "@/components/tcn/Card";
+import { Badge, Card } from "@/components/tcn";
 import type { GuideSection as GuideSectionData } from "./types";
 
 export function GuideSection({ section }: { section: GuideSectionData }) {
@@ -22,15 +22,20 @@ export function GuideSection({ section }: { section: GuideSectionData }) {
       </ol>
       <div className="space-y-3">
         {section.captures.map((capture) => (
-          <Image
-            key={capture.src}
-            src={capture.src}
-            alt={capture.alt}
-            width={1200}
-            height={750}
-            style={{ width: "100%", height: "auto", borderRadius: "var(--tcn-radius-2xl)" }}
-            className="border border-[var(--tcn-border)]"
-          />
+          <div key={capture.src} className="space-y-2">
+            {capture.placeholder && <Badge variant="orange">Capture à venir</Badge>}
+            <Image
+              src={capture.src}
+              // Le statut "à venir" est répété dans l'alt : le badge visuel
+              // ne suffit pas pour un lecteur d'écran, qui n'a que le texte
+              // alternatif de l'image (#865, revue de code).
+              alt={capture.placeholder ? `Capture à venir — ${capture.alt}` : capture.alt}
+              width={1200}
+              height={750}
+              style={{ width: "100%", height: "auto", borderRadius: "var(--tcn-radius-2xl)" }}
+              className="border border-[var(--tcn-border)]"
+            />
+          </div>
         ))}
       </div>
     </Card>

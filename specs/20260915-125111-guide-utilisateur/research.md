@@ -23,37 +23,53 @@ question à l'utilisateur.
 
 ## Gating de la section admin du guide
 
-- **Decision**: `/admin/guide` vit sous `app/admin/`, gardé par
-  `app/admin/layout.tsx`. L'entrée de navigation `a-guide` porte un
-  `permission` unique : l'**union** (OU) de tous les pouvoirs admin déjà
-  déclarés dans `nav.config.ts`, pas un `permission` par section de contenu.
-- **Rationale révisée** (correction faite en implémentation, #865) :
-  `app/admin/layout.tsx` referme déjà toute session ne détenant **aucun**
-  pouvoir admin (`session.permissions.length === 0` → redirection vers
-  `/dashboard`, avant même que la page ne s'exécute) — la garde n'est donc
-  pas « présence d'une session », comme la première rédaction de cette note
-  l'affirmait à tort, mais « présence d'au moins un pouvoir ». `AdminIndex`
-  (le sommaire `/admin`) et `AppNav` répliquent cette règle **par item** via
-  `estVisible()`, et un test verrouille l'invariant : une session sans aucun
-  pouvoir doit voir « Aucun écran d'administration » — jamais une tuile
-  isolée (`AdminIndex.test.tsx`). Une première version sans `permission` sur
-  `a-guide` cassait cet invariant en le rendant visible même à une session
-  vide. L'union résout les deux objectifs à la fois : elle reproduit
-  exactement ce que la garde du layout vaut déjà (visible dès qu'on tient
-  *un* pouvoir, quel qu'il soit), tout en évitant la fragmentation par écran
-  que la première version voulait déjà éviter — un admin qui ne détient
-  qu'un seul pouvoir voit malgré tout le guide complet, pas seulement sa
-  section. Coût assumé, au même titre que le OU déjà posé sur
-  `a-maintenance` : la liste doit être tenue à jour si un nouveau pouvoir
-  admin apparaît.
-- **Alternatives considered**: aucun `permission` (rejeté : casse
-  `AdminIndex.test.tsx`, détaillé ci-dessus) ; un `permission` par section de
-  contenu — rejeté, fragmenterait la documentation vue par un admin qui n'a
-  qu'une partie des pouvoirs, alors que comprendre l'ensemble du back-office
-  est la valeur du guide ; guide unique `/guide` avec sections admin masquées
-  côté client par pouvoir — rejetée : un accès direct par URL/ancre
-  contournerait un masquage purement client, alors que la garde du layout
-  est déjà un rempart serveur existant et éprouvé.
+- **Decision** (finale, après deux corrections en implémentation — voir
+  historique ci-dessous) : `/admin/guide` vit sous `app/admin/`, gardé par
+  `app/admin/layout.tsx`. Le lien d'accès n'est **pas** une entrée de
+  `nav.config.ts` : c'est un lien fixe ajouté directement dans
+  `app/admin/layout.tsx`, rendu pour toute session qui atteint les pages
+  admin (donc détenant déjà au moins un pouvoir, la garde du layout l'exige).
+  Aucun `permission` nulle part pour le guide — ni absent d'un item NAV, ni
+  union OU : le guide est simplement hors du système de permissions par
+  écran.
+- **Rationale** : `app/admin/layout.tsx` referme toute session ne détenant
+  **aucun** pouvoir admin (`session.permissions.length === 0` →
+  redirection vers `/dashboard`, avant même que la page ne s'exécute) — la
+  garde n'est donc pas « présence d'une session » mais « présence d'au
+  moins un pouvoir ». `AdminIndex` (le sommaire `/admin`) et `AppNav`
+  répliquent cette règle **par item de `nav.config.ts`** via `estVisible()`,
+  et deux invariants la verrouillent : `AdminIndex.test.tsx` (une session
+  sans aucun pouvoir doit voir « Aucun écran d'administration », jamais une
+  tuile isolée) et `AppNav.test.tsx` (une section à un seul pouvoir détenu
+  se replie sur un lien direct, #482/NAV-2 — dépend du nombre d'items
+  *visibles* dans la section). Toute entrée `a-guide` ajoutée à
+  `nav.config.ts` compte dans ces deux comptages, qu'elle porte ou non un
+  `permission` : sans `permission`, elle casse le premier invariant (visible
+  même à une session vide) ; avec un `permission` unique en union OU sur
+  tous les pouvoirs admin (la première correction tentée), elle reste
+  toujours visible dès qu'un *autre* item de la section l'est aussi — donc
+  casse le second invariant, puisque la section n'a alors plus jamais
+  exactement un item visible. Les deux approches par entrée NAV sont donc
+  rejetées pour la même raison structurelle : `estVisible()` compte des
+  items, pas des « types » d'items, et le guide n'est structurellement pas
+  un écran comme les autres — c'est de la documentation en lecture seule,
+  pas un geste qui écrit des données. Le sortir entièrement de
+  `nav.config.ts` — un lien fixe dans le layout, gardé par la même
+  condition (≥ 1 pouvoir) que le layout applique déjà — est la seule
+  option qui ne perturbe aucun des deux comptages.
+- **Alternatives considered** : aucun `permission` sur une entrée
+  `nav.config.ts` — rejetée, casse l'état vide d'`AdminIndex` ; un
+  `permission` unique en union OU sur une entrée `nav.config.ts` — rejetée
+  après implémentation et test, casse le repli #482/NAV-2 dès qu'un admin
+  ne détient qu'un seul pouvoir (régression constatée sur
+  `AppNav.test.tsx`, corrigée en retirant l'entrée plutôt qu'en cherchant
+  une troisième valeur de `permission`) ; un `permission` par section de
+  contenu — rejetée, fragmenterait la documentation vue par un admin qui
+  n'a qu'une partie des pouvoirs, alors que comprendre l'ensemble du
+  back-office est la valeur du guide ; guide unique `/guide` avec sections
+  admin masquées côté client par pouvoir — rejetée : un accès direct par
+  URL/ancre contournerait un masquage purement client, alors que la garde
+  du layout est déjà un rempart serveur existant et éprouvé.
 
 ## Stockage du contenu et des captures d'écran
 

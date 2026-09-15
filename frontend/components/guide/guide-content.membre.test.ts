@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { describe, it, expect } from "vitest";
 import { GUIDE_MEMBRE } from "./guide-content.membre";
 
@@ -14,5 +16,14 @@ describe("GUIDE_MEMBRE", () => {
     expect(section!.etapes.length).toBeGreaterThanOrEqual(1);
     expect(section!.casUsage.trim().length).toBeGreaterThan(0);
     expect(section!.captures.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("chaque `captures[].src` résout vers un fichier présent sous public/", () => {
+    for (const section of GUIDE_MEMBRE) {
+      for (const capture of section.captures) {
+        const fichier = path.join(__dirname, "..", "..", "public", capture.src);
+        expect(existsSync(fichier), `${section.id} : ${capture.src}`).toBe(true);
+      }
+    }
   });
 });
