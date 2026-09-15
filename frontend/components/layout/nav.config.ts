@@ -1,5 +1,16 @@
 import type { LucideIcon } from "lucide-react";
-import { Briefcase, Gauge, HeartHandshake, LayoutGrid, List, Map, UserCheck, UserCog, Users } from "lucide-react";
+import {
+  BookOpen,
+  Briefcase,
+  Gauge,
+  HeartHandshake,
+  LayoutGrid,
+  List,
+  Map,
+  UserCheck,
+  UserCog,
+  Users,
+} from "lucide-react";
 
 /**
  * Table de configuration **unique** de la navigation (proto « Navigation TCN »).
@@ -99,6 +110,10 @@ export const NAV: NavSection[] = [
       // page. `pages:preview` (#811) la débloque en avant-première, pour un
       // profil qui veut vérifier son rendu avant l'ouverture au grand public.
       { id: "carte", label: "Carte", href: "/carte", icon: Map, soon: true, permission: "pages:preview" },
+      // Guide utilisateur (#865) — documentation en lecture seule, ouverte à
+      // tout utilisateur connecté au même titre que les autres destinations
+      // de cette section.
+      { id: "guide", label: "Guide", href: "/guide", icon: BookOpen },
     ],
   },
   {
@@ -283,6 +298,15 @@ export const NAV: NavSection[] = [
       // page. Un second écran pour un unique bouton aurait coûté une entrée de
       // navigation de plus, sur un rail déjà long.
       { id: "a-flags", label: "Feature flags", minRole: ROLE.ADMIN, soon: true },
+      // Le guide admin (#865) n'est volontairement **pas** ici : une entrée de
+      // cette table compte dans le nombre d'écrans visibles par section
+      // (`AdminIndex` — état vide, repli #482/NAV-2 sur une section à une
+      // seule destination), et un `permission` la rendrait mécaniquement
+      // visible à chaque fois qu'un autre écran l'est, cassant ces deux
+      // invariants pour tout titulaire d'un seul pouvoir. Le lien vit à la
+      // place dans `app/admin/layout.tsx`, hors du système de permissions par
+      // écran — la garde du layout (≥ 1 pouvoir admin) suffit déjà. Voir
+      // research.md.
     ],
   },
   {
