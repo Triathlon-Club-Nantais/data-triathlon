@@ -10,7 +10,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Retrouver l'épreuve par recherche, puis ouvrir sa fiche de correction.",
       "Corriger les champs nécessaires, ou retirer l'épreuve si elle est en doublon.",
     ],
-    captures: [{ src: "/guide/admin/epreuves.jpg", alt: "Écran de gestion des épreuves", placeholder: true }],
+    captures: [{ src: "/guide/admin/epreuves.jpg", alt: "Écran de gestion des épreuves" }],
   },
   {
     id: "fournisseurs",
@@ -20,7 +20,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Ouvrir « Fournisseurs en attente » depuis la navigation admin.",
       "Examiner un lien signalé pour évaluer si le fournisseur mérite un nouveau scraper.",
     ],
-    captures: [{ src: "/guide/admin/fournisseurs.jpg", alt: "Liste des fournisseurs de chronométrage en attente", placeholder: true }],
+    captures: [{ src: "/guide/admin/fournisseurs.jpg", alt: "Liste des fournisseurs de chronométrage en attente" }],
   },
   {
     id: "doublons",
@@ -31,7 +31,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Ouvrir « Doublons suspects » depuis la navigation admin.",
       "Examiner une paire suspecte, puis fusionner ou écarter selon le cas.",
     ],
-    captures: [{ src: "/guide/admin/doublons.jpg", alt: "Liste des paires d'épreuves suspectées doublons", placeholder: true }],
+    captures: [{ src: "/guide/admin/doublons.jpg", alt: "Liste des paires d'épreuves suspectées doublons" }],
   },
   {
     id: "droits",
@@ -42,7 +42,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Ouvrir « Droits des rôles » depuis la navigation admin (section « Gestion des utilisateurs »).",
       "Sélectionner un rôle, puis cocher ou décocher les pouvoirs qu'il porte.",
     ],
-    captures: [{ src: "/guide/admin/droits.jpg", alt: "Composition des pouvoirs d'un rôle", placeholder: true }],
+    captures: [{ src: "/guide/admin/droits.jpg", alt: "Composition des pouvoirs d'un rôle" }],
   },
   {
     id: "quality",
@@ -52,7 +52,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Ouvrir « Revalidation qualité » depuis la navigation admin.",
       "Inspecter une épreuve signalée, corriger si besoin, puis valider ou écarter.",
     ],
-    captures: [{ src: "/guide/admin/quality.jpg", alt: "Liste des épreuves en revalidation qualité", placeholder: true }],
+    captures: [{ src: "/guide/admin/quality.jpg", alt: "Liste des épreuves en revalidation qualité" }],
   },
   {
     id: "batches",
@@ -64,7 +64,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Lancer un rescrape ou un import de liste, puis suivre sa progression.",
       "Consulter le bilan des lancements précédents en bas de l'écran.",
     ],
-    captures: [{ src: "/guide/admin/batches.jpg", alt: "Écran de lancement des batches", placeholder: true }],
+    captures: [{ src: "/guide/admin/batches.jpg", alt: "Écran de lancement des batches" }],
   },
   {
     id: "groupes",
@@ -75,7 +75,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Ouvrir « Groupes d'appartenance » depuis la navigation admin.",
       "Sélectionner un groupe, puis ajouter ou retirer un membre.",
     ],
-    captures: [{ src: "/guide/admin/groupes.jpg", alt: "Composition d'un groupe d'appartenance", placeholder: true }],
+    captures: [{ src: "/guide/admin/groupes.jpg", alt: "Composition d'un groupe d'appartenance" }],
   },
   {
     id: "utilisateurs",
@@ -95,7 +95,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Ouvrir « Journal d'administration » depuis la navigation admin.",
       "Parcourir l'historique page par page pour retrouver un geste précis.",
     ],
-    captures: [{ src: "/guide/admin/journal.jpg", alt: "Journal des gestes d'administration", placeholder: true }],
+    captures: [{ src: "/guide/admin/journal.jpg", alt: "Journal des gestes d'administration" }],
   },
   {
     id: "maintenance",
@@ -106,7 +106,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Ouvrir « Maintenance » depuis la navigation admin.",
       "Lire attentivement l'ampleur du geste annoncée, puis confirmer si voulu.",
     ],
-    captures: [{ src: "/guide/admin/maintenance.jpg", alt: "Écran de maintenance et purges globales", placeholder: true }],
+    captures: [{ src: "/guide/admin/maintenance.jpg", alt: "Écran de maintenance et purges globales" }],
   },
   {
     id: "retours-utilisateurs",
@@ -116,7 +116,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Ouvrir « Retours utilisateurs » depuis la navigation admin.",
       "Ouvrir un signalement « Nouveau », puis changer son statut une fois instruit.",
     ],
-    captures: [{ src: "/guide/admin/retours-utilisateurs.jpg", alt: "File des retours utilisateurs", placeholder: true }],
+    captures: [{ src: "/guide/admin/retours-utilisateurs.jpg", alt: "File des retours utilisateurs" }],
   },
   {
     id: "variantes-club",
@@ -127,7 +127,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Ouvrir « Variantes de club » depuis la navigation admin.",
       "Ajouter une orthographe au groupe du club concerné, ou en créer un nouveau.",
     ],
-    captures: [{ src: "/guide/admin/variantes-club.jpg", alt: "Regroupement des orthographes d'un club", placeholder: true }],
+    captures: [{ src: "/guide/admin/variantes-club.jpg", alt: "Regroupement des orthographes d'un club" }],
   },
   {
     id: "portee-compteurs",
@@ -138,7 +138,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Ouvrir « Portée des compteurs » depuis la navigation admin.",
       "Ajouter une orthographe de club, ou ajuster les disciplines couvertes.",
     ],
-    captures: [{ src: "/guide/admin/portee-compteurs.jpg", alt: "Configuration de la portée des compteurs", placeholder: true }],
+    captures: [{ src: "/guide/admin/portee-compteurs.jpg", alt: "Configuration de la portée des compteurs" }],
   },
   {
     id: "benevolat-validation",
@@ -149,7 +149,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Ouvrir « Bénévolat » depuis la navigation admin.",
       "Examiner une déclaration en attente, puis l'accepter ou la refuser.",
     ],
-    captures: [{ src: "/guide/admin/benevolat-validation.jpg", alt: "File des déclarations de bénévolat en attente", placeholder: true }],
+    captures: [{ src: "/guide/admin/benevolat-validation.jpg", alt: "File des déclarations de bénévolat en attente" }],
   },
   {
     id: "acces-backoffice",

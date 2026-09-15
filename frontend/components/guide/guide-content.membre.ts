@@ -45,7 +45,7 @@ export const GUIDE_MEMBRE: GuideSection[] = [
   },
   {
     id: "ajouter",
-    titre: "Ajouter un résultat",
+    titre: "Ajouter une épreuve",
     casUsage: "Importer une épreuve manquante à partir de son lien de chronométrage.",
     etapes: [
       "Ouvrir « Ajouter une épreuve » depuis la navigation principale.",

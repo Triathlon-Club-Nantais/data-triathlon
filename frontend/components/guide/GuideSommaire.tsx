@@ -11,7 +11,11 @@ export function GuideSommaire({ sections }: { sections: GuideSection[] }) {
             <li key={section.id}>
               <a
                 href={`#${section.id}`}
-                className="text-sm font-medium text-[var(--tcn-orange)] underline-offset-4 hover:underline"
+                // `--tcn-orange` sur `--tcn-surface` ne tient que 3,68:1 en
+                // texte courant (sous 4,5:1, WCAG 1.4.3) — `-deep` descend
+                // à 4,84:1, même arbitrage que `Badge.tsx`/`.tcn-btn`
+                // (revue UI/UX, #865).
+                className="text-sm font-medium text-[var(--tcn-orange-deep)] underline-offset-4 hover:underline"
               >
                 {section.titre}
               </a>
