@@ -1,0 +1,85 @@
+"use client";
+import { useState } from "react";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import type { EntrainementParticipant, Profile } from "@/lib/types";
+
+/**
+ * L'appel de fin (#869, US2) — reboucle sur les jeunes marqués présents à
+ * l'appel de début pour vérifier qu'aucun n'est manquant.
+ *
+ * **Aucune écriture, aucun appel réseau** (FR-007, research.md D2) : la liste
+ * de présents vient des `participants` déjà chargés par l'écran parent
+ * (`AppelPresence`, via `GET /admin/jeunes/entrainements/{id}`), et l'état des
+ * cases cochées ne vit que dans ce composant — il n'existe nulle part côté
+ * serveur. Remonter ce composant (bascule d'onglet, réouverture de l'écran)
+ * réinitialise l'appel de fin, ce qui **est** le comportement voulu.
+ */
+export function AppelFin({
+  participants,
+  profils,
+}: {
+  participants: EntrainementParticipant[];
+  profils: Profile[];
+}) {
+  const profilsParId = new Map(profils.map((profil) => [profil.id, profil]));
+  const presents = participants.filter((participant) => participant.present === true);
+  const [retrouves, setRetrouves] = useState<Set<number>>(new Set());
+
+  function basculer(jeuneId: number) {
+    setRetrouves((precedent) => {
+      const suivant = new Set(precedent);
+      if (suivant.has(jeuneId)) {
+        suivant.delete(jeuneId);
+      } else {
+        suivant.add(jeuneId);
+      }
+      return suivant;
+    });
+  }
+
+  if (presents.length === 0) {
+    return (
+      <EmptyState
+        title="Rien à vérifier"
+        description="Aucun jeune n'a encore été pointé présent à l'appel de début."
+      />
+    );
+  }
+
+  const manquants = presents.length - retrouves.size;
+
+  return (
+    <div className="space-y-4">
+      <p aria-live="polite" className="text-sm font-medium">
+        {manquants === 0
+          ? "Tous les jeunes présents ce matin ont été retrouvés."
+          : `${manquants} jeune${manquants > 1 ? "s" : ""} restant${manquants > 1 ? "s" : ""} à vérifier.`}
+      </p>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {presents.map((participant) => {
+          const profil = profilsParId.get(participant.jeune_id);
+          const nom = profil
+            ? `${profil.first_name} ${profil.last_name}`
+            : `Jeune n° ${participant.jeune_id}`;
+          const retrouve = retrouves.has(participant.jeune_id);
+          return (
+            <Card key={participant.jeune_id} className="p-4">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={retrouve}
+                  onChange={() => basculer(participant.jeune_id)}
+                  aria-label={nom}
+                />
+                <span className={retrouve ? "text-[var(--tcn-text-faint)]" : "font-medium"}>
+                  {nom}
+                </span>
+              </label>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

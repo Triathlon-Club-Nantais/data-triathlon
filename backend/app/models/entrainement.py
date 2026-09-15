@@ -2,7 +2,7 @@
 from datetime import date as date_
 from datetime import datetime, time
 
-from sqlalchemy import Date, DateTime, String, Time
+from sqlalchemy import Date, DateTime, String, Text, Time
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -30,6 +30,11 @@ class Entrainement(Base):
     heure_debut: Mapped[time | None] = mapped_column(Time, nullable=True)
     lieu: Mapped[str | None] = mapped_column(String, nullable=True)
     type_seance: Mapped[str | None] = mapped_column(String, nullable=True)
+    #: Note de séance en texte libre (#869) — rapport/observations de
+    #: l'encadrant sur la séance entière, distincte du journal de bord d'un
+    #: jeune (`ProfileLogEntry`, #867). Cf. research.md D3 de
+    #: `specs/20260915-141516-appel-jeunes/`.
+    note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     participants: Mapped[list["EntrainementParticipant"]] = relationship(  # noqa: F821

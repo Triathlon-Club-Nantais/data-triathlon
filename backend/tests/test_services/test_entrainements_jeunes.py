@@ -102,3 +102,47 @@ def test_remove_participant_is_idempotent(db_session, actor, jeune):
 
     vue = service.entrainement_view(db_session, entrainement)
     assert vue["participant_count"] == 0
+
+
+def test_add_participant_can_mark_present_in_the_same_call(db_session, actor, jeune):
+    entrainement = service.create_entrainement(db_session, actor, date=date(2026, 9, 20))
+
+    service.add_participant(db_session, actor, entrainement, jeune_id=jeune.id, present=True)
+
+    detail = service.entrainement_detail_view(db_session, entrainement)
+    assert detail["participants"][0]["present"] is True
+
+
+def test_entrainement_detail_view_reports_presence(db_session, actor, jeune):
+    """Un jeune non encore pointé reste `None` — pas `False` (FR-002)."""
+    entrainement = service.create_entrainement(db_session, actor, date=date(2026, 9, 20))
+    service.add_participant(db_session, actor, entrainement, jeune_id=jeune.id)
+
+    detail = service.entrainement_detail_view(db_session, entrainement)
+
+    assert detail["participants"][0]["present"] is None
+
+
+def test_set_presence_updates_status(db_session, actor, jeune):
+    entrainement = service.create_entrainement(db_session, actor, date=date(2026, 9, 20))
+    service.add_participant(db_session, actor, entrainement, jeune_id=jeune.id)
+
+    service.set_presence(db_session, actor, entrainement, jeune_id=jeune.id, present=True)
+
+    detail = service.entrainement_detail_view(db_session, entrainement)
+    assert detail["participants"][0]["present"] is True
+
+
+def test_set_presence_raises_when_jeune_not_registered(db_session, actor, jeune):
+    entrainement = service.create_entrainement(db_session, actor, date=date(2026, 9, 20))
+
+    with pytest.raises(NotFoundError):
+        service.set_presence(db_session, actor, entrainement, jeune_id=jeune.id, present=True)
+
+
+def test_update_entrainement_can_change_note(db_session, actor):
+    entrainement = service.create_entrainement(db_session, actor, date=date(2026, 9, 20))
+
+    service.update_entrainement(db_session, actor, entrainement, note="Bassin partagé.")
+
+    assert entrainement.note == "Bassin partagé."

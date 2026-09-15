@@ -29,8 +29,9 @@ const DETAIL_AVEC_PARTICIPANT: EntrainementDetail = {
   heure_debut: null,
   lieu: null,
   type_seance: null,
+  note: "",
   participant_count: 1,
-  participants: [{ jeune_id: 42, created_at: "2026-09-15T10:00:00Z" }],
+  participants: [{ jeune_id: 42, present: null, created_at: "2026-09-15T10:00:00Z" }],
 };
 
 const DETAIL_VIDE: EntrainementDetail = { ...DETAIL_AVEC_PARTICIPANT, participant_count: 0, participants: [] };
@@ -84,7 +85,7 @@ describe("ParticipantsList", () => {
     await userEvent.type(screen.getByLabelText(/identifiant du jeune/i), "42");
     await userEvent.click(screen.getByRole("button", { name: /^inscrire$/i }));
 
-    expect(addEntrainementParticipant).toHaveBeenCalledWith(1, 42);
+    expect(addEntrainementParticipant).toHaveBeenCalledWith(1, 42, undefined);
   });
 
   it("désinscrit un jeune inscrit", async () => {
