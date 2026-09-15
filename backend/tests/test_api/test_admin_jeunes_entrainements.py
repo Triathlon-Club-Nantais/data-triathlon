@@ -5,15 +5,34 @@ chaque test de ce dossier : les gardes elles-mêmes sont éprouvées à part,
 `_session_avec` ci-dessous posant un rôle qui ne porte que les pouvoirs
 demandés — même patron que `test_admin_counter_scope.py`.
 """
+import pytest
+
 from app.api.v1.auth import session_cookie_name
 from app.core.config import get_settings
 from app.core.permissions import P
 from app.models.organisation import Organisation
 from app.models.role_permission import RolePermission
-from app.repositories import role_repository, user_repository, user_role_repository
+from app.repositories import (
+    profile_repository,
+    role_repository,
+    user_repository,
+    user_role_repository,
+)
 from app.services.auth import session as session_service
 
 BASE = "/api/v1/admin/jeunes/entrainements"
+
+
+@pytest.fixture
+def jeune_id(db_session) -> int:
+    """Un profil jeune réel (#867) — `jeune_id` référence `personal_profiles.id`
+    depuis le resserrement de la contrainte (merge de #867 dans l'epic)."""
+    organisation = db_session.query(Organisation).filter_by(slug="tcn").one()
+    profil = profile_repository.create(
+        db_session, organisation_id=organisation.id, first_name="Alix", last_name="Martin"
+    )
+    db_session.commit()
+    return profil.id
 
 
 def _session_avec(client, db_session, *permission_codes: str):
@@ -59,14 +78,24 @@ def test_optional_fields_come_out_null_not_missing(client):
     assert entrainement["participant_count"] == 0
 
 
-def test_the_detail_lists_its_participants(client):
+def test_the_detail_lists_its_participants(client, jeune_id):
     created = client.post(BASE, json={"date": "2026-09-20"}).json()
-    client.post(f"{BASE}/{created['id']}/participants", json={"jeune_id": 42})
+    client.post(f"{BASE}/{created['id']}/participants", json={"jeune_id": jeune_id})
 
     body = client.get(f"{BASE}/{created['id']}").json()
 
-    assert [p["jeune_id"] for p in body["participants"]] == [42]
+    assert [p["jeune_id"] for p in body["participants"]] == [jeune_id]
     assert body["participant_count"] == 1
+
+
+def test_adding_an_unknown_jeune_returns_404(client):
+    """`jeune_id` référence `personal_profiles.id` (#867) : un profil inexistant
+    est refusé, jamais inscrit silencieusement."""
+    created = client.post(BASE, json={"date": "2026-09-20"}).json()
+
+    response = client.post(f"{BASE}/{created['id']}/participants", json={"jeune_id": 9999})
+
+    assert response.status_code == 404
 
 
 def test_an_unknown_entrainement_returns_404(client):
@@ -109,12 +138,12 @@ def test_updating_an_unknown_entrainement_returns_404(client):
 # --- Participants (US3) --------------------------------------------------------
 
 
-def test_adding_a_participant_twice_is_idempotent(client):
+def test_adding_a_participant_twice_is_idempotent(client, jeune_id):
     created = client.post(BASE, json={"date": "2026-09-20"}).json()
     path = f"{BASE}/{created['id']}/participants"
 
-    premiere = client.post(path, json={"jeune_id": 42})
-    seconde = client.post(path, json={"jeune_id": 42})
+    premiere = client.post(path, json={"jeune_id": jeune_id})
+    seconde = client.post(path, json={"jeune_id": jeune_id})
 
     assert premiere.status_code == 201
     assert seconde.status_code == 201
@@ -129,13 +158,13 @@ def test_removing_a_participant_who_was_not_registered_succeeds(client):
     assert response.status_code == 204
 
 
-def test_removing_a_participant_removes_only_this_entrainement(client):
+def test_removing_a_participant_removes_only_this_entrainement(client, jeune_id):
     e1 = client.post(BASE, json={"date": "2026-09-20"}).json()
     e2 = client.post(BASE, json={"date": "2026-09-27"}).json()
-    client.post(f"{BASE}/{e1['id']}/participants", json={"jeune_id": 42})
-    client.post(f"{BASE}/{e2['id']}/participants", json={"jeune_id": 42})
+    client.post(f"{BASE}/{e1['id']}/participants", json={"jeune_id": jeune_id})
+    client.post(f"{BASE}/{e2['id']}/participants", json={"jeune_id": jeune_id})
 
-    client.delete(f"{BASE}/{e1['id']}/participants/42")
+    client.delete(f"{BASE}/{e1['id']}/participants/{jeune_id}")
 
     assert client.get(f"{BASE}/{e1['id']}").json()["participant_count"] == 0
     assert client.get(f"{BASE}/{e2['id']}").json()["participant_count"] == 1
@@ -199,7 +228,7 @@ def test_jeunes_write_alone_does_not_pass_reads(client, db_session):
     assert client.get(BASE).status_code == 403
 
 
-def test_jeunes_read_and_write_together_pass_the_full_flow(client, db_session):
+def test_jeunes_read_and_write_together_pass_the_full_flow(client, db_session, jeune_id):
     created = client.post(BASE, json={"date": "2026-09-20"}).json()
     _session_avec(client, db_session, str(P.JEUNES_READ), str(P.JEUNES_WRITE))
 
@@ -207,9 +236,11 @@ def test_jeunes_read_and_write_together_pass_the_full_flow(client, db_session):
     assert client.get(f"{BASE}/{created['id']}").status_code == 200
     assert client.patch(f"{BASE}/{created['id']}", json={"lieu": "Gymnase"}).status_code == 200
     assert (
-        client.post(f"{BASE}/{created['id']}/participants", json={"jeune_id": 1}).status_code
+        client.post(
+            f"{BASE}/{created['id']}/participants", json={"jeune_id": jeune_id}
+        ).status_code
         == 201
     )
     assert (
-        client.delete(f"{BASE}/{created['id']}/participants/1").status_code == 204
+        client.delete(f"{BASE}/{created['id']}/participants/{jeune_id}").status_code == 204
     )

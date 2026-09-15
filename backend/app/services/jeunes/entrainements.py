@@ -1,8 +1,11 @@
 """Le calendrier des entraînements jeunes : consultation et gestion (#868,
 epic #863).
 
-Modèle et routes posés indépendamment du détail du profil jeune (#867, en
+Le modèle a d'abord été posé indépendamment du profil jeune (#867, en
 parallèle) — `research.md` §Dépendance sur le profil jeune de la feature.
+Depuis le merge de #867 dans `epic/863-jeunes`, `jeune_id` référence
+`personal_profiles.id` (contrainte de clé étrangère **et** vérification
+Python ci-dessous — cf. `_jeune_existant`).
 """
 import logging
 
@@ -11,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import NotFoundError
 from app.models.entrainement import Entrainement
 from app.models.user import User
-from app.repositories import entrainement_repository
+from app.repositories import entrainement_repository, profile_repository
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +24,20 @@ def get_entrainement_or_404(db: Session, entrainement_id: int) -> Entrainement:
     if entrainement is None:
         raise NotFoundError("Cet entraînement n'existe pas.")
     return entrainement
+
+
+def _jeune_existant(db: Session, jeune_id: int) -> None:
+    """Vérifie l'existence du profil **en Python**, avant l'écriture.
+
+    `core/database.py` n'active `PRAGMA foreign_keys=ON` sur aucun moteur : la
+    contrainte SQL sur `jeune_id` serait muette en SQLite (dev, tests) et
+    lèverait une `IntegrityError` non attrapée en PostgreSQL — un chemin
+    d'écriture qui diverge entre les deux moteurs, le défaut que
+    `services/auth/groups._existing_organisation` évite déjà pour la même
+    raison.
+    """
+    if profile_repository.get(db, jeune_id) is None:
+        raise NotFoundError("Ce jeune n'existe pas.")
 
 
 def entrainement_view(db: Session, entrainement: Entrainement) -> dict:
@@ -94,7 +111,12 @@ def update_entrainement(
 def add_participant(
     db: Session, actor: User, entrainement: Entrainement, *, jeune_id: int
 ) -> None:
-    """Inscrit un jeune. **Idempotent** — réinscrire est un succès."""
+    """Inscrit un jeune. **Idempotent** — réinscrire est un succès.
+
+    404 si le jeune n'existe pas (`_jeune_existant`) — jamais laissé à la
+    seule contrainte SQL.
+    """
+    _jeune_existant(db, jeune_id)
     _, created = entrainement_repository.add_participant(
         db, entrainement_id=entrainement.id, jeune_id=jeune_id
     )

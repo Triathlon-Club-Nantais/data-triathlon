@@ -70,14 +70,24 @@ par une lecture préalable, cf. la règle déjà établie pour `UserGroup`/
   contredit le modèle normalisé déjà en place pour toute relation N-N du
   dépôt (`UserGroup`, `UserRole`, `RolePermission`).
 
-## Dépendance sur le profil jeune (#867, non encore mergée)
+## Dépendance sur le profil jeune (#867)
 
-**Decision**: `EntrainementParticipant.jeune_id` est une colonne `Integer`
-**indexée mais sans contrainte de clé étrangère** pour ce lot. Elle référence
-par convention le futur `jeunes.id` de #867. Une migration de suivi, posée
-dans la PR qui merge #867 en second (ou une PR dédiée immédiatement après),
-ajoutera la contrainte `ForeignKey("jeunes.id")` une fois la table cible en
-base.
+**Mise à jour post-merge** : #867 a mergé sa table de profils
+(`personal_profiles`) dans `epic/863-jeunes` pendant l'implémentation de ce
+lot. La contrainte de clé étrangère, initialement différée (cf. Decision
+ci-dessous, conservée pour l'historique), a été **resserrée** à ce moment-là :
+`EntrainementParticipant.jeune_id` porte désormais
+`ForeignKey("personal_profiles.id")`, posée directement dans la migration
+d'origine (`e3649cbee16c`, rebasée sur `1d49a862cc7f`) puisque cette révision
+n'était pas encore partagée ailleurs — pas de migration de suivi séparée.
+
+**Decision (au moment de l'écriture, avant le merge de #867)** :
+`EntrainementParticipant.jeune_id` était une colonne `Integer`
+**indexée mais sans contrainte de clé étrangère** pour ce lot. Elle référençait
+par convention le futur `jeunes.id` de #867. Une migration de suivi devait
+ajouter la contrainte une fois la table cible en base — c'est ce qui a été
+fait, directement dans cette même migration plutôt qu'une nouvelle, cf.
+ci-dessus.
 
 **Rationale**: #867 (profils jeunes) et #868 (ce lot) sont deux sous-issues
 parallèles de l'epic #863, chacune sur sa propre branche partant de la même

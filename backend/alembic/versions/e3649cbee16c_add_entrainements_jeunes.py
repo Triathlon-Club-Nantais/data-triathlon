@@ -1,7 +1,7 @@
 """add entrainements jeunes
 
 Revision ID: e3649cbee16c
-Revises: 5b766a96b2a4
+Revises: 1d49a862cc7f
 Create Date: 2026-09-15 13:31:31.258967
 """
 from typing import Sequence, Union
@@ -11,7 +11,12 @@ import sqlalchemy as sa
 
 
 revision: str = 'e3649cbee16c'
-down_revision: Union[str, None] = '5b766a96b2a4'
+# Rebasée sur 1d49a862cc7f (#867, personal_profiles) après merge de
+# epic/863-jeunes : les deux migrations partaient de 5b766a96b2a4 en parallèle
+# (deux têtes Alembic). Cette révision n'était pas encore mergée ailleurs au
+# moment du rebase, donc réécrite en place plutôt que doublée d'une migration
+# de fusion vide.
+down_revision: Union[str, None] = '1d49a862cc7f'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
@@ -36,6 +41,11 @@ def upgrade() -> None:
     sa.Column('jeune_id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['entrainement_id'], ['entrainements_jeunes.id'], ),
+    # `personal_profiles` (#867) est désormais en base avant cette révision
+    # (rebasée sur 1d49a862cc7f) : la contrainte est posée directement plutôt
+    # que par une migration de suivi — cf. `research.md` §Dépendance sur le
+    # profil jeune, résolue par ce rebase.
+    sa.ForeignKeyConstraint(['jeune_id'], ['personal_profiles.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('entrainement_id', 'jeune_id', name='uq_entrainement_participant')
     )

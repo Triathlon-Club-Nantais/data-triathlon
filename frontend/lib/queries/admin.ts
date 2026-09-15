@@ -858,6 +858,75 @@ export function useRemoveEntrainementParticipant() {
   });
 }
 
+// ── Profils individuels (#867, epic #863) ────────────────────────────────────
+
+export function useProfiles() {
+  return useQuery({
+    queryKey: queryKeys.profiles(),
+    queryFn: () => apiClient.listProfiles(),
+  });
+}
+
+/**
+ * Le détail d'un profil, journal compris, chargé **à l'ouverture** de l'écran
+ * de détail — patron `useGroup`.
+ */
+export function useProfile(profileId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.profile(profileId ?? 0),
+    queryFn: () => apiClient.getProfile(profileId as number),
+    enabled: profileId !== null,
+  });
+}
+
+export function useCreateProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (profil: {
+      first_name: string;
+      last_name: string;
+      birth_date?: string | null;
+      emergency_contact?: string;
+      notes?: string;
+    }) => apiClient.createProfile(profil),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.profiles() }),
+  });
+}
+
+export function useUpdateProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      champs,
+    }: {
+      id: number;
+      champs: {
+        first_name?: string;
+        last_name?: string;
+        birth_date?: string | null;
+        emergency_contact?: string;
+        notes?: string;
+      };
+    }) => apiClient.updateProfile(id, champs),
+    onSuccess: (_donnees, { id }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.profiles() });
+      qc.invalidateQueries({ queryKey: queryKeys.profile(id) });
+    },
+  });
+}
+
+export function useAddProfileLogEntry() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, text }: { id: number; text: string }) =>
+      apiClient.addProfileLogEntry(id, text),
+    onSuccess: (_donnees, { id }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.profile(id) });
+    },
+  });
+}
+
 // ── Composition des rôles (#115, écran #240) ─────────────────────────────────
 
 /**

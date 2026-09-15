@@ -51,6 +51,8 @@ import type {
   ParticipationsWipeResult,
   PendingProvider,
   PermissionGroup,
+  Profile,
+  ProfileDetail,
   RescrapeLaunch,
   Role,
   RoleCreate,
@@ -518,6 +520,41 @@ export const apiClient = {
       `/admin/jeunes/entrainements/${entrainementId}/participants/${jeuneId}`,
       { method: "DELETE" }
     ),
+  // ── Profils individuels (#867, epic #863) ──────────────────────────────────
+  // Schéma générique côté backend ; `jeunes:read` pour les deux lectures,
+  // `jeunes:write` pour la création, la modification et le journal de bord.
+  listProfiles: () => request<Profile[]>("/admin/profiles"),
+  getProfile: (id: number) => request<ProfileDetail>(`/admin/profiles/${id}`),
+  createProfile: (body: {
+    first_name: string;
+    last_name: string;
+    birth_date?: string | null;
+    emergency_contact?: string;
+    notes?: string;
+  }) =>
+    request<ProfileDetail>("/admin/profiles", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateProfile: (
+    id: number,
+    champs: {
+      first_name?: string;
+      last_name?: string;
+      birth_date?: string | null;
+      emergency_contact?: string;
+      notes?: string;
+    },
+  ) =>
+    request<ProfileDetail>(`/admin/profiles/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(champs),
+    }),
+  addProfileLogEntry: (id: number, text: string) =>
+    request<ProfileDetail>(`/admin/profiles/${id}/log-entries`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
   // ── Composition des rôles (#115, écran #240) ───────────────────────────────
   // Lecture sous `roles:read`, écriture sous `roles:write`. `listRoles` est
   // celle de l'attribution ci-dessus — même ressource, même cache.

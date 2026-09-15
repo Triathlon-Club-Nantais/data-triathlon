@@ -30,7 +30,7 @@ Une inscription : ce jeune est inscrit à cette séance.
 |---|---|---|---|
 | `id` | `Integer` | PK | |
 | `entrainement_id` | `Integer` | FK `entrainements_jeunes.id`, `NOT NULL`, indexé | |
-| `jeune_id` | `Integer` | `NOT NULL`, indexé | **sans FK pour ce lot** — cf. `research.md` §Dépendance |
+| `jeune_id` | `Integer` | FK `personal_profiles.id` (#867), `NOT NULL`, indexé | resserrée après le merge de #867 — cf. `research.md` §Dépendance |
 | `created_at` | `DateTime` | `NOT NULL`, `default=utcnow` | date d'inscription |
 
 `UNIQUE(entrainement_id, jeune_id)` (`uq_entrainement_participant`) — rend
@@ -47,14 +47,12 @@ est portée par `Entrainement.participants` (`delete-orphan`), côté ORM.
   la création, les trois autres champs optionnels. `PATCH` n'accepte que les
   champs fournis (mêmes règles que `GroupUpdate` — un champ absent du corps
   n'est pas écrasé).
-- `ParticipantAdd` : `jeune_id: int`, positif. Aucune vérification d'existence
-  du jeune référencé n'est possible dans ce lot tant que la table `jeunes`
-  n'existe pas (#867) — documenté comme limite temporaire assumée dans
-  `research.md`. **Dès que #867 aura mergé sa table de profils et que la
-  contrainte de clé étrangère aura été resserrée** (migration de suivi), une
-  tentative d'inscription d'un `jeune_id` inexistant remontera naturellement
-  en 404/422 depuis cette contrainte — voir `spec.md` Edge Cases, qui anticipe
-  ce comportement final.
+- `ParticipantAdd` : `jeune_id: int`, positif. L'existence du profil référencé
+  est vérifiée en Python (`profile_repository.get`) avant l'écriture, dans
+  `services/jeunes/entrainements.add_participant` — jamais laissée à la seule
+  contrainte SQL, muette en SQLite (`core/database.py` n'active
+  `PRAGMA foreign_keys=ON` sur aucun moteur) et un 500 non attrapé en
+  PostgreSQL sinon. Un `jeune_id` inconnu rend 404 — voir `spec.md` Edge Cases.
 
 ## État / transitions
 

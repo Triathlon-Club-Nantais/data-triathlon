@@ -35,6 +35,10 @@ ROUTERS = Path(__file__).resolve().parents[1] / "app" / "api"
 #: après la fermeture de l'epic serait exactement le mensonge d'écran que ce
 #: test existe pour empêcher — ce n'est pas une échappatoire générale, et
 #: l'ajouter sans sous-issue de suivi n'a pas de sens.
+#:
+#: `jeunes:read` et `jeunes:write` gardaient `/admin/profiles` et
+#: `/admin/jeunes/entrainements` par avance ; #867 et #868 ont posé les routes
+#: qui les gardent réellement — les deux entrées sont retirées.
 GARDE_A_VENIR: dict[str, str] = {}
 
 #: Les tables que seule une ressource gardée a le droit d'écrire (FR-031).

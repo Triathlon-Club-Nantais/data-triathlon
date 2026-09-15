@@ -107,12 +107,15 @@ de cette séance et dans aucune autre, puis en le désinscrivant.
   triées ensuite par heure quand elle est renseignée, par ordre de création
   sinon.
 - Un identifiant de séance inconnu dans une requête d'inscription rend 404,
-  jamais un succès silencieux. **Limite assumée de ce lot** : l'existence du
-  jeune référencé n'est pas vérifiable tant que la table de profils de #867
-  n'existe pas encore en base — voir `research.md` §Dépendance sur le profil
-  jeune. Une fois #867 mergée et la contrainte resserrée par une migration de
-  suivi, un `jeune_id` inexistant sera lui aussi refusé, sans changement de
-  cette route.
+  jamais un succès silencieux. **Mis à jour** : #867 a mergé sa table de
+  profils (`personal_profiles`) pendant l'implémentation de ce lot ; la
+  contrainte de clé étrangère sur `jeune_id` a été resserrée en conséquence
+  (`research.md` §Dépendance sur le profil jeune), et un `jeune_id` inconnu
+  rend désormais lui aussi 404 — vérifié en Python (`profile_repository.get`)
+  avant l'écriture, pas seulement par la contrainte SQL : `core/database.py`
+  n'active `PRAGMA foreign_keys=ON` sur aucun moteur, donc la contrainte seule
+  serait muette en SQLite (dev/tests) et un 500 non attrapé en PostgreSQL —
+  même raisonnement que `services/auth/groups._existing_organisation`.
 
 ## Requirements *(mandatory)*
 
