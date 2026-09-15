@@ -11,7 +11,7 @@ describe("GuidePage", () => {
     expect(screen.getByRole("heading", { name: "Espace club" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Résultats" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Comparaison" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Ajouter un résultat" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Ajouter une épreuve" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Bénévolat" })).toBeInTheDocument();
   });
 

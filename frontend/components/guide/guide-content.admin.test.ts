@@ -43,10 +43,17 @@ describe("GUIDE_ADMIN", () => {
     }
   });
 
-  it("chaque capture est marquée `placeholder: true` (aucune vraie capture admin pour l'instant, #874)", () => {
+  it("ne porte `placeholder: true` que sur les captures qui n'en ont pas encore de réelle (#874)", () => {
+    // 13/15 des captures admin ont été remplacées par de vraies captures en
+    // dev local (session admin réelle) ; les 2 restantes exposent des
+    // données personnelles réelles (liste d'utilisateurs, adresses
+    // autorisées) qu'on ne persiste pas dans le dépôt sans plus de
+    // précaution — elles restent des placeholders volontairement.
+    const ENCORE_PLACEHOLDER = ["utilisateurs", "acces-backoffice"];
     for (const section of GUIDE_ADMIN) {
+      const attendu = ENCORE_PLACEHOLDER.includes(section.id);
       for (const capture of section.captures) {
-        expect(capture.placeholder, `${section.id} : ${capture.src}`).toBe(true);
+        expect(capture.placeholder ?? false, `${section.id} : ${capture.src}`).toBe(attendu);
       }
     }
   });
