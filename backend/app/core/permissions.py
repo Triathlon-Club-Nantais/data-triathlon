@@ -47,6 +47,11 @@ FEATURE_PAGES_PREVIEW = "Pages en avant-première"
 #: Fusion des variantes de libellé, généralisée à tout club (#635) —
 #: distincte de la portée des compteurs, réservée au TCN.
 FEATURE_CLUB_ALIASES = "Variantes de club"
+#: Encadrement et suivi des jeunes triathlètes (#863) — profils, calendrier
+#: des entraînements, appel de présence. Distincte des autres fonctionnalités :
+#: ces données sont personnelles et sensibles (mineurs), fermées à quiconque
+#: ne porte pas ce pouvoir, quel que soit son rôle par ailleurs.
+FEATURE_JEUNES = "Jeunes"
 
 
 @dataclass(frozen=True, slots=True)
@@ -311,6 +316,24 @@ class P:
         "notamment — avant leur ouverture au grand public.",
         FEATURE_PAGES_PREVIEW,
     )
+    # Deux pouvoirs et non un : un accompagnant peut avoir besoin de consulter
+    # un profil ou le calendrier sans pour autant écrire dans le journal de
+    # bord d'un jeune, donnée personnelle et sensible.
+    JEUNES_READ = Permission(
+        "jeunes:read",
+        "Consulter les jeunes",
+        "Voir la liste des jeunes, leur profil (contact d'urgence, âge, "
+        "notes, journal de bord) et le calendrier des entraînements.",
+        FEATURE_JEUNES,
+    )
+    JEUNES_WRITE = Permission(
+        "jeunes:write",
+        "Encadrer les jeunes",
+        "Créer et modifier un profil jeune, tenir le calendrier des "
+        "entraînements, faire l'appel de présence et ajouter une entrée au "
+        "journal de bord.",
+        FEATURE_JEUNES,
+    )
 
 
 #: L'inventaire, dans l'ordre d'affichage. `P` en est la façade d'appel ; un
@@ -349,6 +372,8 @@ ALL: tuple[Permission, ...] = (
     P.CLUB_ALIASES_MANAGE,
     P.ADMIN_LOG_READ,
     P.PAGES_PREVIEW,
+    P.JEUNES_READ,
+    P.JEUNES_WRITE,
 )
 
 _BY_CODE: dict[str, Permission] = {pouvoir.code: pouvoir for pouvoir in ALL}
