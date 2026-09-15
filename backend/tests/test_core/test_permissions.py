@@ -26,6 +26,9 @@ from app.core.permissions import P, Permission
 #: `participations:write` (#115) a existé puis a été retiré (#270) : la route
 #: qu'il gardait est redevenue publique, la mise en quarantaine du résultat
 #: créé protégeant désormais les agrégats publics à sa place.
+#: `jeunes:read` et `jeunes:write` (#866, epic #863) : catalogue posé par
+#: avance de leur garde, qu'une sous-issue distincte pose ensuite
+#: (#867/#868/#869) — cf. `tests/test_permissions_catalogue.py::GARDE_A_VENIR`.
 CODES_ATTENDUS = {
     "roles:read",
     "roles:write",
@@ -60,6 +63,8 @@ CODES_ATTENDUS = {
     "club_aliases:manage",
     "admin_log:read",
     "pages:preview",
+    "jeunes:read",
+    "jeunes:write",
 }
 
 
