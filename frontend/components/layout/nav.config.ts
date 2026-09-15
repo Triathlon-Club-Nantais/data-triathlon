@@ -249,6 +249,19 @@ export const NAV: NavSection[] = [
       // où l'on vient corriger une date : feuilleter le catalogue jusqu'au bout
       // menait à un clic de la destruction de toute la base (#499, ADM-7). Un
       // écran à elles, et le voisinage disparaît.
+      // Référencement des jeunes encadrés par le club (#867, epic #863) —
+      // profil (contact d'urgence, âge, notes) et journal de bord. Pouvoir de
+      // lecture : l'écran se consulte avec `jeunes:read` seul, `jeunes:write`
+      // n'ouvre que les formulaires d'édition, patron `u-groupes` ci-dessous.
+      {
+        id: "a-jeunes",
+        label: "Jeunes",
+        description:
+          "Profils des jeunes encadrés par le club — contact d'urgence, âge, notes et journal de bord. Données personnelles, fermées à qui ne porte pas ce pouvoir.",
+        href: "/admin/jeunes",
+        permission: "jeunes:read",
+        icon: Users,
+      },
       {
         id: "a-maintenance",
         label: "Maintenance",
