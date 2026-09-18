@@ -60,12 +60,12 @@ description: "Task list for feature implementation"
 
 > **Écrire ce test D'ABORD, vérifier qu'il ÉCHOUE avant l'implémentation** (Principe III).
 
-- [ ] T003 [P] [US2] Dans `backend/tests/test_api/test_site_access_api.py::test_ouvre_une_session_avec_le_bon_mot_de_passe`, ajouter une assertion vérifiant que le cookie de session posé par `POST /site-access/session` a un `max_age` de `90 * 24 * 60 * 60` secondes (et non `7 * 24 * 60 * 60`) — parser `reponse.headers["set-cookie"]` si le cookie jar du `TestClient` n'expose pas `Max-Age` directement.
+- [X] T003 [P] [US2] Dans `backend/tests/test_api/test_site_access_api.py::test_ouvre_une_session_avec_le_bon_mot_de_passe`, ajouter une assertion vérifiant que le cookie de session posé par `POST /site-access/session` a un `max_age` de `90 * 24 * 60 * 60` secondes (et non `7 * 24 * 60 * 60`) — parser `reponse.headers["set-cookie"]` si le cookie jar du `TestClient` n'expose pas `Max-Age` directement.
 
 ### Implementation for User Story 2
 
-- [ ] T004 [US2] Dans `backend/app/core/config.py`, changer `site_access_session_ttl_days: int = 7` en `site_access_session_ttl_days: int = 90`.
-- [ ] T005 [P] [US2] Dans `docs/ci-cd.md`, mettre à jour la ligne documentant `SITE_ACCESS_SESSION_TTL_DAYS` : "défaut (7 j)" → "défaut (90 j)".
+- [X] T004 [US2] Dans `backend/app/core/config.py`, changer `site_access_session_ttl_days: int = 7` en `site_access_session_ttl_days: int = 90`.
+- [X] T005 [P] [US2] Dans `docs/ci-cd.md`, mettre à jour la ligne documentant `SITE_ACCESS_SESSION_TTL_DAYS` : "défaut (7 j)" → "défaut (90 j)".
 
 **Checkpoint**: User Stories 1 ET 2 fonctionnelles indépendamment (T001 et T003 passent au vert).
 

@@ -159,7 +159,7 @@ class Settings(BaseSettings):
     # Expiration serveur du cookie `tcn_site_session`, vérifiée dans le jeton
     # signé lui-même (research.md — pas de renouvellement glissant pour ce
     # premier livrable, même patron que `auth_session_ttl_days`).
-    site_access_session_ttl_days: int = 7
+    site_access_session_ttl_days: int = 90
 
     # ── Lancement des batches (#47) ───────────────────────────────────────────
     # Les batches ne tournent pas dans ce service : l'API ne fait que demander
