@@ -41,7 +41,7 @@ def open_session(
     if config is None or not shared_password.verify_password(
         body.password, password_hash=config.password_hash, password_salt=config.password_salt
     ):
-        raise NotAuthenticatedError("Mot de passe incorrect.")
+        raise NotAuthenticatedError("Code d'accès incorrect.")
 
     response.set_cookie(
         key=site_access.SITE_SESSION_COOKIE,

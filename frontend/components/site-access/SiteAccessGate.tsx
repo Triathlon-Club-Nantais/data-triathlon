@@ -76,14 +76,14 @@ export function SiteAccessGate({ apres = "rafraichir" }: { apres?: "rafraichir" 
           Accès réservé aux adhérents
         </h1>
         <div style={{ fontSize: 14, color: "var(--tcn-text-faint)", marginBottom: 20 }}>
-          Le mot de passe vous a été communiqué par le club.
+          Le code d'accès vous a été communiqué par le club.
         </div>
         <form onSubmit={soumettre}>
           <label
             htmlFor="site-password"
             style={{ display: "block", fontSize: 13, fontWeight: 600, marginBottom: 6, color: "var(--tcn-text-body)" }}
           >
-            Mot de passe
+            Code d'accès
           </label>
           <Input
             id="site-password"
