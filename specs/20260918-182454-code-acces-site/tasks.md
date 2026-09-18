@@ -137,6 +137,7 @@ description: "Task list for feature implementation"
 
 ## Notes
 
+- **T013 [US1] (ajoutée après revue `ui-ux-review`)** : `frontend/components/site-access/SiteAccessGate.tsx`, ajout de `autoCapitalize="off" autoCorrect="off" spellCheck={false}` sur le champ — `type="password"` désactivait implicitement ces comportements clavier, `type="text"` non, et `shared_password.verify_password` compare le code sans normalisation de casse. Test rouge/vert dans `SiteAccessGate.test.tsx`.
 - Aucune tâche de migration Alembic : pas de changement de schéma DB.
 - Aucune tâche touchant `SiteAccessConfig.tsx` (`/admin/acces`) ni `AccessGate.tsx` (bénévoles, #271) : hors périmètre assumé (voir spec.md, section Hors périmètre / Assumptions).
 - Commit après chaque tâche ou groupe logique, conformément à la convention Conventional Commits du projet.
