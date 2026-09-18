@@ -81,13 +81,13 @@ description: "Task list for feature implementation"
 
 > **Écrire ces tests D'ABORD, vérifier qu'ils ÉCHOUENT avant l'implémentation** (Principe III).
 
-- [ ] T006 [P] [US3] Dans `frontend/components/site-access/SiteAccessGate.test.tsx`, remplacer les sélecteurs/assertions `/mot de passe/i` (label, aide) par `/code d'accès/i`.
-- [ ] T007 [P] [US3] Dans `backend/tests/test_api/test_site_access_api.py::test_refuse_un_mauvais_mot_de_passe`, ajouter une assertion sur le message d'erreur : `reponse.json()["detail"] == "Code d'accès incorrect."`. **Attention** : `backend/tests/test_auth/test_site_access_gate.py:99` contient un littéral identique ("Mot de passe incorrect.") mais teste le flux **bénévoles** (`/api/v1/benevoles/session`, hors périmètre, FR-005) — ne pas le modifier.
+- [X] T006 [P] [US3] Dans `frontend/components/site-access/SiteAccessGate.test.tsx`, remplacer les sélecteurs/assertions `/mot de passe/i` (label, aide) par `/code d'accès/i`.
+- [X] T007 [P] [US3] Dans `backend/tests/test_api/test_site_access_api.py::test_refuse_un_mauvais_mot_de_passe`, ajouter une assertion sur le message d'erreur : `reponse.json()["detail"] == "Code d'accès incorrect."`. **Attention** : `backend/tests/test_auth/test_site_access_gate.py:99` contient un littéral identique ("Mot de passe incorrect.") mais teste le flux **bénévoles** (`/api/v1/benevoles/session`, hors périmètre, FR-005) — ne pas le modifier.
 
 ### Implementation for User Story 3
 
-- [ ] T008 [US3] Dans `frontend/components/site-access/SiteAccessGate.tsx`, reformuler le titre, le label du champ et le texte d'aide ("Le mot de passe vous a été communiqué par le club." → "Le code d'accès vous a été communiqué par le club.") — sans toucher `id="site-password"` ni au nom des props/variables.
-- [ ] T009 [US3] Dans `backend/app/api/v1/site_access.py`, reformuler le message d'erreur levé en cas de code incorrect ("Mot de passe incorrect." → "Code d'accès incorrect.") — sans toucher au nom du champ JSON `password`.
+- [X] T008 [US3] Dans `frontend/components/site-access/SiteAccessGate.tsx`, reformuler le titre, le label du champ et le texte d'aide ("Le mot de passe vous a été communiqué par le club." → "Le code d'accès vous a été communiqué par le club.") — sans toucher `id="site-password"` ni au nom des props/variables.
+- [X] T009 [US3] Dans `backend/app/api/v1/site_access.py`, reformuler le message d'erreur levé en cas de code incorrect ("Mot de passe incorrect." → "Code d'accès incorrect.") — sans toucher au nom du champ JSON `password`.
 
 **Checkpoint**: les trois user stories sont fonctionnelles et testables indépendamment (T001, T003, T006, T007 passent tous au vert).
 

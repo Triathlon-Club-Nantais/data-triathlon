@@ -18,8 +18,8 @@ vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh }) }));
 
 import { SiteAccessGate } from "./SiteAccessGate";
 
-async function seConnecter(motDePasse: string) {
-  await userEvent.type(screen.getByLabelText(/mot de passe/i), motDePasse);
+async function seConnecter(codeAcces: string) {
+  await userEvent.type(screen.getByLabelText(/code d'accès/i), codeAcces);
   await userEvent.click(screen.getByRole("button", { name: /se connecter/i }));
 }
 
@@ -59,16 +59,24 @@ describe("SiteAccessGate", () => {
   it("affiche le code d'accès saisi en clair, jamais masqué", () => {
     render(<SiteAccessGate />);
 
-    expect(screen.getByLabelText(/mot de passe/i)).toHaveAttribute("type", "text");
+    expect(screen.getByLabelText(/code d'accès/i)).toHaveAttribute("type", "text");
   });
 
-  it("affiche une erreur sur un mot de passe refusé", async () => {
-    siteAccessLogin.mockRejectedValue(new ApiError(401, "Mot de passe incorrect."));
+  it("emploie \"code d'accès\" plutôt que \"mot de passe\" dans les textes visibles", () => {
     render(<SiteAccessGate />);
 
-    await seConnecter("mauvais-mot-de-passe");
+    expect(screen.queryAllByText(/mot de passe/i)).toHaveLength(0);
+    expect(screen.getByLabelText(/code d'accès/i)).toBeInTheDocument();
+    expect(screen.getByText(/code d'accès vous a été communiqué/i)).toBeInTheDocument();
+  });
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/mot de passe incorrect/i);
+  it("affiche une erreur sur un code d'accès refusé", async () => {
+    siteAccessLogin.mockRejectedValue(new ApiError(401, "Code d'accès incorrect."));
+    render(<SiteAccessGate />);
+
+    await seConnecter("mauvais-code");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/code d'accès incorrect/i);
     expect(push).not.toHaveBeenCalled();
     expect(refresh).not.toHaveBeenCalled();
   });
@@ -82,7 +90,7 @@ describe("SiteAccessGate", () => {
     );
     render(<SiteAccessGate />);
 
-    fireEvent.change(screen.getByLabelText(/mot de passe/i), {
+    fireEvent.change(screen.getByLabelText(/code d'accès/i), {
       target: { value: "secret-du-club" },
     });
     const bouton = screen.getByRole("button", { name: /se connecter/i });
@@ -119,7 +127,7 @@ describe("SiteAccessGate", () => {
       );
       render(<SiteAccessGate />);
 
-      fireEvent.change(screen.getByLabelText(/mot de passe/i), {
+      fireEvent.change(screen.getByLabelText(/code d'accès/i), {
         target: { value: "secret-du-club" },
       });
       await act(async () => {
