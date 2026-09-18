@@ -40,11 +40,11 @@ description: "Task list for feature implementation"
 
 > **Écrire ce test D'ABORD, vérifier qu'il ÉCHOUE avant l'implémentation** (Principe III).
 
-- [ ] T001 [P] [US1] Dans `frontend/components/site-access/SiteAccessGate.test.tsx`, ajouter une assertion vérifiant que l'input `id="site-password"` a l'attribut `type="text"` (et non `type="password"`).
+- [X] T001 [P] [US1] Dans `frontend/components/site-access/SiteAccessGate.test.tsx`, ajouter une assertion vérifiant que l'input `id="site-password"` a l'attribut `type="text"` (et non `type="password"`).
 
 ### Implementation for User Story 1
 
-- [ ] T002 [US1] Dans `frontend/components/site-access/SiteAccessGate.tsx`, changer `type="password"` en `type="text"` sur le champ de saisie du code d'accès.
+- [X] T002 [US1] Dans `frontend/components/site-access/SiteAccessGate.tsx`, changer `type="password"` en `type="text"` sur le champ de saisie du code d'accès.
 
 **Checkpoint**: User Story 1 fonctionnelle et testable indépendamment (T001 passe au vert).
 

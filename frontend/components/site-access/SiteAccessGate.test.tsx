@@ -56,6 +56,12 @@ describe("SiteAccessGate", () => {
     expect(refresh).not.toHaveBeenCalled();
   });
 
+  it("affiche le code d'accès saisi en clair, jamais masqué", () => {
+    render(<SiteAccessGate />);
+
+    expect(screen.getByLabelText(/mot de passe/i)).toHaveAttribute("type", "text");
+  });
+
   it("affiche une erreur sur un mot de passe refusé", async () => {
     siteAccessLogin.mockRejectedValue(new ApiError(401, "Mot de passe incorrect."));
     render(<SiteAccessGate />);
