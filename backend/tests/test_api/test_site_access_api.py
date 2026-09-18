@@ -33,7 +33,13 @@ def test_refuse_un_mauvais_mot_de_passe(client):
         "/api/v1/site-access/session", json={"password": "mauvais-mot-de-passe"}
     )
     assert reponse.status_code == 401
+    assert reponse.json()["detail"] == "Code d'accès incorrect."
     assert site_access.SITE_SESSION_COOKIE not in reponse.cookies
+
+
+def test_la_session_reste_valide_90_jours(client):
+    reponse = _client_anonyme(client).post("/api/v1/site-access/session", json={"password": MOT_DE_PASSE})
+    assert f"Max-Age={90 * 24 * 60 * 60}" in reponse.headers["set-cookie"]
 
 
 def test_ferme_la_session(client):
