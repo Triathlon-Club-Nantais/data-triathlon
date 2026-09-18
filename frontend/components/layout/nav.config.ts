@@ -1,6 +1,5 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  BookOpen,
   Briefcase,
   Gauge,
   HeartHandshake,
@@ -110,10 +109,6 @@ export const NAV: NavSection[] = [
       // page. `pages:preview` (#811) la débloque en avant-première, pour un
       // profil qui veut vérifier son rendu avant l'ouverture au grand public.
       { id: "carte", label: "Carte", href: "/carte", icon: Map, soon: true, permission: "pages:preview" },
-      // Guide utilisateur (#865) — documentation en lecture seule, ouverte à
-      // tout utilisateur connecté au même titre que les autres destinations
-      // de cette section.
-      { id: "guide", label: "Guide", href: "/guide", icon: BookOpen },
     ],
   },
   {

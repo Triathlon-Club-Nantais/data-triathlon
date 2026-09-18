@@ -30,12 +30,12 @@ describe("nav.config", () => {
   });
 });
 
-describe("nav.config — Guide membre (#865)", () => {
-  it("annonce « Guide » vers /guide dans la section consulter, visible sans pouvoir", () => {
-    const item = NAV.find((s) => s.id === "consulter")?.items.find((i) => i.id === "guide");
-    expect(item).toBeDefined();
-    expect(item?.href).toBe("/guide");
-    expect(estVisible(item!, new Set(), ROLE.ANON)).toBe(true);
+describe("nav.config — Guide membre (#865, #878)", () => {
+  it("ne porte pas d'entrée pour le guide membre", () => {
+    // Volontairement hors de cette table depuis #878 — même arbitrage que le
+    // guide admin (`a-flags` ci-dessus) : le lien vit dans
+    // `app/(public_restricted)/layout.tsx`, discret, en haut à droite.
+    expect(NAV.flatMap((s) => s.items).find((i) => i.id === "guide")).toBeUndefined();
   });
 });
 
