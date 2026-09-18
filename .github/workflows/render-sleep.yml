@@ -7,7 +7,8 @@ run-name: "render-sleep · ${{ inputs.action || github.event.schedule }} · ${{ 
 #
 # Deux régimes, pas un :
 #
-# - la **production** dort la nuit et se rallume au matin (23 h → 4 h UTC) ;
+# - la **production** dort la nuit et se rallume au matin (23 h → 2 h UTC
+#   nominal — voir le correctif temporaire de #885 ci-dessous) ;
 # - la **preview** ne se rallume jamais toute seule — c'est `deploy.yml` qui la
 #   reprend avant son deploy hook, le temps de la vérification post-déploiement —
 #   et elle se recouche **à l'heure pile suivante**, pas à la nuit suivante
@@ -45,6 +46,16 @@ run-name: "render-sleep · ${{ inputs.action || github.event.schedule }} · ${{ 
 # systématiquement avec 1 h 40 à plus de 4 h de retard, bien au-delà de l'écart
 # DST ci-dessus. Les trois crons restent à la même minute entre eux pour
 # préserver le croisement intentionnel décrit plus bas.
+#
+# **Lever avancé à 2 h, pas 4 h (#885, correctif temporaire)** : le décalage de
+# minute de #842 n'a pas suffi — mesuré à nouveau sur #885, le lever traînait
+# encore 4 h 43 à 5 h 09 de retard (démarrage réel ~9 h UTC au lieu de 4 h 15).
+# En attendant un déclenchement externe fiable (`workflow_dispatch` appelé par
+# un scheduler hors GitHub Actions, #885), avancer le cron nominal de 2 h
+# rapproche l'heure réelle de disponibilité de l'heure annoncée — ça ne
+# supprime pas le retard, structurel au `schedule` d'Actions, seulement son
+# effet. Si le retard observé se réduit ou s'aggrave, cette valeur doit être
+# réajustée en conséquence tant que #885 n'est pas résolu.
 on:
   schedule:
     # Coucher de la preview, à chaque heure. Un cron d'Actions peut être
@@ -56,7 +67,8 @@ on:
     # moins bien qu'un seul (#560).
     - cron: "15 23 * * *"
     # Lever : la production seule — la preview attend son prochain déploiement.
-    - cron: "15 4 * * *"
+    # Avancé de 4 h à 2 h nominal (#885) pour compenser le retard mesuré.
+    - cron: "15 2 * * *"
   workflow_dispatch:
     inputs:
       action:
@@ -86,7 +98,7 @@ permissions:
 # fonctionne.** Les deploy hooks — d'où `deploy.yml` tire ses ID de service —
 # sont des secrets d'environment, or `Production` porte une *required reviewer*
 # (`docs/ci-cd.md`). Un job qui déclarerait cet environment mettrait le lever de
-# 4 h en attente d'une approbation humaine : le site resterait éteint jusqu'à ce
+# 2 h en attente d'une approbation humaine : le site resterait éteint jusqu'à ce
 # que quelqu'un clique, tous les matins. Les ID sont donc résolus par leur nom
 # via l'API, avec le seul `RENDER_API_KEY`, qui est un secret **de dépôt**.
 #
@@ -173,7 +185,7 @@ jobs:
 
           # Les deux abstentions ne valent que pour `suspend`. Un `resume` part
           # toujours, y compris sur un service déjà éveillé : c'est le filet du
-          # lever de 4 h, et le lire dans un champ plutôt que l'exécuter, c'est
+          # lever de 2 h, et le lire dans un champ plutôt que l'exécuter, c'est
           # accepter de laisser le site éteint sur une information périmée.
           if [ "$ACTION" = suspend ]; then
             if [ "$(jq -r '.suspended' <<<"$service")" = suspended ]; then
@@ -213,7 +225,7 @@ jobs:
             fi
           fi
 
-          # Le filet du lever de 4 h part toujours, y compris sur un service
+          # Le filet du lever de 2 h part toujours, y compris sur un service
           # déjà éveillé (commentaire ci-dessus) — et Render n'y voit pas un
           # no-op : il répond 400 « only services suspended by a user can be
           # resumed », que `--fail-with-body` fait remonter en échec (#829).

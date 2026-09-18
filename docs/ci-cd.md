@@ -686,7 +686,7 @@ au niveau dépôt).
 
 | Service | Coucher | Lever |
 |---|---|---|
-| **production** | cron `15 23 * * *` | cron `15 4 * * *` |
+| **production** | cron `15 23 * * *` | cron `15 2 * * *` (avancé de 4 h, #885) |
 | **preview** | cron `15 * * * *` — **à chaque heure** (#560) | **jamais par cron** — `deploy.yml` la reprend avant son deploy hook |
 
 La preview ne se rallume que pour servir la vérification post-déploiement, puis
@@ -739,6 +739,19 @@ au-delà de l'écart DST ci-dessus. Les trois crons du workflow sont passés à 
 minute 15, en restant à la même minute entre eux pour préserver le croisement
 intentionnel décrit ci-dessus (#560).
 
+**Lever avancé à 2 h, pas 4 h — correctif temporaire (#885).** Le décalage de
+minute de #842 n'a pas suffi : remesuré début du mois, le lever traînait
+encore 4 h 43 à 5 h 09 de retard, et le cron horaire de la preview ne se
+déclenchait en pratique que 4 à 7 fois par jour au lieu de 24 (occurrences
+purement perdues, pas seulement retardées). Le `schedule` d'Actions est *best
+effort* sans aucune garantie de délai — ce n'est pas réparable par la
+configuration du cron. En attendant un déclenchement externe fiable
+(`workflow_dispatch` appelé par un scheduler hors GitHub Actions, objet de
+#885), le cron nominal du lever de production a été avancé de 2 h pour
+rapprocher l'heure réelle de disponibilité de l'heure annoncée. Cette valeur
+est un pis-aller à réajuster si le retard observé change, tant que #885 n'est
+pas résolu.
+
 **La procédure de vérification ci-dessous n'est pas touchée** : le `resume`
 précède le deploy hook dans `deploy.yml`, sur les deux environnements. C'est
 nécessaire — un deploy hook envoyé à un service suspendu ne le rallume pas — et
@@ -755,7 +768,7 @@ toujours sa cible, quel que soit l'état du cron.
 **Ce workflow ne déclare aucun environment, et c'est la condition pour qu'il
 fonctionne.** L'environment `Production` porte une *required reviewer* (cf.
 « Environments GitHub » plus haut) : un job qui le déclarerait — comme le fait
-`deploy.yml` pour lire son deploy hook — mettrait le lever de 4 h en attente
+`deploy.yml` pour lire son deploy hook — mettrait le lever de 2 h en attente
 d'une approbation humaine, donc laisserait le site éteint jusqu'au clic, tous
 les matins. D'où la résolution des services **par leur nom** via
 `GET /v1/services`, qui ne demande que `RENDER_API_KEY`, secret **de dépôt**.

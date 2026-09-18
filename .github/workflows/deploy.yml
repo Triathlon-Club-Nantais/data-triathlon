@@ -83,7 +83,7 @@ jobs:
           echo "::add-mask::$service_id"
           # Reprise avant tout le reste : `render-sleep.yml` suspend ce service
           # (la preview à chaque heure pile entre deux déploiements — #560 —, la
-          # production entre 1 h et 4 h UTC — #530), et un deploy hook envoyé à un
+          # production entre 1 h et 2 h UTC — #530, avancé par #885), et un deploy hook envoyé à un
           # service suspendu ne le rallume pas. Ce `resume` n'a pas à craindre le
           # cron horaire qui suit : celui-ci s'abstient tant qu'un déploiement est
           # en vol ou vient de finir. C'est aussi le filet si le cron de lever
@@ -196,7 +196,7 @@ jobs:
           echo "::add-mask::$service_id"
           # Reprise avant tout le reste : `render-sleep.yml` suspend ce service
           # (la preview à chaque heure pile entre deux déploiements — #560 —, la
-          # production entre 1 h et 4 h UTC — #530), et un deploy hook envoyé à un
+          # production entre 1 h et 2 h UTC — #530, avancé par #885), et un deploy hook envoyé à un
           # service suspendu ne le rallume pas. Ce `resume` n'a pas à craindre le
           # cron horaire qui suit : celui-ci s'abstient tant qu'un déploiement est
           # en vol ou vient de finir. C'est aussi le filet si le cron de lever
