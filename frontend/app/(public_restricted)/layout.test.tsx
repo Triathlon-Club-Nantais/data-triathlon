@@ -37,6 +37,17 @@ describe("Garde d'accès au site (#509)", () => {
     expect(screen.queryByText("formulaire de mot de passe")).not.toBeInTheDocument();
   });
 
+  it("propose un lien discret vers le guide (#865, #878), hors du rail de navigation", async () => {
+    // Retiré de `nav.config.ts` par #878 : même arbitrage que le guide admin
+    // (`app/admin/layout.tsx`), pour ne pas concurrencer les vraies
+    // destinations sur l'entrée la plus fréquentée de la nav.
+    checkSiteAccess.mockResolvedValue(true);
+
+    render(await ProtegeLayout({ children: <p>contenu réservé</p> }));
+
+    expect(screen.getByRole("link", { name: /guide/i })).toHaveAttribute("href", "/guide");
+  });
+
   it("rend le formulaire **à la place** des enfants sur un 401 avéré", async () => {
     // Et non une redirection vers `/acces` : un layout serveur ne connaît pas
     // le chemin demandé (Next n'expose ni `pathname` ni `searchParams` à un
