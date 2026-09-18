@@ -60,7 +60,7 @@ description: "Task list for feature implementation"
 
 > **Écrire ce test D'ABORD, vérifier qu'il ÉCHOUE avant l'implémentation** (Principe III).
 
-- [ ] T003 [P] [US2] Dans `backend/tests/test_auth/test_site_access_gate.py` (ou `backend/tests/test_services/test_site_access.py`), ajouter/adapter une assertion vérifiant que le cookie de session posé par `POST /site-access/session` a un `max_age` de `90 * 24 * 60 * 60` secondes (et non `7 * 24 * 60 * 60`).
+- [ ] T003 [P] [US2] Dans `backend/tests/test_api/test_site_access_api.py::test_ouvre_une_session_avec_le_bon_mot_de_passe`, ajouter une assertion vérifiant que le cookie de session posé par `POST /site-access/session` a un `max_age` de `90 * 24 * 60 * 60` secondes (et non `7 * 24 * 60 * 60`) — parser `reponse.headers["set-cookie"]` si le cookie jar du `TestClient` n'expose pas `Max-Age` directement.
 
 ### Implementation for User Story 2
 
@@ -82,7 +82,7 @@ description: "Task list for feature implementation"
 > **Écrire ces tests D'ABORD, vérifier qu'ils ÉCHOUENT avant l'implémentation** (Principe III).
 
 - [ ] T006 [P] [US3] Dans `frontend/components/site-access/SiteAccessGate.test.tsx`, remplacer les sélecteurs/assertions `/mot de passe/i` (label, aide) par `/code d'accès/i`.
-- [ ] T007 [P] [US3] Dans `backend/tests/test_auth/test_site_access_gate.py`, adapter l'assertion sur le message d'erreur de code incorrect : `/code d'accès incorrect/i` au lieu de `/mot de passe incorrect/i`.
+- [ ] T007 [P] [US3] Dans `backend/tests/test_api/test_site_access_api.py::test_refuse_un_mauvais_mot_de_passe`, ajouter une assertion sur le message d'erreur : `reponse.json()["detail"] == "Code d'accès incorrect."`. **Attention** : `backend/tests/test_auth/test_site_access_gate.py:99` contient un littéral identique ("Mot de passe incorrect.") mais teste le flux **bénévoles** (`/api/v1/benevoles/session`, hors périmètre, FR-005) — ne pas le modifier.
 
 ### Implementation for User Story 3
 
