@@ -62,6 +62,15 @@ describe("SiteAccessGate", () => {
     expect(screen.getByLabelText(/code d'accès/i)).toHaveAttribute("type", "text");
   });
 
+  it("désactive la correction automatique du clavier (le code est comparé sans normalisation de casse)", () => {
+    render(<SiteAccessGate />);
+
+    const champ = screen.getByLabelText(/code d'accès/i);
+    expect(champ).toHaveAttribute("autocapitalize", "off");
+    expect(champ).toHaveAttribute("autocorrect", "off");
+    expect(champ).toHaveAttribute("spellcheck", "false");
+  });
+
   it("emploie \"code d'accès\" plutôt que \"mot de passe\" dans les textes visibles", () => {
     render(<SiteAccessGate />);
 

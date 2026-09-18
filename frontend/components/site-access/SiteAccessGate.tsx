@@ -93,6 +93,14 @@ export function SiteAccessGate({ apres = "rafraichir" }: { apres?: "rafraichir" 
             status={erreur ? "error" : "default"}
             aria-describedby={erreur ? "site-password-erreur" : undefined}
             autoFocus
+            // `type="password"` désactivait implicitement ces trois comportements ;
+            // `type="text"` ne le fait pas, et le code est comparé sans normalisation
+            // de casse côté serveur (`shared_password.verify_password`) — un clavier
+            // mobile qui met en majuscule ou "corrige" un caractère ferait refuser un
+            // code pourtant correctement recopié.
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
             style={{ width: "100%" }}
           />
           {erreur && (
