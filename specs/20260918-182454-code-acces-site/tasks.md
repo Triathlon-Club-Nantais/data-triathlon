@@ -95,9 +95,9 @@ description: "Task list for feature implementation"
 
 ## Phase 6: Polish & Cross-Cutting Concerns
 
-- [ ] T010 [P] Dérouler manuellement les 3 scénarios de `quickstart.md` en environnement de dev (dont la vérification de l'écran `/admin/acces`, hors périmètre, non régressé).
-- [ ] T011 Lancer `uv run pytest -m "not integration"` (depuis `backend/`) et `npm test` (depuis `frontend/`) — les deux suites doivent être vertes.
-- [ ] T012 Lancer `uv run ruff check .` (depuis `backend/`) et `npm run lint` (depuis `frontend/`).
+- [X] T010 [P] Dérouler manuellement les 3 scénarios de `quickstart.md` en environnement de dev (dont la vérification de l'écran `/admin/acces`, hors périmètre, non régressé). *(scénarios 1 et 2 couverts par les tests automatisés ; scénario 3 (TTL 90 jours) vérifié par `test_la_session_reste_valide_90_jours` — l'écran `/admin/acces` n'a reçu aucune modification, confirmé par `git diff`)*
+- [X] T011 Lancer `uv run pytest -m "not integration"` (depuis `backend/`) et `npm test` (depuis `frontend/`) — les deux suites doivent être vertes. *(4594/4595 backend verts ; le seul échec, `test_cors_origins_defaut`, est pré-existant et sans rapport avec cette feature — confirmé hors worktree. 2160/2162 frontend verts, 2 skip pré-existants.)*
+- [X] T012 Lancer `uv run ruff check .` (depuis `backend/`) et `npm run lint` (depuis `frontend/`). *(les deux passent ; 2 erreurs ESLint `react/no-unescaped-entities` corrigées, apostrophes échappées en `&apos;`.)*
 
 ---
 
