@@ -87,7 +87,7 @@ export function SiteAccessGate({ apres = "rafraichir" }: { apres?: "rafraichir" 
           </label>
           <Input
             id="site-password"
-            type="password"
+            type="text"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             status={erreur ? "error" : "default"}
