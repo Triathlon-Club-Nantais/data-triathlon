@@ -65,6 +65,18 @@ describe("Garde des écrans d'administration (FR-040)", () => {
     expect(screen.getByText("contenu réservé")).toBeInTheDocument();
   });
 
+  it("propose un lien vers le guide (#865), hors du système de permissions par écran", async () => {
+    // Volontairement hors de `nav.config.ts` : la garde ci-dessus (≥ 1
+    // pouvoir admin) suffit déjà, voir le commentaire sur `a-flags` dans
+    // nav.config.ts.
+    getSession.mockResolvedValue(SESSION);
+    listAuthMethods.mockResolvedValue(GITHUB);
+
+    render(await AdminLayout({ children: <p>contenu réservé</p> }));
+
+    expect(screen.getByRole("link", { name: /guide/i })).toHaveAttribute("href", "/admin/guide");
+  });
+
   it("renvoie au tableau de bord une session sans le moindre pouvoir", async () => {
     // Le catalogue de #115 ne contient que des pouvoirs d'administration : n'en
     // porter aucun, c'est n'avoir rien à faire ici. Vers `/dashboard` et non
