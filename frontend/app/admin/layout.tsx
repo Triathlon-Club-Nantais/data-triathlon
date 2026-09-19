@@ -1,4 +1,6 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
+import { BookOpen } from "lucide-react";
 import type { ReactNode } from "react";
 import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
 import { ApiError } from "@/lib/api/client";
@@ -83,5 +85,25 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   // Le dialog des gestes destructifs, monté une fois pour toutes les
   // sous-routes (#499). Composant client sous un layout serveur : les enfants
   // rendus par le serveur traversent le provider sans devenir clients.
-  return <DangerConfirmProvider>{children}</DangerConfirmProvider>;
+  return (
+    <DangerConfirmProvider>
+      {/* Lien fixe vers le guide (#865), hors de `nav.config.ts` par choix
+          délibéré : voir le commentaire sur `a-flags` dans nav.config.ts et
+          research.md. La garde ci-dessus (≥ 1 pouvoir admin) suffit, aucun
+          `permission` par écran n'est donc nécessaire ici. */}
+      <div
+        className="mx-auto flex justify-end px-4 pt-4 sm:px-8 md:px-10"
+        style={{ maxWidth: "var(--tcn-content-max)" }}
+      >
+        <Link
+          href="/admin/guide"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--tcn-text-faint)] transition-colors hover:text-foreground"
+        >
+          <BookOpen className="size-4" aria-hidden />
+          Guide
+        </Link>
+      </div>
+      {children}
+    </DangerConfirmProvider>
+  );
 }

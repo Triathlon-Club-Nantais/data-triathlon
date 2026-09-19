@@ -1,0 +1,21 @@
+{
+  "name": "data-triathlon-slides",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "slidev presentation-globale/slides.md",
+    "build": "slidev build presentation-globale/slides.md --out presentation-globale/dist",
+    "export:journee-nouveaux": "slidev export presentation-globale/slides.md --format png --output presentation-globale/export/.pages && cp presentation-globale/export/.pages/13.png presentation-globale/export/nouveaux-1-couverture.png && cp presentation-globale/export/.pages/14.png presentation-globale/export/nouveaux-2-fonctionnalites.png && cp presentation-globale/export/.pages/15.png presentation-globale/export/nouveaux-3-contribution-acces.png && rm -r presentation-globale/export/.pages"
+  },
+  "devDependencies": {
+    "@slidev/cli": "^51.0.0",
+    "@slidev/theme-default": "^0.25.0",
+    "playwright-chromium": "^1.49.0",
+    "qrcode": "^1.5.4"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "esbuild@0.25.12": true,
+    "playwright-chromium@1.63.0": true
+  }
+}
