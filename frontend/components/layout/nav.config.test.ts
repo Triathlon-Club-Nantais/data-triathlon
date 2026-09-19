@@ -22,6 +22,21 @@ describe("nav.config", () => {
       expect(item.permission, item.href).toBeTruthy();
     }
   });
+
+  it("ne porte pas d'entrée pour le guide admin (#865)", () => {
+    // Volontairement hors de cette table — voir le commentaire sur `a-flags`
+    // dans nav.config.ts et `app/admin/layout.tsx`.
+    expect(NAV.flatMap((s) => s.items).find((i) => i.id === "a-guide")).toBeUndefined();
+  });
+});
+
+describe("nav.config — Guide membre (#865, #878)", () => {
+  it("ne porte pas d'entrée pour le guide membre", () => {
+    // Volontairement hors de cette table depuis #878 — même arbitrage que le
+    // guide admin (`a-flags` ci-dessus) : le lien vit dans
+    // `app/(public_restricted)/layout.tsx`, discret, en haut à droite.
+    expect(NAV.flatMap((s) => s.items).find((i) => i.id === "guide")).toBeUndefined();
+  });
 });
 
 describe("nav.config — Club (#487)", () => {

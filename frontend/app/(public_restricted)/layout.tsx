@@ -1,4 +1,6 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
+import { BookOpen } from "lucide-react";
 import { SiteAccessGate } from "@/components/site-access/SiteAccessGate";
 import { ApiError } from "@/lib/api/client";
 import { apiServer } from "@/lib/api/server";
@@ -57,5 +59,25 @@ export default async function ProtegeLayout({ children }: { children: ReactNode 
   if (acces === false) {
     return <SiteAccessGate />;
   }
-  return <>{children}</>;
+  return (
+    <>
+      {/* Lien fixe vers le guide (#865), hors de `nav.config.ts` depuis #878 :
+          retiré du rail pour ne pas concurrencer les destinations réelles sur
+          l'entrée la plus fréquentée de la nav — même arbitrage, et même
+          habillage discret, que le guide admin (`app/admin/layout.tsx`). */}
+      <div
+        className="mx-auto flex justify-end px-4 pt-4 sm:px-8 md:px-10"
+        style={{ maxWidth: "var(--tcn-content-max)" }}
+      >
+        <Link
+          href="/guide"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--tcn-text-faint)] transition-colors hover:text-foreground"
+        >
+          <BookOpen className="size-4" aria-hidden />
+          Guide
+        </Link>
+      </div>
+      {children}
+    </>
+  );
 }
