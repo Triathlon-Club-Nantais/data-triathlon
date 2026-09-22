@@ -137,8 +137,9 @@ export function splitColumns(
  * Même règle que `splitColumns`, mais alimentée par la synthèse d'épreuve
  * plutôt que par les participations affichées (#163) : avec vingt lignes sous
  * la main, déduire les colonnes des lignes les ferait changer d'une page à
- * l'autre. Les clés arrivent dans leur ordre d'apparition (`keys`), qui fixe
- * celui des colonnes — schéma ou source, même correctif qu'ailleurs (#563).
+ * l'autre. Les clés arrivent dans l'ordre de la course, fixé par le backend
+ * (`split_gap.chronological`, #880), qui est celui des colonnes — schéma ou
+ * source, même correctif qu'ailleurs (#563).
  */
 export function splitColumnsFromKeys(eventType: string, keys: string[]): SchemaEntry[] {
   const schema = new Map(splitSchema(eventType).map((s) => [s.key, s]));

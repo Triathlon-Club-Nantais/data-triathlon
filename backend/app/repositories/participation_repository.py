@@ -695,10 +695,11 @@ def summary_rows_for_course(db: Session, course_id: int) -> list[tuple]:
     Rend des tuples, jamais des `Participation` : hydrater le modèle et joindre
     l'athlète est précisément le coût que la pagination supprime (#163).
 
-    L'ordre **compte**, malgré l'agrégation : `split_keys` est construite dans
-    l'ordre d'apparition, et le contrat de la route en fait l'ordre des colonnes
-    du tableau. Sans `ORDER BY`, l'ordre du tas PostgreSQL n'est pas stable
-    (UPDATE, VACUUM) et les colonnes pourraient se réordonner entre deux pages.
+    L'ordre **compte**, malgré l'agrégation : les clés de `split_keys` hors
+    gabarit de sport (libellés de la source) gardent leur ordre d'apparition
+    (#880), et le contrat de la route en fait l'ordre des colonnes du tableau.
+    Sans `ORDER BY`, l'ordre du tas PostgreSQL n'est pas stable (UPDATE,
+    VACUUM) et ces colonnes pourraient se réordonner entre deux pages.
 
     `splits` est de loin la plus lourde des six colonnes, et la seule chargée
     pour une raison indirecte : en déduire les clés de colonnes du tableau.

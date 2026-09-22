@@ -341,3 +341,12 @@ def test_build_returns_none_from_the_database_for_an_excluded_provider(db_sessio
     _, rows = _seed_course(db_session, provider="t2area")
 
     assert participation_stats_service.build(db_session, rows[0]) is None
+
+
+def test_published_segments_follow_chronological_order():
+    """#880 : un vainqueur sans natation chronométrée ne relègue pas la natation."""
+    ranking = [
+        _participation(rank=1, splits={"bike": "01:00:00", "run": "00:40:00"}),
+        _participation(rank=2, splits={"swim": "00:21:00", "bike": "01:01:00", "run": "00:41:00"}),
+    ]
+    assert participation_stats_service.published_segments(ranking) == ["swim", "bike", "run"]

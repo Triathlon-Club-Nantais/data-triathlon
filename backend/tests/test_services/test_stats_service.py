@@ -448,6 +448,23 @@ def test_course_summary_split_keys_vues_sur_au_moins_une_participation(db_sessio
     assert synthese["split_keys"] == ["swim", "bike"]
 
 
+def test_course_summary_split_keys_suivent_l_ordre_du_sport(db_session):
+    # #880 : le premier participant n'a pas de natation — l'ordre d'apparition
+    # mettait « Natation » après la course à pied. Les clés hors gabarit
+    # (libellés de la source) gardent leur ordre d'apparition, en fin de liste.
+    course = _epreuve(
+        db_session,
+        [
+            ("A", "Un", "M", "ASPTT", None, "finisher", "01:00:00", {"bike": "00:30:00", "run": "00:20:00"}),
+            ("B", "Deux", "M", "ASPTT", None, "finisher", "01:10:00", {"PENALITE": "00:01:00", "swim": "00:10:00", "t1": "00:01:00"}),
+        ],
+    )
+
+    synthese = stats_service.course_summary(db_session, course.id)
+
+    assert synthese["split_keys"] == ["swim", "t1", "bike", "run", "PENALITE"]
+
+
 def test_course_summary_ne_charge_que_les_colonnes_utiles(db_session):
     """FR-022 : pas d'objet ORM hydraté, pas de relation chargée sur les participations.
 
@@ -943,3 +960,16 @@ def test_course_summary_clubs_total_est_nul_sans_club_renseigne(db_session):
 
     assert synthese["clubs"] == []
     assert synthese["clubs_total"] == 0
+
+
+def test_course_summary_split_keys_ignorent_le_sport_courant(db_session):
+    # Une épreuve reclassée après import (admin, `reclassify`) garde les clés de
+    # son sport d'origine : l'ordre ne doit pas dépendre du sport courant.
+    course = _epreuve(
+        db_session,
+        [("A", "Un", "M", "ASPTT", None, "finisher", "01:00:00", {"bike": "00:30:00", "run": "00:20:00", "swim": "00:10:00"})],
+    )
+    course.event_type = "duathlon-m"
+    db_session.flush()
+
+    assert stats_service.course_summary(db_session, course.id)["split_keys"] == ["swim", "bike", "run"]
