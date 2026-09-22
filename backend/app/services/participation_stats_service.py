@@ -20,6 +20,7 @@ from app.schemas.participation_stats import (
     RankingEvolutionStep,
 )
 from app.scrapers.utils import to_seconds
+from app.services import split_gap
 
 #: Positions du classement scratch auxquelles l'athlète se compare, et leur
 #: libellé affiché. Une position que l'épreuve n'atteint pas est omise, jamais
@@ -53,7 +54,7 @@ def build(db: Session, participation: Participation) -> ParticipationStatsOut | 
 
 
 def published_segments(ranking: list[Participation]) -> list[str]:
-    """Segments réellement publiés par l'épreuve, dans leur ordre de publication.
+    """Segments réellement publiés par l'épreuve, dans l'ordre de la course (#880).
 
     Union ordonnée plutôt que liste figée `swim/t1/bike/t2/run` : les clés
     dépendent du sport (`course1`/`course2` en duathlon, étiquettes libres sur
@@ -64,7 +65,7 @@ def published_segments(ranking: list[Participation]) -> list[str]:
     for row in ranking:
         for segment in row.splits or {}:
             segments.setdefault(segment, None)
-    return list(segments)
+    return split_gap.chronological(segments)
 
 
 def _segment_seconds(participation: Participation, segment: str) -> int | None:

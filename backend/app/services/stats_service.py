@@ -319,8 +319,8 @@ def course_summary(db: Session, course_id: int) -> dict:
             tcn_count += 1
 
         for cle, valeur in (splits or {}).items():
-            # Un `dict` plutôt qu'un `set` : l'ordre d'apparition fixe celui des
-            # colonnes du tableau, et un `set` le rendrait arbitraire.
+            # Un `dict` plutôt qu'un `set` : l'ordre d'apparition départage les
+            # clés hors gabarit (#880), et un `set` le rendrait arbitraire.
             if valeur:
                 split_keys.setdefault(cle, None)
 
@@ -368,7 +368,7 @@ def course_summary(db: Session, course_id: int) -> dict:
         # unités différentes.
         "clubs_total": len(clubs),
         "histogram": _histogram(secondes),
-        "split_keys": list(split_keys),
+        "split_keys": split_gap.chronological(split_keys),
         # Une **mesure**, pas un verdict : la médiane sert de référence à l'écran,
         # qui applique ses propres seuils. Les régler après re-sondage ne touche
         # donc pas au contrat (#486).

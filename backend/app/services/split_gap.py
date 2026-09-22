@@ -39,6 +39,18 @@ SCHEMAS: dict[str, list[str]] = {
 #: Le triathlon est le gabarit par défaut, comme dans `mapping.build_splits`.
 _DEFAULT_SCHEMA: list[str] = list(_DEFAULT_SPLIT_KEYS.values())
 
+#: Rang chronologique de chaque clé canonique, **tous sports confondus** (#880) :
+#: chaque clé d'un gabarit occupe un slot de `ScrapedResult` (`course1` et
+#: `segment1` le slot natation, `course2` le slot course…), et l'ordre des slots
+#: est celui du gabarit par défaut. Ne dépend donc pas du sport **courant** de
+#: l'épreuve, qu'une reclassification change sans réécrire les `splits`.
+_SLOTS: list[str] = list(_DEFAULT_SPLIT_KEYS)
+_SEGMENT_RANK: dict[str, int] = {
+    key: _SLOTS.index(field)
+    for gabarit in (_DEFAULT_SPLIT_KEYS, *_SPLIT_KEYS_BY_SPORT.values())
+    for field, key in gabarit.items()
+}
+
 #: Écart relatif à la médiane de l'épreuve au-delà duquel une ligne est signalée.
 #: Mesuré : 0 ligne sur les 4 150 évaluables de la base de dev.
 OUTLIER_RATIO = 0.05
@@ -78,6 +90,17 @@ def parse_duration(value: str | None) -> int | None:
 def schema_for(event_type: str | None) -> list[str]:
     """Segments attendus pour ce sport, tels que `mapping.build_splits` les a posés."""
     return SCHEMAS.get(_sport_base(event_type or ""), _DEFAULT_SCHEMA)
+
+
+def chronological(keys) -> list[str]:
+    """Clés de `splits` dans l'ordre de la course (#880).
+
+    L'ordre d'apparition ne suffit pas : un premier participant sans natation
+    chronométrée renvoyait la natation après la course à pied. Les clés hors
+    gabarit (libellés de la source) suivent, dans leur ordre reçu — `sorted` est
+    stable.
+    """
+    return sorted(keys, key=lambda key: _SEGMENT_RANK.get(key, len(_SLOTS)))
 
 
 def gap(
