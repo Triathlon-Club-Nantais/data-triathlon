@@ -80,7 +80,7 @@ describe("nav.config — pages en avant-première (#811)", () => {
   });
 });
 
-describe("nav.config — Bénévolat et Bénévoles (#830, #832)", () => {
+describe("nav.config — Bénévolat et Validation des courses (#830, #832, #882)", () => {
   it("annonce « Bénévolat » vers /benevolat, visible sans pouvoir", () => {
     const item = NAV.flatMap((s) => s.items).find((i) => i.id === "benevolat");
     expect(item).toBeDefined();
@@ -88,9 +88,10 @@ describe("nav.config — Bénévolat et Bénévoles (#830, #832)", () => {
     expect(estVisible(item!, new Set(), ROLE.ANON)).toBe(true);
   });
 
-  it("annonce « Bénévoles » vers /benevoles, visible sans pouvoir", () => {
+  it("annonce « Validation des courses » vers /benevoles, visible sans pouvoir (#882)", () => {
     const item = NAV.flatMap((s) => s.items).find((i) => i.id === "benevoles");
     expect(item).toBeDefined();
+    expect(item?.label).toBe("Validation des courses");
     expect(item?.href).toBe("/benevoles");
     expect(estVisible(item!, new Set(), ROLE.ANON)).toBe(true);
   });
