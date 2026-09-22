@@ -144,7 +144,7 @@ export const NAV: NavSection[] = [
       // passe du site, donc pas de `permission` ici non plus — l'entrée ne
       // sert qu'à faire trouver la connexion, jusque-là atteignable en URL
       // directe seulement (#832).
-      { id: "benevoles", label: "Bénévoles", href: "/benevoles", icon: UserCheck },
+      { id: "benevoles", label: "Validation des courses", href: "/benevoles", icon: UserCheck },
     ],
   },
   {

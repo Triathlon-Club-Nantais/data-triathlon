@@ -219,7 +219,7 @@ export default function BenevolesPage() {
 
   return (
     <div style={{ maxWidth: 1100, margin: "40px auto", padding: "0 24px" }}>
-      <Eyebrow style={{ marginBottom: 6 }}>Bénévoles</Eyebrow>
+      <Eyebrow style={{ marginBottom: 6 }}>Validation des courses</Eyebrow>
       <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(26px, 4vw, 34px)", color: "var(--tcn-ink)", marginBottom: 24, fontWeight: 400 }}>
         Vérification des résultats
       </h1>
