@@ -27,6 +27,7 @@ export function ProfilesList() {
   const creer = useCreateProfile();
   const [prenom, setPrenom] = useState("");
   const [nom, setNom] = useState("");
+  const [naissance, setNaissance] = useState("");
 
   // Confort d'affichage seul : chaque ressource porte sa garde côté API
   // (patron #496 — `GroupsTable`).
@@ -36,9 +37,14 @@ export function ProfilesList() {
     evenement.preventDefault();
     if (!prenom.trim() || !nom.trim()) return;
     try {
-      await creer.mutateAsync({ first_name: prenom.trim(), last_name: nom.trim() });
+      await creer.mutateAsync({
+        first_name: prenom.trim(),
+        last_name: nom.trim(),
+        ...(naissance ? { birth_date: naissance } : {}),
+      });
       setPrenom("");
       setNom("");
+      setNaissance("");
       toast.success("Profil créé.");
     } catch (e) {
       toast.error((e as Error).message);
@@ -67,6 +73,16 @@ export function ProfilesList() {
               required
               value={nom}
               onChange={(e) => setNom(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="jeune-naissance">Date de naissance</Label>
+            <Input
+              id="jeune-naissance"
+              type="date"
+              className="w-40"
+              value={naissance}
+              onChange={(e) => setNaissance(e.target.value)}
             />
           </div>
           <Button type="submit" disabled={creer.isPending}>

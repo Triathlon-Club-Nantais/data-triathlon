@@ -116,6 +116,56 @@ describe("ProfileDetail", () => {
     expect(screen.queryByRole("button", { name: /ajouter/i })).not.toBeInTheDocument();
   });
 
+  it("corrige nom, prénom et date de naissance", async () => {
+    updateProfile.mockResolvedValue(PROFIL);
+    const utilisateur = userEvent.setup();
+
+    afficher();
+    await utilisateur.click(await screen.findByRole("button", { name: /modifier le profil/i }));
+    const prenom = screen.getByLabelText(/prénom/i);
+    const nom = screen.getByLabelText(/^nom/i);
+    const naissance = screen.getByLabelText(/date de naissance/i);
+    expect(prenom).toHaveValue("Alix");
+    expect(naissance).toHaveValue("2015-04-12");
+    await utilisateur.clear(prenom);
+    await utilisateur.type(prenom, "Alice");
+    await utilisateur.clear(nom);
+    await utilisateur.type(nom, "Martins");
+    await utilisateur.clear(naissance);
+    await utilisateur.type(naissance, "2015-05-13");
+    await utilisateur.click(screen.getByRole("button", { name: /enregistrer/i }));
+
+    await waitFor(() =>
+      expect(updateProfile).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({
+          first_name: "Alice",
+          last_name: "Martins",
+          birth_date: "2015-05-13",
+        }),
+      ),
+    );
+  });
+
+  it("renseigne la date de naissance d'un profil qui n'en avait pas", async () => {
+    getProfile.mockResolvedValue({ ...PROFIL, birth_date: null });
+    updateProfile.mockResolvedValue(PROFIL);
+    const utilisateur = userEvent.setup();
+
+    afficher();
+    expect(await screen.findByText(/âge inconnu/i)).toBeInTheDocument();
+    await utilisateur.click(screen.getByRole("button", { name: /modifier le profil/i }));
+    await utilisateur.type(screen.getByLabelText(/date de naissance/i), "2015-04-12");
+    await utilisateur.click(screen.getByRole("button", { name: /enregistrer/i }));
+
+    await waitFor(() =>
+      expect(updateProfile).toHaveBeenCalledWith(
+        1,
+        expect.objectContaining({ birth_date: "2015-04-12" }),
+      ),
+    );
+  });
+
   it("ajoute une entrée de journal", async () => {
     addProfileLogEntry.mockResolvedValue(PROFIL);
     const utilisateur = userEvent.setup();

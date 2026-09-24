@@ -109,4 +109,41 @@ describe("ProfilesList", () => {
       ),
     );
   });
+
+  it("crée un profil avec sa date de naissance", async () => {
+    listProfiles.mockResolvedValue([]);
+    createProfile.mockResolvedValue({ ...ALIX, log_entries: [] });
+    const utilisateur = userEvent.setup();
+
+    afficher();
+    await screen.findByRole("button", { name: /créer/i });
+    await utilisateur.type(screen.getByLabelText(/prénom/i), "Alix");
+    await utilisateur.type(screen.getByLabelText(/^nom/i), "Martin");
+    await utilisateur.type(screen.getByLabelText(/date de naissance/i), "2015-04-12");
+    await utilisateur.click(screen.getByRole("button", { name: /créer/i }));
+
+    await waitFor(() =>
+      expect(createProfile).toHaveBeenCalledWith({
+        first_name: "Alix",
+        last_name: "Martin",
+        birth_date: "2015-04-12",
+      }),
+    );
+  });
+
+  it("n'envoie aucune date de naissance laissée vide", async () => {
+    listProfiles.mockResolvedValue([]);
+    createProfile.mockResolvedValue({ ...ALIX, log_entries: [] });
+    const utilisateur = userEvent.setup();
+
+    afficher();
+    await screen.findByRole("button", { name: /créer/i });
+    await utilisateur.type(screen.getByLabelText(/prénom/i), "Alix");
+    await utilisateur.type(screen.getByLabelText(/^nom/i), "Martin");
+    await utilisateur.click(screen.getByRole("button", { name: /créer/i }));
+
+    await waitFor(() =>
+      expect(createProfile).toHaveBeenCalledWith({ first_name: "Alix", last_name: "Martin" }),
+    );
+  });
 });
