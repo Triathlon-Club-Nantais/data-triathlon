@@ -1,7 +1,9 @@
 import type { Participation } from "@/lib/types";
 
+// Une composition n'existe que sur un relais (le serveur le garantit, que le
+// drapeau soit porté par le résultat ou par l'épreuve) : sa présence suffit.
 function equipiers(participation: Participation) {
-  return participation.is_relay ? (participation.teammates ?? []) : [];
+  return participation.teammates ?? [];
 }
 
 /** Nom de l'équipe d'un relais attribué (#894), ou `null` : le titre d'une ligne de classement. */

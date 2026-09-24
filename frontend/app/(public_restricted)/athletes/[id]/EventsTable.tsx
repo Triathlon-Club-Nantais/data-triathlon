@@ -425,7 +425,7 @@ export function EventsTable({
                     date: p.course.event_date,
                     coureur: athleteName,
                     coureurId: athleteId,
-                    relais: p.is_relay,
+                    relais: p.is_relay || p.course.is_relay,
                     equipiers: p.teammates ?? [],
                   }}
                   style={{ padding: `0 ${PADDING_X}px 14px` }}
@@ -486,7 +486,7 @@ export function EventsTable({
                         date: p.course?.event_date ?? null,
                         coureur: athleteName,
                         coureurId: athleteId,
-                        relais: p.is_relay,
+                        relais: p.is_relay || Boolean(p.course?.is_relay),
                         equipiers: p.teammates ?? [],
                       }}
                       style={{ padding: "0 16px 14px" }}

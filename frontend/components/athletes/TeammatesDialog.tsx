@@ -83,9 +83,9 @@ export function TeammatesDialog({
       // La fiche courante peut avoir été purgée : `notFound()` prend le relais.
       router.refresh();
     } catch (erreur) {
-      // 409 (coureur déjà classé) et 404 (fiche disparue) se corrigent en
-      // changeant la composition : le message du serveur nomme le coureur.
-      if (erreur instanceof ApiError && (erreur.status === 409 || erreur.status === 404)) {
+      // 409 (coureur déjà classé), 404 (fiche disparue) et 400 (refus métier)
+      // portent un message français du serveur qui dit quoi corriger.
+      if (erreur instanceof ApiError && [400, 404, 409].includes(erreur.status)) {
         setRefus(erreur.message);
         return;
       }

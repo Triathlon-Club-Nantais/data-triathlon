@@ -407,9 +407,11 @@ def list_with_season_participation_count(
     affiliees_club = func.sum(
         case((and_(est_valide, tcn_clause(Participation.club)), 1), else_=0)
     )
+    lien = credits()
     requete = (
         db.query(Athlete, total, validees, affiliees_club)
-        .join(Participation, Participation.athlete_id == Athlete.id)
+        .join(lien, lien.c.athlete_id == Athlete.id)
+        .join(Participation, Participation.id == lien.c.participation_id)
         .join(Course, Participation.course_id == Course.id)
         .group_by(Athlete.id)
     )
@@ -482,12 +484,14 @@ def search_by_relevance(
     """
     compte = func.count(Participation.id)
     rang = _relevance_rank(term)
+    lien = credits()
     requete = (
         db.query(Athlete, compte)
+        .outerjoin(lien, lien.c.athlete_id == Athlete.id)
         .outerjoin(
             Participation,
             and_(
-                Participation.athlete_id == Athlete.id,
+                Participation.id == lien.c.participation_id,
                 validated_clause(Participation.is_pending_validation),
             ),
         )

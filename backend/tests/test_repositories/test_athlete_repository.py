@@ -932,6 +932,25 @@ def test_club_roster_ne_compte_pas_un_podium_de_relais_parmi_les_podiums_individ
     assert lignes["MARTIN"] == [1, 0, 0, 0, 0]
 
 
+def test_compte_de_saison_credite_un_equipier_de_relais(db_session):
+    """#894 — même base que `list_for_athlete` et `season_quota` (#845)."""
+    _relais_attribue(db_session)
+    db_session.flush()
+
+    lignes = athlete_repository.list_with_season_participation_count(db_session, seasons=[])
+
+    assert {a.nom: total for a, total, *_ in lignes} == {"DUPONT": 1, "MARTIN": 1}
+
+
+def test_recherche_compte_le_relais_d_un_equipier(db_session):
+    _relais_attribue(db_session)
+    db_session.flush()
+
+    ((athlete, compte),) = athlete_repository.search_by_relevance(db_session, term="MARTIN")
+
+    assert (athlete.nom, compte) == ("MARTIN", 1)
+
+
 def test_club_rank_trouve_un_equipier_de_relais(db_session):
     _, _, paul = _relais_attribue(db_session)
     db_session.flush()

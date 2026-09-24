@@ -137,6 +137,20 @@ describe("TeammatesDialog", () => {
     );
   });
 
+  it("affiche aussi un refus métier (400) à côté de la liste", async () => {
+    setParticipationTeammates.mockRejectedValue(
+      new ApiError(400, "Seul un résultat de relais peut être attribué à des équipiers."),
+    );
+    afficher([JEAN, PAUL]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Attribuer" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Seul un résultat de relais peut être attribué à des équipiers.",
+    );
+    expect(toastError).not.toHaveBeenCalled();
+  });
+
   it("affiche le refus du serveur à côté de la liste", async () => {
     setParticipationTeammates.mockRejectedValue(
       new ApiError(409, "MARTIN Paul a déjà un résultat sur cette épreuve."),

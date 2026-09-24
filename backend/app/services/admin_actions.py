@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from app.core.club import is_tcn
 from app.core.config import Settings
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError, ScraperError
+from app.core.text import deaccent
 from app.core.time import utcnow
 from app.models.athlete import Athlete
 from app.models.course import Course
@@ -803,23 +804,27 @@ def reassign_participation(
     participation = _participation_or_404(db, participation_id)
     cible = _athlete_or_404(db, athlete_id)
     source_id = participation.athlete_id
+    # Un relais attribué (#894) redevient un résultat à un seul coureur, même
+    # vers l'un de ses équipiers (FR-008) : ses anciens équipiers sont
+    # candidats à la purge au même titre que la source.
+    anciens_equipiers = participation_repository.teammate_athlete_ids(db, participation.id)
 
-    if source_id == cible.id:
+    if source_id == cible.id and not anciens_equipiers:
         return participation
 
     if participation_repository.exists_for_athlete_on_course(
-        db, athlete_id=cible.id, course_id=participation.course_id
+        db,
+        athlete_id=cible.id,
+        course_id=participation.course_id,
+        exclude_participation_id=participation.id,
     ):
         raise DuplicateError("Ce coureur a déjà un résultat sur cette épreuve.")
 
     course_id = participation.course_id
-    # Un relais attribué (#894) redevient un résultat à un seul coureur : ses
-    # anciens équipiers sont candidats à la purge au même titre que la source.
-    anciens_equipiers = participation_repository.teammate_athlete_ids(db, participation.id)
     participation_repository.replace_teammates(db, participation, [])
     participation_repository.reassign(db, participation, athlete_id=cible.id)
     purges = athlete_repository.delete_orphans_among(
-        db, [source_id, *(i for i in anciens_equipiers if i not in (source_id, cible.id))]
+        db, [i for i in dict.fromkeys([source_id, *anciens_equipiers]) if i != cible.id]
     )
 
     admin_action_log_repository.create(
@@ -887,8 +892,10 @@ def set_teammates(
         for ref in teammates
     ]
     connus = [e.id for e in equipiers if isinstance(e, Athlete)]
+    # Accents ignorés : deux graphies d'un même nom désignent une seule
+    # personne, et `get_or_create` pourrait les résoudre vers la même fiche.
     inconnus = [
-        (e.athlete_name.strip().lower(), e.athlete_firstname.strip().lower())
+        tuple(" ".join(deaccent(v).lower().split()) for v in (e.athlete_name, e.athlete_firstname))
         for e in equipiers
         if isinstance(e, NewTeammate)
     ]

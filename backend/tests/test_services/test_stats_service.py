@@ -959,6 +959,7 @@ def test_un_relais_attribue_a_deux_adherents_compte_une_fois_pour_le_club(db_ses
     )
     participation_repository.replace_teammates(db_session, relais, [jean.id, paul.id])
 
-    compteurs = stats_service.get_stats(db_session, club_only=True)["rank_counters"]
+    stats = stats_service.get_stats(db_session, club_only=True)
 
-    assert compteurs["scratch"]["podiums"] == 1
+    assert stats["rank_counters"]["scratch"]["podiums"] == 1
+    assert (stats["total"], stats["athletes"], stats["events"]) == (1, 2, 1)

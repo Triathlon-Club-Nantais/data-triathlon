@@ -1654,6 +1654,30 @@ def test_supprimer_la_participation_supprime_sa_composition(db_session):
     assert db_session.query(ParticipationTeammate).count() == 0
 
 
+@pytest.mark.parametrize(
+    "purge",
+    [
+        pytest.param(lambda db, course: participation_repository.delete_for_course(db, course),
+                     id="participations-d-une-epreuve"),
+        pytest.param(lambda db, course: participation_repository.delete_all(db),
+                     id="toutes-les-participations"),
+        pytest.param(lambda db, course: course_repository.delete_all(db), id="toutes-les-epreuves"),
+    ],
+)
+def test_une_suppression_en_masse_emporte_les_compositions(db_session, purge):
+    """#894 — SQLite n'applique pas `ON DELETE CASCADE` (aucun PRAGMA) : sans
+    nettoyage explicite, une composition survivrait à son résultat, et un id
+    réutilisé en hériterait."""
+    from app.models.participation import ParticipationTeammate
+
+    course, _, participation, jean, paul = _relais(db_session)
+    participation_repository.replace_teammates(db_session, participation, [jean.id, paul.id])
+
+    purge(db_session, course)
+
+    assert db_session.query(ParticipationTeammate).count() == 0
+
+
 def test_replace_teammates_remplace_la_composition(db_session):
     _, equipe, participation, jean, paul = _relais(db_session)
     marie = athlete_repository.get_or_create(db_session, nom="DURAND", prenom="Marie")

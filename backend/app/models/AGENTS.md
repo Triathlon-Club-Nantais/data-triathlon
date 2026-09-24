@@ -35,6 +35,18 @@
   - **Un podium de relais n'est pas un podium individuel** (spec FR-011) :
     exclu des podiums du roster et des tuiles de la fiche athlète, compté une
     fois pour le club.
+  - **Tout `DELETE` de masse sur `participations` efface d'abord la liaison**
+    (`participation_repository.delete_teammates`) : son `ON DELETE CASCADE`
+    est inerte en SQLite (aucun `PRAGMA foreign_keys=ON`), et un id réutilisé
+    hériterait d'équipiers fantômes. Même raison, le `RESTRICT` vers
+    `athletes.id` n'est vérifiable qu'en PostgreSQL : aucun test ne le couvre.
+
+  Deux limites assumées (revue de #894) : la **bascule de source** d'une
+  épreuve (`delete_for_course` puis réimport) perd les compositions posées,
+  les équipiers devenant orphelins ; et `credits()` est un `UNION ALL` avec un
+  `NOT EXISTS` corrélé sur toute la table, recalculé par roster, composition,
+  recherche et totaux — à mesurer (`EXPLAIN`) sur la base PostgreSQL si ces
+  écrans ralentissent.
 - **IgnoredCourseDuplicate** (#754) — `UNIQUE(course_id_low, course_id_high)`,
   la paire normalisée (le plus petit id en premier). **Seule table à référencer
   `courses.id` sans cascade ORM ni `ondelete`** : contrairement à `CourseSource`

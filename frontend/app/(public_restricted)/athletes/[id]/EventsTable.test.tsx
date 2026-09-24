@@ -374,6 +374,30 @@ describe("relais attribué à ses équipiers (#894)", () => {
     expect(dansLesCartes("epreuves-cartes").texte(LIBELLE)).toBeTruthy();
   });
 
+  it("offre l'attribution quand c'est l'épreuve qui est un relais", () => {
+    // Le serveur accepte `participation.is_relay` **ou** `course.is_relay` :
+    // le bouton suit la même règle.
+    useSessionMock.mockReturnValue({
+      data: { permissions: ["participations:reassign", "athletes:read"] },
+    });
+    const base = participation(1, { name: "Relais de Nantes" });
+    try {
+      render(
+        <EventsTable
+          participations={[{ ...base, course: { ...base.course, is_relay: true } }]}
+          athleteId={7}
+          athleteName="Jean DUPONT"
+        />,
+      );
+
+      expect(
+        screen.getAllByRole("button", { name: /^Attribuer aux équipiers/ }).length,
+      ).toBeGreaterThan(0);
+    } finally {
+      useSessionMock.mockReturnValue({ data: null });
+    }
+  });
+
   it("ne dit rien d'un résultat non attribué", () => {
     render(
       <EventsTable participations={[participation(1)]} athleteId={7} athleteName="Jean DUPONT" />,

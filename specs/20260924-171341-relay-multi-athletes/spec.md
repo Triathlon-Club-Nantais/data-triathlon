@@ -110,4 +110,5 @@ Une fois le relais attribué, le podium ou la victoire obtenue en relais suit un
 - Les temps intermédiaires par relayeur (qui a nagé, qui a couru) sont hors périmètre : le résultat reste celui de l'équipe.
 - Les statistiques propres à une participation (écarts, splits) excluent déjà les relais et continuent de le faire.
 - Hors périmètre : le découpage automatique des équipes nommées à l'import (#895, qui réutilisera ce mécanisme) et la reprise des relais déjà en base.
+- Limite connue (revue de code) : la bascule de source d'une épreuve réimporte ses résultats et perd les compositions posées. À traiter si le besoin apparaît.
 - Le choix du modèle (une liaison résultat vers plusieurs athlètes, ou une copie du résultat par équipier comme le fait déjà `runnerbreizh`) est tranché au plan. Il doit tenir FR-001, FR-010 et FR-012.

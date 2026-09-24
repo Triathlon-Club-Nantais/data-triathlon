@@ -2284,6 +2284,27 @@ def test_reassign_d_un_relais_attribue_vide_la_composition(db_session, auteur):
     assert athlete_repository.get(db_session, paul_id) is None
 
 
+@pytest.mark.parametrize("cible", ["porteur", "autre-equipier"])
+def test_reassign_d_un_relais_attribue_vers_l_un_de_ses_equipiers(db_session, auteur, cible):
+    """FR-008 : pour ne garder qu'un coureur, le rattachement vide la composition."""
+    _, _, ligne, jean, paul = _relais(db_session)
+    admin_actions.set_teammates(
+        db_session, participation_id=ligne.id, teammates=[jean.id, paul.id], user_id=auteur.id
+    )
+    garde, retire = (jean, paul) if cible == "porteur" else (paul, jean)
+    retire_id = retire.id
+
+    admin_actions.reassign_participation(
+        db_session, participation_id=ligne.id, athlete_id=garde.id, user_id=auteur.id
+    )
+
+    resultat = participation_repository.get(db_session, ligne.id)
+    assert resultat.teammates == []
+    assert resultat.athlete_id == garde.id
+    assert athlete_repository.get(db_session, retire_id) is None
+    assert athlete_repository.get(db_session, garde.id) is not None
+
+
 # --- Équipier saisi par son nom (#894, US2) ----------------------------------
 
 def test_set_teammates_cree_un_equipier_saisi_par_son_nom(db_session, auteur):
@@ -2333,6 +2354,21 @@ def test_set_teammates_refuse_deux_fois_le_meme_nom_inconnu(db_session, auteur):
         )
 
     assert athlete_repository.get_by_identity(db_session, "DURAND", "Marie", None) is None
+
+
+def test_set_teammates_refuse_deux_noms_qui_ne_different_que_par_les_accents(db_session, auteur):
+    _, _, ligne, jean, _ = _relais(db_session)
+
+    with pytest.raises(DomainError):
+        admin_actions.set_teammates(
+            db_session, participation_id=ligne.id,
+            teammates=[
+                jean.id,
+                admin_actions.NewTeammate("LEMÉE", "Élodie"),
+                admin_actions.NewTeammate("LEMEE", "Elodie"),
+            ],
+            user_id=auteur.id,
+        )
 
 
 def test_set_teammates_refuse_un_nom_connu_deja_classe_sans_rien_creer(db_session, auteur):
