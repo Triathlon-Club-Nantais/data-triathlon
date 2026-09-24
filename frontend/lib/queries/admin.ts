@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "./keys";
+import { localToday } from "@/lib/utils/date";
 import type {
   AdminAthleteUpdate,
   AdminCourseUpdate,
@@ -946,11 +947,13 @@ export function useUpdateProfile() {
   });
 }
 
+/** L'entrée est datée du jour **local** : laissée au serveur, elle prendrait
+ * sa date UTC, la veille pour une note saisie après minuit à Paris. */
 export function useAddProfileLogEntry() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, text }: { id: number; text: string }) =>
-      apiClient.addProfileLogEntry(id, text),
+      apiClient.addProfileLogEntry(id, text, localToday()),
     onSuccess: (_donnees, { id }) => {
       qc.invalidateQueries({ queryKey: queryKeys.profile(id) });
     },

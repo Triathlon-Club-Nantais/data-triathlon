@@ -6,6 +6,17 @@ export function formatDate(d: string | null | undefined): string {
 }
 
 /**
+ * Date locale du jour (`YYYY-MM-DD`), celle du navigateur et non l'UTC du
+ * serveur : c'est la journée de l'encadrant sur le terrain qui compte.
+ */
+export function localToday(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
+/**
  * Date **et** heure. `formatDate` coupe l'horodatage au jour : deux
  * événements du même jour y deviennent indiscernables.
  */

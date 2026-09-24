@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { formatDate, formatDateTime, timeAgo, formatMonth } from "./date";
+import { formatDate, formatDateTime, timeAgo, formatMonth, localToday } from "./date";
 
 describe("formatDate", () => {
   it("formate une date ISO en fr-FR", () => {
@@ -41,5 +41,20 @@ describe("timeAgo", () => {
   });
   it("renvoie une chaîne vide si null", () => {
     expect(timeAgo(null)).toBe("");
+  });
+});
+
+describe("localToday", () => {
+  afterEach(() => vi.useRealTimers());
+  it("rend la date locale du navigateur, pas celle d'UTC", () => {
+    vi.useFakeTimers();
+    // 00h30 locale : en France, UTC est encore la veille.
+    vi.setSystemTime(new Date(2026, 8, 24, 0, 30));
+    expect(localToday()).toBe("2026-09-24");
+  });
+  it("complète mois et jour sur deux chiffres", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 5, 12, 0));
+    expect(localToday()).toBe("2026-01-05");
   });
 });
