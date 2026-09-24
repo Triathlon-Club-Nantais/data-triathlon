@@ -686,13 +686,26 @@ au niveau dépôt).
 
 | Service | Coucher | Lever |
 |---|---|---|
-| **production** | cron `15 23 * * *` | cron `15 2 * * *` (avancé de 4 h, #885) |
+| **production** | cron `15 23 * * *` | cron `15 2 * * *` (au lieu de `15 4 * * *`, #885) |
 | **preview** | cron `15 * * * *` — **à chaque heure** (#560) | **jamais par cron** — `deploy.yml` la reprend avant son deploy hook |
 
 La preview ne se rallume que pour servir la vérification post-déploiement, puis
 se recouche à l'heure pile suivante. C'est là qu'est le gros du quota : la
-fenêtre nocturne seule ne rend que ~150 h par mois et par service, quand une
-preview qui ne s'éveille qu'à la demande en rend plusieurs centaines.
+fenêtre nocturne seule ne rend que ~90 h par mois et par service (3 h par nuit
+depuis #885), quand une preview qui ne s'éveille qu'à la demande en rend
+plusieurs centaines.
+
+**Le budget, recalculé avec le lever de 2 h (#885).** Nominalement, la
+production dort 3 h par nuit, soit ~91 h sur un mois de 730 h : elle consomme
+~639 h, et il reste **~111 h par mois à la preview** (~3 h 40 par jour) avant
+d'atteindre 750 h. Avec l'ancien lever de 4 h (5 h de sommeil, ~152 h), la
+production consommait ~578 h et la preview disposait de ~172 h : la marge
+nominale **baisse d'environ 60 h**. Elle reste positive, mais elle est plus
+étroite alors que #885 constate déjà une preview plus gourmande que prévu (le
+cron horaire ne passe que 4 à 7 fois par jour). En pratique, le retard du
+`schedule` allonge le sommeil réel de la production (fenêtre mesurée sur #885
+plutôt ~1 h 20 → ~7 h 15 UTC), ce qui rend de la marge, mais sans garantie :
+c'est le compteur Render qui fait foi.
 
 **Pourquoi l'heure pile et non la nuit** (#560). Le régime d'origine ne
 recouchait la preview qu'au cron de 1 h : une journée à plusieurs merges sur
@@ -709,13 +722,14 @@ ce que fait l'API Render d'un `suspend` reçu en plein build — question ouvert
 que la documentation publique ne tranche pas. Avant tout `suspend`, le job lit
 l'état du service et de son dernier déploiement (`GET /v1/services?name=…`, qui
 porte déjà `suspended`, puis `GET /v1/services/{id}/deploys?limit=1`) et
-**s'abstient** dans trois cas :
+**s'abstient** dans quatre cas :
 
 | Constat | Décision |
 |---|---|
 | Service déjà `suspended` | rien à faire — le passage horaire est muet, pas rouge |
 | Dernier déploiement `created`, `queued` ou `*_in_progress` | reporté à l'heure suivante |
 | Dernier déploiement terminé depuis moins de `GRACE_MINUTES` (15) | reporté à l'heure suivante |
+| Coucher planifié de la production démarré entre 2 h et 23 h UTC (#885) | abstention avec `::warning::`, voir plus bas |
 
 Le délai de grâce couvre la vérification post-déploiement et l'écart entre le
 `finishedAt` de Render et le service réellement prêt à répondre. Le `resume`, lui,
@@ -724,7 +738,7 @@ laisser la production éteinte sur la foi d'un champ périmé coûte plus cher q
 appel inutile.
 
 **Heure UTC, pas heure de Paris.** Le cron d'Actions ignore l'heure d'été : la
-coupure de production tombe entre minuit et 5 h l'hiver, 1 h et 6 h l'été. Viser
+coupure de production tombe entre minuit et 3 h l'hiver, 1 h et 4 h l'été. Viser
 Paris à la minute demanderait deux jeux de crons et une bascule saisonnière à
 entretenir, pour une fenêtre qui reste nocturne dans les deux cas. Un cron
 d'Actions peut aussi être retardé ou sauté quand la plateforme est chargée : sur
@@ -752,6 +766,15 @@ rapprocher l'heure réelle de disponibilité de l'heure annoncée. Cette valeur
 est un pis-aller à réajuster si le retard observé change, tant que #885 n'est
 pas résolu.
 
+**Le coucher ne passe jamais après le lever.** Avec 3 h seulement entre les
+deux crons, un coucher retardé au delà de 2 h UTC (~2 h 10 mesuré sur #885, plus
+de 4 h sur #842) pourrait s'exécuter après le lever et éteindre la production
+pour toute la journée : `concurrency` sérialise les deux runs, mais ne les
+ordonne pas. Le coucher **planifié** de la production s'abstient donc, avec un
+`::warning::`, s'il démarre entre 2 h et 23 h UTC. Une nuit de sommeil perdue
+coûte quelques heures de quota ; un site éteint jusqu'au lendemain coûte bien
+plus. Un `suspend` lancé à la main par `workflow_dispatch` n'est pas concerné.
+
 **La procédure de vérification ci-dessous n'est pas touchée** : le `resume`
 précède le deploy hook dans `deploy.yml`, sur les deux environnements. C'est
 nécessaire — un deploy hook envoyé à un service suspendu ne le rallume pas — et
@@ -759,7 +782,7 @@ c'est aussi le filet du paragraphe suivant.
 
 **Le piège, le même que celui de `batch.yml` mais plus cher.** GitHub désactive
 les workflows planifiés d'un dépôt sans activité depuis 60 jours (D13), sans
-rien dire. Si la désactivation tombe entre le cron de 23 h et celui de 4 h, la
+rien dire. Si la désactivation tombe entre le cron de 23 h et celui de 2 h, la
 production reste **éteinte** jusqu'à ce que quelqu'un s'en aperçoive. Deux
 parades, volontaires toutes les deux : le `workflow_dispatch` (`action: resume`,
 `target: production`), et le `resume` de `deploy.yml` — un déploiement rallume
