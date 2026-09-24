@@ -125,6 +125,8 @@ describe("ProfileDetail", () => {
     await utilisateur.type(screen.getByLabelText(/nouvelle entrée/i), "Bonne séance");
     await utilisateur.click(screen.getByRole("button", { name: /ajouter/i }));
 
-    await waitFor(() => expect(addProfileLogEntry).toHaveBeenCalledWith(1, "Bonne séance"));
+    await waitFor(() =>
+      expect(addProfileLogEntry).toHaveBeenCalledWith(1, "Bonne séance", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)),
+    );
   });
 });

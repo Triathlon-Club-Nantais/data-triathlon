@@ -10,18 +10,9 @@ import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { useCreateEntrainement, useEntrainements } from "@/lib/queries/admin";
 import { messageDeRefus } from "@/lib/api/refus";
+import { localToday } from "@/lib/utils/date";
 
 const REFUS = { sujet: "les entraînements", action: "ouvrir l'appel" };
-
-/** Date locale du jour (`YYYY-MM-DD`) — celle du navigateur de l'encadrant,
- * pas l'UTC du serveur : c'est sa journée sur le terrain qui compte. */
-function ajourdhui(): string {
-  const maintenant = new Date();
-  const annee = maintenant.getFullYear();
-  const mois = String(maintenant.getMonth() + 1).padStart(2, "0");
-  const jour = String(maintenant.getDate()).padStart(2, "0");
-  return `${annee}-${mois}-${jour}`;
-}
 
 /**
  * Résout la séance du jour et ouvre son appel (#869, epic #863) — L'appel
@@ -35,7 +26,7 @@ export default function AdminJeuneAppelDuJourPage() {
   const creer = useCreateEntrainement();
   const [creationLancee, setCreationLancee] = useState(false);
 
-  const seanceDuJour = (data ?? []).find((entrainement) => entrainement.date === ajourdhui());
+  const seanceDuJour = (data ?? []).find((entrainement) => entrainement.date === localToday());
 
   useEffect(() => {
     if (seanceDuJour) {
@@ -46,7 +37,7 @@ export default function AdminJeuneAppelDuJourPage() {
   async function creerLaSeanceDuJour() {
     setCreationLancee(true);
     try {
-      const entrainement = await creer.mutateAsync({ date: ajourdhui() });
+      const entrainement = await creer.mutateAsync({ date: localToday() });
       router.replace(`/admin/jeunes/appel/${entrainement.id}`);
     } catch (e) {
       setCreationLancee(false);

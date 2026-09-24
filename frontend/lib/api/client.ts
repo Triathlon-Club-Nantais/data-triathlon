@@ -559,10 +559,10 @@ export const apiClient = {
       method: "PATCH",
       body: JSON.stringify(champs),
     }),
-  addProfileLogEntry: (id: number, text: string) =>
+  addProfileLogEntry: (id: number, text: string, entryDate: string) =>
     request<ProfileDetail>(`/admin/profiles/${id}/log-entries`, {
       method: "POST",
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, entry_date: entryDate }),
     }),
   // ── Composition des rôles (#115, écran #240) ───────────────────────────────
   // Lecture sous `roles:read`, écriture sous `roles:write`. `listRoles` est

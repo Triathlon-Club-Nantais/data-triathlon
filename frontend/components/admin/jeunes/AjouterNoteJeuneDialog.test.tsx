@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
@@ -36,6 +36,10 @@ describe("AjouterNoteJeuneDialog", () => {
     vi.clearAllMocks();
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("nomme le jeune dans le titre", () => {
     afficher();
 
@@ -49,8 +53,24 @@ describe("AjouterNoteJeuneDialog", () => {
     await userEvent.type(screen.getByLabelText(/^note$/i), "A progressé sur le crawl.");
     await userEvent.click(screen.getByRole("button", { name: /enregistrer/i }));
 
-    expect(addProfileLogEntry).toHaveBeenCalledWith(42, "A progressé sur le crawl.");
+    expect(addProfileLogEntry).toHaveBeenCalledWith(
+      42,
+      "A progressé sur le crawl.",
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+    );
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("date la note du jour local de l'encadrant, pas de celui du serveur", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 8, 24, 0, 30));
+    addProfileLogEntry.mockResolvedValue({});
+    afficher();
+
+    await userEvent.type(screen.getByLabelText(/^note$/i), "Séance de nuit.");
+    await userEvent.click(screen.getByRole("button", { name: /enregistrer/i }));
+
+    expect(addProfileLogEntry).toHaveBeenCalledWith(42, "Séance de nuit.", "2026-09-24");
   });
 
   it("n'enregistre pas une note vide", async () => {
