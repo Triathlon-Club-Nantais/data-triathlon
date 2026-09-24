@@ -36,12 +36,20 @@ def list_all(db: Session) -> list[Entrainement]:
     )
 
 
-def participant_count(db: Session, entrainement_id: int) -> int:
-    return db.scalar(
-        select(func.count())
-        .select_from(EntrainementParticipant)
-        .where(EntrainementParticipant.entrainement_id == entrainement_id)
-    )
+def count_participants_by_entrainement(
+    db: Session, entrainement_ids: list[int]
+) -> dict[int, int]:
+    """Le nombre d'inscrits par séance, en une seule requête agrégée, pour la
+    liste du calendrier (patron `role_repository.count_holders_by_role`). Une
+    séance absente du résultat n'a aucun inscrit."""
+    if not entrainement_ids:
+        return {}
+    lignes = db.execute(
+        select(EntrainementParticipant.entrainement_id, func.count())
+        .where(EntrainementParticipant.entrainement_id.in_(entrainement_ids))
+        .group_by(EntrainementParticipant.entrainement_id)
+    ).all()
+    return dict(lignes)
 
 
 def list_participants(db: Session, entrainement_id: int) -> list[EntrainementParticipant]:
