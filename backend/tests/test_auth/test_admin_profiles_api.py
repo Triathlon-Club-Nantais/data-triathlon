@@ -199,3 +199,17 @@ def test_the_log_entry_author_is_named(client, ouvrir_session, profile):
 
     assert response.json()["log_entries"][0]["created_by_name"] == "Encadrant Un"
     assert actor.display_name == "Encadrant Un"
+
+
+def test_timestamps_are_serialized_as_utc(client, ouvrir_session, profile):
+    """Colonnes naïves en UTC : sans suffixe `Z`, le client les lirait comme
+    une heure locale (même sérialiseur que `ParticipantRead`)."""
+    ouvrir_session(P.JEUNES_READ, P.JEUNES_WRITE)
+    client.post(f"{BASE}/{profile['id']}/log-entries", json={"text": "Bonne séance"})
+
+    detail = client.get(f"{BASE}/{profile['id']}").json()
+    liste = client.get(BASE).json()
+
+    assert detail["created_at"].endswith("Z")
+    assert detail["log_entries"][0]["created_at"].endswith("Z")
+    assert liste[0]["created_at"].endswith("Z")

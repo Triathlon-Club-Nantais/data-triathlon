@@ -4,7 +4,7 @@ Patron `app/schemas/admin.py` (`GroupRead`/`GroupCreate`/`GroupUpdate`).
 """
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_serializer
 
 
 class ProfileLogEntryRead(BaseModel):
@@ -15,6 +15,10 @@ class ProfileLogEntryRead(BaseModel):
     text: str
     created_by_name: str | None
     created_at: datetime
+
+    @field_serializer("created_at")
+    def _serialize_utc(self, value: datetime) -> str:
+        return f"{value.isoformat()}Z"
 
 
 class ProfileLogEntryCreate(BaseModel):
@@ -40,6 +44,10 @@ class ProfileRead(BaseModel):
     last_name: str
     birth_date: date | None
     created_at: datetime
+
+    @field_serializer("created_at")
+    def _serialize_utc(self, value: datetime) -> str:
+        return f"{value.isoformat()}Z"
 
 
 class ProfileDetailRead(ProfileRead):
