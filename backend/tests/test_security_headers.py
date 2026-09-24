@@ -41,3 +41,9 @@ def test_pas_de_hsts_sur_une_requete_en_clair(client):
     resp = client.get("/api/v1/health")
 
     assert "strict-transport-security" not in resp.headers
+
+
+def test_toute_reponse_interdit_l_indexation(client):
+    # #860 : l'API est joignable directement, ses JSON portent des noms d'athlètes.
+    for chemin in ("/api/v1/health", "/api/v1/route-qui-n-existe-pas"):
+        assert client.get(chemin).headers["x-robots-tag"] == "noindex, nofollow"
