@@ -61,6 +61,16 @@ describe("NoteSeanceForm", () => {
     expect(screen.getByRole("button", { name: /enregistrer/i })).toBeDisabled();
   });
 
+  it("efface une note déjà enregistrée", async () => {
+    updateEntrainement.mockResolvedValue({});
+
+    afficher({ note: "Mauvaise séance." });
+    await userEvent.clear(screen.getByLabelText(/note de séance/i));
+    await userEvent.click(screen.getByRole("button", { name: /enregistrer/i }));
+
+    expect(updateEntrainement).toHaveBeenCalledWith(1, { note: "" });
+  });
+
   it("n'affiche aucun contrôle d'écriture sans jeunes:write", () => {
     afficher({ peutEcrire: false, note: "Bassin partagé." });
 
