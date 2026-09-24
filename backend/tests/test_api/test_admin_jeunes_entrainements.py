@@ -321,13 +321,9 @@ def test_jeunes_read_and_write_together_pass_the_full_flow(client, db_session, j
 
     assert client.get(BASE).status_code == 200
     assert client.get(f"{BASE}/{created['id']}").status_code == 200
-    assert client.patch(f"{BASE}/{created['id']}", json={"lieu": "Gymnase"}).status_code == 200
-    assert (
-        client.post(
-            f"{BASE}/{created['id']}/participants", json={"jeune_id": jeune_id}
-        ).status_code
-        == 201
-    )
-    assert (
-        client.delete(f"{BASE}/{created['id']}/participants/{jeune_id}").status_code == 204
-    )
+    patched = client.patch(f"{BASE}/{created['id']}", json={"lieu": "Gymnase"})
+    assert patched.status_code == 200
+    enrolled = client.post(f"{BASE}/{created['id']}/participants", json={"jeune_id": jeune_id})
+    assert enrolled.status_code == 201
+    unenrolled = client.delete(f"{BASE}/{created['id']}/participants/{jeune_id}")
+    assert unenrolled.status_code == 204
