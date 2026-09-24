@@ -54,6 +54,31 @@ describe("AppelFin", () => {
     expect(screen.getByText(/tous les jeunes présents/i)).toBeInTheDocument();
   });
 
+  it("ne compte pas comme retrouvé un jeune qui n'est plus présent", async () => {
+    const deuxPresents: EntrainementParticipant[] = [
+      { jeune_id: 42, present: true, created_at: "2026-09-15T10:00:00Z" },
+      { jeune_id: 43, present: true, created_at: "2026-09-15T10:00:00Z" },
+    ];
+    const { rerender } = render(<AppelFin participants={deuxPresents} profils={[ALIX, ZOE]} />);
+    await userEvent.click(screen.getByRole("checkbox", { name: /alix martin/i }));
+    expect(screen.getByText(/1 jeune restant/i)).toBeInTheDocument();
+
+    // Un autre encadrant repointe Alix absente : la liste rafraîchie la perd,
+    // Zoé reste à vérifier.
+    rerender(
+      <AppelFin
+        participants={[
+          { jeune_id: 42, present: false, created_at: "2026-09-15T10:00:00Z" },
+          { jeune_id: 43, present: true, created_at: "2026-09-15T10:00:00Z" },
+        ]}
+        profils={[ALIX, ZOE]}
+      />,
+    );
+
+    expect(screen.getByText(/1 jeune restant/i)).toBeInTheDocument();
+    expect(screen.queryByText(/tous les jeunes présents/i)).not.toBeInTheDocument();
+  });
+
   it("repart vierge après un remontage", async () => {
     const { unmount } = render(<AppelFin participants={PARTICIPANTS} profils={[ALIX, ZOE]} />);
     await userEvent.click(screen.getByRole("checkbox", { name: /alix martin/i }));

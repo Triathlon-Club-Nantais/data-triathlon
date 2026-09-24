@@ -47,7 +47,9 @@ export function AppelFin({
     );
   }
 
-  const manquants = presents.length - retrouves.size;
+  // `retrouves` n'est jamais réconcilié avec les props : un id qui a quitté
+  // `presents` ne doit pas réduire le compte.
+  const manquants = presents.filter((participant) => !retrouves.has(participant.jeune_id)).length;
 
   return (
     <div className="space-y-4">
