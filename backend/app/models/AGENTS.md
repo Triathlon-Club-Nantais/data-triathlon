@@ -15,6 +15,26 @@
   active, cf. plus bas. `source_url` reste la clé du cache TTL.
 - **CourseSource** — `UNIQUE(course_id, url)`, **jamais** `UNIQUE(url)` (cf. plus bas).
 - **Participation** — `UNIQUE(course_id, bib_number)` → plus de doublons à l'import.
+- **ParticipationTeammate** (#894) — les équipiers d'un relais attribué, table
+  `participation_teammates`, PK `(participation_id, athlete_id)`, ordonnée par
+  `position`. Le résultat reste **une** ligne `participations` : classement,
+  compteurs de l'épreuve et podiums du club le comptent une fois, sans
+  dédoublonnage. Invariants : liaison vide = résultat classique ; non vide =
+  2 à 8 équipiers, dont `athlete_id` (le porteur, premier de la liste). Trois
+  pièges :
+  - **Toute lecture « par athlète » passe par la liaison** :
+    `participation_repository.carried_by` (fiche, `exists_for_athlete_on_course`,
+    comptes) et `athlete_repository.credits` (roster, rang, composition, et
+    `only_on_course`). Un équipier n'est référencé que par la liaison :
+    `delete_orphans_among` l'épargne explicitement.
+  - **L'import ne touche jamais un relais attribué** : `_Persister` le met à
+    jour en valeurs sans résoudre l'identité de l'équipe (avec dossard), et
+    l'apparie par `team_name` normalisé (`_team_key`, sans dossard) — sinon le
+    rescrape recréait la fiche d'équipe et défaisait l'attribution.
+    `set_teammates` pose `team_name` depuis la fiche d'origine pour cela.
+  - **Un podium de relais n'est pas un podium individuel** (spec FR-011) :
+    exclu des podiums du roster et des tuiles de la fiche athlète, compté une
+    fois pour le club.
 - **IgnoredCourseDuplicate** (#754) — `UNIQUE(course_id_low, course_id_high)`,
   la paire normalisée (le plus petit id en premier). **Seule table à référencer
   `courses.id` sans cascade ORM ni `ondelete`** : contrairement à `CourseSource`

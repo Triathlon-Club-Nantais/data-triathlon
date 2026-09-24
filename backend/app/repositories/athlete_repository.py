@@ -2,7 +2,7 @@
 from collections.abc import Sequence
 from datetime import date
 
-from sqlalchemy import and_, case, false, func, or_, tuple_
+from sqlalchemy import and_, case, exists, false, func, or_, select, tuple_, union_all
 from sqlalchemy.orm import Session
 
 from app.core.club import tcn_clause
@@ -11,7 +11,7 @@ from app.core.text import deaccent
 from app.core.validation import validated_clause
 from app.models.athlete import Athlete
 from app.models.course import Course
-from app.models.participation import Participation
+from app.models.participation import Participation, ParticipationTeammate
 from app.scrapers.base import STATUS_FINISHER
 
 
@@ -233,6 +233,26 @@ def search_admin(
     return [(athlete, nombre) for athlete, nombre in lignes]
 
 
+def credits():
+    """Couples `(participation_id, athlete_id)` : chaque athlète à qui un résultat revient.
+
+    Le porteur (`Participation.athlete_id`) d'un résultat sans équipiers, ou
+    chacun des équipiers d'un relais attribué (#894), porteur compris : aucun
+    couple n'est donc compté deux fois.
+    """
+    sans_equipiers = select(
+        Participation.id.label("participation_id"),
+        Participation.athlete_id.label("athlete_id"),
+    ).where(
+        ~exists().where(ParticipationTeammate.participation_id == Participation.id)
+    )
+    equipiers = select(
+        ParticipationTeammate.participation_id.label("participation_id"),
+        ParticipationTeammate.athlete_id.label("athlete_id"),
+    )
+    return union_all(sans_equipiers, equipiers).subquery("credits")
+
+
 def only_on_course(db: Session, course_id: int) -> list[int]:
     """Les athlètes dont **toutes** les participations sont sur cette épreuve (#117).
 
@@ -248,11 +268,16 @@ def only_on_course(db: Session, course_id: int) -> list[int]:
     quelques fois par an. Si le volume change de nature, la sortie est un
     `NOT EXISTS` corrélé, qui garde le résultat en base.
     """
-    inscrits = db.query(Participation.athlete_id).filter(
-        Participation.course_id == course_id
+    lien = credits()
+    inscrits = (
+        db.query(lien.c.athlete_id)
+        .join(Participation, Participation.id == lien.c.participation_id)
+        .filter(Participation.course_id == course_id)
     )
-    ailleurs = db.query(Participation.athlete_id).filter(
-        Participation.course_id != course_id
+    ailleurs = (
+        db.query(lien.c.athlete_id)
+        .join(Participation, Participation.id == lien.c.participation_id)
+        .filter(Participation.course_id != course_id)
     )
     return sorted({identifiant for (identifiant,) in inscrits} - {identifiant for (identifiant,) in ailleurs})
 
@@ -273,10 +298,13 @@ def delete_orphans_among(db: Session, athlete_ids: list[int] | None = None) -> l
     """
     if athlete_ids is not None and not athlete_ids:
         return []
+    # Un équipier de relais (#894) n'est référencé que par la liaison : il n'est
+    # pas orphelin pour autant.
     requete = (
         db.query(Athlete.id)
         .outerjoin(Participation, Participation.athlete_id == Athlete.id)
         .filter(Participation.id.is_(None))
+        .filter(~exists().where(ParticipationTeammate.athlete_id == Athlete.id))
     )
     if athlete_ids is not None:
         requete = requete.filter(Athlete.id.in_(athlete_ids))
@@ -480,9 +508,12 @@ def _club_roster_requete(db: Session, *, federal_only: bool):
     (#641) : même tri, même filtrage, pour que le rang calculé au-delà de
     l'aperçu de 12 corresponde exactement à l'ordre affiché.
     """
-    cond_overall = Participation.rank_overall.between(1, 3)
-    cond_gender = Participation.rank_gender.between(1, 3)
-    cond_category = Participation.rank_category.between(1, 3)
+    # Un podium de relais n'est pas un podium individuel (#894, FR-011) : le
+    # relais compte dans le volume `total`, jamais dans les podiums.
+    individuel = Participation.is_relay.is_(False)
+    cond_overall = and_(individuel, Participation.rank_overall.between(1, 3))
+    cond_gender = and_(individuel, Participation.rank_gender.between(1, 3))
+    cond_category = and_(individuel, Participation.rank_category.between(1, 3))
 
     total = func.count(Participation.id)
     podiums = func.sum(case((or_(cond_overall, cond_gender, cond_category), 1), else_=0))
@@ -490,9 +521,11 @@ def _club_roster_requete(db: Session, *, federal_only: bool):
     podiums_gender = func.sum(case((cond_gender, 1), else_=0))
     podiums_category = func.sum(case((cond_category, 1), else_=0))
 
+    lien = credits()
     requete = (
         db.query(Athlete, total, podiums, podiums_overall, podiums_gender, podiums_category)
-        .join(Participation, Participation.athlete_id == Athlete.id)
+        .join(lien, lien.c.athlete_id == Athlete.id)
+        .join(Participation, Participation.id == lien.c.participation_id)
         .join(Course, Participation.course_id == Course.id)
         .filter(validated_clause(Participation.is_pending_validation))
         .filter(tcn_clause(Participation.club))
@@ -550,16 +583,18 @@ def club_composition(
     """
     rang_recence = (
         func.row_number()
-        .over(partition_by=Participation.athlete_id, order_by=Course.event_date.desc())
+        .over(partition_by=Athlete.id, order_by=Course.event_date.desc())
         .label("rang_recence")
     )
+    lien = credits()
     sous_requete = (
         db.query(
             Athlete.gender.label("gender"),
             Participation.category.label("category"),
             rang_recence,
         )
-        .join(Participation, Participation.athlete_id == Athlete.id)
+        .join(lien, lien.c.athlete_id == Athlete.id)
+        .join(Participation, Participation.id == lien.c.participation_id)
         .join(Course, Participation.course_id == Course.id)
         .filter(validated_clause(Participation.is_pending_validation))
         .filter(tcn_clause(Participation.club))

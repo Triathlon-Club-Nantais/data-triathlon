@@ -3,7 +3,7 @@ from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from typing import NamedTuple
 
-from sqlalchemy import and_, case, func, or_
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, aliased, contains_eager, joinedload
 
 from app.core import counter_scope
@@ -16,7 +16,7 @@ from app.core.season import season_bounds, season_of
 from app.core.validation import validated_clause
 from app.models.athlete import Athlete
 from app.models.course import Course
-from app.models.participation import Participation
+from app.models.participation import Participation, ParticipationTeammate
 from app.repositories import club_alias_repository
 from app.repositories.athlete_repository import name_filter
 from app.scrapers.base import STATUS_FINISHER
@@ -56,6 +56,61 @@ def exists_for_bib(db: Session, course_id: int, bib_number: str | None) -> bool:
     )
 
 
+def carried_by(athlete_id: int):
+    """Résultats de ce coureur : portés en direct, ou comme équipier d'un relais (#894)."""
+    return or_(
+        Participation.athlete_id == athlete_id,
+        Participation.id.in_(
+            select(ParticipationTeammate.participation_id).where(
+                ParticipationTeammate.athlete_id == athlete_id
+            )
+        ),
+    )
+
+
+def teammate_athlete_ids(db: Session, participation_id: int) -> list[int]:
+    return [
+        athlete_id
+        for (athlete_id,) in db.query(ParticipationTeammate.athlete_id)
+        .filter(ParticipationTeammate.participation_id == participation_id)
+        .order_by(ParticipationTeammate.position)
+    ]
+
+
+def teammate_names(db: Session, participation_ids: Iterable[int]) -> dict[int, list[str]]:
+    """Noms « Prénom NOM » des équipiers de ces résultats, dans l'ordre (#894).
+
+    Une requête pour toute une liste ; un résultat sans équipiers est absent.
+    """
+    ids = list(participation_ids)
+    if not ids:
+        return {}
+    noms: dict[int, list[str]] = {}
+    lignes = (
+        db.query(ParticipationTeammate.participation_id, Athlete.prenom, Athlete.nom)
+        .join(Athlete, Athlete.id == ParticipationTeammate.athlete_id)
+        .filter(ParticipationTeammate.participation_id.in_(ids))
+        .order_by(ParticipationTeammate.participation_id, ParticipationTeammate.position)
+    )
+    for participation_id, prenom, nom in lignes:
+        noms.setdefault(participation_id, []).append(f"{prenom} {nom}".strip())
+    return noms
+
+
+def replace_teammates(
+    db: Session, participation: Participation, athlete_ids: Sequence[int]
+) -> Participation:
+    """Pose la composition d'un relais, dans l'ordre donné. Une liste vide l'efface."""
+    participation.teammate_links.clear()
+    db.flush()
+    participation.teammate_links.extend(
+        ParticipationTeammate(athlete_id=athlete_id, position=position)
+        for position, athlete_id in enumerate(athlete_ids)
+    )
+    db.flush()
+    return participation
+
+
 def exists_for_athlete_on_course(db: Session, *, athlete_id: int, course_id: int) -> bool:
     """Ce coureur a-t-il déjà un résultat sur cette épreuve ? (#117, FR-006)
 
@@ -66,10 +121,7 @@ def exists_for_athlete_on_course(db: Session, *, athlete_id: int, course_id: int
     """
     return (
         db.query(Participation.id)
-        .filter(
-            Participation.course_id == course_id,
-            Participation.athlete_id == athlete_id,
-        )
+        .filter(Participation.course_id == course_id, carried_by(athlete_id))
         .first()
         is not None
     )
@@ -208,7 +260,7 @@ def count_for_athlete(db: Session, athlete_id: int) -> int:
     """
     return (
         db.query(func.count(Participation.id))
-        .filter(Participation.athlete_id == athlete_id)
+        .filter(carried_by(athlete_id))
         .scalar()
         or 0
     )
@@ -435,7 +487,7 @@ def list_for_athlete(
     q = (
         db.query(Participation)
         .options(joinedload(Participation.course).selectinload(Course.sources))
-        .filter(Participation.athlete_id == athlete_id)
+        .filter(carried_by(athlete_id))
     )
     if seasons or federal_only:
         q = q.join(Course, Participation.course_id == Course.id)

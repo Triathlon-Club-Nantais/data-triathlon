@@ -943,3 +943,22 @@ def test_course_summary_clubs_total_est_nul_sans_club_renseigne(db_session):
 
     assert synthese["clubs"] == []
     assert synthese["clubs_total"] == 0
+
+
+def test_un_relais_attribue_a_deux_adherents_compte_une_fois_pour_le_club(db_session):
+    """#894, SC-004 : le résultat reste une ligne, quel que soit le nombre d'équipiers."""
+    course = course_repository.get_or_create(
+        db_session, name="Relais", event_date=date(2026, 6, 1), event_type="triathlon-s",
+        is_relay=True,
+    )
+    jean = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean", club="TCN")
+    paul = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="TCN")
+    relais = participation_repository.create(
+        db_session, athlete_id=jean.id, course_id=course.id, bib_number="7", club="TCN",
+        is_relay=True, rank_overall=2,
+    )
+    participation_repository.replace_teammates(db_session, relais, [jean.id, paul.id])
+
+    compteurs = stats_service.get_stats(db_session, club_only=True)["rank_counters"]
+
+    assert compteurs["scratch"]["podiums"] == 1

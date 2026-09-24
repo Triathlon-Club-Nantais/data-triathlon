@@ -2063,3 +2063,291 @@ def test_season_quota_exclut_les_dns_et_les_courses_non_federales(db_session, au
     quota = admin_actions.season_quota(db_session, athlete_id=athlete.id, season=2025)
 
     assert quota["validated_count"] == 1
+
+
+# --- Attribuer un relais à ses équipiers (#894) ------------------------------
+
+def _relais(db_session, *, nom_equipe="DUPONT Jean / MARTIN Paul", prenom_equipe=""):
+    course = course_repository.get_or_create(
+        db_session, name="Relais de Nantes", event_date=date(2026, 6, 1),
+        event_type="triathlon-s", is_relay=True,
+    )
+    equipe = _coureur(db_session, nom_equipe, prenom=prenom_equipe)
+    ligne = participation_repository.create(
+        db_session, athlete_id=equipe.id, course_id=course.id, bib_number="7",
+        is_relay=True, rank_overall=2,
+    )
+    jean = _coureur(db_session, "DUPONT", "Jean")
+    paul = _coureur(db_session, "MARTIN", "Paul")
+    db_session.flush()
+    return course, equipe, ligne, jean, paul
+
+
+def test_set_teammates_attribue_le_relais_a_chaque_equipier(db_session, auteur):
+    _, equipe, ligne, jean, paul = _relais(db_session)
+
+    admin_actions.set_teammates(
+        db_session, participation_id=ligne.id, teammates=[jean.id, paul.id], user_id=auteur.id
+    )
+
+    resultat = participation_repository.get(db_session, ligne.id)
+    assert resultat.athlete_id == jean.id
+    assert [a.id for a in resultat.teammates] == [jean.id, paul.id]
+    for athlete in (jean, paul):
+        assert [p.id for p in participation_repository.list_for_athlete(db_session, athlete.id)] == [
+            ligne.id
+        ]
+
+
+def test_set_teammates_garde_le_nom_de_l_equipe(db_session, auteur):
+    _, _, ligne, jean, paul = _relais(db_session, nom_equipe="LES", prenom_equipe="Inconnus")
+
+    admin_actions.set_teammates(
+        db_session, participation_id=ligne.id, teammates=[jean.id, paul.id], user_id=auteur.id
+    )
+
+    assert participation_repository.get(db_session, ligne.id).team_name == "LES Inconnus"
+
+
+def test_set_teammates_n_ecrase_pas_un_nom_d_equipe_deja_saisi(db_session, auteur):
+    _, _, ligne, jean, paul = _relais(db_session)
+    ligne.team_name = "Les Rapides"
+    db_session.flush()
+
+    admin_actions.set_teammates(
+        db_session, participation_id=ligne.id, teammates=[jean.id, paul.id], user_id=auteur.id
+    )
+
+    assert participation_repository.get(db_session, ligne.id).team_name == "Les Rapides"
+
+
+def test_set_teammates_purge_la_fiche_d_equipe_devenue_vide(db_session, auteur):
+    _, equipe, ligne, jean, paul = _relais(db_session)
+    equipe_id = equipe.id
+
+    admin_actions.set_teammates(
+        db_session, participation_id=ligne.id, teammates=[jean.id, paul.id], user_id=auteur.id
+    )
+
+    assert athlete_repository.get(db_session, equipe_id) is None
+
+
+def test_set_teammates_epargne_une_fiche_d_equipe_encore_pourvue(db_session, auteur):
+    _, equipe, ligne, jean, paul = _relais(db_session)
+    _inscrit(db_session, equipe, _epreuve(db_session, "Autre relais", date(2026, 7, 1)), "3")
+    equipe_id = equipe.id
+
+    admin_actions.set_teammates(
+        db_session, participation_id=ligne.id, teammates=[jean.id, paul.id], user_id=auteur.id
+    )
+
+    assert athlete_repository.get(db_session, equipe_id) is not None
+
+
+def test_set_teammates_garde_la_fiche_d_origine_si_elle_est_equipiere(db_session, auteur):
+    _, _, ligne, jean, paul = _relais(db_session)
+    ligne.athlete_id = jean.id
+    db_session.flush()
+
+    admin_actions.set_teammates(
+        db_session, participation_id=ligne.id, teammates=[paul.id, jean.id], user_id=auteur.id
+    )
+
+    assert athlete_repository.get(db_session, jean.id) is not None
+    assert participation_repository.get(db_session, ligne.id).athlete_id == paul.id
+
+
+def test_set_teammates_consigne_le_geste(db_session, auteur):
+    course, equipe, ligne, jean, paul = _relais(db_session)
+    equipe_id = equipe.id
+
+    admin_actions.set_teammates(
+        db_session, participation_id=ligne.id, teammates=[jean.id, paul.id], user_id=auteur.id
+    )
+
+    entrees = _journal(db_session, "participation", ligne.id)
+    assert [e.action for e in entrees] == ["participation.set_teammates"]
+    assert entrees[0].payload == {
+        "course_id": course.id,
+        "from_athlete_id": equipe_id,
+        "teammate_ids": [jean.id, paul.id],
+        "athletes_created": [],
+        "athletes_purged": [equipe_id],
+    }
+
+
+def test_set_teammates_rejoue_sans_effet_ni_journal(db_session, auteur):
+    _, _, ligne, jean, paul = _relais(db_session)
+    admin_actions.set_teammates(
+        db_session, participation_id=ligne.id, teammates=[jean.id, paul.id], user_id=auteur.id
+    )
+
+    admin_actions.set_teammates(
+        db_session, participation_id=ligne.id, teammates=[jean.id, paul.id], user_id=auteur.id
+    )
+
+    assert len(_journal(db_session, "participation", ligne.id)) == 1
+
+
+def test_set_teammates_recompose_et_purge_l_equipier_retire(db_session, auteur):
+    _, _, ligne, jean, paul = _relais(db_session)
+    marie = _coureur(db_session, "DURAND", "Marie")
+    admin_actions.set_teammates(
+        db_session, participation_id=ligne.id, teammates=[jean.id, paul.id], user_id=auteur.id
+    )
+    paul_id = paul.id
+
+    admin_actions.set_teammates(
+        db_session, participation_id=ligne.id, teammates=[jean.id, marie.id], user_id=auteur.id
+    )
+
+    assert [a.id for a in participation_repository.get(db_session, ligne.id).teammates] == [
+        jean.id, marie.id,
+    ]
+    assert athlete_repository.get(db_session, paul_id) is None
+
+
+def test_set_teammates_refuse_un_equipier_deja_classe_sur_l_epreuve(db_session, auteur):
+    course, equipe, ligne, jean, paul = _relais(db_session)
+    _inscrit(db_session, paul, course, "8")
+
+    with pytest.raises(DuplicateError, match="MARTIN Paul"):
+        admin_actions.set_teammates(
+            db_session, participation_id=ligne.id, teammates=[jean.id, paul.id], user_id=auteur.id
+        )
+
+    assert participation_repository.get(db_session, ligne.id).teammates == []
+    assert participation_repository.get(db_session, ligne.id).athlete_id == equipe.id
+    assert _journal(db_session, "participation", ligne.id) == []
+
+
+@pytest.mark.parametrize(
+    "composition",
+    [
+        pytest.param(lambda jean, paul: [jean.id], id="un-seul"),
+        pytest.param(lambda jean, paul: [jean.id, jean.id], id="doublon"),
+        pytest.param(lambda jean, paul: [jean.id, paul.id] * 5, id="plus-de-huit"),
+    ],
+)
+def test_set_teammates_refuse_une_composition_invalide(db_session, auteur, composition):
+    _, _, ligne, jean, paul = _relais(db_session)
+
+    with pytest.raises(DomainError):
+        admin_actions.set_teammates(
+            db_session, participation_id=ligne.id, teammates=composition(jean, paul),
+            user_id=auteur.id,
+        )
+
+    assert participation_repository.get(db_session, ligne.id).teammates == []
+
+
+def test_set_teammates_refuse_un_resultat_qui_n_est_pas_un_relais(db_session, auteur):
+    course, source, cible, ligne = _duo(db_session)
+    autre = _coureur(db_session, "AUTRE")
+
+    with pytest.raises(DomainError, match="relais"):
+        admin_actions.set_teammates(
+            db_session, participation_id=ligne.id, teammates=[cible.id, autre.id],
+            user_id=auteur.id,
+        )
+
+
+def test_set_teammates_refuse_un_resultat_ou_un_athlete_inconnu(db_session, auteur):
+    _, _, ligne, jean, _ = _relais(db_session)
+
+    with pytest.raises(NotFoundError):
+        admin_actions.set_teammates(
+            db_session, participation_id=9999, teammates=[jean.id, jean.id + 1000],
+            user_id=auteur.id,
+        )
+    with pytest.raises(NotFoundError):
+        admin_actions.set_teammates(
+            db_session, participation_id=ligne.id, teammates=[jean.id, 9999], user_id=auteur.id
+        )
+
+
+def test_reassign_d_un_relais_attribue_vide_la_composition(db_session, auteur):
+    _, _, ligne, jean, paul = _relais(db_session)
+    admin_actions.set_teammates(
+        db_session, participation_id=ligne.id, teammates=[jean.id, paul.id], user_id=auteur.id
+    )
+    cible = _coureur(db_session, "CIBLE")
+    paul_id = paul.id
+
+    admin_actions.reassign_participation(
+        db_session, participation_id=ligne.id, athlete_id=cible.id, user_id=auteur.id
+    )
+
+    resultat = participation_repository.get(db_session, ligne.id)
+    assert resultat.teammates == []
+    assert resultat.athlete_id == cible.id
+    assert athlete_repository.get(db_session, paul_id) is None
+
+
+# --- Équipier saisi par son nom (#894, US2) ----------------------------------
+
+def test_set_teammates_cree_un_equipier_saisi_par_son_nom(db_session, auteur):
+    _, _, ligne, jean, _ = _relais(db_session)
+
+    admin_actions.set_teammates(
+        db_session, participation_id=ligne.id,
+        teammates=[jean.id, admin_actions.NewTeammate("DURAND", "Marie")], user_id=auteur.id,
+    )
+
+    marie = athlete_repository.get_by_identity(db_session, "DURAND", "Marie", None)
+    assert marie is not None
+    assert [a.id for a in participation_repository.get(db_session, ligne.id).teammates] == [
+        jean.id, marie.id,
+    ]
+    assert _journal(db_session, "participation", ligne.id)[0].payload["athletes_created"] == [
+        marie.id
+    ]
+
+
+def test_set_teammates_reutilise_la_fiche_d_un_nom_connu(db_session, auteur):
+    _, _, ligne, jean, paul = _relais(db_session)
+
+    admin_actions.set_teammates(
+        db_session, participation_id=ligne.id,
+        teammates=[jean.id, admin_actions.NewTeammate("martin", "paul")], user_id=auteur.id,
+    )
+
+    assert [a.id for a in participation_repository.get(db_session, ligne.id).teammates] == [
+        jean.id, paul.id,
+    ]
+    assert _journal(db_session, "participation", ligne.id)[0].payload["athletes_created"] == []
+
+
+def test_set_teammates_refuse_deux_fois_le_meme_nom_inconnu(db_session, auteur):
+    _, _, ligne, jean, _ = _relais(db_session)
+
+    with pytest.raises(DomainError):
+        admin_actions.set_teammates(
+            db_session, participation_id=ligne.id,
+            teammates=[
+                jean.id,
+                admin_actions.NewTeammate("DURAND", "Marie"),
+                admin_actions.NewTeammate("durand ", "marie"),
+            ],
+            user_id=auteur.id,
+        )
+
+    assert athlete_repository.get_by_identity(db_session, "DURAND", "Marie", None) is None
+
+
+def test_set_teammates_refuse_un_nom_connu_deja_classe_sans_rien_creer(db_session, auteur):
+    course, _, ligne, jean, paul = _relais(db_session)
+    _inscrit(db_session, paul, course, "8")
+
+    with pytest.raises(DuplicateError):
+        admin_actions.set_teammates(
+            db_session, participation_id=ligne.id,
+            teammates=[
+                jean.id,
+                admin_actions.NewTeammate("DURAND", "Marie"),
+                admin_actions.NewTeammate("MARTIN", "Paul"),
+            ],
+            user_id=auteur.id,
+        )
+
+    assert athlete_repository.get_by_identity(db_session, "DURAND", "Marie", None) is None

@@ -1641,3 +1641,103 @@ def test_deux_reconciliations_du_meme_scrape_vers_la_meme_identite_neuve_disting
     course = course_repository.get_latest_by_source_url(db_session, URL)
     rows = participation_repository.list_for_course(db_session, course.id)
     assert {row.athlete_id for row in rows} == {cible.id}
+
+
+# ── Relais attribué à ses équipiers (#894) : le rescrape ne défait rien ──────
+#
+# `_Persister` est le point d'écriture unique des trois entrées (rescrape d'une
+# épreuve, `rescrape-db`, import web SSE) : le couvrir ici couvre les trois.
+
+
+def _relais_attribue(db_session, patch_scraper, bib, nom, prenom=""):
+    patch_scraper([_result(bib, nom, prenom, is_relay=True, event_type="triathlon-s")])
+    import_service.import_event(db_session, URL, _settings())
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    (ligne,) = participation_repository.list_for_course(db_session, course.id)
+    jean = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    paul = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul")
+    auteur = user_repository.create(db_session, email="admin@exemple.fr")
+    db_session.flush()
+    admin_actions.set_teammates(
+        db_session, participation_id=ligne.id, teammates=[jean.id, paul.id], user_id=auteur.id
+    )
+    db_session.commit()
+    _expire_cache(db_session)
+    return course, ligne, jean, paul
+
+
+def _composition_intacte(db_session, course, ligne, jean, paul):
+    rows = participation_repository.list_for_course(db_session, course.id)
+    assert [row.id for row in rows] == [ligne.id]
+    assert rows[0].athlete_id == jean.id
+    assert [a.id for a in rows[0].teammates] == [jean.id, paul.id]
+
+
+@pytest.mark.parametrize("bib", ["7", ""], ids=["avec-dossard", "sans-dossard"])
+def test_rescrape_garde_la_composition_d_un_relais_attribue(db_session, patch_scraper, bib):
+    course, ligne, jean, paul = _relais_attribue(
+        db_session, patch_scraper, bib, "DUPONT Jean / MARTIN Paul"
+    )
+
+    patch_scraper([
+        _result(bib, "DUPONT Jean / MARTIN Paul", "", is_relay=True, event_type="triathlon-s")
+    ])
+    import_service.import_event(db_session, URL, _settings())
+
+    _composition_intacte(db_session, course, ligne, jean, paul)
+    assert athlete_repository.get_by_identity(db_session, "DUPONT Jean / MARTIN Paul", "", None) is None
+
+
+@pytest.mark.parametrize(
+    ("nom", "prenom", "nom_rescrape", "prenom_rescrape"),
+    [
+        pytest.param("DUPONT JEAN / MARTIN", "PAUL", "DUPONT JEAN / MARTIN", "PAUL", id="nom-decoupe"),
+        pytest.param(
+            "DUPONT Jean / MARTIN Paul", "", "dupont jean /  MARTIN paul", "", id="casse-et-espaces"
+        ),
+        pytest.param("DUPONT Jéan & MARTIN Paul", "", "DUPONT Jean & MARTIN Paul", "", id="accents"),
+    ],
+)
+def test_rescrape_sans_dossard_apparie_par_le_nom_d_equipe(
+    db_session, patch_scraper, nom, prenom, nom_rescrape, prenom_rescrape
+):
+    course, ligne, jean, paul = _relais_attribue(db_session, patch_scraper, "", nom, prenom)
+
+    patch_scraper([
+        _result("", nom_rescrape, prenom_rescrape, is_relay=True, event_type="triathlon-s")
+    ])
+    import_service.import_event(db_session, URL, _settings())
+
+    _composition_intacte(db_session, course, ligne, jean, paul)
+
+
+def test_rescrape_avec_dossard_ne_reconcilie_pas_un_relais_attribue(db_session, patch_scraper):
+    # Nom d'équipe découpé en nom + prénom (timepulse) : `_reconcile_blocked`,
+    # qui ne protège que d'un prénom vidé, laisserait passer la réconciliation.
+    course, ligne, jean, paul = _relais_attribue(
+        db_session, patch_scraper, "7", "DUPONT JEAN / MARTIN", "PAUL"
+    )
+
+    patch_scraper([
+        _result("7", "DUPONT JEAN / MARTIN", "PAUL", is_relay=True, event_type="triathlon-s")
+    ])
+    import_service.import_event(db_session, URL, _settings())
+
+    _composition_intacte(db_session, course, ligne, jean, paul)
+    assert athlete_repository.get_by_identity(db_session, "DUPONT JEAN / MARTIN", "PAUL", None) is None
+
+
+def test_rescrape_met_a_jour_les_valeurs_d_un_relais_attribue(db_session, patch_scraper):
+    course, ligne, jean, paul = _relais_attribue(
+        db_session, patch_scraper, "7", "DUPONT Jean / MARTIN Paul"
+    )
+
+    patch_scraper([
+        _result(
+            "7", "DUPONT Jean / MARTIN Paul", "", is_relay=True, event_type="triathlon-s",
+            total_time="01:45:00",
+        )
+    ])
+    import_service.import_event(db_session, URL, _settings())
+
+    assert participation_repository.get(db_session, ligne.id).total_time == "01:45:00"

@@ -320,6 +320,26 @@ def test_reassign_vers_un_athlete_existant(benevole_connecte, resultat_pendant, 
     assert reponse.json()["athlete"]["nom"] == "MARTIN"
 
 
+def test_reassign_d_un_relais_attribue_vide_ses_equipiers(
+    benevole_connecte, resultat_pendant, compte_systeme, db_session
+):
+    """#894 — la route bénévoles partage `reassign_participation` avec l'admin."""
+    course, athlete, ligne = resultat_pendant
+    ligne.is_relay = True
+    equipier = athlete_repository.get_or_create(db_session, nom="DURAND", prenom="Marie")
+    db_session.flush()
+    participation_repository.replace_teammates(db_session, ligne, [athlete.id, equipier.id])
+    cible = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="ASPTT")
+    db_session.commit()
+
+    reponse = benevole_connecte.post(
+        f"/api/v1/benevoles/participations/{ligne.id}/reassign", json={"athlete_id": cible.id}
+    )
+
+    assert reponse.status_code == 200
+    assert reponse.json()["teammates"] == []
+
+
 def test_reassign_consigne_sous_le_compte_systeme(
     benevole_connecte, resultat_pendant, compte_systeme, db_session
 ):
