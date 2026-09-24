@@ -24,6 +24,7 @@ import { rankRatio } from "@/lib/utils/ranking";
 import { seasonLabel, seasonOf } from "@/lib/utils/season";
 import { gridColumns, gridMinWidth, type Track } from "@/lib/utils/table";
 import { isHttpUrl } from "@/lib/utils/url";
+import { EquipeRelais } from "@/components/results/EquipeRelais";
 
 // Date | Épreuve | Type | Format | Temps final | Place | →
 // La colonne Place loge la pastille *et* le « /N » de classés (issue #80).
@@ -364,6 +365,7 @@ export function EventsTable({
                       {p.course.name}
                     </Link>
                     {p.is_pending_validation && <PendingBadge rejected={p.is_rejected} />}
+                    <EquipeRelais participation={p} />
                   </td>
                   <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(p.course.event_type)}</td>
                   <td role="cell"><FormatChip>{formatToken(p.course.event_type, p.course.distance_km)}</FormatChip></td>
@@ -423,6 +425,8 @@ export function EventsTable({
                     date: p.course.event_date,
                     coureur: athleteName,
                     coureurId: athleteId,
+                    relais: p.is_relay,
+                    equipiers: p.teammates ?? [],
                   }}
                   style={{ padding: `0 ${PADDING_X}px 14px` }}
                 />
@@ -448,6 +452,7 @@ export function EventsTable({
                   <>
                     {p.course?.name}
                     {p.is_pending_validation && <PendingBadge rejected={p.is_rejected} />}
+                    <EquipeRelais participation={p} />
                   </>
                 }
                 valeur={p.total_time ?? "—"}
@@ -481,6 +486,8 @@ export function EventsTable({
                         date: p.course?.event_date ?? null,
                         coureur: athleteName,
                         coureurId: athleteId,
+                        relais: p.is_relay,
+                        equipiers: p.teammates ?? [],
                       }}
                       style={{ padding: "0 16px 14px" }}
                     />

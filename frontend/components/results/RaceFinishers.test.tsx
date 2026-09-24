@@ -1459,3 +1459,33 @@ describe("rendu carte sous lg", () => {
     expect(noms()).toEqual(["LENT T", "MOYEN T", "RAPIDE T"]);
   });
 });
+
+describe("RaceFinishers — relais attribué (#894)", () => {
+  const RELAIS = {
+    ...p({ id: 9, nom: "DUPONT", rank_overall: 1, total_time: "01:10:00" }),
+    is_relay: true,
+    team_name: "Les Inconnus",
+    teammates: [
+      { id: 9, nom: "DUPONT", prenom: "Jean", gender: "M", club: "TCN" },
+      { id: 10, nom: "MARTIN", prenom: "Paul", gender: "M", club: "TCN" },
+    ],
+  } as Participation;
+
+  it("titre la ligne du nom d'équipe et liste ses équipiers, grille et cartes", () => {
+    afficher({ participations: [RELAIS], total: 1 });
+
+    expect(
+      screen.getByRole("link", { name: "Voir le détail du résultat de Les Inconnus" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("DUPONT Jean, MARTIN Paul")).toBeInTheDocument();
+    expect(dansLesCartes("classement-cartes").texte("DUPONT Jean, MARTIN Paul")).toBeTruthy();
+  });
+
+  it("garde le nom du coureur sur une ligne non attribuée", () => {
+    afficher({ participations: [p({ id: 1, nom: "SEUL" })], total: 1 });
+
+    expect(
+      screen.getByRole("link", { name: "Voir le détail du résultat de SEUL T" }),
+    ).toBeInTheDocument();
+  });
+});

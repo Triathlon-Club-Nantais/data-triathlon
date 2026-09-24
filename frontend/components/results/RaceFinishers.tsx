@@ -5,6 +5,7 @@ import { useState, useTransition, type CSSProperties } from "react";
 import { Card, SegmentedControl, PlaceBadge, AnnonceStatut, VousChip, LigneCarte } from "@/components/tcn";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/results/StatusBadge";
+import { EquipeRelais, nomEquipe } from "@/components/results/EquipeRelais";
 import { isNonFinisher } from "@/lib/utils/raceOrder";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { secondsFromHms } from "@/lib/utils/time";
@@ -218,7 +219,7 @@ function MarqueurEcart({
 function donneesLigne(p: Participation) {
   return {
     nf: isNonFinisher(p.status),
-    name: [p.athlete?.nom, p.athlete?.prenom].filter(Boolean).join(" "),
+    name: nomEquipe(p) ?? [p.athlete?.nom, p.athlete?.prenom].filter(Boolean).join(" "),
     splits: p.splits ?? {},
   };
 }
@@ -618,6 +619,7 @@ export function RaceFinishers({
                     {moi && <VousChip />}
                     <VoileAttente />
                   </Link>
+                  <EquipeRelais participation={p} avecEquipe={false} />
                 </td>
                 {/* Le code reste la clé de lecture — l'élargir en « Vétéran 2 »
                     n'apprendrait rien à qui connaît la nomenclature, sur un tableau
@@ -718,6 +720,7 @@ export function RaceFinishers({
                 <>
                   {name}
                   {moi && <VousChip />}
+                  <EquipeRelais participation={p} avecEquipe={false} />
                 </>
               }
               valeur={p.total_time ?? "—"}

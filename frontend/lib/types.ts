@@ -138,6 +138,12 @@ export interface Participation {
   status: string;
   is_relay: boolean;
   team_name?: string | null;
+  /**
+   * Équipiers d'un relais attribué (#894), porteur (`athlete`) compris ; vide
+   * sinon. Optionnel côté type comme `team_name` : les fabriques de test qui
+   * construisent une `Participation` n'ont pas à le porter.
+   */
+  teammates?: AthleteBrief[];
   evidence_url?: string | null;
   // Résultat déclaré non encore vérifié par un bénévole (#270, #271).
   is_pending_validation?: boolean;
@@ -261,6 +267,8 @@ export interface ClubPodiumEntry {
   rank: number;
   scope: "overall" | "gender" | "category";
   total_time: string | null;
+  /** Équipiers d'un relais attribué (#894), porteur compris ; vide sinon. */
+  teammate_names?: string[];
 }
 
 export interface ClubPodiums {
