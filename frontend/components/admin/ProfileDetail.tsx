@@ -28,6 +28,9 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
   const modifier = useUpdateProfile();
   const ajouterEntree = useAddProfileLogEntry();
   const [edition, setEdition] = useState(false);
+  const [prenom, setPrenom] = useState("");
+  const [nom, setNom] = useState("");
+  const [naissance, setNaissance] = useState("");
   const [contact, setContact] = useState("");
   const [notes, setNotes] = useState("");
   const [nouvelleEntree, setNouvelleEntree] = useState("");
@@ -35,6 +38,9 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
   const peutEcrire = session.data?.permissions.includes("jeunes:write") ?? false;
 
   function ouvrirEdition() {
+    setPrenom(data?.first_name ?? "");
+    setNom(data?.last_name ?? "");
+    setNaissance(data?.birth_date ?? "");
     setContact(data?.emergency_contact ?? "");
     setNotes(data?.notes ?? "");
     setEdition(true);
@@ -42,10 +48,17 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
 
   async function enregistrer(evenement: React.SyntheticEvent) {
     evenement.preventDefault();
+    if (!prenom.trim() || !nom.trim()) return;
     try {
       await modifier.mutateAsync({
         id: profileId,
-        champs: { emergency_contact: contact, notes },
+        champs: {
+          first_name: prenom.trim(),
+          last_name: nom.trim(),
+          ...(naissance ? { birth_date: naissance } : {}),
+          emergency_contact: contact,
+          notes,
+        },
       });
       setEdition(false);
       toast.success("Profil mis à jour.");
@@ -84,6 +97,36 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
 
         {edition ? (
           <form onSubmit={enregistrer} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="jeune-edition-prenom">Prénom</Label>
+              <Input
+                id="jeune-edition-prenom"
+                required
+                value={prenom}
+                onChange={(e) => setPrenom(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="jeune-edition-nom">Nom</Label>
+              <Input
+                id="jeune-edition-nom"
+                required
+                value={nom}
+                onChange={(e) => setNom(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="jeune-edition-naissance">Date de naissance</Label>
+              {/* `required` une fois renseignée : l'API ne sait pas effacer
+                  une date de naissance, un champ vidé serait ignoré. */}
+              <Input
+                id="jeune-edition-naissance"
+                type="date"
+                required={Boolean(data.birth_date)}
+                value={naissance}
+                onChange={(e) => setNaissance(e.target.value)}
+              />
+            </div>
             <div className="space-y-1.5">
               <Label htmlFor="jeune-contact">Contact d&apos;urgence</Label>
               <Input
