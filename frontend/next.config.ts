@@ -12,7 +12,7 @@ const nextConfig: NextConfig = {
   // cette origine.
   allowedDevOrigins: ["127.0.0.1"],
   // En-têtes de sécurité (#396, constat A05-2 de l'audit OWASP). Vercel posait
-  // déjà HSTS et `x-robots-tag: noindex` ; tout le reste manquait, ce qui
+  // déjà HSTS ; tout le reste manquait, ce qui
   // laissait le back-office encadrable dans une iframe tierce — la seule
   // barrière contre un clickjacking sur les gestes destructifs étant le
   // `SameSite=Lax` du cookie de session.
@@ -42,6 +42,10 @@ const nextConfig: NextConfig = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
           },
+          // #860 : Vercel ne pose `noindex` que sur les previews. Pas de
+          // `Disallow` dans un robots.txt : un robot bloqué ne lirait jamais cet
+          // en-tête, et une URL déjà connue resterait indexée.
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
         ],
       },
     ];

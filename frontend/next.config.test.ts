@@ -4,7 +4,7 @@ import nextConfig from "./next.config";
 /**
  * En-têtes de sécurité du front (#396, constat A05-2).
  *
- * Vercel pose déjà HSTS et `x-robots-tag` ; ce qui manquait tenait entièrement à
+ * Vercel pose déjà HSTS ; ce qui manquait tenait entièrement à
  * `headers()`. La CSP n'est pas ici : elle demande un `nonce` pour Next.js et
  * PostHog, et se traite à part.
  */
@@ -33,6 +33,11 @@ describe("headers()", () => {
     for (const fonctionnalite of ["camera", "microphone", "geolocation", "payment", "usb"]) {
       expect(politique).toContain(`${fonctionnalite}=()`);
     }
+  });
+
+  it("interdit l'indexation de toute page par les moteurs de recherche", async () => {
+    // #860 : Vercel ne pose `noindex` que sur les previews, pas sur le domaine de production.
+    expect((await enTetes()).get("X-Robots-Tag")).toBe("noindex, nofollow");
   });
 
   it("ne porte aucune directive CSP, qui vit entière dans proxy.ts", async () => {

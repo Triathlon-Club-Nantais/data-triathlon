@@ -26,6 +26,9 @@ _HEADERS: tuple[tuple[bytes, bytes], ...] = (
     # L'API n'a aucune page à encadrer légitimement. `/docs` en est une : #399 la
     # ferme en production, elle reste servie là où `DOCS_ENABLED` la laisse.
     (b"x-frame-options", b"DENY"),
+    # #860 : les JSON de l'API portent des noms d'athlètes et n'ont rien à faire
+    # dans un moteur de recherche.
+    (b"x-robots-tag", b"noindex, nofollow"),
 )
 
 # Deux ans, `includeSubDomains`, sans `preload` : la valeur du front Vercel moins
