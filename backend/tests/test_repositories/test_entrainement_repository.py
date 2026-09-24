@@ -19,14 +19,60 @@ def test_list_all_sorts_by_date_then_heure(db_session):
     assert [e.id for e in resultat] == [matin.id, soir.id, sans_heure.id, plus_tard.id]
 
 
-def test_participant_count_is_exact(db_session):
-    entrainement = _create(db_session, date=date(2026, 9, 20))
-    assert entrainement_repository.participant_count(db_session, entrainement.id) == 0
+def _requetes(db_session, appel):
+    """Compte les requêtes SQL émises par `appel()`."""
+    from sqlalchemy import event
 
-    entrainement_repository.add_participant(db_session, entrainement_id=entrainement.id, jeune_id=1)
-    entrainement_repository.add_participant(db_session, entrainement_id=entrainement.id, jeune_id=2)
+    requetes = []
 
-    assert entrainement_repository.participant_count(db_session, entrainement.id) == 2
+    def _mouchard(conn, cursor, statement, *reste):
+        requetes.append(statement)
+
+    engine = db_session.get_bind()
+    event.listen(engine, "before_cursor_execute", _mouchard)
+    try:
+        appel()
+    finally:
+        event.remove(engine, "before_cursor_execute", _mouchard)
+    return requetes
+
+
+def test_count_participants_by_entrainement_is_exact(db_session):
+    vide = _create(db_session, date=date(2026, 9, 20))
+    pleine = _create(db_session, date=date(2026, 9, 21))
+    entrainement_repository.add_participant(db_session, entrainement_id=pleine.id, jeune_id=1)
+    entrainement_repository.add_participant(db_session, entrainement_id=pleine.id, jeune_id=2)
+
+    comptes = entrainement_repository.count_participants_by_entrainement(
+        db_session, [vide.id, pleine.id]
+    )
+
+    # Une séance sans inscrit est absente du résultat.
+    assert comptes == {pleine.id: 2}
+
+
+def test_count_participants_by_entrainement_is_a_single_query(db_session):
+    seances = [_create(db_session, date=date(2026, 9, 20 + i)) for i in range(3)]
+    for seance in seances:
+        entrainement_repository.add_participant(db_session, entrainement_id=seance.id, jeune_id=1)
+    ids = [seance.id for seance in seances]
+    db_session.commit()
+
+    requetes = _requetes(
+        db_session,
+        lambda: entrainement_repository.count_participants_by_entrainement(db_session, ids),
+    )
+
+    assert len(requetes) == 1, requetes
+
+
+def test_count_participants_without_id_does_not_query(db_session):
+    requetes = _requetes(
+        db_session,
+        lambda: entrainement_repository.count_participants_by_entrainement(db_session, []),
+    )
+
+    assert requetes == []
 
 
 def test_list_participants_is_empty_by_default(db_session):
@@ -67,7 +113,7 @@ def test_add_participant_is_idempotent(db_session):
 
     assert cree_1 is True
     assert cree_2 is False
-    assert entrainement_repository.participant_count(db_session, entrainement.id) == 1
+    assert len(entrainement_repository.list_participants(db_session, entrainement.id)) == 1
 
 
 def test_add_participant_scopes_to_its_own_entrainement(db_session):

@@ -40,8 +40,8 @@ def _jeune_existant(db: Session, jeune_id: int) -> None:
         raise NotFoundError("Ce jeune n'existe pas.")
 
 
-def entrainement_view(db: Session, entrainement: Entrainement) -> dict:
-    """La forme rendue par la liste — `contracts/api.md`."""
+def entrainement_view(entrainement: Entrainement, participant_count: int) -> dict:
+    """La forme rendue par la liste, `contracts/api.md`."""
     return {
         "id": entrainement.id,
         "date": entrainement.date,
@@ -49,26 +49,36 @@ def entrainement_view(db: Session, entrainement: Entrainement) -> dict:
         "lieu": entrainement.lieu,
         "type_seance": entrainement.type_seance,
         "note": entrainement.note,
-        "participant_count": entrainement_repository.participant_count(db, entrainement.id),
+        "participant_count": participant_count,
     }
 
 
 def entrainement_detail_view(db: Session, entrainement: Entrainement) -> dict:
     """La forme rendue par le détail : l'entraînement **et** ses inscrits."""
-    return entrainement_view(db, entrainement) | {
+    participants = entrainement_repository.list_participants(db, entrainement.id)
+    return entrainement_view(entrainement, len(participants)) | {
         "participants": [
             {
                 "jeune_id": participant.jeune_id,
                 "present": participant.present,
                 "created_at": participant.created_at,
             }
-            for participant in entrainement_repository.list_participants(db, entrainement.id)
+            for participant in participants
         ]
     }
 
 
-def list_entrainements(db: Session) -> list[Entrainement]:
-    return entrainement_repository.list_all(db)
+def list_entrainement_views(db: Session) -> list[dict]:
+    """Toute la liste du calendrier en deux requêtes, quel que soit le nombre
+    de séances : les séances, puis leurs comptes d'inscrits agrégés."""
+    entrainements = entrainement_repository.list_all(db)
+    comptes = entrainement_repository.count_participants_by_entrainement(
+        db, [entrainement.id for entrainement in entrainements]
+    )
+    return [
+        entrainement_view(entrainement, comptes.get(entrainement.id, 0))
+        for entrainement in entrainements
+    ]
 
 
 def create_entrainement(

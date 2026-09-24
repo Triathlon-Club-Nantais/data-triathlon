@@ -36,7 +36,7 @@ def test_get_entrainement_or_404_raises_on_unknown_id(db_session):
         service.get_entrainement_or_404(db_session, 999)
 
 
-def test_entrainement_view_reports_participant_count(db_session, actor, organisation):
+def test_list_entrainement_views_reports_participant_count(db_session, actor, organisation):
     entrainement = service.create_entrainement(db_session, actor, date=date(2026, 9, 20))
     zoe = profile_repository.create(
         db_session, organisation_id=organisation.id, first_name="Zoé", last_name="Roux"
@@ -47,10 +47,37 @@ def test_entrainement_view_reports_participant_count(db_session, actor, organisa
     service.add_participant(db_session, actor, entrainement, jeune_id=zoe.id)
     service.add_participant(db_session, actor, entrainement, jeune_id=alix.id)
 
-    vue = service.entrainement_view(db_session, entrainement)
+    (vue,) = service.list_entrainement_views(db_session)
 
     assert vue["participant_count"] == 2
     assert vue["date"] == date(2026, 9, 20)
+
+
+def test_list_entrainement_views_query_count_does_not_grow_with_sessions(
+    db_session, actor, jeune
+):
+    """Un `COUNT` par séance coûtait une requête par ligne du calendrier."""
+    from sqlalchemy import event
+
+    for jour in range(20, 25):
+        entrainement = service.create_entrainement(db_session, actor, date=date(2026, 9, jour))
+        service.add_participant(db_session, actor, entrainement, jeune_id=jeune.id)
+    db_session.commit()
+
+    requetes = []
+
+    def _mouchard(conn, cursor, statement, *reste):
+        requetes.append(statement)
+
+    engine = db_session.get_bind()
+    event.listen(engine, "before_cursor_execute", _mouchard)
+    try:
+        vues = service.list_entrainement_views(db_session)
+    finally:
+        event.remove(engine, "before_cursor_execute", _mouchard)
+
+    assert [vue["participant_count"] for vue in vues] == [1] * 5
+    assert len(requetes) == 2, requetes
 
 
 def test_entrainement_detail_view_lists_participants(db_session, actor, jeune):
@@ -79,8 +106,8 @@ def test_add_participant_is_idempotent(db_session, actor, jeune):
     service.add_participant(db_session, actor, entrainement, jeune_id=jeune.id)
     service.add_participant(db_session, actor, entrainement, jeune_id=jeune.id)
 
-    vue = service.entrainement_view(db_session, entrainement)
-    assert vue["participant_count"] == 1
+    detail = service.entrainement_detail_view(db_session, entrainement)
+    assert detail["participant_count"] == 1
 
 
 def test_add_participant_raises_on_unknown_jeune(db_session, actor):
@@ -100,8 +127,8 @@ def test_remove_participant_is_idempotent(db_session, actor, jeune):
     service.remove_participant(db_session, actor, entrainement, jeune_id=jeune.id)
     service.remove_participant(db_session, actor, entrainement, jeune_id=jeune.id)
 
-    vue = service.entrainement_view(db_session, entrainement)
-    assert vue["participant_count"] == 0
+    detail = service.entrainement_detail_view(db_session, entrainement)
+    assert detail["participant_count"] == 0
 
 
 def test_add_participant_can_mark_present_in_the_same_call(db_session, actor, jeune):

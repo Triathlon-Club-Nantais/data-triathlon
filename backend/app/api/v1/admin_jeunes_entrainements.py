@@ -33,10 +33,7 @@ def list_entrainements(
     _: User = Depends(require_permission(P.JEUNES_READ)),
 ):
     """Les entraînements, triés par date puis heure de début."""
-    return [
-        entrainement_service.entrainement_view(db, entrainement)
-        for entrainement in entrainement_service.list_entrainements(db)
-    ]
+    return entrainement_service.list_entrainement_views(db)
 
 
 @router.get(
