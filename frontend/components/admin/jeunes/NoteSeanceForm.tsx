@@ -11,9 +11,9 @@ import { useUpdateEntrainement } from "@/lib/queries/admin";
  * entier, rapport de l'encadrant. Distincte du journal de bord d'un jeune
  * (`AjouterNoteJeuneDialog`, réutilise #867).
  *
- * Une soumission vide ou blanche **n'écrit rien** — « pas de note » se dit
- * en n'appelant jamais le `PATCH`, jamais en envoyant `""` : voir
- * `data-model.md` §Validation de la feature.
+ * Une soumission blanche sur une séance sans note **n'écrit rien**. Sur une
+ * note déjà enregistrée, elle l'efface en envoyant `""`, la forme que prend
+ * « pas de note » côté modèle (`Entrainement.note`, `NOT NULL`).
  */
 export function NoteSeanceForm({
   entrainementId,
@@ -27,11 +27,14 @@ export function NoteSeanceForm({
   const [valeur, setValeur] = useState(note);
   const modifier = useUpdateEntrainement();
 
+  const vide = !valeur.trim();
+  const rienAEnregistrer = vide && !note.trim();
+
   async function enregistrer(evenement: React.SyntheticEvent) {
     evenement.preventDefault();
-    if (!valeur.trim()) return;
+    if (rienAEnregistrer) return;
     try {
-      await modifier.mutateAsync({ id: entrainementId, champs: { note: valeur } });
+      await modifier.mutateAsync({ id: entrainementId, champs: { note: vide ? "" : valeur } });
       toast.success("Note de séance enregistrée.");
     } catch (e) {
       toast.error((e as Error).message);
@@ -57,7 +60,7 @@ export function NoteSeanceForm({
         onChange={(e) => setValeur(e.target.value)}
         placeholder="Observations sur la séance, incidents à signaler…"
       />
-      <Button type="submit" size="sm" disabled={modifier.isPending || !valeur.trim()}>
+      <Button type="submit" size="sm" disabled={modifier.isPending || rienAEnregistrer}>
         Enregistrer la note
       </Button>
     </form>
