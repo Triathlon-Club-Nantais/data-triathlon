@@ -227,7 +227,7 @@ export function ParticipationAdminActions({
           onClick={() => setEquipiersOuvert(true)}
           aria-label={`Attribuer aux équipiers le résultat de ${intitule}`}
         >
-          Équipiers
+          Attribuer aux équipiers
         </Button>
       )}
 

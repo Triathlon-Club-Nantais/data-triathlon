@@ -12,6 +12,8 @@ import { formatDate } from "@/lib/utils/date";
 const MIN_EQUIPIERS = 2;
 const MAX_EQUIPIERS = 8;
 const ECHEC = "L'attribution n'a pas abouti. Réessayez dans un instant.";
+/** Taille de page de `GET /admin/athletes` : une liste pleine est peut-être tronquée. */
+const PAGE_CANDIDATS = 20;
 
 type Equipier = Pick<AthleteBrief, "id" | "nom" | "prenom">;
 /** Un coureur choisi par sa fiche, ou saisi par son nom (`id` nul, US2). */
@@ -47,6 +49,14 @@ export function TeammatesDialog({
   const router = useRouter();
 
   const complete = equipe.length >= MAX_EQUIPIERS;
+  const champRecherche = `equipiers-${resultat.id}`;
+  const proposes = (candidats.data ?? []).filter((c) => !equipe.some((e) => e.id === c.id));
+
+  // Ajouter ou retirer fait disparaître le bouton qui portait le focus : il
+  // revient sur la recherche, point de départ du geste suivant (WCAG 2.4.3).
+  function refocaliser() {
+    document.getElementById(champRecherche)?.focus();
+  }
   const quand = formatDate(resultat.date);
   const intitule = quand ? `« ${resultat.epreuve} — ${quand} »` : `« ${resultat.epreuve} »`;
 
@@ -57,6 +67,7 @@ export function TeammatesDialog({
         ? actuelle
         : [...actuelle, membre],
     );
+    refocaliser();
   }
 
   function ajouterLaPersonne() {
@@ -68,6 +79,7 @@ export function TeammatesDialog({
   function retirer(membre: Membre) {
     setRefus(null);
     setEquipe((actuelle) => actuelle.filter((e) => cle(e) !== cle(membre)));
+    refocaliser();
   }
 
   async function attribuer() {
@@ -95,6 +107,7 @@ export function TeammatesDialog({
 
   const avis =
     refus ??
+    (equipe.length === 0 ? `Ajoutez au moins ${MIN_EQUIPIERS} coureurs pour attribuer ce relais.` : null) ??
     (equipe.length === 1 ? "Pour un seul coureur, utilisez « Rattacher »." : null) ??
     (complete ? `Un relais compte au plus ${MAX_EQUIPIERS} coureurs.` : null);
 
@@ -112,7 +125,7 @@ export function TeammatesDialog({
             onClick={attribuer}
             disabled={equipe.length < MIN_EQUIPIERS || attribution.isPending}
           >
-            Attribuer
+            {attribution.isPending ? "Attribution…" : "Attribuer"}
           </Button>
         </div>
       }
@@ -150,7 +163,7 @@ export function TeammatesDialog({
 
         <div>
           <label
-            htmlFor={`equipiers-${resultat.id}`}
+            htmlFor={champRecherche}
             style={{
               display: "block",
               marginBottom: 6,
@@ -162,7 +175,7 @@ export function TeammatesDialog({
             Ajouter un coureur
           </label>
           <Input
-            id={`equipiers-${resultat.id}`}
+            id={champRecherche}
             type="search"
             value={saisie}
             onChange={(e) => setSaisie(e.target.value)}
@@ -172,6 +185,13 @@ export function TeammatesDialog({
           />
         </div>
 
+        {/* Un formulaire pour que Entrée ajoute depuis Nom ou Prénom. */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (nouveauNom.trim() && nouveauPrenom.trim() && !complete) ajouterLaPersonne();
+          }}
+        >
         <fieldset style={{ border: 0, margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
           <legend style={{ fontSize: 13, fontWeight: 700, color: "var(--tcn-text-muted)", marginBottom: 6 }}>
             Coureur sans fiche
@@ -196,17 +216,18 @@ export function TeammatesDialog({
               />
             </label>
             <Button
+              type="submit"
               variant="secondary"
               size="sm"
-              onClick={ajouterLaPersonne}
               disabled={
                 !nouveauNom.trim() || !nouveauPrenom.trim() || attribution.isPending || complete
               }
             >
-              Ajouter cette personne
+              Ajouter ce coureur
             </Button>
           </div>
         </fieldset>
+        </form>
 
         {/* Région live montée en permanence, texte vide au repos : une région
             insérée avec son texte n'est pas annoncée. */}
@@ -214,9 +235,23 @@ export function TeammatesDialog({
           {avis && (
             <p style={{ fontSize: 13, color: "var(--tcn-text-muted)", margin: 0 }}>{avis}</p>
           )}
+          {!complete && candidats.isFetching && (
+            <p style={{ fontSize: 13, color: "var(--tcn-text-faint)", margin: 0 }}>Recherche…</p>
+          )}
+          {!complete && candidats.data?.length === 0 && (
+            <p style={{ fontSize: 13, color: "var(--tcn-text-faint)", margin: 0 }}>
+              Aucun coureur ne correspond à cette recherche.
+            </p>
+          )}
+          {!complete && candidats.data && candidats.data.length >= PAGE_CANDIDATS && (
+            <p style={{ fontSize: 13, color: "var(--tcn-text-muted)", margin: 0 }}>
+              Seuls les {PAGE_CANDIDATS} premiers coureurs sont listés : précisez la recherche si le
+              bon n&apos;y est pas.
+            </p>
+          )}
         </div>
 
-        {!complete && candidats.data && candidats.data.length > 0 && (
+        {!complete && proposes.length > 0 && (
           <ul
             style={{
               display: "flex",
@@ -229,9 +264,7 @@ export function TeammatesDialog({
               padding: 0,
             }}
           >
-            {candidats.data
-              .filter((candidat) => !equipe.some((e) => e.id === candidat.id))
-              .map((candidat) => (
+            {proposes.map((candidat) => (
                 <li key={candidat.id}>
                   <button
                     type="button"

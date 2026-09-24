@@ -121,7 +121,7 @@ describe("TeammatesDialog", () => {
     setParticipationTeammates.mockResolvedValue({});
     afficher([JEAN]);
 
-    const ajouterLaPersonne = screen.getByRole("button", { name: "Ajouter cette personne" });
+    const ajouterLaPersonne = screen.getByRole("button", { name: "Ajouter ce coureur" });
     expect(ajouterLaPersonne).toBeDisabled();
     await userEvent.type(screen.getByLabelText("Nom"), "DURAND");
     expect(ajouterLaPersonne).toBeDisabled();
@@ -135,6 +135,49 @@ describe("TeammatesDialog", () => {
         { athlete_name: "DURAND", athlete_firstname: "Marie" },
       ]),
     );
+  });
+
+  it("dit quoi faire quand l'équipe est vide", () => {
+    afficher();
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Ajoutez au moins 2 coureurs pour attribuer ce relais.",
+    );
+  });
+
+  it("dit quand la recherche ne trouve personne", async () => {
+    searchAthletesAdmin.mockResolvedValue([]);
+    afficher([JEAN, PAUL]);
+
+    await userEvent.type(screen.getByRole("searchbox"), "zzz");
+
+    expect(await screen.findByText("Aucun coureur ne correspond à cette recherche.")).toBeInTheDocument();
+  });
+
+  it("ramène le focus sur la recherche après un retrait", async () => {
+    afficher([JEAN, PAUL]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Retirer MARTIN Paul" }));
+
+    expect(screen.getByRole("searchbox")).toHaveFocus();
+  });
+
+  it("ajoute un coureur sans fiche à la touche Entrée", async () => {
+    afficher([JEAN]);
+
+    await userEvent.type(screen.getByLabelText("Nom"), "DURAND");
+    await userEvent.type(screen.getByLabelText("Prénom"), "Marie{Enter}");
+
+    expect(screen.getByRole("button", { name: "Retirer DURAND Marie" })).toBeInTheDocument();
+  });
+
+  it("dit que l'attribution est en cours", async () => {
+    setParticipationTeammates.mockReturnValue(new Promise(() => {}));
+    afficher([JEAN, PAUL]);
+
+    await userEvent.click(screen.getByRole("button", { name: "Attribuer" }));
+
+    expect(await screen.findByRole("button", { name: "Attribution…" })).toBeDisabled();
   });
 
   it("affiche aussi un refus métier (400) à côté de la liste", async () => {
