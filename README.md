@@ -205,13 +205,13 @@ Détail complet — jeton, environments, secrets, pièges de connexion : [`docs/
 ```bash
 cd backend
 uv sync
-uv run pytest -m "not integration"   # tests par couche (3656), 4 workers
+uv run pytest -m "not integration"   # tests par couche, 4 workers
 uv run ruff check .                  # lint
 ```
 
-3656 tests par couche : `test_repositories/`, `test_services/`, `test_api/`,
-plus les scrapers Klikego / TimePulse. La suite tourne à 4 workers par défaut
-(#508) ; `-n 0` rend `--pdb` et une sortie non entrelacée.
+Tests par couche : `test_repositories/`, `test_services/`, `test_api/`,
+`test_cli/`, `test_auth/`…, plus les scrapers, à plat dans `tests/`. La suite
+tourne à 4 workers par défaut (#508) ; `-n 0` rend `--pdb` et une sortie non entrelacée.
 
 **Frontend** (`frontend/`)
 
@@ -250,7 +250,7 @@ data-triathlon/
 │   │   └── scrapers/            # registre Protocol + un module par provider
 │   ├── alembic/                 # migrations (révision initiale = schéma complet)
 │   ├── scripts/                 # reset_db.py, seed_demo.py, audit_scrapers.py
-│   ├── tests/                   # test_repositories / test_services / test_api (3656 tests)
+│   ├── tests/                   # test_repositories / test_services / test_api / …
 │   ├── Dockerfile
 │   └── README.md
 ├── frontend/                    # Next.js 16 (App Router) + TypeScript + Tailwind + shadcn/ui

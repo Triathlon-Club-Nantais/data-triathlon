@@ -23,7 +23,8 @@ app/
       router.py    # agrège tous les routers v1
   scrapers/        # registre Protocol + un module par provider
 alembic/           # migrations (révision initiale = schéma complet)
-tests/             # test_repositories / test_services / test_api / test_scrapers
+tests/             # test_api/ test_auth/ test_cli/ test_core/ test_repositories/ test_scripts/
+                   # test_services/ ; tests des scrapers à plat (test_klikego.py, test_timepulse.py…)
 ```
 
 Flux d'un import épreuve :
@@ -69,14 +70,15 @@ uv run python scripts/seed_demo.py           # (re)seed seul, sans toucher au sc
 ## Lancer l'API
 
 ```bash
-uv run python scripts/dev_server.py  # API + /docs, premier port libre à partir de 8001
+uv run python scripts/dev_server.py  # API (+ /docs si DOCS_ENABLED=true), port éphémère publié
 ```
 
-Le port est choisi au démarrage (8001 s'il est libre, sinon le suivant) et publié
-dans `.dev-backend.json` à la racine du worktree : c'est ainsi que `npm run dev`
-branche le frontend sur **ce** backend plutôt que sur celui d'un autre worktree.
-`DEV_BACKEND_PORT=8005` force un port ; `uvicorn app.main:app --reload --port 8001`
-reste utilisable pour un lancement brut, sans publication.
+Le port est attribué par l'OS au démarrage (port éphémère, plus de scan à partir
+de 8001) et publié avec l'URL dans `.dev-backend.json` à la racine du worktree :
+c'est ainsi que `npm run dev` branche le frontend sur **ce** backend plutôt que sur
+celui d'un autre worktree. `DEV_BACKEND_PORT=8005` force un port pour une URL
+stable ; `uvicorn app.main:app --reload --port 8001` reste utilisable pour un
+lancement brut, sans publication. Mécanisme complet : `../docs/dev-multi-worktree.md`.
 
 **API versionnée** : tous les endpoints sont sous `/api/v1/*` (une future v2 vivra
 dans `app/api/v2/`). `GET /api/v1/health` vérifie l'API **et** la connexion DB.
@@ -162,6 +164,7 @@ uv run ruff check .                  # lint
 | `CORS_ORIGINS` | localhost:3000,5173 | Origines autorisées (CSV, **restreint**) |
 | `LOG_LEVEL` | `INFO` | Niveau de log |
 | `LOG_JSON` | `false` | Logs JSON (ingestion Render/Datadog) |
+| `DOCS_ENABLED` | `false` | Expose `/docs`, `/redoc` et `/openapi.json` (404 sinon). `true` dans `.env.example` pour le dev, jamais en production |
 | `CACHE_TTL_IN_PROGRESS_SECONDS` | `600` | TTL cache course en cours (10 min) |
 | `CACHE_TTL_FINISHED_SECONDS` | `2592000` | TTL cache course terminée (30 j) |
 | `DB_POOL_SIZE` | `15` | Connexions permanentes du pool SQLAlchemy (dimensionné sur le plafond Azure B1ms — 35 connexions utilisateur, `docs/infra-azure.md` — #585) |
@@ -181,7 +184,9 @@ intact et `GET /api/v1/auth/methods` rend `[]`. Mise en route locale complète
 
 ## Points clés du modèle
 
-- **Course** = (nom, date, type) unique ; `source_url` sert de clé de cache TTL.
+- **Course** = `UNIQUE(name, event_date, event_type, is_relay)` : un relais est
+  une épreuve distincte du solo. `source_url` ne fait plus partie de l'identité,
+  elle reste la clé du cache TTL. Détail (dont `CourseSource`) : `app/models/AGENTS.md`.
 - **Participation** unique par (course, dossard) → plus de doublons à l'import.
 - **splits** (JSON) remplace les colonnes figées swim/t1/bike/t2/run → couvre tous
   les sports (duathlon course1/course2, swimrun…). Les temps restent des strings.
