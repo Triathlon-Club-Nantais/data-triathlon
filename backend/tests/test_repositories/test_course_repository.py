@@ -573,3 +573,28 @@ def test_scope_club_lists_a_course_once_despite_several_club_members(db_session)
 
     assert [c.id for c in course_repository.list_all(db_session, club_only=True)] == [course.id]
     assert course_repository.count_all(db_session, club_only=True) == 1
+
+
+def test_recompute_tcn_counts_rewrites_only_the_courses_whose_count_changes(db_session):
+    # #939 : un changement de libellés ne réécrit pas les épreuves dont le
+    # compte ne bouge pas.
+    stale = course_repository.get_or_create(
+        db_session, name="Tri stale", event_date=date(2026, 5, 18), event_type="triathlon-m",
+    )
+    course_repository.get_or_create(
+        db_session, name="Tri fresh", event_date=date(2026, 5, 18), event_type="triathlon-m",
+    )
+    athlete = athlete_repository.get_or_create(db_session, nom="MEMBRE", prenom="Test")
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=stale.id, bib_number="1",
+        club="Triathlon Club Nantais",
+    )
+    db_session.flush()
+
+    rewritten = course_repository.recompute_tcn_counts_all(
+        db_session, club_labels=["triathlon club nantais"]
+    )
+
+    assert rewritten == 1
+    db_session.refresh(stale)
+    assert stale.tcn_count == 1
