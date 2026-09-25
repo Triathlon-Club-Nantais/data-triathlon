@@ -8,7 +8,7 @@ Toutes les variables d'environnement passent par cet objet `Settings` typé
 from functools import lru_cache
 from typing import Annotated, Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -20,7 +20,9 @@ class Settings(BaseSettings):
     )
 
     # ── Base de données ───────────────────────────────────────────────────────
-    database_url: str = "sqlite:///./triathlon.db"
+    # Chaîne (create_engine et Alembic en attendent une), mais hors du repr :
+    # elle porte le mot de passe PostgreSQL (#912).
+    database_url: str = Field(default="sqlite:///./triathlon.db", repr=False)
 
     # ── Dimensionnement du pool de connexions (#585) ───────────────────────────
     # Plafond réel relevé : `tcndatabdd` (Azure PostgreSQL Flexible Server,
@@ -122,9 +124,9 @@ class Settings(BaseSettings):
     #
     # Signe le jeton d'état du parcours (JWS HS256). Vide = authentification non
     # configurée ; non vide, elle doit faire au moins 32 caractères (FR-037).
-    auth_session_secret_key: str = ""
+    auth_session_secret_key: SecretStr = SecretStr("")
     auth_github_client_id: str = ""
-    auth_github_client_secret: str = ""
+    auth_github_client_secret: SecretStr = SecretStr("")
     # La liste des adresses autorisées **n'est plus ici** (#170) : elle vit dans
     # la table `allowed_emails`, éditable depuis le back-office. Elle était le
     # geste d'administration le plus fréquent du club, et le plus coûteux — ce
@@ -152,7 +154,7 @@ class Settings(BaseSettings):
     # Vide par défaut : une installation sans clé reste fonctionnelle, les
     # captures sont ignorées silencieusement en production. En développement,
     # un avertissement est émis si la clé est absente (voir app/core/analytics.py).
-    posthog_project_token: str = ""
+    posthog_project_token: SecretStr = SecretStr("")
     posthog_host: str = "https://eu.i.posthog.com"
 
     # ── Mot de passe d'accès au site (#509) ───────────────────────────────────
@@ -170,7 +172,7 @@ class Settings(BaseSettings):
     # **Vide est un état légitime** — même politique que les réglages `AUTH_*` :
     # le lancement est alors annoncé comme non configuré, et rien d'autre ne
     # change. Un jeton expire (un an au plus) ; l'erreur rendue le nomme.
-    github_batch_token: str = ""
+    github_batch_token: SecretStr = SecretStr("")
     github_repository: str = "Triathlon-Club-Nantais/data-triathlon"
     github_workflow_file: str = "batch.yml"
     # Base que les batches lancés depuis **cette** instance doivent écrire.
@@ -191,14 +193,14 @@ class Settings(BaseSettings):
 
     @field_validator("auth_session_secret_key")
     @classmethod
-    def _reject_weak_secret_key(cls, v: str) -> str:
+    def _reject_weak_secret_key(cls, v: SecretStr) -> SecretStr:
         """Refuse une clé de signature trop courte (FR-037).
 
         Vide reste accepté : c'est ainsi qu'on déclare une installation **sans**
         authentification. Une clé courte, elle, est un défaut de configuration —
         le démarrage échoue plutôt que de signer avec.
         """
-        if v and len(v) < 32:
+        if v and len(v.get_secret_value()) < 32:
             raise ValueError(
                 "AUTH_SESSION_SECRET_KEY must be at least 32 characters long "
                 '(python -c "import secrets; print(secrets.token_urlsafe(64))")'
