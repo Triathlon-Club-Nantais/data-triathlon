@@ -42,19 +42,17 @@ _DATA_API_URLS = [
     "https://www.timepulse.fr/epreuves/resultats/api/data.php?id_event={id_event}",
 ]
 
-# Attributs susceptibles de porter un label de statut texte (DNF/DNS/DSQ) sur
-# <E>/<R>. Conservé même si aucune épreuve réelle observée n'expose un tel label
-# (le XML pose un flag binaire np, cf. _extract_status) : reste utile si un futur
-# payload expose un libellé texte, et garde le test synthétique etat="Abandon"
-# pertinent.
+# Attributs candidats à un label de statut texte sur <E>/<R>. Aucune épreuve
+# réelle observée ne les pose : le libellé réel vit dans `t` du <R> (#899).
 _STATUS_ATTRS = ("etat", "st", "status", "statut")
 
 
 def _extract_status(ea: dict[str, str], ra: dict[str, str]) -> str:
     """Lit un statut explicite depuis les attributs E puis R ; "" sinon.
 
-    Cherche d'abord un label texte (_STATUS_ATTRS) traduit via
-    derive_status_from_label, puis le flag binaire np de TimePulse.
+    Cherche d'abord un label texte (_STATUS_ATTRS), puis le libellé écrit à la
+    place du temps dans `t` du <R> (`Abandon` ×24, `Disqualifié` ×1 sur 3232),
+    traduits via derive_status_from_label, puis le flag binaire np de TimePulse.
     """
     for attrs in (ea, ra):
         for name in _STATUS_ATTRS:
@@ -63,6 +61,9 @@ def _extract_status(ea: dict[str, str], ra: dict[str, str]) -> str:
                 status = derive_status_from_label(val)
                 if status:
                     return status
+    status = derive_status_from_label(ra.get("t", ""))
+    if status:
+        return status
 
     # Flag non-partant TimePulse (np="1") → DNS. Découverte (épreuve réelle) : le
     # XML ne pose pas de libellé texte mais un flag binaire np sur le <E>.

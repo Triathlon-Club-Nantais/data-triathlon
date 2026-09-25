@@ -343,6 +343,36 @@ def test_scrape_event_all_reads_explicit_status(monkeypatch):
     assert results[0].rank_overall is None
 
 
+def test_scrape_event_all_reads_status_label_in_result_time(monkeypatch):
+    """#899, extrait réel de 3232 : l'abandon et la disqualification sont écrits
+    dans `t` du `<R>`, à la place du temps. Ni finisher, ni temps textuel, ni
+    splits partiels (chemin non-finisher habituel)."""
+    xml = make_xml(
+        athletes=[
+            ("99", "GILLET Corentin", "S2", "M", "Triathlon L SOLO"),
+            ("143", "DUPONT Marc", "S3", "M", "Triathlon L SOLO"),
+            ("7", "MARTIN Paul", "S2", "M", "Triathlon L SOLO"),
+        ],
+        results=[
+            ("99", "Abandon", {"tr": "4", "p0": "00h33'17", "s0": "00h33'17",
+                               "s1": "00h02'30", "s2": "02h29'42", "s3": "00h01'33"}),
+            ("143", "Disqualifié", {"tr": "5", "s0": "00h34'37", "s1": "00h02'37"}),
+            ("7", "04h30'00", {"s0": "00h30'00"}),
+        ],
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    by_bib = {r.bib_number: r for r in scrape_event_all("https://www.timepulse.fr/resultats/3232")}
+
+    assert (by_bib["99"].status, by_bib["143"].status) == ("DNF", "DSQ")
+    for bib in ("99", "143"):
+        assert by_bib[bib].total_time == ""
+        assert by_bib[bib].swim_time == ""
+        assert by_bib[bib].rank_overall is None
+    assert by_bib["7"].status == ""
+    assert by_bib["7"].rank_overall == 1
+
+
 def test_scrape_event_all_reads_np_flag_dns(monkeypatch):
     """Découverte réelle : np="1" sur <E> → DNS + hygiène (ni temps ni rang)."""
     xml = make_xml(
