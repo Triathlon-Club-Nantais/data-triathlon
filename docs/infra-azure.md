@@ -11,6 +11,15 @@ Les identifiants sensibles (subscription id, tenant id, IDs de ressources)
 ne sont pas commités : le dépôt est public. Se les procurer via
 `az account show` et `az resource show`, ou dans le portail Azure.
 
+## Contrainte FinOps : facture proche de zéro
+
+Le projet n'a **aucun budget** d'infrastructure. L'objectif est une facture
+Azure, et plus largement d'hébergement (Render, Vercel, services tiers),
+**proche de zéro**. Toute évolution d'infra privilégie donc les offres
+gratuites ou déjà incluses, et chiffre explicitement tout coût récurrent
+(SKU, stockage, sauvegarde géo-redondante, service externe) avant d'être
+adoptée. Une issue qui touche à l'infra ou à Azure rappelle cette contrainte.
+
 ## Ce qui existe
 
 | Ressource | Valeur | Note |
