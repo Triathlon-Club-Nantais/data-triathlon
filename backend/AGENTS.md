@@ -52,6 +52,6 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
   quadrupler le débit sortant vers les fournisseurs.
 
 **Cache TTL** — `services/cache.py` : `is_fresh(course)` → 10 min si course en
-cours (une participation sans `total_time`), sinon 30 j. `scrape_service`
+cours (une participation **finisher** sans `total_time`), sinon 30 j. `scrape_service`
 court-circuite le re-scraping si frais. Réglable via
 `CACHE_TTL_IN_PROGRESS_SECONDS` / `CACHE_TTL_FINISHED_SECONDS`.

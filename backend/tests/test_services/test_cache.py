@@ -1,5 +1,7 @@
 from datetime import date, timedelta
 
+import pytest
+
 from app.core.config import Settings
 from app.core.time import utcnow
 from app.repositories import athlete_repository, course_repository, participation_repository
@@ -10,14 +12,14 @@ def _settings() -> Settings:
     return Settings(cache_ttl_in_progress_seconds=600, cache_ttl_finished_seconds=2592000)
 
 
-def _course_with_participation(db, total_time):
+def _course_with_participation(db, total_time, status="finisher"):
     athlete = athlete_repository.get_or_create(db, nom="DUPONT", prenom="Jean")
     course = course_repository.get_or_create(
         db, name="Tri", event_date=date(2026, 5, 16), event_type="triathlon-m"
     )
     participation_repository.create(
         db, athlete_id=athlete.id, course_id=course.id, bib_number="1",
-        total_time=total_time,
+        total_time=total_time, status=status,
     )
     db.flush()
     return course
@@ -35,6 +37,20 @@ def test_in_progress_when_time_is_zero(db_session):
     """
     course = _course_with_participation(db_session, total_time="00:00:00")
     assert cache.is_in_progress(db_session, course.id) is True
+
+
+@pytest.mark.parametrize("status", ["DNF", "DNS", "DSQ"])
+@pytest.mark.parametrize("total_time", [None, "00:00:00"])
+def test_finished_when_only_non_finishers_lack_time(db_session, status, total_time):
+    """A non-finisher never has a final time: it must not keep the race on the short TTL (#913)."""
+    course = _course_with_participation(db_session, total_time="01:59:00")
+    athlete = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul")
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="2",
+        total_time=total_time, status=status,
+    )
+    db_session.flush()
+    assert cache.is_in_progress(db_session, course.id) is False
 
 
 def test_finished_when_all_have_time(db_session):
