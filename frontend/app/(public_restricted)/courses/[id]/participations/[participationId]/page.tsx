@@ -2,7 +2,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
-import { ApiError } from "@/lib/api/client";
+import { rendreNullSi404 } from "@/lib/api/null-si-404";
 import {
   Card,
   ComparisonTable,
@@ -18,17 +18,6 @@ import { ordinalFr } from "@/lib/utils/format";
 import { Histogram } from "@/components/charts/Histogram";
 import { CategoryBars } from "@/components/charts/CategoryBars";
 import { parseTotalTimeSeconds } from "@/lib/utils/histogram-ticks";
-
-/**
- * Synthèse d'épreuve absente traitée comme optionnelle plutôt que fatale
- * (US2/US3, #466) : l'histogramme et le repère de catégorie sont un
- * enrichissement de cet écran, pas sa raison d'être — une synthèse en panne
- * ne doit pas faire disparaître le détail de participation lui-même.
- */
-function rendreNullSi404(erreur: unknown): null {
-  if (erreur instanceof ApiError && erreur.status === 404) return null;
-  throw erreur;
-}
 
 /**
  * Détail d'une participation : la performance de l'athlète confrontée au
@@ -49,7 +38,7 @@ export default async function ParticipationDetailPage({
   // Deux appels indépendants, en parallèle : la synthèse d'épreuve (US2/US3,
   // #466) ne conditionne jamais le 404 de la participation elle-même.
   const [participation, summary] = await Promise.all([
-    apiServer.getParticipation(Number(participationId)).catch(() => null),
+    apiServer.getParticipation(Number(participationId)).catch(rendreNullSi404),
     apiServer.getCourseSummary(Number(id)).catch(rendreNullSi404),
   ]);
 
