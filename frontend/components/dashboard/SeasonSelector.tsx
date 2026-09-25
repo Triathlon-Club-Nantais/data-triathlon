@@ -2,6 +2,7 @@
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 import { captureEvent } from "@/lib/posthog";
+import { RANK_PARAM } from "@/lib/rank";
 import type { Season } from "@/lib/types";
 import { Badge } from "@/components/tcn";
 import { cn } from "@/lib/utils";
@@ -17,7 +18,9 @@ import {
 /**
  * Construit l'URL `pathname` reflétant la sélection de saisons.
  * Le paramètre `seasons` est omis quand la sélection est vide ou égale à la
- * seule saison en cours (retour implicite au défaut). `scope` est préservé.
+ * seule saison en cours (retour implicite au défaut). Les autres paramètres
+ * courants (`scope`, `sports`, filtres de `/resultats`) sont préservés (#987),
+ * sauf `rank`, purement client (#425), retiré comme le fait `DisciplineToggle`.
  *
  * `pathname` est un paramètre explicite (pas de défaut) plutôt qu'une valeur
  * codée en dur : le composant sert `/dashboard` **et** `/club/athletes`
@@ -25,13 +28,14 @@ import {
  */
 export function buildSeasonsHref(
   selected: number[],
-  scope: string | undefined,
+  currentParams: string,
   pathname: string,
 ): string {
-  const params = new URLSearchParams();
-  if (scope) params.set("scope", scope);
+  const params = new URLSearchParams(currentParams);
+  params.delete(RANK_PARAM);
   const isDefault = selected.length === 0 || (selected.length === 1 && selected[0] === currentSeason());
-  if (!isDefault) params.set("seasons", serializeSeasons(selected));
+  if (isDefault) params.delete("seasons");
+  else params.set("seasons", serializeSeasons(selected));
   const qs = params.toString();
   return `${pathname}${qs ? `?${qs}` : ""}`;
 }
@@ -64,7 +68,6 @@ export function SeasonSelector({ seasons }: { seasons: Season[] }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const scope = searchParams.get("scope") ?? undefined;
   const seasonsParam = searchParams.get("seasons");
   const [pending, startTransition] = useTransition();
   const selected = useSelectedSeasons();
@@ -88,7 +91,7 @@ export function SeasonSelector({ seasons }: { seasons: Season[] }) {
 
   function apply(next: number[]) {
     captureEvent("season_changed", { season_count: next.length, seasons: next });
-    startTransition(() => router.push(buildSeasonsHref(next, scope, pathname)));
+    startTransition(() => router.push(buildSeasonsHref(next, searchParams.toString(), pathname)));
   }
 
   // Repli sur la première saison retenue, pas sur la saison en cours : quitter
