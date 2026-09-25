@@ -61,6 +61,22 @@ Trois particularités du fournisseur s'y ajoutent :
 celle que l'URL désigne — **filtrée elle aussi**, sans quoi l'échappatoire
 reconstruirait le fourre-tout.
 
+## Courses techniques `SUPP*` : jamais importées (#916)
+
+Le `raceList` se termine souvent par `SUPP` / `SUPP2`, à distance sentinelle
+(`998`, `999`, `999.99`). Sondage du 25/09/2026 sur 13 événements : présentes sur
+1082 (`SUPP2`, `SUPP`), 1060, 1000 et 950, absentes des autres. Leur contenu
+n'est jamais un résultat : dossards que la source n'a pas rattachés
+(`lastname="?Dossard"`, `firstname="#8158"`, chrono aberrant `17:31:19` ou
+négatif `-00:00:06`) et lignes `TEST` du chronométreur. Le critère retenu est
+le **code** (`SUPP` suivi de chiffres, casse ignorée), présent 5 fois sur 5 ; la
+distance sentinelle, redondante, n'est pas lue. `_fetch_races` les écarte avant
+toute requête : ni `Course`, ni progression, ni `heats_enumerated`.
+
+Défense en profondeur : une ligne `?Dossard` est ignorée même dans une vraie
+course, et un temps négatif n'est jamais `finisher`. L'échappatoire
+`--single-heat` garde, elle, le `raceList` brut pour son index positionnel.
+
 ## URL canonique de sous-unité
 
 `_sub_source_url` produit

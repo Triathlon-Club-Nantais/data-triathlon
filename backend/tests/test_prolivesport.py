@@ -350,6 +350,11 @@ def test_derive_status_dns_no_time():
     assert _derive_status({"time": "", "dns": "O"}) == "DNS"
 
 
+def test_derive_status_negative_time_is_never_finisher():
+    """#916 : `SUPP2` de 1082 publie `-00:00:06`, un temps qui n'en est pas un."""
+    assert _derive_status({"time": "-00:00:06", "rank": "1"}) == "DNS"
+
+
 def test_derive_status_dns_zero_time():
     assert _derive_status({"time": "00:00:00"}) == "DNS"
 
@@ -581,6 +586,42 @@ def test_fanout_appelle_chaque_course_quand_le_filtre_est_honore(monkeypatch):
     assert len(api.appels_indiv) == 3
     assert trace.heats_enumerated == 3
     assert len(resultats) == 5
+
+
+def test_fanout_skips_technical_supp_races(monkeypatch):
+    """#916 : `SUPP` / `SUPP2` (distance sentinelle 998, 999, 999.99), mesurées
+    sur 1082, 1060, 1000 et 950, rangent les dossards non rattachés
+    (`?Dossard #8158`) et des lignes `TEST`. Ni course, ni requête, ni ligne."""
+    races = [*RACES_979, {"race": "SUPP2", "distance": "998"}, {"race": "SUPP", "distance": "999"}]
+    evenement = [
+        *EVENEMENT_979,
+        _ligne("SUPP", "8158", "?Dossard", firstname="#8158", time="17:31:19"),
+        _ligne("SUPP2", "6115", "?Dossard", firstname="#6115", time="-00:00:06"),
+    ]
+    notifications: list[tuple] = []
+    api = _api(monkeypatch, races=races, indiv=lambda race: evenement)
+
+    resultats, trace = prolivesport.scrape_event_fanout(
+        URL_979, on_heat_start=lambda *args: notifications.append(args),
+    )
+
+    assert trace.heats_enumerated == 3
+    assert {n[0] for n in notifications} == {"Triathlon XS", "Triathlon S", "Triathlon M"}
+    assert not any("SUPP" in u for u in api.appels_indiv)
+    assert len(resultats) == 5
+    assert not any("SUPP" in r.source_url for r in resultats)
+
+
+def test_fanout_drops_unmatched_bib_rows_in_a_real_race(monkeypatch):
+    """Défense en profondeur (#916) : une ligne `?Dossard` hors `SUPP` n'est
+    pas un athlète."""
+    evenement = [*EVENEMENT_979, _ligne("Triathlon M", "3001", "?Dossard", firstname="#3001")]
+    _api(monkeypatch, indiv=lambda race: evenement)
+
+    resultats, _trace = prolivesport.scrape_event_fanout(URL_979)
+
+    assert len(resultats) == 5
+    assert not any(r.athlete_name.startswith("?") for r in resultats)
 
 
 def test_fanout_nominal_rend_une_trace_complete(monkeypatch):
