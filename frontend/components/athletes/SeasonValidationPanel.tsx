@@ -65,7 +65,7 @@ function ValiderSaison({ athleteId }: { athleteId: number }) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
       {/* FR-012 — indicatif, ne bloque jamais la validation (FR-011). */}
       <p style={{ fontSize: 12, color: "var(--tcn-text-faint)" }}>
         {validated_count}/3 épreuves validées · bénévolat{" "}

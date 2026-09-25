@@ -58,6 +58,18 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+describe("SeasonValidationPanel: layout below the header (#927)", () => {
+  it("keeps the button at its own width rather than stretched across the card", async () => {
+    getSession.mockResolvedValue(session(["athletes:season_validate"]));
+    getSeasonQuota.mockResolvedValue({ validated_count: 2, has_volunteer_action: false, season_validated: false });
+
+    afficher();
+
+    const bouton = await screen.findByRole("button", { name: /^valider la saison$/i });
+    expect(bouton.parentElement).toHaveStyle({ alignItems: "flex-start" });
+  });
+});
+
 describe("SeasonValidationPanel — valider la saison (US3, FR-009 à FR-013)", () => {
   it("ne rend rien pour un connecté sans le pouvoir dédié (#780)", async () => {
     getSession.mockResolvedValue(session([]));
