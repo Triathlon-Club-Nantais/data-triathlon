@@ -161,8 +161,8 @@ export function useSelectedAthlete(): PickedAthlete | null {
   return useSyncExternalStore(subscribeAthlete, snapshotAthlete, () => null);
 }
 
-/** Nombre d'athlètes affichés — au-delà, la palette précise « trop de
- *  résultats » plutôt que d'en cacher silencieusement (défaut 4/5, #484). */
+/** Nombre d'athlètes affichés. Au-delà, la région de statut annonce « plus de
+ *  12 » plutôt que d'en cacher silencieusement (défaut 4/5, #484). */
 const PAGE_SIZE = 12;
 
 /**
@@ -229,7 +229,9 @@ export function AthletePicker({
         ? "Recherche…"
         : visibles.length === 0
           ? "Aucun athlète trouvé"
-          : `${visibles.length} athlète${visibles.length > 1 ? "s" : ""} trouvé${visibles.length > 1 ? "s" : ""}`;
+          : rows.length > PAGE_SIZE
+            ? `Plus de ${PAGE_SIZE} athlètes trouvés, précisez la recherche`
+            : `${visibles.length} athlète${visibles.length > 1 ? "s" : ""} trouvé${visibles.length > 1 ? "s" : ""}`;
 
   return (
     <Modal
@@ -252,7 +254,7 @@ export function AthletePicker({
         aria-label="Rechercher un athlète"
         aria-autocomplete="list"
         aria-expanded={visibles.length > 0}
-        aria-controls={listboxId}
+        aria-controls={visibles.length > 0 ? listboxId : undefined}
         aria-activedescendant={actifId}
         onKeyDown={(e) => {
           if (visibles.length === 0) return;
@@ -271,41 +273,43 @@ export function AthletePicker({
       />
       <AnnonceStatut texte={statut} busy={loading} />
       <div style={{ marginTop: 8 }}>
-        <div role="listbox" id={listboxId} aria-label="Athlètes trouvés">
-          {visibles.map((a, i) => {
-            const fullName = nomComplet(a);
-            return (
-              <div
-                key={a.id}
-                id={optionId(a.id)}
-                role="option"
-                aria-selected={i === actif}
-                aria-label={`Choisir ${fullName}`}
-                onClick={() => choisir(a)}
-                onMouseEnter={() => setActif(i)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 14,
-                  padding: "11px 14px",
-                  borderRadius: 12,
-                  cursor: "pointer",
-                  background: i === actif ? "var(--tcn-fill)" : "transparent",
-                }}
-              >
-                <Avatar name={fullName} size={40} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 700, color: "var(--tcn-ink)", fontSize: 15 }}>{fullName}</div>
-                  <div style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>
-                    {a.club ?? "Sans club"} · {a.participation_count} épreuve
-                    {a.participation_count > 1 ? "s" : ""}
+        {visibles.length > 0 && (
+          <div role="listbox" id={listboxId} aria-label="Athlètes trouvés">
+            {visibles.map((a, i) => {
+              const fullName = nomComplet(a);
+              return (
+                <div
+                  key={a.id}
+                  id={optionId(a.id)}
+                  role="option"
+                  aria-selected={i === actif}
+                  aria-label={`Choisir ${fullName}`}
+                  onClick={() => choisir(a)}
+                  onMouseEnter={() => setActif(i)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 14,
+                    padding: "11px 14px",
+                    borderRadius: 12,
+                    cursor: "pointer",
+                    background: i === actif ? "var(--tcn-fill)" : "transparent",
+                  }}
+                >
+                  <Avatar name={fullName} size={40} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, color: "var(--tcn-ink)", fontSize: 15 }}>{fullName}</div>
+                    <div style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>
+                      {a.club ?? "Sans club"} · {a.participation_count} épreuve
+                      {a.participation_count > 1 ? "s" : ""}
+                    </div>
                   </div>
+                  <span style={{ color: "var(--tcn-text-disabled)", fontSize: 18 }}>→</span>
                 </div>
-                <span style={{ color: "var(--tcn-text-disabled)", fontSize: 18 }}>→</span>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
         {query.trim().length >= 2 && !loading && rows.length === 0 && (
           <EmptyState
             bare

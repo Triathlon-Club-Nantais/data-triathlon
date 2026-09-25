@@ -242,6 +242,23 @@ describe("AthletePicker — ARIA combobox and listbox (#996)", () => {
     });
     expect(screen.getByRole("status")).toHaveTextContent("Aucun athlète trouvé");
   });
+
+  it("announces more than 12 results instead of the truncated count", async () => {
+    searchAthletes.mockResolvedValue(
+      Array.from({ length: 13 }, (_, i) => ({ ...DEUX[0], id: i + 1 })),
+    );
+    await chercher("herr");
+    expect(screen.getAllByRole("option")).toHaveLength(12);
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Plus de 12 athlètes trouvés, précisez la recherche",
+    );
+  });
+
+  it("renders no listbox and no aria-controls without results", () => {
+    render(<AthletePicker onClose={vi.fn()} onPick={vi.fn()} />);
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox")).not.toHaveAttribute("aria-controls");
+  });
 });
 
 describe("événement de synchronisation tcn-athlete-changed", () => {
