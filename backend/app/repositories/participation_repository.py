@@ -1,5 +1,5 @@
 """Accès données pour Participation, incluant les filtres de la liste publique."""
-from collections.abc import Collection, Iterable, Sequence
+from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from typing import NamedTuple
 
@@ -535,23 +535,6 @@ def has_pending_for_course(db: Session, course_id: int) -> bool:
             Participation.course_id == course_id,
             Participation.is_pending_validation.is_(True),
             Participation.is_rejected.is_(False),
-        )
-        .first()
-        is not None
-    )
-
-
-def has_finisher_without_time(db: Session, course_id: int, absent_times: Collection[str]) -> bool:
-    """Un finisher sans temps final (absent ou placeholder) : signal d'épreuve en cours (#566, #913).
-
-    Un DNF/DNS/DSQ n'a jamais de temps final, il ne compte pas.
-    """
-    return (
-        db.query(Participation.id)
-        .filter(
-            Participation.course_id == course_id,
-            func.lower(Participation.status) == STATUS_FINISHER,
-            Participation.total_time.is_(None) | Participation.total_time.in_(absent_times),
         )
         .first()
         is not None

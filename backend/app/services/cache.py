@@ -1,7 +1,7 @@
 """
 Cache TTL dynamique (PRD F1).
 
-Une course « en cours » (au moins un finisher sans temps final) est re-scrapée
+Une course « en cours » (au moins un participant sans temps final) est re-scrapée
 fréquemment ; une course « terminée » est considérée stable longtemps.
 
 **La fraîcheur est celle de l'épreuve, pas d'une URL** (#281). Depuis que N
@@ -22,19 +22,27 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.core.time import utcnow
 from app.models.course import Course
-from app.repositories import participation_repository
+from app.models.participation import Participation
 from app.services.quality import _ZERO_TIMES
 
 
 def is_in_progress(db: Session, course_id: int) -> bool:
-    """Vrai si au moins un finisher n'a pas de temps final (course en cours).
+    """Vrai si au moins une participation n'a pas de temps final (course en cours).
 
-    Un temps « zéro » (`00:00:00`, `0:00`…) vaut temps absent, même définition
-    que `quality._ZERO_TIMES` : un chronométreur qui publie ce placeholder en
-    attendant les temps réels ne doit pas faire passer l'épreuve au TTL long
-    (#566). Les non-finishers sont ignorés, ils n'ont jamais de temps (#913).
+    Un temps « zéro » (`00:00:00`, `0:00`…) vaut temps absent — même définition
+    que `quality._ZERO_TIMES`, réutilisée ici plutôt que dupliquée : un
+    chronométreur qui publie ce placeholder en attendant les temps réels ne doit
+    pas faire passer l'épreuve au TTL long (#566).
     """
-    return participation_repository.has_finisher_without_time(db, course_id, _ZERO_TIMES)
+    return (
+        db.query(Participation.id)
+        .filter(
+            Participation.course_id == course_id,
+            (Participation.total_time.is_(None)) | (Participation.total_time.in_(_ZERO_TIMES)),
+        )
+        .first()
+        is not None
+    )
 
 
 def ttl_seconds(db: Session, course: Course, settings: Settings) -> int:
