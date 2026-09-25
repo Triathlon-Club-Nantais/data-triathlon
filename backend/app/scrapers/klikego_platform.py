@@ -14,6 +14,7 @@ Format d'une ligne (séparateur `|`), 12 champs :
 import base64
 import logging
 import re
+import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date as _date
@@ -352,8 +353,12 @@ def _course_result_url(base: str, event_id: str, heat: str, inter: str, page: in
     return f"{base}/bc/resultats/course-result.jsp?{query}"
 
 
-#: Essais d'une page sur 5xx. Sans temporisation, comme `prolivesport`.
+#: Essais d'une page sur 5xx, et l'attente avant chaque rejeu : rejouée sur
+#: le champ, une panne passagère renvoyait le même 503.
 _ESSAIS_PAGE = 3
+_ATTENTES_PAGE = (0.5, 1.0)
+#: Point d'injection des tests, pour que la suite unitaire n'attende pas.
+_sleep = time.sleep
 
 
 def get_page(client: httpx.Client, url: str) -> httpx.Response:
@@ -373,6 +378,8 @@ def get_page(client: httpx.Client, url: str) -> httpx.Response:
         logger.warning("Page %s : HTTP %s à l'essai %s/%s", url, status, essai, _ESSAIS_PAGE)
         if status < 500:
             break
+        if essai < _ESSAIS_PAGE:
+            _sleep(_ATTENTES_PAGE[essai - 1])
     raise ScraperError(f"Page de résultats inaccessible (HTTP {status}) : {url}")
 
 

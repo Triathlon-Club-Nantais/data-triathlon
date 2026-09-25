@@ -78,6 +78,17 @@ def _portee_des_compteurs_par_defaut():
     counter_scope.reset()
 
 
+@pytest.fixture(autouse=True)
+def _rejeux_klikego_sans_attente(request, monkeypatch):
+    """Les rejeux 5xx de `klikego_platform.get_page` attendent (#943) : pas dans
+    la suite unitaire. Un test `integration` garde l'attente, face au vrai site."""
+    if request.node.get_closest_marker("integration"):
+        return
+    from app.scrapers import klikego_platform
+
+    monkeypatch.setattr(klikego_platform, "_sleep", lambda _seconds: None)
+
+
 @pytest.fixture
 def db_session():
     """Session SQLAlchemy sur une base SQLite en mémoire, schéma créé via les modèles."""
