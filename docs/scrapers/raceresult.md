@@ -77,3 +77,15 @@ sur la **première** virgule, nom à gauche et prénom à droite, pour tous les
 fournisseurs ; la garde `&` des noms d'équipe (#63) passe avant. Les fiches déjà
 en base (environ 6 400, dont environ 2 950 doublons exacts) ne sont pas
 reprises par ce correctif.
+
+**Temps à dixièmes (#904).** Supertri 363395 publie son temps d'arrivée sous
+`TIME1` étiqueté « Temps », et toutes ses durées avec un dixième à la virgule
+(`02:35:01,7`). `TIME1` n'avait aucun rôle (il finissait en segment « Temps »)
+et la garde du rôle `temps` aurait de toute façon rejeté la fraction : les
+1 043 finishers de l'épreuve sortaient sans `total_time`, donc en DNF. Une
+colonne `TIMEn` devient le temps d'arrivée **seulement** si son libellé est
+« Temps », « Temps total », « Temps final » ou « Time » : `TIMEn` désigne un
+résultat quelconque (`TIME2` « Natation » sur 342814, `TIME19` « Tours » sur
+409130). La fraction est tronquée à la seconde (`_sans_fraction`), sur le temps
+d'arrivée comme sur les segments ; `normalize_time` et `_RE_DUREE` restent
+inchangés. Les courses déjà en base (181 à 186) sont à re-scraper.

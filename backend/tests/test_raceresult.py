@@ -3525,3 +3525,78 @@ def test_build_result_386706_lfname_virgule_coupe_nom_et_prenom():
 
     assert (r.athlete_name, r.athlete_firstname, r.rank_overall) == ("DEVAUX", "BRIAN", 1)
 
+
+# ── Temps à dixièmes et colonne `TIMEn` étiquetée « Temps » (#904) ───────────
+
+
+def _payload_general_363395() -> dict:
+    """Forme de `05 - Classement Général Indiv|Classement Général M` (363395,
+    sondé le 2026-09-25) : le temps d'arrivée est `TIME1` étiqueté « Temps »,
+    toutes les durées portent un dixième à la virgule."""
+    return {
+        "DataFields": ["BIB", "ID", "OuStatut([RANK1.p])", "AfficherNom", "CLUB",
+                       "TIME1", "Natation", "Natation.OVERALL.P", "CAP"],
+        "list": {"Fields": [
+            {"Expression": "OuStatut([RANK1.p])", "Label": "Rang"},
+            {"Expression": "AfficherNom", "Label": "Nom Prénom"},
+            {"Expression": "CLUB", "Label": "Club"},
+            {"Expression": "TIME1", "Label": "Temps"},
+            {"Expression": "Natation", "Label": "Natation"},
+            {"Expression": "Natation.OVERALL.P", "Label": ""},
+            {"Expression": "CAP", "Label": "Course"},
+        ]},
+    }
+
+
+def test_build_result_time_n_etiquete_temps_est_le_temps_d_arrivee_a_la_seconde():
+    payload = _payload_general_363395()
+    roles, segments, extras = raceresult._map_columns(payload)
+
+    r = raceresult._build_result(
+        ["9", "41", "1.", "Thomas TEOFILI", "TTM", "01:45:13,9", "00:18:20,5", "4.",
+         "00:32:18,3"],
+        roles, segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label="Triathlon M", status_label="",
+    )
+
+    assert r.total_time == "01:45:13"
+    assert r.status == "finisher"
+    assert r.rank_overall == 1
+    assert r.segments == [("Natation", "00:18:20"), ("Course", "00:32:18")]
+
+
+def test_map_columns_time_n_sans_libelle_de_temps_reste_un_segment():
+    """`TIMEn` désigne un résultat quelconque : `TIME2` étiqueté « Natation »
+    (342814) ou `TIME19` étiqueté « Tours » (409130) ne sont pas l'arrivée."""
+    payload = {
+        "DataFields": ["BIB", "ID", "TIME2", "TIME19"],
+        "list": {"Fields": [
+            {"Expression": "TIME2", "Label": "Natation"},
+            {"Expression": "TIME19", "Label": "Tours"},
+        ]},
+    }
+    roles, segments, _extras = raceresult._map_columns(payload)
+
+    assert "temps" not in roles
+    assert segments == [("Natation", 2), ("Tours", 3)]
+
+
+@pytest.mark.parametrize(("cellule", "attendu"), [
+    ("2:35:01,7", "02:35:01"),
+    ("02:35:01.75", "02:35:01"),
+    ("59:59,9", "00:59:59"),
+])
+def test_build_result_tronque_la_fraction_du_temps_d_arrivee(cellule, attendu):
+    payload = _payload({}, avec_temps=True)
+    roles, segments, extras = raceresult._map_columns(payload)
+
+    r = raceresult._build_result(
+        ["1", "1", "Jean DUPONT", "TCN", cellule], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label="C", status_label="",
+    )
+
+    assert r.total_time == attendu
+    assert r.status == "finisher"
+
