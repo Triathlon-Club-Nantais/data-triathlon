@@ -760,6 +760,30 @@ def test_reimport_statut_explicite_ecrase(db_session, patch_scraper):
     assert participation_repository.list_participations(db_session, page_size=100)[0].status == "DSQ"
 
 
+@pytest.mark.parametrize("status", ["DNS", "DNF", "DSQ"])
+def test_reimport_explicit_non_finisher_clears_rank_and_time(db_session, patch_scraper, status):
+    """#962: scrapers empty rank and time on an explicit non-finisher; a rescrape
+    must carry that over instead of keeping the previous import's values."""
+    patch_scraper([_result(
+        "1", "DUPONT", total_time="01:59:00", rank_overall=5, rank_category=2,
+        rank_gender=4, swim_time="00:30:00",
+    )])
+    import_service.import_event(db_session, URL, _settings())
+    _expire_cache(db_session)
+
+    patch_scraper([_result("1", "DUPONT", total_time="", status=status)])
+    import_service.import_event(db_session, URL, _settings(), force=True)
+
+    part = participation_repository.list_participations(db_session, page_size=100)[0]
+    assert part.status == status
+    assert (part.rank_overall, part.rank_category, part.rank_gender) == (None, None, None)
+    assert part.total_time is None
+    if status == "DNS":
+        assert not part.splits
+    else:
+        assert part.splits
+
+
 def test_reimport_ajoute_un_nouveau_dossard_et_met_a_jour_l_ancien(db_session, patch_scraper):
     """Mélange : dossard connu corrigé (updated) + dossard neuf (imported)."""
     patch_scraper([_result("1", "DUPONT", total_time="01:59:00")])
