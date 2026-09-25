@@ -277,13 +277,15 @@ export function AthletePicker({
           <div role="listbox" id={listboxId} aria-label="Athlètes trouvés">
             {visibles.map((a, i) => {
               const fullName = nomComplet(a);
+              const club = a.club ?? "Sans club";
+              const epreuves = `${a.participation_count} épreuve${a.participation_count > 1 ? "s" : ""}`;
               return (
                 <div
                   key={a.id}
                   id={optionId(a.id)}
                   role="option"
                   aria-selected={i === actif}
-                  aria-label={`Choisir ${fullName}`}
+                  aria-label={`Choisir ${fullName}, ${club}, ${epreuves}`}
                   onClick={() => choisir(a)}
                   onMouseEnter={() => setActif(i)}
                   style={{
@@ -303,8 +305,7 @@ export function AthletePicker({
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, color: "var(--tcn-ink)", fontSize: 15 }}>{fullName}</div>
                     <div style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>
-                      {a.club ?? "Sans club"} · {a.participation_count} épreuve
-                      {a.participation_count > 1 ? "s" : ""}
+                      {club} · {epreuves}
                     </div>
                   </div>
                   <span style={{ color: "var(--tcn-text-disabled)", fontSize: 18 }}>→</span>

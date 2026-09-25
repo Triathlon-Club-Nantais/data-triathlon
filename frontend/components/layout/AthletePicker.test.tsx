@@ -268,6 +268,21 @@ describe("AthletePicker — ARIA combobox and listbox (#996)", () => {
     expect(second.style.outline).toBe("");
   });
 
+  it("names each option with club and event count so homonyms differ (#998)", async () => {
+    searchAthletes.mockResolvedValue([
+      { id: 1, nom: "Dupont", prenom: "Jean", gender: "", club: "TCN", participation_count: 3 },
+      { id: 2, nom: "Dupont", prenom: "Jean", gender: "", club: null, participation_count: 1 },
+    ]);
+    await chercher("dupont");
+
+    expect(
+      await screen.findByRole("option", { name: "Choisir Jean Dupont, TCN, 3 épreuves" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Choisir Jean Dupont, Sans club, 1 épreuve" }),
+    ).toBeInTheDocument();
+  });
+
   it("renders no listbox and no aria-controls without results", () => {
     render(<AthletePicker onClose={vi.fn()} onPick={vi.fn()} />);
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
