@@ -39,6 +39,16 @@ describe("RootLayout — lien d'évitement (A11Y-1)", () => {
   });
 });
 
+describe("RootLayout — skip link contrast (#933)", () => {
+  it("puts its white text on `--tcn-orange-deep`, never on the brand orange", async () => {
+    render(await RootLayout({ children: <p>contenu de la page</p> }));
+
+    const classes = screen.getByRole("link", { name: "Aller au contenu" }).className.split(" ");
+    expect(classes).toContain("focus:bg-[var(--tcn-orange-deep)]");
+    expect(classes).not.toContain("focus:bg-[var(--tcn-orange)]");
+  });
+});
+
 describe("RootLayout — espace réservé sous le contenu mobile (#482, NAV-4)", () => {
   it("réserve la hauteur de la barre basse mobile sous <main>, seulement sous md", async () => {
     render(await RootLayout({ children: <p>contenu de la page</p> }));
