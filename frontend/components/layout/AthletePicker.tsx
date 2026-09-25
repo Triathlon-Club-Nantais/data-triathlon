@@ -4,7 +4,8 @@
 import { useCallback, useEffect, useId, useState, useSyncExternalStore } from "react";
 import { AnnonceStatut, Avatar, Input, Modal } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
-import { apiClient } from "@/lib/api/client";
+import { ApiError, apiClient } from "@/lib/api/client";
+import { formatAttente } from "@/lib/utils/format";
 import type { AthleteSearchResult } from "@/lib/types";
 
 /**
@@ -166,6 +167,35 @@ export function useSelectedAthlete(): PickedAthlete | null {
 const PAGE_SIZE = 12;
 
 /**
+ * Ce que la palette dit d'une recherche qui n'a pas abouti (#953) : un échec
+ * n'est jamais « aucun athlète trouvé », l'adhérent en conclurait qu'il n'est
+ * pas dans la base.
+ */
+function echecRecherche(erreur: unknown): { titre: string; detail: string; accesManquant: boolean } {
+  const status = erreur instanceof ApiError ? erreur.status : null;
+  if (status === 401) {
+    return {
+      titre: "Accès au site requis",
+      detail: "Votre accès au site a expiré ou n'est pas encore ouvert. Saisissez le mot de passe du club pour rechercher un athlète.",
+      accesManquant: true,
+    };
+  }
+  if (status === 429) {
+    const attente = (erreur as ApiError).retryAfter;
+    return {
+      titre: "Trop de recherches d'affilée",
+      detail: attente ? `Réessayez dans ${formatAttente(attente)}.` : "Réessayez dans un instant.",
+      accesManquant: false,
+    };
+  }
+  return {
+    titre: "Recherche indisponible",
+    detail: "Le service ne répond pas pour le moment. Réessayez dans un instant.",
+    accesManquant: false,
+  };
+}
+
+/**
  * Recherche d'un athlète du club. Interroge l'API à partir de **2 caractères**,
  * après 250 ms de silence, et plafonne à 12 résultats.
  */
@@ -179,6 +209,8 @@ export function AthletePicker({
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<AthleteSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [erreur, setErreur] = useState<unknown>(null);
+  const [tentative, setTentative] = useState(0);
   const [actif, setActif] = useState(-1);
   const [rowsVues, setRowsVues] = useState(rows);
   if (rows !== rowsVues) {
@@ -192,8 +224,9 @@ export function AthletePicker({
 
   useEffect(() => {
     const q = query.trim();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setErreur(null);
     if (q.length < 2) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRows([]);
       return;
     }
@@ -203,8 +236,11 @@ export function AthletePicker({
       try {
         const found = await apiClient.searchAthletes(q, PAGE_SIZE + 1);
         if (!cancelled) setRows(found);
-      } catch {
-        if (!cancelled) setRows([]);
+      } catch (e) {
+        if (!cancelled) {
+          setRows([]);
+          setErreur(e);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -213,7 +249,7 @@ export function AthletePicker({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [query]);
+  }, [query, tentative]);
 
   useEffect(() => {
     if (actifId) document.getElementById(actifId)?.scrollIntoView?.({ block: "nearest" });
@@ -222,12 +258,15 @@ export function AthletePicker({
   const choisir = (a: AthleteSearchResult) => onPick({ id: a.id, prenom: a.prenom, nom: a.nom });
 
   const q = query.trim();
+  const echec = q.length >= 2 && !loading && erreur !== null ? echecRecherche(erreur) : null;
   const statut =
     q.length < 2
       ? "Saisissez au moins 2 lettres"
       : loading
         ? "Recherche…"
-        : visibles.length === 0
+        : echec
+          ? echec.titre
+          : visibles.length === 0
           ? "Aucun athlète trouvé"
           : rows.length > PAGE_SIZE
             ? `Plus de ${PAGE_SIZE} athlètes trouvés, précisez la recherche`
@@ -319,7 +358,30 @@ export function AthletePicker({
             {statut}
           </p>
         )}
-        {query.trim().length >= 2 && !loading && rows.length === 0 && (
+        {echec && (
+          <EmptyState
+            bare
+            title={echec.titre}
+            description={echec.detail}
+            action={
+              <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
+                {echec.accesManquant && (
+                  <a href="/acces" style={{ fontWeight: 700, color: "var(--tcn-ink)" }}>
+                    Saisir le mot de passe du site
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setTentative((n) => n + 1)}
+                  style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", cursor: "pointer" }}
+                >
+                  Réessayer
+                </button>
+              </div>
+            }
+          />
+        )}
+        {query.trim().length >= 2 && !loading && !echec && rows.length === 0 && (
           <EmptyState
             bare
             title="Aucun athlète trouvé"

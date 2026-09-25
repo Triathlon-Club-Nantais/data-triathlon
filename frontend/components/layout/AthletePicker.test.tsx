@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
+import { ApiError } from "@/lib/api/client";
 import userEvent from "@testing-library/user-event";
 import {
   readAthlete,
@@ -12,7 +13,8 @@ import {
 } from "./AthletePicker";
 
 const searchAthletes = vi.fn();
-vi.mock("@/lib/api/client", () => ({
+vi.mock("@/lib/api/client", async (importOriginal) => ({
+  ApiError: (await importOriginal<typeof import("@/lib/api/client")>()).ApiError,
   apiClient: { searchAthletes: (q: string, limit?: number) => searchAthletes(q, limit) },
 }));
 
@@ -94,6 +96,76 @@ describe("AthletePicker — aucune correspondance (ETAT-3)", () => {
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Effacer la recherche" }));
     expect(screen.getByPlaceholderText("Rechercher un nom…")).toHaveValue("");
+  });
+});
+
+describe("AthletePicker: search error state (#953)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    searchAthletes.mockReset();
+  });
+
+  async function search(text: string) {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<AthletePicker onClose={vi.fn()} onPick={vi.fn()} />);
+    await user.type(screen.getByPlaceholderText("Rechercher un nom…"), text);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    return user;
+  }
+
+  const hors = { ignore: "script, style, [role=status]" };
+
+  it("does not claim no athlete matched when the site access is missing (401)", async () => {
+    searchAthletes.mockRejectedValue(new ApiError(401, "unauthorized"));
+    await search("ma");
+
+    expect(await screen.findByText("Accès au site requis", hors)).toBeInTheDocument();
+    expect(screen.queryByText("Aucun athlète trouvé", hors)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Saisir le mot de passe du site" })).toHaveAttribute(
+      "href",
+      "/acces",
+    );
+  });
+
+  it("does not claim no athlete matched when the API fails (500)", async () => {
+    searchAthletes.mockRejectedValue(new ApiError(500, "boom"));
+    await search("ma");
+
+    expect(await screen.findByText("Recherche indisponible", hors)).toBeInTheDocument();
+    expect(screen.queryByText("Aucun athlète trouvé", hors)).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Recherche indisponible");
+  });
+
+  it("tells how long to wait on a rate limit (429)", async () => {
+    searchAthletes.mockRejectedValue(new ApiError(429, "slow down", 180));
+    await search("ma");
+
+    expect(await screen.findByText("Trop de recherches d'affilée", hors)).toBeInTheDocument();
+    expect(screen.getByText("Réessayez dans 3 minutes.")).toBeInTheDocument();
+  });
+
+  it("retries the same query and shows the results once the API answers", async () => {
+    searchAthletes
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce([
+        { id: 1, prenom: "Marie", nom: "Gaudin", club: "TCN", participation_count: 3 },
+      ]);
+    const user = await search("ma");
+
+    await user.click(await screen.findByRole("button", { name: "Réessayer" }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+
+    expect(await screen.findByRole("option", { name: /Marie Gaudin/ })).toBeInTheDocument();
+    expect(searchAthletes).toHaveBeenLastCalledWith("ma", 13);
+    expect(screen.queryByText("Recherche indisponible", hors)).not.toBeInTheDocument();
   });
 });
 

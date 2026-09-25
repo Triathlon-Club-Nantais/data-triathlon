@@ -157,3 +157,12 @@ export function genderShort(gender: string | null | undefined): string {
 export function motCompte(n: number, mot: string): string {
   return `${n} ${mot}${n > 1 ? "s" : ""}`;
 }
+
+/** « 3 minutes » ou « moins d'une minute » — le décompte du plafond de débit.
+ *  Les secondes n'y apportent rien sur une attente qui se compte en minutes, et
+ *  un « 179 s » qui défile donnerait envie de rester à regarder. */
+export function formatAttente(secondes: number): string {
+  const minutes = Math.ceil(secondes / 60);
+  if (minutes <= 1) return "moins d'une minute";
+  return `${minutes} minutes`;
+}

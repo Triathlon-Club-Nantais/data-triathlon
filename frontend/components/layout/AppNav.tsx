@@ -36,6 +36,9 @@ type SectionRendue = Omit<NavSection, "items"> & { items: Destination[] };
 
 export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean }) {
   const pathname = usePathname();
+  // Sur `/acces`, l'accès au site n'est pas établi : toute recherche y
+  // finirait en 401 (#953).
+  const rechercheDisponible = pathname !== "/acces";
   const router = useRouter();
   const { data: session } = useSession();
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -64,6 +67,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // ⌘K / Ctrl+K ouvre la recherche athlète depuis n'importe où. Escape est
   // traité par `Modal`.
   useEffect(() => {
+    if (!rechercheDisponible) return;
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -72,7 +76,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [rechercheDisponible]);
 
   // Se resynchronise sur toute écriture faite ailleurs (bouton de la page
   // profil, #323) — se redéclenche aussi sur les écritures faites par le
@@ -166,10 +170,14 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
       athlete={athlete}
       kbd={kbd}
       onNavigate={fermer}
-      onOpenPicker={() => {
-        fermer?.();
-        setPickerOpen(true);
-      }}
+      onOpenPicker={
+        rechercheDisponible
+          ? () => {
+              fermer?.();
+              setPickerOpen(true);
+            }
+          : undefined
+      }
       onExpand={() => setExpanded(true)}
     />
   );
@@ -321,9 +329,11 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-tcn.png" alt={CLUB_NAME} style={{ height: 24, display: "block" }} />
         </Link>
-        <button type="button" aria-label="Rechercher un athlète" onClick={() => setPickerOpen(true)} style={carreSecondaire}>
-          <Search size={18} />
-        </button>
+        {rechercheDisponible && (
+          <button type="button" aria-label="Rechercher un athlète" onClick={() => setPickerOpen(true)} style={carreSecondaire}>
+            <Search size={18} />
+          </button>
+        )}
         <Link href="/ajouter" aria-label="Ajouter une épreuve" style={carrePrimaire}>
           <Plus size={20} />
         </Link>
@@ -429,7 +439,8 @@ function NavContent({
   isActive: (href: string) => boolean;
   athlete: PickedAthlete | null;
   kbd: string;
-  onOpenPicker: () => void;
+  /** Absent là où la recherche ne peut qu'échouer (`/acces`, #953). */
+  onOpenPicker?: () => void;
   onNavigate?: () => void;
   onExpand: () => void;
 }) {
@@ -492,59 +503,61 @@ function NavContent({
             retenu ou non — pour ne jamais redevenir inaccessible autrement
             que par le raccourci clavier (issue #323). La tuile de l'athlète
             retenu s'affiche en complément, jamais à sa place. */}
-        <Tooltip>
-          <TooltipTrigger
-            disabled={expanded}
-            render={
-              <button
-                type="button"
-                onClick={onOpenPicker}
-                aria-label="Rechercher un athlète"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  height: 44,
-                  padding: padAction,
-                  justifyContent: justify,
-                  borderRadius: "var(--tcn-radius-lg)",
-                  background: "var(--tcn-surface)",
-                  color: "var(--tcn-ink)",
-                  border: "1.5px solid var(--tcn-ink)",
-                  fontFamily: "var(--tcn-font-body)",
-                  fontWeight: 700,
-                  fontSize: 14,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  cursor: "pointer",
-                }}
-              />
-            }
-          >
-            <Search size={18} style={{ flex: "none" }} />
-            {expanded && (
-              <>
-                <span style={{ flex: 1, textAlign: "left" }}>Rechercher un athlète</span>
-                <span
+        {onOpenPicker && (
+          <Tooltip>
+            <TooltipTrigger
+              disabled={expanded}
+              render={
+                <button
+                  type="button"
+                  onClick={onOpenPicker}
+                  aria-label="Rechercher un athlète"
                   style={{
-                    flex: "none",
-                    padding: "2px 7px",
-                    borderRadius: "var(--tcn-radius-sm)",
-                    background: "var(--tcn-fill)",
-                    border: "1px solid var(--tcn-border)",
-                    fontFamily: "var(--tcn-font-cond)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    height: 44,
+                    padding: padAction,
+                    justifyContent: justify,
+                    borderRadius: "var(--tcn-radius-lg)",
+                    background: "var(--tcn-surface)",
+                    color: "var(--tcn-ink)",
+                    border: "1.5px solid var(--tcn-ink)",
+                    fontFamily: "var(--tcn-font-body)",
                     fontWeight: 700,
-                    fontSize: 11,
-                    color: "var(--tcn-text-muted)",
+                    fontSize: 14,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    cursor: "pointer",
                   }}
-                >
-                  {kbd}
-                </span>
-              </>
-            )}
-          </TooltipTrigger>
-          {!expanded && <TooltipContent>{`Rechercher un athlète (${kbd})`}</TooltipContent>}
-        </Tooltip>
+                />
+              }
+            >
+              <Search size={18} style={{ flex: "none" }} />
+              {expanded && (
+                <>
+                  <span style={{ flex: 1, textAlign: "left" }}>Rechercher un athlète</span>
+                  <span
+                    style={{
+                      flex: "none",
+                      padding: "2px 7px",
+                      borderRadius: "var(--tcn-radius-sm)",
+                      background: "var(--tcn-fill)",
+                      border: "1px solid var(--tcn-border)",
+                      fontFamily: "var(--tcn-font-cond)",
+                      fontWeight: 700,
+                      fontSize: 11,
+                      color: "var(--tcn-text-muted)",
+                    }}
+                  >
+                    {kbd}
+                  </span>
+                </>
+              )}
+            </TooltipTrigger>
+            {!expanded && <TooltipContent>{`Rechercher un athlète (${kbd})`}</TooltipContent>}
+          </Tooltip>
+        )}
 
         {athlete && (
           <div
