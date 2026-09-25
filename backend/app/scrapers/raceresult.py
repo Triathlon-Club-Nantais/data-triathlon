@@ -672,6 +672,9 @@ _RE_TEMPS_SUFFIXE = re.compile(r"^(temps|arrivee|finish)\.(gun|chip|text)$")
 # `raw_data` : visible et récupérable, plutôt que promue en silence.
 _RE_TEMPS_RESULTAT_TEXTE = re.compile(r"^finishresult\.text$")
 
+# `<split>.AGEGROUP.P` / `.OVERALL.P` / `.GENDER.P` : rang d'un segment (#984).
+_RE_RANG_DE_SPLIT_QUALIFIE = re.compile(r"^[a-z0-9_]+\.(agegroup|overall|gender)\.p$")
+
 
 def _role(peeled: str) -> str:
     """Rôle sémantique d'une expression pelée, "" si non reconnu.
@@ -695,8 +698,25 @@ def _role(peeled: str) -> str:
     # « N° ») se faisait passer pour un segment de course.
     if peeled in ("bib", "displaybib", "dossard", "dossardbis"):
         return "dossard_affiche"  # colonne à écarter
-    if "classementgeneral" in peeled or "autorank" in peeled or peeled in ("rank1", "rank1p"):
+    # `[Natation.AGEGROUP.P]` est le rang de catégorie d'un split : testé avant
+    # la règle `agegroup`, qui en faisait la catégorie si la colonne précédait
+    # la vraie (`_map_columns` retient le premier champ, #984).
+    if _RE_RANG_DE_SPLIT_QUALIFIE.match(peeled):
+        return "rang_de_split"
+    # `RANK1` seul, pas `RANKn` : sur 342814 et 386706, `RANK2`/`RANK3` sont
+    # les rangs de sexe et de catégorie collés à leur cellule. Mesuré sur
+    # 386706 : `RANK1` court de 1 à N sur le contest, sexes mêlés (#984).
+    if (
+        "classementgeneral" in peeled
+        or "autorank" in peeled
+        or peeled in ("rank1", "rank1p", "rank1.p", "classementgen")
+    ):
         return "rang"
+    # Rang de sexe seul (404650, listes « Scratch » par sexe ; `ClassementMFJ`
+    # des listes enfants de 386706, groupées par sexe). La forme collée au
+    # sexe, `classementmf.psexemf`, reste à la règle `sexemf` (#984).
+    if peeled in ("classementmf", "classementmf.p", "classementmfj"):
+        return "rang_sexe"
     if "classementcategorie" in peeled or "agegroup" in peeled:
         return "rang_categorie"
     if "categorie" in peeled or "category" in peeled:
@@ -1070,6 +1090,8 @@ def _build_result(
     # `ucase([SEX]) & iif(…)` sérialise « M (1.) » : le rang de sexe voyage dans
     # la même cellule que le sexe et doit en être détaché.
     r.rank_gender, r.gender = _split_rank_category(cellule("sexe"))
+    cellule_rang_sexe = cellule("rang_sexe")
+    r.rank_gender = r.rank_gender or normalize_rank(cellule_rang_sexe)
     r.rank_category, r.category = _split_rank_category(cellule("categorie"))
     # `total_time` n'a aucun garde-fou de forme en aval : `normalize_time`
     # renvoie son entrée **telle quelle** quand elle ne la reconnaît pas, si
@@ -1125,6 +1147,7 @@ def _build_result(
     r.status = (
         derive_status_from_label(status_label)
         or derive_status_from_label(cellule_rang)
+        or derive_status_from_label(cellule_rang_sexe)
         or ""
     )
 
@@ -1319,6 +1342,24 @@ def _prefer(nouveau: ScrapedResult, ancien: ScrapedResult) -> bool:
     if bool(nouveau.total_time) != bool(ancien.total_time):
         return bool(nouveau.total_time)
     return _richness(nouveau) > _richness(ancien)
+
+
+def _completer_rangs(garde: ScrapedResult, autre: ScrapedResult) -> None:
+    """Comble les rangs vides de la ligne retenue par la fusion avec ceux de
+    l'autre liste du même contest (#984).
+
+    404650 publie rang général (« Scratch ») et rang de sexe (« MF ») dans deux
+    listes distinctes : `_prefer` garde une ligne entière, l'un des deux rangs
+    était perdu. Rien n'est comblé pour un non-finisher, ni entre deux
+    identités distinctes.
+    """
+    if garde.status in _NON_FINISHERS or autre.status in _NON_FINISHERS:
+        return
+    if _identites_incompatibles(garde, autre):
+        return
+    for champ in ("rank_overall", "rank_gender", "rank_category"):
+        if getattr(garde, champ) is None and getattr(autre, champ) is not None:
+            setattr(garde, champ, getattr(autre, champ))
 
 
 # Champs scalaires qu'une ligne `hidden` peut combler côté publié (#60). Le
@@ -1735,8 +1776,12 @@ def _run_pipeline(
                             ancien.athlete_name, ancien.athlete_firstname,
                             r.athlete_name, r.athlete_firstname,
                         )
-                    if ancien is None or _prefer(r, ancien):
+                    if ancien is None:
                         fusion[cle] = r
+                    else:
+                        garde, autre = (r, ancien) if _prefer(r, ancien) else (ancien, r)
+                        _completer_rangs(garde, autre)
+                        fusion[cle] = garde
             if lignes_sans_contest:
                 logger.warning(
                     "RaceResult %s : %d ligne(s) Contest=0 sans contest connu "

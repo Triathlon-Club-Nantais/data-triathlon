@@ -56,3 +56,17 @@ désormais son contest par sa cellule `CONTEST.NAME` et s'y fusionne par
 liste). Une liste `Contest="0"` sans temps d'arrivée ni rang général (les
 classements de segment Strava de 363395) est écartée avant fusion. Une épreuve
 publiée entièrement en `Contest="0"` (409130, 380823) garde le repli.
+
+**Colonnes de rang (#984).** `_role` reconnaît, avant la règle du suffixe `.p` :
+`RANK1` (`RANK1`, `RANK1p`, `RANK1.p`) et `ClassementGen` comme rang général, et
+`ClassementMF` / `ClassementMFJ` (avec ou sans `.p`) comme **rang de sexe**
+(`rank_gender`). Seul `RANK1` est retenu : sur 342814 et 386706, `RANK2` et
+`RANK3` sont les rangs de sexe et de catégorie collés à leur cellule, et
+`RANK1` court de 1 à N sur le contest, sexes mêlés (mesuré sur 386706). Un
+`<split>.AGEGROUP.P` / `.OVERALL.P` / `.GENDER.P` est un rang de segment, testé
+avant la règle `agegroup` qui en faisait la catégorie selon l'ordre des colonnes.
+Quand deux listes d'un même contest portent chacune un rang (404650 : rang
+général en « Scratch », rang de sexe en « MF »), la fusion comble les rangs
+vides de la ligne retenue avec ceux de l'autre (`_completer_rangs`), sauf pour
+un non-finisher ou deux identités distinctes. Mesuré sur 404650 : `rank_gender`
+passe de 0 à 1 065 lignes sur 1 221.
