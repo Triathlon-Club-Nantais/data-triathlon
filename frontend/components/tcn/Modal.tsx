@@ -1,9 +1,15 @@
 "use client";
-import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Dialog } from "@base-ui/react/dialog";
 import { IconButton } from "./IconButton";
 import { Eyebrow } from "./Eyebrow";
 
-/** Dialogue centré sur scrim encre flouté (eyebrow + titre Anton + fermeture). */
+/**
+ * Dialogue centré sur scrim encre flouté (eyebrow + titre Anton + fermeture).
+ *
+ * Piège du focus, inertie du reste de la page et retour du focus confiés au
+ * Dialog de Base UI (#988) : le piège maison ne tenait que sur ses bornes.
+ */
 export function Modal({
   open = true,
   eyebrow,
@@ -24,115 +30,71 @@ export function Modal({
   style?: CSSProperties;
 }) {
   const titleId = useId();
-  const dialogRef = useRef<HTMLDivElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
 
-  // Déclencheur lu au rendu, pas dans l'effet : un enfant `autoFocus` prend le
-  // focus au commit, avant tout effet, et passerait pour le déclencheur (#955).
+  // Déclencheur lu au rendu : un enfant `autoFocus` prend le focus au commit et
+  // passerait sinon pour le déclencheur (#955).
   const [declencheur, setDeclencheur] = useState<HTMLElement | null>(null);
   const [ouvertVu, setOuvertVu] = useState(false);
   if (open !== ouvertVu) {
     setOuvertVu(open);
-    setDeclencheur(
-      open && typeof document !== "undefined" && document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null,
-    );
+    // Gardé à la fermeture : `finalFocus` le lit après le passage à `open=false`.
+    if (open) {
+      setDeclencheur(
+        typeof document !== "undefined" && document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null,
+      );
+    }
   }
 
-  // Rend le focus au déclencheur à la fermeture (démontage, ou passage à
-  // `open=false`) — défaut 3 de NAV-8 (#484).
-  useEffect(() => {
-    if (!open) return;
-
-    // Auto-focus the first focusable element, unless a child already took focus.
-    if (dialogRef.current && !dialogRef.current.contains(document.activeElement)) {
-      const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      );
-      if (focusables.length > 0) {
-        focusables[0].focus();
-      }
-    }
-
-    return () => {
-      declencheur?.focus();
-    };
-  }, [open, declencheur]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        onClose();
-        return;
-      }
-      if (e.key !== "Tab" || !dialogRef.current) return;
-      const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
-        'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      );
-      if (focusables.length === 0) return;
-      const premier = focusables[0];
-      const dernier = focusables[focusables.length - 1];
-      if (e.shiftKey && document.activeElement === premier) {
-        e.preventDefault();
-        dernier.focus();
-      } else if (!e.shiftKey && document.activeElement === dernier) {
-        e.preventDefault();
-        premier.focus();
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "var(--tcn-overlay)",
-        backdropFilter: "blur(3px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 50,
-      }}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={title ? titleId : undefined}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width,
-          maxWidth: "calc(100vw - 32px)",
-          maxHeight: "82vh",
-          display: "flex",
-          flexDirection: "column",
-          background: "var(--tcn-surface)",
-          borderRadius: "var(--tcn-radius-modal)",
-          boxShadow: "var(--tcn-shadow-modal)",
-          overflow: "hidden",
-          ...style,
-        }}
-      >
-        <div style={{ padding: "24px 28px 18px", borderBottom: "1px solid var(--tcn-border)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
-          <div>
-            {eyebrow ? <Eyebrow style={{ fontSize: 12 }}>{eyebrow}</Eyebrow> : null}
-            <div id={titleId} style={{ fontFamily: "var(--tcn-font-display)", fontSize: 26, color: "var(--tcn-ink)", marginTop: eyebrow ? 4 : 0 }}>
-              {title}
+    <Dialog.Root open={open} onOpenChange={(ouvert) => !ouvert && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Backdrop
+          style={{ position: "fixed", inset: 0, background: "var(--tcn-overlay)", backdropFilter: "blur(3px)", zIndex: 50 }}
+        />
+        <Dialog.Viewport
+          style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}
+        >
+          <Dialog.Popup
+            ref={popupRef}
+            aria-labelledby={title ? titleId : undefined}
+            initialFocus={() => {
+              const actif = document.activeElement;
+              return actif instanceof HTMLElement && popupRef.current?.contains(actif) ? actif : true;
+            }}
+            finalFocus={() => (declencheur?.isConnected ? declencheur : true)}
+            style={{
+              width,
+              maxWidth: "calc(100vw - 32px)",
+              maxHeight: "82vh",
+              display: "flex",
+              flexDirection: "column",
+              background: "var(--tcn-surface)",
+              borderRadius: "var(--tcn-radius-modal)",
+              boxShadow: "var(--tcn-shadow-modal)",
+              overflow: "hidden",
+              outline: "none",
+              ...style,
+            }}
+          >
+            <div style={{ padding: "24px 28px 18px", borderBottom: "1px solid var(--tcn-border)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+              <div>
+                {eyebrow ? <Eyebrow style={{ fontSize: 12 }}>{eyebrow}</Eyebrow> : null}
+                <div id={titleId} style={{ fontFamily: "var(--tcn-font-display)", fontSize: 26, color: "var(--tcn-ink)", marginTop: eyebrow ? 4 : 0 }}>
+                  {title}
+                </div>
+              </div>
+              <IconButton variant="close" onClick={onClose} aria-label="Fermer">×</IconButton>
             </div>
-          </div>
-          <IconButton variant="close" onClick={onClose} aria-label="Fermer">×</IconButton>
-        </div>
 
-        <div style={{ overflowY: "auto", padding: "22px 28px 26px" }}>{children}</div>
+            <div style={{ overflowY: "auto", padding: "22px 28px 26px" }}>{children}</div>
 
-        {footer ? <div style={{ padding: "16px 28px", borderTop: "1px solid var(--tcn-border)" }}>{footer}</div> : null}
-      </div>
-    </div>
+            {footer ? <div style={{ padding: "16px 28px", borderTop: "1px solid var(--tcn-border)" }}>{footer}</div> : null}
+          </Dialog.Popup>
+        </Dialog.Viewport>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 }

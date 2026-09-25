@@ -201,8 +201,9 @@ describe("CourseSourcesPanel", () => {
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith("Le scrape n'a renvoyé aucun résultat"),
     );
-    // Toujours Klikego l'actif, rien n'a bougé.
-    const actif = screen.getByRole("link", { name: /klikego/i });
+    // Toujours Klikego l'actif, rien n'a bougé. La modale restée ouverte rend
+    // la page inerte (#988), d'où `hidden`.
+    const actif = screen.getByRole("link", { name: /klikego/i, hidden: true });
     expect(actif).toHaveAttribute("href", "https://exemple.fr/actif");
   });
 
