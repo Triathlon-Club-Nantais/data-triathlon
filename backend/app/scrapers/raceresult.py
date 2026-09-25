@@ -282,6 +282,9 @@ def _iter_hidden_list_specs(config: dict) -> list[tuple[str, str]]:
 _RE_ENROBAGE = re.compile(
     r"^(ucase|lcase|trim|format|OuStatut|Statut|iif|if|switch)\s*\(", re.IGNORECASE
 )
+# `choose(index;v1;v2;…)` : le premier terme sélectionne, il n'est pas la valeur
+# (`choose([STATUS]+1;[RANK1p];"a.k.";"DNF")`, #968).
+_RE_CHOOSE = re.compile(r"^choose\s*\(", re.IGNORECASE)
 # Terme purement littéral (`"#"` dans `"#"&[BIB]`) : décoration, pas la valeur.
 _RE_LITTERAL = re.compile(r'^"[^"]*"$')
 # Expression réduite à un token simple : `Natation`, `[Vélo]`, `Transition1`.
@@ -389,6 +392,13 @@ def _peel(expr: str) -> str:
             if not trouve or not s.endswith(")"):
                 break
             s = s[trouve.end():-1].strip()
+
+        trouve = _RE_CHOOSE.match(s)
+        if trouve and s.endswith(")"):
+            choix = [t.strip() for t in _split_profondeur(s[trouve.end():-1], ";")[1:]]
+            utiles = [t for t in choix if t and not _RE_LITTERAL.match(t)]
+            if utiles:
+                s = utiles[0]
 
         # 3. Conditionnelle : on écarte les termes qui comparent.
         termes = [t.strip() for t in _split_profondeur(s, ";") if t.strip()]
@@ -664,7 +674,7 @@ def _role(peeled: str) -> str:
     # « N° ») se faisait passer pour un segment de course.
     if peeled in ("bib", "displaybib", "dossard", "dossardbis"):
         return "dossard_affiche"  # colonne à écarter
-    if "classementgeneral" in peeled or "autorank" in peeled:
+    if "classementgeneral" in peeled or "autorank" in peeled or peeled in ("rank1", "rank1p"):
         return "rang"
     if "classementcategorie" in peeled or "agegroup" in peeled:
         return "rang_categorie"

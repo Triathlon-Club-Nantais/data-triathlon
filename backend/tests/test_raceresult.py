@@ -344,6 +344,7 @@ def _champs_rumilly() -> dict:
     ("AfficherNom", "affichernom"),
     ("[Course.OVERALL.P] ", "course.overall.p"),
     ("TIME", "time"),
+    ("choose([STATUS]+1;[RANK1p];\"a.k.\";\"DSQ\")", "rank1p"),
     ("#[ClassementCatégorie.p][AGEGROUP.NAMESHORT]", "classementcategorie.pagegroup.nameshort"),
 ])
 def test_peel(expr, attendu):
@@ -667,6 +668,10 @@ def test_map_columns_gere_un_fields_vide_ou_absent():
     ("OuStatut([AUTORANK.p])", "rang"),
     ("OuStatut([ClassementGénéral.P])", "rang"),
     ("ClassementGeneralp", "rang"),
+    # #968 : `choose(index;v1;v2;…)` choisit la valeur par le statut ; le rang
+    # général est le premier choix, les suivants des libellés de statut.
+    ("choose([STATUS]+1;[RANK1p];\"a.k.\";\"DSQ\";\"DNF\";\"DNS\")", "rang"),
+    ("choose([STATUS]+1;[RANK1];\"a.k.\";\"DSQ\";\"DNF\";\"DNS\")", "rang"),
     # Vocabulaire relevé hors de l'épreuve d'origine.
     ("LFNAME", "nom"),
     ("DisplayNameAsterisk", "nom"),
