@@ -250,6 +250,50 @@ def test_le_plafond_de_connexion_est_plus_large_que_celui_des_ecritures(client):
     assert deps.SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW > deps.PUBLIC_WRITE_RATE_LIMIT_MAX_PER_WINDOW
 
 
+_SESSION_BENEVOLES = "/api/v1/benevoles/session"
+
+
+def test_la_connexion_benevoles_est_plafonnee(client, monkeypatch):
+    """#917 : même coût scrypt que la connexion au site, route joignable sans
+    le cookie du site, et mot de passe possiblement humain (8 caractères)."""
+    monkeypatch.setattr(deps, "BENEVOLE_LOGIN_RATE_LIMIT_MAX_PER_WINDOW", 2)
+
+    assert client.post(_SESSION_BENEVOLES, json={"password": "faux-1"}).status_code == 401
+    assert client.post(_SESSION_BENEVOLES, json={"password": "faux-2"}).status_code == 401
+
+    refus = client.post(_SESSION_BENEVOLES, json={"password": "faux-3"})
+    assert refus.status_code == 429
+    assert int(refus.headers["Retry-After"]) > 0
+
+
+def test_la_connexion_benevoles_a_son_propre_seau(client, monkeypatch):
+    monkeypatch.setattr(deps, "SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW", 1)
+    monkeypatch.setattr(deps, "BENEVOLE_LOGIN_RATE_LIMIT_MAX_PER_WINDOW", 1)
+
+    assert client.post(_SESSION_SITE, json={"password": "faux"}).status_code == 401
+    assert client.post(_SESSION_SITE, json={"password": "faux"}).status_code == 429
+    assert client.post(_SESSION_BENEVOLES, json={"password": "faux"}).status_code == 401
+    assert client.post(_SESSION_BENEVOLES, json={"password": "faux"}).status_code == 429
+
+
+def test_la_remise_a_zero_des_compteurs_couvre_le_seau_benevoles(client, monkeypatch):
+    """La fixture autouse `_compteurs_de_debit_vierges` passe par `reset_rate_limits`."""
+    monkeypatch.setattr(deps, "BENEVOLE_LOGIN_RATE_LIMIT_MAX_PER_WINDOW", 1)
+    assert client.post(_SESSION_BENEVOLES, json={"password": "faux"}).status_code == 401
+    assert client.post(_SESSION_BENEVOLES, json={"password": "faux"}).status_code == 429
+
+    deps.reset_rate_limits()
+
+    assert client.post(_SESSION_BENEVOLES, json={"password": "faux"}).status_code == 401
+
+
+def test_la_connexion_benevoles_refuse_un_mot_de_passe_trop_long(client):
+    from app.schemas.site_access import MAX_PASSWORD_LENGTH
+
+    reponse = client.post(_SESSION_BENEVOLES, json={"password": "x" * (MAX_PASSWORD_LENGTH + 1)})
+    assert reponse.status_code == 422
+
+
 def test_la_purge_des_seaux_n_efface_pas_le_quota_d_une_autre_fenetre(monkeypatch):
     """Point 2 de #566 : la purge appliquait la fenêtre de l'appel en cours.
 
