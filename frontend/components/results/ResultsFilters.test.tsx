@@ -103,6 +103,44 @@ describe("ResultsFilters — recherche live", () => {
   });
 });
 
+describe("ResultsFilters: resync with the URL on navigation (#949)", () => {
+  beforeEach(() => {
+    push.mockReset();
+    replace.mockReset();
+  });
+
+  it("empties the fields when Back returns to an unfiltered URL", async () => {
+    searchParams = new URLSearchParams("name=Dupont&event_type=triathlon-m");
+    const { rerender } = render(<ResultsFilters />);
+    expect(screen.getByPlaceholderText("Rechercher un athlète")).toHaveValue("Dupont");
+
+    searchParams = new URLSearchParams();
+    rerender(<ResultsFilters />);
+
+    const champ = screen.getByPlaceholderText("Rechercher un athlète");
+    expect(champ).toHaveValue("");
+    await userEvent.type(champ, "{Enter}");
+    expect(push.mock.calls.at(-1)?.[0]).not.toContain("name=Dupont");
+    expect(push.mock.calls.at(-1)?.[0]).not.toContain("event_type=");
+  });
+
+  it("keeps the typing under way when its own live search lands in the URL", async () => {
+    searchParams = new URLSearchParams();
+    const { rerender } = render(<ResultsFilters />);
+    const champ = screen.getByPlaceholderText("Rechercher un athlète");
+
+    await userEvent.type(champ, "mar");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(expect.stringContaining("name=mar")));
+    await userEvent.type(champ, "ie");
+    const url = replace.mock.calls.at(-1)?.[0] as string;
+    searchParams = new URLSearchParams(url.split("?")[1]);
+    rerender(<ResultsFilters />);
+
+    expect(champ).toHaveValue("marie");
+    expect(champ).toHaveFocus();
+  });
+});
+
 describe("ResultsFilters — libellés associés (WCAG 3.3.2)", () => {
   beforeEach(() => {
     push.mockReset();

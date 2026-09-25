@@ -1,6 +1,6 @@
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useDebounce } from "@/hooks/useDebounce";
 import { X } from "lucide-react";
 import { captureEvent } from "@/lib/posthog";
@@ -106,6 +106,9 @@ export function ResultsFilters() {
   // serait appliqué en douce dès qu'on tape dans un champ texte (#387).
   const debouncedName = useDebounce(name);
   const debouncedEventName = useDebounce(eventName);
+  // Requête posée par la recherche live : quand l'URL la rend, la saisie est
+  // peut-être déjà plus loin, et la resynchronisation ci-dessous l'effacerait.
+  const urlLive = useRef<string | null>(null);
   useEffect(() => {
     if (
       debouncedName === (sp.get("name") ?? "") &&
@@ -113,17 +116,33 @@ export function ResultsFilters() {
     ) {
       return;
     }
-    router.replace(
-      urlFor({
-        name: debouncedName,
-        event_name: debouncedEventName,
-        event_type: sp.get("event_type") ?? "",
-        date_from: sp.get("date_from") ?? "",
-        date_to: sp.get("date_to") ?? "",
-      }),
-    );
+    const url = urlFor({
+      name: debouncedName,
+      event_name: debouncedEventName,
+      event_type: sp.get("event_type") ?? "",
+      date_from: sp.get("date_from") ?? "",
+      date_to: sp.get("date_to") ?? "",
+    });
+    urlLive.current = url.split("?")[1] ?? "";
+    router.replace(url);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedName, debouncedEventName]);
+
+  // Next garde ce composant monté quand seuls les search params changent :
+  // sans resynchronisation, Retour/Avance ou le lien « Résultats » laissaient
+  // les champs sur l'ancienne saisie, réappliquée en douce au prochain
+  // « Filtrer » (#949).
+  const urlCourante = sp.toString();
+  useEffect(() => {
+    if (urlCourante === urlLive.current) return;
+    urlLive.current = null;
+    const params = new URLSearchParams(urlCourante);
+    setName(params.get("name") ?? "");
+    setEventName(params.get("event_name") ?? "");
+    setEventType(params.get("event_type") ?? "");
+    setDateFrom(params.get("date_from") ?? "");
+    setDateTo(params.get("date_to") ?? "");
+  }, [urlCourante]);
 
   function reset() {
     setName("");
