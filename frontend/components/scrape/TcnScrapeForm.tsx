@@ -9,6 +9,7 @@ import { apiClient, type DetectedProvider } from "@/lib/api/client";
 import { eventTypeLabel } from "@/lib/constants";
 import { eventTypeColor } from "@/lib/sport-colors";
 import { formatEventName } from "@/lib/utils/event";
+import { formatAttente } from "@/lib/utils/format";
 import { isHttpUrl } from "@/lib/utils/url";
 import { useSaveParticipation } from "@/lib/queries/participations";
 import { useImportStream } from "@/hooks/useImportStream";
@@ -569,14 +570,6 @@ function causeSerie(reason: string): string {
   return "la page n'a pas pu être lue";
 }
 
-/** « 3 minutes » ou « moins d'une minute » — le décompte du plafond de débit.
- *  Les secondes n'y apportent rien sur une attente qui se compte en minutes, et
- *  un « 179 s » qui défile donnerait envie de rester à regarder. */
-function formatAttente(secondes: number): string {
-  const minutes = Math.ceil(secondes / 60);
-  if (minutes <= 1) return "moins d'une minute";
-  return `${minutes} minutes`;
-}
 
 /** « 45 s », « 1 min 5 s » — le temps déjà passé sur l'import en cours. */
 function formatDuree(secondes: number): string {

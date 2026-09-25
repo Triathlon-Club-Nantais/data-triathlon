@@ -515,6 +515,15 @@ describe("AppNav — actions primaires", () => {
     expect(within(modale).getByText("Saisissez au moins 2 lettres de votre nom.")).toBeInTheDocument();
   });
 
+  it("offers no athlete search on /acces, where the search can only fail (#953)", async () => {
+    chemin.courant = "/acces";
+    afficher(null);
+
+    expect(screen.queryByRole("button", { name: "Rechercher un athlète" })).not.toBeInTheDocument();
+    await userEvent.keyboard("{Control>}k{/Control}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   // #502, revue UI/UX item 11 : la bande « Ma saison » n'a ni route ni état
   // pour ouvrir la palette quand l'athlète retenu a disparu (404) — elle le
   // demande par cet événement, qu'`AppNav` seul sait exaucer (`pickerOpen`
