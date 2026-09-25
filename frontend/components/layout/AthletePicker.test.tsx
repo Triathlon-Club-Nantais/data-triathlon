@@ -252,6 +252,20 @@ describe("AthletePicker — ARIA combobox and listbox (#996)", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Plus de 12 athlètes trouvés, précisez la recherche",
     );
+    expect(
+      screen.getByText("Plus de 12 athlètes trouvés, précisez la recherche", {
+        ignore: "[role=status], [role=status] *",
+      }),
+    ).toBeVisible();
+  });
+
+  it("outlines the active option so keyboard users can see it", async () => {
+    searchAthletes.mockResolvedValue(DEUX);
+    const user = await chercher("herr");
+    await user.keyboard("{ArrowDown}");
+    const [premier, second] = screen.getAllByRole("option");
+    expect(premier.style.outline).toBe("2px solid var(--tcn-orange)");
+    expect(second.style.outline).toBe("");
   });
 
   it("renders no listbox and no aria-controls without results", () => {
