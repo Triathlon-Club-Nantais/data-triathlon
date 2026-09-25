@@ -104,6 +104,23 @@ describe("UserMenu: unreadable session (#954)", () => {
   });
 });
 
+describe("UserMenu: pending session (#954)", () => {
+  it("shows a neutral busy placeholder instead of an empty slot", async () => {
+    getSession.mockReset();
+    getSession.mockReturnValue(new Promise(() => {}));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <UserMenu pleineLargeur />
+      </QueryClientProvider>,
+    );
+
+    const attente = await screen.findByRole("status", { name: "Lecture de la session" });
+    expect(attente).toHaveAttribute("aria-busy", "true");
+    expect(screen.queryByRole("button", { name: "Se connecter" })).not.toBeInTheDocument();
+  });
+});
+
 describe("UserMenu — anonyme (AC5)", () => {
   it("propose « Se connecter », inchangé", async () => {
     afficher(null);

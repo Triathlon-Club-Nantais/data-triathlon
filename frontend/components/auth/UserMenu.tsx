@@ -69,9 +69,9 @@ export function UserMenu({
     );
   }
 
-  // Tant que la session n'est pas connue, on n'affiche rien : faire clignoter
-  // « Se connecter » avant de le remplacer par un nom est pire que d'attendre.
-  if (isPending) return null;
+  // Faire clignoter « Se connecter » avant de le remplacer par un nom est pire
+  // que d'attendre : la place du compte est tenue par un repère neutre.
+  if (isPending) return <SessionEnLecture />;
 
   if (!session) {
     // Navigation par le **routeur**, jamais un `<Link>` enveloppant ce bouton :
@@ -166,6 +166,24 @@ export function UserMenu({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/** Place du compte tant que la session est en lecture, sans rien affirmer (#954). */
+export function SessionEnLecture() {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label="Lecture de la session"
+      style={{
+        width: 44,
+        height: 44,
+        flex: "none",
+        borderRadius: "var(--tcn-radius-pill)",
+        border: "1.5px solid var(--tcn-border)",
+      }}
+    />
   );
 }
 
