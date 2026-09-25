@@ -49,7 +49,9 @@ def build(db: Session, participation: Participation) -> ParticipationStatsOut | 
     """
     if participation.is_relay or not is_stats_eligible(participation.course):
         return None
-    ranking = participation_repository.list_for_course(db, participation.course_id)
+    ranking = participation_repository.list_ranking_for_course(
+        db, participation.course_id, keep_participation_id=participation.id
+    )
     return build_from_ranking(participation, ranking)
 
 
