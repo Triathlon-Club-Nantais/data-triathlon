@@ -29,6 +29,36 @@ describe("FeedbackButton", () => {
     expect(submitFeedback).not.toHaveBeenCalled();
   });
 
+  it("announces the validation error and links it to the fields (#930)", async () => {
+    const user = userEvent.setup();
+    render(<FeedbackButton />);
+
+    await user.click(screen.getByRole("button", { name: /signaler un bug/i }));
+    await user.click(screen.getByRole("button", { name: "Envoyer" }));
+
+    const alerte = screen.getByRole("alert");
+    expect(alerte).toHaveTextContent(/obligatoires/i);
+    expect(alerte.style.color).toBe("var(--tcn-danger-text)");
+    for (const champ of [screen.getByLabelText("Titre"), screen.getByLabelText("Description")]) {
+      expect(champ).toHaveAttribute("aria-invalid", "true");
+      expect(champ).toHaveAttribute("aria-describedby", alerte.id);
+    }
+  });
+
+  it("announces a submission error without marking the fields invalid (#930)", async () => {
+    submitFeedback.mockRejectedValueOnce(new Error("offline"));
+    const user = userEvent.setup();
+    render(<FeedbackButton />);
+
+    await user.click(screen.getByRole("button", { name: /signaler un bug/i }));
+    await user.type(screen.getByLabelText("Titre"), "Un titre");
+    await user.type(screen.getByLabelText("Description"), "Une description.");
+    await user.click(screen.getByRole("button", { name: "Envoyer" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Erreur réseau, réessayez.");
+    expect(screen.getByLabelText("Titre")).not.toHaveAttribute("aria-invalid");
+  });
+
   it("affiche une confirmation après envoi", async () => {
     submitFeedback.mockResolvedValue({ id: 1, status: "nouveau" });
     const user = userEvent.setup();
