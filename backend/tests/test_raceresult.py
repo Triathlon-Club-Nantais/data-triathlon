@@ -1912,6 +1912,48 @@ def test_enrichir_ne_promeut_jamais_un_statut_de_non_finisher_deja_etabli():
     assert existant.status == "DNF"
 
 
+@pytest.mark.parametrize("statut", ["DNF", "DNS", "DSQ"])
+def test_enrichir_ne_donne_jamais_de_temps_total_a_un_non_finisher(statut):
+    """#970 : sur Embrunman 350635, le `hidden` porte le cumul au point
+    d'abandon ; recopié, il donnait un temps d'arrivée à 123 DNF."""
+    existant = _res(status=statut, total_time="", rank_overall=None)
+    apport = _res(total_time="07:40:11", club="TCN")
+    raceresult._enrichir(existant, apport)
+    assert existant.total_time == ""
+    assert existant.club == "TCN", "les autres scalaires restent enrichis"
+
+
+def test_scrape_event_all_hors_delai_otl_reste_dnf_malgre_le_temps_hidden(monkeypatch):
+    """#970, forme d'Embrunman 350635 : la cellule de rang du publié vaut
+    `OTL` et seul le `hidden` porte un temps (le cumul à l'élimination)."""
+    specs = [("Results", "1")]
+    hidden = [("Classement Général", "1")]
+    publie = {
+        "DataFields": ["BIB", "ID", "OrStatus([AUTORANK.p])", "DisplayName", "OrStatus([TIME])"],
+        "list": {"Fields": [
+            {"Expression": "OrStatus([AUTORANK.p])", "Label": "Rang"},
+            {"Expression": "DisplayName", "Label": "Nom"},
+            {"Expression": "OrStatus([TIME])", "Label": "Temps"},
+        ]},
+        "data": {"#1_Distance S": {"#1_Femmes": [
+            ["25", "25", "OTL", "TSUKAMURA Makiko", "OTL"],
+        ]}},
+    }
+    payloads = {
+        ("Results", "1"): publie,
+        ("Classement Général", "1"): _payload_splits({"#1_Distance S": [
+            ["25", "25", "TSUKAMURA Makiko", "02:57:55", "", "02:57:55"],
+        ]}),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads, hidden=hidden)
+
+    [r] = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert r.status == STATUS_DNF
+    assert r.total_time == ""
+    assert r.rank_overall is None
+
+
 def test_enrichir_n_ecrase_jamais_un_scalaire_renseigne():
     existant = _res(total_time="01:00:00", club="ASPTT")
     apport = _res(total_time="09:99:99", club="AUTRE")

@@ -281,6 +281,11 @@ _STATUS_TOKENS: dict[str, str] = {
     # Pluriel : RaceResult nomme ses groupes de statut « Abandons ».
     "abandons": STATUS_DNF,
     "ab": STATUS_DNF,
+    # Hors délai (barrière horaire) : « OTL » d'Embrunman, RaceResult 350635 (#970).
+    "otl": STATUS_DNF,
+    "hd": STATUS_DNF,
+    "horsdelai": STATUS_DNF,
+    "horsdelais": STATUS_DNF,
     # Non-partant (Did Not Start)
     "dns": STATUS_DNS,
     "nonpartant": STATUS_DNS,
