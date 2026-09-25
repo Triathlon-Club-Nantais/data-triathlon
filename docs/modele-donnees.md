@@ -147,7 +147,9 @@ et compte une fois pour le club. Détail et pièges : `backend/app/models/AGENTS
 `Course.source_url` — l'URL de la **source active**, plus une colonne depuis
 #279 — est la clé de cache, et `courses.scraped_at` l'horodatage.
 `services/cache.is_fresh()` court-circuite le re-scraping : 10 min si la course
-est en cours (une participation sans `total_time`), sinon 30 jours.
+est en cours (une participation **finisher** sans `total_time` ; le jour de
+l'épreuve et le lendemain, n'importe quelle participation sans temps, #913),
+sinon 30 jours.
 
 ### Recherche fuzzy (Postgres uniquement)
 Migration `a1b2c3d4e5f6` : extension `pg_trgm` + index GIN trigram
