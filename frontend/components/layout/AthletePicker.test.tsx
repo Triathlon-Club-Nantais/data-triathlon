@@ -158,6 +158,58 @@ describe("AthletePicker: search error state (#953)", () => {
     expect(screen.getByText("Réessayez dans 3 minutes.")).toBeInTheDocument();
   });
 
+  it("gives the access link the orange focus ring and a tactile target (#953)", async () => {
+    searchAthletes.mockRejectedValue(new ApiError(401, "unauthorized"));
+    await search("ma");
+
+    expect(await screen.findByRole("link", { name: "Saisir le code d'accès" })).toHaveClass(
+      "tcn-lien-action",
+      "tcn-lien-action--tactile",
+    );
+  });
+
+  it("styles the retry button as an action link (#953)", async () => {
+    searchAthletes.mockRejectedValue(new ApiError(500, "boom"));
+    await search("ma");
+
+    expect(await screen.findByRole("button", { name: "Réessayer" })).toHaveClass(
+      "tcn-lien-action",
+      "tcn-lien-action--tactile",
+    );
+  });
+
+  it("does not offer a retry next to the access code on a 401, nothing changed (#953)", async () => {
+    searchAthletes.mockRejectedValue(new ApiError(401, "unauthorized"));
+    await search("ma");
+
+    await screen.findByRole("link", { name: "Saisir le code d'accès" });
+    expect(screen.queryByRole("button", { name: "Réessayer" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the retry inert until the rate limit wait has elapsed (429, #953)", async () => {
+    searchAthletes.mockRejectedValue(new ApiError(429, "slow down", 180));
+    const user = await search("ma");
+
+    const reessayer = await screen.findByRole("button", { name: "Réessayer" });
+    expect(reessayer).toHaveAttribute("aria-disabled", "true");
+    const appels = searchAthletes.mock.calls.length;
+    await user.click(reessayer);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    expect(searchAthletes).toHaveBeenCalledTimes(appels);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(180_000);
+    });
+    expect(reessayer).not.toHaveAttribute("aria-disabled");
+    await user.click(reessayer);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    expect(searchAthletes).toHaveBeenCalledTimes(appels + 1);
+  });
+
   it("retries the same query and shows the results once the API answers", async () => {
     searchAthletes
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))

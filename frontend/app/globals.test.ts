@@ -158,6 +158,16 @@ describe("actions posées dans un champ TCN", () => {
   });
 });
 
+describe("action en texte", () => {
+  it("prend 44px de cible tactile quand elle est posée seule (#953)", () => {
+    expect(rule(".tcn-lien-action--tactile")).toContain("min-height: 44px");
+  });
+
+  it("se montre inerte sous aria-disabled (#953)", () => {
+    expect(rule('.tcn-lien-action[aria-disabled="true"]')).toContain("cursor: not-allowed");
+  });
+});
+
 describe("bouton TCN", () => {
   // `components/tcn/` stylait tout en `CSSProperties` en ligne, où `:hover`,
   // `:active`, `:focus-visible` et `disabled` sont **inexprimables** : c'était la

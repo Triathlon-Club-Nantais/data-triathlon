@@ -216,6 +216,9 @@ export function AthletePicker({
   const [loading, setLoading] = useState(false);
   const [erreur, setErreur] = useState<unknown>(null);
   const [tentative, setTentative] = useState(0);
+  // Un 429 donne son délai : « Réessayer » reste inerte tant qu'il court, le
+  // texte à côté demande d'attendre.
+  const [attenteEnCours, setAttenteEnCours] = useState(false);
   const [actif, setActif] = useState(-1);
   const [rowsVues, setRowsVues] = useState(rows);
   if (rows !== rowsVues) {
@@ -245,6 +248,7 @@ export function AthletePicker({
         if (!cancelled) {
           setRows([]);
           setErreur(e);
+          setAttenteEnCours(e instanceof ApiError && e.status === 429 && !!e.retryAfter);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -255,6 +259,12 @@ export function AthletePicker({
       clearTimeout(t);
     };
   }, [query, tentative]);
+
+  useEffect(() => {
+    if (!attenteEnCours || !(erreur instanceof ApiError) || !erreur.retryAfter) return;
+    const t = setTimeout(() => setAttenteEnCours(false), erreur.retryAfter * 1000);
+    return () => clearTimeout(t);
+  }, [attenteEnCours, erreur]);
 
   useEffect(() => {
     if (actifId) document.getElementById(actifId)?.scrollIntoView?.({ block: "nearest" });
@@ -374,17 +384,23 @@ export function AthletePicker({
             action={
               <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
                 {echec.accesManquant && (
-                  <a href="/acces" style={{ fontWeight: 700, color: "var(--tcn-ink)" }}>
+                  <a href="/acces" className="tcn-lien-action tcn-lien-action--tactile">
                     Saisir le code d&apos;accès
                   </a>
                 )}
-                <button
-                  type="button"
-                  onClick={() => setTentative((n) => n + 1)}
-                  style={{ background: "none", border: "none", padding: 0, font: "inherit", fontWeight: 700, color: "var(--tcn-ink)", cursor: "pointer" }}
-                >
-                  Réessayer
-                </button>
+                {/* Sur un 401, relancer la même requête sans code d'accès n'y changerait rien. */}
+                {!echec.accesManquant && (
+                  <button
+                    type="button"
+                    className="tcn-lien-action tcn-lien-action--tactile"
+                    aria-disabled={attenteEnCours || undefined}
+                    onClick={() => {
+                      if (!attenteEnCours) setTentative((n) => n + 1);
+                    }}
+                  >
+                    Réessayer
+                  </button>
+                )}
               </div>
             }
           />
