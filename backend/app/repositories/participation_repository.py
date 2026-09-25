@@ -568,6 +568,23 @@ def list_for_course(db: Session, course_id: int) -> list[Participation]:
     )
 
 
+def list_ranking_for_course(
+    db: Session, course_id: int, *, keep_participation_id: int | None = None
+) -> list[Participation]:
+    """Classement de référence affiché (#938) : sans les résultats en attente,
+    sauf la participation consultée, qui reste son propre point de mesure (FR-019).
+    """
+    kept = validated_clause(Participation.is_pending_validation)
+    if keep_participation_id is not None:
+        kept = kept | (Participation.id == keep_participation_id)
+    return (
+        db.query(Participation)
+        .filter(Participation.course_id == course_id, kept)
+        .order_by(Participation.rank_overall.is_(None), Participation.rank_overall)
+        .all()
+    )
+
+
 # Groupes d'affichage : finishers, puis DNF, DSQ, DNS. Un statut vide ou inconnu
 # est un finisher potentiel et reste dans le groupe 0 (cf. `raceOrder.groupRank`).
 _GROUPE_AFFICHAGE = case(

@@ -37,6 +37,7 @@ trois repositories :
 | `stats_totals`/`stats_by_type`/`stats_by_month_rows`/`stats_recent_rows`/`stats_rank_rows` | `participation_repository.py` | tableau de bord et page club via `stats_service.get_stats` — dont `rank_counters` (#376), calculé côté service ; remplacent `for_stats`, supprimée (#580). La liste de podiums de `/club`, elle, vient de `club_podiums` (#581) |
 | `list_page_for_course` | `participation_repository.py` | classement paginé d'une épreuve |
 | `summary_rows_for_course` | `participation_repository.py` | synthèse d'épreuve |
+| `list_ranking_for_course` | `participation_repository.py` | `stats` de `GET /participations/{id}` ; garde la participation consultée même en attente (FR-019, #938) |
 | `finishers_count_by_group` | `participation_repository.py` | `course_finishers` de la fiche athlète |
 | `distinct_seasons` | `participation_repository.py` | `stats_service.list_seasons` → sélecteur de saisons |
 | `_filtered` (branche `club_only`) | `course_repository.py` | `GET /courses?scope=club` et `GET /courses/count?scope=club` |
@@ -55,7 +56,8 @@ au lieu de l'y garder à 0 résultat validé (#562).
 
 **Délibérément absente** de six autres fonctions de `participation_repository.py` :
 `list_for_athlete` (la surface voulue par FR-019 — la filtrer viderait la
-feature de son objet), `list_for_course` (chemin d'import, pas d'affichage),
+feature de son objet), `list_for_course` (chemin d'import, pas d'affichage : les statistiques détaillées
+lisent `list_ranking_for_course`, #938),
 `count_for_athlete` (purge des fiches orphelines, #117),
 `count_for_course`/`delete_for_course` (gestes d'administration),
 `count_bibs_absent_from` (aperçu de fusion, #286) et `existing_bibs_for_course`

@@ -270,3 +270,20 @@ def test_club_podiums_exclut_une_pendante(db_session):
     # deux sont podium, seule la validée doit apparaître.
     rows = participation_repository.club_podiums(db_session)
     assert [r[0] for r in rows] == [validee.id]
+
+
+# --- #938 : classement de référence des statistiques détaillées ---
+
+
+def test_list_ranking_for_course_exclut_une_pendante(db_session):
+    course, pendante, validee = _duo(db_session)
+    rows = participation_repository.list_ranking_for_course(db_session, course.id)
+    assert [r.id for r in rows] == [validee.id]
+
+
+def test_list_ranking_for_course_garde_la_participation_consultee(db_session):
+    course, pendante, validee = _duo(db_session)
+    rows = participation_repository.list_ranking_for_course(
+        db_session, course.id, keep_participation_id=pendante.id
+    )
+    assert [r.id for r in rows] == [pendante.id, validee.id]

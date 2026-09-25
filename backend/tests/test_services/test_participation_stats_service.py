@@ -350,3 +350,37 @@ def test_published_segments_follow_chronological_order():
         _participation(rank=2, splits={"swim": "00:21:00", "bike": "01:01:00", "run": "00:41:00"}),
     ]
     assert participation_stats_service.published_segments(ranking) == ["swim", "bike", "run"]
+
+
+def _add_pending_declaration(db, course, *, rank, total):
+    athlete = athlete_repository.get_or_create(db, nom="DECLARANT", prenom="Paul", club="TCN")
+    row = participation_repository.create(
+        db, athlete_id=athlete.id, course_id=course.id, bib_number=None, club="TCN",
+        rank_overall=rank, total_time=total, splits={"swim": "00:10:00", "bike": "00:20:00"},
+        is_pending_validation=True,
+    )
+    db.flush()
+    return row
+
+
+def test_build_ignores_a_pending_declaration_of_another_athlete(db_session):
+    """#938: an unverified declaration at rank 1 must not become the "1er" reference."""
+    course, rows = _seed_course(db_session)
+    _add_pending_declaration(db_session, course, rank=1, total="00:30:00")
+
+    stats = participation_stats_service.build(db_session, rows[2])
+
+    assert stats.comparison[0].theirs_seconds["total"] == 4800
+    assert stats.ranking_evolution[-1].scratch_position == 3
+
+
+def test_build_keeps_the_consulted_pending_participation_as_measure_point(db_session):
+    """FR-019: a pending result stays visible on its own athlete page."""
+    course, _ = _seed_course(db_session)
+    pending = _add_pending_declaration(db_session, course, rank=4, total="01:50:00")
+
+    stats = participation_stats_service.build(db_session, pending)
+
+    assert stats is not None
+    assert stats.comparison[0].theirs_seconds["total"] == 4800
+    assert stats.ranking_evolution[-1].scratch_position == 4
