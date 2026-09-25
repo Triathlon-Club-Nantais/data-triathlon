@@ -55,7 +55,7 @@ export function AppelFin({
     <div className="space-y-4">
       <p aria-live="polite" className="text-sm font-medium">
         {manquants === 0
-          ? "Tous les jeunes présents ce matin ont été retrouvés."
+          ? "Tous les jeunes présents à l'appel de début ont été retrouvés."
           : `${manquants} jeune${manquants > 1 ? "s" : ""} restant${manquants > 1 ? "s" : ""} à vérifier.`}
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
