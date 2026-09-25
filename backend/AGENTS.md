@@ -50,6 +50,10 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
   ~1,35 s que xdist coûte à une exécution d'un seul fichier. Les tests
   `integration` héritent aussi du `-n 4` : les lancer avec `-n 0` pour ne pas
   quadrupler le débit sortant vers les fournisseurs.
+  **La suite ne lit jamais `backend/.env`** (#911) : `tests/conftest.py` coupe
+  sa lecture et force, avant tout import de `core/database.py`, une SQLite
+  jetable et un jeton PostHog vide (`tests/test_unit_isolation.py` le garde).
+  Un test qui a besoin d'une variable la pose par `monkeypatch.setenv`.
 
 **Cache TTL** — `services/cache.py` : `is_fresh(course)` → 10 min si course en
 cours (une participation **finisher** sans `total_time`, ou n'importe laquelle
