@@ -30,13 +30,15 @@ vi.mock("next/navigation", () => ({
 // conflit, confirmation de suppression), avec un vrai `QueryClientProvider`.
 // Ici, un visiteur anonyme systématique et des requêtes neutres suffisent : la
 // page publique doit être strictement celle d'avant la feature (SC-004).
+const sessionCourante = vi.hoisted(() => ({ data: null as { permissions: string[] } | null }));
+const quotaCourant = vi.hoisted(() => ({ data: undefined as unknown }));
 vi.mock("@/lib/queries/auth", () => ({
-  useSession: () => ({ data: null }),
+  useSession: () => sessionCourante,
 }));
 vi.mock("@/lib/queries/admin", () => ({
   useAdminAthlete: () => ({ data: undefined }),
   useUpdateAthlete: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useSeasonQuota: () => ({ data: undefined }),
+  useSeasonQuota: () => quotaCourant,
   useValidateSeason: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUnvalidateSeason: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useValidatedVolunteerActions: () => ({ data: undefined, isPending: false }),
@@ -101,6 +103,8 @@ async function renderAthlete(participations: Participation[]) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  sessionCourante.data = null;
+  quotaCourant.data = undefined;
 
   const stock = new Map<string, string>();
   Object.defineProperty(window, "localStorage", {
@@ -601,6 +605,20 @@ describe("AthletePage — tuiles proportionnées au volume (PROF-4, #488)", () =
     for (const label of ["Épreuves", "Meilleure place", "Meilleur ratio", "Top 10", "Format favori"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
+  });
+});
+
+describe("AthletePage: season validation panel stays out of the header (#927)", () => {
+  it("renders the season validation card below the header, not in its actions slot", async () => {
+    sessionCourante.data = { permissions: ["athletes:season_validate"] };
+    quotaCourant.data = { validated_count: 2, has_volunteer_action: false, season_validated: false };
+    await renderAthlete([part({ id: 1, rank_overall: 12 })]);
+
+    const bouton = screen.getByRole("button", { name: "Valider la saison" });
+    const titre = screen.getByRole("heading", { level: 1, name: "Jean DUPONT" });
+    const entete = titre.closest(".mb-7");
+    expect(entete).not.toBeNull();
+    expect(entete).not.toContainElement(bouton);
   });
 });
 

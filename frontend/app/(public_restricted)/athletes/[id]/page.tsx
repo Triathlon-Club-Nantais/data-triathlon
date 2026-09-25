@@ -98,14 +98,9 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
           eyebrow={athlete.club ?? "Résultats enregistrés"}
           title={fullName}
           actions={
-            <>
-              <AthleteHeaderActions
-                athlete={{ id: athlete.id, nom: athlete.nom, prenom: athlete.prenom, club: athlete.club }}
-              />
-              <SeasonValidationPanel
-                athlete={{ id: athlete.id, nom: athlete.nom, prenom: athlete.prenom }}
-              />
-            </>
+            <AthleteHeaderActions
+              athlete={{ id: athlete.id, nom: athlete.nom, prenom: athlete.prenom, club: athlete.club }}
+            />
           }
         >
           {(categorie || athlete.gender) && (
@@ -133,6 +128,9 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
           `/resultats` — plutôt que des marges inline par carte, qui avaient
           fini par diverger entre elles (#654). */}
       <div className="space-y-6">
+        {/* Une carte, pas une commande : dans le slot `actions`, son bloc
+            incompressible faisait déborder la page de 641 à 1 700 px (#927). */}
+        <SeasonValidationPanel athlete={{ id: athlete.id, nom: athlete.nom, prenom: athlete.prenom }} />
         {resume.regime === "reduit" && (
           <div className="space-y-4">
             {/* Une seule colonne sous 640px : `.tcn-stat-value` rend 68px display
