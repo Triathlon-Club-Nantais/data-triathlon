@@ -83,6 +83,34 @@ def db_session():
 
 
 @pytest.fixture
+def db_session_fk():
+    """Comme `db_session`, mais avec `PRAGMA foreign_keys=ON` : les FK s'y
+    vérifient comme en PostgreSQL, là où `database.py` les laisse inertes."""
+    from sqlalchemy import event
+
+    import app.models  # noqa: F401
+    from app.core.database import Base
+
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+
+    @event.listens_for(engine, "connect")
+    def _foreign_keys_on(dbapi_connection, _record):
+        dbapi_connection.execute("PRAGMA foreign_keys=ON")
+
+    Base.metadata.create_all(bind=engine)
+    session = sessionmaker(autocommit=False, autoflush=False, bind=engine)()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
+
+
+@pytest.fixture
 def client(db_session):
     """TestClient avec `get_db` surchargé pour utiliser la base de test.
 
