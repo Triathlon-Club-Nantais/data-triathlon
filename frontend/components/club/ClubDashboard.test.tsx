@@ -8,6 +8,8 @@ import type { ClubSummary, Participation, Stats } from "@/lib/types";
 vi.mock("@/components/charts/BarList", () => ({ BarList: () => <div data-testid="barlist" /> }));
 vi.mock("@/components/charts/MonthlyTrend", () => ({ MonthlyTrend: () => <div data-testid="monthly" /> }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
+const { session } = vi.hoisted(() => ({ session: { permissions: ["pages:preview"] as string[] } }));
+vi.mock("@/lib/queries/auth", () => ({ useSession: () => ({ data: session }) }));
 
 import { ClubDashboard } from "./ClubDashboard";
 
@@ -154,6 +156,21 @@ describe("ClubDashboard — smoke", () => {
       "href",
       "/club/athletes",
     );
+  });
+
+  it("roster : aucun lien vers /club/athletes sans le pouvoir pages:preview (#925)", () => {
+    session.permissions = [];
+    try {
+      const summary: ClubSummary = { ...EMPTY_SUMMARY, roster: [rosterEntry(1)] };
+      const { container } = render(
+        <ClubDashboard stats={STATS} summary={summary} recent={[]} resultsTotal={STATS.total} />,
+      );
+
+      expect(screen.queryByText("Voir saison par saison →")).not.toBeInTheDocument();
+      expect(container.querySelector('a[href^="/club/athletes"]')).toBeNull();
+    } finally {
+      session.permissions = ["pages:preview"];
+    }
   });
 
   it("roster : titre « Athlètes du club » sous le plafond", () => {

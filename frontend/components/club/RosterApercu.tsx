@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Avatar, VousChip } from "@/components/tcn";
 import { useSelectedAthlete } from "@/components/layout/AthletePicker";
+import { useDestinationVisible } from "@/components/layout/LienDestination";
 import { useClubRosterRank } from "@/lib/queries/club";
 import { SPORTS_PARAM, federalOnlyFromParam } from "@/lib/scope";
 import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
@@ -33,25 +34,36 @@ export function RosterApercu({ roster }: { roster: ClubRosterEntry[] }) {
     enabled: horsApercu,
   });
 
+  const listeVisible = useDestinationVisible("/club/athletes");
+  const rappelClassName = "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold";
+  const rappelStyle = {
+    background: "var(--tcn-orange-08)",
+    border: "1px solid rgba(233,83,14,.25)",
+    color: "var(--tcn-orange-deeper)",
+  };
+  const rappel = classement
+    ? `Vous : ${classement.rank}ᵉ des ${classement.total} athlètes du club`
+    : `Vous n'êtes pas parmi les ${roster.length} athlètes les plus actifs`;
+
   return (
     <>
       <div className="min-h-11">
-        {horsApercu && (
-          <Link
-            href={`/club/athletes#athlete-${athleteRetenu.id}`}
-            className="inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold"
-            style={{
-              background: "var(--tcn-orange-08)",
-              border: "1px solid rgba(233,83,14,.25)",
-              color: "var(--tcn-orange-deeper)",
-            }}
-          >
-            {classement
-              ? `Vous : ${classement.rank}ᵉ des ${classement.total} athlètes du club`
-              : `Vous n'êtes pas parmi les ${roster.length} athlètes les plus actifs`}{" "}
-            — Voir tous les athlètes →
-          </Link>
-        )}
+        {horsApercu &&
+          (listeVisible ? (
+            <Link
+              href={`/club/athletes#athlete-${athleteRetenu.id}`}
+              className={rappelClassName}
+              style={rappelStyle}
+            >
+              {rappel} — Voir tous les athlètes →
+            </Link>
+          ) : (
+            // Sans `pages:preview` (#925), le rang reste dit mais sans mener
+            // à une liste que ce visiteur ne peut pas ouvrir.
+            <p className={rappelClassName} style={rappelStyle}>
+              {rappel}
+            </p>
+          ))}
       </div>
       {roster.some((r) => r.podiums > 0) && (
         <p className="text-sm text-[var(--tcn-text-faint)]">

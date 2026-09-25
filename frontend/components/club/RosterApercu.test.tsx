@@ -8,7 +8,11 @@ import type { ClubRosterEntry } from "@/lib/types";
 
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
 
-const { getClubRosterRank } = vi.hoisted(() => ({ getClubRosterRank: vi.fn() }));
+const { getClubRosterRank, session } = vi.hoisted(() => ({
+  getClubRosterRank: vi.fn(),
+  session: { permissions: ["pages:preview"] as string[] },
+}));
+vi.mock("@/lib/queries/auth", () => ({ useSession: () => ({ data: session }) }));
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return { ...original, apiClient: { ...original.apiClient, getClubRosterRank } };
@@ -48,6 +52,7 @@ describe("RosterApercu — retrouver sa ligne (#504)", () => {
     });
     getClubRosterRank.mockReset();
     getClubRosterRank.mockResolvedValue(null);
+    session.permissions = ["pages:preview"];
   });
 
   afterEach(() => {
@@ -104,5 +109,18 @@ describe("RosterApercu — retrouver sa ligne (#504)", () => {
 
     const rappel = await screen.findByRole("link", { name: /n'êtes pas parmi les 12 athlètes/ });
     expect(rappel).toHaveAttribute("href", "/club/athletes#athlete-99");
+  });
+
+  it("garde le rang sans lien vers /club/athletes sans le pouvoir pages:preview (#925)", async () => {
+    session.permissions = [];
+    const roster = Array.from({ length: 12 }, (_, i) => entry({ athlete_id: i + 1, count: 12 - i + 1 }));
+    writeAthlete({ id: 99, prenom: "M", nom: "Moi" });
+    getClubRosterRank.mockResolvedValue({ rank: 47, total: 350 });
+
+    const { container } = render(<RosterApercu roster={roster} />);
+
+    expect(await screen.findByText(/Vous : 47ᵉ des 350 athlètes du club/)).toBeInTheDocument();
+    expect(screen.queryByText(/Voir tous les athlètes/)).not.toBeInTheDocument();
+    expect(container.querySelector('a[href^="/club/athletes"]')).toBeNull();
   });
 });

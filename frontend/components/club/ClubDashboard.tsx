@@ -12,6 +12,7 @@ import type { ClubSummary, Participation, Stats } from "@/lib/types";
 import { PodiumsList } from "./PodiumsList";
 import { ClubPodiumKpi } from "./ClubPodiumKpi";
 import { RosterApercu } from "./RosterApercu";
+import { LienDestination } from "@/components/layout/LienDestination";
 import { DisciplinePerformance } from "./DisciplinePerformance";
 import { ClubComposition } from "./ClubComposition";
 
@@ -126,18 +127,18 @@ export function ClubDashboard({
           <h2 className="font-heading text-lg font-semibold">
             {stats.athletes > roster.length ? "Les athlètes les plus actifs" : "Athlètes du club"}
           </h2>
-          {/* Inconditionnel : « les deux écrans reliés dans les deux sens »
-              est une garantie de navigation, elle ne peut pas s'éteindre sous
-              13 athlètes. Le libellé dit la destination et non un décompte —
+          {/* Soumis à la visibilité du rail (#925) : /club/athletes est
+              réservé à `pages:preview` (#811). Indépendant du nombre
+              d'athlètes. Le libellé dit la destination et non un décompte :
               /club/athletes ouvre sur la saison en cours seule, quand
               `roster.length` agrège toutes les saisons ; le total du club vit
               dans le KPI « Athlètes », qui le tient déjà. */}
-          <Link
+          <LienDestination
             href="/club/athletes"
             className="shrink-0 text-sm font-medium text-accent-ink hover:underline"
           >
             Voir saison par saison →
-          </Link>
+          </LienDestination>
         </div>
         {/* #488 (PROF-3, revue UI/UX) : `club_roster` (backend) compte les
             podiums sur les trois portées sans condition, quand le KPI « Podiums » plus

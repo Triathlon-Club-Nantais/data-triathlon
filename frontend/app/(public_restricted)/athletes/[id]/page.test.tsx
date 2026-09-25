@@ -583,13 +583,13 @@ describe("AthletePage — l'en-tête identifie l'athlète (PROF-5, #488)", () =>
     expect(screen.getByText("Genre").parentElement).toHaveTextContent("M");
   });
 
-  it("offre un retour vers la liste des athlètes du club", async () => {
-    await renderAthlete([part({ id: 1, rank_overall: 12 })]);
+  // `/club/athletes` est réservé à `pages:preview` (#811) : le retour vise
+  // l'espace club, accessible à tout visiteur de la fiche (#925).
+  it("offre un retour vers l'espace club, jamais vers /club/athletes", async () => {
+    const { container } = await renderAthlete([part({ id: 1, rank_overall: 12 })]);
 
-    expect(screen.getByRole("link", { name: /Athlètes par saison/ })).toHaveAttribute(
-      "href",
-      "/club/athletes",
-    );
+    expect(screen.getByRole("link", { name: /Espace club/ })).toHaveAttribute("href", "/club");
+    expect(container.querySelector('a[href^="/club/athletes"]')).toBeNull();
   });
 
   it("retombe sur « Résultats enregistrés » quand l'athlète n'a pas de club", async () => {
