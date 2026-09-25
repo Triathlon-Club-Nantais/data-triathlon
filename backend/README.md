@@ -127,6 +127,16 @@ n'y a pas d'acteur dont comparer les pouvoirs, et l'accès au serveur *est* le
 privilège —, et elle **n'est pas soumise** à l'invariant du dernier
 administrateur, puisqu'elle ne fait qu'accorder.
 
+Ces trois gestes n'ouvrent pas encore le site : les pages publiques et l'API de
+lecture restent derrière le **code d'accès** (#509), fail-closed tant qu'aucun
+code n'est posé, et aucune commande ne le pose. Dernier geste, dans le
+navigateur : `/admin/acces`, carte « Accès au site », saisir un code ou en
+générer un (`PUT /api/v1/admin/site-access` ou `POST …/generate`, pouvoir
+`site_access:manage`, que `admin` franchit en superutilisateur).
+`GET /api/v1/site-access/session` rend `401` tant que le site est fermé.
+Parcours complet depuis une base neuve : `../README.md` § « Premier
+démarrage : SSO et code d'accès ».
+
 ### Révoquer les sessions en urgence (`revoke-sessions`, #169)
 
 ```bash

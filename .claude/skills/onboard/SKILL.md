@@ -57,6 +57,14 @@ BACKEND_URL=$(sed -n 's/.*"url": *"\([^"]*\)".*/\1/p' .dev-backend.json 2>/dev/n
 [ -n "$BACKEND_URL" ] && curl -sSo /dev/null -w '%{http_code}' -m 2 "$BACKEND_URL/api/v1/health" || echo "000"
 curl -sSo /dev/null -w '%{http_code}' -m 2 http://localhost:3000 || echo "000"
 
+# Code d'accès au site (#509) : sans lui, le front rend 200 mais n'affiche que le formulaire
+(cd backend && uv run python -c "
+from app.core.database import SessionLocal
+from app.repositories import site_access_config_repository as r
+with SessionLocal() as db:
+    print('site_access_configured=' + str(r.get_config(db, with_updated_by=False) is not None).lower())
+" 2>/dev/null)
+
 # gh
 gh auth status 2>&1 | head -1
 ```
@@ -338,6 +346,35 @@ les logs et marquer `failed`.
 - Endpoint santé : `$BACKEND_URL/api/v1/health`
 - API Docs : `$BACKEND_URL/docs` (seulement si `DOCS_ENABLED=true` dans `backend/.env`)
 - Frontend : l'URL `Local:` affichée par `task dev` (`http://localhost:3000` par défaut)
+
+**Code d'accès au site** : un `200` du frontend ne prouve pas que les données
+sont consultables. Toutes les pages publiques et l'API de lecture passent par
+un code d'accès partagé (#509), fail-closed : tant qu'aucun code n'est posé en
+base, chaque page n'affiche que le formulaire `SiteAccessGate`. Ni le seed, ni
+`reset_db.py`, ni la CLI n'en posent un.
+
+Relancer la sonde `site_access_configured` de la détection initiale. Une sonde
+`curl "$BACKEND_URL/api/v1/site-access/session"` rend `401` sans cookie, que le
+code existe ou non : elle ne tranche pas seule, d'où la lecture en base.
+
+**Si `site_access_configured=false`** : ne **pas** marquer l'étape `done`
+en silence. Annoncer au contributeur que le site reste fermé, et dérouler avec
+lui le parcours de `README.md` § « Premier démarrage : SSO et code d'accès »,
+une étape à la fois (chacune demande une action de sa part) :
+
+1. application OAuth GitHub locale
+   (`specs/20260801-145428-auth-socle-sso/quickstart.md` § 1 ; dépôt principal
+   seulement, frontend sur `:3000`) ;
+2. variables `AUTH_*` dans `backend/.env`, puis redémarrer le backend ;
+3. `cd backend && uv run python -m app.cli allow-email --email <adresse>` ;
+4. connexion par le navigateur via `/login` (crée l'utilisateur) ;
+5. `cd backend && uv run python -m app.cli grant-role --email <adresse> --role admin` ;
+6. `/admin/acces`, carte « Accès au site » : saisir ou générer le code, puis
+   le saisir dans le formulaire du site.
+
+Re-sonder ensuite : `site_access_configured=true` attendu. Si le contributeur
+préfère s'arrêter là, marquer `state.steps.dev = "done"` et le dire
+explicitement : serveurs lancés, site encore fermé.
 
 ## Étape 7 — Tour de code
 
