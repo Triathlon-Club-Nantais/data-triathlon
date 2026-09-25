@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Button, Card } from "@/components/tcn";
 import { useSeasonQuota, useUnvalidateSeason, useValidateSeason } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
+import type { SeasonQuota } from "@/lib/types";
 import { currentSeason } from "@/lib/utils/season";
 
 export type CoureurAValider = {
@@ -13,6 +14,7 @@ export type CoureurAValider = {
 
 const ECHEC_VALIDATION = "La saison n'a pas pu être validée. Réessayez dans un instant.";
 const ECHEC_DEVALIDATION = "La saison n'a pas pu être dévalidée. Réessayez dans un instant.";
+const ECHEC_LECTURE = "Le quota de saison n'a pas pu être lu. Réessayez dans un instant.";
 
 /**
  * Actions d'administration du quota de saison d'un coureur (#709) — sur la
@@ -24,27 +26,40 @@ const ECHEC_DEVALIDATION = "La saison n'a pas pu être dévalidée. Réessayez d
 export function SeasonValidationPanel({ athlete }: { athlete: CoureurAValider }) {
   const session = useSession();
   const peutValiderSaison = session.data?.permissions.includes("athletes:season_validate") ?? false;
+  const season = currentSeason();
+  const quota = useSeasonQuota(athlete.id, season, peutValiderSaison);
 
   if (!peutValiderSaison) return null;
+  // Premier bloc de la fiche : une carte vide pendant la lecture ferait sauter
+  // la page à son arrivée.
+  if (!quota.data && !quota.isError) return null;
 
   return (
     <Card>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <ValiderSaison athleteId={athlete.id} />
+        {quota.data ? (
+          <ValiderSaison athleteId={athlete.id} season={season} quota={quota.data} />
+        ) : (
+          <p style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>{ECHEC_LECTURE}</p>
+        )}
       </div>
     </Card>
   );
 }
 
-function ValiderSaison({ athleteId }: { athleteId: number }) {
-  const season = currentSeason();
-  const quota = useSeasonQuota(athleteId, season, true);
+function ValiderSaison({
+  athleteId,
+  season,
+  quota,
+}: {
+  athleteId: number;
+  season: number;
+  quota: SeasonQuota;
+}) {
   const valider = useValidateSeason();
   const devalider = useUnvalidateSeason();
 
-  if (!quota.data) return null;
-
-  const { validated_count, has_volunteer_action, season_validated } = quota.data;
+  const { validated_count, has_volunteer_action, season_validated } = quota;
 
   async function handleValider() {
     try {

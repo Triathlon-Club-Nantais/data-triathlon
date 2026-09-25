@@ -68,6 +68,28 @@ describe("SeasonValidationPanel: layout below the header (#927)", () => {
     const bouton = await screen.findByRole("button", { name: /^valider la saison$/i });
     expect(bouton.parentElement).toHaveStyle({ alignItems: "flex-start" });
   });
+
+  it("renders no empty card while the quota is loading", async () => {
+    getSession.mockResolvedValue(session(["athletes:season_validate"]));
+    getSeasonQuota.mockReturnValue(new Promise(() => {}));
+
+    const { container } = afficher();
+
+    await waitFor(() => expect(getSeasonQuota).toHaveBeenCalled());
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("says the quota could not be read instead of leaving an empty card", async () => {
+    getSession.mockResolvedValue(session(["athletes:season_validate"]));
+    getSeasonQuota.mockRejectedValue(new Error("boom"));
+
+    afficher();
+
+    expect(
+      await screen.findByText("Le quota de saison n'a pas pu être lu. Réessayez dans un instant."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /valider la saison/i })).not.toBeInTheDocument();
+  });
 });
 
 describe("SeasonValidationPanel — valider la saison (US3, FR-009 à FR-013)", () => {
