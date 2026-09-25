@@ -60,6 +60,13 @@ constantes `STATUS_*`) ; `utils.py` = helpers de normalisation (dont
   « nantais » a été compté comme TCN (#76). Le front lit le champ `is_tcn` du DTO.
 - Les temps restent des **strings** (`"01:23:45"`), normalisés via `utils.py`.
   Splits adaptés au sport : dans `splits` (JSON) + `raw_data` (JSON).
+- **Un relais aux équipiers nommés se découpe à l'import, jamais dans un
+  scraper** (#895) : `import_service` recolle `nom + prénom` et le passe à
+  `utils.split_relay_teammates` (séparateur `/` seul, un nom **et** un prénom par
+  équipier, tout ou rien). Un scraper garde donc sa coupe habituelle d'un nom
+  d'équipe. Règle et exemples réels :
+  `specs/20260925-130402-relay-name-split/contracts/relay-teammates-rule.md` ;
+  mesures : `docs/superpowers/specs/2026-09-25-relais-noms-equipiers-sondage.md`.
 
 ## Fournisseurs supportés
 

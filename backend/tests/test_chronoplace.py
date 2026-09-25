@@ -953,3 +953,26 @@ def test_chronoplace_provider_single_heat_uses_classic_scrape(monkeypatch):
 
     assert results == ["r1"]
     assert provider.last_trace.heats_enumerated == 0
+
+
+def test_relay_named_teammates_are_split_at_import(db_session):
+    """#895 : « MENARDAIS FERDINAND / COMPAIN LENA » est composée ; « LE BOZEC HENRI »
+    (trois mots en majuscules) laisse sa ligne entière, en fiche d'équipe."""
+    from datetime import date
+
+    from app.repositories import athlete_repository
+    from app.services import import_service
+
+    resultats = _resultats(EPREUVE_566, "spaycific-races-2025", date(2025, 9, 21))
+    import_service.persist_results(db_session, "https://exemple/url-demandee", resultats)
+
+    menardais = athlete_repository.get_by_identity(db_session, "MENARDAIS", "FERDINAND", None)
+    (participation,) = menardais.participations
+    assert [(a.nom, a.prenom) for a in participation.teammates] == [
+        ("MENARDAIS", "FERDINAND"), ("COMPAIN", "LENA"),
+    ]
+    equipe = athlete_repository.get_by_identity(
+        db_session, "LE BOZEC HENRI", "/ BABINET SYLVAIN", None
+    )
+    (non_decoupee,) = equipe.participations
+    assert non_decoupee.teammates == []

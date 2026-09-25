@@ -1350,3 +1350,19 @@ def test_scrape_event_fanout_on_heat_start_non_notifie_pour_les_cachees(monkeypa
     # Le slug notifié n'est **jamais** celui d'une course cachée.
     assert notifications[0][0] != "59697"
     assert notifications[0][0] == "59698"
+
+
+def test_relay_named_teammates_are_split_at_import(db_session):
+    """#895 : la ligne « NOM PRÉNOM / NOM PRÉNOM » d'une course relais est composée."""
+    from app.repositories import athlete_repository
+    from app.services import import_service
+
+    relais = _courses(LACANAU, 1)
+    import_service.persist_results(db_session, URL_48555, relais)
+
+    guillon = athlete_repository.get_by_identity(db_session, "GUILLON", "RÉMI", None)
+    (participation,) = guillon.participations
+    assert [(a.nom, a.prenom) for a in participation.teammates] == [
+        ("GUILLON", "RÉMI"), ("CHARPENTIER", "EMMANUEL"),
+    ]
+    assert participation.team_name == "GUILLON RÉMI / CHARPENTIER EMMANUEL"

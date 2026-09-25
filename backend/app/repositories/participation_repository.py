@@ -348,14 +348,25 @@ def create_batch(db: Session, participations_fields: Sequence[dict]) -> list[Par
     """Crée un lot de participations neuves en un seul aller-retour DB (#706).
 
     Même contrat que `athlete_repository.create_batch` : un seul `db.flush()`
-    pour tout le lot, instances restant suivies par la session.
+    pour tout le lot, instances restant suivies par la session. La clé optionnelle
+    `teammate_ids` pose la composition d'un relais (#895) dans ce même `flush`.
     """
     if not participations_fields:
         return []
-    created = [Participation(**fields) for fields in participations_fields]
+    created = [_new_participation(dict(fields)) for fields in participations_fields]
     db.add_all(created)
     db.flush()
     return created
+
+
+def _new_participation(fields: dict) -> Participation:
+    teammate_ids = fields.pop("teammate_ids", ())
+    participation = Participation(**fields)
+    participation.teammate_links = [
+        ParticipationTeammate(athlete_id=athlete_id, position=position)
+        for position, athlete_id in enumerate(teammate_ids)
+    ]
+    return participation
 
 
 def update(db: Session, participation: Participation, **fields) -> Participation:
