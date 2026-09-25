@@ -48,6 +48,7 @@ from .classify import classify_event_type
 from .utils import (
     DEFAULT_HEADERS,
     derive_status_from_label,
+    gender_from_category,
     normalize_rank,
     normalize_time,
     qualify_event_name,
@@ -928,10 +929,11 @@ def _iter_groups(
     *,
     contest: str = "",
     statut: str = "",
+    sexe: str = "",
     profondeur: int = 0,
     contests_connus: frozenset[str] = frozenset(),
-) -> list[tuple[str, str, list]]:
-    """[(libellé contest, libellé statut, lignes), …] depuis l'arbre `data`.
+) -> list[tuple[str, str, str, list]]:
+    """[(libellé contest, libellé statut, libellé sexe, lignes), …] depuis `data`.
 
     La profondeur de `data` **varie** — tableau plat, un niveau, ou deux — et
     parfois au sein d'une même épreuve. On descend donc récursivement jusqu'aux
@@ -951,10 +953,11 @@ def _iter_groups(
     Le libellé n'est donc retenu comme statut que s'il est reconnu par la même
     table ; tout libellé inconnu est un groupement neutre qui laisse le statut
     hérité intact. Traiter l'inconnu comme un abandon marquerait DNF les 175
-    finishers de ce contest.
+    finishers de ce contest. Un libellé de sexe (`_sexe_du_groupe`) est, lui,
+    transmis à part : sans colonne sexe, c'est la seule trace du genre (#990).
     """
     if isinstance(data, list):
-        return [(contest, statut, data)] if data else []
+        return [(contest, statut, sexe, data)] if data else []
     if not isinstance(data, dict):
         if data is not None:
             logger.warning(
@@ -962,7 +965,7 @@ def _iter_groups(
             )
         return []
 
-    groupes: list[tuple[str, str, list]] = []
+    groupes: list[tuple[str, str, str, list]] = []
     for cle, contenu in data.items():
         libelle = _strip_group_prefix(cle)
         statut_reconnu = derive_status_from_label(libelle)
@@ -974,24 +977,40 @@ def _iter_groups(
                 # On propage le libellé **brut** (comme à la profondeur ≥ 1) :
                 # `_build_result` re-dérive la constante STATUS_* en aval.
                 groupes += _iter_groups(
-                    contenu, contest=contest, statut=libelle,
+                    contenu, contest=contest, statut=libelle, sexe=sexe,
                     profondeur=1, contests_connus=contests_connus,
                 )
             else:
                 groupes += _iter_groups(
-                    contenu, contest=libelle, statut=statut,
+                    contenu, contest=libelle, statut=statut, sexe=sexe,
                     profondeur=1, contests_connus=contests_connus,
                 )
         else:
             reconnu = libelle if statut_reconnu else statut
+            sexe_reconnu = libelle if not statut_reconnu and _sexe_du_groupe(libelle) else sexe
             groupes += _iter_groups(
-                contenu, contest=contest, statut=reconnu,
+                contenu, contest=contest, statut=reconnu, sexe=sexe_reconnu,
                 profondeur=profondeur + 1, contests_connus=contests_connus,
             )
     return groupes
 
 
 _NON_FINISHERS = (STATUS_DNF, STATUS_DNS, STATUS_DSQ)
+
+_GROUPES_MASCULINS = frozenset({"masculin", "masculins", "homme", "hommes", "men"})
+_GROUPES_FEMININS = frozenset({"feminin", "feminins", "femme", "femmes", "women", "dames"})
+# Relais, duo, équipe : un sexe de groupe ou de catégorie y décrit l'équipe.
+_RE_EPREUVE_EQUIPE = re.compile(r"\b(relais?|relay|[eé]quipes?|duo|team)\b", re.IGNORECASE)
+
+
+def _sexe_du_groupe(libelle: str) -> str:
+    """`"M"`, `"F"` ou `""` pour un libellé de groupe (`Féminin`, `Hommes`, `Cadets H`)."""
+    plie = strip_accents(libelle.strip().lower())
+    if plie in _GROUPES_MASCULINS:
+        return "M"
+    if plie in _GROUPES_FEMININS:
+        return "F"
+    return gender_from_category(libelle)
 
 
 # ── Noms d'équipe : ne pas les découper en (nom, prénom) (issue #63) ─────────
@@ -1069,6 +1088,8 @@ def _build_result(
     contest_label: str,
     status_label: str,
     nom_col_expr: str = "",
+    sexe_label: str = "",
+    deduire_genre: bool = True,
 ) -> ScrapedResult:
     """Construit un `ScrapedResult` depuis une ligne de données RaceResult."""
 
@@ -1100,7 +1121,8 @@ def _build_result(
     # (« GUILLAUME & ANTHONY » → nom='GUILLAUME', prenom='& ANTHONY'). On garde
     # alors la cellule entière comme `nom`, `prenom` vide. Cf. `_est_nom_equipe`.
     nom_cell = _strip_rank_suffix(cellule("nom"))
-    if _est_nom_equipe(nom_col_expr, nom_cell):
+    equipe = _est_nom_equipe(nom_col_expr, nom_cell)
+    if equipe:
         nom, prenom = nom_cell, ""
     else:
         nom, prenom = split_athlete_name(nom_cell)
@@ -1112,6 +1134,16 @@ def _build_result(
     cellule_rang_sexe = cellule("rang_sexe")
     r.rank_gender = r.rank_gender or normalize_rank(cellule_rang_sexe)
     r.rank_category, r.category = _split_rank_category(cellule("categorie"))
+    # Sans colonne sexe, la catégorie (`S1M`) puis le groupe (`#1_Féminin`)
+    # portent le genre (#990) ; jamais pour une équipe. Une ligne `hidden` ne
+    # connaît pas son contest (relais ou non) : elle ne déduit rien.
+    if (
+        deduire_genre
+        and not r.gender
+        and not equipe
+        and not _RE_EPREUVE_EQUIPE.search(contest_label)
+    ):
+        r.gender = gender_from_category(r.category) or _sexe_du_groupe(sexe_label)
     # `total_time` n'a aucun garde-fou de forme en aval : `normalize_time`
     # renvoie son entrée **telle quelle** quand elle ne la reconnaît pas, si
     # bien qu'un libellé partirait en base comme chrono.
@@ -1420,6 +1452,14 @@ def _enrichir(existant: ScrapedResult, apport: ScrapedResult) -> None:
             setattr(existant, champ, getattr(apport, champ))
     if not existant.status and existant.total_time:
         existant.status = STATUS_FINISHER
+    # La catégorie apportée par le `hidden` porte le genre (405215, #990) : la
+    # déduction se fait ici, où l'on sait si la ligne publiée est une équipe.
+    if (
+        not existant.gender
+        and not existant.is_relay
+        and not _RE_EPREUVE_EQUIPE.search(existant.event_name)
+    ):
+        existant.gender = gender_from_category(existant.category)
 
 
 def _identite_pliee(r: ScrapedResult) -> tuple[str, str]:
@@ -1667,7 +1707,7 @@ def _run_pipeline(
                 )
                 recuperees.append((contest, payload, groupes))
                 if contest == "0":
-                    labels_zero.update(cl for cl, _st, _lg in groupes)
+                    labels_zero.update(cl for cl, _st, _sx, _lg in groupes)
 
         # 1a — Contests explicites à scraper, sous-unité par sous-unité.
         for index, contest in enumerate(contests_a_scraper, start=1):
@@ -1705,7 +1745,7 @@ def _run_pipeline(
                 )
             col_contest = _colonne_contest(payload)
             lignes_sans_contest = 0
-            for contest_label, status_label, lignes in groupes:
+            for contest_label, status_label, sexe_label, lignes in groupes:
                 # Le contest est **explicite** dans `TabConfig.Lists` (§3 du
                 # sondage) : quand il est renseigné, il fait autorité et le
                 # libellé de groupe n'est pas consulté. Ce libellé n'est en effet
@@ -1777,6 +1817,7 @@ def _run_pipeline(
                         contest_label=libelle,
                         status_label=status_label,
                         nom_col_expr=nom_col_expr,
+                        sexe_label=sexe_label,
                     )
                     if not r.bib_number:
                         continue
@@ -1854,7 +1895,7 @@ def _run_pipeline(
                 continue
             roles, segments, extras = _map_columns(payload)
             nom_col_expr = _nom_expression(payload, roles)
-            for _contest_label, status_label, lignes in _iter_groups(
+            for _contest_label, status_label, _sexe_label, lignes in _iter_groups(
                 payload.get("data"), contests_connus=contests_connus
             ):
                 for ligne in lignes:
@@ -1867,6 +1908,7 @@ def _run_pipeline(
                         contest_label="",
                         status_label=status_label,
                         nom_col_expr=nom_col_expr,
+                        deduire_genre=False,
                     )
                     if not apport.bib_number:
                         continue

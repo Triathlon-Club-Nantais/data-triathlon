@@ -323,6 +323,43 @@ def derive_status_from_label(label: str) -> str:
     return _STATUS_TOKENS.get(_normalize_label(label), "")
 
 
+# Genre lu dans une catégorie individuelle (#990), formes relevées sur 17
+# épreuves RaceResult : code FFTri/FFA suffixé (`S1M`, `JUM`, `M1-3M`, `M4+F`),
+# tranche d'âge préfixée (`M18-34`, `F65+`) et libellé « <classe> H|F »
+# (`Seniors F`, `Master 4+ Homme`). Un libellé de sexe nu (`Masculin`, `Hommes`)
+# n'est mesuré que sur des relais et des duos : il décrit l'équipe, on l'ignore.
+_RE_CODE_SUFFIXE_SEXE = re.compile(r"^(?:[A-Z]{2}|[A-Z]\d{1,2}(?:[-+]\d?)?)([MFH])$")
+_RE_TRANCHE_PREFIXE_SEXE = re.compile(r"^([MF])(?:\d{1,2}-\d{1,2}|\d{2}\+)$")
+_RE_CATEGORIE_EQUIPE = re.compile(
+    r"\b(?:MIXTE|MIXED|RELAIS?|RELAY|DUO|EQUIPE|TEAM)\b|[MFH]\s*\+\s*[MFH]|&"
+)
+_MOTS_SEXE_MASCULIN = frozenset({"H", "M", "HOMME", "HOMMES", "MASCULIN"})
+_MOTS_SEXE_FEMININ = frozenset({"F", "FEMME", "FEMMES", "FEMININ"})
+
+
+def gender_from_category(category: str) -> str:
+    """`"M"`, `"F"` ou `""` déduit d'une catégorie individuelle, jamais d'équipe."""
+    code = strip_accents((category or "").strip()).upper()
+    if (
+        not code
+        or code == "FEM"  # « féminin » abrégé, libellé nu malgré sa forme de code
+        or _RE_CATEGORIE_EQUIPE.search(code)
+        or derive_status_from_label(code)
+    ):
+        return ""
+    mots = re.findall(r"[A-Z0-9+\-]+", code)
+    if len(mots) >= 2:
+        if mots[-1] in _MOTS_SEXE_MASCULIN:
+            return "M"
+        if mots[-1] in _MOTS_SEXE_FEMININ:
+            return "F"
+        return ""
+    trouve = _RE_CODE_SUFFIXE_SEXE.match(code) or _RE_TRANCHE_PREFIXE_SEXE.match(code)
+    if not trouve:
+        return ""
+    return "F" if trouve.group(1) == "F" else "M"
+
+
 def qualify_event_name(event_name: str, qualifiant: str) -> str:
     """Qualifie un nom d'épreuve par son parcours / contest.
 

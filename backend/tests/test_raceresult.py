@@ -1431,7 +1431,7 @@ def test_strip_group_prefix(cle, attendu):
 def test_iter_groups_expose_contest_et_statut():
     groupes = raceresult._iter_groups(_payload_rumilly()["data"])
 
-    assert [(c, s, len(lignes)) for c, s, lignes in groupes] == [
+    assert [(c, s, len(lignes)) for c, s, _sexe, lignes in groupes] == [
         ("Distance M", "", 2),
         ("Distance M", "Abandons", 2),
         ("Distance M", "Non Partants", 2),
@@ -1442,7 +1442,7 @@ def test_iter_groups_supporte_un_seul_niveau():
     """Certains payloads n'ont pas de sous-groupe de statut."""
     data = {"#1_Distance S": [["1", "2", "1.", "1"]]}
 
-    assert raceresult._iter_groups(data) == [("Distance S", "", [["1", "2", "1.", "1"]])]
+    assert raceresult._iter_groups(data) == [("Distance S", "", "", [["1", "2", "1.", "1"]])]
 
 
 def test_iter_groups_niveau_0_statut_absent_des_contests_devient_statut():
@@ -1455,7 +1455,7 @@ def test_iter_groups_niveau_0_statut_absent_des_contests_devient_statut():
 
     assert raceresult._iter_groups(
         data, contests_connus=frozenset({"distance m"})
-    ) == [("", "Abandons", [["7", "1", "x"]])]
+    ) == [("", "Abandons", "", [["7", "1", "x"]])]
 
 
 def test_iter_groups_niveau_0_statut_present_dans_contests_reste_contest():
@@ -1466,7 +1466,7 @@ def test_iter_groups_niveau_0_statut_present_dans_contests_reste_contest():
 
     assert raceresult._iter_groups(
         data, contests_connus=frozenset({"abandons"})
-    ) == [("Abandons", "", [["7", "1", "x"]])]
+    ) == [("Abandons", "", "", [["7", "1", "x"]])]
 
 
 def test_iter_groups_niveau_0_libelle_neutre_reste_contest():
@@ -1474,10 +1474,10 @@ def test_iter_groups_niveau_0_libelle_neutre_reste_contest():
     sans `contests_connus` : la garde ne touche que le vocabulaire de statut."""
     data = {"#1_Distance M": [["7", "1", "x"]]}
 
-    assert raceresult._iter_groups(data) == [("Distance M", "", [["7", "1", "x"]])]
+    assert raceresult._iter_groups(data) == [("Distance M", "", "", [["7", "1", "x"]])]
     assert raceresult._iter_groups(
         data, contests_connus=frozenset({"distance m"})
-    ) == [("Distance M", "", [["7", "1", "x"]])]
+    ) == [("Distance M", "", "", [["7", "1", "x"]])]
 
 
 # ── Construction d'un ScrapedResult ─────────────────────────────────────────
@@ -2035,7 +2035,7 @@ def _payload(lignes_par_groupe: dict, *, avec_temps: bool = True) -> dict:
     }
 
 
-def _monte_pipeline(monkeypatch, specs, payloads, *, hidden=()):
+def _monte_pipeline(monkeypatch, specs, payloads, *, hidden=(), contests=None):
     """Câble `scrape_event_all` sur des payloads en mémoire.
 
     `payloads` mappe (listname, contest) → payload ou None. `specs` sont les
@@ -2046,7 +2046,7 @@ def _monte_pipeline(monkeypatch, specs, payloads, *, hidden=()):
     config = {
         "key": "k",
         "eventname": "Épreuve",
-        "contests": {"1": "Distance S", "2": "Distance M"},
+        "contests": contests or {"1": "Distance S", "2": "Distance M"},
         "TabConfig": {"Lists":
             [{"Name": n, "Contest": c, "Mode": ""} for n, c in specs]
             + [{"Name": n, "Contest": c, "Mode": "hidden"} for n, c in hidden]
@@ -2173,7 +2173,7 @@ def test_iter_groups_un_libelle_inconnu_n_efface_pas_le_statut_herite():
     data = {"#1_Distance M": {"#2_Abandons": {"#1_Masculin": [["9", "3", "x"]]}}}
 
     assert raceresult._iter_groups(data) == [
-        ("Distance M", "Abandons", [["9", "3", "x"]])
+        ("Distance M", "Abandons", "Masculin", [["9", "3", "x"]])
     ]
 
 
@@ -3504,7 +3504,7 @@ def test_build_result_404650_rang_de_sexe_et_categorie(split_en_tete):
             ligne, roles, segments, extras, source_url="u", event_name="E",
             event_date=None, contest_label=contest, status_label=statut,
         )
-        for contest, statut, rows in groupes for ligne in rows
+        for contest, statut, _sexe, rows in groupes for ligne in rows
     ]
 
     finisher, dnf = lignes
@@ -3642,3 +3642,144 @@ def test_build_result_tronque_la_fraction_du_temps_d_arrivee(cellule, attendu):
     assert r.total_time == attendu
     assert r.status == "finisher"
 
+
+
+# ── Genre déduit de la catégorie ou du groupe de sexe (#990) ─────────────────
+
+
+def _payload_categorie_sans_sexe() -> dict:
+    """Forme de `2-Chrono|C-Tri Ind.Detaille` (398810, contest 1, sondé le
+    2026-09-25) : aucune colonne sexe, la catégorie porte son rang."""
+    return {
+        "DataFields": ["BIB", "ID", "AfficherNom", "[AGEGROUP1.NAMESHORT] & \" (\" & [RANK3] & \")\"", "TIME"],
+        "list": {"Fields": [
+            {"Expression": "AfficherNom", "Label": "Nom"},
+            {"Expression": "[AGEGROUP1.NAMESHORT] & \" (\" & [RANK3] & \")\"", "Label": "Cat."},
+            {"Expression": "TIME", "Label": "Temps"},
+        ]},
+    }
+
+
+def test_build_result_deduit_le_genre_de_la_categorie_sans_colonne_sexe():
+    roles, segments, extras = raceresult._map_columns(_payload_categorie_sans_sexe())
+
+    r = raceresult._build_result(
+        ["12", "1", "Jean DUPONT", "S1M (1)", "02:01:00"], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label="M", status_label="",
+    )
+
+    assert (r.category, r.gender) == ("S1M", "M")
+
+
+def test_build_result_la_colonne_sexe_prime_sur_la_categorie():
+    payload = _payload_categorie_sans_sexe()
+    payload["DataFields"].append("SEX")
+    payload["list"]["Fields"].append({"Expression": "SEX", "Label": "Sexe"})
+    roles, segments, extras = raceresult._map_columns(payload)
+
+    r = raceresult._build_result(
+        ["12", "1", "Jean DUPONT", "S1M (1)", "02:01:00", "F"], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label="M", status_label="",
+    )
+
+    assert r.gender == "F"
+
+
+def test_iter_groups_transmet_le_groupe_de_sexe_herite():
+    """404650 : contest, puis statut, puis sexe (`#1_Féminin`)."""
+    data = {"#1_Triathlon M (Individuel)": {"#1_": {
+        "#1_Féminin": [["1", "1", "x"]],
+        "#2_Masculin": [["2", "2", "y"]],
+    }}}
+
+    assert raceresult._iter_groups(data) == [
+        ("Triathlon M (Individuel)", "", "Féminin", [["1", "1", "x"]]),
+        ("Triathlon M (Individuel)", "", "Masculin", [["2", "2", "y"]]),
+    ]
+
+
+def test_scrape_event_all_deduit_le_genre_du_groupe_de_sexe(monkeypatch):
+    """406212 et Embrunman 350635 : ni colonne sexe ni catégorie, les lignes
+    sont groupées sous `#1_Féminin` / `#2_Hommes`."""
+    specs = [("Final", "1")]
+    payloads = {("Final", "1"): _payload({"#1_Distance S": {
+        "#1_Féminin": [["1", "1", "Anne MARTIN", "TCN", "1:00:00"]],
+        "#2_Hommes": [["2", "2", "Paul DURAND", "TCN", "1:01:00"]],
+    }})}
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert sorted((r.athlete_name, r.gender) for r in res) == [
+        ("DURAND", "M"), ("MARTIN", "F"),
+    ]
+
+
+@pytest.mark.parametrize("contest_label", ["Triathlon M (Relais)", "Duo", "Relai"])
+def test_build_result_ne_donne_pas_de_genre_a_une_equipe(contest_label):
+    """404650 publie `#2_Masculin` sous ses contests relais : c'est la
+    composition de l'équipe, pas le sexe d'une personne."""
+    roles, segments, extras = raceresult._map_columns(_payload({}))
+
+    r = raceresult._build_result(
+        ["1", "1", "LES DALTON", "TCN", "1:00:00"], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None,
+        contest_label=contest_label, status_label="", sexe_label="Masculin",
+    )
+
+    assert r.gender == ""
+
+
+def test_scrape_event_all_une_categorie_hidden_ne_genre_pas_un_relais(monkeypatch):
+    """398810 : la liste `hidden` porte la catégorie individuelle d'un équipier
+    (`S1M`) ; la ligne `hidden` ignorant son contest, elle ne déduit aucun
+    genre, sans quoi l'équipe du relais prenait celui de cet équipier."""
+    specs = [("Relais", "2")]
+    hidden = [("Detail", "2")]
+    categorie = "[AGEGROUP1.NAMESHORT] & \" (\" & [RANK3] & \")\""
+    payloads = {
+        ("Relais", "2"): _payload({"#1_M - RELAIS": [["40", "1", "LES DALTON", "TCN", "2:00:00"]]}),
+        ("Detail", "2"): {
+            "DataFields": ["BIB", "ID", "AfficherNom", categorie],
+            "list": {"Fields": [
+                {"Expression": "AfficherNom", "Label": "Nom"},
+                {"Expression": categorie, "Label": "Cat."},
+            ]},
+            "data": {"#1_M - RELAIS": [["40", "1", "LES DALTON", "S1M (1)"]]},
+        },
+    }
+    _monte_pipeline(monkeypatch, specs, payloads, hidden=hidden,
+                    contests={"2": "M - RELAIS"})
+
+    [r] = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert r.category == "S1M", "la catégorie reste enrichie"
+    assert r.gender == ""
+
+
+def test_scrape_event_all_une_categorie_hidden_genre_un_individuel(monkeypatch):
+    """405215 : la liste publiée n'a pas de catégorie et n'affiche le sexe
+    qu'aux femmes (`if([SEX]="f";[SexeMF])`) ; la catégorie `M18-34` vient du
+    `hidden`, et le genre s'en déduit une fois la ligne enrichie."""
+    specs = [("Final", "1")]
+    hidden = [("Detail", "1")]
+    categorie = "[AGEGROUP1.NAMESHORT] & \" (\" & [RANK3] & \")\""
+    payloads = {
+        ("Final", "1"): _payload({"#1_Standard": [["10009", "1", "Sami DEROUI", "", "1:55:00"]]}),
+        ("Detail", "1"): {
+            "DataFields": ["BIB", "ID", "AfficherNom", categorie],
+            "list": {"Fields": [
+                {"Expression": "AfficherNom", "Label": "Nom"},
+                {"Expression": categorie, "Label": "Cat."},
+            ]},
+            "data": {"#1_Standard": [["10009", "1", "Sami DEROUI", "M18-34 (1)"]]},
+        },
+    }
+    _monte_pipeline(monkeypatch, specs, payloads, hidden=hidden,
+                    contests={"1": "Standard"})
+
+    [r] = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert (r.category, r.gender) == ("M18-34", "M")
