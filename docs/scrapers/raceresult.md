@@ -43,3 +43,16 @@ scrape par contest, et non plus N scrapes de l'épreuve entière. `?contest=0` n
 cible rien et vaut l'épreuve entière ; un contest absent des listes publiées
 lève. `GET /scrape/detect` masque la bascule « import unique » sur une telle
 URL, comme sur une URL Breizh Chrono déjà ciblée.
+
+**Épreuve mixte (#977).** Quand une épreuve publie à la fois des listes à
+contest explicite et des listes `Contest="0"`, le repli « tout ou rien » de
+`_groupes_zero_fiables` ne vaut plus : le qualifiant vide y créait une `Course`
+au nom d'épreuve nu où chaque participant était importé une seconde fois
+(Supertri 363395 : 972 lignes en plus ; Côte de Jade 342814 : 205, soit la somme
+des trois contests), et chaque dossard devenu double rendait l'enrichissement
+`hidden` « ambigu ». Hors groupement corroboré, une ligne `Contest="0"` rejoint
+désormais son contest par sa cellule `CONTEST.NAME` et s'y fusionne par
+`_prefer` ; sans contest résoluble, elle est ignorée (un avertissement par
+liste). Une liste `Contest="0"` sans temps d'arrivée ni rang général (les
+classements de segment Strava de 363395) est écartée avant fusion. Une épreuve
+publiée entièrement en `Contest="0"` (409130, 380823) garde le repli.

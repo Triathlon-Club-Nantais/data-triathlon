@@ -1257,9 +1257,12 @@ def _groupes_zero_fiables(labels: set[str], contests: dict) -> bool:
     confiance au groupement de niveau 0 que si **chacun** de ses libellés est une
     valeur de `contests`. Un seul libellé étranger (catégorie, sélecteur de
     split, statut) suffit à disqualifier le groupement entier, car il révèle un
-    axe d'affichage et non la partition en contests. Les lignes retombent alors
-    sur le nom d'épreuve nu : une seule `Course`, où la fusion par dossard
-    dédoublonne au lieu de dupliquer.
+    axe d'affichage et non la partition en contests. Sur une épreuve publiée
+    entièrement en `Contest="0"`, les lignes retombent alors sur le nom
+    d'épreuve nu : une seule `Course`, où la fusion par dossard dédoublonne au
+    lieu de dupliquer. Sur une épreuve **mixte**, ce repli créait au contraire
+    une `Course` fantôme doublant les contests explicites (363395, 342814) :
+    chaque ligne y rejoint son contest par `CONTEST.NAME`, ou est ignorée (#977).
 
     Noter que sur 409130 `14H` est bien une valeur de `contests` : une
     corroboration **par libellé** ne suffisait pas, elle laissait les 72 dossards
@@ -1270,6 +1273,25 @@ def _groupes_zero_fiables(labels: set[str], contests: dict) -> bool:
         return False
     connus = _contests_normalises(contests)
     return bool(connus) and all(lab.strip().lower() in connus for lab in labels)
+
+
+def _colonne_contest(payload: dict) -> int | None:
+    """Index de la colonne `CONTEST.NAME` dans `DataFields`, `None` si absente (#977)."""
+    for i, expr in enumerate(payload.get("DataFields") or []):
+        if _peel(str(expr)) == "contest.name":
+            return i
+    return None
+
+
+def _porte_un_classement(payload: dict) -> bool:
+    """Vrai si la liste expose un temps d'arrivée ou un rang général (#977).
+
+    Écarte d'une épreuve mixte les listes `Contest="0"` d'un autre ordre, comme
+    les classements de segment Strava de 363395 : leurs lignes sortaient DNF,
+    le temps du segment pour seul split.
+    """
+    roles, _segments, _extras = _map_columns(payload)
+    return bool({"temps", "temps_texte", "rang"} & roles.keys())
 
 
 def _prefer(nouveau: ScrapedResult, ancien: ScrapedResult) -> bool:
@@ -1565,6 +1587,17 @@ def _run_pipeline(
                 payload = _fetch_list(event_id, key, listname, contest, client)
                 if payload is None:
                     continue
+                if (
+                    _est_contest_zero(contest)
+                    and contests_explicites
+                    and not _porte_un_classement(payload)
+                ):
+                    logger.info(
+                        "RaceResult %s : liste Contest=0 %r écartée, ni temps "
+                        "d'arrivée ni rang général (#977)",
+                        event_id, listname,
+                    )
+                    continue
                 groupes = _iter_groups(
                     payload.get("data"), contests_connus=contests_connus
                 )
@@ -1606,6 +1639,8 @@ def _run_pipeline(
                     "découpé sans trace (angle mort #63)",
                     event_id, nom_col_expr,
                 )
+            col_contest = _colonne_contest(payload)
+            lignes_sans_contest = 0
             for contest_label, status_label, lignes in groupes:
                 # Le contest est **explicite** dans `TabConfig.Lists` (§3 du
                 # sondage) : quand il est renseigné, il fait autorité et le
@@ -1625,31 +1660,51 @@ def _run_pipeline(
                 # `Course` fantôme *et* y dupliquait des participants déjà
                 # importés sous leur vrai contest (issue #21 par la porte du
                 # repli).
+                #
+                # Épreuve mixte (#977) : hors groupement corroboré, une ligne
+                # `Contest="0"` rejoint son contest par sa cellule `CONTEST.NAME`.
+                # Le repli sur le qualifiant vide n'y dédoublonnait rien : il
+                # créait une `Course` au nom d'épreuve nu où chaque participant
+                # d'un contest explicite était importé une seconde fois.
                 if contest != "0":
-                    contest_ligne = contest
-                    libelle = str(contests.get(contest) or "") or f"Contest {contest}"
+                    contest_groupe: str | None = contest
                 elif fiable_zero:
-                    contest_ligne = id_par_libelle.get(contest_label.strip().lower(), "")
-                    libelle = str(contests.get(contest_ligne) or "") or contest_label
+                    contest_groupe = id_par_libelle.get(contest_label.strip().lower(), "")
+                elif contests_explicites:
+                    contest_groupe = None
                 else:
-                    contest_ligne = ""
-                    libelle = ""
-                # Une ligne `Contest="0"` rattachée à un contest ciblé ailleurs
-                # ou jugé frais n'a rien à faire dans ce scrape (#989).
-                if cible and contest_ligne != cible:
-                    continue
-                if contest_ligne in contests_caches:
-                    continue
-                # Sous-URL du contest de la ligne, fan-out ou non : elle est à
-                # la fois la clé de cache TTL (#217) et `Course.source_url`.
-                # L'URL soumise, posée sur tous les contests, devenait la source
-                # passive de chacun (#989). Contest="0" non rattaché reste sur
-                # l'URL d'événement : il n'a pas de sous-unité propre.
-                if contest_ligne in contests_explicites:
-                    source_url_ligne = _sub_source_url(event_id, contest_ligne)
-                else:
-                    source_url_ligne = url
+                    contest_groupe = ""
                 for ligne in lignes:
+                    contest_ligne = contest_groupe
+                    if contest_ligne is None:
+                        valeur = (
+                            _clean_cell(ligne[col_contest])
+                            if col_contest is not None and col_contest < len(ligne)
+                            else ""
+                        )
+                        contest_ligne = id_par_libelle.get(valeur.strip().lower(), "")
+                        if not contest_ligne:
+                            lignes_sans_contest += 1
+                            continue
+                    # Une ligne `Contest="0"` rattachée à un contest ciblé
+                    # ailleurs ou jugé frais n'a rien à faire ici (#989).
+                    if cible and contest_ligne != cible:
+                        continue
+                    if contest_ligne in contests_caches:
+                        continue
+                    libelle = (
+                        str(contests.get(contest_ligne) or "") or f"Contest {contest_ligne}"
+                        if contest_ligne else ""
+                    )
+                    # Sous-URL du contest de la ligne, fan-out ou non : clé de
+                    # cache TTL (#217) et `Course.source_url`. L'URL soumise,
+                    # posée sur tous les contests, devenait la source passive de
+                    # chacun (#989). Un contest sans liste explicite reste sur
+                    # l'URL d'événement : il n'a pas de sous-unité propre.
+                    if contest_ligne in contests_explicites:
+                        source_url_ligne = _sub_source_url(event_id, contest_ligne)
+                    else:
+                        source_url_ligne = url
                     r = _build_result(
                         ligne, roles, segments, extras,
                         source_url=source_url_ligne,
@@ -1682,6 +1737,12 @@ def _run_pipeline(
                         )
                     if ancien is None or _prefer(r, ancien):
                         fusion[cle] = r
+            if lignes_sans_contest:
+                logger.warning(
+                    "RaceResult %s : %d ligne(s) Contest=0 sans contest connu "
+                    "ignorée(s), épreuve à contests explicites (#977)",
+                    event_id, lignes_sans_contest,
+                )
 
         # Phase 3 : enrichissement par les listes `hidden` (#60).
         # Les listes publiées font autorité pour `dossard → contest` : on indexe

@@ -2299,15 +2299,14 @@ def test_scrape_event_all_mixte_contest_zero_corrobore_et_explicite(monkeypatch)
     assert {r.event_name for r in res} == {"Épreuve - Distance S", "Épreuve - Distance M"}
 
 
-def test_scrape_event_all_mixte_contest_zero_etranger_se_replie(monkeypatch):
+def test_scrape_event_all_mixte_contest_zero_etranger_ne_cree_pas_de_course_nue(monkeypatch):
     """§13.17 / §13.19 — forme mixte avec libellé `Contest="0"` **étranger**.
 
     La voie `Contest="1"` reste qualifiée (`Distance S`). La voie `Contest="0"`,
-    dont le groupe `Découverte` est absent de `contests`, se replie sur le nom
-    d'épreuve nu. Un dossard partagé entre les deux voies produit donc **deux
-    `Course` distinctes** (clés de fusion `("Distance S", …)` et `("", …)`),
-    sans collision : comportement épinglé **tel quel**, c'est l'état non vérifié
-    que #65 documente.
+    dont le groupe `Découverte` est absent de `contests` et qui ne publie pas
+    de `CONTEST.NAME`, ne se replie plus sur le nom d'épreuve nu : cette
+    `Course` fantôme doublait chaque participant en production (#977). Sa ligne
+    est ignorée.
     """
     specs = [("Explicite", "1"), ("Général", "0")]
     payloads = {
@@ -2319,9 +2318,9 @@ def test_scrape_event_all_mixte_contest_zero_etranger_se_replie(monkeypatch):
     with _capture_logs("app.scrapers.raceresult") as logs:
         res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
 
-    # Deux Course : le dossard partagé ne collisionne pas (qualifiants distincts).
-    assert len(res) == 2
-    assert {r.event_name for r in res} == {"Épreuve - Distance S", "Épreuve"}
+    assert [(r.event_name, r.total_time) for r in res] == [
+        ("Épreuve - Distance S", "01:00:00"),
+    ]
     # Même personne des deux côtés : aucune alerte de collision d'identité.
     assert [rec for rec in logs.records if "collision" in rec.getMessage().lower()] == []
 
@@ -3286,4 +3285,118 @@ def test_scrape_event_fanout_ecarte_les_lignes_contest_zero_d_un_contest_cache(m
 ])
 def test_provider_raceresult_targets_single_heat_sur_sous_url(url, attendu):
     assert registry.RaceResultProvider().targets_single_heat(url) is attendu
+
+
+# ── Listes `Contest="0"` d'une épreuve mixte (#977) ──────────────────────────
+
+
+def _payload_live_arrivee_342814(lignes: list) -> dict:
+    """Forme de `02 - Chrono|LIVE Arrivée` (342814, Contest="0", sondé le
+    2026-09-25) : tableau plat, contest de chaque ligne en `CONTEST.NAME`."""
+    return {
+        "DataFields": ["BIB", "ID", "CONTEST.NAME", "ClassementGeneralp", "AfficherNom", "CLUB", "TIME"],
+        "list": {"Fields": [
+            {"Expression": "CONTEST.NAME", "Label": "Epreuve"},
+            {"Expression": "ClassementGeneralp", "Label": "Pos"},
+            {"Expression": "AfficherNom", "Label": "Nom Prénom"},
+            {"Expression": "CLUB", "Label": "Club"},
+            {"Expression": "TIME", "Label": "Temps Total"},
+        ]},
+        "data": lignes,
+    }
+
+
+def _payload_segment_strava_363395(lignes: list) -> dict:
+    """Forme de `07 - SEGMENT STRAVA|Classement Segment Vélo` (363395,
+    Contest="0", sondé le 2026-09-25) : ni temps d'arrivée ni rang général."""
+    return {
+        "DataFields": ["BIB", "ID", "ClassementSegmentVelo", "CONTEST.NAME", "AfficherNom", "CLUB", "SegmentVelo"],
+        "list": {"Fields": [
+            {"Expression": "ClassementSegmentVelo", "Label": "Rang"},
+            {"Expression": "CONTEST.NAME", "Label": "Épreuve"},
+            {"Expression": "AfficherNom", "Label": "Nom Prénom"},
+            {"Expression": "CLUB", "Label": "Club"},
+            {"Expression": "SegmentVelo", "Label": "Temps"},
+        ]},
+        "data": lignes,
+    }
+
+
+def test_scrape_event_all_mixte_ligne_contest_zero_rejoint_son_contest(monkeypatch):
+    """342814 : la liste `Contest="0"` reprend les participants des contests
+    explicites. Chaque ligne rejoint son contest par `CONTEST.NAME` et s'y
+    fusionne : aucune `Course` au nom d'épreuve nu, aucun dossard en double."""
+    specs = [("Classement", "1"), ("Classement", "2"), ("LIVE Arrivée", "0")]
+    payloads = {
+        **_payloads_deux_contests(),
+        ("LIVE Arrivée", "0"): _payload_live_arrivee_342814([
+            ["7", "1", "Distance S", "1.", "Jean DUPONT", "TCN", "01:00:00"],
+            ["8", "2", "distance m", "1.", "Luc MARTIN", "TCN", "02:00:00"],
+        ]),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert sorted((r.event_name, r.bib_number) for r in res) == [
+        ("Épreuve - Distance M", "8"), ("Épreuve - Distance S", "7"),
+    ]
+
+
+def test_scrape_event_all_mixte_ligne_contest_zero_sans_contest_connu_ignoree(monkeypatch):
+    specs = [("Classement", "1"), ("LIVE Arrivée", "0")]
+    payloads = {
+        **_payloads_deux_contests(),
+        ("LIVE Arrivée", "0"): _payload_live_arrivee_342814([
+            ["9", "3", "Découverte", "1.", "Anne DURAND", "TCN", "00:30:00"],
+        ]),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    with _capture_logs("app.scrapers.raceresult") as logs:
+        res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert [r.bib_number for r in res] == ["7"]
+    assert any("contest" in rec.getMessage().lower() and "ignor" in rec.getMessage()
+               for rec in logs.records)
+
+
+def test_scrape_event_all_mixte_liste_contest_zero_sans_classement_ecartee(monkeypatch):
+    """363395 : un classement de segment Strava en `Contest="0"` n'a ni temps
+    d'arrivée ni rang général. Il ne crée aucune ligne, pas même pour un
+    dossard absent des listes explicites."""
+    specs = [("Classement", "1"), ("Segment Vélo", "0")]
+    payloads = {
+        **_payloads_deux_contests(),
+        ("Segment Vélo", "0"): _payload_segment_strava_363395([
+            ["7", "1", "1", "Distance S", "Jean DUPONT", "TCN", "00:05:24,0"],
+            ["99", "5", "2", "Distance S", "Paul CAMMAS", "", "00:05:25,0"],
+        ]),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert [(r.bib_number, r.total_time) for r in res] == [("7", "01:00:00")]
+
+
+def test_scrape_event_all_mixte_hidden_enrichit_malgre_la_liste_contest_zero(monkeypatch):
+    """Le dossard repris en `Contest="0"` ne vit plus que sous une clé : la
+    jointure `hidden` par dossard n'est plus « ambiguë »."""
+    specs = [("Classement", "1"), ("LIVE Arrivée", "0")]
+    payloads = {
+        **_payloads_deux_contests(),
+        ("LIVE Arrivée", "0"): _payload_live_arrivee_342814([
+            ["7", "1", "Distance S", "1.", "Jean DUPONT", "TCN", "01:00:00"],
+        ]),
+        ("Splits", "1"): _payload_splits(
+            {"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "10:27", "18:57", "01:00:00"]]}}
+        ),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads, hidden=[("Splits", "1")])
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert len(res) == 1
+    assert res[0].segments
 
