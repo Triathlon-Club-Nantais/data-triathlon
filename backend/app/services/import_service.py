@@ -1074,7 +1074,9 @@ def _renumber_duplicate_ranks(results: list[ScrapedResult]) -> None:
         ranked = [
             r for r in group
             if r.rank_overall is not None
-            and (r.status or "").strip().lower() == STATUS_FINISHER
+            # Statut effectif (#940) : la plupart des scrapers laissent `status`
+            # vide aux finishers, dérivé seulement à la persistance.
+            and mapping.derive_status(r).strip().lower() == STATUS_FINISHER
         ]
         rangs = Counter(r.rank_overall for r in ranked)
         if not any(count > 1 for count in rangs.values()):
