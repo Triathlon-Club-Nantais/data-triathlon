@@ -1015,7 +1015,7 @@ def _build_result(
         bib_number=cellule("bib"),
         event_name=nom_qualifie,
         event_date=event_date,
-        event_type=classify_event_type(nom_qualifie),
+        event_type=classify_event_type(contest_label, contexte=event_name),
     )
 
     # `nom`/`club`/`temps` peuvent désormais provenir d'une expression composée

@@ -1492,6 +1492,16 @@ def test_build_result_finisher():
     assert r.event_date == date(2026, 6, 18)
 
 
+def test_build_result_course_annexe_garde_son_sport():
+    """#941 : le nom d'événement n'est qu'un contexte, l'épreuve mono-sport prime."""
+    ligne = _payload_rumilly()["data"]["#1_Distance M"]["#1_"][1]
+
+    r = _construire(ligne, contest="Trail 12 km")
+
+    assert r.event_type == "trail"
+    assert r.event_name == "Triathlon de Rumilly - Trail 12 km"
+
+
 def test_build_result_nom_compose_en_prenom_nom():
     """`Jean DE LA TOUR` — le nom est le bloc majuscule entier (cf. Task 1).
 
