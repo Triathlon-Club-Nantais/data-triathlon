@@ -727,6 +727,12 @@ describe("AthletePage — répartition par saison, couleurs et légende (#655, #
 describe("AthletePage — absence et panne du backend (#923)", () => {
   const rendre = () => AthletePage({ params: Promise.resolve({ id: "7" }) });
 
+  it("traite un identifiant non numérique comme une fiche introuvable, sans appeler l'API", async () => {
+    await expect(AthletePage({ params: Promise.resolve({ id: "abc" }) })).rejects.toThrow();
+    expect(notFound).toHaveBeenCalled();
+    expect(getAthlete).not.toHaveBeenCalled();
+  });
+
   it("traite un 404 de l'API comme une fiche introuvable", async () => {
     getAthlete.mockRejectedValue(new ApiError(404, "Athlète introuvable"));
 

@@ -9,8 +9,9 @@ import { PageShell } from "@/components/layout/PageShell";
  * Il sert **deux** cas et la copie doit être vraie des deux : les `notFound()`
  * des trois routes dynamiques (épreuve, athlète, participation) et toute URL
  * qui ne matche aucune route. D'où « cette page », et l'épreuve fusionnée ou
- * supprimée citée comme cause probable plutôt qu'affirmée. Seul un 404 de
- * l'API y mène : un backend en panne ou injoignable remonte à `app/error.tsx`.
+ * supprimée citée comme cause probable plutôt qu'affirmée. Seuls un 404 de
+ * l'API et un identifiant non numérique (`idDeRoute`) y mènent : un backend en
+ * panne ou injoignable remonte à `app/error.tsx`.
  *
  * Trois sorties, et non la carte : `/carte` reste masquée du rail (#10, #28)
  * tant que son rendu sans données n'a pas été vérifié, et un lien posé ici en

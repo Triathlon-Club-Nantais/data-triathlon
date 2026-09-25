@@ -3,6 +3,7 @@ import { ChevronLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
 import { rendreNullSi404 } from "@/lib/api/null-si-404";
+import { idDeRoute } from "@/lib/utils/id-de-route";
 import {
   Card,
   ComparisonTable,
@@ -35,14 +36,15 @@ export default async function ParticipationDetailPage({
   params: Promise<{ id: string; participationId: string }>;
 }) {
   const { id, participationId } = await params;
+  const courseId = idDeRoute(id);
   // Deux appels indépendants, en parallèle : la synthèse d'épreuve (US2/US3,
   // #466) ne conditionne jamais le 404 de la participation elle-même.
   const [participation, summary] = await Promise.all([
-    apiServer.getParticipation(Number(participationId)).catch(rendreNullSi404),
-    apiServer.getCourseSummary(Number(id)).catch(rendreNullSi404),
+    apiServer.getParticipation(idDeRoute(participationId)).catch(rendreNullSi404),
+    apiServer.getCourseSummary(courseId).catch(rendreNullSi404),
   ]);
 
-  if (!participation || participation.course.id !== Number(id)) notFound();
+  if (!participation || participation.course.id !== courseId) notFound();
 
   const athleteId = participation.athlete.id;
   const returns = <ReturnLinks courseId={id} athleteId={athleteId} />;

@@ -206,6 +206,14 @@ describe("ParticipationDetailPage — panne du backend (#923)", () => {
   const rendre = () =>
     ParticipationDetailPage({ params: Promise.resolve({ id: "3", participationId: "42" }) });
 
+  it("traite un identifiant non numérique comme introuvable, sans appeler l'API", async () => {
+    await expect(
+      ParticipationDetailPage({ params: Promise.resolve({ id: "3", participationId: "xyz" }) }),
+    ).rejects.toThrow();
+    expect(notFound).toHaveBeenCalled();
+    expect(getParticipation).not.toHaveBeenCalled();
+  });
+
   it("laisse remonter un 500 sans le déguiser en participation introuvable", async () => {
     const panne = new (await import("@/lib/api/client")).ApiError(500, "Boum");
     getParticipation.mockRejectedValue(panne);
