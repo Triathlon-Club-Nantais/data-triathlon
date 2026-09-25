@@ -1128,6 +1128,23 @@ def test_fetch_heat_rows_raises_when_a_page_keeps_failing():
     assert len(client.urls) == 1 + plat._ESSAIS_PAGE
 
 
+def test_get_page_backs_off_between_5xx_retries_only(monkeypatch):
+    """#943 : un rejeu immédiat retombe dans la même panne passagère."""
+    from app.core.exceptions import ScraperError
+
+    waits: list[float] = []
+    monkeypatch.setattr(plat, "_sleep", waits.append)
+
+    with pytest.raises(ScraperError):
+        plat.get_page(_ScriptedClient([_StatusResp("", 503)] * 10), "https://x")
+    assert waits == [0.5, 1.0]
+
+    waits.clear()
+    with pytest.raises(ScraperError):
+        plat.get_page(_ScriptedClient([_StatusResp("", 404)]), "https://x")
+    assert waits == []
+
+
 def test_fetch_heat_rows_retries_a_transient_5xx():
     page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
     client = _ScriptedClient([_StatusResp(page0), _StatusResp("", 502)])
