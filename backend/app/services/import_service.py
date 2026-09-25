@@ -32,7 +32,14 @@ from app.models.participation import Participation
 from app.repositories import athlete_repository, course_repository, participation_repository
 from app.scrapers import registry
 from app.scrapers import scrape_event_all as registry_scrape_event_all
-from app.scrapers.base import STATUS_DNF, STATUS_FINISHER, FanoutTrace, ScrapedResult
+from app.scrapers.base import (
+    STATUS_DNF,
+    STATUS_DNS,
+    STATUS_DSQ,
+    STATUS_FINISHER,
+    FanoutTrace,
+    ScrapedResult,
+)
 from app.scrapers.utils import to_seconds
 from app.services import cache, mapping, quality
 
@@ -459,6 +466,22 @@ def _resolve_status(existing, scraped: ScrapedResult, changes: dict) -> str:
     return STATUS_FINISHER if merged_total else STATUS_DNF
 
 
+_NON_FINISHER_STATUSES = frozenset({STATUS_DNS, STATUS_DNF, STATUS_DSQ})
+_NON_FINISHER_FIELDS = ("rank_overall", "rank_category", "rank_gender", "total_time")
+
+
+def _non_finisher_overrides(existing, scraped: ScrapedResult, fields: dict) -> dict:
+    """Exception à « vide n'écrase pas » (#962) : sur un statut non-finisher
+    **explicite**, le scraper vide volontairement rangs et temps (et les splits
+    d'un DNS). Sa valeur, vide comprise, fait alors foi ; sinon un rescrape ne
+    corrigerait jamais une ligne importée avant ce vidage.
+    """
+    if scraped.status not in _NON_FINISHER_STATUSES:
+        return {}
+    keys = _NON_FINISHER_FIELDS + (("splits",) if scraped.status == STATUS_DNS else ())
+    return {key: fields[key] for key in keys if getattr(existing, key) != fields[key]}
+
+
 #: Taille de la tranche de résolution par lot (#706) : au-delà, une course
 #: déclenche sa résolution d'athlètes avant la fin du scrape plutôt que
 #: d'accumuler une file sans borne. Ordre de grandeur repris de l'audit
@@ -591,6 +614,7 @@ class _Persister:
             scraped, athlete_id=existing.athlete_id, course_id=existing.course_id
         )
         changes = _merge_fields(existing, fields)
+        changes.update(_non_finisher_overrides(existing, scraped, fields))
         status = _resolve_status(existing, scraped, changes)
         if status != existing.status:
             changes["status"] = status
