@@ -319,7 +319,7 @@ class BatchReportExpiredError(DomainError):
 
 def _headers(settings: Settings) -> dict[str, str]:
     return {
-        "Authorization": f"Bearer {settings.github_batch_token}",
+        "Authorization": f"Bearer {settings.github_batch_token.get_secret_value()}",
         "Accept": "application/vnd.github+json",
         "X-GitHub-Api-Version": API_VERSION,
     }

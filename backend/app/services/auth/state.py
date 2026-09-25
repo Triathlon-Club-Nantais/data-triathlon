@@ -14,6 +14,7 @@ from datetime import UTC
 
 from joserfc import jwt
 from joserfc.jwk import OctKey
+from pydantic import SecretStr
 
 from app.core.config import get_settings
 from app.core.time import utcnow
@@ -77,8 +78,8 @@ def read(token: str) -> StatePayload:
     )
 
 
-def _key(secret: str) -> OctKey:
-    return OctKey.import_key(secret)
+def _key(secret: SecretStr) -> OctKey:
+    return OctKey.import_key(secret.get_secret_value())
 
 
 def _now() -> int:

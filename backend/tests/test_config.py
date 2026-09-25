@@ -14,22 +14,22 @@ def test_cors_origins_csv_depuis_env(monkeypatch):
     laisse la chaîne brute arriver jusqu'à `_split_cors`.
     """
     monkeypatch.setenv("CORS_ORIGINS", "https://a.vercel.app,https://b.com")
-    assert Settings().cors_origins == ["https://a.vercel.app", "https://b.com"]
+    assert Settings(_env_file=None).cors_origins == ["https://a.vercel.app", "https://b.com"]
 
 
 def test_cors_origins_valeur_unique(monkeypatch):
     monkeypatch.setenv("CORS_ORIGINS", "https://a.vercel.app")
-    assert Settings().cors_origins == ["https://a.vercel.app"]
+    assert Settings(_env_file=None).cors_origins == ["https://a.vercel.app"]
 
 
 def test_cors_origins_csv_avec_espaces(monkeypatch):
     monkeypatch.setenv("CORS_ORIGINS", " https://a.vercel.app , https://b.com ")
-    assert Settings().cors_origins == ["https://a.vercel.app", "https://b.com"]
+    assert Settings(_env_file=None).cors_origins == ["https://a.vercel.app", "https://b.com"]
 
 
 def test_cors_origins_defaut(monkeypatch):
     monkeypatch.delenv("CORS_ORIGINS", raising=False)
-    assert "http://localhost:3000" in Settings().cors_origins
+    assert "http://localhost:3000" in Settings(_env_file=None).cors_origins
 
 
 def test_observabilite_sql_defauts(monkeypatch):
@@ -40,7 +40,7 @@ def test_observabilite_sql_defauts(monkeypatch):
     """
     for var in ("SQL_SLOW_QUERY_MS", "SQL_QUERY_STATS"):
         monkeypatch.delenv(var, raising=False)
-    settings = Settings()
+    settings = Settings(_env_file=None)
     assert settings.sql_slow_query_ms == 100
     assert settings.sql_query_stats is False
 
@@ -48,7 +48,7 @@ def test_observabilite_sql_defauts(monkeypatch):
 def test_observabilite_sql_depuis_env(monkeypatch):
     monkeypatch.setenv("SQL_SLOW_QUERY_MS", "250")
     monkeypatch.setenv("SQL_QUERY_STATS", "true")
-    settings = Settings()
+    settings = Settings(_env_file=None)
     assert settings.sql_slow_query_ms == 250
     assert settings.sql_query_stats is True
 
@@ -68,12 +68,12 @@ def test_une_cle_de_signature_trop_courte_est_refusee(monkeypatch):
     """FR-037 : le démarrage échoue plutôt que de signer avec 8 caractères."""
     monkeypatch.setenv("AUTH_SESSION_SECRET_KEY", "trop-court")
     with pytest.raises(ValidationError):
-        Settings()
+        Settings(_env_file=None)
 
 
 def test_une_cle_de_signature_de_32_caracteres_est_acceptee(monkeypatch):
     monkeypatch.setenv("AUTH_SESSION_SECRET_KEY", "x" * 32)
-    assert Settings().auth_session_secret_key == "x" * 32
+    assert Settings(_env_file=None).auth_session_secret_key.get_secret_value() == "x" * 32
 
 
 def test_l_origine_de_retour_perd_son_slash_final(monkeypatch):
@@ -85,13 +85,13 @@ def test_l_origine_de_retour_perd_son_slash_final(monkeypatch):
     (`sync: false`), donc le slash final est un cas ordinaire.
     """
     monkeypatch.setenv("AUTH_REDIRECT_BASE_URL", "https://exemple.fr/")
-    assert Settings().auth_redirect_base_url == "https://exemple.fr"
+    assert Settings(_env_file=None).auth_redirect_base_url == "https://exemple.fr"
 
 
 def test_une_origine_de_retour_vide_le_reste(monkeypatch):
     """Vide vaut « non configuré » (FR-036) : la normalisation ne la ranime pas."""
     monkeypatch.setenv("AUTH_REDIRECT_BASE_URL", "/")
-    assert Settings().auth_redirect_base_url == ""
+    assert Settings(_env_file=None).auth_redirect_base_url == ""
 
 
 def test_une_cle_de_signature_vide_vaut_non_configure(monkeypatch):
@@ -102,7 +102,7 @@ def test_une_cle_de_signature_vide_vaut_non_configure(monkeypatch):
     faible », et c'est un défaut de configuration qu'on refuse.
     """
     monkeypatch.setenv("AUTH_SESSION_SECRET_KEY", "")
-    assert Settings().auth_session_secret_key == ""
+    assert Settings(_env_file=None).auth_session_secret_key.get_secret_value() == ""
 
 
 # ── Dimensionnement du pool de connexions (#585) ──────────────────────────────
@@ -114,7 +114,7 @@ def test_dimensionnement_pool_defauts(monkeypatch):
     migrations, au batch GitHub Actions et aux connexions manuelles (#585)."""
     for var in ("DB_POOL_SIZE", "DB_MAX_OVERFLOW", "DB_POOL_TIMEOUT_SECONDS"):
         monkeypatch.delenv(var, raising=False)
-    settings = Settings()
+    settings = Settings(_env_file=None)
     assert settings.db_pool_size == 15
     assert settings.db_max_overflow == 10
     assert settings.db_pool_timeout_seconds == 5
@@ -124,7 +124,7 @@ def test_dimensionnement_pool_depuis_env(monkeypatch):
     monkeypatch.setenv("DB_POOL_SIZE", "7")
     monkeypatch.setenv("DB_MAX_OVERFLOW", "3")
     monkeypatch.setenv("DB_POOL_TIMEOUT_SECONDS", "12")
-    settings = Settings()
+    settings = Settings(_env_file=None)
     assert settings.db_pool_size == 7
     assert settings.db_max_overflow == 3
     assert settings.db_pool_timeout_seconds == 12
@@ -138,7 +138,7 @@ def test_pool_size_zero_est_refuse(monkeypatch):
     les routes synchrones."""
     monkeypatch.setenv("DB_POOL_SIZE", "0")
     with pytest.raises(ValidationError):
-        Settings()
+        Settings(_env_file=None)
 
 
 def test_max_overflow_negatif_est_refuse(monkeypatch):
@@ -146,4 +146,26 @@ def test_max_overflow_negatif_est_refuse(monkeypatch):
     même raison que `pool_size=0` : jamais souhaité ici."""
     monkeypatch.setenv("DB_MAX_OVERFLOW", "-1")
     with pytest.raises(ValidationError):
-        Settings()
+        Settings(_env_file=None)
+
+
+# ── Secrets masqués dans le repr (#912) ───────────────────────────────────────
+
+
+def test_le_repr_des_reglages_ne_montre_aucun_secret(monkeypatch):
+    """Un échec d'assertion pytest imprime le repr : aucun secret ne doit y figurer."""
+    sentinelles = {
+        "DATABASE_URL": "postgresql://user:mdp-sentinelle-db@hote/base",
+        "AUTH_SESSION_SECRET_KEY": "cle-sentinelle-" + "s" * 32,
+        "AUTH_GITHUB_CLIENT_SECRET": "secret-sentinelle-github",
+        "POSTHOG_PROJECT_TOKEN": "jeton-sentinelle-posthog",
+        "GITHUB_BATCH_TOKEN": "jeton-sentinelle-batch",
+    }
+    for nom, valeur in sentinelles.items():
+        monkeypatch.setenv(nom, valeur)
+
+    rendu = repr(Settings(_env_file=None))
+
+    for valeur in sentinelles.values():
+        assert valeur not in rendu
+    assert "mdp-sentinelle-db" not in rendu

@@ -56,7 +56,7 @@ class GithubIdentityProvider:
         settings = get_settings()
         return OAuth2Client(
             client_id=settings.auth_github_client_id,
-            client_secret=settings.auth_github_client_secret,
+            client_secret=settings.auth_github_client_secret.get_secret_value(),
             scope=SCOPE,
             redirect_uri=f"{settings.auth_redirect_base_url}/api/v1/auth/{self.slug}/callback",
             # Sans ce paramètre, `create_authorization_url` ignore

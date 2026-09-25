@@ -50,7 +50,7 @@ def test_l_endpoint_ne_revele_aucun_secret(client):
     settings = get_settings()
     corps = client.get(URL).text
 
-    assert settings.auth_github_client_secret not in corps
+    assert settings.auth_github_client_secret.get_secret_value() not in corps
     assert settings.auth_github_client_id not in corps
     assert "exemple.fr" not in corps
 

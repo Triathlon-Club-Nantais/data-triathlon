@@ -129,7 +129,7 @@ def create_app() -> FastAPI:
             settings
         )
         init_posthog(
-            token=settings.posthog_project_token,
+            token=settings.posthog_project_token.get_secret_value(),
             host=settings.posthog_host,
             debug=settings.is_sqlite,
         )

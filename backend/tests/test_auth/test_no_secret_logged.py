@@ -25,8 +25,8 @@ def _demarre(client) -> str:
 def _valeurs_interdites(client) -> list[str]:
     settings = get_settings()
     interdites = [
-        settings.auth_github_client_secret,
-        settings.auth_session_secret_key,
+        settings.auth_github_client_secret.get_secret_value(),
+        settings.auth_session_secret_key.get_secret_value(),
         CODE_DE_RETOUR,
     ]
     jeton = client.cookies.get(session_cookie_name(settings))
