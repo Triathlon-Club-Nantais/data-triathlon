@@ -756,6 +756,8 @@ class _Persister:
                 # `athlete_repository.resolve` — sans effet sur la ligne qui
                 # vient de créer `athlete` (son club est déjà le sien).
                 athlete.club = club
+            if item.scraped.gender and not athlete.gender:
+                athlete.gender = item.scraped.gender
 
             is_creator = key in created_keys and key not in creation_consumed
             if is_creator:

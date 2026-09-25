@@ -31,6 +31,28 @@ def test_get_or_create_updates_current_club(db_session):
     assert a2.club == "Triathlon Club Nantais"
 
 
+def test_resolve_backfills_empty_gender(db_session):
+    """#964: a record created without gender takes the one a later import gives."""
+    athlete = athlete_repository.get_or_create(db_session, nom="SANSEXE", prenom="Alex")
+    assert athlete.gender == ""
+
+    again, created = athlete_repository.resolve(
+        db_session, nom="SANSEXE", prenom="Alex", gender="F"
+    )
+
+    assert created is False
+    assert again.gender == "F"
+
+
+def test_resolve_never_overwrites_known_gender(db_session):
+    """#964: an already set gender is left untouched."""
+    athlete_repository.get_or_create(db_session, nom="GENRE", prenom="Lou", gender="M")
+
+    again, _ = athlete_repository.resolve(db_session, nom="GENRE", prenom="Lou", gender="F")
+
+    assert again.gender == "M"
+
+
 def test_une_fiche_nee_d_un_import_suit_l_import(db_session):
     """#439, INV-2 — le drapeau naît faux : sans correction humaine, rien ne change."""
     athlete = athlete_repository.get_or_create(
