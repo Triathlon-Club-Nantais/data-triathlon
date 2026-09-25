@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
+import { idDeRoute } from "@/lib/utils/id-de-route";
 import { AppelPresence } from "@/components/admin/jeunes/AppelPresence";
 
 /**
@@ -12,7 +13,7 @@ export default async function AdminJeuneAppelPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
+  const sessionId = idDeRoute((await params).id);
 
   return (
     <PageShell>
@@ -22,7 +23,7 @@ export default async function AdminJeuneAppelPage({
           backHref="/admin/jeunes/calendrier"
           backLabel="Retour au calendrier"
         />
-        <AppelPresence sessionId={Number(id)} />
+        <AppelPresence sessionId={sessionId} />
       </div>
     </PageShell>
   );
