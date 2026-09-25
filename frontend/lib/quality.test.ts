@@ -46,7 +46,7 @@ describe("describeQualityIssues", () => {
   });
 
   it("traduit les trois anomalies de statut et de temps (#909)", () => {
-    expect(describeQualityIssues({ no_finisher: 1 })).toEqual(["Aucun arrivant dans l'épreuve"]);
+    expect(describeQualityIssues({ no_finisher: 1 })).toEqual(["Épreuve sans arrivant"]);
     expect(describeQualityIssues({ invalid_finisher_time: 1 })).toEqual([
       "1 arrivant au temps illisible ou négatif",
     ]);
@@ -75,8 +75,8 @@ describe("QUALITY_ISSUE_LABELS", () => {
     expect(QUALITY_ISSUE_LABELS.unknown_status).toBe("Statuts hors nomenclature");
     expect(QUALITY_ISSUE_LABELS.no_participation).toBe("Épreuve importée sans aucun résultat");
     expect(QUALITY_ISSUE_LABELS.no_finisher).toBe("Épreuve sans arrivant");
-    expect(QUALITY_ISSUE_LABELS.invalid_finisher_time).toBe("Temps d'arrivée invalides");
-    expect(QUALITY_ISSUE_LABELS.non_finisher_with_result).toBe("Non-arrivants classés");
+    expect(QUALITY_ISSUE_LABELS.invalid_finisher_time).toBe("Temps d'arrivée illisibles ou négatifs");
+    expect(QUALITY_ISSUE_LABELS.non_finisher_with_result).toBe("Non-arrivants classés ou chronométrés");
   });
 
   it("n'a pas de libellé pour un code inconnu (repli sur le code brut à l'appelant)", () => {
