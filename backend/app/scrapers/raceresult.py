@@ -319,6 +319,13 @@ _RE_DUREE = re.compile(r"^\d{1,3}:\d{2}(:\d{2})?([.,]\d+)?$")
 # que `normalize_time` le lit. C'est la garde du rôle `temps` (issue #62), dont
 # une cellule peut porter un statut (`OuStatut([Temps])`) et non une durée.
 _RE_DUREE_NORMALISEE = re.compile(r"^\d{2,}:\d{2}:\d{2}$")
+# Fraction de seconde finale (`02:35:01,7` sur 363395, #904) : `normalize_time`
+# ne la lit pas, et la garde du rôle `temps` rejetait alors un vrai chrono.
+_RE_FRACTION_FINALE = re.compile(r"^(\d{1,3}:\d{2}(?::\d{2})?)[.,]\d+$")
+# `TIMEn` est un résultat quelconque (`TIME2` « Natation », `TIME19` « Tours ») :
+# il n'est le temps d'arrivée que si son libellé le dit (`TIME1` « Temps », 363395).
+_RE_TIME_N = re.compile(r"^time\d+$")
+_LIBELLES_TEMPS_ARRIVEE = frozenset({"temps", "temps total", "temps final", "time"})
 # Décorations de cellule : `[img:https://…]` en préfixe, `#` de `"#" & [BIB]`.
 _RE_IMG = re.compile(r"\[img:[^\]]*\]")
 # Un terme qui compare n'est pas la valeur affichée mais la condition qui la
@@ -590,6 +597,12 @@ def _decoller_rang(valeur: str, motif: re.Pattern[str]) -> str:
     return trouve.group(1).strip() if trouve else valeur
 
 
+def _sans_fraction(valeur: str) -> str:
+    """Tronque à la seconde une durée à fraction décimale (`1:05:07,9` → `1:05:07`)."""
+    trouve = _RE_FRACTION_FINALE.match(valeur)
+    return trouve.group(1) if trouve else valeur
+
+
 def _strip_rank_suffix(valeur: str) -> str:
     """Décolle un rang suffixé (`"2:08:00 (1.)"` → `"2:08:00"`) d'une cellule.
 
@@ -848,13 +861,19 @@ def _map_columns(
             logger.debug("RaceResult : champ sans colonne de données (%r)", expr)
             continue
         peeled = _peel(expr)
+        label = _label_i18n(str(champ.get("Label") or "").strip())
         role = _role(peeled)
+        if (
+            not role
+            and _RE_TIME_N.match(peeled)
+            and label.lower() in _LIBELLES_TEMPS_ARRIVEE
+        ):
+            role = "temps"
         if role in ("rang_de_split", "dossard_affiche"):
             continue
         if role and role not in roles:
             roles[role] = col
             continue
-        label = _label_i18n(str(champ.get("Label") or "").strip())
         # Segment candidat : expression réduite à un token simple, étiquetée.
         # Les crochets ne sont PAS exigés — certaines épreuves écrivent
         # `Natation` là où d'autres écrivent `[Natation]`, et l'exigence les
@@ -1125,13 +1144,13 @@ def _build_result(
     # statut plutôt qu'une durée. Le repli restant borné par `_RE_DUREE`, il ne
     # peut injecter qu'une vraie durée, jamais un statut. Élargissement latéral
     # assumé, et inerte sur le panel : aucune épreuve n'y gagne ni n'y perd de temps.
-    temps = _strip_rank_suffix(cellule("temps"))
+    temps = _sans_fraction(_strip_rank_suffix(cellule("temps")))
     if not _RE_DUREE_NORMALISEE.match(normalize_time(temps)):
         temps = ""
     if not temps:
         candidat = _strip_rank_suffix(cellule("temps_texte"))
         if _RE_DUREE.match(candidat):
-            temps = candidat
+            temps = _sans_fraction(candidat)
     r.total_time = normalize_time(temps)
     r.is_relay = any(
         mot in contest_label.lower() for mot in ("relais", "relay", "equipe", "équipe")
@@ -1162,7 +1181,7 @@ def _build_result(
     # non-finisher fuyait (verrou C, #84). Le permissif est sûr ici, car
     # `_RE_DUREE` en aval rejette tout ce qui n'est pas une durée.
     r.segments = [
-        (label, normalize_time(valeur))
+        (label, normalize_time(_sans_fraction(valeur)))
         for label, col in segments
         if col < len(ligne)
         and (cellule_brute := _clean_cell(ligne[col]))
