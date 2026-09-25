@@ -601,6 +601,12 @@ def test_clean_cell_laisse_intacte_une_valeur_legitime(valeur):
     ("12.V1M", (12, "V1M")),
     ("S3F", (None, "S3F")),
     ("", (None, "")),
+    ("M0M (1.)", (1, "M0M")),
+    ("M0M (12)", (12, "M0M")),
+    # #991 : un non-finisher publie un rang vide ou négatif.
+    ("SEM ()", (None, "SEM")),
+    ("M4M (-1)", (None, "M4M")),
+    ("M4M ( -1. )", (None, "M4M")),
 ])
 def test_split_rank_category(cell, attendu):
     assert raceresult._split_rank_category(cell) == attendu

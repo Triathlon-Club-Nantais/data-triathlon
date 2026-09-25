@@ -544,6 +544,10 @@ _RE_RANG_SUFFIXE = re.compile(r"^(.*?)\s*\(\s*(\d+)\.?\s*\)$")
 # réelles : `(1.)`, `(10.)`, `(5.)`), distingue les deux sans ambiguïté.
 _RE_RANG_SUFFIXE_STRICT = re.compile(r"^(.*?)\s*\(\s*(\d+)\.\s*\)$")
 
+# Variante des catégories : un non-finisher y publie un rang vide ou négatif
+# (`"SEM ()"`, `"M4M (-1)"`, #991), décollé comme les autres.
+_RE_RANG_SUFFIXE_CATEGORIE = re.compile(r"^(.*?)\s*\(\s*(-?\d*)\.?\s*\)$")
+
 
 def _split_rank_category(cell: str) -> tuple[int | None, str]:
     """Sépare une cellule « libellé + rang » en (rang, libellé).
@@ -557,9 +561,10 @@ def _split_rank_category(cell: str) -> tuple[int | None, str]:
     trouve = _RE_RANG_PREFIXE.match(cell)
     if trouve:
         return int(trouve.group(1)), trouve.group(2).strip()
-    trouve = _RE_RANG_SUFFIXE.match(cell)
+    trouve = _RE_RANG_SUFFIXE_CATEGORIE.match(cell)
     if trouve:
-        return int(trouve.group(2)), trouve.group(1).strip()
+        rang = int(trouve.group(2)) if trouve.group(2).isdigit() else None
+        return rang or None, trouve.group(1).strip()
     return None, cell
 
 
