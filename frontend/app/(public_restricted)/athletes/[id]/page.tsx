@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
+import { rendreNullSi404 } from "@/lib/api/null-si-404";
 import { StatCard, MetaPill, Card, Eyebrow } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -19,7 +20,7 @@ import { AthleteComparisonChart } from "@/components/charts/AthleteComparisonCha
 
 export default async function AthletePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const data = await apiServer.getAthlete(Number(id)).catch(() => null);
+  const data = await apiServer.getAthlete(Number(id)).catch(rendreNullSi404);
   if (!data) notFound();
   const { athlete, participations } = data;
   const fullName = [athlete.prenom, athlete.nom].filter(Boolean).join(" ");

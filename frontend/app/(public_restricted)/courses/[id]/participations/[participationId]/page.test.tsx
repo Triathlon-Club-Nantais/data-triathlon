@@ -68,7 +68,10 @@ function participation(over: Partial<Participation> = {}): Participation {
 }
 
 async function renderPage(row: Participation | null, courseId = "3") {
-  if (row === null) getParticipation.mockRejectedValue(new Error("404"));
+  if (row === null) {
+    const { ApiError } = await import("@/lib/api/client");
+    getParticipation.mockRejectedValue(new ApiError(404, "not found"));
+  }
   else getParticipation.mockResolvedValue(row);
   const ui = await ParticipationDetailPage({
     params: Promise.resolve({ id: courseId, participationId: "42" }),
@@ -196,5 +199,26 @@ describe("ParticipationDetailPage", () => {
     await renderPage(participation({ stats: null }));
 
     expect(screen.queryByText(/distribution des temps/i)).toBeNull();
+  });
+});
+
+describe("ParticipationDetailPage — panne du backend (#923)", () => {
+  const rendre = () =>
+    ParticipationDetailPage({ params: Promise.resolve({ id: "3", participationId: "42" }) });
+
+  it("laisse remonter un 500 sans le déguiser en participation introuvable", async () => {
+    const panne = new (await import("@/lib/api/client")).ApiError(500, "Boum");
+    getParticipation.mockRejectedValue(panne);
+
+    await expect(rendre()).rejects.toBe(panne);
+    expect(notFound).not.toHaveBeenCalled();
+  });
+
+  it("laisse remonter une erreur réseau sans appeler notFound", async () => {
+    const coupure = new TypeError("fetch failed");
+    getParticipation.mockRejectedValue(coupure);
+
+    await expect(rendre()).rejects.toBe(coupure);
+    expect(notFound).not.toHaveBeenCalled();
   });
 });

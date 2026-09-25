@@ -2,8 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Participation } from "@/lib/types";
+import { ApiError } from "@/lib/api/client";
 
 const getAthlete = vi.fn();
+const notFound = vi.fn();
 
 vi.mock("@/lib/api/server", () => ({
   apiServer: { getAthlete: (id: number) => getAthlete(id) },
@@ -12,8 +14,12 @@ vi.mock("@/lib/api/server", () => ({
 // `usePathname`/`useSearchParams` : le tableau des épreuves est un composant
 // client depuis qu'il porte ses filtres (#489), et il lit l'URL. Les tests de
 // ces filtres vivent dans `EventsTable.test.tsx` ; ici, l'URL reste nue.
+// Le vrai `notFound()` interrompt le rendu en levant.
 vi.mock("next/navigation", () => ({
-  notFound: vi.fn(),
+  notFound: () => {
+    notFound();
+    throw new Error("NEXT_HTTP_ERROR_FALLBACK;404");
+  },
   useRouter: () => ({ refresh: vi.fn() }),
   usePathname: () => "/athletes/7",
   useSearchParams: () => new URLSearchParams(),
@@ -715,5 +721,32 @@ describe("AthletePage — répartition par saison, couleurs et légende (#655, #
     const legende = within(section).getByTestId("legende-format");
     expect(legende).toHaveTextContent("M");
     expect(legende).toHaveTextContent("S");
+  });
+});
+
+describe("AthletePage — absence et panne du backend (#923)", () => {
+  const rendre = () => AthletePage({ params: Promise.resolve({ id: "7" }) });
+
+  it("traite un 404 de l'API comme une fiche introuvable", async () => {
+    getAthlete.mockRejectedValue(new ApiError(404, "Athlète introuvable"));
+
+    await expect(rendre()).rejects.toThrow();
+    expect(notFound).toHaveBeenCalled();
+  });
+
+  it("laisse remonter un 500 sans le déguiser en fiche introuvable", async () => {
+    const panne = new ApiError(500, "Boum");
+    getAthlete.mockRejectedValue(panne);
+
+    await expect(rendre()).rejects.toBe(panne);
+    expect(notFound).not.toHaveBeenCalled();
+  });
+
+  it("laisse remonter une erreur réseau sans appeler notFound", async () => {
+    const coupure = new TypeError("fetch failed");
+    getAthlete.mockRejectedValue(coupure);
+
+    await expect(rendre()).rejects.toBe(coupure);
+    expect(notFound).not.toHaveBeenCalled();
   });
 });

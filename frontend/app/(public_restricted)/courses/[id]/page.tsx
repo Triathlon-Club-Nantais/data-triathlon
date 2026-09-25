@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
-import { ApiError } from "@/lib/api/client";
+import { rendreNullSi404 } from "@/lib/api/null-si-404";
 import { Card, Eyebrow, MetaPill } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { RaceFinishers } from "@/components/results/RaceFinishers";
@@ -17,19 +17,6 @@ import { CategoryBars } from "@/components/charts/CategoryBars";
 import { CATEGORY_PARAM, CLUB_PARAM, SCOPE_CLUB, SCOPE_PARAM, scopeFromParam } from "@/lib/scope";
 import { PAGE_SIZE_PARAM, parsePageSize } from "@/lib/pageSize";
 
-/**
- * Convertit une épreuve absente en `null`, et **laisse remonter le reste**.
- *
- * Avaler toute erreur ferait afficher « épreuve introuvable » sur un backend en
- * panne ou injoignable : indiscernable d'un lien mort pour le visiteur, et
- * invisible en supervision. Le risque a doublé avec la synthèse, qui est un
- * second appel — une panne de cette seule route ferait disparaître en 404 des
- * pages parfaitement valides.
- */
-function rendreNullSi404(erreur: unknown): null {
-  if (erreur instanceof ApiError && erreur.status === 404) return null;
-  throw erreur;
-}
 
 /**
  * Titres qui **disent leur portée** (#486, RES-7).
