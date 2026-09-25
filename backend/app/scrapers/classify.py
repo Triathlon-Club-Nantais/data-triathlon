@@ -71,7 +71,7 @@ def _detect_size(t: str) -> str:
         return "l"
     if "xxl" in t or "ironman" in t or "embrunman" in t or seg("xl"):
         return "xl"
-    if re.search(r"\blongue\b", t) or seg("l"):
+    if re.search(r"\blongues?\b", t) or seg("l"):
         return "l"
     if "olymp" in t or seg("m"):
         return "m"
@@ -193,6 +193,10 @@ def classify_event_type(text: str, *, contexte: str = "") -> str:
     if base is None and contexte:
         reference = f"{_norm(contexte)} {t}".strip()
         base = _sport_base(reference)
+    elif contexte and base == _sport_base(_norm(contexte)):
+        # Même sport des deux côtés : le « Triathlon » d'un « Triathlon M de X »
+        # prend la taille M. Un sport différent (trail d'un triathlon) ne la prend pas.
+        reference = f"{_norm(contexte)} {t}".strip()
     # Repli : triathlon nu (+ taille si déductible : « Sprint … », « Ironman … »).
     return _avec_taille(base or "triathlon", t if _detect_size(t) else reference)
 
