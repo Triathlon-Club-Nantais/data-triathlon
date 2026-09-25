@@ -167,7 +167,7 @@ def total_time(scraped: ScrapedResult) -> str | None:
     if not scraped.total_time:
         return None
     if parse_duration(scraped.total_time) is None:
-        logger.info("Temps total écarté (%s) : %r", scraped.provider, scraped.total_time)
+        logger.warning("Temps total écarté (%s) : %r", scraped.provider, scraped.total_time)
         return None
     return scraped.total_time
 

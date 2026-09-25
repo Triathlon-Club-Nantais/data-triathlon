@@ -188,6 +188,16 @@ def test_participation_fields_neither_stores_nor_ranks_finisher_an_unreadable_to
     assert fields["status"] == "DNF"
 
 
+def test_unreadable_total_is_logged_as_a_warning(caplog):
+    # Écarter un total fait d'un finisher un DNF : la perte doit se voir.
+    with caplog.at_level(logging.WARNING, logger="app.services.mapping"):
+        mapping.participation_fields(_scraped(total_time="Abandon"), athlete_id=1, course_id=2)
+    assert any(
+        rec.levelno == logging.WARNING and "Temps total écarté" in rec.message
+        for rec in caplog.records
+    )
+
+
 def test_participation_fields():
     s = _scraped(
         bib_number="42", club="TCN", category="V1H",

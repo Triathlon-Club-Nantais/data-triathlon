@@ -243,11 +243,9 @@ class _IncompleteRankingError(Exception):
 def _time(raw) -> str:
     """A duration, fraction truncated, `00:00:00` read as absent (D6).
 
-    The truncation must happen **before** `normalize_time`, whose `HH:MM:SS`
-    pattern is anchored on the end of the string: `00:57:33.2510000` would come
-    back verbatim, fraction included, and land in the database. The source
-    publishes `HH:MM:SS`, `HH:MM:SS.fffffff` (totals) and `HH:MM:SS.fff`
-    (`legDuration`) depending on the race.
+    The source publishes `HH:MM:SS`, `HH:MM:SS.fffffff` (totals) and
+    `HH:MM:SS.fff` (`legDuration`) depending on the race; `normalize_time`
+    truncates the fraction.
 
     `00:00:00` is what non-finishers carry — same convention as T2Area. Reading
     it as empty is what keeps `mapping.derive_status` from calling an abandon a
@@ -255,7 +253,7 @@ def _time(raw) -> str:
     """
     if not raw:
         return ""
-    normalise = normalize_time(str(raw).strip().split(".")[0])
+    normalise = normalize_time(str(raw))
     return "" if normalise == "00:00:00" else normalise
 
 

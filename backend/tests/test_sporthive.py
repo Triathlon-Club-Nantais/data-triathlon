@@ -487,10 +487,7 @@ def test_scrape_event_all_skips_a_race_without_entrants_and_never_calls_it(monke
     (None, ""),
 ])
 def test_time_truncates_the_fraction_and_reads_zero_as_absent(brut, attendu):
-    """D6. The truncation must come **before** `normalize_time`, whose
-    `HH:MM:SS` pattern is anchored on the end of the string: it would return
-    `00:57:33.2510000` verbatim and that value would land in the database.
-    """
+    """D6. A fraction left in place would land in the database verbatim."""
     assert sporthive._time(brut) == attendu
 
 
