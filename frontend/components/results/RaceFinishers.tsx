@@ -111,11 +111,12 @@ function VoileAttente() {
  * publié. Même lecture que le tri, qui écarte déjà ces valeurs faute de pouvoir
  * les comparer.
  */
-function CelluleInter({ valeur, small }: { valeur?: string; small?: boolean }) {
+function CelluleInter({ valeur, small, moi }: { valeur?: string; small?: boolean; moi?: boolean }) {
   const style = {
     fontSize: 13,
     fontWeight: small ? 400 : 600,
-    color: small ? "var(--tcn-text-muted)" : "var(--tcn-text-body)",
+    // Sur « ma ligne » survolée, `--tcn-text-muted` tombe à 4,46:1.
+    color: small && !moi ? "var(--tcn-text-muted)" : "var(--tcn-text-body)",
   };
   if (valeur && secondsFromHms(valeur) == null) {
     const motif = `Temps illisible chez le chronométreur (« ${valeur} ») — la donnée existe, mais ce n'est pas un temps.`;
@@ -642,7 +643,7 @@ export function RaceFinishers({
                   />
                 </td>
                 {segments.map((s) => (
-                  <CelluleInter key={s.key} valeur={splits[s.key]} small={s.small} />
+                  <CelluleInter key={s.key} valeur={splits[s.key]} small={s.small} moi={moi} />
                 ))}
                 <td role="cell" style={{ fontSize: 13, fontWeight: own ? 700 : 400, color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-text-muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.club ?? "—"}</td>
               </tr>
