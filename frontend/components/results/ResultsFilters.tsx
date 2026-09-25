@@ -106,9 +106,12 @@ export function ResultsFilters() {
   // serait appliqué en douce dès qu'on tape dans un champ texte (#387).
   const debouncedName = useDebounce(name);
   const debouncedEventName = useDebounce(eventName);
-  // Requête posée par la recherche live : quand l'URL la rend, la saisie est
-  // peut-être déjà plus loin, et la resynchronisation ci-dessous l'effacerait.
-  const urlLive = useRef<string | null>(null);
+  // Requêtes posées par la recherche live, dans l'ordre d'envoi : quand l'URL
+  // en rend une, la saisie est peut-être déjà plus loin, et la
+  // resynchronisation ci-dessous l'effacerait. Un ensemble et non la dernière
+  // seule : une frappe lente peut envoyer une seconde requête avant que la
+  // première n'ait atteint l'URL.
+  const urlsLive = useRef(new Set<string>());
   useEffect(() => {
     if (
       debouncedName === (sp.get("name") ?? "") &&
@@ -123,7 +126,7 @@ export function ResultsFilters() {
       date_from: sp.get("date_from") ?? "",
       date_to: sp.get("date_to") ?? "",
     });
-    urlLive.current = url.split("?")[1] ?? "";
+    urlsLive.current.add(url.split("?")[1] ?? "");
     router.replace(url);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debouncedName, debouncedEventName]);
@@ -134,8 +137,16 @@ export function ResultsFilters() {
   // « Filtrer » (#949).
   const urlCourante = sp.toString();
   useEffect(() => {
-    if (urlCourante === urlLive.current) return;
-    urlLive.current = null;
+    const enAttente = urlsLive.current;
+    if (enAttente.has(urlCourante)) {
+      // Celles envoyées avant elle ne se poseront plus.
+      for (const url of enAttente) {
+        enAttente.delete(url);
+        if (url === urlCourante) break;
+      }
+      return;
+    }
+    enAttente.clear();
     const params = new URLSearchParams(urlCourante);
     setName(params.get("name") ?? "");
     setEventName(params.get("event_name") ?? "");
