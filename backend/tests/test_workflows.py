@@ -145,10 +145,12 @@ def test_render_api_does_not_retry_definitive_http_errors(render_sleep_script):
 
     Le 400 « déjà éveillé » du `resume` revenait alors quatre fois, et le test
     de no-op échouait sur quatre corps concaténés. `--retry` seul ne rejoue que
-    le transitoire (réseau, 408, 429, 5xx).
+    le transitoire (réseau, 408, 429, 5xx) ; `--retry-connrefused` y ajoute
+    le refus de connexion, que l'option retirée couvrait.
     """
     assert "--retry-all-errors" not in render_sleep_script
     assert "--retry 3" in render_sleep_script
+    assert "--retry-connrefused" in render_sleep_script
 
 
 def test_resume_noop_check_reads_the_last_body(render_sleep_script):
