@@ -3,7 +3,7 @@ from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from typing import NamedTuple
 
-from sqlalchemy import and_, case, func, or_
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, aliased, contains_eager, joinedload
 
 from app.core import counter_scope
@@ -16,9 +16,9 @@ from app.core.season import season_bounds, season_of
 from app.core.validation import validated_clause
 from app.models.athlete import Athlete
 from app.models.course import Course
-from app.models.participation import Participation
+from app.models.participation import Participation, ParticipationTeammate
 from app.repositories import club_alias_repository
-from app.repositories.athlete_repository import name_filter
+from app.repositories.athlete_repository import credits, name_filter
 from app.scrapers.base import STATUS_FINISHER
 
 
@@ -56,23 +56,80 @@ def exists_for_bib(db: Session, course_id: int, bib_number: str | None) -> bool:
     )
 
 
-def exists_for_athlete_on_course(db: Session, *, athlete_id: int, course_id: int) -> bool:
+def carried_by(athlete_id: int):
+    """Résultats de ce coureur : portés en direct, ou comme équipier d'un relais (#894)."""
+    return or_(
+        Participation.athlete_id == athlete_id,
+        Participation.id.in_(
+            select(ParticipationTeammate.participation_id).where(
+                ParticipationTeammate.athlete_id == athlete_id
+            )
+        ),
+    )
+
+
+def teammate_athlete_ids(db: Session, participation_id: int) -> list[int]:
+    return [
+        athlete_id
+        for (athlete_id,) in db.query(ParticipationTeammate.athlete_id)
+        .filter(ParticipationTeammate.participation_id == participation_id)
+        .order_by(ParticipationTeammate.position)
+    ]
+
+
+def teammate_names(db: Session, participation_ids: Iterable[int]) -> dict[int, list[str]]:
+    """Noms « Prénom NOM » des équipiers de ces résultats, dans l'ordre (#894).
+
+    Une requête pour toute une liste ; un résultat sans équipiers est absent.
+    """
+    ids = list(participation_ids)
+    if not ids:
+        return {}
+    noms: dict[int, list[str]] = {}
+    lignes = (
+        db.query(ParticipationTeammate.participation_id, Athlete.prenom, Athlete.nom)
+        .join(Athlete, Athlete.id == ParticipationTeammate.athlete_id)
+        .filter(ParticipationTeammate.participation_id.in_(ids))
+        .order_by(ParticipationTeammate.participation_id, ParticipationTeammate.position)
+    )
+    for participation_id, prenom, nom in lignes:
+        noms.setdefault(participation_id, []).append(f"{prenom} {nom}".strip())
+    return noms
+
+
+def replace_teammates(
+    db: Session, participation: Participation, athlete_ids: Sequence[int]
+) -> Participation:
+    """Pose la composition d'un relais, dans l'ordre donné. Une liste vide l'efface."""
+    participation.teammate_links.clear()
+    db.flush()
+    participation.teammate_links.extend(
+        ParticipationTeammate(athlete_id=athlete_id, position=position)
+        for position, athlete_id in enumerate(athlete_ids)
+    )
+    db.flush()
+    return participation
+
+
+def exists_for_athlete_on_course(
+    db: Session, *, athlete_id: int, course_id: int, exclude_participation_id: int | None = None
+) -> bool:
     """Ce coureur a-t-il déjà un résultat sur cette épreuve ? (#117, FR-006)
 
     **Aucune contrainte de base ne couvre ce cas** : `uq_participation_bib` porte
     sur `(course_id, bib_number)`, pas sur l'athlète. Sans cette vérification, un
     rattachement peut classer deux fois la même personne sur une même course —
     une incohérence visible publiquement, dans les classements.
+
+    `exclude_participation_id` écarte le résultat qu'on déplace : rattaché par
+    la liaison d'un relais (#894), il se retrouverait lui-même.
     """
-    return (
-        db.query(Participation.id)
-        .filter(
-            Participation.course_id == course_id,
-            Participation.athlete_id == athlete_id,
-        )
-        .first()
-        is not None
+    q = db.query(Participation.id).filter(
+        Participation.course_id == course_id, carried_by(athlete_id)
     )
+    if exclude_participation_id is not None:
+        q = q.filter(Participation.id != exclude_participation_id)
+    return q.first() is not None
 
 
 def reassign(db: Session, participation: Participation, *, athlete_id: int) -> Participation:
@@ -113,6 +170,24 @@ def delete(db: Session, participation: Participation) -> None:
     db.flush()
 
 
+def delete_teammates(db: Session, *, course_id: int | None = None) -> None:
+    """Efface les compositions de relais (#894), d'une épreuve ou de toute la base.
+
+    À appeler avant tout `DELETE` de masse sur `participations` : le
+    `ON DELETE CASCADE` de la liaison est inerte en SQLite (aucun
+    `PRAGMA foreign_keys=ON`), et un id de participation réutilisé hériterait
+    d'équipiers fantômes.
+    """
+    q = db.query(ParticipationTeammate)
+    if course_id is not None:
+        q = q.filter(
+            ParticipationTeammate.participation_id.in_(
+                select(Participation.id).where(Participation.course_id == course_id)
+            )
+        )
+    q.delete(synchronize_session=False)
+
+
 def delete_all(db: Session) -> int:
     """Supprime **toutes** les participations de la base. Rend le nombre effacé (#384).
 
@@ -120,6 +195,7 @@ def delete_all(db: Session) -> int:
     course à périmer une par une — `Course` et `course_sources` restent
     strictement intacts, seule `participations` se vide.
     """
+    delete_teammates(db)
     efface = db.query(Participation).delete(synchronize_session=False)
     db.flush()
     return efface
@@ -138,6 +214,7 @@ def delete_for_course(db: Session, course: Course) -> int:
     ré-importe juste derrière, et le persister lit cette collection — il y verrait
     les lignes qu'on vient d'effacer, et les compterait comme déjà en base.
     """
+    delete_teammates(db, course_id=course.id)
     efface = (
         db.query(Participation)
         .filter(Participation.course_id == course.id)
@@ -208,7 +285,7 @@ def count_for_athlete(db: Session, athlete_id: int) -> int:
     """
     return (
         db.query(func.count(Participation.id))
-        .filter(Participation.athlete_id == athlete_id)
+        .filter(carried_by(athlete_id))
         .scalar()
         or 0
     )
@@ -435,7 +512,7 @@ def list_for_athlete(
     q = (
         db.query(Participation)
         .options(joinedload(Participation.course).selectinload(Course.sources))
-        .filter(Participation.athlete_id == athlete_id)
+        .filter(carried_by(athlete_id))
     )
     if seasons or federal_only:
         q = q.join(Course, Participation.course_id == Course.id)
@@ -777,12 +854,22 @@ def stats_totals(
     seasons: list[int] | None = None,
     federal_only: bool = False,
 ) -> tuple[int, int, int]:
-    """`(total, athlètes distincts, épreuves distinctes)` en une requête agrégée."""
-    q = db.query(
-        func.count(Participation.id),
-        func.count(func.distinct(Participation.athlete_id)),
-        func.count(func.distinct(Participation.course_id)),
-    ).filter(validated_clause(Participation.is_pending_validation))
+    """`(total, athlètes distincts, épreuves distinctes)` en une requête agrégée.
+
+    Les athlètes se comptent sur `credits()` : chaque équipier d'un relais
+    attribué (#894) en est un. D'où les `DISTINCT` sur les deux autres
+    comptes, la jointure dupliquant la ligne d'un relais par équipier.
+    """
+    lien = credits()
+    q = (
+        db.query(
+            func.count(func.distinct(Participation.id)),
+            func.count(func.distinct(lien.c.athlete_id)),
+            func.count(func.distinct(Participation.course_id)),
+        )
+        .join(lien, lien.c.participation_id == Participation.id)
+        .filter(validated_clause(Participation.is_pending_validation))
+    )
     if seasons or federal_only:
         q = q.join(Course, Participation.course_id == Course.id)
     q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only)

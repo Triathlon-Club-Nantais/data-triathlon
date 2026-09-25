@@ -973,3 +973,23 @@ def test_course_summary_split_keys_ignorent_le_sport_courant(db_session):
     db_session.flush()
 
     assert stats_service.course_summary(db_session, course.id)["split_keys"] == ["swim", "bike", "run"]
+
+
+def test_un_relais_attribue_a_deux_adherents_compte_une_fois_pour_le_club(db_session):
+    """#894, SC-004 : le résultat reste une ligne, quel que soit le nombre d'équipiers."""
+    course = course_repository.get_or_create(
+        db_session, name="Relais", event_date=date(2026, 6, 1), event_type="triathlon-s",
+        is_relay=True,
+    )
+    jean = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean", club="TCN")
+    paul = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="TCN")
+    relais = participation_repository.create(
+        db_session, athlete_id=jean.id, course_id=course.id, bib_number="7", club="TCN",
+        is_relay=True, rank_overall=2,
+    )
+    participation_repository.replace_teammates(db_session, relais, [jean.id, paul.id])
+
+    stats = stats_service.get_stats(db_session, club_only=True)
+
+    assert stats["rank_counters"]["scratch"]["podiums"] == 1
+    assert (stats["total"], stats["athletes"], stats["events"]) == (1, 2, 1)

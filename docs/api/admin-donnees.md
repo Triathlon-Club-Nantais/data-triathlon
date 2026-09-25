@@ -49,6 +49,17 @@ ressource).
 | `GET /admin/athletes` (recherche) et `GET /admin/athletes/{id}` | `athletes:read` |
 | `PATCH /admin/athletes/{id}` | `athletes:write` |
 | `POST /admin/participations/{id}/reassign` | `participations:reassign` |
+| `PUT /admin/participations/{id}/teammates` (#894) | `participations:reassign` |
+
+**`PUT .../teammates` attribue un relais à ses équipiers** (#894) : le corps est
+la composition voulue, 2 à 8 entrées `{athlete_id}` ou `{athlete_name,
+athlete_firstname}` (un nom inconnu crée la fiche, un nom connu la réutilise).
+Tout ou rien, rejouable sans effet ni journal ; 409 si un équipier est déjà
+classé sur l'épreuve, 400 si le résultat n'est pas un relais, 422 sur un corps
+invalide. La réponse `ParticipationOut` gagne `teammates` (liste vide hors
+relais attribué), et `reassign` sur un relais attribué **vide** la composition.
+Même couple de pouvoirs que la réattribution côté écran. Spec :
+`specs/20260924-171341-relay-multi-athletes/`.
 
 **`DELETE /admin/courses` et `DELETE /admin/participations` rendent un corps
 depuis #501** : `200` avec le décompte réel (`{courses_deleted, athletes_purged}`

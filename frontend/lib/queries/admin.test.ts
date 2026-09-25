@@ -7,6 +7,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 const {
   updateAthlete,
   reassignParticipation,
+  setParticipationTeammates,
   updateCourse,
   deleteCourse,
   listPermissions,
@@ -19,6 +20,7 @@ const {
 } = vi.hoisted(() => ({
   updateAthlete: vi.fn(),
   reassignParticipation: vi.fn(),
+  setParticipationTeammates: vi.fn(),
   updateCourse: vi.fn(),
   deleteCourse: vi.fn(),
   listPermissions: vi.fn(),
@@ -37,6 +39,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
     apiClient: {
       updateAthlete,
       reassignParticipation,
+      setParticipationTeammates,
       updateCourse,
       deleteCourse,
       listPermissions,
@@ -56,6 +59,7 @@ import {
   useUpdateCourse,
   useDeleteCourse,
   useReassignParticipation,
+  useSetParticipationTeammates,
   useAdminPermissions,
   useRoles,
   useCreateRole,
@@ -84,6 +88,7 @@ describe("invalidations des gestes d'administration", () => {
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     updateAthlete.mockResolvedValue({});
     reassignParticipation.mockResolvedValue({});
+    setParticipationTeammates.mockResolvedValue({});
     updateCourse.mockResolvedValue({});
     deleteCourse.mockResolvedValue(undefined);
   });
@@ -100,6 +105,12 @@ describe("invalidations des gestes d'administration", () => {
       hook: useReassignParticipation,
       declencher: (mutate: (v: never) => void) =>
         mutate({ participationId: 7, athleteId: 2 } as never),
+    },
+    {
+      nom: "attribuer un relais à ses équipiers",
+      hook: useSetParticipationTeammates,
+      declencher: (mutate: (v: never) => void) =>
+        mutate({ participationId: 7, equipiers: [2, 3] } as never),
     },
     {
       nom: "corriger une épreuve",

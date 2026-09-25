@@ -374,3 +374,52 @@ describe("ParticipationAdminActions — rattacher un résultat (US4)", () => {
     expect(screen.queryByText(/20 premiers coureurs/i)).not.toBeInTheDocument();
   });
 });
+
+describe("ParticipationAdminActions — attribuer un relais (#894)", () => {
+  const EQUIPIERS = "Attribuer aux équipiers le résultat de « Triathlon de Nantes — 15/06/2025 »";
+
+  function afficherResultat(resultat: Parameters<typeof ParticipationAdminActions>[0]["resultat"]) {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ParticipationAdminActions resultat={resultat} />
+      </QueryClientProvider>,
+    );
+  }
+
+  beforeEach(() => {
+    getSession.mockResolvedValue(session(["participations:reassign", "athletes:read"]));
+  });
+
+  it("offre l'attribution sur un résultat de relais", async () => {
+    afficherResultat({ ...RESULTAT, relais: true });
+
+    await userEvent.click(await screen.findByRole("button", { name: EQUIPIERS }));
+
+    expect(
+      screen.getByRole("dialog", { name: "Attribuer ce relais à ses équipiers" }),
+    ).toBeInTheDocument();
+  });
+
+  it("ne l'offre pas sur un résultat individuel", async () => {
+    afficherResultat(RESULTAT);
+
+    await screen.findByRole("button", { name: /^Rattacher le résultat/ });
+    expect(screen.queryByRole("button", { name: EQUIPIERS })).not.toBeInTheDocument();
+  });
+
+  it("part de la composition actuelle du relais", async () => {
+    afficherResultat({
+      ...RESULTAT,
+      relais: true,
+      equipiers: [
+        { id: 10, nom: "DUPONT", prenom: "Jean" },
+        { id: 11, nom: "MARTIN", prenom: "Paul" },
+      ],
+    });
+
+    await userEvent.click(await screen.findByRole("button", { name: EQUIPIERS }));
+
+    expect(screen.getByRole("button", { name: "Retirer MARTIN Paul" })).toBeInTheDocument();
+  });
+});

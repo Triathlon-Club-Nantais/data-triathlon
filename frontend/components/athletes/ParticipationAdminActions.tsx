@@ -1,7 +1,7 @@
 "use client";
 import { useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRightLeft, Trash2 } from "lucide-react";
+import { ArrowRightLeft, Trash2, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Button, Input, Modal } from "@/components/tcn";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -12,8 +12,9 @@ import {
   useReassignParticipation,
 } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
-import type { AdminAthlete } from "@/lib/types";
+import type { AdminAthlete, AthleteBrief } from "@/lib/types";
 import { formatDate } from "@/lib/utils/date";
+import { TeammatesDialog } from "./TeammatesDialog";
 
 export type ResultatACorriger = {
   id: number;
@@ -25,6 +26,10 @@ export type ResultatACorriger = {
   coureur: string;
   /** Fiche qui porte le résultat aujourd'hui — celle qu'on ne se rattache pas. */
   coureurId: number;
+  /** Résultat de relais (`participation.is_relay`) : seul à s'attribuer à une équipe (#894). */
+  relais?: boolean;
+  /** Composition actuelle d'un relais déjà attribué, vide sinon. */
+  equipiers?: Pick<AthleteBrief, "id" | "nom" | "prenom">[];
 };
 
 /** Un `404` décrit une requête ; l'opérateur, lui, voit un écran (FR-016). */
@@ -90,6 +95,7 @@ export function ParticipationAdminActions({
 
   const [confirmation, setConfirmation] = useState(false);
   const [rattachementOuvert, setRattachementOuvert] = useState(false);
+  const [equipiersOuvert, setEquipiersOuvert] = useState(false);
   const [saisie, setSaisie] = useState("");
   // Un seul état pour les deux retours qui se lisent à côté de la liste : « déjà
   // au nom de ce coureur » (constat) et le conflit renvoyé par le serveur
@@ -210,6 +216,27 @@ export function ParticipationAdminActions({
         >
           Rattacher
         </Button>
+      )}
+
+      {/* Même couple de pouvoirs que le rattachement : même recherche gardée. */}
+      {peutRattacher && resultat.relais && (
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={<Users size={14} aria-hidden="true" />}
+          onClick={() => setEquipiersOuvert(true)}
+          aria-label={`Attribuer aux équipiers le résultat de ${intitule}`}
+        >
+          Attribuer aux équipiers
+        </Button>
+      )}
+
+      {equipiersOuvert && (
+        <TeammatesDialog
+          resultat={resultat}
+          equipiers={resultat.equipiers ?? []}
+          onClose={() => setEquipiersOuvert(false)}
+        />
       )}
 
       {confirmation && (

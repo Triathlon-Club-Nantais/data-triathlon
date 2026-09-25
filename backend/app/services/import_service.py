@@ -24,6 +24,7 @@ from app.core.club import is_tcn
 from app.core.config import Settings
 from app.core.database import SessionLocal
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
+from app.core.text import deaccent
 from app.core.time import utcnow
 from app.models.athlete import Athlete
 from app.models.course import Course
@@ -490,6 +491,11 @@ def _non_finisher_overrides(existing, scraped: ScrapedResult, fields: dict) -> d
 _TRANCHE_SIZE = 500
 
 
+def _team_key(team_name: str | None) -> str:
+    """Nom d'équipe comparable d'un scrape à l'autre : casse, accents et espaces ignorés."""
+    return " ".join((deaccent(team_name) or "").lower().split())
+
+
 def _identity_key(scraped: ScrapedResult) -> tuple[str, str]:
     """Clé d'identité normalisée d'une ligne scrapée — même formule que
     `athlete_repository.get_by_identities_batch`, côté nom/prénom stockés
@@ -538,6 +544,7 @@ class _Persister:
         self._added_bibs: dict[int, set[str]] = {}
         self._duplicate_bibs: Counter[int] = Counter()
         self._without_bib: dict[int, dict[int, list[Participation]]] = {}
+        self._teams_without_bib: dict[int, dict[str, Participation]] = {}
         self._credits: dict[int, dict[int, int]] = {}
         self._updated_single: dict[int, set[int]] = {}
         self._courses: dict[int, Course] = {}
@@ -599,6 +606,13 @@ class _Persister:
             else:
                 without.setdefault(row.athlete_id, []).append(row)
         self._by_bib[course_id] = by_bib
+        # Relais attribués sans dossard (#894) : appariés par nom d'équipe, la
+        # fiche de l'équipe ayant disparu au profit des équipiers.
+        self._teams_without_bib[course_id] = {
+            _team_key(row.team_name): row
+            for row in rows
+            if not row.bib_number and row.teammate_links and row.team_name
+        }
         self._added_bibs[course_id] = set()
         self._without_bib[course_id] = without
         self._credits[course_id] = {aid: len(rs) for aid, rs in without.items()}
@@ -674,6 +688,11 @@ class _Persister:
             existing = self._by_bib[course.id].get(bib)
             if existing is not None:
                 added.add(bib)
+                if existing.teammate_links:
+                    # Relais attribué à ses équipiers (#894) : l'identité scrapée
+                    # est celle de l'équipe, jamais résolue ni réconciliée.
+                    self._upsert(existing, scraped)
+                    return
                 # Deux axes indépendants sur une ligne appariée : l'identité
                 # (`athlete_id`, #66) puis les valeurs (#68). La réconciliation
                 # ne touche jamais aux valeurs, `_upsert` jamais à `athlete_id` —
@@ -694,6 +713,14 @@ class _Persister:
             # ce test (la résolution est différée, `_by_bib` ne les connaît
             # pas encore) et heurteraient `uq_participation_bib` à la création.
             added.add(bib)
+        elif scraped.is_relay:
+            equipe = self._teams_without_bib[course.id].pop(
+                _team_key(" ".join(filter(None, [scraped.athlete_name, scraped.athlete_firstname]))),
+                None,
+            )
+            if equipe is not None:
+                self._upsert(equipe, scraped)
+                return
 
         self._enqueue(course.id, scraped, bib=bib, participation=None)
 

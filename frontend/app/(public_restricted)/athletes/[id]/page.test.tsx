@@ -73,7 +73,7 @@ function part(over: Partial<Participation> & { id: number }): Participation {
     rank_gender: null,
     total_time: "01:59:00",
     status: over.status ?? "finisher",
-    is_relay: false,
+    is_relay: over.is_relay ?? false,
     team_name: over.team_name ?? null,
     evidence_url: over.evidence_url ?? null,
     is_pending_validation: over.is_pending_validation ?? false,
@@ -499,6 +499,19 @@ describe("AthletePage", () => {
     // La meilleure place validée est 5, pas le rang 1 de la participation en attente.
     const placeCard = screen.getByText("Meilleure place").parentElement?.parentElement;
     expect(within(placeCard as HTMLElement).getByText("5")).toBeInTheDocument();
+  });
+
+  it("ne tient pas compte d'un relais dans la meilleure place ni le top 10 (#894)", async () => {
+    await renderAthlete([
+      part({ id: 1, rank_overall: 5, course_finishers: 50 }),
+      part({ id: 3, rank_overall: 30, course_finishers: 50 }),
+      part({ id: 2, rank_overall: 1, course_finishers: 50, is_relay: true }),
+    ]);
+
+    const placeCard = screen.getByText("Meilleure place").parentElement?.parentElement;
+    expect(within(placeCard as HTMLElement).getByText("5")).toBeInTheDocument();
+    const top10Card = screen.getByText("Top 10").parentElement?.parentElement;
+    expect(within(top10Card as HTMLElement).getByText("1")).toBeInTheDocument();
   });
 
   it("n'affiche pas de repère « en attente » sur « Épreuves » quand tout est validé (#438)", async () => {

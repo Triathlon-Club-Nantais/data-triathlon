@@ -28,6 +28,8 @@ class ClubPodiumEntry(BaseModel):
     rank: int
     scope: str
     total_time: str | None = None
+    # Équipiers d'un relais attribué (#894), « Prénom NOM » ; vide sinon.
+    teammate_names: list[str] = []
 
 
 class ClubPodiums(BaseModel):

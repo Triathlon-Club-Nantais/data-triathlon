@@ -75,6 +75,13 @@ export function PodiumsList({ podiums }: { podiums: ClubPodiums }) {
                 <Link href={`/athletes/${p.athlete_id}`} className="font-semibold hover:underline">
                   {p.athlete_name}
                 </Link>
+                {/* Un podium de relais reste une entrée (#894) : le lien mène au
+                    porteur, les autres équipiers sont nommés à côté. */}
+                {(p.teammate_names ?? []).length > 1 && (
+                  <span className="ml-1 text-sm text-[var(--tcn-text-muted)]">
+                    {`avec ${(p.teammate_names ?? []).filter((n) => n !== p.athlete_name).join(", ")}`}
+                  </span>
+                )}
                 <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--tcn-text-faint)]">
                   <span className="truncate">{formatEventName(p.event_name, p.is_relay)}</span>
                   <SportBadge type={p.event_type} />

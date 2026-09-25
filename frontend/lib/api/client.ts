@@ -370,6 +370,17 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify({ athlete_id: athleteId }),
     }),
+  /** Un équipier est une fiche (`id`) ou, faute de fiche, un nom et un prénom (#894). */
+  setParticipationTeammates: (
+    participationId: number,
+    equipiers: (number | { athlete_name: string; athlete_firstname: string })[],
+  ) =>
+    request<Participation>(`/admin/participations/${participationId}/teammates`, {
+      method: "PUT",
+      body: JSON.stringify({
+        teammates: equipiers.map((e) => (typeof e === "number" ? { athlete_id: e } : e)),
+      }),
+    }),
   getSeasonQuota: (athleteId: number, season: number) =>
     request<SeasonQuota>(`/admin/athletes/${athleteId}/season-quota${toQuery({ season })}`),
   listValidatedVolunteerActions: (athleteId: number) =>

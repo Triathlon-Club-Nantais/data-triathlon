@@ -33,6 +33,7 @@ from app.schemas.admin import (
     ParticipationsWipeResult,
     SeasonValidationCreate,
     SeasonValidationOut,
+    TeammatesUpdate,
 )
 from app.schemas.course import CourseBrief
 from app.schemas.participation import ParticipationOut
@@ -120,6 +121,39 @@ def reassign_participation(
         "participation_reassigned",
         distinct_id=str(user.id),
         properties={"participation_id": participation_id},
+    )
+    return participation
+
+
+@router.put(
+    "/admin/participations/{participation_id}/teammates", response_model=ParticipationOut
+)
+def set_participation_teammates(
+    participation_id: int,
+    body: TeammatesUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.PARTICIPATIONS_REASSIGN)),
+):
+    """Attribue un résultat de relais à ses équipiers (#894).
+
+    `PUT` : le corps est la composition voulue, et la rejouer ne change rien.
+    """
+    participation = admin_actions.set_teammates(
+        db,
+        participation_id=participation_id,
+        teammates=[
+            ref.athlete_id
+            if ref.athlete_id is not None
+            else admin_actions.NewTeammate(ref.athlete_name.strip(), ref.athlete_firstname.strip())
+            for ref in body.teammates
+        ],
+        user_id=user.id,
+    )
+    db.commit()
+    capture_event(
+        "participation_teammates_set",
+        distinct_id=str(user.id),
+        properties={"participation_id": participation_id, "teammates": len(body.teammates)},
     )
     return participation
 

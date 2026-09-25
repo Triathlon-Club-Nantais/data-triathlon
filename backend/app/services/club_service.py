@@ -30,7 +30,7 @@ def _meilleur(rangs: dict[str, int | None]) -> tuple[str, int] | None:
     return min(valides, key=lambda item: (item[1], _SCOPES.index(item[0])))
 
 
-def _entree(row, scope: str, rang: int) -> ClubPodiumEntry:
+def _entree(row, scope: str, rang: int, equipes: dict[int, list[str]]) -> ClubPodiumEntry:
     (pid, _rank_overall, _rank_gender, _rank_category, total_time,
      athlete_id, prenom, nom, event_name, event_type, is_relay, event_date,
      _gender) = row
@@ -45,6 +45,7 @@ def _entree(row, scope: str, rang: int) -> ClubPodiumEntry:
         rank=rang,
         scope=scope,
         total_time=total_time,
+        teammate_names=equipes.get(pid, []),
     )
 
 
@@ -55,16 +56,16 @@ def _trier(entries: list[ClubPodiumEntry]) -> list[ClubPodiumEntry]:
     return sorted(par_date, key=lambda e: e.rank)
 
 
-def _bucket_podiums(rows) -> ClubPodiums:
+def _bucket_podiums(rows, equipes: dict[int, list[str]]) -> ClubPodiums:
     buckets: dict[str, list[ClubPodiumEntry]] = {
         "scratch": [], "category": [], "gender": [], "all": [],
     }
     for row in rows:
         _, rank_overall, rank_gender, rank_category, *_, gender = row
         if rank_overall is not None and 1 <= rank_overall <= 3:
-            buckets["scratch"].append(_entree(row, "overall", rank_overall))
+            buckets["scratch"].append(_entree(row, "overall", rank_overall, equipes))
         if rank_category is not None and 1 <= rank_category <= 3:
-            buckets["category"].append(_entree(row, "category", rank_category))
+            buckets["category"].append(_entree(row, "category", rank_category, equipes))
         # Miroir de stats_service._rank_counters (#376) : un podium de genre
         # n'est compté que pour un athlète F ou M, jamais genre vide/hors
         # binaire — sans quoi le KPI "Podiums" (rank_counters) et cette liste
@@ -73,13 +74,13 @@ def _bucket_podiums(rows) -> ClubPodiums:
             rank_gender is not None and 1 <= rank_gender <= 3
             and (gender or "").upper() in ("F", "M")
         ):
-            buckets["gender"].append(_entree(row, "gender", rank_gender))
+            buckets["gender"].append(_entree(row, "gender", rank_gender, equipes))
         meilleur = _meilleur(
             {"overall": rank_overall, "gender": rank_gender, "category": rank_category}
         )
         if meilleur:
             scope, rang = meilleur
-            buckets["all"].append(_entree(row, scope, rang))
+            buckets["all"].append(_entree(row, scope, rang, equipes))
     return ClubPodiums(**{k: _trier(v) for k, v in buckets.items()})
 
 
@@ -140,7 +141,10 @@ def get_club_summary(db: Session, *, federal_only: bool = False) -> ClubSummary:
     ]
     return ClubSummary(
         roster=roster,
-        podiums=_bucket_podiums(podium_rows),
+        podiums=_bucket_podiums(
+            podium_rows,
+            participation_repository.teammate_names(db, (row[0] for row in podium_rows)),
+        ),
         podiums_by_discipline=_bucket_podiums_par_discipline(podium_rows),
         composition=_bucket_composition(composition_rows),
     )

@@ -246,6 +246,41 @@ class ParticipationReassign(BaseModel):
     athlete_id: int
 
 
+class TeammateRef(BaseModel):
+    """Un équipier de relais (#894) : sa fiche, ou son nom quand il n'en a pas.
+
+    Champs d'entrée nommés comme ceux de `ParticipationCreate` (Principe I).
+    """
+
+    athlete_id: int | None = None
+    athlete_name: str | None = None
+    athlete_firstname: str | None = None
+
+    @model_validator(mode="after")
+    def _fiche_ou_nom(self) -> "TeammateRef":
+        nom = (self.athlete_name or "").strip()
+        prenom = (self.athlete_firstname or "").strip()
+        if self.athlete_id is not None:
+            if nom or prenom:
+                raise ValueError("Désignez un équipier par sa fiche ou par son nom, pas les deux.")
+        elif not (nom and prenom):
+            raise ValueError("Un équipier sans fiche demande un nom et un prénom.")
+        return self
+
+
+class TeammatesUpdate(BaseModel):
+    """La composition voulue d'un relais ; le premier équipier en devient le porteur."""
+
+    teammates: list[TeammateRef] = Field(min_length=2, max_length=8)
+
+    @model_validator(mode="after")
+    def _sans_doublon(self) -> "TeammatesUpdate":
+        ids = [ref.athlete_id for ref in self.teammates if ref.athlete_id is not None]
+        if len(set(ids)) != len(ids):
+            raise ValueError("Un même coureur figure deux fois dans l'équipe.")
+        return self
+
+
 class SeasonValidationCreate(BaseModel):
     """Demande de validation d'une saison (#709, FR-009)."""
 

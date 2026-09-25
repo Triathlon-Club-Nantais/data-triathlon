@@ -37,6 +37,36 @@ def test_club_summary_forme_de_la_reponse(client, db_session):
     assert body["composition"]["gender"] == {"": 1}
 
 
+def test_club_summary_nomme_les_equipiers_d_un_podium_de_relais(client, db_session):
+    """#894 : un podium de relais reste une entrée, qui nomme toute l'équipe."""
+    jean = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean", club="TCN")
+    paul = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="TCN")
+    course = course_repository.get_or_create(
+        db_session, name="Relais", event_date=date(2026, 6, 1), event_type="triathlon-s",
+        is_relay=True,
+    )
+    relais = participation_repository.create(
+        db_session, athlete_id=jean.id, course_id=course.id, bib_number="7",
+        club="TCN", status="finisher", rank_overall=2, is_relay=True,
+    )
+    participation_repository.replace_teammates(db_session, relais, [jean.id, paul.id])
+    individuel = participation_repository.create(
+        db_session, athlete_id=paul.id, course_id=course_repository.get_or_create(
+            db_session, name="Solo", event_date=date(2026, 5, 1), event_type="triathlon-m",
+        ).id, bib_number="1", club="TCN", status="finisher", rank_overall=1,
+    )
+    db_session.commit()
+
+    entrees = {
+        e["participation_id"]: e
+        for e in client.get("/api/v1/club/summary").json()["podiums"]["scratch"]
+    }
+
+    assert len(entrees) == 2
+    assert entrees[relais.id]["teammate_names"] == ["Jean DUPONT", "Paul MARTIN"]
+    assert entrees[individuel.id]["teammate_names"] == []
+
+
 def test_club_summary_accessible_sans_authentification(client, db_session):
     """FR-006 — pas de cookie de session requis, comme les autres routes de lecture."""
     resp = client.get("/api/v1/club/summary")
