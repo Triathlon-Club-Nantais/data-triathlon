@@ -37,7 +37,7 @@ beforeEach(() => {
 
 describe("microcopie — un seul nom pour l'objet (#502)", () => {
   it("nomme la modale « Mon athlète »", () => {
-    render(<AthletePicker onClose={() => {}} onPick={() => {}} />);
+    render(<AthletePicker mode="select" onClose={() => {}} onPick={() => {}} />);
     expect(screen.getByText("Mon athlète")).toBeInTheDocument();
     expect(screen.queryByText("Accès athlète")).not.toBeInTheDocument();
   });
@@ -50,7 +50,7 @@ describe("microcopie — un seul nom pour l'objet (#502)", () => {
   // rail, et le bloc livré s'appelle « Ma saison » et montre deux compteurs,
   // pas des résultats. Les trois s'alignent désormais sur le nom du bloc.
   it("énonce la promesse au moment du choix", () => {
-    render(<AthletePicker onClose={() => {}} onPick={() => {}} />);
+    render(<AthletePicker mode="select" onClose={() => {}} onPick={() => {}} />);
     expect(
       screen.getByText("Votre saison s'affichera en tête du tableau de bord."),
     ).toBeInTheDocument();
@@ -83,7 +83,7 @@ describe("AthletePicker — aucune correspondance (ETAT-3)", () => {
 
   it("propose d'effacer la recherche quand rien ne correspond", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    render(<AthletePicker onClose={vi.fn()} onPick={vi.fn()} />);
+    render(<AthletePicker mode="select" onClose={vi.fn()} onPick={vi.fn()} />);
 
     await user.type(screen.getByPlaceholderText("Rechercher un nom…"), "zzz");
     await act(async () => {
@@ -111,7 +111,7 @@ describe("AthletePicker: search error state (#953)", () => {
 
   async function search(text: string) {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    render(<AthletePicker onClose={vi.fn()} onPick={vi.fn()} />);
+    render(<AthletePicker mode="select" onClose={vi.fn()} onPick={vi.fn()} />);
     await user.type(screen.getByPlaceholderText("Rechercher un nom…"), text);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(250);
@@ -184,7 +184,7 @@ describe("AthletePicker — classement par pertinence, servi par l'API (NAV-8, #
       { id: 2, nom: "HERRY", prenom: "Yves", gender: "", club: "TCN", participation_count: 5 },
     ]);
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    render(<AthletePicker onClose={vi.fn()} onPick={vi.fn()} />);
+    render(<AthletePicker mode="select" onClose={vi.fn()} onPick={vi.fn()} />);
 
     await user.type(screen.getByPlaceholderText("Rechercher un nom…"), "herr");
     await act(async () => {
@@ -203,7 +203,7 @@ describe("AthletePicker — classement par pertinence, servi par l'API (NAV-8, #
       { id: 1, nom: "GAUDIN", prenom: "Marie", gender: "", club: "TCN", participation_count: 3 },
     ]);
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    render(<AthletePicker onClose={vi.fn()} onPick={vi.fn()} />);
+    render(<AthletePicker mode="select" onClose={vi.fn()} onPick={vi.fn()} />);
 
     await user.type(screen.getByPlaceholderText("Rechercher un nom…"), "gaudin");
     await act(async () => {
@@ -230,7 +230,7 @@ describe("AthletePicker — ARIA combobox and listbox (#996)", () => {
 
   async function chercher(terme: string, onPick = vi.fn()) {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
-    render(<AthletePicker onClose={vi.fn()} onPick={onPick} />);
+    render(<AthletePicker mode="select" onClose={vi.fn()} onPick={onPick} />);
     await user.type(screen.getByRole("combobox"), terme);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(250);
@@ -252,7 +252,7 @@ describe("AthletePicker — ARIA combobox and listbox (#996)", () => {
   });
 
   it("is collapsed while there is nothing to list", () => {
-    render(<AthletePicker onClose={vi.fn()} onPick={vi.fn()} />);
+    render(<AthletePicker mode="select" onClose={vi.fn()} onPick={vi.fn()} />);
 
     expect(screen.getByRole("combobox")).toHaveAttribute("aria-expanded", "false");
   });
@@ -290,7 +290,7 @@ describe("AthletePicker — ARIA combobox and listbox (#996)", () => {
 
   it("announces each search state in a status region", async () => {
     searchAthletes.mockResolvedValue(DEUX);
-    render(<AthletePicker onClose={vi.fn()} onPick={vi.fn()} />);
+    render(<AthletePicker mode="select" onClose={vi.fn()} onPick={vi.fn()} />);
     expect(screen.getByRole("status")).toHaveTextContent("Saisissez au moins 2 lettres");
 
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -356,7 +356,7 @@ describe("AthletePicker — ARIA combobox and listbox (#996)", () => {
   });
 
   it("renders no listbox and no aria-controls without results", () => {
-    render(<AthletePicker onClose={vi.fn()} onPick={vi.fn()} />);
+    render(<AthletePicker mode="select" onClose={vi.fn()} onPick={vi.fn()} />);
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     expect(screen.getByRole("combobox")).not.toHaveAttribute("aria-controls");
   });

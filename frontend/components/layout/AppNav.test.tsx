@@ -368,7 +368,10 @@ describe("AppNav — prénom de l'athlète retenu (#264)", () => {
       { id: 12, prenom: "Jean Gael", nom: "Dupont", gender: "M", club: "TCN", participation_count: 1 },
     ]);
     afficher(null);
-    await userEvent.keyboard("{Control>}k{/Control}");
+    // Seule la désignation explicite écrit le stock (#952).
+    act(() => {
+      window.dispatchEvent(new Event("tcn-athlete-open-picker"));
+    });
 
     const modale = await screen.findByRole("dialog");
     await userEvent.type(within(modale).getByPlaceholderText("Rechercher un nom…"), "dupont");
@@ -376,6 +379,62 @@ describe("AppNav — prénom de l'athlète retenu (#264)", () => {
 
     expect(readAthlete()).toEqual({ id: 12, prenom: "Jean Gael", nom: "Dupont" });
     expect(push).toHaveBeenCalledWith("/athletes/12");
+  });
+});
+
+describe("AppNav: searching is not choosing (#952)", () => {
+  const COEQUIPIER = { id: 30, prenom: "Paul", nom: "Martin", gender: "M", club: "TCN", participation_count: 2 };
+
+  async function choisirDansLaPalette() {
+    const modale = await screen.findByRole("dialog");
+    await userEvent.type(within(modale).getByPlaceholderText("Rechercher un nom…"), "martin");
+    await userEvent.click(await screen.findByRole("option", { name: "Choisir Paul Martin, TCN, 2 épreuves" }));
+  }
+
+  it("navigates without touching the remembered athlete when opened with Ctrl+K", async () => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
+    searchAthletes.mockResolvedValue([COEQUIPIER]);
+    afficher(null);
+
+    await userEvent.keyboard("{Control>}k{/Control}");
+    await choisirDansLaPalette();
+
+    expect(push).toHaveBeenCalledWith("/athletes/30");
+    expect(readAthlete()).toEqual({ id: 12, prenom: "Jean", nom: "Dupont" });
+  });
+
+  it("navigates without touching the remembered athlete when opened from the search button", async () => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
+    searchAthletes.mockResolvedValue([COEQUIPIER]);
+    afficher(null);
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Rechercher un athlète" })[0]);
+    await choisirDansLaPalette();
+
+    expect(push).toHaveBeenCalledWith("/athletes/30");
+    expect(readAthlete()).toEqual({ id: 12, prenom: "Jean", nom: "Dupont" });
+  });
+
+  it("titles the search palette as a search, without the dashboard promise", async () => {
+    afficher(null);
+    await userEvent.keyboard("{Control>}k{/Control}");
+
+    const modale = await screen.findByRole("dialog", { name: "Rechercher un athlète" });
+    expect(within(modale).queryByText("Sélectionnez votre nom")).not.toBeInTheDocument();
+    expect(within(modale).queryByText(/Votre saison s'affichera/)).not.toBeInTheDocument();
+  });
+
+  it("writes the remembered athlete when opened through OPEN_PICKER_EVENT", async () => {
+    searchAthletes.mockResolvedValue([COEQUIPIER]);
+    afficher(null);
+    act(() => {
+      window.dispatchEvent(new Event("tcn-athlete-open-picker"));
+    });
+
+    expect(await screen.findByRole("dialog", { name: "Sélectionnez votre nom" })).toBeInTheDocument();
+    await choisirDansLaPalette();
+
+    expect(readAthlete()).toEqual({ id: 30, prenom: "Paul", nom: "Martin" });
   });
 });
 
@@ -511,8 +570,8 @@ describe("AppNav — actions primaires", () => {
     await userEvent.keyboard("{Control>}k{/Control}");
 
     const modale = await screen.findByRole("dialog");
-    expect(within(modale).getByText("Sélectionnez votre nom")).toBeInTheDocument();
-    expect(within(modale).getByText("Saisissez au moins 2 lettres de votre nom.")).toBeInTheDocument();
+    expect(within(modale).getByText("Rechercher un athlète")).toBeInTheDocument();
+    expect(within(modale).getByText("Saisissez au moins 2 lettres d'un nom.")).toBeInTheDocument();
   });
 
   it("offers no athlete search on /acces, where the search can only fail (#953)", async () => {
