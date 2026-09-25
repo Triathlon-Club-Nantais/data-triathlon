@@ -21,6 +21,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   };
 });
 
+import { ApiError } from "@/lib/api/client";
 import { ProfileDetail } from "./ProfileDetail";
 
 const PROFIL: ProfileDetailType = {
@@ -84,6 +85,14 @@ describe("ProfileDetail", () => {
     expect(await screen.findByText("Alix Martin")).toBeInTheDocument();
     expect(screen.getByText(/Mère — 06 00 00 00 00/)).toBeInTheDocument();
     expect(screen.getByText(/Allergie aux fruits à coque/)).toBeInTheDocument();
+  });
+
+  it("dit qu'un profil absent est introuvable", async () => {
+    getProfile.mockRejectedValue(new ApiError(404, "Ce profil n'existe pas."));
+
+    afficher(999);
+
+    expect(await screen.findByText("Profil introuvable")).toBeInTheDocument();
   });
 
   it("affiche le journal, le plus récent en premier", async () => {

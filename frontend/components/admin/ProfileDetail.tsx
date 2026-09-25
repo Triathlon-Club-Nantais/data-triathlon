@@ -81,7 +81,14 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (error) return <EmptyState {...messageDeRefus(error, REFUS)} />;
-  if (!data) return null;
+  if (!data) {
+    return (
+      <EmptyState
+        title="Profil introuvable"
+        description="Ce profil n'existe pas, ou n'existe plus."
+      />
+    );
+  }
 
   const age = calculerAge(data.birth_date);
 

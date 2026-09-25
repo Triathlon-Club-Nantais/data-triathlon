@@ -34,6 +34,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   };
 });
 
+import { ApiError } from "@/lib/api/client";
 import { AppelPresence } from "./AppelPresence";
 
 const ALIX: Profile = {
@@ -93,6 +94,14 @@ describe("AppelPresence", () => {
     vi.clearAllMocks();
     getSession.mockResolvedValue(AVEC_ECRITURE);
     listProfiles.mockResolvedValue([ALIX, ZOE]);
+  });
+
+  it("dit qu'une séance absente est introuvable", async () => {
+    getTrainingSession.mockRejectedValue(new ApiError(404, "Cet entraînement n'existe pas."));
+
+    afficher();
+
+    expect(await screen.findByText("Séance introuvable")).toBeInTheDocument();
   });
 
   it("liste les jeunes inscrits avec leur nom", async () => {

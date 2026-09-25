@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
+import { rendreNullSi404 } from "@/lib/api/null-si-404";
 import { queryKeys } from "./keys";
 import { localToday } from "@/lib/utils/date";
 import type {
@@ -817,7 +818,7 @@ export function useTrainingSessions() {
 export function useTrainingSession(sessionId: number | null) {
   return useQuery({
     queryKey: queryKeys.trainingSession(sessionId ?? 0),
-    queryFn: () => apiClient.getTrainingSession(sessionId as number),
+    queryFn: () => apiClient.getTrainingSession(sessionId as number).catch(rendreNullSi404),
     enabled: sessionId !== null,
   });
 }
@@ -927,7 +928,7 @@ export function useProfiles() {
 export function useProfile(profileId: number | null) {
   return useQuery({
     queryKey: queryKeys.profile(profileId ?? 0),
-    queryFn: () => apiClient.getProfile(profileId as number),
+    queryFn: () => apiClient.getProfile(profileId as number).catch(rendreNullSi404),
     enabled: profileId !== null,
   });
 }

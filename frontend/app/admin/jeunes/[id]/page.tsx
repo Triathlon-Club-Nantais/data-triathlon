@@ -1,5 +1,6 @@
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
+import { idDeRoute } from "@/lib/utils/id-de-route";
 import { ProfileDetail } from "@/components/admin/ProfileDetail";
 
 /**
@@ -12,13 +13,13 @@ export default async function AdminJeunePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
+  const profileId = idDeRoute((await params).id);
 
   return (
     <PageShell>
       <div className="space-y-10">
         <PageHeader title="Profil" backHref="/admin/jeunes" backLabel="Retour aux jeunes" />
-        <ProfileDetail profileId={Number(id)} />
+        <ProfileDetail profileId={profileId} />
       </div>
     </PageShell>
   );

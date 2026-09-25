@@ -73,6 +73,14 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
 
   if (isLoading) return <Skeleton className="h-40 w-full" />;
   if (error) return <EmptyState {...messageDeRefus(error, REFUS)} />;
+  if (!data) {
+    return (
+      <EmptyState
+        title="Séance introuvable"
+        description="Cette séance n'existe pas, ou n'existe plus."
+      />
+    );
+  }
 
   return (
     <>
