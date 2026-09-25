@@ -213,7 +213,7 @@ def detect(url: HttpUrl):
     fanout = isinstance(provider, registry.FanoutProvider)
     default_single_heat = provider.targets_single_heat(raw) if fanout else True
 
-    # BreizhChrono, et lui seul : quand l'URL fixe déjà un heat, son
+    # BreizhChrono et RaceResult : quand l'URL fixe déjà un heat, son
     # `scrape_event_all` fait le scrape mono-heat **quel que soit**
     # `single_heat` (`if heat or single_heat:`, deux fois — chemin classique et
     # chemin live). Il n'y a donc pas de second choix à offrir : proposer la
@@ -222,7 +222,10 @@ def detect(url: HttpUrl):
     # toucher au dispatch, pré-existant et atteignable depuis la CLI (revue
     # finale #698). Klikego n'est pas concerné : son fan-out ignore réellement
     # le `?heat=` de l'URL et énumère tous les heats, sa bascule ne ment pas.
-    if fanout and default_single_heat and isinstance(provider, registry.BreizhChronoProvider):
+    # RaceResult, lui, restreint aussi son fan-out au `?contest=` (#989).
+    if fanout and default_single_heat and isinstance(
+        provider, (registry.BreizhChronoProvider, registry.RaceResultProvider)
+    ):
         fanout = False
 
     return {

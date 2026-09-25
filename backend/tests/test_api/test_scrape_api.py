@@ -140,23 +140,17 @@ def test_detect_prolivesport_url_de_serie_ne_leve_pas_500(client):
     assert resp.json()["default_single_heat"] is False
 
 
-def test_detect_raceresult_avec_contest_dans_url_reste_fanout(client):
-    """Un `contest=` dans l'URL RaceResult ne change **rien** au scrape.
-
-    Vérifié en revue finale de #698 : `raceresult.scrape_event_all(url)` passe
-    par `_run_pipeline`, qui ne lit de l'URL que l'identifiant d'épreuve
-    (`_resolve_event_id`) et énumère ensuite **toutes** les listes annoncées par
-    la config. Le contest de l'URL n'est jamais parsé, donc `single_heat=True`
-    rendrait le même volume qu'un fan-out en perdant le découpage par contest.
-    Le défaut reste le fan-out, avec ou sans ce paramètre.
-    """
+def test_detect_raceresult_sous_url_de_contest_masque_la_bascule(client):
+    """Une sous-URL `?contest=N` ne scrape que ce contest, fan-out ou non (#989) :
+    il n'y a pas de second choix à offrir, comme sur une URL BreizhChrono déjà
+    ciblée."""
     resp = client.get(
         "/api/v1/scrape/detect",
         params={"url": "https://my.raceresult.com/406211/results?contest=3"},
     )
     assert resp.json() == {
         "provider": "raceresult", "supported": True,
-        "fanout": True, "default_single_heat": False,
+        "fanout": False, "default_single_heat": True,
     }
 
 

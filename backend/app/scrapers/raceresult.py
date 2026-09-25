@@ -36,7 +36,7 @@ import logging
 import re
 from collections.abc import Callable
 from datetime import date as date_t
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -103,6 +103,22 @@ def _resolve_event_id(url: str, client: httpx.Client) -> str:
     raise ValueError(
         f"Identifiant d'épreuve RaceResult introuvable dans la page : {url}"
     )
+
+
+def target_contest(url: str) -> str:
+    """Contest désigné par le `?contest=` d'une sous-URL RaceResult, `""` sinon (#989).
+
+    C'est le sélecteur que `_sub_source_url` pose lui-même en base : sans sa
+    lecture, un rescrape de N sous-URLs refaisait N fois l'épreuve entière.
+    `contest=0` (« toutes catégories ») ne cible rien. Lu sur les seuls hosts
+    RaceResult : la query d'une façade appartient à son front.
+    """
+    parsed = urlparse(url)
+    host = (parsed.netloc or "").lower()
+    if not (host == "raceresult.com" or host.endswith(".raceresult.com")):
+        return ""
+    contest = (parse_qs(parsed.query).get("contest") or [""])[0].strip()
+    return "" if _est_contest_zero(contest) else contest
 
 
 def _json_ld_event(html: str) -> dict:
@@ -1411,10 +1427,10 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     l'aveugle. Mesuré : 4 requêtes `list` sur Rumilly (contre 15, dont 11 en 404,
     dans la version qui interrogeait la route héritée).
 
-    Contrat historique préservé : signature d'origine, aucun fan-out, aucun
-    cache par contest. Employé par les tests unitaires et par l'échappatoire
-    CLI `--single-heat`. Le fan-out par contest (issue #217) vit dans
-    `scrape_event_fanout`.
+    Aucun fan-out, aucun cache par contest : c'est l'échappatoire CLI
+    `--single-heat`. Chaque ligne porte néanmoins la sous-URL de son contest
+    (#989), et une sous-URL `?contest=N` ne scrape que ce contest. Le fan-out
+    par contest (issue #217) vit dans `scrape_event_fanout`.
     """
     results, _trace = _run_pipeline(url, cache_probe=None, on_heat_start=None)
     return results
@@ -1484,6 +1500,16 @@ def _run_pipeline(
                 vus_c.add(c)
                 contests_ordonnes.append(c)
 
+        contests_explicites = set(contests_ordonnes)
+        cible = target_contest(url)
+        if cible:
+            if cible not in contests_explicites:
+                raise ValueError(
+                    f"Épreuve RaceResult {event_id} : contest {cible} absent des "
+                    "listes publiées."
+                )
+            contests_ordonnes = [cible]
+
         trace.heats_enumerated = len(contests_ordonnes)
 
         # Pré-filtre par cache_probe pour figer `total` à la seule liste des
@@ -1500,11 +1526,6 @@ def _run_pipeline(
                 continue
             contests_a_scraper.append(contest)
 
-        # Le persister source_url : c'est la sous-unité, pas l'URL d'événement.
-        # Ainsi `Course.source_url` = clé de cache. Pour un scrape mono-URL
-        # (`scrape_event_all` classique, pas de fan-out), on garde l'URL entrée
-        # comme source_url — rétrocompatibilité stricte des tests existants.
-        use_sub_url = cache_probe is not None or on_heat_start is not None
         # Clé de fusion (libellé de contest, dossard) : deux contests peuvent
         # porter le même dossard — c'est précisément le cas que la qualification
         # par contest règle (issue #21).
@@ -1570,6 +1591,9 @@ def _run_pipeline(
             _traite_contest("0")
 
         fiable_zero = _groupes_zero_fiables(labels_zero, contests)
+        id_par_libelle: dict[str, str] = {}
+        for cid, lib in contests.items():
+            id_par_libelle.setdefault(str(lib).strip().lower(), str(cid))
 
         # Phase 2 : qualifier et fusionner.
         for contest, payload, groupes in recuperees:
@@ -1602,16 +1626,27 @@ def _run_pipeline(
                 # importés sous leur vrai contest (issue #21 par la porte du
                 # repli).
                 if contest != "0":
+                    contest_ligne = contest
                     libelle = str(contests.get(contest) or "") or f"Contest {contest}"
                 elif fiable_zero:
-                    libelle = contest_label
+                    contest_ligne = id_par_libelle.get(contest_label.strip().lower(), "")
+                    libelle = str(contests.get(contest_ligne) or "") or contest_label
                 else:
+                    contest_ligne = ""
                     libelle = ""
-                # Fan-out (#217) — source_url par sous-unité pour que
-                # `Course.source_url` == clé de cache TTL. Contest="0" reste
-                # sur l'URL d'événement : il n'a pas de sous-unité propre.
-                if use_sub_url and contest != "0":
-                    source_url_ligne = _sub_source_url(event_id, contest)
+                # Une ligne `Contest="0"` rattachée à un contest ciblé ailleurs
+                # ou jugé frais n'a rien à faire dans ce scrape (#989).
+                if cible and contest_ligne != cible:
+                    continue
+                if contest_ligne in contests_caches:
+                    continue
+                # Sous-URL du contest de la ligne, fan-out ou non : elle est à
+                # la fois la clé de cache TTL (#217) et `Course.source_url`.
+                # L'URL soumise, posée sur tous les contests, devenait la source
+                # passive de chacun (#989). Contest="0" non rattaché reste sur
+                # l'URL d'événement : il n'a pas de sous-unité propre.
+                if contest_ligne in contests_explicites:
+                    source_url_ligne = _sub_source_url(event_id, contest_ligne)
                 else:
                     source_url_ligne = url
                 for ligne in lignes:
@@ -1671,6 +1706,8 @@ def _run_pipeline(
             # si les publiées ont peuplé la fusion pour le même contest.
             if contest in contests_caches:
                 continue
+            if cible and contest != cible and not _est_contest_zero(contest):
+                continue
             try:
                 payload = _fetch_list(event_id, key, listname, contest, client)
             except Exception as exc:  # noqa: BLE001 — même filet fan-out
@@ -1692,13 +1729,10 @@ def _run_pipeline(
                 payload.get("data"), contests_connus=contests_connus
             ):
                 for ligne in lignes:
-                    if use_sub_url and contest != "0":
-                        source_url_ligne = _sub_source_url(event_id, contest)
-                    else:
-                        source_url_ligne = url
+                    # `source_url` d'un apport n'est jamais recopiée (`_enrichir`).
                     apport = _build_result(
                         ligne, roles, segments, extras,
-                        source_url=source_url_ligne,
+                        source_url=url,
                         event_name=event_name,
                         event_date=jour,
                         contest_label="",

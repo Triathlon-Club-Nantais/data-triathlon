@@ -3157,3 +3157,133 @@ def test_provider_raceresult_single_heat_court_circuite_le_fan_out(monkeypatch):
     # Le contrat historique renvoie les résultats du pot commun.
     assert len(results) == 1
 
+
+# ── Sélecteur `?contest=` des sous-URLs (#989) ───────────────────────────────
+
+
+def _payloads_deux_contests():
+    return {
+        ("Classement", "1"): _payload(
+            {"#1_Distance S": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}
+        ),
+        ("Classement", "2"): _payload(
+            {"#1_Distance M": {"#1_": [["8", "2", "Luc MARTIN", "TCN", "02:00:00"]]}}
+        ),
+    }
+
+
+def _payload_zero_deux_contests():
+    return _payload({
+        "#1_Distance S": {"#1_": [["17", "3", "Anne DURAND", "TCN", "01:10:00"]]},
+        "#2_Distance M": {"#1_": [["18", "4", "Paul PETIT", "TCN", "02:10:00"]]},
+    })
+
+
+def test_scrape_event_all_sous_url_ne_scrape_que_son_contest(monkeypatch):
+    """Une sous-URL `?contest=2` (celle que le fan-out pose en base) ne scrape
+    que le contest 2 : un `rescrape-db` sur N sous-URLs ne refait plus N fois
+    l'épreuve entière."""
+    specs = [("Classement", "1"), ("Classement", "2")]
+    appels = _monte_pipeline(monkeypatch, specs, _payloads_deux_contests())
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results?contest=2")
+
+    assert appels == [("Classement", "2")]
+    assert [(r.bib_number, r.source_url) for r in res] == [
+        ("8", "https://my.raceresult.com/1/results?contest=2"),
+    ]
+
+
+def test_scrape_event_all_sans_selecteur_pose_la_sous_url_de_chaque_contest(monkeypatch):
+    """Sans fan-out (`--single-heat`, façade), chaque ligne porte la sous-URL de
+    **son** contest, jamais l'URL soumise : celle-ci devenait sinon la source
+    passive de tous les contests à la fois."""
+    specs = [("Classement", "1"), ("Classement", "2")]
+    _monte_pipeline(monkeypatch, specs, _payloads_deux_contests())
+
+    res = raceresult.scrape_event_all(
+        "https://www.espace-competition.com/result/x/?comp_uid=2880"
+    )
+
+    assert {(r.bib_number, r.source_url) for r in res} == {
+        ("7", "https://my.raceresult.com/1/results?contest=1"),
+        ("8", "https://my.raceresult.com/1/results?contest=2"),
+    }
+
+
+def test_scrape_event_all_contest_zero_dans_l_url_vaut_l_epreuve_entiere(monkeypatch):
+    specs = [("Classement", "1"), ("Classement", "2")]
+    appels = _monte_pipeline(monkeypatch, specs, _payloads_deux_contests())
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results?contest=0")
+
+    assert appels == [("Classement", "1"), ("Classement", "2")]
+    assert len(res) == 2
+
+
+def test_scrape_event_all_sous_url_d_un_contest_inconnu_leve(monkeypatch):
+    specs = [("Classement", "1"), ("Classement", "2")]
+    appels = _monte_pipeline(monkeypatch, specs, _payloads_deux_contests())
+
+    with pytest.raises(ValueError, match="contest 9"):
+        raceresult.scrape_event_all("https://my.raceresult.com/1/results?contest=9")
+    assert appels == []
+
+
+def test_scrape_event_all_sous_url_filtre_les_lignes_contest_zero(monkeypatch):
+    """Les listes `Contest="0"` restent lues, mais seules leurs lignes rattachées
+    au contest ciblé sont gardées, sous la sous-URL de ce contest."""
+    specs = [("Classement", "1"), ("Classement", "2"), ("Général", "0")]
+    payloads = {**_payloads_deux_contests(), ("Général", "0"): _payload_zero_deux_contests()}
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results?contest=2")
+
+    assert sorted((r.bib_number, r.source_url) for r in res) == [
+        ("18", "https://my.raceresult.com/1/results?contest=2"),
+        ("8", "https://my.raceresult.com/1/results?contest=2"),
+    ]
+
+
+def test_scrape_event_fanout_sous_url_n_enumere_que_son_contest(monkeypatch):
+    specs = [("Classement", "1"), ("Classement", "2")]
+    _monte_pipeline(monkeypatch, specs, _payloads_deux_contests())
+    sondes: list[str] = []
+
+    def probe(sub_url: str) -> bool:
+        sondes.append(sub_url)
+        return False
+
+    res, trace = raceresult.scrape_event_fanout(
+        "https://my.raceresult.com/1/results?contest=2", cache_probe=probe,
+    )
+
+    assert trace.heats_enumerated == 1
+    assert sondes == ["https://my.raceresult.com/1/results?contest=2"]
+    assert [r.bib_number for r in res] == ["8"]
+
+
+def test_scrape_event_fanout_ecarte_les_lignes_contest_zero_d_un_contest_cache(monkeypatch):
+    """Un contest jugé frais ne reçoit pas en douce les lignes `Contest="0"` qui
+    lui reviennent : elles y seraient importées sans le reste du contest."""
+    specs = [("Classement", "1"), ("Classement", "2"), ("Général", "0")]
+    payloads = {**_payloads_deux_contests(), ("Général", "0"): _payload_zero_deux_contests()}
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    res, _trace = raceresult.scrape_event_fanout(
+        "https://my.raceresult.com/1/results",
+        cache_probe=lambda sub_url: sub_url.endswith("contest=1"),
+    )
+
+    assert sorted(r.bib_number for r in res) == ["18", "8"]
+
+
+@pytest.mark.parametrize(("url", "attendu"), [
+    ("https://my.raceresult.com/406211/results?contest=3", True),
+    ("https://my.raceresult.com/406211/results?contest=0", False),
+    ("https://my.raceresult.com/406211/results", False),
+    ("https://www.espace-competition.com/result/x/?comp_uid=2880", False),
+])
+def test_provider_raceresult_targets_single_heat_sur_sous_url(url, attendu):
+    assert registry.RaceResultProvider().targets_single_heat(url) is attendu
+
