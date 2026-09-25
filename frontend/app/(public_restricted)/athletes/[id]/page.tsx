@@ -76,11 +76,10 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
         <AthleteAvatar athleteId={athlete.id} name={fullName} />
         <PageHeader
           className="min-w-0 flex-1"
-          backHref="/club/athletes"
-          // Le `h1` de la destination dit « Athlètes par saison », mot pour
-          // mot (convention posée par l'autre `backHref` du site, celui de
-          // `/club/athletes` lui-même vers « Espace club ») — #488, revue UI/UX.
-          backLabel="Athlètes par saison"
+          // `/club` et non `/club/athletes`, réservé à `pages:preview` (#925).
+          // Le libellé reprend mot pour mot le `h1` de la destination (#488).
+          backHref="/club"
+          backLabel="Espace club"
           // Le club en surtitre plutôt qu'un « Résultats enregistrés » qui ne
           // distinguait rien : les homonymes existent dans ce jeu de données, et
           // arrivé sur le profil on ne pouvait plus vérifier qu'on était sur le

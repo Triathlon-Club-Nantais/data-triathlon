@@ -473,3 +473,14 @@ export function estVisible(
     aLePouvoir
   );
 }
+
+/**
+ * Même règle que le rail, pour un lien posé **hors** du rail vers une de ses
+ * destinations (#925) : un raccourci ne doit pas mener à un écran que le rail
+ * tait à ce visiteur.
+ */
+export function destinationVisible(href: string, pouvoirs: Set<string>, rank: number): boolean {
+  return NAV.some(
+    (s) => rank >= s.minRole && s.items.some((i) => i.href === href && estVisible(i, pouvoirs, rank)),
+  );
+}
