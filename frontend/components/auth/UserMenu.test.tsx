@@ -86,6 +86,22 @@ describe("UserMenu: unreadable session (#954)", () => {
 
     expect(await screen.findByRole("button", { name: /Compte/ })).toBeInTheDocument();
   });
+
+  it("keeps focus on « Réessayer » while the new attempt runs", async () => {
+    afficherEnPanne();
+    const reessayer = await screen.findByRole("button", { name: "Réessayer" });
+    getSession.mockReturnValue(new Promise(() => {}));
+
+    await userEvent.click(reessayer);
+
+    const enCours = await screen.findByRole("button", { name: "Nouvelle tentative…" });
+    expect(enCours).toBe(reessayer);
+    expect(enCours).not.toBeDisabled();
+    expect(enCours).toHaveAttribute("aria-disabled", "true");
+    expect(enCours).toHaveFocus();
+    await userEvent.click(enCours);
+    expect(getSession).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("UserMenu — anonyme (AC5)", () => {
