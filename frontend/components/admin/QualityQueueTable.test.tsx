@@ -42,7 +42,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 vi.mock("@/lib/api/sse", () => ({ rescrapeEventStream }));
 
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push }),
+  useRouter: () => ({ push, refresh: vi.fn() }),
   usePathname: () => "/admin/quality",
 }));
 
@@ -453,5 +453,28 @@ describe("QualityQueueTable", () => {
     // Deux lignes dépliées à la fois : une seconde requête, pas un remplacement.
     await waitFor(() => expect(getCourseSources).toHaveBeenCalledWith(8));
     expect(screen.getAllByText("Breizh Chrono")).toHaveLength(2);
+  });
+
+  it("un re-scrape depuis la ligne dépliée recharge la file et les sources (#948)", async () => {
+    getSession.mockResolvedValue(AVEC_RESCRAPE);
+    async function* flux() {
+      yield {
+        phase: "done", total: 1, imported: 1, updated: 0, skipped: 0,
+        reconciled: 0, orphans_removed: 0,
+      };
+    }
+    rescrapeEventStream.mockReturnValue(flux());
+    const user = userEvent.setup();
+    rendre();
+    await screen.findByText("Triathlon de Vertou");
+    await user.click(screen.getByRole("button", { name: /afficher les sources.*vertou/i }));
+    await screen.findByText("Breizh Chrono");
+    expect(listCourses).toHaveBeenCalledTimes(1);
+    expect(getCourseSources).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "Re-scraper cette épreuve" }));
+
+    await waitFor(() => expect(listCourses.mock.calls.length).toBeGreaterThan(1));
+    await waitFor(() => expect(getCourseSources.mock.calls.length).toBeGreaterThan(1));
   });
 });

@@ -25,6 +25,9 @@ const { toastSuccess, toastError } = vi.hoisted(() => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
 
+const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+
 import { CourseSourcesPanel } from "./CourseSourcesPanel";
 
 const ADMIN: SessionUser = {
@@ -46,11 +49,11 @@ const DEUX_SOURCES: CourseSource[] = [
   { id: 2, url: "https://exemple.fr/passif", provider: "breizhchrono", is_active: false, last_scraped_at: null },
 ];
 
-function afficher(sources: CourseSource[]) {
+function afficher(sources: CourseSource[], onUpdated?: () => void) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <CourseSourcesPanel courseId={42} initialSources={sources} />
+      <CourseSourcesPanel courseId={42} initialSources={sources} onUpdated={onUpdated} />
     </QueryClientProvider>,
   );
 }
@@ -362,5 +365,75 @@ describe("CourseSourcesPanel", () => {
       expect(toastError).toHaveBeenCalledWith("Impossible de supprimer la source active."),
     );
     expect(await screen.findByText("Breizh Chrono")).toBeInTheDocument();
+  });
+});
+
+describe("CourseSourcesPanel — rafraîchit la page après un succès (#948)", () => {
+  async function rescraper(fin: object, onUpdated?: () => void) {
+    getSession.mockResolvedValue(ADMIN);
+    async function* flux() {
+      yield fin;
+    }
+    rescrapeEventStream.mockReturnValue(flux());
+    const user = userEvent.setup();
+    afficher(UNE_SOURCE, onUpdated);
+    await user.click(await screen.findByRole("button", { name: /re-scraper/i }));
+  }
+
+  async function basculer(fin: object, onUpdated?: () => void) {
+    getSession.mockResolvedValue(ADMIN);
+    async function* flux() {
+      yield fin;
+    }
+    switchSourceEventStream.mockReturnValue(flux());
+    const user = userEvent.setup();
+    afficher(DEUX_SOURCES, onUpdated);
+    await user.click(await screen.findByRole("button", { name: /activer.*breizh chrono/i }));
+    await user.click(await screen.findByRole("button", { name: /^basculer$/i }));
+  }
+
+  it("après un re-scrape réussi", async () => {
+    const onUpdated = vi.fn();
+    await rescraper(
+      { phase: "done", imported: 1, updated: 0, skipped: 0, reconciled: 0, total: 1, orphans_removed: 0 },
+      onUpdated,
+    );
+
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(onUpdated).toHaveBeenCalledTimes(1);
+  });
+
+  it("jamais après un re-scrape en échec", async () => {
+    const onUpdated = vi.fn();
+    await rescraper({ phase: "error", message: "Refusé" }, onUpdated);
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Refusé"));
+    expect(refresh).not.toHaveBeenCalled();
+    expect(onUpdated).not.toHaveBeenCalled();
+  });
+
+  it("après une bascule réussie", async () => {
+    const onUpdated = vi.fn();
+    await basculer(
+      {
+        phase: "done", participations_deleted: 0, participations_imported: 1,
+        athletes_purged: 0, sources: DEUX_SOURCES,
+      },
+      onUpdated,
+    );
+
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalled());
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(onUpdated).toHaveBeenCalledTimes(1);
+  });
+
+  it("jamais après une bascule en échec", async () => {
+    const onUpdated = vi.fn();
+    await basculer({ phase: "error", message: "Refusé" }, onUpdated);
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Refusé"));
+    expect(refresh).not.toHaveBeenCalled();
+    expect(onUpdated).not.toHaveBeenCalled();
   });
 });

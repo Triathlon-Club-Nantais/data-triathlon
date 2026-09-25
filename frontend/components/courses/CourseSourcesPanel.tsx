@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
@@ -48,10 +49,14 @@ function messageFinRescrape(state: RescrapeState): string {
 export function CourseSourcesPanel({
   courseId,
   initialSources,
+  onUpdated,
 }: {
   courseId: number;
   initialSources: CourseSource[];
+  /** Appelé après un re-scrape ou une bascule réussis, en plus du `router.refresh()`. */
+  onUpdated?: () => void;
 }) {
+  const router = useRouter();
   const [sources, setSources] = useState(initialSources);
   const [cible, setCible] = useState<CourseSource | null>(null);
   const [pourSuppression, setPourSuppression] = useState<CourseSource | null>(null);
@@ -77,6 +82,13 @@ export function CourseSourcesPanel({
     }
   }
 
+  // Classement, synthèse et pastilles de la page sont rendus côté serveur en
+  // `no-store` : seul un `refresh()` les recalcule (#948).
+  function resultatsModifies() {
+    router.refresh();
+    onUpdated?.();
+  }
+
   // Notifie en fin de flux plutôt qu'à chaque `await` — `start()` ne rejette
   // jamais (le hook capture ses propres erreurs dans `state.error`, patron
   // `useImportStream`), donc un simple `try/catch` autour de `start()` ne
@@ -84,6 +96,7 @@ export function CourseSourcesPanel({
   useEffect(() => {
     if (rescrape.state.phase === "done") {
       toast.success(messageFinRescrape(rescrape.state));
+      resultatsModifies();
     } else if (rescrape.state.phase === "error" && rescrape.state.error) {
       toast.error(rescrape.state.error);
     }
@@ -181,6 +194,7 @@ export function CourseSourcesPanel({
       toast.success(`${label} est désormais la source active — résultats remplacés.`);
       setCible(null);
       bascule.reset();
+      resultatsModifies();
     } else if (resultat?.phase === "error") {
       toast.error(resultat.message);
     }

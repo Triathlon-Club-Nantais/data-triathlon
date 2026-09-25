@@ -493,6 +493,7 @@ export function QualityQueueTable({
  * liste de sources à tenir dans le back-office.
  */
 function SourcesDepliees({ courseId }: { courseId: number }) {
+  const qc = useQueryClient();
   const { data, isLoading, error } = useQuery({
     queryKey: ["course-sources", courseId],
     queryFn: () => apiClient.getCourseSources(courseId),
@@ -509,7 +510,18 @@ function SourcesDepliees({ courseId }: { courseId: number }) {
   if (!data || data.length === 0) {
     return <p className="text-sm text-muted-foreground">Aucune source enregistrée.</p>;
   }
-  return <CourseSourcesPanel courseId={courseId} initialSources={data} />;
+  return (
+    <CourseSourcesPanel
+      courseId={courseId}
+      initialSources={data}
+      // Même raison que l'invalidation du re-scrape de ligne : la file
+      // garderait sinon les anciennes anomalies de l'épreuve (#948).
+      onUpdated={() => {
+        qc.invalidateQueries({ queryKey: ["admin-courses"] });
+        qc.invalidateQueries({ queryKey: ["course-sources", courseId] });
+      }}
+    />
+  );
 }
 
 /**
