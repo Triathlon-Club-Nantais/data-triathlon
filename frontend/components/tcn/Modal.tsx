@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { IconButton } from "./IconButton";
 import { Eyebrow } from "./Eyebrow";
 
@@ -26,15 +26,26 @@ export function Modal({
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  // Mémorise le déclencheur à l'ouverture, lui rend le focus à la fermeture
-  // (démontage, ou passage à `open=false`) — défaut 3 de NAV-8 (#484).
+  // Déclencheur lu au rendu, pas dans l'effet : un enfant `autoFocus` prend le
+  // focus au commit, avant tout effet, et passerait pour le déclencheur (#955).
+  const [declencheur, setDeclencheur] = useState<HTMLElement | null>(null);
+  const [ouvertVu, setOuvertVu] = useState(false);
+  if (open !== ouvertVu) {
+    setOuvertVu(open);
+    setDeclencheur(
+      open && typeof document !== "undefined" && document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null,
+    );
+  }
+
+  // Rend le focus au déclencheur à la fermeture (démontage, ou passage à
+  // `open=false`) — défaut 3 de NAV-8 (#484).
   useEffect(() => {
     if (!open) return;
-    const declencheur =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
-    // Auto-focus the first focusable element in the dialog
-    if (dialogRef.current) {
+    // Auto-focus the first focusable element, unless a child already took focus.
+    if (dialogRef.current && !dialogRef.current.contains(document.activeElement)) {
       const focusables = dialogRef.current.querySelectorAll<HTMLElement>(
         'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
       );
@@ -46,7 +57,7 @@ export function Modal({
     return () => {
       declencheur?.focus();
     };
-  }, [open]);
+  }, [open, declencheur]);
 
   useEffect(() => {
     if (!open) return;

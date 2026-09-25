@@ -53,3 +53,38 @@ describe("Modal — piège et restauration du focus (NAV-8, #484)", () => {
     void user;
   });
 });
+
+describe("Modal — initial focus (#955)", () => {
+  it("focuses the first focusable element when no child claims focus", () => {
+    render(<Scenario onClose={vi.fn()} />);
+
+    expect(screen.getByRole("button", { name: "Fermer" })).toHaveFocus();
+  });
+
+  it("leaves focus on a child that took it through autoFocus", () => {
+    render(
+      <Modal title="Titre">
+        <input autoFocus placeholder="q" />
+      </Modal>,
+    );
+
+    expect(screen.getByPlaceholderText("q")).toHaveFocus();
+  });
+
+  it("still restores focus to the trigger when a child used autoFocus", () => {
+    const ouvrir = document.createElement("button");
+    ouvrir.textContent = "Ouvrir";
+    document.body.appendChild(ouvrir);
+    ouvrir.focus();
+
+    const { unmount } = render(
+      <Modal title="Titre">
+        <input autoFocus placeholder="q" />
+      </Modal>,
+    );
+    unmount();
+
+    expect(ouvrir).toHaveFocus();
+    document.body.removeChild(ouvrir);
+  });
+});
