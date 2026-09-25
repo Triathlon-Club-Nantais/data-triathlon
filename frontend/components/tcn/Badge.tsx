@@ -26,7 +26,8 @@ export function Badge({
           padding: "0 6px",
           borderRadius: 999,
           background: "var(--tcn-orange-12)",
-          color: "var(--tcn-orange)",
+          // Même arbitrage que la variante `orange` ci-dessous (#932).
+          color: "var(--tcn-orange-deeper)",
           fontWeight: 800,
           fontSize: 12,
           ...style,

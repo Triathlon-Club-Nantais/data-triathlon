@@ -15,6 +15,14 @@ describe("Badge", () => {
     expect(pastille.style.background).toBe("var(--tcn-orange-12)");
   });
 
+  it("writes the count chip in `--tcn-orange-deeper`, like the orange variant (#932)", () => {
+    render(<Badge count>7</Badge>);
+
+    const pastille = screen.getByText("7");
+    expect(pastille.style.color).toBe("var(--tcn-orange-deeper)");
+    expect(pastille.style.background).toBe("var(--tcn-orange-12)");
+  });
+
   it("laisse les autres variantes intactes", () => {
     render(
       <>
