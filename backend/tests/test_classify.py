@@ -39,6 +39,11 @@ from app.scrapers.classify import (
     ("Chtriman 2025 - Gravelines - CHTRIMAN 113", "triathlon-l"),
     ("Chtriman 2025 - Gravelines - CHTRIMAN 226", "triathlon-xl"),
     ("Triathlon du Quartier Nord", "triathlon"),
+    # Un rang d'édition n'est pas un kilométrage : le jeton explicite garde la main.
+    ("Triathlon S 113e édition", "triathlon-s"),
+    ("Triathlon M - 226ème édition", "triathlon-m"),
+    ("Triathlon de Nantes 113eme edition", "triathlon"),
+    ("Triathlon 113 km", "triathlon-l"),
     ("Sprint de la Roche", "triathlon-s"),             # pas de sport explicite → triathlon + taille
     ("triathlon-xl frenchman-2026", "triathlon-xl"),   # heat+slug séparés par espace (régression seg())
     ("triathlon-m nantais-2026", "triathlon-m"),

@@ -43,6 +43,12 @@ def _norm(text: str) -> str:
     return (text or "").lower().strip()
 
 
+def _km_format(km: str, t: str) -> bool:
+    """Format nommé par son kilométrage (« Chtriman 113 »), jamais un rang
+    d'édition (« 113e édition ») : celui-ci primerait sur une taille explicite."""
+    return re.search(rf"(?<![\d.,]){km}(?!\d|\s*(?:e|è|er|eme|ème|th)\b)", t) is not None
+
+
 def _detect_size(t: str) -> str:
     """Renvoie la taille détectée : "", "xs", "s", "m", "l", "xl".
 
@@ -69,9 +75,9 @@ def _detect_size(t: str) -> str:
     # (issue #54). « Ironman France », sans marqueur, reste XL.
     # Même règle pour les formats nommés par leur kilométrage (Chtriman 113 /
     # 226, #973) et le quart, ~1/45/10 km, rangé en M (Embrunman Quart).
-    if "70.3" in t or "half" in t or re.search(r"(?<!\d)113(?!\d)", t):
+    if "70.3" in t or "half" in t or _km_format("113", t):
         return "l"
-    if re.search(r"(?<!\d)226(?!\d)", t):
+    if _km_format("226", t):
         return "xl"
     if re.search(r"\bquarts?\b", t):
         return "m"
