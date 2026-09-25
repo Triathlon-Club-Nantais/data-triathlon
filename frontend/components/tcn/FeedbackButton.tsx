@@ -19,6 +19,7 @@ export function FeedbackButton() {
   const [body, setBody] = useState("");
   const [honeypot, setHoneypot] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
+  const [champsInvalides, setChampsInvalides] = useState(false);
   const [envoi, setEnvoi] = useState(false);
   const [envoye, setEnvoye] = useState(false);
 
@@ -29,6 +30,7 @@ export function FeedbackButton() {
     setBody("");
     setHoneypot("");
     setErreur(null);
+    setChampsInvalides(false);
     setEnvoye(false);
   }
 
@@ -36,9 +38,11 @@ export function FeedbackButton() {
     e.preventDefault();
     if (!title.trim() || !body.trim()) {
       setErreur("Le titre et la description sont obligatoires.");
+      setChampsInvalides(true);
       return;
     }
     setErreur(null);
+    setChampsInvalides(false);
     setEnvoi(true);
     try {
       await apiClient.submitFeedback({
@@ -135,6 +139,8 @@ export function FeedbackButton() {
                 onChange={(e) => setTitle(e.target.value)}
                 maxLength={200}
                 aria-label="Titre"
+                aria-invalid={champsInvalides || undefined}
+                aria-describedby={champsInvalides ? "feedback-erreur" : undefined}
               />
 
               <textarea
@@ -144,6 +150,8 @@ export function FeedbackButton() {
                 rows={5}
                 maxLength={10000}
                 aria-label="Description"
+                aria-invalid={champsInvalides || undefined}
+                aria-describedby={champsInvalides ? "feedback-erreur" : undefined}
                 style={{
                   padding: "13px 16px",
                   background: "var(--tcn-fill)",
@@ -168,7 +176,11 @@ export function FeedbackButton() {
                 style={{ position: "absolute", left: "-9999px", width: 1, height: 1, opacity: 0 }}
               />
 
-              {erreur ? <p style={{ color: "var(--tcn-danger-border)", fontSize: 14 }}>{erreur}</p> : null}
+              {erreur ? (
+                <p id="feedback-erreur" role="alert" style={{ color: "var(--tcn-danger-text)", fontSize: 14 }}>
+                  {erreur}
+                </p>
+              ) : null}
 
               <Button type="submit" disabled={envoi}>
                 {envoi ? "Envoi…" : "Envoyer"}
