@@ -174,3 +174,18 @@ def test_get_club_summary_podiums_by_discipline_ventile_par_type_epreuve(db_sess
     assert par_discipline["trail"].category == 1
     assert par_discipline["trail"].all == 1
     assert par_discipline["trail"].overall == 0
+
+
+def test_get_club_summary_marks_a_relay_result_on_a_mixed_course(db_session):
+    """Revue UI/UX #1001 : épreuve mixte (TimePulse), seul le résultat est un relais."""
+    ath = athlete_repository.get_or_create(db_session, nom="A", prenom="A", club="TCN")
+    course = _course(db_session, "C")
+    participation_repository.create(
+        db_session, athlete_id=ath.id, course_id=course.id, bib_number="1",
+        club="TCN", status="finisher", rank_overall=1, is_relay=True,
+    )
+    db_session.flush()
+
+    summary = club_service.get_club_summary(db_session)
+
+    assert [entry.is_relay for entry in summary.podiums.scratch] == [True]

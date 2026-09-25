@@ -309,7 +309,7 @@ export function MaSaison({
   }
 
   const principale = `${nom} — ${motCompte(epreuves, "épreuve")} · ${motCompte(podiums, "podium")}`;
-  const secondaire = `${capitaliser(rang)} · le club a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`;
+  const secondaire = `${capitaliser(rang)} · podiums hors relais · le club a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`;
 
   return (
     <Bande titre={titre}>

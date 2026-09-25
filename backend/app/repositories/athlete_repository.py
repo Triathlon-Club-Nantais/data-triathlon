@@ -26,7 +26,12 @@ def _escape_like(word: str) -> str:
     return word
 
 
-def name_filter(term: str):
+def unaccent_like(column, pattern: str):
+    """`column` contient `pattern` (déjà en minuscules, échappé), sans casse ni accents."""
+    return func.unaccent(func.lower(column)).like(pattern, escape="\\")
+
+
+def name_filter(term: str, *, also=None):
     """Filtre nom **ou** prénom d'athlète, mot à mot, sans casse ni accents.
 
     Chaque mot du terme doit matcher `nom` **ou** `prénom`, en sous-chaîne. Un
@@ -38,6 +43,9 @@ def name_filter(term: str):
     `ilike` seul ne suffit pas : il ignore la casse, jamais les accents, et ce
     sur les deux moteurs. Mesuré — `lower('LEMÉE') LIKE '%lemee%'` vaut faux, y
     compris avec le listener Unicode de `core/database.py`, qui rend `lemée`.
+
+    `also(pattern)` ajoute d'autres colonnes où chaque mot peut aussi se trouver
+    (nom d'équipe et équipiers d'un relais, #894).
 
     `unaccent` désigne l'extension PostgreSQL en production et la fonction
     applicative enregistrée sur la connexion SQLite en développement : même nom,
@@ -53,8 +61,9 @@ def name_filter(term: str):
         pattern = f"%{word.lower()}%"
         clauses.append(
             or_(
-                func.unaccent(func.lower(Athlete.nom)).like(pattern, escape="\\"),
-                func.unaccent(func.lower(Athlete.prenom)).like(pattern, escape="\\"),
+                unaccent_like(Athlete.nom, pattern),
+                unaccent_like(Athlete.prenom, pattern),
+                *(also(pattern) if also else ()),
             )
         )
     # Un terme sans mot (blancs seuls, ex. `name=%20`) ne doit rien laisser

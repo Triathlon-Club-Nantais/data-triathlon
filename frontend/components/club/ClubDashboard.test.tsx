@@ -183,7 +183,7 @@ describe("ClubDashboard — smoke", () => {
     const summary: ClubSummary = { ...EMPTY_SUMMARY, roster: [rosterEntry(1, 1)] };
     render(<ClubDashboard stats={STATS} summary={summary} recent={[part({ id: 1 })]} resultsTotal={STATS.total} />);
     expect(
-      screen.getByText("Les podiums comptés ici cumulent le général, le genre et la catégorie."),
+      screen.getByText("Les podiums comptés ici cumulent le général, le genre et la catégorie, hors relais."),
     ).toBeInTheDocument();
   });
 
@@ -191,7 +191,7 @@ describe("ClubDashboard — smoke", () => {
     const summary: ClubSummary = { ...EMPTY_SUMMARY, roster: [rosterEntry(1, 0)] };
     render(<ClubDashboard stats={STATS} summary={summary} recent={[part({ id: 1 })]} resultsTotal={STATS.total} />);
     expect(
-      screen.queryByText("Les podiums comptés ici cumulent le général, le genre et la catégorie."),
+      screen.queryByText("Les podiums comptés ici cumulent le général, le genre et la catégorie, hors relais."),
     ).not.toBeInTheDocument();
   });
 

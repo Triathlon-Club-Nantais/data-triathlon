@@ -365,7 +365,7 @@ export function EventsTable({
                       {p.course.name}
                     </Link>
                     {p.is_pending_validation && <PendingBadge rejected={p.is_rejected} />}
-                    <EquipeRelais participation={p} />
+                    <EquipeRelais participation={p} athleteId={athleteId} />
                   </td>
                   <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-body)" }}>{eventTypeLabel(p.course.event_type)}</td>
                   <td role="cell"><FormatChip>{formatToken(p.course.event_type, p.course.distance_km)}</FormatChip></td>
@@ -452,7 +452,7 @@ export function EventsTable({
                   <>
                     {p.course?.name}
                     {p.is_pending_validation && <PendingBadge rejected={p.is_rejected} />}
-                    <EquipeRelais participation={p} />
+                    <EquipeRelais participation={p} athleteId={athleteId} />
                   </>
                 }
                 valeur={p.total_time ?? "—"}

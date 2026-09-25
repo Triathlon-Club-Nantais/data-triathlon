@@ -67,7 +67,7 @@ export function RosterApercu({ roster }: { roster: ClubRosterEntry[] }) {
       </div>
       {roster.some((r) => r.podiums > 0) && (
         <p className="text-sm text-[var(--tcn-text-faint)]">
-          Les podiums comptés ici cumulent le général, le genre et la catégorie.
+          Les podiums comptés ici cumulent le général, le genre et la catégorie, hors relais.
         </p>
       )}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

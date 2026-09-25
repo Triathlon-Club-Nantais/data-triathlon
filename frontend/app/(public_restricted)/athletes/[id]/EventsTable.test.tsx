@@ -365,7 +365,9 @@ describe("relais attribué à ses équipiers (#894)", () => {
       { id: 8, nom: "MARTIN", prenom: "Paul", gender: "M", club: "TCN" },
     ],
   };
-  const LIBELLE = "Relais · Les Inconnus : DUPONT Jean, MARTIN Paul";
+  // Revue UI/UX #1001 : « Prénom NOM » comme le titre de la fiche, sans
+  // répéter l'athlète de la fiche (motif de `PodiumsList`).
+  const LIBELLE = "Relais · Les Inconnus, avec Paul MARTIN";
 
   it("nomme l'équipe et ses équipiers dans la grille et dans la carte", () => {
     render(<EventsTable participations={[RELAIS]} athleteId={7} athleteName="Jean DUPONT" />);
@@ -398,12 +400,26 @@ describe("relais attribué à ses équipiers (#894)", () => {
     }
   });
 
-  it("ne dit rien d'un résultat non attribué", () => {
+  it("signale un relais non attribué, sans équipiers à nommer (revue UI/UX #1001)", () => {
+    const base = participation(1, { name: "Relais de Nantes" });
+    render(
+      <EventsTable
+        participations={[{ ...base, course: { ...base.course, is_relay: true } }]}
+        athleteId={7}
+        athleteName="Jean DUPONT"
+      />,
+    );
+
+    expect(screen.getByText("Relais")).toBeInTheDocument();
+    expect(dansLesCartes("epreuves-cartes").texte("Relais")).toBeTruthy();
+  });
+
+  it("ne dit rien d'un résultat individuel", () => {
     render(
       <EventsTable participations={[participation(1)]} athleteId={7} athleteName="Jean DUPONT" />,
     );
 
-    expect(screen.queryByText(/^Relais ·/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Relais/)).not.toBeInTheDocument();
   });
 });
 

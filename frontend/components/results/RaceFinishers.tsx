@@ -19,6 +19,13 @@ import { nomComplet, useSelectedAthlete } from "@/components/layout/AthletePicke
 import { categoryTitle } from "@/lib/categories";
 import type { CourseSummary, Participation } from "@/lib/types";
 
+// Ma ligne : j'en suis le porteur, ou l'un des équipiers d'un relais attribué
+// (#894), sa fiche me montre ce relais, le classement doit me le montrer aussi.
+function estMaLigne(p: Participation, athleteId: number | undefined): boolean {
+  if (athleteId === undefined) return false;
+  return p.athlete.id === athleteId || (p.teammates ?? []).some((a) => a.id === athleteId);
+}
+
 // Colonnes fixes (rang, athlète, catég., sexe, temps total) + club en fin.
 const BASE_COLS = "54px 1fr 70px 56px 100px";
 const CLUB_COL = "1.1fr";
@@ -566,7 +573,7 @@ export function RaceFinishers({
           {lignes.map((p) => {
             const own = p.is_tcn;
             const { nf, name, splits } = donneesLigne(p);
-            const moi = athleteRetenu?.id === p.athlete.id;
+            const moi = estMaLigne(p, athleteRetenu?.id);
             return (
               <tr
                 key={p.id}
@@ -702,7 +709,7 @@ export function RaceFinishers({
         )}
         {lignes.map((p) => {
           const { nf, name, splits } = donneesLigne(p);
-          const moi = athleteRetenu?.id === p.athlete.id;
+          const moi = estMaLigne(p, athleteRetenu?.id);
           // `.filter(Boolean)` sur les valeurs **brutes** : les replis (« — »,
           // `genderShort(null)`) sont eux-mêmes des chaînes non vides, donc un
           // filtre posé après eux ne retire jamais rien — un participant sans

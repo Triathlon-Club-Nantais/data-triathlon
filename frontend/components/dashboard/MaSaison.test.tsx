@@ -85,6 +85,8 @@ describe("MaSaison — état rempli", () => {
     expect(within(ligneVisible).getByText(/4 épreuves/)).toBeInTheDocument();
     expect(within(ligneVisible).getByText(/1 podium/)).toBeInTheDocument();
     expect(within(ligneVisible).getByText(/32/)).toBeInTheDocument();
+    // Revue UI/UX #1001 : le compte de podiums de la ligne écarte les relais.
+    expect(within(ligneVisible).getByText(/podiums hors relais/)).toBeInTheDocument();
   });
 
   it("transmet les filtres du tableau de bord à l'API", async () => {

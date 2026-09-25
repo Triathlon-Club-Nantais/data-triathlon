@@ -1048,6 +1048,23 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     expect(marques[0].closest("tr")).toHaveTextContent("DNFGUY");
   });
 
+  it("marque la ligne d'un relais dont je suis équipier sans en être le porteur (revue UI/UX #1001)", () => {
+    const relais = {
+      ...p({ id: 9, nom: "DUPONT", rank_overall: 1 }),
+      is_relay: true,
+      team_name: "Les Inconnus",
+      teammates: [
+        { id: 9, nom: "DUPONT", prenom: "Jean", gender: "M", club: "TCN" },
+        { id: 10, nom: "MARTIN", prenom: "Paul", gender: "M", club: "TCN" },
+      ],
+    } as Participation;
+    writeAthlete({ id: 10, prenom: "Paul", nom: "MARTIN" });
+    afficher({ participations: [relais], total: 1 });
+
+    expect(within(screen.getByTestId("classement-grille")).getAllByText("Vous")).toHaveLength(1);
+    expect(dansLesCartes("classement-cartes").texte("Vous")).toBeInTheDocument();
+  });
+
   it("marque aussi ma ligne d'un chip « Vous » dans l'arbre carte (revue finale #461)", () => {
     // Régression relevée en revue finale : la boucle des cartes ne lisait
     // jamais `moi`, donc sur téléphone rien ne distinguait ma ligne — alors
