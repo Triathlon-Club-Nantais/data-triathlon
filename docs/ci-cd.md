@@ -79,10 +79,12 @@ région Frankfurt, plan free, runtime python :
 
 Réglages restants à faire **dans le dashboard** (non supportés par le MCP) :
 
-**Service PROD `data-triathlon`** :
-1. **Settings → Auto-Deploy = No** (il est encore en `autoDeploy: yes / checksPass` ;
-   en prod on ne déploie que sur tag via hook).
-2. Vérifier que `DATABASE_URL` (Supabase prod) est bien présent.
+**Service PROD `triathlon-backend-production`** :
+1. **Settings → Auto-Deploy = No** (en prod on ne déploie que sur tag via hook).
+   *État du dashboard non vérifiable depuis le dépôt (#951) : `render.yaml` porte
+   `autoDeploy: false`, mais cette checklist le disait encore en
+   `autoDeploy: yes / checksPass`. À contrôler dans le dashboard.*
+2. Vérifier que `DATABASE_URL` (Azure PG Flexible, prod) est bien présent.
 3. Copier l'URL du **Deploy Hook** (Settings → Deploy Hook) → secret `RENDER_DEPLOY_HOOK_PROD`.
 
 **Service PREVIEW `triathlon-backend-preview`** :
@@ -289,8 +291,15 @@ serait ignorée en silence.
 
 Reste le cas d'une **liste vide** : installation neuve, ou base repartie de zéro.
 Le rattrapage **n'est pas** `allow-email` : les deux services backend tournent en
-`plan: free`, qui n'ouvre aucun shell. Il faut passer par la console SQL de
-Supabase :
+`plan: free`, qui n'ouvre aucun shell. Il faut passer par SQL, et la base
+diffère selon l'environnement :
+
+- **Production** : `psql` sur `tcndatabdd.postgres.database.azure.com`, après
+  avoir ouvert une règle de pare-feu temporaire pour son IP (voir
+  `docs/infra-azure.md`, « Règles de firewall en place »), à refermer ensuite.
+  La console SQL de Supabase viserait la preview : la prod resterait sans accès.
+- **Preview** : la console SQL de Supabase.
+
 
 ```sql
 INSERT INTO allowed_emails (email, created_at)

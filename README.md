@@ -21,7 +21,7 @@ Collez une URL de résultat — le backend scrape et stocke les données automat
 
 - **[uv](https://docs.astral.sh/uv/)** — gère les dépendances *et* l'interpréteur Python (3.13, téléchargé au besoin)
 - **Node.js 20+** (avec npm)
-- **PostgreSQL** via [Supabase](https://supabase.com) (gratuit) — ou SQLite en local
+- **PostgreSQL** : Azure Database for PostgreSQL en production (voir [`docs/infra-azure.md`](docs/infra-azure.md)), [Supabase](https://supabase.com) (gratuit) pour la preview ou une installation neuve, ou SQLite en local
 
 ---
 
@@ -54,7 +54,10 @@ Les sections ci-dessous documentent les commandes brutes équivalentes.
 
 ### 2. Base de données
 
-**Option A — Supabase (recommandé pour la prod)**
+**Option A : Supabase (preview, installation neuve)**
+
+> La production du club ne tourne pas sur Supabase mais sur Azure Database for
+> PostgreSQL (Flexible Server) : voir [`docs/infra-azure.md`](docs/infra-azure.md).
 
 1. Créer un projet sur [supabase.com](https://supabase.com)
 2. **Connect** → **Direct** → copier l'URI de connexion
@@ -311,7 +314,7 @@ data-triathlon/
 1. Connecter le repo GitHub sur [render.com](https://render.com)
 2. Créer un service web Python, **Root Directory = `backend`**, et y reporter le
    `buildCommand` / `startCommand` de `render.yaml`
-3. Ajouter la variable d'environnement `DATABASE_URL` (Supabase Session Pooler)
+3. Ajouter la variable d'environnement `DATABASE_URL` (Session Pooler Supabase pour une installation neuve ; la prod du club pointe sur Azure PostgreSQL, voir `docs/infra-azure.md`)
 
 > **`render.yaml` ne configure rien tout seul.** Les services du projet ont été
 > créés à la main : Render ne lit ce fichier que pour un service issu d'un
