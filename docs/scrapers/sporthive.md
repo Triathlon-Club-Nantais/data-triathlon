@@ -67,24 +67,29 @@ classement incomplet est **écartée** (`_IncompleteRankingError`, type privé r
 par la boucle, journalisé avec intitulé, ordinal et les deux décomptes) : les
 autres courses de l'événement s'importent. Refuser l'événement entier rendait
 une course durablement tronquée côté source définitivement non importable,
-membres du TCN des cinq autres courses compris. L'**événement** est refusé
-(`ValueError`) sur URL illisible, événement inconnu (404), plafond de pagination
-atteint, ou **aucune course importable** — ce dernier garde-fou parce que
-`import_service._require_event_name` ne lève pas sur une liste vide et que
-`batch` compte « aucun résultat » en succès : un import à zéro course passerait
-sinon pour réussi. Contrepartie assumée de l'écart par course : le bilan CLI
-comptant des épreuves, une épreuve ressort en succès à 5 courses sur 6, et seul
-le `logger.warning` en garde la trace.
+membres du TCN des cinq autres courses compris. Sur le chemin nominal, le
+fan-out (`scrape_event_fanout`, #216), chaque course porte sa propre
+`source_url` (`…/events/{eventId}/races/{raceId}`, snowflake) et une course
+écartée finit dans `trace.failures`. L'**événement** est refusé (`ValueError`)
+sur URL illisible, événement inconnu (404), plafond de pagination atteint, ou
+**aucune course importable** : au moins une course en échec, aucune scrapée ni
+trouvée en cache (#995). Ce dernier garde-fou existe parce que
+`import_service` rend « done » sur une liste vide et que `batch` ne lit pas
+`heats_failed` : un événement entièrement tronqué passerait sinon pour réussi.
+Un événement sans aucune course classée rend, lui, une trace vide sans erreur.
+`--single-heat` (`scrape_event_all`) refuse tout retour vide. Contrepartie
+assumée de l'écart par course : le bilan CLI comptant des épreuves, une épreuve
+ressort en succès à 5 courses sur 6, et seuls le `logger.warning` et
+`failures` en gardent la trace.
 
 Deux règles de valeurs qui ne se devinent pas. Le **statut est tranché sur le
 rang** quand `validity` se tait *et* qu'aucun temps n'est retenu : `finisher` si
 classé, `DNF` sinon — sans quoi les 73 lignes sans `chipTime` ni `gunTime` mais
 **classées** par la source s'afficheraient en abandon, le travers déjà payé sur
-ok-time. Et une course annoncée à **zéro classé est sautée sans requête** : une
-`Course` vide n'a aucune participation sans `total_time`, donc `cache` la déclare
-terminée — et comme les six courses d'un événement partagent une `source_url`,
-elle peut devenir celle qui répond pour tout l'événement et geler son re-scrape
-30 jours.
+ok-time. Et une course annoncée à **zéro classé est écartée sans requête**,
+avant tout décompte : ni notifiée à la progression, ni comptée dans
+`heats_enumerated`, sans quoi l'invariant `enumerated = imported + cached +
+failed` d'`import_service` la compterait parmi les courses importées (#995).
 
 Détails de lecture : temps en `HH:MM:SS`, `HH:MM:SS.fffffff` ou `HH:MM:SS.fff`
 selon la course — la fraction se tronque **avant** `normalize_time`, dont le

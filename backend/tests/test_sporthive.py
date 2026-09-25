@@ -1206,6 +1206,55 @@ def test_scrape_event_fanout_no_races_returns_empty(monkeypatch):
     assert trace.cached_urls == []
 
 
+def test_scrape_event_fanout_all_races_truncated_raises(monkeypatch):
+    """#995 : toutes les races tronquées, aucune en cache → l'événement est
+    refusé, jamais rendu comme un import réussi à zéro ligne (que `batch`
+    compterait en succès)."""
+    courses = [_course(n, annonces=3) for n in range(1, 3)]
+    pages = {n: [[_participant(f"{n}01")]] for n in range(1, 3)}
+    _client_factice(monkeypatch, _routes(courses, pages))
+
+    with pytest.raises(ValueError, match="aucune course importable"):
+        sporthive.scrape_event_fanout(URL_SHEET)
+
+
+def test_scrape_event_fanout_all_failed_but_one_cached_does_not_raise(monkeypatch):
+    """Une race fraîche en cache suffit : l'événement a déjà des données."""
+    courses = [_course(n, annonces=3) for n in range(1, 3)]
+    pages = {n: [[_participant(f"{n}01")]] for n in range(1, 3)}
+    _client_factice(monkeypatch, _routes(courses, pages))
+    cached = _race_url_for(courses[0])
+
+    resultats, trace = sporthive.scrape_event_fanout(
+        URL_SHEET, cache_probe=lambda race_url: race_url == cached,
+    )
+
+    assert resultats == []
+    assert trace.heats_cached == 1
+    assert len(trace.failures) == 1
+
+
+def test_scrape_event_fanout_zero_ranked_race_is_neither_notified_nor_counted(monkeypatch):
+    """#995 : une race à zéro classé est écartée avant la progression. Ni
+    `on_heat_start`, ni `heats_enumerated`, sinon `import_service` la compterait
+    parmi les courses importées."""
+    courses = [_course(1, annonces=1), _course(2, annonces=0), _course(3, annonces=1)]
+    pages = {1: [[_participant("101")]], 3: [[_participant("301")]]}
+    client = _client_factice(monkeypatch, _routes(courses, pages))
+    notifications: list[tuple] = []
+
+    resultats, trace = sporthive.scrape_event_fanout(
+        URL_SHEET, on_heat_start=lambda *args: notifications.append(args),
+    )
+
+    assert len(resultats) == 2
+    assert trace.heats_enumerated == 2
+    assert trace.failures == []
+    assert [n[0] for n in notifications] == [str(courses[0]["id"]), str(courses[2]["id"])]
+    assert all(n[3] == 2 for n in notifications)
+    assert client.calls_containing(f"/races/{courses[1]['id']}/participants") == []
+
+
 def test_scrape_event_fanout_on_heat_start_notifie_par_race_non_cache(monkeypatch):
     """`on_heat_start` est appelé avant chaque race effectivement scrapée.
 

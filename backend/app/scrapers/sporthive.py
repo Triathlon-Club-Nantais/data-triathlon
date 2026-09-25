@@ -292,10 +292,10 @@ def _status(participant: dict, total_time: str, rank_overall: int | None) -> str
 
 # ── Segments ─────────────────────────────────────────────────────────────────
 
-#: `legs[].type` → label stored, a closed vocabulary (D7). `sportName` is
-#: **never** read: entered by the timekeeper, unnormalised (`SWIM` / `Swim` /
-#: `T1`), and `null` on 5 635 of the 24 042 legs of the panel. `type` is present
-#: 24 042 times out of 24 042.
+#: `legs[].type` → label stored, a closed vocabulary (D7). `sportName` is read
+#: only as a fallback when `type` says nothing (`_leg_label`): entered by the
+#: timekeeper, unnormalised (`SWIM` / `Swim` / `T1`), and `null` on 5 635 of the
+#: 24 042 legs of the panel. `type` is present 24 042 times out of 24 042.
 #: Labels in French because they become column headers in the front
 #: (`lib/utils/splits.ts`, generic path) and the source vocabulary is closed, so
 #: the translation is safe — unlike a free-form label, which ok-time renders
@@ -677,9 +677,11 @@ def scrape_event_fanout(
 
     Isolation d'échec par race : une race qui lève (incomplète = drop, ou
     exception réseau) est capturée dans `trace.failures` et journalisée, les
-    autres continuent. Le refus double du module est préservé — une race
-    incomplète est droppée sans casser l'événement, l'événement est refusé
-    (`ValueError`) **seulement** si rien n'a été énuméré ni scrapé au final.
+    autres continuent. L'événement est refusé (`ValueError`) quand au moins une
+    race a échoué et qu'aucune n'a été ni scrapée ni trouvée en cache (#995) :
+    `batch` compterait sinon un retour vide en succès. Un événement sans race
+    classée rend `([], trace)` sans erreur. Une race à zéro classé est écartée
+    avant tout : ni notifiée, ni comptée dans `heats_enumerated`.
 
     URL canonique par-race : `.../events/{eventId}/races/{raceId}` (snowflake,
     pas l'ordinal). C'est cette URL qui reçoit `cache_probe`, et c'est elle qui
@@ -696,7 +698,18 @@ def scrape_event_fanout(
 
     with http.client(timeout=20, headers=_HEADERS) as client:
         event = _fetch_event(client, event_id)
-        races = _fetch_races(client, event_id)
+        races = []
+        for race in _fetch_races(client, event_id):
+            # Sans classement publié : écartée sans requête (D14) et hors des
+            # compteurs, où l'invariant d'`import_service` la dirait importée.
+            if not (race.get("classificationsCount") or 0) > 0:
+                logger.info(
+                    "Sporthive race %r (ordinal %s): no ranked entrant announced, "
+                    "skipped without a request.",
+                    race.get("raceName"), race.get("activeRaceId"),
+                )
+                continue
+            races.append(race)
         trace.heats_enumerated = len(races)
 
         # Pré-filtre : les races cachées ne sont ni notifiées à `on_heat_start`
@@ -717,17 +730,6 @@ def scrape_event_fanout(
             race_url = _race_source_url(event_id, race)
             if on_heat_start is not None:
                 on_heat_start(race_slug, race_label, index, total_a_scraper)
-            # Race sans classement publié : sautée sans requête (contrat
-            # historique de `scrape_event_all`, D14). Sans classement, il n'y a
-            # rien à mettre en cache — donc rien à faire remonter en failure
-            # non plus. Reste comptée dans `heats_enumerated`, comme les autres.
-            if not (race.get("classificationsCount") or 0) > 0:
-                logger.info(
-                    "Sporthive race %r (ordinal %s): no ranked entrant announced, "
-                    "skipped without a request.",
-                    race.get("raceName"), race.get("activeRaceId"),
-                )
-                continue
             try:
                 # `race_url` (pas `url`) : la source_url par-race est la clé de
                 # cache TTL, et c'est ce que le fan-out apporte au cache.
@@ -752,4 +754,12 @@ def scrape_event_fanout(
                 )
                 trace.failures.append({"heat_slug": race_slug, "reason": str(exc)})
 
+    if not resultats and not trace.heats_cached and trace.failures:
+        raise ValueError(
+            f"Événement Sporthive {event_id} : aucune course importable. "
+            f"{len(trace.failures)} course(s) en échec, aucune n'a rendu de "
+            "classement exploitable (classement tronqué à la source ou erreur). "
+            "L'import est refusé plutôt que compté comme un succès à zéro "
+            "participant ; il est rejouable dès que la source publie."
+        )
     return resultats, trace
