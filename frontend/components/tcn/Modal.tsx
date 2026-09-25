@@ -59,6 +59,8 @@ export function Modal({
         >
           <Dialog.Popup
             ref={popupRef}
+            // Base UI rend le reste de la page inerte sans poser cet attribut.
+            aria-modal="true"
             aria-labelledby={title ? titleId : undefined}
             initialFocus={() => {
               const actif = document.activeElement;

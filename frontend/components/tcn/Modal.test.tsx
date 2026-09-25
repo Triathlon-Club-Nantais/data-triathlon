@@ -151,3 +151,11 @@ describe("Modal: robust focus trap and restore (#988)", () => {
     expect(onClose).toHaveBeenCalled();
   });
 });
+
+describe("Modal: modal semantics (#988)", () => {
+  it("declares itself modal to assistive technologies", () => {
+    render(<Scenario onClose={() => {}} />);
+
+    expect(screen.getByRole("dialog")).toHaveAttribute("aria-modal", "true");
+  });
+});
