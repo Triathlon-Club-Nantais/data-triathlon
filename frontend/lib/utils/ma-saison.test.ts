@@ -10,9 +10,10 @@ function participation(over: {
   rank_gender?: number | null;
   is_pending_validation?: boolean;
   is_relay?: boolean;
+  courseIsRelay?: boolean;
 }): Participation {
   return {
-    course: { id: over.courseId },
+    course: { id: over.courseId, is_relay: over.courseIsRelay ?? false },
     rank_overall: over.rank_overall ?? null,
     rank_category: over.rank_category ?? null,
     rank_gender: over.rank_gender ?? null,
@@ -26,6 +27,12 @@ describe("compteMaSaison", () => {
   // l'épreuve courue compte.
   it("ne compte pas un podium de relais, mais compte l'épreuve", () => {
     const lignes = [participation({ courseId: 1, rank_overall: 2, is_relay: true })];
+    expect(compteMaSaison(lignes, "scratch")).toEqual({ epreuves: 1, podiums: 0 });
+  });
+
+  // Épreuve marquée relais à la main : le résultat reste un relais (revue #1001).
+  it("ne compte pas un podium quand seule l'épreuve est un relais", () => {
+    const lignes = [participation({ courseId: 1, rank_overall: 1, courseIsRelay: true })];
     expect(compteMaSaison(lignes, "scratch")).toEqual({ epreuves: 1, podiums: 0 });
   });
 

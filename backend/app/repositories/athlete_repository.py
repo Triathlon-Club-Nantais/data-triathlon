@@ -221,10 +221,11 @@ def search_admin(
     appelant, une route gardée par `athletes:read` (FR-025). La lecture publique
     (`search`) ne l'expose pas et ne doit pas l'exposer.
     """
-    compte = func.count(Participation.id)
+    lien = credits()
+    compte = func.count(lien.c.participation_id)
     requete = (
         db.query(Athlete, compte)
-        .outerjoin(Participation, Participation.athlete_id == Athlete.id)
+        .outerjoin(lien, lien.c.athlete_id == Athlete.id)
         .group_by(Athlete.id)
     )
     if search:
@@ -517,7 +518,9 @@ def _club_roster_requete(db: Session, *, federal_only: bool):
     """
     # Un podium de relais n'est pas un podium individuel (#894, FR-011) : le
     # relais compte dans le volume `total`, jamais dans les podiums.
-    individuel = Participation.is_relay.is_(False)
+    # Relais aussi quand seule l'épreuve est marquée (édition admin) : même
+    # critère que `set_teammates`.
+    individuel = and_(Participation.is_relay.is_(False), Course.is_relay.is_(False))
     cond_overall = and_(individuel, Participation.rank_overall.between(1, 3))
     cond_gender = and_(individuel, Participation.rank_gender.between(1, 3))
     cond_category = and_(individuel, Participation.rank_category.between(1, 3))

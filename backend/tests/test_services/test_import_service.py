@@ -2139,3 +2139,69 @@ def test_resplit_purges_the_team_athlete_even_without_field_change(
     db_session.expire_all()
 
     assert athlete_repository.get(db_session, team_id) is None
+
+
+# ── Revue de la PR parapluie #1001 ────────────────────────────────────────────
+
+
+def _compose(db_session, participation, *names):
+    athletes = [athlete_repository.get_or_create(db_session, nom=nom, prenom=prenom)
+                for nom, prenom in names]
+    admins = user_repository.find_by_email(db_session, "admin@exemple.fr")
+    admin = admins[0] if admins else user_repository.create(db_session, email="admin@exemple.fr")
+    db_session.flush()
+    admin_actions.set_teammates(
+        db_session, participation_id=participation.id,
+        teammates=[athlete.id for athlete in athletes], user_id=admin.id,
+    )
+
+
+@pytest.mark.parametrize("order", [1, -1], ids=["meme-ordre", "ordre-inverse"])
+def test_rescrape_does_not_cross_two_composed_relays_with_the_same_team_name(
+    db_session, patch_scraper, order
+):
+    lines = [
+        _relay("", "LES COPAINS", "", total_time="01:00:00"),
+        _relay("", "LES COPAINS", "", total_time="01:10:00"),
+    ]
+    patch_scraper(lines)
+    import_service.import_event(db_session, URL, _settings())
+    first, second = sorted(_relay_rows(db_session), key=lambda row: row.total_time)
+    _compose(db_session, first, ("DUPONT", "Jean"), ("MARTIN", "Paul"))
+    _compose(db_session, second, ("DURAND", "Luc"), ("PETIT", "Marc"))
+    db_session.commit()
+    _expire_cache(db_session)
+
+    patch_scraper(lines[::order])
+    import_service.import_event(db_session, URL, _settings())
+
+    rows = {row.id: row for row in _relay_rows(db_session)}
+    assert set(rows) == {first.id, second.id}
+    assert rows[first.id].total_time == "01:00:00"
+    assert rows[second.id].total_time == "01:10:00"
+    assert athlete_repository.get_by_identity(db_session, "LES COPAINS", "", None) is None
+
+
+def test_rescrape_finds_a_composed_relay_whose_course_only_is_a_relay(db_session, patch_scraper):
+    # Heat klikego : l'épreuve est retrouvée par son URL (règle R, #289) même après
+    # que l'admin l'a marquée relais, alors que la ligne publiée ne l'est pas.
+    heat_url = "https://www.klikego.com/resultats/mesquer/1677015306084-12?heat=duo"
+    line = _result("", "LES COPAINS", "", event_type="triathlon-s", source_url=heat_url)
+    patch_scraper([line])
+    import_service.import_event(db_session, heat_url, _settings())
+    course = course_repository.get_latest_by_source_url(db_session, heat_url)
+    (row,) = participation_repository.list_for_course(db_session, course.id)
+    course.is_relay = True
+    db_session.flush()
+    _compose(db_session, row, ("DUPONT", "Jean"), ("MARTIN", "Paul"))
+    db_session.commit()
+    _expire_cache(db_session, heat_url)
+
+    patch_scraper([line])
+    out = import_service.import_event(db_session, heat_url, _settings())
+
+    assert [r.id for r in participation_repository.list_for_course(db_session, course.id)] == [
+        row.id
+    ]
+    assert out["imported"] == 0
+    assert athlete_repository.get_by_identity(db_session, "LES COPAINS", "", None) is None
