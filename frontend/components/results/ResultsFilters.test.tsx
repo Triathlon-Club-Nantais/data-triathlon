@@ -139,6 +139,31 @@ describe("ResultsFilters: resync with the URL on navigation (#949)", () => {
     expect(champ).toHaveValue("marie");
     expect(champ).toHaveFocus();
   });
+
+  it("keeps the typing when an older live search lands after a newer one was sent", async () => {
+    searchParams = new URLSearchParams();
+    const { rerender } = render(<ResultsFilters />);
+    const champ = screen.getByPlaceholderText("Rechercher un athlète");
+
+    await userEvent.type(champ, "mar");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(expect.stringContaining("name=mar")));
+    const ancienne = replace.mock.calls.at(-1)?.[0] as string;
+    await userEvent.type(champ, "ie");
+    await waitFor(() => expect(replace).toHaveBeenCalledWith(expect.stringContaining("name=marie")));
+    const recente = replace.mock.calls.at(-1)?.[0] as string;
+
+    searchParams = new URLSearchParams(ancienne.split("?")[1]);
+    rerender(<ResultsFilters />);
+    expect(champ).toHaveValue("marie");
+
+    searchParams = new URLSearchParams(recente.split("?")[1]);
+    rerender(<ResultsFilters />);
+    expect(champ).toHaveValue("marie");
+
+    searchParams = new URLSearchParams("name=Dupont");
+    rerender(<ResultsFilters />);
+    expect(champ).toHaveValue("Dupont");
+  });
 });
 
 describe("ResultsFilters — libellés associés (WCAG 3.3.2)", () => {
