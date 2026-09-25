@@ -154,19 +154,6 @@ async function serverFetchAuthed<T>(path: string): Promise<T | null> {
 }
 
 /**
- * Variante de `serverFetchAuthed` qui ne rend qu'un booléen.
- *
- * `checkSiteAccess` n'a besoin que de savoir si le cookie est valide — mais
- * `false` doit rester réservé au seul 401 **avéré** (cookie absent, invalide
- * ou expiré). Un réseau en échec ou un statut ≠ 200/401 (démarrage à froid,
- * 5xx) ne dit rien sur la validité du cookie : les confondre avec `false`
- * ferait rediriger vers `/acces` pendant une panne backend, exactement ce que
- * `admin/layout.tsx` évite déjà pour sa propre garde via son couple
- * `panne()`/`INDISPONIBLE`. On lève donc une `ApiError` (ou on laisse
- * remonter l'échec réseau) sur tout ce qui n'est ni 200 ni 401, à charge pour
- * l'appelant — `app/(public_restricted)/layout.tsx` — de les traiter comme lui.
- */
-/**
  * Variante de `serverFetch` pour une route protégée par un pouvoir RBAC
  * (`require_permission`), en plus du mot de passe du site (#845).
  *
@@ -192,6 +179,19 @@ async function serverFetchPermissioned<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/**
+ * Variante de `serverFetchAuthed` qui ne rend qu'un booléen.
+ *
+ * `checkSiteAccess` n'a besoin que de savoir si le cookie est valide — mais
+ * `false` doit rester réservé au seul 401 **avéré** (cookie absent, invalide
+ * ou expiré). Un réseau en échec ou un statut ≠ 200/401 (démarrage à froid,
+ * 5xx) ne dit rien sur la validité du cookie : les confondre avec `false`
+ * ferait rediriger vers `/acces` pendant une panne backend, exactement ce que
+ * `admin/layout.tsx` évite déjà pour sa propre garde via son couple
+ * `panne()`/`INDISPONIBLE`. On lève donc une `ApiError` (ou on laisse
+ * remonter l'échec réseau) sur tout ce qui n'est ni 200 ni 401, à charge pour
+ * l'appelant — `app/(public_restricted)/layout.tsx` — de les traiter comme lui.
+ */
 async function serverFetchAuthedRaw(path: string): Promise<boolean> {
   const jar = await cookies();
   const res = await fetch(`${BASE}${path}`, {
