@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import type { EntrainementParticipant, Profile } from "@/lib/types";
+import type { TrainingParticipant, Profile } from "@/lib/types";
 
 /**
  * L'appel de fin (#869, US2) — reboucle sur les jeunes marqués présents à
@@ -10,7 +10,7 @@ import type { EntrainementParticipant, Profile } from "@/lib/types";
  *
  * **Aucune écriture, aucun appel réseau** (FR-007, research.md D2) : la liste
  * de présents vient des `participants` déjà chargés par l'écran parent
- * (`AppelPresence`, via `GET /admin/jeunes/entrainements/{id}`), et l'état des
+ * (`AppelPresence`, via `GET /admin/training-sessions/{id}`), et l'état des
  * cases cochées ne vit que dans ce composant — il n'existe nulle part côté
  * serveur. Remonter ce composant (bascule d'onglet, réouverture de l'écran)
  * réinitialise l'appel de fin, ce qui **est** le comportement voulu.
@@ -19,20 +19,20 @@ export function AppelFin({
   participants,
   profils,
 }: {
-  participants: EntrainementParticipant[];
+  participants: TrainingParticipant[];
   profils: Profile[];
 }) {
   const profilsParId = new Map(profils.map((profil) => [profil.id, profil]));
   const presents = participants.filter((participant) => participant.present === true);
   const [retrouves, setRetrouves] = useState<Set<number>>(new Set());
 
-  function basculer(jeuneId: number) {
+  function basculer(profileId: number) {
     setRetrouves((precedent) => {
       const suivant = new Set(precedent);
-      if (suivant.has(jeuneId)) {
-        suivant.delete(jeuneId);
+      if (suivant.has(profileId)) {
+        suivant.delete(profileId);
       } else {
-        suivant.add(jeuneId);
+        suivant.add(profileId);
       }
       return suivant;
     });
@@ -49,7 +49,7 @@ export function AppelFin({
 
   // `retrouves` n'est jamais réconcilié avec les props : un id qui a quitté
   // `presents` ne doit pas réduire le compte.
-  const manquants = presents.filter((participant) => !retrouves.has(participant.jeune_id)).length;
+  const manquants = presents.filter((participant) => !retrouves.has(participant.profile_id)).length;
 
   return (
     <div className="space-y-4">
@@ -60,18 +60,18 @@ export function AppelFin({
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {presents.map((participant) => {
-          const profil = profilsParId.get(participant.jeune_id);
+          const profil = profilsParId.get(participant.profile_id);
           const nom = profil
             ? `${profil.first_name} ${profil.last_name}`
-            : `Jeune n° ${participant.jeune_id}`;
-          const retrouve = retrouves.has(participant.jeune_id);
+            : `Jeune n° ${participant.profile_id}`;
+          const retrouve = retrouves.has(participant.profile_id);
           return (
-            <Card key={participant.jeune_id} className="p-4">
+            <Card key={participant.profile_id} className="p-4">
               <label className="flex items-center gap-2">
                 <input
                   type="checkbox"
                   checked={retrouve}
-                  onChange={() => basculer(participant.jeune_id)}
+                  onChange={() => basculer(participant.profile_id)}
                   aria-label={nom}
                 />
                 <span className={retrouve ? "text-[var(--tcn-text-faint)]" : "font-medium"}>

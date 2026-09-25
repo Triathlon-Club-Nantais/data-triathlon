@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useUpdateEntrainement } from "@/lib/queries/admin";
+import { useUpdateTrainingSession } from "@/lib/queries/admin";
 
 /**
  * La note de séance (#869, US3) — texte libre rattaché à l'entraînement
@@ -13,19 +13,19 @@ import { useUpdateEntrainement } from "@/lib/queries/admin";
  *
  * Une soumission blanche sur une séance sans note **n'écrit rien**. Sur une
  * note déjà enregistrée, elle l'efface en envoyant `""`, la forme que prend
- * « pas de note » côté modèle (`Entrainement.note`, `NOT NULL`).
+ * « pas de note » côté modèle (`TrainingSession.note`, `NOT NULL`).
  */
 export function NoteSeanceForm({
-  entrainementId,
+  sessionId,
   note,
   peutEcrire,
 }: {
-  entrainementId: number;
+  sessionId: number;
   note: string;
   peutEcrire: boolean;
 }) {
   const [valeur, setValeur] = useState(note);
-  const modifier = useUpdateEntrainement();
+  const modifier = useUpdateTrainingSession();
 
   const vide = !valeur.trim();
   const rienAEnregistrer = vide && !note.trim();
@@ -34,7 +34,7 @@ export function NoteSeanceForm({
     evenement.preventDefault();
     if (rienAEnregistrer) return;
     try {
-      await modifier.mutateAsync({ id: entrainementId, champs: { note: vide ? "" : valeur } });
+      await modifier.mutateAsync({ id: sessionId, champs: { note: vide ? "" : valeur } });
       toast.success("Note de séance enregistrée.");
     } catch (e) {
       toast.error((e as Error).message);

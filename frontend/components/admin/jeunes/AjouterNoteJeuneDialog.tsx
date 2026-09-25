@@ -20,12 +20,12 @@ import { useAddProfileLogEntry } from "@/lib/queries/admin";
  * `research.md` D3 de la feature.
  */
 export function AjouterNoteJeuneDialog({
-  jeuneId,
+  profileId,
   jeuneNom,
   open,
   onOpenChange,
 }: {
-  jeuneId: number;
+  profileId: number;
   jeuneNom: string;
   open: boolean;
   onOpenChange: (ouvert: boolean) => void;
@@ -37,7 +37,7 @@ export function AjouterNoteJeuneDialog({
     evenement.preventDefault();
     if (!texte.trim()) return;
     try {
-      await ajouter.mutateAsync({ id: jeuneId, text: texte.trim() });
+      await ajouter.mutateAsync({ id: profileId, text: texte.trim() });
       toast.success("Note ajoutée au journal de bord.");
       setTexte("");
       onOpenChange(false);

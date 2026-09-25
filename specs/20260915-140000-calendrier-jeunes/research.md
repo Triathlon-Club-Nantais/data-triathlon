@@ -15,6 +15,13 @@ module dédié (`app/models/entrainement.py`), le préfixe serait redondant avec
 l'emplacement — même arbitrage que `Group`/`groups` vs. une hypothétique
 `OrganisationGroup`.
 
+**Révision (revue de la PR #876)** : décision renversée. Le préfixe
+« jeunes » figeait la population dans le schéma, à rebours de l'arbitrage D1
+des profils (`personal_profiles`, générique). Tables `training_sessions` et
+`training_participants`, colonne `profile_id`, modèle `TrainingSession` :
+une extension aux adultes n'aura ni table à doubler ni colonne à renommer,
+la restriction aux jeunes restant dans la garde `jeunes:*`.
+
 **Alternatives considered**:
 - `Seance`/`seances_jeunes` — rejeté, moins spécifique que « entraînement » et
   n'apporte rien : l'issue #868 dit « entraînement » explicitement.

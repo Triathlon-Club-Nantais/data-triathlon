@@ -778,10 +778,10 @@ export function useRemoveGroupMember() {
 
 // ── Calendrier des entraînements jeunes (#868, epic #863) ───────────────────
 
-export function useEntrainements() {
+export function useTrainingSessions() {
   return useQuery({
-    queryKey: queryKeys.entrainements(),
-    queryFn: () => apiClient.listEntrainements(),
+    queryKey: queryKeys.trainingSessions(),
+    queryFn: () => apiClient.listTrainingSessions(),
   });
 }
 
@@ -792,28 +792,28 @@ export function useEntrainements() {
  * calendrier de vingt séances ne doit pas demander vingt listes de
  * participants que personne ne regardera.
  */
-export function useEntrainement(entrainementId: number | null) {
+export function useTrainingSession(sessionId: number | null) {
   return useQuery({
-    queryKey: queryKeys.entrainement(entrainementId ?? 0),
-    queryFn: () => apiClient.getEntrainement(entrainementId as number),
-    enabled: entrainementId !== null,
+    queryKey: queryKeys.trainingSession(sessionId ?? 0),
+    queryFn: () => apiClient.getTrainingSession(sessionId as number),
+    enabled: sessionId !== null,
   });
 }
 
-export function useCreateEntrainement() {
+export function useCreateTrainingSession() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (entrainement: {
       date: string;
-      heure_debut?: string | null;
-      lieu?: string | null;
-      type_seance?: string | null;
-    }) => apiClient.createEntrainement(entrainement),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.entrainements() }),
+      start_time?: string | null;
+      location?: string | null;
+      session_type?: string | null;
+    }) => apiClient.createTrainingSession(entrainement),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.trainingSessions() }),
   });
 }
 
-export function useUpdateEntrainement() {
+export function useUpdateTrainingSession() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
@@ -823,68 +823,68 @@ export function useUpdateEntrainement() {
       id: number;
       champs: {
         date?: string;
-        heure_debut?: string | null;
-        lieu?: string | null;
-        type_seance?: string | null;
+        start_time?: string | null;
+        location?: string | null;
+        session_type?: string | null;
         note?: string;
       };
-    }) => apiClient.updateEntrainement(id, champs),
+    }) => apiClient.updateTrainingSession(id, champs),
     onSuccess: (_donnees, { id }) => {
-      qc.invalidateQueries({ queryKey: queryKeys.entrainements() });
-      qc.invalidateQueries({ queryKey: queryKeys.entrainement(id) });
+      qc.invalidateQueries({ queryKey: queryKeys.trainingSessions() });
+      qc.invalidateQueries({ queryKey: queryKeys.trainingSession(id) });
     },
   });
 }
 
-export function useAddEntrainementParticipant() {
+export function useAddTrainingParticipant() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
-      entrainementId,
-      jeuneId,
+      sessionId,
+      profileId,
       present,
     }: {
-      entrainementId: number;
-      jeuneId: number;
+      sessionId: number;
+      profileId: number;
       present?: boolean;
-    }) => apiClient.addEntrainementParticipant(entrainementId, jeuneId, present),
-    onSuccess: (_donnees, { entrainementId }) => {
-      qc.invalidateQueries({ queryKey: queryKeys.entrainements() });
-      qc.invalidateQueries({ queryKey: queryKeys.entrainement(entrainementId) });
+    }) => apiClient.addTrainingParticipant(sessionId, profileId, present),
+    onSuccess: (_donnees, { sessionId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.trainingSessions() });
+      qc.invalidateQueries({ queryKey: queryKeys.trainingSession(sessionId) });
     },
   });
 }
 
-export function useRemoveEntrainementParticipant() {
+export function useRemoveTrainingParticipant() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ entrainementId, jeuneId }: { entrainementId: number; jeuneId: number }) =>
-      apiClient.removeEntrainementParticipant(entrainementId, jeuneId),
-    onSuccess: (_donnees, { entrainementId }) => {
-      qc.invalidateQueries({ queryKey: queryKeys.entrainements() });
-      qc.invalidateQueries({ queryKey: queryKeys.entrainement(entrainementId) });
+    mutationFn: ({ sessionId, profileId }: { sessionId: number; profileId: number }) =>
+      apiClient.removeTrainingParticipant(sessionId, profileId),
+    onSuccess: (_donnees, { sessionId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.trainingSessions() });
+      qc.invalidateQueries({ queryKey: queryKeys.trainingSession(sessionId) });
     },
   });
 }
 
 /** Bascule le statut présent/absent d'un jeune déjà inscrit (#869, appel de
- * début). Ne crée jamais d'inscription — `useAddEntrainementParticipant`
+ * début). Ne crée jamais d'inscription — `useAddTrainingParticipant`
  * s'en charge. */
 export function useSetPresence() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
-      entrainementId,
-      jeuneId,
+      sessionId,
+      profileId,
       present,
     }: {
-      entrainementId: number;
-      jeuneId: number;
+      sessionId: number;
+      profileId: number;
       present: boolean;
-    }) => apiClient.setEntrainementParticipantPresence(entrainementId, jeuneId, present),
-    onSuccess: (_donnees, { entrainementId }) => {
-      qc.invalidateQueries({ queryKey: queryKeys.entrainements() });
-      qc.invalidateQueries({ queryKey: queryKeys.entrainement(entrainementId) });
+    }) => apiClient.setTrainingParticipantPresence(sessionId, profileId, present),
+    onSuccess: (_donnees, { sessionId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.trainingSessions() });
+      qc.invalidateQueries({ queryKey: queryKeys.trainingSession(sessionId) });
     },
   });
 }

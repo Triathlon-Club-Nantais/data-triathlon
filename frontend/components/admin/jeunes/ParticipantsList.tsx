@@ -4,10 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  useAddEntrainementParticipant,
-  useEntrainement,
+  useAddTrainingParticipant,
+  useTrainingSession,
   useProfiles,
-  useRemoveEntrainementParticipant,
+  useRemoveTrainingParticipant,
 } from "@/lib/queries/admin";
 
 /**
@@ -18,42 +18,42 @@ import {
  * ressource reste l'identifiant, seul l'écran résout le nom.
  */
 export function ParticipantsList({
-  entrainementId,
+  sessionId,
   peutEcrire,
 }: {
-  entrainementId: number;
+  sessionId: number;
   peutEcrire: boolean;
 }) {
-  const detail = useEntrainement(entrainementId);
+  const detail = useTrainingSession(sessionId);
   const profils = useProfiles();
-  const inscrire = useAddEntrainementParticipant();
-  const desinscrire = useRemoveEntrainementParticipant();
+  const inscrire = useAddTrainingParticipant();
+  const desinscrire = useRemoveTrainingParticipant();
 
   const participants = detail.data?.participants ?? [];
   const profilsParId = new Map((profils.data ?? []).map((profil) => [profil.id, profil]));
-  const idsInscrits = new Set(participants.map((participant) => participant.jeune_id));
+  const idsInscrits = new Set(participants.map((participant) => participant.profile_id));
   const inscriptibles = (profils.data ?? []).filter((profil) => !idsInscrits.has(profil.id));
 
-  function nomDe(jeuneId: number): string {
-    const profil = profilsParId.get(jeuneId);
-    return profil ? `${profil.first_name} ${profil.last_name}` : `Jeune n° ${jeuneId}`;
+  function nomDe(profileId: number): string {
+    const profil = profilsParId.get(profileId);
+    return profil ? `${profil.first_name} ${profil.last_name}` : `Jeune n° ${profileId}`;
   }
 
-  async function inscrireJeune(jeuneId: number) {
+  async function inscrireJeune(profileId: number) {
     try {
-      await inscrire.mutateAsync({ entrainementId, jeuneId });
+      await inscrire.mutateAsync({ sessionId, profileId });
       toast.success("Jeune inscrit.");
     } catch (e) {
       toast.error((e as Error).message);
     }
   }
 
-  async function retirer(jeune_id: number) {
+  async function retirer(profile_id: number) {
     // Sans confirmation, délibérément : désinscrire quelqu'un d'un
     // entraînement ne détruit rien, le geste se refait d'un clic (même
     // raisonnement que le retrait d'un membre de groupe, #197).
     try {
-      await desinscrire.mutateAsync({ entrainementId, jeuneId: jeune_id });
+      await desinscrire.mutateAsync({ sessionId, profileId: profile_id });
       toast.success("Jeune désinscrit.");
     } catch (e) {
       toast.error((e as Error).message);
@@ -101,10 +101,10 @@ export function ParticipantsList({
       ) : (
         <ul className="divide-border divide-y">
           {participants.map((participant) => {
-            const nom = nomDe(participant.jeune_id);
+            const nom = nomDe(participant.profile_id);
             return (
               <li
-                key={participant.jeune_id}
+                key={participant.profile_id}
                 className="flex items-center justify-between gap-2 py-2"
               >
                 <span>{nom}</span>
@@ -113,7 +113,7 @@ export function ParticipantsList({
                     size="sm"
                     variant="ghost"
                     aria-label={`Désinscrire ${nom}`}
-                    onClick={() => retirer(participant.jeune_id)}
+                    onClick={() => retirer(participant.profile_id)}
                   >
                     Désinscrire
                   </Button>

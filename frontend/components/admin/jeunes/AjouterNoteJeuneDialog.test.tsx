@@ -21,7 +21,7 @@ function afficher(onOpenChange = vi.fn()) {
     ...render(
       <QueryClientProvider client={client}>
         <AjouterNoteJeuneDialog
-          jeuneId={42}
+          profileId={42}
           jeuneNom="Alix Martin"
           open
           onOpenChange={onOpenChange}

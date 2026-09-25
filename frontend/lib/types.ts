@@ -576,12 +576,12 @@ export interface GroupDetail extends Group {
  * `null` plutôt qu'absents quand ils ne sont pas saisis. `note` (#869) est une
  * note de séance en texte libre, `""` par défaut — jamais `null`.
  */
-export interface Entrainement {
+export interface TrainingSession {
   id: number;
   date: string;
-  heure_debut: string | null;
-  lieu: string | null;
-  type_seance: string | null;
+  start_time: string | null;
+  location: string | null;
+  session_type: string | null;
   note: string;
   participant_count: number;
 }
@@ -589,19 +589,19 @@ export interface Entrainement {
 /**
  * Un jeune inscrit à un entraînement.
  *
- * `jeune_id` seul — le profil du jeune référencé (#867) est hors du contrat de
+ * `profile_id` seul — le profil du jeune référencé (#867) est hors du contrat de
  * cette ressource. `present` (#869) est le statut de l'appel de début :
  * `null` = pas encore pointé, `true`/`false` = le dernier statut enregistré.
  */
-export interface EntrainementParticipant {
-  jeune_id: number;
+export interface TrainingParticipant {
+  profile_id: number;
   present: boolean | null;
   created_at: string;
 }
 
 /** Un entraînement et sa liste de participants inscrits. */
-export interface EntrainementDetail extends Entrainement {
-  participants: EntrainementParticipant[];
+export interface TrainingSessionDetail extends TrainingSession {
+  participants: TrainingParticipant[];
 }
 
 /**

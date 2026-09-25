@@ -3,15 +3,15 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
-import type { Entrainement, EntrainementDetail, SessionUser } from "@/lib/types";
+import type { TrainingSession, TrainingSessionDetail, SessionUser } from "@/lib/types";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-const { listEntrainements, getEntrainement, createEntrainement, getSession } = vi.hoisted(
+const { listTrainingSessions, getTrainingSession, createTrainingSession, getSession } = vi.hoisted(
   () => ({
-    listEntrainements: vi.fn(),
-    getEntrainement: vi.fn(),
-    createEntrainement: vi.fn(),
+    listTrainingSessions: vi.fn(),
+    getTrainingSession: vi.fn(),
+    createTrainingSession: vi.fn(),
     getSession: vi.fn(),
   }),
 );
@@ -20,33 +20,33 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { listEntrainements, getEntrainement, createEntrainement, getSession },
+    apiClient: { listTrainingSessions, getTrainingSession, createTrainingSession, getSession },
   };
 });
 
 import { CalendrierEntrainements } from "./CalendrierEntrainements";
 
-const SEANCE: Entrainement = {
+const SEANCE: TrainingSession = {
   id: 1,
   date: "2026-09-20",
-  heure_debut: "18:00:00",
-  lieu: "Base nautique",
-  type_seance: "Natation",
+  start_time: "18:00:00",
+  location: "Base nautique",
+  session_type: "Natation",
   note: "",
   participant_count: 2,
 };
 
-const SEANCE_SANS_CHAMPS: Entrainement = {
+const SEANCE_SANS_CHAMPS: TrainingSession = {
   id: 2,
   date: "2026-09-27",
-  heure_debut: null,
-  lieu: null,
-  type_seance: null,
+  start_time: null,
+  location: null,
+  session_type: null,
   note: "",
   participant_count: 0,
 };
 
-const DETAIL: EntrainementDetail = { ...SEANCE, participants: [] };
+const DETAIL: TrainingSessionDetail = { ...SEANCE, participants: [] };
 
 const AVEC_ECRITURE: SessionUser = {
   id: 1,
@@ -73,11 +73,11 @@ describe("CalendrierEntrainements", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getSession.mockResolvedValue(AVEC_ECRITURE);
-    getEntrainement.mockResolvedValue(DETAIL);
+    getTrainingSession.mockResolvedValue(DETAIL);
   });
 
   it("liste les entraînements triés, avec leur nombre d'inscrits", async () => {
-    listEntrainements.mockResolvedValue([SEANCE]);
+    listTrainingSessions.mockResolvedValue([SEANCE]);
 
     afficher();
 
@@ -88,7 +88,7 @@ describe("CalendrierEntrainements", () => {
   });
 
   it("n'affiche aucun texte vide pour les champs optionnels absents", async () => {
-    listEntrainements.mockResolvedValue([SEANCE_SANS_CHAMPS]);
+    listTrainingSessions.mockResolvedValue([SEANCE_SANS_CHAMPS]);
 
     afficher();
 
@@ -100,7 +100,7 @@ describe("CalendrierEntrainements", () => {
   });
 
   it("dit « aucun entraînement » sur une liste vide", async () => {
-    listEntrainements.mockResolvedValue([]);
+    listTrainingSessions.mockResolvedValue([]);
 
     afficher();
 
@@ -109,7 +109,7 @@ describe("CalendrierEntrainements", () => {
 
   it("ne propose aucune commande d'écriture sans jeunes:write", async () => {
     getSession.mockResolvedValue(LECTURE_SEULE);
-    listEntrainements.mockResolvedValue([SEANCE]);
+    listTrainingSessions.mockResolvedValue([SEANCE]);
 
     afficher();
 
@@ -119,24 +119,24 @@ describe("CalendrierEntrainements", () => {
   });
 
   it("crée un entraînement à partir de sa date", async () => {
-    listEntrainements.mockResolvedValue([]);
-    createEntrainement.mockResolvedValue(DETAIL);
+    listTrainingSessions.mockResolvedValue([]);
+    createTrainingSession.mockResolvedValue(DETAIL);
 
     afficher();
     await screen.findByText(/aucun entraînement/i);
     await userEvent.type(screen.getByLabelText(/^date$/i), "2026-09-20");
     await userEvent.click(screen.getByRole("button", { name: /créer la séance/i }));
 
-    expect(createEntrainement).toHaveBeenCalledWith({
+    expect(createTrainingSession).toHaveBeenCalledWith({
       date: "2026-09-20",
-      heure_debut: null,
-      lieu: null,
-      type_seance: null,
+      start_time: null,
+      location: null,
+      session_type: null,
     });
   });
 
   it("dit « accès refusé » sur un 403", async () => {
-    listEntrainements.mockRejectedValue(new ApiError(403, "Refusé"));
+    listTrainingSessions.mockRejectedValue(new ApiError(403, "Refusé"));
 
     afficher();
 

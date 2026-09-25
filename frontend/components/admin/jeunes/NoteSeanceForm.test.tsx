@@ -5,11 +5,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-const { updateEntrainement } = vi.hoisted(() => ({ updateEntrainement: vi.fn() }));
+const { updateTrainingSession } = vi.hoisted(() => ({ updateTrainingSession: vi.fn() }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { updateEntrainement } };
+  return { ...original, apiClient: { updateTrainingSession } };
 });
 
 import { NoteSeanceForm } from "./NoteSeanceForm";
@@ -18,7 +18,7 @@ function afficher(props: Partial<React.ComponentProps<typeof NoteSeanceForm>> = 
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <NoteSeanceForm entrainementId={1} note="" peutEcrire {...props} />
+      <NoteSeanceForm sessionId={1} note="" peutEcrire {...props} />
     </QueryClientProvider>,
   );
 }
@@ -35,13 +35,13 @@ describe("NoteSeanceForm", () => {
   });
 
   it("enregistre la note saisie", async () => {
-    updateEntrainement.mockResolvedValue({});
+    updateTrainingSession.mockResolvedValue({});
 
     afficher();
     await userEvent.type(screen.getByLabelText(/note de séance/i), "Bassin partagé.");
     await userEvent.click(screen.getByRole("button", { name: /enregistrer/i }));
 
-    expect(updateEntrainement).toHaveBeenCalledWith(1, { note: "Bassin partagé." });
+    expect(updateTrainingSession).toHaveBeenCalledWith(1, { note: "Bassin partagé." });
   });
 
   it("n'enregistre pas une soumission vide", async () => {
@@ -50,7 +50,7 @@ describe("NoteSeanceForm", () => {
     // Le bouton est désactivé tant que le champ est vide : rien à cliquer,
     // et une soumission clavier ne déclenche donc pas la mutation.
     expect(screen.getByRole("button", { name: /enregistrer/i })).toBeDisabled();
-    expect(updateEntrainement).not.toHaveBeenCalled();
+    expect(updateTrainingSession).not.toHaveBeenCalled();
   });
 
   it("n'enregistre pas une soumission uniquement faite d'espaces", async () => {
@@ -62,13 +62,13 @@ describe("NoteSeanceForm", () => {
   });
 
   it("efface une note déjà enregistrée", async () => {
-    updateEntrainement.mockResolvedValue({});
+    updateTrainingSession.mockResolvedValue({});
 
     afficher({ note: "Mauvaise séance." });
     await userEvent.clear(screen.getByLabelText(/note de séance/i));
     await userEvent.click(screen.getByRole("button", { name: /enregistrer/i }));
 
-    expect(updateEntrainement).toHaveBeenCalledWith(1, { note: "" });
+    expect(updateTrainingSession).toHaveBeenCalledWith(1, { note: "" });
   });
 
   it("n'affiche aucun contrôle d'écriture sans jeunes:write", () => {

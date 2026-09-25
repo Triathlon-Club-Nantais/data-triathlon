@@ -13,8 +13,8 @@ import { AjouterNoteJeuneDialog } from "@/components/admin/jeunes/AjouterNoteJeu
 import { AppelFin } from "@/components/admin/jeunes/AppelFin";
 import { NoteSeanceForm } from "@/components/admin/jeunes/NoteSeanceForm";
 import {
-  useAddEntrainementParticipant,
-  useEntrainement,
+  useAddTrainingParticipant,
+  useTrainingSession,
   useProfiles,
   useSetPresence,
 } from "@/lib/queries/admin";
@@ -30,7 +30,7 @@ const REFUS = { sujet: "l'appel", action: "consulter l'appel" };
  * téléphone, au bord d'un bassin ou d'un plateau d'entraînement.
  *
  * Ajouter un jeune non inscrit le pointe présent **au même geste**
- * (`present: true` passé à `useAddEntrainementParticipant`, research.md D4) —
+ * (`present: true` passé à `useAddTrainingParticipant`, research.md D4) —
  * inscrire puis pointer séparément exposerait le geste de l'encadrant à deux
  * requêtes, sur un réseau mobile incertain.
  *
@@ -38,12 +38,12 @@ const REFUS = { sujet: "l'appel", action: "consulter l'appel" };
  * activation réinitialise `AppelFin`, ce qui **est** le comportement voulu
  * (FR-007, aucun état conservé côté serveur).
  */
-export function AppelPresence({ entrainementId }: { entrainementId: number }) {
-  const { data, isLoading, error } = useEntrainement(entrainementId);
+export function AppelPresence({ sessionId }: { sessionId: number }) {
+  const { data, isLoading, error } = useTrainingSession(sessionId);
   const profils = useProfiles();
   const session = useSession();
   const setPresence = useSetPresence();
-  const ajouter = useAddEntrainementParticipant();
+  const ajouter = useAddTrainingParticipant();
   const [jeuneNote, setJeuneNote] = useState<{ id: number; nom: string } | null>(null);
 
   // Confort d'affichage seul : chaque écriture porte sa propre garde côté API.
@@ -51,20 +51,20 @@ export function AppelPresence({ entrainementId }: { entrainementId: number }) {
 
   const participants = data?.participants ?? [];
   const profilsParId = new Map((profils.data ?? []).map((profil) => [profil.id, profil]));
-  const idsInscrits = new Set(participants.map((participant) => participant.jeune_id));
+  const idsInscrits = new Set(participants.map((participant) => participant.profile_id));
   const ajoutables = (profils.data ?? []).filter((profil) => !idsInscrits.has(profil.id));
 
-  async function pointer(jeuneId: number, present: boolean) {
+  async function pointer(profileId: number, present: boolean) {
     try {
-      await setPresence.mutateAsync({ entrainementId, jeuneId, present });
+      await setPresence.mutateAsync({ sessionId, profileId, present });
     } catch (e) {
       toast.error((e as Error).message);
     }
   }
 
-  async function ajouterEtPointer(jeuneId: number) {
+  async function ajouterEtPointer(profileId: number) {
     try {
-      await ajouter.mutateAsync({ entrainementId, jeuneId, present: true });
+      await ajouter.mutateAsync({ sessionId, profileId, present: true });
       toast.success("Jeune ajouté et pointé présent.");
     } catch (e) {
       toast.error((e as Error).message);
@@ -84,7 +84,7 @@ export function AppelPresence({ entrainementId }: { entrainementId: number }) {
 
         <TabsContent value="debut" className="space-y-4 pt-4">
           <NoteSeanceForm
-            entrainementId={entrainementId}
+            sessionId={sessionId}
             note={data?.note ?? ""}
             peutEcrire={peutEcrire}
           />
@@ -128,12 +128,12 @@ export function AppelPresence({ entrainementId }: { entrainementId: number }) {
           ) : (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {participants.map((participant) => {
-                const profil = profilsParId.get(participant.jeune_id);
+                const profil = profilsParId.get(participant.profile_id);
                 const nom = profil
                   ? `${profil.first_name} ${profil.last_name}`
-                  : `Jeune n° ${participant.jeune_id}`;
+                  : `Jeune n° ${participant.profile_id}`;
                 return (
-                  <Card key={participant.jeune_id} className="space-y-2 p-4">
+                  <Card key={participant.profile_id} className="space-y-2 p-4">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium">{nom}</span>
                       {participant.present === true && <Badge>Présent</Badge>}
@@ -147,7 +147,7 @@ export function AppelPresence({ entrainementId }: { entrainementId: number }) {
                           size="sm"
                           variant={participant.present === true ? "default" : "outline"}
                           disabled={setPresence.isPending}
-                          onClick={() => pointer(participant.jeune_id, true)}
+                          onClick={() => pointer(participant.profile_id, true)}
                         >
                           Présent
                         </Button>
@@ -155,7 +155,7 @@ export function AppelPresence({ entrainementId }: { entrainementId: number }) {
                           size="sm"
                           variant={participant.present === false ? "default" : "outline"}
                           disabled={setPresence.isPending}
-                          onClick={() => pointer(participant.jeune_id, false)}
+                          onClick={() => pointer(participant.profile_id, false)}
                         >
                           Absent
                         </Button>
@@ -167,7 +167,7 @@ export function AppelPresence({ entrainementId }: { entrainementId: number }) {
                           écriture — un porteur de `jeunes:read` seul y a
                           droit comme au reste de l'appel. */}
                       <Link
-                        href={`/admin/jeunes/${participant.jeune_id}`}
+                        href={`/admin/jeunes/${participant.profile_id}`}
                         className={buttonVariants({ variant: "ghost", size: "sm" })}
                       >
                         Voir le profil
@@ -176,7 +176,7 @@ export function AppelPresence({ entrainementId }: { entrainementId: number }) {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => setJeuneNote({ id: participant.jeune_id, nom })}
+                          onClick={() => setJeuneNote({ id: participant.profile_id, nom })}
                         >
                           Ajouter une note
                         </Button>
@@ -196,7 +196,7 @@ export function AppelPresence({ entrainementId }: { entrainementId: number }) {
 
       {jeuneNote && (
         <AjouterNoteJeuneDialog
-          jeuneId={jeuneNote.id}
+          profileId={jeuneNote.id}
           jeuneNom={jeuneNote.nom}
           open
           onOpenChange={(ouvert) => !ouvert && setJeuneNote(null)}

@@ -10,19 +10,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
-import { useCreateEntrainement, useEntrainements } from "@/lib/queries/admin";
+import { useCreateTrainingSession, useTrainingSessions } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
 import { localToday } from "@/lib/utils/date";
-import type { Entrainement } from "@/lib/types";
+import type { TrainingSession } from "@/lib/types";
 
 const REFUS = { sujet: "les entraînements", action: "ouvrir l'appel" };
 
-function libelleSeance(entrainement: Entrainement): string {
+function libelleSeance(entrainement: TrainingSession): string {
   const parties = [
-    entrainement.heure_debut ? entrainement.heure_debut.slice(0, 5) : "Heure non renseignée",
-    entrainement.type_seance,
-    entrainement.lieu,
+    entrainement.start_time ? entrainement.start_time.slice(0, 5) : "Heure non renseignée",
+    entrainement.session_type,
+    entrainement.location,
   ];
   return parties.filter(Boolean).join(" · ");
 }
@@ -39,9 +39,9 @@ function libelleSeance(entrainement: Entrainement): string {
  */
 export default function AdminJeuneAppelDuJourPage() {
   const router = useRouter();
-  const { data, isLoading, error } = useEntrainements();
+  const { data, isLoading, error } = useTrainingSessions();
   const session = useSession();
-  const creer = useCreateEntrainement();
+  const creer = useCreateTrainingSession();
   const [creationLancee, setCreationLancee] = useState(false);
 
   const peutEcrire = session.data?.permissions.includes("jeunes:write") ?? false;

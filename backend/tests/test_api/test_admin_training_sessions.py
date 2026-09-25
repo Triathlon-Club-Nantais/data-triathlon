@@ -20,12 +20,12 @@ from app.repositories import (
 )
 from app.services.auth import session as session_service
 
-BASE = "/api/v1/admin/jeunes/entrainements"
+BASE = "/api/v1/admin/training-sessions"
 
 
 @pytest.fixture
-def jeune_id(db_session) -> int:
-    """Un profil jeune réel (#867) — `jeune_id` référence `personal_profiles.id`
+def profile_id(db_session) -> int:
+    """Un profil jeune réel (#867) — `profile_id` référence `personal_profiles.id`
     depuis le resserrement de la contrainte (merge de #867 dans l'epic)."""
     organisation = db_session.query(Organisation).filter_by(slug="tcn").one()
     profil = profile_repository.create(
@@ -70,30 +70,30 @@ def test_the_list_comes_out_sorted_by_date(client):
 def test_optional_fields_come_out_null_not_missing(client):
     client.post(BASE, json={"date": "2026-09-20"})
 
-    entrainement = client.get(BASE).json()[0]
+    training_session = client.get(BASE).json()[0]
 
-    assert entrainement["heure_debut"] is None
-    assert entrainement["lieu"] is None
-    assert entrainement["type_seance"] is None
-    assert entrainement["participant_count"] == 0
+    assert training_session["start_time"] is None
+    assert training_session["location"] is None
+    assert training_session["session_type"] is None
+    assert training_session["participant_count"] == 0
 
 
-def test_the_detail_lists_its_participants(client, jeune_id):
+def test_the_detail_lists_its_participants(client, profile_id):
     created = client.post(BASE, json={"date": "2026-09-20"}).json()
-    client.post(f"{BASE}/{created['id']}/participants", json={"jeune_id": jeune_id})
+    client.post(f"{BASE}/{created['id']}/participants", json={"profile_id": profile_id})
 
     body = client.get(f"{BASE}/{created['id']}").json()
 
-    assert [p["jeune_id"] for p in body["participants"]] == [jeune_id]
+    assert [p["profile_id"] for p in body["participants"]] == [profile_id]
     assert body["participant_count"] == 1
 
 
 def test_adding_an_unknown_jeune_returns_404(client):
-    """`jeune_id` référence `personal_profiles.id` (#867) : un profil inexistant
+    """`profile_id` référence `personal_profiles.id` (#867) : un profil inexistant
     est refusé, jamais inscrit silencieusement."""
     created = client.post(BASE, json={"date": "2026-09-20"}).json()
 
-    response = client.post(f"{BASE}/{created['id']}/participants", json={"jeune_id": 9999})
+    response = client.post(f"{BASE}/{created['id']}/participants", json={"profile_id": 9999})
 
     assert response.status_code == 404
 
@@ -120,30 +120,30 @@ def test_creating_without_a_date_is_refused(client):
 
 def test_updating_only_writes_provided_fields(client):
     created = client.post(
-        BASE, json={"date": "2026-09-20", "lieu": "Base nautique", "type_seance": "Natation"}
+        BASE, json={"date": "2026-09-20", "location": "Base nautique", "session_type": "Natation"}
     ).json()
 
-    response = client.patch(f"{BASE}/{created['id']}", json={"lieu": "Gymnase"})
+    response = client.patch(f"{BASE}/{created['id']}", json={"location": "Gymnase"})
 
     assert response.status_code == 200
     body = response.json()
-    assert body["lieu"] == "Gymnase"
-    assert body["type_seance"] == "Natation"
+    assert body["location"] == "Gymnase"
+    assert body["session_type"] == "Natation"
 
 
 def test_updating_an_unknown_entrainement_returns_404(client):
-    assert client.patch(f"{BASE}/9999", json={"lieu": "Gymnase"}).status_code == 404
+    assert client.patch(f"{BASE}/9999", json={"location": "Gymnase"}).status_code == 404
 
 
 # --- Participants (US3) --------------------------------------------------------
 
 
-def test_adding_a_participant_twice_is_idempotent(client, jeune_id):
+def test_adding_a_participant_twice_is_idempotent(client, profile_id):
     created = client.post(BASE, json={"date": "2026-09-20"}).json()
     path = f"{BASE}/{created['id']}/participants"
 
-    premiere = client.post(path, json={"jeune_id": jeune_id})
-    seconde = client.post(path, json={"jeune_id": jeune_id})
+    premiere = client.post(path, json={"profile_id": profile_id})
+    seconde = client.post(path, json={"profile_id": profile_id})
 
     assert premiere.status_code == 201
     assert seconde.status_code == 201
@@ -158,13 +158,13 @@ def test_removing_a_participant_who_was_not_registered_succeeds(client):
     assert response.status_code == 204
 
 
-def test_removing_a_participant_removes_only_this_entrainement(client, jeune_id):
+def test_removing_a_participant_removes_only_this_entrainement(client, profile_id):
     e1 = client.post(BASE, json={"date": "2026-09-20"}).json()
     e2 = client.post(BASE, json={"date": "2026-09-27"}).json()
-    client.post(f"{BASE}/{e1['id']}/participants", json={"jeune_id": jeune_id})
-    client.post(f"{BASE}/{e2['id']}/participants", json={"jeune_id": jeune_id})
+    client.post(f"{BASE}/{e1['id']}/participants", json={"profile_id": profile_id})
+    client.post(f"{BASE}/{e2['id']}/participants", json={"profile_id": profile_id})
 
-    client.delete(f"{BASE}/{e1['id']}/participants/{jeune_id}")
+    client.delete(f"{BASE}/{e1['id']}/participants/{profile_id}")
 
     assert client.get(f"{BASE}/{e1['id']}").json()["participant_count"] == 0
     assert client.get(f"{BASE}/{e2['id']}").json()["participant_count"] == 1
@@ -172,18 +172,18 @@ def test_removing_a_participant_removes_only_this_entrainement(client, jeune_id)
 
 def test_adding_a_participant_to_an_unknown_entrainement_returns_404(client):
     assert (
-        client.post(f"{BASE}/9999/participants", json={"jeune_id": 1}).status_code == 404
+        client.post(f"{BASE}/9999/participants", json={"profile_id": 1}).status_code == 404
     )
 
 
 # --- Appel de présence (#869) ----------------------------------------------
 
 
-def test_adding_a_participant_can_mark_it_present_in_the_same_call(client, jeune_id):
+def test_adding_a_participant_can_mark_it_present_in_the_same_call(client, profile_id):
     created = client.post(BASE, json={"date": "2026-09-20"}).json()
 
     response = client.post(
-        f"{BASE}/{created['id']}/participants", json={"jeune_id": jeune_id, "present": True}
+        f"{BASE}/{created['id']}/participants", json={"profile_id": profile_id, "present": True}
     )
 
     assert response.status_code == 201
@@ -191,20 +191,20 @@ def test_adding_a_participant_can_mark_it_present_in_the_same_call(client, jeune
     assert participant["present"] is True
 
 
-def test_a_new_participant_defaults_to_not_yet_pointed(client, jeune_id):
+def test_a_new_participant_defaults_to_not_yet_pointed(client, profile_id):
     created = client.post(BASE, json={"date": "2026-09-20"}).json()
 
-    response = client.post(f"{BASE}/{created['id']}/participants", json={"jeune_id": jeune_id})
+    response = client.post(f"{BASE}/{created['id']}/participants", json={"profile_id": profile_id})
 
     assert response.json()["participants"][0]["present"] is None
 
 
-def test_setting_presence_updates_the_participant(client, jeune_id):
+def test_setting_presence_updates_the_participant(client, profile_id):
     created = client.post(BASE, json={"date": "2026-09-20"}).json()
-    client.post(f"{BASE}/{created['id']}/participants", json={"jeune_id": jeune_id})
+    client.post(f"{BASE}/{created['id']}/participants", json={"profile_id": profile_id})
 
     response = client.patch(
-        f"{BASE}/{created['id']}/participants/{jeune_id}/presence", json={"present": True}
+        f"{BASE}/{created['id']}/participants/{profile_id}/presence", json={"present": True}
     )
 
     assert response.status_code == 200
@@ -212,36 +212,36 @@ def test_setting_presence_updates_the_participant(client, jeune_id):
     assert participant["present"] is True
 
 
-def test_setting_presence_survives_a_subsequent_get(client, jeune_id):
+def test_setting_presence_survives_a_subsequent_get(client, profile_id):
     """SC-002 : le statut posé par le `PATCH` reste identique à une lecture
     ultérieure, indépendante de la réponse du `PATCH` lui-même."""
     created = client.post(BASE, json={"date": "2026-09-20"}).json()
-    client.post(f"{BASE}/{created['id']}/participants", json={"jeune_id": jeune_id})
-    client.patch(f"{BASE}/{created['id']}/participants/{jeune_id}/presence", json={"present": True})
+    client.post(f"{BASE}/{created['id']}/participants", json={"profile_id": profile_id})
+    client.patch(f"{BASE}/{created['id']}/participants/{profile_id}/presence", json={"present": True})
 
     relu = client.get(f"{BASE}/{created['id']}").json()
 
     assert relu["participants"][0]["present"] is True
 
 
-def test_setting_presence_can_be_corrected(client, jeune_id):
+def test_setting_presence_can_be_corrected(client, profile_id):
     """Seul le dernier statut fait foi (FR-005) — pas d'historique."""
     created = client.post(BASE, json={"date": "2026-09-20"}).json()
-    client.post(f"{BASE}/{created['id']}/participants", json={"jeune_id": jeune_id})
-    client.patch(f"{BASE}/{created['id']}/participants/{jeune_id}/presence", json={"present": False})
+    client.post(f"{BASE}/{created['id']}/participants", json={"profile_id": profile_id})
+    client.patch(f"{BASE}/{created['id']}/participants/{profile_id}/presence", json={"present": False})
 
     response = client.patch(
-        f"{BASE}/{created['id']}/participants/{jeune_id}/presence", json={"present": True}
+        f"{BASE}/{created['id']}/participants/{profile_id}/presence", json={"present": True}
     )
 
     assert response.json()["participants"][0]["present"] is True
 
 
-def test_setting_presence_for_an_unregistered_jeune_returns_404(client, jeune_id):
+def test_setting_presence_for_an_unregistered_jeune_returns_404(client, profile_id):
     created = client.post(BASE, json={"date": "2026-09-20"}).json()
 
     response = client.patch(
-        f"{BASE}/{created['id']}/participants/{jeune_id}/presence", json={"present": True}
+        f"{BASE}/{created['id']}/participants/{profile_id}/presence", json={"present": True}
     )
 
     assert response.status_code == 404
@@ -267,8 +267,8 @@ def test_the_seance_note_can_be_read_and_updated(client):
 READS = [("GET", BASE), ("GET", f"{BASE}/1")]
 WRITES = [
     ("POST", BASE, {"date": "2026-09-20"}),
-    ("PATCH", f"{BASE}/1", {"lieu": "Gymnase"}),
-    ("POST", f"{BASE}/1/participants", {"jeune_id": 1}),
+    ("PATCH", f"{BASE}/1", {"location": "Gymnase"}),
+    ("POST", f"{BASE}/1/participants", {"profile_id": 1}),
     ("DELETE", f"{BASE}/1/participants/1", None),
     ("PATCH", f"{BASE}/1/participants/1/presence", {"present": True}),
 ]
@@ -315,15 +315,15 @@ def test_jeunes_write_alone_does_not_pass_reads(client, db_session):
     assert client.get(BASE).status_code == 403
 
 
-def test_jeunes_read_and_write_together_pass_the_full_flow(client, db_session, jeune_id):
+def test_jeunes_read_and_write_together_pass_the_full_flow(client, db_session, profile_id):
     created = client.post(BASE, json={"date": "2026-09-20"}).json()
     _session_avec(client, db_session, str(P.JEUNES_READ), str(P.JEUNES_WRITE))
 
     assert client.get(BASE).status_code == 200
     assert client.get(f"{BASE}/{created['id']}").status_code == 200
-    patched = client.patch(f"{BASE}/{created['id']}", json={"lieu": "Gymnase"})
+    patched = client.patch(f"{BASE}/{created['id']}", json={"location": "Gymnase"})
     assert patched.status_code == 200
-    enrolled = client.post(f"{BASE}/{created['id']}/participants", json={"jeune_id": jeune_id})
+    enrolled = client.post(f"{BASE}/{created['id']}/participants", json={"profile_id": profile_id})
     assert enrolled.status_code == 201
-    unenrolled = client.delete(f"{BASE}/{created['id']}/participants/{jeune_id}")
+    unenrolled = client.delete(f"{BASE}/{created['id']}/participants/{profile_id}")
     assert unenrolled.status_code == 204
