@@ -1852,6 +1852,24 @@ def test_import_split_reuses_existing_athlete_without_touching_clubs(db_session,
     ) is None
 
 
+def test_import_split_finds_an_existing_athlete_published_firstname_first(
+    db_session, patch_scraper
+):
+    """All-caps « PRÉNOM NOM » reads as « NOM PRÉNOM »: the existing fiche decides the order."""
+    existing = athlete_repository.get_or_create(
+        db_session, nom="KERMARREC", prenom="Lucie", club="TRIATHLON CLUB NANTAIS"
+    )
+    db_session.commit()
+    patch_scraper([_relay("13", "LUCIE KERMARREC", "/ FANNY LERAY .")])
+
+    import_service.import_event(db_session, URL, _settings())
+
+    first, second = _only_relay_row(db_session).teammates
+    assert first.id == existing.id
+    assert (second.nom, second.prenom) == ("FANNY", "LERAY")
+    assert athlete_repository.get_by_identity(db_session, "LUCIE", "KERMARREC", None) is None
+
+
 @pytest.mark.parametrize("tranche", [500, 1], ids=["un-lot", "tranche-unitaire"])
 def test_import_splits_several_relays_in_one_batch(db_session, patch_scraper, monkeypatch, tranche):
     monkeypatch.setattr(import_service, "_TRANCHE_SIZE", tranche)

@@ -525,6 +525,17 @@ def _proposed_teammates(scraped: ScrapedResult) -> tuple[tuple[str, str], ...] |
     return tuple(teammates) if teammates else None
 
 
+def _oriented_teammates(
+    teammates: tuple[tuple[str, str], ...], found: dict[tuple[str, str], Athlete]
+) -> tuple[tuple[str, str], ...]:
+    """Tout en majuscules, « PRÉNOM NOM » se lit « NOM PRÉNOM » (klikego) : une
+    fiche connue à l'envers, et pas à l'endroit, tranche l'ordre."""
+    return tuple(
+        pair[::-1] if _pair_key(pair) not in found and _pair_key(pair[::-1]) in found else pair
+        for pair in teammates
+    )
+
+
 @dataclass(frozen=True)
 class _PendingResolution:
     """Une ligne en attente de résolution d'athlète par lot (#706), mise en
@@ -816,10 +827,16 @@ class _Persister:
             return
 
         pairs = [(item.scraped.athlete_name, item.scraped.athlete_firstname) for item in pending]
-        pairs += [pair for item in pending for pair in item.teammates or ()]
+        teammate_pairs = [pair for item in pending for pair in item.teammates or ()]
+        pairs += teammate_pairs + [pair[::-1] for pair in teammate_pairs]
         found: dict[tuple[str, str], Athlete] = athlete_repository.get_by_identities_batch(
             self.db, pairs
         )
+        pending = [
+            replace(item, teammates=_oriented_teammates(item.teammates, found))
+            if item.teammates else item
+            for item in pending
+        ]
         decisions = self._split_decisions(course_id, pending, found)
 
         to_create: dict[tuple[str, str], dict] = {}
