@@ -195,8 +195,7 @@ def _import_one_heat(
     is_relay = _detect_relay(heat_label, heat_slug)
     if source_url is None:
         source_url = f"{base}/resultats-courses/{slug}-{event_id}/{heat_slug}"
-    heat_page = client.get(source_url)
-    heat_page_html = heat_page.text if heat_page.status_code == 200 else ""
+    heat_page_html = plat.get_page(client, source_url).text
     if event_type is None:
         event_type = classify_event_type(heat_slug, contexte=slug)
 

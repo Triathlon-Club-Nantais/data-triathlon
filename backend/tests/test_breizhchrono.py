@@ -115,6 +115,26 @@ def test_bc_import_one_heat_returns_dnf(monkeypatch):
     assert all(r.is_relay is False for r in results)  # heat non-relais
 
 
+def test_bc_import_one_heat_raises_when_heat_page_fails():
+    """#943 : une page heat en 503 persistant lève, au lieu de rendre un heat
+    sans aucun split inter."""
+    from app.core.exceptions import ScraperError
+
+    class FakeResp:
+        def __init__(self, t, code=200): self.text, self.status_code = t, code
+
+    class FakeClient:
+        def get(self, url):
+            return FakeResp("", 503)
+
+    with pytest.raises(ScraperError):
+        breizhchrono._import_one_heat(
+            "1488071608761-572", "triathlon-s-light", "Triathlon S LIGHT",
+            "Triathlon Audencia La Baule 2024", "triathlon-audencia-la-baule-2024",
+            date(2024, 9, 28), FakeClient(),
+        )
+
+
 def test_fetch_all_heats_suit_la_redirection_302():
     """La racine d'événement répond 302 vers un heat (#296).
 

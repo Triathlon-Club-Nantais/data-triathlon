@@ -12,6 +12,7 @@ Format d'une ligne (séparateur `|`), 12 champs :
   dossard|diploma|classement|classementCat|nom|cat|sexe|club_ou_ville|inter|officiel|reel|endurance
 """
 import base64
+import logging
 import re
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -21,8 +22,12 @@ from urllib.parse import urlencode
 import httpx
 from bs4 import BeautifulSoup
 
+from app.core.exceptions import ScraperError
+
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
 from .utils import normalize_time, strip_accents
+
+logger = logging.getLogger(__name__)
 
 _XOR_KEY = ord("K")
 _PAGE_SIZE = 50
@@ -347,6 +352,30 @@ def _course_result_url(base: str, event_id: str, heat: str, inter: str, page: in
     return f"{base}/bc/resultats/course-result.jsp?{query}"
 
 
+#: Essais d'une page sur 5xx. Sans temporisation, comme `prolivesport`.
+_ESSAIS_PAGE = 3
+
+
+def get_page(client: httpx.Client, url: str) -> httpx.Response:
+    """GET d'une page de la plateforme ; lève `ScraperError` sur un non-200.
+
+    Un non-200 n'est jamais une fin de données : la fin de pagination mesurée
+    est un 200 sans ligne (#943, 25/09/2026). Le prendre pour une fin tronquait
+    un heat en silence, et le cache TTL figeait l'import partiel 30 jours.
+    Seuls les 5xx sont rejoués, un 4xx dit quelque chose de la requête.
+    """
+    status = 0
+    for essai in range(1, _ESSAIS_PAGE + 1):
+        resp = client.get(url)
+        if resp.status_code == 200:
+            return resp
+        status = resp.status_code
+        logger.warning("Page %s : HTTP %s à l'essai %s/%s", url, status, essai, _ESSAIS_PAGE)
+        if status < 500:
+            break
+    raise ScraperError(f"Page de résultats inaccessible (HTTP {status}) : {url}")
+
+
 def fetch_heat_rows(
     base: str, event_id: str, heat: str, client: httpx.Client, inter: str = ""
 ) -> list[list[str]]:
@@ -355,9 +384,7 @@ def fetch_heat_rows(
     page = 0
     prev_first: str | None = None
     while True:
-        resp = client.get(_course_result_url(base, event_id, heat, inter, page))
-        if resp.status_code != 200:
-            break
+        resp = get_page(client, _course_result_url(base, event_id, heat, inter, page))
         rows = decode_data_block(resp.text)
         if not rows:
             break
