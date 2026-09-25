@@ -15,6 +15,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 
 from app.scrapers.base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
+from app.scrapers.utils import normalize_time
+from app.services.mapping import parse_duration
 
 # Lignes scrapées jetées : deux lignes de la source partagent un dossard, la
 # seconde n'atteint jamais la base (cf. `import_service._Persister.add`).
@@ -30,6 +32,14 @@ ANOMALY_RANK_GAP = "rank_gap"
 ANOMALY_FINISHER_WITHOUT_TIME = "finisher_without_time"
 # Course importée sans aucune participation.
 ANOMALY_NO_PARTICIPATION = "no_participation"
+# Course dont aucune participation n'est finisher (#909) : typiquement une
+# épreuve entière mal statuée en DNF.
+ANOMALY_NO_FINISHER = "no_finisher"
+# Finisher dont le temps total, non vide, n'est pas une durée positive
+# (« Abandon », « -00:00:06 »…) (#909).
+ANOMALY_INVALID_FINISHER_TIME = "invalid_finisher_time"
+# DNF, DNS ou DSQ qui porte un rang ou un temps total non nul (#909).
+ANOMALY_NON_FINISHER_WITH_RESULT = "non_finisher_with_result"
 
 KNOWN_STATUSES = frozenset(
     s.lower() for s in (STATUS_FINISHER, STATUS_DNF, STATUS_DNS, STATUS_DSQ)
@@ -51,6 +61,18 @@ def _normalized_status(participation) -> str:
 
 def _has_no_time(participation) -> bool:
     return (participation.total_time or "").strip() in _ZERO_TIMES
+
+
+def _has_invalid_time(participation) -> bool:
+    """Temps non nul qui n'est pas une durée positive, avec les parseurs de l'import.
+
+    `normalize_time` d'abord, pour que les formats bruts d'avant #969 encore en
+    base (`00:13:39 (00:13:39)`, `00:33'41"000`) ne soient pas signalés.
+    """
+    if _has_no_time(participation):
+        return False
+    secondes = parse_duration(normalize_time(participation.total_time))
+    return secondes is None or secondes <= 0
 
 
 def _rank_anomalies(finishers: list) -> dict[str, int]:
@@ -100,9 +122,22 @@ def analyze(participations: Iterable, *, duplicate_bibs: int = 0) -> QualityRepo
         anomalies[ANOMALY_UNKNOWN_STATUS] = unknown
 
     finishers = [p for p in participations if _normalized_status(p) == STATUS_FINISHER]
+    if not finishers:
+        anomalies[ANOMALY_NO_FINISHER] = 1
     without_time = sum(1 for p in finishers if _has_no_time(p))
     if without_time:
         anomalies[ANOMALY_FINISHER_WITHOUT_TIME] = without_time
+    invalid_time = sum(1 for p in finishers if _has_invalid_time(p))
+    if invalid_time:
+        anomalies[ANOMALY_INVALID_FINISHER_TIME] = invalid_time
+
+    non_finishers = (
+        p for p in participations
+        if _normalized_status(p) in KNOWN_STATUSES and _normalized_status(p) != STATUS_FINISHER
+    )
+    with_result = sum(1 for p in non_finishers if p.rank_overall or not _has_no_time(p))
+    if with_result:
+        anomalies[ANOMALY_NON_FINISHER_WITH_RESULT] = with_result
 
     anomalies.update(_rank_anomalies(finishers))
 

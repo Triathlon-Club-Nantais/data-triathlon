@@ -45,19 +45,38 @@ describe("describeQualityIssues", () => {
     ]);
   });
 
+  it("traduit les trois anomalies de statut et de temps (#909)", () => {
+    expect(describeQualityIssues({ no_finisher: 1 })).toEqual(["Aucun arrivant dans l'épreuve"]);
+    expect(describeQualityIssues({ invalid_finisher_time: 1 })).toEqual([
+      "1 arrivant au temps illisible ou négatif",
+    ]);
+    expect(describeQualityIssues({ invalid_finisher_time: 3 })).toEqual([
+      "3 arrivants au temps illisible ou négatif",
+    ]);
+    expect(describeQualityIssues({ non_finisher_with_result: 1 })).toEqual([
+      "1 non-arrivant classé ou chronométré",
+    ]);
+    expect(describeQualityIssues({ non_finisher_with_result: 2 })).toEqual([
+      "2 non-arrivants classés ou chronométrés",
+    ]);
+  });
+
   it("rend un code inconnu tel quel (nouveau code backend en attente de trad)", () => {
     expect(describeQualityIssues({ future_anomaly: 7 })).toEqual(["future_anomaly: 7"]);
   });
 });
 
 describe("QUALITY_ISSUE_LABELS", () => {
-  it("nomme les six codes canoniques par un libellé nu, sans compteur", () => {
+  it("nomme les neuf codes canoniques par un libellé nu, sans compteur", () => {
     expect(QUALITY_ISSUE_LABELS.duplicate_bib).toBe("Dossards en doublon");
     expect(QUALITY_ISSUE_LABELS.rank_gap).toBe("Trous dans le classement");
     expect(QUALITY_ISSUE_LABELS.duplicate_rank).toBe("Rangs partagés");
     expect(QUALITY_ISSUE_LABELS.finisher_without_time).toBe("Arrivants sans temps");
     expect(QUALITY_ISSUE_LABELS.unknown_status).toBe("Statuts hors nomenclature");
     expect(QUALITY_ISSUE_LABELS.no_participation).toBe("Épreuve importée sans aucun résultat");
+    expect(QUALITY_ISSUE_LABELS.no_finisher).toBe("Épreuve sans arrivant");
+    expect(QUALITY_ISSUE_LABELS.invalid_finisher_time).toBe("Temps d'arrivée invalides");
+    expect(QUALITY_ISSUE_LABELS.non_finisher_with_result).toBe("Non-arrivants classés");
   });
 
   it("n'a pas de libellé pour un code inconnu (repli sur le code brut à l'appelant)", () => {

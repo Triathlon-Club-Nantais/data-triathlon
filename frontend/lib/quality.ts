@@ -25,6 +25,12 @@ function describeIssue(code: string, count: number): string {
       return `${count} statut${plural(count, "", "s")} hors nomenclature`;
     case "no_participation":
       return "Épreuve importée sans aucun résultat";
+    case "no_finisher":
+      return "Aucun arrivant dans l'épreuve";
+    case "invalid_finisher_time":
+      return `${count} arrivant${plural(count, "", "s")} au temps illisible ou négatif`;
+    case "non_finisher_with_result":
+      return `${count} non-arrivant${plural(count, "", "s")} classé${plural(count, "", "s")} ou chronométré${plural(count, "", "s")}`;
     default:
       return `${code}: ${count}`;
   }
@@ -49,4 +55,7 @@ export const QUALITY_ISSUE_LABELS: Record<string, string> = {
   finisher_without_time: "Arrivants sans temps",
   unknown_status: "Statuts hors nomenclature",
   no_participation: "Épreuve importée sans aucun résultat",
+  no_finisher: "Épreuve sans arrivant",
+  invalid_finisher_time: "Temps d'arrivée invalides",
+  non_finisher_with_result: "Non-arrivants classés",
 };

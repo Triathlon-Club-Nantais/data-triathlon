@@ -94,7 +94,7 @@ def test_course_importee_expose_ses_anomalies(client, db_session, monkeypatch):
 
     course = client.get(f"/api/v1/courses/{cid}").json()["course"]
     assert course["is_reliable"] is False
-    assert course["quality_issues"] == {"unknown_status": 1}
+    assert course["quality_issues"] == {"unknown_status": 1, "no_finisher": 1}
 
 
 def test_stats(client, db_session):
