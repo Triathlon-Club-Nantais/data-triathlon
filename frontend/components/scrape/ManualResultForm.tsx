@@ -2,6 +2,14 @@
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+
+// #570 — `zod` sonde `new Function("")` au premier `parse` pour activer sa
+// compilation JIT. Sous CSP stricte le navigateur **rapporte la sonde en
+// violation `script-src eval`** alors même que zod rattrape le throw : la
+// validation marche, la console crie. `jitless` court-circuite la sonde, et ne
+// coûte rien — sans `'unsafe-eval'`, le JIT n'aurait de toute façon jamais
+// servi (`node_modules/zod/v4/core/util.cjs`, `allowsEval`).
+z.config({ jitless: true });
 import { captureEvent } from "@/lib/posthog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
