@@ -284,8 +284,8 @@ task test         # ou: cd backend && uv run pytest -m "not integration" -q
                   # puis: cd frontend && npm test
 ```
 
-**Contrat attendu** : `1146 passed` (ou plus) côté backend, Vitest
-frontend vert.
+**Contrat attendu** : suite verte (aucun `failed` ni `error`) côté backend comme côté
+Vitest frontend. Aucun décompte en dur : il se périme à chaque PR.
 
 **En cas d'échec** :
 - Marquer `state.steps.tests = "failed"`.
