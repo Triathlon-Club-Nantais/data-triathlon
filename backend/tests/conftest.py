@@ -4,6 +4,10 @@ Fixtures partagées des tests.
 Base SQLite en mémoire isolée par test + TestClient FastAPI avec la dépendance
 `get_db` surchargée pour pointer sur cette base.
 """
+import atexit
+import os
+import shutil
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -11,6 +15,20 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+
+from app.core import config as _config
+
+# Isolation de `backend/.env` (#911), avant que quoi que ce soit n'importe
+# `core/database.py` : son moteur global se construit à l'import, et le lifespan
+# de chaque `TestClient` s'y connecte et initialise PostHog. Les variables
+# d'environnement priment sur `.env`, mais celui-ci resterait lu pour tout le
+# reste : on coupe sa lecture.
+_config.Settings.model_config["env_file"] = None
+_UNIT_DB_DIR = tempfile.mkdtemp(prefix="unit-suite-")
+atexit.register(shutil.rmtree, _UNIT_DB_DIR, ignore_errors=True)
+os.environ["DATABASE_URL"] = f"sqlite:///{_UNIT_DB_DIR}/unit.db"
+os.environ["POSTHOG_PROJECT_TOKEN"] = ""
+_config.get_settings.cache_clear()
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
