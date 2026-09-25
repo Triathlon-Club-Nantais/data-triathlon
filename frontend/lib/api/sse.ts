@@ -1,4 +1,4 @@
-import { ApiError, messageDErreur } from "@/lib/api/client";
+import { ApiError, attenteRetryAfter, messageDErreur } from "@/lib/api/client";
 import type {
   ImportProgressEvent,
   RescrapeProgressEvent,
@@ -56,13 +56,12 @@ export async function* importEventStream(
   // fournisseur à signaler au back-office.
   if (!res.ok || !res.body) {
     const corps = await res.json().catch(() => null);
-    const attente = Number(res.headers.get("Retry-After"));
     throw new ApiError(
       res.status,
       // `messageDErreur` et non `corps.detail` : sur un 422, FastAPI rend une
       // **liste** d'objets, qui s'affichait « [object Object] » dans l'alerte.
       messageDErreur(corps?.detail, "Erreur lors du démarrage de l'import"),
-      Number.isFinite(attente) && attente > 0 ? attente : null,
+      attenteRetryAfter(res),
     );
   }
   yield* readEventStream<ImportProgressEvent>(res);
