@@ -89,3 +89,13 @@ résultat quelconque (`TIME2` « Natation » sur 342814, `TIME19` « Tours » su
 409130). La fraction est tronquée à la seconde (`_sans_fraction`), sur le temps
 d'arrivée comme sur les segments ; `normalize_time` et `_RE_DUREE` restent
 inchangés. Les courses déjà en base (181 à 186) sont à re-scraper.
+
+**Hors délai et enrichissement des non-finishers (#970).** Embrunman 350635
+publie « OTL » (hors délai) dans ses cellules de rang et de temps. Le jeton
+n'étant pas reconnu, la ligne restait sans statut et la promotion #813 de
+`_enrichir` la classait `finisher` avec le temps du `hidden`, qui n'est que le
+cumul au point d'élimination. `OTL`, `HD` et « Hors délai(s) » valent désormais
+DNF (`utils._STATUS_TOKENS`, tous fournisseurs), et `_enrichir` ne comble plus
+jamais le `total_time` d'un non-finisher : 123 DNF d'Embrunman en recevaient un.
+Mesuré sur 350635 : 0 finisher sans rang, 0 non-finisher avec temps. Courses
+818 et 819 à re-scraper.

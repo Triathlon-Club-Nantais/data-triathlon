@@ -39,6 +39,11 @@ from app.scrapers.utils import (
     # Formes plurielles des groupes RaceResult
     ("Abandons", "DNF"),
     ("Non Partants", "DNS"),
+    # Hors délai (barrière horaire) : « OTL » d'Embrunman 350635, #970
+    ("OTL", "DNF"),
+    ("HD", "DNF"),
+    ("Hors délai", "DNF"),
+    ("Hors délais", "DNF"),
 ])
 def test_derive_status_from_label_recognized(label, expected):
     assert derive_status_from_label(label) == expected

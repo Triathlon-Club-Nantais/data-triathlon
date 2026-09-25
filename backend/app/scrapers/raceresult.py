@@ -1408,10 +1408,14 @@ def _enrichir(existant: ScrapedResult, apport: ScrapedResult) -> None:
       rang qu'il doit corriger reste alors intact. Un `status` déjà établi
       (finisher ou non-finisher) côté publié n'est jamais reconsidéré : seul le
       cas « rien à établir » l'est.
+    - **Pas de `total_time` pour un non-finisher** (#970) : le `hidden` porte
+      alors le cumul au point d'abandon, pas un temps d'arrivée.
     """
     if not existant.segments and apport.segments:
         existant.segments = apport.segments
     for champ in _CHAMPS_SCALAIRES_ENRICHISSABLES:
+        if champ == "total_time" and existant.status in _NON_FINISHERS:
+            continue
         if not getattr(existant, champ) and getattr(apport, champ):
             setattr(existant, champ, getattr(apport, champ))
     if not existant.status and existant.total_time:
