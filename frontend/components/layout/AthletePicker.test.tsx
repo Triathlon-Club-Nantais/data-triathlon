@@ -127,10 +127,18 @@ describe("AthletePicker: search error state (#953)", () => {
 
     expect(await screen.findByText("Accès au site requis", hors)).toBeInTheDocument();
     expect(screen.queryByText("Aucun athlète trouvé", hors)).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Saisir le mot de passe du site" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Saisir le code d'accès" })).toHaveAttribute(
       "href",
       "/acces",
     );
+  });
+
+  it("names the site access with the words of the access gate (#953)", async () => {
+    searchAthletes.mockRejectedValue(new ApiError(401, "unauthorized"));
+    await search("ma");
+
+    expect(await screen.findByText(/Saisissez le code d'accès du club/, hors)).toBeInTheDocument();
+    expect(screen.queryByText(/mot de passe/, hors)).not.toBeInTheDocument();
   });
 
   it("does not claim no athlete matched when the API fails (500)", async () => {

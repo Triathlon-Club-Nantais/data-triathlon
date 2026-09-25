@@ -179,7 +179,7 @@ function echecRecherche(erreur: unknown): { titre: string; detail: string; acces
   if (status === 401) {
     return {
       titre: "Accès au site requis",
-      detail: "Votre accès au site a expiré ou n'est pas encore ouvert. Saisissez le mot de passe du club pour rechercher un athlète.",
+      detail: "Votre accès au site a expiré ou n'est pas encore ouvert. Saisissez le code d'accès du club pour rechercher un athlète.",
       accesManquant: true,
     };
   }
@@ -375,7 +375,7 @@ export function AthletePicker({
               <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" }}>
                 {echec.accesManquant && (
                   <a href="/acces" style={{ fontWeight: 700, color: "var(--tcn-ink)" }}>
-                    Saisir le mot de passe du site
+                    Saisir le code d&apos;accès
                   </a>
                 )}
                 <button
