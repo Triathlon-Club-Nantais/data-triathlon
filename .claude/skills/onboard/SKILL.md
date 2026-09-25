@@ -52,9 +52,10 @@ command -v curl
 [ -d frontend/node_modules ]     && echo "node_modules_present=true"
 [ -f backend/triathlon.db ] && [ "$(stat -c%s backend/triathlon.db 2>/dev/null || stat -f%z backend/triathlon.db)" -gt 100000 ] && echo "db_populated=true"
 
-# Serveurs
-curl -sSo /dev/null -w '%{http_code}' -m 2 http://localhost:8001/docs || echo "000"
-curl -sSo /dev/null -w '%{http_code}' -m 2 http://localhost:3000        || echo "000"
+# Serveurs : le backend publie son port éphémère dans .dev-backend.json
+BACKEND_URL=$(sed -n 's/.*"url": *"\([^"]*\)".*/\1/p' .dev-backend.json 2>/dev/null)
+[ -n "$BACKEND_URL" ] && curl -sSo /dev/null -w '%{http_code}' -m 2 "$BACKEND_URL/api/v1/health" || echo "000"
+curl -sSo /dev/null -w '%{http_code}' -m 2 http://localhost:3000 || echo "000"
 
 # gh
 gh auth status 2>&1 | head -1
@@ -199,10 +200,12 @@ fichier manuellement s'il veut le régénérer.
 
 **Branche B — `backend/.env` absent, `db_choice = sqlite`** :
 
-Créer `backend/.env` avec la ligne unique :
+Créer `backend/.env` avec ces deux lignes (`/docs` est fermé par défaut,
+`DOCS_ENABLED` l'ouvre en développement) :
 
 ```
 DATABASE_URL=sqlite:///./triathlon.db
+DOCS_ENABLED=true
 ```
 
 **Branche C — `backend/.env` absent, `db_choice = supabase`** :
@@ -299,32 +302,42 @@ c'est la garantie SC-005 (retour propre en moins de 3 min).
 
 ## Étape 6 — Serveurs de dev
 
-**But** : backend écoute sur `:8001`, frontend sur `:3000`.
+**But** : backend et frontend répondent. Aucun des deux ports n'est fixe :
+le backend prend un port éphémère qu'il publie dans `.dev-backend.json` à
+la racine du worktree (`backend/scripts/dev_server.py`), le frontend prend
+`:3000` ou le port libre suivant (`next dev`), annoncé dans sa sortie
+(`Local: http://localhost:<port>`).
 
 **Sonde préalable** :
 ```bash
-curl -sSo /dev/null -w '%{http_code}' -m 2 http://localhost:8001/docs
-curl -sSo /dev/null -w '%{http_code}' -m 2 http://localhost:3000
+BACKEND_URL=$(sed -n 's/.*"url": *"\([^"]*\)".*/\1/p' .dev-backend.json 2>/dev/null)
+[ -n "$BACKEND_URL" ] && curl -sSo /dev/null -w '%{http_code}' -m 2 "$BACKEND_URL/api/v1/health" || echo "000"
+curl -sSo /dev/null -w '%{http_code}' -m 2 http://localhost:3000 || echo "000"
 ```
+
+`/api/v1/health` est public (exempté de la garde d'accès au site), à la
+différence de `/docs`, fermé sans `DOCS_ENABLED=true`.
 
 **Si déjà `200` / `200|307`** : marquer `state.steps.dev = "skipped"`,
 signaler « serveurs déjà lancés, rien à faire ». (FR-013)
 
 **Sinon** :
 ```bash
-task dev    # lance backend :8001 + frontend :3000 en parallèle
+task dev    # lance backend et frontend en parallèle
 ```
 
 `task dev` est bloquant au premier plan par défaut ; le skill doit le
 lancer en arrière-plan (via `run_in_background: true` de l'outil `Bash`)
 puis re-sonder après ~5-8s pour confirmer que les deux serveurs
-répondent. Si `curl :8001/docs` ne renvoie pas `200` au bout de 20s,
-afficher les logs et marquer `failed`.
+répondent : relire `.dev-backend.json` (il n'existe qu'une fois le backend
+démarré), et prendre l'URL du frontend dans la sortie de `task dev`. Si
+`$BACKEND_URL/api/v1/health` ne renvoie pas `200` au bout de 20s, afficher
+les logs et marquer `failed`.
 
-**Guider vers l'UI** :
-- API Docs : http://localhost:8001/docs
-- Endpoint santé : http://localhost:8001/api/v1/stats?scope=club&federal_only=true
-- Frontend : http://localhost:3000
+**Guider vers l'UI** (`$BACKEND_URL` lu dans `.dev-backend.json`) :
+- Endpoint santé : `$BACKEND_URL/api/v1/health`
+- API Docs : `$BACKEND_URL/docs` (seulement si `DOCS_ENABLED=true` dans `backend/.env`)
+- Frontend : l'URL `Local:` affichée par `task dev` (`http://localhost:3000` par défaut)
 
 ## Étape 7 — Tour de code
 
