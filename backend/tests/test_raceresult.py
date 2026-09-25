@@ -696,6 +696,19 @@ def test_map_columns_gere_un_fields_vide_ou_absent():
     ("DisplayBib", "dossard_affiche"),
     # Rangs de split : « 2. » n'est pas le temps de natation.
     ("[Natation.OVERALL.P]", "rang_de_split"),
+    # #984 : le rang de catégorie d'un split n'est pas la catégorie (404650).
+    ("[Natation.AGEGROUP.P]", "rang_de_split"),
+    ("[Courseàpied.AGEGROUP.P]", "rang_de_split"),
+    ("[Run.GENDER.P]", "rang_de_split"),
+    ("#[ClassementCatégorie.P][AGEGROUP.NAME]", "rang_categorie"),
+    # #984 : `OuStatut([RANK1.p])` et le rang de sexe seul en tête (404650).
+    ("OuStatut([RANK1.p])", "rang"),
+    ("RANK1", "rang"),
+    ("OuStatut([ClassementMF.p])", "rang_sexe"),
+    ("ClassementMF", "rang_sexe"),
+    # #984 : listes enfants de 386706 (« Indiv cop », « vainqueurs 6-9 »).
+    ("ClassementGen", "rang"),
+    ("ClassementMFJ", "rang_sexe"),
     # Bruit d'affichage : aucun rôle, part en extras.
     ("Icone(\"photos\")", ""),
     ("GapTimeTop(1;2;\"-\";\"+HH:MM:ss\")", ""),
@@ -3399,4 +3412,94 @@ def test_scrape_event_all_mixte_hidden_enrichit_malgre_la_liste_contest_zero(mon
 
     assert len(res) == 1
     assert res[0].segments
+
+
+# ── Colonnes de rang RANKn et ClassementMF (#984) ────────────────────────────
+
+
+def _payload_xs_feminin_scratch_404650(*, split_en_tete: bool = False) -> dict:
+    """Forme de `06 - CLASSEMENTS AQUATHLON|Classement XS Féminin Scratch`
+    (404650, contest 1, sondé le 2026-09-25), réduite à la natation."""
+    champs = [
+        {"Expression": "OuStatut([ClassementMF.p])", "Label": "Rang"},
+        {"Expression": "AfficherNom", "Label": "Nom Prénom"},
+        {"Expression": "BIB", "Label": "N° Doss"},
+        {"Expression": "CLUB", "Label": "Club"},
+        {"Expression": "#[ClassementCatégorie.P][AGEGROUP.NAME]", "Label": "Clt catégorie"},
+        {"Expression": "[Natation.AGEGROUP.P]", "Label": ""},
+        {"Expression": "Natation", "Label": "Natation"},
+        {"Expression": "TIME", "Label": "Temps total"},
+    ]
+    if split_en_tete:
+        champs.insert(0, champs.pop(5))
+    return {
+        "DataFields": [
+            "BIB", "ID", "OuStatut([ClassementMF.p])", "AfficherNom", "CLUB",
+            "#[ClassementCatégorie.P][AGEGROUP.NAME]", "[Natation.AGEGROUP.P]",
+            "Natation", "TIME",
+        ],
+        "list": {"Fields": champs},
+        "data": {"#1_Aquathlon XS (Benjamins & Minimes)": {
+            "#1_": [["92", "1197", "2.", "MOLINA PANNETIER Oceane", "ASVEL TRIATHLON",
+                     "2.Minimes F", "3.", "00:07:44", "00:17:14"]],
+            "#2_DNF": [["44", "1100", "DNF", "MARTIN Julie", "", "Minimes F",
+                        "9.", "00:09:01", ""]],
+        }},
+    }
+
+
+@pytest.mark.parametrize("split_en_tete", [False, True])
+def test_build_result_404650_rang_de_sexe_et_categorie(split_en_tete):
+    """Le seul rang affiché en tête est le rang de sexe (`ClassementMF`) : il
+    va en `rank_gender`, jamais écarté ni pris pour le rang général. Le rang de
+    catégorie du split de natation ne supplante pas la catégorie, quel que soit
+    l'ordre des colonnes."""
+    payload = _payload_xs_feminin_scratch_404650(split_en_tete=split_en_tete)
+    roles, segments, extras = raceresult._map_columns(payload)
+    groupes = raceresult._iter_groups(payload["data"])
+    lignes = [
+        raceresult._build_result(
+            ligne, roles, segments, extras, source_url="u", event_name="E",
+            event_date=None, contest_label=contest, status_label=statut,
+        )
+        for contest, statut, rows in groupes for ligne in rows
+    ]
+
+    finisher, dnf = lignes
+    assert (finisher.rank_gender, finisher.rank_overall) == (2, None)
+    assert (finisher.rank_category, finisher.category) == (2, "Minimes F")
+    assert finisher.segments == [("Natation", "00:07:44")]
+    assert (dnf.status, dnf.rank_gender) == (STATUS_DNF, None)
+
+
+def _payload_classement_404650(expr_rang: str, ligne: list) -> dict:
+    """Listes « Scratch » et « MF » du contest 5 de 404650, réduites."""
+    exprs = [expr_rang, "AfficherNom", "CLUB", "TIME"]
+    return {
+        "DataFields": ["BIB", "ID", *exprs],
+        "list": {"Fields": [{"Expression": e, "Label": e} for e in exprs]},
+        "data": {"#1_Distance S": {"#1_": [ligne]}},
+    }
+
+
+def test_scrape_event_all_fusion_complete_les_rangs_d_une_autre_liste(monkeypatch):
+    """404650 publie le rang général et le rang de sexe dans deux listes du même
+    contest. La fusion garde une ligne entière : sans complément, l'un des deux
+    rangs était perdu sur toute l'épreuve."""
+    specs = [("Scratch", "1"), ("MF", "1")]
+    payloads = {
+        ("Scratch", "1"): _payload_classement_404650(
+            "OuStatut([ClassementGénéral.p])",
+            ["2024", "328", "26.", "LINDEKENS Laurie", "", "02:29:25"],
+        ),
+        ("MF", "1"): _payload_classement_404650(
+            "OuStatut([ClassementMF.p])",
+            ["2024", "328", "1.", "LINDEKENS Laurie", "", "02:29:25"],
+        ),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads)
+
+    (r,) = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert (r.rank_overall, r.rank_gender) == (26, 1)
 
