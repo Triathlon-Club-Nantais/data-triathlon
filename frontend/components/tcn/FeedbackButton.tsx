@@ -19,7 +19,7 @@ export function FeedbackButton() {
   const [body, setBody] = useState("");
   const [honeypot, setHoneypot] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
-  const [champsInvalides, setChampsInvalides] = useState(false);
+  const [invalides, setInvalides] = useState({ titre: false, description: false });
   const [envoi, setEnvoi] = useState(false);
   const [envoye, setEnvoye] = useState(false);
 
@@ -30,19 +30,26 @@ export function FeedbackButton() {
     setBody("");
     setHoneypot("");
     setErreur(null);
-    setChampsInvalides(false);
+    setInvalides({ titre: false, description: false });
     setEnvoye(false);
   }
 
   async function soumettre(e: FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !body.trim()) {
-      setErreur("Le titre et la description sont obligatoires.");
-      setChampsInvalides(true);
+    const manquants = { titre: !title.trim(), description: !body.trim() };
+    if (manquants.titre || manquants.description) {
+      setErreur(
+        manquants.titre && manquants.description
+          ? "Le titre et la description sont obligatoires."
+          : manquants.titre
+            ? "Le titre est obligatoire."
+            : "La description est obligatoire.",
+      );
+      setInvalides(manquants);
       return;
     }
     setErreur(null);
-    setChampsInvalides(false);
+    setInvalides({ titre: false, description: false });
     setEnvoi(true);
     try {
       await apiClient.submitFeedback({
@@ -139,8 +146,8 @@ export function FeedbackButton() {
                 onChange={(e) => setTitle(e.target.value)}
                 maxLength={200}
                 aria-label="Titre"
-                aria-invalid={champsInvalides || undefined}
-                aria-describedby={champsInvalides ? "feedback-erreur" : undefined}
+                aria-invalid={invalides.titre || undefined}
+                aria-describedby={invalides.titre ? "feedback-erreur" : undefined}
               />
 
               <textarea
@@ -150,8 +157,8 @@ export function FeedbackButton() {
                 rows={5}
                 maxLength={10000}
                 aria-label="Description"
-                aria-invalid={champsInvalides || undefined}
-                aria-describedby={champsInvalides ? "feedback-erreur" : undefined}
+                aria-invalid={invalides.description || undefined}
+                aria-describedby={invalides.description ? "feedback-erreur" : undefined}
                 style={{
                   padding: "13px 16px",
                   background: "var(--tcn-fill)",
