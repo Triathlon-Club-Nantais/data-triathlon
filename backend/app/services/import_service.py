@@ -478,6 +478,9 @@ def _non_finisher_overrides(existing, scraped: ScrapedResult, fields: dict) -> d
     corrigerait jamais une ligne importée avant ce vidage.
     """
     if scraped.status not in _NON_FINISHER_STATUSES:
+        # Un total illisible en base (« Abandon », #969) n'est pas une valeur à protéger.
+        if existing.total_time and mapping.parse_duration(existing.total_time) is None:
+            return {"total_time": fields["total_time"]}
         return {}
     keys = _NON_FINISHER_FIELDS + (("splits",) if scraped.status == STATUS_DNS else ())
     return {key: fields[key] for key in keys if getattr(existing, key) != fields[key]}

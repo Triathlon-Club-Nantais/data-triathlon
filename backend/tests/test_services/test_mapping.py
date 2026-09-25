@@ -178,6 +178,16 @@ def test_derive_status_respects_explicit_status():
     assert mapping.derive_status(_scraped(status="DNS")) == "DNS"
 
 
+@pytest.mark.parametrize("bad", ["Abandon", "Disqualifié", "-00:00:06", "00:12'15\"000x"])
+def test_participation_fields_neither_stores_nor_ranks_finisher_an_unreadable_total(bad):
+    # #969 : un libellé ou un format non lu n'est pas un temps d'arrivée.
+    fields = mapping.participation_fields(
+        _scraped(total_time=bad), athlete_id=1, course_id=2
+    )
+    assert fields["total_time"] is None
+    assert fields["status"] == "DNF"
+
+
 def test_participation_fields():
     s = _scraped(
         bib_number="42", club="TCN", category="V1H",

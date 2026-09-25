@@ -7,6 +7,7 @@ from app.scrapers.utils import (
     derive_status_from_label,
     fmt_seconds,
     gender_from_category,
+    normalize_time,
     parse_fr_date,
     split_athlete_name,
     split_relay_teammates,
@@ -231,3 +232,14 @@ def test_gender_from_category_reads_individual_categories(category, expected):
 ])
 def test_gender_from_category_leaves_team_and_unreadable_categories_empty(category):
     assert gender_from_category(category) == ""
+
+
+@pytest.mark.parametrize("raw,expected", [
+    # Klikego, courses 199 à 203 : millièmes après la seconde (#969).
+    ("00:12'15\"000", "00:12:15"),
+    ("00:12'15''000", "00:12:15"),
+    # Sport Innovation « Temps Officiel (Réel) » : l'officiel d'abord (#969).
+    ("00:06:41 (00:06:45)", "00:06:41"),
+])
+def test_normalize_time_reads_klikego_and_sportinnovation_forms(raw, expected):
+    assert normalize_time(raw) == expected
