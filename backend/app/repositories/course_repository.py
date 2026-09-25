@@ -426,13 +426,14 @@ def zero_counts_all(db: Session) -> int:
     return touchees
 
 
-def recompute_tcn_counts_all(db: Session, *, club_labels: Iterable[str]) -> None:
+def recompute_tcn_counts_all(db: Session, *, club_labels: Iterable[str]) -> int:
     """Recalcule `tcn_count` sur **toutes** les épreuves, selon `club_labels` (#939).
 
     Appelée quand la liste des libellés du club change : sans elle, le chemin
     rapide de `/resultats` garderait l'ancien compte jusqu'au prochain import.
     Sous-requête corrélée portable SQLite/PostgreSQL, même définition que
-    l'import et que le backfill de la migration `05de2237111f`.
+    l'import et que le backfill de la migration `05de2237111f`. Seules les
+    lignes dont le compte change sont réécrites, et leur nombre est rendu.
     """
     from app.models.participation import Participation
 
@@ -445,8 +446,13 @@ def recompute_tcn_counts_all(db: Session, *, club_labels: Iterable[str]) -> None
         )
         .scalar_subquery()
     )
-    db.query(Course).update({Course.tcn_count: comptees}, synchronize_session=False)
+    rewritten = (
+        db.query(Course)
+        .filter(Course.tcn_count != comptees)
+        .update({Course.tcn_count: comptees}, synchronize_session=False)
+    )
     db.flush()
+    return rewritten
 
 
 def _filtered(
