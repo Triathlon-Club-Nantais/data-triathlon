@@ -23,6 +23,7 @@ index en silence. Ajouter un libellé ne change pas l'expression indexée ;
 changer la façon de comparer, si.
 """
 import re
+from collections.abc import Iterable
 
 from sqlalchemy import column, func
 
@@ -90,13 +91,17 @@ def _normalise_sql(column):
     return expr
 
 
-def tcn_clause(column):
+def tcn_clause(column, labels: Iterable[str] | None = None):
     """Clause SQLAlchemy : `column` porte un libellé du club.
 
     `column` est passée en paramètre pour couvrir aussi bien `Participation.club`
-    (le club inscrit sur la ligne de résultat) que `Athlete.club`.
+    (le club inscrit sur la ligne de résultat) que `Athlete.club`. `labels`
+    remplace le registre quand l'appelant tient une liste pas encore chargée,
+    celle d'une transaction non commitée (#939).
     """
-    return _normalise_sql(column).in_(sorted(counter_scope.tcn_club_labels()))
+    if labels is None:
+        labels = counter_scope.tcn_club_labels()
+    return _normalise_sql(column).in_(sorted(labels))
 
 
 #: Expression SQL de `_normalise_sql`, compilée en littéral DDL portable

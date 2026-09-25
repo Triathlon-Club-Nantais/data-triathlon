@@ -294,3 +294,54 @@ def test_un_rechargement_en_echec_ne_fait_pas_echouer_l_ecriture(client, db_sess
     assert reponse.json()["value"] == "tcn 44"
     # L'entrée est bien en base, malgré le registre resté périmé.
     assert any(e["value"] == "tcn 44" for e in client.get(BASE).json()["club_labels"])
+
+
+def _une_epreuve_au_club_inconnu(db_session) -> None:
+    """Un résultat validé, libellé de club non déclaré, compteurs posés comme par l'import."""
+    from datetime import date
+
+    from app.repositories import athlete_repository, course_repository, participation_repository
+
+    course = course_repository.get_or_create(
+        db_session,
+        name="Tri du test",
+        event_date=date(2026, 5, 16),
+        event_type="triathlon-m",
+        source_url="https://k/tri",
+        provider="klikego",
+    )
+    athlete = athlete_repository.get_or_create(
+        db_session, nom="LEMEE", prenom="Jean", birth_date=None, club=None
+    )
+    participation_repository.create(
+        db_session,
+        athlete_id=athlete.id,
+        course_id=course.id,
+        bib_number="1",
+        club="TRIATHLON CLUB NANTAIS 44",
+        is_pending_validation=False,
+    )
+    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=0)
+    db_session.commit()
+
+
+def _tcn_count_des_deux_chemins(db_session) -> tuple[int, int]:
+    from app.repositories import participation_repository
+
+    db_session.expire_all()
+    rapide = participation_repository.events_page(db_session)["items"][0].tcn_count
+    lent = participation_repository.events_page(db_session, name="Lemee")["items"][0].tcn_count
+    return rapide, lent
+
+
+def test_le_compteur_denormalise_suit_l_ajout_et_le_retrait_d_un_libelle(client, db_session):
+    """#939 : `Course.tcn_count` (chemin rapide de `/resultats`) se recalcule au geste."""
+    _semer(db_session, CLUB_LABEL, "tcn")
+    _une_epreuve_au_club_inconnu(db_session)
+    assert _tcn_count_des_deux_chemins(db_session) == (0, 0)
+
+    ajout = client.post(f"{BASE}/club-labels", json={"value": "TRIATHLON CLUB NANTAIS 44"})
+    assert _tcn_count_des_deux_chemins(db_session) == (1, 1)
+
+    client.delete(f"{BASE}/club-labels/{ajout.json()['id']}")
+    assert _tcn_count_des_deux_chemins(db_session) == (0, 0)

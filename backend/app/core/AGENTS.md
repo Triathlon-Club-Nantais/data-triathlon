@@ -94,6 +94,13 @@ atomique du point de vue de ce thread, muter en place lui exposerait un ensemble
 `tests/test_core/test_counter_scope.py` le vérifie en gardant une référence
 prise avant un `load()`.
 
+**Le compteur dénormalisé `Course.tcn_count` ne lit pas le registre** : il fige
+le verdict de l'import. Ajouter ou retirer un libellé du club le recalcule donc
+sur toutes les épreuves, dans la transaction de l'écriture
+(`services/counter_scope._recompute_tcn_counts`, #939), à partir des libellés
+**relus en base** et passés à `tcn_clause(..., labels)` : le registre n'est
+rechargé qu'après le commit.
+
 **Les défauts sont les valeurs d'avant la bascule**, et ce n'est pas un repli de
 confort : un registre vide rendrait zéro résultat du club, donc tous les
 compteurs du club à zéro, sans erreur — un tableau de bord vide qui ressemble à

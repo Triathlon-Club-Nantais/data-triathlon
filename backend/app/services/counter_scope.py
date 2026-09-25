@@ -14,7 +14,7 @@ from app.core import counter_scope
 from app.core.club import normalize_club
 from app.core.exceptions import DomainError, DuplicateError, LastClubLabelError, NotFoundError
 from app.models.counter_scope_entry import CLUB_LABEL, NON_FEDERAL_DISCIPLINE, CounterScopeEntry
-from app.repositories import counter_scope_repository
+from app.repositories import counter_scope_repository, course_repository
 
 
 def load_from_db(db: Session) -> None:
@@ -24,6 +24,19 @@ def load_from_db(db: Session) -> None:
         disciplines={e.value for e in entries if e.kind == NON_FEDERAL_DISCIPLINE},
         club_labels={e.value for e in entries if e.kind == CLUB_LABEL},
     )
+
+
+def _recompute_tcn_counts(db: Session, kind: str) -> None:
+    """Recalcule `Course.tcn_count` dans la transaction de l'écriture (#939).
+
+    Les libellés sont relus **en base**, pas dans le registre : celui-ci n'est
+    rechargé qu'après le commit, et le recharger avant exposerait une
+    configuration que la transaction pourrait encore annuler.
+    """
+    if kind != CLUB_LABEL:
+        return
+    labels = {e.value for e in counter_scope_repository.list_entries(db) if e.kind == CLUB_LABEL}
+    course_repository.recompute_tcn_counts_all(db, club_labels=labels)
 
 
 def normalize_value(kind: str, value: str) -> str:
@@ -69,6 +82,7 @@ def add_entry(
         db, kind=kind, value=normalisee, created_by_user_id=admin_user_id
     )
     db.flush()
+    _recompute_tcn_counts(db, kind)
     return entry
 
 
@@ -94,4 +108,5 @@ def remove_entry(db: Session, *, kind: str, entry_id: int) -> CounterScopeEntry:
 
     counter_scope_repository.delete_entry(db, entry)
     db.flush()
+    _recompute_tcn_counts(db, kind)
     return entry

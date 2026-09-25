@@ -1,4 +1,5 @@
 """Accès données pour Course."""
+from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import case, func, or_, select
@@ -409,6 +410,29 @@ def zero_counts_all(db: Session) -> int:
     )
     db.flush()
     return touchees
+
+
+def recompute_tcn_counts_all(db: Session, *, club_labels: Iterable[str]) -> None:
+    """Recalcule `tcn_count` sur **toutes** les épreuves, selon `club_labels` (#939).
+
+    Appelée quand la liste des libellés du club change : sans elle, le chemin
+    rapide de `/resultats` garderait l'ancien compte jusqu'au prochain import.
+    Sous-requête corrélée portable SQLite/PostgreSQL, même définition que
+    l'import et que le backfill de la migration `05de2237111f`.
+    """
+    from app.models.participation import Participation
+
+    comptees = (
+        select(func.count(Participation.id))
+        .where(
+            Participation.course_id == Course.id,
+            validated_clause(Participation.is_pending_validation),
+            tcn_clause(Participation.club, club_labels),
+        )
+        .scalar_subquery()
+    )
+    db.query(Course).update({Course.tcn_count: comptees}, synchronize_session=False)
+    db.flush()
 
 
 def _filtered(
