@@ -396,10 +396,18 @@ def _fetch_tcn_fine_splits(
     for r in results:
         if is_tcn(r.club):
             h = r.raw_data.get("heat_slug", default_heat)
-            dr = client.get(
-                f"{base}/v8/evenement/resultat-participant.jsp"
-                f"?embedded=1&e={event_id}&heat={h}&dossard={r.bib_number}"
-            )
+            # Enrichissement seulement : un flake réseau laisse les splits inter (#942).
+            try:
+                dr = client.get(
+                    f"{base}/v8/evenement/resultat-participant.jsp"
+                    f"?embedded=1&e={event_id}&heat={h}&dossard={r.bib_number}"
+                )
+            except httpx.HTTPError:
+                logger.warning(
+                    "Fine-split detail unreachable for bib %s (heat %s)",
+                    r.bib_number, h, exc_info=True,
+                )
+                continue
             if dr.status_code == 200:
                 r.swim_time = r.t1_time = r.bike_time = r.t2_time = r.run_time = ""
                 _parse_detail(dr.text, r, {})

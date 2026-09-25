@@ -995,3 +995,51 @@ def test_scrape_live_event_fanout_heat_failure_isolated(monkeypatch, caplog):
     assert len(trace.failures) == 1
     assert trace.failures[0]["heat_slug"] == "heat-a"
     assert "boom on live heat-a" in trace.failures[0]["reason"]
+
+
+def test_scrape_event_fanout_survives_fine_split_timeout(monkeypatch, caplog):
+    """A network flake on one TCN detail page must not lose the heats (#942)."""
+    import httpx
+
+    from app.scrapers.base import ScrapedResult
+
+    class FakeResp:
+        def __init__(self, text, code=200):
+            self.text, self.status_code = text, code
+            self.is_redirect = False
+            self.headers: dict = {}
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def get(self, url, follow_redirects=True):
+            if url.endswith("/resultats-courses/tri-mesquer-42"):
+                return FakeResp(_MESQUER_ROOT_HTML)
+            if "resultat-participant.jsp" in url and "dossard=1" in url:
+                raise httpx.ReadTimeout("timeout", request=httpx.Request("GET", url))
+            return FakeResp("<html></html>")
+
+    monkeypatch.setattr(breizhchrono.http, "client", lambda **k: FakeClient())
+
+    def fake_import(event_id, heat_slug, heat_label, event_name, slug, event_date, client, **kw):
+        bib = "1" if heat_slug == "heat-a" else "2"
+        return [ScrapedResult(
+            source_url=f"{breizhchrono.BASE}/resultats-courses/tri-mesquer-42/{heat_slug}",
+            provider="breizhchrono", club="TRI CLUB NANTAIS", bib_number=bib,
+            swim_time="00:10:00", raw_data={"heat_slug": heat_slug},
+        )]
+
+    monkeypatch.setattr(breizhchrono, "_import_one_heat", fake_import)
+
+    with caplog.at_level("WARNING", logger="app.scrapers.breizhchrono"):
+        results, trace = breizhchrono.scrape_event_fanout("42", "Mesquer", "tri-mesquer")
+
+    assert trace.failures == []
+    assert sorted(r.bib_number for r in results) == ["1", "2"]
+    timed_out = next(r for r in results if r.bib_number == "1")
+    assert timed_out.swim_time == "00:10:00"
+    assert any("heat-a" in rec.getMessage() for rec in caplog.records)
