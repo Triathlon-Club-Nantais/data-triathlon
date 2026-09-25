@@ -115,7 +115,7 @@ function CelluleInter({ valeur, small }: { valeur?: string; small?: boolean }) {
   const style = {
     fontSize: 13,
     fontWeight: small ? 400 : 600,
-    color: small ? "var(--tcn-grey-400)" : "var(--tcn-text-body)",
+    color: small ? "var(--tcn-text-muted)" : "var(--tcn-text-body)",
   };
   if (valeur && secondsFromHms(valeur) == null) {
     const motif = `Temps illisible chez le chronométreur (« ${valeur} ») — la donnée existe, mais ce n'est pas un temps.`;

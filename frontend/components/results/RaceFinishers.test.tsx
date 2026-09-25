@@ -455,6 +455,20 @@ describe("RaceFinishers", () => {
     expect(screen.getByText("Course")).toBeInTheDocument();
   });
 
+  it("renders transition times in a text colour that meets AA contrast (#931)", () => {
+    afficher({
+      participations: [
+        p({ id: 1, nom: "DUPONT", rank_overall: 1, total_time: "01:00:00", splits: { t1: "00:03:07" } }),
+      ],
+      summary: synthese({ split_keys: ["t1"] }),
+      total: 1,
+      eventType: "triathlon-m",
+    });
+
+    const cellule = within(screen.getByTestId("classement-grille")).getByText("00:03:07");
+    expect(cellule.style.color).toBe("var(--tcn-text-muted)");
+  });
+
   // ── Inter illisible (#472) ─────────────────────────────────────────────────
 
   // Observé en préproduction sur la course 340 : un inter valant `0-2:-15:00`.

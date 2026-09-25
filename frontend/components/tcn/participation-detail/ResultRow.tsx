@@ -157,7 +157,7 @@ export function ResultRow({
                 fontFamily: "var(--tcn-font-cond)",
                 fontWeight: column.small ? 400 : 700,
                 fontSize: column.small ? 15 : 18,
-                color: column.small ? "var(--tcn-grey-400)" : "var(--tcn-ink)",
+                color: column.small ? "var(--tcn-text-muted)" : "var(--tcn-ink)",
               }}
             >
               {splits[column.key] ?? "—"}
