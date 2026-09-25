@@ -187,6 +187,14 @@ PUBLIC_WRITE_RATE_LIMIT_WINDOW_SECONDS = 3600
 SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW = 60
 SITE_ACCESS_RATE_LIMIT_WINDOW_SECONDS = 3600
 
+#: #917, seau dédié pour la raison du seau `site_access`. Même scrypt par
+#: tentative, route joignable sans le cookie du site (vrai anonyme), et ici la
+#: force brute compte : l'admin peut poser un mot de passe humain de 8
+#: caractères. Plus serré que la connexion au site : seule une poignée de
+#: bénévoles se connecte, pas chaque visiteur.
+BENEVOLE_LOGIN_RATE_LIMIT_MAX_PER_WINDOW = 30
+BENEVOLE_LOGIN_RATE_LIMIT_WINDOW_SECONDS = 3600
+
 
 def reset_rate_limits() -> None:
     """Vide les compteurs. Réservé aux tests (fixture autouse de `conftest`)."""
@@ -301,6 +309,16 @@ def site_access_rate_limit(request: Request) -> None:
         "site_access",
         max_per_window=SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW,
         window_seconds=SITE_ACCESS_RATE_LIMIT_WINDOW_SECONDS,
+    )
+
+
+def benevole_login_rate_limit(request: Request) -> None:
+    """Plafond de `POST /benevoles/session` (#917), **seau dédié**."""
+    _enforce_rate_limit(
+        request,
+        "benevole_login",
+        max_per_window=BENEVOLE_LOGIN_RATE_LIMIT_MAX_PER_WINDOW,
+        window_seconds=BENEVOLE_LOGIN_RATE_LIMIT_WINDOW_SECONDS,
     )
 
 

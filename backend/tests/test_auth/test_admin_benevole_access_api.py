@@ -53,6 +53,32 @@ def test_remplacement_manuel_permet_une_connexion_benevole(client, ouvrir_sessio
     assert connexion.status_code == 204
 
 
+def test_put_refuse_un_mot_de_passe_plus_long_que_ce_que_la_connexion_accepte(
+    client, ouvrir_session
+):
+    """#917 : les deux bornes se répondent, sinon le mot de passe posé par
+    l'admin serait refusé en 422 à la connexion (piège relevé en revue de #513)."""
+    from app.schemas.site_access import MAX_PASSWORD_LENGTH
+
+    ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+
+    reponse = client.put(URL, json={"password": "x" * (MAX_PASSWORD_LENGTH + 1)})
+
+    assert reponse.status_code == 422
+    assert client.get(URL).json()["configured"] is False
+
+
+def test_put_accepte_la_longueur_maximale_de_la_connexion(client, ouvrir_session):
+    from app.schemas.site_access import MAX_PASSWORD_LENGTH
+
+    ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    mot_de_passe = "x" * MAX_PASSWORD_LENGTH
+
+    assert client.put(URL, json={"password": mot_de_passe}).status_code == 200
+    connexion = client.post("/api/v1/benevoles/session", json={"password": mot_de_passe})
+    assert connexion.status_code == 204
+
+
 def test_remplacement_invalide_les_sessions_deja_ouvertes(client, ouvrir_session):
     """FR-006, SC-002 (quickstart.md scénario 2)."""
     ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)

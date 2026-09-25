@@ -13,7 +13,11 @@ deux dernières (`queue`, `rejected`) lisent directement le repository.
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
-from app.api.deps import NotAuthenticatedError, require_benevole_access
+from app.api.deps import (
+    NotAuthenticatedError,
+    benevole_login_rate_limit,
+    require_benevole_access,
+)
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
@@ -35,7 +39,9 @@ from app.services import admin_actions, benevole_access, shared_password, valida
 router = APIRouter(tags=["benevoles"])
 
 
-@router.post("/benevoles/session", status_code=204)
+@router.post(
+    "/benevoles/session", status_code=204, dependencies=[Depends(benevole_login_rate_limit)]
+)
 def open_session(
     body: BenevoleLogin,
     response: Response,

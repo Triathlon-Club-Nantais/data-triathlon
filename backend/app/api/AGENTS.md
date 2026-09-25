@@ -198,12 +198,13 @@ pièges mesurés et invariants dans
 
 ## Plafonds de débit par IP (#395, #398)
 
-Six routes publiques sont plafonnées par IP, **route par route** comme les
+Sept routes publiques sont plafonnées par IP, **route par route** comme les
 gardes de pouvoir — `api/deps.scrape_rate_limit` sur `POST /scrape/event` et
 `POST /scrape/event/stream`, `api/deps.authorize_rate_limit` sur
 `GET /auth/{provider}/authorize`, `api/deps.public_write_rate_limit` sur
-`POST /admin/pending-providers` et `POST /participations`, et
-`api/deps.site_access_rate_limit` sur `POST /site-access/session` (#509).
+`POST /admin/pending-providers` et `POST /participations`,
+`api/deps.site_access_rate_limit` sur `POST /site-access/session` (#509), et
+`api/deps.benevole_login_rate_limit` sur `POST /benevoles/session` (#917).
 Quatre choses à ne pas défaire :
 
 - **Un seul seau par geste, pas par route.** Les deux routes de scraping
@@ -238,9 +239,13 @@ session, aucun pouvoir — mais exigent désormais le mot de passe partagé du
 site comme le reste de l'API (`require_site_access`, posé à l'inclusion dans
 `v1/router.py`) : un visiteur qui ne l'a jamais entré ne les atteint plus du
 tout, plafond ou pas. La sixième, `POST /site-access/session`, est par
-construction hors de cette garde — c'est elle qui la satisfait. Son plafond est
-donc le seul qui borne encore un vrai anonyme, et le seul à ne pas pouvoir
-compter sur la garde en amont.
+construction hors de cette garde — c'est elle qui la satisfait. La septième,
+`POST /benevoles/session`, en est exemptée par choix (`benevoles` figure dans
+`_EXEMPTES_DE_LA_GARDE_SITE`). Ces deux plafonds sont donc les seuls qui
+bornent encore un vrai anonyme, sans garde en amont. Celui des bénévoles a son
+seau `benevole_login` (30/h), plus serré que `site_access` : même scrypt par
+tentative, mais une poignée de bénévoles seulement, et ici la force brute
+compte, l'admin pouvant poser à la main un mot de passe de 8 caractères.
 
 Le SSE prend `optional_user` et journalise son appelant : il ne le faisait pas,
 et un import lancé depuis là ne laissait aucune trace de qui l'avait demandé.

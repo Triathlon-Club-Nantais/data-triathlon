@@ -4,6 +4,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
+from app.schemas.site_access import MAX_PASSWORD_LENGTH
+
 
 class BenevoleAccessConfigOut(BaseModel):
     """État courant — **jamais** le mot de passe ni son empreinte (FR-004)."""
@@ -16,7 +18,9 @@ class BenevoleAccessConfigOut(BaseModel):
 class BenevoleAccessReplaceIn(BaseModel):
     """Corps de `PUT /admin/benevoles/access` (Story 1)."""
 
-    password: str = Field(min_length=8)
+    # Même borne que `BenevoleLogin`, sinon la connexion refuserait en 422 le
+    # mot de passe posé ici.
+    password: str = Field(min_length=8, max_length=MAX_PASSWORD_LENGTH)
 
 
 class BenevoleAccessGeneratedOut(BaseModel):

@@ -1,11 +1,13 @@
 """DTO de la page de vérification des résultats par les bénévoles (#271)."""
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.site_access import MAX_PASSWORD_LENGTH
+
 
 class BenevoleLogin(BaseModel):
     """Corps de `POST /benevoles/session`."""
 
-    password: str
+    password: str = Field(max_length=MAX_PASSWORD_LENGTH)
 
 
 class BenevoleCourseRename(BaseModel):
