@@ -372,7 +372,7 @@ describe("AppNav — prénom de l'athlète retenu (#264)", () => {
 
     const modale = await screen.findByRole("dialog");
     await userEvent.type(within(modale).getByPlaceholderText("Rechercher un nom…"), "dupont");
-    await userEvent.click(await screen.findByRole("button", { name: "Choisir Jean Gael Dupont" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Choisir Jean Gael Dupont" }));
 
     expect(readAthlete()).toEqual({ id: 12, prenom: "Jean Gael", nom: "Dupont" });
     expect(push).toHaveBeenCalledWith("/athletes/12");

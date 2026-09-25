@@ -1,8 +1,8 @@
 // Pas de `"use client"` ici : ce module n'est importé que par `AppNav`, qui
 // porte la directive. L'ajouter en ferait un **point d'entrée** client, dont
 // Next exige des props sérialisables — or ce composant prend deux callbacks.
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { Avatar, Input, Modal } from "@/components/tcn";
+import { useCallback, useEffect, useId, useState, useSyncExternalStore } from "react";
+import { AnnonceStatut, Avatar, Input, Modal } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
 import { apiClient } from "@/lib/api/client";
 import type { AthleteSearchResult } from "@/lib/types";
@@ -179,6 +179,16 @@ export function AthletePicker({
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<AthleteSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [actif, setActif] = useState(-1);
+  const [rowsVues, setRowsVues] = useState(rows);
+  if (rows !== rowsVues) {
+    setRowsVues(rows);
+    setActif(-1);
+  }
+  const listboxId = useId();
+  const optionId = (id: number) => `${listboxId}-${id}`;
+  const visibles = rows.slice(0, PAGE_SIZE);
+  const actifId = actif >= 0 && visibles[actif] ? optionId(visibles[actif].id) : undefined;
 
   useEffect(() => {
     const q = query.trim();
@@ -205,6 +215,22 @@ export function AthletePicker({
     };
   }, [query]);
 
+  useEffect(() => {
+    if (actifId) document.getElementById(actifId)?.scrollIntoView?.({ block: "nearest" });
+  }, [actifId]);
+
+  const choisir = (a: AthleteSearchResult) => onPick({ id: a.id, prenom: a.prenom, nom: a.nom });
+
+  const q = query.trim();
+  const statut =
+    q.length < 2
+      ? "Saisissez au moins 2 lettres"
+      : loading
+        ? "Recherche…"
+        : visibles.length === 0
+          ? "Aucun athlète trouvé"
+          : `${visibles.length} athlète${visibles.length > 1 ? "s" : ""} trouvé${visibles.length > 1 ? "s" : ""}`;
+
   return (
     <Modal
       eyebrow="Mon athlète"
@@ -222,43 +248,64 @@ export function AthletePicker({
         value={query}
         autoFocus
         onChange={(e) => setQuery(e.target.value)}
+        role="combobox"
+        aria-label="Rechercher un athlète"
+        aria-autocomplete="list"
+        aria-expanded={visibles.length > 0}
+        aria-controls={listboxId}
+        aria-activedescendant={actifId}
+        onKeyDown={(e) => {
+          if (visibles.length === 0) return;
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setActif((i) => Math.min(i + 1, visibles.length - 1));
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setActif((i) => Math.max(i - 1, 0));
+          } else if (e.key === "Enter" && actif >= 0) {
+            e.preventDefault();
+            choisir(visibles[actif]);
+          }
+        }}
         placeholder="Rechercher un nom…"
       />
+      <AnnonceStatut texte={statut} busy={loading} />
       <div style={{ marginTop: 8 }}>
-        {rows.slice(0, PAGE_SIZE).map((a) => {
-          const fullName = nomComplet(a);
-          const choisir = () => onPick({ id: a.id, prenom: a.prenom, nom: a.nom });
-          return (
-            <div
-              key={a.id}
-              role="button"
-              tabIndex={0}
-              aria-label={`Choisir ${fullName}`}
-              onClick={choisir}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  choisir();
-                }
-              }}
-              style={{ display: "flex", alignItems: "center", gap: 14, padding: "11px 14px", borderRadius: 12, cursor: "pointer" }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--tcn-fill)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-              onFocus={(e) => (e.currentTarget.style.background = "var(--tcn-fill)")}
-              onBlur={(e) => (e.currentTarget.style.background = "transparent")}
-            >
-              <Avatar name={fullName} size={40} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 700, color: "var(--tcn-ink)", fontSize: 15 }}>{fullName}</div>
-                <div style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>
-                  {a.club ?? "Sans club"} · {a.participation_count} épreuve
-                  {a.participation_count > 1 ? "s" : ""}
+        <div role="listbox" id={listboxId} aria-label="Athlètes trouvés">
+          {visibles.map((a, i) => {
+            const fullName = nomComplet(a);
+            return (
+              <div
+                key={a.id}
+                id={optionId(a.id)}
+                role="option"
+                aria-selected={i === actif}
+                aria-label={`Choisir ${fullName}`}
+                onClick={() => choisir(a)}
+                onMouseEnter={() => setActif(i)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                  padding: "11px 14px",
+                  borderRadius: 12,
+                  cursor: "pointer",
+                  background: i === actif ? "var(--tcn-fill)" : "transparent",
+                }}
+              >
+                <Avatar name={fullName} size={40} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 700, color: "var(--tcn-ink)", fontSize: 15 }}>{fullName}</div>
+                  <div style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>
+                    {a.club ?? "Sans club"} · {a.participation_count} épreuve
+                    {a.participation_count > 1 ? "s" : ""}
+                  </div>
                 </div>
+                <span style={{ color: "var(--tcn-text-disabled)", fontSize: 18 }}>→</span>
               </div>
-              <span style={{ color: "var(--tcn-text-disabled)", fontSize: 18 }}>→</span>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
         {query.trim().length >= 2 && !loading && rows.length === 0 && (
           <EmptyState
             bare
