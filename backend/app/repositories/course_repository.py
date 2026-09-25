@@ -350,8 +350,10 @@ def delete_all(db: Session) -> int:
     `ondelete` vers `courses.id`, et une seule paire jamais ignorée suffirait à
     faire échouer ce `DELETE` de masse en PostgreSQL.
     """
-    from app.models.participation import Participation
+    from app.models.participation import Participation, ParticipationTeammate
 
+    # Compositions de relais d'abord (#894) : leur cascade est inerte en SQLite.
+    db.query(ParticipationTeammate).delete(synchronize_session=False)
     db.query(Participation).delete(synchronize_session=False)
     db.query(CourseSource).delete(synchronize_session=False)
     ignored_course_duplicate_repository.delete_all(db)

@@ -29,6 +29,7 @@ export function compteMaSaison(
   mode: RankType,
 ): CompteursMaSaison {
   const validees = participations.filter((p) => !p.is_pending_validation);
-  const podiums = validees.filter((p) => isPodium(p, mode)).length;
+  // Un podium de relais n'est pas un podium individuel (#894, FR-011).
+  const podiums = validees.filter((p) => !p.is_relay && isPodium(p, mode)).length;
   return { epreuves: new Set(validees.map((p) => p.course.id)).size, podiums };
 }

@@ -21,12 +21,14 @@ import logging
 import queue
 import threading
 from collections.abc import Iterator
+from typing import NamedTuple
 
 from sqlalchemy.orm import Session
 
 from app.core.club import is_tcn
 from app.core.config import Settings
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError, ScraperError
+from app.core.text import deaccent
 from app.core.time import utcnow
 from app.models.athlete import Athlete
 from app.models.course import Course
@@ -802,18 +804,28 @@ def reassign_participation(
     participation = _participation_or_404(db, participation_id)
     cible = _athlete_or_404(db, athlete_id)
     source_id = participation.athlete_id
+    # Un relais attribué (#894) redevient un résultat à un seul coureur, même
+    # vers l'un de ses équipiers (FR-008) : ses anciens équipiers sont
+    # candidats à la purge au même titre que la source.
+    anciens_equipiers = participation_repository.teammate_athlete_ids(db, participation.id)
 
-    if source_id == cible.id:
+    if source_id == cible.id and not anciens_equipiers:
         return participation
 
     if participation_repository.exists_for_athlete_on_course(
-        db, athlete_id=cible.id, course_id=participation.course_id
+        db,
+        athlete_id=cible.id,
+        course_id=participation.course_id,
+        exclude_participation_id=participation.id,
     ):
         raise DuplicateError("Ce coureur a déjà un résultat sur cette épreuve.")
 
     course_id = participation.course_id
+    participation_repository.replace_teammates(db, participation, [])
     participation_repository.reassign(db, participation, athlete_id=cible.id)
-    purges = athlete_repository.delete_orphans_among(db, [source_id])
+    purges = athlete_repository.delete_orphans_among(
+        db, [i for i in dict.fromkeys([source_id, *anciens_equipiers]) if i != cible.id]
+    )
 
     admin_action_log_repository.create(
         db,
@@ -834,6 +846,115 @@ def reassign_participation(
         participation_id,
         source_id,
         cible.id,
+    )
+    return participation
+
+
+MIN_TEAMMATES = 2
+MAX_TEAMMATES = 8
+
+
+class NewTeammate(NamedTuple):
+    """Un équipier sans fiche connue, désigné par son nom (#894, US2)."""
+
+    athlete_name: str
+    athlete_firstname: str
+
+
+def set_teammates(
+    db: Session,
+    *,
+    participation_id: int,
+    teammates: list[int | NewTeammate],
+    user_id: int,
+) -> Participation:
+    """Attribue un résultat de relais à ses équipiers, en un seul geste (#894).
+
+    `teammates` est la composition voulue, dans l'ordre : le premier devient le
+    porteur (`athlete_id`). Un équipier est une fiche (`int`) ou un nom
+    (`NewTeammate`), qui réutilise la fiche de même nom et prénom si elle existe
+    et n'est créée qu'après tous les refus possibles : tout ou rien. Une
+    composition identique à l'actuelle réussit sans rien consigner, comme
+    `reassign_participation`.
+    """
+    participation = _participation_or_404(db, participation_id)
+    if not (participation.is_relay or participation.course.is_relay):
+        raise DomainError("Seul un résultat de relais peut être attribué à des équipiers.")
+    if not MIN_TEAMMATES <= len(teammates) <= MAX_TEAMMATES:
+        raise DomainError(
+            f"Un relais s'attribue à {MIN_TEAMMATES} à {MAX_TEAMMATES} équipiers."
+        )
+    equipiers: list[Athlete | NewTeammate] = [
+        _athlete_or_404(db, ref)
+        if isinstance(ref, int)
+        else athlete_repository.get_by_identity(db, ref.athlete_name, ref.athlete_firstname, None)
+        or ref
+        for ref in teammates
+    ]
+    connus = [e.id for e in equipiers if isinstance(e, Athlete)]
+    # Accents ignorés : deux graphies d'un même nom désignent une seule
+    # personne, et `get_or_create` pourrait les résoudre vers la même fiche.
+    inconnus = [
+        tuple(" ".join(deaccent(v).lower().split()) for v in (e.athlete_name, e.athlete_firstname))
+        for e in equipiers
+        if isinstance(e, NewTeammate)
+    ]
+    if len(set(connus)) != len(connus) or len(set(inconnus)) != len(inconnus):
+        raise DomainError("Un même coureur figure deux fois dans l'équipe.")
+
+    actuels = participation_repository.teammate_athlete_ids(db, participation.id)
+    if len(connus) == len(equipiers) and actuels == connus:
+        return participation
+
+    course_id = participation.course_id
+    for equipier in equipiers:
+        if not isinstance(equipier, Athlete):
+            continue
+        if equipier.id in actuels or equipier.id == participation.athlete_id:
+            continue
+        if participation_repository.exists_for_athlete_on_course(
+            db, athlete_id=equipier.id, course_id=course_id
+        ):
+            nom = " ".join(filter(None, [equipier.nom, equipier.prenom]))
+            raise DuplicateError(f"{nom} a déjà un résultat sur cette épreuve.")
+
+    crees: list[int] = []
+    ids: list[int] = []
+    for equipier in equipiers:
+        if isinstance(equipier, NewTeammate):
+            equipier = athlete_repository.get_or_create(
+                db, nom=equipier.athlete_name, prenom=equipier.athlete_firstname
+            )
+            crees.append(equipier.id)
+        ids.append(equipier.id)
+
+    source = participation.athlete
+    source_id = source.id
+    if not participation.team_name and not actuels:
+        participation.team_name = " ".join(filter(None, [source.nom, source.prenom]))
+    participation_repository.replace_teammates(db, participation, ids)
+    participation_repository.reassign(db, participation, athlete_id=ids[0])
+    candidats = [source_id, *actuels]
+    purges = athlete_repository.delete_orphans_among(
+        db, [i for i in dict.fromkeys(candidats) if i not in ids]
+    )
+
+    admin_action_log_repository.create(
+        db,
+        user_id=user_id,
+        action="participation.set_teammates",
+        entity_type="participation",
+        entity_id=participation_id,
+        payload={
+            "course_id": course_id,
+            "from_athlete_id": source_id,
+            "teammate_ids": ids,
+            "athletes_created": crees,
+            "athletes_purged": purges,
+        },
+    )
+    logger.info(
+        "Admin %s set teammates %s on participation %s", user_id, ids, participation_id
     )
     return participation
 

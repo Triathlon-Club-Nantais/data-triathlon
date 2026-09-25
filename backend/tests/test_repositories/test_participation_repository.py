@@ -1132,7 +1132,8 @@ def test_list_participations_charge_les_sources_en_un_seul_aller(db_session):
         # 1 requête principale (Participation + Athlete + Course joints) + 1
         # requête groupée `IN (...)` pour les sources de toutes les courses de
         # la page — jamais une par course distincte.
-        assert stats.count == 2
+        # +1 requête groupée pour les équipiers de relais (#894, `lazy="selectin"`).
+        assert stats.count == 3
     finally:
         sql_observability.reset_for_tests()
 
@@ -1162,7 +1163,8 @@ def test_list_for_athlete_charge_les_sources_en_un_seul_aller(db_session):
             for row in rows:
                 assert row.course.provider == "klikego"
                 assert row.course.source_url
-        assert stats.count == 2
+        # +1 requête groupée pour les équipiers de relais (#894, `lazy="selectin"`).
+        assert stats.count == 3
     finally:
         sql_observability.reset_for_tests()
 
@@ -1194,7 +1196,8 @@ def test_list_page_for_course_charge_la_source_en_un_seul_aller(db_session):
                 assert row.course.provider == "klikego"
                 assert row.course.source_url
         # count() + tranche paginée (Athlete + Course joints) + IN(...) sources.
-        assert stats.count == 3
+        # +1 requête groupée pour les équipiers de relais (#894, `lazy="selectin"`).
+        assert stats.count == 4
     finally:
         sql_observability.reset_for_tests()
 
@@ -1589,3 +1592,119 @@ def test_create_batch_cree_toutes_les_participations_et_leur_id_est_peuple(db_se
 
 def test_create_batch_liste_vide_ne_cree_rien(db_session):
     assert participation_repository.create_batch(db_session, []) == []
+
+
+def _relais(db_session, *, bib="7"):
+    course = course_repository.get_or_create(
+        db_session, name="Relais Z", event_date=date(2026, 6, 1), event_type="triathlon-s",
+        is_relay=True,
+    )
+    equipe = athlete_repository.get_or_create(db_session, nom="DUPONT Jean / MARTIN Paul", prenom="")
+    participation = participation_repository.create(
+        db_session, athlete_id=equipe.id, course_id=course.id, bib_number=bib,
+        is_relay=True, rank_overall=2,
+    )
+    jean = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    paul = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul")
+    db_session.flush()
+    return course, equipe, participation, jean, paul
+
+
+def test_teammates_listes_dans_l_ordre_d_insertion(db_session):
+    from app.models.participation import ParticipationTeammate
+
+    _, _, participation, jean, paul = _relais(db_session)
+    db_session.add_all([
+        ParticipationTeammate(participation_id=participation.id, athlete_id=paul.id, position=0),
+        ParticipationTeammate(participation_id=participation.id, athlete_id=jean.id, position=1),
+    ])
+    db_session.flush()
+    db_session.expire_all()
+
+    assert [a.id for a in participation.teammates] == [paul.id, jean.id]
+
+
+def test_un_athlete_ne_figure_qu_une_fois_par_resultat(db_session):
+    from sqlalchemy.exc import IntegrityError
+
+    from app.models.participation import ParticipationTeammate
+
+    _, _, participation, jean, _ = _relais(db_session)
+    db_session.add_all([
+        ParticipationTeammate(participation_id=participation.id, athlete_id=jean.id, position=0),
+        ParticipationTeammate(participation_id=participation.id, athlete_id=jean.id, position=1),
+    ])
+    with pytest.raises(IntegrityError):
+        db_session.flush()
+
+
+def test_supprimer_la_participation_supprime_sa_composition(db_session):
+    from app.models.participation import ParticipationTeammate
+
+    _, _, participation, jean, paul = _relais(db_session)
+    db_session.add_all([
+        ParticipationTeammate(participation_id=participation.id, athlete_id=jean.id, position=0),
+        ParticipationTeammate(participation_id=participation.id, athlete_id=paul.id, position=1),
+    ])
+    db_session.flush()
+
+    db_session.delete(participation)
+    db_session.flush()
+
+    assert db_session.query(ParticipationTeammate).count() == 0
+
+
+@pytest.mark.parametrize(
+    "purge",
+    [
+        pytest.param(lambda db, course: participation_repository.delete_for_course(db, course),
+                     id="participations-d-une-epreuve"),
+        pytest.param(lambda db, course: participation_repository.delete_all(db),
+                     id="toutes-les-participations"),
+        pytest.param(lambda db, course: course_repository.delete_all(db), id="toutes-les-epreuves"),
+    ],
+)
+def test_une_suppression_en_masse_emporte_les_compositions(db_session, purge):
+    """#894 — SQLite n'applique pas `ON DELETE CASCADE` (aucun PRAGMA) : sans
+    nettoyage explicite, une composition survivrait à son résultat, et un id
+    réutilisé en hériterait."""
+    from app.models.participation import ParticipationTeammate
+
+    course, _, participation, jean, paul = _relais(db_session)
+    participation_repository.replace_teammates(db_session, participation, [jean.id, paul.id])
+
+    purge(db_session, course)
+
+    assert db_session.query(ParticipationTeammate).count() == 0
+
+
+def test_replace_teammates_remplace_la_composition(db_session):
+    _, equipe, participation, jean, paul = _relais(db_session)
+    marie = athlete_repository.get_or_create(db_session, nom="DURAND", prenom="Marie")
+    participation_repository.replace_teammates(db_session, participation, [jean.id, paul.id])
+
+    participation_repository.replace_teammates(db_session, participation, [jean.id, marie.id])
+    db_session.expire_all()
+
+    assert participation_repository.teammate_athlete_ids(db_session, participation.id) == [
+        jean.id, marie.id,
+    ]
+
+
+def test_list_for_athlete_rend_un_resultat_ou_l_athlete_n_est_qu_equipier(db_session):
+    _, _, participation, jean, paul = _relais(db_session)
+    participation_repository.replace_teammates(db_session, participation, [jean.id, paul.id])
+
+    assert [p.id for p in participation_repository.list_for_athlete(db_session, paul.id)] == [
+        participation.id
+    ]
+    assert participation_repository.count_for_athlete(db_session, paul.id) == 1
+
+
+def test_exists_for_athlete_on_course_vrai_pour_un_equipier(db_session):
+    course, _, participation, jean, paul = _relais(db_session)
+    participation_repository.replace_teammates(db_session, participation, [jean.id, paul.id])
+
+    assert participation_repository.exists_for_athlete_on_course(
+        db_session, athlete_id=paul.id, course_id=course.id
+    )

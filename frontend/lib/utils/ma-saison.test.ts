@@ -9,6 +9,7 @@ function participation(over: {
   rank_category?: number | null;
   rank_gender?: number | null;
   is_pending_validation?: boolean;
+  is_relay?: boolean;
 }): Participation {
   return {
     course: { id: over.courseId },
@@ -16,10 +17,18 @@ function participation(over: {
     rank_category: over.rank_category ?? null,
     rank_gender: over.rank_gender ?? null,
     is_pending_validation: over.is_pending_validation ?? false,
+    is_relay: over.is_relay ?? false,
   } as unknown as Participation;
 }
 
 describe("compteMaSaison", () => {
+  // #894, FR-011 : un podium de relais n'est pas un podium individuel, mais
+  // l'épreuve courue compte.
+  it("ne compte pas un podium de relais, mais compte l'épreuve", () => {
+    const lignes = [participation({ courseId: 1, rank_overall: 2, is_relay: true })];
+    expect(compteMaSaison(lignes, "scratch")).toEqual({ epreuves: 1, podiums: 0 });
+  });
+
   // Un 0 est une donnée aberrante du chronométreur, pas une victoire —
   // `isPodium`/`bestRank` (club-aggregate.ts) l'exigent `>= 1`.
   it("n'est pas un podium au rang 0", () => {

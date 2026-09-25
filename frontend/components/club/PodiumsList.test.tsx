@@ -39,6 +39,26 @@ const PODIUMS: ClubPodiums = {
   ],
 };
 
+describe("PodiumsList — relais attribué (#894)", () => {
+  it("nomme les autres équipiers sous le porteur", () => {
+    searchParams = new URLSearchParams();
+    const relais = {
+      ...entry({ participation_id: 9, athlete_name: "Jean DUPONT", is_relay: true }),
+      teammate_names: ["Jean DUPONT", "Paul MARTIN"],
+    };
+    render(<PodiumsList podiums={{ ...EMPTY, scratch: [relais] }} />);
+
+    expect(screen.getByText("avec Paul MARTIN")).toBeInTheDocument();
+  });
+
+  it("ne dit rien d'un podium individuel", () => {
+    searchParams = new URLSearchParams();
+    render(<PodiumsList podiums={PODIUMS} />);
+
+    expect(screen.queryByText(/^avec /)).not.toBeInTheDocument();
+  });
+});
+
 describe("PodiumsList — filtrage selon ?rank= (#104, #132, #581)", () => {
   it("sans ?rank= (défaut scratch) : n'affiche que les badges « Général »", () => {
     searchParams = new URLSearchParams();

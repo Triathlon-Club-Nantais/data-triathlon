@@ -17,6 +17,8 @@ class ParticipationOut(BaseModel):
 
     id: int
     athlete: AthleteBrief
+    # Équipiers d'un relais attribué (#894), porteur compris ; vide sinon.
+    teammates: list[AthleteBrief] = []
     course: CourseBrief
     club: str | None = None
     category: str | None = None
