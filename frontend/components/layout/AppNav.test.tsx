@@ -593,6 +593,42 @@ describe("AppNav: unreadable session (#954)", () => {
     expect(screen.queryByRole("button", { name: "Se connecter" })).not.toBeInTheDocument();
   });
 
+  it("does not show « Se connecter » while the session is still pending", async () => {
+    getSession.mockReturnValue(new Promise(() => {}));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <AppNav />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => expect(getSession).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Se connecter" })).not.toBeInTheDocument();
+  });
+
+  it("keeps focus on the retry button while the new attempt runs", async () => {
+    getSession.mockRejectedValue(new ApiError(503, "indisponible"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <AppNav />
+      </QueryClientProvider>,
+    );
+    const reessayer = await screen.findByRole("button", { name: "Session indisponible, réessayer" });
+
+    getSession.mockReturnValue(new Promise(() => {}));
+    await userEvent.click(reessayer);
+
+    const enCours = await screen.findByRole("button", { name: "Nouvelle tentative…" });
+    expect(enCours).toBe(reessayer);
+    expect(enCours).not.toBeDisabled();
+    expect(enCours).toHaveAttribute("aria-disabled", "true");
+    expect(enCours).toHaveFocus();
+    const appels = getSession.mock.calls.length;
+    await userEvent.click(enCours);
+    expect(getSession).toHaveBeenCalledTimes(appels);
+  });
+
   it("still offers « Se connecter » on a 401", async () => {
     afficher(null);
 
@@ -1186,7 +1222,7 @@ describe("AppNav — infobulles du rail replié remplacent les title (#482, NAV-
   it("affiche une infobulle « Se connecter » au survol du bouton replié", async () => {
     afficher(null);
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    const bouton = within(rail).getByRole("button", { name: "Se connecter" });
+    const bouton = await within(rail).findByRole("button", { name: "Se connecter" });
 
     await userEvent.hover(bouton);
     expect(await screen.findByRole("tooltip", { name: "Se connecter" })).toBeInTheDocument();
@@ -1195,7 +1231,7 @@ describe("AppNav — infobulles du rail replié remplacent les title (#482, NAV-
   it("affiche la même infobulle au focus clavier, pas seulement au survol", async () => {
     afficher(null);
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    const bouton = within(rail).getByRole("button", { name: "Se connecter" });
+    const bouton = await within(rail).findByRole("button", { name: "Se connecter" });
 
     act(() => bouton.focus());
     expect(await screen.findByRole("tooltip", { name: "Se connecter" })).toBeInTheDocument();
@@ -1204,7 +1240,7 @@ describe("AppNav — infobulles du rail replié remplacent les title (#482, NAV-
   it("n'affiche plus aucune infobulle sur ce bouton une fois le rail déplié", async () => {
     afficher(null, { initialExpanded: true });
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    const bouton = within(rail).getByRole("button", { name: "Se connecter" });
+    const bouton = await within(rail).findByRole("button", { name: "Se connecter" });
 
     await userEvent.hover(bouton);
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();

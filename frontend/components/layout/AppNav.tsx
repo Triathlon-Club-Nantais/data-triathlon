@@ -40,7 +40,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // finirait en 401 (#953).
   const rechercheDisponible = pathname !== "/acces";
   const router = useRouter();
-  const { data: session, isError: sessionIllisible, isFetching: sessionEnCours, refetch: relireSession } = useSession();
+  const { data: session, errorUpdateCount: echecsSession, isFetching: sessionEnCours, refetch: relireSession } = useSession();
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Deux usages, deux modes (#952) : la recherche ne fait que naviguer ; seule
   // la désignation demandée par `OPEN_PICKER_EVENT` retient l'athlète.
@@ -270,7 +270,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
                 </div>
               )}
             </div>
-          ) : sessionIllisible && session === undefined ? (
+          ) : session === undefined && echecsSession > 0 ? (
             // Une session illisible n'est pas une session anonyme (#954).
             <Tooltip>
               <TooltipTrigger
@@ -278,9 +278,13 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
                 render={
                   <button
                     type="button"
-                    onClick={() => void relireSession()}
-                    disabled={sessionEnCours}
-                    aria-label="Session indisponible, réessayer"
+                    // `aria-disabled` plutôt que `disabled`, qui renverrait le
+                    // focus sur `body` pendant l'essai.
+                    onClick={() => {
+                      if (!sessionEnCours) void relireSession();
+                    }}
+                    aria-disabled={sessionEnCours || undefined}
+                    aria-label={sessionEnCours ? "Nouvelle tentative…" : "Session indisponible, réessayer"}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -304,10 +308,16 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
                 }
               >
                 <RotateCw size={18} style={{ flex: "none" }} />
-                {expanded && <span>Session indisponible</span>}
+                {expanded && <span>{sessionEnCours ? "Nouvelle tentative…" : "Session indisponible"}</span>}
               </TooltipTrigger>
-              {!expanded && <TooltipContent>Session indisponible, réessayer</TooltipContent>}
+              {!expanded && (
+                <TooltipContent>{sessionEnCours ? "Nouvelle tentative…" : "Session indisponible, réessayer"}</TooltipContent>
+              )}
             </Tooltip>
+          ) : session === undefined ? (
+            // Session encore en lecture : « Se connecter » y mentirait à un
+            // connecté pendant toute la durée des essais.
+            <div aria-hidden style={{ height: 44 }} />
           ) : (
             <Tooltip>
               <TooltipTrigger
