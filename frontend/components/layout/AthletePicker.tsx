@@ -294,6 +294,9 @@ export function AthletePicker({
                     borderRadius: 12,
                     cursor: "pointer",
                     background: i === actif ? "var(--tcn-fill)" : "transparent",
+                    // Le fond seul est à 1,11:1 : l'option active doit rester visible au clavier.
+                    outline: i === actif ? "2px solid var(--tcn-orange)" : undefined,
+                    outlineOffset: -2,
                   }}
                 >
                   <Avatar name={fullName} size={40} />
@@ -309,6 +312,11 @@ export function AthletePicker({
               );
             })}
           </div>
+        )}
+        {!loading && rows.length > PAGE_SIZE && (
+          <p style={{ margin: "8px 14px 0", fontSize: 13, color: "var(--tcn-text-muted)" }}>
+            {statut}
+          </p>
         )}
         {query.trim().length >= 2 && !loading && rows.length === 0 && (
           <EmptyState
