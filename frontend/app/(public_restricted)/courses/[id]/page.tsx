@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
 import { rendreNullSi404 } from "@/lib/api/null-si-404";
+import { idDeRoute } from "@/lib/utils/id-de-route";
 import { Card, Eyebrow, MetaPill } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { RaceFinishers } from "@/components/results/RaceFinishers";
@@ -114,12 +115,13 @@ export default async function CoursePage({
       : lienFiltre({ [CLUB_PARAM]: nom, [SCOPE_PARAM]: null });
   }
 
+  const courseId = idDeRoute(id);
   const [data, summary, sources] = await Promise.all([
     apiServer
-      .getCourse(Number(id), { page, page_size: pageSize, q, scope, club, category })
+      .getCourse(courseId, { page, page_size: pageSize, q, scope, club, category })
       .catch(rendreNullSi404),
-    apiServer.getCourseSummary(Number(id)).catch(rendreNullSi404),
-    apiServer.getCourseSources(Number(id)).catch(rendreNullSi404),
+    apiServer.getCourseSummary(courseId).catch(rendreNullSi404),
+    apiServer.getCourseSources(courseId).catch(rendreNullSi404),
   ]);
   if (!data || !summary) notFound();
   const { course, participations } = data;

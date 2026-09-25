@@ -265,6 +265,13 @@ describe("CoursePage", () => {
     await expect(afficher()).rejects.toThrow("Boum");
   });
 
+  it("rend 404 sur un identifiant non numérique, sans appeler l'API", async () => {
+    await expect(
+      CoursePage({ params: Promise.resolve({ id: "abc" }), searchParams: Promise.resolve({}) }),
+    ).rejects.toThrow("notFound");
+    expect(getCourse).not.toHaveBeenCalled();
+  });
+
   it("rend 404 sur une épreuve réellement absente", async () => {
     getCourse.mockRejectedValue(new ApiError(404, "Course introuvable"));
     await expect(afficher()).rejects.toThrow("notFound");
