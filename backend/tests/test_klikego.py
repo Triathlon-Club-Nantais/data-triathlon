@@ -2321,6 +2321,66 @@ def test_scrape_event_fanout_heat_failure_isolated(monkeypatch, caplog):
     assert any("triathlon-xs-relais" in rec.message for rec in caplog.records)
 
 
+def _fanout_dates(monkeypatch, live_index: str | None):
+    """Date passée à chaque heat du fan-out Mesquer, date d'événement 13/06/2026."""
+    from datetime import date as _date
+
+    event_html = load_klikego_fixture("mesquer-2026-event.html")
+
+    class FakeResp:
+        def __init__(self, text: str, code: int = 200):
+            self.text, self.status_code = text, code
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+        def get(self, url: str, *a, **k):
+            if "/external/live5/index.jsp" in url:
+                if live_index is None:
+                    return FakeResp("", 500)
+                return FakeResp(live_index)
+            return FakeResp(event_html)
+
+    dates: dict[str, object] = {}
+
+    def fake_heat(event_id, heat, heat_label, event_name, slug, event_date, client, **kwargs):
+        dates[heat] = event_date
+        return []
+
+    monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
+    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("", _date(2026, 6, 13)))
+    monkeypatch.setattr(klikego, "_scrape_single_heat", fake_heat)
+    klikego.scrape_event_fanout(
+        "1677015306084-12", "Mesquer", "triathlon-et-swimrun-mesquer-quimiac-2026",
+    )
+    return dates
+
+
+def test_scrape_event_fanout_uses_per_heat_dates_from_live_index(monkeypatch):
+    """#972 : un événement sur deux jours. La date propre à chaque heat vient
+    de `live5/index.jsp` (même page que Breizh Chrono), jointe par libellé ;
+    un heat absent de l'index garde la date d'événement."""
+    from datetime import date as _date
+
+    dates = _fanout_dates(monkeypatch, load_klikego_fixture("mesquer-2026-live-index.html"))
+
+    assert dates["swim-run-m-duo"] == _date(2026, 6, 13)
+    assert dates["swim-run-s-indiv"] == _date(2026, 6, 13)
+    assert dates["triathlon-s-indiv"] == _date(2026, 6, 14)
+    assert dates["triathlon-xs-relais"] == _date(2026, 6, 13)  # absent de l'index
+
+
+def test_scrape_event_fanout_falls_back_on_event_date_without_live_index(monkeypatch):
+    from datetime import date as _date
+
+    dates = _fanout_dates(monkeypatch, None)
+
+    assert set(dates.values()) == {_date(2026, 6, 13)}
+    assert len(dates) == 8
+
+
 def test_scrape_event_fanout_no_heats_returns_empty(monkeypatch):
     """Page sans <el-select> — retour ([], trace vide)."""
     html = load_klikego_fixture("no-select.html")
