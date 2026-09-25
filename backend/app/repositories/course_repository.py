@@ -174,6 +174,20 @@ def reclassify(db: Session, course: Course, event_type: str) -> Course:
     return course
 
 
+def redate(db: Session, course: Course, event_date: date) -> Course:
+    """Aligne la date de l'épreuve sur la date lue pour son heat (#972).
+
+    Même garde que `reclassify` : une identité déjà prise n'est pas écrasée.
+    """
+    if course.event_date == event_date:
+        return course
+    if get_by_identity(db, course.name, event_date, course.event_type, course.is_relay):
+        return course
+    course.event_date = event_date
+    db.flush()
+    return course
+
+
 def get_latest_by_source_url(db: Session, source_url: str) -> Course | None:
     """Course la plus récemment scrapée pour cette URL d'import (clé du cache TTL)."""
     return _by_active_source(db, CourseSource.url == source_url).first()

@@ -2241,3 +2241,73 @@ def test_rescrape_finds_a_composed_relay_whose_course_only_is_a_relay(db_session
     ]
     assert out["imported"] == 0
     assert athlete_repository.get_by_identity(db_session, "LES COPAINS", "", None) is None
+
+
+_HEAT_URL = "https://www.klikego.com/resultats/frenchman/1677015306084-12?heat=duo"
+
+
+def _import_heat(db_session, patch_scraper, *, streaming=False, **kw):
+    patch_scraper([_result("12", "DUPONT", source_url=_HEAT_URL, **kw)])
+    if streaming:
+        return list(import_service.iter_import_event(db_session, _HEAT_URL, _settings()))
+    return import_service.import_event(db_session, _HEAT_URL, _settings())
+
+
+def _imported_heat(db_session, patch_scraper, event_date):
+    _import_heat(db_session, patch_scraper, event_date=event_date)
+    course = course_repository.get_latest_by_source_url(db_session, _HEAT_URL)
+    db_session.commit()
+    _expire_cache(db_session, _HEAT_URL)
+    return course
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+def test_rescrape_redates_a_reconciled_course_from_its_per_heat_date(
+    db_session, patch_scraper, streaming
+):
+    # #972 : la date par heat de `live5/index.jsp` corrige une épreuve importée
+    # à la date d'événement, que la règle R retrouve sans jamais la redater.
+    course = _imported_heat(db_session, patch_scraper, date(2026, 5, 13))
+
+    _import_heat(
+        db_session, patch_scraper, streaming=streaming,
+        event_date=date(2026, 5, 15), heat_dated=True,
+    )
+
+    assert course_repository.get_latest_by_source_url(db_session, _HEAT_URL).id == course.id
+    assert course.event_date == date(2026, 5, 15)
+
+
+def test_redated_course_is_still_reclassified_in_the_same_rescrape(db_session, patch_scraper):
+    course = _imported_heat(db_session, patch_scraper, date(2026, 5, 13))
+
+    _import_heat(
+        db_session, patch_scraper,
+        event_date=date(2026, 5, 15), heat_dated=True, event_type="triathlon-s",
+    )
+
+    assert course.event_type == "triathlon-s"
+
+
+def test_rescrape_without_per_heat_date_keeps_the_course_date(db_session, patch_scraper):
+    # `--single-heat` et un heat absent de l'index retombent sur la date
+    # d'événement : elle ne fait pas foi, elle ne réécrit rien.
+    course = _imported_heat(db_session, patch_scraper, date(2026, 5, 15))
+
+    _import_heat(db_session, patch_scraper, event_date=date(2026, 5, 13))
+
+    assert course.event_date == date(2026, 5, 15)
+
+
+def test_redate_skips_a_date_whose_identity_is_already_taken(db_session, patch_scraper):
+    course = _imported_heat(db_session, patch_scraper, date(2026, 5, 13))
+    course_repository.get_or_create(
+        db_session, name=course.name, event_date=date(2026, 5, 15),
+        event_type=course.event_type, source_url="https://www.klikego.com/autre",
+        provider="klikego", is_relay=course.is_relay,
+    )
+    db_session.commit()
+
+    _import_heat(db_session, patch_scraper, event_date=date(2026, 5, 15), heat_dated=True)
+
+    assert course.event_date == date(2026, 5, 13)

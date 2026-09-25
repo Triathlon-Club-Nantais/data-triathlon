@@ -23,6 +23,9 @@ class ScrapedResult:
     bib_number: str = ""
     event_name: str = ""
     event_date: date | None = None
+    # `event_date` lue pour ce heat précis (index live Klikego, #972), et non
+    # la date d'événement en repli : elle seule redate une épreuve rapprochée.
+    heat_dated: bool = False
     event_type: str = ""
     rank_overall: int | None = None
     rank_category: int | None = None

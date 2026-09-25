@@ -593,11 +593,15 @@ def scrape_event_fanout(
                 ) -> None:
                     on_detail_progress(_slug, _label, _index, total_a_scraper, done, total)
             try:
-                heat_date = dates_by_heat.get(norm_heat_label(heat_label), event_date)
-                all_results.extend(_scrape_single_heat(
-                    event_id, heat_slug, heat_label, event_name, slug, heat_date, client,
+                heat_date = dates_by_heat.get(norm_heat_label(heat_label))
+                heat_results = _scrape_single_heat(
+                    event_id, heat_slug, heat_label, event_name, slug,
+                    heat_date or event_date, client,
                     on_detail_progress=detail_progress,
-                ))
+                )
+                for scraped in heat_results:
+                    scraped.heat_dated = heat_date is not None
+                all_results.extend(heat_results)
             except Exception as exc:
                 logger.warning("Heat %s de %s en échec : %s", heat_slug, event_id, exc)
                 trace.failures.append({"heat_slug": heat_slug, "reason": str(exc)})
