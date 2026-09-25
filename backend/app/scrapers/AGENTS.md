@@ -63,6 +63,10 @@ constantes `STATUS_*`) ; `utils.py` = helpers de normalisation (dont
   `_gender_from_category` local : celui de chronoweb lit le préfixe d'abord
   (`MSE`) et donnerait `M` à `MIF`, les unifier reste à faire avec #936.
 - Les temps restent des **strings** (`"01:23:45"`), normalisés via `utils.py`.
+  `normalize_time` rend telle quelle une forme qu'il ne lit pas : le filet est
+  à l'import, où `mapping.total_time` refuse un total qui n'est pas une durée
+  (« Abandon », `-00:00:06`), qui ne classe donc pas la ligne finisher (#969).
+  Un statut hors du temps se lit par `derive_status_from_label` **avant**.
   Splits adaptés au sport : dans `splits` (JSON) + `raw_data` (JSON).
 - **Un relais aux équipiers nommés se découpe à l'import, jamais dans un
   scraper** (#895) : `import_service` recolle `nom + prénom` et le passe à

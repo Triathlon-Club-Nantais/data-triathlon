@@ -807,6 +807,24 @@ def test_reimport_explicit_non_finisher_clears_rank_and_time(db_session, patch_s
         assert part.splits
 
 
+def test_rescrape_clears_an_unreadable_total_stored_by_an_older_import(db_session, patch_scraper):
+    """#969: a label stored as a finisher's total (`Abandon`) is not a value that
+    "empty does not overwrite" should protect."""
+    patch_scraper([_result("1", "DUPONT", total_time="01:59:00")])
+    import_service.import_event(db_session, URL, _settings())
+    part = participation_repository.list_participations(db_session, page_size=100)[0]
+    part.total_time = "Abandon"
+    db_session.commit()
+    _expire_cache(db_session)
+
+    patch_scraper([_result("1", "DUPONT", total_time="")])
+    import_service.import_event(db_session, URL, _settings(), force=True)
+
+    part = participation_repository.list_participations(db_session, page_size=100)[0]
+    assert part.total_time is None
+    assert part.status == "DNF"
+
+
 def test_reimport_ajoute_un_nouveau_dossard_et_met_a_jour_l_ancien(db_session, patch_scraper):
     """Mélange : dossard connu corrigé (updated) + dossard neuf (imported)."""
     patch_scraper([_result("1", "DUPONT", total_time="01:59:00")])

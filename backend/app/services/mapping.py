@@ -158,12 +158,26 @@ def parse_duration(value: str | None) -> int | None:
     return int(match["hours"] or 0) * 3600 + minutes * 60 + seconds
 
 
+def total_time(scraped: ScrapedResult) -> str | None:
+    """Temps total stockable : une durée lisible, sinon `None` (#969).
+
+    Un libellé (« Abandon ») ou un format que `normalize_time` n'a pas su lire
+    n'est pas un temps d'arrivée : le stocker en ferait un finisher.
+    """
+    if not scraped.total_time:
+        return None
+    if parse_duration(scraped.total_time) is None:
+        logger.info("Temps total écarté (%s) : %r", scraped.provider, scraped.total_time)
+        return None
+    return scraped.total_time
+
+
 def derive_status(scraped: ScrapedResult) -> str:
     """Statut sportif. Respecte le statut explicite du scraper s'il existe,
-    sinon retombe sur l'heuristique (finisher si temps total, sinon DNF)."""
+    sinon retombe sur l'heuristique (finisher si temps total lisible, sinon DNF)."""
     if scraped.status:
         return scraped.status
-    return STATUS_FINISHER if scraped.total_time else STATUS_DNF
+    return STATUS_FINISHER if parse_duration(scraped.total_time) is not None else STATUS_DNF
 
 
 @dataclass(frozen=True)
@@ -285,7 +299,7 @@ def participation_fields(
         "rank_overall": scraped.rank_overall,
         "rank_category": scraped.rank_category,
         "rank_gender": scraped.rank_gender,
-        "total_time": scraped.total_time or None,
+        "total_time": total_time(scraped),
         "status": derive_status(scraped),
         "splits": build_splits(scraped) or None,
         "raw_data": scraped.raw_data or None,

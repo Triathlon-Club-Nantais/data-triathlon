@@ -79,6 +79,8 @@ def normalize_time(raw: str) -> str:
       "39:11"      → "00:39:11"
       "1h23'45\""  → "01:23:45"
       "1h23m45s"   → "01:23:45"
+      "00:12'15\"000"         → "00:12:15"
+      "00:06:41 (00:06:45)"   → "00:06:41"
       ""           → ""
     """
     if not raw:
@@ -89,6 +91,16 @@ def normalize_time(raw: str) -> str:
     m = re.match(r"(\d+)[hH](\d+)[m'\u2019](\d+)", s)
     if m:
         return f"{int(m.group(1)):02d}:{int(m.group(2)):02d}:{int(m.group(3)):02d}"
+
+    # Klikego `00:12'15"000` : millièmes tronqués (#969).
+    m = re.match(r"^(\d{1,2}):(\d{2})'(\d{2})(?:\"|'')\d*$", s)
+    if m:
+        return f"{int(m.group(1)):02d}:{int(m.group(2)):02d}:{int(m.group(3)):02d}"
+
+    # Sport Innovation `officiel (réel)` : l'officiel seul (#969).
+    m = re.match(r"^(\d{1,2}:\d{2}:\d{2})\s*\(\d{1,2}:\d{2}:\d{2}\)$", s)
+    if m:
+        s = m.group(1)
 
     # Pattern: HH:MM:SS or H:MM:SS
     m = re.match(r"^(\d{1,2}):(\d{2}):(\d{2})$", s)
