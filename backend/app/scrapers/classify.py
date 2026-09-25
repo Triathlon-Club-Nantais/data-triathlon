@@ -57,7 +57,12 @@ def _detect_size(t: str) -> str:
         # « triathlon-s », « format-s », « triathlon s », « Relais S-Entreprises »
         # matchent ; le « s » final de « relais » ou celui de « xs » non (précédé
         # d'une lettre). XS reste testé après S grâce à l'ordre de _detect_size.
-        return re.search(rf"(?<![a-z0-9]){tag}(?![a-z0-9])", t) is not None
+        # L'apostrophe n'est pas un délimiteur : le « l » élidé de « de l'Erdre »
+        # n'est pas une taille (#902).
+        return re.search(rf"(?<![a-z0-9'’]){tag}(?![a-z0-9'’])", t) is not None
+
+    # Élision sous forme de slug (« triathlon-de-l-erdre »).
+    t = re.sub(r"(?<![a-z0-9])de[- ]l[- ]", "de ", t)
 
     # Un format half explicite prime sur le jeton de marque « ironman », qui
     # vaut sinon XL : « IRONMAN 70.3 Vichy » est un half, pas un format long
@@ -66,7 +71,7 @@ def _detect_size(t: str) -> str:
         return "l"
     if "xxl" in t or "ironman" in t or "embrunman" in t or seg("xl"):
         return "xl"
-    if "longue" in t or seg("l"):
+    if re.search(r"\blongue\b", t) or seg("l"):
         return "l"
     if "olymp" in t or seg("m"):
         return "m"

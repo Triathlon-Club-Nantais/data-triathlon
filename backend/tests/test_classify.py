@@ -130,6 +130,28 @@ def test_classify_contexte(epreuve, evenement, expected):
     assert classify_event_type(epreuve, contexte=evenement) == expected
 
 
+# --- Élision « l' » et toponymes « Longue… » ne valent pas taille L (#902) ---
+@pytest.mark.parametrize("epreuve,contexte,expected", [
+    ("Triathlon Sprint de l'île de Ré", "", "triathlon-s"),
+    ("Duathlon de l'Erdre - Format S", "", "duathlon-s"),
+    ("Triathlon de l’Erdre M", "", "triathlon-m"),
+    ("Triathlon Olympique de l'Aber", "", "triathlon-m"),
+    ("Triathlon de l'Erdre", "", "triathlon"),
+    ("Triathlon Longueville XS", "", "triathlon-xs"),
+    ("Triathlon de Longuenesse", "", "triathlon"),
+    ("Individuel", "triathlon-de-l-erdre", "triathlon"),
+    ("Triathlon L de Mimizan", "", "triathlon-l"),
+    ("Triathlon Longue Distance", "", "triathlon-l"),
+    ("Format L", "", "triathlon-l"),
+])
+def test_classify_elision_et_longue(epreuve, contexte, expected):
+    assert classify_event_type(epreuve, contexte=contexte) == expected
+
+
+def test_normalize_elision_ne_vaut_pas_taille_l():
+    assert normalize_event_type("Triathlon de l'Erdre") == "triathlon"
+
+
 def test_classify_contexte_absent_ne_change_rien():
     """Le paramètre est optionnel : sans lui, le classement d'hier est intact."""
     assert classify_event_type("Format M individuel") == "triathlon-m"
