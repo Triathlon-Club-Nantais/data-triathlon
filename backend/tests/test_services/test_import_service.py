@@ -1696,9 +1696,13 @@ def test_deux_reconciliations_du_meme_scrape_vers_la_meme_identite_neuve_disting
 # épreuve, `rescrape-db`, import web SSE) : le couvrir ici couvre les trois.
 
 
-def _relais_attribue(db_session, patch_scraper, bib, nom, prenom=""):
-    patch_scraper([_result(bib, nom, prenom, is_relay=True, event_type="triathlon-s")])
-    import_service.import_event(db_session, URL, _settings())
+def _relais_attribue(db_session, patch_scraper, monkeypatch, bib, nom, prenom=""):
+    # Importé sans découpage (avant #895), puis composé à la main : c'est la
+    # composition posée par un administrateur que le rescrape doit garder.
+    _import_before_895(
+        db_session, patch_scraper, monkeypatch,
+        [_result(bib, nom, prenom, is_relay=True, event_type="triathlon-s")],
+    )
     course = course_repository.get_latest_by_source_url(db_session, URL)
     (ligne,) = participation_repository.list_for_course(db_session, course.id)
     jean = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
@@ -1721,9 +1725,9 @@ def _composition_intacte(db_session, course, ligne, jean, paul):
 
 
 @pytest.mark.parametrize("bib", ["7", ""], ids=["avec-dossard", "sans-dossard"])
-def test_rescrape_garde_la_composition_d_un_relais_attribue(db_session, patch_scraper, bib):
+def test_rescrape_garde_la_composition_d_un_relais_attribue(db_session, patch_scraper, monkeypatch, bib):
     course, ligne, jean, paul = _relais_attribue(
-        db_session, patch_scraper, bib, "DUPONT Jean / MARTIN Paul"
+        db_session, patch_scraper, monkeypatch, bib, "DUPONT Jean / MARTIN Paul"
     )
 
     patch_scraper([
@@ -1746,9 +1750,9 @@ def test_rescrape_garde_la_composition_d_un_relais_attribue(db_session, patch_sc
     ],
 )
 def test_rescrape_sans_dossard_apparie_par_le_nom_d_equipe(
-    db_session, patch_scraper, nom, prenom, nom_rescrape, prenom_rescrape
+    db_session, patch_scraper, monkeypatch, nom, prenom, nom_rescrape, prenom_rescrape
 ):
-    course, ligne, jean, paul = _relais_attribue(db_session, patch_scraper, "", nom, prenom)
+    course, ligne, jean, paul = _relais_attribue(db_session, patch_scraper, monkeypatch, "", nom, prenom)
 
     patch_scraper([
         _result("", nom_rescrape, prenom_rescrape, is_relay=True, event_type="triathlon-s")
@@ -1758,11 +1762,13 @@ def test_rescrape_sans_dossard_apparie_par_le_nom_d_equipe(
     _composition_intacte(db_session, course, ligne, jean, paul)
 
 
-def test_rescrape_avec_dossard_ne_reconcilie_pas_un_relais_attribue(db_session, patch_scraper):
+def test_rescrape_avec_dossard_ne_reconcilie_pas_un_relais_attribue(
+    db_session, patch_scraper, monkeypatch
+):
     # Nom d'équipe découpé en nom + prénom (timepulse) : `_reconcile_blocked`,
     # qui ne protège que d'un prénom vidé, laisserait passer la réconciliation.
     course, ligne, jean, paul = _relais_attribue(
-        db_session, patch_scraper, "7", "DUPONT JEAN / MARTIN", "PAUL"
+        db_session, patch_scraper, monkeypatch, "7", "DUPONT JEAN / MARTIN", "PAUL"
     )
 
     patch_scraper([
@@ -1774,9 +1780,11 @@ def test_rescrape_avec_dossard_ne_reconcilie_pas_un_relais_attribue(db_session, 
     assert athlete_repository.get_by_identity(db_session, "DUPONT JEAN / MARTIN", "PAUL", None) is None
 
 
-def test_rescrape_met_a_jour_les_valeurs_d_un_relais_attribue(db_session, patch_scraper):
+def test_rescrape_met_a_jour_les_valeurs_d_un_relais_attribue(
+    db_session, patch_scraper, monkeypatch
+):
     course, ligne, jean, paul = _relais_attribue(
-        db_session, patch_scraper, "7", "DUPONT Jean / MARTIN Paul"
+        db_session, patch_scraper, monkeypatch, "7", "DUPONT Jean / MARTIN Paul"
     )
 
     patch_scraper([
@@ -1788,3 +1796,346 @@ def test_rescrape_met_a_jour_les_valeurs_d_un_relais_attribue(db_session, patch_
     import_service.import_event(db_session, URL, _settings())
 
     assert participation_repository.get(db_session, ligne.id).total_time == "01:45:00"
+
+
+# ── Relais nommés découpés à l'import (#895) ──────────────────────────────────
+
+
+def _relay(bib, nom, prenom, **kw) -> ScrapedResult:
+    return _result(bib, nom, prenom, is_relay=True, event_type="triathlon-s", **kw)
+
+
+def _only_relay_row(db_session, url=URL):
+    course = course_repository.get_latest_by_source_url(db_session, url)
+    (row,) = participation_repository.list_for_course(db_session, course.id)
+    return row
+
+
+def _names(athletes):
+    return [(athlete.nom, athlete.prenom) for athlete in athletes]
+
+
+def test_import_splits_parallel_lists_relay(db_session, patch_scraper):
+    patch_scraper([_relay("7", "CANNIOU/OLIVIER", "Cedric/Leclerc")])
+
+    out = import_service.import_event(db_session, URL, _settings())
+
+    row = _only_relay_row(db_session)
+    assert _names(row.teammates) == [("CANNIOU", "Cedric"), ("OLIVIER", "Leclerc")]
+    assert row.athlete_id == row.teammates[0].id
+    assert row.team_name == "CANNIOU/OLIVIER Cedric/Leclerc"
+    assert athlete_repository.get_by_identity(
+        db_session, "CANNIOU/OLIVIER", "Cedric/Leclerc", None
+    ) is None
+    assert out["imported"] == 1
+
+
+def test_import_split_reuses_existing_athlete_without_touching_clubs(db_session, patch_scraper):
+    existing = athlete_repository.get_or_create(
+        db_session, nom="MASSONNEAU", prenom="Pierre", club="TRI CLUB"
+    )
+    db_session.commit()
+    patch_scraper([_relay("", "MASSONNEAU PIERRE", "/ BESANCON FABIEN .", club="TEAM TCC")])
+
+    import_service.import_event(db_session, URL, _settings())
+
+    row = _only_relay_row(db_session)
+    first, second = row.teammates
+    assert first.id == existing.id
+    assert first.club == "TRI CLUB"
+    assert (second.nom, second.prenom, second.gender, second.club) == (
+        "BESANCON", "FABIEN", "", None
+    )
+    assert row.club == "TEAM TCC"
+    assert athlete_repository.get_by_identity(
+        db_session, "MASSONNEAU PIERRE", "/ BESANCON FABIEN .", None
+    ) is None
+
+
+@pytest.mark.parametrize("tranche", [500, 1], ids=["un-lot", "tranche-unitaire"])
+def test_import_splits_several_relays_in_one_batch(db_session, patch_scraper, monkeypatch, tranche):
+    monkeypatch.setattr(import_service, "_TRANCHE_SIZE", tranche)
+    patch_scraper([
+        _relay("7", "CANNIOU/OLIVIER", "Cedric/Leclerc"),
+        _relay("", "MASSONNEAU PIERRE", "/ BESANCON FABIEN ."),
+        _result("12", "DURAND", "Luc", event_name="Course individuelle"),
+    ])
+
+    import_service.import_event(db_session, URL, _settings())
+
+    relay_course = course_repository.get_by_identity(
+        db_session, "Triathlon de Nantes", date(2026, 5, 16), "triathlon-s", True
+    )
+    rows = participation_repository.list_for_course(db_session, relay_course.id)
+    assert sorted(_names(row.teammates) for row in rows) == [
+        [("CANNIOU", "Cedric"), ("OLIVIER", "Leclerc")],
+        [("MASSONNEAU", "PIERRE"), ("BESANCON", "FABIEN")],
+    ]
+    solo = athlete_repository.get_by_identity(db_session, "DURAND", "Luc", None)
+    (solo_row,) = solo.participations
+    assert solo_row.teammates == [] and solo_row.team_name is None
+
+
+def test_import_keeps_group_names_as_team_athletes(db_session, patch_scraper):
+    patch_scraper([
+        _relay("1", "TEAM GV", "."),
+        _relay("2", "LES BARBAPAPAS", "Alex et Margot"),
+        _relay("3", "LE BRAS LUC", "/ LE PAGE GUULLAUME ."),
+    ])
+
+    import_service.import_event(db_session, URL, _settings())
+
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    rows = participation_repository.list_for_course(db_session, course.id)
+    assert sorted((row.athlete.nom, row.athlete.prenom) for row in rows) == [
+        ("LE BRAS LUC", "/ LE PAGE GUULLAUME ."), ("LES BARBAPAPAS", "Alex et Margot"),
+        ("TEAM GV", "."),
+    ]
+    assert all(row.teammates == [] and row.team_name is None for row in rows)
+
+    group = next(row for row in rows if row.athlete.nom == "TEAM GV")
+    jean = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    paul = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul")
+    admin = user_repository.create(db_session, email="admin@exemple.fr")
+    db_session.flush()
+    admin_actions.set_teammates(
+        db_session, participation_id=group.id, teammates=[jean.id, paul.id], user_id=admin.id
+    )
+    assert _names(group.teammates) == [("DUPONT", "Jean"), ("MARTIN", "Paul")]
+
+
+def test_import_does_not_split_when_a_teammate_already_races_on_the_course(
+    db_session, patch_scraper
+):
+    patch_scraper([_relay("1", "DUPONT", "Jean")])
+    import_service.import_event(db_session, URL, _settings())
+    _expire_cache(db_session)
+
+    patch_scraper([_relay("1", "DUPONT", "Jean"), _relay("2", "DUPONT Jean / MARTIN Paul", "")])
+    out = import_service.import_event(db_session, URL, _settings())
+
+    assert out["imported"] == 1
+    team = athlete_repository.get_by_identity(db_session, "DUPONT Jean / MARTIN Paul", "", None)
+    (row,) = team.participations
+    assert row.teammates == []
+    assert athlete_repository.get_by_identity(db_session, "MARTIN", "Paul", None) is None
+
+
+def test_import_does_not_split_two_lines_sharing_a_new_teammate(db_session, patch_scraper):
+    patch_scraper([
+        _relay("1", "DUPONT Jean / MARTIN Paul", ""),
+        _relay("2", "DURAND Luc / MARTIN Paul", ""),
+    ])
+
+    import_service.import_event(db_session, URL, _settings())
+
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    rows = {
+        row.bib_number: row
+        for row in participation_repository.list_for_course(db_session, course.id)
+    }
+    assert _names(rows["1"].teammates) == [("DUPONT", "Jean"), ("MARTIN", "Paul")]
+    assert rows["2"].teammates == []
+    assert (rows["2"].athlete.nom, rows["2"].athlete.prenom) == ("DURAND Luc / MARTIN Paul", "")
+
+
+def test_import_never_splits_outside_relays(db_session, patch_scraper, monkeypatch):
+    def forbidden(_published):
+        raise AssertionError("split_relay_teammates appelée hors relais")
+
+    monkeypatch.setattr(import_service, "split_relay_teammates", forbidden)
+    patch_scraper([
+        _result("1", "CHAIGNEAU BENJAMIN", "/ LENOIR-LEDOUX CHRISTELLE ."),
+        _result("2", "LES PATATALO", "Gaelle et Laure"),
+        _result("3", "DUBOIS-HERRY", "Anne-Sophie"),
+    ])
+
+    import_service.import_event(db_session, URL, _settings())
+
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    rows = participation_repository.list_for_course(db_session, course.id)
+    assert sorted((row.athlete.nom, row.athlete.prenom) for row in rows) == [
+        ("CHAIGNEAU BENJAMIN", "/ LENOIR-LEDOUX CHRISTELLE ."),
+        ("DUBOIS-HERRY", "Anne-Sophie"),
+        ("LES PATATALO", "Gaelle et Laure"),
+    ]
+    assert all(row.teammates == [] and row.team_name is None for row in rows)
+
+
+def test_import_keeps_hyphenated_teammate_names(db_session, patch_scraper):
+    patch_scraper([_relay("7", "PINSON/ROCHEFORT-CUNIN", "Eric/Emmanuel")])
+
+    import_service.import_event(db_session, URL, _settings())
+
+    assert _names(_only_relay_row(db_session).teammates) == [
+        ("PINSON", "Eric"), ("ROCHEFORT-CUNIN", "Emmanuel"),
+    ]
+
+
+def _import_before_895(db_session, patch_scraper, monkeypatch, results):
+    """État d'une épreuve importée avant #895 : relais portés par leur fiche d'équipe."""
+    with monkeypatch.context() as patch:
+        patch.setattr(import_service, "split_relay_teammates", lambda _published: None)
+        patch_scraper(results)
+        import_service.import_event(db_session, URL, _settings())
+    db_session.commit()
+    _expire_cache(db_session)
+
+
+@pytest.mark.parametrize("bib", ["7", ""], ids=["avec-dossard", "sans-dossard"])
+def test_rescrape_splits_a_relay_imported_before_895(db_session, patch_scraper, monkeypatch, bib):
+    line = _relay(bib, "MASSONNEAU PIERRE", "/ BESANCON FABIEN .")
+    _import_before_895(db_session, patch_scraper, monkeypatch, [line])
+    before = _only_relay_row(db_session)
+    team_id = before.athlete_id
+
+    patch_scraper([line])
+    out = import_service.import_event(db_session, URL, _settings())
+
+    row = _only_relay_row(db_session)
+    assert row.id == before.id
+    assert _names(row.teammates) == [("MASSONNEAU", "PIERRE"), ("BESANCON", "FABIEN")]
+    assert row.athlete_id == row.teammates[0].id
+    assert row.team_name == "MASSONNEAU PIERRE / BESANCON FABIEN ."
+    assert athlete_repository.get(db_session, team_id) is None
+    assert (out["imported"], out["updated"]) == (0, 1)
+
+
+def test_rescrape_keeps_a_team_athlete_that_still_has_other_results(
+    db_session, patch_scraper, monkeypatch
+):
+    line = _relay("7", "MASSONNEAU PIERRE", "/ BESANCON FABIEN .")
+    _import_before_895(db_session, patch_scraper, monkeypatch, [line])
+    team_id = _only_relay_row(db_session).athlete_id
+    other = course_repository.get_or_create(
+        db_session, name="Autre relais", event_date=date(2026, 6, 1), event_type="triathlon-s"
+    )
+    participation_repository.create(
+        db_session, athlete_id=team_id, course_id=other.id, bib_number="3", is_relay=True
+    )
+    db_session.commit()
+
+    patch_scraper([line])
+    import_service.import_event(db_session, URL, _settings())
+
+    team = athlete_repository.get(db_session, team_id)
+    assert [p.course_id for p in team.participations] == [other.id]
+
+
+def test_rescrape_of_split_relays_is_idempotent(db_session, patch_scraper):
+    from app.models.athlete import Athlete
+
+    lines = [
+        _relay("7", "CANNIOU/OLIVIER", "Cedric/Leclerc"),
+        _relay("", "MASSONNEAU PIERRE", "/ BESANCON FABIEN ."),
+    ]
+    patch_scraper(lines)
+    import_service.import_event(db_session, URL, _settings())
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+
+    def snapshot():
+        rows = participation_repository.list_for_course(db_session, course.id)
+        return sorted((row.id, row.athlete_id, tuple(a.id for a in row.teammates)) for row in rows)
+
+    first = snapshot()
+    athletes = db_session.query(Athlete).count()
+    for _ in range(2):
+        _expire_cache(db_session)
+        patch_scraper(lines)
+        out = import_service.import_event(db_session, URL, _settings())
+        assert out["imported"] == 0
+        assert snapshot() == first
+        assert db_session.query(Athlete).count() == athletes
+
+
+def test_rescrape_keeps_a_composition_set_by_an_admin(db_session, patch_scraper):
+    line = _relay("7", "DUPONT Jean / MARTIN Paul", "")
+    patch_scraper([line])
+    import_service.import_event(db_session, URL, _settings())
+    row = _only_relay_row(db_session)
+    jean, paul = row.teammates
+    luc = athlete_repository.get_or_create(db_session, nom="DURAND", prenom="Luc")
+    admin = user_repository.create(db_session, email="admin@exemple.fr")
+    db_session.flush()
+    admin_actions.set_teammates(
+        db_session, participation_id=row.id, teammates=[paul.id, jean.id, luc.id],
+        user_id=admin.id,
+    )
+    db_session.commit()
+    _expire_cache(db_session)
+
+    patch_scraper([line])
+    import_service.import_event(db_session, URL, _settings())
+
+    assert [a.id for a in _only_relay_row(db_session).teammates] == [paul.id, jean.id, luc.id]
+
+
+# ── Retours de revue (#895) ───────────────────────────────────────────────────
+
+
+def _relay_rows(db_session):
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    return participation_repository.list_for_course(db_session, course.id)
+
+
+def test_rescrape_does_not_duplicate_a_team_with_several_bibless_rows(
+    db_session, patch_scraper, monkeypatch
+):
+    lines = [
+        _relay("", "DUPONT Jean / MARTIN Paul", "", total_time="01:00:00"),
+        _relay("", "DUPONT Jean / MARTIN Paul", "", total_time="01:10:00"),
+    ]
+    _import_before_895(db_session, patch_scraper, monkeypatch, lines)
+
+    patch_scraper(lines)
+    out = import_service.import_event(db_session, URL, _settings())
+
+    assert len(_relay_rows(db_session)) == 2
+    assert out["imported"] == 0
+
+
+def test_split_fallback_keeps_the_reconcile_guard(db_session, patch_scraper, monkeypatch):
+    # #66 : une correction qui viderait le prénom ne réconcilie jamais, même quand
+    # le découpage retombe sur le chemin d'avant #895 (MARTIN PAUL déjà présent).
+    _import_before_895(db_session, patch_scraper, monkeypatch, [
+        _relay("7", "DUPONT JEAN", "/ MARTIN PAUL"), _relay("8", "MARTIN", "PAUL"),
+    ])
+
+    patch_scraper([_relay("7", "DUPONT JEAN / MARTIN PAUL", ""), _relay("8", "MARTIN", "PAUL")])
+    out = import_service.import_event(db_session, URL, _settings())
+
+    assert out["reconciled"] == 0
+    assert athlete_repository.get_by_identity(
+        db_session, "DUPONT JEAN / MARTIN PAUL", "", None
+    ) is None
+
+
+def test_guard_holds_when_the_individual_line_comes_in_a_later_tranche(
+    db_session, patch_scraper, monkeypatch
+):
+    monkeypatch.setattr(import_service, "_TRANCHE_SIZE", 1)
+    patch_scraper([_relay("1", "DUPONT Jean / MARTIN Paul", ""), _relay("2", "DUPONT", "Jean")])
+
+    import_service.import_event(db_session, URL, _settings())
+
+    jean = athlete_repository.get_by_identity(db_session, "DUPONT", "Jean", None)
+    rows = _relay_rows(db_session)
+    assert [row.bib_number for row in rows if jean.id in {row.athlete_id, *(a.id for a in row.teammates)}] == ["2"]
+
+
+def test_resplit_purges_the_team_athlete_even_without_field_change(
+    db_session, patch_scraper, monkeypatch
+):
+    line = _relay("7", "DUPONT Jean / MARTIN Paul", "")
+    _import_before_895(db_session, patch_scraper, monkeypatch, [line])
+    (row,) = _relay_rows(db_session)
+    # `reassign_participation` vide une composition mais garde `team_name`.
+    row.team_name = "DUPONT Jean / MARTIN Paul"
+    team_id = row.athlete_id
+    db_session.commit()
+
+    patch_scraper([line])
+    import_service.import_event(db_session, URL, _settings())
+    db_session.expire_all()
+
+    assert athlete_repository.get(db_session, team_id) is None

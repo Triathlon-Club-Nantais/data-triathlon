@@ -1594,6 +1594,27 @@ def test_create_batch_liste_vide_ne_cree_rien(db_session):
     assert participation_repository.create_batch(db_session, []) == []
 
 
+def test_create_batch_attaches_teammates_in_order(db_session):
+    jean, course = _setup(db_session)
+    paul = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul")
+    solo = athlete_repository.get_or_create(db_session, nom="DURAND", prenom="Luc")
+
+    relay, individual = participation_repository.create_batch(
+        db_session,
+        [
+            {"athlete_id": jean.id, "course_id": course.id, "bib_number": "1",
+             "teammate_ids": [jean.id, paul.id]},
+            {"athlete_id": solo.id, "course_id": course.id, "bib_number": "2"},
+        ],
+    )
+    db_session.expire_all()
+
+    assert [a.id for a in participation_repository.get(db_session, relay.id).teammates] == [
+        jean.id, paul.id,
+    ]
+    assert participation_repository.get(db_session, individual.id).teammates == []
+
+
 def _relais(db_session, *, bib="7"):
     course = course_repository.get_or_create(
         db_session, name="Relais Z", event_date=date(2026, 6, 1), event_type="triathlon-s",

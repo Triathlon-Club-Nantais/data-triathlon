@@ -13,7 +13,7 @@ import threading
 import time
 from collections import Counter
 from collections.abc import Iterator
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from urllib.parse import urlparse
 
@@ -41,7 +41,7 @@ from app.scrapers.base import (
     FanoutTrace,
     ScrapedResult,
 )
-from app.scrapers.utils import to_seconds
+from app.scrapers.utils import split_relay_teammates, to_seconds
 from app.services import cache, mapping, quality
 
 logger = logging.getLogger(__name__)
@@ -500,10 +500,29 @@ def _identity_key(scraped: ScrapedResult) -> tuple[str, str]:
     """Clé d'identité normalisée d'une ligne scrapée — même formule que
     `athlete_repository.get_by_identities_batch`, côté nom/prénom stockés
     (déjà `.strip()`-és en base), pour que les deux se retrouvent."""
-    return (
-        (scraped.athlete_name or "").strip().lower(),
-        (scraped.athlete_firstname or "").strip().lower(),
-    )
+    return _pair_key((scraped.athlete_name, scraped.athlete_firstname))
+
+
+def _pair_key(pair: tuple[str | None, str | None]) -> tuple[str, str]:
+    nom, prenom = pair
+    return ((nom or "").strip().lower(), (prenom or "").strip().lower())
+
+
+def _published_name(scraped: ScrapedResult) -> str:
+    """Nom publié d'une ligne, reconstitué depuis la coupe nom/prénom du scraper.
+
+    Même formule que le nom d'équipe posé par `set_teammates` (#894) : la clé
+    d'appariement sans dossard (`_team_key`) reste stable d'un scrape à l'autre.
+    """
+    return " ".join(filter(None, [scraped.athlete_name, scraped.athlete_firstname]))
+
+
+def _proposed_teammates(scraped: ScrapedResult) -> tuple[tuple[str, str], ...] | None:
+    """Équipiers nommés d'une ligne de relais (#895) ; jamais hors relais (#63)."""
+    if not scraped.is_relay:
+        return None
+    teammates = split_relay_teammates(_published_name(scraped))
+    return tuple(teammates) if teammates else None
 
 
 @dataclass(frozen=True)
@@ -520,6 +539,8 @@ class _PendingResolution:
     scraped: ScrapedResult
     bib: str | None
     participation: Participation | None
+    teammates: tuple[tuple[str, str], ...] | None = None
+    reconcile_blocked: bool = False
 
 
 class _Persister:
@@ -545,6 +566,15 @@ class _Persister:
         self._duplicate_bibs: Counter[int] = Counter()
         self._without_bib: dict[int, dict[int, list[Participation]]] = {}
         self._teams_without_bib: dict[int, dict[str, Participation]] = {}
+        # Garde des relais découpés (#895, FR-010) : un coureur ne figure qu'une
+        # fois par course. Les ids couvrent la base, les clés d'identité les
+        # équipiers de ce scrape, qui n'ont pas encore d'id quand on décide.
+        self._present_ids: dict[int, set[int]] = {}
+        self._reserved_keys: dict[int, set[tuple[str, str]]] = {}
+        # Lignes à découper, résolues après toutes les autres lignes de la course
+        # (`finalize`) : la garde voit ainsi chaque coureur de la course, quelle
+        # que soit la tranche où il apparaît.
+        self._pending_splits: dict[int, list[_PendingResolution]] = {}
         self._credits: dict[int, dict[int, int]] = {}
         self._updated_single: dict[int, set[int]] = {}
         self._courses: dict[int, Course] = {}
@@ -613,6 +643,10 @@ class _Persister:
             for row in rows
             if not row.bib_number and row.teammate_links and row.team_name
         }
+        self._present_ids[course_id] = {row.athlete_id for row in rows} | {
+            link.athlete_id for row in rows for link in row.teammate_links
+        }
+        self._reserved_keys[course_id] = set()
         self._added_bibs[course_id] = set()
         self._without_bib[course_id] = without
         self._credits[course_id] = {aid: len(rs) for aid, rs in without.items()}
@@ -693,6 +727,16 @@ class _Persister:
                     # est celle de l'équipe, jamais résolue ni réconciliée.
                     self._upsert(existing, scraped)
                     return
+                teammates = _proposed_teammates(scraped)
+                if teammates is not None:
+                    # Relais importé avant #895 : découpé au lieu d'être réconcilié.
+                    # La garde #66 suit la ligne, pour le cas où le découpage
+                    # serait refusé à la résolution (FR-010).
+                    self._enqueue(
+                        course.id, scraped, bib=bib, participation=existing, teammates=teammates,
+                        reconcile_blocked=self._reconcile_blocked(scraped, existing),
+                    )
+                    return
                 # Deux axes indépendants sur une ligne appariée : l'identité
                 # (`athlete_id`, #66) puis les valeurs (#68). La réconciliation
                 # ne touche jamais aux valeurs, `_upsert` jamais à `athlete_id` —
@@ -715,24 +759,35 @@ class _Persister:
             added.add(bib)
         elif scraped.is_relay:
             equipe = self._teams_without_bib[course.id].pop(
-                _team_key(" ".join(filter(None, [scraped.athlete_name, scraped.athlete_firstname]))),
-                None,
+                _team_key(_published_name(scraped)), None,
             )
             if equipe is not None:
                 self._upsert(equipe, scraped)
                 return
 
-        self._enqueue(course.id, scraped, bib=bib, participation=None)
+        self._enqueue(
+            course.id, scraped, bib=bib, participation=None,
+            teammates=_proposed_teammates(scraped),
+        )
 
     def _enqueue(
         self, course_id: int, scraped: ScrapedResult, *, bib: str | None,
         participation: Participation | None,
+        teammates: tuple[tuple[str, str], ...] | None = None,
+        reconcile_blocked: bool = False,
     ) -> None:
         """Met une ligne en attente de résolution d'athlète (#706) au lieu de
         la résoudre immédiatement. Déclenche le lot dès que la tranche est
         pleine — le reliquat de chaque course se résout à `finalize()`."""
+        item = _PendingResolution(
+            scraped=scraped, bib=bib, participation=participation, teammates=teammates,
+            reconcile_blocked=reconcile_blocked,
+        )
+        if teammates is not None:
+            self._pending_splits.setdefault(course_id, []).append(item)
+            return
         pending = self._pending.setdefault(course_id, [])
-        pending.append(_PendingResolution(scraped=scraped, bib=bib, participation=participation))
+        pending.append(item)
         if len(pending) >= _TRANCHE_SIZE:
             self._resolve_pending(course_id)
 
@@ -751,18 +806,34 @@ class _Persister:
             return
 
         pairs = [(item.scraped.athlete_name, item.scraped.athlete_firstname) for item in pending]
+        pairs += [pair for item in pending for pair in item.teammates or ()]
         found: dict[tuple[str, str], Athlete] = athlete_repository.get_by_identities_batch(
             self.db, pairs
         )
+        decisions = self._split_decisions(course_id, pending, found)
 
         to_create: dict[tuple[str, str], dict] = {}
         creation_order: list[tuple[str, str]] = []
-        for item in pending:
-            key = _identity_key(item.scraped)
-            if key in found or key in to_create:
+        for item, teammates in zip(pending, decisions, strict=True):
+            if teammates is None and item.reconcile_blocked:
                 continue
-            to_create[key] = mapping.athlete_creation_fields(item.scraped)
-            creation_order.append(key)
+            if teammates is None:
+                candidates = [
+                    (_identity_key(item.scraped), mapping.athlete_creation_fields(item.scraped))
+                ]
+            else:
+                # Un équipier ne reçoit ni le club ni le genre de l'équipe (#895) ;
+                # la fiche au nom de l'équipe n'est jamais créée.
+                candidates = [
+                    (_pair_key(pair), {"nom": pair[0], "prenom": pair[1], "gender": "",
+                                       "birth_date": None, "club": None})
+                    for pair in teammates
+                ]
+            for key, fields in candidates:
+                if key in found or key in to_create:
+                    continue
+                to_create[key] = fields
+                creation_order.append(key)
         if creation_order:
             created_athletes = athlete_repository.create_batch(
                 self.db, [to_create[key] for key in creation_order]
@@ -773,10 +844,23 @@ class _Persister:
         creation_consumed: set[tuple[str, str]] = set()
         new_participation_fields: list[dict] = []
         new_participation_items: list[_PendingResolution] = []
+        team_athletes: list[int] = []
 
-        for item in pending:
+        for item, teammates in zip(pending, decisions, strict=True):
+            if teammates is not None:
+                self._apply_split(
+                    course_id, item, [found[_pair_key(pair)] for pair in teammates],
+                    team=found.get(_identity_key(item.scraped)),
+                    new_fields=new_participation_fields, new_items=new_participation_items,
+                    team_athletes=team_athletes,
+                )
+                continue
+            if item.reconcile_blocked:
+                self._upsert(item.participation, item.scraped)
+                continue
             key = _identity_key(item.scraped)
             athlete = found[key]
+            self._present_ids[course_id].add(athlete.id)
             club = item.scraped.club or None
             if club and athlete.club != club and not athlete.club_locked:
                 # Même synchronisation que la branche « existant » de
@@ -828,6 +912,90 @@ class _Persister:
                 if item.bib is not None:
                     self._by_bib[course_id][item.bib] = participation
                 self.imported += 1
+        if team_athletes:
+            # `autoflush` est coupé : sans ce flush, la purge lirait encore
+            # l'ancien porteur d'un résultat repris sans autre changement.
+            self.db.flush()
+            athlete_repository.delete_orphans_among(self.db, team_athletes)
+
+    def _split_decisions(
+        self, course_id: int, pending: list[_PendingResolution],
+        found: dict[tuple[str, str], Athlete],
+    ) -> list[tuple[tuple[str, str], ...] | None]:
+        """Équipiers retenus par ligne, `None` si la ligne n'est pas découpée (#895).
+
+        FR-010 : un équipier déjà présent sur la course (en base, ou réservé par
+        une ligne de ce scrape, découpée ou non) laisse la ligne entière, qui suit
+        alors le chemin d'avant #895.
+        """
+        present_ids = self._present_ids[course_id]
+        reserved = self._reserved_keys[course_id]
+        reserved.update(_identity_key(item.scraped) for item in pending if item.teammates is None)
+        claimed_teams: set[int] = set()
+        decisions = []
+        for item in pending:
+            teammates = item.teammates
+            if teammates is not None:
+                keys = [_pair_key(pair) for pair in teammates]
+                ids = {found[key].id for key in keys if key in found}
+                if (
+                    reserved.intersection(keys) or present_ids & ids
+                    or not self._bibless_team_claimable(course_id, item, found, claimed_teams)
+                ):
+                    teammates = None
+                    reserved.add(_identity_key(item.scraped))
+                else:
+                    reserved.update(keys)
+                    present_ids.update(ids)
+            decisions.append(teammates)
+        return decisions
+
+    def _bibless_team_claimable(
+        self, course_id: int, item: _PendingResolution,
+        found: dict[tuple[str, str], Athlete], claimed_teams: set[int],
+    ) -> bool:
+        """Faux si la fiche d'équipe d'une ligne sans dossard a des lignes sur la
+        course sans qu'une seule puisse être reprise : découper créerait un
+        résultat en double, là où le chemin d'avant #895 les compte (crédits).
+        """
+        if item.bib is not None or item.participation is not None:
+            return True
+        team = found.get(_identity_key(item.scraped))
+        rows = self._without_bib[course_id].get(team.id, []) if team is not None else []
+        if not rows:
+            return True
+        if len(rows) != 1 or team.id in self._updated_single[course_id] or team.id in claimed_teams:
+            return False
+        claimed_teams.add(team.id)
+        return True
+
+    def _apply_split(
+        self, course_id: int, item: _PendingResolution, teammates: list[Athlete], *,
+        team: Athlete | None, new_fields: list[dict], new_items: list[_PendingResolution],
+        team_athletes: list[int],
+    ) -> None:
+        """Rattache une ligne de relais découpée à ses équipiers (#895).
+
+        Un résultat existant sans composition (importé avant #895, par dossard ou
+        par sa fiche d'équipe) est repris sur place et sa fiche d'équipe devient
+        candidate à la purge ; sinon la participation est créée composée.
+        """
+        scraped = replace(item.scraped, team_name=_published_name(item.scraped))
+        ids = [athlete.id for athlete in teammates]
+        self._present_ids[course_id].update(ids)
+        existing = item.participation
+        if existing is None and item.bib is None and team is not None:
+            existing = self._match_without_bib(course_id, team.id)
+        if existing is None:
+            fields = mapping.participation_fields(scraped, athlete_id=ids[0], course_id=course_id)
+            fields["teammate_ids"] = ids
+            new_fields.append(fields)
+            new_items.append(item)
+            return
+        team_athletes.append(existing.athlete_id)
+        participation_repository.replace_teammates(self.db, existing, ids)
+        existing.athlete = teammates[0]
+        self._upsert(existing, scraped)
 
     def _reconcile_blocked(self, scraped: ScrapedResult, participation: Participation) -> bool:
         """Vrai si la réconciliation de cette ligne doit être refusée sans
@@ -882,6 +1050,9 @@ class _Persister:
         # Reliquat de chaque course : ce qui n'a pas atteint une pleine
         # tranche pendant `add` se résout ici (#706).
         for course_id in list(self._pending.keys()):
+            self._resolve_pending(course_id)
+        for course_id, splits in self._pending_splits.items():
+            self._pending[course_id] = splits
             self._resolve_pending(course_id)
         for course_id, course in self._courses.items():
             course_repository.touch_scraped_at(self.db, course)

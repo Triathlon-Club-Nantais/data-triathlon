@@ -942,3 +942,30 @@ def test_chronoweb_provider_forwards_cache_probe(monkeypatch):
     assert {r.source_url for r in results} == {
         f"{EVENT_URL}&race=1147", f"{EVENT_URL}&race=1149",
     }
+
+
+def test_relay_group_names_are_not_split_at_import(db_session):
+    """#895 : `CREUSOTRI` et `FRATERIES POZZEBON/SKLADZIEN` (noms sans prénoms)
+    restent des fiches d'équipe à leur nom publié."""
+    from app.repositories import athlete_repository
+    from app.services import import_service
+
+    soup = chronoweb._soup(AQUATHLON_RELAIS)
+    meta = chronoweb._parse_event_meta(soup)
+    resultats = [
+        result
+        for race in chronoweb._parse_races(soup, meta)
+        for result in _results(AQUATHLON_RELAIS, race.race_id, meta)
+    ]
+    assert resultats and all(result.is_relay for result in resultats)
+
+    import_service.persist_results(db_session, EVENT_URL, resultats)
+
+    equipes = [
+        athlete_repository.get_by_identity(
+            db_session, result.athlete_name, result.athlete_firstname, None
+        )
+        for result in resultats
+    ]
+    assert {equipe.nom for equipe in equipes} == {"CREUSOTRI", "FRATERIES POZZEBON/SKLADZIEN"}
+    assert all(p.teammates == [] for equipe in equipes for p in equipe.participations)

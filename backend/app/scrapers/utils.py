@@ -5,6 +5,8 @@ import re
 import unicodedata
 from datetime import date as date_t
 
+from app.core.text import deaccent
+
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
 
 #: En-têtes par défaut de toute sortie HTTP d'un scraper. Onze modules en
@@ -179,6 +181,72 @@ def split_athlete_name(full: str) -> tuple[str, str]:
             i -= 1
         return " ".join(parts[i:]), " ".join(parts[:i])
     return parts[-1], " ".join(parts[:-1])
+
+
+MIN_RELAY_TEAMMATES = 2
+MAX_RELAY_TEAMMATES = 8
+
+
+def split_relay_teammates(published: str) -> list[tuple[str, str]] | None:
+    """`(nom, prénom)` of each named teammate of a relay line, in published order.
+
+    All or nothing: `None` as soon as one teammate lacks an unambiguous name and
+    first name. Rule and measured examples: `specs/20260925-130402-relay-name-split/
+    contracts/relay-teammates-rule.md`. Callers only pass relay lines (#63).
+    """
+    # Le « . » isolé est un artefact klikego, jamais un nom.
+    tokens = [token for token in published.split() if token.strip(".")]
+    value = " ".join(tokens)
+    if "/" not in value:
+        return None
+    names, firstnames = split_athlete_name(value)
+    if "/" in names and "/" in firstnames:
+        name_items = [item.strip() for item in names.split("/")]
+        firstname_items = [item.strip() for item in firstnames.split("/")]
+        if len(name_items) != len(firstname_items) or any(
+            _joins_names(item.split()) for item in firstname_items
+        ):
+            return None
+        teammates = list(zip(name_items, firstname_items, strict=True))
+    else:
+        teammates = [_relay_segment(segment) for segment in value.split("/")]
+        if None in teammates:
+            return None
+    if not MIN_RELAY_TEAMMATES <= len(teammates) <= MAX_RELAY_TEAMMATES:
+        return None
+    if not all(_has_two_letters(part) for teammate in teammates for part in teammate):
+        return None
+    keys = {tuple(" ".join(deaccent(part).lower().split()) for part in t) for t in teammates}
+    if len(keys) != len(teammates):
+        return None
+    return teammates
+
+
+def _relay_segment(segment: str) -> tuple[str, str] | None:
+    tokens = segment.split()
+    if _joins_names(tokens):
+        return None
+    upper = [token.isupper() for token in tokens]
+    if all(upper):
+        # Tout en majuscules : lu « NOM PRÉNOM » (klikego, oktime, chronoplace) ;
+        # au-delà de deux mots, la frontière entre nom et prénom est indécidable.
+        return (tokens[0], tokens[1]) if len(tokens) == 2 else None
+    if not any(upper):
+        return None
+    # Casse mixte : un seul bloc majuscule, en tête ou en queue, porte le nom.
+    boundary = upper.index(not upper[0])
+    if any(flag == upper[0] for flag in upper[boundary:]):
+        return None
+    head, tail = " ".join(tokens[:boundary]), " ".join(tokens[boundary:])
+    return (head, tail) if upper[0] else (tail, head)
+
+
+def _joins_names(tokens: list[str]) -> bool:
+    return any(token in {"&", "+"} or token.lower() == "et" for token in tokens)
+
+
+def _has_two_letters(part: str) -> bool:
+    return sum(char.isalpha() for char in part) >= 2
 
 
 # Jetons de statut bruts (FR/EN) → constante STATUS_*. Comparés sur le label
