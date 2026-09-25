@@ -12,6 +12,9 @@ from app.core.validation import validated_clause
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation, ParticipationTeammate
+from app.models.season_validation import SeasonValidation
+from app.models.user import User
+from app.models.volunteer_action import VolunteerAction
 from app.scrapers.base import STATUS_FINISHER
 
 
@@ -266,11 +269,27 @@ def credits():
     return union_all(sans_equipiers, equipiers).subquery("credits")
 
 
+def referenced_outside_results(athlete_id):
+    """Vrai si la fiche `athlete_id` est référencée hors des résultats (#901).
+
+    Bénévolats, validations de saison et comptes liés pointent vers
+    `athletes.id` sans `ondelete` : une telle fiche n'est pas orpheline, même
+    sans participation, et la supprimer lèverait une `ForeignKeyViolation` en
+    PostgreSQL (invisible en SQLite, où les FK sont inertes).
+    """
+    return or_(
+        exists().where(VolunteerAction.athlete_id == athlete_id),
+        exists().where(SeasonValidation.athlete_id == athlete_id),
+        exists().where(User.athlete_id == athlete_id),
+    )
+
+
 def only_on_course(db: Session, course_id: int) -> list[int]:
     """Les athlètes dont **toutes** les participations sont sur cette épreuve (#117).
 
     Autrement dit : ceux que sa suppression laisserait sans aucun résultat, et
-    que la purge de FR-022 emportera. Un coureur présent aussi ailleurs n'est pas
+    que la purge de FR-022 emportera (une fiche référencée ailleurs, cf.
+    `referenced_outside_results`, n'en est donc pas). Un coureur présent aussi ailleurs n'est pas
     de la liste — « inscrit à cette épreuve » et « n'a que cette épreuve » sont
     deux ensembles différents, et c'est le second que la modale annonce.
 
@@ -286,6 +305,7 @@ def only_on_course(db: Session, course_id: int) -> list[int]:
         db.query(lien.c.athlete_id)
         .join(Participation, Participation.id == lien.c.participation_id)
         .filter(Participation.course_id == course_id)
+        .filter(~referenced_outside_results(lien.c.athlete_id))
     )
     ailleurs = (
         db.query(lien.c.athlete_id)
@@ -298,9 +318,9 @@ def only_on_course(db: Session, course_id: int) -> list[int]:
 def delete_orphans_among(db: Session, athlete_ids: list[int] | None = None) -> list[int]:
     """Supprime les athlètes sans participation, **parmi** `athlete_ids`. Rend les ids supprimés.
 
-    `Participation.athlete_id` est la seule FK vers `Athlete` **jamais peuplée**
-    (`users.athlete_id` existe mais rien dans `app/` ne l'écrit) : un athlète
-    sans participation n'est plus référencé nulle part.
+    Une fiche encore référencée hors des résultats (bénévolat, validation de
+    saison, compte lié : `referenced_outside_results`) est **conservée** (#901) :
+    elle n'est pas orpheline, et sa suppression violerait une FK en PostgreSQL.
 
     **`None` et `[]` ne veulent pas dire la même chose**, et la nuance porte tout
     l'intérêt de la fonction : `None` ne restreint rien (le balayage complet
@@ -318,6 +338,7 @@ def delete_orphans_among(db: Session, athlete_ids: list[int] | None = None) -> l
         .outerjoin(Participation, Participation.athlete_id == Athlete.id)
         .filter(Participation.id.is_(None))
         .filter(~exists().where(ParticipationTeammate.athlete_id == Athlete.id))
+        .filter(~referenced_outside_results(Athlete.id))
     )
     if athlete_ids is not None:
         requete = requete.filter(Athlete.id.in_(athlete_ids))

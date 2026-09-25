@@ -7,6 +7,15 @@
   course d'il y a trois ans annonçant le club de l'époque ramènerait la
   correction à chaque réimport. Le club **de l'époque** d'un résultat, lui, vit
   sur `Participation.club` et ne bouge jamais.
+  **Trois tables pointent vers `athletes.id` hors des résultats**, toutes
+  sans `ondelete` : `volunteer_actions`, `season_validations` et
+  `users.athlete_id` (la liaison des équipiers mise à part, ci-dessous). Une
+  fiche sans résultat mais référencée par l'une d'elles n'est **pas
+  orpheline** : la purge (`delete_orphans_among`, via
+  `referenced_outside_results`) la conserve (#901), sans quoi PostgreSQL lève
+  une `ForeignKeyViolation` que SQLite, FK inertes, ne montre pas. Les tests
+  qui l'éprouvent passent par la fixture `db_session_fk`
+  (`PRAGMA foreign_keys=ON`).
 - **Course** — `UNIQUE(name, event_date, event_type, is_relay)`
   (`uq_course_identity`) : le relais est un **heat distinct** du solo, sans quoi
   les deux fusionnaient dans la même ligne. Quatre colonnes, pas trois — la
