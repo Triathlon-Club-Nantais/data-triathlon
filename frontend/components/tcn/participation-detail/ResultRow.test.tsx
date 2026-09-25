@@ -127,6 +127,13 @@ describe("ResultRow", () => {
     expect(t1.textContent).toContain("00:02:55");
   });
 
+  it("renders transition times in a text colour that meets AA contrast (#931)", () => {
+    const { container } = renderRow();
+
+    const valeur = container.querySelector('[data-segment="t1"] [data-time]') as HTMLElement;
+    expect(valeur.style.color).toBe("var(--tcn-text-muted)");
+  });
+
   it("rend un tiret pour un split absent, jamais un zéro", () => {
     const { container } = renderRow({
       row: participation({ splits: { swim: "00:22:52", bike: "01:01:07" } }),
