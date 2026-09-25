@@ -372,7 +372,7 @@ describe("AppNav — prénom de l'athlète retenu (#264)", () => {
 
     const modale = await screen.findByRole("dialog");
     await userEvent.type(within(modale).getByPlaceholderText("Rechercher un nom…"), "dupont");
-    await userEvent.click(await screen.findByRole("option", { name: "Choisir Jean Gael Dupont" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Choisir Jean Gael Dupont, TCN, 1 épreuve" }));
 
     expect(readAthlete()).toEqual({ id: 12, prenom: "Jean Gael", nom: "Dupont" });
     expect(push).toHaveBeenCalledWith("/athletes/12");
@@ -399,7 +399,7 @@ describe("AppNav — ne plus suivre l'athlète retenu (#442)", () => {
 
   it("dit « ne plus choisir », le verbe déjà arbitré ailleurs (revue UI/UX)", async () => {
     // `SelectAthleteButton` rend « Ne plus choisir cet athlète » et
-    // `AthletePicker` « Choisir <nom> » — vocabulaire harmonisé après la revue
+    // `AthletePicker` « Choisir <nom>, <club>, <épreuves> » — vocabulaire harmonisé après la revue
     // de #323. « Suivre » y ajoutait un troisième verbe pour le même geste, et
     // promettait un abonnement qui n'existe pas.
     window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
