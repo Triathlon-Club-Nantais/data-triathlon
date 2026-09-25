@@ -363,6 +363,23 @@ describe("AthletePicker — ARIA combobox and listbox (#996)", () => {
     ).toBeInTheDocument();
   });
 
+  it("names each option after navigation in search mode, where a pick chooses nothing (#952)", async () => {
+    searchAthletes.mockResolvedValue([
+      { id: 1, nom: "Dupont", prenom: "Jean", gender: "", club: "TCN", participation_count: 3 },
+    ]);
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<AthletePicker mode="search" onClose={vi.fn()} onPick={vi.fn()} />);
+    await user.type(screen.getByRole("combobox"), "dupont");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+
+    expect(
+      await screen.findByRole("option", { name: "Ouvrir la fiche de Jean Dupont, TCN, 3 épreuves" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /^Choisir/ })).not.toBeInTheDocument();
+  });
+
   it("renders no listbox and no aria-controls without results", () => {
     render(<AthletePicker mode="select" onClose={vi.fn()} onPick={vi.fn()} />);
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();

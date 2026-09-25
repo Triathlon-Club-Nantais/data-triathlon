@@ -385,11 +385,35 @@ describe("AppNav — prénom de l'athlète retenu (#264)", () => {
 describe("AppNav: searching is not choosing (#952)", () => {
   const COEQUIPIER = { id: 30, prenom: "Paul", nom: "Martin", gender: "M", club: "TCN", participation_count: 2 };
 
-  async function choisirDansLaPalette() {
+  async function choisirDansLaPalette(verbe = "Ouvrir la fiche de") {
     const modale = await screen.findByRole("dialog");
     await userEvent.type(within(modale).getByPlaceholderText("Rechercher un nom…"), "martin");
-    await userEvent.click(await screen.findByRole("option", { name: "Choisir Paul Martin, TCN, 2 épreuves" }));
+    await userEvent.click(await screen.findByRole("option", { name: `${verbe} Paul Martin, TCN, 2 épreuves` }));
   }
+
+  it("keeps the select mode when Ctrl+K is pressed on an open select palette", async () => {
+    afficher(null);
+    act(() => {
+      window.dispatchEvent(new Event("tcn-athlete-open-picker"));
+    });
+    expect(await screen.findByRole("dialog", { name: "Sélectionnez votre nom" })).toBeInTheDocument();
+
+    await userEvent.keyboard("{Control>}k{/Control}");
+
+    expect(screen.getByRole("dialog", { name: "Sélectionnez votre nom" })).toBeInTheDocument();
+  });
+
+  it("keeps the search mode when OPEN_PICKER_EVENT fires on an open search palette", async () => {
+    afficher(null);
+    await userEvent.keyboard("{Control>}k{/Control}");
+    expect(await screen.findByRole("dialog", { name: "Rechercher un athlète" })).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new Event("tcn-athlete-open-picker"));
+    });
+
+    expect(screen.getByRole("dialog", { name: "Rechercher un athlète" })).toBeInTheDocument();
+  });
 
   it("navigates without touching the remembered athlete when opened with Ctrl+K", async () => {
     window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
@@ -432,7 +456,7 @@ describe("AppNav: searching is not choosing (#952)", () => {
     });
 
     expect(await screen.findByRole("dialog", { name: "Sélectionnez votre nom" })).toBeInTheDocument();
-    await choisirDansLaPalette();
+    await choisirDansLaPalette("Choisir");
 
     expect(readAthlete()).toEqual({ id: 30, prenom: "Paul", nom: "Martin" });
   });
