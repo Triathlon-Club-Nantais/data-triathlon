@@ -216,56 +216,42 @@ def _derive_late_splits(result: ScrapedResult, ra: dict[str, str]) -> None:
         result.run_time = fmt_seconds(total - bike_pt)
 
 
-def _compute_ranks(
-    xml: str, bib: str, parcours: str, gender: str, category: str
-) -> tuple[int | None, int | None, int | None]:
-    """
-    Compute (rank_overall, rank_gender, rank_category) within the athlete's
-    parcours by sorting all R entries by total time.
-    """
-    root = parse_xml(xml)
+def _compute_ranks(root) -> dict[tuple[str, str], tuple[int, int, int]]:
+    """Rank every timed finisher once: `{(parcours, bib): (overall, gender, category)}`.
 
-    # Gather bibs for the same parcours, and E attrs indexed by bib for
-    # gender/category filtering
-    parcours_bibs: set[str] = set()
+    Each parcours is sorted by total time; gender and category counters are
+    bumped per athlete, so one pass yields every rank (#944).
+    """
     e_by_bib: dict[str, dict] = {}
+    parcours_by_bib: dict[str, set[str]] = {}
     for e in root.iter("E"):
-        e_by_bib[e.get("d", "")] = e.attrib
-        if e.get("p", "") == parcours:
-            parcours_bibs.add(e.get("d", ""))
+        b = e.get("d", "")
+        e_by_bib[b] = e.attrib
+        parcours_by_bib.setdefault(b, set()).add(e.get("p", ""))
 
-    # Gather R entries for same parcours, keyed by bib with time in seconds
-    results: list[tuple[int, str]] = []  # (secs, bib)
+    timed: dict[str, list[tuple[int, str]]] = {}
     for r in root.iter("R"):
         b = r.get("d", "")
-        if b in parcours_bibs:
-            t = normalize_time(r.get("t", ""))
-            s = to_seconds(t)
-            if s:
-                results.append((s, b))
+        s = to_seconds(normalize_time(r.get("t", "")))
+        if not s:
+            continue
+        for p in parcours_by_bib.get(b, ()):
+            timed.setdefault(p, []).append((s, b))
 
-    results.sort(key=lambda x: x[0])
-
-    rank_overall = rank_gender = rank_category = None
-
-    overall_pos = gender_pos = category_pos = 0
-    for _s, b in results:
-        e = e_by_bib.get(b, {})
-        overall_pos += 1
-        if e.get("x", "") == gender:
-            gender_pos += 1
-        # Category rank: count same-gender + same-category (categories are gender-specific
-        # in French triathlon, e.g. V1H vs V1F; counting across genders would inflate the rank)
-        if e.get("ca", "") == category and e.get("x", "") == gender:
-            category_pos += 1
-
-        if b == bib:
-            rank_overall = overall_pos
-            rank_gender = gender_pos
-            rank_category = category_pos
-            break
-
-    return rank_overall, rank_gender, rank_category
+    ranks: dict[tuple[str, str], tuple[int, int, int]] = {}
+    for p, entries in timed.items():
+        entries.sort(key=lambda x: x[0])
+        gender_pos: dict[str, int] = {}
+        category_pos: dict[tuple[str, str], int] = {}
+        for overall_pos, (_s, b) in enumerate(entries, start=1):
+            e = e_by_bib.get(b, {})
+            gender = e.get("x", "")
+            # Categories are gendered (V1H vs V1F): count within the same gender.
+            category = (gender, e.get("ca", ""))
+            gender_pos[gender] = gender_pos.get(gender, 0) + 1
+            category_pos[category] = category_pos.get(category, 0) + 1
+            ranks.setdefault((p, b), (overall_pos, gender_pos[gender], category_pos[category]))
+    return ranks
 
 
 def _parse_event_date(date_str: str) -> date_t | None:
@@ -352,6 +338,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
 
     # Résultats <R> indexés par dossard, pour un lookup direct par athlète.
     r_by_bib = {r.get("d", ""): r.attrib for r in root.iter("R")}
+    ranks = _compute_ranks(root)
 
     results: list[ScrapedResult] = []
 
@@ -434,7 +421,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 # d'un rang_overall par ailleurs valide tout participant dont
                 # l'un des deux est vide côté source (#787, cas réel : 28/178
                 # finishers Bignon Trail 12 km sans `category`).
-                ro, rg, rc = _compute_ranks(xml, bib, parcours, result.gender, result.category)
+                ro, rg, rc = ranks.get((parcours, bib), (None, None, None))
                 result.rank_overall = ro
                 result.rank_gender = rg if result.gender else None
                 # rank_category filtre aussi par gender dans _compute_ranks
