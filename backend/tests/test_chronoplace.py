@@ -22,6 +22,7 @@ def _fixture(name: str) -> str:
 EPREUVE_494 = _fixture("chronoplace_epreuve_494.html")   # triathlon S, splits
 EPREUVE_566 = _fixture("chronoplace_epreuve_566.html")   # swimrun, catégories relais
 EPREUVE_493 = _fixture("chronoplace_epreuve_493.html")   # 24h VTT, isTeam
+EPREUVE_551 = _fixture("chronoplace_epreuve_551.html")   # isTeam, nom vide, équipe en « Club »
 RECHERCHE_2025 = _fixture("chronoplace_recherche_2025.html")  # annuaire, porteur des dates
 
 
@@ -634,16 +635,49 @@ def test_epreuve_results_relais_detecte_par_la_categorie():
     assert resultats[0].event_type == "swimrun"
 
 
-def test_epreuve_results_nom_dequipe_limite_connue():
-    """`split_athlete_name` coupe un nom d'équipe au premier jeton non capitalisé.
+def test_epreuve_results_team_name_kept_whole():
+    """#992 : un nom d'équipe n'est jamais découpé en nom et prénom, comme chez
+    Sporthive et Chronoweb. Le binôme « A / B » reste entier pour #895."""
+    individuel, relais = _resultats(EPREUVE_566, "spaycific-races-2025")[:2]
 
-    Comportement hérité de TimePulse, verrouillé ici volontairement : on reste
-    cohérent avec les autres providers plutôt que d'inventer une règle locale.
-    """
-    relais = _resultats(EPREUVE_566, "spaycific-races-2025")[1]
+    assert relais.athlete_name == "MENARDAIS FERDINAND / COMPAIN LENA"
+    assert relais.athlete_firstname == ""
+    assert individuel.athlete_firstname != ""
 
-    assert relais.athlete_name == "MENARDAIS FERDINAND"
-    assert relais.athlete_firstname == "/ COMPAIN LENA"
+
+def test_build_result_team_name_with_parenthesised_members_kept_whole():
+    """Page live 559 (`isTeam`) : « CMTRI 4 (Mahé Gilbert - Nelson Jerolon) »."""
+    resultat = chronoplace._build_result(
+        {"position": "1", "nom": "CMTRI 4 (Mahé Gilbert - Nelson Jerolon)", "temps": "01:00:00"},
+        url="u", event_name="E", event_type="bike-and-run", event_date=None, is_team=True,
+    )
+
+    assert resultat.athlete_name == "CMTRI 4 (Mahé Gilbert - Nelson Jerolon)"
+    assert resultat.athlete_firstname == ""
+
+
+def test_epreuve_results_team_name_falls_back_on_club_column():
+    """#992, page 551 : épreuve `isTeam` dont la colonne « Équipe » est vide et
+    dont l'identité est publiée dans « Club ». Elle devient le nom d'équipe,
+    sans rester en club (ce n'en est pas un)."""
+    resultats = _resultats(EPREUVE_551, "vetathlon-de-la-colmont-2025")
+
+    assert [r.athlete_name for r in resultats] == [
+        "ANTHONY-EMELINE", "TOSSEN Franck", "LES POTOS FORET MORLIER",
+    ]
+    assert all(r.athlete_firstname == "" for r in resultats)
+    assert all(r.club == "" for r in resultats)
+    assert resultats[0].raw_data["club"] == "ANTHONY-EMELINE"
+
+
+def test_epreuve_results_logs_nameless_rows(caplog):
+    html = EPREUVE_551.replace("<td>ANTHONY-EMELINE</td>", "<td></td>")
+
+    with caplog.at_level(logging.WARNING, logger=chronoplace.__name__):
+        resultats = _resultats(html, "vetathlon-de-la-colmont-2025")
+
+    assert resultats[0].athlete_name == ""
+    assert "1 ligne(s) sans nom" in caplog.text
 
 
 def test_epreuve_results_is_team_du_snapshot():
@@ -972,7 +1006,7 @@ def test_relay_named_teammates_are_split_at_import(db_session):
         ("MENARDAIS", "FERDINAND"), ("COMPAIN", "LENA"),
     ]
     equipe = athlete_repository.get_by_identity(
-        db_session, "LE BOZEC HENRI", "/ BABINET SYLVAIN", None
+        db_session, "LE BOZEC HENRI / BABINET SYLVAIN", "", None
     )
     (non_decoupee,) = equipe.participations
     assert non_decoupee.teammates == []
