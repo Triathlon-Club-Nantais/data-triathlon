@@ -426,8 +426,15 @@ def _build_result(
     `status` reste vide : aucun label DNF/DNS/DSQ n'a été observé sur les épreuves
     sondées, et `services/mapping.derive_status` applique alors son heuristique.
     """
-    surname, firstname = split_athlete_name(row.get("nom", ""))
     category = (row.get("categorie") or "").strip()
+    is_relay = bool(is_team) or _is_relay_category(category)
+    # `get_text(" ")` double les espaces autour des balises (« A  /  B »).
+    name = " ".join((row.get("nom") or "").split())
+    club = (row.get("club") or "").strip()
+    # Épreuve 551 : colonne « Équipe » vide, l'équipe est publiée sous « Club ».
+    if is_team and not name and club:
+        name, club = club, ""
+    surname, firstname = (name, "") if is_relay else split_athlete_name(name)
 
     result = ScrapedResult(source_url=url, provider="chronoplace")
     result.event_name = event_name
@@ -436,7 +443,7 @@ def _build_result(
     result.athlete_name = surname
     result.athlete_firstname = firstname
     result.bib_number = (row.get("dossard") or "").strip()
-    result.club = (row.get("club") or "").strip()
+    result.club = club
     result.category = category
     result.gender = (row.get("genre") or "").strip()
     result.rank_overall = normalize_rank(row.get("position"))
@@ -446,7 +453,7 @@ def _build_result(
     result.total_time = _time_or_empty(row.get("temps", ""))
     for column, field in _SPLIT_FIELDS.items():
         setattr(result, field, _time_or_empty(row.get(column, "")))
-    result.is_relay = bool(is_team) or _is_relay_category(category)
+    result.is_relay = is_relay
     # Tout le brut est conservé : `nb_tours` et `ecart` ne vivent que là.
     result.raw_data = dict(row)
     return result
@@ -463,7 +470,7 @@ def _epreuve_results(
     is_team = bool(snapshot.get("isTeam"))
     rows = _parse_table(html)
     _log_unknown_time_rejections(rows, slug)
-    return [
+    results = [
         _build_result(
             row,
             url=url,
@@ -474,6 +481,13 @@ def _epreuve_results(
         )
         for row in rows
     ]
+    # Une identité vide fusionne toutes ces lignes à l'import (#897).
+    nameless = sum(1 for r in results if not r.athlete_name and not r.athlete_firstname)
+    if nameless:
+        logger.warning(
+            "Épreuve chronoplace %s : %d ligne(s) sans nom ni équipe.", slug, nameless
+        )
+    return results
 
 
 def _resolve_epreuve_id(client: httpx.Client, slug: str) -> str:
