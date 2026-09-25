@@ -58,6 +58,10 @@ constantes `STATUS_*`) ; `utils.py` = helpers de normalisation (dont
   (`is_tcn` / `tcn_clause`). Ne jamais la réimplémenter ailleurs — front et
   scraper l'avaient fait, les trois listes ont divergé et tout libellé contenant
   « nantais » a été compté comme TCN (#76). Le front lit le champ `is_tcn` du DTO.
+- Genre lu dans une catégorie : `utils.gender_from_category` (#990, calibré
+  sur RaceResult). `chronoweb` et `runnerbreizh` gardent leur
+  `_gender_from_category` local : celui de chronoweb lit le préfixe d'abord
+  (`MSE`) et donnerait `M` à `MIF`, les unifier reste à faire avec #936.
 - Les temps restent des **strings** (`"01:23:45"`), normalisés via `utils.py`.
   Splits adaptés au sport : dans `splits` (JSON) + `raw_data` (JSON).
 - **Un relais aux équipiers nommés se découpe à l'import, jamais dans un

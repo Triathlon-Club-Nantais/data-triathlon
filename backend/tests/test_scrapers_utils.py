@@ -6,6 +6,7 @@ import pytest
 from app.scrapers.utils import (
     derive_status_from_label,
     fmt_seconds,
+    gender_from_category,
     parse_fr_date,
     split_athlete_name,
     split_relay_teammates,
@@ -208,3 +209,25 @@ def test_split_relay_teammates(published, expected):
 def test_split_relay_teammates_accepts_eight():
     published = " / ".join(f"NOM{chr(65 + i)}X PRENOM{chr(65 + i)}X" for i in range(8))
     assert len(split_relay_teammates(published)) == 8
+
+
+# Catégories relevées sur 17 épreuves RaceResult sans colonne sexe (#990).
+@pytest.mark.parametrize("category,expected", [
+    ("S1M", "M"), ("M2F", "F"), ("JUM", "M"), ("MIF", "F"), ("MPF", "F"),
+    ("U23M", "M"), ("M1-3M", "M"), ("M4+F", "F"),
+    ("M18-34", "M"), ("F6-8", "F"), ("M65+", "M"),
+    ("Seniors F", "F"), ("Masters H", "M"), ("Cadets H", "M"),
+    ("Master 4+ Homme", "M"),
+])
+def test_gender_from_category_reads_individual_categories(category, expected):
+    assert gender_from_category(category) == expected
+
+
+# Un libellé de sexe nu (« Masculin », « Hommes ») n'est mesuré que sur des
+# relais et des duos : il décrit la composition de l'équipe, pas une personne.
+@pytest.mark.parametrize("category", [
+    "", "Masculin", "Féminin", "Hommes", "Femmes", "Mixte", "Relais Masculin",
+    "Relais Féminin", "M+F", "DNF", "DNS", "1", "SE", "FEM", "M4+",
+])
+def test_gender_from_category_leaves_team_and_unreadable_categories_empty(category):
+    assert gender_from_category(category) == ""

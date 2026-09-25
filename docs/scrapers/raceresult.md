@@ -99,3 +99,21 @@ DNF (`utils._STATUS_TOKENS`, tous fournisseurs), et `_enrichir` ne comble plus
 jamais le `total_time` d'un non-finisher : 123 DNF d'Embrunman en recevaient un.
 Mesuré sur 350635 : 0 finisher sans rang, 0 non-finisher avec temps. Courses
 818 et 819 à re-scraper.
+
+**Genre sans colonne sexe (#990).** Beaucoup de listes n'ont pas de colonne
+sexe (398810, 350635), ou ne l'affichent qu'aux femmes
+(`if([SEX]="f";[SexeMF])`, 405215). Le genre se déduit alors, dans l'ordre, de
+la catégorie (`utils.gender_from_category` : `S1M`, `M1-3M`, `M18-34`,
+`Seniors F`) puis du groupe de sexe que `_iter_groups` transmet désormais à
+part (`#1_Féminin`, `#2_Hommes`). Jamais pour une équipe : ni sur un contest
+relais, duo ou équipe, ni sur un nom d'équipe. Un libellé de sexe nu en
+catégorie (`Masculin`, `Hommes`, `Mixte`) n'est mesuré que sur des relais et des
+duos (400001, 401699, 403144, 383326, 363395) : il décrit l'équipe et n'est pas
+lu. Une ligne `hidden` ignore son contest, elle ne déduit rien elle-même ;
+quand elle apporte la catégorie, `_enrichir` en tire le genre, sauf pour une
+équipe (398810 : la catégorie d'un équipier sur la ligne du relais). Mesuré :
+398810 passe de 1 260 lignes sans genre à 62 (ses relais), 350635 de 1 526 à 0,
+405215 de 2 863 à 328 (ses relais), 404650 de 350 à 0 ; aucun désaccord avec la
+colonne sexe sur quatre épreuves qui la publient. Reste à re-scraper les
+courses RaceResult ; le complément du genre d'un athlète déjà en base dépend de
+#964.
