@@ -15,6 +15,24 @@ const SEANCE: TrainingSession = {
 };
 
 describe("EntrainementForm", () => {
+  it("garde ses libellés quand un second formulaire est à l'écran", () => {
+    render(
+      <>
+        <EntrainementForm soumettre={vi.fn()} enCours={false} libelleSoumission="Créer" />
+        <EntrainementForm
+          entrainement={SEANCE}
+          soumettre={vi.fn()}
+          enCours={false}
+          libelleSoumission="Enregistrer"
+        />
+      </>,
+    );
+
+    const lieux = screen.getAllByLabelText(/^lieu$/i);
+    expect(lieux).toHaveLength(2);
+    expect(lieux[1]).toHaveValue("Base nautique");
+  });
+
   it("soumet une date seule quand rien d'autre n'est renseigné", async () => {
     const soumettre = vi.fn();
     render(

@@ -54,6 +54,16 @@ describe("AppelFin", () => {
     expect(screen.getByText(/tous les jeunes présents/i)).toBeInTheDocument();
   });
 
+  it("ne suppose pas que la séance a lieu le matin", async () => {
+    render(<AppelFin participants={PARTICIPANTS} profils={[ALIX, ZOE]} />);
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /alix martin/i }));
+
+    expect(
+      screen.getByText("Tous les jeunes présents à l'appel de début ont été retrouvés."),
+    ).toBeInTheDocument();
+  });
+
   it("ne compte pas comme retrouvé un jeune qui n'est plus présent", async () => {
     const deuxPresents: TrainingParticipant[] = [
       { profile_id: 42, present: true, created_at: "2026-09-15T10:00:00Z" },

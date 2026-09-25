@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +28,9 @@ export function EntrainementForm({
   enCours: boolean;
   libelleSoumission: string;
 }) {
+  // Le formulaire de correction s'ouvre par dessus celui de création : des `id`
+  // fixes rattacheraient ses libellés aux champs de la page (#876).
+  const idPrefix = useId();
   const [date, setDate] = useState(entrainement?.date ?? "");
   const [heure, setHeure] = useState(entrainement?.start_time?.slice(0, 5) ?? "");
   const [lieu, setLieu] = useState(entrainement?.location ?? "");
@@ -47,9 +50,9 @@ export function EntrainementForm({
   return (
     <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2">
       <div className="space-y-1.5">
-        <Label htmlFor="entrainement-date">Date</Label>
+        <Label htmlFor={`${idPrefix}-date`}>Date</Label>
         <Input
-          id="entrainement-date"
+          id={`${idPrefix}-date`}
           type="date"
           required
           className="w-40"
@@ -58,9 +61,9 @@ export function EntrainementForm({
         />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="entrainement-heure">Heure</Label>
+        <Label htmlFor={`${idPrefix}-heure`}>Heure</Label>
         <Input
-          id="entrainement-heure"
+          id={`${idPrefix}-heure`}
           type="time"
           className="w-28"
           value={heure}
@@ -68,18 +71,18 @@ export function EntrainementForm({
         />
       </div>
       <div className="flex-1 space-y-1.5">
-        <Label htmlFor="entrainement-lieu">Lieu</Label>
+        <Label htmlFor={`${idPrefix}-lieu`}>Lieu</Label>
         <Input
-          id="entrainement-lieu"
+          id={`${idPrefix}-lieu`}
           placeholder="Base nautique"
           value={lieu}
           onChange={(e) => setLieu(e.target.value)}
         />
       </div>
       <div className="flex-1 space-y-1.5">
-        <Label htmlFor="entrainement-type">Type de séance</Label>
+        <Label htmlFor={`${idPrefix}-type`}>Type de séance</Label>
         <Input
-          id="entrainement-type"
+          id={`${idPrefix}-type`}
           placeholder="Natation"
           value={typeSeance}
           onChange={(e) => setTypeSeance(e.target.value)}
