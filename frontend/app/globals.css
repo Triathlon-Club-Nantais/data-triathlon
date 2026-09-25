@@ -595,6 +595,18 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
+  /* La même action posée seule sous un message (état d'erreur de la recherche
+     d'athlète, #953) : aucune ligne à préserver, elle prend les 44px visés au
+     doigt. */
+  .tcn-lien-action--tactile {
+    min-height: 44px;
+  }
+  /* `aria-disabled` et non `disabled`, qui sortirait le bouton du parcours
+     clavier : même rendu inactif que `.tcn-btn:disabled`. */
+  .tcn-lien-action[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
   .tcn-input:focus-visible {
     outline: 2px solid var(--tcn-orange);
     outline-offset: 2px;
