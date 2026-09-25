@@ -287,9 +287,13 @@ def _fetch_clax(url: str) -> tuple[ET.Element, str, str, str, object]:
         xml_content = resp.text
 
     root = parse_xml(xml_content)
-    event_elem = root.find(".//Event") or root.find(".//RACE") or root
+    event_elem = next(
+        (elem for elem in (root.find(".//Event"), root.find(".//RACE")) if elem is not None),
+        root,
+    )
     event_name = (
-        event_elem.get("Name", "")
+        event_elem.get("nom", "")
+        or event_elem.get("Name", "")
         or event_elem.get("name", "")
         or unquote(f_param).split("/")[-1].replace(".clax", "")
     )
