@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect } from "vitest";
-import type { EntrainementParticipant, Profile } from "@/lib/types";
+import type { TrainingParticipant, Profile } from "@/lib/types";
 import { AppelFin } from "./AppelFin";
 
 const ALIX: Profile = {
@@ -22,9 +22,9 @@ const ZOE: Profile = {
   created_at: "2026-01-01T00:00:00Z",
 };
 
-const PARTICIPANTS: EntrainementParticipant[] = [
-  { jeune_id: 42, present: true, created_at: "2026-09-15T10:00:00Z" },
-  { jeune_id: 43, present: false, created_at: "2026-09-15T10:00:00Z" },
+const PARTICIPANTS: TrainingParticipant[] = [
+  { profile_id: 42, present: true, created_at: "2026-09-15T10:00:00Z" },
+  { profile_id: 43, present: false, created_at: "2026-09-15T10:00:00Z" },
 ];
 
 describe("AppelFin", () => {
@@ -36,8 +36,8 @@ describe("AppelFin", () => {
   });
 
   it("affiche un état vide explicite si personne n'a encore été pointé", () => {
-    const participants: EntrainementParticipant[] = [
-      { jeune_id: 42, present: null, created_at: "2026-09-15T10:00:00Z" },
+    const participants: TrainingParticipant[] = [
+      { profile_id: 42, present: null, created_at: "2026-09-15T10:00:00Z" },
     ];
 
     render(<AppelFin participants={participants} profils={[ALIX]} />);
@@ -55,9 +55,9 @@ describe("AppelFin", () => {
   });
 
   it("ne compte pas comme retrouvé un jeune qui n'est plus présent", async () => {
-    const deuxPresents: EntrainementParticipant[] = [
-      { jeune_id: 42, present: true, created_at: "2026-09-15T10:00:00Z" },
-      { jeune_id: 43, present: true, created_at: "2026-09-15T10:00:00Z" },
+    const deuxPresents: TrainingParticipant[] = [
+      { profile_id: 42, present: true, created_at: "2026-09-15T10:00:00Z" },
+      { profile_id: 43, present: true, created_at: "2026-09-15T10:00:00Z" },
     ];
     const { rerender } = render(<AppelFin participants={deuxPresents} profils={[ALIX, ZOE]} />);
     await userEvent.click(screen.getByRole("checkbox", { name: /alix martin/i }));
@@ -68,8 +68,8 @@ describe("AppelFin", () => {
     rerender(
       <AppelFin
         participants={[
-          { jeune_id: 42, present: false, created_at: "2026-09-15T10:00:00Z" },
-          { jeune_id: 43, present: true, created_at: "2026-09-15T10:00:00Z" },
+          { profile_id: 42, present: false, created_at: "2026-09-15T10:00:00Z" },
+          { profile_id: 43, present: true, created_at: "2026-09-15T10:00:00Z" },
         ]}
         profils={[ALIX, ZOE]}
       />,

@@ -1,15 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
-import type { Entrainement } from "@/lib/types";
+import type { TrainingSession } from "@/lib/types";
 import { EntrainementForm } from "./EntrainementForm";
 
-const SEANCE: Entrainement = {
+const SEANCE: TrainingSession = {
   id: 1,
   date: "2026-09-20",
-  heure_debut: "18:00:00",
-  lieu: "Base nautique",
-  type_seance: "Natation",
+  start_time: "18:00:00",
+  location: "Base nautique",
+  session_type: "Natation",
   note: "",
   participant_count: 0,
 };
@@ -26,9 +26,9 @@ describe("EntrainementForm", () => {
 
     expect(soumettre).toHaveBeenCalledWith({
       date: "2026-09-20",
-      heure_debut: null,
-      lieu: null,
-      type_seance: null,
+      start_time: null,
+      location: null,
+      session_type: null,
     });
   });
 

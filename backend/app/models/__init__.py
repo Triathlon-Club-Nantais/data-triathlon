@@ -7,8 +7,6 @@ from app.models.club_alias import ClubAlias
 from app.models.counter_scope_entry import CounterScopeEntry
 from app.models.course import Course
 from app.models.course_source import CourseSource
-from app.models.entrainement import Entrainement
-from app.models.entrainement_participant import EntrainementParticipant
 from app.models.group import Group
 from app.models.identity import Identity
 from app.models.ignored_course_duplicate import IgnoredCourseDuplicate
@@ -21,6 +19,8 @@ from app.models.role import Role
 from app.models.role_permission import RolePermission
 from app.models.season_validation import SeasonValidation
 from app.models.site_access_config import SiteAccessConfig
+from app.models.training_participant import TrainingParticipant
+from app.models.training_session import TrainingSession
 from app.models.user import User
 from app.models.user_feedback import UserFeedback
 from app.models.user_group import UserGroup
@@ -37,8 +37,6 @@ __all__ = [
     "CounterScopeEntry",
     "Course",
     "CourseSource",
-    "Entrainement",
-    "EntrainementParticipant",
     "Group",
     "Identity",
     "IgnoredCourseDuplicate",
@@ -51,6 +49,8 @@ __all__ = [
     "RolePermission",
     "SeasonValidation",
     "SiteAccessConfig",
+    "TrainingParticipant",
+    "TrainingSession",
     "User",
     "UserFeedback",
     "UserGroup",

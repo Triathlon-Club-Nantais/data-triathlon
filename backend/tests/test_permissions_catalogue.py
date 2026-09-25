@@ -37,7 +37,7 @@ ROUTERS = Path(__file__).resolve().parents[1] / "app" / "api"
 #: l'ajouter sans sous-issue de suivi n'a pas de sens.
 #:
 #: `jeunes:read` et `jeunes:write` gardaient `/admin/profiles` et
-#: `/admin/jeunes/entrainements` par avance ; #867 et #868 ont posé les routes
+#: `/admin/training-sessions` par avance ; #867 et #868 ont posé les routes
 #: qui les gardent réellement — les deux entrées sont retirées.
 GARDE_A_VENIR: dict[str, str] = {}
 

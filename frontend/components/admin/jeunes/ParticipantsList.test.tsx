@@ -2,20 +2,20 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { EntrainementDetail, Profile } from "@/lib/types";
+import type { TrainingSessionDetail, Profile } from "@/lib/types";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
 const {
-  getEntrainement,
+  getTrainingSession,
   listProfiles,
-  addEntrainementParticipant,
-  removeEntrainementParticipant,
+  addTrainingParticipant,
+  removeTrainingParticipant,
 } = vi.hoisted(() => ({
-  getEntrainement: vi.fn(),
+  getTrainingSession: vi.fn(),
   listProfiles: vi.fn(),
-  addEntrainementParticipant: vi.fn(),
-  removeEntrainementParticipant: vi.fn(),
+  addTrainingParticipant: vi.fn(),
+  removeTrainingParticipant: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -23,10 +23,10 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   return {
     ...original,
     apiClient: {
-      getEntrainement,
+      getTrainingSession,
       listProfiles,
-      addEntrainementParticipant,
-      removeEntrainementParticipant,
+      addTrainingParticipant,
+      removeTrainingParticipant,
     },
   };
 });
@@ -44,24 +44,24 @@ const ALIX: Profile = {
 
 const ZOE: Profile = { ...ALIX, id: 43, first_name: "Zoé", last_name: "Roux" };
 
-const DETAIL_AVEC_PARTICIPANT: EntrainementDetail = {
+const DETAIL_AVEC_PARTICIPANT: TrainingSessionDetail = {
   id: 1,
   date: "2026-09-20",
-  heure_debut: null,
-  lieu: null,
-  type_seance: null,
+  start_time: null,
+  location: null,
+  session_type: null,
   note: "",
   participant_count: 1,
-  participants: [{ jeune_id: 42, present: null, created_at: "2026-09-15T10:00:00Z" }],
+  participants: [{ profile_id: 42, present: null, created_at: "2026-09-15T10:00:00Z" }],
 };
 
-const DETAIL_VIDE: EntrainementDetail = { ...DETAIL_AVEC_PARTICIPANT, participant_count: 0, participants: [] };
+const DETAIL_VIDE: TrainingSessionDetail = { ...DETAIL_AVEC_PARTICIPANT, participant_count: 0, participants: [] };
 
 function afficher(peutEcrire: boolean) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ParticipantsList entrainementId={1} peutEcrire={peutEcrire} />
+      <ParticipantsList sessionId={1} peutEcrire={peutEcrire} />
     </QueryClientProvider>,
   );
 }
@@ -73,7 +73,7 @@ describe("ParticipantsList", () => {
   });
 
   it("nomme les jeunes inscrits", async () => {
-    getEntrainement.mockResolvedValue(DETAIL_AVEC_PARTICIPANT);
+    getTrainingSession.mockResolvedValue(DETAIL_AVEC_PARTICIPANT);
 
     afficher(true);
 
@@ -82,7 +82,7 @@ describe("ParticipantsList", () => {
   });
 
   it("dit « aucun participant inscrit » sur une liste vide", async () => {
-    getEntrainement.mockResolvedValue(DETAIL_VIDE);
+    getTrainingSession.mockResolvedValue(DETAIL_VIDE);
 
     afficher(true);
 
@@ -90,7 +90,7 @@ describe("ParticipantsList", () => {
   });
 
   it("n'affiche ni sélecteur d'inscription ni bouton de désinscription sans jeunes:write", async () => {
-    getEntrainement.mockResolvedValue(DETAIL_AVEC_PARTICIPANT);
+    getTrainingSession.mockResolvedValue(DETAIL_AVEC_PARTICIPANT);
 
     afficher(false);
 
@@ -100,18 +100,18 @@ describe("ParticipantsList", () => {
   });
 
   it("inscrit un jeune choisi par son nom", async () => {
-    getEntrainement.mockResolvedValue(DETAIL_VIDE);
-    addEntrainementParticipant.mockResolvedValue(DETAIL_AVEC_PARTICIPANT);
+    getTrainingSession.mockResolvedValue(DETAIL_VIDE);
+    addTrainingParticipant.mockResolvedValue(DETAIL_AVEC_PARTICIPANT);
 
     afficher(true);
     await screen.findByRole("option", { name: "Alix Martin" });
     await userEvent.selectOptions(screen.getByLabelText(/inscrire un jeune/i), "Alix Martin");
 
-    expect(addEntrainementParticipant).toHaveBeenCalledWith(1, 42, undefined);
+    expect(addTrainingParticipant).toHaveBeenCalledWith(1, 42, undefined);
   });
 
   it("ne propose pas un jeune déjà inscrit", async () => {
-    getEntrainement.mockResolvedValue(DETAIL_AVEC_PARTICIPANT);
+    getTrainingSession.mockResolvedValue(DETAIL_AVEC_PARTICIPANT);
 
     afficher(true);
     await screen.findByRole("option", { name: "Zoé Roux" });
@@ -120,13 +120,13 @@ describe("ParticipantsList", () => {
   });
 
   it("désinscrit un jeune inscrit", async () => {
-    getEntrainement.mockResolvedValue(DETAIL_AVEC_PARTICIPANT);
-    removeEntrainementParticipant.mockResolvedValue(null);
+    getTrainingSession.mockResolvedValue(DETAIL_AVEC_PARTICIPANT);
+    removeTrainingParticipant.mockResolvedValue(null);
 
     afficher(true);
     await screen.findByText("Alix Martin");
     await userEvent.click(screen.getByRole("button", { name: /désinscrire alix martin/i }));
 
-    await waitFor(() => expect(removeEntrainementParticipant).toHaveBeenCalledWith(1, 42));
+    await waitFor(() => expect(removeTrainingParticipant).toHaveBeenCalledWith(1, 42));
   });
 });

@@ -1,14 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { Entrainement, SessionUser } from "@/lib/types";
+import type { TrainingSession, SessionUser } from "@/lib/types";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-const { replace, listEntrainements, createEntrainement, getSession } = vi.hoisted(() => ({
+const { replace, listTrainingSessions, createTrainingSession, getSession } = vi.hoisted(() => ({
   replace: vi.fn(),
-  listEntrainements: vi.fn(),
-  createEntrainement: vi.fn(),
+  listTrainingSessions: vi.fn(),
+  createTrainingSession: vi.fn(),
   getSession: vi.fn(),
 }));
 
@@ -19,20 +19,20 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { listEntrainements, createEntrainement, getSession } };
+  return { ...original, apiClient: { listTrainingSessions, createTrainingSession, getSession } };
 });
 
 import AdminJeuneAppelDuJourPage from "./page";
 
 const AUJOURDHUI = "2026-09-24";
 
-function seance(id: number, champs: Partial<Entrainement> = {}): Entrainement {
+function seance(id: number, champs: Partial<TrainingSession> = {}): TrainingSession {
   return {
     id,
     date: AUJOURDHUI,
-    heure_debut: null,
-    lieu: null,
-    type_seance: null,
+    start_time: null,
+    location: null,
+    session_type: null,
     note: "",
     participant_count: 0,
     ...champs,
@@ -73,7 +73,7 @@ describe("AdminJeuneAppelDuJourPage", () => {
   });
 
   it("ouvre directement l'appel de l'unique séance du jour", async () => {
-    listEntrainements.mockResolvedValue([seance(7), seance(8, { date: "2026-09-25" })]);
+    listTrainingSessions.mockResolvedValue([seance(7), seance(8, { date: "2026-09-25" })]);
 
     afficher();
 
@@ -81,9 +81,9 @@ describe("AdminJeuneAppelDuJourPage", () => {
   });
 
   it("fait choisir la séance quand il y en a plusieurs le même jour", async () => {
-    listEntrainements.mockResolvedValue([
-      seance(7, { heure_debut: "10:00:00", type_seance: "Natation" }),
-      seance(8, { heure_debut: "17:00:00", type_seance: "Course" }),
+    listTrainingSessions.mockResolvedValue([
+      seance(7, { start_time: "10:00:00", session_type: "Natation" }),
+      seance(8, { start_time: "17:00:00", session_type: "Course" }),
     ]);
 
     afficher();
@@ -96,7 +96,7 @@ describe("AdminJeuneAppelDuJourPage", () => {
   });
 
   it("propose de créer la séance du jour à un porteur de jeunes:write", async () => {
-    listEntrainements.mockResolvedValue([]);
+    listTrainingSessions.mockResolvedValue([]);
 
     afficher();
 
@@ -107,7 +107,7 @@ describe("AdminJeuneAppelDuJourPage", () => {
 
   it("ne propose pas de créer la séance sans jeunes:write", async () => {
     getSession.mockResolvedValue(session(["jeunes:read"]));
-    listEntrainements.mockResolvedValue([]);
+    listTrainingSessions.mockResolvedValue([]);
 
     afficher();
 

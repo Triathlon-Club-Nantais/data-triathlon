@@ -7,11 +7,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EntrainementDetailDialog } from "@/components/admin/jeunes/EntrainementDetailDialog";
 import { EntrainementForm } from "@/components/admin/jeunes/EntrainementForm";
-import { useCreateEntrainement, useEntrainements } from "@/lib/queries/admin";
+import { useCreateTrainingSession, useTrainingSessions } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
-import type { Entrainement } from "@/lib/types";
+import type { TrainingSession } from "@/lib/types";
 
 const REFUS = { sujet: "entraînements", action: "consulter le calendrier des entraînements" };
 
@@ -21,19 +21,19 @@ const REFUS = { sujet: "entraînements", action: "consulter le calendrier des en
  * téléphone, au bord d'un bassin ou d'un plateau d'entraînement.
  */
 export function CalendrierEntrainements() {
-  const { data, isLoading, error } = useEntrainements();
+  const { data, isLoading, error } = useTrainingSessions();
   const session = useSession();
-  const creer = useCreateEntrainement();
-  const [ouvert, setOuvert] = useState<Entrainement | null>(null);
+  const creer = useCreateTrainingSession();
+  const [ouvert, setOuvert] = useState<TrainingSession | null>(null);
 
   // Confort d'affichage seul : chaque ressource porte sa garde côté API.
   const peutEcrire = session.data?.permissions.includes("jeunes:write") ?? false;
 
   async function creerEntrainement(champs: {
     date: string;
-    heure_debut: string | null;
-    lieu: string | null;
-    type_seance: string | null;
+    start_time: string | null;
+    location: string | null;
+    session_type: string | null;
   }) {
     try {
       await creer.mutateAsync(champs);
@@ -80,18 +80,18 @@ export function CalendrierEntrainements() {
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">{formatDate(entrainement.date)}</span>
-                {entrainement.heure_debut && (
+                {entrainement.start_time && (
                   <span className="text-[var(--tcn-text-faint)] text-sm">
-                    {entrainement.heure_debut.slice(0, 5)}
+                    {entrainement.start_time.slice(0, 5)}
                   </span>
                 )}
               </div>
               <div className="text-[var(--tcn-text-faint)] text-sm">
-                {entrainement.lieu || "Lieu non renseigné"}
+                {entrainement.location || "Lieu non renseigné"}
               </div>
               <div className="flex items-center justify-between gap-2">
-                {entrainement.type_seance ? (
-                  <Badge variant="secondary">{entrainement.type_seance}</Badge>
+                {entrainement.session_type ? (
+                  <Badge variant="secondary">{entrainement.session_type}</Badge>
                 ) : (
                   <span />
                 )}

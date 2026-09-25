@@ -22,7 +22,7 @@ export default async function AdminJeuneAppelPage({
           backHref="/admin/jeunes/calendrier"
           backLabel="Retour au calendrier"
         />
-        <AppelPresence entrainementId={Number(id)} />
+        <AppelPresence sessionId={Number(id)} />
       </div>
     </PageShell>
   );

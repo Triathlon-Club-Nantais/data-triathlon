@@ -11,9 +11,9 @@ import {
 } from "@/components/ui/dialog";
 import { EntrainementForm } from "@/components/admin/jeunes/EntrainementForm";
 import { ParticipantsList } from "@/components/admin/jeunes/ParticipantsList";
-import { useUpdateEntrainement } from "@/lib/queries/admin";
+import { useUpdateTrainingSession } from "@/lib/queries/admin";
 import { formatDate } from "@/lib/utils/date";
-import type { Entrainement } from "@/lib/types";
+import type { TrainingSession } from "@/lib/types";
 
 /**
  * Le détail d'un entraînement : sa correction et sa liste de participants
@@ -26,18 +26,18 @@ export function EntrainementDetailDialog({
   open,
   onOpenChange,
 }: {
-  entrainement: Entrainement;
+  entrainement: TrainingSession;
   peutEcrire: boolean;
   open: boolean;
   onOpenChange: (ouvert: boolean) => void;
 }) {
-  const modifier = useUpdateEntrainement();
+  const modifier = useUpdateTrainingSession();
 
   async function enregistrer(champs: {
     date: string;
-    heure_debut: string | null;
-    lieu: string | null;
-    type_seance: string | null;
+    start_time: string | null;
+    location: string | null;
+    session_type: string | null;
   }) {
     try {
       await modifier.mutateAsync({ id: entrainement.id, champs });
@@ -76,7 +76,7 @@ export function EntrainementDetailDialog({
           Ouvrir l&apos;appel
         </Link>
 
-        <ParticipantsList entrainementId={entrainement.id} peutEcrire={peutEcrire} />
+        <ParticipantsList sessionId={entrainement.id} peutEcrire={peutEcrire} />
       </DialogContent>
     </Dialog>
   );

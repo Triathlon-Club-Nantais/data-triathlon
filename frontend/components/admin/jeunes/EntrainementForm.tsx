@@ -3,13 +3,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { Entrainement } from "@/lib/types";
+import type { TrainingSession } from "@/lib/types";
 
 /**
  * Création **et** correction d'un entraînement (#868) — même formulaire, deux
  * contextes : semé vide pour créer, semé de `entrainement` pour corriger.
  *
- * Seule la date est obligatoire (#868). `heure_debut`, `lieu` et `type_seance`
+ * Seule la date est obligatoire (#868). `start_time`, `location` et `session_type`
  * restent du texte libre — aucune nomenclature n'a été demandée.
  */
 export function EntrainementForm({
@@ -18,29 +18,29 @@ export function EntrainementForm({
   enCours,
   libelleSoumission,
 }: {
-  entrainement?: Entrainement;
+  entrainement?: TrainingSession;
   soumettre: (champs: {
     date: string;
-    heure_debut: string | null;
-    lieu: string | null;
-    type_seance: string | null;
+    start_time: string | null;
+    location: string | null;
+    session_type: string | null;
   }) => Promise<void> | void;
   enCours: boolean;
   libelleSoumission: string;
 }) {
   const [date, setDate] = useState(entrainement?.date ?? "");
-  const [heure, setHeure] = useState(entrainement?.heure_debut?.slice(0, 5) ?? "");
-  const [lieu, setLieu] = useState(entrainement?.lieu ?? "");
-  const [typeSeance, setTypeSeance] = useState(entrainement?.type_seance ?? "");
+  const [heure, setHeure] = useState(entrainement?.start_time?.slice(0, 5) ?? "");
+  const [lieu, setLieu] = useState(entrainement?.location ?? "");
+  const [typeSeance, setTypeSeance] = useState(entrainement?.session_type ?? "");
 
   async function onSubmit(evenement: React.SyntheticEvent) {
     evenement.preventDefault();
     if (!date) return;
     await soumettre({
       date,
-      heure_debut: heure ? `${heure}:00` : null,
-      lieu: lieu.trim() ? lieu.trim() : null,
-      type_seance: typeSeance.trim() ? typeSeance.trim() : null,
+      start_time: heure ? `${heure}:00` : null,
+      location: lieu.trim() ? lieu.trim() : null,
+      session_type: typeSeance.trim() ? typeSeance.trim() : null,
     });
   }
 

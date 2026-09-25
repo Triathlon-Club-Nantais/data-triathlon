@@ -34,8 +34,8 @@ import type {
   CoursesWipeResult,
   DuplicateCandidateList,
   DuplicateIgnoreResult,
-  Entrainement,
-  EntrainementDetail,
+  TrainingSession,
+  TrainingSessionDetail,
   EventPage,
   Feedback,
   FeedbackCounts,
@@ -484,49 +484,49 @@ export const apiClient = {
   // ── Calendrier des entraînements jeunes (#868, epic #863) ─────────────────
   // Lecture sous `jeunes:read`, écriture sous `jeunes:write` — deux pouvoirs
   // réellement distincts (cf. `contracts/api.md` de la feature).
-  listEntrainements: () => request<Entrainement[]>("/admin/jeunes/entrainements"),
-  getEntrainement: (id: number) =>
-    request<EntrainementDetail>(`/admin/jeunes/entrainements/${id}`),
-  createEntrainement: (body: {
+  listTrainingSessions: () => request<TrainingSession[]>("/admin/training-sessions"),
+  getTrainingSession: (id: number) =>
+    request<TrainingSessionDetail>(`/admin/training-sessions/${id}`),
+  createTrainingSession: (body: {
     date: string;
-    heure_debut?: string | null;
-    lieu?: string | null;
-    type_seance?: string | null;
+    start_time?: string | null;
+    location?: string | null;
+    session_type?: string | null;
   }) =>
-    request<EntrainementDetail>("/admin/jeunes/entrainements", {
+    request<TrainingSessionDetail>("/admin/training-sessions", {
       method: "POST",
       body: JSON.stringify(body),
     }),
-  updateEntrainement: (
+  updateTrainingSession: (
     id: number,
     champs: {
       date?: string;
-      heure_debut?: string | null;
-      lieu?: string | null;
-      type_seance?: string | null;
+      start_time?: string | null;
+      location?: string | null;
+      session_type?: string | null;
       note?: string;
     }
   ) =>
-    request<EntrainementDetail>(`/admin/jeunes/entrainements/${id}`, {
+    request<TrainingSessionDetail>(`/admin/training-sessions/${id}`, {
       method: "PATCH",
       body: JSON.stringify(champs),
     }),
   // `present` (#869) pointe le jeune au même geste que son inscription —
   // optionnel, patron de `body.present` côté backend (`ParticipantAdd`).
-  addEntrainementParticipant: (entrainementId: number, jeuneId: number, present?: boolean) =>
-    request<EntrainementDetail>(`/admin/jeunes/entrainements/${entrainementId}/participants`, {
+  addTrainingParticipant: (sessionId: number, profileId: number, present?: boolean) =>
+    request<TrainingSessionDetail>(`/admin/training-sessions/${sessionId}/participants`, {
       method: "POST",
-      body: JSON.stringify({ jeune_id: jeuneId, present }),
+      body: JSON.stringify({ profile_id: profileId, present }),
     }),
-  removeEntrainementParticipant: (entrainementId: number, jeuneId: number) =>
+  removeTrainingParticipant: (sessionId: number, profileId: number) =>
     request<null>(
-      `/admin/jeunes/entrainements/${entrainementId}/participants/${jeuneId}`,
+      `/admin/training-sessions/${sessionId}/participants/${profileId}`,
       { method: "DELETE" }
     ),
   // ── Appel de présence (#869, epic #863) ─────────────────────────────────
-  setEntrainementParticipantPresence: (entrainementId: number, jeuneId: number, present: boolean) =>
-    request<EntrainementDetail>(
-      `/admin/jeunes/entrainements/${entrainementId}/participants/${jeuneId}/presence`,
+  setTrainingParticipantPresence: (sessionId: number, profileId: number, present: boolean) =>
+    request<TrainingSessionDetail>(
+      `/admin/training-sessions/${sessionId}/participants/${profileId}/presence`,
       { method: "PATCH", body: JSON.stringify({ present }) }
     ),
   // ── Profils individuels (#867, epic #863) ──────────────────────────────────

@@ -1,4 +1,4 @@
-"""Modèle EntrainementParticipant — ce jeune est inscrit à cet entraînement
+"""Modèle TrainingParticipant — ce profil est inscrit à cette séance
 (#868, epic #863)."""
 from datetime import datetime
 
@@ -9,10 +9,10 @@ from app.core.database import Base
 from app.core.time import utcnow
 
 
-class EntrainementParticipant(Base):
-    """`(entrainement, jeune)` — et rien d'autre, sur le patron de `UserGroup`.
+class TrainingParticipant(Base):
+    """`(training_session, profile)` — et rien d'autre, sur le patron de `UserGroup`.
 
-    **`jeune_id` référence `personal_profiles.id`** (#867). Posée sans FK à
+    **`profile_id` référence `personal_profiles.id`** (#867). Posée sans FK à
     l'écriture initiale de #868, faute de table cible — #867 n'avait pas encore
     mergé sa table de profils. La contrainte a été resserrée après le merge de
     l'epic (#863), directement dans la migration d'origine (`e3649cbee16c`,
@@ -20,35 +20,35 @@ class EntrainementParticipant(Base):
     révision n'était pas encore partagée ailleurs. Détail et alternatives
     écartées : `research.md` §Dépendance sur le profil jeune (#867).
 
-    `UNIQUE(entrainement_id, jeune_id)` rend l'inscription **idempotente sous
+    `UNIQUE(training_session_id, profile_id)` rend l'inscription **idempotente sous
     concurrence** : c'est la contrainte qui le fait, pas une lecture
     préalable, que deux exploitants simultanés franchiraient tous deux —
     même raisonnement que `UserGroup.uq_user_group`.
 
     Pas d'`ondelete` sur les deux FK, comme partout dans le dépôt
     (`core/database.py` n'émet aucun `PRAGMA foreign_keys=ON`) : côté
-    `entrainement_id`, la cascade ORM (`Entrainement.participants`,
-    `delete-orphan`) fait le travail des deux côtés ; côté `jeune_id`, aucune
+    `training_session_id`, la cascade ORM (`TrainingSession.participants`,
+    `delete-orphan`) fait le travail des deux côtés ; côté `profile_id`, aucune
     suppression de `PersonalProfile` n'est une ressource de cette feature —
     c'est le jour où #867 en posera une qu'il faudra décider quoi faire des
     inscriptions du profil supprimé.
     """
 
-    __tablename__ = "entrainement_participants"
+    __tablename__ = "training_participants"
     __table_args__ = (
         UniqueConstraint(
-            "entrainement_id", "jeune_id", name="uq_entrainement_participant"
+            "training_session_id", "profile_id", name="uq_training_participant"
         ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    entrainement_id: Mapped[int] = mapped_column(
-        ForeignKey("entrainements_jeunes.id"), index=True, nullable=False
+    training_session_id: Mapped[int] = mapped_column(
+        ForeignKey("training_sessions.id"), index=True, nullable=False
     )
-    jeune_id: Mapped[int] = mapped_column(
+    profile_id: Mapped[int] = mapped_column(
         ForeignKey("personal_profiles.id"), index=True, nullable=False
     )
-    #: Statut de l'appel de **début** (#869) pour ce jeune, à cette séance.
+    #: Statut de l'appel de **début** (#869) pour ce profil, à cette séance.
     #: `NULL` = pas encore pointé, `True`/`False` = le dernier statut
     #: enregistré fait foi (aucun historique des changements). Même
     #: granularité que la ligne elle-même : une colonne sur la relation
@@ -57,6 +57,6 @@ class EntrainementParticipant(Base):
     present: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
-    entrainement: Mapped["Entrainement"] = relationship(  # noqa: F821
+    training_session: Mapped["TrainingSession"] = relationship(  # noqa: F821
         back_populates="participants"
     )

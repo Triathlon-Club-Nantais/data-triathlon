@@ -40,10 +40,10 @@ export const queryKeys = {
   // `Group[]`. Une écriture sur la composition périme **les deux** — le nombre
   // de membres vit sur la liste.
   group: (id: number) => ["admin-group", id] as const,
-  // Même distinction que `groups`/`group` — la liste porte un `Entrainement[]`,
-  // le détail un `EntrainementDetail` (participants compris).
-  entrainements: () => ["admin-entrainements"] as const,
-  entrainement: (id: number) => ["admin-entrainement", id] as const,
+  // Même distinction que `groups`/`group` — la liste porte un `TrainingSession[]`,
+  // le détail un `TrainingSessionDetail` (participants compris).
+  trainingSessions: () => ["admin-training-sessions"] as const,
+  trainingSession: (id: number) => ["admin-training-session", id] as const,
   // L'inventaire des pouvoirs est servi depuis le code Python : il ne change
   // qu'au déploiement, d'où le `staleTime: Infinity` de son hook.
   adminPermissions: () => ["admin-permissions"] as const,

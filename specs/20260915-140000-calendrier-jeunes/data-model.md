@@ -1,5 +1,16 @@
 # Data Model: Calendrier des entraînements jeunes
 
+> **Révisé par la revue de la PR #876** : le schéma et l'API ont été rendus
+> neutres (sans « jeune ») pour une extension aux adultes. Correspondance :
+> `Entrainement` → `TrainingSession`, `EntrainementParticipant` →
+> `TrainingParticipant`,
+> `entrainements_jeunes` → `training_sessions`, `entrainement_participants` →
+> `training_participants`, `entrainement_id` → `training_session_id`,
+> `jeune_id` → `profile_id`, `heure_debut` → `start_time`, `lieu` →
+> `location`, `type_seance` → `session_type`, `/admin/jeunes/entrainements` →
+> `/admin/training-sessions`. La garde reste `jeunes:read`/`jeunes:write`. Le
+> reste de ce document garde les noms d'origine.
+
 ## `Entrainement` (table `entrainements_jeunes`)
 
 Une séance d'entraînement jeunes.
