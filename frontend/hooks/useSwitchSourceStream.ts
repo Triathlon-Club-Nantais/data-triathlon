@@ -79,7 +79,7 @@ export function useSwitchSourceStream() {
         }
         // Même filet que `useImportStream` (#985).
         if (!resultat) {
-          const message = "Connexion interrompue avant la fin de la bascule.";
+          const message = "Connexion interrompue avant la fin de la bascule. Rechargez la page pour vérifier les résultats.";
           resultat = { phase: "error", message };
           setState((s) => ({ ...s, running: false, phase: "error", error: message }));
         }

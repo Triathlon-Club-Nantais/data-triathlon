@@ -84,7 +84,7 @@ export function useRescrapeStream() {
           ...s,
           running: false,
           phase: "error",
-          error: "Connexion interrompue avant la fin du re-scrape.",
+          error: "Connexion interrompue avant la fin du re-scrape. Rechargez la page pour vérifier les résultats.",
         }));
       }
     } catch (e) {

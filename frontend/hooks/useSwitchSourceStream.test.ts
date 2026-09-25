@@ -25,7 +25,7 @@ describe("useSwitchSourceStream", () => {
       resultat = await result.current.start(42, 2);
     });
 
-    const message = "Connexion interrompue avant la fin de la bascule.";
+    const message = "Connexion interrompue avant la fin de la bascule. Rechargez la page pour vérifier les résultats.";
     expect(resultat).toEqual({ phase: "error", message });
     await waitFor(() => expect(result.current.state.phase).toBe("error"));
     expect(result.current.state.running).toBe(false);

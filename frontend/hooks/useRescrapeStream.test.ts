@@ -142,6 +142,6 @@ describe("useRescrapeStream", () => {
 
     await waitFor(() => expect(result.current.state.phase).toBe("error"));
     expect(result.current.state.running).toBe(false);
-    expect(result.current.state.error).toBe("Connexion interrompue avant la fin du re-scrape.");
+    expect(result.current.state.error).toBe("Connexion interrompue avant la fin du re-scrape. Rechargez la page pour vérifier les résultats.");
   });
 });
