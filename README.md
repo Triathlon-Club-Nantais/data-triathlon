@@ -153,6 +153,40 @@ la copie perdait `node_modules/.bin/` (#337), donc un worktree frontend démarre
 sans dépendances installées — `npm ci` (ou `npm install`) y est requis. Avec
 `git worktree add`, la copie reste à votre charge.
 
+### 6. Premier démarrage : SSO et code d'accès
+
+Toutes les pages publiques et l'API de lecture sont fermées par un **code
+d'accès** partagé (#509). La garde est *fail-closed* : tant qu'aucun code n'est
+posé en base (table `site_access_config`), tout est refusé, y compris en
+développement. Ni `reset_db.py`, ni le seed démo, ni la CLI n'en posent un.
+Sur une base neuve, chaque page affiche donc le formulaire de code d'accès, et
+aucun code n'existe encore à y saisir.
+
+Le seul chemin qui en pose un passe par le back-office, donc par le SSO. `/login`
+et `/admin` restent hors de la garde pour cette raison. Dans l'ordre :
+
+1. **Créer une application OAuth GitHub locale** (callback
+   `http://127.0.0.1:3000/api/v1/auth/github/callback`) :
+   [`specs/20260801-145428-auth-socle-sso/quickstart.md`](specs/20260801-145428-auth-socle-sso/quickstart.md) § 1.
+   Le SSO ne fonctionne que depuis le dépôt principal, frontend sur `:3000`
+   (même guide, avertissement en tête).
+2. **Renseigner les variables `AUTH_*`** dans `backend/.env`, puis redémarrer le
+   backend : tableau « Configuration » de [`backend/README.md`](backend/README.md).
+3. **Autoriser son adresse** :
+   `uv run python -m app.cli allow-email --email <adresse>` (depuis `backend/`).
+4. **Se connecter une fois** par le navigateur via `/login` : c'est cette
+   connexion qui crée l'utilisateur.
+5. **Se donner le rôle administrateur** :
+   `uv run python -m app.cli grant-role --email <adresse> --role admin`.
+6. **Poser le code** dans `/admin/acces`, carte « Accès au site » : le saisir
+   (« Remplacer ») ou en générer un (« Générer un mot de passe sécurisé »).
+   Le saisir ensuite dans le formulaire du site.
+
+Les étapes 3 à 5 sont détaillées dans [`backend/README.md`](backend/README.md)
+§ « Amorcer le premier administrateur ». Pour vérifier que le site est ouvert :
+`GET /api/v1/site-access/session` rend `200` avec le cookie du code, `401` tant
+que le site est fermé.
+
 ---
 
 ## Providers supportés
