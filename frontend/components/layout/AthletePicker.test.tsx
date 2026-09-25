@@ -88,7 +88,10 @@ describe("AthletePicker — aucune correspondance (ETAT-3)", () => {
       await vi.advanceTimersByTimeAsync(250);
     });
 
-    expect(await screen.findByText("Aucun athlète trouvé")).toBeInTheDocument();
+    // The status region (#996) repeats the title for screen readers.
+    expect(
+      await screen.findByText("Aucun athlète trouvé", { ignore: "script, style, [role=status]" }),
+    ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Effacer la recherche" }));
     expect(screen.getByPlaceholderText("Rechercher un nom…")).toHaveValue("");
   });
@@ -136,6 +139,108 @@ describe("AthletePicker — classement par pertinence, servi par l'API (NAV-8, #
     });
 
     expect(await screen.findByText(/3 épreuves/)).toBeInTheDocument();
+  });
+});
+
+describe("AthletePicker — ARIA combobox and listbox (#996)", () => {
+  const DEUX = [
+    { id: 1, nom: "HERRMANN", prenom: "Mathieu", gender: "", club: "TCN", participation_count: 3 },
+    { id: 2, nom: "HERRY", prenom: "Yves", gender: "", club: "TCN", participation_count: 5 },
+  ];
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function chercher(terme: string, onPick = vi.fn()) {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<AthletePicker onClose={vi.fn()} onPick={onPick} />);
+    await user.type(screen.getByRole("combobox"), terme);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    return user;
+  }
+
+  it("exposes the field as a combobox that controls the results listbox", async () => {
+    searchAthletes.mockResolvedValue(DEUX);
+    await chercher("herr");
+
+    const champ = screen.getByRole("combobox");
+    const liste = await screen.findByRole("listbox", { name: "Athlètes trouvés" });
+    expect(champ).toHaveAttribute("aria-autocomplete", "list");
+    expect(champ).toHaveAttribute("aria-expanded", "true");
+    expect(champ).toHaveAttribute("aria-controls", liste.id);
+    expect(screen.getAllByRole("option")).toHaveLength(2);
+    expect(champ).not.toHaveAttribute("aria-activedescendant");
+  });
+
+  it("is collapsed while there is nothing to list", () => {
+    render(<AthletePicker onClose={vi.fn()} onPick={vi.fn()} />);
+
+    expect(screen.getByRole("combobox")).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("moves the active option with the arrow keys, bounded at both ends", async () => {
+    searchAthletes.mockResolvedValue(DEUX);
+    const user = await chercher("herr");
+    await screen.findByRole("listbox");
+    const champ = screen.getByRole("combobox");
+    const [premier, second] = screen.getAllByRole("option");
+
+    await user.keyboard("{ArrowDown}");
+    expect(champ).toHaveFocus();
+    expect(champ).toHaveAttribute("aria-activedescendant", premier.id);
+    expect(premier).toHaveAttribute("aria-selected", "true");
+    expect(second).toHaveAttribute("aria-selected", "false");
+
+    await user.keyboard("{ArrowDown}{ArrowDown}");
+    expect(champ).toHaveAttribute("aria-activedescendant", second.id);
+
+    await user.keyboard("{ArrowUp}{ArrowUp}");
+    expect(champ).toHaveAttribute("aria-activedescendant", premier.id);
+  });
+
+  it("picks the active option on Enter", async () => {
+    searchAthletes.mockResolvedValue(DEUX);
+    const onPick = vi.fn();
+    const user = await chercher("herr", onPick);
+    await screen.findByRole("listbox");
+
+    await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
+
+    expect(onPick).toHaveBeenCalledWith({ id: 2, prenom: "Yves", nom: "HERRY" });
+  });
+
+  it("announces each search state in a status region", async () => {
+    searchAthletes.mockResolvedValue(DEUX);
+    render(<AthletePicker onClose={vi.fn()} onPick={vi.fn()} />);
+    expect(screen.getByRole("status")).toHaveTextContent("Saisissez au moins 2 lettres");
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    await user.type(screen.getByRole("combobox"), "herr");
+    expect(screen.getByRole("status")).toHaveTextContent("Recherche…");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("2 athlètes trouvés");
+  });
+
+  it("announces a single result and an empty search", async () => {
+    searchAthletes.mockResolvedValueOnce([DEUX[0]]).mockResolvedValueOnce([]);
+    const user = await chercher("herrm");
+    expect(screen.getByRole("status")).toHaveTextContent("1 athlète trouvé");
+
+    await user.type(screen.getByRole("combobox"), "zz");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("Aucun athlète trouvé");
   });
 });
 
