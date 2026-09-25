@@ -91,6 +91,17 @@ def test_parse_fr_date_none(text):
     # Limite assumée : prénom entièrement en majuscules bascule à tort sur « NOM Prénom ».
     ("JP ROUX", ("JP ROUX", "")),
     ("JEAN MARTIN", ("JEAN MARTIN", "")),
+    # #906 : forme virgulée « NOM, Prénom » (`LFNAME` RaceResult), toute casse.
+    ("DUPONT, JEAN", ("DUPONT", "JEAN")),
+    ("DUPONT, Jean", ("DUPONT", "Jean")),
+    ("Dupont, Jean", ("Dupont", "Jean")),
+    ("BOURGAIN-VIALAR, ALBANE", ("BOURGAIN-VIALAR", "ALBANE")),
+    ("MERIAUX DE SCHEPPER, HECTOR", ("MERIAUX DE SCHEPPER", "HECTOR")),
+    ("  DUPONT ,  Jean Marie ", ("DUPONT", "Jean Marie")),
+    # Coupe sur la première virgule seulement.
+    ("DUPONT, Jean, Junior", ("DUPONT", "Jean, Junior")),
+    # Un côté vide : la virgule n'est qu'une ponctuation parasite.
+    ("HOFMANN,", ("HOFMANN", "")),
 ])
 def test_split_athlete_name(brut, attendu):
     assert split_athlete_name(brut) == attendu

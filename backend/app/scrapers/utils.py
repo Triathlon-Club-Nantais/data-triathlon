@@ -164,8 +164,19 @@ def split_athlete_name(full: str) -> tuple[str, str]:
     au lieu de (« ROUX », « JP »), et « JEAN MARTIN » donne (« JEAN MARTIN », « »).
     C'est une ambiguïté irréductible sans information supplémentaire — les deux
     lectures sont légitimes — et non un bug à corriger.
+
+    La virgule, elle, lève l'ambiguïté : « NOM, Prénom » (`LFNAME` RaceResult)
+    se coupe sur la **première** virgule, quelle que soit la casse (#906). Sans
+    cette règle, « JUMEAUX, ADRIEN » restait nom entier sans prénom et
+    « Courjon, Rose » sortait inversé, chacun doublonnant la fiche existante.
     """
-    parts = full.strip().split("\n")[0].strip().split()
+    ligne = full.strip().split("\n")[0]
+    if "," in ligne:
+        gauche, droite = (" ".join(cote.split()) for cote in ligne.split(",", 1))
+        if gauche and droite:
+            return gauche, droite
+        ligne = gauche or droite
+    parts = ligne.strip().split()
     if not parts:
         return "", ""
     if parts[0].isupper():
