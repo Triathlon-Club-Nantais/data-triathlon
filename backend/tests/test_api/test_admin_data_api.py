@@ -1026,3 +1026,149 @@ def test_lire_le_quota_de_saison_sans_le_pouvoir_rend_403(client, db_session, co
     )
 
     assert reponse.status_code == 403
+
+
+# --- PUT /admin/participations/{id}/teammates (#894) --------------------------
+
+
+@pytest.fixture
+def relais(db_session):
+    """Un relais porté par une fiche au nom de l'équipe, deux coureurs réels."""
+    course = course_repository.get_or_create(
+        db_session, name="Relais API", event_date=date(2026, 6, 1),
+        event_type="triathlon-s", is_relay=True,
+    )
+    equipe = athlete_repository.get_or_create(db_session, nom="DUPONT Jean / MARTIN Paul", prenom="")
+    jean = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    paul = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul")
+    db_session.flush()
+    ligne = participation_repository.create(
+        db_session, athlete_id=equipe.id, course_id=course.id, bib_number="7", is_relay=True
+    )
+    db_session.commit()
+    return {"course": course, "equipe": equipe, "jean": jean, "paul": paul, "participation": ligne}
+
+
+def _composition(*athletes):
+    return {"teammates": [{"athlete_id": a.id} for a in athletes]}
+
+
+def test_attribuer_un_relais_rend_ses_equipiers(client, relais):
+    ligne = relais["participation"]
+
+    reponse = client.put(
+        f"/api/v1/admin/participations/{ligne.id}/teammates",
+        json=_composition(relais["jean"], relais["paul"]),
+    )
+
+    assert reponse.status_code == 200
+    corps = reponse.json()
+    assert corps["athlete"]["id"] == relais["jean"].id
+    assert [a["id"] for a in corps["teammates"]] == [relais["jean"].id, relais["paul"].id]
+
+
+def test_attribuer_a_un_equipier_deja_classe_rend_409(client, db_session, relais):
+    participation_repository.create(
+        db_session, athlete_id=relais["paul"].id, course_id=relais["course"].id, bib_number="8"
+    )
+    db_session.commit()
+
+    reponse = client.put(
+        f"/api/v1/admin/participations/{relais['participation'].id}/teammates",
+        json=_composition(relais["jean"], relais["paul"]),
+    )
+
+    assert reponse.status_code == 409
+    assert reponse.json()["detail"] == "MARTIN Paul a déjà un résultat sur cette épreuve."
+
+
+@pytest.mark.parametrize(
+    "corps",
+    [
+        pytest.param({"teammates": [{"athlete_id": 1}]}, id="un-seul"),
+        pytest.param({"teammates": [{"athlete_id": 1}, {"athlete_id": 1}]}, id="doublon"),
+        pytest.param({"teammates": [{"athlete_id": i} for i in range(1, 10)]}, id="neuf"),
+        pytest.param({"teammates": [{"athlete_id": 1}, {}]}, id="entree-vide"),
+    ],
+)
+def test_attribuer_une_composition_invalide_rend_422(client, relais, corps):
+    reponse = client.put(
+        f"/api/v1/admin/participations/{relais['participation'].id}/teammates", json=corps
+    )
+
+    assert reponse.status_code == 422
+
+
+def test_attribuer_un_resultat_individuel_rend_400(client, rattachement):
+    reponse = client.put(
+        f"/api/v1/admin/participations/{rattachement['participation'].id}/teammates",
+        json=_composition(rattachement["source"], rattachement["cible"]),
+    )
+
+    assert reponse.status_code == 400
+    assert "relais" in reponse.json()["detail"]
+
+
+def test_attribuer_un_resultat_inconnu_rend_404(client, relais):
+    reponse = client.put(
+        "/api/v1/admin/participations/4242/teammates",
+        json=_composition(relais["jean"], relais["paul"]),
+    )
+
+    assert reponse.status_code == 404
+
+
+def test_attribuer_sans_session_rend_401(client, relais):
+    client.cookies.clear()
+
+    reponse = client.put(
+        f"/api/v1/admin/participations/{relais['participation'].id}/teammates",
+        json=_composition(relais["jean"], relais["paul"]),
+    )
+
+    assert reponse.status_code == 401
+
+
+def test_attribuer_a_un_equipier_saisi_par_son_nom(client, relais):
+    reponse = client.put(
+        f"/api/v1/admin/participations/{relais['participation'].id}/teammates",
+        json={"teammates": [
+            {"athlete_id": relais["jean"].id},
+            {"athlete_name": "DURAND", "athlete_firstname": "Marie"},
+        ]},
+    )
+
+    assert reponse.status_code == 200
+    assert [(a["nom"], a["prenom"]) for a in reponse.json()["teammates"]] == [
+        ("DUPONT", "Jean"), ("DURAND", "Marie"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "entree",
+    [
+        pytest.param({"athlete_name": "DURAND"}, id="sans-prenom"),
+        pytest.param({"athlete_name": " ", "athlete_firstname": "Marie"}, id="nom-vide"),
+        pytest.param(
+            {"athlete_id": 1, "athlete_name": "DURAND", "athlete_firstname": "Marie"}, id="les-deux"
+        ),
+    ],
+)
+def test_attribuer_une_entree_incomplete_rend_422(client, relais, entree):
+    reponse = client.put(
+        f"/api/v1/admin/participations/{relais['participation'].id}/teammates",
+        json={"teammates": [{"athlete_id": relais["jean"].id}, entree]},
+    )
+
+    assert reponse.status_code == 422
+
+
+def test_attribuer_sans_le_pouvoir_rend_403(client, db_session, relais):
+    _session_etroite(client, db_session, P.ATHLETES_WRITE)
+
+    reponse = client.put(
+        f"/api/v1/admin/participations/{relais['participation'].id}/teammates",
+        json=_composition(relais["jean"], relais["paul"]),
+    )
+
+    assert reponse.status_code == 403

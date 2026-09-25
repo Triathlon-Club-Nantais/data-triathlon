@@ -108,3 +108,32 @@ class Participation(Base):
 
     athlete: Mapped["Athlete"] = relationship(back_populates="participations")  # noqa: F821
     course: Mapped["Course"] = relationship(back_populates="participations")  # noqa: F821
+    # Équipiers d'un relais attribué (#894). Vide pour tout autre résultat ; non
+    # vide, la liste contient aussi `athlete`, l'équipier porteur.
+    teammate_links: Mapped[list["ParticipationTeammate"]] = relationship(
+        back_populates="participation",
+        cascade="all, delete-orphan",
+        order_by="ParticipationTeammate.position",
+        lazy="selectin",
+    )
+
+    @property
+    def teammates(self) -> list["Athlete"]:  # noqa: F821
+        return [link.athlete for link in self.teammate_links]
+
+
+class ParticipationTeammate(Base):
+    """Un équipier d'un résultat de relais : le résultat reste une seule ligne."""
+
+    __tablename__ = "participation_teammates"
+
+    participation_id: Mapped[int] = mapped_column(
+        ForeignKey("participations.id", ondelete="CASCADE"), primary_key=True
+    )
+    athlete_id: Mapped[int] = mapped_column(
+        ForeignKey("athletes.id", ondelete="RESTRICT"), primary_key=True, index=True
+    )
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+    participation: Mapped[Participation] = relationship(back_populates="teammate_links")
+    athlete: Mapped["Athlete"] = relationship(lazy="joined")  # noqa: F821

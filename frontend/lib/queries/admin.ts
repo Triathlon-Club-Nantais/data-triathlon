@@ -345,6 +345,28 @@ export function useReassignParticipation() {
 }
 
 /**
+ * Attribuer un relais à ses équipiers (#894) : mêmes écrans touchés que le
+ * rattachement, auquel ce geste ajoute des coureurs au lieu d'en changer un.
+ */
+export function useSetParticipationTeammates() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      participationId,
+      equipiers,
+    }: {
+      participationId: number;
+      equipiers: Parameters<typeof apiClient.setParticipationTeammates>[1];
+    }) => apiClient.setParticipationTeammates(participationId, equipiers),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+    },
+  });
+}
+
+/**
  * Suppression d'**un** résultat (#439).
  *
  * Mêmes invalidations que `useReassignParticipation` : le geste change les mêmes

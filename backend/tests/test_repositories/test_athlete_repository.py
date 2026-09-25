@@ -884,3 +884,82 @@ def test_create_batch_cree_toutes_les_fiches_et_leur_id_est_peuple(db_session):
 
 def test_create_batch_liste_vide_ne_cree_rien(db_session):
     assert athlete_repository.create_batch(db_session, []) == []
+
+
+def _relais_attribue(db_session):
+    course = course_repository.get_or_create(
+        db_session, name="Relais", event_date=date(2026, 6, 1), event_type="triathlon-s",
+        is_relay=True,
+    )
+    jean = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean", club="TCN")
+    paul = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="TCN")
+    participation = _part(db_session, jean, course, "7", is_relay=True)
+    participation_repository.replace_teammates(db_session, participation, [jean.id, paul.id])
+    return course, jean, paul
+
+
+def test_delete_orphans_among_epargne_un_equipier_de_relais(db_session):
+    _, _, paul = _relais_attribue(db_session)
+
+    assert athlete_repository.delete_orphans_among(db_session, [paul.id]) == []
+
+
+def test_only_on_course_compte_un_equipier_de_relais(db_session):
+    course, jean, paul = _relais_attribue(db_session)
+
+    assert athlete_repository.only_on_course(db_session, course.id) == sorted([jean.id, paul.id])
+
+
+def test_club_roster_credite_chaque_equipier_d_un_relais(db_session):
+    _relais_attribue(db_session)
+    db_session.flush()
+
+    comptes = {a.nom: count for a, count, *_ in athlete_repository.club_roster(db_session)}
+
+    assert comptes == {"DUPONT": 1, "MARTIN": 1}
+
+
+def test_club_roster_ne_compte_pas_un_podium_de_relais_parmi_les_podiums_individuels(db_session):
+    """#894, spec FR-011 : le relais reste compté en volume, pas en podiums."""
+    course, jean, _ = _relais_attribue(db_session)
+    relais = participation_repository.list_for_course(db_session, course.id)[0]
+    relais.rank_overall = 2
+    db_session.flush()
+
+    lignes = {a.nom: rest for a, *rest in athlete_repository.club_roster(db_session)}
+
+    assert lignes["DUPONT"] == [1, 0, 0, 0, 0]
+    assert lignes["MARTIN"] == [1, 0, 0, 0, 0]
+
+
+def test_compte_de_saison_credite_un_equipier_de_relais(db_session):
+    """#894 — même base que `list_for_athlete` et `season_quota` (#845)."""
+    _relais_attribue(db_session)
+    db_session.flush()
+
+    lignes = athlete_repository.list_with_season_participation_count(db_session, seasons=[])
+
+    assert {a.nom: total for a, total, *_ in lignes} == {"DUPONT": 1, "MARTIN": 1}
+
+
+def test_recherche_compte_le_relais_d_un_equipier(db_session):
+    _relais_attribue(db_session)
+    db_session.flush()
+
+    ((athlete, compte),) = athlete_repository.search_by_relevance(db_session, term="MARTIN")
+
+    assert (athlete.nom, compte) == ("MARTIN", 1)
+
+
+def test_club_rank_trouve_un_equipier_de_relais(db_session):
+    _, _, paul = _relais_attribue(db_session)
+    db_session.flush()
+
+    assert athlete_repository.club_rank(db_session, paul.id) is not None
+
+
+def test_club_composition_compte_chaque_equipier_de_relais(db_session):
+    _relais_attribue(db_session)
+    db_session.flush()
+
+    assert len(athlete_repository.club_composition(db_session)) == 2

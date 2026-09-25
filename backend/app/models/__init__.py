@@ -11,7 +11,7 @@ from app.models.group import Group
 from app.models.identity import Identity
 from app.models.ignored_course_duplicate import IgnoredCourseDuplicate
 from app.models.organisation import Organisation
-from app.models.participation import Participation
+from app.models.participation import Participation, ParticipationTeammate
 from app.models.pending_provider import PendingProvider
 from app.models.role import Role
 from app.models.role_permission import RolePermission
@@ -38,6 +38,7 @@ __all__ = [
     "IgnoredCourseDuplicate",
     "Organisation",
     "Participation",
+    "ParticipationTeammate",
     "PendingProvider",
     "Role",
     "RolePermission",

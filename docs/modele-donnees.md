@@ -128,6 +128,15 @@ figées `swim/t1/bike/t2/run`. Elle couvre tous les sports (duathlon
 - `participations.is_relay` — TimePulse mélange solos et relais dans une même
   course ; l'info est alors portée par la participation. `server_default="false"`.
 
+### Équipiers d'un relais : `participation_teammates` (#894)
+Un résultat de relais reste **une** ligne `participations`. Ses équipiers, une
+fois attribués par un administrateur (`PUT /admin/participations/{id}/teammates`),
+vivent dans `participation_teammates (participation_id, athlete_id, position)` :
+le résultat apparaît sur la fiche de chacun, `athlete_id` pointant sur le
+premier (le porteur). Sans attribution, la table est vide pour ce résultat et
+rien ne change. Un podium de relais ne compte pas dans les podiums individuels
+et compte une fois pour le club. Détail et pièges : `backend/app/models/AGENTS.md`.
+
 ### Cache TTL
 `Course.source_url` — l'URL de la **source active**, plus une colonne depuis
 #279 — est la clé de cache, et `courses.scraped_at` l'horodatage.

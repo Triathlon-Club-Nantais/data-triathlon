@@ -299,3 +299,25 @@ def test_course_listing_carries_the_field_without_computing_it(client, db_sessio
     rows = client.get(f"/api/v1/courses/{participation.course_id}").json()["participations"]
 
     assert [row["stats"] for row in rows] == [None]
+
+
+def test_un_resultat_non_attribue_rend_teammates_vide(client):
+    pid = client.post("/api/v1/participations", json=_payload()).json()["id"]
+
+    assert client.get(f"/api/v1/participations/{pid}").json()["teammates"] == []
+
+
+def test_un_relais_attribue_rend_ses_equipiers_dans_l_ordre(client, db_session):
+    from app.repositories import athlete_repository, participation_repository
+
+    pid = client.post("/api/v1/participations", json=_payload()).json()["id"]
+    participation = participation_repository.get(db_session, pid)
+    paul = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul")
+    participation_repository.replace_teammates(
+        db_session, participation, [paul.id, participation.athlete_id]
+    )
+    db_session.commit()
+
+    equipiers = client.get(f"/api/v1/participations/{pid}").json()["teammates"]
+
+    assert [(a["nom"], a["prenom"]) for a in equipiers] == [("MARTIN", "Paul"), ("DUPONT", "Jean")]

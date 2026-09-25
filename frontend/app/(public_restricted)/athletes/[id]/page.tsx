@@ -43,7 +43,11 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   const categorie = derniereValidee?.category ?? null;
   const anneeCategorie = derniereValidee?.course.event_date?.slice(0, 4) ?? null;
 
-  const places = validated.map((p) => p.rank_overall).filter((r): r is number => r != null);
+  // Rang d'équipe, pas individuel : un relais sort de ces deux tuiles (#894, FR-011).
+  const places = validated
+    .filter((p) => !p.is_relay)
+    .map((p) => p.rank_overall)
+    .filter((r): r is number => r != null);
   const best = places.length ? Math.min(...places) : null;
   const top10 = places.filter((p) => p <= 10).length;
 

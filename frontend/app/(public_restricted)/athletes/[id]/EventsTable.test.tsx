@@ -33,6 +33,7 @@ vi.mock("@/lib/queries/admin", () => ({
   useUpdateAthlete: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteParticipation: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useReassignParticipation: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useSetParticipationTeammates: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useAdminAthleteSearch: () => ({ data: undefined, isFetching: false }),
 }));
 
@@ -351,6 +352,58 @@ describe("EventsTable", () => {
 
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
     expect(screen.getByText("Aucun résultat pour cet athlète")).toBeInTheDocument();
+  });
+});
+
+describe("relais attribué à ses équipiers (#894)", () => {
+  const RELAIS: Participation = {
+    ...participation(1, { name: "Relais de Nantes" }),
+    is_relay: true,
+    team_name: "Les Inconnus",
+    teammates: [
+      { id: 7, nom: "DUPONT", prenom: "Jean", gender: "M", club: "TCN" },
+      { id: 8, nom: "MARTIN", prenom: "Paul", gender: "M", club: "TCN" },
+    ],
+  };
+  const LIBELLE = "Relais · Les Inconnus : DUPONT Jean, MARTIN Paul";
+
+  it("nomme l'équipe et ses équipiers dans la grille et dans la carte", () => {
+    render(<EventsTable participations={[RELAIS]} athleteId={7} athleteName="Jean DUPONT" />);
+
+    expect(screen.getByText(LIBELLE)).toBeInTheDocument();
+    expect(dansLesCartes("epreuves-cartes").texte(LIBELLE)).toBeTruthy();
+  });
+
+  it("offre l'attribution quand c'est l'épreuve qui est un relais", () => {
+    // Le serveur accepte `participation.is_relay` **ou** `course.is_relay` :
+    // le bouton suit la même règle.
+    useSessionMock.mockReturnValue({
+      data: { permissions: ["participations:reassign", "athletes:read"] },
+    });
+    const base = participation(1, { name: "Relais de Nantes" });
+    try {
+      render(
+        <EventsTable
+          participations={[{ ...base, course: { ...base.course, is_relay: true } }]}
+          athleteId={7}
+          athleteName="Jean DUPONT"
+        />,
+      );
+
+      expect(
+        screen.getAllByRole("button", { name: /^Attribuer aux équipiers/ }).length,
+      ).toBeGreaterThan(0);
+    } finally {
+      useSessionMock.mockReturnValue({ data: null });
+    }
+  });
+
+  it("ne dit rien d'un résultat non attribué", () => {
+    render(
+      <EventsTable participations={[participation(1)]} athleteId={7} athleteName="Jean DUPONT" />,
+    );
+
+    expect(screen.queryByText(/^Relais ·/)).not.toBeInTheDocument();
   });
 });
 
