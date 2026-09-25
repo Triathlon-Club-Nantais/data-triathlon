@@ -3503,3 +3503,25 @@ def test_scrape_event_all_fusion_complete_les_rangs_d_une_autre_liste(monkeypatc
 
     assert (r.rank_overall, r.rank_gender) == (26, 1)
 
+
+def test_build_result_386706_lfname_virgule_coupe_nom_et_prenom():
+    """`LFNAME` sérialise « NOM, PRÉNOM » (386706, sondé le 2026-09-25) : la
+    fiche doit porter nom et prénom, pas la cellule entière en nom (#906)."""
+    payload = {
+        "DataFields": ["BIB", "ID", "RANK1", "LFNAME", "TIME"],
+        "list": {"Fields": [
+            {"Expression": "RANK1", "Label": "Pl."},
+            {"Expression": "LFNAME", "Label": "NOM Prénom"},
+            {"Expression": "TIME", "Label": "Temps"},
+        ]},
+    }
+    roles, segments, extras = raceresult._map_columns(payload)
+
+    r = raceresult._build_result(
+        ["1556", "99", "1", "DEVAUX, BRIAN", "00:35:47"], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None, contest_label="XS",
+        status_label="", nom_col_expr="LFNAME",
+    )
+
+    assert (r.athlete_name, r.athlete_firstname, r.rank_overall) == ("DEVAUX", "BRIAN", 1)
+

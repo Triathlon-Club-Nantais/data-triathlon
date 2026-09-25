@@ -70,3 +70,10 @@ général en « Scratch », rang de sexe en « MF »), la fusion comble les rang
 vides de la ligne retenue avec ceux de l'autre (`_completer_rangs`), sauf pour
 un non-finisher ou deux identités distinctes. Mesuré sur 404650 : `rank_gender`
 passe de 0 à 1 065 lignes sur 1 221.
+
+**Nom virgulé (#906).** `LFNAME` sérialise « NOM, Prénom » (toute casse :
+`JUMEAUX, ADRIEN`, `Courjon, Rose`). `utils.split_athlete_name` coupe désormais
+sur la **première** virgule, nom à gauche et prénom à droite, pour tous les
+fournisseurs ; la garde `&` des noms d'équipe (#63) passe avant. Les fiches déjà
+en base (environ 6 400, dont environ 2 950 doublons exacts) ne sont pas
+reprises par ce correctif.
