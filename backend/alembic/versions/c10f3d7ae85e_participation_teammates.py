@@ -1,7 +1,7 @@
 """ajoute la table participation_teammates : équipiers d'un relais attribué (#894)
 
 Revision ID: c10f3d7ae85e
-Revises: 5b766a96b2a4
+Revises: f4f2e5d3e9dd
 Create Date: 2026-09-24 17:33:39.824318
 """
 from typing import Sequence, Union
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 
 revision: str = 'c10f3d7ae85e'
-down_revision: Union[str, None] = '5b766a96b2a4'
+down_revision: Union[str, None] = 'f4f2e5d3e9dd'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
