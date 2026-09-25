@@ -152,6 +152,29 @@ def test_reimport_respecte_un_club_corrige_a_la_main(db_session, patch_scraper):
     assert suiveur.club == "ASPTT NANTES 44"
 
 
+def test_reimport_backfills_empty_gender_but_keeps_known_one(db_session, patch_scraper):
+    """#964: batch resolution fills an empty gender from a later import and
+    never overwrites a gender already set, same rule as `resolve`."""
+    patch_scraper(
+        [
+            _result("1", "SANSEXE", prenom="Alex", gender=""),
+            _result("2", "GENRE", prenom="Lou", gender="M"),
+        ]
+    )
+    import_service.import_event(db_session, URL, _settings())
+
+    patch_scraper(
+        [
+            _result("1", "SANSEXE", prenom="Alex", gender="F"),
+            _result("2", "GENRE", prenom="Lou", gender="F"),
+        ]
+    )
+    import_service.import_event(db_session, URL, _settings(), force=True)
+
+    assert athlete_repository.get_by_identity(db_session, "SANSEXE", "Alex", None).gender == "F"
+    assert athlete_repository.get_by_identity(db_session, "GENRE", "Lou", None).gender == "M"
+
+
 def test_import_calcule_l_indice_de_fiabilite(db_session, patch_scraper):
     patch_scraper([_result("1", "DUPONT", rank_overall=1), _result("2", "MARTIN", rank_overall=2)])
     import_service.import_event(db_session, URL, _settings())

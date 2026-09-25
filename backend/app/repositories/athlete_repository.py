@@ -153,6 +153,9 @@ def resolve(
         # chargée : le lire ne coûte aucune requête de plus à l'import.
         if club and existing.club != club and not existing.club_locked:
             existing.club = club
+        # Complète un sexe absent de la première source, sans jamais l'écraser (#964).
+        if gender and not existing.gender:
+            existing.gender = gender
         return existing, False
 
     athlete = Athlete(
