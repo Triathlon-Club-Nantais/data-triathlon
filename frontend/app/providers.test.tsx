@@ -2,13 +2,18 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
+import { QueryClient, useQueryClient } from "@tanstack/react-query";
+import { SESSION_QUERY_DEFAULTS } from "@/lib/queries/auth";
 import type { SessionUser } from "@/lib/types";
 
 const { identify, reset } = vi.hoisted(() => ({ identify: vi.fn(), reset: vi.fn() }));
 vi.mock("posthog-js", () => ({ default: { identify, reset, capture: vi.fn() } }));
 
 const { useSession } = vi.hoisted(() => ({ useSession: vi.fn() }));
-vi.mock("@/lib/queries/auth", () => ({ useSession }));
+vi.mock("@/lib/queries/auth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/queries/auth")>()),
+  useSession,
+}));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 
@@ -29,6 +34,25 @@ const SESSION: SessionUser = {
   roles: [],
   groups: [],
 };
+
+describe("Providers: session query policy (#954)", () => {
+  it("applies the bounded session retry to the session query only", () => {
+    useSession.mockReturnValue({ data: null });
+    let client: QueryClient | undefined;
+    function Sonde() {
+      client = useQueryClient();
+      return null;
+    }
+    render(
+      <Providers>
+        <Sonde />
+      </Providers>,
+    );
+
+    expect(client?.getQueryDefaults(["session"]).retry).toBe(SESSION_QUERY_DEFAULTS.retry);
+    expect(client?.getQueryDefaults(["participations"]).retry).toBeUndefined();
+  });
+});
 
 describe("PostHogSessionSync", () => {
   beforeEach(() => {

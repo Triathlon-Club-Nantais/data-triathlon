@@ -16,11 +16,40 @@ function visiteurProbablementConnecte(): boolean {
     .some((cookie) => cookie.startsWith("tcn_logged_in="));
 }
 
+/** Au-delà, mieux vaut dire la panne que faire patienter en silence. */
+const ATTENTE_MAX_429_S = 30;
+const ESSAIS_MAX = 3;
+
+function panneTransitoire(erreur: Error): boolean {
+  if (!(erreur instanceof ApiError)) return true; // coupure réseau
+  if (erreur.status === 429) return (erreur.retryAfter ?? 0) <= ATTENTE_MAX_429_S;
+  return erreur.status >= 500;
+}
+
+/**
+ * Politique de la seule query session (#954), posée par `Providers` via
+ * `setQueryDefaults` : une panne passagère de `/auth/me` (réveil à froid de
+ * Render, 429 amont) ne doit pas faire passer un connecté pour un anonyme.
+ * Les autres queries gardent leur `retry`. Le 401 n'arrive jamais ici,
+ * `useSession` le traduit en `null`.
+ */
+export const SESSION_QUERY_DEFAULTS = {
+  retry: (echecs: number, erreur: Error) => echecs < ESSAIS_MAX && panneTransitoire(erreur),
+  retryDelay: (echecs: number, erreur: Error) =>
+    erreur instanceof ApiError && erreur.status === 429 && erreur.retryAfter !== null
+      ? erreur.retryAfter * 1000
+      : Math.min(1000 * 2 ** echecs, 8000),
+  // Un retour sur l'onglet répare une session illisible, sans relancer
+  // `/auth/me` à chaque focus quand tout va bien.
+  refetchOnWindowFocus: (query: { state: { status: string } }) => query.state.status === "error",
+};
+
 /**
  * Session courante, ou `null` si le visiteur est anonyme.
  *
  * Un 401 n'est **pas** une erreur ici : « pas connecté » est l'état par défaut
- * du site, qui reste intégralement public. Toute autre panne, elle, remonte.
+ * du site, qui reste intégralement public. Toute autre panne, elle, remonte,
+ * après les essais de `SESSION_QUERY_DEFAULTS`.
  */
 export function useSession() {
   return useQuery<SessionUser | null>({
@@ -34,7 +63,6 @@ export function useSession() {
         throw erreur;
       }
     },
-    retry: false,
   });
 }
 

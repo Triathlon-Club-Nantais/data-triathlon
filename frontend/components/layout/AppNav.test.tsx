@@ -556,6 +556,50 @@ describe("AppNav — raccourci « Mes résultats » de la tuile (NAV-10, #503)",
   });
 });
 
+describe("AppNav: unreadable session (#954)", () => {
+  it("does not show « Se connecter » when /auth/me fails with a 503", async () => {
+    getSession.mockRejectedValue(new ApiError(503, "indisponible"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <AppNav />
+      </QueryClientProvider>,
+    );
+
+    const reessayer = await screen.findByRole("button", { name: "Session indisponible, réessayer" });
+    expect(screen.queryByRole("button", { name: "Se connecter" })).not.toBeInTheDocument();
+
+    getSession.mockResolvedValue(SESSION);
+    await userEvent.click(reessayer);
+    expect(await screen.findByRole("button", { name: /Compte/ })).toBeInTheDocument();
+  });
+
+  it("keeps the last known sections when a later session refetch fails", async () => {
+    getSession.mockResolvedValue(habilite("courses:write"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <AppNav initialExpanded />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole("link", { name: "Épreuves" })).toBeInTheDocument();
+
+    getSession.mockRejectedValue(new ApiError(503, "indisponible"));
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["session"] });
+    });
+
+    expect(screen.getByRole("link", { name: "Épreuves" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Se connecter" })).not.toBeInTheDocument();
+  });
+
+  it("still offers « Se connecter » on a 401", async () => {
+    afficher(null);
+
+    expect((await screen.findAllByRole("button", { name: "Se connecter" })).length).toBeGreaterThan(0);
+  });
+});
+
 describe("AppNav — actions primaires", () => {
   it("ancre « Ajouter une épreuve » et « Rechercher un athlète », même replié", async () => {
     afficher(null);

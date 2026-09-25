@@ -120,8 +120,13 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   Le caractère superutilisateur de l'utilisateur connecté se déduit du
   croisement `session.roles` × liste des rôles, jamais de « il porte tous les
   codes », qui est faux. Et une session **illisible** n'est pas une session sans
-  pouvoirs : `useSession` ne réessaie pas, donc son erreur entre dans la garde de
-  l'écran plutôt que de figer les cases en affirmant qu'on ne porte rien.
+  pouvoirs : l'erreur de `useSession` entre dans la garde de l'écran plutôt que
+  de figer les cases en affirmant qu'on ne porte rien. Même règle pour le rail
+  et `UserMenu` (#954) : ni « Se connecter » ni sections retirées sur une panne,
+  le dernier état connu restant affiché. La query session ne réessaie que les
+  pannes passagères (5xx, 429 court, réseau), trois fois au plus, par
+  `SESSION_QUERY_DEFAULTS` que `Providers` pose via `setQueryDefaults` : les
+  clients de test, en `retry: false`, n'en héritent pas.
 - **Retours utilisateurs : une file, pas une liste** (#500, ADM-10) —
   `FeedbackTable` ouvre sur « Nouveau » seul et filtre **côté serveur**
   (`?status=`), les décomptes venant de `GET /admin/feedback/counts`. Quatre

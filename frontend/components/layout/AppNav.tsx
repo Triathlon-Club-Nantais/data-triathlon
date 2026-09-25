@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type CSSProperties } from "react";
-import { LogIn, Menu, PanelLeft, Plus, Search, X } from "lucide-react";
+import { LogIn, Menu, PanelLeft, Plus, RotateCw, Search, X } from "lucide-react";
 import { Avatar } from "@/components/tcn";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -40,7 +40,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // finirait en 401 (#953).
   const rechercheDisponible = pathname !== "/acces";
   const router = useRouter();
-  const { data: session } = useSession();
+  const { data: session, isError: sessionIllisible, isFetching: sessionEnCours, refetch: relireSession } = useSession();
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Deux usages, deux modes (#952) : la recherche ne fait que naviguer ; seule
   // la désignation demandée par `OPEN_PICKER_EVENT` retient l'athlète.
@@ -270,6 +270,44 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
                 </div>
               )}
             </div>
+          ) : sessionIllisible && session === undefined ? (
+            // Une session illisible n'est pas une session anonyme (#954).
+            <Tooltip>
+              <TooltipTrigger
+                disabled={expanded}
+                render={
+                  <button
+                    type="button"
+                    onClick={() => void relireSession()}
+                    disabled={sessionEnCours}
+                    aria-label="Session indisponible, réessayer"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      width: "100%",
+                      height: 44,
+                      padding: expanded ? "0 14px" : 0,
+                      justifyContent: expanded ? "flex-start" : "center",
+                      borderRadius: "var(--tcn-radius-lg)",
+                      background: "var(--tcn-surface)",
+                      color: "var(--tcn-ink)",
+                      border: "1.5px solid var(--tcn-border-strong)",
+                      fontFamily: "var(--tcn-font-body)",
+                      fontWeight: 700,
+                      fontSize: 13.5,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      cursor: sessionEnCours ? "wait" : "pointer",
+                    }}
+                  />
+                }
+              >
+                <RotateCw size={18} style={{ flex: "none" }} />
+                {expanded && <span>Session indisponible</span>}
+              </TooltipTrigger>
+              {!expanded && <TooltipContent>Session indisponible, réessayer</TooltipContent>}
+            </Tooltip>
           ) : (
             <Tooltip>
               <TooltipTrigger
