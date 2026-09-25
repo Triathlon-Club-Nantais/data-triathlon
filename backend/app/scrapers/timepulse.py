@@ -364,7 +364,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         # Le format (S/M/L) est porté par le parcours `p` de chaque <E>, pas par
         # le nom global de l'épreuve (ex. « LE NORTH MAY » → Triathlon S/M/L SOLO).
         result.event_type = (
-            classify_event_type(parcours) if parcours else event_type_fallback
+            classify_event_type(parcours, contexte=event_name) if parcours else event_type_fallback
         )
         # Qualifié par le parcours, comme Klikego/ProLiveSport (#674) : deux parcours
         # distincts peuvent partager un même event_type (« Trail 9 km »/« Trail 16 km »

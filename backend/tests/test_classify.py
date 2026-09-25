@@ -32,6 +32,13 @@ from app.scrapers.classify import (
     ("Half Ironman de Gérardmer", "triathlon-l"),
     ("2025 IRONMAN France Nice", "triathlon-xl"),      # sans marqueur half → XL
     ("Triathlon de Lacanau 2025", "triathlon"),
+    # #973 : un format explicite prime sur le jeton de marque (courses 819, 648, 649).
+    ("Embrunman - {EN:Quart|FR:Quart}", "triathlon-m"),
+    ("Embrunman - {FR:Half|EN:Half}", "triathlon-l"),
+    ("Embrunman - {EN:Embrunman|FR:Embruman}", "triathlon-xl"),
+    ("Chtriman 2025 - Gravelines - CHTRIMAN 113", "triathlon-l"),
+    ("Chtriman 2025 - Gravelines - CHTRIMAN 226", "triathlon-xl"),
+    ("Triathlon du Quartier Nord", "triathlon"),
     ("Sprint de la Roche", "triathlon-s"),             # pas de sport explicite → triathlon + taille
     ("triathlon-xl frenchman-2026", "triathlon-xl"),   # heat+slug séparés par espace (régression seg())
     ("triathlon-m nantais-2026", "triathlon-m"),

@@ -67,8 +67,14 @@ def _detect_size(t: str) -> str:
     # Un format half explicite prime sur le jeton de marque « ironman », qui
     # vaut sinon XL : « IRONMAN 70.3 Vichy » est un half, pas un format long
     # (issue #54). « Ironman France », sans marqueur, reste XL.
-    if "70.3" in t or "half" in t:
+    # Même règle pour les formats nommés par leur kilométrage (Chtriman 113 /
+    # 226, #973) et le quart, ~1/45/10 km, rangé en M (Embrunman Quart).
+    if "70.3" in t or "half" in t or re.search(r"(?<!\d)113(?!\d)", t):
         return "l"
+    if re.search(r"(?<!\d)226(?!\d)", t):
+        return "xl"
+    if re.search(r"\bquarts?\b", t):
+        return "m"
     if "xxl" in t or "ironman" in t or "embrunman" in t or seg("xl"):
         return "xl"
     if re.search(r"\blongues?\b", t) or seg("l"):

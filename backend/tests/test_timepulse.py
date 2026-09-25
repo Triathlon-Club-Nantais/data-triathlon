@@ -419,6 +419,27 @@ def test_scrape_event_all_event_type_from_parcours(monkeypatch):
     assert by_bib["40"].event_type == "triathlon"  # repli nom global
 
 
+@pytest.mark.parametrize("event_name, parcours, expected", [
+    ("Maré Trail La Turballe", "Course nature", "trail"),   # 2980, course 873
+    ("Planète Racing Aquarun", "S", "aquarun"),             # courses 251 à 255
+    ("Triathlon et SwimRun de Dinard", "Triathlon M", "triathlon-m"),  # le parcours prime
+])
+def test_scrape_event_all_classifies_parcours_with_event_context(
+    monkeypatch, event_name, parcours, expected,
+):
+    """#973 : le nom d'événement sert d'appoint quand le parcours ne nomme aucun sport."""
+    xml = make_xml(
+        athletes=[("10", "ALPHA Jean", "SEH", "M", parcours)],
+        results=[("10", "01:00:00", {})],
+        event_name=event_name,
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    (result,) = scrape_event_all("https://www.timepulse.fr/resultats/2980")
+
+    assert result.event_type == expected
+
+
 def test_scrape_event_all_skips_entry_without_parcours_and_name(monkeypatch):
     """Une entrée sans parcours NI nom est un artefact source, pas un
     participant réel : l'exclure plutôt que de dupliquer l'identité globale
