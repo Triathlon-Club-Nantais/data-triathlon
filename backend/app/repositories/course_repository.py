@@ -1,7 +1,7 @@
 """Accès données pour Course."""
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import case, func, or_
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.club import tcn_clause
@@ -445,13 +445,19 @@ def _filtered(
         # l'`@expression` du modèle ; il n'y a rien à brancher ici.
         q = q.filter(Course.is_reliable.is_(False))
     if club_only:
-        q = (
-            q.join(Participation, Participation.course_id == Course.id)
-            .filter(tcn_clause(Participation.club))
-            # #562 : une épreuve dont l'unique participation club est en
-            # attente de validation ne doit pas apparaître dans le catalogue.
-            .filter(validated_clause(Participation.is_pending_validation))
-            .distinct()
+        # Semi-jointure `IN` et non `join` + `DISTINCT` : PostgreSQL n'a pas
+        # d'égalité sur `json` (`quality_issues`), le `DISTINCT` y échoue (#918).
+        # Non corrélée, contrairement à un `EXISTS`, elle garde l'index
+        # fonctionnel du club (#351).
+        q = q.filter(
+            Course.id.in_(
+                select(Participation.course_id).where(
+                    tcn_clause(Participation.club),
+                    # #562 : une épreuve dont l'unique participation club est en
+                    # attente de validation ne doit pas apparaître dans le catalogue.
+                    validated_clause(Participation.is_pending_validation),
+                )
+            )
         )
     return q
 
