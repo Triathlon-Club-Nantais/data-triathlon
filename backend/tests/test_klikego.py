@@ -1098,6 +1098,69 @@ def test_fetch_heat_rows_paginates_and_stops(monkeypatch):
     assert len(rows) == 52          # 50 + 2, dédoublonnés
 
 
+class _StatusResp:
+    def __init__(self, text: str = "", status_code: int = 200):
+        self.text, self.status_code = text, status_code
+
+
+class _ScriptedClient:
+    """Rend les réponses de `script` dans l'ordre, puis une page vide."""
+
+    def __init__(self, script):
+        self.script, self.urls = list(script), []
+
+    def get(self, url):
+        self.urls.append(url)
+        return self.script.pop(0) if self.script else _StatusResp("<html></html>")
+
+
+def test_fetch_heat_rows_raises_when_a_page_keeps_failing():
+    """#943 : un 503 persistant en page 1 ne rend pas les 50 lignes de la page 0
+    comme un heat complet. La fin normale mesurée est un 200 vide, jamais un
+    non-200 (Klikego et Breizh Chrono, 25/09/2026)."""
+    from app.core.exceptions import ScraperError
+
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+    client = _ScriptedClient([_StatusResp(page0)] + [_StatusResp("", 503)] * 10)
+
+    with pytest.raises(ScraperError, match="503"):
+        plat.fetch_heat_rows("https://x", "evt", "heat", client)
+    assert len(client.urls) == 1 + plat._ESSAIS_PAGE
+
+
+def test_fetch_heat_rows_retries_a_transient_5xx():
+    page0 = (FIXTURES / "klikego_datablock_page0.html").read_text()
+    client = _ScriptedClient([_StatusResp(page0), _StatusResp("", 502)])
+
+    rows = plat.fetch_heat_rows("https://x", "evt", "heat", client)
+
+    assert len(rows) == 50
+    assert sum("page=1" in u for u in client.urls) == 2
+
+
+def test_fetch_heat_rows_raises_on_a_4xx_first_page_without_retry():
+    from app.core.exceptions import ScraperError
+
+    client = _ScriptedClient([_StatusResp("", 404)])
+
+    with pytest.raises(ScraperError, match="404"):
+        plat.fetch_heat_rows("https://x", "evt", "heat", client)
+    assert len(client.urls) == 1
+
+
+def test_scrape_single_heat_raises_when_heat_page_fails(monkeypatch):
+    """#943 : plus de repli silencieux sur "" (aucun split inter, nom dérivé du slug)."""
+    from app.core.exceptions import ScraperError
+
+    client = _ScriptedClient([_StatusResp("", 503)] * plat._ESSAIS_PAGE)
+
+    with pytest.raises(ScraperError):
+        klikego._scrape_single_heat(
+            "1677015306084-12", "triathlon-s-indiv", "Triathlon S Indiv", "Mesquer",
+            "triathlon-et-swimrun-mesquer-quimiac-2026", None, client,
+        )
+
+
 # ── parse_event_name — le nom d'épreuve vient de la page, pas du slug d'URL ──
 
 

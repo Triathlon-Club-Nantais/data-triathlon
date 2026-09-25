@@ -100,6 +100,18 @@ pas repassées par le code corrigé — mise à jour **en place**
 par ligne (`status`/`total_time`), pas l'identité de la `Course` (nom, date,
 type, relais).
 
+## Une page non 200 lève, elle ne termine rien (#943)
+
+Sondage du 25/09/2026, Klikego et Breizh Chrono : la fin de pagination de
+`course-result.jsp` est un **200 sans ligne** (page 40 d'un heat de 50 lignes),
+un heat inconnu répond **302** vers un autre heat, un événement inconnu **500**.
+Un non-200 n'est donc jamais une fin de données. `klikego_platform.get_page`
+rejoue un 5xx (3 essais, sans temporisation) puis lève `ScraperError`, sur la
+pagination d'un heat, ses checkpoints `inter` et la page heat des deux
+fournisseurs : le heat part dans `trace.failures` au lieu d'être importé
+tronqué, sans splits inter, puis figé 30 jours par le cache TTL. Les pages
+détail par participant et la page événement gardent leur repli.
+
 ## Dates, types, relais
 
 `klikego_platform.parse_page_date` cherche une date dans le **HTML entier**, pas dans un élément

@@ -436,9 +436,8 @@ def _scrape_single_heat(
     """
     from app.scrapers import klikego_platform as plat
 
-    heat_page = client.get(_heat_source_url(event_id, slug, heat))
-    heat_page_html = heat_page.text if heat_page.status_code == 200 else ""
     source_url = _heat_source_url(event_id, slug, heat)
+    heat_page_html = plat.get_page(client, source_url).text
 
     results = plat.build_heat_results(
         base=BASE,
