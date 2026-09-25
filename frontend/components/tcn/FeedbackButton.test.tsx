@@ -45,6 +45,19 @@ describe("FeedbackButton", () => {
     }
   });
 
+  it("marks only the missing field and names it (#930)", async () => {
+    const user = userEvent.setup();
+    render(<FeedbackButton />);
+
+    await user.click(screen.getByRole("button", { name: /signaler un bug/i }));
+    await user.type(screen.getByLabelText("Titre"), "Un titre");
+    await user.click(screen.getByRole("button", { name: "Envoyer" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent("La description est obligatoire.");
+    expect(screen.getByLabelText("Titre")).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByLabelText("Description")).toHaveAttribute("aria-invalid", "true");
+  });
+
   it("announces a submission error without marking the fields invalid (#930)", async () => {
     submitFeedback.mockRejectedValueOnce(new Error("offline"));
     const user = userEvent.setup();
