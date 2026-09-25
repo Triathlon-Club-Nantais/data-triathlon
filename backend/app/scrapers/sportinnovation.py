@@ -169,6 +169,9 @@ def _col_indices(headers: list[str]) -> dict[str, int]:
             mapping.setdefault("club", i)
         elif "tps off" in hl or "temps off" in hl:
             mapping.setdefault("total_time", i)
+        elif hl == "nat." or "nationalit" in hl:
+            # Nationalité (« FRA »), pas la natation (« Tps Nat ») : #971.
+            continue
         elif "nat" in hl or "swim" in hl or "nage" in hl:
             mapping.setdefault("swim_time", i)
         elif "transition 1" in hl or "t1" == hl:

@@ -5,6 +5,8 @@ entités normalisées Athlete / Course / Participation.
 Les segments de temps (natation, T1, vélo, T2, course…) sont regroupés dans un
 dict `splits` adapté au sport, plutôt que des colonnes figées.
 """
+import logging
+import re
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
@@ -16,6 +18,8 @@ from app.repositories import athlete_repository, course_repository, course_sourc
 from app.scrapers.base import STATUS_DNF, STATUS_FINISHER, ScrapedResult
 from app.scrapers.classify import extract_distance_km
 from app.services import course_reconciliation
+
+logger = logging.getLogger(__name__)
 
 # Les scrapers rangent toujours les segments dans 5 slots positionnels triathlon
 # (swim/t1/bike/t2/run). Selon le sport, on ré-étiquette ces slots avec des clés
@@ -92,13 +96,66 @@ def build_splits(scraped: ScrapedResult) -> dict[str, str]:
                 key = f"{label} ({n})"
                 n += 1
             splits[key] = time
-        return splits
-    template = _SPLIT_KEYS_BY_SPORT.get(_sport_base(scraped.event_type), _DEFAULT_SPLIT_KEYS)
-    return {
-        key: getattr(scraped, field)
-        for field, key in template.items()
-        if getattr(scraped, field)
-    }
+    else:
+        template = _SPLIT_KEYS_BY_SPORT.get(_sport_base(scraped.event_type), _DEFAULT_SPLIT_KEYS)
+        splits = {
+            key: getattr(scraped, field)
+            for field, key in template.items()
+            if getattr(scraped, field)
+        }
+    return _plausible_splits(splits, scraped)
+
+
+def _plausible_splits(splits: dict[str, str], scraped: ScrapedResult) -> dict[str, str]:
+    """Écarte les segments qui ne sont pas un temps réel du parcours (#971).
+
+    `00:00:00` est un point de passage non franchi (Klikego, Breizh Chrono), donc
+    une absence, écartée sans bruit. Une durée négative ou illisible (« FRA »,
+    `00:-43:-18`) et un segment plus long que le total sont journalisés. Quand
+    **tous** les segments (au moins deux) valent le total, la source a recopié
+    l'arrivée dans chaque inter (ProLiveSport) : aucun n'est gardé. Un segment
+    unique égal au total reste légitime (mono-sport).
+    """
+    total = parse_duration(scraped.total_time)
+    kept: dict[str, str] = {}
+    for key, value in splits.items():
+        seconds = parse_duration(value)
+        if seconds == 0:
+            continue
+        if seconds is None or (total is not None and seconds > total):
+            logger.info(
+                "Segment écarté (%s) : %s=%r, total=%r",
+                scraped.provider, key, value, scraped.total_time,
+            )
+            continue
+        kept[key] = value
+    if len(kept) >= 2 and total is not None and all(
+        parse_duration(value) == total for value in kept.values()
+    ):
+        logger.info("Segments tous égaux au total écartés (%s) : %r", scraped.provider, kept)
+        return {}
+    return kept
+
+
+# `fullmatch`, et non le `search` de `app.scrapers.utils.to_seconds` : cette dernière
+# rend 900 sur « 0-2:-15:00 » (elle n'ancre qu'à droite) et 3825 sur « 01:23:45.6 »,
+# là où l'écran rejette les deux (`secondsFromHms`, garde posée par #472). Réutiliser
+# `to_seconds` ferait donc évaluer ici des lignes que l'écran affiche « — ⚠ ».
+_DURATION = re.compile(r"(?:(?P<hours>\d+):)?(?P<minutes>\d{1,2}):(?P<seconds>\d{2})")
+
+
+def parse_duration(value: str | None) -> int | None:
+    """Secondes d'un `HH:MM:SS` ou `MM:SS`, `None` si ce n'est pas une durée."""
+    if not isinstance(value, str):
+        return None
+    match = _DURATION.fullmatch(value.strip())
+    if not match:
+        return None
+    minutes = int(match["minutes"])
+    seconds = int(match["seconds"])
+    if minutes >= 60 or seconds >= 60:
+        return None
+    return int(match["hours"] or 0) * 3600 + minutes * 60 + seconds
 
 
 def derive_status(scraped: ScrapedResult) -> str:

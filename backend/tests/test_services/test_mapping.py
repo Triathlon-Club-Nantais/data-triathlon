@@ -1,3 +1,7 @@
+import logging
+
+import pytest
+
 from app.scrapers.base import ScrapedResult
 from app.services import mapping
 
@@ -68,6 +72,52 @@ def test_build_splits_swimrun_keeps_a_filled_middle_slot():
         "segment2": "00:25:00",
         "run": "00:40:00",
     }
+
+
+# #971 : un segment n'est gardé que s'il est une durée strictement positive,
+# au plus égale au temps total.
+
+@pytest.mark.parametrize(
+    "bad", ["00:00:00", "0:00:00", "00:00", "-00:02:10", "00:-43:-18", "-1:-14:-32", "FRA"]
+)
+def test_build_splits_drops_a_slot_that_is_not_a_positive_duration(bad):
+    s = _scraped(total_time="02:00:00", swim_time=bad, bike_time="01:00:00")
+    assert mapping.build_splits(s) == {"bike": "01:00:00"}
+
+
+@pytest.mark.parametrize("bad", ["00:00:00", "-00:02:10", "FRA"])
+def test_build_splits_drops_a_segment_that_is_not_a_positive_duration(bad):
+    s = _scraped(total_time="02:00:00", segments=[("Natation", bad), ("Vélo", "01:00:00")])
+    assert mapping.build_splits(s) == {"Vélo": "01:00:00"}
+
+
+def test_build_splits_drops_a_segment_longer_than_the_total():
+    s = _scraped(total_time="00:19:38", swim_time="00:05:00", t1_time="00:30:48")
+    assert mapping.build_splits(s) == {"swim": "00:05:00"}
+
+
+def test_build_splits_keeps_segments_when_the_total_is_unreadable():
+    s = _scraped(swim_time="00:05:00", run_time="00:30:48")
+    assert mapping.build_splits(s) == {"swim": "00:05:00", "run": "00:30:48"}
+
+
+def test_build_splits_drops_every_segment_when_all_equal_the_total():
+    segs = [(f"T{i}", "00:50:12") for i in range(1, 6)]
+    assert mapping.build_splits(_scraped(total_time="00:50:12", segments=segs)) == {}
+
+
+def test_build_splits_keeps_a_single_segment_equal_to_the_total():
+    s = _scraped(event_type="trail", total_time="01:45:00", run_time="01:45:00")
+    assert mapping.build_splits(s) == {"run": "01:45:00"}
+
+
+def test_build_splits_logs_each_rejected_segment(caplog):
+    s = _scraped(provider="breizhchrono", total_time="02:00:00", swim_time="-00:02:10")
+    with caplog.at_level(logging.INFO, logger="app.services.mapping"):
+        mapping.build_splits(s)
+    assert "breizhchrono" in caplog.text
+    assert "swim" in caplog.text
+    assert "-00:02:10" in caplog.text
 
 
 def test_build_splits_uses_segments_when_provided():
