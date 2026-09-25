@@ -16,8 +16,9 @@ CLI.
 Ouvre `AGENTS.md` (racine) et lis la puce **Frontend** de la section « Stack ».
 Résumé : Next.js 16 (App Router) + TypeScript strict + Tailwind + shadcn/ui,
 qui consomme le backend FastAPI sous `/api/v1`. Rien à installer côté Python
-pour bosser sur le front — `npm run dev` sur le port 3000 suffit, avec le
-backend déjà lancé sur `:8001`.
+pour bosser sur le front — `npm run dev` (port 3000 ou le suivant libre)
+suffit, avec le backend du worktree déjà lancé (`task b:dev`), dont il lit
+le port dans `.dev-backend.json`.
 
 ## 2. AGENTS.md : les sections qui te concernent
 
@@ -54,7 +55,7 @@ Six principes non-négociables. Trois te concernent directement :
 Trois choses à comprendre :
 
 - **Rewrites** : toute requête `/api/*` du front est redirigée vers
-  `BACKEND_URL` (défaut `http://localhost:8001`) en dev. Tu appelles donc
+  `BACKEND_URL`, que `scripts/dev.mjs` injecte en dev depuis `.dev-backend.json`. Tu appelles donc
   `/api/v1/...` depuis ton code React comme si c'était local — Next.js proxifie.
 - **`output: "standalone"`** : build autonome pour l'image Docker (déploiement
   Vercel-compatible aussi).
