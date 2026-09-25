@@ -1,6 +1,7 @@
 import type { RankType } from "@/lib/rank";
 import type { Participation } from "@/lib/types";
 import { isPodium } from "@/lib/utils/club-aggregate";
+import { estRelais } from "@/lib/utils/relais";
 
 /** Les deux chiffres de la bande « Ma saison » (#502). */
 export type CompteursMaSaison = { epreuves: number; podiums: number };
@@ -31,7 +32,7 @@ export function compteMaSaison(
   const validees = participations.filter((p) => !p.is_pending_validation);
   // Un podium de relais n'est pas un podium individuel (#894, FR-011).
   const podiums = validees.filter(
-    (p) => !p.is_relay && !p.course.is_relay && isPodium(p, mode),
+    (p) => !estRelais(p) && isPodium(p, mode),
   ).length;
   return { epreuves: new Set(validees.map((p) => p.course.id)).size, podiums };
 }

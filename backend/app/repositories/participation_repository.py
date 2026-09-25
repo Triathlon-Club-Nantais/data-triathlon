@@ -3,7 +3,7 @@ from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from typing import NamedTuple
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session, aliased, contains_eager, joinedload
 
 from app.core import counter_scope
@@ -18,7 +18,7 @@ from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation, ParticipationTeammate
 from app.repositories import club_alias_repository
-from app.repositories.athlete_repository import credits, name_filter
+from app.repositories.athlete_repository import credits, name_filter, unaccent_like
 from app.scrapers.base import STATUS_FINISHER
 
 
@@ -785,13 +785,27 @@ def list_page_for_course(
         query = query.filter(Participation.category == category)
     terme = (q or "").strip()
     if terme:
-        query = query.filter(name_filter(terme))
+        query = query.filter(name_filter(terme, also=_relay_name_matches))
 
     total = query.count()
     query = query.order_by(*_ordre_affichage())
     if page_size is not None:
         query = query.offset((page - 1) * page_size).limit(page_size)
     return query.all(), total
+
+
+def _relay_name_matches(pattern: str) -> list:
+    """Un relais attribué se trouve par ce que sa ligne affiche (#894) : le nom
+    d'équipe et chacun de ses équipiers, pas seulement le porteur."""
+    equipier = aliased(Athlete)
+    return [
+        unaccent_like(Participation.team_name, pattern),
+        exists().where(
+            ParticipationTeammate.participation_id == Participation.id,
+            ParticipationTeammate.athlete_id == equipier.id,
+            or_(unaccent_like(equipier.nom, pattern), unaccent_like(equipier.prenom, pattern)),
+        ),
+    ]
 
 
 def summary_rows_for_course(db: Session, course_id: int) -> list[tuple]:
@@ -1033,7 +1047,9 @@ def club_podiums(db: Session, *, federal_only: bool = False):
             Athlete.nom,
             Course.name,
             Course.event_type,
-            Course.is_relay,
+            # Relais du résultat **ou** de l'épreuve : une épreuve mixte (TimePulse)
+            # porte des relais que seul le résultat signale.
+            or_(Participation.is_relay.is_(True), Course.is_relay.is_(True)),
             Course.event_date,
             Athlete.gender,
         )

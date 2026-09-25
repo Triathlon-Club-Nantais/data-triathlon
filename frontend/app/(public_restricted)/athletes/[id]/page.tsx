@@ -16,6 +16,7 @@ import { BarList } from "@/components/charts/BarList";
 import { CAT_COLORS } from "@/components/charts/CategoryBars";
 import { bestRatio, progressionSeries, recurringWeakSegment } from "@/lib/utils/ranking";
 import { resumeAthlete } from "@/lib/utils/athlete-stats";
+import { estRelais } from "@/lib/utils/relais";
 import { ProgressionChart } from "@/components/charts/ProgressionChart";
 import { AthleteComparisonChart } from "@/components/charts/AthleteComparisonChart";
 
@@ -45,10 +46,14 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   const categorie = derniereValidee?.category ?? null;
   const anneeCategorie = derniereValidee?.course.event_date?.slice(0, 4) ?? null;
 
-  // Rang d'équipe, pas individuel : un relais sort de ces deux tuiles (#894, FR-011),
-  // y compris sur une épreuve marquée relais à la main.
-  const places = validated
-    .filter((p) => !p.is_relay && !p.course.is_relay)
+  // Rang d'équipe, pas individuel : un relais sort des tuiles de rang (#894,
+  // FR-011), y compris sur une épreuve marquée relais à la main, et la tuile le
+  // dit dès qu'un relais classé en a été écarté.
+  const individuels = validated.filter((p) => !estRelais(p));
+  const horsRelais = validated.some((p) => estRelais(p) && p.rank_overall != null)
+    ? "Hors relais"
+    : null;
+  const places = individuels
     .map((p) => p.rank_overall)
     .filter((r): r is number => r != null);
   const best = places.length ? Math.min(...places) : null;
@@ -62,7 +67,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   }
   const favFormat = [...formatCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
 
-  const topRatio = bestRatio(validated);
+  const topRatio = bestRatio(individuels);
   const progression = progressionSeries(validated);
   const weakSegment = recurringWeakSegment(validated);
   const disciplineBySeason = disciplineBreakdownBySeason(validated);
@@ -174,15 +179,25 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
               hint={pendingCount > 0 ? `${pendingCount} en attente de validation` : null}
               accent={false}
             />
-            <StatCard label="Meilleure place" value={best ?? "—"} valueColor="var(--tcn-orange)" accent={false} />
             <StatCard
-              label="Meilleur ratio"
-              value={topRatio ? `Top ${topRatio.ratio.percent}%` : "—"}
-              hint={topRatio ? `${ordinalFr(topRatio.ratio.rank)} sur ${topRatio.ratio.total}` : null}
+              label="Meilleure place"
+              value={best ?? "—"}
+              hint={horsRelais}
               valueColor="var(--tcn-orange)"
               accent={false}
             />
-            <StatCard label="Top 10" value={top10} accent={false} />
+            <StatCard
+              label="Meilleur ratio"
+              value={topRatio ? `Top ${topRatio.ratio.percent}%` : "—"}
+              hint={
+                topRatio
+                  ? `${ordinalFr(topRatio.ratio.rank)} sur ${topRatio.ratio.total}${horsRelais ? ", hors relais" : ""}`
+                  : horsRelais
+              }
+              valueColor="var(--tcn-orange)"
+              accent={false}
+            />
+            <StatCard label="Top 10" value={top10} hint={horsRelais} accent={false} />
             <StatCard label="Format favori" value={favFormat} accent={false} />
           </div>
         )}

@@ -512,6 +512,22 @@ describe("AthletePage", () => {
     expect(within(placeCard as HTMLElement).getByText("5")).toBeInTheDocument();
     const top10Card = screen.getByText("Top 10").parentElement?.parentElement;
     expect(within(top10Card as HTMLElement).getByText("1")).toBeInTheDocument();
+    // Revue UI/UX #1001 : la tuile dit qu'elle écarte un relais, et le ratio
+    // suit la même règle (5ᵉ sur 50, pas le relais 1ᵉʳ sur 50).
+    expect(within(placeCard as HTMLElement).getByText("Hors relais")).toBeInTheDocument();
+    expect(within(top10Card as HTMLElement).getByText("Hors relais")).toBeInTheDocument();
+    const ratioCard = screen.getByText("Meilleur ratio").parentElement?.parentElement;
+    expect(within(ratioCard as HTMLElement).getByText("Top 10%")).toBeInTheDocument();
+  });
+
+  it("n'annonce pas « Hors relais » sans relais classé", async () => {
+    await renderAthlete([
+      part({ id: 1, rank_overall: 5, course_finishers: 50 }),
+      part({ id: 2, rank_overall: 8, course_finishers: 50 }),
+      part({ id: 3, rank_overall: 30, course_finishers: 50 }),
+    ]);
+
+    expect(screen.queryByText("Hors relais")).not.toBeInTheDocument();
   });
 
   it("écarte aussi un relais dont seule l'épreuve est marquée relais (revue #1001)", async () => {

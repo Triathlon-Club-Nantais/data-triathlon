@@ -1729,3 +1729,45 @@ def test_exists_for_athlete_on_course_vrai_pour_un_equipier(db_session):
     assert participation_repository.exists_for_athlete_on_course(
         db_session, athlete_id=paul.id, course_id=course.id
     )
+
+
+def _classement_avec_relais_compose(db_session):
+    course = course_repository.get_or_create(
+        db_session, name="Relais Y", event_date=date(2026, 6, 2), event_type="triathlon-s",
+        is_relay=True,
+    )
+    jean = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    paul = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul")
+    solo = athlete_repository.get_or_create(db_session, nom="DURAND", prenom="Luc")
+    relais = participation_repository.create(
+        db_session, athlete_id=jean.id, course_id=course.id, bib_number="1", is_relay=True,
+        team_name="Les Inconnus",
+    )
+    participation_repository.replace_teammates(db_session, relais, [jean.id, paul.id])
+    participation_repository.create(
+        db_session, athlete_id=solo.id, course_id=course.id, bib_number="2", is_relay=True
+    )
+    return course, relais
+
+
+@pytest.mark.parametrize("terme", ["inconnus", "martin", "paul", "dupont"])
+def test_search_finds_a_composed_relay_by_team_or_any_teammate(db_session, terme):
+    """Revue UI/UX #1001 : la ligne titrée du nom d'équipe, qui liste ses
+    équipiers, se trouve par ce qu'elle affiche."""
+    course, relais = _classement_avec_relais_compose(db_session)
+
+    rows, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, q=terme
+    )
+
+    assert (total, [p.id for p in rows]) == (1, [relais.id])
+
+
+def test_search_still_requires_every_word_to_match(db_session):
+    course, _ = _classement_avec_relais_compose(db_session)
+
+    _, total = participation_repository.list_page_for_course(
+        db_session, course.id, page_size=None, q="martin zzz"
+    )
+
+    assert total == 0
