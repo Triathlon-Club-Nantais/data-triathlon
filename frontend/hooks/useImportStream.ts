@@ -86,6 +86,7 @@ export function useImportStream() {
     abortRef.current = controle;
     const courant = () => abortRef.current === controle;
     setState({ ...INITIAL, running: true, phase: "scraping", message: "Récupération des participants…" });
+    let termine = false;
     try {
       for await (const ev of importEventStream(url, controle.signal, singleHeat)) {
         if (!courant()) return;
@@ -135,6 +136,18 @@ export function useImportStream() {
         } else if (ev.phase === "error") {
           setState((s) => ({ ...s, running: false, phase: "error", error: ev.message }));
         }
+        if (ev.phase === "done" || ev.phase === "error") termine = true;
+      }
+      // Flux refermé proprement sans phase terminale (proxy, worker) : sans
+      // ce filet, l'écran resterait figé sur `running` (#985).
+      if (!termine && courant()) {
+        setState((s) => ({
+          ...s,
+          running: false,
+          phase: "error",
+          error: "Connexion interrompue avant la fin de l'import.",
+          errorStatus: 0,
+        }));
       }
     } catch (e) {
       // Une annulation fait lever l'`AbortError` du fetch : ce n'est pas une

@@ -41,6 +41,7 @@ export function useRescrapeStream() {
     if (activeRef.current) return;
     activeRef.current = true;
     setState({ ...INITIAL, running: true, phase: "scraping", message: "Récupération des participants…" });
+    let termine = false;
     try {
       for await (const ev of rescrapeEventStream(courseId)) {
         if (ev.phase === "scraping") {
@@ -75,6 +76,16 @@ export function useRescrapeStream() {
         } else if (ev.phase === "error") {
           setState((s) => ({ ...s, running: false, phase: "error", error: ev.message }));
         }
+        if (ev.phase === "done" || ev.phase === "error") termine = true;
+      }
+      // Même filet que `useImportStream` (#985).
+      if (!termine) {
+        setState((s) => ({
+          ...s,
+          running: false,
+          phase: "error",
+          error: "Connexion interrompue avant la fin du re-scrape.",
+        }));
       }
     } catch (e) {
       setState((s) => ({ ...s, running: false, phase: "error", error: (e as Error).message }));

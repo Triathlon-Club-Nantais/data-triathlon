@@ -163,3 +163,88 @@ describe("useImportStream — progression phase C Klikego (#583)", () => {
     expect(result.current.state.detailTotal).toBe(0);
   });
 });
+
+const SAVING: ImportProgressEvent = {
+  phase: "saving", total: 10, imported: 2, updated: 1, skipped: 0, progress: 3,
+};
+
+describe("useImportStream — fin du flux (#985)", () => {
+  it("passe en erreur de coupure quand le flux se ferme sans done ni error", async () => {
+    importEventStream.mockReturnValue(flux([{ phase: "scraping" }, SAVING]));
+    const { result } = renderHook(() => useImportStream());
+
+    act(() => {
+      result.current.start("http://x");
+    });
+
+    await waitFor(() => expect(result.current.state.phase).toBe("error"));
+    expect(result.current.state.running).toBe(false);
+    expect(result.current.state.error).toBe("Connexion interrompue avant la fin de l'import.");
+    expect(result.current.state.errorStatus).toBe(0);
+  });
+
+  it("rend l'état final complet sur le chemin nominal", async () => {
+    const courses = [{ id: 5, name: "Triathlon de Vertou", event_type: "triathlon-m" }];
+    const failures = [{ heat_slug: "relais", reason: "timeout" }];
+    importEventStream.mockReturnValue(
+      flux([
+        { phase: "scraping", message: "Lecture…" },
+        SAVING,
+        {
+          phase: "done", total: 10, imported: 6, updated: 3, skipped: 1, cached: true, courses,
+          heats_enumerated: 4, heats_imported: 2, heats_cached: 1, heats_failed: 1, failures,
+        },
+      ]),
+    );
+    const { result } = renderHook(() => useImportStream());
+
+    act(() => {
+      result.current.start("http://x");
+    });
+
+    await waitFor(() => expect(result.current.state.phase).toBe("done"));
+    expect(result.current.state).toMatchObject({
+      running: false,
+      total: 10,
+      progress: 10,
+      imported: 6,
+      updated: 3,
+      skipped: 1,
+      cached: true,
+      courses,
+      heatsEnumerated: 4,
+      heatsImported: 2,
+      heatsCached: 1,
+      heatsFailed: 1,
+      failures,
+      error: null,
+    });
+  });
+
+  it("retombe sur les valeurs par défaut quand les clés optionnelles du done sont absentes", async () => {
+    importEventStream.mockReturnValue(
+      flux([
+        SAVING,
+        { phase: "done", total: 4, imported: 4, updated: 0, skipped: 0, courses: [] },
+      ]),
+    );
+    const { result } = renderHook(() => useImportStream());
+
+    act(() => {
+      result.current.start("http://x");
+    });
+
+    await waitFor(() => expect(result.current.state.phase).toBe("done"));
+    expect(result.current.state).toMatchObject({
+      running: false,
+      progress: 4,
+      cached: false,
+      courses: [],
+      heatsEnumerated: 0,
+      heatsImported: 0,
+      heatsCached: 0,
+      heatsFailed: 0,
+      failures: [],
+    });
+  });
+});

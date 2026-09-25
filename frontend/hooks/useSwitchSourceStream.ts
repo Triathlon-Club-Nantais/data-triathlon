@@ -77,6 +77,12 @@ export function useSwitchSourceStream() {
             setState((s) => ({ ...s, running: false, phase: "error", error: ev.message }));
           }
         }
+        // Même filet que `useImportStream` (#985).
+        if (!resultat) {
+          const message = "Connexion interrompue avant la fin de la bascule.";
+          resultat = { phase: "error", message };
+          setState((s) => ({ ...s, running: false, phase: "error", error: message }));
+        }
       } catch (e) {
         const message = (e as Error).message;
         resultat = { phase: "error", message };

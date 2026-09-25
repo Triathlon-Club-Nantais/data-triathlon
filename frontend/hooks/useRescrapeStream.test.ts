@@ -33,11 +33,12 @@ describe("useRescrapeStream", () => {
   });
 
   it("met à jour phase/progress à chaque event `saving`", async () => {
-    rescrapeEventStream.mockReturnValue(
-      flux([
-        { phase: "saving", total: 10, imported: 2, updated: 1, skipped: 0, progress: 3 },
-      ]),
-    );
+    // Flux laissé ouvert : refermé ici, il passerait en coupure (#985).
+    async function* ouvert(): AsyncGenerator<RescrapeProgressEvent> {
+      yield { phase: "saving", total: 10, imported: 2, updated: 1, skipped: 0, progress: 3 };
+      await new Promise(() => {});
+    }
+    rescrapeEventStream.mockReturnValue(ouvert());
     const { result } = renderHook(() => useRescrapeStream());
 
     act(() => {
@@ -127,5 +128,20 @@ describe("useRescrapeStream", () => {
 
     expect(result.current.state.phase).toBe("idle");
     expect(result.current.state.error).toBeNull();
+  });
+
+  it("passe en erreur de coupure quand le flux se ferme sans done ni error (#985)", async () => {
+    rescrapeEventStream.mockReturnValue(
+      flux([{ phase: "saving", total: 10, imported: 2, updated: 1, skipped: 0, progress: 3 }]),
+    );
+    const { result } = renderHook(() => useRescrapeStream());
+
+    act(() => {
+      result.current.start(42);
+    });
+
+    await waitFor(() => expect(result.current.state.phase).toBe("error"));
+    expect(result.current.state.running).toBe(false);
+    expect(result.current.state.error).toBe("Connexion interrompue avant la fin du re-scrape.");
   });
 });
