@@ -1403,3 +1403,23 @@ def club_label_counts(db: Session, *, like: str | None = None) -> list[tuple[str
         q = q.filter(Participation.club.ilike(f"%{like}%"))
     rows = q.group_by(Participation.club).all()
     return sorted(((club, int(count)) for club, count in rows), key=lambda r: (-r[1], r[0]))
+
+
+def has_untimed(
+    db: Session, course_id: int, *, placeholder_times: Iterable[str], finishers_only: bool
+) -> bool:
+    """Vrai si une participation de l'épreuve n'a pas de temps final (#913).
+
+    Un temps de `placeholder_times` vaut temps absent. `finishers_only` borne la
+    recherche aux finishers : un non-finisher n'a jamais de temps final.
+    """
+    requete = db.query(Participation.id).filter(
+        Participation.course_id == course_id,
+        or_(
+            Participation.total_time.is_(None),
+            Participation.total_time.in_(sorted(placeholder_times)),
+        ),
+    )
+    if finishers_only:
+        requete = requete.filter(Participation.status == STATUS_FINISHER)
+    return requete.first() is not None

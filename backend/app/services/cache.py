@@ -1,7 +1,7 @@
 """
 Cache TTL dynamique (PRD F1).
 
-Une course « en cours » (au moins un participant sans temps final) est re-scrapée
+Une course « en cours » (au moins un finisher sans temps final) est re-scrapée
 fréquemment ; une course « terminée » est considérée stable longtemps.
 
 **La fraîcheur est celle de l'épreuve, pas d'une URL** (#281). Depuis que N
@@ -17,36 +17,46 @@ recherches par URL de `course_repository` : coller la seconde publication d'une
 épreuve fraîche ne trouve rien en cache, donc ne renvoie pas le classement de
 l'**autre** chronométreur sous l'URL qu'on vient de coller.
 """
+from datetime import timedelta
+
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.core.time import utcnow
 from app.models.course import Course
-from app.models.participation import Participation
+from app.repositories import participation_repository
 from app.services.quality import _ZERO_TIMES
 
+#: Jours après l'épreuve pendant lesquels un non-finisher sans temps la dit
+#: encore en cours (#913) : un coureur pas encore arrivé, publié sans statut ni
+#: temps, est rangé DNF par `mapping.derive_status`.
+_RECENT_RACE_DAYS = 1
 
-def is_in_progress(db: Session, course_id: int) -> bool:
+
+def is_in_progress(db: Session, course: Course) -> bool:
     """Vrai si au moins une participation n'a pas de temps final (course en cours).
 
     Un temps « zéro » (`00:00:00`, `0:00`…) vaut temps absent — même définition
     que `quality._ZERO_TIMES`, réutilisée ici plutôt que dupliquée : un
     chronométreur qui publie ce placeholder en attendant les temps réels ne doit
     pas faire passer l'épreuve au TTL long (#566).
+
+    Seul un **finisher** sans temps compte (#913) : un DNF, DNS ou DSQ n'a
+    jamais de temps final, et le compter figeait au TTL court toute épreuve
+    terminée qui en portait un. Exception bornée : le jour de l'épreuve et le
+    lendemain (ou sans date connue), tout résultat sans temps compte encore,
+    puisqu'un coureur en course sans statut publié est persisté en DNF.
     """
-    return (
-        db.query(Participation.id)
-        .filter(
-            Participation.course_id == course_id,
-            (Participation.total_time.is_(None)) | (Participation.total_time.in_(_ZERO_TIMES)),
-        )
-        .first()
-        is not None
+    recent = course.event_date is None or course.event_date >= utcnow().date() - timedelta(
+        days=_RECENT_RACE_DAYS
+    )
+    return participation_repository.has_untimed(
+        db, course.id, placeholder_times=_ZERO_TIMES, finishers_only=not recent
     )
 
 
 def ttl_seconds(db: Session, course: Course, settings: Settings) -> int:
-    if is_in_progress(db, course.id):
+    if is_in_progress(db, course):
         return settings.cache_ttl_in_progress_seconds
     return settings.cache_ttl_finished_seconds
 
