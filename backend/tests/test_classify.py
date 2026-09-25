@@ -125,6 +125,14 @@ def test_classify_mono_sport(text, expected):
     # Sport nommé de part et d'autre : celui de l'épreuve fait foi.
     ("Triathlon L Individuel", "Triathlon de Lacanau 2026", "triathlon-l"),
     ("", "Triathlon de Lacanau 2025", "triathlon"),
+    # Même sport des deux côtés, épreuve muette sur la taille : celle du
+    # contexte s'applique (#941, revue de la PR parapluie).
+    ("Triathlon", "Triathlon M de Pornic", "triathlon-m"),
+    ("Triathlon Relais", "Triathlon S de Nantes", "triathlon-s"),
+    ("Triathlon Solo", "Triathlon Longue Distance", "triathlon-l"),
+    # Sport différent : la taille du contexte ne voyage pas.
+    ("Trail", "Triathlon M de Pornic", "trail"),
+    ("Duathlon", "Triathlon M de Pornic", "duathlon"),
 ])
 def test_classify_contexte(epreuve, evenement, expected):
     assert classify_event_type(epreuve, contexte=evenement) == expected
@@ -142,6 +150,7 @@ def test_classify_contexte(epreuve, evenement, expected):
     ("Individuel", "triathlon-de-l-erdre", "triathlon"),
     ("Triathlon L de Mimizan", "", "triathlon-l"),
     ("Triathlon Longue Distance", "", "triathlon-l"),
+    ("Triathlon distances longues", "", "triathlon-l"),
     ("Format L", "", "triathlon-l"),
 ])
 def test_classify_elision_et_longue(epreuve, contexte, expected):
