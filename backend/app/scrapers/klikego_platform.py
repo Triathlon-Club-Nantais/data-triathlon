@@ -108,6 +108,67 @@ def course_name(event_name: str, heat_label: str) -> str:
     return " - ".join(" ".join(p.split()) for p in parts)
 
 
+def parse_page_date(html: str) -> _date | None:
+    """Première date d'une page de la plateforme : ISO (YYYY-MM-DD) d'abord,
+    plus spécifique, puis le format FR (DD/MM/YYYY) du front live."""
+    m = re.search(r'(\d{4}-\d{2}-\d{2})', html)
+    if m:
+        try:
+            return _date.fromisoformat(m.group(1))
+        except ValueError:
+            pass
+    m = re.search(r'(\d{2})/(\d{2})/(\d{4})', html)
+    if m:
+        try:
+            return _date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        except ValueError:
+            pass
+    return None
+
+
+def norm_heat_label(label: str) -> str:
+    """Clé de jointure d'un libellé de heat entre deux pages de la plateforme,
+    qui ne diffèrent que par la casse et les espaces multiples."""
+    return " ".join(label.lower().split())
+
+
+def parse_live_index(html: str) -> tuple[str, dict[str, _date]]:
+    """Extrait (nom d'épreuve, {libellé de heat normalisé: date}) de live5/index.jsp.
+
+    C'est la SEULE page de la plateforme qui porte une date **par heat**, servie
+    à l'identique par `live.breizhchrono.com` et `www.klikego.com` (#972). Chaque
+    heat est une carte `<a href="?...&heat-id=…">` : libellé dans `div.h6`, date
+    au format FR dans `div.small`. Les heats d'une même épreuve tombent parfois
+    des jours différents (Dinard 2025 : trail le 12/09, triathlons les 13 et
+    14/09 ; Frenchman 2025 sur quatre jours), d'où une date par heat plutôt
+    qu'une date d'événement.
+
+    Le `<title>` porte le vrai nom accentué (« Triathlon SwimRun Dinard Côte
+    d'Emeraude »), là où le slug l'aplatit en « Cote Demeraude ».
+    """
+    soup = BeautifulSoup(html, "lxml")
+
+    event_name = ""
+    if soup.title and soup.title.string:
+        title = " ".join(soup.title.string.split())
+        m = re.match(r"(?i)^live\s*-\s*(.+?)\s*avec\s+breizhchrono$", title)
+        event_name = m.group(1) if m else title
+
+    dates: dict[str, _date] = {}
+    for link in soup.find_all("a", href=True):
+        if "heat-id=" not in link["href"]:
+            continue
+        label_el = link.select_one("div.h6")
+        meta_el = link.select_one("div.small")
+        if not label_el or not meta_el:
+            continue
+        heat_date = parse_page_date(meta_el.get_text(" ", strip=True))
+        if heat_date:
+            dates[norm_heat_label(label_el.get_text(strip=True))] = heat_date
+
+    return event_name, dates
+
+
 def decode_data_block(html: str) -> list[list[str]]:
     """Décode le `<script id="data">` d'une page course-result.jsp.
 

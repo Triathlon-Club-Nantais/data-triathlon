@@ -20,7 +20,7 @@ from app.core import http
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, FanoutTrace, ScrapedResult
 from .classify import classify_event_type, refine_from_splits
-from .klikego_platform import heat_is_relay
+from .klikego_platform import heat_is_relay, norm_heat_label, parse_live_index
 from .utils import (
     DEFAULT_HEADERS,
     derive_status_from_label,
@@ -62,6 +62,24 @@ def _fetch_event_meta(event_id: str, slug: str, client: httpx.Client) -> tuple[s
         return heat, event_date
     except httpx.HTTPError:
         return "", None
+
+
+def _fetch_heat_dates(event_id: str, client: httpx.Client) -> dict:
+    """{libellé de heat normalisé: date} lus sur `live5/index.jsp` (#972).
+
+    La page événement ne porte que la plage de l'événement (« 28 mai – 1 juin
+    2025 »), réduite à son premier jour ; seule la page live date chaque heat.
+    Un heat absent (Frenchkid 2025) ou une page en échec garde la date
+    d'événement.
+    """
+    try:
+        r = client.get(f"{BASE}/external/live5/index.jsp?reference={event_id}")
+    except httpx.HTTPError as exc:
+        logger.info("Dates par heat indisponibles pour %s : %s", event_id, exc)
+        return {}
+    if r.status_code != 200:
+        return {}
+    return parse_live_index(r.text)[1]
 
 
 def _detect_heat(event_id: str, client: httpx.Client) -> str:
@@ -551,6 +569,7 @@ def scrape_event_fanout(
         event_html = event_page.text if event_page.status_code == 200 else ""
         heats = _enumerate_heats(event_html)
         trace.heats_enumerated = len(heats)
+        dates_by_heat = _fetch_heat_dates(event_id, client) if heats else {}
 
         # Pré-filtre les heats à scraper : `heats_a_scraper` fixe le total notifié
         # à `on_heat_start`, sans quoi la progression sauterait des indices.
@@ -575,8 +594,9 @@ def scrape_event_fanout(
                 ) -> None:
                     on_detail_progress(_slug, _label, _index, total_a_scraper, done, total)
             try:
+                heat_date = dates_by_heat.get(norm_heat_label(heat_label), event_date)
                 all_results.extend(_scrape_single_heat(
-                    event_id, heat_slug, heat_label, event_name, slug, event_date, client,
+                    event_id, heat_slug, heat_label, event_name, slug, heat_date, client,
                     on_detail_progress=detail_progress,
                 ))
             except Exception as exc:

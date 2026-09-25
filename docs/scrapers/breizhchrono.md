@@ -102,7 +102,7 @@ type, relais).
 
 ## Dates, types, relais
 
-`_parse_bc_date` cherche une date dans le **HTML entier**, pas dans un élément
+`klikego_platform.parse_page_date` cherche une date dans le **HTML entier**, pas dans un élément
 ciblé : ISO d'abord (`resultats.`), format FR en repli (`live.`). Côté classique,
 une seule date d'épreuve, lue sur la page du heat ou la racine ; injoignable →
 WARNING et import sans date (`event_date=None` change la clé d'identité de

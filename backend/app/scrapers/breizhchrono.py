@@ -37,7 +37,13 @@ from app.core.exceptions import DomainError
 
 from .base import FanoutTrace, ScrapedResult
 from .classify import classify_event_type
-from .klikego_platform import course_name, heat_is_relay
+from .klikego_platform import (
+    course_name,
+    heat_is_relay,
+    norm_heat_label,
+    parse_live_index,
+    parse_page_date,
+)
 from .utils import DEFAULT_HEADERS
 
 logger = logging.getLogger(__name__)
@@ -66,28 +72,6 @@ _NON_SPORT_HEAT_PREFIXES = (
 
 def _is_non_sport_heat(heat_slug: str) -> bool:
     return heat_slug.startswith(_NON_SPORT_HEAT_PREFIXES)
-
-
-def _parse_bc_date(html: str) -> date | None:
-    """Extract event date from BC page HTML.
-
-    resultats.breizhchrono.com embeds an ISO date (YYYY-MM-DD) ; le front live
-    (live.breizhchrono.com) affiche la date au format FR (DD/MM/YYYY). On tente
-    l'ISO d'abord (plus spécifique), puis le format FR en repli.
-    """
-    m = re.search(r'(\d{4}-\d{2}-\d{2})', html)
-    if m:
-        try:
-            return date.fromisoformat(m.group(1))
-        except ValueError:
-            pass
-    m = re.search(r'(\d{2})/(\d{2})/(\d{4})', html)
-    if m:
-        try:
-            return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
-        except ValueError:
-            pass
-    return None
 
 
 def _parse_bc_url(url: str) -> tuple[str, str, str]:
@@ -258,7 +242,7 @@ def _fetch_event_date(client: httpx.Client, slug_id: str, heat: str) -> date | N
     try:
         page_resp = client.get(date_page_url)
         if page_resp.status_code == 200:
-            return _parse_bc_date(page_resp.text)
+            return parse_page_date(page_resp.text)
     except DomainError:
         raise
     except Exception as exc:
@@ -450,55 +434,11 @@ def _parse_live_slug(html: str) -> str:
 
     Il se lit dans le lien d'export « Résultats »
     (`/resultats-courses/{slug}-{reference}/...`). Sert de repli au nom
-    d'épreuve : la date, elle, n'existe pas sur cette page (cf. _parse_live_index).
+    d'épreuve : la date, elle, n'existe pas sur cette page (cf.
+    `klikego_platform.parse_live_index`).
     """
     m = re.search(r"/resultats-courses/([a-z0-9-]+?)-\d{10,}-\d+/", html)
     return m.group(1) if m else ""
-
-
-def _norm_label(label: str) -> str:
-    """Clé de jointure entre les libellés de heats des deux pages live.
-
-    `classements.jsp` (slug + libellé) et `index.jsp` (libellé + date) exposent
-    des libellés identiques au détail près de la casse et des espaces multiples.
-    """
-    return " ".join(label.lower().split())
-
-
-def _parse_live_index(html: str) -> tuple[str, dict[str, date]]:
-    """Extrait (nom d'épreuve, {libellé de heat normalisé: date}) de live5/index.jsp.
-
-    C'est la SEULE page live qui porte les dates (`classements.jsp` n'en a
-    aucune, d'où les courses sans date jusqu'ici). Chaque heat est une carte
-    `<a href="?...&heat-id=…">` : libellé dans `div.h6`, date au format FR dans
-    `div.small`. Les heats d'une même épreuve tombent parfois des jours
-    différents (Dinard 2025 : trail le 12/09, triathlons les 13 et 14/09), d'où
-    une date par heat plutôt qu'une date d'événement.
-
-    Le `<title>` porte le vrai nom accentué (« Triathlon SwimRun Dinard Côte
-    d'Emeraude »), là où le slug l'aplatit en « Cote Demeraude ».
-    """
-    soup = BeautifulSoup(html, "lxml")
-
-    event_name = ""
-    if soup.title and soup.title.string:
-        title = " ".join(soup.title.string.split())
-        m = re.match(r"(?i)^live\s*-\s*(.+?)\s*avec\s+breizhchrono$", title)
-        event_name = m.group(1) if m else title
-
-    dates: dict[str, date] = {}
-    for link in soup.find_all("a", href=True):
-        if "heat-id=" not in link["href"]:
-            continue
-        label_el = link.select_one("div.h6")
-        meta_el = link.select_one("div.small")
-        if not label_el or not meta_el:
-            continue
-        heat_date = _parse_bc_date(meta_el.get_text(" ", strip=True))
-        if heat_date:
-            dates[_norm_label(label_el.get_text(strip=True))] = heat_date
-
-    return event_name, dates
 
 
 def _fetch_live_meta(
@@ -508,7 +448,7 @@ def _fetch_live_meta(
 
     `classements.jsp` liste les heats (slug + libellé) mais ne porte aucune
     date ; `index.jsp` porte le nom d'épreuve accentué et la date de chaque
-    heat. On les joint par libellé (`_norm_label`). Partagé par
+    heat. On les joint par libellé (`norm_heat_label`). Partagé par
     `scrape_live_event_all` et `scrape_live_event_fanout` (#707).
     """
     root = client.get(f"{LIVE_BASE}/external/live5/classements.jsp?reference={reference}")
@@ -517,7 +457,7 @@ def _fetch_live_meta(
 
     index = client.get(f"{LIVE_BASE}/external/live5/index.jsp?reference={reference}")
     index_html = index.text if index.status_code == 200 else ""
-    event_name, dates_by_heat = _parse_live_index(index_html)
+    event_name, dates_by_heat = parse_live_index(index_html)
     if not event_name:
         event_name = slug.replace("-", " ").title() if slug else ""
     # Repli pour un heat absent de l'index : le premier jour de l'épreuve.
@@ -537,7 +477,7 @@ def _import_one_live_heat(
     )
     return _import_one_heat(
         reference, heat_slug, heat_label, event_name, slug,
-        dates_by_heat.get(_norm_label(heat_label), default_date), client,
+        dates_by_heat.get(norm_heat_label(heat_label), default_date), client,
         base=LIVE_BASE, source_url=source_url,
         event_type=classify_event_type(heat_slug),
     )

@@ -12,14 +12,12 @@ import pytest
 
 from app.scrapers import breizhchrono
 from app.scrapers.breizhchrono import (
-    _parse_bc_date,
     _parse_bc_url,
     _parse_live_heats,
-    _parse_live_index,
     _parse_live_slug,
     _parse_live_url,
 )
-from app.scrapers.klikego_platform import course_name
+from app.scrapers.klikego_platform import course_name, parse_live_index, parse_page_date
 
 
 def test_parse_bc_url_standard():
@@ -60,22 +58,22 @@ def test_parse_bc_url_coureur_jsp():
 
 def test_parse_bc_date_iso():
     html = '<div><span class="tag">2026-06-07</span></div>'
-    assert _parse_bc_date(html) == date(2026, 6, 7)
+    assert parse_page_date(html) == date(2026, 6, 7)
 
 
 def test_parse_bc_date_absent():
-    assert _parse_bc_date("<div>pas de date ici</div>") is None
+    assert parse_page_date("<div>pas de date ici</div>") is None
 
 
 def test_parse_bc_date_fr_format():
     """Le front live affiche la date au format FR (DD/MM/YYYY)."""
-    assert _parse_bc_date('<span class="event-date">12/09/2025</span>') == date(2025, 9, 12)
+    assert parse_page_date('<span class="event-date">12/09/2025</span>') == date(2025, 9, 12)
 
 
 def test_parse_bc_date_iso_prime_sur_fr():
     """Si les deux formats sont présents, l'ISO (plus spécifique) l'emporte."""
     html = "<span>2025-09-12</span><span>01/01/2000</span>"
-    assert _parse_bc_date(html) == date(2025, 9, 12)
+    assert parse_page_date(html) == date(2025, 9, 12)
 
 
 def test_breizhchrono_delegates_to_klikego_platform():
@@ -364,12 +362,12 @@ def test_classements_ne_porte_aucune_date():
 
     Une date fictive dans la fixture avait masqué le bug « courses sans date ».
     """
-    assert _parse_bc_date(_LIVE_CLASSEMENTS) is None
+    assert parse_page_date(_LIVE_CLASSEMENTS) is None
 
 
 def test_parse_live_index_nom_et_dates_par_heat():
     """index.jsp donne le vrai nom d'épreuve (accentué) et une date PAR heat."""
-    event_name, dates = _parse_live_index(_LIVE_INDEX)
+    event_name, dates = parse_live_index(_LIVE_INDEX)
     assert event_name == "Triathlon SwimRun Dinard Côte d'Emeraude"
     # Les heats d'une même épreuve peuvent tomber des jours différents.
     assert dates["trail 11 km"] == date(2025, 9, 12)
@@ -379,7 +377,7 @@ def test_parse_live_index_nom_et_dates_par_heat():
 
 def test_parse_live_index_vide():
     """HTML inexploitable → pas de nom, pas de dates (aucune exception)."""
-    assert _parse_live_index("<html></html>") == ("", {})
+    assert parse_live_index("<html></html>") == ("", {})
 
 
 def test_bc_utilise_le_course_name_partage_avec_klikego():
