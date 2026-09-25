@@ -9,6 +9,7 @@ Cas couverts :
 - Parsing de la date d'épreuve depuis l'attribut XML dates=
 """
 import pytest
+from defusedxml.ElementTree import fromstring as parse_xml
 
 from app.scrapers.classify import classify_event_type
 from app.scrapers.timepulse import (
@@ -120,7 +121,7 @@ def test_compute_ranks():
     ]
     xml = make_xml(athletes=athletes, results=results)
 
-    ro, rg, rc = _compute_ranks(xml, bib="30", parcours="p1", gender="M", category="V1H")
+    ro, rg, rc = _compute_ranks(parse_xml(xml))[("p1", "30")]
 
     assert ro == 3   # 3e au général
     assert rg == 2   # 2e homme (derrière bib=10)
@@ -159,7 +160,7 @@ def test_compute_ranks_category_not_exceeds_gender():
         ("50", "01:40:00", {}),
     ]
     xml = make_xml(athletes=athletes, results=results_data)
-    ro, rg, rc = _compute_ranks(xml, bib="30", parcours="p1", gender="M", category="V1H")
+    ro, rg, rc = _compute_ranks(parse_xml(xml))[("p1", "30")]
 
     assert ro == 3   # 3e au général
     assert rg == 2   # 2e homme (derrière bib=10)
@@ -173,7 +174,7 @@ def test_compute_ranks_no_result_for_bib():
         athletes=[("99", "TEST Athlète", "SEH", "M", "p1")],
         results=[],
     )
-    ro, rg, rc = _compute_ranks(xml, bib="99", parcours="p1", gender="M", category="SEH")
+    ro, rg, rc = _compute_ranks(parse_xml(xml)).get(("p1", "99"), (None, None, None))
     assert ro is None
     assert rg is None
     assert rc is None
@@ -485,6 +486,67 @@ def test_scrape_event_all_computes_rank_overall_without_gender(monkeypatch):
     assert by_bib["20"].rank_overall == 2
     assert by_bib["20"].rank_gender is None
     assert by_bib["20"].rank_category is None
+
+
+def test_scrape_event_all_ranks_mixed_parcours(monkeypatch):
+    """Ranks are computed per parcours, gender and gendered category (#944)."""
+    xml = make_xml(
+        athletes=[
+            ("10", "A Jean", "SEH", "M", "p1"),
+            ("11", "B Marc", "V1H", "M", "p2"),
+            ("12", "C Anne", "SEF", "F", "p1"),
+            ("13", "D Paul", "SEH", "M", "p2"),
+            ("14", "E Lise", "SEF", "F", "p2"),
+            ("15", "F Yves", "SEH", "M", "p1"),
+            ("16", "G Rose", "SEF", "F", "p1"),
+        ],
+        results=[
+            ("10", "01:30:00", {}),
+            ("11", "00:50:00", {}),
+            ("12", "01:10:00", {}),
+            ("13", "00:40:00", {}),
+            ("14", "00:45:00", {}),
+            ("15", "01:00:00", {}),
+            ("16", "01:20:00", {}),
+        ],
+    )
+    monkeypatch.setattr("app.scrapers.timepulse._fetch_xml", lambda _id: xml)
+
+    by_bib = {
+        r.bib_number: (r.rank_overall, r.rank_gender, r.rank_category)
+        for r in scrape_event_all("https://www.timepulse.fr/resultats/1")
+    }
+
+    assert by_bib == {
+        "15": (1, 1, 1), "12": (2, 1, 1), "16": (3, 2, 2), "10": (4, 2, 2),
+        "13": (1, 1, 1), "14": (2, 1, 1), "11": (3, 2, 1),
+    }
+
+
+def test_scrape_event_all_parses_xml_independently_of_finisher_count(monkeypatch):
+    """The XML is parsed a fixed number of times, not once per finisher (#944)."""
+    from app.scrapers import timepulse
+
+    calls = {"n": 0}
+    real_parse = timepulse.parse_xml
+
+    def counting_parse(text):
+        calls["n"] += 1
+        return real_parse(text)
+
+    monkeypatch.setattr(timepulse, "parse_xml", counting_parse)
+
+    def parse_count(size: int) -> int:
+        xml = make_xml(
+            athletes=[(str(i), f"N{i} P", "SEH", "M", "p1") for i in range(size)],
+            results=[(str(i), f"01:{i:02d}:00", {}) for i in range(size)],
+        )
+        monkeypatch.setattr(timepulse, "_fetch_xml", lambda _id: xml)
+        calls["n"] = 0
+        scrape_event_all("https://www.timepulse.fr/resultats/1")
+        return calls["n"]
+
+    assert parse_count(10) == parse_count(1)
 
 
 def test_scrape_event_all_qualifies_name_when_parcours_share_event_type(monkeypatch):
