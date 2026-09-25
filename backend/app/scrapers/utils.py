@@ -81,11 +81,19 @@ def normalize_time(raw: str) -> str:
       "1h23m45s"   → "01:23:45"
       "00:12'15\"000"         → "00:12:15"
       "00:06:41 (00:06:45)"   → "00:06:41"
+      "1:05:30.4"  → "01:05:30"
+      "65:30"      → "01:05:30"
       ""           → ""
     """
     if not raw:
         return ""
     s = raw.strip().replace("\u2019", "'").replace("\u2018", "'")
+
+    # Fraction de seconde tronquée (RaceResult `02:35:01,7`, Sporthive
+    # `00:57:33.2510000`) : laissée, elle écartait un vrai chrono (#969).
+    m = re.match(r"^(\d{1,3}:\d{2}(?::\d{2})?)[.,]\d+$", s)
+    if m:
+        s = m.group(1)
 
     # Pattern: 00h39'11 or 1h23'45 or 1h23m45s
     m = re.match(r"(\d+)[hH](\d+)[m'\u2019](\d+)", s)
@@ -107,10 +115,11 @@ def normalize_time(raw: str) -> str:
     if m:
         return f"{int(m.group(1)):02d}:{int(m.group(2)):02d}:{int(m.group(3)):02d}"
 
-    # Pattern: MM:SS (no hours)
-    m = re.match(r"^(\d{1,2}):(\d{2})$", s)
+    # Pattern: MM:SS (no hours), minutes past the hour carried over (`65:30`).
+    m = re.match(r"^(\d{1,3}):(\d{2})$", s)
     if m:
-        return f"00:{int(m.group(1)):02d}:{int(m.group(2)):02d}"
+        hours, minutes = divmod(int(m.group(1)), 60)
+        return f"{hours:02d}:{minutes:02d}:{int(m.group(2)):02d}"
 
     # Pattern: 1h23m or 1h23 (no seconds)
     m = re.match(r"^(\d+)[hH](\d+)$", s)

@@ -86,9 +86,9 @@ et la garde du rôle `temps` aurait de toute façon rejeté la fraction : les
 colonne `TIMEn` devient le temps d'arrivée **seulement** si son libellé est
 « Temps », « Temps total », « Temps final » ou « Time » : `TIMEn` désigne un
 résultat quelconque (`TIME2` « Natation » sur 342814, `TIME19` « Tours » sur
-409130). La fraction est tronquée à la seconde (`_sans_fraction`), sur le temps
-d'arrivée comme sur les segments ; `normalize_time` et `_RE_DUREE` restent
-inchangés. Les courses déjà en base (181 à 186) sont à re-scraper.
+409130). La fraction est tronquée à la seconde par `utils.normalize_time` (#969),
+sur le temps d'arrivée comme sur les segments. Les courses déjà en base (181 à
+186) sont à re-scraper.
 
 **Hors délai et enrichissement des non-finishers (#970).** Embrunman 350635
 publie « OTL » (hors délai) dans ses cellules de rang et de temps. Le jeton

@@ -665,7 +665,7 @@ def test_build_result_signale_les_points_illisibles():
         **RUNNER_NOMINAL,
         "points_de_passage": [
             {"id": "1|1", "nom": "NATATION", "time": "00:23:56"},
-            {"id": "2|2", "nom": "VELO", "time": "01:23:45.6"},
+            {"id": "2|2", "nom": "VELO", "time": "01:23:45:6"},
         ],
     }
 
@@ -1078,7 +1078,7 @@ def test_course_results_log_agrege_des_points_illisibles(caplog):
             "temps_finish": "02:00:00",
             "points_de_passage": [
                 {"id": "1|1", "nom": "NATATION", "time": "00:23:56"},
-                {"id": "2|2", "nom": "VELO", "time": "01:23:45.6"},
+                {"id": "2|2", "nom": "VELO", "time": "01:23:45:6"},
             ],
         }
         for i in range(3)

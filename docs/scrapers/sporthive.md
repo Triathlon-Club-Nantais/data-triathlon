@@ -92,8 +92,7 @@ avant tout décompte : ni notifiée à la progression, ni comptée dans
 failed` d'`import_service` la compterait parmi les courses importées (#995).
 
 Détails de lecture : temps en `HH:MM:SS`, `HH:MM:SS.fffffff` ou `HH:MM:SS.fff`
-selon la course — la fraction se tronque **avant** `normalize_time`, dont le
-motif est ancré en fin de chaîne et qui rendrait `00:57:33.2510000` tel quel ;
+selon la course, fraction tronquée par `normalize_time` (#969) ;
 `00:00:00` vaut temps absent ; `overallPosition: 0` vaut rang absent ;
 `gender: "U"` (41 % des lignes) sort vide. `eventType` de la source sert
 d'**appoint** au classifieur (`classify_event_type(raceName, contexte=…)`) : sans

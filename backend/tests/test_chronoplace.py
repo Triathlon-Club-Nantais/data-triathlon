@@ -262,18 +262,18 @@ def test_is_unknown_time_rejection_marqueurs_connus(brut):
 
 
 def test_is_unknown_time_rejection_format_inattendu():
-    """Un format jamais vu (dixièmes) est un rejet inconnu, à distinguer du silence
+    """Un format jamais vu (quatre champs) est un rejet inconnu, à distinguer du silence
     normal (Important 2)."""
-    assert chronoplace._is_unknown_time_rejection("01:06:55.3") is True
-    assert chronoplace._is_unknown_time_rejection("1:06:55,3") is True
+    assert chronoplace._is_unknown_time_rejection("01:06:55:3") is True
+    assert chronoplace._is_unknown_time_rejection("1:06:55:30") is True
 
 
 def test_log_unknown_time_rejections_agrege_en_un_seul_warning(caplog):
     """Pas un warning par cellule : un signal agrégé par épreuve, avec un
     échantillon (contrainte de forme du Important 2)."""
     rows = [
-        {"temps": "01:06:55.3"},
-        {"temps": "01:10:00.1"},
+        {"temps": "01:06:55:3"},
+        {"temps": "01:10:00:1"},
         {"temps": "—"},  # marqueur connu : ne doit pas compter
     ]
     with caplog.at_level(logging.WARNING):
@@ -290,7 +290,7 @@ def test_log_unknown_time_rejections_nomme_la_colonne_rejetee(caplog):
     participation de son temps total, donc la classe DNF (`mapping.derive_status`) ;
     un split rejeté laisse juste ce segment vide. Le message ne peut pas parler de
     DNF sans distinguer les deux, et l'échantillon doit nommer la colonne."""
-    rows = [{"T_natation": "00:10:53,4"}, {"temps": "01:06:55.3"}]
+    rows = [{"T_natation": "00:10:53:4"}, {"temps": "01:06:55:3"}]
     with caplog.at_level(logging.WARNING):
         chronoplace._log_unknown_time_rejections(rows, "x")
 
@@ -585,7 +585,7 @@ def test_epreuve_results_le_scraper_ne_se_prononce_pas_sur_le_statut():
 
 
 def test_epreuve_results_temps_format_inconnu_journalise_une_fois(caplog):
-    """Bout en bout (Important 2) : un format de temps jamais vu (dixièmes) ne
+    """Bout en bout (Important 2) : un format de temps jamais vu (quatre champs) ne
     doit pas se noyer en DNF silencieux — un seul warning agrégé, pas un par
     ligne, même si toutes les lignes sont touchées."""
     html = """
@@ -596,8 +596,8 @@ def test_epreuve_results_temps_format_inconnu_journalise_une_fois(caplog):
         <th wire:click="sortBy('temps')">T</th>
       </tr></thead>
       <tbody>
-        <tr><td>1</td><td>MARTIN Malo</td><td>01:06:55.3</td></tr>
-        <tr><td>2</td><td>DUPONT Jean</td><td>01:10:00.1</td></tr>
+        <tr><td>1</td><td>MARTIN Malo</td><td>01:06:55:3</td></tr>
+        <tr><td>2</td><td>DUPONT Jean</td><td>01:10:00:1</td></tr>
       </tbody>
     </table>
     """

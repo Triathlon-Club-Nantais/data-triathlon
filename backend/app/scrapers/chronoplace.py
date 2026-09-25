@@ -228,7 +228,7 @@ def _is_unknown_time_rejection(raw: str) -> bool:
     """Vrai si `_time_or_empty` rejette `raw` sans que ce soit un marqueur connu.
 
     Distingue le cas légitime (`""`, `—`, `--`, `+5:16`) d'un format de temps
-    réellement inattendu (ex. des dixièmes ajoutés par le site) : ce dernier ne
+    réellement inattendu (ex. un champ de plus ajouté par le site) : ce dernier ne
     doit pas se noyer en DNF silencieux (Important 2 de la revue).
     """
     value = (raw or "").strip()

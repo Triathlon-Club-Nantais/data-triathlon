@@ -138,7 +138,7 @@ def test_to_seconds_sur_l_illisible(brut):
     """Le zéro convient à un cumul ; `strict` sépare « pas de durée » de « illisible ».
 
     C'est la distinction qu'`oktime` porte volontairement : `00:00:00` vaut 0 des
-    deux côtés, mais `01:23:45.6` — que `normalize_time` laisse passer — est une
+    deux côtés, mais `01:23:45.6`, lu sans `normalize_time` en amont, est une
     perte de donnée qui doit se journaliser, pas un zéro silencieux.
     """
     assert to_seconds(brut) == 0
@@ -242,4 +242,19 @@ def test_gender_from_category_leaves_team_and_unreadable_categories_empty(catego
     ("00:06:41 (00:06:45)", "00:06:41"),
 ])
 def test_normalize_time_reads_klikego_and_sportinnovation_forms(raw, expected):
+    assert normalize_time(raw) == expected
+
+
+@pytest.mark.parametrize("raw,expected", [
+    # Minutes au-delà de l'heure : `00:65:30` n'est pas une durée (#969).
+    ("65:30", "01:05:30"),
+    ("125:07", "02:05:07"),
+    ("59:59", "00:59:59"),
+    # Fraction de seconde tronquée, point ou virgule (#969).
+    ("1:05:30.4", "01:05:30"),
+    ("02:35:01,7", "02:35:01"),
+    ("00:57:33.2510000", "00:57:33"),
+    ("39:11.25", "00:39:11"),
+])
+def test_normalize_time_reads_long_minutes_and_fractions(raw, expected):
     assert normalize_time(raw) == expected
