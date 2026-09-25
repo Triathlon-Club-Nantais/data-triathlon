@@ -2561,3 +2561,37 @@ def test_scrape_event_fanout_heats_de_meme_type_restent_distincts(monkeypatch):
     assert pupilles_names == {
         "Triathlon et Swimrun Mesquer Quimiac 2026 - Triathlon Pupilles (10-11 ans)"
     }
+
+
+def test_scrape_event_fanout_flags_only_heats_dated_by_the_live_index(monkeypatch):
+    """#972 : seule une date lue par heat fait foi à l'import (elle redate
+    l'épreuve rapprochée) ; le repli sur la date d'événement, non."""
+    from datetime import date as _date
+
+    class FakeResp:
+        def __init__(self, text: str):
+            self.text, self.status_code = text, 200
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+        def get(self, url: str, *a, **k):
+            if "/external/live5/index.jsp" in url:
+                return FakeResp(load_klikego_fixture("mesquer-2026-live-index.html"))
+            return FakeResp(load_klikego_fixture("mesquer-2026-event.html"))
+
+    def fake_heat(event_id, heat, heat_label, event_name, slug, event_date, client, **kwargs):
+        return [ScrapedResult(source_url=heat, provider="klikego", event_date=event_date)]
+
+    monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
+    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("", _date(2026, 6, 13)))
+    monkeypatch.setattr(klikego, "_scrape_single_heat", fake_heat)
+    results, _trace = klikego.scrape_event_fanout(
+        "1677015306084-12", "Mesquer", "triathlon-et-swimrun-mesquer-quimiac-2026",
+    )
+
+    flags = {r.source_url: r.heat_dated for r in results}
+    assert flags["triathlon-s-indiv"] is True
+    assert flags["triathlon-xs-relais"] is False

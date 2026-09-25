@@ -42,7 +42,7 @@ from app.scrapers.base import (
     ScrapedResult,
 )
 from app.scrapers.utils import split_relay_teammates, to_seconds
-from app.services import cache, mapping, quality
+from app.services import cache, course_reconciliation, mapping, quality
 
 logger = logging.getLogger(__name__)
 
@@ -1130,6 +1130,33 @@ def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
     }
 
 
+def _redate_heats(db: Session, results: list[ScrapedResult]) -> None:
+    """Redate l'épreuve rapprochée par la règle R sur la date lue pour son heat (#972).
+
+    `mapping.get_or_create_course` retrouve une épreuve Klikego par
+    `(platform_event_id, heat_slug)` sans jamais réécrire sa date : sans ce
+    rattrapage, un rescrape laissait les heats datés du premier jour de
+    l'événement. Seule une date marquée `heat_dated` fait foi. Le repli sur la
+    date d'événement (`--single-heat`, heat absent de l'index) ne réécrit rien,
+    sans quoi il défairait la correction ; les deux façades Breizh Chrono, qui
+    divergent sur la date (#289), n'y touchent pas non plus.
+
+    Posée **avant** `_reclassify_heats` et `_renumber_relay_split_ranks`, qui
+    cherchent l'épreuve à la date scrapée.
+    """
+    dated = {
+        (scraped.provider, scraped.source_url): scraped.event_date
+        for scraped in results
+        if scraped.heat_dated and scraped.event_date and scraped.source_url
+    }
+    for (provider, url), event_date in dated.items():
+        course = course_reconciliation.find_reconcilable_course(
+            db, provider=provider, source_url=url
+        )
+        if course is not None:
+            course_repository.redate(db, course, event_date)
+
+
 def _reclassify_heats(db: Session, event_url: str, results: list[ScrapedResult]) -> None:
     """Aligne la classification des épreuves déjà en base sur ce scrape-ci (#294).
 
@@ -1339,6 +1366,7 @@ def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict
     cachés (`_merge_cached_courses`) appartient au compte rendu d'import, pas à
     l'écriture.
     """
+    _redate_heats(db, results)
     _reclassify_heats(db, url, results)
     _renumber_duplicate_ranks(results)
     _renumber_relay_split_ranks(db, results)
@@ -1520,6 +1548,7 @@ def iter_import_event(
             # aussi, et **avant** la première ligne, sinon la seconde `Course`
             # est déjà née — ou déjà écrite avec son rang combiné/dupliqué —
             # quand on la cherche.
+            _redate_heats(db, results)
             _reclassify_heats(db, url, results)
             _renumber_duplicate_ranks(results)
             _renumber_relay_split_ranks(db, results)
