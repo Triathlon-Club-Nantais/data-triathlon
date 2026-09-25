@@ -1247,3 +1247,49 @@ def test_fanout_garde_mono_parcours_sans_p_attribute(monkeypatch):
     # Un seul parcours — celui vide, source_url = URL entrante (comportement legacy).
     assert trace.heats_enumerated == 1
     assert len(results) == 2
+
+
+def _sert_clax(monkeypatch, xml: str) -> None:
+    """Bouchonne la sortie HTTP réelle de `_fetch_clax` sur un contenu `.clax` fixe."""
+    from app.core import http
+    from app.scrapers import wiclax
+
+    vraie_fabrique = http.client
+    monkeypatch.setattr(http, "_resolve", lambda host, port: ["93.184.216.34"])
+    monkeypatch.setattr(
+        wiclax.http,
+        "client",
+        lambda **kwargs: vraie_fabrique(
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, text=xml)),
+            **kwargs,
+        ),
+    )
+
+
+def test_fetch_clax_lit_le_nom_de_l_epreuve_et_non_le_nom_du_fichier(monkeypatch):
+    """#945 : le nom vient de `Epreuve@nom`, pas du `f=` d'un export renommé."""
+    from app.scrapers.wiclax import _fetch_clax
+
+    _sert_clax(monkeypatch, _fixture("chronowest_red_ouf_reduit.clax"))
+
+    _, _, event_name, event_type, event_date = _fetch_clax(
+        "https://chronowest.fr/wp-content/glive/g-live.html?f=/2026-RED%20OUF%20export.clax"
+    )
+
+    assert event_name == "RED OUF Swimrun 2026"
+    assert event_type == "swimrun"
+    assert event_date == date(2026, 6, 28)
+
+
+def test_fetch_clax_lit_un_element_event_sans_enfant(monkeypatch):
+    """#945 : un `<Event/>` sans enfant est faux en booléen, il doit rester lu."""
+    from app.scrapers.wiclax import _fetch_clax
+
+    _sert_clax(monkeypatch, '<Root><Event Name="Duathlon de Vertou"/></Root>')
+
+    _, _, event_name, event_type, _ = _fetch_clax(
+        "https://chronowest.fr/wp-content/glive/g-live.html?f=/export.clax"
+    )
+
+    assert event_name == "Duathlon de Vertou"
+    assert event_type == "duathlon"
