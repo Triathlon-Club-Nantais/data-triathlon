@@ -337,7 +337,7 @@ def delete_all(db: Session) -> int:
     Le compte vient du `DELETE` sur `courses` lui-même, jamais d'un
     `COUNT(*)` préalable — même précaution que `participation_repository.delete_all`.
 
-    Comme `participation_repository.delete_all` et `athlete_repository.delete_all`,
+    Comme `participation_repository.delete_all` et `athlete_repository.delete_unreferenced`,
     aucun `expire`/`expunge` de session ici : le seul appelant
     (`wipe_all_courses`) ne relit aucune `Course` après ce `DELETE`, et c'est
     la route qui `commit` juste après — ce qui périme normalement toute
