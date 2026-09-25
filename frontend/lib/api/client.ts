@@ -121,15 +121,28 @@ export function messageDErreur(detail: unknown, repli: string): string {
   return repli || "Erreur réseau";
 }
 
+/** Attente en secondes annoncée par `Retry-After`, ou `null` si absente ou
+ *  donnée en date (le plafond de débit n'envoie que des secondes). */
+export function attenteRetryAfter(res: Response): number | null {
+  const attente = Number(res.headers.get("Retry-After") ?? Number.NaN);
+  return Number.isFinite(attente) && attente > 0 ? attente : null;
+}
+
+async function erreurDeReponse(res: Response): Promise<ApiError> {
+  const err = await res.json().catch(() => ({ detail: res.statusText }));
+  return new ApiError(
+    res.status,
+    messageDErreur(err.detail, res.statusText),
+    res.status === 429 ? attenteRetryAfter(res) : null,
+  );
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json", ...(options.headers ?? {}) },
     ...options,
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new ApiError(res.status, messageDErreur(err.detail, res.statusText));
-  }
+  if (!res.ok) throw await erreurDeReponse(res);
   if (res.status === 204) return null as T;
   return res.json() as Promise<T>;
 }
@@ -145,10 +158,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
  */
 async function upload<T>(path: string, form: FormData): Promise<T> {
   const res = await fetch(`${BASE}${path}`, { method: "POST", body: form });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new ApiError(res.status, messageDErreur(err.detail, res.statusText));
-  }
+  if (!res.ok) throw await erreurDeReponse(res);
   return res.json() as Promise<T>;
 }
 

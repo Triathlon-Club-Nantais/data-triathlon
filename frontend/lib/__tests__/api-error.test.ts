@@ -15,11 +15,12 @@ describe("ApiError", () => {
     vi.unstubAllGlobals();
   });
 
-  function repond(status: number, body: unknown) {
+  function repond(status: number, body: unknown, headers: Record<string, string> = {}) {
     (globalThis.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: status < 400,
       status,
       statusText: "",
+      headers: new Headers(headers),
       json: async () => body,
     });
   }
@@ -69,5 +70,29 @@ describe("ApiError", () => {
 
     const erreur = await apiClient.getCourse(1).catch((e) => e);
     expect(erreur).toBeInstanceOf(Error);
+  });
+
+  it("carries the Retry-After wait of a 429", async () => {
+    repond(429, { detail: "Trop de requêtes" }, { "Retry-After": "12" });
+
+    const erreur = await apiClient.getSession().catch((e) => e);
+    expect(erreur.status).toBe(429);
+    expect(erreur.retryAfter).toBe(12);
+  });
+
+  it("leaves retryAfter null when the header is missing or unreadable", async () => {
+    repond(429, { detail: "Trop de requêtes" }, { "Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT" });
+    expect((await apiClient.getSession().catch((e) => e)).retryAfter).toBeNull();
+
+    repond(429, { detail: "Trop de requêtes" });
+    expect((await apiClient.getSession().catch((e) => e)).retryAfter).toBeNull();
+  });
+
+  it("carries the Retry-After wait of a 429 on a multipart upload", async () => {
+    repond(429, { detail: "Trop de requêtes" }, { "Retry-After": "30" });
+
+    const erreur = await apiClient.readSheetColumns(new File(["a"], "a.csv")).catch((e) => e);
+    expect(erreur.status).toBe(429);
+    expect(erreur.retryAfter).toBe(30);
   });
 });
