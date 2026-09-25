@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/lib/queries/auth";
 import { useNavBadges } from "@/lib/queries/nav-badges";
-import { AthletePicker, ATHLETE_CHANGED_EVENT, OPEN_PICKER_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete } from "./AthletePicker";
+import { AthletePicker, ATHLETE_CHANGED_EVENT, OPEN_PICKER_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete, type PickerMode } from "./AthletePicker";
 import { NAV, ROLE, estVisible, type NavItem, type NavSection } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
@@ -42,7 +42,9 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   const router = useRouter();
   const { data: session } = useSession();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  // Deux usages, deux modes (#952) : la recherche ne fait que naviguer ; seule
+  // la désignation demandée par `OPEN_PICKER_EVENT` retient l'athlète.
+  const [pickerMode, setPickerMode] = useState<PickerMode | null>(null);
   // `expanded` vient désormais du cookie lu par `app/layout.tsx` (#482,
   // NAV-3), synchrone dès le premier rendu — plus rien à y lire au montage.
   // `athlete` et raccourci clavier restent client-only : `localStorage` et
@@ -71,7 +73,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setPickerOpen(true);
+        setPickerMode("search");
       }
     };
     window.addEventListener("keydown", onKey);
@@ -90,11 +92,11 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
 
   // Ouverture de la palette demandée depuis un écran qui n'en porte pas
   // l'état — la bande « Ma saison » sur un 404 (#502, revue UI/UX item 11).
-  // `AppNav` reste l'unique porteur de `pickerOpen` ; l'événement ne fait que
+  // `AppNav` reste l'unique porteur de `pickerMode` ; l'événement ne fait que
   // le lui demander, comme `onOpenPicker` le fait déjà pour le rail et la
   // barre mobile.
   useEffect(() => {
-    const onOpen = () => setPickerOpen(true);
+    const onOpen = () => setPickerMode("select");
     window.addEventListener(OPEN_PICKER_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_PICKER_EVENT, onOpen);
   }, []);
@@ -174,7 +176,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
         rechercheDisponible
           ? () => {
               fermer?.();
-              setPickerOpen(true);
+              setPickerMode("search");
             }
           : undefined
       }
@@ -330,7 +332,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           <img src="/logo-tcn.png" alt={CLUB_NAME} style={{ height: 24, display: "block" }} />
         </Link>
         {rechercheDisponible && (
-          <button type="button" aria-label="Rechercher un athlète" onClick={() => setPickerOpen(true)} style={carreSecondaire}>
+          <button type="button" aria-label="Rechercher un athlète" onClick={() => setPickerMode("search")} style={carreSecondaire}>
             <Search size={18} />
           </button>
         )}
@@ -408,13 +410,16 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
         </SheetContent>
       </Sheet>
 
-      {pickerOpen && (
+      {pickerMode && (
         <AthletePicker
-          onClose={() => setPickerOpen(false)}
+          mode={pickerMode}
+          onClose={() => setPickerMode(null)}
           onPick={(a) => {
-            writeAthlete(a);
-            setClient((c) => ({ ...c, athlete: a }));
-            setPickerOpen(false);
+            if (pickerMode === "select") {
+              writeAthlete(a);
+              setClient((c) => ({ ...c, athlete: a }));
+            }
+            setPickerMode(null);
             router.push(`/athletes/${a.id}`);
           }}
         />

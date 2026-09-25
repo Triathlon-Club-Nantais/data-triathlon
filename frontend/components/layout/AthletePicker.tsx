@@ -17,6 +17,9 @@ import type { AthleteSearchResult } from "@/lib/types";
  */
 export type PickedAthlete = { id: number; prenom: string; nom: string };
 
+/** `search` navigue seulement ; `select` désigne « mon athlète » (#952). */
+export type PickerMode = "search" | "select";
+
 const STORE = "tcn-athlete";
 
 /**
@@ -200,9 +203,11 @@ function echecRecherche(erreur: unknown): { titre: string; detail: string; acces
  * après 250 ms de silence, et plafonne à 12 résultats.
  */
 export function AthletePicker({
+  mode,
   onClose,
   onPick,
 }: {
+  mode: PickerMode;
   onClose: () => void;
   onPick: (athlete: PickedAthlete) => void;
 }) {
@@ -255,6 +260,7 @@ export function AthletePicker({
     if (actifId) document.getElementById(actifId)?.scrollIntoView?.({ block: "nearest" });
   }, [actifId]);
 
+  const designation = mode === "select";
   const choisir = (a: AthleteSearchResult) => onPick({ id: a.id, prenom: a.prenom, nom: a.nom });
 
   const q = query.trim();
@@ -274,14 +280,16 @@ export function AthletePicker({
 
   return (
     <Modal
-      eyebrow="Mon athlète"
-      title="Sélectionnez votre nom"
+      eyebrow={designation ? "Mon athlète" : "Athlètes"}
+      title={designation ? "Sélectionnez votre nom" : "Rechercher un athlète"}
       onClose={onClose}
       width={520}
       footer={
-        <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", textAlign: "center" }}>
-          Votre saison s&apos;affichera en tête du tableau de bord.
-        </div>
+        designation ? (
+          <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", textAlign: "center" }}>
+            Votre saison s&apos;affichera en tête du tableau de bord.
+          </div>
+        ) : null
       }
     >
       <Input
@@ -398,7 +406,7 @@ export function AthletePicker({
         )}
         {query.trim().length < 2 && (
           <div style={{ padding: 30, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>
-            Saisissez au moins 2 lettres de votre nom.
+            {designation ? "Saisissez au moins 2 lettres de votre nom." : "Saisissez au moins 2 lettres d'un nom."}
           </div>
         )}
       </div>
