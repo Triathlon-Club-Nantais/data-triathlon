@@ -8,6 +8,7 @@ from app.scrapers.utils import (
     fmt_seconds,
     parse_fr_date,
     split_athlete_name,
+    split_relay_teammates,
     to_seconds,
 )
 
@@ -130,3 +131,64 @@ def test_fmt_seconds_est_l_inverse_de_to_seconds():
     assert fmt_seconds(5025) == "01:23:45"
     assert fmt_seconds(0) == "00:00:00"
     assert to_seconds(fmt_seconds(9999)) == 9999
+
+
+# ── Relais aux équipiers nommés (#895) : valeurs réelles du sondage ─────────
+
+
+@pytest.mark.parametrize(("published", "expected"), [
+    # timepulse : listes parallèles de noms et de prénoms
+    ("CANNIOU/OLIVIER Cedric/Leclerc", [("CANNIOU", "Cedric"), ("OLIVIER", "Leclerc")]),
+    (
+        "HUREAU /HUREAU/PERDREAU Régis /Marianne/Jean-Sebastien",
+        [("HUREAU", "Régis"), ("HUREAU", "Marianne"), ("PERDREAU", "Jean-Sebastien")],
+    ),
+    ("PINSON/ROCHEFORT-CUNIN Eric/Emmanuel", [("PINSON", "Eric"), ("ROCHEFORT-CUNIN", "Emmanuel")]),
+    (
+        "QUILLET/BRILLANT CAMPBELL/ROUSSEAU Guillaume/Alex/Jean Philippe",
+        [("QUILLET", "Guillaume"), ("BRILLANT CAMPBELL", "Alex"), ("ROUSSEAU", "Jean Philippe")],
+    ),
+    (
+        "LEGEARD/LEGEARD/LEGEARD Anne/Paul/Marc",
+        [("LEGEARD", "Anne"), ("LEGEARD", "Paul"), ("LEGEARD", "Marc")],
+    ),
+    # klikego, oktime, chronoplace : segments « NOM PRÉNOM »
+    ("MASSONNEAU PIERRE / BESANCON FABIEN .", [("MASSONNEAU", "PIERRE"), ("BESANCON", "FABIEN")]),
+    ("GUILLON RÉMI / CHARPENTIER EMMANUEL", [("GUILLON", "RÉMI"), ("CHARPENTIER", "EMMANUEL")]),
+    ("MENARDAIS FERDINAND / COMPAIN LENA", [("MENARDAIS", "FERDINAND"), ("COMPAIN", "LENA")]),
+    ("DUPONT Jean / MARTIN Paul", [("DUPONT", "Jean"), ("MARTIN", "Paul")]),
+    ("Jean DUPONT / Paul MARTIN", [("DUPONT", "Jean"), ("MARTIN", "Paul")]),
+    # frontière nom/prénom indécidable
+    ("LE BRAS LUC / LE PAGE GUULLAUME .", None),
+    ("LE BOZEC HENRI / BABINET SYLVAIN", None),
+    ("DAUGUET PIERRE E. / BELMONTE ALEXANDRE .", None),
+    ("MARTIN Jean DUPONT / Paul", None),
+    # un segment sans nom et prénom
+    ("DAMIEN/FRANCOIS Francois et Benjamin", None),
+    ("ECN / USCAL Sarah et Francois", None),
+    ("FRATERIES POZZEBON/SKLADZIEN", None),
+    # groupes, prénoms seuls, initiales : aucun `/`
+    ("LES BARBAPAPAS Alex et Margot", None),
+    ("TIC & TAC .", None),
+    ("OGGY ET LES CAFARDES", None),
+    ("CREUSOTRI", None),
+    ("LA COUSINADE", None),
+    ("GUILLAUME & ANTHONY", None),
+    ("S. D.", None),
+    ("", None),
+    # listes de longueurs différentes, doublons, effectif hors bornes
+    ("AUBERT/BLANC/COLIN Jean/Paul", None),
+    ("DUPONT Jean / DUPONT Jean", None),
+    ("DUPONT Jéan / DUPONT Jean", None),
+    (" / ".join(f"NOM{chr(65 + i)}X PRENOM{chr(65 + i)}X" for i in range(9)), None),
+    ("DUPONT Jean & Marie / MARTIN Paul", None),
+    ("DUPONT/MARTIN Jean et Luc/Paul", None),
+    ("DUPONT/MARTIN Jean & Luc/Paul", None),
+])
+def test_split_relay_teammates(published, expected):
+    assert split_relay_teammates(published) == expected
+
+
+def test_split_relay_teammates_accepts_eight():
+    published = " / ".join(f"NOM{chr(65 + i)}X PRENOM{chr(65 + i)}X" for i in range(8))
+    assert len(split_relay_teammates(published)) == 8

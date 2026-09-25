@@ -44,6 +44,7 @@ from app.repositories import (
 )
 from app.schemas.course import CourseSourceOut
 from app.scrapers.base import STATUS_FINISHER
+from app.scrapers.utils import MAX_RELAY_TEAMMATES, MIN_RELAY_TEAMMATES
 from app.services import import_service
 
 logger = logging.getLogger(__name__)
@@ -850,10 +851,6 @@ def reassign_participation(
     return participation
 
 
-MIN_TEAMMATES = 2
-MAX_TEAMMATES = 8
-
-
 class NewTeammate(NamedTuple):
     """Un équipier sans fiche connue, désigné par son nom (#894, US2)."""
 
@@ -880,9 +877,9 @@ def set_teammates(
     participation = _participation_or_404(db, participation_id)
     if not (participation.is_relay or participation.course.is_relay):
         raise DomainError("Seul un résultat de relais peut être attribué à des équipiers.")
-    if not MIN_TEAMMATES <= len(teammates) <= MAX_TEAMMATES:
+    if not MIN_RELAY_TEAMMATES <= len(teammates) <= MAX_RELAY_TEAMMATES:
         raise DomainError(
-            f"Un relais s'attribue à {MIN_TEAMMATES} à {MAX_TEAMMATES} équipiers."
+            f"Un relais s'attribue à {MIN_RELAY_TEAMMATES} à {MAX_RELAY_TEAMMATES} équipiers."
         )
     equipiers: list[Athlete | NewTeammate] = [
         _athlete_or_404(db, ref)

@@ -133,8 +133,14 @@ Un résultat de relais reste **une** ligne `participations`. Ses équipiers, une
 fois attribués par un administrateur (`PUT /admin/participations/{id}/teammates`),
 vivent dans `participation_teammates (participation_id, athlete_id, position)` :
 le résultat apparaît sur la fiche de chacun, `athlete_id` pointant sur le
-premier (le porteur). Sans attribution, la table est vide pour ce résultat et
-rien ne change. Un podium de relais ne compte pas dans les podiums individuels
+premier (le porteur). L'import pose aussi cette composition (#895) quand la ligne
+publiée nomme chaque équipier (`DUPONT Jean / MARTIN Paul`) : même table, même
+porteur, `team_name` renseigné, aucune fiche au nom de l'équipe ; un rescrape ne
+retouche jamais une composition déjà posée. En revanche, il découpe un relais
+sans composition même si un administrateur l'avait rattaché à un seul coureur
+hors de l'équipe publiée, comme la réconciliation d'identité (#66) le faisait
+déjà. Sans composition, la table est vide
+pour ce résultat et rien ne change. Un podium de relais ne compte pas dans les podiums individuels
 et compte une fois pour le club. Détail et pièges : `backend/app/models/AGENTS.md`.
 
 ### Cache TTL
