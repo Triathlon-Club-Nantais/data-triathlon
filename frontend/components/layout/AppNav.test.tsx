@@ -1188,6 +1188,15 @@ describe("AppNav — barre basse mobile (#482, NAV-4)", () => {
     expect(within(barre).getByRole("link", { name: "Résultats" })).toHaveTextContent("Résultats");
   });
 
+  it("raccourcit « Validation des courses », qui tenait sur trois lignes à 375 px (#890)", () => {
+    afficher(null);
+
+    const barre = screen.getByRole("navigation", { name: "Navigation" });
+    const lien = within(barre).getByRole("link", { name: "Validation des courses" });
+    expect(lien).toHaveTextContent("Validation");
+    expect(lien).not.toHaveTextContent("des courses");
+  });
+
   it("marque la destination courante avec aria-current=\"page\"", () => {
     afficher(null);
 
