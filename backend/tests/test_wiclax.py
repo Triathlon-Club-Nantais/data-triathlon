@@ -145,6 +145,14 @@ def test_parse_competitor_event_type_suit_le_sport_de_l_epreuve():
     assert r.event_name == "RED OUF Swimrun 2026 - S Duo"
 
 
+def test_parse_competitor_course_annexe_garde_son_sport():
+    """#941 : un trail d'un « Triathlon de X » reste un trail."""
+    comp = _el('<E d="1" n="A B" x="M" p="Trail 12 km"/>')
+    r = _parse_competitor(comp, "http://x", "Triathlon de Rumilly", "triathlon")
+    assert r.event_type == "trail"
+    assert r.event_name == "Triathlon de Rumilly - Trail 12 km"
+
+
 def test_parse_competitor_event_type_parcours_nommant_le_sport():
     """Non-régression ChronoSmetron : un parcours qui nomme le sport reste prioritaire."""
     comp = _el('<E d="6159" v="3" p="Triathlon L"/>')

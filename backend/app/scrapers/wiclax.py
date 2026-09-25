@@ -86,14 +86,11 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
         # nom de course par le parcours pour éviter que plusieurs parcours de même
         # type ne fusionnent en une seule Course (issue #21 : collisions de
         # dossards → participants manquants, rangs dupliqués).
+        # Le parcours seul est classé, l'épreuve servant de contexte : « S Duo »
+        # d'un swimrun reprend le sport de l'épreuve, un « Trail 12 km » d'un
+        # triathlon reste un trail (#941).
+        event_type = classify_event_type(p_attr, contexte=event_name)
         event_name = qualify_event_name(event_name, p_attr)
-        # On classe le nom *qualifié*, pas le parcours nu : beaucoup de parcours ne
-        # nomment pas le sport (« S Duo », « M Solo » chez ChronoWest) et le
-        # classifieur retombe alors sur son défaut `triathlon` — un swimrun finissait
-        # en triathlon-s. Le sport vient du nom d'épreuve, la taille du parcours ; un
-        # parcours qui nomme explicitement une autre discipline (« Duathlon jeunes »)
-        # reste prioritaire, les multisports étant testés avant le triathlon.
-        event_type = classify_event_type(event_name)
 
     result.event_name = event_name
     result.event_type = event_type
