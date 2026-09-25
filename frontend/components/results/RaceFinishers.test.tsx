@@ -469,21 +469,6 @@ describe("RaceFinishers", () => {
     expect(cellule.style.color).toBe("var(--tcn-text-muted)");
   });
 
-  it("darkens transition times on my row, whose hover background drops muted text under AA (#931)", () => {
-    writeAthlete({ id: 1, prenom: "J", nom: "DUPONT" });
-    afficher({
-      participations: [
-        p({ id: 1, nom: "DUPONT", rank_overall: 1, total_time: "01:00:00", splits: { t1: "00:03:07" } }),
-      ],
-      summary: synthese({ split_keys: ["t1"] }),
-      total: 1,
-      eventType: "triathlon-m",
-    });
-
-    const cellule = within(screen.getByTestId("classement-grille")).getByText("00:03:07");
-    expect(cellule.style.color).toBe("var(--tcn-text-body)");
-  });
-
   // ── Inter illisible (#472) ─────────────────────────────────────────────────
 
   // Observé en préproduction sur la course 340 : un inter valant `0-2:-15:00`.
@@ -1027,6 +1012,21 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
 
   afterEach(() => {
     Object.defineProperty(window, "localStorage", descripteurOriginal);
+  });
+
+  it("darkens transition times on my row, whose hover background drops muted text under AA (#931)", () => {
+    writeAthlete({ id: 1, prenom: "J", nom: "DUPONT" });
+    afficher({
+      participations: [
+        p({ id: 1, nom: "DUPONT", rank_overall: 1, total_time: "01:00:00", splits: { t1: "00:03:07" } }),
+      ],
+      summary: synthese({ split_keys: ["t1"] }),
+      total: 1,
+      eventType: "triathlon-m",
+    });
+
+    const cellule = within(screen.getByTestId("classement-grille")).getByText("00:03:07");
+    expect(cellule.style.color).toBe("var(--tcn-text-body)");
   });
 
   it("ne marque aucune ligne quand aucun athlète n'est retenu", () => {
