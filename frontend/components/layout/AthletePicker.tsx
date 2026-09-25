@@ -332,7 +332,7 @@ export function AthletePicker({
                   id={optionId(a.id)}
                   role="option"
                   aria-selected={i === actif}
-                  aria-label={`Choisir ${fullName}, ${club}, ${epreuves}`}
+                  aria-label={`${designation ? "Choisir" : "Ouvrir la fiche de"} ${fullName}, ${club}, ${epreuves}`}
                   onClick={() => choisir(a)}
                   onMouseEnter={() => setActif(i)}
                   style={{

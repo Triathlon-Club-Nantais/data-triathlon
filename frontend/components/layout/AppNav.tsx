@@ -73,7 +73,9 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
-        setPickerMode("search");
+        // Une palette déjà ouverte garde son mode : la basculer en silence
+        // changerait ce qu'écrit le choix en cours (#952).
+        setPickerMode((m) => m ?? "search");
       }
     };
     window.addEventListener("keydown", onKey);
@@ -96,7 +98,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // le lui demander, comme `onOpenPicker` le fait déjà pour le rail et la
   // barre mobile.
   useEffect(() => {
-    const onOpen = () => setPickerMode("select");
+    const onOpen = () => setPickerMode((m) => m ?? "select");
     window.addEventListener(OPEN_PICKER_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_PICKER_EVENT, onOpen);
   }, []);
@@ -176,7 +178,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
         rechercheDisponible
           ? () => {
               fermer?.();
-              setPickerMode("search");
+              setPickerMode((m) => m ?? "search");
             }
           : undefined
       }
@@ -380,7 +382,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           <img src="/logo-tcn.png" alt={CLUB_NAME} style={{ height: 24, display: "block" }} />
         </Link>
         {rechercheDisponible && (
-          <button type="button" aria-label="Rechercher un athlète" onClick={() => setPickerMode("search")} style={carreSecondaire}>
+          <button type="button" aria-label="Rechercher un athlète" onClick={() => setPickerMode((m) => m ?? "search")} style={carreSecondaire}>
             <Search size={18} />
           </button>
         )}
