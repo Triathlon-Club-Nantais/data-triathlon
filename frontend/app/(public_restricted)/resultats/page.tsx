@@ -46,6 +46,13 @@ export default async function ResultatsPage({
 }) {
   const sp = await searchParams;
 
+  // Saison en cours par défaut (#772), appliquée à toute la page (#924) :
+  // `?seasons` retenu s'il porte une valeur, même défaut que `SeasonSelector`.
+  const selectedSeasons = (() => {
+    const fromUrl = parseSeasonsParam(sp.seasons);
+    return fromUrl.length > 0 ? fromUrl : [currentSeason()];
+  })();
+
   const filters: ParticipationFilters = {
     name: sp.name,
     event_type: sp.event_type,
@@ -54,15 +61,8 @@ export default async function ResultatsPage({
     date_to: sp.date_to,
     scope: scopeFromParam(sp.scope),
     sort: sortFromParam(sp.sort),
+    seasons: selectedSeasons,
   };
-
-  // Couverture scopée sur la saison en cours par défaut (#772) — un choix qui
-  // inverse celui de #466 (historique complet) : `?seasons` retenu s'il porte
-  // une valeur, la saison en cours sinon, même défaut que `SeasonSelector`.
-  const coverageSeasons = (() => {
-    const fromUrl = parseSeasonsParam(sp.seasons);
-    return fromUrl.length > 0 ? fromUrl : [currentSeason()];
-  })();
 
   // Page 1 récupérée côté serveur : compteurs honnêtes + données initiales (pas de flash).
   const [firstPage, coverageEvents, seasons] = await Promise.all([
@@ -70,7 +70,7 @@ export default async function ResultatsPage({
       { ...filters, page: 1, page_size: EVENTS_PAGE_SIZE },
       { revalidateSeconds: SHORT_REVALIDATE_SECONDS },
     ),
-    fetchAllEventsForCoverage(filters.scope, coverageSeasons),
+    fetchAllEventsForCoverage(filters.scope, selectedSeasons),
     apiServer.listSeasons({ scope: filters.scope }, { revalidateSeconds: SHORT_REVALIDATE_SECONDS }),
   ]);
   const { total_events, total_participations } = firstPage;

@@ -32,6 +32,7 @@ vi.mock("@/components/results/EventList", () => ({
 }));
 
 import ResultatsPage from "./page";
+import { EVENTS_PAGE_SIZE } from "@/lib/queries/events";
 
 const FIRST_PAGE = {
   items: [],
@@ -72,6 +73,22 @@ describe("ResultatsPage", () => {
     const calls = listEvents.mock.calls as [{ page_size?: number; seasons?: number[] }][];
     const coverageCall = calls.find(([filters]) => filters.page_size === 200);
     expect(coverageCall?.[0]).toMatchObject({ seasons: [2023, 2024] });
+  });
+
+  it("applique la saison à la liste et aux compteurs, pas seulement à la couverture (#924)", async () => {
+    const parDefaut = await ResultatsPage({ searchParams: Promise.resolve({}) });
+    render(parDefaut);
+    const appels = () => listEvents.mock.calls as [{ page_size?: number; seasons?: number[] }][];
+    expect(appels().find(([f]) => f.page_size === EVENTS_PAGE_SIZE)?.[0]).toMatchObject({
+      seasons: [currentSeason()],
+    });
+
+    listEvents.mockClear();
+    const explicite = await ResultatsPage({ searchParams: Promise.resolve({ seasons: "2023,2024" }) });
+    render(explicite);
+    expect(appels().find(([f]) => f.page_size === EVENTS_PAGE_SIZE)?.[0]).toMatchObject({
+      seasons: [2023, 2024],
+    });
   });
 
   it("un ?sort= inconnu dans l'URL ne remonte pas tel quel à l'API (#711)", async () => {
