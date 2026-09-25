@@ -443,19 +443,31 @@ def _derive_status(athlete: dict) -> str:
     if (athlete.get("dnf") or "").strip().upper() == "O":
         return STATUS_DNF
     t = (athlete.get("time") or "").strip()
-    if t and t != "00:00:00":
+    # Un temps négatif (`-00:00:06`, course SUPP2 de 1082) n'est pas un chrono.
+    if t and t != "00:00:00" and not t.startswith("-"):
         return STATUS_FINISHER
     return STATUS_DNS
 
 
+#: Courses techniques où la source range ses dossards non rattachés
+#: (`?Dossard #8158`) et ses lignes `TEST` : mesurées sur 1082, 1060, 1000, 950.
+_TECHNICAL_RACE = re.compile(r"SUPP\d*", re.IGNORECASE)
+
+
+def _is_unmatched_bib(athlete: dict) -> bool:
+    return (athlete.get("lastname") or "").strip().lower().startswith("?dossard")
+
+
 def _fetch_races(event_id: str, client: httpx.Client) -> list[str]:
-    """Codes de course de l'événement, dans l'ordre du `raceList`."""
+    """Codes de course de l'événement, dans l'ordre du `raceList`, sans les
+    courses techniques `SUPP*`."""
     r = client.get(f"{API_BASE}/result/raceList/{event_id}/", timeout=15)
     r.raise_for_status()
     return [
         code
         for entree in r.json().get("result", [])
         if (code := (entree.get("race") or "").strip())
+        and not _TECHNICAL_RACE.fullmatch(code)
     ]
 
 
@@ -584,6 +596,7 @@ def scrape_event_fanout(
         resultats.extend(
             _parse_athlete(ligne, plan, sub_url, nom, event_type, event_date)
             for ligne in lignes.get(race, [])
+            if not _is_unmatched_bib(ligne)
         )
     return resultats, trace
 
@@ -615,5 +628,5 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     return [
         _parse_athlete(a, plan, url, nom, event_type, event_date)
         for a in athletes
-        if (a.get("race") or "").strip() == race
+        if (a.get("race") or "").strip() == race and not _is_unmatched_bib(a)
     ]
