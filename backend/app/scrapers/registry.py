@@ -155,8 +155,8 @@ class FanoutProvider(HostMatchedProvider):
         """Vrai si l'URL cible déjà une sous-unité précise (#698).
 
         Défaut `False` : ces providers fan-out n'ont aucun sélecteur de
-        sous-unité dans l'URL — Wiclax, RaceResult, OkTime, Sporthive,
-        ChronoWeb, Chronoplace. Leur `single_heat=True` vaut « pas de
+        sous-unité dans l'URL (Wiclax, OkTime, Sporthive, ChronoWeb,
+        Chronoplace). Leur `single_heat=True` vaut « pas de
         fan-out », jamais « cibler cette sous-unité précise » : il rend
         **exactement le même volume** de participants que le fan-out, en
         perdant au passage la `source_url` par sous-unité, le cache TTL par
@@ -164,9 +164,10 @@ class FanoutProvider(HostMatchedProvider):
         pour eux — pré-cocher « import unique » y serait strictement moins bon
         pour zéro contrepartie (revue finale #698).
 
-        Trois la surchargent, parce que leur URL porte réellement le sélecteur
+        Quatre la surchargent, parce que leur URL porte réellement le sélecteur
         que `single_heat=True` honore : Klikego (`?heat=`), BreizhChrono
-        (segment de chemin ou `?heat=` côté live) et ProLiveSport (`race=`).
+        (segment de chemin ou `?heat=` côté live), ProLiveSport (`race=`) et
+        RaceResult (`?contest=` des sous-URLs qu'il pose lui-même, #989).
         `GET /scrape/detect` s'en sert pour ne proposer « import unique » par
         défaut que sur une URL où ce chemin cible vraiment quelque chose.
         """
@@ -440,8 +441,8 @@ class RaceResultProvider(FanoutProvider):
     `Contest="0"` (« toutes catégories ») est réservé et exclu du fan-out :
     ses listes sont scrapées comme dans le contrat historique. L'échappatoire
     `--single-heat` (chemin `single_heat=True`) court-circuite le fan-out et
-    n'appelle **aucun** `cache_probe` — utile aux tests et à un rescrape
-    d'événement en pot commun.
+    n'appelle **aucun** `cache_probe`. Une sous-URL `?contest=N` restreint l'un
+    comme l'autre chemin à ce contest (#989).
     """
 
     name = "raceresult"
@@ -453,6 +454,11 @@ class RaceResultProvider(FanoutProvider):
     _module = raceresult
     #: Sa sous-unité est le contest, désigné par l'URL.
     _echec_slug_est_url = True
+
+    def targets_single_heat(self, url: str) -> bool:
+        """Vrai sur une sous-URL `?contest=N` (N ≠ 0) : fan-out comme import
+        unique n'y scrapent que ce contest (#989)."""
+        return bool(raceresult.target_contest(url))
 
 
 class ChronoplaceProvider(FanoutProvider):

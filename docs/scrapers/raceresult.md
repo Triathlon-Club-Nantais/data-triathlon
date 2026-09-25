@@ -31,3 +31,15 @@ design et sur le plan. Ne pas revenir à la route `/{id}/RRPublish/data/…` (al
 hérité, 404 sur les épreuves récentes) ni au filtre `Live` (qui vide certaines
 épreuves) : les deux ont des tests de non-régression dédiés.
 Design : `docs/superpowers/specs/2026-07-19-raceresult-scraper-design.md`.
+
+**Sous-URL de contest (#989).** Chaque course est stockée sous
+`https://my.raceresult.com/<event>/results?contest=N` (`_sub_source_url`), en
+fan-out comme en `--single-heat` : l'URL soumise (façade comprise) n'est jamais
+posée sur les lignes d'un contest explicite, sans quoi elle devenait la source
+passive de tous les contests à la fois. Le scraper relit ce sélecteur
+(`target_contest`) : une sous-URL ne scrape que son contest, ses listes `hidden`
+et les lignes `Contest="0"` qui s'y rattachent. `rescrape-db` fait donc un
+scrape par contest, et non plus N scrapes de l'épreuve entière. `?contest=0` ne
+cible rien et vaut l'épreuve entière ; un contest absent des listes publiées
+lève. `GET /scrape/detect` masque la bascule « import unique » sur une telle
+URL, comme sur une URL Breizh Chrono déjà ciblée.

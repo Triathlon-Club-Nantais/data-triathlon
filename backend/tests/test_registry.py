@@ -569,7 +569,7 @@ def test_klikego_provider_forwards_cache_probe(monkeypatch):
     ("classe", "url"),
     [
         ("WiclaxProvider", "https://wiclax-results.com/x"),
-        ("RaceResultProvider", "https://my.raceresult.com/406211/results?contest=3"),
+        ("RaceResultProvider", "https://my.raceresult.com/406211/results"),
         ("OkTimeProvider", "https://classement.ok-time.fr/12/race/34"),
         ("SporthiveProvider", "https://results.sporthive.com/events/42"),
         ("ChronoWebProvider", "https://www.chronoweb.com/resultats?e=42"),
@@ -577,14 +577,10 @@ def test_klikego_provider_forwards_cache_probe(monkeypatch):
     ],
 )
 def test_fanout_provider_targets_single_heat_faux_par_defaut(classe, url):
-    """Les 6 providers fan-out sans sélecteur de sous-unité dans l'URL héritent
-    du défaut `False` — leur `single_heat=True` vaut « pas de fan-out », jamais
-    « cibler cette sous-unité précise ».
-
-    RaceResult en fait partie **même avec un `contest=` dans l'URL** : son
-    `scrape_event_all` passe par `_run_pipeline`, qui ne lit de l'URL que
-    l'identifiant d'épreuve et énumère ensuite toutes les listes de la config.
-    Le paramètre n'est jamais parsé (tracé en revue finale de #698).
+    """Sur une URL sans sélecteur de sous-unité, les providers fan-out rendent
+    `False` : leur `single_heat=True` y vaut « pas de fan-out », jamais
+    « cibler cette sous-unité précise ». RaceResult lit son `?contest=` depuis
+    #989 (cf. `test_raceresult`), d'où une URL d'événement nue ici.
     """
     from app.scrapers import registry
 
