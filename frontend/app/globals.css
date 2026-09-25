@@ -700,6 +700,15 @@
     outline: 2px solid var(--tcn-orange);
     outline-offset: 2px;
   }
+  /* Boutons du pied de rail, « Se connecter » et la relance d'une session
+     illisible (`AppNav`, #954) : stylés en ligne, même défaut et même remède. */
+  .tcn-rail-compte {
+    outline: none;
+  }
+  .tcn-rail-compte:focus-visible {
+    outline: 2px solid var(--tcn-orange);
+    outline-offset: 2px;
+  }
   /* « Ma ligne » du classement (`RaceFinishers`, #503) : le fond ne peut pas
      être un style en ligne, il battrait `.tcn-rowlink:hover` et couperait le
      retour au survol sur la ligne où l'utilisateur clique le plus (#439). Le

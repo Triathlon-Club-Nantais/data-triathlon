@@ -1,10 +1,10 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { LogIn, Menu, PanelLeft, Plus, RotateCw, Search, X } from "lucide-react";
-import { Avatar } from "@/components/tcn";
-import { UserMenu } from "@/components/auth/UserMenu";
+import { Avatar, Button } from "@/components/tcn";
+import { SessionEnLecture, UserMenu } from "@/components/auth/UserMenu";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/lib/queries/auth";
@@ -102,6 +102,21 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
     window.addEventListener(OPEN_PICKER_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_PICKER_EVENT, onOpen);
   }, []);
+
+  // Le bouton « Réessayer » du rail disparaît avec la panne : sans relais, le
+  // focus tomberait sur `body` au retour de la session.
+  const piedRail = useRef<HTMLDivElement>(null);
+  const relanceRail = useRef(false);
+  useEffect(() => {
+    if (session === undefined || !relanceRail.current) return;
+    relanceRail.current = false;
+    if (document.activeElement === document.body) piedRail.current?.querySelector<HTMLElement>("button")?.focus();
+  }, [session]);
+  function relancerSession() {
+    if (sessionEnCours) return;
+    relanceRail.current = true;
+    void relireSession();
+  }
 
   function setExpanded(next: boolean) {
     setClient((c) => ({ ...c, expanded: next }));
@@ -262,7 +277,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
 
         {contenu(expanded)}
 
-        <div style={{ flex: "none", padding: "12px 14px", borderTop: "1px solid var(--tcn-border-faint)" }}>
+        <div ref={piedRail} style={{ flex: "none", padding: "12px 14px", borderTop: "1px solid var(--tcn-border-faint)" }}>
           {session ? (
             <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: expanded ? "flex-start" : "center" }}>
               <UserMenu />
@@ -274,52 +289,56 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             </div>
           ) : session === undefined && echecsSession > 0 ? (
             // Une session illisible n'est pas une session anonyme (#954).
-            <Tooltip>
-              <TooltipTrigger
-                disabled={expanded}
-                render={
-                  <button
-                    type="button"
-                    // `aria-disabled` plutôt que `disabled`, qui renverrait le
-                    // focus sur `body` pendant l'essai.
-                    onClick={() => {
-                      if (!sessionEnCours) void relireSession();
-                    }}
-                    aria-disabled={sessionEnCours || undefined}
-                    aria-label={sessionEnCours ? "Nouvelle tentative…" : "Session indisponible, réessayer"}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 10,
-                      width: "100%",
-                      height: 44,
-                      padding: expanded ? "0 14px" : 0,
-                      justifyContent: expanded ? "flex-start" : "center",
-                      borderRadius: "var(--tcn-radius-lg)",
-                      background: "var(--tcn-surface)",
-                      color: "var(--tcn-ink)",
-                      border: "1.5px solid var(--tcn-border-strong)",
-                      fontFamily: "var(--tcn-font-body)",
-                      fontWeight: 700,
-                      fontSize: 13.5,
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      cursor: sessionEnCours ? "wait" : "pointer",
-                    }}
-                  />
-                }
-              >
-                <RotateCw size={18} style={{ flex: "none" }} />
-                {expanded && <span>{sessionEnCours ? "Nouvelle tentative…" : "Session indisponible"}</span>}
-              </TooltipTrigger>
-              {!expanded && (
-                <TooltipContent>{sessionEnCours ? "Nouvelle tentative…" : "Session indisponible, réessayer"}</TooltipContent>
+            <div
+              role="status"
+              style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", justifyContent: expanded ? "flex-start" : "center" }}
+            >
+              {expanded ? (
+                <>
+                  <span style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>Session indisponible</span>
+                  {/* `aria-disabled` plutôt que `disabled`, qui renverrait le focus sur `body` pendant l'essai. */}
+                  <Button variant="secondary" size="sm" aria-disabled={sessionEnCours || undefined} onClick={relancerSession}>
+                    {sessionEnCours ? "Nouvelle tentative…" : "Réessayer"}
+                  </Button>
+                </>
+              ) : (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        className="tcn-rail-compte"
+                        onClick={relancerSession}
+                        aria-disabled={sessionEnCours || undefined}
+                        aria-label={sessionEnCours ? "Nouvelle tentative…" : "Session indisponible, réessayer"}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          width: "100%",
+                          height: 44,
+                          padding: 0,
+                          borderRadius: "var(--tcn-radius-lg)",
+                          background: "var(--tcn-surface)",
+                          color: "var(--tcn-ink)",
+                          border: "1.5px solid var(--tcn-border-strong)",
+                          cursor: sessionEnCours ? "wait" : "pointer",
+                        }}
+                      />
+                    }
+                  >
+                    <RotateCw size={18} style={{ flex: "none" }} />
+                  </TooltipTrigger>
+                  <TooltipContent>{sessionEnCours ? "Nouvelle tentative…" : "Session indisponible, réessayer"}</TooltipContent>
+                </Tooltip>
               )}
-            </Tooltip>
+            </div>
           ) : session === undefined ? (
             // Session encore en lecture : « Se connecter » y mentirait à un
             // connecté pendant toute la durée des essais.
-            <div aria-hidden style={{ height: 44 }} />
+            <div style={{ display: "flex", justifyContent: expanded ? "flex-start" : "center" }}>
+              <SessionEnLecture />
+            </div>
           ) : (
             <Tooltip>
               <TooltipTrigger
@@ -327,6 +346,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
                 render={
                   <button
                     type="button"
+                    className="tcn-rail-compte"
                     onClick={() => router.push("/login")}
                     aria-label="Se connecter"
                     style={{

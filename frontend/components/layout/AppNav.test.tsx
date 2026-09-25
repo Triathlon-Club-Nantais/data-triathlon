@@ -653,6 +653,78 @@ describe("AppNav: unreadable session (#954)", () => {
     expect(getSession).toHaveBeenCalledTimes(appels);
   });
 
+  function afficherEnPanne(props: { initialExpanded?: boolean } = {}) {
+    getSession.mockRejectedValue(new ApiError(503, "indisponible"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={client}>
+        <AppNav {...props} />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("gives the rail retry button the orange focus ring", async () => {
+    afficherEnPanne();
+
+    expect(await screen.findByRole("button", { name: "Session indisponible, réessayer" })).toHaveClass(
+      "tcn-rail-compte",
+    );
+  });
+
+  it("announces the rail retry outcome in a status region", async () => {
+    afficherEnPanne();
+
+    const reessayer = await screen.findByRole("button", { name: "Session indisponible, réessayer" });
+    expect(reessayer.closest("[role=status]")).not.toBeNull();
+  });
+
+  it("shows the state and the action in the expanded rail", async () => {
+    afficherEnPanne({ initialExpanded: true });
+
+    const reessayer = await screen.findByRole("button", { name: "Réessayer" });
+    const region = reessayer.closest("[role=status]");
+    expect(region).toHaveTextContent("Session indisponible");
+    expect(region).toHaveTextContent("Réessayer");
+  });
+
+  it("moves focus to the account trigger once the rail retry succeeds", async () => {
+    afficherEnPanne();
+    const reessayer = await screen.findByRole("button", { name: "Session indisponible, réessayer" });
+
+    getSession.mockResolvedValue(SESSION);
+    await userEvent.click(reessayer);
+
+    const compte = await screen.findByRole("button", { name: /Compte/ });
+    await waitFor(() => expect(compte).toHaveFocus());
+  });
+
+  it("moves focus to the drawer account once its retry succeeds", async () => {
+    afficherEnPanne();
+    await screen.findByRole("button", { name: "Session indisponible, réessayer" });
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    const tiroir = await screen.findByRole("dialog");
+
+    getSession.mockResolvedValue(SESSION);
+    await userEvent.click(within(tiroir).getByRole("button", { name: "Réessayer" }));
+
+    const deconnexion = await within(tiroir).findByRole("button", { name: "Se déconnecter" });
+    await waitFor(() => expect(deconnexion).toHaveFocus());
+  });
+
+  it("shows a neutral busy placeholder while the session is pending", async () => {
+    getSession.mockReturnValue(new Promise(() => {}));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <AppNav />
+      </QueryClientProvider>,
+    );
+
+    const attente = await screen.findByRole("status", { name: "Lecture de la session" });
+    expect(attente).toHaveAttribute("aria-busy", "true");
+    expect(attente).not.toHaveTextContent("Se connecter");
+  });
+
   it("still offers « Se connecter » on a 401", async () => {
     afficher(null);
 

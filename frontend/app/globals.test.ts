@@ -168,6 +168,12 @@ describe("action en texte", () => {
   });
 });
 
+describe("pied de rail", () => {
+  it("rend le focus clavier visible en orange opaque (#954)", () => {
+    expect(rule(".tcn-rail-compte:focus-visible")).toContain("outline: 2px solid var(--tcn-orange)");
+  });
+});
+
 describe("bouton TCN", () => {
   // `components/tcn/` stylait tout en `CSSProperties` en ligne, où `:hover`,
   // `:active`, `:focus-visible` et `disabled` sont **inexprimables** : c'était la
