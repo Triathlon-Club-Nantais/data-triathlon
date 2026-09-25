@@ -58,6 +58,36 @@ async function ouvrirLeMenu() {
   return { declencheur, menu: await screen.findByRole("menu") };
 }
 
+describe("UserMenu: unreadable session (#954)", () => {
+  function afficherEnPanne() {
+    push.mockClear();
+    getSession.mockReset();
+    getSession.mockRejectedValue(new ApiError(503, "indisponible"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <QueryClientProvider client={client}>
+        <UserMenu />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("does not offer « Se connecter » when /auth/me fails with a 503", async () => {
+    afficherEnPanne();
+
+    expect(await screen.findByText("Session indisponible")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Se connecter" })).not.toBeInTheDocument();
+  });
+
+  it("retries the session and shows the account once it answers", async () => {
+    afficherEnPanne();
+    getSession.mockResolvedValue(SESSION);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Réessayer" }));
+
+    expect(await screen.findByRole("button", { name: /Compte/ })).toBeInTheDocument();
+  });
+});
+
 describe("UserMenu — anonyme (AC5)", () => {
   it("propose « Se connecter », inchangé", async () => {
     afficher(null);

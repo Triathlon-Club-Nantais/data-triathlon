@@ -5,7 +5,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import posthog from "posthog-js";
 import { toast } from "sonner";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
-import { useSession } from "@/lib/queries/auth";
+import { SESSION_QUERY_DEFAULTS, useSession } from "@/lib/queries/auth";
+import { queryKeys } from "@/lib/queries/keys";
 
 /**
  * Synchronise l'identité PostHog avec la session courante.
@@ -93,12 +94,13 @@ function PostLoginReturn() {
 
 // TCN Design System : thème clair uniquement (le mode sombre a été retiré).
 export function Providers({ children }: { children: ReactNode }) {
-  const [client] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } },
-      }),
-  );
+  const [client] = useState(() => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } },
+    });
+    queryClient.setQueryDefaults(queryKeys.session(), SESSION_QUERY_DEFAULTS);
+    return queryClient;
+  });
   return (
     <QueryClientProvider client={client}>
       <PostHogSessionSync />

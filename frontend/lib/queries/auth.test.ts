@@ -3,7 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/client";
-import { useAuthMethods, useSession } from "@/lib/queries/auth";
+import { SESSION_QUERY_DEFAULTS, useAuthMethods, useSession } from "@/lib/queries/auth";
 
 const { getSession, listAuthMethods } = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -68,6 +68,41 @@ describe("useSession", () => {
     await waitFor(() => expect(result.current.isPending).toBe(false));
     expect(result.current.data).toBeNull();
     expect(getSession).not.toHaveBeenCalled();
+  });
+});
+
+describe("SESSION_QUERY_DEFAULTS: bounded retry of transient failures (#954)", () => {
+  const { retry, retryDelay } = SESSION_QUERY_DEFAULTS;
+
+  it("retries a 5xx, a 429 and a network error", () => {
+    expect(retry(0, new ApiError(503, "indisponible"))).toBe(true);
+    expect(retry(0, new ApiError(429, "trop", 5))).toBe(true);
+    expect(retry(0, new TypeError("Failed to fetch"))).toBe(true);
+  });
+
+  it("never retries a 401 nor another client error", () => {
+    expect(retry(0, new ApiError(401, "anonyme"))).toBe(false);
+    expect(retry(0, new ApiError(403, "interdit"))).toBe(false);
+  });
+
+  it("stops after three attempts", () => {
+    expect(retry(2, new ApiError(503, "indisponible"))).toBe(true);
+    expect(retry(3, new ApiError(503, "indisponible"))).toBe(false);
+  });
+
+  it("waits the Retry-After of a 429, and gives up when it is too long to wait", () => {
+    expect(retryDelay(0, new ApiError(429, "trop", 5))).toBe(5000);
+    expect(retry(0, new ApiError(429, "trop", 600))).toBe(false);
+  });
+
+  it("backs off between other attempts", () => {
+    expect(retryDelay(0, new ApiError(503, "x"))).toBeLessThan(retryDelay(1, new ApiError(503, "x")));
+  });
+
+  it("refetches on window focus only to repair an error", () => {
+    const refetch = SESSION_QUERY_DEFAULTS.refetchOnWindowFocus;
+    expect(refetch({ state: { status: "error" } })).toBe(true);
+    expect(refetch({ state: { status: "success" } })).toBe(false);
   });
 });
 

@@ -37,7 +37,7 @@ export function UserMenu({
   pleineLargeur?: boolean;
   onNavigate?: () => void;
 }) {
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending, isError, refetch, isFetching } = useSession();
   const logout = useLogout();
   const router = useRouter();
   const chemin = usePathname();
@@ -45,6 +45,23 @@ export function UserMenu({
   // Tant que la session n'est pas connue, on n'affiche rien : faire clignoter
   // « Se connecter » avant de le remplacer par un nom est pire que d'attendre.
   if (isPending) return null;
+
+  // Une session illisible n'est pas une session anonyme (#954) : proposer
+  // « Se connecter » à un connecté relancerait un parcours OAuth inutile.
+  // Après un succès, React Query garde `data` et le menu reste affiché.
+  if (isError && session === undefined) {
+    return (
+      <div
+        role="status"
+        style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", width: pleineLargeur ? "100%" : undefined }}
+      >
+        <span style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>Session indisponible</span>
+        <Button variant="secondary" size="sm" disabled={isFetching} onClick={() => void refetch()}>
+          Réessayer
+        </Button>
+      </div>
+    );
+  }
 
   if (!session) {
     // Navigation par le **routeur**, jamais un `<Link>` enveloppant ce bouton :
