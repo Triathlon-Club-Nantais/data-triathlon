@@ -141,13 +141,13 @@ def wipe_impact(db: Session) -> dict:
     """Ce qu'une purge totale des résultats détruirait. **Ne modifie rien** (#384).
 
     Même principe que `course_deletion_impact` : `athletes` vient de la
-    **même** lecture que celle sur laquelle s'appuiera la purge (le compte
-    total de la table), pour que l'annonce et l'acte ne puissent pas diverger
+    **même** prédicat que celui sur lequel s'appuiera la purge (les fiches que
+    rien ne référence hors des résultats, #994), pour que l'annonce et l'acte ne puissent pas diverger
     à base constante.
     """
     return {
         "participations": participation_repository.count_all(db),
-        "athletes": athlete_repository.count_all(db),
+        "athletes": athlete_repository.count_unreferenced(db),
     }
 
 
@@ -163,10 +163,12 @@ def wipe_all_participations(db: Session, *, user_id: int) -> dict:
     `COUNT(*)` préalable : ce dernier ferait un balayage de plus sur la plus
     grosse table de la base, et un import concurrent validé entre les deux
     requêtes serait supprimé sans être compté — la trace sous-estimerait un
-    geste irréversible. Même raison côté athlètes, où c'est `delete_all` qui
-    est appelé et non le balayage d'orphelins : après le premier `DELETE`, les
-    deux ensembles coïncident, et un `DELETE` sans `WHERE` ne bute pas sur le
-    plafond de paramètres liés de PostgreSQL.
+    geste irréversible. Même raison côté athlètes, où c'est
+    `delete_unreferenced` qui est appelé et non le balayage d'orphelins : après
+    le premier `DELETE`, les deux ensembles coïncident, et un `DELETE`
+    ensembliste sans liste d'ids ne bute pas sur le plafond de paramètres liés
+    de PostgreSQL. Une fiche encore référencée par un bénévolat, une validation
+    de saison ou un compte survit à la purge (#994).
 
     Contrairement à `delete_course`, le journal ne garde que des **comptes**,
     jamais la liste des ids purgés : à l'échelle de la base entière, cette
@@ -175,7 +177,7 @@ def wipe_all_participations(db: Session, *, user_id: int) -> dict:
     purge a-t-elle emporté »).
     """
     resume = {"participations_deleted": participation_repository.delete_all(db)}
-    resume["athletes_purged"] = athlete_repository.delete_all(db)
+    resume["athletes_purged"] = athlete_repository.delete_unreferenced(db)
     resume["courses_reset"] = course_repository.reset_scraped_at_all(db)
     # Compteurs dénormalisés (#623) : toutes les participations disparaissent,
     # même patron bulk que la ligne au-dessus.
@@ -216,7 +218,7 @@ def courses_wipe_impact(db: Session) -> dict:
     return {
         "courses": course_repository.count_all(db),
         "participations": participation_repository.count_all(db),
-        "athletes": athlete_repository.count_all(db),
+        "athletes": athlete_repository.count_unreferenced(db),
     }
 
 
@@ -238,11 +240,11 @@ def wipe_all_courses(db: Session, *, user_id: int) -> dict:
     `wipe_all_participations` ne fait pas pour `courses_reset` : la règle de
     ce dernier (« le payload est borné à ce que la confirmation a chiffré »)
     n'est pas contredite, elle ne s'applique juste pas de la même façon ici —
-    `athletes_purged` vient de `delete_all`, sans le risque de sous-estimation
+    `athletes_purged` vient de `delete_unreferenced`, sans le risque de sous-estimation
     qui exclut `participations` du payload, donc rien ne justifie de le taire.
     """
     resume = {"courses_deleted": course_repository.delete_all(db)}
-    resume["athletes_purged"] = athlete_repository.delete_all(db)
+    resume["athletes_purged"] = athlete_repository.delete_unreferenced(db)
 
     admin_action_log_repository.create(
         db,

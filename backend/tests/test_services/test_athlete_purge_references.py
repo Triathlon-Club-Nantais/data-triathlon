@@ -133,3 +133,38 @@ def test_le_balayage_complet_epargne_une_fiche_referencee(db, auteur, reference)
     assert athlete_repository.delete_orphans(db) == 1
     db.flush()
     assert athlete_repository.get(db, referencee.id) is not None
+
+
+# --- Purges totales (#994) ---------------------------------------------------
+
+
+@pytest.mark.parametrize("reference", REFERENCES)
+def test_wipe_all_participations_epargne_une_fiche_referencee(db, auteur, reference):
+    course = _epreuve(db)
+    referencee = _coureur(db, "REFERENCEE")
+    _inscrit(db, referencee, course, "1")
+    _inscrit(db, _coureur(db, "LIBRE"), course, "2")
+    reference(db, referencee, auteur)
+
+    assert admin_actions.wipe_impact(db)["athletes"] == 1
+    resume = admin_actions.wipe_all_participations(db, user_id=auteur.id)
+    db.flush()
+
+    assert resume["athletes_purged"] == 1
+    assert athlete_repository.get(db, referencee.id) is not None
+
+
+@pytest.mark.parametrize("reference", REFERENCES)
+def test_wipe_all_courses_epargne_une_fiche_referencee(db, auteur, reference):
+    course = _epreuve(db)
+    referencee = _coureur(db, "REFERENCEE")
+    _inscrit(db, referencee, course, "1")
+    _inscrit(db, _coureur(db, "LIBRE"), course, "2")
+    reference(db, referencee, auteur)
+
+    assert admin_actions.courses_wipe_impact(db)["athletes"] == 1
+    resume = admin_actions.wipe_all_courses(db, user_id=auteur.id)
+    db.flush()
+
+    assert resume["athletes_purged"] == 1
+    assert athlete_repository.get(db, referencee.id) is not None

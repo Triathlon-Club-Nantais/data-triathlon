@@ -11,8 +11,9 @@
   sans `ondelete` : `volunteer_actions`, `season_validations` et
   `users.athlete_id` (la liaison des équipiers mise à part, ci-dessous). Une
   fiche sans résultat mais référencée par l'une d'elles n'est **pas
-  orpheline** : la purge (`delete_orphans_among`, via
-  `referenced_outside_results`) la conserve (#901), sans quoi PostgreSQL lève
+  orpheline** : la purge d'orphelins (`delete_orphans_among`) comme la purge
+  totale (`delete_unreferenced`, #994) la conservent via
+  `referenced_outside_results` (#901), sans quoi PostgreSQL lève
   une `ForeignKeyViolation` que SQLite, FK inertes, ne montre pas. Les tests
   qui l'éprouvent passent par la fixture `db_session_fk`
   (`PRAGMA foreign_keys=ON`).

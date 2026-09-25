@@ -361,34 +361,44 @@ def delete_orphans(db: Session) -> int:
     return len(delete_orphans_among(db))
 
 
-def delete_all(db: Session) -> int:
-    """Supprime **tous** les athlètes de la base. Rend le nombre effacé (#384).
+def delete_unreferenced(db: Session) -> int:
+    """Supprime tous les athlètes que rien ne référence hors des résultats (#384, #994).
 
     Appelée par `wipe_all_participations` et `wipe_all_courses`, toujours
-    **après** avoir vidé `participations` (directement, ou par cascade
-    depuis `Course`) — à ce moment, chaque athlète est orphelin par
-    construction (`Participation.athlete_id` est la seule FK vers `Athlete`
-    jamais peuplée), donc « tous les athlètes » et « tous les orphelins »
-    désignent le même ensemble. Un `DELETE` sans `WHERE` évite le plafond
-    PostgreSQL de 65535 paramètres liés que franchirait `delete_orphans_among`
-    sur une base de cette taille (elle matérialise chaque id en mémoire puis
-    les repasse un par un dans un `IN (...)`).
+    **après** avoir vidé `participations` : chaque athlète est alors sans
+    résultat, et seules restent les fiches encore référencées par un bénévolat,
+    une validation de saison ou un compte (`referenced_outside_results`), que
+    PostgreSQL refuserait de supprimer. `DELETE` ensembliste à `NOT EXISTS`
+    corrélés, sans liste d'ids : il ne bute pas sur le plafond PostgreSQL de
+    65535 paramètres liés que franchirait `delete_orphans_among` sur une base de
+    cette taille.
     """
-    efface = db.query(Athlete).delete(synchronize_session=False)
+    efface = (
+        db.query(Athlete)
+        .filter(~referenced_outside_results(Athlete.id))
+        .delete(synchronize_session=False)
+    )
     db.flush()
     return efface
 
 
 def count_all(db: Session) -> int:
-    """Nombre total de fiches coureur en base (#384).
-
-    Sert à chiffrer l'impact d'une purge totale des résultats **avant** de la
-    commettre : vider `Participation` entièrement laisse *tout* athlète
-    orphelin (`Participation.athlete_id` est sa seule FK jamais peuplée, cf.
-    `delete_orphans_among` ci-dessus), donc ce compte est exactement celui que
-    `delete_all` purgera.
-    """
+    """Nombre total de fiches coureur en base (#384)."""
     return db.query(func.count(Athlete.id)).scalar() or 0
+
+
+def count_unreferenced(db: Session) -> int:
+    """Nombre de fiches que `delete_unreferenced` purgerait une fois `participations` vidée.
+
+    Sert à chiffrer l'impact d'une purge totale **avant** de la commettre : même
+    prédicat que la purge, pour que l'annonce et l'acte ne divergent pas.
+    """
+    return (
+        db.query(func.count(Athlete.id))
+        .filter(~referenced_outside_results(Athlete.id))
+        .scalar()
+        or 0
+    )
 
 
 def list_with_season_participation_count(
