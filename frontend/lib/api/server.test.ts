@@ -157,6 +157,57 @@ describe("serverFetchAuthed / serverFetchAuthedRaw — relaient le jar entier (#
   });
 });
 
+function mockFetchStatus(status: number) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: "refus" }), {
+        status,
+        headers: { "content-type": "application/json" },
+      }),
+    ),
+  );
+}
+
+describe("checkSiteAccess / getSession — lecture du statut HTTP (#986)", () => {
+  it("`checkSiteAccess` rend true sur 200", async () => {
+    mockFetchOk({ ok: true });
+    await expect(apiServer.checkSiteAccess()).resolves.toBe(true);
+  });
+
+  it("`checkSiteAccess` rend false sur 401, et seulement là", async () => {
+    mockFetchStatus(401);
+    await expect(apiServer.checkSiteAccess()).resolves.toBe(false);
+  });
+
+  it("`checkSiteAccess` lève une ApiError 502 plutôt que de fermer l'accès", async () => {
+    mockFetchStatus(502);
+    await expect(apiServer.checkSiteAccess()).rejects.toMatchObject({ name: "ApiError", status: 502 });
+  });
+
+  it("`checkSiteAccess` laisse remonter un échec réseau", async () => {
+    const coupure = new TypeError("fetch failed");
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(coupure));
+    await expect(apiServer.checkSiteAccess()).rejects.toBe(coupure);
+  });
+
+  it("`getSession` rend l'utilisateur sur 200", async () => {
+    const utilisateur = { id: 1, email: "a@b.fr", permissions: [], roles: [], groups: [] };
+    mockFetchOk(utilisateur);
+    await expect(apiServer.getSession()).resolves.toEqual(utilisateur);
+  });
+
+  it("`getSession` rend null sur 401", async () => {
+    mockFetchStatus(401);
+    await expect(apiServer.getSession()).resolves.toBeNull();
+  });
+
+  it("`getSession` lève une ApiError 500", async () => {
+    mockFetchStatus(500);
+    await expect(apiServer.getSession()).rejects.toMatchObject({ name: "ApiError", status: 500 });
+  });
+});
+
 describe("serverFetch — fenêtre de revalidation (#352)", () => {
   it("garde `no-store` par défaut, sans option de revalidation", async () => {
     const fetchMock = mockFetchOk({ total: 0, athletes: 0, events: 0, by_type: {}, by_month: {}, recent: [] });
