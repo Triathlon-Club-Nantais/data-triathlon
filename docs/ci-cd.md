@@ -300,7 +300,6 @@ diffère selon l'environnement :
   La console SQL de Supabase viserait la preview : la prod resterait sans accès.
 - **Preview** : la console SQL de Supabase.
 
-
 ```sql
 INSERT INTO allowed_emails (email, created_at)
 VALUES ('votre.adresse@exemple.fr', now())
