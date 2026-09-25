@@ -169,10 +169,12 @@ jobs:
           # et le code rendu quand le service est déjà dans l'état demandé
           # (l'API répond 202 au changement). Les deux se lisent au premier
           # passage réel, d'où la validation sur preview avant la production.
+          # `--retry` seul, sans l'option qui rejoue toute erreur : un 4xx
+          # définitif serait rejoué, ses corps concaténés dans la sortie (#919).
           render_api() {
             curl -sS --fail-with-body \
               -H "Authorization: Bearer $RENDER_API_KEY" \
-              --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "$@"
+              --retry 3 --retry-delay 5 --max-time 60 "$@"
           }
 
           # Le filtre `name` de l'API n'est pas une égalité : sans le `select`
@@ -257,7 +259,7 @@ jobs:
             status=$?
             set -e
             if [ "$status" -ne 0 ]; then
-              if [ "$(jq -r '.message // empty' <<<"$body" 2>/dev/null)" = "only services suspended by a user can be resumed" ]; then
+              if [ "$(jq -rs 'last.message // empty' <<<"$body" 2>/dev/null)" = "only services suspended by a user can be resumed" ]; then
                 echo "Service ${{ matrix.environment }} déjà éveillé — rien à faire."
                 exit 0
               fi

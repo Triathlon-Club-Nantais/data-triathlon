@@ -127,3 +127,30 @@ def test_job_cannot_hang_forever(workflow):
     """Sans borne, une exécution coincée gèle tout lancement six heures durant."""
     for job in workflow["jobs"].values():
         assert 0 < job["timeout-minutes"] <= 120
+
+
+RENDER_SLEEP = WORKFLOW.parent / "render-sleep.yml"
+
+
+@pytest.fixture(scope="module")
+def render_sleep_script() -> str:
+    workflow = yaml.safe_load(RENDER_SLEEP.read_text(encoding="utf-8"))
+    scripts = [script for _, script in _scripts(workflow) if "render_api()" in script]
+    assert len(scripts) == 1, "render_api() doit être défini dans une seule étape"
+    return scripts[0]
+
+
+def test_render_api_does_not_retry_definitive_http_errors(render_sleep_script):
+    """#919 : `--retry-all-errors` rejoue aussi un 4xx définitif.
+
+    Le 400 « déjà éveillé » du `resume` revenait alors quatre fois, et le test
+    de no-op échouait sur quatre corps concaténés. `--retry` seul ne rejoue que
+    le transitoire (réseau, 408, 429, 5xx).
+    """
+    assert "--retry-all-errors" not in render_sleep_script
+    assert "--retry 3" in render_sleep_script
+
+
+def test_resume_noop_check_reads_the_last_body(render_sleep_script):
+    """#919 : la comparaison du no-op tient même si plusieurs corps arrivent."""
+    assert "jq -rs 'last.message // empty'" in render_sleep_script
