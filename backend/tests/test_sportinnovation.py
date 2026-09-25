@@ -74,6 +74,25 @@ def test_col_indices():
     assert col["run_time"] == 9
 
 
+def test_col_indices_does_not_read_the_nationality_column_as_swim():
+    # En-têtes réels de l'épreuve 7034 (aquathlon, Carnac 2025) : « Nat. » est la
+    # nationalité (« FRA »), pas la natation (#971).
+    headers = [
+        "Place", "Dossard", "Nom", "Place Cat.", "Equipe / Club", "Temps Officiel (Réel)",
+        "Écart", "TpsOff", "TpsReel", "Nat.", "",
+    ]
+    assert "swim_time" not in _col_indices(headers)
+
+
+def test_col_indices_reads_tps_nat_as_swim():
+    # En-têtes réels de l'épreuve 7031 (triathlon M, Carnac 2025).
+    headers = [
+        "Place", "Dossard", "Nom", "Place Cat.", "Equipe / Club", "Temps Officiel", "Écart",
+        "Tps Off.", "Tps Nat", "Transition 1", "Tps Velo", "Transition 2", "Tps CAP", "",
+    ]
+    assert _col_indices(headers)["swim_time"] == 8
+
+
 def test_parse_html_row():
     col = _col_indices(HEADERS)
     tds = [

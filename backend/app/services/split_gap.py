@@ -16,10 +16,14 @@ module : le seuil de 2 % proposé par l'audit signalait 6,89 % du classement, do
 lignes d'une épreuve que le produit tient pour fiable. Les ajuster se fait là-bas, en
 re-mesurant, pas ici.
 """
-import re
 import statistics
 
-from app.services.mapping import _DEFAULT_SPLIT_KEYS, _SPLIT_KEYS_BY_SPORT, _sport_base
+from app.services.mapping import (
+    _DEFAULT_SPLIT_KEYS,
+    _SPLIT_KEYS_BY_SPORT,
+    _sport_base,
+    parse_duration,
+)
 
 #: Segments attendus par sport — **dérivés** de `mapping._SPLIT_KEYS_BY_SPORT`, jamais
 #: réécrits ici. Cette table est celle qui *produit* les clés de `Participation.splits` :
@@ -65,26 +69,6 @@ MIN_GAP_SECONDS = 60
 #: Médiane d'épreuve au-delà de laquelle les inters publiés ne couvrent manifestement
 #: pas tout le parcours. 1 épreuve sur 25 dans la base de dev.
 EVENT_GAP_RATIO = 0.01
-
-# `fullmatch`, et non le `search` de `app.scrapers.utils.to_seconds` : cette dernière
-# rend 900 sur « 0-2:-15:00 » (elle n'ancre qu'à droite) et 3825 sur « 01:23:45.6 »,
-# là où l'écran rejette les deux (`secondsFromHms`, garde posée par #472). Réutiliser
-# `to_seconds` ferait donc évaluer ici des lignes que l'écran affiche « — ⚠ ».
-_DURATION = re.compile(r"(?:(?P<hours>\d+):)?(?P<minutes>\d{1,2}):(?P<seconds>\d{2})")
-
-
-def parse_duration(value: str | None) -> int | None:
-    """Secondes d'un `HH:MM:SS` ou `MM:SS`, `None` si ce n'est pas une durée."""
-    if not isinstance(value, str):
-        return None
-    match = _DURATION.fullmatch(value.strip())
-    if not match:
-        return None
-    minutes = int(match["minutes"])
-    seconds = int(match["seconds"])
-    if minutes >= 60 or seconds >= 60:
-        return None
-    return int(match["hours"] or 0) * 3600 + minutes * 60 + seconds
 
 
 def schema_for(event_type: str | None) -> list[str]:
