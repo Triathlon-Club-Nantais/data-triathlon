@@ -30,18 +30,30 @@ const SEASONS: Season[] = [
 describe("buildSeasonsHref", () => {
   it("omet le paramètre quand seule la saison en cours est sélectionnée", () => {
     // saison en cours par défaut → pas de ?seasons
-    const href = buildSeasonsHref([currentSeason()], undefined, "/dashboard");
+    const href = buildSeasonsHref([currentSeason()], "", "/dashboard");
     expect(href === "/dashboard" || href === "/dashboard?").toBe(true);
     expect(href).not.toContain("seasons=");
   });
   it("sérialise plusieurs saisons et préserve le scope", () => {
-    const href = buildSeasonsHref([2025, 2023], "club", "/dashboard");
+    const href = buildSeasonsHref([2025, 2023], "scope=club", "/dashboard");
     expect(href).toContain("seasons=2025%2C2023");
     expect(href).toContain("scope=club");
   });
   it("respecte le pathname fourni (#274 — réutilisé hors /dashboard)", () => {
-    const href = buildSeasonsHref([2023], undefined, "/club/athletes");
+    const href = buildSeasonsHref([2023], "", "/club/athletes");
     expect(href).toBe("/club/athletes?seasons=2023");
+  });
+  it("conserve sports et les autres paramètres, retire rank (#987)", () => {
+    const href = buildSeasonsHref([2023], "sports=all&rank=category&name=dupont", "/dashboard");
+    const params = new URL(href, "http://x").searchParams;
+    expect(params.get("sports")).toBe("all");
+    expect(params.get("name")).toBe("dupont");
+    expect(params.get("seasons")).toBe("2023");
+    expect(params.has("rank")).toBe(false);
+  });
+  it("retire seasons au retour à la saison en cours, sans perdre sports (#987)", () => {
+    const href = buildSeasonsHref([currentSeason()], "sports=all&seasons=2023", "/dashboard");
+    expect(href).toBe("/dashboard?sports=all");
   });
 });
 
@@ -95,6 +107,15 @@ describe("SeasonSelector — sélection exclusive par défaut (#694)", () => {
     fireEvent.click(screen.getByLabelText("Saison 2023 — 2024", { exact: false }));
 
     expect(push).toHaveBeenCalledWith("/dashboard?seasons=2023");
+  });
+
+  it("garde « Inclure les autres disciplines » en changeant de saison (#987)", () => {
+    url.qs = "sports=all";
+    render(<SeasonSelector seasons={SEASONS} />);
+    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+    fireEvent.click(screen.getByLabelText("Saison 2023 — 2024", { exact: false }));
+
+    expect(push).toHaveBeenCalledWith("/dashboard?sports=all&seasons=2023");
   });
 
   it("les saisons sont des boutons radio hors mode comparaison — un seul choix possible", () => {
