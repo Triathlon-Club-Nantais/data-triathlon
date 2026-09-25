@@ -544,3 +544,32 @@ def test_save_geocode_attempt_persiste_un_echec_sans_coordonnees(db_session):
     assert course.latitude is None
     assert course.longitude is None
     assert course.geocoded_at is not None
+
+
+def test_scope_club_selects_courses_without_distinct(db_session):
+    """#918: PostgreSQL has no equality operator for `json`, so a `SELECT DISTINCT`
+    over `courses` (which carries `quality_issues`) fails at planning time."""
+    from sqlalchemy.dialects import postgresql
+
+    qobj = course_repository._filtered(
+        db_session, name=None, event_type=None, club_only=True,
+        date_from=None, date_to=None,
+    )
+    sql = str(qobj.statement.compile(dialect=postgresql.dialect()))
+    assert "DISTINCT" not in sql.upper(), sql
+
+
+def test_scope_club_lists_a_course_once_despite_several_club_members(db_session):
+    course = course_repository.get_or_create(
+        db_session, name="Tri club", event_date=date(2026, 5, 18), event_type="triathlon-m",
+    )
+    for i in range(3):
+        athlete = athlete_repository.get_or_create(db_session, nom=f"MEMBRE{i}", prenom="Test")
+        participation_repository.create(
+            db_session, athlete_id=athlete.id, course_id=course.id, bib_number=str(i),
+            club="Triathlon Club Nantais",
+        )
+    db_session.flush()
+
+    assert [c.id for c in course_repository.list_all(db_session, club_only=True)] == [course.id]
+    assert course_repository.count_all(db_session, club_only=True) == 1
