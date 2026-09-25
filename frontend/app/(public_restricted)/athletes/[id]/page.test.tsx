@@ -514,6 +514,17 @@ describe("AthletePage", () => {
     expect(within(top10Card as HTMLElement).getByText("1")).toBeInTheDocument();
   });
 
+  it("écarte aussi un relais dont seule l'épreuve est marquée relais (revue #1001)", async () => {
+    await renderAthlete([
+      part({ id: 1, rank_overall: 5, course_finishers: 50 }),
+      part({ id: 3, rank_overall: 30, course_finishers: 50 }),
+      part({ id: 2, rank_overall: 1, course_finishers: 50, course: { is_relay: true } as never }),
+    ]);
+
+    const placeCard = screen.getByText("Meilleure place").parentElement?.parentElement;
+    expect(within(placeCard as HTMLElement).getByText("5")).toBeInTheDocument();
+  });
+
   it("n'affiche pas de repère « en attente » sur « Épreuves » quand tout est validé (#438)", async () => {
     await renderAthlete([part({ id: 1, rank_overall: 5, course_finishers: 50 })]);
 

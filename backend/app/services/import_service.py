@@ -565,7 +565,7 @@ class _Persister:
         self._added_bibs: dict[int, set[str]] = {}
         self._duplicate_bibs: Counter[int] = Counter()
         self._without_bib: dict[int, dict[int, list[Participation]]] = {}
-        self._teams_without_bib: dict[int, dict[str, Participation]] = {}
+        self._teams_without_bib: dict[int, dict[str, list[Participation | None]]] = {}
         # Garde des relais découpés (#895, FR-010) : un coureur ne figure qu'une
         # fois par course. Les ids couvrent la base, les clés d'identité les
         # équipiers de ce scrape, qui n'ont pas encore d'id quand on décide.
@@ -638,10 +638,16 @@ class _Persister:
         self._by_bib[course_id] = by_bib
         # Relais attribués sans dossard (#894) : appariés par nom d'équipe, la
         # fiche de l'équipe ayant disparu au profit des équipiers.
+        teams: dict[str, list[Participation]] = {}
+        for row in rows:
+            if not row.bib_number and row.teammate_links and row.team_name:
+                teams.setdefault(_team_key(row.team_name), []).append(row)
+        # Plusieurs relais composés sous le même nom : on ne devine pas lequel
+        # correspond à une ligne publiée, chacune consomme une place sans rien
+        # mettre à jour (même règle que le multiset sans dossard).
         self._teams_without_bib[course_id] = {
-            _team_key(row.team_name): row
-            for row in rows
-            if not row.bib_number and row.teammate_links and row.team_name
+            key: equipes if len(equipes) == 1 else [None] * len(equipes)
+            for key, equipes in teams.items()
         }
         self._present_ids[course_id] = {row.athlete_id for row in rows} | {
             link.athlete_id for row in rows for link in row.teammate_links
@@ -757,12 +763,16 @@ class _Persister:
             # ce test (la résolution est différée, `_by_bib` ne les connaît
             # pas encore) et heurteraient `uq_participation_bib` à la création.
             added.add(bib)
-        elif scraped.is_relay:
-            equipe = self._teams_without_bib[course.id].pop(
-                _team_key(_published_name(scraped)), None,
-            )
-            if equipe is not None:
-                self._upsert(equipe, scraped)
+        elif scraped.is_relay or course.is_relay:
+            # `course.is_relay` : l'épreuve peut avoir été marquée relais à la
+            # main, et `set_teammates` compose alors ses résultats.
+            equipes = self._teams_without_bib[course.id].get(_team_key(_published_name(scraped)))
+            if equipes:
+                equipe = equipes.pop()
+                if equipe is not None:
+                    self._upsert(equipe, scraped)
+                else:
+                    self.skipped += 1
                 return
 
         self._enqueue(

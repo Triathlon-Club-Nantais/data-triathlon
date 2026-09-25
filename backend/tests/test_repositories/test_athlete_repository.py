@@ -985,3 +985,27 @@ def test_club_composition_compte_chaque_equipier_de_relais(db_session):
     db_session.flush()
 
     assert len(athlete_repository.club_composition(db_session)) == 2
+
+
+def test_club_roster_excludes_a_podium_when_only_the_course_is_a_relay(db_session):
+    """Revue #1001 : une épreuve marquée relais à la main, résultat au drapeau
+    `is_relay` faux, compte toujours comme relais (FR-011)."""
+    course, _, _ = _relais_attribue(db_session)
+    relais = participation_repository.list_for_course(db_session, course.id)[0]
+    relais.is_relay = False
+    relais.rank_overall = 1
+    db_session.flush()
+
+    lignes = {a.nom: rest for a, *rest in athlete_repository.club_roster(db_session)}
+
+    assert lignes["DUPONT"] == [1, 0, 0, 0, 0]
+    assert lignes["MARTIN"] == [1, 0, 0, 0, 0]
+
+
+def test_search_admin_counts_a_relay_for_a_non_carrier_teammate(db_session):
+    _relais_attribue(db_session)
+    db_session.flush()
+
+    ((athlete, compte),) = athlete_repository.search_admin(db_session, search="MARTIN")
+
+    assert (athlete.nom, compte) == ("MARTIN", 1)
