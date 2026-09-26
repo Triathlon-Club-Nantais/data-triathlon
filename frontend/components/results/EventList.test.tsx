@@ -15,6 +15,11 @@ globalThis.IntersectionObserver = IntersectionObserverStub as unknown as typeof 
 
 const push = vi.fn();
 let searchParams = new URLSearchParams();
+// Au niveau du fichier : un bloc qui pose `?event_name=` ne doit pas fuir dans
+// les suivants quand l'ordre change (#1105).
+beforeEach(() => {
+  searchParams = new URLSearchParams();
+});
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh: vi.fn() }),
