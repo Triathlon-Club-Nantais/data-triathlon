@@ -103,6 +103,29 @@ def test_un_classeur_illisible_est_nomme():
         sheet_source.read_table(b"ceci n'est pas un classeur", "epreuves.xlsx")
 
 
+def test_a_csv_cell_over_the_csv_field_limit_is_named_unreadable():
+    """`_csv.Error: field larger than field limit` escaped as a 500 (#1098)."""
+    with pytest.raises(sheet_source.UnreadableFileError):
+        sheet_source.read_table(b"h\n" + b"x" * 200_000 + b"\n", "epreuves.csv")
+
+
+def test_an_xlsx_with_a_corrupt_sheet_is_named_unreadable():
+    """`read_only` parses the sheet in `iter_rows`, outside the first `try` (#1098)."""
+    import zipfile
+
+    source = zipfile.ZipFile(io.BytesIO(_xlsx([["Nom", "Lien"], ["A", LIEN]])))
+    sortie = io.BytesIO()
+    with zipfile.ZipFile(sortie, "w") as abime:
+        for entree in source.infolist():
+            donnees = source.read(entree.filename)
+            if entree.filename == "xl/worksheets/sheet1.xml":
+                donnees = donnees[: len(donnees) // 2]
+            abime.writestr(entree, donnees)
+
+    with pytest.raises(sheet_source.UnreadableFileError):
+        sheet_source.read_table(sortie.getvalue(), "epreuves.xlsx")
+
+
 def test_un_csv_en_latin1_reste_lisible():
     """Les exports d'un tableur français arrivent souvent en cp1252. Échouer
     sur un accent rendrait l'écran inutilisable un jour sur deux."""

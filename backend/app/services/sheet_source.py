@@ -92,10 +92,15 @@ def _lignes_csv(content: bytes) -> list[list[str]]:
         texte = content.decode("utf-8-sig")
     except UnicodeDecodeError:
         texte = content.decode("cp1252")
-    return [
-        [(cellule or "").strip() for cellule in ligne]
-        for ligne in csv.reader(io.StringIO(texte))
-    ]
+    # Une cellule au-delà de `csv.field_size_limit` (131 072 caractères) n'est
+    # pas un lien d'épreuve : refusée comme illisible plutôt qu'en 500 (#1098).
+    try:
+        return [
+            [(cellule or "").strip() for cellule in ligne]
+            for ligne in csv.reader(io.StringIO(texte))
+        ]
+    except csv.Error as erreur:
+        raise UnreadableFileError from erreur
 
 
 def _lignes_xlsx(content: bytes) -> list[list[str]]:
@@ -109,11 +114,15 @@ def _lignes_xlsx(content: bytes) -> list[list[str]]:
         classeur = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
     except Exception as erreur:
         raise UnreadableFileError from erreur
+    # En `read_only`, la feuille n'est parsée qu'ici : une feuille corrompue
+    # lève pendant `iter_rows`, hors du `try` de `load_workbook` (#1098).
     try:
         return [
             ["" if cellule is None else str(cellule).strip() for cellule in ligne]
             for ligne in classeur.active.iter_rows(values_only=True)
         ]
+    except Exception as erreur:
+        raise UnreadableFileError from erreur
     finally:
         classeur.close()
 
