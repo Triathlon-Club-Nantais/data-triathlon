@@ -292,7 +292,8 @@ défairait le jumelage.
    épuisait les 30 tentatives collectivement. Plus large pour la raison inverse
    des autres seaux : premier geste de chaque visiteur, IP partagée, saisie au
    clavier faillible. Ce qu'il ferme reste le déni de service par `scrypt`, pas
-   la force brute sur un secret de 144 bits.
+   la force brute : hors sujet sur un secret généré de 144 bits, bornée par la
+   longueur minimale (12 caractères, #1020) sur un secret saisi.
 6. **Le formulaire est rendu sur place, plus par redirection vers `/acces`.**
    `redirect("/acces")` perdait la destination : un lien partagé vers
    `/courses/42` finissait sur le tableau de bord. Un layout serveur ne reçoit en

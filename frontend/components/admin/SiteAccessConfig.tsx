@@ -149,11 +149,16 @@ export function SiteAccessConfig() {
             <Input
               id="site-password"
               type="text"
-              minLength={8}
+              minLength={12}
+              aria-describedby="site-password-aide"
               value={saisie}
               onChange={(e) => setSaisie(e.target.value)}
               placeholder="Saisir un nouveau mot de passe"
             />
+            <p id="site-password-aide" className="text-xs text-muted-foreground">
+              12 caractères minimum. Préférez « Générer un mot de passe sécurisé »,
+              plus difficile à deviner qu&apos;un mot de passe saisi.
+            </p>
           </div>
           <Button type="submit" disabled={remplacer.isPending || !saisie.trim()}>
             Remplacer

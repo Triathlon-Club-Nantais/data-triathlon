@@ -221,8 +221,9 @@ Quatre choses à ne pas défaire :
   raison inverse de tous les autres : c'est le **premier** geste de chaque
   visiteur, partagé entre adhérents, et une saisie au clavier se trompe. Ce
   qu'il ferme reste le déni de service par `hashlib.scrypt` (~16 Mo, 50-100 ms
-  de CPU par tentative, bonne ou mauvaise), pas la force brute — le secret est
-  généré à 144 bits.
+  de CPU par tentative, bonne ou mauvaise), pas la force brute. Celle-ci est
+  hors sujet sur un secret généré (144 bits) ; sur un secret saisi, c'est la
+  longueur minimale de 12 caractères qui la borne (#1020).
 - **Le compteur est en mémoire du process**, contrairement à celui de
   `POST /feedback` qui compte des lignes en base : il n'y a ici aucune table où
   compter, et en créer une ferait écrire la requête que le plafond empêche.

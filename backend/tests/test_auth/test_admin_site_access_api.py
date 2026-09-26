@@ -59,6 +59,14 @@ def test_put_refuse_un_mot_de_passe_plus_long_que_ce_que_la_connexion_accepte(
     assert client.get(URL).json()["configured"] is False  # rien n'a été remplacé
 
 
+def test_put_refuses_a_typed_password_shorter_than_twelve_characters(client, ouvrir_session):
+    """A typed secret is the only bound on distributed brute force (#1020)."""
+    ouvrir_session(P.SITE_ACCESS_MANAGE)
+
+    assert client.put(URL, json={"password": "tcn2026!xx1"}).status_code == 422
+    assert client.put(URL, json={"password": "tcn2026!xx12"}).status_code == 200
+
+
 def test_put_accepte_la_longueur_maximale_de_la_connexion(client, ouvrir_session):
     """La borne est la **même** des deux côtés, pas seulement présente."""
     ouvrir_session(P.SITE_ACCESS_MANAGE)
