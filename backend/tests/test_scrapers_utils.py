@@ -272,3 +272,59 @@ def test_normalize_time_reads_long_minutes_and_fractions(raw, expected):
 def test_qualify_event_name_collapses_stray_whitespace(event_name, qualifiant, attendu):
     """A trailing space doubled in front of ` - ` in production names (#1088)."""
     assert qualify_event_name(event_name, qualifiant) == attendu
+
+
+# --- Tables et branches jusque-là non couvertes (#1107) ----------------------
+
+_MOIS = [
+    ("janvier", 1), ("février", 2), ("mars", 3), ("avril", 4), ("mai", 5), ("juin", 6),
+    ("juillet", 7), ("août", 8), ("septembre", 9), ("octobre", 10), ("novembre", 11),
+    ("décembre", 12),
+    ("janv.", 1), ("févr.", 2), ("avr.", 4), ("juil.", 7), ("sept.", 9), ("oct.", 10),
+    ("nov.", 11), ("déc.", 12),
+]
+
+
+@pytest.mark.parametrize("mois,numero", _MOIS)
+def test_parse_fr_date_reads_every_french_month(mois, numero):
+    assert parse_fr_date(f"15 {mois} 2026") == date(2026, numero, 15)
+
+
+@pytest.mark.parametrize("texte,attendu", [
+    ("15 août 2026", date(2026, 8, 15)),
+    ("16—17 mai 2026", date(2026, 5, 16)),
+    ("16–17 mai 2026", date(2026, 5, 16)),
+])
+def test_parse_fr_date_accents_and_dashes(texte, attendu):
+    assert parse_fr_date(texte) == attendu
+
+
+@pytest.mark.parametrize("brut,attendu", [
+    ("00h39'11", "00:39:11"),
+    ("00h39\u201911", "00:39:11"),
+    ("00h39\u201811", "00:39:11"),
+    ("1h23m45s", "01:23:45"),
+    ("1h23", "01:23:00"),
+    ("2H05", "02:05:00"),
+    ("1:23:45", "01:23:45"),
+    ("39:11", "00:39:11"),
+    ("", ""),
+])
+def test_normalize_time_forms(brut, attendu):
+    assert normalize_time(brut) == attendu
+
+
+def test_normalize_time_returns_an_unknown_form_unchanged():
+    assert normalize_time("Abandon") == "Abandon"
+
+
+def test_split_athlete_name_keeps_only_the_first_line():
+    assert split_athlete_name("DUPONT Jean\nTCN Nantes") == ("DUPONT", "Jean")
+
+
+@pytest.mark.parametrize("brut,attendu", [
+    ("jean pierre martin", ("martin", "jean pierre")),
+    ("Marie Claire Dupont", ("Dupont", "Marie Claire")),
+])
+def test_split_athlete_name_without_uppercase_block_takes_the_last_token(brut, attendu):
+    assert split_athlete_name(brut) == attendu
