@@ -270,6 +270,8 @@ describe("EventList", () => {
     renderList();
 
     expect(screen.getByText("Impossible de charger la suite des épreuves.")).toBeInTheDocument();
+    // Annoncé : le compteur de la région live ne change pas, lui (WCAG 4.1.3).
+    expect(screen.getByRole("status")).toHaveTextContent(/impossible de charger la suite des épreuves/i);
     expect(fetchNextPage).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Réessayer" }));
     expect(fetchNextPage).toHaveBeenCalledTimes(1);
@@ -290,7 +292,7 @@ describe("EventList", () => {
 
     expect(screen.getByText("Aucune épreuve ne correspond à ces filtres")).toBeInTheDocument();
     expect(screen.queryByText(/importez une épreuve/i)).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Effacer les filtres" }));
+    await userEvent.click(screen.getByRole("button", { name: "Réinitialiser" }));
     expect(push).toHaveBeenCalledWith("/resultats?scope=club&seasons=2025&sort=date_desc");
   });
 

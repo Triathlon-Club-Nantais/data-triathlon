@@ -133,7 +133,8 @@ export function EventList({
         (events.length > 0 ? `, ${events.length} affichée${events.length > 1 ? "s" : ""}` : "") +
         (repliees > 0
           ? ` dans ${repliees} compétition${repliees > 1 ? "s" : ""} repliée${repliees > 1 ? "s" : ""}`
-          : "")
+          : "") +
+        (isFetchNextPageError ? ". Impossible de charger la suite des épreuves." : "")
       }
     />
   );
@@ -158,7 +159,7 @@ export function EventList({
                 size="sm"
                 onClick={() => router.push(`/resultats${qs ? `?${qs}` : ""}`)}
               >
-                Effacer les filtres
+                Réinitialiser
               </Button>
             }
           />
@@ -294,15 +295,25 @@ export function EventList({
       )}
 
       <div ref={sentinel} aria-hidden />
-      {isFetchingNextPage && (
+      {isFetchingNextPage && !isFetchNextPageError && (
         <p style={{ padding: 16, textAlign: "center", fontSize: 14, color: "var(--tcn-text-faint)" }}>
           Chargement…
         </p>
       )}
-      {isFetchNextPageError && !isFetchingNextPage && (
+      {isFetchNextPageError && (
         <div style={{ padding: 16, textAlign: "center", fontSize: 14, color: "var(--tcn-text-faint)" }}>
           <p>Impossible de charger la suite des épreuves.</p>
-          <Button variant="secondary" size="sm" onClick={() => fetchNextPage()} style={{ marginTop: 10 }}>
+          {/* Reste monté pendant la nouvelle tentative, `aria-busy` plutôt que
+              démonté : le focus clavier ne retombe pas sur le <body>. */}
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-busy={isFetchingNextPage}
+            onClick={() => {
+              if (!isFetchingNextPage) fetchNextPage();
+            }}
+            style={{ marginTop: 10 }}
+          >
             Réessayer
           </Button>
         </div>
