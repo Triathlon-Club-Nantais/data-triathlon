@@ -147,7 +147,7 @@ export const NAV: NavSection[] = [
       // directe seulement (#832).
       {
         id: "benevoles",
-        label: "Validation des courses",
+        label: "Validation des épreuves",
         labelCourt: "Validation",
         href: "/benevoles",
         icon: UserCheck,
