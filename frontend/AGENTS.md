@@ -25,7 +25,8 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   un nom de dossier jamais rendu dans une URL relève de la couche technique)
   accueille tout ce qui exige le mot de
   passe partagé — `dashboard`, `resultats`, `athletes/[id]`, `courses/[id]`,
-  `club`, `carte`, `ajouter` — gardé par `app/(public_restricted)/layout.tsx`, un
+  `club`, `carte`, `ajouter`, `guide`, `benevolat` (la liste qui fait foi est
+  celle de `app/routes-garde-site.test.ts`) — gardé par `app/(public_restricted)/layout.tsx`, un
   appel serveur à `GET /api/v1/site-access/session`. Sur refus, ce layout rend
   `SiteAccessGate` **à la place** des enfants ; il ne redirige pas vers
   `/acces`. Un layout serveur ne reçoit en Next 16 ni le chemin demandé ni les

@@ -45,6 +45,7 @@ erDiagram
         string gender
         date birth_date "nullable"
         string club "club actuel, nullable"
+        bool club_locked "club posé par un admin, protégé des imports (#439)"
         datetime created_at
     }
 
@@ -56,6 +57,9 @@ erDiagram
         float distance_km "nullable"
         bool is_relay
         datetime scraped_at
+        float latitude "nullable, géocodage (#579)"
+        float longitude "nullable"
+        datetime geocoded_at "nullable"
         datetime created_at
     }
 

@@ -13,6 +13,13 @@ stocke, et importe tous les participants de l'épreuve.
   session, catalogue des événements suivis.
 - [Modèle de données](modele-donnees.md) — schéma normalisé (athlète, course,
   participation) et migrations Alembic.
+- [Infrastructure Azure](infra-azure.md) — base de production PostgreSQL,
+  pare-feu, contrainte budget zéro.
+- [Gestion de projet](gestion-de-projet.md) — Definition of Ready, epics,
+  priorité, workflow git des epics.
+- API (`api/`) — une page par epic : sources et fusion d'épreuves, données
+  d'administration, retours utilisateurs et statistiques.
+- Authentification (`auth/`) — liste d'autorisation et groupes d'appartenance.
 - [Dev multi-worktree](dev-multi-worktree.md) — plusieurs worktrees en
   parallèle : découverte de port, `.worktreeinclude`, codes de sortie.
 - [RTK](rtk.md) — compresser la sortie des commandes pour les sessions d'agent :
