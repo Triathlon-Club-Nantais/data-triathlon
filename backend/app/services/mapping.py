@@ -279,7 +279,7 @@ def athlete_creation_fields(scraped: ScrapedResult) -> dict:
     return {
         "nom": (scraped.athlete_name or "").strip(),
         "prenom": (scraped.athlete_firstname or "").strip(),
-        "gender": scraped.gender or "",
+        "gender": scraped.gender,  # `ScrapedResult.gender` est typé `str = ""` (#1108)
         "birth_date": None,
         "club": scraped.club or None,
     }
