@@ -3799,3 +3799,24 @@ def test_scrape_event_all_une_categorie_hidden_genre_un_individuel(monkeypatch):
     [r] = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
 
     assert (r.category, r.gender) == ("M18-34", "M")
+
+
+
+@pytest.mark.parametrize("expression,libelle", [
+    ("Penalty", "{EN:Pen.|FR:Pén.}"),  # Embrunman 350635 (#1118)
+    ("[Penalite]", "Pénalité"),
+    ("TempsPenalite", "Pénalités"),
+])
+def test_map_columns_keeps_penalty_columns_out_of_race_splits(expression, libelle):
+    payload = {
+        "DataFields": ["BIB", "ID", "[Natation]", expression],
+        "list": {"Fields": [
+            {"Expression": "[Natation]", "Label": "Natation"},
+            {"Expression": expression, "Label": libelle},
+        ]},
+    }
+
+    _roles, segments, extras = raceresult._map_columns(payload)
+
+    assert segments == [("Natation", 2)]
+    assert expression in extras

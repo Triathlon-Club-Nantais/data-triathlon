@@ -90,6 +90,15 @@ résultat quelconque (`TIME2` « Natation » sur 342814, `TIME19` « Tours » su
 sur le temps d'arrivée comme sur les segments. Les courses déjà en base (181 à
 186) sont à re-scraper.
 
+**Pénalités et temps d'étape (#1118).** Une colonne de pénalité a la forme d'une
+durée et passait tous les filtres de segment : sur Embrunman 350635 (`Penalty`,
+libellé `{EN:Pen.|…}`), elle était le **seul** split de 9 athlètes. Elle est
+désormais écartée des segments, reconnue sur l'expression ou le libellé
+(`penal…`, `pen.`), et rangée en `raw_data`. Les courses 818 et 819 sont à
+re-scraper. Les **temps d'étape** (`Temps J1` sur l'Aquaterra, courses 495/496)
+restent des segments nommés, faute de décision contraire : ils ne sont pas faux,
+seulement hors gabarit, donc sans écart inters/total calculable.
+
 **Hors délai et enrichissement des non-finishers (#970).** Embrunman 350635
 publie « OTL » (hors délai) dans ses cellules de rang et de temps. Le jeton
 n'étant pas reconnu, la ligne restait sans statut et la promotion #813 de

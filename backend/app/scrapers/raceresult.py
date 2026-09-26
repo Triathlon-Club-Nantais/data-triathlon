@@ -794,6 +794,16 @@ _EXCLUSIONS_EXACTES = frozenset({"customflag", "lienphotos", "nation.iocname"})
 _EXCLUSIONS_PREFIXES = ("icone(", "gaptimetop(")
 
 
+# Une pénalité a la forme d'une durée mais n'est pas une portion du parcours :
+# stockée en split, elle devenait le seul « découpage » d'un athlète (Embrunman
+# 350635, `{EN:Pen.|…}`, #1118). Reconnue sur l'expression **ou** le libellé.
+_RE_PENALITE = re.compile(r"penal|^pen\.?$")
+
+
+def _est_penalite(peeled: str, label: str) -> bool:
+    return any(_RE_PENALITE.search(strip_accents(texte).lower()) for texte in (peeled, label))
+
+
 def _colonne_exclue(peeled: str) -> bool:
     """Vrai si l'expression pelée désigne une colonne d'agrément, jamais un segment.
 
@@ -876,6 +886,7 @@ def _map_columns(
             not role
             and label
             and not _colonne_exclue(peeled)
+            and not _est_penalite(peeled, label)
             and _RE_TOKEN_SIMPLE.match(peeled)
         ):
             segments.append((label, col))
