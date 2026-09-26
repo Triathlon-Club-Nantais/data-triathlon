@@ -84,8 +84,8 @@ en fin de rapport, hors des findings, et tu passes.
   la **vraie** couleur de fond : celle de l'élément, sinon celle de son parent.
   Un texte sur dégradé se juge sur l'extrémité la moins favorable.
 - **La palette elle-même se balaie** dès que `globals.css` entre dans le
-  périmètre : croise chaque token de texte (`--tcn-text-*`, `--tcn-placeholder`,
-  la rampe neutre) avec chaque surface (`--tcn-paper`, `--tcn-surface`,
+  périmètre : croise chaque token de texte (`--tcn-text-*`, la rampe neutre)
+  avec chaque surface (`--tcn-paper`, `--tcn-surface`,
   `--tcn-surface-sunk`, `--tcn-fill`) et calcule les paires en une passe. Un
   token sous le seuil ne devient un finding que s'il est **consommé** :
   compte ses usages (`rg 'tcn-text-faint' frontend/`) et donne le nombre. Un
@@ -182,18 +182,19 @@ Ce que tu regardes sur la branche :
 
 **Ce que tu ne mesures pas en statique** : le **LCP** demande un navigateur réel
 (peinture, pas seulement transfert) — absent de ce dépôt (#102), non mesurable
-par lecture de code. Note-le en clôture au lieu de l'inventer. Une fois la PR
-#363 fusionnée, l'événement `$web_vitals` livrera cette mesure côté PostHog.
+par lecture de code. Note-le en clôture au lieu de l'inventer. Aucune web vital
+ne remonte aujourd'hui côté PostHog (ni `$web_vitals` ni `capture_performance`
+dans `frontend/`), donc aucune autre source ne la fournit.
 
 ## Ce qui est déjà arbitré — ne le signale pas
 
 Ces points reviennent à chaque passe naïve. Les signaler est un **faux positif**,
 même s'ils sont réels :
 
-- **Six écrans publics tirent encore `ui/{card,button,badge,input}`** —
+- **Cinq écrans publics tirent encore `ui/{card,button,badge,input}`** —
   `ClubDashboard`, `ResultCard`, `ResultsFilters`, `StatusBadge`,
-  `ManualResultForm`, `ProviderDetector` (`app/error.tsx` en est sorti avec
-  #464). Dette **assumée** (audit du 2026-08-06) :
+  `ManualResultForm` (`app/error.tsx` en est sorti avec #464, `ProviderDetector`
+  avec #492). Dette **assumée** (audit du 2026-08-06) :
   la règle `tcn/` vaut pour les **ajouts**. Ne la réclame pas sur l'existant.
 - **Pas de mode sombre** : `.dark` n'est jamais posé, le design system est clair
   seulement, et c'est délibéré (`globals.css`, en-tête). L'absence de variantes
@@ -208,13 +209,12 @@ même s'ils sont réels :
   rang sans aller-retour serveur suppose que le client tienne déjà la liste
   complète des participations. Le coût réel est le temps serveur, absorbé par le
   N+1 backend, pas la taille du transfert. Ne le signale pas comme un défaut front.
-- **`cache: "no-store"` sur `serverFetch` / `serverFetchAuthed`** — arbitré
-  (sondage 2026-08-14). Sur `serverFetchAuthed` (`frontend/lib/api/server.ts:51`)
-  il est **correct** : la réponse relaie les cookies de session, un cache
-  fuiterait les données d'un utilisateur vers un autre. Seul `serverFetch`
-  (`:23`) est un candidat à un `revalidate` court, et seulement sur `/dashboard`
-  et `/club` (issue fille #352). Ne réclame pas la suppression globale du
-  `no-store`.
+- **`cache: "no-store"` sur `serverFetchAuthed`** — arbitré (sondage
+  2026-08-14) et **correct** : la réponse relaie les cookies de session, un cache
+  fuiterait les données d'un utilisateur vers un autre. Le `revalidate` court de
+  `serverFetch` est **livré** (#352, `SHORT_REVALIDATE_SECONDS` dans
+  `frontend/lib/api/server.ts`, 30 s) sur les pages qui le demandent. Ne réclame
+  pas la suppression globale du `no-store`.
 
 ## Ce que tu rends
 
