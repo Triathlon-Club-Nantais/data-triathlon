@@ -283,6 +283,15 @@ def test_la_colonne_presuggeree_est_la_plus_fournie(client, ouvrir_session):
     assert corps["suggested_index"] == 1
 
 
+def test_an_oversized_csv_cell_is_a_422_not_a_500(client, ouvrir_session):
+    """#1098 — `_csv.Error` used to escape the domain error handler."""
+    ouvrir_session(P.BATCH_RUN)
+
+    reponse = client.post(COLONNES_URL, files=_envoi(b"h\n" + b"x" * 200_000 + b"\n"))
+
+    assert reponse.status_code == 422
+
+
 def test_aucune_colonne_n_est_presuggeree_sans_lien(client, ouvrir_session):
     """Le cas d'un classeur dont les liens sont des hyperliens sans texte (D8) :
     l'écran doit le dire, pas présélectionner au hasard."""
