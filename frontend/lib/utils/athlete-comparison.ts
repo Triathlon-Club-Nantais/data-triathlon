@@ -2,7 +2,7 @@
 // testable — la donnée (participations des deux athlètes) est déjà en mémoire
 // côté client (US6, #466), aucun nouvel appel API n'est nécessaire ici.
 import type { Participation } from "@/lib/types";
-import { parseTotalTimeSeconds } from "@/lib/utils/histogram-ticks";
+import { secondsFromHms } from "@/lib/utils/time";
 
 export interface CommonParticipation {
   courseId: number;
@@ -34,8 +34,8 @@ export function commonParticipations(mine: Participation[], theirs: Participatio
       eventDate: p.course.event_date,
       mine: p,
       theirs: match,
-      mineSeconds: parseTotalTimeSeconds(p.total_time),
-      theirsSeconds: parseTotalTimeSeconds(match.total_time),
+      mineSeconds: secondsFromHms(p.total_time),
+      theirsSeconds: secondsFromHms(match.total_time),
     });
   }
 

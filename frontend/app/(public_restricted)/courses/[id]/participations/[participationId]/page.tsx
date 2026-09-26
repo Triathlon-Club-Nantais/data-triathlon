@@ -19,7 +19,7 @@ import { formatDate } from "@/lib/utils/date";
 import { ordinalFr } from "@/lib/utils/format";
 import { Histogram } from "@/components/charts/Histogram";
 import { CategoryBars } from "@/components/charts/CategoryBars";
-import { parseTotalTimeSeconds } from "@/lib/utils/histogram-ticks";
+import { secondsFromHms } from "@/lib/utils/time";
 
 /**
  * Détail d'une participation : la performance de l'athlète confrontée au
@@ -60,7 +60,7 @@ export default async function ParticipationDetailPage({
   const { stats, course } = participation;
   const eventDate = formatDate(course.event_date);
   const segments = stats?.segments ?? Object.keys(participation.splits ?? {});
-  const markerSec = parseTotalTimeSeconds(participation.total_time);
+  const markerSec = secondsFromHms(participation.total_time);
   // Dénominateur du classement en catégorie (US3, #466) : `summary.categories`
   // ne porte que les 8 catégories les plus fournies (RES-7, hors périmètre) —
   // une catégorie absente de cette liste n'affiche aucun dénominateur plutôt
