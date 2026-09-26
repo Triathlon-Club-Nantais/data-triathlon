@@ -179,3 +179,37 @@ def test_l_ajout_refuse_un_alias_de_121_caracteres(client):
 
 def test_l_ajout_refuse_un_nom_canonique_de_121_caracteres(client):
     assert client.post(BASE, json={"canonical_name": "C" * 121, "alias": "rcn"}).status_code == 422
+
+
+
+# --- Un seul niveau d'alias, jamais de chaîne ni de cycle (#1122) ------------
+
+
+def test_l_ajout_refuse_un_cycle_entre_deux_groupes(client):
+    assert client.post(BASE, json={"canonical_name": "Rezé Tri", "alias": "nantes tri"}).status_code == 201
+
+    reponse = client.post(BASE, json={"canonical_name": "Nantes Tri", "alias": "rezé tri"})
+
+    assert reponse.status_code == 400
+    assert "Rezé Tri" in reponse.json()["detail"]
+
+
+def test_l_ajout_refuse_de_prolonger_une_chaine(client):
+    assert client.post(BASE, json={"canonical_name": "B", "alias": "a"}).status_code == 201
+
+    # « b » est le nom canonique d'un groupe : il ne peut pas devenir une variante de C.
+    assert client.post(BASE, json={"canonical_name": "C", "alias": "b"}).status_code == 400
+
+
+def test_l_ajout_refuse_un_nom_canonique_deja_declare_en_variante(client):
+    assert client.post(BASE, json={"canonical_name": "Club C", "alias": "club b"}).status_code == 201
+
+    reponse = client.post(BASE, json={"canonical_name": "Club B", "alias": "club a"})
+
+    assert reponse.status_code == 400
+    assert "Club C" in reponse.json()["detail"]
+
+
+def test_l_ajout_accepte_la_forme_normalisee_de_son_propre_nom_canonique(client):
+    assert client.post(BASE, json={"canonical_name": "RCN", "alias": "rcn"}).status_code == 201
+    assert client.post(BASE, json={"canonical_name": "RCN", "alias": "racing club"}).status_code == 201
