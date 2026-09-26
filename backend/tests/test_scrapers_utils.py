@@ -9,6 +9,7 @@ from app.scrapers.utils import (
     gender_from_category,
     normalize_time,
     parse_fr_date,
+    qualify_event_name,
     split_athlete_name,
     split_relay_teammates,
     to_seconds,
@@ -258,3 +259,16 @@ def test_normalize_time_reads_klikego_and_sportinnovation_forms(raw, expected):
 ])
 def test_normalize_time_reads_long_minutes_and_fractions(raw, expected):
     assert normalize_time(raw) == expected
+
+
+@pytest.mark.parametrize(
+    "event_name,qualifiant,attendu",
+    [
+        ("TRIATHLON DES SABLES D'OLONNE ", "SPRINT", "TRIATHLON DES SABLES D'OLONNE - SPRINT"),
+        ("Swimrun  Dinard ", "", "Swimrun Dinard"),
+        ("Tri de Rumilly", "  Distance   M ", "Tri de Rumilly - Distance M"),
+    ],
+)
+def test_qualify_event_name_collapses_stray_whitespace(event_name, qualifiant, attendu):
+    """A trailing space doubled in front of ` - ` in production names (#1088)."""
+    assert qualify_event_name(event_name, qualifiant) == attendu

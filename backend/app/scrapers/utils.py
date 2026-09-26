@@ -391,7 +391,15 @@ def qualify_event_name(event_name: str, qualifiant: str) -> str:
     collision (issue #21 : participants manquants, rangs dupliqués). Un
     qualifiant déjà présent dans le nom n'est pas ré-ajouté.
     """
-    qualifiant = (qualifiant or "").strip()
-    if not qualifiant or qualifiant.lower() in (event_name or "").lower():
+    # Espaces réduits des deux côtés : un nom d'événement à espace final
+    # doublait l'espace devant ` - ` (#1088).
+    event_name = collapse_spaces(event_name)
+    qualifiant = collapse_spaces(qualifiant)
+    if not qualifiant or qualifiant.lower() in event_name.lower():
         return event_name
     return f"{event_name} - {qualifiant}"
+
+
+def collapse_spaces(value: str | None) -> str:
+    """Rogne et réduit à un seul espace toute suite de blancs."""
+    return " ".join((value or "").split())
