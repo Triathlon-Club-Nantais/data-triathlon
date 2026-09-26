@@ -36,6 +36,23 @@ def add_entry(
     if club_alias_repository.find_by_alias(db, alias_normalized=alias_normalise) is not None:
         raise DuplicateError(f"« {alias_normalise} » est déjà rattaché à un club.")
 
+    # La résolution ne fait qu'un saut (« Top clubs », filtre `club=`) : une
+    # chaîne A → B → C ou un cycle fausseraient les deux en silence. Le registre
+    # reste donc à un seul niveau (#1122).
+    carte = club_alias_repository.canonical_map(db)
+    for autre in set(carte.values()) - {nom}:
+        if normalize_club(autre) == alias_normalise:
+            raise DomainError(
+                f"« {alias_normalise} » est le nom canonique de « {autre} » : "
+                "il ne peut pas être aussi la variante d'un autre club."
+            )
+    parent = carte.get(normalize_club(nom))
+    if parent is not None and parent != nom:
+        raise DomainError(
+            f"« {nom} » est déjà une variante de « {parent} » : "
+            f"rattachez plutôt cet alias à « {parent} »."
+        )
+
     entry = club_alias_repository.create_entry(
         db, canonical_name=nom, alias_normalized=alias_normalise, created_by_user_id=admin_user_id
     )
