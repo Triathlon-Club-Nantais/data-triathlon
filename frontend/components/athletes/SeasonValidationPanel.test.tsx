@@ -113,9 +113,23 @@ describe("SeasonValidationPanel — valider la saison (US3, FR-009 à FR-013)", 
     afficher();
 
     expect(await screen.findByText(/2\/3 épreuves validées/i)).toBeInTheDocument();
-    expect(screen.getByText(/bénévolat non déclaré/i)).toBeInTheDocument();
+    expect(screen.getByText(/bénévolat non validé/i)).toBeInTheDocument();
     const bouton = screen.getByRole("button", { name: /^valider la saison$/i });
     expect(bouton).not.toBeDisabled();
+  });
+
+  it.each([
+    [{ has_volunteer_action: true, has_pending_volunteer_action: false }, /bénévolat validé/i],
+    [{ has_volunteer_action: false, has_pending_volunteer_action: true }, /bénévolat en attente de validation/i],
+    [{ has_volunteer_action: false, has_pending_volunteer_action: false }, /bénévolat non validé/i],
+  ])("labels the volunteering state %o without calling it declared (#1044)", async (etat, libelle) => {
+    getSession.mockResolvedValue(session(["athletes:season_validate"]));
+    getSeasonQuota.mockResolvedValue({ validated_count: 1, season_validated: false, ...etat });
+
+    afficher();
+
+    expect(await screen.findByText(libelle)).toBeInTheDocument();
+    expect(screen.queryByText(/déclaré/i)).not.toBeInTheDocument();
   });
 
   it("valide la saison au clic, sans bloquer même si le quota n'est pas atteint", async () => {

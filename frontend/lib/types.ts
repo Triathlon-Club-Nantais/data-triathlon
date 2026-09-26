@@ -1046,6 +1046,7 @@ export interface SeasonValidation {
 export interface SeasonQuota {
   validated_count: number;
   has_volunteer_action: boolean;
+  has_pending_volunteer_action: boolean;
   season_validated: boolean;
 }
 
