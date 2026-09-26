@@ -24,6 +24,19 @@ const ACTION_LABELS: Record<string, string> = {
   "participation.correct_fields": "Correction d'un résultat en attente",
   "athlete.update": "Correction d'une fiche coureur",
   "course_duplicate.ignore": "Paire de doublons suspects écartée",
+  "course_source.delete": "Suppression d'une source d'épreuve",
+  "participation.set_teammates": "Équipiers d'un relais attribués",
+  "athlete.season_validation.create": "Validation d'une saison",
+  "athlete.season_validation.delete": "Annulation de la validation d'une saison",
+  "athlete.volunteer_action.accept": "Acceptation d'une déclaration de bénévolat",
+  "athlete.volunteer_action.reject": "Refus d'une déclaration de bénévolat",
+  "athlete.volunteer_action.delete": "Suppression d'une déclaration de bénévolat",
+  "club_alias.add": "Ajout d'une variante de club",
+  "club_alias.remove": "Retrait d'une variante de club",
+  "counter_scope.entry_add": "Ajout d'un libellé à la portée des compteurs",
+  "counter_scope.entry_remove": "Retrait d'un libellé de la portée des compteurs",
+  "site_access.password_replace": "Remplacement du code d'accès au site",
+  "benevole_access.password_replace": "Remplacement du mot de passe bénévoles",
 };
 
 /** Le libellé français d'un geste, ou son code brut si le catalogue l'ignore. */
@@ -71,7 +84,36 @@ const PAYLOAD_KEY_LABELS: Record<string, string> = {
   computed: "Verdict calculé",
   course_id_a: "Première épreuve",
   course_id_b: "Seconde épreuve",
+  season: "Saison",
+  action_id: "Déclaration de bénévolat",
+  url: "URL",
+  provider: "Fournisseur",
 };
+
+/** Clés qui désignent un coureur ou une épreuve : rendues en lien vers sa page. */
+const LIEN_PAR_CLE: Record<string, string> = {
+  athlete_id: "/athletes",
+  from_athlete_id: "/athletes",
+  to_athlete_id: "/athletes",
+  course_id: "/courses",
+  course_id_a: "/courses",
+  course_id_b: "/courses",
+};
+
+/** L'entité visée, pour les gestes qui ne consignent aucun payload. */
+const ENTITES: Record<string, { label: string; href?: string }> = {
+  athlete: { label: "Coureur", href: "/athletes" },
+  course: { label: "Épreuve", href: "/courses" },
+  participation: { label: "Résultat" },
+  course_source: { label: "Source d'épreuve" },
+  course_duplicate: { label: "Paire de doublons" },
+  club_alias: { label: "Variante de club" },
+  counter_scope_entry: { label: "Libellé de la portée des compteurs" },
+  site_access_config: { label: "Code d'accès au site" },
+  benevole_access_config: { label: "Mot de passe bénévoles" },
+};
+
+export type LigneDetail = { label: string; value: string; href?: string };
 
 function labelFor(key: string): string {
   return PAYLOAD_KEY_LABELS[key] ?? key;
@@ -100,13 +142,11 @@ function formatValue(v: unknown): string {
  * en porte un, sinon une ligne par clé restante — clé traduite si connue,
  * brute sinon.
  */
-export function formatPayload(
-  payload: Record<string, unknown> | null,
-): { label: string; value: string }[] {
+export function formatPayload(payload: Record<string, unknown> | null): LigneDetail[] {
   if (!payload) return [];
 
   const { before, after, ...reste } = payload;
-  const lignes: { label: string; value: string }[] = [];
+  const lignes: LigneDetail[] = [];
 
   if (before !== undefined && after !== undefined) {
     if (isRecord(before) && isRecord(after)) {
@@ -128,8 +168,31 @@ export function formatPayload(
   }
 
   for (const [k, v] of Object.entries(reste)) {
-    lignes.push({ label: labelFor(k), value: formatValue(v) });
+    const base = LIEN_PAR_CLE[k];
+    lignes.push(
+      base && typeof v === "number"
+        ? { label: labelFor(k), value: String(v), href: `${base}/${v}` }
+        : { label: labelFor(k), value: formatValue(v) },
+    );
   }
 
   return lignes;
+}
+
+/**
+ * Le détail d'une entrée du journal : son payload traduit, ou à défaut
+ * l'entité qu'elle vise, pour qu'aucune ligne ne reste muette (#1043).
+ */
+export function detailLines(entree: {
+  entity_type: string;
+  entity_id: number;
+  payload: Record<string, unknown> | null;
+}): LigneDetail[] {
+  const lignes = formatPayload(entree.payload);
+  if (lignes.length > 0) return lignes;
+  const entite = ENTITES[entree.entity_type];
+  if (!entite) return [{ label: entree.entity_type, value: `n° ${entree.entity_id}` }];
+  return entite.href
+    ? [{ label: entite.label, value: String(entree.entity_id), href: `${entite.href}/${entree.entity_id}` }]
+    : [{ label: entite.label, value: `n° ${entree.entity_id}` }];
 }

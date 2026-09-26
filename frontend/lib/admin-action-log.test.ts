@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { actionLabel, formatPayload } from "./admin-action-log";
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join } from "node:path";
+import { actionLabel, detailLines, formatPayload } from "./admin-action-log";
 
 describe("actionLabel", () => {
   it("traduit un geste connu", () => {
@@ -69,5 +71,53 @@ describe("formatPayload", () => {
     const lignes = formatPayload({ athletes_purged: [] });
 
     expect(lignes).toContainEqual({ label: "Fiches coureur purgées", value: "aucun" });
+  });
+});
+
+describe("catalogue coverage (#1043)", () => {
+  function codesEmis(dossier: string): string[] {
+    return readdirSync(dossier).flatMap((nom) => {
+      const chemin = join(dossier, nom);
+      if (statSync(chemin).isDirectory()) return codesEmis(chemin);
+      if (!nom.endsWith(".py")) return [];
+      const source = readFileSync(chemin, "utf8");
+      return [...source.matchAll(/(?:action=|_ACTION = )"([a-z_.]+)"/g)].map((m) => m[1]);
+    });
+  }
+
+  it("translates every action code the backend records", () => {
+    const codes = [...new Set(codesEmis(join(__dirname, "..", "..", "backend", "app")))];
+    expect(codes.length).toBeGreaterThan(20);
+    expect(codes.filter((code) => actionLabel(code) === code)).toEqual([]);
+  });
+
+  it("translates the season, volunteering and source payload keys", () => {
+    const lignes = formatPayload({ season: 2026, action_id: 4, url: "https://x", provider: "klikego" });
+
+    expect(lignes.map((l) => l.label)).toEqual(["Saison", "Déclaration de bénévolat", "URL", "Fournisseur"]);
+  });
+});
+
+describe("links and target entity (#1043)", () => {
+  it("links athlete and course ids to their public pages", () => {
+    const lignes = formatPayload({ from_athlete_id: 55749, course_id: 12 });
+
+    expect(lignes).toContainEqual({ label: "Depuis le coureur", value: "55749", href: "/athletes/55749" });
+    expect(lignes).toContainEqual({ label: "Épreuve", value: "12", href: "/courses/12" });
+  });
+
+  it("names the target entity when the payload is empty", () => {
+    expect(detailLines({ entity_type: "club_alias", entity_id: 3, payload: null })).toEqual([
+      { label: "Variante de club", value: "n° 3" },
+    ]);
+    expect(detailLines({ entity_type: "athlete", entity_id: 9, payload: null })).toEqual([
+      { label: "Coureur", value: "9", href: "/athletes/9" },
+    ]);
+  });
+
+  it("keeps the payload lines when there are some", () => {
+    expect(detailLines({ entity_type: "athlete", entity_id: 9, payload: { season: 2026 } })).toEqual([
+      { label: "Saison", value: "2026" },
+    ]);
   });
 });
