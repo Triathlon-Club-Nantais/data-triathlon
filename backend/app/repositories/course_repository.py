@@ -17,6 +17,13 @@ def get(db: Session, course_id: int) -> Course | None:
     return db.get(Course, course_id)
 
 
+def clean_name(name: str) -> str:
+    """Forme stockée d'un nom d'épreuve : rognée, espaces internes réduits. Le
+    nom fait partie de l'identité, donc écriture **et** lecture passent par ici,
+    sans quoi un nom sale ne retrouverait pas l'épreuve rangée propre (#1088)."""
+    return " ".join(name.split())
+
+
 def get_by_identity(
     db: Session,
     name: str,
@@ -27,7 +34,7 @@ def get_by_identity(
     return (
         db.query(Course)
         .filter(
-            Course.name == name,
+            Course.name == clean_name(name),
             Course.event_date == event_date,
             Course.event_type == event_type,
             Course.is_relay == is_relay,
@@ -59,9 +66,7 @@ def get_or_create(
     sources. C'est le contrat d'origine (la première scrapée garde la main, D3) ;
     enregistrer la seconde URL en passive est le travail de #283, pas d'ici.
     """
-    # Le nom fait partie de l'identité : nettoyé ici, point commun aux scrapers
-    # et à la saisie manuelle, il ne crée pas de doublon au prochain import (#1088).
-    name = " ".join(name.split())
+    name = clean_name(name)
     existing = get_by_identity(db, name, event_date, event_type, is_relay)
     if existing:
         return existing
@@ -152,7 +157,7 @@ def get_by_active_source(
     return _by_active_source(
         db,
         (CourseSource.url == source_url)
-        & (Course.name == name)
+        & (Course.name == clean_name(name))
         & (Course.event_date == event_date)
         & (Course.is_relay == is_relay),
     ).first()
@@ -671,6 +676,8 @@ def update_identity(db: Session, course: Course, **champs) -> Course:
     """Écrit les champs d'identité fournis. **Ne vérifie pas l'unicité** — c'est
     le service qui la contrôle par lecture préalable, pour pouvoir nommer
     l'épreuve en conflit (#117, FR-021)."""
+    if "name" in champs:
+        champs["name"] = clean_name(champs["name"])
     for nom_champ, valeur in champs.items():
         setattr(course, nom_champ, valeur)
     db.flush()
