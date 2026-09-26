@@ -9,7 +9,7 @@ describe("GuideAdminPage", () => {
     expect(screen.getByRole("navigation", { name: "Sommaire du guide" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Épreuves" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Fournisseurs en attente" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Accès au back-office" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Accès et mots de passe" })).toBeInTheDocument();
     // Les 15 sections, une par <h2>.
     expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(15);
   });

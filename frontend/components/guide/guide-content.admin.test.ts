@@ -58,3 +58,19 @@ describe("GUIDE_ADMIN", () => {
     }
   });
 });
+
+describe("GUIDE_ADMIN wording (#1046)", () => {
+  const etapes = (id: string) => GUIDE_ADMIN.find((s) => s.id === id)!.etapes.join(" ");
+
+  it("names the real quality verdict buttons", () => {
+    expect(etapes("quality")).toMatch(/« Marquer fiable ».*« Marquer douteuse ».*« Revenir à l'avis calculé »/);
+  });
+
+  it("covers the four cards of the access screen", () => {
+    const texte = etapes("acces-backoffice");
+    expect(texte).toMatch(/adresse/i);
+    expect(texte).toMatch(/code d'accès/i);
+    expect(texte).toMatch(/bénévoles/i);
+    expect(texte).toMatch(/sessions/i);
+  });
+});
