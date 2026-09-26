@@ -160,7 +160,9 @@ def _sport_base(t: str) -> str | None:
     qu'à défaut.
     """
     # 1. Multisports composites d'abord (sous-mots piégeux).
-    if "swimrun" in t or "swim-run" in t or "swim run" in t or "swim&run" in t:
+    # Séparateurs tolérés comme pour swim-bike : « Swim & Run », « Swim and
+    # Run », « Swim + Run » (#1053).
+    if re.search(r"swim\s*(?:[-&+]|and)?\s*run", t):
         return "swimrun"
     if re.search(r"swim\s*[-&]?\s*bike", t):
         return "swim-bike"

@@ -87,6 +87,9 @@ def test_classify_duathlon(text, expected):
 # --- Autres multisports ---
 @pytest.mark.parametrize("text,expected", [
     ("swimrun-classique", "swimrun"),
+    ("Swim & Run S", "swimrun-s"),     # #1053
+    ("Swim and Run L", "swimrun-l"),
+    ("Swim + Run M", "swimrun-m"),
     ("format-s---en-binome re-swimrun-2025", "swimrun-s"),
     ("format-m---en-solo swimrun-cote-beaute-2025", "swimrun-m"),
     ("format-l---championnat re-swimrun-2025", "swimrun-l"),
