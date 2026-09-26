@@ -55,7 +55,7 @@ export function SiteAccessConfig() {
       setSaisie("");
       setGenere(null);
       setConfirmation(false);
-      toast.success("Mot de passe du site remplacé.");
+      toast.success("Code d'accès du site remplacé.");
     } catch (e) {
       setConfirmation(false);
       toast.error((e as Error).message);
@@ -67,7 +67,7 @@ export function SiteAccessConfig() {
       const resultat = await generer.mutateAsync();
       setGenere(resultat.password);
       setSaisie("");
-      toast.success("Mot de passe généré — transmettez-le hors-bande.");
+      toast.success("Code d'accès généré — transmettez-le hors-bande.");
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -100,7 +100,7 @@ export function SiteAccessConfig() {
       </CardHeader>
       <CardContent className="space-y-6">
         <p className="text-[var(--tcn-text-faint)] text-sm">
-          Mot de passe partagé demandé à l&apos;entrée du site. Il est stocké
+          Code d&apos;accès partagé demandé à l&apos;entrée du site. Il est stocké
           haché et salé : personne, y compris un administrateur, ne peut le
           retrouver une fois enregistré — seul un remplacement ou une nouvelle
           génération y change quelque chose.
@@ -129,7 +129,7 @@ export function SiteAccessConfig() {
             style={{ borderColor: "var(--tcn-warning-border)", background: "var(--tcn-warning-bg)" }}
           >
             <p className="text-sm font-medium" style={{ color: "var(--tcn-warning-text)" }}>
-              Ce mot de passe ne sera plus jamais affiché — copiez-le maintenant.
+              Ce code d&apos;accès ne sera plus jamais affiché — copiez-le maintenant.
             </p>
             <div className="flex items-center gap-2">
               <code className="rounded bg-black/10 px-2 py-1 text-sm">{genere}</code>
@@ -145,7 +145,7 @@ export function SiteAccessConfig() {
           className="flex flex-col gap-3 sm:flex-row sm:items-end"
         >
           <div className="flex-1 space-y-1">
-            <Label htmlFor="site-password">Nouveau mot de passe</Label>
+            <Label htmlFor="site-password">Nouveau code d&apos;accès</Label>
             <Input
               id="site-password"
               type="text"
@@ -153,11 +153,11 @@ export function SiteAccessConfig() {
               aria-describedby="site-password-aide"
               value={saisie}
               onChange={(e) => setSaisie(e.target.value)}
-              placeholder="Saisir un nouveau mot de passe"
+              placeholder="Saisir un nouveau code d'accès"
             />
             <p id="site-password-aide" className="text-xs text-muted-foreground">
-              12 caractères minimum. Préférez « Générer un mot de passe sécurisé »,
-              plus difficile à deviner qu&apos;un mot de passe saisi.
+              12 caractères minimum. Préférez « Générer un code d&apos;accès sécurisé »,
+              plus difficile à deviner qu&apos;un code saisi.
             </p>
           </div>
           <Button type="submit" disabled={remplacer.isPending || !saisie.trim()}>
@@ -169,7 +169,7 @@ export function SiteAccessConfig() {
             onClick={declencherGeneration}
             disabled={generer.isPending}
           >
-            Générer un mot de passe sécurisé
+            Générer un code d&apos;accès sécurisé
           </Button>
         </form>
       </CardContent>
@@ -177,10 +177,10 @@ export function SiteAccessConfig() {
       <Dialog open={confirmation} onOpenChange={setConfirmation}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Remplacer le mot de passe du site ?</DialogTitle>
+            <DialogTitle>Remplacer le code d&apos;accès du site ?</DialogTitle>
             <DialogDescription>
               Toutes les sessions ouvertes cesseront immédiatement d&apos;être
-              valides, l&apos;ancien mot de passe compris. Assurez-vous d&apos;avoir
+              valides, l&apos;ancien code compris. Assurez-vous d&apos;avoir
               un moyen de transmettre le nouveau.
             </DialogDescription>
           </DialogHeader>
