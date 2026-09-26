@@ -1,8 +1,8 @@
 """
-Service de persistance d'un résultat (saisie manuelle ou import d'épreuve).
+Service de persistance d'un résultat saisi à la main.
 
-`save_one` est la brique unitaire : réutilisée par la saisie manuelle
-(`POST /participations`) et en boucle par l'import d'épreuve complète.
+`save_one` ne sert qu'à la saisie manuelle (`POST /participations`) : l'import
+d'épreuve complète persiste par `import_service`, sans passer par lui.
 """
 import logging
 

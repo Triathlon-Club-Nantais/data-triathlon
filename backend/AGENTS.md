@@ -22,8 +22,8 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
   `security_headers.py` (en-têtes de sécurité sur **toute** réponse — jumeau du
   `headers()` de `frontend/next.config.ts`, parce que les backends Render sont
   joignables directement ; sans la CSP, traitée à part — #396).
-- `app/models/` — SQLAlchemy **normalisé** : `Athlete`, `Course`, `Participation`,
-  `PendingProvider`.
+- `app/models/` — SQLAlchemy **normalisé** ; l'inventaire tenu à jour vit dans
+  `app/models/AGENTS.md`.
 - `app/schemas/` — DTO Pydantic v2 (entrée/sortie).
 - `app/repositories/` — `*_repository.py` : **seule couche qui construit des requêtes sur la Session** (les services peuvent commit/flush/rollback, jamais requêter).
 - `app/services/` — logique métier : `mapping`, `cache` (TTL), `scrape_service`,
@@ -57,6 +57,8 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
 
 **Cache TTL** — `services/cache.py` : `is_fresh(course)` → 10 min si course en
 cours (une participation **finisher** sans `total_time`, ou n'importe laquelle
-le jour de l'épreuve et le lendemain, #913), sinon 30 j. `scrape_service`
-court-circuite le re-scraping si frais. Réglable via
+le jour de l'épreuve et le lendemain, #913), sinon 30 j. Deux consommateurs,
+tous deux dans `import_service` : `_cached_result`, le court-circuit global par
+URL (sauté par `force=True`), et `_make_cache_probe`, la sonde par heat du
+fan-out Klikego (#156). Réglable via
 `CACHE_TTL_IN_PROGRESS_SECONDS` / `CACHE_TTL_FINISHED_SECONDS`.
