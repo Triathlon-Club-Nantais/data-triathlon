@@ -230,6 +230,25 @@ describe("EventList", () => {
 
     renderList();
     expect(screen.getByText("Aucun résultat")).toBeInTheDocument();
+    expect(screen.getByText(/importez une épreuve/i)).toBeInTheDocument();
+  });
+
+  it("tells an empty filtered search apart and offers to clear the filters (#1038)", async () => {
+    searchParams = new URLSearchParams("event_name=Mesqer&scope=club&seasons=2025&sort=date_desc");
+    setEvents({
+      data: { pages: [{ items: [], total_events: 0, total_participations: 0 }] },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+
+    renderList();
+
+    expect(screen.getByText("Aucune épreuve ne correspond à ces filtres")).toBeInTheDocument();
+    expect(screen.queryByText(/importez une épreuve/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Effacer les filtres" }));
+    expect(push).toHaveBeenCalledWith("/resultats?scope=club&seasons=2025&sort=date_desc");
   });
 
   // WCAG 4.1.3 (#477) : filtrer/trier remplace la liste sans annonce.
