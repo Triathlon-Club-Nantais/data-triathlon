@@ -1,6 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { AthleteComparisonResult } from "./AthleteComparisonChart";
+import userEvent from "@testing-library/user-event";
+import { AthleteComparisonChart, AthleteComparisonResult } from "./AthleteComparisonChart";
+
+const { searchAthletes, getAthlete } = vi.hoisted(() => ({
+  searchAthletes: vi.fn(),
+  getAthlete: vi.fn(),
+}));
+vi.mock("@/lib/api/client", () => ({ apiClient: { searchAthletes, getAthlete } }));
 import type { Participation, CourseBrief, AthleteBrief } from "@/lib/types";
 
 const athlete = (id: number): AthleteBrief => ({ id, nom: "Nom", prenom: "Prenom", gender: "F", club: "TCN" });
@@ -60,5 +67,52 @@ describe("AthleteComparisonResult", () => {
     expect(screen.getByText("01:55:00")).toBeInTheDocument();
     // L'écart chiffré entre les deux temps — l'info recherchée par #689.
     expect(screen.getByText(/5 min 00 s de retard/)).toBeInTheDocument();
+  });
+});
+
+describe("AthleteComparisonChart, teammate load failure (#1028)", () => {
+  const camarade = { id: 7, nom: "Martin", prenom: "Lea", club: "TCN" };
+
+  beforeEach(() => {
+    searchAthletes.mockReset().mockResolvedValue([camarade]);
+    getAthlete.mockReset();
+  });
+
+  async function choisirCamarade() {
+    render(<AthleteComparisonChart mine={[]} />);
+    await userEvent.type(screen.getByLabelText(/chercher un athlète à comparer/i), "Lea");
+    await userEvent.click(await screen.findByRole("button", { name: /Lea Martin/ }));
+  }
+
+  it("offers retry and change after the load fails", async () => {
+    getAthlete.mockRejectedValueOnce(new Error("réveil")).mockResolvedValueOnce({ participations: [] });
+    await choisirCamarade();
+
+    expect(await screen.findByText(/impossible de charger/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /réessayer/i }));
+
+    expect(await screen.findByText(/comparaison avec lea martin/i)).toBeInTheDocument();
+    expect(getAthlete).toHaveBeenCalledTimes(2);
+  });
+
+  it("brings the search back when changing after a failure", async () => {
+    getAthlete.mockRejectedValue(new Error("réveil"));
+    await choisirCamarade();
+
+    await userEvent.click(await screen.findByRole("button", { name: /changer/i }));
+
+    expect(screen.getByLabelText(/chercher un athlète à comparer/i)).toBeInTheDocument();
+  });
+
+  it("lets the user change while loading and ignores the late answer", async () => {
+    let repondre: (v: { participations: Participation[] }) => void = () => {};
+    getAthlete.mockReturnValue(new Promise((resolve) => (repondre = resolve)));
+    await choisirCamarade();
+
+    await userEvent.click(screen.getByRole("button", { name: /changer/i }));
+    repondre({ participations: [] });
+
+    expect(await screen.findByLabelText(/chercher un athlète à comparer/i)).toBeInTheDocument();
+    expect(screen.queryByText(/comparaison avec/i)).not.toBeInTheDocument();
   });
 });
