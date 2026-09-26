@@ -305,3 +305,12 @@ describe("cible tactile publique (#1079)", () => {
     expect(bureau?.[1]).toContain("min-height: 28px");
   });
 });
+
+describe("champs natifs sous md (#1093)", () => {
+  it("portent au moins 16 px, même contre une taille posée en ligne", () => {
+    // iOS Safari zoome sur tout champ sous 16 px ; `!important` est le seul
+    // moyen de l'emporter sur les `fontSize` en ligne des appelants.
+    const mobile = /@media\s*\(max-width:\s*767\.98px\)\s*\{\s*input,\s*select,\s*textarea\s*\{([^}]*)\}/.exec(css);
+    expect(mobile?.[1]).toContain("font-size: max(16px, 1em) !important");
+  });
+});
