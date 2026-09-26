@@ -108,6 +108,9 @@ describe("VolunteerActionsList", () => {
     afficher();
 
     expect(await screen.findByText(/aucune action de bénévolat validée/i)).toBeInTheDocument();
+    // Seul chemin de création depuis #780 : le formulaire public (#1083).
+    expect(screen.queryByText(/administration/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "page Bénévolat" })).toHaveAttribute("href", "/benevolat");
   });
 
   it("affiche un squelette de chargement plutôt qu'un espace vide muet", async () => {
