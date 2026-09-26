@@ -240,7 +240,7 @@ export function EventsTable({
     <Card padding={0} style={{ overflow: "hidden" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 26px 16px", flexWrap: "wrap", gap: 8 }}>
         <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0 }}>Toutes les épreuves</h2>
-        <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", fontWeight: 600 }}>Clique sur une épreuve pour voir le détail →</div>
+        <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", fontWeight: 600 }}>Sélectionnez une épreuve pour voir le détail →</div>
       </div>
 
       {participations.length > 0 && (

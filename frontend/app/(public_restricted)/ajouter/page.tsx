@@ -48,7 +48,7 @@ export default async function AjouterPage() {
 
   return (
     <PageShell form>
-      <Eyebrow style={{ marginBottom: 6 }}>Nouvelle participation</Eyebrow>
+      <Eyebrow style={{ marginBottom: 6 }}>Nouvelle épreuve</Eyebrow>
       <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(30px, 6vw, 44px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginBottom: 30 }}>Ajouter une épreuve</h1>
 
       <TcnScrapeForm />
@@ -56,7 +56,7 @@ export default async function AjouterPage() {
       <Card padding={0} style={{ overflow: "hidden" }}>
         <div style={{ padding: "22px 28px 16px", borderBottom: "1px solid var(--tcn-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
           <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0 }}>Derniers résultats enregistrés</h2>
-          <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", fontWeight: 600 }}>Clique pour voir la page de résultats →</div>
+          <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", fontWeight: 600 }}>Sélectionnez une épreuve pour voir la page de résultats →</div>
         </div>
         <div
           data-testid="recents-grille"

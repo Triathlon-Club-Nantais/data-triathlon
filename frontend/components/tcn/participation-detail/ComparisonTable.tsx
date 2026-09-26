@@ -23,7 +23,7 @@ const TITRE_POSITION =
 const titreSegment = (label: string) =>
   `Votre temps sur ${label.toLowerCase()}, en pourcentage du temps de l'athlète à cette position (100 % = temps identique, plus de 100 % = plus lent).`;
 const TITRE_TOTAL =
-  "Votre temps sur l'ensemble de la course, en pourcentage du temps de l'athlète à cette position (100 % = temps identique, plus de 100 % = plus lent).";
+  "Votre temps sur l'ensemble de l'épreuve, en pourcentage du temps de l'athlète à cette position (100 % = temps identique, plus de 100 % = plus lent).";
 
 /**
  * Comparaison de l'athlète aux positions de référence du classement scratch.
