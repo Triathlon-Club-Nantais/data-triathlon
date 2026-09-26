@@ -131,7 +131,9 @@ réutilise (`breizhchrono.py` importe depuis ici — ne la duplique pas). Puis
 `scrape_event_all()` + une entrée dans `registry.py`. Voir §Conventions
 scrapers.
 
-Provider inconnu → fallback `playwright_fallback.py`.
+Provider inconnu → `get_provider` rend `None` et `scrape_event_all` lève.
+Il n'y a **pas** de fallback navigateur : Playwright a été retiré avec sa
+dépendance (#102), et une URL non reconnue ne matche aucun provider.
 
 ## 12. La CLI batch
 
