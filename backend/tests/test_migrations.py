@@ -766,6 +766,19 @@ def _index_names(url: str, table: str) -> set[str]:
         engine.dispose()
 
 
+def test_user_sessions_token_hash_keeps_only_its_unique_index(sqlite_url):
+    """The unique constraint already indexes the column (#1061)."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    assert "ix_user_sessions_token_hash" not in _index_names(sqlite_url, "user_sessions")
+
+    command.downgrade(cfg, "8e1d2c3b4a5f")
+    assert "ix_user_sessions_token_hash" in _index_names(sqlite_url, "user_sessions")
+
+    command.upgrade(cfg, "head")
+    assert "ix_user_sessions_token_hash" not in _index_names(sqlite_url, "user_sessions")
+
+
 def test_downgrade_then_upgrade_of_the_course_source_url_index(sqlite_url):
     cfg = _alembic_config()
     command.upgrade(cfg, "head")
