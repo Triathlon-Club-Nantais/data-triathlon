@@ -17,7 +17,8 @@ cette profondeur, à connaître avant de la choisir dans le Sheet.
 Deux particularités structurantes. **Les splits ne sont pas dans le classement** :
 ils vivent sur la fiche individuelle, soit une requête par participant — le
 scraper ne charge donc que les fiches des membres du TCN (25 requêtes sur les 901
-lignes de La Baule M 2022). C'est le seul scraper conscient du club ; il
+lignes de La Baule M 2022). C'est l'un des deux scrapers conscients du club,
+avec Breizh Chrono ; il
 **réutilise** `core/club.py`, il ne le réimplémente pas (#76). Et **la FFTRI
 republie** : chaque page porte « Résultats produits par X ». Quand X est un
 provider supporté, un avertissement est journalisé — mais la mention ne lie que
