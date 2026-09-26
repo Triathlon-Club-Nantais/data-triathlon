@@ -350,7 +350,8 @@ relevées dans une session antérieure ont disparu du parc.
 > `psycopg2-binary`.
 > **Environnement** : CI, donc les trois.
 > **Correctif** : un step `pip-audit` dans le job `backend` de `ci.yml`, en
-> miroir de ce que `npm audit` fait déjà côté front.
+> miroir du step `npm audit --omit=dev --audit-level=high` du job `frontend`
+> (ajouté par #1022 : à la date de cet audit, aucun workflow ne le lançait).
 
 > **Constat A06-2 — pas de `dependabot.yml`.** *Faible.*
 >
