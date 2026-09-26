@@ -43,6 +43,15 @@ Toute PR déclenche la CI seule (aucun déploiement).
   déclenchait qu'après merge : un bloc JSX dans un plan `docs/superpowers/`
   avait ainsi cassé le rendu Liquid directement sur `main`.
 
+**Chaque job porte un `timeout-minutes`** (#1071), sans quoi il hérite des
+360 minutes par défaut de GitHub : une étape figée (registre npm ou PyPI muet,
+test en attente, `vercel build` bloqué) garderait sinon le groupe de
+`concurrency` pris pendant 6 h. Les valeurs laissent une large marge sur les
+durées observées : 15 min pour les jobs de `ci.yml` (~1 min), 20 min pour
+`deploy-preview`/`deploy-production` (1 à 3 min, plus les retries curl vers
+Render), 10 min pour ceux de `pages.yml`. L'attente d'approbation de
+l'environment `production` ne compte pas dans ce délai.
+
 Le gating repose sur `needs: ci` : si un job CI échoue, le job de déploiement
 n'est jamais exécuté. Côté Render, c'est **Auto-Deploy = No dans les réglages du
 service** qui empêche tout déploiement automatique hors hook.
