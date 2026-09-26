@@ -7,8 +7,10 @@ from sqlalchemy import event
 from sqlalchemy.exc import OperationalError
 
 from app.core.config import Settings
-from app.core.exceptions import ProviderNotSupportedError
+from app.core.exceptions import ProviderNotSupportedError, ScraperError
 from app.core.time import utcnow
+from app.models.course import Course
+from app.models.participation import Participation
 from app.repositories import (
     athlete_repository,
     course_repository,
@@ -401,6 +403,65 @@ def test_unsupported_provider_raises(db_session, monkeypatch):
     monkeypatch.setattr(import_service, "registry_scrape_event_all", _raise)
     with pytest.raises(ProviderNotSupportedError):
         import_service.import_event(db_session, URL, _settings())
+
+
+# --- Chemins d'échec non couverts jusqu'ici (#1068) ------------------------
+
+T2AREA_URL = "https://fftri.t2area.com/resultats/1"
+
+
+def _lever(exc):
+    def _scrape(url, **kwargs):
+        raise exc
+    return _scrape
+
+
+def test_streaming_fanout_scrape_failure_ends_on_an_error_frame(db_session, monkeypatch):
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", _lever(RuntimeError("boom")))
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    assert phases[-1] == {"phase": "error", "message": "Erreur lors de l'import : boom"}
+    assert db_session.query(Course).count() == 0
+    assert db_session.query(Participation).count() == 0
+
+
+def test_streaming_fanout_value_error_maps_to_unsupported_provider(db_session, monkeypatch):
+    monkeypatch.setattr(
+        import_service, "registry_scrape_event_all", _lever(ValueError("Import non supporté"))
+    )
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    assert phases[-1] == {"phase": "error", "message": "Import non supporté"}
+
+
+def test_non_fanout_scraper_failure_is_wrapped_in_scraper_error(db_session, monkeypatch):
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", _lever(RuntimeError("boom")))
+
+    with pytest.raises(ScraperError, match="Erreur lors de l'import : boom"):
+        import_service.import_event(db_session, T2AREA_URL, _settings())
+
+
+def test_import_event_rolls_back_when_persistence_fails(db_session, patch_scraper, monkeypatch):
+    patch_scraper([_result("1", "DUPONT")])
+
+    def _persister_puis_lever(db, url, results):
+        vrai_persist(db, url, results)
+        raise RuntimeError("disque plein")
+
+    vrai_persist = import_service.persist_results
+    monkeypatch.setattr(import_service, "persist_results", _persister_puis_lever)
+
+    with pytest.raises(ScraperError, match="Erreur lors de l'enregistrement des résultats."):
+        import_service.import_event(db_session, URL, _settings())
+
+    assert db_session.query(Course).count() == 0
+    assert db_session.query(Participation).count() == 0
+    # La Session reste utilisable après le rollback.
+    monkeypatch.setattr(import_service, "persist_results", vrai_persist)
+    out = import_service.import_event(db_session, URL, _settings())
+    assert _counters(out)["imported"] == 1
 
 
 def test_force_bypasse_le_cache_ttl(db_session, patch_scraper):
