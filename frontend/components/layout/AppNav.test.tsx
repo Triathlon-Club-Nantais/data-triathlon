@@ -1003,11 +1003,11 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
   });
 
-  it("ouvre « Accès au back-office » à qui porte allowed_emails:manage", async () => {
+  it("ouvre « Accès et mots de passe » à qui porte allowed_emails:manage", async () => {
     afficher(habilite("allowed_emails:manage"));
     await deplier();
     await waitFor(() => expect(screen.getByText("Gestion des utilisateurs")).toBeInTheDocument());
-    expect(screen.getByRole("link", { name: "Accès au back-office" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Accès et mots de passe" })).toHaveAttribute(
       "href",
       "/admin/acces",
     );
@@ -1021,7 +1021,7 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
     afficher(habilite("allowed_emails:manage", "pending_providers:read"));
     await deplier();
 
-    const courant = await screen.findByRole("link", { name: "Accès au back-office" });
+    const courant = await screen.findByRole("link", { name: "Accès et mots de passe" });
     expect(courant).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Fournisseurs en attente" })).not.toHaveAttribute(
       "aria-current",
@@ -1036,7 +1036,7 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
     await waitFor(() => expect(screen.getByText("Gestion des utilisateurs")).toBeInTheDocument());
 
     expect(screen.getByRole("link", { name: "Droits des rôles" })).toBeInTheDocument();
-    expect(screen.queryByText("Accès au back-office")).not.toBeInTheDocument();
+    expect(screen.queryByText("Accès et mots de passe")).not.toBeInTheDocument();
   });
 
   it("ouvre « Droits des rôles » à qui porte roles:write (#240)", async () => {

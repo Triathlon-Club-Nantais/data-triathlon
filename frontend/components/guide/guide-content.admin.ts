@@ -50,7 +50,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
     casUsage: "Les épreuves dont l'indice de fiabilité doute. Inspecter, corriger, puis trancher — chaque décision est tracée.",
     etapes: [
       "Ouvrir « Revalidation qualité » depuis la navigation admin.",
-      "Inspecter une épreuve signalée, corriger si besoin, puis valider ou écarter.",
+      "Inspecter une épreuve signalée, corriger si besoin, puis trancher : « Marquer fiable », « Marquer douteuse », ou « Revenir à l'avis calculé » pour annuler un verdict manuel.",
     ],
     captures: [{ src: "/guide/admin/quality.jpg", alt: "Liste des épreuves en revalidation qualité" }],
   },
@@ -153,11 +153,15 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "acces-backoffice",
-    titre: "Accès au back-office",
-    casUsage: "Seules ces adresses peuvent ouvrir une session. Une adresse retirée perd l'accès immédiatement.",
+    titre: "Accès et mots de passe",
+    casUsage:
+      "Un seul écran pour tout ce qui ouvre ou ferme un accès : adresses autorisées au back-office, code d'accès du site, mot de passe bénévoles, sessions ouvertes.",
     etapes: [
-      "Ouvrir « Accès au back-office » depuis la navigation admin.",
-      "Ajouter ou retirer une adresse de la liste des accès autorisés.",
+      "Ouvrir « Accès et mots de passe » depuis la navigation admin.",
+      "Adresses autorisées : ajouter ou retirer une adresse. Une adresse retirée perd l'accès immédiatement.",
+      "Code d'accès du site : le remplacer par une saisie ou en générer un. Il n'est plus lisible une fois enregistré, et le changer déconnecte les adhérents, qui devront saisir le nouveau.",
+      "Mot de passe bénévoles : même geste, pour la page de vérification des résultats réservée aux bénévoles.",
+      "Fermer les sessions : par adresse depuis la liste, ou toutes à la fois en bas de l'écran, vous compris.",
     ],
     captures: [{ src: "/guide/admin/acces-backoffice.jpg", alt: "Liste des adresses autorisées au back-office", placeholder: true }],
   },
