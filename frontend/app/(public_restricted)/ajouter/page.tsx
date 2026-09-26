@@ -34,6 +34,17 @@ export default async function AjouterPage() {
     .listEvents({ page_size: 6, sort: "imported_desc" }, { revalidateSeconds: SHORT_REVALIDATE_SECONDS })
     .catch(() => null);
   const recent = events?.items ?? [];
+  // Un échec (réveil à froid, 5xx) ne s'annonce pas comme une base vide (#1029).
+  const etatVide = (
+    <EmptyState
+      bare
+      title={
+        events === null
+          ? "Les derniers résultats n'ont pas pu être chargés. Réessayez plus tard."
+          : "Aucun résultat enregistré pour l'instant"
+      }
+    />
+  );
 
   return (
     <PageShell form>
@@ -83,7 +94,7 @@ export default async function AjouterPage() {
               // Pas d'action : le formulaire d'import est juste au-dessus.
               // Hors du tableau : posé en ligne, il s'annoncerait comme une
               // donnée du classement (#481, contrat C1).
-              <EmptyState bare title="Aucun résultat enregistré pour l'instant" />
+              etatVide
             )}
           </div>
         </div>
@@ -93,7 +104,7 @@ export default async function AjouterPage() {
         <div data-testid="recents-cartes" data-affichage="cartes" className="sm:hidden">
           {recent.length === 0 ? (
             // Pas d'action : le formulaire d'import est juste au-dessus.
-            <EmptyState bare title="Aucun résultat enregistré pour l'instant" />
+            etatVide
           ) : (
             recent.map((e) => (
               <LigneCarte
