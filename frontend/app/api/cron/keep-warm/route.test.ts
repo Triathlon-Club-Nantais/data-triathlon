@@ -78,6 +78,18 @@ describe("GET /api/cron/keep-warm", () => {
     expect(fetchMock).toHaveBeenCalled();
   });
 
+  it("fails closed on Vercel when CRON_SECRET is unset (#1021)", async () => {
+    vi.stubEnv("CRON_SECRET", "");
+    vi.stubEnv("VERCEL_ENV", "production");
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await GET(makeRequest());
+
+    expect(res.status).toBe(503);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("répond 401 quand l'en-tête Authorization est présent mais incorrect", async () => {
     vi.stubEnv("CRON_SECRET", "s3cr3t");
     const fetchMock = vi.fn();
