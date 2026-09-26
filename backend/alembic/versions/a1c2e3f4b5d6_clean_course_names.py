@@ -28,16 +28,32 @@ depends_on: Union[str, Sequence[str], None] = None
 # Contrat lu par réflexion par Alembic (cf. `script.py.mako`), jamais référencé ici.
 __all__ = ["revision", "down_revision", "branch_labels", "depends_on", "upgrade", "downgrade"]
 
-_I18N = re.compile(r"\{([A-Z]{2}:[^{}|]*(?:\|[A-Z]{2}:[^{}|]*)+)\}")
+_I18N = re.compile(r"\{([A-Za-z]{2}:[^{}|]*(?:\|[A-Za-z]{2}:[^{}|]*)*)\}")
+# Un nom qualifié par `qualify_event_name` : « <événement> - <qualifiant> ».
+_QUALIFIE = re.compile(r"^(?P<evenement>.*?)\s+-\s+(?P<qualifiant>.*)$")
 
 
 def _variante(match: re.Match) -> str:
-    variantes = dict(part.split(":", 1) for part in match.group(1).split("|"))
-    return variantes.get("FR") or variantes.get("EN") or next(iter(variantes.values()))
+    variantes = {}
+    for part in match.group(1).split("|"):
+        cle, _, valeur = part.partition(":")
+        variantes[cle.upper()] = valeur.strip()
+    choix = variantes.get("FR") or variantes.get("EN") or next(
+        (v for v in variantes.values() if v), ""
+    )
+    # Toutes variantes vides : laissé intact, comme `_label_i18n` au runtime.
+    return choix or match.group(0)
 
 
 def _propre(nom: str) -> str:
-    return " ".join(_I18N.sub(_variante, nom).split())
+    propre = " ".join(_I18N.sub(_variante, nom).split())
+    # Même règle que `qualify_event_name` : un qualifiant déjà contenu dans le
+    # nom d'événement n'est pas ré-ajouté, sans quoi le rescrape suivant
+    # produirait un autre nom, donc une autre épreuve.
+    if _I18N.search(nom) and (m := _QUALIFIE.match(propre)):
+        if m["qualifiant"].lower() in m["evenement"].lower():
+            return m["evenement"]
+    return propre
 
 
 def upgrade() -> None:

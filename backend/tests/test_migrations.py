@@ -776,6 +776,11 @@ def test_course_names_are_cleaned_unless_the_clean_name_collides(sqlite_url):
         ("Swimrun Dinard ", "2026-05-01"),
         ("Déjà propre ", "2026-04-01"),
         ("Déjà propre", "2026-04-01"),
+        # Même règle que `qualify_event_name` : un qualifiant déjà dans le nom
+        # n'est pas ré-ajouté, sans quoi le prochain rescrape recréerait l'épreuve.
+        ("Embrunman Quart - {EN:Quarter|FR:Quart}", "2026-08-16"),
+        ("Tri - {fr:Sprint}", "2026-07-01"),
+        ("Tri Vide - {FR:|EN:}", "2026-07-02"),
     ]
     engine = sa.create_engine(sqlite_url)
     try:
@@ -800,6 +805,9 @@ def test_course_names_are_cleaned_unless_the_clean_name_collides(sqlite_url):
         "Swimrun Dinard",
         "Déjà propre ",  # le nom propre existe déjà : on ne crée pas de collision
         "Déjà propre",
+        "Embrunman Quart",
+        "Tri - Sprint",
+        "Tri Vide - {FR:|EN:}",  # variantes vides : gardé intact, comme au runtime
     ])
 
 
