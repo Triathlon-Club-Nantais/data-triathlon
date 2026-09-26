@@ -72,7 +72,7 @@ export function AdminActionLogTable() {
                     <div key={i}>
                       {label} :{" "}
                       {href ? (
-                        <Link href={href} className="text-accent-ink hover:underline">
+                        <Link href={href} className="font-semibold text-accent-ink underline">
                           {value}
                         </Link>
                       ) : (

@@ -63,6 +63,8 @@ describe("AjouterPage", () => {
       screen.getByText("Les derniers résultats n'ont pas pu être chargés. Réessayez plus tard."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Aucun résultat enregistré pour l'instant")).not.toBeInTheDocument();
+    // Rien à sélectionner : l'invitation disparaît avec la liste.
+    expect(screen.queryByText(/sélectionnez une épreuve/i)).not.toBeInTheDocument();
   });
 
   // ── Structure de tableau (#481, A11Y-3) ────────────────────────────────────

@@ -127,7 +127,7 @@ export default async function ParticipationDetailPage({
               )}
             </div>
             <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>
-              Nombre d&apos;athlètes par catégorie — sa catégorie est repérée.
+              Nombre d&apos;athlètes par catégorie — la catégorie de l&apos;athlète est repérée.
             </div>
             <CategoryBars
               categories={summary.categories}

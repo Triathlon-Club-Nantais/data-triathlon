@@ -204,6 +204,8 @@ describe("ComparisonTable", () => {
 
     const total = screen.getByRole("columnheader", { name: "Total" });
     expect(total.title).toMatch(/ensemble de l'épreuve/i);
+    // Un seul « athlète » par phrase : l'autre temps est celui de la position.
+    expect(total.title).toMatch(/du temps réalisé à cette position/i);
     // La page s'ouvre pour n'importe quel participant, pas pour le seul lecteur (#1086).
     for (const entete of screen.getAllByRole("columnheader")) {
       expect(entete.title).not.toMatch(/votre/i);

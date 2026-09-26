@@ -21,9 +21,9 @@ const classeColonne = (small?: boolean) => (small ? "hidden sm:table-cell" : und
 const TITRE_POSITION =
   "Position de référence au classement scratch, à laquelle le temps de l'athlète est comparé.";
 const titreSegment = (label: string) =>
-  `Temps de l'athlète sur ${label.toLowerCase()}, en pourcentage du temps de l'athlète à cette position (100 % = temps identique, plus de 100 % = plus lent).`;
+  `Temps de l'athlète sur ${label.toLowerCase()}, en pourcentage du temps réalisé à cette position (100 % = temps identique, plus de 100 % = plus lent).`;
 const TITRE_TOTAL =
-  "Temps de l'athlète sur l'ensemble de l'épreuve, en pourcentage du temps de l'athlète à cette position (100 % = temps identique, plus de 100 % = plus lent).";
+  "Temps de l'athlète sur l'ensemble de l'épreuve, en pourcentage du temps réalisé à cette position (100 % = temps identique, plus de 100 % = plus lent).";
 
 /**
  * Comparaison de l'athlète aux positions de référence du classement scratch.
