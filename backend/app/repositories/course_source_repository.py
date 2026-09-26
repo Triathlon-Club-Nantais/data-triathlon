@@ -6,6 +6,7 @@ signifie désormais écrire *ici*, et nulle part ailleurs.
 """
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.time import utcnow
 from app.models.course import Course
 from app.models.course_source import CourseSource
 
@@ -32,6 +33,15 @@ def get_active(db: Session, course_id: int) -> CourseSource | None:
         .filter(CourseSource.course_id == course_id, CourseSource.is_active)
         .first()
     )
+
+
+def touch_active_scraped_at(db: Session, course_id: int) -> None:
+    """Horodate le scrape de la source **active** ; les passives gardent le
+    leur, qui dit s'il y aura quelque chose à rafraîchir le jour où elles
+    deviennent actives (#1087)."""
+    db.query(CourseSource).filter(
+        CourseSource.course_id == course_id, CourseSource.is_active
+    ).update({CourseSource.last_scraped_at: utcnow()}, synchronize_session="fetch")
 
 
 def find_by_url(db: Session, *, course_id: int, url: str) -> CourseSource | None:
