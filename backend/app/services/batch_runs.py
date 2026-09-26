@@ -67,6 +67,10 @@ def dispatch_batch(
         },
     }
 
+    # Contrôle ici, pas dans la route : il protège tout appelant du dispatch.
+    if sum(len(valeur) for valeur in corps["inputs"].values()) > INPUTS_MAX_CARACTERES:
+        raise BatchInputTooLargeError()
+
     url = (
         f"{API_ROOT}/repos/{settings.github_repository}"
         f"/actions/workflows/{settings.github_workflow_file}/dispatches"
@@ -293,6 +297,20 @@ class BatchTokenRejectedError(DomainError):
     message = (
         "Le jeton d'accès à la plateforme d'exécution a été refusé : "
         "il est expiré ou révoqué."
+    )
+
+
+#: La plateforme plafonne les inputs d'un dispatch à 65 535 caractères ; au-delà
+#: elle répond 422, que `_verifier` présenterait en panne (503). Marge gardée
+#: pour les noms d'entrées et la sérialisation (#1097).
+INPUTS_MAX_CARACTERES = 60_000
+
+
+class BatchInputTooLargeError(DomainError):
+    status_code = 422
+    message = (
+        "La liste d'épreuves dépasse ce que la plateforme d'exécution accepte en une "
+        "fois (environ 60 000 caractères d'URLs) : découpez le fichier en plusieurs lots."
     )
 
 
