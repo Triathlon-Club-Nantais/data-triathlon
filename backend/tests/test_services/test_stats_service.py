@@ -423,6 +423,28 @@ def test_course_summary_fusionne_les_variantes_de_casse_sans_alias_declare(db_se
     assert synthese["clubs"][0]["name"] == "BLAIN TRIATHLON"
 
 
+def test_course_summary_merges_club_labels_differing_by_punctuation_or_spacing(db_session):
+    """Course 913: one club split over three lines by its elision (#1110)."""
+    lignes = (
+        [("Triathlon Côte d'Émeraude",)] * 3
+        + [("Triathlon Cote dEmeraude",)] * 2
+        + [("Triathlon cote d emeraude",)]
+    )
+    course = _epreuve(
+        db_session,
+        [
+            (f"N{i}", "P", "M", club, None, "finisher", None, None)
+            for i, (club,) in enumerate(lignes)
+        ],
+    )
+
+    synthese = stats_service.course_summary(db_session, course.id)
+
+    assert synthese["clubs"] == [
+        {"name": "Triathlon Côte d'Émeraude", "count": 6, "is_tcn": False}
+    ]
+
+
 def test_course_summary_borne_categories_a_8_et_clubs_a_9(db_session):
     lignes = []
     for index in range(12):

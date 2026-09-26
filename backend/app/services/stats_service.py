@@ -7,7 +7,7 @@ from app.core import season as season_module
 from app.core.club import TCN_CANONICAL_NAME, is_tcn, normalize_club
 from app.repositories import club_alias_repository, course_repository, participation_repository
 from app.scrapers.base import STATUS_FINISHER
-from app.scrapers.utils import to_seconds
+from app.scrapers.utils import strip_accents, to_seconds
 from app.services import split_gap
 
 
@@ -214,6 +214,12 @@ _MAX_CLUBS = 9
 _STATUTS_NON_FINISHERS = {"DNF": "dnf", "DNS": "dns", "DSQ": "dsq"}
 
 
+def _cle_club_large(club: str) -> str:
+    """Clé de regroupement de « Top clubs » : sans accents, sans casse, sans
+    rien d'autre que lettres et chiffres (#1110)."""
+    return "".join(c for c in strip_accents(club).lower() if c.isalnum())
+
+
 def _plus_frequents(compteur: Counter[str], limite: int) -> list[tuple[str, int]]:
     """Les `limite` plus fréquents, à égalité départagés par le libellé.
 
@@ -256,13 +262,13 @@ def course_summary(db: Session, course_id: int) -> dict:
     male = female = tcn_count = 0
     categories: Counter[str] = Counter()
     clubs: Counter[str] = Counter()
-    # Forme normalisée -> premier libellé brut vu pour cette forme. Sert à
-    # fusionner l'affichage des variantes de casse/espacement sans alias
-    # déclaré — depuis #635, `_club_filter_targets` matche déjà ces variantes
-    # au filtre (comparaison normalisée), et laisser l'affichage bucketer par
-    # casse ferait diverger le compteur de la carte du total que le filtre
-    # rendrait (même défaut que #485 avait corrigé pour `category`).
-    libelles_par_forme: dict[str, str] = {}
+    # Clé large -> libellés bruts vus sous cette clé, avec leur effectif. Sert à
+    # fusionner l'affichage des variantes sans alias déclaré : casse et espaces
+    # depuis #635 (`_club_filter_targets` les matche déjà au filtre), et depuis
+    # #1110 accents, ponctuation et espaces internes (« Côte d'Émeraude »,
+    # « Cote dEmeraude »). Clé propre à cet agrégat : `normalize_club` reste
+    # intacte, `_normalise_sql` étant compilée dans un index fonctionnel.
+    variantes_par_cle: dict[str, Counter[str]] = {}
     split_keys: dict[str, None] = {}
     secondes: list[int] = []
     ecarts: list[float | None] = []
@@ -310,11 +316,11 @@ def course_summary(db: Session, course_id: int) -> dict:
             # alias déclaré. La base garde le verbatim — seul l'agrégat
             # d'affichage bascule.
             if is_tcn(club):
-                libelle = TCN_CANONICAL_NAME
+                clubs[TCN_CANONICAL_NAME] += 1
+            elif canonique := alias_map.get(normalize_club(club)):
+                clubs[canonique] += 1
             else:
-                forme = normalize_club(club)
-                libelle = alias_map.get(forme) or libelles_par_forme.setdefault(forme, club.strip())
-            clubs[libelle] += 1
+                variantes_par_cle.setdefault(_cle_club_large(club), Counter())[club.strip()] += 1
         if is_tcn(club):
             tcn_count += 1
 
@@ -336,6 +342,12 @@ def course_summary(db: Session, course_id: int) -> dict:
                 is_relay=bool(course and course.is_relay),
             )
         )
+
+    # Le libellé affiché d'un groupe fusionné est sa variante la plus fréquente,
+    # la première vue à égalité (#1110).
+    for variantes in variantes_par_cle.values():
+        libelle = max(variantes.items(), key=lambda item: item[1])[0]
+        clubs[libelle] += sum(variantes.values())
 
     return {
         "total": len(lignes),
