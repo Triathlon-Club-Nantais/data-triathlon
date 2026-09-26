@@ -194,22 +194,26 @@ que le site est fermé.
 
 ## Providers supportés
 
-| Site | Import individuel | Import épreuve complète |
-|------|:-----------------:|:-----------------------:|
-| **Klikego** (`klikego.com`) | ✅ | ✅ |
-| **Breizh Chrono** (`resultats.breizhchrono.com`) | ✅ | ✅ |
-| **TimePulse** (`timepulse.fr`) | ✅ | ✅ |
-| **Wiclax / G-Live / ChronoSmetron** | ✅ | ✅ |
-| **ProLiveSport** (`prolivesport.fr`) | ✅ | ✅ |
-| **Sport Innovation** (`sportinnovation.fr`) | ✅ | ✅ |
+Quatorze chronométreurs sont pris en charge, dont Klikego, Breizh Chrono,
+TimePulse, Wiclax, ProLiveSport, Sport Innovation, RaceResult, Chronoplace et
+T2Area (FFTRI). L'import se fait toujours **par épreuve complète** : il n'existe
+plus d'import athlète par athlète. La liste tenue à jour, avec les formes d'URL
+reconnues, vit dans `backend/app/scrapers/AGENTS.md` (section « Fournisseurs
+supportés »), et le détail de chaque fournisseur dans `docs/scrapers/`.
 
 ### Types d'épreuves supportés
 
-Triathlon (XS/S/M/L/XL), Duathlon (XS/S/M/L), SwimRun (S/M/L), Aquathlon, Aquarun, Bike & Run.
+Même source : `backend/app/scrapers/AGENTS.md` (triathlon, duathlon, swimrun,
+aquathlon, bike & run, swim bike, cross triathlon, raid multisport, et leurs
+tailles).
 
 ### Identification des membres du club
 
-Lors de l'import d'une épreuve, les co-membres sont identifiés par filtre sur le nom du club (`nantais|TCN`). Les résultats sans club renseigné (certains providers) sont importés sans filtre.
+Un résultat compte pour le club quand son libellé de club, une fois normalisé,
+est **égal** à l'un des libellés reconnus, jamais par sous-chaîne : l'ancien
+filtre `nantais|TCN` comptait les clubs d'athlétisme nantais (#76). La liste des
+libellés vit en base et s'édite dans `/admin/portee-compteurs` (#95). La règle
+est dans `backend/app/core/club.py`.
 
 ---
 
