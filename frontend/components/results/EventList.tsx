@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, Badge, FormatChip, AnnonceStatut, LigneCarte } from "@/components/tcn";
+import { Button, Card, Badge, FormatChip, AnnonceStatut, LigneCarte } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Select,
@@ -41,6 +41,8 @@ const GAP = 18;
 const PADDING_X = 26;
 const COLS = gridColumns(TRACKS);
 const MIN_WIDTH = gridMinWidth(TRACKS, { gap: GAP, paddingX: PADDING_X });
+
+const FILTRES_DE_RECHERCHE = ["name", "event_name", "event_type", "date_from", "date_to"];
 
 export function EventList({
   filters,
@@ -137,6 +139,32 @@ export function EventList({
   );
 
   if (!isLoading && events.length === 0) {
+    // Une recherche filtrée vide ne dit rien de la base : elle porte sa sortie
+    // au lieu d'inviter à réimporter (#1038). `scope`, `sort` et `seasons`
+    // restent, ce ne sont pas des filtres de recherche.
+    const filtreActif = FILTRES_DE_RECHERCHE.some((cle) => sp.get(cle));
+    if (filtreActif) {
+      const restants = new URLSearchParams(sp.toString());
+      FILTRES_DE_RECHERCHE.forEach((cle) => restants.delete(cle));
+      const qs = restants.toString();
+      return (
+        <>
+          {annonce}
+          <EmptyState
+            title="Aucune épreuve ne correspond à ces filtres"
+            action={
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => router.push(`/resultats${qs ? `?${qs}` : ""}`)}
+              >
+                Effacer les filtres
+              </Button>
+            }
+          />
+        </>
+      );
+    }
     return (
       <>
         {annonce}
