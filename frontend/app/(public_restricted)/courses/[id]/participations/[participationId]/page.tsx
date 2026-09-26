@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
+import { ApiError } from "@/lib/api/client";
 import { rendreNullSi404 } from "@/lib/api/null-si-404";
 import { idDeRoute } from "@/lib/utils/id-de-route";
 import {
@@ -38,10 +39,17 @@ export default async function ParticipationDetailPage({
   const { id, participationId } = await params;
   const courseId = idDeRoute(id);
   // Deux appels indépendants, en parallèle : la synthèse d'épreuve (US2/US3,
-  // #466) ne conditionne jamais le 404 de la participation elle-même.
+  // #466) ne conditionne jamais le 404 de la participation elle-même, donc
+  // toute panne de la synthèse la rend optionnelle au lieu de masquer le
+  // résultat (#1026). Hors 404, l'erreur reste journalisée côté serveur.
   const [participation, summary] = await Promise.all([
     apiServer.getParticipation(idDeRoute(participationId)).catch(rendreNullSi404),
-    apiServer.getCourseSummary(courseId).catch(rendreNullSi404),
+    apiServer.getCourseSummary(courseId).catch((erreur: unknown) => {
+      if (!(erreur instanceof ApiError && erreur.status === 404)) {
+        console.error("Course summary unavailable", erreur);
+      }
+      return null;
+    }),
   ]);
 
   if (!participation || participation.course.id !== courseId) notFound();
