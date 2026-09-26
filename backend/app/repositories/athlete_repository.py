@@ -633,7 +633,12 @@ def club_composition(
     """
     rang_recence = (
         func.row_number()
-        .over(partition_by=Athlete.id, order_by=Course.event_date.desc())
+        # `nullslast` : PostgreSQL range sinon une épreuve sans date en tête de
+        # `DESC` ; `Participation.id` départage deux épreuves du même jour (#1051).
+        .over(
+            partition_by=Athlete.id,
+            order_by=(Course.event_date.desc().nullslast(), Participation.id.desc()),
+        )
         .label("rang_recence")
     )
     lien = credits()

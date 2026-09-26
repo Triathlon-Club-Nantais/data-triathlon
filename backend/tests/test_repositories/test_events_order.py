@@ -62,7 +62,7 @@ def test_course_id_derniere_cle_postgres(pg_session, sort):
     [
         ("date_desc", ["courses.event_date DESC NULLS LAST", "courses.name", "courses.id"]),
         ("date_asc", ["courses.event_date ASC NULLS LAST", "courses.name", "courses.id"]),
-        ("name", ["courses.name ASC", "courses.event_date DESC", "courses.id"]),
+        ("name", ["courses.name ASC", "courses.event_date DESC NULLS LAST", "courses.id"]),
         ("imported_desc", ["courses.created_at DESC", "courses.name", "courses.id"]),
     ],
 )
@@ -74,7 +74,7 @@ def test_sqlite_sans_recherche(db_session, sort, expected):
     "sort,expected",
     [
         ("date_desc", ["courses.event_date DESC NULLS LAST", "courses.name", "courses.id"]),
-        ("name", ["courses.name ASC", "courses.event_date DESC", "courses.id"]),
+        ("name", ["courses.name ASC", "courses.event_date DESC NULLS LAST", "courses.id"]),
     ],
 )
 def test_sqlite_avec_recherche_ignore_la_similarite(db_session, sort, expected):
@@ -88,7 +88,7 @@ def test_sqlite_avec_recherche_ignore_la_similarite(db_session, sort, expected):
     [
         ("date_desc", ["courses.event_date DESC NULLS LAST", "courses.name", "courses.id"]),
         ("date_asc", ["courses.event_date ASC NULLS LAST", "courses.name", "courses.id"]),
-        ("name", ["courses.name ASC", "courses.event_date DESC", "courses.id"]),
+        ("name", ["courses.name ASC", "courses.event_date DESC NULLS LAST", "courses.id"]),
         ("imported_desc", ["courses.created_at DESC", "courses.name", "courses.id"]),
     ],
 )
@@ -103,7 +103,7 @@ def test_postgres_sans_recherche(pg_session, sort, expected):
     [
         ("date_desc", ["courses.event_date DESC NULLS LAST", "courses.name"]),
         ("date_asc", ["courses.event_date ASC NULLS LAST", "courses.name"]),
-        ("name", ["courses.name ASC", "courses.event_date DESC"]),
+        ("name", ["courses.name ASC", "courses.event_date DESC NULLS LAST"]),
         ("imported_desc", ["courses.created_at DESC", "courses.name"]),
     ],
 )

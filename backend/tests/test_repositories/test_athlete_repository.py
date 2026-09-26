@@ -784,6 +784,38 @@ def test_club_composition_prend_la_categorie_de_la_derniere_participation(db_ses
     assert lignes == [(ath.gender, "V2")]
 
 
+def test_club_composition_ranks_undated_races_last_on_every_dialect(db_session):
+    """PostgreSQL puts NULLs first on DESC: the order must say NULLS LAST (#1051)."""
+    from sqlalchemy import event
+
+    ath = athlete_repository.get_or_create(db_session, nom="BRUNO", prenom="B", club="TCN")
+    datee = course_repository.get_or_create(
+        db_session, name="Datée", event_date=date(2024, 5, 16), event_type="triathlon-m"
+    )
+    sans_date = course_repository.get_or_create(
+        db_session, name="Sans date", event_date=None, event_type="triathlon-m"
+    )
+    _part(db_session, ath, datee, "1", category="V1")
+    _part(db_session, ath, sans_date, "2", category="V9")
+    db_session.flush()
+
+    requetes: list[str] = []
+
+    def _noter(conn, cursor, statement, parameters, context, executemany):
+        requetes.append(statement)
+
+    engine = db_session.get_bind()
+    event.listen(engine, "before_cursor_execute", _noter)
+    try:
+        lignes = athlete_repository.club_composition(db_session)
+    finally:
+        event.remove(engine, "before_cursor_execute", _noter)
+
+    assert lignes == [(ath.gender, "V1")]
+    fenetre = next(r for r in requetes if "row_number()" in r)
+    assert "courses.event_date DESC NULLS LAST" in fenetre
+
+
 def test_club_composition_exclut_hors_club(db_session):
     exterieur = athlete_repository.get_or_create(
         db_session, nom="DEHORS", prenom="D", club="Un Autre Club"
