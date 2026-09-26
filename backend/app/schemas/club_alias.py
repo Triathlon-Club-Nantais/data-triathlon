@@ -1,7 +1,7 @@
 """DTO du registre d'alias de club (#635)."""
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ClubAliasOut(BaseModel):
@@ -19,5 +19,7 @@ class ClubAliasList(BaseModel):
 
 
 class ClubAliasIn(BaseModel):
-    canonical_name: str
-    alias: str
+    # Borne des colonnes `String(120)` : SQLite l'ignore, PostgreSQL levait
+    # une 500 au flush (#1121). La normalisation ne fait que raccourcir.
+    canonical_name: str = Field(max_length=120)
+    alias: str = Field(max_length=120)

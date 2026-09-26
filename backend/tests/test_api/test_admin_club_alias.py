@@ -160,3 +160,22 @@ def test_un_compte_sans_le_pouvoir_est_refuse(client, db_session):
     client.cookies.set(session_cookie_name(get_settings()), jeton)
 
     assert client.get(BASE).status_code == 403
+
+
+
+# --- Borne de 120 caractères, celle des colonnes (#1121) ---------------------
+
+
+def test_l_ajout_accepte_120_caracteres(client):
+    reponse = client.post(BASE, json={"canonical_name": "C" * 120, "alias": "a" * 120})
+
+    assert reponse.status_code == 201
+
+
+def test_l_ajout_refuse_un_alias_de_121_caracteres(client):
+    """SQLite ignore la longueur du VARCHAR ; PostgreSQL levait une 500 au flush."""
+    assert client.post(BASE, json={"canonical_name": "RCN", "alias": "a" * 121}).status_code == 422
+
+
+def test_l_ajout_refuse_un_nom_canonique_de_121_caracteres(client):
+    assert client.post(BASE, json={"canonical_name": "C" * 121, "alias": "rcn"}).status_code == 422
