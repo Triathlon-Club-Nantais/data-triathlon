@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class NoOrganisationError(DomainError):
-    """Patron `services/auth/groups.NoOrganisationError` — aucune définition
+    """Patron `services/auth/authorization.NoOrganisationError` — aucune définition
     partagée entre les deux modules : chaque domaine RBAC porte la sienne,
     comme `GroupSlugTakenError`/`GroupInUseError` ne sont pas partagées non
     plus. Une base sans organisation ne devrait jamais se produire en

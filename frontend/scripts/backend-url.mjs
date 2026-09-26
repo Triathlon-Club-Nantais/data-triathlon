@@ -59,7 +59,8 @@ export async function isPortAlive(port, host = CLIENT_HOST, timeoutMs = PROBE_TI
     const reponse = await fetch(`http://${host}:${port}/api/v1/health`, {
       signal: AbortSignal.timeout(timeoutMs),
     });
-    return reponse.ok;
+    // 503 : notre backend répond, sa base manque (#1070). Il est bien vivant.
+    return reponse.ok || reponse.status === 503;
   } catch {
     return false;
   }
