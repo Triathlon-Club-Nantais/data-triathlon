@@ -112,6 +112,20 @@ describe("SiteAccessConfig", () => {
     expect(toastSuccess).toHaveBeenCalled();
   });
 
+  it("requires 12 characters and recommends generation for a typed password", async () => {
+    getSiteAccessConfig.mockResolvedValue({
+      configured: false,
+      updated_at: null,
+      updated_by: null,
+    });
+    afficher();
+    await screen.findByText(/non configuré/i);
+
+    const champ = screen.getByLabelText(/nouveau mot de passe/i);
+    expect(champ).toHaveAttribute("minLength", "12");
+    expect(champ).toHaveAccessibleDescription(/12 caractères.*générer/i);
+  });
+
   it("le remplacement se confirme avant d'invalider les sessions ouvertes", async () => {
     getSiteAccessConfig.mockResolvedValue({
       configured: true,

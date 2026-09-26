@@ -9,6 +9,11 @@ from pydantic import BaseModel, Field
 
 from app.schemas.site_access import MAX_PASSWORD_LENGTH
 
+#: Seul le secret **généré** (144 bits) rend la force brute hors sujet ; un
+#: secret saisi n'est borné que par sa longueur (#1020). Même valeur que
+#: `minLength` de `SiteAccessConfig.tsx`.
+MIN_TYPED_PASSWORD_LENGTH = 12
+
 
 class SiteAccessConfigOut(BaseModel):
     """État courant — **jamais** le mot de passe ni son empreinte."""
@@ -26,7 +31,7 @@ class SiteAccessReplaceIn(BaseModel):
     tout le monde dehors (relevé en revue de #513, cf. `MAX_PASSWORD_LENGTH`).
     """
 
-    password: str = Field(min_length=8, max_length=MAX_PASSWORD_LENGTH)
+    password: str = Field(min_length=MIN_TYPED_PASSWORD_LENGTH, max_length=MAX_PASSWORD_LENGTH)
 
 
 class SiteAccessGeneratedOut(BaseModel):

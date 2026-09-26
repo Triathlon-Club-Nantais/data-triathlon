@@ -183,7 +183,9 @@ PUBLIC_WRITE_RATE_LIMIT_WINDOW_SECONDS = 3600
 #: derrière un NAT tout en gardant le plafond qui compte : `hashlib.scrypt`
 #: (~16 Mo, 50-100 ms CPU) tourne à chaque tentative, avant même de savoir si
 #: le mot de passe est bon — c'est le levier de déni de service que ce seau
-#: ferme, la force brute n'étant pas le sujet sur un secret généré à 144 bits.
+#: ferme. La force brute, elle, est bornée par le secret : hors sujet sur un
+#: secret généré (144 bits), bornée par la longueur minimale d'un secret saisi
+#: (`MIN_TYPED_PASSWORD_LENGTH`, #1020).
 SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW = 60
 SITE_ACCESS_RATE_LIMIT_WINDOW_SECONDS = 3600
 
