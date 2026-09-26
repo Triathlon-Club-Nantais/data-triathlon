@@ -79,6 +79,24 @@ def test_list_events_counts_tcn(db_session):
     assert event["is_relay"] is False
 
 
+def test_list_events_item_carries_date_type_and_distance(db_session):
+    """`EventOut` defaults would hide a misspelled key behind a 200 (#1106)."""
+    course = course_repository.get_or_create(
+        db_session, name="Tri de Vertou", event_date=date(2026, 6, 7),
+        event_type="triathlon-s", distance_km=25.75,
+    )
+    athlete = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean", club="TCN")
+    participation_repository.create(db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1", club="TCN")
+    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
+    db_session.flush()
+
+    (event,) = stats_service.list_events(db_session)["items"]
+
+    assert event["event_date"] == "2026-06-07"
+    assert event["event_type"] == "triathlon-s"
+    assert event["distance_km"] == 25.75
+
+
 def test_get_stats_filtre_par_saison(db_session):
     a1 = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean", club="TCN")
     c_2025 = course_repository.get_or_create(
@@ -151,11 +169,13 @@ def test_get_stats_rank_counters_emboitement_victoires_podiums_top10(db_session)
     """victoires ≤ podiums ≤ top10, même invariant que côté front (issue #77)."""
     _participation_rang(db_session, rank_overall=1)
     _participation_rang(db_session, rank_overall=3)
+    _participation_rang(db_session, rank_overall=4)   # première borne exclue du podium (#1106)
     _participation_rang(db_session, rank_overall=10)
+    _participation_rang(db_session, rank_overall=11)  # première borne exclue du top 10
     _participation_rang(db_session, rank_overall=200)
 
     scratch = stats_service.get_stats(db_session)["rank_counters"]["scratch"]
-    assert scratch == {"victories": 1, "podiums": 2, "top10": 3}
+    assert scratch == {"victories": 1, "podiums": 2, "top10": 4}
 
 
 def test_get_stats_rank_counters_all_prend_le_min_des_trois(db_session):
@@ -993,3 +1013,20 @@ def test_un_relais_attribue_a_deux_adherents_compte_une_fois_pour_le_club(db_ses
 
     assert stats["rank_counters"]["scratch"]["podiums"] == 1
     assert (stats["total"], stats["athletes"], stats["events"]) == (1, 2, 1)
+
+
+def test_course_summary_counts_the_rows_whose_split_gap_is_evaluable(db_session):
+    """`split_gap_rows` feeds the sample-size guard of the gap display (#1106)."""
+    complets = {"swim": "00:20:00", "t1": "00:02:00", "bike": "01:00:00", "t2": "00:01:00", "run": "00:37:00"}
+    course = _epreuve(
+        db_session,
+        [
+            ("A", "Un", "M", "ASPTT", None, "finisher", "02:00:00", complets),
+            ("B", "Deux", "M", "ASPTT", None, "finisher", "02:10:00", complets),
+            ("C", "Trois", "M", "ASPTT", None, "finisher", "02:20:00", {"swim": "00:20:00"}),
+        ],
+    )
+
+    synthese = stats_service.course_summary(db_session, course.id)
+
+    assert synthese["split_gap_rows"] == 2
