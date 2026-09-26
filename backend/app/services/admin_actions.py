@@ -1313,6 +1313,8 @@ def season_quota(db: Session, *, athlete_id: int, season: int) -> dict:
     synchronisée si l'une des deux change (#845 : un DNS ou une discipline hors
     FFTRI ne doit pas compter dans les 3 épreuves requises).
     """
+    # Comme `validate_season` : un quota « vide » masquait un identifiant faux (#1054).
+    _athlete_or_404(db, athlete_id)
     participations = participation_repository.list_for_athlete(
         db, athlete_id, seasons=[season], federal_only=True
     )

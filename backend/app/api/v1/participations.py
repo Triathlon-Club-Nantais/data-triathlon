@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import optional_user, public_write_rate_limit, require_permission
+from app.api.deps import MAX_PAGE, optional_user, public_write_rate_limit, require_permission
 from app.core.analytics import ANONYMOUS_DISTINCT_ID, capture_event
 from app.core.club import is_club_scope
 from app.core.database import get_db
@@ -112,7 +112,7 @@ def list_participations(
         False,
         description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
     ),
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     page_size: int = Query(20, ge=1, le=5000),
     db: Session = Depends(get_db),
 ):

@@ -8,7 +8,7 @@ Couche mince. Aucune de ces routes ne s'exécute longuement — la plus lente
 télécharge un artefact de quelques kilo-octets — et aucune n'écrit en base : le
 service web ne porte jamais le batch (FR-013).
 """
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 
 from app.api.deps import require_permission
 from app.core.analytics import capture_event
@@ -219,7 +219,7 @@ async def launch_batch_from_file(
 
 @router.get("/admin/batches", response_model=list[BatchRunRead])
 def list_batches(
-    limit: int = 20,
+    limit: int = Query(20, ge=1, le=50),
     _: User = Depends(require_permission(P.BATCH_READ)),
 ):
     """Les derniers lancements, le plus récent d'abord.
@@ -227,7 +227,7 @@ def list_batches(
     Une plateforme injoignable ressort en 503, jamais en liste vide — qui se
     lirait « aucun lancement » alors que l'information est indisponible.
     """
-    return batch_runs.list_runs(get_settings(), limit=min(limit, 50))
+    return batch_runs.list_runs(get_settings(), limit=limit)
 
 
 @router.get("/admin/batches/{run_id}/report")

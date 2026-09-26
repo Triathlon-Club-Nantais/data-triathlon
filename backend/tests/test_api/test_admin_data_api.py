@@ -22,6 +22,7 @@ from app.repositories import (
     course_repository,
     participation_repository,
     role_repository,
+    season_validation_repository,
     user_repository,
     user_role_repository,
 )
@@ -1173,3 +1174,60 @@ def test_attribuer_sans_le_pouvoir_rend_403(client, db_session, relais):
     )
 
     assert reponse.status_code == 403
+
+
+
+# --- Bornes des paramètres entiers (#1054) -----------------------------------
+
+
+@pytest.mark.parametrize("saison", [0, 9999, 10000])
+def test_season_quota_rejects_an_out_of_range_season(client, db_session, coureur, saison):
+    _session_etroite(client, db_session, P.ATHLETES_SEASON_VALIDATE)
+
+    reponse = client.get(
+        f"/api/v1/admin/athletes/{coureur.id}/season-quota", params={"season": saison}
+    )
+
+    assert reponse.status_code == 422
+
+
+def test_season_quota_of_an_unknown_athlete_is_a_404(client, db_session):
+    _session_etroite(client, db_session, P.ATHLETES_SEASON_VALIDATE)
+
+    reponse = client.get("/api/v1/admin/athletes/999999/season-quota", params={"season": 2025})
+
+    assert reponse.status_code == 404
+
+
+def test_validating_an_absurd_season_is_refused_and_nothing_is_stored(client, db_session, coureur):
+    _session_etroite(client, db_session, P.ATHLETES_SEASON_VALIDATE)
+
+    reponse = client.post(
+        f"/api/v1/admin/athletes/{coureur.id}/season-validations", json={"season": 99999}
+    )
+
+    assert reponse.status_code == 422
+    assert season_validation_repository.get_for_athlete_season(
+        db_session, athlete_id=coureur.id, season=99999
+    ) is None
+
+
+def test_unvalidating_an_absurd_season_is_refused(client, db_session, coureur):
+    _session_etroite(client, db_session, P.ATHLETES_SEASON_VALIDATE)
+
+    reponse = client.delete(f"/api/v1/admin/athletes/{coureur.id}/season-validations/99999")
+
+    assert reponse.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "chemin",
+    [
+        "/api/v1/participations",
+        "/api/v1/courses",
+        "/api/v1/courses/events",
+        "/api/v1/athletes",
+    ],
+)
+def test_public_pagination_rejects_an_overflowing_page(client, chemin):
+    assert client.get(chemin, params={"page": 10**20}).status_code == 422

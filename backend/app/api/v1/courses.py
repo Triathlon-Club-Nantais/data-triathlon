@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.orm import Session
 
+from app.api.deps import MAX_PAGE
 from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
@@ -42,7 +43,7 @@ def list_events(
         description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
     ),
     sort: Literal["date_desc", "date_asc", "name", "imported_desc"] = Query("date_desc"),
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     page_size: int = Query(30, ge=1, le=200),
     db: Session = Depends(get_db),
 ):
@@ -77,7 +78,7 @@ def list_courses(
         False,
         description="Ne garde que les épreuves à revalider (indice de fiabilité défavorable).",
     ),
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     page_size: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
@@ -214,7 +215,7 @@ def list_course_sources(course_id: int, db: Session = Depends(get_db)):
 @router.get("/courses/{course_id}", response_model=CourseParticipationPage)
 def get_course(
     course_id: int,
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     page_size: int | Literal["all"] = Query(
         20, description="Taille de tranche, ou « all » pour le classement entier."
     ),

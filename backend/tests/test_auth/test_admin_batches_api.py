@@ -84,6 +84,14 @@ def test_sans_le_pouvoir_la_consultation_est_refusee(client, ouvrir_session):
     assert client.get(URL).status_code == 403
 
 
+@pytest.mark.parametrize("limite", [-1, 0, 51])
+def test_listing_rejects_an_out_of_range_limit(client, ouvrir_session, plateforme, limite):
+    """Never forwarded to GitHub as `per_page` (#1054)."""
+    ouvrir_session(P.BATCH_READ)
+
+    assert client.get(URL, params={"limit": limite}).status_code == 422
+
+
 def test_un_second_batch_est_refuse_pendant_qu_un_autre_tourne(
     client, ouvrir_session, plateforme
 ):
