@@ -267,7 +267,7 @@ comportement documenté ci-dessous.
 
 **Si `db_choice = sqlite`** :
 ```bash
-task b:reset-db --yes   # ou: cd backend && uv run python scripts/reset_db.py --yes
+task b:reset-db -- --yes   # ou: cd backend && uv run python scripts/reset_db.py --yes
 ```
 
 Vérification : `[ -f backend/triathlon.db ] && [ $(stat -c%s
