@@ -345,9 +345,25 @@ def delete_orphans_among(db: Session, athlete_ids: list[int] | None = None) -> l
     orphan_ids = [identifiant for (identifiant,) in requete.all()]
     if not orphan_ids:
         return []
-    # "fetch" purge l'identity map pour que get() retombe à None après suppression
-    db.query(Athlete).filter(Athlete.id.in_(orphan_ids)).delete(synchronize_session="fetch")
-    return orphan_ids
+    # Le DELETE revérifie l'absence de participation : un import concurrent a
+    # pu en insérer une entre les deux requêtes (#1100). "fetch" purge
+    # l'identity map pour que get() retombe à None après suppression.
+    supprimes = [
+        identifiant
+        for (identifiant,) in db.query(Athlete.id)
+        .filter(Athlete.id.in_(orphan_ids))
+        .filter(~exists().where(Participation.athlete_id == Athlete.id))
+        .filter(~exists().where(ParticipationTeammate.athlete_id == Athlete.id))
+        .all()
+    ]
+    if not supprimes:
+        return []
+    db.query(Athlete).filter(
+        Athlete.id.in_(supprimes),
+        ~exists().where(Participation.athlete_id == Athlete.id),
+        ~exists().where(ParticipationTeammate.athlete_id == Athlete.id),
+    ).delete(synchronize_session="fetch")
+    return supprimes
 
 
 def delete_orphans(db: Session) -> int:

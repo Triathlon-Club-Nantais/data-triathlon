@@ -154,6 +154,10 @@ def render_rescrape_report(outcome: RescrapeOutcome, *, dry_run: bool) -> str:
         lignes.extend(_lignes_echecs(outcome))
         lignes.extend(_lignes_sources_passives(outcome))
     lignes.extend(_lignes_reconciliation(outcome))
+    if outcome.orphan_purge_failed:
+        lignes.append(
+            "Purge des athlètes orphelins : échec (import concurrent), rattrapée au prochain run."
+        )
     return "\n".join(lignes)
 
 
