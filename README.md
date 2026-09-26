@@ -295,7 +295,7 @@ data-triathlon/
 │   ├── Dockerfile
 │   └── README.md
 ├── frontend/                    # Next.js 16 (App Router) + TypeScript + Tailwind + shadcn/ui
-│   ├── app/                     # dashboard, resultats, athletes/[id], courses/[id], club, carte, ajouter, admin
+│   ├── app/                     # (public_restricted)/ : pages gardées par le code d'accès ; admin, login, acces, benevoles
 │   ├── components/              # scrape/, results/, club/, map/, dashboard/, charts/, ui/ (shadcn)
 │   ├── lib/                     # client API (/api/v1), sse.ts, types partagés
 │   ├── next.config.ts           # rewrites /api → backend, output standalone (Docker)
