@@ -233,6 +233,44 @@ describe("EventList", () => {
     expect(screen.getByText(/importez une épreuve/i)).toBeInTheDocument();
   });
 
+  it("surfaces a failed next page and only retries on demand (#1039)", async () => {
+    const original = globalThis.IntersectionObserver;
+    // Sentinelle visible : l'observateur rappelle dès `observe()`.
+    globalThis.IntersectionObserver = class {
+      constructor(private cb: IntersectionObserverCallback) {}
+      observe() {
+        this.cb([{ isIntersecting: true } as IntersectionObserverEntry], this as never);
+      }
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof IntersectionObserver;
+    const fetchNextPage = vi.fn();
+    setEvents({
+      data: {
+        pages: [
+          {
+            items: [{ id: 1, event_name: "Tri A", event_date: "2026-06-01", event_type: "triathlon-s", distance_km: null, is_relay: false, total: 10, tcn_count: 1 }],
+            total_events: 40,
+            total_participations: 10,
+          },
+        ],
+      },
+      fetchNextPage,
+      hasNextPage: true,
+      isFetchingNextPage: false,
+      isFetchNextPageError: true,
+      isLoading: false,
+    });
+
+    renderList();
+
+    expect(screen.getByText("Impossible de charger la suite des épreuves.")).toBeInTheDocument();
+    expect(fetchNextPage).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Réessayer" }));
+    expect(fetchNextPage).toHaveBeenCalledTimes(1);
+    globalThis.IntersectionObserver = original;
+  });
+
   it("tells an empty filtered search apart and offers to clear the filters (#1038)", async () => {
     searchParams = new URLSearchParams("event_name=Mesqer&scope=club&seasons=2025&sort=date_desc");
     setEvents({
