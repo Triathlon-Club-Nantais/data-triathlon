@@ -301,7 +301,9 @@ def course_summary(db: Session, course_id: int) -> dict:
         elif initiale in ("m", "h"):
             male += 1
 
-        if category and category.strip():
+        # Un libellé sans lettre ni chiffre (« - », « --- ») est le remplissage
+        # d'une catégorie inconnue, pas une catégorie (#1113).
+        if category and any(c.isalnum() for c in category):
             categories[category.strip()] += 1
         if club and club.strip():
             # Les variantes de libellé d'un même club (« TRI CLUB NANTAIS »,
