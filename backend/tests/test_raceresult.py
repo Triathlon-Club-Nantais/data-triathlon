@@ -340,6 +340,8 @@ def _champs_rumilly() -> dict:
 
 @pytest.mark.parametrize("expr,attendu", [
     ("OuStatut([ClassementGénéral.P])", "classementgeneral.p"),
+    # #1094 : nom anglais de `OuStatut` (Embrunman, 350635).
+    ("OrStatus([TIME])", "time"),
     ("ucase([CLUB])", "club"),
     ("AfficherNom", "affichernom"),
     ("[Course.OVERALL.P] ", "course.overall.p"),
@@ -682,6 +684,7 @@ def test_map_columns_gere_un_fields_vide_ou_absent():
     ("LFNAME", "nom"),
     ("DisplayNameAsterisk", "nom"),
     ("TempsOuStatut", "temps"),
+    ("OrStatus([TIME])", "temps"),  # #1094 : le chrono publié finissait en raw_data
     ("Format([TempsFinal.DECIMAL];\"hh:mm:ss\")", "temps"),
     ("Arrivée.CHIP", "temps"),
     ("CLUB", "club"),
