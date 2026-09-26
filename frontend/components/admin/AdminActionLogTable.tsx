@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import {
   Table,
   TableBody,
@@ -15,7 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useAdminActionLog, TAILLE_PAGE_JOURNAL } from "@/lib/queries/admin";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDateTime } from "@/lib/utils/date";
-import { actionLabel, formatPayload } from "@/lib/admin-action-log";
+import { actionLabel, detailLines } from "@/lib/admin-action-log";
 
 const REFUS = { sujet: "gestes d'administration", action: "consulter le journal" };
 
@@ -67,9 +68,16 @@ export function AdminActionLogTable() {
                 <TableCell>{entree.user_name}</TableCell>
                 <TableCell>{actionLabel(entree.action)}</TableCell>
                 <TableCell className="text-sm text-[var(--tcn-text-faint)]">
-                  {formatPayload(entree.payload).map(({ label, value }, i) => (
+                  {detailLines(entree).map(({ label, value, href }, i) => (
                     <div key={i}>
-                      {label} : {value}
+                      {label} :{" "}
+                      {href ? (
+                        <Link href={href} className="text-accent-ink hover:underline">
+                          {value}
+                        </Link>
+                      ) : (
+                        value
+                      )}
                     </div>
                   ))}
                 </TableCell>
