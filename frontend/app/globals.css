@@ -541,6 +541,20 @@
       font-size: 15px;
     }
   }
+  /* Cible tactile des contrôles publics fréquents (#1079) : 44px sous md, le
+     seuil au doigt que la coquille se donne déjà (AppNav, LigneCarte), et le
+     plancher de 28px de #479 au-delà. Une classe plutôt qu'un `minHeight` en
+     ligne, qui l'emporterait sur la media query. */
+  .tcn-cible-tactile {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  @media (min-width: 768px) {
+    .tcn-cible-tactile {
+      min-height: 28px;
+      min-width: 0;
+    }
+  }
   /* Bouton posé **dans** un champ TCN (effacer, coller) : 44px de cible
      tactile, le seuil au doigt, sans agrandir la boîte — le champ resserre son
      rembourrage vertical dès qu'il porte des actions (#492, ACT-5). */

@@ -292,3 +292,16 @@ describe("échelle des disciplines", () => {
     }
   });
 });
+
+describe("cible tactile publique (#1079)", () => {
+  it("porte 44 px sous md", () => {
+    const cible = rule(".tcn-cible-tactile");
+    expect(cible).toContain("min-height: 44px");
+    expect(cible).toContain("min-width: 44px");
+  });
+
+  it("redescend au plancher de 28 px à partir de md", () => {
+    const bureau = /@media\s*\(min-width:\s*768px\)\s*\{\s*\.tcn-cible-tactile\s*\{([^}]*)\}/.exec(css);
+    expect(bureau?.[1]).toContain("min-height: 28px");
+  });
+});

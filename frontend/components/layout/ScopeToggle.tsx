@@ -60,7 +60,7 @@ function Segment({
       title={title}
       aria-pressed={active}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
+        "tcn-cible-tactile inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
         active
           ? "bg-primary text-primary-foreground"
           : "text-[var(--tcn-text-faint)] hover:text-foreground",
