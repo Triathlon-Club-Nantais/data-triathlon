@@ -471,3 +471,51 @@ def test_lister_les_roles_tient_en_un_nombre_de_requetes_fixe_quel_que_soit_le_n
     # agrégée). Avant #625 : 1 + 3 + 1 + (2 requêtes par rôle listé) — un
     # sixième rôle en plus aurait fait grimper ce total, ici il ne bouge pas.
     assert len(requetes) == 7, requetes
+
+
+
+# --- Organisation inconnue (#1096) --------------------------------------------
+
+
+def test_creating_a_role_in_an_unknown_club_is_a_422(client, ouvrir_session):
+    ouvrir_session(superutilisateur=True)
+
+    reponse = client.post(
+        "/api/v1/admin/roles",
+        json={"slug": "zz", "name": "Z", "organisation_id": 999, "permissions": []},
+    )
+
+    assert reponse.status_code == 422
+    assert reponse.json()["detail"] == "Ce club n'existe pas."
+
+
+def test_granting_a_role_in_an_unknown_club_is_a_422(client, ouvrir_session):
+    ouvrir_session(superutilisateur=True)
+    cible = ouvrir_session(pose_le_cookie=False)
+    role = client.post(
+        "/api/v1/admin/roles",
+        json={"slug": "archivist", "name": "Archiviste", "permissions": []},
+    ).json()
+
+    reponse = client.post(
+        f"/api/v1/admin/users/{cible.id}/roles",
+        json={"role_id": role["id"], "organisation_id": 999},
+    )
+
+    assert reponse.status_code == 422
+    assert client.get(f"/api/v1/admin/roles/{role['id']}").json()["holders"] == 0
+
+
+def test_revoking_a_role_in_an_unknown_club_is_a_422(client, ouvrir_session):
+    ouvrir_session(superutilisateur=True)
+    cible = ouvrir_session(pose_le_cookie=False)
+    role = client.post(
+        "/api/v1/admin/roles",
+        json={"slug": "archivist", "name": "Archiviste", "permissions": []},
+    ).json()
+
+    reponse = client.delete(
+        f"/api/v1/admin/users/{cible.id}/roles/{role['id']}", params={"organisation_id": 999}
+    )
+
+    assert reponse.status_code == 422

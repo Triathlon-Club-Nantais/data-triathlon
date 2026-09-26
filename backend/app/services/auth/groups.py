@@ -24,7 +24,8 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import DomainError, NotFoundError
 from app.models.group import Group
 from app.models.user import User
-from app.repositories import group_repository, role_repository, user_repository
+from app.repositories import group_repository, user_repository
+from app.services.auth.authorization import existing_organisation
 
 logger = logging.getLogger(__name__)
 
@@ -45,11 +46,6 @@ class GroupInUseError(DomainError):
 
     status_code = 409
     message = "Ce groupe compte encore des membres. Retirez-les d'abord."
-
-
-class NoOrganisationError(DomainError):
-    status_code = 422
-    message = "Aucune organisation n'existe."
 
 
 def get_group_or_404(db: Session, group_id: int) -> Group:
@@ -115,7 +111,7 @@ def create_group(
     distribution de **pouvoirs**, et un groupe n'en porte aucun. L'y appeler
     laisserait croire qu'il y a quelque chose à amplifier.
     """
-    club = _existing_organisation(db, organisation_id)
+    club = existing_organisation(db, organisation_id)
     if group_repository.find_in_scope(db, slug=slug, organisation_id=club) is not None:
         raise GroupSlugTakenError()
 
@@ -209,27 +205,3 @@ def remove_member(db: Session, actor: User, *, group: Group, user: User) -> None
     )
 
 
-def _existing_organisation(db: Session, organisation_id: int | None) -> int:
-    """Le club visé — celui demandé s'il existe, le seul en base sinon.
-
-    **L'existence est vérifiée**, et ce n'est pas une précaution de style :
-    `core/database.py` n'émet aucun `PRAGMA foreign_keys=ON`, donc un
-    `organisation_id` fantaisiste passerait en SQLite (développement et toute la
-    suite de tests) et lèverait une violation de clé étrangère non attrapée en
-    PostgreSQL. Un chemin d'écriture exposé qui diverge entre les deux moteurs
-    est le pire des trois états possibles.
-
-    Passe par `role_repository`, où vivent les accesseurs d'`Organisation`
-    depuis #115. Les redéclarer ici en ferait une seconde définition de « quel
-    club » — exactement le genre de divergence que le dépôt paie ailleurs
-    (`is_tcn`, #76).
-    """
-    if organisation_id is not None:
-        if role_repository.get_organisation(db, organisation_id) is None:
-            raise NoOrganisationError("Ce club n'existe pas.")
-        return organisation_id
-
-    organisation = role_repository.default_organisation(db)
-    if organisation is None:
-        raise NoOrganisationError()
-    return organisation.id
