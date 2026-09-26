@@ -73,6 +73,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Miroir de `uv audit` côté backend, borné au runtime : une alerte sur
+      # l'outillage de dev (eslint, shadcn) ne bloque pas une PR (#1022).
+      - name: Audit des dépendances (npm audit)
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Lint (eslint)
         run: npm run lint
 
