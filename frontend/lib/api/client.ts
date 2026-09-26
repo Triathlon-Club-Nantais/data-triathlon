@@ -128,17 +128,34 @@ export function attenteRetryAfter(res: Response): number | null {
   return Number.isFinite(attente) && attente > 0 ? attente : null;
 }
 
+/** Repli d'un 5xx sans `detail` lisible : en HTTP/2, `statusText` est vide et
+ *  « Erreur réseau » accusait la connexion du visiteur à tort (#1045). */
+const SERVICE_INDISPONIBLE = "Le service est momentanément indisponible. Réessayez dans un instant.";
+const ERREUR_RESEAU = "Erreur réseau : vérifiez votre connexion puis réessayez.";
+
 async function erreurDeReponse(res: Response): Promise<ApiError> {
-  const err = await res.json().catch(() => ({ detail: res.statusText }));
+  const repli = res.status >= 500 ? SERVICE_INDISPONIBLE : res.statusText;
+  const err = await res.json().catch(() => ({ detail: null }));
   return new ApiError(
     res.status,
-    messageDErreur(err.detail, res.statusText),
+    messageDErreur(err.detail, repli),
     res.status === 429 ? attenteRetryAfter(res) : null,
   );
 }
 
+/** `fetch` rejette une `TypeError` sur coupure réseau, dont le message est
+ *  celui du navigateur, en anglais : elle devient une `ApiError` de statut 0. */
+async function envoyer(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (erreur) {
+    if (erreur instanceof TypeError) throw new ApiError(0, ERREUR_RESEAU);
+    throw erreur;
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await envoyer(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json", ...(options.headers ?? {}) },
     ...options,
   });
@@ -157,7 +174,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
  * **aucun** `Content-Type` ici — c'est au navigateur de le composer.
  */
 async function upload<T>(path: string, form: FormData): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, { method: "POST", body: form });
+  const res = await envoyer(`${BASE}${path}`, { method: "POST", body: form });
   if (!res.ok) throw await erreurDeReponse(res);
   return res.json() as Promise<T>;
 }

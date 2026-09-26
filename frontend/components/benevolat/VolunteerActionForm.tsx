@@ -3,7 +3,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button, Card, Input } from "@/components/tcn";
 import { useDebounce } from "@/hooks/useDebounce";
-import { apiClient } from "@/lib/api/client";
+import { ApiError, apiClient } from "@/lib/api/client";
 import { useCreateVolunteerAction } from "@/lib/queries/volunteer-actions";
 import type { AthleteBrief } from "@/lib/types";
 
@@ -98,7 +98,11 @@ export function VolunteerActionForm() {
       setDescription("");
       toast.success("Déclaration enregistrée, en attente de validation.");
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(
+        e instanceof ApiError
+          ? e.message
+          : "Enregistrement impossible pour le moment. Réessayez dans un instant.",
+      );
     }
   }
 
