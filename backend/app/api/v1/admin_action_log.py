@@ -11,7 +11,7 @@ La garde est posée **sur la route**, jamais sur le préfixe (#115, FR-018) :
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import MAX_PAGE, require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
@@ -38,7 +38,7 @@ def _redacted_payload(payload: dict | None) -> dict | None:
 
 @router.get("/admin/action-log", response_model=AdminActionLogPage)
 def list_action_log(
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.ADMIN_LOG_READ)),
