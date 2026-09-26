@@ -480,10 +480,11 @@ class ChronoplaceProvider(FanoutProvider):
         on_heat_start: Callable[[str, str, int, int], None] | None = None,
         single_heat: bool = False,
     ) -> list[ScrapedResult]:
-        """Fan-out par défaut ; `single_heat=True` (#698) retombe sur l'épreuve
-        visée par l'URL seule, sans ses onglets sœurs — même patron que
-        `ChronoWebProvider.scrape_event_all`. Chronoplace n'a pas de sélecteur
-        de sous-unité dans l'URL : `targets_single_heat` reste le défaut
+        """Fan-out par défaut ; `single_heat=True` (#698) retombe sur le scrape
+        historique, qui rend **toutes** les épreuves de l'événement, sans
+        `cache_probe` ni `on_heat_start`, avec une `FanoutTrace` vide — même
+        patron que `ChronoWebProvider.scrape_event_all` (#1120). Chronoplace
+        n'a pas de sélecteur de sous-unité dans l'URL : `targets_single_heat` reste le défaut
         `False` de `FanoutProvider`, comme Wiclax, RaceResult, OkTime,
         Sporthive et ChronoWeb — les 5 autres providers fan-out sans sélecteur
         d'URL (les noms plutôt qu'un compte : un compte se périme en silence au
