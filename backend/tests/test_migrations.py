@@ -756,3 +756,23 @@ def test_downgrade_puis_upgrade_des_timestamps_de_validation(sqlite_url):
 
     command.upgrade(cfg, "head")
     assert {"validated_at", "rejected_at"} <= _columns(sqlite_url, "participations")
+
+
+def _index_names(url: str, table: str) -> set[str]:
+    engine = sa.create_engine(url)
+    try:
+        return {i["name"] for i in sa.inspect(engine).get_indexes(table)}
+    finally:
+        engine.dispose()
+
+
+def test_downgrade_then_upgrade_of_the_course_source_url_index(sqlite_url):
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    assert "ix_course_sources_url_active" in _index_names(sqlite_url, "course_sources")
+
+    command.downgrade(cfg, "c10f3d7ae85e")
+    assert "ix_course_sources_url_active" not in _index_names(sqlite_url, "course_sources")
+
+    command.upgrade(cfg, "head")
+    assert "ix_course_sources_url_active" in _index_names(sqlite_url, "course_sources")
