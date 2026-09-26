@@ -475,7 +475,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             </SheetTitle>
             {/* Seul contrôle de fermeture exposé à un lecteur d'écran : le voile
                 ne l'est pas, et Échap manque sur téléphone (#1116). */}
-            <SheetClose aria-label="Fermer le menu" style={{ ...carre, marginLeft: "auto" }}>
+            <SheetClose aria-label="Fermer le menu" className="tcn-icon-btn" style={{ ...carre, marginLeft: "auto" }}>
               <X size={20} />
             </SheetClose>
           </div>

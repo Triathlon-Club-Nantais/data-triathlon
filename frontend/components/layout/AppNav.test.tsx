@@ -811,7 +811,10 @@ describe("AppNav — actions primaires", () => {
     await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
     const tiroir = await screen.findByRole("dialog");
 
-    await userEvent.click(within(tiroir).getByRole("button", { name: "Fermer le menu" }));
+    const fermer = within(tiroir).getByRole("button", { name: "Fermer le menu" });
+    // Anneau de focus opaque (3,32:1), pas le halo universel à 1,86:1.
+    expect(fermer).toHaveClass("tcn-icon-btn");
+    await userEvent.click(fermer);
 
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
