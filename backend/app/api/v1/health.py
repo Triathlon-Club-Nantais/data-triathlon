@@ -2,6 +2,7 @@
 import logging
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -14,15 +15,19 @@ router = APIRouter(tags=["health"])
 
 @router.get("/health")
 def health(db: Session = Depends(get_db)):
-    """Renvoie l'état de l'API et de la base de données."""
-    db_ok = True
+    """Renvoie l'état de l'API et de la base de données.
+
+    Base injoignable → 503, pas 200 : le keep-warm et toute supervision ne
+    lisent que le statut HTTP, et sans base aucune page de lecture ne répond
+    (#1070).
+    """
     try:
         db.execute(text("SELECT 1"))
-    except Exception as exc:  # pragma: no cover - dépend de l'infra
+    except Exception as exc:
         logger.warning("Health check DB échoué : %s", exc)
-        db_ok = False
+        return JSONResponse(status_code=503, content={"status": "degraded", "database": False})
 
-    return {"status": "ok" if db_ok else "degraded", "database": db_ok}
+    return {"status": "ok", "database": True}
 
 
 @router.get("/version")
