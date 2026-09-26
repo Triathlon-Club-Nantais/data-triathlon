@@ -88,6 +88,9 @@ export function SiteAccessGate({ apres = "rafraichir" }: { apres?: "rafraichir" 
           <Input
             id="site-password"
             type="text"
+            // Même borne que `MAX_PASSWORD_LENGTH` du backend : au-delà, un 422
+            // Pydantic afficherait son message anglais (#1045).
+            maxLength={200}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             status={erreur ? "error" : "default"}

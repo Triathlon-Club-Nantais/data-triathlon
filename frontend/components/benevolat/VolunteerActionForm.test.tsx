@@ -205,4 +205,23 @@ describe("VolunteerActionForm", () => {
 
     await waitFor(() => expect(toastError).toHaveBeenCalled());
   });
+
+  it("shows a French fallback, not the browser's raw message, on a network failure (#1045)", async () => {
+    searchAthletesConnected.mockResolvedValue([CIBLE]);
+    createVolunteerAction.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    afficher();
+    await userEvent.type(screen.getByLabelText(/athlète/i), "Ker");
+    await waitFor(() => expect(screen.getByText(/Hadrien KERMARREC/)).toBeInTheDocument());
+    await userEvent.click(screen.getByText(/Hadrien KERMARREC/));
+    await userEvent.type(screen.getByLabelText("Titre"), "T");
+    await userEvent.type(screen.getByLabelText("Description"), "D");
+    await userEvent.click(screen.getByRole("button", { name: /déclarer/i }));
+
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith(
+        "Enregistrement impossible pour le moment. Réessayez dans un instant.",
+      ),
+    );
+  });
 });

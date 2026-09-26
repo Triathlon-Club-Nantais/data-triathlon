@@ -21,7 +21,7 @@ const ATTENTE_MAX_429_S = 30;
 const ESSAIS_MAX = 3;
 
 function panneTransitoire(erreur: Error): boolean {
-  if (!(erreur instanceof ApiError)) return true; // coupure réseau
+  if (!(erreur instanceof ApiError) || erreur.status === 0) return true; // coupure réseau
   if (erreur.status === 429) return (erreur.retryAfter ?? 0) <= ATTENTE_MAX_429_S;
   return erreur.status >= 500;
 }
