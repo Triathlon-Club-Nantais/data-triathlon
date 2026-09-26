@@ -27,11 +27,13 @@ que `CourseFichierGpsNom` et on repart de la page 1. Ce n'est pas cosmétique �
 **sous-ensemble** : partir de l'URL telle quelle amputerait silencieusement
 l'import de ses premières pages, donc de ses meilleurs classés. La
 canonicalisation est faite par **allowlist** (reconstruction depuis le seul
-paramètre d'épreuve), pas par soustraction des vues connues. Portée exacte : elle
-fixe le `source_url` des `ScrapedResult`, **pas** la clé du cache TTL —
-`Course.source_url` reçoit l'URL brute passée par `import_service`, donc deux
-graphies d'une même épreuve dans le Sheet la font re-scraper. Vérifié en base :
-une seule `Course`, aucune participation dupliquée.
+paramètre d'épreuve), pas par soustraction des vues connues. Portée exacte :
+depuis #156, `mapping.get_or_create_course` préfère `scraped.source_url`, donc
+l'URL canonique devient aussi `Course.source_url` et les deux graphies d'une même
+épreuve partagent une seule source. La limite réelle est ailleurs : la sonde TTL
+de tête d'`import_service` (`_cached_result`) compare l'URL **soumise**, telle
+quelle, à `CourseSource.url`. Une graphie non canonique (`&page=2`) rate donc ce
+court-circuit et relance un scrape réseau, sans créer de doublon (#1102).
 
 Trois manques structurants, tous assumés. **Aucun dossard** : rien à faire côté
 scraper, le repli anti-doublon par athlète de `import_service` (commit `b49e295`)
