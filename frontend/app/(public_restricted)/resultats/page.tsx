@@ -31,7 +31,13 @@ async function fetchAllEventsForCoverage(
   const items: EventOut[] = [];
   let page = 1;
   for (;;) {
-    const batch = await apiServer.listEvents({ scope, seasons, page, page_size: COVERAGE_PAGE_SIZE });
+    // Même fenêtre que les appels voisins : la couverture ne dépend que de
+    // `scope` et `seasons`, la clé de cache est donc partagée entre les
+    // frappes de la recherche live (#1027).
+    const batch = await apiServer.listEvents(
+      { scope, seasons, page, page_size: COVERAGE_PAGE_SIZE },
+      { revalidateSeconds: SHORT_REVALIDATE_SECONDS },
+    );
     items.push(...batch.items);
     if (items.length >= batch.total_events || batch.items.length === 0) break;
     page += 1;
