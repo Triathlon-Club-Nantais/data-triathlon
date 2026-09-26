@@ -445,6 +445,23 @@ def test_course_summary_merges_club_labels_differing_by_punctuation_or_spacing(d
     ]
 
 
+def test_course_summary_ignores_punctuation_only_category_placeholders(db_session):
+    """ProLiveSport ships « - » for an unknown category: 2 920 rows in production (#1113)."""
+    course = _epreuve(
+        db_session,
+        [
+            ("A", "Un", "M", "ASPTT", "SE", "finisher", None, None),
+            ("B", "Deux", "M", "ASPTT", "-", "finisher", None, None),
+            ("C", "Trois", "M", "ASPTT", "---", "finisher", None, None),
+        ],
+    )
+
+    synthese = stats_service.course_summary(db_session, course.id)
+
+    assert synthese["categories"] == [{"name": "SE", "count": 1}]
+    assert synthese["categories_total"] == 1
+
+
 def test_course_summary_borne_categories_a_8_et_clubs_a_9(db_session):
     lignes = []
     for index in range(12):
