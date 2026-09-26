@@ -14,6 +14,7 @@ from app.models.participation import Participation
 from app.repositories import (
     athlete_repository,
     course_repository,
+    course_source_repository,
     participation_repository,
     user_repository,
 )
@@ -98,6 +99,25 @@ def test_reimport_is_cached_and_skips(db_session, patch_scraper):
     assert out["cached"] is True
     assert out["imported"] == 0
     assert out["skipped"] == 2
+
+
+def test_import_stamps_the_active_source_and_leaves_passive_ones_alone(db_session, patch_scraper):
+    """`course_sources.last_scraped_at` had no writer at all (#1087)."""
+    patch_scraper([_result("1", "DUPONT")])
+    import_service.import_event(db_session, URL, _settings())
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    passive = course_source_repository.add(
+        db_session, course=course, url="https://www.klikego.com/resultats/autre/9", provider="klikego"
+    )
+    course.scraped_at = utcnow() - timedelta(days=40)
+    db_session.flush()
+
+    import_service.import_event(db_session, URL, _settings())
+
+    active = course_source_repository.get_active(db_session, course.id)
+    assert active.last_scraped_at is not None
+    assert active.last_scraped_at >= utcnow() - timedelta(minutes=1)
+    assert passive.last_scraped_at is None
 
 
 def test_reimport_after_cache_dedups_by_bib(db_session, patch_scraper):
