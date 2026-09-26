@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
+import { ApiError } from "@/lib/api/client";
 import { rendreNullSi404 } from "@/lib/api/null-si-404";
 import { idDeRoute } from "@/lib/utils/id-de-route";
 import {
@@ -18,7 +19,7 @@ import { formatDate } from "@/lib/utils/date";
 import { ordinalFr } from "@/lib/utils/format";
 import { Histogram } from "@/components/charts/Histogram";
 import { CategoryBars } from "@/components/charts/CategoryBars";
-import { parseTotalTimeSeconds } from "@/lib/utils/histogram-ticks";
+import { secondsFromHms } from "@/lib/utils/time";
 
 /**
  * Détail d'une participation : la performance de l'athlète confrontée au
@@ -38,10 +39,17 @@ export default async function ParticipationDetailPage({
   const { id, participationId } = await params;
   const courseId = idDeRoute(id);
   // Deux appels indépendants, en parallèle : la synthèse d'épreuve (US2/US3,
-  // #466) ne conditionne jamais le 404 de la participation elle-même.
+  // #466) ne conditionne jamais le 404 de la participation elle-même, donc
+  // toute panne de la synthèse la rend optionnelle au lieu de masquer le
+  // résultat (#1026). Hors 404, l'erreur reste journalisée côté serveur.
   const [participation, summary] = await Promise.all([
     apiServer.getParticipation(idDeRoute(participationId)).catch(rendreNullSi404),
-    apiServer.getCourseSummary(courseId).catch(rendreNullSi404),
+    apiServer.getCourseSummary(courseId).catch((erreur: unknown) => {
+      if (!(erreur instanceof ApiError && erreur.status === 404)) {
+        console.error("Course summary unavailable", erreur);
+      }
+      return null;
+    }),
   ]);
 
   if (!participation || participation.course.id !== courseId) notFound();
@@ -52,7 +60,7 @@ export default async function ParticipationDetailPage({
   const { stats, course } = participation;
   const eventDate = formatDate(course.event_date);
   const segments = stats?.segments ?? Object.keys(participation.splits ?? {});
-  const markerSec = parseTotalTimeSeconds(participation.total_time);
+  const markerSec = secondsFromHms(participation.total_time);
   // Dénominateur du classement en catégorie (US3, #466) : `summary.categories`
   // ne porte que les 8 catégories les plus fournies (RES-7, hors périmètre) —
   // une catégorie absente de cette liste n'affiche aucun dénominateur plutôt
@@ -97,7 +105,7 @@ export default async function ParticipationDetailPage({
         {summary?.histogram && (
           <Card padding={28} style={{ marginTop: 18 }}>
             <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 4 }}>Distribution des temps des arrivants</h2>
-            <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de 5 minutes — votre temps est repéré</div>
+            <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de 5 minutes — le temps de l&apos;athlète est repéré</div>
             <Histogram
               bars={summary.histogram.bars}
               max={Math.max(...summary.histogram.bars)}
@@ -119,7 +127,7 @@ export default async function ParticipationDetailPage({
               )}
             </div>
             <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>
-              Nombre d&apos;athlètes par catégorie — votre catégorie est repérée.
+              Nombre d&apos;athlètes par catégorie — la catégorie de l&apos;athlète est repérée.
             </div>
             <CategoryBars
               categories={summary.categories}
@@ -141,7 +149,7 @@ export default async function ParticipationDetailPage({
  */
 function ReturnLinks({ courseId, athleteId }: { courseId: string; athleteId: number }) {
   const links = [
-    { href: `/courses/${courseId}`, label: "Retour à la course" },
+    { href: `/courses/${courseId}`, label: "Retour à l'épreuve" },
     { href: `/athletes/${athleteId}`, label: "Retour aux résultats de l'athlète" },
   ];
 

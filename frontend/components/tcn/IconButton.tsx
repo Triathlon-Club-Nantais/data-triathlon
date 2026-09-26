@@ -6,6 +6,7 @@ export function IconButton({
   size = 42,
   children,
   style,
+  className,
   ...rest
 }: {
   variant?: "outline" | "soft" | "close";
@@ -23,6 +24,9 @@ export function IconButton({
   return (
     <button
       type="button"
+      // La croix des modales publiques prend 44 px sous md (#1079) ; son rendu
+      // de 34 px reste au-delà.
+      className={isClose ? ["tcn-cible-tactile", className].filter(Boolean).join(" ") : className}
       style={{
         display: "inline-flex",
         alignItems: "center",

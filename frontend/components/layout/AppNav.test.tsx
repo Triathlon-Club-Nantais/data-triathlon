@@ -806,6 +806,32 @@ describe("AppNav — actions primaires", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 
+  it("closes the mobile drawer from a visible close button (#1116)", async () => {
+    afficher(null);
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    const tiroir = await screen.findByRole("dialog");
+
+    const fermer = within(tiroir).getByRole("button", { name: "Fermer le menu" });
+    // Anneau de focus opaque (3,32:1), pas le halo universel à 1,86:1.
+    expect(fermer).toHaveClass("tcn-icon-btn");
+    await userEvent.click(fermer);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("exposes the mobile drawer state on its trigger (#1077)", async () => {
+    afficher(null);
+    const bouton = screen.getByRole("button", { name: "Ouvrir le menu" });
+    expect(bouton).toHaveAttribute("aria-haspopup", "dialog");
+    expect(bouton).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.click(bouton);
+
+    const tiroir = await screen.findByRole("dialog");
+    expect(bouton).toHaveAttribute("aria-expanded", "true");
+    expect(bouton).toHaveAttribute("aria-controls", tiroir.id);
+  });
+
   it("affiche aussi la recherche et la tuile dans le tiroir mobile, athlète retenu", async () => {
     window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
     afficher(null);
@@ -1003,11 +1029,11 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
   });
 
-  it("ouvre « Accès au back-office » à qui porte allowed_emails:manage", async () => {
+  it("ouvre « Accès et mots de passe » à qui porte allowed_emails:manage", async () => {
     afficher(habilite("allowed_emails:manage"));
     await deplier();
     await waitFor(() => expect(screen.getByText("Gestion des utilisateurs")).toBeInTheDocument());
-    expect(screen.getByRole("link", { name: "Accès au back-office" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Accès et mots de passe" })).toHaveAttribute(
       "href",
       "/admin/acces",
     );
@@ -1021,7 +1047,7 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
     afficher(habilite("allowed_emails:manage", "pending_providers:read"));
     await deplier();
 
-    const courant = await screen.findByRole("link", { name: "Accès au back-office" });
+    const courant = await screen.findByRole("link", { name: "Accès et mots de passe" });
     expect(courant).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: "Fournisseurs en attente" })).not.toHaveAttribute(
       "aria-current",
@@ -1036,7 +1062,7 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
     await waitFor(() => expect(screen.getByText("Gestion des utilisateurs")).toBeInTheDocument());
 
     expect(screen.getByRole("link", { name: "Droits des rôles" })).toBeInTheDocument();
-    expect(screen.queryByText("Accès au back-office")).not.toBeInTheDocument();
+    expect(screen.queryByText("Accès et mots de passe")).not.toBeInTheDocument();
   });
 
   it("ouvre « Droits des rôles » à qui porte roles:write (#240)", async () => {
@@ -1432,11 +1458,11 @@ describe("AppNav — barre basse mobile (#482, NAV-4)", () => {
     expect(within(barre).getByRole("link", { name: "Résultats" })).toHaveTextContent("Résultats");
   });
 
-  it("raccourcit « Validation des courses », qui tenait sur trois lignes à 375 px (#890)", () => {
+  it("raccourcit « Validation des épreuves », qui tenait sur trois lignes à 375 px (#890)", () => {
     afficher(null);
 
     const barre = screen.getByRole("navigation", { name: "Navigation" });
-    const lien = within(barre).getByRole("link", { name: "Validation des courses" });
+    const lien = within(barre).getByRole("link", { name: "Validation des épreuves" });
     expect(lien).toHaveTextContent("Validation");
     expect(lien).not.toHaveTextContent("des courses");
   });

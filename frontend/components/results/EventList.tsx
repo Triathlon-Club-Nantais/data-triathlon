@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Card, Badge, FormatChip, AnnonceStatut, LigneCarte } from "@/components/tcn";
+import { Button, Card, Badge, FormatChip, AnnonceStatut, LigneCarte } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Select,
@@ -42,6 +42,8 @@ const PADDING_X = 26;
 const COLS = gridColumns(TRACKS);
 const MIN_WIDTH = gridMinWidth(TRACKS, { gap: GAP, paddingX: PADDING_X });
 
+const FILTRES_DE_RECHERCHE = ["name", "event_name", "event_type", "date_from", "date_to"];
+
 export function EventList({
   filters,
   initial,
@@ -49,10 +51,8 @@ export function EventList({
   filters: ParticipationFilters;
   initial?: EventPage;
 }) {
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteEvents(
-    filters,
-    initial,
-  );
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError, isLoading } =
+    useInfiniteEvents(filters, initial);
   const router = useRouter();
   const sp = useSearchParams();
   const sentinel = useRef<HTMLDivElement | null>(null);
@@ -81,13 +81,15 @@ export function EventList({
   // Scroll infini : charge la page suivante quand la sentinelle entre dans le viewport.
   useEffect(() => {
     const el = sentinel.current;
-    if (!el || !hasNextPage) return;
+    // Après un échec, seul « Réessayer » relance : l'observateur rappellerait
+    // sinon en boucle tant que la sentinelle reste visible (#1039).
+    if (!el || !hasNextPage || isFetchNextPageError) return;
     const io = new IntersectionObserver((entries) => {
       if (entries[0]?.isIntersecting && !isFetchingNextPage) fetchNextPage();
     });
     io.observe(el);
     return () => io.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
 
   function setSort(value: string) {
     const params = new URLSearchParams(sp.toString());
@@ -131,12 +133,39 @@ export function EventList({
         (events.length > 0 ? `, ${events.length} affichée${events.length > 1 ? "s" : ""}` : "") +
         (repliees > 0
           ? ` dans ${repliees} compétition${repliees > 1 ? "s" : ""} repliée${repliees > 1 ? "s" : ""}`
-          : "")
+          : "") +
+        (isFetchNextPageError ? ". Impossible de charger la suite des épreuves." : "")
       }
     />
   );
 
   if (!isLoading && events.length === 0) {
+    // Une recherche filtrée vide ne dit rien de la base : elle porte sa sortie
+    // au lieu d'inviter à réimporter (#1038). `scope`, `sort` et `seasons`
+    // restent, ce ne sont pas des filtres de recherche.
+    const filtreActif = FILTRES_DE_RECHERCHE.some((cle) => sp.get(cle));
+    if (filtreActif) {
+      const restants = new URLSearchParams(sp.toString());
+      FILTRES_DE_RECHERCHE.forEach((cle) => restants.delete(cle));
+      const qs = restants.toString();
+      return (
+        <>
+          {annonce}
+          <EmptyState
+            title="Aucune épreuve ne correspond à ces filtres"
+            action={
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => router.push(`/resultats${qs ? `?${qs}` : ""}`)}
+              >
+                Réinitialiser
+              </Button>
+            }
+          />
+        </>
+      );
+    }
     return (
       <>
         {annonce}
@@ -266,10 +295,28 @@ export function EventList({
       )}
 
       <div ref={sentinel} aria-hidden />
-      {isFetchingNextPage && (
+      {isFetchingNextPage && !isFetchNextPageError && (
         <p style={{ padding: 16, textAlign: "center", fontSize: 14, color: "var(--tcn-text-faint)" }}>
           Chargement…
         </p>
+      )}
+      {isFetchNextPageError && (
+        <div style={{ padding: 16, textAlign: "center", fontSize: 14, color: "var(--tcn-text-faint)" }}>
+          <p>Impossible de charger la suite des épreuves.</p>
+          {/* Reste monté pendant la nouvelle tentative, `aria-busy` plutôt que
+              démonté : le focus clavier ne retombe pas sur le <body>. */}
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-busy={isFetchingNextPage}
+            onClick={() => {
+              if (!isFetchingNextPage) fetchNextPage();
+            }}
+            style={{ marginTop: 10 }}
+          >
+            Réessayer
+          </Button>
+        </div>
       )}
     </Card>
   );

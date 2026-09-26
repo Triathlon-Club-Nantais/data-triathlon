@@ -19,11 +19,11 @@ const classeColonne = (small?: boolean) => (small ? "hidden sm:table-cell" : und
 // comparaient. Un `title` natif suffit ici — ce sont des cellules de texte
 // inertes, pas des commandes qu'il faudrait rendre focalisables au clavier.
 const TITRE_POSITION =
-  "Position de référence au classement scratch, à laquelle votre temps est comparé.";
+  "Position de référence au classement scratch, à laquelle le temps de l'athlète est comparé.";
 const titreSegment = (label: string) =>
-  `Votre temps sur ${label.toLowerCase()}, en pourcentage du temps de l'athlète à cette position (100 % = temps identique, plus de 100 % = plus lent).`;
+  `Temps de l'athlète sur ${label.toLowerCase()}, en pourcentage du temps réalisé à cette position (100 % = temps identique, plus de 100 % = plus lent).`;
 const TITRE_TOTAL =
-  "Votre temps sur l'ensemble de la course, en pourcentage du temps de l'athlète à cette position (100 % = temps identique, plus de 100 % = plus lent).";
+  "Temps de l'athlète sur l'ensemble de l'épreuve, en pourcentage du temps réalisé à cette position (100 % = temps identique, plus de 100 % = plus lent).";
 
 /**
  * Comparaison de l'athlète aux positions de référence du classement scratch.

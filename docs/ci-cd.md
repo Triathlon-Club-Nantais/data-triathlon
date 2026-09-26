@@ -43,6 +43,15 @@ Toute PR déclenche la CI seule (aucun déploiement).
   déclenchait qu'après merge : un bloc JSX dans un plan `docs/superpowers/`
   avait ainsi cassé le rendu Liquid directement sur `main`.
 
+**Chaque job porte un `timeout-minutes`** (#1071), sans quoi il hérite des
+360 minutes par défaut de GitHub : une étape figée (registre npm ou PyPI muet,
+test en attente, `vercel build` bloqué) garderait sinon le groupe de
+`concurrency` pris pendant 6 h. Les valeurs laissent une large marge sur les
+durées observées : 15 min pour les jobs de `ci.yml` (~1 min), 20 min pour
+`deploy-preview`/`deploy-production` (1 à 3 min, plus les retries curl vers
+Render), 10 min pour ceux de `pages.yml`. L'attente d'approbation de
+l'environment `production` ne compte pas dans ce délai.
+
 Le gating repose sur `needs: ci` : si un job CI échoue, le job de déploiement
 n'est jamais exécuté. Côté Render, c'est **Auto-Deploy = No dans les réglages du
 service** qui empêche tout déploiement automatique hors hook.
@@ -171,6 +180,13 @@ et laisser la preview sur le free. À ne décider que sur des heures relevées.
 > le repli.
 
 ### Vercel (offre Hobby) — 2 projets
+
+**`CRON_SECRET`** (#1021) : à poser sur les **deux** projets, avec la même valeur
+que l'appelant (l'Azure Function keep-warm, cf. `docs/infra-azure.md`). La route
+`GET /api/cron/keep-warm` exige `Authorization: Bearer $CRON_SECRET`. Sans
+secret, elle répond 503 sur Vercel (`VERCEL_ENV` défini) plutôt que de s'ouvrir
+à tous ; l'auth n'est ignorée qu'en développement local. La cadence (10 min,
+7 h-23 h UTC) se règle côté Azure, il n'y a pas de `vercel.json`.
 
 | Rôle | Projet Vercel | Ciblé par |
 |---|---|---|
@@ -674,6 +690,14 @@ lancement manuel : elle est ignorée si un batch tourne déjà. C'est voulu.
    reprise complète peut atteindre la borne. Elle sort alors **rouge**, ce qui
    est bruyant et donc acceptable — mais tant que #258 n'est pas traité, la
    reprise hebdomadaire est à surveiller, voire à borner par un `limit`.
+
+**Le géocodage suit la reprise** (#975) : l'étape « Geocode new courses »
+lance `geocode-courses --limit 300` après une reprise réussie, jamais en mode
+`urls` ni en dry-run. C'est le seul passage qui remplit la carte des épreuves
+(`GET /stats/events-geo` ne géocode plus à la volée). Nominatim coûte 1 à 2 s
+par épreuve : la borne tient l'étape à une dizaine de minutes, et le reste passe
+au lundi suivant. Elle est en `continue-on-error`, pour qu'un Nominatim muet ne
+fasse pas rougir un batch dont les épreuves ont abouti.
 
 **Destinataire de la notification d'échec** : la plateforme notifie l'auteur de
 la dernière modification du fichier de cron, pas l'équipe. À constater sur la

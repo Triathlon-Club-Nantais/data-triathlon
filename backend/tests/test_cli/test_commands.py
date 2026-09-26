@@ -1,5 +1,5 @@
 import json
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from types import SimpleNamespace
 
 from typer.testing import CliRunner
@@ -76,6 +76,10 @@ class _SessionFactice:
 
     def commit(self) -> None:
         pass
+
+    def begin_nested(self):
+        # La purge des orphelins tourne sous un savepoint (#1100).
+        return nullcontext()
 
     def get_bind(self, *args, **kwargs):
         return None

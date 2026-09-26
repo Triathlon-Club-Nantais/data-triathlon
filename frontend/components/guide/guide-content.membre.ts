@@ -29,14 +29,15 @@ export const GUIDE_MEMBRE: GuideSection[] = [
     etapes: [
       "Ouvrir « Résultats » depuis la navigation principale.",
       "Filtrer par saison, portée (club ou toutes) ou recherche libre.",
-      "Cliquer sur une épreuve pour en voir le classement complet.",
+      "Sélectionner une épreuve pour en voir le classement complet.",
     ],
     captures: [{ src: "/guide/membre/resultats.jpg", alt: "Liste des résultats avec filtres" }],
   },
   {
     id: "comparaison",
     titre: "Comparaison",
-    casUsage: "Comparer sa performance sur une épreuve à une édition précédente ou à un autre athlète.",
+    casUsage:
+      "Situer son temps, segment par segment, par rapport aux positions de référence du classement scratch de la même épreuve.",
     etapes: [
       "Depuis « Résultats », ouvrir une épreuve puis une participation.",
       "Faire défiler jusqu'au tableau de comparaison, sur la fiche de la participation.",
@@ -60,7 +61,7 @@ export const GUIDE_MEMBRE: GuideSection[] = [
     casUsage: "Créditer un athlète du club pour une activité de bénévolat, comptée dans son quota de saison.",
     etapes: [
       "Ouvrir « Bénévolat » depuis la navigation (section « Club »).",
-      "Rechercher l'athlète concerné et décrire l'activité effectuée.",
+      "Rechercher l'athlète concerné, puis renseigner le titre et la description de l'activité, tous deux obligatoires.",
       "Envoyer la déclaration : elle est instruite par un administrateur avant de compter pour le quota.",
     ],
     captures: [{ src: "/guide/membre/benevolat.jpg", alt: "Formulaire de déclaration de bénévolat" }],

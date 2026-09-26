@@ -102,3 +102,21 @@ describe("formatDelta", () => {
     expect(formatDelta(45, 20)).toBe("25 s de retard");
   });
 });
+
+describe("commonParticipations reads times like the finishers list (#1063)", () => {
+  it.each([
+    ["01:23:45", 5025],
+    ["23:45", 1425],
+    ["01:23:45.6", null],
+    ["01:75:00", null],
+    ["1:23:45 ", null],
+  ])("parses %j as %j seconds", (temps, attendu) => {
+    const mine = [participation(1, 10, "Tri", "2026-06-01", temps)];
+    const theirs = [participation(2, 10, "Tri", "2026-06-01", temps)];
+
+    const [ligne] = commonParticipations(mine, theirs);
+
+    expect(ligne.mineSeconds).toBe(attendu);
+    expect(ligne.theirsSeconds).toBe(attendu);
+  });
+});

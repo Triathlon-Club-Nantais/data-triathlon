@@ -15,6 +15,11 @@ globalThis.IntersectionObserver = IntersectionObserverStub as unknown as typeof 
 
 const push = vi.fn();
 let searchParams = new URLSearchParams();
+// Au niveau du fichier : un bloc qui pose `?event_name=` ne doit pas fuir dans
+// les suivants quand l'ordre change (#1105).
+beforeEach(() => {
+  searchParams = new URLSearchParams();
+});
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh: vi.fn() }),
@@ -230,6 +235,65 @@ describe("EventList", () => {
 
     renderList();
     expect(screen.getByText("Aucun résultat")).toBeInTheDocument();
+    expect(screen.getByText(/importez une épreuve/i)).toBeInTheDocument();
+  });
+
+  it("surfaces a failed next page and only retries on demand (#1039)", async () => {
+    const original = globalThis.IntersectionObserver;
+    // Sentinelle visible : l'observateur rappelle dès `observe()`.
+    globalThis.IntersectionObserver = class {
+      constructor(private cb: IntersectionObserverCallback) {}
+      observe() {
+        this.cb([{ isIntersecting: true } as IntersectionObserverEntry], this as never);
+      }
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof IntersectionObserver;
+    const fetchNextPage = vi.fn();
+    setEvents({
+      data: {
+        pages: [
+          {
+            items: [{ id: 1, event_name: "Tri A", event_date: "2026-06-01", event_type: "triathlon-s", distance_km: null, is_relay: false, total: 10, tcn_count: 1 }],
+            total_events: 40,
+            total_participations: 10,
+          },
+        ],
+      },
+      fetchNextPage,
+      hasNextPage: true,
+      isFetchingNextPage: false,
+      isFetchNextPageError: true,
+      isLoading: false,
+    });
+
+    renderList();
+
+    expect(screen.getByText("Impossible de charger la suite des épreuves.")).toBeInTheDocument();
+    // Annoncé : le compteur de la région live ne change pas, lui (WCAG 4.1.3).
+    expect(screen.getByRole("status")).toHaveTextContent(/impossible de charger la suite des épreuves/i);
+    expect(fetchNextPage).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: "Réessayer" }));
+    expect(fetchNextPage).toHaveBeenCalledTimes(1);
+    globalThis.IntersectionObserver = original;
+  });
+
+  it("tells an empty filtered search apart and offers to clear the filters (#1038)", async () => {
+    searchParams = new URLSearchParams("event_name=Mesqer&scope=club&seasons=2025&sort=date_desc");
+    setEvents({
+      data: { pages: [{ items: [], total_events: 0, total_participations: 0 }] },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+
+    renderList();
+
+    expect(screen.getByText("Aucune épreuve ne correspond à ces filtres")).toBeInTheDocument();
+    expect(screen.queryByText(/importez une épreuve/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Réinitialiser" }));
+    expect(push).toHaveBeenCalledWith("/resultats?scope=club&seasons=2025&sort=date_desc");
   });
 
   // WCAG 4.1.3 (#477) : filtrer/trier remplace la liste sans annonce.

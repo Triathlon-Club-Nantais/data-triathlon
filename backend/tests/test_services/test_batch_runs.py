@@ -54,6 +54,27 @@ def _dispatch(handler, settings=None, **options) -> str:
     )
 
 
+def test_a_batch_whose_urls_exceed_the_platform_input_limit_is_refused_before_dispatch():
+    """GitHub caps inputs at 65,535 characters: 500 URLs of 140 pass `URLS_MAX` (#1097)."""
+    handler, vues = _capture()
+    urls = [f"https://www.klikego.com/resultats/{'x' * 100}/{i:05d}".ljust(140, "y") for i in range(500)]
+
+    with pytest.raises(batch_runs.BatchInputTooLargeError) as refus:
+        _dispatch(handler, mode="urls", urls=urls)
+
+    assert refus.value.status_code == 422
+    assert "découpez" in refus.value.message
+    assert vues == []
+
+
+def test_a_batch_under_the_input_limit_is_dispatched():
+    handler, vues = _capture()
+
+    _dispatch(handler, mode="urls", urls=["https://www.klikego.com/resultats/x/1"] * 400)
+
+    assert len(vues) == 1
+
+
 def test_l_url_de_dispatch_est_construite_depuis_les_reglages():
     handler, vues = _capture()
 

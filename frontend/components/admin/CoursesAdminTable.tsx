@@ -379,8 +379,9 @@ function CatalogueFilters({
   return (
     <Card>
       <CardContent className="flex flex-wrap items-end gap-3">
-        <Champ label="ID">
+        <Champ label="ID" htmlFor="filtre-id">
           <Input
+            id="filtre-id"
             type="number"
             value={id}
             onChange={(e) => setId(e.target.value)}
@@ -389,8 +390,9 @@ function CatalogueFilters({
             className="w-full sm:w-24"
           />
         </Champ>
-        <Champ label="Épreuve">
+        <Champ label="Épreuve" htmlFor="filtre-epreuve">
           <Input
+            id="filtre-epreuve"
             value={nom}
             onChange={(e) => setNom(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && appliquer()}
@@ -398,12 +400,12 @@ function CatalogueFilters({
             className="w-full sm:w-56"
           />
         </Champ>
-        <Champ label="Discipline">
+        <Champ label="Discipline" htmlFor="filtre-discipline">
           <Select
             value={type || TOUTES}
             onValueChange={(v) => setType(v === TOUTES ? "" : (v as string))}
           >
-            <SelectTrigger className="h-9 w-full sm:w-48">
+            <SelectTrigger id="filtre-discipline" className="h-9 w-full sm:w-48">
               <SelectValue placeholder="Toutes les disciplines">
                 {(v) =>
                   !v || v === TOUTES ? "Toutes les disciplines" : eventTypeLabel(v as string)
@@ -420,16 +422,18 @@ function CatalogueFilters({
             </SelectContent>
           </Select>
         </Champ>
-        <Champ label="Du">
+        <Champ label="Du" htmlFor="filtre-date-debut">
           <Input
+            id="filtre-date-debut"
             type="date"
             value={du}
             onChange={(e) => setDu(e.target.value)}
             className="w-full sm:w-40"
           />
         </Champ>
-        <Champ label="Au">
+        <Champ label="Au" htmlFor="filtre-date-fin">
           <Input
+            id="filtre-date-fin"
             type="date"
             value={au}
             onChange={(e) => setAu(e.target.value)}

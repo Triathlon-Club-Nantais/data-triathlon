@@ -1,5 +1,8 @@
 """Dimensionnement du pool de connexions de l'engine (#585)."""
 
+import pytest
+from sqlalchemy import text
+
 from app.core.config import Settings
 from app.core.database import _create_engine
 
@@ -23,3 +26,14 @@ def test_engine_reprend_le_dimensionnement_des_reglages(tmp_path):
     assert engine.pool.size() == 7
     assert engine.pool._max_overflow == 3
     assert engine.pool._timeout == 12
+
+
+@pytest.mark.parametrize("url", ["sqlite://", "sqlite:///:memory:"])
+def test_an_in_memory_sqlite_engine_builds_and_shares_one_database(url):
+    """`SingletonThreadPool` refused the pool sizing arguments (#1069)."""
+    engine = _create_engine(Settings(database_url=url))
+
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE t (x INTEGER)"))
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM t")).scalar() == 0

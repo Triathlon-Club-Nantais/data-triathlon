@@ -17,6 +17,7 @@ from app.models.user import User
 from app.models.user_feedback import FEEDBACK_STATUSES, UserFeedback
 from app.repositories import feedback_repository
 from app.schemas.feedback import FeedbackCounts, FeedbackRead, FeedbackUpdate
+from app.services import feedback_service
 
 router = APIRouter(tags=["admin"])
 
@@ -93,15 +94,14 @@ def update_feedback(
     feedback_id: int,
     body: FeedbackUpdate,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.FEEDBACK_MANAGE)),
+    user: User = Depends(require_permission(P.FEEDBACK_MANAGE)),
 ):
-    entry = feedback_repository.get(db, feedback_id)
-    if entry is None:
-        raise NotFoundError("Signalement introuvable")
+    changes = {}
     if "status" in body.model_fields_set:
-        feedback_repository.update_status(db, feedback_id, body.status)
+        changes["status"] = body.status
     if "github_url" in body.model_fields_set:
-        feedback_repository.set_github_url(db, feedback_id, str(body.github_url))
+        changes["github_url"] = str(body.github_url)
+    entry = feedback_service.update(db, feedback_id=feedback_id, changes=changes, user_id=user.id)
     db.commit()
     db.refresh(entry)
     return _vue(entry)

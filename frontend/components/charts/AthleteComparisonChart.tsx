@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Card, Eyebrow, Input } from "@/components/tcn";
+import { useEffect, useRef, useState } from "react";
+import { AnnonceStatut, Card, Eyebrow, Input } from "@/components/tcn";
 import { useDebounce } from "@/hooks/useDebounce";
 import { apiClient } from "@/lib/api/client";
 import type { AthleteSearchResult, Participation } from "@/lib/types";
@@ -177,6 +177,21 @@ export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
   const [selected, setSelected] = useState<AthleteSearchResult | null>(null);
   const [theirs, setTheirs] = useState<Participation[]>([]);
   const [etat, setEtat] = useState<Etat>("idle");
+  // Numéro de la dernière requête lancée : une réponse d'une requête
+  // abandonnée par « Changer » n'écrase pas l'état revenu à « idle » (#1028).
+  const requete = useRef(0);
+  // « Changer » et « Réessayer » se démontent sous le doigt : le focus est reposé
+  // sur le champ de recherche, ou sur la zone d'état, jamais laissé au <body>.
+  const champRecherche = useRef<HTMLInputElement>(null);
+  const zoneEtat = useRef<HTMLDivElement>(null);
+  const focusApresChanger = useRef(false);
+
+  useEffect(() => {
+    if (!selected && focusApresChanger.current) {
+      focusApresChanger.current = false;
+      champRecherche.current?.focus();
+    }
+  }, [selected]);
 
   const search = debouncedQuery.trim();
 
@@ -200,19 +215,45 @@ export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
     };
   }, [search]);
 
-  function choisir(athlete: AthleteSearchResult) {
-    setSelected(athlete);
-    setResults([]);
-    setQuery("");
+  function charger(athlete: AthleteSearchResult) {
+    const numero = ++requete.current;
     setEtat("chargement");
     apiClient
       .getAthlete(athlete.id)
       .then((detail) => {
+        if (numero !== requete.current) return;
         setTheirs(detail.participations);
         setEtat("ok");
       })
-      .catch(() => setEtat("echec"));
+      .catch(() => {
+        if (numero === requete.current) setEtat("echec");
+      });
   }
+
+  function choisir(athlete: AthleteSearchResult) {
+    setSelected(athlete);
+    setResults([]);
+    setQuery("");
+    charger(athlete);
+  }
+
+  function changer() {
+    focusApresChanger.current = true;
+    requete.current += 1;
+    setSelected(null);
+    setTheirs([]);
+    setEtat("idle");
+  }
+
+  const boutonChanger = (
+    <button
+      type="button"
+      onClick={changer}
+      className="tcn-comparaison-lien tcn-cible-tactile inline-flex items-center text-sm font-semibold text-accent-ink hover:underline"
+    >
+      Changer
+    </button>
+  );
 
   return (
     // Pas de marge inline ici : l'espacement avec les cartes voisines de
@@ -220,10 +261,20 @@ export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
     // marge locale y ferait à nouveau cumuler deux systèmes.
     <Card>
       <Eyebrow>Comparer avec un coéquipier</Eyebrow>
+      <AnnonceStatut
+        texte={
+          selected && etat === "echec"
+            ? `Impossible de charger les résultats de ${selected.prenom} ${selected.nom}.`
+            : selected && etat === "chargement"
+              ? "Chargement…"
+              : ""
+        }
+      />
 
       {!selected && (
         <div style={{ marginTop: 8 }}>
           <Input
+            ref={champRecherche}
             type="search"
             placeholder="Chercher un athlète du club…"
             value={query}
@@ -256,14 +307,36 @@ export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
         </div>
       )}
 
-      {selected && etat === "chargement" && (
-        <p className="py-4 text-sm text-[var(--tcn-text-faint)]">Chargement…</p>
-      )}
-
-      {selected && etat === "echec" && (
-        <p className="py-4 text-sm text-[var(--tcn-text-faint)]">
-          Impossible de charger les résultats de {selected.prenom} {selected.nom} pour l&apos;instant.
-        </p>
+      {selected && (etat === "chargement" || etat === "echec") && (
+        // Même élément pour les deux états : le focus posé ici par « Réessayer »
+        // survit au passage de l'échec au chargement.
+        <div ref={zoneEtat} tabIndex={-1} className="py-4 outline-none">
+          {etat === "chargement" ? (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-[var(--tcn-text-faint)]">Chargement…</p>
+              {boutonChanger}
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-[var(--tcn-text-faint)]">
+                Impossible de charger les résultats de {selected.prenom} {selected.nom} pour l&apos;instant.
+              </p>
+              <div className="mt-2 flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    zoneEtat.current?.focus();
+                    charger(selected);
+                  }}
+                  className="tcn-comparaison-lien tcn-cible-tactile inline-flex items-center text-sm font-semibold text-accent-ink hover:underline"
+                >
+                  Réessayer
+                </button>
+                {boutonChanger}
+              </div>
+            </>
+          )}
+        </div>
       )}
 
       {selected && etat === "ok" && (
@@ -272,17 +345,7 @@ export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
             <span style={{ fontSize: 14, color: "var(--tcn-text-muted)" }}>
               Comparaison avec {selected.prenom} {selected.nom}
             </span>
-            <button
-              type="button"
-              onClick={() => {
-                setSelected(null);
-                setTheirs([]);
-                setEtat("idle");
-              }}
-              className="tcn-comparaison-lien text-sm font-semibold text-accent-ink hover:underline"
-            >
-              Changer
-            </button>
+            {boutonChanger}
           </div>
           <AthleteComparisonResult mine={mine} theirs={theirs} theirsName={`${selected.prenom} ${selected.nom}`} />
         </>

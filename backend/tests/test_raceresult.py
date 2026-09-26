@@ -340,6 +340,8 @@ def _champs_rumilly() -> dict:
 
 @pytest.mark.parametrize("expr,attendu", [
     ("OuStatut([ClassementGénéral.P])", "classementgeneral.p"),
+    # #1094 : nom anglais de `OuStatut` (Embrunman, 350635).
+    ("OrStatus([TIME])", "time"),
     ("ucase([CLUB])", "club"),
     ("AfficherNom", "affichernom"),
     ("[Course.OVERALL.P] ", "course.overall.p"),
@@ -682,6 +684,7 @@ def test_map_columns_gere_un_fields_vide_ou_absent():
     ("LFNAME", "nom"),
     ("DisplayNameAsterisk", "nom"),
     ("TempsOuStatut", "temps"),
+    ("OrStatus([TIME])", "temps"),  # #1094 : le chrono publié finissait en raw_data
     ("Format([TempsFinal.DECIMAL];\"hh:mm:ss\")", "temps"),
     ("Arrivée.CHIP", "temps"),
     ("CLUB", "club"),
@@ -2100,6 +2103,19 @@ def test_scrape_event_all_qualifie_par_contest(monkeypatch):
     assert {r.event_name for r in res} == {
         "Épreuve - Distance S", "Épreuve - Distance M"
     }
+
+
+def test_scrape_event_all_resolves_the_i18n_contest_label(monkeypatch):
+    """`{EN:Quart|FR:Quart}` reached the course name raw (Embrunman, #1088)."""
+    specs = [("Classement", "1")]
+    payloads = {
+        ("Classement", "1"): _payload({"#1_Quart": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads, contests={"1": "{EN:Quarter|FR:Quart}"})
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert [r.event_name for r in res] == ["Épreuve - Quart"]
 
 
 def test_scrape_event_all_statut_de_niveau_0_conserve_le_statut(monkeypatch):
@@ -3783,3 +3799,24 @@ def test_scrape_event_all_une_categorie_hidden_genre_un_individuel(monkeypatch):
     [r] = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
 
     assert (r.category, r.gender) == ("M18-34", "M")
+
+
+
+@pytest.mark.parametrize("expression,libelle", [
+    ("Penalty", "{EN:Pen.|FR:Pén.}"),  # Embrunman 350635 (#1118)
+    ("[Penalite]", "Pénalité"),
+    ("TempsPenalite", "Pénalités"),
+])
+def test_map_columns_keeps_penalty_columns_out_of_race_splits(expression, libelle):
+    payload = {
+        "DataFields": ["BIB", "ID", "[Natation]", expression],
+        "list": {"Fields": [
+            {"Expression": "[Natation]", "Label": "Natation"},
+            {"Expression": expression, "Label": libelle},
+        ]},
+    }
+
+    _roles, segments, extras = raceresult._map_columns(payload)
+
+    assert segments == [("Natation", 2)]
+    assert expression in extras

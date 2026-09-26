@@ -26,7 +26,9 @@ export function SegmentedControl({
   style?: CSSProperties;
 }) {
   return (
-    <div style={{ display: "flex", gap: 8, ...style }}>
+    // `flexWrap` : quatre segments `ink` mesurent ~322 px, plus que les 288 px
+    // utiles d'un écran de 320 px (WCAG 1.4.10, #1092).
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, ...style }}>
       {options.map((opt) => {
         const val = typeof opt === "string" ? opt : opt.value;
         const label = typeof opt === "string" ? opt : opt.label;
@@ -48,7 +50,7 @@ export function SegmentedControl({
           <button
             key={val}
             type="button"
-            className="tcn-segmented-btn"
+            className="tcn-segmented-btn tcn-cible-tactile"
             aria-pressed={active}
             aria-disabled={desactive || undefined}
             onClick={() => {
@@ -64,10 +66,6 @@ export function SegmentedControl({
               gap: 8,
               flex: tone === "orange" ? 1 : "none",
               padding: tone === "orange" ? "10px 0" : "9px 16px",
-              // Plancher tactile WCAG 2.2 2.5.8 (#479) : un des trois
-              // contrôles de la barre d'outils du dashboard mesurés entre
-              // 26 et 34 px par l'audit UI/UX.
-              minHeight: 28,
               borderRadius: "var(--tcn-radius-lg)",
               fontFamily: tone === "orange" ? "var(--tcn-font-display)" : "var(--tcn-font-body)",
               fontSize: tone === "orange" ? 17 : 13,

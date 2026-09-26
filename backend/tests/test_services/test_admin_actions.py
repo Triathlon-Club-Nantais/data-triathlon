@@ -2026,6 +2026,7 @@ def test_season_quota_reflete_les_trois_signaux(db_session, auteur):
     assert quota == {
         "validated_count": 3,
         "has_volunteer_action": True,
+        "has_pending_volunteer_action": False,
         "season_validated": True,
     }
 
@@ -2038,8 +2039,23 @@ def test_season_quota_sur_athlete_sans_activite(db_session, auteur):
     assert quota == {
         "validated_count": 0,
         "has_volunteer_action": False,
+        "has_pending_volunteer_action": False,
         "season_validated": False,
     }
+
+
+def test_season_quota_reports_a_pending_declaration_without_counting_it(db_session, auteur):
+    """A self-service declaration awaiting moderation is not "none" (#1044)."""
+    athlete = _coureur(db_session, "ATTENTE")
+    volunteer_action_repository.create_pending(
+        db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=auteur.id,
+        title="Ravitaillement", description="Tenue du poste de ravitaillement.",
+    )
+
+    quota = admin_actions.season_quota(db_session, athlete_id=athlete.id, season=2025)
+
+    assert quota["has_volunteer_action"] is False
+    assert quota["has_pending_volunteer_action"] is True
 
 
 def test_season_quota_exclut_les_dns_et_les_courses_non_federales(db_session, auteur):

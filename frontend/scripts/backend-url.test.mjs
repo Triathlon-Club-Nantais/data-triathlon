@@ -108,6 +108,18 @@ describe("isPortAlive", () => {
     expect(await isPortAlive(await serveurEcoutant())).toBe(true);
   });
 
+  it("répond vrai quand notre backend répond 503, base injoignable (#1070)", async () => {
+    // Le backend est bien là : c'est sa base qui manque. Se rabattre sur le
+    // port par défaut brancherait le front sur un autre worktree.
+    const server = createHttpServer((req, res) => {
+      res.writeHead(req.url === "/api/v1/health" ? 503 : 404).end();
+    });
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+    aNettoyer.push(() => new Promise((resolve) => server.close(resolve)));
+
+    expect(await isPortAlive(server.address().port)).toBe(true);
+  });
+
   it("répond faux sur un port que plus personne n'écoute", async () => {
     expect(await isPortAlive(await portMort())).toBe(false);
   });

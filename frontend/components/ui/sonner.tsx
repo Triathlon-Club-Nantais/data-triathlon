@@ -36,6 +36,18 @@ const Toaster = ({ ...props }: ToasterProps) => {
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
           "--border-radius": "var(--radius)",
+          // `richColors` garderait sinon la palette de Sonner, sous 4,5:1 en
+          // succès et en erreur (#1030). `info` n'a pas de token TCN et
+          // n'est pas utilisée.
+          "--success-bg": "var(--tcn-success-bg)",
+          "--success-text": "var(--tcn-success-text)",
+          "--success-border": "var(--tcn-success-border)",
+          "--error-bg": "var(--tcn-danger-bg)",
+          "--error-text": "var(--tcn-danger-text)",
+          "--error-border": "var(--tcn-danger-border)",
+          "--warning-bg": "var(--tcn-warning-bg)",
+          "--warning-text": "var(--tcn-warning-text)",
+          "--warning-border": "var(--tcn-warning-border)",
         } as React.CSSProperties
       }
       toastOptions={{

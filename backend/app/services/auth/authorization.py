@@ -40,6 +40,38 @@ class UnknownPermissionError(DomainError):
     message = "Ce pouvoir n'existe pas."
 
 
+class NoOrganisationError(DomainError):
+    status_code = 422
+    message = "Aucune organisation n'existe."
+
+
+def existing_organisation(db: Session, organisation_id: int | None) -> int:
+    """Le club visé — celui demandé s'il existe, le seul en base sinon.
+
+    **L'existence est vérifiée**, et ce n'est pas une précaution de style :
+    `core/database.py` n'émet aucun `PRAGMA foreign_keys=ON`, donc un
+    `organisation_id` fantaisiste passerait en SQLite (développement et toute la
+    suite de tests) et lèverait une violation de clé étrangère non attrapée en
+    PostgreSQL. Un chemin d'écriture exposé qui diverge entre les deux moteurs
+    est le pire des trois états possibles. Partagé par les groupes et les rôles
+    (#1096).
+
+    Passe par `role_repository`, où vivent les accesseurs d'`Organisation`
+    depuis #115. Les redéclarer ailleurs en ferait une seconde définition de
+    « quel club » — exactement le genre de divergence que le dépôt paie
+    ailleurs (`is_tcn`, #76).
+    """
+    if organisation_id is not None:
+        if role_repository.get_organisation(db, organisation_id) is None:
+            raise NoOrganisationError("Ce club n'existe pas.")
+        return organisation_id
+
+    organisation = role_repository.default_organisation(db)
+    if organisation is None:
+        raise NoOrganisationError()
+    return organisation.id
+
+
 class SlugTakenError(DomainError):
     status_code = 409
     message = "Un rôle porte déjà cet identifiant dans cette portée."
@@ -392,6 +424,8 @@ def create_role(
     assert_may_grant(db, actor, set(codes))
     if superuser:
         assert_may_set_superuser(db, actor)
+    if organisation_id is not None:
+        existing_organisation(db, organisation_id)
     if role_repository.find_in_scope(
         db, slug=slug, organisation_id=organisation_id
     ) is not None:
@@ -416,6 +450,10 @@ def create_role(
                 is_superuser=superuser,
             )
     except IntegrityError as collision:
+        # Seule la collision d'unicité est un slug pris : une autre violation
+        # remonte telle quelle plutôt que de se déguiser en 409 (#1096).
+        if "unique" not in str(collision.orig).lower():
+            raise
         raise SlugTakenError() from collision
 
     for code in dict.fromkeys(codes):
@@ -509,6 +547,7 @@ def grant_role(
     db: Session, actor: User, *, user: User, role: Role, organisation_id: int
 ) -> None:
     """Attribue un rôle. Idempotent (FR-012)."""
+    existing_organisation(db, organisation_id)
     assert_role_assignable_in(db, role, organisation_id)
     assert_may_hand_over(db, actor, role)
 
@@ -529,6 +568,7 @@ def revoke_role(
     db: Session, actor: User, *, user: User, role: Role, organisation_id: int
 ) -> None:
     """Retire un rôle. Idempotent, et **soumis à l'invariant** (FR-032)."""
+    existing_organisation(db, organisation_id)
     assert_may_hand_over(db, actor, role)
 
     with administrateurs_preserves(db, organisation_id):

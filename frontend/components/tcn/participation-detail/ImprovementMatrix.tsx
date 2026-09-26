@@ -56,7 +56,7 @@ export function ImprovementMatrix({
       <Eyebrow>Où gagner des places</Eyebrow>
       <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: "var(--tcn-text-secondary)" }}>
         Places gagnées à l&apos;arrivée si ce segment avait été couru plus vite,
-        le reste de la course inchangé.
+        le reste de l&apos;épreuve inchangé.
       </p>
 
       {gagnants.length > 0 && (

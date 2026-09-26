@@ -62,6 +62,12 @@ describe("SiteAccessGate", () => {
     expect(screen.getByLabelText(/code d'accès/i)).toHaveAttribute("type", "text");
   });
 
+  it("caps the code at the backend's 200-character bound (#1045)", () => {
+    render(<SiteAccessGate />);
+
+    expect(screen.getByLabelText(/code d'accès/i)).toHaveAttribute("maxLength", "200");
+  });
+
   it("désactive la correction automatique du clavier (le code est comparé sans normalisation de casse)", () => {
     render(<SiteAccessGate />);
 

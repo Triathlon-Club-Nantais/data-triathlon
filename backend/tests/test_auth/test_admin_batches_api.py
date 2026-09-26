@@ -84,6 +84,14 @@ def test_sans_le_pouvoir_la_consultation_est_refusee(client, ouvrir_session):
     assert client.get(URL).status_code == 403
 
 
+@pytest.mark.parametrize("limite", [-1, 0, 51])
+def test_listing_rejects_an_out_of_range_limit(client, ouvrir_session, plateforme, limite):
+    """Never forwarded to GitHub as `per_page` (#1054)."""
+    ouvrir_session(P.BATCH_READ)
+
+    assert client.get(URL, params={"limit": limite}).status_code == 422
+
+
 def test_un_second_batch_est_refuse_pendant_qu_un_autre_tourne(
     client, ouvrir_session, plateforme
 ):
@@ -273,6 +281,15 @@ def test_la_colonne_presuggeree_est_la_plus_fournie(client, ouvrir_session):
     corps = client.post(COLONNES_URL, files=_envoi(contenu)).json()
 
     assert corps["suggested_index"] == 1
+
+
+def test_an_oversized_csv_cell_is_a_422_not_a_500(client, ouvrir_session):
+    """#1098 — `_csv.Error` used to escape the domain error handler."""
+    ouvrir_session(P.BATCH_RUN)
+
+    reponse = client.post(COLONNES_URL, files=_envoi(b"h\n" + b"x" * 200_000 + b"\n"))
+
+    assert reponse.status_code == 422
 
 
 def test_aucune_colonne_n_est_presuggeree_sans_lien(client, ouvrir_session):

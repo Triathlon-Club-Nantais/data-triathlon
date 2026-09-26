@@ -345,3 +345,16 @@ def test_le_compteur_denormalise_suit_l_ajout_et_le_retrait_d_un_libelle(client,
 
     client.delete(f"{BASE}/club-labels/{ajout.json()['id']}")
     assert _tcn_count_des_deux_chemins(db_session) == (0, 0)
+
+
+
+# --- Borne de 120 caractères, celle de la colonne (#1121) --------------------
+
+
+def test_l_ajout_accepte_une_valeur_de_120_caracteres(client):
+    assert client.post(f"{BASE}/club-labels", json={"value": "x" * 120}).status_code == 201
+
+
+def test_l_ajout_refuse_une_valeur_de_121_caracteres(client):
+    """SQLite ignore la longueur du VARCHAR ; PostgreSQL levait une 500 au flush."""
+    assert client.post(f"{BASE}/club-labels", json={"value": "x" * 121}).status_code == 422

@@ -59,28 +59,33 @@ Trois choses à comprendre :
   `/api/v1/...` depuis ton code React comme si c'était local — Next.js proxifie.
 - **`output: "standalone"`** : build autonome pour l'image Docker (déploiement
   Vercel-compatible aussi).
-- **`BACKEND_URL`** : variable d'environnement à ajuster localement via
-  `frontend/.env.local` (cf. `.env.local.example`).
+- **`BACKEND_URL`** : rien à régler en local. `npm run dev` la découvre depuis
+  le `.dev-backend.json` publié par le backend du worktree ; ne la poser dans
+  `frontend/.env.local` que pour viser délibérément un autre backend
+  (`docs/dev-multi-worktree.md`).
 
 ## 5. App Router — la structure `frontend/app/`
 
-Chaque sous-dossier est une route. Fais le tour rapide :
+Chaque sous-dossier est une route. Les pages de résultats vivent sous le
+groupe `app/(public_restricted)/`, invisible dans l'URL et gardé par le code
+d'accès du site (#509). Fais le tour rapide :
 
-- `app/dashboard/` — page d'accueil du club : agrégats, KPIs, tendances.
-- `app/resultats/` — liste des résultats avec filtres (recherche, sport, date).
-- `app/athletes/[id]/` — fiche athlète (route dynamique).
-- `app/courses/[id]/` — fiche course avec le classement.
-- `app/club/` — vue club (leaderboard TCN, saison en cours).
-- `app/carte/` — carte Leaflet des courses géolocalisées.
-- `app/ajouter/` — formulaire d'import (colle une URL → SSE).
-- `app/admin/` — outils d'administration (import de masse, providers en attente).
+- `app/(public_restricted)/dashboard/` — page d'accueil du club : agrégats, KPIs, tendances.
+- `app/(public_restricted)/resultats/` — liste des résultats avec filtres (recherche, sport, date).
+- `app/(public_restricted)/athletes/[id]/` — fiche athlète (route dynamique).
+- `app/(public_restricted)/courses/[id]/` — fiche épreuve avec le classement.
+- `app/(public_restricted)/club/` — vue club (podiums, composition, saison en cours).
+- `app/(public_restricted)/carte/` — carte Leaflet des épreuves géolocalisées.
+- `app/(public_restricted)/ajouter/` — formulaire d'import (colle une URL → SSE).
+- `app/admin/` — outils d'administration (import de masse, providers en attente), hors du groupe.
+- `app/api/cron/keep-warm/` — seule route API Next : le proxy `/api/*` est un rewrite.
 - `app/layout.tsx` — chrome commun (nav, providers React Query, thèmes).
 - `app/providers.tsx` — contextes globaux (React Query, next-themes).
 
 Ouvre **deux** pages représentatives pour prendre le pli :
 
-- `app/dashboard/page.tsx` — agrégats avec toggles (scope, federal_only).
-- `app/resultats/page.tsx` — liste + filtres.
+- `app/(public_restricted)/dashboard/page.tsx` — agrégats avec toggles (scope, federal_only).
+- `app/(public_restricted)/resultats/page.tsx` — liste + filtres.
 
 ## 6. Le client API — `frontend/lib/api/client.ts`
 
@@ -128,12 +133,14 @@ Organisation par domaine :
 
 - `components/ui/` — briques shadcn/ui (bouton, card, table, dialog…). Tu les
   utilises ; tu n'en ajoutes que si shadcn n'en propose pas.
-- `components/scrape/` — `ScrapeForm`, `TcnScrapeForm`, `ProviderDetector`,
-  `ImportProgress` (barre SSE), `ManualResultForm`.
-- `components/results/` — `ResultCard`, `EventList`, `Leaderboard`,
-  `RaceFinishers`, `ResultsFilters`, `SportBadge`, `StatusBadge`.
-- `components/club/` — `ClubDashboard`, `AthleteDialog`.
-- `components/dashboard/` — `Kpis`, `LiveFeed`, `SeasonSelector`.
+- `components/scrape/` — `TcnScrapeForm` (import par URL, progression SSE
+  comprise), `ProviderDetector`, `ManualResultForm`.
+- `components/results/` — `ResultCard`, `EventList`, `RaceFinishers`,
+  `ResultsFilters`, `SportBadge`, `StatusBadge`.
+- `components/club/` — `ClubDashboard`, `PodiumsList`, `ClubComposition`,
+  `RosterApercu`.
+- `components/dashboard/` — `StatCardsRank`, `MaSaison`, `RecentCourses`,
+  `SeasonSelector`.
 - `components/map/` — `MapView` (Leaflet, chargement dynamique côté client).
 - `components/charts/` — `BarList`, `MonthlyTrend`.
 - `components/admin/`, `components/tcn/`, `components/layout/` — utilitaires.
@@ -142,17 +149,19 @@ Organisation par domaine :
 
 Deux choix — ouvre au moins l'un :
 
-- `frontend/components/scrape/ImportProgress.tsx` — consomme
-  `importEventStream()` via un `useEffect` + `for await`. C'est le pattern
-  de référence pour tout futur composant qui doit lire un stream.
-- `frontend/components/dashboard/Kpis.tsx` — récupère les agrégats
-  `/api/v1/stats` en passant `scope=club` et `federal_only=true`. Bon exemple
-  de la « neutralité par défaut » du Principe V appliquée depuis l'UI.
+- `frontend/hooks/useImportStream.ts` — consomme `importEventStream()`
+  (`lib/api/sse.ts`) par un `for await`, et `TcnScrapeForm` en rend l'état.
+  C'est le pattern de référence pour tout futur composant qui doit lire un
+  stream.
+- `frontend/components/dashboard/StatCardsRank.tsx` — rend les agrégats de
+  `/api/v1/stats` que la page demande avec `scope` et `federal_only` explicites.
+  Bon exemple de la « neutralité par défaut » du Principe V appliquée depuis
+  l'UI.
 
 ## 11. Les tests — Vitest + React Testing Library
 
 Convention : `*.test.tsx` à côté du composant (ex :
-`components/results/ResultCard.test.tsx`, `components/scrape/ImportProgress.test.tsx`).
+`components/results/ResultCard.test.tsx`, `components/scrape/TcnScrapeForm.test.tsx`).
 Setup dans `frontend/test/` et `frontend/vitest.config.ts`.
 
 Commandes (depuis `frontend/`) :

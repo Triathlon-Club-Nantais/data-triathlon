@@ -34,10 +34,21 @@ export default async function AjouterPage() {
     .listEvents({ page_size: 6, sort: "imported_desc" }, { revalidateSeconds: SHORT_REVALIDATE_SECONDS })
     .catch(() => null);
   const recent = events?.items ?? [];
+  // Un échec (réveil à froid, 5xx) ne s'annonce pas comme une base vide (#1029).
+  const etatVide = (
+    <EmptyState
+      bare
+      title={
+        events === null
+          ? "Les derniers résultats n'ont pas pu être chargés. Réessayez plus tard."
+          : "Aucun résultat enregistré pour l'instant"
+      }
+    />
+  );
 
   return (
     <PageShell form>
-      <Eyebrow style={{ marginBottom: 6 }}>Nouvelle participation</Eyebrow>
+      <Eyebrow style={{ marginBottom: 6 }}>Nouvelle épreuve</Eyebrow>
       <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(30px, 6vw, 44px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginBottom: 30 }}>Ajouter une épreuve</h1>
 
       <TcnScrapeForm />
@@ -45,7 +56,9 @@ export default async function AjouterPage() {
       <Card padding={0} style={{ overflow: "hidden" }}>
         <div style={{ padding: "22px 28px 16px", borderBottom: "1px solid var(--tcn-border)", display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
           <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0 }}>Derniers résultats enregistrés</h2>
-          <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", fontWeight: 600 }}>Clique pour voir la page de résultats →</div>
+          {recent.length > 0 && (
+            <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", fontWeight: 600 }}>Sélectionnez une épreuve pour voir la page de résultats →</div>
+          )}
         </div>
         <div
           data-testid="recents-grille"
@@ -83,7 +96,7 @@ export default async function AjouterPage() {
               // Pas d'action : le formulaire d'import est juste au-dessus.
               // Hors du tableau : posé en ligne, il s'annoncerait comme une
               // donnée du classement (#481, contrat C1).
-              <EmptyState bare title="Aucun résultat enregistré pour l'instant" />
+              etatVide
             )}
           </div>
         </div>
@@ -93,7 +106,7 @@ export default async function AjouterPage() {
         <div data-testid="recents-cartes" data-affichage="cartes" className="sm:hidden">
           {recent.length === 0 ? (
             // Pas d'action : le formulaire d'import est juste au-dessus.
-            <EmptyState bare title="Aucun résultat enregistré pour l'instant" />
+            etatVide
           ) : (
             recent.map((e) => (
               <LigneCarte

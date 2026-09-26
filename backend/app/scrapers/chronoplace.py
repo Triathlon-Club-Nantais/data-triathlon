@@ -323,11 +323,20 @@ def _event_type(analytics: dict, event_name: str) -> str:
     """Type d'épreuve, classé sur le **nom d'épreuve**.
 
     `analyticsContext.event_type` décrit l'**événement**, pas l'épreuve : celui de
-    Spay'cific est typé « Triathlon » alors qu'il porte aussi un swimrun. Il ne
-    sert donc que de repli.
+    Spay'cific est typé « Triathlon » alors qu'il porte aussi un swimrun, celui
+    du Bike & Run de Lèves aussi. Il ne sert donc qu'en dernier recours.
+
+    Le titre de l'événement (`<h1>`) sert de **contexte** au nom d'épreuve, sans
+    lui être concaténé : une épreuve jeune nommée par sa catégorie d'âge
+    (« Mini poussins ») prend le sport du titre, un « Trail 12 km » garde le
+    sien (#1095).
     """
-    label = analytics.get("epreuve_name") or analytics.get("event_type") or event_name
-    return classify_event_type(label)
+    epreuve = analytics.get("epreuve_name")
+    if epreuve:
+        return classify_event_type(
+            epreuve, contexte=event_name or analytics.get("event_type") or ""
+        )
+    return classify_event_type(analytics.get("event_type") or event_name)
 
 
 def _is_relay_category(category: str) -> bool:

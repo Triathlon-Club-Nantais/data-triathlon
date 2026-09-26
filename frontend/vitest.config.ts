@@ -38,6 +38,10 @@ export default defineConfig({
     // sur une date rendue ne passe qu'en Europe — verte ici, rouge sur un CI
     // en UTC ou sur un poste hors métropole.
     env: { TZ: "Europe/Paris" },
+    // Chaque test part de mocks vidés et de globaux restaurés : sans eux, un
+    // fichier ne passait que dans son ordre d'écriture (#1105).
+    clearMocks: true,
+    unstubGlobals: true,
     setupFiles: ["./test/setup.ts"],
     exclude: EXCLUDE,
     // `environmentMatchGlobs` a été **supprimé** de vitest 4 (pas déprécié) :

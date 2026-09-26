@@ -44,9 +44,12 @@ requêtée (elle est cassée à la source sur les épreuves mono-point).
 
 L'URL est canonicalisée par **allowlist** du seul paramètre `event` — la fiche
 individuelle (2 des 5 URLs chronoweb du Sheet) est donc tronquée vers son
-événement, et les 4 graphies d'Oléron 2024 se réduisent à une. Comme pour
-runnerbreizh, cela fixe le `source_url` des `ScrapedResult`, **pas**
-`Course.source_url`. Une URL sans `event` (l'archive ZIP du Sheet) est refusée
+événement, et les 4 graphies d'Oléron 2024 se réduisent à une. Depuis #156,
+cette URL canonique devient `Course.source_url`, et même **par race** :
+`_race_source_url` pose `{event_url}&race={race_id}` (#220). Comme pour
+runnerbreizh, la sonde TTL de tête compare l'URL soumise telle quelle : une fiche
+individuelle, ou l'URL d'événement nue, qui ne correspond à aucune source
+stockée (toutes portent `&race=`), relance donc un scrape (#1102). Une URL sans `event` (l'archive ZIP du Sheet) est refusée
 **avant tout appel réseau**, avec un message français nommant la forme attendue :
 le scraper ne doit jamais tenter de parser un binaire. Deux échecs à ne pas
 confondre : **pas de `h2.name` → événement introuvable, on lève** ; `h2.name`

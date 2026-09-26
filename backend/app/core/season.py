@@ -7,6 +7,11 @@ from datetime import MAXYEAR, MINYEAR, date
 
 from app.core.time import utcnow
 
+#: Plage d'une saison saisie par un client (#1054) : au-delà, `season_bounds`
+#: lève une `ValueError` (500), ou une saison absurde se persiste.
+SEASON_MIN = 2000
+SEASON_MAX = 2100
+
 
 def season_of(d: date) -> int:
     """Année de début de la saison contenant `d` (bascule au 1ᵉʳ septembre)."""

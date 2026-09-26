@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
@@ -90,7 +91,15 @@ export function VolunteerActionsList({ athleteId }: { athleteId: number }) {
           <EmptyState
             bare
             title="Aucune action de bénévolat validée"
-            description="Les actions déclarées par l'athlète ou depuis l'administration apparaîtront ici une fois acceptées."
+            description={
+              <>
+                Les déclarations faites depuis la{" "}
+                <Link href="/benevolat" className="font-semibold text-accent-ink hover:underline">
+                  page Bénévolat
+                </Link>{" "}
+                apparaîtront ici une fois acceptées.
+              </>
+            }
           />
         </div>
       ) : (

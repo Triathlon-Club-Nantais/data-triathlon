@@ -221,6 +221,21 @@ jobs:
           cat rapport.txt
           exit $code
 
+      # Géocodage des épreuves sans coordonnées (#975), après la reprise et
+      # jamais en mode `urls` ni en dry-run : la carte ne se remplit que par ce
+      # passage. `--limit` borne la durée (Nominatim, ~1 à 2 s par épreuve) sous
+      # le `timeout-minutes` du job ; le reste passe au run suivant. Un échec ne
+      # fait pas rougir un batch dont les épreuves ont abouti.
+      - name: Geocode new courses
+        if: success() && inputs.mode != 'urls' && inputs.dry_run != true
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          uv run python -m app.cli geocode-courses --json --no-progress --limit 300 \
+            > geocode.json 2> geocode.txt
+          cat geocode.txt
+
       # `always()` : un échec total (code 1) est un résultat, pas une panne — son
       # bilan est précisément ce qu'on vient lire.
       - name: Write summary

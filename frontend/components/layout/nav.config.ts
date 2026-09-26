@@ -147,7 +147,7 @@ export const NAV: NavSection[] = [
       // directe seulement (#832).
       {
         id: "benevoles",
-        label: "Validation des courses",
+        label: "Validation des épreuves",
         labelCourt: "Validation",
         href: "/benevoles",
         icon: UserCheck,
@@ -327,9 +327,9 @@ export const NAV: NavSection[] = [
     items: [
       {
         id: "u-acces",
-        label: "Accès au back-office",
+        label: "Accès et mots de passe",
         description:
-          "Seules ces adresses peuvent ouvrir une session. Une adresse retirée perd l'accès immédiatement.",
+          "Adresses autorisées au back-office, code d'accès du site, mot de passe bénévoles et fermeture des sessions ouvertes.",
         href: "/admin/acces",
         permission: "allowed_emails:manage",
       },

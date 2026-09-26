@@ -1313,6 +1313,8 @@ def season_quota(db: Session, *, athlete_id: int, season: int) -> dict:
     synchronisée si l'une des deux change (#845 : un DNS ou une discipline hors
     FFTRI ne doit pas compter dans les 3 épreuves requises).
     """
+    # Comme `validate_season` : un quota « vide » masquait un identifiant faux (#1054).
+    _athlete_or_404(db, athlete_id)
     participations = participation_repository.list_for_athlete(
         db, athlete_id, seasons=[season], federal_only=True
     )
@@ -1324,6 +1326,11 @@ def season_quota(db: Session, *, athlete_id: int, season: int) -> dict:
     return {
         "validated_count": validated_count,
         "has_volunteer_action": volunteer_action_repository.exists_for_athlete_season(
+            db, athlete_id=athlete_id, season=season
+        ),
+        # Champ ajouté plutôt que `has_volunteer_action` modifié (Principe IV) :
+        # une déclaration en attente n'est pas « aucune déclaration » (#1044).
+        "has_pending_volunteer_action": volunteer_action_repository.pending_exists_for_athlete_season(
             db, athlete_id=athlete_id, season=season
         ),
         "season_validated": season_validation_repository.get_for_athlete_season(

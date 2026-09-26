@@ -11,7 +11,7 @@ import { useSession } from "@/lib/queries/auth";
 /**
  * Le geste d'incident (#169) : fermer d'un coup toutes les sessions ouvertes.
  *
- * Vit au bas de « Accès au back-office », sous la liste : c'est le même écran
+ * Vit au bas de « Accès et mots de passe », sous la liste : c'est le même écran
  * qui porte la révocation **par adresse**, ligne par ligne. Les séparer aurait
  * demandé une entrée de navigation pour un unique bouton.
  *

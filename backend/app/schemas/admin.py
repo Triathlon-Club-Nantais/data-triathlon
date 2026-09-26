@@ -12,6 +12,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.season import SEASON_MAX, SEASON_MIN
 from app.schemas.course import CourseSourceOut
 
 
@@ -284,7 +285,7 @@ class TeammatesUpdate(BaseModel):
 class SeasonValidationCreate(BaseModel):
     """Demande de validation d'une saison (#709, FR-009)."""
 
-    season: int
+    season: int = Field(ge=SEASON_MIN, le=SEASON_MAX)
 
 
 class SeasonValidationOut(BaseModel):

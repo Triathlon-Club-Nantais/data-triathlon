@@ -756,3 +756,81 @@ def test_downgrade_puis_upgrade_des_timestamps_de_validation(sqlite_url):
 
     command.upgrade(cfg, "head")
     assert {"validated_at", "rejected_at"} <= _columns(sqlite_url, "participations")
+
+
+def _index_names(url: str, table: str) -> set[str]:
+    engine = sa.create_engine(url)
+    try:
+        return {i["name"] for i in sa.inspect(engine).get_indexes(table)}
+    finally:
+        engine.dispose()
+
+
+def test_course_names_are_cleaned_unless_the_clean_name_collides(sqlite_url):
+    """Scrapers and manual entry now clean names: stale rows would duplicate (#1088)."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "9f2e3d4c5b6a")
+    noms = [
+        ("Embrunman - {EN:Quarter|FR:Quart}", "2026-08-15"),
+        ("TRIATHLON DES SABLES D'OLONNE  - SPRINT", "2026-06-01"),
+        ("Swimrun Dinard ", "2026-05-01"),
+        ("Déjà propre ", "2026-04-01"),
+        ("Déjà propre", "2026-04-01"),
+        # Même règle que `qualify_event_name` : un qualifiant déjà dans le nom
+        # n'est pas ré-ajouté, sans quoi le prochain rescrape recréerait l'épreuve.
+        ("Embrunman Quart - {EN:Quarter|FR:Quart}", "2026-08-16"),
+        ("Tri - {fr:Sprint}", "2026-07-01"),
+        ("Tri Vide - {FR:|EN:}", "2026-07-02"),
+    ]
+    engine = sa.create_engine(sqlite_url)
+    try:
+        with engine.begin() as connexion:
+            for nom, jour in noms:
+                connexion.execute(
+                    sa.text(
+                        "INSERT INTO courses (name, event_date, event_type, is_relay, scraped_at,"
+                        " created_at) VALUES (:nom, :jour, 'triathlon-m', 0, '2026-01-01',"
+                        " '2026-01-01')"
+                    ),
+                    {"nom": nom, "jour": jour},
+                )
+    finally:
+        engine.dispose()
+
+    command.upgrade(cfg, "head")
+
+    assert sorted(n for (n,) in _lignes(sqlite_url, "SELECT name FROM courses")) == sorted([
+        "Embrunman - Quart",
+        "TRIATHLON DES SABLES D'OLONNE - SPRINT",
+        "Swimrun Dinard",
+        "Déjà propre ",  # le nom propre existe déjà : on ne crée pas de collision
+        "Déjà propre",
+        "Embrunman Quart",
+        "Tri - Sprint",
+        "Tri Vide - {FR:|EN:}",  # variantes vides : gardé intact, comme au runtime
+    ])
+
+
+def test_user_sessions_token_hash_keeps_only_its_unique_index(sqlite_url):
+    """The unique constraint already indexes the column (#1061)."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    assert "ix_user_sessions_token_hash" not in _index_names(sqlite_url, "user_sessions")
+
+    command.downgrade(cfg, "8e1d2c3b4a5f")
+    assert "ix_user_sessions_token_hash" in _index_names(sqlite_url, "user_sessions")
+
+    command.upgrade(cfg, "head")
+    assert "ix_user_sessions_token_hash" not in _index_names(sqlite_url, "user_sessions")
+
+
+def test_downgrade_then_upgrade_of_the_course_source_url_index(sqlite_url):
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    assert "ix_course_sources_url_active" in _index_names(sqlite_url, "course_sources")
+
+    command.downgrade(cfg, "c10f3d7ae85e")
+    assert "ix_course_sources_url_active" not in _index_names(sqlite_url, "course_sources")
+
+    command.upgrade(cfg, "head")
+    assert "ix_course_sources_url_active" in _index_names(sqlite_url, "course_sources")

@@ -41,7 +41,7 @@ describe("Placement des routes vis-à-vis de la garde d'accès au site (#509)", 
     },
   );
 
-  it.each(["dashboard", "resultats", "athletes", "courses", "club", "carte", "ajouter"])(
+  it.each(["dashboard", "resultats", "athletes", "courses", "club", "carte", "ajouter", "guide", "benevolat"])(
     "`%s` vit sous le groupe gardé",
     (route) => {
       expect(restreintes).toContain(route);

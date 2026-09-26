@@ -369,6 +369,17 @@ def test_event_type_par_epreuve():
     assert chronoplace._event_type(analytics_swimrun, "") == "swimrun"
 
 
+def test_event_type_uses_the_event_title_when_the_race_names_no_sport():
+    """Youth races are named after an age group (Lèves 2025, #1095)."""
+    analytics = {"epreuve_name": "Mini poussins (2019-2018)", "event_type": "Triathlon"}
+
+    assert chronoplace._event_type(analytics, "SITRANS Bike & Run de Lèves 2025") == "bike-run"
+
+
+def test_event_type_keeps_the_sport_a_race_names_itself():
+    assert chronoplace._event_type({"epreuve_name": "Trail 12 km"}, "Triathlon de Vertou") == "trail"
+
+
 def test_event_type_repli_sur_le_contexte_puis_le_nom():
     assert chronoplace._event_type({"event_type": "Duathlon"}, "") == "duathlon"
     assert chronoplace._event_type({}, "Aquathlon de Spay") == "aquathlon"
@@ -969,23 +980,27 @@ def test_registry_expose_last_trace_apres_scrape(monkeypatch):
     assert provider.last_trace.failures == []
 
 
-def test_chronoplace_provider_single_heat_uses_classic_scrape(monkeypatch):
-    """`single_heat=True` (#698) retombe sur le contrat historique — l'épreuve
-    visée par l'URL seule, sans ses onglets sœurs — même patron que
-    `ChronoWebProvider.scrape_event_all`. Seule échappatoire que Chronoplace
-    n'avait pas encore : les 7 autres providers fan-out l'avaient déjà."""
+def test_chronoplace_provider_single_heat_scrapes_every_race_without_probe(monkeypatch):
+    """`single_heat=True` (#698) ne cible **pas** une épreuve : Chronoplace n'a pas
+    de sélecteur dans l'URL, et le contrat historique rend toutes les épreuves
+    de l'événement. Seuls la sonde de cache, le suivi par épreuve et la trace
+    tombent (#1120)."""
+    from app.scrapers.base import FanoutTrace
     from app.scrapers.registry import ChronoplaceProvider
 
-    def fanout_refuse(*a, **k):
-        raise AssertionError("scrape_event_fanout ne doit pas être appelé")
+    appels: list[dict] = []
 
-    monkeypatch.setattr(chronoplace, "scrape_event_fanout", fanout_refuse)
-    monkeypatch.setattr(chronoplace, "scrape_event_all", lambda url: ["r1"])
+    def fanout(url, **kwargs):
+        appels.append(kwargs)
+        return ["r494", "r495"], FanoutTrace(heats_enumerated=2)
+
+    monkeypatch.setattr(chronoplace, "scrape_event_fanout", fanout)
 
     provider = ChronoplaceProvider()
     results = provider.scrape_event_all(URL_494, single_heat=True)
 
-    assert results == ["r1"]
+    assert results == ["r494", "r495"]
+    assert appels == [{}]
     assert provider.last_trace.heats_enumerated == 0
 
 

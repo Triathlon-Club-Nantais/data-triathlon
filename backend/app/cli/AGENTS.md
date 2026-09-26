@@ -22,6 +22,7 @@ uv run python -m app.cli rescrape-db --urls-from echecs.txt     # ou « - » pou
 uv run python -m app.cli import-sheet --json | jq -r '.failures[].url' \
   | uv run python -m app.cli rescrape-db --urls-from -
 uv run python -m app.cli club-labels --like nant   # libellés club vus en base, marqués TCN ou non
+uv run python -m app.cli geocode-courses --limit 300 --json   # coordonnées des épreuves sans géocodage (carte, #975)
 uv run python -m app.cli allow-email --email <adresse>              # autorise une adresse à se connecter (#170)
 uv run python -m app.cli grant-role --email <adresse> --role admin   # amorce le 1er administrateur (#115)
 uv run python -m app.cli revoke-sessions --all --yes                 # révocation d'urgence : ferme toutes les sessions (#169)

@@ -292,3 +292,25 @@ describe("échelle des disciplines", () => {
     }
   });
 });
+
+describe("cible tactile publique (#1079)", () => {
+  it("porte 44 px sous md", () => {
+    const cible = rule(".tcn-cible-tactile");
+    expect(cible).toContain("min-height: 44px");
+    expect(cible).toContain("min-width: 44px");
+  });
+
+  it("redescend au plancher de 28 px à partir de md", () => {
+    const bureau = /@media\s*\(min-width:\s*768px\)\s*\{\s*\.tcn-cible-tactile\s*\{([^}]*)\}/.exec(css);
+    expect(bureau?.[1]).toContain("min-height: 28px");
+  });
+});
+
+describe("champs natifs sous md (#1093)", () => {
+  it("portent au moins 16 px, même contre une taille posée en ligne", () => {
+    // iOS Safari zoome sur tout champ sous 16 px ; `!important` est le seul
+    // moyen de l'emporter sur les `fontSize` en ligne des appelants.
+    const mobile = /@media\s*\(max-width:\s*767\.98px\)\s*\{\s*input,\s*select,\s*textarea\s*\{([^}]*)\}/.exec(css);
+    expect(mobile?.[1]).toContain("font-size: max(16px, 1em) !important");
+  });
+});

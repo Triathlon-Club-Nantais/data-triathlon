@@ -598,3 +598,45 @@ def test_recompute_tcn_counts_rewrites_only_the_courses_whose_count_changes(db_s
     assert rewritten == 1
     db_session.refresh(stale)
     assert stale.tcn_count == 1
+
+
+def test_active_source_url_lookup_uses_the_url_index(db_session):
+    """Every URL lookup filters on the active source's URL (#1025)."""
+    from app.models.course_source import CourseSource
+
+    query = course_repository._by_active_source(db_session, CourseSource.url == "https://x")
+    compiled = query.statement.compile(db_session.bind, compile_kwargs={"literal_binds": True})
+
+    with db_session.bind.connect() as conn:
+        plan = [tuple(row) for row in conn.execute(text(f"EXPLAIN QUERY PLAN {compiled}"))]
+
+    plan_text = " | ".join(str(row) for row in plan)
+    assert "ix_course_sources_url_active" in plan_text, plan_text
+
+
+
+def test_identity_lookups_and_renames_use_the_cleaned_name(db_session):
+    """Stored clean by `get_or_create`, the name must be looked up clean too (#1088, review)."""
+    course = course_repository.get_or_create(
+        db_session, name="Swimrun Dinard", event_date=date(2026, 5, 1), event_type="swimrun"
+    )
+
+    assert course_repository.get_by_identity(
+        db_session, "Swimrun  Dinard ", date(2026, 5, 1), "swimrun", False
+    ) is course
+
+    course_repository.update_identity(db_session, course, name="  Swimrun   Dinard 2026 ")
+    assert course.name == "Swimrun Dinard 2026"
+
+
+def test_get_or_create_cleans_the_course_name_whitespace(db_session):
+    """Manual entry stored `Swimrun Dinard Côté d'Émeraude ` as is (#1088)."""
+    course = course_repository.get_or_create(
+        db_session, name="  Swimrun   Dinard ", event_date=date(2026, 5, 1), event_type="swimrun"
+    )
+    meme = course_repository.get_or_create(
+        db_session, name="Swimrun Dinard", event_date=date(2026, 5, 1), event_type="swimrun"
+    )
+
+    assert course.name == "Swimrun Dinard"
+    assert meme.id == course.id

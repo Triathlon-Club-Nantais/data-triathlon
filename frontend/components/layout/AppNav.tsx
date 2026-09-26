@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { LogIn, Menu, PanelLeft, Plus, RotateCw, Search, X } from "lucide-react";
 import { Avatar, Button } from "@/components/tcn";
 import { SessionEnLecture, UserMenu } from "@/components/auth/UserMenu";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/lib/queries/auth";
 import { useNavBadges } from "@/lib/queries/nav-badges";
@@ -389,9 +389,14 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           borderBottom: "1px solid var(--tcn-border-strong)",
         }}
       >
+        {/* État posé à la main : le `Sheet` vit plus bas, hors de portée d'un
+            `SheetTrigger` (#1077). */}
         <button
           type="button"
           aria-label="Ouvrir le menu"
+          aria-haspopup="dialog"
+          aria-expanded={drawerOpen}
+          aria-controls={drawerOpen ? TIROIR_ID : undefined}
           onClick={() => setDrawerOpen(true)}
           style={boutonFantome}
         >
@@ -453,7 +458,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
 
       {/* ── Tiroir mobile : le panneau déplié, à l'identique ── */}
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent side="left" className="gap-0 p-0">
+        <SheetContent id={TIROIR_ID} side="left" className="gap-0 p-0">
           <div
             style={{
               flex: "none",
@@ -468,6 +473,11 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo-tcn.png" alt={`Navigation — ${CLUB_NAME}`} style={{ height: 22, display: "block" }} />
             </SheetTitle>
+            {/* Seul contrôle de fermeture exposé à un lecteur d'écran : le voile
+                ne l'est pas, et Échap manque sur téléphone (#1116). */}
+            <SheetClose aria-label="Fermer le menu" className="tcn-icon-btn" style={{ ...carre, marginLeft: "auto" }}>
+              <X size={20} />
+            </SheetClose>
           </div>
 
           {contenu(true, () => setDrawerOpen(false), sectionsTiroir)}
@@ -942,6 +952,8 @@ function Entree({
     </Tooltip>
   );
 }
+
+const TIROIR_ID = "tiroir-navigation";
 
 const tronque = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } as const;
 

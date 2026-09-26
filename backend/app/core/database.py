@@ -8,8 +8,9 @@ import sqlite3
 from collections.abc import Iterator
 
 from sqlalchemy import create_engine, event
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.core import sql_observability
 from app.core.config import get_settings
@@ -53,9 +54,22 @@ def _register_sqlite_unicode_case(dbapi_connection, _connection_record) -> None:
         dbapi_connection.execute("PRAGMA busy_timeout=15000")
 
 def _create_engine(settings) -> Engine:
-    """Isolé pour être testable avec des `Settings` arbitraires (#585)."""
+    """Isolé pour être testable avec des `Settings` arbitraires (#585).
+
+    Une SQLite **en mémoire** prend `StaticPool` : SQLAlchemy y choisirait
+    `SingletonThreadPool`, qui refuse le dimensionnement (`TypeError` dès
+    l'import du module), et chaque connexion d'un autre pool verrait sa propre
+    base vide (#1069).
+    """
+    url = make_url(settings.database_url)
+    if url.get_backend_name() == "sqlite" and url.database in (None, "", ":memory:"):
+        return create_engine(
+            url,
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
     return create_engine(
-        settings.database_url,
+        url,
         connect_args={"check_same_thread": False} if settings.is_sqlite else {},
         pool_pre_ping=True,
         pool_size=settings.db_pool_size,

@@ -3,9 +3,16 @@ import { render, screen } from "@testing-library/react";
 
 // `next/font/google` normalise ses polices via un plugin de build (fetch des
 // fichiers, génération de `variable`) absent de l'environnement de test.
+// Options reçues à l'import du module, avant tout test : un `vi.fn` serait vidé
+// par `clearMocks` avant d'être lu.
+const { barlowOptions } = vi.hoisted(() => ({ barlowOptions: [] as unknown[] }));
 vi.mock("next/font/google", () => {
   const police = () => ({ variable: "mock-font" });
-  return { Anton: police, Barlow: police, Barlow_Semi_Condensed: police };
+  const barlow = (options: unknown) => {
+    barlowOptions.push(options);
+    return { variable: "mock-font" };
+  };
+  return { Anton: police, Barlow: barlow, Barlow_Semi_Condensed: police };
 });
 
 // RootLayout compose la coquille entière (nav, footer, toasts, bouton de
@@ -56,5 +63,14 @@ describe("RootLayout — espace réservé sous le contenu mobile (#482, NAV-4)",
     const conteneur = document.querySelector("main")?.parentElement;
     expect(conteneur?.className).toContain("pb-[var(--tcn-nav-bottom)]");
     expect(conteneur?.className).toContain("md:pb-0");
+  });
+});
+
+describe("RootLayout — polices préchargées (#1081)", () => {
+  it("ne charge que les graisses de Barlow réellement utilisées", () => {
+    // `next/font` précharge chaque graisse déclarée ; la 900 n'est rendue nulle part.
+    expect(barlowOptions).toEqual([
+      expect.objectContaining({ weight: ["400", "500", "600", "700", "800"] }),
+    ]);
   });
 });

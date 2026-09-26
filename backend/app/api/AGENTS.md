@@ -221,8 +221,9 @@ Quatre choses à ne pas défaire :
   raison inverse de tous les autres : c'est le **premier** geste de chaque
   visiteur, partagé entre adhérents, et une saisie au clavier se trompe. Ce
   qu'il ferme reste le déni de service par `hashlib.scrypt` (~16 Mo, 50-100 ms
-  de CPU par tentative, bonne ou mauvaise), pas la force brute — le secret est
-  généré à 144 bits.
+  de CPU par tentative, bonne ou mauvaise), pas la force brute. Celle-ci est
+  hors sujet sur un secret généré (144 bits) ; sur un secret saisi, c'est la
+  longueur minimale de 12 caractères qui la borne (#1020).
 - **Le compteur est en mémoire du process**, contrairement à celui de
   `POST /feedback` qui compte des lignes en base : il n'y a ici aucune table où
   compter, et en créer une ferait écrire la requête que le plafond empêche.
@@ -349,7 +350,7 @@ détail dans `docs/api/feedback-stats.md`.
 
 ## Page bénévoles : une seconde garde, hors du socle SSO (#271)
 
-`benevoles.py` porte neuf ressources gardées par `require_benevole_access`
+`benevoles.py` porte dix ressources gardées par `require_benevole_access`
 (`api/deps.py`) — **pas** `require_permission`. Mot de passe partagé (5-6
 bénévoles). Décision produit et alternatives rejetées : `specs/20260815-
 114258-page-validation-benevoles/research.md` §D1.
@@ -395,6 +396,10 @@ passe **bénévoles**, jamais celui du site. Exempter `athletes` de
 une route sous `/benevoles/` la garde derrière la garde que le bénévole possède
 déjà. Elle rend `AthleteBrief`, donc sans `birth_date`.
 
+**La dixième est `GET /benevoles/queue/history`** (US13, #466) — lecture seule
+de l'arriéré de la file par jour et du délai moyen de résolution, pour le
+graphique de la page bénévoles. Même garde, aucune écriture.
+
 **Le renommage, la réattribution, la validation, le rejet et la correction de
 champs sont scopés au résultat en attente actionnable** (relevé en revue de
 code, #437) : déléguer tel quel à `admin_actions` donnerait au mot de passe
@@ -410,7 +415,7 @@ l'entrée doit au contraire être `is_rejected`, sans quoi il n'y a rien à
 annuler.
 
 `POST /benevoles/session` reste **non gardée** — c'est elle qui pose la garde
-des neuf autres — et `test_public_routes_still_open.py` classe les neuf
+des dix autres — et `test_public_routes_still_open.py` classe les dix
 routes gardées dans `ROUTES_BENEVOLES_FERMEES`, pas dans le préfixe `/admin/`
 (ce mécanisme n'a rien à voir avec le SSO/RBAC). Y **ajouter** toute nouvelle
 route de ce router : le test range par défaut dans « publique », donc un oubli
@@ -436,7 +441,8 @@ devenu **dédié** en revue de #513, cf. § « Plafonds de débit par IP »).
 
 **Six routers sont exemptés de la garde**, et la liste
 `_EXEMPTES_DE_LA_GARDE_SITE` de `v1/router.py` en est la description unique :
-`health` (sonde Render), `site_access` (elle pose la garde), `auth` +
+`health` (sonde Render ; **503** quand la base ne répond pas, #1070, car le
+keep-warm et la supervision ne lisent que le statut), `site_access` (elle pose la garde), `auth` +
 `admin_site_access` (le chemin qui installe le tout premier mot de passe sur un
 déploiement neuf), `benevoles` (le bénévole n'a que **son** mot de passe, cf. la
 section ci-dessus) et `feedback` (revue de #513 — `FeedbackButton` vit dans le

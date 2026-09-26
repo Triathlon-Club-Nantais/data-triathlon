@@ -54,6 +54,19 @@ describe("AjouterPage", () => {
     expect(screen.getByText("Aucun résultat enregistré pour l'instant")).toBeInTheDocument();
   });
 
+  it("tells a failed load apart from an empty list (#1029)", async () => {
+    listEvents.mockRejectedValue(new Error("réveil à froid"));
+    const ui = await AjouterPage();
+    render(ui);
+
+    expect(
+      screen.getByText("Les derniers résultats n'ont pas pu être chargés. Réessayez plus tard."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Aucun résultat enregistré pour l'instant")).not.toBeInTheDocument();
+    // Rien à sélectionner : l'invitation disparaît avec la liste.
+    expect(screen.queryByText(/sélectionnez une épreuve/i)).not.toBeInTheDocument();
+  });
+
   // ── Structure de tableau (#481, A11Y-3) ────────────────────────────────────
 
   const epreuve = {

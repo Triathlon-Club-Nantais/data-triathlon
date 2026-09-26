@@ -1227,7 +1227,7 @@ def _events_order(db: Session, sort: str, event_name: str | None):
     if sort == "date_asc":
         order = (Course.event_date.asc().nullslast(), Course.name, Course.id)
     elif sort == "name":
-        order = (Course.name.asc(), Course.event_date.desc(), Course.id)
+        order = (Course.name.asc(), Course.event_date.desc().nullslast(), Course.id)
     elif sort == "imported_desc":
         # « Derniers résultats enregistrés » de /ajouter (#201) : trier par date
         # d'entrée en base, pas par date d'épreuve — une épreuve ancienne qu'on

@@ -361,20 +361,6 @@ export interface HeatFailure {
   reason: string;
 }
 
-export interface ImportResult {
-  imported: number;
-  updated: number;
-  skipped: number;
-  cached?: boolean;
-  courses: ImportedCourse[];
-  // Compteurs fan-out (#156) — présents pour tous les providers ; 0/[] hors Klikego.
-  heats_enumerated?: number;
-  heats_imported?: number;
-  heats_cached?: number;
-  heats_failed?: number;
-  failures?: HeatFailure[];
-}
-
 // Événements du flux SSE d'import.
 // Fan-out Klikego (#156) : la phase `scraping` peut porter une progression par
 // heat (`heat_index`/`heats_total`/`heat_slug`/`heat_label`). Ces clés sont
@@ -1046,6 +1032,7 @@ export interface SeasonValidation {
 export interface SeasonQuota {
   validated_count: number;
   has_volunteer_action: boolean;
+  has_pending_volunteer_action: boolean;
   season_validated: boolean;
 }
 

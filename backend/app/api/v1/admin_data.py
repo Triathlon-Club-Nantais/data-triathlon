@@ -12,13 +12,14 @@ en HTTP. La transaction se clôt ici — le service `flush`, la route `commit` �
 ce qui rend l'action et sa trace indissociables (FR-015) : un refus lève avant
 le commit, et rien n'est écrit, ni la donnée ni le journal.
 """
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import MAX_PAGE, require_permission
 from app.core.analytics import capture_event
 from app.core.database import get_db
 from app.core.permissions import P
+from app.core.season import SEASON_MAX, SEASON_MIN
 from app.models.user import User
 from app.repositories import athlete_repository, participation_repository
 from app.schemas.admin import (
@@ -63,7 +64,7 @@ def _fiche(athlete, participations: int) -> AdminAthleteRead:
 @router.get("/admin/athletes", response_model=list[AdminAthleteRead])
 def search_athletes(
     search: str | None = Query(None, description="Filtre sur le nom et le prénom."),
-    page: int = Query(1, ge=1),
+    page: int = Query(1, ge=1, le=MAX_PAGE),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.ATHLETES_READ)),
@@ -283,7 +284,7 @@ def update_athlete(
 @router.get("/admin/athletes/{athlete_id}/season-quota")
 def get_season_quota(
     athlete_id: int,
-    season: int = Query(...),
+    season: int = Query(..., ge=SEASON_MIN, le=SEASON_MAX),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_SEASON_VALIDATE)),
 ):
@@ -316,7 +317,7 @@ def validate_season(
 )
 def unvalidate_season(
     athlete_id: int,
-    season: int,
+    season: int = Path(ge=SEASON_MIN, le=SEASON_MAX),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_SEASON_VALIDATE)),
 ):

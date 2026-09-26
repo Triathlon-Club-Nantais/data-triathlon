@@ -5,7 +5,7 @@
 # Claude Code accepte la syntaxe `.gitignore`, mais on reste en chemins explicites ici.
 # Écrire `.env` ne couvre donc PAS `backend/.env` — ce sont deux entrées.
 # Un chemin absent est sauté en silence : il ne se signale par aucune erreur.
-# Justifications et mesures : AGENTS.md, §Dev multi-worktree.
+# Justifications et mesures : docs/dev-multi-worktree.md.
 
 # N'y figez pas AUTH_REDIRECT_BASE_URL ni les identifiants OAuth : une application
 # OAuth n'accepte **qu'une seule** URL de retour, port compris, et le front d'un

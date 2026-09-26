@@ -57,6 +57,15 @@ describe("ResultatsPage", () => {
     expect(listEvents).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
   });
 
+  it("caches the coverage fetch with the short revalidation window (#1027)", async () => {
+    const jsx = await ResultatsPage({ searchParams: Promise.resolve({}) });
+    render(jsx);
+
+    const calls = listEvents.mock.calls as [{ page_size?: number }, unknown][];
+    const coverageCall = calls.find(([filters]) => filters.page_size === 200);
+    expect(coverageCall?.[1]).toEqual({ revalidateSeconds: 30 });
+  });
+
   it("scope la couverture sur la saison courante par défaut (#772)", async () => {
     const jsx = await ResultatsPage({ searchParams: Promise.resolve({}) });
     render(jsx);

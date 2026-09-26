@@ -49,11 +49,19 @@ describe("SegmentedControl", () => {
     expect(screen.getByRole("button", { name: "TCN (7)" })).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("porte chaque segment à la taille tactile minimale (28 px, #479)", () => {
-    // Un des trois contrôles de la barre d'outils du dashboard mesurés entre
-    // 26 et 34 px selon l'audit UI/UX — un plancher explicite lève le doute.
+  it("lets its segments wrap so a 320 px screen does not scroll sideways (#1092)", () => {
     render(<SegmentedControl value="a" onChange={() => {}} options={["a", "b"]} />);
-    expect(Number.parseInt(screen.getByRole("button", { name: "a" }).style.minHeight, 10)).toBeGreaterThanOrEqual(28);
+
+    expect(screen.getByRole("button", { name: "a" }).parentElement).toHaveStyle({ flexWrap: "wrap" });
+  });
+
+  it("gives each segment the public touch target, 44 px below md (#479, #1079)", () => {
+    // Le plancher vit dans `.tcn-cible-tactile` (globals.css) : un
+    // `minHeight` en ligne l'emporterait sur la media query.
+    render(<SegmentedControl value="a" onChange={() => {}} options={["a", "b"]} />);
+    const segment = screen.getByRole("button", { name: "a" });
+    expect(segment).toHaveClass("tcn-cible-tactile");
+    expect(segment.style.minHeight).toBe("");
   });
 
   it("n'appelle pas onChange sur une option désactivée", async () => {

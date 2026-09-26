@@ -101,7 +101,7 @@ describe("ParticipationDetailPage", () => {
   it("propose un retour vers la course et vers les résultats de l'athlète", async () => {
     await renderPage(participation({ stats: STATS }));
 
-    expect(screen.getByRole("link", { name: /retour à la course/i }).getAttribute("href")).toBe(
+    expect(screen.getByRole("link", { name: /retour à l'épreuve/i }).getAttribute("href")).toBe(
       "/courses/3",
     );
     expect(
@@ -125,7 +125,7 @@ describe("ParticipationDetailPage", () => {
   it("garde les deux retours quand les statistiques sont indisponibles", async () => {
     await renderPage(participation({ stats: null }));
 
-    expect(screen.getByRole("link", { name: /retour à la course/i }).getAttribute("href")).toBe(
+    expect(screen.getByRole("link", { name: /retour à l'épreuve/i }).getAttribute("href")).toBe(
       "/courses/3",
     );
   });
@@ -187,7 +187,7 @@ describe("ParticipationDetailPage", () => {
     await renderPage(participation({ stats: null, total_time: "00:22:31" }));
 
     expect(
-      screen.getByRole("img", { name: /distribution des temps.*votre temps/is }),
+      screen.getByRole("img", { name: /distribution des temps.*le temps de l'athlète/is }),
     ).toBeTruthy();
   });
 
@@ -199,6 +199,20 @@ describe("ParticipationDetailPage", () => {
     await renderPage(participation({ stats: null }));
 
     expect(screen.queryByText(/distribution des temps/i)).toBeNull();
+  });
+
+  it("keeps the participation rendered when the course summary fails with a 500 (#1026)", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    getCourseSummary.mockRejectedValue(
+      new (await import("@/lib/api/client")).ApiError(500, "Boum"),
+    );
+
+    await renderPage(participation({ stats: null }));
+
+    expect(screen.getByRole("link", { name: /retour à l'épreuve/i })).toBeTruthy();
+    expect(screen.queryByText(/distribution des temps/i)).toBeNull();
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });
 

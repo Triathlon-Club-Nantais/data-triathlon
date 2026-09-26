@@ -30,7 +30,12 @@ from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.course_source import CourseSource
 from app.models.participation import Participation
-from app.repositories import athlete_repository, course_repository, participation_repository
+from app.repositories import (
+    athlete_repository,
+    course_repository,
+    course_source_repository,
+    participation_repository,
+)
 from app.scrapers import registry
 from app.scrapers import scrape_event_all as registry_scrape_event_all
 from app.scrapers.base import (
@@ -1086,6 +1091,7 @@ class _Persister:
             self._resolve_pending(course_id)
         for course_id, course in self._courses.items():
             course_repository.touch_scraped_at(self.db, course)
+            course_source_repository.touch_active_scraped_at(self.db, course_id)
             # Réutilise la liste déjà chargée par `_index_course` (#706) —
             # tenue à jour par `_resolve_pending` — au lieu d'un second
             # `list_for_course`. `list_for_course` n'applique pas
