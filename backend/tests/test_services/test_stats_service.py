@@ -445,6 +445,22 @@ def test_course_summary_merges_club_labels_differing_by_punctuation_or_spacing(d
     ]
 
 
+def test_course_summary_ignores_punctuation_only_club_placeholders(db_session):
+    """« - » is no club: its broad key is empty (#1110, review)."""
+    course = _epreuve(
+        db_session,
+        [
+            ("A", "Un", "M", "ASPTT", None, "finisher", None, None),
+            ("B", "Deux", "M", "-", None, "finisher", None, None),
+            ("C", "Trois", "M", "--", None, "finisher", None, None),
+        ],
+    )
+
+    synthese = stats_service.course_summary(db_session, course.id)
+
+    assert [c["name"] for c in synthese["clubs"]] == ["ASPTT"]
+
+
 def test_course_summary_ignores_punctuation_only_category_placeholders(db_session):
     """ProLiveSport ships « - » for an unknown category: 2 920 rows in production (#1113)."""
     course = _epreuve(
