@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AthleteComparisonChart, AthleteComparisonResult } from "./AthleteComparisonChart";
 
@@ -88,7 +88,7 @@ describe("AthleteComparisonChart, teammate load failure (#1028)", () => {
     getAthlete.mockRejectedValueOnce(new Error("réveil")).mockResolvedValueOnce({ participations: [] });
     await choisirCamarade();
 
-    expect(await screen.findByText(/impossible de charger/i)).toBeInTheDocument();
+    expect(await screen.findByText(/impossible de charger.*pour l.instant/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /réessayer/i }));
 
     expect(await screen.findByText(/comparaison avec lea martin/i)).toBeInTheDocument();
@@ -101,7 +101,22 @@ describe("AthleteComparisonChart, teammate load failure (#1028)", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: /changer/i }));
 
-    expect(screen.getByLabelText(/chercher un athlète à comparer/i)).toBeInTheDocument();
+    // Le bouton disparaît sous le doigt : le focus revient au champ, pas au <body>.
+    expect(screen.getByLabelText(/chercher un athlète à comparer/i)).toHaveFocus();
+  });
+
+  it("announces the failure and keeps the focus in place on retry", async () => {
+    getAthlete.mockRejectedValueOnce(new Error("réveil")).mockReturnValueOnce(new Promise(() => {}));
+    await choisirCamarade();
+
+    await waitFor(() =>
+      expect(screen.getByRole("status")).toHaveTextContent(/impossible de charger les résultats de lea martin/i),
+    );
+    const reessayer = screen.getByRole("button", { name: /réessayer/i });
+    expect(reessayer).toHaveClass("tcn-cible-tactile");
+    await userEvent.click(reessayer);
+
+    expect(document.activeElement).not.toBe(document.body);
   });
 
   it("lets the user change while loading and ignores the late answer", async () => {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Card, Eyebrow, Input } from "@/components/tcn";
+import { AnnonceStatut, Card, Eyebrow, Input } from "@/components/tcn";
 import { useDebounce } from "@/hooks/useDebounce";
 import { apiClient } from "@/lib/api/client";
 import type { AthleteSearchResult, Participation } from "@/lib/types";
@@ -180,6 +180,18 @@ export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
   // Numéro de la dernière requête lancée : une réponse d'une requête
   // abandonnée par « Changer » n'écrase pas l'état revenu à « idle » (#1028).
   const requete = useRef(0);
+  // « Changer » et « Réessayer » se démontent sous le doigt : le focus est reposé
+  // sur le champ de recherche, ou sur la zone d'état, jamais laissé au <body>.
+  const champRecherche = useRef<HTMLInputElement>(null);
+  const zoneEtat = useRef<HTMLDivElement>(null);
+  const focusApresChanger = useRef(false);
+
+  useEffect(() => {
+    if (!selected && focusApresChanger.current) {
+      focusApresChanger.current = false;
+      champRecherche.current?.focus();
+    }
+  }, [selected]);
 
   const search = debouncedQuery.trim();
 
@@ -226,6 +238,7 @@ export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
   }
 
   function changer() {
+    focusApresChanger.current = true;
     requete.current += 1;
     setSelected(null);
     setTheirs([]);
@@ -236,7 +249,7 @@ export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
     <button
       type="button"
       onClick={changer}
-      className="tcn-comparaison-lien text-sm font-semibold text-accent-ink hover:underline"
+      className="tcn-comparaison-lien tcn-cible-tactile inline-flex items-center text-sm font-semibold text-accent-ink hover:underline"
     >
       Changer
     </button>
@@ -248,10 +261,20 @@ export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
     // marge locale y ferait à nouveau cumuler deux systèmes.
     <Card>
       <Eyebrow>Comparer avec un coéquipier</Eyebrow>
+      <AnnonceStatut
+        texte={
+          selected && etat === "echec"
+            ? `Impossible de charger les résultats de ${selected.prenom} ${selected.nom}.`
+            : selected && etat === "chargement"
+              ? "Chargement…"
+              : ""
+        }
+      />
 
       {!selected && (
         <div style={{ marginTop: 8 }}>
           <Input
+            ref={champRecherche}
             type="search"
             placeholder="Chercher un athlète du club…"
             value={query}
@@ -284,28 +307,35 @@ export function AthleteComparisonChart({ mine }: { mine: Participation[] }) {
         </div>
       )}
 
-      {selected && etat === "chargement" && (
-        <div className="flex items-center justify-between gap-3 py-4">
-          <p className="text-sm text-[var(--tcn-text-faint)]">Chargement…</p>
-          {boutonChanger}
-        </div>
-      )}
-
-      {selected && etat === "echec" && (
-        <div className="py-4">
-          <p className="text-sm text-[var(--tcn-text-faint)]">
-            Impossible de charger les résultats de {selected.prenom} {selected.nom} pour l&apos;instant.
-          </p>
-          <div className="mt-2 flex gap-4">
-            <button
-              type="button"
-              onClick={() => charger(selected)}
-              className="tcn-comparaison-lien text-sm font-semibold text-accent-ink hover:underline"
-            >
-              Réessayer
-            </button>
-            {boutonChanger}
-          </div>
+      {selected && (etat === "chargement" || etat === "echec") && (
+        // Même élément pour les deux états : le focus posé ici par « Réessayer »
+        // survit au passage de l'échec au chargement.
+        <div ref={zoneEtat} tabIndex={-1} className="py-4 outline-none">
+          {etat === "chargement" ? (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm text-[var(--tcn-text-faint)]">Chargement…</p>
+              {boutonChanger}
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-[var(--tcn-text-faint)]">
+                Impossible de charger les résultats de {selected.prenom} {selected.nom} pour l&apos;instant.
+              </p>
+              <div className="mt-2 flex gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    zoneEtat.current?.focus();
+                    charger(selected);
+                  }}
+                  className="tcn-comparaison-lien tcn-cible-tactile inline-flex items-center text-sm font-semibold text-accent-ink hover:underline"
+                >
+                  Réessayer
+                </button>
+                {boutonChanger}
+              </div>
+            </>
+          )}
         </div>
       )}
 
