@@ -202,7 +202,4 @@ def _organisation_par_defaut(db: Session) -> int:
     """Le seul club en base. L'option existe parce que le modèle porte
     l'organisation ; elle n'a qu'une valeur possible tant qu'un second club
     n'est pas créé."""
-    organisation = role_repository.default_organisation(db)
-    if organisation is None:
-        raise authorization.RoleOutOfScopeError("Aucune organisation n'existe.")
-    return organisation.id
+    return authorization.existing_organisation(db, None)

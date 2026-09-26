@@ -33,7 +33,7 @@ def _ensure_profile_exists(db: Session, profile_id: int) -> None:
     contrainte SQL sur `profile_id` serait muette en SQLite (dev, tests) et
     lèverait une `IntegrityError` non attrapée en PostgreSQL — un chemin
     d'écriture qui diverge entre les deux moteurs, le défaut que
-    `services/auth/groups._existing_organisation` évite déjà pour la même
+    `services/auth/authorization.existing_organisation` évite déjà pour la même
     raison.
     """
     if profile_repository.get(db, profile_id) is None:
