@@ -1090,6 +1090,9 @@ def _build_result(
             return ""
         return _clean_cell(ligne[col])
 
+    # Le libellé de contest porte le même enrobage i18n que les colonnes
+    # (`{EN:Quart|FR:Quart}`, #1088).
+    contest_label = _label_i18n(contest_label)
     nom_qualifie = qualify_event_name(event_name, contest_label)
     r = ScrapedResult(
         source_url=source_url,

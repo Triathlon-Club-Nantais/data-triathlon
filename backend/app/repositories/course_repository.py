@@ -59,6 +59,9 @@ def get_or_create(
     sources. C'est le contrat d'origine (la première scrapée garde la main, D3) ;
     enregistrer la seconde URL en passive est le travail de #283, pas d'ici.
     """
+    # Le nom fait partie de l'identité : nettoyé ici, point commun aux scrapers
+    # et à la saisie manuelle, il ne crée pas de doublon au prochain import (#1088).
+    name = " ".join(name.split())
     existing = get_by_identity(db, name, event_date, event_type, is_relay)
     if existing:
         return existing

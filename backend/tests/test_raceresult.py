@@ -2102,6 +2102,19 @@ def test_scrape_event_all_qualifie_par_contest(monkeypatch):
     }
 
 
+def test_scrape_event_all_resolves_the_i18n_contest_label(monkeypatch):
+    """`{EN:Quart|FR:Quart}` reached the course name raw (Embrunman, #1088)."""
+    specs = [("Classement", "1")]
+    payloads = {
+        ("Classement", "1"): _payload({"#1_Quart": {"#1_": [["7", "1", "Jean DUPONT", "TCN", "01:00:00"]]}}),
+    }
+    _monte_pipeline(monkeypatch, specs, payloads, contests={"1": "{EN:Quarter|FR:Quart}"})
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/1/results")
+
+    assert [r.event_name for r in res] == ["Épreuve - Quart"]
+
+
 def test_scrape_event_all_statut_de_niveau_0_conserve_le_statut(monkeypatch):
     """Issue #64 : sur une liste `Contest != "0"`, un groupe de niveau 0 qui est
     un statut (`#2_Abandons`) fabriquait `contest="Abandons", statut=""`. Le

@@ -766,6 +766,43 @@ def _index_names(url: str, table: str) -> set[str]:
         engine.dispose()
 
 
+def test_course_names_are_cleaned_unless_the_clean_name_collides(sqlite_url):
+    """Scrapers and manual entry now clean names: stale rows would duplicate (#1088)."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "9f2e3d4c5b6a")
+    noms = [
+        ("Embrunman - {EN:Quarter|FR:Quart}", "2026-08-15"),
+        ("TRIATHLON DES SABLES D'OLONNE  - SPRINT", "2026-06-01"),
+        ("Swimrun Dinard ", "2026-05-01"),
+        ("Déjà propre ", "2026-04-01"),
+        ("Déjà propre", "2026-04-01"),
+    ]
+    engine = sa.create_engine(sqlite_url)
+    try:
+        with engine.begin() as connexion:
+            for nom, jour in noms:
+                connexion.execute(
+                    sa.text(
+                        "INSERT INTO courses (name, event_date, event_type, is_relay, scraped_at,"
+                        " created_at) VALUES (:nom, :jour, 'triathlon-m', 0, '2026-01-01',"
+                        " '2026-01-01')"
+                    ),
+                    {"nom": nom, "jour": jour},
+                )
+    finally:
+        engine.dispose()
+
+    command.upgrade(cfg, "head")
+
+    assert sorted(n for (n,) in _lignes(sqlite_url, "SELECT name FROM courses")) == sorted([
+        "Embrunman - Quart",
+        "TRIATHLON DES SABLES D'OLONNE - SPRINT",
+        "Swimrun Dinard",
+        "Déjà propre ",  # le nom propre existe déjà : on ne crée pas de collision
+        "Déjà propre",
+    ])
+
+
 def test_user_sessions_token_hash_keeps_only_its_unique_index(sqlite_url):
     """The unique constraint already indexes the column (#1061)."""
     cfg = _alembic_config()

@@ -612,3 +612,17 @@ def test_active_source_url_lookup_uses_the_url_index(db_session):
 
     plan_text = " | ".join(str(row) for row in plan)
     assert "ix_course_sources_url_active" in plan_text, plan_text
+
+
+
+def test_get_or_create_cleans_the_course_name_whitespace(db_session):
+    """Manual entry stored `Swimrun Dinard Côté d'Émeraude ` as is (#1088)."""
+    course = course_repository.get_or_create(
+        db_session, name="  Swimrun   Dinard ", event_date=date(2026, 5, 1), event_type="swimrun"
+    )
+    meme = course_repository.get_or_create(
+        db_session, name="Swimrun Dinard", event_date=date(2026, 5, 1), event_type="swimrun"
+    )
+
+    assert course.name == "Swimrun Dinard"
+    assert meme.id == course.id
