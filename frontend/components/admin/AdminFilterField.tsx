@@ -4,9 +4,8 @@ import type { ReactNode } from "react";
  * Libellé + champ d'une barre de filtres du back-office, partagé par
  * `CoursesAdminTable` et `QualityQueueTable` (revue UI/UX #119, constat 11).
  *
- * `htmlFor` est facultatif : les deux écrans n'y recourent pas encore tous —
- * `CoursesAdminTable` associe ses champs par proximité visuelle seule — mais
- * l'ajouter ici ne change rien pour un appelant qui ne le passe pas.
+ * `htmlFor` est obligatoire : le libellé est rendu à côté du champ, pas
+ * autour, donc sans lui aucune association n'existe (#1042).
  */
 export function Champ({
   label,
@@ -14,7 +13,7 @@ export function Champ({
   children,
 }: {
   label: string;
-  htmlFor?: string;
+  htmlFor: string;
   children: ReactNode;
 }) {
   return (

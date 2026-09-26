@@ -101,6 +101,18 @@ describe("CoursesAdminTable", () => {
     expect(screen.queryByText("triathlon-m")).not.toBeInTheDocument();
   });
 
+  it.each(["ID", "Épreuve", "Discipline", "Du", "Au"])(
+    "ties the « %s » filter to its label (#1042)",
+    async (libelle) => {
+      listCourses.mockResolvedValue([EPREUVE]);
+
+      afficher();
+
+      await screen.findByText("Triathlon de Nantes");
+      expect(screen.getByLabelText(libelle, { exact: true })).toBeInTheDocument();
+    },
+  );
+
   it("ouvre la page publique et la source du chronométreur", async () => {
     listCourses.mockResolvedValue([EPREUVE]);
 
