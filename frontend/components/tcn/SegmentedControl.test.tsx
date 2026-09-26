@@ -49,6 +49,12 @@ describe("SegmentedControl", () => {
     expect(screen.getByRole("button", { name: "TCN (7)" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("lets its segments wrap so a 320 px screen does not scroll sideways (#1092)", () => {
+    render(<SegmentedControl value="a" onChange={() => {}} options={["a", "b"]} />);
+
+    expect(screen.getByRole("button", { name: "a" }).parentElement).toHaveStyle({ flexWrap: "wrap" });
+  });
+
   it("gives each segment the public touch target, 44 px below md (#479, #1079)", () => {
     // Le plancher vit dans `.tcn-cible-tactile` (globals.css) : un
     // `minHeight` en ligne l'emporterait sur la media query.

@@ -26,7 +26,9 @@ export function SegmentedControl({
   style?: CSSProperties;
 }) {
   return (
-    <div style={{ display: "flex", gap: 8, ...style }}>
+    // `flexWrap` : quatre segments `ink` mesurent ~322 px, plus que les 288 px
+    // utiles d'un écran de 320 px (WCAG 1.4.10, #1092).
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, ...style }}>
       {options.map((opt) => {
         const val = typeof opt === "string" ? opt : opt.value;
         const label = typeof opt === "string" ? opt : opt.label;
