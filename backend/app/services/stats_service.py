@@ -321,8 +321,9 @@ def course_summary(db: Session, course_id: int) -> dict:
                 clubs[TCN_CANONICAL_NAME] += 1
             elif canonique := alias_map.get(normalize_club(club)):
                 clubs[canonique] += 1
-            else:
-                variantes_par_cle.setdefault(_cle_club_large(club), Counter())[club.strip()] += 1
+            elif cle := _cle_club_large(club):
+                # Clé vide : « - » ou « -- », remplissage d'un club inconnu.
+                variantes_par_cle.setdefault(cle, Counter())[club.strip()] += 1
         if is_tcn(club):
             tcn_count += 1
 
