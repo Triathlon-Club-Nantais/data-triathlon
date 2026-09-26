@@ -56,6 +56,18 @@ class CourseSource(Base):
             sqlite_where=text("is_active"),
             postgresql_where=text("is_active"),
         ),
+        # Toutes les recherches par URL filtrent sur la source active
+        # (`course_repository._by_active_source`) ; non unique, une URL porte
+        # N épreuves (#1025).
+        Index(
+            "ix_course_sources_url_active",
+            "url",
+            # Les requêtes compilent `is_active = 1` sur SQLite, que le planner
+            # ne rapproche pas d'un prédicat `WHERE is_active`. PostgreSQL
+            # réduit de lui-même `is_active = true` à `is_active`.
+            sqlite_where=text("is_active = 1"),
+            postgresql_where=text("is_active"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
