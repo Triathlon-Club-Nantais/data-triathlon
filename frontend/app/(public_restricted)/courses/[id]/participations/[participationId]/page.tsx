@@ -149,7 +149,7 @@ export default async function ParticipationDetailPage({
  */
 function ReturnLinks({ courseId, athleteId }: { courseId: string; athleteId: number }) {
   const links = [
-    { href: `/courses/${courseId}`, label: "Retour à la course" },
+    { href: `/courses/${courseId}`, label: "Retour à l'épreuve" },
     { href: `/athletes/${athleteId}`, label: "Retour aux résultats de l'athlète" },
   ];
 

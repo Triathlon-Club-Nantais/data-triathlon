@@ -120,7 +120,7 @@ export default async function DashboardPage({
       {isEmptySeason ? (
         <EmptyState
           title={`Aucun résultat enregistré pour ${seasonAbsenceLabel(selected)}`}
-          description="Change de saison ou ajoute les premiers résultats du club."
+          description="Changez de saison ou ajoutez les premiers résultats du club."
           action={
             <div className="flex flex-wrap items-center justify-center gap-4">
               {!isCurrentSeasonSelected && (

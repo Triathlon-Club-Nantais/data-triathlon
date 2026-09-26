@@ -203,7 +203,7 @@ describe("ComparisonTable", () => {
     renderTable();
 
     const total = screen.getByRole("columnheader", { name: "Total" });
-    expect(total.title).toMatch(/ensemble de la course/i);
+    expect(total.title).toMatch(/ensemble de l'épreuve/i);
   });
 
   // #853 : la barre de taille par cellule a été retirée au profit d'un léger

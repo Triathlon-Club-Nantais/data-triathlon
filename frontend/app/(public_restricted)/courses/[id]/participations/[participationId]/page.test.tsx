@@ -101,7 +101,7 @@ describe("ParticipationDetailPage", () => {
   it("propose un retour vers la course et vers les résultats de l'athlète", async () => {
     await renderPage(participation({ stats: STATS }));
 
-    expect(screen.getByRole("link", { name: /retour à la course/i }).getAttribute("href")).toBe(
+    expect(screen.getByRole("link", { name: /retour à l'épreuve/i }).getAttribute("href")).toBe(
       "/courses/3",
     );
     expect(
@@ -125,7 +125,7 @@ describe("ParticipationDetailPage", () => {
   it("garde les deux retours quand les statistiques sont indisponibles", async () => {
     await renderPage(participation({ stats: null }));
 
-    expect(screen.getByRole("link", { name: /retour à la course/i }).getAttribute("href")).toBe(
+    expect(screen.getByRole("link", { name: /retour à l'épreuve/i }).getAttribute("href")).toBe(
       "/courses/3",
     );
   });
@@ -209,7 +209,7 @@ describe("ParticipationDetailPage", () => {
 
     await renderPage(participation({ stats: null }));
 
-    expect(screen.getByRole("link", { name: /retour.*course/i })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /retour à l'épreuve/i })).toBeTruthy();
     expect(screen.queryByText(/distribution des temps/i)).toBeNull();
     expect(consoleError).toHaveBeenCalled();
     consoleError.mockRestore();
