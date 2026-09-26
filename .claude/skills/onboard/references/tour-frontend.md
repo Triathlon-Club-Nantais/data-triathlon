@@ -59,8 +59,10 @@ Trois choses à comprendre :
   `/api/v1/...` depuis ton code React comme si c'était local — Next.js proxifie.
 - **`output: "standalone"`** : build autonome pour l'image Docker (déploiement
   Vercel-compatible aussi).
-- **`BACKEND_URL`** : variable d'environnement à ajuster localement via
-  `frontend/.env.local` (cf. `.env.local.example`).
+- **`BACKEND_URL`** : rien à régler en local. `npm run dev` la découvre depuis
+  le `.dev-backend.json` publié par le backend du worktree ; ne la poser dans
+  `frontend/.env.local` que pour viser délibérément un autre backend
+  (`docs/dev-multi-worktree.md`).
 
 ## 5. App Router — la structure `frontend/app/`
 
