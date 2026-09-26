@@ -15,11 +15,6 @@ export function scopeFromParam(scope?: string | null): typeof SCOPE_CLUB | undef
   return scope === SCOPE_CLUB ? SCOPE_CLUB : undefined;
 }
 
-/** true si la portée club est active. */
-export function isClubScope(scope?: string | null): boolean {
-  return scope === SCOPE_CLUB;
-}
-
 /**
  * Filtres du classement venus des cartes de synthèse (#486, RES-11).
  *
