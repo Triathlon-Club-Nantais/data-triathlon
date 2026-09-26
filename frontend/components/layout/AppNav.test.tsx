@@ -806,6 +806,16 @@ describe("AppNav — actions primaires", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 
+  it("closes the mobile drawer from a visible close button (#1116)", async () => {
+    afficher(null);
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    const tiroir = await screen.findByRole("dialog");
+
+    await userEvent.click(within(tiroir).getByRole("button", { name: "Fermer le menu" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
   it("exposes the mobile drawer state on its trigger (#1077)", async () => {
     afficher(null);
     const bouton = screen.getByRole("button", { name: "Ouvrir le menu" });

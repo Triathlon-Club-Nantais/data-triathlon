@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { LogIn, Menu, PanelLeft, Plus, RotateCw, Search, X } from "lucide-react";
 import { Avatar, Button } from "@/components/tcn";
 import { SessionEnLecture, UserMenu } from "@/components/auth/UserMenu";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/lib/queries/auth";
 import { useNavBadges } from "@/lib/queries/nav-badges";
@@ -473,6 +473,11 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo-tcn.png" alt={`Navigation — ${CLUB_NAME}`} style={{ height: 22, display: "block" }} />
             </SheetTitle>
+            {/* Seul contrôle de fermeture exposé à un lecteur d'écran : le voile
+                ne l'est pas, et Échap manque sur téléphone (#1116). */}
+            <SheetClose aria-label="Fermer le menu" style={{ ...carre, marginLeft: "auto" }}>
+              <X size={20} />
+            </SheetClose>
           </div>
 
           {contenu(true, () => setDrawerOpen(false), sectionsTiroir)}
