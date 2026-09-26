@@ -116,7 +116,7 @@ Uniquement celles de notre `## Commandes` où le gain est mesuré :
 ```bash
 # Backend (depuis backend/) — le gain est ici
 rtk uv run pytest -m "not integration"    # -98,9 % : le geste à retenir
-rtk uv run pytest -m integration          # idem sur les tests réseau
+rtk uv run pytest -m integration -n 0     # idem sur les tests réseau, en séquentiel
 
 # Dépôt
 rtk git log -20                           # -59 %
