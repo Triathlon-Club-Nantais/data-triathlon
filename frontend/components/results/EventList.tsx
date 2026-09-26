@@ -51,10 +51,8 @@ export function EventList({
   filters: ParticipationFilters;
   initial?: EventPage;
 }) {
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } = useInfiniteEvents(
-    filters,
-    initial,
-  );
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError, isLoading } =
+    useInfiniteEvents(filters, initial);
   const router = useRouter();
   const sp = useSearchParams();
   const sentinel = useRef<HTMLDivElement | null>(null);
@@ -83,13 +81,15 @@ export function EventList({
   // Scroll infini : charge la page suivante quand la sentinelle entre dans le viewport.
   useEffect(() => {
     const el = sentinel.current;
-    if (!el || !hasNextPage) return;
+    // Après un échec, seul « Réessayer » relance : l'observateur rappellerait
+    // sinon en boucle tant que la sentinelle reste visible (#1039).
+    if (!el || !hasNextPage || isFetchNextPageError) return;
     const io = new IntersectionObserver((entries) => {
       if (entries[0]?.isIntersecting && !isFetchingNextPage) fetchNextPage();
     });
     io.observe(el);
     return () => io.disconnect();
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
 
   function setSort(value: string) {
     const params = new URLSearchParams(sp.toString());
@@ -298,6 +298,14 @@ export function EventList({
         <p style={{ padding: 16, textAlign: "center", fontSize: 14, color: "var(--tcn-text-faint)" }}>
           Chargement…
         </p>
+      )}
+      {isFetchNextPageError && !isFetchingNextPage && (
+        <div style={{ padding: 16, textAlign: "center", fontSize: 14, color: "var(--tcn-text-faint)" }}>
+          <p>Impossible de charger la suite des épreuves.</p>
+          <Button variant="secondary" size="sm" onClick={() => fetchNextPage()} style={{ marginTop: 10 }}>
+            Réessayer
+          </Button>
+        </div>
       )}
     </Card>
   );
