@@ -173,18 +173,6 @@ export function providerLabel(provider: string | null | undefined): string {
   return PROVIDER_LABELS[provider] ?? provider;
 }
 
-/** Libellé complet d'une discipline : type + kilométrage si disponible. */
-export function disciplineLabel(course: {
-  event_type: string | null | undefined;
-  distance_km?: number | null;
-}): string {
-  const label = eventTypeLabel(course.event_type);
-  if (course.distance_km) {
-    return `${label} · ${course.distance_km} km`;
-  }
-  return label;
-}
-
 /**
  * Libellés **français** des codes d'échec du parcours de connexion (#114).
  *
