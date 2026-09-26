@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 
 // Rendu dynamique : le ping doit s'exécuter à chaque appel, jamais mis en cache statiquement.
@@ -17,15 +18,16 @@ const TIMEOUT_MS = 10_000;
 // route de fichier : ce Route Handler, étant une route de fichier, a priorité et n'est
 // donc PAS proxyfié vers Render — contrairement au reste de /api/*.
 export async function GET(request: Request): Promise<Response> {
-  // 1. Auth : si CRON_SECRET est défini, exiger `Authorization: Bearer <secret>`.
-  //    Le cron externe (Azure) doit envoyer cet en-tête ; sinon la requête est rejetée.
-  //    En dev local (CRON_SECRET absent/vide), l'auth est ignorée pour tester manuellement.
+  // 1. Auth : exiger `Authorization: Bearer <CRON_SECRET>`, que le cron externe
+  //    (Azure) doit envoyer. Sans secret, l'auth n'est ignorée qu'en dev local :
+  //    sur Vercel, la route se ferme plutôt que de s'ouvrir à tous (#1021).
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret) {
-    const auth = request.headers.get("authorization");
-    if (auth !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ ok: false, error: "non autorisé" }, { status: 401 });
-    }
+  if (!cronSecret && process.env.VERCEL_ENV) {
+    console.error("[keep-warm] CRON_SECRET absent : route fermée");
+    return NextResponse.json({ ok: false, error: "non configuré" }, { status: 503 });
+  }
+  if (cronSecret && !secretValide(request.headers.get("authorization"), cronSecret)) {
+    return NextResponse.json({ ok: false, error: "non autorisé" }, { status: 401 });
   }
 
   // 2. Ping du backend avec timeout natif (ne pas laisser la fonction pendre).
@@ -61,4 +63,11 @@ export async function GET(request: Request): Promise<Response> {
     console.error(`[keep-warm] échec du ping backend après ${durationMs}ms : ${error}`);
     return NextResponse.json({ ok: false, error, durationMs }, { status: 502 });
   }
+}
+
+/** Comparaison à temps constant : un `!==` fuit la longueur du préfixe commun. */
+function secretValide(auth: string | null, secret: string): boolean {
+  const recu = Buffer.from(auth ?? "");
+  const attendu = Buffer.from(`Bearer ${secret}`);
+  return recu.length === attendu.length && timingSafeEqual(recu, attendu);
 }
