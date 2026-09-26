@@ -37,6 +37,7 @@ const ACTION_LABELS: Record<string, string> = {
   "counter_scope.entry_remove": "Retrait d'un libellé de la portée des compteurs",
   "site_access.password_replace": "Remplacement du code d'accès au site",
   "benevole_access.password_replace": "Remplacement du mot de passe bénévoles",
+  "feedback.update": "Triage d'un retour utilisateur",
 };
 
 /** Le libellé français d'un geste, ou son code brut si le catalogue l'ignore. */
@@ -88,6 +89,7 @@ const PAYLOAD_KEY_LABELS: Record<string, string> = {
   action_id: "Déclaration de bénévolat",
   url: "URL",
   provider: "Fournisseur",
+  github_url: "Lien GitHub",
 };
 
 /** Clés qui désignent un coureur ou une épreuve : rendues en lien vers sa page. */
@@ -111,6 +113,7 @@ const ENTITES: Record<string, { label: string; href?: string }> = {
   counter_scope_entry: { label: "Libellé de la portée des compteurs" },
   site_access_config: { label: "Code d'accès au site" },
   benevole_access_config: { label: "Mot de passe bénévoles" },
+  feedback: { label: "Retour utilisateur" },
 };
 
 export type LigneDetail = { label: string; value: string; href?: string };
