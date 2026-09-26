@@ -49,7 +49,7 @@ function afficher() {
 
 /** Saisit un mot de passe, ouvre la confirmation, puis la valide. */
 async function remplacerAvecConfirmation(motDePasse: string) {
-  await userEvent.type(screen.getByLabelText(/nouveau mot de passe/i), motDePasse);
+  await userEvent.type(screen.getByLabelText(/nouveau code d'accès/i), motDePasse);
   await userEvent.click(screen.getByRole("button", { name: /^remplacer$/i }));
   const dialogue = await screen.findByRole("dialog");
   await userEvent.click(
@@ -121,9 +121,11 @@ describe("SiteAccessConfig", () => {
     afficher();
     await screen.findByText(/non configuré/i);
 
-    const champ = screen.getByLabelText(/nouveau mot de passe/i);
+    const champ = screen.getByLabelText(/nouveau code d'accès/i);
     expect(champ).toHaveAttribute("minLength", "12");
     expect(champ).toHaveAccessibleDescription(/12 caractères.*générer/i);
+    // Un seul nom pour l'objet, celui que lisent les adhérents à l'entrée du site.
+    expect(screen.queryByText(/mot de passe/i)).not.toBeInTheDocument();
   });
 
   it("le remplacement se confirme avant d'invalider les sessions ouvertes", async () => {
@@ -136,7 +138,7 @@ describe("SiteAccessConfig", () => {
     await screen.findByText(/^configuré$/i);
 
     await userEvent.type(
-      screen.getByLabelText(/nouveau mot de passe/i),
+      screen.getByLabelText(/nouveau code d'accès/i),
       "un-secret-assez-long",
     );
     await userEvent.click(screen.getByRole("button", { name: /^remplacer$/i }));
@@ -157,7 +159,7 @@ describe("SiteAccessConfig", () => {
     await screen.findByText(/non configuré/i);
 
     await userEvent.type(
-      screen.getByLabelText(/nouveau mot de passe/i),
+      screen.getByLabelText(/nouveau code d'accès/i),
       "un-secret-assez-long",
     );
     await userEvent.click(screen.getByRole("button", { name: /^remplacer$/i }));
@@ -182,7 +184,7 @@ describe("SiteAccessConfig", () => {
     await screen.findByText(/non configuré/i);
 
     await userEvent.click(
-      screen.getByRole("button", { name: /générer un mot de passe sécurisé/i }),
+      screen.getByRole("button", { name: /générer un code d'accès sécurisé/i }),
     );
 
     expect(await screen.findByText("mot-de-passe-genere-abc123")).toBeInTheDocument();
@@ -210,7 +212,7 @@ describe("SiteAccessConfig", () => {
     afficher();
     await screen.findByText(/non configuré/i);
     await userEvent.click(
-      screen.getByRole("button", { name: /générer un mot de passe sécurisé/i }),
+      screen.getByRole("button", { name: /générer un code d'accès sécurisé/i }),
     );
     await screen.findByText("genere-une-fois");
 
