@@ -1326,6 +1326,11 @@ def season_quota(db: Session, *, athlete_id: int, season: int) -> dict:
         "has_volunteer_action": volunteer_action_repository.exists_for_athlete_season(
             db, athlete_id=athlete_id, season=season
         ),
+        # Champ ajouté plutôt que `has_volunteer_action` modifié (Principe IV) :
+        # une déclaration en attente n'est pas « aucune déclaration » (#1044).
+        "has_pending_volunteer_action": volunteer_action_repository.pending_exists_for_athlete_season(
+            db, athlete_id=athlete_id, season=season
+        ),
         "season_validated": season_validation_repository.get_for_athlete_season(
             db, athlete_id=athlete_id, season=season
         )

@@ -59,6 +59,21 @@ def exists_for_athlete_season(db: Session, *, athlete_id: int, season: int) -> b
     )
 
 
+def pending_exists_for_athlete_season(db: Session, *, athlete_id: int, season: int) -> bool:
+    """Une déclaration en attente de modération : signalée au quota, jamais
+    comptée (#1044)."""
+    return (
+        db.query(VolunteerAction.id)
+        .filter(
+            VolunteerAction.athlete_id == athlete_id,
+            VolunteerAction.season == season,
+            VolunteerAction.status == "en_attente",
+        )
+        .first()
+        is not None
+    )
+
+
 def list_pending(db: Session) -> list[VolunteerAction]:
     """File d'attente admin (#779, FR-001) — tous athlètes confondus.
 

@@ -59,7 +59,14 @@ function ValiderSaison({
   const valider = useValidateSeason();
   const devalider = useUnvalidateSeason();
 
-  const { validated_count, has_volunteer_action, season_validated } = quota;
+  const { validated_count, has_volunteer_action, has_pending_volunteer_action, season_validated } = quota;
+  // Seules les déclarations validées comptent (FR-008) ; une déclaration en
+  // attente de modération se dit comme telle, pas « non déclaré » (#1044).
+  const benevolat = has_volunteer_action
+    ? "validé"
+    : has_pending_volunteer_action
+      ? "en attente de validation"
+      : "non validé";
 
   async function handleValider() {
     try {
@@ -83,8 +90,7 @@ function ValiderSaison({
     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
       {/* FR-012 — indicatif, ne bloque jamais la validation (FR-011). */}
       <p style={{ fontSize: 12, color: "var(--tcn-text-faint)" }}>
-        {validated_count}/3 épreuves validées · bénévolat{" "}
-        {has_volunteer_action ? "déclaré" : "non déclaré"}
+        {validated_count}/3 épreuves validées · bénévolat {benevolat}
       </p>
       {season_validated ? (
         <Button
