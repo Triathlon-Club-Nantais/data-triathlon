@@ -185,7 +185,9 @@ def _parse_rank_pair(cell) -> tuple[int | None, str]:
     qualifier = ""
     if m := _RANK_QUALIFIER.search(text):
         qualifier = m.group(1).strip()
-    return rank, qualifier
+    # `0` n'est pas une place : le site l'écrit faute de rang à donner, et il
+    # s'afficherait « 0e ». Même règle qu'oktime et sporthive (#1119).
+    return rank or None, qualifier
 
 
 def _trend(cell) -> str:

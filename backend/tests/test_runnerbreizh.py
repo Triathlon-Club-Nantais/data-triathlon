@@ -290,8 +290,8 @@ def test_anonymous_row_keeps_its_raw_label_as_the_name():
     assert result.total_time == "02:15:15"
     assert result.rank_overall == 75
     # Catégorie « 0 /M » : le site n'a pas de rang de catégorie à donner, mais le
-    # genre y reste lisible.
-    assert (result.rank_category, result.category, result.gender) == (0, "M", "M")
+    # genre y reste lisible. Un 0 s'afficherait « 0e » : il devient `None` (#1119).
+    assert (result.rank_category, result.category, result.gender) == (None, "M", "M")
 
 
 def test_mangled_name_is_kept_verbatim():
