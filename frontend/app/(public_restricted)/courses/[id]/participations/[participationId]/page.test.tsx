@@ -187,7 +187,7 @@ describe("ParticipationDetailPage", () => {
     await renderPage(participation({ stats: null, total_time: "00:22:31" }));
 
     expect(
-      screen.getByRole("img", { name: /distribution des temps.*votre temps/is }),
+      screen.getByRole("img", { name: /distribution des temps.*le temps de l'athlète/is }),
     ).toBeTruthy();
   });
 

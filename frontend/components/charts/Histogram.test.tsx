@@ -52,6 +52,7 @@ describe("Histogram — repère de l'athlète (US2, #466)", () => {
       />
     );
     const summary = container.querySelector("[role='img']")?.getAttribute("aria-label");
-    expect(summary).toMatch(/votre temps/i);
+    expect(summary).toMatch(/le temps de l'athlète/i);
+    expect(summary).not.toMatch(/votre/i);
   });
 });

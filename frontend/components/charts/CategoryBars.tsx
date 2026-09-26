@@ -57,7 +57,7 @@ export function CategoryBars({
     reste > 0 ? [...categories, { name: `Autres (${reste})`, count: reste }] : categories;
 
   const summary = barres
-    .map((c) => `${nomCourt(c.name)} ${pctFr(scale(c.count))} %${c.name === highlight ? " (votre catégorie)" : ""}`)
+    .map((c) => `${nomCourt(c.name)} ${pctFr(scale(c.count))} %${c.name === highlight ? " (catégorie de l'athlète)" : ""}`)
     .join(", ");
 
   // Sans lien, la carte est une image et se lit d'un bloc. Avec, elle devient une

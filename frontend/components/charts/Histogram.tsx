@@ -67,7 +67,7 @@ export function Histogram({
       ? "Distribution des temps d'arrivée : aucune donnée."
       : `Distribution des temps d'arrivée, de ${formatTickLabel(startSec)} à ` +
         `${formatTickLabel(endSec)}, maximum ${max} arrivants sur une tranche.` +
-        (hasMarker ? ` Votre temps se situe à ${formatTickLabel(markerSec!)}.` : "");
+        (hasMarker ? ` Le temps de l'athlète se situe à ${formatTickLabel(markerSec!)}.` : "");
 
   return (
     <div role="img" aria-label={summary} style={{ position: "relative", paddingLeft: 34, paddingBottom: 20 }}>

@@ -105,7 +105,7 @@ export default async function ParticipationDetailPage({
         {summary?.histogram && (
           <Card padding={28} style={{ marginTop: 18 }}>
             <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 4 }}>Distribution des temps des arrivants</h2>
-            <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de 5 minutes — votre temps est repéré</div>
+            <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de 5 minutes — le temps de l&apos;athlète est repéré</div>
             <Histogram
               bars={summary.histogram.bars}
               max={Math.max(...summary.histogram.bars)}
@@ -127,7 +127,7 @@ export default async function ParticipationDetailPage({
               )}
             </div>
             <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>
-              Nombre d&apos;athlètes par catégorie — votre catégorie est repérée.
+              Nombre d&apos;athlètes par catégorie — sa catégorie est repérée.
             </div>
             <CategoryBars
               categories={summary.categories}

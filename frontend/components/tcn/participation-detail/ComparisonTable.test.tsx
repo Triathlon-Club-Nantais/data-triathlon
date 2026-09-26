@@ -204,6 +204,10 @@ describe("ComparisonTable", () => {
 
     const total = screen.getByRole("columnheader", { name: "Total" });
     expect(total.title).toMatch(/ensemble de l'épreuve/i);
+    // La page s'ouvre pour n'importe quel participant, pas pour le seul lecteur (#1086).
+    for (const entete of screen.getAllByRole("columnheader")) {
+      expect(entete.title).not.toMatch(/votre/i);
+    }
   });
 
   // #853 : la barre de taille par cellule a été retirée au profit d'un léger
