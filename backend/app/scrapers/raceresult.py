@@ -296,8 +296,9 @@ def _iter_hidden_list_specs(config: dict) -> list[tuple[str, str]]:
 
 
 # Enrobages d'affichage posés par RaceResult autour de l'expression réelle.
+# `OrStatus` est le nom anglais de `OuStatut` (#1094).
 _RE_ENROBAGE = re.compile(
-    r"^(ucase|lcase|trim|format|OuStatut|Statut|iif|if|switch)\s*\(", re.IGNORECASE
+    r"^(ucase|lcase|trim|format|OuStatut|OrStatus|Statut|iif|if|switch)\s*\(", re.IGNORECASE
 )
 # `choose(index;v1;v2;…)` : le premier terme sélectionne, il n'est pas la valeur
 # (`choose([STATUS]+1;[RANK1p];"a.k.";"DNF")`, #968).
