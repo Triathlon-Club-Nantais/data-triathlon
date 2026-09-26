@@ -389,9 +389,14 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           borderBottom: "1px solid var(--tcn-border-strong)",
         }}
       >
+        {/* État posé à la main : le `Sheet` vit plus bas, hors de portée d'un
+            `SheetTrigger` (#1077). */}
         <button
           type="button"
           aria-label="Ouvrir le menu"
+          aria-haspopup="dialog"
+          aria-expanded={drawerOpen}
+          aria-controls={drawerOpen ? TIROIR_ID : undefined}
           onClick={() => setDrawerOpen(true)}
           style={boutonFantome}
         >
@@ -453,7 +458,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
 
       {/* ── Tiroir mobile : le panneau déplié, à l'identique ── */}
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent side="left" className="gap-0 p-0">
+        <SheetContent id={TIROIR_ID} side="left" className="gap-0 p-0">
           <div
             style={{
               flex: "none",
@@ -942,6 +947,8 @@ function Entree({
     </Tooltip>
   );
 }
+
+const TIROIR_ID = "tiroir-navigation";
 
 const tronque = { whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" } as const;
 

@@ -806,6 +806,19 @@ describe("AppNav — actions primaires", () => {
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 
+  it("exposes the mobile drawer state on its trigger (#1077)", async () => {
+    afficher(null);
+    const bouton = screen.getByRole("button", { name: "Ouvrir le menu" });
+    expect(bouton).toHaveAttribute("aria-haspopup", "dialog");
+    expect(bouton).toHaveAttribute("aria-expanded", "false");
+
+    await userEvent.click(bouton);
+
+    const tiroir = await screen.findByRole("dialog");
+    expect(bouton).toHaveAttribute("aria-expanded", "true");
+    expect(bouton).toHaveAttribute("aria-controls", tiroir.id);
+  });
+
   it("affiche aussi la recherche et la tuile dans le tiroir mobile, athlète retenu", async () => {
     window.localStorage.setItem("tcn-athlete", JSON.stringify({ id: 12, prenom: "Jean", nom: "Dupont" }));
     afficher(null);
