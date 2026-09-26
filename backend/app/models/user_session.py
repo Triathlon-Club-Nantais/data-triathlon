@@ -28,7 +28,8 @@ class UserSession(Base):
     # Ne franchit **jamais** l'API : séquentiel, donc énumérable.
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
-    token_hash: Mapped[str] = mapped_column(String, index=True, nullable=False)
+    # Pas d'`index=True` : `uq_user_session_token` l'indexe déjà (#1061).
+    token_hash: Mapped[str] = mapped_column(String, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime, index=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
