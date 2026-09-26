@@ -90,6 +90,7 @@ def test_classify_duathlon(text, expected):
     ("Swim & Run S", "swimrun-s"),     # #1053
     ("Swim and Run L", "swimrun-l"),
     ("Swim + Run M", "swimrun-m"),
+    ("Aquathlon (Swim & Run)", "aquathlon"),  # le sport nommé l'emporte sur la description
     ("format-s---en-binome re-swimrun-2025", "swimrun-s"),
     ("format-m---en-solo swimrun-cote-beaute-2025", "swimrun-m"),
     ("format-l---championnat re-swimrun-2025", "swimrun-l"),
