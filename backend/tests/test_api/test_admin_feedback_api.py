@@ -308,3 +308,42 @@ def test_statut_et_url_peuvent_etre_envoyes_ensemble(client, db_session):
     assert reponse.status_code == 200
     corps = reponse.json()
     assert (corps["status"], corps["github_url"]) == ("traite", _ISSUE)
+
+
+
+# --- Traçabilité du triage (#1123) ------------------------------------------
+
+
+def _journal(db_session):
+    from app.models.admin_action_log import AdminActionLog
+
+    return db_session.query(AdminActionLog).filter(AdminActionLog.entity_type == "feedback").all()
+
+
+def test_le_triage_est_journalise_avec_avant_et_apres(client, db_session):
+    entry = feedback_repository.create(db_session, type="bug", title="T", body="x")
+    db_session.commit()
+
+    client.patch(f"{_URL}/{entry.id}", json={"status": "traite", "github_url": _ISSUE})
+
+    (ligne,) = _journal(db_session)
+    assert (ligne.action, ligne.entity_id) == ("feedback.update", entry.id)
+    assert ligne.payload == {
+        "before": {"status": "nouveau", "github_url": None},
+        "after": {"status": "traite", "github_url": _ISSUE},
+    }
+
+
+def test_un_patch_sans_changement_ne_journalise_rien(client, db_session):
+    entry = feedback_repository.create(db_session, type="bug", title="T", body="x")
+    db_session.commit()
+
+    client.patch(f"{_URL}/{entry.id}", json={"status": "nouveau"})
+
+    assert _journal(db_session) == []
+
+
+def test_un_signalement_absent_ne_journalise_rien(client, db_session):
+    client.patch(f"{_URL}/999999", json={"status": "traite"})
+
+    assert _journal(db_session) == []

@@ -4,10 +4,10 @@ from datetime import timedelta
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.exceptions import TooManyRequestsError
+from app.core.exceptions import NotFoundError, TooManyRequestsError
 from app.core.time import utcnow
 from app.models.user_feedback import UserFeedback
-from app.repositories import feedback_repository
+from app.repositories import admin_action_log_repository, feedback_repository
 
 
 def submit(
@@ -47,3 +47,33 @@ def submit(
         ip_address=ip_address,
         user_id=user_id,
     )
+
+
+def update(db: Session, *, feedback_id: int, changes: dict, user_id: int) -> UserFeedback:
+    """Triage d'un retour (statut, lien GitHub), journalisé dans la **même**
+    transaction que l'effet (#1123). Seuls les champs réellement modifiés entrent
+    dans le payload `{before, after}` ; un triage sans effet ne laisse aucune
+    ligne. Ne commite pas : c'est le rôle de la route."""
+    entry = feedback_repository.get(db, feedback_id)
+    if entry is None:
+        raise NotFoundError("Signalement introuvable")
+    avant = {champ: getattr(entry, champ) for champ in changes}
+    if "status" in changes:
+        feedback_repository.update_status(db, feedback_id, changes["status"])
+    if "github_url" in changes:
+        feedback_repository.set_github_url(db, feedback_id, changes["github_url"])
+    apres = {champ: getattr(entry, champ) for champ in changes}
+    modifies = [champ for champ in changes if avant[champ] != apres[champ]]
+    if modifies:
+        admin_action_log_repository.create(
+            db,
+            user_id=user_id,
+            action="feedback.update",
+            entity_type="feedback",
+            entity_id=feedback_id,
+            payload={
+                "before": {champ: avant[champ] for champ in modifies},
+                "after": {champ: apres[champ] for champ in modifies},
+            },
+        )
+    return entry
