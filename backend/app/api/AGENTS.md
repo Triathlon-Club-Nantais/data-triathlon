@@ -441,7 +441,8 @@ devenu **dédié** en revue de #513, cf. § « Plafonds de débit par IP »).
 
 **Six routers sont exemptés de la garde**, et la liste
 `_EXEMPTES_DE_LA_GARDE_SITE` de `v1/router.py` en est la description unique :
-`health` (sonde Render), `site_access` (elle pose la garde), `auth` +
+`health` (sonde Render ; **503** quand la base ne répond pas, #1070, car le
+keep-warm et la supervision ne lisent que le statut), `site_access` (elle pose la garde), `auth` +
 `admin_site_access` (le chemin qui installe le tout premier mot de passe sur un
 déploiement neuf), `benevoles` (le bénévole n'a que **son** mot de passe, cf. la
 section ci-dessus) et `feedback` (revue de #513 — `FeedbackButton` vit dans le
