@@ -684,6 +684,14 @@ lancement manuel : elle est ignorée si un batch tourne déjà. C'est voulu.
    est bruyant et donc acceptable — mais tant que #258 n'est pas traité, la
    reprise hebdomadaire est à surveiller, voire à borner par un `limit`.
 
+**Le géocodage suit la reprise** (#975) : l'étape « Geocode new courses »
+lance `geocode-courses --limit 300` après une reprise réussie, jamais en mode
+`urls` ni en dry-run. C'est le seul passage qui remplit la carte des épreuves
+(`GET /stats/events-geo` ne géocode plus à la volée). Nominatim coûte 1 à 2 s
+par épreuve : la borne tient l'étape à une dizaine de minutes, et le reste passe
+au lundi suivant. Elle est en `continue-on-error`, pour qu'un Nominatim muet ne
+fasse pas rougir un batch dont les épreuves ont abouti.
+
 **Destinataire de la notification d'échec** : la plateforme notifie l'auteur de
 la dernière modification du fichier de cron, pas l'équipe. À constater sur la
 première occurrence rouge (quickstart §12) ; si ce n'est pas la bonne personne,
