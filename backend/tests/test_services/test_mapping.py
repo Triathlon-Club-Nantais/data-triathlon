@@ -281,6 +281,18 @@ def test_get_or_create_course_extracts_distance_km(db_session):
     assert course.distance_km == 23.0
 
 
+def test_get_or_create_course_falls_back_to_the_event_url_as_source(db_session):
+    """A scraper that leaves `source_url` empty still attaches its course (#1108)."""
+    s = _scraped(source_url="", event_name="Tri de Vertou", event_type="triathlon-s")
+
+    course = mapping.get_or_create_course(
+        db_session, s, event_url="https://www.klikego.com/resultats/vertou/1"
+    ).course
+
+    assert [source.url for source in course.sources] == ["https://www.klikego.com/resultats/vertou/1"]
+    assert course.source_url == "https://www.klikego.com/resultats/vertou/1"
+
+
 def test_get_or_create_course_explicit_distance_km_wins(db_session):
     s = _scraped(event_name="Trail sans km dans le nom", event_type="trail",
                  distance_km=30.0)
