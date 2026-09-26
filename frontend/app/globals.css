@@ -292,6 +292,17 @@
   html {
     @apply font-sans;
   }
+  /* Filet de #492 étendu à tout champ natif (#1093) : sous 16px, iOS Safari
+     zoome à la mise au point. `!important` l'emporte sur les `fontSize` posés
+     en ligne (classement, pagination, retour utilisateur) ; au-delà de md, où
+     ce zoom n'existe pas, chaque champ garde sa densité. */
+  @media (max-width: 767.98px) {
+    input,
+    select,
+    textarea {
+      font-size: max(16px, 1em) !important;
+    }
+  }
 }
 
 /* Bouton TCN — en `base`, et le choix se mesure au CSS **compilé**, pas au
