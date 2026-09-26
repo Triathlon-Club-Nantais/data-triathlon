@@ -186,12 +186,13 @@ PUBLIC_WRITE_RATE_LIMIT_WINDOW_SECONDS = 3600
 #: ferme. La force brute, elle, est bornée par le secret : hors sujet sur un
 #: secret généré (144 bits), bornée par la longueur minimale d'un secret saisi
 #: (`MIN_TYPED_PASSWORD_LENGTH`, #1020).
-#: Borne haute des `page` : au-delà de l'entier SQLite, la requête lève une
-#: `OverflowError` (500) au lieu d'une 422 (#1054).
-MAX_PAGE = 10_000
-
 SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW = 60
 SITE_ACCESS_RATE_LIMIT_WINDOW_SECONDS = 3600
+
+#: Borne haute des `page` : au-delà de l'entier SQLite, la requête lève une
+#: `OverflowError` (500) au lieu d'une 422 (#1054). Large à dessein : une page
+#: au-delà du total rend toujours une tranche vide, contrat publié.
+MAX_PAGE = 1_000_000
 
 #: #917, seau dédié pour la raison du seau `site_access`. Même scrypt par
 #: tentative, route joignable sans le cookie du site (vrai anonyme), et ici la
