@@ -12,7 +12,8 @@ const INTERDITS: { motif: RegExp; raison: string }[] = [
   { motif: /\bClique\b/, raison: "tutoiement" },
   { motif: /\bChange de\b/, raison: "tutoiement" },
   { motif: /\bajoute les\b/, raison: "tutoiement" },
-  { motif: /\b(?:la|de la|à la) course\b(?! à pied)/, raison: "« épreuve », pas « course »" },
+  { motif: /\b(?:la|de la|à la|une) course\b(?! à pied)/, raison: "« épreuve », pas « course »" },
+  { motif: /\b(?:des|les) courses\b(?! à pied)/, raison: "« épreuves », pas « courses »" },
 ];
 
 function sources(dossier: string): string[] {
