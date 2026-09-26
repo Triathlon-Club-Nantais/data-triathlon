@@ -1,8 +1,8 @@
 """Router admin du workflow de validation des actions de bénévolat pour le
 quota de saison (#779) — file d'attente, accepter, refuser. La création
-(#709) vit dans `admin_data.py`, le self-service (#778) dans
-`volunteer_actions.py` — routers distincts, « le chemin dit qui peut
-appeler ».
+n'a plus qu'un chemin, le self-service de `volunteer_actions.py` (#778),
+depuis le retrait du geste admin (#780) — routers distincts, « le chemin dit
+qui peut appeler ».
 """
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -62,10 +62,9 @@ def lister_les_actions_validees_dun_athlete(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)),
 ):
-    """Fiche athlète (#781) — suffixe `/validated` distinct du chemin de
-    création admin (`POST .../volunteer-actions`, `admin_data.py`, #709),
-    pour ne pas faire porter deux pouvoirs différents au même chemin
-    (research.md D1)."""
+    """Fiche athlète (#781) — suffixe `/validated`, posé à l'époque pour ne pas
+    faire porter deux pouvoirs différents au même chemin que l'ancienne
+    création admin, retirée depuis par #780 (research.md D1)."""
     return volunteer_action_service.list_validated_for_athlete(db, athlete_id=athlete_id)
 
 

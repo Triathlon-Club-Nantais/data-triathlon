@@ -9,9 +9,9 @@ import { apiServer } from "@/lib/api/server";
 /**
  * Garde d'accès aux écrans d'administration (FR-040).
  *
- * **D'interface seulement** : les ressources d'administration de l'API restent
- * ouvertes, conformément à FR-035 — protéger des routes relève de #115. Cette
- * garde évite d'exposer un écran inutilisable, elle ne protège aucune donnée.
+ * **D'interface seulement** : depuis #115, chaque route `/admin/*` de l'API est
+ * gardée par `require_permission`, et c'est elle qui protège les données.
+ * Cette garde évite seulement d'afficher un écran inutilisable.
  *
  * Un layout, et non un `middleware.ts` : un middleware ne peut constater que la
  * **présence** du cookie, jamais sa validité — il laisserait passer une session

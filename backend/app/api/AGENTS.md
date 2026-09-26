@@ -350,7 +350,7 @@ détail dans `docs/api/feedback-stats.md`.
 
 ## Page bénévoles : une seconde garde, hors du socle SSO (#271)
 
-`benevoles.py` porte neuf ressources gardées par `require_benevole_access`
+`benevoles.py` porte dix ressources gardées par `require_benevole_access`
 (`api/deps.py`) — **pas** `require_permission`. Mot de passe partagé (5-6
 bénévoles). Décision produit et alternatives rejetées : `specs/20260815-
 114258-page-validation-benevoles/research.md` §D1.
@@ -396,6 +396,10 @@ passe **bénévoles**, jamais celui du site. Exempter `athletes` de
 une route sous `/benevoles/` la garde derrière la garde que le bénévole possède
 déjà. Elle rend `AthleteBrief`, donc sans `birth_date`.
 
+**La dixième est `GET /benevoles/queue/history`** (US13, #466) — lecture seule
+de l'arriéré de la file par jour et du délai moyen de résolution, pour le
+graphique de la page bénévoles. Même garde, aucune écriture.
+
 **Le renommage, la réattribution, la validation, le rejet et la correction de
 champs sont scopés au résultat en attente actionnable** (relevé en revue de
 code, #437) : déléguer tel quel à `admin_actions` donnerait au mot de passe
@@ -411,7 +415,7 @@ l'entrée doit au contraire être `is_rejected`, sans quoi il n'y a rien à
 annuler.
 
 `POST /benevoles/session` reste **non gardée** — c'est elle qui pose la garde
-des neuf autres — et `test_public_routes_still_open.py` classe les neuf
+des dix autres — et `test_public_routes_still_open.py` classe les dix
 routes gardées dans `ROUTES_BENEVOLES_FERMEES`, pas dans le préfixe `/admin/`
 (ce mécanisme n'a rien à voir avec le SSO/RBAC). Y **ajouter** toute nouvelle
 route de ce router : le test range par défaut dans « publique », donc un oubli
