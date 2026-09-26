@@ -369,6 +369,17 @@ def test_event_type_par_epreuve():
     assert chronoplace._event_type(analytics_swimrun, "") == "swimrun"
 
 
+def test_event_type_uses_the_event_title_when_the_race_names_no_sport():
+    """Youth races are named after an age group (Lèves 2025, #1095)."""
+    analytics = {"epreuve_name": "Mini poussins (2019-2018)", "event_type": "Triathlon"}
+
+    assert chronoplace._event_type(analytics, "SITRANS Bike & Run de Lèves 2025") == "bike-run"
+
+
+def test_event_type_keeps_the_sport_a_race_names_itself():
+    assert chronoplace._event_type({"epreuve_name": "Trail 12 km"}, "Triathlon de Vertou") == "trail"
+
+
 def test_event_type_repli_sur_le_contexte_puis_le_nom():
     assert chronoplace._event_type({"event_type": "Duathlon"}, "") == "duathlon"
     assert chronoplace._event_type({}, "Aquathlon de Spay") == "aquathlon"
