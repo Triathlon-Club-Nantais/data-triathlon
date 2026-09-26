@@ -217,7 +217,7 @@ describe("CategoryBars", () => {
       />,
     );
     expect(screen.getByRole("img")).toHaveAccessibleName(
-      "Répartition par catégorie : V1 60,0 %, S 40,0 % (votre catégorie).",
+      "Répartition par catégorie : V1 60,0 %, S 40,0 % (catégorie de l'athlète).",
     );
   });
 
