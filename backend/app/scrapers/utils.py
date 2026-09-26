@@ -47,11 +47,9 @@ def parse_fr_date(text: str) -> "date_t | None":
     """Parse a French date string like '16 mai 2026', '16–17 mai 2026' or '12 avr. 2026'."""
     if not text:
         return None
-    # Normalize accented chars and dashes
+    # Accents aplatis par la définition commune du module, tirets unifiés (#1107).
     normalized = (
-        text.lower()
-        .replace("é", "e").replace("è", "e").replace("û", "u")
-        .replace("ô", "o").replace("â", "a").replace("î", "i")
+        strip_accents(text.lower())
         .replace("–", "-").replace("—", "-").replace("�", "-")
     )
     # `\.?` tolère le point final des mois abrégés ('avr.', 'sept.').
