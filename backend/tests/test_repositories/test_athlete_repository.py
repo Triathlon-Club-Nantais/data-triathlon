@@ -1041,3 +1041,31 @@ def test_search_admin_counts_a_relay_for_a_non_carrier_teammate(db_session):
     ((athlete, compte),) = athlete_repository.search_admin(db_session, search="MARTIN")
 
     assert (athlete.nom, compte) == ("MARTIN", 1)
+
+
+
+def test_orphan_delete_rechecks_participations_at_delete_time(db_session, monkeypatch):
+    """A participation inserted between the SELECT and the DELETE keeps its athlete (#1100)."""
+    from app.models.athlete import Athlete
+
+    orphelin = athlete_repository.get_or_create(db_session, nom="SEUL", prenom="S", club="TCN")
+    course = course_repository.get_or_create(
+        db_session, name="Tri", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    db_session.flush()
+    requete_select = type(db_session.query(Athlete.id))
+    all_original = requete_select.all
+
+    def _select_puis_insertion_concurrente(self):
+        lignes = all_original(self)
+        if not getattr(_select_puis_insertion_concurrente, "fait", False):
+            _select_puis_insertion_concurrente.fait = True
+            _part(db_session, orphelin, course, "1")
+            db_session.flush()
+        return lignes
+
+    monkeypatch.setattr(requete_select, "all", _select_puis_insertion_concurrente)
+
+    athlete_repository.delete_orphans(db_session)
+
+    assert db_session.get(Athlete, orphelin.id) is not None

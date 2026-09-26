@@ -192,6 +192,32 @@ def _scraped_nomme(bib: str, nom: str, prenom: str) -> ScrapedResult:
     )
 
 
+def test_a_failed_orphan_purge_is_reported_instead_of_losing_the_batch_outcome(
+    db_session, monkeypatch
+):
+    """A concurrent import can make the DELETE violate a FK on PostgreSQL (#1100)."""
+    from sqlalchemy.exc import IntegrityError
+
+    url = "https://www.klikego.com/resultats/event/123"
+    monkeypatch.setattr(
+        import_service,
+        "registry_scrape_event_all",
+        lambda _u, **kwargs: [_scraped_nomme("1", "DUPONT", "Jean")],
+    )
+    import_service.import_event(db_session, url, _settings())
+
+    def _purge_en_conflit(db):
+        raise IntegrityError("DELETE FROM athletes", {}, Exception("participations_athlete_id_fkey"))
+
+    monkeypatch.setattr(rescrape_service.athlete_repository, "delete_orphans", _purge_en_conflit)
+
+    out = rescrape_service.run_rescrape_db(db_session, _settings(), delay=0.0)
+
+    assert out.processed == 1
+    assert out.orphans_removed == 0
+    assert out.orphan_purge_failed is True
+
+
 def test_rescrape_reconcilie_et_supprime_les_orphelins(db_session, monkeypatch):
     url = "https://www.klikego.com/resultats/event/123"
 

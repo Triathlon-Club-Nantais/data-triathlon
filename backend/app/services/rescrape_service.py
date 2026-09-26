@@ -15,9 +15,11 @@ concurrents. Contrepartie assumée : une source passive vieillit indéfiniment �
 elle ne sert qu'à documenter l'autre publication et à permettre la bascule
 (#285), qui re-scrape sur son point de bascule.
 """
+import logging
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -80,6 +82,8 @@ def _items_depuis_urls(db: Session, urls: list[str]) -> list[BatchItem]:
         items.append(BatchItem(url=url, label=label))
     return items
 
+
+logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class PassiveTarget:
@@ -191,6 +195,8 @@ class RescrapeOutcome:
     merged: int = 0
     #: Athlètes orphelins supprimés en fin de batch (fiches vidées).
     orphans_removed: int = 0
+    #: La purge des orphelins a échoué (import concurrent) ; rattrapée au run suivant.
+    orphan_purge_failed: bool = False
     #: Dry-run : le batch a scrapé sans persister. Neutralise `echec_total`.
     dry_run: bool = False
     #: Détail des identités réconciliées (ancien -> nouveau, volume).
@@ -287,8 +293,17 @@ def run_rescrape_db(
 
     # Nettoyage des orphelins : une seule fois, après tout le batch, et jamais en
     # dry-run (rien n'a été persisté, donc aucune fiche n'a été vidée).
+    # Un échec de la purge (import concurrent qui rattache un orphelin, FK en
+    # PostgreSQL) ne doit pas effacer le bilan des épreuves déjà commitées : il
+    # devient une information du bilan, et la purge se rattrape au run suivant
+    # (#1100).
     if not dry_run:
-        outcome.orphans_removed = athlete_repository.delete_orphans(db)
+        try:
+            with db.begin_nested():
+                outcome.orphans_removed = athlete_repository.delete_orphans(db)
+        except IntegrityError:
+            logger.warning("Orphan purge failed, left to the next run", exc_info=True)
+            outcome.orphan_purge_failed = True
         db.commit()
 
     return outcome
