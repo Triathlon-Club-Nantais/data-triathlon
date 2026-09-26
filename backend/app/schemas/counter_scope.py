@@ -2,7 +2,7 @@
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.counter_scope_entry import CLUB_LABEL, NON_FEDERAL_DISCIPLINE
 
@@ -44,4 +44,5 @@ class CounterScopeOut(BaseModel):
 
 
 class CounterScopeEntryIn(BaseModel):
-    value: str
+    # Borne de la colonne `String(120)` (#1121).
+    value: str = Field(max_length=120)
