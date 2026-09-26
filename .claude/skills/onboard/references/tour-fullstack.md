@@ -6,7 +6,7 @@ Si tu voulais un autre profil (backend seul, frontend seul, scraping, ops…), r
 
 ## 1. La stack en 30 secondes
 
-Backend FastAPI + SQLAlchemy 2.0 (sync) + Alembic sur Python 3.13, géré par `uv`. Frontend Next.js 16 App Router + TypeScript + Tailwind + shadcn/ui. Scrapers en `httpx` + BeautifulSoup, Playwright en dernier recours.
+Backend FastAPI + SQLAlchemy 2.0 (sync) + Alembic sur Python 3.13, géré par `uv`. Frontend Next.js 16 App Router + TypeScript + Tailwind + shadcn/ui. Scrapers en `httpx` + BeautifulSoup, sans aucun navigateur (fallback Playwright retiré par #102).
 
 Le détail complet — commandes, variables, versions — est dans `AGENTS.md` §Stack et §Commandes. Garde ce fichier ouvert.
 
@@ -84,7 +84,7 @@ Ouvre `backend/app/scrapers/klikego.py`. Note trois choses :
 - Les temps restent des strings (`"01:23:45"`), normalisées via `backend/app/scrapers/utils.py`.
 - Breizh Chrono réutilise `_parse_detail` et `_detect_event_type` d'ici — cf. `AGENTS.md` §Conventions scrapers.
 
-Puis ouvre `backend/app/scrapers/registry.py` — registre `Protocol`, fin des `if-else`. Provider inconnu → fallback Playwright.
+Puis ouvre `backend/app/scrapers/registry.py` — registre `Protocol`, fin des `if-else`. Provider inconnu → aucun provider ne matche, et `scrape_event_all` lève : pas de fallback.
 
 Enfin `backend/app/services/cache.py` : `is_fresh(course)` court-circuite le re-scrape (10 min en cours, 30 j fini). Une commande qui veut passer outre le fait par `force=True`, jamais par contournement.
 
@@ -111,18 +111,20 @@ Le rejeu d'échecs sans fichier intermédiaire est le cas d'usage à comprendre 
 
 ## 9. Frontend — la structure App Router
 
-Ouvre `frontend/app/`. Une route = un dossier :
+Ouvre `frontend/app/`. Une route = un dossier. Les pages de résultats vivent
+sous le groupe `app/(public_restricted)/`, invisible dans l'URL et gardé par le
+code d'accès du site (#509) :
 
-- `dashboard/` — vue d'accueil, StatsCards + RecentCourses.
-- `resultats/` — liste filtrable.
-- `athletes/[id]/` — fiche athlète.
-- `courses/[id]/` — fiche course.
-- `club/` — vue club (le toggle « Inclure les autres disciplines » vit ici).
-- `carte/` — carte des épreuves.
-- `ajouter/` — le formulaire de scrape.
-- `admin/` — outils internes.
+- `(public_restricted)/dashboard/` — vue d'accueil, `StatCardsRank` + `RecentCourses`.
+- `(public_restricted)/resultats/` — liste filtrable.
+- `(public_restricted)/athletes/[id]/` — fiche athlète.
+- `(public_restricted)/courses/[id]/` — fiche épreuve.
+- `(public_restricted)/club/` — vue club (le toggle « Inclure les autres disciplines » vit ici).
+- `(public_restricted)/carte/` — carte des épreuves.
+- `(public_restricted)/ajouter/` — le formulaire d'import.
+- `admin/`, `login/`, `acces/`, `benevoles/` — routes sœurs, hors du groupe.
 
-`layout.tsx` et `providers.tsx` chapeautent tout ça. `frontend/app/api/` porte les routes proxy Next → backend.
+`layout.tsx` et `providers.tsx` chapeautent tout ça. `frontend/app/api/` ne porte que `cron/keep-warm/` : le proxy `/api/*` vers le backend est un rewrite de `frontend/next.config.ts`.
 
 ## 10. Frontend — la couche API
 
@@ -134,7 +136,7 @@ Trois fichiers à ouvrir dans l'ordre :
 
 ## 11. Un composant caractéristique
 
-Ouvre `frontend/components/scrape/ScrapeForm.tsx` — orchestrateur du parcours utilisateur « coller une URL et voir arriver les participants ». Il appelle `sse.ts` et affiche la progression via `ImportProgress.tsx`.
+Ouvre `frontend/components/scrape/TcnScrapeForm.tsx` — orchestrateur du parcours utilisateur « coller une URL et voir arriver les participants ». Il lit le flux par le hook `frontend/hooks/useImportStream.ts`, qui consomme `sse.ts`, et affiche la progression et le bilan lui-même.
 
 Puis, pour un cas plus statique, `frontend/components/results/ResultCard.tsx` — comment un résultat est rendu (nom, chrono, splits).
 
