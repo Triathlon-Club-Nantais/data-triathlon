@@ -66,11 +66,12 @@ describe("ResultsFilters — recherche live", () => {
   });
 
   it("le bouton Filtrer applique toujours via push (entrée d'historique explicite)", async () => {
+    searchParams = new URLSearchParams("event_type=triathlon-m&scope=club");
     render(<ResultsFilters />);
 
     await userEvent.click(screen.getByRole("button", { name: "Filtrer" }));
 
-    expect(push).toHaveBeenCalled();
+    expect(push).toHaveBeenCalledWith("/resultats?event_type=triathlon-m&scope=club");
   });
 
   it("ne propage pas un filtre discipline/dates modifié mais pas encore appliqué (#387)", async () => {

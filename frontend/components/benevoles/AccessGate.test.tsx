@@ -34,13 +34,15 @@ describe("AccessGate", () => {
 
   it("affiche un message d'erreur français sur mot de passe incorrect", async () => {
     benevoleLogin.mockRejectedValue(new ApiError(401, "Mot de passe incorrect."));
+    const onSuccess = vi.fn();
     const user = userEvent.setup();
-    render(<AccessGate onSuccess={vi.fn()} />);
+    render(<AccessGate onSuccess={onSuccess} />);
 
     await user.type(screen.getByLabelText(/mot de passe/i), "faux");
     await user.click(screen.getByRole("button", { name: /se connecter/i }));
 
     expect(await screen.findByText("Mot de passe incorrect.")).toBeInTheDocument();
+    expect(onSuccess).not.toHaveBeenCalled();
   });
 
   it("ne rend pas le bouton actionnable pendant la requête", async () => {
@@ -59,5 +61,7 @@ describe("AccessGate", () => {
 
     expect(bouton).toBeDisabled();
     resoudre?.();
+    // La requête résolue sous l'œil du test, sans mise à jour d'état orpheline (#1105).
+    await waitFor(() => expect(bouton).not.toBeDisabled());
   });
 });
