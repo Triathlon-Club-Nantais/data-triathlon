@@ -31,9 +31,9 @@ est le but — voir `app/cli/AGENTS.md`.
 
 ## Administration des données (#117)
 
-`admin_data.py` porte dix ressources : six gestes correctifs et quatre lectures
-réservées (onze routes — la recherche de coureurs et la fiche unique partagent
-une ligne). Elles vivent sous `/admin/`, et **chacune porte sa garde** — jamais le
+`admin_data.py` porte quatorze ressources : neuf gestes correctifs et cinq
+lectures réservées (quinze routes — la recherche de coureurs et la fiche unique
+partagent une ligne). Elles vivent sous `/admin/`, et **chacune porte sa garde** — jamais le
 préfixe, pour la raison rappelée dans `backend/app/api/AGENTS.md` (§ Protéger une
 ressource).
 
@@ -50,6 +50,14 @@ ressource).
 | `PATCH /admin/athletes/{id}` | `athletes:write` |
 | `POST /admin/participations/{id}/reassign` | `participations:reassign` |
 | `PUT /admin/participations/{id}/teammates` (#894) | `participations:reassign` |
+| `GET /admin/athletes/{id}/season-quota` (#709) | `athletes:season_validate` |
+| `POST /admin/athletes/{id}/season-validations` (#709) | `athletes:season_validate` |
+| `DELETE /admin/athletes/{id}/season-validations/{season}` (#709) | `athletes:season_validate` |
+
+**Les trois routes de saison portent la validation de saison** (#709) : le quota
+indicatif (trois épreuves validées, un bénévolat accepté, saison déjà validée ou
+non), la validation et la dévalidation. La saison est bornée à 2000-2100 (#1054).
+Contrat détaillé : `specs/20260828-134141-club-season-counters/contracts/api.md`.
 
 **`PUT .../teammates` attribue un relais à ses équipiers** (#894) : le corps est
 la composition voulue, 2 à 8 entrées `{athlete_id}` ou `{athlete_name,
