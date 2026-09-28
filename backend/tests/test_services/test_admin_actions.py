@@ -2403,3 +2403,39 @@ def test_set_teammates_refuse_un_nom_connu_deja_classe_sans_rien_creer(db_sessio
         )
 
     assert athlete_repository.get_by_identity(db_session, "DURAND", "Marie", None) is None
+
+
+def test_rescrape_renumbers_duplicated_ranks_like_every_import_path(db_session, auteur, scrape):
+    """#914 : le re-scrape réimplémentait la boucle de persistance sans les
+    rattrapages de lot. Deux rangs 1 publiés par groupe de genre (#757) revenaient
+    tels quels sur l'épreuve qu'on voulait réparer."""
+    from dataclasses import replace
+
+    course = _epreuve(db_session)
+    _inscrit(db_session, _coureur(db_session, "LENT"), course, "1")
+    _inscrit(db_session, _coureur(db_session, "RAPIDE"), course, "2")
+    db_session.commit()
+    scrape([
+        replace(_resultat(course, "1", "LENT", prenom="Coureur", total_time="02:10:00"),
+                rank_overall=1, status="finisher"),
+        replace(_resultat(course, "2", "RAPIDE", prenom="Coureur", total_time="01:59:00"),
+                rank_overall=1, status="finisher"),
+    ])
+
+    events = list(admin_actions.iter_rescrape_course(
+        db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
+    ))
+
+    assert events[-1]["phase"] == "done"
+    rangs = {
+        p.bib_number: p.rank_overall
+        for p in participation_repository.list_for_course(db_session, course.id)
+    }
+    assert rangs == {"1": 2, "2": 1}
+
+
+def test_no_caller_instantiates_the_persister_outside_import_service():
+    """#914 : un seul point d'entrée public porte rattrapages de lot et boucle."""
+    import inspect
+
+    assert "_Persister(" not in inspect.getsource(admin_actions)
