@@ -237,8 +237,12 @@ def fetch_report(settings: Settings, run_id: int, *, transport=None) -> dict:
         octets = reponse.content
 
     # Aucune écriture disque : le zip ne pèse que quelques kilo-octets.
-    with zipfile.ZipFile(io.BytesIO(octets)) as archive:
-        return json.loads(archive.read(archive.namelist()[0]))
+    try:
+        with zipfile.ZipFile(io.BytesIO(octets)) as archive:
+            return json.loads(archive.read(archive.namelist()[0]))
+    except (zipfile.BadZipFile, IndexError, ValueError) as exc:
+        # Un batch coupé par le timeout publie un bilan de 0 octet (#1005).
+        raise BatchReportUnreadableError from exc
 
 
 def _get(client, settings: Settings, url: str, *, params: dict) -> dict:
@@ -324,6 +328,14 @@ class BatchReportNotFoundError(DomainError):
     message = (
         "Ce lancement n'a pas de bilan : il n'est pas terminé, ou il a échoué "
         "avant que la commande ne s'exécute."
+    )
+
+
+class BatchReportUnreadableError(DomainError):
+    status_code = 404
+    message = (
+        "Bilan indisponible : le lancement a été interrompu avant d'écrire son bilan. "
+        "L'exécution reste consultable."
     )
 
 

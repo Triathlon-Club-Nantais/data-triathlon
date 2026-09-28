@@ -879,3 +879,19 @@ def test_alembic_check_finds_no_drift_on_sqlite(sqlite_url):
     """#1023 : l'index trigram, propre à PostgreSQL, ne doit pas apparaître comme à créer."""
     command.upgrade(_alembic_config(), "head")
     command.check(_alembic_config())
+
+
+def test_upgrade_head_indexes_the_lowercase_athlete_identity(base_migree):
+    """#1005 : sans index sur `(lower(nom), lower(prenom))`, chaque lot d'identités
+    parcourait toute la table `athletes` (2 636 s sur un rescrape klikego preview).
+    Le parcours d'index se vérifie par `EXPLAIN` sur PostgreSQL : SQLite ne sert pas
+    un `IN` sur tuple par un index d'expression."""
+    engine = sa.create_engine(base_migree)
+    try:
+        with engine.connect() as connection:
+            ddl = connection.execute(
+                sa.text("SELECT sql FROM sqlite_master WHERE name = 'ix_athletes_identity'")
+            ).scalar()
+    finally:
+        engine.dispose()
+    assert ddl is not None and "lower(nom), lower(prenom)" in ddl
