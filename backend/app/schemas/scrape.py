@@ -50,3 +50,18 @@ class ImportResult(BaseModel):
     #: Épreuve unique = 1 entrée. Multi (heats Klikego, listes RaceResult,
     #: événements Chronoplace) : autant d'entrées que de `Course` touchées.
     courses: list[ImportedCourse] = []
+
+
+class ProviderDetection(BaseModel):
+    """`GET /scrape/detect` (#1055)."""
+
+    provider: str
+    supported: bool
+    fanout: bool
+    default_single_heat: bool
+
+
+class ProviderList(BaseModel):
+    """`GET /scrape/providers` (#1055)."""
+
+    providers: list[str]

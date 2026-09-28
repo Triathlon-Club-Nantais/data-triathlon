@@ -16,7 +16,12 @@ from app.core.exceptions import NotFoundError
 from app.core.permissions import P
 from app.models.user import User
 from app.repositories import course_repository, pending_provider_repository
-from app.schemas.admin import CourseReliabilityRead, CourseReliabilityUpdate
+from app.schemas.admin import (
+    CourseReliabilityRead,
+    CourseReliabilityUpdate,
+    PendingProviderOut,
+    PendingProviderReported,
+)
 from app.services import course_review
 
 router = APIRouter(tags=["admin"])
@@ -35,6 +40,7 @@ class PendingProviderCreate(BaseModel):
 
 @router.post(
     "/admin/pending-providers",
+    response_model=PendingProviderReported,
     status_code=201,
     dependencies=[Depends(public_write_rate_limit)],
 )
@@ -48,21 +54,12 @@ def report_pending_provider(body: PendingProviderCreate, db: Session = Depends(g
     return {"id": entry.id, "url": entry.url, "provider_hint": entry.provider_hint}
 
 
-@router.get("/admin/pending-providers")
+@router.get("/admin/pending-providers", response_model=list[PendingProviderOut])
 def list_pending_providers(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.PENDING_PROVIDERS_READ)),
 ):
-    rows = pending_provider_repository.list_unhandled(db)
-    return [
-        {
-            "id": r.id,
-            "url": r.url,
-            "provider_hint": r.provider_hint,
-            "reported_at": r.reported_at.isoformat() if r.reported_at else None,
-        }
-        for r in rows
-    ]
+    return pending_provider_repository.list_unhandled(db)
 
 
 class PendingProviderCount(BaseModel):

@@ -11,7 +11,7 @@ from app.core.analytics import ANONYMOUS_DISTINCT_ID, capture_event
 from app.core.config import Settings, get_settings
 from app.core.database import SessionLocal, get_db
 from app.models.user import User
-from app.schemas.scrape import ImportResult, ScrapeRequest
+from app.schemas.scrape import ImportResult, ProviderDetection, ProviderList, ScrapeRequest
 from app.scrapers import detect_provider, provider_names, registry
 from app.services import import_service, sse_relay
 
@@ -98,7 +98,7 @@ def scrape_event_stream(
     return sse.event_stream(sse_relay.relay(produce))
 
 
-@router.get("/scrape/detect")
+@router.get("/scrape/detect", response_model=ProviderDetection)
 def detect(url: HttpUrl):
     """Provider détecté + support réel + portée du fan-out, dérivés du registre.
 
@@ -158,7 +158,7 @@ def detect(url: HttpUrl):
     }
 
 
-@router.get("/scrape/providers")
+@router.get("/scrape/providers", response_model=ProviderList)
 def providers():
     """Fournisseurs ciblables, dans l'ordre de détection.
 
