@@ -149,15 +149,13 @@ def create_app() -> FastAPI:
         openapi_url="/openapi.json" if docs else None,
     )
 
-    # En-têtes de sécurité (#396, constats A05-2 et A02-1). Monté **en premier**
-    # à dessein : `add_middleware` empile à l'envers, donc ce middleware est le
-    # plus proche du routeur et voit le `scope["scheme"]` déjà réécrit par
-    # `ProxyHeadersMiddleware` ci-dessous — dont dépend la pose de HSTS.
-    from app.core.security_headers import SecurityHeadersMiddleware
-
-    # Refus des écritures same-site et cross-site (#946). Monté avant les en-têtes
-    # de sécurité, donc plus près du routeur : son 403 les reçoit aussi.
+    # `add_middleware` empile à l'envers : le premier monté est le plus proche du
+    # routeur. Le refus des écritures same-site et cross-site (#946) passe en
+    # premier, pour que son 403 reçoive aussi les en-têtes de sécurité (#396,
+    # constats A05-2 et A02-1). Ceux-ci restent en deçà de `ProxyHeadersMiddleware`
+    # ci-dessous, et voient donc le `scope["scheme"]` déjà réécrit, dont dépend HSTS.
     from app.core.origin_guard import OriginGuardMiddleware
+    from app.core.security_headers import SecurityHeadersMiddleware
 
     app.add_middleware(
         OriginGuardMiddleware,

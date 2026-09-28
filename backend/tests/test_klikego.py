@@ -2475,3 +2475,23 @@ def test_scrape_event_fanout_loads_the_event_page_once(monkeypatch):
 
     assert appels.count(f"{klikego.BASE}/resultats/{slug}/1677015306084-12") == 1
     assert dates
+
+
+def test_scrape_event_fanout_surfaces_a_network_failure_of_the_event_page(monkeypatch):
+    """Revue de #1048 : la lecture unique ne doit pas changer une panne réseau en
+    « 0 heat énuméré », qui se lirait comme une épreuve vide."""
+    import httpx
+    import pytest
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+        def get(self, url: str, *a, **k):
+            raise httpx.ConnectError("klikego injoignable")
+
+    monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
+
+    with pytest.raises(httpx.HTTPError):
+        klikego.scrape_event_fanout("1677015306084-12", "Mesquer", "mesquer-2026")

@@ -50,12 +50,22 @@ _DETAIL_PROGRESS_INTERVAL = 10
 
 
 def _fetch_event_page(event_id: str, slug: str, client: httpx.Client) -> str:
-    """HTML de la page d'événement, chaîne vide si elle ne répond pas."""
-    try:
-        r = client.get(f"{BASE}/resultats/{slug}/{event_id}" if slug else f"{BASE}/resultats/{event_id}")
-    except httpx.HTTPError:
-        return ""
+    """HTML de la page d'événement, chaîne vide sur un statut autre que 200.
+
+    Une panne réseau remonte : le fan-out en tire ses heats, et la taire les
+    réduirait à zéro, soit une épreuve vide en apparence. Le chemin mono-heat,
+    qui n'y lit que la date, la tolère lui-même.
+    """
+    r = client.get(f"{BASE}/resultats/{slug}/{event_id}" if slug else f"{BASE}/resultats/{event_id}")
     return r.text if r.status_code == 200 else ""
+
+
+def _fetch_event_date(event_id: str, slug: str, client: httpx.Client):
+    """Date d'événement, `None` si la page ne répond pas (repli mono-heat)."""
+    try:
+        return _parse_event_date(_fetch_event_page(event_id, slug, client))
+    except httpx.HTTPError:
+        return None
 
 
 def _parse_event_date(html: str):
@@ -462,7 +472,7 @@ def scrape_event_all(
     #583) — revue finale de #698.
     """
     with http.client(timeout=30, headers=HEADERS) as client:
-        event_date = _parse_event_date(_fetch_event_page(event_id, slug, client))
+        event_date = _fetch_event_date(event_id, slug, client)
         return _scrape_single_heat(
             event_id, heat, "", event_name, slug, event_date, client,
             on_detail_progress=on_detail_progress,

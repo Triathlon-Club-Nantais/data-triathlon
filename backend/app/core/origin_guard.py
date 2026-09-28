@@ -14,6 +14,7 @@ Règle, pour `POST`/`PUT`/`PATCH`/`DELETE` :
 - Sans aucun des deux (serveur à serveur, CLI, tests), la requête passe.
 """
 import json
+from urllib.parse import urlsplit
 
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -25,7 +26,9 @@ _BODY = json.dumps(
 
 
 def _origin(value: str) -> str:
-    return value.strip().rstrip("/").lower()
+    """`scheme://hôte[:port]` en minuscules : un chemin éventuel ne compte pas."""
+    parts = urlsplit(value.strip().lower())
+    return f"{parts.scheme}://{parts.netloc}"
 
 
 class OriginGuardMiddleware:
