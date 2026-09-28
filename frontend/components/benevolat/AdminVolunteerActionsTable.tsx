@@ -23,6 +23,7 @@ import {
 import { queryKeys } from "@/lib/queries/keys";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
+import { seasonLabel } from "@/lib/utils/season";
 import type { AdminVolunteerActionOut } from "@/lib/types";
 
 const REPLI = "—";
@@ -107,6 +108,7 @@ export function AdminVolunteerActionsTable() {
             <TableHead>Titre</TableHead>
             <TableHead>Description</TableHead>
             <TableHead>Déclarée le</TableHead>
+            <TableHead>Saison</TableHead>
             <TableHead></TableHead>
           </TableRow>
         </TableHeader>
@@ -119,6 +121,7 @@ export function AdminVolunteerActionsTable() {
               <TableCell className="max-w-xs truncate">{action.title ?? REPLI}</TableCell>
               <TableCell className="max-w-md truncate">{action.description ?? REPLI}</TableCell>
               <TableCell>{formatDate(action.created_at)}</TableCell>
+              <TableCell className="whitespace-nowrap">{seasonLabel(action.season)}</TableCell>
               <TableCell>
                 <div className="flex gap-2">
                   <Button

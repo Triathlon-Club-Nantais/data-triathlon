@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { rendreNullSi404 } from "@/lib/api/null-si-404";
 import { queryKeys } from "./keys";
@@ -454,6 +454,9 @@ export function useSeasonQuota(athleteId: number, season: number, enabled: boole
     queryKey: ["season-quota", athleteId, season],
     queryFn: () => apiClient.getSeasonQuota(athleteId, season),
     enabled,
+    // Changer de saison garde l'ancien quota à l'écran le temps de lire le
+    // nouveau, plutôt que de retirer la carte (#956).
+    placeholderData: keepPreviousData,
   });
 }
 

@@ -3,6 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/lib/types";
+import { currentSeason, seasonLabel } from "@/lib/utils/season";
 import { SeasonValidationPanel } from "./SeasonValidationPanel";
 
 const { getSession, getSeasonQuota, validateSeason, unvalidateSeason } = vi.hoisted(() => ({
@@ -147,6 +148,20 @@ describe("SeasonValidationPanel — valider la saison (US3, FR-009 à FR-013)", 
 
     await waitFor(() => expect(validateSeason).toHaveBeenCalledWith(42, expect.any(Number)));
     expect(toastSuccess).toHaveBeenCalled();
+  });
+
+  it("valide la saison précédente, celle qu'on clôture en septembre (#956)", async () => {
+    getSession.mockResolvedValue(session(["athletes:season_validate"]));
+    getSeasonQuota.mockResolvedValue({ validated_count: 3, has_volunteer_action: true, season_validated: false });
+    validateSeason.mockResolvedValue({});
+    const precedente = currentSeason() - 1;
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: seasonLabel(precedente) }));
+
+    await waitFor(() => expect(getSeasonQuota).toHaveBeenCalledWith(42, precedente));
+    await userEvent.click(await screen.findByRole("button", { name: /^valider la saison$/i }));
+    await waitFor(() => expect(validateSeason).toHaveBeenCalledWith(42, precedente));
   });
 
   it("affiche Dévalider quand la saison est déjà validée, et dévalide au clic", async () => {

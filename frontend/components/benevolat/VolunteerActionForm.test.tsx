@@ -21,6 +21,7 @@ const { toastSuccess, toastError } = vi.hoisted(() => ({
 vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
 
 import { VolunteerActionForm } from "./VolunteerActionForm";
+import { currentSeason, seasonLabel } from "@/lib/utils/season";
 
 const CIBLE: AthleteBrief = { id: 2, nom: "KERMARREC", prenom: "Hadrien", gender: "M", club: "TCN" };
 
@@ -160,7 +161,7 @@ describe("VolunteerActionForm", () => {
         description: "Poste eau",
       }),
     );
-    expect(toastSuccess).toHaveBeenCalled();
+    expect(toastSuccess).toHaveBeenCalledWith(expect.stringContaining(seasonLabel(currentSeason())));
   });
 
   it("désactive le bouton pendant la requête", async () => {
