@@ -7,6 +7,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     Float,
+    Index,
     Integer,
     String,
     UniqueConstraint,
@@ -47,6 +48,14 @@ class Course(Base):
         UniqueConstraint(
             "name", "event_date", "event_type", "is_relay", name="uq_course_identity"
         ),
+        # Créé par la migration a1b2c3d4e5f6 sous PostgreSQL seulement. Le déclarer ici
+        # empêche `alembic check` de proposer sa suppression (#1023).
+        Index(
+            "ix_courses_name_trgm",
+            "name",
+            postgresql_using="gin",
+            postgresql_ops={"name": "gin_trgm_ops"},
+        ).ddl_if(dialect="postgresql"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
