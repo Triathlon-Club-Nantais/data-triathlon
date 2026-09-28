@@ -20,7 +20,6 @@ from urllib.parse import urlparse
 import psycopg2.errorcodes
 from sqlalchemy.orm import Session
 
-from app.core.club import is_tcn
 from app.core.config import Settings
 from app.core.database import SessionLocal
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
@@ -1096,13 +1095,9 @@ class _Persister:
         for course_id, course in self._courses.items():
             course_repository.touch_scraped_at(self.db, course)
             course_source_repository.touch_active_scraped_at(self.db, course_id)
-            # Réutilise la liste déjà chargée par `_index_course` (#706) —
-            # tenue à jour par `_resolve_pending` — au lieu d'un second
-            # `list_for_course`. `list_for_course` n'applique pas
-            # `validated_clause` (#270) — c'est le chemin d'import, pas
-            # d'affichage — donc filtrée ici pour les deux compteurs
-            # dénormalisés (#623), sur la même définition que
-            # `_apply_filters`/`validated_clause`.
+            # Réutilise la liste déjà chargée par `_index_course` (#706), tenue à
+            # jour par `_resolve_pending`, au lieu d'un second `list_for_course`.
+            # Les compteurs, eux, se recalculent en base (#1099).
             rows = self._participations[course_id]
             report = quality.analyze(rows, duplicate_bibs=self._duplicate_bibs[course_id])
             course_repository.set_quality(
@@ -1111,13 +1106,7 @@ class _Persister:
                 is_reliable_computed=report.is_reliable,
                 quality_issues=report.anomalies,
             )
-            validees = [row for row in rows if not row.is_pending_validation]
-            course_repository.set_counts(
-                self.db,
-                course,
-                participation_count=len(validees),
-                tcn_count=sum(1 for row in validees if is_tcn(row.club)),
-            )
+            course_repository.recount(self.db, course)
 
 
 def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
