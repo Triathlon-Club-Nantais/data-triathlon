@@ -1,9 +1,12 @@
 # Analytics produit — PostHog
 
-Intégré côté `frontend/` uniquement (#339). Cloud **EU** (`eu.posthog.com`) — choix
-RGPD, les données restent en zone UE.
+Deux sources écrivent dans le même projet PostHog, cloud **EU** (`eu.posthog.com`,
+choix RGPD : les données restent en zone UE) : le **frontend** (#339) et le
+**backend** (`backend/app/core/analytics.py`). Un même geste n'est émis que par
+l'une des deux : le serveur quand l'événement mesure une opération persistée,
+qu'il compte une seule fois et hors de portée des bloqueurs (#1033).
 
-## Câblage
+## Câblage frontend
 
 - **Init** — `frontend/instrumentation-client.ts` (hook Next.js dédié, tourne
   avant tout rendu client). Sans `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` /
@@ -32,28 +35,66 @@ RGPD, les données restent en zone UE.
   à chaque site d'appel ni laisser `posthog-js` logguer un `console.error` par
   clic quand les variables d'env manquent.
 
+## Câblage backend
+
+- **Init** : `init_posthog`, appelé dans le lifespan de `backend/app/main.py` à
+  partir de `POSTHOG_PROJECT_TOKEN`. Vide, aucune capture ne part, sans erreur.
+  **Production seule**, comme côté Vercel : la variable reste vide sur le service
+  Render de preview (`docs/ci-cd.md`).
+- **Capture** : `capture_event(event, distinct_id=…, properties=…)`. Le
+  `distinct_id` est `str(user.id)`, le même identifiant que le
+  `posthog.identify()` du front, ou `ANONYMOUS_DISTINCT_ID` (`"anonymous"`) sans
+  session.
+- **Autocapture d'exceptions** : `enable_exception_autocapture=True` (produit
+  « Error Tracking ») : toute exception non gérée part avec sa trace complète
+  vers le cloud EU. Les `DomainError`, gérées, n'y arrivent jamais. Le choix et
+  son risque résiduel sont documentés dans `backend/app/core/analytics.py`.
+
 ## Événements suivis
 
 Premier jet d'instrumentation — la liste des événements métier à suivre reste
 à affiner avec le club (hors périmètre de #339).
 
+### Frontend (`frontend/`)
+
 | Événement | Où | Props |
 |---|---|---|
 | `login_initiated` | `app/login/page.tsx` | `provider` |
-| `user_logged_out` | `components/auth/UserMenu.tsx` | — |
 | `results_import_started` | `components/scrape/TcnScrapeForm.tsx` | `url` |
 | `results_import_failed` | idem | `error_message` |
 | `results_import_completed` | idem | `imported_count`, `skipped_count`, `course_count` |
 | `manual_result_submitted` | `components/scrape/ManualResultForm.tsx` | `event_type` |
 | `season_changed` | `components/dashboard/SeasonSelector.tsx` | `season_count`, `seasons` |
 | `results_filter_applied` | `components/results/ResultsFilters.tsx` | `filter_count`, `has_*_filter` |
-| `feedback_submitted` | `components/tcn/FeedbackButton.tsx` | `feedback_type` |
+| `error_screen_shown` | `components/tcn/ErrorScreen.tsx` | `digest` |
+
+### Backend (`backend/app/api/v1/`)
+
+| Événement | Où | Props |
+|---|---|---|
+| `user_logged_in` | `auth.py` | `provider` |
+| `user_logged_out` | `auth.py` | — |
+| `feedback_submitted` | `feedback.py` | `feedback_type`, `has_page_url`, `is_authenticated` |
+| `event_scraped` | `scrape.py` | `provider`, `imported`, `updated`, `skipped` |
+| `participation_created` | `participations.py` | `event_type`, `is_relay` |
+| `participation_deleted` | `participations.py` | `participation_id` |
+| `participation_reassigned` | `admin_data.py` | `participation_id` |
+| `participation_teammates_set` | `admin_data.py` | `participation_id`, `teammates` |
+| `course_deleted` | `admin_data.py` | `course_id` |
+| `athlete_updated` | `admin_data.py` | `fields_changed` |
+| `course_source_deleted` | `admin_course_sources.py` | `course_id`, `source_id` |
+| `batch_launched` | `admin_batches.py` | `mode`, `dry_run`, `has_limit` |
+| `batch_launched_from_file` | `admin_batches.py` | `url_count`, `dry_run` |
+
+`feedback_submitted` et `user_logged_out` partaient aussi du front : chaque
+envoi et chaque déconnexion comptaient double. Seul l'émetteur serveur reste
+(#1033).
 
 `url` et `error_message` (import) sont déjà visibles ailleurs — l'URL part au
 backend via `reportPendingProvider`, l'erreur est déjà affichée à l'écran
-(toast + Alert). Aucune PII athlète dans les 8 événements : le scraping
-mono-athlète a été retiré (voir mémoire projet), seul l'import d'épreuve
-complète existe.
+(toast + Alert). Aucune PII athlète dans ces 21 événements : le scraping
+mono-athlète a été retiré, seul l'import d'épreuve complète existe, et
+`athlete_updated` ne porte que les **noms** des champs modifiés.
 
 `login_initiated` seul a besoin d'un transport spécial
 (`{ transport: "sendBeacon", send_instantly: true }`) : le clic déclenche une

@@ -116,6 +116,13 @@ dépendre le correctif d'une saisie au dashboard, et une saisie oubliée ne se
 voit pas (c'est exactement ce qu'a coûté #162). Vérification après déploiement :
 `GET /docs` doit rendre **404** en production et **200** en preview.
 
+**`POSTHOG_PROJECT_TOKEN`, production seule** (#1033). Elle active la capture
+serveur et l'autocapture d'exceptions (`backend/app/core/analytics.py`). Même
+règle que les `NEXT_PUBLIC_POSTHOG_*` de Vercel (#426) : renseignée sur
+`triathlon-backend-production` uniquement, **vide sur la preview**. Il n'existe
+qu'un projet PostHog, et le trafic de test fausserait les statistiques du club.
+Vide, les captures sont ignorées en silence.
+
 **`CORS_ORIGINS` — celle dont une erreur ne se voit pas** (#402, constat A05-3 de
 l'audit OWASP). Elle liste, en CSV, les origines autorisées à appeler l'API
 depuis un navigateur. Le défaut du code ouvre les quatre origines locales

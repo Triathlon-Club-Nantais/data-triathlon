@@ -2,7 +2,12 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi } from "vitest";
 
-const { submitFeedback } = vi.hoisted(() => ({ submitFeedback: vi.fn() }));
+const { submitFeedback, captureEvent } = vi.hoisted(() => ({
+  submitFeedback: vi.fn(),
+  captureEvent: vi.fn(),
+}));
+
+vi.mock("@/lib/posthog", () => ({ captureEvent }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
@@ -88,5 +93,7 @@ describe("FeedbackButton", () => {
     expect(submitFeedback).toHaveBeenCalledWith(
       expect.objectContaining({ type: "bug", title: "Un titre", body: "Une description." }),
     );
+    // `feedback_submitted` part du backend, une fois le retour enregistré (#1033).
+    expect(captureEvent).not.toHaveBeenCalled();
   });
 });

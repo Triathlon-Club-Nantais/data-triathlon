@@ -1,6 +1,5 @@
 "use client";
 import { usePathname, useRouter } from "next/navigation";
-import { captureEvent } from "@/lib/posthog";
 import { Avatar, Button } from "@/components/tcn";
 import {
   DropdownMenu,
@@ -104,7 +103,6 @@ export function UserMenu({
 
   const nom = session.display_name || session.email;
   const seDeconnecter = () => {
-    captureEvent("user_logged_out");
     // posthog.reset() n'est pas appelé ici : PostHogSessionSync (providers.tsx)
     // le déclenche dès que session repasse à null, quelle qu'en soit la cause.
     logout.mutate(undefined, {
