@@ -325,6 +325,9 @@ _RE_DUREE_NORMALISEE = re.compile(r"^\d{2,}:\d{2}:\d{2}$")
 # il n'est le temps d'arrivée que si son libellé le dit (`TIME1` « Temps », 363395).
 _RE_TIME_N = re.compile(r"^time\d+$")
 _LIBELLES_TEMPS_ARRIVEE = frozenset({"temps", "temps total", "temps final", "time"})
+# Catégorie d'équipe des listes relais, portée par un champ générique `ATFn` que
+# seule son étiquette nomme (386706, sondé le 2026-09-28, #1117).
+_LIBELLES_CATEGORIE_EQUIPE = frozenset({"cat equipe", "cat équipe", "catégorie équipe"})
 # Décorations de cellule : `[img:https://…]` en préfixe, `#` de `"#" & [BIB]`.
 _RE_IMG = re.compile(r"\[img:[^\]]*\]")
 # Un terme qui compare n'est pas la valeur affichée mais la condition qui la
@@ -580,6 +583,10 @@ def _split_rank_category(cell: str) -> tuple[int | None, str]:
     Une cellule sans rang est un libellé nu (cas des non-finishers).
     """
     cell = _clean_cell(cell)
+    # Un entier nu est un rang, jamais un libellé : `ClassementCategorieRelais`
+    # des listes relais vaut `1`, sans point (#1117).
+    if cell.isdigit():
+        return int(cell) or None, ""
     trouve = _RE_RANG_PREFIXE.match(cell)
     if trouve:
         return int(trouve.group(1)), trouve.group(2).strip()
@@ -866,6 +873,8 @@ def _map_columns(
         peeled = _peel(expr)
         label = _label_i18n(str(champ.get("Label") or "").strip())
         role = _role(peeled)
+        if not role and label.lower() in _LIBELLES_CATEGORIE_EQUIPE:
+            role = "categorie"
         if (
             not role
             and _RE_TIME_N.match(peeled)
@@ -1140,6 +1149,8 @@ def _build_result(
     cellule_rang_sexe = cellule("rang_sexe")
     r.rank_gender = r.rank_gender or normalize_rank(cellule_rang_sexe)
     r.rank_category, r.category = _split_rank_category(cellule("categorie"))
+    if roles.get("rang_categorie") != roles.get("categorie"):
+        r.rank_category = r.rank_category or _split_rank_category(cellule("rang_categorie"))[0]
     # Sans colonne sexe, la catégorie (`S1M`) puis le groupe (`#1_Féminin`)
     # portent le genre (#990) ; jamais pour une équipe. Une ligne `hidden` ne
     # connaît pas son contest (relais ou non) : elle ne déduit rien.

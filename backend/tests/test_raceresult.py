@@ -3820,3 +3820,60 @@ def test_map_columns_keeps_penalty_columns_out_of_race_splits(expression, libell
 
     assert segments == [("Natation", 2)]
     assert expression in extras
+
+
+# ── Rang de catégorie d'équipe des listes relais (#1117) ─────────────────────
+
+
+def _build_relais_386706(payload, ligne):
+    roles, segments, extras = raceresult._map_columns(payload)
+    return raceresult._build_result(
+        ligne, roles, segments, extras,
+        source_url="u", event_name="E", event_date=None, contest_label="XS Duo",
+        status_label="", nom_col_expr="ATF5",
+    )
+
+
+def test_relay_category_rank_list_keeps_the_rank_out_of_the_category():
+    """`TRELAZE Class Relais 2` (386706, contest 2, sondé le 2026-09-28) : la cellule
+    `ClassementCategorieRelais` vaut `1`, sans point ni libellé."""
+    payload = {
+        "DataFields": ["BIB", "ID", "ClassementCategorieRelais", "ATF1", "ATF5", "ATF2",
+                       "CLUB", "TIME"],
+        "list": {"Fields": [
+            {"Expression": "ClassementCategorieRelais", "Label": "Place Cat"},
+            {"Expression": "ATF1", "Label": "Dossard"},
+            {"Expression": "ATF5", "Label": "Nom Equipe"},
+            {"Expression": "ATF2", "Label": "Sexe"},
+            {"Expression": "CLUB", "Label": "Club"},
+            {"Expression": "TIME", "Label": "Temps"},
+        ]},
+    }
+
+    r = _build_relais_386706(
+        payload,
+        ["1573", "114", "3", "709", "LES RONRON", "Masculin", "Triathlon Club Nantais", "00:59:19"],
+    )
+
+    assert (r.rank_category, r.category) == (3, "")
+
+
+def test_relay_team_category_column_becomes_the_category():
+    """`TRELAZE DUATHLON Relais 2` : la catégorie d'équipe est `ATF2`, « Cat Equipe »."""
+    payload = {
+        "DataFields": ["BIB", "ID", "ClassementCategorieRelais", "ATF1", "ATF5", "ATF2",
+                       "Arrivee"],
+        "list": {"Fields": [
+            {"Expression": "ClassementCategorieRelais", "Label": "Place Cat"},
+            {"Expression": "ATF1", "Label": "Dossard"},
+            {"Expression": "ATF5", "Label": "Nom Equipe"},
+            {"Expression": "ATF2", "Label": "Cat Equipe"},
+            {"Expression": "Arrivee", "Label": "Total"},
+        ]},
+    }
+
+    r = _build_relais_386706(
+        payload, ["1572", "112", "1", "707", "LE LIEVRE ET LA TORTUE", "Mixte", "00:48:54"],
+    )
+
+    assert (r.rank_category, r.category) == (1, "Mixte")
