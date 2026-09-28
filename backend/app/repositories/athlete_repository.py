@@ -149,8 +149,12 @@ def resolve(
     gender: str = "",
     birth_date: date | None = None,
     club: str | None = None,
+    update_existing_club: bool = True,
 ) -> tuple[Athlete, bool]:
     """Retourne (athlète, créé) : `créé` est True si la ligne vient d'être créée.
+
+    `update_existing_club=False` : `club` ne sert qu'à une fiche neuve. Une
+    déclaration en quarantaine ne doit pas réécrire la fiche d'un membre (#915).
 
     Le repli de réconciliation distingue un **renommage** (cible créée) d'une
     **fusion** (cible préexistante) ; ce drapeau est la seule information qui les
@@ -163,7 +167,7 @@ def resolve(
         # ultérieur, y compris celui d'une course d'il y a trois ans qui annonce
         # le club de l'époque (#439). Le drapeau est un attribut de la ligne déjà
         # chargée : le lire ne coûte aucune requête de plus à l'import.
-        if club and existing.club != club and not existing.club_locked:
+        if update_existing_club and club and existing.club != club and not existing.club_locked:
             existing.club = club
         # Complète un sexe absent de la première source, sans jamais l'écraser (#964).
         if gender and not existing.gender:
