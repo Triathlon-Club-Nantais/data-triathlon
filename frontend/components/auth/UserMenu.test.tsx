@@ -6,11 +6,14 @@ import { ApiError } from "@/lib/api/client";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import type { SessionUser } from "@/lib/types";
 
-const { push, getSession, logout } = vi.hoisted(() => ({
+const { push, getSession, logout, captureEvent } = vi.hoisted(() => ({
   push: vi.fn(),
   getSession: vi.fn(),
   logout: vi.fn(),
+  captureEvent: vi.fn(),
 }));
+
+vi.mock("@/lib/posthog", () => ({ captureEvent }));
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/dashboard",
@@ -202,6 +205,10 @@ describe("UserMenu — connecté (AC1, AC2, AC3, AC4, AC6)", () => {
 
     await waitFor(() => expect(logout).toHaveBeenCalled());
     await waitFor(() => expect(push).toHaveBeenCalledWith("/"));
+    // Le backend émet `user_logged_out` à la déconnexion réelle : l'émettre ici
+    // aussi comptait chaque déconnexion deux fois (#1033).
+    expect(captureEvent).not.toHaveBeenCalledWith("user_logged_out", expect.anything());
+    expect(captureEvent).not.toHaveBeenCalledWith("user_logged_out");
   });
 
   it("montre ses propres appartenances, sans exiger le moindre pouvoir (#197)", async () => {

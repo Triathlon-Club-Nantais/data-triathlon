@@ -1,6 +1,5 @@
 "use client";
 import { useState, type FormEvent } from "react";
-import { captureEvent } from "@/lib/posthog";
 import { Button } from "./Button";
 import { Input } from "./Input";
 import { Modal } from "./Modal";
@@ -60,7 +59,6 @@ export function FeedbackButton() {
         user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
         honeypot: honeypot || null,
       });
-      captureEvent("feedback_submitted", { feedback_type: type });
       setEnvoye(true);
     } catch (err) {
       setErreur(err instanceof ApiError ? err.message : "Erreur réseau, réessayez.");

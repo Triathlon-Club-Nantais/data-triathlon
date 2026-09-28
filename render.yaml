@@ -118,7 +118,7 @@ services:
       - key: DOCS_ENABLED
         sync: false
       - key: POSTHOG_PROJECT_TOKEN
-        sync: false # vide = captures ignorées en silence, état légitime
+        sync: false # production seule, jamais sur la preview (#426, #1033) ; vide = captures ignorées
       # ── Lancement des batches depuis /admin (#47) ──────────────────────────
       # Jeton *fine-grained*, ce dépôt seul, permission `actions: write`. Il
       # **expire** (un an au plus) : sa date de fin est suivie dans
