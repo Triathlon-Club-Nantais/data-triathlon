@@ -21,7 +21,10 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
   HTTP y passe, garde SSRF sur la requête et chaque redirection — #49, #101),
   `security_headers.py` (en-têtes de sécurité sur **toute** réponse — jumeau du
   `headers()` de `frontend/next.config.ts`, parce que les backends Render sont
-  joignables directement ; sans la CSP, traitée à part — #396).
+  joignables directement ; sans la CSP, traitée à part — #396),
+  `origin_guard.py` (403 sur toute écriture same-site ou cross-site :
+  `Sec-Fetch-Site` d'abord, `Origin` à défaut, confronté à `CORS_ORIGINS` et à
+  `AUTH_REDIRECT_BASE_URL` — #946).
 - `app/models/` — SQLAlchemy **normalisé** ; l'inventaire tenu à jour vit dans
   `app/models/AGENTS.md`.
 - `app/schemas/` — DTO Pydantic v2 (entrée/sortie).
