@@ -121,8 +121,8 @@ services:
         sync: false # production seule, jamais sur la preview (#426, #1033) ; vide = captures ignorées
       # ── Lancement des batches depuis /admin (#47) ──────────────────────────
       # Jeton *fine-grained*, ce dépôt seul, permission `actions: write`. Il
-      # **expire** (un an au plus) : sa date de fin est suivie dans
-      # docs/ci-cd.md, § Échéances des jetons.
+      # **expire** (un an au plus) et vaut pour tout le dépôt, pas pour batch.yml :
+      # docs/ci-cd.md, § Le jeton d'accès à la plateforme.
       - key: GITHUB_BATCH_TOKEN
         sync: false
       # **La seule variable de ce fichier dont une erreur de saisie se voie chez

@@ -77,7 +77,11 @@ style — toute tâche qui ajoute une entrée au workflow doit la respecter.
 
 **Décision** : un *fine-grained personal access token*, restreint au seul dépôt
 `Triathlon-Club-Nantais/data-triathlon`, portant la permission **`actions: write`**
-(nécessaire et suffisante pour `POST …/dispatches` et la lecture des exécutions).
+(nécessaire pour `POST …/dispatches` et la lecture des exécutions). Elle ne s'y
+borne pas : elle vaut pour tout le dépôt, dispatch de n'importe quel workflow,
+annulation, suppression d'exécutions et d'artefacts, activation et désactivation.
+Portée réelle et risque accepté : `docs/ci-cd.md`, § Le jeton d'accès à la
+plateforme (#1058).
 Stocké en variable d'environnement Render `GITHUB_BATCH_TOKEN`, absent du dépôt.
 
 **Rationale** : le plus petit pouvoir qui fasse le travail. Une GitHub App
