@@ -158,7 +158,8 @@ Six champs et deux paramètres, tous **additifs**, tous à défaut neutre.
   fonctionnelle. Ce chemin n'est **pas** couvert par les tests, qui tournent sur
   SQLite : à vérifier au premier déploiement.
 
-**La recherche par nom est la seule du projet insensible aux accents.** `ilike`
+**Les recherches par nom d'athlète et par nom d'épreuve (#1050,
+`course_repository.name_filter`) sont insensibles aux accents.** `ilike`
 ignore la casse, jamais les accents, sur les **deux** moteurs — mesuré,
 `lower('LEMÉE') LIKE '%lemee%'` vaut faux, y compris avec le listener Unicode de
 `core/database.py`, qui rend `lemée` et non `lemee` (ce sont deux choses

@@ -1771,3 +1771,48 @@ def test_search_still_requires_every_word_to_match(db_session):
     )
 
     assert total == 0
+
+
+# ── Filtre « Épreuve » sans accents ni jokers (#1050) ────────────────────────
+
+
+def _event_named(db_session, name):
+    athlete = athlete_repository.get_or_create(db_session, nom=f"ATH {name}", prenom="X")
+    course = course_repository.get_or_create(
+        db_session, name=name, event_date=date(2026, 5, 16), event_type="triathlon-m",
+        provider="klikego",
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1", club="TCN"
+    )
+    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
+    db_session.flush()
+    return course
+
+
+def _event_names(db_session, term):
+    page = participation_repository.events_page(db_session, event_name=term)
+    return sorted(item.event_name for item in page["items"])
+
+
+def test_event_name_filter_ignores_accents(db_session):
+    _event_named(db_session, "Duathlon Nozéen")
+    _event_named(db_session, "Triathlon de Guérande - M")
+
+    assert _event_names(db_session, "nozeen") == ["Duathlon Nozéen"]
+    assert _event_names(db_session, "GUÉRANDE") == ["Triathlon de Guérande - M"]
+
+
+def test_event_name_filter_reads_like_wildcards_literally(db_session):
+    _event_named(db_session, "Tri 100% nature")
+    _event_named(db_session, "Duathlon Nozéen")
+
+    assert _event_names(db_session, "%") == ["Tri 100% nature"]
+    assert _event_names(db_session, "_") == []
+
+
+def test_course_catalogue_name_filter_ignores_accents(db_session):
+    course = _event_named(db_session, "Duathlon Nozéen")
+
+    assert [c.id for c in course_repository.list_all(db_session, name="nozeen")] == [course.id]
+    assert course_repository.list_all(db_session, name="_") == []

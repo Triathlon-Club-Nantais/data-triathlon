@@ -6,15 +6,40 @@ from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session, load_only, selectinload
 
 from app.core.club import tcn_clause
+from app.core.text import deaccent
 from app.core.time import utcnow
 from app.core.validation import validated_clause
 from app.models.course import Course
 from app.models.course_source import CourseSource
 from app.repositories import ignored_course_duplicate_repository
+from app.repositories.athlete_repository import escape_like, unaccent_like
 
 
 def get(db: Session, course_id: int) -> Course | None:
     return db.get(Course, course_id)
+
+
+def _is_postgres(db: Session) -> bool:
+    return db.bind is not None and db.bind.dialect.name == "postgresql"
+
+
+def name_filter(db: Session, term: str):
+    """Nom d'épreuve contenant `term`, sans casse ni accents, jokers LIKE littéraux.
+
+    Même patron que `athlete_repository.name_filter` (#1050) : « nozeen » trouve
+    « Duathlon Nozéen ». Sous PostgreSQL, le trigramme `%` sur la forme sans accent
+    tolère en plus les fautes de frappe.
+    """
+    plain = deaccent(term).lower()
+    contains = unaccent_like(Course.name, f"%{escape_like(plain)}%")
+    if _is_postgres(db):
+        return or_(contains, func.unaccent(func.lower(Course.name)).op("%")(plain))
+    return contains
+
+
+def name_similarity(term: str):
+    """Pertinence PostgreSQL du nom d'épreuve, sur la même forme que `name_filter`."""
+    return func.similarity(func.unaccent(func.lower(Course.name)), deaccent(term).lower())
 
 
 def clean_name(name: str) -> str:
@@ -563,7 +588,7 @@ def _filtered(
     if course_id is not None:
         q = q.filter(Course.id == course_id)
     if name:
-        q = q.filter(Course.name.ilike(f"%{name}%"))
+        q = q.filter(name_filter(db, name))
     if event_type:
         q = q.filter(Course.event_type == event_type)
     if date_from:
