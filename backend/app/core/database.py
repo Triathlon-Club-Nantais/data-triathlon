@@ -7,7 +7,7 @@ import contextlib
 import sqlite3
 from collections.abc import Iterator
 
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, declarative_base, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -99,6 +99,11 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def ping(db: Session) -> None:
+    """Lève si la base est injoignable (sonde `/health`)."""
+    db.execute(text("SELECT 1"))
 
 
 @contextlib.contextmanager

@@ -3,10 +3,9 @@ import logging
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.core.database import get_db
+from app.core.database import get_db, ping
 from app.version import app_version
 
 logger = logging.getLogger(__name__)
@@ -22,7 +21,7 @@ def health(db: Session = Depends(get_db)):
     (#1070).
     """
     try:
-        db.execute(text("SELECT 1"))
+        ping(db)
     except Exception as exc:
         logger.warning("Health check DB échoué : %s", exc)
         return JSONResponse(status_code=503, content={"status": "degraded", "database": False})

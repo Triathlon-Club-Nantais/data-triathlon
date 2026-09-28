@@ -3,7 +3,7 @@ from collections.abc import Iterable
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import case, func, or_, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, load_only, selectinload
 
 from app.core.club import tcn_clause
 from app.core.time import utcnow
@@ -41,6 +41,37 @@ def get_by_identity(
         )
         .first()
     )
+
+
+# Les trois fonctions suivantes servent le reclassement figé à la révision Alembic
+# e734b8c5c962 (`services/reclassify`). Elles ne chargent que les colonnes passées,
+# pour ne pas lire celles que les révisions suivantes ajoutent au modèle.
+
+
+def list_with_columns(db: Session, columns) -> list[Course]:
+    return db.query(Course).options(load_only(*columns)).all()
+
+
+def find_identity_with_columns(
+    db: Session, columns, *, name: str, event_date: date | None, event_type: str, is_relay: bool
+) -> Course | None:
+    """Comme `get_by_identity`, sans `clean_name` : le nom stocké est comparé tel quel."""
+    return (
+        db.query(Course)
+        .options(load_only(*columns))
+        .filter(
+            Course.name == name,
+            Course.event_date == event_date,
+            Course.event_type == event_type,
+            Course.is_relay == is_relay,
+        )
+        .first()
+    )
+
+
+def delete_before_duplicate_pairs(db: Session, course: Course) -> None:
+    """`delete` sans nettoyer `ignored_course_duplicates`, table absente à cette révision."""
+    db.delete(course)
 
 
 def get_or_create(
