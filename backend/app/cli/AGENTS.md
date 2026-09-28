@@ -22,6 +22,7 @@ uv run python -m app.cli rescrape-db --urls-from echecs.txt     # ou « - » pou
 uv run python -m app.cli import-sheet --json | jq -r '.failures[].url' \
   | uv run python -m app.cli rescrape-db --urls-from -
 uv run python -m app.cli club-labels --like nant   # libellés club vus en base, marqués TCN ou non
+uv run python -m app.cli purge-timepulse-duplicates   # épreuves timepulse d'avant #674 en double (--yes --by-email pour supprimer, #1004)
 uv run python -m app.cli geocode-courses --limit 300 --json   # coordonnées des épreuves sans géocodage (carte, #975)
 uv run python -m app.cli allow-email --email <adresse>              # autorise une adresse à se connecter (#170)
 uv run python -m app.cli grant-role --email <adresse> --role admin   # amorce le 1er administrateur (#115)
@@ -335,3 +336,14 @@ plus.
 liste, donc ses sessions ne sont plus fermables depuis l'écran. Fermer d'abord,
 retirer ensuite — ou passer par la CLI, qui n'a pas besoin que l'adresse soit
 encore autorisée.
+
+## `purge-timepulse-duplicates` (#1004)
+
+Nettoyage **ponctuel** : une épreuve timepulse d'avant #674 (nom nu) que son
+premier rescrape a doublée par ses épreuves qualifiées. Sans `--yes`, la
+commande liste et n'écrit rien. Avec `--yes`, elle passe par
+`admin_actions.delete_course`, le geste de l'écran, journalisé au nom du compte
+`--by-email` (le journal exige un auteur). Garde : **chaque** dossard nommé de
+l'épreuve doit être repris par une épreuve de même URL active, même date, dont le
+nom la prolonge par ` - <parcours>` ; un seul dossard orphelin la garde. La
+logique vit dans `services/timepulse_cleanup.py`. Procédure : `docs/ci-cd.md`.

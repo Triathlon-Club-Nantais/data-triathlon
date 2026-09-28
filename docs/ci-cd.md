@@ -507,6 +507,22 @@ gratuite, un seul process, et un batch de plusieurs dizaines de minutes y
 priverait le site public de sa ressource. Ils tournent sur un runner GitHub
 Actions, qui lance la CLI.
 
+### Après le premier rescrape timepulse d'un environnement (#1004)
+
+Une épreuve timepulse importée avant le 27/08 porte un nom nu, et son premier
+rescrape crée à côté d'elle les épreuves qualifiées par parcours (#674) : les
+mêmes résultats sont alors comptés deux fois. Une fois ce rescrape réussi,
+depuis `backend/` et sur la base concernée :
+
+```bash
+uv run python -m app.cli purge-timepulse-duplicates            # liste, n'écrit rien
+uv run python -m app.cli purge-timepulse-duplicates --yes --by-email <adresse admin>
+```
+
+Seule une épreuve dont **chaque** dossard nommé est repris par une épreuve
+qualifiée de même URL et même date est supprimée, journalisée au nom de
+`--by-email`. La commande devient sans objet une fois les deux bases nettoyées.
+
 ### Deux environments dédiés : `batch-preview` et `batch-production`
 
 Un par base. Les deux environments ne portent **pas les mêmes secrets** parce
