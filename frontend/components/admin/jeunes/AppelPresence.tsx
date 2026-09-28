@@ -155,6 +155,7 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
                         <Button
                           size="sm"
                           variant={participant.present === true ? "default" : "outline"}
+                          className="tcn-cible-tactile"
                           aria-pressed={participant.present === true}
                           disabled={setPresence.isPending}
                           onClick={() => pointer(participant.profile_id, true)}
@@ -164,6 +165,7 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
                         <Button
                           size="sm"
                           variant={participant.present === false ? "default" : "outline"}
+                          className="tcn-cible-tactile"
                           aria-pressed={participant.present === false}
                           disabled={setPresence.isPending}
                           onClick={() => pointer(participant.profile_id, false)}

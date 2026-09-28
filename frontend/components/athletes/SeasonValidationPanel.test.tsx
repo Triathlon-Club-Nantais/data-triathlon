@@ -162,6 +162,21 @@ describe("SeasonValidationPanel — valider la saison (US3, FR-009 à FR-013)", 
     await waitFor(() => expect(getSeasonQuota).toHaveBeenCalledWith(42, precedente));
     await userEvent.click(await screen.findByRole("button", { name: /^valider la saison$/i }));
     await waitFor(() => expect(validateSeason).toHaveBeenCalledWith(42, precedente));
+    expect(toastSuccess).toHaveBeenCalledWith(`${seasonLabel(precedente)} validée.`);
+  });
+
+  it("ne laisse pas agir sur une saison tant que son quota n'est pas lu (#956)", async () => {
+    getSession.mockResolvedValue(session(["athletes:season_validate"]));
+    getSeasonQuota.mockResolvedValueOnce({ validated_count: 3, has_volunteer_action: true, season_validated: true });
+    getSeasonQuota.mockReturnValueOnce(new Promise(() => {}));
+
+    afficher();
+    await screen.findByRole("button", { name: /^dévalider la saison$/i });
+    await userEvent.click(screen.getByRole("button", { name: seasonLabel(currentSeason() - 1) }));
+
+    // L'ancien quota reste affiché, mais ses boutons ne peuvent plus agir.
+    expect(await screen.findByRole("button", { name: /^dévalider la saison$/i })).toBeDisabled();
+    expect(screen.getByRole("group", { name: "Saison à valider" })).toBeInTheDocument();
   });
 
   it("affiche Dévalider quand la saison est déjà validée, et dévalide au clic", async () => {

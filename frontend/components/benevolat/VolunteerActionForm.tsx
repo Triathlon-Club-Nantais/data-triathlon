@@ -100,7 +100,7 @@ export function VolunteerActionForm() {
       // La saison créditée est celle de la saisie (#778) : la dire, pour qu'une
       // activité de juin déclarée en septembre ne change pas de saison en silence (#956).
       toast.success(
-        `Déclaration enregistrée pour la saison ${seasonLabel(cree?.season ?? currentSeason())}, en attente de validation.`,
+        `Déclaration enregistrée pour la ${seasonLabel(cree?.season ?? currentSeason()).toLowerCase()}, en attente de validation.`,
       );
     } catch (e) {
       toast.error(
