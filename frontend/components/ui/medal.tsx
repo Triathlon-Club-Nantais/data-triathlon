@@ -1,10 +1,12 @@
 import { cn } from "@/lib/utils";
 import { tintedStyle } from "@/lib/sport-colors";
 
+// Les jetons TCN eux-mêmes : `--gold`/`--silver`/`--bronze` n'existaient pas, et
+// les `--color-*` du `@theme inline` ne sont pas émis en variables (#1066).
 const MEDAL_COLOR: Record<number, string> = {
-  1: "var(--gold)",
-  2: "var(--silver)",
-  3: "var(--bronze)",
+  1: "var(--tcn-orange)",
+  2: "var(--tcn-grey-400)",
+  3: "var(--tcn-orange-300)",
 };
 
 /**

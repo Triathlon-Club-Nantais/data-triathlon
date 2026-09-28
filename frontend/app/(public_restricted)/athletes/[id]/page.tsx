@@ -72,8 +72,8 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   const weakSegment = recurringWeakSegment(validated);
   const disciplineBySeason = disciplineBreakdownBySeason(validated);
   // Une couleur par jeton de format, stable d'une saison à l'autre (#655) : sans
-  // ça, toutes les barres de `BarList` partageaient la même teinte unique
-  // (`var(--accent-ink)`, son repli sans `colorer`). L'assignation part de
+  // ça, toutes les barres de `BarList` partageaient la même teinte unique,
+  // son repli sans `colorer`. L'assignation part de
   // l'ordre d'apparition, identique à chaque rendu pour un même jeu de
   // participations, donc « M » garde la même couleur d'un bloc de saison à
   // l'autre — condition nécessaire pour que la légende ci-dessous (#656) vaille
@@ -244,7 +244,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                   <BarList
                     entries={entries}
                     labeller={(key) => key}
-                    colorer={(key) => formatColor.get(key) ?? "var(--accent-ink)"}
+                    colorer={(key) => formatColor.get(key) ?? CAT_COLORS[0]}
                     subjectLabel="format"
                   />
                 </div>
