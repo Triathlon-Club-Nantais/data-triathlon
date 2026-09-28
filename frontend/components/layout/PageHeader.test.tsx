@@ -22,4 +22,14 @@ describe("PageHeader — slot actions", () => {
     expect(conteneur?.className).toContain("items-start");
     expect(conteneur?.className).not.toContain("items-center");
   });
+
+  it("laisse le groupe d'actions rétrécir à côté du titre (#1011)", () => {
+    // `shrink-0` gardait « Corriger la fiche » et « Choisir cet athlète » (300 px
+    // de texte d'aide) sur une ligne : la fiche athlète débordait de 640 à 768 px.
+    render(<PageHeader title="Titre" actions={<button type="button">Une action</button>} />);
+
+    const conteneur = screen.getByRole("button", { name: "Une action" }).parentElement;
+    expect(conteneur?.className).not.toContain("shrink-0");
+    expect(conteneur?.className).toContain("min-w-0");
+  });
 });
