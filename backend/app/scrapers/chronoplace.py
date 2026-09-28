@@ -37,9 +37,11 @@ from .base import FanoutTrace, ScrapedResult
 from .classify import classify_event_type
 from .utils import (
     DEFAULT_HEADERS,
+    collapse_spaces,
     normalize_rank,
     normalize_time,
     parse_fr_date,
+    qualify_event_name,
     split_athlete_name,
     strip_accents,
 )
@@ -266,17 +268,36 @@ def _log_unknown_time_rejections(rows: list[dict[str, str]], slug: str) -> None:
         )
 
 
-def _event_name(html: str, slug: str) -> str:
-    """Nom de la Course : « <événement> - <épreuve> », depuis le `<h1>`.
+#: Préfixe du `<h2>` qui porte l'épreuve depuis le markup de 2026 (#979).
+_H2_EPREUVE = re.compile(r"^Classement\s*[–-]\s*")
+
+
+def _event_name(html: str, slug: str, epreuve: str = "") -> str:
+    """Nom de la Course : « <événement> - <épreuve> ».
 
     Le nom de l'épreuve **doit** y figurer, sinon deux épreuves d'un même
     événement partageant date et type fusionneraient (`uq_course_identity`).
-    Replis : meta `description` privée de son préfixe « Résultats », puis slug.
+    Depuis 2026, le `<h1>` ne porte plus que l'événement (#979) : l'épreuve vient
+    de `analyticsContext.epreuve_name` (`epreuve`), à défaut du `<h2>`
+    « Classement – <épreuve> ». L'ancien `<h1>` la portait déjà :
+    `qualify_event_name` ne l'ajoute pas deux fois.
+    Replis de l'événement : meta `description` privée de son préfixe
+    « Résultats », puis slug.
     """
     soup = BeautifulSoup(html, "lxml")
+    if not epreuve:
+        for h2 in soup.find_all("h2"):
+            texte = collapse_spaces(h2.get_text(" ", strip=True))
+            if _H2_EPREUVE.match(texte):
+                epreuve = _H2_EPREUVE.sub("", texte)
+                break
+    return qualify_event_name(_event_title(soup, slug), epreuve)
+
+
+def _event_title(soup: BeautifulSoup, slug: str) -> str:
     h1 = soup.find("h1")
     if h1:
-        text = re.sub(r"\s+", " ", h1.get_text(" ", strip=True)).strip()
+        text = collapse_spaces(h1.get_text(" ", strip=True))
         if text:
             return text
     meta = soup.find("meta", attrs={"name": "description"})
@@ -466,7 +487,7 @@ def _epreuve_results(
     """HTML d'une page de classement → participants. Pur : aucune requête."""
     snapshot = _parse_snapshot(html)
     analytics = snapshot.get("analyticsContext") or {}
-    event_name = _event_name(html, slug)
+    event_name = _event_name(html, slug, analytics.get("epreuve_name") or "")
     event_type = _event_type(analytics, event_name)
     is_team = bool(snapshot.get("isTeam"))
     rows = _parse_table(html)

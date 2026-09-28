@@ -1029,3 +1029,49 @@ def test_relay_named_teammates_are_split_at_import(db_session):
     )
     (non_decoupee,) = equipe.participations
     assert non_decoupee.teammates == []
+
+
+# ── Markup de 2026 : l'épreuve sort du `<h1>` (#979) ─────────────────────────
+
+#: Relevé sur `spaycific-races-2025/epreuve/494` le 2026-09-28 : le `<h1>` ne porte
+#: plus que l'événement, l'épreuve passe dans un `<h2>` et `analyticsContext`.
+_MARKUP_2026 = (
+    "<html><body>"
+    "<h1 class=\"font-display\">Spay'cific Races 2025</h1>"
+    "<h2 class=\"font-display\">Classement – Spay'cific Triathlon S</h2>"
+    "</body></html>"
+)
+
+
+def test_event_name_qualifies_the_h1_with_the_analytics_epreuve_name():
+    assert chronoplace._event_name(
+        _MARKUP_2026, "spaycific-races-2025", epreuve="Spay'cific Triathlon S"
+    ) == "Spay'cific Races 2025 - Spay'cific Triathlon S"
+
+
+def test_event_name_falls_back_on_the_h2_without_its_prefix():
+    assert chronoplace._event_name(_MARKUP_2026, "spaycific-races-2025") == (
+        "Spay'cific Races 2025 - Spay'cific Triathlon S"
+    )
+
+
+def test_event_name_keeps_the_legacy_h1_unchanged():
+    """L'ancien `<h1>` porte déjà l'épreuve : elle n'est pas ajoutée deux fois."""
+    assert chronoplace._event_name(
+        EPREUVE_494, "spaycific-races-2025", epreuve="Spay'cific Triathlon S"
+    ) == "Spay'cific Races 2025 - Spay'cific Triathlon S"
+
+
+def test_sibling_epreuves_of_one_event_never_share_a_course_name():
+    """Sitrans Bike & Run de Lèves : cinq épreuves, même date, même type, sortaient
+    toutes sous le seul nom d'événement et fusionnaient en une Course."""
+    noms = {
+        chronoplace._event_name(
+            "<html><body><h1>SITRANS Bike &amp; Run de Lèves 2025</h1></body></html>",
+            "sitrans-bike-run-de-leves-2025",
+            epreuve=epreuve,
+        )
+        for epreuve in ("Mini poussins", "Poussins", "Pupilles", "Benjamins/Minimes", "Cadets/Juniors/Adultes")
+    }
+
+    assert len(noms) == 5
