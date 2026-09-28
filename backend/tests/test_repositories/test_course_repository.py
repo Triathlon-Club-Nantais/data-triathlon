@@ -640,3 +640,71 @@ def test_get_or_create_cleans_the_course_name_whitespace(db_session):
 
     assert course.name == "Swimrun Dinard"
     assert meme.id == course.id
+
+
+# ── Compteurs dénormalisés sous écritures concurrentes (#1099) ───────────────
+
+
+def _two_sessions(tmp_path):
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    import app.models  # noqa: F401
+    from app.core.database import Base
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'counts.db'}")
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, autoflush=False)
+    return engine, factory(), factory()
+
+
+def test_concurrent_count_adjustments_keep_every_delta(tmp_path):
+    engine, first, second = _two_sessions(tmp_path)
+    try:
+        course = Course(name="Tri", event_type="triathlon-m", participation_count=5, tcn_count=2)
+        first.add(course)
+        first.commit()
+        stale = first.get(Course, course.id)
+        assert stale.participation_count == 5
+
+        other = second.get(Course, course.id)
+        course_repository.adjust_counts(second, other, participation_delta=1, tcn_delta=1)
+        second.commit()
+
+        course_repository.adjust_counts(first, stale, participation_delta=1, tcn_delta=-3)
+        first.commit()
+
+        assert (stale.participation_count, stale.tcn_count) == (7, 0)
+    finally:
+        first.close()
+        second.close()
+        engine.dispose()
+
+
+def test_recount_reads_rows_written_by_another_session(tmp_path):
+    engine, first, second = _two_sessions(tmp_path)
+    try:
+        course = Course(name="Tri", event_type="triathlon-m")
+        athlete = Athlete(nom="DUPONT", prenom="Jean")
+        first.add_all([course, athlete])
+        first.flush()
+        first.add(Participation(course_id=course.id, athlete_id=athlete.id, bib_number="1", club="TCN"))
+        first.commit()
+        loaded = first.get(Course, course.id)
+
+        second.add(Participation(course_id=course.id, athlete_id=athlete.id, bib_number="2"))
+        second.add(
+            Participation(
+                course_id=course.id, athlete_id=athlete.id, bib_number="3", is_pending_validation=True
+            )
+        )
+        second.commit()
+
+        course_repository.recount(first, loaded)
+        first.commit()
+
+        assert (loaded.participation_count, loaded.tcn_count) == (2, 1)
+    finally:
+        first.close()
+        second.close()
+        engine.dispose()

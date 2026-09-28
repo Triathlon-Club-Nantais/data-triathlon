@@ -441,15 +441,62 @@ def set_counts(db: Session, course: Course, *, participation_count: int, tcn_cou
     course.tcn_count = tcn_count
 
 
+_COUNT_COLUMNS = ["participation_count", "tcn_count"]
+
+
+def recount(db: Session, course: Course) -> None:
+    """Recalcule les deux compteurs en SQL, dans la transaction courante (#1099).
+
+    Pas depuis la liste que l'import a chargée à son début : une ligne ajoutée,
+    supprimée ou validée ailleurs entre-temps serait écrasée. Même définition que
+    `recompute_tcn_counts_all`.
+    """
+    from app.models.participation import Participation
+
+    db.flush()
+
+    def _count(*clauses):
+        return (
+            select(func.count(Participation.id))
+            .where(
+                Participation.course_id == Course.id,
+                validated_clause(Participation.is_pending_validation),
+                *clauses,
+            )
+            .scalar_subquery()
+        )
+
+    db.query(Course).filter(Course.id == course.id).update(
+        {
+            Course.participation_count: _count(),
+            Course.tcn_count: _count(tcn_clause(Participation.club)),
+        },
+        synchronize_session=False,
+    )
+    db.expire(course, _COUNT_COLUMNS)
+
+
 def adjust_counts(db: Session, course: Course, *, participation_delta: int, tcn_delta: int) -> None:
     """Ajuste les deux compteurs d'un delta — pour un geste qui touche une
     seule participation (`admin_actions.validate_participation`/
-    `.delete_participation`), plutôt qu'un recalcul complet évité à dessein :
-    aucune requête supplémentaire, pas de risque de diverger de l'état qui
-    vient d'être lu.
+    `.delete_participation`), plutôt qu'un recalcul complet.
+
+    Incrément relatif côté base, pas un read-modify-write en Python : deux gestes
+    simultanés sur la même épreuve perdaient un delta (#1099).
     """
-    course.participation_count = max(0, course.participation_count + participation_delta)
-    course.tcn_count = max(0, course.tcn_count + tcn_delta)
+
+    def _shifted(column, delta: int):
+        shifted = column + delta
+        return case((shifted < 0, 0), else_=shifted)
+
+    db.query(Course).filter(Course.id == course.id).update(
+        {
+            Course.participation_count: _shifted(Course.participation_count, participation_delta),
+            Course.tcn_count: _shifted(Course.tcn_count, tcn_delta),
+        },
+        synchronize_session=False,
+    )
+    db.expire(course, _COUNT_COLUMNS)
 
 
 def zero_counts_all(db: Session) -> int:
