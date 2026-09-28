@@ -57,7 +57,7 @@ export function PageHeader({
           // revue UI/UX). `items-start` plutôt que `items-center` : sur ce
           // même profil, une colonne haute (`AthleteSelection`) et un bouton
           // simple (`AthleteAdminPanel`) n'ont de rang commun qu'au sommet.
-          <div className="flex shrink-0 flex-wrap items-start gap-2">{actions}</div>
+          <div className="flex min-w-0 flex-wrap items-start gap-2">{actions}</div>
         )}
       </div>
     </div>
