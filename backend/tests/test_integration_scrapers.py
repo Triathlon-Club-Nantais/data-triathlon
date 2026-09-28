@@ -495,6 +495,13 @@ def test_chronoplace_importe_les_epreuves_soeurs():
     tri = [r for r in results if r.event_type == "triathlon-s"]
     assert any(r.swim_time and r.bike_time and r.run_time for r in tri)
     assert any("TRIATHLON CLUB NANTAIS" in (r.club or "") for r in tri)
+    # Une identité de Course par épreuve (#979) : le `<h1>` de 2026 ne portant
+    # plus que l'événement, deux épreuves sœurs fusionnaient sous le même nom.
+    identites = {(r.event_name, r.event_date, r.event_type, r.is_relay, r.source_url) for r in results}
+    par_url = {}
+    for nom, jour, type_, relais, url in identites:
+        par_url.setdefault((nom, jour, type_, relais), set()).add(url)
+    assert all(len(urls) == 1 for urls in par_url.values()), par_url
 
 
 @pytest.mark.integration
