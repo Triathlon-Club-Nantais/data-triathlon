@@ -77,6 +77,30 @@ describe("FeedbackButton", () => {
     expect(screen.getByLabelText("Titre")).not.toHaveAttribute("aria-invalid");
   });
 
+  it("ne se ferme ni au voile ni à Échap une fois la saisie commencée (#1114)", async () => {
+    const user = userEvent.setup();
+    render(<FeedbackButton />);
+
+    await user.click(screen.getByRole("button", { name: /signaler un bug/i }));
+    await user.type(screen.getByLabelText("Description"), "Un long signalement.");
+    await user.click(screen.getByRole("dialog").parentElement as HTMLElement);
+    await user.keyboard("{Escape}");
+
+    expect(screen.getByLabelText("Description")).toHaveValue("Un long signalement.");
+  });
+
+  it("garde le brouillon d'une fermeture à la réouverture, jusqu'à l'envoi (#1114)", async () => {
+    const user = userEvent.setup();
+    render(<FeedbackButton />);
+
+    await user.click(screen.getByRole("button", { name: /signaler un bug/i }));
+    await user.type(screen.getByLabelText("Titre"), "Brouillon");
+    await user.click(screen.getByRole("button", { name: "Fermer" }));
+    await user.click(screen.getByRole("button", { name: /signaler un bug/i }));
+
+    expect(screen.getByLabelText("Titre")).toHaveValue("Brouillon");
+  });
+
   it("affiche une confirmation après envoi", async () => {
     submitFeedback.mockResolvedValue({ id: 1, status: "nouveau" });
     const user = userEvent.setup();

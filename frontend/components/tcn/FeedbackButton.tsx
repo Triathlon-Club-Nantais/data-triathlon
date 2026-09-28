@@ -22,16 +22,21 @@ export function FeedbackButton() {
   const [envoi, setEnvoi] = useState(false);
   const [envoye, setEnvoye] = useState(false);
 
+  // Le brouillon survit à la fermeture : seul un envoi réussi le vide (#1114).
   function fermer() {
     setOpen(false);
-    setType("bug");
-    setTitle("");
-    setBody("");
-    setHoneypot("");
     setErreur(null);
     setInvalides({ titre: false, description: false });
-    setEnvoye(false);
+    if (envoye) {
+      setType("bug");
+      setTitle("");
+      setBody("");
+      setHoneypot("");
+      setEnvoye(false);
+    }
   }
+
+  const saisieEnCours = !envoye && Boolean(title.trim() || body.trim());
 
   async function soumettre(e: FormEvent) {
     e.preventDefault();
@@ -103,6 +108,7 @@ export function FeedbackButton() {
           title="Signaler un bug ou laisser un avis"
           onClose={fermer}
           width={440}
+          dismissible={!saisieEnCours}
         >
           {envoye ? (
             <div>
