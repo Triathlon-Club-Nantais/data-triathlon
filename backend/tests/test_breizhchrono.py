@@ -1061,3 +1061,30 @@ def test_scrape_event_fanout_survives_fine_split_timeout(monkeypatch, caplog):
     timed_out = next(r for r in results if r.bib_number == "1")
     assert timed_out.swim_time == "00:10:00"
     assert any("heat-a" in rec.getMessage() for rec in caplog.records)
+
+
+def test_a_live_host_coureur_jsp_url_routes_to_the_classic_engine(monkeypatch):
+    """#1089 : Breizh Chrono publie aussi la fiche coureur sous `live.`, avec `?ref=`
+    et non `?reference=`. Le moteur live la refusait faute de `reference`."""
+    from app.scrapers.registry import BreizhChronoProvider
+
+    def refuse_live(*a, **kw):
+        raise AssertionError("fiche coureur routée vers le moteur live")
+
+    captured = {}
+
+    def fake_classic(event_id, heat, event_name, slug):
+        captured.update(event_id=event_id, heat=heat)
+        return ["classique"]
+
+    monkeypatch.setattr(breizhchrono, "scrape_live_event_all", refuse_live)
+    monkeypatch.setattr(breizhchrono, "scrape_event_all", fake_classic)
+
+    url = (
+        "https://live.breizhchrono.com/bc/resultats/coureur.jsp"
+        "?ref=1488071608761-921&heat=swimrun-court-duo&dossard=111"
+    )
+    provider = BreizhChronoProvider()
+    assert provider.targets_single_heat(url) is True
+    assert provider.scrape_event_all(url) == ["classique"]
+    assert captured == {"event_id": "1488071608761-921", "heat": "swimrun-court-duo"}

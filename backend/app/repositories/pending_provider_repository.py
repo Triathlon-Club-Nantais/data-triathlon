@@ -11,6 +11,21 @@ def create(db: Session, url: str, provider_hint: str = "") -> PendingProvider:
     return entry
 
 
+def report(db: Session, url: str, provider_hint: str = "") -> PendingProvider:
+    """Le signalement non traité de cette URL, créé s'il n'existe pas (#1089).
+
+    Un visiteur qui réessaie ne doit pas ajouter une ligne par tentative. Une
+    entrée déjà traitée n'absorbe pas un nouveau signalement : il rouvre le sujet.
+    """
+    existing = (
+        db.query(PendingProvider)
+        .filter(PendingProvider.url == url, PendingProvider.handled.is_(False))
+        .order_by(PendingProvider.id)
+        .first()
+    )
+    return existing or create(db, url, provider_hint)
+
+
 def list_unhandled(db: Session) -> list[PendingProvider]:
     return (
         db.query(PendingProvider)

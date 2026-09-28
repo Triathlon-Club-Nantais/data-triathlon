@@ -40,7 +40,7 @@ class PendingProviderCreate(BaseModel):
 )
 def report_pending_provider(body: PendingProviderCreate, db: Session = Depends(get_db)):
     # `HttpUrl` garantit un host : plus rien à rattraper ici.
-    entry = pending_provider_repository.create(
+    entry = pending_provider_repository.report(
         db, url=str(body.url), provider_hint=body.url.host or ""
     )
     db.commit()
