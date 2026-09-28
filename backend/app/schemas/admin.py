@@ -118,6 +118,8 @@ class AdminUserRead(BaseModel):
     email: str
     display_name: str
     is_active: bool
+    # Le compte système des bénévoles ne porte aucun rôle (#1112).
+    is_system_account: bool
     roles: list[RoleBrief]
     created_at: datetime
 

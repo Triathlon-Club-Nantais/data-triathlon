@@ -642,6 +642,8 @@ export interface AdminUser {
   email: string;
   display_name: string;
   is_active: boolean;
+  /** Le compte système des bénévoles, qui ne porte aucun rôle (#1112). */
+  is_system_account: boolean;
   roles: SessionRole[];
   created_at: string;
 }

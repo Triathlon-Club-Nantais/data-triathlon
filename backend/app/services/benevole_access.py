@@ -21,18 +21,13 @@ import secrets
 from sqlalchemy.orm import Session
 
 from app.models.benevole_access_config import BenevoleAccessConfig
+from app.models.user import SYSTEM_USER_EMAIL
 from app.repositories import benevole_config_repository, user_repository
 from app.services import shared_password
 
 #: Nom du cookie de session bénévoles — distinct du cookie SSO (`tcn_session`,
 #: `api/v1/auth.py`), sur un mécanisme entièrement séparé.
 BENEVOLE_SESSION_COOKIE = "tcn_benevole_session"
-
-#: Adresse synthétique du compte système « Bénévoles (accès partagé) »
-#: (data-model.md §Addition) : n'appartient à personne, ne se connecte jamais
-#: par OAuth. Sert uniquement de cible à `AdminActionLog.user_id` pour les
-#: gestes déclenchés depuis cette page.
-SYSTEM_USER_EMAIL = "benevoles@systeme.interne"
 
 #: Taille du mot de passe généré (research.md §D5), en octets.
 _GENERATED_PASSWORD_SIZE = 18

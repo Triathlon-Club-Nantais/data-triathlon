@@ -108,6 +108,7 @@ const CAMILLE: AdminUser = {
   email: "camille@exemple.fr",
   display_name: "Camille Durand",
   is_active: true,
+  is_system_account: false,
   roles: [ADMINISTRATEUR],
   created_at: "2026-08-01T14:54:28Z",
 };
@@ -117,6 +118,7 @@ const DOMINIQUE: AdminUser = {
   email: "dominique@exemple.fr",
   display_name: "Dominique Martin",
   is_active: false,
+  is_system_account: false,
   roles: [],
   created_at: "2026-08-02T09:00:00Z",
 };
@@ -153,6 +155,29 @@ describe("UserRolesTable", () => {
     expect(await screen.findByText(CAMILLE.email)).toBeInTheDocument();
     expect(screen.getByText(/camille durand/i)).toBeInTheDocument();
     expect(screen.getByText(ADMINISTRATEUR.name)).toBeInTheDocument();
+  });
+
+  it("signale le compte système des bénévoles sans lui proposer de rôle (#1112)", async () => {
+    const systeme: AdminUser = {
+      ...DOMINIQUE,
+      id: 9,
+      email: "benevoles@systeme.interne",
+      display_name: "Bénévoles (accès partagé)",
+      is_active: true,
+      is_system_account: true,
+    };
+    listAdminUsers.mockResolvedValue([CAMILLE, systeme]);
+
+    afficher();
+
+    await screen.findByText(systeme.email);
+    expect(screen.getByText("Compte système")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: `Attribuer un rôle à ${systeme.display_name}` }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: `Attribuer un rôle à ${CAMILLE.display_name}` }),
+    ).toBeInTheDocument();
   });
 
   it("distingue un compte désactivé", async () => {

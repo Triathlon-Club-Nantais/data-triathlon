@@ -21,7 +21,7 @@ from app.core.exceptions import DomainError, NotFoundError
 from app.core.permissions import Permission
 from app.models.role import Role
 from app.models.role_permission import RolePermission
-from app.models.user import User
+from app.models.user import SYSTEM_USER_EMAIL, User
 from app.models.user_role import UserRole
 from app.repositories import (
     allowed_email_repository,
@@ -101,6 +101,17 @@ class PrivilegeEscalationError(DomainError):
 
     status_code = 403
     message = "Vous ne pouvez pas accorder un pouvoir que vous ne portez pas."
+
+
+class SystemAccountRoleError(DomainError):
+    """Le compte système des bénévoles ne se connecte jamais (#1112).
+
+    Un rôle administrateur posé dessus satisferait l'invariant du dernier
+    administrateur sans personne pour ouvrir le back-office.
+    """
+
+    status_code = 409
+    message = "Le compte système des bénévoles ne peut porter aucun rôle."
 
 
 class LastAdministratorError(DomainError):
@@ -547,6 +558,8 @@ def grant_role(
     db: Session, actor: User, *, user: User, role: Role, organisation_id: int
 ) -> None:
     """Attribue un rôle. Idempotent (FR-012)."""
+    if user.email == SYSTEM_USER_EMAIL:
+        raise SystemAccountRoleError()
     existing_organisation(db, organisation_id)
     assert_role_assignable_in(db, role, organisation_id)
     assert_may_hand_over(db, actor, role)
@@ -586,6 +599,7 @@ def user_view(db: Session, user: User) -> dict:
         "email": user.email,
         "display_name": user.display_name,
         "is_active": user.is_active,
+        "is_system_account": user.email == SYSTEM_USER_EMAIL,
         "roles": [
             {
                 "id": attribution.role.id,

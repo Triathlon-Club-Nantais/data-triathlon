@@ -4,7 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.role import Role
-from app.models.user import User
+from app.models.user import SYSTEM_USER_EMAIL, User
 from app.models.user_role import UserRole
 
 
@@ -85,7 +85,8 @@ def count_active_superusers(db: Session, organisation_id: int) -> int:
     qui ne peut plus se connecter.
 
     Compte des **utilisateurs distincts** : deux rôles superutilisateur portés
-    par la même personne ne font pas deux administrateurs.
+    par la même personne ne font pas deux administrateurs. Le compte système des
+    bénévoles ne compte jamais : personne ne s'y connecte (#1112).
     """
     return db.scalar(
         select(func.count(func.distinct(UserRole.user_id)))
@@ -95,5 +96,6 @@ def count_active_superusers(db: Session, organisation_id: int) -> int:
             UserRole.organisation_id == organisation_id,
             Role.is_superuser.is_(True),
             User.is_active.is_(True),
+            User.email != SYSTEM_USER_EMAIL,
         )
     )

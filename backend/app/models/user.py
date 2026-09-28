@@ -7,6 +7,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 from app.core.time import utcnow
 
+#: Adresse synthétique du compte système « Bénévoles (accès partagé) »
+#: (data-model.md §Addition) : n'appartient à personne, ne se connecte jamais
+#: par OAuth. Sert uniquement de cible à `AdminActionLog.user_id` pour les
+#: gestes déclenchés depuis `/benevoles`. Ne porte jamais de rôle (#1112).
+SYSTEM_USER_EMAIL = "benevoles@systeme.interne"
+
 
 class User(Base):
     """Une personne côté application, née d'une connexion réussie et autorisée.

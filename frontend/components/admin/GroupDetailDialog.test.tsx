@@ -75,6 +75,7 @@ const CAMILLE: AdminUser = {
   email: "camille@exemple.fr",
   display_name: "Camille Durand",
   is_active: true,
+  is_system_account: false,
   roles: [],
   created_at: "2026-01-01T00:00:00Z",
 };
@@ -84,6 +85,7 @@ const ALIX: AdminUser = {
   email: "alix@exemple.fr",
   display_name: "Alix Petit",
   is_active: true,
+  is_system_account: false,
   roles: [],
   created_at: "2026-01-01T00:00:00Z",
 };

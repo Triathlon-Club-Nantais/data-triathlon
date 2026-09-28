@@ -519,3 +519,62 @@ def test_revoking_a_role_in_an_unknown_club_is_a_422(client, ouvrir_session):
     )
 
     assert reponse.status_code == 422
+
+
+# ── Compte système des bénévoles (#1112) ─────────────────────────────────────
+
+
+def _compte_systeme(db_session):
+    from app.models.user import SYSTEM_USER_EMAIL
+    from app.repositories import user_repository
+
+    compte = user_repository.create(
+        db_session, email=SYSTEM_USER_EMAIL, display_name="Bénévoles (accès partagé)"
+    )
+    db_session.flush()
+    return compte
+
+
+def test_granting_a_role_to_the_volunteer_system_account_is_refused(
+    client, ouvrir_session, db_session, organisation
+):
+    ouvrir_session(superutilisateur=True)
+    compte = _compte_systeme(db_session)
+    role = client.post(
+        "/api/v1/admin/roles", json={"slug": "archivist", "name": "Archiviste", "permissions": []}
+    ).json()
+
+    resp = client.post(
+        f"/api/v1/admin/users/{compte.id}/roles",
+        json={"role_id": role["id"], "organisation_id": organisation.id},
+    )
+
+    assert resp.status_code == 409
+    assert "compte système" in resp.json()["detail"]
+
+
+def test_a_superuser_system_account_does_not_satisfy_the_last_administrator_rule(
+    ouvrir_session, db_session, organisation
+):
+    from app.repositories import role_repository, user_role_repository
+
+    ouvrir_session(superutilisateur=True)
+    compte = _compte_systeme(db_session)
+    role = role_repository.create(db_session, slug="root", name="Racine", is_superuser=True)
+    db_session.flush()
+    user_role_repository.grant(
+        db_session, user_id=compte.id, role_id=role.id, organisation_id=organisation.id
+    )
+    db_session.flush()
+
+    assert user_role_repository.count_active_superusers(db_session, organisation.id) == 1
+
+
+def test_the_user_list_flags_the_volunteer_system_account(client, ouvrir_session, db_session):
+    humain = ouvrir_session(superutilisateur=True)
+    compte = _compte_systeme(db_session)
+
+    drapeaux = {u["id"]: u["is_system_account"] for u in client.get("/api/v1/admin/users").json()}
+
+    assert drapeaux[compte.id] is True
+    assert drapeaux[humain.id] is False
