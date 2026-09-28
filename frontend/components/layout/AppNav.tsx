@@ -446,7 +446,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
                 fontFamily: "var(--tcn-font-cond)",
                 fontWeight: 700,
                 fontSize: 11,
-                color: actif ? "var(--tcn-orange)" : "var(--tcn-text-muted)",
+                color: actif ? "var(--tcn-orange-deep)" : "var(--tcn-text-muted)", // 4,57:1 sur blanc (#1078)
               }}
             >
               {Icon && <Icon size={20} />}
@@ -1036,7 +1036,8 @@ function entree(actif: boolean): CSSProperties {
     textDecoration: "none",
     fontSize: 14,
     fontWeight: actif ? 700 : 500,
-    color: actif ? "var(--tcn-orange)" : "var(--tcn-text-body)",
+    // `-deeper` : `-deep` ne tient que 4,14:1 sur le fond teinté (#1078).
+    color: actif ? "var(--tcn-orange-deeper)" : "var(--tcn-text-body)",
     background: actif ? "var(--tcn-orange-08)" : "transparent",
   };
 }
