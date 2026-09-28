@@ -152,6 +152,22 @@ describe("Modal: robust focus trap and restore (#988)", () => {
   });
 });
 
+describe("Modal: saisie protégée (#1114)", () => {
+  it("ignore le voile et Échap quand elle n'est pas refermable, pas la croix", async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<Modal title="Titre" onClose={onClose} dismissible={false} />);
+    const dialog = screen.getByRole("dialog");
+
+    await user.click(dialog.parentElement as HTMLElement);
+    await user.keyboard("{Escape}");
+    expect(onClose).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Fermer" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("Modal: modal semantics (#988)", () => {
   it("declares itself modal to assistive technologies", () => {
     render(<Scenario onClose={() => {}} />);

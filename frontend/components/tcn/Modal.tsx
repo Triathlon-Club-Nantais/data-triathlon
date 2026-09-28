@@ -9,6 +9,10 @@ import { Eyebrow } from "./Eyebrow";
  *
  * Piège du focus, inertie du reste de la page et retour du focus confiés au
  * Dialog de Base UI (#988) : le piège maison ne tenait que sur ses bornes.
+ *
+ * `dismissible={false}` : ni le voile ni Échap ne ferment, seule la croix. Pour
+ * un formulaire dont la saisie serait perdue d'un geste involontaire (#1114) :
+ * toucher hors du champ est le geste courant pour masquer le clavier mobile.
  */
 export function Modal({
   open = true,
@@ -17,6 +21,7 @@ export function Modal({
   onClose = () => {},
   footer = null,
   width = 520,
+  dismissible = true,
   children,
   style,
 }: {
@@ -26,6 +31,7 @@ export function Modal({
   onClose?: () => void;
   footer?: ReactNode;
   width?: number;
+  dismissible?: boolean;
   children?: ReactNode;
   style?: CSSProperties;
 }) {
@@ -49,7 +55,14 @@ export function Modal({
   }
 
   return (
-    <Dialog.Root open={open} onOpenChange={(ouvert) => !ouvert && onClose()}>
+    <Dialog.Root
+      open={open}
+      disablePointerDismissal={!dismissible}
+      onOpenChange={(ouvert, details) => {
+        if (ouvert || (!dismissible && details.reason === "escape-key")) return;
+        onClose();
+      }}
+    >
       <Dialog.Portal>
         <Dialog.Backdrop
           style={{ position: "fixed", inset: 0, background: "var(--tcn-overlay)", backdropFilter: "blur(3px)", zIndex: 50 }}
