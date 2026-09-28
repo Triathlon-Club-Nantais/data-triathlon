@@ -240,6 +240,8 @@ def shared_finisher_counts(db: Session, *, minimum: int) -> list[tuple[int, int,
                 Participation.status == STATUS_FINISHER,
                 autre.status == STATUS_FINISHER,
                 Participation.total_time.isnot(None),
+                validated_clause(Participation.is_pending_validation),
+                validated_clause(autre.is_pending_validation),
             )
             .group_by(Participation.course_id, autre.course_id)
             .having(func.count() >= minimum)
