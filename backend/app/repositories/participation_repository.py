@@ -216,6 +216,38 @@ def delete_for_course(db: Session, course: Course) -> int:
     return efface
 
 
+def shared_finisher_counts(db: Session, *, minimum: int) -> list[tuple[int, int, int]]:
+    """`(course_a, course_b, partagés)` : finishers au même athlète **et** au même temps.
+
+    Signal du motif « mêmes participants » de la détection de doublons (#910),
+    indépendant du nom, du provider et de `is_relay`. `course_a < course_b`, et
+    seules les paires d'au moins `minimum` lignes partagées sortent.
+    """
+    autre = aliased(Participation)
+    return [
+        tuple(row)
+        for row in (
+            db.query(Participation.course_id, autre.course_id, func.count())
+            .join(
+                autre,
+                and_(
+                    autre.athlete_id == Participation.athlete_id,
+                    autre.course_id > Participation.course_id,
+                    autre.total_time == Participation.total_time,
+                ),
+            )
+            .filter(
+                Participation.status == STATUS_FINISHER,
+                autre.status == STATUS_FINISHER,
+                Participation.total_time.isnot(None),
+            )
+            .group_by(Participation.course_id, autre.course_id)
+            .having(func.count() >= minimum)
+            .all()
+        )
+    ]
+
+
 def named_bibs_by_course(db: Session, course_ids: Sequence[int]) -> dict[int, set[str]]:
     """Dossards des partants **nommés** de chaque épreuve (#1004).
 

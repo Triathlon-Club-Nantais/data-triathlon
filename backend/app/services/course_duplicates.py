@@ -63,6 +63,7 @@ from app.repositories import (
     admin_action_log_repository,
     course_repository,
     ignored_course_duplicate_repository,
+    participation_repository,
 )
 
 logger = logging.getLogger(__name__)
@@ -73,6 +74,7 @@ REASON_LABELS: dict[str, str] = {
     "same_source_url": "Même URL de source",
     "shared_event_id": "Identifiant d'événement partagé",
     "close_names": "Noms proches à la même date",
+    "same_finishers": "Mêmes participants à la même date",
 }
 
 #: Tolérance de date du motif « noms proches ». Trois jours, et non zéro : une
@@ -82,6 +84,15 @@ REASON_LABELS: dict[str, str] = {
 #: d'édition, elle doit rester serrée devant les 364 jours qui séparent deux
 #: éditions. Mesuré : ±1 j, ±3 j → 0 faux positif (sondage, règles R4 et R5).
 DATE_TOLERANCE = timedelta(days=3)
+
+#: Motif « mêmes participants » (#910) : la même épreuve publiée par deux
+#: chronométreurs, dont un agrégateur, sous deux noms. Ni le nom, ni le provider,
+#: ni `is_relay` n'y entrent : seuls des finishers au même athlète et au même temps.
+#: Au moins trois lignes, et la moitié des résultats de la plus petite épreuve
+#: (tous statuts, donc plus strict que ses seuls finishers). Sur la production, la
+#: requête de l'issue ne ressort que les 8 doublons avérés, sans bruit.
+SAME_FINISHERS_MIN = 3
+SAME_FINISHERS_SHARE = 0.5
 
 #: Les deux plateformes dont l'URL porte un identifiant d'événement. Hors de ces
 #: deux-là, le motif « identifiant partagé » ne s'applique pas : la forme
@@ -272,9 +283,11 @@ def _close_names_guard(gauche: dict, droite: dict) -> bool:
     return not _heat_slugs_conflict(gauche, droite)
 
 
-#: Les trois motifs, du plus spécifique au plus lâche : `(code, clé, garde)`.
+#: Les trois motifs à clé, du plus spécifique au plus lâche : `(code, clé, garde)`.
 #: L'ordre porte la priorité — une paire reconnue par deux motifs sort sous le
 #: premier. Ensemble **fermé** : trois formes observées, pas un moteur de règles.
+#: Le quatrième, « mêmes participants » (#910), passe en dernier, hors de cette
+#: table : il ne se lit pas sur une épreuve seule mais sur ses résultats.
 _REASONS: tuple[
     tuple[
         str,
@@ -338,6 +351,20 @@ def find_candidates(db: Session) -> list[dict]:
                 motif_par_paire.setdefault(paire, code)
 
     par_id = {course["id"]: course for course in courses}
+    for gauche_id, droite_id, partages in participation_repository.shared_finisher_counts(
+        db, minimum=SAME_FINISHERS_MIN
+    ):
+        gauche, droite = par_id.get(gauche_id), par_id.get(droite_id)
+        if gauche is None or droite is None or not _dates_are_close(gauche, droite):
+            continue
+        if partages < SAME_FINISHERS_SHARE * min(gauche["total"], droite["total"]):
+            continue
+        if (gauche_id, droite_id) in ecartees:
+            continue
+        paire = tuple(sorted((gauche_id, droite_id), key=rangs.__getitem__))
+        if paire not in motif_par_paire and paire[::-1] not in motif_par_paire:
+            motif_par_paire[paire] = "same_finishers"
+
     return [
         {
             "reason": code,

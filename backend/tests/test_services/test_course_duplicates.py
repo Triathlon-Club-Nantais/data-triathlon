@@ -439,7 +439,7 @@ def test_une_paire_ne_sort_qu_une_fois_sous_son_motif_le_plus_precis(db_session)
     }
 
 
-def test_la_detection_tient_en_deux_requetes_quel_que_soit_le_nombre_d_epreuves(
+def test_la_detection_tient_en_un_nombre_fixe_de_requetes_quel_que_soit_le_nombre_d_epreuves(
     db_session, compteur_sql
 ):
     """AC5 — deux requêtes agrégées, et **aucun** N+1 sur les participations.
@@ -453,8 +453,9 @@ def test_la_detection_tient_en_deux_requetes_quel_que_soit_le_nombre_d_epreuves(
     Deux et non une depuis #754 : `find_candidates` lit aussi
     `ignored_course_duplicate_repository.all_pairs` pour filtrer les paires déjà
     écartées, en une requête supplémentaire — constante elle aussi, jamais une
-    par paire candidate. C'est le compte qui ne bouge pas entre deux et dix
-    épreuves qui prouve l'absence de N+1, pas le chiffre littéral.
+    par paire candidate. Trois depuis #910 : le motif « mêmes participants » lit
+    ses paires en une auto-jointure agrégée. C'est le compte qui ne bouge pas
+    entre deux et dix épreuves qui prouve l'absence de N+1, pas le chiffre littéral.
     """
     for numero in range(2):
         _epreuve(
@@ -484,8 +485,8 @@ def test_la_detection_tient_en_deux_requetes_quel_que_soit_le_nombre_d_epreuves(
     with sql_observability.measure_queries("dix épreuves") as dix:
         course_duplicates.find_candidates(db_session)
 
-    assert deux.count == 2
-    assert dix.count == 2
+    assert deux.count == 3
+    assert dix.count == 3
 
 
 def test_categories_frenchkid_par_annee_de_naissance_ne_sont_pas_un_doublon(db_session):
@@ -802,3 +803,73 @@ def test_ignore_pair_refuse_une_paire_deja_ecartee(db_session):
         course_duplicates.ignore_pair(
             db_session, course_id_a=droite.id, course_id_b=gauche.id, user_id=auteur.id
         )
+
+
+# ── 4e motif : mêmes participants à la même date (#910) ──────────────────────
+
+
+def _jumelles(db_session, gauche, droite, n, *, temps="01:10:00"):
+    """`n` athlètes présents dans les deux épreuves, même temps, finishers."""
+    for numero in range(n):
+        athlete = Athlete(nom=f"JUMEAU-{gauche.id}-{numero}", prenom="Prénom")
+        db_session.add(athlete)
+        db_session.flush()
+        for course, dossard in ((gauche, f"g{numero}"), (droite, f"d{numero}")):
+            db_session.add(Participation(
+                course_id=course.id, athlete_id=athlete.id, bib_number=dossard,
+                total_time=temps, status="finisher",
+            ))
+    db_session.flush()
+
+
+def test_the_same_event_under_two_providers_and_two_names_is_flagged(db_session):
+    """Quiberon M : prolivesport le 06/09, runnerbreizh le 07/09, deux noms."""
+    a = _epreuve(db_session, name="Les triathlons de Quiberon Open M", event_date=date(2025, 9, 6),
+                 event_type="triathlon-m", url="https://www.prolivesport.fr/result/1060/1",
+                 provider="prolivesport")
+    b = _epreuve(db_session, name="Triathlon de Quiberon M", event_date=date(2025, 9, 7),
+                 event_type="triathlon-m", url="https://www.runnerbreizh.fr/resultats/quiberon",
+                 provider="runnerbreizh")
+    _jumelles(db_session, a, b, 4)
+
+    motifs = _motifs_par_paire(course_duplicates.find_candidates(db_session))
+
+    assert set(motifs.values()) == {"same_finishers"}
+    assert {frozenset(p) for p in motifs} == {frozenset((a.id, b.id))}
+
+
+def test_diverging_relay_flags_and_a_blank_heat_do_not_hide_the_pair(db_session):
+    """Châtelaillon : même host klikego, `heat=` vide contre heat nommé, `is_relay` divergent."""
+    a = _epreuve(db_session, name="Châtelaillon-Plage 2025", event_date=date(2025, 6, 1),
+                 event_type="aquathlon", url="https://www.klikego.com/resultats/chatel/1360808403296-11?heat=",
+                 provider="klikego")
+    b = _epreuve(db_session, name="Châtelaillon-Plage 2025 - Aqua Speed Duo", event_date=date(2025, 6, 1),
+                 event_type="aquathlon", is_relay=True,
+                 url="https://www.klikego.com/resultats/chatel/1360808403296-11?heat=aqua-speed-duo",
+                 provider="klikego")
+    _jumelles(db_session, a, b, 3)
+
+    motifs = _motifs_par_paire(course_duplicates.find_candidates(db_session))
+
+    assert {frozenset(p): m for p, m in motifs.items()} == {frozenset((a.id, b.id)): "same_finishers"}
+
+
+def test_a_few_shared_finishers_are_not_enough(db_session):
+    """Deux épreuves du même week-end partagent quelques athlètes du club, pas la moitié."""
+    a = _epreuve(db_session, name="Triathlon A", event_date=date(2025, 6, 1), event_type="triathlon-s",
+                 url="https://www.prolivesport.fr/result/1/1", provider="prolivesport", participations=10)
+    b = _epreuve(db_session, name="Duathlon B", event_date=date(2025, 6, 2), event_type="duathlon-s",
+                 url="https://www.runnerbreizh.fr/resultats/b", provider="runnerbreizh", participations=10)
+    _jumelles(db_session, a, b, 3)
+
+    assert course_duplicates.find_candidates(db_session) == []
+
+
+def test_shared_finishers_a_year_apart_are_two_editions(db_session):
+    a = _epreuve(db_session, name="Triathlon A", event_date=date(2024, 6, 1), event_type="triathlon-s",
+                 url="https://www.prolivesport.fr/result/1/1", provider="prolivesport")
+    b = _epreuve(db_session, name="Triathlon A", event_date=date(2025, 6, 1), event_type="triathlon-s",
+                 url="https://www.runnerbreizh.fr/resultats/a", provider="runnerbreizh")
+    _jumelles(db_session, a, b, 5)
+
+    assert course_duplicates.find_candidates(db_session) == []

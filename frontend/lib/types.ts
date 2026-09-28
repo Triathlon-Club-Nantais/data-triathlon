@@ -953,7 +953,7 @@ export interface DuplicateCourse {
 
 /** Une paire suspecte, jamais un cluster — miroir de `DuplicateCandidate` (#288). */
 export interface DuplicateCandidate {
-  reason: "same_source_url" | "shared_event_id" | "close_names";
+  reason: "same_source_url" | "shared_event_id" | "close_names" | "same_finishers";
   reason_label: string;
   courses: DuplicateCourse[];
 }
