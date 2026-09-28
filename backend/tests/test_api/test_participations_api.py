@@ -321,3 +321,29 @@ def test_un_relais_attribue_rend_ses_equipiers_dans_l_ordre(client, db_session):
     equipiers = client.get(f"/api/v1/participations/{pid}").json()["teammates"]
 
     assert [(a["nom"], a["prenom"]) for a in equipiers] == [("MARTIN", "Paul"), ("DUPONT", "Jean")]
+
+
+def test_a_pending_declaration_never_rewrites_an_existing_athlete_club(client, db_session):
+    """#915 : la quarantaine couvrait la ligne de résultat, pas la fiche. Déclarer un
+    autre club sortait le membre du roster TCN, sans validation ni trace."""
+    from app.models.athlete import Athlete
+
+    existing = Athlete(nom="DUPONT", prenom="Jean", club="TRIATHLON CLUB NANTAIS")
+    db_session.add(existing)
+    db_session.commit()
+
+    resp = client.post("/api/v1/participations", json=_payload(club="AUTRE CLUB"))
+
+    assert resp.status_code == 201
+    db_session.refresh(existing)
+    assert resp.json()["athlete"]["id"] == existing.id
+    assert existing.club == "TRIATHLON CLUB NANTAIS"
+
+
+def test_a_pending_declaration_still_gives_a_new_athlete_its_declared_club(client, db_session):
+    from app.models.athlete import Athlete
+
+    resp = client.post("/api/v1/participations", json=_payload(nom="NOUVEAU", club="AUTRE CLUB"))
+
+    assert resp.status_code == 201
+    assert db_session.get(Athlete, resp.json()["athlete"]["id"]).club == "AUTRE CLUB"
