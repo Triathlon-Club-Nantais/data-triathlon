@@ -77,6 +77,13 @@ Défense en profondeur : une ligne `?Dossard` est ignorée même dans une vraie
 course, et un temps négatif n'est jamais `finisher`. L'échappatoire
 `--single-heat` garde, elle, le `raceList` brut pour son index positionnel.
 
+## Distance d'une course (#1052)
+
+Le champ `distance` du `raceList` (somme des segments, en km, `"12.9"`) devient
+`distance_km` de chaque résultat, sur les deux chemins. Une valeur vide, nulle,
+illisible ou sentinelle (≥ 998) est ignorée. Elle ne sert **pas** à déduire la
+taille du format : la table distance vers taille, par sport, reste à trancher.
+
 ## URL canonique de sous-unité
 
 `_sub_source_url` produit

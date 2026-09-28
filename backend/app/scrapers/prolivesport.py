@@ -166,11 +166,15 @@ def _is_relay(athlete: dict) -> bool:
     )
 
 
-def _parse_athlete(athlete: dict, plan: _SplitPlan, url: str, event_name: str, event_type: str, event_date) -> ScrapedResult:
+def _parse_athlete(
+    athlete: dict, plan: _SplitPlan, url: str, event_name: str, event_type: str, event_date,
+    distance_km: float | None = None,
+) -> ScrapedResult:
     result = ScrapedResult(source_url=url, provider="prolivesport")
     result.event_name = event_name
     result.event_type = event_type
     result.event_date = event_date
+    result.distance_km = distance_km
 
     result.athlete_name = athlete.get("lastname", "").strip().upper()
     result.athlete_firstname = athlete.get("firstname", "").strip()
@@ -458,17 +462,31 @@ def _is_unmatched_bib(athlete: dict) -> bool:
     return (athlete.get("lastname") or "").strip().lower().startswith("?dossard")
 
 
-def _fetch_races(event_id: str, client: httpx.Client) -> list[str]:
-    """Codes de course de l'événement, dans l'ordre du `raceList`, sans les
-    courses techniques `SUPP*`."""
+#: Distances sentinelles de la source (998, 999, 999.99 sur les courses `SUPP*`).
+_SENTINEL_DISTANCE_KM = 998
+
+
+def _race_distance_km(entree: dict) -> float | None:
+    """Distance publiée par `raceList` (somme des segments, en km), `None` si absente
+    ou sentinelle (#1052)."""
+    try:
+        km = float(str(entree.get("distance") or "").replace(",", "."))
+    except ValueError:
+        return None
+    return km if 0 < km < _SENTINEL_DISTANCE_KM else None
+
+
+def _fetch_races(event_id: str, client: httpx.Client) -> dict[str, float | None]:
+    """Codes de course de l'événement et leur distance, dans l'ordre du `raceList`,
+    sans les courses techniques `SUPP*`."""
     r = client.get(f"{API_BASE}/result/raceList/{event_id}/", timeout=15)
     r.raise_for_status()
-    return [
-        code
+    return {
+        code: _race_distance_km(entree)
         for entree in r.json().get("result", [])
         if (code := (entree.get("race") or "").strip())
         and not _TECHNICAL_RACE.fullmatch(code)
-    ]
+    }
 
 
 def _lignes_par_course(
@@ -566,7 +584,8 @@ def scrape_event_fanout(
 
     with http.client(timeout=_TIMEOUT_INDIV, headers=HEADERS) as client:
         event_name, event_date = _fetch_event_meta(event_id, client)
-        courses = _fetch_races(event_id, client)
+        distances = _fetch_races(event_id, client)
+        courses = list(distances)
         trace.heats_enumerated = len(courses)
         if not courses:
             return [], trace
@@ -594,7 +613,7 @@ def scrape_event_fanout(
         event_type = classify_event_type(race)
         nom = qualify_event_name(event_name, race)
         resultats.extend(
-            _parse_athlete(ligne, plan, sub_url, nom, event_type, event_date)
+            _parse_athlete(ligne, plan, sub_url, nom, event_type, event_date, distances[race])
             for ligne in lignes.get(race, [])
             if not _is_unmatched_bib(ligne)
         )
@@ -625,8 +644,11 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
 
     event_type = classify_event_type(race)
     nom = qualify_event_name(event_name, race)
+    distance_km = next(
+        (_race_distance_km(e) for e in races if (e.get("race") or "").strip() == race), None
+    )
     return [
-        _parse_athlete(a, plan, url, nom, event_type, event_date)
+        _parse_athlete(a, plan, url, nom, event_type, event_date, distance_km)
         for a in athletes
         if (a.get("race") or "").strip() == race and not _is_unmatched_bib(a)
     ]
