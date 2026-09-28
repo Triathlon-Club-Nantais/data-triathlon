@@ -1,5 +1,8 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
+
+export const metadata: Metadata = { title: "Vérification des résultats" };
 
 /**
  * Monte le dialog de confirmation partagé (#499) au-dessus de l'écran

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -20,6 +21,8 @@ import { ordinalFr } from "@/lib/utils/format";
 import { Histogram } from "@/components/charts/Histogram";
 import { CategoryBars } from "@/components/charts/CategoryBars";
 import { secondsFromHms } from "@/lib/utils/time";
+
+export const metadata: Metadata = { title: "Résultat individuel" };
 
 /**
  * Détail d'une participation : la performance de l'athlète confrontée au

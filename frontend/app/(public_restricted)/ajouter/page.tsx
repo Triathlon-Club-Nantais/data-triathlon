@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { Card, Eyebrow, FormatChip, Badge, LigneCarte } from "@/components/tcn";
@@ -7,6 +8,8 @@ import { TcnScrapeForm } from "@/components/scrape/TcnScrapeForm";
 import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
+
+export const metadata: Metadata = { title: "Ajouter une épreuve" };
 
 const RCOLS = "140px 1fr 90px 130px";
 

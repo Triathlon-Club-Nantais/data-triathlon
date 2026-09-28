@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { idDeRoute } from "@/lib/utils/id-de-route";
 import { AppelPresence } from "@/components/admin/jeunes/AppelPresence";
+
+export const metadata: Metadata = { title: "Appel" };
 
 /**
  * L'appel d'une séance donnée (#869, epic #863) — route dédiée plutôt qu'une

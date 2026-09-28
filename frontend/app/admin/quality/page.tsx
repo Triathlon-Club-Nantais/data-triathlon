@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { QualityQueueTable } from "@/components/admin/QualityQueueTable";
+
+export const metadata: Metadata = { title: ecran("/admin/quality").title };
 
 /**
  * Revalidation qualité (#119).

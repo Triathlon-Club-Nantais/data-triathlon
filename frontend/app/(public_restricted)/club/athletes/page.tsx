@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { apiServer } from "@/lib/api/server";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
@@ -8,6 +9,8 @@ import { Alert } from "@/components/tcn";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
 import { currentSeason, parseSeasonsParam } from "@/lib/utils/season";
+
+export const metadata: Metadata = { title: "Athlètes par saison" };
 
 // Page dédiée, distincte de /club (#274) : toujours scopée club, saison en
 // cours par défaut. `?seasons=` est lu ici (rendu serveur), comme sur

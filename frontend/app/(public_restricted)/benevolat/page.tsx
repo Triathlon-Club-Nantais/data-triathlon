@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { VolunteerActionForm } from "@/components/benevolat/VolunteerActionForm";
+
+export const metadata: Metadata = { title: "Bénévolat" };
 
 /**
  * Crédit du quota de saison d'un athlète (#778/#809) — seul chemin de

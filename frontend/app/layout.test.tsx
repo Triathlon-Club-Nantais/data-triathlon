@@ -31,7 +31,13 @@ vi.mock("next/server", () => ({ connection: async () => {} }));
 // pas sur la largeur du rail, donc un jar vide (comportement replié par défaut).
 vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined }) }));
 
-import RootLayout from "./layout";
+import RootLayout, { metadata } from "./layout";
+
+describe("RootLayout — titre de document (#1040)", () => {
+  it("complète le titre de chaque écran par un gabarit", () => {
+    expect(metadata.title).toEqual({ template: "%s · TCN", default: "TCN — Résultats triathlon" });
+  });
+});
 
 describe("RootLayout — lien d'évitement (A11Y-1)", () => {
   it("propose un lien « Aller au contenu » qui cible le <main>", async () => {

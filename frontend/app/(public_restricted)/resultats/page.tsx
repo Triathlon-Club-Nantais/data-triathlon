@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { scopeFromParam } from "@/lib/scope";
 import { sortFromParam } from "@/lib/sort";
@@ -13,6 +14,8 @@ import { monthlyCoverage } from "@/lib/utils/coverage";
 import { formatCount } from "@/lib/utils/format";
 import { currentSeason, parseSeasonsParam } from "@/lib/utils/season";
 import type { EventOut, ParticipationFilters } from "@/lib/types";
+
+export const metadata: Metadata = { title: "Résultats" };
 
 // Plafond de la route /courses/events (`page_size`, `le=200`) : pas de
 // `page_size=all` pour les épreuves (contrairement au classement d'une

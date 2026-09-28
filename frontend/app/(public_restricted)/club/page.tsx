@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
@@ -7,6 +8,8 @@ import { ClubDashboard } from "@/components/club/ClubDashboard";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
 import { currentSeason } from "@/lib/utils/season";
+
+export const metadata: Metadata = { title: "Espace club" };
 
 // La page Club est TOUJOURS filtrée sur le club, indépendamment de toute portée.
 export default async function ClubPage({
