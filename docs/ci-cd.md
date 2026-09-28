@@ -42,6 +42,14 @@ Toute PR déclenche la CI seule (aucun déploiement).
   implicite « pages build and deployment » du mode *legacy*, qui ne se
   déclenchait qu'après merge : un bloc JSX dans un plan `docs/superpowers/`
   avait ainsi cassé le rendu Liquid directement sur `main`.
+- **`.github/workflows/scraper-drift.yml`** (#958) : veille des fournisseurs.
+  Le lundi à 3h17 UTC (et en `workflow_dispatch`), il lance
+  `uv run pytest -m integration -n 0`, les tests qui appellent les vrais sites
+  de chronométrage. Hors de `ci.yml` à dessein, il ne bloque aucune PR et ne
+  demande aucun secret applicatif. En échec, il ouvre l'issue « Scraper drift:
+  integration tests failing » (labels `scraper`, `quality`), ou la complète d'un
+  commentaire si elle est déjà ouverte, avec la liste des tests en échec. Seul
+  besoin au-delà de la lecture : `issues: write`.
 
 **Chaque job porte un `timeout-minutes`** (#1071), sans quoi il hérite des
 360 minutes par défaut de GitHub : une étape figée (registre npm ou PyPI muet,
@@ -49,7 +57,7 @@ test en attente, `vercel build` bloqué) garderait sinon le groupe de
 `concurrency` pris pendant 6 h. Les valeurs laissent une large marge sur les
 durées observées : 15 min pour les jobs de `ci.yml` (~1 min), 20 min pour
 `deploy-preview`/`deploy-production` (1 à 3 min, plus les retries curl vers
-Render), 10 min pour ceux de `pages.yml`. L'attente d'approbation de
+Render), 10 min pour ceux de `pages.yml`, 30 min pour `scraper-drift.yml`. L'attente d'approbation de
 l'environment `production` ne compte pas dans ce délai.
 
 Le gating repose sur `needs: ci` : si un job CI échoue, le job de déploiement

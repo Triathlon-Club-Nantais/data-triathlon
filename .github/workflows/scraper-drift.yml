@@ -1,0 +1,64 @@
+name: Scraper drift
+
+# Veille des fournisseurs (#958) : les tests `integration` appellent les vrais
+# sites de chronométrage. Hors de `ci.yml` à dessein, ils ne bloquent aucune PR ;
+# ils tournent chaque semaine pour voir un changement de markup avant qu'un
+# utilisateur ne le signale. Un échec ouvre (ou complète) une issue unique.
+on:
+  schedule:
+    # Lundi 3h17 UTC : hors des heures de pointe des fournisseurs, et hors de la
+    # minute pile, que l'ordonnanceur de GitHub sert en dernier.
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      # `-n 0` : séquentiel, pour ne pas quadrupler le débit sortant vers les
+      # fournisseurs (#508). `-rf` liste les échecs en fin de sortie.
+      - name: Tests d'intégration des scrapers
+        run: |
+          set -o pipefail
+          uv run pytest -m integration -n 0 -rf -q 2>&1 | tee integration-report.txt
+
+      - name: Signaler la dérive
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          titre="Scraper drift: integration tests failing"
+          {
+            echo "Exécution : $RUN_URL"
+            echo
+            echo '```'
+            grep -E '^(FAILED|ERROR) ' integration-report.txt \
+              || tail -n 40 integration-report.txt 2>/dev/null \
+              || echo "Rapport absent : l'échec précède les tests."
+            echo '```'
+          } > corps.md
+          numero=$(gh issue list --state open --search "\"$titre\" in:title" --json number --jq '.[0].number')
+          if [ -n "$numero" ]; then
+            gh issue comment "$numero" --body-file corps.md
+          else
+            gh issue create --title "$titre" --label scraper --label quality --body-file corps.md
+          fi
