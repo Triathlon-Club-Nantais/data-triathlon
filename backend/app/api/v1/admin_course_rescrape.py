@@ -13,12 +13,9 @@ le premier élément du générateur — une exception levée depuis l'intérieu
 d'un générateur déjà en `StreamingResponse` ne peut plus jamais devenir un
 404/409, seulement une coupure de flux à 200.
 """
-import json
-from dataclasses import asdict, is_dataclass
-
 from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
 
+from app.api import sse
 from app.api.deps import require_permission
 from app.core.config import Settings, get_settings
 from app.core.database import SessionLocal
@@ -27,23 +24,6 @@ from app.models.user import User
 from app.services import admin_actions
 
 router = APIRouter(tags=["admin"])
-
-
-def _json_default(value: object) -> object:
-    """Même filet que `scrape.py` : dataclasses (`Reassignment`…) non sérialisables nativement."""
-    if is_dataclass(value) and not isinstance(value, type):
-        return asdict(value)
-    return str(value)
-
-
-#: Même padding que `scrape.py` — voir sa docstring pour le détail du piège
-#: de buffering navigateur qu'il contourne.
-_SSE_INITIAL_PADDING = b":" + b" " * 2048 + b"\n\n"
-
-#: Même battement que `scrape.py::generate()` (#705) — traduit la sentinelle
-#: `admin_actions.SSE_HEARTBEAT` en ligne de commentaire SSE, ignorée par le
-#: parseur front comme le padding initial.
-_SSE_HEARTBEAT = b": heartbeat\n\n"
 
 
 @router.post("/admin/courses/{course_id}/rescrape")
@@ -71,20 +51,4 @@ def rescrape_course(
         db.close()
         raise
 
-    def generate():
-        yield _SSE_INITIAL_PADDING
-        for event in events:
-            if event is admin_actions.SSE_HEARTBEAT:
-                yield _SSE_HEARTBEAT
-                continue
-            yield f"data: {json.dumps(event, default=_json_default)}\n\n"
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache, no-transform",
-            "X-Accel-Buffering": "no",
-            "Content-Encoding": "identity",
-        },
-    )
+    return sse.event_stream(events)

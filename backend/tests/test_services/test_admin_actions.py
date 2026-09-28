@@ -21,7 +21,7 @@ from app.repositories import (
     volunteer_action_repository,
 )
 from app.scrapers.base import ScrapedResult
-from app.services import admin_actions, import_service
+from app.services import admin_actions, import_service, sse_relay
 
 
 @pytest.fixture
@@ -793,12 +793,12 @@ def test_rescrape_emet_un_battement_pendant_une_phase_de_scraping_lente(
     """#731 — même faille que #705 côté import public : un fan-out lent
     (Klikego, 30-40 s, documenté dans le code) laisse ce flux totalement
     silencieux assez longtemps pour qu'un proxy d'infra (Vercel/Render) coupe
-    la connexion avant `done`. Contrat : passé `_SSE_HEARTBEAT_INTERVAL_SECONDS`
-    sans event métier, le générateur émet la sentinelle `admin_actions.SSE_HEARTBEAT`."""
+    la connexion avant `done`. Contrat : passé `sse_relay.HEARTBEAT_INTERVAL_SECONDS`
+    sans event métier, le générateur émet la sentinelle `sse_relay.HEARTBEAT`."""
     course = _epreuve(db_session)
     _inscrit(db_session, _coureur(db_session, "INTACT"), course, "1")
     db_session.commit()
-    monkeypatch.setattr(admin_actions, "_SSE_HEARTBEAT_INTERVAL_SECONDS", 0.05)
+    monkeypatch.setattr(sse_relay, "HEARTBEAT_INTERVAL_SECONDS", 0.05)
 
     def _scrape_lent(url, **kwargs):
         time.sleep(0.6)
@@ -810,7 +810,7 @@ def test_rescrape_emet_un_battement_pendant_une_phase_de_scraping_lente(
         db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
     ))
 
-    assert admin_actions.SSE_HEARTBEAT in events
+    assert sse_relay.HEARTBEAT in events
     assert events[-1]["phase"] == "done"
 
 
@@ -1174,7 +1174,7 @@ def test_switch_emet_un_battement_pendant_une_phase_de_scraping_lente(
     pour la bascule de source, même mécanisme SSE (#624)."""
     course, passive = _epreuve_deux_sources(db_session)
     db_session.commit()
-    monkeypatch.setattr(admin_actions, "_SSE_HEARTBEAT_INTERVAL_SECONDS", 0.05)
+    monkeypatch.setattr(sse_relay, "HEARTBEAT_INTERVAL_SECONDS", 0.05)
 
     def _scrape_lent(url, **kwargs):
         time.sleep(0.6)
@@ -1187,7 +1187,7 @@ def test_switch_emet_un_battement_pendant_une_phase_de_scraping_lente(
         user_id=auteur.id, settings=_settings(),
     ))
 
-    assert admin_actions.SSE_HEARTBEAT in events
+    assert sse_relay.HEARTBEAT in events
     assert events[-1]["phase"] == "done"
 
 

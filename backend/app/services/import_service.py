@@ -293,7 +293,7 @@ def _scrape_all_streaming(
     **sur le thread qui l'a déclenché**, quel qu'il soit : une première version
     de ce correctif ajoutait un `finally: thread.join()` autour de la boucle de
     drainage pour garantir que le thread ait fini d'utiliser `db` avant que
-    `scrape.py::generate()` ne la ferme — mesuré à la main (`iterate_in_threadpool`
+    `scrape.py::produce()` ne la ferme — mesuré à la main (`iterate_in_threadpool`
     + `asyncio`), ce close peut retomber sur le **thread de la boucle asyncio**
     elle-même, donc `thread.join()` y bloque tout le worker (toutes les requêtes
     concurrentes du même process) pour la durée du scrape, pas seulement ce flux

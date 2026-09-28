@@ -34,7 +34,7 @@ from app.repositories import (
     user_repository,
     user_role_repository,
 )
-from app.services import admin_actions
+from app.services import admin_actions, sse_relay
 from app.services.auth import session as session_service
 
 
@@ -167,7 +167,7 @@ def test_a_holder_of_courses_sources_streams_the_switch(
 def test_a_heartbeat_marker_becomes_a_comment_frame_not_a_data_frame(
     client, db_session, organisation, monkeypatch
 ):
-    """#731 — la sentinelle `admin_actions.SSE_HEARTBEAT` (émise par
+    """#731 — la sentinelle `sse_relay.HEARTBEAT` (émise par
     `_stream_switch_course_source` sur une phase longue) doit devenir une
     ligne de commentaire SSE `: heartbeat`, jamais un `data:` JSON — même
     contrat que `scrape.py::generate()` (#705)."""
@@ -175,7 +175,7 @@ def test_a_heartbeat_marker_becomes_a_comment_frame_not_a_data_frame(
 
     def fake_iter_switch_course_source(db, *, course_id, source_id, user_id, settings):
         yield {"phase": "scraping", "message": "Récupération des participants…"}
-        yield admin_actions.SSE_HEARTBEAT
+        yield sse_relay.HEARTBEAT
         yield {
             "phase": "done", "participations_deleted": 0,
             "participations_imported": 0, "athletes_purged": 0, "sources": [],

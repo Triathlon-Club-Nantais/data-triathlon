@@ -338,10 +338,9 @@ def test_import_event_stream_emet_un_battement_sur_phase_longue(client, monkeypa
     """
     import time as time_module
 
-    from app.api.v1 import scrape
-    from app.services import import_service
+    from app.services import import_service, sse_relay
 
-    monkeypatch.setattr(scrape, "_SSE_HEARTBEAT_INTERVAL_SECONDS", 0.05)
+    monkeypatch.setattr(sse_relay, "HEARTBEAT_INTERVAL_SECONDS", 0.05)
 
     def fake_iter_import_event(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "scraping", "message": "Récupération des participants…"}
