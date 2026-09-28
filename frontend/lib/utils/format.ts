@@ -131,6 +131,13 @@ export function pctFr(pct: number, decimals = 1): string {
   return pct.toFixed(decimals).replace(".", ",");
 }
 
+const COMPTE_FR = new Intl.NumberFormat("fr-FR");
+
+/** Un décompte à la française, milliers séparés : 161225 → « 161 225 » (#1080). */
+export function formatCount(n: number): string {
+  return COMPTE_FR.format(n);
+}
+
 /** Ordinal français d'un classement : 1 → « 1er », 42 → « 42e ». */
 export function ordinalFr(n: number): string {
   return n === 1 ? "1er" : `${n}e`;

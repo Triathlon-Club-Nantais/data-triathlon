@@ -314,7 +314,7 @@ describe("EventList", () => {
               },
             ],
             total_events: 48,
-            total_participations: 312,
+            total_participations: 161225,
           },
         ],
       },
@@ -326,7 +326,8 @@ describe("EventList", () => {
 
     renderList();
 
-    expect(screen.getByRole("status")).toHaveTextContent("48 épreuves, 312 résultats");
+    // Séparateur des milliers (#1080) : « 161225 » se lisait d'un bloc.
+    expect(screen.getByRole("status")).toHaveTextContent("48 épreuves, 161 225 résultats");
   });
 
   it("garde la région d'annonce montée quand un filtre ne laisse plus aucune épreuve (revue de code)", () => {

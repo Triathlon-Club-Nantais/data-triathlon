@@ -15,7 +15,7 @@ import { sortEventsByDateDesc } from "@/lib/utils/event";
 import { StatCard, Card, Eyebrow } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { EmptyState } from "@/components/ui/empty-state";
-import { aggregateDisciplines, pctFr } from "@/lib/utils/format";
+import { aggregateDisciplines, formatCount, pctFr } from "@/lib/utils/format";
 import { DisciplineBar } from "./DisciplineBar";
 
 /** Petit libellé visuel au-dessus d'un contrôle de filtrage (NAV-5, #483) —
@@ -146,7 +146,7 @@ export default async function DashboardPage({
           <InvitationAthlete />
 
           <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
-            <StatCard variant="hero" label="Dossards enregistrés" value={stats.total.toLocaleString("fr-FR")} delta={`${stats.athletes} athlètes · ${stats.events} épreuves`} />
+            <StatCard variant="hero" label="Dossards enregistrés" value={formatCount(stats.total)} delta={`${stats.athletes} athlètes · ${stats.events} épreuves`} />
             <div>
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <FieldLabel>Type de rang</FieldLabel>

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { useInfiniteEvents } from "@/lib/queries/events";
 import { eventTypeLabel } from "@/lib/constants";
-import { formatToken } from "@/lib/utils/format";
+import { formatCount, formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
 import { groupEventsByCompetition, eventSuffix, type EventGroup } from "@/lib/utils/eventGroups";
@@ -129,7 +129,7 @@ export function EventList({
   const annonce = (
     <AnnonceStatut
       texte={
-        `${totalEvents} épreuve${totalEvents > 1 ? "s" : ""}, ${totalParticipations} résultat${totalParticipations > 1 ? "s" : ""}` +
+        `${formatCount(totalEvents)} épreuve${totalEvents > 1 ? "s" : ""}, ${formatCount(totalParticipations)} résultat${totalParticipations > 1 ? "s" : ""}` +
         (events.length > 0 ? `, ${events.length} affichée${events.length > 1 ? "s" : ""}` : "") +
         (repliees > 0
           ? ` dans ${repliees} compétition${repliees > 1 ? "s" : ""} repliée${repliees > 1 ? "s" : ""}`

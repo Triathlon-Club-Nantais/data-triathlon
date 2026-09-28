@@ -10,6 +10,7 @@ import { CoverageTimeline } from "@/components/charts/CoverageTimeline";
 import { SeasonSelector, SeasonTags } from "@/components/dashboard/SeasonSelector";
 import { EVENTS_PAGE_SIZE } from "@/lib/queries/events";
 import { monthlyCoverage } from "@/lib/utils/coverage";
+import { formatCount } from "@/lib/utils/format";
 import { currentSeason, parseSeasonsParam } from "@/lib/utils/season";
 import type { EventOut, ParticipationFilters } from "@/lib/types";
 
@@ -90,8 +91,8 @@ export default async function ResultatsPage({
             eyebrow="Toutes les épreuves"
             title="Résultats"
             description={
-              `${total_events} épreuve${total_events > 1 ? "s" : ""}` +
-              ` · ${total_participations} résultat${total_participations > 1 ? "s" : ""}`
+              `${formatCount(total_events)} épreuve${total_events > 1 ? "s" : ""}` +
+              ` · ${formatCount(total_participations)} résultat${total_participations > 1 ? "s" : ""}`
             }
             actions={
               <>
