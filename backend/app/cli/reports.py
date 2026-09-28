@@ -183,6 +183,22 @@ def render_geocode_report(outcome: GeocodeOutcome, *, dry_run: bool) -> str:
     return "\n".join(lignes)
 
 
+def render_timepulse_duplicates_report(rows: list[dict], *, deleted: bool) -> str:
+    """Épreuves timepulse remplacées par leurs parcours qualifiés (#1004)."""
+    lignes = ["=== ÉPREUVES TIMEPULSE REMPLACÉES ==="]
+    if not rows:
+        lignes.append("Aucune épreuve à supprimer.")
+        return "\n".join(lignes)
+    for row in rows:
+        remplacantes = ", ".join(str(i) for i in row["covered_by"])
+        lignes.append(f"{row['course_id']}  {row['name']}  →  {remplacantes}")
+    lignes.append(
+        f"{len(rows)} épreuve(s) supprimée(s)." if deleted
+        else f"{len(rows)} épreuve(s) à supprimer : relancer avec --yes --by-email <adresse>."
+    )
+    return "\n".join(lignes)
+
+
 def render_club_labels_report(labels: list[dict]) -> str:
     """Inventaire des libellés de club, marqués reconnus (✓) ou non (✗).
 

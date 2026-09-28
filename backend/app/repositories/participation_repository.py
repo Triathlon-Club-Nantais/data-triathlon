@@ -216,6 +216,31 @@ def delete_for_course(db: Session, course: Course) -> int:
     return efface
 
 
+def named_bibs_by_course(db: Session, course_ids: Sequence[int]) -> dict[int, set[str]]:
+    """Dossards des partants **nommés** de chaque épreuve (#1004).
+
+    Une ligne sans dossard ou sans nom d'athlète n'y entre pas : c'est l'entrée
+    fantôme que le scraper timepulse ignore depuis #784.
+    """
+    if not course_ids:
+        return {}
+    rows = (
+        db.query(Participation.course_id, Participation.bib_number)
+        .join(Athlete, Athlete.id == Participation.athlete_id)
+        .filter(
+            Participation.course_id.in_(course_ids),
+            Participation.bib_number.isnot(None),
+            Participation.bib_number != "",
+            Athlete.nom != "",
+        )
+        .all()
+    )
+    bibs: dict[int, set[str]] = {course_id: set() for course_id in course_ids}
+    for course_id, bib in rows:
+        bibs[course_id].add(bib)
+    return bibs
+
+
 def count_bibs_absent_from(
     db: Session, *, course_id: int, other_course_id: int
 ) -> tuple[int, int]:
