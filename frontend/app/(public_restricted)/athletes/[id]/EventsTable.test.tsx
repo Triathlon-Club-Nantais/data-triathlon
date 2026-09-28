@@ -27,6 +27,7 @@ const { useSessionMock } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/queries/auth", () => ({
   useSession: useSessionMock,
+  useHydratedSession: useSessionMock,
 }));
 vi.mock("@/lib/queries/admin", () => ({
   useAdminAthlete: () => ({ data: undefined }),

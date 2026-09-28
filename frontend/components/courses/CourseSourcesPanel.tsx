@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { useRescrapeStream, type RescrapeState } from "@/hooks/useRescrapeStream";
 import { useSwitchSourceStream } from "@/hooks/useSwitchSourceStream";
 import { apiClient } from "@/lib/api/client";
-import { useSession } from "@/lib/queries/auth";
+import { useHydratedSession } from "@/lib/queries/auth";
 import { providerLabel } from "@/lib/constants";
 import type { CourseSource } from "@/lib/types";
 
@@ -61,7 +61,7 @@ export function CourseSourcesPanel({
   const [cible, setCible] = useState<CourseSource | null>(null);
   const [pourSuppression, setPourSuppression] = useState<CourseSource | null>(null);
   const [suppressionEnCours, setSuppressionEnCours] = useState(false);
-  const session = useSession();
+  const session = useHydratedSession();
   const peutBasculer = session.data?.permissions.includes("courses:sources") ?? false;
   const bascule = useSwitchSourceStream();
   const rescrape = useRescrapeStream();

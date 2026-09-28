@@ -11,7 +11,7 @@ import {
   useDeleteParticipation,
   useReassignParticipation,
 } from "@/lib/queries/admin";
-import { useSession } from "@/lib/queries/auth";
+import { useHydratedSession } from "@/lib/queries/auth";
 import type { AdminAthlete, AthleteBrief } from "@/lib/types";
 import { formatDate } from "@/lib/utils/date";
 import { TeammatesDialog } from "./TeammatesDialog";
@@ -83,7 +83,7 @@ export function ParticipationAdminActions({
    */
   colonnes?: number;
 }) {
-  const session = useSession();
+  const session = useHydratedSession();
   const pouvoirs = session.data?.permissions;
   const peutSupprimer = pouvoirs?.includes("participations:delete") ?? false;
   // Deux pouvoirs pour un seul geste : le sélecteur ci-dessous lit la recherche

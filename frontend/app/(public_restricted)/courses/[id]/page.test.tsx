@@ -31,6 +31,7 @@ vi.mock("next/navigation", () => ({
 // vérifier que la page affiche bien la liste de sources reçue.
 vi.mock("@/lib/queries/auth", () => ({
   useSession: () => ({ data: null }),
+  useHydratedSession: () => ({ data: null }),
 }));
 vi.mock("@/lib/queries/admin", () => ({
   useSwitchCourseSource: () => ({ mutateAsync: vi.fn(), isPending: false }),

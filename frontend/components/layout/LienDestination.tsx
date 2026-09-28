@@ -1,12 +1,12 @@
 "use client";
 import Link from "next/link";
 import type { ComponentProps } from "react";
-import { useSession } from "@/lib/queries/auth";
+import { useHydratedSession } from "@/lib/queries/auth";
 import { ROLE, destinationVisible } from "./nav.config";
 
 /** Le rail rend-il `href` à cette session ? Faux tant qu'elle n'est pas lue. */
 export function useDestinationVisible(href: string): boolean {
-  const { data: session } = useSession();
+  const { data: session } = useHydratedSession();
   const rank = session ? ROLE.CONNECTED : ROLE.ANON;
   return destinationVisible(href, new Set(session?.permissions ?? []), rank);
 }

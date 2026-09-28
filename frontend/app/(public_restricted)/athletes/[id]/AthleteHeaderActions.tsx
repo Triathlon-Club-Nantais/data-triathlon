@@ -1,6 +1,6 @@
 "use client";
 
-import { useSession } from "@/lib/queries/auth";
+import { useHydratedSession } from "@/lib/queries/auth";
 import { AthleteAdminPanel, type CoureurACorriger } from "@/components/athletes/AthleteAdminPanel";
 import { AthleteSelection } from "./AthleteSelection";
 
@@ -17,7 +17,7 @@ import { AthleteSelection } from "./AthleteSelection";
  * seuls le poids et l'ordre changent).
  */
 export function AthleteHeaderActions({ athlete }: { athlete: CoureurACorriger }) {
-  const session = useSession();
+  const session = useHydratedSession();
   const peutCorriger = session.data?.permissions.includes("athletes:write") ?? false;
 
   if (peutCorriger) {
