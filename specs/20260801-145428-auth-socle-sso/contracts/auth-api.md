@@ -108,7 +108,7 @@ close. Ne rend jamais 401 — se déconnecter d'une session absente est un succ�
 Les autres sessions du même utilisateur **survivent** (FR-014). C'est une différence de
 comportement assumée avec la PR #159, dont la déconnexion fermait tous les appareils.
 
-`POST` et non `GET` : le cookie étant `SameSite=Lax`, un `POST` d'origine tierce ne le porte pas.
+`POST` et non `GET` : le cookie étant `SameSite=Lax`, un `POST` **cross-site** ne le porte pas. Un `POST` same-site (l'apex, un autre sous-domaine) le porte : `core/origin_guard` le refuse en 403 (#946).
 
 ---
 

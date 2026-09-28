@@ -155,6 +155,14 @@ def create_app() -> FastAPI:
     # `ProxyHeadersMiddleware` ci-dessous — dont dépend la pose de HSTS.
     from app.core.security_headers import SecurityHeadersMiddleware
 
+    # Refus des écritures same-site et cross-site (#946). Monté avant les en-têtes
+    # de sécurité, donc plus près du routeur : son 403 les reçoit aussi.
+    from app.core.origin_guard import OriginGuardMiddleware
+
+    app.add_middleware(
+        OriginGuardMiddleware,
+        allowed_origins=[*settings.cors_origins, settings.auth_redirect_base_url],
+    )
     app.add_middleware(SecurityHeadersMiddleware)
 
     # Chaîne de confiance des en-têtes de proxy (#393, constat A04-1 de l'audit

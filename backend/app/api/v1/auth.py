@@ -270,8 +270,9 @@ def logout(
 ):
     """Ferme **cette** session. Idempotent : 204 même sans cookie (FR-014).
 
-    `POST` et non `GET` : le cookie étant `SameSite=Lax`, un `POST` d'origine
-    tierce ne le porte pas.
+    `POST` et non `GET` : le cookie étant `SameSite=Lax`, un `POST` **cross-site**
+    ne le porte pas. Un `POST` same-site (l'apex, un autre sous-domaine) le porte,
+    lui : c'est `core/origin_guard` qui le refuse (#946).
     """
     token = request.cookies.get(session_cookie_name(settings))
     # Résoudre l'utilisateur avant de fermer la session pour pouvoir le capturer.
