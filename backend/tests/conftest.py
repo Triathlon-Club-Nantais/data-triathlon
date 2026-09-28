@@ -89,17 +89,34 @@ def _rejeux_klikego_sans_attente(request, monkeypatch):
     monkeypatch.setattr(klikego_platform, "_sleep", lambda _seconds: None)
 
 
+def _test_engine():
+    """SQLite en mémoire, ou le PostgreSQL de `TEST_POSTGRES_URL` (job CI dédié, #947).
+
+    Le job PostgreSQL rejoue les repositories, seule couche qui construit du SQL,
+    sur le moteur de production. Séquentiel (`-n 0`) : les workers partageraient
+    la même base.
+    """
+    url = os.environ.get("TEST_POSTGRES_URL")
+    if not url:
+        return create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+    engine = create_engine(url)
+    with engine.begin() as connection:
+        for extension in ("pg_trgm", "unaccent"):
+            connection.exec_driver_sql(f"CREATE EXTENSION IF NOT EXISTS {extension}")
+    return engine
+
+
 @pytest.fixture
 def db_session():
-    """Session SQLAlchemy sur une base SQLite en mémoire, schéma créé via les modèles."""
+    """Session SQLAlchemy sur une base jetable, schéma créé via les modèles."""
     import app.models  # noqa: F401 — enregistre toutes les tables sur Base.metadata
     from app.core.database import Base
 
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
+    engine = _test_engine()
     Base.metadata.create_all(bind=engine)
     session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = session_factory()

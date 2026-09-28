@@ -10,6 +10,8 @@ connecté. `ORDER BY` se compile sans exécuter la requête, donc sans jamais
 ouvrir de socket — `psycopg2-binary` est une dépendance déjà présente, mais
 aucun serveur PostgreSQL n'est requis pour ce test.
 """
+import os
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -70,6 +72,10 @@ def test_sqlite_sans_recherche(db_session, sort, expected):
     assert _compiled(db_session, sort, None) == expected
 
 
+@pytest.mark.skipif(
+    bool(os.environ.get("TEST_POSTGRES_URL")),
+    reason="Comportement propre à SQLite : le job PostgreSQL (#947) prend la branche pg_trgm.",
+)
 @pytest.mark.parametrize(
     "sort,expected",
     [

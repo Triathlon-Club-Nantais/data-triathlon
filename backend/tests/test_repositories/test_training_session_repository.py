@@ -1,6 +1,24 @@
 from datetime import date, time
 
+import pytest
+
+from app.models.organisation import Organisation
+from app.models.personal_profile import PersonalProfile
 from app.repositories import training_session_repository
+
+
+@pytest.fixture(autouse=True)
+def _profils(db_session):
+    """Les profils que les tests inscrivent : PostgreSQL vérifie la clé étrangère
+    que SQLite laisse passer (#947)."""
+    club = Organisation(slug="tcn", name="Triathlon Club Nantais")
+    db_session.add(club)
+    db_session.flush()
+    for profile_id in (1, 2, 42):
+        db_session.add(PersonalProfile(
+            id=profile_id, organisation_id=club.id, first_name="Jeune", last_name=f"N{profile_id}",
+        ))
+    db_session.flush()
 
 
 def _create(db_session, **kwargs):

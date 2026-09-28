@@ -54,6 +54,60 @@ jobs:
       - name: Tests (hors réseau)
         run: uv run pytest -m "not integration"
 
+  # Le moteur de production (#947) : la suite unitaire tourne sur SQLite, et un
+  # `create_all` masque toute dérive entre modèles et migrations. Ce job joue la
+  # chaîne Alembic complète sur PostgreSQL 16 (`pg_trgm` et `unaccent` sont dans
+  # l'image officielle), puis les repositories, seule couche qui construit du SQL.
+  backend-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: triathlon
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/triathlon
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Migrations (upgrade, check, downgrade, upgrade)
+        run: |
+          uv run alembic upgrade head
+          uv run alembic check
+          uv run alembic downgrade -1
+          uv run alembic upgrade head
+
+      # Base distincte : les fixtures montent et démontent leur schéma par
+      # `create_all`, elles effaceraient celui que la migration vient de poser.
+      # `-n 0` : les workers partageraient la même base.
+      - name: Repositories sur PostgreSQL
+        env:
+          PGPASSWORD: postgres
+          TEST_POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/triathlon_tests
+        run: |
+          psql -h localhost -U postgres -c "CREATE DATABASE triathlon_tests"
+          uv run pytest tests/test_repositories -m "not integration" -n 0
+
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 15
