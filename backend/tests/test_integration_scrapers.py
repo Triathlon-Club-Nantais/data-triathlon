@@ -1,8 +1,9 @@
 """
 Tests d'intégration des scrapers — appels réseau RÉELS (marker `integration`).
 
-Hors CI par défaut. Lancer explicitement :
-    pytest -m integration
+Hors de la CI des PR : `.github/workflows/scraper-drift.yml` les lance chaque
+semaine et ouvre une issue en cas d'échec (#958). Lancer à la main :
+    pytest -m integration -n 0
 
 Vérifie la voie unique `scrape_event_all` sur une épreuve réelle par provider.
 Les URLs (événements passés/stables) sont documentées dans
