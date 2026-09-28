@@ -165,7 +165,7 @@ Guidelines d'écriture de code, valables dans les trois voies du workflow IA.
 
 ## Conventions générales
 
-- **Langue** : suit le Principe I de la constitution v1.1.0
+- **Langue** : suit le Principe I de la constitution
   (`.specify/memory/constitution.md`) — **français** pour ce qui est
   visible utilisateur ou métier (UI, messages d'erreur affichés, docs
   produit, commentaires de règle métier, messages `DomainError`
