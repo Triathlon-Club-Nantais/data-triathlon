@@ -6,6 +6,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { ApiError, apiClient } from "@/lib/api/client";
 import { useCreateVolunteerAction } from "@/lib/queries/volunteer-actions";
 import type { AthleteBrief } from "@/lib/types";
+import { currentSeason, seasonLabel } from "@/lib/utils/season";
 
 const nomComplet = (a: AthleteBrief) => `${a.prenom} ${a.nom}`;
 
@@ -88,7 +89,7 @@ export function VolunteerActionForm() {
     }
     setErreur(null);
     try {
-      await create.mutateAsync({
+      const cree = await create.mutateAsync({
         athlete_id: athlete.id,
         title: title.trim(),
         description: description.trim(),
@@ -96,7 +97,11 @@ export function VolunteerActionForm() {
       setAthlete(null);
       setTitle("");
       setDescription("");
-      toast.success("Déclaration enregistrée, en attente de validation.");
+      // La saison créditée est celle de la saisie (#778) : la dire, pour qu'une
+      // activité de juin déclarée en septembre ne change pas de saison en silence (#956).
+      toast.success(
+        `Déclaration enregistrée pour la saison ${seasonLabel(cree?.season ?? currentSeason())}, en attente de validation.`,
+      );
     } catch (e) {
       toast.error(
         e instanceof ApiError

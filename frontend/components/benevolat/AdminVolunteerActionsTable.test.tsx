@@ -6,6 +6,7 @@ import type { AdminVolunteerActionOut } from "@/lib/types";
 import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
 import { confirmerDansLeDialog } from "@/components/admin/__tests__/dangerConfirm";
 import { AdminVolunteerActionsTable } from "./AdminVolunteerActionsTable";
+import { seasonLabel } from "@/lib/utils/season";
 
 const {
   listPendingVolunteerActions,
@@ -114,6 +115,10 @@ describe("AdminVolunteerActionsTable", () => {
     expect(screen.getByText(/jean-marc/i)).toBeInTheDocument();
     expect(screen.getByText("Ravitaillement")).toBeInTheDocument();
     expect(screen.getByText("Poste eau km 15.")).toBeInTheDocument();
+    // La saison créditée, sans quoi une déclaration tardive compte en silence
+    // pour la saison suivante (#956).
+    expect(screen.getByRole("columnheader", { name: "Saison" })).toBeInTheDocument();
+    expect(screen.getByText(seasonLabel(2025))).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /accepter/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /refuser/i })).toBeInTheDocument();
   });

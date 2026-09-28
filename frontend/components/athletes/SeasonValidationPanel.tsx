@@ -1,10 +1,11 @@
 "use client";
+import { useState } from "react";
 import { toast } from "sonner";
-import { Button, Card } from "@/components/tcn";
+import { Button, Card, SegmentedControl } from "@/components/tcn";
 import { useSeasonQuota, useUnvalidateSeason, useValidateSeason } from "@/lib/queries/admin";
 import { useHydratedSession } from "@/lib/queries/auth";
 import type { SeasonQuota } from "@/lib/types";
-import { currentSeason } from "@/lib/utils/season";
+import { currentSeason, seasonLabel } from "@/lib/utils/season";
 
 export type CoureurAValider = {
   id: number;
@@ -26,7 +27,10 @@ const ECHEC_LECTURE = "Le quota de saison n'a pas pu être lu. Réessayez dans u
 export function SeasonValidationPanel({ athlete }: { athlete: CoureurAValider }) {
   const session = useHydratedSession();
   const peutValiderSaison = session.data?.permissions.includes("athletes:season_validate") ?? false;
-  const season = currentSeason();
+  // La saison précédente reste accessible : c'est elle qu'on clôture en
+  // septembre, après la bascule du 1er (#956).
+  const enCours = currentSeason();
+  const [season, setSeason] = useState(enCours);
   const quota = useSeasonQuota(athlete.id, season, peutValiderSaison);
 
   if (!peutValiderSaison) return null;
@@ -37,6 +41,14 @@ export function SeasonValidationPanel({ athlete }: { athlete: CoureurAValider })
   return (
     <Card>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <SegmentedControl
+          options={[enCours, enCours - 1].map((annee) => ({
+            value: String(annee),
+            label: seasonLabel(annee),
+          }))}
+          value={String(season)}
+          onChange={(valeur) => setSeason(Number(valeur))}
+        />
         {quota.data ? (
           <ValiderSaison athleteId={athlete.id} season={season} quota={quota.data} />
         ) : (
