@@ -34,6 +34,7 @@ const sessionCourante = vi.hoisted(() => ({ data: null as { permissions: string[
 const quotaCourant = vi.hoisted(() => ({ data: undefined as unknown }));
 vi.mock("@/lib/queries/auth", () => ({
   useSession: () => sessionCourante,
+  useHydratedSession: () => sessionCourante,
 }));
 vi.mock("@/lib/queries/admin", () => ({
   useAdminAthlete: () => ({ data: undefined }),

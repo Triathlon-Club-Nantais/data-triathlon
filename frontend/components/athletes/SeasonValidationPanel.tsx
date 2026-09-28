@@ -2,7 +2,7 @@
 import { toast } from "sonner";
 import { Button, Card } from "@/components/tcn";
 import { useSeasonQuota, useUnvalidateSeason, useValidateSeason } from "@/lib/queries/admin";
-import { useSession } from "@/lib/queries/auth";
+import { useHydratedSession } from "@/lib/queries/auth";
 import type { SeasonQuota } from "@/lib/types";
 import { currentSeason } from "@/lib/utils/season";
 
@@ -24,7 +24,7 @@ const ECHEC_LECTURE = "Le quota de saison n'a pas pu être lu. Réessayez dans u
  * le formulaire public self-service (#778).
  */
 export function SeasonValidationPanel({ athlete }: { athlete: CoureurAValider }) {
-  const session = useSession();
+  const session = useHydratedSession();
   const peutValiderSaison = session.data?.permissions.includes("athletes:season_validate") ?? false;
   const season = currentSeason();
   const quota = useSeasonQuota(athlete.id, season, peutValiderSaison);

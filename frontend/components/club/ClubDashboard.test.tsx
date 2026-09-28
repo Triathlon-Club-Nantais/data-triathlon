@@ -9,7 +9,10 @@ vi.mock("@/components/charts/BarList", () => ({ BarList: () => <div data-testid=
 vi.mock("@/components/charts/MonthlyTrend", () => ({ MonthlyTrend: () => <div data-testid="monthly" /> }));
 vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
 const { session } = vi.hoisted(() => ({ session: { permissions: ["pages:preview"] as string[] } }));
-vi.mock("@/lib/queries/auth", () => ({ useSession: () => ({ data: session }) }));
+vi.mock("@/lib/queries/auth", () => ({
+  useSession: () => ({ data: session }),
+  useHydratedSession: () => ({ data: session }),
+}));
 
 import { ClubDashboard } from "./ClubDashboard";
 

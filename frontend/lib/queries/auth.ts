@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiClient } from "@/lib/api/client";
 import type { AuthMethod, SessionUser } from "@/lib/types";
@@ -88,4 +89,26 @@ export function useLogout() {
     mutationFn: () => apiClient.logout(),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.session() }),
   });
+}
+
+const sansAbonnement = () => () => {};
+
+/** Faux au rendu serveur **et** au premier rendu client qui l'hydrate, vrai ensuite. */
+export function useHydrated(): boolean {
+  return useSyncExternalStore(sansAbonnement, () => true, () => false);
+}
+
+/**
+ * `useSession`, sans session tant que le composant n'est pas hydraté (#1090).
+ *
+ * Le serveur n'a jamais la session. React Query rend pourtant le cache dès le
+ * premier rendu client : quand `/auth/me` a répondu avant l'arrivée d'une page
+ * streamée (fiche athlète, fiche épreuve), ce rendu différait du HTML serveur,
+ * d'où l'erreur d'hydratation #418 et un second rendu complet de la frontière.
+ * Tout composant d'un écran public rendu côté serveur lit la session par ici.
+ */
+export function useHydratedSession() {
+  const session = useSession();
+  const hydrate = useHydrated();
+  return hydrate ? session : { ...session, data: undefined };
 }

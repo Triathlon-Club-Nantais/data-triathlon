@@ -12,7 +12,10 @@ const { getClubRosterRank, session } = vi.hoisted(() => ({
   getClubRosterRank: vi.fn(),
   session: { permissions: ["pages:preview"] as string[] },
 }));
-vi.mock("@/lib/queries/auth", () => ({ useSession: () => ({ data: session }) }));
+vi.mock("@/lib/queries/auth", () => ({
+  useSession: () => ({ data: session }),
+  useHydratedSession: () => ({ data: session }),
+}));
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return { ...original, apiClient: { ...original.apiClient, getClubRosterRank } };

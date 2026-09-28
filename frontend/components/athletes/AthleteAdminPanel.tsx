@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Alert, Button, Input, Modal } from "@/components/tcn";
 import { ApiError } from "@/lib/api/client";
 import { useAdminAthlete, useUpdateAthlete } from "@/lib/queries/admin";
-import { useSession } from "@/lib/queries/auth";
+import { useHydratedSession } from "@/lib/queries/auth";
 import type { AdminAthleteUpdate } from "@/lib/types";
 
 export type CoureurACorriger = {
@@ -93,7 +93,7 @@ export function AthleteAdminPanel({
   athlete: CoureurACorriger;
   primary?: boolean;
 }) {
-  const session = useSession();
+  const session = useHydratedSession();
   const peutCorriger = session.data?.permissions.includes("athletes:write") ?? false;
   const peutLireLaFiche = session.data?.permissions.includes("athletes:read") ?? false;
 

@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { messageDeRefus } from "@/lib/api/refus";
 import { useDeleteVolunteerAction, useValidatedVolunteerActions } from "@/lib/queries/admin";
-import { useSession } from "@/lib/queries/auth";
+import { useHydratedSession } from "@/lib/queries/auth";
 import type { AdminVolunteerActionOut } from "@/lib/types";
 
 const REPLI = "—";
@@ -36,7 +36,7 @@ const REFUS = {
  */
 export function VolunteerActionsList({ athleteId }: { athleteId: number }) {
   const qc = useQueryClient();
-  const session = useSession();
+  const session = useHydratedSession();
   const peutConsulter =
     session.data?.permissions.includes("athletes:volunteer_validate") ?? false;
   const actions = useValidatedVolunteerActions(athleteId, peutConsulter);
