@@ -575,7 +575,7 @@ def _user_emails(url: str) -> set[str]:
 
 def test_downgrade_puis_upgrade_du_semis_benevoles(sqlite_url):
     """Le compte système « Bénévoles (accès partagé) » (#271) : une ligne, pas un schéma."""
-    from app.services.benevole_access import SYSTEM_USER_EMAIL
+    from app.models.user import SYSTEM_USER_EMAIL
 
     cfg = _alembic_config()
     command.upgrade(cfg, "head")

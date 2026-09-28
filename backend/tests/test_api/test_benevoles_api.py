@@ -15,6 +15,7 @@ from app.api.deps import require_benevole_access
 from app.core.database import get_db
 from app.core.exceptions import register_exception_handlers
 from app.models.benevole_access_config import BenevoleAccessConfig
+from app.models.user import SYSTEM_USER_EMAIL
 from app.repositories import (
     admin_action_log_repository,
     athlete_repository,
@@ -134,7 +135,7 @@ def resultat_pendant(db_session):
 @pytest.fixture
 def compte_systeme(db_session):
     compte = user_repository.create(
-        db_session, email=benevole_access.SYSTEM_USER_EMAIL, display_name="Bénévoles (accès partagé)"
+        db_session, email=SYSTEM_USER_EMAIL, display_name="Bénévoles (accès partagé)"
     )
     db_session.commit()
     return compte

@@ -9,13 +9,14 @@ délégations d'une ligne, en revue de #513.
 """
 import pytest
 
+from app.models.user import SYSTEM_USER_EMAIL
 from app.repositories import benevole_config_repository, user_repository
 from app.services import benevole_access, shared_password
 
 
 def test_system_user_id_trouve_le_compte_seme_par_la_migration(db_session):
     compte = user_repository.create(
-        db_session, email=benevole_access.SYSTEM_USER_EMAIL, display_name="Bénévoles (accès partagé)"
+        db_session, email=SYSTEM_USER_EMAIL, display_name="Bénévoles (accès partagé)"
     )
     db_session.flush()
 

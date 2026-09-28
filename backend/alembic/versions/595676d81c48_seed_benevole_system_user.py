@@ -20,7 +20,7 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-from app.services.benevole_access import SYSTEM_USER_EMAIL
+from app.models.user import SYSTEM_USER_EMAIL
 
 revision: str = '595676d81c48'
 down_revision: Union[str, None] = 'c9d0e1f2a3b4'

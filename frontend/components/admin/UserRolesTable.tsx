@@ -137,6 +137,9 @@ export function UserRolesTable() {
                         // le compte et ses rôles survivent, la connexion non.
                         <Badge variant="destructive">Désactivé</Badge>
                       )}
+                      {utilisateur.is_system_account && (
+                        <Badge variant="outline">Compte système</Badge>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
@@ -175,29 +178,37 @@ export function UserRolesTable() {
                   </TableCell>
                   {peutAttribuer && (
                     <TableCell>
-                      {/* `<select>` natif : un rôle par ligne, clavier et lecteur
-                          d'écran compris, sans état local — la valeur retombe sur
-                          le libellé dès que la liste se rafraîchit. */}
-                      <select
-                        aria-label={`Attribuer un rôle à ${utilisateur.display_name}`}
-                        className="border-input h-9 rounded-md border bg-transparent px-2 text-sm"
-                        value=""
-                        disabled={disponibles.length === 0}
-                        onChange={(e) => poser(utilisateur, Number(e.target.value))}
-                      >
-                        <option value="" disabled>
-                          Ajouter un rôle…
-                        </option>
-                        {disponibles.map((role) => (
-                          <option
-                            key={role.id}
-                            value={role.id}
-                            disabled={!accordable(role)}
-                          >
-                            {role.name}
+                      {utilisateur.is_system_account ? (
+                        // Le serveur refuse tout rôle à ce compte (#1112) : le
+                        // dire avant le clic plutôt que de proposer un geste en 409.
+                        <span className="text-[var(--tcn-text-faint)] text-sm">
+                          Aucun rôle possible
+                        </span>
+                      ) : (
+                        /* `<select>` natif : un rôle par ligne, clavier et lecteur
+                            d'écran compris, sans état local — la valeur retombe sur
+                            le libellé dès que la liste se rafraîchit. */
+                        <select
+                          aria-label={`Attribuer un rôle à ${utilisateur.display_name}`}
+                          className="border-input h-9 rounded-md border bg-transparent px-2 text-sm"
+                          value=""
+                          disabled={disponibles.length === 0}
+                          onChange={(e) => poser(utilisateur, Number(e.target.value))}
+                        >
+                          <option value="" disabled>
+                            Ajouter un rôle…
                           </option>
-                        ))}
-                      </select>
+                          {disponibles.map((role) => (
+                            <option
+                              key={role.id}
+                              value={role.id}
+                              disabled={!accordable(role)}
+                            >
+                              {role.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </TableCell>
                   )}
                   <TableCell>{formatDate(utilisateur.created_at)}</TableCell>
