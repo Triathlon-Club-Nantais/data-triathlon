@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { disciplineOf, disciplineBreakdownBySeason, motCompte, ordinalFr } from "./format";
+import { disciplineOf, disciplineBreakdownBySeason, formatCount, motCompte, ordinalFr } from "./format";
 import type { Participation } from "@/lib/types";
 
 let nextId = 1;
@@ -127,5 +127,12 @@ describe("motCompte", () => {
   // Le zéro français est singulier — « 0 podium », pas « 0 podiums ».
   it("laisse le singulier à 0", () => {
     expect(motCompte(0, "épreuve")).toBe("0 épreuve");
+  });
+});
+
+describe("formatCount", () => {
+  it("sépare les milliers à la française (#1080)", () => {
+    expect(formatCount(161225)).toBe("161\u202f225");
+    expect(formatCount(792)).toBe("792");
   });
 });

@@ -15,6 +15,7 @@ import { RosterApercu } from "./RosterApercu";
 import { LienDestination } from "@/components/layout/LienDestination";
 import { DisciplinePerformance } from "./DisciplinePerformance";
 import { ClubComposition } from "./ClubComposition";
+import { formatCount } from "@/lib/utils/format";
 
 export function ClubDashboard({
   stats,
@@ -191,5 +192,5 @@ function KpiCard({
   // là où l'`ui/Stat` qu'il remplace colorait la valeur elle-même. Le `?? false`
   // n'est pas décoratif : `StatCard` a `accent = true` par défaut, l'omettre
   // mettrait le trait sur les quatre tuiles et rendrait ce paramètre inerte.
-  return <StatCard label={label} value={value} accent={accent ?? false} />;
+  return <StatCard label={label} value={formatCount(value)} accent={accent ?? false} />;
 }

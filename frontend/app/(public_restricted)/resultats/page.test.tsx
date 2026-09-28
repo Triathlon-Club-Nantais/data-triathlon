@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { currentSeason } from "@/lib/utils/season";
 
 const listEvents = vi.fn();
@@ -106,5 +106,13 @@ describe("ResultatsPage", () => {
 
     const [filters] = listEvents.mock.calls[0] as [{ sort?: string }];
     expect(filters.sort).toBeUndefined();
+  });
+
+  it("sépare les milliers des compteurs de l'en-tête (#1080)", async () => {
+    listEvents.mockResolvedValue({ ...FIRST_PAGE, total_events: 792, total_participations: 161225 });
+
+    render(await ResultatsPage({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByText("792 épreuves · 161 225 résultats")).toBeInTheDocument();
   });
 });
