@@ -1369,6 +1369,33 @@ def _renumber_duplicate_ranks(results: list[ScrapedResult]) -> None:
             scraped.rank_overall = local_rank
 
 
+def persist_steps(
+    db: Session, url: str, results: list[ScrapedResult]
+) -> Iterator[tuple[int, "_Persister"]]:
+    """Écrit des résultats déjà scrapés, ligne par ligne. **Ne clôt pas la transaction.**
+
+    Seul point d'entrée de la persistance (#914) : les rattrapages de lot, datation
+    (#972), classification (#294), renumérotation par doublon de rang (#757, #785)
+    puis solo/relais (#672), passent **avant** la première ligne, sinon la seconde
+    `Course` est déjà née, ou déjà écrite avec son rang brut, quand on la cherche.
+    Le re-scrape admin les sautait en instanciant `_Persister` lui-même.
+
+    Rend `(lignes écrites, persister)` : une première fois à 0, puis après chaque
+    ligne, pour qu'un flux SSE rapporte sa progression. Le persister est finalisé
+    une fois le générateur épuisé.
+    """
+    _redate_heats(db, results)
+    _reclassify_heats(db, url, results)
+    _renumber_duplicate_ranks(results)
+    _renumber_relay_split_ranks(db, results)
+    persister = _Persister(db, url)
+    yield 0, persister
+    for done, scraped in enumerate(results, start=1):
+        persister.add(scraped)
+        yield done, persister
+    persister.finalize()
+
+
 def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict:
     """Écrit des résultats déjà scrapés. **Ne clôt pas la transaction.**
 
@@ -1382,14 +1409,7 @@ def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict
     cachés (`_merge_cached_courses`) appartient au compte rendu d'import, pas à
     l'écriture.
     """
-    _redate_heats(db, results)
-    _reclassify_heats(db, url, results)
-    _renumber_duplicate_ranks(results)
-    _renumber_relay_split_ranks(db, results)
-    persister = _Persister(db, url)
-    for scraped in results:
-        persister.add(scraped)
-    persister.finalize()
+    *_, (_done, persister) = persist_steps(db, url, results)
     return {
         "imported": persister.imported,
         "updated": persister.updated,
@@ -1558,32 +1578,19 @@ def iter_import_event(
 
     attempt_started_at = utcnow()
     for tentative in range(1, _DEADLOCK_MAX_ATTEMPTS + 1):
-        persister = _Persister(db, url)
+        persister = None
         yield {"phase": "saving", "total": total, "imported": 0, "updated": 0, "skipped": 0, "progress": 0}
         try:
-            # Le chemin SSE ré-implémente la boucle de `persist_results` pour émettre
-            # sa progression : le rattrapage de classification (#294), la
-            # renumérotation solo/relais (#672) et la renumérotation par
-            # doublon de rang (#757, #785) doivent donc y être posées elles
-            # aussi, et **avant** la première ligne, sinon la seconde `Course`
-            # est déjà née — ou déjà écrite avec son rang combiné/dupliqué —
-            # quand on la cherche.
-            _redate_heats(db, results)
-            _reclassify_heats(db, url, results)
-            _renumber_duplicate_ranks(results)
-            _renumber_relay_split_ranks(db, results)
-            for i, scraped in enumerate(results):
-                persister.add(scraped)
-                if (i + 1) % 20 == 0 or i == total - 1:
+            for done, persister in persist_steps(db, url, results):
+                if done and (done % 20 == 0 or done == total):
                     yield {
                         "phase": "saving",
                         "total": total,
                         "imported": persister.imported,
                         "updated": persister.updated,
                         "skipped": persister.skipped,
-                        "progress": i + 1,
+                        "progress": done,
                     }
-            persister.finalize()
             if persist:
                 db.commit()
             else:
@@ -1603,7 +1610,9 @@ def iter_import_event(
             confirmed = False
             if persist:
                 try:
-                    confirmed = _confirm_committed(db, persister.courses_summary(), attempt_started_at)
+                    confirmed = persister is not None and _confirm_committed(
+                        db, persister.courses_summary(), attempt_started_at
+                    )
                 except Exception:
                     # La re-vérification elle-même peut échouer (connexion vraiment
                     # perdue, pas seulement un accusé égaré) : on ne laisse jamais

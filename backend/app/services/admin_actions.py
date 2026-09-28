@@ -695,20 +695,19 @@ def _stream_rescrape(
             _require_same_event(results, attendue)
 
             total = len(results)
-            persister = import_service._Persister(db, source_url)
             events.put({
                 "phase": "saving", "total": total,
                 "imported": 0, "updated": 0, "skipped": 0, "progress": 0,
             })
-            for i, scraped in enumerate(results):
-                persister.add(scraped)
-                if (i + 1) % 20 == 0 or i == total - 1:
+            # Les rattrapages de lot (#294, #672, #757) passent avec la boucle :
+            # le re-scrape les sautait et défaisait les rangs renumérotés (#914).
+            for done, persister in import_service.persist_steps(db, source_url, results):
+                if done and (done % 20 == 0 or done == total):
                     events.put({
                         "phase": "saving", "total": total,
                         "imported": persister.imported, "updated": persister.updated,
-                        "skipped": persister.skipped, "progress": i + 1,
+                        "skipped": persister.skipped, "progress": done,
                     })
-            persister.finalize()
             purges = athlete_repository.delete_orphans_among(db, candidats)
 
             admin_action_log_repository.create(
