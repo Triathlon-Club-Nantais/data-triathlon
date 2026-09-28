@@ -4,8 +4,7 @@ contracts/volunteer-action-public-api.md.
 `session_de_saisie` (autouse, `tests/test_api/conftest.py`) ouvre déjà une
 session sur `client` — le router self-service ne vérifie aucun pouvoir RBAC.
 """
-from app.core.season import current_season
-from app.repositories import athlete_repository, user_repository, volunteer_action_repository
+from app.repositories import athlete_repository, user_repository
 
 _URL = "/api/v1/volunteer-actions"
 
@@ -43,9 +42,9 @@ def test_titre_vide_rend_422_et_ne_persiste_rien(client, db_session):
     )
 
     assert reponse.status_code == 422
-    assert volunteer_action_repository.list_for_athlete_season(
-        db_session, athlete_id=athlete.id, season=current_season()
-    ) == []
+    from app.models.volunteer_action import VolunteerAction
+
+    assert db_session.query(VolunteerAction).filter_by(athlete_id=athlete.id).count() == 0
 
 
 def test_description_vide_rend_422(client, db_session):

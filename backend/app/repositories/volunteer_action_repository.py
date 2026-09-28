@@ -35,15 +35,6 @@ def create_pending(
     return action
 
 
-def list_for_athlete_season(db: Session, *, athlete_id: int, season: int) -> list[VolunteerAction]:
-    return (
-        db.query(VolunteerAction)
-        .filter(VolunteerAction.athlete_id == athlete_id, VolunteerAction.season == season)
-        .order_by(VolunteerAction.created_at.desc())
-        .all()
-    )
-
-
 def exists_for_athlete_season(db: Session, *, athlete_id: int, season: int) -> bool:
     """Le quota de saison (#779, FR-008) ne compte que les lignes validées —
     seul point de lecture, un seul appelant (`admin_actions.season_quota`)."""

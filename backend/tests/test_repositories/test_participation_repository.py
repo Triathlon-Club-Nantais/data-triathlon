@@ -148,7 +148,6 @@ def test_create_and_dedup_by_bib(db_session):
     )
     assert participation_repository.exists_for_bib(db_session, course.id, "42") is True
     assert participation_repository.exists_for_bib(db_session, course.id, "99") is False
-    assert participation_repository.existing_bibs_for_course(db_session, course.id) == {"42"}
 
 
 def test_count_for_course_inclut_les_participations_sans_dossard(db_session):
@@ -163,7 +162,6 @@ def test_count_for_course_inclut_les_participations_sans_dossard(db_session):
     db_session.flush()
 
     assert participation_repository.count_for_course(db_session, course.id) == 2
-    assert participation_repository.existing_bibs_for_course(db_session, course.id) == {"42"}
 
 
 def test_count_for_athlete_compte_sur_toutes_les_epreuves(db_session):

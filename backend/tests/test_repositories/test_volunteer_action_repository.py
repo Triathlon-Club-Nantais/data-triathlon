@@ -35,10 +35,9 @@ def test_create_pending_autorise_plusieurs_declarations_pour_le_meme_athlete_et_
     )
     db_session.flush()
 
-    actions = volunteer_action_repository.list_for_athlete_season(
-        db_session, athlete_id=athlete.id, season=2025
-    )
-    assert len(actions) == 2
+    from app.models.volunteer_action import VolunteerAction
+
+    assert db_session.query(VolunteerAction).filter_by(athlete_id=athlete.id, season=2025).count() == 2
 
 
 def test_exists_for_athlete_season_faux_sans_declaration(db_session):

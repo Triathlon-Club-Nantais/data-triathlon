@@ -318,16 +318,6 @@ def finishers_count_by_group(
     return {(course_id, bool(is_relay)): count for course_id, is_relay, count in rows}
 
 
-def existing_bibs_for_course(db: Session, course_id: int) -> set[str]:
-    """Dossards déjà importés pour une course — pour dédoublonner un import en masse."""
-    rows = (
-        db.query(Participation.bib_number)
-        .filter(Participation.course_id == course_id, Participation.bib_number.isnot(None))
-        .all()
-    )
-    return {r[0] for r in rows}
-
-
 def create(db: Session, **fields) -> Participation:
     participation = Participation(**fields)
     db.add(participation)

@@ -20,10 +20,9 @@ from app.core import http
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, FanoutTrace, ScrapedResult
 from .classify import classify_event_type, refine_from_splits
-from .klikego_platform import heat_is_relay, norm_heat_label, parse_live_index
+from .klikego_platform import norm_heat_label, parse_live_index
 from .utils import (
     DEFAULT_HEADERS,
-    derive_status_from_label,
     normalize_time,
     parse_fr_date,
     to_seconds,
@@ -50,18 +49,19 @@ _DETAIL_MAX_WORKERS = 10
 _DETAIL_PROGRESS_INTERVAL = 10
 
 
-def _fetch_event_meta(event_id: str, slug: str, client: httpx.Client) -> tuple[str, object]:
-    """Fetch the event page and return (heat, event_date)."""
+def _fetch_event_page(event_id: str, slug: str, client: httpx.Client) -> str:
+    """HTML de la page d'événement, chaîne vide si elle ne répond pas."""
     try:
         r = client.get(f"{BASE}/resultats/{slug}/{event_id}" if slug else f"{BASE}/resultats/{event_id}")
-        heats = re.findall(r'heat=([^&<>\s"\']+)', r.text)
-        heat = heats[0] if heats else ""
-        soup = BeautifulSoup(r.text, "lxml")
-        date_el = soup.select_one("span.tag.tag-brand.tag-ghost")
-        event_date = parse_fr_date(date_el.get_text(strip=True)) if date_el else None
-        return heat, event_date
     except httpx.HTTPError:
-        return "", None
+        return ""
+    return r.text if r.status_code == 200 else ""
+
+
+def _parse_event_date(html: str):
+    """Date d'événement lue sur sa page, `None` sans pastille de date."""
+    date_el = BeautifulSoup(html, "lxml").select_one("span.tag.tag-brand.tag-ghost") if html else None
+    return parse_fr_date(date_el.get_text(strip=True)) if date_el else None
 
 
 def _fetch_heat_dates(event_id: str, client: httpx.Client) -> dict:
@@ -82,11 +82,6 @@ def _fetch_heat_dates(event_id: str, client: httpx.Client) -> dict:
     return parse_live_index(r.text)[1]
 
 
-def _detect_heat(event_id: str, client: httpx.Client) -> str:
-    heat, _ = _fetch_event_meta(event_id, "", client)
-    return heat
-
-
 #: Pointage kilométrique intermédiaire ("Vélo km 85", "CAP km 14", "KM42") — à
 #: distinguer de la ligne récapitulative de section ("Vélo", "Cap"). Le
 #: split_map de `_parse_detail` route par sous-chaîne ("vélo" ⊂ "vélo km 85"),
@@ -101,8 +96,7 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
 
     # #675 — un statut DNS/DNF/DSQ déjà posé en phase B (`klikego_platform.
     # build_heat_results`/`parse_data_row`, sur le data block de
-    # `course-result.jsp` — `_parse_search_row` ci-dessous n'est plus le
-    # chemin de production) ne doit jamais être contredit par la page
+    # `course-result.jsp`) ne doit jamais être contredit par la page
     # détail : on ignore ses rang/temps/splits plutôt que de reclasser le
     # statut sur une page individuelle qui peut elle-même être incohérente
     # (cf. issue). Garde étendue à toutes les écritures de cette fonction —
@@ -315,56 +309,6 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
             result.run_time = f"{h:02d}:{m:02d}:{s:02d}"
 
 
-def _parse_search_row(
-    row, event_id: str, heat: str, event_name: str, slug: str, rank: int
-) -> "ScrapedResult":
-    """Extract a ScrapedResult from a search-list <tr> row (no detail call)."""
-    result = ScrapedResult(
-        source_url=(
-            f"{BASE}/resultats/{slug}/{event_id}?heat={heat}"
-        ),
-        provider="klikego",
-    )
-    result.event_name = event_name
-    result.event_type = classify_event_type(heat, contexte=slug)
-    result.rank_overall = rank
-    # Un heat Klikego est mono-discipline → drapeau relais uniforme sur ses résultats.
-    result.is_relay = heat_is_relay(heat)
-
-    dossard = row.get("data-dossard", "")
-    result.bib_number = dossard
-
-    name_cell = row.select_one("td.truncate")
-    if name_cell:
-        full = name_cell.get_text(strip=True)
-        parts = full.split()
-        i = 0
-        while i < len(parts) and parts[i].isupper():
-            i += 1
-        result.athlete_name = " ".join(parts[:i])
-        result.athlete_firstname = " ".join(parts[i:])
-
-    time_cell = row.select_one("td.font-mono")
-    if time_cell:
-        raw_time = time_cell.get_text(strip=True)
-        status = derive_status_from_label(raw_time)
-        if status:
-            # La colonne temps porte un label de statut (Abandon/DNF…) au lieu
-            # d'un temps : on pose le statut et on purge temps/rang positionnel.
-            result.status = status
-            result.rank_overall = None
-        else:
-            result.total_time = normalize_time(raw_time)
-
-    # Club column — present in some events as a td with class "truncate" after the name
-    # The search row may contain multiple truncate cells: [name, club]
-    truncate_cells = row.select("td.truncate")
-    if len(truncate_cells) >= 2:
-        result.club = truncate_cells[1].get_text(strip=True)
-
-    return result
-
-
 def _heat_source_url(event_id: str, slug: str, heat: str) -> str:
     """URL canonique d'un heat Klikego — clé de cache TTL et de dédup source_url."""
     return (
@@ -518,7 +462,7 @@ def scrape_event_all(
     #583) — revue finale de #698.
     """
     with http.client(timeout=30, headers=HEADERS) as client:
-        _, event_date = _fetch_event_meta(event_id, slug, client)
+        event_date = _parse_event_date(_fetch_event_page(event_id, slug, client))
         return _scrape_single_heat(
             event_id, heat, "", event_name, slug, event_date, client,
             on_detail_progress=on_detail_progress,
@@ -559,13 +503,9 @@ def scrape_event_fanout(
     all_results: list[ScrapedResult] = []
 
     with http.client(timeout=30, headers=HEADERS) as client:
-        _, event_date = _fetch_event_meta(event_id, slug, client)
-
-        event_page = client.get(
-            f"{BASE}/resultats/{slug}/{event_id}" if slug
-            else f"{BASE}/resultats/{event_id}"
-        )
-        event_html = event_page.text if event_page.status_code == 200 else ""
+        # Une seule lecture de la page : la date et les heats en viennent (#1048).
+        event_html = _fetch_event_page(event_id, slug, client)
+        event_date = _parse_event_date(event_html)
         heats = _enumerate_heats(event_html)
         trace.heats_enumerated = len(heats)
         dates_by_heat = _fetch_heat_dates(event_id, client) if heats else {}
