@@ -701,3 +701,28 @@ class AdminActionLogPage(BaseModel):
 
     entries: list[AdminActionLogEntry]
     total: int
+
+
+class PendingProviderReported(BaseModel):
+    """`POST /admin/pending-providers` (#1055)."""
+
+    id: int
+    url: str
+    provider_hint: str
+
+
+class PendingProviderOut(PendingProviderReported):
+    """Une ligne de `GET /admin/pending-providers` (#1055)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    reported_at: datetime | None
+
+
+class SeasonQuota(BaseModel):
+    """`GET /admin/athletes/{id}/season-quota` : les signaux du barème (#709, #1055)."""
+
+    validated_count: int
+    has_volunteer_action: bool
+    has_pending_volunteer_action: bool
+    season_validated: bool

@@ -86,6 +86,13 @@ class AthleteParticipationOut(ParticipationOut):
     course_finishers: int | None = None
 
 
+class AthleteDetail(BaseModel):
+    """`GET /athletes/{id}` : la fiche et ses participations (#1055)."""
+
+    athlete: AthleteBrief
+    participations: list[AthleteParticipationOut]
+
+
 class CourseParticipationPage(BaseModel):
     """Réponse de `GET /courses/{id}` : l'épreuve et une tranche du classement.
 

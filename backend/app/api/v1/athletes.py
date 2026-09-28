@@ -15,7 +15,7 @@ from app.repositories import (
     season_validation_repository,
 )
 from app.schemas.athlete import AthleteBrief, AthleteSearchResult, AthleteSeasonActivity
-from app.schemas.participation import AthleteParticipationOut
+from app.schemas.participation import AthleteDetail, AthleteParticipationOut
 
 router = APIRouter(tags=["athletes"])
 
@@ -102,7 +102,7 @@ def search_athletes(
     ]
 
 
-@router.get("/athletes/{athlete_id}")
+@router.get("/athletes/{athlete_id}", response_model=AthleteDetail)
 def get_athlete(
     athlete_id: int,
     seasons: str | None = Query(None),

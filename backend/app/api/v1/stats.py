@@ -7,12 +7,13 @@ from app.core.database import get_db
 from app.core.season import parse_seasons
 from app.repositories import course_repository, participation_repository
 from app.schemas.season import SeasonOut
+from app.schemas.stats import GeoEvent, StatsOut
 from app.services import stats_service
 
 router = APIRouter(tags=["stats"])
 
 
-@router.get("/stats")
+@router.get("/stats", response_model=StatsOut)
 def get_stats(
     scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
     seasons: str | None = Query(None),
@@ -44,7 +45,7 @@ def list_seasons(
     return stats_service.list_seasons(db, club_only=is_club_scope(scope), federal_only=federal_only)
 
 
-@router.get("/stats/events-geo")
+@router.get("/stats/events-geo", response_model=list[GeoEvent])
 def get_events_geo(
     scope: str | None = Query(None, description="« club » restreint aux membres du TCN."),
     federal_only: bool = Query(
@@ -74,7 +75,7 @@ def get_events_geo(
             geo_events.append({
                 "course_id": r.course_id,
                 "event_name": r.event_name,
-                "event_date": r.event_date.isoformat() if r.event_date else None,
+                "event_date": r.event_date,
                 "event_type": r.event_type or "",
                 "count": r.total,
                 "tcn_count": int(r.tcn_count or 0),

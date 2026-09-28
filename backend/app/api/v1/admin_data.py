@@ -32,6 +32,7 @@ from app.schemas.admin import (
     ParticipationReassign,
     ParticipationsWipeImpact,
     ParticipationsWipeResult,
+    SeasonQuota,
     SeasonValidationCreate,
     SeasonValidationOut,
     TeammatesUpdate,
@@ -281,7 +282,7 @@ def update_athlete(
     return _fiche(athlete, participation_repository.count_for_athlete(db, athlete_id))
 
 
-@router.get("/admin/athletes/{athlete_id}/season-quota")
+@router.get("/admin/athletes/{athlete_id}/season-quota", response_model=SeasonQuota)
 def get_season_quota(
     athlete_id: int,
     season: int = Query(..., ge=SEASON_MIN, le=SEASON_MAX),
