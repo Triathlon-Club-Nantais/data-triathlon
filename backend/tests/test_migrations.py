@@ -834,3 +834,23 @@ def test_downgrade_then_upgrade_of_the_course_source_url_index(sqlite_url):
 
     command.upgrade(cfg, "head")
     assert "ix_course_sources_url_active" in _index_names(sqlite_url, "course_sources")
+
+
+def test_volunteer_declarations_downgrade_renders_valid_postgresql_types(monkeypatch):
+    """#1060 : le downgrade autogénéré contre SQLite émettait `DATETIME`, inconnu de PostgreSQL."""
+    import io
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pwd@localhost/offline")
+    get_settings.cache_clear()
+    buffer = io.StringIO()
+    cfg = Config(str(BACKEND_ROOT / "alembic.ini"), output_buffer=buffer)
+    cfg.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
+    try:
+        command.downgrade(cfg, "5b766a96b2a4:b8a572868051", sql=True)
+    finally:
+        get_settings.cache_clear()
+
+    sql = buffer.getvalue()
+    assert "CREATE TABLE volunteer_declarations" in sql
+    assert "DATETIME" not in sql
+    assert "created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL" in sql
