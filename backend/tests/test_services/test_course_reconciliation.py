@@ -10,8 +10,8 @@ from datetime import date
 
 from app.models.course import Course
 from app.models.course_source import CourseSource
+from app.services import course_reconciliation
 from app.services.course_reconciliation import (
-    _is_breizhchrono_live,
     find_reconcilable_course,
     heat_slug,
     platform_event_id,
@@ -52,11 +52,13 @@ class TestPlatformEventId:
         assert platform_event_id("breizhchrono", "pas-une-url") == ""
 
     def test_host_prefixe_par_le_live_n_est_pas_la_facade_live(self):
-        """`live.breizhchrono.com.evil.tld` satisfaisait le `in` sur le netloc (#432)."""
-        assert not _is_breizhchrono_live(
+        """`live.breizhchrono.com.evil.tld` satisfaisait le `in` sur le netloc (#432) :
+        sa `?reference=` ne doit pas être lue comme celle de la façade live."""
+        assert platform_event_id(
+            "breizhchrono",
             "https://live.breizhchrono.com.evil.tld/external/live5/index.jsp"
-            "?reference=1488071608761-688"
-        )
+            "?reference=1488071608761-688",
+        ) == ""
 
     def test_ne_tronque_jamais_au_prefixe_epoch(self):
         """12 préfixes sur 40 mesurés dans le Sheet du club portent plusieurs
@@ -131,3 +133,33 @@ class TestFindReconcilableCourse:
 
     def test_aucune_source_en_base_ne_rapproche_rien(self, db_session):
         assert find_reconcilable_course(db_session, provider="breizhchrono", source_url=BC_LIVE_URL) is None
+
+
+# ── Identité de plateforme exposée par les providers (#1047) ─────────────────
+
+
+def test_a_live_host_coureur_jsp_url_reconciles_on_its_ref():
+    """Même dispatch de façade que le scraper : la fiche coureur publiée sous
+    `live.` suit le moteur classique (#1089), son identifiant est son `?ref=`."""
+    url = (
+        "https://live.breizhchrono.com/bc/resultats/coureur.jsp"
+        "?ref=1488071608761-921&heat=swimrun-court-duo&dossard=111"
+    )
+
+    assert course_reconciliation.platform_event_id("breizhchrono", url) == "1488071608761-921"
+    assert course_reconciliation.heat_slug("breizhchrono", url) == "swimrun-court-duo"
+
+
+def test_reconciliation_imports_no_scraper_private():
+    import ast
+    import inspect
+
+    arbre = ast.parse(inspect.getsource(course_reconciliation))
+    importes = [
+        alias.name
+        for noeud in ast.walk(arbre)
+        if isinstance(noeud, ast.ImportFrom) and (noeud.module or "").startswith("app.scrapers")
+        for alias in noeud.names
+    ]
+    assert not [nom for nom in importes if nom.startswith("_")]
+    assert "_parse_url" not in inspect.getsource(course_reconciliation)
