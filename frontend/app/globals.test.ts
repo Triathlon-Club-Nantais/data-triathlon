@@ -87,6 +87,18 @@ describe("palette de texte TCN", () => {
     expect(token("--primary-foreground")).toBe("#fff");
   });
 
+  it("pose un anneau de focus opaque sur tout élément, en couche de base (#934)", () => {
+    // `outline-ring/50` ne valait que 1,86:1 : chaque contrôle stylé en ligne
+    // sans classe dédiée (croix des modales, pagination, rail) y retombait.
+    expect(layerOf(":focus-visible")).toBe("base");
+    expect(rule(":focus-visible")).toContain("outline: 2px solid var(--tcn-orange)");
+    expect(rule(":focus-visible")).toContain("outline-offset: 2px");
+    expect(rule("*")).not.toContain("outline-ring/50");
+    for (const fond of ["--tcn-paper", "--tcn-surface", "--tcn-ink"]) {
+      expect(contrast(token("--tcn-orange"), token(fond))).toBeGreaterThanOrEqual(3);
+    }
+  });
+
   it("garde l'anneau de focus au-dessus du seuil non-textuel sur papier", () => {
     // WCAG 1.4.11 — `outline: 2px solid var(--tcn-orange)` de `.tcn-input`.
     expect(contrast(token("--tcn-orange"), token("--tcn-paper"))).toBeGreaterThanOrEqual(3);

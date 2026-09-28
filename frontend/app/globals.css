@@ -284,7 +284,15 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
+  }
+  /* Anneau de focus opaque pour tout élément (#934) : `outline-ring/50` ne valait
+     que 1,86:1, et chaque contrôle stylé en ligne sans classe dédiée (croix des
+     modales, pagination, rail) y retombait. En couche de base, pour que les
+     classes qui le retouchent (`outline-offset: -2px` de `.tcn-rowlink`) gagnent. */
+  :focus-visible {
+    outline: 2px solid var(--tcn-orange);
+    outline-offset: 2px;
   }
   body {
     @apply bg-background text-foreground;
