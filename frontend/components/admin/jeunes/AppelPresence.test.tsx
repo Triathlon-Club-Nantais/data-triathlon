@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { TrainingSessionDetail, Profile, SessionUser } from "@/lib/types";
@@ -121,6 +121,26 @@ describe("AppelPresence", () => {
     await userEvent.click(screen.getByRole("button", { name: /présent/i }));
 
     expect(setTrainingParticipantPresence).toHaveBeenCalledWith(1, 42, true);
+  });
+
+  it("annonce l'état pointé de chaque paire Présent / Absent (#1013)", async () => {
+    getTrainingSession.mockResolvedValue({
+      ...DETAIL_UN_PARTICIPANT,
+      participants: [{ ...DETAIL_UN_PARTICIPANT.participants[0], present: true }],
+    });
+
+    afficher();
+    await screen.findByText("Alix Martin");
+
+    const paire = screen.getByRole("group", { name: "Présence de Alix Martin" });
+    expect(within(paire).getByRole("button", { name: "Présent" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(within(paire).getByRole("button", { name: "Absent" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
   });
 
   it("pointe un jeune absent au clic", async () => {

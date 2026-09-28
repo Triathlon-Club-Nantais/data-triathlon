@@ -150,10 +150,12 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
                       )}
                     </div>
                     {peutEcrire && (
-                      <div className="flex gap-2">
+                      // `aria-pressed` : l'état choisi ne se lisait qu'à la couleur (#1013).
+                      <div className="flex gap-2" role="group" aria-label={`Présence de ${nom}`}>
                         <Button
                           size="sm"
                           variant={participant.present === true ? "default" : "outline"}
+                          aria-pressed={participant.present === true}
                           disabled={setPresence.isPending}
                           onClick={() => pointer(participant.profile_id, true)}
                         >
@@ -162,6 +164,7 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
                         <Button
                           size="sm"
                           variant={participant.present === false ? "default" : "outline"}
+                          aria-pressed={participant.present === false}
                           disabled={setPresence.isPending}
                           onClick={() => pointer(participant.profile_id, false)}
                         >
