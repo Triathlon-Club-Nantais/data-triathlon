@@ -40,7 +40,7 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-Passage explicite des 6 principes de `.specify/memory/constitution.md` (v1.1.0).
+Passage explicite des 6 principes de `.specify/memory/constitution.md` (version courante en pied de fichier).
 Statuts autorisés : ✅ conforme / ⚠️ justifié (ligne à créer dans Complexity
 Tracking) / N/A (le principe ne s'applique pas à cette feature).
 

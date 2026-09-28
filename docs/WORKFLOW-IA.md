@@ -54,8 +54,9 @@ d'artefact de planification, et c'est le cas courant.
 1. (facultatif) `brainstorming` si l'approche n'est pas évidente.
 2. `systematic-debugging` (bug) **ou** `test-driven-development` (ajout de
    comportement).
-3. `verification-before-completion`.
-4. `finishing-a-development-branch` si ça mérite une PR.
+3. `requesting-code-review`, tronc commun de fin de branche des trois voies.
+4. `verification-before-completion`.
+5. `finishing-a-development-branch` si ça mérite une PR.
 
 Pas de dossier `specs/`, pas de plan. Les skills Superpowers ne s'activent que
 sur le déclencheur de `brainstorming` : sauter la boucle ne demande donc **aucune
@@ -195,18 +196,23 @@ il faut l'invoquer.
 Le core, lui, a **coupé le lien entre la feature et la branche** :
 `create-new-feature.sh` ne fait plus aucun appel git (ni `fetch`, ni
 `checkout -b`) et numérote d'après `specs/` seul ; la feature courante se lit
-dans `.specify/feature.json` (clé `feature_directory`, fichier **suivi**) ou dans
+dans `.specify/feature.json` (clé `feature_directory`, fichier **local et
+gitignoré**) ou dans
 `SPECIFY_FEATURE_DIRECTORY` ; `check-prerequisites.sh` ne valide plus le nom de
 branche. Un worktree Superpowers dont la branche ne suit aucune convention Spec
 Kit ne bloque donc plus `/speckit-plan` — c'était la friction nº1 entre les deux
 outils.
 
-Les **commits-gate** restent en revanche inertes, et c'est voulu :
-`auto_commit.default: false` dans `.specify/extensions/git/git-config.yml`, tous
-les événements à `false`. Les hooks `speckit.git.commit` partent, lisent la
-config et passent — donc pas d'auto-commit par `/speckit-implement`. Ne pas les
-activer à la légère : ils committent via `git add .`, donc tout le worktree, sans
-égard au périmètre.
+Les **commits-gate** restent en revanche inertes, mais seulement par leurs clés
+explicites : `.specify/extensions/git/git-config.yml` porte
+`auto_commit.default: true` (commit 49b284b1), et c'est chaque événement posé à
+`enabled: false` qui retient le commit. Les hooks `speckit.git.commit` partent,
+lisent la config et passent, donc pas d'auto-commit par `/speckit-implement`.
+**Risque ouvert** : `auto-commit.sh` retombe sur `default` quand la clé d'un
+événement manque, donc un événement ajouté par une montée de version de Spec Kit
+serait auto-commité. Ne pas activer ces hooks à la légère : ils committent via
+`git add .`, donc tout le worktree, sans égard au périmètre. Remettre
+`default: false` reste à trancher (#1104).
 
 ### 3. Le gate `checklists/` est réel, et gratuit
 
@@ -319,15 +325,16 @@ rédaction du plan.
 
 ## Mise en place (une fois par repo)
 
-1. Installer Superpowers : `/plugin marketplace add obra/superpowers-marketplace`
-   puis `/plugin install superpowers@superpowers-marketplace`.
+1. Installer Superpowers : `/plugin install superpowers@claude-plugins-official`,
+   l'identifiant qu'active `.claude/settings.json`.
 2. Installer les skills officiels Anthropic :
    `/plugin marketplace add anthropics/skills` puis
    `/plugin install example-skills@anthropic-agent-skills`. Le paquet embarque
    `frontend-design`, sur lequel `ui-ux-review` s'appuie pour le fond, et
    `webapp-testing`, candidat du jour où la review passera au navigateur.
-3. Initialiser Spec Kit : `specify init --integration claude-code` (Spec Kit v0.10+
-   a remplacé les anciens flags `--ai` par `--integration`).
+3. Initialiser Spec Kit : `specify init --integration claude` (Spec Kit v0.10+
+   a remplacé les anciens flags `--ai` par `--integration` ; `claude` est la
+   valeur que déclare `.specify/integration.json`).
 4. `/speckit-constitution`.
 5. Committer `.specify/` ; `.claude/` selon la politique de l'équipe.
 
@@ -345,11 +352,11 @@ par le passé ; la ligne n'est jamais entrée dans la constitution de ce repo.)
 **État de ce repo** : la mise en place est déjà faite, en **Spec Kit 0.15.0**
 (`.specify/init-options.json`) — à l'étape 2 près, qui est par poste et reste
 donc à faire sur une machine neuve. La constitution est **ratifiée le
-2026-07-27, amendée en v1.1.0** (`.specify/memory/constitution.md`) — ne pas
-relancer `/speckit-constitution`
-pour « la remplir ». Elle ne nomme aucun exécuteur (sa section « Development
-Workflow » dit `… → /speckit-analyze → exécution`), donc la règle de provenance
-**ne demande aucun amendement**. L'intégration active est `claude`
+2026-07-27, amendée depuis** (version courante en pied de
+`.specify/memory/constitution.md`) : ne pas relancer `/speckit-constitution`
+pour « la remplir ». Sa section « Development Workflow » laisse l'exécuteur au
+choix explicite de l'utilisateur (`executing-plans` ou
+`subagent-driven-development`), ce qui est exactement la règle de provenance. L'intégration active est `claude`
 (`.specify/integration.json`) : dix skills de cœur (`speckit-specify`,
 `speckit-plan`, `speckit-tasks`, `speckit-analyze`, `speckit-clarify`,
 `speckit-checklist`, `speckit-implement`, `speckit-converge`,
@@ -443,8 +450,9 @@ Deux cas de référence :
 
 La constitution est le document de référence de Spec Kit : elle cadre les principes du
 projet (stack, TDD, langue, conventions) et est injectée dans chaque commande
-`/speckit-*`. Pour ce projet, elle est **ratifiée le 2026-07-27, amendée en
-v1.1.0** — ne pas relancer `/speckit-constitution` pour la remplir.
+`/speckit-*`. Pour ce projet, elle est **ratifiée le 2026-07-27 et amendée
+depuis** (version courante en pied de fichier) : ne pas relancer
+`/speckit-constitution` pour la remplir.
 
 Attention à sa portée réelle : la constitution n'est chargée que par les commandes
 `/speckit-*`, alors qu'`AGENTS.md` l'est **à chaque session** via `CLAUDE.md`. En cas
