@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from app.scrapers import sportinnovation as _si
 from app.scrapers.classify import classify_event_type
 from app.scrapers.sportinnovation import (
     _classify_results_url,
@@ -501,3 +502,164 @@ def test_scrape_results_race_compose_le_nom_et_porte_la_date(monkeypatch):
     assert results[0].event_name == "Triathlon de Carnac 2025 - Aquathlon Pupilles"
     assert results[0].event_type == "aquathlon"
     assert results[0].event_date == date(2025, 10, 4)
+
+
+# ── Couverture hors réseau des chemins sans test (#1067) ─────────────────────
+
+
+@pytest.mark.parametrize(
+    ("location", "slot"),
+    [
+        ("Temps Natation", "swim"),
+        ("Transition 1", "t1"),
+        ("Temps Vélo", "bike"),
+        ("Transition 2", "t2"),
+        ("Temps CaP", "run"),
+        ("IN1", "swim"),
+        ("OUT1", "t1"),
+        ("VELO1", "bike"),
+        ("OUT2", "t2"),
+        ("IN2", "run"),
+        ("CAP1", None),
+        ("START", None),
+        ("FINISH", None),
+    ],
+)
+def test_location_to_slot_maps_triathlon_labels_and_duathlon_checkpoints(location, slot):
+    assert _si._location_to_slot(location) == slot
+
+
+def test_intermediates_to_splits_reads_the_observed_payload():
+    """Forme réelle de `/api/results/3953335?intermediates=1` (2026-09-24)."""
+    intermediates = [
+        {"position": None, "location": "Temps Natation", "officialTime": "00:19:49"},
+        {"position": None, "location": "Transition 1", "officialTime": "00:01:22"},
+        {"position": None, "location": "Temps Vélo", "officialTime": "00:57:18"},
+        {"position": None, "location": "Transition 2", "officialTime": "00:01:40"},
+        {"position": None, "location": "Temps CaP", "officialTime": "00:33:30"},
+    ]
+
+    assert _si._intermediates_to_splits(intermediates) == {
+        "swim": "00:19:49", "t1": "00:01:22", "bike": "00:57:18", "t2": "00:01:40", "run": "00:33:30",
+    }
+
+
+def test_intermediates_to_splits_keeps_the_first_time_of_a_slot():
+    intermediates = [
+        {"position": 1, "location": "Temps Natation", "officialTime": "00:19:49"},
+        {"position": 2, "location": "IN1", "officialTime": "00:25:00"},
+    ]
+
+    assert _si._intermediates_to_splits(intermediates) == {"swim": "00:19:49"}
+
+
+def _pages(monkeypatch, pages):
+    appels = []
+
+    def fake(event_id, client, search="", page=1):
+        appels.append(page)
+        return "Triathlon M", pages[page - 1] if page <= len(pages) else [], {"bib": 1}
+
+    monkeypatch.setattr(_si, "_fetch_html_results", fake)
+    return appels
+
+
+def test_fetch_all_pages_concatenates_full_pages_until_a_short_one(monkeypatch):
+    pleine = [["x", str(i)] for i in range(_si._PAGE_SIZE)]
+    appels = _pages(monkeypatch, [pleine, pleine, [["x", "fin"]]])
+
+    nom, lignes, col = _si._fetch_all_pages("42", client=None)
+
+    assert (nom, col, appels) == ("Triathlon M", {"bib": 1}, [1, 2, 3])
+    assert len(lignes) == 2 * _si._PAGE_SIZE + 1
+
+
+def test_fetch_all_pages_stops_on_an_empty_page(monkeypatch):
+    pleine = [["x", str(i)] for i in range(_si._PAGE_SIZE)]
+    appels = _pages(monkeypatch, [pleine])
+
+    _nom, lignes, _col = _si._fetch_all_pages("42", client=None)
+
+    assert appels == [1, 2]
+    assert len(lignes) == _si._PAGE_SIZE
+
+
+class _Reponse:
+    def __init__(self, text="", payload=None):
+        self.text, self._payload, self.status_code = text, payload, 200
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return self._payload
+
+
+class _Client:
+    def __init__(self, reponse):
+        self.reponse, self.urls = reponse, []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+    def get(self, url, **kwargs):
+        self.urls.append(url)
+        return self.reponse
+
+
+def _legacy(monkeypatch, html, lignes_par_course):
+    client = _Client(_Reponse(text=html))
+    monkeypatch.setattr(_si.http, "client", lambda *a, **k: client)
+    monkeypatch.setattr(
+        _si, "_fetch_all_pages", lambda rid, c: ("Triathlon M", lignes_par_course[rid], {"bib": 1})
+    )
+    monkeypatch.setattr(_si, "_fetch_race_meta", lambda rid, c: ("BayMan", date(2026, 6, 1)))
+    monkeypatch.setattr(
+        _si, "_parse_html_row",
+        lambda tds, col, race_url, race_name, course_name, event_date: (race_url, tds[1]),
+    )
+
+
+def test_legacy_event_discovers_every_race_and_dedupes_bibs_per_race(monkeypatch):
+    html = (
+        '<select name="raceSearch"><option value="">--</option>'
+        '<option value="11">S</option><option value="12">M</option></select>'
+    )
+    _legacy(monkeypatch, html, {"11": [["a", "1"], ["b", "1"], ["c", "2"]], "12": [["d", "1"]]})
+
+    resultats = _si.scrape_event_all("https://sportinnovation.fr/Evenements/Resultats/10")
+
+    base = "https://sportinnovation.fr/Evenements/Resultats"
+    assert resultats == [(f"{base}/11", "1"), (f"{base}/11", "2"), (f"{base}/12", "1")]
+
+
+def test_legacy_event_without_race_select_falls_back_on_the_event_id(monkeypatch):
+    _legacy(monkeypatch, "<html></html>", {"10": [["a", "7"]]})
+
+    resultats = _si.scrape_event_all("https://sportinnovation.fr/Evenements/Resultats/10")
+
+    assert resultats == [("https://sportinnovation.fr/Evenements/Resultats/10", "7")]
+
+
+def test_detail_url_resolves_its_race_slug_then_imports_the_race(monkeypatch):
+    client = _Client(_Reponse(payload={"raceSlug": "bayman-m"}))
+    monkeypatch.setattr(_si.http, "client", lambda *a, **k: client)
+    delegues = []
+    monkeypatch.setattr(
+        _si, "_scrape_results_race",
+        lambda slug, url, c: delegues.append(slug) or ["ok"],
+    )
+
+    assert _si.scrape_event_all("https://results.sportinnovation.fr/detail/3953335") == ["ok"]
+    assert delegues == ["bayman-m"]
+
+
+def test_detail_url_without_race_slug_says_so(monkeypatch):
+    client = _Client(_Reponse(payload={"error": "Not Found"}))
+    monkeypatch.setattr(_si.http, "client", lambda *a, **k: client)
+
+    with pytest.raises(ValueError, match="raceSlug"):
+        _si.scrape_event_all("https://results.sportinnovation.fr/detail/3953335")
