@@ -3877,3 +3877,31 @@ def test_relay_team_category_column_becomes_the_category():
     )
 
     assert (r.rank_category, r.category) == (1, "Mixte")
+
+
+# ── Valeur non-durée d'un segment candidat : gardée dans raw_data (#978) ─────
+
+
+def test_a_segment_candidate_that_is_not_a_duration_lands_in_raw_data():
+    """Forme des listes relais de 398810 (contest 2) : `RANK19`, `ATF5` et `LASTNAME`
+    passent pour des segments candidats. Leur valeur disparaissait sans trace."""
+    payload = {
+        "DataFields": ["BIB", "ID", "[RANK19]", "[ATF5]", "LASTNAME", "[Natation]", "Temps"],
+        "list": {"Fields": [
+            {"Expression": "[RANK19]", "Label": "Pl."},
+            {"Expression": "[ATF5]", "Label": "Nom Equipe"},
+            {"Expression": "LASTNAME", "Label": "NomFamille"},
+            {"Expression": "[Natation]", "Label": "Nat."},
+            {"Expression": "Temps", "Label": "Temps"},
+        ]},
+    }
+    roles, segments, extras = raceresult._map_columns(payload)
+
+    r = raceresult._build_result(
+        ["12", "1", "3.", "LES DAUPHINS", "DUPONT", "12:34", "1:05:07"], roles, segments, extras,
+        source_url="u", event_name="E", event_date=None, contest_label="Relais",
+        status_label="", nom_col_expr="",
+    )
+
+    assert r.segments == [("Nat.", "00:12:34")]
+    assert r.raw_data == {"Pl.": "3.", "Nom Equipe": "LES DAUPHINS", "NomFamille": "DUPONT"}

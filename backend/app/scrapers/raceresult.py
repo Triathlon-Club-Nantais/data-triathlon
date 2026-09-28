@@ -849,7 +849,9 @@ def _map_columns(
     entre crochets (`[Natation]`) et sans suffixe de rang est un **segment**,
     étiqueté par son `Label` (passé par `_label_i18n`), sauf si son expression
     figure dans la liste d'exclusion des colonnes d'agrément
-    (cf. `_colonne_exclue`). Tout le reste part en extras → `raw_data`.
+    (cf. `_colonne_exclue`). Tout le reste part en extras → `raw_data`, sous son
+    expression. Un segment candidat dont la cellule n'est pas une durée y rejoint
+    aussi `raw_data`, mais sous son libellé (`_build_result`, #978).
 
     `Fields` vit sous `payload["list"]`.
     """
@@ -1241,6 +1243,13 @@ def _build_result(
     r.raw_data = {
         expr: _clean_cell(ligne[col]) for expr, col in extras.items() if col < len(ligne)
     }
+    # Un segment candidat dont la cellule n'est pas une durée n'est pas un split :
+    # sa valeur se garde sous son libellé, faute de quoi elle disparaissait sans
+    # trace (#978).
+    for label, col in segments:
+        cellule_brute = _clean_cell(ligne[col]) if col < len(ligne) else ""
+        if cellule_brute and not _RE_DUREE.match(_strip_rank_suffix_segment(cellule_brute)):
+            r.raw_data.setdefault(label, cellule_brute)
 
     # Nettoyage systématique de la maison (cf. wiclax.py) : un non-finisher n'a
     # ni temps total ni rang, quoi qu'annonce le payload.
