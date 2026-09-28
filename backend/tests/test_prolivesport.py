@@ -1003,3 +1003,33 @@ def test_provider_est_un_fanout_provider_donc_recoit_les_kwargs():
     provider = registry.get_provider(URL_979)
     assert isinstance(provider, registry.FanoutProvider)
     assert provider.name == "prolivesport"
+
+
+# --- distance publiée par `raceList` (#1052) ---------------------------------
+
+
+def test_fanout_sets_the_racelist_distance_on_each_result(monkeypatch):
+    _api(monkeypatch)
+
+    resultats, _trace = prolivesport.scrape_event_fanout(URL_979)
+
+    distances = {r.raw_data["race"]: r.distance_km for r in resultats}
+    assert distances == {"Triathlon XS": 12.5, "Triathlon S": 25.75, "Triathlon M": 51.5}
+
+
+def test_scrape_event_all_sets_the_racelist_distance(monkeypatch):
+    _api(monkeypatch)
+
+    resultats = prolivesport.scrape_event_all(URL_979)
+
+    assert {r.distance_km for r in resultats} == {51.5}
+
+
+@pytest.mark.parametrize("distance", ["999", "998", "0", "", None, "abc"])
+def test_a_sentinel_or_missing_racelist_distance_is_dropped(monkeypatch, distance):
+    races = [{**course, "distance": distance} for course in RACES_979]
+    _api(monkeypatch, races=races)
+
+    resultats = prolivesport.scrape_event_all(URL_979)
+
+    assert {r.distance_km for r in resultats} == {None}
