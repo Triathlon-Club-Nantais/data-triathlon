@@ -41,16 +41,25 @@ export function SeasonValidationPanel({ athlete }: { athlete: CoureurAValider })
   return (
     <Card>
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <SegmentedControl
-          options={[enCours, enCours - 1].map((annee) => ({
-            value: String(annee),
-            label: seasonLabel(annee),
-          }))}
-          value={String(season)}
-          onChange={(valeur) => setSeason(Number(valeur))}
-        />
+        <div role="group" aria-label="Saison à valider">
+          <SegmentedControl
+            options={[enCours, enCours - 1].map((annee) => ({
+              value: String(annee),
+              label: seasonLabel(annee),
+            }))}
+            value={String(season)}
+            onChange={(valeur) => setSeason(Number(valeur))}
+          />
+        </div>
         {quota.data ? (
-          <ValiderSaison athleteId={athlete.id} season={season} quota={quota.data} />
+          <ValiderSaison
+            athleteId={athlete.id}
+            season={season}
+            quota={quota.data}
+            // L'ancien quota reste affiché pendant la lecture du nouveau : ses
+            // boutons agiraient sur la saison choisie avec l'état de l'autre.
+            enLecture={quota.isPlaceholderData}
+          />
         ) : (
           <p style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>{ECHEC_LECTURE}</p>
         )}
@@ -63,10 +72,12 @@ function ValiderSaison({
   athleteId,
   season,
   quota,
+  enLecture,
 }: {
   athleteId: number;
   season: number;
   quota: SeasonQuota;
+  enLecture: boolean;
 }) {
   const valider = useValidateSeason();
   const devalider = useUnvalidateSeason();
@@ -83,7 +94,7 @@ function ValiderSaison({
   async function handleValider() {
     try {
       await valider.mutateAsync({ athleteId, season });
-      toast.success("Saison validée.");
+      toast.success(`${seasonLabel(season)} validée.`);
     } catch {
       toast.error(ECHEC_VALIDATION);
     }
@@ -92,7 +103,7 @@ function ValiderSaison({
   async function handleDevalider() {
     try {
       await devalider.mutateAsync({ athleteId, season });
-      toast.success("Saison dévalidée.");
+      toast.success(`${seasonLabel(season)} dévalidée.`);
     } catch {
       toast.error(ECHEC_DEVALIDATION);
     }
@@ -101,15 +112,15 @@ function ValiderSaison({
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
       {/* FR-012 — indicatif, ne bloque jamais la validation (FR-011). */}
-      <p style={{ fontSize: 12, color: "var(--tcn-text-faint)" }}>
+      <p style={{ fontSize: 12, color: "var(--tcn-text-faint)", opacity: enLecture ? 0.5 : 1 }}>
         {validated_count}/3 épreuves validées · bénévolat {benevolat}
       </p>
       {season_validated ? (
         <Button
           variant="secondary"
           onClick={handleDevalider}
-          disabled={devalider.isPending}
-          aria-busy={devalider.isPending}
+          disabled={devalider.isPending || enLecture}
+          aria-busy={devalider.isPending || enLecture}
         >
           Dévalider la saison
         </Button>
@@ -117,8 +128,8 @@ function ValiderSaison({
         <Button
           variant="secondary"
           onClick={handleValider}
-          disabled={valider.isPending}
-          aria-busy={valider.isPending}
+          disabled={valider.isPending || enLecture}
+          aria-busy={valider.isPending || enLecture}
         >
           Valider la saison
         </Button>

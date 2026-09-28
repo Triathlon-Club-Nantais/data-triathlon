@@ -32,7 +32,7 @@ export function UnavailableState({ isRelay }: { isRelay: boolean }) {
           margin: "10px 0 14px",
         }}
       >
-        Comparaison au classement indisponible
+        {isRelay ? "Pas de comparaison individuelle pour un relais" : "Comparaison au classement indisponible"}
       </h2>
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "var(--tcn-text-muted)" }}>
         {isRelay ? (

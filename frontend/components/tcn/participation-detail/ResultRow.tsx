@@ -3,9 +3,10 @@ import type { CSSProperties } from "react";
 import type { Participation, RankingEvolutionStep } from "@/lib/types";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { genderShort, ordinalFr } from "@/lib/utils/format";
-import { StatusBadge, nonFinisherLabel } from "@/components/results/StatusBadge";
+import { nonFinisherLabel } from "@/components/results/StatusBadge";
 // Imports directs plutôt que via le barrel `@/components/tcn`, qui réexporte
 // ce composant : le cycle ne se verrait qu'au build.
+import { Badge } from "../Badge";
 import { Card } from "../Card";
 import { Eyebrow } from "../Eyebrow";
 import { PendingBadge } from "../PendingBadge";
@@ -62,11 +63,12 @@ export function ResultRow({
       >
         {participation.rank_overall != null ? (
           <PlaceBadge place={participation.rank_overall} style={{ fontSize: 22, minWidth: 44 }} />
+        ) : abandonLabel ? (
+          <Badge variant="ink">
+            {(participation.status ?? "").toUpperCase()}
+          </Badge>
         ) : (
-          <StatusBadge
-            status={participation.status}
-            fallback={<span style={{ color: "var(--tcn-text-faint)" }}>—</span>}
-          />
+          <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
         )}
         {secondaryRanks.length > 0 && (
           <div

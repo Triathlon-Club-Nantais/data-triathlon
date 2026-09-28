@@ -161,7 +161,9 @@ describe("VolunteerActionForm", () => {
         description: "Poste eau",
       }),
     );
-    expect(toastSuccess).toHaveBeenCalledWith(expect.stringContaining(seasonLabel(currentSeason())));
+    expect(toastSuccess).toHaveBeenCalledWith(
+      `Déclaration enregistrée pour la ${seasonLabel(currentSeason()).toLowerCase()}, en attente de validation.`,
+    );
   });
 
   it("désactive le bouton pendant la requête", async () => {
