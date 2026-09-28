@@ -947,6 +947,22 @@ describe("AppNav — arborescence", () => {
     expect(within(rail).getByRole("link", { name: "Résultats" })).not.toHaveAttribute("aria-current");
   });
 
+  it("écrit l'entrée courante dans un orange qui tient 4,5:1 (#1078)", async () => {
+    afficher(null);
+    await deplier();
+
+    // `--tcn-orange` ne tient que 3,68:1 sur blanc et 3,33:1 sur `--tcn-orange-08` :
+    // sous le seuil AA d'un texte de 11 à 14 px.
+    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
+    expect(within(rail).getByRole("link", { name: "Tableau de bord" })).toHaveStyle({
+      color: "var(--tcn-orange-deeper)",
+    });
+    const barre = screen.getByRole("navigation", { name: "Navigation" });
+    expect(within(barre).getByRole("link", { name: "Tableau de bord" })).toHaveStyle({
+      color: "var(--tcn-orange-deep)",
+    });
+  });
+
   it("cache Administration à un anonyme et la montre à un connecté", async () => {
     const { unmount } = afficher(null);
     await deplier();
