@@ -1,0 +1,8 @@
+{
+  "name": "deploy-tools-vercel",
+  "private": true,
+  "description": "CLI Vercel des jobs de déploiement, verrouillée par package-lock.json (#1072).",
+  "dependencies": {
+    "vercel": "54.21.1"
+  }
+}

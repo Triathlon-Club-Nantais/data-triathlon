@@ -69,6 +69,12 @@ updates:
         update-types:
           - "version-update:semver-major"
 
+  # CLI Vercel des jobs de déploiement, verrouillée hors de `frontend/` (#1072).
+  - package-ecosystem: "npm"
+    directory: "/.github/tools/vercel"
+    schedule:
+      interval: "monthly"
+
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
