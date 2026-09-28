@@ -450,3 +450,33 @@ def test_un_refus_amont_quelconque_ne_passe_pas_pour_un_succes():
 
     with pytest.raises(batch_runs.BatchPlatformError):
         _dispatch(handler)
+
+
+def _zip_brut(contenu: bytes, nom="bilan.json") -> bytes:
+    tampon = io.BytesIO()
+    with zipfile.ZipFile(tampon, "w") as archive:
+        archive.writestr(nom, contenu)
+    return tampon.getvalue()
+
+
+@pytest.mark.parametrize(
+    "zip_octets",
+    [_zip_brut(b""), _zip_brut(b"{tronque"), b"pas un zip"],
+    ids=["empty", "truncated-json", "corrupt-zip"],
+)
+def test_an_interrupted_run_with_an_unreadable_report_says_so(zip_octets):
+    """#1005 : coupé par le timeout, le batch publie un `bilan.json` de 0 octet."""
+    with pytest.raises(batch_runs.BatchReportUnreadableError) as exc:
+        _fetch(_handler_bilan([_artefact()], zip_octets))
+
+    assert exc.value.status_code == 404
+    assert "interrompu" in exc.value.message
+
+
+def test_an_empty_report_archive_says_so():
+    tampon = io.BytesIO()
+    with zipfile.ZipFile(tampon, "w"):
+        pass
+
+    with pytest.raises(batch_runs.BatchReportUnreadableError):
+        _fetch(_handler_bilan([_artefact()], tampon.getvalue()))

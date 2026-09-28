@@ -1,7 +1,7 @@
 """Modèle Athlete — une personne, dédoublonnée par nom + prénom + date de naissance."""
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, String, UniqueConstraint, false
+from sqlalchemy import Boolean, Date, DateTime, Index, String, UniqueConstraint, false, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -30,3 +30,7 @@ class Athlete(Base):
     participations: Mapped[list["Participation"]] = relationship(  # noqa: F821
         back_populates="athlete", cascade="all, delete-orphan"
     )
+
+
+# Sert `athlete_repository.get_by_identities_batch`, qui compare en minuscules (#1005).
+Index("ix_athletes_identity", func.lower(Athlete.nom), func.lower(Athlete.prenom))
