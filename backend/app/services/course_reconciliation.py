@@ -28,21 +28,18 @@ from sqlalchemy.orm import Session
 
 from app.models.course import Course
 from app.repositories import course_source_repository
-from app.scrapers.breizhchrono import LIVE_HOST, _parse_bc_url, _parse_live_url
-from app.scrapers.registry import KlikegoProvider, _url_host
+from app.scrapers import registry
 
 #: Les deux seuls fournisseurs qui partagent un identifiant de plateforme
 #: (mesuré sur les 14 modules de `scrapers/` — cf. Q2 du sondage #277).
 RECONCILABLE_PROVIDERS = ("klikego", "breizhchrono")
 
 
-def _is_breizhchrono_live(url: str) -> bool:
-    """Façade `live.` ou `resultats.`/`coureur.jsp` — même dispatch que `registry.BreizhChronoProvider`.
-
-    Égalité stricte sur le host, comme le registre : un `in` acceptait aussi
-    `live.breizhchrono.com.attaquant.tld` (#432).
-    """
-    return _url_host(url) == LIVE_HOST
+def _identity(provider: str, url: str) -> tuple[str, str]:
+    """`(identifiant, heat)` tel que le scraper lui-même le lit (#1047)."""
+    if provider not in RECONCILABLE_PROVIDERS:
+        return "", ""
+    return registry.provider_named(provider).platform_identity(url)
 
 
 def platform_event_id(provider: str, url: str) -> str:
@@ -52,16 +49,8 @@ def platform_event_id(provider: str, url: str) -> str:
     chez la plateforme, pas d'événement — 12 préfixes sur 40 mesurés dans le
     Sheet du club portent plusieurs éditions, l'un en porte 8 sans rapport.
     """
-    if provider == "klikego":
-        event_id, _heat, _slug, _name = KlikegoProvider._parse_url(url)
-        return event_id
-    if provider == "breizhchrono":
-        if _is_breizhchrono_live(url):
-            reference, _heat = _parse_live_url(url)
-            return reference
-        event_id, _heat, _slug = _parse_bc_url(url)
-        return event_id
-    return ""
+    event_id, _heat = _identity(provider, url)
+    return event_id
 
 
 def heat_slug(provider: str, url: str) -> str:
@@ -72,16 +61,8 @@ def heat_slug(provider: str, url: str) -> str:
     (`_detect_relay` teste `heat_slug.endswith("---")`), et
     `duathlon-s---open` ≠ `duathlon-s---en-relais`.
     """
-    if provider == "klikego":
-        _event_id, heat, _slug, _name = KlikegoProvider._parse_url(url)
-        return heat.lower()
-    if provider == "breizhchrono":
-        if _is_breizhchrono_live(url):
-            _reference, heat = _parse_live_url(url)
-            return heat.lower()
-        _event_id, heat, _slug = _parse_bc_url(url)
-        return heat.lower()
-    return ""
+    _event_id, heat = _identity(provider, url)
+    return heat.lower()
 
 
 def find_reconcilable_course(db: Session, *, provider: str, source_url: str) -> Course | None:

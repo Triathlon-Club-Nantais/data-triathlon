@@ -244,13 +244,14 @@ class KlikegoProvider(FanoutProvider):
 
     _module = klikego
 
+    def platform_identity(self, url: str) -> tuple[str, str]:
+        """`(identifiant de plateforme, heat)` de l'URL, lu par la règle R (#289, #1047)."""
+        event_id, heat, _slug, _name = self._parse_url(url)
+        return event_id, heat
+
     @staticmethod
     def _parse_url(url: str) -> tuple[str, str, str, str]:
-        """(event_id, heat_query, slug, event_name) — `heat_query` = ?heat= éventuel.
-
-        `@staticmethod`, et pas seulement pour cette classe : `course_reconciliation`
-        (#289) l'appelle sans instance, sur une simple `source_url` déjà en base.
-        """
+        """(event_id, heat_query, slug, event_name) — `heat_query` = ?heat= éventuel."""
         parsed = urlparse(url)
         params = parse_qs(parsed.query)
         path_parts = [p for p in parsed.path.strip("/").split("/") if p]
@@ -333,15 +334,23 @@ class BreizhChronoProvider(FanoutProvider):
     name = "breizhchrono"
     _HOSTS = ("breizhchrono.com",)
 
-    def targets_single_heat(self, url: str) -> bool:
-        """Vrai si l'URL fixe déjà un heat — chemin classique ou `?heat=` live
-        (#698). Même détection que `scrape_event_all`, sans effet de bord."""
+    def platform_identity(self, url: str) -> tuple[str, str]:
+        """`(identifiant de plateforme, heat)` de l'URL, selon sa façade.
+
+        Le **seul** dispatch de façade Breizh Chrono, partagé par le scraper et la
+        règle R (#289) : trois copies avaient déjà divergé une fois (#432, #1047).
+        """
         from app.scrapers.breizhchrono import _parse_bc_url, _parse_live_url
 
         if _uses_breizhchrono_live_engine(url):
-            _, heat = _parse_live_url(url)
-            return bool(heat)
-        _, heat, _ = _parse_bc_url(url)
+            return _parse_live_url(url)
+        event_id, heat, _slug = _parse_bc_url(url)
+        return event_id, heat
+
+    def targets_single_heat(self, url: str) -> bool:
+        """Vrai si l'URL fixe déjà un heat — chemin classique ou `?heat=` live
+        (#698). Même détection que `scrape_event_all`, sans effet de bord."""
+        _, heat = self.platform_identity(url)
         return bool(heat)
 
     def scrape_event_all(
@@ -353,7 +362,6 @@ class BreizhChronoProvider(FanoutProvider):
     ) -> list[ScrapedResult]:
         from app.scrapers.breizhchrono import (
             _parse_bc_url,
-            _parse_live_url,
             scrape_event_fanout,
             scrape_live_event_all,
             scrape_live_event_fanout,
@@ -364,7 +372,7 @@ class BreizhChronoProvider(FanoutProvider):
         # Égalité stricte sur le host (`_url_host`), pas d'appartenance : un `in`
         # routait aussi `live.breizhchrono.com.attaquant.tld` (#432).
         if _uses_breizhchrono_live_engine(url):
-            reference, heat = _parse_live_url(url)
+            reference, heat = self.platform_identity(url)
             if not reference:
                 raise ValueError(
                     "URL live.breizhchrono.com sans paramètre 'reference' exploitable."
@@ -698,6 +706,11 @@ def detect_provider(url: str) -> str:
     dépendance disparue et un scraper qui n'a jamais existé."""
     provider = get_provider(url)
     return provider.name if provider else ""
+
+
+def provider_named(name: str) -> ScraperProtocol | None:
+    """L'instance de provider de ce nom, ou None."""
+    return next((provider for provider in PROVIDERS if provider.name == name), None)
 
 
 def get_provider(url: str) -> ScraperProtocol | None:
