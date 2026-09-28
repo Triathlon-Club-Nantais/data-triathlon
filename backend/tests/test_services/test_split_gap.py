@@ -22,6 +22,12 @@ def _row(*, total="01:00:00", splits=None, event_type="triathlon-m", is_relay=Fa
     )
 
 
+def _gap(row) -> float | None:
+    return split_gap.gap(
+        row.total_time, row.splits, event_type=row.course.event_type, is_relay=row.course.is_relay
+    )
+
+
 #: Un triathlon dont les inters somment exactement au total (3600 s).
 TRIATHLON_EXACT = {
     "swim": "00:15:00",
@@ -38,31 +44,31 @@ TRIATHLON_EXACT = {
 def test_ratio_is_none_for_a_relay():
     """La somme des inters d'un relayeur ne se compare pas à son temps."""
     row = _row(splits=TRIATHLON_EXACT, is_relay=True)
-    assert split_gap.ratio(row) is None
+    assert _gap(row) is None
 
 
 def test_ratio_is_none_without_splits():
-    assert split_gap.ratio(_row(splits=None)) is None
-    assert split_gap.ratio(_row(splits={})) is None
+    assert _gap(_row(splits=None)) is None
+    assert _gap(_row(splits={})) is None
 
 
 def test_ratio_is_none_when_a_schema_key_is_missing():
     """Le schéma triathlon attend cinq segments ; quatre ne suffisent pas."""
     partial = dict(TRIATHLON_EXACT)
     del partial["t2"]
-    assert split_gap.ratio(_row(splits=partial)) is None
+    assert _gap(_row(splits=partial)) is None
 
 
 def test_ratio_is_none_when_the_total_is_unreadable_or_zero():
-    assert split_gap.ratio(_row(total=None, splits=TRIATHLON_EXACT)) is None
-    assert split_gap.ratio(_row(total="", splits=TRIATHLON_EXACT)) is None
-    assert split_gap.ratio(_row(total="00:00:00", splits=TRIATHLON_EXACT)) is None
+    assert _gap(_row(total=None, splits=TRIATHLON_EXACT)) is None
+    assert _gap(_row(total="", splits=TRIATHLON_EXACT)) is None
+    assert _gap(_row(total="00:00:00", splits=TRIATHLON_EXACT)) is None
 
 
 def test_ratio_is_none_when_a_split_is_unreadable():
     """Le cas réel de la course 340, pour lequel #472 a posé la garde d'affichage."""
     broken = dict(TRIATHLON_EXACT, t1="0-2:-15:00")
-    assert split_gap.ratio(_row(splits=broken)) is None
+    assert _gap(_row(splits=broken)) is None
 
 
 def test_unreadable_split_is_rejected_like_the_frontend_does():
@@ -82,7 +88,7 @@ def test_unreadable_split_is_rejected_like_the_frontend_does():
 
 
 def test_ratio_is_zero_when_the_splits_sum_to_the_total():
-    assert split_gap.ratio(_row(splits=TRIATHLON_EXACT)) == pytest.approx(0.0)
+    assert _gap(_row(splits=TRIATHLON_EXACT)) == pytest.approx(0.0)
 
 
 def test_ratio_is_positive_when_a_segment_is_not_published():
@@ -91,13 +97,13 @@ def test_ratio_is_positive_when_a_segment_is_not_published():
     81,7 % des écarts mesurés sont de ce signe (sondage, § Mesure 2).
     """
     short = dict(TRIATHLON_EXACT, t1="00:01:00")  # 60 s de moins
-    assert split_gap.ratio(_row(splits=short)) == pytest.approx(60 / 3600)
+    assert _gap(_row(splits=short)) == pytest.approx(60 / 3600)
 
 
 def test_ratio_is_negative_when_the_splits_exceed_the_total():
     """Signe négatif : aucune explication bénigne, contrairement au positif."""
     long = dict(TRIATHLON_EXACT, run="00:20:00")  # 600 s de plus
-    assert split_gap.ratio(_row(splits=long)) == pytest.approx(-600 / 3600)
+    assert _gap(_row(splits=long)) == pytest.approx(-600 / 3600)
 
 
 def test_an_aquathlon_without_its_published_transition_is_not_evaluable():
@@ -109,7 +115,7 @@ def test_an_aquathlon_without_its_published_transition_is_not_evaluable():
     évaluables — le produit ne mesure pas ce qu'il n'a pas.
     """
     assert (
-        split_gap.ratio(
+        _gap(
             _row(
                 total="00:05:00",
                 splits={"swim": "00:02:00", "run": "00:02:30"},
@@ -140,7 +146,7 @@ def test_course_214_head_of_ranking_is_flagged():
             "run": "00:19:18",
         },
     )
-    ratio = split_gap.ratio(row)
+    ratio = _gap(row)
 
     assert ratio is not None
     assert ratio == pytest.approx(0.693, abs=0.001)
@@ -158,7 +164,7 @@ def test_median_ignores_unevaluable_rows():
         _row(splits=None),
         _row(splits=TRIATHLON_EXACT, is_relay=True),
     ]
-    assert split_gap.median([split_gap.ratio(r) for r in rows]) == pytest.approx(
+    assert split_gap.median([_gap(r) for r in rows]) == pytest.approx(
         (0.0 + 60 / 3600) / 2
     )
 
@@ -265,7 +271,7 @@ def test_a_sport_without_a_predictable_template_is_never_evaluated():
     """
     assert split_gap.schema_for("raid-multisport") == []
     assert (
-        split_gap.ratio(
+        _gap(
             _row(splits={"Etape 1": "00:20:00"}, event_type="raid-multisport")
         )
         is None
@@ -279,4 +285,4 @@ def test_a_bike_run_is_evaluated_on_its_three_segments():
         splits={"segment1": "00:20:00", "bike": "00:25:00", "run": "00:15:00"},
         event_type="bike-run",
     )
-    assert split_gap.ratio(row) == pytest.approx(0.0)
+    assert _gap(row) == pytest.approx(0.0)

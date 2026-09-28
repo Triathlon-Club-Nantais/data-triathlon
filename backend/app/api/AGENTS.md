@@ -26,7 +26,7 @@ d'affichage mais un invariant d'intégrité, et le Principe V est en violation
 assumée sur ce point (justifiée dans `plan.md` §Complexity Tracking de la
 feature).
 
-`app/core/validation.py` (`is_pending`/`validated_clause`) est le point
+`app/core/validation.py` (`validated_clause`) est le point
 **unique** de la règle, sur le patron de `core/club.tcn_clause` et
 `core/discipline.federal_clause`. Appliqué à douze fonctions, réparties sur
 trois repositories :
@@ -60,8 +60,7 @@ feature de son objet), `list_for_course` (chemin d'import, pas d'affichage : les
 lisent `list_ranking_for_course`, #938),
 `count_for_athlete` (purge des fiches orphelines, #117),
 `count_for_course`/`delete_for_course` (gestes d'administration),
-`count_bibs_absent_from` (aperçu de fusion, #286) et `existing_bibs_for_course`
-(dédoublonnage d'import). Verrouillé par un test **comportemental** (une
+et `count_bibs_absent_from` (aperçu de fusion, #286). Verrouillé par un test **comportemental** (une
 participation pendante + une validée, assertion par fonction publique) dans
 `tests/test_repositories/test_pending_exclusion.py` — pas par lecture AST :
 `_apply_filters` est un helper partagé par trois fonctions publiques, qu'un

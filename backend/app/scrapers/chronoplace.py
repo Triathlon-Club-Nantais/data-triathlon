@@ -285,23 +285,15 @@ def _event_name(html: str, slug: str) -> str:
     return slug.replace("-", " ").title()
 
 
-def _list_epreuves(html: str, slug: str) -> list[str]:
-    """Ids des épreuves sœurs, lus dans les onglets de la page (ordre du document).
-
-    Filtre sur le slug de l'événement courant : un lien vers un autre événement
-    n'a rien à faire dans l'import. `urlparse(href).path` neutralise le cas d'un
-    href absolu (`https://www.chronoplace.fr/classement/...`) : sans lui, un
-    passage du site aux URLs absolues ferait disparaître les épreuves sœurs en
-    silence.
-    """
-    return [epreuve_id for epreuve_id, _ in _enumerate_epreuves(html, slug)]
-
-
 def _enumerate_epreuves(html: str, slug: str) -> list[tuple[str, str]]:
     """Tabs d'épreuves : `(id, label)` dans l'ordre du document, dédupliqués.
 
     Le libellé est le texte du lien (« Spay'cific Triathlon S »), servi tel quel
-    à `on_heat_start`. Filtre sur le slug de l'événement courant.
+    à `on_heat_start`. Filtre sur le slug de l'événement courant : un lien vers un
+    autre événement n'a rien à faire dans l'import. `urlparse(href).path`
+    neutralise le cas d'un href absolu (`https://www.chronoplace.fr/classement/...`) :
+    sans lui, un passage du site aux URLs absolues ferait disparaître les épreuves
+    sœurs en silence.
     """
     pattern = re.compile(rf"^/classement/{re.escape(slug)}/epreuve/(\d+)/?$")
     seen: set[str] = set()

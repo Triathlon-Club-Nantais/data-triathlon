@@ -79,7 +79,7 @@
   `provider="manuel"`), et l'état de validation d'un résultat déclaré.
   `is_pending_validation` est une **dimension distincte** de `status` : un
   abandon déclaré reste un abandon une fois validé. Exclusion des agrégats
-  publics : `app/core/validation.py` (`is_pending`/`validated_clause`, sur le
+  publics : `app/core/validation.py` (`validated_clause`, sur le
   patron de `club.py`/`discipline.py`), appliquée à 9 fonctions réparties sur
   trois repositories (`participation_repository.py` : liste, épreuves,
   stats, classement, synthèse, saisons distinctes ; `course_repository.py` :

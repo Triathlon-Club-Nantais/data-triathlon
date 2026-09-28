@@ -10,8 +10,7 @@ pas sur la forme de `test_permissions_catalogue.py`.
 Les six fonctions de `participation_repository.py` qui ne filtrent **pas** —
 `list_for_athlete` (la surface voulue par FR-019), `list_for_course` (chemin
 d'import), `count_for_athlete`, `count_for_course`/`delete_for_course`
-(gestes d'administration), `count_bibs_absent_from` (aperçu de fusion) et
-`existing_bibs_for_course` (dédoublonnage d'import) — sont couvertes
+(gestes d'administration) et `count_bibs_absent_from` (aperçu de fusion) — sont couvertes
 ailleurs : `list_for_athlete` dans `test_participation_repository.py`, les
 autres n'ont pas été modifiées et restent sous leurs tests existants.
 

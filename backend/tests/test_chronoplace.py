@@ -335,27 +335,31 @@ def test_event_name_repli_slug():
     )
 
 
-def test_list_epreuves_donne_les_onglets_de_levenement():
-    assert chronoplace._list_epreuves(EPREUVE_494, "spaycific-races-2025") == ["494", "566"]
-    assert chronoplace._list_epreuves(EPREUVE_493, "24h-vtt-de-cergy-2025") == ["492", "493"]
+def _ids_epreuves(html, slug):
+    return [epreuve_id for epreuve_id, _ in chronoplace._enumerate_epreuves(html, slug)]
 
 
-def test_list_epreuves_href_absolu():
+def test_enumerate_epreuves_donne_les_onglets_de_levenement():
+    assert _ids_epreuves(EPREUVE_494, "spaycific-races-2025") == ["494", "566"]
+    assert _ids_epreuves(EPREUVE_493, "24h-vtt-de-cergy-2025") == ["492", "493"]
+
+
+def test_enumerate_epreuves_href_absolu():
     """Minor 3 : un href absolu ne doit pas faire disparaître une épreuve sœur."""
     html = """
     <a href="https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/494">A</a>
     <a href="/classement/spaycific-races-2025/epreuve/566">B</a>
     """
-    assert chronoplace._list_epreuves(html, "spaycific-races-2025") == ["494", "566"]
+    assert _ids_epreuves(html, "spaycific-races-2025") == ["494", "566"]
 
 
-def test_list_epreuves_ignore_les_autres_evenements():
+def test_enumerate_epreuves_ignore_les_autres_evenements():
     html = """
     <a href="/classement/spaycific-races-2025/epreuve/494">A</a>
     <a href="/classement/un-autre-evenement-2025/epreuve/777">B</a>
     <a href="/classement/spaycific-races-2025">C</a>
     """
-    assert chronoplace._list_epreuves(html, "spaycific-races-2025") == ["494"]
+    assert _ids_epreuves(html, "spaycific-races-2025") == ["494"]
 
 
 def test_event_type_par_epreuve():

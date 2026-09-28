@@ -11,11 +11,6 @@ from app.scrapers.utils import strip_accents, to_seconds
 from app.services import split_gap
 
 
-def _athlete_key(part) -> int:
-    # Utiliser l'id DB pour éviter les collisions entre homonymes.
-    return part.athlete_id
-
-
 def _bucket() -> dict:
     return {"victories": 0, "podiums": 0, "top10": 0}
 

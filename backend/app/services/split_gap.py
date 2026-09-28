@@ -131,19 +131,6 @@ def gap(
     return (total - sum(segments)) / total
 
 
-def ratio(participation) -> float | None:
-    """`gap` pour une participation hydratée — le classement paginé, lui, en a une."""
-    course = getattr(participation, "course", None)
-    if course is None:
-        return None
-    return gap(
-        participation.total_time,
-        participation.splits,
-        event_type=course.event_type,
-        is_relay=course.is_relay,
-    )
-
-
 def median(ratios) -> float | None:
     """Médiane des écarts évaluables d'une épreuve — sa **référence**.
 

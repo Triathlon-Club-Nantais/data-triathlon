@@ -9,7 +9,6 @@ Chaque test correspond à un cas réel rencontré lors du développement :
 - Frenchman XXL / Lac au Duc : détection du type d'épreuve depuis le heat
 - Duathlon           : "CAP 1"/"CAP 2" → swim_time/run_time, heat "duathlon-s-individuel"
 - Swimrun            : type détecté depuis le slug URL (heat = "format-l-en-binome")
-- _parse_search_row  : extraction des lignes de résultat paginées (bulk import)
 - scrape_event_all   : import exhaustif via data block (finishers + DNF/DNS/DSQ)
 """
 import base64
@@ -17,7 +16,6 @@ from pathlib import Path
 
 import httpx
 import pytest
-from bs4 import BeautifulSoup
 
 import app.scrapers.klikego as klikego
 import app.scrapers.klikego_platform as plat
@@ -26,7 +24,6 @@ from app.scrapers.classify import classify_event_type
 from tests.conftest import load_klikego_fixture
 
 _parse_detail = klikego._parse_detail
-_parse_search_row = klikego._parse_search_row
 decode_data_block = plat.decode_data_block
 parse_data_row = plat.parse_data_row
 
@@ -611,166 +608,6 @@ def test_parse_detail_nat_not_matched_as_transition():
     assert result.t1_time   == ""
 
 
-# ── _parse_search_row — extraction des lignes de la liste paginée (bulk import)
-
-def _make_search_row(
-    bib: str,
-    name: str,
-    total_time: str = "01:30:00",
-    second_truncate: str | None = None,
-):
-    """Génère un <tr class='result-row'> tel que retourné par resultats-search.jsp."""
-    second_cell = f'<td class="truncate">{second_truncate}</td>' if second_truncate else ""
-    html = f"""
-    <table><tbody>
-      <tr class="result-row" data-dossard="{bib}">
-        <td class="truncate">{name}</td>
-        {second_cell}
-        <td class="font-mono">{total_time}</td>
-      </tr>
-    </tbody></table>
-    """
-    soup = BeautifulSoup(html, "lxml")
-    return soup.select_one("tr.result-row[data-dossard]")
-
-
-def test_parse_search_row_basic():
-    """Extraction du dossard, nom/prénom et temps total depuis une ligne de recherche."""
-    row = _make_search_row(bib="995", name="BECT Oscar", total_time="10:57:46")
-    result = _parse_search_row(row, "EVT1", "triathlon-xl", "Frenchman 2026", "frenchman-2026", rank=42)
-
-    assert result.bib_number      == "995"
-    assert result.athlete_name    == "BECT"
-    assert result.athlete_firstname == "Oscar"
-    assert result.total_time      == "10:57:46"
-    assert result.rank_overall    == 42
-    assert result.event_name      == "Frenchman 2026"
-    assert result.event_type      == "triathlon-xl"
-    assert result.provider        == "klikego"
-
-
-def test_parse_search_row_multiword_name():
-    """Nom composé en majuscules suivi d'un prénom."""
-    row = _make_search_row(bib="42", name="LE GALL Pierre")
-    result = _parse_search_row(row, "E", "triathlon-m", "Event", "event", rank=1)
-
-    assert result.athlete_name      == "LE GALL"
-    assert result.athlete_firstname == "Pierre"
-
-
-def test_parse_search_row_club_present():
-    """Quand une 2ème cellule .truncate est présente, son contenu est le club."""
-    row = _make_search_row(
-        bib="997",
-        name="RINFRAY Julien",
-        second_truncate="TRIATHLON CLUB NANTAIS",
-    )
-    result = _parse_search_row(row, "E", "triathlon-xl", "Frenchman 2026", "frenchman-2026", rank=1)
-
-    assert result.club == "TRIATHLON CLUB NANTAIS"
-
-
-def test_parse_search_row_city_column():
-    """
-    Certaines épreuves affichent la ville (ex: 'HERBLAY (95220)') au lieu du club
-    dans la 2ème cellule. Ce texte est stocké tel quel — pas de traitement spécial.
-    Le filtre city=nantais est utilisé côté API pour l'identification TCN.
-    """
-    row = _make_search_row(
-        bib="17",
-        name="YVALUN Johan",
-        second_truncate="HERBLAY (95220)",
-    )
-    result = _parse_search_row(row, "E", "triathlon-xl", "Frenchman 2026", "frenchman-2026", rank=1)
-
-    assert result.club == "HERBLAY (95220)"
-
-
-def test_parse_search_row_no_second_truncate():
-    """Sans 2ème cellule .truncate, le club reste vide."""
-    row = _make_search_row(bib="1", name="DUPONT Jean")
-    result = _parse_search_row(row, "E", "triathlon-s", "Event", "event", rank=5)
-
-    assert result.club == ""
-
-
-def test_parse_search_row_source_url():
-    """L'URL source est construite depuis event_id, heat et slug."""
-    row = _make_search_row(bib="1", name="TEST Athlete")
-    result = _parse_search_row(
-        row,
-        event_id="1700025627600-3",
-        heat="triathlon-l-individuel",
-        event_name="Event",
-        slug="triathlon-dangers-entre-loire-et-maine-2026",
-        rank=1,
-    )
-
-    assert "1700025627600-3" in result.source_url
-    assert "triathlon-l-individuel" in result.source_url
-    assert "triathlon-dangers-entre-loire-et-maine-2026" in result.source_url
-
-
-def _row(html: str):
-    return BeautifulSoup(html, "lxml").select_one("tr")
-
-
-def test_parse_search_row_explicit_status_dnf():
-    """La cellule temps porte 'Abandon' → status DNF, total_time vide, rang purgé."""
-    html = (
-        '<table><tr class="result-row" data-dossard="42">'
-        '<td class="truncate">DUPONT Jean</td>'
-        '<td class="font-mono">Abandon</td></tr></table>'
-    )
-    r = _parse_search_row(_row(html), "evt", "heat", "Tri", "slug", 5)
-    assert r.status == "DNF"
-    assert r.total_time == ""
-    assert r.rank_overall is None
-
-
-def test_parse_search_row_finisher_no_status():
-    """Cellule temps = vrai temps → status="" et total_time normalisé."""
-    html = (
-        '<table><tr class="result-row" data-dossard="42">'
-        '<td class="truncate">DUPONT Jean</td>'
-        '<td class="font-mono">01:23:45</td></tr></table>'
-    )
-    r = _parse_search_row(_row(html), "evt", "heat", "Tri", "slug", 5)
-    assert r.status == ""
-    assert r.total_time == "01:23:45"
-    assert r.rank_overall == 5
-
-
-def test_parse_search_row_relay_heat_sets_is_relay():
-    """Un heat « ...relais » marque tous les résultats du heat comme relais."""
-    row = _make_search_row(bib="12", name="DUPONT Jean")
-    result = _parse_search_row(
-        row, "EVT1", "triathlon-m-relais", "Tri M", "tri-m", rank=1
-    )
-    assert result.is_relay is True
-    assert result.event_type == "triathlon-m"
-
-
-def test_parse_search_row_individual_heat_not_relay():
-    """Un heat « ...individuel » reste solo."""
-    row = _make_search_row(bib="13", name="MARTIN Paul")
-    result = _parse_search_row(
-        row, "EVT1", "triathlon-m-individuel", "Tri M", "tri-m", rank=1
-    )
-    assert result.is_relay is False
-    assert result.event_type == "triathlon-m"
-
-
-def test_parse_search_row_duathlon_en_relais_heat():
-    """Heat « duathlon-s---en-relais » → relais + event_type duathlon-s."""
-    row = _make_search_row(bib="14", name="DURAND Eve")
-    result = _parse_search_row(
-        row, "EVT1", "duathlon-s---en-relais", "Dua S", "dua-s", rank=1
-    )
-    assert result.is_relay is True
-    assert result.event_type == "duathlon-s"
-
-
 # ── heat_is_relay — formes d'équipe des heats de la plateforme Klikego (#295)
 
 
@@ -871,15 +708,6 @@ def test_course_name_compacte_les_espaces_multiples():
         plat.course_name("Triathlon Découverte  Aésio Mutuelle", "Triathlon  M")
         == "Triathlon Découverte Aésio Mutuelle - Triathlon M"
     )
-
-
-def test_parse_search_row_duo_heat_sets_is_relay():
-    """Mesquer 2026 : `swim-run-m-duo` → relais, comme son voisin « relais »."""
-    row = _make_search_row(bib="15", name="LEROY Anne")
-    result = _parse_search_row(
-        row, "EVT1", "swim-run-m-duo", "Swim Run M Duo", "swimrun-mesquer", rank=1
-    )
-    assert result.is_relay is True
 
 
 # ── decode_data_block — décodage du data block base64+XOR ────────────────────
@@ -1714,7 +1542,7 @@ def test_klikego_scrape_event_all_returns_dnf(monkeypatch):
             return FakeResp("<html></html>")
 
     monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
-    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("triathlon-s-light", None))
+    monkeypatch.setattr(klikego, "_parse_event_date", lambda *a, **k: None)
 
     results = klikego.scrape_event_all(
         "1488071608761-572", "triathlon-s-light",
@@ -1850,7 +1678,7 @@ def test_scrape_event_all_tcn_detail_overrides_inter_splits(monkeypatch):
             return FakeResp("<html></html>")
 
     monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
-    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("triathlon-s-light", None))
+    monkeypatch.setattr(klikego, "_parse_event_date", lambda *a, **k: None)
 
     results = klikego.scrape_event_all(
         "1488071608761-572", "triathlon-s-light",
@@ -1912,7 +1740,7 @@ def test_scrape_event_all_fetches_detail_for_non_tcn(monkeypatch):
             return FakeResp("<html></html>")
 
     monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
-    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("triathlon-s-light", None))
+    monkeypatch.setattr(klikego, "_parse_event_date", lambda *a, **k: None)
 
     results = klikego.scrape_event_all(
         "1488071608761-572", "triathlon-s-light",
@@ -1972,7 +1800,7 @@ def test_scrape_event_all_reclasse_course_a_pied_en_triathlon_si_splits_complets
             return FakeResp("<html></html>")
 
     monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
-    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("diaoul-foulees-open", None))
+    monkeypatch.setattr(klikego, "_parse_event_date", lambda *a, **k: None)
 
     results = klikego.scrape_event_all(
         "1488071608761-572", "diaoul-foulees-open",
@@ -2037,7 +1865,7 @@ def test_scrape_event_all_phase_c_paralleles_avec_plafond(monkeypatch):
             return FakeResp("<html></html>")
 
     monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
-    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("triathlon-s-light", None))
+    monkeypatch.setattr(klikego, "_parse_event_date", lambda *a, **k: None)
 
     klikego.scrape_event_all(
         "1488071608761-572", "triathlon-s-light",
@@ -2103,7 +1931,7 @@ def test_scrape_event_all_phase_b_checkpoints_paralleles(monkeypatch):
             return FakeResp("<html></html>")
 
     monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
-    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("triathlon-s-light", None))
+    monkeypatch.setattr(klikego, "_parse_event_date", lambda *a, **k: None)
 
     klikego.scrape_event_all(
         "1488071608761-572", "triathlon-s-light",
@@ -2166,7 +1994,7 @@ def test_scrape_event_all_phase_c_ignore_les_echecs_reseau_par_participant(monke
             return FakeResp("<html></html>")
 
     monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
-    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("triathlon-s-light", None))
+    monkeypatch.setattr(klikego, "_parse_event_date", lambda *a, **k: None)
 
     import logging as _log
     with caplog.at_level(_log.WARNING, logger="app.scrapers.klikego"):
@@ -2216,7 +2044,7 @@ def test_scrape_event_fanout_on_detail_progress_notifie_pendant_la_phase_c(monke
             return FakeResp(event_html)
 
     monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
-    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("", None))
+    monkeypatch.setattr(klikego, "_parse_event_date", lambda *a, **k: None)
 
     # Ne laisser passer qu'un seul heat, sans quoi les 50 requêtes de détail
     # de page0 se répéteraient sur les 8 heats de la fixture.
@@ -2332,7 +2160,7 @@ def _make_fanout_fake_client(monkeypatch, event_html: str, heat_bibs: dict | Non
             return FakeResp("", 404)
 
     monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
-    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("", None))
+    monkeypatch.setattr(klikego, "_parse_event_date", lambda *a, **k: None)
     return calls
 
 
@@ -2430,7 +2258,7 @@ def _fanout_dates(monkeypatch, live_index: str | None):
         return []
 
     monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
-    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("", _date(2026, 6, 13)))
+    monkeypatch.setattr(klikego, "_parse_event_date", lambda *a, **k: _date(2026, 6, 13))
     monkeypatch.setattr(klikego, "_scrape_single_heat", fake_heat)
     klikego.scrape_event_fanout(
         "1677015306084-12", "Mesquer", "triathlon-et-swimrun-mesquer-quimiac-2026",
@@ -2548,7 +2376,7 @@ def test_scrape_event_fanout_heats_de_meme_type_restent_distincts(monkeypatch):
             return FakeResp(event_html)  # page événement (racine)
 
     monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
-    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("", None))
+    monkeypatch.setattr(klikego, "_parse_event_date", lambda *a, **k: None)
 
     results, _trace = klikego.scrape_event_fanout(
         "1677015306084-12", "Triathlon et Swimrun Mesquer Quimiac 2026",
@@ -2603,7 +2431,7 @@ def test_scrape_event_fanout_flags_only_heats_dated_by_the_live_index(monkeypatc
         return [ScrapedResult(source_url=heat, provider="klikego", event_date=event_date)]
 
     monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
-    monkeypatch.setattr(klikego, "_fetch_event_meta", lambda *a, **k: ("", _date(2026, 6, 13)))
+    monkeypatch.setattr(klikego, "_parse_event_date", lambda *a, **k: _date(2026, 6, 13))
     monkeypatch.setattr(klikego, "_scrape_single_heat", fake_heat)
     results, _trace = klikego.scrape_event_fanout(
         "1677015306084-12", "Mesquer", "triathlon-et-swimrun-mesquer-quimiac-2026",
@@ -2612,3 +2440,38 @@ def test_scrape_event_fanout_flags_only_heats_dated_by_the_live_index(monkeypatc
     flags = {r.source_url: r.heat_dated for r in results}
     assert flags["triathlon-s-indiv"] is True
     assert flags["triathlon-xs-relais"] is False
+
+
+def test_scrape_event_fanout_loads_the_event_page_once(monkeypatch):
+    """#1048 : la date et les heats venaient de deux GET de la même page."""
+    event_html = load_klikego_fixture("mesquer-2026-event.html")
+    appels: list[str] = []
+
+    class FakeResp:
+        def __init__(self, text: str, code: int = 200):
+            self.text, self.status_code = text, code
+
+    class FakeClient:
+        def __init__(self, *a, **k): pass
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+
+        def get(self, url: str, *a, **k):
+            appels.append(url)
+            if "/external/live5/index.jsp" in url:
+                return FakeResp("", 500)
+            return FakeResp(event_html)
+
+    dates: dict[str, object] = {}
+
+    def fake_heat(event_id, heat, heat_label, event_name, slug, event_date, client, **kwargs):
+        dates[heat] = event_date
+        return []
+
+    monkeypatch.setattr(klikego.httpx, "Client", FakeClient)
+    monkeypatch.setattr(klikego, "_scrape_single_heat", fake_heat)
+    slug = "triathlon-et-swimrun-mesquer-quimiac-2026"
+    klikego.scrape_event_fanout("1677015306084-12", "Mesquer", slug)
+
+    assert appels.count(f"{klikego.BASE}/resultats/{slug}/1677015306084-12") == 1
+    assert dates
