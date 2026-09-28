@@ -86,7 +86,7 @@ export function FeedbackButton() {
           height: 52,
           borderRadius: "50%",
           background: "var(--tcn-orange)",
-          color: "var(--tcn-ink-on-orange, #fff)",
+          color: "#fff",
           border: "none",
           boxShadow: "var(--tcn-shadow-modal)",
           fontSize: 22,

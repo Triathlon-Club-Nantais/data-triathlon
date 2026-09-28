@@ -54,7 +54,7 @@ export function ImprovementMatrix({
   return (
     <Card style={{ overflowX: "auto" }}>
       <Eyebrow>Où gagner des places</Eyebrow>
-      <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: "var(--tcn-text-secondary)" }}>
+      <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: "var(--tcn-text-muted)" }}>
         Places gagnées à l&apos;arrivée si ce segment avait été couru plus vite,
         le reste de l&apos;épreuve inchangé.
       </p>

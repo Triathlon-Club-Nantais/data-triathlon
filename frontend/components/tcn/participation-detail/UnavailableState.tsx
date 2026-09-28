@@ -34,7 +34,7 @@ export function UnavailableState({ isRelay }: { isRelay: boolean }) {
       >
         Comparaison au classement indisponible
       </h2>
-      <p style={{ fontSize: 15, lineHeight: 1.6, color: "var(--tcn-text-secondary)" }}>
+      <p style={{ fontSize: 15, lineHeight: 1.6, color: "var(--tcn-text-muted)" }}>
         {isRelay ? (
           <>
             Les statistiques individuelles ne sont pas calculées pour une
