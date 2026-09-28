@@ -235,3 +235,26 @@ def test_athlete_detail_course_finishers_null_sans_finisher_classe(client):
     detail = client.get(f"/api/v1/athletes/{athletes[0]['id']}").json()
 
     assert detail["participations"][0]["course_finishers"] is None
+
+
+def test_reporting_an_unhandled_url_twice_keeps_one_entry(client):
+    """#1089 : chaque nouvelle tentative d'un visiteur ajoutait une ligne (4 fois la
+    même URL en moins de 3 min en production)."""
+    url = "https://newchrono.fr/abc"
+    first = client.post("/api/v1/admin/pending-providers", json={"url": url}).json()
+    second = client.post("/api/v1/admin/pending-providers", json={"url": url}).json()
+
+    assert second["id"] == first["id"]
+    assert len(client.get("/api/v1/admin/pending-providers").json()) == 1
+
+
+def test_a_handled_report_does_not_absorb_a_new_one(db_session):
+    from app.repositories import pending_provider_repository
+
+    handled = pending_provider_repository.create(db_session, url="https://newchrono.fr/abc")
+    handled.handled = True
+    db_session.flush()
+
+    fresh = pending_provider_repository.create(db_session, url="https://newchrono.fr/abc")
+
+    assert fresh.id != handled.id

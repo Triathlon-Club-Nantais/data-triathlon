@@ -69,6 +69,12 @@ def _url_host(url: str) -> str:
         return ""
 
 
+def _uses_breizhchrono_live_engine(url: str) -> bool:
+    """Façade live, sauf la fiche coureur `coureur.jsp?ref=` qu'elle publie aussi
+    et que seul le moteur classique sait lire (#1089)."""
+    return _url_host(url) == breizhchrono.LIVE_HOST and "coureur.jsp" not in urlparse(url).path
+
+
 def _host_match(url: str, hosts: tuple[str, ...]) -> bool:
     """Vrai si le host de `url` est l'un de `hosts`, ou un vrai sous-domaine.
 
@@ -332,7 +338,7 @@ class BreizhChronoProvider(FanoutProvider):
         (#698). Même détection que `scrape_event_all`, sans effet de bord."""
         from app.scrapers.breizhchrono import _parse_bc_url, _parse_live_url
 
-        if _url_host(url) == breizhchrono.LIVE_HOST:
+        if _uses_breizhchrono_live_engine(url):
             _, heat = _parse_live_url(url)
             return bool(heat)
         _, heat, _ = _parse_bc_url(url)
@@ -357,7 +363,7 @@ class BreizhChronoProvider(FanoutProvider):
         # différente : on route vers le moteur live plutôt que de rejeter.
         # Égalité stricte sur le host (`_url_host`), pas d'appartenance : un `in`
         # routait aussi `live.breizhchrono.com.attaquant.tld` (#432).
-        if _url_host(url) == breizhchrono.LIVE_HOST:
+        if _uses_breizhchrono_live_engine(url):
             reference, heat = _parse_live_url(url)
             if not reference:
                 raise ValueError(

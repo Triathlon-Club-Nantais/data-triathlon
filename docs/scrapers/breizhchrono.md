@@ -18,7 +18,10 @@ et route sur le sous-domaine :
 - `resultats.breizhchrono.com/bc/resultats/coureur.jsp?ref=&heat=&dossard=` — le
   `dossard` est **ignoré** (l'import reste le heat entier) et le slug en ressort
   vide : ni nom dérivé, ni `source_url` propre
-  (`/resultats-courses/-{event-id}/{heat}`). Préférer la forme nominale ;
+  (`/resultats-courses/-{event-id}/{heat}`). Préférer la forme nominale. Le site
+  publie la même fiche sous `live.breizhchrono.com/bc/resultats/coureur.jsp` :
+  elle suit ce moteur classique, pas le moteur live, qui ne lit que `?reference=`
+  (#1089) ;
 - `live.breizhchrono.com/external/live5/{index,classements}.jsp?reference=` — et
   `&heat=` optionnel — vers `scrape_live_event_all`. La `reference` **est** la
   clé `ref` du data block ; sans elle, refus avant tout appel réseau. Le host
