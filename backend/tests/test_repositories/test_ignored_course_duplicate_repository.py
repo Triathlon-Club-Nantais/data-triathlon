@@ -28,28 +28,38 @@ def _course(db_session, name="A", url="https://www.chronosmetron.com/a"):
     return course
 
 
+def _epreuves(db_session, nombre):
+    """Des épreuves réelles : PostgreSQL vérifie les clés étrangères (#947)."""
+    return [
+        _course(db_session, name=f"E{rang}", url=f"https://www.chronosmetron.com/e{rang}")
+        for rang in range(nombre)
+    ]
+
+
 def test_create_consigne_la_paire_normalisee_et_l_auteur(db_session):
     auteur = _auteur(db_session)
+    petite, grande = _epreuves(db_session, 2)
 
     ignoree = ignored_course_duplicate_repository.create(
-        db_session, course_id_a=50, course_id_b=38, user_id=auteur.id
+        db_session, course_id_a=grande.id, course_id_b=petite.id, user_id=auteur.id
     )
     db_session.flush()
 
-    assert (ignoree.course_id_low, ignoree.course_id_high) == (38, 50)
+    assert (ignoree.course_id_low, ignoree.course_id_high) == (petite.id, grande.id)
     assert ignoree.ignored_by_user_id == auteur.id
     assert ignoree.ignored_at is not None
 
 
 def test_exists_est_vrai_quel_que_soit_l_ordre_des_ids(db_session):
     auteur = _auteur(db_session)
+    a, b = _epreuves(db_session, 2)
     ignored_course_duplicate_repository.create(
-        db_session, course_id_a=38, course_id_b=50, user_id=auteur.id
+        db_session, course_id_a=a.id, course_id_b=b.id, user_id=auteur.id
     )
     db_session.flush()
 
-    assert ignored_course_duplicate_repository.exists(db_session, course_id_a=38, course_id_b=50)
-    assert ignored_course_duplicate_repository.exists(db_session, course_id_a=50, course_id_b=38)
+    assert ignored_course_duplicate_repository.exists(db_session, course_id_a=a.id, course_id_b=b.id)
+    assert ignored_course_duplicate_repository.exists(db_session, course_id_a=b.id, course_id_b=a.id)
 
 
 def test_exists_est_faux_sans_ligne(db_session):
@@ -58,25 +68,27 @@ def test_exists_est_faux_sans_ligne(db_session):
 
 def test_exists_ne_confond_pas_deux_paires_distinctes(db_session):
     auteur = _auteur(db_session)
+    a, b, c = _epreuves(db_session, 3)
     ignored_course_duplicate_repository.create(
-        db_session, course_id_a=38, course_id_b=50, user_id=auteur.id
+        db_session, course_id_a=a.id, course_id_b=b.id, user_id=auteur.id
     )
     db_session.flush()
 
-    assert not ignored_course_duplicate_repository.exists(db_session, course_id_a=38, course_id_b=51)
+    assert not ignored_course_duplicate_repository.exists(db_session, course_id_a=a.id, course_id_b=c.id)
 
 
 def test_all_pairs_rend_toutes_les_paires_normalisees_en_une_requete(db_session):
     auteur = _auteur(db_session)
+    a, b, c, d = _epreuves(db_session, 4)
     ignored_course_duplicate_repository.create(
-        db_session, course_id_a=50, course_id_b=38, user_id=auteur.id
+        db_session, course_id_a=b.id, course_id_b=a.id, user_id=auteur.id
     )
     ignored_course_duplicate_repository.create(
-        db_session, course_id_a=1, course_id_b=2, user_id=auteur.id
+        db_session, course_id_a=c.id, course_id_b=d.id, user_id=auteur.id
     )
     db_session.flush()
 
-    assert ignored_course_duplicate_repository.all_pairs(db_session) == {(38, 50), (1, 2)}
+    assert ignored_course_duplicate_repository.all_pairs(db_session) == {(a.id, b.id), (c.id, d.id)}
 
 
 def test_all_pairs_est_vide_sans_ligne(db_session):

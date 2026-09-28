@@ -1,5 +1,7 @@
+import os
 from datetime import date, timedelta
 
+import pytest
 from sqlalchemy import func, select, text
 
 from app.core.time import utcnow
@@ -8,6 +10,11 @@ from app.models.course import Course
 from app.models.course_source import CourseSource
 from app.models.participation import Participation
 from app.repositories import athlete_repository, course_repository, participation_repository
+
+_SQLITE_ONLY = pytest.mark.skipif(
+    bool(os.environ.get("TEST_POSTGRES_URL")),
+    reason="`EXPLAIN QUERY PLAN` est propre à SQLite ; le job PostgreSQL (#947) ne le lit pas.",
+)
 
 
 def test_get_or_create_dedups_on_identity(db_session):
@@ -315,6 +322,7 @@ def test_delete_ne_touche_pas_les_epreuves_voisines(db_session):
     assert db_session.query(Participation).filter_by(course_id=voisine_id).count() == 2
 
 
+@_SQLITE_ONLY
 def test_le_filtre_scope_club_utilise_l_index_fonctionnel(db_session):
     """Non-régression #351 : `_filtered(club_only=True)` ne balaie plus `participations`.
 
@@ -600,6 +608,7 @@ def test_recompute_tcn_counts_rewrites_only_the_courses_whose_count_changes(db_s
     assert stale.tcn_count == 1
 
 
+@_SQLITE_ONLY
 def test_active_source_url_lookup_uses_the_url_index(db_session):
     """Every URL lookup filters on the active source's URL (#1025)."""
     from app.models.course_source import CourseSource

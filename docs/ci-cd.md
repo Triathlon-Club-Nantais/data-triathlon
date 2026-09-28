@@ -26,6 +26,10 @@ Toute PR déclenche la CI seule (aucun déploiement).
   **Run workflow** → branche) quand elle ne s'est pas déclenchée seule ;
   l'exécution porte alors sur la branche, pas sur sa fusion avec `main`.
   - Backend : `uv run ruff check .` + `uv run pytest -m "not integration"` (Python 3.13).
+  - Backend sur PostgreSQL 16 (`backend-postgres`, #947) : `alembic upgrade head`,
+    `alembic check`, `downgrade -1` puis `upgrade head`, et `tests/test_repositories`
+    contre une base de service. Les fixtures y basculent quand `TEST_POSTGRES_URL`
+    est posée ; sans elle, la suite locale reste sur SQLite, sans serveur.
   - Frontend : `npm run lint` (eslint) + `npm test` (vitest) + `npm run build`
     (typecheck TS strict + build Next/RSC).
 - **`.github/workflows/deploy.yml`** — déclenché sur `push` (branche `main` et
@@ -55,7 +59,7 @@ Toute PR déclenche la CI seule (aucun déploiement).
 360 minutes par défaut de GitHub : une étape figée (registre npm ou PyPI muet,
 test en attente, `vercel build` bloqué) garderait sinon le groupe de
 `concurrency` pris pendant 6 h. Les valeurs laissent une large marge sur les
-durées observées : 15 min pour les jobs de `ci.yml` (~1 min), 20 min pour
+durées observées : 15 min pour les jobs de `ci.yml` (~1 min, 20 pour `backend-postgres`), 20 min pour
 `deploy-preview`/`deploy-production` (1 à 3 min, plus les retries curl vers
 Render), 10 min pour ceux de `pages.yml`, 30 min pour `scraper-drift.yml`. L'attente d'approbation de
 l'environment `production` ne compte pas dans ce délai.
