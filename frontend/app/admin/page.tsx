@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { AdminIndex } from "@/components/admin/AdminIndex";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
+
+export const metadata: Metadata = { title: "Back-office" };
 
 /**
  * Racine de l'administration — le **sommaire** du back-office (ADM-6).

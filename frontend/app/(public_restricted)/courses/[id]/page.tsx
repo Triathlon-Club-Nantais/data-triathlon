@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
 import { rendreNullSi404 } from "@/lib/api/null-si-404";
@@ -17,6 +18,8 @@ import { GenderDonut } from "@/components/charts/GenderDonut";
 import { CategoryBars } from "@/components/charts/CategoryBars";
 import { CATEGORY_PARAM, CLUB_PARAM, SCOPE_CLUB, SCOPE_PARAM, scopeFromParam } from "@/lib/scope";
 import { PAGE_SIZE_PARAM, parsePageSize } from "@/lib/pageSize";
+
+export const metadata: Metadata = { title: "Épreuve" };
 
 
 /**

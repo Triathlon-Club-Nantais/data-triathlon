@@ -1,4 +1,7 @@
+import type { Metadata } from "next";
 import { SiteAccessGate } from "@/components/site-access/SiteAccessGate";
+
+export const metadata: Metadata = { title: "Code d'accès" };
 
 /**
  * Route sœur du groupe gardé : c'est la cible d'une navigation directe et le

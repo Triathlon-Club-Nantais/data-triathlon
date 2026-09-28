@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { CalendrierEntrainements } from "@/components/admin/jeunes/CalendrierEntrainements";
+
+export const metadata: Metadata = { title: ecran("/admin/jeunes/calendrier").title };
 
 /**
  * Le calendrier des entraînements jeunes (#868, epic #863).

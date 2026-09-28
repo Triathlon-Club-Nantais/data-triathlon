@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { BatchLauncher } from "@/components/admin/BatchLauncher";
 import { BatchRunList } from "@/components/admin/BatchRunList";
 import { SheetUpload } from "@/components/admin/SheetUpload";
+
+export const metadata: Metadata = { title: ecran("/admin/batches").title };
 
 /**
  * Lancer et suivre les batches (#47).

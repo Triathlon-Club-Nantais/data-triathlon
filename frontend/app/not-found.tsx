@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
+
+export const metadata: Metadata = { title: "Page introuvable" };
 
 /**
  * Écran d'absence — remplace le « 404 — This page could not be found. » anglais

@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { GuideSommaire } from "@/components/guide/GuideSommaire";
 import { GuideSection } from "@/components/guide/GuideSection";
 import { GUIDE_MEMBRE } from "@/components/guide/guide-content.membre";
+
+export const metadata: Metadata = { title: "Guide utilisateur" };
 
 export default function GuidePage() {
   return (

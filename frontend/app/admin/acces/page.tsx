@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
@@ -5,6 +6,8 @@ import { AllowedEmailsTable } from "@/components/admin/AllowedEmailsTable";
 import { BenevoleAccessConfig } from "@/components/admin/BenevoleAccessConfig";
 import { SiteAccessConfig } from "@/components/admin/SiteAccessConfig";
 import { RevokeSessionsCard } from "@/components/admin/RevokeSessionsCard";
+
+export const metadata: Metadata = { title: ecran("/admin/acces").title };
 
 /**
  * Premier écran de la section « Gestion des utilisateurs » (#170).

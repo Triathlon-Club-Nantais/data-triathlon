@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
@@ -17,6 +18,8 @@ import { PageShell } from "@/components/layout/PageShell";
 import { EmptyState } from "@/components/ui/empty-state";
 import { aggregateDisciplines, formatCount, pctFr } from "@/lib/utils/format";
 import { DisciplineBar } from "./DisciplineBar";
+
+export const metadata: Metadata = { title: "Tableau de bord" };
 
 /** Petit libellé visuel au-dessus d'un contrôle de filtrage (NAV-5, #483) —
  *  même style que les en-têtes de la table "Dernières épreuves" plus bas

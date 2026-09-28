@@ -35,7 +35,8 @@ const barlowCond = Barlow_Semi_Condensed({
 });
 
 export const metadata: Metadata = {
-  title: "TCN — Résultats triathlon",
+  // Chaque écran porte son titre, complété ici (#1040, WCAG 2.4.2).
+  title: { template: "%s · TCN", default: "TCN — Résultats triathlon" },
   description: `Résultats de compétition des membres du ${CLUB_NAME}`,
 };
 

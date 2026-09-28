@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
@@ -19,6 +20,8 @@ import { resumeAthlete } from "@/lib/utils/athlete-stats";
 import { estRelais } from "@/lib/utils/relais";
 import { ProgressionChart } from "@/components/charts/ProgressionChart";
 import { AthleteComparisonChart } from "@/components/charts/AthleteComparisonChart";
+
+export const metadata: Metadata = { title: "Athlète" };
 
 export default async function AthletePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

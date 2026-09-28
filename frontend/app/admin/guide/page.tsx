@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { GuideSommaire } from "@/components/guide/GuideSommaire";
 import { GuideSection } from "@/components/guide/GuideSection";
 import { GUIDE_ADMIN } from "@/components/guide/guide-content.admin";
+
+export const metadata: Metadata = { title: "Guide d'administration" };
 
 // Cette page n'est volontairement pas déclarée dans `nav.config.ts` (voir le
 // commentaire sur `a-flags` dans ce fichier) : son `PageHeader` est donc

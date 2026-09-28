@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { idDeRoute } from "@/lib/utils/id-de-route";
 import { ProfileDetail } from "@/components/admin/ProfileDetail";
+
+export const metadata: Metadata = { title: "Profil" };
 
 /**
  * Détail d'un profil (#867) — route dédiée plutôt qu'une modale, pour rester

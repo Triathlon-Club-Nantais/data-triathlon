@@ -1,7 +1,10 @@
+import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { AdminVolunteerActionsTable } from "@/components/benevolat/AdminVolunteerActionsTable";
+
+export const metadata: Metadata = { title: ecran("/admin/benevolat").title };
 
 /**
  * Écran de validation des déclarations de crédit d'athlète (#779, jamais
