@@ -204,4 +204,17 @@ describe("ResultRow", () => {
     expect(container.querySelector('[data-segment="t1"]')).toBeNull();
     expect(container.querySelectorAll("[data-segment]").length).toBe(3);
   });
+
+  it("montre le statut d'un non-finisher au lieu de deux tirets (#1091)", () => {
+    render(
+      <ResultRow
+        participation={participation({ status: "DNF", rank_overall: null, total_time: null })}
+        segments={SEGMENTS}
+        steps={[]}
+      />,
+    );
+
+    expect(screen.getByText("DNF")).toBeInTheDocument();
+    expect(screen.getByText("Abandon")).toBeInTheDocument();
+  });
 });

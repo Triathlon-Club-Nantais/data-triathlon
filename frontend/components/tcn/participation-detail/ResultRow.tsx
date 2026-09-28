@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import type { Participation, RankingEvolutionStep } from "@/lib/types";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { genderShort, ordinalFr } from "@/lib/utils/format";
+import { StatusBadge, nonFinisherLabel } from "@/components/results/StatusBadge";
 // Imports directs plutôt que via le barrel `@/components/tcn`, qui réexporte
 // ce composant : le cycle ne se verrait qu'au build.
 import { Card } from "../Card";
@@ -38,6 +39,10 @@ export function ResultRow({
     .filter(Boolean)
     .join(" ");
 
+  // Un non-finisher n'a ni rang ni temps : deux tirets se liraient comme des
+  // données perdues. Mêmes libellés que le classement (#1091).
+  const abandonLabel = nonFinisherLabel(participation.status);
+
   const secondaryRanks = [
     { label: "cat.", value: participation.rank_category },
     { label: "genre", value: participation.rank_gender },
@@ -58,7 +63,10 @@ export function ResultRow({
         {participation.rank_overall != null ? (
           <PlaceBadge place={participation.rank_overall} style={{ fontSize: 22, minWidth: 44 }} />
         ) : (
-          <span style={{ color: "var(--tcn-text-faint)" }}>—</span>
+          <StatusBadge
+            status={participation.status}
+            fallback={<span style={{ color: "var(--tcn-text-faint)" }}>—</span>}
+          />
         )}
         {secondaryRanks.length > 0 && (
           <div
@@ -105,7 +113,7 @@ export function ResultRow({
             color: "var(--tcn-ink)",
           }}
         >
-          {participation.total_time ?? "—"}
+          {participation.total_time ?? abandonLabel ?? "—"}
         </div>
       </div>
 

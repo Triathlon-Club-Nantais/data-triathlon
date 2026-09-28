@@ -99,7 +99,7 @@ export default async function ParticipationDetailPage({
             />
           </>
         ) : (
-          <UnavailableState />
+          <UnavailableState isRelay={course.is_relay} />
         )}
 
         {summary?.histogram && (
