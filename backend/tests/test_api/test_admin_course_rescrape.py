@@ -22,7 +22,7 @@ from app.core.permissions import P
 from app.models.organisation import Organisation
 from app.models.role_permission import RolePermission
 from app.repositories import role_repository, user_repository, user_role_repository
-from app.services import admin_actions
+from app.services import admin_actions, sse_relay
 from app.services.auth import session as session_service
 
 
@@ -112,7 +112,7 @@ def test_a_holder_of_courses_sources_streams_the_rescrape(client, monkeypatch):
 
 
 def test_a_heartbeat_marker_becomes_a_comment_frame_not_a_data_frame(client, monkeypatch):
-    """#731 — la sentinelle `admin_actions.SSE_HEARTBEAT` (émise par
+    """#731 — la sentinelle `sse_relay.HEARTBEAT` (émise par
     `_stream_rescrape` sur une phase longue) doit devenir une ligne de
     commentaire SSE `: heartbeat`, jamais un `data:` JSON — même contrat que
     `scrape.py::generate()` (#705), pour qu'un proxy d'infra la tienne pour
@@ -120,7 +120,7 @@ def test_a_heartbeat_marker_becomes_a_comment_frame_not_a_data_frame(client, mon
 
     def fake_iter_rescrape_course(db, *, course_id, user_id, settings):
         yield {"phase": "scraping", "message": "Récupération des participants…"}
-        yield admin_actions.SSE_HEARTBEAT
+        yield sse_relay.HEARTBEAT
         yield {
             "phase": "done", "imported": 1, "updated": 0, "skipped": 0,
             "reconciled": 0, "total": 1, "orphans_removed": 0,

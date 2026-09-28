@@ -18,7 +18,6 @@ soit ensuite — et ne permettrait pas de **nommer** la fiche en conflit, ce
 qu'exigent FR-005 et FR-021.
 """
 import logging
-import queue
 import threading
 from collections.abc import Iterator
 from typing import NamedTuple
@@ -45,7 +44,7 @@ from app.repositories import (
 from app.schemas.course import CourseSourceOut
 from app.scrapers.base import STATUS_FINISHER
 from app.scrapers.utils import MAX_RELAY_TEAMMATES, MIN_RELAY_TEAMMATES
-from app.services import import_service
+from app.services import import_service, sse_relay
 
 logger = logging.getLogger(__name__)
 
@@ -415,20 +414,16 @@ def _stream_switch_course_source(
     thread dédié indépendant de la consommation du flux (FR-011, patron exact
     de `_stream_rescrape`, dont la docstring détaille pourquoi la `Session`
     n'est ni close ici ni ailleurs)."""
-    events: queue.Queue[dict | object] = queue.Queue()
-    sentinel = object()
-    holder: dict = {}
-
-    def worker() -> None:
+    def worker(emit: sse_relay.Emit) -> dict:
         try:
             candidats = athlete_repository.only_on_course(db, course_id)
-            events.put({"phase": "scraping", "message": "Récupération des participants…"})
+            emit({"phase": "scraping", "message": "Récupération des participants…"})
 
             results, _trace = _drain_scrape(
                 import_service._scrape_all_streaming(
                     source_url, db, settings, use_cache_probe=False
                 ),
-                events,
+                emit,
             )
             _require_same_event(results, attendue)
 
@@ -442,7 +437,7 @@ def _stream_switch_course_source(
             supprimees = participation_repository.delete_for_course(db, course)
             course_source_repository.set_active(db, source)
 
-            events.put({"phase": "saving", "total": len(results)})
+            emit({"phase": "saving", "total": len(results)})
             outcome = import_service.persist_results(db, source_url, results)
             purges = athlete_repository.delete_orphans_among(db, candidats)
 
@@ -465,7 +460,7 @@ def _stream_switch_course_source(
                 },
             )
             db.commit()
-            holder["done"] = {
+            final = {"phase": "done",
                 "participations_deleted": supprimees,
                 "participations_imported": outcome["imported"],
                 "athletes_purged": len(purges),
@@ -481,42 +476,17 @@ def _stream_switch_course_source(
             )
         except DomainError as exc:
             db.rollback()
-            holder["error"] = exc.message
+            final = {"phase": "error", "message": exc.message}
         except Exception:
             db.rollback()
             logger.exception("Rollback de la bascule de source de la course %s", course_id)
-            holder["error"] = "Erreur lors de l'enregistrement des résultats."
+            final = {"phase": "error", "message": "Erreur lors de l'enregistrement des résultats."}
         finally:
-            events.put(sentinel)
             _release_rescrape_lock(course_id)
+        # Rendu après le `finally` : l'event final part verrou libéré.
+        return final
 
-    thread = threading.Thread(target=worker, daemon=True)
-    thread.start()
-
-    silence = 0.0
-    while True:
-        # Même compromis que `_stream_rescrape` : 0,5 s entre réactivité de
-        # la coupure côté client et coût CPU. Au-delà de
-        # `_SSE_HEARTBEAT_INTERVAL_SECONDS` sans event métier, un battement
-        # (#731) tient la connexion ouverte côté proxy d'infra — même besoin
-        # que `scrape.py::generate()` (#705).
-        try:
-            item = events.get(timeout=0.5)
-        except queue.Empty:
-            silence += 0.5
-            if silence >= _SSE_HEARTBEAT_INTERVAL_SECONDS:
-                silence = 0.0
-                yield SSE_HEARTBEAT
-            continue
-        silence = 0.0
-        if item is sentinel:
-            break
-        yield item
-
-    if "error" in holder:
-        yield {"phase": "error", "message": holder["error"]}
-    else:
-        yield {"phase": "done", **holder["done"]}
+    return sse_relay.relay(worker)
 
 
 def _require_same_event(results: list, attendue: dict) -> None:
@@ -552,15 +522,6 @@ def _require_same_event(results: list, attendue: dict) -> None:
     )
 
 
-#: Battement SSE (#731) : même faille que #705 côté import public — une phase
-#: sans event métier (fan-out Klikego lent, 30-40 s, documenté ci-dessous) peut
-#: laisser ces deux flux totalement silencieux assez longtemps pour qu'un
-#: proxy d'infra (Vercel/Render) coupe la connexion avant `done`/`error`.
-#: Sentinelle dédiée, distincte d'un event métier et du `sentinel` de fin de
-#: flux local à chaque générateur : la route qui consomme ce générateur la
-#: reconnaît pour émettre une ligne de commentaire SSE plutôt que du JSON.
-_SSE_HEARTBEAT_INTERVAL_SECONDS = 15.0
-SSE_HEARTBEAT = object()
 
 
 class CourseRescrapeAlreadyRunningError(DomainError):
@@ -674,14 +635,10 @@ def _stream_rescrape(
     chaque re-scrape est le coût accepté ; upgrade si le volume de re-scrapes
     concurrents en fait un jour un problème mesuré (pool de connexions dédié).
     """
-    events: queue.Queue[dict | object] = queue.Queue()
-    sentinel = object()
-    holder: dict = {}
-
-    def worker() -> None:
+    def worker(emit: sse_relay.Emit) -> dict:
         try:
             candidats = athlete_repository.only_on_course(db, course_id)
-            events.put({"phase": "scraping", "message": "Récupération des participants…"})
+            emit({"phase": "scraping", "message": "Récupération des participants…"})
 
             # `_scrape_all_streaming` yield déjà ses propres events `scraping`
             # par heat (fan-out Klikego, #156) — relayés tels quels par
@@ -690,12 +647,12 @@ def _stream_rescrape(
                 import_service._scrape_all_streaming(
                     source_url, db, settings, use_cache_probe=False
                 ),
-                events,
+                emit,
             )
             _require_same_event(results, attendue)
 
             total = len(results)
-            events.put({
+            emit({
                 "phase": "saving", "total": total,
                 "imported": 0, "updated": 0, "skipped": 0, "progress": 0,
             })
@@ -703,7 +660,7 @@ def _stream_rescrape(
             # le re-scrape les sautait et défaisait les rangs renumérotés (#914).
             for done, persister in import_service.persist_steps(db, source_url, results):
                 if done and (done % 20 == 0 or done == total):
-                    events.put({
+                    emit({
                         "phase": "saving", "total": total,
                         "imported": persister.imported, "updated": persister.updated,
                         "skipped": persister.skipped, "progress": done,
@@ -727,7 +684,7 @@ def _stream_rescrape(
                 },
             )
             db.commit()
-            holder["done"] = {
+            final = {"phase": "done",
                 "imported": persister.imported,
                 "updated": persister.updated,
                 "skipped": persister.skipped,
@@ -741,46 +698,21 @@ def _stream_rescrape(
             )
         except DomainError as exc:
             db.rollback()
-            holder["error"] = exc.message
+            final = {"phase": "error", "message": exc.message}
         except Exception:
             db.rollback()
             logger.exception("Rollback du re-scrape de la course %s", course_id)
-            holder["error"] = "Erreur lors de l'enregistrement des résultats."
+            final = {"phase": "error", "message": "Erreur lors de l'enregistrement des résultats."}
         finally:
-            events.put(sentinel)
             _release_rescrape_lock(course_id)
+        # Rendu après le `finally` : l'event final part verrou libéré.
+        return final
 
-    thread = threading.Thread(target=worker, daemon=True)
-    thread.start()
-
-    silence = 0.0
-    while True:
-        # Même compromis que `_scrape_all_streaming` : 0,5 s entre réactivité de
-        # la coupure côté client et coût CPU. Au-delà de
-        # `_SSE_HEARTBEAT_INTERVAL_SECONDS` sans event métier, un battement
-        # (#731) tient la connexion ouverte côté proxy d'infra — même besoin
-        # que `scrape.py::generate()` (#705).
-        try:
-            item = events.get(timeout=0.5)
-        except queue.Empty:
-            silence += 0.5
-            if silence >= _SSE_HEARTBEAT_INTERVAL_SECONDS:
-                silence = 0.0
-                yield SSE_HEARTBEAT
-            continue
-        silence = 0.0
-        if item is sentinel:
-            break
-        yield item
-
-    if "error" in holder:
-        yield {"phase": "error", "message": holder["error"]}
-    else:
-        yield {"phase": "done", **holder["done"]}
+    return sse_relay.relay(worker)
 
 
-def _drain_scrape(gen: Iterator[dict], events: "queue.Queue[dict | object]") -> tuple:
-    """Pousse chaque event intermédiaire de `gen` dans `events`, rend `(results, trace)`.
+def _drain_scrape(gen: Iterator[dict], emit: sse_relay.Emit) -> tuple:
+    """Émet chaque event intermédiaire de `gen`, rend `(results, trace)`.
 
     `gen` est le générateur de `_scrape_all_streaming` — appelé ici depuis un
     thread ordinaire (pas via `yield from`, réservé aux corps de générateur),
@@ -788,7 +720,7 @@ def _drain_scrape(gen: Iterator[dict], events: "queue.Queue[dict | object]") -> 
     """
     while True:
         try:
-            events.put(next(gen))
+            emit(next(gen))
         except StopIteration as stop:
             return stop.value
 

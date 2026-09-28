@@ -12,13 +12,10 @@ frames) — la mécanique de scrape/remplacement/purge est couverte par
 dépassait le délai du proxy sur une épreuve fan-out, d'où un 502 avant même le
 premier octet.
 """
-import json
-from dataclasses import asdict, is_dataclass
-
 from fastapi import APIRouter, Depends
-from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
+from app.api import sse
 from app.api.deps import require_permission
 from app.core.analytics import capture_event
 from app.core.config import Settings, get_settings
@@ -30,24 +27,6 @@ from app.schemas.course import CourseSourceSwitch
 from app.services import admin_actions
 
 router = APIRouter(tags=["admin"])
-
-
-def _json_default(value: object) -> object:
-    """Même filet que `scrape.py`/`admin_course_rescrape.py` : dataclasses
-    (`Reassignment`…) non sérialisables nativement."""
-    if is_dataclass(value) and not isinstance(value, type):
-        return asdict(value)
-    return str(value)
-
-
-#: Même padding que `scrape.py`/`admin_course_rescrape.py` — contourne le
-#: buffering de proxy/navigateur qui retiendrait les tout premiers octets.
-_SSE_INITIAL_PADDING = b":" + b" " * 2048 + b"\n\n"
-
-#: Même battement que `scrape.py::generate()`/`admin_course_rescrape.py` (#705,
-#: #731) — traduit la sentinelle `admin_actions.SSE_HEARTBEAT` en ligne de
-#: commentaire SSE, ignorée par le parseur front comme le padding initial.
-_SSE_HEARTBEAT = b": heartbeat\n\n"
 
 
 @router.patch("/admin/courses/{course_id}/sources/{source_id}")
@@ -110,23 +89,7 @@ def switch_course_source(
         db.close()
         raise
 
-    def generate():
-        yield _SSE_INITIAL_PADDING
-        for event in events:
-            if event is admin_actions.SSE_HEARTBEAT:
-                yield _SSE_HEARTBEAT
-                continue
-            yield f"data: {json.dumps(event, default=_json_default)}\n\n"
-
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache, no-transform",
-            "X-Accel-Buffering": "no",
-            "Content-Encoding": "identity",
-        },
-    )
+    return sse.event_stream(events)
 
 
 @router.delete("/admin/courses/{course_id}/sources/{source_id}", status_code=204)
