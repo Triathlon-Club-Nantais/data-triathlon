@@ -854,3 +854,28 @@ def test_volunteer_declarations_downgrade_renders_valid_postgresql_types(monkeyp
     assert "CREATE TABLE volunteer_declarations" in sql
     assert "DATETIME" not in sql
     assert "created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL" in sql
+
+
+def test_course_model_declares_the_postgresql_trigram_index():
+    """#1023 : sans déclaration au modèle, `alembic check` sous PostgreSQL proposait de le supprimer."""
+    from sqlalchemy.dialects import postgresql
+    from sqlalchemy.schema import CreateIndex
+
+    from app.models.course import Course
+
+    index = next(i for i in Course.__table__.indexes if i.name == "ix_courses_name_trgm")
+    ddl = str(CreateIndex(index).compile(dialect=postgresql.dialect()))
+    assert "USING gin (name gin_trgm_ops)" in ddl
+
+    engine = sa.create_engine("sqlite://")
+    try:
+        Course.__table__.create(engine)
+        assert "ix_courses_name_trgm" not in {i["name"] for i in sa.inspect(engine).get_indexes("courses")}
+    finally:
+        engine.dispose()
+
+
+def test_alembic_check_finds_no_drift_on_sqlite(sqlite_url):
+    """#1023 : l'index trigram, propre à PostgreSQL, ne doit pas apparaître comme à créer."""
+    command.upgrade(_alembic_config(), "head")
+    command.check(_alembic_config())

@@ -3,7 +3,7 @@ import importlib
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
+from sqlalchemy import engine_from_config, make_url, pool
 
 from app.core.config import get_settings
 from app.core.database import Base
@@ -23,11 +23,27 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+# PostgreSQL réécrit l'expression de ces index dans son catalogue (casts, `TRIM(BOTH
+# FROM ...)`) : la comparaison textuelle d'Alembic ne converge jamais (#1023).
+_UNCOMPARABLE_EXPRESSION_INDEXES = {"ix_participations_club_normalized"}
+# Déclarés au modèle avec `ddl_if(dialect="postgresql")` : absents ailleurs, à dessein.
+_POSTGRESQL_ONLY_INDEXES = {"ix_courses_name_trgm"}
+_IS_POSTGRESQL = make_url(get_settings().database_url).get_backend_name() == "postgresql"
+
+
+def include_object(object_, name, type_, reflected, compare_to) -> bool:
+    if type_ != "index":
+        return True
+    if name in _UNCOMPARABLE_EXPRESSION_INDEXES:
+        return False
+    return _IS_POSTGRESQL or name not in _POSTGRESQL_ONLY_INDEXES
+
 
 def run_migrations_offline() -> None:
     context.configure(
         url=config.get_main_option("sqlalchemy.url"),
         target_metadata=target_metadata,
+        include_object=include_object,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         render_as_batch=True,  # nécessaire pour ALTER sous SQLite
@@ -46,6 +62,7 @@ def run_migrations_online() -> None:
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
+            include_object=include_object,
             render_as_batch=True,
         )
         with context.begin_transaction():
