@@ -641,8 +641,25 @@ sur le run 31202351491), d'où l'artefact séparé.
 ### Le jeton d'accès à la plateforme
 
 Le réglage `GITHUB_BATCH_TOKEN` de l'instance porte un jeton **fine-grained**,
-restreint à ce dépôt, avec la seule permission `actions: write` — de quoi
-déclencher un `workflow_dispatch` et lire les exécutions, rien d'autre.
+restreint à ce dépôt, avec la seule permission `actions: write`.
+
+**Cette permission vaut pour tout le dépôt, pas pour `batch.yml`** (#1058). Son
+détenteur peut :
+
+- déclencher **n'importe quel** workflow à `workflow_dispatch`, avec les entrées
+  de son choix : `batch.yml` avec `target=production`, `render-sleep.yml` avec
+  `action=suspend` sur la production ;
+- annuler ou relancer des exécutions ;
+- supprimer des exécutions, leurs journaux et leurs artefacts, dont les
+  `rapport-<id>` et `bilan-<id>` qui gardent la trace des batches ;
+- activer ou désactiver des workflows. Désactiver `render-sleep.yml` rejoue la
+  panne silencieuse décrite en tête de ce fichier.
+
+**Risque résiduel accepté** : la frontière preview/production tient à
+`GITHUB_BATCH_TARGET` et au pouvoir `batch:run`, donc à l'application, jamais au
+jeton. Un jeton qui fuit depuis n'importe quelle instance, preview comprise,
+lance un batch sur la production, `batch-production` n'ayant volontairement aucun
+reviewer. La protection est donc celle des variables Render et des journaux.
 
 **Vide est un état légitime**, même politique que les réglages `AUTH_*` : le
 lancement s'annonce alors non configuré et le reste du site est intact. Les deux
