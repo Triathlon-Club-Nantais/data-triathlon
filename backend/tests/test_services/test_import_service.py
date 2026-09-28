@@ -2392,3 +2392,46 @@ def test_redate_skips_a_date_whose_identity_is_already_taken(db_session, patch_s
     _import_heat(db_session, patch_scraper, event_date=date(2026, 5, 15), heat_dated=True)
 
     assert course.event_date == date(2026, 5, 13)
+
+
+# ── Aucune transaction de lecture tenue pendant le scrape (#1015) ────────────
+
+
+def _patch_fanout_transaction_capture(monkeypatch, db):
+    from app.scrapers import registry
+
+    provider = registry.KlikegoProvider()
+    provider.last_trace = FanoutTrace(heats_enumerated=1)
+    monkeypatch.setattr(import_service.registry, "get_provider", lambda url: provider)
+    captured = {}
+
+    def fake_scrape(url, **kwargs):
+        captured["in_transaction"] = db.in_transaction()
+        return [_result("1", "DUPONT")]
+
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
+    return captured
+
+
+def test_iter_import_event_releases_the_cache_read_transaction_before_scraping(db_session, monkeypatch):
+    captured = _patch_fanout_transaction_capture(monkeypatch, db_session)
+
+    list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    assert captured["in_transaction"] is False
+
+
+def test_import_event_releases_the_cache_read_transaction_before_scraping(db_session, monkeypatch):
+    captured = _patch_fanout_transaction_capture(monkeypatch, db_session)
+
+    import_service.import_event(db_session, URL, _settings())
+
+    assert captured["in_transaction"] is False
+
+
+def test_cache_probe_ends_its_read_transaction_after_each_heat(db_session):
+    probe = import_service._make_cache_probe(db_session, _settings())
+
+    probe("https://www.klikego.com/resultats/inconnu/1")
+
+    assert db_session.in_transaction() is False

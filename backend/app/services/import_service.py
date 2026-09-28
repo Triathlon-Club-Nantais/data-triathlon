@@ -177,8 +177,12 @@ def _make_cache_probe(db: Session, settings: Settings):
     cache global (`_cached_result`) mais au niveau du heat individuel.
     """
     def probe(heat_url: str) -> bool:
-        course = course_repository.get_latest_by_source_url(db, heat_url)
-        return course is not None and cache.is_fresh(db, course, settings)
+        try:
+            course = course_repository.get_latest_by_source_url(db, heat_url)
+            return course is not None and cache.is_fresh(db, course, settings)
+        finally:
+            # Sans quoi la connexion reste « idle in transaction » tout le fan-out (#1015).
+            db.rollback()
 
     return probe
 
@@ -1431,6 +1435,8 @@ def import_event(
         cached = _cached_result(db, url, settings)
         if cached is not None:
             return {**cached, **_fanout_counters(None)}
+        # Relâche la lecture du cache : le scrape peut durer des minutes (#1015).
+        db.rollback()
 
     results, trace = _scrape_all(
         url, db, settings, single_heat=single_heat, use_cache_probe=not force,
@@ -1528,6 +1534,8 @@ def iter_import_event(
                 **cached, **_fanout_counters(None),
             }
             return
+        # Relâche la lecture du cache : le scrape peut durer des minutes (#1015).
+        db.rollback()
 
     yield {"phase": "scraping", "message": "Récupération des participants…"}
     try:
