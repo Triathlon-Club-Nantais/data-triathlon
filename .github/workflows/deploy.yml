@@ -135,7 +135,14 @@ jobs:
         with:
           node-version: "26"
 
-      - run: npm i -g vercel@54 # major épinglé : évite qu'une release Vercel casse le pipeline
+      # CLI Vercel à version exacte et dépendances verrouillées par intégrité
+      # (`.github/tools/vercel/package-lock.json`, suivi par Dependabot) : elle
+      # reçoit `VERCEL_TOKEN`, donc une release compromise l'exfiltrerait. Le
+      # simple `vercel@54` installait n'importe quelle 54.x et ses transitives (#1072).
+      - name: Install Vercel CLI (locked)
+        run: |
+          npm ci --prefix .github/tools/vercel --no-audit --no-fund
+          echo "$GITHUB_WORKSPACE/.github/tools/vercel/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Vercel (frontend) — preview
         # Pas de working-directory : le Root Directory (frontend) est déjà configuré côté projet Vercel.
@@ -245,7 +252,14 @@ jobs:
         with:
           node-version: "26"
 
-      - run: npm i -g vercel@54 # major épinglé : évite qu'une release Vercel casse le pipeline
+      # CLI Vercel à version exacte et dépendances verrouillées par intégrité
+      # (`.github/tools/vercel/package-lock.json`, suivi par Dependabot) : elle
+      # reçoit `VERCEL_TOKEN`, donc une release compromise l'exfiltrerait. Le
+      # simple `vercel@54` installait n'importe quelle 54.x et ses transitives (#1072).
+      - name: Install Vercel CLI (locked)
+        run: |
+          npm ci --prefix .github/tools/vercel --no-audit --no-fund
+          echo "$GITHUB_WORKSPACE/.github/tools/vercel/node_modules/.bin" >> "$GITHUB_PATH"
 
       - name: Vercel (frontend) — production
         # Pas de working-directory : le Root Directory (frontend) est déjà configuré côté projet Vercel.
