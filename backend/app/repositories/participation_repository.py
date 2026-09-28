@@ -17,7 +17,7 @@ from app.core.validation import validated_clause
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation, ParticipationTeammate
-from app.repositories import club_alias_repository
+from app.repositories import club_alias_repository, course_repository
 from app.repositories.athlete_repository import credits, name_filter, unaccent_like
 from app.scrapers.base import STATUS_FINISHER
 
@@ -25,15 +25,6 @@ from app.scrapers.base import STATUS_FINISHER
 def _is_postgres(db: Session) -> bool:
     """Vrai si le moteur est PostgreSQL (prod) — sinon SQLite (dev)."""
     return db.bind is not None and db.bind.dialect.name == "postgresql"
-
-
-def _course_name_filter(db: Session, term: str):
-    """Filtre nom de course tolérant : trigram pg_trgm (Postgres) sinon ILIKE (SQLite)."""
-    like = Course.name.ilike(f"%{term}%")
-    if _is_postgres(db):
-        # `%` = opérateur de similarité trigram → tolère les fautes de frappe.
-        return or_(like, Course.name.op("%")(term))
-    return like
 
 
 def get(db: Session, participation_id: int) -> Participation | None:
@@ -408,7 +399,7 @@ def _apply_course_filters(
     if event_type:
         q = q.filter(Course.event_type == event_type)
     if event_name:
-        q = q.filter(_course_name_filter(db, event_name))
+        q = q.filter(course_repository.name_filter(db, event_name))
     if date_from:
         q = q.filter(Course.event_date >= date_from)
     if date_to:
@@ -1239,7 +1230,7 @@ def _events_order(db: Session, sort: str, event_name: str | None):
         # date_desc par défaut : dates nulles en dernier.
         order = (Course.event_date.desc().nullslast(), Course.name, Course.id)
     if event_name and _is_postgres(db):
-        return (func.similarity(Course.name, event_name).desc(), *order)
+        return (course_repository.name_similarity(event_name).desc(), *order)
     return order
 
 

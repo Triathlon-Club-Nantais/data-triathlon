@@ -113,7 +113,7 @@ def test_postgres_avec_recherche_complete_le_tri_demande(pg_session, sort, expec
     `EventList` cesse de mentir), et `courses.name` reste dans l'ordre (le
     regroupement par compétition du front en dépend, issue #568)."""
     assert _compiled(pg_session, sort, "mesquer") == [
-        "similarity(courses.name, 'mesquer') DESC",
+        "similarity(unaccent(lower(courses.name)), 'mesquer') DESC",
         *expected_tail,
         "courses.id",
     ]

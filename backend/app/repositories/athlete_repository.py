@@ -18,7 +18,7 @@ from app.models.volunteer_action import VolunteerAction
 from app.scrapers.base import STATUS_FINISHER
 
 
-def _escape_like(word: str) -> str:
+def escape_like(word: str) -> str:
     """Échappe les jokers `LIKE` (`\\`, `%`, `_`) d'un terme utilisateur.
 
     Extrait de `name_filter` (#484) pour être réutilisé par le classement de
@@ -60,7 +60,7 @@ def name_filter(term: str, *, also=None):
     """
     clauses = []
     for word in deaccent(term).split():
-        word = _escape_like(word)
+        word = escape_like(word)
         pattern = f"%{word.lower()}%"
         clauses.append(
             or_(
@@ -515,7 +515,7 @@ def _relevance_rank(term: str):
     le design). `min(rang_nom, rang_prenom)` équivaut à « le palier le plus bas
     est atteint si l'une des deux conditions du palier l'est ».
     """
-    t = _escape_like(deaccent(term).lower())
+    t = escape_like(deaccent(term).lower())
     nom = func.unaccent(func.lower(Athlete.nom))
     prenom = func.unaccent(func.lower(Athlete.prenom))
     prefixe = or_(nom.like(f"{t}%", escape="\\"), prenom.like(f"{t}%", escape="\\"))
