@@ -623,7 +623,7 @@ def test_refusal_message_names_the_expected_url_shape():
     message = str(excinfo.value)
     assert "requetetriathlons.php" in message
     assert "CourseFichierGpsNom" in message
-    assert "fiche coureur" in message
+    assert "fiche athlète" in message  # #1082 : vocabulaire de la copie utilisateur
 
 
 def test_a_title_missing_one_field_is_refused_rather_than_read_shifted(monkeypatch):
