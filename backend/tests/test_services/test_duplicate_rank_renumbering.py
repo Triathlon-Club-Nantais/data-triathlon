@@ -34,11 +34,11 @@ def _settings() -> Settings:
 
 def _result(
     bib: str, rank_overall: int, total_time: str, *,
-    is_relay: bool = False, status: str = STATUS_FINISHER,
+    is_relay: bool = False, status: str = STATUS_FINISHER, provider: str = "raceresult",
 ) -> ScrapedResult:
     return ScrapedResult(
         source_url=URL,
-        provider="raceresult",
+        provider=provider,
         athlete_name=f"NOM-{bib}",
         athlete_firstname="Jean",
         bib_number=bib,
@@ -203,3 +203,89 @@ def test_doublon_de_rang_et_scission_relais_dans_le_meme_lot(db_session, patch_s
     assert ranks_solo == {"H1": 1, "F1": 2}
     # Relais : rang combiné compressé en 1..N, ordre d'origine préservé.
     assert ranks_relais == {"R1": 1, "R2": 2}
+
+
+
+def _ranks(db_session, is_relay: bool = False) -> dict[str, int | None]:
+    course = course_repository.get_by_identity(db_session, NOM, JOUR, TYPE, is_relay)
+    return {
+        p.bib_number: p.rank_overall
+        for p in participation_repository.list_for_course(db_session, course.id)
+    }
+
+
+# --- Opt-in par fournisseur, statut effectif (#940) ---------------------------
+
+
+def test_finishers_au_statut_vide_sont_renumerotes_chez_un_fournisseur_par_groupe(
+    db_session, patch_scraper
+):
+    """Le statut « finisher » n'est dérivé qu'à la persistance : un statut vide
+    avec un temps lisible est un finisher pour la renumérotation (#940)."""
+    patch_scraper(
+        [
+            _result("A", 1, "01:00:00", status=""),
+            _result("B", 1, "01:05:00", status=""),
+            _result("C", 2, "01:10:00", status=""),
+            _result("D", 2, "01:02:00", status=""),
+        ]
+    )
+    import_service.import_event(db_session, URL, _settings())
+
+    assert _ranks(db_session) == {"A": 1, "D": 2, "B": 3, "C": 4}
+
+
+def test_statut_vide_sans_temps_reste_hors_du_lot_renumerote(db_session, patch_scraper):
+    """Sans temps, le statut effectif est DNF : la ligne n'entre pas dans le tri."""
+    patch_scraper(
+        [
+            _result("A", 1, "01:05:00", status=""),
+            _result("B", 1, "01:00:00", status=""),
+            _result("C", 1, "", status=""),
+        ]
+    )
+    import_service.import_event(db_session, URL, _settings())
+
+    ranks = _ranks(db_session)
+    assert (ranks["B"], ranks["A"]) == (1, 2)
+    assert ranks["C"] == 1
+
+
+def test_relais_runnerbreizh_aux_rangs_partages_n_est_jamais_renumerote():
+    """RunnerBreizh publie une ligne par équipier, rang et temps partagés
+    (`docs/scrapers/runnerbreizh.md`) : 1,1,2,2 reste 1,1,2,2 (#940)."""
+    results = [
+        _result(f"E{index}", rank, temps, status="", is_relay=True, provider="runnerbreizh")
+        for index, (rank, temps) in enumerate(
+            [(1, "01:00:00"), (1, "01:00:00"), (2, "01:04:00"), (2, "01:04:00")]
+        )
+    ]
+
+    import_service._renumber_duplicate_ranks(results)
+
+    assert [r.rank_overall for r in results] == [1, 1, 2, 2]
+
+
+def test_vrais_ex_aequo_d_un_fournisseur_non_declare_sont_preserves(
+    db_session, patch_scraper
+):
+    """Un doublon 1,2,2,4 chez un fournisseur qui classe l'épreuve entière est
+    une égalité, pas un rang par groupe : jamais renuméroté, même finisher
+    explicite et temps différents (pénalité, temps officiel) (#940)."""
+    patch_scraper(
+        [
+            _result("A", 1, "01:00:00", provider="sporthive"),
+            _result("B", 2, "01:06:00", provider="sporthive"),
+            _result("C", 2, "01:05:00", provider="sporthive"),
+            _result("D", 4, "01:07:00", provider="sporthive"),
+        ]
+    )
+    import_service.import_event(db_session, URL, _settings())
+
+    assert _ranks(db_session) == {"A": 1, "B": 2, "C": 2, "D": 4}
+
+
+def test_seul_raceresult_declare_un_rang_par_groupe():
+    from app.scrapers import registry
+
+    assert [p.name for p in registry.PROVIDERS if p.ranks_per_group] == ["raceresult"]

@@ -2417,9 +2417,9 @@ def test_rescrape_renumbers_duplicated_ranks_like_every_import_path(db_session, 
     db_session.commit()
     scrape([
         replace(_resultat(course, "1", "LENT", prenom="Coureur", total_time="02:10:00"),
-                rank_overall=1, status="finisher"),
+                rank_overall=1, status="finisher", provider="raceresult"),
         replace(_resultat(course, "2", "RAPIDE", prenom="Coureur", total_time="01:59:00"),
-                rank_overall=1, status="finisher"),
+                rank_overall=1, status="finisher", provider="raceresult"),
     ])
 
     events = list(admin_actions.iter_rescrape_course(

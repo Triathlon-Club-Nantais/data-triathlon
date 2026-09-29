@@ -106,6 +106,11 @@ class ScraperProtocol(Protocol):
     """Contrat que tout provider doit respecter."""
 
     name: str
+    #: Vrai si la source publie son rang **par groupe d'affichage** (le genre,
+    #: souvent) et non pour l'épreuve entière. Opt-in, mesuré fournisseur par
+    #: fournisseur : seuls ceux-là voient leurs doublons de rang renumérotés
+    #: par temps (`import_service._renumber_duplicate_ranks`, #785, #940).
+    ranks_per_group: bool
 
     def matches(self, url: str) -> bool:
         """Vrai si ce provider sait traiter l'URL."""
@@ -128,6 +133,8 @@ class HostMatchedProvider:
     #: par le contenu obligerait à télécharger la page de toute URL inconnue
     #: avant de savoir la traiter.
     _HOSTS: tuple[str, ...] = ()
+
+    ranks_per_group = False
 
     def matches(self, url: str) -> bool:
         return _host_match(url, self._HOSTS)
@@ -468,6 +475,8 @@ class RaceResultProvider(FanoutProvider):
     _module = raceresult
     #: Sa sous-unité est le contest, désigné par l'URL.
     _echec_slug_est_url = True
+    #: `AUTORANK` publié par genre sur certaines épreuves (Embrunman, #785).
+    ranks_per_group = True
 
     def targets_single_heat(self, url: str) -> bool:
         """Vrai sur une sous-URL `?contest=N` (N ≠ 0) : fan-out comme import
@@ -654,6 +663,7 @@ class ProLiveSportProvider(FanoutProvider):
 
 class T2AreaProvider:
     name = "t2area"
+    ranks_per_group = False
 
     def matches(self, url: str) -> bool:
         # Allowlist **explicite** du seul host FFTRI : T2Area sert d'autres
@@ -711,6 +721,12 @@ def detect_provider(url: str) -> str:
 def provider_named(name: str) -> ScraperProtocol | None:
     """L'instance de provider de ce nom, ou None."""
     return next((provider for provider in PROVIDERS if provider.name == name), None)
+
+
+def ranks_per_group(name: str) -> bool:
+    """Vrai si le provider de ce nom publie un rang par groupe (#940)."""
+    provider = provider_named(name)
+    return provider is not None and provider.ranks_per_group
 
 
 def get_provider(url: str) -> ScraperProtocol | None:
