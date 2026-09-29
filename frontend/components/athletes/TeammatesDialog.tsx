@@ -90,7 +90,7 @@ export function TeammatesDialog({
           e.id != null ? e.id : { athlete_name: e.nom, athlete_firstname: e.prenom },
         ),
       });
-      toast.success(`Relais attribué à ${equipe.length} coureurs.`);
+      toast.success(`Relais attribué à ${equipe.length} athlètes.`);
       onClose();
       // La fiche courante peut avoir été purgée : `notFound()` prend le relais.
       router.refresh();
@@ -107,9 +107,9 @@ export function TeammatesDialog({
 
   const avis =
     refus ??
-    (equipe.length === 0 ? `Ajoutez au moins ${MIN_EQUIPIERS} coureurs pour attribuer ce relais.` : null) ??
-    (equipe.length === 1 ? "Pour un seul coureur, utilisez « Rattacher »." : null) ??
-    (complete ? `Un relais compte au plus ${MAX_EQUIPIERS} coureurs.` : null);
+    (equipe.length === 0 ? `Ajoutez au moins ${MIN_EQUIPIERS} athlètes pour attribuer ce relais.` : null) ??
+    (equipe.length === 1 ? "Pour un seul athlète, utilisez « Rattacher »." : null) ??
+    (complete ? `Un relais compte au plus ${MAX_EQUIPIERS} athlètes.` : null);
 
   return (
     <Modal
@@ -132,7 +132,7 @@ export function TeammatesDialog({
     >
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <p style={{ fontSize: 15, lineHeight: 1.6, color: "var(--tcn-text-body)", margin: 0 }}>
-          {intitule} apparaîtra sur la fiche de chaque coureur choisi. Une fiche au nom de
+          {intitule} apparaîtra sur la fiche de chaque athlète choisi. Une fiche au nom de
           l&apos;équipe qui n&apos;a plus aucun résultat sera supprimée.
         </p>
 
@@ -172,14 +172,14 @@ export function TeammatesDialog({
               color: "var(--tcn-text-muted)",
             }}
           >
-            Ajouter un coureur
+            Ajouter un athlète
           </label>
           <Input
             id={champRecherche}
             type="search"
             value={saisie}
             onChange={(e) => setSaisie(e.target.value)}
-            placeholder="Chercher un coureur par nom ou prénom…"
+            placeholder="Chercher un athlète par nom ou prénom…"
             autoComplete="off"
             disabled={attribution.isPending || complete}
           />
@@ -194,7 +194,7 @@ export function TeammatesDialog({
         >
         <fieldset style={{ border: 0, margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 6 }}>
           <legend style={{ fontSize: 13, fontWeight: 700, color: "var(--tcn-text-muted)", marginBottom: 6 }}>
-            Coureur sans fiche
+            Athlète sans fiche
           </legend>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, flex: "1 1 140px" }}>
@@ -223,7 +223,7 @@ export function TeammatesDialog({
                 !nouveauNom.trim() || !nouveauPrenom.trim() || attribution.isPending || complete
               }
             >
-              Ajouter ce coureur
+              Ajouter cet athlète
             </Button>
           </div>
         </fieldset>
@@ -240,12 +240,12 @@ export function TeammatesDialog({
           )}
           {!complete && candidats.data?.length === 0 && (
             <p style={{ fontSize: 13, color: "var(--tcn-text-faint)", margin: 0 }}>
-              Aucun coureur ne correspond à cette recherche.
+              Aucun athlète ne correspond à cette recherche.
             </p>
           )}
           {!complete && candidats.data && candidats.data.length >= PAGE_CANDIDATS && (
             <p style={{ fontSize: 13, color: "var(--tcn-text-muted)", margin: 0 }}>
-              Seuls les {PAGE_CANDIDATS} premiers coureurs sont listés : précisez la recherche si le
+              Seuls les {PAGE_CANDIDATS} premiers athlètes sont listés : précisez la recherche si le
               bon n&apos;y est pas.
             </p>
           )}

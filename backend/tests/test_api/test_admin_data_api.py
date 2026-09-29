@@ -528,7 +528,7 @@ def test_rattacher_vers_un_coureur_deja_classe_rend_409(client, db_session, ratt
     )
 
     assert reponse.status_code == 409
-    assert reponse.json()["detail"] == "Ce coureur a déjà un résultat sur cette épreuve."
+    assert reponse.json()["detail"] == "Cet athlète a déjà un résultat sur cette épreuve."
 
 
 def test_rattacher_vers_un_coureur_inconnu_rend_404(client, rattachement):
@@ -539,7 +539,7 @@ def test_rattacher_vers_un_coureur_inconnu_rend_404(client, rattachement):
     )
 
     assert reponse.status_code == 404
-    assert reponse.json()["detail"] == "Coureur introuvable."
+    assert reponse.json()["detail"] == "Athlète introuvable."
 
 
 def test_rattacher_un_resultat_inconnu_rend_404(client, rattachement):
@@ -815,7 +815,7 @@ def test_corriger_un_coureur_inconnu_rend_404(client):
     reponse = client.patch("/api/v1/admin/athletes/4242", json={"nom": "X"})
 
     assert reponse.status_code == 404
-    assert reponse.json()["detail"] == "Coureur introuvable."
+    assert reponse.json()["detail"] == "Athlète introuvable."
 
 
 def test_corriger_un_coureur_sans_session_rend_401(client, coureur):

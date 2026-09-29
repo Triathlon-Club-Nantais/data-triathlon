@@ -16,7 +16,12 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 - **Vocabulaire et registre de la copie publique** (#478) — l'objet que le
   club importe se dit **« épreuve »**, et c'est le seul mot que l'utilisateur
   lit ; `course` reste l'identifiant technique (route `/courses/`, champ
-  `course`), il ne doit jamais apparaître dans un libellé. Le registre est le
+  `course`), il ne doit jamais apparaître dans un libellé. La personne se dit
+  **« athlète »** dans toute copie destinée à l'utilisateur, admin et messages
+  d'erreur du backend compris, jamais « coureur » (#1082) : le club importe
+  aussi triathlons, swimruns et aquathlons. « Participant » reste pour compter
+  les inscrits d'une épreuve (#343). Les identifiants (`coureurId`,
+  `CACHES_ADMIN.coureurs`…) relèvent de #88, pas de cette règle. Le registre est le
   **vouvoiement** sur tout écran public — jamais de tutoiement dans une copie
   destinée à l'utilisateur.
 - `app/` — App Router. **Mot de passe d'accès au site (#509)** : `app/(public_restricted)/`
@@ -544,7 +549,7 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `results/` (ResultCard, ResultsList), `club/` (ClubDashboard, PodiumsList),
   `map/` (MapView), `dashboard/` (StatCardsRank, RecentCourses),
   `athletes/` (AthleteAdminPanel, ParticipationAdminActions — les gestes
-  d'administration posés sur la page publique d'un coureur, #439 : ils prennent
+  d'administration posés sur la page publique d'un athlète, #439 : ils prennent
   `tcn/` parce que c'est un écran public, et décident leur visibilité **dans le
   navigateur**, pouvoir par pouvoir, pour que la page reste rendue sans cookies),
   plus les deux bibliothèques de composants ci-dessous.

@@ -40,12 +40,12 @@ describe("SegmentedControl", () => {
         value="tcn"
         onChange={() => {}}
         options={[
-          { value: "all", label: "Tous les coureurs (42)" },
+          { value: "all", label: "Tous les athlètes (42)" },
           { value: "tcn", label: "TCN (7)", dot: true },
         ]}
       />,
     );
-    expect(screen.getByRole("button", { name: "Tous les coureurs (42)" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Tous les athlètes (42)" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "TCN (7)" })).toHaveAttribute("aria-pressed", "true");
   });
 

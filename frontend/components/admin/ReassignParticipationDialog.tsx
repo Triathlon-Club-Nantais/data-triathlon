@@ -51,7 +51,7 @@ export function ReassignParticipationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Rattacher ce résultat à un autre coureur</DialogTitle>
+          <DialogTitle>Rattacher ce résultat à un autre athlète</DialogTitle>
           <DialogDescription>
             {participation.course.name} — actuellement au nom de{" "}
             {participation.athlete.nom} {participation.athlete.prenom}. Le

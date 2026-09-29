@@ -93,10 +93,10 @@ describe("WipeParticipationsCard (#384)", () => {
   });
 
   it.each([
-    [1, 1, /1 résultat sera détruit/, /1 fiche coureur sera retirée/],
-    [0, 0, /0 résultat sera détruit/, /0 fiche coureur sera retirée/],
-    [2, 2, /2 résultats seront détruits/, /2 fiches coureur seront retirées/],
-    [412, 37, /412 résultats seront détruits/, /37 fiches coureur seront retirées/],
+    [1, 1, /1 résultat sera détruit/, /1 fiche athlète sera retirée/],
+    [0, 0, /0 résultat sera détruit/, /0 fiche athlète sera retirée/],
+    [2, 2, /2 résultats seront détruits/, /2 fiches athlète seront retirées/],
+    [412, 37, /412 résultats seront détruits/, /37 fiches athlète seront retirées/],
   ])(
     "accorde le verbe avec le nombre annoncé (%i, %i)",
     async (participations, athletes, phraseResultats, phraseCoureurs) => {
@@ -154,14 +154,14 @@ describe("WipeParticipationsCard (#384)", () => {
 
     await waitFor(() => expect(wipeAllParticipations).toHaveBeenCalled());
     expect(toastSuccess).toHaveBeenCalledWith(
-      "412 résultats supprimés, 37 fiches coureur purgées.",
+      "412 résultats supprimés, 37 fiches athlète purgées.",
     );
   });
 
   it.each([
-    [0, "0 résultat supprimé, 0 fiche coureur purgée."],
-    [1, "1 résultat supprimé, 1 fiche coureur purgée."],
-    [2, "2 résultats supprimés, 2 fiches coureur purgées."],
+    [0, "0 résultat supprimé, 0 fiche athlète purgée."],
+    [1, "1 résultat supprimé, 1 fiche athlète purgée."],
+    [2, "2 résultats supprimés, 2 fiches athlète purgées."],
   ])("accorde le bilan de la purge à %i (#1142)", async (n, bilan) => {
     getSession.mockResolvedValue(session(["participations:wipe_all"]));
     getParticipationsWipeImpact.mockResolvedValue({ participations: 412, athletes: 37 });

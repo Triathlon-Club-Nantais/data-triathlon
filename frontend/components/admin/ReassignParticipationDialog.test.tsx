@@ -82,7 +82,7 @@ describe("ReassignParticipationDialog", () => {
 
   it("dit en français qu'un coureur est déjà classé sur cette épreuve", async () => {
     reassignParticipation.mockRejectedValue(
-      new ApiError(409, "Ce coureur a déjà un résultat sur cette épreuve."),
+      new ApiError(409, "Cet athlète a déjà un résultat sur cette épreuve."),
     );
 
     afficher();
@@ -91,7 +91,7 @@ describe("ReassignParticipationDialog", () => {
 
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith(
-        "Ce coureur a déjà un résultat sur cette épreuve.",
+        "Cet athlète a déjà un résultat sur cette épreuve.",
       ),
     );
   });

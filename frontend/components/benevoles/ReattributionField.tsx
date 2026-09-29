@@ -114,7 +114,7 @@ export function ReattributionField({
         id="benevole-reattribution"
         value={recherche}
         onChange={(e) => setRecherche(e.target.value)}
-        placeholder="Nom du coureur"
+        placeholder="Nom de l'athlète"
         disabled={disabled}
         aria-describedby={erreur ? "benevole-reattribution-erreur" : undefined}
         style={{ width: "100%" }}
@@ -128,7 +128,7 @@ export function ReattributionField({
       )}
       {!enCours && resultats !== null && resultats.length === 0 && (
         <div style={{ color: "var(--tcn-text-faint)", fontSize: 13, marginTop: 8 }}>
-          Aucun coureur trouvé.
+          Aucun athlète trouvé.
         </div>
       )}
       {!enCours && resultats !== null && resultats.length > 0 && (

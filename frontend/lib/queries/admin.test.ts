@@ -95,7 +95,7 @@ describe("invalidations des gestes d'administration", () => {
 
   const gestes = [
     {
-      nom: "corriger un coureur",
+      nom: "corriger un athlète",
       hook: useUpdateAthlete,
       declencher: (mutate: (v: never) => void) =>
         mutate({ id: 1, champs: { nom: "Dupont" } } as never),

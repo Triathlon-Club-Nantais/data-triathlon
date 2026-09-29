@@ -136,7 +136,7 @@ export function VolunteerActionForm() {
               id="benevolat-athlete"
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
-              placeholder="Nom du coureur"
+              placeholder="Nom de l'athlète"
               aria-describedby={rechercheErreur ? rechercheErreurId : undefined}
             />
             {rechercheEnCours && (

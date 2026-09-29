@@ -306,7 +306,7 @@ describe("ParticipationAdminActions — rattacher un résultat (US4)", () => {
     await chercherUnCoureur();
     await userEvent.click(await screen.findByRole("button", { name: /LEMÉE/ }));
 
-    expect(await screen.findByText(/déjà au nom de ce coureur/i)).toBeInTheDocument();
+    expect(await screen.findByText(/déjà au nom de cet athlète/i)).toBeInTheDocument();
     expect(reassignParticipation).not.toHaveBeenCalled();
     expect(toastError).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -333,7 +333,7 @@ describe("ParticipationAdminActions — rattacher un résultat (US4)", () => {
     // très souvent la même épreuve. Le dire « réessayez dans un instant »
     // inviterait à une reprise qui échouera identiquement, sans fin.
     reassignParticipation.mockRejectedValue(
-      new ApiError(409, "Ce coureur a déjà un résultat sur cette épreuve."),
+      new ApiError(409, "Cet athlète a déjà un résultat sur cette épreuve."),
     );
 
     afficher();
@@ -344,7 +344,7 @@ describe("ParticipationAdminActions — rattacher un résultat (US4)", () => {
     // modale l'affiche telle quelle, à côté de la liste, pour que l'opérateur
     // choisisse un autre candidat sans rien retaper.
     expect(
-      await screen.findByText("Ce coureur a déjà un résultat sur cette épreuve."),
+      await screen.findByText("Cet athlète a déjà un résultat sur cette épreuve."),
     ).toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByLabelText("Rattacher à")).toHaveValue("lemée");
@@ -363,7 +363,7 @@ describe("ParticipationAdminActions — rattacher un résultat (US4)", () => {
     afficher();
     await chercherUnCoureur("martin");
 
-    expect(await screen.findByText(/20 premiers coureurs/i)).toBeInTheDocument();
+    expect(await screen.findByText(/20 premiers athlètes/i)).toBeInTheDocument();
   });
 
   it("ne l'annonce pas quand la recherche tient dans une page", async () => {
@@ -371,7 +371,7 @@ describe("ParticipationAdminActions — rattacher un résultat (US4)", () => {
     await chercherUnCoureur();
 
     await screen.findByRole("button", { name: /LEMÉE/ });
-    expect(screen.queryByText(/20 premiers coureurs/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/20 premiers athlètes/i)).not.toBeInTheDocument();
   });
 });
 

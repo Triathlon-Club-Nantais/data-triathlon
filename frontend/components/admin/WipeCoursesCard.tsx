@@ -45,7 +45,7 @@ export function WipeCoursesCard() {
       const a = resultat.athletes_purged;
       toast.success(
         `${motCompte(c, "épreuve")} ${plural(c, "supprimée")}, ` +
-          `${motCompte(a, "fiche")} coureur ${plural(a, "purgée")}.`,
+          `${motCompte(a, "fiche")} athlète ${plural(a, "purgée")}.`,
       );
       setOuvert(false);
     } catch (erreur) {
@@ -109,7 +109,7 @@ export function WipeCoursesCard() {
             </li>
             <li>
               <strong>{impact.data.athletes}</strong>{" "}
-              {plural(impact.data.athletes, "fiche coureur sera retirée", "fiches coureur seront retirées")}.
+              {plural(impact.data.athletes, "fiche athlète sera retirée", "fiches athlète seront retirées")}.
             </li>
           </ul>
         )}

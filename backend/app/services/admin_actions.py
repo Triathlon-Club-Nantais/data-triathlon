@@ -59,7 +59,7 @@ def _course_or_404(db: Session, course_id: int) -> Course:
 def _athlete_or_404(db: Session, athlete_id: int) -> Athlete:
     athlete = athlete_repository.get(db, athlete_id)
     if athlete is None:
-        raise NotFoundError("Coureur introuvable.")
+        raise NotFoundError("Athlète introuvable.")
     return athlete
 
 
@@ -752,7 +752,7 @@ def reassign_participation(
         course_id=participation.course_id,
         exclude_participation_id=participation.id,
     ):
-        raise DuplicateError("Ce coureur a déjà un résultat sur cette épreuve.")
+        raise DuplicateError("Cet athlète a déjà un résultat sur cette épreuve.")
 
     course_id = participation.course_id
     participation_repository.replace_teammates(db, participation, [])
@@ -830,7 +830,7 @@ def set_teammates(
         if isinstance(e, NewTeammate)
     ]
     if len(set(connus)) != len(connus) or len(set(inconnus)) != len(inconnus):
-        raise DomainError("Un même coureur figure deux fois dans l'équipe.")
+        raise DomainError("Un même athlète figure deux fois dans l'équipe.")
 
     actuels = participation_repository.teammate_athlete_ids(db, participation.id)
     if len(connus) == len(equipiers) and actuels == connus:
@@ -984,7 +984,7 @@ def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) 
     )
     if conflit is not None and conflit.id != athlete.id:
         raise DuplicateError(
-            f"Un coureur porte déjà cette identité (fiche #{conflit.id})."
+            f"Un athlète porte déjà cette identité (fiche #{conflit.id})."
         )
 
     # Le verrou se pose sur le **geste**, pas sur la présence du champ : le
@@ -1196,7 +1196,7 @@ def validate_season(db: Session, *, athlete_id: int, season: int, user_id: int):
     """
     _athlete_or_404(db, athlete_id)
     if season_validation_repository.get_for_athlete_season(db, athlete_id=athlete_id, season=season):
-        raise DuplicateError("La saison de ce coureur est déjà validée.")
+        raise DuplicateError("La saison de cet athlète est déjà validée.")
 
     validation = season_validation_repository.create(
         db, athlete_id=athlete_id, season=season, validated_by_user_id=user_id
@@ -1220,7 +1220,7 @@ def unvalidate_season(db: Session, *, athlete_id: int, season: int, user_id: int
         db, athlete_id=athlete_id, season=season
     )
     if validation is None:
-        raise NotFoundError("La saison de ce coureur n'est pas validée.")
+        raise NotFoundError("La saison de cet athlète n'est pas validée.")
 
     season_validation_repository.delete(db, validation)
     admin_action_log_repository.create(

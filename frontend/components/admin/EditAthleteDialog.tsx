@@ -49,7 +49,7 @@ export function EditAthleteDialog({
           birth_date: naissance === "" ? null : naissance,
         },
       });
-      toast.success("Fiche coureur corrigée.");
+      toast.success("Fiche athlète corrigée.");
       onOpenChange(false);
     } catch (erreur) {
       toast.error((erreur as Error).message);
@@ -60,9 +60,9 @@ export function EditAthleteDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Corriger la fiche coureur</DialogTitle>
+          <DialogTitle>Corriger la fiche athlète</DialogTitle>
           <DialogDescription>
-            Ces trois champs identifient un coureur de manière unique. Son historique
+            Ces trois champs identifient un athlète de manière unique. Son historique
             de résultats n&apos;est pas touché.
           </DialogDescription>
         </DialogHeader>

@@ -80,7 +80,7 @@ export function MergeCoursesDialog({
       toast.success(
         `« ${absorbee.name} » a été fusionnée dans la source conservée — ` +
           `${motCompte(p, "résultat")} sans correspondance ${plural(p, "a", "ont")} disparu, ` +
-          `${motCompte(a, "fiche")} coureur ${plural(a, "purgée")}.`,
+          `${motCompte(a, "fiche")} athlète ${plural(a, "purgée")}.`,
       );
       onOpenChange(false);
     } catch (erreur) {
@@ -131,7 +131,7 @@ export function MergeCoursesDialog({
           </li>
           <li>
             <strong>{impact.data.athletes_orphaned}</strong>{" "}
-            {plural(impact.data.athletes_orphaned, "fiche")} coureur ne{" "}
+            {plural(impact.data.athletes_orphaned, "fiche")} athlète ne{" "}
             {plural(impact.data.athletes_orphaned, "conservera", "conserveront")} plus aucun
             résultat et {plural(impact.data.athletes_orphaned, "sera retirée", "seront retirées")}.
           </li>

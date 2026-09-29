@@ -39,7 +39,7 @@ export function WipeParticipationsCard() {
       const a = resultat.athletes_purged;
       toast.success(
         `${motCompte(p, "résultat")} ${plural(p, "supprimé")}, ` +
-          `${motCompte(a, "fiche")} coureur ${plural(a, "purgée")}.`,
+          `${motCompte(a, "fiche")} athlète ${plural(a, "purgée")}.`,
       );
       setOuvert(false);
     } catch (erreur) {
@@ -57,7 +57,7 @@ export function WipeParticipationsCard() {
           <p className="text-[var(--tcn-text-faint)] text-sm">
             Vide entièrement les résultats pour repartir d&apos;une base propre —
             avant un rescrape complet, par exemple. Les épreuves et leurs sources
-            restent intactes ; seuls les résultats et les fiches coureur qu&apos;ils
+            restent intactes ; seuls les résultats et les fiches athlète qu&apos;ils
             laissent vides sont détruits.
           </p>
           <Button variant="destructive" onClick={() => setOuvert(true)}>
@@ -99,7 +99,7 @@ export function WipeParticipationsCard() {
             </li>
             <li>
               <strong>{impact.data.athletes}</strong>{" "}
-              {plural(impact.data.athletes, "fiche coureur sera retirée", "fiches coureur seront retirées")}.
+              {plural(impact.data.athletes, "fiche athlète sera retirée", "fiches athlète seront retirées")}.
             </li>
           </ul>
         )}

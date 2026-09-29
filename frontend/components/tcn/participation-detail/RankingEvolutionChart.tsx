@@ -76,7 +76,7 @@ export function RankingEvolutionChart({
           bare
           className="px-0 py-8"
           title="Classement par étape indisponible"
-          description="Aucune étape de cette épreuve n'a de position enregistrée pour ce coureur."
+          description="Aucune étape de cette épreuve n'a de position enregistrée pour cet athlète."
         />
       </Card>
     );

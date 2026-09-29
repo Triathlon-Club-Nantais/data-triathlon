@@ -31,7 +31,7 @@ export function AthleteSearchPicker({
     <div className="space-y-2">
       <Input
         type="search"
-        placeholder="Chercher un coureur par nom ou prénom…"
+        placeholder="Chercher un athlète par nom ou prénom…"
         value={saisie}
         onChange={(evenement) => setSaisie(evenement.target.value)}
       />
@@ -40,7 +40,7 @@ export function AthleteSearchPicker({
 
       {data && data.length === 0 && (
         <p className="text-[var(--tcn-text-faint)] text-sm">
-          Aucun coureur ne correspond à cette recherche.
+          Aucun athlète ne correspond à cette recherche.
         </p>
       )}
 

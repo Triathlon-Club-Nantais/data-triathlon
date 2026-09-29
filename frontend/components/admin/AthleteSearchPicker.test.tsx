@@ -82,6 +82,6 @@ describe("AthleteSearchPicker", () => {
     afficher();
     await userEvent.type(screen.getByRole("searchbox"), "zzzz");
 
-    expect(await screen.findByText(/aucun coureur/i)).toBeInTheDocument();
+    expect(await screen.findByText(/aucun athlète/i)).toBeInTheDocument();
   });
 });

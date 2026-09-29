@@ -31,7 +31,7 @@ FEATURE_GROUPS = "Groupes d'appartenance"
 FEATURE_PENDING_PROVIDERS = "Chronométreurs signalés"
 FEATURE_QUALITY = "Qualité des données"
 FEATURE_COURSES = "Épreuves"
-FEATURE_ATHLETES = "Coureurs"
+FEATURE_ATHLETES = "Athlètes"
 FEATURE_PARTICIPATIONS = "Résultats"
 FEATURE_BATCH = "Batches"
 FEATURE_FEEDBACK = "Retours utilisateurs"
@@ -177,7 +177,7 @@ class P:
         "courses:delete",
         "Supprimer une épreuve",
         "Retirer définitivement une épreuve, tous ses résultats, et les fiches "
-        "coureur qui n'en auraient plus aucun.",
+        "athlète qui n'en auraient plus aucun.",
         FEATURE_COURSES,
     )
     COURSES_WIPE_ALL = Permission(
@@ -203,23 +203,23 @@ class P:
     )
     ATHLETES_READ = Permission(
         "athletes:read",
-        "Consulter les fiches coureur",
-        "Rechercher un coureur et voir son identité complète, date de naissance "
+        "Consulter les fiches athlète",
+        "Rechercher un athlète et voir son identité complète, date de naissance "
         "comprise — la seule donnée personnelle que le site garde fermée.",
         FEATURE_ATHLETES,
     )
     ATHLETES_WRITE = Permission(
         "athletes:write",
-        "Corriger un coureur",
+        "Corriger un athlète",
         "Rectifier le nom, le prénom, la date de naissance ou le club actuel d'une "
-        "fiche coureur. Le club corrigé ici ne suit plus les imports suivants ; "
+        "fiche athlète. Le club corrigé ici ne suit plus les imports suivants ; "
         "les clubs portés par les résultats déjà enregistrés ne bougent pas.",
         FEATURE_ATHLETES,
     )
     ATHLETES_SEASON_VALIDATE = Permission(
         "athletes:season_validate",
-        "Valider la saison d'un coureur",
-        "Marquer — ou retirer — le statut de saison validée d'un coureur du "
+        "Valider la saison d'un athlète",
+        "Marquer — ou retirer — le statut de saison validée d'un athlète du "
         "club, geste humain distinct du calcul des compteurs.",
         FEATURE_ATHLETES,
     )
@@ -246,7 +246,7 @@ class P:
     PARTICIPATIONS_REASSIGN = Permission(
         "participations:reassign",
         "Rattacher un résultat",
-        "Associer un résultat au bon coureur, quand un scraper a créé un doublon "
+        "Associer un résultat au bon athlète, quand un scraper a créé un doublon "
         "d'identité.",
         FEATURE_PARTICIPATIONS,
     )

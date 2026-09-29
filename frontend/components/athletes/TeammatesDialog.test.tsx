@@ -77,7 +77,7 @@ describe("TeammatesDialog", () => {
     await ajouter(JEAN);
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Pour un seul coureur, utilisez « Rattacher ».",
+      "Pour un seul athlète, utilisez « Rattacher ».",
     );
   });
 
@@ -90,7 +90,7 @@ describe("TeammatesDialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Attribuer" }));
 
     await waitFor(() => expect(setParticipationTeammates).toHaveBeenCalledWith(314, [10, 11]));
-    expect(toastSuccess).toHaveBeenCalledWith("Relais attribué à 2 coureurs.");
+    expect(toastSuccess).toHaveBeenCalledWith("Relais attribué à 2 athlètes.");
     expect(refresh).toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
   });
@@ -121,7 +121,7 @@ describe("TeammatesDialog", () => {
     setParticipationTeammates.mockResolvedValue({});
     afficher([JEAN]);
 
-    const ajouterLaPersonne = screen.getByRole("button", { name: "Ajouter ce coureur" });
+    const ajouterLaPersonne = screen.getByRole("button", { name: "Ajouter cet athlète" });
     expect(ajouterLaPersonne).toBeDisabled();
     await userEvent.type(screen.getByLabelText("Nom"), "DURAND");
     expect(ajouterLaPersonne).toBeDisabled();
@@ -141,7 +141,7 @@ describe("TeammatesDialog", () => {
     afficher();
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Ajoutez au moins 2 coureurs pour attribuer ce relais.",
+      "Ajoutez au moins 2 athlètes pour attribuer ce relais.",
     );
   });
 
@@ -151,7 +151,7 @@ describe("TeammatesDialog", () => {
 
     await userEvent.type(screen.getByRole("searchbox"), "zzz");
 
-    expect(await screen.findByText("Aucun coureur ne correspond à cette recherche.")).toBeInTheDocument();
+    expect(await screen.findByText("Aucun athlète ne correspond à cette recherche.")).toBeInTheDocument();
   });
 
   it("ramène le focus sur la recherche après un retrait", async () => {
