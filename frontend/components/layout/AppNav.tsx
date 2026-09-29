@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { LogIn, Menu, PanelLeft, Plus, RotateCw, Search, X } from "lucide-react";
+import { Ellipsis, LogIn, Menu, PanelLeft, Plus, RotateCw, Search, X } from "lucide-react";
 import { Avatar, Button } from "@/components/tcn";
 import { SessionEnLecture, UserMenu } from "@/components/auth/UserMenu";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useSession } from "@/lib/queries/auth";
 import { useNavBadges } from "@/lib/queries/nav-badges";
 import { AthletePicker, ATHLETE_CHANGED_EVENT, OPEN_PICKER_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete, type PickerMode } from "./AthletePicker";
-import { NAV, ROLE, estVisible, type NavItem, type NavSection } from "./nav.config";
+import { BOTTOM_BAR_MAX, NAV, ROLE, estVisible, type NavItem, type NavSection } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 
@@ -150,24 +150,28 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
     // pouvoirs de la session — « Club » l'illustrait jusqu'à #487.
     .filter((s) => s.items.length > 0);
 
-  // Barre basse mobile (#482, NAV-4) : jamais codé en dur — dérivé des
-  // sections dont `minRole` vaut `ROLE.ANON`, pour rester aligné avec
-  // `nav.config.ts` au fil des livraisons futures (ex. « Carte », #10/#28).
-  const publicItems = sections.filter((s) => s.minRole === ROLE.ANON).flatMap((s) => s.items);
+  // Barre basse mobile (#482, NAV-4) : jamais codée en dur. Les
+  // `BOTTOM_BAR_MAX` premières destinations publiques visibles pour le profil,
+  // dans l'ordre de `nav.config.ts` (#1012) : sept onglets à 375 px repliaient
+  // leurs libellés sur deux lignes.
+  const barreItems = sections
+    .filter((s) => s.minRole === ROLE.ANON)
+    .flatMap((s) => s.items)
+    .slice(0, BOTTOM_BAR_MAX);
+  const dansLaBarre = new Set(barreItems.map((i) => i.id));
 
-  // Le tiroir mobile ne garde que ce qui exige une session — les sections
-  // publiques vivent désormais dans la barre basse (#482, NAV-4).
-  const sectionsPrivees = sections.filter((s) => s.minRole > ROLE.ANON);
+  // Le tiroir porte « le reste » : tout ce que la barre ne montre pas, sections
+  // publiques débordantes comprises. C'est ce reste qui fait naître « Plus ».
+  const sectionsReste = sections
+    .map((s) => ({ ...s, items: s.items.filter((i) => !dansLaBarre.has(i.id)) }))
+    .filter((s) => s.items.length > 0);
 
-  // Repli sur les sections publiques quand il n'y a rien d'autre à montrer
-  // (#621) : la barre basse mobile est masquée pendant que le tiroir est
-  // ouvert (le `Sheet` passe par-dessus), donc un visiteur sans section
-  // privée — anonyme, ou connecté sans aucun pouvoir d'administration, la
-  // quasi-totalité des adhérents — se retrouvait sans aucune destination à
-  // l'écran une fois le tiroir ouvert. Le repli ne joue que si le tiroir
-  // serait sinon vide de catégories, pour ne pas dupliquer la barre basse
-  // chez qui a déjà des sections privées à y voir.
-  const sectionsTiroir = sectionsPrivees.length > 0 ? sectionsPrivees : sections;
+  // Repli sur toutes les sections quand il ne reste rien (#621) : la barre
+  // basse est masquée pendant que le tiroir est ouvert (le `Sheet` passe
+  // par-dessus), donc un visiteur dont la barre porte tout (anonyme, ou
+  // adhérent sans pouvoir) se retrouvait sans aucune destination à l'écran une
+  // fois le tiroir ouvert par le hamburger. Seul cas de doublon avec la barre.
+  const sectionsTiroir = sectionsReste.length > 0 ? sectionsReste : sections;
 
   /**
    * Un `href` de la nav désigne **un** écran, pas une famille : c'est pourquoi
@@ -426,7 +430,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           borderTop: "1px solid var(--tcn-border-strong)",
         }}
       >
-        {publicItems.map((it) => {
+        {barreItems.map((it) => {
           const Icon = it.icon;
           const actif = isActive(it.href);
           return (
@@ -435,25 +439,26 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               href={it.href}
               aria-current={actif ? "page" : undefined}
               aria-label={it.labelCourt ? it.label : undefined}
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 2,
-                textDecoration: "none",
-                fontFamily: "var(--tcn-font-cond)",
-                fontWeight: 700,
-                fontSize: 11,
-                color: actif ? "var(--tcn-orange-deep)" : "var(--tcn-text-muted)", // 4,57:1 sur blanc (#1078)
-              }}
+              style={ongletBarre(actif)}
             >
               {Icon && <Icon size={20} />}
               <span>{it.labelCourt ?? it.label}</span>
             </Link>
           );
         })}
+        {sectionsReste.length > 0 && (
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-expanded={drawerOpen}
+            aria-controls={drawerOpen ? TIROIR_ID : undefined}
+            onClick={() => setDrawerOpen(true)}
+            style={ongletBarre(false)}
+          >
+            <Ellipsis size={20} />
+            <span>Plus</span>
+          </button>
+        )}
       </nav>
 
       {/* ── Tiroir mobile : le panneau déplié, à l'identique ── */}
@@ -1011,6 +1016,29 @@ const carrePrimaire: CSSProperties = {
 };
 
 /** Marqueur orange collé au bord du rail (le conteneur a 14px de gouttière). */
+/** Onglet de la barre basse mobile, lien ou bouton « Plus » (#1012). */
+function ongletBarre(actif: boolean): CSSProperties {
+  return {
+    flex: 1,
+    minWidth: 0,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    padding: 0,
+    border: 0,
+    background: "none",
+    cursor: "pointer",
+    textDecoration: "none",
+    whiteSpace: "nowrap",
+    fontFamily: "var(--tcn-font-cond)",
+    fontWeight: 700,
+    fontSize: 11,
+    color: actif ? "var(--tcn-orange-deep)" : "var(--tcn-text-muted)", // 4,57:1 sur blanc (#1078)
+  };
+}
+
 function barreActive(top: number): CSSProperties {
   return {
     position: "absolute",

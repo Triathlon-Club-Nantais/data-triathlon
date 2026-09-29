@@ -27,6 +27,13 @@ import {
  */
 export const ROLE = { ANON: 0, CONNECTED: 1, ADMIN: 2 } as const;
 
+/**
+ * Destinations au plus dans la barre basse mobile (#1012), avant l'onglet
+ * « Plus » qui ouvre le tiroir sur le reste. Quatre plus « Plus » tiennent à
+ * 375 px, libellés sur une ligne et cibles de 44 px au moins.
+ */
+export const BOTTOM_BAR_MAX = 4;
+
 /** Pouvoir de consultation des pages retirées du grand public (#811, #879). */
 export const PAGES_PREVIEW = "pages:preview";
 
@@ -54,9 +61,8 @@ export type NavItem = {
   description?: string;
   /**
    * Libellé **visible** de la barre basse mobile, quand `label` n'y tient pas
-   * (#487 : quatre onglets, ~93 px chacun sur un écran de 375 px). Le nom
-   * accessible du lien reste `label` — « Athlètes » ne distingue pas deux
-   * écrans à l'oreille. Absent = `label` convient.
+   * sur une ligne (#1012 : cinq onglets au plus, ~75 px chacun à 375 px). Le
+   * nom accessible du lien reste `label`. Absent = `label` convient.
    */
   labelCourt?: string;
   /** Absent quand `soon` : rien à atteindre, donc rien à rendre. */
@@ -118,7 +124,7 @@ export const NAV: NavSection[] = [
     minRole: ROLE.ANON,
     root: true,
     items: [
-      { id: "dashboard", label: "Tableau de bord", href: "/dashboard", icon: LayoutGrid },
+      { id: "dashboard", label: "Tableau de bord", labelCourt: "Accueil", href: "/dashboard", icon: LayoutGrid },
       { id: "resultats", label: "Résultats", href: "/resultats", icon: List },
       // `MapView.tsx` existe déjà, et la route `/carte` répond déjà en
       // direct : `soon` ne masque que l'entrée du rail (#10, #28), pas la
@@ -146,7 +152,6 @@ export const NAV: NavSection[] = [
       {
         id: "athletes-saison",
         label: "Athlètes par saison",
-        labelCourt: "Athlètes",
         href: "/club/athletes",
         icon: Users,
         permission: "pages:preview",
@@ -162,7 +167,6 @@ export const NAV: NavSection[] = [
       {
         id: "benevoles",
         label: "Validation des épreuves",
-        labelCourt: "Validation",
         href: "/benevoles",
         icon: UserCheck,
         preview: true,
