@@ -103,7 +103,8 @@ def _test_engine():
             connect_args={"check_same_thread": False},
             poolclass=StaticPool,
         )
-    engine = create_engine(url)
+    # Same driver resolution as production (#1136).
+    engine = create_engine(_config.Settings(database_url=url).database_url)
     with engine.begin() as connection:
         for extension in ("pg_trgm", "unaccent"):
             connection.exec_driver_sql(f"CREATE EXTENSION IF NOT EXISTS {extension}")

@@ -17,7 +17,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime
 from urllib.parse import urlparse
 
-import psycopg2.errorcodes
+import psycopg.errors
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
@@ -1501,9 +1501,8 @@ def _is_deadlock(exc: Exception) -> bool:
     en parallèle (#690), chacun dans sa propre transaction — un même athlète TCN
     mis à jour par deux transactions concurrentes peut faire cycler leurs verrous.
     Le SQLSTATE `40P01` identifie ce cas précis, indépendamment du message
-    (localisable, versionné selon le driver)."""
-    orig = getattr(exc, "orig", None)
-    return getattr(orig, "pgcode", None) == psycopg2.errorcodes.DEADLOCK_DETECTED
+    (localisable) : psycopg 3 le porte par la classe `DeadlockDetected`."""
+    return isinstance(getattr(exc, "orig", None), psycopg.errors.DeadlockDetected)
 
 
 def iter_import_event(
