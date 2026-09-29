@@ -1,11 +1,12 @@
 import { Badge } from "@/components/ui/badge";
+import { participationStatusLabel } from "@/lib/labels";
 
 // Statuts non-finishers porteurs d'un sigle. Un finisher (ou statut inconnu)
 // n'affiche aucun badge — le temps total suffit à le signaler.
 const NON_FINISHER_LABELS: Record<string, string> = {
-  DNS: "Non partant",
-  DNF: "Abandon",
-  DSQ: "Disqualifié",
+  DNS: participationStatusLabel("DNS"),
+  DNF: participationStatusLabel("DNF"),
+  DSQ: participationStatusLabel("DSQ"),
 };
 
 /** Libellé d'un statut non-finisher (« Abandon »…), `null` pour un finisher. */

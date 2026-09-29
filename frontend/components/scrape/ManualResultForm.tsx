@@ -13,12 +13,13 @@ import {
   MANUAL_ENTRY_TIME_FIELDS,
 } from "@/lib/constants";
 import type { ScrapedPreview } from "@/lib/types";
+import { participationStatusLabel } from "@/lib/labels";
 
-const STATUTS = [
-  { value: "finisher", label: "Terminée" },
-  { value: "DNF", label: "Abandon" },
-  { value: "DNS", label: "Forfait" },
-];
+// `DSQ` reste hors de la saisie manuelle (#1084, hors périmètre).
+const STATUTS = (["finisher", "DNF", "DNS"] as const).map((value) => ({
+  value,
+  label: participationStatusLabel(value),
+}));
 
 const TIME_KEYS = ["swim_time", "t1_time", "bike_time", "t2_time", "run_time"] as const;
 

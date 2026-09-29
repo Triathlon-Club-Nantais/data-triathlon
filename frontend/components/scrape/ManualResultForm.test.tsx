@@ -189,10 +189,13 @@ describe("ManualResultForm — qualification du résultat (US4)", () => {
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
   });
 
-  it("statut par défaut « Terminée » ; un abandon s'enregistre sans temps ni place", async () => {
+  it("statut par défaut « Arrivé » ; un abandon s'enregistre sans temps ni place", async () => {
     const onSubmit = vi.fn();
     render(<ManualResultForm onSubmit={onSubmit} />);
     expect(screen.getByLabelText("Statut")).toHaveValue("finisher");
+    // #1084 : même vocabulaire que le badge et les compteurs de l'épreuve.
+    const options = Array.from((screen.getByLabelText("Statut") as HTMLSelectElement).options);
+    expect(options.map((o) => o.textContent)).toEqual(["Arrivé", "Abandon", "Non partant"]);
 
     remplirSocle();
     await userEvent.selectOptions(screen.getByLabelText("Discipline"), "triathlon");

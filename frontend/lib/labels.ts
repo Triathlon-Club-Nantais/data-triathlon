@@ -43,3 +43,25 @@ const SCOPE_LABEL: Record<PodiumScope, string> = {
 export function podiumScopeLabel(s: PodiumScope): string {
   return SCOPE_LABEL[s];
 }
+
+/**
+ * Libellés des statuts de participation (#1084) : la saisie manuelle, le badge
+ * de résultat et les compteurs de l'épreuve disent le même mot, dans la même
+ * graphie. Les valeurs sont celles de l'API, jamais traduites côté backend.
+ */
+export const PARTICIPATION_STATUSES = ["finisher", "DNF", "DNS", "DSQ"] as const;
+export type ParticipationStatus = (typeof PARTICIPATION_STATUSES)[number];
+
+const STATUS_LABEL: Record<ParticipationStatus, { one: string; many: string }> = {
+  finisher: { one: "Arrivé", many: "Arrivants" },
+  DNF: { one: "Abandon", many: "Abandons" },
+  DNS: { one: "Non partant", many: "Non-partants" },
+  DSQ: { one: "Disqualifié", many: "Disqualifiés" },
+};
+
+export function participationStatusLabel(
+  status: ParticipationStatus,
+  opts?: { form?: "one" | "many" },
+): string {
+  return STATUS_LABEL[status][opts?.form ?? "one"];
+}
