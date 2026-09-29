@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useRef, useState } from "react";
 import { ApiError } from "@/lib/api/client";
 import { importEventStream } from "@/lib/api/sse";
 import type { HeatFailure, ImportProgressEvent, ImportedCourse } from "@/lib/types";
@@ -72,8 +72,16 @@ const INITIAL: ImportState = {
   retryAfter: null,
 };
 
-export function useImportStream() {
+/**
+ * L'état et les gestes d'un import. Tenu **une seule fois**, au niveau du
+ * layout, par `ImportStreamProvider` (#1062) : l'import survit ainsi à une
+ * navigation interne, et son verrou vaut pour tout le site. Les écrans lisent
+ * `useImportStream()`, jamais ce contrôleur directement.
+ */
+export function useImportStreamController() {
   const [state, setState] = useState<ImportState>(INITIAL);
+  // L'URL du flux ouvert : un formulaire remonté pendant l'import la reprend.
+  const [url, setUrl] = useState("");
   // Le contrôleur de l'import en cours — et, du même coup, le verrou : non
   // nul = un import tourne. `courant()` distingue « c'est toujours mon flux »
   // de « on m'a annulé, ou un autre import a démarré », pour qu'un flux
@@ -85,6 +93,7 @@ export function useImportStream() {
     const controle = new AbortController();
     abortRef.current = controle;
     const courant = () => abortRef.current === controle;
+    setUrl(url);
     setState({ ...INITIAL, running: true, phase: "scraping", message: "Récupération des participants…" });
     let termine = false;
     try {
@@ -174,9 +183,28 @@ export function useImportStream() {
     abortRef.current?.abort();
     abortRef.current = null;
     setState(INITIAL);
+    setUrl("");
   }, []);
 
-  const reset = useCallback(() => setState(INITIAL), []);
+  const reset = useCallback(() => {
+    setState(INITIAL);
+    setUrl("");
+  }, []);
 
-  return { state, start, cancel, reset };
+  return { state, url, start, cancel, reset };
+}
+
+export type ImportStream = ReturnType<typeof useImportStreamController> & {
+  /** Déclare un écran qui affiche l'import ; rend la fonction qui le retire.
+   *  Sans écran attaché, la fin de l'import s'annonce par un toast global. */
+  attach: () => () => void;
+};
+
+export const ImportStreamContext = createContext<ImportStream | null>(null);
+
+/** L'import partagé du site (#1062). Exige `ImportStreamProvider` au-dessus. */
+export function useImportStream(): ImportStream {
+  const valeur = useContext(ImportStreamContext);
+  if (!valeur) throw new Error("useImportStream exige ImportStreamProvider au-dessus");
+  return valeur;
 }

@@ -37,6 +37,7 @@ const importMock = vi.hoisted(() => {
   };
   return {
     start: vi.fn(),
+    attach: () => () => {},
     cancel: vi.fn(),
     reset: vi.fn(),
     get: () => state,
@@ -49,9 +50,11 @@ const importMock = vi.hoisted(() => {
 vi.mock("@/hooks/useImportStream", () => ({
   useImportStream: () => ({
     state: importMock.get(),
+    url: "",
     start: importMock.start,
     cancel: importMock.cancel,
     reset: importMock.reset,
+    attach: importMock.attach,
   }),
 }));
 
@@ -664,26 +667,7 @@ describe("TcnScrapeForm — une attente habitée (#491, ACT-4)", () => {
     expect(importMock.cancel).toHaveBeenCalled();
   });
 
-  it("prévient avant de quitter l'onglet tant que l'import tourne", () => {
-    importMock.set({ phase: "scraping", running: true });
-    const { unmount } = renderForm();
-
-    const evenement = new Event("beforeunload", { cancelable: true });
-    window.dispatchEvent(evenement);
-    expect(evenement.defaultPrevented).toBe(true);
-
-    unmount();
-    const apres = new Event("beforeunload", { cancelable: true });
-    window.dispatchEvent(apres);
-    expect(apres.defaultPrevented).toBe(false);
-  });
-
-  it("ne prévient pas quand aucun import ne tourne", () => {
-    renderForm();
-    const evenement = new Event("beforeunload", { cancelable: true });
-    window.dispatchEvent(evenement);
-    expect(evenement.defaultPrevented).toBe(false);
-  });
+  // La garde `beforeunload` a rejoint `ImportStreamProvider` (#1062), testée là.
 });
 
 describe("TcnScrapeForm — suites des revues (#491)", () => {

@@ -528,6 +528,21 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     un scrape muet retiendrait sinon le formulaire indéfiniment. Un
     `beforeunload` prévient tant que l'import tourne : fermer l'onglet coupe
     la SSE à mi-course.
+  - **Une navigation interne, elle, ne coupe rien** (#1062). L'état de
+    l'import vit dans `ImportStreamProvider` (monté par `app/providers.tsx`,
+    donc au niveau du layout racine), pas dans le formulaire :
+    `useImportStream()` lit ce contexte, `useImportStreamController()` en est
+    la seule instance. Quitter `/ajouter` démonte `TcnScrapeForm`, la SSE
+    continue ; si elle finit sans écran attaché (`attach()`), le provider
+    l'annonce par un toast global (terminé, partiel avec ses séries perdues,
+    ou échec), avec « Voir l'épreuve » vers la première épreuve touchée, et
+    remet l'état à zéro pour qu'un retour sur l'écran ne rejoue pas le bilan.
+    Revenir **pendant** l'import remonte le formulaire sur le flux ouvert
+    (champ prérempli, barre et « Annuler l'import ») : le verrou étant global,
+    la même URL ne peut pas être relancée tant que le premier flux est ouvert.
+    Le `beforeunload` a suivi l'état dans le provider, pour valoir où que l'on
+    soit. `ImportStreamProvider.test.tsx` démonte le formulaire en plein
+    import et fixe ces trois comportements.
 - **Le champ URL et le verdict qui vit sous lui** (#492) — trois points à ne pas
   rouvrir séparément :
   - **La taille de police d'un champ TCN vit dans `.tcn-input`, jamais en
