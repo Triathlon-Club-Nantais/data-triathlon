@@ -320,7 +320,8 @@ chiffres, puis minutes et secondes sur **deux** chiffres chacune, de 00 à 59.
 Acceptés : `0:00:00`, `1:05:30`, `01:05:30`, `100:00:00`. Refusés : `05:30`
 (sans heures), `1:5:30`, `1:05:3`, `1:05:30.5` (fraction), `1:60:00`,
 `1:05:60`, `1000:00:00`, `1h05`. Le formulaire de saisie manuelle valide le même
-format côté client, avec son message en français : les deux règles doivent
+motif côté client (`DUREE` de `ManualResultForm.tsx`), avec son message en
+français ; seul le retrait des blancs de bord est propre au serveur. Les deux règles doivent
 bouger ensemble (`test_le_format_de_temps_accepte_est_exactement_celui_documente`
 fige celle-ci).
 
