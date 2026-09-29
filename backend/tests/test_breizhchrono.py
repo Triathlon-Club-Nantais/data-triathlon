@@ -1146,7 +1146,8 @@ def _scrape_dinard_heat(monkeypatch, url: str):
             return FakeResp("<html></html>")
 
     monkeypatch.setattr(breizhchrono.http, "client", lambda **k: FakeClient())
-    return BreizhChronoProvider().scrape_event_all(url), requested
+    results, _trace = BreizhChronoProvider().scrape_event_all(url)
+    return results, requested
 
 
 def test_a_coureur_jsp_import_keeps_the_heat_name_and_the_canonical_source_url(monkeypatch):
@@ -1208,7 +1209,7 @@ def test_a_heat_page_that_names_nothing_keeps_the_previous_import(monkeypatch):
             return FakeResp("<html></html>")
 
     monkeypatch.setattr(breizhchrono.http, "client", lambda **k: FakeClient())
-    results = BreizhChronoProvider().scrape_event_all(
+    results, _trace = BreizhChronoProvider().scrape_event_all(
         "https://resultats.breizhchrono.com/bc/resultats/coureur.jsp"
         f"?ref={_DINARD_ID}&heat=swimrun-court-duo&dossard=111"
     )
