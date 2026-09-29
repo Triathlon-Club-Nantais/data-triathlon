@@ -38,7 +38,6 @@ function describeIssue(code: string, count: number): string {
   }
 }
 
-
 /**
  * Libellé nu d'un code d'anomalie — un **nom de catégorie**, pas une phrase.
  *

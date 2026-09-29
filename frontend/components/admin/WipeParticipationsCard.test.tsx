@@ -93,7 +93,8 @@ describe("WipeParticipationsCard (#384)", () => {
 
   it.each([
     [1, 1, /1 résultat sera détruit/, /1 fiche coureur sera retirée/],
-    [0, 0, /0 résultats seront détruits/, /0 fiches coureur seront retirées/],
+    [0, 0, /0 résultat sera détruit/, /0 fiche coureur sera retirée/],
+    [2, 2, /2 résultats seront détruits/, /2 fiches coureur seront retirées/],
     [412, 37, /412 résultats seront détruits/, /37 fiches coureur seront retirées/],
   ])(
     "accorde le verbe avec le nombre annoncé (%i, %i)",
@@ -154,6 +155,28 @@ describe("WipeParticipationsCard (#384)", () => {
     expect(toastSuccess).toHaveBeenCalledWith(
       "412 résultats supprimés, 37 fiches coureur purgées.",
     );
+  });
+
+  it.each([
+    [0, "0 résultat supprimé, 0 fiche coureur purgée."],
+    [1, "1 résultat supprimé, 1 fiche coureur purgée."],
+    [2, "2 résultats supprimés, 2 fiches coureur purgées."],
+  ])("accorde le bilan de la purge à %i (#1142)", async (n, bilan) => {
+    getSession.mockResolvedValue(session(["participations:wipe_all"]));
+    getParticipationsWipeImpact.mockResolvedValue({ participations: 412, athletes: 37 });
+    wipeAllParticipations.mockResolvedValue({
+      participations_deleted: n,
+      athletes_purged: n,
+      courses_reset: 12,
+    });
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /purger tous les résultats/i }));
+    await screen.findByText(/412/);
+    await userEvent.type(screen.getByLabelText(/tapez/i), "SUPPRIMER");
+    await userEvent.click(screen.getByRole("button", { name: /purger définitivement/i }));
+
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith(bilan));
   });
 
   it("une saisie approximative ne suffit pas", async () => {
