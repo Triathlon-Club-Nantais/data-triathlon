@@ -97,7 +97,7 @@ export function CalendrierEntrainements() {
                 )}
                 <span className="text-[var(--tcn-text-faint)] text-xs">
                   {entrainement.participant_count} inscrit
-                  {entrainement.participant_count === 1 ? "" : "s"}
+                  {entrainement.participant_count > 1 ? "s" : ""}
                 </span>
               </div>
             </Card>
