@@ -41,6 +41,7 @@ export default async function AthletesSeasonPage({
   if (!hasPagesPreview(session)) {
     return (
       <PreviewRefusal
+        session={session}
         header={
           <PageHeader
             backHref="/club"

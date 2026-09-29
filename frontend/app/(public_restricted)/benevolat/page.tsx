@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { VolunteerActionForm } from "@/components/benevolat/VolunteerActionForm";
+import { EN_TETE_BENEVOLAT } from "@/components/benevolat/en-tete";
 
 export const metadata: Metadata = { title: "Bénévolat" };
 
@@ -15,11 +16,7 @@ export default function BenevolatPage() {
   return (
     <PageShell>
       <div className="space-y-6">
-        <PageHeader
-          eyebrow="Bénévolat"
-          title="Créditer un athlète pour le quota de saison"
-          description="Recherchez un athlète et décrivez l'activité de bénévolat qu'il a effectuée. La déclaration est instruite par un administrateur avant de compter pour son quota."
-        />
+        <PageHeader {...EN_TETE_BENEVOLAT} />
         <VolunteerActionForm />
       </div>
     </PageShell>
