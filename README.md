@@ -353,3 +353,12 @@ Ce projet embarque deux outils d'assistance IA préconfigurés. Ils forment **de
 voies complètes qu'on ne croise jamais** : l'exécution suit l'outil qui a produit
 le plan. Quelle voie choisir, et quand se passer de plan : voir
 [`docs/WORKFLOW-IA.md`](docs/WORKFLOW-IA.md).
+
+---
+
+## Licence
+
+Copyright (C) 2026 Triathlon Club Nantais. Ce projet est distribué sous la
+licence **GNU Affero General Public License v3.0** (AGPL-3.0-only), dont le texte
+complet est dans [`LICENSE`](LICENSE). Toute version modifiée mise à disposition
+d'utilisateurs à travers un réseau doit en publier le code source (article 13).
