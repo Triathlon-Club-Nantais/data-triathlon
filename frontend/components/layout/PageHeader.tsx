@@ -2,6 +2,21 @@ import Link from "next/link";
 import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+/** Lien de remontée vers le parent hiérarchique, partagé avec les en-têtes composés à la main (#1085). */
+export function BackLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      // `py-1 -my-1` : la cible passe de 20 à 28 px de haut (SC 2.5.8 en
+      // demande 24) sans déplacer quoi que ce soit autour.
+      className="-my-1 inline-flex items-center gap-1 py-1 text-sm font-medium text-[var(--tcn-text-faint)] transition-colors hover:text-foreground"
+    >
+      <ChevronLeft className="size-4" />
+      {label}
+    </Link>
+  );
+}
+
 /**
  * En-tête de page homogène : (retour optionnel) + titre + description + slot
  * d'actions. Remplace les `h1` nus pour une hiérarchie cohérente sur tous les écrans.
@@ -28,17 +43,7 @@ export function PageHeader({
 }) {
   return (
     <div className={cn("space-y-3", className)}>
-      {backHref && (
-        <Link
-          href={backHref}
-          // `py-1 -my-1` : la cible passe de 20 à 28 px de haut (SC 2.5.8 en
-          // demande 24) sans déplacer quoi que ce soit autour.
-          className="-my-1 inline-flex items-center gap-1 py-1 text-sm font-medium text-[var(--tcn-text-faint)] transition-colors hover:text-foreground"
-        >
-          <ChevronLeft className="size-4" />
-          {backLabel}
-        </Link>
-      )}
+      {backHref && <BackLink href={backHref} label={backLabel} />}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="space-y-1.5">
           {eyebrow && <div className="eyebrow">{eyebrow}</div>}

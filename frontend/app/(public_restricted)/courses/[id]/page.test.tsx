@@ -120,6 +120,16 @@ describe("CoursePage", () => {
     ).toBeInTheDocument();
   });
 
+  // #1085 : parent fixe, libellé repris du `h1` de la destination (#488).
+  it("porte un lien de retour « Résultats » vers /resultats avant le titre (#1085)", async () => {
+    await afficher();
+
+    const retour = screen.getByRole("link", { name: "Résultats" });
+    expect(retour).toHaveAttribute("href", "/resultats");
+    const titre = screen.getByRole("heading", { level: 1 });
+    expect(retour.compareDocumentPosition(titre) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("écrit le club TCN du classement « Top clubs » en `--tcn-orange-deeper`, seul token à tenir 4,5:1 (A11Y-4)", async () => {
     await afficher();
 
