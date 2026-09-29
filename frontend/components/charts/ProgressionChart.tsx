@@ -27,6 +27,20 @@ const TICKS = 3;
 const MIN_POINTS = 3;
 
 /**
+ * Boîte du libellé d'un point, en pourcentage de la rangée : centrée sur son
+ * point, mais rabattue dans la rangée aux deux extrémités. Centrée, la dernière
+ * dépassait d'une demi-colonne à droite et faisait défiler toute la fiche
+ * athlète (#1139). `count` vaut au moins `MIN_POINTS`.
+ */
+function labelBox(index: number, count: number) {
+  const width = 100 / count;
+  const center = (100 * index) / (count - 1);
+  const left = Math.min(Math.max(center - width / 2, 0), 100 - width);
+  const textAlign = index === 0 ? "left" : index === count - 1 ? "right" : "center";
+  return { left: `${left}%`, width: `${width}%`, textAlign } as const;
+}
+
+/**
  * Évolution du ratio de performance (place / nombre de classés) d'un athlète
  * à travers ses participations. Plus le ratio est petit, meilleure est la
  * performance : l'axe est inversé, le meilleur ratio en haut — même
@@ -172,9 +186,7 @@ export function ProgressionChart({ points }: { points: ProgressionPoint[] }) {
               aria-hidden
               style={{
                 position: "absolute",
-                left: `calc(${(xOf(index) / W) * 100}% - 50% / ${points.length})`,
-                width: `calc(100% / ${points.length})`,
-                textAlign: "center",
+                ...labelBox(index, points.length),
                 fontSize: 11,
                 lineHeight: "14px",
                 color: "var(--tcn-text-faint)",
