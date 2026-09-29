@@ -89,6 +89,13 @@ def test_un_pouvoir_porte_son_francais_d_affichage(pouvoir: Permission):
     assert pouvoir.feature, f"{pouvoir.code} n'est rattaché à aucune fonctionnalité"
 
 
+def test_site_access_is_called_access_code_not_password():
+    """#1031 : l'adhérent dit « code d'accès », l'écran d'admin aussi."""
+    description = P.SITE_ACCESS_MANAGE.description
+    assert "code d'accès du site" in description
+    assert "mot de passe" not in description
+
+
 @pytest.mark.parametrize("pouvoir", permissions.ALL, ids=lambda p: p.code)
 def test_un_code_suit_la_forme_domaine_deux_points_geste(pouvoir: Permission):
     """FR-040 — `<domaine>:<geste>`, en minuscules, sans espace.

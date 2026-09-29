@@ -39,8 +39,8 @@ function Connexion() {
           Connexion
         </h1>
         <p style={{ color: "var(--tcn-text-muted)", fontSize: 14, marginBottom: 20 }}>
-          Le site reste entièrement consultable sans compte. La connexion ne sert
-          qu&apos;aux outils réservés aux contributeurs du club.
+          Les résultats se consultent avec le code d&apos;accès du club, sans
+          compte. La connexion GitHub ne sert qu&apos;aux contributeurs.
         </p>
 
         {erreur && (

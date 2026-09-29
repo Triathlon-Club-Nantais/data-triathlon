@@ -35,7 +35,7 @@ const ACTION_LABELS: Record<string, string> = {
   "club_alias.remove": "Retrait d'une variante de club",
   "counter_scope.entry_add": "Ajout d'un libellé à la portée des compteurs",
   "counter_scope.entry_remove": "Retrait d'un libellé de la portée des compteurs",
-  "site_access.password_replace": "Remplacement du code d'accès au site",
+  "site_access.password_replace": "Remplacement du code d'accès du site",
   "benevole_access.password_replace": "Remplacement du mot de passe bénévoles",
   "feedback.update": "Triage d'un retour utilisateur",
 };
@@ -111,7 +111,7 @@ const ENTITES: Record<string, { label: string; href?: string }> = {
   course_duplicate: { label: "Paire de doublons" },
   club_alias: { label: "Variante de club" },
   counter_scope_entry: { label: "Libellé de la portée des compteurs" },
-  site_access_config: { label: "Code d'accès au site" },
+  site_access_config: { label: "Code d'accès du site" },
   benevole_access_config: { label: "Mot de passe bénévoles" },
   feedback: { label: "Retour utilisateur" },
 };
