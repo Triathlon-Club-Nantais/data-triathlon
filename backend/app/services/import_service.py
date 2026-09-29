@@ -221,19 +221,22 @@ def _scrape_all(
             # (Klikego avec ?heat=…). Les autres retombent sur leur contrat
             # historique (événement entier en pot commun).
             if single_heat:
-                results, trace = registry_scrape_event_all(url, single_heat=True)
+                outcome = registry_scrape_event_all(url, single_heat=True)
             else:
-                results, trace = registry_scrape_event_all(url, cache_probe=cache_probe)
+                outcome = registry_scrape_event_all(url, cache_probe=cache_probe)
         else:
             # Autres providers, et URL non reconnue (`get_provider` → None, le
             # dispatcher lève) : trace synthétique 1-heat du dispatcher.
-            results, trace = registry_scrape_event_all(url)
+            outcome = registry_scrape_event_all(url)
     except ValueError as exc:  # provider non supporté pour l'import en masse
         raise ProviderNotSupportedError(str(exc)) from exc
     except Exception as exc:
         logger.warning("Échec import %s : %s", url, exc)
         raise ScraperError(f"Erreur lors de l'import : {exc}") from exc
 
+    # Déballé hors du `try` : un retour mal formé est un défaut de code, pas un
+    # fournisseur non supporté (#1016).
+    results, trace = outcome
     _require_event_name(url, results)
     return results, trace
 
@@ -368,7 +371,8 @@ def _scrape_all_streaming(
                 if isinstance(provider, registry.KlikegoProvider):
                     kwargs["on_detail_progress"] = on_detail_progress
             # La trace voyage avec les résultats, propres à ce thread (#1016).
-            holder["results"], holder["trace"] = registry_scrape_event_all(url, **kwargs)
+            # Déballée par le générateur, hors du relais d'erreur de scrape.
+            holder["outcome"] = registry_scrape_event_all(url, **kwargs)
         except BaseException as exc:  # noqa: BLE001 — relayé au générateur
             holder["error"] = exc
         finally:
@@ -401,7 +405,7 @@ def _scrape_all_streaming(
         logger.warning("Échec import %s : %s", url, exc)
         raise ScraperError(f"Erreur lors de l'import : {exc}") from exc
 
-    results, trace = holder["results"], holder["trace"]
+    results, trace = holder["outcome"]
     _require_event_name(url, results)
     return (results, trace)
 

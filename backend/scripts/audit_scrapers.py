@@ -65,7 +65,7 @@ def audit_one(name: str, url: str) -> dict:
     }
     t0 = time.monotonic()
     try:
-        results = registry.scrape_event_all(url)
+        results, _trace = registry.scrape_event_all(url)
     except Exception as exc:  # noqa: BLE001 — on veut tout capturer pour le rapport
         entry["elapsed_s"] = round(time.monotonic() - t0, 2)
         entry["error"] = f"{type(exc).__name__}: {exc}"
