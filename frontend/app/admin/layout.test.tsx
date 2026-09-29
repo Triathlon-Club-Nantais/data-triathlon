@@ -97,6 +97,10 @@ describe("Garde des écrans d'administration (FR-040)", () => {
     expect(screen.getByText(/demandez un rôle à un administrateur du club/i)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Retour au site" })).toHaveAttribute("href", "/dashboard");
     expect(screen.queryByRole("link", { name: /guide/i })).not.toBeInTheDocument();
+    // Une page d'arrivée a un titre (revue UI/UX de #1109), et sa sortie une
+    // cible tactile de 44 px sous md (patron #953).
+    expect(screen.getByRole("heading", { level: 1, name: "Back-office" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Retour au site" })).toHaveClass("tcn-cible-tactile");
   });
 
   it("valide réellement la session, plutôt que de constater un cookie", async () => {

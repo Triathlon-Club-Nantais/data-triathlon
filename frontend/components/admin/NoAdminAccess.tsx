@@ -13,7 +13,11 @@ export function NoAdminAccess() {
       title="Vous êtes connecté, mais aucun écran d'administration ne vous est ouvert"
       description="Demandez un rôle à un administrateur du club."
       action={
-        <Link href="/dashboard" className="text-sm font-semibold text-accent-ink hover:underline">
+        // Cible de 44 px sous `md` (patron #953).
+        <Link
+          href="/dashboard"
+          className="tcn-cible-tactile inline-flex items-center text-sm font-semibold text-accent-ink hover:underline"
+        >
           Retour au site
         </Link>
       }

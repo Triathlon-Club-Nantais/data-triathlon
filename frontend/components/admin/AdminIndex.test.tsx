@@ -71,6 +71,16 @@ describe("AdminIndex", () => {
     expect(screen.getByText(/demandez un rôle à un administrateur du club/i)).toBeInTheDocument();
   });
 
+  // Un pouvoir d'administration sans écran à lui (`courses:delete` sans
+  // `courses:write`) : même texte et même sortie que la garde (revue UI/UX).
+  it("rend le même état qu'une session sans pouvoir quand aucun écran n'est annoncé", async () => {
+    getSession.mockResolvedValue(SESSION(["courses:delete"]));
+    afficher();
+
+    expect(await screen.findByText(/vous êtes connecté/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Retour au site" })).toHaveAttribute("href", "/dashboard");
+  });
+
   it("ne confond pas une session illisible avec une absence de pouvoirs", async () => {
     getSession.mockRejectedValue(new ApiError(503, "Backend injoignable."));
     afficher();
