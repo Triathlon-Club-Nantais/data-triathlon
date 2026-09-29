@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { useCoursesWipeImpact, useWipeAllCourses } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
+import { motCompte, plural } from "@/lib/utils/format";
 
 //: Même garde-fou que `WipeParticipationsCard` — la portée ici est encore
 //: plus large (le catalogue entier), d'où le même mot à taper (#384, suite).
@@ -43,8 +44,8 @@ export function WipeCoursesCard() {
       const c = resultat.courses_deleted;
       const a = resultat.athletes_purged;
       toast.success(
-        `${c} épreuve${c === 1 ? "" : "s"} supprimée${c === 1 ? "" : "s"}, ` +
-          `${a} fiche${a === 1 ? "" : "s"} coureur purgée${a === 1 ? "" : "s"}.`,
+        `${motCompte(c, "épreuve")} ${plural(c, "supprimée")}, ` +
+          `${motCompte(a, "fiche")} coureur ${plural(a, "purgée")}.`,
       );
       setOuvert(false);
     } catch (erreur) {
@@ -99,19 +100,16 @@ export function WipeCoursesCard() {
         {impact.data && (
           <ul className="space-y-1 text-sm">
             <li>
-              <strong>{impact.data.courses}</strong> épreuve
-              {impact.data.courses === 1 ? " sera détruite" : "s seront détruites"}.
+              <strong>{impact.data.courses}</strong>{" "}
+              {plural(impact.data.courses, "épreuve sera détruite", "épreuves seront détruites")}.
             </li>
             <li>
-              <strong>{impact.data.participations}</strong> résultat
-              {impact.data.participations === 1 ? " sera détruit" : "s seront détruits"}.
+              <strong>{impact.data.participations}</strong>{" "}
+              {plural(impact.data.participations, "résultat sera détruit", "résultats seront détruits")}.
             </li>
             <li>
-              <strong>{impact.data.athletes}</strong> fiche
-              {impact.data.athletes === 1
-                ? " coureur sera retirée"
-                : "s coureur seront retirées"}
-              .
+              <strong>{impact.data.athletes}</strong>{" "}
+              {plural(impact.data.athletes, "fiche coureur sera retirée", "fiches coureur seront retirées")}.
             </li>
           </ul>
         )}

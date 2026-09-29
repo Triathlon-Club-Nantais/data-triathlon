@@ -6,6 +6,7 @@ import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { useCourseMergeImpact, useMergeCourses } from "@/lib/queries/admin";
 import { eventTypeLabel, providerLabel } from "@/lib/constants";
 import { formatDate } from "@/lib/utils/date";
+import { motCompte, plural } from "@/lib/utils/format";
 import type { DuplicateCourse } from "@/lib/types";
 
 function CarteEpreuve({
@@ -78,8 +79,8 @@ export function MergeCoursesDialog({
       const a = resultat.athletes_purged;
       toast.success(
         `« ${absorbee.name} » a été fusionnée dans la source conservée — ` +
-          `${p} résultat${p === 1 ? "" : "s"} sans correspondance ${p === 1 ? "a" : "ont"} disparu, ` +
-          `${a} fiche${a === 1 ? "" : "s"} coureur purgée${a === 1 ? "" : "s"}.`,
+          `${motCompte(p, "résultat")} sans correspondance ${plural(p, "a", "ont")} disparu, ` +
+          `${motCompte(a, "fiche")} coureur ${plural(a, "purgée")}.`,
       );
       onOpenChange(false);
     } catch (erreur) {
@@ -121,18 +122,18 @@ export function MergeCoursesDialog({
       {impact.data && (
         <ul className="space-y-1 text-sm">
           <li>
-            <strong>{impact.data.participations_without_match}</strong> résultat
-            {impact.data.participations_without_match === 1 ? "" : "s"} de l&apos;épreuve
-            absorbée n&apos;{impact.data.participations_without_match === 1 ? "a" : "ont"} pas
+            <strong>{impact.data.participations_without_match}</strong>{" "}
+            {plural(impact.data.participations_without_match, "résultat")} de l&apos;épreuve
+            absorbée n&apos;{plural(impact.data.participations_without_match, "a", "ont")} pas
             d&apos;équivalent côté cible et{" "}
-            {impact.data.participations_without_match === 1 ? "disparaîtra" : "disparaîtront"}{" "}
+            {plural(impact.data.participations_without_match, "disparaîtra", "disparaîtront")}{" "}
             (dont <strong>{impact.data.tcn_participations_without_match}</strong> du TCN).
           </li>
           <li>
-            <strong>{impact.data.athletes_orphaned}</strong> fiche
-            {impact.data.athletes_orphaned === 1 ? "" : "s"} coureur ne{" "}
-            {impact.data.athletes_orphaned === 1 ? "conservera" : "conserveront"} plus aucun
-            résultat et {impact.data.athletes_orphaned === 1 ? "sera retirée" : "seront retirées"}.
+            <strong>{impact.data.athletes_orphaned}</strong>{" "}
+            {plural(impact.data.athletes_orphaned, "fiche")} coureur ne{" "}
+            {plural(impact.data.athletes_orphaned, "conservera", "conserveront")} plus aucun
+            résultat et {plural(impact.data.athletes_orphaned, "sera retirée", "seront retirées")}.
           </li>
           <li>
             {impact.data.same_source_url

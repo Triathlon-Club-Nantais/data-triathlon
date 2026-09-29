@@ -96,9 +96,9 @@ describe("WipeCoursesCard (#384, suite)", () => {
       0,
       0,
       0,
-      /0 épreuves seront détruites/,
-      /0 résultats seront détruits/,
-      /0 fiches coureur seront retirées/,
+      /0 épreuve sera détruite/,
+      /0 résultat sera détruit/,
+      /0 fiche coureur sera retirée/,
     ],
     [
       53,
@@ -170,6 +170,26 @@ describe("WipeCoursesCard (#384, suite)", () => {
     expect(toastSuccess).toHaveBeenCalledWith(
       "53 épreuves supprimées, 37 fiches coureur purgées.",
     );
+  });
+
+  it.each([
+    [0, "0 épreuve supprimée, 0 fiche coureur purgée."],
+    [1, "1 épreuve supprimée, 1 fiche coureur purgée."],
+    [2, "2 épreuves supprimées, 2 fiches coureur purgées."],
+  ])("accorde le bilan de la purge à %i (#1142)", async (n, bilan) => {
+    getSession.mockResolvedValue(session(["courses:wipe_all"]));
+    getCoursesWipeImpact.mockResolvedValue({ courses: 53, participations: 412, athletes: 37 });
+    wipeAllCourses.mockResolvedValue({ courses_deleted: n, athletes_purged: n });
+
+    afficher();
+    await userEvent.click(
+      await screen.findByRole("button", { name: /supprimer toutes les épreuves/i }),
+    );
+    await screen.findByText(/412/);
+    await userEvent.type(screen.getByLabelText(/tapez/i), "SUPPRIMER");
+    await userEvent.click(screen.getByRole("button", { name: /supprimer définitivement/i }));
+
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith(bilan));
   });
 
   it("une saisie approximative ne suffit pas", async () => {

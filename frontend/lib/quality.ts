@@ -1,3 +1,5 @@
+import { plural } from "@/lib/utils/format";
+
 // Libellés utilisateur des anomalies de fiabilité d'une course.
 // Codes canoniques : voir backend/app/services/quality.py — miroir strict.
 
@@ -36,9 +38,6 @@ function describeIssue(code: string, count: number): string {
   }
 }
 
-function plural(count: number, singular: string, pluralForm?: string): string {
-  return count > 1 ? (pluralForm ?? `${singular}s`) : singular;
-}
 
 /**
  * Libellé nu d'un code d'anomalie — un **nom de catégorie**, pas une phrase.

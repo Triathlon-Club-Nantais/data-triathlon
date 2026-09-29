@@ -144,6 +144,19 @@ describe("GroupsTable", () => {
     expect(screen.getByText("2 membres — videz-le d'abord")).toBeInTheDocument();
   });
 
+  it("accorde le décompte au singulier pour un seul membre (#1142)", async () => {
+    listGroups.mockResolvedValue([{ ...CODIR, member_count: 1 }]);
+    afficher();
+    expect(await screen.findByText("1 membre — videz-le d'abord")).toBeInTheDocument();
+  });
+
+  it("n'annonce aucun décompte pour un groupe vide, qui reste supprimable", async () => {
+    listGroups.mockResolvedValue([VIDE]);
+    afficher();
+    await screen.findByRole("button", { name: "Supprimer le groupe Officiels" });
+    expect(screen.queryByText(/videz-le d'abord/)).not.toBeInTheDocument();
+  });
+
   it("exige une confirmation nominative avant de supprimer un groupe vide", async () => {
     listGroups.mockResolvedValue([VIDE]);
     afficher();

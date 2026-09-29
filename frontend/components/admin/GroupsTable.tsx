@@ -21,6 +21,7 @@ import { useCreateGroup, useDeleteGroup, useGroups } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
+import { motCompte } from "@/lib/utils/format";
 import type { Group } from "@/lib/types";
 
 /**
@@ -183,8 +184,7 @@ export function GroupsTable() {
                         // ni focus.
                         <div className="flex items-center justify-end gap-2">
                           <span className="text-[var(--tcn-text-faint)] text-xs">
-                            {groupe.member_count} membre
-                            {groupe.member_count === 1 ? "" : "s"} — videz-le d&apos;abord
+                            {motCompte(groupe.member_count, "membre")} — videz-le d&apos;abord
                           </span>
                           <Button
                             size="sm"

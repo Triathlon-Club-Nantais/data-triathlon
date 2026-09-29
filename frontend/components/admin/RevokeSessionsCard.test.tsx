@@ -154,6 +154,20 @@ describe("RevokeSessionsCard (#169)", () => {
     );
   });
 
+  it("accorde le bilan au singulier pour zéro session et zéro compte (#1142)", async () => {
+    revokeSessions.mockResolvedValue({ sessions: 0, accounts: 0 });
+    afficher();
+    await userEvent.click(
+      await screen.findByRole("button", { name: /fermer toutes les sessions/i }),
+    );
+
+    await confirmerDansLeDialog(/fermer toutes les sessions/i);
+
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith("0 session fermée sur 0 compte."),
+    );
+  });
+
   it("renvoie vers la connexion, la session de l'opérateur venant de tomber", async () => {
     revokeSessions.mockResolvedValue({ sessions: 1, accounts: 1 });
     afficher();
