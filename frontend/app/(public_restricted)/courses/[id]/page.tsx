@@ -5,6 +5,7 @@ import { rendreNullSi404 } from "@/lib/api/null-si-404";
 import { idDeRoute } from "@/lib/utils/id-de-route";
 import { Card, Eyebrow, MetaPill } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
+import { BackLink } from "@/components/layout/PageHeader";
 import { RaceFinishers } from "@/components/results/RaceFinishers";
 import { ReliabilityMark, SplitCoverageNote } from "@/components/results/ReliabilityMark";
 import { CourseSourcesPanel } from "@/components/courses/CourseSourcesPanel";
@@ -144,6 +145,11 @@ export default async function CoursePage({
   return (
     <PageShell>
       <div style={{ marginBottom: 24 }}>
+        {/* Lien seul plutôt que `PageHeader` : son `h1` changerait la typographie
+            du titre (Anton en `clamp()`). Parent fixe, comme le profil athlète (#488). */}
+        <div style={{ marginBottom: 12 }}>
+          <BackLink href="/resultats" label="Résultats" />
+        </div>
         <Eyebrow style={{ marginBottom: 6 }}>Résultats complets</Eyebrow>
         <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(30px, 5vw, 46px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginBottom: 12 }}>{formatEventName(course.name, course.is_relay)}</h1>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
