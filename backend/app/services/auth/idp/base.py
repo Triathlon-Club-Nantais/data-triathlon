@@ -22,6 +22,10 @@ class ExternalIdentity:
     `email_verified` fait partie du **contrat**, et non du code du fournisseur
     GitHub : c'est ce qui rend l'exigence de certification opposable au
     fournisseur suivant (FR-005).
+
+    `verified_emails` : toutes les adresses que le fournisseur certifie, `email`
+    en tête (#1059). La liste d'autorisation retient la première inscrite. Vide
+    chez un fournisseur qui n'en certifie qu'une : `email` fait alors foi seul.
     """
 
     provider: str
@@ -29,6 +33,7 @@ class ExternalIdentity:
     email: str
     email_verified: bool
     display_name: str = ""
+    verified_emails: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)

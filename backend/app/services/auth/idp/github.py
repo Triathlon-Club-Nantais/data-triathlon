@@ -110,7 +110,7 @@ class GithubIdentityProvider:
             # Le prix est un troisième aller-retour, là où le plan en visait deux
             # au plus. C'est un objectif de performance, pas un contrat public,
             # et il ne pèse rien face à une certification devinée.
-            email, verified = self._certified_email(client)
+            email, verified, verified_emails = self._certified_email(client)
             if not email:
                 email = (profile.get("email") or "").strip()
 
@@ -120,6 +120,7 @@ class GithubIdentityProvider:
                 email=email,
                 email_verified=verified,
                 display_name=profile.get("login") or profile.get("name") or "",
+                verified_emails=verified_emails,
             )
 
     def _fetch_token(self, client: OAuth2Client, *, code: str, verifier: str) -> None:
@@ -153,25 +154,26 @@ class GithubIdentityProvider:
             logger.warning("GitHub returned a non-JSON payload")
             raise LoginError("provider_error") from unreadable
 
-    def _certified_email(self, client: OAuth2Client) -> tuple[str, bool]:
-        """Adresse **certifiée** par le fournisseur, lue sur `/user/emails`.
+    def _certified_email(self, client: OAuth2Client) -> tuple[str, bool, tuple[str, ...]]:
+        """Adresses **certifiées** par le fournisseur, lues sur `/user/emails`.
 
         Le champ qui décide est `verified`, **jamais** `primary` seul : une
-        adresse primaire non vérifiée ne certifie rien (FR-005). À défaut
-        d'adresse primaire vérifiée, on prend la première vérifiée — et si
-        aucune ne l'est, on rend ce que le fournisseur donne, non certifié, pour
-        que le refus soit prononcé par la politique et non ici.
+        adresse primaire non vérifiée ne certifie rien (FR-005). L'adresse
+        rendue en tête est la primaire vérifiée, à défaut la première vérifiée ;
+        les autres vérifiées suivent, pour que la liste d'autorisation puisse en
+        retenir une secondaire (#1059). Si aucune ne l'est, on rend ce que le
+        fournisseur donne, non certifié, pour que le refus soit prononcé par la
+        politique et non ici.
         """
         addresses = self._get_json(client, EMAILS_URL)
         if not isinstance(addresses, list):
             raise LoginError("provider_error")
 
         verified_addresses = [a for a in addresses if isinstance(a, dict) and a.get("verified")]
-        for candidate in verified_addresses:
-            if candidate.get("primary"):
-                return str(candidate.get("email") or ""), True
-        if verified_addresses:
-            return str(verified_addresses[0].get("email") or ""), True
+        verified_addresses.sort(key=lambda a: not a.get("primary"))
+        certified = tuple(e for a in verified_addresses if (e := str(a.get("email") or "")))
+        if certified:
+            return certified[0], True, certified
 
         first = addresses[0] if addresses and isinstance(addresses[0], dict) else {}
-        return str(first.get("email") or ""), False
+        return str(first.get("email") or ""), False, ()
