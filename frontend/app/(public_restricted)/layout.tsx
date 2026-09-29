@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { BookOpen } from "lucide-react";
 import { SiteAccessGate } from "@/components/site-access/SiteAccessGate";
+import { SiteAccessOpenMarker } from "@/components/site-access/site-access-open";
 import { ApiError } from "@/lib/api/client";
 import { apiServer } from "@/lib/api/server";
 
@@ -77,6 +78,9 @@ export default async function ProtegeLayout({ children }: { children: ReactNode 
           Guide
         </Link>
       </div>
+      {/* Accès avéré seulement (ni refus, ni panne) : c'est lui qui ouvre le
+          geste « Oublier le code d'accès » du pied de page (#1057). */}
+      {acces === true && <SiteAccessOpenMarker />}
       {children}
     </>
   );

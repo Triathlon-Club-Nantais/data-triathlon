@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api/client";
 import { ForgetSiteAccessButton } from "@/components/site-access/ForgetSiteAccessButton";
+import { useSiteAccessOpen } from "@/components/site-access/site-access-open";
 
 /** Footer discret rendant les versions front + back (#134).
  *
@@ -29,6 +30,8 @@ export function VersionFooter() {
   // fige sa propre valeur dans le bundle. En dev / test, on retombe sur "dev".
   const frontVersion = process.env.NEXT_PUBLIC_APP_VERSION || "dev";
 
+  // Rien à oublier sur `/acces` ni sous le formulaire du code (#1057).
+  const accesOuvert = useSiteAccessOpen();
   const [backVersion, setBackVersion] = useState<string | null | undefined>(
     undefined,
   );
@@ -80,7 +83,7 @@ export function VersionFooter() {
   return (
     <footer style={{ ...baseStyle, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
       {version}
-      <ForgetSiteAccessButton />
+      {accesOuvert && <ForgetSiteAccessButton />}
     </footer>
   );
 }

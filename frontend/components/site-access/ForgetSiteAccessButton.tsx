@@ -8,7 +8,9 @@ import { apiClient } from "@/lib/api/client";
  * Retire le cookie d'accès au site de cet appareil (#1057). Le cookie est
  * `httponly` et vit 90 jours : sans ce geste, un poste partagé reste ouvert.
  * « Se déconnecter » (SSO) n'y touche pas, choix consigné dans
- * `backend/app/api/AGENTS.md`.
+ * `backend/app/api/AGENTS.md`. Après l'effacement, la page se rejoue **sur
+ * place** : la garde du groupe y rend le formulaire du code sans perdre l'URL
+ * (règle de #513), là où une redirection vers `/acces` perdait la destination.
  */
 export function ForgetSiteAccessButton() {
   const router = useRouter();
@@ -19,7 +21,6 @@ export function ForgetSiteAccessButton() {
     setEnCours(true);
     try {
       await apiClient.siteAccessLogout();
-      router.replace("/acces");
       router.refresh();
     } catch {
       toast.error("Le code d'accès n'a pas pu être oublié. Réessayez.");
@@ -35,11 +36,11 @@ export function ForgetSiteAccessButton() {
       type="button"
       onClick={oublier}
       aria-busy={enCours}
-      // `py-1 -my-1` : cible de 24 px au moins (SC 2.5.8) sans décaler le pied.
-      className="-my-1 cursor-pointer py-1 underline underline-offset-2 hover:text-[var(--tcn-ink)]"
+      // Cible de 44 px sous `md` (patron #953), 28 px au-delà.
+      className="tcn-cible-tactile inline-flex cursor-pointer items-center underline underline-offset-2 hover:text-[var(--tcn-ink)]"
       style={{ font: "inherit", color: "inherit", background: "none", border: 0 }}
     >
-      Oublier le code d&apos;accès sur cet appareil
+      {enCours ? "Oubli en cours…" : "Oublier le code d'accès sur cet appareil"}
     </button>
   );
 }

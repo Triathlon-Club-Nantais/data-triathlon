@@ -17,6 +17,7 @@ vi.mock("@/lib/api/client", () => ({
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
 
 import { VersionFooter } from "./VersionFooter";
+import { SiteAccessOpenMarker } from "@/components/site-access/site-access-open";
 
 beforeEach(() => {
   getVersion.mockReset();
@@ -61,18 +62,34 @@ describe("VersionFooter (#134)", () => {
     expect(screen.getByText("v0.1.3")).toBeInTheDocument();
   });
 
-  // #1057 : visible de tous, connectés ou non, quel que soit l'état des versions.
+  // #1057 : visible de tous, connectés ou non, quel que soit l'état des
+  // versions, mais seulement là où le code a été accepté (le marqueur est posé
+  // par `app/(public_restricted)/layout.tsx`).
   it.each([
     ["alignées", () => getVersion.mockResolvedValue({ version: "v0.1.3" })],
     ["divergentes", () => getVersion.mockResolvedValue({ version: "v0.1.2" })],
     ["back injoignable", () => getVersion.mockRejectedValue(new Error("network"))],
   ])("porte le geste « Oublier le code d'accès » (versions %s)", async (_cas, preparer) => {
     preparer();
-    render(<VersionFooter />);
+    render(
+      <>
+        <SiteAccessOpenMarker />
+        <VersionFooter />
+      </>,
+    );
     await waitFor(() => expect(getVersion).toHaveBeenCalled());
     const pied = screen.getByRole("contentinfo");
     expect(
       await within(pied).findByRole("button", { name: "Oublier le code d'accès sur cet appareil" }),
     ).toBeInTheDocument();
+  });
+
+  it("tait le geste là où le code n'a pas été accepté (/acces, formulaire du code)", async () => {
+    getVersion.mockResolvedValue({ version: "v0.1.3" });
+    render(<VersionFooter />);
+    await waitFor(() => expect(getVersion).toHaveBeenCalled());
+    expect(
+      screen.queryByRole("button", { name: "Oublier le code d'accès sur cet appareil" }),
+    ).not.toBeInTheDocument();
   });
 });
