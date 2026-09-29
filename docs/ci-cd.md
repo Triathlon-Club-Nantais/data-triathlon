@@ -692,6 +692,15 @@ jeton. Un jeton qui fuit depuis n'importe quelle instance, preview comprise,
 lance un batch sur la production, `batch-production` n'ayant volontairement aucun
 reviewer. La protection est donc celle des variables Render et des journaux.
 
+**Un jeton distinct par instance Render** (#1058) : la preview et la production
+portent chacune leur propre `GITHUB_BATCH_TOKEN`, jamais le même. Révoquer celui
+de la preview (fuite, départ d'un exploitant) ne coupe donc pas les lancements de
+la production, et inversement. Ce découpage ne réduit pas la portée de chaque
+jeton, qui reste celle décrite ci-dessus : il borne seulement ce qu'une
+révocation emporte. Nommer chaque jeton d'après son instance dans l'écran
+*Fine-grained tokens* (par exemple `batch-preview`, `batch-production`) suffit à
+savoir lequel régénérer.
+
 **Vide est un état légitime**, même politique que les réglages `AUTH_*` : le
 lancement s'annonce alors non configuré et le reste du site est intact. Les deux
 refus possibles portent des messages **distincts**, et c'est ce qui rend le
@@ -707,12 +716,12 @@ Un jeton fine-grained expire — un an au plus. Le régénérer se fait dans
 réglage sur Render. Aucune autre action n'est requise : le workflow, lui, ne
 connaît pas ce jeton.
 
-**C'est la seule échéance de l'infrastructure**, et elle ne se recopie pas ici :
-une date écrite dans un document diverge à la première régénération. La source
-qui fait foi est l'écran *Fine-grained tokens*, qui affiche l'expiration de
-chaque jeton ; GitHub prévient par courriel une semaine avant. Le jour où elle
-tombe sans avoir été vue, le symptôme est borné — l'écran de lancement des
-batches refuse en nommant la cause (tableau ci-dessus), et rien d'autre du site
+**Ce sont les seules échéances de l'infrastructure** (une par instance), et elles
+ne se recopient pas ici : une date écrite dans un document diverge à la première
+régénération. La source qui fait foi est l'écran *Fine-grained tokens*, qui
+affiche l'expiration de chaque jeton ; GitHub prévient par courriel une semaine
+avant. Le jour où l'une tombe sans avoir été vue, le symptôme est borné à son
+instance : l'écran de lancement des batches refuse en nommant la cause (tableau ci-dessus), et rien d'autre du site
 ne bouge (#259).
 
 ### Reprise périodique — `schedule` (#47)
