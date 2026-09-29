@@ -9,7 +9,7 @@ from app.models.course import Course
 
 
 def record(db: Session, *, absorbed: Course, target: Course) -> None:
-    """Retient l'identité publiée de `absorbed`, redirigée vers `target`.
+    """Retient l'identité publiée de `absorbed`, absorbée par `target`.
 
     À appeler **avant** la suppression de l'absorbée : après, elle n'a plus de
     source active à nommer. Sans URL (saisie manuelle), rien ne la republiera.
@@ -29,7 +29,7 @@ def record(db: Session, *, absorbed: Course, target: Course) -> None:
 
 
 def repoint(db: Session, *, source: Course, target: Course) -> None:
-    """Les identités redirigées vers `source` le sont désormais vers `target`.
+    """Les identités absorbées par `source` passent à `target`.
 
     Par la relation, comme `course_source_repository.move_to` : c'est ce qui les
     retire de `source.absorbed`, sans quoi la cascade les supprimerait au
@@ -39,7 +39,7 @@ def repoint(db: Session, *, source: Course, target: Course) -> None:
         absorbed.target = target
 
 
-def find_target(
+def is_absorbed(
     db: Session,
     *,
     url: str,
@@ -47,11 +47,10 @@ def find_target(
     event_date: date | None,
     event_type: str,
     is_relay: bool,
-) -> Course | None:
-    """L'épreuve qui a absorbé cette identité publiée sous cette URL, ou None."""
+) -> bool:
+    """Vrai si une fusion a absorbé cette identité publiée sous cette URL."""
     query = (
-        select(Course)
-        .join(AbsorbedCourse, AbsorbedCourse.target_course_id == Course.id)
+        select(AbsorbedCourse.id)
         .where(
             AbsorbedCourse.url == url,
             AbsorbedCourse.name == name,
@@ -61,7 +60,6 @@ def find_target(
             if event_date is None
             else AbsorbedCourse.event_date == event_date,
         )
-        .order_by(AbsorbedCourse.id.desc())
         .limit(1)
     )
-    return db.scalars(query).first()
+    return db.scalars(query).first() is not None

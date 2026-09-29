@@ -604,6 +604,8 @@ class _Persister:
         # faire fan-out sur plusieurs heats au sein d'un même lot (#156), donc
         # `(provider, url)` seul collapserait des courses distinctes.
         self._course_resolutions: dict[tuple, mapping.CourseResolution] = {}
+        # Identités d'épreuves absorbées par fusion, lues une fois par lot (#983).
+        self._absorbed: dict[tuple, bool] = {}
         # Résolution par lot (#706) : lignes en attente et participations
         # connues d'une course, par `course_id` — `_participations` remplace
         # le second `list_for_course` de `finalize()` (cf. `_index_course`).
@@ -732,6 +734,21 @@ class _Persister:
             scraped.event_type,
             scraped.is_relay,
         )
+        absorbed = self._absorbed.get(cache_key)
+        if absorbed is None:
+            absorbed = self._absorbed[cache_key] = mapping.is_absorbed(
+                self.db, scraped, self.event_url
+            )
+            if absorbed:
+                logger.info(
+                    "Rows of a merged course ignored: %s (%s)",
+                    scraped.event_name, scraped.source_url or self.event_url,
+                )
+        if absorbed:
+            # Ni recréée, ni versée dans la cible (#983) : ni course résolue, ni
+            # source rattachée, donc aucun message de source passive.
+            self.skipped += 1
+            return
         resolution = self._course_resolutions.get(cache_key)
         if resolution is None:
             resolution = mapping.get_or_create_course(self.db, scraped, self.event_url)
