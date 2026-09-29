@@ -19,10 +19,15 @@ et route sur le sous-domaine :
   `dossard` est **ignoré** (l'import reste le heat entier). L'URL ne porte pas
   le slug : il est lu, avec le libellé du heat, dans la nav inter-heats de la
   page du heat, que le site sert même sous un slug vide
-  (`/resultats-courses/-{event-id}/{heat}`, mesuré à Dinard 2026). Nom et
-  `source_url` sont donc ceux de la forme nominale (#1140). Toute URL qui fixe
-  un heat, forme nominale comprise, lit ainsi son libellé. Si la page ne lie pas
-  ce heat, repli sur le slug vide, sans libellé. Le site
+  (`/resultats-courses/-{event-id}/{heat}`, mesuré à Dinard 2026). La
+  `source_url` est donc la canonique, et le nom porte le heat comme au fan-out
+  (#1140). Seul ce chemin à slug vide lit le libellé : une URL nominale qui fixe
+  un heat garde son nom d'avant, sans libellé, pour que ses épreuves déjà en base
+  restent retrouvées par leur nom. Si la page ne lie pas ce heat, repli sur le
+  slug vide, sans libellé. Une épreuve importée avant #1140 garde en source
+  active la forme à slug vide : au rescrape suivant, la forme canonique prend la
+  main et l'ancienne passe passive (`course_reconciliation.supersedes_active_source`),
+  seule exception à « la première scrapée garde la main ». Le site
   publie la même fiche sous `live.breizhchrono.com/bc/resultats/coureur.jsp` :
   elle suit ce moteur classique, pas le moteur live, qui ne lit que `?reference=`
   (#1089) ;

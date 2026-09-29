@@ -1167,7 +1167,9 @@ def test_a_coureur_jsp_import_keeps_the_heat_name_and_the_canonical_source_url(m
     assert all(r.is_relay for r in results)
 
 
-def test_a_coureur_jsp_import_matches_the_nominal_single_heat_url(monkeypatch):
+def test_a_coureur_jsp_import_shares_the_nominal_source_url_type_and_date(monkeypatch):
+    """The name follows the per-heat naming of the fan-out, not the label-less
+    name the nominal single-heat form keeps."""
     fiche, _ = _scrape_dinard_heat(
         monkeypatch,
         "https://resultats.breizhchrono.com/bc/resultats/coureur.jsp"
@@ -1178,7 +1180,7 @@ def test_a_coureur_jsp_import_matches_the_nominal_single_heat_url(monkeypatch):
         f"https://resultats.breizhchrono.com/resultats-courses/{_DINARD_SLUG}-{_DINARD_ID}/swimrun-court-duo",
     )
 
-    identite = lambda rs: {(r.event_name, r.source_url, r.event_type, r.event_date, r.is_relay) for r in rs}  # noqa: E731
+    identite = lambda rs: {(r.source_url, r.event_type, r.event_date, r.is_relay) for r in rs}  # noqa: E731
     assert identite(fiche) == identite(nominale)
     assert len(identite(fiche)) == 1
 
@@ -1215,3 +1217,52 @@ def test_a_heat_page_that_names_nothing_keeps_the_previous_import(monkeypatch):
     assert {r.source_url for r in results} == {
         f"https://resultats.breizhchrono.com/resultats-courses/-{_DINARD_ID}/swimrun-court-duo"
     }
+
+
+def test_a_nominal_single_heat_url_keeps_its_label_less_name(monkeypatch):
+    """#1140, review: the heat label is only injected on the empty-slug path.
+    A nominal single-heat URL keeps the name it always had, otherwise courses
+    already imported that way would lose their name-keyed lookups."""
+    results, _ = _scrape_dinard_heat(
+        monkeypatch,
+        f"https://resultats.breizhchrono.com/resultats-courses/{_DINARD_SLUG}-{_DINARD_ID}/swimrun-court-duo",
+    )
+
+    assert {r.event_name for r in results} == {"Triathlon SwimRun Dinard Côte d'Emeraude 2026"}
+
+
+def test_reimporting_a_nominal_single_heat_url_reuses_the_label_less_course(monkeypatch, db_session):
+    from app.core.config import Settings
+    from app.models.course import Course
+    from app.services import import_service
+
+    url = f"https://resultats.breizhchrono.com/resultats-courses/{_DINARD_SLUG}-{_DINARD_ID}/swimrun-court-duo"
+    _scrape_dinard_heat(monkeypatch, url)  # installs the fake network
+    settings = Settings(cache_ttl_in_progress_seconds=600, cache_ttl_finished_seconds=2592000)
+
+    import_service.import_event(db_session, url, settings)
+    before = [(c.id, c.name) for c in db_session.query(Course).all()]
+    import_service.import_event(db_session, url, settings, force=True)
+
+    assert [(c.id, c.name) for c in db_session.query(Course).all()] == before
+    assert before and before[0][1] == "Triathlon SwimRun Dinard Côte d'Emeraude 2026"
+
+
+def test_fetch_all_heats_compacts_label_spaces_like_the_single_heat_path():
+    """#1140, review: one normaliser for heat labels on both paths."""
+    slug_id = f"{_DINARD_SLUG}-{_DINARD_ID}"
+
+    class FakeResp:
+        status_code, is_redirect, headers = 200, False, {}
+        text = _DINARD_HEAT_PAGE
+
+    class FakeClient:
+        def get(self, url, follow_redirects=True):
+            return FakeResp()
+
+    heats = dict(breizhchrono._fetch_all_heats(slug_id, FakeClient()))
+
+    assert heats["swimrun-medium--zoggs-duo"] == "Swimrun Medium ZOGGS Duo"
+    assert heats["swimrun-medium--zoggs-duo"] == breizhchrono._parse_heat_identity(
+        _DINARD_HEAT_PAGE, _DINARD_ID, "swimrun-medium--zoggs-duo"
+    )[1]

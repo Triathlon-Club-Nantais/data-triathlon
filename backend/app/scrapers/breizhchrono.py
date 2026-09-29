@@ -104,6 +104,27 @@ def _parse_bc_url(url: str) -> tuple[str, str, str]:
     return event_id, heat, slug
 
 
+def _heat_label(link) -> str:
+    """Libellé d'un lien de heat, espaces compactés : la plateforme en sème des
+    doubles (« Swimrun Medium  ZOGGS Duo »). Seule définition, pour les deux
+    chemins qui lisent la nav inter-heats."""
+    return " ".join(link.get_text().split())
+
+
+def is_empty_slug_form_of(url: str, legacy_url: str) -> bool:
+    """Vrai si `url` est la forme canonique de `legacy_url`, forme à slug vide
+    `/resultats-courses/-{id}/{heat}` que les imports `coureur.jsp` d'avant #1140
+    ont laissée en source active. Même identifiant, même heat, `url` seule a un slug.
+    """
+    if not all(urlparse(u).path.startswith("/resultats-courses/") for u in (url, legacy_url)):
+        return False
+    event_id, heat, slug = _parse_bc_url(url)
+    legacy_id, legacy_heat, legacy_slug = _parse_bc_url(legacy_url)
+    return bool(event_id and heat and slug) and not legacy_slug and (event_id, heat) == (
+        legacy_id, legacy_heat,
+    )
+
+
 def _fetch_all_heats(slug_id: str, client: httpx.Client) -> list[tuple[str, str]]:
     """
     Scrape the event root page and return all (heat_slug, heat_label) pairs.
@@ -160,7 +181,7 @@ def _fetch_all_heats(slug_id: str, client: httpx.Client) -> list[tuple[str, str]
         if rest in seen:
             continue
         seen.add(rest)
-        heats.append((rest, link.get_text(strip=True)))
+        heats.append((rest, _heat_label(link)))
 
     return heats
 
@@ -182,7 +203,7 @@ def _parse_heat_identity(html: str, event_id: str, heat: str) -> tuple[str, str]
             continue
         slug = href[len(prefix): -len(suffix)]
         if "/" not in slug:
-            return slug, " ".join(link.get_text().split())
+            return slug, _heat_label(link)
     return "", ""
 
 
@@ -298,14 +319,16 @@ def scrape_event_all(
 
     with http.client(timeout=30, headers=HEADERS) as client:
         if heat:
-            # Un seul heat : sa page donne la date, et aussi le slug et le
-            # libellé qu'une URL `coureur.jsp` ne porte pas (#1140). Sans eux,
-            # nom et `source_url` différaient de la forme nominale.
             heat_page = _fetch_event_page(client, slug_id, heat) or ""
             event_date = parse_page_date(heat_page)
-            page_slug, heat_label = _parse_heat_identity(heat_page, event_id, heat)
-            slug = page_slug or slug
-            event_name = event_name or slug.replace("-", " ").title()
+            heat_label = ""
+            if not slug:
+                # URL `coureur.jsp` (ou sa forme à slug vide) : la page du heat
+                # donne le slug et le libellé qu'elle ne porte pas (#1140). La
+                # forme nominale, elle, garde son nom d'avant, sans libellé :
+                # ses épreuves déjà en base sont retrouvées par leur nom.
+                slug, heat_label = _parse_heat_identity(heat_page, event_id, heat)
+                event_name = event_name or slug.replace("-", " ").title()
             heats_to_import = [(heat, heat_label)]
         else:
             event_date = _fetch_event_date(client, slug_id, heat)

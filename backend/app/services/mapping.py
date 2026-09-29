@@ -249,6 +249,10 @@ def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) ->
     source = course_source_repository.attach(
         db, course=course, url=url, provider=scraped.provider
     )
+    if not source.is_active and course_reconciliation.supersedes_active_source(
+        scraped.provider, url, course.source_url or ""
+    ):
+        course_source_repository.set_active(db, source)
     return CourseResolution(
         course=course, passive_source=None if source.is_active else source
     )
