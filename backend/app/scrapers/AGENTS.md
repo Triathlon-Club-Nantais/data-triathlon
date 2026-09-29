@@ -74,8 +74,8 @@ constantes `STATUS_*`) ; `utils.py` = helpers de normalisation (dont
   `utils.anonymous_identity` (« Anonyme <sous-unité>-<dossard> », masque lu par
   `utils.is_masked_name`) ; Klikego, Breizh Chrono, OkTime, RaceResult et
   Competitor le font. Filet à l'import (`_Persister.add`) : une ligne à
-  identité vide reçoit « Anonyme <épreuve>-<dossard> », ou est écartée et
-  journalisée sans dossard.
+  identité vide **ou masquée** reçoit « Anonyme <épreuve>-<dossard> », ou est
+  écartée et journalisée sans dossard.
 - **Un doublon de rang ne se renumérote que chez un fournisseur qui le déclare**
   (`ranks_per_group`, #940) : RaceResult seul, dont `AUTORANK` est publié par
   genre sur certaines épreuves (#785). Ailleurs un doublon est légitime (relais

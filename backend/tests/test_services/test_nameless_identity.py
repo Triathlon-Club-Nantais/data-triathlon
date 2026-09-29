@@ -39,7 +39,7 @@ def test_une_ligne_sans_nom_ni_dossard_est_ecartee_et_journalisee(db_session, ca
 
     assert [a.nom for a in db_session.query(Athlete).all()] == ["DUPONT"]
     assert db_session.query(Participation).count() == 1
-    assert any("without name nor bib" in r.getMessage() for r in caplog.records)
+    assert any("masked or empty name" in r.getMessage() for r in caplog.records)
 
 
 def test_le_rescrape_retrouve_la_meme_identite_synthetique(db_session):
@@ -68,3 +68,33 @@ def test_le_rescrape_detache_les_lignes_de_la_fiche_vide_heritee(db_session):
 
     participation = db_session.query(Participation).one()
     assert participation.athlete.nom == f"Anonyme {course.id}-1"
+
+
+
+def test_a_masked_name_without_bib_is_skipped_and_logged(db_session, caplog):
+    """Competitor « Anonymous » sans dossard : même filet qu'un nom vide (revue de #1145)."""
+    with caplog.at_level(logging.WARNING):
+        import_service.persist_results(
+            db_session, URL,
+            [_ligne("", nom="Anonymous"), _ligne("", nom="Anonymous"), _ligne("", nom="XXX XXX")],
+        )
+
+    assert db_session.query(Athlete).count() == 0
+    assert db_session.query(Participation).count() == 0
+    assert any("masked or empty name" in r.getMessage() for r in caplog.records)
+
+
+def test_a_masked_name_with_bib_gets_one_identity_per_course_and_bib(db_session):
+    import_service.persist_results(
+        db_session, URL, [_ligne("1", nom="XXX XXX"), _ligne("2", nom="Anonymous")]
+    )
+
+    noms = sorted(a.nom for a in db_session.query(Athlete).all())
+    assert len(noms) == 2
+    assert all(nom.startswith("Anonyme ") for nom in noms)
+
+
+def test_a_synthetic_identity_from_a_scraper_is_kept_as_is(db_session):
+    import_service.persist_results(db_session, URL, [_ligne("1", nom="Anonyme 342814-2-1641")])
+
+    assert [a.nom for a in db_session.query(Athlete).all()] == ["Anonyme 342814-2-1641"]

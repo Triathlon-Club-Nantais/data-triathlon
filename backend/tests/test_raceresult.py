@@ -8,6 +8,7 @@ ou par monkeypatch des helpers `_fetch_*` (pattern test_wiclax.py).
 import contextlib
 import json
 import logging
+import re
 from datetime import date
 from pathlib import Path
 
@@ -3980,3 +3981,14 @@ def test_un_vrai_nom_n_est_pas_anonymise():
     raceresult._anonymise_identities(res, event_id="1")
 
     assert (res[0].athlete_name, res[0].athlete_firstname) == ("XAVIER", "Paul")
+
+
+
+def test_la_fixture_342814_ne_porte_aucun_nom_d_equipe_reel():
+    """Les groupes de la liste des inscrits sont des noms d'équipe publiés : anonymisés (#897)."""
+    payload = json.loads((RR_FIXTURES / "342814_entrants_c2.json").read_text("utf-8"))
+
+    groupes = [cle for contest in payload["data"].values() for cle in contest]
+
+    assert groupes
+    assert all(re.fullmatch(r"#\d+_EQUIPE \d+", cle) for cle in groupes)
