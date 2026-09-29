@@ -21,7 +21,11 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   d'erreur du backend compris, jamais « coureur » (#1082) : le club importe
   aussi triathlons, swimruns et aquathlons. « Participant » reste pour compter
   les inscrits d'une épreuve (#343). Les identifiants (`coureurId`,
-  `CACHES_ADMIN.coureurs`…) relèvent de #88, pas de cette règle. Le registre est le
+  `CACHES_ADMIN.coureurs`…) relèvent de #88, pas de cette règle. **Un lien pris
+  dans une phrase est souligné au repos** (`underline underline-offset-2`) :
+  `text-accent-ink` ne s'y distingue du texte voisin que par sa teinte
+  (1,11:1 mesuré, WCAG 1.4.1). Un lien d'action isolé (« Ajouter une épreuve
+  → », « Tout voir ») garde `hover:underline`. Le registre est le
   **vouvoiement** sur tout écran public — jamais de tutoiement dans une copie
   destinée à l'utilisateur.
 - `app/` — App Router. **Mot de passe d'accès au site (#509)** : `app/(public_restricted)/`

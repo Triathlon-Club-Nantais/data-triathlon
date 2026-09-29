@@ -97,7 +97,7 @@ export function VolunteerActionsList({ athleteId }: { athleteId: number }) {
             description={
               <>
                 Les déclarations faites depuis la{" "}
-                <Link href="/benevolat" className="font-semibold text-accent-ink hover:underline">
+                <Link href="/benevolat" className="font-semibold text-accent-ink underline underline-offset-2">
                   page Bénévolat
                 </Link>{" "}
                 apparaîtront ici une fois acceptées.

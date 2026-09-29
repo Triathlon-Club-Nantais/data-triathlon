@@ -135,7 +135,11 @@ describe("VolunteerActionsList", () => {
     expect(await screen.findByText(/aucune action de bénévolat validée/i)).toBeInTheDocument();
     // Seul chemin de création depuis #780 : le formulaire public (#1083).
     expect(screen.queryByText(/administration/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "page Bénévolat" })).toHaveAttribute("href", "/benevolat");
+    const lien = screen.getByRole("link", { name: "page Bénévolat" });
+    expect(lien).toHaveAttribute("href", "/benevolat");
+    // Lien pris dans une phrase : souligné au repos, la couleur seule ne le
+    // distingue pas du texte voisin (WCAG 1.4.1, revue UI/UX de #1066).
+    expect(lien).toHaveClass("underline");
   });
 
   it("affiche un squelette de chargement plutôt qu'un espace vide muet", async () => {
