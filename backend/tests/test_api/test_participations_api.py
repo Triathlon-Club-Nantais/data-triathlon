@@ -1,6 +1,9 @@
 from datetime import date
 
+import pytest
+
 from app.models.admin_action_log import AdminActionLog
+from app.models.participation import Participation
 from app.scrapers.base import ScrapedResult
 from app.services import scrape_service
 from tests.test_api.conftest import valider_toutes_les_participations
@@ -347,3 +350,73 @@ def test_a_pending_declaration_still_gives_a_new_athlete_its_declared_club(clien
 
     assert resp.status_code == 201
     assert db_session.get(Athlete, resp.json()["athlete"]["id"]).club == "AUTRE CLUB"
+
+
+
+# --- Contrat d'entrée resserré (#1019) ---------------------------------------
+
+
+@pytest.mark.parametrize(
+    "champ, valeur",
+    [
+        ("athlete_name", ""),
+        ("athlete_name", "   "),
+        ("event_name", ""),
+        ("event_type", "xyz"),
+        ("event_type", "triathlon_m"),
+        ("status", "n'importe quoi"),
+        ("rank_overall", -5),
+        ("rank_overall", 0),
+        ("rank_category", 0),
+        ("rank_gender", -1),
+        ("event_date", "31/12/2026"),
+        ("event_date", "2026-02-30"),
+        ("total_time", "abc"),
+        ("swim_time", "20 min"),
+        ("run_time", "00:61:00"),
+        ("segments", [["swim1", "dix minutes"]]),
+    ],
+)
+def test_une_saisie_hors_contrat_est_refusee_en_422(client, db_session, champ, valeur):
+    payload = _payload()
+    payload[champ] = valeur
+
+    resp = client.post("/api/v1/participations", json=payload)
+
+    assert resp.status_code == 422
+    assert db_session.query(Participation).count() == 0
+
+
+@pytest.mark.parametrize(
+    "champ, valeur",
+    [
+        ("status", ""),
+        ("status", "DNF"),
+        ("status", "DSQ"),
+        ("event_date", None),
+        ("total_time", ""),
+        ("total_time", "1:59:00"),
+        ("event_type", "swim-bike-xl"),
+    ],
+)
+def test_une_saisie_conforme_reste_acceptee(client, champ, valeur):
+    payload = _payload()
+    payload[champ] = valeur
+
+    assert client.post("/api/v1/participations", json=payload).status_code == 201
+
+
+def test_les_noms_sont_debarrasses_des_blancs(client):
+    payload = _payload(nom="  DUPONT  ")
+
+    assert client.post("/api/v1/participations", json=payload).json()["athlete"]["nom"] == "DUPONT"
+
+
+def test_raw_data_envoye_est_ignore_et_jamais_persiste(client, db_session):
+    payload = _payload()
+    payload["raw_data"] = {"x": "y" * 10_000}
+
+    resp = client.post("/api/v1/participations", json=payload)
+
+    assert resp.status_code == 201
+    assert db_session.query(Participation).one().raw_data in (None, {})

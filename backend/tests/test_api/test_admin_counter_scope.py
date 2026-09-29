@@ -185,8 +185,8 @@ def _un_resultat_au_club_inconnu(client, db_session):
     course = client.post(
         "/api/v1/participations",
         json={
-            "nom": "LEMÉE",
-            "prenom": "Jean",
+            "athlete_name": "LEMÉE",
+            "athlete_firstname": "Jean",
             "club": "TRIATHLON CLUB NANTAIS 44",
             "event_name": "Tri du test",
             "event_date": "2026-05-16",

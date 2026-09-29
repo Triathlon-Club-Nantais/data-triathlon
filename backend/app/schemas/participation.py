@@ -1,13 +1,28 @@
 """Schémas Pydantic pour Participation (sortie imbriquée et création manuelle)."""
-from datetime import datetime
+import re
+from datetime import date, datetime
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, computed_field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.core.club import is_tcn as _is_tcn
 from app.schemas.athlete import AthleteBrief
 from app.schemas.course import CourseBrief
 from app.schemas.participation_stats import ParticipationStatsOut
+from app.scrapers.base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
+from app.scrapers.classify import CANONICAL_TYPES
 from app.services import split_gap
+
+_DUREE = r"^(\d{1,3}:[0-5]\d:[0-5]\d)?$"
+
+#: Une durée `H:MM:SS`, ou vide (#1019).
+Duree = Annotated[str, Field(pattern=_DUREE)]
+
+
+def _segment_duree(segment: tuple[str, str]) -> tuple[str, str]:
+    if not re.fullmatch(_DUREE, segment[1]):
+        raise ValueError("Temps attendu au format H:MM:SS.")
+    return segment
 
 
 class ParticipationOut(BaseModel):
@@ -120,7 +135,17 @@ class ParticipationCreate(BaseModel):
     """
     Création manuelle d'un résultat. Porte l'identité de l'athlète et de la course
     (forme plate) ; le service les normalise en Athlete + Course + Participation.
+
+    **Contrat resserré par #1019** (changement explicite, Principe IV) : la route
+    est ouverte sans session, et une valeur hors nomenclature (type, statut,
+    date illisible) retirait le résultat des filtres et des saisons **en
+    silence**, sans correction possible depuis la page bénévole. Mêmes règles
+    qu'`AdminCourseUpdate` et `AdminAthleteUpdate` sur les mêmes colonnes. Un
+    champ inconnu reste ignoré : c'est ainsi que `raw_data`, que le formulaire
+    n'envoie pas et dont la taille n'était pas bornée, n'est plus lu.
     """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
 
     # Ignoré par la route, jamais lu (#565) : accepté pour ne pas casser un
     # appelant `/api/v1` existant (Principe IV), mais `provider="manuel"` et
@@ -128,13 +153,13 @@ class ParticipationCreate(BaseModel):
     # `api/v1/participations._to_scraped` et `backend/app/api/AGENTS.md`.
     source_url: str = ""
     # Athlète
-    athlete_name: str = ""
+    athlete_name: str = Field(min_length=1, max_length=200)
     athlete_firstname: str = ""
     gender: str = ""
     club: str = ""
     # Épreuve
-    event_name: str = ""
-    event_date: str | None = None
+    event_name: str = Field(min_length=1, max_length=300)
+    event_date: date | None = None
     event_type: str = ""
     is_relay: bool = False
     # Format libre quand l'épreuve n'entre dans aucune taille normalisée
@@ -145,23 +170,32 @@ class ParticipationCreate(BaseModel):
     # Participation
     bib_number: str = ""
     category: str = ""
-    rank_overall: int | None = None
-    rank_category: int | None = None
-    rank_gender: int | None = None
-    total_time: str = ""
-    status: str = ""
+    rank_overall: int | None = Field(default=None, ge=1)
+    rank_category: int | None = Field(default=None, ge=1)
+    rank_gender: int | None = Field(default=None, ge=1)
+    total_time: Duree = ""
+    status: Literal["", STATUS_FINISHER, STATUS_DNF, STATUS_DNS, STATUS_DSQ] = ""
     # Nom de l'équipe si `is_relay` est vrai, lien vers les résultats publiés
     # comme pièce de vérification — jamais une source de scraping (#270).
     team_name: str = ""
     evidence_url: str = ""
     # Segments — commodité de saisie triathlon (mappés vers splits, ré-étiquetés
     # par sport). Pour les autres sports, préférer `segments` (chemin générique).
-    swim_time: str = ""
-    t1_time: str = ""
-    bike_time: str = ""
-    t2_time: str = ""
-    run_time: str = ""
+    swim_time: Duree = ""
+    t1_time: Duree = ""
+    bike_time: Duree = ""
+    t2_time: Duree = ""
+    run_time: Duree = ""
     # Chemin générique optionnel : liste ordonnée de (label, temps). Si renseigné,
     # prime sur les champs ci-dessus (déplafonné, étiquettes libres).
-    segments: list[tuple[str, str]] | None = None
-    raw_data: dict = {}
+    segments: list[Annotated[tuple[str, str], AfterValidator(_segment_duree)]] | None = None
+
+    @field_validator("event_type")
+    @classmethod
+    def _slug_connu(cls, valeur: str) -> str:
+        if valeur not in CANONICAL_TYPES:
+            raise ValueError(
+                f"Type d'épreuve inconnu. Valeurs acceptées : "
+                f"{', '.join(sorted(CANONICAL_TYPES))}."
+            )
+        return valeur

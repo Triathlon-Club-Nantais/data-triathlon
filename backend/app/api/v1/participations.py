@@ -38,7 +38,7 @@ def _to_scraped(body: ParticipationCreate) -> ScrapedResult:
         gender=body.gender,
         bib_number=body.bib_number,
         event_name=body.event_name,
-        event_date=_parse_date(body.event_date),
+        event_date=body.event_date,
         event_type=body.event_type,
         format_label=body.format_label,
         distance_km=body.distance_km,
@@ -56,7 +56,6 @@ def _to_scraped(body: ParticipationCreate) -> ScrapedResult:
         status=body.status,
         team_name=body.team_name,
         evidence_url=body.evidence_url,
-        raw_data=body.raw_data,
         # Forcé, jamais lu depuis `body` : une saisie manuelle par ce point
         # d'entrée est toujours non vérifiée (FR-016). `ParticipationCreate`
         # ne porte délibérément pas ce champ en entrée.

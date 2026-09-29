@@ -298,6 +298,29 @@ prévu pour le lien de vérification d'une saisie manuelle — il n'a jamais
 créé de `CourseSource` (#279, testé par
 `test_evidence_url_ne_cree_aucune_source_de_scraping`).
 
+**Le contrat d'entrée de `POST /participations` a été resserré par #1019**,
+changement explicite accepté au titre du Principe IV. Ce qui passait en `201`
+et rend désormais un `422` :
+
+- `athlete_name` ou `event_name` vides (ou faits de blancs : le schéma les
+  débarrasse de leurs bords, `str_strip_whitespace`) ;
+- un `event_type` hors de `classify.CANONICAL_TYPES`, même règle
+  qu'`AdminCourseUpdate` ;
+- un `status` hors de `""`, `finisher`, `DNF`, `DNS`, `DSQ` ;
+- un rang (`rank_overall`, `rank_category`, `rank_gender`) inférieur à 1 ;
+- un `event_date` qui n'est pas une date ISO valide. Il était auparavant passé
+  à `core/season.parse_date`, conçue pour des query params, qui le changeait
+  **en silence** en `None` ;
+- un temps (`total_time`, les cinq segments nommés, les temps de `segments`)
+  qui n'est ni vide ni au format `H:MM:SS`.
+
+`raw_data` **n'est plus lu** : envoyé, il est ignoré (Pydantic ignore les
+champs inconnus), jamais rejeté ni persisté. Le formulaire ne l'envoyait pas,
+et sa taille n'était pas bornée alors que `public_write_rate_limit` suppose
+qu'une écriture coûte une ligne. Le seul appelant connu, `ManualResultForm.tsx`,
+envoie déjà des valeurs conformes, sauf un temps mal tapé dans un champ libre :
+il rend maintenant un 422 au lieu d'un temps illisible en base.
+
 ## Protéger une ressource (#115)
 
 `api/deps.require_permission(P.X)` fabrique la garde d'**une** route. Elle nomme
