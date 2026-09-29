@@ -99,6 +99,18 @@ describe("CalendrierEntrainements", () => {
     expect(screen.queryByText("null")).not.toBeInTheDocument();
   });
 
+  it.each([
+    [0, "0 inscrit"],
+    [1, "1 inscrit"],
+    [2, "2 inscrits"],
+  ])("accorde %i participant(s) au singulier jusqu'à 1 (#1013)", async (count, libelle) => {
+    listTrainingSessions.mockResolvedValue([{ ...SEANCE, participant_count: count }]);
+
+    afficher();
+
+    expect(await screen.findByText(libelle)).toBeInTheDocument();
+  });
+
   it("dit « aucun entraînement » sur une liste vide", async () => {
     listTrainingSessions.mockResolvedValue([]);
 
