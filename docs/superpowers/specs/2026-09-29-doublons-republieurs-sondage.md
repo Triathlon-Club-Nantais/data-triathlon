@@ -41,6 +41,15 @@ statut comprises) :
 | 596 / 753 | « 5e Duathlon Nozéen 2025 - Duathlon S - En individuel (OPEN - Non sélectif) » (klikego) | « Duathlon Nozéen S Open » | 13/04/2025 | duathlon-s | 149 / 135 | 109 / 108 | 15 / 0 |
 | 170 / 187 | **épreuve réelle de dev n° 67**, « Triathlon de Carnac 2025 - Triathlon M » (sportinnovation) | « Triathlon de Carnac M » | 05/10/2025 | triathlon-m | 261 / 261 | 225 / 225 | 0 / 0 |
 
+**Colonne TCN** : elle reprend le `tcn_count` des primaires relevé par #974
+(28 pour Couëron, 15 pour Nozéen), qui diffère des lignes TCN **en double**
+chiffrées par #910 en production (24 et 9) : les deux requêtes ne comptent pas la
+même chose, et aucune n'a été rejouée ici. Sans effet sur la mesure, puisque
+aucun motif ne lit le club ; mais la reconstruction n'est pas une copie de la
+production. La preuve que les 4 paires partagent leurs finishers au même temps
+repose sur la requête SQL de production de #910 (309, 268, 225 et 108 lignes),
+pas sur une mesure de ce sondage.
+
 Côté republication : ni dossard ni club (comme le site), 3 lignes
 `?DOSSARD #…` par paire, et des coureurs propres à la republication pour
 atteindre l'effectif. Carnac est la seule paire dont la primaire est réelle :
