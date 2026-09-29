@@ -126,6 +126,8 @@ describe("CoursePage", () => {
 
     const retour = screen.getByRole("link", { name: "Résultats" });
     expect(retour).toHaveAttribute("href", "/resultats");
+    // Cible de 44 px sous md (patron #953, revue UI/UX).
+    expect(retour).toHaveClass("tcn-cible-tactile");
     const titre = screen.getByRole("heading", { level: 1 });
     expect(retour.compareDocumentPosition(titre) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });

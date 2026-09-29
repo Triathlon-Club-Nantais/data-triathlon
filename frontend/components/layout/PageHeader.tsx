@@ -3,13 +3,16 @@ import { ChevronLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** Lien de remontée vers le parent hiérarchique, partagé avec les en-têtes composés à la main (#1085). */
-export function BackLink({ href, label }: { href: string; label: string }) {
+export function BackLink({ href, label, className }: { href: string; label: string; className?: string }) {
   return (
     <Link
       href={href}
       // `py-1 -my-1` : la cible passe de 20 à 28 px de haut (SC 2.5.8 en
       // demande 24) sans déplacer quoi que ce soit autour.
-      className="-my-1 inline-flex items-center gap-1 py-1 text-sm font-medium text-[var(--tcn-text-faint)] transition-colors hover:text-foreground"
+      className={cn(
+        "-my-1 inline-flex items-center gap-1 py-1 text-sm font-medium text-[var(--tcn-text-faint)] transition-colors hover:text-foreground",
+        className,
+      )}
     >
       <ChevronLeft className="size-4" />
       {label}

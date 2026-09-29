@@ -149,7 +149,8 @@ export default async function CoursePage({
         {/* Lien seul plutôt que `PageHeader` : son `h1` changerait la typographie
             du titre (Anton en `clamp()`). Parent fixe, comme le profil athlète (#488). */}
         <div style={{ marginBottom: 12 }}>
-          <BackLink href="/resultats" label="Résultats" />
+          {/* 44 px sous `md` (patron #953) : seul chemin de remontée au doigt. */}
+          <BackLink href="/resultats" label="Résultats" className="tcn-cible-tactile my-0" />
         </div>
         <Eyebrow style={{ marginBottom: 6 }}>Résultats complets</Eyebrow>
         <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(30px, 5vw, 46px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginBottom: 12 }}>{formatEventName(course.name, course.is_relay)}</h1>
