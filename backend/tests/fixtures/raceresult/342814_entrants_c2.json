@@ -1,0 +1,145 @@
+{
+ "list": {
+  "ListName": "1-Listes Inscrits|Liste SWIM- Equipe",
+  "Fields": [
+   {
+    "Expression": "ATF1",
+    "Label": "N°",
+    "Label2": "",
+    "Alignment": 1,
+    "FontBold": false,
+    "FontItalic": false,
+    "FontUnderlined": false,
+    "Line": 1,
+    "Color": "",
+    "Link": "",
+    "ColSpan": 0,
+    "ColOffset": 0,
+    "Position": 0,
+    "DynamicFormat": "",
+    "PreviewOnly": false,
+    "ResponsiveHide": 0
+   },
+   {
+    "Expression": "LFNAME",
+    "Label": "Nom, Prénom",
+    "Label2": "",
+    "Alignment": 1,
+    "FontBold": false,
+    "FontItalic": false,
+    "FontUnderlined": false,
+    "Line": 1,
+    "Color": "",
+    "Link": "",
+    "ColSpan": 0,
+    "ColOffset": 0,
+    "Position": 0,
+    "DynamicFormat": "",
+    "PreviewOnly": false,
+    "ResponsiveHide": 0
+   },
+   {
+    "Expression": "AGEGROUP.NAMESHORT",
+    "Label": "Cat",
+    "Label2": "",
+    "Alignment": 1,
+    "FontBold": false,
+    "FontItalic": false,
+    "FontUnderlined": false,
+    "Line": 1,
+    "Color": "",
+    "Link": "",
+    "ColSpan": 0,
+    "ColOffset": 0,
+    "Position": 0,
+    "DynamicFormat": "",
+    "PreviewOnly": false,
+    "ResponsiveHide": 0
+   },
+   {
+    "Expression": "ATF2",
+    "Label": "Cat. Equipe",
+    "Label2": "",
+    "Alignment": 1,
+    "FontBold": false,
+    "FontItalic": false,
+    "FontUnderlined": false,
+    "Line": 1,
+    "Color": "",
+    "Link": "",
+    "ColSpan": 0,
+    "ColOffset": 0,
+    "Position": 0,
+    "DynamicFormat": "",
+    "PreviewOnly": false,
+    "ResponsiveHide": 0
+   }
+  ]
+ },
+ "DataFields": [
+  "BIB",
+  "ID",
+  "ATF1",
+  "LFNAME",
+  "AGEGROUP.NAMESHORT",
+  "ATF2"
+ ],
+ "data": {
+  "#1_LE S DE LECOQ DUO": {
+   "#1_ABIGIRLS": [
+    [
+     "1571",
+     "1",
+     "1",
+     "NOM57, Prenom57",
+     "S4F",
+     "FEMININE"
+    ],
+    [
+     "2571",
+     "2",
+     "1",
+     "NOM58, Prenom58",
+     "S4F",
+     "FEMININE"
+    ]
+   ],
+   "#2_ADÉMAR SPLASH": [
+    [
+     "1572",
+     "3",
+     "2",
+     "NOM59, Prenom59",
+     "S3F",
+     "FEMININE"
+    ],
+    [
+     "2572",
+     "4",
+     "2",
+     "NOM60, Prenom60",
+     "S3F",
+     "FEMININE"
+    ]
+   ],
+   "#3_AJ84": [
+    [
+     "1573",
+     "5",
+     "3",
+     "NOM61, Prenom61",
+     "M1F",
+     "FEMININE"
+    ],
+    [
+     "2573",
+     "6",
+     "3",
+     "NOM62, Prenom62",
+     "M1F",
+     "FEMININE"
+    ]
+   ]
+  }
+ }
+}

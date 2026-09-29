@@ -720,6 +720,16 @@ class _Persister:
         )
 
     def add(self, scraped: ScrapedResult) -> None:
+        # Jamais de résolution sur l'identité vide (#897) : toutes ces lignes,
+        # épreuves et événements confondus, fusionnaient sur une seule fiche.
+        nameless = not any(_identity_key(scraped))
+        if nameless and not scraped.bib_number:
+            logger.warning(
+                "Row without name nor bib skipped: %s (%s)",
+                scraped.event_name, scraped.source_url or self.event_url,
+            )
+            self.skipped += 1
+            return
         cache_key = (
             scraped.provider,
             scraped.source_url or self.event_url,
@@ -737,6 +747,9 @@ class _Persister:
             self._note_passive(course, resolution.passive_source)
         self._courses[course.id] = course
         self._index_course(course.id)
+        if nameless:
+            # Le dossard est unique sur l'épreuve : l'identité se retrouve au rescrape.
+            scraped = replace(scraped, athlete_name=f"Anonyme {course.id}-{scraped.bib_number}")
         bib = scraped.bib_number or None
 
         if bib is not None:

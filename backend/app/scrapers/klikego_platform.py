@@ -26,7 +26,7 @@ from bs4 import BeautifulSoup
 from app.core.exceptions import ScraperError
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
-from .utils import normalize_time, strip_accents
+from .utils import is_masked_name, normalize_time, strip_accents
 
 logger = logging.getLogger(__name__)
 
@@ -257,19 +257,6 @@ def _split_name(full: str) -> tuple[str, str]:
     return " ".join(parts[:i]), " ".join(parts[i:])
 
 
-_MASK_TOKEN_RE = re.compile(r"^[X?]+$", re.IGNORECASE)
-
-
-def _is_masked_name(nom: str) -> bool:
-    """Détecte un nom RGPD-anonymisé par la source (« XXX XXX », « ??? »...).
-
-    Composé uniquement des caractères de masquage constatés (`X`/`x`, `?`) sur
-    chacun de ses mots — un vrai nom porte toujours au moins une autre lettre.
-    """
-    tokens = nom.split()
-    return bool(tokens) and all(_MASK_TOKEN_RE.match(t) for t in tokens)
-
-
 def _athlete_identity(nom: str, dossard: str, *, event_id: str, heat: str) -> tuple[str, str]:
     """(nom, prénom) — anonymise les identités masquées par la source (#710).
 
@@ -290,7 +277,7 @@ def _athlete_identity(nom: str, dossard: str, *, event_id: str, heat: str) -> tu
     laisse passer par `_split_name`, pas pire qu'un nom masqué constant
     (même raisonnement que le régime 3 d'oktime).
     """
-    if dossard and _is_masked_name(nom):
+    if dossard and is_masked_name(nom):
         return f"Anonyme {event_id}-{heat}-{dossard}", ""
     return _split_name(nom)
 

@@ -3904,4 +3904,79 @@ def test_a_segment_candidate_that_is_not_a_duration_lands_in_raw_data():
     )
 
     assert r.segments == [("Nat.", "00:12:34")]
-    assert r.raw_data == {"Pl.": "3.", "Nom Equipe": "LES DAUPHINS", "NomFamille": "DUPONT"}
+    assert r.raw_data == {"Pl.": "3."}
+    # Depuis #897, `ATF5` « Nom Equipe » et `LASTNAME` nomment le participant.
+    assert (r.athlete_name, r.athlete_firstname) == ("LES DAUPHINS", "")
+
+
+# ── Identités sans nom ou masquées (#897) ─────────────────────────────────────
+
+
+def _routeur_342814(listname, contest):
+    return {
+        ("2-Chrono|SWIM.2pornic S", "2"): "342814_pub_c2.json",
+        ("Listes de résultats|Swim- LISTE Vainqueurs", "2"): "342814_winners_c2.json",
+        ("1-Listes Inscrits|Liste SWIM- Equipe", "2"): "342814_entrants_c2.json",
+        ("02 - Chrono|LIVE Arrivée", "0"): "342814_live_c0.json",
+    }.get((listname, contest))
+
+
+def test_342814_duo_prend_le_nom_d_equipe_publie_sous_atf5(monkeypatch):
+    """342814 contest 2 (swimrun en duo) : le nom vit dans `ATF5` (« Nom
+    Equipe »), `LASTNAME` et `FIRSTNAME`, qu'aucune règle ne reconnaissait :
+    toutes les lignes sortaient à nom vide (#897). Fixture anonymisée."""
+    _monte_pipeline_fixtures(monkeypatch, "342814", _routeur_342814)
+
+    res = raceresult.scrape_event_all("https://my.raceresult.com/342814/results?contest=2")
+
+    assert res
+    assert all(r.athlete_name for r in res)
+    duo = next(r for r in res if r.bib_number == "1641")
+    assert (duo.athlete_name, duo.athlete_firstname) == ("EQUIPE 1", "")
+    assert duo.club == "CNP REDON"
+
+
+def test_lastname_firstname_font_l_identite_sans_colonne_d_equipe():
+    payload = {
+        "DataFields": ["BIB", "ID", "LASTNAME", "FIRSTNAME", "TIME"],
+        "list": {"Fields": [
+            {"Expression": "LASTNAME", "Label": "Nom"},
+            {"Expression": "FIRSTNAME", "Label": "Prénom"},
+            {"Expression": "TIME", "Label": "Temps"},
+        ]},
+    }
+    roles, segments, extras = raceresult._map_columns(payload)
+
+    r = raceresult._build_result(
+        ["7", "1", "DUPONT", "Jean", "1:00:00"], roles, segments, extras,
+        source_url="https://my.raceresult.com/1/results?contest=1", event_name="Tri",
+        event_date=date(2026, 6, 1), contest_label="M", status_label="",
+    )
+
+    assert (r.athlete_name, r.athlete_firstname) == ("DUPONT", "Jean")
+
+
+@pytest.mark.parametrize("nom", ["", "Anonymous", "XXX XXX", "anonyme"])
+def test_nom_vide_ou_masque_avec_dossard_recoit_une_identite_synthetique(nom):
+    """Patron #725 étendu à RaceResult (#897) : événement, contest, dossard."""
+    res = [
+        ScrapedResult(
+            source_url="https://my.raceresult.com/342814/results?contest=2",
+            provider="raceresult", athlete_name=nom, bib_number="1641",
+        )
+    ]
+
+    raceresult._anonymise_identities(res, event_id="342814")
+
+    assert (res[0].athlete_name, res[0].athlete_firstname) == ("Anonyme 342814-2-1641", "")
+
+
+def test_un_vrai_nom_n_est_pas_anonymise():
+    res = [ScrapedResult(
+        source_url="https://my.raceresult.com/1/results?contest=2", provider="raceresult",
+        athlete_name="XAVIER", athlete_firstname="Paul", bib_number="3",
+    )]
+
+    raceresult._anonymise_identities(res, event_id="1")
+
+    assert (res[0].athlete_name, res[0].athlete_firstname) == ("XAVIER", "Paul")

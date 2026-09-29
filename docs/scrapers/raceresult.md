@@ -126,3 +126,14 @@ quand elle apporte la catégorie, `_enrichir` en tire le genre, sauf pour une
 colonne sexe sur quatre épreuves qui la publient. Reste à re-scraper les
 courses RaceResult ; le complément du genre d'un athlète déjà en base dépend de
 #964.
+
+**Identité d'une ligne sans nom (#897).** Sur 342814 (swimrun en duo, contest 2)
+et 398810, le nom ne vit dans aucune colonne d'affichage reconnue : l'équipe est
+un attribut libre `ATF5` étiqueté « Nom Equipe », les équipiers sont `LASTNAME`,
+`FIRSTNAME`, `NomFamille2`, `Prenom2`. Toutes les lignes sortaient à nom vide et
+fusionnaient sur une seule fiche (771 participations en 31 courses en
+production). Ordre retenu : colonne « nom » d'affichage, puis nom d'équipe (lu au
+libellé, l'expression `ATF5` ne disant rien), puis `LASTNAME`/`FIRSTNAME`. Une
+ligne restée sans nom, ou au nom masqué (« Anonymous », « XXX »), reçoit avec son
+dossard l'identité « Anonyme <événement>-<contest>-<dossard> »
+(`raceresult._anonymise_identities`, patron #725).

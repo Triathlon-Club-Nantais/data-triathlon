@@ -328,3 +328,18 @@ def test_split_athlete_name_keeps_only_the_first_line():
 ])
 def test_split_athlete_name_without_uppercase_block_takes_the_last_token(brut, attendu):
     assert split_athlete_name(brut) == attendu
+
+
+
+@pytest.mark.parametrize(
+    "nom, masque",
+    [
+        ("XXX XXX", True), ("???", True), ("Anonymous", True), ("ANONYME", True),
+        ("anonymous anonymous", True), ("", False), ("XAVIER", False), ("Anonymous Jean", False),
+    ],
+)
+def test_is_masked_name(nom, masque):
+    """Noms masqués constants par la source (#710, #897)."""
+    from app.scrapers.utils import is_masked_name
+
+    assert is_masked_name(nom) is masque

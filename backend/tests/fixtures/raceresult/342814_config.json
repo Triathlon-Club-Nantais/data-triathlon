@@ -1,0 +1,125 @@
+{
+ "key": "66c68184f085594cf096e20e33d5c82b",
+ "contests": {
+  "1": "LE M DE MYSWIM.FR",
+  "2": "LE S DE LECOQ DUO",
+  "3": "LE S DE LECOQ - SOLO"
+ },
+ "eventname": "SWIMRUN CÔTE DE JADE",
+ "TabConfig": {
+  "InfoText": "",
+  "Subtype": "boxes",
+  "StandardDetails": "details",
+  "Lists": [
+   {
+    "Name": "2-Chrono|SWIM.2pornic",
+    "Mode": "",
+    "Contest": "1",
+    "ShowAs": "Résultats",
+    "Format": "VP",
+    "Live": 1,
+    "Sortable": 1,
+    "Leader": 0,
+    "Details": "details",
+    "ID": "E7486D"
+   },
+   {
+    "Name": "Listes de résultats|Swim- LISTE Vainqueurs",
+    "Mode": "",
+    "Contest": "1",
+    "ShowAs": "Résultats par Cat",
+    "Format": "VP",
+    "Live": 1,
+    "Sortable": 1,
+    "Leader": 0,
+    "Details": "details",
+    "ID": "C9FD33"
+   },
+   {
+    "Name": "2-Chrono|SWIM.2pornic S",
+    "Mode": "",
+    "Contest": "2",
+    "ShowAs": "Résultats",
+    "Format": "VP",
+    "Live": 1,
+    "Sortable": 1,
+    "Leader": 0,
+    "Details": "details",
+    "ID": "3846B2"
+   },
+   {
+    "Name": "Listes de résultats|Swim- LISTE Vainqueurs",
+    "Mode": "",
+    "Contest": "2",
+    "ShowAs": "Résultats par Cat",
+    "Format": "VP",
+    "Live": 1,
+    "Sortable": 1,
+    "Leader": 0,
+    "Details": "details",
+    "ID": "299AA5"
+   },
+   {
+    "Name": "1-Listes Inscrits|Liste SWIM- Equipe",
+    "Mode": "hidden",
+    "Contest": "1",
+    "ShowAs": "LISTE EQUIPE",
+    "Format": "VP",
+    "Live": 1,
+    "Sortable": 1,
+    "Leader": 0,
+    "Details": "details",
+    "ID": "C481E3"
+   },
+   {
+    "Name": "1-Listes Inscrits|Liste SWIM- Equipe",
+    "Mode": "hidden",
+    "Contest": "2",
+    "ShowAs": "LISTE EQUIPE",
+    "Format": "VP",
+    "Live": 1,
+    "Sortable": 1,
+    "Leader": 0,
+    "Details": "details",
+    "ID": "F6D068"
+   },
+   {
+    "Name": "02 - Chrono|LIVE Arrivée",
+    "Mode": "",
+    "Contest": "0",
+    "ShowAs": "Controle",
+    "Format": "VP",
+    "Live": 1,
+    "Sortable": 1,
+    "Leader": 0,
+    "Details": "details",
+    "ID": "33F312"
+   },
+   {
+    "Name": "2-Chrono|PONT-TRI Ind.",
+    "Mode": "",
+    "Contest": "3",
+    "ShowAs": "Résultats",
+    "Format": "VP",
+    "Live": 0,
+    "Sortable": 1,
+    "Leader": 0,
+    "Details": "details",
+    "ID": "0EAA94"
+   },
+   {
+    "Name": "Listes de résultats|Liste des vainqueurs",
+    "Mode": "",
+    "Contest": "3",
+    "ShowAs": "Podiums",
+    "Format": "VP",
+    "Live": 0,
+    "Sortable": 1,
+    "Leader": 0,
+    "Details": "details",
+    "ID": "61A3F6"
+   }
+  ],
+  "LeaderboardHideCount": false
+ }
+}
