@@ -873,3 +873,82 @@ def test_shared_finishers_a_year_apart_are_two_editions(db_session):
     _jumelles(db_session, a, b, 5)
 
     assert course_duplicates.find_candidates(db_session) == []
+
+
+
+# ── Republications runnerbreizh (#974) ────────────────────────────────────────
+#
+# Les 4 paires de production, à leurs effectifs mesurés : primaire / republication,
+# athlètes communs, dont au même temps. Sondage :
+# `docs/superpowers/specs/2026-09-29-doublons-republieurs-sondage.md`.
+
+_REPUBLICATIONS = [
+    pytest.param(
+        ("DUATHLON COUERON", date(2025, 10, 5), "duathlon-s",
+         "https://www.timepulse.fr/evenements/resultats/3301", "timepulse", 310, 28),
+        ("Couëron Duathlon S", date(2025, 10, 5),
+         "https://www.runnerbreizh.fr/requetetriathlons.php?CourseFichierGpsNom=2025-10-0544coueron", 270),
+        268, 268, id="coueron-176-718",
+    ),
+    pytest.param(
+        ("Triathlon de Carnac 2025 - Triathlon M", date(2025, 10, 5), "triathlon-m",
+         "https://sportinnovation.fr/Evenements/Resultats/7031", "sportinnovation", 261, 0),
+        ("Triathlon de Carnac M", date(2025, 10, 5),
+         "https://www.runnerbreizh.fr/requetetriathlons.php?CourseFichierGpsNom=2025-10-0556carnac", 261),
+        225, 225, id="carnac-170-187",
+    ),
+    pytest.param(
+        ("5e Duathlon Nozéen 2025 - Duathlon S - En individuel (OPEN - Non sélectif)",
+         date(2025, 4, 13), "duathlon-s",
+         "https://www.klikego.com/resultats/5e-duathlon-nozeen-2025/1517534975128-9?heat=duathlon-s---open",
+         "klikego", 149, 15),
+        ("Duathlon Nozéen S Open", date(2025, 4, 13),
+         "https://www.runnerbreizh.fr/requetetriathlons.php?CourseFichierGpsNom=2025-04-1344noyal", 135),
+        109, 108, id="nozeen-596-753",
+    ),
+]
+
+
+@pytest.mark.parametrize("primary, republished, shared, same_time", _REPUBLICATIONS)
+def test_a_runnerbreizh_republication_is_flagged_against_its_primary(
+    db_session, primary, republished, shared, same_time
+):
+    """Noms, dates et effectifs de production : aucun des trois premiers motifs ne
+    les rapproche, « mêmes participants » (#910) les sort tous (#974)."""
+    name, day, event_type, url, provider, total, tcn = primary
+    r_name, r_day, r_url, r_total = republished
+    a = _epreuve(db_session, name=name, event_date=day, event_type=event_type, url=url,
+                 provider=provider, participations=total - shared, tcn=tcn)
+    b = _epreuve(db_session, name=r_name, event_date=r_day, event_type=event_type, url=r_url,
+                 provider="runnerbreizh", participations=r_total - shared)
+    _jumelles(db_session, a, b, same_time)
+    for numero in range(shared - same_time):
+        # Même athlète, temps différent d'une seconde (Nozéen : 109 communs, 108 au même temps).
+        athlete = Athlete(nom=f"DECALE-{numero}", prenom="Prénom")
+        db_session.add(athlete)
+        db_session.flush()
+        for course, temps in ((a, "01:10:00"), (b, "01:10:01")):
+            db_session.add(Participation(
+                course_id=course.id, athlete_id=athlete.id, bib_number=f"x{numero}",
+                total_time=temps, status="finisher",
+            ))
+    db_session.flush()
+
+    motifs = _motifs_par_paire(course_duplicates.find_candidates(db_session))
+
+    assert {frozenset(p): m for p, m in motifs.items()} == {frozenset((a.id, b.id)): "same_finishers"}
+
+
+def test_a_republication_without_twin_is_not_paired_with_an_unrelated_event(db_session):
+    """Nantes XS (192) n'a pas de jumeau : une épreuve de même type le même
+    week-end, qui partage quelques athlètes, n'est pas son doublon. C'est la
+    paire qu'un motif « fournisseur republieur » sortirait (#974)."""
+    a = _epreuve(db_session, name="Triathlon de Nantes XS", event_date=date(2025, 6, 1),
+                 event_type="triathlon-xs", provider="runnerbreizh", participations=120,
+                 url="https://www.runnerbreizh.fr/requetetriathlons.php?CourseFichierGpsNom=2025-06-0144nantes")
+    b = _epreuve(db_session, name="Triathlon de Pornic XS", event_date=date(2025, 5, 31),
+                 event_type="triathlon-xs", provider="timepulse", participations=90,
+                 url="https://www.timepulse.fr/evenements/resultats/3100")
+    _jumelles(db_session, a, b, 4)
+
+    assert course_duplicates.find_candidates(db_session) == []
