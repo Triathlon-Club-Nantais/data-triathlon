@@ -1333,6 +1333,16 @@ def _renumber_duplicate_ranks(results: list[ScrapedResult]) -> None:
     09:17:39 et 10:28:19), ce qui casse l'hypothèse de
     `services/quality.py::_rank_anomalies` (`ANOMALY_DUPLICATE_RANK`).
 
+    **Opt-in par fournisseur** (#940) : seuls ceux qui déclarent
+    `ranks_per_group` (RaceResult) sont concernés. Ailleurs un doublon est
+    légitime et reste tel quel : relais RunnerBreizh (une ligne par équipier,
+    rang partagé), vrais ex aequo (1, 2, 2, 4) d'une source qui ne classe pas
+    strictement au `total_time` (pénalité, temps officiel contre temps puce).
+    Pour eux, le finisher se lit au **statut effectif** (`mapping.derive_status`,
+    celui de la persistance et de `quality`) : la plupart des scrapers laissent
+    le statut d'un finisher vide, et ne le poser qu'à l'écriture laissait le lot
+    vide.
+
     Ne touche que les groupes portant un doublon dans **ce** lot (`Counter`
     sur `rank_overall` des seuls finishers, comme
     `services/quality.py::_rank_anomalies`) : une épreuve dont le rang est
@@ -1368,7 +1378,8 @@ def _renumber_duplicate_ranks(results: list[ScrapedResult]) -> None:
         ranked = [
             r for r in group
             if r.rank_overall is not None
-            and (r.status or "").strip().lower() == STATUS_FINISHER
+            and registry.ranks_per_group(r.provider)
+            and mapping.derive_status(r).strip().lower() == STATUS_FINISHER
         ]
         rangs = Counter(r.rank_overall for r in ranked)
         if not any(count > 1 for count in rangs.values()):

@@ -1461,9 +1461,9 @@ def _enrichir(existant: ScrapedResult, apport: ScrapedResult) -> None:
       `total_time` (Embrunman — seul le `hidden` publie le chrono), la clôture
       de `_build_result` (`total_time` présent ⇒ `finisher`) ne s'est jamais
       déclenchée côté publié faute de matière. Combler `total_time` sans
-      reproduire cette promotion laisse `status=""`, que
-      `_renumber_duplicate_ranks` (#785) ignore silencieusement — le doublon de
-      rang qu'il doit corriger reste alors intact. Un `status` déjà établi
+      reproduire cette promotion laisse `status=""`. Depuis #940,
+      `_renumber_duplicate_ranks` lit le statut effectif et n'en dépend plus ;
+      la promotion garde le statut explicite côté scraper. Un `status` déjà établi
       (finisher ou non-finisher) côté publié n'est jamais reconsidéré : seul le
       cas « rien à établir » l'est.
     - **Pas de `total_time` pour un non-finisher** (#970) : le `hidden` porte

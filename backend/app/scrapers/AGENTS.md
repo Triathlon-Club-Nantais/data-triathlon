@@ -68,6 +68,11 @@ constantes `STATUS_*`) ; `utils.py` = helpers de normalisation (dont
   (« Abandon », `-00:00:06`), qui ne classe donc pas la ligne finisher (#969).
   Un statut hors du temps se lit par `derive_status_from_label` **avant**.
   Splits adaptés au sport : dans `splits` (JSON) + `raw_data` (JSON).
+- **Un doublon de rang ne se renumérote que chez un fournisseur qui le déclare**
+  (`ranks_per_group`, #940) : RaceResult seul, dont `AUTORANK` est publié par
+  genre sur certaines épreuves (#785). Ailleurs un doublon est légitime (relais
+  RunnerBreizh à rang partagé, vrais ex aequo) et reste tel quel. Déclarer le
+  drapeau sur un nouveau fournisseur demande une mesure, pas une intuition.
 - **Un relais aux équipiers nommés se découpe à l'import, jamais dans un
   scraper** (#895) : `import_service` recolle `nom + prénom` et le passe à
   `utils.split_relay_teammates` (séparateur `/` seul, un nom **et** un prénom par
