@@ -20,7 +20,7 @@ import { SiteAccessGate } from "./SiteAccessGate";
 
 async function seConnecter(codeAcces: string) {
   await userEvent.type(screen.getByLabelText(/code d'accès/i), codeAcces);
-  await userEvent.click(screen.getByRole("button", { name: /se connecter/i }));
+  await userEvent.click(screen.getByRole("button", { name: /entrer sur le site/i }));
 }
 
 describe("SiteAccessGate", () => {
@@ -108,7 +108,7 @@ describe("SiteAccessGate", () => {
     fireEvent.change(screen.getByLabelText(/code d'accès/i), {
       target: { value: "secret-du-club" },
     });
-    const bouton = screen.getByRole("button", { name: /se connecter/i });
+    const bouton = screen.getByRole("button", { name: /entrer sur le site/i });
     bouton.focus();
     await act(async () => {
       fireEvent.click(bouton);
@@ -117,6 +117,8 @@ describe("SiteAccessGate", () => {
     // `disabled` retirerait le focus ; `aria-busy` le laisse en place.
     expect(bouton).not.toBeDisabled();
     expect(bouton).toHaveAttribute("aria-busy", "true");
+    // #1031 : ni « Connexion… » ni « Se connecter », réservés à GitHub.
+    expect(bouton).toHaveTextContent("Vérification…");
     expect(document.activeElement).toBe(bouton);
 
     // La ré-entrée est gardée dans le gestionnaire, pas par l'attribut.
@@ -146,7 +148,7 @@ describe("SiteAccessGate", () => {
         target: { value: "secret-du-club" },
       });
       await act(async () => {
-        fireEvent.click(screen.getByRole("button", { name: /se connecter/i }));
+        fireEvent.click(screen.getByRole("button", { name: /entrer sur le site/i }));
       });
 
       expect(screen.queryAllByText(/réveil/i)).toHaveLength(0);

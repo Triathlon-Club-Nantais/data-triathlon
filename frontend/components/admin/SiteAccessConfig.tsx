@@ -67,7 +67,7 @@ export function SiteAccessConfig() {
       const resultat = await generer.mutateAsync();
       setGenere(resultat.password);
       setSaisie("");
-      toast.success("Code d'accès généré — transmettez-le hors-bande.");
+      toast.success("Code d'accès du site généré, transmettez-le par un autre canal.");
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -100,7 +100,7 @@ export function SiteAccessConfig() {
       </CardHeader>
       <CardContent className="space-y-6">
         <p className="text-[var(--tcn-text-faint)] text-sm">
-          Code d&apos;accès partagé demandé à l&apos;entrée du site. Il est stocké
+          Code d&apos;accès du site, partagé et demandé à l&apos;entrée. Il est stocké
           haché et salé : personne, y compris un administrateur, ne peut le
           retrouver une fois enregistré — seul un remplacement ou une nouvelle
           génération y change quelque chose.
@@ -145,7 +145,7 @@ export function SiteAccessConfig() {
           className="flex flex-col gap-3 sm:flex-row sm:items-end"
         >
           <div className="flex-1 space-y-1">
-            <Label htmlFor="site-password">Nouveau code d&apos;accès</Label>
+            <Label htmlFor="site-password">Nouveau code d&apos;accès du site</Label>
             <Input
               id="site-password"
               type="text"
@@ -153,7 +153,7 @@ export function SiteAccessConfig() {
               aria-describedby="site-password-aide"
               value={saisie}
               onChange={(e) => setSaisie(e.target.value)}
-              placeholder="Saisir un nouveau code d'accès"
+              placeholder="Saisir un nouveau code d'accès du site"
             />
             <p id="site-password-aide" className="text-xs text-muted-foreground">
               12 caractères minimum. Préférez « Générer un code d&apos;accès sécurisé »,

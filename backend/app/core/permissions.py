@@ -128,7 +128,7 @@ class P:
     SITE_ACCESS_MANAGE = Permission(
         "site_access:manage",
         "Gérer l'accès au site",
-        "Consulter l'état du mot de passe partagé du site, le remplacer par "
+        "Consulter l'état du code d'accès du site, le remplacer par "
         "une saisie ou en générer un nouveau de façon sécurisée.",
         FEATURE_ROLES,
     )

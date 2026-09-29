@@ -53,6 +53,18 @@ describe("Page de connexion — méthodes", () => {
     expect(screen.getByRole("link", { name: /Ailleurs/ })).toBeInTheDocument();
   });
 
+  // #1031 : sans le code d'accès, rien ne se consulte ; la phrase le dit.
+  it("annonce le code d'accès du club, pas un site consultable sans rien", async () => {
+    afficher([]);
+
+    expect(
+      screen.getByText(
+        "Les résultats se consultent avec le code d'accès du club, sans compte. La connexion GitHub ne sert qu'aux contributeurs.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/entièrement consultable/)).not.toBeInTheDocument();
+  });
+
   it("pointe chaque bouton vers l'entrée de parcours du backend", async () => {
     afficher([{ slug: "github", label: "GitHub" }]);
 

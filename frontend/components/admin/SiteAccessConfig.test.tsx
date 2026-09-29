@@ -188,6 +188,11 @@ describe("SiteAccessConfig", () => {
     );
 
     expect(await screen.findByText("mot-de-passe-genere-abc123")).toBeInTheDocument();
+    // #1031 : le mot de l'adhérent, et une consigne en français courant.
+    expect(toastSuccess).toHaveBeenCalledWith(
+      "Code d'accès du site généré, transmettez-le par un autre canal.",
+    );
+    expect(screen.getByLabelText("Nouveau code d'accès du site")).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /copier/i }));
     expect(writeText).toHaveBeenCalledWith("mot-de-passe-genere-abc123");

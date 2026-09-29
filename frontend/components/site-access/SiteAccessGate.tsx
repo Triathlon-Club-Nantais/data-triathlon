@@ -124,7 +124,9 @@ export function SiteAccessGate({ apres = "rafraichir" }: { apres?: "rafraichir" 
             aria-busy={enCours}
             style={{ width: "100%", marginTop: 16, opacity: enCours ? 0.6 : undefined }}
           >
-            {enCours ? "Connexion…" : "Se connecter"}
+            {/* Pas « Se connecter » : ce verbe est celui de `/login` (GitHub), un
+                autre mécanisme que le code du club (#1031). */}
+            {enCours ? "Vérification…" : "Entrer sur le site"}
           </Button>
           {/* Montée en permanence : une région live insérée seulement à l'apparition
               du texte n'est pas annoncée par tous les lecteurs d'écran (#502). Pas
