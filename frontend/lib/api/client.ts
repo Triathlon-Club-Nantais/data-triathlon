@@ -651,6 +651,7 @@ export const apiClient = {
   // ── Mot de passe d'accès au site (#509) ────────────────────────────────────
   siteAccessLogin: (password: string) =>
     request<null>("/site-access/session", { method: "POST", body: JSON.stringify({ password }) }),
+  siteAccessLogout: () => request<null>("/site-access/session", { method: "DELETE" }),
   // `site_access:manage`. `PUT`/`generate` rendent la même forme que `GET`,
   // sauf `generate` qui ajoute le mot de passe en clair — une seule fois.
   getSiteAccessConfig: () => request<SiteAccessConfig>("/admin/site-access"),

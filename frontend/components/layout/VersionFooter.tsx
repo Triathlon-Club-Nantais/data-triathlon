@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api/client";
+import { ForgetSiteAccessButton } from "@/components/site-access/ForgetSiteAccessButton";
 
 /** Footer discret rendant les versions front + back (#134).
  *
@@ -59,27 +60,27 @@ export function VersionFooter() {
     letterSpacing: "0.02em",
   };
 
-  if (mismatch) {
-    return (
-      <footer style={{ ...baseStyle, color: "var(--tcn-warning-text)" }}>
-        front <b>{frontVersion}</b> · back <b>{backVersion}</b>
-      </footer>
-    );
-  }
-
   // Fetch encore en cours (backVersion === undefined) ou versions cohérentes
   // (backVersion === frontVersion) : on rend juste la version front. Silencieux
   // et non-clignotant.
-  if (backVersion === null) {
-    return (
-      <footer style={baseStyle}>
-        <b>{frontVersion}</b> · back ?
-      </footer>
-    );
-  }
-  return (
-    <footer style={baseStyle}>
+  const version = mismatch ? (
+    <div style={{ color: "var(--tcn-warning-text)" }}>
+      front <b>{frontVersion}</b> · back <b>{backVersion}</b>
+    </div>
+  ) : backVersion === null ? (
+    <div>
+      <b>{frontVersion}</b> · back ?
+    </div>
+  ) : (
+    <div>
       <b>{frontVersion}</b>
+    </div>
+  );
+
+  return (
+    <footer style={{ ...baseStyle, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+      {version}
+      <ForgetSiteAccessButton />
     </footer>
   );
 }

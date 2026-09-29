@@ -458,3 +458,10 @@ les deux bouts doivent s'accorder, sans quoi l'administration accepte un mot de
 passe que la connexion refuse en 422 — un accès configuré et inutilisable
 (relevé en revue de #513).
 
+**`DELETE /site-access/session` est le seul geste qui retire le cookie de site**
+(#1057) : le lien « Oublier le code d'accès sur cet appareil » du pied de page
+front, visible de tous, l'appelle puis mène à `/acces`. `POST /auth/logout` (SSO)
+**n'y touche pas**, et c'est voulu : la session SSO et le code d'accès sont deux
+secrets distincts, l'un personnel, l'autre commun à tous les adhérents, et un
+contributeur qui se déconnecte reste un adhérent qui consulte le site.
+
