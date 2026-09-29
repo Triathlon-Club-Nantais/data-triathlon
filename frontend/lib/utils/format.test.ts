@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { disciplineOf, disciplineBreakdownBySeason, formatCount, motCompte, ordinalFr } from "./format";
+import { disciplineOf, disciplineBreakdownBySeason, formatCount, motCompte, ordinalFr, plural } from "./format";
 import type { Participation } from "@/lib/types";
 
 let nextId = 1;
@@ -127,6 +127,18 @@ describe("motCompte", () => {
   // Le zéro français est singulier — « 0 podium », pas « 0 podiums ».
   it("laisse le singulier à 0", () => {
     expect(motCompte(0, "épreuve")).toBe("0 épreuve");
+  });
+});
+
+describe("plural (#1142)", () => {
+  it("keeps the singular for 0 and 1, including a verb form", () => {
+    expect(plural(0, "a", "ont")).toBe("a");
+    expect(plural(1, "purgée")).toBe("purgée");
+  });
+
+  it("uses the plural beyond 1", () => {
+    expect(plural(2, "a", "ont")).toBe("ont");
+    expect(plural(2, "purgée")).toBe("purgées");
   });
 });
 

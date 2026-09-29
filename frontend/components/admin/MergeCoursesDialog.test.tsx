@@ -143,7 +143,7 @@ describe("MergeCoursesDialog", () => {
     ).toBeInTheDocument();
   });
 
-  it("accorde le pluriel à zéro résultat et zéro fiche orpheline", async () => {
+  it("accorde le singulier à zéro résultat et zéro fiche orpheline (#1142)", async () => {
     getCourseMergeImpact.mockResolvedValue({
       ...IMPACT,
       participations_without_match: 0,
@@ -160,7 +160,7 @@ describe("MergeCoursesDialog", () => {
         screen.getByText(
           (_, el) =>
             el?.tagName === "LI" &&
-            /^0 résultats de l'épreuve absorbée n'ont pas d'équivalent côté cible et disparaîtront/.test(
+            /^0 résultat de l'épreuve absorbée n'a pas d'équivalent côté cible et disparaîtra/.test(
               el.textContent ?? "",
             ),
         ),
@@ -170,7 +170,7 @@ describe("MergeCoursesDialog", () => {
       screen.getByText(
         (_, el) =>
           el?.tagName === "LI" &&
-          /^0 fiches coureur ne conserveront plus aucun résultat et seront retirées/.test(
+          /^0 fiche coureur ne conservera plus aucun résultat et sera retirée/.test(
             el.textContent ?? "",
           ),
       ),
@@ -197,6 +197,33 @@ describe("MergeCoursesDialog", () => {
     expect(toastSuccess).toHaveBeenCalledWith(
       "« Triathlon et SwimRun Mesquer-Quimiac 2026 » a été fusionnée dans la source conservée — " +
         "179 résultats sans correspondance ont disparu, 4 fiches coureur purgées.",
+    );
+  });
+
+  it.each([
+    [0, "0 résultat sans correspondance a disparu, 0 fiche coureur purgée."],
+    [1, "1 résultat sans correspondance a disparu, 1 fiche coureur purgée."],
+    [2, "2 résultats sans correspondance ont disparu, 2 fiches coureur purgées."],
+  ])("accorde le bilan de la fusion à %i (#1142)", async (n, bilan) => {
+    getCourseMergeImpact.mockResolvedValue(IMPACT);
+    mergeCourses.mockResolvedValue({
+      target_id: 38,
+      absorbed_id: 50,
+      participations_deleted: n,
+      athletes_purged: n,
+      source_added: true,
+      sources: [],
+    });
+    const user = userEvent.setup();
+    afficher();
+
+    await user.click(await screen.findByRole("button", { name: /garder.*klikego/i }));
+    await user.click(await screen.findByRole("button", { name: /^fusionner$/i }));
+
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith(
+        `« Triathlon et SwimRun Mesquer-Quimiac 2026 » a été fusionnée dans la source conservée — ${bilan}`,
+      ),
     );
   });
 

@@ -156,13 +156,18 @@ export function genderShort(gender: string | null | undefined): string {
   return gender;
 }
 
+/** Singulier jusqu'à 1, zéro compris, comme le veut le français (#1142). */
+export function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
+  return count > 1 ? pluralForm : singular;
+}
+
 /**
  * « 1 podium » / « 2 podiums » — décompte accordé, pour les zones dont le
  * contenu change sans navigation et doit rester lisible à l'annonce (#477).
  * Le zéro reste au singulier, comme le veut le français.
  */
 export function motCompte(n: number, mot: string): string {
-  return `${n} ${mot}${n > 1 ? "s" : ""}`;
+  return `${n} ${plural(n, mot)}`;
 }
 
 /** « 3 minutes » ou « moins d'une minute » — le décompte du plafond de débit.

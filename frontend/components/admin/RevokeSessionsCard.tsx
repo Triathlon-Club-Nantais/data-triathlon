@@ -7,6 +7,7 @@ import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { ApiError } from "@/lib/api/client";
 import { useRevokeSessions } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
+import { motCompte, plural } from "@/lib/utils/format";
 
 /**
  * Le geste d'incident (#169) : fermer d'un coup toutes les sessions ouvertes.
@@ -53,9 +54,8 @@ export function RevokeSessionsCard() {
       // Sans adresse : la portée est globale.
       const bilan = await revoquer.mutateAsync(undefined);
       toast.success(
-        `${bilan.sessions} session${bilan.sessions === 1 ? "" : "s"} fermée${
-          bilan.sessions === 1 ? "" : "s"
-        } sur ${bilan.accounts} compte${bilan.accounts === 1 ? "" : "s"}.`,
+        `${motCompte(bilan.sessions, "session")} ${plural(bilan.sessions, "fermée")} ` +
+          `sur ${motCompte(bilan.accounts, "compte")}.`,
       );
       router.push("/login");
     } catch (e) {
