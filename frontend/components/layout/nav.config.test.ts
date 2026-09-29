@@ -80,20 +80,30 @@ describe("nav.config — pages en avant-première (#811)", () => {
   });
 });
 
-describe("nav.config — Bénévolat et Validation des épreuves (#830, #832, #882)", () => {
-  it("annonce « Bénévolat » vers /benevolat, visible sans pouvoir", () => {
-    const item = NAV.flatMap((s) => s.items).find((i) => i.id === "benevolat");
-    expect(item).toBeDefined();
-    expect(item?.href).toBe("/benevolat");
-    expect(estVisible(item!, new Set(), ROLE.ANON)).toBe(true);
+describe("nav.config — écrans bénévolat derrière pages:preview (#879)", () => {
+  const entree = (id: string) => NAV.flatMap((s) => s.items).find((i) => i.id === id)!;
+
+  it.each([
+    ["benevolat", "/benevolat"],
+    ["benevoles", "/benevoles"],
+  ])("masque « %s » (%s) sans pages:preview, anonyme ou connecté", (id, href) => {
+    expect(entree(id).href).toBe(href);
+    expect(estVisible(entree(id), new Set(), ROLE.ANON)).toBe(false);
+    expect(estVisible(entree(id), new Set(["courses:write"]), ROLE.CONNECTED)).toBe(false);
+    expect(estVisible(entree(id), new Set(["pages:preview"]), ROLE.CONNECTED)).toBe(true);
   });
 
-  it("annonce « Validation des épreuves » vers /benevoles, visible sans pouvoir (#882)", () => {
-    const item = NAV.flatMap((s) => s.items).find((i) => i.id === "benevoles");
-    expect(item).toBeDefined();
-    expect(item?.label).toBe("Validation des épreuves");
-    expect(item?.href).toBe("/benevoles");
-    expect(estVisible(item!, new Set(), ROLE.ANON)).toBe(true);
+  it("garde « Validation des épreuves » comme libellé de /benevoles (#882)", () => {
+    expect(entree("benevoles").label).toBe("Validation des épreuves");
+  });
+
+  it("exige pages:preview **et** le pouvoir de validation pour l'écran d'admin", () => {
+    const item = entree("a-benevolat-validation");
+    expect(estVisible(item, new Set(["athletes:volunteer_validate"]), ROLE.CONNECTED)).toBe(false);
+    expect(estVisible(item, new Set(["pages:preview"]), ROLE.CONNECTED)).toBe(false);
+    expect(
+      estVisible(item, new Set(["pages:preview", "athletes:volunteer_validate"]), ROLE.CONNECTED),
+    ).toBe(true);
   });
 });
 

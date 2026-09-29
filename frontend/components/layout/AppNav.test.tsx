@@ -1133,15 +1133,10 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
       screen.getByRole("link", { name: "Revalidation qualité" }),
     ).toHaveAttribute("href", "/admin/quality");
 
-    // « Bénévolat » (`a-benevolat-validation`, admin) reste hors des pouvoirs
-    // accordés ici : pas de lien vers `/admin/benevolat`. Assertion scopée au
-    // rail : la section « Club » porte depuis #830 sa propre entrée publique
-    // de même libellé, vers `/benevolat`, qui elle est toujours affichée.
+    // « Bénévolat », public (`/benevolat`) comme admin (`/admin/benevolat`),
+    // passe derrière `pages:preview` (#879), que cette session ne porte pas.
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    expect(within(rail).getByRole("link", { name: "Bénévolat" })).toHaveAttribute(
-      "href",
-      "/benevolat",
-    );
+    expect(within(rail).queryByRole("link", { name: "Bénévolat" })).not.toBeInTheDocument();
   });
 });
 
@@ -1475,11 +1470,12 @@ describe("AppNav — barre basse mobile (#482, NAV-4)", () => {
     expect(within(barre).getByRole("link", { name: "Résultats" })).toHaveTextContent("Résultats");
   });
 
-  it("raccourcit « Validation des épreuves », qui tenait sur trois lignes à 375 px (#890)", () => {
-    afficher(null);
+  it("raccourcit « Validation des épreuves », qui tenait sur trois lignes à 375 px (#890)", async () => {
+    // Derrière `pages:preview` depuis #879.
+    afficher(habilite("pages:preview"));
 
     const barre = screen.getByRole("navigation", { name: "Navigation" });
-    const lien = within(barre).getByRole("link", { name: "Validation des épreuves" });
+    const lien = await waitFor(() => within(barre).getByRole("link", { name: "Validation des épreuves" }));
     expect(lien).toHaveTextContent("Validation");
     expect(lien).not.toHaveTextContent("des courses");
   });
