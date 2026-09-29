@@ -45,7 +45,7 @@ from app.scrapers.base import (
     FanoutTrace,
     ScrapedResult,
 )
-from app.scrapers.utils import split_relay_teammates, to_seconds
+from app.scrapers.utils import is_masked_name, split_relay_teammates, to_seconds
 from app.services import cache, course_reconciliation, mapping, quality
 
 logger = logging.getLogger(__name__)
@@ -720,12 +720,14 @@ class _Persister:
         )
 
     def add(self, scraped: ScrapedResult) -> None:
-        # Jamais de résolution sur l'identité vide (#897) : toutes ces lignes,
-        # épreuves et événements confondus, fusionnaient sur une seule fiche.
-        nameless = not any(_identity_key(scraped))
+        # Jamais de résolution sur l'identité vide ni sur un nom masqué constant
+        # (« Anonymous », « XXX XXX », #897) : toutes ces lignes, épreuves et
+        # événements confondus, fusionnaient sur une seule fiche.
+        published = _published_name(scraped)
+        nameless = not published.strip() or is_masked_name(published)
         if nameless and not scraped.bib_number:
             logger.warning(
-                "Row without name nor bib skipped: %s (%s)",
+                "Row with a masked or empty name and no bib skipped: %s (%s)",
                 scraped.event_name, scraped.source_url or self.event_url,
             )
             self.skipped += 1
@@ -764,7 +766,10 @@ class _Persister:
         self._index_course(course.id)
         if nameless:
             # Le dossard est unique sur l'épreuve : l'identité se retrouve au rescrape.
-            scraped = replace(scraped, athlete_name=f"Anonyme {course.id}-{scraped.bib_number}")
+            scraped = replace(
+                scraped, athlete_name=f"Anonyme {course.id}-{scraped.bib_number}",
+                athlete_firstname="",
+            )
         bib = scraped.bib_number or None
 
         if bib is not None:
