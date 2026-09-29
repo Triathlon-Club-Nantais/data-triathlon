@@ -9,14 +9,16 @@ from app.core.time import utcnow
 
 
 class AbsorbedCourse(Base):
-    """Ce que publiait une épreuve supprimée par une fusion, et où elle a fini.
+    """Ce que publiait une épreuve supprimée par une fusion, et qui l'a absorbée.
 
     Repointer l'URL de l'absorbée en passive ne suffit pas quand cette URL reste
     **active** sur d'autres épreuves (manches Breizh Chrono, variantes relais
     wiclax/timepulse) : le rescrape de ces sœurs republie la ligne de l'absorbée,
     qui n'apparie plus aucune épreuve par identité et la recréait. La ligne
-    scrapée qui porte cette URL **et** cette identité est redirigée vers
-    `target` (`mapping.get_or_create_course`).
+    scrapée qui porte cette URL **et** cette identité est **ignorée**
+    (`mapping.is_absorbed`, `_Persister.add`) : ni recréée, ni versée dans
+    `target`, dont l'upsert écraserait temps et rangs et ajouterait des doublons
+    d'athlètes (précision du 29/09 sur #983).
 
     Suit la cible : une seconde fusion qui absorbe la cible repointe ses lignes
     (`absorbed_course_repository.repoint`), la suppression de la cible les

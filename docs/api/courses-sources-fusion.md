@@ -242,12 +242,16 @@ Sept choses à ne pas défaire :
   l'absorbée : quand ses épreuves sœurs portent la même URL en active (manches
   Breizh Chrono, variantes individuel/relais wiclax ou timepulse), le cron la
   re-scrape pour elles et republie la ligne de l'absorbée. La fusion retient donc
-  son identité (URL, nom, date, type, relais) dans `absorbed_courses`, et
-  `mapping.get_or_create_course` redirige vers la cible toute ligne scrapée qui
-  la porte, au lieu de recréer l'épreuve. Ces lignes sont alors traitées comme
-  celles d'une source passive (#283) : fusion prudente par dossard, un dossard
-  inconnu de la cible y entre. Une seconde fusion qui absorbe la cible reporte
-  ces identités sur la nouvelle survivante ; supprimer la cible les oublie.
+  son identité (URL, nom, date, type, relais) dans `absorbed_courses`, et toute
+  ligne scrapée qui la porte est **ignorée** (`mapping.is_absorbed`) : l'épreuve
+  n'est pas recréée, et rien n'est écrit dans la cible, qui garde ses propres
+  résultats, même règle qu'à la fusion. Ces lignes comptent en `skipped` dans le
+  bilan d'import, et ne produisent aucun message de source passive. Les
+  rediriger vers la cible, première version, passait par l'upsert ordinaire :
+  temps et rangs de la cible écrasés, athlètes en double sous deux dossards, et
+  `duplicate_bib` à chaque rescrape d'une fusion à URL commune (revue de #1145).
+  Une seconde fusion qui absorbe la cible reporte ces identités sur la nouvelle
+  survivante ; supprimer la cible les oublie.
 - **Le repointage passe par la relation, et précède le `delete`.** `move_to` écrit
   `source.course = target`, seule écriture qui retire aussi la ligne de
   `absorbed.sources` : sans elle le `delete-orphan` de la collection supprimerait

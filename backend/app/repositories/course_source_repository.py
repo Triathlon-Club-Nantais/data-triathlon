@@ -202,8 +202,8 @@ def move_to(db: Session, *, source: CourseSource, course: Course) -> CourseSourc
     **La passive ne suffit pas quand l'URL est partagée** (#983) : les épreuves
     sœurs qui la portent en active (manches Breizh Chrono, variantes relais) la
     font re-scraper, et la ligne de l'absorbée revient avec elles. C'est
-    l'identité retenue par `absorbed_course_repository.record` qui la redirige
-    vers la cible, pas cette source. C'est aussi l'inverse du choix d'`attach`,
+    l'identité retenue par `absorbed_course_repository.record` qui la fait
+    **ignorer** à l'import, pas cette source : ni recréée, ni versée dans la cible. C'est aussi l'inverse du choix d'`attach`,
     et pour la raison qui l'y justifiait : là une épreuve neuve n'avait personne à
     qui laisser la main, ici la cible a la sienne.
 

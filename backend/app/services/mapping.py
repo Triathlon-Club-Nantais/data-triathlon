@@ -237,21 +237,7 @@ def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) ->
         if url
         else None
     )
-    # Une identité absorbée par une fusion revient à sa cible (#983) : sans
-    # quoi le rescrape d'une URL partagée recréait l'épreuve supprimée.
-    redirected = (
-        None
-        if reconciled or not url
-        else absorbed_course_repository.find_target(
-            db,
-            url=url,
-            name=scraped.event_name,
-            event_date=scraped.event_date,
-            event_type=scraped.event_type,
-            is_relay=scraped.is_relay,
-        )
-    )
-    course = reconciled or redirected or course_repository.get_or_create(
+    course = reconciled or course_repository.get_or_create(
         db,
         name=scraped.event_name,
         event_date=scraped.event_date,
@@ -275,6 +261,25 @@ def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) ->
         course_source_repository.set_active(db, source)
     return CourseResolution(
         course=course, passive_source=None if source.is_active else source
+    )
+
+
+def is_absorbed(db: Session, scraped: ScrapedResult, event_url: str) -> bool:
+    """Vrai si la ligne publie l'identité d'une épreuve absorbée par une fusion (#983).
+
+    Une telle ligne est **ignorée** à l'import, jamais redirigée vers la cible :
+    l'upsert ordinaire y écraserait temps et rangs et ajouterait des doublons
+    d'athlètes (revue de #1145). La cible garde ses propres résultats, même
+    règle qu'à la fusion.
+    """
+    url = scraped.source_url or event_url
+    return bool(url) and absorbed_course_repository.is_absorbed(
+        db,
+        url=url,
+        name=scraped.event_name,
+        event_date=scraped.event_date,
+        event_type=scraped.event_type,
+        is_relay=scraped.is_relay,
     )
 
 
