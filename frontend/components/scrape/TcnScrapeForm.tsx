@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { captureEvent } from "@/lib/posthog";
 import { Card, Input, Button, Alert, PendingBadge, AnnonceStatut } from "@/components/tcn";
-import { apiClient, type DetectedProvider } from "@/lib/api/client";
+import { apiClient, type DetectedProvider, type FieldError } from "@/lib/api/client";
 import { eventTypeLabel } from "@/lib/constants";
 import { eventTypeColor } from "@/lib/sport-colors";
 import { formatEventName } from "@/lib/utils/event";
@@ -40,6 +40,8 @@ export function TcnScrapeForm() {
   // l'accusé de réception affiche (ACT-1).
   const [saved, setSaved] = useState<Participation | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // Refus par champ d'un 422 (#1019), affichés sous les champs concernés.
+  const [saveFieldErrors, setSaveFieldErrors] = useState<Record<string, FieldError> | undefined>(undefined);
   // Détection client (GET /scrape/detect), indépendante de toute tentative
   // d'import : elle permet d'avertir avant même le clic sur « Enregistrer les
   // résultats », plutôt que d'attendre l'échec réel du scrape.
@@ -225,12 +227,21 @@ export function TcnScrapeForm() {
         // permet à l'accusé de réception de mener au résultat créé plutôt que de
         // refermer la carte sur un toast fugace (ACT-1).
         setSaveError(null);
+        setSaveFieldErrors(undefined);
         setSaved(await save.mutateAsync(data));
         setManual(false);
       } catch (e) {
         // Persistant, comme le succès : le formulaire reste rempli sous les
         // yeux, un toast qui s'efface ne dirait pas quoi refaire (ACT-1).
-        setSaveError((e as Error).message);
+        // Un 422 se dit sous chaque champ : son message brut joint, souvent en
+        // anglais (Pydantic), ne dirait pas lequel corriger (#1019).
+        const champs = (e as { fieldErrors?: Record<string, FieldError> }).fieldErrors;
+        if (champs && Object.keys(champs).length > 0) {
+          setSaveFieldErrors(champs);
+          setSaveError("Certains champs, signalés ci-dessous, sont refusés.");
+        } else {
+          setSaveError((e as Error).message);
+        }
       }
     },
     [save],
@@ -487,7 +498,12 @@ export function TcnScrapeForm() {
               </Alert>
             </div>
           )}
-          <ManualResultForm defaultUrl={url} onSubmit={persist} submitting={save.isPending} />
+          <ManualResultForm
+            defaultUrl={url}
+            onSubmit={persist}
+            submitting={save.isPending}
+            serverErrors={saveFieldErrors}
+          />
         </Card>
       )}
 

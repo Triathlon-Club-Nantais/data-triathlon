@@ -1,4 +1,5 @@
 "use client";
+import { useEffect } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -13,6 +14,7 @@ import {
   MANUAL_ENTRY_TIME_FIELDS,
 } from "@/lib/constants";
 import type { ScrapedPreview } from "@/lib/types";
+import type { FieldError } from "@/lib/api/client";
 import { participationStatusLabel } from "@/lib/labels";
 
 // `DSQ` reste hors de la saisie manuelle (#1084, hors périmètre).
@@ -23,28 +25,60 @@ const STATUTS = (["finisher", "DNF", "DNS"] as const).map((value) => ({
 
 const TIME_KEYS = ["swim_time", "t1_time", "bike_time", "t2_time", "run_time"] as const;
 
+// Les règles de `POST /participations` depuis #1019, vérifiées avant l'envoi :
+// le serveur les rendrait en 422, en anglais pour les types génériques.
+const DUREE = /^(\d{1,3}:[0-5]\d:[0-5]\d)?$/;
+const MESSAGE_DUREE = "Format attendu H:MM:SS (par exemple 1:05:30).";
+const MESSAGE_PLACE = "La place doit être un entier supérieur ou égal à 1.";
+const duree = z.string().trim().regex(DUREE, MESSAGE_DUREE).optional().default("");
+const texte = z.string().trim().optional().default("");
+
+/** Le refus d'un champ par le serveur, en français : les types génériques de
+ *  Pydantic arrivent en anglais, un validateur maison en français. */
+const MESSAGE_SERVEUR: Record<string, string> = {
+  string_pattern_mismatch: MESSAGE_DUREE,
+  date_from_datetime_parsing: "Date invalide.",
+  date_parsing: "Date invalide.",
+  date_type: "Date invalide.",
+  string_too_short: "Champ requis.",
+  missing: "Champ requis.",
+  greater_than_equal: MESSAGE_PLACE,
+  literal_error: "Valeur hors de la liste proposée.",
+};
+
+/** Le champ du formulaire qui porte un champ de l'API. */
+const CHAMP_DU_FORMULAIRE: Record<string, string> = { event_type: "discipline" };
+
 const schema = z
   .object({
-    athlete_firstname: z.string().min(1, "Prénom requis"),
-    athlete_name: z.string().min(1, "Nom requis"),
-    event_date: z.string().min(1, "Date requise"),
-    event_name: z.string().min(1, "Nom de l'épreuve requis"),
+    athlete_firstname: z.string().trim().min(1, "Prénom requis"),
+    athlete_name: z.string().trim().min(1, "Nom requis"),
+    event_date: z
+      .string()
+      .min(1, "Date requise")
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide."),
+    event_name: z.string().trim().min(1, "Nom de l'épreuve requis"),
     discipline: z.string().min(1, "Discipline requise"),
     format: z.string().optional().default(""),
-    format_label: z.string().optional().default(""),
+    format_label: texte,
     distance_km: z.string().optional().default(""),
-    bib_number: z.string().optional().default(""),
-    rank_overall: z.string().optional().default(""),
+    bib_number: texte,
+    rank_overall: z
+      .string()
+      .trim()
+      .refine((v) => v === "" || (/^\d+$/.test(v) && Number(v) >= 1), MESSAGE_PLACE)
+      .optional()
+      .default(""),
     individuel_ou_collectif: z.string().optional().default("individuel"),
-    team_name: z.string().optional().default(""),
-    status: z.string().optional().default("finisher"),
-    evidence_url: z.string().optional().default(""),
-    total_time: z.string().optional().default(""),
-    swim_time: z.string().optional().default(""),
-    t1_time: z.string().optional().default(""),
-    bike_time: z.string().optional().default(""),
-    t2_time: z.string().optional().default(""),
-    run_time: z.string().optional().default(""),
+    team_name: texte,
+    status: z.enum(["finisher", "DNF", "DNS"]).optional().default("finisher"),
+    evidence_url: texte,
+    total_time: duree,
+    swim_time: duree,
+    t1_time: duree,
+    bike_time: duree,
+    t2_time: duree,
+    run_time: duree,
   })
   .superRefine((data, ctx) => {
     if (data.format === "autre" && !data.format_label.trim()) {
@@ -74,10 +108,13 @@ export function ManualResultForm({
   defaultUrl = "",
   onSubmit,
   submitting,
+  serverErrors,
 }: {
   defaultUrl?: string;
   onSubmit: (data: Partial<ScrapedPreview>) => void;
   submitting?: boolean;
+  /** Refus par champ d'un 422 que la validation locale n'a pas vu venir (#1019). */
+  serverErrors?: Record<string, FieldError>;
 }) {
   // Drop explicit generic — comme dans l'ancienne version de ce fichier, le
   // désaccord Input/Output introduit par les `.default(...)` du schéma casse
@@ -86,6 +123,7 @@ export function ManualResultForm({
     register,
     handleSubmit,
     control,
+    setError,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(schema),
@@ -106,6 +144,17 @@ export function ManualResultForm({
   const discipline = useWatch({ control, name: "discipline" });
   const format = useWatch({ control, name: "format" });
   const individuelOuCollectif = useWatch({ control, name: "individuel_ou_collectif" });
+
+  useEffect(() => {
+    for (const [champ, refus] of Object.entries(serverErrors ?? {})) {
+      const cible = CHAMP_DU_FORMULAIRE[champ] ?? champ;
+      if (!(cible in schema.shape)) continue;
+      setError(cible as keyof z.input<typeof schema>, {
+        type: "server",
+        message: MESSAGE_SERVEUR[refus.type] ?? refus.message,
+      });
+    }
+  }, [serverErrors, setError]);
 
   const aUnFormat = MANUAL_ENTRY_DISCIPLINES_WITH_FORMAT.has(discipline);
   const champsTemps = MANUAL_ENTRY_TIME_FIELDS[discipline] ?? [];
@@ -266,7 +315,7 @@ export function ManualResultForm({
         <Field label="Dossard" htmlFor="mrf-bib" optional>
           <Input id="mrf-bib" {...register("bib_number")} />
         </Field>
-        <Field label="Place générale" htmlFor="mrf-rank" optional>
+        <Field label="Place générale" htmlFor="mrf-rank" optional error={errors.rank_overall?.message}>
           <Input id="mrf-rank" type="number" {...register("rank_overall")} />
         </Field>
 
@@ -280,13 +329,17 @@ export function ManualResultForm({
       </Groupe>
 
       <Groupe titre="Temps">
-        <Field label="Temps total" htmlFor="mrf-total-time" optional>
+        <Field label="Temps total" htmlFor="mrf-total-time" optional error={errors.total_time?.message}>
           <Input id="mrf-total-time" placeholder="HH:MM:SS" {...register("total_time")} />
         </Field>
         {champsTemps.length > 0 && (
           // Cinq champs de plus que personne n'a sous la main au moment de
           // saisir : repliés, ils ne pèsent plus sur la décision de commencer.
-          <details className="sm:col-span-2">
+          // Ouverts d'office sur une erreur : un message replié ne se lit pas.
+          <details
+            className="sm:col-span-2"
+            open={champsTemps.some((c) => errors[c.key]) || undefined}
+          >
             {/* `min-h-11` : 44 px, le seuil de cible tactile que le dépôt s'est
                 donné sur `.tcn-btn` — c'est la commande qui ouvre les cinq
                 champs, sur un écran pensé mobile d'abord. */}
@@ -295,7 +348,13 @@ export function ManualResultForm({
             </summary>
             <div className={`${GROUPE} pt-2`}>
               {champsTemps.map((c) => (
-                <Field key={c.key} label={c.label} htmlFor={`mrf-${c.key}`} optional>
+                <Field
+                  key={c.key}
+                  label={c.label}
+                  htmlFor={`mrf-${c.key}`}
+                  optional
+                  error={errors[c.key]?.message}
+                >
                   <Input id={`mrf-${c.key}`} placeholder="HH:MM:SS" {...register(c.key)} />
                 </Field>
               ))}
