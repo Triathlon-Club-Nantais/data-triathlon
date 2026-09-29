@@ -1088,3 +1088,130 @@ def test_a_live_host_coureur_jsp_url_routes_to_the_classic_engine(monkeypatch):
     assert provider.targets_single_heat(url) is True
     assert provider.scrape_event_all(url) == ["classique"]
     assert captured == {"event_id": "1488071608761-921", "heat": "swimrun-court-duo"}
+
+
+# --------------------------------------------------------------------------- #
+# coureur.jsp : slug et libellé de heat lus sur la page du heat (#1140)
+# --------------------------------------------------------------------------- #
+
+_DINARD_ID = "1488071608761-921"
+_DINARD_SLUG = "triathlon-swimrun-dinard-cote-demeraude-2026"
+_DINARD_HEAT_PAGE = (
+    Path(__file__).parent / "fixtures" / "breizhchrono_heat_empty_slug.html"
+).read_text()
+
+
+def test_parse_heat_identity_reads_slug_and_label_from_the_heat_nav():
+    assert breizhchrono._parse_heat_identity(
+        _DINARD_HEAT_PAGE, _DINARD_ID, "swimrun-court-duo"
+    ) == (_DINARD_SLUG, "Swimrun Court Duo")
+
+
+def test_parse_heat_identity_compacts_the_label_spaces():
+    assert breizhchrono._parse_heat_identity(
+        _DINARD_HEAT_PAGE, _DINARD_ID, "swimrun-medium--zoggs-duo"
+    ) == (_DINARD_SLUG, "Swimrun Medium ZOGGS Duo")
+
+
+def test_parse_heat_identity_is_empty_when_the_page_does_not_name_the_heat():
+    assert breizhchrono._parse_heat_identity(_DINARD_HEAT_PAGE, _DINARD_ID, "inconnu") == ("", "")
+    assert breizhchrono._parse_heat_identity(_DINARD_HEAT_PAGE, "42-1", "swimrun-court-duo") == ("", "")
+    assert breizhchrono._parse_heat_identity("<html></html>", _DINARD_ID, "swimrun-court-duo") == ("", "")
+
+
+def _scrape_dinard_heat(monkeypatch, url: str):
+    """Import d'un heat de Dinard 2026 par le provider, réseau simulé."""
+    from app.scrapers.registry import BreizhChronoProvider
+
+    page0 = (Path(__file__).parent / "fixtures" / "klikego_datablock_page0.html").read_text()
+    requested: list[str] = []
+
+    class FakeResp:
+        def __init__(self, text: str, code: int = 200):
+            self.text, self.status_code, self.is_redirect = text, code, False
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def get(self, url: str, follow_redirects: bool = True):
+            requested.append(url)
+            if "course-result.jsp" in url:
+                return FakeResp(page0 if "inter=&" in url and "page=0" in url else "<html></html>")
+            if url.endswith(f"-{_DINARD_ID}/swimrun-court-duo"):
+                return FakeResp(_DINARD_HEAT_PAGE)
+            return FakeResp("<html></html>")
+
+    monkeypatch.setattr(breizhchrono.http, "client", lambda **k: FakeClient())
+    return BreizhChronoProvider().scrape_event_all(url), requested
+
+
+def test_a_coureur_jsp_import_keeps_the_heat_name_and_the_canonical_source_url(monkeypatch):
+    results, _ = _scrape_dinard_heat(
+        monkeypatch,
+        "https://resultats.breizhchrono.com/bc/resultats/coureur.jsp"
+        f"?ref={_DINARD_ID}&heat=swimrun-court-duo&dossard=111",
+    )
+
+    assert results
+    assert {r.event_name for r in results} == {
+        "Triathlon SwimRun Dinard Côte d'Emeraude 2026 - Swimrun Court Duo"
+    }
+    assert {r.source_url for r in results} == {
+        f"https://resultats.breizhchrono.com/resultats-courses/{_DINARD_SLUG}-{_DINARD_ID}/swimrun-court-duo"
+    }
+    assert {r.event_date for r in results} == {date(2026, 9, 11)}
+    assert all(r.is_relay for r in results)
+
+
+def test_a_coureur_jsp_import_matches_the_nominal_single_heat_url(monkeypatch):
+    fiche, _ = _scrape_dinard_heat(
+        monkeypatch,
+        "https://resultats.breizhchrono.com/bc/resultats/coureur.jsp"
+        f"?ref={_DINARD_ID}&heat=swimrun-court-duo&dossard=111",
+    )
+    nominale, _ = _scrape_dinard_heat(
+        monkeypatch,
+        f"https://resultats.breizhchrono.com/resultats-courses/{_DINARD_SLUG}-{_DINARD_ID}/swimrun-court-duo",
+    )
+
+    identite = lambda rs: {(r.event_name, r.source_url, r.event_type, r.event_date, r.is_relay) for r in rs}  # noqa: E731
+    assert identite(fiche) == identite(nominale)
+    assert len(identite(fiche)) == 1
+
+
+def test_a_heat_page_that_names_nothing_keeps_the_previous_import(monkeypatch):
+    """Sans lien vers le heat sur sa page, l'import garde l'ancien repli."""
+    from app.scrapers.registry import BreizhChronoProvider
+
+    page0 = (Path(__file__).parent / "fixtures" / "klikego_datablock_page0.html").read_text()
+
+    class FakeResp:
+        def __init__(self, text: str, code: int = 200):
+            self.text, self.status_code, self.is_redirect = text, code, False
+
+    class FakeClient:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def get(self, url: str, follow_redirects: bool = True):
+            if "course-result.jsp" in url and "inter=&" in url and "page=0" in url:
+                return FakeResp(page0)
+            return FakeResp("<html></html>")
+
+    monkeypatch.setattr(breizhchrono.http, "client", lambda **k: FakeClient())
+    results = BreizhChronoProvider().scrape_event_all(
+        "https://resultats.breizhchrono.com/bc/resultats/coureur.jsp"
+        f"?ref={_DINARD_ID}&heat=swimrun-court-duo&dossard=111"
+    )
+
+    assert results
+    assert {r.source_url for r in results} == {
+        f"https://resultats.breizhchrono.com/resultats-courses/-{_DINARD_ID}/swimrun-court-duo"
+    }
