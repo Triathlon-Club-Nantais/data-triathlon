@@ -30,6 +30,7 @@ describe("fiches dynamiques absentes : 200 streamé et noindex (#1064)", () => {
     expect(existsSync(join(GROUPE, loading, "loading.tsx"))).toBe(true);
   });
 
+  // Lit un fichier interne de Next (`dist/server/app-render`) : à revoir à chaque montée de version de Next.
   it("Next injecte `noindex` pour un notFound() levé après le début du flux", () => {
     const require = createRequire(import.meta.url);
     const nextDist = dirname(require.resolve("next/package.json"));

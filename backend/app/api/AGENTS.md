@@ -331,6 +331,15 @@ exiger de pouvoir** : elle ne porte que sur soi. C'est la contrepartie de
 vivant dans un dépôt public, mais parce que son seul usage est de composer un
 rôle.
 
+Elle rend aussi `can_administer` (#1109, ajout additif) : vrai si la session
+porte au moins un pouvoir **d'administration**. Le critère vit dans le
+catalogue, pas dans le front : un `Permission` marqué `consultation=True`
+(`pages:preview` seul aujourd'hui) n'ouvre que des pages publiques et ne compte
+pas, un code inconnu non plus (`permissions.administers`). La garde de `/admin`
+et son sommaire lisent ce drapeau ; un futur pouvoir de consultation se
+déclare en posant le marqueur, sans toucher au front. Le front déployé le lit
+sans repli : le backend doit être déployé **avant** lui.
+
 **Les sept ressources de `/admin/groups` (#197) n'ajoutent aucun mécanisme.**
 Elles reprennent `require_permission` à l'identique, route par route, et se
 classent d'elles-mêmes dans le filet d'inventaire par la règle du préfixe — ni

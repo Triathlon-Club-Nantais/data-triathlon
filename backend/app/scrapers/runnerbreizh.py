@@ -111,7 +111,7 @@ def canonical_url(url: str) -> str:
         raise ValueError(
             "URL runnerbreizh.fr non supportée : elle ne désigne pas une épreuve. "
             f"Forme attendue : {BASE_URL}{RESULTS_PATH}?{EVENT_PARAM}=<identifiant> "
-            "(une page de résultats, pas une fiche coureur)."
+            "(une page de résultats, pas une fiche athlète)."
         )
     return f"{BASE_URL}{RESULTS_PATH}?{urlencode({EVENT_PARAM: event_id})}"
 
