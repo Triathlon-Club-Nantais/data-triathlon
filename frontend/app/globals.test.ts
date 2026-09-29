@@ -119,6 +119,20 @@ describe(".eyebrow", () => {
   });
 });
 
+describe("--color-accent-ink", () => {
+  // #1066 : `text-accent-ink` colore des liens neutres ; l'aliaser sur le jeton
+  // de danger diluait le code couleur destructif que #499 rend apprenable.
+  it("pointe sur le jeton de marque `--tcn-orange-deeper`, pas sur le danger", () => {
+    expect(token("--color-accent-ink")).toBe("var(--tcn-orange-deeper)");
+  });
+
+  it("franchit 4,5:1 sur `--tcn-paper` et `--tcn-surface`", () => {
+    for (const surface of ["--tcn-paper", "--tcn-surface"]) {
+      expect(contrast(resolve("--color-accent-ink"), token(surface))).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});
+
 describe("couleurs de la carte", () => {
   // `pathOptions` de Leaflet alimente un attribut SVG, où `var()` n'est pas
   // fiable : les littéraux y sont légitimes. C'est leur **désynchronisation** avec
