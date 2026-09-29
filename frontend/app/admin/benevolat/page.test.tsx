@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { getSession } = vi.hoisted(() => ({ getSession: vi.fn() }));
 vi.mock("@/lib/api/server", () => ({ apiServer: { getSession } }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }), unstable_rethrow: () => {} }));
 vi.mock("@/components/benevolat/AdminVolunteerActionsTable", () => ({
   AdminVolunteerActionsTable: () => <div data-testid="file-benevolat" />,
 }));
@@ -39,5 +40,15 @@ describe("AdminBenevolatPage", () => {
     render(await AdminBenevolatPage());
 
     expect(screen.getByTestId("file-benevolat")).toBeInTheDocument();
+  });
+
+  it("rend l'écran d'indisponibilité si la session ne se lit pas, sans planter", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    getSession.mockRejectedValue(new TypeError("fetch failed"));
+
+    render(await AdminBenevolatPage());
+
+    expect(screen.queryByTestId("file-benevolat")).not.toBeInTheDocument();
+    expect(screen.getByText("Cette page n'a pas pu s'afficher")).toBeInTheDocument();
   });
 });

@@ -3,8 +3,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { AdminVolunteerActionsTable } from "@/components/benevolat/AdminVolunteerActionsTable";
-import { PreviewRefusal, hasPagesPreview } from "@/components/layout/PreviewRefusal";
-import { apiServer } from "@/lib/api/server";
+import { previewGate } from "@/components/layout/PreviewRefusal";
 
 export const metadata: Metadata = { title: ecran("/admin/benevolat").title };
 
@@ -15,9 +14,8 @@ export const metadata: Metadata = { title: ecran("/admin/benevolat").title };
  * du bénévolat.
  */
 export default async function AdminBenevolatPage() {
-  if (!hasPagesPreview(await apiServer.getSession())) {
-    return <PreviewRefusal header={<PageHeader {...ecran("/admin/benevolat")} />} />;
-  }
+  const refus = await previewGate(<PageHeader {...ecran("/admin/benevolat")} />);
+  if (refus) return refus;
   return (
     <PageShell>
       <div className="space-y-6">

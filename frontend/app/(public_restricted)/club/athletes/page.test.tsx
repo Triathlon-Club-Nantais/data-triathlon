@@ -159,8 +159,10 @@ describe("/club/athletes", () => {
       expect(redirect).not.toHaveBeenCalled();
       expect(listAthleteSeasonActivity).not.toHaveBeenCalled();
       expect(listSeasons).not.toHaveBeenCalled();
-      expect(screen.getByText(/Vous n'avez pas la permission nécessaire/)).toBeInTheDocument();
+      // Un anonyme n'a pas de rôle : il est invité à se connecter (#879, revue UI/UX).
       expect(screen.getByText(/Voir les pages en avant-première/)).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Se connecter" })).toHaveAttribute("href", "/login");
+      expect(screen.queryByText(/votre rôle/)).not.toBeInTheDocument();
     });
 
     it("affiche un message explicite pour un connecté sans le pouvoir, sans rediriger", async () => {

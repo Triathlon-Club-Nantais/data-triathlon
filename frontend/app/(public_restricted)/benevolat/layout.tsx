@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { PreviewRefusal, hasPagesPreview } from "@/components/layout/PreviewRefusal";
-import { apiServer } from "@/lib/api/server";
+import { previewGate } from "@/components/layout/PreviewRefusal";
+import { EN_TETE_BENEVOLAT } from "@/components/benevolat/en-tete";
 
 /**
  * Monte le dialog de confirmation partagé (#499) au-dessus de la page de
@@ -14,8 +14,7 @@ import { apiServer } from "@/lib/api/server";
  * encore arrêté l'usage du bénévolat. Rien n'est supprimé.
  */
 export default async function BenevolatLayout({ children }: { children: ReactNode }) {
-  if (!hasPagesPreview(await apiServer.getSession())) {
-    return <PreviewRefusal header={<PageHeader eyebrow="Bénévolat" title="Bénévolat" />} />;
-  }
+  const refus = await previewGate(<PageHeader {...EN_TETE_BENEVOLAT} />);
+  if (refus) return refus;
   return <DangerConfirmProvider>{children}</DangerConfirmProvider>;
 }
