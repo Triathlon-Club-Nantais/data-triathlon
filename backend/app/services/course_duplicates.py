@@ -90,7 +90,10 @@ DATE_TOLERANCE = timedelta(days=3)
 #: ni `is_relay` n'y entrent : seuls des finishers au même athlète et au même temps.
 #: Au moins trois lignes, et la moitié des résultats de la plus petite épreuve
 #: (tous statuts, donc plus strict que ses seuls finishers). Sur la production, la
-#: requête de l'issue ne ressort que les 8 doublons avérés, sans bruit.
+#: requête de l'issue ne ressort que les 8 doublons avérés, sans bruit. C'est lui
+#: qui sort les republications runnerbreizh, et un motif « fournisseur
+#: republieur » a été écarté pour ses faux positifs par construction (sondage
+#: `docs/superpowers/specs/2026-09-29-doublons-republieurs-sondage.md`, #974).
 SAME_FINISHERS_MIN = 3
 SAME_FINISHERS_SHARE = 0.5
 
