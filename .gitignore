@@ -49,6 +49,9 @@ Thumbs.db
 
 # IDE
 .vscode/
+# Configuration de projet de l'extension Azure Functions (deploySubpath, runtime) :
+# elle fait partie de la procédure de déploiement (#1014).
+!infra/azure-functions/coldstart/.vscode/
 .idea/
 
 # AI Tools

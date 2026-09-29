@@ -201,7 +201,8 @@ et laisser la preview sur le free. À ne décider que sur des heures relevées.
 ### Vercel (offre Hobby) — 2 projets
 
 **`CRON_SECRET`** (#1021) : à poser sur les **deux** projets, avec la même valeur
-que l'appelant (l'Azure Function keep-warm, cf. `docs/infra-azure.md`). La route
+que l'appelant (l'Azure Function keep-warm, `infra/azure-functions/coldstart/`,
+App Setting `CRON_SECRET`, cf. `infra/azure-functions/AGENTS.md`). La route
 `GET /api/cron/keep-warm` exige `Authorization: Bearer $CRON_SECRET`. Sans
 secret, elle répond 503 sur Vercel (`VERCEL_ENV` défini) plutôt que de s'ouvrir
 à tous ; l'auth n'est ignorée qu'en développement local. La cadence (10 min,
