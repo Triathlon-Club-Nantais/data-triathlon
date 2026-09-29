@@ -54,6 +54,7 @@ function session(permissions: string[]): SessionUser {
     permissions,
     roles: [],
     groups: [],
+    can_administer: true,
   };
 }
 

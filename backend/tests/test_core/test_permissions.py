@@ -164,3 +164,15 @@ def test_le_module_ne_touche_ni_la_base_ni_le_reseau():
     source = Path(permissions.__file__).read_text(encoding="utf-8")
     for interdit in ("sqlalchemy", "app.repositories", "app.models", "httpx", "Session"):
         assert interdit not in source, f"`{interdit}` apparaît dans core/permissions.py"
+
+
+def test_only_pages_preview_is_a_consultation_power():
+    """#1109 : le marqueur vit dans le catalogue, pas dans une liste du front."""
+    assert [p.code for p in permissions.ALL if p.consultation] == [P.PAGES_PREVIEW.code]
+
+
+def test_administers_ignores_consultation_and_unknown_codes():
+    assert permissions.administers({P.QUALITY_OVERRIDE.code}) is True
+    assert permissions.administers({P.PAGES_PREVIEW.code}) is False
+    assert permissions.administers({"inconnu:code"}) is False
+    assert permissions.administers(set()) is False

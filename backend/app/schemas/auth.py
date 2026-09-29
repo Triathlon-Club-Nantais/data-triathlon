@@ -62,6 +62,9 @@ class SessionUserRead(BaseModel):
     #: #197, ajouté exactement comme les deux précédents et pour la même raison :
     #: à quoi j'appartiens ne se déduit pas de ce que je peux faire.
     groups: list[SessionGroupRead] = []
+    #: #1109 : au moins un pouvoir d'administration, `pages:preview` exclu. Dérivé
+    #: du catalogue pour que le front n'en tienne pas une seconde liste.
+    can_administer: bool = False
 
     @field_serializer("created_at")
     def _serialize_utc(self, value: datetime) -> str:

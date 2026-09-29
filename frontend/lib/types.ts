@@ -835,6 +835,12 @@ export interface SessionUser {
    * Ne dit rien des droits, qui se lisent dans `permissions` seul.
    */
   groups: SessionGroup[];
+  /**
+   * Au moins un pouvoir d'administration (#1109). `pages:preview`, pouvoir de
+   * consultation, n'en est pas un : le marqueur vit dans le catalogue backend,
+   * jamais dans une liste tenue ici.
+   */
+  can_administer: boolean;
 }
 
 /** Un groupe tel que son membre se le voit — sans membres ni pouvoirs (#197). */

@@ -18,6 +18,7 @@ d'effacer des attributions en production parce qu'un module n'a pas été import
 Aucune session, aucun état, aucune sortie : c'est ce qui autorise `core/`
 (Principe II).
 """
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 #: Fonctionnalités, dans l'ordre d'affichage de `GET /admin/permissions`.
@@ -67,6 +68,10 @@ class Permission:
     label: str
     description: str
     feature: str
+    #: Pouvoir de **consultation** (#1109) : il ouvre des pages publiques, aucun
+    #: écran d'administration. Seul critère que lisent la garde `/admin` et son
+    #: sommaire, via le drapeau `can_administer` de `GET /auth/me`.
+    consultation: bool = False
 
     def __str__(self) -> str:  # `require_permission(P.X)` journalise le code seul
         return self.code
@@ -315,6 +320,7 @@ class P:
         "saison et les pages encore marquées « bientôt » — la carte "
         "notamment — avant leur ouverture au grand public.",
         FEATURE_PAGES_PREVIEW,
+        consultation=True,
     )
     # Deux pouvoirs et non un : un accompagnant peut avoir besoin de consulter
     # un profil ou le calendrier sans pour autant écrire dans le journal de
@@ -391,6 +397,17 @@ def get(code: str) -> Permission | None:
 def is_known(code: str) -> bool:
     """Ce code est-il de l'inventaire ? Un code inconnu n'accorde rien (FR-042)."""
     return code in _BY_CODE
+
+
+def administers(codes: Iterable[str]) -> bool:
+    """Ces codes ouvrent-ils au moins un écran d'administration ? (#1109)
+
+    Un pouvoir de consultation ne compte pas, un code inconnu non plus.
+    """
+    return any(
+        (pouvoir := _BY_CODE.get(code)) is not None and not pouvoir.consultation
+        for code in codes
+    )
 
 
 @dataclass(frozen=True, slots=True)

@@ -148,3 +148,21 @@ def test_me_tient_en_un_nombre_de_requetes_fixe_quel_que_soit_le_nombre_de_roles
     # preuve tient dans la comparaison avec le total attendu avant #625 (1 par
     # rôle en plus, 1 par groupe en plus), pas dans ce chiffre précis.
     assert len(requetes) <= 8, requetes
+
+
+def test_me_says_whether_the_session_can_administer(client, ouvrir_session):
+    """#1109 : `pages:preview` est un pouvoir de consultation, pas
+    d'administration. Le front lit ce drapeau plutôt qu'une liste en dur."""
+    ouvrir_session(P.QUALITY_OVERRIDE)
+
+    assert client.get("/api/v1/auth/me").json()["can_administer"] is True
+
+
+def test_me_a_preview_only_session_cannot_administer(client, ouvrir_session):
+    ouvrir_session(P.PAGES_PREVIEW)
+    assert client.get("/api/v1/auth/me").json()["can_administer"] is False
+
+
+def test_me_a_roleless_session_cannot_administer(client, ouvrir_session):
+    ouvrir_session()
+    assert client.get("/api/v1/auth/me").json()["can_administer"] is False

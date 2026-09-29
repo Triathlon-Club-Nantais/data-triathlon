@@ -92,6 +92,7 @@ const MOI: SessionUser = {
   permissions: ["users:read", "roles:read", "roles:assign"],
   roles: [],
   groups: [],
+  can_administer: true,
 };
 
 /**

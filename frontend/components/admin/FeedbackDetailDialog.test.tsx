@@ -52,6 +52,7 @@ const MOI: SessionUser = {
   permissions: ["feedback:read", "feedback:manage"],
   roles: [],
   groups: [],
+  can_administer: true,
 };
 
 function afficher(signalement: Feedback) {

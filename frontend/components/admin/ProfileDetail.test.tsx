@@ -59,6 +59,7 @@ const AVEC_ECRITURE: SessionUser = {
   permissions: ["jeunes:read", "jeunes:write"],
   roles: [],
   groups: [],
+  can_administer: true,
 };
 
 const LECTURE_SEULE: SessionUser = { ...AVEC_ECRITURE, permissions: ["jeunes:read"] };

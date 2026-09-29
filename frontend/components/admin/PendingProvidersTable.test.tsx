@@ -29,6 +29,7 @@ const MODERATEUR: SessionUser = {
   permissions: ["pending_providers:read", "pending_providers:handle"],
   roles: [],
   groups: [],
+  can_administer: true,
 };
 
 const LECTEUR: SessionUser = {

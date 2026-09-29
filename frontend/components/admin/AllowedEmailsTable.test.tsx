@@ -66,6 +66,7 @@ const MOI: SessionUser = {
   permissions: ["allowed_emails:manage", "roles:read", "roles:assign"],
   roles: [],
   groups: [],
+  can_administer: true,
 };
 
 const ADRESSE: AllowedEmail = {
