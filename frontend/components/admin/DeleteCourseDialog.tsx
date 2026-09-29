@@ -4,6 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { useCourseDeletionImpact, useDeleteCourse } from "@/lib/queries/admin";
 import type { CourseBrief } from "@/lib/types";
+import { plural } from "@/lib/utils/format";
 
 /**
  * La confirmation d'une suppression d'épreuve (#117, FR-017).
@@ -71,14 +72,16 @@ export function DeleteCourseDialog({
       {impact.data && (
         <ul className="space-y-1 text-sm">
           <li>
-            <strong>{impact.data.participations}</strong> résultat
-            {impact.data.participations === 1 ? " sera détruit" : "s seront détruits"}.
+            <strong>{impact.data.participations}</strong>{" "}
+            {plural(impact.data.participations, "résultat sera détruit", "résultats seront détruits")}.
           </li>
           <li>
-            <strong>{impact.data.athletes}</strong> fiche
-            {impact.data.athletes === 1
-              ? " coureur ne conservera plus aucun résultat et sera retirée"
-              : "s coureur ne conserveront plus aucun résultat et seront retirées"}
+            <strong>{impact.data.athletes}</strong>{" "}
+            {plural(
+              impact.data.athletes,
+              "fiche coureur ne conservera plus aucun résultat et sera retirée",
+              "fiches coureur ne conserveront plus aucun résultat et seront retirées",
+            )}
             .
           </li>
         </ul>

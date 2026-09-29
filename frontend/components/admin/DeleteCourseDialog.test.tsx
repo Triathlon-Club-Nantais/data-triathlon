@@ -66,6 +66,25 @@ describe("DeleteCourseDialog", () => {
     expect(await screen.findByText(/37/)).toBeInTheDocument();
   });
 
+  it.each([
+    [0, /0 résultat sera détruit/, /0 fiche coureur ne conservera plus aucun résultat et sera retirée/],
+    [1, /1 résultat sera détruit/, /1 fiche coureur ne conservera plus aucun résultat et sera retirée/],
+    [2, /2 résultats seront détruits/, /2 fiches coureur ne conserveront plus aucun résultat et seront retirées/],
+  ])("accorde l'impact annoncé à %i (#1142)", async (n, resultats, fiches) => {
+    getCourseDeletionImpact.mockResolvedValue({
+      course_id: 12,
+      name: "Triathlon de Nantes",
+      participations: n,
+      athletes: n,
+    });
+
+    afficher();
+
+    const annonce = await screen.findByRole("list");
+    expect(annonce).toHaveTextContent(resultats);
+    expect(annonce).toHaveTextContent(fiches);
+  });
+
   it("n'offre aucune annulation : le geste est irréversible", async () => {
     getCourseDeletionImpact.mockResolvedValue({
       course_id: 12,
