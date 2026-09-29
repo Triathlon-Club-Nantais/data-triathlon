@@ -590,9 +590,11 @@ récents. Une `DATABASE_URL` pointant dessus donne un **échec de connexion
 réseau** au démarrage du batch, sans le moindre rapport apparent avec le code.
 
 Le secret doit donc porter l'hôte du **pooler** (`…pooler.supabase.com`),
-joignable en IPv4. En cas de doute, préférer le mode *session* au mode
-*transaction* : ce dernier ne supporte pas les instructions préparées côté
-serveur, et un batch ouvre une connexion longue.
+joignable en IPv4, en mode *session* (port 5432) et non *transaction*
+(port 6543) : ce dernier ne supporte pas les instructions préparées côté
+serveur, que psycopg 3 crée de lui-même dès qu'une requête a tourné cinq fois
+sur une connexion (#1136). En transaction, les connexions actives échoueraient
+sur `prepared statement "_pg3_…" already exists`.
 
 Vérification, à faire **avant** tout batch réel : lancer `batch.yml` en
 `mode: rescrape`, `limit: 1`, `dry_run: true`. Vert en moins d'une minute.
