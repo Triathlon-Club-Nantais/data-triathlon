@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { PreviewRefusal, hasPagesPreview } from "@/components/layout/PreviewRefusal";
+import { apiServer } from "@/lib/api/server";
 
 export const metadata: Metadata = { title: "Vérification des résultats" };
 
@@ -17,6 +20,10 @@ export const metadata: Metadata = { title: "Vérification des résultats" };
  * back-office (sa propre garde d'accès, `AccessGate`, #271), et un provider
  * inutilisé ailleurs n'a rien à faire au-dessus de tout le site.
  */
-export default function BenevolesLayout({ children }: { children: ReactNode }) {
+export default async function BenevolesLayout({ children }: { children: ReactNode }) {
+  // Derrière `pages:preview` (#879), avant même la porte bénévoles (`AccessGate`).
+  if (!hasPagesPreview(await apiServer.getSession())) {
+    return <PreviewRefusal header={<PageHeader eyebrow="Bénévoles" title="Validation des épreuves" />} />;
+  }
   return <DangerConfirmProvider>{children}</DangerConfirmProvider>;
 }

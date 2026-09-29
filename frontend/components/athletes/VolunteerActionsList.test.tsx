@@ -82,8 +82,22 @@ describe("VolunteerActionsList", () => {
     expect(listValidatedVolunteerActions).not.toHaveBeenCalled();
   });
 
-  it("affiche titre et description des actions validées pour un titulaire du pouvoir", async () => {
+  // #879 : l'admin du bénévolat suit ses écrans derrière `pages:preview`.
+  it("ne rend rien à un validateur sans pages:preview", async () => {
     getSession.mockResolvedValue(session(["athletes:volunteer_validate"]));
+    listValidatedVolunteerActions.mockResolvedValue([VALIDEE]);
+
+    const { container } = afficher();
+
+    await waitFor(() => expect(getSession).toHaveBeenCalled());
+    // Laisse la session hydratée se poser : sans garde, la carte apparaîtrait ici.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(container).toBeEmptyDOMElement();
+    expect(listValidatedVolunteerActions).not.toHaveBeenCalled();
+  });
+
+  it("affiche titre et description des actions validées pour un titulaire du pouvoir", async () => {
+    getSession.mockResolvedValue(session(["athletes:volunteer_validate", "pages:preview"]));
     listValidatedVolunteerActions.mockResolvedValue([VALIDEE]);
 
     afficher();
@@ -93,7 +107,7 @@ describe("VolunteerActionsList", () => {
   });
 
   it("affiche un repli d'affichage pour une ligne sans titre ni description", async () => {
-    getSession.mockResolvedValue(session(["athletes:volunteer_validate"]));
+    getSession.mockResolvedValue(session(["athletes:volunteer_validate", "pages:preview"]));
     listValidatedVolunteerActions.mockResolvedValue([SANS_TITRE]);
 
     afficher();
@@ -102,7 +116,7 @@ describe("VolunteerActionsList", () => {
   });
 
   it("affiche un état vide explicite quand l'athlète n'a aucune action validée", async () => {
-    getSession.mockResolvedValue(session(["athletes:volunteer_validate"]));
+    getSession.mockResolvedValue(session(["athletes:volunteer_validate", "pages:preview"]));
     listValidatedVolunteerActions.mockResolvedValue([]);
 
     afficher();
@@ -114,7 +128,7 @@ describe("VolunteerActionsList", () => {
   });
 
   it("affiche un squelette de chargement plutôt qu'un espace vide muet", async () => {
-    getSession.mockResolvedValue(session(["athletes:volunteer_validate"]));
+    getSession.mockResolvedValue(session(["athletes:volunteer_validate", "pages:preview"]));
     listValidatedVolunteerActions.mockReturnValue(new Promise(() => {}));
 
     afficher();
@@ -123,7 +137,7 @@ describe("VolunteerActionsList", () => {
   });
 
   it("distingue un échec de chargement d'une liste vide", async () => {
-    getSession.mockResolvedValue(session(["athletes:volunteer_validate"]));
+    getSession.mockResolvedValue(session(["athletes:volunteer_validate", "pages:preview"]));
     listValidatedVolunteerActions.mockRejectedValue(new Error("Boum"));
 
     afficher();
@@ -133,7 +147,7 @@ describe("VolunteerActionsList", () => {
   });
 
   it("supprimer demande une confirmation avant d'agir", async () => {
-    getSession.mockResolvedValue(session(["athletes:volunteer_validate"]));
+    getSession.mockResolvedValue(session(["athletes:volunteer_validate", "pages:preview"]));
     listValidatedVolunteerActions.mockResolvedValue([VALIDEE]);
 
     afficher();
@@ -144,7 +158,7 @@ describe("VolunteerActionsList", () => {
   });
 
   it("annuler la confirmation laisse la ligne intacte", async () => {
-    getSession.mockResolvedValue(session(["athletes:volunteer_validate"]));
+    getSession.mockResolvedValue(session(["athletes:volunteer_validate", "pages:preview"]));
     listValidatedVolunteerActions.mockResolvedValue([VALIDEE]);
 
     afficher();
@@ -157,7 +171,7 @@ describe("VolunteerActionsList", () => {
   });
 
   it("confirmer supprime la déclaration, invalide la liste et le quota de sa propre saison", async () => {
-    getSession.mockResolvedValue(session(["athletes:volunteer_validate"]));
+    getSession.mockResolvedValue(session(["athletes:volunteer_validate", "pages:preview"]));
     listValidatedVolunteerActions.mockResolvedValueOnce([VALIDEE, SANS_TITRE]).mockResolvedValue([SANS_TITRE]);
     deleteVolunteerAction.mockResolvedValue(null);
 

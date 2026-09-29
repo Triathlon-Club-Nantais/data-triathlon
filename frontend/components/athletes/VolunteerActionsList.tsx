@@ -10,6 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { messageDeRefus } from "@/lib/api/refus";
 import { useDeleteVolunteerAction, useValidatedVolunteerActions } from "@/lib/queries/admin";
 import { useHydratedSession } from "@/lib/queries/auth";
+import { hasPagesPreview } from "@/components/layout/nav.config";
 import type { AdminVolunteerActionOut } from "@/lib/types";
 
 const REPLI = "—";
@@ -37,8 +38,10 @@ const REFUS = {
 export function VolunteerActionsList({ athleteId }: { athleteId: number }) {
   const qc = useQueryClient();
   const session = useHydratedSession();
+  // `pages:preview` en plus (#879) : le bénévolat est retiré du grand public.
   const peutConsulter =
-    session.data?.permissions.includes("athletes:volunteer_validate") ?? false;
+    (session.data?.permissions.includes("athletes:volunteer_validate") ?? false) &&
+    hasPagesPreview(session.data ?? null);
   const actions = useValidatedVolunteerActions(athleteId, peutConsulter);
   const supprimer = useDeleteVolunteerAction();
   const [pourSuppression, setPourSuppression] = useState<AdminVolunteerActionOut | null>(null);

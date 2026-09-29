@@ -5,7 +5,7 @@ import { PageShell } from "@/components/layout/PageShell";
 import { AthleteSeasonList } from "@/components/club/AthleteSeasonList";
 import { SeasonSelector, SeasonTags } from "@/components/dashboard/SeasonSelector";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
-import { Alert } from "@/components/tcn";
+import { PreviewRefusal, hasPagesPreview } from "@/components/layout/PreviewRefusal";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
 import { currentSeason, parseSeasonsParam } from "@/lib/utils/season";
@@ -38,10 +38,10 @@ export default async function AthletesSeasonPage({
   // (`app/(public_restricted)/layout.tsx`) : un écran gardé rend son message
   // à la place du contenu plutôt que de faire disparaître la destination.
   const session = await apiServer.getSession();
-  if (!session?.permissions.includes("pages:preview")) {
+  if (!hasPagesPreview(session)) {
     return (
-      <PageShell>
-        <div className="space-y-8">
+      <PreviewRefusal
+        header={
           <PageHeader
             backHref="/club"
             backLabel="Espace club"
@@ -49,13 +49,8 @@ export default async function AthletesSeasonPage({
             title="Athlètes par saison"
             description={`Nombre d'épreuves faites par les athlètes du ${CLUB_NAME}, saison par saison.`}
           />
-          <Alert status="error" title="Vous n'avez pas la permission nécessaire">
-            Cette page est réservée aux comptes disposant du pouvoir « Voir les pages en
-            avant-première ». Si vous pensez qu&apos;il devrait figurer sur votre rôle,
-            contactez un administrateur du club.
-          </Alert>
-        </div>
-      </PageShell>
+        }
+      />
     );
   }
 

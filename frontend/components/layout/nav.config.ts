@@ -27,6 +27,14 @@ import {
  */
 export const ROLE = { ANON: 0, CONNECTED: 1, ADMIN: 2 } as const;
 
+/** Pouvoir de consultation des pages retirées du grand public (#811, #879). */
+export const PAGES_PREVIEW = "pages:preview";
+
+/** La session porte-t-elle `pages:preview` ? Anonyme = non. */
+export function hasPagesPreview(session: { permissions: string[] } | null): boolean {
+  return session?.permissions.includes(PAGES_PREVIEW) ?? false;
+}
+
 export type NavItem = {
   id: string;
   /**
@@ -71,6 +79,13 @@ export type NavItem = {
    * `soon`.
    */
   soon?: boolean;
+  /**
+   * Écran livré mais retiré du grand public (#879) : l'entrée exige
+   * `pages:preview` **en plus** de son `permission`, là où une liste de
+   * `permission` se lit en OU. La page elle-même le vérifie aussi
+   * (`PreviewRefusal`), le rail n'étant pas une garde.
+   */
+  preview?: boolean;
   /**
    * Clé du compteur affiché en badge, résolue par `useNavBadges`
    * (`lib/queries/nav-badges.ts`). Une **clé**, jamais un nombre : cette table
@@ -137,20 +152,20 @@ export const NAV: NavSection[] = [
         permission: "pages:preview",
       },
       // Formulaire de crédit bénévole (#815/#823), sous le mot de passe du
-      // site comme le reste du groupe `(public_restricted)` — pas de
-      // `permission` : aucune garde au-delà de ce mot de passe (#830).
-      { id: "benevolat", label: "Bénévolat", href: "/benevolat", icon: HeartHandshake },
+      // site comme le reste du groupe `(public_restricted)`. Masqué derrière
+      // `pages:preview` (#879) tant que le club n'a pas arrêté son usage.
+      { id: "benevolat", label: "Bénévolat", href: "/benevolat", icon: HeartHandshake, preview: true },
       // `/benevoles` reste hors du groupe `(public_restricted)` et garde sa
       // propre porte (`AccessGate`, #271) : un bénévole n'a jamais le mot de
-      // passe du site, donc pas de `permission` ici non plus — l'entrée ne
-      // sert qu'à faire trouver la connexion, jusque-là atteignable en URL
-      // directe seulement (#832).
+      // passe du site. L'entrée faisait trouver la connexion (#832) ; elle
+      // passe derrière `pages:preview` avec le reste du bénévolat (#879).
       {
         id: "benevoles",
         label: "Validation des épreuves",
         labelCourt: "Validation",
         href: "/benevoles",
         icon: UserCheck,
+        preview: true,
       },
     ],
   },
@@ -251,6 +266,7 @@ export const NAV: NavSection[] = [
           "Déclarations de crédit d'athlète en attente, soumises par un membre depuis la page publique de bénévolat : accepter ou refuser.",
         href: "/admin/benevolat",
         permission: "athletes:volunteer_validate",
+        preview: true,
       },
       // Les deux purges globales vivaient en pied de `/admin/courses`, l'écran
       // où l'on vient corriger une date : feuilleter le catalogue jusqu'au bout
@@ -476,7 +492,8 @@ export function estVisible(
     // (`pages:preview`, #811) lève le masque — jamais son absence.
     (!item.soon || (!!item.permission && aLePouvoir)) &&
     rank >= (item.minRole ?? ROLE.ANON) &&
-    aLePouvoir
+    aLePouvoir &&
+    (!item.preview || pouvoirs.has(PAGES_PREVIEW))
   );
 }
 
