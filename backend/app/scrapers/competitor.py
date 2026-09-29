@@ -62,7 +62,7 @@ from .base import (
     ScrapedResult,
 )
 from .classify import classify_event_type
-from .utils import normalize_rank, normalize_time, split_athlete_name
+from .utils import anonymous_identity, normalize_rank, normalize_time, split_athlete_name
 
 logger = logging.getLogger(__name__)
 
@@ -310,6 +310,7 @@ def _build_result(
     event_name: str,
     event_date: date | None,
     event_type: str,
+    edition_id: str,
 ) -> ScrapedResult:
     contact = ligne.get("wtc_ContactId") or {}
     agegroup = ligne.get("wtc_AgeGroupId") or {}
@@ -321,8 +322,11 @@ def _build_result(
     if not nom and not prenom:
         # Repli : `fullname` est en « Prénom NOM », que sait découper utils.
         nom, prenom = split_athlete_name(contact.get("fullname") or "")
-    resultat.athlete_name = nom
-    resultat.athlete_firstname = prenom
+    resultat.bib_number = _dossard(ligne)
+    # « Anonymous » sur 70 dossards distincts de la course 305 : une seule fiche (#897).
+    resultat.athlete_name, resultat.athlete_firstname = anonymous_identity(
+        nom, prenom, bib=resultat.bib_number, scope=edition_id
+    )
 
     # La source ne publie **aucun club** — ni colonne, ni entité liée. Un import
     # Competitor ne peut donc pas être rattaché au TCN par ce champ (cf. design).
@@ -333,7 +337,6 @@ def _build_result(
         or ""
     ).strip()
     resultat.gender = _genre(agegroup)
-    resultat.bib_number = _dossard(ligne)
 
     resultat.event_name = event_name
     resultat.event_date = event_date
@@ -404,6 +407,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 event_name=event_name,
                 event_date=event_date,
                 event_type=event_type,
+                edition_id=edition_id,
             )
             for ligne in lignes
         ]

@@ -299,6 +299,7 @@ def test_disqualifie_perd_temps_et_rangs():
         event_name="2025 IRONMAN France Nice",
         event_date=date(2025, 6, 29),
         event_type="triathlon-xl",
+        edition_id="abc-123",
     )
 
     assert dsq.status == STATUS_DSQ
@@ -507,3 +508,19 @@ def test_registry_nattrape_pas_les_hosts_sosies(url):
 
 def test_registry_expose_competitor_comme_ciblable():
     assert "competitor" in registry.provider_names()
+
+
+
+@pytest.mark.parametrize(
+    "contact",
+    [{}, {"lastname": "Anonymous", "firstname": ""}, {"lastname": "Anonymous", "firstname": "Anonymous"}],
+)
+def test_nom_vide_ou_masque_avec_dossard_recoit_une_identite_synthetique(contact):
+    """Course 305 : 70 dossards distincts fusionnés sur une fiche « Anonymous » (#897)."""
+    ligne = competitor._build_result(
+        {"wtc_ContactId": contact, "wtc_bibnumber": "212"},
+        url=URL_IRONMAN, event_name="2025 IRONMAN France Nice",
+        event_date=date(2025, 6, 29), event_type="triathlon-xl", edition_id="abc-123",
+    )
+
+    assert (ligne.athlete_name, ligne.athlete_firstname) == ("Anonyme abc-123-212", "")

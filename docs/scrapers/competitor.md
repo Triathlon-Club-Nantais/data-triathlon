@@ -22,6 +22,8 @@ Pièges à ne pas réintroduire : `wtc_swimtime_formatted` (secondes) n'est pas
 `wtc_swimtimeformatted` (durée) ; `wtc_ContactId.gendercode` est faux (77 lignes
 sur 1585 mesurées) — le genre se lit sur la catégorie d'âge ; `athlete`/`bib`
 sont fabriqués côté navigateur et absents des réponses du proxy.
+Un nom vide ou masqué (« Anonymous », 70 dossards distincts sur la course 305)
+reçoit avec son dossard l'identité « Anonyme <édition>-<dossard> » (#897).
 Sondage (source de vérité, 7 épreuves) :
 `docs/superpowers/specs/2026-07-26-competitor-ironman-sondage.md`.
 Design : `docs/superpowers/specs/2026-07-26-competitor-ironman-design.md`.

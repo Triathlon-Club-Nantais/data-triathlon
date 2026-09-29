@@ -68,6 +68,14 @@ constantes `STATUS_*`) ; `utils.py` = helpers de normalisation (dont
   (« Abandon », `-00:00:06`), qui ne classe donc pas la ligne finisher (#969).
   Un statut hors du temps se lit par `derive_status_from_label` **avant**.
   Splits adaptés au sport : dans `splits` (JSON) + `raw_data` (JSON).
+- **Un nom vide ou masqué constant ne doit jamais atteindre la résolution tel
+  quel** (#710, #725, #897) : tous ces participants fusionneraient sur une seule
+  fiche. Avec un dossard, le scraper pose une identité synthétique par
+  `utils.anonymous_identity` (« Anonyme <sous-unité>-<dossard> », masque lu par
+  `utils.is_masked_name`) ; Klikego, Breizh Chrono, OkTime, RaceResult et
+  Competitor le font. Filet à l'import (`_Persister.add`) : une ligne à
+  identité vide reçoit « Anonyme <épreuve>-<dossard> », ou est écartée et
+  journalisée sans dossard.
 - **Un doublon de rang ne se renumérote que chez un fournisseur qui le déclare**
   (`ranks_per_group`, #940) : RaceResult seul, dont `AUTORANK` est publié par
   genre sur certaines épreuves (#785). Ailleurs un doublon est légitime (relais

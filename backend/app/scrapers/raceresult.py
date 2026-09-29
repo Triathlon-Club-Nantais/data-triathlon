@@ -47,6 +47,7 @@ from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER, ScrapedRe
 from .classify import classify_event_type
 from .utils import (
     DEFAULT_HEADERS,
+    anonymous_identity,
     derive_status_from_label,
     gender_from_category,
     normalize_rank,
@@ -745,6 +746,12 @@ def _role(peeled: str) -> str:
         for motif in ("affichernom", "nomrelais", "nomequipe", "lfname", "displayname")
     ):
         return "nom"
+    # Champs natifs du participant (342814, #897). Égalité stricte : `NomFamille2`
+    # et `Prenom2` sont ceux du second équipier d'un duo.
+    if peeled == "lastname":
+        return "nom_famille"
+    if peeled == "firstname":
+        return "prenom"
     if "club" in peeled:
         return "club"
     if peeled in ("sex", "sexe", "gender"):
@@ -877,6 +884,10 @@ def _map_columns(
         role = _role(peeled)
         if not role and label.lower() in _LIBELLES_CATEGORIE_EQUIPE:
             role = "categorie"
+        # Nom d'équipe porté par un attribut libre (`ATF5` « Nom Equipe »,
+        # 342814) : l'expression ne dit rien, seul le libellé le nomme (#897).
+        if not role and label.lower() in _LIBELLES_NOM_EQUIPE:
+            role = "nom_equipe"
         if (
             not role
             and _RE_TIME_N.match(peeled)
@@ -1035,6 +1046,8 @@ def _sexe_du_groupe(libelle: str) -> str:
 # en dépendent, et des noms de personne portent `/` ou `-` — mais on garde son
 # appel dans `_build_result`, à partir de deux signaux propres à RaceResult.
 _CHAMPS_NOM_EQUIPE = ("nomrelais", "nomequipe", "affichernoms")
+#: Libellés d'une colonne d'attribut libre qui porte le nom d'équipe (#897).
+_LIBELLES_NOM_EQUIPE = frozenset({"nom equipe", "nom équipe"})
 
 
 def _est_nom_equipe(nom_col_expr: str, valeur: str) -> bool:
@@ -1138,11 +1151,19 @@ def _build_result(
     # (« GUILLAUME & ANTHONY » → nom='GUILLAUME', prenom='& ANTHONY'). On garde
     # alors la cellule entière comme `nom`, `prenom` vide. Cf. `_est_nom_equipe`.
     nom_cell = _strip_rank_suffix(cellule("nom"))
+    equipe_cell = _strip_rank_suffix(cellule("nom_equipe"))
     equipe = _est_nom_equipe(nom_col_expr, nom_cell)
     if equipe:
         nom, prenom = nom_cell, ""
-    else:
+    elif nom_cell:
         nom, prenom = split_athlete_name(nom_cell)
+    elif equipe_cell:
+        # Sans colonne « nom » d'affichage (#897) : l'équipe d'un duo est son
+        # identité, comme `NomEquipe` ; `LASTNAME`/`FIRSTNAME` n'y nomment que
+        # le premier équipier.
+        nom, prenom = equipe_cell, ""
+    else:
+        nom, prenom = cellule("nom_famille"), cellule("prenom")
     r.athlete_name, r.athlete_firstname = nom, prenom
     r.club = _strip_rank_suffix(cellule("club"))
     # `ucase([SEX]) & iif(…)` sérialise « M (1.) » : le rang de sexe voyage dans
@@ -1980,4 +2001,21 @@ def _run_pipeline(
             f"Épreuve RaceResult {event_id} : aucune liste exploitable "
             f"(listes essayées : {essayees})."
         )
-    return list(fusion.values()), trace
+    results = list(fusion.values())
+    _anonymise_identities(results, event_id=event_id)
+    return results, trace
+
+
+def _anonymise_identities(results: list[ScrapedResult], *, event_id: str) -> None:
+    """Identité synthétique « Anonyme <événement>-<contest>-<dossard> » pour une
+    ligne sans nom ou au nom masqué (patron #725, étendu par #897).
+
+    Le contest entre dans la clé : deux contests peuvent porter le même dossard
+    (#21). Il se lit sur la sous-URL que porte chaque ligne (#989). Appliquée
+    après la fusion et l'enrichissement `hidden`, qui apparient sur le nom publié.
+    """
+    for r in results:
+        scope = f"{event_id}-{target_contest(r.source_url) or '0'}"
+        r.athlete_name, r.athlete_firstname = anonymous_identity(
+            r.athlete_name, r.athlete_firstname, bib=r.bib_number, scope=scope
+        )

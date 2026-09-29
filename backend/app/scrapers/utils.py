@@ -167,6 +167,39 @@ def normalize_rank(val) -> int | None:
         return None
 
 
+_MASK_TOKEN_RE = re.compile(r"^[X?]+$", re.IGNORECASE)
+_ANONYMOUS_TOKENS = frozenset({"anonymous", "anonyme", "anonym"})
+
+
+def is_masked_name(nom: str) -> bool:
+    """Nom masqué par la source, constant d'un participant à l'autre (#710, #897).
+
+    Deux formes constatées : du pur bruit (« XXX XXX », « ??? », Klikego) et un
+    mot d'anonymat (« Anonymous », Competitor). Chaque mot doit être masqué : un
+    vrai nom porte toujours autre chose (« XAVIER », « Anonymous Jean »).
+    """
+    tokens = (nom or "").split()
+    return bool(tokens) and all(
+        _MASK_TOKEN_RE.match(t) or t.lower() in _ANONYMOUS_TOKENS for t in tokens
+    )
+
+
+def anonymous_identity(nom: str, prenom: str, *, bib: str, scope: str) -> tuple[str, str]:
+    """(nom, prénom), remplacés par « Anonyme <scope>-<dossard> » quand la
+    source ne publie aucun nom ou un nom masqué constant (#710, #725, #897).
+
+    Laissés tels quels, tous ces participants tombent sur la même paire
+    (nom, prénom) et fusionnent sur une seule fiche, épreuves et événements
+    confondus. `scope` identifie la sous-unité de la source (événement, contest)
+    où le dossard est unique. Sans dossard, rien de stable à accrocher : la
+    paire est rendue telle quelle, et l'import écarte une ligne vide.
+    """
+    publie = " ".join(filter(None, [nom, prenom]))
+    if bib and (not publie or is_masked_name(publie)):
+        return f"Anonyme {scope}-{bib}", ""
+    return nom, prenom
+
+
 def split_athlete_name(full: str) -> tuple[str, str]:
     """Scinde un nom complet en (nom, prénom), quelle que soit la convention.
 
