@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import { SESSION_QUERY_DEFAULTS, useSession } from "@/lib/queries/auth";
 import { queryKeys } from "@/lib/queries/keys";
+import { ImportStreamProvider } from "@/components/scrape/ImportStreamProvider";
 
 /**
  * Synchronise l'identité PostHog avec la session courante.
@@ -105,7 +106,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <QueryClientProvider client={client}>
       <PostHogSessionSync />
       <PostLoginReturn />
-      {children}
+      <ImportStreamProvider>{children}</ImportStreamProvider>
     </QueryClientProvider>
   );
 }

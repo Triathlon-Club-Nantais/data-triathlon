@@ -6,7 +6,7 @@ import type { ImportProgressEvent } from "@/lib/types";
 const { importEventStream } = vi.hoisted(() => ({ importEventStream: vi.fn() }));
 vi.mock("@/lib/api/sse", () => ({ importEventStream }));
 
-import { useImportStream } from "./useImportStream";
+import { useImportStreamController as useImportStream } from "./useImportStream";
 
 async function* flux(events: ImportProgressEvent[]) {
   for (const event of events) yield event;

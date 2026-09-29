@@ -18,7 +18,10 @@ import { ManualResultForm } from "./ManualResultForm";
 import type { ImportedCourse, Participation, ScrapedPreview } from "@/lib/types";
 
 export function TcnScrapeForm() {
-  const [url, setUrl] = useState("");
+  const importStream = useImportStream();
+  // Remonté pendant un import (retour sur `/ajouter`, #1062) : le champ et la
+  // garde de signalement reprennent l'URL du flux ouvert.
+  const [url, setUrl] = useState(importStream.state.running ? importStream.url : "");
   const [manual, setManual] = useState(false);
   // Une ligne immobile pendant des minutes ne distingue pas « ça travaille »
   // de « c'est figé » (#491, ACT-4). La minuterie tient cette promesse même
@@ -53,12 +56,15 @@ export function TcnScrapeForm() {
   // toast, télémétrie et `reportPendingProvider` à **chaque frappe**, avec
   // autant de chaînes tronquées jamais soumises — exactement la pollution de
   // `pending-providers` que ce lot vient fermer.
-  const soumiseRef = useRef<string>("");
+  const soumiseRef = useRef<string>(importStream.state.running ? importStream.url : "");
   const refreshedRef = useRef<string | null>(null);
   const router = useRouter();
 
   const save = useSaveParticipation();
-  const importStream = useImportStream();
+  // Attaché, l'écran rend lui-même la fin de l'import ; démonté, le provider
+  // l'annonce par un toast global.
+  const { attach } = importStream;
+  useEffect(() => attach(), [attach]);
   const {
     phase, error, errorStatus, retryAfter, running, imported, updated, skipped, total, progress,
     cached, message, courses, heatIndex, heatsScrapingTotal, heatLabel, detailDone, detailTotal,
@@ -206,15 +212,8 @@ export function TcnScrapeForm() {
     return () => clearInterval(id);
   }, [compteEnCours, running, retryAfter]);
 
-  // Fermer l'onglet coupe la SSE et arrête l'import à mi-course : le dire
-  // avant, plutôt que de laisser une épreuve à moitié importée en base.
-  useEffect(() => {
-    if (!running) return;
-    const garde = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", garde);
-    return () => window.removeEventListener("beforeunload", garde);
-  }, [running]);
-
+  // La garde `beforeunload` (fermer l'onglet coupe la SSE) vit dans
+  // `ImportStreamProvider` : elle vaut où que l'on soit pendant l'import.
 
   // `cancel()` coupe la SSE, pas la transaction déjà partie côté serveur : les
   // participants enregistrés avant le clic restent en base. Le taire ferait
