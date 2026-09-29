@@ -165,6 +165,27 @@ def _fetch_all_heats(slug_id: str, client: httpx.Client) -> list[tuple[str, str]
     return heats
 
 
+def _parse_heat_identity(html: str, event_id: str, heat: str) -> tuple[str, str]:
+    """(slug d'épreuve, libellé du heat) lus dans la nav inter-heats d'une page de heat.
+
+    Une URL `coureur.jsp` ne porte que `ref` et `heat`, pas le slug (#1140). La
+    page du heat, servie même sous un slug vide (`/resultats-courses/-{id}/{heat}`,
+    mesuré à Dinard 2026), lie pourtant chaque heat sous sa forme canonique
+    `/resultats-courses/{slug}-{event_id}/{heat}`, libellé compris. Rend
+    `("", "")` si la page ne lie pas ce heat.
+    """
+    prefix = "/resultats-courses/"
+    suffix = f"-{event_id}/{heat}"
+    for link in BeautifulSoup(html, "lxml").find_all("a", href=True):
+        href = link["href"]
+        if not (href.startswith(prefix) and href.endswith(suffix)):
+            continue
+        slug = href[len(prefix): -len(suffix)]
+        if "/" not in slug:
+            return slug, " ".join(link.get_text().split())
+    return "", ""
+
+
 def _detect_relay(heat_label: str, heat_slug: str) -> bool:
     """Indique si un heat est une épreuve d'équipe (relais, duo).
 
@@ -226,7 +247,13 @@ def _import_one_heat(
 
 
 def _fetch_event_date(client: httpx.Client, slug_id: str, heat: str) -> date | None:
-    """Date d'épreuve, lue sur la page du heat donné (ou de la racine si `heat` vide).
+    """Date d'épreuve, lue sur la page du heat donné (ou de la racine si `heat` vide)."""
+    page = _fetch_event_page(client, slug_id, heat)
+    return parse_page_date(page) if page is not None else None
+
+
+def _fetch_event_page(client: httpx.Client, slug_id: str, heat: str) -> str | None:
+    """Page du heat donné (ou de la racine si `heat` vide), `None` si injoignable.
 
     Un refus du garde SSRF (#101) remonte en erreur d'épreuve ; toute autre panne
     dégrade — l'épreuve s'importe sans date — mais laisse une trace : `None`
@@ -241,7 +268,7 @@ def _fetch_event_date(client: httpx.Client, slug_id: str, heat: str) -> date | N
     try:
         page_resp = client.get(date_page_url)
         if page_resp.status_code == 200:
-            return parse_page_date(page_resp.text)
+            return page_resp.text
     except DomainError:
         raise
     except Exception as exc:
@@ -270,13 +297,18 @@ def scrape_event_all(
     results: list[ScrapedResult] = []
 
     with http.client(timeout=30, headers=HEADERS) as client:
-        event_date = _fetch_event_date(client, slug_id, heat)
-
-        # Discover heats
         if heat:
-            # Specific heat requested — import only that one
-            heats_to_import = [(heat, "")]
+            # Un seul heat : sa page donne la date, et aussi le slug et le
+            # libellé qu'une URL `coureur.jsp` ne porte pas (#1140). Sans eux,
+            # nom et `source_url` différaient de la forme nominale.
+            heat_page = _fetch_event_page(client, slug_id, heat) or ""
+            event_date = parse_page_date(heat_page)
+            page_slug, heat_label = _parse_heat_identity(heat_page, event_id, heat)
+            slug = page_slug or slug
+            event_name = event_name or slug.replace("-", " ").title()
+            heats_to_import = [(heat, heat_label)]
         else:
+            event_date = _fetch_event_date(client, slug_id, heat)
             heats_to_import = _fetch_all_heats(slug_id, client)
             if not heats_to_import:
                 heats_to_import = [(heat, "")]

@@ -16,9 +16,13 @@ et route sur le sous-domaine :
 - `resultats.breizhchrono.com/resultats-courses/{slug}-{event-id}/{heat}` — la
   forme nominale ; **sans** `{heat}`, tous les heats de l'épreuve sont importés ;
 - `resultats.breizhchrono.com/bc/resultats/coureur.jsp?ref=&heat=&dossard=` — le
-  `dossard` est **ignoré** (l'import reste le heat entier) et le slug en ressort
-  vide : ni nom dérivé, ni `source_url` propre
-  (`/resultats-courses/-{event-id}/{heat}`). Préférer la forme nominale. Le site
+  `dossard` est **ignoré** (l'import reste le heat entier). L'URL ne porte pas
+  le slug : il est lu, avec le libellé du heat, dans la nav inter-heats de la
+  page du heat, que le site sert même sous un slug vide
+  (`/resultats-courses/-{event-id}/{heat}`, mesuré à Dinard 2026). Nom et
+  `source_url` sont donc ceux de la forme nominale (#1140). Toute URL qui fixe
+  un heat, forme nominale comprise, lit ainsi son libellé. Si la page ne lie pas
+  ce heat, repli sur le slug vide, sans libellé. Le site
   publie la même fiche sous `live.breizhchrono.com/bc/resultats/coureur.jsp` :
   elle suit ce moteur classique, pas le moteur live, qui ne lit que `?reference=`
   (#1089) ;
