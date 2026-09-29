@@ -71,7 +71,7 @@ def test_course_importee_expose_ses_anomalies(client, db_session, monkeypatch):
     from datetime import date
 
     from app.core.config import get_settings
-    from app.scrapers.base import ScrapedResult
+    from app.scrapers.base import FanoutTrace, ScrapedResult
     from app.services import import_service
 
     scraped = ScrapedResult(
@@ -86,7 +86,11 @@ def test_course_importee_expose_ses_anomalies(client, db_session, monkeypatch):
         total_time="",
         status="DQ",  # hors nomenclature finisher/DNF/DNS/DSQ
     )
-    monkeypatch.setattr(import_service, "registry_scrape_event_all", lambda url, **kwargs: [scraped])
+    monkeypatch.setattr(
+        import_service,
+        "registry_scrape_event_all",
+        lambda url, **kwargs: ([scraped], FanoutTrace(heats_enumerated=1)),
+    )
     import_service.import_event(db_session, "https://chrono/epreuve", get_settings())
 
     courses = client.get("/api/v1/courses").json()

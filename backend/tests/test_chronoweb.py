@@ -909,7 +909,7 @@ def test_scrape_event_fanout_on_heat_start_not_notified_for_cached(monkeypatch):
 
 
 def test_chronoweb_provider_delegates_to_fanout_and_stores_trace(monkeypatch):
-    """Le `ChronoWebProvider` du registry expose `last_trace` — c'est ce que lit
+    """Le `ChronoWebProvider` du registry rend sa trace : c'est ce que lit
     `import_service._scrape_all` pour peupler les 5 compteurs de FR-008.
     """
     from app.scrapers import registry
@@ -917,11 +917,11 @@ def test_chronoweb_provider_delegates_to_fanout_and_stores_trace(monkeypatch):
     _fake_client(monkeypatch, FakeClient())
 
     provider = registry.ChronoWebProvider()
-    results = provider.scrape_event_all(EVENT_URL)
+    results, trace = provider.scrape_event_all(EVENT_URL)
 
-    assert provider.last_trace is not None
-    assert provider.last_trace.heats_enumerated == 3
-    assert provider.last_trace.heats_cached == 0
+    assert trace is not None
+    assert trace.heats_enumerated == 3
+    assert trace.heats_cached == 0
     assert len(results) == 8
 
 
@@ -932,12 +932,12 @@ def test_chronoweb_provider_forwards_cache_probe(monkeypatch):
     _fake_client(monkeypatch, FakeClient())
 
     provider = registry.ChronoWebProvider()
-    results = provider.scrape_event_all(
+    results, trace = provider.scrape_event_all(
         EVENT_URL, cache_probe=lambda url: "&race=1148" in url,
     )
 
-    assert provider.last_trace.heats_cached == 1
-    assert provider.last_trace.cached_urls == [f"{EVENT_URL}&race=1148"]
+    assert trace.heats_cached == 1
+    assert trace.cached_urls == [f"{EVENT_URL}&race=1148"]
     # 2 races scrapées (1147 + 1149) → 5 + 1 = 6 résultats sur les fixtures.
     assert {r.source_url for r in results} == {
         f"{EVENT_URL}&race=1147", f"{EVENT_URL}&race=1149",

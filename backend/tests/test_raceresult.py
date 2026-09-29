@@ -3169,7 +3169,7 @@ def test_scrape_event_fanout_contest_zero_reserve_pas_fan_oute(monkeypatch):
 def test_provider_raceresult_expose_fanout_par_defaut(monkeypatch):
     """Le `RaceResultProvider` du registre fait du fan-out par défaut.
 
-    Sans kwargs, l'appel doit peupler `provider.last_trace` avec la trace
+    Sans kwargs, l'appel doit peupler `trace` avec la trace
     produite par `scrape_event_fanout`. Contrat symétrique à `KlikegoProvider`.
     """
     specs = [("Classement", "1"), ("Classement", "2")]
@@ -3184,12 +3184,12 @@ def test_provider_raceresult_expose_fanout_par_defaut(monkeypatch):
     _monte_pipeline(monkeypatch, specs, payloads)
 
     provider = registry.RaceResultProvider()
-    results = provider.scrape_event_all("https://my.raceresult.com/1/results")
+    results, trace = provider.scrape_event_all("https://my.raceresult.com/1/results")
 
-    assert provider.last_trace is not None
-    assert provider.last_trace.heats_enumerated == 2
-    assert provider.last_trace.heats_cached == 0
-    assert provider.last_trace.failures == []
+    assert trace is not None
+    assert trace.heats_enumerated == 2
+    assert trace.heats_cached == 0
+    assert trace.failures == []
     assert len(results) == 2
 
 
@@ -3214,16 +3214,16 @@ def test_provider_raceresult_single_heat_court_circuite_le_fan_out(monkeypatch):
         return True
 
     provider = registry.RaceResultProvider()
-    results = provider.scrape_event_all(
+    results, trace = provider.scrape_event_all(
         "https://my.raceresult.com/1/results",
         cache_probe=probe, single_heat=True,
     )
 
     # Pas de fan-out : `cache_probe` reçu mais jamais consulté.
     assert probe_appele is False
-    assert provider.last_trace is not None
-    assert provider.last_trace.heats_enumerated == 1
-    assert provider.last_trace.heats_cached == 0
+    assert trace is not None
+    assert trace.heats_enumerated == 1
+    assert trace.heats_cached == 0
     # Le contrat historique renvoie les résultats du pot commun.
     assert len(results) == 1
 

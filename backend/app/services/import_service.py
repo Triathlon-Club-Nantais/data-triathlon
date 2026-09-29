@@ -195,12 +195,10 @@ def _scrape_all(
     Passe par le dispatcher `registry.scrape_event_all(url, **kwargs)` — les
     kwargs sont propagés aux providers fan-out matchés (Klikego #156,
     RaceResult #217 reçoivent `cache_probe`, les autres l'ignorent via
-    `**kwargs` du dispatcher). Après l'appel, lit `provider.last_trace` pour
-    peupler les 5 compteurs de FR-008.
+    `**kwargs` du dispatcher). La trace qui peuple les 5 compteurs de FR-008 est
+    rendue par l'appel lui-même (#1016).
 
-    Retour : `(results, trace)`. `trace` peut être `None` pour un provider qui
-    n'expose pas de trace (comportement mono-heat implicite — `_fanout_counters`
-    rend alors les 5 clés à 0/[]).
+    Retour : `(results, trace)`.
 
     Pas de progression par heat ici — le chemin SSE l'obtient via
     `_scrape_all_streaming`, qui est un générateur. Ce chemin non-streaming
@@ -223,16 +221,13 @@ def _scrape_all(
             # (Klikego avec ?heat=…). Les autres retombent sur leur contrat
             # historique (événement entier en pot commun).
             if single_heat:
-                results = registry_scrape_event_all(url, single_heat=True)
+                results, trace = registry_scrape_event_all(url, single_heat=True)
             else:
-                results = registry_scrape_event_all(url, cache_probe=cache_probe)
-            trace = provider.last_trace
+                results, trace = registry_scrape_event_all(url, cache_probe=cache_probe)
         else:
             # Autres providers, et URL non reconnue (`get_provider` → None, le
-            # dispatcher lève) — pas de trace de fan-out.
-            # Trace synthétique 1-heat pour maintenir l'invariant `enumerated = imported`.
-            results = registry_scrape_event_all(url)
-            trace = FanoutTrace(heats_enumerated=1)
+            # dispatcher lève) : trace synthétique 1-heat du dispatcher.
+            results, trace = registry_scrape_event_all(url)
     except ValueError as exc:  # provider non supporté pour l'import en masse
         raise ProviderNotSupportedError(str(exc)) from exc
     except Exception as exc:
@@ -372,8 +367,8 @@ def _scrape_all_streaming(
                 kwargs = {"cache_probe": cache_probe, "on_heat_start": on_heat_start}
                 if isinstance(provider, registry.KlikegoProvider):
                     kwargs["on_detail_progress"] = on_detail_progress
-            results = registry_scrape_event_all(url, **kwargs)
-            holder["results"] = results
+            # La trace voyage avec les résultats, propres à ce thread (#1016).
+            holder["results"], holder["trace"] = registry_scrape_event_all(url, **kwargs)
         except BaseException as exc:  # noqa: BLE001 — relayé au générateur
             holder["error"] = exc
         finally:
@@ -406,8 +401,7 @@ def _scrape_all_streaming(
         logger.warning("Échec import %s : %s", url, exc)
         raise ScraperError(f"Erreur lors de l'import : {exc}") from exc
 
-    results = holder["results"]
-    trace = provider.last_trace
+    results, trace = holder["results"], holder["trace"]
     _require_event_name(url, results)
     return (results, trace)
 

@@ -969,19 +969,19 @@ def test_scrape_event_fanout_on_heat_start_non_notifie_pour_les_cachees(monkeypa
     assert total == 1
 
 
-def test_registry_expose_last_trace_apres_scrape(monkeypatch):
-    """`ChronoplaceProvider.last_trace` alimente les 5 compteurs de `_fanout_counters`."""
+def test_registry_rend_la_trace_avec_les_resultats(monkeypatch):
+    """La trace rendue par `ChronoplaceProvider` alimente les 5 compteurs de `_fanout_counters`."""
     from app.scrapers import registry
 
     _client_factice(monkeypatch)
     provider = registry.get_provider(URL_494)
     assert isinstance(provider, registry.ChronoplaceProvider)
 
-    provider.scrape_event_all(URL_494)
+    _, trace = provider.scrape_event_all(URL_494)
 
-    assert provider.last_trace is not None
-    assert provider.last_trace.heats_enumerated == 2
-    assert provider.last_trace.failures == []
+    assert trace is not None
+    assert trace.heats_enumerated == 2
+    assert trace.failures == []
 
 
 def test_chronoplace_provider_single_heat_scrapes_every_race_without_probe(monkeypatch):
@@ -1001,11 +1001,11 @@ def test_chronoplace_provider_single_heat_scrapes_every_race_without_probe(monke
     monkeypatch.setattr(chronoplace, "scrape_event_fanout", fanout)
 
     provider = ChronoplaceProvider()
-    results = provider.scrape_event_all(URL_494, single_heat=True)
+    results, trace = provider.scrape_event_all(URL_494, single_heat=True)
 
     assert results == ["r494", "r495"]
     assert appels == [{}]
-    assert provider.last_trace.heats_enumerated == 0
+    assert trace.heats_enumerated == 0
 
 
 def test_relay_named_teammates_are_split_at_import(db_session):

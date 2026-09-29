@@ -20,7 +20,7 @@ from app.repositories import (
     user_repository,
     volunteer_action_repository,
 )
-from app.scrapers.base import ScrapedResult
+from app.scrapers.base import FanoutTrace, ScrapedResult
 from app.services import admin_actions, import_service, sse_relay
 
 
@@ -673,7 +673,7 @@ def scrape(monkeypatch):
             appels.append(url)
             if isinstance(resultats_ou_exception, Exception):
                 raise resultats_ou_exception
-            return resultats_ou_exception
+            return resultats_ou_exception, FanoutTrace(heats_enumerated=1)
 
         monkeypatch.setattr(import_service, "registry_scrape_event_all", _scrape)
         return appels
@@ -802,7 +802,7 @@ def test_rescrape_emet_un_battement_pendant_une_phase_de_scraping_lente(
 
     def _scrape_lent(url, **kwargs):
         time.sleep(0.6)
-        return [_resultat(course, "1", "NOUVEAU")]
+        return [_resultat(course, "1", "NOUVEAU")], FanoutTrace(heats_enumerated=1)
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", _scrape_lent)
 
@@ -1178,7 +1178,7 @@ def test_switch_emet_un_battement_pendant_une_phase_de_scraping_lente(
 
     def _scrape_lent(url, **kwargs):
         time.sleep(0.6)
-        return [_resultat_bascule(course, passive, "1", "NOUVEAU")]
+        return [_resultat_bascule(course, passive, "1", "NOUVEAU")], FanoutTrace(heats_enumerated=1)
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", _scrape_lent)
 

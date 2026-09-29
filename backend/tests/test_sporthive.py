@@ -1289,9 +1289,9 @@ def test_scrape_event_fanout_on_heat_start_notifie_par_race_non_cache(monkeypatc
 # ── Intégration Provider — le fan-out est bien routé par le registre (issue #216)
 
 
-def test_sporthive_provider_exposes_last_trace_after_fanout(monkeypatch):
+def test_sporthive_provider_returns_its_trace_after_fanout(monkeypatch):
     """`SporthiveProvider.scrape_event_all` en mode nominal délègue au fan-out
-    et pose `self.last_trace` — c'est ce que `import_service` lit pour peupler
+    et rend sa trace avec ses résultats : c'est ce que `import_service` lit pour peupler
     les 5 compteurs du SSE `done`.
     """
     from app.scrapers.registry import SporthiveProvider
@@ -1301,13 +1301,13 @@ def test_sporthive_provider_exposes_last_trace_after_fanout(monkeypatch):
     _client_factice(monkeypatch, _routes(courses, pages))
 
     provider = SporthiveProvider()
-    resultats = provider.scrape_event_all(URL_SHEET)
+    resultats, trace = provider.scrape_event_all(URL_SHEET)
 
     assert len(resultats) == 2
-    assert provider.last_trace is not None
-    assert provider.last_trace.heats_enumerated == 2
-    assert provider.last_trace.heats_cached == 0
-    assert provider.last_trace.failures == []
+    assert trace is not None
+    assert trace.heats_enumerated == 2
+    assert trace.heats_cached == 0
+    assert trace.failures == []
 
 
 def test_sporthive_provider_single_heat_falls_back_to_event_scoped(monkeypatch):
@@ -1315,7 +1315,7 @@ def test_sporthive_provider_single_heat_falls_back_to_event_scoped(monkeypatch):
 
     Sporthive n'a pas de `?heat=` dans l'URL, donc l'échappatoire ne cible
     pas une race unique : elle sert de retour au contrat historique, sans
-    fan-out ni cache par-race. `last_trace` porte une trace synthétique
+    fan-out ni cache par-race. La trace rendue est synthétique
     1-heat pour maintenir l'invariant côté `import_service`.
     """
     from app.scrapers.registry import SporthiveProvider
@@ -1325,14 +1325,14 @@ def test_sporthive_provider_single_heat_falls_back_to_event_scoped(monkeypatch):
     _client_factice(monkeypatch, _routes(courses, pages))
 
     provider = SporthiveProvider()
-    resultats = provider.scrape_event_all(URL_SHEET, single_heat=True)
+    resultats, trace = provider.scrape_event_all(URL_SHEET, single_heat=True)
 
     assert len(resultats) == 2
     # Contrat event-scoped : les participations portent l'URL d'entrée, pas
     # l'URL canonique par-race.
     assert {r.source_url for r in resultats} == {URL_SHEET}
-    assert provider.last_trace is not None
-    assert provider.last_trace.heats_enumerated == 1
+    assert trace is not None
+    assert trace.heats_enumerated == 1
 
 
 def test_relay_group_names_are_not_split_at_import(db_session):
