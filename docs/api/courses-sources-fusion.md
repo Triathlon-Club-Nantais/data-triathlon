@@ -169,8 +169,8 @@ pas un pouvoir de lecture : même raison que `deletion-impact` sous
 `courses:delete`, qui peut trancher peut mesurer. `courses:write` ne conviendrait
 pas, sa description est bornée aux quatre champs d'identité. Le module est
 `admin_course_merge.py`, distinct d'`admin_data.py` : la fusion appartient à
-l'epic #275, pas aux quatre gestes correctifs de #117, et #287 (la fusion) s'y
-ajoutera.
+l'epic #275, pas aux quatre gestes correctifs de #117, et la fusion elle-même
+(#287) y vit aussi.
 
 Quatre points à ne pas défaire :
 
@@ -258,10 +258,12 @@ disparu. `absorbed_id` est un `StrictInt` : en mode permissif Pydantic coerce
 `true` en `1`, et une case à cocher mal sérialisée supprimerait l'épreuve `1` avec
 ses résultats.
 
-**Une limite connue, et elle n'est pas dans ce ticket.** L'issue suppose qu'après
-la fusion l'exploitant peut basculer sur l'autre chronométreur (#285). C'est faux
-tant que les deux libellés divergent : `admin_actions._require_same_event` refuse
-une bascule dont le scrape publie une autre identité — précisément le cas que la
-fusion existe pour rapprocher. Faire converger les identités est #289 ; d'ici là
-il faut renommer la cible (`PATCH /admin/courses/{id}`, `courses:write`) avant de
-pouvoir basculer.
+**Une limite connue, assumée durablement (#1126).** Après la fusion, basculer sur
+l'autre chronométreur (#285) échoue tant que les deux libellés divergent :
+`admin_actions._require_same_event` compare strictement nom, date, type et relais
+entre le scrape et la cible, et refuse une bascule dont le scrape publie une autre
+identité, précisément le cas que la fusion existe pour rapprocher. Le
+contournement officiel est de renommer la cible (`PATCH /admin/courses/{id}`,
+`courses:write`) aux valeurs publiées par l'autre chronométreur, puis de basculer.
+Aucune issue ne vise à lever cette limite : #289 (rattachement à l'import) ne
+touche pas à la bascule.
