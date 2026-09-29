@@ -160,7 +160,7 @@ class ParticipationCreate(BaseModel):
     # Épreuve
     event_name: str = Field(min_length=1, max_length=300)
     event_date: date | None = None
-    event_type: str = ""
+    event_type: str
     is_relay: bool = False
     # Format libre quand l'épreuve n'entre dans aucune taille normalisée
     # (« Autre » du formulaire, #270). Propriété de l'épreuve.

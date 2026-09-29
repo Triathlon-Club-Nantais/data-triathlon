@@ -387,6 +387,14 @@ def test_une_saisie_hors_contrat_est_refusee_en_422(client, db_session, champ, v
     assert db_session.query(Participation).count() == 0
 
 
+@pytest.mark.parametrize("champ", ["athlete_name", "event_name", "event_type"])
+def test_un_champ_obligatoire_absent_est_refuse_en_422(client, champ):
+    payload = _payload()
+    del payload[champ]
+
+    assert client.post("/api/v1/participations", json=payload).status_code == 422
+
+
 @pytest.mark.parametrize(
     "champ, valeur",
     [
