@@ -22,6 +22,34 @@ describe("request() error messages (#1045)", () => {
     );
   });
 
+  // #1019 : `POST /participations` refuse en 422 champ par champ ; le formulaire
+  // manuel en tire un message sous chaque champ.
+  it("sorts a 422 validation detail by field, keeping the type and the server message", async () => {
+    const detail = [
+      { type: "string_pattern_mismatch", loc: ["body", "swim_time"], msg: "String should match pattern '^…$'" },
+      { type: "value_error", loc: ["body", "event_type"], msg: "Value error, Type d'épreuve inconnu." },
+      { type: "date_from_datetime_parsing", loc: ["body", "event_date"], msg: "Input should be a valid date" },
+      { type: "string_too_short", loc: ["body", "athlete_name"], msg: "String should have at least 1 character" },
+      { type: "greater_than_equal", loc: ["body", "rank_overall"], msg: "Input should be greater than or equal to 1" },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail }), { status: 422 })),
+    );
+
+    const erreur = (await apiClient.saveParticipation({}).catch((e: unknown) => e)) as ApiError;
+
+    expect(erreur).toBeInstanceOf(ApiError);
+    expect(erreur.status).toBe(422);
+    expect(erreur.fieldErrors).toEqual({
+      swim_time: { type: "string_pattern_mismatch", message: "String should match pattern '^…$'" },
+      event_type: { type: "value_error", message: "Type d'épreuve inconnu." },
+      event_date: { type: "date_from_datetime_parsing", message: "Input should be a valid date" },
+      athlete_name: { type: "string_too_short", message: "String should have at least 1 character" },
+      rank_overall: { type: "greater_than_equal", message: "Input should be greater than or equal to 1" },
+    });
+  });
+
   it("turns a rejected fetch into a French network ApiError", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
 

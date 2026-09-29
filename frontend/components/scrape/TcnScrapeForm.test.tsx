@@ -884,6 +884,22 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
     ).not.toBeInTheDocument();
   });
 
+  // #1019 : un 422 champ par champ ne s'affiche plus en bloc, en anglais.
+  it("un 422 de validation s'affiche sous le champ refusé, sans le message brut", async () => {
+    const refus = Object.assign(new Error("String should match pattern"), {
+      status: 422,
+      fieldErrors: { event_type: { type: "value_error", message: "Type d'épreuve inconnu." } },
+    });
+    vi.mocked(apiClient.saveParticipation).mockRejectedValue(refus);
+    await ouvrirSaisieManuelle();
+    await saisirEtEnregistrer();
+
+    expect(await screen.findByText("Type d'épreuve inconnu.")).toBeInTheDocument();
+    expect(screen.getByText("Impossible d'enregistrer votre participation")).toBeInTheDocument();
+    expect(screen.getByText(/Certains champs, signalés ci-dessous, sont refusés/)).toBeInTheDocument();
+    expect(screen.queryByText(/String should/)).not.toBeInTheDocument();
+  });
+
   it("un échec d'enregistrement laisse le formulaire ouvert et affiche une alerte persistante", async () => {
     vi.mocked(apiClient.saveParticipation).mockRejectedValue(new Error("Service indisponible"));
     await ouvrirSaisieManuelle();

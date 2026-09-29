@@ -562,6 +562,14 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     `beforeunload` a suivi l'état dans le provider, pour valoir où que l'on
     soit. `ImportStreamProvider.test.tsx` démonte le formulaire en plein
     import et fixe ces comportements.
+- **La saisie manuelle suit le contrat de `POST /participations`** (#1019) :
+  `ManualResultForm` vérifie avant l'envoi ce que le serveur refuserait en 422
+  (temps `H:MM:SS` ou vide, nom et épreuve non vides une fois nettoyés, date
+  `AAAA-MM-JJ`, place d'au moins 1, statut de la nomenclature, `event_type`
+  canonique par construction) et n'envoie que des valeurs nettoyées. Un 422
+  qui passerait quand même arrive rangé par champ (`ApiError.fieldErrors`) et
+  s'affiche sous le champ concerné, les types génériques de Pydantic traduits
+  (leur message est anglais), jamais en bloc brut.
 - **Le champ URL et le verdict qui vit sous lui** (#492) — trois points à ne pas
   rouvrir séparément :
   - **La taille de police d'un champ TCN vit dans `.tcn-input`, jamais en

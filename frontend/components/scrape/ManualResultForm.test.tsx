@@ -309,3 +309,70 @@ describe("ManualResultForm — requis, optionnel et validation au blur (ACT-11)"
     }
   });
 });
+
+// #1019 : `POST /participations` refuse désormais en 422 une date illisible,
+// un temps hors `H:MM:SS`, un nom vide ou un type d'épreuve inconnu. Le
+// formulaire n'envoie que des valeurs valides et dit, avant l'envoi, ce qui
+// cloche ; un 422 qui passerait quand même s'affiche sous son champ.
+describe("ManualResultForm — contrat resserré de POST /participations (#1019)", () => {
+  it("refuse un temps hors H:MM:SS avant l'envoi, avec un message en français", async () => {
+    const onSubmit = vi.fn();
+    render(<ManualResultForm onSubmit={onSubmit} />);
+    remplirSocle();
+    await userEvent.selectOptions(screen.getByLabelText("Discipline"), "triathlon");
+    fireEvent.change(screen.getByLabelText(/Temps total/), { target: { value: "1h05" } });
+    await submit();
+
+    expect(await screen.findByText("Format attendu H:MM:SS (par exemple 1:05:30).")).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("refuse un nom fait d'espaces et une place inférieure à 1", async () => {
+    const onSubmit = vi.fn();
+    render(<ManualResultForm onSubmit={onSubmit} />);
+    remplirSocle();
+    fireEvent.change(screen.getByLabelText("Nom"), { target: { value: "   " } });
+    await userEvent.selectOptions(screen.getByLabelText("Discipline"), "triathlon");
+    fireEvent.change(screen.getByLabelText(/Place générale/), { target: { value: "0" } });
+    await submit();
+
+    expect(await screen.findByText("Nom requis")).toBeInTheDocument();
+    expect(screen.getByText("La place doit être un entier supérieur ou égal à 1.")).toBeInTheDocument();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("envoie des valeurs nettoyées et un type d'épreuve canonique", async () => {
+    const onSubmit = vi.fn();
+    render(<ManualResultForm onSubmit={onSubmit} />);
+    remplirSocle();
+    fireEvent.change(screen.getByLabelText("Nom"), { target: { value: "  DUPONT " } });
+    await userEvent.selectOptions(screen.getByLabelText("Discipline"), "triathlon");
+    await userEvent.selectOptions(screen.getByLabelText(/Format/), "m");
+    fireEvent.change(screen.getByLabelText(/Temps total/), { target: { value: " 2:10:05 " } });
+    await submit();
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    const envoye = onSubmit.mock.calls[0][0];
+    expect(envoye.athlete_name).toBe("DUPONT");
+    expect(envoye.total_time).toBe("2:10:05");
+    expect(envoye.event_type).toBe("triathlon-m");
+    expect(envoye.event_date).toBe("2026-05-16");
+    expect(envoye.status).toBe("finisher");
+  });
+
+  it("affiche sous son champ le refus d'un 422 serveur, traduit s'il est générique", async () => {
+    render(
+      <ManualResultForm
+        onSubmit={vi.fn()}
+        serverErrors={{
+          total_time: { type: "string_pattern_mismatch", message: "String should match pattern" },
+          event_type: { type: "value_error", message: "Type d'épreuve inconnu." },
+        }}
+      />,
+    );
+
+    expect(await screen.findByText("Format attendu H:MM:SS (par exemple 1:05:30).")).toBeInTheDocument();
+    expect(screen.getByText("Type d'épreuve inconnu.")).toBeInTheDocument();
+    expect(screen.queryByText(/String should/)).not.toBeInTheDocument();
+  });
+});

@@ -88,13 +88,46 @@ const BASE = "/api/v1";
 export class ApiError extends Error {
   readonly status: number;
   readonly retryAfter: number | null;
+  /** Refus par champ d'un 422 de validation (#1019), vide sinon. */
+  readonly fieldErrors: Record<string, FieldError>;
 
-  constructor(status: number, message: string, retryAfter: number | null = null) {
+  constructor(
+    status: number,
+    message: string,
+    retryAfter: number | null = null,
+    fieldErrors: Record<string, FieldError> = {},
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.retryAfter = retryAfter;
+    this.fieldErrors = fieldErrors;
   }
+}
+
+/** Un champ refusé par la validation Pydantic : son `type` et son message. */
+export type FieldError = { type: string; message: string };
+
+/**
+ * Le `detail` d'un 422 Pydantic, rangé par champ (`loc` = `["body", "<champ>"]`).
+ * Le message reste celui du serveur, préfixe « Value error, » retiré : il porte
+ * alors le français d'un validateur maison. Le formulaire qui connaît ses
+ * champs traduit les types génériques, que Pydantic rédige en anglais.
+ */
+export function champsEnErreur(detail: unknown): Record<string, FieldError> {
+  if (!Array.isArray(detail)) return {};
+  const champs: Record<string, FieldError> = {};
+  for (const item of detail) {
+    if (typeof item !== "object" || item === null) continue;
+    const { loc, type, msg } = item as { loc?: unknown; type?: unknown; msg?: unknown };
+    const champ = Array.isArray(loc) ? loc.find((p) => typeof p === "string" && p !== "body") : undefined;
+    if (typeof champ !== "string" || champ in champs) continue;
+    champs[champ] = {
+      type: typeof type === "string" ? type : "",
+      message: typeof msg === "string" ? msg.replace(/^Value error, /, "") : "",
+    };
+  }
+  return champs;
 }
 
 /**
@@ -140,6 +173,7 @@ async function erreurDeReponse(res: Response): Promise<ApiError> {
     res.status,
     messageDErreur(err.detail, repli),
     res.status === 429 ? attenteRetryAfter(res) : null,
+    res.status === 422 ? champsEnErreur(err.detail) : {},
   );
 }
 
