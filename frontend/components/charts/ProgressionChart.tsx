@@ -30,14 +30,20 @@ const MIN_POINTS = 3;
  * Boîte du libellé d'un point, en pourcentage de la rangée : centrée sur son
  * point, mais rabattue dans la rangée aux deux extrémités. Centrée, la dernière
  * dépassait d'une demi-colonne à droite et faisait défiler toute la fiche
- * athlète (#1139). `count` vaut au moins `MIN_POINTS`.
+ * athlète (#1139). Rabattues, les boîtes d'extrémité se limitent à la place
+ * laissée avant leur voisine centrée, l'ellipse tronque le reste. `count` vaut
+ * au moins `MIN_POINTS`.
  */
 function labelBox(index: number, count: number) {
   const width = 100 / count;
   const center = (100 * index) / (count - 1);
-  const left = Math.min(Math.max(center - width / 2, 0), 100 - width);
-  const textAlign = index === 0 ? "left" : index === count - 1 ? "right" : "center";
-  return { left: `${left}%`, width: `${width}%`, textAlign } as const;
+  if (index === 0 || index === count - 1) {
+    const endWidth = Math.min(width, 100 / (count - 1) - width / 2);
+    return index === 0
+      ? ({ left: "0%", width: `${endWidth}%`, textAlign: "left" } as const)
+      : ({ left: `${100 - endWidth}%`, width: `${endWidth}%`, textAlign: "right" } as const);
+  }
+  return { left: `${center - width / 2}%`, width: `${width}%`, textAlign: "center" } as const;
 }
 
 /**

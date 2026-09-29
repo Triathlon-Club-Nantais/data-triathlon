@@ -132,6 +132,22 @@ describe("ProgressionChart", () => {
     }
   });
 
+  // Rabattre les boîtes d'extrémité ne doit pas les faire chevaucher leur voisine.
+  it.each([3, 5, 12])("keeps neighbouring label boxes apart with %i points (#1139)", (count) => {
+    const points = Array.from({ length: count }, (_, index) =>
+      point({ participationId: index + 1, eventDate: "2026-01-10", percent: 10 + index }),
+    );
+    const { getByText } = render(<ProgressionChart points={points} />);
+
+    const boxes = points.map((p) => {
+      const style = (getByText(`Top ${p.percent} %`).parentElement as HTMLElement).style;
+      return { left: parseFloat(style.left), right: parseFloat(style.left) + parseFloat(style.width) };
+    });
+    for (let index = 0; index + 1 < boxes.length; index++) {
+      expect(boxes[index + 1].left).toBeGreaterThanOrEqual(boxes[index].right - 1e-9);
+    }
+  });
+
   it("affiche un état vide explicite sans aucun point", () => {
     const { container } = render(<ProgressionChart points={[]} />);
     expect(container.querySelector("svg")).toBeNull();
