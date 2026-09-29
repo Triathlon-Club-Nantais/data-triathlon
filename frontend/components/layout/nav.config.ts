@@ -162,14 +162,15 @@ export const NAV: NavSection[] = [
       { id: "benevolat", label: "Bénévolat", href: "/benevolat", icon: HeartHandshake, preview: true },
       // `/benevoles` reste hors du groupe `(public_restricted)` et garde sa
       // propre porte (`AccessGate`, #271) : un bénévole n'a jamais le mot de
-      // passe du site. L'entrée faisait trouver la connexion (#832) ; elle
-      // passe derrière `pages:preview` avec le reste du bénévolat (#879).
+      // passe du site, donc pas de `permission` ici non plus : l'entrée sert à
+      // faire trouver la connexion (#832). Hors du masque `pages:preview` de
+      // #879, qui ne vise que les déclarations de crédit (« Précision (29/09) »).
       {
         id: "benevoles",
         label: "Validation des épreuves",
+        labelCourt: "Validation",
         href: "/benevoles",
         icon: UserCheck,
-        preview: true,
       },
     ],
   },
