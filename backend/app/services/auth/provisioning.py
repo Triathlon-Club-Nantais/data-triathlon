@@ -8,6 +8,7 @@ L'ordre des trois étapes est contractuel (FR-005) : certification de l'adresse,
 **puis** liste des comptes autorisés, **puis** résolution de l'identité.
 """
 import logging
+from dataclasses import replace
 
 from sqlalchemy.orm import Session
 
@@ -36,7 +37,8 @@ def resolve_user(db: Session, identity: ExternalIdentity) -> User:
         logger.info("Login refused: provider certifies no address (%s)", identity.provider)
         raise LoginError("email_unverified")
 
-    if not _is_allowed(db, identity.email):
+    allowed_email = _first_allowed_email(db, identity)
+    if allowed_email is None:
         # L'adresse **est** journalisée ici, et nulle part ailleurs dans le
         # parcours. Le code rendu au visiteur est muet sur la valeur soumise
         # (FR-030) ; sans cette trace, un refus n'est pas diagnosticable et
@@ -51,6 +53,8 @@ def resolve_user(db: Session, identity: ExternalIdentity) -> User:
             identity.email,
         )
         raise LoginError("account_not_allowed")
+    # L'adresse retenue alimente `users.email` et `identities.email` (#1059).
+    identity = replace(identity, email=allowed_email)
 
     known = identity_repository.get_by_subject(
         db, provider=identity.provider, subject=identity.subject
@@ -166,6 +170,16 @@ def _grant_initial_role(db: Session, user: User, email: str) -> None:
         role.slug,
         organisation.slug,
     )
+
+
+def _first_allowed_email(db: Session, identity: ExternalIdentity) -> str | None:
+    """Première adresse certifiée inscrite dans la liste, l'adresse principale
+    du fournisseur en tête (#1059). Toutes sont certifiées : l'ordre FR-005
+    (certification, puis liste) tient."""
+    for email in dict.fromkeys((identity.email, *identity.verified_emails)):
+        if email and _is_allowed(db, email):
+            return email
+    return None
 
 
 def _is_allowed(db: Session, email: str) -> bool:

@@ -270,3 +270,53 @@ def test_un_retrait_est_effectif_a_la_tentative_suivante(
     with pytest.raises(LoginError) as refus:
         provisioning.resolve_user(db_session, _identite())
     assert refus.value.code == "account_not_allowed"
+
+
+
+def test_une_secondaire_verifiee_autorisee_ouvre_la_connexion(
+    db_session, autoriser, vider_la_liste_autorisation
+):
+    """#1059 : primaire non inscrite, secondaire vérifiée inscrite."""
+    vider_la_liste_autorisation()
+    autoriser("prenom.nom@club.fr")
+
+    user = provisioning.resolve_user(
+        db_session,
+        _identite(
+            email="perso@gmail.com",
+            verified_emails=("perso@gmail.com", "prenom.nom@club.fr"),
+        ),
+    )
+    db_session.commit()
+
+    assert user.email == "prenom.nom@club.fr"
+    assert db_session.query(Identity).one().email == "prenom.nom@club.fr"
+
+
+def test_la_primaire_l_emporte_quand_plusieurs_adresses_sont_autorisees(db_session, autoriser):
+    autoriser("perso@gmail.com", "prenom.nom@club.fr")
+
+    user = provisioning.resolve_user(
+        db_session,
+        _identite(
+            email="perso@gmail.com",
+            verified_emails=("perso@gmail.com", "prenom.nom@club.fr"),
+        ),
+    )
+
+    assert user.email == "perso@gmail.com"
+
+
+def test_aucune_adresse_verifiee_autorisee_reste_refusee(
+    db_session, autoriser, vider_la_liste_autorisation
+):
+    vider_la_liste_autorisation()
+    autoriser("autre@exemple.fr")
+
+    with pytest.raises(LoginError) as refus:
+        provisioning.resolve_user(
+            db_session,
+            _identite(email="perso@gmail.com", verified_emails=("perso@gmail.com", "b@exemple.fr")),
+        )
+
+    assert refus.value.code == "account_not_allowed"

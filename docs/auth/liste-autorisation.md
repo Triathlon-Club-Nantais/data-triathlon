@@ -14,6 +14,14 @@ sans cache, à chaque tentative) ; `allowed_emails.py` l'**écrit**, depuis l'é
 ou depuis la CLI. Les fondre ferait rentrer `authorization` dans le chemin de
 connexion, qui n'a rien à en savoir.
 
+**Toute adresse vérifiée chez GitHub peut être inscrite, pas seulement la
+primaire** (#1059). L'identité GitHub porte toutes ses adresses vérifiées
+(`ExternalIdentity.verified_emails`, la primaire en tête) ; `provisioning`
+retient la première qu'il trouve dans la liste, et c'est elle qui alimente
+`users.email`. Un membre dont la primaire est personnelle se connecte donc avec
+l'adresse du club inscrite en secondaire. L'ordre FR-005 tient : seules des
+adresses certifiées sont présentées à la liste.
+
 Cinq points à ne pas défaire :
 
 - **`auth_is_configured` ne pèse plus la liste**, et c'est le seul écart au

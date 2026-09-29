@@ -257,3 +257,16 @@ def test_la_certification_vient_toujours_de_user_emails():
     assert any(url.endswith("/user/emails") for url in vues)
     assert identite.email_verified is True
     assert identite.email == "contributeur@exemple.fr"
+
+
+
+def test_l_identite_porte_toutes_les_adresses_verifiees_la_primaire_en_tete():
+    """#1059 : chaque adresse vérifiée est certifiée, pas seulement la primaire."""
+    identite = _provider(_handler_nominal()).fetch_identity(
+        code="code-1", round_trip={"verifier": "v" * 43}
+    )
+
+    assert identite.verified_emails == (
+        "contributeur@exemple.fr",
+        "977654+discret@users.noreply.github.com",
+    )
