@@ -18,6 +18,7 @@ import { CLUB_NAME } from "@/lib/club";
 import { nomComplet, useSelectedAthlete } from "@/components/layout/AthletePicker";
 import { categoryTitle } from "@/lib/categories";
 import type { CourseSummary, Participation } from "@/lib/types";
+import { participationStatusCount } from "@/lib/labels";
 
 // Ma ligne : j'en suis le porteur, ou l'un des équipiers d'un relais attribué
 // (#894), sa fiche me montre ce relais, le classement doit me le montrer aussi.
@@ -1009,11 +1010,12 @@ function resumeEpreuve(summary: CourseSummary): string {
   const { total, finishers, dnf, dns, dsq, unknown } = summary;
   const parts = [
     `${total} participant${total > 1 ? "s" : ""}`,
-    `${finishers} arrivant${finishers > 1 ? "s" : ""}`,
+    participationStatusCount("finisher", finishers),
   ];
-  if (dnf > 0) parts.push(`${dnf} abandon${dnf > 1 ? "s" : ""}`);
-  if (dns > 0) parts.push(`${dns} non-partant${dns > 1 ? "s" : ""}`);
-  if (dsq > 0) parts.push(`${dsq} disqualifié${dsq > 1 ? "s" : ""}`);
+  // Mêmes mots que les compteurs de l'en-tête d'épreuve (#1084).
+  if (dnf > 0) parts.push(participationStatusCount("DNF", dnf));
+  if (dns > 0) parts.push(participationStatusCount("DNS", dns));
+  if (dsq > 0) parts.push(participationStatusCount("DSQ", dsq));
   if (unknown > 0) parts.push(`${unknown} indéterminé${unknown > 1 ? "s" : ""}`);
   return parts.join(" · ");
 }

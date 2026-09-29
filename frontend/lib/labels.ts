@@ -48,16 +48,28 @@ export function podiumScopeLabel(s: PodiumScope): string {
  * Libellés des statuts de participation (#1084) : la saisie manuelle, le badge
  * de résultat et les compteurs de l'épreuve disent le même mot, dans la même
  * graphie. Les valeurs sont celles de l'API, jamais traduites côté backend.
+ *
+ * Deux usages, pas le singulier et le pluriel d'un même mot : `one` est
+ * **l'état** d'une participation (option de saisie, titre du badge : « Arrivé »,
+ * « Non partant », graphies arrêtées par la décision de #1084), `many` l'intitulé
+ * d'un **compteur** (« Arrivants », « Non-partants »). `unit` est le nom compté
+ * au singulier, pour les phrases à nombre (`participationStatusCount`).
  */
 export const PARTICIPATION_STATUSES = ["finisher", "DNF", "DNS", "DSQ"] as const;
 export type ParticipationStatus = (typeof PARTICIPATION_STATUSES)[number];
 
-const STATUS_LABEL: Record<ParticipationStatus, { one: string; many: string }> = {
-  finisher: { one: "Arrivé", many: "Arrivants" },
-  DNF: { one: "Abandon", many: "Abandons" },
-  DNS: { one: "Non partant", many: "Non-partants" },
-  DSQ: { one: "Disqualifié", many: "Disqualifiés" },
+const STATUS_LABEL: Record<ParticipationStatus, { one: string; many: string; unit: string }> = {
+  finisher: { one: "Arrivé", many: "Arrivants", unit: "arrivant" },
+  DNF: { one: "Abandon", many: "Abandons", unit: "abandon" },
+  DNS: { one: "Non partant", many: "Non-partants", unit: "non-partant" },
+  DSQ: { one: "Disqualifié", many: "Disqualifiés", unit: "disqualifié" },
 };
+
+/** « 1 arrivant », « 2 non-partants » : le nom compté, accordé au nombre. */
+export function participationStatusCount(status: ParticipationStatus, n: number): string {
+  const { many, unit } = STATUS_LABEL[status];
+  return `${n} ${n > 1 ? many.toLocaleLowerCase("fr") : unit}`;
+}
 
 export function participationStatusLabel(
   status: ParticipationStatus,
