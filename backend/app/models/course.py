@@ -121,6 +121,11 @@ class Course(Base):
     sources: Mapped[list["CourseSource"]] = relationship(  # noqa: F821
         back_populates="course", cascade="all, delete-orphan"
     )
+    #: Identités d'épreuves absorbées par fusion, redirigées ici au rescrape
+    #: (#983). Même cascade ORM que `sources`.
+    absorbed: Mapped[list["AbsorbedCourse"]] = relationship(  # noqa: F821
+        back_populates="target", cascade="all, delete-orphan"
+    )
 
     @hybrid_property
     def source_url(self) -> str:

@@ -15,7 +15,12 @@ from sqlalchemy.orm import Session
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.course_source import CourseSource
-from app.repositories import athlete_repository, course_repository, course_source_repository
+from app.repositories import (
+    absorbed_course_repository,
+    athlete_repository,
+    course_repository,
+    course_source_repository,
+)
 from app.scrapers.base import STATUS_DNF, STATUS_FINISHER, ScrapedResult
 from app.scrapers.classify import extract_distance_km
 from app.services import course_reconciliation
@@ -232,7 +237,21 @@ def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) ->
         if url
         else None
     )
-    course = reconciled or course_repository.get_or_create(
+    # Une identité absorbée par une fusion revient à sa cible (#983) : sans
+    # quoi le rescrape d'une URL partagée recréait l'épreuve supprimée.
+    redirected = (
+        None
+        if reconciled or not url
+        else absorbed_course_repository.find_target(
+            db,
+            url=url,
+            name=scraped.event_name,
+            event_date=scraped.event_date,
+            event_type=scraped.event_type,
+            is_relay=scraped.is_relay,
+        )
+    )
+    course = reconciled or redirected or course_repository.get_or_create(
         db,
         name=scraped.event_name,
         event_date=scraped.event_date,
