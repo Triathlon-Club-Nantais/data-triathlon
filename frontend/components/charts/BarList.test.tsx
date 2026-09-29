@@ -57,7 +57,7 @@ describe("BarList", () => {
   });
 
   it("sans `colorer`, remplit la barre avec une variable CSS réellement définie (#651)", () => {
-    // `--accent-ink` n'existe nulle part dans globals.css — seul `--tcn-danger-text`
+    // `--accent-ink` n'existe nulle part dans globals.css — seul `--tcn-orange-deeper`
     // y est déclaré (`--color-accent-ink` de Tailwind v4 n'en est qu'un alias
     // `@theme`, consommé ailleurs via la classe `text-accent-ink`, jamais par un
     // `var()` brut dans une feuille de style en ligne — convention que tient le
@@ -69,6 +69,6 @@ describe("BarList", () => {
     // composition du club, format sur la fiche athlète).
     const { container } = render(<BarList entries={[["a", 1]]} labeller={(k) => k} />);
     const bar = container.querySelector("[data-bar]") as HTMLElement;
-    expect(bar.style.background).toContain("--tcn-danger-text");
+    expect(bar.style.background).toContain("--tcn-orange-deeper");
   });
 });

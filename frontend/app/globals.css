@@ -43,7 +43,7 @@
   /* Marque + sémantique (orange TCN) */
   --color-brand: var(--tcn-orange);
   --color-brand-foreground: var(--tcn-ink);
-  --color-accent-ink: var(--tcn-danger-text);
+  --color-accent-ink: var(--tcn-orange-deeper); /* liens neutres, jamais le danger (#1066) */
   /* Ces deux paires ne sont **lues par personne** (`bg-success`, `bg-warning`,
      `text-*-foreground` : zéro usage) et ne tiendraient pas le seuil si on les
      consommait — blanc sur `--tcn-success` = 4,37:1, `--tcn-warning-text` sur
