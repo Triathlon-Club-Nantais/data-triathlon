@@ -302,9 +302,9 @@ créé de `CourseSource` (#279, testé par
 changement explicite accepté au titre du Principe IV. Ce qui passait en `201`
 et rend désormais un `422` :
 
-- `athlete_name` ou `event_name` vides (ou faits de blancs : le schéma les
-  débarrasse de leurs bords, `str_strip_whitespace`) ;
-- un `event_type` hors de `classify.CANONICAL_TYPES`, même règle
+- `athlete_name` ou `event_name` absents ou vides (ou faits de blancs : le
+  schéma les débarrasse de leurs bords, `str_strip_whitespace`) ;
+- un `event_type` absent ou hors de `classify.CANONICAL_TYPES`, même règle
   qu'`AdminCourseUpdate` ;
 - un `status` hors de `""`, `finisher`, `DNF`, `DNS`, `DSQ` ;
 - un rang (`rank_overall`, `rank_category`, `rank_gender`) inférieur à 1 ;
