@@ -33,6 +33,22 @@ describe("ForgetSiteAccessButton", () => {
     expect(toastError).not.toHaveBeenCalled();
   });
 
+  // Le pied de page vit dans le layout racine : le bouton n'est pas remonté
+  // entre deux usages, il doit donc se réarmer après un succès.
+  it("fonctionne encore après un premier oubli suivi d'une nouvelle saisie du code", async () => {
+    siteAccessLogout.mockResolvedValue(null);
+    render(<ForgetSiteAccessButton />);
+    const bouton = screen.getByRole("button", { name: "Oublier le code d'accès sur cet appareil" });
+
+    await userEvent.click(bouton);
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(bouton).toHaveAttribute("aria-busy", "false"));
+
+    await userEvent.click(bouton);
+    await waitFor(() => expect(siteAccessLogout).toHaveBeenCalledTimes(2));
+    expect(replace).toHaveBeenCalledTimes(2);
+  });
+
   it("reste sur place et le dit si l'effacement échoue", async () => {
     siteAccessLogout.mockRejectedValue(new Error("réseau"));
     render(<ForgetSiteAccessButton />);

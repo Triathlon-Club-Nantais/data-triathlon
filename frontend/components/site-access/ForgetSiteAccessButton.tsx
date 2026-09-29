@@ -23,6 +23,9 @@ export function ForgetSiteAccessButton() {
       router.refresh();
     } catch {
       toast.error("Le code d'accès n'a pas pu être oublié. Réessayez.");
+    } finally {
+      // Le pied de page survit à la navigation (layout racine) : sans ce
+      // réarmement, le geste restait inerte après un premier usage.
       setEnCours(false);
     }
   }
