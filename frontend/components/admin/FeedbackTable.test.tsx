@@ -55,6 +55,7 @@ const INSTRUCTEUR: SessionUser = {
   permissions: ["feedback:read", "feedback:manage"],
   roles: [],
   groups: [],
+  can_administer: true,
 };
 
 const LECTEUR: SessionUser = { ...INSTRUCTEUR, permissions: ["feedback:read"] };

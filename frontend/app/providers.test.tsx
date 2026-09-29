@@ -33,6 +33,7 @@ const SESSION: SessionUser = {
   permissions: [],
   roles: [],
   groups: [],
+  can_administer: false,
 };
 
 describe("Providers: session query policy (#954)", () => {

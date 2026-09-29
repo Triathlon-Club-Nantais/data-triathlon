@@ -15,6 +15,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.api.deps import authorize_rate_limit, current_user
+from app.core import permissions
 from app.core.analytics import capture_event, set_person_properties
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
@@ -310,14 +311,14 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
     huit ou dix aller-retours DB pour un GET censé être trivial.
     """
     charge = user_repository.get_with_roles_and_groups(db, user.id) or user
+    effectifs = authorization.effective_permissions(db, charge, attributions=charge.roles)
     return SessionUserRead(
         id=charge.id,
         email=charge.email,
         display_name=charge.display_name,
         created_at=charge.created_at,
-        permissions=sorted(
-            authorization.effective_permissions(db, charge, attributions=charge.roles)
-        ),
+        permissions=sorted(effectifs),
+        can_administer=permissions.administers(effectifs),
         roles=[
             SessionRoleRead(
                 id=attribution.role.id,

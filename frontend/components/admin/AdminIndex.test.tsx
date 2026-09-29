@@ -20,6 +20,8 @@ const SESSION = (permissions: string[]): SessionUser =>
     display_name: "Bénévole",
     roles: [],
     permissions,
+    // Miroir du marqueur du catalogue backend (#1109) : seul `pages:preview` consulte.
+    can_administer: permissions.some((code) => code !== "pages:preview"),
   }) as unknown as SessionUser;
 
 function afficher() {
@@ -58,11 +60,15 @@ describe("AdminIndex", () => {
     expect(screen.queryByText("Gestion des utilisateurs")).toBeNull();
   });
 
-  it("dit qu'aucun écran n'est ouvert plutôt que de rester muet", async () => {
-    getSession.mockResolvedValue(SESSION([]));
+  it.each([
+    ["sans pouvoir", []],
+    ["ne portant que `pages:preview` (#1109)", ["pages:preview"]],
+  ])("dit à une session %s qu'aucun écran n'est ouvert, comme la garde", async (_cas, pouvoirs) => {
+    getSession.mockResolvedValue(SESSION(pouvoirs));
     afficher();
 
-    expect(await screen.findByText(/Aucun écran d'administration/)).toBeInTheDocument();
+    expect(await screen.findByText(/vous êtes connecté/i)).toBeInTheDocument();
+    expect(screen.getByText(/demandez un rôle à un administrateur du club/i)).toBeInTheDocument();
   });
 
   it("ne confond pas une session illisible avec une absence de pouvoirs", async () => {

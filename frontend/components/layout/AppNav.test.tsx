@@ -112,6 +112,7 @@ const SESSION: SessionUser = {
   permissions: [],
   roles: [],
   groups: [],
+  can_administer: false,
 };
 
 /** La même session, habilitée. `permissions` est l'unique source (#115). */

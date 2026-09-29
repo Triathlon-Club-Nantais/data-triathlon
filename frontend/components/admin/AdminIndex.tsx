@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NAV, ROLE, estVisible } from "@/components/layout/nav.config";
 import { useSession } from "@/lib/queries/auth";
+import { NoAdminAccess } from "./NoAdminAccess";
 
 /**
  * Sommaire du back-office (ADM-6).
@@ -46,6 +47,10 @@ export function AdminIndex() {
         description="Rechargez la page. Si le problème persiste, signalez-le depuis le bouton de retour du site."
       />
     );
+
+  // Même règle que la garde du layout (#1109), qui rend déjà cet état : ce
+  // repli couvre le rendu client quand la session change sous l'écran.
+  if (session.data && !session.data.can_administer) return <NoAdminAccess />;
 
   const sections = SECTIONS.map((s) => ({
     ...s,

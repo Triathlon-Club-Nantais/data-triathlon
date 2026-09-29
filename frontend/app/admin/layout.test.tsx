@@ -25,11 +25,14 @@ const SESSION = {
   display_name: "contributeur",
   created_at: "2026-08-01T14:54:28Z",
   permissions: ["courses:delete"],
+  can_administer: true,
   roles: [],
 };
 
 /** Connecté, mais ne portant aucun pouvoir du catalogue (#115). */
-const SANS_POUVOIR = { ...SESSION, permissions: [] };
+const SANS_POUVOIR = { ...SESSION, permissions: [], can_administer: false };
+/** `pages:preview` est un pouvoir de consultation, pas d'administration (#1109). */
+const CONSULTATION_SEULE = { ...SESSION, permissions: ["pages:preview"], can_administer: false };
 
 const GITHUB = [{ slug: "github", label: "GitHub" }];
 
@@ -77,15 +80,23 @@ describe("Garde des écrans d'administration (FR-040)", () => {
     expect(screen.getByRole("link", { name: /guide/i })).toHaveAttribute("href", "/admin/guide");
   });
 
-  it("renvoie au tableau de bord une session sans le moindre pouvoir", async () => {
-    // Le catalogue de #115 ne contient que des pouvoirs d'administration : n'en
-    // porter aucun, c'est n'avoir rien à faire ici. Vers `/dashboard` et non
-    // `/login`, qui serait une boucle pour quelqu'un de déjà connecté.
-    getSession.mockResolvedValue(SANS_POUVOIR);
+  // #1109 : le callback SSO mène toujours à `/admin`. Une redirection muette
+  // vers `/dashboard` faisait croire à une connexion ratée.
+  it.each([
+    ["sans le moindre pouvoir", SANS_POUVOIR],
+    ["qui ne porte que `pages:preview`", CONSULTATION_SEULE],
+  ])("explique à une session %s qu'aucun écran ne lui est ouvert, sans rediriger", async (_cas, session) => {
+    getSession.mockResolvedValue(session);
     listAuthMethods.mockResolvedValue(GITHUB);
 
-    await expect(AdminLayout({ children: <p>secret</p> })).rejects.toThrow("NEXT_REDIRECT");
-    expect(redirect).toHaveBeenCalledWith("/dashboard");
+    render(await AdminLayout({ children: <p>secret</p> }));
+
+    expect(redirect).not.toHaveBeenCalled();
+    expect(screen.queryByText("secret")).not.toBeInTheDocument();
+    expect(screen.getByText(/vous êtes connecté/i)).toBeInTheDocument();
+    expect(screen.getByText(/demandez un rôle à un administrateur du club/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Retour au site" })).toHaveAttribute("href", "/dashboard");
+    expect(screen.queryByRole("link", { name: /guide/i })).not.toBeInTheDocument();
   });
 
   it("valide réellement la session, plutôt que de constater un cookie", async () => {

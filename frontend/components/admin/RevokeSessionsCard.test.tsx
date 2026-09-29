@@ -43,6 +43,7 @@ const RESPONSABLE: SessionUser = {
   permissions: ["allowed_emails:manage", "sessions:revoke"],
   roles: [],
   groups: [],
+  can_administer: true,
 };
 
 const SANS_REVOCATION: SessionUser = {

@@ -3,6 +3,8 @@ import Link from "next/link";
 import { BookOpen } from "lucide-react";
 import type { ReactNode } from "react";
 import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
+import { NoAdminAccess } from "@/components/admin/NoAdminAccess";
+import { PageShell } from "@/components/layout/PageShell";
 import { ApiError } from "@/lib/api/client";
 import { apiServer } from "@/lib/api/server";
 
@@ -32,9 +34,12 @@ import { apiServer } from "@/lib/api/server";
  *   page d'erreur globale. Avant cette garde, la page s'affichait et c'est le
  *   tableau client qui signalait la panne, en place.
  *
- * **Elle referme en revanche sur une session sans pouvoir.** Être connecté ne
- * suffit pas : le catalogue de #115 ne contient que des pouvoirs
- * d'administration, donc n'en porter aucun signifie n'avoir rien à faire ici.
+ * **Elle referme en revanche sur une session sans pouvoir d'administration.**
+ * Être connecté ne suffit pas, et `pages:preview` ne compte pas : c'est un
+ * pouvoir de consultation, marqué comme tel dans le catalogue backend et lu ici
+ * par `can_administer` (#1109). Elle ne redirige pas : le callback SSO mène
+ * toujours à `/admin`, et une redirection muette faisait croire à une
+ * connexion ratée. Elle rend `NoAdminAccess` à la place des enfants.
  *
  * Contrepartie assumée : `/admin`, jusqu'ici prérendue statiquement, devient
  * dynamique. C'est l'effet recherché.
@@ -73,13 +78,15 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     redirect("/login");
   }
 
-  // Une session sans le moindre pouvoir n'a rien à administrer : **tout** code du
-  // catalogue (#115) en est un — consulter des résultats n'en demande aucun. Vers
-  // `/dashboard` et non `/login` : ce visiteur est connecté, l'y renvoyer serait
-  // une boucle. La branche ne peut pas fermer un déploiement sans `AUTH_*` : sans
-  // ces secrets, personne n'obtient de session et `session` vaut `null` (FR-036).
-  if (session !== null && session !== INDISPONIBLE && session.permissions.length === 0) {
-    redirect("/dashboard");
+  // La branche ne peut pas fermer un déploiement sans `AUTH_*` : sans ces
+  // secrets, personne n'obtient de session et `session` vaut `null` (FR-036).
+  // Le lien « Guide » disparaît avec les enfants : il mène à des écrans fermés.
+  if (session !== null && session !== INDISPONIBLE && !session.can_administer) {
+    return (
+      <PageShell>
+        <NoAdminAccess />
+      </PageShell>
+    );
   }
 
   // Le dialog des gestes destructifs, monté une fois pour toutes les
@@ -89,7 +96,7 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     <DangerConfirmProvider>
       {/* Lien fixe vers le guide (#865), hors de `nav.config.ts` par choix
           délibéré : voir le commentaire sur `a-flags` dans nav.config.ts et
-          research.md. La garde ci-dessus (≥ 1 pouvoir admin) suffit, aucun
+          research.md. La garde ci-dessus (`can_administer`) suffit, aucun
           `permission` par écran n'est donc nécessaire ici. */}
       <div
         className="mx-auto flex justify-end px-4 pt-4 sm:px-8 md:px-10"
