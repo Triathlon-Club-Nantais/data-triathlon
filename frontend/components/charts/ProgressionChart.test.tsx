@@ -114,6 +114,24 @@ describe("ProgressionChart", () => {
     getByText(/pas encore assez d.épreuves/i);
   });
 
+  // The last label used to stick out by half a column past the right edge,
+  // which made the whole athlete page scroll horizontally (#1139).
+  it.each([3, 5, 12])("keeps every label box inside the chart row with %i points (#1139)", (count) => {
+    const points = Array.from({ length: count }, (_, index) =>
+      point({ participationId: index + 1, eventDate: "2026-01-10", percent: 10 + index }),
+    );
+    const { getByText } = render(<ProgressionChart points={points} />);
+
+    for (const p of points) {
+      const box = getByText(`Top ${p.percent} %`).parentElement as HTMLElement;
+      expect(box.style.left).toMatch(/^[\d.]+%$/);
+      expect(box.style.width).toMatch(/^[\d.]+%$/);
+      const left = parseFloat(box.style.left);
+      expect(left).toBeGreaterThanOrEqual(0);
+      expect(left + parseFloat(box.style.width)).toBeLessThanOrEqual(100 + 1e-9);
+    }
+  });
+
   it("affiche un état vide explicite sans aucun point", () => {
     const { container } = render(<ProgressionChart points={[]} />);
     expect(container.querySelector("svg")).toBeNull();
