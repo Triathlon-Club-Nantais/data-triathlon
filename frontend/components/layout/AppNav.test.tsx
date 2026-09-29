@@ -959,7 +959,7 @@ describe("AppNav — arborescence", () => {
       color: "var(--tcn-orange-deeper)",
     });
     const barre = screen.getByRole("navigation", { name: "Navigation" });
-    expect(within(barre).getByRole("link", { name: "Tableau de bord" })).toHaveStyle({
+    expect(within(barre).getByRole("link", { name: "Accueil, tableau de bord" })).toHaveStyle({
       color: "var(--tcn-orange-deep)",
     });
   });
@@ -1498,22 +1498,49 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
     expect(lien).not.toHaveTextContent("des épreuves");
   });
 
-  it("affiche « Accueil » pour le tableau de bord, nom accessible intact (#1012)", () => {
+  // WCAG 2.5.3 : le nom accessible commence par le texte visible, sans quoi la
+  // commande vocale « Accueil » ne trouve rien. « Accueil » n'étant pas contenu
+  // dans « Tableau de bord », le nom les porte tous deux.
+  it("nomme « Accueil » par son texte visible, suivi du libellé complet (#1012)", () => {
     afficher(null);
 
-    const lien = within(barre()).getByRole("link", { name: "Tableau de bord" });
+    const lien = within(barre()).getByRole("link", { name: "Accueil, tableau de bord" });
     expect(lien).toHaveTextContent("Accueil");
     expect(lien).not.toHaveTextContent("Tableau de bord");
+    // Un libellé court contenu dans le long garde le long, qui commence par lui.
+    expect(within(barre()).getByRole("link", { name: "Validation des épreuves" })).toHaveTextContent("Validation");
     // Un libellé déjà court n'est pas dupliqué en configuration.
     expect(within(barre()).getByRole("link", { name: "Résultats" })).toHaveTextContent("Résultats");
   });
 
-  it("marque la destination courante avec aria-current=\"page\"", () => {
+  it("marque la destination courante avec aria-current=\"page\" et le trait du rail (WCAG 1.4.1)", () => {
     afficher(null);
 
-    const barre = screen.getByRole("navigation", { name: "Navigation" });
-    expect(within(barre).getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("aria-current", "page");
-    expect(within(barre).getByRole("link", { name: "Résultats" })).not.toHaveAttribute("aria-current");
+    const accueil = within(barre()).getByRole("link", { name: "Accueil, tableau de bord" });
+    expect(accueil).toHaveAttribute("aria-current", "page");
+    expect(accueil.querySelector("[data-trait-actif]")).not.toBeNull();
+    const resultats = within(barre()).getByRole("link", { name: "Résultats" });
+    expect(resultats).not.toHaveAttribute("aria-current");
+    expect(resultats.querySelector("[data-trait-actif]")).toBeNull();
+  });
+
+  it("allume « Plus » quand la page courante vit dans le tiroir", async () => {
+    chemin.courant = "/club/athletes";
+    try {
+      afficher(habilite("pages:preview"));
+      const plus = await waitFor(() => within(barre()).getByRole("button", { name: "Plus" }));
+      expect(plus).toHaveStyle({ color: "var(--tcn-orange-deep)" });
+      expect(plus.querySelector("[data-trait-actif]")).not.toBeNull();
+      expect(within(barre()).queryByRole("link", { current: "page" })).toBeNull();
+    } finally {
+      chemin.courant = "/dashboard";
+    }
+  });
+
+  it("n'allume pas « Plus » quand la page courante est dans la barre", async () => {
+    afficher(habilite("pages:preview"));
+    const plus = await waitFor(() => within(barre()).getByRole("button", { name: "Plus" }));
+    expect(plus.querySelector("[data-trait-actif]")).toBeNull();
   });
 
   it("ne porte aucune destination privée, connecté ou non", async () => {

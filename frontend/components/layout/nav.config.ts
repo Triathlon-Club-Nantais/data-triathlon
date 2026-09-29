@@ -62,7 +62,7 @@ export type NavItem = {
   /**
    * Libellé **visible** de la barre basse mobile, quand `label` n'y tient pas
    * sur une ligne (#1012 : cinq onglets au plus, ~75 px chacun à 375 px). Le
-   * nom accessible du lien reste `label`. Absent = `label` convient.
+   * nom accessible commence par ce texte visible (WCAG 2.5.3, `AppNav`). Absent = `label` convient.
    */
   labelCourt?: string;
   /** Absent quand `soon` : rien à atteindre, donc rien à rendre. */

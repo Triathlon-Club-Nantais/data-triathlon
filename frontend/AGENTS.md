@@ -439,9 +439,13 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `nav.config.ts` (calculées, jamais en dur), puis un onglet « Plus » qui
   ouvre le tiroir s'il reste quoi que ce soit à y voir (#1012 : sept onglets à
   375 px repliaient leurs libellés sur deux lignes ; cinq au plus tiennent sur
-  une ligne, ~75 px chacun). Un `labelCourt` ne change que le **texte
-  visible** (« Accueil » pour « Tableau de bord »), le nom accessible du lien
-  restant `label`. Le tiroir porte « le reste » : toutes les destinations que
+  une ligne, ~75 px chacun). Un `labelCourt` change le **texte visible**, et le
+  nom accessible **commence par lui** (WCAG 2.5.3, commande vocale) : `label`
+  seul s'il commence déjà par le court (« Validation des épreuves »), sinon
+  les deux (« Accueil, tableau de bord »). L'onglet courant porte, en plus de
+  sa couleur, un trait `--tcn-orange` de 3 px (pendant de `barreActive` du
+  rail, WCAG 1.4.1), et « Plus » s'allume quand la page courante vit dans le
+  tiroir. Le tiroir porte « le reste » : toutes les destinations que
   la barre ne montre pas, sections publiques débordantes comprises, et les
   deux actions primaires, **sauf** repli (#621) : la barre basse est masquée
   pendant que le tiroir est ouvert (le `Sheet` passe par-dessus), donc un

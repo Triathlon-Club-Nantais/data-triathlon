@@ -185,6 +185,10 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
     return pathname === href || (href === "/dashboard" && pathname === "/");
   }
 
+  // « Plus » porte la position quand la page courante vit dans le tiroir : sans
+  // lui, aucun onglet ne dirait où l'on est.
+  const plusActif = sectionsReste.some((s) => s.items.some((i) => isActive(i.href)));
+
   const contenu = (deplie: boolean, fermer?: () => void, listeSections: SectionRendue[] = sections) => (
     <NavContent
       expanded={deplie}
@@ -438,9 +442,10 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               key={it.id}
               href={it.href}
               aria-current={actif ? "page" : undefined}
-              aria-label={it.labelCourt ? it.label : undefined}
+              aria-label={nomAccessibleOnglet(it)}
               style={ongletBarre(actif)}
             >
+              {actif && <span data-trait-actif style={traitOnglet} />}
               {Icon && <Icon size={20} />}
               <span>{it.labelCourt ?? it.label}</span>
             </Link>
@@ -453,8 +458,9 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             aria-expanded={drawerOpen}
             aria-controls={drawerOpen ? TIROIR_ID : undefined}
             onClick={() => setDrawerOpen(true)}
-            style={ongletBarre(false)}
+            style={ongletBarre(plusActif)}
           >
+            {plusActif && <span data-trait-actif style={traitOnglet} />}
             <Ellipsis size={20} />
             <span>Plus</span>
           </button>
@@ -1016,9 +1022,34 @@ const carrePrimaire: CSSProperties = {
 };
 
 /** Marqueur orange collé au bord du rail (le conteneur a 14px de gouttière). */
+/**
+ * Nom accessible d'un onglet à `labelCourt` (#1012) : il commence par le texte
+ * visible (WCAG 2.5.3), sans quoi la commande vocale « Accueil » ne trouve rien.
+ * Le libellé complet suffit quand il commence déjà par le court.
+ */
+function nomAccessibleOnglet(item: Pick<NavItem, "label" | "labelCourt">): string | undefined {
+  const { label, labelCourt } = item;
+  if (!labelCourt) return undefined;
+  if (label.toLocaleLowerCase("fr").startsWith(labelCourt.toLocaleLowerCase("fr"))) return label;
+  return `${labelCourt}, ${label.charAt(0).toLocaleLowerCase("fr")}${label.slice(1)}`;
+}
+
+/** Trait de l'onglet courant, pendant horizontal de `barreActive` du rail :
+ *  la position ne se dit pas par la seule couleur (WCAG 1.4.1). */
+const traitOnglet: CSSProperties = {
+  position: "absolute",
+  top: 0,
+  left: "25%",
+  right: "25%",
+  height: 3,
+  borderRadius: "0 0 3px 3px",
+  background: "var(--tcn-orange)",
+};
+
 /** Onglet de la barre basse mobile, lien ou bouton « Plus » (#1012). */
 function ongletBarre(actif: boolean): CSSProperties {
   return {
+    position: "relative",
     flex: 1,
     minWidth: 0,
     display: "flex",
