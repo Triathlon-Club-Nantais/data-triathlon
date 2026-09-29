@@ -12,6 +12,11 @@ vi.mock("@/components/site-access/SiteAccessGate", () => ({
 }));
 
 import ProtegeLayout from "./layout";
+import { useSiteAccessOpen } from "@/components/site-access/site-access-open";
+
+function SondeAccesOuvert() {
+  return <span data-testid="sonde">{String(useSiteAccessOpen())}</span>;
+}
 
 describe("Garde d'accès au site (#509)", () => {
   // Sans cela, `expect(redirect).not.toHaveBeenCalled()` mesurerait les appels
@@ -35,6 +40,25 @@ describe("Garde d'accès au site (#509)", () => {
 
     expect(screen.getByText("contenu réservé")).toBeInTheDocument();
     expect(screen.queryByText("formulaire de mot de passe")).not.toBeInTheDocument();
+  });
+
+  // #1057 : le geste « Oublier le code d'accès » du pied de page ne se montre
+  // que là où le code a été accepté, jamais sous le formulaire du code.
+  it.each([
+    ["accès avéré", () => checkSiteAccess.mockResolvedValue(true), true],
+    ["refus", () => checkSiteAccess.mockResolvedValue(false), false],
+    ["panne", () => checkSiteAccess.mockRejectedValue(new ApiError(502, "x")), false],
+  ])("n'ouvre le geste d'oubli du code que sur un %s", async (_cas, preparer, attendu) => {
+    preparer();
+
+    render(
+      <>
+        {await ProtegeLayout({ children: <p>contenu réservé</p> })}
+        <SondeAccesOuvert />
+      </>,
+    );
+
+    expect(screen.getByTestId("sonde").textContent).toBe(String(attendu));
   });
 
   it("propose un lien discret vers le guide (#865, #878), hors du rail de navigation", async () => {
