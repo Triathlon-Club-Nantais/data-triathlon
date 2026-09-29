@@ -43,6 +43,10 @@ export interface ImportState {
   errorStatus: number | null;
   // Secondes à attendre avant un nouvel essai (en-tête `Retry-After` du 429).
   retryAfter: number | null;
+  // Horodatages (ms) du lancement et de la fin (#1062) : l'horloge et le
+  // décompte du 429 survivent ainsi à un démontage de l'écran. 0 = sans objet.
+  startedAt: number;
+  endedAt: number;
 }
 
 const INITIAL: ImportState = {
@@ -70,6 +74,8 @@ const INITIAL: ImportState = {
   error: null,
   errorStatus: null,
   retryAfter: null,
+  startedAt: 0,
+  endedAt: 0,
 };
 
 /**
@@ -82,6 +88,7 @@ export function useImportStreamController() {
   const [state, setState] = useState<ImportState>(INITIAL);
   // L'URL du flux ouvert : un formulaire remonté pendant l'import la reprend.
   const [url, setUrl] = useState("");
+  const [singleHeat, setSingleHeat] = useState(true);
   // Le contrôleur de l'import en cours — et, du même coup, le verrou : non
   // nul = un import tourne. `courant()` distingue « c'est toujours mon flux »
   // de « on m'a annulé, ou un autre import a démarré », pour qu'un flux
@@ -94,7 +101,14 @@ export function useImportStreamController() {
     abortRef.current = controle;
     const courant = () => abortRef.current === controle;
     setUrl(url);
-    setState({ ...INITIAL, running: true, phase: "scraping", message: "Récupération des participants…" });
+    setSingleHeat(singleHeat);
+    setState({
+      ...INITIAL,
+      running: true,
+      phase: "scraping",
+      message: "Récupération des participants…",
+      startedAt: Date.now(),
+    });
     let termine = false;
     try {
       for await (const ev of importEventStream(url, controle.signal, singleHeat)) {
@@ -129,6 +143,7 @@ export function useImportStreamController() {
             ...s,
             running: false,
             phase: "done",
+            endedAt: Date.now(),
             total: ev.total,
             progress: ev.total,
             imported: ev.imported,
@@ -143,7 +158,7 @@ export function useImportStreamController() {
             failures: ev.failures ?? [],
           }));
         } else if (ev.phase === "error") {
-          setState((s) => ({ ...s, running: false, phase: "error", error: ev.message }));
+          setState((s) => ({ ...s, running: false, phase: "error", error: ev.message, endedAt: Date.now() }));
         }
         if (ev.phase === "done" || ev.phase === "error") termine = true;
       }
@@ -156,6 +171,7 @@ export function useImportStreamController() {
           phase: "error",
           error: "Connexion interrompue avant la fin de l'import.",
           errorStatus: 0,
+          endedAt: Date.now(),
         }));
       }
     } catch (e) {
@@ -170,6 +186,7 @@ export function useImportStreamController() {
         error: (e as Error).message,
         errorStatus: e instanceof ApiError ? e.status : 0,
         retryAfter: e instanceof ApiError ? e.retryAfter : null,
+        endedAt: Date.now(),
       }));
     } finally {
       if (courant()) abortRef.current = null;
@@ -191,7 +208,7 @@ export function useImportStreamController() {
     setUrl("");
   }, []);
 
-  return { state, url, start, cancel, reset };
+  return { state, url, singleHeat, start, cancel, reset };
 }
 
 export type ImportStream = ReturnType<typeof useImportStreamController> & {
