@@ -92,7 +92,7 @@ def test_detection(provider, url):
 @pytest.mark.parametrize("provider, url", sorted(LIVE_URLS.items()))
 def test_scrape_event_all_live(provider, url):
     """L'import d'épreuve renvoie des participants exploitables."""
-    results = registry.scrape_event_all(url)
+    results, _trace = registry.scrape_event_all(url)
     assert results, f"{provider} : aucun participant renvoyé"
     assert any(r.athlete_name for r in results), f"{provider} : aucun nom d'athlète"
     assert any(r.total_time for r in results), f"{provider} : aucun temps total"
@@ -104,7 +104,7 @@ def test_scrape_event_all_live(provider, url):
 def test_sportinnovation_2026_race_url():
     """Forme 2026 results.sportinnovation.fr/race/{slug} (niveau course, API JSON)."""
     url = "https://results.sportinnovation.fr/race/zmhc-triathlon-m"
-    results = registry.scrape_event_all(url)
+    results, _trace = registry.scrape_event_all(url)
     assert results
     assert any(r.athlete_name and r.total_time for r in results)
     assert any(r.event_type for r in results)
@@ -114,7 +114,7 @@ def test_sportinnovation_2026_race_url():
 def test_prolivesport_includes_non_finishers():
     """prolivesport renvoie désormais finishers ET non-finishers, chacun statué."""
     url = LIVE_URLS["prolivesport"]
-    results = registry.scrape_event_all(url)
+    results, _trace = registry.scrape_event_all(url)
     assert results, "prolivesport : aucun participant renvoyé"
     statuses = {r.status for r in results}
     assert "finisher" in statuses, "prolivesport : aucun finisher"
@@ -136,7 +136,7 @@ def test_timepulse_conserve_non_finishers():
     que des finishers remontent et on documente le nombre de non-finishers
     conservés (un <E> sans <R> → total_time vide).
     """
-    results = registry.scrape_event_all(LIVE_URLS["timepulse"])
+    results, _trace = registry.scrape_event_all(LIVE_URLS["timepulse"])
     assert results, "timepulse : aucun participant"
     assert any(r.total_time for r in results), "timepulse : aucun finisher"
     non_finishers = [r for r in results if not r.total_time]
@@ -152,7 +152,7 @@ def test_scrape_event_all_status_jamais_incoherent(provider, url):
 
     Vérifie l'hygiène cross-provider (DNF/DNS/DSQ ⇒ total_time vide).
     """
-    results = registry.scrape_event_all(url)
+    results, _trace = registry.scrape_event_all(url)
     for r in results:
         if r.status in ("DNF", "DNS", "DSQ"):
             assert not r.total_time, (
@@ -206,7 +206,7 @@ def test_bc_live_dinard_swimrun():
         "?version=new&reference=1488071608761-688&heat=triathlon-distance-olympique"
     )
     assert registry.detect_provider(url) == "breizhchrono"
-    results = registry.scrape_event_all(url)
+    results, _trace = registry.scrape_event_all(url)
     assert results, "live BC : aucun participant renvoyé"
     assert any(r.athlete_name for r in results)
     assert any(r.total_time for r in results)
@@ -272,7 +272,7 @@ def test_chronowest_deploiement_wiclax():
     """
     url = "https://chronowest.fr/resultats/trail-des-2-ponts-2026/"
     assert registry.detect_provider(url) == "wiclax"
-    results = registry.scrape_event_all(url)
+    results, _trace = registry.scrape_event_all(url)
     assert len(results) > 100, f"chronowest : seulement {len(results)} participants"
     assert any(r.athlete_name and r.total_time for r in results)
     assert all(r.event_type == "trail" for r in results if r.event_type)
@@ -281,7 +281,7 @@ def test_chronowest_deploiement_wiclax():
 @pytest.mark.integration
 def test_chronowest_apostrophe_dans_le_nom_de_fichier():
     """Non-régression du src d'iframe tronqué : LOC'orrida 2026.clax → 404."""
-    results = registry.scrape_event_all("https://chronowest.fr/resultats/locorrida-2026/")
+    results, _trace = registry.scrape_event_all("https://chronowest.fr/resultats/locorrida-2026/")
     assert results, "locorrida : aucun participant (src d'iframe tronqué à l'apostrophe ?)"
 
 
@@ -289,7 +289,7 @@ def test_chronowest_apostrophe_dans_le_nom_de_fichier():
 def test_chronowest_swimrun_nest_pas_un_triathlon():
     """Les parcours (« S Duo », « M Solo ») ne nomment pas le sport : il vient du
     nom d'épreuve, sinon le classifieur retombe sur triathlon."""
-    results = registry.scrape_event_all("https://chronowest.fr/resultats/red-ouf-2026/")
+    results, _trace = registry.scrape_event_all("https://chronowest.fr/resultats/red-ouf-2026/")
     assert results
     types = {r.event_type for r in results}
     assert types <= {"swimrun", "swimrun-s", "swimrun-m", "swimrun-l"}, types
@@ -355,7 +355,7 @@ def test_raceresult_panel_multi_epreuves(cle, url):
     ne s'y oppose pas — les `Course` sont distinctes — donc la perte est
     silencieuse. Mesuré sur 409130 : 302 dossards dans plusieurs `Course`.
     """
-    results = registry.scrape_event_all(url)
+    results, _trace = registry.scrape_event_all(url)
 
     assert results, f"{cle} : aucun participant renvoyé"
     nommes = [r for r in results if r.athlete_name or r.athlete_firstname]
@@ -426,7 +426,7 @@ def test_raceresult_contests_et_non_finishers():
     la boucle exemptait explicitement le statut vide (`r.status not in ("",
     "finisher")`) et n'exigeait aucun temps sur les finishers.
     """
-    results = registry.scrape_event_all(LIVE_URLS["raceresult"])
+    results, _trace = registry.scrape_event_all(LIVE_URLS["raceresult"])
     assert results, "raceresult : aucun participant renvoyé"
 
     # Plusieurs contests → plusieurs noms d'épreuve qualifiés.
@@ -479,7 +479,7 @@ def test_raceresult_406211_enrichit_les_splits_en_reel():
 @pytest.mark.integration
 def test_chronoplace_importe_les_epreuves_soeurs():
     """Un seul lien couvre le triathlon et le swimrun de Spay'cific Races 2025."""
-    results = registry.scrape_event_all(LIVE_URLS["chronoplace"])
+    results, _trace = registry.scrape_event_all(LIVE_URLS["chronoplace"])
 
     assert len(results) > 200, "le classement complet (perPage=all) n'a pas été rendu"
     assert {"triathlon-s", "swimrun"} <= {r.event_type for r in results}
@@ -516,7 +516,7 @@ def test_chronoplace_slug_obsolete_leve():
 @pytest.mark.integration
 def test_t2area_epreuve_complete():
     """La Baule M 2022 : classement complet en une requête, splits des seuls TCN."""
-    results = registry.scrape_event_all(LIVE_URLS["t2area"])
+    results, _trace = registry.scrape_event_all(LIVE_URLS["t2area"])
 
     assert len(results) > 800
     assert min(r.rank_overall for r in results if r.rank_overall) == 1
@@ -536,7 +536,7 @@ def test_runnerbreizh_importe_toute_lepreuve_depuis_une_page_intermediaire():
     enregistré ne porte pas le détail des distances (sans quoi la carte ne
     localiserait pas l'épreuve).
     """
-    results = registry.scrape_event_all(LIVE_URLS["runnerbreizh"])
+    results, _trace = registry.scrape_event_all(LIVE_URLS["runnerbreizh"])
 
     annonces = {r.raw_data.get("field_size") for r in results}
     assert annonces == {len(results)}, (
@@ -571,7 +571,7 @@ def test_sporthive_importe_tout_levenement_sans_epreuve_etrangere():
       était pris pour un identifiant de course, ce test verrait une autre date
       et un autre nom, sans qu'aucune erreur ne soit levée.
     """
-    results = registry.scrape_event_all(LIVE_URLS["sporthive"])
+    results, _trace = registry.scrape_event_all(LIVE_URLS["sporthive"])
 
     assert len(results) == 955
     par_course = Counter(r.event_name for r in results)
@@ -611,7 +611,7 @@ def test_sporthive_importe_un_evenement_identifie_par_guid():
         "/race/9c945c48-95ea-4680-bc98-cc5ea4e040c3"
     )
 
-    results = registry.scrape_event_all(url)
+    results, _trace = registry.scrape_event_all(url)
 
     assert len(results) == 93
     assert len({r.event_name for r in results}) == 3
@@ -655,7 +655,7 @@ def test_chronoweb_evenement_entier_en_une_requete():
     annoncés sont atteints (une ligne du tableau étant un **passage**, les compter
     donnerait 2 517), et l'événement entier sort de l'URL d'une seule épreuve.
     """
-    results = registry.scrape_event_all(LIVE_URLS["chronoweb"])
+    results, _trace = registry.scrape_event_all(LIVE_URLS["chronoweb"])
 
     assert len(results) == 854
     assert len({r.event_name for r in results}) == 3
@@ -680,7 +680,7 @@ def test_chronoweb_dijon_2026_le_plus_gros_evenement_du_panel():
     seconde entrée chronoweb écraserait la première.
     """
     start = time.monotonic()
-    results = registry.scrape_event_all(CHRONOWEB_DIJON)
+    results, _trace = registry.scrape_event_all(CHRONOWEB_DIJON)
     duree = time.monotonic() - start
 
     assert len(results) == 1622, f"chronoweb Dijon : {len(results)} participants"
@@ -707,7 +707,7 @@ def test_chronoweb_altriman_2025_transitions_longues():
     le ré-ajoute pas, l'épreuve garde le nom nu de l'événement et les 4 épreuves
     restent 4 clés `(nom, date, type)` distinctes.
     """
-    results = registry.scrape_event_all(CHRONOWEB_ALTRIMAN)
+    results, _trace = registry.scrape_event_all(CHRONOWEB_ALTRIMAN)
 
     assert len(results) == 1574
     assert len({r.event_name for r in results}) == 4

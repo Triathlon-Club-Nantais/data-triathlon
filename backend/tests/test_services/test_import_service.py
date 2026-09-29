@@ -500,6 +500,32 @@ def test_unsupported_provider_raises(db_session, monkeypatch):
         import_service.import_event(db_session, URL, _settings())
 
 
+@pytest.mark.parametrize("streaming", [False, True])
+def test_a_dispatcher_returning_the_old_list_shape_is_not_reported_as_unsupported(
+    db_session, monkeypatch, streaming
+):
+    """#1016 : le couple `(results, trace)` se déballe hors du `except ValueError`.
+    Sans quoi un appelant resté sur l'ancienne forme passait pour un fournisseur
+    non supporté, le seul diagnostic qu'il ne fallait pas donner."""
+    from app.scrapers import registry
+
+    monkeypatch.setattr(
+        import_service, "registry_scrape_event_all",
+        lambda url, **kwargs: [_result("1", "A"), _result("2", "B"), _result("3", "C")],
+    )
+    if streaming:
+        provider = registry.KlikegoProvider()
+        monkeypatch.setattr(import_service.registry, "get_provider", lambda url: provider)
+
+    with pytest.raises(ValueError) as raised:
+        if streaming:
+            list(import_service._scrape_all_streaming(URL, db_session, _settings(), use_cache_probe=False))
+        else:
+            import_service._scrape_all(URL, db_session, _settings(), use_cache_probe=False)
+
+    assert not isinstance(raised.value, ProviderNotSupportedError)
+
+
 # --- Chemins d'échec non couverts jusqu'ici (#1068) ------------------------
 
 T2AREA_URL = "https://fftri.t2area.com/resultats/1"
