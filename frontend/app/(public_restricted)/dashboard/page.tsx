@@ -149,7 +149,7 @@ export default async function DashboardPage({
           <InvitationAthlete />
 
           <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
-            <StatCard variant="hero" label="Dossards enregistrés" value={formatCount(stats.total)} delta={`${formatCount(stats.athletes)} athlètes · ${formatCount(stats.events)} épreuves`} />
+            <StatCard variant="hero" label="Résultats" value={formatCount(stats.total)} delta={`${formatCount(stats.athletes)} athlètes · ${formatCount(stats.events)} épreuves`} />
             <div>
               <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <FieldLabel>Type de rang</FieldLabel>
