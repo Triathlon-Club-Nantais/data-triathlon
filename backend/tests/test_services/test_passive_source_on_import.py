@@ -288,6 +288,57 @@ def test_a_course_without_any_active_source_takes_the_submitted_url_as_active(
     assert done["passive_sources"] == [], "rien à signaler : l'URL a pris la main"
 
 
+# ------------------------------------- Breizh Chrono : forme à slug vide (#1140)
+
+BC_LEGACY = "https://resultats.breizhchrono.com/resultats-courses/-1488071608761-921/swimrun-court-duo"
+BC_CANONICAL = (
+    "https://resultats.breizhchrono.com/resultats-courses/"
+    "triathlon-swimrun-dinard-cote-demeraude-2026-1488071608761-921/swimrun-court-duo"
+)
+
+
+def _bc_heat(source_url: str) -> ScrapedResult:
+    return ScrapedResult(
+        source_url=source_url, provider="breizhchrono", athlete_name="DUPONT",
+        athlete_firstname="Jean", bib_number="1", event_name="Triathlon SwimRun Dinard 2026",
+        event_date=date(2026, 9, 11), event_type="swimrun-s", total_time="01:59:00",
+    )
+
+
+def test_the_canonical_url_takes_over_a_legacy_empty_slug_source(db_session, patch_scraper):
+    """#1140: a course imported through coureur.jsp before the fix has the
+    empty-slug form as active source. Rescraping it now yields the canonical
+    URL, which must become the active source instead of a passive one."""
+    patch_scraper([_bc_heat(BC_LEGACY)])
+    list(import_service.iter_import_event(db_session, BC_LEGACY, _settings()))
+    course = db_session.query(Course).one()
+
+    patch_scraper([_bc_heat(BC_CANONICAL)])
+    phases = list(import_service.iter_import_event(db_session, BC_LEGACY, _settings(), force=True))
+
+    assert phases[-1]["passive_sources"] == []
+    assert db_session.query(Course).all() == [course]
+    assert [(s.url, s.is_active) for s in _sources(db_session, course.id)] == [
+        (BC_CANONICAL, True), (BC_LEGACY, False),
+    ]
+
+
+def test_a_different_non_empty_slug_does_not_take_over(db_session, patch_scraper):
+    """Only the empty-slug legacy form is superseded: two real publications
+    of the same heat keep D3, the first scraped keeps the lead."""
+    other = BC_CANONICAL.replace("triathlon-swimrun-dinard", "autre-slug")
+    patch_scraper([_bc_heat(other)])
+    list(import_service.iter_import_event(db_session, other, _settings()))
+    course = db_session.query(Course).one()
+
+    patch_scraper([_bc_heat(BC_CANONICAL)])
+    list(import_service.iter_import_event(db_session, BC_CANONICAL, _settings()))
+
+    assert [(s.url, s.is_active) for s in _sources(db_session, course.id)] == [
+        (other, True), (BC_CANONICAL, False),
+    ]
+
+
 # ------------------------------------------------------- la primitive du repository
 
 

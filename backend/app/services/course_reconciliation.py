@@ -65,6 +65,19 @@ def heat_slug(provider: str, url: str) -> str:
     return heat.lower()
 
 
+def supersedes_active_source(provider: str, url: str, active_url: str) -> bool:
+    """Vrai si `url` doit prendre la main sur la source active `active_url`.
+
+    Une seule exception à D3 (« la première scrapée garde la main ») : la forme
+    Breizh Chrono à slug vide, laissée en active par les imports `coureur.jsp`
+    d'avant #1140, cède à sa forme canonique. Sinon chaque rescrape la
+    signalerait en source secondaire et `_reclassify_heats` l'ignorerait.
+    """
+    from app.scrapers.breizhchrono import is_empty_slug_form_of
+
+    return provider == "breizhchrono" and is_empty_slug_form_of(url, active_url)
+
+
 def find_reconcilable_course(db: Session, *, provider: str, source_url: str) -> Course | None:
     """Une `Course` existante qui partage `(platform_event_id, heat_slug)`, ou `None`.
 
