@@ -53,6 +53,11 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         classNames: {
           toast: "cn-toast",
+          // Sonner fige ses boutons à 24 px de haut ; `min-height` l'emporte
+          // sur `height`. Sous `md`, un toast d'import est parfois le seul
+          // chemin vers son bilan (#1062) : cible tactile de 44 px.
+          actionButton: "max-md:min-h-11",
+          cancelButton: "max-md:min-h-11",
         },
       }}
       {...props}

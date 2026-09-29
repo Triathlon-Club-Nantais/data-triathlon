@@ -34,6 +34,8 @@ const importMock = vi.hoisted(() => {
     heatLabel: "",
     detailDone: 0,
     detailTotal: 0,
+    startedAt: 0,
+    endedAt: 0,
   };
   return {
     start: vi.fn(),
@@ -129,6 +131,8 @@ beforeEach(() => {
     heatLabel: "",
     detailDone: 0,
     detailTotal: 0,
+    startedAt: 0,
+    endedAt: 0,
   });
 });
 
@@ -263,6 +267,7 @@ describe("TcnScrapeForm — validation de l'URL avant appel backend (#249)", () 
 
 describe("TcnScrapeForm — rafraîchissement de la liste après import (#201)", () => {
   it("appelle router.refresh() quand le SSE émet phase=done avec un import réel", () => {
+    const { rerenderForm } = renderForm();
     importMock.set({
       phase: "done",
       cached: false,
@@ -270,8 +275,21 @@ describe("TcnScrapeForm — rafraîchissement de la liste après import (#201)",
       skipped: 0,
       courses: [{ id: 42, name: "Triathlon de Nantes 2026", event_type: "triathlon-m" }],
     });
-    renderForm();
+    rerenderForm();
     expect(refreshMock).toHaveBeenCalledTimes(1);
+  });
+
+  // #1062 : monté sur un import déjà terminé, l'écran montre le bilan que le
+  // provider a déjà traité (rafraîchissement, signalement, toast) sans le rejouer.
+  it("ne rejoue pas la fin d'un import terminé avant son montage", () => {
+    importMock.set({
+      phase: "done",
+      imported: 12,
+      courses: [{ id: 42, name: "Triathlon de Nantes 2026", event_type: "triathlon-m" }],
+    });
+    renderForm();
+    expect(refreshMock).not.toHaveBeenCalled();
+    expect(screen.getByText("Résultats enregistrés avec succès !")).toBeInTheDocument();
   });
 
   it("n'appelle pas router.refresh() sur un doublon (cache TTL frais)", () => {
@@ -566,6 +584,9 @@ describe("TcnScrapeForm — trois échecs, trois écrans (#491, ACT-2)", () => {
     rerenderForm();
 
     expect(screen.getByText("Le service n'a pas répondu")).toBeInTheDocument();
+    // Le toast dit la cause, jamais le texte anglais du navigateur (#1062).
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(JSON.stringify(vi.mocked(toast.error).mock.calls)).not.toMatch(/Failed to fetch/);
     expect(apiClient.reportPendingProvider).not.toHaveBeenCalled();
   });
 });
@@ -645,7 +666,7 @@ describe("TcnScrapeForm — une attente habitée (#491, ACT-4)", () => {
   it("compte le temps écoulé pendant le scraping", () => {
     vi.useFakeTimers();
     try {
-      importMock.set({ phase: "scraping", running: true, message: "Récupération des participants…" });
+      importMock.set({ phase: "scraping", running: true, message: "Récupération des participants…", startedAt: Date.now() });
       renderForm();
 
       act(() => {
@@ -674,7 +695,7 @@ describe("TcnScrapeForm — suites des revues (#491)", () => {
   it("le décompte du plafond décompte vraiment", () => {
     vi.useFakeTimers();
     try {
-      importMock.set({ phase: "error", error: "Trop de demandes", errorStatus: 429, retryAfter: 180 });
+      importMock.set({ phase: "error", error: "Trop de demandes", errorStatus: 429, retryAfter: 180, endedAt: Date.now() });
       renderForm();
       expect(screen.getByText(/Réessayez dans 3 minutes/)).toBeInTheDocument();
 

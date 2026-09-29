@@ -535,16 +535,25 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     donc au niveau du layout racine), pas dans le formulaire :
     `useImportStream()` lit ce contexte, `useImportStreamController()` en est
     la seule instance. Quitter `/ajouter` démonte `TcnScrapeForm`, la SSE
-    continue ; si elle finit sans écran attaché (`attach()`), le provider
-    l'annonce par un toast global (terminé, partiel avec ses séries perdues,
-    ou échec), avec « Voir l'épreuve » vers la première épreuve touchée, et
-    remet l'état à zéro pour qu'un retour sur l'écran ne rejoue pas le bilan.
-    Revenir **pendant** l'import remonte le formulaire sur le flux ouvert
-    (champ prérempli, barre et « Annuler l'import ») : le verrou étant global,
-    la même URL ne peut pas être relancée tant que le premier flux est ouvert.
-    Le `beforeunload` a suivi l'état dans le provider, pour valoir où que l'on
+    continue ; si elle finit sans écran attaché (`attach()`), le provider fait
+    ce que l'écran aurait fait (signalement du fournisseur **sur page
+    illisible seulement**, `router.refresh()`, télémétrie) et l'annonce par un
+    toast global aux mots du bilan (`lib/import-outcome.ts`, partagé avec
+    l'écran) : succès nommant l'épreuve et « Voir les résultats », doublon en
+    neutre, partiel et échecs persistants (`duration: Infinity`, bouton de
+    fermeture), les trois causes de #491 distinctes (délai du 429, service
+    muet avec « Relancer l'import », page illisible avec « Saisir à la main »).
+    Un échec se dit par sa cause, jamais par le message d'exception, qui porte
+    l'anglais du navigateur. Le bilan **reste dans l'état** tant que le toast
+    est affiché : revenir sur l'écran le montre en entier (séries perdues,
+    « Relancer l'import », saisie manuelle), sans rejouer signalement ni
+    rafraîchissement, et referme le toast. Revenir **pendant** l'import remonte
+    le formulaire sur le flux ouvert (champ prérempli, barre, horloge lue sur
+    `startedAt`, « Annuler l'import ») : le verrou étant global, la même URL
+    ne peut pas être relancée tant que le premier flux est ouvert. Le
+    `beforeunload` a suivi l'état dans le provider, pour valoir où que l'on
     soit. `ImportStreamProvider.test.tsx` démonte le formulaire en plein
-    import et fixe ces trois comportements.
+    import et fixe ces comportements.
 - **Le champ URL et le verdict qui vit sous lui** (#492) — trois points à ne pas
   rouvrir séparément :
   - **La taille de police d'un champ TCN vit dans `.tcn-input`, jamais en

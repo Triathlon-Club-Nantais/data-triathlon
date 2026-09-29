@@ -12,21 +12,30 @@ import { formatEventName } from "@/lib/utils/event";
 import { formatAttente } from "@/lib/utils/format";
 import { isHttpUrl } from "@/lib/utils/url";
 import { useSaveParticipation } from "@/lib/queries/participations";
-import { useImportStream } from "@/hooks/useImportStream";
+import { useImportStream, type ImportState } from "@/hooks/useImportStream";
+import { echecImport, estDoublon, estPartiel, motifEchec as motifEchecDe } from "@/lib/import-outcome";
 import { ProviderDetector, ID_VERDICT } from "./ProviderDetector";
 import { ManualResultForm } from "./ManualResultForm";
 import type { ImportedCourse, Participation, ScrapedPreview } from "@/lib/types";
 
 export function TcnScrapeForm() {
   const importStream = useImportStream();
-  // Remonté pendant un import (retour sur `/ajouter`, #1062) : le champ et la
-  // garde de signalement reprennent l'URL du flux ouvert.
-  const [url, setUrl] = useState(importStream.state.running ? importStream.url : "");
-  const [manual, setManual] = useState(false);
+  // Remonté pendant ou après un import (retour sur `/ajouter`, #1062) : le
+  // champ reprend l'URL du flux, et la fin déjà traitée par le provider
+  // (signalement, rafraîchissement, toast) ne se rejoue pas ici.
+  const [montage] = useState(() => ({
+    url: importStream.state.phase !== "idle" ? importStream.url : "",
+    dejaTermine: importStream.state.phase === "done" || importStream.state.phase === "error",
+  }));
+  const [url, setUrl] = useState(montage.url);
+  const [manual, setManual] = useState(
+    montage.dejaTermine && motifEchecDe(importStream.state) === "lecture",
+  );
   // Une ligne immobile pendant des minutes ne distingue pas « ça travaille »
   // de « c'est figé » (#491, ACT-4). La minuterie tient cette promesse même
-  // sous `prefers-reduced-motion`, qui gèle l'indicateur animé.
-  const [secondes, setSecondes] = useState(0);
+  // sous `prefers-reduced-motion`, qui gèle l'indicateur animé. L'horloge se
+  // lit sur les horodatages du provider : elle survit à un démontage (#1062).
+  const [maintenant, setMaintenant] = useState(() => Date.now());
   // Le résultat saisi à la main, gardé après l'enregistrement : c'est lui que
   // l'accusé de réception affiche (ACT-1).
   const [saved, setSaved] = useState<Participation | null>(null);
@@ -50,14 +59,14 @@ export function TcnScrapeForm() {
     [],
   );
   const champRef = useRef<HTMLInputElement>(null);
-  const reportedRef = useRef<string | null>(null);
+  const reportedRef = useRef<string | null>(montage.dejaTermine ? montage.url : null);
   // L'URL réellement **soumise**. La garde de signalement portait sur `url`,
   // l'état vivant du champ : corriger son adresse après un échec relançait
   // toast, télémétrie et `reportPendingProvider` à **chaque frappe**, avec
   // autant de chaînes tronquées jamais soumises — exactement la pollution de
   // `pending-providers` que ce lot vient fermer.
-  const soumiseRef = useRef<string>(importStream.state.running ? importStream.url : "");
-  const refreshedRef = useRef<string | null>(null);
+  const soumiseRef = useRef<string>(montage.url);
+  const refreshedRef = useRef<string | null>(montage.dejaTermine ? montage.url : null);
   const router = useRouter();
 
   const save = useSaveParticipation();
@@ -66,35 +75,19 @@ export function TcnScrapeForm() {
   const { attach } = importStream;
   useEffect(() => attach(), [attach]);
   const {
-    phase, error, errorStatus, retryAfter, running, imported, updated, skipped, total, progress,
-    cached, message, courses, heatIndex, heatsScrapingTotal, heatLabel, detailDone, detailTotal,
-    heatsEnumerated, heatsImported, heatsCached, heatsFailed, failures,
+    phase, error, retryAfter, running, imported, updated, skipped, total, progress,
+    message, courses, heatIndex, heatsScrapingTotal, heatLabel, detailDone, detailTotal,
+    heatsEnumerated, heatsImported, heatsCached, heatsFailed, failures, startedAt, endedAt,
   } = importStream.state;
 
-  // Un import qui ramène des séries en échec n'est pas un import réussi : le
-  // dire en vert ferait passer 3 séries perdues sur 12 pour un plein succès
-  // (#491, ACT-3).
-  const partiel = phase === "done" && failures.length > 0;
-
-  // `!partiel` en tête : toutes les séries servies par le cache TTL **plus** une
-  // en échec reste un cas atteignable, et l'alerte « déjà enregistrés » y
-  // escamotait la liste des manques — le silence même que ce lot corrige.
-  const isDuplicate =
-    phase === "done" && !partiel && (cached || (imported === 0 && updated === 0 && skipped > 0));
-
-  // Trois causes, trois gestes (#491, ACT-2). `errorStatus` vaut `null` quand
-  // le flux s'est ouvert avant d'annoncer l'échec : c'est le **seul** cas où
-  // la page est en cause, donc le seul qui vaille une saisie manuelle et un
-  // signalement au back-office. Un 429 ou un 500 signalés en « fournisseur
-  // non supporté » polluaient `pending-providers` de liens parfaitement lisibles.
-  const motifEchec =
-    phase !== "error"
-      ? null
-      : errorStatus === 429
-        ? "plafond"
-        : errorStatus === 0 || (errorStatus !== null && errorStatus >= 500)
-          ? "service"
-          : "lecture";
+  // Partiel, doublon et cause d'échec se lisent dans `lib/import-outcome.ts`,
+  // la même lecture que le toast global du provider (#491, #1062).
+  const partiel = estPartiel(importStream.state);
+  const isDuplicate = estDoublon(importStream.state);
+  // Un 429 ou un 500 signalés en « fournisseur non supporté » polluaient
+  // `pending-providers` de liens parfaitement lisibles : seule la lecture
+  // impossible signale et ouvre la saisie manuelle.
+  const motifEchec = motifEchecDe(importStream.state);
 
   // Défense en profondeur alignée sur le backend (`ScrapeRequest.url: HttpUrl`,
   // 422 dès la porte, cf. `schemas/scrape.py`) : on filtre côté UI pour ne pas
@@ -141,7 +134,6 @@ export function TcnScrapeForm() {
     refreshedRef.current = null;
     soumiseRef.current = v;
     setManual(false);
-    setSecondes(0);
     setSaved(null);
     captureEvent("results_import_started", { url: v });
     importStream.start(v, singleHeat);
@@ -154,11 +146,11 @@ export function TcnScrapeForm() {
     const soumise = soumiseRef.current;
     if (motifEchec !== "lecture" || !soumise || reportedRef.current === soumise) return;
     reportedRef.current = soumise;
-    toast.error(error ?? "Import impossible");
+    toastEchec(importStream.state);
     apiClient.reportPendingProvider(soumise).catch(() => {});
     setManual(true);
     captureEvent("results_import_failed", { error_message: error ?? "Import impossible" });
-  }, [motifEchec, error]);
+  }, [motifEchec, error, importStream.state]);
 
   // Les deux autres causes ne se taisent pas pour autant : le toast reste, la
   // télémétrie aussi, seuls le signalement et la saisie manuelle sautent.
@@ -166,9 +158,9 @@ export function TcnScrapeForm() {
     const soumise = soumiseRef.current;
     if (motifEchec === null || motifEchec === "lecture" || reportedRef.current === soumise) return;
     reportedRef.current = soumise;
-    toast.error(error ?? "Import impossible");
+    toastEchec(importStream.state);
     captureEvent("results_import_failed", { error_message: error ?? "Import impossible" });
-  }, [motifEchec, error]);
+  }, [motifEchec, error, importStream.state]);
 
   // Après un import réel, invalider le cache RSC de la page pour que la carte
   // « Derniers résultats enregistrés » (rendue côté serveur dans /ajouter) reflète
@@ -197,20 +189,21 @@ export function TcnScrapeForm() {
   // l'affirmait encore dix minutes plus tard.
   // Décompte du plafond de débit : `Retry-After` est un instantané, il fond
   // avec le temps qui passe.
-  const attenteRestante = Math.max(0, (retryAfter ?? 0) - secondes);
+  const secondes = running && startedAt ? Math.max(0, Math.floor((maintenant - startedAt) / 1000)) : 0;
+  const depuisLaFin = endedAt ? Math.max(0, Math.floor((maintenant - endedAt) / 1000)) : 0;
+  const attenteRestante = Math.max(0, (retryAfter ?? 0) - depuisLaFin);
   const compteEnCours = running || (motifEchec === "plafond" && retryAfter !== null);
   useEffect(() => {
     if (!compteEnCours) return;
-    const debut = Date.now();
     const id = setInterval(() => {
-      const ecoulees = Math.floor((Date.now() - debut) / 1000);
-      setSecondes(ecoulees);
+      const t = Date.now();
+      setMaintenant(t);
       // Le décompte fini, plus rien à compter : ne pas re-rendre l'écran une
       // fois par seconde sur une alerte que personne ne referme.
-      if (!running && retryAfter !== null && ecoulees >= retryAfter) clearInterval(id);
+      if (!running && retryAfter !== null && endedAt && (t - endedAt) / 1000 >= retryAfter) clearInterval(id);
     }, 1000);
     return () => clearInterval(id);
-  }, [compteEnCours, running, retryAfter]);
+  }, [compteEnCours, running, retryAfter, endedAt]);
 
   // La garde `beforeunload` (fermer l'onglet coupe la SSE) vit dans
   // `ImportStreamProvider` : elle vaut où que l'on soit pendant l'import.
@@ -914,4 +907,11 @@ function ImportBar({
       )}
     </div>
   );
+}
+
+/** Toast d'un échec vécu à l'écran : bâti sur la cause, jamais sur le message
+ *  d'exception, qui porte l'anglais du navigateur sur une coupure réseau. */
+function toastEchec(state: ImportState) {
+  const echec = echecImport(state, state.retryAfter ?? 0);
+  if (echec) toast.error(echec.titre, { description: echec.description });
 }
