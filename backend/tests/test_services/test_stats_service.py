@@ -445,6 +445,42 @@ def test_course_summary_merges_club_labels_differing_by_punctuation_or_spacing(d
     ]
 
 
+@pytest.mark.parametrize(
+    "requested", ["Triathlon Côte d'Émeraude", "Triathlon Cote dEmeraude", "TRIATHLON COTE D EMERAUDE"]
+)
+def test_club_filter_returns_every_label_merged_under_the_top_clubs_line(db_session, requested):
+    """The Top clubs link must render exactly the merged count (#1127)."""
+    lignes = (
+        ["Triathlon Côte d'Émeraude"] * 3
+        + ["Triathlon Cote dEmeraude"] * 2
+        + ["Triathlon cote d emeraude", "Triathlon Côte Sauvage", "ASPTT"]
+    )
+    course = _epreuve(
+        db_session,
+        [(f"N{i}", "P", "M", club, None, "finisher", None, None) for i, club in enumerate(lignes)],
+    )
+
+    synthese = stats_service.course_summary(db_session, course.id)
+    ligne = next(c for c in synthese["clubs"] if c["name"] == "Triathlon Côte d'Émeraude")
+    rows, total = participation_repository.list_page_for_course(
+        db_session, course.id, club=requested, page_size=None
+    )
+
+    assert total == ligne["count"] == 6
+    assert {r.club for r in rows} == set(lignes[:6])
+
+
+def test_club_filter_broad_match_stays_within_the_course(db_session):
+    """Only labels present on the course widen the filter (#1127)."""
+    course = _epreuve(db_session, [("A", "Un", "M", "ASPTT", None, "finisher", None, None)])
+
+    _, total = participation_repository.list_page_for_course(
+        db_session, course.id, club="A.S.P.T.T.", page_size=None
+    )
+
+    assert total == 1
+
+
 def test_course_summary_ignores_punctuation_only_club_placeholders(db_session):
     """« - » is no club: its broad key is empty (#1110, review)."""
     course = _epreuve(

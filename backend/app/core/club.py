@@ -23,6 +23,7 @@ index en silence. Ajouter un libellé ne change pas l'expression indexée ;
 changer la façon de comparer, si.
 """
 import re
+import unicodedata
 from collections.abc import Iterable
 
 from sqlalchemy import column, func
@@ -48,6 +49,18 @@ def normalize_club(club: str | None) -> str:
     c'est ce que verrouille `tests/test_repositories/test_club_filter.py`.
     """
     return _ESPACES.sub(" ", (club or "").strip()).lower()
+
+
+def broad_club_key(club: str | None) -> str:
+    """Clé de regroupement de « Top clubs » : sans accents, sans casse, sans
+    rien d'autre que lettres et chiffres (#1110).
+
+    Jamais en SQL : elle n'est pas indexée. Le filtre `club=` la résout en liste
+    des graphies présentes sur l'épreuve (#1127).
+    """
+    decomposed = unicodedata.normalize("NFKD", club or "")
+    # Les diacritiques décomposés ne sont pas alphanumériques : le filtre les ôte.
+    return "".join(c for c in decomposed.lower() if c.isalnum())
 
 
 def is_tcn(club: str | None) -> bool:
