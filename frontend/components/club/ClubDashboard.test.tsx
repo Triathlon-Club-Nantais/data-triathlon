@@ -15,6 +15,7 @@ vi.mock("@/lib/queries/auth", () => ({
 }));
 
 import { ClubDashboard } from "./ClubDashboard";
+import { currentSeason, seasonLabel } from "@/lib/utils/season";
 
 // `RosterApercu` appelle `useClubRosterRank` (#641), inconditionnellement
 // (l'`enabled` du hook ne change rien à l'obligation d'un `QueryClientProvider`
@@ -101,6 +102,16 @@ describe("ClubDashboard — smoke", () => {
     const carte = screen.getByText("Résultats").parentElement!.parentElement!;
     expect(carte.querySelector(".tcn-stat-value")).toHaveTextContent("7");
     expect(carte.querySelector(".tcn-stat-value")).not.toHaveTextContent("42");
+  });
+
+  // #1111 : seul « Résultats » est scopé à la saison, la tuile doit le dire.
+  it("le KPI Résultats porte la saison en cours en sous-ligne, pas les autres KPI (#1111)", () => {
+    render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={[part({ id: 1 })]} resultsTotal={1} />);
+    const hints = screen.getAllByTestId("statcard-hint");
+    expect(hints).toHaveLength(1);
+    expect(hints[0]).toHaveTextContent(seasonLabel(currentSeason()));
+    const carte = screen.getByText("Résultats").parentElement!.parentElement!;
+    expect(carte).toContainElement(hints[0]);
   });
 
   it("empty state quand aucun résultat", () => {

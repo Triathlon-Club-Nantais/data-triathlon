@@ -16,6 +16,7 @@ import { LienDestination } from "@/components/layout/LienDestination";
 import { DisciplinePerformance } from "./DisciplinePerformance";
 import { ClubComposition } from "./ClubComposition";
 import { formatCount } from "@/lib/utils/format";
+import { currentSeason, seasonLabel } from "@/lib/utils/season";
 
 export function ClubDashboard({
   stats,
@@ -26,10 +27,10 @@ export function ClubDashboard({
   stats: Stats;
   summary: ClubSummary;
   recent: Participation[];
-  /** Total scopé à la saison en cours (#649) — même filtre que le compteur
-   *  « Dossards enregistrés » de `/dashboard` (repli sur `currentSeason()`).
+  /** Total scopé à la saison en cours (#649), même filtre que le compteur
+   *  « Résultats » de `/dashboard` (repli sur `currentSeason()`).
    *  Distinct de `stats.total`, toutes saisons confondues, que les autres KPI
-   *  de cette page continuent d'utiliser. */
+   *  de cette page continuent d'utiliser : d'où la sous-ligne de saison (#1111). */
   resultsTotal: number;
 }) {
   const roster = summary.roster;
@@ -56,7 +57,7 @@ export function ClubDashboard({
       {/* Synthèse — les 3 premiers KPI ne dépendent pas du rank et restent SSR.
           Le KPI Podiums, lui, suit `?rank=…` via un composant client (#132). */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Résultats" value={resultsTotal} accent />
+        <KpiCard label="Résultats" value={resultsTotal} hint={seasonLabel(currentSeason())} accent />
         <KpiCard label="Athlètes" value={stats.athletes} />
         <KpiCard label="Épreuves" value={stats.events} />
         <ClubPodiumKpi rankCounters={stats.rank_counters} />
@@ -181,10 +182,12 @@ export function ClubDashboard({
 function KpiCard({
   label,
   value,
+  hint,
   accent,
 }: {
   label: string;
   value: number;
+  hint?: string;
   accent?: boolean;
 }) {
   // `StatCard` **est** la carte : pas de `Card`/`CardContent` autour, ils
@@ -192,5 +195,5 @@ function KpiCard({
   // là où l'`ui/Stat` qu'il remplace colorait la valeur elle-même. Le `?? false`
   // n'est pas décoratif : `StatCard` a `accent = true` par défaut, l'omettre
   // mettrait le trait sur les quatre tuiles et rendrait ce paramètre inerte.
-  return <StatCard label={label} value={formatCount(value)} accent={accent ?? false} />;
+  return <StatCard label={label} value={formatCount(value)} hint={hint} accent={accent ?? false} />;
 }
