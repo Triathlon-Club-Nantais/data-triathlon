@@ -96,6 +96,17 @@ describe("VolunteerActionsList", () => {
     expect(listValidatedVolunteerActions).not.toHaveBeenCalled();
   });
 
+  it("ne mène jamais à /benevolat sans pages:preview, même sur une liste vide (#879)", async () => {
+    getSession.mockResolvedValue(session(["athletes:volunteer_validate"]));
+    listValidatedVolunteerActions.mockResolvedValue([]);
+
+    afficher();
+
+    await waitFor(() => expect(getSession).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByRole("link", { name: "page Bénévolat" })).not.toBeInTheDocument();
+  });
+
   it("affiche titre et description des actions validées pour un titulaire du pouvoir", async () => {
     getSession.mockResolvedValue(session(["athletes:volunteer_validate", "pages:preview"]));
     listValidatedVolunteerActions.mockResolvedValue([VALIDEE]);

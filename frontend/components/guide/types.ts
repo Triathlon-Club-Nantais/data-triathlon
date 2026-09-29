@@ -16,4 +16,9 @@ export type GuideSection = {
   /** Ce que l'utilisateur cherche à accomplir. */
   casUsage: string;
   captures: GuideCapture[];
+  /**
+   * Destination du rail que la section décrit (#879) : la section se tait
+   * quand le rail tait cette destination au visiteur (`destinationVisible`).
+   */
+  destination?: string;
 };

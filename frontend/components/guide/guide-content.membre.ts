@@ -58,6 +58,8 @@ export const GUIDE_MEMBRE: GuideSection[] = [
   {
     id: "benevolat",
     titre: "Bénévolat",
+    // Masquée avec son écran derrière `pages:preview` (#879).
+    destination: "/benevolat",
     casUsage: "Créditer un athlète du club pour une activité de bénévolat, comptée dans son quota de saison.",
     etapes: [
       "Ouvrir « Bénévolat » depuis la navigation (section « Club »).",
