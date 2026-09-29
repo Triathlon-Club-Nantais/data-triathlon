@@ -57,13 +57,9 @@ export function AdminIndex() {
     items: s.items.filter((i) => estVisible(i, pouvoirs, ROLE.CONNECTED)),
   })).filter((s) => s.items.length > 0);
 
-  if (sections.length === 0)
-    return (
-      <EmptyState
-        title="Aucun écran d'administration ne vous est ouvert"
-        description="Ces écrans s'ouvrent avec les pouvoirs correspondants. Demandez-les à un administrateur du club."
-      />
-    );
+  // Un pouvoir sans écran à lui dit la même chose que l'absence de pouvoir :
+  // un seul texte, une seule sortie.
+  if (sections.length === 0) return <NoAdminAccess />;
 
   return (
     <div className="space-y-8">

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
 import { NoAdminAccess } from "@/components/admin/NoAdminAccess";
 import { PageShell } from "@/components/layout/PageShell";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { ApiError } from "@/lib/api/client";
 import { apiServer } from "@/lib/api/server";
 
@@ -84,7 +85,10 @@ export default async function AdminLayout({ children }: { children: ReactNode })
   if (session !== null && session !== INDISPONIBLE && !session.can_administer) {
     return (
       <PageShell>
-        <NoAdminAccess />
+        <div className="space-y-6">
+          <PageHeader title="Back-office" />
+          <NoAdminAccess />
+        </div>
       </PageShell>
     );
   }
