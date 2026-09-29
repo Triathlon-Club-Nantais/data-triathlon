@@ -24,8 +24,8 @@ export default async function ClubPage({
   const revalidateOpts = { revalidateSeconds: SHORT_REVALIDATE_SECONDS };
   const [stats, seasonStats, summary, recent] = await Promise.all([
     apiServer.getStats({ scope: SCOPE_CLUB, federal_only }, revalidateOpts),
-    // #649 : le KPI « Résultats » doit refléter le même total que « Dossards
-    // enregistrés » du dashboard — scopé à la saison en cours, jamais le
+    // #649 : le KPI « Résultats » doit refléter le même total que le compteur
+    // « Résultats » du dashboard (#1080), scopé à la saison en cours, jamais le
     // total toutes saisons que `stats` porte pour les autres KPI de la page.
     apiServer.getStats(
       { scope: SCOPE_CLUB, seasons: [currentSeason()], federal_only },

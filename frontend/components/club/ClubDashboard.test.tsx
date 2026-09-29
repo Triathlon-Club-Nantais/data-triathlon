@@ -86,7 +86,7 @@ describe("ClubDashboard — smoke", () => {
     expect(screen.getByText("Podiums")).toBeInTheDocument();
   });
 
-  // #649 : le KPI « Résultats » divergeait de « Dossards enregistrés »
+  // #649 : le KPI « Résultats » divergeait du compteur « Résultats »
   // du dashboard, qui filtre sur la saison en cours (repli par défaut). Le
   // KPI recevait tout le total toutes saisons de `stats.total` — désormais
   // il reçoit `resultsTotal`, calculé par la page avec le même filtre.

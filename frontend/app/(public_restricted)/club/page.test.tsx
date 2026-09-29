@@ -100,7 +100,7 @@ describe("ClubPage", () => {
   });
 
   // #649 : le KPI « Résultats » affichait le total toutes saisons de
-  // `/club/summary`, quand « Dossards enregistrés » du dashboard filtre sur
+  // `/club/summary`, quand « Résultats » du dashboard filtre sur
   // la saison en cours (repli par défaut de `currentSeason()`) — deux
   // compteurs pour ce qui semble à l'utilisateur la même donnée.
   it("scope le total du KPI Résultats à la saison en cours, comme /dashboard", async () => {

@@ -318,7 +318,7 @@ describe("DashboardPage — état vide unifié (NAV-6)", () => {
     await renderDashboard({ seasons: "2015" });
 
     expect(screen.getByText("Aucun résultat enregistré pour la saison 2015 — 2016")).toBeInTheDocument();
-    expect(screen.queryByText("Dossards enregistrés")).not.toBeInTheDocument();
+    expect(screen.queryByText("Résultats")).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { level: 2, name: "Type d'épreuves" })).not.toBeInTheDocument();
   });
 
@@ -377,7 +377,9 @@ describe("DashboardPage — bande « Ma saison » (#502, NAV-9)", () => {
     await renderDashboard({});
 
     const bande = screen.getByTestId("ma-saison-stub");
-    const compteurClub = screen.getByText("Dossards enregistrés");
+    const compteurClub = screen.getByText("Résultats");
+    // #1080 : un seul nom pour ce total, celui de `/club` et `/resultats`.
+    expect(screen.queryByText("Dossards enregistrés")).not.toBeInTheDocument();
 
     expect(bande.compareDocumentPosition(compteurClub) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -403,7 +405,7 @@ describe("DashboardPage — invitation à choisir un athlète (#588)", () => {
     await renderDashboard({});
 
     const invitation = screen.getByTestId("invitation-athlete-stub");
-    const compteurClub = screen.getByText("Dossards enregistrés");
+    const compteurClub = screen.getByText("Résultats");
 
     expect(invitation.compareDocumentPosition(compteurClub) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
