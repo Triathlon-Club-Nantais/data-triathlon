@@ -263,6 +263,7 @@ def resolve_athlete(db: Session, scraped: ScrapedResult) -> tuple[Athlete, bool]
         gender=scraped.gender,
         club=scraped.club or None,
         update_existing_club=not scraped.is_pending_validation,
+        event_date=scraped.event_date,
     )
 
 

@@ -82,6 +82,69 @@ def test_resolve_ne_reecrit_pas_un_club_verrouille(db_session):
     assert de_nouveau.club == "ASPTT NANTES"
 
 
+def _dated_participation(db_session, athlete, club: str, event_date: date | None, name: str):
+    course = course_repository.get_or_create(
+        db_session, name=name, event_date=event_date, event_type="triathlon-m",
+        provider="klikego", source_url=f"https://www.klikego.com/resultats/{name}/1",
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, club=club, status="finisher",
+    )
+    db_session.flush()
+
+
+def test_resolve_keeps_the_club_of_a_more_recent_race(db_session):
+    """#965: a race older than the latest known club does not move it back."""
+    athlete = athlete_repository.get_or_create(db_session, nom="ANCIEN", prenom="Alma", club="TCN")
+    _dated_participation(db_session, athlete, "TCN", date(2026, 9, 6), "recente")
+
+    again, _ = athlete_repository.resolve(
+        db_session, nom="ANCIEN", prenom="Alma", club="CARQUEFOU", event_date=date(2024, 5, 4)
+    )
+
+    assert again.club == "TCN"
+
+
+def test_resolve_follows_a_race_at_least_as_recent(db_session):
+    """#965: same day or later, the new club becomes the current one."""
+    athlete = athlete_repository.get_or_create(db_session, nom="SUIT", prenom="Sam", club="CARQUEFOU")
+    _dated_participation(db_session, athlete, "CARQUEFOU", date(2024, 5, 4), "ancienne")
+
+    again, _ = athlete_repository.resolve(
+        db_session, nom="SUIT", prenom="Sam", club="TCN", event_date=date(2024, 5, 4)
+    )
+
+    assert again.club == "TCN"
+
+
+def test_resolve_does_not_let_an_undated_race_override_a_dated_club(db_session):
+    """#965: without a date, nothing says the race is the latest one."""
+    athlete = athlete_repository.get_or_create(db_session, nom="SANSDATE", prenom="Sol", club="TCN")
+    _dated_participation(db_session, athlete, "TCN", date(2026, 9, 6), "datee")
+
+    again, _ = athlete_repository.resolve(db_session, nom="SANSDATE", prenom="Sol", club="AUTRE")
+
+    assert again.club == "TCN"
+
+
+def test_latest_club_dates_ignores_clubless_and_pending_rows(db_session):
+    athlete = athlete_repository.get_or_create(db_session, nom="DATES", prenom="Dan")
+    _dated_participation(db_session, athlete, "TCN", date(2025, 6, 1), "avec-club")
+    _dated_participation(db_session, athlete, "", date(2026, 6, 1), "sans-club")
+    _dated_participation(db_session, athlete, "TCN", None, "sans-date")
+    pending_course = course_repository.get_or_create(
+        db_session, name="attente", event_date=date(2026, 7, 1), event_type="triathlon-m",
+        provider="manual", source_url="",
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=pending_course.id, club="AUTRE",
+        status="finisher", is_pending_validation=True,
+    )
+    db_session.flush()
+
+    assert athlete_repository.latest_club_dates(db_session, [athlete.id]) == {athlete.id: date(2025, 6, 1)}
+
+
 def test_search_by_name(db_session):
     athlete_repository.get_or_create(db_session, nom="LEROY", prenom="Anne", club="TCN")
     athlete_repository.get_or_create(db_session, nom="MOREAU", prenom="Eric", club="TCN")

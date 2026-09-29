@@ -1,7 +1,11 @@
 # Modèle normalisé
 
 - **Athlete** — `UNIQUE(nom, prenom, birth_date)`. `club` porte le club
-  **actuel** : il suit l'import, sauf correction humaine — `club_locked` (#439),
+  **actuel** : il suit la dernière épreuve **courue**, pas la dernière importée
+  (#965). Un import ne le réécrit que si son épreuve est au moins aussi récente
+  que la plus récente participation datée avec club déjà connue
+  (`athlete_repository.club_is_current`, même règle dans `resolve` et dans la
+  résolution par lot d'`import_service`). Sauf correction humaine : `club_locked` (#439),
   posé par `admin_actions.update_athlete` quand le club écrit diffère de celui en
   base, dit à `athlete_repository.resolve` de ne plus le réécrire. Sans lui, une
   course d'il y a trois ans annonçant le club de l'époque ramènerait la

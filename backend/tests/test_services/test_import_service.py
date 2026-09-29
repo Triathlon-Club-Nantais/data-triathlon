@@ -175,6 +175,43 @@ def test_reimport_respecte_un_club_corrige_a_la_main(db_session, patch_scraper):
     assert suiveur.club == "ASPTT NANTES 44"
 
 
+_OLD_URL = "https://www.klikego.com/resultats/event/2024"
+
+
+def test_importing_an_older_race_keeps_the_current_club(db_session, patch_scraper):
+    """#965: the latest race run sets the club, not the latest race imported."""
+    patch_scraper([_result("1", "RECENT", prenom="Rita", club="TRIATHLON CLUB NANTAIS")])
+    import_service.import_event(db_session, URL, _settings())
+
+    patch_scraper([
+        _result(
+            "7", "RECENT", prenom="Rita", club="TRIATHLON ATLANTIQUE CARQUEFOU",
+            source_url=_OLD_URL, event_name="Triathlon d'antan", event_date=date(2024, 5, 4),
+        )
+    ])
+    import_service.import_event(db_session, _OLD_URL, _settings())
+
+    athlete = athlete_repository.get_by_identity(db_session, "RECENT", "Rita", None)
+    assert athlete.club == "TRIATHLON CLUB NANTAIS"
+
+
+def test_importing_a_newer_race_updates_the_club(db_session, patch_scraper):
+    """#965: the other way round, a more recent race moves the club along."""
+    patch_scraper([
+        _result(
+            "7", "MOBILE", prenom="Max", club="TRIATHLON ATLANTIQUE CARQUEFOU",
+            source_url=_OLD_URL, event_name="Triathlon d'antan", event_date=date(2024, 5, 4),
+        )
+    ])
+    import_service.import_event(db_session, _OLD_URL, _settings())
+
+    patch_scraper([_result("1", "MOBILE", prenom="Max", club="TRIATHLON CLUB NANTAIS")])
+    import_service.import_event(db_session, URL, _settings())
+
+    athlete = athlete_repository.get_by_identity(db_session, "MOBILE", "Max", None)
+    assert athlete.club == "TRIATHLON CLUB NANTAIS"
+
+
 def test_reimport_backfills_empty_gender_but_keeps_known_one(db_session, patch_scraper):
     """#964: batch resolution fills an empty gender from a later import and
     never overwrites a gender already set, same rule as `resolve`."""
