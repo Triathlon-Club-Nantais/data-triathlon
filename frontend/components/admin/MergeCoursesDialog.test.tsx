@@ -105,7 +105,7 @@ describe("MergeCoursesDialog", () => {
       ).toBeInTheDocument(),
     );
     expect(
-      screen.getByText((_, el) => el?.tagName === "LI" && /^4 fiches? coureur/.test(el.textContent ?? "")),
+      screen.getByText((_, el) => el?.tagName === "LI" && /^4 fiches? athlète/.test(el.textContent ?? "")),
     ).toBeInTheDocument();
   });
 
@@ -136,7 +136,7 @@ describe("MergeCoursesDialog", () => {
       screen.getByText(
         (_, el) =>
           el?.tagName === "LI" &&
-          /^1 fiche coureur ne conservera plus aucun résultat et sera retirée/.test(
+          /^1 fiche athlète ne conservera plus aucun résultat et sera retirée/.test(
             el.textContent ?? "",
           ),
       ),
@@ -170,7 +170,7 @@ describe("MergeCoursesDialog", () => {
       screen.getByText(
         (_, el) =>
           el?.tagName === "LI" &&
-          /^0 fiche coureur ne conservera plus aucun résultat et sera retirée/.test(
+          /^0 fiche athlète ne conservera plus aucun résultat et sera retirée/.test(
             el.textContent ?? "",
           ),
       ),
@@ -196,14 +196,14 @@ describe("MergeCoursesDialog", () => {
     await waitFor(() => expect(mergeCourses).toHaveBeenCalledWith(38, 50));
     expect(toastSuccess).toHaveBeenCalledWith(
       "« Triathlon et SwimRun Mesquer-Quimiac 2026 » a été fusionnée dans la source conservée — " +
-        "179 résultats sans correspondance ont disparu, 4 fiches coureur purgées.",
+        "179 résultats sans correspondance ont disparu, 4 fiches athlète purgées.",
     );
   });
 
   it.each([
-    [0, "0 résultat sans correspondance a disparu, 0 fiche coureur purgée."],
-    [1, "1 résultat sans correspondance a disparu, 1 fiche coureur purgée."],
-    [2, "2 résultats sans correspondance ont disparu, 2 fiches coureur purgées."],
+    [0, "0 résultat sans correspondance a disparu, 0 fiche athlète purgée."],
+    [1, "1 résultat sans correspondance a disparu, 1 fiche athlète purgée."],
+    [2, "2 résultats sans correspondance ont disparu, 2 fiches athlète purgées."],
   ])("accorde le bilan de la fusion à %i (#1142)", async (n, bilan) => {
     getCourseMergeImpact.mockResolvedValue(IMPACT);
     mergeCourses.mockResolvedValue({

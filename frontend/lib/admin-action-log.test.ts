@@ -64,13 +64,13 @@ describe("formatPayload", () => {
   it("rend un tableau comme un décompte suivi des valeurs, jamais un CSV nu", () => {
     const lignes = formatPayload({ athletes_purged: [12, 43, 88] });
 
-    expect(lignes).toContainEqual({ label: "Fiches coureur purgées", value: "3 (12, 43, 88)" });
+    expect(lignes).toContainEqual({ label: "Fiches athlète purgées", value: "3 (12, 43, 88)" });
   });
 
   it("rend un tableau vide comme « aucun »", () => {
     const lignes = formatPayload({ athletes_purged: [] });
 
-    expect(lignes).toContainEqual({ label: "Fiches coureur purgées", value: "aucun" });
+    expect(lignes).toContainEqual({ label: "Fiches athlète purgées", value: "aucun" });
   });
 });
 
@@ -102,7 +102,7 @@ describe("links and target entity (#1043)", () => {
   it("links athlete and course ids to their public pages", () => {
     const lignes = formatPayload({ from_athlete_id: 55749, course_id: 12 });
 
-    expect(lignes).toContainEqual({ label: "Depuis le coureur", value: "55749", href: "/athletes/55749" });
+    expect(lignes).toContainEqual({ label: "Depuis l'athlète", value: "55749", href: "/athletes/55749" });
     expect(lignes).toContainEqual({ label: "Épreuve", value: "12", href: "/courses/12" });
   });
 
@@ -111,7 +111,7 @@ describe("links and target entity (#1043)", () => {
       { label: "Variante de club", value: "n° 3" },
     ]);
     expect(detailLines({ entity_type: "athlete", entity_id: 9, payload: null })).toEqual([
-      { label: "Coureur", value: "9", href: "/athletes/9" },
+      { label: "Athlète", value: "9", href: "/athletes/9" },
     ]);
   });
 

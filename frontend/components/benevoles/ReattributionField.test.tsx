@@ -60,7 +60,7 @@ describe("ReattributionField", () => {
     await waitFor(() =>
       expect(screen.getByText(/Recherche impossible pour le moment/)).toBeInTheDocument(),
     );
-    expect(screen.queryByText(/Aucun coureur trouvé/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Aucun athlète trouvé/)).not.toBeInTheDocument();
   });
 
   it("affiche un état vide quand la recherche ne trouve personne", async () => {
@@ -69,7 +69,7 @@ describe("ReattributionField", () => {
 
     await userEvent.type(screen.getByLabelText(/Réattribuer/), "Zzz");
 
-    await waitFor(() => expect(screen.getByText(/Aucun coureur trouvé/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText(/Aucun athlète trouvé/)).toBeInTheDocument());
   });
 
   it("annonce la recherche en cours au lecteur d'écran (#608)", async () => {
@@ -154,7 +154,7 @@ describe("ReattributionField", () => {
 
     // À ce stade, le champ est vide et les résultats ont été clearés
     expect(screen.queryByText(/Recherche…/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Aucun coureur trouvé/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Aucun athlète trouvé/)).not.toBeInTheDocument();
 
     // Résoudre la réponse stale (celle en vol depuis "Ker")
     resolvePending!([CIBLE]);
@@ -163,6 +163,6 @@ describe("ReattributionField", () => {
     expect(screen.queryByText(/Hadrien KERMARREC/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Recherche…/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Recherche impossible/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Aucun coureur trouvé/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Aucun athlète trouvé/)).not.toBeInTheDocument();
   });
 });

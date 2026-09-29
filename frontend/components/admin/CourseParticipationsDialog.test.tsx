@@ -107,7 +107,7 @@ describe("CourseParticipationsDialog", () => {
     });
 
     afficher();
-    await userEvent.click(await screen.findByRole("button", { name: /corriger le coureur/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /corriger l'athlète/i }));
 
     // Le résultat ne porte qu'un `AthleteBrief` : ouvrir l'édition avec lui
     // afficherait une date de naissance vide, et l'enregistrer l'effacerait.
@@ -120,7 +120,7 @@ describe("CourseParticipationsDialog", () => {
     getAthleteAdmin.mockReturnValue(new Promise((resolve) => (livrer = resolve)));
 
     afficher();
-    await userEvent.click(await screen.findByRole("button", { name: /corriger le coureur/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /corriger l'athlète/i }));
 
     // Fermer la liste dès le clic laisserait l'écran sans aucune modale tant
     // que la fiche n'est pas arrivée : un trou visible, et définitif si elle
@@ -145,7 +145,7 @@ describe("CourseParticipationsDialog", () => {
     getAthleteAdmin.mockRejectedValue(new ApiError(403, "Interdit"));
 
     afficher();
-    await userEvent.click(await screen.findByRole("button", { name: /corriger le coureur/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /corriger l'athlète/i }));
 
     expect(await screen.findByText(/n'a pas pu être chargée/i)).toBeInTheDocument();
     // La liste des résultats reste consultable — elle ne disparaît pas derrière
@@ -161,7 +161,7 @@ describe("CourseParticipationsDialog", () => {
 
     expect(screen.queryByRole("button", { name: /rattacher/i })).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /corriger le coureur/i }),
+      screen.queryByRole("button", { name: /corriger l'athlète/i }),
     ).not.toBeInTheDocument();
   });
 

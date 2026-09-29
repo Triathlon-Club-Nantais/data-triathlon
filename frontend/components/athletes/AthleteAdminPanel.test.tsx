@@ -171,7 +171,7 @@ describe("AthleteAdminPanel — corriger l'identité (US1)", () => {
   it("garde la modale ouverte et la saisie intacte sur un conflit (US1-AC3)", async () => {
     getSession.mockResolvedValue(session(["athletes:write"]));
     updateAthlete.mockRejectedValue(
-      new ApiError(409, "Un coureur porte déjà cette identité (fiche #77)."),
+      new ApiError(409, "Un athlète porte déjà cette identité (fiche #77)."),
     );
 
     afficher();
@@ -182,7 +182,7 @@ describe("AthleteAdminPanel — corriger l'identité (US1)", () => {
     // Le message du serveur est déjà en français : la modale l'affiche, elle ne
     // le reformule pas (FR-010).
     expect(
-      await screen.findByText("Un coureur porte déjà cette identité (fiche #77)."),
+      await screen.findByText("Un athlète porte déjà cette identité (fiche #77)."),
     ).toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     // La saisie survit : l'opérateur corrige sa correction sans tout retaper.
@@ -263,7 +263,7 @@ describe("AthleteAdminPanel — corriger l'identité (US1)", () => {
     // le dernier résultat de la fiche, donc la fiche elle-même. La modale n'a
     // plus rien à corriger — c'est la page qu'il faut remettre à jour.
     getSession.mockResolvedValue(session(["athletes:write"]));
-    updateAthlete.mockRejectedValue(new ApiError(404, "Coureur introuvable."));
+    updateAthlete.mockRejectedValue(new ApiError(404, "Athlète introuvable."));
 
     afficher();
     await ouvrirLesCorrections();
@@ -272,7 +272,7 @@ describe("AthleteAdminPanel — corriger l'identité (US1)", () => {
 
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith(
-        "Ce coureur n'existe plus. La page a été mise à jour.",
+        "Cet athlète n'existe plus. La page a été mise à jour.",
       ),
     );
     expect(refresh).toHaveBeenCalled();

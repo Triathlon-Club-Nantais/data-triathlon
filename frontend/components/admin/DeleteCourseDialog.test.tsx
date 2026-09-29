@@ -51,7 +51,7 @@ describe("DeleteCourseDialog", () => {
     toastSuccess.mockReset();
   });
 
-  it("annonce l'épreuve, ses résultats et les fiches coureur détruites", async () => {
+  it("annonce l'épreuve, ses résultats et les fiches athlète détruites", async () => {
     getCourseDeletionImpact.mockResolvedValue({
       course_id: 12,
       name: "Triathlon de Nantes",
@@ -67,9 +67,9 @@ describe("DeleteCourseDialog", () => {
   });
 
   it.each([
-    [0, /0 résultat sera détruit/, /0 fiche coureur ne conservera plus aucun résultat et sera retirée/],
-    [1, /1 résultat sera détruit/, /1 fiche coureur ne conservera plus aucun résultat et sera retirée/],
-    [2, /2 résultats seront détruits/, /2 fiches coureur ne conserveront plus aucun résultat et seront retirées/],
+    [0, /0 résultat sera détruit/, /0 fiche athlète ne conservera plus aucun résultat et sera retirée/],
+    [1, /1 résultat sera détruit/, /1 fiche athlète ne conservera plus aucun résultat et sera retirée/],
+    [2, /2 résultats seront détruits/, /2 fiches athlète ne conserveront plus aucun résultat et seront retirées/],
   ])("accorde l'impact annoncé à %i (#1142)", async (n, resultats, fiches) => {
     getCourseDeletionImpact.mockResolvedValue({
       course_id: 12,

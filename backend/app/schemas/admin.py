@@ -280,7 +280,7 @@ class TeammatesUpdate(BaseModel):
     def _sans_doublon(self) -> "TeammatesUpdate":
         ids = [ref.athlete_id for ref in self.teammates if ref.athlete_id is not None]
         if len(set(ids)) != len(ids):
-            raise ValueError("Un même coureur figure deux fois dans l'équipe.")
+            raise ValueError("Un même athlète figure deux fois dans l'équipe.")
         return self
 
 

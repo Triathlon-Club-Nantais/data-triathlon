@@ -83,7 +83,7 @@ export function CourseParticipationsDialog({
           <DialogHeader>
             <DialogTitle>Résultats — {course.name}</DialogTitle>
             <DialogDescription>
-              Rattacher un résultat au bon coureur quand un scraper a créé un doublon
+              Rattacher un résultat au bon athlète quand un scraper a créé un doublon
               d&apos;identité.
             </DialogDescription>
           </DialogHeader>
@@ -97,8 +97,8 @@ export function CourseParticipationsDialog({
 
           {fiche.isError && (
             <p className="text-destructive text-sm">
-              La fiche de ce coureur n&apos;a pas pu être chargée — il faut le pouvoir
-              « Consulter les fiches coureur » pour la corriger.
+              La fiche de cet athlète n&apos;a pas pu être chargée — il faut le pouvoir
+              « Consulter les fiches athlète » pour la corriger.
             </p>
           )}
 
@@ -137,7 +137,7 @@ export function CourseParticipationsDialog({
                       variant="ghost"
                       onClick={() => setCoureurACorriger(participation.athlete.id)}
                     >
-                      Corriger le coureur
+                      Corriger l&apos;athlète
                     </Button>
                   )}
                   {peutRattacher && (

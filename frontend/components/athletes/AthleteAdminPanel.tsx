@@ -16,7 +16,7 @@ export type CoureurACorriger = {
 };
 
 /** Un `404` décrit une requête ; l'opérateur, lui, voit un écran (FR-016). */
-const DISPARU = "Ce coureur n'existe plus. La page a été mise à jour.";
+const DISPARU = "Cet athlète n'existe plus. La page a été mise à jour.";
 /** Refus prononcé ici plutôt qu'au serveur, dont le message est en anglais. */
 const IDENTITE_INCOMPLETE = "Le nom et le prénom ne peuvent pas être vides.";
 const ECHEC = "La correction n'a pas abouti. Réessayez dans un instant.";
@@ -198,7 +198,7 @@ export function AthleteAdminPanel({
 
       {ouverte && (
         <Modal
-          eyebrow="Fiche du coureur"
+          eyebrow="Fiche athlète"
           title="Corriger la fiche"
           onClose={() => (correction.isPending ? null : setOuverte(false))}
           footer={

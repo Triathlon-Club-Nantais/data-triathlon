@@ -89,6 +89,13 @@ def test_un_pouvoir_porte_son_francais_d_affichage(pouvoir: Permission):
     assert pouvoir.feature, f"{pouvoir.code} n'est rattaché à aucune fonctionnalité"
 
 
+@pytest.mark.parametrize("pouvoir", permissions.ALL, ids=lambda p: p.code)
+def test_a_power_says_athlete_never_coureur(pouvoir: Permission):
+    """#1082 : la personne se dit « athlète » dans toute copie utilisateur."""
+    for texte in (pouvoir.label, pouvoir.description, pouvoir.feature):
+        assert "coureur" not in texte.lower(), f"{pouvoir.code} : {texte}"
+
+
 def test_site_access_is_called_access_code_not_password():
     """#1031 : l'adhérent dit « code d'accès », l'écran d'admin aussi."""
     description = P.SITE_ACCESS_MANAGE.description

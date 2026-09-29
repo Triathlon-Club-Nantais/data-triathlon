@@ -79,8 +79,8 @@ export function DeleteCourseDialog({
             <strong>{impact.data.athletes}</strong>{" "}
             {plural(
               impact.data.athletes,
-              "fiche coureur ne conservera plus aucun résultat et sera retirée",
-              "fiches coureur ne conserveront plus aucun résultat et seront retirées",
+              "fiche athlète ne conservera plus aucun résultat et sera retirée",
+              "fiches athlète ne conserveront plus aucun résultat et seront retirées",
             )}
             .
           </li>

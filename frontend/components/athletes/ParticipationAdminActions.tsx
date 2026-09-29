@@ -37,7 +37,7 @@ const DISPARU = "Ce résultat n'existe plus. La page a été mise à jour.";
 const ECHEC = "La suppression n'a pas abouti. Réessayez dans un instant.";
 const ECHEC_RATTACHEMENT = "Le rattachement n'a pas abouti. Réessayez dans un instant.";
 /** Une demande sans effet n'est pas un échec — le serveur la traite en `200`. */
-const DEJA_PORTE = "Ce résultat est déjà au nom de ce coureur.";
+const DEJA_PORTE = "Ce résultat est déjà au nom de cet athlète.";
 /**
  * Taille de page de `GET /admin/athletes` (`page_size` par défaut, côté serveur).
  *
@@ -285,7 +285,7 @@ export function ParticipationAdminActions({
         >
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <p style={{ fontSize: 15, lineHeight: 1.6, color: "var(--tcn-text-body)", margin: 0 }}>
-              {intitule} quittera la fiche de {resultat.coureur} pour celle du coureur choisi. Le
+              {intitule} quittera la fiche de {resultat.coureur} pour celle de l&apos;athlète choisi. Le
               rattachement est <strong>irréversible</strong> ; si cette fiche n&apos;a plus aucun
               résultat, elle sera supprimée.
             </p>
@@ -308,7 +308,7 @@ export function ParticipationAdminActions({
                 type="search"
                 value={saisie}
                 onChange={(e) => setSaisie(e.target.value)}
-                placeholder="Chercher un coureur par nom ou prénom…"
+                placeholder="Chercher un athlète par nom ou prénom…"
                 autoComplete="off"
                 disabled={rattachement.isPending}
               />
@@ -334,13 +334,13 @@ export function ParticipationAdminActions({
 
               {candidats.data?.length === 0 && (
                 <p style={{ fontSize: 13, color: "var(--tcn-text-faint)", margin: 0 }}>
-                  Aucun coureur ne correspond à cette recherche.
+                  Aucun athlète ne correspond à cette recherche.
                 </p>
               )}
 
               {candidats.data && candidats.data.length >= PAGE_CANDIDATS && (
                 <p style={{ fontSize: 13, color: "var(--tcn-text-muted)", margin: 0 }}>
-                  Seuls les {PAGE_CANDIDATS} premiers coureurs sont listés : précisez la recherche
+                  Seuls les {PAGE_CANDIDATS} premiers athlètes sont listés : précisez la recherche
                   si le bon n&apos;y est pas.
                 </p>
               )}

@@ -73,7 +73,7 @@ describe("EditAthleteDialog", () => {
 
   it("montre en français la fiche en conflit, sans vider le formulaire", async () => {
     updateAthlete.mockRejectedValue(
-      new ApiError(409, "Un coureur porte déjà cette identité (fiche #7)."),
+      new ApiError(409, "Un athlète porte déjà cette identité (fiche #7)."),
     );
 
     afficher();
@@ -84,7 +84,7 @@ describe("EditAthleteDialog", () => {
 
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith(
-        "Un coureur porte déjà cette identité (fiche #7).",
+        "Un athlète porte déjà cette identité (fiche #7).",
       ),
     );
     expect(screen.getByLabelText(/^nom/i)).toHaveValue("DUPONT");

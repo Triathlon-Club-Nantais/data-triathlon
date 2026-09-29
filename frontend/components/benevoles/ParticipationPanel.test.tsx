@@ -255,7 +255,7 @@ describe("ParticipationPanel — erreurs", () => {
   it("signale un conflit de réattribution en français", async () => {
     searchAthletesBenevole.mockResolvedValue([AUTRE]);
     reassignParticipationBenevole.mockRejectedValue(
-      new ApiError(409, "Ce coureur a déjà un résultat sur cette épreuve."),
+      new ApiError(409, "Cet athlète a déjà un résultat sur cette épreuve."),
     );
     render(<ParticipationPanel participation={participation()} onChanged={vi.fn()} />);
 
@@ -266,7 +266,7 @@ describe("ParticipationPanel — erreurs", () => {
 
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(
-        "Ce coureur a déjà un résultat sur cette épreuve.",
+        "Cet athlète a déjà un résultat sur cette épreuve.",
       ),
     );
   });
