@@ -141,6 +141,42 @@ def create_batch(db: Session, athletes_fields: Sequence[dict]) -> list[Athlete]:
     return created
 
 
+def latest_club_dates(db: Session, athlete_ids: Sequence[int]) -> dict[int, date]:
+    """Date de la plus récente épreuve datée courue sous un club, par athlète (#965).
+
+    Les résultats en attente de validation n'y comptent pas : une déclaration
+    en quarantaine ne réécrit pas le club (#915), elle ne le fige pas non plus.
+    """
+    if not athlete_ids:
+        return {}
+    rows = db.execute(
+        select(Participation.athlete_id, func.max(Course.event_date))
+        .join(Course, Course.id == Participation.course_id)
+        .where(
+            Participation.athlete_id.in_(set(athlete_ids)),
+            Participation.club.is_not(None),
+            func.trim(Participation.club) != "",
+            Course.event_date.is_not(None),
+            validated_clause(Participation.is_pending_validation),
+        )
+        .group_by(Participation.athlete_id)
+    )
+    return {athlete_id: latest for athlete_id, latest in rows}
+
+
+def club_is_current(event_date: date | None, latest_club_date: date | None) -> bool:
+    """Vrai si le club annoncé par une épreuve du `event_date` devient le club actuel.
+
+    Il faut que l'épreuve soit au moins aussi récente que la dernière épreuve
+    datée déjà connue avec un club : sinon réimporter une vieille course
+    ramènerait le club de l'époque (#965). Une épreuve sans date ne prouve
+    rien, elle ne l'emporte que faute de club daté.
+    """
+    if latest_club_date is None:
+        return True
+    return event_date is not None and event_date >= latest_club_date
+
+
 def resolve(
     db: Session,
     *,
@@ -150,8 +186,11 @@ def resolve(
     birth_date: date | None = None,
     club: str | None = None,
     update_existing_club: bool = True,
+    event_date: date | None = None,
 ) -> tuple[Athlete, bool]:
     """Retourne (athlète, créé) : `créé` est True si la ligne vient d'être créée.
+
+    `event_date` est la date de l'épreuve qui annonce `club` (`club_is_current`).
 
     `update_existing_club=False` : `club` ne sert qu'à une fiche neuve. Une
     déclaration en quarantaine ne doit pas réécrire la fiche d'un membre (#915).
@@ -162,12 +201,13 @@ def resolve(
     """
     existing = get_by_identity(db, nom, prenom, birth_date)
     if existing:
-        # Met à jour le club courant si l'info est plus récente — sauf si un
-        # humain l'a corrigé : une correction manuelle prime sur tout import
-        # ultérieur, y compris celui d'une course d'il y a trois ans qui annonce
-        # le club de l'époque (#439). Le drapeau est un attribut de la ligne déjà
-        # chargée : le lire ne coûte aucune requête de plus à l'import.
-        if update_existing_club and club and existing.club != club and not existing.club_locked:
+        # Met à jour le club courant si l'épreuve n'est pas plus ancienne que
+        # le dernier club connu (#965), et jamais si un humain l'a corrigé : une
+        # correction manuelle prime sur tout import ultérieur (#439).
+        if (
+            update_existing_club and club and existing.club != club and not existing.club_locked
+            and club_is_current(event_date, latest_club_dates(db, [existing.id]).get(existing.id))
+        ):
             existing.club = club
         # Complète un sexe absent de la première source, sans jamais l'écraser (#964).
         if gender and not existing.gender:

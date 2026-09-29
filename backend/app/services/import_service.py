@@ -878,6 +878,17 @@ class _Persister:
             )
             found.update(zip(creation_order, created_athletes, strict=True))
 
+        # Une seule requête par tranche, bornée aux fiches dont le club changerait.
+        course_date = self._courses[course_id].event_date
+        club_changes = {
+            athlete.id
+            for item, teammates in zip(pending, decisions, strict=True)
+            if teammates is None and not item.reconcile_blocked and item.scraped.club
+            for athlete in [found[_identity_key(item.scraped)]]
+            if athlete.club != item.scraped.club and not athlete.club_locked
+        }
+        latest_clubs = athlete_repository.latest_club_dates(self.db, list(club_changes))
+
         created_keys = set(to_create.keys())
         creation_consumed: set[tuple[str, str]] = set()
         new_participation_fields: list[dict] = []
@@ -900,8 +911,11 @@ class _Persister:
             athlete = found[key]
             self._present_ids[course_id].add(athlete.id)
             club = item.scraped.club or None
-            if club and athlete.club != club and not athlete.club_locked:
-                # Même synchronisation que la branche « existant » de
+            if (
+                club and athlete.club != club and not athlete.club_locked
+                and athlete_repository.club_is_current(course_date, latest_clubs.get(athlete.id))
+            ):
+                # Même règle que la branche « existant » de
                 # `athlete_repository.resolve` — sans effet sur la ligne qui
                 # vient de créer `athlete` (son club est déjà le sien).
                 athlete.club = club
