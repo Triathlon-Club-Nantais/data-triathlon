@@ -427,20 +427,22 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `localStorage` relu au montage — la seule exception documentée au refus de
   miroir cookie de #467, parce que le besoin serveur y est authentique et
   qu'aucun `fetch()` vers `/api/v1` n'est concerné. Sous `md`, une barre
-  basse fixe porte les destinations dont `minRole === ROLE.ANON` (calculée
-  dynamiquement, jamais en dur) — quatre depuis #487, d'où le `labelCourt` de
-  `nav.config.ts` : il ne change que le **texte visible**, le nom accessible du
-  lien restant `label`, « Athlètes » ne distinguant pas deux écrans à
-  l'oreille ; le hamburger ne garde en priorité que les sections
-  `minRole > ROLE.ANON` et les deux actions primaires, **sauf** repli (#621) :
-  la barre basse est masquée pendant que le tiroir est ouvert (le `Sheet`
-  passe par-dessus), donc un visiteur sans section privée — anonyme, ou
-  connecté sans aucun pouvoir d'administration, la quasi-totalité des
-  adhérents — se retrouvait sans aucune destination à l'écran une fois le
-  tiroir ouvert. `sectionsTiroir` (`AppNav.tsx`) retombe sur l'ensemble des
-  sections dès que `sectionsPrivees` est vide, pour ne jamais présenter un
-  tiroir sans catégorie ; le doublon avec la barre basse ne se produit donc
-  que pour ce cas-là, jamais pour qui a déjà une section privée à y voir. Le
+  basse fixe porte **au plus `BOTTOM_BAR_MAX` (4) destinations** dont
+  `minRole === ROLE.ANON`, visibles pour le profil et prises dans l'ordre de
+  `nav.config.ts` (calculées, jamais en dur), puis un onglet « Plus » qui
+  ouvre le tiroir s'il reste quoi que ce soit à y voir (#1012 : sept onglets à
+  375 px repliaient leurs libellés sur deux lignes ; cinq au plus tiennent sur
+  une ligne, ~75 px chacun). Un `labelCourt` ne change que le **texte
+  visible** (« Accueil » pour « Tableau de bord »), le nom accessible du lien
+  restant `label`. Le tiroir porte « le reste » : toutes les destinations que
+  la barre ne montre pas, sections publiques débordantes comprises, et les
+  deux actions primaires, **sauf** repli (#621) : la barre basse est masquée
+  pendant que le tiroir est ouvert (le `Sheet` passe par-dessus), donc un
+  visiteur dont la barre porte tout (anonyme, ou adhérent sans pouvoir) se
+  retrouvait sans aucune destination à l'écran une fois le tiroir ouvert par
+  le hamburger. `sectionsTiroir` (`AppNav.tsx`) retombe alors sur l'ensemble
+  des sections ; c'est le seul cas de doublon avec la barre, et le seul où
+  « Plus » n'apparaît pas. Le
   pied du tiroir ne ferme plus au clic : `UserMenu` ferme lui-même via
   `onNavigate`, au moment où la navigation a réellement lieu (immédiat pour la
   connexion, après le succès de la mutation pour la déconnexion) — jamais au

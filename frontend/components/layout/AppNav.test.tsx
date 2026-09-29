@@ -1435,49 +1435,69 @@ describe("AppNav — infobulles du rail replié remplacent les title (#482, NAV-
   });
 });
 
-describe("AppNav — barre basse mobile (#482, NAV-4)", () => {
-  it("porte les destinations publiques, avec libellé visible", async () => {
-    // `pages:preview` (#811) : sans lui, « Athlètes par saison » resterait masquée.
-    afficher(habilite("pages:preview"));
+describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
+  const barre = () => screen.getByRole("navigation", { name: "Navigation" });
+  const liens = () => within(barre()).getAllByRole("link").map((a) => a.getAttribute("href"));
 
-    const barre = screen.getByRole("navigation", { name: "Navigation" });
-    expect(within(barre).getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("href", "/dashboard");
-    expect(within(barre).getByRole("link", { name: "Espace club" })).toHaveAttribute("href", "/club");
-    expect(within(barre).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats");
-    await waitFor(() =>
-      expect(within(barre).getByRole("link", { name: "Athlètes par saison" })).toHaveAttribute(
-        "href",
-        "/club/athletes",
-      ),
-    );
+  // #1012 : à 375 px, sept onglets repliaient leurs libellés sur deux lignes.
+  // Au plus quatre destinations visibles pour le profil, dans l'ordre de
+  // `nav.config.ts`, puis « Plus » s'il en reste. Chaque profil est vérifié.
+  it.each([
+    ["anonyme", null, ["/dashboard", "/resultats", "/club"], false],
+    ["membre sans pouvoir", SESSION, ["/dashboard", "/resultats", "/club"], false],
+    ["porteur de pages:preview", habilite("pages:preview"), ["/dashboard", "/resultats", "/carte", "/club"], true],
+    [
+      "administrateur sans pages:preview",
+      habilite("pending_providers:read", "batch:run"),
+      ["/dashboard", "/resultats", "/club"],
+      true,
+    ],
+    [
+      "administrateur complet",
+      habilite("pages:preview", "pending_providers:read", "batch:run", "athletes:volunteer_validate", "jeunes:read"),
+      ["/dashboard", "/resultats", "/carte", "/club"],
+      true,
+    ],
+  ] as const)("profil %s : au plus quatre destinations, puis « Plus » s'il en reste", async (_profil, session, attendus, plus) => {
+    afficher(session);
+
+    await waitFor(() => expect(liens()).toEqual(attendus));
+    if (plus) {
+      await waitFor(() => expect(within(barre()).getByRole("button", { name: "Plus" })).toBeInTheDocument());
+    } else {
+      // Laisse la session se poser : « Plus » n'apparaît pas après coup.
+      await waitFor(() => expect(getSession).toHaveBeenCalled());
+      expect(within(barre()).queryByRole("button", { name: "Plus" })).not.toBeInTheDocument();
+    }
+    expect(liens().length).toBeLessThanOrEqual(4);
   });
 
-  // #487 ouvre « Espace club » : la barre passe de trois onglets à quatre,
-  // soit ~93 px sur un écran de 375 px. « Athlètes par saison » n'y tient
-  // plus. Le libellé **visible** raccourcit ; le nom accessible reste entier,
-  // sans quoi le lecteur d'écran annoncerait « Athlètes » pour deux écrans.
-  it("raccourcit le libellé visible sans toucher au nom accessible", async () => {
+  it("« Plus » ouvre le tiroir, qui porte le reste sans répéter la barre", async () => {
     afficher(habilite("pages:preview"));
+    const plus = await waitFor(() => within(barre()).getByRole("button", { name: "Plus" }));
+    expect(plus).toHaveAttribute("aria-haspopup", "dialog");
+    expect(plus).toHaveAttribute("aria-expanded", "false");
 
-    const barre = screen.getByRole("navigation", { name: "Navigation" });
-    const lien = await waitFor(() =>
-      within(barre).getByRole("link", { name: "Athlètes par saison" }),
-    );
-    expect(lien).toHaveTextContent("Athlètes");
-    expect(lien).not.toHaveTextContent("par saison");
+    await userEvent.click(plus);
 
+    const tiroir = await screen.findByRole("dialog");
+    expect(plus).toHaveAttribute("aria-expanded", "true");
+    expect(within(tiroir).getByRole("link", { name: "Athlètes par saison" })).toHaveAttribute("href", "/club/athletes");
+    expect(within(tiroir).getByRole("link", { name: "Bénévolat" })).toHaveAttribute("href", "/benevolat");
+    expect(within(tiroir).getByRole("link", { name: "Validation des épreuves" })).toHaveAttribute("href", "/benevoles");
+    expect(within(tiroir).queryByRole("link", { name: "Tableau de bord" })).not.toBeInTheDocument();
+    expect(within(tiroir).queryByRole("link", { name: "Espace club" })).not.toBeInTheDocument();
+  });
+
+  // Le libellé **visible** raccourcit ; le nom accessible reste entier.
+  it("affiche « Accueil » pour le tableau de bord, nom accessible intact (#1012)", () => {
+    afficher(null);
+
+    const lien = within(barre()).getByRole("link", { name: "Tableau de bord" });
+    expect(lien).toHaveTextContent("Accueil");
+    expect(lien).not.toHaveTextContent("Tableau de bord");
     // Un libellé déjà court n'est pas dupliqué en configuration.
-    expect(within(barre).getByRole("link", { name: "Résultats" })).toHaveTextContent("Résultats");
-  });
-
-  it("raccourcit « Validation des épreuves », qui tenait sur trois lignes à 375 px (#890)", async () => {
-    // Derrière `pages:preview` depuis #879.
-    afficher(habilite("pages:preview"));
-
-    const barre = screen.getByRole("navigation", { name: "Navigation" });
-    const lien = await waitFor(() => within(barre).getByRole("link", { name: "Validation des épreuves" }));
-    expect(lien).toHaveTextContent("Validation");
-    expect(lien).not.toHaveTextContent("des courses");
+    expect(within(barre()).getByRole("link", { name: "Résultats" })).toHaveTextContent("Résultats");
   });
 
   it("marque la destination courante avec aria-current=\"page\"", () => {
