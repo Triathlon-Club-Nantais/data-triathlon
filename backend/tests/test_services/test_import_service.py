@@ -211,6 +211,43 @@ def test_importing_a_newer_race_updates_the_club(db_session, patch_scraper):
     athlete = athlete_repository.get_by_identity(db_session, "MOBILE", "Max", None)
     assert athlete.club == "TRIATHLON CLUB NANTAIS"
 
+    # Rescraping the older race afterwards must not bring its club back: this
+    # is where import order used to win.
+    patch_scraper([
+        _result(
+            "7", "MOBILE", prenom="Max", club="TRIATHLON ATLANTIQUE CARQUEFOU",
+            source_url=_OLD_URL, event_name="Triathlon d'antan", event_date=date(2024, 5, 4),
+        )
+    ])
+    import_service.import_event(db_session, _OLD_URL, _settings(), force=True)
+
+    assert athlete_repository.get(db_session, athlete.id).club == "TRIATHLON CLUB NANTAIS"
+
+
+def test_manual_entry_compares_the_course_date_like_the_import(db_session, patch_scraper):
+    """#965, review: both paths compare the date of the course the result lands
+    on, not the date the source claims. Here the manual entry is reconciled by
+    rule R onto an older course while claiming a newer date."""
+    from app.services import scrape_service
+
+    patch_scraper([_result("1", "MEME", prenom="Mia", club="TRIATHLON CLUB NANTAIS")])
+    import_service.import_event(db_session, URL, _settings())
+    bc_url = "https://resultats.breizhchrono.com/resultats-courses/tri-ancien-1488071608761-5/tri-m"
+    course_repository.get_or_create(
+        db_session, name="Tri ancien", event_date=date(2024, 5, 4), event_type="triathlon-m",
+        source_url=bc_url, provider="breizhchrono",
+    )
+    db_session.flush()
+
+    scrape_service.save_one(db_session, ScrapedResult(
+        source_url=bc_url, provider="breizhchrono", athlete_name="MEME", athlete_firstname="Mia",
+        bib_number="42", event_name="Autre nom", event_date=date(2026, 10, 1),
+        event_type="triathlon-m", total_time="01:59:00", club="TRIATHLON ATLANTIQUE CARQUEFOU",
+    ))
+
+    athlete = athlete_repository.get_by_identity(db_session, "MEME", "Mia", None)
+    assert athlete.club == "TRIATHLON CLUB NANTAIS"
+
 
 def test_reimport_backfills_empty_gender_but_keeps_known_one(db_session, patch_scraper):
     """#964: batch resolution fills an empty gender from a later import and

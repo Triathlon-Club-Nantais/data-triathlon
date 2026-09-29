@@ -348,7 +348,7 @@ def test_resolve_athlete_reporte_le_drapeau_de_creation(db_session):
         athlete_name="LE BERRE", athlete_firstname="Audrey",
         event_name="Tri", event_type="triathlon-m",
     )
-    _, cree = mapping.resolve_athlete(db_session, scraped)
+    _, cree = mapping.resolve_athlete(db_session, scraped, event_date=scraped.event_date)
     assert cree is True
-    _, cree2 = mapping.resolve_athlete(db_session, scraped)
+    _, cree2 = mapping.resolve_athlete(db_session, scraped, event_date=scraped.event_date)
     assert cree2 is False

@@ -8,6 +8,7 @@ dict `splits` adapté au sport, plutôt que des colonnes figées.
 import logging
 import re
 from dataclasses import dataclass
+from datetime import date
 
 from sqlalchemy.orm import Session
 
@@ -258,8 +259,15 @@ def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) ->
     )
 
 
-def resolve_athlete(db: Session, scraped: ScrapedResult) -> tuple[Athlete, bool]:
-    """Athlète dédoublonné + drapeau « créé » (True = renommage, False = fusion)."""
+def resolve_athlete(
+    db: Session, scraped: ScrapedResult, *, event_date: date | None
+) -> tuple[Athlete, bool]:
+    """Athlète dédoublonné + drapeau « créé » (True = renommage, False = fusion).
+
+    `event_date` est celle de la `Course` où le résultat atterrit, pas celle
+    annoncée par la source : c'est elle que compare la résolution par lot
+    d'`import_service`, et une course rapprochée par la règle R peut en différer (#965).
+    """
     return athlete_repository.resolve(
         db,
         nom=scraped.athlete_name,
@@ -267,13 +275,13 @@ def resolve_athlete(db: Session, scraped: ScrapedResult) -> tuple[Athlete, bool]
         gender=scraped.gender,
         club=scraped.club or None,
         update_existing_club=not scraped.is_pending_validation,
-        event_date=scraped.event_date,
+        event_date=event_date,
     )
 
 
-def get_or_create_athlete(db: Session, scraped: ScrapedResult) -> Athlete:
+def get_or_create_athlete(db: Session, scraped: ScrapedResult, *, event_date: date | None) -> Athlete:
     """Athlète dédoublonné par nom + prénom (+ date de naissance si connue)."""
-    athlete, _ = resolve_athlete(db, scraped)
+    athlete, _ = resolve_athlete(db, scraped, event_date=event_date)
     return athlete
 
 
