@@ -4,10 +4,10 @@ from collections import Counter
 from sqlalchemy.orm import Session
 
 from app.core import season as season_module
-from app.core.club import TCN_CANONICAL_NAME, is_tcn, normalize_club
+from app.core.club import TCN_CANONICAL_NAME, broad_club_key, is_tcn, normalize_club
 from app.repositories import club_alias_repository, course_repository, participation_repository
 from app.scrapers.base import STATUS_FINISHER
-from app.scrapers.utils import strip_accents, to_seconds
+from app.scrapers.utils import to_seconds
 from app.services import split_gap
 
 
@@ -209,12 +209,6 @@ _MAX_CLUBS = 9
 _STATUTS_NON_FINISHERS = {"DNF": "dnf", "DNS": "dns", "DSQ": "dsq"}
 
 
-def _cle_club_large(club: str) -> str:
-    """Clé de regroupement de « Top clubs » : sans accents, sans casse, sans
-    rien d'autre que lettres et chiffres (#1110)."""
-    return "".join(c for c in strip_accents(club).lower() if c.isalnum())
-
-
 def _plus_frequents(compteur: Counter[str], limite: int) -> list[tuple[str, int]]:
     """Les `limite` plus fréquents, à égalité départagés par le libellé.
 
@@ -261,8 +255,9 @@ def course_summary(db: Session, course_id: int) -> dict:
     # fusionner l'affichage des variantes sans alias déclaré : casse et espaces
     # depuis #635 (`_club_filter_targets` les matche déjà au filtre), et depuis
     # #1110 accents, ponctuation et espaces internes (« Côte d'Émeraude »,
-    # « Cote dEmeraude »). Clé propre à cet agrégat : `normalize_club` reste
-    # intacte, `_normalise_sql` étant compilée dans un index fonctionnel.
+    # « Cote dEmeraude »). `broad_club_key` ne remplace pas `normalize_club`,
+    # `_normalise_sql` étant compilée dans un index fonctionnel : le filtre la
+    # résout en graphies présentes sur l'épreuve (#1127).
     variantes_par_cle: dict[str, Counter[str]] = {}
     split_keys: dict[str, None] = {}
     secondes: list[int] = []
@@ -316,7 +311,7 @@ def course_summary(db: Session, course_id: int) -> dict:
                 clubs[TCN_CANONICAL_NAME] += 1
             elif canonique := alias_map.get(normalize_club(club)):
                 clubs[canonique] += 1
-            elif cle := _cle_club_large(club):
+            elif cle := broad_club_key(club):
                 # Clé vide : « - » ou « -- », remplissage d'un club inconnu.
                 variantes_par_cle.setdefault(cle, Counter())[club.strip()] += 1
         if is_tcn(club):

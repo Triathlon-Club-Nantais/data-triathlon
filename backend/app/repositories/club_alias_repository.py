@@ -49,8 +49,8 @@ def delete_entry(db: Session, entry: ClubAlias) -> None:
 def canonical_map(db: Session) -> dict[str, str]:
     """Alias normalisé → nom canonique, **toutes** les entrées d'un coup.
 
-    Seul appelant : `stats_service.course_summary`, qui en a besoin une fois
-    par appel — jamais par ligne (une épreuve porte jusqu'à ~1800
+    Appelants : `stats_service.course_summary` et le filtre `club=` du
+    classement (#1127), qui en ont besoin une fois par appel — jamais par ligne (une épreuve porte jusqu'à ~1800
     participations, #163) — d'où un dict chargé en une requête plutôt qu'un
     lookup répété.
     """

@@ -10,7 +10,7 @@ from app.core import counter_scope
 
 # `_normalise_sql` est module-privé (`core/club.py`) mais réutilisé tel quel —
 # même miroir SQL que `tcn_clause`, single source of truth (cf. plan #635).
-from app.core.club import _normalise_sql, is_tcn, normalize_club, tcn_clause
+from app.core.club import _normalise_sql, broad_club_key, is_tcn, normalize_club, tcn_clause
 from app.core.discipline import federal_clause
 from app.core.season import season_bounds, season_of
 from app.core.validation import validated_clause
@@ -748,7 +748,7 @@ def _ordre_affichage():
     )
 
 
-def _club_filter_targets(db: Session, club: str) -> set[str]:
+def _club_filter_targets(db: Session, club: str, course_id: int) -> set[str]:
     """Les formes normalisées qu'un filtre `club=` doit retenir (#635).
 
     Additif par rapport à l'égalité stricte d'avant #635 : un libellé sans
@@ -757,10 +757,28 @@ def _club_filter_targets(db: Session, club: str) -> set[str]:
     Le TCN reste gouverné par son propre registre
     (`counter_scope.tcn_club_labels`), jamais par `club_alias` : les deux
     mécanismes restent séparés (cf. design #635).
+
+    Depuis #1127, les graphies de l'épreuve qui partagent la clé large de
+    « Top clubs » (`broad_club_key`) s'y ajoutent, sauf celles que la synthèse
+    range ailleurs (TCN, alias déclaré) : le lien d'une ligne rend son total.
+    La clé large n'est pas indexée, d'où sa résolution en verbatims plutôt
+    qu'une expression SQL.
     """
     if is_tcn(club):
         return set(counter_scope.tcn_club_labels())
-    return club_alias_repository.aliases_for_canonical(db, club) | {normalize_club(club)}
+    targets = club_alias_repository.aliases_for_canonical(db, club) | {normalize_club(club)}
+    key = broad_club_key(club)
+    if not key:
+        return targets
+    aliased_labels = club_alias_repository.canonical_map(db)
+    labels = db.scalars(
+        select(Participation.club).where(Participation.course_id == course_id).distinct()
+    )
+    for label in labels:
+        normalized = normalize_club(label)
+        if broad_club_key(label) == key and not is_tcn(label) and normalized not in aliased_labels:
+            targets.add(normalized)
+    return targets
 
 
 def list_page_for_course(
@@ -820,7 +838,7 @@ def list_page_for_course(
     if club_only:
         query = query.filter(tcn_clause(Participation.club))
     if club:
-        query = query.filter(_normalise_sql(Participation.club).in_(_club_filter_targets(db, club)))
+        query = query.filter(_normalise_sql(Participation.club).in_(_club_filter_targets(db, club, course_id)))
     if category:
         query = query.filter(Participation.category == category)
     terme = (q or "").strip()

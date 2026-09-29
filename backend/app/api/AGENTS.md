@@ -126,6 +126,13 @@ Six champs et deux paramètres, tous **additifs**, tous à défaut neutre.
   Additif : un libellé sans alias déclaré retombe sur sa seule forme
   normalisée, donc rien de ce qui matchait avant #635 ne cesse de matcher
   (Principe IV). `category` reste en égalité exacte.
+  **Depuis #1127, `club` suit aussi la clé large de « Top clubs »**
+  (`core.club.broad_club_key`, #1110 : sans accents, casse ni ponctuation) :
+  les graphies **de l'épreuve** qui la partagent sont ajoutées aux formes
+  visées, sauf TCN et alias déclarés, que la synthèse range ailleurs. Le lien
+  d'une ligne de la carte rend donc exactement son effectif. Additif, sans
+  migration : la clé large se résout en verbatims, l'index
+  `ix_participations_club_normalized` reste celui de `_normalise_sql`.
   **`club` n'est pas `scope=club`** : le second porte la
   sémantique TCN arbitrée par `core/club.py` (dépositaire unique, #76), le premier un
   club quelconque. Leur croisement peut être vide par construction, et c'est l'écran
