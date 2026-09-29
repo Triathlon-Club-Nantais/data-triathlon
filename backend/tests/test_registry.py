@@ -2,7 +2,7 @@
 import pytest
 
 from app.scrapers import registry
-from app.scrapers.base import FanoutTrace
+from app.scrapers.base import FanoutTrace, ScrapedResult
 
 
 def test_provider_names_derive_de_la_liste_des_providers(monkeypatch):
@@ -488,15 +488,15 @@ def test_klikego_provider_ignores_query_heat(monkeypatch):
 
     provider = KlikegoProvider()
     url_with_heat = "https://www.klikego.com/resultats/mesquer/1677015306084-12?heat=triathlon-s-indiv"
-    results = provider.scrape_event_all(url_with_heat)
+    results, trace = provider.scrape_event_all(url_with_heat)
 
     assert len(results) == 8, "?heat=… doit être ignoré (fan-out complet)"
-    assert provider.last_trace is not None
-    assert provider.last_trace.heats_enumerated == 8
+    assert trace is not None
+    assert trace.heats_enumerated == 8
 
 
-def test_klikego_provider_stores_last_trace(monkeypatch):
-    """last_trace remonte l'état complet après un appel — enumerated + failures."""
+def test_klikego_provider_returns_its_trace(monkeypatch):
+    """La trace rendue porte l'état complet de l'appel : enumerated + failures."""
     from app.scrapers.base import ScrapedResult
     from app.scrapers.registry import KlikegoProvider
 
@@ -507,15 +507,15 @@ def test_klikego_provider_stores_last_trace(monkeypatch):
     _patch_klikego_fanout(monkeypatch, results_by_heat, failures=["heat-broken"])
 
     provider = KlikegoProvider()
-    provider.scrape_event_all("https://www.klikego.com/resultats/foo/1234-5")
+    _, trace = provider.scrape_event_all("https://www.klikego.com/resultats/foo/1234-5")
 
-    assert provider.last_trace is not None
-    assert provider.last_trace.heats_enumerated == 8  # 7 ok + 1 en échec
-    assert len(provider.last_trace.failures) == 1
-    assert provider.last_trace.failures[0]["heat_slug"] == "heat-broken"
+    assert trace is not None
+    assert trace.heats_enumerated == 8  # 7 ok + 1 en échec
+    assert len(trace.failures) == 1
+    assert trace.failures[0]["heat_slug"] == "heat-broken"
 
 
-def test_klikego_provider_last_trace_resets_between_calls(monkeypatch):
+def test_klikego_provider_returns_a_fresh_trace_per_call(monkeypatch):
     """Deux appels successifs → trace du deuxième, pas cumul."""
     from app.scrapers.base import ScrapedResult
     from app.scrapers.registry import KlikegoProvider
@@ -527,17 +527,17 @@ def test_klikego_provider_last_trace_resets_between_calls(monkeypatch):
         {"heat-a": [ScrapedResult(source_url="ua", provider="klikego")]},
         failures=["heat-broken"],
     )
-    provider.scrape_event_all("https://www.klikego.com/resultats/foo/1")
-    assert provider.last_trace.heats_enumerated == 2
-    assert len(provider.last_trace.failures) == 1
+    _, trace = provider.scrape_event_all("https://www.klikego.com/resultats/foo/1")
+    assert trace.heats_enumerated == 2
+    assert len(trace.failures) == 1
 
     _patch_klikego_fanout(
         monkeypatch,
         {"heat-b": [ScrapedResult(source_url="ub", provider="klikego")]},
     )
-    provider.scrape_event_all("https://www.klikego.com/resultats/foo/2")
-    assert provider.last_trace.heats_enumerated == 1
-    assert provider.last_trace.failures == []
+    _, trace = provider.scrape_event_all("https://www.klikego.com/resultats/foo/2")
+    assert trace.heats_enumerated == 1
+    assert trace.failures == []
 
 
 def test_klikego_provider_forwards_cache_probe(monkeypatch):
@@ -553,13 +553,13 @@ def test_klikego_provider_forwards_cache_probe(monkeypatch):
     provider = KlikegoProvider()
     def probe(url: str) -> bool:  # heat-a cachée
         return "heat-a" in url
-    results = provider.scrape_event_all(
+    results, trace = provider.scrape_event_all(
         "https://www.klikego.com/resultats/foo/1",
         cache_probe=probe,
     )
     assert len(results) == 1  # seul heat-b scrapé
-    assert provider.last_trace.heats_cached == 1
-    assert provider.last_trace.heats_enumerated == 2
+    assert trace.heats_cached == 1
+    assert trace.heats_enumerated == 2
 
 
 # ── targets_single_heat (#698) ───────────────────────────────────────────────
@@ -674,7 +674,7 @@ def test_klikego_single_heat_sur_url_sans_heat_scrape_le_heat_vide(monkeypatch):
     monkeypatch.setattr(klikego, "scrape_event_fanout", fanout_refuse)
 
     provider = KlikegoProvider()
-    results = provider.scrape_event_all(
+    results, trace = provider.scrape_event_all(
         "https://www.klikego.com/resultats/mesquer/1677015306084-12", single_heat=True,
     )
 
@@ -686,7 +686,7 @@ def test_klikego_single_heat_sur_url_sans_heat_scrape_le_heat_vide(monkeypatch):
     assert klikego._heat_source_url("1677015306084-12", "mesquer", "") == (
         "https://www.klikego.com/resultats/mesquer/1677015306084-12?heat="
     )
-    assert provider.last_trace.heats_enumerated == 1
+    assert trace.heats_enumerated == 1
 
 
 def test_klikego_single_heat_relaie_la_progression_de_la_phase_c(monkeypatch):
@@ -778,13 +778,13 @@ def test_breizhchrono_provider_fanouts_when_no_heat_in_url(monkeypatch):
 
     provider = BreizhChronoProvider()
     url = "https://resultats.breizhchrono.com/resultats-courses/tri-mesquer-2026-1677015306084-12"
-    results = provider.scrape_event_all(url)
+    results, trace = provider.scrape_event_all(url)
 
     assert results == ["r1", "r2"]
     assert captured == {
         "event_id": "1677015306084-12", "event_name": "Tri Mesquer 2026", "slug": "tri-mesquer-2026",
     }
-    assert provider.last_trace.heats_enumerated == 2
+    assert trace.heats_enumerated == 2
 
 
 def test_breizhchrono_provider_single_heat_url_uses_classic_scrape(monkeypatch):
@@ -801,11 +801,11 @@ def test_breizhchrono_provider_single_heat_url_uses_classic_scrape(monkeypatch):
 
     provider = BreizhChronoProvider()
     url = "https://resultats.breizhchrono.com/resultats-courses/tri-mesquer-2026-42/triathlon-m"
-    results = provider.scrape_event_all(url)
+    results, trace = provider.scrape_event_all(url)
 
     assert results == ["r1"]
-    assert provider.last_trace.heats_enumerated == 1
-    assert provider.last_trace.failures == []
+    assert trace.heats_enumerated == 1
+    assert trace.failures == []
 
 
 def test_breizhchrono_provider_forwards_cache_probe(monkeypatch):
@@ -823,7 +823,7 @@ def test_breizhchrono_provider_forwards_cache_probe(monkeypatch):
 
     provider = BreizhChronoProvider()
     probe = lambda url: True  # noqa: E731
-    provider.scrape_event_all(
+    _, trace = provider.scrape_event_all(
         "https://resultats.breizhchrono.com/resultats-courses/tri-42", cache_probe=probe,
     )
 
@@ -844,10 +844,10 @@ def test_breizhchrono_provider_single_heat_escape_hatch(monkeypatch):
 
     provider = BreizhChronoProvider()
     url = "https://resultats.breizhchrono.com/bc/resultats/coureur.jsp?ref=42&heat=triathlon-m&dossard=7"
-    results = provider.scrape_event_all(url, single_heat=True)
+    results, trace = provider.scrape_event_all(url, single_heat=True)
 
     assert results == ["r1"]
-    assert provider.last_trace.heats_enumerated == 1
+    assert trace.heats_enumerated == 1
 
 
 def test_breizhchrono_provider_live_fanouts_when_no_heat(monkeypatch):
@@ -865,11 +865,11 @@ def test_breizhchrono_provider_live_fanouts_when_no_heat(monkeypatch):
 
     provider = BreizhChronoProvider()
     url = "https://live.breizhchrono.com/external/live5/index.jsp?reference=1488071608761-688"
-    results = provider.scrape_event_all(url)
+    results, trace = provider.scrape_event_all(url)
 
     assert results == ["r1"]
     assert captured["reference"] == "1488071608761-688"
-    assert provider.last_trace.heats_enumerated == 1
+    assert trace.heats_enumerated == 1
 
 
 def test_breizhchrono_provider_live_heat_uses_classic_scrape(monkeypatch):
@@ -888,13 +888,13 @@ def test_breizhchrono_provider_live_heat_uses_classic_scrape(monkeypatch):
         "https://live.breizhchrono.com/external/live5/classements.jsp"
         "?version=new&reference=1488071608761-688&heat=triathlon-distance-olympique"
     )
-    results = provider.scrape_event_all(url)
+    results, trace = provider.scrape_event_all(url)
 
     assert results == ["r1"]
-    assert provider.last_trace.heats_enumerated == 1
+    assert trace.heats_enumerated == 1
 
 
-def test_breizhchrono_provider_last_trace_resets_between_calls(monkeypatch):
+def test_breizhchrono_provider_returns_a_fresh_trace_per_call(monkeypatch):
     """Deux appels successifs → trace du deuxième, pas cumul (même patron que Klikego)."""
     from app.scrapers import breizhchrono
     from app.scrapers.registry import BreizhChronoProvider
@@ -906,13 +906,63 @@ def test_breizhchrono_provider_last_trace_resets_between_calls(monkeypatch):
         breizhchrono, "scrape_event_fanout",
         lambda *a, **k: ([], FanoutTrace(heats_enumerated=3, failures=[{"heat_slug": "x", "reason": "boom"}])),
     )
-    provider.scrape_event_all(url)
-    assert provider.last_trace.heats_enumerated == 3
-    assert len(provider.last_trace.failures) == 1
+    _, trace = provider.scrape_event_all(url)
+    assert trace.heats_enumerated == 3
+    assert len(trace.failures) == 1
 
     monkeypatch.setattr(
         breizhchrono, "scrape_event_fanout", lambda *a, **k: ([], FanoutTrace(heats_enumerated=1)),
     )
-    provider.scrape_event_all(url)
-    assert provider.last_trace.heats_enumerated == 1
-    assert provider.last_trace.failures == []
+    _, trace = provider.scrape_event_all(url)
+    assert trace.heats_enumerated == 1
+    assert trace.failures == []
+
+
+
+def test_two_concurrent_imports_on_the_same_provider_each_read_their_own_trace(monkeypatch):
+    """#1016 : les providers sont des singletons de process. Avec un attribut
+    `last_trace` partagé, l'import A (`single_heat`, lent) relisait la trace de
+    l'import B (fan-out) démarré pendant son scrape."""
+    import threading
+    import time
+
+    from app.scrapers import raceresult
+    from app.services import import_service
+
+    url_a = "https://my.raceresult.com/1/results?contest=1"
+    url_b = "https://my.raceresult.com/2/results"
+    assert registry.get_provider(url_a) is registry.get_provider(url_b)
+    b_started = threading.Event()
+
+    def _ligne(url):
+        return ScrapedResult(source_url=url, provider="raceresult", event_name="Tri")
+
+    def slow_single(url):
+        b_started.wait(timeout=2)
+        time.sleep(0.1)
+        return [_ligne(url)]
+
+    def fanout(url, *, cache_probe=None, on_heat_start=None):
+        b_started.set()
+        return [_ligne(url)], FanoutTrace(heats_enumerated=5, cached_urls=[url + "-heat"])
+
+    monkeypatch.setattr(raceresult, "scrape_event_all", slow_single)
+    monkeypatch.setattr(raceresult, "scrape_event_fanout", fanout)
+
+    traces = {}
+
+    def run(name, url, single_heat):
+        _results, traces[name] = import_service._scrape_all(
+            url, None, None, single_heat=single_heat, use_cache_probe=False
+        )
+
+    thread_a = threading.Thread(target=run, args=("A", url_a, True))
+    thread_b = threading.Thread(target=run, args=("B", url_b, False))
+    thread_a.start()
+    thread_b.start()
+    thread_a.join()
+    thread_b.join()
+
+    assert traces["A"] == FanoutTrace(heats_enumerated=1)
+    assert traces["B"].heats_enumerated == 5
+    assert traces["B"].cached_urls == [url_b + "-heat"]

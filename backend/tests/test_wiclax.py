@@ -1131,23 +1131,22 @@ def test_scrape_event_fanout_source_url_canonique_par_parcours(monkeypatch):
     assert all("B=" not in url for url in urls)
 
 
-def test_wiclax_provider_expose_last_trace(monkeypatch):
-    """Le `WiclaxProvider` stocke sa `FanoutTrace` — comme `KlikegoProvider`.
+def test_wiclax_provider_returns_its_trace(monkeypatch):
+    """Le `WiclaxProvider` rend sa `FanoutTrace` avec ses résultats, comme `KlikegoProvider`.
 
     `import_service._scrape_all` en dépend pour peupler les 5 compteurs
     remontés par le SSE.
     """
     _stub_fetch_clax(monkeypatch, _clax_multi_parcours())
     provider = registry.WiclaxProvider()
-    assert provider.last_trace is None
 
-    results = provider.scrape_event_all(
+    results, trace = provider.scrape_event_all(
         "https://chronosmetron.wiclax-results.com/E/e.clax",
     )
     assert len(results) == 6
-    assert provider.last_trace is not None
-    assert provider.last_trace.heats_enumerated == 3
-    assert provider.last_trace.failures == []
+    assert trace is not None
+    assert trace.heats_enumerated == 3
+    assert trace.failures == []
 
 
 def test_wiclax_provider_single_heat_bypass_fanout(monkeypatch):
@@ -1159,15 +1158,15 @@ def test_wiclax_provider_single_heat_bypass_fanout(monkeypatch):
     _stub_fetch_clax(monkeypatch, _clax_multi_parcours())
     provider = registry.WiclaxProvider()
 
-    results = provider.scrape_event_all(
+    results, trace = provider.scrape_event_all(
         "https://chronosmetron.wiclax-results.com/E/e.clax",
         single_heat=True,
     )
 
     # Legacy scrape_event_all → 6 résultats bruts (aucun découpage source_url).
     assert len(results) == 6
-    assert provider.last_trace is not None
-    assert provider.last_trace.heats_enumerated == 1
+    assert trace is not None
+    assert trace.heats_enumerated == 1
 
 
 def _clax_multi_parcours_avec_orphelin() -> ET.Element:

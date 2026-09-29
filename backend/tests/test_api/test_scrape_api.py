@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 
-from app.scrapers.base import ScrapedResult
+from app.scrapers.base import FanoutTrace, ScrapedResult
 
 
 def _result(bib, nom):
@@ -229,7 +229,7 @@ def test_import_event(client, monkeypatch):
 
     monkeypatch.setattr(
         import_service, "registry_scrape_event_all",
-        lambda url, **kwargs: [_result("1", "DUPONT"), _result("2", "MARTIN")],
+        lambda url, **kwargs: ([_result("1", "DUPONT"), _result("2", "MARTIN")], FanoutTrace(heats_enumerated=1)),
     )
     resp = client.post("/api/v1/scrape/event", json={"url": "https://www.klikego.com/x"})
     assert resp.status_code == 200
@@ -448,7 +448,7 @@ def test_import_event_expose_updated_counter(client, monkeypatch):
 
     monkeypatch.setattr(
         import_service, "registry_scrape_event_all",
-        lambda url, **kwargs: [_result("1", "DUPONT")],
+        lambda url, **kwargs: ([_result("1", "DUPONT")], FanoutTrace(heats_enumerated=1)),
     )
     resp = client.post("/api/v1/scrape/event", json={"url": "https://www.klikego.com/x"})
     assert resp.status_code == 200
@@ -483,7 +483,7 @@ def test_url_http_valide_toujours_acceptee(client, monkeypatch):
 
     def fake_scrape(url, **kwargs):
         vues.append(url)
-        return [_result("1", "DUPONT")]
+        return [_result("1", "DUPONT")], FanoutTrace(heats_enumerated=1)
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
 

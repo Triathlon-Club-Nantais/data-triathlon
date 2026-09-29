@@ -611,14 +611,13 @@ def _patch_fanout_cache_probe_capture(monkeypatch):
     from app.scrapers import registry
 
     provider = registry.KlikegoProvider()
-    provider.last_trace = FanoutTrace(heats_enumerated=1)
     monkeypatch.setattr(import_service.registry, "get_provider", lambda url: provider)
 
     captured = {}
 
     def fake_scrape(url, *, cache_probe=None, on_heat_start=None, **kwargs):
         captured["cache_probe"] = cache_probe
-        return [_result("1", "DUPONT")]
+        return [_result("1", "DUPONT")], FanoutTrace(heats_enumerated=1)
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
     return captured
@@ -1280,14 +1279,13 @@ def test_scrape_all_streaming_use_cache_probe_false_desarme_la_sonde_par_heat(
     from app.scrapers import registry
 
     provider = registry.KlikegoProvider()
-    provider.last_trace = FanoutTrace(heats_enumerated=1)
     monkeypatch.setattr(import_service.registry, "get_provider", lambda url: provider)
 
     captured = {}
 
     def fake_scrape(url, *, cache_probe=None, on_heat_start=None, **kwargs):
         captured["cache_probe"] = cache_probe
-        return [_result("1", "DUPONT")]
+        return [_result("1", "DUPONT")], FanoutTrace(heats_enumerated=1)
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
 
@@ -1313,7 +1311,6 @@ def test_scrape_all_streaming_cache_probe_utilise_une_session_dediee_au_thread(
     from app.scrapers import registry
 
     provider = registry.KlikegoProvider()
-    provider.last_trace = FanoutTrace(heats_enumerated=1)
     monkeypatch.setattr(import_service.registry, "get_provider", lambda url: provider)
 
     class _FakeThreadSession:
@@ -1336,7 +1333,7 @@ def test_scrape_all_streaming_cache_probe_utilise_une_session_dediee_au_thread(
 
     def fake_scrape(url, *, cache_probe=None, on_heat_start=None, **kwargs):
         captured["cache_probe"] = cache_probe
-        return [_result("1", "DUPONT")]
+        return [_result("1", "DUPONT")], FanoutTrace(heats_enumerated=1)
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
 
@@ -1348,17 +1345,26 @@ def test_scrape_all_streaming_cache_probe_utilise_une_session_dediee_au_thread(
     assert thread_sessions[0].closed, "la Session du thread doit être fermée à la fin du scrape"
 
 
-def _fake_klikego_provider(monkeypatch, enumerated: int, cached: int, failures: list[dict]):
-    """Fait que `registry.get_provider(url)` rend un KlikegoProvider avec last_trace prédéfinie."""
+def _fake_klikego_provider(
+    monkeypatch, enumerated: int, cached: int, failures: list[dict], cached_urls=(),
+):
+    """Fait que `registry.get_provider(url)` rend un KlikegoProvider, et que la
+    doublure de scrape **déjà posée** rende cette trace avec ses résultats."""
     from app.scrapers import registry
 
     provider = registry.KlikegoProvider()
-    provider.last_trace = FanoutTrace(
+    trace = FanoutTrace(
         heats_enumerated=enumerated,
         heats_cached=cached,
         failures=list(failures),
+        cached_urls=list(cached_urls),
     )
     monkeypatch.setattr(import_service.registry, "get_provider", lambda url: provider)
+    scrape = import_service.registry_scrape_event_all
+    monkeypatch.setattr(
+        import_service, "registry_scrape_event_all",
+        lambda url, **kwargs: (scrape(url, **kwargs)[0], trace),
+    )
     return provider
 
 
@@ -1448,12 +1454,10 @@ def test_iter_import_event_done_liste_les_courses_cachees_du_fanout(
         _result("2", "B", event_name="Mesquer", event_type="triathlon-xs",
                 source_url=URL + "?heat=triathlon-xs-indiv"),
     ])
-    cached_trace = FanoutTrace(
-        heats_enumerated=3, heats_cached=2, failures=[],
+    _fake_klikego_provider(
+        monkeypatch, enumerated=3, cached=2, failures=[],
         cached_urls=[URL + "?heat=triathlon-s-indiv", URL + "?heat=swim-run-s-duo"],
     )
-    provider = _fake_klikego_provider(monkeypatch, enumerated=3, cached=2, failures=[])
-    provider.last_trace = cached_trace
 
     phases = list(import_service.iter_import_event(db_session, URL, _settings(), force=True))
     done = phases[-1]
@@ -1483,7 +1487,7 @@ def test_iter_import_event_streame_les_evenements_de_scraping_par_heat(
             on_heat_start("triathlon-s-indiv", "Triathlon S", 1, 3)
             on_heat_start("swim-run-m-duo", "SwimRun M duo", 2, 3)
             on_heat_start("triathlon-xs-indiv", "Triathlon XS", 3, 3)
-        return [_result("1", "DUPONT")]
+        return [_result("1", "DUPONT")], FanoutTrace(heats_enumerated=1)
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
     _fake_klikego_provider(monkeypatch, enumerated=3, cached=0, failures=[])
@@ -1520,7 +1524,7 @@ def test_iter_import_event_streame_la_progression_de_detail_phase_c(
         if on_detail_progress is not None:
             on_detail_progress("triathlon-s-indiv", "Triathlon S", 1, 1, 10, 50)
             on_detail_progress("triathlon-s-indiv", "Triathlon S", 1, 1, 50, 50)
-        return [_result("1", "DUPONT")]
+        return [_result("1", "DUPONT")], FanoutTrace(heats_enumerated=1)
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
     _fake_klikego_provider(monkeypatch, enumerated=1, cached=0, failures=[])
@@ -1550,7 +1554,7 @@ def test_iter_import_event_single_heat_streame_la_progression_de_detail(
         assert kwargs.get("cache_probe") is None, "une sous-unité demandée ne se saute pas"
         on_detail_progress("triathlon-s", "triathlon-s", 1, 1, 10, 40)
         on_detail_progress("triathlon-s", "triathlon-s", 1, 1, 40, 40)
-        return [_result("1", "DUPONT")]
+        return [_result("1", "DUPONT")], FanoutTrace(heats_enumerated=1)
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
     _fake_klikego_provider(monkeypatch, enumerated=1, cached=0, failures=[])
@@ -1582,11 +1586,10 @@ def test_iter_import_event_single_heat_hors_klikego_reste_un_seul_event(
 
     def fake_scrape(url, *, single_heat=False, cache_probe=None, on_heat_start=None):
         captured["single_heat"] = single_heat
-        return [_result("1", "DUPONT")]
+        return [_result("1", "DUPONT")], FanoutTrace(heats_enumerated=1)
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
     provider = registry.WiclaxProvider()
-    provider.last_trace = FanoutTrace(heats_enumerated=1)
     monkeypatch.setattr(import_service.registry, "get_provider", lambda url: provider)
 
     phases = list(
@@ -1615,11 +1618,10 @@ def test_scrape_all_streaming_wiring_on_detail_progress_seulement_pour_klikego(
         # Signature stricte : lèverait un TypeError si on_detail_progress
         # était passé, comme le vrai `FanoutProvider.scrape_event_all`.
         captured["called"] = True
-        return [_result("1", "DUPONT")]
+        return [_result("1", "DUPONT")], FanoutTrace(heats_enumerated=1)
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
     provider = registry.WiclaxProvider()
-    provider.last_trace = FanoutTrace(heats_enumerated=1)
     monkeypatch.setattr(import_service.registry, "get_provider", lambda url: provider)
 
     phases = list(import_service.iter_import_event(db_session, URL, _settings()))
@@ -2476,13 +2478,12 @@ def _patch_fanout_transaction_capture(monkeypatch, db):
     from app.scrapers import registry
 
     provider = registry.KlikegoProvider()
-    provider.last_trace = FanoutTrace(heats_enumerated=1)
     monkeypatch.setattr(import_service.registry, "get_provider", lambda url: provider)
     captured = {}
 
     def fake_scrape(url, **kwargs):
         captured["in_transaction"] = db.in_transaction()
-        return [_result("1", "DUPONT")]
+        return [_result("1", "DUPONT")], FanoutTrace(heats_enumerated=1)
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
     return captured

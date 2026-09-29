@@ -15,7 +15,7 @@ import pytest
 
 from app.api import deps
 from app.core.config import get_settings
-from app.scrapers.base import ScrapedResult
+from app.scrapers.base import FanoutTrace, ScrapedResult
 
 _SCRAPE = "/api/v1/scrape/event"
 _STREAM = "/api/v1/scrape/event/stream"
@@ -30,7 +30,7 @@ def scraper_muet(monkeypatch):
     monkeypatch.setattr(
         import_service,
         "registry_scrape_event_all",
-        lambda url, **kwargs: [
+        lambda url, **kwargs: ([
             ScrapedResult(
                 source_url="http://detail",
                 provider="klikego",
@@ -42,7 +42,7 @@ def scraper_muet(monkeypatch):
                 event_type="triathlon-m",
                 total_time="01:59:00",
             )
-        ],
+        ], FanoutTrace(heats_enumerated=1)),
     )
 
 

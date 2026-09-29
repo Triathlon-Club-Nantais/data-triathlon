@@ -957,18 +957,18 @@ def test_parse_url_racine_reste_une_url_sans_identifiant():
 
 # --- le provider du registre -------------------------------------------------
 
-def test_provider_delegue_au_fanout_et_expose_last_trace(monkeypatch):
-    """`import_service._scrape_all` lit `last_trace` pour peupler les 5 compteurs."""
+def test_provider_delegue_au_fanout_et_rend_sa_trace(monkeypatch):
+    """`import_service._scrape_all` lit la trace rendue pour peupler les 5 compteurs."""
     from app.scrapers import registry
 
     _api(monkeypatch)
     provider = registry.ProLiveSportProvider()
 
-    resultats = provider.scrape_event_all(URL_979)
+    resultats, trace = provider.scrape_event_all(URL_979)
 
     assert len(resultats) == 5
-    assert provider.last_trace is not None
-    assert provider.last_trace.heats_enumerated == 3
+    assert trace is not None
+    assert trace.heats_enumerated == 3
 
 
 def test_provider_transmet_le_cache_probe(monkeypatch):
@@ -978,9 +978,9 @@ def test_provider_transmet_le_cache_probe(monkeypatch):
     fraiche = _sub_source_url("979", "Triathlon M")
     provider = registry.ProLiveSportProvider()
 
-    provider.scrape_event_all(URL_979, cache_probe=lambda u: u == fraiche)
+    _, trace = provider.scrape_event_all(URL_979, cache_probe=lambda u: u == fraiche)
 
-    assert provider.last_trace.heats_cached == 1
+    assert trace.heats_cached == 1
 
 
 def test_provider_single_heat_cible_la_course_de_lurl(monkeypatch):
@@ -989,10 +989,10 @@ def test_provider_single_heat_cible_la_course_de_lurl(monkeypatch):
     _api(monkeypatch)
     provider = registry.ProLiveSportProvider()
 
-    resultats = provider.scrape_event_all(URL_979, single_heat=True)
+    resultats, trace = provider.scrape_event_all(URL_979, single_heat=True)
 
     assert {r.raw_data["race"] for r in resultats} == {"Triathlon M"}
-    assert provider.last_trace.heats_enumerated == 1
+    assert trace.heats_enumerated == 1
 
 
 def test_provider_est_un_fanout_provider_donc_recoit_les_kwargs():

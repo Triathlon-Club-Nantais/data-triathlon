@@ -480,7 +480,7 @@ def test_registry_route_live_vers_moteur_klikego(monkeypatch):
         "?reference=1488071608761-688"
     )
     assert registry.detect_provider(url) == "breizhchrono"
-    out = registry.scrape_event_all(url)
+    out, _trace = registry.scrape_event_all(url)
     assert out == ["sentinel"]
     assert captured == {"reference": "1488071608761-688"}
 
@@ -499,7 +499,7 @@ def test_registry_route_live_insensible_casse(monkeypatch):
     monkeypatch.setattr(breizhchrono, "scrape_live_event_fanout", fake_live_fanout)
 
     url = "https://LIVE.BreizhChrono.com/external/live5/index.jsp?reference=42-7"
-    assert registry.scrape_event_all(url) == ["sentinel"]
+    assert registry.scrape_event_all(url)[0] == ["sentinel"]
     assert captured["reference"] == "42-7"
 
 
@@ -521,7 +521,7 @@ def test_registry_ne_route_pas_un_host_prefixe_vers_le_live(monkeypatch):
         "https://live.breizhchrono.com.evil.tld/external/live5/index.jsp"
         "?reference=1488071608761-688"
     )
-    assert BreizhChronoProvider().scrape_event_all(url) == ["classique"]
+    assert BreizhChronoProvider().scrape_event_all(url)[0] == ["classique"]
 
 
 def test_live_mode_heat_unique_conserve_le_libelle_pour_le_relais(monkeypatch):
@@ -1086,7 +1086,7 @@ def test_a_live_host_coureur_jsp_url_routes_to_the_classic_engine(monkeypatch):
     )
     provider = BreizhChronoProvider()
     assert provider.targets_single_heat(url) is True
-    assert provider.scrape_event_all(url) == ["classique"]
+    assert provider.scrape_event_all(url)[0] == ["classique"]
     assert captured == {"event_id": "1488071608761-921", "heat": "swimrun-court-duo"}
 
 
