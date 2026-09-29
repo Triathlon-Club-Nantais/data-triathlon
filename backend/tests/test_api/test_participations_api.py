@@ -428,3 +428,23 @@ def test_raw_data_envoye_est_ignore_et_jamais_persiste(client, db_session):
 
     assert resp.status_code == 201
     assert db_session.query(Participation).one().raw_data in (None, {})
+
+
+
+@pytest.mark.parametrize(
+    "temps, accepte",
+    [
+        ("", True), ("0:00:00", True), ("1:05:30", True), ("01:05:30", True),
+        ("100:00:00", True), (" 1:05:30 ", True),
+        ("05:30", False), ("1:5:30", False), ("1:05:3", False), ("1:05:30.5", False),
+        ("1:60:00", False), ("1:05:60", False), ("1000:00:00", False), ("1h05", False),
+    ],
+)
+def test_le_format_de_temps_accepte_est_exactement_celui_documente(client, temps, accepte):
+    """Formats consignés dans `backend/app/api/AGENTS.md` (#1019), miroir du formulaire."""
+    payload = _payload()
+    payload["total_time"] = temps
+
+    statut = client.post("/api/v1/participations", json=payload).status_code
+
+    assert statut == (201 if accepte else 422)

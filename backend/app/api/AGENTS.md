@@ -314,6 +314,16 @@ et rend désormais un `422` :
 - un temps (`total_time`, les cinq segments nommés, les temps de `segments`)
   qui n'est ni vide ni au format `H:MM:SS`.
 
+**Format de temps accepté, exactement** (motif `^(\d{1,3}:[0-5]\d:[0-5]\d)?$`,
+après retrait des blancs de bord) : la chaîne vide, ou des heures sur 1 à 3
+chiffres, puis minutes et secondes sur **deux** chiffres chacune, de 00 à 59.
+Acceptés : `0:00:00`, `1:05:30`, `01:05:30`, `100:00:00`. Refusés : `05:30`
+(sans heures), `1:5:30`, `1:05:3`, `1:05:30.5` (fraction), `1:60:00`,
+`1:05:60`, `1000:00:00`, `1h05`. Le formulaire de saisie manuelle valide le même
+format côté client, avec son message en français : les deux règles doivent
+bouger ensemble (`test_le_format_de_temps_accepte_est_exactement_celui_documente`
+fige celle-ci).
+
 `raw_data` **n'est plus lu** : envoyé, il est ignoré (Pydantic ignore les
 champs inconnus), jamais rejeté ni persisté. Le formulaire ne l'envoyait pas,
 et sa taille n'était pas bornée alors que `public_write_rate_limit` suppose
