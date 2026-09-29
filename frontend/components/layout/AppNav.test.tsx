@@ -1443,13 +1443,13 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
   // Au plus quatre destinations visibles pour le profil, dans l'ordre de
   // `nav.config.ts`, puis « Plus » s'il en reste. Chaque profil est vérifié.
   it.each([
-    ["anonyme", null, ["/dashboard", "/resultats", "/club"], false],
-    ["membre sans pouvoir", SESSION, ["/dashboard", "/resultats", "/club"], false],
+    ["anonyme", null, ["/dashboard", "/resultats", "/club", "/benevoles"], false],
+    ["membre sans pouvoir", SESSION, ["/dashboard", "/resultats", "/club", "/benevoles"], false],
     ["porteur de pages:preview", habilite("pages:preview"), ["/dashboard", "/resultats", "/carte", "/club"], true],
     [
       "administrateur sans pages:preview",
       habilite("pending_providers:read", "batch:run"),
-      ["/dashboard", "/resultats", "/club"],
+      ["/dashboard", "/resultats", "/club", "/benevoles"],
       true,
     ],
     [
@@ -1490,6 +1490,14 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
   });
 
   // Le libellé **visible** raccourcit ; le nom accessible reste entier.
+  it("raccourcit « Validation des épreuves », qui tenait sur trois lignes à 375 px (#890)", () => {
+    afficher(null);
+
+    const lien = within(barre()).getByRole("link", { name: "Validation des épreuves" });
+    expect(lien).toHaveTextContent("Validation");
+    expect(lien).not.toHaveTextContent("des épreuves");
+  });
+
   it("affiche « Accueil » pour le tableau de bord, nom accessible intact (#1012)", () => {
     afficher(null);
 

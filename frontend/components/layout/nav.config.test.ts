@@ -83,18 +83,20 @@ describe("nav.config — pages en avant-première (#811)", () => {
 describe("nav.config — écrans bénévolat derrière pages:preview (#879)", () => {
   const entree = (id: string) => NAV.flatMap((s) => s.items).find((i) => i.id === id)!;
 
-  it.each([
-    ["benevolat", "/benevolat"],
-    ["benevoles", "/benevoles"],
-  ])("masque « %s » (%s) sans pages:preview, anonyme ou connecté", (id, href) => {
-    expect(entree(id).href).toBe(href);
-    expect(estVisible(entree(id), new Set(), ROLE.ANON)).toBe(false);
-    expect(estVisible(entree(id), new Set(["courses:write"]), ROLE.CONNECTED)).toBe(false);
-    expect(estVisible(entree(id), new Set(["pages:preview"]), ROLE.CONNECTED)).toBe(true);
+  it("masque « Bénévolat » (/benevolat) sans pages:preview, anonyme ou connecté", () => {
+    const item = entree("benevolat");
+    expect(item.href).toBe("/benevolat");
+    expect(estVisible(item, new Set(), ROLE.ANON)).toBe(false);
+    expect(estVisible(item, new Set(["courses:write"]), ROLE.CONNECTED)).toBe(false);
+    expect(estVisible(item, new Set(["pages:preview"]), ROLE.CONNECTED)).toBe(true);
   });
 
-  it("garde « Validation des épreuves » comme libellé de /benevoles (#882)", () => {
-    expect(entree("benevoles").label).toBe("Validation des épreuves");
+  // « Précision (29/09) » : la validation bénévole (#271) reste hors du masque.
+  it("laisse « Validation des épreuves » (/benevoles) visible sans pouvoir (#882)", () => {
+    const item = entree("benevoles");
+    expect(item.label).toBe("Validation des épreuves");
+    expect(item.href).toBe("/benevoles");
+    expect(estVisible(item, new Set(), ROLE.ANON)).toBe(true);
   });
 
   it("exige pages:preview **et** le pouvoir de validation pour l'écran d'admin", () => {

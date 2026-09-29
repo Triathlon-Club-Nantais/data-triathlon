@@ -272,12 +272,14 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   donc une entrée à cet échelon est invisible pour tout le monde. La finesse
   au-delà passe par `permission`, un code de `core/permissions.py` confronté à
   `session.permissions` (#115). Un écran livré mais retiré du grand public porte
-  `preview: true` (#879, le bénévolat : `/benevolat`, `/benevoles`,
-  `/admin/benevolat`) : il exige `pages:preview` **en plus** de son
+  `preview: true` (#879, les déclarations de crédit bénévole : `/benevolat`
+  et `/admin/benevolat`) : il exige `pages:preview` **en plus** de son
   `permission`, une liste de `permission` se lisant en OU, et sa route rend
   `PreviewRefusal` à qui ne le porte pas (même idiome que `/club/athletes`,
-  jamais de redirection). La Carte, elle, reste `soon` : sa route répond à
-  tous. Une section que le filtrage vide disparaît. Rien
+  jamais de redirection). Masque d'interface seulement : les routes de l'API
+  gardent leurs propres gardes. `/benevoles` (« Validation des épreuves »,
+  #271) n'est **pas** concerné et reste ouvert au seul mot de passe bénévoles
+  (`AccessGate`). La Carte, elle, reste `soon` : sa route répond à tous. Une section que le filtrage vide disparaît. Rien
   de tout cela ne garde une donnée : chaque ressource de l'API porte sa propre
   garde, et le rail ne fait qu'éviter d'annoncer un écran qui rendrait 403.
   **Un seul composant `Entree` rend une destination dans les deux états du
