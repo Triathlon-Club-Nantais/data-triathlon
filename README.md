@@ -359,6 +359,7 @@ le plan. Quelle voie choisir, et quand se passer de plan : voir
 ## Licence
 
 Copyright (C) 2026 Triathlon Club Nantais. Ce projet est distribué sous la
-licence **GNU Affero General Public License v3.0** (AGPL-3.0-only), dont le texte
-complet est dans [`LICENSE`](LICENSE). Toute version modifiée mise à disposition
+licence **GNU Affero General Public License**, version 3 ou (à votre choix)
+toute version ultérieure (AGPL-3.0-or-later), dont le texte complet est dans
+[`LICENSE`](LICENSE). Toute version modifiée mise à disposition
 d'utilisateurs à travers un réseau doit en publier le code source (article 13).

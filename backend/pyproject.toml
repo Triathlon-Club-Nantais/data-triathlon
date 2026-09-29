@@ -2,7 +2,7 @@
 name = "data-triathlon-backend"
 version = "0.1.0"
 description = "API FastAPI des résultats de compétition du Triathlon Club Nantais"
-license = "AGPL-3.0-only"
+license = "AGPL-3.0-or-later"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi[standard]>=0.141.1",
