@@ -208,7 +208,7 @@ ce qui **survit** : l'épreuve `{id}` garde son identité, son classement et sa
 source active. Rend les mêmes chiffres que l'aperçu annonçait, plus la liste des
 sources de la cible dans la forme de `GET /courses/{id}/sources` (#284).
 
-Six choses à ne pas défaire :
+Sept choses à ne pas défaire :
 
 - **La fusion ne re-scrape rien**, et c'est la décision qui la définit. La cible
   garde ses participations ; l'absorbée disparaît avec les siennes, et son URL la
@@ -237,6 +237,17 @@ Six choses à ne pas défaire :
   exactement ce qui rend la fusion non destructrice. L'activer ferait scraper l'URL
   de l'absorbée au prochain `rescrape-db`, qui recréerait l'épreuve supprimée sous
   sa propre identité.
+- **Une URL partagée est re-scrapée quand même, et l'identité absorbée est
+  retenue pour cela** (#983). La source passive ne protège que l'URL propre à
+  l'absorbée : quand ses épreuves sœurs portent la même URL en active (manches
+  Breizh Chrono, variantes individuel/relais wiclax ou timepulse), le cron la
+  re-scrape pour elles et republie la ligne de l'absorbée. La fusion retient donc
+  son identité (URL, nom, date, type, relais) dans `absorbed_courses`, et
+  `mapping.get_or_create_course` redirige vers la cible toute ligne scrapée qui
+  la porte, au lieu de recréer l'épreuve. Ces lignes sont alors traitées comme
+  celles d'une source passive (#283) : fusion prudente par dossard, un dossard
+  inconnu de la cible y entre. Une seconde fusion qui absorbe la cible reporte
+  ces identités sur la nouvelle survivante ; supprimer la cible les oublie.
 - **Le repointage passe par la relation, et précède le `delete`.** `move_to` écrit
   `source.course = target`, seule écriture qui retire aussi la ligne de
   `absorbed.sources` : sans elle le `delete-orphan` de la collection supprimerait

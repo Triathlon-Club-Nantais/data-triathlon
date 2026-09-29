@@ -9,6 +9,7 @@ from app.core.club import tcn_clause
 from app.core.text import deaccent
 from app.core.time import utcnow
 from app.core.validation import validated_clause
+from app.models.absorbed_course import AbsorbedCourse
 from app.models.course import Course
 from app.models.course_source import CourseSource
 from app.repositories import ignored_course_duplicate_repository
@@ -435,6 +436,8 @@ def delete_all(db: Session) -> int:
     db.query(ParticipationTeammate).delete(synchronize_session=False)
     db.query(Participation).delete(synchronize_session=False)
     db.query(CourseSource).delete(synchronize_session=False)
+    # Sans `ondelete` vers `courses.id` non plus (#983).
+    db.query(AbsorbedCourse).delete(synchronize_session=False)
     ignored_course_duplicate_repository.delete_all(db)
     efface = db.query(Course).delete(synchronize_session=False)
     db.flush()

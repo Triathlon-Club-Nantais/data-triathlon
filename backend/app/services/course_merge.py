@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import DomainError, NotFoundError
 from app.models.course import Course
 from app.repositories import (
+    absorbed_course_repository,
     admin_action_log_repository,
     athlete_repository,
     course_repository,
@@ -180,6 +181,11 @@ def merge_courses(db: Session, *, course_id: int, absorbed_id: int, user_id: int
     )
     candidats = athlete_repository.only_on_course(db, absorbed.id)
 
+    # L'URL de l'absorbée peut rester active sur ses sœurs, qui la re-scrapent
+    # (#983) : son identité est retenue pour que ses lignes rejoignent la cible
+    # au lieu de la recréer. Avant `move_to`, qui lui retire son URL active.
+    absorbed_course_repository.record(db, absorbed=absorbed, target=target)
+    absorbed_course_repository.repoint(db, source=absorbed, target=target)
     if a_deplacer is not None:
         course_source_repository.move_to(db, source=a_deplacer, course=target)
     course_repository.delete(db, absorbed)

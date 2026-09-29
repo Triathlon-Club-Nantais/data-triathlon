@@ -61,6 +61,14 @@
   `NOT EXISTS` corrélé sur toute la table, recalculé par roster, composition,
   recherche et totaux — à mesurer (`EXPLAIN`) sur la base PostgreSQL si ces
   écrans ralentissent.
+- **AbsorbedCourse** (#983) — l'identité publiée (URL, nom, date, type, relais)
+  d'une épreuve supprimée par une fusion, et sa cible. `mapping.get_or_create_course`
+  y redirige une ligne scrapée qui la porte, sans quoi le rescrape d'une URL
+  partagée par des épreuves sœurs recréait l'absorbée. Suit sa cible :
+  `Course.absorbed` en `delete-orphan`, et une seconde fusion qui absorbe la
+  cible la repointe (`absorbed_course_repository.repoint`, par la relation et
+  avant le `delete`, comme `move_to`). `course_repository.delete_all` la vide
+  avant `courses`.
 - **IgnoredCourseDuplicate** (#754) — `UNIQUE(course_id_low, course_id_high)`,
   la paire normalisée (le plus petit id en premier). **Seule table à référencer
   `courses.id` sans cascade ORM ni `ondelete`** : contrairement à `CourseSource`
