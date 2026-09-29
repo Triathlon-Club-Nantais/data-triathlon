@@ -31,8 +31,9 @@ keep-warm ne réveille qu'un service **non suspendu** : il évite le sommeil
 d'inactivité du plan gratuit, pas la suspension volontaire. Déplacer la veille
 et le réveil sur l'ordonnanceur Azure est #1010, à écrire **dans ce dossier**.
 
-**FinOps.** Plan Consumption : environ 100 exécutions par jour, très en dessous
-du million d'exécutions gratuites par mois. La facture doit rester proche de
+**FinOps.** Plan **Flex Consumption** (Linux, France Central, Function App
+`coldstart-curl`) : environ 100 exécutions par jour, très en dessous de l'octroi
+gratuit mensuel. La facture doit rester proche de
 zéro (`docs/infra-azure.md`) ; un plan Premium ou un Always On n'est pas une
 option.
 
@@ -41,8 +42,12 @@ option.
 | Nom | Rôle |
 |---|---|
 | `CRON_SECRET` | Même valeur que la variable `CRON_SECRET` des deux projets Vercel (`docs/ci-cd.md`). |
-| `FUNCTIONS_WORKER_RUNTIME` | `powershell` (posé à la création). |
 | `AzureWebJobsStorage` | Compte de stockage de la Function (posé à la création). |
+| `DEPLOYMENT_STORAGE_CONNECTION_STRING` | Conteneur où Flex Consumption dépose le paquet déployé (posé à la création). |
+| `APPLICATIONINSIGHTS_CONNECTION_STRING` | Journaux et *Invocations* (posé à la création). |
+
+En Flex Consumption, le runtime (PowerShell) se règle dans la configuration de
+la Function App, pas par `FUNCTIONS_WORKER_RUNTIME`.
 
 Aucune valeur secrète dans ce dépôt : `local.settings.json` est ignoré
 (`.gitignore` du dossier).

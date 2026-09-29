@@ -39,7 +39,7 @@ adoptée. Une issue qui touche à l'infra ou à Azure rappelle cette contrainte.
 Une seule base applicative sur ce serveur (`postgres`) — les trois autres
 (`azure_maintenance`, `azure_sys`) sont gérées par la plateforme.
 
-**Une Azure Function** (plan Consumption) porte le cron « keep-warm » : toutes
+**Une Azure Function** (plan Flex Consumption) porte le cron « keep-warm » : toutes
 les 10 minutes de 7 h à 23 h UTC, elle appelle `GET /api/cron/keep-warm` sur les
 fronts Vercel de production et de preview, qui pingent à leur tour
 `/api/v1/health` du backend Render. Son code vit dans
