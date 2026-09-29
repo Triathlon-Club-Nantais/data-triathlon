@@ -91,6 +91,17 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     donc « cette page », et l'épreuve supprimée en cause probable et non
     affirmée. Ses sorties évitent `/carte`, masquée du rail (#10, #28) — à
     rouvrir quand ces deux-là lèvent le masque.
+  - **Une fiche absente répond 200, pas 404, et c'est assumé** (#1064).
+    `athletes/[id]`, `courses/[id]` et `courses/[id]/participations/[participationId]`
+    portent chacune un `loading.tsx` : le 200 part avec le squelette, avant que
+    la page n'appelle `notFound()`, et Next ne peut plus le changer (guide
+    `streaming.md`, § « The HTTP contract »). Il injecte à la place
+    `<meta name="robots" content="noindex">` dans le HTML streamé, ce qui suffit
+    contre l'indexation. Un vrai 404 exigerait d'attendre la ressource dans un
+    `layout.tsx` de segment, donc de perdre le squelette pendant l'appel lent :
+    arbitré contre. `app/not-found-streamed.test.ts` fixe le contrat (frontière
+    présente, injection de Next toujours là) ; une sonde ou un vérificateur de
+    liens doit donc lire le `noindex`, pas le statut.
 
   Ce que ces trois écrans ne couvrent pas : la coquille 500 statique de Next
   (`_global-error.html`), qui reste son texte anglais sans `lang`, et un rendu
