@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 
 // process.env est figé à l'import de VersionFooter (Next.js le remplace au
 // build). On stubbe donc l'env AVANT `import()` du module — sinon la constante
@@ -13,6 +13,8 @@ vi.mock("@/lib/api/client", () => ({
     getVersion: () => getVersion(),
   },
 }));
+
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }) }));
 
 import { VersionFooter } from "./VersionFooter";
 
@@ -57,5 +59,20 @@ describe("VersionFooter (#134)", () => {
       expect(screen.getByText(/back \?/)).toBeInTheDocument(),
     );
     expect(screen.getByText("v0.1.3")).toBeInTheDocument();
+  });
+
+  // #1057 : visible de tous, connectés ou non, quel que soit l'état des versions.
+  it.each([
+    ["alignées", () => getVersion.mockResolvedValue({ version: "v0.1.3" })],
+    ["divergentes", () => getVersion.mockResolvedValue({ version: "v0.1.2" })],
+    ["back injoignable", () => getVersion.mockRejectedValue(new Error("network"))],
+  ])("porte le geste « Oublier le code d'accès » (versions %s)", async (_cas, preparer) => {
+    preparer();
+    render(<VersionFooter />);
+    await waitFor(() => expect(getVersion).toHaveBeenCalled());
+    const pied = screen.getByRole("contentinfo");
+    expect(
+      await within(pied).findByRole("button", { name: "Oublier le code d'accès sur cet appareil" }),
+    ).toBeInTheDocument();
   });
 });
