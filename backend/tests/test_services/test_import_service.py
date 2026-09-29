@@ -2,6 +2,7 @@ from collections import Counter
 from datetime import date, timedelta
 from types import SimpleNamespace
 
+import psycopg.errors
 import pytest
 from sqlalchemy import event
 from sqlalchemy.exc import OperationalError
@@ -971,7 +972,7 @@ def test_iter_import_event_deadlock_est_rejoue(db_session, patch_scraper, monkey
         appels.append(1)
         if len(appels) == 1:
             raise OperationalError(
-                "UPDATE athletes ...", {}, SimpleNamespace(pgcode="40P01")
+                "UPDATE athletes ...", {}, psycopg.errors.DeadlockDetected("deadlock detected")
             )
         original_commit()
 
@@ -997,7 +998,7 @@ def test_iter_import_event_deadlock_persistant_reste_une_erreur(
 
     def _commit_deadlock_toujours():
         appels.append(1)
-        raise OperationalError("UPDATE athletes ...", {}, SimpleNamespace(pgcode="40P01"))
+        raise OperationalError("UPDATE athletes ...", {}, psycopg.errors.DeadlockDetected("deadlock detected"))
 
     monkeypatch.setattr(db_session, "commit", _commit_deadlock_toujours)
 
@@ -1019,7 +1020,7 @@ def test_iter_import_event_erreur_non_deadlock_n_est_pas_rejouee(
     def _commit_erreur_non_deadlock():
         appels.append(1)
         raise OperationalError(
-            "UPDATE athletes ...", {}, SimpleNamespace(pgcode="23505")
+            "UPDATE athletes ...", {}, psycopg.errors.UniqueViolation("duplicate key")
         )
 
     monkeypatch.setattr(db_session, "commit", _commit_erreur_non_deadlock)

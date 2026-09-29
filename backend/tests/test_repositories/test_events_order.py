@@ -5,9 +5,9 @@ test de la suite : celle-ci tourne sur SQLite, où `_is_postgres(db)` est faux.
 C'est précisément pourquoi le bug — la similarité court-circuitait `sort`, et
 aucun tri n'avait de clé de départage unique — a vécu sans être vu.
 
-La technique : une `Session` liée à un moteur `postgresql+psycopg2` jamais
+La technique : une `Session` liée à un moteur `postgresql+psycopg` jamais
 connecté. `ORDER BY` se compile sans exécuter la requête, donc sans jamais
-ouvrir de socket — `psycopg2-binary` est une dépendance déjà présente, mais
+ouvrir de socket — `psycopg` est une dépendance déjà présente, mais
 aucun serveur PostgreSQL n'est requis pour ce test.
 """
 import os
@@ -24,7 +24,7 @@ _SORTS = ["date_desc", "date_asc", "name", "imported_desc"]
 @pytest.fixture
 def pg_session():
     """Session PostgreSQL non connectée — compiler suffit, ne jamais exécuter."""
-    engine = create_engine("postgresql+psycopg2://u:p@localhost/x")
+    engine = create_engine("postgresql+psycopg://u:p@localhost/x")
     session = Session(bind=engine)
     try:
         yield session

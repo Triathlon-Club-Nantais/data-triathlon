@@ -24,6 +24,17 @@ class Settings(BaseSettings):
     # elle porte le mot de passe PostgreSQL (#912).
     database_url: str = Field(default="sqlite:///./triathlon.db", repr=False)
 
+    @field_validator("database_url")
+    @classmethod
+    def _pin_postgres_driver(cls, value: str) -> str:
+        # Supabase et certains PaaS exposent `postgres://`, et le pilote implicite
+        # de `postgresql://` dépend de la version de SQLAlchemy (psycopg2 en 2.0,
+        # psycopg en 2.1) : on fixe celui qui est installé (#1136).
+        scheme, sep, rest = value.partition("://")
+        if sep and scheme in {"postgres", "postgresql", "postgresql+psycopg2"}:
+            return f"postgresql+psycopg://{rest}"
+        return value
+
     # ── Dimensionnement du pool de connexions (#585) ───────────────────────────
     # Plafond réel relevé : `tcndatabdd` (Azure PostgreSQL Flexible Server,
     # docs/infra-azure.md) tourne en SKU Burstable **Standard_B1ms**, dont Azure
@@ -253,8 +264,4 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     """Instance unique (mise en cache) des réglages."""
-    settings = Settings()
-    # Supabase (et certains PaaS) exposent postgres:// — SQLAlchemy veut postgresql://
-    if settings.database_url.startswith("postgres://"):
-        settings.database_url = settings.database_url.replace("postgres://", "postgresql://", 1)
-    return settings
+    return Settings()
