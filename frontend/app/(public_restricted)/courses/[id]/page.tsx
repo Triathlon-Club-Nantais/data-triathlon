@@ -11,6 +11,7 @@ import { ReliabilityMark, SplitCoverageNote } from "@/components/results/Reliabi
 import { CourseSourcesPanel } from "@/components/courses/CourseSourcesPanel";
 import { ClubBreakdown } from "@/components/courses/ClubBreakdown";
 import { eventTypeLabel } from "@/lib/constants";
+import { participationStatusLabel } from "@/lib/labels";
 import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
@@ -157,10 +158,10 @@ export default async function CoursePage({
           <MetaPill label="Format">{formatToken(course.event_type, course.distance_km)}</MetaPill>
           {course.event_date && <MetaPill label="Date">{formatDate(course.event_date)}</MetaPill>}
           <MetaPill label="Participants">{total}</MetaPill>
-          <MetaPill label="Arrivants">{finishers}</MetaPill>
-          {dnf > 0 && <MetaPill label="Abandons">{dnf}</MetaPill>}
-          {dns > 0 && <MetaPill label="Non-partants">{dns}</MetaPill>}
-          {dsq > 0 && <MetaPill label="Disqualifiés">{dsq}</MetaPill>}
+          <MetaPill label={participationStatusLabel("finisher", { form: "many" })}>{finishers}</MetaPill>
+          {dnf > 0 && <MetaPill label={participationStatusLabel("DNF", { form: "many" })}>{dnf}</MetaPill>}
+          {dns > 0 && <MetaPill label={participationStatusLabel("DNS", { form: "many" })}>{dns}</MetaPill>}
+          {dsq > 0 && <MetaPill label={participationStatusLabel("DSQ", { form: "many" })}>{dsq}</MetaPill>}
           {unknown > 0 && <MetaPill label="Indéterminés">{unknown}</MetaPill>}
           {tcnCount > 0 && <MetaPill accent dot>{tcnCount} athlète{tcnCount > 1 ? "s" : ""} TCN</MetaPill>}
           <ReliabilityMark isReliable={course.is_reliable} issues={course.quality_issues} />

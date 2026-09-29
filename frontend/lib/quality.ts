@@ -2,6 +2,7 @@ import { plural } from "@/lib/utils/format";
 
 // Libellés utilisateur des anomalies de fiabilité d'une course.
 // Codes canoniques : voir backend/app/services/quality.py — miroir strict.
+import { participationStatusLabel } from "@/lib/labels";
 
 /**
  * Rend `quality_issues` (dict {code: count}) en phrases françaises lisibles.
@@ -50,7 +51,7 @@ export const QUALITY_ISSUE_LABELS: Record<string, string> = {
   duplicate_bib: "Dossards en doublon",
   rank_gap: "Trous dans le classement",
   duplicate_rank: "Rangs partagés",
-  finisher_without_time: "Arrivants sans temps",
+  finisher_without_time: `${participationStatusLabel("finisher", { form: "many" })} sans temps`,
   unknown_status: "Statuts hors nomenclature",
   no_participation: "Épreuve importée sans aucun résultat",
   no_finisher: "Épreuve sans arrivant",
