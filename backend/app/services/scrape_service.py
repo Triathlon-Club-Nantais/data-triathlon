@@ -27,7 +27,7 @@ def save_one(db: Session, scraped: ScrapedResult, event_url: str = "") -> Partic
             f"Ce résultat existe déjà (dossard {scraped.bib_number} — "
             f"{scraped.event_name} / {scraped.event_type})."
         )
-    athlete = mapping.get_or_create_athlete(db, scraped)
+    athlete = mapping.get_or_create_athlete(db, scraped, event_date=course.event_date)
     participation = participation_repository.create(
         db, **mapping.participation_fields(scraped, athlete_id=athlete.id, course_id=course.id)
     )
