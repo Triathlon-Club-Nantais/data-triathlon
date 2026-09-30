@@ -149,7 +149,7 @@ Six champs et deux paramètres, tous **additifs**, tous à défaut neutre.
   elle-même vit dans `app/services/split_gap.py` et **nulle part ailleurs** — le front en a
   besoin par ligne, la synthèse pour la médiane, et deux implémentations divergeraient
   comme les trois listes du critère club de #76. Son **gabarit de segments dérive de
-  `services/mapping._SPLIT_KEYS_BY_SPORT`**, la table qui pose les clés de `splits` : en
+  `services/mapping.SPLIT_KEYS_BY_SPORT`**, la table qui pose les clés de `splits` : en
   tenir une copie, c'est garantir la divergence, et le premier jet de ce module l'a
   démontré — sa copie valait `bike/run` pour un bike-run là où le gabarit réel pose
   `segment1/bike/run`, d'où un tiers du parcours ignoré et un écart fabriqué. Le point de

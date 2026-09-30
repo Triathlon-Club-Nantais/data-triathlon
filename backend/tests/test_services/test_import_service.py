@@ -568,7 +568,7 @@ def test_a_dispatcher_returning_the_old_list_shape_is_not_reported_as_unsupporte
 
     with pytest.raises(ValueError) as raised:
         if streaming:
-            list(import_service._scrape_all_streaming(URL, db_session, _settings(), use_cache_probe=False))
+            list(import_service.scrape_all_streaming(URL, db_session, _settings(), use_cache_probe=False))
         else:
             import_service._scrape_all(URL, db_session, _settings(), use_cache_probe=False)
 
@@ -1346,7 +1346,7 @@ def test_scrape_all_streaming_use_cache_probe_false_desarme_la_sonde_par_heat(
 ):
     """#118 (R2) — `use_cache_probe=False` doit atteindre le chemin **streamé**.
 
-    `_scrape_all` a déjà ce paramètre (#285) ; `_scrape_all_streaming` ne
+    `_scrape_all` a déjà ce paramètre (#285) ; `scrape_all_streaming` ne
     l'exposait pas encore. Sans lui, un re-scrape demandé sur une épreuve
     fan-out fraîchement importée sauterait tous ses heats jugés frais — le
     classement resterait inchangé malgré la demande explicite.
@@ -1364,7 +1364,7 @@ def test_scrape_all_streaming_use_cache_probe_false_desarme_la_sonde_par_heat(
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
 
-    gen = import_service._scrape_all_streaming(
+    gen = import_service.scrape_all_streaming(
         URL, db_session, _settings(), use_cache_probe=False
     )
     list(gen)  # draine les yields intermédiaires, ignore (results, trace)
@@ -1412,7 +1412,7 @@ def test_scrape_all_streaming_cache_probe_utilise_une_session_dediee_au_thread(
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
 
-    gen = import_service._scrape_all_streaming(URL, db_session, _settings())
+    gen = import_service.scrape_all_streaming(URL, db_session, _settings())
     list(gen)  # draine les yields intermédiaires, ignore (results, trace)
 
     assert captured["cache_probe"] is not None

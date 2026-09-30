@@ -525,7 +525,7 @@ def test_appliquer_splits_triathlon():
 
 def test_appliquer_splits_duathlon_par_libelle_et_non_par_position():
     """« CàP 1 » va au slot natation, « CàP 2 » au slot course : c'est ce qu'attend
-    `_SPLIT_KEYS_BY_SPORT`, qui les ré-étiquette en course1/course2."""
+    `SPLIT_KEYS_BY_SPORT`, qui les ré-étiquette en course1/course2."""
     r = ScrapedResult(source_url=URL_EDITION, provider="t2area")
 
     t2area._appliquer_splits(r, t2area._parse_fiche(FICHE_DUATHLON))

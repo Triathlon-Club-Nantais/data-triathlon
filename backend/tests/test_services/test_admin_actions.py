@@ -823,7 +823,7 @@ def test_rescrape_termine_et_commite_malgre_un_client_qui_arrete_de_lire(
     `ponytail:` `db_session` est ensuite lu (`_attendre`) depuis le fil de
     test pendant que le thread de fond peut encore l'écrire — inévitable pour
     éprouver ce comportement pour de vrai, sur le même patron que
-    `_scrape_all_streaming` en production. Amorti par le polling/retry
+    `scrape_all_streaming` en production. Amorti par le polling/retry
     d'`_attendre` (ré-essaie sur exception), pas par une garantie de
     non-concurrence — un flake occasionnel sous forte contention CI est
     possible ; sans impact production, où le générateur qui pilote le thread

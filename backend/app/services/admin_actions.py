@@ -420,7 +420,7 @@ def _stream_switch_course_source(
             emit({"phase": "scraping", "message": "Récupération des participants…"})
 
             results, _trace = _drain_scrape(
-                import_service._scrape_all_streaming(
+                import_service.scrape_all_streaming(
                     source_url, db, settings, use_cache_probe=False
                 ),
                 emit,
@@ -640,11 +640,11 @@ def _stream_rescrape(
             candidats = athlete_repository.only_on_course(db, course_id)
             emit({"phase": "scraping", "message": "Récupération des participants…"})
 
-            # `_scrape_all_streaming` yield déjà ses propres events `scraping`
+            # `scrape_all_streaming` yield déjà ses propres events `scraping`
             # par heat (fan-out Klikego, #156) — relayés tels quels par
             # `_drain_scrape`, aucun callback à brancher ici.
             results, _trace = _drain_scrape(
-                import_service._scrape_all_streaming(
+                import_service.scrape_all_streaming(
                     source_url, db, settings, use_cache_probe=False
                 ),
                 emit,
@@ -714,7 +714,7 @@ def _stream_rescrape(
 def _drain_scrape(gen: Iterator[dict], emit: sse_relay.Emit) -> tuple:
     """Émet chaque event intermédiaire de `gen`, rend `(results, trace)`.
 
-    `gen` est le générateur de `_scrape_all_streaming` — appelé ici depuis un
+    `gen` est le générateur de `scrape_all_streaming` — appelé ici depuis un
     thread ordinaire (pas via `yield from`, réservé aux corps de générateur),
     d'où ce relais manuel par `next()`/`StopIteration`.
     """

@@ -203,7 +203,7 @@ def _scrape_all(
     Retour : `(results, trace)`.
 
     Pas de progression par heat ici — le chemin SSE l'obtient via
-    `_scrape_all_streaming`, qui est un générateur. Ce chemin non-streaming
+    `scrape_all_streaming`, qui est un générateur. Ce chemin non-streaming
     reste utilisé par le CLI (`batch`) et le fallback `import_event`.
 
     `use_cache_probe=False` retire le cache TTL **par heat** (#285) : sans probe,
@@ -242,7 +242,7 @@ def _scrape_all(
     return _importable(url, results), trace
 
 
-def _scrape_all_streaming(
+def scrape_all_streaming(
     url: str, db: Session, settings: Settings, *, use_cache_probe: bool = True,
     single_heat: bool = False,
 ) -> Iterator[dict]:
@@ -1626,7 +1626,7 @@ def iter_import_event(
         # générateur. L'ancienne branche mono-heat appelait `_scrape_all`
         # directement et laissait donc le flux **muet** pendant tout le scrape,
         # y compris sur un heat Klikego de 250 finishers (revue finale #698).
-        results, trace = yield from _scrape_all_streaming(
+        results, trace = yield from scrape_all_streaming(
             url, db, settings, single_heat=single_heat, use_cache_probe=not force,
         )
     except (ProviderNotSupportedError, ScraperError) as exc:

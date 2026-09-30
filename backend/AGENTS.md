@@ -29,7 +29,9 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
   `app/models/AGENTS.md`.
 - `app/schemas/` — DTO Pydantic v2 (entrée/sortie).
 - `app/repositories/` — `*_repository.py` : **seule couche qui construit des requêtes sur la Session** (les services peuvent commit/flush/rollback, jamais requêter).
-- `app/services/` — logique métier : `mapping`, `cache` (TTL), `scrape_service`,
+- `app/services/` — logique métier. **Un service n'importe aucun symbole
+  `_privé` d'un autre service** (#937, tenu par `tests/test_service_boundaries.py`) :
+  ce qui sert ailleurs devient public. Modules : `mapping`, `cache` (TTL), `scrape_service`,
   `import_service`, `stats_service`, `geocode_service`, plus les batches CLI
   (`sheet_source`, `batch`, `bulk_import_service`, `rescrape_service`,
   `progress`), `sse_relay` (le thread de travail et le battement des trois flux

@@ -25,7 +25,7 @@ from app.core.config import Settings
 from app.core.time import utcnow
 from app.models.course import Course
 from app.repositories import participation_repository
-from app.services.quality import _ZERO_TIMES
+from app.services.quality import ZERO_TIMES
 
 #: Jours après l'épreuve pendant lesquels un non-finisher sans temps la dit
 #: encore en cours (#913) : un coureur pas encore arrivé, publié sans statut ni
@@ -37,7 +37,7 @@ def is_in_progress(db: Session, course: Course) -> bool:
     """Vrai si au moins une participation n'a pas de temps final (course en cours).
 
     Un temps « zéro » (`00:00:00`, `0:00`…) vaut temps absent — même définition
-    que `quality._ZERO_TIMES`, réutilisée ici plutôt que dupliquée : un
+    que `quality.ZERO_TIMES`, réutilisée ici plutôt que dupliquée : un
     chronométreur qui publie ce placeholder en attendant les temps réels ne doit
     pas faire passer l'épreuve au TTL long (#566).
 
@@ -51,7 +51,7 @@ def is_in_progress(db: Session, course: Course) -> bool:
         days=_RECENT_RACE_DAYS
     )
     return participation_repository.has_untimed(
-        db, course.id, placeholder_times=_ZERO_TIMES, finishers_only=not recent
+        db, course.id, placeholder_times=ZERO_TIMES, finishers_only=not recent
     )
 
 

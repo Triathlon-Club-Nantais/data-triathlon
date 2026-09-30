@@ -110,7 +110,7 @@
   Les scrapers rangent les segments dans 5 slots positionnels triathlon
   (`swim/t1/bike/t2/run` de `ScrapedResult`) ; `services/mapping.build_splits`
   ré-étiquette ces slots selon `event_type` via le gabarit
-  `_SPLIT_KEYS_BY_SPORT` (ex. duathlon → `course1`/`course2`) et omet les slots
+  `SPLIT_KEYS_BY_SPORT` (ex. duathlon → `course1`/`course2`) et omet les slots
   **vides**. Elle écarte aussi, sur les deux chemins, tout segment qui n'est pas
   une durée strictement positive (`00:00:00`, durée négative, « FRA ») ou qui
   dépasse le total, et vide les splits d'une ligne dont tous les segments (au
