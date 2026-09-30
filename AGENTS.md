@@ -52,7 +52,7 @@ route. Détail complet : `docs/WORKFLOW-IA.md`.
 - **Voie « sans plan »** — bugfix, typo, ajustement de 1-2 fichiers :
   `systematic-debugging` (bug) ou `test-driven-development` (comportement), puis
   `verification-before-completion`. Ni `specs/`, ni plan.
-- **Voie Spec Kit** — `/speckit-specify` → `/speckit-plan` → `/speckit-tasks` →
+- **Voie Spec Kit** — `/speckit-specify` → `/speckit-clarify` → `/speckit-plan` → `/speckit-tasks` →
   `/speckit-analyze` **avant tout code** → `/speckit-implement`. Artefacts dans
   `specs/<id>-feature/`.
 - **Voie Superpowers** — `brainstorming` → `writing-plans` → exécution.
