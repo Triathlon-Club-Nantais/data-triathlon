@@ -859,8 +859,8 @@ fasse pas rougir un batch dont les épreuves ont abouti.
 **Destinataire de la notification d'échec** (#922) : la plateforme ne notifie
 que l'auteur de la dernière modification du fichier de cron, et la reprise a
 échoué six lundis de suite sans que personne réagisse. `batch.yml` et
-`render-sleep.yml` portent donc un job `notify` qui, sur un échec **planifié**
-seulement, appelle `notify-failure.yml` : il ouvre l'issue « Scheduled workflow
+`render-sleep.yml` portent donc un job `notify` qui, sur un échec **planifié**,
+ou d'un lancement des timers Azure (entrée `alert`, #1010), appelle `notify-failure.yml` : il ouvre l'issue « Scheduled workflow
 failing: <workflow> » (label `ops`), ou la complète si elle est déjà ouverte, au
 plus une fois toutes les 12 heures (le coucher de la preview est horaire).
 Gratuit, sans compte tiers ; seul besoin au-delà de la lecture, `issues: write`

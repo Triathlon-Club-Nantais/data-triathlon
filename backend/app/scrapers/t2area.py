@@ -37,6 +37,7 @@ from .classify import classify_event_type
 from .utils import (
     DEFAULT_HEADERS,
     derive_status_from_label,
+    heat_is_relay,
     normalize_rank,
     normalize_time,
     split_athlete_name,
@@ -144,9 +145,10 @@ def _resolve_annee(client: httpx.Client, evenement: str, epreuve: str) -> str:
 
 _BIB_RE = re.compile(r"^bib-(\d+)$", re.I)
 
-# Marqueurs d'équipe dans le **slug d'épreuve** (`swim-run-m-eq`, `triathlon-relais`).
-# Jetons isolés : le « eq » de « equipe » ne doit pas être capté par accident.
-_RELAIS_RE = re.compile(r"(?<![a-z0-9])(eq|relais|duo)(?![a-z0-9])")
+# Abréviation d'équipe propre aux slugs FFTRI (`swim-run-m-eq`), en jeton isolé :
+# le « eq » de « equipe » ne doit pas être capté par accident. Les autres mots
+# d'équipe viennent du détecteur commun (#963).
+_EQUIPE_RE = re.compile(r"(?<![a-z0-9])eq(?![a-z0-9])")
 
 # Le `<title>` porte l'en-tête (le `<h1>` ne dit plus que « Édition 2022 ») :
 #   « Résultats du Triathlon de La Baule - M - 2022 - édition du 18-09-2022 »
@@ -234,7 +236,7 @@ def _genre(categorie: str) -> str:
 def _est_relais(epreuve: str) -> bool:
     """Déduit du slug d'épreuve. Non vérifié sur données réelles (§8.3 du design) :
     aucune épreuve équipe sondée n'a de classement publié."""
-    return _RELAIS_RE.search(epreuve.lower()) is not None
+    return heat_is_relay(epreuve) or _EQUIPE_RE.search(epreuve.lower()) is not None
 
 
 def _titre(soup) -> str:

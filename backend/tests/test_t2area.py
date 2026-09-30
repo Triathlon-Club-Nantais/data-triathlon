@@ -388,6 +388,8 @@ def test_dossard(cle, attendu):
     ("bike-run-s-open-eq", True),
     ("triathlon-jeunes-1-eq", True),
     ("triathlon-relais", True),
+    ("swimrun-s-binome", True),     # mots d'équipe partagés (#963)
+    ("triathlon-m-team", True),
     ("triathlon-m", False),
     ("triathlon-s-open", False),
     ("duathlon-l", False),

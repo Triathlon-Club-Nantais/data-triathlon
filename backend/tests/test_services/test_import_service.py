@@ -340,6 +340,44 @@ def test_import_locks_every_course_it_writes(db_session, patch_scraper, monkeypa
     assert len(set(verrouillees)) == 2
 
 
+def test_import_recreates_a_course_deleted_while_it_waited_on_the_lock(
+    db_session, patch_scraper, monkeypatch
+):
+    """Revue de lot 6 : l'import attend le verrou d'une épreuve qu'un admin est
+    en train de supprimer. Au réveil, la ligne n'existe plus : il la résout de
+    nouveau au lieu d'écrire sous une clé étrangère morte."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models.course import Course
+    from app.repositories import lock_repository
+
+    patch_scraper([_result("1", "PREMIER")])
+    import_service.import_event(db_session, URL, _settings())
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    course.scraped_at = utcnow() - timedelta(days=40)
+    db_session.commit()
+    supprimee = []
+
+    def _lock_course(db, course_id):
+        # Le geste admin qui tenait le verrou vient de commiter la suppression.
+        if not supprimee:
+            supprimee.append(course_id)
+            autre = sessionmaker(bind=db.get_bind())()
+            autre.delete(autre.get(Course, course_id))
+            autre.commit()
+            autre.close()
+
+    monkeypatch.setattr(lock_repository, "lock_course", _lock_course)
+    patch_scraper([_result("1", "PREMIER"), _result("2", "SECOND")])
+
+    out = import_service.import_event(db_session, URL, _settings())
+
+    assert supprimee
+    assert out["imported"] == 2
+    recree = course_repository.get_latest_by_source_url(db_session, URL)
+    assert participation_repository.count_for_course(db_session, recree.id) == 2
+
+
 def test_concurrent_import_of_the_same_url_reuses_the_committed_result(
     db_session, patch_scraper, monkeypatch
 ):

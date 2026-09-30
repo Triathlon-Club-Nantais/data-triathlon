@@ -378,6 +378,8 @@ def delete_course_source(
     active n'est plus scrapée (#282) ni affichée avec sa source (#279).
     """
     _course_or_404(db, course_id)
+    # Une bascule en cours vers cette source la relirait disparue (#982).
+    lock_courses_or_409(db, course_id)
     source = course_source_repository.find_on_course(
         db, course_id=course_id, source_id=source_id
     )
@@ -507,7 +509,7 @@ def _require_course_unchanged(db: Session, course_id: int, attendue: dict) -> No
     cette relecture ferme le reste, un geste qui aurait supprimé ou renommé
     l'épreuve entre l'instantané de la garde et la persistance.
     """
-    course = course_repository.get(db, course_id)
+    course = course_repository.get_fresh(db, course_id)
     if course is None:
         raise DomainError("Cette épreuve n'existe plus : rien n'a été enregistré.")
     if _instantane(course, _CHAMPS_COURSE) != attendue:

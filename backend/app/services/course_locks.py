@@ -1,9 +1,13 @@
 """Verrou d'épreuve des gestes d'administration (#982).
 
-Partagé par tout geste qui écrit une épreuve ou ses résultats : re-scrape,
-bascule de source, suppression, correction, fusion, gestes sur un résultat, et
-les purges `wipe_*`. Il remplace un `dict` en mémoire d'un seul process, qui ne
-voyait ni la CLI `rescrape-db`, ni les imports publics, ni un second worker.
+Partagé par tout geste qui écrit ce qu'un import ou un re-scrape écrit aussi :
+re-scrape, bascule et suppression de source, suppression, correction et fusion
+d'épreuve, gestes sur un résultat, et les purges `wipe_*`. L'avis humain de
+fiabilité (`course_review.set_override`) n'en a pas besoin : l'import n'écrit
+jamais `reliability_override`, les deux chemins ne se croisent pas (FR-037).
+
+Il remplace un `dict` en mémoire d'un seul process, qui ne voyait ni la CLI
+`rescrape-db`, ni les imports publics, ni un second worker.
 C'est un verrou consultatif PostgreSQL de **transaction**
 (`repositories/lock_repository`) : relâché au `commit`/`rollback`, donc jamais
 oublié par un geste qui lève. Sans effet sous SQLite.

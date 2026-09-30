@@ -773,15 +773,12 @@ class _Persister:
             return
         resolution = self._course_resolutions.get(cache_key)
         if resolution is None:
-            resolution = mapping.get_or_create_course(self.db, scraped, self.event_url)
+            resolution = self._resolve_locked_course(scraped)
             self._course_resolutions[cache_key] = resolution
         course = resolution.course
         if resolution.passive_source is not None:
             self._note_passive(course, resolution.passive_source)
         if course.id not in self._courses:
-            # Attend la fin d'un geste admin sur cette épreuve plutôt que d'écrire
-            # sous lui ; le geste, lui, reçoit un 409 tant que l'import la tient (#982).
-            lock_repository.lock_course(self.db, course.id)
             # Constat de la machine, réécrit à chaque passage (#993).
             course.ranked_by_laps = scraped.ranked_by_laps
         self._courses[course.id] = course
@@ -1153,6 +1150,24 @@ class _Persister:
         self._updated_single[course_id].add(athlete_id)
         self._credits[course_id][athlete_id] -= 1
         return rows[0]
+
+    def _resolve_locked_course(self, scraped: ScrapedResult) -> mapping.CourseResolution:
+        """Résout l'épreuve, puis la verrouille (#982).
+
+        Le verrou attend la fin d'un geste admin sur l'épreuve plutôt que
+        d'écrire sous lui ; le geste, lui, reçoit un 409 tant que l'import la
+        tient. Si ce geste l'a supprimée pendant l'attente, la ligne résolue
+        n'existe plus : on la résout de nouveau, ce qui la recrée.
+        """
+        resolution = mapping.get_or_create_course(self.db, scraped, self.event_url)
+        if resolution.course.id in self._courses:
+            return resolution
+        lock_repository.lock_course(self.db, resolution.course.id)
+        if course_repository.get_fresh(self.db, resolution.course.id) is None:
+            self.db.expunge(resolution.course)
+            resolution = mapping.get_or_create_course(self.db, scraped, self.event_url)
+            lock_repository.lock_course(self.db, resolution.course.id)
+        return resolution
 
     def _defer_update(self, athlete: Athlete, **fields: str) -> None:
         """Retient un changement de club ou de genre, appliqué par `finalize` (#980).

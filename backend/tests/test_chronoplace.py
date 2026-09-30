@@ -1151,3 +1151,26 @@ def test_epreuve_sans_tours_reste_ordinaire():
 
     assert not any(r.ranked_by_laps for r in resultats)
     assert {r.status for r in resultats} == {""}
+
+
+
+def test_ambiguous_lap_race_is_left_untouched():
+    """Revue de lot 6 : une durée fixe dont un concurrent s'arrête tôt dépasse les
+    20 % d'écart de temps, sans être pour autant à tours fixés (peu de lignes au
+    maximum). Déclarer DNF tous ceux sous le maximum y effacerait le classement :
+    faute d'un signal clair, on ne touche à rien."""
+    from app.scrapers.base import ScrapedResult
+
+    def ligne(tours, temps):
+        r = ScrapedResult(source_url="u", provider="chronoplace", total_time=temps, rank_overall=1)
+        r.raw_data = {"nb_tours": str(tours)}
+        return r
+
+    resultats = [ligne(15, "02:00:20"), ligne(13, "02:01:00"), ligne(12, "02:00:30"),
+                 ligne(11, "02:01:03"), ligne(3, "00:30:00")]
+
+    chronoplace._apply_lap_format(resultats, "spaycific")
+
+    assert {r.status for r in resultats} == {""}
+    assert not any(r.ranked_by_laps for r in resultats)
+    assert all(r.total_time for r in resultats)

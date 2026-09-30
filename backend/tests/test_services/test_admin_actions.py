@@ -2529,3 +2529,50 @@ def test_rescrape_retries_a_deadlock_like_every_import_path(db_session, auteur, 
     assert events[-1]["phase"] == "done"
     assert len(appels) == 2
     assert participation_repository.count_for_course(db_session, course.id) == 1
+
+
+
+def test_rescrape_persists_nothing_if_another_session_renamed_the_course(
+    db_session, auteur, monkeypatch
+):
+    """La relecture après le scrape doit lire la base, pas l'instance déjà
+    chargée par la garde : un renommage commité par une autre session pendant
+    les 30 à 40 s du scrape arrête le re-scrape (revue de lot 6)."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models.course import Course
+
+    course = _epreuve(db_session, "Avant", date(2026, 5, 17))
+    db_session.commit()
+    course_id = course.id
+    resultats = [_resultat(course, "1", "NOUVEAU")]
+
+    def _scrape(url, **kwargs):
+        autre = sessionmaker(bind=db_session.get_bind())()
+        autre.get(Course, course_id).name = "Renommée ailleurs"
+        autre.commit()
+        autre.close()
+        return resultats, FanoutTrace(heats_enumerated=1)
+
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", _scrape)
+
+    events = list(admin_actions.iter_rescrape_course(
+        db_session, course_id=course_id, user_id=auteur.id, settings=_settings()
+    ))
+
+    assert events[-1]["phase"] == "error"
+    assert "modifiée" in events[-1]["message"]
+
+
+
+def test_deleting_a_source_refuses_a_course_held_by_a_switch(db_session, auteur, monkeypatch):
+    """Revue de lot 6 : supprimer la source passive vers laquelle une bascule est
+    en train de basculer se refuse en 409, au lieu de la faire échouer."""
+    course, passive = _epreuve_deux_sources(db_session)
+    db_session.commit()
+    _epreuve_verrouillee(monkeypatch, course.id)
+
+    with pytest.raises(course_locks.CourseRescrapeAlreadyRunningError):
+        admin_actions.delete_course_source(
+            db_session, course_id=course.id, source_id=passive.id, user_id=auteur.id
+        )

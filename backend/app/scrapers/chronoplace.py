@@ -486,6 +486,12 @@ def _build_result(
 #: docs/superpowers/specs/2026-09-30-chronoplace-tours-sondage.md.
 _FIXED_DURATION_MAX_SPREAD = 0.2
 
+#: Part minimale des lignes au maximum de tours pour conclure à des tours fixés :
+#: 94 % sur 551, contre 5 % et 50 % sur les durées fixes 566 et 493. En dessous,
+#: le format n'est pas établi, et déclarer DNF tous ceux sous le maximum
+#: effacerait le classement d'une durée fixe au premier abandon précoce.
+_FIXED_LAPS_MIN_SHARE_AT_MAX = 0.8
+
 
 def _apply_lap_format(results: list[ScrapedResult], slug: str) -> None:
     """Épreuve classée au nombre de tours (#993) : durée fixe ou tours fixés.
@@ -493,8 +499,9 @@ def _apply_lap_format(results: list[ScrapedResult], slug: str) -> None:
     La source ne dit pas lequel (ni le snapshot Livewire, ni la page) : les
     données le disent. Si les tours varient, un temps quasi constant signe une
     durée fixe, et l'épreuve est marquée `ranked_by_laps` (le temps ne compare
-    rien). Sinon ce sont des tours fixés, et une ligne sous le maximum de tours
-    est un abandon, le seul que publie la source.
+    rien). Sinon, et seulement si une nette majorité a bouclé le maximum de
+    tours, ce sont des tours fixés : une ligne sous ce maximum est un abandon, le
+    seul que publie la source. Entre les deux, on ne touche à rien.
     """
     laps = {id(r): _lap_count(r) for r in results}
     counted = [count for count in laps.values() if count is not None]
@@ -508,6 +515,12 @@ def _apply_lap_format(results: list[ScrapedResult], slug: str) -> None:
         logger.info("Épreuve chronoplace %s : durée fixe, classée au nombre de tours.", slug)
         return
     maximum = max(counted)
+    if sum(1 for count in counted if count == maximum) / len(counted) < _FIXED_LAPS_MIN_SHARE_AT_MAX:
+        logger.warning(
+            "Épreuve chronoplace %s : tours variables, format indéterminé ; classement laissé tel quel.",
+            slug,
+        )
+        return
     abandons = 0
     for result in results:
         count = laps[id(result)]

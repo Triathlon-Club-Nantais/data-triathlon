@@ -38,8 +38,12 @@ Sur une épreuve dont les tours **varient** :
   `ranked_by_laps` (colonne `courses.ranked_by_laps`), et sort de l'histogramme des
   temps et de la comparaison aux positions de référence. Personne n'y abandonne
   par défaut.
-- **Tours fixés** sinon : une ligne sous le maximum de tours de l'épreuve devient
-  `DNF`, sans temps ni rang.
+- **Tours fixés** si, sinon, au moins **80 %** des lignes ont bouclé le maximum de
+  tours (94 % sur 551, contre 5 % et 50 % sur les durées fixes) : une ligne sous
+  ce maximum devient `DNF`, sans temps ni rang.
+- **Indéterminé** entre les deux (une durée fixe dont un concurrent s'est arrêté
+  tôt, par exemple) : rien n'est touché, et un avertissement est journalisé.
+  Réécrire en DNF tous ceux sous le maximum y effacerait le classement.
 
 Le seuil laisse de la marge des deux côtés (9 % et 0 % contre 91 %). Une épreuve à
 tours fixés sans abandon a tous ses tours égaux : elle reste une épreuve

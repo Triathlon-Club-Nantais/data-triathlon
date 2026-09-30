@@ -21,7 +21,7 @@ def test_youth_heats_are_recognised_by_name(event_name):
     assert is_youth(event_name, "") is True
 
 
-@pytest.mark.parametrize("category", ["MIH", "MIF", "BEF", "POH", "PUF", "MPH", "MI", "BE", "Minime", "Benjamin H"])
+@pytest.mark.parametrize("category", ["MIH", "MIF", "BEF", "POH", "PUF", "MPH", "MI", "BE", "Minime", "Benjamin H", "MI H", "be f"])
 def test_youth_rows_are_recognised_by_category(category):
     assert is_youth("Triathlon S", category) is True
 

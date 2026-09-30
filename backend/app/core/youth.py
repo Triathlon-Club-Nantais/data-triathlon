@@ -31,7 +31,8 @@ def _has_youth_word(text: str) -> bool:
 
 def is_youth(event_name: str | None, category: str | None) -> bool:
     """Vrai si la ligne appartient à une épreuve jeune, à ne pas importer."""
-    code = (category or "").strip().upper()
+    # « MI H » s'écrit aussi avec une espace : le code se compare sans elle.
+    code = "".join((category or "").split()).upper()
     if _YOUTH_CATEGORY_RE.fullmatch(code):
         return True
     return _has_youth_word(event_name or "") or _has_youth_word(category or "")

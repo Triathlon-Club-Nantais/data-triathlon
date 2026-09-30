@@ -95,6 +95,10 @@ on:
         type: choice
         options: [preview, production, both]
         default: preview
+      alert:
+        description: "Alerter l'équipe en cas d'échec (posé par les timers Azure, #1010)"
+        type: boolean
+        default: false
 
 # Le cron horaire croise celui de 23 h et celui de 2 h deux fois par jour : les
 # deux exécutions se sérialisent ici plutôt que de courir l'une sur l'autre.
@@ -278,11 +282,12 @@ jobs:
           echo
           echo "$ACTION appliqué au service ${{ matrix.environment }}"
 
-  # Alerte d'équipe sur un échec planifié (#922). Les lancements manuels en sont
-  # exclus : leur auteur suit le run, depuis l'écran ou l'onglet Actions.
+  # Alerte d'équipe sur un échec planifié (#922), ou sur un lancement des timers
+  # Azure (#1010), qui portent `alert` : personne ne suit leur run. Les autres
+  # lancements manuels en sont exclus, leur auteur suit le run.
   notify:
     needs: [render]
-    if: failure() && github.event_name == 'schedule'
+    if: failure() && (github.event_name == 'schedule' || inputs.alert)
     permissions:
       contents: read
       issues: write

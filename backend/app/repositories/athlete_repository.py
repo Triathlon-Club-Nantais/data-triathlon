@@ -2,7 +2,19 @@
 from collections.abc import Sequence
 from datetime import date
 
-from sqlalchemy import and_, case, exists, false, func, or_, select, tuple_, union_all, update
+from sqlalchemy import (
+    and_,
+    bindparam,
+    case,
+    exists,
+    false,
+    func,
+    or_,
+    select,
+    tuple_,
+    union_all,
+    update,
+)
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import set_committed_value
 
@@ -144,29 +156,38 @@ def create_batch(db: Session, athletes_fields: Sequence[dict]) -> list[Athlete]:
 
 
 def apply_updates(db: Session, updates: Sequence[tuple[Athlete, dict[str, str]]]) -> None:
-    """Applique des changements de club et de genre en **un seul** `UPDATE`
-    multi-lignes, dans l'ordre reçu (#980).
+    """Applique des changements de club et de genre en un seul `executemany`,
+    dans l'ordre reçu (#980).
 
     L'appelant les trie par id : deux imports concurrents prennent alors les
-    verrous de ligne dans le même ordre, et ne peuvent plus se croiser. Chaque
-    ligne porte les deux colonnes, sans quoi l'ORM scinderait le lot par jeu de
-    colonnes et perdrait cet ordre. L'état en mémoire des instances suit, sans
-    les marquer modifiées : un flush ultérieur n'émettrait pas un second UPDATE.
+    verrous de ligne dans le même ordre, et ne peuvent plus se croiser. Une
+    colonne non demandée passe `NULL` et garde sa valeur **en base**
+    (`coalesce`) : la réécrire depuis l'instance en mémoire écraserait un club
+    commité entre-temps par un autre import ou corrigé par un admin. L'état en
+    mémoire suit, sans marquer les instances modifiées : un flush ultérieur
+    n'émettrait pas un second UPDATE.
     """
     if not updates:
         return
-    rows = [
-        {
-            "id": athlete.id,
-            "club": fields.get("club", athlete.club),
-            "gender": fields.get("gender", athlete.gender),
-        }
-        for athlete, fields in updates
-    ]
-    db.execute(update(Athlete), rows)
-    for (athlete, _), row in zip(updates, rows, strict=True):
-        set_committed_value(athlete, "club", row["club"])
-        set_committed_value(athlete, "gender", row["gender"])
+    table = Athlete.__table__
+    statement = (
+        update(table)
+        .where(table.c.id == bindparam("b_id"))
+        .values(
+            club=func.coalesce(bindparam("b_club"), table.c.club),
+            gender=func.coalesce(bindparam("b_gender"), table.c.gender),
+        )
+    )
+    db.execute(
+        statement,
+        [
+            {"b_id": athlete.id, "b_club": fields.get("club"), "b_gender": fields.get("gender")}
+            for athlete, fields in updates
+        ],
+    )
+    for athlete, fields in updates:
+        for column, value in fields.items():
+            set_committed_value(athlete, column, value)
 
 
 def latest_club_dates(db: Session, athlete_ids: Sequence[int]) -> dict[int, date]:

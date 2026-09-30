@@ -29,13 +29,19 @@ render_api() {
 }
 
 deadline=$(( $(date +%s) + wait_seconds ))
+# Le hook vient de partir : un déploiement du même commit plus ancien que cette
+# fenêtre (relance du workflow, Auto-Deploy) n'est pas le nôtre, et son statut
+# `deactivated` ferait échouer le job à tort.
+since=$(( $(date +%s) - 300 ))
 deploy_id=""
 while :; do
   # Le déploiement de *ce* commit, pas le dernier de la liste : un autre peut
   # l'avoir précédé ou suivi dans la file.
   deploy=$(render_api "https://api.render.com/v1/services/$service_id/deploys?limit=20" \
-    | jq -c --arg sha "$COMMIT_SHA" \
-        '[.[].deploy | select(.commit.id == $sha)] | .[0] // empty')
+    | jq -c --arg sha "$COMMIT_SHA" --argjson since "$since" \
+        '[.[].deploy | select(.commit.id == $sha)
+           | select((.createdAt | sub("\\.[0-9]+"; "") | fromdateiso8601) >= $since)]
+         | .[0] // empty')
   if [ -n "$deploy" ]; then
     deploy_id=$(jq -r '.id' <<<"$deploy")
     status=$(jq -r '.status' <<<"$deploy")

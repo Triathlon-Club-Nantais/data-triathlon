@@ -21,7 +21,8 @@ function Invoke-RenderSleep {
         Accept                 = 'application/vnd.github+json'
         'X-GitHub-Api-Version' = '2022-11-28'
     }
-    $body = @{ ref = 'main'; inputs = @{ action = $Action; target = $Target } } | ConvertTo-Json
+    # `alert` : personne ne suit ce run, un échec doit ouvrir l'issue `ops` (#922).
+    $body = @{ ref = 'main'; inputs = @{ action = $Action; target = $Target; alert = 'true' } } | ConvertTo-Json
 
     # 204 sans corps en cas de succès. Une erreur (jeton expiré, 404) lève, et
     # l'invocation apparaît en échec dans *Monitor → Invocations*.

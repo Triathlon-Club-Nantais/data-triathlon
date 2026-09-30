@@ -20,6 +20,12 @@ def get(db: Session, course_id: int) -> Course | None:
     return db.get(Course, course_id)
 
 
+def get_fresh(db: Session, course_id: int) -> Course | None:
+    """Relit l'épreuve **en base**, jamais l'instance déjà chargée par la session :
+    un geste concurrent peut l'avoir renommée ou supprimée entre-temps (#982)."""
+    return db.get(Course, course_id, populate_existing=True)
+
+
 def _is_postgres(db: Session) -> bool:
     return db.bind is not None and db.bind.dialect.name == "postgresql"
 

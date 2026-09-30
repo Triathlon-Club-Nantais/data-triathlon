@@ -31,6 +31,12 @@ Requêtes `HEAD`, que Next.js sert par le `GET` de la route. Chaque appel porte
 **non suspendu** : il évite le sommeil d'inactivité du plan gratuit, pas la
 suspension volontaire. Celle-ci est l'affaire des deux fonctions ci-dessous.
 
+**FinOps.** Plan **Flex Consumption** (Linux, France Central, Function App
+`coldstart-curl`) : environ 100 exécutions par jour, très en dessous de l'octroi
+gratuit mensuel. La facture doit rester proche de
+zéro (`docs/infra-azure.md`) ; un plan Premium ou un Always On n'est pas une
+option.
+
 ## `Render-sleep` et `Render-wake` : la veille de la production (#1010)
 
 Le `schedule` de GitHub Actions démarrait le lever de la production avec 2 à
@@ -40,8 +46,11 @@ déclenchent donc `render-sleep.yml` par `workflow_dispatch` (API GitHub,
 
 | Fonction | Timer (UTC) | Entrées du dispatch |
 |---|---|---|
-| `Render-sleep` | `0 15 23 * * *` | `action: suspend`, `target: production` |
-| `Render-wake` | `0 15 2 * * *` | `action: resume`, `target: production` |
+| `Render-sleep` | `0 15 23 * * *` | `action: suspend`, `target: production`, `alert: true` |
+| `Render-wake` | `0 15 2 * * *` | `action: resume`, `target: production`, `alert: true` |
+
+`alert` fait ouvrir l'issue `ops` sur un échec (`notify-failure.yml`, #922) :
+personne ne suit ces runs, contrairement à un lancement manuel.
 
 La logique reste **dans le workflow** (résolution du service par son nom,
 abstention pendant un déploiement, 400 « déjà éveillé ») : le module
@@ -56,12 +65,6 @@ ne font alors plus rien. Leur retrait fera l'objet d'une issue de suivi.
 
 **FinOps.** Deux exécutions par jour de plus, dans l'octroi gratuit du plan
 Flex Consumption.
-
-**FinOps.** Plan **Flex Consumption** (Linux, France Central, Function App
-`coldstart-curl`) : environ 100 exécutions par jour, très en dessous de l'octroi
-gratuit mensuel. La facture doit rester proche de
-zéro (`docs/infra-azure.md`) ; un plan Premium ou un Always On n'est pas une
-option.
 
 ### App Settings attendues
 
