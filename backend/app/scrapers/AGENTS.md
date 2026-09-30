@@ -103,7 +103,7 @@ fournisseur — à lire **avant** de toucher au module correspondant.
 | Chronoplace | Laravel + Livewire, lu en `GET ?perPage=all` — pas de POST Livewire — et importe **toutes** les épreuves de l'événement pointé par l'URL. Un nom d'équipe reste entier ; sur une épreuve `isTeam` à colonne « Équipe » vide, l'équipe est lue dans « Club » (#992). | — |
 | Wiclax/G-Live | plusieurs déploiements : `wiclax-results.com`, `chronosmetron.com`, `chronowest.fr` (WordPress + iframe G-Live). Un déploiement tiers de plus = un host dans `WiclaxProvider._HOSTS`. | — |
 | RaceResult | trois façades d'un même produit, une API JSON publique, listes `hidden` qui enrichissent par dossard (#60). | `docs/scrapers/raceresult.md` |
-| T2Area (FFTRI) | Joomla server-rendered, une requête pour le classement ; splits sur la fiche individuelle, donc **seuls les membres du TCN** sont chargés. | `docs/scrapers/t2area.md` |
+| T2Area (FFTRI) | server-rendered, une requête pour le classement, splits compris (markup en cartes depuis septembre 2026, #898) ; les rangs genre et catégorie ne sont que sur la fiche individuelle, donc chargés pour **les seuls finishers du TCN**. | `docs/scrapers/t2area.md` |
 | Competitor | le moteur derrière `ironman.com` : page → uuid → JSON de proxy. Une URL désigne une **série**, pas une édition ; aucun club publié. | `docs/scrapers/competitor.md` |
 | ok-time | API JSON WordPress publique, **un seul appel** pour l'événement entier ; points de passage cumulés, libellés rendus verbatim. | `docs/scrapers/oktime.md` |
 | runnerbreizh | HTML statique paginé (50 lignes/page) ; ni dossard, ni club, ni date de naissance ; URL canonicalisée par allowlist. | `docs/scrapers/runnerbreizh.md` |

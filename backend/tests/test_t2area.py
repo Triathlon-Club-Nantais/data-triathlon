@@ -1,9 +1,11 @@
 """
 Tests unitaires pour scrapers/t2area.py (sans réseau).
 
-Les fixtures sont des extraits réels de fftri.t2area.com (2026-07-26), réduits à
-quelques lignes ; les attributs purement décoratifs ont été retirés, la structure
-(`#resultList`, en-tête à 10 colonnes, accordéon des fiches) est intacte.
+Les fixtures d'édition et de fiche sont des extraits réels de fftri.t2area.com,
+re-sondés le 30/09/2026 après le changement de markup (#898) : une carte
+`article.edition-result` par participant, splits compris, et une fiche réduite à
+son bandeau de rangs et à ses `div.rd-split`. La page d'épreuve date du
+26/07/2026 : seuls ses liens d'édition y sont lus, et ils n'ont pas changé.
 """
 import logging
 from datetime import date
@@ -29,19 +31,6 @@ EDITION_NEVERS = _fixture("t2area_edition_nevers_duathlon_2022.html")  # duathlo
 FICHE_TRIATHLON = _fixture("t2area_fiche_triathlon.html")
 FICHE_DUATHLON = _fixture("t2area_fiche_duathlon.html")
 
-# Fiche au découpage inattendu : `_appliquer_splits` doit basculer sur `segments`.
-FICHE_LIBELLE_INCONNU = """
-<html lang="fr"><body>
-<ul class="accordion"><li class="accordion__item"><button><span>
-<span class="title">Général</span><span class="title">01:00:00</span>
-</span></button></li><li class="accordion__item"><button><span>
-<span class="title">Natation 1</span><span class="title">00:10:00</span>
-</span></button></li><li class="accordion__item"><button><span>
-<span class="title">Trail 1</span><span class="title">00:20:00</span>
-</span></button></li></ul>
-</body></html>
-"""
-
 URL_EDITION = (
     "https://fftri.t2area.com/calendrier/triathlon-de-la-baule/triathlon-m/2022.html"
 )
@@ -53,8 +42,8 @@ URL_EVENEMENT = "https://fftri.t2area.com/calendrier/triathlon-de-la-baule.html"
 
 
 class FakeResponse:
-    def __init__(self, text: str, status_code: int = 200):
-        self.text, self.status_code = text, status_code
+    def __init__(self, text: str, status_code: int = 200, url: str = ""):
+        self.text, self.status_code, self.url = text, status_code, url
 
     def raise_for_status(self):
         if self.status_code >= 400:
@@ -170,11 +159,11 @@ def _par_nom(resultats, nom):
     return next(r for r in resultats if r.athlete_name.startswith(nom))
 
 
-def test_parse_edition_lit_toutes_les_lignes():
-    assert len(_labaule()) == 6
+def test_parse_edition_lit_une_carte_par_participant():
+    assert len(_labaule()) == 9
 
 
-def test_parse_edition_colonnes_dun_finisher():
+def test_parse_edition_champs_dun_finisher():
     r = _par_nom(_labaule(), "ACCENT")
 
     assert (r.athlete_name, r.athlete_firstname) == ("ACCENT", "Baptiste")
@@ -182,8 +171,6 @@ def test_parse_edition_colonnes_dun_finisher():
     assert r.category == "MS2"
     assert r.gender == "M"
     assert r.rank_overall == 453
-    assert r.rank_category == 89
-    assert r.rank_gender is None
     assert r.total_time == "02:41:52"
     assert r.bib_number == "566"
     assert r.status == ""          # finisher : laissé à l'heuristique de mapping
@@ -192,8 +179,18 @@ def test_parse_edition_colonnes_dun_finisher():
     assert r.source_url == URL_EDITION
 
 
-def test_parse_edition_entete_nom_et_date():
-    """Nom et date viennent du <h1> ; la date entre dans l'identité de la Course."""
+def test_parse_edition_la_liste_ne_publie_plus_les_rangs_genre_et_categorie():
+    """#898 : ils ne vivent plus que sur la fiche, chargée pour les membres TCN."""
+    r = _par_nom(_labaule(), "ANTOINE")
+
+    assert r.gender == "F"
+    assert r.rank_gender is None
+    assert r.rank_category is None
+
+
+def test_parse_edition_entete_lu_dans_le_title():
+    """Le `<h1>` ne dit plus que « Édition 2022 » : le nom et la date viennent du
+    `<title>`, et la date entre dans l'identité de la Course."""
     r = _labaule()[0]
 
     assert r.event_name == "Triathlon de La Baule - M"
@@ -201,31 +198,36 @@ def test_parse_edition_entete_nom_et_date():
     assert r.event_type == "triathlon-m"
 
 
-def test_parse_edition_classement_feminin_rempli_pour_les_femmes():
-    """`Clt/F` n'est renseigné que sur les lignes féminines (125/125 sur l'épreuve réelle)."""
+def test_parse_edition_splits_de_tous_les_participants():
+    """Les splits sont sur la liste, pour tout le monde ; « — » vaut absent (La
+    Baule 2022 ne chronomètre pas les transitions)."""
     r = _par_nom(_labaule(), "ANTOINE")
 
-    assert r.gender == "F"
-    assert r.rank_gender == 80
+    assert (r.swim_time, r.t1_time, r.bike_time, r.t2_time, r.run_time) == (
+        "00:40:51", "", "01:23:15", "", "00:56:51",
+    )
+    assert r.segments is None
+
+
+def test_parse_edition_finisher_sans_fiche_ni_splits():
+    """Huit finishers de La Baule n'ont ni lien de fiche ni splits : pas de dossard."""
+    r = _par_nom(_labaule(), "GROSBOIS")
+
+    assert r.rank_overall == 58
+    assert r.bib_number == ""
+    assert r.swim_time == ""
 
 
 def test_parse_edition_dnf():
-    """Un DNF sort avec `00:00:00` dans la colonne Temps : c'est un temps absent."""
     r = _par_nom(_labaule(), "EPP")
 
     assert r.status == "DNF"
     assert r.total_time == ""
     assert r.rank_overall is None
+    assert r.swim_time == "00:28:07"
 
 
-def test_parse_edition_disqualifie():
-    r = _par_nom(_labaule(), "ALLARD")
-
-    assert r.status == "DSQ"
-    assert r.rank_overall is None
-
-
-def test_parse_edition_disqualifie_navance_pas_de_temps():
+def test_parse_edition_disqualifie_navance_ni_temps_ni_rang():
     """La FFTRI publie parfois un temps sur un DSQ (`42:23:00`, ALLARD Pierre) :
     invariant du dépôt, un non-finisher n'a pas de temps total. Le brut reste
     diagnosticable dans `raw_data`."""
@@ -233,45 +235,8 @@ def test_parse_edition_disqualifie_navance_pas_de_temps():
 
     assert r.status == "DSQ"
     assert r.total_time == ""
-    assert r.rank_gender is None
-    assert r.rank_category is None
+    assert r.rank_overall is None
     assert r.raw_data["temps"] == "42:23:00"
-
-
-def test_construire_disqualifie_vide_aussi_les_rangs_meme_si_publies():
-    """Sur la ligne ALLARD réelle, `Clt/F` et `Clt/CAT` sont vides — insuffisant
-    pour attester que le vidage est actif plutôt que fortuit. Ligne synthétique
-    avec des rangs catégorie/genre **renseignés** malgré un statut DSQ : ils
-    doivent être vidés au même titre que `total_time` (wiclax fait de même)."""
-    ligne = {
-        "clt": "DQ",
-        "clt_f": "3",
-        "temps": "42:23:00",
-        "nom": "ALLARD Pierre",
-        "club": "INDIV LIGUE PAYS DE LA LOIRE",
-        "cat": "MVE",
-        "clt_cat": "5",
-        "id_league": "28",
-        "league": "",
-        "details_href": "",
-        "club_href": "",
-    }
-
-    r = t2area._construire(
-        ligne,
-        source_url=URL_EDITION,
-        evenement="triathlon-de-la-baule",
-        epreuve="triathlon-m",
-        event_name="Triathlon de La Baule - M",
-        event_type="triathlon-m",
-        event_date=date(2022, 9, 18),
-        chrono=("", ""),
-    )
-
-    assert r.status == "DSQ"
-    assert r.total_time == ""
-    assert r.rank_gender is None
-    assert r.rank_category is None
 
 
 def test_parse_edition_club_absent():
@@ -281,13 +246,14 @@ def test_parse_edition_club_absent():
 def test_parse_edition_ligne_anonyme_du_site():
     """« 907 Dossard » : une entrée sans identité, telle que la source la publie.
 
-    Aucune heuristique locale — le scraper ne devine pas d'identité. Test de
-    verrouillage : le jour où on voudra changer ça, ce sera un choix explicite.
+    Aucune heuristique locale — le scraper ne devine pas d'identité. Son badge
+    « --- » ne vaut pas catégorie.
     """
     r = _par_nom(_labaule(), "Dossard")
 
     assert (r.athlete_name, r.athlete_firstname) == ("Dossard", "907")
     assert r.bib_number == "907"
+    assert r.category == ""
 
 
 def test_parse_edition_raw_data_conserve_le_contexte():
@@ -295,8 +261,6 @@ def test_parse_edition_raw_data_conserve_le_contexte():
 
     assert r.raw_data["cle_fiche"] == "bib-566"
     assert r.raw_data["league"] == "PAYS DE LA LOIRE"
-    assert r.raw_data["id_league"] == "15"
-    assert r.raw_data["club_href"] == "/clubs/triathlon-club-nantais.html"
     assert r.raw_data["clt"] == "453"
     assert r.raw_data["fiche_url"].endswith("/2022/bib-566.html")
 
@@ -309,81 +273,92 @@ def test_parse_edition_cle_licence_ne_remplit_pas_le_dossard():
         "triathlon-du-lac-du-bouchet",
         "triathlon-l",
     )
-    r = _par_nom(resultats, "ABRANTES")
+    r = _par_nom(resultats, "FEUGIER")
 
     assert r.bib_number == ""
-    assert r.raw_data["cle_fiche"] == "A44719"
+    assert r.raw_data["cle_fiche"] == "A15993"
     assert r.event_name == "Triathlon du Lac du Bouchet (43) - L"
     assert r.event_date == date(2025, 7, 13)
     assert r.event_type == "triathlon-l"
+    assert r.t2_time == "00:01:38"
 
 
-def test_parse_edition_duathlon():
-    resultats = t2area._parse_edition(
+def _nevers() -> list:
+    return t2area._parse_edition(
         EDITION_NEVERS,
         "https://fftri.t2area.com/calendrier/triathlon-de-nevers/duathlon-m/2022.html",
         "triathlon-de-nevers",
         "duathlon-m",
     )
 
-    assert len(resultats) == 3
-    assert {r.event_type for r in resultats} == {"duathlon-m"}
-    assert _par_nom(resultats, "PANNIER").rank_gender == 14
+
+def test_parse_edition_duathlon_range_les_cap_par_libelle():
+    """« CàP 1 » va au slot natation, « CàP 2 » au slot course : c'est ce qu'attend
+    `SPLIT_KEYS_BY_SPORT`, qui les ré-étiquette en course1/course2."""
+    r = _par_nom(_nevers(), "BOURGEOIS")
+
+    assert r.event_type == "duathlon-m"
+    assert (r.swim_time, r.t1_time, r.bike_time, r.t2_time, r.run_time) == (
+        "00:17:25", "00:00:54", "00:59:19", "00:01:18", "00:36:22",
+    )
 
 
-def test_parse_edition_sans_result_list_leve():
-    """Édition inexistante : le site répond 303 vers son accueil, donc 200."""
-    with pytest.raises(ValueError, match="Aucun classement"):
+def test_parse_edition_duathlon_reetiquete_par_mapping():
+    """Bout à bout avec la couche service : les clés finales sont celles du sport."""
+    from app.services.mapping import build_splits
+
+    assert build_splits(_par_nom(_nevers(), "BOURGEOIS")) == {
+        "course1": "00:17:25", "t1": "00:00:54", "bike": "00:59:19",
+        "t2": "00:01:18", "course2": "00:36:22",
+    }
+
+
+def test_parse_edition_genre_lu_sans_badge_de_categorie():
+    """SKLADZIEN Victor n'a pas de badge : le genre vient de `data-gender`."""
+    r = _par_nom(_nevers(), "SKLADZIEN")
+
+    assert r.category == ""
+    assert r.gender == "M"
+
+
+def test_parse_edition_sans_carte_leve():
+    """Markup changé : mieux vaut une erreur qu'un classement vide importé."""
+    with pytest.raises(ValueError, match="markup fftri modifié"):
         t2area._parse_edition(
-            "<html><body><h1>CALENDRIER DES ÉPREUVES FFTRI</h1></body></html>",
+            "<html><head><title>Résultats du X - M - 2022 - édition du 18-09-2022</title>"
+            "</head><body><table id=\"resultList\"></table></body></html>",
             URL_EDITION,
             "triathlon-de-la-baule",
             "triathlon-m",
         )
 
 
-def test_parse_edition_entete_ampute_leve():
-    """Markup changé : mieux vaut une erreur qu'un import silencieusement faux."""
-    html = (
-        "<html><body><h1>Résultats du X - 2022 - édition du 18-09-2022</h1>"
-        '<table id="resultList"><thead><tr><th>Nom</th><th>Club</th></tr></thead>'
-        "<tbody></tbody></table></body></html>"
-    )
-    with pytest.raises(ValueError, match="En-tête fftri inattendu"):
-        t2area._parse_edition(html, URL_EDITION, "x", "triathlon-m")
+def test_fetch_edition_repere_la_redirection_vers_le_calendrier():
+    """Édition inexistante : 303 vers `/calendrier.html`, donc 200 après la
+    redirection. Le message ne doit pas accuser le markup (#898)."""
+    client = FakeClient(defaut=FakeResponse(
+        "<html><body>calendrier</body></html>", url="https://fftri.t2area.com/calendrier.html"
+    ))
+
+    with pytest.raises(t2area.EditionIntrouvableError, match="Édition inexistante"):
+        t2area._fetch_edition(client, URL_EDITION)
 
 
-def test_parse_edition_sans_details_leve():
-    """`Détails` absente : sans lever, toutes les lignes sortiraient sans dossard
-    ni fiche, et dupliqueraient chaque participation déjà en base (cf. #51)."""
-    html = (
-        "<html><body><h1>Résultats du X - 2022 - édition du 18-09-2022</h1>"
-        '<table id="resultList"><thead><tr>'
-        "<th>Clt</th><th>Temps</th><th>Nom</th><th>Club</th>"
-        "</tr></thead><tbody></tbody></table></body></html>"
-    )
-    with pytest.raises(ValueError, match="En-tête fftri inattendu"):
-        t2area._parse_edition(html, URL_EDITION, "x", "triathlon-m")
+def test_libelle_de_split_inconnu_bascule_sur_segments():
+    """Un seul libellé hors table suffit : rien n'est perdu silencieusement."""
+    r = ScrapedResult(source_url=URL_EDITION, provider="t2area")
 
+    t2area._appliquer_splits(r, [("Natation 1", "00:10:00"), ("Trail 1", "00:20:00")])
 
-def test_index_colonnes_place_details_apres_les_colonnes_de_ligue():
-    """L'en-tête réel porte 10 colonnes : `id_league`/`league` avant `Détails`.
-
-    C'est pour ça qu'on lit par libellé et non par position.
-    """
-    from bs4 import BeautifulSoup
-
-    table = BeautifulSoup(EDITION_LABAULE, "lxml").find(id="resultList")
-
-    assert t2area._index_colonnes(table) == {
-        "clt": 0, "clt_f": 1, "temps": 2, "nom": 3, "club": 4,
-        "cat": 5, "clt_cat": 6, "id_league": 7, "league": 8, "details": 9,
-    }
+    assert r.segments == [("Natation 1", "00:10:00"), ("Trail 1", "00:20:00")]
+    assert r.swim_time == ""
+    assert r.bike_time == ""
 
 
 @pytest.mark.parametrize("brut,attendu", [
     ("02:41:52", "02:41:52"),
     ("00:00:00", ""),      # DNF : temps absent, pas un temps nul
+    ("—", ""),             # split non chronométré sur la liste
     ("", ""),
     ("   ", ""),
 ])
@@ -427,7 +402,7 @@ def test_entete_titre_illisible_garde_la_date():
     from bs4 import BeautifulSoup
 
     soup = BeautifulSoup(
-        "<html><body><h1>Résultats — édition du 18-09-2022</h1></body></html>", "lxml"
+        "<html><head><title>Résultats — édition du 18-09-2022</title></head></html>", "lxml"
     )
     nom, event_date = t2area._entete(soup, "triathlon-de-la-baule", "triathlon-m")
 
@@ -436,10 +411,7 @@ def test_entete_titre_illisible_garde_la_date():
 
 
 # Mention réelle de Vichy L 2024 : un chronométreur que nous savons lire.
-EDITION_RACERESULT = EDITION_LABAULE.replace(
-    '<a href="http://www.ipitos.com/">IPITOS </a>',
-    '<a href="http://my3.raceresult.com/">RaceResult </a>',
-)
+EDITION_RACERESULT = EDITION_LABAULE.replace("http://www.ipitos.com/", "http://my3.raceresult.com/")
 
 
 def test_chronometreur_lit_la_mention():
@@ -493,89 +465,28 @@ def test_pas_davertissement_sans_mention(caplog):
     assert caplog.text == ""
 
 
-def test_parse_fiche_triathlon_exclut_le_general():
-    """« Général » est le temps total, déjà lu dans le classement."""
-    segments = t2area._parse_fiche(FICHE_TRIATHLON)
-
-    assert [libelle for libelle, _ in segments] == [
-        "Natation", "Transition 1", "Vélo", "Transition 2", "Course à Pied",
-    ]
+def test_parse_fiche_lit_les_rangs_sexe_et_categorie():
+    """Bandeau réel d'ACCENT Baptiste : « 453 Global », « 419 Sexe », « 89 Catégorie »."""
+    assert t2area._parse_fiche(FICHE_TRIATHLON) == {"rank_gender": 419, "rank_category": 89}
+    assert t2area._parse_fiche(FICHE_DUATHLON) == {"rank_gender": 1, "rank_category": 1}
 
 
-def test_parse_fiche_transition_a_zero_est_absente():
-    """La Baule 2022 ne chronomètre pas les transitions : 0 s serait un faux."""
-    segments = dict(t2area._parse_fiche(FICHE_TRIATHLON))
-
-    assert segments["Transition 1"] == ""
-    assert segments["Natation"] == "00:41:16"
-
-
-def test_appliquer_splits_triathlon():
-    r = ScrapedResult(source_url=URL_EDITION, provider="t2area")
-
-    t2area._appliquer_splits(r, t2area._parse_fiche(FICHE_TRIATHLON))
-
-    assert r.swim_time == "00:41:16"
-    assert r.bike_time == "01:14:59"
-    assert r.run_time == "00:45:39"
-    assert r.t1_time == ""
-    assert r.t2_time == ""
-    assert r.segments is None
-
-
-def test_appliquer_splits_duathlon_par_libelle_et_non_par_position():
-    """« CàP 1 » va au slot natation, « CàP 2 » au slot course : c'est ce qu'attend
-    `SPLIT_KEYS_BY_SPORT`, qui les ré-étiquette en course1/course2."""
-    r = ScrapedResult(source_url=URL_EDITION, provider="t2area")
-
-    t2area._appliquer_splits(r, t2area._parse_fiche(FICHE_DUATHLON))
-
-    assert r.swim_time == "00:22:47"
-    assert r.t1_time == "00:01:29"
-    assert r.bike_time == "01:24:14"
-    assert r.t2_time == "00:02:07"
-    assert r.run_time == "00:58:39"
-
-
-def test_appliquer_splits_duathlon_reetiquete_par_mapping():
-    """Bout à bout avec la couche service : les clés finales sont celles du sport."""
-    from app.services.mapping import build_splits
-
-    r = ScrapedResult(source_url=URL_EDITION, provider="t2area")
-    r.event_type = "duathlon-m"
-    t2area._appliquer_splits(r, t2area._parse_fiche(FICHE_DUATHLON))
-
-    assert build_splits(r) == {
-        "course1": "00:22:47", "t1": "00:01:29", "bike": "01:24:14",
-        "t2": "00:02:07", "course2": "00:58:39",
-    }
-
-
-def test_appliquer_splits_libelle_inconnu_bascule_sur_segments():
-    """Un seul libellé hors table suffit : rien n'est perdu silencieusement."""
-    r = ScrapedResult(source_url=URL_EDITION, provider="t2area")
-
-    t2area._appliquer_splits(r, t2area._parse_fiche(FICHE_LIBELLE_INCONNU))
-
-    assert r.segments == [("Natation 1", "00:10:00"), ("Trail 1", "00:20:00")]
-    assert r.swim_time == ""
-    assert r.bike_time == ""
+def test_parse_fiche_sans_bandeau():
+    assert t2area._parse_fiche("<html><body></body></html>") == {}
 
 
 PAGES_LABAULE: dict[str, str | FakeResponse] = {
     "/triathlon-m/2022.html": EDITION_LABAULE,
     "/triathlon-m.html": EPREUVE_LABAULE,
     "/2022/bib-566.html": FICHE_TRIATHLON,
-    "/2022/bib-983.html": FICHE_TRIATHLON,
 }
 
 _HREF_FICHE_ACCENT = (
     "https://fftri.t2area.com/calendrier/triathlon-de-la-baule/triathlon-m/2022/bib-566.html"
 )
 
-# Même édition, avec le href de la colonne Détails d'ACCENT Baptiste altéré :
-# la source mélange déjà les deux formes sur la même table (le lien Club est
-# relatif), donc un basculement de Détails vers du relatif est plausible.
+# Même édition, avec le lien de fiche d'ACCENT Baptiste altéré : la carte mélange
+# déjà liens absolus (fiche) et relatifs (club, athlète).
 EDITION_LABAULE_HREF_RELATIF = EDITION_LABAULE.replace(
     _HREF_FICHE_ACCENT,
     "/calendrier/triathlon-de-la-baule/triathlon-m/2022/bib-566.html",
@@ -592,27 +503,25 @@ def _client_factice(monkeypatch, pages=None, defaut=None):
     return client
 
 
-def test_scrape_event_all_ne_charge_que_les_fiches_tcn(monkeypatch):
-    """25 requêtes sur les 901 lignes réelles : le coût est borné par l'effectif du club."""
+def test_scrape_event_all_ne_charge_que_les_fiches_des_finishers_tcn(monkeypatch):
+    """25 requêtes sur les 901 lignes réelles : borné par l'effectif du club. EPP
+    Arnaud (TCN, DNF) n'a aucun rang à lire : sa fiche n'est pas chargée."""
     client = _client_factice(monkeypatch)
 
     resultats = t2area.scrape_event_all(URL_EDITION)
 
-    assert len(resultats) == 6
-    assert client.calls == [
-        URL_EDITION,
-        "https://fftri.t2area.com/calendrier/triathlon-de-la-baule/triathlon-m/2022/bib-566.html",
-        "https://fftri.t2area.com/calendrier/triathlon-de-la-baule/triathlon-m/2022/bib-983.html",
-    ]
+    assert len(resultats) == 9
+    assert client.calls == [URL_EDITION, _HREF_FICHE_ACCENT]
 
 
-def test_scrape_event_all_applique_les_splits_aux_seuls_tcn(monkeypatch):
+def test_scrape_event_all_pose_les_rangs_de_la_fiche_aux_seuls_tcn(monkeypatch):
     _client_factice(monkeypatch)
 
     resultats = t2area.scrape_event_all(URL_EDITION)
 
-    assert _par_nom(resultats, "ACCENT").swim_time == "00:41:16"
-    assert _par_nom(resultats, "ANTOINE").swim_time == ""
+    accent = _par_nom(resultats, "ACCENT")
+    assert (accent.rank_gender, accent.rank_category) == (419, 89)
+    assert _par_nom(resultats, "ANTOINE").rank_gender is None
 
 
 def test_scrape_event_all_tronque_une_url_de_fiche(monkeypatch):
@@ -621,7 +530,7 @@ def test_scrape_event_all_tronque_une_url_de_fiche(monkeypatch):
 
     resultats = t2area.scrape_event_all(URL_FICHE)
 
-    assert len(resultats) == 6
+    assert len(resultats) == 9
     assert client.calls[0] == URL_EDITION
 
 
@@ -648,33 +557,31 @@ def test_scrape_event_all_url_depreuve_resout_la_derniere_edition(monkeypatch):
 
     assert client.calls[0] == URL_EPREUVE
     assert client.calls[1] == URL_EDITION
-    assert len(resultats) == 6
+    assert len(resultats) == 9
 
 
 def test_scrape_event_all_fiche_en_echec_nemporte_pas_lepreuve(monkeypatch, caplog):
     pages = dict(PAGES_LABAULE)
-    pages["/2022/bib-983.html"] = FakeResponse("", 500)
+    pages["/2022/bib-566.html"] = FakeResponse("", 500)
     _client_factice(monkeypatch, pages=pages)
 
     with caplog.at_level(logging.WARNING, logger="app.scrapers.t2area"):
         resultats = t2area.scrape_event_all(URL_EDITION)
 
-    assert len(resultats) == 6
+    assert len(resultats) == 9
+    assert _par_nom(resultats, "ACCENT").rank_gender is None
     assert _par_nom(resultats, "ACCENT").swim_time == "00:41:16"
-    assert "bib-983" in caplog.text
+    assert "bib-566" in caplog.text
 
 
 def test_scrape_event_all_resout_un_href_de_fiche_relatif(monkeypatch):
-    """La colonne Détails est absolue sur les pages sondées, mais si elle bascule
-    en relatif (comme le lien Club l'est déjà sur la même table), la fiche doit
-    rester joignable via `urljoin`."""
     pages = dict(PAGES_LABAULE)
     pages["/triathlon-m/2022.html"] = EDITION_LABAULE_HREF_RELATIF
     client = _client_factice(monkeypatch, pages=pages)
 
     resultats = t2area.scrape_event_all(URL_EDITION)
 
-    assert _par_nom(resultats, "ACCENT").swim_time == "00:41:16"
+    assert _par_nom(resultats, "ACCENT").rank_gender == 419
     assert _HREF_FICHE_ACCENT in client.calls
 
 
@@ -689,16 +596,16 @@ def test_scrape_event_all_ignore_un_href_de_fiche_hors_host(monkeypatch):
     resultats = t2area.scrape_event_all(URL_EDITION)
 
     assert not any("evil.example.com" in call for call in client.calls)
-    assert _par_nom(resultats, "ACCENT").swim_time == ""
+    assert _par_nom(resultats, "ACCENT").rank_gender is None
 
 
 def test_scrape_event_all_edition_inexistante_leve(monkeypatch):
-    """Le site répond 303 vers son accueil : pas de classement vide silencieux."""
+    """Le site répond 303 vers son calendrier : pas de classement vide silencieux."""
     _client_factice(monkeypatch, pages={}, defaut=FakeResponse(
-        "<html><body><h1>CALENDRIER DES ÉPREUVES FFTRI</h1></body></html>"
+        "<html><body>calendrier</body></html>", url="https://fftri.t2area.com/calendrier.html"
     ))
 
-    with pytest.raises(ValueError, match="Aucun classement"):
+    with pytest.raises(ValueError, match="Édition inexistante"):
         t2area.scrape_event_all(URL_EDITION)
 
 
