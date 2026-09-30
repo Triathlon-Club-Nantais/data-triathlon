@@ -12,7 +12,11 @@ URL_GENERATE = f"{URL}/generate"
 
 
 def test_get_sans_session_est_refuse(client):
-    assert client.get(URL).status_code == 401
+    reponse = client.get(URL)
+
+    assert reponse.status_code == 401
+    # La garde SSO ne porte pas le discriminant de la garde du site (#877).
+    assert "code" not in reponse.json()
 
 
 def test_get_sans_le_pouvoir_est_refuse(client, ouvrir_session):
@@ -96,3 +100,27 @@ def test_get_rend_un_code_pose_hors_ligne_sans_auteur(client, ouvrir_session, db
     assert reponse.status_code == 200
     assert reponse.json()["configured"] is True
     assert reponse.json()["updated_by"] is None
+
+
+def test_put_rouvre_le_site_pour_l_admin_qui_change_le_code(client, ouvrir_session):
+    """#877 : la rotation du secret fermait aussi la session de site de l'admin
+    appelant, et chaque écran admin lui répondait ensuite 401."""
+    from app.services import site_access
+
+    ouvrir_session(P.SITE_ACCESS_MANAGE)
+
+    reponse = client.put(URL, json={"password": "un-secret-assez-long"})
+
+    assert site_access.SITE_SESSION_COOKIE in reponse.cookies
+    assert client.get("/api/v1/site-access/session").status_code == 200
+
+
+def test_generate_rouvre_le_site_pour_l_admin_qui_change_le_code(client, ouvrir_session):
+    from app.services import site_access
+
+    ouvrir_session(P.SITE_ACCESS_MANAGE)
+
+    reponse = client.post(URL_GENERATE)
+
+    assert site_access.SITE_SESSION_COOKIE in reponse.cookies
+    assert client.get("/api/v1/site-access/session").status_code == 200

@@ -14,6 +14,9 @@ class DomainError(Exception):
 
     status_code: int = 400
     message: str = "Erreur"
+    #: Discriminant lisible par machine, sérialisé en `code` quand il est posé :
+    #: deux refus au même statut que le front doit traiter différemment (#877).
+    code: str | None = None
 
     def __init__(self, message: str | None = None, *, headers: dict[str, str] | None = None):
         if message:
@@ -104,8 +107,11 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(DomainError)
     async def _domain_error(request: Request, exc: DomainError):
+        content = {"detail": exc.message}
+        if exc.code:
+            content["code"] = exc.code
         return JSONResponse(
             status_code=exc.status_code,
-            content={"detail": exc.message},
+            content=content,
             headers=exc.headers or None,
         )

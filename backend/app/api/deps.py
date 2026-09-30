@@ -27,6 +27,19 @@ class NotAuthenticatedError(DomainError):
     message = "Vous devez être connecté pour accéder à cette ressource."
 
 
+class SiteAccessRequiredError(DomainError):
+    """Le code d'accès au site manque, a expiré ou n'est pas encore posé (#509).
+
+    401 comme la garde SSO, mais avec son propre `code` : confondus, un admin
+    connecté sans cookie de site lisait « Session expirée » sur chaque écran
+    d'administration (#877).
+    """
+
+    status_code = 401
+    message = "Code d'accès au site requis."
+    code = "site_access_required"
+
+
 class InsufficientPermissionError(DomainError):
     """Session valide, pouvoir absent.
 
@@ -112,7 +125,7 @@ def require_site_access(
     """Garde transverse du site entier (#509) — mot de passe partagé, pas de
     RBAC. Distincte de `require_benevole_access` : secret et cookie propres.
     Fail-closed : configuration absente, cookie absent/invalide/expiré
-    rendent tous le même 401.
+    rendent tous le même 401, distinct de celui de la garde SSO (#877).
     """
     config = site_access_config_repository.get_config(db, with_updated_by=False)
     cookie = request.cookies.get(site_access.SITE_SESSION_COOKIE)
@@ -120,7 +133,7 @@ def require_site_access(
     if config is None or not shared_password.verify_cookie(
         cookie, config.session_secret, max_age_seconds=ttl_seconds
     ):
-        raise NotAuthenticatedError()
+        raise SiteAccessRequiredError()
 
 
 # ── Plafond de débit par IP (#395, constats A04-2 et A07-1 de l'audit OWASP) ──

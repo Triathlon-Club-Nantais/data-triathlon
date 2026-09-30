@@ -1,5 +1,13 @@
 import { ApiError } from "@/lib/api/client";
 
+/** `code` du 401 de la garde du site (`SiteAccessRequiredError`, backend). */
+const SITE_ACCESS_REQUIRED = "site_access_required";
+
+/** Même 401 que la session SSO, mais c'est le code du site qui manque (#877). */
+export function estRefusDuSite(erreur: Error): boolean {
+  return erreur instanceof ApiError && erreur.status === 401 && erreur.code === SITE_ACCESS_REQUIRED;
+}
+
 /**
  * Ce qu'un refus doit dire, et qu'une liste vide ne doit pas dire.
  *
@@ -19,6 +27,14 @@ export function messageDeRefus(
   { sujet, action }: { sujet: string; action: string },
 ): { title: string; description: string } {
   const statut = erreur instanceof ApiError ? erreur.status : 0;
+  if (estRefusDuSite(erreur)) {
+    return {
+      title: "Code d'accès requis",
+      description:
+        "Le code d'accès au site manque ou a expiré. " +
+        `Saisissez-le sur la page d'accès au site pour consulter les ${sujet}.`,
+    };
+  }
   if (statut === 401) {
     return {
       title: "Session expirée",

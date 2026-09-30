@@ -42,6 +42,12 @@ import { apiServer } from "@/lib/api/server";
  * toujours à `/admin`, et une redirection muette faisait croire à une
  * connexion ratée. Elle rend `NoAdminAccess` à la place des enfants.
  *
+ * **Elle ne vérifie pas le code d'accès au site.** La plupart des routes
+ * `/admin/*` l'exigent en plus de la session (#509), mais `/admin/acces` doit
+ * rester joignable sans lui pour poser le premier code. Un écran refusé pour
+ * cette raison le dit lui-même : son 401 porte `code: "site_access_required"`,
+ * que `messageDeRefus` distingue d'une session expirée (#877).
+ *
  * Contrepartie assumée : `/admin`, jusqu'ici prérendue statiquement, devient
  * dynamique. C'est l'effet recherché.
  */

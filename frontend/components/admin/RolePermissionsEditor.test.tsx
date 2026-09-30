@@ -267,6 +267,19 @@ describe("RolePermissionsEditor — lecture", () => {
     expect(await screen.findByText(titre)).toBeInTheDocument();
     expect(screen.queryByText(/aucun rôle/i)).not.toBeInTheDocument();
   });
+
+  // #877 : l'écran « Rôles des utilisateurs » affichait « Session expirée » à un
+  // admin connecté, quand c'était le code d'accès au site qui manquait.
+  it("ne prend pas un code de site manquant pour une session expirée", async () => {
+    listRoles.mockRejectedValue(
+      new ApiError(401, "Code d'accès au site requis.", null, {}, "site_access_required"),
+    );
+
+    afficher();
+
+    expect(await screen.findByText(/code d'accès requis/i)).toBeInTheDocument();
+    expect(screen.queryByText(/session expirée/i)).not.toBeInTheDocument();
+  });
 });
 
 describe("RolePermissionsEditor — recomposition", () => {

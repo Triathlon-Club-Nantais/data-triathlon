@@ -9,10 +9,12 @@ jamais un appel direct au repository pour ces deux gestes, qui combinent
 hachage et rotation du secret de session (AGENTS.md, « routers fins :
 délégation au service »).
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_permission
+from app.api.v1.site_access import set_site_cookie
+from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
@@ -51,13 +53,16 @@ def get_access_config(
 @router.put("/admin/site-access", response_model=SiteAccessConfigOut)
 def replace_access_password(
     body: SiteAccessReplaceIn,
+    response: Response,
     db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
     actor: User = Depends(require_permission(P.SITE_ACCESS_MANAGE)),
 ):
     """Remplace le mot de passe par une saisie.
 
     Invalide immédiatement toute session site ouverte : `replace_password`
-    régénère `session_secret` dans le même geste.
+    régénère `session_secret` dans le même geste. Sauf celle de l'appelant,
+    reposée ici : sinon chaque écran admin lui répondait 401 (#877).
     """
     config, _mot_de_passe = site_access.replace_password(
         db, password=body.password, admin_user_id=actor.id
@@ -70,12 +75,15 @@ def replace_access_password(
         entity_id=config.id,
     )
     db.commit()
+    set_site_cookie(response, config.session_secret, settings)
     return _vue(config)
 
 
 @router.post("/admin/site-access/generate", response_model=SiteAccessGeneratedOut)
 def generate_access_password(
+    response: Response,
     db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
     actor: User = Depends(require_permission(P.SITE_ACCESS_MANAGE)),
 ):
     """Génère un mot de passe sécurisé.
@@ -94,6 +102,7 @@ def generate_access_password(
         entity_id=config.id,
     )
     db.commit()
+    set_site_cookie(response, config.session_secret, settings)
     return SiteAccessGeneratedOut(
         password=mot_de_passe,
         updated_at=config.updated_at,

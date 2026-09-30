@@ -89,3 +89,14 @@ def test_refuse_sans_configuration(db_session, visiteur):
     db_session.query(SiteAccessConfig).delete()
     db_session.commit()
     assert visiteur.get("/protege").status_code == 401
+
+
+def test_le_refus_se_distingue_d_une_session_sso_expiree(visiteur):
+    """#877 : les deux gardes rendaient le même 401 au mot près, et le front
+    affichait « Session expirée » à un admin connecté sans cookie de site."""
+    reponse = visiteur.get("/protege")
+
+    assert reponse.status_code == 401
+    assert reponse.json()["code"] == "site_access_required"
+    assert reponse.json()["detail"] == "Code d'accès au site requis."
+

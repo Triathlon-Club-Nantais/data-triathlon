@@ -12,6 +12,18 @@ describe("messageDeRefus", () => {
     });
   });
 
+  // #877 : un admin connecté sans cookie de site lisait « Session expirée ».
+  it("distingue le code d'accès au site manquant de la session expirée", () => {
+    const erreur = new ApiError(401, "Code d'accès au site requis.", null, {}, "site_access_required");
+
+    expect(messageDeRefus(erreur, GROUPES)).toEqual({
+      title: "Code d'accès requis",
+      description:
+        "Le code d'accès au site manque ou a expiré. " +
+        "Saisissez-le sur la page d'accès au site pour consulter les groupes.",
+    });
+  });
+
   it("nomme le geste refusé et la façon de l'obtenir", () => {
     const message = messageDeRefus(new ApiError(403, "Refusé"), GROUPES);
 

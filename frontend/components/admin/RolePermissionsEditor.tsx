@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { estRefusDuSite, messageDeRefus } from "@/lib/api/refus";
 import { ApiError } from "@/lib/api/client";
 import {
   useAdminPermissions,
@@ -41,6 +42,9 @@ import { PermissionGrid } from "./PermissionGrid";
  * possible, sur l'écran qui gouverne tous les autres.
  */
 function messageDErreur(erreur: Error): { title: string; description: string } {
+  if (estRefusDuSite(erreur)) {
+    return messageDeRefus(erreur, { sujet: "rôles", action: "consulter la composition des rôles" });
+  }
   const statut = erreur instanceof ApiError ? erreur.status : 0;
   if (statut === 401) {
     return {
