@@ -36,13 +36,14 @@ def generate_password() -> str:
 
 
 def replace_password(
-    db: Session, *, password: str | None, admin_user_id: int
+    db: Session, *, password: str | None, admin_user_id: int | None
 ) -> tuple[SiteAccessConfig, str]:
     """Remplace le mot de passe — saisi ou généré. Rend `(config,
     mot_de_passe_en_clair)`. Hache le mot de passe, régénère
     `session_secret`, écrit les trois champs **ensemble** — jamais l'un sans
     les autres, sous peine de casser soit la vérification soit l'invalidation
-    des sessions ouvertes.
+    des sessions ouvertes. `admin_user_id=None` : posé hors ligne par la CLI
+    (#929), sans auteur.
     """
     mot_de_passe = password if password is not None else generate_password()
     password_hash, password_salt = shared_password.hash_password(mot_de_passe)

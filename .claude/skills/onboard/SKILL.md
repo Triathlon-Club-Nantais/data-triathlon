@@ -350,17 +350,20 @@ les logs et marquer `failed`.
 **Code d'accès au site** : un `200` du frontend ne prouve pas que les données
 sont consultables. Toutes les pages publiques et l'API de lecture passent par
 un code d'accès partagé (#509), fail-closed : tant qu'aucun code n'est posé en
-base, chaque page n'affiche que le formulaire `SiteAccessGate`. Ni le seed, ni
-`reset_db.py`, ni la CLI n'en posent un.
+base, chaque page n'affiche que le formulaire `SiteAccessGate`. Ni le seed ni
+`reset_db.py` n'en posent un ; la commande `set-site-code` (#929) le fait.
 
 Relancer la sonde `site_access_configured` de la détection initiale. Une sonde
 `curl "$BACKEND_URL/api/v1/site-access/session"` rend `401` sans cookie, que le
 code existe ou non : elle ne tranche pas seule, d'où la lecture en base.
 
 **Si `site_access_configured=false`** : ne **pas** marquer l'étape `done`
-en silence. Annoncer au contributeur que le site reste fermé, et dérouler avec
-lui le parcours de `README.md` § « Premier démarrage : SSO et code d'accès »,
-une étape à la fois (chacune demande une action de sa part) :
+en silence. Annoncer au contributeur que le site reste fermé, et lui proposer
+le raccourci : `cd backend && uv run python -m app.cli set-site-code` (génère et
+affiche un code, à saisir dans le formulaire du site). S'il veut aussi le
+back-office, dérouler avec lui le parcours de `README.md` § « Premier
+démarrage : SSO et code d'accès », une étape à la fois (chacune demande une
+action de sa part) :
 
 1. application OAuth GitHub locale
    (`specs/20260801-145428-auth-socle-sso/quickstart.md` § 1 ; dépôt principal

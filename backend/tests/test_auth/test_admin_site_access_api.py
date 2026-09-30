@@ -81,3 +81,18 @@ def test_generate_rend_le_mot_de_passe_en_clair_une_seule_fois(client, ouvrir_se
 
     assert reponse.status_code == 200
     assert len(reponse.json()["password"]) >= 20
+
+
+def test_get_rend_un_code_pose_hors_ligne_sans_auteur(client, ouvrir_session, db_session):
+    """`set-site-code` (#929) pose le code sans utilisateur : l'écran ne doit pas planter."""
+    from app.services import site_access
+
+    site_access.replace_password(db_session, password="un-code-hors-ligne", admin_user_id=None)
+    db_session.commit()
+    ouvrir_session(P.SITE_ACCESS_MANAGE)
+
+    reponse = client.get(URL)
+
+    assert reponse.status_code == 200
+    assert reponse.json()["configured"] is True
+    assert reponse.json()["updated_by"] is None

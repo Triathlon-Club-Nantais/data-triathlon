@@ -109,7 +109,7 @@ uv run pytest -m integration -n 0                  # tests réseau réel (scrape
 uv run ruff check .                                # lint
 
 # CLI de batch (depuis backend/) — les invocations : backend/app/cli/AGENTS.md
-uv run python -m app.cli --help                    # batches, inventaires, nettoyages et les 3 d'amorçage
+uv run python -m app.cli --help                    # batches, inventaires, nettoyages et les 4 d'amorçage
 
 # Frontend (depuis frontend/)
 npm run dev        # Next.js sur :3000 (ou suivant libre), branché sur le backend du worktree

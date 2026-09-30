@@ -35,7 +35,7 @@ def _vue(config) -> SiteAccessConfigOut:
     return SiteAccessConfigOut(
         configured=config is not None,
         updated_at=config.updated_at if config else None,
-        updated_by=config.updated_by.display_name if config else None,
+        updated_by=config.updated_by.display_name if config and config.updated_by else None,
     )
 
 

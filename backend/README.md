@@ -129,7 +129,8 @@ administrateur, puisqu'elle ne fait qu'accorder.
 
 Ces trois gestes n'ouvrent pas encore le site : les pages publiques et l'API de
 lecture restent derrière le **code d'accès** (#509), fail-closed tant qu'aucun
-code n'est posé, et aucune commande ne le pose. Dernier geste, dans le
+code n'est posé. Dernier geste, par la CLI
+(`uv run python -m app.cli set-site-code [--code <code>]`, #929) ou dans le
 navigateur : `/admin/acces`, carte « Accès au site », saisir un code ou en
 générer un (`PUT /api/v1/admin/site-access` ou `POST …/generate`, pouvoir
 `site_access:manage`, que `admin` franchit en superutilisateur).

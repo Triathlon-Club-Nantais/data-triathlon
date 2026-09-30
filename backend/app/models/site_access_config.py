@@ -23,6 +23,8 @@ class SiteAccessConfig(Base):
     password_salt: Mapped[str] = mapped_column(String, nullable=False)
     session_secret: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
-    updated_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    #: NULL quand le code a été posé hors ligne par `set-site-code` (#929) :
+    #: une installation neuve n'a encore aucun utilisateur à qui l'attribuer.
+    updated_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
 
-    updated_by: Mapped["User"] = relationship()  # noqa: F821
+    updated_by: Mapped["User | None"] = relationship()  # noqa: F821
