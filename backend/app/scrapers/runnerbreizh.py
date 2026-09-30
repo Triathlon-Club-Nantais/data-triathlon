@@ -28,7 +28,7 @@ from bs4 import BeautifulSoup
 from app.core import http
 from app.scrapers.base import ScrapedResult
 from app.scrapers.classify import classify_event_type
-from app.scrapers.utils import normalize_rank, normalize_time
+from app.scrapers.utils import heat_is_relay, normalize_rank, normalize_time
 from app.scrapers.utils import split_athlete_name as _split_name
 
 logger = logging.getLogger(__name__)
@@ -67,8 +67,6 @@ _TREND = re.compile(r"[\u2197\u2198]\s*\d+|=")
 _RUNNER_ID = re.compile(r"[?&]di=(\d+)")
 #: Label of a row the site could not attach to a runner: « ?DOSSARD #9998 ».
 _UNMATCHED_PREFIX = "?DOSSARD"
-#: Event-name markers of a team event (the site still announces it as a triathlon).
-_RELAY_NAME_HINTS = ("duo", "relais", "relay", "equipe", "équipe")
 
 #: Every ranking row has 8 cells, whatever the sport (probed on 7 events).
 _EXPECTED_CELLS = 8
@@ -222,8 +220,7 @@ def _is_relay(event_name: str, category: str) -> bool:
     row by row (« M+M », « M+F »). The site itself announces such events as plain
     triathlons, so neither signal can be skipped.
     """
-    name = (event_name or "").lower()
-    if any(hint in name for hint in _RELAY_NAME_HINTS):
+    if heat_is_relay(event_name):
         return True
     return bool(_TEAM_CATEGORY.search(category or ""))
 

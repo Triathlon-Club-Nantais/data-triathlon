@@ -38,6 +38,7 @@ from app.scrapers.base import FanoutTrace, ScrapedResult
 from app.scrapers.classify import classify_event_type
 from app.scrapers.utils import (
     fmt_seconds,
+    heat_is_relay,
     normalize_rank,
     normalize_time,
     qualify_event_name,
@@ -121,11 +122,6 @@ class Runner:
 
 _DATE = re.compile(r"(\d{1,2})/(\d{1,2})/(\d{4})")
 
-# Un libellé d'épreuve annonce une épreuve par équipes. La catégorie, elle, ne le
-# peut pas : `MASC`, `FEM` et `MIXT` servent aussi de catégories « toutes classes »
-# sur des épreuves individuelles (research R6).
-_RELAY_TOKENS = ("relais", "duo", "team")
-
 
 def _soup(html: str) -> BeautifulSoup:
     """Parse once, read many: the heaviest page of the panel is 4.5 MB / 1.2 s."""
@@ -178,8 +174,10 @@ def canonical_url(url: str) -> str:
 
 
 def _is_relay(label: str) -> bool:
-    normalized = label.lower()
-    return any(token in normalized for token in _RELAY_TOKENS)
+    """Le libellé d'épreuve seul, jamais la catégorie : `MASC`, `FEM` et `MIXT`
+    servent aussi de catégories « toutes classes » sur des épreuves
+    individuelles (research R6)."""
+    return heat_is_relay(label)
 
 
 #: Colonnes du tableau, identiques sur les 89 épreuves du panel quelle que soit

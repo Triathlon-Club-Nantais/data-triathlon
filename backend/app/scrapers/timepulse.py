@@ -28,6 +28,7 @@ from .utils import (
     DEFAULT_HEADERS,
     derive_status_from_label,
     fmt_seconds,
+    heat_is_relay,
     normalize_time,
     parse_fr_date,
     qualify_event_name,
@@ -132,7 +133,7 @@ def _is_relay(parcours: str, category: str) -> bool:
     Deux marqueurs concordants sur TimePulse : le parcours `p` contient
     « RELAIS » (vs « SOLO »), et/ou la catégorie `ca` est une catégorie d'équipe.
     """
-    return "relais" in (parcours or "").lower() or (category or "").upper() in _RELAY_CATEGORIES
+    return heat_is_relay(parcours) or (category or "").upper() in _RELAY_CATEGORIES
 
 
 def _series_field(nom: str) -> str | None:

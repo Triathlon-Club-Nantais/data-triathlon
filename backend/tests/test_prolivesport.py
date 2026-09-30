@@ -264,13 +264,15 @@ def test_is_relay_solo_age_category():
     assert _is_relay({"category": "Senior", "categoryRef": "SE"}) is False
 
 
-def test_parse_athlete_detects_relay():
+def test_parse_athlete_carries_the_heat_relay_flag():
     athlete = {
         "lastname": "CEMONTRIATHLON", "firstname": ".", "number": "754",
         "category": "Relay", "categoryRef": "R", "sex": "X",
         "rank": "1", "time": "00:54:47",
     }
-    r = _parse_athlete(athlete, _PLAN_VIDE, "http://x", "Triathlon Audencia", "triathlon", None)
+    r = _parse_athlete(
+        athlete, _PLAN_VIDE, "http://x", "Triathlon Audencia", "triathlon", None, is_relay=True
+    )
     assert r.is_relay is True
 
 

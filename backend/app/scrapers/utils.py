@@ -30,6 +30,35 @@ def strip_accents(text: str) -> str:
     decomposed = unicodedata.normalize("NFKD", text or "")
     return "".join(c for c in decomposed if not unicodedata.combining(c))
 
+
+# Un mot d'équipe se compare **mot entier** : « arduo » n'est pas un duo. Seul
+# « relais » tolère un format collé (« RelaisM », course Klikego 392), borné
+# aux tailles et aux chiffres pour ne pas prendre « Relaisiens » pour un relais.
+_TEAM_WORD_RE = re.compile(
+    r"relai[sx]?(?:xxs|xs|s|m|l|xl|xxl|\d+)?|relays?|duos?|binomes?|equipes?|teams?"
+)
+_WORD_SPLIT_RE = re.compile(r"[^a-z0-9]+")
+
+
+def heat_is_relay(*signals: str | None) -> bool:
+    """Le heat désigne-t-il une épreuve d'équipe ? (`is_relay` du modèle, #963)
+
+    Un seul détecteur pour tous les fournisseurs : chacun portait sa liste, et
+    « duo » ou « équipe » échappaient à la moitié d'entre eux (30 épreuves
+    typées solo en production). Les signaux sont les libellés du heat (nom,
+    slug, parcours, catégorie), dans n'importe quel ordre ; un seul suffit.
+    Chaque fournisseur garde en plus ses marqueurs propres (catégories EQX,
+    majorité de binômes…).
+
+    `is_relay` entre dans l'identité de la `Course` : se tromper fusionne ou
+    scinde des épreuves, sans rien montrer à l'affichage (#203, #295).
+    """
+    for signal in signals:
+        words = _WORD_SPLIT_RE.split(strip_accents(signal or "").lower())
+        if any(_TEAM_WORD_RE.fullmatch(word) for word in words):
+            return True
+    return False
+
 _FR_MONTHS = {
     "janvier": 1, "fevrier": 2, "mars": 3, "avril": 4,
     "mai": 5, "juin": 6, "juillet": 7, "aout": 8,

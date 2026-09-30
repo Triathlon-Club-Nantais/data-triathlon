@@ -49,6 +49,7 @@ from .base import (
 from .classify import classify_event_type
 from .utils import (
     DEFAULT_HEADERS,
+    heat_is_relay,
     normalize_rank,
     normalize_time,
     qualify_event_name,
@@ -166,9 +167,23 @@ def _is_relay(athlete: dict) -> bool:
     )
 
 
+def _race_is_relay(race: str, athletes: list[dict]) -> bool:
+    """`is_relay` de **tout** le heat (#963) : son nom (« M_relay »), ou une
+    majorité stricte de participations d'équipe.
+
+    Décidé ligne par ligne, une seule ligne sans catégorie « Relay » dans un
+    heat de relais formait à elle seule un heat solo résiduel, `is_relay`
+    entrant dans l'identité de la Course (152 à côté de 151, 146, 148).
+    """
+    if heat_is_relay(race):
+        return True
+    equipes = sum(1 for athlete in athletes if _is_relay(athlete))
+    return equipes * 2 > len(athletes)
+
+
 def _parse_athlete(
     athlete: dict, plan: _SplitPlan, url: str, event_name: str, event_type: str, event_date,
-    distance_km: float | None = None,
+    distance_km: float | None = None, *, is_relay: bool = False,
 ) -> ScrapedResult:
     result = ScrapedResult(source_url=url, provider="prolivesport")
     result.event_name = event_name
@@ -182,7 +197,7 @@ def _parse_athlete(
     result.club = athlete.get("club", "")
     result.category = athlete.get("categoryRef", athlete.get("category", ""))
     result.gender = athlete.get("sex", "")
-    result.is_relay = _is_relay(athlete)
+    result.is_relay = is_relay
     result.status = _derive_status(athlete)
     if result.status == STATUS_FINISHER:
         result.rank_overall = normalize_rank(athlete.get("rank"))
@@ -612,10 +627,13 @@ def scrape_event_fanout(
         plan = _build_split_map(splits, race)
         event_type = classify_event_type(race)
         nom = qualify_event_name(event_name, race)
+        lignes_du_heat = [ligne for ligne in lignes.get(race, []) if not _is_unmatched_bib(ligne)]
+        relais = _race_is_relay(race, lignes_du_heat)
         resultats.extend(
-            _parse_athlete(ligne, plan, sub_url, nom, event_type, event_date, distances[race])
-            for ligne in lignes.get(race, [])
-            if not _is_unmatched_bib(ligne)
+            _parse_athlete(
+                ligne, plan, sub_url, nom, event_type, event_date, distances[race], is_relay=relais
+            )
+            for ligne in lignes_du_heat
         )
     return resultats, trace
 
@@ -647,8 +665,11 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     distance_km = next(
         (_race_distance_km(e) for e in races if (e.get("race") or "").strip() == race), None
     )
+    lignes_du_heat = [
+        a for a in athletes if (a.get("race") or "").strip() == race and not _is_unmatched_bib(a)
+    ]
+    relais = _race_is_relay(race, lignes_du_heat)
     return [
-        _parse_athlete(a, plan, url, nom, event_type, event_date, distance_km)
-        for a in athletes
-        if (a.get("race") or "").strip() == race and not _is_unmatched_bib(a)
+        _parse_athlete(a, plan, url, nom, event_type, event_date, distance_km, is_relay=relais)
+        for a in lignes_du_heat
     ]

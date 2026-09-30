@@ -38,12 +38,12 @@ from .classify import classify_event_type
 from .utils import (
     DEFAULT_HEADERS,
     collapse_spaces,
+    heat_is_relay,
     normalize_rank,
     normalize_time,
     parse_fr_date,
     qualify_event_name,
     split_athlete_name,
-    strip_accents,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,10 +62,6 @@ _CLASSEMENT_HREF_RE = re.compile(r"/classement/")
 # rend « — » sur un split vide et « -- » / « +5:16 » dans la colonne d'écart :
 # `normalize_time` les laisse passer tels quels, il faut donc filtrer ici.
 _TIME_RE = re.compile(r"^\d{1,3}:\d{2}:\d{2}$")
-
-# Marqueurs d'une participation en équipe dans la colonne `categorie`
-# (« Relais Mixte », « Duo Masculin »…), comparés sans accents ni casse.
-_RELAY_HINTS = ("relais", "duo", "equipe")
 
 # Ids de catégorie de l'annuaire /recherche, relevés dans le `<select name="categorie">`
 # de /classements. Table statique : 17 entrées, changement improbable, et la date
@@ -354,8 +350,7 @@ def _event_type(analytics: dict, event_name: str) -> str:
 
 def _is_relay_category(category: str) -> bool:
     """Vrai si la catégorie désigne une équipe (« Relais Mixte », « Duo Masculin »)."""
-    normalized = strip_accents((category or "").strip().lower())
-    return any(hint in normalized for hint in _RELAY_HINTS)
+    return heat_is_relay(category)
 
 
 def _fetch(client: httpx.Client, path: str, *, message_404: str | None = None) -> str:
