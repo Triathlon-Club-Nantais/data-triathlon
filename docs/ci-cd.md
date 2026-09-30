@@ -888,7 +888,7 @@ au niveau dépôt).
 
 | Service | Coucher | Lever |
 |---|---|---|
-| **production** | cron `15 23 * * *` | cron `15 2 * * *` (au lieu de `15 4 * * *`, #885) |
+| **production** | timer Azure `Render-sleep` à 23 h 15 (#1010), cron `15 23 * * *` en secours | timer Azure `Render-wake` à 2 h 15 (#1010), cron `15 2 * * *` en secours (au lieu de `15 4 * * *`, #885) |
 | **preview** | cron `15 * * * *` — **à chaque heure** (#560) | **jamais par cron** — `deploy.yml` la reprend avant son deploy hook |
 
 La preview ne se rallume que pour servir la vérification post-déploiement, puis

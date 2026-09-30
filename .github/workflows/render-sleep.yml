@@ -58,6 +58,12 @@ run-name: "render-sleep · ${{ inputs.action || github.event.schedule }} · ${{ 
 # effet. Si le retard observé se réduit ou s'aggrave, cette valeur doit être
 # réajustée en conséquence tant que #885 n'est pas résolu.
 #
+# **Déclenchement à l'heure par Azure (#1010)** : les fonctions `Render-sleep`
+# et `Render-wake` (`infra/azure-functions/`) lancent ce workflow par
+# `workflow_dispatch` à 23 h 15 et 2 h 15 UTC, sans le retard du `schedule`. Les
+# crons de production ci-dessous restent en secours tant qu'elles ne sont pas
+# validées en production : ils passent plus tard et ne font alors plus rien.
+#
 # **Le coucher ne passe jamais après le lever** : avec 3 h seulement entre les
 # deux crons, un coucher retardé au delà de 2 h (~2 h 10 mesuré sur #885, plus
 # de 4 h sur #842) pourrait s'exécuter après le lever et éteindre la production
