@@ -110,8 +110,9 @@ jobs:
     # Environments **dédiés**, et non `Preview`/`Production` : ces derniers ne
     # portent aucune `DATABASE_URL` (l'URL vit côté Render), et `Production`
     # porte une *required reviewer* qui laisserait chaque batch en attente d'une
-    # approbation humaine. Le contrôle d'accès est le pouvoir `batch:run`, côté
-    # API. Cf. docs/ci-cd.md.
+    # approbation humaine. Le contrôle d'accès est la politique de branche des
+    # deux environments, bornée à `main` (#903), puis le pouvoir `batch:run`,
+    # côté API. Cf. docs/ci-cd.md.
     #
     # Même repli que la concurrence : sans entrée (planification), c'est la
     # production.
@@ -167,8 +168,31 @@ jobs:
           SERVER: ${{ secrets.AZURE_POSTGRES_SERVER }}
         run: |
           set -euo pipefail
-          RUNNER_IP=$(curl -sSf https://api.ipify.org)
           RULE_NAME="gh-batch-${GITHUB_RUN_ID}"
+
+          # Purge des règles laissées par un run tué avant son step de fermeture
+          # (#1073). Sûre parce que la concurrence `batch-production` sérialise
+          # les runs : aucune autre règle `gh-batch-*` n'est en usage. Le rôle
+          # custom porte déjà `firewallRules/{read,delete}`.
+          az postgres flexible-server firewall-rule list \
+            --resource-group "$RG" --server-name "$SERVER" \
+            --query "[?starts_with(name, 'gh-batch-') && name != '$RULE_NAME'].name" -o tsv \
+            | xargs -r -n1 az postgres flexible-server firewall-rule delete \
+                --resource-group "$RG" --server-name "$SERVER" --yes \
+                --only-show-errors --output none --name
+
+          # IP du runner bornée dans le temps, rejouée, avec un service de repli
+          # (#1073) : sans `--max-time`, un ipify muet figeait le step jusqu'au
+          # timeout du job, en retenant le groupe de concurrence.
+          RUNNER_IP=""
+          for service in https://api.ipify.org https://checkip.amazonaws.com https://ifconfig.me/ip; do
+            RUNNER_IP=$(curl -sSf --connect-timeout 5 --max-time 10 --retry 3 --retry-all-errors "$service" \
+              | tr -d '[:space:]') && [[ "$RUNNER_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] && break
+            echo "::warning::IP du runner illisible depuis $service"
+            RUNNER_IP=""
+          done
+          [ -n "$RUNNER_IP" ] || { echo "::error::IP publique du runner introuvable"; exit 1; }
+
           echo "rule_name=$RULE_NAME" >> "$GITHUB_OUTPUT"
           az postgres flexible-server firewall-rule create \
             --resource-group "$RG" --server-name "$SERVER" \
@@ -293,3 +317,15 @@ jobs:
             --resource-group "$RG" --server-name "$SERVER" \
             --name "$RULE_NAME" --yes \
             --only-show-errors --output none || true
+
+  # Alerte d'équipe sur un échec planifié (#922). Les lancements manuels en sont
+  # exclus : leur auteur suit le run, depuis l'écran ou l'onglet Actions.
+  notify:
+    needs: [run]
+    if: failure() && github.event_name == 'schedule'
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      workflow: batch

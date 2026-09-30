@@ -1,0 +1,51 @@
+name: Notify failure
+
+# Alerte d'équipe d'un workflow planifié en échec (#922). Sans elle, la
+# plateforme ne prévenait que l'auteur du dernier commit du fichier de cron :
+# la reprise hebdomadaire de `batch.yml` a échoué six lundis de suite sans que
+# personne réagisse. Le canal est une issue labellisée `ops`, gratuite et sans
+# compte tiers : une par workflow, ouverte au premier échec, complétée ensuite.
+on:
+  workflow_call:
+    inputs:
+      workflow:
+        description: Nom du workflow appelant, repris dans le titre de l'issue.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  issue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Un workflow horaire (`render-sleep.yml`) en panne durable ouvrirait une
+      # rafale de commentaires : l'issue ouverte n'est complétée qu'une fois
+      # toutes les 12 heures, ce qui suffit à dire que la panne dure.
+      - name: Ouvrir ou compléter l'issue ops
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          WORKFLOW: ${{ inputs.workflow }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          titre="Scheduled workflow failing: $WORKFLOW"
+          corps="Échec de l'exécution planifiée : $RUN_URL"
+          issue=$(gh issue list --state open --label ops --search "\"$titre\" in:title" \
+            --json number,title,updatedAt \
+            --jq "[.[] | select(.title == \"$titre\")][0] // empty")
+          if [ -z "$issue" ]; then
+            gh issue create --title "$titre" --label ops --body "$corps"
+            exit 0
+          fi
+          numero=$(jq -r '.number' <<<"$issue")
+          maj=$(date -u -d "$(jq -r '.updatedAt' <<<"$issue")" +%s)
+          if [ $(( $(date -u +%s) - maj )) -lt 43200 ]; then
+            echo "Issue #$numero complétée il y a moins de 12 h : rien à ajouter."
+            exit 0
+          fi
+          gh issue comment "$numero" --body "$corps"

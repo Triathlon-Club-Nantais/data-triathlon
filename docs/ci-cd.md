@@ -61,6 +61,9 @@ Toute PR déclenche la CI seule (aucun déploiement).
   integration tests failing » (labels `scraper`, `quality`), ou la complète d'un
   commentaire si elle est déjà ouverte, avec la liste des tests en échec. Seul
   besoin au-delà de la lecture : `issues: write`.
+- **`.github/workflows/notify-failure.yml`** (#922) : réutilisable
+  (`workflow_call`), appelé par `batch.yml` et `render-sleep.yml` sur un échec
+  planifié. Voir « Destinataire de la notification d'échec » plus bas.
 
 **Chaque job porte un `timeout-minutes`** (#1071), sans quoi il hérite des
 360 minutes par défaut de GitHub : une étape figée (registre npm ou PyPI muet,
@@ -853,11 +856,24 @@ par épreuve : la borne tient l'étape à une dizaine de minutes, et le reste pa
 au lundi suivant. Elle est en `continue-on-error`, pour qu'un Nominatim muet ne
 fasse pas rougir un batch dont les épreuves ont abouti.
 
-**Destinataire de la notification d'échec** : la plateforme notifie l'auteur de
-la dernière modification du fichier de cron, pas l'équipe. À constater sur la
-première occurrence rouge (quickstart §12) ; si ce n'est pas la bonne personne,
-c'est l'hypothèse « aucun canal d'alerte nouveau » de la spec qu'il faut
-rouvrir, pas une situation avec laquelle vivre.
+**Destinataire de la notification d'échec** (#922) : la plateforme ne notifie
+que l'auteur de la dernière modification du fichier de cron, et la reprise a
+échoué six lundis de suite sans que personne réagisse. `batch.yml` et
+`render-sleep.yml` portent donc un job `notify` qui, sur un échec **planifié**
+seulement, appelle `notify-failure.yml` : il ouvre l'issue « Scheduled workflow
+failing: <workflow> » (label `ops`), ou la complète si elle est déjà ouverte, au
+plus une fois toutes les 12 heures (le coucher de la preview est horaire).
+Gratuit, sans compte tiers ; seul besoin au-delà de la lecture, `issues: write`
+sur ce job. Fermer l'issue une fois la cause corrigée : l'échec suivant en
+rouvrira une.
+
+**Moniteur externe** (geste manuel, gratuit) : un compte UptimeRobot (offre
+Free, 50 moniteurs à 5 min) qui sonde
+`https://data-triathlon-vq6u.onrender.com/api/v1/health` et la page d'accueil
+du front, notifications vers l'adresse de l'équipe. Poser une **fenêtre de
+maintenance quotidienne de 23 h 15 à 2 h 30 UTC** sur le moniteur du backend :
+c'est l'extinction voulue par `render-sleep.yml`, qui ne doit pas alerter. Il
+couvre ce que `notify` ne voit pas : un service tombé hors de tout workflow.
 
 ## Veille des services Render — `render-sleep.yml` (#528, #560)
 

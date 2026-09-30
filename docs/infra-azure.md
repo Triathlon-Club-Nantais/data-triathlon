@@ -85,6 +85,14 @@ az postgres flexible-server firewall-rule list -g TCN_Data_BDD -s tcndatabdd \
   --query "[?starts_with(name, 'gh-batch-')]" -o table
 ```
 
+**Purge automatique** (#1073) : avant de créer sa règle, `batch.yml` supprime
+toute règle `gh-batch-*` qui ne porte pas son propre `run_id`. Une règle survit
+quand un run est tué avant son step de fermeture (annulation, runner perdu) ;
+elle laissait une IP de runner ouverte jusqu'au nettoyage manuel. La purge est
+sûre parce que la concurrence `batch-production` sérialise les runs : aucune
+autre règle `gh-batch-*` n'est alors en usage. Le rôle custom porte déjà
+`firewallRules/{read,delete}`.
+
 ## Identités gérées pour GitHub Actions (#243)
 
 Cinq objets Azure existent pour permettre au workflow `batch.yml` d'ouvrir et

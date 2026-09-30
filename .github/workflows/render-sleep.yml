@@ -271,3 +271,15 @@ jobs:
           fi
           echo
           echo "$ACTION appliqué au service ${{ matrix.environment }}"
+
+  # Alerte d'équipe sur un échec planifié (#922). Les lancements manuels en sont
+  # exclus : leur auteur suit le run, depuis l'écran ou l'onglet Actions.
+  notify:
+    needs: [render]
+    if: failure() && github.event_name == 'schedule'
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      workflow: render-sleep
