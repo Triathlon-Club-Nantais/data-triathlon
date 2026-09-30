@@ -46,6 +46,9 @@ class ScrapedResult:
     # Kilométrage de l'épreuve si connu/extrait. Sinon mapping l'extrait du nom.
     distance_km: float | None = None
     is_relay: bool = False
+    #: Épreuve classée au nombre de tours sur une durée fixe (#993) : le temps
+    #: ne mesure pas la performance et sort des statistiques de temps.
+    ranked_by_laps: bool = False
     # "" = le scraper ne se prononce pas → l'infra retombe sur l'heuristique.
     # Un scraper qui sait (prolivesport) le renseigne explicitement.
     status: str = ""

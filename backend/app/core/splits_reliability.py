@@ -40,5 +40,11 @@ def has_reliable_splits(provider: str | None) -> bool:
 
 
 def is_stats_eligible(course: "Course") -> bool:
-    """Éligibilité aux statistiques détaillées : propriété de la course, pas de la participation."""
+    """Éligibilité aux statistiques détaillées : propriété de la course, pas de la participation.
+
+    Une épreuve classée au nombre de tours (#993) en sort : comparer son temps à
+    celui des positions de référence n'a pas de sens.
+    """
+    if getattr(course, "ranked_by_laps", False):
+        return False
     return has_reliable_splits(getattr(course, "provider", None))

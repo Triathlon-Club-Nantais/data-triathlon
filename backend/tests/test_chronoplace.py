@@ -1091,3 +1091,63 @@ def test_sibling_epreuves_of_one_event_never_share_a_course_name():
     }
 
     assert len(noms) == 5
+
+
+
+# ── Épreuves au nombre de tours (#993) ──────────────────────────────────────
+
+
+def _colmont():
+    return chronoplace._epreuve_results(
+        EPREUVE_551_2026,
+        "https://www.chronoplace.fr/classement/vetathlon-de-la-colmont-2025/epreuve/551",
+        "vetathlon-de-la-colmont-2025",
+        None,
+    )
+
+
+def _spaycific():
+    return chronoplace._epreuve_results(
+        EPREUVE_566_2026,
+        "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/566",
+        "spaycific-races-2025",
+        None,
+    )
+
+
+def test_tours_fixes_une_ligne_sous_le_maximum_est_un_abandon():
+    """Vétathlon de la Colmont 2025 (551) : 50 équipes à 9 tours, 2 à 5 et 1 à 1.
+    Le tour incomplet est le seul signal d'abandon que publie la source : sans
+    lui, l'équipe arrêtée après 1 tour sortait finisher, au meilleur temps."""
+    resultats = _colmont()
+    par_tours = {r.raw_data["nb_tours"]: r for r in resultats}
+
+    assert par_tours["9"].status == ""
+    assert par_tours["9"].total_time != ""
+    for tours in ("5", "1"):
+        abandon = par_tours[tours]
+        assert abandon.status == "DNF"
+        assert abandon.total_time == ""
+        assert abandon.rank_overall is None
+    assert not any(r.ranked_by_laps for r in resultats)
+
+
+def test_duree_fixe_marque_l_epreuve_au_tour_sans_abandon():
+    """SwimRun Spay'cific 2025 (566) : tout le monde arrêté vers 2 h, de 9 à 15
+    tours. Personne n'abandonne, mais le temps ne mesure pas la performance."""
+    resultats = _spaycific()
+
+    assert all(r.ranked_by_laps for r in resultats)
+    assert {r.status for r in resultats} == {""}
+
+
+def test_epreuve_sans_tours_reste_ordinaire():
+    resultats = chronoplace._epreuve_results(
+        EPREUVE_494,
+        "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/494",
+        "spaycific-races-2025",
+        None,
+    )
+
+    assert not any(r.ranked_by_laps for r in resultats)
+    assert {r.status for r in resultats} == {""}

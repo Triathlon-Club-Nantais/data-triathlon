@@ -33,7 +33,7 @@ from bs4 import BeautifulSoup
 
 from app.core import http
 
-from .base import FanoutTrace, ScrapedResult
+from .base import STATUS_DNF, FanoutTrace, ScrapedResult
 from .classify import classify_event_type
 from .utils import (
     DEFAULT_HEADERS,
@@ -44,6 +44,7 @@ from .utils import (
     parse_fr_date,
     qualify_event_name,
     split_athlete_name,
+    to_seconds,
 )
 
 logger = logging.getLogger(__name__)
@@ -478,6 +479,56 @@ def _build_result(
     return result
 
 
+#: Écart relatif maximal des temps d'une épreuve **à durée fixe** : tout le
+#: monde est arrêté à la même heure (9 % mesurés sur le SwimRun Spay'cific 566,
+#: 0 % sur les 24 h VTT de 493). Une épreuve à tours fixés s'étale bien plus
+#: (91 % sur le Vétathlon de la Colmont 551, abandons compris). Sondage :
+#: docs/superpowers/specs/2026-09-30-chronoplace-tours-sondage.md.
+_FIXED_DURATION_MAX_SPREAD = 0.2
+
+
+def _apply_lap_format(results: list[ScrapedResult], slug: str) -> None:
+    """Épreuve classée au nombre de tours (#993) : durée fixe ou tours fixés.
+
+    La source ne dit pas lequel (ni le snapshot Livewire, ni la page) : les
+    données le disent. Si les tours varient, un temps quasi constant signe une
+    durée fixe, et l'épreuve est marquée `ranked_by_laps` (le temps ne compare
+    rien). Sinon ce sont des tours fixés, et une ligne sous le maximum de tours
+    est un abandon, le seul que publie la source.
+    """
+    laps = {id(r): _lap_count(r) for r in results}
+    counted = [count for count in laps.values() if count is not None]
+    if len(set(counted)) < 2:
+        return
+    seconds = [to_seconds(r.total_time) for r in results if r.total_time]
+    seconds = [value for value in seconds if value]
+    if seconds and (max(seconds) - min(seconds)) / max(seconds) <= _FIXED_DURATION_MAX_SPREAD:
+        for result in results:
+            result.ranked_by_laps = True
+        logger.info("Épreuve chronoplace %s : durée fixe, classée au nombre de tours.", slug)
+        return
+    maximum = max(counted)
+    abandons = 0
+    for result in results:
+        count = laps[id(result)]
+        if count is None or count >= maximum or result.status:
+            continue
+        # Invariant du dépôt : un non-finisher n'a ni temps total ni rang.
+        result.status = STATUS_DNF
+        result.total_time = ""
+        result.rank_overall = result.rank_gender = result.rank_category = None
+        abandons += 1
+    if abandons:
+        logger.info(
+            "Épreuve chronoplace %s : %d abandon(s) sous les %d tours.", slug, abandons, maximum
+        )
+
+
+def _lap_count(result: ScrapedResult) -> int | None:
+    raw = str(result.raw_data.get("nb_tours", "")).strip()
+    return int(raw) if raw.isdigit() else None
+
+
 def _epreuve_results(
     html: str, url: str, slug: str, event_date: date | None
 ) -> list[ScrapedResult]:
@@ -500,6 +551,7 @@ def _epreuve_results(
         )
         for row in rows
     ]
+    _apply_lap_format(results, slug)
     # Une identité vide fusionne toutes ces lignes à l'import (#897).
     nameless = sum(1 for r in results if not r.athlete_name and not r.athlete_firstname)
     if nameless:

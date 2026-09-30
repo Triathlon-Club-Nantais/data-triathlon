@@ -383,6 +383,25 @@ def test_a_forced_import_takes_the_url_lock_without_the_cache_check(
     assert verrous == [URL]
 
 
+def test_a_lap_count_course_is_marked_and_left_out_of_time_statistics(db_session, patch_scraper):
+    """#993: on a fixed-duration race, the time does not measure the
+    performance. The course carries the format; the time histogram and the
+    comparison to reference positions leave it out."""
+    from app.services import participation_stats_service, stats_service
+
+    patch_scraper([
+        _result("1", "UN", rank_overall=1, total_time="02:00:20", ranked_by_laps=True),
+        _result("2", "DEUX", rank_overall=2, total_time="02:00:30", ranked_by_laps=True),
+    ])
+    import_service.import_event(db_session, URL, _settings())
+
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    assert course.ranked_by_laps is True
+    assert stats_service.course_summary(db_session, course.id)["histogram"] is None
+    ligne = participation_repository.list_for_course(db_session, course.id)[0]
+    assert participation_stats_service.build(db_session, ligne) is None
+
+
 def test_import_calcule_l_indice_de_fiabilite(db_session, patch_scraper):
     patch_scraper([_result("1", "DUPONT", rank_overall=1), _result("2", "MARTIN", rank_overall=2)])
     import_service.import_event(db_session, URL, _settings())

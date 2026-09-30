@@ -370,7 +370,8 @@ def course_summary(db: Session, course_id: int) -> dict:
         # ce sont des clubs. Les deux disent ce que la carte omet, dans deux
         # unités différentes.
         "clubs_total": len(clubs),
-        "histogram": _histogram(secondes),
+        # Une épreuve à durée fixe classe aux tours : ses temps ne se comparent pas (#993).
+        "histogram": None if course is not None and course.ranked_by_laps else _histogram(secondes),
         "split_keys": split_gap.chronological(split_keys),
         # Une **mesure**, pas un verdict : la médiane sert de référence à l'écran,
         # qui applique ses propres seuils. Les régler après re-sondage ne touche

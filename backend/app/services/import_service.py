@@ -782,6 +782,8 @@ class _Persister:
             # Attend la fin d'un geste admin sur cette épreuve plutôt que d'écrire
             # sous lui ; le geste, lui, reçoit un 409 tant que l'import la tient (#982).
             lock_repository.lock_course(self.db, course.id)
+            # Constat de la machine, réécrit à chaque passage (#993).
+            course.ranked_by_laps = scraped.ranked_by_laps
         self._courses[course.id] = course
         self._index_course(course.id)
         if nameless:
