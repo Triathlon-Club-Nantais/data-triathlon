@@ -21,17 +21,24 @@ Toute PR déclenche la CI seule (aucun déploiement).
 ## Workflows GitHub Actions
 
 - **`.github/workflows/ci.yml`** — source unique des contrôles qualité,
-  réutilisable (`workflow_call`) et déclenché sur `pull_request`, plus un
-  `workflow_dispatch` pour relancer la CI à la main (**Actions** → *CI* →
-  **Run workflow** → branche) quand elle ne s'est pas déclenchée seule ;
-  l'exécution porte alors sur la branche, pas sur sa fusion avec `main`.
+  réutilisable (`workflow_call`) et déclenché sur `pull_request` et
+  `merge_group` (#920), plus un `workflow_dispatch` pour relancer la CI à la
+  main (**Actions** → *CI* → **Run workflow** → branche) quand elle ne s'est pas
+  déclenchée seule ; l'exécution porte alors sur la branche, pas sur sa fusion
+  avec `main`.
   - Backend : `uv run ruff check .` + `uv run pytest -m "not integration"` (Python 3.13).
+  - `backend-audit` : `uv audit` sur `uv.lock`, en `continue-on-error` et hors
+    du check requis (#920). Une advisory publiée après coup le rend rouge sur
+    toutes les PR sans bloquer la merge queue, ni les bumps Dependabot qui la
+    corrigent. Un audit rouge se lit donc sur la PR, il ne s'impose pas.
   - Backend sur PostgreSQL 16 (`backend-postgres`, #947) : `alembic upgrade head`,
     `alembic check`, `downgrade -1` puis `upgrade head`, et `tests/test_repositories`
     contre une base de service. Les fixtures y basculent quand `TEST_POSTGRES_URL`
     est posée ; sans elle, la suite locale reste sur SQLite, sans serveur.
   - Frontend : `npm run lint` (eslint) + `npm test` (vitest) + `npm run build`
     (typecheck TS strict + build Next/RSC).
+  - `ci-ok` : agrégateur, en échec dès qu'un job amont (hors audit) n'est pas
+    `success`. **C'est le seul check requis** (voir « Merge queue » plus bas).
 - **`.github/workflows/deploy.yml`** — déclenché sur `push` (branche `main` et
   tags `v*`). Appelle `ci.yml` puis, **seulement si la CI passe** (`needs: ci`),
   lance `deploy-preview` (sur `main`) ou `deploy-production` (sur tag `v*`).
@@ -494,6 +501,27 @@ ouvertes sont invisibles pour ruff. Ce qui a été traité :
 `tests/**` est neutralisé via `per-file-ignores` : les tests ne sont pas une
 frontière de confiance, et `S101` (`assert`) y sort 5347 fois.
 
+### Merge queue de `main` : le check requis `ci-ok` (#920)
+
+Le ruleset `main` (id 18000488) porte une merge queue (`ALLGREEN`) et une règle
+`required_status_checks` sur le seul contexte `ci-ok`. Sans cette règle,
+`ALLGREEN` n'attend rien : la queue fusionnait sans CI. Un agrégateur plutôt que
+la liste des jobs, pour que renommer un job ou changer la matrice des shards ne
+casse pas la règle.
+
+```bash
+# Poser la règle (à refaire si le ruleset est recréé)
+gh api repos/Triathlon-Club-Nantais/data-triathlon/rulesets/18000488 > /tmp/ruleset.json
+jq '{name, target, enforcement, conditions, bypass_actors,
+     rules: (.rules + [{type: "required_status_checks", parameters: {
+       strict_required_status_checks_policy: false,
+       required_status_checks: [{context: "ci-ok"}]}}])}' /tmp/ruleset.json \
+  | gh api -X PUT repos/Triathlon-Club-Nantais/data-triathlon/rulesets/18000488 --input -
+```
+
+Vérification : mettre une PR en queue et constater un run `merge_group` de
+`ci.yml`, que la queue attend avant de fusionner.
+
 ### Environments GitHub — requis, et un garde-fou optionnel
 
 Les *Environments* `preview` et `production` sont **nécessaires** : les deux jobs
@@ -940,7 +968,7 @@ git push origin v0.1.0
 
 ## Vérification
 
-1. Ouvrir une PR → les jobs `backend` et `frontend` passent.
+1. Ouvrir une PR → les jobs `backend` et `frontend` passent, puis `ci-ok`.
 2. Merger dans `main` (ou lancer un `workflow_dispatch`) → `deploy.yml` enchaîne
    `ci` puis `deploy-preview` : hook Render preview + déploiement sur l'URL fixe
    de `data-triathlon-preview`. Relancer une fois : **la même URL**.
