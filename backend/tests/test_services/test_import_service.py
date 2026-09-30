@@ -301,6 +301,26 @@ def test_reimport_backfills_a_normalized_gender(db_session, patch_scraper):
     assert athlete_repository.get_by_identity(db_session, "RESTE", "Sam", None).gender == ""
 
 
+def test_import_skips_youth_heats_and_rows(db_session, patch_scraper):
+    """#881: an event import no longer brings children's results in, whether
+    the heat name or the row category says so. Cadets stay imported."""
+    patch_scraper(
+        [
+            _result("1", "ADULTE", prenom="Ada"),
+            _result("2", "ENFANT", prenom="Eli", event_name="Triathlon de Nantes - Poussins"),
+            _result("3", "MINIME", prenom="Max", category="MIH"),
+            _result("4", "CADET", prenom="Cal", category="CAH"),
+        ]
+    )
+
+    out = import_service.import_event(db_session, URL, _settings())
+
+    assert out["imported"] == 2
+    assert athlete_repository.get_by_identity(db_session, "ENFANT", "Eli", None) is None
+    assert athlete_repository.get_by_identity(db_session, "MINIME", "Max", None) is None
+    assert athlete_repository.get_by_identity(db_session, "CADET", "Cal", None) is not None
+
+
 def test_import_calcule_l_indice_de_fiabilite(db_session, patch_scraper):
     patch_scraper([_result("1", "DUPONT", rank_overall=1), _result("2", "MARTIN", rank_overall=2)])
     import_service.import_event(db_session, URL, _settings())

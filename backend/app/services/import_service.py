@@ -26,6 +26,7 @@ from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, Scra
 from app.core.gender import normalize_gender
 from app.core.text import deaccent
 from app.core.time import utcnow
+from app.core.youth import is_youth
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.course_source import CourseSource
@@ -238,8 +239,7 @@ def _scrape_all(
     # Déballé hors du `try` : un retour mal formé est un défaut de code, pas un
     # fournisseur non supporté (#1016).
     results, trace = outcome
-    _require_event_name(url, results)
-    return results, trace
+    return _importable(url, results), trace
 
 
 def _scrape_all_streaming(
@@ -407,8 +407,22 @@ def _scrape_all_streaming(
         raise ScraperError(f"Erreur lors de l'import : {exc}") from exc
 
     results, trace = holder["outcome"]
+    return (_importable(url, results), trace)
+
+
+def _importable(url: str, results: list[ScrapedResult]) -> list[ScrapedResult]:
+    """Les résultats scrapés que l'import écrit : l'épreuve doit avoir un nom, et
+    les épreuves jeunes (jusqu'à Minime) sont écartées (#881, RGPD).
+
+    Ici et non dans chaque scraper : les deux chemins de scrape (bloquant et
+    SSE) aboutissent là, et tout chemin d'écriture, import comme re-scrape
+    admin, passe par l'un d'eux.
+    """
     _require_event_name(url, results)
-    return (results, trace)
+    retenus = [r for r in results if not is_youth(r.event_name, r.category)]
+    if len(retenus) < len(results):
+        logger.info("Import %s : %d ligne(s) d'épreuve jeune écartée(s)", url, len(results) - len(retenus))
+    return retenus
 
 
 def _require_event_name(url: str, results: list[ScrapedResult]) -> None:
