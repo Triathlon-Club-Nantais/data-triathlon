@@ -20,7 +20,7 @@ from app.repositories import (
     user_repository,
 )
 from app.scrapers.base import FanoutTrace, ScrapedResult
-from app.services import admin_actions, import_service, quality
+from app.services import admin_actions, deadlock, import_service, quality
 
 
 def _settings() -> Settings:
@@ -1173,7 +1173,7 @@ def test_iter_import_event_deadlock_est_rejoue(db_session, patch_scraper, monkey
     """#771 : un deadlock Postgres (concurrence `rescrape-db` entre chronométreurs,
     #690) ne doit pas perdre l'épreuve entière — rien n'a été commité, un
     nouvel essai suffit."""
-    monkeypatch.setattr(import_service.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(deadlock.time, "sleep", lambda *_: None)
     patch_scraper([_result("1", "DUPONT")])
     original_commit = db_session.commit
     appels: list[int] = []
@@ -1197,12 +1197,73 @@ def test_iter_import_event_deadlock_est_rejoue(db_session, patch_scraper, monkey
     assert course_repository.get_latest_by_source_url(db_session, URL) is not None
 
 
+def test_import_event_deadlock_est_rejoue_comme_le_flux(db_session, patch_scraper, monkeypatch):
+    """#980 : le chemin bloquant (`import_event`, CLI et fallback) partage le
+    rejeu du flux SSE au lieu d'échouer au premier deadlock."""
+    monkeypatch.setattr(deadlock.time, "sleep", lambda *_: None)
+    patch_scraper([_result("1", "DUPONT")])
+    original_commit = db_session.commit
+    appels: list[int] = []
+
+    def _commit_deadlock_puis_ok():
+        appels.append(1)
+        if len(appels) == 1:
+            raise OperationalError(
+                "UPDATE athletes ...", {}, psycopg.errors.DeadlockDetected("deadlock detected")
+            )
+        original_commit()
+
+    monkeypatch.setattr(db_session, "commit", _commit_deadlock_puis_ok)
+
+    out = import_service.import_event(db_session, URL, _settings())
+
+    assert out["imported"] == 1
+    assert len(appels) == 2
+
+
+def test_athlete_club_and_gender_updates_are_applied_once_in_id_order(
+    db_session, patch_scraper, monkeypatch
+):
+    """#980 : les UPDATE `athletes` partaient au fil des tranches, dans l'ordre
+    du chronométreur, et deux imports concurrents se croisaient en deadlock.
+    Ils sont accumulés, puis appliqués une seule fois, triés par id."""
+    patch_scraper([
+        _result("1", "ZED", prenom="Zoe", club="ASPTT NANTES"),
+        _result("2", "ALPHA", prenom="Al", club="ASPTT NANTES"),
+    ])
+    import_service.import_event(db_session, URL, _settings())
+    zed = athlete_repository.get_by_identity(db_session, "ZED", "Zoe", None)
+    alpha = athlete_repository.get_by_identity(db_session, "ALPHA", "Al", None)
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    course.scraped_at = utcnow() - timedelta(days=40)
+    db_session.commit()
+
+    appliques = []
+    original = athlete_repository.apply_updates
+
+    def _espion(db, updates):
+        appliques.append([athlete.id for athlete, _ in updates])
+        original(db, updates)
+
+    monkeypatch.setattr(athlete_repository, "apply_updates", _espion)
+    patch_scraper([
+        _result("1", "ZED", prenom="Zoe", club="TRI CLUB REZE", gender="F"),
+        _result("2", "ALPHA", prenom="Al", club="TRI CLUB REZE", gender="M"),
+    ])
+    import_service.import_event(db_session, URL, _settings())
+
+    assert appliques == [sorted([zed.id, alpha.id])]
+    db_session.expire_all()
+    assert (zed.club, zed.gender) == ("TRI CLUB REZE", "F")
+    assert (alpha.club, alpha.gender) == ("TRI CLUB REZE", "M")
+
+
 def test_iter_import_event_deadlock_persistant_reste_une_erreur(
     db_session, patch_scraper, monkeypatch,
 ):
     """#771 : au-delà de `_DEADLOCK_MAX_ATTEMPTS`, un deadlock qui persiste
     reste une erreur — pas de ré-essai infini, l'épreuve échoue proprement."""
-    monkeypatch.setattr(import_service.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(deadlock.time, "sleep", lambda *_: None)
     patch_scraper([_result("1", "DUPONT")])
     appels: list[int] = []
 
@@ -1215,7 +1276,7 @@ def test_iter_import_event_deadlock_persistant_reste_une_erreur(
     phases = list(import_service.iter_import_event(db_session, URL, _settings()))
 
     assert phases[-1]["phase"] == "error"
-    assert len(appels) == import_service._DEADLOCK_MAX_ATTEMPTS
+    assert len(appels) == deadlock.MAX_ATTEMPTS
     assert course_repository.get_latest_by_source_url(db_session, URL) is None
 
 

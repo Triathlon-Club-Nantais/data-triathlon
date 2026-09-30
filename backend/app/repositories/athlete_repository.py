@@ -2,8 +2,9 @@
 from collections.abc import Sequence
 from datetime import date
 
-from sqlalchemy import and_, case, exists, false, func, or_, select, tuple_, union_all
+from sqlalchemy import and_, case, exists, false, func, or_, select, tuple_, union_all, update
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.core.club import tcn_clause
 from app.core.discipline import federal_clause
@@ -140,6 +141,32 @@ def create_batch(db: Session, athletes_fields: Sequence[dict]) -> list[Athlete]:
     db.add_all(created)
     db.flush()
     return created
+
+
+def apply_updates(db: Session, updates: Sequence[tuple[Athlete, dict[str, str]]]) -> None:
+    """Applique des changements de club et de genre en **un seul** `UPDATE`
+    multi-lignes, dans l'ordre reçu (#980).
+
+    L'appelant les trie par id : deux imports concurrents prennent alors les
+    verrous de ligne dans le même ordre, et ne peuvent plus se croiser. Chaque
+    ligne porte les deux colonnes, sans quoi l'ORM scinderait le lot par jeu de
+    colonnes et perdrait cet ordre. L'état en mémoire des instances suit, sans
+    les marquer modifiées : un flush ultérieur n'émettrait pas un second UPDATE.
+    """
+    if not updates:
+        return
+    rows = [
+        {
+            "id": athlete.id,
+            "club": fields.get("club", athlete.club),
+            "gender": fields.get("gender", athlete.gender),
+        }
+        for athlete, fields in updates
+    ]
+    db.execute(update(Athlete), rows)
+    for (athlete, _), row in zip(updates, rows, strict=True):
+        set_committed_value(athlete, "club", row["club"])
+        set_committed_value(athlete, "gender", row["gender"])
 
 
 def latest_club_dates(db: Session, athlete_ids: Sequence[int]) -> dict[int, date]:

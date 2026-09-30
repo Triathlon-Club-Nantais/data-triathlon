@@ -48,6 +48,7 @@ from app.services.course_locks import (
     lock_all_courses_or_409,
     lock_courses_or_409,
 )
+from app.services.deadlock import deadlock_retries
 
 logger = logging.getLogger(__name__)
 
@@ -432,41 +433,46 @@ def _stream_switch_course_source(
                 emit,
             )
             _require_same_event(results, attendue)
-            _require_course_unchanged(db, course_id, attendue)
+            for attempt in deadlock_retries(db, label=f"bascule de source de l'épreuve {course_id}"):
+                with attempt:
+                    if attempt.number > 1:
+                        # Le rollback du rejeu a relâché le verrou d'épreuve (#980).
+                        lock_courses_or_409(db, course_id)
+                    _require_course_unchanged(db, course_id, attendue)
 
-            course = _course_or_404(db, course_id)
-            source = course_source_repository.find_on_course(
-                db, course_id=course_id, source_id=source_id
-            )
-            if source is None:
-                raise NotFoundError("Source introuvable pour cette épreuve.")
+                    course = _course_or_404(db, course_id)
+                    source = course_source_repository.find_on_course(
+                        db, course_id=course_id, source_id=source_id
+                    )
+                    if source is None:
+                        raise NotFoundError("Source introuvable pour cette épreuve.")
 
-            supprimees = participation_repository.delete_for_course(db, course)
-            course_source_repository.set_active(db, source)
+                    supprimees = participation_repository.delete_for_course(db, course)
+                    course_source_repository.set_active(db, source)
 
-            emit({"phase": "saving", "total": len(results)})
-            outcome = import_service.persist_results(db, source_url, results)
-            purges = athlete_repository.delete_orphans_among(db, candidats)
+                    emit({"phase": "saving", "total": len(results)})
+                    outcome = import_service.persist_results(db, source_url, results)
+                    purges = athlete_repository.delete_orphans_among(db, candidats)
 
-            admin_action_log_repository.create(
-                db,
-                user_id=user_id,
-                action="course.source.switch",
-                entity_type="course",
-                entity_id=course_id,
-                payload={
-                    "name": course_name,
-                    # Les deux URLs, sans quoi l'entrée dirait « la source a
-                    # changé » sans dire depuis quoi — donc sans permettre de
-                    # défaire le geste de tête.
-                    "previous_url": sortante_url,
-                    "new_url": source_url,
-                    "participations_deleted": supprimees,
-                    "participations_imported": outcome["imported"],
-                    "athletes_purged": len(purges),
-                },
-            )
-            db.commit()
+                    admin_action_log_repository.create(
+                        db,
+                        user_id=user_id,
+                        action="course.source.switch",
+                        entity_type="course",
+                        entity_id=course_id,
+                        payload={
+                            "name": course_name,
+                            # Les deux URLs, sans quoi l'entrée dirait « la source a
+                            # changé » sans dire depuis quoi — donc sans permettre de
+                            # défaire le geste de tête.
+                            "previous_url": sortante_url,
+                            "new_url": source_url,
+                            "participations_deleted": supprimees,
+                            "participations_imported": outcome["imported"],
+                            "athletes_purged": len(purges),
+                        },
+                    )
+                    db.commit()
             final = {"phase": "done",
                 "participations_deleted": supprimees,
                 "participations_imported": outcome["imported"],
@@ -633,41 +639,46 @@ def _stream_rescrape(
                 emit,
             )
             _require_same_event(results, attendue)
-            _require_course_unchanged(db, course_id, attendue)
+            for attempt in deadlock_retries(db, label=f"re-scrape de l'épreuve {course_id}"):
+                with attempt:
+                    if attempt.number > 1:
+                        # Le rollback du rejeu a relâché le verrou d'épreuve (#980).
+                        lock_courses_or_409(db, course_id)
+                    _require_course_unchanged(db, course_id, attendue)
 
-            total = len(results)
-            emit({
-                "phase": "saving", "total": total,
-                "imported": 0, "updated": 0, "skipped": 0, "progress": 0,
-            })
-            # Les rattrapages de lot (#294, #672, #757) passent avec la boucle :
-            # le re-scrape les sautait et défaisait les rangs renumérotés (#914).
-            for done, persister in import_service.persist_steps(db, source_url, results):
-                if done and (done % 20 == 0 or done == total):
+                    total = len(results)
                     emit({
                         "phase": "saving", "total": total,
-                        "imported": persister.imported, "updated": persister.updated,
-                        "skipped": persister.skipped, "progress": done,
+                        "imported": 0, "updated": 0, "skipped": 0, "progress": 0,
                     })
-            purges = athlete_repository.delete_orphans_among(db, candidats)
+                    # Les rattrapages de lot (#294, #672, #757) passent avec la boucle :
+                    # le re-scrape les sautait et défaisait les rangs renumérotés (#914).
+                    for done, persister in import_service.persist_steps(db, source_url, results):
+                        if done and (done % 20 == 0 or done == total):
+                            emit({
+                                "phase": "saving", "total": total,
+                                "imported": persister.imported, "updated": persister.updated,
+                                "skipped": persister.skipped, "progress": done,
+                            })
+                    purges = athlete_repository.delete_orphans_among(db, candidats)
 
-            admin_action_log_repository.create(
-                db,
-                user_id=user_id,
-                action="course.rescrape",
-                entity_type="course",
-                entity_id=course_id,
-                payload={
-                    "name": course_name,
-                    "source_url": source_url,
-                    "imported": persister.imported,
-                    "updated": persister.updated,
-                    "skipped": persister.skipped,
-                    "reconciled": persister.reconciled,
-                    "athletes_purged": len(purges),
-                },
-            )
-            db.commit()
+                    admin_action_log_repository.create(
+                        db,
+                        user_id=user_id,
+                        action="course.rescrape",
+                        entity_type="course",
+                        entity_id=course_id,
+                        payload={
+                            "name": course_name,
+                            "source_url": source_url,
+                            "imported": persister.imported,
+                            "updated": persister.updated,
+                            "skipped": persister.skipped,
+                            "reconciled": persister.reconciled,
+                            "athletes_purged": len(purges),
+                        },
+                    )
+                    db.commit()
             final = {"phase": "done",
                 "imported": persister.imported,
                 "updated": persister.updated,

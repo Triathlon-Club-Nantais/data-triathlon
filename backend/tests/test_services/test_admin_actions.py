@@ -21,7 +21,7 @@ from app.repositories import (
     volunteer_action_repository,
 )
 from app.scrapers.base import FanoutTrace, ScrapedResult
-from app.services import admin_actions, course_locks, import_service, sse_relay
+from app.services import admin_actions, course_locks, deadlock, import_service, sse_relay
 
 
 @pytest.fixture
@@ -2499,3 +2499,33 @@ def test_rescrape_persists_nothing_if_the_course_disappeared_during_the_scrape(
     assert events[-1]["phase"] == "error"
     assert "n'existe plus" in events[-1]["message"]
     assert athlete_repository.get_by_identity(db_session, "NOUVEAU", "Jean", None) is None
+
+
+
+def test_rescrape_retries_a_deadlock_like_every_import_path(db_session, auteur, scrape, monkeypatch):
+    """#980 : le re-scrape admin partage le rejeu sur `40P01` des imports."""
+    import psycopg
+    from sqlalchemy.exc import OperationalError
+
+    monkeypatch.setattr(deadlock.time, "sleep", lambda *_: None)
+    course = _epreuve(db_session, "Rejeu", date(2026, 5, 17))
+    db_session.commit()
+    scrape([_resultat(course, "1", "REJOUE")])
+    original_commit = db_session.commit
+    appels: list[int] = []
+
+    def _commit_deadlock_puis_ok():
+        appels.append(1)
+        if len(appels) == 1:
+            raise OperationalError("UPDATE ...", {}, psycopg.errors.DeadlockDetected("deadlock"))
+        original_commit()
+
+    monkeypatch.setattr(db_session, "commit", _commit_deadlock_puis_ok)
+
+    events = list(admin_actions.iter_rescrape_course(
+        db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
+    ))
+
+    assert events[-1]["phase"] == "done"
+    assert len(appels) == 2
+    assert participation_repository.count_for_course(db_session, course.id) == 1
