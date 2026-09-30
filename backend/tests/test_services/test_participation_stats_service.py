@@ -18,7 +18,7 @@ def _participation(*, provider="raceresult", is_relay=False, splits=None, rank=1
 
 
 def test_build_returns_none_when_course_is_not_eligible():
-    participation = _participation(provider="t2area")
+    participation = _participation(provider="breizhchrono")
     assert participation_stats_service.build(None, participation) is None
 
 
@@ -338,7 +338,7 @@ def test_build_reads_the_whole_ranking_not_just_the_athlete(db_session):
 
 
 def test_build_returns_none_from_the_database_for_an_excluded_provider(db_session):
-    _, rows = _seed_course(db_session, provider="t2area")
+    _, rows = _seed_course(db_session, provider="breizhchrono")
 
     assert participation_stats_service.build(db_session, rows[0]) is None
 

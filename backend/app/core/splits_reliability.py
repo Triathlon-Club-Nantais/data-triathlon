@@ -2,8 +2,9 @@
 Complétude des splits par fournisseur — **définition unique**.
 
 Certains chronométreurs ne publient les temps intermédiaires que pour une
-partie des finishers : T2Area et Breizh Chrono ne récupèrent les splits fins
-que sur la fiche individuelle des membres du club. Un classement par segment
+partie des finishers : Breizh Chrono ne récupère les splits fins que sur la
+fiche individuelle des membres du club. T2Area en est sorti avec son nouveau
+markup (#898), qui publie les splits de tous les participants sur la liste. Un classement par segment
 calculé là-dessus comparerait l'athlète à une poignée de coureurs tout en se
 présentant comme un classement complet — d'où l'exclusion.
 
@@ -23,7 +24,6 @@ if TYPE_CHECKING:
 
 #: Fournisseurs dont les splits ne couvrent qu'une partie des finishers.
 UNRELIABLE_SPLIT_PROVIDERS: frozenset[str] = frozenset({
-    "t2area",
     "breizhchrono",
 })
 

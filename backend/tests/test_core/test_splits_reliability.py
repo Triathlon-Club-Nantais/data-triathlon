@@ -11,26 +11,36 @@ from app.core.splits_reliability import (
 
 @pytest.mark.parametrize(
     "provider",
-    ["raceresult", "klikego", "oktime", "sporthive", "chronoweb", "wiclax", "timepulse"],
+    ["raceresult", "klikego", "oktime", "sporthive", "chronoweb", "wiclax", "timepulse", "t2area"],
 )
 def test_unlisted_providers_are_eligible(provider):
     """Liste d'exclusion : un fournisseur inconnu est éligible par défaut."""
     assert has_reliable_splits(provider) is True
 
 
-@pytest.mark.parametrize("provider", [None, "", "manuel", "t2area", "breizhchrono"])
+@pytest.mark.parametrize("provider", [None, "", "manuel", "breizhchrono"])
 def test_manual_and_partial_providers_are_rejected(provider):
     assert has_reliable_splits(provider) is False
 
 
-@pytest.mark.parametrize("provider", ["T2Area", " breizhchrono ", "MANUEL"])
+@pytest.mark.parametrize("provider", ["BreizhChrono", " breizhchrono ", "MANUEL"])
 def test_provider_is_compared_on_a_normalized_form(provider):
     assert has_reliable_splits(provider) is False
 
 
+def test_a_lap_count_course_is_not_stats_eligible():
+    """#993 : son temps ne se compare pas aux positions de référence."""
+    assert is_stats_eligible(SimpleNamespace(provider="chronoplace", ranked_by_laps=True)) is False
+
+
 def test_is_stats_eligible_delegates_to_course_provider():
     assert is_stats_eligible(SimpleNamespace(provider="raceresult")) is True
-    assert is_stats_eligible(SimpleNamespace(provider="t2area")) is False
+    assert is_stats_eligible(SimpleNamespace(provider="breizhchrono")) is False
+
+
+def test_t2area_publishes_every_finisher_splits_since_its_new_markup():
+    """#898 : les splits sont sur la liste, pour tous les participants."""
+    assert has_reliable_splits("t2area") is True
 
 
 def test_exclusion_list_is_already_normalized():
