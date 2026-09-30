@@ -35,6 +35,7 @@ from app.repositories import (
     athlete_repository,
     course_repository,
     course_source_repository,
+    lock_repository,
     participation_repository,
 )
 from app.scrapers import registry
@@ -777,6 +778,10 @@ class _Persister:
         course = resolution.course
         if resolution.passive_source is not None:
             self._note_passive(course, resolution.passive_source)
+        if course.id not in self._courses:
+            # Attend la fin d'un geste admin sur cette épreuve plutôt que d'écrire
+            # sous lui ; le geste, lui, reçoit un 409 tant que l'import la tient (#982).
+            lock_repository.lock_course(self.db, course.id)
         self._courses[course.id] = course
         self._index_course(course.id)
         if nameless:
@@ -1533,6 +1538,10 @@ def import_event(
         }
 
     try:
+        cached = _lock_url_and_recheck_cache(db, url, settings, force=force)
+        if cached is not None:
+            db.rollback()
+            return {**cached, **_fanout_counters(trace)}
         outcome = persist_results(db, url, results)
         if persist:
             db.commit()
@@ -1568,6 +1577,27 @@ def _confirm_committed(db: Session, courses: list[dict], since: datetime) -> boo
 
 
 _DEADLOCK_MAX_ATTEMPTS = 3
+
+
+def _lock_url_and_recheck_cache(
+    db: Session, url: str, settings: Settings, *, force: bool
+) -> dict | None:
+    """Sérialise les imports d'une même URL, entre processus (#1024).
+
+    Rien ne les sérialisait : un import public (SSE) et `rescrape-db` (GitHub
+    Actions) pouvaient écrire la même épreuve en même temps, en doublons ou en
+    phase `error`. Le verrou consultatif est pris au début de la transaction de
+    persistance, puis le cache TTL est **relu sous le verrou** : l'import qui
+    attendait voit le commit de celui qui le précédait, et rend son résultat au
+    lieu de réécrire. `force=True` ne relit pas : il demande de réécrire.
+
+    La clé est l'URL **soumise**, même pour un fan-out (Klikego, #156) : deux
+    imports du même événement s'excluent, ce qui est le cas mesuré.
+    """
+    lock_repository.lock_import_url(db, url)
+    if force:
+        return None
+    return _cached_result(db, url, settings)
 
 
 def _is_deadlock(exc: Exception) -> bool:
@@ -1654,6 +1684,14 @@ def iter_import_event(
         persister = None
         yield {"phase": "saving", "total": total, "imported": 0, "updated": 0, "skipped": 0, "progress": 0}
         try:
+            cached = _lock_url_and_recheck_cache(db, url, settings, force=force)
+            if cached is not None:
+                db.rollback()
+                yield {
+                    "phase": "done", "total": cached["skipped"], "reassignments": [],
+                    **cached, **_fanout_counters(trace),
+                }
+                return
             for done, persister in persist_steps(db, url, results):
                 if done and (done % 20 == 0 or done == total):
                     yield {

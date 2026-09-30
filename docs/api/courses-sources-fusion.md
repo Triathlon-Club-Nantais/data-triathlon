@@ -46,7 +46,8 @@ dise à l'administrateur.
 
 Quatre choses à ne pas défaire, en plus des points communs au re-scrape
 détaillés dans sa propre section (garde synchrone hors du générateur, thread
-indépendant de la consommation du flux, verrou en mémoire process unique) :
+indépendant de la consommation du flux, verrou consultatif d'épreuve
+PostgreSQL tenu par la transaction, `services/course_locks`, #982) :
 
 - **L'ordre des quatre étapes est le contrat, à l'intérieur du thread de
   travail** : scraper, valider, détruire, réimporter. Rien de destructeur n'est

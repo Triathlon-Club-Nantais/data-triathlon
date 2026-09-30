@@ -21,7 +21,7 @@ from app.repositories import (
     volunteer_action_repository,
 )
 from app.scrapers.base import FanoutTrace, ScrapedResult
-from app.services import admin_actions, import_service, sse_relay
+from app.services import admin_actions, course_locks, import_service, sse_relay
 
 
 @pytest.fixture
@@ -868,36 +868,40 @@ def test_rescrape_ajoute_les_dossards_manquants_sans_dupliquer(db_session, auteu
     assert dossards == ["1", "2"]
 
 
-def test_rescrape_refuse_un_second_declenchement_sur_la_meme_course(db_session, auteur):
+def _epreuve_verrouillee(monkeypatch, *course_ids):
+    """Simule une autre transaction qui tient ces épreuves (#982). Le verrou réel
+    est un verrou consultatif PostgreSQL, éprouvé à deux sessions dans
+    `test_repositories/test_lock_repository.py`."""
+    from app.repositories import lock_repository
+
+    tenues = set(course_ids)
+    monkeypatch.setattr(lock_repository, "try_lock_course", lambda _db, cid: cid not in tenues)
+
+
+def test_rescrape_refuse_un_second_declenchement_sur_la_meme_course(db_session, auteur, monkeypatch):
     """T017 — FR-007/SC-005, premier volet : même course, refusé."""
     course = _epreuve(db_session)
     db_session.commit()
+    _epreuve_verrouillee(monkeypatch, course.id)
 
-    admin_actions._acquire_rescrape_lock(course.id)
-    try:
-        with pytest.raises(admin_actions.CourseRescrapeAlreadyRunningError):
-            admin_actions.iter_rescrape_course(
-                db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
-            )
-    finally:
-        admin_actions._release_rescrape_lock(course.id)
+    with pytest.raises(course_locks.CourseRescrapeAlreadyRunningError):
+        admin_actions.iter_rescrape_course(
+            db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
+        )
 
 
-def test_rescrape_sur_une_autre_course_n_est_pas_bloque(db_session, auteur, scrape):
+def test_rescrape_sur_une_autre_course_n_est_pas_bloque(db_session, auteur, scrape, monkeypatch):
     """T017 — second volet : le refus ne porte que sur la même course."""
     course_a = _epreuve(db_session, "Course A", date(2026, 5, 17))
     course_b = _epreuve(db_session, "Course B", date(2026, 5, 18))
     db_session.commit()
     scrape([_resultat(course_b, "1", "X")])
 
-    admin_actions._acquire_rescrape_lock(course_a.id)
-    try:
-        events = list(admin_actions.iter_rescrape_course(
-            db_session, course_id=course_b.id, user_id=auteur.id, settings=_settings()
-        ))
-        assert events[-1]["phase"] == "done"
-    finally:
-        admin_actions._release_rescrape_lock(course_a.id)
+    _epreuve_verrouillee(monkeypatch, course_a.id)
+    events = list(admin_actions.iter_rescrape_course(
+        db_session, course_id=course_b.id, user_id=auteur.id, settings=_settings()
+    ))
+    assert events[-1]["phase"] == "done"
 
 
 def test_rescrape_sur_course_sans_source_active_est_un_not_found(db_session, auteur):
@@ -1214,66 +1218,34 @@ def test_switch_on_an_unknown_course_is_a_not_found(db_session, auteur):
         )
 
 
-def test_switch_refuses_a_second_trigger_on_the_same_course(db_session, auteur):
+def test_switch_refuses_a_second_trigger_on_the_same_course(db_session, auteur, monkeypatch):
     """FR-007/SC-005, premier volet : même course, refusé (#624 — verrou
     partagé avec le re-scrape)."""
     course, passive = _epreuve_deux_sources(db_session)
     db_session.commit()
+    _epreuve_verrouillee(monkeypatch, course.id)
 
-    admin_actions._acquire_rescrape_lock(course.id)
-    try:
-        with pytest.raises(admin_actions.CourseRescrapeAlreadyRunningError):
-            admin_actions.iter_switch_course_source(
-                db_session, course_id=course.id, source_id=passive.id,
-                user_id=auteur.id, settings=_settings(),
-            )
-    finally:
-        admin_actions._release_rescrape_lock(course.id)
+    with pytest.raises(course_locks.CourseRescrapeAlreadyRunningError):
+        admin_actions.iter_switch_course_source(
+            db_session, course_id=course.id, source_id=passive.id,
+            user_id=auteur.id, settings=_settings(),
+        )
 
 
-def test_switch_on_another_course_is_not_blocked(db_session, auteur, scrape):
+def test_switch_on_another_course_is_not_blocked(db_session, auteur, scrape, monkeypatch):
     """Second volet : le refus ne porte que sur la même course."""
     course_a, _passive_a = _epreuve_deux_sources(db_session, "Course A", date(2026, 5, 17))
     course_b, passive_b = _epreuve_deux_sources(db_session, "Course B", date(2026, 5, 18))
     db_session.commit()
     scrape([_resultat_bascule(course_b, passive_b, "1", "X")])
+    _epreuve_verrouillee(monkeypatch, course_a.id)
 
-    admin_actions._acquire_rescrape_lock(course_a.id)
-    try:
-        events = list(admin_actions.iter_switch_course_source(
-            db_session, course_id=course_b.id, source_id=passive_b.id,
-            user_id=auteur.id, settings=_settings(),
-        ))
-        assert events[-1]["phase"] == "done"
-    finally:
-        admin_actions._release_rescrape_lock(course_a.id)
+    events = list(admin_actions.iter_switch_course_source(
+        db_session, course_id=course_b.id, source_id=passive_b.id,
+        user_id=auteur.id, settings=_settings(),
+    ))
+    assert events[-1]["phase"] == "done"
 
-
-def test_switch_is_blocked_by_a_running_rescrape_on_the_same_course(db_session, auteur):
-    """#624 — le verrou est partagé entre les deux gestes : une bascule ne doit
-    pas pouvoir démarrer pendant qu'un re-scrape écrit déjà les mêmes
-    participations. Démarre un **vrai** re-scrape (`iter_rescrape_course`,
-    jamais itéré, donc son thread ne démarre jamais — `_stream_rescrape` est
-    un générateur, son corps n'exécute rien avant le premier `next()`) plutôt
-    que d'acquérir le verrou à la main, pour éprouver le chemin réel : le
-    verrou, lui, est déjà pris de façon synchrone à ce stade (sa docstring)."""
-    course, passive = _epreuve_deux_sources(db_session)
-    db_session.commit()
-
-    admin_actions.iter_rescrape_course(
-        db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
-    )
-    try:
-        with pytest.raises(admin_actions.CourseRescrapeAlreadyRunningError):
-            admin_actions.iter_switch_course_source(
-                db_session, course_id=course.id, source_id=passive.id,
-                user_id=auteur.id, settings=_settings(),
-            )
-    finally:
-        admin_actions._release_rescrape_lock(course.id)
-
-
-# --- Supprimer une source (#739) --------------------------------------------
 
 
 def _sources(db_session, entity_id):
@@ -2439,3 +2411,91 @@ def test_no_caller_instantiates_the_persister_outside_import_service():
     import inspect
 
     assert "_Persister(" not in inspect.getsource(admin_actions)
+
+
+
+# ── Verrou d'épreuve sur les gestes qui l'écrivent (#982) ────────────────────
+
+
+def test_course_gestures_refuse_a_course_held_by_another_transaction(db_session, auteur, monkeypatch):
+    """Suppression, correction, fusion : 409 tant qu'un re-scrape ou un import
+    tient l'épreuve, au lieu d'écrire sous un scrape en vol."""
+    from app.services import course_merge
+
+    course = _epreuve(db_session, "Tenue", date(2026, 5, 17))
+    autre = _epreuve(db_session, "Libre", date(2026, 5, 18))
+    db_session.commit()
+    _epreuve_verrouillee(monkeypatch, course.id)
+
+    with pytest.raises(course_locks.CourseRescrapeAlreadyRunningError):
+        admin_actions.delete_course(db_session, course_id=course.id, user_id=auteur.id)
+    with pytest.raises(course_locks.CourseRescrapeAlreadyRunningError):
+        admin_actions.update_course(
+            db_session, course_id=course.id, champs={"name": "Renommée"}, user_id=auteur.id
+        )
+    with pytest.raises(course_locks.CourseRescrapeAlreadyRunningError):
+        course_merge.merge_courses(
+            db_session, course_id=autre.id, absorbed_id=course.id, user_id=auteur.id
+        )
+    assert course_repository.get(db_session, course.id).name == "Tenue"
+
+
+def test_participation_gestures_refuse_a_course_held_by_another_transaction(
+    db_session, auteur, monkeypatch
+):
+    course = _epreuve(db_session, "Tenue", date(2026, 5, 17))
+    ligne = _inscrit(db_session, _coureur(db_session, "TENU"), course)
+    cible = _coureur(db_session, "CIBLE")
+    db_session.commit()
+    _epreuve_verrouillee(monkeypatch, course.id)
+
+    with pytest.raises(course_locks.CourseRescrapeAlreadyRunningError):
+        admin_actions.delete_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
+    with pytest.raises(course_locks.CourseRescrapeAlreadyRunningError):
+        admin_actions.reassign_participation(
+            db_session, participation_id=ligne.id, athlete_id=cible.id, user_id=auteur.id
+        )
+    for geste in (
+        admin_actions.validate_participation,
+        admin_actions.reject_participation,
+        admin_actions.unreject_participation,
+    ):
+        with pytest.raises(course_locks.CourseRescrapeAlreadyRunningError):
+            geste(db_session, participation_id=ligne.id, user_id=auteur.id)
+
+
+def test_wipes_refuse_while_a_course_is_held(db_session, auteur, monkeypatch):
+    from app.repositories import lock_repository
+
+    monkeypatch.setattr(lock_repository, "try_lock_all_courses", lambda _db: False)
+
+    with pytest.raises(course_locks.CourseRescrapeAlreadyRunningError):
+        admin_actions.wipe_all_participations(db_session, user_id=auteur.id)
+    with pytest.raises(course_locks.CourseRescrapeAlreadyRunningError):
+        admin_actions.wipe_all_courses(db_session, user_id=auteur.id)
+
+
+def test_rescrape_persists_nothing_if_the_course_disappeared_during_the_scrape(
+    db_session, auteur, monkeypatch
+):
+    """Hors PostgreSQL, rien n'empêche la suppression pendant le scrape : le
+    re-scrape relit l'épreuve avant d'écrire, et s'arrête si elle a disparu."""
+    course = _epreuve(db_session, "Fantome", date(2026, 5, 17))
+    db_session.commit()
+    course_id = course.id
+    resultats = [_resultat(course, "1", "NOUVEAU")]
+
+    def _scrape(url, **kwargs):
+        course_repository.delete(db_session, course_repository.get(db_session, course_id))
+        db_session.flush()
+        return resultats, FanoutTrace(heats_enumerated=1)
+
+    monkeypatch.setattr(import_service, "registry_scrape_event_all", _scrape)
+
+    events = list(admin_actions.iter_rescrape_course(
+        db_session, course_id=course_id, user_id=auteur.id, settings=_settings()
+    ))
+
+    assert events[-1]["phase"] == "error"
+    assert "n'existe plus" in events[-1]["message"]
+    assert athlete_repository.get_by_identity(db_session, "NOUVEAU", "Jean", None) is None

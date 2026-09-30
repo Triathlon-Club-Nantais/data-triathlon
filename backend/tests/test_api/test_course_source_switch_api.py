@@ -34,7 +34,7 @@ from app.repositories import (
     user_repository,
     user_role_repository,
 )
-from app.services import admin_actions, sse_relay
+from app.services import admin_actions, course_locks, sse_relay
 from app.services.auth import session as session_service
 
 
@@ -207,7 +207,7 @@ def test_a_switch_already_running_is_refused_before_any_byte(
     # `yield` ici différerait la levée au premier `next()`, donc *après* que
     # `StreamingResponse` ait déjà envoyé un statut 200.
     def fake_iter_switch_course_source(db, *, course_id, source_id, user_id, settings):
-        raise admin_actions.CourseRescrapeAlreadyRunningError()
+        raise course_locks.CourseRescrapeAlreadyRunningError()
 
     monkeypatch.setattr(
         admin_actions, "iter_switch_course_source", fake_iter_switch_course_source

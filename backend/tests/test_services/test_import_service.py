@@ -111,7 +111,7 @@ def test_import_stamps_the_active_source_and_leaves_passive_ones_alone(db_sessio
         db_session, course=course, url="https://www.klikego.com/resultats/autre/9", provider="klikego"
     )
     course.scraped_at = utcnow() - timedelta(days=40)
-    db_session.flush()
+    db_session.commit()  # expiration visible sous le verrou d'URL (#1024)
 
     import_service.import_event(db_session, URL, _settings())
 
@@ -128,7 +128,7 @@ def test_reimport_after_cache_dedups_by_bib(db_session, patch_scraper):
     # Force l'expiration du cache → re-scrape, mais le dossard 1 existe déjà
     course = course_repository.get_latest_by_source_url(db_session, URL)
     course.scraped_at = utcnow() - timedelta(days=40)
-    db_session.flush()
+    db_session.commit()  # expiration visible sous le verrou d'URL (#1024)
 
     patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
     out = import_service.import_event(db_session, URL, _settings())
@@ -321,6 +321,68 @@ def test_import_skips_youth_heats_and_rows(db_session, patch_scraper):
     assert athlete_repository.get_by_identity(db_session, "CADET", "Cal", None) is not None
 
 
+def test_import_locks_every_course_it_writes(db_session, patch_scraper, monkeypatch):
+    """#982: an import waits on the course lock an admin gesture holds, instead
+    of writing under it; the admin gesture, in turn, gets a 409."""
+    from app.repositories import lock_repository
+
+    verrouillees = []
+    monkeypatch.setattr(lock_repository, "lock_course", lambda _db, cid: verrouillees.append(cid))
+    patch_scraper([
+        _result("1", "UN", event_name="Epreuve A"),
+        _result("2", "DEUX", event_name="Epreuve A"),
+        _result("3", "TROIS", event_name="Epreuve B"),
+    ])
+
+    import_service.import_event(db_session, URL, _settings())
+
+    assert len(verrouillees) == 2
+    assert len(set(verrouillees)) == 2
+
+
+def test_concurrent_import_of_the_same_url_reuses_the_committed_result(
+    db_session, patch_scraper, monkeypatch
+):
+    """#1024: two imports of one URL are serialized on an advisory lock. The
+    second, once it holds the lock, sees the first one's commit through the
+    cache check and writes nothing more."""
+    from app.repositories import lock_repository
+
+    patch_scraper([_result("1", "PREMIER")])
+    concurrent_fait = []
+
+    def _lock_import_url(db, url):
+        # Pendant que ce second import attendait le verrou, le premier a commité.
+        if not concurrent_fait:
+            concurrent_fait.append(url)
+            monkeypatch.setattr(lock_repository, "lock_import_url", lambda *_: None)
+            import_service.import_event(db, URL, _settings())
+
+    monkeypatch.setattr(lock_repository, "lock_import_url", _lock_import_url)
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    assert concurrent_fait == [URL]
+    assert phases[-1]["phase"] == "done"
+    assert phases[-1]["imported"] == 0
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    assert participation_repository.count_for_course(db_session, course.id) == 1
+
+
+def test_a_forced_import_takes_the_url_lock_without_the_cache_check(
+    db_session, patch_scraper, monkeypatch
+):
+    from app.repositories import lock_repository
+
+    verrous = []
+    monkeypatch.setattr(lock_repository, "lock_import_url", lambda _db, url: verrous.append(url))
+    patch_scraper([_result("1", "FORCE")])
+
+    import_service.import_event(db_session, URL, _settings(), force=True)
+
+    assert verrous == [URL]
+
+
 def test_import_calcule_l_indice_de_fiabilite(db_session, patch_scraper):
     patch_scraper([_result("1", "DUPONT", rank_overall=1), _result("2", "MARTIN", rank_overall=2)])
     import_service.import_event(db_session, URL, _settings())
@@ -406,7 +468,7 @@ def test_reimport_apres_cache_ne_compte_pas_les_dossards_deja_en_base(
 
     course = course_repository.get_latest_by_source_url(db_session, URL)
     course.scraped_at = utcnow() - timedelta(days=40)  # force l'expiration du cache
-    db_session.flush()
+    db_session.commit()  # expiration visible sous le verrou d'URL (#1024)
 
     patch_scraper([_result("1", "DUPONT", rank_overall=1), _result("2", "MARTIN", rank_overall=2)])
     out = import_service.import_event(db_session, URL, _settings())
@@ -426,7 +488,7 @@ def _expire_cache(db_session, url=URL):
 
     course = course_repository.get_latest_by_source_url(db_session, url)
     course.scraped_at = utcnow() - timedelta(days=40)
-    db_session.flush()
+    db_session.commit()  # expiration visible sous le verrou d'URL (#1024)
 
 
 # ── Participations sans dossard — le dédoublonnage ne peut pas s'appuyer sur le bib
