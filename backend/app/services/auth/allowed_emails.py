@@ -21,6 +21,7 @@ from app.core.exceptions import DomainError
 from app.models.allowed_email import AllowedEmail
 from app.models.user import User
 from app.repositories import allowed_email_repository, role_repository, user_repository
+from app.services import audit
 from app.services.auth import authorization
 
 logger = logging.getLogger(__name__)
@@ -128,6 +129,15 @@ def add(
             creee,
             reactives,
         )
+    audit.record(
+        db, actor.id if actor else None, action="allowed_email.add", entity_type="allowed_email", entity_id=entree.id,
+        payload={
+            "email": entree.email,
+            "created": creee,
+            "accounts_reactivated": reactives,
+            "initial_role_id": entree.role_id,
+        },
+    )
     return entree, creee, reactives
 
 
@@ -202,6 +212,7 @@ def remove(db: Session, actor: User, entry: AllowedEmail) -> int:
     verrouille tout autant). Ce qui se garde est la **perte** du dernier
     administrateur, jamais l'identité du demandeur.
     """
+    entry_id, adresse = entry.id, entry.email
     with authorization.administrateurs_preserves(db):
         comptes = user_repository.find_by_email(db, entry.email)
         fermes = user_repository.set_active(db, comptes, active=False)
@@ -209,5 +220,9 @@ def remove(db: Session, actor: User, entry: AllowedEmail) -> int:
 
     logger.info(
         "Allow-list: address removed (actor=%s, deactivated=%s)", actor.id, fermes
+    )
+    audit.record(
+        db, actor.id if actor else None, action="allowed_email.remove", entity_type="allowed_email", entity_id=entry_id,
+        payload={"email": adresse, "accounts_deactivated": fermes},
     )
     return fermes

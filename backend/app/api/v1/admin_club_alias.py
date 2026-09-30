@@ -11,13 +11,11 @@ from app.core.database import get_db
 from app.core.permissions import P
 from app.models.club_alias import ClubAlias
 from app.models.user import User
-from app.repositories import admin_action_log_repository, club_alias_repository
+from app.repositories import club_alias_repository
 from app.schemas.club_alias import ClubAliasIn, ClubAliasList, ClubAliasOut
 from app.services import club_alias as club_alias_service
 
 router = APIRouter(tags=["admin"])
-
-_ENTITY_TYPE = "club_alias"
 
 
 def _vue(entry: ClubAlias) -> ClubAliasOut:
@@ -48,9 +46,6 @@ def add_club_alias(
     entry = club_alias_service.add_entry(
         db, canonical_name=body.canonical_name, alias=body.alias, admin_user_id=actor.id
     )
-    admin_action_log_repository.create(
-        db, user_id=actor.id, action="club_alias.add", entity_type=_ENTITY_TYPE, entity_id=entry.id
-    )
     db.commit()
     return _vue(entry)
 
@@ -61,12 +56,5 @@ def remove_club_alias(
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.CLUB_ALIASES_MANAGE)),
 ) -> None:
-    entry = club_alias_service.remove_entry(db, entry_id=entry_id)
-    admin_action_log_repository.create(
-        db,
-        user_id=actor.id,
-        action="club_alias.remove",
-        entity_type=_ENTITY_TYPE,
-        entity_id=entry.id,
-    )
+    club_alias_service.remove_entry(db, entry_id=entry_id, admin_user_id=actor.id)
     db.commit()

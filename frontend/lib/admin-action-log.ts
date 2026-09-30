@@ -38,6 +38,20 @@ const ACTION_LABELS: Record<string, string> = {
   "site_access.password_replace": "Remplacement du code d'accès du site",
   "benevole_access.password_replace": "Remplacement du mot de passe bénévoles",
   "feedback.update": "Triage d'un retour utilisateur",
+  "role.create": "Création d'un rôle",
+  "role.update": "Modification d'un rôle",
+  "role.delete": "Suppression d'un rôle",
+  "role.grant": "Attribution d'un rôle",
+  "role.revoke": "Retrait d'un rôle",
+  "group.create": "Création d'un groupe",
+  "group.update": "Modification d'un groupe",
+  "group.delete": "Suppression d'un groupe",
+  "group.member_add": "Ajout d'un membre à un groupe",
+  "group.member_remove": "Retrait d'un membre d'un groupe",
+  "allowed_email.add": "Inscription d'une adresse autorisée",
+  "allowed_email.remove": "Retrait d'une adresse autorisée",
+  "sessions.revoke": "Révocation de sessions",
+  "pending_provider.handle": "Fournisseur signalé traité",
 };
 
 /** Le libellé français d'un geste, ou son code brut si le catalogue l'ignore. */
@@ -90,6 +104,21 @@ const PAYLOAD_KEY_LABELS: Record<string, string> = {
   url: "URL",
   provider: "Fournisseur",
   github_url: "Lien GitHub",
+  slug: "Code",
+  description: "Description",
+  organisation_id: "Organisation",
+  permissions: "Pouvoirs",
+  superuser: "Superutilisateur",
+  role: "Rôle",
+  created: "Nouveau",
+  user_id: "Utilisateur",
+  email: "Adresse",
+  initial_role_id: "Rôle à l'inscription",
+  accounts_reactivated: "Comptes réactivés",
+  accounts_deactivated: "Comptes fermés",
+  scope: "Portée",
+  sessions: "Sessions fermées",
+  accounts: "Comptes touchés",
 };
 
 /** Clés qui désignent un coureur ou une épreuve : rendues en lien vers sa page. */
@@ -114,6 +143,12 @@ const ENTITES: Record<string, { label: string; href?: string }> = {
   site_access_config: { label: "Code d'accès du site" },
   benevole_access_config: { label: "Mot de passe bénévoles" },
   feedback: { label: "Retour utilisateur" },
+  role: { label: "Rôle" },
+  user: { label: "Utilisateur" },
+  group: { label: "Groupe" },
+  allowed_email: { label: "Adresse autorisée" },
+  sessions: { label: "Sessions" },
+  pending_provider: { label: "Fournisseur signalé" },
 };
 
 export type LigneDetail = { label: string; value: string; href?: string };

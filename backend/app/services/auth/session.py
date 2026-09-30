@@ -15,6 +15,7 @@ from app.core.config import get_settings
 from app.core.time import utcnow
 from app.models.user import User
 from app.repositories import session_repository, user_repository
+from app.services import audit
 
 #: `secrets.token_urlsafe(32)` rend 43 caractères pour 256 bits uniformes.
 #: C'est cette garde de longueur — et non l'algorithme — qui rend SHA-256 nu
@@ -71,7 +72,7 @@ def resolve(db: Session, token: str | None) -> User | None:
     return row.user
 
 
-def revoke_all(db: Session) -> tuple[int, int]:
+def revoke_all(db: Session, actor: User | None = None) -> tuple[int, int]:
     """Ferme **toutes** les sessions ouvertes. Rend (sessions, comptes) (#169).
 
     La révocation d'urgence — après une fuite de jetons, une base exposée, un
@@ -83,11 +84,21 @@ def revoke_all(db: Session) -> tuple[int, int]:
     Corollaire assumé : **aucun compte n'est désactivé**. Les intéressés se
     reconnectent, ce qui est précisément l'objet — on coupe des jetons, on ne
     met personne dehors.
+
+    `actor` : l'administrateur de l'écran, journalisé (#935) ; `None` depuis la
+    CLI. C'est le seul geste dont l'auteur s'effacerait lui-même, sa session
+    partant avec les autres : sans cette ligne, « qui a coupé tout le monde »
+    n'aurait plus de réponse durable.
     """
-    return session_repository.delete_all(db)
+    sessions, comptes = session_repository.delete_all(db)
+    audit.record(
+        db, actor.id if actor else None, action="sessions.revoke", entity_type="sessions", entity_id=0,
+        payload={"scope": "all", "sessions": sessions, "accounts": comptes},
+    )
+    return sessions, comptes
 
 
-def revoke_for_email(db: Session, email: str) -> tuple[int, int]:
+def revoke_for_email(db: Session, email: str, actor: User | None = None) -> tuple[int, int]:
     """Ferme les sessions de **tous** les comptes portant cette adresse.
 
     `users.email` n'est pas unique (FR-003), et là où `grant-role` refuse de
@@ -100,9 +111,14 @@ def revoke_for_email(db: Session, email: str) -> tuple[int, int]:
     ce qui distingue ce geste du retrait d'adresse (#170), lequel ferme par la
     jointure sans effacer une ligne, donc réversiblement.
     """
-    return session_repository.delete_for_users(
+    sessions, comptes = session_repository.delete_for_users(
         db, [user.id for user in user_repository.find_by_email(db, email)]
     )
+    audit.record(
+        db, actor.id if actor else None, action="sessions.revoke", entity_type="sessions", entity_id=0,
+        payload={"scope": email, "sessions": sessions, "accounts": comptes},
+    )
+    return sessions, comptes
 
 
 def close(db: Session, token: str | None) -> None:

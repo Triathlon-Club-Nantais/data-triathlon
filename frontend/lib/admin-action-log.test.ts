@@ -98,6 +98,25 @@ describe("catalogue coverage (#1043)", () => {
   });
 });
 
+describe("access-rights gestures (#935)", () => {
+  it("translates the role, group, allow-list and session payload keys", () => {
+    const lignes = formatPayload({
+      slug: "archivist", permissions: ["quality:override"], role: "lecteur", email: "a@b.fr",
+      scope: "all", sessions: 3, accounts: 2,
+    });
+
+    expect(lignes.map((l) => l.label)).toEqual([
+      "Code", "Pouvoirs", "Rôle", "Adresse", "Portée", "Sessions fermées", "Comptes touchés",
+    ]);
+  });
+
+  it("names a pending provider entry without payload", () => {
+    expect(detailLines({ entity_type: "pending_provider", entity_id: 7, payload: null })).toEqual([
+      { label: "Fournisseur signalé", value: "n° 7" },
+    ]);
+  });
+});
+
 describe("links and target entity (#1043)", () => {
   it("links athlete and course ids to their public pages", () => {
     const lignes = formatPayload({ from_athlete_id: 55749, course_id: 12 });

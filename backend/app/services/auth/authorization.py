@@ -29,6 +29,7 @@ from app.repositories import (
     user_repository,
     user_role_repository,
 )
+from app.services import audit
 
 logger = logging.getLogger(__name__)
 
@@ -478,6 +479,15 @@ def create_role(
         ",".join(sorted(codes)) or "-",
         superuser,
     )
+    audit.record(
+        db, actor.id, action="role.create", entity_type="role", entity_id=role.id,
+        payload={
+            "slug": role.slug,
+            "organisation_id": organisation_id,
+            "permissions": sorted(set(codes)),
+            "superuser": superuser,
+        },
+    )
     return role
 
 
@@ -496,6 +506,7 @@ def update_role(
     Un rôle `is_system` est parfaitement modifiable : livré ne veut pas dire figé
     (FR-006). Seule sa suppression est refusée.
     """
+    avant_vue = _role_audit_view(role)
     if codes is not None:
         _valider_les_codes_soumis(codes)
         avant = {lien.permission_code for lien in role.permissions}
@@ -526,7 +537,21 @@ def update_role(
         ",".join(sorted(codes)) if codes is not None else "unchanged",
         role.is_superuser,
     )
+    audit.record(
+        db, actor.id, action="role.update", entity_type="role", entity_id=role.id,
+        payload={"slug": role.slug, "before": avant_vue, "after": _role_audit_view(role)},
+    )
     return role
+
+
+def _role_audit_view(role: Role) -> dict:
+    """Ce qu'une modification de rôle peut changer, pour le journal (#935)."""
+    return {
+        "name": role.name,
+        "description": role.description,
+        "permissions": sorted(lien.permission_code for lien in role.permissions),
+        "superuser": role.is_superuser,
+    }
 
 
 def delete_role(db: Session, actor: User, role: Role) -> None:
@@ -549,9 +574,11 @@ def delete_role(db: Session, actor: User, role: Role) -> None:
             f"{'s' if adresses > 1 else ''} autorisée"
             f"{'s' if adresses > 1 else ''}. Retirez-le d'abord de ces adresses."
         )
+    role_id, vue = role.id, {"slug": role.slug, **_role_audit_view(role)}
     with administrateurs_preserves(db, role.organisation_id):
         logger.info("Role deleted: actor=%s role=%s", actor.id, role.slug)
         role_repository.delete(db, role)
+    audit.record(db, actor.id, action="role.delete", entity_type="role", entity_id=role_id, payload=vue)
 
 
 def grant_role(
@@ -575,6 +602,10 @@ def grant_role(
         role.slug,
         cree,
     )
+    audit.record(
+        db, actor.id, action="role.grant", entity_type="user", entity_id=user.id,
+        payload={"role": role.slug, "organisation_id": organisation_id, "created": cree},
+    )
 
 
 def revoke_role(
@@ -590,6 +621,10 @@ def revoke_role(
         )
     logger.info(
         "Role revoked: actor=%s target_user=%s role=%s", actor.id, user.id, role.slug
+    )
+    audit.record(
+        db, actor.id, action="role.revoke", entity_type="user", entity_id=user.id,
+        payload={"role": role.slug, "organisation_id": organisation_id},
     )
 
 

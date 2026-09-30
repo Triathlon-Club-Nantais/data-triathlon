@@ -15,6 +15,7 @@ from app.core.club import normalize_club
 from app.core.exceptions import DomainError, DuplicateError, LastClubLabelError, NotFoundError
 from app.models.counter_scope_entry import CLUB_LABEL, NON_FEDERAL_DISCIPLINE, CounterScopeEntry
 from app.repositories import counter_scope_repository, course_repository
+from app.services import audit
 
 
 def load_from_db(db: Session) -> None:
@@ -83,10 +84,20 @@ def add_entry(
     )
     db.flush()
     _recompute_tcn_counts(db, kind)
+    audit.record(
+        db, admin_user_id, action="counter_scope.entry_add", entity_type=_ENTITY_TYPE,
+        entity_id=entry.id,
+    )
     return entry
 
 
-def remove_entry(db: Session, *, kind: str, entry_id: int) -> CounterScopeEntry:
+#: Type d'entité du journal pour les deux listes de la portée (#935).
+_ENTITY_TYPE = "counter_scope_entry"
+
+
+def remove_entry(
+    db: Session, *, kind: str, entry_id: int, admin_user_id: int | None
+) -> CounterScopeEntry:
     """Retire une entrée. Rend l'entrée retirée, pour le journal.
 
     Refuse de vider **entièrement** la liste des libellés du club : sans aucun
@@ -109,4 +120,8 @@ def remove_entry(db: Session, *, kind: str, entry_id: int) -> CounterScopeEntry:
     counter_scope_repository.delete_entry(db, entry)
     db.flush()
     _recompute_tcn_counts(db, kind)
+    audit.record(
+        db, admin_user_id, action="counter_scope.entry_remove", entity_type=_ENTITY_TYPE,
+        entity_id=entry.id,
+    )
     return entry

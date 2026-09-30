@@ -398,6 +398,13 @@ détail dans `docs/api/admin-donnees.md` ; retours utilisateurs (#267) et
 statistiques détaillées d'une participation (#272) —
 détail dans `docs/api/feedback-stats.md`.
 
+**Le journal s'écrit dans le service, jamais dans la route** (#935) : le service
+appelle `services/audit.record` dans la transaction de son effet, et un geste
+refusé lève avant d'y arriver. Une route ne touche donc jamais
+`admin_action_log_repository`. Tout geste d'administration y passe, rôles,
+groupes, liste d'autorisation et révocation de sessions compris ; les commandes
+CLI d'amorçage, sans acteur, n'écrivent rien.
+
 ## Page bénévoles : une seconde garde, hors du socle SSO (#271)
 
 `benevoles.py` porte dix ressources gardées par `require_benevole_access`

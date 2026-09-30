@@ -18,7 +18,7 @@ from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
-from app.repositories import admin_action_log_repository, site_access_config_repository
+from app.repositories import site_access_config_repository
 from app.schemas.site_access_config import (
     SiteAccessConfigOut,
     SiteAccessGeneratedOut,
@@ -27,10 +27,6 @@ from app.schemas.site_access_config import (
 from app.services import site_access
 
 router = APIRouter(tags=["admin"])
-
-#: `entity_id` constant : une seule ligne existe à tout instant (data-model.md).
-_ENTITY_TYPE = "site_access_config"
-_ACTION = "site_access.password_replace"
 
 
 def _vue(config) -> SiteAccessConfigOut:
@@ -67,13 +63,6 @@ def replace_access_password(
     config, _mot_de_passe = site_access.replace_password(
         db, password=body.password, admin_user_id=actor.id
     )
-    admin_action_log_repository.create(
-        db,
-        user_id=actor.id,
-        action=_ACTION,
-        entity_type=_ENTITY_TYPE,
-        entity_id=config.id,
-    )
     db.commit()
     set_site_cookie(response, config.session_secret, settings)
     return _vue(config)
@@ -93,13 +82,6 @@ def generate_access_password(
     """
     config, mot_de_passe = site_access.replace_password(
         db, password=None, admin_user_id=actor.id
-    )
-    admin_action_log_repository.create(
-        db,
-        user_id=actor.id,
-        action=_ACTION,
-        entity_type=_ENTITY_TYPE,
-        entity_id=config.id,
     )
     db.commit()
     set_site_cookie(response, config.session_secret, settings)

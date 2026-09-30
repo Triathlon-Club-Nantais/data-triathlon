@@ -56,14 +56,12 @@ def revoke_sessions(
     """
     email = body.email if body else None
     sessions, comptes = (
-        session_service.revoke_all(db)
+        session_service.revoke_all(db, actor)
         if email is None
-        else session_service.revoke_for_email(db, email)
+        else session_service.revoke_for_email(db, email, actor)
     )
-    # « Qui a coupé tout le monde, et quand » est la première question posée en
-    # incident, et c'est le seul geste dont l'auteur s'effacerait lui-même : sa
-    # session est détruite avec les autres. Tous les gestes d'administration du
-    # dépôt journalisent leur acteur ; celui-ci ne peut pas faire exception.
+    # La trace durable est écrite par le service (#935) ; celle-ci reste pour
+    # les logs Render, comme les autres gestes d'administration.
     logger.info(
         "Sessions revoked: actor=%s scope=%s sessions=%s accounts=%s",
         actor.id,
