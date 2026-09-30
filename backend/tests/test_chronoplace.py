@@ -24,6 +24,9 @@ EPREUVE_566 = _fixture("chronoplace_epreuve_566.html")   # swimrun, catégories 
 EPREUVE_493 = _fixture("chronoplace_epreuve_493.html")   # 24h VTT, isTeam
 EPREUVE_551 = _fixture("chronoplace_epreuve_551.html")   # isTeam, nom vide, équipe en « Club »
 RECHERCHE_2025 = _fixture("chronoplace_recherche_2025.html")  # annuaire, porteur des dates
+# Markup de septembre 2026 : `sortBy` sur le bouton du `<th>`, deux tables par page.
+EPREUVE_566_2026 = _fixture("chronoplace_epreuve_566_2026.html")  # swimrun, durée fixe
+EPREUVE_551_2026 = _fixture("chronoplace_epreuve_551_2026.html")  # isTeam, tours fixés
 
 
 def test_parse_url_avec_epreuve():
@@ -108,6 +111,19 @@ def test_parse_table_lit_les_colonnes_par_cle():
         "T_course_a_pied": "00:04:33",
         "temps": "01:01:26",
     }
+
+
+def test_parse_table_lit_la_cle_sur_le_bouton_du_th():
+    """Septembre 2026 : `wire:click="sortBy(...)"` a glissé du `<th>` vers son
+    `<button>`, et la page porte une seconde table (vue étroite). Sans ce
+    correctif, tout import chronoplace rendait 0 participant."""
+    rows = chronoplace._parse_table(EPREUVE_566_2026)
+
+    assert len(rows) == 4
+    assert rows[0]["position"] == "1"
+    assert rows[0]["nom"] == "MARTIN Nicolas"
+    assert rows[0]["nb_tours"] == "15"
+    assert rows[0]["temps"] == "02:00:20"
 
 
 def test_parse_table_colonnes_differentes_selon_lepreuve():

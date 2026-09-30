@@ -143,7 +143,8 @@ def _parse_snapshot(html: str) -> dict:
 
 
 def _column_keys(table) -> list[str]:
-    """Clé de chaque colonne, lue dans `wire:click="sortBy('<clé>')"` du `<th>`.
+    """Clé de chaque colonne, lue dans `wire:click="sortBy('<clé>')"` du `<th>`
+    ou, depuis septembre 2026, du `<button>` qu'il contient (#993).
 
     Vocabulaire fermé : position, dossard, nom, genre, club, categorie,
     clasmt_genre, nb_tours, ecart, temps, T_natation, T1, T_velo, T2,
@@ -152,7 +153,8 @@ def _column_keys(table) -> list[str]:
     """
     keys = []
     for th in table.select("thead th"):
-        m = _SORT_RE.search(th.get("wire:click") or "")
+        porteur = th if th.get("wire:click") else th.find(attrs={"wire:click": True})
+        m = _SORT_RE.search((porteur.get("wire:click") if porteur else "") or "")
         keys.append(m.group(1) if m else "")
     return keys
 
