@@ -66,13 +66,21 @@ Toute PR déclenche la CI seule (aucun déploiement).
 360 minutes par défaut de GitHub : une étape figée (registre npm ou PyPI muet,
 test en attente, `vercel build` bloqué) garderait sinon le groupe de
 `concurrency` pris pendant 6 h. Les valeurs laissent une large marge sur les
-durées observées : 15 min pour les jobs de `ci.yml` (~1 min, 20 pour `backend-postgres`), 20 min pour
+durées observées : 15 min pour les jobs de `ci.yml` (~1 min, 20 pour `backend-postgres`), 30 min pour
 `deploy-preview`/`deploy-production` (1 à 3 min, plus les retries curl vers
-Render), 10 min pour ceux de `pages.yml`, 30 min pour `scraper-drift.yml`. L'attente d'approbation de
+Render et jusqu'à 15 min d'attente du déploiement Render, #921), 10 min pour ceux de `pages.yml`, 30 min pour `scraper-drift.yml`. L'attente d'approbation de
 l'environment `production` ne compte pas dans ce délai.
 
 Le gating repose sur `needs: ci` : si un job CI échoue, le job de déploiement
-n'est jamais exécuté. Côté Render, c'est **Auto-Deploy = No dans les réglages du
+n'est jamais exécuté. Et le front n'est publié que **devant un backend en
+ligne** (#921) : après le deploy hook, `.github/scripts/wait-render-deploy.sh`
+retrouve le déploiement Render du commit (`GET /v1/services/{id}/deploys`),
+l'attend jusqu'à `live` (15 min au plus), puis vérifie que
+`/api/v1/version` rend bien la version poussée. `build_failed`, `update_failed`,
+`pre_deploy_failed`, `canceled` ou `deactivated` font échouer le job avant
+Vercel. Sur un `workflow_dispatch` depuis une branche de PR, si Render ne sait
+pas déployer ce commit hors de `main`, l'attente échoue au bout du délai : le
+job le dit, au lieu de publier un front devant le backend de `main`. Côté Render, c'est **Auto-Deploy = No dans les réglages du
 service** qui empêche tout déploiement automatique hors hook.
 
 > **`render.yaml` n'est appliqué par personne.** Les deux services ont été créés
@@ -528,9 +536,41 @@ Les *Environments* `preview` et `production` sont **nécessaires** : les deux jo
 les déclarent, et c'est `preview` qui porte le `VERCEL_PROJECT_ID` du projet
 preview (voir plus haut).
 
-Optionnel mais recommandé : ajouter une **required reviewer** sur `production` —
-un tag `v*` déclenchera la CI, mais la mise en production attendra une validation
-manuelle.
+L'environment `production` porte une **required reviewer** (tjarrier,
+cldudouyt, MathieuHerrmann) : un tag `v*` déclenche la CI, mais la mise en
+production attend une validation manuelle, et `prevent_self_review` interdit à
+l'auteur du tag de s'approuver lui-même.
+
+**Seul un tag `v*` posé sur `main` part en production** (#960), par trois verrous :
+
+1. **Ruleset de tags** (target `tag`, motif `refs/tags/v*`) : création, mise à
+   jour et suppression réservées aux admins (bypass list). Un collaborateur
+   `write` ne peut plus poser de tag de release.
+2. **Politique de déploiement de `production`** : *Selected branches and tags*,
+   règle de tag `v*`. Les secrets de l'environment ne sont exposés à aucune
+   autre ref, pas même un `workflow_dispatch` depuis une branche.
+3. **Contrôle d'ascendance** dans `deploy-production` :
+   `git merge-base --is-ancestor "$GITHUB_SHA" origin/main` avant tout appel
+   Render ou Vercel. Défense en profondeur seulement : un push de tag exécute le
+   `deploy.yml` du commit taggé, qui peut l'avoir retiré. Les points 1 et 2 sont
+   la vraie barrière.
+
+```bash
+repo=repos/Triathlon-Club-Nantais/data-triathlon
+# 1. Ruleset de tags (bypass : rôle Admin du dépôt, actor_id 5)
+jq -n '{name: "release tags", target: "tag", enforcement: "active",
+  conditions: {ref_name: {include: ["refs/tags/v*"], exclude: []}},
+  rules: [{type: "creation"}, {type: "update"}, {type: "deletion"}],
+  bypass_actors: [{actor_id: 5, actor_type: "RepositoryRole", bypass_mode: "always"}]}' \
+  | gh api -X POST $repo/rulesets --input -
+# 2. Politique de l'environment, et pas d'auto-approbation
+gh api -X PUT $repo/environments/production --input - <<'JSON'
+{"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true},
+ "prevent_self_review": true,
+ "reviewers": [ …reviewers actuels, à relire avant envoi… ]}
+JSON
+gh api -X POST $repo/environments/production/deployment-branch-policies -f name='v*' -f type=tag
+```
 
 ## Batches de production — `batch.yml` (#47)
 
@@ -606,7 +646,29 @@ Et pas un **secret de dépôt** non plus : il serait lisible par tout workflow d
 n'importe quelle branche (cf. le compromis assumé de `RENDER_API_KEY` plus
 haut), ce qui est la pire portée pour la base de production.
 
-Ce qui contrôle l'accès ici, c'est le pouvoir `batch:run` côté application.
+Ce qui contrôle l'accès ici, c'est d'abord la **politique de branche** des deux
+environments (#903) : *Deployment branches and tags → Selected branches → `main`*.
+Un job qui déclare `batch-production` ou `batch-preview` depuis une autre ref
+(un `workflow_dispatch` sur une branche, un workflow modifié dans une PR) est
+refusé à l'entrée de l'environment, avant d'avoir vu `DATABASE_URL` ou obtenu
+un jeton OIDC. Rien ne casse : le backend dispatche toujours sur `REF = "main"`
+(`backend/app/services/batch_runs.py`), et le `schedule` tourne sur la branche
+par défaut. Le pouvoir `batch:run` décide ensuite, côté application, qui peut
+lancer un batch depuis l'écran.
+
+```bash
+for env in batch-production batch-preview; do
+  gh api -X PUT repos/Triathlon-Club-Nantais/data-triathlon/environments/$env \
+    -F 'deployment_branch_policy[protected_branches]=false' \
+    -F 'deployment_branch_policy[custom_branch_policies]=true'
+  gh api -X POST repos/Triathlon-Club-Nantais/data-triathlon/environments/$env/deployment-branch-policies \
+    -f name=main -f type=branch
+done
+```
+
+Vérification : `batch.yml` depuis `main` avec `target: production`,
+`mode: rescrape`, `limit: 1`, `dry_run: true` passe ; le même dispatch depuis une
+autre branche est refusé.
 
 ### L'hôte de la base : viser le **pooler**, pas la connexion directe
 
@@ -970,8 +1032,9 @@ git push origin v0.1.0
 
 1. Ouvrir une PR → les jobs `backend` et `frontend` passent, puis `ci-ok`.
 2. Merger dans `main` (ou lancer un `workflow_dispatch`) → `deploy.yml` enchaîne
-   `ci` puis `deploy-preview` : hook Render preview + déploiement sur l'URL fixe
-   de `data-triathlon-preview`. Relancer une fois : **la même URL**.
+   `ci` puis `deploy-preview` : hook Render preview, attente de `live` et de la
+   version (#921), puis déploiement sur l'URL fixe de `data-triathlon-preview`.
+   Relancer une fois : **la même URL**.
 3. Sur cette preview, vérifier qu'on interroge bien le backend Render *preview*
    (footer de version + une lecture API).
 4. `git tag v0.1.0 && git push --tags` → `ci` puis `deploy-production`

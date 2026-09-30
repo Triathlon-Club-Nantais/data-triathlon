@@ -108,7 +108,10 @@ toucher au réseau, au serveur, ou aux autres ressources du RG.
 confiance passe uniquement par le federated credential, dont le `subject`
 exige — chaîne pour chaîne — que le jeton GitHub vienne d'un job qui
 déclare l'environment `batch-production` sur ce repo. Un fork malveillant, ou
-un job sur un autre environment, n'obtient rien.
+un job sur un autre environment, n'obtient rien. Le `subject` ne nomme pas la
+branche : c'est la politique de branche de l'environment, bornée à `main`
+(#903, `ci-cd.md` § « Deux environments dédiés »), qui empêche un job d'une
+autre ref de déclarer `batch-production`. C'est elle, le vrai verrou.
 
 Les valeurs `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` et `AZURE_SUBSCRIPTION_ID`
 sont posées comme secrets d'environment côté GitHub (voir
