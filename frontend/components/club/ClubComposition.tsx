@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/accordion";
 import type { ClubComposition as ClubCompositionData } from "@/lib/types";
 
-/** Codes normalisés par le scraping (`backend/app/scrapers/*.py` : "H" alias de "M"). */
+/** `M`, `F` ou vide : le backend normalise le genre à l'import (`core/gender.py`, #936). */
 function genderLabel(code: string): string {
   if (code === "M") return "Hommes";
   if (code === "F") return "Femmes";

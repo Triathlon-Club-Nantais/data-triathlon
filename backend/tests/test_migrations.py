@@ -895,3 +895,29 @@ def test_upgrade_head_indexes_the_lowercase_athlete_identity(base_migree):
     finally:
         engine.dispose()
     assert ddl is not None and "lower(nom), lower(prenom)" in ddl
+
+
+_BEFORE_GENDER_NORMALIZATION = "7dfd2effc405"
+
+
+def test_the_data_migration_normalizes_athlete_gender(sqlite_url):
+    """#936 : `H`, `Homme`, `F ()`, `W` deviennent `M`/`F`, le reste devient vide."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, _BEFORE_GENDER_NORMALIZATION)
+    engine = sa.create_engine(sqlite_url)
+    with engine.begin() as connexion:
+        for index, genre in enumerate(["M", "H", "Homme", "F", "F ()", "W", "X", "", "1"]):
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO athletes (nom, prenom, gender, club_locked, created_at)"
+                    " VALUES (:nom, 'P', :genre, 0, '2026-01-01')"
+                ),
+                {"nom": f"N{index}", "genre": genre},
+            )
+    engine.dispose()
+
+    command.upgrade(cfg, "head")
+
+    assert _lignes(sqlite_url, "SELECT gender FROM athletes ORDER BY id") == [
+        ("M",), ("M",), ("M",), ("F",), ("F",), ("F",), ("",), ("",), ("",),
+    ]

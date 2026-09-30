@@ -772,7 +772,8 @@ def test_club_roster_ventile_les_podiums_par_portee_independamment(db_session):
     # Une seule participation, podium sur les trois portées à la fois
     # (cas mesuré Hadrien à Mesquer, #488) : les trois compteurs de portée
     # s'incrémentent chacun, `podiums` (dédupliqué) ne compte qu'une fois.
-    ath = athlete_repository.get_or_create(db_session, nom="MULTI", prenom="M", club="TCN")
+    # Genre posé : un podium de genre ne compte que pour `M` ou `F` (#936).
+    ath = athlete_repository.get_or_create(db_session, nom="MULTI", prenom="M", club="TCN", gender="M")
     course = _course(db_session, "C")
     _part(db_session, ath, course, "1", rank_overall=2, rank_category=1, rank_gender=2)
     db_session.flush()

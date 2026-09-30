@@ -12,6 +12,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
+from app.core.gender import normalize_gender
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.course_source import CourseSource
@@ -296,7 +297,7 @@ def resolve_athlete(
         db,
         nom=scraped.athlete_name,
         prenom=scraped.athlete_firstname,
-        gender=scraped.gender,
+        gender=normalize_gender(scraped.gender),
         club=scraped.club or None,
         update_existing_club=not scraped.is_pending_validation,
         event_date=event_date,
@@ -317,7 +318,7 @@ def athlete_creation_fields(scraped: ScrapedResult) -> dict:
     return {
         "nom": (scraped.athlete_name or "").strip(),
         "prenom": (scraped.athlete_firstname or "").strip(),
-        "gender": scraped.gender,  # `ScrapedResult.gender` est typé `str = ""` (#1108)
+        "gender": normalize_gender(scraped.gender),  # `M`, `F` ou vide (#936)
         "birth_date": None,
         "club": scraped.club or None,
     }

@@ -54,10 +54,9 @@ def _rank_counters(rows) -> dict:
         _accumule(category, rank_category_)
         _accumule(tous, _meilleur_rang([rank_overall, rank_gender, rank_category_]))
 
-        g = (gender or "").upper()
-        if g == "F":
+        if gender == "F":
             _accumule(genre["women"], rank_gender)
-        elif g == "M":
+        elif gender == "M":
             _accumule(genre["men"], rank_gender)
 
     return {"scratch": scratch, "category": category, "all": tous, "gender": genre}
@@ -285,10 +284,9 @@ def course_summary(db: Session, course_id: int) -> dict:
             # Statut vide ou non reconnu : ni finisher ni abandon (#23).
             unknown += 1
 
-        initiale = (gender or "").strip().lower()[:1]
-        if initiale in ("f", "w"):
+        if gender == "F":
             female += 1
-        elif initiale in ("m", "h"):
+        elif gender == "M":
             male += 1
 
         # Un libellé sans lettre ni chiffre (« - », « --- ») est le remplissage

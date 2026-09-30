@@ -272,6 +272,35 @@ def test_reimport_backfills_empty_gender_but_keeps_known_one(db_session, patch_s
     assert athlete_repository.get_by_identity(db_session, "GENRE", "Lou", None).gender == "M"
 
 
+def test_import_normalizes_the_gender_to_m_f_or_empty(db_session, patch_scraper):
+    """#936: `H`, `Femme`, `X` published by providers land as `M`, `F`, `""`."""
+    patch_scraper(
+        [
+            _result("1", "HOMME", prenom="Hugo", gender="H"),
+            _result("2", "FEMME", prenom="Fanny", gender="Femme"),
+            _result("3", "AUTRE", prenom="Alix", gender="X"),
+        ]
+    )
+    import_service.import_event(db_session, URL, _settings())
+
+    assert athlete_repository.get_by_identity(db_session, "HOMME", "Hugo", None).gender == "M"
+    assert athlete_repository.get_by_identity(db_session, "FEMME", "Fanny", None).gender == "F"
+    assert athlete_repository.get_by_identity(db_session, "AUTRE", "Alix", None).gender == ""
+
+
+def test_reimport_backfills_a_normalized_gender(db_session, patch_scraper):
+    """#936: the backfill of an empty gender goes through the same normalizer,
+    and an unreadable value (`X`) backfills nothing."""
+    patch_scraper([_result("1", "VIDE", prenom="Cam", gender=""), _result("2", "RESTE", prenom="Sam", gender="")])
+    import_service.import_event(db_session, URL, _settings())
+
+    patch_scraper([_result("1", "VIDE", prenom="Cam", gender="W"), _result("2", "RESTE", prenom="Sam", gender="X")])
+    import_service.import_event(db_session, URL, _settings(), force=True)
+
+    assert athlete_repository.get_by_identity(db_session, "VIDE", "Cam", None).gender == "F"
+    assert athlete_repository.get_by_identity(db_session, "RESTE", "Sam", None).gender == ""
+
+
 def test_import_calcule_l_indice_de_fiabilite(db_session, patch_scraper):
     patch_scraper([_result("1", "DUPONT", rank_overall=1), _result("2", "MARTIN", rank_overall=2)])
     import_service.import_event(db_session, URL, _settings())

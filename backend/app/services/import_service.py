@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.core.database import SessionLocal
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
+from app.core.gender import normalize_gender
 from app.core.text import deaccent
 from app.core.time import utcnow
 from app.models.athlete import Athlete
@@ -952,8 +953,9 @@ class _Persister:
                 # `athlete_repository.resolve` — sans effet sur la ligne qui
                 # vient de créer `athlete` (son club est déjà le sien).
                 athlete.club = club
-            if item.scraped.gender and not athlete.gender:
-                athlete.gender = item.scraped.gender
+            gender = normalize_gender(item.scraped.gender)
+            if gender and not athlete.gender:
+                athlete.gender = gender
 
             is_creator = key in created_keys and key not in creation_consumed
             if is_creator:

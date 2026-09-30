@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.club import tcn_clause
 from app.core.discipline import federal_clause
+from app.core.gender import gender_podium_clause
 from app.core.text import deaccent
 from app.core.validation import validated_clause
 from app.models.athlete import Athlete
@@ -622,7 +623,8 @@ def _club_roster_requete(db: Session, *, federal_only: bool):
     # critère que `set_teammates`.
     individuel = and_(Participation.is_relay.is_(False), Course.is_relay.is_(False))
     cond_overall = and_(individuel, Participation.rank_overall.between(1, 3))
-    cond_gender = and_(individuel, Participation.rank_gender.between(1, 3))
+    # Même règle que le KPI et la liste des podiums (`core.gender`, #936).
+    cond_gender = and_(individuel, gender_podium_clause(Participation.rank_gender, Athlete.gender))
     cond_category = and_(individuel, Participation.rank_category.between(1, 3))
 
     total = func.count(Participation.id)
