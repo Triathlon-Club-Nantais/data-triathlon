@@ -254,3 +254,11 @@ la politique. #448 l'avait léguée, #570 la fige.
 `sonner` n'aurait rien réglé — CSP niveau 3 impose au navigateur d'ignorer
 `'unsafe-inline'` dès qu'un nonce ou un hash est présent dans la même
 directive, et `style-src` en porte un.
+
+**La bascule se fait en deux temps** (décision du 2026-10-01, après le
+troisième relevé). Aucune preview n'étant construite par PR, le code corrigé
+n'a jamais tourné sur un environnement déployé. La PR #639 livre donc les
+trois corrections **en `Report-Only`** ; la preview puis la production sont
+relevées une fois ces corrections en place, où l'on attend zéro violation. Une
+PR de suite consigne les oublis éventuels, les corrige et passe au nom
+bloquant, ce qui ferme #570.

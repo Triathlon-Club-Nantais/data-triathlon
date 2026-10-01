@@ -12,7 +12,7 @@ function requeteAvec(cookies: Record<string, string>) {
   return requete;
 }
 
-const CSP = "content-security-policy";
+const CSP = "content-security-policy-report-only";
 
 /** Nom de l'en-tête tel que `NextResponse.next({ request })` l'encode sur la
  * réponse pour le renderer (`server/web/spec-extension/response.js`). */
@@ -76,14 +76,14 @@ describe("proxy", () => {
   });
 });
 
-describe("proxy — Content-Security-Policy (#448, bascule #570)", () => {
-  it("pose la politique en mode bloquant, plus en observation", () => {
-    // Retournement du verrou de #453 : la phase d'observation est close, et un
-    // retour à `Report-Only` ne protégerait plus de rien.
+describe("proxy — Content-Security-Policy (#448, #570)", () => {
+  it("pose la politique en Report-Only, jamais en mode bloquant", () => {
+    // Les corrections de #570 se vérifient d'abord en observation, jusqu'en
+    // production : la bascule ne se décide qu'après un relevé sans violation.
     const reponse = proxy(requeteAvec({}));
 
     expect(reponse.headers.get(CSP)).toBeTruthy();
-    expect(reponse.headers.get("content-security-policy-report-only")).toBeNull();
+    expect(reponse.headers.get("content-security-policy")).toBeNull();
   });
 
   it("transmet la politique dans les en-têtes de la requête, seul endroit où Next lit le nonce", () => {
