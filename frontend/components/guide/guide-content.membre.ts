@@ -34,6 +34,18 @@ export const GUIDE_MEMBRE: GuideSection[] = [
     captures: [{ src: "/guide/membre/resultats.jpg", alt: "Liste des résultats avec filtres" }],
   },
   {
+    id: "fiche-athlete",
+    titre: "Fiche athlète",
+    casUsage:
+      "Retrouver un athlète, voir son historique et sa progression, et le choisir pour personnaliser son tableau de bord.",
+    etapes: [
+      "Ouvrir la recherche d'athlète avec la loupe de la navigation, ou le raccourci ⌘K (Mac) ou Ctrl K.",
+      "Taper quelques lettres du nom, puis ouvrir la fiche.",
+      "Cliquer sur « Choisir cet athlète » : ses résultats se retrouvent en un geste, et sa saison s'affiche en tête du tableau de bord.",
+    ],
+    captures: [{ src: "/guide/membre/fiche-athlete.jpg", alt: "Fiche d'un athlète avec le bouton « Choisir cet athlète »" }],
+  },
+  {
     id: "comparaison",
     titre: "Comparaison",
     casUsage:
