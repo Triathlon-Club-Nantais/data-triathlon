@@ -6,7 +6,12 @@ from app.api.deps import require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
-from app.schemas.opposition import OppositionCreate, OppositionIdentity, OppositionPreviewRead, OppositionRead
+from app.schemas.opposition import (
+    OppositionCreate,
+    OppositionIdentity,
+    OppositionPreviewRead,
+    OppositionRead,
+)
 from app.services import opposition_service
 
 router = APIRouter(tags=["admin"])

@@ -3,10 +3,10 @@ from datetime import date
 
 import pytest
 
+from app.core.identity import identity_hash
 from app.models.athlete import Athlete
 from app.models.participation import Participation
 from app.repositories import opposition_repository, participation_repository
-from app.core.identity import identity_hash
 from app.scrapers.base import ScrapedResult
 from app.services import import_service
 
