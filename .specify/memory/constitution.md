@@ -1,4 +1,20 @@
 <!--
+Sync Impact Report — Constitution v1.2.1
+========================================
+Version change    : 1.2.0 → 1.2.1
+Rationale         : PATCH — alignement d'une contrainte sur le modèle (« Additional
+  Constraints », Modèle normalisé). `Athlete` n'est plus « unique par
+  nom/prénom/DDN » : cette contrainte était inopérante (`birth_date` toujours
+  NULL, deux NULL ne se heurtent pas, #981) et faisait scinder une fiche datée
+  par un admin (#900). L'identité devient la clé normalisée du nom et du prénom
+  plus un rang d'homonyme (#907, epic #1146).
+  Proposition : issue #1160. Approbation : mainteneur, 2026-10-01 (PATCH retenu).
+Modified principles : (aucun)
+Modified sections : Additional Constraints — Modèle normalisé, identité d'`Athlete`.
+Added sections    : (aucune)
+Removed sections  : (aucune)
+Templates touchés : (aucun) — les gates et catégories de tâches ne changent pas.
+
 Sync Impact Report — Constitution v1.2.0
 ========================================
 Version change    : 1.1.1 → 1.2.0
@@ -344,7 +360,9 @@ faites *après* que les cas particuliers ont émergé, pas avant.
   (`scripts/reset_db.py`) passe par `drop_all` puis `alembic upgrade head`.
 - **Temps** : toujours des strings normalisées (`"01:23:45"`) via
   `app/scrapers/utils.py`. Pas de `timedelta` en base ni dans les DTO.
-- **Modèle normalisé** : `Athlete` (unique par nom/prénom/DDN), `Course`
+- **Modèle normalisé** : `Athlete` (unique par clé normalisée du nom et du
+  prénom et par rang d'homonyme ; la date de naissance n'entre pas dans
+  l'identité), `Course`
   (unique par name/event_date/event_type/**is_relay**), `Participation` (unique
   par course_id/bib_number). Les splits sont un JSON, pas des colonnes figées.
 - **Cache TTL** : jamais de re-scrape si `is_fresh(course)` renvoie `True`.
@@ -409,4 +427,4 @@ référence (architecture détaillée, commandes, conventions de scraping). En c
 de divergence entre `AGENTS.md` et cette constitution, la constitution prime
 et `AGENTS.md` doit être aligné.
 
-**Version**: 1.2.0 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-08-28
+**Version**: 1.2.1 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-10-01

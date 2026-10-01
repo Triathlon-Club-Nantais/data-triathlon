@@ -6,7 +6,7 @@ Décisions et justifications : `research.md` (R1 à R9). Identifiants techniques
 
 | Colonne | Type | Règle |
 | --- | --- | --- |
-| `last_name_key` | `String`, nullable | `identity_key(nom)` ; NULL si vide (avec `first_name_key`) |
+| `last_name_key` | `String`, nullable | `identity_key(nom)` ; si le nom est vide et le prénom non, `identity_key(prenom)` (prénom seul = nom complet, cas Klikego) ; NULL si les deux sont vides |
 | `first_name_key` | `String`, nullable | `identity_key(prenom)` ; `""` si prénom vide et nom non vide ; NULL si `last_name_key` est NULL |
 | `homonym_rank` | `Integer`, NOT NULL, défaut 0 | 0 = fiche principale, ≥ 1 = homonyme distingué |
 
@@ -18,7 +18,7 @@ Décisions et justifications : `research.md` (R1 à R9). Identifiants techniques
   - `birth_date` ne participe plus à l'identité ;
   - l'import ne résout que vers `homonym_rank = 0`.
 
-`identity_key(text)` (`app/core/athlete_identity.py`) : NFKD, retrait des marques combinantes, `casefold`, `œ→oe`, `æ→ae`, puis caractères alphanumériques Unicode seuls (`str.isalnum`). Exemples : `Léo`→`leo`, `L'APPARTIEN`→`lappartien`, `LE GLOANIC`→`legloanic`, `Jean-marie`→`jeanmarie`, `CIC 7`→`cic7`, `Иванов`→`иванов`, `?`→`""`, `-`→`""`.
+`identity_key(text)` (`app/core/athlete_identity.py`) : NFKD, retrait des marques combinantes, `casefold`, `œ→oe`, `æ→ae`, `ø→o`, `ł→l`, `đ→d`, puis caractères alphanumériques Unicode seuls (`str.isalnum`). Exemples : `Léo`→`leo`, `L'APPARTIEN`→`lappartien`, `LE GLOANIC`→`legloanic`, `Jean-marie`→`jeanmarie`, `CIC 7`→`cic7`, `Иванов`→`иванов`, `?`→`""`, `-`→`""`.
 
 ## `participations` (modifiée)
 

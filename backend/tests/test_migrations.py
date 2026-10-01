@@ -881,20 +881,128 @@ def test_alembic_check_finds_no_drift_on_sqlite(sqlite_url):
     command.check(_alembic_config())
 
 
-def test_upgrade_head_indexes_the_lowercase_athlete_identity(base_migree):
-    """#1005 : sans index sur `(lower(nom), lower(prenom))`, chaque lot d'identités
-    parcourait toute la table `athletes` (2 636 s sur un rescrape klikego preview).
-    Le parcours d'index se vérifie par `EXPLAIN` sur PostgreSQL : SQLite ne sert pas
-    un `IN` sur tuple par un index d'expression."""
+_BEFORE_IDENTITY_KEY = "d49e03833de6"
+_IDENTITY_KEY_MIGRATION = BACKEND_ROOT / "alembic" / "versions" / "b7e41c9d2a58_athlete_identity_key.py"
+
+
+def _insert_athletes(url: str, identities: list[tuple[str, str]]) -> None:
+    engine = sa.create_engine(url)
+    with engine.begin() as connexion:
+        for nom, prenom in identities:
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO athletes (nom, prenom, gender, club_locked, created_at)"
+                    " VALUES (:nom, :prenom, '', 0, '2026-01-01')"
+                ),
+                {"nom": nom, "prenom": prenom},
+            )
+    engine.dispose()
+
+
+def test_the_identity_key_migration_backfills_keys_and_ranks_duplicates(sqlite_url):
+    """#907 : les doublons existants reçoivent un rang au lieu de faire échouer
+    la contrainte, sinon le déploiement Render (migrations au démarrage) casserait."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, _BEFORE_IDENTITY_KEY)
+    _insert_athletes(sqlite_url, [
+        ("LETORT", "Leo"), ("LETORT", "Léo"), ("?", ""), ("DUPONT JEAN", ""), ("CIC 7", ""), ("", "Jean Dupont")
+    ])
+
+    command.upgrade(cfg, "head")
+
+    assert _lignes(
+        sqlite_url,
+        "SELECT last_name_key, first_name_key, homonym_rank FROM athletes ORDER BY id",
+    ) == [
+        ("letort", "leo", 0), ("letort", "leo", 1), (None, None, 0), ("dupontjean", "", 0), ("cic7", "", 0),
+        ("jeandupont", "", 0),
+    ]
+
+
+def test_the_identity_constraint_rejects_a_second_principal_record(sqlite_url):
+    command.upgrade(_alembic_config(), "head")
+    _insert_athletes(sqlite_url, [("LETORT", "Leo")])
+    engine = sa.create_engine(sqlite_url)
+    try:
+        with engine.begin() as connexion:
+            connexion.execute(sa.text("UPDATE athletes SET last_name_key = 'letort', first_name_key = 'leo'"))
+        with pytest.raises(sa.exc.IntegrityError), engine.begin() as connexion:
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO athletes (nom, prenom, gender, club_locked, created_at,"
+                    " last_name_key, first_name_key, homonym_rank)"
+                    " VALUES ('LETORT', 'Léo', '', 0, '2026-01-01', 'letort', 'leo', 0)"
+                )
+            )
+    finally:
+        engine.dispose()
+
+
+def test_the_identity_key_migration_drops_the_old_identity(base_migree):
     engine = sa.create_engine(base_migree)
     try:
+        inspector = sa.inspect(engine)
+        uniques = {u["name"]: u["column_names"] for u in inspector.get_unique_constraints("athletes")}
         with engine.connect() as connection:
-            ddl = connection.execute(
+            old_index = connection.execute(
                 sa.text("SELECT sql FROM sqlite_master WHERE name = 'ix_athletes_identity'")
             ).scalar()
     finally:
         engine.dispose()
-    assert ddl is not None and "lower(nom), lower(prenom)" in ddl
+    assert uniques["uq_athlete_identity"] == ["last_name_key", "first_name_key", "homonym_rank"]
+    assert old_index is None
+
+
+def test_the_frozen_migration_rule_matches_the_application_key():
+    """La règle est recopiée dans la migration pour qu'un rejeu futur donne le même
+    résultat : ce test empêche les deux copies de diverger aujourd'hui."""
+    import importlib.util
+
+    from app.core.athlete_identity import identity_key
+
+    spec = importlib.util.spec_from_file_location("identity_key_migration", _IDENTITY_KEY_MIGRATION)
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    for raw in ["Léo", "L'APPARTIEN", "LE GLOANIC", "Œuvray", "Lætitia", "Strauß", "Søren", "Łukasz", "Đorđe",
+                "CIC 7", "Иванов", "?", "", None]:
+        assert migration._identity_key(raw) == identity_key(raw)
+
+
+def test_downgrade_of_the_identity_key_names_the_duplicates(sqlite_url):
+    """L'ancienne contrainte `(nom, prenom, birth_date)` ne heurte que deux fiches
+    datées identiques : des NULL ne se comparent pas."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    _insert_athletes_after_keys(sqlite_url, [
+        ("LETORT", "Léo", "letort", "leo", 0), ("LETORT", "Léo", "letort", "leo", 1)
+    ])
+
+    with pytest.raises(RuntimeError, match="LETORT"):
+        command.downgrade(cfg, _BEFORE_IDENTITY_KEY)
+
+
+def test_downgrade_then_upgrade_of_the_identity_key(sqlite_url):
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, _BEFORE_IDENTITY_KEY)
+    assert "last_name_key" not in _columns(sqlite_url, "athletes")
+    command.upgrade(cfg, "head")
+    assert {"last_name_key", "first_name_key", "homonym_rank"} <= _columns(sqlite_url, "athletes")
+
+
+def _insert_athletes_after_keys(url: str, rows: list[tuple[str, str, str, str, int]]) -> None:
+    engine = sa.create_engine(url)
+    with engine.begin() as connexion:
+        for nom, prenom, last_key, first_key, rank in rows:
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO athletes (nom, prenom, gender, club_locked, created_at, birth_date,"
+                    " last_name_key, first_name_key, homonym_rank)"
+                    " VALUES (:nom, :prenom, '', 0, '2026-01-01', '1990-01-01', :last_key, :first_key, :rank)"
+                ),
+                {"nom": nom, "prenom": prenom, "last_key": last_key, "first_key": first_key, "rank": rank},
+            )
+    engine.dispose()
 
 
 _BEFORE_GENDER_NORMALIZATION = "7dfd2effc405"

@@ -12,14 +12,13 @@ def test_get_or_create_creates_then_dedups(db_session):
     assert a2.id == a1.id
 
 
-def test_birth_date_distinguishes_homonyms(db_session):
-    a1 = athlete_repository.get_or_create(
+def test_birth_date_no_longer_splits_the_identity(db_session):
+    """#900 : une date posée par un admin ne doit pas faire créer une seconde fiche."""
+    dated = athlete_repository.get_or_create(
         db_session, nom="MARTIN", prenom="Paul", birth_date=date(1990, 1, 1)
     )
-    a2 = athlete_repository.get_or_create(
-        db_session, nom="MARTIN", prenom="Paul", birth_date=date(1985, 6, 2)
-    )
-    assert a1.id != a2.id
+    again = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul")
+    assert again.id == dated.id
 
 
 def test_get_or_create_updates_current_club(db_session):
@@ -413,12 +412,11 @@ def test_search_admin_distingue_deux_homonymes_par_leur_compte(db_session):
     """Le cas d'usage réel : deux fiches, même nom, même club, à départager."""
     course = _epreuve(db_session, "Homonymes")
     autre = _epreuve(db_session, "Homonymes 2")
-    prolifique = athlete_repository.get_or_create(
-        db_session, nom="MARTIN", prenom="Paul", birth_date=date(1990, 1, 1), club="TCN"
-    )
-    rare = athlete_repository.get_or_create(
-        db_session, nom="MARTIN", prenom="Paul", birth_date=date(1985, 6, 2), club="TCN"
-    )
+    from app.models.athlete import Athlete
+
+    prolifique = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="TCN")
+    rare = Athlete(nom="MARTIN", prenom="Paul", club="TCN", homonym_rank=1)
+    db_session.add(rare)
     db_session.flush()
     _inscrit(db_session, prolifique, course, "1")
     _inscrit(db_session, prolifique, autre, "1")
@@ -935,51 +933,32 @@ def test_club_rank_respecte_federal_only(db_session):
     assert athlete_repository.club_rank(db_session, ath.id, federal_only=True) is None
 
 
-# ── get_by_identities_batch (#706) ──────────────────────────────────────────
+# ── get_by_identity_keys_batch (#706, #907) ─────────────────────────────────
 
 
-def test_get_by_identities_batch_retrouve_toutes_les_paires_en_une_requete(db_session):
+def test_get_by_identity_keys_batch_retrouve_toutes_les_cles_en_une_requete(db_session):
     a1 = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
     a2 = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul")
     db_session.flush()
 
-    found = athlete_repository.get_by_identities_batch(
-        db_session, [("Dupont", "Jean"), ("MARTIN", "PAUL")]
-    )
+    found = athlete_repository.get_by_identity_keys_batch(db_session, [("dupont", "jean"), ("martin", "paul")])
 
-    assert found == {
-        ("dupont", "jean"): a1,
-        ("martin", "paul"): a2,
-    }
+    assert found == {("dupont", "jean"): a1, ("martin", "paul"): a2}
 
 
-def test_get_by_identities_batch_omet_les_paires_absentes(db_session):
+def test_get_by_identity_keys_batch_omet_les_cles_absentes(db_session):
     athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
     db_session.flush()
 
-    found = athlete_repository.get_by_identities_batch(
-        db_session, [("Dupont", "Jean"), ("Inconnu", "Personne")]
+    found = athlete_repository.get_by_identity_keys_batch(
+        db_session, [("dupont", "jean"), ("inconnu", "personne")]
     )
 
     assert list(found.keys()) == [("dupont", "jean")]
 
 
-def test_get_by_identities_batch_filtre_sur_birth_date_none(db_session):
-    """La résolution d'import ne connaît jamais de date de naissance (#706,
-    research.md) : un homonyme avec `birth_date` renseignée ne doit pas
-    matcher."""
-    athlete_repository.get_or_create(
-        db_session, nom="MARTIN", prenom="Paul", birth_date=date(1985, 6, 2)
-    )
-    db_session.flush()
-
-    found = athlete_repository.get_by_identities_batch(db_session, [("Martin", "Paul")])
-
-    assert found == {}
-
-
-def test_get_by_identities_batch_paire_vide_ne_requete_rien(db_session):
-    assert athlete_repository.get_by_identities_batch(db_session, []) == {}
+def test_get_by_identity_keys_batch_sans_cle_ne_requete_rien(db_session):
+    assert athlete_repository.get_by_identity_keys_batch(db_session, []) == {}
 
 
 # ── create_batch (#706) ──────────────────────────────────────────────────────
@@ -1153,3 +1132,61 @@ def test_apply_updates_never_writes_back_a_column_it_was_not_asked_to_change(db_
     db_session.expire_all()
     relu = db_session.get(Athlete, athlete.id)
     assert (relu.club, relu.gender) == ("NOUVEAU", "F")
+
+
+def test_every_write_path_stores_the_identity_keys(db_session):
+    """#907 : les clés suivent le nom et le prénom quel que soit le chemin d'écriture."""
+    created = athlete_repository.get_or_create(db_session, nom="LE GLOANIC", prenom="Léo")
+    [batched] = athlete_repository.create_batch(db_session, [{"nom": "L'APPARTIEN", "prenom": ""}])
+    assert (created.last_name_key, created.first_name_key, created.homonym_rank) == ("legloanic", "leo", 0)
+    assert (batched.last_name_key, batched.first_name_key) == ("lappartien", "")
+
+
+def test_renaming_an_athlete_recomputes_its_keys(db_session):
+    athlete = athlete_repository.get_or_create(db_session, nom="RONFLE", prenom="Maeva")
+    athlete_repository.update_identity(db_session, athlete, nom="RONFLÉ", prenom="Maëva-Lou")
+    assert (athlete.last_name_key, athlete.first_name_key) == ("ronfle", "maevalou")
+
+
+def test_the_batch_lookup_returns_only_principal_records(db_session):
+    from app.models.athlete import Athlete
+
+    principal = athlete_repository.get_or_create(
+        db_session, nom="MARTIN", prenom="Paul", birth_date=date(1990, 1, 1)
+    )
+    db_session.add(Athlete(nom="MARTIN", prenom="Paul", homonym_rank=1))
+    db_session.flush()
+
+    found = athlete_repository.get_by_identity_keys_batch(db_session, [("martin", "paul"), (None, None)])
+
+    assert found == {("martin", "paul"): principal}
+
+
+def test_fallback_finds_swapped_and_concatenated_records(db_session):
+    swapped = athlete_repository.get_or_create(db_session, nom="ALEXANDER", prenom="Moriarty")
+    split = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    concatenated = athlete_repository.get_or_create(db_session, nom="DURAND PAUL", prenom="")
+
+    matches, ambiguous = athlete_repository.find_fallback_matches(
+        db_session, [("moriarty", "alexander"), ("dupontjean", ""), ("durand", "paul"), ("inconnu", "x")]
+    )
+
+    assert matches == {
+        ("moriarty", "alexander"): swapped, ("dupontjean", ""): split, ("durand", "paul"): concatenated
+    }
+    assert ambiguous == {}
+
+
+def test_fallback_refuses_to_guess_between_several_records(db_session):
+    first = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean")
+    second = athlete_repository.get_or_create(db_session, nom="JEAN", prenom="Dupont")
+
+    matches, ambiguous = athlete_repository.find_fallback_matches(db_session, [("dupontjean", "")])
+
+    assert matches == {}
+    assert ambiguous == {("dupontjean", ""): sorted([first.id, second.id])}
+
+
+def test_a_name_without_identity_stores_no_key(db_session):
+    athlete = athlete_repository.get_or_create(db_session, nom="?", prenom="")
+    assert (athlete.last_name_key, athlete.first_name_key) == (None, None)

@@ -23,10 +23,10 @@ from typing import NamedTuple
 
 from sqlalchemy.orm import Session
 
+from app.core.athlete_identity import athlete_identity_keys
 from app.core.club import is_tcn
 from app.core.config import Settings
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError, ScraperError
-from app.core.text import deaccent
 from app.core.time import utcnow
 from app.models.athlete import Athlete
 from app.models.course import Course
@@ -814,15 +814,15 @@ def set_teammates(
     equipiers: list[Athlete | NewTeammate] = [
         _athlete_or_404(db, ref)
         if isinstance(ref, int)
-        else athlete_repository.get_by_identity(db, ref.athlete_name, ref.athlete_firstname, None)
+        else athlete_repository.get_by_identity_keys(db, ref.athlete_name, ref.athlete_firstname)
         or ref
         for ref in teammates
     ]
     connus = [e.id for e in equipiers if isinstance(e, Athlete)]
-    # Accents ignorés : deux graphies d'un même nom désignent une seule
-    # personne, et `get_or_create` pourrait les résoudre vers la même fiche.
+    # Deux graphies d'une même identité (#907) désignent une seule personne, et
+    # `get_or_create` les résoudrait vers la même fiche.
     inconnus = [
-        tuple(" ".join(deaccent(v).lower().split()) for v in (e.athlete_name, e.athlete_firstname))
+        athlete_identity_keys(e.athlete_name, e.athlete_firstname)
         for e in equipiers
         if isinstance(e, NewTeammate)
     ]
@@ -977,13 +977,16 @@ def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) 
     demande = {champ: champs[champ] for champ in _CHAMPS_ATHLETE if champ in champs}
 
     vise = {**{champ: getattr(athlete, champ) for champ in _CHAMPS_ATHLETE}, **demande}
-    conflit = athlete_repository.get_by_identity(
-        db, nom=vise["nom"], prenom=vise["prenom"], birth_date=vise["birth_date"]
-    )
-    if conflit is not None and conflit.id != athlete.id:
-        raise DuplicateError(
-            f"Un athlète porte déjà cette identité (fiche #{conflit.id})."
-        )
+    # L'identité est la clé normalisée du nom et du prénom ; la date de naissance
+    # n'y entre plus (#900). Une fiche renommée vers une clé neuve en devient la
+    # fiche principale.
+    if athlete_identity_keys(vise["nom"], vise["prenom"]) != (athlete.last_name_key, athlete.first_name_key):
+        conflit = athlete_repository.get_by_identity_keys(db, vise["nom"], vise["prenom"])
+        if conflit is not None and conflit.id != athlete.id:
+            raise DuplicateError(
+                f"Un athlète porte déjà cette identité (fiche #{conflit.id})."
+            )
+        demande["homonym_rank"] = 0
 
     # Le verrou se pose sur le **geste**, pas sur la présence du champ : le
     # formulaire renvoie le club prérempli à chaque enregistrement, et verrouiller

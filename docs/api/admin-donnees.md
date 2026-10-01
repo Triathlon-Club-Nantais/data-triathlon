@@ -113,10 +113,18 @@ Sept points à ne pas défaire :
   n'est pas un geste. Un refus, lui, n'écrit rien **et** ne modifie rien — le
   service `flush`, la route `commit`.
 - **`PATCH /admin/athletes/{id}` porte le `club` actuel** en plus du triplet
-  d'identité (#439). Il n'entre **pas** dans `uq_athlete_identity` : deux
+  d'identité (#439). Le doublon se vérifie sur la clé normalisée du nom et du
+  prénom (#907), la date de naissance n'y entre plus (#900) ; une fiche renommée
+  vers une clé neuve en devient la fiche principale. Le club n'entre **pas** dans `uq_athlete_identity` : deux
   homonymes de clubs différents restent la même personne. « Sans club » s'écrit
   `null` ; la chaîne vide est refusée (422), sans quoi elle se rangerait comme un
   libellé de club à part entière.
+- **Le rapport d'import signale les identités ambiguës** (#908) : la clé
+  `ambiguous_identities` (`[{course_id, athlete_id, candidate_ids}]`, présente sur
+  tous les chemins de `done`, vide par défaut) liste les lignes dont le repli
+  d'identité (nom et prénom inversés, nom complet face à une fiche découpée) a
+  trouvé plusieurs fiches : une fiche neuve est créée, rien n'est deviné, et
+  `candidate_ids` donne les fiches entre lesquelles l'admin tranche.
 - **La correction manuelle du club prime sur tout import ultérieur.** Le
   chronométreur d'une course d'il y a trois ans annonce le club de l'époque, et
   le laisser gagner ramènerait la correction à chaque réimport. D'où

@@ -1,6 +1,11 @@
 # Modèle normalisé
 
-- **Athlete** — `UNIQUE(nom, prenom, birth_date)`. `club` porte le club
+- **Athlete** — `UNIQUE(last_name_key, first_name_key, homonym_rank)` (#907) :
+  les deux clés sont écrites par l'écouteur `_store_identity_keys` à chaque
+  insertion ou mise à jour ORM, jamais par l'appelant ; un `UPDATE` de masse
+  sur `nom`/`prenom` les laisserait périmées. Rang 0 = fiche principale, la
+  seule que l'import résout ; une clé vide (`?`, `-`) vaut NULL et ne désigne
+  personne. `birth_date` n'entre pas dans l'identité (#900). `club` porte le club
   **actuel** : il suit la dernière épreuve **courue**, pas la dernière importée
   (#965). Un import ne le réécrit que si son épreuve est au moins aussi récente
   que la plus récente participation datée avec club déjà connue

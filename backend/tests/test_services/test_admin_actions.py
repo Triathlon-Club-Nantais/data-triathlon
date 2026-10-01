@@ -2303,7 +2303,7 @@ def test_set_teammates_cree_un_equipier_saisi_par_son_nom(db_session, auteur):
         teammates=[jean.id, admin_actions.NewTeammate("DURAND", "Marie")], user_id=auteur.id,
     )
 
-    marie = athlete_repository.get_by_identity(db_session, "DURAND", "Marie", None)
+    marie = athlete_repository.get_by_identity_keys(db_session, "DURAND", "Marie")
     assert marie is not None
     assert [a.id for a in participation_repository.get(db_session, ligne.id).teammates] == [
         jean.id, marie.id,
@@ -2341,7 +2341,7 @@ def test_set_teammates_refuse_deux_fois_le_meme_nom_inconnu(db_session, auteur):
             user_id=auteur.id,
         )
 
-    assert athlete_repository.get_by_identity(db_session, "DURAND", "Marie", None) is None
+    assert athlete_repository.get_by_identity_keys(db_session, "DURAND", "Marie") is None
 
 
 def test_set_teammates_refuse_deux_noms_qui_ne_different_que_par_les_accents(db_session, auteur):
@@ -2374,7 +2374,7 @@ def test_set_teammates_refuse_un_nom_connu_deja_classe_sans_rien_creer(db_sessio
             user_id=auteur.id,
         )
 
-    assert athlete_repository.get_by_identity(db_session, "DURAND", "Marie", None) is None
+    assert athlete_repository.get_by_identity_keys(db_session, "DURAND", "Marie") is None
 
 
 def test_rescrape_renumbers_duplicated_ranks_like_every_import_path(db_session, auteur, scrape):
@@ -2498,7 +2498,7 @@ def test_rescrape_persists_nothing_if_the_course_disappeared_during_the_scrape(
 
     assert events[-1]["phase"] == "error"
     assert "n'existe plus" in events[-1]["message"]
-    assert athlete_repository.get_by_identity(db_session, "NOUVEAU", "Jean", None) is None
+    assert athlete_repository.get_by_identity_keys(db_session, "NOUVEAU", "Jean") is None
 
 
 

@@ -775,15 +775,13 @@ def test_feuilletage_page_size_1_stable_avec_deux_homonymes_exacts(db_session):
     course = course_repository.get_or_create(
         db_session, name="Tri Homonymes", event_date=date(2026, 6, 3), event_type="triathlon-m"
     )
-    # Deux athlètes distincts (dates de naissance différentes) mais nom et
-    # prénom identiques — et la même absence de rang/temps : rien ne les
-    # distingue avant la clé finale.
-    homonyme_1 = athlete_repository.get_or_create(
-        db_session, nom="MARTIN", prenom="Alex", birth_date=date(1990, 1, 1)
-    )
-    homonyme_2 = athlete_repository.get_or_create(
-        db_session, nom="MARTIN", prenom="Alex", birth_date=date(1995, 6, 15)
-    )
+    # Deux athlètes distincts (homonyme distingué, #967) mais nom et prénom
+    # identiques — et la même absence de rang/temps : rien ne les distingue
+    # avant la clé finale.
+    homonyme_1 = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Alex")
+    homonyme_2 = Athlete(nom="MARTIN", prenom="Alex", homonym_rank=1)
+    db_session.add(homonyme_2)
+    db_session.flush()
     autre = athlete_repository.get_or_create(db_session, nom="ZOLA", prenom="Bertrand")
 
     lignes = [
