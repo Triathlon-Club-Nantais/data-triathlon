@@ -144,7 +144,7 @@ def test_apply_is_logged_with_both_dates_and_without_the_name(db, course, admin)
         db, admin, athlete_id=jean.id, requested_on=date(2026, 9, 20), today=TODAY
     )
 
-    entree = db.query(AdminActionLog).filter_by(action="opposition_applied").one()
+    entree = db.query(AdminActionLog).filter_by(action="opposition.apply").one()
     assert (entree.user_id, entree.entity_type, entree.entity_id) == (admin.id, "opposition", opposition.id)
     assert entree.payload == {"requested_on": "2026-09-20", "anonymised_count": 1}
     assert "dupont" not in str(entree.payload).lower()

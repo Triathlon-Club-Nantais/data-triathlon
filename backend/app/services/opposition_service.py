@@ -172,7 +172,7 @@ def apply(
         )
     opposition.anonymised_count += anonymised
     audit.record(
-        db, actor.id, action="opposition_applied", entity_type="opposition", entity_id=opposition.id,
+        db, actor.id, action="opposition.apply", entity_type="opposition", entity_id=opposition.id,
         payload={"requested_on": requested_on.isoformat(), "anonymised_count": anonymised},
     )
     db.commit()

@@ -1293,3 +1293,24 @@ export interface AdminActionLogPage {
   entries: AdminActionLogEntry[];
   total: number;
 }
+
+/** Identité visée par une opposition (#334) : une fiche, ou un nom et un prénom. */
+export type OppositionIdentity = { athlete_id: number } | { nom: string; prenom: string };
+
+/** `POST /admin/oppositions/preview` : ce que l'application toucherait. */
+export interface OppositionPreview {
+  athletes: number;
+  results: number;
+  already_opposed: boolean;
+}
+
+/** Une opposition appliquée, sans aucun nom (#334). */
+export interface Opposition {
+  id: number;
+  requested_on: string;
+  applied_at: string;
+  delay_days: number;
+  overdue: boolean;
+  applied_by_name: string | null;
+  anonymised_count: number;
+}

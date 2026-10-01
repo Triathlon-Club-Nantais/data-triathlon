@@ -80,6 +80,13 @@ describe("Politique de confidentialité (#333)", () => {
     expect(texte).toMatch(/hors de l'Union européenne/i);
   });
 
+  it("annonce l'anonymisation et le formulaire de retrait (#334)", () => {
+    const texte = rendre();
+    expect(texte).toMatch(/rendus anonymes/);
+    expect(texte).toMatch(/« Retrait de mes données »/);
+    expect(texte).toMatch(/empreinte/);
+  });
+
   it("dit comment exercer ses droits, opposition comprise", () => {
     const texte = rendre();
     expect(texte).toMatch(/opposition/i);

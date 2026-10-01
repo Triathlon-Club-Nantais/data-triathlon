@@ -54,6 +54,7 @@ const ECRANS: [string, () => Promise<{ metadata?: Metadata }>][] = [
   ["/admin/jeunes/calendrier", () => import("./admin/jeunes/calendrier/page")],
   ["/admin/jeunes/appel", () => import("./admin/jeunes/appel/layout")],
   ["/admin/journal", () => import("./admin/journal/page")],
+  ["/admin/oppositions", () => import("./admin/oppositions/page")],
   ["/admin/maintenance", () => import("./admin/maintenance/layout")],
   ["/admin/portee-compteurs", () => import("./admin/portee-compteurs/layout")],
   ["/admin/quality", () => import("./admin/quality/page")],
