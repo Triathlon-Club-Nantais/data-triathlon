@@ -173,8 +173,8 @@ export const GUIDE_ADMIN: GuideSection[] = [
     etapes: [
       "Ouvrir la fiche de l'athlète, par la recherche (⌘K ou Ctrl K) ou depuis un classement.",
       "« Corriger la fiche » : modifier le nom, le prénom, la date de naissance ou le club actuel. Un club corrigé à la main n'est plus réécrit par les imports suivants.",
-      "« Valider la saison » : choisir la saison, lire le décompte des épreuves et du bénévolat affiché dessous, puis valider.",
-      "Dans la liste de ses épreuves, « Rattacher » déplace un résultat vers la bonne fiche, et « Supprimer » le retire.",
+      "« Valider la saison » : choisir la saison, lire le décompte des épreuves et du bénévolat affiché dessous, puis valider. Une saison déjà validée propose « Dévalider la saison ».",
+      "Dans la liste de ses épreuves, « Rattacher » déplace un résultat vers la bonne fiche, « Supprimer » le retire, et « Attribuer aux équipiers » répartit un résultat de relais.",
     ],
     captures: [{ src: "/guide/admin/pages-publiques.jpg", alt: "Fiche athlète vue par un administrateur, avec la correction de fiche et la validation de saison" }],
   },

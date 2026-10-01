@@ -26,20 +26,19 @@ export function GuideSection({ section }: { section: GuideSectionData }) {
       </ol>
       <div className="space-y-3">
         {section.captures.map((capture) => (
-          <div key={capture.src} className="space-y-2">
-            <Image
-              src={capture.src}
-              alt={capture.alt}
-              // Ratio réel des 21 captures livrées (1418×840) : sans ce
-              // ratio exact, `width`/`height` imposent une boîte 1200×750
-              // (1,6:1) que le navigateur étire, ~5,5 % de distorsion sur
-              // chaque image (revue UI/UX, #865).
-              width={1418}
-              height={840}
-              style={{ width: "100%", height: "auto", borderRadius: "var(--tcn-radius-2xl)" }}
-              className="border border-[var(--tcn-border)]"
-            />
-          </div>
+          <Image
+            key={capture.src}
+            src={capture.src}
+            alt={capture.alt}
+            // Ratio de toutes les captures (1418×840) : sans ce ratio exact,
+            // `width`/`height` imposent une boîte 1200×750 (1,6:1) que le
+            // navigateur étire, ~5,5 % de distorsion sur chaque image
+            // (revue UI/UX, #865).
+            width={1418}
+            height={840}
+            style={{ width: "100%", height: "auto", borderRadius: "var(--tcn-radius-2xl)" }}
+            className="border border-[var(--tcn-border)]"
+          />
         ))}
       </div>
     </Card>
