@@ -669,6 +669,10 @@ class _Persister:
         # Lignes dont le repli d'identité a trouvé plusieurs fiches (#908) : une
         # fiche est créée, rien n'est deviné, l'admin tranche.
         self.ambiguous_identities: list[dict] = []
+        # Fiches d'homonyme créées parce qu'une fiche portait déjà un autre dossard
+        # de la même épreuve individuelle (#967).
+        self.homonyms_created: list[dict] = []
+        self._bibs_by_athlete: dict[int, dict[int, set[str]]] = {}
         # Dédup par `id` de source, pas par ligne scrapée : `add` résout l'épreuve
         # une fois par participant, un classement de 250 lignes rendrait sinon
         # 250 fois la même phrase et ferait compter 250 sources pour une.
@@ -732,6 +736,11 @@ class _Persister:
         # `list_for_course` : les créations de ce scrape s'y ajoutent au fil de
         # `_resolve_pending`, les mises à jour mutent les objets déjà dedans.
         self._participations[course_id] = list(rows)
+        bibs_by_athlete: dict[int, set[str]] = {}
+        for row in rows:
+            if row.bib_number:
+                bibs_by_athlete.setdefault(row.athlete_id, set()).add(row.bib_number)
+        self._bibs_by_athlete[course_id] = bibs_by_athlete
 
     def _upsert(self, existing: Participation, scraped: ScrapedResult) -> None:
         """Fusionne prudemment une ligne appariée. Compte `updated` ou `skipped`."""
@@ -1035,6 +1044,8 @@ class _Persister:
                 continue
             key = _identity_key(item.scraped)
             athlete = record or found[key]
+            if item.participation is None and item.bib is not None:
+                athlete = self._athlete_for_new_bib(course_id, item, athlete)
             self._present_ids[course_id].add(athlete.id)
             club = item.scraped.club or None
             if (
@@ -1095,6 +1106,27 @@ class _Persister:
             # l'ancien porteur d'un résultat repris sans autre changement.
             self.db.flush()
             athlete_repository.delete_orphans_among(self.db, team_athletes)
+
+    def _athlete_for_new_bib(self, course_id: int, item: _PendingResolution, athlete: Athlete) -> Athlete:
+        """La fiche d'un dossard neuf : celle de son identité, sauf si elle porte
+        déjà un autre dossard de cette épreuve individuelle (#967).
+
+        Un coureur ne prend pas deux dossards sur une course individuelle : deux
+        dossards d'un même nom sont deux personnes, et le second reçoit une fiche
+        d'homonyme distinguée, que l'import ne visera plus jamais par l'identité.
+        Un relais n'est pas concerné, la même personne pouvant y figurer
+        plusieurs fois.
+        """
+        bibs = self._bibs_by_athlete[course_id]
+        if self._courses[course_id].is_relay or item.scraped.is_relay or not bibs.get(athlete.id, set()) - {item.bib}:
+            bibs.setdefault(athlete.id, set()).add(item.bib)
+            return athlete
+        homonym = athlete_repository.create_homonym(self.db, mapping.athlete_creation_fields(item.scraped))
+        bibs[homonym.id] = {item.bib}
+        self.homonyms_created.append({
+            "course_id": course_id, "bib": item.bib, "athlete_id": homonym.id, "homonym_of": athlete.id,
+        })
+        return homonym
 
     def _kept_record(self, course_id: int, item: _PendingResolution) -> Athlete | None:
         """La fiche qu'une ligne source inchangée garde, sans résolution (#896).
@@ -1387,7 +1419,7 @@ def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
         # sur les trois chemins de `done`, pour que le consommateur n'ait aucun
         # accès conditionnel à gérer.
         "passive_sources": [],
-        "ambiguous_identities": [],
+        "ambiguous_identities": [], "homonyms_created": [],
         "courses": [
             {
                 "id": c.id, "name": c.name,
@@ -1680,6 +1712,7 @@ def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict
         "reconciled": persister.reconciled,
         "passive_sources": persister.passive_sources,
         "ambiguous_identities": persister.ambiguous_identities,
+        "homonyms_created": persister.homonyms_created,
         "courses": persister.courses_summary(),
     }
 
@@ -1717,7 +1750,7 @@ def import_event(
     if not results:
         return {
             "imported": 0, "updated": 0, "skipped": 0, "reconciled": 0,
-            "passive_sources": [], "ambiguous_identities": [],
+            "passive_sources": [], "ambiguous_identities": [], "homonyms_created": [],
             "courses": _merge_cached_courses(db, [], trace),
             **_fanout_counters(trace),
         }
@@ -1848,7 +1881,7 @@ def iter_import_event(
             "reconciled": 0,
             "reassignments": [],
             "passive_sources": [],
-            "ambiguous_identities": [],
+            "ambiguous_identities": [], "homonyms_created": [],
             "total": 0,
             "courses": _merge_cached_courses(db, [], trace),
             **_fanout_counters(trace),
@@ -1915,6 +1948,7 @@ def iter_import_event(
         "reassignments": persister.reassignments,
         "passive_sources": persister.passive_sources,
         "ambiguous_identities": persister.ambiguous_identities,
+        "homonyms_created": persister.homonyms_created,
         "total": total,
         "courses": _merge_cached_courses(db, persister.courses_summary(), trace),
         **_fanout_counters(trace),

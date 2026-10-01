@@ -271,6 +271,51 @@ def create_batch(
     )
 
 
+_HOMONYM_ATTEMPTS = 5
+
+
+def _highest_homonym_rank(db: Session, key: IdentityKey) -> int:
+    return db.scalar(
+        select(func.max(Athlete.homonym_rank)).where(
+            Athlete.last_name_key == key[0], Athlete.first_name_key == key[1]
+        )
+    ) or 0
+
+
+def create_homonym(db: Session, fields: dict) -> Athlete:
+    """Crée un homonyme distingué de l'identité de `fields`, au rang suivant (#967).
+
+    Le rang lu peut être pris entre-temps par un import concurrent : l'insertion
+    en `ON CONFLICT DO NOTHING` retente alors au rang suivant, quelques fois.
+    """
+    unknown = set(fields) - set(_CREATED_COLUMNS)
+    if unknown:
+        raise ValueError(f"create_homonym does not write {sorted(unknown)}")
+    key = athlete_identity_keys(fields.get("nom"), fields.get("prenom"))
+    if key[0] is None:
+        raise ValueError("an athlete without identity has no homonym")
+    row = {
+        **{column: fields.get(column) for column in _CREATED_COLUMNS},
+        "prenom": fields.get("prenom") or "",
+        "gender": fields.get("gender") or "",
+        "last_name_key": key[0],
+        "first_name_key": key[1],
+    }
+    insert = postgresql_insert if db.get_bind().dialect.name == "postgresql" else sqlite_insert
+    rank = _highest_homonym_rank(db, key)
+    for _ in range(_HOMONYM_ATTEMPTS):
+        rank += 1
+        created = db.scalars(
+            insert(Athlete)
+            .values({**row, "homonym_rank": rank})
+            .on_conflict_do_nothing(index_elements=["last_name_key", "first_name_key", "homonym_rank"])
+            .returning(Athlete)
+        ).first()
+        if created is not None:
+            return created
+    raise RuntimeError(f"no free homonym rank for {key} after {_HOMONYM_ATTEMPTS} attempts")
+
+
 def apply_updates(db: Session, updates: Sequence[tuple[Athlete, dict[str, str]]]) -> None:
     """Applique des changements de club et de genre en un seul `executemany`,
     dans l'ordre reçu (#980).

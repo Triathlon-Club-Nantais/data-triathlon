@@ -125,6 +125,13 @@ Sept points à ne pas défaire :
   d'identité (nom et prénom inversés, nom complet face à une fiche découpée) a
   trouvé plusieurs fiches : une fiche neuve est créée, rien n'est deviné, et
   `candidate_ids` donne les fiches entre lesquelles l'admin tranche.
+- **Deux dossards d'un même nom sur une épreuve individuelle sont deux personnes**
+  (#967). Le second reçoit une fiche d'homonyme distinguée (`homonym_rank` ≥ 1),
+  et le rapport d'import le liste dans `homonyms_created`
+  (`[{course_id, bib, athlete_id, homonym_of}]`, présent sur tous les chemins de
+  `done`). Un relais n'est pas concerné. L'import ne vise ensuite plus jamais la
+  fiche d'homonyme par l'identité : un nouveau résultat sans conflit va à la
+  fiche principale, et seul un geste admin en donne à l'homonyme.
 - **La correction manuelle du club prime sur tout import ultérieur.** Le
   chronométreur d'une course d'il y a trois ans annonce le club de l'époque, et
   le laisser gagner ramènerait la correction à chaque réimport. D'où

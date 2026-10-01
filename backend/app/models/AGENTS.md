@@ -4,7 +4,9 @@
   les deux clés sont écrites par l'écouteur `_store_identity_keys` à chaque
   insertion ou mise à jour ORM, jamais par l'appelant ; un `UPDATE` de masse
   sur `nom`/`prenom` les laisserait périmées. Rang 0 = fiche principale, la
-  seule que l'import résout ; une clé vide (`?`, `-`) vaut NULL et ne désigne
+  seule que l'import résout. Un rang ≥ 1 naît à l'import quand un dossard neuf
+  tomberait sur une fiche qui porte déjà un autre dossard de la même épreuve
+  individuelle (`athlete_repository.create_homonym`, rang suivant, #967) ; une clé vide (`?`, `-`) vaut NULL et ne désigne
   personne. `birth_date` n'entre pas dans l'identité (#900). La création par
   l'import est idempotente sous concurrence : `athlete_repository.create_batch`
   insère en `ON CONFLICT DO NOTHING` puis relit les identités qu'une autre

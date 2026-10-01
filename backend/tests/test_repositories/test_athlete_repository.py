@@ -995,6 +995,32 @@ def test_create_batch_refuse_un_champ_qu_il_n_ecrit_pas(db_session):
         athlete_repository.create_batch(db_session, [{"nom": "X", "prenom": "Y", "club_locked": True}])
 
 
+def test_create_homonym_takes_the_next_rank(db_session):
+    """#967 : un homonyme distingué prend le rang suivant de sa clé."""
+    principal = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Thomas")
+
+    first = athlete_repository.create_homonym(db_session, {"nom": "MARTIN", "prenom": "Thomas", "club": "A"})
+    second = athlete_repository.create_homonym(db_session, {"nom": "Martin", "prenom": "THOMAS"})
+
+    assert (principal.homonym_rank, first.homonym_rank, second.homonym_rank) == (0, 1, 2)
+    assert first.club == "A"
+
+
+def test_create_homonym_retries_when_the_rank_is_taken(db_session, monkeypatch):
+    """Un import concurrent a pris le rang lu : l'insertion retente au suivant."""
+    from app.models.athlete import Athlete
+
+    athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Thomas")
+    db_session.add(Athlete(nom="MARTIN", prenom="Thomas", homonym_rank=1))
+    db_session.flush()
+    lectures = iter([0, 1])
+    monkeypatch.setattr(athlete_repository, "_highest_homonym_rank", lambda db, key: next(lectures))
+
+    homonym = athlete_repository.create_homonym(db_session, {"nom": "MARTIN", "prenom": "Thomas"})
+
+    assert homonym.homonym_rank == 2
+
+
 def test_create_batch_garde_les_fiches_sans_identite_distinctes(db_session):
     created, _ = athlete_repository.create_batch(db_session, [{"nom": "?", "prenom": ""}, {"nom": "-", "prenom": ""}])
 
