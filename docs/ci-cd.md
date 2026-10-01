@@ -867,13 +867,27 @@ Gratuit, sans compte tiers ; seul besoin au-delà de la lecture, `issues: write`
 sur ce job. Fermer l'issue une fois la cause corrigée : l'échec suivant en
 rouvrira une.
 
-**Moniteur externe** (geste manuel, gratuit) : un compte UptimeRobot (offre
-Free, 50 moniteurs à 5 min) qui sonde
-`https://data-triathlon-vq6u.onrender.com/api/v1/health` et la page d'accueil
-du front, notifications vers l'adresse de l'équipe. Poser une **fenêtre de
-maintenance quotidienne de 23 h 15 à 2 h 30 UTC** sur le moniteur du backend :
-c'est l'extinction voulue par `render-sleep.yml`, qui ne doit pas alerter. Il
-couvre ce que `notify` ne voit pas : un service tombé hors de tout workflow.
+**Slack** : chaque ouverture ou complément d'issue `ops` est aussi posté dans
+le canal Slack d'ops, par le secret de dépôt `SLACK_OPS_WEBHOOK_URL` (webhook
+entrant). Les appelants passent `secrets: inherit` à `notify-failure.yml`. Sans
+le secret, ou si Slack ne répond pas, l'issue reste le seul canal et le job
+n'échoue pas.
+
+**Moniteur externe** : UptimeRobot, offre gratuite, compte
+`it.triathlonclubnantais@gmail.com`. Deux moniteurs HTTP toutes les 5 min,
+alertes **par e-mail** à cette adresse. L'intégration Slack (comme tout webhook)
+est réservée aux offres payantes : refusée par l'API le 01/10 (`021-003`).
+
+- **Front production (Vercel)** sur `https://data.triathlon-club-nantais.com/` ;
+- **Backend production (Render)** sur
+  `https://data-triathlon-vq6u.onrender.com/api/v1/health`.
+
+La fenêtre de maintenance programmée d'UptimeRobot est payante. Le moniteur du
+backend est donc **mis en pause par les timers Azure** autour de l'extinction
+voulue (`infra/azure-functions/AGENTS.md`) : `Render-sleep` le met en pause
+avant le coucher, `Render-wake` le réactive une fois `/api/v1/health` en ligne,
+ou au bout de 10 min, pour qu'un lever raté se voie. Il couvre ce que `notify`
+ne voit pas : un service tombé hors de tout workflow.
 
 ## Veille des services Render — `render-sleep.yml` (#528, #560)
 

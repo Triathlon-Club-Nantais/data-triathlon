@@ -2,4 +2,6 @@
 # de `render-sleep.yml`.
 param($Timer)
 
+# Pause d'abord : le coucher ne doit déclencher aucune alerte (#922).
+Set-BackendMonitor -State pause
 Invoke-RenderSleep -Action suspend -Target production

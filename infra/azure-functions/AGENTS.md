@@ -52,6 +52,13 @@ déclenchent donc `render-sleep.yml` par `workflow_dispatch` (API GitHub,
 `alert` fait ouvrir l'issue `ops` sur un échec (`notify-failure.yml`, #922) :
 personne ne suit ces runs, contrairement à un lancement manuel.
 
+Les deux fonctions pilotent aussi le **moniteur UptimeRobot du backend** (#922),
+dont la fenêtre de maintenance est payante : `Render-sleep` le met en pause
+avant de coucher la production, `Render-wake` le réactive dès que
+`/api/v1/health` répond, ou au bout de 10 min (un lever raté doit alors alerter).
+`host.json` porte donc un `functionTimeout` de 15 min. Sans les App Settings
+UptimeRobot, ce pilotage est simplement sauté.
+
 La logique reste **dans le workflow** (résolution du service par son nom,
 abstention pendant un déploiement, 400 « déjà éveillé ») : le module
 `Modules/RenderSleep/RenderSleep.psm1`, chargé d'office par le runtime
@@ -72,6 +79,8 @@ Flex Consumption.
 |---|---|
 | `CRON_SECRET` | Même valeur que la variable `CRON_SECRET` des deux projets Vercel (`docs/ci-cd.md`). |
 | `GITHUB_DISPATCH_TOKEN` | Jeton *fine-grained* limité au dépôt `data-triathlon`, permission **Actions : read and write** et rien d'autre. Distinct de `GITHUB_BATCH_TOKEN` (Render), pour révoquer l'un sans couper l'autre. Échéance à suivre : un jeton expiré fait échouer `Render-wake`, et seul le cron de secours rallume alors la production. |
+| `UPTIMEROBOT_API_KEY` | Clé d'API principale du compte UptimeRobot (`it.triathlonclubnantais@gmail.com`), pour la pause du moniteur backend. |
+| `UPTIMEROBOT_BACKEND_MONITOR_ID` | Identifiant du moniteur « Backend production (Render) » : `804143914`. |
 | `AzureWebJobsStorage` | Compte de stockage de la Function (posé à la création). |
 | `DEPLOYMENT_STORAGE_CONNECTION_STRING` | Conteneur où Flex Consumption dépose le paquet déployé (posé à la création). |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | Journaux et *Invocations* (posé à la création). |
