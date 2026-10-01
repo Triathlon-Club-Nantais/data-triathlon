@@ -477,11 +477,18 @@ en WARNING l'identifiant de l'utilisateur, le pouvoir manquant, la méthode et l
 chemin — pendant que la réponse rendue au client, elle, ne nomme rien. C'est la
 répartition juste : le diagnostic côté serveur, le silence côté client.
 
-**Les gestes d'administration sont journalisés deux fois.** `services/admin_actions.py`
-émet un `logger.info` par geste **et** écrit dans `admin_action_log` par le
-repository dédié, dans la **même transaction** que l'effet — un refus lève avant,
-et rien n'est écrit, ni la donnée ni sa trace. Le journal n'enregistre que ce
-qui a effectivement changé.
+**Les gestes d'administration sont journalisés deux fois.** Chaque service émet
+un `logger.info` par geste **et** écrit dans `admin_action_log` par
+`services/audit.record`, dans la **même transaction** que l'effet — un refus lève
+avant, et rien n'est écrit, ni la donnée ni sa trace. Le journal n'enregistre que
+ce qui a effectivement changé.
+
+> **Correctif du 30/09 (#935).** Cette section affirmait la couverture en ne
+> citant que `services/admin_actions.py` : les gestes sur les droits d'accès
+> (rôles, groupes, liste d'autorisation, révocation de sessions, fournisseur
+> signalé traité) ne laissaient qu'un `logger.info`, perdu à la rétention des
+> logs Render. Ils écrivent désormais dans le journal, tenus par
+> `backend/tests/test_auth/test_admin_audit_log.py`.
 
 **Aucun secret ne fuit, et un test le verrouille.**
 `backend/tests/test_auth/test_no_secret_logged.py` interdit la présence du

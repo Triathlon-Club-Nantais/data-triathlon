@@ -65,7 +65,9 @@ précaution particulière**, il suffit de ne pas l'ouvrir.
 ### Voie Spec Kit
 
 1. **Cadrage flou** → laisser tourner `brainstorming` **avant** `/speckit-specify`.
-2. `/speckit-specify` → `/speckit-plan` → `/speckit-tasks`.
+2. `/speckit-specify` → `/speckit-clarify` → `/speckit-plan` → `/speckit-tasks`.
+   `/speckit-clarify` est **obligatoire** (#1104) : il lève les ambiguïtés de
+   `spec.md` avant que le plan ne les fige.
 3. `/speckit-analyze` **avant tout code** : il vérifie, en lecture seule, les
    incohérences, ambiguïtés et trous de couverture entre `spec.md`, `plan.md` et
    `tasks.md`.
@@ -203,16 +205,15 @@ branche. Un worktree Superpowers dont la branche ne suit aucune convention Spec
 Kit ne bloque donc plus `/speckit-plan` — c'était la friction nº1 entre les deux
 outils.
 
-Les **commits-gate** restent en revanche inertes, mais seulement par leurs clés
-explicites : `.specify/extensions/git/git-config.yml` porte
-`auto_commit.default: true` (commit 49b284b1), et c'est chaque événement posé à
-`enabled: false` qui retient le commit. Les hooks `speckit.git.commit` partent,
-lisent la config et passent, donc pas d'auto-commit par `/speckit-implement`.
-**Risque ouvert** : `auto-commit.sh` retombe sur `default` quand la clé d'un
-événement manque, donc un événement ajouté par une montée de version de Spec Kit
-serait auto-commité. Ne pas activer ces hooks à la légère : ils committent via
-`git add .`, donc tout le worktree, sans égard au périmètre. Remettre
-`default: false` reste à trancher (#1104).
+Les **commits-gate** restent en revanche inertes :
+`.specify/extensions/git/git-config.yml` porte `auto_commit.default: false`
+(#1104), et chaque événement est en plus posé à `enabled: false`. Les hooks
+`speckit.git.commit` partent, lisent la config et passent, donc pas
+d'auto-commit par `/speckit-implement`. `auto-commit.sh` retombe sur `default`
+quand la clé d'un événement manque : un événement ajouté par une montée de
+version de Spec Kit reste donc inerte lui aussi. Ne pas activer ces hooks à la
+légère : ils committent via `git add .`, donc tout le worktree, sans égard au
+périmètre.
 
 ### 3. Le gate `checklists/` est réel, et gratuit
 

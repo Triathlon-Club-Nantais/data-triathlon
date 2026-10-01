@@ -15,7 +15,7 @@ from app.api.deps import require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
-from app.repositories import admin_action_log_repository, benevole_config_repository
+from app.repositories import benevole_config_repository
 from app.schemas.benevole_access import (
     BenevoleAccessConfigOut,
     BenevoleAccessGeneratedOut,
@@ -24,10 +24,6 @@ from app.schemas.benevole_access import (
 from app.services import benevole_access
 
 router = APIRouter(tags=["admin"])
-
-#: `entity_id` constant : une seule ligne existe à tout instant (data-model.md).
-_ENTITY_TYPE = "benevole_access_config"
-_ACTION = "benevole_access.password_replace"
 
 
 def _vue(config) -> BenevoleAccessConfigOut:
@@ -61,13 +57,6 @@ def replace_access_password(
     config, _mot_de_passe = benevole_access.replace_password(
         db, password=body.password, admin_user_id=actor.id
     )
-    admin_action_log_repository.create(
-        db,
-        user_id=actor.id,
-        action=_ACTION,
-        entity_type=_ENTITY_TYPE,
-        entity_id=config.id,
-    )
     db.commit()
     return _vue(config)
 
@@ -84,13 +73,6 @@ def generate_access_password(
     """
     config, mot_de_passe = benevole_access.replace_password(
         db, password=None, admin_user_id=actor.id
-    )
-    admin_action_log_repository.create(
-        db,
-        user_id=actor.id,
-        action=_ACTION,
-        entity_type=_ENTITY_TYPE,
-        entity_id=config.id,
     )
     db.commit()
     return BenevoleAccessGeneratedOut(

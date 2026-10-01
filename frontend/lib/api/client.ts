@@ -90,18 +90,22 @@ export class ApiError extends Error {
   readonly retryAfter: number | null;
   /** Refus par champ d'un 422 de validation (#1019), vide sinon. */
   readonly fieldErrors: Record<string, FieldError>;
+  /** Discriminant du serveur entre deux refus au même statut (#877), `null` sinon. */
+  readonly code: string | null;
 
   constructor(
     status: number,
     message: string,
     retryAfter: number | null = null,
     fieldErrors: Record<string, FieldError> = {},
+    code: string | null = null,
   ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.retryAfter = retryAfter;
     this.fieldErrors = fieldErrors;
+    this.code = code;
   }
 }
 
@@ -174,6 +178,7 @@ async function erreurDeReponse(res: Response): Promise<ApiError> {
     messageDErreur(err.detail, repli),
     res.status === 429 ? attenteRetryAfter(res) : null,
     res.status === 422 ? champsEnErreur(err.detail) : {},
+    typeof err.code === "string" ? err.code : null,
   );
 }
 

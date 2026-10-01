@@ -68,7 +68,7 @@ def scrape_event_stream(
 
     # Le travail tourne dans son propre thread (`sse_relay`), avec sa propre
     # Session (`SessionLocal()`, cycle de vie isolé du streaming) — jamais celle
-    # du générateur de la réponse. Même `ponytail:` que `_scrape_all_streaming`
+    # du générateur de la réponse. Même `ponytail:` que `scrape_all_streaming`
     # (#566, point 1) : sur déconnexion SSE, ce générateur peut se faire clore par
     # un thread autre que celui qui possède la Session du travail ; lui faire
     # fermer une Session qu'il ne possède pas romprait ce travail pour toute

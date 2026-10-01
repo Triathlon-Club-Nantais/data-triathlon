@@ -85,6 +85,14 @@ az postgres flexible-server firewall-rule list -g TCN_Data_BDD -s tcndatabdd \
   --query "[?starts_with(name, 'gh-batch-')]" -o table
 ```
 
+**Purge automatique** (#1073) : avant de créer sa règle, `batch.yml` supprime
+toute règle `gh-batch-*` qui ne porte pas son propre `run_id`. Une règle survit
+quand un run est tué avant son step de fermeture (annulation, runner perdu) ;
+elle laissait une IP de runner ouverte jusqu'au nettoyage manuel. La purge est
+sûre parce que la concurrence `batch-production` sérialise les runs : aucune
+autre règle `gh-batch-*` n'est alors en usage. Le rôle custom porte déjà
+`firewallRules/{read,delete}`.
+
 ## Identités gérées pour GitHub Actions (#243)
 
 Cinq objets Azure existent pour permettre au workflow `batch.yml` d'ouvrir et
@@ -108,7 +116,10 @@ toucher au réseau, au serveur, ou aux autres ressources du RG.
 confiance passe uniquement par le federated credential, dont le `subject`
 exige — chaîne pour chaîne — que le jeton GitHub vienne d'un job qui
 déclare l'environment `batch-production` sur ce repo. Un fork malveillant, ou
-un job sur un autre environment, n'obtient rien.
+un job sur un autre environment, n'obtient rien. Le `subject` ne nomme pas la
+branche : c'est la politique de branche de l'environment, bornée à `main`
+(#903, `ci-cd.md` § « Deux environments dédiés »), qui empêche un job d'une
+autre ref de déclarer `batch-production`. C'est elle, le vrai verrou.
 
 Les valeurs `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` et `AZURE_SUBSCRIPTION_ID`
 sont posées comme secrets d'environment côté GitHub (voir

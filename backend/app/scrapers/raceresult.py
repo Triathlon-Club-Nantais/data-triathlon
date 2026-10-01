@@ -50,6 +50,7 @@ from .utils import (
     anonymous_identity,
     derive_status_from_label,
     gender_from_category,
+    heat_is_relay,
     normalize_rank,
     normalize_time,
     qualify_event_name,
@@ -1224,9 +1225,7 @@ def _build_result(
         if _RE_DUREE.match(candidat):
             temps = candidat
     r.total_time = normalize_time(temps)
-    r.is_relay = any(
-        mot in contest_label.lower() for mot in ("relais", "relay", "equipe", "équipe")
-    )
+    r.is_relay = heat_is_relay(contest_label)
 
     # La cellule de rang porte le rang **ou** le statut (`OuStatut(…)`).
     cellule_rang = cellule("rang")

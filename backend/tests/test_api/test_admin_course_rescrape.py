@@ -22,7 +22,7 @@ from app.core.permissions import P
 from app.models.organisation import Organisation
 from app.models.role_permission import RolePermission
 from app.repositories import role_repository, user_repository, user_role_repository
-from app.services import admin_actions, sse_relay
+from app.services import admin_actions, course_locks, sse_relay
 from app.services.auth import session as session_service
 
 
@@ -147,7 +147,7 @@ def test_a_rescrape_already_running_is_refused_before_any_byte(client, monkeypat
     # ici différerait la levée au premier `next()`, donc *après* que
     # `StreamingResponse` ait déjà envoyé un statut 200.
     def fake_iter_rescrape_course(db, *, course_id, user_id, settings):
-        raise admin_actions.CourseRescrapeAlreadyRunningError()
+        raise course_locks.CourseRescrapeAlreadyRunningError()
 
     monkeypatch.setattr(admin_actions, "iter_rescrape_course", fake_iter_rescrape_course)
 

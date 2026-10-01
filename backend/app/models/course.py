@@ -11,6 +11,7 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    false,
     func,
 )
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -69,6 +70,9 @@ class Course(Base):
     format_label: Mapped[str | None] = mapped_column(String, nullable=True)
     distance_km: Mapped[float | None] = mapped_column(Float, nullable=True)
     is_relay: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Classée au nombre de tours sur une durée fixe (#993) : réécrit par l'import,
+    # le temps n'y mesure pas la performance (hors histogramme et comparaison).
+    ranked_by_laps: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
     # Ce que la **machine** constate, réécrit par l'import à chaque passage
     # (cf. services/quality.py). NULL = jamais évaluée (course antérieure à
     # l'indice, ou servie par le cache TTL).

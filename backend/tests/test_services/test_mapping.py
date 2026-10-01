@@ -232,7 +232,7 @@ def test_build_splits_trail_single_run():
 
 
 def test_build_splits_course_a_pied_named_size():
-    # _sport_base doit gérer la base multi-mots "course-a-pied" (pas "course").
+    # sport_base doit gérer la base multi-mots "course-a-pied" (pas "course").
     s = _scraped(event_type="course-a-pied-10k", run_time="00:38:00")
     assert mapping.build_splits(s) == {"run": "00:38:00"}
 
@@ -246,12 +246,12 @@ def test_build_splits_cyclisme_single_bike():
 
 
 def test_sport_base_reconnait_les_bases_multi_mots_nouvelles():
-    # Piège central : _sport_base coupe au premier tiret. Sans déclaration dans
+    # Piège central : sport_base coupe au premier tiret. Sans déclaration dans
     # _MULTI_WORD_BASES, "swim-bike-m" donnerait la base "swim".
-    assert mapping._sport_base("swim-bike-m") == "swim-bike"
-    assert mapping._sport_base("swim-bike") == "swim-bike"
-    assert mapping._sport_base("cross-triathlon") == "cross-triathlon"
-    assert mapping._sport_base("raid-multisport") == "raid-multisport"
+    assert mapping.sport_base("swim-bike-m") == "swim-bike"
+    assert mapping.sport_base("swim-bike") == "swim-bike"
+    assert mapping.sport_base("cross-triathlon") == "cross-triathlon"
+    assert mapping.sport_base("raid-multisport") == "raid-multisport"
 
 
 def test_build_splits_swim_bike_omet_la_course_a_pied():

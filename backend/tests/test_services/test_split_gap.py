@@ -212,7 +212,7 @@ def test_the_schema_table_is_derived_from_the_one_that_produces_the_splits():
     interdit de la réintroduire.
     """
     assert split_gap.SCHEMAS == {
-        sport: list(gabarit.values()) for sport, gabarit in mapping._SPLIT_KEYS_BY_SPORT.items()
+        sport: list(gabarit.values()) for sport, gabarit in mapping.SPLIT_KEYS_BY_SPORT.items()
     }
 
 

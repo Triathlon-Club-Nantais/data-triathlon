@@ -19,7 +19,7 @@ from app.core.database import get_db
 from app.core.permissions import P
 from app.models.counter_scope_entry import CLUB_LABEL, NON_FEDERAL_DISCIPLINE, CounterScopeEntry
 from app.models.user import User
-from app.repositories import admin_action_log_repository, counter_scope_repository
+from app.repositories import counter_scope_repository
 from app.schemas.counter_scope import (
     CounterScopeEntryIn,
     CounterScopeEntryOut,
@@ -29,8 +29,6 @@ from app.schemas.counter_scope import (
 from app.services import counter_scope
 
 router = APIRouter(tags=["admin"])
-
-_ENTITY_TYPE = "counter_scope_entry"
 
 logger = logging.getLogger(__name__)
 
@@ -92,13 +90,6 @@ def add_counter_scope_entry(
     entry = counter_scope.add_entry(
         db, kind=kind.stored, value=body.value, admin_user_id=actor.id
     )
-    admin_action_log_repository.create(
-        db,
-        user_id=actor.id,
-        action="counter_scope.entry_add",
-        entity_type=_ENTITY_TYPE,
-        entity_id=entry.id,
-    )
     db.commit()
     _recharger(db)
     return _vue(entry)
@@ -117,14 +108,7 @@ def remove_counter_scope_entry(
     porte des espaces, et le faire transiter par un segment d'URL est une source
     d'ennuis sans contrepartie.
     """
-    entry = counter_scope.remove_entry(db, kind=kind.stored, entry_id=entry_id)
-    admin_action_log_repository.create(
-        db,
-        user_id=actor.id,
-        action="counter_scope.entry_remove",
-        entity_type=_ENTITY_TYPE,
-        entity_id=entry.id,
-    )
+    counter_scope.remove_entry(db, kind=kind.stored, entry_id=entry_id, admin_user_id=actor.id)
     db.commit()
     _recharger(db)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

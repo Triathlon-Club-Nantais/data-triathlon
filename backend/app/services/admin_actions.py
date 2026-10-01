@@ -18,7 +18,6 @@ soit ensuite — et ne permettrait pas de **nommer** la fiche en conflit, ce
 qu'exigent FR-005 et FR-021.
 """
 import logging
-import threading
 from collections.abc import Iterator
 from typing import NamedTuple
 
@@ -45,6 +44,11 @@ from app.schemas.course import CourseSourceOut
 from app.scrapers.base import STATUS_FINISHER
 from app.scrapers.utils import MAX_RELAY_TEAMMATES, MIN_RELAY_TEAMMATES
 from app.services import import_service, sse_relay
+from app.services.course_locks import (
+    lock_all_courses_or_409,
+    lock_courses_or_409,
+)
+from app.services.deadlock import deadlock_retries
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +109,7 @@ def delete_course(db: Session, *, course_id: int, user_id: int) -> dict:
     revient vide, et la purge devient un no-op qu'aucune erreur ne signale.
     """
     course = _course_or_404(db, course_id)
+    lock_courses_or_409(db, course_id)
     resume = {
         "name": course.name,
         "event_date": course.event_date.isoformat() if course.event_date else None,
@@ -175,6 +180,7 @@ def wipe_all_participations(db: Session, *, user_id: int) -> dict:
     pour un geste qui n'a par nature qu'un seul lecteur (« combien la dernière
     purge a-t-elle emporté »).
     """
+    lock_all_courses_or_409(db)
     resume = {"participations_deleted": participation_repository.delete_all(db)}
     resume["athletes_purged"] = athlete_repository.delete_unreferenced(db)
     resume["courses_reset"] = course_repository.reset_scraped_at_all(db)
@@ -242,6 +248,7 @@ def wipe_all_courses(db: Session, *, user_id: int) -> dict:
     `athletes_purged` vient de `delete_unreferenced`, sans le risque de sous-estimation
     qui exclut `participations` du payload, donc rien ne justifie de le taire.
     """
+    lock_all_courses_or_409(db)
     resume = {"courses_deleted": course_repository.delete_all(db)}
     resume["athletes_purged"] = athlete_repository.delete_unreferenced(db)
 
@@ -345,7 +352,7 @@ def iter_switch_course_source(
 
     sortante = course_source_repository.get_active(db, course_id)
 
-    _acquire_rescrape_lock(course_id)
+    lock_courses_or_409(db, course_id)
     return _stream_switch_course_source(
         db,
         course_id=course_id,
@@ -371,6 +378,8 @@ def delete_course_source(
     active n'est plus scrapée (#282) ni affichée avec sa source (#279).
     """
     _course_or_404(db, course_id)
+    # Une bascule en cours vers cette source la relirait disparue (#982).
+    lock_courses_or_409(db, course_id)
     source = course_source_repository.find_on_course(
         db, course_id=course_id, source_id=source_id
     )
@@ -420,46 +429,52 @@ def _stream_switch_course_source(
             emit({"phase": "scraping", "message": "Récupération des participants…"})
 
             results, _trace = _drain_scrape(
-                import_service._scrape_all_streaming(
+                import_service.scrape_all_streaming(
                     source_url, db, settings, use_cache_probe=False
                 ),
                 emit,
             )
             _require_same_event(results, attendue)
+            for attempt in deadlock_retries(db, label=f"bascule de source de l'épreuve {course_id}"):
+                with attempt:
+                    if attempt.number > 1:
+                        # Le rollback du rejeu a relâché le verrou d'épreuve (#980).
+                        lock_courses_or_409(db, course_id)
+                    _require_course_unchanged(db, course_id, attendue)
 
-            course = _course_or_404(db, course_id)
-            source = course_source_repository.find_on_course(
-                db, course_id=course_id, source_id=source_id
-            )
-            if source is None:
-                raise NotFoundError("Source introuvable pour cette épreuve.")
+                    course = _course_or_404(db, course_id)
+                    source = course_source_repository.find_on_course(
+                        db, course_id=course_id, source_id=source_id
+                    )
+                    if source is None:
+                        raise NotFoundError("Source introuvable pour cette épreuve.")
 
-            supprimees = participation_repository.delete_for_course(db, course)
-            course_source_repository.set_active(db, source)
+                    supprimees = participation_repository.delete_for_course(db, course)
+                    course_source_repository.set_active(db, source)
 
-            emit({"phase": "saving", "total": len(results)})
-            outcome = import_service.persist_results(db, source_url, results)
-            purges = athlete_repository.delete_orphans_among(db, candidats)
+                    emit({"phase": "saving", "total": len(results)})
+                    outcome = import_service.persist_results(db, source_url, results)
+                    purges = athlete_repository.delete_orphans_among(db, candidats)
 
-            admin_action_log_repository.create(
-                db,
-                user_id=user_id,
-                action="course.source.switch",
-                entity_type="course",
-                entity_id=course_id,
-                payload={
-                    "name": course_name,
-                    # Les deux URLs, sans quoi l'entrée dirait « la source a
-                    # changé » sans dire depuis quoi — donc sans permettre de
-                    # défaire le geste de tête.
-                    "previous_url": sortante_url,
-                    "new_url": source_url,
-                    "participations_deleted": supprimees,
-                    "participations_imported": outcome["imported"],
-                    "athletes_purged": len(purges),
-                },
-            )
-            db.commit()
+                    admin_action_log_repository.create(
+                        db,
+                        user_id=user_id,
+                        action="course.source.switch",
+                        entity_type="course",
+                        entity_id=course_id,
+                        payload={
+                            "name": course_name,
+                            # Les deux URLs, sans quoi l'entrée dirait « la source a
+                            # changé » sans dire depuis quoi — donc sans permettre de
+                            # défaire le geste de tête.
+                            "previous_url": sortante_url,
+                            "new_url": source_url,
+                            "participations_deleted": supprimees,
+                            "participations_imported": outcome["imported"],
+                            "athletes_purged": len(purges),
+                        },
+                    )
+                    db.commit()
             final = {"phase": "done",
                 "participations_deleted": supprimees,
                 "participations_imported": outcome["imported"],
@@ -481,12 +496,27 @@ def _stream_switch_course_source(
             db.rollback()
             logger.exception("Rollback de la bascule de source de la course %s", course_id)
             final = {"phase": "error", "message": "Erreur lors de l'enregistrement des résultats."}
-        finally:
-            _release_rescrape_lock(course_id)
-        # Rendu après le `finally` : l'event final part verrou libéré.
+        # Le verrou d'épreuve tombe avec la transaction, au commit ou au rollback.
         return final
 
     return sse_relay.relay(worker)
+
+
+def _require_course_unchanged(db: Session, course_id: int, attendue: dict) -> None:
+    """Relit l'épreuve après un scrape de 30 à 40 s (#982).
+
+    Sous PostgreSQL, le verrou d'épreuve empêche déjà toute écriture concurrente ;
+    cette relecture ferme le reste, un geste qui aurait supprimé ou renommé
+    l'épreuve entre l'instantané de la garde et la persistance.
+    """
+    course = course_repository.get_fresh(db, course_id)
+    if course is None:
+        raise DomainError("Cette épreuve n'existe plus : rien n'a été enregistré.")
+    if _instantane(course, _CHAMPS_COURSE) != attendue:
+        raise DomainError(
+            "Cette épreuve a été modifiée pendant la récupération des résultats : "
+            "rien n'a été enregistré. Relancez l'opération."
+        )
 
 
 def _require_same_event(results: list, attendue: dict) -> None:
@@ -524,38 +554,6 @@ def _require_same_event(results: list, attendue: dict) -> None:
 
 
 
-class CourseRescrapeAlreadyRunningError(DomainError):
-    """Un scrape (re-scrape ou bascule de source) est déjà en cours sur cette
-    course (FR-007, #118 ; partagé avec la bascule de source depuis #624, les
-    deux écrivant les mêmes participations)."""
-
-    status_code = 409
-    message = "Une opération de scraping est déjà en cours sur cette épreuve."
-
-
-#: Verrou de concurrence par course (research.md R5) : un `dict[int, bool]` en
-#: mémoire, process unique, partagé par le re-scrape et la bascule de source
-#: (#624) — les deux écrivent les participations de la même course, et
-#: laisser l'un démarrer pendant que l'autre tourne corromprait le classement.
-#: `ponytail:` verrou process unique — migrer vers un
-#: verrou DB (`SELECT … FOR UPDATE`, ou colonne `rescrape_lock_at`) si le
-#: service passe un jour multi-instance.
-_rescrape_locks: dict[int, bool] = {}
-_rescrape_locks_guard = threading.Lock()
-
-
-def _acquire_rescrape_lock(course_id: int) -> None:
-    with _rescrape_locks_guard:
-        if _rescrape_locks.get(course_id):
-            raise CourseRescrapeAlreadyRunningError()
-        _rescrape_locks[course_id] = True
-
-
-def _release_rescrape_lock(course_id: int) -> None:
-    with _rescrape_locks_guard:
-        _rescrape_locks.pop(course_id, None)
-
-
 def iter_rescrape_course(
     db: Session, *, course_id: int, user_id: int, settings: Settings
 ) -> Iterator[dict]:
@@ -575,18 +573,11 @@ def iter_rescrape_course(
 
     Refuse (404) si la course n'existe pas ou n'a aucune source active (saisie
     manuelle, ou épreuve dont on n'a rattaché que des passives) — rien à
-    re-scraper. Refuse (409) si un re-scrape est déjà en cours sur cette
-    course (FR-007) ; le verrou est relâché en fin d'opération, y compris en
-    échec.
-
-    `ponytail:` le verrou n'est relâché que dans le `finally` du thread de
-    travail (`_stream_rescrape`), lui-même démarré seulement à la première
-    itération du générateur rendu ici. Si l'appelant ASGI n'itérait jamais ce
-    générateur après la garde (déconnexion dans la fenêtre étroite entre la
-    réponse acceptée et le premier `next()` de Starlette), le verrou resterait
-    tenu jusqu'au redémarrage du process — même propriété acceptée que le
-    verrou lui-même (research.md R5, data-model.md : « un redémarrage le
-    réinitialise silencieusement »). Upgrade si mesuré en production.
+    re-scraper. Refuse (409) si une autre opération écrit déjà cette épreuve
+    (FR-007, `course_locks`, #982). Le verrou est celui de la transaction de
+    `db` : pris ici, il tient jusqu'au `commit` ou au `rollback` du thread de
+    travail, scrape compris, et tombe aussi avec la session si le flux n'est
+    jamais itéré.
 
     Le générateur rendu **ne survit pas à la garde** : le scrape et la
     persistance tournent dans un thread dédié, indépendant de la consommation
@@ -599,7 +590,7 @@ def iter_rescrape_course(
     if source is None:
         raise NotFoundError("Cette épreuve n'a aucune source active à re-scraper.")
 
-    _acquire_rescrape_lock(course_id)
+    lock_courses_or_409(db, course_id)
     return _stream_rescrape(
         db,
         course_id=course_id,
@@ -640,50 +631,56 @@ def _stream_rescrape(
             candidats = athlete_repository.only_on_course(db, course_id)
             emit({"phase": "scraping", "message": "Récupération des participants…"})
 
-            # `_scrape_all_streaming` yield déjà ses propres events `scraping`
+            # `scrape_all_streaming` yield déjà ses propres events `scraping`
             # par heat (fan-out Klikego, #156) — relayés tels quels par
             # `_drain_scrape`, aucun callback à brancher ici.
             results, _trace = _drain_scrape(
-                import_service._scrape_all_streaming(
+                import_service.scrape_all_streaming(
                     source_url, db, settings, use_cache_probe=False
                 ),
                 emit,
             )
             _require_same_event(results, attendue)
+            for attempt in deadlock_retries(db, label=f"re-scrape de l'épreuve {course_id}"):
+                with attempt:
+                    if attempt.number > 1:
+                        # Le rollback du rejeu a relâché le verrou d'épreuve (#980).
+                        lock_courses_or_409(db, course_id)
+                    _require_course_unchanged(db, course_id, attendue)
 
-            total = len(results)
-            emit({
-                "phase": "saving", "total": total,
-                "imported": 0, "updated": 0, "skipped": 0, "progress": 0,
-            })
-            # Les rattrapages de lot (#294, #672, #757) passent avec la boucle :
-            # le re-scrape les sautait et défaisait les rangs renumérotés (#914).
-            for done, persister in import_service.persist_steps(db, source_url, results):
-                if done and (done % 20 == 0 or done == total):
+                    total = len(results)
                     emit({
                         "phase": "saving", "total": total,
-                        "imported": persister.imported, "updated": persister.updated,
-                        "skipped": persister.skipped, "progress": done,
+                        "imported": 0, "updated": 0, "skipped": 0, "progress": 0,
                     })
-            purges = athlete_repository.delete_orphans_among(db, candidats)
+                    # Les rattrapages de lot (#294, #672, #757) passent avec la boucle :
+                    # le re-scrape les sautait et défaisait les rangs renumérotés (#914).
+                    for done, persister in import_service.persist_steps(db, source_url, results):
+                        if done and (done % 20 == 0 or done == total):
+                            emit({
+                                "phase": "saving", "total": total,
+                                "imported": persister.imported, "updated": persister.updated,
+                                "skipped": persister.skipped, "progress": done,
+                            })
+                    purges = athlete_repository.delete_orphans_among(db, candidats)
 
-            admin_action_log_repository.create(
-                db,
-                user_id=user_id,
-                action="course.rescrape",
-                entity_type="course",
-                entity_id=course_id,
-                payload={
-                    "name": course_name,
-                    "source_url": source_url,
-                    "imported": persister.imported,
-                    "updated": persister.updated,
-                    "skipped": persister.skipped,
-                    "reconciled": persister.reconciled,
-                    "athletes_purged": len(purges),
-                },
-            )
-            db.commit()
+                    admin_action_log_repository.create(
+                        db,
+                        user_id=user_id,
+                        action="course.rescrape",
+                        entity_type="course",
+                        entity_id=course_id,
+                        payload={
+                            "name": course_name,
+                            "source_url": source_url,
+                            "imported": persister.imported,
+                            "updated": persister.updated,
+                            "skipped": persister.skipped,
+                            "reconciled": persister.reconciled,
+                            "athletes_purged": len(purges),
+                        },
+                    )
+                    db.commit()
             final = {"phase": "done",
                 "imported": persister.imported,
                 "updated": persister.updated,
@@ -703,9 +700,7 @@ def _stream_rescrape(
             db.rollback()
             logger.exception("Rollback du re-scrape de la course %s", course_id)
             final = {"phase": "error", "message": "Erreur lors de l'enregistrement des résultats."}
-        finally:
-            _release_rescrape_lock(course_id)
-        # Rendu après le `finally` : l'event final part verrou libéré.
+        # Le verrou d'épreuve tombe avec la transaction, au commit ou au rollback.
         return final
 
     return sse_relay.relay(worker)
@@ -714,7 +709,7 @@ def _stream_rescrape(
 def _drain_scrape(gen: Iterator[dict], emit: sse_relay.Emit) -> tuple:
     """Émet chaque event intermédiaire de `gen`, rend `(results, trace)`.
 
-    `gen` est le générateur de `_scrape_all_streaming` — appelé ici depuis un
+    `gen` est le générateur de `scrape_all_streaming` — appelé ici depuis un
     thread ordinaire (pas via `yield from`, réservé aux corps de générateur),
     d'où ce relais manuel par `next()`/`StopIteration`.
     """
@@ -736,6 +731,7 @@ def reassign_participation(
     non-événements — sans quoi on cesse de le lire.
     """
     participation = _participation_or_404(db, participation_id)
+    lock_courses_or_409(db, participation.course_id)
     cible = _athlete_or_404(db, athlete_id)
     source_id = participation.athlete_id
     # Un relais attribué (#894) redevient un résultat à un seul coureur, même
@@ -808,6 +804,7 @@ def set_teammates(
     `reassign_participation`.
     """
     participation = _participation_or_404(db, participation_id)
+    lock_courses_or_409(db, participation.course_id)
     if not (participation.is_relay or participation.course.is_relay):
         raise DomainError("Seul un résultat de relais peut être attribué à des équipiers.")
     if not MIN_RELAY_TEAMMATES <= len(teammates) <= MAX_RELAY_TEAMMATES:
@@ -902,6 +899,7 @@ def delete_participation(db: Session, *, participation_id: int, user_id: int) ->
     qu'elle devient vide dépasserait ce qui a été demandé.
     """
     participation = _participation_or_404(db, participation_id)
+    lock_courses_or_409(db, participation.course_id)
     resume = {
         "athlete_id": participation.athlete_id,
         "athlete_name": f"{participation.athlete.prenom} {participation.athlete.nom}".strip(),
@@ -1019,6 +1017,7 @@ def validate_participation(db: Session, *, participation_id: int, user_id: int) 
     journal — une demande sans effet n'est pas un geste.
     """
     participation = _participation_or_404(db, participation_id)
+    lock_courses_or_409(db, participation.course_id)
     if not participation.is_pending_validation:
         return participation
 
@@ -1057,6 +1056,7 @@ def reject_participation(db: Session, *, participation_id: int, user_id: int) ->
     **Idempotent**, même patron que `validate_participation`.
     """
     participation = _participation_or_404(db, participation_id)
+    lock_courses_or_409(db, participation.course_id)
     if participation.is_rejected:
         return participation
 
@@ -1081,6 +1081,7 @@ def unreject_participation(db: Session, *, participation_id: int, user_id: int) 
     écrire un second geste.
     """
     participation = _participation_or_404(db, participation_id)
+    lock_courses_or_409(db, participation.course_id)
     if not participation.is_rejected:
         return participation
 
@@ -1155,6 +1156,7 @@ def update_course(db: Session, *, course_id: int, champs: dict, user_id: int) ->
     `Course`, et rien ici ne descend vers `Participation`.
     """
     course = _course_or_404(db, course_id)
+    lock_courses_or_409(db, course_id)
     avant = _instantane(course, _CHAMPS_COURSE)
     demande = {champ: champs[champ] for champ in _CHAMPS_COURSE if champ in champs}
 

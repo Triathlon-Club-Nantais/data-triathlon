@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from app.models.benevole_access_config import BenevoleAccessConfig
 from app.models.user import SYSTEM_USER_EMAIL
 from app.repositories import benevole_config_repository, user_repository
-from app.services import shared_password
+from app.services import audit, shared_password
 
 #: Nom du cookie de session bénévoles — distinct du cookie SSO (`tcn_session`,
 #: `api/v1/auth.py`), sur un mécanisme entièrement séparé.
@@ -86,5 +86,9 @@ def replace_password(
         password_salt=password_salt,
         session_secret=new_session_secret(),
         updated_by_user_id=admin_user_id,
+    )
+    audit.record(
+        db, admin_user_id, action="benevole_access.password_replace",
+        entity_type="benevole_access_config", entity_id=config.id,
     )
     return config, mot_de_passe

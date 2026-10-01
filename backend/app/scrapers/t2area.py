@@ -12,14 +12,14 @@ La profondeur du chemin dit à quel niveau on est :
     /calendrier/<événement>/<épreuve>/<année>.html        édition ← le classement
     /calendrier/<événement>/<épreuve>/<année>/<clé>.html  fiche individuelle
 
-Flux (cf. docs/superpowers/specs/2026-07-26-t2area-scraper-design.md) :
+Flux (cf. docs/scrapers/t2area.md, re-sondé le 30/09/2026 pour #898) :
   1. `_parse_url`      → (événement, épreuve, année) ; une fiche est tronquée
                          vers son édition (le cas réel du Sheet)
   2. `_resolve_annee`  → année absente : 1 GET sur l'épreuve, on prend la plus récente
-  3. `_fetch`          → GET du classement
-  4. `_parse_edition`  → `<table id="resultList">` → N `ScrapedResult`
+  3. `_fetch_edition`  → GET du classement, en repérant la redirection vers l'accueil
+  4. `_parse_edition`  → un `article.edition-result` par participant, splits compris
   5. `_parse_fiche`    → pour les **seules** lignes `is_tcn` : GET de la fiche,
-                         accordéon → splits (25 requêtes sur La Baule, pas 901)
+                         rangs « Sexe » et « Catégorie » (25 requêtes sur La Baule, pas 901)
 """
 import logging
 import re
@@ -37,6 +37,7 @@ from .classify import classify_event_type
 from .utils import (
     DEFAULT_HEADERS,
     derive_status_from_label,
+    heat_is_relay,
     normalize_rank,
     normalize_time,
     split_athlete_name,
@@ -101,10 +102,26 @@ def _edition_url(evenement: str, epreuve: str, annee: str) -> str:
 
 
 def _fetch(client: httpx.Client, url: str) -> str:
-    """GET simple. Une édition inexistante répond **303 vers l'accueil**, donc 200 :
-    c'est l'absence de `#resultList` qui la démasque (cf. `_parse_edition`)."""
     response = client.get(url)
     response.raise_for_status()
+    return response.text
+
+
+class EditionIntrouvableError(ValueError):
+    """L'édition n'existe pas : le site répond **303 vers son calendrier**."""
+
+
+def _fetch_edition(client: httpx.Client, url: str) -> str:
+    """GET du classement. Une édition inexistante répond 303 vers
+    `/calendrier.html`, donc 200 après la redirection : c'est l'URL finale qui la
+    démasque, distincte d'un markup inconnu (#898)."""
+    response = client.get(url)
+    response.raise_for_status()
+    finale = str(getattr(response, "url", "") or url)
+    if urlparse(finale).path != urlparse(url).path:
+        raise EditionIntrouvableError(
+            f"Édition inexistante sur fftri.t2area.com : {url} redirige vers {finale}."
+        )
     return response.text
 
 
@@ -126,90 +143,58 @@ def _resolve_annee(client: httpx.Client, evenement: str, epreuve: str) -> str:
     return max(annees)
 
 
-# Libellé d'en-tête normalisé → clé logique de colonne. L'en-tête réel porte
-# **10** colonnes (`id_league` et `league` s'intercalent entre `Clt/CAT` et
-# `Détails`) : lire par position ferait prendre la ligue pour le lien de fiche.
-# Stable sur les 5 éditions sondées, de 2022 à 2026.
-_COLONNES = {
-    "clt": "clt",
-    "clt/f": "clt_f",
-    "temps": "temps",
-    "nom": "nom",
-    "club": "club",
-    "cat": "cat",
-    "clt/cat": "clt_cat",
-    "id_league": "id_league",
-    "league": "league",
-    "details": "details",
-}
-
-#: Colonnes sans lesquelles une ligne n'a pas de sens. `details` y est : c'est
-#: elle qui porte le dossard (`_cle_fiche`/`_dossard`) et l'accès aux splits. Si
-#: son libellé change ou disparaît, `_lignes` mettrait `details_href = ""` sur
-#: **toutes** les lignes → `bib_number == ""` partout → en aval,
-#: `import_service._match_without_bib` ne recoupe aucune participation déjà en
-#: base (elles sont indexées par dossard) et recrée une participation en double
-#: pour chaque athlète, sans qu'aucun code ne lève ni n'échoue : un import
-#: silencieusement faux plutôt qu'un échec visible. Lever ici plutôt que
-#: laisser filer, dans l'esprit de `test_parse_edition_entete_ampute_leve`.
-_COLONNES_REQUISES = frozenset({"clt", "temps", "nom", "details"})
-
 _BIB_RE = re.compile(r"^bib-(\d+)$", re.I)
 
-# Marqueurs d'équipe dans le **slug d'épreuve** (`swim-run-m-eq`, `triathlon-relais`).
-# Jetons isolés : le « eq » de « equipe » ne doit pas être capté par accident.
-_RELAIS_RE = re.compile(r"(?<![a-z0-9])(eq|relais|duo)(?![a-z0-9])")
+# Abréviation d'équipe propre aux slugs FFTRI (`swim-run-m-eq`), en jeton isolé :
+# le « eq » de « equipe » ne doit pas être capté par accident. Les autres mots
+# d'équipe viennent du détecteur commun (#963).
+_EQUIPE_RE = re.compile(r"(?<![a-z0-9])eq(?![a-z0-9])")
 
-# Le <h1> porte tout l'en-tête :
+# Le `<title>` porte l'en-tête (le `<h1>` ne dit plus que « Édition 2022 ») :
 #   « Résultats du Triathlon de La Baule - M - 2022 - édition du 18-09-2022 »
 # Deux regex **indépendantes** : un libellé inattendu ne doit pas faire perdre la
 # date, qui entre dans l'identité de la Course (UNIQUE(name, event_date, event_type)).
 _RE_NOM = re.compile(r"r[ée]sultats\s+d[eu]s?\s+(.+?)\s+-\s+\d{4}\s+-\s+[ée]dition\b", re.I)
 _RE_DATE = re.compile(r"[ée]dition\s+du\s+(\d{2})-(\d{2})-(\d{4})", re.I)
 
-
-def _index_colonnes(table) -> dict[str, int]:
-    """Clé logique → position, lue dans les libellés du `<thead>`."""
-    index: dict[str, int] = {}
-    for position, th in enumerate(table.select("thead th")):
-        cle = _COLONNES.get(_norm(th.get_text(" ", strip=True)))
-        if cle and cle not in index:
-            index[cle] = position
-    return index
+#: Lien de la fiche individuelle, le seul `edition-details-link` qui reste sous
+#: `/calendrier/` (les autres mènent à l'athlète et au club).
+_LIEN_FICHE = "a.edition-details-link[href*='/calendrier/']"
 
 
-def _href(cellule) -> str:
-    lien = cellule.find("a", href=True)
-    return lien["href"].strip() if lien else ""
+def _texte(carte, selecteur: str) -> str:
+    element = carte.select_one(selecteur)
+    return element.get_text(" ", strip=True) if element else ""
 
 
-def _lignes(table, index: dict[str, int]) -> list[dict[str, str]]:
-    """Une ligne = {clé de colonne → texte}, plus les href de Détails et Club.
+def _ligne(carte) -> dict:
+    """Une carte `article.edition-result` → ses champs bruts.
 
-    Une ligne trop courte est une anomalie de markup : journalisée et sautée
-    plutôt que lue de travers.
+    Le club se lit sans son badge de catégorie ni le « · » qui les sépare ; un
+    badge sans lettre ni chiffre (« --- », ligne anonyme) vaut catégorie absente.
     """
-    attendu = max(index.values()) + 1
-    lignes: list[dict[str, str]] = []
-    for position_ligne, tr in enumerate(table.select("tbody tr")):
-        cellules = tr.find_all("td")
-        if len(cellules) < attendu:
-            # Index et extrait du texte : actionnable sans avoir à re-scraper
-            # pour retrouver la ligne fautive dans les centaines de la table.
-            extrait = tr.get_text(" ", strip=True)[:30]
-            logger.warning(
-                "Ligne fftri ignorée (position %d) : %d cellules pour %d colonnes — %r",
-                position_ligne, len(cellules), attendu, extrait,
-            )
-            continue
-        ligne = {
-            cle: cellules[position].get_text(" ", strip=True)
-            for cle, position in index.items()
-        }
-        ligne["details_href"] = _href(cellules[index["details"]]) if "details" in index else ""
-        ligne["club_href"] = _href(cellules[index["club"]]) if "club" in index else ""
-        lignes.append(ligne)
-    return lignes
+    club_element = carte.select_one(".edition-club")
+    badge = _texte(carte, ".edition-cat-badge")
+    club = ""
+    if club_element is not None:
+        for enfant in club_element.select(".edition-cat-badge"):
+            enfant.extract()
+        club = club_element.get_text(" ", strip=True).rstrip("·").strip()
+    lien = carte.select_one(_LIEN_FICHE)
+    return {
+        "clt": _texte(carte, ".edition-rank"),
+        "nom": _texte(carte, ".edition-name"),
+        "club": club,
+        "cat": badge if any(c.isalnum() for c in badge) else "",
+        "genre": (carte.get("data-gender") or "").strip().upper(),
+        "league": (carte.get("data-league") or "").strip(),
+        "temps": _texte(carte, ".edition-time"),
+        "details_href": lien["href"].strip() if lien else "",
+        "splits": [
+            (_texte(split, "small"), _texte(split, "b"))
+            for split in carte.select(".edition-split")
+        ],
+    }
 
 
 def _cle_fiche(href: str) -> str:
@@ -235,7 +220,10 @@ def _temps_ou_vide(brut: str) -> str:
     """Temps normalisé. **`00:00:00` vaut temps absent** — un DNF sort avec cette
     valeur (La Baule 2022, EPP Arnaud) et la laisser ferait basculer
     `mapping.derive_status` sur « finisher »."""
-    normalise = normalize_time((brut or "").strip())
+    brut = (brut or "").strip()
+    if brut in ("—", "-", "--"):
+        return ""
+    normalise = normalize_time(brut)
     return "" if normalise in ("", "00:00:00") else normalise
 
 
@@ -248,20 +236,18 @@ def _genre(categorie: str) -> str:
 def _est_relais(epreuve: str) -> bool:
     """Déduit du slug d'épreuve. Non vérifié sur données réelles (§8.3 du design) :
     aucune épreuve équipe sondée n'a de classement publié."""
-    return _RELAIS_RE.search(epreuve.lower()) is not None
+    return heat_is_relay(epreuve) or _EQUIPE_RE.search(epreuve.lower()) is not None
 
 
 def _titre(soup) -> str:
-    """Texte du `<h1>` de résultats (la page en porte d'autres, décoratifs)."""
-    for h1 in soup.find_all("h1"):
-        texte = h1.get_text(" ", strip=True)
-        if _norm(texte).startswith("resultats"):
-            return texte
-    return ""
+    """L'en-tête de résultats : le `<title>`, à défaut un `<h1>` qui le porte."""
+    candidats = [soup.title.get_text(" ", strip=True)] if soup.title else []
+    candidats += [h1.get_text(" ", strip=True) for h1 in soup.find_all("h1")]
+    return next((texte for texte in candidats if _norm(texte).startswith("resultats")), "")
 
 
 def _entete(soup, evenement: str, epreuve: str) -> tuple[str, date | None]:
-    """(nom d'épreuve, date), lus indépendamment dans le `<h1>`.
+    """(nom d'épreuve, date), lus indépendamment dans l'en-tête (`_titre`).
 
     Le nom est déjà qualifié par l'épreuve (« - M ») : pas de `qualify_event_name`.
     """
@@ -287,7 +273,7 @@ def _entete(soup, evenement: str, epreuve: str) -> tuple[str, date | None]:
 
 
 def _construire(
-    ligne: dict[str, str],
+    ligne: dict,
     *,
     source_url: str,
     evenement: str,
@@ -297,7 +283,13 @@ def _construire(
     event_date: date | None,
     chrono: tuple[str, str],
 ) -> ScrapedResult:
-    """Une ligne de classement → un participant."""
+    """Une carte de classement → un participant.
+
+    Les rangs par genre et par catégorie ne figurent plus sur la liste : ils se
+    lisent sur la fiche, chargée pour les seuls membres du club (`scrape_event_all`).
+    Les recalculer depuis l'ordre de la liste s'écarte d'une place au-delà de
+    quelques centaines de lignes (mesuré, #898).
+    """
     nom, prenom = split_athlete_name(ligne.get("nom", ""))
     cle = _cle_fiche(ligne.get("details_href", ""))
     categorie = ligne.get("cat", "")
@@ -311,37 +303,31 @@ def _construire(
     result.athlete_firstname = prenom
     result.club = ligne.get("club", "")
     result.category = categorie
-    result.gender = _genre(categorie)
+    genre = ligne.get("genre", "")
+    result.gender = genre if genre in ("M", "F") else _genre(categorie)
     result.bib_number = _dossard(cle)
     result.rank_overall = normalize_rank(clt)
-    result.rank_gender = normalize_rank(ligne.get("clt_f", ""))
-    result.rank_category = normalize_rank(ligne.get("clt_cat", ""))
     result.total_time = _temps_ou_vide(ligne.get("temps", ""))
-    # La colonne Clt porte le statut quand elle ne porte pas de rang (DNF, DQ).
+    # La place porte le statut quand elle ne porte pas de rang (DNF, DSQ).
     result.status = derive_status_from_label(clt)
     result.is_relay = _est_relais(epreuve)
-    # De quoi diagnostiquer sans re-scraper : clé brute, ligue, lien club, chronométreur.
+    _appliquer_splits(result, [(libelle, _temps_ou_vide(temps)) for libelle, temps in ligne.get("splits", [])])
+    # De quoi diagnostiquer sans re-scraper : clé brute, ligue, chronométreur.
     result.raw_data = {
         "cle_fiche": cle,
         "fiche_url": ligne.get("details_href", ""),
         "clt": clt,
         "temps": ligne.get("temps", ""),
-        "id_league": ligne.get("id_league", ""),
         "league": ligne.get("league", ""),
-        "club_href": ligne.get("club_href", ""),
         "chronometreur": chrono[0],
         "chronometreur_url": chrono[1],
         "evenement": evenement,
         "epreuve": epreuve,
     }
     # La FFTRI publie parfois un temps sur ses disqualifiés (ALLARD Pierre,
-    # `42:23:00` sur La Baule 2022 — une aberration de saisie côté source) ; et
-    # bien que `Clt` porte le statut plutôt qu'un rang sur ces lignes (donc
-    # `rank_overall` retombe déjà à None), `Clt/F` et `Clt/CAT` sont lues
-    # indépendamment et pourraient laisser fuiter un rang catégorie/genre sur le
-    # même genre d'aberration. Invariant du dépôt, partagé avec
-    # wiclax/sportinnovation/raceresult/timepulse : un non-finisher n'a ni temps
-    # total ni rang.
+    # `42:23:00` sur La Baule 2022 — une aberration de saisie côté source).
+    # Invariant du dépôt, partagé avec wiclax/sportinnovation/raceresult/
+    # timepulse : un non-finisher n'a ni temps total ni rang.
     if result.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
         result.total_time = ""
         result.rank_overall = None
@@ -398,20 +384,18 @@ def _avertir_source_amont(nom: str, lien: str, url: str) -> None:
 def _parse_edition(
     html: str, source_url: str, evenement: str, epreuve: str
 ) -> list[ScrapedResult]:
-    """HTML d'une édition → participants. **Pur** : aucune requête."""
+    """HTML d'une édition → participants. **Pur** : aucune requête.
+
+    Aucune carte sur une page qui n'est pas une redirection (`_fetch_edition`
+    l'a déjà écartée) : le markup a changé, et mieux vaut une erreur qu'un
+    classement vide importé en silence.
+    """
     soup = BeautifulSoup(html, "lxml")
-    table = soup.find(id="resultList")
-    if table is None:
+    cartes = soup.select("article.edition-result")
+    if not cartes:
         raise ValueError(
-            f"Aucun classement (#resultList) sur {source_url} : édition inexistante "
-            "— le site redirige alors vers son accueil — ou markup fftri modifié."
-        )
-    index = _index_colonnes(table)
-    manquantes = _COLONNES_REQUISES - set(index)
-    if manquantes:
-        raise ValueError(
-            f"En-tête fftri inattendu sur {source_url} : "
-            f"colonnes manquantes {sorted(manquantes)}."
+            f"Aucun classement (article.edition-result) sur {source_url} : "
+            "markup fftri modifié."
         )
     event_name, event_date = _entete(soup, evenement, epreuve)
     # Le type vient du **slug d'épreuve**, vérifié sur les slugs réels :
@@ -422,7 +406,7 @@ def _parse_edition(
     _avertir_source_amont(chrono[0], chrono[1], source_url)
     return [
         _construire(
-            ligne,
+            _ligne(carte),
             source_url=source_url,
             evenement=evenement,
             epreuve=epreuve,
@@ -431,43 +415,47 @@ def _parse_edition(
             event_date=event_date,
             chrono=chrono,
         )
-        for ligne in _lignes(table, index)
+        for carte in cartes
     ]
 
 
-# Libellé d'accordéon normalisé → slot positionnel de ScrapedResult. Les libellés
-# **changent selon le sport** (triathlon : Natation / … / Course à Pied ;
-# duathlon : CàP 1 / … / CàP 2), d'où un mapping par libellé et jamais par
-# position : un mapping positionnel rangerait le 3ᵉ segment d'un aquathlon
-# (Natation / T1 / CàP) dans le vélo.
+# Libellé de split normalisé → slot positionnel de ScrapedResult. Les libellés
+# **changent selon le sport** (triathlon : Natation / T1 / Vélo / T2 / Course à
+# Pied ; duathlon : CàP 1 / T1 / Vélo / T2 / CàP 2), d'où un mapping par libellé
+# et jamais par position : un mapping positionnel rangerait le 3ᵉ segment d'un
+# aquathlon (Natation / T1 / CàP) dans le vélo.
 _SLOTS = {
     "natation": "swim_time",
     "cap 1": "swim_time",
+    "t1": "t1_time",
     "transition 1": "t1_time",
     "velo": "bike_time",
+    "t2": "t2_time",
     "transition 2": "t2_time",
     "course a pied": "run_time",
     "cap 2": "run_time",
 }
 
+_RANGS_FICHE = {"sexe": "rank_gender", "categorie": "rank_category"}
 
-def _parse_fiche(html: str) -> list[tuple[str, str]]:
-    """Segments (libellé, temps) de l'accordéon d'une fiche individuelle.
 
-    « Général » est écarté : c'est le temps total, déjà lu dans le classement.
-    Un segment à `00:00:00` ressort à "" (cf. `_temps_ou_vide`).
+def _parse_fiche(html: str) -> dict[str, int]:
+    """Rangs officiels d'une fiche individuelle : `{"rank_gender": …, "rank_category": …}`.
+
+    Le bandeau porte « 453 Global », « 419 Sexe », « 89 Catégorie » : la liste
+    ne publie plus que le rang global.
     """
     soup = BeautifulSoup(html, "lxml")
-    segments: list[tuple[str, str]] = []
-    for item in soup.select("ul.accordion li.accordion__item"):
-        titres = [t.get_text(" ", strip=True) for t in item.select("button .title")]
-        if len(titres) < 2:
+    rangs: dict[str, int] = {}
+    for bloc in soup.select(".rd-rank"):
+        mots = bloc.get_text(" ", strip=True).split()
+        if len(mots) < 2:
             continue
-        libelle, temps = titres[0], titres[1]
-        if _norm(libelle) == "general":
-            continue
-        segments.append((libelle, _temps_ou_vide(temps)))
-    return segments
+        champ = _RANGS_FICHE.get(_norm(mots[-1]))
+        rang = normalize_rank(mots[0])
+        if champ and rang is not None:
+            rangs[champ] = rang
+    return rangs
 
 
 def _appliquer_splits(result: ScrapedResult, segments: list[tuple[str, str]]) -> None:
@@ -493,48 +481,42 @@ def _appliquer_splits(result: ScrapedResult, segments: list[tuple[str, str]]) ->
 def scrape_event_all(url: str) -> list[ScrapedResult]:
     """Tous les participants d'une **édition**. Un appel = une `Course`.
 
-    Les splits ne sont chargés que pour les lignes dont le club passe
-    `core.club.is_tcn` : ils vivent sur la fiche individuelle, soit une requête
-    par participant. Coût mesuré sur La Baule M 2022 : 25 requêtes (1 classement
-    + 24 membres TCN sur 901 lignes) — borné par l'effectif du club, pas par la
-    taille de l'épreuve. Le scraper devient conscient du club, mais **réutilise**
-    la définition unique de `core/club.py` (règle de #76).
+    Les splits de tous les participants sont sur la liste. Les rangs par genre
+    et par catégorie, eux, ne sont que sur la fiche individuelle, soit une
+    requête par participant : ils ne sont chargés que pour les lignes dont le
+    club passe `core.club.is_tcn`. Coût mesuré sur La Baule M 2022 : 25 requêtes
+    (1 classement + 24 membres TCN sur 901 lignes), borné par l'effectif du
+    club. Le scraper devient conscient du club, mais **réutilise** la définition
+    unique de `core/club.py` (règle de #76).
 
     Chaque `ScrapedResult` porte `source_url` = l'URL **soumise** par l'appelant.
     C'est cette URL qui devient `Course.source_url` (clé de cache TTL), pas
     l'URL canonique de l'édition à laquelle elle est tronquée : si le Sheet
     donne une URL de fiche, l'idempotence tient à cette troncature répétée
-    par ce scraper, pas à une réécriture de la clé stockée. `mapping.get_or_create_course`
-    retient désormais `scraped.source_url` en priorité (fan-out Klikego, #156)
-    et fallback sur `event_url` — la seule façon de garder cet invariant côté
-    T2Area est de poser l'URL soumise ici même.
+    par ce scraper, pas à une réécriture de la clé stockée.
     """
     evenement, epreuve, annee = _parse_url(url)
     with http.client(timeout=30, headers=HEADERS) as client:
         if not annee:
             annee = _resolve_annee(client, evenement, epreuve)
         edition_url = _edition_url(evenement, epreuve, annee)
-        resultats = _parse_edition(_fetch(client, edition_url), edition_url, evenement, epreuve)
-        # `source_url` sur les résultats = URL soumise (pas l'édition canonique) :
-        # c'est elle qui pilote la clé de cache TTL via `mapping.get_or_create_course`,
-        # sur le patron partagé avec les autres scrapers (Wiclax, Prolivesport…).
+        resultats = _parse_edition(
+            _fetch_edition(client, edition_url), edition_url, evenement, epreuve
+        )
         for resultat in resultats:
             resultat.source_url = url
         membres_tcn = 0
         fiches = 0
         for resultat in resultats:
-            if not is_tcn(resultat.club):
+            if not is_tcn(resultat.club) or resultat.status:
                 continue
             membres_tcn += 1
             brut = resultat.raw_data.get("fiche_url") or ""
             if not brut:
                 continue
-            # `urljoin` + contrôle de host : la colonne Détails porte un href
-            # absolu sur les pages sondées, mais la même table mélange les deux
-            # formes (le lien Club, lui, est relatif) — un basculement de
-            # Détails vers du relatif ne doit ni suivre un chemin résolu contre
-            # le mauvais host, ni lever une exception masquée par l'`except`
-            # ci-dessous (cf. wiclax.py pour la même convention).
+            # `urljoin` + contrôle de host : un lien de fiche relatif ne doit ni
+            # suivre un chemin résolu contre le mauvais host, ni lever une
+            # exception masquée par l'`except` ci-dessous.
             fiche_url = urljoin(BASE_URL, brut)
             if (urlparse(fiche_url).hostname or "").lower() != HOST:
                 continue
@@ -544,10 +526,11 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 # Une fiche qui tombe ne doit pas emporter l'épreuve entière.
                 logger.warning("Fiche fftri %s ignorée : %s", fiche_url, exc)
                 continue
-            _appliquer_splits(resultat, _parse_fiche(html))
+            for champ, rang in _parse_fiche(html).items():
+                setattr(resultat, champ, rang)
             fiches += 1
     logger.info(
-        "fftri.t2area.com : %d participants sur %s (%d membre(s) TCN repéré(s), "
+        "fftri.t2area.com : %d participants sur %s (%d membre(s) TCN classé(s), "
         "%d fiche(s) chargée(s))",
         len(resultats), edition_url, membres_tcn, fiches,
     )

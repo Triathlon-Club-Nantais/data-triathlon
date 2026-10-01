@@ -21,17 +21,24 @@ Toute PR déclenche la CI seule (aucun déploiement).
 ## Workflows GitHub Actions
 
 - **`.github/workflows/ci.yml`** — source unique des contrôles qualité,
-  réutilisable (`workflow_call`) et déclenché sur `pull_request`, plus un
-  `workflow_dispatch` pour relancer la CI à la main (**Actions** → *CI* →
-  **Run workflow** → branche) quand elle ne s'est pas déclenchée seule ;
-  l'exécution porte alors sur la branche, pas sur sa fusion avec `main`.
+  réutilisable (`workflow_call`) et déclenché sur `pull_request` et
+  `merge_group` (#920), plus un `workflow_dispatch` pour relancer la CI à la
+  main (**Actions** → *CI* → **Run workflow** → branche) quand elle ne s'est pas
+  déclenchée seule ; l'exécution porte alors sur la branche, pas sur sa fusion
+  avec `main`.
   - Backend : `uv run ruff check .` + `uv run pytest -m "not integration"` (Python 3.13).
+  - `backend-audit` : `uv audit` sur `uv.lock`, en `continue-on-error` et hors
+    du check requis (#920). Une advisory publiée après coup le rend rouge sur
+    toutes les PR sans bloquer la merge queue, ni les bumps Dependabot qui la
+    corrigent. Un audit rouge se lit donc sur la PR, il ne s'impose pas.
   - Backend sur PostgreSQL 16 (`backend-postgres`, #947) : `alembic upgrade head`,
     `alembic check`, `downgrade -1` puis `upgrade head`, et `tests/test_repositories`
     contre une base de service. Les fixtures y basculent quand `TEST_POSTGRES_URL`
     est posée ; sans elle, la suite locale reste sur SQLite, sans serveur.
   - Frontend : `npm run lint` (eslint) + `npm test` (vitest) + `npm run build`
     (typecheck TS strict + build Next/RSC).
+  - `ci-ok` : agrégateur, en échec dès qu'un job amont (hors audit) n'est pas
+    `success`. **C'est le seul check requis** (voir « Merge queue » plus bas).
 - **`.github/workflows/deploy.yml`** — déclenché sur `push` (branche `main` et
   tags `v*`). Appelle `ci.yml` puis, **seulement si la CI passe** (`needs: ci`),
   lance `deploy-preview` (sur `main`) ou `deploy-production` (sur tag `v*`).
@@ -54,18 +61,29 @@ Toute PR déclenche la CI seule (aucun déploiement).
   integration tests failing » (labels `scraper`, `quality`), ou la complète d'un
   commentaire si elle est déjà ouverte, avec la liste des tests en échec. Seul
   besoin au-delà de la lecture : `issues: write`.
+- **`.github/workflows/notify-failure.yml`** (#922) : réutilisable
+  (`workflow_call`), appelé par `batch.yml` et `render-sleep.yml` sur un échec
+  planifié. Voir « Destinataire de la notification d'échec » plus bas.
 
 **Chaque job porte un `timeout-minutes`** (#1071), sans quoi il hérite des
 360 minutes par défaut de GitHub : une étape figée (registre npm ou PyPI muet,
 test en attente, `vercel build` bloqué) garderait sinon le groupe de
 `concurrency` pris pendant 6 h. Les valeurs laissent une large marge sur les
-durées observées : 15 min pour les jobs de `ci.yml` (~1 min, 20 pour `backend-postgres`), 20 min pour
+durées observées : 15 min pour les jobs de `ci.yml` (~1 min, 20 pour `backend-postgres`), 30 min pour
 `deploy-preview`/`deploy-production` (1 à 3 min, plus les retries curl vers
-Render), 10 min pour ceux de `pages.yml`, 30 min pour `scraper-drift.yml`. L'attente d'approbation de
+Render et jusqu'à 15 min d'attente du déploiement Render, #921), 10 min pour ceux de `pages.yml`, 30 min pour `scraper-drift.yml`. L'attente d'approbation de
 l'environment `production` ne compte pas dans ce délai.
 
 Le gating repose sur `needs: ci` : si un job CI échoue, le job de déploiement
-n'est jamais exécuté. Côté Render, c'est **Auto-Deploy = No dans les réglages du
+n'est jamais exécuté. Et le front n'est publié que **devant un backend en
+ligne** (#921) : après le deploy hook, `.github/scripts/wait-render-deploy.sh`
+retrouve le déploiement Render du commit (`GET /v1/services/{id}/deploys`),
+l'attend jusqu'à `live` (15 min au plus), puis vérifie que
+`/api/v1/version` rend bien la version poussée. `build_failed`, `update_failed`,
+`pre_deploy_failed`, `canceled` ou `deactivated` font échouer le job avant
+Vercel. Sur un `workflow_dispatch` depuis une branche de PR, si Render ne sait
+pas déployer ce commit hors de `main`, l'attente échoue au bout du délai : le
+job le dit, au lieu de publier un front devant le backend de `main`. Côté Render, c'est **Auto-Deploy = No dans les réglages du
 service** qui empêche tout déploiement automatique hors hook.
 
 > **`render.yaml` n'est appliqué par personne.** Les deux services ont été créés
@@ -494,15 +512,68 @@ ouvertes sont invisibles pour ruff. Ce qui a été traité :
 `tests/**` est neutralisé via `per-file-ignores` : les tests ne sont pas une
 frontière de confiance, et `S101` (`assert`) y sort 5347 fois.
 
+### Merge queue de `main` : le check requis `ci-ok` (#920)
+
+Le ruleset `main` (id 18000488) porte une merge queue (`ALLGREEN`) et une règle
+`required_status_checks` sur le seul contexte `ci-ok`. Sans cette règle,
+`ALLGREEN` n'attend rien : la queue fusionnait sans CI. Un agrégateur plutôt que
+la liste des jobs, pour que renommer un job ou changer la matrice des shards ne
+casse pas la règle.
+
+```bash
+# Poser la règle (à refaire si le ruleset est recréé)
+gh api repos/Triathlon-Club-Nantais/data-triathlon/rulesets/18000488 > /tmp/ruleset.json
+jq '{name, target, enforcement, conditions, bypass_actors,
+     rules: (.rules + [{type: "required_status_checks", parameters: {
+       strict_required_status_checks_policy: false,
+       required_status_checks: [{context: "ci-ok"}]}}])}' /tmp/ruleset.json \
+  | gh api -X PUT repos/Triathlon-Club-Nantais/data-triathlon/rulesets/18000488 --input -
+```
+
+Vérification : mettre une PR en queue et constater un run `merge_group` de
+`ci.yml`, que la queue attend avant de fusionner.
+
 ### Environments GitHub — requis, et un garde-fou optionnel
 
 Les *Environments* `preview` et `production` sont **nécessaires** : les deux jobs
 les déclarent, et c'est `preview` qui porte le `VERCEL_PROJECT_ID` du projet
 preview (voir plus haut).
 
-Optionnel mais recommandé : ajouter une **required reviewer** sur `production` —
-un tag `v*` déclenchera la CI, mais la mise en production attendra une validation
-manuelle.
+L'environment `production` porte une **required reviewer** (tjarrier,
+cldudouyt, MathieuHerrmann) : un tag `v*` déclenche la CI, mais la mise en
+production attend une validation manuelle, et `prevent_self_review` interdit à
+l'auteur du tag de s'approuver lui-même.
+
+**Seul un tag `v*` posé sur `main` part en production** (#960), par trois verrous :
+
+1. **Ruleset de tags** (target `tag`, motif `refs/tags/v*`) : création, mise à
+   jour et suppression réservées aux admins (bypass list). Un collaborateur
+   `write` ne peut plus poser de tag de release.
+2. **Politique de déploiement de `production`** : *Selected branches and tags*,
+   règle de tag `v*`. Les secrets de l'environment ne sont exposés à aucune
+   autre ref, pas même un `workflow_dispatch` depuis une branche.
+3. **Contrôle d'ascendance** dans `deploy-production` :
+   `git merge-base --is-ancestor "$GITHUB_SHA" origin/main` avant tout appel
+   Render ou Vercel. Défense en profondeur seulement : un push de tag exécute le
+   `deploy.yml` du commit taggé, qui peut l'avoir retiré. Les points 1 et 2 sont
+   la vraie barrière.
+
+```bash
+repo=repos/Triathlon-Club-Nantais/data-triathlon
+# 1. Ruleset de tags (bypass : rôle Admin du dépôt, actor_id 5)
+jq -n '{name: "release tags", target: "tag", enforcement: "active",
+  conditions: {ref_name: {include: ["refs/tags/v*"], exclude: []}},
+  rules: [{type: "creation"}, {type: "update"}, {type: "deletion"}],
+  bypass_actors: [{actor_id: 5, actor_type: "RepositoryRole", bypass_mode: "always"}]}' \
+  | gh api -X POST $repo/rulesets --input -
+# 2. Politique de l'environment, et pas d'auto-approbation
+gh api -X PUT $repo/environments/production --input - <<'JSON'
+{"deployment_branch_policy": {"protected_branches": false, "custom_branch_policies": true},
+ "prevent_self_review": true,
+ "reviewers": [ …reviewers actuels, à relire avant envoi… ]}
+JSON
+gh api -X POST $repo/environments/production/deployment-branch-policies -f name='v*' -f type=tag
+```
 
 ## Batches de production — `batch.yml` (#47)
 
@@ -578,7 +649,29 @@ Et pas un **secret de dépôt** non plus : il serait lisible par tout workflow d
 n'importe quelle branche (cf. le compromis assumé de `RENDER_API_KEY` plus
 haut), ce qui est la pire portée pour la base de production.
 
-Ce qui contrôle l'accès ici, c'est le pouvoir `batch:run` côté application.
+Ce qui contrôle l'accès ici, c'est d'abord la **politique de branche** des deux
+environments (#903) : *Deployment branches and tags → Selected branches → `main`*.
+Un job qui déclare `batch-production` ou `batch-preview` depuis une autre ref
+(un `workflow_dispatch` sur une branche, un workflow modifié dans une PR) est
+refusé à l'entrée de l'environment, avant d'avoir vu `DATABASE_URL` ou obtenu
+un jeton OIDC. Rien ne casse : le backend dispatche toujours sur `REF = "main"`
+(`backend/app/services/batch_runs.py`), et le `schedule` tourne sur la branche
+par défaut. Le pouvoir `batch:run` décide ensuite, côté application, qui peut
+lancer un batch depuis l'écran.
+
+```bash
+for env in batch-production batch-preview; do
+  gh api -X PUT repos/Triathlon-Club-Nantais/data-triathlon/environments/$env \
+    -F 'deployment_branch_policy[protected_branches]=false' \
+    -F 'deployment_branch_policy[custom_branch_policies]=true'
+  gh api -X POST repos/Triathlon-Club-Nantais/data-triathlon/environments/$env/deployment-branch-policies \
+    -f name=main -f type=branch
+done
+```
+
+Vérification : `batch.yml` depuis `main` avec `target: production`,
+`mode: rescrape`, `limit: 1`, `dry_run: true` passe ; le même dispatch depuis une
+autre branche est refusé.
 
 ### L'hôte de la base : viser le **pooler**, pas la connexion directe
 
@@ -763,11 +856,24 @@ par épreuve : la borne tient l'étape à une dizaine de minutes, et le reste pa
 au lundi suivant. Elle est en `continue-on-error`, pour qu'un Nominatim muet ne
 fasse pas rougir un batch dont les épreuves ont abouti.
 
-**Destinataire de la notification d'échec** : la plateforme notifie l'auteur de
-la dernière modification du fichier de cron, pas l'équipe. À constater sur la
-première occurrence rouge (quickstart §12) ; si ce n'est pas la bonne personne,
-c'est l'hypothèse « aucun canal d'alerte nouveau » de la spec qu'il faut
-rouvrir, pas une situation avec laquelle vivre.
+**Destinataire de la notification d'échec** (#922) : la plateforme ne notifie
+que l'auteur de la dernière modification du fichier de cron, et la reprise a
+échoué six lundis de suite sans que personne réagisse. `batch.yml` et
+`render-sleep.yml` portent donc un job `notify` qui, sur un échec **planifié**,
+ou d'un lancement des timers Azure (entrée `alert`, #1010), appelle `notify-failure.yml` : il ouvre l'issue « Scheduled workflow
+failing: <workflow> » (label `ops`), ou la complète si elle est déjà ouverte, au
+plus une fois toutes les 12 heures (le coucher de la preview est horaire).
+Gratuit, sans compte tiers ; seul besoin au-delà de la lecture, `issues: write`
+sur ce job. Fermer l'issue une fois la cause corrigée : l'échec suivant en
+rouvrira une.
+
+**Moniteur externe** (geste manuel, gratuit) : un compte UptimeRobot (offre
+Free, 50 moniteurs à 5 min) qui sonde
+`https://data-triathlon-vq6u.onrender.com/api/v1/health` et la page d'accueil
+du front, notifications vers l'adresse de l'équipe. Poser une **fenêtre de
+maintenance quotidienne de 23 h 15 à 2 h 30 UTC** sur le moniteur du backend :
+c'est l'extinction voulue par `render-sleep.yml`, qui ne doit pas alerter. Il
+couvre ce que `notify` ne voit pas : un service tombé hors de tout workflow.
 
 ## Veille des services Render — `render-sleep.yml` (#528, #560)
 
@@ -782,7 +888,7 @@ au niveau dépôt).
 
 | Service | Coucher | Lever |
 |---|---|---|
-| **production** | cron `15 23 * * *` | cron `15 2 * * *` (au lieu de `15 4 * * *`, #885) |
+| **production** | timer Azure `Render-sleep` à 23 h 15 (#1010), cron `15 23 * * *` en secours | timer Azure `Render-wake` à 2 h 15 (#1010), cron `15 2 * * *` en secours (au lieu de `15 4 * * *`, #885) |
 | **preview** | cron `15 * * * *` — **à chaque heure** (#560) | **jamais par cron** — `deploy.yml` la reprend avant son deploy hook |
 
 La preview ne se rallume que pour servir la vérification post-déploiement, puis
@@ -940,10 +1046,11 @@ git push origin v0.1.0
 
 ## Vérification
 
-1. Ouvrir une PR → les jobs `backend` et `frontend` passent.
+1. Ouvrir une PR → les jobs `backend` et `frontend` passent, puis `ci-ok`.
 2. Merger dans `main` (ou lancer un `workflow_dispatch`) → `deploy.yml` enchaîne
-   `ci` puis `deploy-preview` : hook Render preview + déploiement sur l'URL fixe
-   de `data-triathlon-preview`. Relancer une fois : **la même URL**.
+   `ci` puis `deploy-preview` : hook Render preview, attente de `live` et de la
+   version (#921), puis déploiement sur l'URL fixe de `data-triathlon-preview`.
+   Relancer une fois : **la même URL**.
 3. Sur cette preview, vérifier qu'on interroge bien le backend Render *preview*
    (footer de version + une lecture API).
 4. `git tag v0.1.0 && git push --tags` → `ci` puis `deploy-production`

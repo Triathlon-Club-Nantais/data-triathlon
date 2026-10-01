@@ -43,9 +43,15 @@ def open_session(
     ):
         raise NotAuthenticatedError("Code d'accès incorrect.")
 
+    set_site_cookie(response, config.session_secret, settings)
+
+
+def set_site_cookie(response: Response, session_secret: str, settings: Settings) -> None:
+    """Pose le cookie de site. Partagé avec `admin_site_access` : l'admin qui
+    change le code garde sa propre session de site (#877)."""
     response.set_cookie(
         key=site_access.SITE_SESSION_COOKIE,
-        value=shared_password.sign_cookie(config.session_secret),
+        value=shared_password.sign_cookie(session_secret),
         max_age=settings.site_access_session_ttl_days * 24 * 60 * 60,
         httponly=True,
         secure=settings.auth_cookie_secure,

@@ -32,6 +32,7 @@ from .classify import classify_event_type
 from .utils import (
     DEFAULT_HEADERS,
     derive_status_from_label,
+    heat_is_relay,
     normalize_rank,
     normalize_time,
     parse_fr_date,
@@ -80,7 +81,7 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
     # e.g. "Triathlon M", "Triathlon L", "Relais S" — takes priority over root event name
     p_attr = comp.get("p") or comp.get("P") or ""
     if p_attr:
-        result.is_relay = "relais" in p_attr.lower() or "relay" in p_attr.lower()
+        result.is_relay = heat_is_relay(p_attr)
         # Chaque parcours ChronoSmetron est une épreuve distincte : classement
         # propre et dossards réutilisés d'un parcours à l'autre. On qualifie le
         # nom de course par le parcours pour éviter que plusieurs parcours de même

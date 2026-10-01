@@ -39,12 +39,11 @@ from .base import FanoutTrace, ScrapedResult
 from .classify import classify_event_type
 from .klikego_platform import (
     course_name,
-    heat_is_relay,
     norm_heat_label,
     parse_live_index,
     parse_page_date,
 )
-from .utils import DEFAULT_HEADERS
+from .utils import DEFAULT_HEADERS, heat_is_relay
 
 logger = logging.getLogger(__name__)
 
@@ -212,7 +211,7 @@ def _detect_relay(heat_label: str, heat_slug: str) -> bool:
 
     Le libellé et le slug portent tous deux le format, et l'un des deux manque
     selon le chemin d'import : la reconnaissance des mots d'équipe est celle du
-    moteur partagé (`klikego_platform.heat_is_relay`) — une seule définition
+    moteur partagé (`utils.heat_is_relay`) — une seule définition
     pour les deux fronts et pour Klikego.
 
     S'y ajoute un signal propre à Breizh Chrono : à défaut de libellé, le slug

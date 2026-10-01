@@ -10,6 +10,7 @@ from collections import defaultdict
 
 from sqlalchemy.orm import Session
 
+from app.core.gender import is_gender_podium
 from app.repositories import athlete_repository, participation_repository
 from app.schemas.club import (
     ClubComposition,
@@ -66,14 +67,8 @@ def _bucket_podiums(rows, equipes: dict[int, list[str]]) -> ClubPodiums:
             buckets["scratch"].append(_entree(row, "overall", rank_overall, equipes))
         if rank_category is not None and 1 <= rank_category <= 3:
             buckets["category"].append(_entree(row, "category", rank_category, equipes))
-        # Miroir de stats_service._rank_counters (#376) : un podium de genre
-        # n'est compté que pour un athlète F ou M, jamais genre vide/hors
-        # binaire — sans quoi le KPI "Podiums" (rank_counters) et cette liste
-        # divergent en mode genre (relevé en revue finale de branche, #581).
-        if (
-            rank_gender is not None and 1 <= rank_gender <= 3
-            and (gender or "").upper() in ("F", "M")
-        ):
+        # Même règle que le KPI et le roster (`core.gender`, #581, #936).
+        if is_gender_podium(rank_gender, gender):
             buckets["gender"].append(_entree(row, "gender", rank_gender, equipes))
         meilleur = _meilleur(
             {"overall": rank_overall, "gender": rank_gender, "category": rank_category}
@@ -102,10 +97,7 @@ def _bucket_podiums_par_discipline(rows) -> dict[str, DisciplinePodiumCounts]:
             c["overall"] += 1
         if rank_category is not None and 1 <= rank_category <= 3:
             c["category"] += 1
-        if (
-            rank_gender is not None and 1 <= rank_gender <= 3
-            and (gender or "").upper() in ("F", "M")
-        ):
+        if is_gender_podium(rank_gender, gender):
             c["gender"] += 1
         if _meilleur({"overall": rank_overall, "gender": rank_gender, "category": rank_category}):
             c["all"] += 1

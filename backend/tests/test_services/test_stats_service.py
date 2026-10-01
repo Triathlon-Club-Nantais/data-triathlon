@@ -190,7 +190,7 @@ def test_get_stats_rank_counters_all_prend_le_min_des_trois(db_session):
 def test_get_stats_rank_counters_gender_ventile_f_h(db_session):
     _participation_rang(db_session, athlete_gender="F", rank_gender=1)
     _participation_rang(db_session, athlete_gender="M", rank_gender=2)
-    _participation_rang(db_session, athlete_gender="f", rank_gender=8)  # casse ignorée
+    _participation_rang(db_session, athlete_gender="F", rank_gender=8)
 
     rc = stats_service.get_stats(db_session)["rank_counters"]["gender"]
     assert rc["women"] == {"victories": 1, "podiums": 1, "top10": 2}
@@ -198,9 +198,9 @@ def test_get_stats_rank_counters_gender_ventile_f_h(db_session):
 
 
 def test_get_stats_rank_counters_gender_ignore_les_genres_non_f_m(db_session):
-    """Comportement préservé du front (`club-aggregate.ts`) : seuls "F"/"M"
-    comptent, un athlète "H" n'entre dans aucun des deux compteurs."""
-    _participation_rang(db_session, athlete_gender="H", rank_gender=1)
+    """Seuls "F"/"M" comptent (#936, `core.gender`) : un genre hors contrat
+    n'entre dans aucun des deux compteurs."""
+    _participation_rang(db_session, athlete_gender="X", rank_gender=1)
 
     rc = stats_service.get_stats(db_session)["rank_counters"]["gender"]
     assert rc["women"] == {"victories": 0, "podiums": 0, "top10": 0}
@@ -309,10 +309,10 @@ def test_course_summary_genre_ignore_les_lignes_sans_genre_lisible(db_session):
         db_session,
         [
             ("A", "Un", "M", "ASPTT", None, "finisher", None, None),
-            ("B", "Deux", "H", "ASPTT", None, "finisher", None, None),
+            ("B", "Deux", "M", "ASPTT", None, "finisher", None, None),
             ("C", "Trois", "F", "ASPTT", None, "finisher", None, None),
-            ("D", "Quatre", "W", "ASPTT", None, "finisher", None, None),
-            ("E", "Cinq", "U", "ASPTT", None, "finisher", None, None),
+            ("D", "Quatre", "F", "ASPTT", None, "finisher", None, None),
+            ("E", "Cinq", "X", "ASPTT", None, "finisher", None, None),
             ("F", "Six", "", "ASPTT", None, "finisher", None, None),
         ],
     )
@@ -320,7 +320,7 @@ def test_course_summary_genre_ignore_les_lignes_sans_genre_lisible(db_session):
     synthese = stats_service.course_summary(db_session, course.id)
 
     assert (synthese["male"], synthese["female"]) == (2, 2)
-    # `U` et vide ne sont comptés d'aucun côté : la somme ne fait pas le total.
+    # Hors contrat (`X`) et vide ne sont comptés d'aucun côté (#936).
     assert synthese["male"] + synthese["female"] < synthese["total"]
 
 

@@ -11,6 +11,7 @@ from app.core.club import is_tcn, normalize_club
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.models.club_alias import ClubAlias
 from app.repositories import club_alias_repository
+from app.services import audit
 
 
 def add_entry(
@@ -57,10 +58,11 @@ def add_entry(
         db, canonical_name=nom, alias_normalized=alias_normalise, created_by_user_id=admin_user_id
     )
     db.flush()
+    audit.record(db, admin_user_id, action="club_alias.add", entity_type="club_alias", entity_id=entry.id)
     return entry
 
 
-def remove_entry(db: Session, *, entry_id: int) -> ClubAlias:
+def remove_entry(db: Session, *, entry_id: int, admin_user_id: int | None) -> ClubAlias:
     """Retire un alias. Aucune protection « dernier alias » : contrairement au
     dernier libellé TCN, retirer le seul alias d'un groupe ne fait tomber
     aucun compteur à zéro — ce club revient simplement à son libellé brut."""
@@ -70,4 +72,5 @@ def remove_entry(db: Session, *, entry_id: int) -> ClubAlias:
 
     club_alias_repository.delete_entry(db, entry)
     db.flush()
+    audit.record(db, admin_user_id, action="club_alias.remove", entity_type="club_alias", entity_id=entry.id)
     return entry

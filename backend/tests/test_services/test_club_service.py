@@ -78,7 +78,7 @@ def test_get_club_summary_podiums_all_prend_le_meilleur_des_trois(db_session):
 def test_get_club_summary_podiums_gender_exclut_un_genre_non_binaire(db_session):
     # Miroir de stats_service._rank_counters (#376) : le bucket "gender" ne
     # compte que F/M, jamais un genre vide ou hors binaire (#581, revue finale).
-    ath = athlete_repository.get_or_create(db_session, nom="A", prenom="A", club="TCN", gender="H")
+    ath = athlete_repository.get_or_create(db_session, nom="A", prenom="A", club="TCN", gender="X")
     course = _course(db_session, "C")
     participation_repository.create(
         db_session, athlete_id=ath.id, course_id=course.id, bib_number="1",
@@ -93,6 +93,31 @@ def test_get_club_summary_podiums_gender_exclut_un_genre_non_binaire(db_session)
     # restriction de genre sur ce bucket-là.
     assert len(summary.podiums.all) == 1
     assert summary.podiums.all[0].scope == "gender"
+
+
+def test_roster_podiums_gender_follow_the_same_rule_as_the_list_and_the_kpi(db_session):
+    """#936 : le roster comptait `rank_gender` 1 à 3 sans regarder le genre, là
+    où la liste des podiums et le KPI l'excluent. Même jeu de données, trois
+    compteurs en phase."""
+    from app.services import stats_service
+
+    course = _course(db_session, "C")
+    for index, genre in enumerate(["M", "F", "", "X"]):
+        ath = athlete_repository.get_or_create(
+            db_session, nom=f"N{index}", prenom="P", club="TCN", gender=genre
+        )
+        participation_repository.create(
+            db_session, athlete_id=ath.id, course_id=course.id, bib_number=str(index),
+            club="TCN", status="finisher", rank_gender=1,
+        )
+    db_session.flush()
+
+    summary = club_service.get_club_summary(db_session)
+    kpi = stats_service.get_stats(db_session, club_only=True)["rank_counters"]["gender"]
+
+    assert sum(entry.podiums_gender for entry in summary.roster) == 2
+    assert len(summary.podiums.gender) == 2
+    assert kpi["women"]["podiums"] + kpi["men"]["podiums"] == 2
 
 
 def test_get_club_summary_podiums_tries_par_rang_puis_date_desc(db_session):

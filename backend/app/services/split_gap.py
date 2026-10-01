@@ -19,13 +19,13 @@ re-mesurant, pas ici.
 import statistics
 
 from app.services.mapping import (
-    _DEFAULT_SPLIT_KEYS,
-    _SPLIT_KEYS_BY_SPORT,
-    _sport_base,
+    DEFAULT_SPLIT_KEYS,
+    SPLIT_KEYS_BY_SPORT,
     parse_duration,
+    sport_base,
 )
 
-#: Segments attendus par sport — **dérivés** de `mapping._SPLIT_KEYS_BY_SPORT`, jamais
+#: Segments attendus par sport — **dérivés** de `mapping.SPLIT_KEYS_BY_SPORT`, jamais
 #: réécrits ici. Cette table est celle qui *produit* les clés de `Participation.splits` :
 #: en tenir une copie, c'était garantir la divergence. Le premier jet de ce module en
 #: avait une, et elle mentait déjà — `bike-run` y valait `bike/run` quand le gabarit
@@ -33,25 +33,25 @@ from app.services.mapping import (
 #: fabriquait un écart systématique. Il y manquait aussi `swimrun`, `course-a-pied`,
 #: `trail`, `cyclisme`, `swim-bike` et `raid-multisport`.
 #:
-#: `_sport_base` vient du même module : les bases multi-mots (`bike-run`,
+#: `sport_base` vient du même module : les bases multi-mots (`bike-run`,
 #: `course-a-pied`) portent un tiret qui n'est pas un séparateur de taille, et
 #: `event_type.split("-")` ferait tomber `bike-run-s` sur le gabarit triathlon.
 SCHEMAS: dict[str, list[str]] = {
-    sport: list(gabarit.values()) for sport, gabarit in _SPLIT_KEYS_BY_SPORT.items()
+    sport: list(gabarit.values()) for sport, gabarit in SPLIT_KEYS_BY_SPORT.items()
 }
 
 #: Le triathlon est le gabarit par défaut, comme dans `mapping.build_splits`.
-_DEFAULT_SCHEMA: list[str] = list(_DEFAULT_SPLIT_KEYS.values())
+_DEFAULT_SCHEMA: list[str] = list(DEFAULT_SPLIT_KEYS.values())
 
 #: Rang chronologique de chaque clé canonique, **tous sports confondus** (#880) :
 #: chaque clé d'un gabarit occupe un slot de `ScrapedResult` (`course1` et
 #: `segment1` le slot natation, `course2` le slot course…), et l'ordre des slots
 #: est celui du gabarit par défaut. Ne dépend donc pas du sport **courant** de
 #: l'épreuve, qu'une reclassification change sans réécrire les `splits`.
-_SLOTS: list[str] = list(_DEFAULT_SPLIT_KEYS)
+_SLOTS: list[str] = list(DEFAULT_SPLIT_KEYS)
 _SEGMENT_RANK: dict[str, int] = {
     key: _SLOTS.index(field)
-    for gabarit in (_DEFAULT_SPLIT_KEYS, *_SPLIT_KEYS_BY_SPORT.values())
+    for gabarit in (DEFAULT_SPLIT_KEYS, *SPLIT_KEYS_BY_SPORT.values())
     for field, key in gabarit.items()
 }
 
@@ -73,7 +73,7 @@ EVENT_GAP_RATIO = 0.01
 
 def schema_for(event_type: str | None) -> list[str]:
     """Segments attendus pour ce sport, tels que `mapping.build_splits` les a posés."""
-    return SCHEMAS.get(_sport_base(event_type or ""), _DEFAULT_SCHEMA)
+    return SCHEMAS.get(sport_base(event_type or ""), _DEFAULT_SCHEMA)
 
 
 def chronological(keys) -> list[str]:

@@ -6,6 +6,34 @@ afterEach(() => {
 });
 
 describe("request() error messages (#1045)", () => {
+  it("keeps the machine-readable code of a refusal (#877)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ detail: "Code d'accès au site requis.", code: "site_access_required" }),
+          { status: 401 },
+        ),
+      ),
+    );
+
+    const erreur = (await apiClient.listProviders().catch((e: unknown) => e)) as ApiError;
+
+    expect(erreur.status).toBe(401);
+    expect(erreur.code).toBe("site_access_required");
+  });
+
+  it("leaves the code null when the server sends none", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ detail: "Non connecté" }), { status: 401 })),
+    );
+
+    const erreur = (await apiClient.listProviders().catch((e: unknown) => e)) as ApiError;
+
+    expect(erreur.code).toBeNull();
+  });
+
   it("names a 5xx with a non-JSON body as an unavailable service, not a network error", async () => {
     // HTTP/2 : `statusText` est toujours vide.
     vi.stubGlobal(

@@ -7,6 +7,7 @@ from app.scrapers.utils import (
     derive_status_from_label,
     fmt_seconds,
     gender_from_category,
+    heat_is_relay,
     normalize_time,
     parse_fr_date,
     qualify_event_name,
@@ -343,3 +344,44 @@ def test_is_masked_name(nom, masque):
     from app.scrapers.utils import is_masked_name
 
     assert is_masked_name(nom) is masque
+
+
+# ── heat_is_relay : un seul détecteur d'épreuve d'équipe pour tous les fournisseurs (#963)
+
+
+@pytest.mark.parametrize("signal", [
+    "Swimrun Côte de Jade S Duo",        # RaceResult, course 342 (« duo » manqué)
+    "Swimrunman CLASSIC DUO",            # RaceResult, course 433
+    "Cyclathlon DUO",                    # RaceResult, 189/191/726/728
+    "RED OUF S Duo",                     # Wiclax, 439/440/441
+    "Armorun en Equipe",                 # Wiclax, 773/774
+    "Triathlon de Sablé ÉQUIPE M",       # TimePulse, 855/881/882
+    "Triathlon RelaisM",                 # Klikego, 392 (« relais » collé au format)
+    "Triathlon S par équipes",           # Klikego, 398 (pluriel)
+    "Triathlon M Relai",                 # Breizh Chrono, 377 (sans « s »)
+    "M_relay",                           # Prolivesport, heat 151/152
+    "swim-run-m-duo",
+    "format-s---en-binome",
+    "Bike & Run Binômes",
+    "Relay Mixte",
+    "Challenge Team",
+    "Duos mixtes",
+])
+def test_heat_is_relay_recognises_real_team_labels(signal):
+    assert heat_is_relay(signal) is True
+
+
+@pytest.mark.parametrize("signal", [
+    "Triathlon M individuel",
+    "swimrun-court-solo",
+    "duathlon-s",            # « dua- » n'est pas un duo
+    "Arduo Trail 12 km",     # « arduo » n'est pas un duo
+    "Triathlon des Relaisiens",  # garde : « relais » doit ouvrir le mot, pas s'y cacher
+    "",
+])
+def test_heat_is_relay_leaves_individual_labels_alone(signal):
+    assert heat_is_relay(signal) is False
+
+
+def test_heat_is_relay_reads_every_signal():
+    assert heat_is_relay("", None, "Triathlon S", "Duo") is True

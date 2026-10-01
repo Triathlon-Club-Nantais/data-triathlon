@@ -2,11 +2,25 @@
 from collections.abc import Sequence
 from datetime import date
 
-from sqlalchemy import and_, case, exists, false, func, or_, select, tuple_, union_all
+from sqlalchemy import (
+    and_,
+    bindparam,
+    case,
+    exists,
+    false,
+    func,
+    or_,
+    select,
+    tuple_,
+    union_all,
+    update,
+)
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.core.club import tcn_clause
 from app.core.discipline import federal_clause
+from app.core.gender import gender_podium_clause
 from app.core.text import deaccent
 from app.core.validation import validated_clause
 from app.models.athlete import Athlete
@@ -139,6 +153,41 @@ def create_batch(db: Session, athletes_fields: Sequence[dict]) -> list[Athlete]:
     db.add_all(created)
     db.flush()
     return created
+
+
+def apply_updates(db: Session, updates: Sequence[tuple[Athlete, dict[str, str]]]) -> None:
+    """Applique des changements de club et de genre en un seul `executemany`,
+    dans l'ordre reçu (#980).
+
+    L'appelant les trie par id : deux imports concurrents prennent alors les
+    verrous de ligne dans le même ordre, et ne peuvent plus se croiser. Une
+    colonne non demandée passe `NULL` et garde sa valeur **en base**
+    (`coalesce`) : la réécrire depuis l'instance en mémoire écraserait un club
+    commité entre-temps par un autre import ou corrigé par un admin. L'état en
+    mémoire suit, sans marquer les instances modifiées : un flush ultérieur
+    n'émettrait pas un second UPDATE.
+    """
+    if not updates:
+        return
+    table = Athlete.__table__
+    statement = (
+        update(table)
+        .where(table.c.id == bindparam("b_id"))
+        .values(
+            club=func.coalesce(bindparam("b_club"), table.c.club),
+            gender=func.coalesce(bindparam("b_gender"), table.c.gender),
+        )
+    )
+    db.execute(
+        statement,
+        [
+            {"b_id": athlete.id, "b_club": fields.get("club"), "b_gender": fields.get("gender")}
+            for athlete, fields in updates
+        ],
+    )
+    for athlete, fields in updates:
+        for column, value in fields.items():
+            set_committed_value(athlete, column, value)
 
 
 def latest_club_dates(db: Session, athlete_ids: Sequence[int]) -> dict[int, date]:
@@ -622,7 +671,8 @@ def _club_roster_requete(db: Session, *, federal_only: bool):
     # critère que `set_teammates`.
     individuel = and_(Participation.is_relay.is_(False), Course.is_relay.is_(False))
     cond_overall = and_(individuel, Participation.rank_overall.between(1, 3))
-    cond_gender = and_(individuel, Participation.rank_gender.between(1, 3))
+    # Même règle que le KPI et la liste des podiums (`core.gender`, #936).
+    cond_gender = and_(individuel, gender_podium_clause(Participation.rank_gender, Athlete.gender))
     cond_category = and_(individuel, Participation.rank_category.between(1, 3))
 
     total = func.count(Participation.id)

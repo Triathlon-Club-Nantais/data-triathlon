@@ -161,12 +161,18 @@ sans dépendances installées — `npm ci` (ou `npm install`) y est requis. Avec
 Toutes les pages publiques et l'API de lecture sont fermées par un **code
 d'accès** partagé (#509). La garde est *fail-closed* : tant qu'aucun code n'est
 posé en base (table `site_access_config`), tout est refusé, y compris en
-développement. Ni `reset_db.py`, ni le seed démo, ni la CLI n'en posent un.
-Sur une base neuve, chaque page affiche donc le formulaire de code d'accès, et
-aucun code n'existe encore à y saisir.
+développement. Ni `reset_db.py` ni le seed démo n'en posent un.
 
-Le seul chemin qui en pose un passe par le back-office, donc par le SSO. `/login`
-et `/admin` restent hors de la garde pour cette raison. Dans l'ordre :
+**Raccourci, pour consulter le seed démo sans SSO** (#929), depuis `backend/` :
+
+```bash
+uv run python -m app.cli set-site-code --code <au-moins-12-caractères>
+uv run python -m app.cli set-site-code     # ou : génère un code et l'affiche une fois
+```
+
+Saisir ensuite ce code dans le formulaire du site. Le back-office, lui, exige
+toujours le SSO. Pour l'ouvrir, dans l'ordre (`/login` et `/admin` restent hors
+de la garde pour cette raison) :
 
 1. **Créer une application OAuth GitHub locale** (callback
    `http://127.0.0.1:3000/api/v1/auth/github/callback`) :
@@ -181,9 +187,10 @@ et `/admin` restent hors de la garde pour cette raison. Dans l'ordre :
    connexion qui crée l'utilisateur.
 5. **Se donner le rôle administrateur** :
    `uv run python -m app.cli grant-role --email <adresse> --role admin`.
-6. **Poser le code** dans `/admin/acces`, carte « Accès au site » : le saisir
-   (« Remplacer ») ou en générer un (« Générer un mot de passe sécurisé »).
-   Le saisir ensuite dans le formulaire du site.
+6. **Poser le code**, si le raccourci ne l'a pas déjà fait : `/admin/acces`,
+   carte « Accès au site », le saisir (« Remplacer ») ou en générer un
+   (« Générer un mot de passe sécurisé »). Le saisir ensuite dans le formulaire
+   du site.
 
 Les étapes 3 à 5 sont détaillées dans [`backend/README.md`](backend/README.md)
 § « Amorcer le premier administrateur ». Pour vérifier que le site est ouvert :

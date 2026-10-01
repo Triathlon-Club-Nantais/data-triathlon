@@ -2,12 +2,16 @@ name: CI
 
 on:
   pull_request:
+  # La merge queue de `main` rejoue la CI sur le commit de fusion et n'attend que
+  # le check requis `ci-ok` du ruleset (#920). Sans ce déclencheur, aucun run
+  # `merge_group` ne naît et la queue fusionnait sans jamais attendre la CI.
+  merge_group:
   workflow_call:
   # Relance manuelle depuis l'onglet Actions (« Run workflow » → choix de la
   # branche) : `pull_request` ne se redéclenche pas tout seul quand l'exécution
   # a été manquée (interruption GitHub, workflow ajouté après l'ouverture de la
   # PR, checks jamais rapportés). Le job tourne alors sur la branche choisie, pas
-  # sur la fusion — un `merge_group` ou un rebase reste à faire avant de fusionner.
+  # sur la fusion ; c'est le run `merge_group` de la queue qui valide la fusion.
   workflow_dispatch:
 
 # Déclaré explicitement plutôt qu'hérité du défaut du dépôt pour `GITHUB_TOKEN`
@@ -38,21 +42,39 @@ jobs:
       - name: Install dependencies
         run: uv sync --locked
 
-      # uv audit interroge OSV sur le uv.lock résolu : aucune dépendance de dev
-      # supplémentaire (contrairement à pip-audit), en écho au Principe de
-      # conception « s'appuyer d'abord sur les dépendances déjà présentes ».
-      # Commande expérimentale côté uv (--preview-features tait juste l'avertissement,
-      # ne change pas le comportement) : bloquante comme ruff/pytest, faute de quoi
-      # une PR introduisant une version vulnérable ne ferait rougir personne — c'était
-      # tout le constat A06-1 de l'audit OWASP (#397).
-      - name: Audit des dépendances (uv audit)
-        run: uv audit --locked --preview-features audit-command
-
       - name: Lint (ruff)
         run: uv run ruff check .
 
       - name: Tests (hors réseau)
         run: uv run pytest -m "not integration"
+
+  # uv audit interroge OSV sur le uv.lock résolu : aucune dépendance de dev
+  # supplémentaire (contrairement à pip-audit), en écho au Principe de
+  # conception « s'appuyer d'abord sur les dépendances déjà présentes ».
+  # Commande expérimentale côté uv (--preview-features tait juste l'avertissement,
+  # ne change pas le comportement).
+  #
+  # Job à part, hors de `ci-ok` et en `continue-on-error` (#920) : une advisory
+  # publiée après coup rendait toutes les PR rouges, y compris les bumps
+  # Dependabot qui la corrigent, et bloquait la merge queue. Le job reste rouge
+  # et visible sur la PR (constat A06-1 de l'audit OWASP, #397), sans rien bloquer.
+  backend-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Audit des dépendances (uv audit)
+        run: uv audit --locked --preview-features audit-command
 
   # Le moteur de production (#947) : la suite unitaire tourne sur SQLite, et un
   # `create_all` masque toute dérive entre modèles et migrations. Ce job joue la
@@ -181,3 +203,22 @@ jobs:
 
       - name: Tests (vitest, shard ${{ matrix.shard }})
         run: npm test -- --shard=${{ matrix.shard }}
+
+  # Seul check requis par le ruleset de `main` (#920). Un agrégateur plutôt que
+  # la liste des jobs : renommer un job ou changer la matrice des shards ne casse
+  # pas la règle. `if: always()` : sans lui, un job amont en échec le ferait
+  # sauter, et un check sauté compte comme réussi pour la merge queue.
+  ci-ok:
+    if: always()
+    needs: [backend, backend-postgres, frontend, frontend-test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Tous les jobs requis ont réussi
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Résultats : $RESULTS"
+          for result in $RESULTS; do
+            [ "$result" = "success" ] || exit 1
+          done

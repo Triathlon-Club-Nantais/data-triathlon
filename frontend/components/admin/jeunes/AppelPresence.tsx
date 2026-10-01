@@ -21,7 +21,8 @@ import {
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
 
-const REFUS = { sujet: "l'appel", action: "consulter l'appel" };
+// `sujet` au masculin pluriel : « consulter les … », « Les … n'ont pas pu être chargés ».
+const REFUS = { sujet: "relevés de présence", action: "consulter l'appel" };
 
 /**
  * L'appel de début (#869) — un jeune par carte, deux gestes : présent ou

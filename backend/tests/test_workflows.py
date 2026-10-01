@@ -28,6 +28,14 @@ def workflow() -> dict:
     return yaml.safe_load(WORKFLOW.read_text(encoding="utf-8"))
 
 
+def _step_jobs(workflow: dict) -> list[dict]:
+    """Les jobs qui exécutent des steps sur un runner. Un job `uses:` (l'alerte
+    de #922, `notify-failure.yml`) n'en a pas : il ne voit pas la base, ne peut
+    déclarer ni `environment` ni `timeout-minutes`, et le workflow appelé porte
+    sa propre borne."""
+    return [job for job in workflow["jobs"].values() if "uses" not in job]
+
+
 def _scripts(workflow: dict) -> list[tuple[str, str]]:
     """(nom d'étape, script) pour chaque `run:` du workflow."""
     scripts = []
@@ -86,7 +94,7 @@ def test_an_input_less_run_targets_production(workflow):
     """
     repli = "inputs.target || 'production'"
     assert repli in workflow["concurrency"]["group"]
-    for job in workflow["jobs"].values():
+    for job in _step_jobs(workflow):
         assert repli in job["environment"]
 
 
@@ -125,8 +133,15 @@ def test_the_periodic_rescrape_is_still_scheduled(workflow):
 
 def test_job_cannot_hang_forever(workflow):
     """Sans borne, une exécution coincée gèle tout lancement six heures durant."""
-    for job in workflow["jobs"].values():
+    for job in _step_jobs(workflow):
         assert 0 < job["timeout-minutes"] <= 120
+
+
+def test_the_failure_alert_is_bounded_too():
+    """Le workflow d'alerte appelé par `notify` (#922) porte sa propre borne."""
+    alerte = yaml.safe_load((WORKFLOW.parent / "notify-failure.yml").read_text(encoding="utf-8"))
+    for job in alerte["jobs"].values():
+        assert 0 < job["timeout-minutes"] <= 10
 
 
 RENDER_SLEEP = WORKFLOW.parent / "render-sleep.yml"

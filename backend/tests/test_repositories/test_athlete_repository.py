@@ -772,7 +772,8 @@ def test_club_roster_ventile_les_podiums_par_portee_independamment(db_session):
     # Une seule participation, podium sur les trois portées à la fois
     # (cas mesuré Hadrien à Mesquer, #488) : les trois compteurs de portée
     # s'incrémentent chacun, `podiums` (dédupliqué) ne compte qu'une fois.
-    ath = athlete_repository.get_or_create(db_session, nom="MULTI", prenom="M", club="TCN")
+    # Genre posé : un podium de genre ne compte que pour `M` ou `F` (#936).
+    ath = athlete_repository.get_or_create(db_session, nom="MULTI", prenom="M", club="TCN", gender="M")
     course = _course(db_session, "C")
     _part(db_session, ath, course, "1", rank_overall=2, rank_category=1, rank_gender=2)
     db_session.flush()
@@ -1132,3 +1133,23 @@ def test_orphan_delete_rechecks_participations_at_delete_time(db_session, monkey
     athlete_repository.delete_orphans(db_session)
 
     assert db_session.get(Athlete, orphelin.id) is not None
+
+
+
+def test_apply_updates_never_writes_back_a_column_it_was_not_asked_to_change(db_session):
+    """#980, revue : une mise à jour du seul genre ne doit pas réécrire le club
+    lu en début d'import, qu'un import concurrent ou un admin a pu changer."""
+    from sqlalchemy import text
+
+    from app.models.athlete import Athlete
+
+    athlete = athlete_repository.get_or_create(db_session, nom="CONC", prenom="Urrent", club="ANCIEN")
+    db_session.flush()
+    # Écriture concurrente, en SQL brut : l'instance en mémoire garde « ANCIEN ».
+    db_session.execute(text("UPDATE athletes SET club = 'NOUVEAU' WHERE id = :id"), {"id": athlete.id})
+
+    athlete_repository.apply_updates(db_session, [(athlete, {"gender": "F"})])
+
+    db_session.expire_all()
+    relu = db_session.get(Athlete, athlete.id)
+    assert (relu.club, relu.gender) == ("NOUVEAU", "F")

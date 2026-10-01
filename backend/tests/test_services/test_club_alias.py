@@ -61,7 +61,7 @@ def test_remove_entry_retire_la_ligne(db_session):
     entree = club_alias.add_entry(db_session, canonical_name="RCN", alias="rcn", admin_user_id=None)
     db_session.flush()
 
-    club_alias.remove_entry(db_session, entry_id=entree.id)
+    club_alias.remove_entry(db_session, entry_id=entree.id, admin_user_id=None)
     db_session.flush()
 
     assert club_alias_repository.list_entries(db_session) == []
@@ -69,4 +69,4 @@ def test_remove_entry_retire_la_ligne(db_session):
 
 def test_remove_entry_refuse_un_identifiant_inconnu(db_session):
     with pytest.raises(NotFoundError):
-        club_alias.remove_entry(db_session, entry_id=4242)
+        club_alias.remove_entry(db_session, entry_id=4242, admin_user_id=None)

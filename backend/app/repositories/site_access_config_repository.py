@@ -46,7 +46,7 @@ def save_config(
     password_hash: str,
     password_salt: str,
     session_secret: str,
-    updated_by_user_id: int,
+    updated_by_user_id: int | None,
 ) -> SiteAccessConfig:
     config = db.get(SiteAccessConfig, CONFIG_ROW_ID)
     if config is not None:

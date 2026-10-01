@@ -12,6 +12,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
+from app.core.gender import normalize_gender
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.course_source import CourseSource
@@ -31,11 +32,11 @@ logger = logging.getLogger(__name__)
 # (swim/t1/bike/t2/run). Selon le sport, on ré-étiquette ces slots avec des clés
 # parlantes et on omet les slots non pertinents. Gabarit = {champ ScrapedResult: clé splits}.
 # Le triathlon est le défaut (clés = nom du slot sans le suffixe `_time`).
-_DEFAULT_SPLIT_KEYS = {
+DEFAULT_SPLIT_KEYS = {
     "swim_time": "swim", "t1_time": "t1", "bike_time": "bike",
     "t2_time": "t2", "run_time": "run",
 }
-_SPLIT_KEYS_BY_SPORT: dict[str, dict[str, str]] = {
+SPLIT_KEYS_BY_SPORT: dict[str, dict[str, str]] = {
     # Duathlon : course à pied 1 → slot swim, course à pied 2 → slot run.
     "duathlon": {
         "swim_time": "course1", "t1_time": "t1", "bike_time": "bike",
@@ -68,7 +69,7 @@ _SPLIT_KEYS_BY_SPORT: dict[str, dict[str, str]] = {
 _MULTI_WORD_BASES = ("bike-run", "course-a-pied", "swim-bike", "cross-triathlon", "raid-multisport")
 
 
-def _sport_base(event_type: str) -> str:
+def sport_base(event_type: str) -> str:
     """Préfixe de sport sans suffixe de taille : ``duathlon-m`` → ``duathlon``.
 
     Les bases multi-mots (``bike-run``, ``course-a-pied``) contiennent un tiret
@@ -103,7 +104,7 @@ def build_splits(scraped: ScrapedResult) -> dict[str, str]:
                 n += 1
             splits[key] = time
     else:
-        template = _SPLIT_KEYS_BY_SPORT.get(_sport_base(scraped.event_type), _DEFAULT_SPLIT_KEYS)
+        template = SPLIT_KEYS_BY_SPORT.get(sport_base(scraped.event_type), DEFAULT_SPLIT_KEYS)
         splits = {
             key: getattr(scraped, field)
             for field, key in template.items()
@@ -296,7 +297,7 @@ def resolve_athlete(
         db,
         nom=scraped.athlete_name,
         prenom=scraped.athlete_firstname,
-        gender=scraped.gender,
+        gender=normalize_gender(scraped.gender),
         club=scraped.club or None,
         update_existing_club=not scraped.is_pending_validation,
         event_date=event_date,
@@ -317,7 +318,7 @@ def athlete_creation_fields(scraped: ScrapedResult) -> dict:
     return {
         "nom": (scraped.athlete_name or "").strip(),
         "prenom": (scraped.athlete_firstname or "").strip(),
-        "gender": scraped.gender,  # `ScrapedResult.gender` est typé `str = ""` (#1108)
+        "gender": normalize_gender(scraped.gender),  # `M`, `F` ou vide (#936)
         "birth_date": None,
         "club": scraped.club or None,
     }

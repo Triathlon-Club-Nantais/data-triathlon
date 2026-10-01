@@ -28,9 +28,10 @@ uv run python -m app.cli allow-email --email <adresse>              # autorise u
 uv run python -m app.cli grant-role --email <adresse> --role admin   # amorce le 1er administrateur (#115)
 uv run python -m app.cli revoke-sessions --all --yes                 # révocation d'urgence : ferme toutes les sessions (#169)
 uv run python -m app.cli revoke-sessions --email <adresse>           # ou celles d'une adresse seulement
+uv run python -m app.cli set-site-code [--code <code>]               # pose le code d'accès au site, sans SSO (#929)
 ```
 
-Les trois dernières sont les commandes d'**amorçage**, décrites une par une plus
+Les quatre dernières sont les commandes d'**amorçage**, décrites une par une plus
 bas ; l'ordre qui marche sur une base neuve est `allow-email` → connexion par le
 navigateur → `grant-role`.
 
@@ -268,6 +269,19 @@ simple que celui qu'elle prétendrait offrir.
 **Elle ne crée pas d'utilisateur.** L'amorçage complet tient en trois gestes :
 `allow-email`, une **connexion** par le navigateur (c'est elle qui crée le
 compte), puis `grant-role --role admin`.
+
+## `set-site-code` — le code d'accès sans session (#929)
+
+```bash
+uv run python -m app.cli set-site-code --code <code>   # 12 à 200 caractères, sinon code 2
+uv run python -m app.cli set-site-code                 # génère un code, l'affiche une seule fois
+```
+
+Même service que l'écran `/admin/acces` (`site_access.replace_password`) : le
+secret de session tourne, donc les sessions ouvertes sont fermées. La ligne
+`site_access_config` n'a alors pas d'auteur (`updated_by_user_id` NULL), et
+l'écran affiche le code comme posé, sans « par … ». Sert à consulter le seed
+démo sans application OAuth.
 
 ## `revoke-sessions` — la révocation d'urgence (#169)
 

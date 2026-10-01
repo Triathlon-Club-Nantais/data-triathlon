@@ -26,7 +26,7 @@ from bs4 import BeautifulSoup
 from app.core.exceptions import ScraperError
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
-from .utils import is_masked_name, normalize_time, strip_accents
+from .utils import heat_is_relay, is_masked_name, normalize_time, strip_accents
 
 logger = logging.getLogger(__name__)
 
@@ -45,47 +45,6 @@ _INTER_MAX_WORKERS = 10
 # marqueur borne le nom de l'épreuve, qui peut lui-même contenir des « - »
 # (« Triathlon d'Angers - Entre Loire et Maine 2026 »).
 _TITLE_LOCATION_RE = re.compile(r"\s-\s\d{5}\s-\s")
-
-# Formes d'équipe **constatées** dans les heats de la plateforme, chacune vue
-# sur un événement réel :
-#   relais  — `triathlon-s-relais`, `duathlon-s---en-relais`
-#   duo     — `swim-run-m-duo` (Mesquer 2026), `swimrun-court-duo` (Dinard 2025)
-#   binome  — `format-s---en-binome` (RE SwimRun 2025), face à `format-m---en-solo`
-#   equipe  — `duathlon-liffre-cormier-clm-par-equipe` (CLM par équipes)
-# Toutes désignent une épreuve courue à plusieurs, donc un relais au sens du
-# modèle. Cette liste ne s'élargit **que** sur constat : « team », « paire »,
-# « trio » n'ont jamais été observés dans un heat, les ajouter au ressenti
-# reclasserait des épreuves sur une hypothèse.
-_TEAM_HEAT_WORDS = frozenset({"relais", "duo", "binome", "equipe"})
-
-# Le slug est tokenisé par tirets, le libellé affiché par espaces : on découpe
-# sur tout ce qui n'est ni lettre ni chiffre pour comparer des mots entiers.
-# Les accents tombent d'abord — le slug les aplatit (`en-binome`) mais pas le
-# libellé (« En Binôme », « CLM par Équipe »), et « ô » couperait le mot en deux.
-_WORD_SPLIT_RE = re.compile(r"[^a-z0-9]+")
-
-
-def heat_is_relay(*signals: str) -> bool:
-    """Le heat désigne-t-il une épreuve d'équipe ? (`is_relay` du modèle)
-
-    Un heat de la plateforme est mono-discipline et mono-format : le drapeau est
-    une propriété du heat, pas du participant. Les signaux acceptés sont son
-    slug et son libellé affiché, dans n'importe quel ordre — l'un ou l'autre
-    manque selon le chemin d'import (un heat ciblé directement n'a pas de
-    libellé).
-
-    Le mot compte comme mot et non comme sous-chaîne : « arduo » n'est pas un
-    duo. Se tromper ne se voit pas à l'affichage, mais `is_relay` entre dans
-    l'identité de la `Course` (UNIQUE `name, event_date, event_type, is_relay`) :
-    deux heats homonymes fusionnent, et le classement mélange équipes et solos
-    (#203, #295).
-    """
-    for signal in signals:
-        words = set(_WORD_SPLIT_RE.split(strip_accents(signal or "").lower()))
-        if words & _TEAM_HEAT_WORDS:
-            return True
-    return False
-
 
 def course_name(event_name: str, heat_label: str) -> str:
     """Nom de course = « <Épreuve> - <Heat> ».

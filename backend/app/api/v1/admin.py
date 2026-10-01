@@ -22,7 +22,7 @@ from app.schemas.admin import (
     PendingProviderOut,
     PendingProviderReported,
 )
-from app.services import course_review
+from app.services import course_review, pending_providers
 
 router = APIRouter(tags=["admin"])
 
@@ -81,9 +81,9 @@ def count_pending_providers(
 def mark_handled(
     entry_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.PENDING_PROVIDERS_HANDLE)),
+    actor: User = Depends(require_permission(P.PENDING_PROVIDERS_HANDLE)),
 ):
-    pending_provider_repository.mark_handled(db, entry_id)
+    pending_providers.mark_handled(db, actor, entry_id)
     db.commit()
 
 

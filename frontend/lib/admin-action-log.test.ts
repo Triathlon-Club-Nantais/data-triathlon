@@ -98,6 +98,39 @@ describe("catalogue coverage (#1043)", () => {
   });
 });
 
+describe("access-rights gestures (#935)", () => {
+  it("translates the role, group, allow-list and session payload keys", () => {
+    const lignes = formatPayload({
+      slug: "archivist", permissions: ["quality:override"], role: "lecteur", email: "a@b.fr",
+      sessions: 3, accounts: 2, created: true,
+    });
+
+    // « Identifiant » : le mot des formulaires de rôle et de groupe, jamais
+    // « Code », qui se lirait comme le code d'accès du site (revue UI/UX).
+    expect(lignes.map((l) => l.label)).toEqual([
+      "Identifiant", "Pouvoirs", "Rôle", "Adresse", "Sessions fermées", "Comptes touchés",
+      "Nouvelle attribution",
+    ]);
+  });
+
+  it("translates the scope of a session revocation, never the raw « all »", () => {
+    expect(formatPayload({ scope: "all" })).toEqual([{ label: "Portée", value: "tous les comptes" }]);
+    expect(formatPayload({ scope: "a@b.fr" })).toEqual([{ label: "Portée", value: "a@b.fr" }]);
+  });
+
+  it("uses the screens' own words for these gestures", () => {
+    expect(actionLabel("pending_provider.handle")).toBe("Traitement d'un chronométreur signalé");
+    expect(actionLabel("allowed_email.add")).toBe("Ajout d'une adresse autorisée");
+    expect(actionLabel("sessions.revoke")).toBe("Fermeture de sessions");
+  });
+
+  it("names a pending provider entry without payload", () => {
+    expect(detailLines({ entity_type: "pending_provider", entity_id: 7, payload: null })).toEqual([
+      { label: "Chronométreur signalé", value: "n° 7" },
+    ]);
+  });
+});
+
 describe("links and target entity (#1043)", () => {
   it("links athlete and course ids to their public pages", () => {
     const lignes = formatPayload({ from_athlete_id: 55749, course_id: 12 });

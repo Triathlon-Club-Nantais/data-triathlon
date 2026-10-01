@@ -30,7 +30,7 @@ jobs:
     needs: ci
     if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     environment: preview
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -127,6 +127,18 @@ jobs:
           DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PREVIEW }}
         run: curl -sSL --fail-with-body -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "$DEPLOY_HOOK&ref=${{ github.sha }}"
 
+      # Le hook ne fait que mettre le déploiement en file (#921) : on attend
+      # qu'il soit `live` et que `/api/v1/version` rende la version poussée
+      # avant de publier le front. Un build ou un démarrage en échec fait
+      # échouer le job, au lieu de laisser Vercel publier devant l'ancien backend.
+      - name: Render (backend) — attente du déploiement
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PREVIEW }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          COMMIT_SHA: ${{ github.sha }}
+          EXPECTED_VERSION: ${{ steps.version.outputs.value }}
+        run: .github/scripts/wait-render-deploy.sh
+
       # `vercel build` tourne **sur ce runner** (le déploiement se fait ensuite
       # en `--prebuilt`) : c'est donc ici le runtime de build réel du front, à
       # tenir aligné sur celui de `ci.yml`, sans quoi la CI valide autre chose
@@ -178,12 +190,26 @@ jobs:
     needs: ci
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     environment: production
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0  # `origin/main` et les tags, pour le contrôle d'ascendance
+
+      # Défense en profondeur (#960) : un tag `v*` posé sur un commit hors de
+      # `main` ne part pas en production. Ce contrôle seul ne suffit pas, car un
+      # push de tag exécute le `deploy.yml` du commit taggé, qui peut l'avoir
+      # retiré. La vraie barrière est le ruleset de tags et la politique de
+      # l'environment `production` (docs/ci-cd.md, « Environments GitHub »).
+      - name: Le commit taggé appartient à main
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "::error::Le commit taggé n'est pas sur main : pas de mise en production."; exit 1; }
+
       - name: Compute app version
         id: version
         # Sur un push de tag, `github.ref_name` est directement le tag (`v0.1.3`).
@@ -251,9 +277,15 @@ jobs:
           DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PROD }}
         run: curl -sSL --fail-with-body -X POST --retry 3 --retry-delay 5 --retry-all-errors --max-time 60 "$DEPLOY_HOOK&ref=${{ github.sha }}"
 
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          fetch-depth: 0  # `git describe` a besoin des tags (cf. job preview)
+      # Même attente qu'en preview (#921) : le front n'est publié que devant
+      # un backend en ligne qui annonce le tag.
+      - name: Render (backend) — attente du déploiement
+        env:
+          DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_PROD }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          COMMIT_SHA: ${{ github.sha }}
+          EXPECTED_VERSION: ${{ steps.version.outputs.value }}
+        run: .github/scripts/wait-render-deploy.sh
 
       # `vercel build` tourne **sur ce runner** (le déploiement se fait ensuite
       # en `--prebuilt`) : c'est donc ici le runtime de build réel du front, à

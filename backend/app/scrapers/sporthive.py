@@ -52,11 +52,11 @@ from .classify import classify_event_type
 from .utils import (
     DEFAULT_HEADERS,
     derive_status_from_label,
+    heat_is_relay,
     normalize_rank,
     normalize_time,
     qualify_event_name,
     split_athlete_name,
-    strip_accents,
 )
 
 logger = logging.getLogger(__name__)
@@ -365,15 +365,11 @@ def _segments(legs) -> list[tuple[str, str]]:
 
 # ── Event metadata ───────────────────────────────────────────────────────────
 
-#: An event is a relay if its **race** name says so (D10). Decided per race and
-#: not per participant, otherwise `Course.is_relay` and `Participation.is_relay`
-#: diverge with the read order (ok-time precedent). Word-start match on the
-#: accent-stripped name, so plurals follow (`Équipes`, `Relays`).
-_RELAY_RE = re.compile(r"\b(relais|relay|equipe|team|duo)")
-
-
 def _is_relay(race_name: str) -> bool:
-    return bool(_RELAY_RE.search(strip_accents(race_name).lower()))
+    """An event is a relay if its **race** name says so (D10). Decided per race
+    and not per participant, otherwise `Course.is_relay` and
+    `Participation.is_relay` diverge with the read order (ok-time precedent)."""
+    return heat_is_relay(race_name)
 
 
 def _event_date(raw) -> date | None:

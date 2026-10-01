@@ -25,6 +25,7 @@ from app.core.exceptions import DomainError, NotFoundError
 from app.models.group import Group
 from app.models.user import User
 from app.repositories import group_repository, user_repository
+from app.services import audit
 from app.services.auth.authorization import existing_organisation
 
 logger = logging.getLogger(__name__)
@@ -131,6 +132,10 @@ def create_group(
     logger.info(
         "Group created: actor=%s group=%s organisation=%s", actor.id, group.slug, club
     )
+    audit.record(
+        db, actor.id, action="group.create", entity_type="group", entity_id=group.id,
+        payload={"slug": group.slug, "name": group.name, "organisation_id": club},
+    )
     return group
 
 
@@ -145,6 +150,7 @@ def update_group(
     """Renomme et redécrit. **Le slug ne bouge pas** — il est l'identité du groupe,
     et le changer serait un changement d'identité déguisé en modification de
     libellé. Aucune appartenance n'est touchée (FR-006)."""
+    avant = {"name": group.name, "description": group.description}
     if name is not None:
         group.name = name
     if description is not None:
@@ -152,6 +158,14 @@ def update_group(
     db.flush()
 
     logger.info("Group updated: actor=%s group=%s", actor.id, group.slug)
+    audit.record(
+        db, actor.id, action="group.update", entity_type="group", entity_id=group.id,
+        payload={
+            "slug": group.slug,
+            "before": avant,
+            "after": {"name": group.name, "description": group.description},
+        },
+    )
     return group
 
 
@@ -170,7 +184,12 @@ def delete_group(db: Session, actor: User, group: Group) -> None:
         )
 
     logger.info("Group deleted: actor=%s group=%s", actor.id, group.slug)
+    group_id, slug = group.id, group.slug
     group_repository.delete(db, group)
+    audit.record(
+        db, actor.id, action="group.delete", entity_type="group", entity_id=group_id,
+        payload={"slug": slug},
+    )
 
 
 def add_member(db: Session, actor: User, *, group: Group, user: User) -> None:
@@ -188,6 +207,10 @@ def add_member(db: Session, actor: User, *, group: Group, user: User) -> None:
         group.slug,
         created,
     )
+    audit.record(
+        db, actor.id, action="group.member_add", entity_type="group", entity_id=group.id,
+        payload={"slug": group.slug, "user_id": user.id, "email": user.email, "created": created},
+    )
 
 
 def remove_member(db: Session, actor: User, *, group: Group, user: User) -> None:
@@ -202,6 +225,10 @@ def remove_member(db: Session, actor: User, *, group: Group, user: User) -> None
         actor.id,
         user.id,
         group.slug,
+    )
+    audit.record(
+        db, actor.id, action="group.member_remove", entity_type="group", entity_id=group.id,
+        payload={"slug": group.slug, "user_id": user.id, "email": user.email},
     )
 
 

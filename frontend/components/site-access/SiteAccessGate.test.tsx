@@ -174,3 +174,22 @@ describe("SiteAccessGate", () => {
     }
   });
 });
+
+describe("SiteAccessGate — retour vers l'écran refusé (#877, revue UI/UX)", () => {
+  beforeEach(() => {
+    siteAccessLogin.mockReset();
+    push.mockReset();
+    refresh.mockReset();
+  });
+
+  it("revient sur l'écran d'où vient l'admin plutôt que sur l'accueil", async () => {
+    siteAccessLogin.mockResolvedValue(undefined);
+    render(<SiteAccessGate apres="accueil" retour="/admin/utilisateurs" />);
+
+    await userEvent.type(screen.getByLabelText(/code d'accès/i), "un-code");
+    await userEvent.click(screen.getByRole("button", { name: /entrer|valider|accéder/i }));
+
+    expect(push).toHaveBeenCalledWith("/admin/utilisateurs");
+  });
+});
+

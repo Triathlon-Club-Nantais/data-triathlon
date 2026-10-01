@@ -23,6 +23,7 @@ from app.cli.commands.import_sheet import import_sheet
 from app.cli.commands.purge_timepulse_duplicates import purge_timepulse_duplicates
 from app.cli.commands.rescrape_db import rescrape_db
 from app.cli.commands.revoke_sessions import revoke_sessions
+from app.cli.commands.set_site_code import set_site_code
 from app.core.logging import setup_logging
 
 app = typer.Typer(help="Outillage d'import de masse et de rescrape.")
@@ -34,6 +35,7 @@ app.command("import-sheet")(import_sheet)
 app.command("purge-timepulse-duplicates")(purge_timepulse_duplicates)
 app.command("rescrape-db")(rescrape_db)
 app.command("revoke-sessions")(revoke_sessions)
+app.command("set-site-code")(set_site_code)
 
 
 def load_counter_scope() -> None:

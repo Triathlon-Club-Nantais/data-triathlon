@@ -8,23 +8,22 @@ et un générateur de progression pour le streaming SSE.
 """
 import logging
 import queue
-import random
 import threading
-import time
 from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from datetime import datetime
 from urllib.parse import urlparse
 
-import psycopg.errors
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.core.database import SessionLocal
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
+from app.core.gender import normalize_gender
 from app.core.text import deaccent
 from app.core.time import utcnow
+from app.core.youth import is_youth
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.course_source import CourseSource
@@ -33,6 +32,7 @@ from app.repositories import (
     athlete_repository,
     course_repository,
     course_source_repository,
+    lock_repository,
     participation_repository,
 )
 from app.scrapers import registry
@@ -47,6 +47,7 @@ from app.scrapers.base import (
 )
 from app.scrapers.utils import is_masked_name, split_relay_teammates, to_seconds
 from app.services import cache, course_reconciliation, mapping, quality
+from app.services.deadlock import deadlock_retries
 
 logger = logging.getLogger(__name__)
 
@@ -201,7 +202,7 @@ def _scrape_all(
     Retour : `(results, trace)`.
 
     Pas de progression par heat ici — le chemin SSE l'obtient via
-    `_scrape_all_streaming`, qui est un générateur. Ce chemin non-streaming
+    `scrape_all_streaming`, qui est un générateur. Ce chemin non-streaming
     reste utilisé par le CLI (`batch`) et le fallback `import_event`.
 
     `use_cache_probe=False` retire le cache TTL **par heat** (#285) : sans probe,
@@ -237,11 +238,10 @@ def _scrape_all(
     # Déballé hors du `try` : un retour mal formé est un défaut de code, pas un
     # fournisseur non supporté (#1016).
     results, trace = outcome
-    _require_event_name(url, results)
-    return results, trace
+    return _importable(url, results), trace
 
 
-def _scrape_all_streaming(
+def scrape_all_streaming(
     url: str, db: Session, settings: Settings, *, use_cache_probe: bool = True,
     single_heat: bool = False,
 ) -> Iterator[dict]:
@@ -406,8 +406,22 @@ def _scrape_all_streaming(
         raise ScraperError(f"Erreur lors de l'import : {exc}") from exc
 
     results, trace = holder["outcome"]
+    return (_importable(url, results), trace)
+
+
+def _importable(url: str, results: list[ScrapedResult]) -> list[ScrapedResult]:
+    """Les résultats scrapés que l'import écrit : l'épreuve doit avoir un nom, et
+    les épreuves jeunes (jusqu'à Minime) sont écartées (#881, RGPD).
+
+    Ici et non dans chaque scraper : les deux chemins de scrape (bloquant et
+    SSE) aboutissent là, et tout chemin d'écriture, import comme re-scrape
+    admin, passe par l'un d'eux.
+    """
     _require_event_name(url, results)
-    return (results, trace)
+    retenus = [r for r in results if not is_youth(r.event_name, r.category)]
+    if len(retenus) < len(results):
+        logger.info("Import %s : %d ligne(s) d'épreuve jeune écartée(s)", url, len(results) - len(retenus))
+    return retenus
 
 
 def _require_event_name(url: str, results: list[ScrapedResult]) -> None:
@@ -598,6 +612,8 @@ class _Persister:
         self._credits: dict[int, dict[int, int]] = {}
         self._updated_single: dict[int, set[int]] = {}
         self._courses: dict[int, Course] = {}
+        #: Changements de club et de genre, appliqués une fois par `finalize` (#980).
+        self._athlete_updates: dict[int, tuple[Athlete, dict[str, str]]] = {}
         # Cache de résolution de course par lot (#759) : sans lui, `add()`
         # rappelle `mapping.get_or_create_course` (3 requêtes DB minimum) à
         # chaque participation, même quand tout le lot appartient à la même
@@ -757,11 +773,14 @@ class _Persister:
             return
         resolution = self._course_resolutions.get(cache_key)
         if resolution is None:
-            resolution = mapping.get_or_create_course(self.db, scraped, self.event_url)
+            resolution = self._resolve_locked_course(scraped)
             self._course_resolutions[cache_key] = resolution
         course = resolution.course
         if resolution.passive_source is not None:
             self._note_passive(course, resolution.passive_source)
+        if course.id not in self._courses:
+            # Constat de la machine, réécrit à chaque passage (#993).
+            course.ranked_by_laps = scraped.ranked_by_laps
         self._courses[course.id] = course
         self._index_course(course.id)
         if nameless:
@@ -918,7 +937,7 @@ class _Persister:
             for item, teammates in zip(pending, decisions, strict=True)
             if teammates is None and not item.reconcile_blocked and item.scraped.club
             for athlete in [found[_identity_key(item.scraped)]]
-            if athlete.club != item.scraped.club and not athlete.club_locked
+            if self._club_of(athlete) != item.scraped.club and not athlete.club_locked
         }
         latest_clubs = athlete_repository.latest_club_dates(self.db, list(club_changes))
 
@@ -945,15 +964,16 @@ class _Persister:
             self._present_ids[course_id].add(athlete.id)
             club = item.scraped.club or None
             if (
-                club and athlete.club != club and not athlete.club_locked
+                club and self._club_of(athlete) != club and not athlete.club_locked
                 and athlete_repository.club_is_current(course_date, latest_clubs.get(athlete.id))
             ):
                 # Même règle que la branche « existant » de
                 # `athlete_repository.resolve` — sans effet sur la ligne qui
                 # vient de créer `athlete` (son club est déjà le sien).
-                athlete.club = club
-            if item.scraped.gender and not athlete.gender:
-                athlete.gender = item.scraped.gender
+                self._defer_update(athlete, club=club)
+            gender = normalize_gender(item.scraped.gender)
+            if gender and not self._gender_of(athlete):
+                self._defer_update(athlete, gender=gender)
 
             is_creator = key in created_keys and key not in creation_consumed
             if is_creator:
@@ -1131,6 +1151,42 @@ class _Persister:
         self._credits[course_id][athlete_id] -= 1
         return rows[0]
 
+    def _resolve_locked_course(self, scraped: ScrapedResult) -> mapping.CourseResolution:
+        """Résout l'épreuve, puis la verrouille (#982).
+
+        Le verrou attend la fin d'un geste admin sur l'épreuve plutôt que
+        d'écrire sous lui ; le geste, lui, reçoit un 409 tant que l'import la
+        tient. Si ce geste l'a supprimée pendant l'attente, la ligne résolue
+        n'existe plus : on la résout de nouveau, ce qui la recrée.
+        """
+        resolution = mapping.get_or_create_course(self.db, scraped, self.event_url)
+        if resolution.course.id in self._courses:
+            return resolution
+        lock_repository.lock_course(self.db, resolution.course.id)
+        if course_repository.get_fresh(self.db, resolution.course.id) is None:
+            self.db.expunge(resolution.course)
+            resolution = mapping.get_or_create_course(self.db, scraped, self.event_url)
+            lock_repository.lock_course(self.db, resolution.course.id)
+        return resolution
+
+    def _defer_update(self, athlete: Athlete, **fields: str) -> None:
+        """Retient un changement de club ou de genre, appliqué par `finalize` (#980).
+
+        Écrits au fil des tranches, dans l'ordre du chronométreur, ces UPDATE
+        partaient sur plusieurs flush : SQLAlchemy ne les trie par clé qu'à
+        l'intérieur d'un flush, et deux imports concurrents prenaient les mêmes
+        lignes dans des ordres croisés, jusqu'au deadlock (#771).
+        """
+        self._athlete_updates.setdefault(athlete.id, (athlete, {}))[1].update(fields)
+
+    def _club_of(self, athlete: Athlete) -> str | None:
+        pending = self._athlete_updates.get(athlete.id)
+        return pending[1].get("club", athlete.club) if pending else athlete.club
+
+    def _gender_of(self, athlete: Athlete) -> str:
+        pending = self._athlete_updates.get(athlete.id)
+        return pending[1].get("gender", athlete.gender) if pending else athlete.gender
+
     def finalize(self) -> None:
         # Reliquat de chaque course : ce qui n'a pas atteint une pleine
         # tranche pendant `add` se résout ici (#706).
@@ -1139,6 +1195,11 @@ class _Persister:
         for course_id, splits in self._pending_splits.items():
             self._pending[course_id] = splits
             self._resolve_pending(course_id)
+        if self._athlete_updates:
+            athlete_repository.apply_updates(
+                self.db, [self._athlete_updates[aid] for aid in sorted(self._athlete_updates)]
+            )
+            self._athlete_updates.clear()
         for course_id, course in self._courses.items():
             course_repository.touch_scraped_at(self.db, course)
             course_source_repository.touch_active_scraped_at(self.db, course_id)
@@ -1517,11 +1578,17 @@ def import_event(
         }
 
     try:
-        outcome = persist_results(db, url, results)
-        if persist:
-            db.commit()
-        else:
-            db.rollback()  # dry-run : traverser la persistance, ne rien écrire
+        for attempt in deadlock_retries(db, label=url):
+            with attempt:
+                cached = _lock_url_and_recheck_cache(db, url, settings, force=force)
+                if cached is not None:
+                    db.rollback()
+                    return {**cached, **_fanout_counters(trace)}
+                outcome = persist_results(db, url, results)
+                if persist:
+                    db.commit()
+                else:
+                    db.rollback()  # dry-run : traverser la persistance, ne rien écrire
     except Exception:
         db.rollback()
         logger.exception("Rollback de l'import %s", url)
@@ -1551,16 +1618,25 @@ def _confirm_committed(db: Session, courses: list[dict], since: datetime) -> boo
     return True
 
 
-_DEADLOCK_MAX_ATTEMPTS = 3
+def _lock_url_and_recheck_cache(
+    db: Session, url: str, settings: Settings, *, force: bool
+) -> dict | None:
+    """Sérialise les imports d'une même URL, entre processus (#1024).
 
+    Rien ne les sérialisait : un import public (SSE) et `rescrape-db` (GitHub
+    Actions) pouvaient écrire la même épreuve en même temps, en doublons ou en
+    phase `error`. Le verrou consultatif est pris au début de la transaction de
+    persistance, puis le cache TTL est **relu sous le verrou** : l'import qui
+    attendait voit le commit de celui qui le précédait, et rend son résultat au
+    lieu de réécrire. `force=True` ne relit pas : il demande de réécrire.
 
-def _is_deadlock(exc: Exception) -> bool:
-    """Deadlock Postgres (#771) : `rescrape-db` traite plusieurs chronométreurs
-    en parallèle (#690), chacun dans sa propre transaction — un même athlète TCN
-    mis à jour par deux transactions concurrentes peut faire cycler leurs verrous.
-    Le SQLSTATE `40P01` identifie ce cas précis, indépendamment du message
-    (localisable) : psycopg 3 le porte par la classe `DeadlockDetected`."""
-    return isinstance(getattr(exc, "orig", None), psycopg.errors.DeadlockDetected)
+    La clé est l'URL **soumise**, même pour un fan-out (Klikego, #156) : deux
+    imports du même événement s'excluent, ce qui est le cas mesuré.
+    """
+    lock_repository.lock_import_url(db, url)
+    if force:
+        return None
+    return _cached_result(db, url, settings)
 
 
 def iter_import_event(
@@ -1610,7 +1686,7 @@ def iter_import_event(
         # générateur. L'ancienne branche mono-heat appelait `_scrape_all`
         # directement et laissait donc le flux **muet** pendant tout le scrape,
         # y compris sur un heat Klikego de 250 finishers (revue finale #698).
-        results, trace = yield from _scrape_all_streaming(
+        results, trace = yield from scrape_all_streaming(
             url, db, settings, single_heat=single_heat, use_cache_probe=not force,
         )
     except (ProviderNotSupportedError, ScraperError) as exc:
@@ -1634,56 +1710,55 @@ def iter_import_event(
         return
 
     attempt_started_at = utcnow()
-    for tentative in range(1, _DEADLOCK_MAX_ATTEMPTS + 1):
-        persister = None
-        yield {"phase": "saving", "total": total, "imported": 0, "updated": 0, "skipped": 0, "progress": 0}
-        try:
-            for done, persister in persist_steps(db, url, results):
-                if done and (done % 20 == 0 or done == total):
+    persister = None
+    try:
+        for attempt in deadlock_retries(db, label=url):
+            with attempt:
+                persister = None
+                yield {"phase": "saving", "total": total, "imported": 0, "updated": 0, "skipped": 0, "progress": 0}
+                cached = _lock_url_and_recheck_cache(db, url, settings, force=force)
+                if cached is not None:
+                    db.rollback()
                     yield {
-                        "phase": "saving",
-                        "total": total,
-                        "imported": persister.imported,
-                        "updated": persister.updated,
-                        "skipped": persister.skipped,
-                        "progress": done,
+                        "phase": "done", "total": cached["skipped"], "reassignments": [],
+                        **cached, **_fanout_counters(trace),
                     }
-            if persist:
-                db.commit()
-            else:
-                db.rollback()  # dry-run : traverser la persistance, ne rien écrire
-            break
-        except Exception as exc:
-            db.rollback()
-            if _is_deadlock(exc) and tentative < _DEADLOCK_MAX_ATTEMPTS:
-                # Rien n'a été commité : un nouvel essai repart d'une
-                # transaction propre, avec un `_Persister` neuf (#771).
-                logger.warning(
-                    "Deadlock Postgres pour %s (tentative %d/%d), nouvel essai",
-                    url, tentative, _DEADLOCK_MAX_ATTEMPTS, exc_info=exc,
+                    return
+                for done, persister in persist_steps(db, url, results):
+                    if done and (done % 20 == 0 or done == total):
+                        yield {
+                            "phase": "saving",
+                            "total": total,
+                            "imported": persister.imported,
+                            "updated": persister.updated,
+                            "skipped": persister.skipped,
+                            "progress": done,
+                        }
+                if persist:
+                    db.commit()
+                else:
+                    db.rollback()  # dry-run : traverser la persistance, ne rien écrire
+    except Exception as exc:
+        db.rollback()
+        confirmed = False
+        if persist:
+            try:
+                confirmed = persister is not None and _confirm_committed(
+                    db, persister.courses_summary(), attempt_started_at
                 )
-                time.sleep(random.uniform(0.05, 0.2) * tentative)  # noqa: S311 — jitter anti-collision, pas cryptographique
-                continue
-            confirmed = False
-            if persist:
-                try:
-                    confirmed = persister is not None and _confirm_committed(
-                        db, persister.courses_summary(), attempt_started_at
-                    )
-                except Exception:
-                    # La re-vérification elle-même peut échouer (connexion vraiment
-                    # perdue, pas seulement un accusé égaré) : on ne laisse jamais
-                    # cette panne secondaire faire disparaître la phase `error` que
-                    # le flux SSE doit toujours émettre.
-                    logger.exception("Échec de la re-vérification post-commit pour %s", url)
-            if not confirmed:
-                logger.error("Rollback de l'import streaming %s", url, exc_info=exc)
-                yield {"phase": "error", "message": "Erreur lors de l'enregistrement des résultats."}
-                return
-            logger.warning(
-                "Accusé de commit perdu mais écriture confirmée en base pour %s", url, exc_info=exc
-            )
-            break
+            except Exception:
+                # La re-vérification elle-même peut échouer (connexion vraiment
+                # perdue, pas seulement un accusé égaré) : on ne laisse jamais
+                # cette panne secondaire faire disparaître la phase `error` que
+                # le flux SSE doit toujours émettre.
+                logger.exception("Échec de la re-vérification post-commit pour %s", url)
+        if not confirmed:
+            logger.error("Rollback de l'import streaming %s", url, exc_info=exc)
+            yield {"phase": "error", "message": "Erreur lors de l'enregistrement des résultats."}
+            return
+        logger.warning(
+            "Accusé de commit perdu mais écriture confirmée en base pour %s", url, exc_info=exc
+        )
 
     yield {
         "phase": "done",

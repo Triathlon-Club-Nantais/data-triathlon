@@ -149,7 +149,7 @@ Six champs et deux paramètres, tous **additifs**, tous à défaut neutre.
   elle-même vit dans `app/services/split_gap.py` et **nulle part ailleurs** — le front en a
   besoin par ligne, la synthèse pour la médiane, et deux implémentations divergeraient
   comme les trois listes du critère club de #76. Son **gabarit de segments dérive de
-  `services/mapping._SPLIT_KEYS_BY_SPORT`**, la table qui pose les clés de `splits` : en
+  `services/mapping.SPLIT_KEYS_BY_SPORT`**, la table qui pose les clés de `splits` : en
   tenir une copie, c'est garantir la divergence, et le premier jet de ce module l'a
   démontré — sa copie valait `bike/run` pour un bike-run là où le gabarit réel pose
   `segment1/bike/run`, d'où un tiers du parcours ignoré et un écart fabriqué. Le point de
@@ -397,6 +397,13 @@ doublons suspects (#288), le journal d'administration en lecture (#501) —
 détail dans `docs/api/admin-donnees.md` ; retours utilisateurs (#267) et
 statistiques détaillées d'une participation (#272) —
 détail dans `docs/api/feedback-stats.md`.
+
+**Le journal s'écrit dans le service, jamais dans la route** (#935) : le service
+appelle `services/audit.record` dans la transaction de son effet, et un geste
+refusé lève avant d'y arriver. Une route ne touche donc jamais
+`admin_action_log_repository`. Tout geste d'administration y passe, rôles,
+groupes, liste d'autorisation et révocation de sessions compris ; les commandes
+CLI d'amorçage, sans acteur, n'écrivent rien.
 
 ## Page bénévoles : une seconde garde, hors du socle SSO (#271)
 

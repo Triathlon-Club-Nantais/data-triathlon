@@ -24,6 +24,9 @@ EPREUVE_566 = _fixture("chronoplace_epreuve_566.html")   # swimrun, catégories 
 EPREUVE_493 = _fixture("chronoplace_epreuve_493.html")   # 24h VTT, isTeam
 EPREUVE_551 = _fixture("chronoplace_epreuve_551.html")   # isTeam, nom vide, équipe en « Club »
 RECHERCHE_2025 = _fixture("chronoplace_recherche_2025.html")  # annuaire, porteur des dates
+# Markup de septembre 2026 : `sortBy` sur le bouton du `<th>`, deux tables par page.
+EPREUVE_566_2026 = _fixture("chronoplace_epreuve_566_2026.html")  # swimrun, durée fixe
+EPREUVE_551_2026 = _fixture("chronoplace_epreuve_551_2026.html")  # isTeam, tours fixés
 
 
 def test_parse_url_avec_epreuve():
@@ -108,6 +111,19 @@ def test_parse_table_lit_les_colonnes_par_cle():
         "T_course_a_pied": "00:04:33",
         "temps": "01:01:26",
     }
+
+
+def test_parse_table_lit_la_cle_sur_le_bouton_du_th():
+    """Septembre 2026 : `wire:click="sortBy(...)"` a glissé du `<th>` vers son
+    `<button>`, et la page porte une seconde table (vue étroite). Sans ce
+    correctif, tout import chronoplace rendait 0 participant."""
+    rows = chronoplace._parse_table(EPREUVE_566_2026)
+
+    assert len(rows) == 4
+    assert rows[0]["position"] == "1"
+    assert rows[0]["nom"] == "MARTIN Nicolas"
+    assert rows[0]["nb_tours"] == "15"
+    assert rows[0]["temps"] == "02:00:20"
 
 
 def test_parse_table_colonnes_differentes_selon_lepreuve():
@@ -1075,3 +1091,86 @@ def test_sibling_epreuves_of_one_event_never_share_a_course_name():
     }
 
     assert len(noms) == 5
+
+
+
+# ── Épreuves au nombre de tours (#993) ──────────────────────────────────────
+
+
+def _colmont():
+    return chronoplace._epreuve_results(
+        EPREUVE_551_2026,
+        "https://www.chronoplace.fr/classement/vetathlon-de-la-colmont-2025/epreuve/551",
+        "vetathlon-de-la-colmont-2025",
+        None,
+    )
+
+
+def _spaycific():
+    return chronoplace._epreuve_results(
+        EPREUVE_566_2026,
+        "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/566",
+        "spaycific-races-2025",
+        None,
+    )
+
+
+def test_tours_fixes_une_ligne_sous_le_maximum_est_un_abandon():
+    """Vétathlon de la Colmont 2025 (551) : 50 équipes à 9 tours, 2 à 5 et 1 à 1.
+    Le tour incomplet est le seul signal d'abandon que publie la source : sans
+    lui, l'équipe arrêtée après 1 tour sortait finisher, au meilleur temps."""
+    resultats = _colmont()
+    par_tours = {r.raw_data["nb_tours"]: r for r in resultats}
+
+    assert par_tours["9"].status == ""
+    assert par_tours["9"].total_time != ""
+    for tours in ("5", "1"):
+        abandon = par_tours[tours]
+        assert abandon.status == "DNF"
+        assert abandon.total_time == ""
+        assert abandon.rank_overall is None
+    assert not any(r.ranked_by_laps for r in resultats)
+
+
+def test_duree_fixe_marque_l_epreuve_au_tour_sans_abandon():
+    """SwimRun Spay'cific 2025 (566) : tout le monde arrêté vers 2 h, de 9 à 15
+    tours. Personne n'abandonne, mais le temps ne mesure pas la performance."""
+    resultats = _spaycific()
+
+    assert all(r.ranked_by_laps for r in resultats)
+    assert {r.status for r in resultats} == {""}
+
+
+def test_epreuve_sans_tours_reste_ordinaire():
+    resultats = chronoplace._epreuve_results(
+        EPREUVE_494,
+        "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/494",
+        "spaycific-races-2025",
+        None,
+    )
+
+    assert not any(r.ranked_by_laps for r in resultats)
+    assert {r.status for r in resultats} == {""}
+
+
+
+def test_ambiguous_lap_race_is_left_untouched():
+    """Revue de lot 6 : une durée fixe dont un concurrent s'arrête tôt dépasse les
+    20 % d'écart de temps, sans être pour autant à tours fixés (peu de lignes au
+    maximum). Déclarer DNF tous ceux sous le maximum y effacerait le classement :
+    faute d'un signal clair, on ne touche à rien."""
+    from app.scrapers.base import ScrapedResult
+
+    def ligne(tours, temps):
+        r = ScrapedResult(source_url="u", provider="chronoplace", total_time=temps, rank_overall=1)
+        r.raw_data = {"nb_tours": str(tours)}
+        return r
+
+    resultats = [ligne(15, "02:00:20"), ligne(13, "02:01:00"), ligne(12, "02:00:30"),
+                 ligne(11, "02:01:03"), ligne(3, "00:30:00")]
+
+    chronoplace._apply_lap_format(resultats, "spaycific")
+
+    assert {r.status for r in resultats} == {""}
+    assert not any(r.ranked_by_laps for r in resultats)
+    assert all(r.total_time for r in resultats)

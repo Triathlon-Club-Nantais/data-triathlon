@@ -54,10 +54,9 @@ def _rank_counters(rows) -> dict:
         _accumule(category, rank_category_)
         _accumule(tous, _meilleur_rang([rank_overall, rank_gender, rank_category_]))
 
-        g = (gender or "").upper()
-        if g == "F":
+        if gender == "F":
             _accumule(genre["women"], rank_gender)
-        elif g == "M":
+        elif gender == "M":
             _accumule(genre["men"], rank_gender)
 
     return {"scratch": scratch, "category": category, "all": tous, "gender": genre}
@@ -285,10 +284,9 @@ def course_summary(db: Session, course_id: int) -> dict:
             # Statut vide ou non reconnu : ni finisher ni abandon (#23).
             unknown += 1
 
-        initiale = (gender or "").strip().lower()[:1]
-        if initiale in ("f", "w"):
+        if gender == "F":
             female += 1
-        elif initiale in ("m", "h"):
+        elif gender == "M":
             male += 1
 
         # Un libellé sans lettre ni chiffre (« - », « --- ») est le remplissage
@@ -372,7 +370,8 @@ def course_summary(db: Session, course_id: int) -> dict:
         # ce sont des clubs. Les deux disent ce que la carte omet, dans deux
         # unités différentes.
         "clubs_total": len(clubs),
-        "histogram": _histogram(secondes),
+        # Une épreuve à durée fixe classe aux tours : ses temps ne se comparent pas (#993).
+        "histogram": None if course is not None and course.ranked_by_laps else _histogram(secondes),
         "split_keys": split_gap.chronological(split_keys),
         # Une **mesure**, pas un verdict : la médiane sert de référence à l'écran,
         # qui applique ses propres seuils. Les régler après re-sondage ne touche

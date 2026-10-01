@@ -46,7 +46,7 @@ KNOWN_STATUSES = frozenset(
 )
 
 # Un temps total « zéro » vaut temps absent : les chronos le rendent de plusieurs façons.
-_ZERO_TIMES = frozenset({"", "00:00:00", "0:00:00", "00:00", "0:00", "0"})
+ZERO_TIMES = frozenset({"", "00:00:00", "0:00:00", "00:00", "0:00", "0"})
 
 
 @dataclass(frozen=True)
@@ -60,7 +60,7 @@ def _normalized_status(participation) -> str:
 
 
 def _has_no_time(participation) -> bool:
-    return (participation.total_time or "").strip() in _ZERO_TIMES
+    return (participation.total_time or "").strip() in ZERO_TIMES
 
 
 def _has_invalid_time(participation) -> bool:

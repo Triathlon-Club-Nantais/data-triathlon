@@ -16,7 +16,7 @@ import { messageDeRefus } from "@/lib/api/refus";
 import { localToday } from "@/lib/utils/date";
 import type { TrainingSession } from "@/lib/types";
 
-const REFUS = { sujet: "les entraînements", action: "ouvrir l'appel" };
+const REFUS = { sujet: "entraînements", action: "ouvrir l'appel" };
 
 function libelleSeance(entrainement: TrainingSession): string {
   const parties = [

@@ -20,7 +20,7 @@ from app.repositories import (
     user_repository,
 )
 from app.scrapers.base import FanoutTrace, ScrapedResult
-from app.services import admin_actions, import_service, quality
+from app.services import admin_actions, deadlock, import_service, quality
 
 
 def _settings() -> Settings:
@@ -111,7 +111,7 @@ def test_import_stamps_the_active_source_and_leaves_passive_ones_alone(db_sessio
         db_session, course=course, url="https://www.klikego.com/resultats/autre/9", provider="klikego"
     )
     course.scraped_at = utcnow() - timedelta(days=40)
-    db_session.flush()
+    db_session.commit()  # expiration visible sous le verrou d'URL (#1024)
 
     import_service.import_event(db_session, URL, _settings())
 
@@ -128,7 +128,7 @@ def test_reimport_after_cache_dedups_by_bib(db_session, patch_scraper):
     # Force l'expiration du cache → re-scrape, mais le dossard 1 existe déjà
     course = course_repository.get_latest_by_source_url(db_session, URL)
     course.scraped_at = utcnow() - timedelta(days=40)
-    db_session.flush()
+    db_session.commit()  # expiration visible sous le verrou d'URL (#1024)
 
     patch_scraper([_result("1", "DUPONT"), _result("2", "MARTIN")])
     out = import_service.import_event(db_session, URL, _settings())
@@ -272,6 +272,174 @@ def test_reimport_backfills_empty_gender_but_keeps_known_one(db_session, patch_s
     assert athlete_repository.get_by_identity(db_session, "GENRE", "Lou", None).gender == "M"
 
 
+def test_import_normalizes_the_gender_to_m_f_or_empty(db_session, patch_scraper):
+    """#936: `H`, `Femme`, `X` published by providers land as `M`, `F`, `""`."""
+    patch_scraper(
+        [
+            _result("1", "HOMME", prenom="Hugo", gender="H"),
+            _result("2", "FEMME", prenom="Fanny", gender="Femme"),
+            _result("3", "AUTRE", prenom="Alix", gender="X"),
+        ]
+    )
+    import_service.import_event(db_session, URL, _settings())
+
+    assert athlete_repository.get_by_identity(db_session, "HOMME", "Hugo", None).gender == "M"
+    assert athlete_repository.get_by_identity(db_session, "FEMME", "Fanny", None).gender == "F"
+    assert athlete_repository.get_by_identity(db_session, "AUTRE", "Alix", None).gender == ""
+
+
+def test_reimport_backfills_a_normalized_gender(db_session, patch_scraper):
+    """#936: the backfill of an empty gender goes through the same normalizer,
+    and an unreadable value (`X`) backfills nothing."""
+    patch_scraper([_result("1", "VIDE", prenom="Cam", gender=""), _result("2", "RESTE", prenom="Sam", gender="")])
+    import_service.import_event(db_session, URL, _settings())
+
+    patch_scraper([_result("1", "VIDE", prenom="Cam", gender="W"), _result("2", "RESTE", prenom="Sam", gender="X")])
+    import_service.import_event(db_session, URL, _settings(), force=True)
+
+    assert athlete_repository.get_by_identity(db_session, "VIDE", "Cam", None).gender == "F"
+    assert athlete_repository.get_by_identity(db_session, "RESTE", "Sam", None).gender == ""
+
+
+def test_import_skips_youth_heats_and_rows(db_session, patch_scraper):
+    """#881: an event import no longer brings children's results in, whether
+    the heat name or the row category says so. Cadets stay imported."""
+    patch_scraper(
+        [
+            _result("1", "ADULTE", prenom="Ada"),
+            _result("2", "ENFANT", prenom="Eli", event_name="Triathlon de Nantes - Poussins"),
+            _result("3", "MINIME", prenom="Max", category="MIH"),
+            _result("4", "CADET", prenom="Cal", category="CAH"),
+        ]
+    )
+
+    out = import_service.import_event(db_session, URL, _settings())
+
+    assert out["imported"] == 2
+    assert athlete_repository.get_by_identity(db_session, "ENFANT", "Eli", None) is None
+    assert athlete_repository.get_by_identity(db_session, "MINIME", "Max", None) is None
+    assert athlete_repository.get_by_identity(db_session, "CADET", "Cal", None) is not None
+
+
+def test_import_locks_every_course_it_writes(db_session, patch_scraper, monkeypatch):
+    """#982: an import waits on the course lock an admin gesture holds, instead
+    of writing under it; the admin gesture, in turn, gets a 409."""
+    from app.repositories import lock_repository
+
+    verrouillees = []
+    monkeypatch.setattr(lock_repository, "lock_course", lambda _db, cid: verrouillees.append(cid))
+    patch_scraper([
+        _result("1", "UN", event_name="Epreuve A"),
+        _result("2", "DEUX", event_name="Epreuve A"),
+        _result("3", "TROIS", event_name="Epreuve B"),
+    ])
+
+    import_service.import_event(db_session, URL, _settings())
+
+    assert len(verrouillees) == 2
+    assert len(set(verrouillees)) == 2
+
+
+def test_import_recreates_a_course_deleted_while_it_waited_on_the_lock(
+    db_session, patch_scraper, monkeypatch
+):
+    """Revue de lot 6 : l'import attend le verrou d'une épreuve qu'un admin est
+    en train de supprimer. Au réveil, la ligne n'existe plus : il la résout de
+    nouveau au lieu d'écrire sous une clé étrangère morte."""
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models.course import Course
+    from app.repositories import lock_repository
+
+    patch_scraper([_result("1", "PREMIER")])
+    import_service.import_event(db_session, URL, _settings())
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    course.scraped_at = utcnow() - timedelta(days=40)
+    db_session.commit()
+    supprimee = []
+
+    def _lock_course(db, course_id):
+        # Le geste admin qui tenait le verrou vient de commiter la suppression.
+        if not supprimee:
+            supprimee.append(course_id)
+            autre = sessionmaker(bind=db.get_bind())()
+            autre.delete(autre.get(Course, course_id))
+            autre.commit()
+            autre.close()
+
+    monkeypatch.setattr(lock_repository, "lock_course", _lock_course)
+    patch_scraper([_result("1", "PREMIER"), _result("2", "SECOND")])
+
+    out = import_service.import_event(db_session, URL, _settings())
+
+    assert supprimee
+    assert out["imported"] == 2
+    recree = course_repository.get_latest_by_source_url(db_session, URL)
+    assert participation_repository.count_for_course(db_session, recree.id) == 2
+
+
+def test_concurrent_import_of_the_same_url_reuses_the_committed_result(
+    db_session, patch_scraper, monkeypatch
+):
+    """#1024: two imports of one URL are serialized on an advisory lock. The
+    second, once it holds the lock, sees the first one's commit through the
+    cache check and writes nothing more."""
+    from app.repositories import lock_repository
+
+    patch_scraper([_result("1", "PREMIER")])
+    concurrent_fait = []
+
+    def _lock_import_url(db, url):
+        # Pendant que ce second import attendait le verrou, le premier a commité.
+        if not concurrent_fait:
+            concurrent_fait.append(url)
+            monkeypatch.setattr(lock_repository, "lock_import_url", lambda *_: None)
+            import_service.import_event(db, URL, _settings())
+
+    monkeypatch.setattr(lock_repository, "lock_import_url", _lock_import_url)
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    assert concurrent_fait == [URL]
+    assert phases[-1]["phase"] == "done"
+    assert phases[-1]["imported"] == 0
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    assert participation_repository.count_for_course(db_session, course.id) == 1
+
+
+def test_a_forced_import_takes_the_url_lock_without_the_cache_check(
+    db_session, patch_scraper, monkeypatch
+):
+    from app.repositories import lock_repository
+
+    verrous = []
+    monkeypatch.setattr(lock_repository, "lock_import_url", lambda _db, url: verrous.append(url))
+    patch_scraper([_result("1", "FORCE")])
+
+    import_service.import_event(db_session, URL, _settings(), force=True)
+
+    assert verrous == [URL]
+
+
+def test_a_lap_count_course_is_marked_and_left_out_of_time_statistics(db_session, patch_scraper):
+    """#993: on a fixed-duration race, the time does not measure the
+    performance. The course carries the format; the time histogram and the
+    comparison to reference positions leave it out."""
+    from app.services import participation_stats_service, stats_service
+
+    patch_scraper([
+        _result("1", "UN", rank_overall=1, total_time="02:00:20", ranked_by_laps=True),
+        _result("2", "DEUX", rank_overall=2, total_time="02:00:30", ranked_by_laps=True),
+    ])
+    import_service.import_event(db_session, URL, _settings())
+
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    assert course.ranked_by_laps is True
+    assert stats_service.course_summary(db_session, course.id)["histogram"] is None
+    ligne = participation_repository.list_for_course(db_session, course.id)[0]
+    assert participation_stats_service.build(db_session, ligne) is None
+
+
 def test_import_calcule_l_indice_de_fiabilite(db_session, patch_scraper):
     patch_scraper([_result("1", "DUPONT", rank_overall=1), _result("2", "MARTIN", rank_overall=2)])
     import_service.import_event(db_session, URL, _settings())
@@ -357,7 +525,7 @@ def test_reimport_apres_cache_ne_compte_pas_les_dossards_deja_en_base(
 
     course = course_repository.get_latest_by_source_url(db_session, URL)
     course.scraped_at = utcnow() - timedelta(days=40)  # force l'expiration du cache
-    db_session.flush()
+    db_session.commit()  # expiration visible sous le verrou d'URL (#1024)
 
     patch_scraper([_result("1", "DUPONT", rank_overall=1), _result("2", "MARTIN", rank_overall=2)])
     out = import_service.import_event(db_session, URL, _settings())
@@ -377,7 +545,7 @@ def _expire_cache(db_session, url=URL):
 
     course = course_repository.get_latest_by_source_url(db_session, url)
     course.scraped_at = utcnow() - timedelta(days=40)
-    db_session.flush()
+    db_session.commit()  # expiration visible sous le verrou d'URL (#1024)
 
 
 # ── Participations sans dossard — le dédoublonnage ne peut pas s'appuyer sur le bib
@@ -519,7 +687,7 @@ def test_a_dispatcher_returning_the_old_list_shape_is_not_reported_as_unsupporte
 
     with pytest.raises(ValueError) as raised:
         if streaming:
-            list(import_service._scrape_all_streaming(URL, db_session, _settings(), use_cache_probe=False))
+            list(import_service.scrape_all_streaming(URL, db_session, _settings(), use_cache_probe=False))
         else:
             import_service._scrape_all(URL, db_session, _settings(), use_cache_probe=False)
 
@@ -1062,7 +1230,7 @@ def test_iter_import_event_deadlock_est_rejoue(db_session, patch_scraper, monkey
     """#771 : un deadlock Postgres (concurrence `rescrape-db` entre chronométreurs,
     #690) ne doit pas perdre l'épreuve entière — rien n'a été commité, un
     nouvel essai suffit."""
-    monkeypatch.setattr(import_service.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(deadlock.time, "sleep", lambda *_: None)
     patch_scraper([_result("1", "DUPONT")])
     original_commit = db_session.commit
     appels: list[int] = []
@@ -1086,12 +1254,73 @@ def test_iter_import_event_deadlock_est_rejoue(db_session, patch_scraper, monkey
     assert course_repository.get_latest_by_source_url(db_session, URL) is not None
 
 
+def test_import_event_deadlock_est_rejoue_comme_le_flux(db_session, patch_scraper, monkeypatch):
+    """#980 : le chemin bloquant (`import_event`, CLI et fallback) partage le
+    rejeu du flux SSE au lieu d'échouer au premier deadlock."""
+    monkeypatch.setattr(deadlock.time, "sleep", lambda *_: None)
+    patch_scraper([_result("1", "DUPONT")])
+    original_commit = db_session.commit
+    appels: list[int] = []
+
+    def _commit_deadlock_puis_ok():
+        appels.append(1)
+        if len(appels) == 1:
+            raise OperationalError(
+                "UPDATE athletes ...", {}, psycopg.errors.DeadlockDetected("deadlock detected")
+            )
+        original_commit()
+
+    monkeypatch.setattr(db_session, "commit", _commit_deadlock_puis_ok)
+
+    out = import_service.import_event(db_session, URL, _settings())
+
+    assert out["imported"] == 1
+    assert len(appels) == 2
+
+
+def test_athlete_club_and_gender_updates_are_applied_once_in_id_order(
+    db_session, patch_scraper, monkeypatch
+):
+    """#980 : les UPDATE `athletes` partaient au fil des tranches, dans l'ordre
+    du chronométreur, et deux imports concurrents se croisaient en deadlock.
+    Ils sont accumulés, puis appliqués une seule fois, triés par id."""
+    patch_scraper([
+        _result("1", "ZED", prenom="Zoe", club="ASPTT NANTES"),
+        _result("2", "ALPHA", prenom="Al", club="ASPTT NANTES"),
+    ])
+    import_service.import_event(db_session, URL, _settings())
+    zed = athlete_repository.get_by_identity(db_session, "ZED", "Zoe", None)
+    alpha = athlete_repository.get_by_identity(db_session, "ALPHA", "Al", None)
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    course.scraped_at = utcnow() - timedelta(days=40)
+    db_session.commit()
+
+    appliques = []
+    original = athlete_repository.apply_updates
+
+    def _espion(db, updates):
+        appliques.append([athlete.id for athlete, _ in updates])
+        original(db, updates)
+
+    monkeypatch.setattr(athlete_repository, "apply_updates", _espion)
+    patch_scraper([
+        _result("1", "ZED", prenom="Zoe", club="TRI CLUB REZE", gender="F"),
+        _result("2", "ALPHA", prenom="Al", club="TRI CLUB REZE", gender="M"),
+    ])
+    import_service.import_event(db_session, URL, _settings())
+
+    assert appliques == [sorted([zed.id, alpha.id])]
+    db_session.expire_all()
+    assert (zed.club, zed.gender) == ("TRI CLUB REZE", "F")
+    assert (alpha.club, alpha.gender) == ("TRI CLUB REZE", "M")
+
+
 def test_iter_import_event_deadlock_persistant_reste_une_erreur(
     db_session, patch_scraper, monkeypatch,
 ):
     """#771 : au-delà de `_DEADLOCK_MAX_ATTEMPTS`, un deadlock qui persiste
     reste une erreur — pas de ré-essai infini, l'épreuve échoue proprement."""
-    monkeypatch.setattr(import_service.time, "sleep", lambda *_: None)
+    monkeypatch.setattr(deadlock.time, "sleep", lambda *_: None)
     patch_scraper([_result("1", "DUPONT")])
     appels: list[int] = []
 
@@ -1104,7 +1333,7 @@ def test_iter_import_event_deadlock_persistant_reste_une_erreur(
     phases = list(import_service.iter_import_event(db_session, URL, _settings()))
 
     assert phases[-1]["phase"] == "error"
-    assert len(appels) == import_service._DEADLOCK_MAX_ATTEMPTS
+    assert len(appels) == deadlock.MAX_ATTEMPTS
     assert course_repository.get_latest_by_source_url(db_session, URL) is None
 
 
@@ -1297,7 +1526,7 @@ def test_scrape_all_streaming_use_cache_probe_false_desarme_la_sonde_par_heat(
 ):
     """#118 (R2) — `use_cache_probe=False` doit atteindre le chemin **streamé**.
 
-    `_scrape_all` a déjà ce paramètre (#285) ; `_scrape_all_streaming` ne
+    `_scrape_all` a déjà ce paramètre (#285) ; `scrape_all_streaming` ne
     l'exposait pas encore. Sans lui, un re-scrape demandé sur une épreuve
     fan-out fraîchement importée sauterait tous ses heats jugés frais — le
     classement resterait inchangé malgré la demande explicite.
@@ -1315,7 +1544,7 @@ def test_scrape_all_streaming_use_cache_probe_false_desarme_la_sonde_par_heat(
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
 
-    gen = import_service._scrape_all_streaming(
+    gen = import_service.scrape_all_streaming(
         URL, db_session, _settings(), use_cache_probe=False
     )
     list(gen)  # draine les yields intermédiaires, ignore (results, trace)
@@ -1363,7 +1592,7 @@ def test_scrape_all_streaming_cache_probe_utilise_une_session_dediee_au_thread(
 
     monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
 
-    gen = import_service._scrape_all_streaming(URL, db_session, _settings())
+    gen = import_service.scrape_all_streaming(URL, db_session, _settings())
     list(gen)  # draine les yields intermédiaires, ignore (results, trace)
 
     assert captured["cache_probe"] is not None

@@ -26,6 +26,7 @@ from app.repositories import (
     course_source_repository,
     participation_repository,
 )
+from app.services.course_locks import lock_courses_or_409
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +157,7 @@ def merge_courses(db: Session, *, course_id: int, absorbed_id: int, user_id: int
     geste et sa trace indissociables — un refus n'écrit ni donnée ni entrée de
     journal (FR-015).
     """
+    lock_courses_or_409(db, course_id, absorbed_id)
     target, absorbed = _pair_or_400(db, course_id=course_id, absorbed_id=absorbed_id)
 
     resume = {
