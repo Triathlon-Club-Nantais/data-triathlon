@@ -113,6 +113,8 @@ def test_apply_replaces_the_person_by_an_anonymous_teammate(db, course, admin):
     equipe = [db.get(Athlete, i) for i in participation_repository.teammate_athlete_ids(db, relais.id)]
     assert [(a.nom, a.prenom) for a in equipe] == [("MARTIN", "Alix"), (f"Anonyme {course.id}-50-1", "")]
     assert opposition.anonymised_count == 1
+    db.refresh(relais)
+    assert not relais.raw_data
 
 
 def test_apply_cuts_every_other_link_to_the_record(db, course, admin):

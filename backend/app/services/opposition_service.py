@@ -131,6 +131,8 @@ def _anonymise(db: Session, athlete: Athlete) -> int:
         participation_repository.replace_teammate(
             db, participation_id=participation.id, old_athlete_id=athlete.id, new_athlete_id=anonymous.id
         )
+        # La ligne brute d'un relais porte les noms de toute l'équipe.
+        participation.raw_data = {}
     user_repository.detach_athlete(db, athlete.id)
     volunteer_action_repository.delete_for_athlete(db, athlete.id)
     season_validation_repository.delete_for_athlete(db, athlete.id)

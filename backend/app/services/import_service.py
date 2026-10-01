@@ -21,6 +21,7 @@ from app.core.config import Settings
 from app.core.database import SessionLocal
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
 from app.core.gender import normalize_gender
+from app.core.identity import identity_hash
 from app.core.text import deaccent
 from app.core.time import utcnow
 from app.core.youth import is_youth
@@ -33,6 +34,7 @@ from app.repositories import (
     course_repository,
     course_source_repository,
     lock_repository,
+    opposition_repository,
     participation_repository,
 )
 from app.scrapers import registry
@@ -595,6 +597,8 @@ class _Persister:
     def __init__(self, db: Session, event_url: str):
         self.db = db
         self.event_url = event_url
+        # Empreintes des personnes opposées (#334), lues une fois : chaque ligne se teste en mémoire.
+        self._opposed: set[str] = opposition_repository.all_hashes(db)
         self._by_bib: dict[int, dict[str, Participation]] = {}
         self._added_bibs: dict[int, set[str]] = {}
         self._duplicate_bibs: Counter[int] = Counter()
@@ -741,7 +745,8 @@ class _Persister:
         # événements confondus, fusionnaient sur une seule fiche.
         published = _published_name(scraped)
         nameless = not published.strip() or is_masked_name(published)
-        if nameless and not scraped.bib_number:
+        opposed = not nameless and identity_hash(scraped.athlete_name, scraped.athlete_firstname) in self._opposed
+        if (nameless or opposed) and not scraped.bib_number:
             logger.warning(
                 "Row with a masked or empty name and no bib skipped: %s (%s)",
                 scraped.event_name, scraped.source_url or self.event_url,
@@ -783,12 +788,15 @@ class _Persister:
             course.ranked_by_laps = scraped.ranked_by_laps
         self._courses[course.id] = course
         self._index_course(course.id)
-        if nameless:
+        if nameless or opposed:
             # Le dossard est unique sur l'épreuve : l'identité se retrouve au rescrape.
             scraped = replace(
                 scraped, athlete_name=f"Anonyme {course.id}-{scraped.bib_number}",
                 athlete_firstname="",
             )
+        if opposed:
+            # Opposition (#334) : rien de ce qui désigne la personne n'est gardé, rangs et temps si.
+            scraped = replace(scraped, club="", category="", raw_data={})
         bib = scraped.bib_number or None
 
         if bib is not None:
@@ -807,7 +815,7 @@ class _Persister:
                     # est celle de l'équipe, jamais résolue ni réconciliée.
                     self._upsert(existing, scraped)
                     return
-                teammates = _proposed_teammates(scraped)
+                scraped, teammates = self._unopposed_teammates(course.id, bib, scraped)
                 if teammates is not None:
                     # Relais importé avant #895 : découpé au lieu d'être réconcilié.
                     # La garde #66 suit la ligne, pour le cas où le découpage
@@ -849,10 +857,24 @@ class _Persister:
                     self.skipped += 1
                 return
 
-        self._enqueue(
-            course.id, scraped, bib=bib, participation=None,
-            teammates=_proposed_teammates(scraped),
+        scraped, teammates = self._unopposed_teammates(course.id, bib, scraped)
+        self._enqueue(course.id, scraped, bib=bib, participation=None, teammates=teammates)
+
+    def _unopposed_teammates(
+        self, course_id: int, bib: str | None, scraped: ScrapedResult
+    ) -> tuple[ScrapedResult, tuple[tuple[str, str], ...] | None]:
+        """Équipiers proposés, un équipier opposé (#334) devenu anonyme à sa position : l'équipe
+        garde ses 2 à 8 membres. Même nom que celui que pose `opposition_service` sur les relais
+        déjà en base. La ligne brute, qui porte son nom, est alors vidée."""
+        teammates = _proposed_teammates(scraped)
+        if not teammates or not any(identity_hash(*pair) in self._opposed for pair in teammates):
+            return scraped, teammates
+        masked = tuple(
+            (f"Anonyme {course_id}-{bib or 'equipe'}-{position}", "")
+            if identity_hash(*pair) in self._opposed else pair
+            for position, pair in enumerate(teammates)
         )
+        return replace(scraped, raw_data={}), masked
 
     def _enqueue(
         self, course_id: int, scraped: ScrapedResult, *, bib: str | None,
