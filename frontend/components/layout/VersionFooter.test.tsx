@@ -92,4 +92,13 @@ describe("VersionFooter (#134)", () => {
       screen.queryByRole("button", { name: "Oublier le code d'accès sur cet appareil" }),
     ).not.toBeInTheDocument();
   });
+
+  it("porte les liens légaux, même sans code d'accès saisi (#333)", async () => {
+    getVersion.mockResolvedValue({ version: "v0.1.3" });
+    render(<VersionFooter />);
+    await waitFor(() => expect(getVersion).toHaveBeenCalled());
+    const pied = screen.getByRole("contentinfo");
+    const liens = within(pied).getByRole("navigation", { name: "Informations légales" });
+    expect(within(liens).getByRole("link", { name: "Confidentialité" })).toHaveAttribute("href", "/confidentialite");
+  });
 });

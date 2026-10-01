@@ -2,9 +2,10 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "@/lib/api/client";
 import { ForgetSiteAccessButton } from "@/components/site-access/ForgetSiteAccessButton";
+import { LegalLinks } from "@/components/legal/LegalLinks";
 import { useSiteAccessOpen } from "@/components/site-access/site-access-open";
 
-/** Footer discret rendant les versions front + back (#134).
+/** Footer discret rendant les liens légaux (#333) et les versions front + back (#134).
  *
  *  Utilité : quand un utilisateur remonte un bug, on veut savoir si son bundle
  *  et le serveur qu'il tape sont sur la même version. Un rollback qui n'a
@@ -82,6 +83,7 @@ export function VersionFooter() {
 
   return (
     <footer style={{ ...baseStyle, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+      <LegalLinks />
       {version}
       {accesOuvert && <ForgetSiteAccessButton />}
     </footer>

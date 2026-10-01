@@ -111,7 +111,7 @@ appliquent dès #334.
 | Cookie du code d'accès | 90 jours | tenu (`site_access_session_ttl_days`) |
 | Profils jeunes | durée de l'adhésion, plus une saison | **purge à implémenter** |
 
-Les purges marquées « à implémenter » font l'objet d'une issue de suivi. La
+Les purges marquées « à implémenter » font l'objet de #1158. La
 politique annonce ces durées : tant qu'une purge n'est pas livrée, la durée
 annoncée n'est pas tenue, ce qui doit rester un état transitoire court.
 

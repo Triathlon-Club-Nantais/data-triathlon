@@ -16,10 +16,10 @@ Aucune : ni dépendance nouvelle, ni configuration.
 
 ## Phase 2: Foundational (bloque toutes les stories)
 
-- [ ] T001 [P] Écrire `components/legal/LegalPage.test.tsx` : rend le titre (`h1`), la description, « Dernière mise à jour : 1 octobre 2026 » pour `updatedAt: "2026-10-01"` (élément `<time dateTime="2026-10-01">`), un `h2` par rubrique avec son `id` d'ancre, un sommaire `nav` « Sommaire » quand le document a plus de 4 rubriques et aucun à 4 ou moins
-- [ ] T002 [P] Créer les types `LegalDocument` et `LegalSection` dans `components/legal/types.ts` (cf. data-model.md)
-- [ ] T003 Implémenter `components/legal/LegalPage.tsx` (`PageShell`, `PageHeader`, sommaire en liens d'ancre `--tcn-orange-deep`, rubriques en `Card` avec `scrollMarginTop`), jusqu'à faire passer T001
-- [ ] T004 [P] Créer `components/legal/legal-routes.ts` : la liste ordonnée `{ href, label }` des trois routes du contrat (`contracts/routes.md`)
+- [X] T001 [P] Écrire `components/legal/LegalPage.test.tsx` : rend le titre (`h1`), la description, « Dernière mise à jour : 1 octobre 2026 » pour `updatedAt: "2026-10-01"` (élément `<time dateTime="2026-10-01">`), un `h2` par rubrique avec son `id` d'ancre, un sommaire `nav` « Sommaire » quand le document a plus de 4 rubriques et aucun à 4 ou moins
+- [X] T002 [P] Créer les types `LegalDocument` et `LegalSection` dans `components/legal/types.ts` (cf. data-model.md)
+- [X] T003 Implémenter `components/legal/LegalPage.tsx` (`PageShell`, `PageHeader`, sommaire en liens d'ancre `--tcn-orange-deep`, rubriques en `Card` avec `scrollMarginTop`), jusqu'à faire passer T001
+- [X] T004 [P] Créer `components/legal/legal-routes.ts` : la liste ordonnée `{ href, label }` des trois routes du contrat (`contracts/routes.md`)
 
 **Checkpoint** : le gabarit rend n'importe quel `LegalDocument`.
 
@@ -29,14 +29,14 @@ Aucune : ni dépendance nouvelle, ni configuration.
 
 **Independent Test**: navigation privée sur `/acces`, lien « Confidentialité » dans le pied de page, la politique s'ouvre complète.
 
-- [ ] T005 [P] [US1] Étendre `app/routes-garde-site.test.ts` : `mentions-legales`, `confidentialite`, `cgu` sont des routes sœurs, absentes du groupe gardé
-- [ ] T006 [P] [US1] Écrire `components/legal/LegalLinks.test.tsx` : un `nav` « Informations légales » porte les trois liens, dans l'ordre du contrat, vers les bons `href`
-- [ ] T007 [P] [US1] Étendre `components/layout/VersionFooter.test.tsx` : le pied de page contient le `nav` « Informations légales », y compris quand le code d'accès n'est pas saisi
-- [ ] T008 [P] [US1] Écrire `components/legal/content/confidentialite.test.tsx` : rubriques présentes et nommées (responsable de traitement ; données collectées avec nom, prénom, sexe, catégorie d'âge, club, temps, classements ; provenance avec les 14 chronométreurs nommés, l'import de fichiers et la saisie manuelle ; finalité et base légale « intérêt légitime » ; durées de conservation dont 12 mois pour les signalements ; destinataires et sous-traitants Vercel, Render, Microsoft Azure, Supabase, GitHub, PostHog ; droits dont l'opposition ; lien `mailto:president@triathlon-club-nantais.com` ; réclamation CNIL avec lien `https://www.cnil.fr/fr/plaintes` ; cookies `tcn_session`, `tcn_site_session`, `tcn-nav-expanded`, `tcn-athlete`)
-- [ ] T009 [P] [US1] Ajouter `/confidentialite` → « Politique de confidentialité » dans `app/page-titles.test.tsx`
-- [ ] T010 [US1] Rédiger `components/legal/content/confidentialite.tsx` (`LegalDocument`, français courant, chaque article cité expliqué), jusqu'à faire passer T008
-- [ ] T011 [US1] Créer `app/confidentialite/page.tsx` (`metadata.title`, rend `LegalPage`), jusqu'à faire passer T005 (pour cette route) et T009
-- [ ] T012 [US1] Implémenter `components/legal/LegalLinks.tsx` (`next/link`, `legal-routes.ts`) et le rendre dans le `<footer>` de `components/layout/VersionFooter.tsx`, jusqu'à faire passer T006 et T007
+- [X] T005 [P] [US1] Étendre `app/routes-garde-site.test.ts` : `mentions-legales`, `confidentialite`, `cgu` sont des routes sœurs, absentes du groupe gardé
+- [X] T006 [P] [US1] Écrire `components/legal/LegalLinks.test.tsx` : un `nav` « Informations légales » porte les trois liens, dans l'ordre du contrat, vers les bons `href`
+- [X] T007 [P] [US1] Étendre `components/layout/VersionFooter.test.tsx` : le pied de page contient le `nav` « Informations légales », y compris quand le code d'accès n'est pas saisi
+- [X] T008 [P] [US1] Écrire `components/legal/content/confidentialite.test.tsx` : rubriques présentes et nommées (responsable de traitement ; données collectées avec nom, prénom, sexe, catégorie d'âge, club, temps, classements ; provenance avec les 14 chronométreurs nommés, l'import de fichiers et la saisie manuelle ; finalité et base légale « intérêt légitime » ; durées de conservation dont 12 mois pour les signalements ; destinataires et sous-traitants Vercel, Render, Microsoft Azure, Supabase, GitHub, PostHog ; droits dont l'opposition ; lien `mailto:president@triathlon-club-nantais.com` ; réclamation CNIL avec lien `https://www.cnil.fr/fr/plaintes` ; cookies `tcn_session`, `tcn_site_session`, `tcn-nav-expanded`, `tcn-athlete` ; transferts hors Union européenne ; profils de l'école de triathlon et leur base légale propre)
+- [X] T009 [P] [US1] Ajouter `/confidentialite` → « Politique de confidentialité » dans `app/page-titles.test.tsx`
+- [X] T010 [US1] Rédiger `components/legal/content/confidentialite.tsx` (`LegalDocument`, français courant, chaque article cité expliqué), jusqu'à faire passer T008
+- [X] T011 [US1] Créer `app/confidentialite/page.tsx` (`metadata.title`, rend `LegalPage`), jusqu'à faire passer T005 (pour cette route) et T009
+- [X] T012 [US1] Implémenter `components/legal/LegalLinks.tsx` (`next/link`, `legal-routes.ts`) et le rendre dans le `<footer>` de `components/layout/VersionFooter.tsx`, jusqu'à faire passer T006 et T007
 
 **Checkpoint** : US1 livrable seule ; les liens vers les deux autres pages mènent à une 404 tant que la phase 4 n'est pas faite (ne pas livrer US1 seule en production).
 
@@ -46,12 +46,12 @@ Aucune : ni dépendance nouvelle, ni configuration.
 
 **Independent Test**: depuis n'importe quelle page, les liens « Mentions légales » et « Conditions d'utilisation » ouvrent leurs pages.
 
-- [ ] T013 [P] [US2] Écrire `components/legal/content/mentions-legales.test.tsx` : éditeur Triathlon Club Nantais, adresse 2 boulevard René Coty 44100 Nantes, SIRET 403 516 347 00016, directeur de la publication Aurélien Gantier, hébergeurs Vercel, Render, Microsoft Azure avec leurs adresses, contact `mailto:president@triathlon-club-nantais.com`, renvoi vers la politique de confidentialité
-- [ ] T014 [P] [US2] Écrire `components/legal/content/cgu.test.tsx` : objet du site, accès réservé par code, saisie manuelle et engagement du déclarant, validation par un bénévole, signalements, limites de responsabilité sur les données des chronométreurs, demande de correction ou de retrait
-- [ ] T015 [P] [US2] Ajouter `/mentions-legales` → « Mentions légales » et `/cgu` → « Conditions d'utilisation » dans `app/page-titles.test.tsx`
-- [ ] T016 [US2] Rédiger `components/legal/content/mentions-legales.tsx`, jusqu'à faire passer T013
-- [ ] T017 [US2] Rédiger `components/legal/content/cgu.tsx`, jusqu'à faire passer T014
-- [ ] T018 [US2] Créer `app/mentions-legales/page.tsx` et `app/cgu/page.tsx`, jusqu'à faire passer T005 et T015
+- [X] T013 [P] [US2] Écrire `components/legal/content/mentions-legales.test.tsx` : éditeur Triathlon Club Nantais, adresse 2 boulevard René Coty 44100 Nantes, SIRET 403 516 347 00016, directeur de la publication Aurélien Gantier, hébergeurs Vercel, Render, Microsoft Azure avec leurs adresses, contact `mailto:president@triathlon-club-nantais.com`, renvoi vers la politique de confidentialité
+- [X] T014 [P] [US2] Écrire `components/legal/content/cgu.test.tsx` : objet du site, accès réservé par code, saisie manuelle et engagement du déclarant, validation par un bénévole, signalements, limites de responsabilité sur les données des chronométreurs, demande de correction ou de retrait
+- [X] T015 [P] [US2] Ajouter `/mentions-legales` → « Mentions légales » et `/cgu` → « Conditions d'utilisation » dans `app/page-titles.test.tsx`
+- [X] T016 [US2] Rédiger `components/legal/content/mentions-legales.tsx`, jusqu'à faire passer T013
+- [X] T017 [US2] Rédiger `components/legal/content/cgu.tsx`, jusqu'à faire passer T014
+- [X] T018 [US2] Créer `app/mentions-legales/page.tsx` et `app/cgu/page.tsx`, jusqu'à faire passer T005 et T015
 
 ## Phase 5: User Story 3, date de mise à jour (P3)
 
@@ -59,13 +59,14 @@ Aucune : ni dépendance nouvelle, ni configuration.
 
 **Independent Test**: chaque page montre « Dernière mise à jour ».
 
-- [ ] T019 [US3] Écrire `components/legal/content/documents.test.ts` : pour chacun des trois documents, `updatedAt` est une date ISO valide, non postérieure au jour du test, et les `id` de rubriques sont uniques ; le faire passer (corriger le contenu si besoin)
+- [X] T019 [US3] Écrire `components/legal/content/documents.test.ts` : pour chacun des trois documents, `updatedAt` est une date ISO valide, non postérieure au jour du test, et les `id` de rubriques sont uniques ; le faire passer (corriger le contenu si besoin)
 
 ## Phase 6: Polish
 
-- [ ] T020 Documenter les textes légaux dans `frontend/AGENTS.md` (où vit le contenu, règle : la date `updatedAt` change dans le même commit que le texte, les faits viennent de la décision #332)
-- [ ] T021 Lancer `npm test`, `npm run lint`, `npm run build` dans `frontend/` ; corriger toute régression
-- [ ] T022 Vérification manuelle selon `quickstart.md` (navigation privée sur `/acces`, 320 px)
+- [X] T020 Documenter les textes légaux dans `frontend/AGENTS.md` (où vit le contenu, règle : la date `updatedAt` change dans le même commit que le texte, les faits viennent de la décision #332)
+- [X] T021 Lancer `npm test`, `npm run lint`, `npm run build` dans `frontend/` ; corriger toute régression
+- [X] T022 Vérification manuelle selon `quickstart.md` (navigation privée sur `/acces`, 320 px)
+- [X] T023 Créer l'issue de suivi des purges (signalements 12 mois, journal d'administration 12 mois, profils jeunes durée de l'adhésion plus une saison), liée à l'epic #313, et la citer dans la décision #332
 
 ## Dependencies & Execution Order
 
