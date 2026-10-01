@@ -987,10 +987,18 @@ class _Persister:
                 to_create[key] = fields
                 creation_order.append(key)
         if creation_order:
-            created_athletes = athlete_repository.create_batch(
+            created_athletes, inserted_ids = athlete_repository.create_batch(
                 self.db, [to_create[key] for key in creation_order]
             )
             found.update(zip(creation_order, created_athletes, strict=True))
+            # Une fiche rendue sans avoir été insérée vient d'un import concurrent :
+            # s'y rattacher est une fusion, pas une création (#981).
+            created_keys = {
+                key for key, athlete in zip(creation_order, created_athletes, strict=True)
+                if athlete.id in inserted_ids
+            }
+        else:
+            created_keys = set()
         self.ambiguous_identities.extend(
             {"course_id": course_id, "athlete_id": found[key].id, "candidate_ids": candidate_ids}
             for key, candidate_ids in ambiguous.items()
@@ -1008,7 +1016,6 @@ class _Persister:
         }
         latest_clubs = athlete_repository.latest_club_dates(self.db, list(club_changes))
 
-        created_keys = set(to_create.keys())
         creation_consumed: set[IdentityKey] = set()
         new_participation_fields: list[dict] = []
         new_participation_items: list[_PendingResolution] = []

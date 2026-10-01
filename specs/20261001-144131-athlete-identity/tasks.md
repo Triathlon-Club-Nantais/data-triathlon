@@ -121,14 +121,14 @@ description: "Task list for epic #1146, one stable identity per real athlete"
 
 ### Tests (rouges d'abord)
 
-- [ ] T031 [P] [US3] Créer `backend/tests/test_repositories/test_athlete_identity_concurrency.py` (sauté hors PostgreSQL, fixture à deux sessions sur le même bind, modèle `test_lock_repository.py`) : deux transactions créent 300 identités neuves communes (dont des graphies équivalentes) en parallèle → 300 fiches à la fin, aucune exception ; répété 10 fois
-- [ ] T032 [P] [US3] Dans `backend/tests/test_repositories/test_athlete_identity_concurrency.py` : la résolution par `get_by_identity_keys_batch` prend `FOR KEY SHARE` ; une seconde session qui tente `SELECT … FOR UPDATE` sur la fiche résolue attend le commit de la première
-- [ ] T033 [P] [US3] Test SQLite dans `backend/tests/test_repositories/test_athlete_repository.py` : `create_batch` sur une clé déjà présente rend la fiche existante sans erreur ni doublon
+- [X] T031 [P] [US3] Créer `backend/tests/test_repositories/test_athlete_identity_concurrency.py` (sauté hors PostgreSQL, fixture à deux sessions sur le même bind, modèle `test_lock_repository.py`) : deux transactions créent 300 identités neuves communes (dont des graphies équivalentes) en parallèle → 300 fiches à la fin, aucune exception ; répété 10 fois
+- [X] T032 [P] [US3] Dans `backend/tests/test_repositories/test_athlete_identity_concurrency.py` : la résolution par `get_by_identity_keys_batch` prend `FOR KEY SHARE` ; une seconde session qui tente `SELECT … FOR UPDATE` sur la fiche résolue attend le commit de la première
+- [X] T033 [P] [US3] Test SQLite dans `backend/tests/test_repositories/test_athlete_repository.py` : `create_batch` sur une clé déjà présente rend la fiche existante sans erreur ni doublon
 
 ### Implémentation
 
-- [ ] T034 [US3] Réécrire `create_batch` dans `backend/app/repositories/athlete_repository.py` : `insert(...).on_conflict_do_nothing(index_elements=[last_name_key, first_name_key, homonym_rank]).returning(Athlete.id)` choisi selon `bind.dialect.name` (`postgresql`/`sqlite`), puis relecture par clé des identités non retournées ; rendre des objets `Athlete` attachés à la session ; sur PostgreSQL, `get_by_identity_keys_batch` et `find_fallback_matches` prennent `FOR KEY SHARE` sur les fiches rendues (`research.md` R7)
-- [ ] T035 [US3] Lancer `TEST_POSTGRES_URL=… uv run pytest tests/test_repositories -n 0` en local et vérifier que le job CI `backend-postgres` (`.github/workflows/ci.yml`) exécute le nouveau fichier
+- [X] T034 [US3] Réécrire `create_batch` dans `backend/app/repositories/athlete_repository.py` : `insert(...).on_conflict_do_nothing(index_elements=[last_name_key, first_name_key, homonym_rank]).returning(Athlete.id)` choisi selon `bind.dialect.name` (`postgresql`/`sqlite`), puis relecture par clé des identités non retournées ; rendre des objets `Athlete` attachés à la session ; sur PostgreSQL, `get_by_identity_keys_batch` et `find_fallback_matches` prennent `FOR KEY SHARE` sur les fiches rendues (`research.md` R7)
+- [X] T035 [US3] Lancer `TEST_POSTGRES_URL=… uv run pytest tests/test_repositories -n 0` en local et vérifier que le job CI `backend-postgres` (`.github/workflows/ci.yml`) exécute le nouveau fichier
 
 **Checkpoint**: concurrence garantie (PR 3).
 

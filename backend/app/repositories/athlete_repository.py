@@ -15,6 +15,8 @@ from sqlalchemy import (
     union_all,
     update,
 )
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import set_committed_value
 
@@ -116,6 +118,13 @@ def get_by_identity_keys_batch(
     de résultat que par geste admin (#967). Une clé vide ne désigne personne.
     Les clés sans correspondance sont absentes du résultat ; à l'appelant de
     créer les fiches manquantes.
+
+    `FOR KEY SHARE` (PostgreSQL ; sans effet sous SQLite) : une fiche résolue ne
+    peut plus être supprimée, par une fusion par exemple, avant la fin de la
+    transaction qui va y rattacher des résultats. Il ne gêne ni les autres
+    imports ni les mises à jour de club et de genre ; il fait attendre un
+    renommage (les clés font partie de `uq_athlete_identity`), que
+    `admin_actions.update_athlete` borne par `lock_timeout`.
     """
     wanted = {key for key in keys if key[0] is not None}
     if not wanted:
@@ -126,6 +135,7 @@ def get_by_identity_keys_batch(
             tuple_(Athlete.last_name_key, Athlete.first_name_key).in_(wanted),
             Athlete.homonym_rank == 0,
         )
+        .with_for_update(read=True, key_share=True)
         .all()
     )
     return {(athlete.last_name_key, athlete.first_name_key): athlete for athlete in rows}
@@ -162,7 +172,12 @@ def find_fallback_matches(
         ))
     if joined:
         clauses.append(and_(Athlete.first_name_key == "", Athlete.last_name_key.in_(joined)))
-    rows = db.query(Athlete).filter(or_(*clauses), Athlete.homonym_rank == 0).all()
+    rows = (
+        db.query(Athlete)
+        .filter(or_(*clauses), Athlete.homonym_rank == 0)
+        .with_for_update(read=True, key_share=True)
+        .all()
+    )
 
     matches: dict[IdentityKey, Athlete] = {}
     ambiguous: dict[IdentityKey, list[int]] = {}
@@ -183,20 +198,77 @@ def find_fallback_matches(
     return matches, ambiguous
 
 
-def create_batch(db: Session, athletes_fields: Sequence[dict]) -> list[Athlete]:
-    """Crée un lot d'athlètes neufs en un seul aller-retour DB (#706).
+_CREATED_COLUMNS = ("nom", "prenom", "gender", "birth_date", "club")
 
-    Un seul `db.flush()` pour tout le lot — SQLAlchemy 2.0 compile les objets
-    `pending` de même classe en un `INSERT` multi-lignes. Les instances
-    restent suivies par la session (contrairement à `bulk_insert_mappings`),
-    donc l'appelant peut continuer à leur référer directement après l'appel.
+
+def create_batch(
+    db: Session, athletes_fields: Sequence[dict]
+) -> tuple[list[Athlete], set[int]]:
+    """Crée un lot de fiches principales, ou rend celles qui existent déjà (#706, #981).
+
+    Un `INSERT … ON CONFLICT DO NOTHING RETURNING` multi-lignes sur
+    `uq_athlete_identity`, puis la relecture des seules identités qu'il n'a pas
+    insérées : deux imports qui créent la même personne en même temps aboutissent
+    à la même fiche. En READ COMMITTED, l'insertion en conflit avec une ligne non
+    commitée attend la fin de l'autre transaction ; la relecture voit ensuite sa
+    fiche.
+
+    Les lignes partent triées par clé : deux imports qui listent les mêmes
+    inconnus dans des ordres différents prennent alors leurs verrous d'insertion
+    dans le même ordre, et ne s'interbloquent pas au sein d'une instruction.
+    Entre deux tranches d'une même transaction, l'interblocage reste possible ;
+    `deadlock_retries` rejoue alors la persistance.
+
+    Rend une fiche par entrée, dans l'ordre, suivie par la session, et les ids
+    réellement insérés : une fiche rendue sans l'être existait déjà. Une entrée
+    sans identité (`?`, `-`) a des clés NULL, qui ne se heurtent jamais : elle
+    est créée par l'ORM.
     """
-    if not athletes_fields:
-        return []
-    created = [Athlete(**fields) for fields in athletes_fields]
-    db.add_all(created)
-    db.flush()
-    return created
+    unknown = {column for fields in athletes_fields for column in fields} - set(_CREATED_COLUMNS)
+    if unknown:
+        raise ValueError(f"create_batch does not write {sorted(unknown)}")
+    keys = [athlete_identity_keys(fields.get("nom"), fields.get("prenom")) for fields in athletes_fields]
+    rows = sorted(
+        (
+            {
+                **{column: fields.get(column) for column in _CREATED_COLUMNS},
+                "prenom": fields.get("prenom") or "",
+                "gender": fields.get("gender") or "",
+                "last_name_key": key[0],
+                "first_name_key": key[1],
+            }
+            for fields, key in zip(athletes_fields, keys, strict=True)
+            if key[0] is not None
+        ),
+        key=lambda row: (row["last_name_key"], row["first_name_key"]),
+    )
+
+    by_key: dict[IdentityKey, Athlete] = {}
+    inserted_ids: set[int] = set()
+    if rows:
+        insert = postgresql_insert if db.get_bind().dialect.name == "postgresql" else sqlite_insert
+        inserted = db.scalars(
+            insert(Athlete)
+            .values(rows)
+            .on_conflict_do_nothing(index_elements=["last_name_key", "first_name_key", "homonym_rank"])
+            .returning(Athlete)
+        ).all()
+        by_key = {(athlete.last_name_key, athlete.first_name_key): athlete for athlete in inserted}
+        inserted_ids = {athlete.id for athlete in inserted}
+        missing = {key for key in keys if key[0] is not None and key not in by_key}
+        if missing:
+            by_key.update(get_by_identity_keys_batch(db, list(missing)))
+
+    nameless = [Athlete(**fields) for fields, key in zip(athletes_fields, keys, strict=True) if key[0] is None]
+    if nameless:
+        db.add_all(nameless)
+        db.flush()
+        inserted_ids.update(athlete.id for athlete in nameless)
+    pending_nameless = iter(nameless)
+    return (
+        [by_key[key] if key[0] is not None else next(pending_nameless) for key in keys],
+        inserted_ids,
+    )
 
 
 def apply_updates(db: Session, updates: Sequence[tuple[Athlete, dict[str, str]]]) -> None:

@@ -32,6 +32,15 @@ def _on_postgres(db: Session) -> bool:
     return db.get_bind().dialect.name == "postgresql"
 
 
+def bound_lock_waits(db: Session, timeout: str) -> None:
+    """Borne, pour le reste de la transaction, l'attente d'un verrou de ligne
+    (PostgreSQL ; sans effet ailleurs). Au-delà, l'instruction lève
+    `LockNotAvailable` au lieu de suspendre la requête HTTP."""
+    if _on_postgres(db):
+        # `SET LOCAL` n'accepte pas de paramètre lié ; `set_config(..., true)` est son équivalent.
+        db.execute(select(func.set_config("lock_timeout", timeout, True)))
+
+
 def try_lock_course(db: Session, course_id: int) -> bool:
     """Verrouille une épreuve sans attendre. `False` si un autre la tient."""
     if not _on_postgres(db):
