@@ -1,3 +1,5 @@
+import { AnalyticsConsentSettings } from "@/components/analytics/AnalyticsConsent";
+import { ANALYTICS_CONSENT_KEY } from "@/lib/analytics-consent";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 import { ContactEmail, ExternalLink, InternalLink, List, Table } from "../blocks";
@@ -74,10 +76,14 @@ export const PRIVACY_POLICY: LegalDocument = {
             sont visibles que des encadrants habilités.
           </p>
           <p>
-            <strong>La mesure d&apos;audience.</strong> Les pages consultées, les interactions avec ces pages
-            (clics) et les erreurs rencontrées, pour améliorer le site. Pour un utilisateur connecté au
-            back-office, cette mesure est rattachée à son compte : son adresse électronique, son nom affiché et ses
-            rôles sont transmis au prestataire de mesure (voir « Cookies et stockage du navigateur »).
+            <strong>La mesure d&apos;audience.</strong> Par défaut, le site compte les pages consultées et les
+            erreurs rencontrées <strong>sans cookie</strong> et sans vous suivre individuellement : le prestataire
+            de mesure ne reçoit qu&apos;une empreinte anonyme, renouvelée chaque jour. Si vous acceptez la mesure
+            détaillée, il reçoit aussi vos interactions avec les pages (clics) et dépose des cookies ; pour un
+            utilisateur connecté au back-office, la mesure est alors rattachée à son compte : son adresse
+            électronique, son nom affiché et ses rôles lui sont transmis. Les actions faites dans le back-office
+            sont comptées par le serveur du site, rattachées à l&apos;identifiant du compte (voir « Cookies et
+            stockage du navigateur »).
           </p>
         </>
       ),
@@ -229,7 +235,8 @@ export const PRIVACY_POLICY: LegalDocument = {
               [NAV_WIDTH_COOKIE, "cookie", "Retenir si le menu est déplié", "1 an"],
               ["tcn-athlete", "stockage local", "Retenir l'athlète que vous avez choisi comme « moi »", "Jusqu'à ce que vous le changiez"],
               [RETOUR_CONNEXION_KEY, "stockage de session", "Vous ramener à la bonne page après la connexion", "Jusqu'à la fermeture de l'onglet"],
-              ["ph_…", "cookie et stockage local", "Mesure d'audience (PostHog)", "1 an"],
+              [ANALYTICS_CONSENT_KEY, "stockage local", "Retenir votre choix sur la mesure d'audience détaillée", "6 mois"],
+              ["ph_…", "cookie et stockage local", "Mesure d'audience détaillée (PostHog), seulement si vous l'acceptez", "1 an"],
             ]}
           />
           <p>
@@ -237,11 +244,12 @@ export const PRIVACY_POLICY: LegalDocument = {
             (par exemple « __Host-tcn_session »), qui interdit leur partage avec un autre site.
           </p>
           <p>
-            Tous servent au fonctionnement du site, sauf les traceurs PostHog, qui mesurent son audience. Vous pouvez
-            les supprimer ou les bloquer à tout moment depuis les réglages de votre navigateur : bloquer les traceurs
-            PostHog n&apos;empêche pas d&apos;utiliser le site ; supprimer les autres vous demandera de saisir à
-            nouveau le code d&apos;accès ou de vous reconnecter.
+            Tous servent au fonctionnement du site, sauf les traceurs PostHog, qui ne sont déposés qu&apos;avec votre
+            accord. Au bout de six mois, le site vous redemande votre choix. Vous pouvez aussi supprimer ces éléments
+            depuis les réglages de votre navigateur ; supprimer les autres vous demandera de saisir à nouveau le code
+            d&apos;accès ou de vous reconnecter.
           </p>
+          <AnalyticsConsentSettings />
         </>
       ),
     },

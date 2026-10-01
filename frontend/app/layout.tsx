@@ -8,6 +8,7 @@ import { AppNav } from "@/components/layout/AppNav";
 import { VersionFooter } from "@/components/layout/VersionFooter";
 import { Toaster } from "@/components/ui/sonner";
 import { FeedbackButton } from "@/components/tcn/FeedbackButton";
+import { AnalyticsConsentBanner } from "@/components/analytics/AnalyticsConsent";
 import { CLUB_NAME } from "@/lib/club";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 
@@ -90,6 +91,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </div>
           <Toaster richColors position="top-right" />
           <FeedbackButton />
+          <AnalyticsConsentBanner />
         </Providers>
       </body>
     </html>

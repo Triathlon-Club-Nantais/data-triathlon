@@ -60,9 +60,18 @@ describe("PostHogSessionSync", () => {
     identify.mockClear();
     reset.mockClear();
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
+    localStorage.setItem("tcn-analytics-consent", JSON.stringify({ choice: "granted", at: Date.now() }));
   });
 
-  it("identifie l'utilisateur quand une session existe", () => {
+  it("n'identifie personne sans accord à la mesure détaillée (#1159)", () => {
+    localStorage.removeItem("tcn-analytics-consent");
+    useSession.mockReturnValue({ data: SESSION });
+    render(<Providers>{null}</Providers>);
+
+    expect(identify).not.toHaveBeenCalled();
+  });
+
+  it("identifie l'utilisateur quand une session existe et qu'il a accepté la mesure détaillée", () => {
     useSession.mockReturnValue({ data: SESSION });
     render(<Providers>{null}</Providers>);
 

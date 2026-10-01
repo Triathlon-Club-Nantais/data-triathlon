@@ -15,6 +15,8 @@ const GLOBS_JSDOM = [
   "hooks/useImportStream.test.ts",
   "hooks/useRescrapeStream.test.ts",
   "hooks/useSwitchSourceStream.test.ts",
+  "instrumentation-client.test.ts",
+  "lib/analytics-consent.test.ts",
   "lib/queries/admin.test.ts",
   "lib/queries/auth.test.ts",
 ];

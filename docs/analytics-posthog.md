@@ -24,9 +24,19 @@ qu'il compte une seule fois et hors de portée des bloqueurs (#1033).
 - **Proxy** — `frontend/next.config.ts` route `/ingest/*` vers PostHog EU au
   lieu d'appeler `eu.i.posthog.com` en direct depuis le navigateur : les
   bloqueurs de pub ciblent le domaine PostHog, pas le domaine du site.
-- **Identité de session** — `frontend/app/providers.tsx` (`PostHogSessionSync`).
+- **Consentement** (#1159) : sans accord, PostHog mesure **sans cookie**
+  (`cookieless_mode: "on_reject"`, `opt_out_capturing_by_default`), sans
+  autocapture ni `identify()` : la mesure exemptée de consentement par la CNIL.
+  `AnalyticsConsentBanner` (layout racine) propose la mesure détaillée ; le
+  choix vit dans `localStorage` (`tcn-analytics-consent`, six mois,
+  `lib/analytics-consent.ts`) et se change depuis `/confidentialite`. Un accord
+  donné en cours de visite ouvre les cookies tout de suite, l'autocapture au
+  chargement suivant. **Prérequis** : le mode sans cookie doit être activé dans
+  les réglages du projet PostHog, sinon les événements sans cookie sont
+  ignorés.
+- **Identité de session** : `frontend/app/providers.tsx` (`PostHogSessionSync`).
   Un seul effet observe `useSession()` : `posthog.identify()` dès qu'une
-  session existe, `posthog.reset()` dès qu'elle repasse à `null` — quelle
+  session existe **et que la mesure détaillée est acceptée**, `posthog.reset()` dès qu'elle repasse à `null` — quelle
   qu'en soit la cause (déconnexion explicite, 401, expiration, révocation
   admin). Centraliser ici plutôt que dans le bouton « Se déconnecter » est ce
   qui couvre les sorties de session qui ne passent pas par ce bouton.

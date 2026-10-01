@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import posthog from "posthog-js";
 import { toast } from "sonner";
+import { useAnalyticsConsent } from "@/lib/analytics-consent";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import { SESSION_QUERY_DEFAULTS, useSession } from "@/lib/queries/auth";
 import { queryKeys } from "@/lib/queries/keys";
@@ -22,9 +23,13 @@ import { ImportStreamProvider } from "@/components/scrape/ImportStreamProvider";
  * vient de disparaître » est observable quelle qu'en soit la cause
  * (déconnexion explicite, 401, expiration, révocation admin), donc le seul
  * qui les couvre toutes.
+ *
+ * L'identification n'a lieu qu'avec l'accord à la mesure détaillée (#1159) :
+ * sans lui, la mesure reste anonyme et sans cookie.
  */
 function PostHogSessionSync() {
   const { data: session } = useSession();
+  const consent = useAnalyticsConsent();
   // Garde reset() : ne se déclenche que sur une vraie transition
   // connecté → déconnecté, jamais au premier chargement anonyme (session
   // === null sans qu'on ait jamais identifié personne).
@@ -32,7 +37,7 @@ function PostHogSessionSync() {
 
   useEffect(() => {
     if (!process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) return;
-    if (session) {
+    if (session && consent === "granted") {
       identifiedRef.current = true;
       posthog.identify(String(session.id), {
         email: session.email,
@@ -43,7 +48,7 @@ function PostHogSessionSync() {
       identifiedRef.current = false;
       posthog.reset();
     }
-  }, [session]);
+  }, [session, consent]);
 
   return null;
 }

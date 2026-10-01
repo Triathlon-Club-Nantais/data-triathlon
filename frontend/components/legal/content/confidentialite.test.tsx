@@ -108,9 +108,12 @@ describe("Politique de confidentialité (#333)", () => {
     }
   });
 
-  it("dit ce que la mesure d'audience reçoit d'un utilisateur connecté", () => {
+  it("dit ce que la mesure d'audience reçoit, sans accord et avec (#1159)", () => {
     const texte = rendre();
-    expect(texte).toMatch(/adresse électronique, son nom affiché et ses rôles sont transmis/);
+    expect(texte).toMatch(/sans cookie/);
+    expect(texte).toMatch(/adresse électronique, son nom affiché et ses rôles lui sont transmis/);
+    expect(texte).toContain("tcn-analytics-consent");
+    expect(screen.getByRole("button", { name: "Refuser la mesure détaillée" })).toBeInTheDocument();
     expect(screen.getByRole("row", { name: /ph_/ })).toHaveTextContent("1 an");
   });
 });
