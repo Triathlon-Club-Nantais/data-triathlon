@@ -7,7 +7,9 @@ des splits faits de zéros. Cette migration les vide (`NULL`, ce qu'écrit
 l'import quand aucun segment ne reste), quel que soit le statut, comme l'import.
 
 Seul le cas « tous les segments valent zéro » est traité : une ligne qui garde
-un segment réel est réécrite par son prochain rescrape. La lecture d'une durée
+un segment réel est réécrite par son prochain rescrape. Reste hors périmètre une
+ligne mêlant zéros et valeurs illisibles (« FRA ») : l'import les écarterait
+tous, et « vide n'écrase pas » la laisse en l'état. La lecture d'une durée
 est **figée ici** (celle de `mapping.parse_duration`) pour que la migration
 rejouée plus tard produise le même résultat.
 
