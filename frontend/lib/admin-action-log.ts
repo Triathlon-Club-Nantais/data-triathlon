@@ -64,7 +64,7 @@ const PAYLOAD_KEY_LABELS: Record<string, string> = {
   prenom: "Prénom",
   birth_date: "Date de naissance",
   club: "Club",
-  name: "Nom de l'épreuve",
+  name: "Nom",
   event_date: "Date",
   event_type: "Type",
   is_relay: "Relais",
