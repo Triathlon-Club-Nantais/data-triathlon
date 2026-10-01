@@ -964,6 +964,26 @@ def test_get_by_identity_keys_batch_sans_cle_ne_requete_rien(db_session):
 # ── create_batch (#706) ──────────────────────────────────────────────────────
 
 
+def test_create_batch_rend_la_fiche_existante_d_une_identite_deja_connue(db_session):
+    """#981 : une création concurrente déjà commitée n'est ni un doublon ni une erreur."""
+    existante = athlete_repository.get_or_create(db_session, nom="LETORT", prenom="Léo", club="TCN")
+    db_session.commit()
+
+    created = athlete_repository.create_batch(
+        db_session, [{"nom": "LETORT", "prenom": "Leo"}, {"nom": "NOUVEAU", "prenom": "Nino"}]
+    )
+
+    assert created[0] is existante
+    assert created[1].nom == "NOUVEAU" and created[1].id is not None
+    assert len(athlete_repository.search(db_session, page_size=50)) == 2
+
+
+def test_create_batch_garde_les_fiches_sans_identite_distinctes(db_session):
+    created = athlete_repository.create_batch(db_session, [{"nom": "?", "prenom": ""}, {"nom": "-", "prenom": ""}])
+
+    assert created[0].id != created[1].id
+
+
 def test_create_batch_cree_toutes_les_fiches_et_leur_id_est_peuple(db_session):
     created = athlete_repository.create_batch(
         db_session,

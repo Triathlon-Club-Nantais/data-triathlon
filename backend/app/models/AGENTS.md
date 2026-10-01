@@ -5,7 +5,12 @@
   insertion ou mise à jour ORM, jamais par l'appelant ; un `UPDATE` de masse
   sur `nom`/`prenom` les laisserait périmées. Rang 0 = fiche principale, la
   seule que l'import résout ; une clé vide (`?`, `-`) vaut NULL et ne désigne
-  personne. `birth_date` n'entre pas dans l'identité (#900). `club` porte le club
+  personne. `birth_date` n'entre pas dans l'identité (#900). La création par
+  l'import est idempotente sous concurrence : `athlete_repository.create_batch`
+  insère en `ON CONFLICT DO NOTHING` puis relit les identités qu'une autre
+  transaction a créées (#981), et la résolution prend `FOR KEY SHARE` sur les
+  fiches trouvées, qu'une fusion ne peut donc pas supprimer sous un import.
+  `club` porte le club
   **actuel** : il suit la dernière épreuve **courue**, pas la dernière importée
   (#965). Un import ne le réécrit que si son épreuve est au moins aussi récente
   que la plus récente participation datée avec club déjà connue

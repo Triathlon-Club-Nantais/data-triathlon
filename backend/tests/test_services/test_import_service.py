@@ -1957,7 +1957,10 @@ def test_persist_results_la_lecture_des_athletes_ne_croit_pas_lineairement(db_se
             if q.strip().upper().startswith("SELECT") and "FROM ATHLETES" in q.upper()
         ]
 
-    assert len(_select_athletes(big)) <= len(_select_athletes(small)) + 4, (
+    # Trois lectures par tranche : recherche par clé, repli d'identité (#908) et
+    # rechargement des fiches insérées par `ON CONFLICT DO NOTHING` (#981).
+    # 1 200 lignes font trois tranches, soit deux de plus que les 10 lignes.
+    assert len(_select_athletes(big)) <= len(_select_athletes(small)) + 2 * 3, (
         f"{len(_select_athletes(small))} SELECT athletes pour 10 lignes, "
         f"{len(_select_athletes(big))} pour 1200 : la résolution semble encore "
         "émettre un SELECT par ligne plutôt que par tranche"
