@@ -875,7 +875,8 @@ n'échoue pas.
 
 **Moniteur externe** : UptimeRobot, offre gratuite, compte
 `it.triathlonclubnantais@gmail.com`. Deux moniteurs HTTP toutes les 5 min,
-alertes par e-mail et Slack :
+alertes **par e-mail** à cette adresse. L'intégration Slack (comme tout webhook)
+est réservée aux offres payantes : refusée par l'API le 01/10 (`021-003`).
 
 - **Front production (Vercel)** sur `https://data.triathlon-club-nantais.com/` ;
 - **Backend production (Render)** sur
