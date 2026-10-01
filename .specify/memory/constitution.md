@@ -7,9 +7,8 @@ Rationale         : PATCH — alignement d'une contrainte sur le modèle (« Add
   nom/prénom/DDN » : cette contrainte était inopérante (`birth_date` toujours
   NULL, deux NULL ne se heurtent pas, #981) et faisait scinder une fiche datée
   par un admin (#900). L'identité devient la clé normalisée du nom et du prénom
-  plus un rang d'homonyme (#907, epic #1146). Niveau PATCH ou MINOR à trancher
-  par le mainteneur dans l'issue de proposition.
-  Proposition : issue #1160. Approbation : en attente.
+  plus un rang d'homonyme (#907, epic #1146).
+  Proposition : issue #1160. Approbation : mainteneur, 2026-10-01 (PATCH retenu).
 Modified principles : (aucun)
 Modified sections : Additional Constraints — Modèle normalisé, identité d'`Athlete`.
 Added sections    : (aucune)
