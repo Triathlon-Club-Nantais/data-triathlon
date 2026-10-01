@@ -211,3 +211,6 @@ export function authErrorLabel(code: string | null | undefined): string {
  * par `PostLoginReturn` (`app/providers.tsx`) à l'atterrissage.
  */
 export const RETOUR_CONNEXION_KEY = "tcn_retour_connexion";
+
+/** Clé `localStorage` du choix sur la mesure d'audience détaillée (#1159, `lib/analytics-consent.ts`). */
+export const ANALYTICS_CONSENT_KEY = "tcn-analytics-consent";

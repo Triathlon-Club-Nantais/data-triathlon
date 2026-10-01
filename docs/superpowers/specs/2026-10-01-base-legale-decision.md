@@ -183,9 +183,14 @@ proviennent la plupart des résultats.
   **Manquement accepté** (2026-10-01) : le club publie son adresse postale et
   une adresse électronique relevée, pas de numéro.
 
-- **Mesure d'audience PostHog** : elle dépose des traceurs en production sans
-  recueil de consentement. Elle n'entre dans l'exemption de consentement de la
-  CNIL que sous conditions (finalité strictement statistique, pas
-  d'`identify()` sur l'utilisateur connecté, durée de vie limitée). En l'état,
-  `identify()` est appelé à la connexion : un bandeau de consentement ou une
-  configuration exemptée est à trancher dans #1159.
+- **Mesure d'audience PostHog**, tranchée dans #1159 : les deux voies à la
+  fois. Par défaut, mesure **sans cookie** (`cookieless_mode: "on_reject"`,
+  opt-out par défaut, ni autocapture ni `identify()`), exemptée de
+  consentement. Un bandeau propose la mesure détaillée (cookies, autocapture,
+  `identify()`), refus et accord au même niveau, choix gardé six mois et
+  modifiable depuis la politique de confidentialité. Les événements serveur
+  du back-office restent rattachés à l'identifiant du compte, sans traceur
+  dans le navigateur, sur la base de l'intérêt légitime à administrer le site.
+  Retirer son accord arrête la mesure détaillée sans effacer ce qui a été
+  transmis : le profil PostHog d'un utilisateur se supprime sur demande
+  d'effacement, à la main depuis PostHog.

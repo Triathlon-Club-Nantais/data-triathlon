@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
@@ -15,6 +15,11 @@ function rubrique(title: RegExp) {
 }
 
 describe("Politique de confidentialité (#333)", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.posthog.com");
+  });
+
   it("porte les rubriques exigées par l'issue", () => {
     rendre();
     rubrique(/responsable/i);
@@ -108,9 +113,12 @@ describe("Politique de confidentialité (#333)", () => {
     }
   });
 
-  it("dit ce que la mesure d'audience reçoit d'un utilisateur connecté", () => {
+  it("dit ce que la mesure d'audience reçoit, sans accord et avec (#1159)", () => {
     const texte = rendre();
-    expect(texte).toMatch(/adresse électronique, son nom affiché et ses rôles sont transmis/);
-    expect(screen.getByRole("row", { name: /ph_/ })).toHaveTextContent("1 an");
+    expect(texte).toMatch(/sans cookie/);
+    expect(texte).toMatch(/adresse électronique, son nom affiché et ses rôles lui sont transmis/);
+    expect(texte).toContain("tcn-analytics-consent");
+    expect(screen.getByRole("button", { name: "Refuser la mesure détaillée" })).toBeInTheDocument();
+    expect(screen.getByRole("row", { name: /^ph_/ })).toHaveTextContent("1 an");
   });
 });
