@@ -22,6 +22,9 @@ from app.core.athlete_identity import athlete_identity_keys, identity_key
         ("CIC 7", "cic7"),
         ("?DOSSARD #12", "dossard12"),
         ("Иванов", "иванов"),
+        ("Søren", "soren"),
+        ("Łukasz", "lukasz"),
+        ("Đorđe", "dorde"),
         ("  Dupont  ", "dupont"),
         ("?", ""),
         ("-", ""),
@@ -46,6 +49,13 @@ def test_an_empty_first_name_keeps_an_empty_key():
     assert athlete_identity_keys("DUPONT", None) == ("dupont", "")
 
 
-def test_a_last_name_without_identity_gives_no_key():
-    assert athlete_identity_keys("?", "Jean") == (None, None)
+def test_a_first_name_alone_is_kept_as_a_whole_name():
+    """Klikego rend `("", "Jean Dupont")` quand le premier mot n'est pas en
+    majuscules : l'identité est dans le prénom, elle ne doit pas se perdre."""
+    assert athlete_identity_keys("", "Jean Dupont") == ("jeandupont", "")
+    assert athlete_identity_keys("-", "Jean") == ("jean", "")
+
+
+def test_a_name_without_identity_gives_no_key():
+    assert athlete_identity_keys("?", "-") == (None, None)
     assert athlete_identity_keys("", "") == (None, None)

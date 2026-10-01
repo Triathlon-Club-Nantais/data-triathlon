@@ -36,6 +36,7 @@ from app.repositories import (
     lock_repository,
     participation_repository,
 )
+from app.repositories.athlete_repository import IdentityKey
 from app.scrapers import registry
 from app.scrapers import scrape_event_all as registry_scrape_event_all
 from app.scrapers.base import (
@@ -520,12 +521,12 @@ def _team_key(team_name: str | None) -> str:
     return " ".join((deaccent(team_name) or "").lower().split())
 
 
-def _identity_key(scraped: ScrapedResult) -> tuple[str | None, str]:
+def _identity_key(scraped: ScrapedResult) -> IdentityKey:
     """Clé d'identité d'une ligne scrapée, celle que stockent les fiches (#907)."""
     return _pair_key((scraped.athlete_name, scraped.athlete_firstname))
 
 
-def _pair_key(pair: tuple[str | None, str | None]) -> tuple[str | None, str]:
+def _pair_key(pair: tuple[str | None, str | None]) -> IdentityKey:
     """Une paire sans identité (`-`) garde sa graphie brute comme clé en mémoire :
     elle ne correspond à aucune fiche et n'en partage aucune avec une autre
     paire. `add` a déjà renommé ou écarté les lignes dans ce cas ; ne restent
@@ -552,7 +553,7 @@ def _proposed_teammates(scraped: ScrapedResult) -> tuple[tuple[str, str], ...] |
 
 
 def _oriented_teammates(
-    teammates: tuple[tuple[str, str], ...], found: dict[tuple[str, str], Athlete]
+    teammates: tuple[tuple[str, str], ...], found: dict[IdentityKey, Athlete]
 ) -> tuple[tuple[str, str], ...]:
     """Tout en majuscules, « PRÉNOM NOM » se lit « NOM PRÉNOM » (klikego) : une
     fiche connue à l'envers, et pas à l'endroit, tranche l'ordre."""
@@ -607,7 +608,7 @@ class _Persister:
         # fois par course. Les ids couvrent la base, les clés d'identité les
         # équipiers de ce scrape, qui n'ont pas encore d'id quand on décide.
         self._present_ids: dict[int, set[int]] = {}
-        self._reserved_keys: dict[int, set[tuple[str, str]]] = {}
+        self._reserved_keys: dict[int, set[IdentityKey]] = {}
         # Lignes à découper, résolues après toutes les autres lignes de la course
         # (`finalize`) : la garde voit ainsi chaque coureur de la course, quelle
         # que soit la tranche où il apparaît.
@@ -909,7 +910,7 @@ class _Persister:
             if key not in found
         ]
         fallback, ambiguous = athlete_repository.find_fallback_matches(self.db, unresolved)
-        found.update(fallback)
+        found.update(self._safe_fallbacks(course_id, pending, found, fallback))
         pending = [
             replace(item, teammates=_oriented_teammates(item.teammates, found))
             if item.teammates else item
@@ -917,8 +918,8 @@ class _Persister:
         ]
         decisions = self._split_decisions(course_id, pending, found)
 
-        to_create: dict[tuple[str, str], dict] = {}
-        creation_order: list[tuple[str, str]] = []
+        to_create: dict[IdentityKey, dict] = {}
+        creation_order: list[IdentityKey] = []
         for item, teammates in zip(pending, decisions, strict=True):
             if teammates is None and item.reconcile_blocked:
                 continue
@@ -962,7 +963,7 @@ class _Persister:
         latest_clubs = athlete_repository.latest_club_dates(self.db, list(club_changes))
 
         created_keys = set(to_create.keys())
-        creation_consumed: set[tuple[str, str]] = set()
+        creation_consumed: set[IdentityKey] = set()
         new_participation_fields: list[dict] = []
         new_participation_items: list[_PendingResolution] = []
         team_athletes: list[int] = []
@@ -1043,9 +1044,39 @@ class _Persister:
             self.db.flush()
             athlete_repository.delete_orphans_among(self.db, team_athletes)
 
+    def _safe_fallbacks(
+        self, course_id: int, pending: list[_PendingResolution],
+        direct: dict[IdentityKey, Athlete], fallback: dict[IdentityKey, Athlete],
+    ) -> dict[IdentityKey, Athlete]:
+        """Les rattachements par repli qui ne fusionnent pas deux personnes (#908).
+
+        « THOMAS Martin » (dossard 1) et « MARTIN Thomas » (dossard 2) sur une
+        même épreuve sont deux coureurs : un repli est écarté si sa fiche porte,
+        sur l'épreuve, un dossard que ses propres lignes n'ont pas (participation
+        connue, ou ligne de ce lot résolue en direct), ou si une autre clé y
+        aboutit aussi. Comparer les dossards, et non la seule présence, garde le
+        rescrape : la participation déjà rattachée porte celui de la ligne.
+        """
+        if not fallback:
+            return fallback
+        bibs_by_key: dict[IdentityKey, set[str | None]] = {}
+        for item in pending:
+            if item.teammates is None:
+                bibs_by_key.setdefault(_identity_key(item.scraped), set()).add(item.bib)
+        claimed: dict[int, set[str | None]] = {}
+        for key, athlete in direct.items():
+            claimed.setdefault(athlete.id, set()).update(bibs_by_key.get(key, ()))
+        for participation in self._participations[course_id]:
+            claimed.setdefault(participation.athlete_id, set()).add(participation.bib_number or None)
+        targets = Counter(athlete.id for athlete in fallback.values())
+        return {
+            key: athlete for key, athlete in fallback.items()
+            if targets[athlete.id] == 1 and claimed.get(athlete.id, set()) <= bibs_by_key.get(key, set())
+        }
+
     def _split_decisions(
         self, course_id: int, pending: list[_PendingResolution],
-        found: dict[tuple[str, str], Athlete],
+        found: dict[IdentityKey, Athlete],
     ) -> list[tuple[tuple[str, str], ...] | None]:
         """Équipiers retenus par ligne, `None` si la ligne n'est pas découpée (#895).
 
@@ -1064,7 +1095,8 @@ class _Persister:
                 keys = [_pair_key(pair) for pair in teammates]
                 ids = {found[key].id for key in keys if key in found}
                 if (
-                    reserved.intersection(keys) or present_ids & ids
+                    len(set(keys)) != len(keys)
+                    or reserved.intersection(keys) or present_ids & ids
                     or not self._bibless_team_claimable(course_id, item, found, claimed_teams)
                 ):
                     teammates = None
@@ -1077,7 +1109,7 @@ class _Persister:
 
     def _bibless_team_claimable(
         self, course_id: int, item: _PendingResolution,
-        found: dict[tuple[str, str], Athlete], claimed_teams: set[int],
+        found: dict[IdentityKey, Athlete], claimed_teams: set[int],
     ) -> bool:
         """Faux si la fiche d'équipe d'une ligne sans dossard a des lignes sur la
         course sans qu'une seule puisse être reprise : découper créerait un

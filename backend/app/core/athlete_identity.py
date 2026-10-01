@@ -11,8 +11,8 @@ rule; `tests/test_migrations.py` keeps the two in step.
 """
 import unicodedata
 
-# NFKD leaves these ligatures whole; `casefold` already turns `ß` into `ss`.
-_LIGATURES = str.maketrans({"œ": "oe", "æ": "ae"})
+# NFKD leaves these letters whole; `casefold` already turns `ß` into `ss`.
+_LIGATURES = str.maketrans({"œ": "oe", "æ": "ae", "ø": "o", "ł": "l", "đ": "d"})
 
 
 def identity_key(text: str | None) -> str:
@@ -22,10 +22,14 @@ def identity_key(text: str | None) -> str:
 
 
 def athlete_identity_keys(nom: str | None, prenom: str | None) -> tuple[str | None, str | None]:
-    """`(None, None)` when the last name carries no identity (`?`, `-`): such a
-    record is never matched against another one, and NULLs never collide in
-    the unique constraint."""
-    last_name_key = identity_key(nom)
+    """A first name alone is a whole name (Klikego gives `("", "Jean Dupont")`
+    when the first word is not upper case), keyed like `("JEAN DUPONT", "")`.
+
+    `(None, None)` when neither carries an identity (`?`, `-`): such a record is
+    never matched against another one, and NULLs never collide in the unique
+    constraint.
+    """
+    last_name_key, first_name_key = identity_key(nom), identity_key(prenom)
     if not last_name_key:
-        return None, None
-    return last_name_key, identity_key(prenom)
+        return (first_name_key, "") if first_name_key else (None, None)
+    return last_name_key, first_name_key

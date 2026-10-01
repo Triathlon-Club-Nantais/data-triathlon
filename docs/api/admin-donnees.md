@@ -119,6 +119,12 @@ Sept points à ne pas défaire :
   homonymes de clubs différents restent la même personne. « Sans club » s'écrit
   `null` ; la chaîne vide est refusée (422), sans quoi elle se rangerait comme un
   libellé de club à part entière.
+- **Le rapport d'import signale les identités ambiguës** (#908) : la clé
+  `ambiguous_identities` (`[{course_id, athlete_id, candidate_ids}]`, présente sur
+  tous les chemins de `done`, vide par défaut) liste les lignes dont le repli
+  d'identité (nom et prénom inversés, nom complet face à une fiche découpée) a
+  trouvé plusieurs fiches : une fiche neuve est créée, rien n'est deviné, et
+  `candidate_ids` donne les fiches entre lesquelles l'admin tranche.
 - **La correction manuelle du club prime sur tout import ultérieur.** Le
   chronométreur d'une course d'il y a trois ans annonce le club de l'époque, et
   le laisser gagner ramènerait la correction à chaque réimport. D'où

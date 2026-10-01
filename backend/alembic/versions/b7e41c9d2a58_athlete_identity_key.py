@@ -34,7 +34,7 @@ depends_on: str | Sequence[str] | None = None
 # Contrat lu par réflexion par Alembic (cf. `script.py.mako`), jamais référencé ici.
 __all__ = ["revision", "down_revision", "branch_labels", "depends_on", "upgrade", "downgrade"]
 
-_LIGATURES = str.maketrans({"œ": "oe", "æ": "ae"})
+_LIGATURES = str.maketrans({"œ": "oe", "æ": "ae", "ø": "o", "ł": "l", "đ": "d"})
 _BATCH_SIZE = 5000
 
 
@@ -44,15 +44,21 @@ def _identity_key(text: str | None) -> str:
     return "".join(c for c in folded.translate(_LIGATURES) if c.isalnum())
 
 
+def _identity_keys(nom: str | None, prenom: str | None) -> tuple[str, str] | None:
+    last_name_key, first_name_key = _identity_key(nom), _identity_key(prenom)
+    if not last_name_key:
+        return (first_name_key, "") if first_name_key else None
+    return last_name_key, first_name_key
+
+
 def _backfill(connexion) -> None:
     rows = connexion.execute(sa.text("SELECT id, nom, prenom FROM athletes ORDER BY id")).all()
     next_rank: dict[tuple[str, str], int] = defaultdict(int)
     updates = []
     for athlete_id, nom, prenom in rows:
-        last_name_key = _identity_key(nom)
-        if not last_name_key:
+        key = _identity_keys(nom, prenom)
+        if key is None:
             continue
-        key = (last_name_key, _identity_key(prenom))
         updates.append({"b_id": athlete_id, "b_last": key[0], "b_first": key[1], "b_rank": next_rank[key]})
         next_rank[key] += 1
     statement = sa.text(

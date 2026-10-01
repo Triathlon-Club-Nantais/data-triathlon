@@ -905,7 +905,7 @@ def test_the_identity_key_migration_backfills_keys_and_ranks_duplicates(sqlite_u
     cfg = _alembic_config()
     command.upgrade(cfg, _BEFORE_IDENTITY_KEY)
     _insert_athletes(sqlite_url, [
-        ("LETORT", "Leo"), ("LETORT", "Léo"), ("?", "Jean"), ("DUPONT JEAN", ""), ("CIC 7", "")
+        ("LETORT", "Leo"), ("LETORT", "Léo"), ("?", ""), ("DUPONT JEAN", ""), ("CIC 7", ""), ("", "Jean Dupont")
     ])
 
     command.upgrade(cfg, "head")
@@ -914,7 +914,8 @@ def test_the_identity_key_migration_backfills_keys_and_ranks_duplicates(sqlite_u
         sqlite_url,
         "SELECT last_name_key, first_name_key, homonym_rank FROM athletes ORDER BY id",
     ) == [
-        ("letort", "leo", 0), ("letort", "leo", 1), (None, None, 0), ("dupontjean", "", 0), ("cic7", "", 0)
+        ("letort", "leo", 0), ("letort", "leo", 1), (None, None, 0), ("dupontjean", "", 0), ("cic7", "", 0),
+        ("jeandupont", "", 0),
     ]
 
 
@@ -962,7 +963,8 @@ def test_the_frozen_migration_rule_matches_the_application_key():
     spec = importlib.util.spec_from_file_location("identity_key_migration", _IDENTITY_KEY_MIGRATION)
     migration = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(migration)
-    for raw in ["Léo", "L'APPARTIEN", "LE GLOANIC", "Œuvray", "Lætitia", "Strauß", "CIC 7", "Иванов", "?", "", None]:
+    for raw in ["Léo", "L'APPARTIEN", "LE GLOANIC", "Œuvray", "Lætitia", "Strauß", "Søren", "Łukasz", "Đorđe",
+                "CIC 7", "Иванов", "?", "", None]:
         assert migration._identity_key(raw) == identity_key(raw)
 
 

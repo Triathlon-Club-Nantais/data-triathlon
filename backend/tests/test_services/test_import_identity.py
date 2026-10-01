@@ -128,3 +128,53 @@ def test_a_dated_record_is_still_found(db_session, patch_scraper):
 
     assert _carrier(db_session, "1").id == dated.id
     assert len(_athletes(db_session)) == 1
+
+
+def test_a_fallback_never_joins_a_record_already_racing_with_another_bib(db_session, patch_scraper):
+    """« THOMAS Martin » (dossard 1) et « MARTIN Thomas » (dossard 2) courent la
+    même épreuve : ce sont deux personnes, l'inversion ne les fusionne pas."""
+    [thomas_martin] = _seed(db_session, ("THOMAS", "Martin"))
+
+    _import(db_session, patch_scraper, [_result("1", "THOMAS", "Martin"), _result("2", "MARTIN", "Thomas")])
+
+    assert _carrier(db_session, "1").id == thomas_martin.id
+    assert (_carrier(db_session, "2").nom, _carrier(db_session, "2").prenom) == ("MARTIN", "Thomas")
+
+
+def test_two_fallback_rows_never_share_a_record(db_session, patch_scraper):
+    [moriarty] = _seed(db_session, ("ALEXANDER", "Moriarty"))
+
+    _import(db_session, patch_scraper, [
+        _result("1", "MORIARTY", "Alexander"), _result("2", "ALEXANDER MORIARTY", ""),
+    ])
+
+    assert moriarty.id not in {_carrier(db_session, "1").id, _carrier(db_session, "2").id}
+
+
+def test_a_rescrape_keeps_a_result_joined_by_fallback(db_session, patch_scraper):
+    [moriarty] = _seed(db_session, ("ALEXANDER", "Moriarty"))
+    _import(db_session, patch_scraper, [_result("1", "MORIARTY", "Alexander")])
+    _expire_cache(db_session)
+
+    out = _import(db_session, patch_scraper, [_result("1", "MORIARTY", "Alexander", total_time="02:01:00")])
+
+    assert (out["updated"], out["reconciled"]) == (1, 0)
+    assert _carrier(db_session, "1").id == moriarty.id
+
+
+def test_a_first_name_alone_keeps_its_identity(db_session, patch_scraper):
+    [jean] = _seed(db_session, ("DUPONT", "Jean"))
+
+    _import(db_session, patch_scraper, [_result("", "", "Jean Dupont")])
+
+    assert _athletes(db_session) == [("DUPONT", "Jean")]
+    assert len(jean.participations) == 1
+
+
+def test_a_relay_whose_teammates_share_one_identity_is_not_split(db_session, patch_scraper):
+    from tests.test_services.test_import_service import _relay
+
+    _import(db_session, patch_scraper, [_relay("1", "LE GLOANIC Fabien / LEGLOANIC Fabien", "")])
+
+    (row,) = _carrier(db_session, "1").participations
+    assert row.teammates == []
