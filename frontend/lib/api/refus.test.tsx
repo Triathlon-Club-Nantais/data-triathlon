@@ -16,12 +16,14 @@ describe("messageDeRefus", () => {
   it("distingue le code d'accès au site manquant de la session expirée", () => {
     const erreur = new ApiError(401, "Code d'accès au site requis.", null, {}, "site_access_required");
 
-    expect(messageDeRefus(erreur, GROUPES)).toEqual({
-      title: "Code d'accès requis",
-      description:
-        "Le code d'accès au site manque ou a expiré. " +
-        "Saisissez-le sur la page d'accès au site pour consulter les groupes.",
-    });
+    const message = messageDeRefus(erreur, GROUPES);
+
+    expect(message.title).toBe("Code d'accès requis");
+    expect(message.description).toBe(
+      "Le code d'accès au site manque ou a expiré. Saisissez-le pour consulter les groupes.",
+    );
+    // Un texte seul ne mène nulle part : le refus porte le lien vers la saisie.
+    expect(message.action).toBeDefined();
   });
 
   it("nomme le geste refusé et la façon de l'obtenir", () => {

@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+import { SiteAccessLink } from "@/components/site-access/SiteAccessLink";
 import { ApiError } from "@/lib/api/client";
 
 /** `code` du 401 de la garde du site (`SiteAccessRequiredError`, backend). */
@@ -25,14 +27,14 @@ export function estRefusDuSite(erreur: Error): boolean {
 export function messageDeRefus(
   erreur: Error,
   { sujet, action }: { sujet: string; action: string },
-): { title: string; description: string } {
+): { title: string; description: string; action?: ReactNode } {
   const statut = erreur instanceof ApiError ? erreur.status : 0;
   if (estRefusDuSite(erreur)) {
     return {
       title: "Code d'accès requis",
-      description:
-        "Le code d'accès au site manque ou a expiré. " +
-        `Saisissez-le sur la page d'accès au site pour consulter les ${sujet}.`,
+      description: `Le code d'accès au site manque ou a expiré. Saisissez-le pour consulter les ${sujet}.`,
+      // Le texte seul ne mène nulle part : aucune entrée du rail n'ouvre `/acces`.
+      action: <SiteAccessLink />,
     };
   }
   if (statut === 401) {

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import {
   Accordion,
@@ -41,7 +41,7 @@ import { PermissionGrid } from "./PermissionGrid";
  * n'existe » d'un simple manque de droit — la lecture la plus alarmante
  * possible, sur l'écran qui gouverne tous les autres.
  */
-function messageDErreur(erreur: Error): { title: string; description: string } {
+function messageDErreur(erreur: Error): { title: string; description: string; action?: ReactNode } {
   if (estRefusDuSite(erreur)) {
     return messageDeRefus(erreur, { sujet: "rôles", action: "consulter la composition des rôles" });
   }

@@ -59,6 +59,8 @@ def test_granting_and_revoking_a_role_are_recorded(client, ouvrir_session, db_se
     assert _journal(db_session) == [("role.grant", "user"), ("role.revoke", "user")]
     assert attribution.entity_id == cible.id
     assert attribution.payload["role"] == "lecteur"
+    # La cible se lit dans le journal : l'auteur, lui, est l'acteur (revue UI/UX).
+    assert attribution.payload["email"] == "cible@exemple.fr"
 
 
 def test_a_refused_grant_writes_nothing(client, ouvrir_session, db_session):
@@ -94,6 +96,7 @@ def test_group_lifecycle_and_membership_are_recorded(client, ouvrir_session, db_
         ("group.delete", "group"),
     ]
     assert ajout.payload["user_id"] == membre.id
+    assert ajout.payload["email"] == "membre@exemple.fr"
 
 
 def test_allow_list_changes_are_recorded(client, ouvrir_session, db_session):

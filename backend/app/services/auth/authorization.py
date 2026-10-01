@@ -604,7 +604,10 @@ def grant_role(
     )
     audit.record(
         db, actor.id, action="role.grant", entity_type="user", entity_id=user.id,
-        payload={"role": role.slug, "organisation_id": organisation_id, "created": cree},
+        payload={
+            "role": role.slug, "email": user.email,
+            "organisation_id": organisation_id, "created": cree,
+        },
     )
 
 
@@ -624,7 +627,7 @@ def revoke_role(
     )
     audit.record(
         db, actor.id, action="role.revoke", entity_type="user", entity_id=user.id,
-        payload={"role": role.slug, "organisation_id": organisation_id},
+        payload={"role": role.slug, "email": user.email, "organisation_id": organisation_id},
     )
 
 

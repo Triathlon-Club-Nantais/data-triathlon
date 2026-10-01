@@ -48,10 +48,10 @@ const ACTION_LABELS: Record<string, string> = {
   "group.delete": "Suppression d'un groupe",
   "group.member_add": "Ajout d'un membre à un groupe",
   "group.member_remove": "Retrait d'un membre d'un groupe",
-  "allowed_email.add": "Inscription d'une adresse autorisée",
+  "allowed_email.add": "Ajout d'une adresse autorisée",
   "allowed_email.remove": "Retrait d'une adresse autorisée",
-  "sessions.revoke": "Révocation de sessions",
-  "pending_provider.handle": "Fournisseur signalé traité",
+  "sessions.revoke": "Fermeture de sessions",
+  "pending_provider.handle": "Traitement d'un chronométreur signalé",
 };
 
 /** Le libellé français d'un geste, ou son code brut si le catalogue l'ignore. */
@@ -104,13 +104,13 @@ const PAYLOAD_KEY_LABELS: Record<string, string> = {
   url: "URL",
   provider: "Fournisseur",
   github_url: "Lien GitHub",
-  slug: "Code",
+  slug: "Identifiant",
   description: "Description",
   organisation_id: "Organisation",
   permissions: "Pouvoirs",
   superuser: "Superutilisateur",
   role: "Rôle",
-  created: "Nouveau",
+  created: "Nouvelle attribution",
   user_id: "Utilisateur",
   email: "Adresse",
   initial_role_id: "Rôle à l'inscription",
@@ -148,10 +148,15 @@ const ENTITES: Record<string, { label: string; href?: string }> = {
   group: { label: "Groupe" },
   allowed_email: { label: "Adresse autorisée" },
   sessions: { label: "Sessions" },
-  pending_provider: { label: "Fournisseur signalé" },
+  pending_provider: { label: "Chronométreur signalé" },
 };
 
 export type LigneDetail = { label: string; value: string; href?: string };
+
+/** Valeurs codées traduites, par clé : le backend écrit `scope: "all"` (#935). */
+const PAYLOAD_VALUE_LABELS: Record<string, Record<string, string>> = {
+  scope: { all: "tous les comptes" },
+};
 
 function labelFor(key: string): string {
   return PAYLOAD_KEY_LABELS[key] ?? key;
@@ -210,7 +215,7 @@ export function formatPayload(payload: Record<string, unknown> | null): LigneDet
     lignes.push(
       base && typeof v === "number"
         ? { label: labelFor(k), value: String(v), href: `${base}/${v}` }
-        : { label: labelFor(k), value: formatValue(v) },
+        : { label: labelFor(k), value: PAYLOAD_VALUE_LABELS[k]?.[String(v)] ?? formatValue(v) },
     );
   }
 

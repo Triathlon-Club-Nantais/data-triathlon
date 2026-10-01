@@ -209,7 +209,7 @@ def add_member(db: Session, actor: User, *, group: Group, user: User) -> None:
     )
     audit.record(
         db, actor.id, action="group.member_add", entity_type="group", entity_id=group.id,
-        payload={"slug": group.slug, "user_id": user.id, "created": created},
+        payload={"slug": group.slug, "user_id": user.id, "email": user.email, "created": created},
     )
 
 
@@ -228,7 +228,7 @@ def remove_member(db: Session, actor: User, *, group: Group, user: User) -> None
     )
     audit.record(
         db, actor.id, action="group.member_remove", entity_type="group", entity_id=group.id,
-        payload={"slug": group.slug, "user_id": user.id},
+        payload={"slug": group.slug, "user_id": user.id, "email": user.email},
     )
 
 

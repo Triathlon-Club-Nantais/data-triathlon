@@ -28,7 +28,14 @@ import { apiClient, ApiError } from "@/lib/api/client";
 const DELAI_INDICE_REVEIL_MS = 2500;
 const TEXTE_INDICE_REVEIL = "Le service peut être en veille et se réveiller : patientez quelques secondes.";
 
-export function SiteAccessGate({ apres = "rafraichir" }: { apres?: "rafraichir" | "accueil" }) {
+export function SiteAccessGate({
+  apres = "rafraichir",
+  retour = null,
+}: {
+  apres?: "rafraichir" | "accueil";
+  /** Écran à rouvrir après la saisie (`/acces?retour=…`, #877), déjà validé. */
+  retour?: string | null;
+}) {
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [erreur, setErreur] = useState<string | null>(null);
@@ -45,7 +52,7 @@ export function SiteAccessGate({ apres = "rafraichir" }: { apres?: "rafraichir" 
     try {
       await apiClient.siteAccessLogin(password);
       if (apres === "accueil") {
-        router.push("/");
+        router.push(retour ?? "/");
       } else {
         router.refresh();
       }
