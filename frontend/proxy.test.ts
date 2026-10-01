@@ -227,3 +227,22 @@ describe("buildCspPolicy — les deux hashes de sonner (#570)", () => {
     );
   });
 });
+
+describe("CSP violation reports (#1168)", () => {
+  it("sends reports to the backend through both reporting directives", () => {
+    // `report-to` for Chromium, `report-uri` for Firefox, which ignores the
+    // former; a browser that knows both uses `report-to` only.
+    const politique = buildCspPolicy("abc", { dev: false });
+
+    expect(directive(politique, "report-to")).toBe("report-to csp-endpoint");
+    expect(directive(politique, "report-uri")).toBe("report-uri /api/v1/csp-reports");
+  });
+
+  it("declares the endpoint that report-to names", () => {
+    const reponse = proxy(requeteAvec({}));
+
+    expect(reponse.headers.get("reporting-endpoints")).toBe(
+      'csp-endpoint="/api/v1/csp-reports"',
+    );
+  });
+});

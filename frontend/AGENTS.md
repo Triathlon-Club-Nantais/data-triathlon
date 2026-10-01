@@ -826,6 +826,11 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     réponse donne une politique correcte et un HTML sans nonce.
   - La CSP est le **tronc** de la fonction, le cookie un effet de bord : une
     sortie précoce la court-circuiterait pour la majorité des visiteurs.
+  - Les violations remontent au backend (#1168) : `report-to` (avec l'en-tête
+    `Reporting-Endpoints`) et `report-uri` visent `POST /api/v1/csp-reports`,
+    qui les écrit dans ses logs (`CSP violation directive=…`). La route est
+    exemptée de la garde du site : le navigateur envoie sans cookies. Brave
+    n'envoie **aucun** rapport ; un relevé se fait dans Chromium ou Firefox.
 
   En `Content-Security-Policy-Report-Only` pour l'instant — le nonce est injecté
   quand même, donc l'observation vaut mesure ; le passage en mode bloquant est
