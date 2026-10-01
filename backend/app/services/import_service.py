@@ -609,13 +609,15 @@ class _Persister:
     Point de persistance unique des trois entrées (rescrape-db, import-sheet, web
     SSE). Deux clés d'appariement, par course :
       - le dossard, quand il existe (`uq_participation_bib`) ;
-      - sinon l'athlète, en **multiset** — mais la mise à jour ne s'applique que
-        si l'athlète n'a qu'une seule participation sur la course (cf. `add`).
+      - sinon la clé source de la ligne (`source_identity_key`, #896), en
+        **multiset** — mais la mise à jour ne s'applique que si la clé n'a qu'une
+        seule participation sur la course (cf. `add`).
 
     Une ligne appariée est **fusionnée prudemment** (`_merge_fields`) : la source
     ne réécrit que ses valeurs non vides. `athlete_id` échappe à cette fusion —
-    seule la **réconciliation d'identité** (`_reconcile`, sur le chemin dossard)
-    le réassigne quand la graphie stockée a divergé de la graphie corrigée.
+    seule la **réconciliation d'identité** (`_reconcile_resolved`, sur le chemin
+    dossard) le réassigne, quand la clé source a changé, et jamais sur un
+    résultat verrouillé par un admin (`athlete_locked`).
     """
 
     def __init__(self, db: Session, event_url: str):
@@ -936,12 +938,21 @@ class _Persister:
         if not pending:
             return
 
-        pairs = [(item.scraped.athlete_name, item.scraped.athlete_firstname) for item in pending]
+        # Une ligne source inchangée garde sa fiche : ni recherche ni repli pour elle.
+        kept = [self._kept_record(course_id, item) if item.teammates is None else None for item in pending]
+        pairs = [
+            (item.scraped.athlete_name, item.scraped.athlete_firstname)
+            for item, record in zip(pending, kept, strict=True) if record is None
+        ]
         teammate_pairs = [pair for item in pending for pair in item.teammates or ()]
         pairs += teammate_pairs + [pair[::-1] for pair in teammate_pairs]
         found = athlete_repository.get_by_identity_keys_batch(self.db, [_pair_key(pair) for pair in pairs])
         unresolved = [
-            key for key in dict.fromkeys(_identity_key(item.scraped) for item in pending if item.teammates is None)
+            key for key in dict.fromkeys(
+                _identity_key(item.scraped)
+                for item, record in zip(pending, kept, strict=True)
+                if item.teammates is None and record is None
+            )
             if key not in found
         ]
         fallback, ambiguous = athlete_repository.find_fallback_matches(self.db, unresolved)
@@ -952,10 +963,6 @@ class _Persister:
             for item in pending
         ]
         decisions = self._split_decisions(course_id, pending, found)
-        kept = [
-            self._kept_record(course_id, item) if teammates is None else None
-            for item, teammates in zip(pending, decisions, strict=True)
-        ]
 
         to_create: dict[IdentityKey, dict] = {}
         creation_order: list[IdentityKey] = []
@@ -1035,7 +1042,7 @@ class _Persister:
             if gender and not self._gender_of(athlete):
                 self._defer_update(athlete, gender=gender)
 
-            is_creator = key in created_keys and key not in creation_consumed
+            is_creator = record is None and key in created_keys and key not in creation_consumed
             if is_creator:
                 creation_consumed.add(key)
 
@@ -1092,10 +1099,20 @@ class _Persister:
         source_key = _source_key(item.scraped)
         if item.participation is not None:
             return item.participation.athlete if _stored_source_key(item.participation) == source_key else None
-        if item.bib is None:
-            rows = self._without_bib[course_id].get(source_key)
-            return rows[0].athlete if rows else None
-        return None
+        if item.bib is not None:
+            return None
+        # Sans dossard, seulement si la ligne sera bien appariée ou comptée sur
+        # une seule fiche : une ligne de plus que la base, ou une clé dont une
+        # ligne a été réattribuée par un admin, se résout comme une ligne neuve,
+        # sans quoi elle irait à la fiche choisie par l'admin.
+        rows = self._without_bib[course_id].get(source_key, [])
+        if (
+            self._credits[course_id].get(source_key, 0) <= 0
+            or len({row.athlete_id for row in rows}) != 1
+            or any(row.athlete_locked or row.teammate_links for row in rows)
+        ):
+            return None
+        return rows[0].athlete
 
     def _safe_fallbacks(
         self, course_id: int, pending: list[_PendingResolution],
@@ -1222,8 +1239,8 @@ class _Persister:
         self, scraped: ScrapedResult, participation: Participation, athlete: Athlete,
         *, cree: bool,
     ) -> None:
-        """Réassigne l'athlète d'une participation existante si sa graphie a
-        divergé. `athlete`/`cree` sont déjà connus (résolus par lot dans
+        """Réassigne l'athlète d'une participation existante si sa clé source a
+        changé (le chronométreur a corrigé le nom, #896). `athlete`/`cree` sont déjà connus (résolus par lot dans
         `_resolve_pending`, `_reconcile_blocked` déjà écarté à l'enfilement) —
         c'est la seule différence avec l'ancien `_reconcile`, qui résolvait
         lui-même l'athlète par une requête. Ne touche QUE `athlete_id` (via la

@@ -129,6 +129,55 @@ def test_new_participations_record_their_source_identity(db_session, patch_scrap
     assert keys == ["lappartien|marie", "legloanic|leo"]
 
 
+def test_a_second_bibless_row_of_a_reassigned_key_stays_on_its_own_record(db_session, patch_scraper):
+    """La ligne réattribuée garde la fiche de l'admin ; une seconde ligne de même
+    clé, nouvelle, va sur la fiche de son identité, pas sur celle de l'admin."""
+    martin = _martin_elsewhere(db_session, patch_scraper)
+    _import(db_session, patch_scraper, [_result("", "DUPONT", "Jean", club="CLUB A")])
+    [moved] = _rows(db_session, "DUPONT")
+    admin_actions.reassign_participation(
+        db_session, participation_id=moved.id, athlete_id=martin.id, user_id=_admin(db_session)
+    )
+    db_session.commit()
+    _expire_cache(db_session)
+
+    _import(db_session, patch_scraper, [
+        _result("", "DUPONT", "Jean", club="CLUB A"),
+        _result("", "DUPONT", "Jean", total_time="03:00:00", club="CLUB B"),
+    ])
+
+    assert db_session.get(Participation, moved.id).athlete_id == martin.id
+    [new] = _rows(db_session, "DUPONT")
+    assert new.total_time == "03:00:00"
+    assert martin.club != "CLUB B"
+
+
+def test_the_same_runner_twice_without_bib_keeps_both_results(db_session, patch_scraper):
+    rows = [_result("", "DUPONT", "Jean"), _result("", "DUPONT", "Jean", total_time="03:00:00")]
+    _import(db_session, patch_scraper, rows)
+    _expire_cache(db_session)
+
+    out = _import(db_session, patch_scraper, rows)
+
+    assert out["imported"] == 0
+    assert len(_rows(db_session, "DUPONT")) == 2
+    assert db_session.query(Athlete).count() == 1
+
+
+def test_a_manual_bibless_result_is_matched_through_its_athlete_key(db_session, patch_scraper):
+    """Un résultat saisi à la main n'a pas de clé source : celle de sa fiche en tient lieu."""
+    _import(db_session, patch_scraper, [_result("", "DUPONT", "Jean")])
+    [row] = _rows(db_session, "DUPONT")
+    row.source_identity_key = None
+    db_session.commit()
+    _expire_cache(db_session)
+
+    out = _import(db_session, patch_scraper, [_result("", "DUPONT", "Jean", total_time="02:01:00")])
+
+    assert (out["imported"], out["updated"]) == (0, 1)
+    assert db_session.get(Participation, row.id).source_identity_key == "dupont|jean"
+
+
 def test_reassign_locks_the_result(db_session, patch_scraper):
     martin = _martin_elsewhere(db_session, patch_scraper)
     _import(db_session, patch_scraper, [_result("1", "DUPONT", "Jean")])

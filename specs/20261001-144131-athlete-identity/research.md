@@ -61,7 +61,7 @@ Relevé du code au 2026-10-01 (base `main` 6e26028a). Chemins relatifs à `backe
 ## R6. Correction admin protégée au rescrape (#896)
 
 - **Decision** :
-  - `participations.athlete_locked` (booléen, défaut faux), posé par `reassign_participation`. Une ligne appariée par dossard à une participation verrouillée n'est que mise à jour (valeurs), sans résolution d'identité : même branche que `teammate_links` (#894).
+  - `participations.athlete_locked` (booléen, défaut faux), posé par `reassign_participation`. Une ligne appariée par dossard à une participation verrouillée n'est que mise à jour (valeurs), sans résolution d'identité : même branche que `teammate_links` (#894). Le club et le genre de la ligne ne sont alors pas reportés sur la fiche choisie : l'identité scrapée n'est pas la sienne.
   - `participations.source_identity_key` (texte, nullable) : clé normalisée `"<last_name_key>|<first_name_key>"` de la ligne source, écrite à chaque création ou mise à jour par l'import. L'appariement **sans dossard** se fait par cette clé et non plus par athlète : il remonte dans `add()`, avant toute résolution, sur un multiset `source_identity_key → lignes`. Une ligne réattribuée est donc retrouvée sans recréer la fiche d'origine.
   - Rétro-remplissage par la migration : clé de la fiche actuelle (juste pour toute ligne jamais réattribuée ; une ligne déjà réattribuée est hors périmètre, cf. spec).
 - **Rationale** : avec dossard, un drapeau suffit ; sans dossard il faut une clé d'appariement indépendante de la fiche (commentaire du 2026-09-29 sur #896). La fusion n'a pas besoin du drapeau : la clé scrapée de la fiche absorbée devient une variante de la fiche conservée (R5, règle de réconciliation).
