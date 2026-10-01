@@ -122,7 +122,9 @@ def get_by_identity_keys_batch(
     `FOR KEY SHARE` (PostgreSQL ; sans effet sous SQLite) : une fiche résolue ne
     peut plus être supprimée, par une fusion par exemple, avant la fin de la
     transaction qui va y rattacher des résultats. Il ne gêne ni les autres
-    imports ni les mises à jour de club et de genre.
+    imports ni les mises à jour de club et de genre ; il fait attendre un
+    renommage (les clés font partie de `uq_athlete_identity`), que
+    `admin_actions.update_athlete` borne par `lock_timeout`.
     """
     wanted = {key for key in keys if key[0] is not None}
     if not wanted:
@@ -199,58 +201,74 @@ def find_fallback_matches(
 _CREATED_COLUMNS = ("nom", "prenom", "gender", "birth_date", "club")
 
 
-def create_batch(db: Session, athletes_fields: Sequence[dict]) -> list[Athlete]:
+def create_batch(
+    db: Session, athletes_fields: Sequence[dict]
+) -> tuple[list[Athlete], set[int]]:
     """Crée un lot de fiches principales, ou rend celles qui existent déjà (#706, #981).
 
-    Un `INSERT … ON CONFLICT DO NOTHING` multi-lignes sur `uq_athlete_identity`,
-    puis la relecture des identités qu'il n'a pas insérées : deux imports qui
-    créent la même personne en même temps aboutissent à la même fiche. En
-    READ COMMITTED, l'insertion en conflit avec une ligne non commitée attend
-    la fin de l'autre transaction ; la relecture voit ensuite sa fiche.
+    Un `INSERT … ON CONFLICT DO NOTHING RETURNING` multi-lignes sur
+    `uq_athlete_identity`, puis la relecture des seules identités qu'il n'a pas
+    insérées : deux imports qui créent la même personne en même temps aboutissent
+    à la même fiche. En READ COMMITTED, l'insertion en conflit avec une ligne non
+    commitée attend la fin de l'autre transaction ; la relecture voit ensuite sa
+    fiche.
 
-    Rend une fiche par entrée, dans l'ordre, suivie par la session. Une entrée
+    Les lignes partent triées par clé : deux imports qui listent les mêmes
+    inconnus dans des ordres différents prennent alors leurs verrous d'insertion
+    dans le même ordre, et ne s'interbloquent pas au sein d'une instruction.
+    Entre deux tranches d'une même transaction, l'interblocage reste possible ;
+    `deadlock_retries` rejoue alors la persistance.
+
+    Rend une fiche par entrée, dans l'ordre, suivie par la session, et les ids
+    réellement insérés : une fiche rendue sans l'être existait déjà. Une entrée
     sans identité (`?`, `-`) a des clés NULL, qui ne se heurtent jamais : elle
     est créée par l'ORM.
     """
-    if not athletes_fields:
-        return []
-    rows: list[dict] = []
-    keys: list[IdentityKey] = []
-    for fields in athletes_fields:
-        key = athlete_identity_keys(fields.get("nom"), fields.get("prenom"))
-        keys.append(key)
-        if key[0] is not None:
-            row = {column: fields.get(column) for column in _CREATED_COLUMNS}
-            row["prenom"] = row["prenom"] or ""
-            row["gender"] = row["gender"] or ""
-            rows.append({**row, "last_name_key": key[0], "first_name_key": key[1]})
+    unknown = {column for fields in athletes_fields for column in fields} - set(_CREATED_COLUMNS)
+    if unknown:
+        raise ValueError(f"create_batch does not write {sorted(unknown)}")
+    keys = [athlete_identity_keys(fields.get("nom"), fields.get("prenom")) for fields in athletes_fields]
+    rows = sorted(
+        (
+            {
+                **{column: fields.get(column) for column in _CREATED_COLUMNS},
+                "prenom": fields.get("prenom") or "",
+                "gender": fields.get("gender") or "",
+                "last_name_key": key[0],
+                "first_name_key": key[1],
+            }
+            for fields, key in zip(athletes_fields, keys, strict=True)
+            if key[0] is not None
+        ),
+        key=lambda row: (row["last_name_key"], row["first_name_key"]),
+    )
 
-    ids: dict[IdentityKey, int] = {}
+    by_key: dict[IdentityKey, Athlete] = {}
+    inserted_ids: set[int] = set()
     if rows:
         insert = postgresql_insert if db.get_bind().dialect.name == "postgresql" else sqlite_insert
-        inserted = db.execute(
+        inserted = db.scalars(
             insert(Athlete)
             .values(rows)
             .on_conflict_do_nothing(index_elements=["last_name_key", "first_name_key", "homonym_rank"])
-            .returning(Athlete.id, Athlete.last_name_key, Athlete.first_name_key)
-        )
-        ids = {(last, first): athlete_id for athlete_id, last, first in inserted}
-        missing = {key for key in keys if key[0] is not None and key not in ids}
+            .returning(Athlete)
+        ).all()
+        by_key = {(athlete.last_name_key, athlete.first_name_key): athlete for athlete in inserted}
+        inserted_ids = {athlete.id for athlete in inserted}
+        missing = {key for key in keys if key[0] is not None and key not in by_key}
         if missing:
-            ids.update(
-                (key, athlete.id) for key, athlete in get_by_identity_keys_batch(db, list(missing)).items()
-            )
+            by_key.update(get_by_identity_keys_batch(db, list(missing)))
 
-    loaded = {athlete.id: athlete for athlete in db.query(Athlete).filter(Athlete.id.in_(ids.values()))}
     nameless = [Athlete(**fields) for fields, key in zip(athletes_fields, keys, strict=True) if key[0] is None]
     if nameless:
         db.add_all(nameless)
         db.flush()
+        inserted_ids.update(athlete.id for athlete in nameless)
     pending_nameless = iter(nameless)
-    return [
-        loaded[ids[key]] if key[0] is not None else next(pending_nameless)
-        for key in keys
-    ]
+    return (
+        [by_key[key] if key[0] is not None else next(pending_nameless) for key in keys],
+        inserted_ids,
+    )
 
 
 def apply_updates(db: Session, updates: Sequence[tuple[Athlete, dict[str, str]]]) -> None:

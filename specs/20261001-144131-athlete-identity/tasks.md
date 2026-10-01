@@ -128,7 +128,7 @@ description: "Task list for epic #1146, one stable identity per real athlete"
 ### Implémentation
 
 - [X] T034 [US3] Réécrire `create_batch` dans `backend/app/repositories/athlete_repository.py` : `insert(...).on_conflict_do_nothing(index_elements=[last_name_key, first_name_key, homonym_rank]).returning(Athlete.id)` choisi selon `bind.dialect.name` (`postgresql`/`sqlite`), puis relecture par clé des identités non retournées ; rendre des objets `Athlete` attachés à la session ; sur PostgreSQL, `get_by_identity_keys_batch` et `find_fallback_matches` prennent `FOR KEY SHARE` sur les fiches rendues (`research.md` R7)
-- [ ] T035 [US3] Lancer `TEST_POSTGRES_URL=… uv run pytest tests/test_repositories -n 0` en local et vérifier que le job CI `backend-postgres` (`.github/workflows/ci.yml`) exécute le nouveau fichier
+- [X] T035 [US3] Lancer `TEST_POSTGRES_URL=… uv run pytest tests/test_repositories -n 0` en local et vérifier que le job CI `backend-postgres` (`.github/workflows/ci.yml`) exécute le nouveau fichier
 
 **Checkpoint**: concurrence garantie (PR 3).
 

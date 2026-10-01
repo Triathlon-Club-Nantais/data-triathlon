@@ -21,6 +21,8 @@ import logging
 from collections.abc import Iterator
 from typing import NamedTuple
 
+import psycopg.errors
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.athlete_identity import athlete_identity_keys
@@ -36,6 +38,7 @@ from app.repositories import (
     athlete_repository,
     course_repository,
     course_source_repository,
+    lock_repository,
     participation_repository,
     season_validation_repository,
     volunteer_action_repository,
@@ -961,6 +964,13 @@ def _instantane(entite, champs: tuple[str, ...]) -> dict:
     return valeurs
 
 
+class AthleteBusyError(DomainError):
+    """Un import tient la fiche : un renommage attendrait sa fin (#981)."""
+
+    status_code = 409
+    message = "Cette fiche est en cours d'import. Réessayez dans un instant."
+
+
 def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) -> Athlete:
     """Corrige la fiche d'un coureur — nom, prénom, date de naissance, club (FR-004).
 
@@ -995,7 +1005,15 @@ def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) 
     if "club" in demande and demande["club"] != athlete.club:
         demande["club_locked"] = True
 
-    athlete_repository.update_identity(db, athlete, **demande)
+    # Un import qui vient de résoudre la fiche la tient en `FOR KEY SHARE`, que
+    # changer ses clés d'identité attendrait jusqu'à la fin du rescrape.
+    lock_repository.bound_lock_waits(db, "5s")
+    try:
+        athlete_repository.update_identity(db, athlete, **demande)
+    except OperationalError as exc:
+        if isinstance(exc.orig, psycopg.errors.LockNotAvailable):
+            raise AthleteBusyError() from exc
+        raise
     apres = _instantane(athlete, _CHAMPS_ATHLETE)
     if apres == avant:
         return athlete
