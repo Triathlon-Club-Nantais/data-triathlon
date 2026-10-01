@@ -46,9 +46,9 @@ class PersonalProfile(Base):
         ForeignKey("users.id"), nullable=True
     )
 
-    #: Sans cascade DB (pas d'`ondelete`) : la suppression d'un profil n'est
-    #: pas une ressource de cette feature (#867 ne la demande pas), la cascade
-    #: ORM `delete-orphan` couvre le seul chemin qui existe aujourd'hui.
+    #: Sans cascade DB (pas d'`ondelete`) : la seule suppression d'un profil est
+    #: la purge de rétention (#1158), et la cascade ORM `delete-orphan` y emporte
+    #: le journal.
     log_entries: Mapped[list["ProfileLogEntry"]] = relationship(  # noqa: F821
         back_populates="profile", cascade="all, delete-orphan"
     )

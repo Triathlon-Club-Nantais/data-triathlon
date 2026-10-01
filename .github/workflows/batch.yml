@@ -200,8 +200,36 @@ jobs:
             --start-ip-address "$RUNNER_IP" --end-ip-address "$RUNNER_IP" \
             --only-show-errors --output none
 
+      # Purge de rétention (#1158) : les durées publiées par la politique de
+      # confidentialité ne sont tenues que par ce passage, hebdomadaire. Avant la
+      # reprise, qui peut durer jusqu'au `timeout-minutes` et emporter le job :
+      # la purge est rapide et n'en dépend pas. Ni `continue-on-error` ni mode
+      # `urls` : une purge qui échoue doit rougir le run (et alerter sur la
+      # planification). Le dry-run du batch la simule aussi.
+      - name: Purge expired personal data
+        id: purge
+        if: inputs.mode != 'urls'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -uo pipefail
+          args=()
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          # `set +e` : le shell par défaut est `bash -e`, qui sortirait avant de
+          # publier le rapport, et la trace d'une panne, dans le résumé.
+          set +e
+          uv run python -m app.cli purge-retention "${args[@]}" > retention.txt 2>&1
+          code=$?
+          set -e
+          cat retention.txt
+          { echo '## Purge de rétention'; echo '```'; cat retention.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $code
+
       - name: Run batch
         id: batch
+        # Une purge en échec rougit le run, mais ne prive pas la base de sa reprise.
+        if: ${{ success() || (failure() && steps.purge.outcome == 'failure') }}
         env:
           # `DATABASE_URL` doit viser un hôte IPv4 : les runners GitHub n'ont
           # pas d'IPv6. Sur Supabase (preview), c'est le pooler
@@ -259,27 +287,6 @@ jobs:
           uv run python -m app.cli geocode-courses --json --no-progress --limit 300 \
             > geocode.json 2> geocode.txt
           cat geocode.txt
-
-      # Purge de rétention (#1158) : les durées publiées par la politique de
-      # confidentialité ne sont tenues que par ce passage, hebdomadaire. Ni
-      # `continue-on-error` ni mode `urls` : une purge qui échoue doit rougir le
-      # run (et alerter sur la planification), et elle ne dépend pas des
-      # épreuves ciblées. Le dry-run du batch la simule aussi.
-      - name: Purge expired personal data
-        # `!cancelled()` et non `success()` : une reprise en échec total ne doit
-        # pas suspendre la purge, qui n'en dépend pas.
-        if: ${{ !cancelled() && inputs.mode != 'urls' }}
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DRY_RUN: ${{ inputs.dry_run }}
-        run: |
-          set -uo pipefail
-          args=(--json)
-          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
-          uv run python -m app.cli purge-retention "${args[@]}" > retention.json 2> retention.txt
-          code=$?
-          cat retention.txt
-          exit $code
 
       # `always()` : un échec total (code 1) est un résultat, pas une panne — son
       # bilan est précisément ce qu'on vient lire.

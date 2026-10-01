@@ -120,3 +120,23 @@ def test_dry_run_counts_without_deleting(db_session, organisation):
     assert (outcome.feedback, outcome.profiles, outcome.dry_run) == (1, 1, True)
     assert db_session.get(UserFeedback, ancien.id) is not None
     assert db_session.get(PersonalProfile, profile.id) is not None
+
+
+@pytest.mark.parametrize(
+    ("today", "cutoff"),
+    [
+        (date(2027, 8, 31), date(2025, 9, 1)),
+        (date(2027, 9, 1), date(2026, 9, 1)),
+    ],
+)
+def test_youth_profile_cutoff_moves_on_september_first(today, cutoff):
+    assert retention_service.youth_profile_cutoff(today) == cutoff
+
+
+def test_an_entry_exactly_twelve_months_old_is_kept(db_session):
+    juste = _feedback(db_session, NOW - timedelta(days=365))
+
+    outcome = retention_service.purge_expired(db_session, now=NOW)
+
+    assert outcome.feedback == 0
+    assert db_session.get(UserFeedback, juste.id) is not None

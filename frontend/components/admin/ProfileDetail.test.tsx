@@ -22,6 +22,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 });
 
 import { ApiError } from "@/lib/api/client";
+import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
 import { ProfileDetail } from "./ProfileDetail";
 
 const PROFIL: ProfileDetailType = {
@@ -69,7 +70,9 @@ function afficher(id = 1) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <ProfileDetail profileId={id} />
+      <DangerConfirmProvider>
+        <ProfileDetail profileId={id} />
+      </DangerConfirmProvider>
     </QueryClientProvider>,
   );
 }
@@ -161,7 +164,7 @@ describe("ProfileDetail", () => {
   it("annonce la date de suppression d'un profil dont l'adhésion a pris fin (#1158)", async () => {
     getProfile.mockResolvedValue({ ...PROFIL, membership_ended_on: "2026-06-30" });
     afficher();
-    expect(await screen.findByText(/fin d'adhésion : 30\/06\/2026/i)).toBeInTheDocument();
+    expect((await screen.findByText(/fin d'adhésion/i)).parentElement).toHaveTextContent("30/06/2026");
     expect(screen.getByText(/supprimé automatiquement à partir du 01\/09\/2027/i)).toBeInTheDocument();
   });
 
@@ -184,6 +187,27 @@ describe("ProfileDetail", () => {
     await waitFor(() =>
       expect(updateProfile).toHaveBeenLastCalledWith(1, expect.objectContaining({ membership_ended_on: null })),
     );
+  });
+
+  it("annonce la date de suppression pendant la saisie de la fin d'adhésion (#1158)", async () => {
+    const utilisateur = userEvent.setup();
+    afficher();
+    await utilisateur.click(await screen.findByRole("button", { name: /modifier le profil/i }));
+    await utilisateur.type(screen.getByLabelText(/fin d'adhésion/i), "2099-06-30");
+    expect(screen.getByText(/supprimé automatiquement à partir du 01\/09\/2100/i)).toBeInTheDocument();
+  });
+
+  it("demande confirmation quand la fin d'adhésion rend le profil supprimable tout de suite (#1158)", async () => {
+    const utilisateur = userEvent.setup();
+    afficher();
+    await utilisateur.click(await screen.findByRole("button", { name: /modifier le profil/i }));
+    await utilisateur.type(screen.getByLabelText(/fin d'adhésion/i), "2016-06-30");
+    await utilisateur.click(screen.getByRole("button", { name: /enregistrer/i }));
+
+    const dialogue = await screen.findByRole("dialog");
+    expect(dialogue).toHaveTextContent(/prochaine purge/i);
+    await utilisateur.click(screen.getByRole("button", { name: "Renoncer" }));
+    expect(updateProfile).not.toHaveBeenCalled();
   });
 
   it("renseigne la date de naissance d'un profil qui n'en avait pas", async () => {

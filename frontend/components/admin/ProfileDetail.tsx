@@ -11,7 +11,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useAddProfileLogEntry, useProfile, useUpdateProfile } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
-import { formatDate } from "@/lib/utils/date";
+import { formatDate, localToday } from "@/lib/utils/date";
+import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { calculerAge } from "@/lib/utils/age";
 import { profilePurgeDate } from "@/lib/utils/season";
 
@@ -28,13 +29,14 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
   const session = useSession();
   const modifier = useUpdateProfile();
   const ajouterEntree = useAddProfileLogEntry();
+  const confirmer = useDangerConfirm();
   const [edition, setEdition] = useState(false);
   const [prenom, setPrenom] = useState("");
   const [nom, setNom] = useState("");
   const [naissance, setNaissance] = useState("");
   const [contact, setContact] = useState("");
   const [notes, setNotes] = useState("");
-  const [finAdhesion, setFinAdhesion] = useState("");
+  const [membershipEnd, setMembershipEnd] = useState("");
   const [nouvelleEntree, setNouvelleEntree] = useState("");
 
   const peutEcrire = session.data?.permissions.includes("jeunes:write") ?? false;
@@ -45,13 +47,29 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
     setNaissance(data?.birth_date ?? "");
     setContact(data?.emergency_contact ?? "");
     setNotes(data?.notes ?? "");
-    setFinAdhesion(data?.membership_ended_on ?? "");
+    setMembershipEnd(data?.membership_ended_on ?? "");
     setEdition(true);
   }
 
   async function enregistrer(evenement: React.SyntheticEvent) {
     evenement.preventDefault();
     if (!prenom.trim() || !nom.trim()) return;
+    // La purge est irréversible : une date dont la purge est déjà échue (faute de frappe sur
+    // l'année) supprimerait le profil, journal compris, au prochain batch hebdomadaire.
+    const purgeDue =
+      membershipEnd !== "" &&
+      membershipEnd !== data?.membership_ended_on &&
+      profilePurgeDate(membershipEnd) <= localToday();
+    if (
+      purgeDue &&
+      !(await confirmer({
+        titre: "Supprimer ce profil à la prochaine purge ?",
+        description: `Avec une fin d'adhésion au ${formatDate(membershipEnd)}, la saison de conservation est déjà écoulée : le profil, son journal et ses présences seront supprimés définitivement à la prochaine purge hebdomadaire.`,
+        libelleAction: "Confirmer la fin d'adhésion",
+      }))
+    ) {
+      return;
+    }
     try {
       await modifier.mutateAsync({
         id: profileId,
@@ -62,7 +80,7 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
           emergency_contact: contact,
           notes,
           // Vide = toujours adhérent : `null` efface une fin saisie par erreur (#1158).
-          membership_ended_on: finAdhesion || null,
+          membership_ended_on: membershipEnd || null,
         },
       });
       setEdition(false);
@@ -161,12 +179,13 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
                 id="jeune-fin-adhesion"
                 type="date"
                 aria-describedby="jeune-fin-adhesion-aide"
-                value={finAdhesion}
-                onChange={(e) => setFinAdhesion(e.target.value)}
+                value={membershipEnd}
+                onChange={(e) => setMembershipEnd(e.target.value)}
               />
               <p id="jeune-fin-adhesion-aide" className="text-[var(--tcn-text-faint)] text-xs">
-                À renseigner quand le jeune quitte le club : son profil est supprimé à la fin de la saison
-                suivante. Laissez vide tant qu&apos;il est adhérent.
+                {membershipEnd
+                  ? `Profil supprimé automatiquement à partir du ${formatDate(profilePurgeDate(membershipEnd))}.`
+                  : "À renseigner quand le jeune quitte le club : son profil est supprimé à la fin de la saison suivante. Laissez vide tant qu'il est adhérent."}
               </p>
             </div>
             <div className="flex gap-2">
@@ -190,7 +209,8 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
             </div>
             {data.membership_ended_on && (
               <div>
-                <span className="font-medium">Fin d&apos;adhésion : {formatDate(data.membership_ended_on)}</span>
+                <span className="font-medium">Fin d&apos;adhésion : </span>
+                {formatDate(data.membership_ended_on)}
                 <span className="text-[var(--tcn-text-faint)] text-sm">
                   {" "}
                   (profil supprimé automatiquement à partir du{" "}
