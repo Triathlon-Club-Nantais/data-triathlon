@@ -120,4 +120,23 @@ describe("FeedbackButton", () => {
     // `feedback_submitted` part du backend, une fois le retour enregistré (#1033).
     expect(captureEvent).not.toHaveBeenCalled();
   });
+
+  it("propose de demander le retrait de ses données, avec ce qu'il faut indiquer (#334)", async () => {
+    const user = userEvent.setup();
+    submitFeedback.mockResolvedValue({ status: "ok" });
+    render(<FeedbackButton />);
+
+    await user.click(screen.getByRole("button", { name: /signaler un bug/i }));
+    await user.click(screen.getByRole("radio", { name: "Retrait de mes données" }));
+
+    expect(screen.getByText(/nom, prénom.*épreuve/i)).toBeInTheDocument();
+    expect(screen.getByText(/sous un mois/i)).toBeInTheDocument();
+    await user.type(screen.getByLabelText("Titre"), "Retrait");
+    await user.type(screen.getByLabelText("Description"), "DUPONT Jean, Triathlon de Nantes 2026");
+    await user.click(screen.getByRole("button", { name: "Envoyer" }));
+
+    await waitFor(() =>
+      expect(submitFeedback).toHaveBeenCalledWith(expect.objectContaining({ type: "retrait" })),
+    );
+  });
 });

@@ -1229,7 +1229,7 @@ export interface SessionRevocation {
 
 /** Corps de `POST /feedback` (#267) — route publique. */
 export interface FeedbackCreate {
-  type: "bug" | "feedback";
+  type: "bug" | "feedback" | "retrait";
   title: string;
   body: string;
   page_url?: string | null;
@@ -1247,7 +1247,7 @@ export interface FeedbackCreated {
 /** Un retour utilisateur, tel que rendu à un pouvoir `feedback:read`. */
 export interface Feedback {
   id: number;
-  type: "bug" | "feedback";
+  type: "bug" | "feedback" | "retrait";
   title: string;
   body: string;
   page_url: string | null;

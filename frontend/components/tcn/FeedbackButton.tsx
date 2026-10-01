@@ -13,7 +13,7 @@ import { apiClient, ApiError } from "@/lib/api/client";
  */
 export function FeedbackButton() {
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState<"bug" | "feedback">("bug");
+  const [type, setType] = useState<"bug" | "feedback" | "retrait">("bug");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [honeypot, setHoneypot] = useState("");
@@ -142,7 +142,24 @@ export function FeedbackButton() {
                   />
                   Avis / suggestion
                 </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--tcn-text)" }}>
+                  <input
+                    type="radio"
+                    name="feedback-type"
+                    value="retrait"
+                    checked={type === "retrait"}
+                    onChange={() => setType("retrait")}
+                  />
+                  Retrait de mes données
+                </label>
               </div>
+              {type === "retrait" && (
+                // Le droit d'opposition (#334) : ce qu'il faut pour retrouver les résultats, et le délai dû.
+                <p style={{ color: "var(--tcn-text-muted)", fontSize: 14 }}>
+                  Indiquez votre nom, prénom et l&apos;épreuve concernée (nom et date). Vos résultats seront
+                  rendus anonymes ; le club vous répond sous un mois.
+                </p>
+              )}
 
               <Input
                 placeholder="Titre court"
