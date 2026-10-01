@@ -921,3 +921,94 @@ def test_the_data_migration_normalizes_athlete_gender(sqlite_url):
     assert _lignes(sqlite_url, "SELECT gender FROM athletes ORDER BY id") == [
         ("M",), ("M",), ("M",), ("F",), ("F",), ("F",), ("",), ("",), ("",),
     ]
+
+
+# --- Rattrapage du club actuel (#965) ----------------------------------------
+
+_BEFORE_CURRENT_CLUB_BACKFILL = "d49e03833de6"
+
+
+def _seed_club_history(url: str) -> None:
+    """Six fiches, chacune un cas de la règle de #965.
+
+    `club` porte la valeur qu'a laissée l'ancien import, qui suivait l'ordre de
+    traitement et non la date d'épreuve.
+    """
+    athletes = [
+        # (nom, club actuel en base, verrouillé)
+        ("ORDRE", "CAROTTES", False),     # l'épreuve la plus récente annonce TCN
+        ("VERROU", "MANUEL", True),      # corrigé par un humain : intouchable
+        ("ATTENTE", "Y", False),          # la plus récente est une déclaration en attente
+        ("SANSDATE", "W", False),         # aucune épreuve datée : rien ne prouve un club
+        ("VIDE", "B", False),             # la plus récente ne publie aucun club
+        ("EGALITE", "P1", False),         # deux épreuves le même jour : la dernière importée
+    ]
+    courses = [
+        # (id, date)
+        (1, "2025-02-01"),
+        (2, "2026-05-01"),
+        (3, None),
+    ]
+    participations = [
+        # (athlète, course, club, en attente)
+        ("ORDRE", 2, "TCN", False),
+        ("ORDRE", 1, "CAROTTES", False),
+        ("VERROU", 2, "TCN", False),
+        ("ATTENTE", 1, "Y", False),
+        ("ATTENTE", 2, "X", True),
+        ("SANSDATE", 3, "Z", False),
+        ("VIDE", 1, "A", False),
+        ("VIDE", 2, "", False),
+        ("EGALITE", 2, "P1", False),
+        ("EGALITE", 2, "P2", False),
+    ]
+    engine = sa.create_engine(url)
+    try:
+        with engine.begin() as connexion:
+            for nom, club, verrou in athletes:
+                connexion.execute(
+                    sa.text(
+                        "INSERT INTO athletes (nom, prenom, gender, club, club_locked, created_at)"
+                        " VALUES (:nom, 'P', '', :club, :verrou, '2026-01-01')"
+                    ),
+                    {"nom": nom, "club": club, "verrou": verrou},
+                )
+            for course_id, event_date in courses:
+                connexion.execute(
+                    sa.text(
+                        "INSERT INTO courses (id, name, event_type, event_date, is_relay,"
+                        " scraped_at, created_at) VALUES (:id, :nom, 'triathlon-m', :date, :relais,"
+                        " '2026-01-01', '2026-01-01')"
+                    ),
+                    {"id": course_id, "nom": f"Tri {course_id}", "date": event_date, "relais": False},
+                )
+            for nom, course_id, club, attente in participations:
+                connexion.execute(
+                    sa.text(
+                        "INSERT INTO participations (course_id, athlete_id, club,"
+                        " is_pending_validation, status, created_at)"
+                        " SELECT :course, id, :club, :attente, 'finisher', '2026-01-01'"
+                        " FROM athletes WHERE nom = :nom"
+                    ),
+                    {"course": course_id, "club": club, "attente": attente, "nom": nom},
+                )
+    finally:
+        engine.dispose()
+
+
+def test_the_data_migration_sets_the_current_club_from_the_latest_dated_race(sqlite_url):
+    """#965 : le club actuel de l'existant suit l'épreuve datée la plus récente."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, _BEFORE_CURRENT_CLUB_BACKFILL)
+    _seed_club_history(sqlite_url)
+
+    command.upgrade(cfg, "head")
+
+    assert dict(_lignes(sqlite_url, "SELECT nom, club FROM athletes")) == {
+        "ORDRE": "TCN",
+        "VERROU": "MANUEL",
+        "ATTENTE": "Y",
+        "SANSDATE": "W",
+        "VIDE": "A",
+        "EGALITE": "P2",
+    }
