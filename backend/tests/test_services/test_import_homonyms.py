@@ -103,3 +103,59 @@ def test_the_report_carries_homonyms_on_every_path(db_session, patch_scraper):
     cached = import_service.import_event(db_session, URL, _settings())
 
     assert cached["homonyms_created"] == []
+
+
+def test_a_bib_moving_to_another_runner_does_not_make_a_false_homonym(db_session, patch_scraper):
+    """#12 passe de MARTIN à DURAND, MARTIN court sous #21 : une seule fiche MARTIN."""
+    _import(db_session, patch_scraper, [_result("12", "MARTIN", "Thomas")])
+    _expire_cache(db_session)
+
+    out = _import(db_session, patch_scraper, [_result("12", "DURAND", "Paul"), _result("21", "MARTIN", "Thomas")])
+
+    assert out["homonyms_created"] == []
+    assert _martins(db_session) == [(0, 1)]
+    assert _carrier(db_session, "21").homonym_rank == 0
+
+
+def test_a_bib_change_between_scrapes_keeps_the_runner_on_the_principal_record(db_session, patch_scraper):
+    """MARTIN passe de #12 à #21, #12 disparaît de la source : pas d'homonyme."""
+    _import(db_session, patch_scraper, [_result("12", "MARTIN", "Thomas")])
+    _expire_cache(db_session)
+
+    out = _import(db_session, patch_scraper, [_result("21", "MARTIN", "Thomas")])
+
+    assert out["homonyms_created"] == []
+    assert [rank for rank, _ in _martins(db_session)] == [0]
+
+
+def test_a_spelling_correction_never_puts_two_bibs_on_one_record(db_session, patch_scraper):
+    """FR-008 : « DUPOND » (#2) corrigé en « DUPONT », alors que DUPONT court sous #1."""
+    _import(db_session, patch_scraper, [_result("1", "DUPONT", "Jean"), _result("2", "DUPOND", "Jean")])
+    _expire_cache(db_session)
+
+    out = _import(db_session, patch_scraper, [_result("1", "DUPONT", "Jean"), _result("2", "DUPONT", "Jean")])
+
+    assert _carrier(db_session, "1").id != _carrier(db_session, "2").id
+    assert _carrier(db_session, "2").homonym_rank == 1
+    assert len(out["homonyms_created"]) == 1
+
+
+def test_a_conflict_after_a_fallback_creates_the_row_principal_not_a_homonym(db_session, patch_scraper):
+    """Le repli rattache #1 « THOMAS Martin » à « MARTIN Thomas » ; #2 crée la fiche
+    principale « THOMAS Martin », jamais un rang 1 sans rang 0."""
+    athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Thomas")
+    db_session.commit()
+
+    out = _import(db_session, patch_scraper, [_result("1", "THOMAS", "Martin"), _result("2", "THOMAS", "Martin")])
+
+    second = _carrier(db_session, "2")
+    assert (second.nom, second.homonym_rank) == ("THOMAS", 0)
+    assert out["homonyms_created"] == []
+
+
+def test_a_conflict_across_two_tranches_is_detected(db_session, patch_scraper, monkeypatch):
+    monkeypatch.setattr(import_service, "_TRANCHE_SIZE", 1)
+
+    _import(db_session, patch_scraper, [_result("1", "MARTIN", "Thomas"), _result("2", "MARTIN", "Thomas")])
+
+    assert _martins(db_session) == [(0, 1), (1, 1)]

@@ -673,6 +673,12 @@ class _Persister:
         # de la même épreuve individuelle (#967).
         self.homonyms_created: list[dict] = []
         self._bibs_by_athlete: dict[int, dict[int, set[str]]] = {}
+        # Clé d'identité publiée pour chaque dossard de ce scrape : un dossard
+        # d'une fiche ne signale un homonyme que s'il court encore sous ce nom.
+        self._bib_keys: dict[int, dict[str, IdentityKey]] = {}
+        # Fiches créées par `_athlete_for_bib` (homonyme ou principale d'une clé
+        # trouvée par repli) : s'y rattacher est une création, pas une fusion.
+        self._created_for_bibs: set[int] = set()
         # Dédup par `id` de source, pas par ligne scrapée : `add` résout l'épreuve
         # une fois par participant, un classement de 250 lignes rendrait sinon
         # 250 fois la même phrase et ferait compter 250 sources pour une.
@@ -741,6 +747,7 @@ class _Persister:
             if row.bib_number:
                 bibs_by_athlete.setdefault(row.athlete_id, set()).add(row.bib_number)
         self._bibs_by_athlete[course_id] = bibs_by_athlete
+        self._bib_keys[course_id] = {}
 
     def _upsert(self, existing: Participation, scraped: ScrapedResult) -> None:
         """Fusionne prudemment une ligne appariée. Compte `updated` ou `skipped`."""
@@ -850,6 +857,7 @@ class _Persister:
                 self.skipped += 1
                 self._duplicate_bibs[course.id] += 1
                 return
+            self._bib_keys[course.id][bib] = _identity_key(scraped)
             existing = self._by_bib[course.id].get(bib)
             if existing is not None:
                 added.add(bib)
@@ -1044,8 +1052,10 @@ class _Persister:
                 continue
             key = _identity_key(item.scraped)
             athlete = record or found[key]
-            if item.participation is None and item.bib is not None:
-                athlete = self._athlete_for_new_bib(course_id, item, athlete)
+            created_for_bib = False
+            if record is None and item.bib is not None:
+                resolved, athlete = athlete, self._athlete_for_bib(course_id, item, athlete)
+                created_for_bib = athlete is not resolved and athlete.id in self._created_for_bibs
             self._present_ids[course_id].add(athlete.id)
             club = item.scraped.club or None
             if (
@@ -1060,7 +1070,9 @@ class _Persister:
             if gender and not self._gender_of(athlete):
                 self._defer_update(athlete, gender=gender)
 
-            is_creator = record is None and key in created_keys and key not in creation_consumed
+            is_creator = created_for_bib or (
+                record is None and key in created_keys and key not in creation_consumed
+            )
             if is_creator:
                 creation_consumed.add(key)
 
@@ -1107,26 +1119,49 @@ class _Persister:
             self.db.flush()
             athlete_repository.delete_orphans_among(self.db, team_athletes)
 
-    def _athlete_for_new_bib(self, course_id: int, item: _PendingResolution, athlete: Athlete) -> Athlete:
-        """La fiche d'un dossard neuf : celle de son identité, sauf si elle porte
-        déjà un autre dossard de cette épreuve individuelle (#967).
+    def _athlete_for_bib(self, course_id: int, item: _PendingResolution, athlete: Athlete) -> Athlete:
+        """La fiche d'un dossard : celle de son identité, sauf si un autre dossard
+        de cette épreuve individuelle court déjà sous ce nom sur cette fiche (#967).
 
-        Un coureur ne prend pas deux dossards sur une course individuelle : deux
-        dossards d'un même nom sont deux personnes, et le second reçoit une fiche
-        d'homonyme distinguée, que l'import ne visera plus jamais par l'identité.
-        Un relais n'est pas concerné, la même personne pouvant y figurer
-        plusieurs fois.
+        Un coureur ne prend pas deux dossards sur une course individuelle : le
+        second reçoit une fiche d'homonyme distinguée, que l'import ne visera plus
+        par l'identité. Vaut pour un dossard neuf comme pour une correction de nom
+        de la source (FR-008). Une fiche trouvée par repli (nom inversé ou
+        concaténé) n'a pas la clé de la ligne : c'est alors la fiche principale de
+        cette clé qui est créée, jamais un homonyme sans principale.
         """
-        bibs = self._bibs_by_athlete[course_id]
-        if self._courses[course_id].is_relay or item.scraped.is_relay or not bibs.get(athlete.id, set()) - {item.bib}:
-            bibs.setdefault(athlete.id, set()).add(item.bib)
+        if not self._races_twice(course_id, item, athlete):
+            self._bibs_by_athlete[course_id].setdefault(athlete.id, set()).add(item.bib)
             return athlete
-        homonym = athlete_repository.create_homonym(self.db, mapping.athlete_creation_fields(item.scraped))
-        bibs[homonym.id] = {item.bib}
+        fields = mapping.athlete_creation_fields(item.scraped)
+        if (athlete.last_name_key, athlete.first_name_key) != _identity_key(item.scraped):
+            [principal], inserted = athlete_repository.create_batch(self.db, [fields])
+            self._created_for_bibs.update(inserted)
+            if not self._races_twice(course_id, item, principal):
+                self._bibs_by_athlete[course_id].setdefault(principal.id, set()).add(item.bib)
+                return principal
+            athlete = principal
+        homonym = athlete_repository.create_homonym(self.db, fields)
+        self._created_for_bibs.add(homonym.id)
+        self._bibs_by_athlete[course_id][homonym.id] = {item.bib}
         self.homonyms_created.append({
             "course_id": course_id, "bib": item.bib, "athlete_id": homonym.id, "homonym_of": athlete.id,
         })
         return homonym
+
+    def _races_twice(self, course_id: int, item: _PendingResolution, athlete: Athlete) -> bool:
+        """Vrai si `athlete` porte, sur cette épreuve individuelle, un autre dossard
+        que ce scrape publie sous la même identité que la ligne. Un dossard absent
+        du scrape (périmé) ou passé à un autre nom ne compte pas. Jamais sur un
+        relais, où une même personne peut figurer plusieurs fois."""
+        if self._courses[course_id].is_relay or item.scraped.is_relay:
+            return False
+        key = _identity_key(item.scraped)
+        published = self._bib_keys[course_id]
+        return any(
+            bib != item.bib and published.get(bib) == key
+            for bib in self._bibs_by_athlete[course_id].get(athlete.id, ())
+        )
 
     def _kept_record(self, course_id: int, item: _PendingResolution) -> Athlete | None:
         """La fiche qu'une ligne source inchangée garde, sans résolution (#896).
@@ -1300,6 +1335,10 @@ class _Persister:
             ancien=_identite(participation.athlete), nouveau=_identite(athlete), fusion=not cree
         )
         participation.athlete = athlete
+        if participation.bib_number:
+            self._bibs_by_athlete[participation.course_id].setdefault(athlete.id, set()).add(
+                participation.bib_number
+            )
         self.reconciled += 1
         self.reassignments.append(reassignment)
 

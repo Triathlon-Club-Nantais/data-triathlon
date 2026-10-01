@@ -275,11 +275,12 @@ _HOMONYM_ATTEMPTS = 5
 
 
 def _highest_homonym_rank(db: Session, key: IdentityKey) -> int:
+    """-1 quand la clé n'a aucune fiche : la première créée est alors la principale."""
     return db.scalar(
-        select(func.max(Athlete.homonym_rank)).where(
+        select(func.coalesce(func.max(Athlete.homonym_rank), -1)).where(
             Athlete.last_name_key == key[0], Athlete.first_name_key == key[1]
         )
-    ) or 0
+    )
 
 
 def create_homonym(db: Session, fields: dict) -> Athlete:
