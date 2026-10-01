@@ -23,8 +23,14 @@ logger = logging.getLogger(__name__)
 #: dizaines, et borne ce qu'un appel peut faire lire au serveur.
 MAX_REPORT_BYTES = 64 * 1024
 
+#: Un lot réel compte quelques violations ; sans plafond, 64 Kio d'éléments
+#: minimaux feraient écrire près de 2 000 lignes par requête.
+MAX_VIOLATIONS_PER_REQUEST = 20
+
 _MAX_VALUE_CHARS = 200
-_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]+")
+# C0, DEL et C1 (dont NEL), plus les séparateurs Unicode : tout ce qu'un
+# lecteur de logs peut prendre pour un saut de ligne.
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f  ]+")
 
 
 def log_reports(raw: bytes) -> int:
@@ -33,15 +39,17 @@ def log_reports(raw: bytes) -> int:
         raise CspReportTooLargeError()
     try:
         payload = json.loads(raw)
-    except (ValueError, UnicodeDecodeError) as exc:
+    except (ValueError, UnicodeDecodeError, RecursionError) as exc:
         raise InvalidCspReportError() from exc
 
     violations = _violations(payload)
-    for violation in violations:
+    for violation in violations[:MAX_VIOLATIONS_PER_REQUEST]:
         logger.warning(
             "CSP violation directive=%s blocked=%s document=%s source=%s:%s disposition=%s",
             *(_clean(value) for value in violation),
         )
+    if (dropped := len(violations) - MAX_VIOLATIONS_PER_REQUEST) > 0:
+        logger.warning("CSP violation batch truncated: %d more not logged", dropped)
     return len(violations)
 
 

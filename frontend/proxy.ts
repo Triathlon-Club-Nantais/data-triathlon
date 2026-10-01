@@ -126,8 +126,8 @@ export function buildCspPolicy(nonce: string, { dev }: { dev: boolean }): string
     // sous-ressources.
     ...(dev ? [] : ["upgrade-insecure-requests"]),
     // Rapports vers le backend (#1168), par le rewrite `/api/*` : même
-    // origine, donc rien à ouvrir dans `connect-src`. `report-uri` pour
-    // Firefox, qui ignore `report-to` ; un navigateur qui connaît les deux
+    // origine, donc rien à ouvrir dans `connect-src`. `report-uri` pour les
+    // navigateurs sans API Reporting ; un navigateur qui connaît les deux
     // n'utilise que `report-to`.
     `report-to ${REPORTING_GROUP}`,
     `report-uri ${REPORTS_PATH}`,
