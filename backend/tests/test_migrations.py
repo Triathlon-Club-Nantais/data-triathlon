@@ -930,7 +930,7 @@ _BEFORE_CURRENT_CLUB_BACKFILL = "d49e03833de6"
 
 
 def _seed_club_history(url: str) -> None:
-    """Six fiches, chacune un cas de la règle de #965.
+    """Sept fiches, chacune un cas de la règle de #965.
 
     `club` porte la valeur qu'a laissée l'ancien import, qui suivait l'ordre de
     traitement et non la date d'épreuve.
@@ -943,6 +943,7 @@ def _seed_club_history(url: str) -> None:
         ("SANSDATE", "W", False),         # aucune épreuve datée : rien ne prouve un club
         ("VIDE", "B", False),             # la plus récente ne publie aucun club
         ("EGALITE", "P1", False),         # deux épreuves le même jour : la dernière importée
+        ("EQUIPIER", "PERSO", False),     # la plus récente est un relais composé (#895)
     ]
     courses = [
         # (id, date)
@@ -962,6 +963,8 @@ def _seed_club_history(url: str) -> None:
         ("VIDE", 2, "", False),
         ("EGALITE", 2, "P1", False),
         ("EGALITE", 2, "P2", False),
+        ("EQUIPIER", 1, "PERSO", False),
+        ("EQUIPIER", 2, "EQUIPE", False),
     ]
     engine = sa.create_engine(url)
     try:
@@ -993,6 +996,15 @@ def _seed_club_history(url: str) -> None:
                     ),
                     {"course": course_id, "club": club, "attente": attente, "nom": nom},
                 )
+            # Une ligne de relais composée porte le club de l'équipe, rattachée à
+            # son premier équipier : ce n'est pas le club de l'équipier.
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO participation_teammates (participation_id, athlete_id, position)"
+                    " SELECT p.id, p.athlete_id, 0 FROM participations p"
+                    " WHERE p.club = 'EQUIPE'"
+                )
+            )
     finally:
         engine.dispose()
 
@@ -1012,6 +1024,7 @@ def test_the_data_migration_sets_the_current_club_from_the_latest_dated_race(sql
         "SANSDATE": "W",
         "VIDE": "A",
         "EGALITE": "P2",
+        "EQUIPIER": "PERSO",
     }
 
 

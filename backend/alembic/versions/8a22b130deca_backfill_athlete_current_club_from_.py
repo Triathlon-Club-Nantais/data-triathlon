@@ -8,9 +8,12 @@ l'existant, qu'un rescrape ne corrigerait que pour les épreuves rescrapées.
 
 La règle est celle de `athlete_repository.latest_club_dates` et `club_is_current`,
 **figée ici** : le club de la participation validée à l'épreuve datée la plus
-récente, la dernière importée en cas d'égalité de date (un import à date égale
-l'emporte). Une fiche verrouillée par un humain (`club_locked`) n'est pas
-touchée, ni une fiche sans aucune épreuve datée portant un club.
+récente, la plus récemment créée (id) en cas d'égalité de date, à l'image d'un
+import à date égale qui l'emporte. Une fiche verrouillée par un humain
+(`club_locked`) n'est pas touchée, ni une fiche sans aucune épreuve datée
+portant un club. Une ligne de relais composée (#895) ne compte pas : rattachée
+à son premier équipier, elle porte le club de l'équipe, que l'import ne donne
+jamais à un équipier.
 
 Downgrade sans effet : le club laissé par l'ordre d'import n'avait pas de sens.
 
@@ -31,8 +34,6 @@ depends_on: Union[str, Sequence[str], None] = None
 # Contrat lu par réflexion par Alembic (cf. `script.py.mako`), jamais référencé ici.
 __all__ = ["revision", "down_revision", "branch_labels", "depends_on", "upgrade", "downgrade"]
 
-# `NOT` plutôt qu'une comparaison à `false` : sous SQLite, un `server_default`
-# booléen se stocke en texte `'false'`, que seul le contexte numérique lit à 0.
 _LATEST_CLUBS = sa.text(
     """
     SELECT athlete_id, club FROM (
@@ -45,8 +46,11 @@ _LATEST_CLUBS = sa.text(
         JOIN athletes a ON a.id = p.athlete_id
         WHERE p.club IS NOT NULL AND TRIM(p.club) <> ''
           AND c.event_date IS NOT NULL
-          AND NOT p.is_pending_validation
-          AND NOT a.club_locked
+          AND p.is_pending_validation IS false
+          AND a.club_locked IS false
+          AND NOT EXISTS (
+              SELECT 1 FROM participation_teammates pt WHERE pt.participation_id = p.id
+          )
     ) ranked
     WHERE position = 1 AND (current_club IS NULL OR current_club <> club)
     """

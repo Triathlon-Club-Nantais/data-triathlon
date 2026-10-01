@@ -88,16 +88,19 @@ def test_two_multi_heat_imports_sharing_athletes_never_deadlock(
     monkeypatch.setattr(athlete_repository, "apply_updates", apply_updates_together)
 
     def run(url: str) -> None:
-        session = session_factory()
+        session = None
         try:
-            barrier.wait()
+            session = session_factory()
+            barrier.wait(timeout=60)
             import_service.persist_results(session, url, imports[url])
             session.commit()
         except BaseException as exc:  # noqa: BLE001 — remonté par l'assertion
-            session.rollback()
             errors[url] = exc
+            if session is not None:
+                session.rollback()
         finally:
-            session.close()
+            if session is not None:
+                session.close()
 
     threads = [threading.Thread(target=run, args=(url,)) for url in imports]
     for thread in threads:
@@ -105,6 +108,7 @@ def test_two_multi_heat_imports_sharing_athletes_never_deadlock(
     for thread in threads:
         thread.join(timeout=120)
 
+    assert not any(thread.is_alive() for thread in threads)
     assert errors == {}
     db_session.expire_all()
     assert db_session.scalar(select(func.count()).select_from(Course)) == 4
