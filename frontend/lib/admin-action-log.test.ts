@@ -25,6 +25,12 @@ describe("formatPayload", () => {
     expect(lignes).toContainEqual({ label: "cle_inconnue", value: "x" });
   });
 
+  it("translates feedback status values in a before/after diff", () => {
+    expect(
+      formatPayload({ before: { status: "nouveau" }, after: { status: "en_cours" } }),
+    ).toEqual([{ label: "Statut", value: "Nouveau → En cours" }]);
+  });
+
   it("labels `name` without assuming a race: groups and roles carry it too", () => {
     expect(formatPayload({ slug: "officiels", name: "Officiels" })).toContainEqual({
       label: "Nom",

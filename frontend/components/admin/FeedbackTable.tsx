@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FEEDBACK_STATUS_LABELS } from "@/lib/labels";
 import { FeedbackDetailDialog } from "@/components/admin/FeedbackDetailDialog";
 import { useFeedbackCounts, useFeedbackList, useUpdateFeedbackStatus } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
@@ -29,12 +30,7 @@ type Statut = Feedback["status"];
 /** Le cinquième filtre n'est pas un statut : il **retire** le paramètre (#500). */
 type Filtre = Statut | "tous";
 
-const LIBELLE_STATUT: Record<Statut, string> = {
-  nouveau: "Nouveau",
-  en_cours: "En cours",
-  traite: "Traité",
-  ignore: "Ignoré",
-};
+const LIBELLE_STATUT = FEEDBACK_STATUS_LABELS;
 
 const STATUTS = Object.keys(LIBELLE_STATUT) as Statut[];
 

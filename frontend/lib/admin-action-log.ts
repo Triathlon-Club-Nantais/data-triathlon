@@ -6,6 +6,7 @@
  * (`AdminActionLog.action`) ; `formatPayload` traduit les **clés** du JSON
  * libre qu'un geste a consigné, quel que soit le geste.
  */
+import { FEEDBACK_STATUS_LABELS } from "@/lib/labels";
 
 const ACTION_LABELS: Record<string, string> = {
   "course.delete": "Suppression d'une épreuve",
@@ -156,7 +157,12 @@ export type LigneDetail = { label: string; value: string; href?: string };
 /** Valeurs codées traduites, par clé : le backend écrit `scope: "all"` (#935). */
 const PAYLOAD_VALUE_LABELS: Record<string, Record<string, string>> = {
   scope: { all: "tous les comptes" },
+  status: FEEDBACK_STATUS_LABELS,
 };
+
+function valueFor(key: string, v: unknown): string {
+  return PAYLOAD_VALUE_LABELS[key]?.[String(v)] ?? formatValue(v);
+}
 
 function labelFor(key: string): string {
   return PAYLOAD_KEY_LABELS[key] ?? key;
@@ -198,7 +204,7 @@ export function formatPayload(payload: Record<string, unknown> | null): LigneDet
         if (JSON.stringify(before[champ]) !== JSON.stringify(after[champ])) {
           lignes.push({
             label: labelFor(champ),
-            value: `${formatValue(before[champ])} → ${formatValue(after[champ])}`,
+            value: `${valueFor(champ, before[champ])} → ${valueFor(champ, after[champ])}`,
           });
         }
       }
@@ -215,7 +221,7 @@ export function formatPayload(payload: Record<string, unknown> | null): LigneDet
     lignes.push(
       base && typeof v === "number"
         ? { label: labelFor(k), value: String(v), href: `${base}/${v}` }
-        : { label: labelFor(k), value: PAYLOAD_VALUE_LABELS[k]?.[String(v)] ?? formatValue(v) },
+        : { label: labelFor(k), value: valueFor(k, v) },
     );
   }
 
