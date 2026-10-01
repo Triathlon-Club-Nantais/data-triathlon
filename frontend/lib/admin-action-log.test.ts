@@ -25,6 +25,13 @@ describe("formatPayload", () => {
     expect(lignes).toContainEqual({ label: "cle_inconnue", value: "x" });
   });
 
+  it("labels `name` without assuming a race: groups and roles carry it too", () => {
+    expect(formatPayload({ slug: "officiels", name: "Officiels" })).toContainEqual({
+      label: "Nom",
+      value: "Officiels",
+    });
+  });
+
   it("rend un diff champ par champ pour before/after objets, sans les champs inchangés", () => {
     const lignes = formatPayload({
       before: { nom: "Dupont", club: "TCN" },
@@ -49,7 +56,7 @@ describe("formatPayload", () => {
     expect(lignes).toEqual([
       {
         label: "Épreuve absorbée",
-        value: "Nom de l'épreuve : Triathlon d'Ancenis, Date : 2026-05-01",
+        value: "Nom : Triathlon d'Ancenis, Date : 2026-05-01",
       },
     ]);
   });
