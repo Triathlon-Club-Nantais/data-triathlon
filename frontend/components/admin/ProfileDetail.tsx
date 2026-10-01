@@ -13,6 +13,7 @@ import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
 import { calculerAge } from "@/lib/utils/age";
+import { profilePurgeDate } from "@/lib/utils/season";
 
 const REFUS = { sujet: "jeunes", action: "consulter ce profil" };
 
@@ -33,6 +34,7 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
   const [naissance, setNaissance] = useState("");
   const [contact, setContact] = useState("");
   const [notes, setNotes] = useState("");
+  const [finAdhesion, setFinAdhesion] = useState("");
   const [nouvelleEntree, setNouvelleEntree] = useState("");
 
   const peutEcrire = session.data?.permissions.includes("jeunes:write") ?? false;
@@ -43,6 +45,7 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
     setNaissance(data?.birth_date ?? "");
     setContact(data?.emergency_contact ?? "");
     setNotes(data?.notes ?? "");
+    setFinAdhesion(data?.membership_ended_on ?? "");
     setEdition(true);
   }
 
@@ -58,6 +61,8 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
           ...(naissance ? { birth_date: naissance } : {}),
           emergency_contact: contact,
           notes,
+          // Vide = toujours adhérent : `null` efface une fin saisie par erreur (#1158).
+          membership_ended_on: finAdhesion || null,
         },
       });
       setEdition(false);
@@ -150,6 +155,20 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
                 onChange={(e) => setNotes(e.target.value)}
               />
             </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="jeune-fin-adhesion">Fin d&apos;adhésion</Label>
+              <Input
+                id="jeune-fin-adhesion"
+                type="date"
+                aria-describedby="jeune-fin-adhesion-aide"
+                value={finAdhesion}
+                onChange={(e) => setFinAdhesion(e.target.value)}
+              />
+              <p id="jeune-fin-adhesion-aide" className="text-[var(--tcn-text-faint)] text-xs">
+                À renseigner quand le jeune quitte le club : son profil est supprimé à la fin de la saison
+                suivante. Laissez vide tant qu&apos;il est adhérent.
+              </p>
+            </div>
             <div className="flex gap-2">
               <Button type="submit" disabled={modifier.isPending}>
                 Enregistrer
@@ -169,6 +188,16 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
               <span className="font-medium">Notes : </span>
               {data.notes || "—"}
             </div>
+            {data.membership_ended_on && (
+              <div>
+                <span className="font-medium">Fin d&apos;adhésion : {formatDate(data.membership_ended_on)}</span>
+                <span className="text-[var(--tcn-text-faint)] text-sm">
+                  {" "}
+                  (profil supprimé automatiquement à partir du{" "}
+                  {formatDate(profilePurgeDate(data.membership_ended_on))})
+                </span>
+              </div>
+            )}
             {peutEcrire && (
               <Button size="sm" variant="outline" onClick={ouvrirEdition}>
                 Modifier le profil

@@ -183,6 +183,17 @@ def render_geocode_report(outcome: GeocodeOutcome, *, dry_run: bool) -> str:
     return "\n".join(lignes)
 
 
+def render_retention_report(outcome) -> str:
+    """Purge de rétention (#1158) : ce qui a été supprimé, ou le serait en dry-run."""
+    verbe = "à supprimer" if outcome.dry_run else "supprimés"
+    return "\n".join([
+        _titre("PURGE DE RÉTENTION", dry_run=outcome.dry_run, interrupted=False),
+        _ligne(f"Signalements {verbe}", outcome.feedback),
+        _ligne(f"Entrées du journal {verbe}", outcome.admin_log),
+        _ligne(f"Profils jeunes {verbe}", outcome.profiles),
+    ])
+
+
 def render_timepulse_duplicates_report(rows: list[dict], *, deleted: bool) -> str:
     """Épreuves timepulse remplacées par leurs parcours qualifiés (#1004)."""
     lignes = ["=== ÉPREUVES TIMEPULSE REMPLACÉES ==="]

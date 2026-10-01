@@ -8,6 +8,7 @@ Patron `app/services/auth/groups.py` : vues en dict, 404 explicite, journal
 technique en anglais.
 """
 import logging
+from datetime import date
 
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,9 @@ from app.core.exceptions import DomainError, NotFoundError
 from app.models.personal_profile import PersonalProfile
 from app.models.user import User
 from app.repositories import profile_repository, role_repository
+
+#: Sentinelle de `update_profile` : le champ n'a pas été fourni, distinct d'un `None` qui efface.
+UNCHANGED = object()
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +76,7 @@ def profile_detail_view(db: Session, profile: PersonalProfile) -> dict:
     return profile_view(profile) | {
         "emergency_contact": profile.emergency_contact,
         "notes": profile.notes,
+        "membership_ended_on": profile.membership_ended_on,
         "log_entries": [
             _log_entry_view(entry)
             for entry in profile_repository.list_log_entries(db, profile.id)
@@ -119,10 +124,12 @@ def update_profile(
     birth_date=None,
     emergency_contact: str | None = None,
     notes: str | None = None,
+    membership_ended_on: date | None | object = UNCHANGED,
 ) -> PersonalProfile:
     """Corrige les champs fournis. Patron `PATCH` partiel de `GroupUpdate` :
     un champ nullable (`birth_date`) omis à `None` ne peut pas être **effacé**
-    par cette route — hors périmètre de #867, qui ne le demande pas."""
+    par cette route — hors périmètre de #867, qui ne le demande pas. Seule
+    exception, `membership_ended_on` (#1158) : `None` l'efface, `UNCHANGED` le garde."""
     champs = {
         champ: valeur
         for champ, valeur in {
@@ -134,6 +141,8 @@ def update_profile(
         }.items()
         if valeur is not None
     }
+    if membership_ended_on is not UNCHANGED:
+        champs["membership_ended_on"] = membership_ended_on
     profile_repository.update(db, profile, **champs)
     logger.info("PersonalProfile updated: actor=%s profile=%s", actor.id, profile.id)
     return profile

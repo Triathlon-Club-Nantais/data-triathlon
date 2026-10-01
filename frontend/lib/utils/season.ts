@@ -8,6 +8,12 @@ export function seasonOf(iso: string): number {
   return month >= 9 ? year : year - 1;
 }
 
+/** Premier jour où un profil dont l'adhésion a pris fin à `iso` est purgé (#1158) :
+ *  gardé jusqu'à la fin de la saison qui suit, miroir de `retention_service.youth_profile_cutoff`. */
+export function profilePurgeDate(iso: string): string {
+  return `${seasonOf(iso) + 2}-09-01`;
+}
+
 /** Saison en cours (bascule au 1ᵉʳ septembre). `now` injectable pour les tests.
  *  Getters UTC pour rester miroir du backend (`utcnow()`) et éviter tout
  *  mismatch SSR/hydratation autour du 1ᵉʳ septembre selon le fuseau local. */

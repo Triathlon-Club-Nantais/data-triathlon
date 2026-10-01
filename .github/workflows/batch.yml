@@ -260,6 +260,27 @@ jobs:
             > geocode.json 2> geocode.txt
           cat geocode.txt
 
+      # Purge de rétention (#1158) : les durées publiées par la politique de
+      # confidentialité ne sont tenues que par ce passage, hebdomadaire. Ni
+      # `continue-on-error` ni mode `urls` : une purge qui échoue doit rougir le
+      # run (et alerter sur la planification), et elle ne dépend pas des
+      # épreuves ciblées. Le dry-run du batch la simule aussi.
+      - name: Purge expired personal data
+        # `!cancelled()` et non `success()` : une reprise en échec total ne doit
+        # pas suspendre la purge, qui n'en dépend pas.
+        if: ${{ !cancelled() && inputs.mode != 'urls' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -uo pipefail
+          args=(--json)
+          if [ "$DRY_RUN" = "true" ]; then args+=(--dry-run); fi
+          uv run python -m app.cli purge-retention "${args[@]}" > retention.json 2> retention.txt
+          code=$?
+          cat retention.txt
+          exit $code
+
       # `always()` : un échec total (code 1) est un résultat, pas une panne — son
       # bilan est précisément ce qu'on vient lire.
       - name: Write summary

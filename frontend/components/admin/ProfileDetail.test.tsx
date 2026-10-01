@@ -33,6 +33,7 @@ const PROFIL: ProfileDetailType = {
   created_at: "2026-01-01T00:00:00Z",
   emergency_contact: "Mère — 06 00 00 00 00",
   notes: "Allergie aux fruits à coque.",
+  membership_ended_on: null,
   log_entries: [
     {
       id: 2,
@@ -154,6 +155,34 @@ describe("ProfileDetail", () => {
           birth_date: "2015-05-13",
         }),
       ),
+    );
+  });
+
+  it("annonce la date de suppression d'un profil dont l'adhésion a pris fin (#1158)", async () => {
+    getProfile.mockResolvedValue({ ...PROFIL, membership_ended_on: "2026-06-30" });
+    afficher();
+    expect(await screen.findByText(/fin d'adhésion : 30\/06\/2026/i)).toBeInTheDocument();
+    expect(screen.getByText(/supprimé automatiquement à partir du 01\/09\/2027/i)).toBeInTheDocument();
+  });
+
+  it("renseigne puis efface la fin d'adhésion (#1158)", async () => {
+    updateProfile.mockResolvedValue(PROFIL);
+    const utilisateur = userEvent.setup();
+
+    afficher();
+    await utilisateur.click(await screen.findByRole("button", { name: /modifier le profil/i }));
+    await utilisateur.type(screen.getByLabelText(/fin d'adhésion/i), "2026-06-30");
+    await utilisateur.click(screen.getByRole("button", { name: /enregistrer/i }));
+    await waitFor(() =>
+      expect(updateProfile).toHaveBeenCalledWith(1, expect.objectContaining({ membership_ended_on: "2026-06-30" })),
+    );
+
+    getProfile.mockResolvedValue({ ...PROFIL, membership_ended_on: "2026-06-30" });
+    await utilisateur.click(await screen.findByRole("button", { name: /modifier le profil/i }));
+    await utilisateur.clear(screen.getByLabelText(/fin d'adhésion/i));
+    await utilisateur.click(screen.getByRole("button", { name: /enregistrer/i }));
+    await waitFor(() =>
+      expect(updateProfile).toHaveBeenLastCalledWith(1, expect.objectContaining({ membership_ended_on: null })),
     );
   });
 
