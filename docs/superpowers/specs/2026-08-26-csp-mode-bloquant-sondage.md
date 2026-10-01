@@ -174,6 +174,73 @@ dans les deux sens.
   a été sondé directement à la place (ci-dessus).
 - **PostHog en production** : inchangé, cf. section suivante.
 
+## Troisième relevé : production et preview, session admin connectée (2026-10-01)
+
+Fait après le rebase de la PR sur `main`, dans Brave, **connecté en
+administrateur** sur les deux environnements : c'est ce qui manquait aux deux
+relevés précédents. Les deux déploiements servent `main`, donc la politique en
+`Report-Only` **sans** les trois corrections de cette PR : on y mesure ce que
+la bascule bloquerait, sur les vraies données.
+
+| | Production | Preview |
+| --- | --- | --- |
+| Déploiement | `v0.7.5` | `v0.7.5-330-g200b7f68` |
+| En-tête | `Content-Security-Policy-Report-Only` | idem |
+| Session | admin SSO | admin SSO |
+
+Même méthode : écouteur `securitypolicyviolation`, posé une fois puis conservé
+en naviguant **côté client** (`next.router.push`), ce qui couvre tous les
+chunks chargés après le premier écran. Témoin positif sur chaque
+environnement : une image d'une origine non listée est rapportée `img-src`.
+
+### Rendu serveur
+
+32 routes relues avec la session admin (les `/admin/*` rendent leur vrai
+contenu, plus une redirection) : **zéro** `<script>`, `<style>` ou feuille sans
+nonce, **zéro** gestionnaire `on*=`, sur les deux environnements (939
+`<script>` sur la preview). Les trois routes `/admin/jeunes*` sont en 404 en
+production, la fonctionnalité n'y étant pas encore livrée ; elles sont
+propres sur la preview.
+
+### Runtime : les trois causes connues, et rien d'autre
+
+Tournée de 30 routes, admin compris, puis fiche athlète, fiche course, fiche
+participation, popup Base UI (tri de `/resultats`), dialogue de retour
+utilisateur.
+
+- **`sonner`** : un `<style>` de 14 916 octets non signé, dont le SHA-256 est
+  **exactement** le second hash de `HASHES_STYLE_SONNER`, sur les deux
+  environnements. Le hash épinglé correspond au contenu servi en production.
+- **Base UI** : `.base-ui-disable-scrollbar` (107 octets) rapporté
+  `style-src-elem` à l'ouverture du premier popup, sur les deux. Couvert par
+  `CSPProvider`.
+- **`zod`** : `script-src eval` rapporté **dès le montage** de `/ajouter`, sans
+  aucune saisie, sur les deux. Couvert par `jitless`. `ManualResultForm` est le
+  seul module du front à importer `zod`.
+- **Aucune autre violation**, pages admin comprises.
+- **`img-src`** : tuile OSM et marqueur unpkg chargés sans rapport.
+- **Ressources tierces** : aucune, sur aucune page.
+
+Un `<style id="claude-agent-animation-styles">` non signé apparaît sur la
+preview : il est injecté par l'extension d'automatisation du navigateur, pas
+par l'app. Hors périmètre.
+
+### PostHog
+
+Le bundle client de production ne contient **aucun jeton** `phc_` ni l'appel
+`posthog.init` d'`instrumentation-client.ts` (la garde `token && host` est
+éliminée au build) : PostHog n'émet rien en production aujourd'hui, et aucune
+requête `/ingest` n'a été observée. Le risque résiduel nommé plus haut reste
+donc **non mesurable** en l'état ; il le redeviendra si les variables
+`NEXT_PUBLIC_POSTHOG_*` sont posées au build.
+
+### Ce que ce relevé ne couvre pas
+
+- Les gestes admin destructifs et leurs toasts (non déclenchés, base de
+  production) : toasts `sonner`, dialogues Base UI.
+- La carte peuplée : aucune épreuve géolocalisée, en production comme en
+  preview.
+
 ## Le point tranché
 
 **`style-src-attr 'unsafe-inline'` est assumé comme définitif.** La concession
