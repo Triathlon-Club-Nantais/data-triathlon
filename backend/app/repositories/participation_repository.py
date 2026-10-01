@@ -1481,3 +1481,21 @@ def has_untimed(
     if finishers_only:
         requete = requete.filter(Participation.status == STATUS_FINISHER)
     return requete.first() is not None
+
+
+def list_carried_by(db: Session, athlete_id: int) -> list[Participation]:
+    """Les résultats dont l'athlète est le porteur (`athlete_id`), hors liaisons d'équipier."""
+    return db.query(Participation).filter(Participation.athlete_id == athlete_id).all()
+
+
+def teammate_links_of(db: Session, athlete_id: int) -> list[ParticipationTeammate]:
+    return db.query(ParticipationTeammate).filter(ParticipationTeammate.athlete_id == athlete_id).all()
+
+
+def replace_teammate(db: Session, *, participation_id: int, old_athlete_id: int, new_athlete_id: int) -> None:
+    """Remplace un équipier à sa position. `athlete_id` est dans la clé primaire : mise à jour SQL."""
+    db.query(ParticipationTeammate).filter(
+        ParticipationTeammate.participation_id == participation_id,
+        ParticipationTeammate.athlete_id == old_athlete_id,
+    ).update({ParticipationTeammate.athlete_id: new_athlete_id}, synchronize_session=False)
+    db.flush()

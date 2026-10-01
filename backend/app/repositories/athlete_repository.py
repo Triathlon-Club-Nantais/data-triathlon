@@ -772,3 +772,13 @@ def club_composition(
         .filter(sous_requete.c.rang_recence == 1)
         .all()
     )
+
+
+def list_identities(db: Session) -> list[tuple[int, str, str]]:
+    """`(id, nom, prenom)` de toutes les fiches : la clé d'opposition (#334) se calcule en Python."""
+    return [tuple(row) for row in db.query(Athlete.id, Athlete.nom, Athlete.prenom)]
+
+
+def delete(db: Session, athlete: Athlete) -> None:
+    db.delete(athlete)
+    db.flush()

@@ -105,3 +105,7 @@ def delete(db: Session, action: VolunteerAction) -> None:
     """Retire une déclaration, quel que soit son statut (#818)."""
     db.delete(action)
     db.flush()
+
+
+def delete_for_athlete(db: Session, athlete_id: int) -> int:
+    return db.query(VolunteerAction).filter(VolunteerAction.athlete_id == athlete_id).delete()

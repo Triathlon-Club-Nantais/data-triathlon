@@ -132,3 +132,7 @@ def set_active(db: Session, users: list[User], *, active: bool) -> int:
         user.is_active = active
     db.flush()
     return len(changes)
+
+
+def detach_athlete(db: Session, athlete_id: int) -> None:
+    db.query(User).filter(User.athlete_id == athlete_id).update({User.athlete_id: None})
