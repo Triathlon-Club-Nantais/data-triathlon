@@ -85,7 +85,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Ouvrir « Rôles des utilisateurs » depuis la navigation admin.",
       "Retrouver la personne concernée, puis lui attribuer ou retirer un rôle.",
     ],
-    captures: [{ src: "/guide/admin/utilisateurs.jpg", alt: "Liste des utilisateurs et de leurs rôles", placeholder: true }],
+    captures: [{ src: "/guide/admin/utilisateurs.jpg", alt: "Liste des utilisateurs et de leurs rôles" }],
   },
   {
     id: "journal",
@@ -163,6 +163,19 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Mot de passe bénévoles : même geste, pour la page de vérification des résultats réservée aux bénévoles.",
       "Fermer les sessions : par adresse depuis la liste, ou toutes à la fois en bas de l'écran, vous compris.",
     ],
-    captures: [{ src: "/guide/admin/acces-backoffice.jpg", alt: "Liste des adresses autorisées au back-office", placeholder: true }],
+    captures: [{ src: "/guide/admin/acces-backoffice.jpg", alt: "Liste des adresses autorisées au back-office" }],
+  },
+  {
+    id: "pages-publiques",
+    titre: "Gestes sur les pages publiques",
+    casUsage:
+      "Certains gestes d'administration se font depuis la fiche d'un athlète, sans passer par le back-office : ils n'apparaissent qu'aux comptes qui en ont le pouvoir.",
+    etapes: [
+      "Ouvrir la fiche de l'athlète, par la recherche (⌘K ou Ctrl K) ou depuis un classement.",
+      "« Corriger la fiche » : modifier le nom, le prénom, la date de naissance ou le club actuel. Un club corrigé à la main n'est plus réécrit par les imports suivants.",
+      "« Valider la saison » : choisir la saison, lire le décompte des épreuves et du bénévolat affiché dessous, puis valider.",
+      "Dans la liste de ses épreuves, « Rattacher » déplace un résultat vers la bonne fiche, et « Supprimer » le retire.",
+    ],
+    captures: [{ src: "/guide/admin/pages-publiques.jpg", alt: "Fiche athlète vue par un administrateur, avec la correction de fiche et la validation de saison" }],
   },
 ];
