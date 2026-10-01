@@ -6,6 +6,7 @@ ce test, une migration qui dépend du modèle ORM courant peut casser
 `alembic upgrade head` (et donc `scripts/reset_db.py`, la CI, tout nouveau
 déploiement) sans qu'aucun test ne s'en aperçoive.
 """
+import json
 import logging
 from pathlib import Path
 
@@ -1012,3 +1013,66 @@ def test_the_data_migration_sets_the_current_club_from_the_latest_dated_race(sql
         "VIDE": "A",
         "EGALITE": "P2",
     }
+
+
+# --- Splits tout à zéro (#971) ------------------------------------------------
+
+_BEFORE_ZERO_SPLITS_CLEANUP = "8a22b130deca"
+
+
+def test_the_data_migration_empties_splits_made_only_of_zero_segments(sqlite_url):
+    """#971 : `00:00:00` est un point de passage non franchi. Un rescrape ne vide
+    pas une ligne dont tous les segments sont écartés (« vide n'écrase pas »)."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, _BEFORE_ZERO_SPLITS_CLEANUP)
+    splits = [
+        {"swim": "00:00:00", "bike": "00:00:00", "run": "0:00:00"},
+        {"swim": "00:00", "run": " 00:00:00 "},
+        {"swim": "00:12:00", "bike": "00:00:00"},
+        {"swim": "FRA", "bike": "00:00:00"},
+        {},
+        None,
+    ]
+    engine = sa.create_engine(sqlite_url)
+    try:
+        with engine.begin() as connexion:
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO athletes (nom, prenom, gender, club_locked, created_at)"
+                    " VALUES ('DUPONT', 'P', '', :faux, '2026-01-01')"
+                ),
+                {"faux": False},
+            )
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO courses (id, name, event_type, is_relay, scraped_at, created_at)"
+                    " VALUES (1, 'Tri', 'triathlon-m', :faux, '2026-01-01', '2026-01-01')"
+                ),
+                {"faux": False},
+            )
+            for valeur in splits:
+                connexion.execute(
+                    sa.text(
+                        "INSERT INTO participations (course_id, athlete_id, status, splits,"
+                        " is_pending_validation, created_at)"
+                        " VALUES (1, 1, 'finisher', :splits, :faux, '2026-01-01')"
+                    ),
+                    {"splits": None if valeur is None else json.dumps(valeur), "faux": False},
+                )
+    finally:
+        engine.dispose()
+
+    command.upgrade(cfg, "head")
+
+    restants = [
+        None if valeur is None else json.loads(valeur)
+        for (valeur,) in _lignes(sqlite_url, "SELECT splits FROM participations ORDER BY id")
+    ]
+    assert restants == [
+        None,
+        None,
+        {"swim": "00:12:00", "bike": "00:00:00"},
+        {"swim": "FRA", "bike": "00:00:00"},
+        {},
+        None,
+    ]
