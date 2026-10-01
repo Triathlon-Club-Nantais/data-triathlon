@@ -41,7 +41,7 @@ describe("GuideSection — accès direct par ancre (#865, US3)", () => {
   });
 });
 
-describe("GuideSection — capture", () => {
+describe("GuideSection capture", () => {
   it("uses the capture alt text as is", () => {
     render(<GuideSection section={section} />);
     expect(screen.getByAltText("Espace club, synthèse et podiums")).toBeInTheDocument();
