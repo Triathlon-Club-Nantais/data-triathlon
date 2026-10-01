@@ -205,13 +205,14 @@ pièges mesurés et invariants dans
 
 ## Plafonds de débit par IP (#395, #398)
 
-Sept routes publiques sont plafonnées par IP, **route par route** comme les
+Huit routes publiques sont plafonnées par IP, **route par route** comme les
 gardes de pouvoir — `api/deps.scrape_rate_limit` sur `POST /scrape/event` et
 `POST /scrape/event/stream`, `api/deps.authorize_rate_limit` sur
 `GET /auth/{provider}/authorize`, `api/deps.public_write_rate_limit` sur
 `POST /admin/pending-providers` et `POST /participations`,
-`api/deps.site_access_rate_limit` sur `POST /site-access/session` (#509), et
-`api/deps.benevole_login_rate_limit` sur `POST /benevoles/session` (#917).
+`api/deps.site_access_rate_limit` sur `POST /site-access/session` (#509),
+`api/deps.benevole_login_rate_limit` sur `POST /benevoles/session` (#917), et
+`api/deps.csp_report_rate_limit` sur `POST /csp-reports` (#1168).
 Quatre choses à ne pas défaire :
 
 - **Un seul seau par geste, pas par route.** Les deux routes de scraping
@@ -254,6 +255,13 @@ bornent encore un vrai anonyme, sans garde en amont. Celui des bénévoles a son
 seau `benevole_login` (30/h), plus serré que `site_access` : même scrypt par
 tentative, mais une poignée de bénévoles seulement, et ici la force brute
 compte, l'admin pouvant poser à la main un mot de passe de 8 caractères.
+
+La huitième, `POST /csp-reports` (#1168), borne elle aussi un vrai anonyme :
+son router est exempté de la garde du site, le navigateur envoyant ses
+rapports sans cookies. Elle n'écrit que des logs, et son seau `csp_report`
+(120/h) ne suffit pas à les borner seul : un lot `report-to` de 64 Kio peut
+porter près de 2 000 éléments, d'où le plafond de lignes par requête de
+`services/csp_report.MAX_VIOLATIONS_PER_REQUEST`.
 
 Le SSE prend `optional_user` et journalise son appelant : il ne le faisait pas,
 et un import lancé depuis là ne laissait aucune trace de qui l'avait demandé.
@@ -496,7 +504,7 @@ ce plafond (revue finale, § « Plafond de débit » de
 `docs/superpowers/specs/2026-08-20-mot-de-passe-site-design.md` ; le seau est
 devenu **dédié** en revue de #513, cf. § « Plafonds de débit par IP »).
 
-**Six routers sont exemptés de la garde**, et la liste
+**Sept routers sont exemptés de la garde**, et la liste
 `_EXEMPTES_DE_LA_GARDE_SITE` de `v1/router.py` en est la description unique :
 `health` (sonde Render ; **503** quand la base ne répond pas, #1070, car le
 keep-warm et la supervision ne lisent que le statut), `site_access` (elle pose la garde), `auth` +
@@ -505,7 +513,9 @@ déploiement neuf), `benevoles` (le bénévole n'a que **son** mot de passe, cf.
 section ci-dessus) et `feedback` (revue de #513 — `FeedbackButton` vit dans le
 layout racine du front, donc il se rend aussi sur `/acces` et `/benevoles`, où
 aucun cookie de site n'existe ; son unique route est déjà bornée par honeypot et
-par un plafond compté en base, et `admin_feedback` reste gardé, lui). Les
+par un plafond compté en base, et `admin_feedback` reste gardé, lui) et
+`csp_reports` (#1168 : l'API Reporting du navigateur envoie sans cookies, une
+route gardée ne recevrait que des 401). Les
 inventaires dérivés de cette liste — `tests/test_auth/test_site_access_gate.py`,
 son `ROUTES_EXEMPTEES_PREFIXES` — se mettent à jour du même geste.
 
