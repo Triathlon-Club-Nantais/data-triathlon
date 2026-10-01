@@ -981,6 +981,49 @@ def test_downgrade_of_the_identity_key_names_the_duplicates(sqlite_url):
         command.downgrade(cfg, _BEFORE_IDENTITY_KEY)
 
 
+_BEFORE_SOURCE_IDENTITY = "b7e41c9d2a58"
+
+
+def test_the_source_identity_migration_backfills_each_participation(sqlite_url):
+    """#896 : chaque résultat retient l'identité de la ligne source, ici celle de sa fiche."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, _BEFORE_SOURCE_IDENTITY)
+    _insert_athletes(sqlite_url, [("LE GLOANIC", "Léo"), ("?", "")])
+    engine = sa.create_engine(sqlite_url)
+    with engine.begin() as connexion:
+        connexion.execute(sa.text(
+            "UPDATE athletes SET last_name_key = 'legloanic', first_name_key = 'leo' WHERE nom = 'LE GLOANIC'"
+        ))
+        connexion.execute(sa.text(
+            "INSERT INTO courses (name, event_date, event_type, is_relay, created_at)"
+            " VALUES ('Tri', '2026-05-16', 'triathlon-m', 0, '2026-01-01')"
+        ))
+        for athlete_id, bib in [(1, "1"), (2, "2")]:
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO participations (athlete_id, course_id, bib_number, status, created_at)"
+                    " VALUES (:athlete_id, 1, :bib, 'finisher', '2026-01-01')"
+                ),
+                {"athlete_id": athlete_id, "bib": bib},
+            )
+    engine.dispose()
+
+    command.upgrade(cfg, "head")
+
+    assert _lignes(
+        sqlite_url, "SELECT source_identity_key, athlete_locked FROM participations ORDER BY id"
+    ) == [("legloanic|leo", 0), (None, 0)]
+
+
+def test_downgrade_then_upgrade_of_the_source_identity(sqlite_url):
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, _BEFORE_SOURCE_IDENTITY)
+    assert "source_identity_key" not in _columns(sqlite_url, "participations")
+    command.upgrade(cfg, "head")
+    assert {"source_identity_key", "athlete_locked"} <= _columns(sqlite_url, "participations")
+
+
 def test_downgrade_then_upgrade_of_the_identity_key(sqlite_url):
     cfg = _alembic_config()
     command.upgrade(cfg, "head")

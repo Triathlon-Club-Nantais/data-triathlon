@@ -39,6 +39,11 @@ d'O(nombre de courses), pas d'O(lignes), mais se corrige avec le même effort.
 
 ## Décision — identité athlète en pratique : `birth_date` toujours `None`
 
+> **Remplacée par l'epic #1146** (2026-10-01). L'identité est désormais la clé
+> normalisée du nom et du prénom plus un rang d'homonyme (#907), et le filtre
+> `birth_date IS NULL` est abandonné : une date posée par un admin scindait la
+> fiche (#900). Voir `specs/20261001-144131-athlete-identity/research.md`, R1 et R2.
+
 `grep birth_date` sur `mapping.py`, `import_service.py` et tous les scrapers
 (`app/scrapers/*.py`) : **aucun** appelant du chemin d'import ne renseigne
 `birth_date`. `resolve_athlete` (mapping.py:186) appelle

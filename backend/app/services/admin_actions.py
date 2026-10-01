@@ -752,7 +752,7 @@ def reassign_participation(
 
     course_id = participation.course_id
     participation_repository.replace_teammates(db, participation, [])
-    participation_repository.reassign(db, participation, athlete_id=cible.id)
+    participation_repository.reassign(db, participation, athlete_id=cible.id, lock=True)
     purges = athlete_repository.delete_orphans_among(
         db, [i for i in dict.fromkeys([source_id, *anciens_equipiers]) if i != cible.id]
     )

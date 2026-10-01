@@ -535,6 +535,28 @@ def _pair_key(pair: tuple[str | None, str | None]) -> IdentityKey:
     return key if key[0] is not None else (None, "|".join(part or "" for part in pair))
 
 
+def _source_key(scraped: ScrapedResult) -> str | None:
+    """Clé source d'une ligne (`<nom>|<prénom>`, #896), celle que retient
+    `Participation.source_identity_key`."""
+    last_name_key, first_name_key = athlete_identity_keys(scraped.athlete_name, scraped.athlete_firstname)
+    return None if last_name_key is None else f"{last_name_key}|{first_name_key}"
+
+
+def _stored_source_key(participation: Participation) -> str | None:
+    """Un résultat saisi à la main n'a pas de clé source : celle de sa fiche en tient lieu."""
+    if participation.source_identity_key is not None:
+        return participation.source_identity_key
+    athlete = participation.athlete
+    return None if athlete.last_name_key is None else f"{athlete.last_name_key}|{athlete.first_name_key}"
+
+
+def _participation_fields(scraped: ScrapedResult, *, athlete_id: int, course_id: int) -> dict:
+    return {
+        **mapping.participation_fields(scraped, athlete_id=athlete_id, course_id=course_id),
+        "source_identity_key": _source_key(scraped),
+    }
+
+
 def _published_name(scraped: ScrapedResult) -> str:
     """Nom publié d'une ligne, reconstitué depuis la coupe nom/prénom du scraper.
 
@@ -602,7 +624,9 @@ class _Persister:
         self._by_bib: dict[int, dict[str, Participation]] = {}
         self._added_bibs: dict[int, set[str]] = {}
         self._duplicate_bibs: Counter[int] = Counter()
-        self._without_bib: dict[int, dict[int, list[Participation]]] = {}
+        # Lignes sans dossard par clé source (#896) : une ligne réattribuée par un
+        # admin se retrouve ainsi sans que sa fiche d'origine soit recréée.
+        self._without_bib: dict[int, dict[str | None, list[Participation]]] = {}
         self._teams_without_bib: dict[int, dict[str, list[Participation | None]]] = {}
         # Garde des relais découpés (#895, FR-010) : un coureur ne figure qu'une
         # fois par course. Les ids couvrent la base, les clés d'identité les
@@ -613,8 +637,8 @@ class _Persister:
         # (`finalize`) : la garde voit ainsi chaque coureur de la course, quelle
         # que soit la tranche où il apparaît.
         self._pending_splits: dict[int, list[_PendingResolution]] = {}
-        self._credits: dict[int, dict[int, int]] = {}
-        self._updated_single: dict[int, set[int]] = {}
+        self._credits: dict[int, dict[str | None, int]] = {}
+        self._updated_single: dict[int, set[str | None]] = {}
         self._courses: dict[int, Course] = {}
         #: Changements de club et de genre, appliqués une fois par `finalize` (#980).
         self._athlete_updates: dict[int, tuple[Athlete, dict[str, str]]] = {}
@@ -674,12 +698,12 @@ class _Persister:
             return
         rows = participation_repository.list_for_course(self.db, course_id)
         by_bib: dict[str, Participation] = {}
-        without: dict[int, list[Participation]] = {}
+        without: dict[str | None, list[Participation]] = {}
         for row in rows:
             if row.bib_number:
                 by_bib[row.bib_number] = row
             else:
-                without.setdefault(row.athlete_id, []).append(row)
+                without.setdefault(_stored_source_key(row), []).append(row)
         self._by_bib[course_id] = by_bib
         # Relais attribués sans dossard (#894) : appariés par nom d'équipe, la
         # fiche de l'équipe ayant disparu au profit des équipiers.
@@ -700,7 +724,7 @@ class _Persister:
         self._reserved_keys[course_id] = set()
         self._added_bibs[course_id] = set()
         self._without_bib[course_id] = without
-        self._credits[course_id] = {aid: len(rs) for aid, rs in without.items()}
+        self._credits[course_id] = {key: len(rs) for key, rs in without.items()}
         self._updated_single[course_id] = set()
         # `finalize()` réutilise cette liste (#706) au lieu d'un second
         # `list_for_course` : les créations de ce scrape s'y ajoutent au fil de
@@ -709,7 +733,7 @@ class _Persister:
 
     def _upsert(self, existing: Participation, scraped: ScrapedResult) -> None:
         """Fusionne prudemment une ligne appariée. Compte `updated` ou `skipped`."""
-        fields = mapping.participation_fields(
+        fields = _participation_fields(
             scraped, athlete_id=existing.athlete_id, course_id=existing.course_id
         )
         changes = _merge_fields(existing, fields)
@@ -717,11 +741,16 @@ class _Persister:
         status = _resolve_status(existing, scraped, changes)
         if status != existing.status:
             changes["status"] = status
+        # La clé source suit la ligne sans faire compter un résultat « mis à jour ».
+        source_key = changes.pop("source_identity_key", None)
         if changes:
-            participation_repository.update(self.db, existing, **changes)
             self.updated += 1
         else:
             self.skipped += 1
+        if source_key is not None:
+            changes["source_identity_key"] = source_key
+        if changes:
+            participation_repository.update(self.db, existing, **changes)
 
     def _note_passive(self, course: Course, source: CourseSource) -> None:
         """Retient une source passive **une fois**, et rédige le message qui la nomme.
@@ -813,9 +842,10 @@ class _Persister:
             existing = self._by_bib[course.id].get(bib)
             if existing is not None:
                 added.add(bib)
-                if existing.teammate_links:
-                    # Relais attribué à ses équipiers (#894) : l'identité scrapée
-                    # est celle de l'équipe, jamais résolue ni réconciliée.
+                if existing.teammate_links or existing.athlete_locked:
+                    # Relais attribué à ses équipiers (#894), ou fiche choisie par
+                    # un admin (#896) : l'identité scrapée n'est ni résolue ni
+                    # réconciliée, seules les valeurs suivent.
                     self._upsert(existing, scraped)
                     return
                 teammates = _proposed_teammates(scraped)
@@ -860,6 +890,11 @@ class _Persister:
                     self.skipped += 1
                 return
 
+        if not bib:
+            locked = self._locked_without_bib(course.id, _source_key(scraped))
+            if locked is not None:
+                self._upsert(locked, scraped)
+                return
         self._enqueue(
             course.id, scraped, bib=bib, participation=None,
             teammates=_proposed_teammates(scraped),
@@ -917,11 +952,15 @@ class _Persister:
             for item in pending
         ]
         decisions = self._split_decisions(course_id, pending, found)
+        kept = [
+            self._kept_record(course_id, item) if teammates is None else None
+            for item, teammates in zip(pending, decisions, strict=True)
+        ]
 
         to_create: dict[IdentityKey, dict] = {}
         creation_order: list[IdentityKey] = []
-        for item, teammates in zip(pending, decisions, strict=True):
-            if teammates is None and item.reconcile_blocked:
+        for item, teammates, record in zip(pending, decisions, kept, strict=True):
+            if teammates is None and (item.reconcile_blocked or record is not None):
                 continue
             if teammates is None:
                 candidates = [
@@ -955,9 +994,9 @@ class _Persister:
         course_date = self._courses[course_id].event_date
         club_changes = {
             athlete.id
-            for item, teammates in zip(pending, decisions, strict=True)
+            for item, teammates, record in zip(pending, decisions, kept, strict=True)
             if teammates is None and not item.reconcile_blocked and item.scraped.club
-            for athlete in [found[_identity_key(item.scraped)]]
+            for athlete in [record or found[_identity_key(item.scraped)]]
             if self._club_of(athlete) != item.scraped.club and not athlete.club_locked
         }
         latest_clubs = athlete_repository.latest_club_dates(self.db, list(club_changes))
@@ -968,7 +1007,7 @@ class _Persister:
         new_participation_items: list[_PendingResolution] = []
         team_athletes: list[int] = []
 
-        for item, teammates in zip(pending, decisions, strict=True):
+        for item, teammates, record in zip(pending, decisions, kept, strict=True):
             if teammates is not None:
                 self._apply_split(
                     course_id, item, [found[_pair_key(pair)] for pair in teammates],
@@ -981,7 +1020,7 @@ class _Persister:
                 self._upsert(item.participation, item.scraped)
                 continue
             key = _identity_key(item.scraped)
-            athlete = found[key]
+            athlete = record or found[key]
             self._present_ids[course_id].add(athlete.id)
             club = item.scraped.club or None
             if (
@@ -1008,19 +1047,18 @@ class _Persister:
                 continue
 
             if item.bib is None:
-                existing = self._match_without_bib(course_id, athlete.id)
+                source_key = _source_key(item.scraped)
+                existing = self._match_without_bib(course_id, source_key)
                 if existing is not None:
                     self._upsert(existing, item.scraped)
                     continue
-                if self._credits[course_id].get(athlete.id, 0) > 0:
-                    self._credits[course_id][athlete.id] -= 1
+                if self._credits[course_id].get(source_key, 0) > 0:
+                    self._credits[course_id][source_key] -= 1
                     self.skipped += 1
                     continue
 
             new_participation_fields.append(
-                mapping.participation_fields(
-                    item.scraped, athlete_id=athlete.id, course_id=course_id
-                )
+                _participation_fields(item.scraped, athlete_id=athlete.id, course_id=course_id)
             )
             new_participation_items.append(item)
 
@@ -1043,6 +1081,21 @@ class _Persister:
             # l'ancien porteur d'un résultat repris sans autre changement.
             self.db.flush()
             athlete_repository.delete_orphans_among(self.db, team_athletes)
+
+    def _kept_record(self, course_id: int, item: _PendingResolution) -> Athlete | None:
+        """La fiche qu'une ligne source inchangée garde, sans résolution (#896).
+
+        Même clé source qu'au dernier passage : la ligne reste sur la fiche de sa
+        participation, même renommée, datée ou distinguée par un admin depuis.
+        La résoudre recréerait l'ancienne graphie en fiche vide.
+        """
+        source_key = _source_key(item.scraped)
+        if item.participation is not None:
+            return item.participation.athlete if _stored_source_key(item.participation) == source_key else None
+        if item.bib is None:
+            rows = self._without_bib[course_id].get(source_key)
+            return rows[0].athlete if rows else None
+        return None
 
     def _safe_fallbacks(
         self, course_id: int, pending: list[_PendingResolution],
@@ -1087,7 +1140,7 @@ class _Persister:
         present_ids = self._present_ids[course_id]
         reserved = self._reserved_keys[course_id]
         reserved.update(_identity_key(item.scraped) for item in pending if item.teammates is None)
-        claimed_teams: set[int] = set()
+        claimed_teams: set[str | None] = set()
         decisions = []
         for item in pending:
             teammates = item.teammates
@@ -1109,7 +1162,7 @@ class _Persister:
 
     def _bibless_team_claimable(
         self, course_id: int, item: _PendingResolution,
-        found: dict[IdentityKey, Athlete], claimed_teams: set[int],
+        found: dict[IdentityKey, Athlete], claimed_teams: set[str | None],
     ) -> bool:
         """Faux si la fiche d'équipe d'une ligne sans dossard a des lignes sur la
         course sans qu'une seule puisse être reprise : découper créerait un
@@ -1117,13 +1170,13 @@ class _Persister:
         """
         if item.bib is not None or item.participation is not None:
             return True
-        team = found.get(_identity_key(item.scraped))
-        rows = self._without_bib[course_id].get(team.id, []) if team is not None else []
+        source_key = _source_key(item.scraped)
+        rows = self._without_bib[course_id].get(source_key, [])
         if not rows:
             return True
-        if len(rows) != 1 or team.id in self._updated_single[course_id] or team.id in claimed_teams:
+        if len(rows) != 1 or source_key in self._updated_single[course_id] or source_key in claimed_teams:
             return False
-        claimed_teams.add(team.id)
+        claimed_teams.add(source_key)
         return True
 
     def _apply_split(
@@ -1141,10 +1194,10 @@ class _Persister:
         ids = [athlete.id for athlete in teammates]
         self._present_ids[course_id].update(ids)
         existing = item.participation
-        if existing is None and item.bib is None and team is not None:
-            existing = self._match_without_bib(course_id, team.id)
+        if existing is None and item.bib is None:
+            existing = self._match_without_bib(course_id, _source_key(item.scraped))
         if existing is None:
-            fields = mapping.participation_fields(scraped, athlete_id=ids[0], course_id=course_id)
+            fields = _participation_fields(scraped, athlete_id=ids[0], course_id=course_id)
             fields["teammate_ids"] = ids
             new_fields.append(fields)
             new_items.append(item)
@@ -1182,6 +1235,11 @@ class _Persister:
         """
         if athlete.id == participation.athlete_id:
             return
+        # Même ligne source qu'au dernier passage : le chronométreur n'a rien
+        # changé, la fiche actuelle (renommée, datée ou homonyme distingué par un
+        # admin) reste la bonne (#896, #900).
+        if _stored_source_key(participation) == _source_key(scraped):
+            return
         reassignment = Reassignment(
             ancien=_identite(participation.athlete), nouveau=_identite(athlete), fusion=not cree
         )
@@ -1189,19 +1247,28 @@ class _Persister:
         self.reconciled += 1
         self.reassignments.append(reassignment)
 
-    def _match_without_bib(self, course_id: int, athlete_id: int) -> Participation | None:
-        """Ligne sans dossard à mettre à jour : seulement si l'athlète n'a qu'**une**
-        participation sur la course, et pas déjà mise à jour dans ce scrape.
+    def _match_without_bib(self, course_id: int, source_key: str | None) -> Participation | None:
+        """Ligne sans dossard à mettre à jour : seulement si la clé source n'a
+        qu'**une** participation sur la course, et pas déjà mise à jour dans ce scrape.
 
         Deux occurrences ou plus : on ne devine pas quelle ligne source correspond
         à quelle ligne en base, on conserve le skip multiset (cf. `add`).
         """
-        rows = self._without_bib[course_id].get(athlete_id, [])
-        if len(rows) != 1 or athlete_id in self._updated_single[course_id]:
+        rows = self._without_bib[course_id].get(source_key, [])
+        if len(rows) != 1 or source_key in self._updated_single[course_id]:
             return None
-        self._updated_single[course_id].add(athlete_id)
-        self._credits[course_id][athlete_id] -= 1
+        self._updated_single[course_id].add(source_key)
+        self._credits[course_id][source_key] -= 1
         return rows[0]
+
+    def _locked_without_bib(self, course_id: int, source_key: str | None) -> Participation | None:
+        """La ligne sans dossard réattribuée par un admin que cette clé source
+        désigne, appariée **avant** toute résolution : la fiche d'origine, purgée
+        à la réattribution, n'est pas recréée (#896)."""
+        rows = self._without_bib[course_id].get(source_key, [])
+        if len(rows) != 1 or not rows[0].athlete_locked:
+            return None
+        return self._match_without_bib(course_id, source_key)
 
     def _resolve_locked_course(self, scraped: ScrapedResult) -> mapping.CourseResolution:
         """Résout l'épreuve, puis la verrouille (#982).
