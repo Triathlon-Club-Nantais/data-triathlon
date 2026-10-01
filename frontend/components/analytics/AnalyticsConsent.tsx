@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useSyncExternalStore } from "react";
 import { Button } from "@/components/tcn/Button";
 import { saveConsent, useAnalyticsConsent } from "@/lib/analytics-consent";
+import { isPostHogEnabled } from "@/lib/posthog";
 
 const noopSubscribe = () => () => {};
 
@@ -19,18 +20,18 @@ function useHydrated() {
 export function AnalyticsConsentBanner() {
   const consent = useAnalyticsConsent();
   const hydrated = useHydrated();
-  if (!process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN || !hydrated || consent !== "pending") return null;
+  if (!isPostHogEnabled() || !hydrated || consent !== "pending") return null;
 
   return (
     <section
       aria-label="Mesure d'audience"
-      // Au-dessus de la barre basse sous md, comme le bouton de signalement.
-      className="fixed inset-x-3 bottom-[calc(12px+var(--tcn-nav-bottom))] z-50 mx-auto max-w-xl md:bottom-6"
+      // Dans le flux, au-dessus du contenu, et non flottant : il ne masque ni le contenu ni le bouton
+      // de signalement (WCAG 2.4.11), et le clavier l'atteint avant la page.
+      className="mx-4 mt-4 sm:mx-8 md:mx-10"
       style={{
         background: "var(--tcn-surface)",
         border: "1px solid var(--tcn-border)",
         borderRadius: "var(--tcn-radius-2xl)",
-        boxShadow: "var(--tcn-shadow-pop)",
         padding: "var(--tcn-space-5)",
       }}
     >
@@ -67,9 +68,14 @@ const STATUS = {
 /** Retirer ou donner son accord à tout moment, depuis la politique de confidentialité. */
 export function AnalyticsConsentSettings() {
   const consent = useAnalyticsConsent();
+  const hydrated = useHydrated();
+  if (!isPostHogEnabled()) {
+    return <p>La mesure d&apos;audience n&apos;est pas active sur cette version du site.</p>;
+  }
   return (
     <div className="space-y-2">
-      <p aria-live="polite">{STATUS[consent]}</p>
+      {/* Vide avant l'hydratation : la région n'annonce que les changements de choix. */}
+      <p aria-live="polite">{hydrated ? STATUS[consent] : ""}</p>
       <div className="flex flex-wrap gap-2">
         <Button
           variant="secondary"

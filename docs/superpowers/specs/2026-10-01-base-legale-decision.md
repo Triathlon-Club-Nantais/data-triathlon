@@ -190,4 +190,7 @@ proviennent la plupart des résultats.
   `identify()`), refus et accord au même niveau, choix gardé six mois et
   modifiable depuis la politique de confidentialité. Les événements serveur
   du back-office restent rattachés à l'identifiant du compte, sans traceur
-  dans le navigateur.
+  dans le navigateur, sur la base de l'intérêt légitime à administrer le site.
+  Retirer son accord arrête la mesure détaillée sans effacer ce qui a été
+  transmis : le profil PostHog d'un utilisateur se supprime sur demande
+  d'effacement, à la main depuis PostHog.

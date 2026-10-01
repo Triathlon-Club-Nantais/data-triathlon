@@ -14,6 +14,7 @@ describe("Consentement à la mesure d'audience détaillée (#1159)", () => {
     optOut.mockClear();
     reset.mockClear();
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.posthog.com");
   });
 
   afterEach(() => {
@@ -50,6 +51,21 @@ describe("Consentement à la mesure d'audience détaillée (#1159)", () => {
   it("traite un stockage illisible comme une absence de choix", () => {
     localStorage.setItem(ANALYTICS_CONSENT_KEY, "{pas du json");
     expect(readConsent()).toBe("pending");
+  });
+
+  it("applique le choix pour la visite quand le navigateur refuse de l'enregistrer", () => {
+    const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("quota", "QuotaExceededError");
+    });
+    try {
+      saveConsent("denied");
+      expect(readConsent()).toBe("denied");
+      expect(optOut).toHaveBeenCalled();
+    } finally {
+      setItem.mockRestore();
+    }
+    saveConsent("granted");
+    expect(readConsent()).toBe("granted");
   });
 
   it("ne touche pas à PostHog quand il n'est pas configuré", () => {

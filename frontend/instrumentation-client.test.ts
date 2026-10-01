@@ -77,6 +77,8 @@ describe("instrumentation-client", () => {
           cookieless_mode: "on_reject",
           opt_out_capturing_by_default: true,
           autocapture: false,
+          capture_heatmaps: false,
+          capture_dead_clicks: false,
           disable_session_recording: true,
         }),
       );

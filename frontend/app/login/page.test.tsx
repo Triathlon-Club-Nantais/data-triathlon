@@ -40,6 +40,7 @@ beforeEach(() => {
   // captureEvent (lib/posthog.ts) ne délègue à posthog-js que si le token est
   // présent — sans ce stub, l'assertion sur `capture` ne verrait jamais rien.
   vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
+  vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.posthog.com");
 });
 
 describe("Page de connexion — méthodes", () => {

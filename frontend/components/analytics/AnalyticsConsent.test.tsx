@@ -12,6 +12,7 @@ import { readConsent } from "@/lib/analytics-consent";
 beforeEach(() => {
   localStorage.clear();
   vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
+  vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.posthog.com");
 });
 
 describe("AnalyticsConsentBanner (#1159)", () => {
@@ -47,6 +48,13 @@ describe("AnalyticsConsentBanner (#1159)", () => {
 });
 
 describe("AnalyticsConsentSettings (#1159)", () => {
+  it("dit que la mesure est inactive là où PostHog ne tourne pas", () => {
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "");
+    render(<AnalyticsConsentSettings />);
+    expect(screen.getByText(/pas active/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  });
+
   it("dit le choix en cours et permet d'en changer à tout moment", async () => {
     render(<AnalyticsConsentSettings />);
     expect(screen.getByText(/vous n'avez pas encore fait de choix/i)).toBeInTheDocument();

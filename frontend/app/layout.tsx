@@ -83,6 +83,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <div className="flex min-h-screen flex-col md:flex-row">
             <AppNav initialExpanded={initialExpanded} />
             <div className="flex min-w-0 flex-1 flex-col pb-[var(--tcn-nav-bottom)] md:pb-0">
+              <AnalyticsConsentBanner />
               <main id="contenu" tabIndex={-1} className="flex-1">
                 {children}
               </main>
@@ -91,7 +92,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           </div>
           <Toaster richColors position="top-right" />
           <FeedbackButton />
-          <AnalyticsConsentBanner />
         </Providers>
       </body>
     </html>

@@ -26,6 +26,10 @@ if (token && host) {
     // L'autocapture des clics n'est ouverte qu'à l'accord ; un accord donné en cours de visite la
     // démarre au chargement suivant.
     autocapture: granted,
+    // Fixés ici plutôt que laissés aux réglages distants du projet : sans accord, ni coordonnées de
+    // clics ni clics morts ne partent.
+    capture_heatmaps: granted,
+    capture_dead_clicks: granted,
     disable_session_recording: true,
     // Capture les exceptions non gérées (Error Tracking)
     capture_exceptions: true,

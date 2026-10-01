@@ -1,5 +1,8 @@
+"use client";
 import posthog from "posthog-js";
 import { useSyncExternalStore } from "react";
+import { ANALYTICS_CONSENT_KEY } from "@/lib/constants";
+import { isPostHogEnabled } from "@/lib/posthog";
 
 /**
  * Choix du visiteur sur la mesure d'audience détaillée (#1159).
@@ -12,13 +15,17 @@ import { useSyncExternalStore } from "react";
  */
 export type AnalyticsConsent = "granted" | "denied" | "pending";
 
-export const ANALYTICS_CONSENT_KEY = "tcn-analytics-consent";
+export { ANALYTICS_CONSENT_KEY };
 export const CONSENT_VALIDITY_DAYS = 182;
 const CHANGED_EVENT = "tcn-analytics-consent-changed";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Repli quand le navigateur refuse l'écriture (stockage plein ou bloqué) : le choix vaut pour la visite.
+let unsavedChoice: "granted" | "denied" | null = null;
+
 export function readConsent(): AnalyticsConsent {
   if (typeof window === "undefined") return "pending";
+  if (unsavedChoice) return unsavedChoice;
   try {
     const stored = JSON.parse(localStorage.getItem(ANALYTICS_CONSENT_KEY) ?? "null");
     if (stored?.choice !== "granted" && stored?.choice !== "denied") return "pending";
@@ -30,8 +37,13 @@ export function readConsent(): AnalyticsConsent {
 }
 
 export function saveConsent(choice: "granted" | "denied"): void {
-  localStorage.setItem(ANALYTICS_CONSENT_KEY, JSON.stringify({ choice, at: Date.now() }));
-  if (process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) {
+  try {
+    localStorage.setItem(ANALYTICS_CONSENT_KEY, JSON.stringify({ choice, at: Date.now() }));
+    unsavedChoice = null;
+  } catch {
+    unsavedChoice = choice;
+  }
+  if (isPostHogEnabled()) {
     if (choice === "granted") {
       posthog.opt_in_capturing({ captureEventName: false });
     } else {
@@ -52,7 +64,7 @@ function subscribe(onChange: () => void) {
   };
 }
 
-/** `"pending"` au rendu serveur : le choix ne vit que dans le navigateur. */
+/** `"pending"` au rendu serveur : le choix ne se lit qu'au navigateur. */
 export function useAnalyticsConsent(): AnalyticsConsent {
   return useSyncExternalStore(subscribe, readConsent, () => "pending");
 }

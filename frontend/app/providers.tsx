@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import posthog from "posthog-js";
 import { toast } from "sonner";
 import { useAnalyticsConsent } from "@/lib/analytics-consent";
+import { isPostHogEnabled } from "@/lib/posthog";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import { SESSION_QUERY_DEFAULTS, useSession } from "@/lib/queries/auth";
 import { queryKeys } from "@/lib/queries/keys";
@@ -36,7 +37,7 @@ function PostHogSessionSync() {
   const identifiedRef = useRef(false);
 
   useEffect(() => {
-    if (!process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN) return;
+    if (!isPostHogEnabled()) return;
     if (session && consent === "granted") {
       identifiedRef.current = true;
       posthog.identify(String(session.id), {
