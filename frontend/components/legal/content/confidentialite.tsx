@@ -1,7 +1,10 @@
+import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
+import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 import { ContactEmail, ExternalLink, InternalLink, List, Table } from "../blocks";
 import type { LegalDocument } from "../types";
 
 // Faits juridiques : docs/superpowers/specs/2026-10-01-base-legale-decision.md (#332), qui prime.
+// Les noms des cookies posés par l'API sont tenus contre leurs constantes par backend/tests/test_legal_privacy_policy.py.
 export const PRIVACY_POLICY: LegalDocument = {
   title: "Politique de confidentialité",
   description:
@@ -32,34 +35,38 @@ export const PRIVACY_POLICY: LegalDocument = {
             <strong>Les résultats d&apos;épreuves.</strong> Pour chaque athlète classé dans une épreuve importée,
             membre du club ou non : nom, prénom, sexe, catégorie d&apos;âge, club déclaré, numéro de dossard, temps
             total et temps intermédiaires, classements (général, par catégorie, par sexe), statut (arrivé, abandon…)
-            et, pour un relais, le nom de l&apos;équipe. La date de naissance, quand la source la donne, n&apos;est
-            visible que des administrateurs.
+            et, pour un relais, le nom de l&apos;équipe. La ligne du classement telle que la source l&apos;a publiée
+            est conservée avec le résultat. La date de naissance, quand la source la donne, n&apos;est visible que
+            des administrateurs.
           </p>
-          <p>Ces résultats proviennent de trois sources :</p>
+          <p>Ces résultats proviennent de deux sources :</p>
           <List>
             <li>
               les sites des chronométreurs, où ils sont déjà publiés : Klikego, Breizh Chrono, TimePulse,
               Sportinnovation, ProLiveSport, Chronoplace, Wiclax (G-Live), RaceResult, T2Area (Fédération Française
-              de Triathlon), Competitor (Ironman), ok-time, runnerbreizh, Sporthive (MYLAPS) et chronoweb ;
+              de Triathlon), Competitor (Ironman), ok-time, runnerbreizh, Sporthive (MYLAPS) et chronoweb. Le lien
+              d&apos;une épreuve est collé par un adhérent, ou fourni par un administrateur dans une liste de liens ;
             </li>
-            <li>l&apos;import de fichiers de résultats par un administrateur du club ;</li>
             <li>
-              la saisie manuelle, par un adhérent, d&apos;un résultat qu&apos;aucun chronométreur ne publie. Elle
-              reste invisible tant qu&apos;un bénévole ne l&apos;a pas validée.
+              la saisie manuelle, par un adhérent, d&apos;un résultat qu&apos;aucun chronométreur ne publie, avec un
+              lien de preuve quand il existe. Elle reste invisible tant qu&apos;un bénévole ne l&apos;a pas validée.
             </li>
           </List>
           <p>
-            Les épreuves et catégories jeunes, jusqu&apos;à minime inclus, ne sont pas importées.
+            Les épreuves et catégories jeunes, jusqu&apos;à minime inclus, ne sont pas importées depuis les
+            chronométreurs.
           </p>
           <p>
             <strong>Les comptes du back-office.</strong> Les bénévoles et administrateurs se connectent avec leur
             compte GitHub : le site en reçoit l&apos;adresse électronique, le nom affiché et l&apos;identifiant
-            GitHub. Il garde la trace de leurs actions d&apos;administration.
+            GitHub. Un compte peut être rattaché à la fiche athlète de son titulaire. Le site garde la trace des
+            actions d&apos;administration.
           </p>
           <p>
             <strong>Les signalements.</strong> Quand vous signalez un problème depuis le site : votre message, la
-            page concernée, votre navigateur et votre adresse IP. L&apos;adresse IP sert uniquement à limiter le
-            nombre d&apos;envois ; elle n&apos;est jamais affichée.
+            page concernée, votre navigateur, votre adresse IP et, si vous êtes connecté au back-office, votre
+            compte. L&apos;adresse IP sert uniquement à limiter le nombre d&apos;envois ; elle n&apos;est jamais
+            affichée.
           </p>
           <p>
             <strong>L&apos;école de triathlon.</strong> Pour les jeunes licenciés encadrés par le club : identité,
@@ -67,8 +74,10 @@ export const PRIVACY_POLICY: LegalDocument = {
             sont visibles que des encadrants habilités.
           </p>
           <p>
-            <strong>La mesure d&apos;audience.</strong> Les pages consultées et les erreurs rencontrées, pour
-            améliorer le site (voir « Cookies et stockage du navigateur »).
+            <strong>La mesure d&apos;audience.</strong> Les pages consultées, les interactions avec ces pages
+            (clics) et les erreurs rencontrées, pour améliorer le site. Pour un utilisateur connecté au
+            back-office, cette mesure est rattachée à son compte : son adresse électronique, son nom affiché et ses
+            rôles sont transmis au prestataire de mesure (voir « Cookies et stockage du navigateur »).
           </p>
         </>
       ),
@@ -96,7 +105,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             <li>
               le site est réservé aux adhérents, par un code d&apos;accès, et il est exclu des moteurs de recherche ;
             </li>
-            <li>les résultats des jeunes ne sont pas importés ;</li>
+            <li>les résultats des jeunes ne sont pas importés depuis les chronométreurs ;</li>
             <li>aucune donnée n&apos;est vendue, cédée ni utilisée à des fins commerciales.</li>
           </List>
           <p>
@@ -133,8 +142,9 @@ export const PRIVACY_POLICY: LegalDocument = {
         <>
           <p>
             Les résultats sont consultables par les adhérents du club, qui disposent du code d&apos;accès. Les
-            saisies en attente, les dates de naissance et les signalements ne sont visibles que des bénévoles et
-            administrateurs habilités ; les données de l&apos;école de triathlon, que des encadrants.
+            saisies en attente, les dates de naissance et les signalements ne sont visibles que des bénévoles
+            (adhérents ou non) et administrateurs habilités ; les données de l&apos;école de triathlon, que des
+            encadrants.
           </p>
           <p>Le club s&apos;appuie sur des prestataires techniques, qui n&apos;agissent que pour son compte :</p>
           <Table
@@ -206,23 +216,28 @@ export const PRIVACY_POLICY: LegalDocument = {
         <>
           <p>Le site dépose ou lit dans votre navigateur :</p>
           <Table
-            head={["Nom", "À quoi il sert", "Durée"]}
+            head={["Nom", "Type", "À quoi il sert", "Durée"]}
             rows={[
-              ["tcn_site_session", "Mémoriser que vous avez saisi le code d'accès", "90 jours"],
-              ["tcn_session", "Maintenir votre connexion au back-office", "7 jours"],
-              ["tcn_logged_in", "Savoir qu'une connexion au back-office est ouverte", "7 jours"],
-              ["tcn_auth_state", "Sécuriser la connexion par GitHub", "10 minutes"],
-              ["tcn_benevole_session", "Mémoriser l'accès à l'espace bénévoles", "Jusqu'à la fermeture du navigateur"],
-              ["tcn-nav-expanded", "Retenir si le menu est déplié", "1 an"],
-              ["tcn-athlete", "Retenir l'athlète que vous avez choisi comme « moi »", "Jusqu'à ce que vous le changiez"],
-              ["tcn_retour_connexion", "Vous ramener à la bonne page après la connexion", "Jusqu'à la fermeture de l'onglet"],
-              ["Traceurs PostHog (ph_…)", "Mesure d'audience", "Selon le prestataire"],
+              ["tcn_site_session", "cookie", "Mémoriser que vous avez saisi le code d'accès", "90 jours"],
+              ["tcn_session", "cookie", "Maintenir votre connexion au back-office", "7 jours"],
+              ["tcn_logged_in", "cookie", "Savoir qu'une connexion au back-office est ouverte", "7 jours au plus"],
+              ["tcn_auth_state", "cookie", "Sécuriser la connexion par GitHub", "10 minutes"],
+              ["tcn_benevole_session", "cookie", "Mémoriser l'accès à l'espace bénévoles", "Jusqu'à la fermeture du navigateur"],
+              [NAV_WIDTH_COOKIE, "cookie", "Retenir si le menu est déplié", "1 an"],
+              ["tcn-athlete", "stockage local", "Retenir l'athlète que vous avez choisi comme « moi »", "Jusqu'à ce que vous le changiez"],
+              [RETOUR_CONNEXION_KEY, "stockage de session", "Vous ramener à la bonne page après la connexion", "Jusqu'à la fermeture de l'onglet"],
+              ["ph_…", "cookie et stockage local", "Mesure d'audience (PostHog)", "1 an"],
             ]}
           />
           <p>
+            Sur le site en ligne, les deux cookies de connexion au back-office portent le préfixe « __Host- »
+            (par exemple « __Host-tcn_session »), qui interdit leur partage avec un autre site.
+          </p>
+          <p>
             Tous servent au fonctionnement du site, sauf les traceurs PostHog, qui mesurent son audience. Vous pouvez
-            les supprimer à tout moment depuis les réglages de votre navigateur ; supprimer les premiers vous
-            demandera de saisir à nouveau le code d&apos;accès ou de vous reconnecter.
+            les supprimer ou les bloquer à tout moment depuis les réglages de votre navigateur : bloquer les traceurs
+            PostHog n&apos;empêche pas d&apos;utiliser le site ; supprimer les autres vous demandera de saisir à
+            nouveau le code d&apos;accès ou de vous reconnecter.
           </p>
         </>
       ),

@@ -51,11 +51,17 @@ export function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
           {rows.map((row, rowIndex) => (
             // Lignes éditoriales statiques, sans identifiant plus stable que leur position.
             <tr key={rowIndex}>
-              {row.map((cell, cellIndex) => (
-                <td key={cellIndex} className="border-b border-[var(--tcn-border)] py-2 pr-4 align-top">
-                  {cell}
-                </td>
-              ))}
+              {row.map((cell, cellIndex) =>
+                cellIndex === 0 ? (
+                  <th key={cellIndex} scope="row" className="border-b border-[var(--tcn-border)] py-2 pr-4 align-top font-medium">
+                    {cell}
+                  </th>
+                ) : (
+                  <td key={cellIndex} className="border-b border-[var(--tcn-border)] py-2 pr-4 align-top">
+                    {cell}
+                  </td>
+                ),
+              )}
             </tr>
           ))}
         </tbody>

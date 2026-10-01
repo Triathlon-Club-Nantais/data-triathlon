@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
+import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 import { LegalPage } from "../LegalPage";
 import { PRIVACY_POLICY } from "./confidentialite";
 
@@ -48,7 +50,8 @@ describe("Politique de confidentialité (#333)", () => {
     ]) {
       expect(texte).toContain(chronometreur);
     }
-    expect(texte).toMatch(/import de fichiers/i);
+    expect(texte).toMatch(/liste de liens/i);
+    expect(texte).not.toMatch(/import de fichiers/i);
     expect(texte).toMatch(/saisie manuelle/i);
     expect(texte).toMatch(/école de triathlon/i);
   });
@@ -91,8 +94,23 @@ describe("Politique de confidentialité (#333)", () => {
 
   it("liste les cookies et le stockage du navigateur", () => {
     const texte = rendre();
-    for (const traceur of ["tcn_session", "tcn_site_session", "tcn-nav-expanded", "tcn-athlete"]) {
+    for (const traceur of [
+      "tcn_session",
+      "tcn_auth_state",
+      "tcn_logged_in",
+      "tcn_site_session",
+      "tcn_benevole_session",
+      "tcn-athlete",
+      NAV_WIDTH_COOKIE,
+      RETOUR_CONNEXION_KEY,
+    ]) {
       expect(texte).toContain(traceur);
     }
+  });
+
+  it("dit ce que la mesure d'audience reçoit d'un utilisateur connecté", () => {
+    const texte = rendre();
+    expect(texte).toMatch(/adresse électronique, son nom affiché et ses rôles sont transmis/);
+    expect(screen.getByRole("row", { name: /ph_/ })).toHaveTextContent("1 an");
   });
 });

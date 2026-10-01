@@ -26,15 +26,17 @@ export const LEGAL_NOTICE: LegalDocument = {
       content: (
         <ul className="space-y-3">
           <li>
-            <strong>Site</strong> : Vercel Inc., 440 N Barranca Ave #4133, Covina, CA 91723, États-Unis.
+            <strong>Site</strong> : Vercel Inc., 440 N Barranca Ave #4133, Covina, CA 91723, États-Unis. Téléphone :
+            +1 559 288 7060.
           </li>
           <li>
             <strong>Serveur de données</strong> : Render Services, Inc., 525 Brannan Street, Suite 300, San
-            Francisco, CA 94107, États-Unis (serveurs situés à Francfort, Allemagne).
+            Francisco, CA 94107, États-Unis (serveurs situés à Francfort, Allemagne). Téléphone : +1 415 319 8186.
           </li>
           <li>
             <strong>Base de données</strong> : Microsoft Ireland Operations Ltd (Microsoft Azure), One Microsoft
-            Place, South County Business Park, Leopardstown, Dublin 18, Irlande (serveurs situés en France).
+            Place, South County Business Park, Leopardstown, Dublin 18, D18 P521, Irlande (serveurs situés en
+            France). Téléphone : +353 1 295 3826.
           </li>
         </ul>
       ),
@@ -47,7 +49,7 @@ export const LEGAL_NOTICE: LegalDocument = {
           <p>
             Les résultats affichés proviennent des chronométreurs des épreuves, dont la source est indiquée sur
             chaque résultat. Le site est développé par des bénévoles du club ; son code source est publié sous
-            licence libre AGPL-3.0 sur{" "}
+            licence libre AGPL-3.0-or-later sur{" "}
             <ExternalLink href="https://github.com/Triathlon-Club-Nantais/data-triathlon">GitHub</ExternalLink>.
           </p>
           <p>

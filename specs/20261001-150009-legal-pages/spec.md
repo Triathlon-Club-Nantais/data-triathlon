@@ -135,13 +135,13 @@ l'historique du dépôt montre chaque modification du texte.
 - **FR-003**: Les mentions légales MUST indiquer : l'éditeur (Triathlon Club
   Nantais, association, 2 boulevard René Coty, 44100 Nantes, SIRET
   403 516 347 00016), le directeur de la publication, les hébergeurs (front,
-  API, base de production) avec leur raison sociale et leur adresse, et un
-  contact.
+  API, base de production) avec leur raison sociale, leur adresse et leur
+  téléphone (LCEN, article 6), et un contact.
 - **FR-004**: La politique de confidentialité MUST nommer : le responsable de
   traitement ; chaque catégorie de données traitées (résultats des
   participants, saisies manuelles, comptes du back-office, signalements,
   mesure d'audience, cookies et stockage du navigateur) ; leur provenance (les
-  14 chronométreurs nommés, l'import de fichiers, la saisie manuelle).
+  14 chronométreurs nommés, atteints par un lien collé par un adhérent ou une liste de liens importée par un administrateur, et la saisie manuelle).
 - **FR-005**: La politique MUST annoncer la finalité et la base légale telles
   que tranchées par la décision #332 (intérêt légitime pour les résultats), et
   exposer en quelques phrases pourquoi les intérêts des personnes ne

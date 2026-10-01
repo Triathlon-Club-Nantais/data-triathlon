@@ -72,7 +72,7 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   globale en carte de bas de page. Pas d'écran ni d'entrée de navigation
   dédiés — un unique bouton ne les justifiait pas. Jumelle de la CLI, la
   redondance étant le but : le back-office suppose une session, la CLI non.
-- **Textes légaux** (#333) — `/mentions-legales`, `/confidentialite`, `/cgu`
+- **Textes légaux** (#333) : `/mentions-legales`, `/confidentialite`, `/cgu`
   sont des routes **sœurs** du groupe gardé : un non-adhérent, qui n'a pas le
   code, doit pouvoir lire ce que le club fait de ses résultats
   (`routes-garde-site.test.ts` le tient). Leur contenu vit en TSX dans

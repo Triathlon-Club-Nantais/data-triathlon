@@ -28,6 +28,13 @@ describe("Mentions légales (#333)", () => {
     expect(texte).toContain("Dublin");
   });
 
+  it("donne le téléphone de chaque hébergeur (LCEN, article 6)", () => {
+    const texte = rendre();
+    for (const telephone of ["+1 559 288 7060", "+1 415 319 8186", "+353 1 295 3826"]) {
+      expect(texte).toContain(telephone);
+    }
+  });
+
   it("donne un contact et renvoie vers la politique de confidentialité", () => {
     rendre();
     for (const lien of screen.getAllByRole("link", { name: "president@triathlon-club-nantais.com" })) {
