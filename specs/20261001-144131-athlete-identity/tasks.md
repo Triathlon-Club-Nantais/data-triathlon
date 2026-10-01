@@ -144,14 +144,14 @@ description: "Task list for epic #1146, one stable identity per real athlete"
 
 ### Tests (rouges d'abord)
 
-- [ ] T036 [P] [US4] Tests d'import dans `backend/tests/test_services/test_import_service.py` : deux lignes `MARTIN Thomas` aux dossards distincts sur une épreuve individuelle → deux fiches (rangs 0 et 1), `homonyms_created` au rapport ; rescrape de l'épreuve → les deux fiches gardent leur participation ; nouvelle épreuve `MARTIN Thomas` sans conflit → fiche de rang 0 ; épreuve en relais → comportement inchangé ; dossard déjà présent dans la même tranche de lignes compté aussi ; une ligne `THOMAS Martin` dont le repli (inversion) trouve une fiche déjà présente sur l'épreuve avec un autre dossard crée la fiche principale `THOMAS Martin`, pas un homonyme
-- [ ] T037 [P] [US4] Test repository dans `backend/tests/test_repositories/test_athlete_repository.py` : `create_homonym(nom, prenom, …)` prend `max(rank)+1` et retente sur conflit
+- [X] T036 [P] [US4] Tests d'import dans `backend/tests/test_services/test_import_homonyms.py` : deux lignes `MARTIN Thomas` aux dossards distincts sur une épreuve individuelle → deux fiches (rangs 0 et 1), `homonyms_created` au rapport ; rescrape de l'épreuve → les deux fiches gardent leur participation ; nouvelle épreuve `MARTIN Thomas` sans conflit → fiche de rang 0 ; épreuve en relais → comportement inchangé ; dossard déjà présent dans la même tranche de lignes compté aussi ; une ligne `THOMAS Martin` dont le repli (inversion) trouve une fiche déjà présente sur l'épreuve avec un autre dossard crée la fiche principale `THOMAS Martin`, pas un homonyme
+- [X] T037 [P] [US4] Test repository dans `backend/tests/test_repositories/test_athlete_repository.py` : `create_homonym(nom, prenom, …)` prend `max(rank)+1` et retente sur conflit
 
 ### Implémentation
 
-- [ ] T038 [US4] Ajouter `create_homonym` dans `backend/app/repositories/athlete_repository.py` (insertion au rang suivant, `ON CONFLICT DO NOTHING` puis nouvel essai, au plus 5)
-- [ ] T039 [US4] Dans `backend/app/services/import_service.py` : `_index_course` tient `athlete_id → dossards` pour les épreuves non relais, complété au fil des lignes attribuées ; dans `_resolve_pending`, une ligne à dossard neuf dont la fiche résolue porte un autre dossard sur l'épreuve passe par `create_homonym` ; une correspondance obtenue par repli et en conflit est ignorée au profit de la création de la fiche principale de la clé directe (`research.md` R4) ; rapport `homonyms_created: [{course_id, bib, athlete_id, homonym_of}]` dans `persist_results` et l'événement SSE `done`
-- [ ] T040 [US4] Documenter `homonyms_created` et la règle FR-008 dans `docs/api/admin-donnees.md` et `backend/app/models/AGENTS.md` (rang d'homonyme)
+- [X] T038 [US4] Ajouter `create_homonym` dans `backend/app/repositories/athlete_repository.py` (insertion au rang suivant, `ON CONFLICT DO NOTHING` puis nouvel essai, au plus 5)
+- [X] T039 [US4] Dans `backend/app/services/import_service.py` : `_index_course` tient `athlete_id → dossards` pour les épreuves non relais, complété au fil des lignes attribuées ; dans `_resolve_pending`, une ligne à dossard neuf dont la fiche résolue porte un autre dossard sur l'épreuve passe par `create_homonym` ; une correspondance obtenue par repli et en conflit est ignorée au profit de la création de la fiche principale de la clé directe (`research.md` R4) ; rapport `homonyms_created: [{course_id, bib, athlete_id, homonym_of}]` dans `persist_results` et l'événement SSE `done`
+- [X] T040 [US4] Documenter `homonyms_created` et la règle FR-008 dans `docs/api/admin-donnees.md` et `backend/app/models/AGENTS.md` (rang d'homonyme)
 
 **Checkpoint**: homonymes séparés à l'import (PR 4). La revue des cas du club arrive avec la phase 7.
 

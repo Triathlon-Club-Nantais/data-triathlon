@@ -125,6 +125,20 @@ Sept points à ne pas défaire :
   d'identité (nom et prénom inversés, nom complet face à une fiche découpée) a
   trouvé plusieurs fiches : une fiche neuve est créée, rien n'est deviné, et
   `candidate_ids` donne les fiches entre lesquelles l'admin tranche.
+- **Deux dossards d'un même nom sur une épreuve individuelle sont deux personnes**
+  (#967). Le second reçoit une fiche d'homonyme distinguée (`homonym_rank` ≥ 1),
+  et le rapport d'import le liste dans `homonyms_created`
+  (`[{course_id, bib, athlete_id, homonym_of}]`, présent sur tous les chemins de
+  `done`). Vaut pour un dossard neuf comme pour une correction de nom de la
+  source. Seul compte un autre dossard que ce scrape publie encore sous le même
+  nom : un dossard périmé ou passé à un autre coureur ne fait pas d'homonyme.
+  Un relais n'est pas concerné. L'import ne vise ensuite plus jamais la fiche
+  d'homonyme par l'identité : un nouveau résultat sans conflit va à la fiche
+  principale, et seul un geste admin en donne à l'homonyme. Limites connues :
+  le premier dossard rencontré garde la fiche principale, quel que soit le
+  coureur ; un homonyme dont la source corrige ensuite le nom peut rester vide
+  jusqu'à la purge des orphelins ; `rescrape-db` et `import-sheet` ne reprennent
+  pas encore `homonyms_created` dans leur rapport.
 - **La correction manuelle du club prime sur tout import ultérieur.** Le
   chronométreur d'une course d'il y a trois ans annonce le club de l'époque, et
   le laisser gagner ramènerait la correction à chaque réimport. D'où

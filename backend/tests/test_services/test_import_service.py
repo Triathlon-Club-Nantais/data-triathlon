@@ -2077,7 +2077,7 @@ def test_deux_lignes_du_meme_scrape_pour_le_meme_athlete_neuf_ne_creent_qu_une_f
     assert len(athletes) == 1
 
 
-def test_deux_reconciliations_du_meme_scrape_vers_la_meme_identite_neuve_distinguent_creation_et_fusion(
+def test_deux_reconciliations_du_meme_scrape_vers_la_meme_identite_neuve_font_deux_fiches(
     db_session, patch_scraper,
 ):
     """Edge case le plus risqué de la mise en lot (#706) : deux dossards
@@ -2086,12 +2086,10 @@ def test_deux_reconciliations_du_meme_scrape_vers_la_meme_identite_neuve_disting
     collision sur le chemin `_reconcile`, pas sur le chemin dossard neuf déjà
     couvert ci-dessus.
 
-    Ligne à ligne, seule la **première** ligne traitée crée la fiche corrigée
-    (`fusion=False`, renommage) ; la seconde la retrouve déjà flushée
-    (`fusion=True`, fusion). La résolution par lot doit reproduire cet ordre
-    — pas marquer les deux `fusion=False`, ce qui arriverait si le
-    dédoublonnage de création ne trackait pas qui a « consommé » la création
-    en premier (cf. `_resolve_pending`, `creation_consumed`)."""
+    Depuis #967, deux dossards d'une épreuve individuelle sont deux personnes :
+    la première ligne crée la fiche corrigée, la seconde une fiche d'homonyme.
+    Les deux sont des créations (`fusion=False`), jamais une fusion sur une
+    fiche qui porterait alors les deux dossards (FR-008)."""
     patch_scraper(
         [_result("1", "BERRE", "Audrey LE"), _result("2", "BERR", "Audrey LE")]
     )
@@ -2104,21 +2102,23 @@ def test_deux_reconciliations_du_meme_scrape_vers_la_meme_identite_neuve_disting
     done = phases[-1]
 
     assert done["reconciled"] == 2
+    assert len(done["homonyms_created"]) == 1
     by_ancien = {r.ancien: r for r in done["reassignments"]}
     assert by_ancien["BERRE | Audrey LE"].fusion is False
-    assert by_ancien["BERR | Audrey LE"].fusion is True
+    assert by_ancien["BERR | Audrey LE"].fusion is False
     assert by_ancien["BERRE | Audrey LE"].nouveau == "LE BERRE | Audrey"
     assert by_ancien["BERR | Audrey LE"].nouveau == "LE BERRE | Audrey"
 
-    # Une seule fiche cible, et les deux participations y pointent — pas
-    # `search` (sous-chaîne mot à mot) qui retrouverait aussi les fiches
-    # fautives orphelines, non nettoyées par la réconciliation (comportement
-    # existant, hors périmètre de #706).
+    # Deux fiches de même identité : la principale et son homonyme, une
+    # participation chacune.
     cible = athlete_repository.get_by_identity_keys(db_session, "LE BERRE", "Audrey")
     assert cible is not None
     course = course_repository.get_latest_by_source_url(db_session, URL)
     rows = participation_repository.list_for_course(db_session, course.id)
-    assert {row.athlete_id for row in rows} == {cible.id}
+    assert sorted((row.athlete.last_name_key, row.athlete.homonym_rank) for row in rows) == [
+        ("leberre", 0), ("leberre", 1),
+    ]
+    assert cible.id in {row.athlete_id for row in rows}
 
 
 # ── Relais attribué à ses équipiers (#894) : le rescrape ne défait rien ──────
