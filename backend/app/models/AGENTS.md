@@ -34,6 +34,14 @@
   active, cf. plus bas. `source_url` reste la clé du cache TTL.
 - **CourseSource** — `UNIQUE(course_id, url)`, **jamais** `UNIQUE(url)` (cf. plus bas).
 - **Participation** — `UNIQUE(course_id, bib_number)` → plus de doublons à l'import.
+  `source_identity_key` retient la clé (`<nom>|<prénom>`, #907) de la ligne
+  source qui a produit le résultat, indépendamment de sa fiche : l'import
+  apparie par elle les lignes sans dossard, et ne change un résultat de fiche
+  que si elle change, c'est-à-dire si le chronométreur a corrigé le nom (#896).
+  Une fiche renommée, datée ou fusionnée par un admin garde donc ses résultats.
+  `athlete_locked`, posé par `reassign_participation`, fige la fiche choisie :
+  l'import ne met plus à jour que les valeurs. Un résultat saisi à la main n'a
+  pas de clé source, celle de sa fiche en tient lieu.
 - **ParticipationTeammate** (#894) — les équipiers d'un relais attribué, table
   `participation_teammates`, PK `(participation_id, athlete_id)`, ordonnée par
   `position`. Le résultat reste **une** ligne `participations` : classement,

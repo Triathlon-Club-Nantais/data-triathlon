@@ -123,14 +123,19 @@ def exists_for_athlete_on_course(
     return q.first() is not None
 
 
-def reassign(db: Session, participation: Participation, *, athlete_id: int) -> Participation:
+def reassign(
+    db: Session, participation: Participation, *, athlete_id: int, lock: bool = False
+) -> Participation:
     """Rattache ce résultat à un autre coureur. **Ne touche rien d'autre** (#117).
 
     Ni les temps, ni les rangs, ni le statut, ni `course_id` : déplacer un
     résultat vers une autre *épreuve* n'est pas dans le périmètre de #117, et le
-    silence sur les valeurs mesurées est délibéré.
+    silence sur les valeurs mesurées est délibéré. `lock` fige la fiche contre
+    les imports à venir (#896).
     """
     participation.athlete_id = athlete_id
+    if lock:
+        participation.athlete_locked = True
     db.flush()
     return participation
 

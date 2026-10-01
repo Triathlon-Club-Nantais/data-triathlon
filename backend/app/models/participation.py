@@ -69,6 +69,14 @@ class Participation(Base):
     # non sur la course : deux équipes courent la même épreuve.
     team_name: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    # Clé d'identité (`<nom>|<prénom>`, #907) de la ligne source qui a produit ce
+    # résultat, indépendante de la fiche qui le porte : c'est elle qui apparie un
+    # rescrape sans dossard, et qui dit si le chronométreur a changé le nom (#896).
+    source_identity_key: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Fiche choisie par un admin (`reassign_participation`) : l'import met encore
+    # les valeurs à jour, il ne change plus jamais de fiche (#896).
+    athlete_locked: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
+
     splits: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     raw_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # Lien vers les résultats publiés, saisi par le déclarant comme pièce
