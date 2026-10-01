@@ -18,6 +18,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import set_committed_value
 
+from app.core.athlete_identity import athlete_identity_keys
 from app.core.club import tcn_clause
 from app.core.discipline import federal_clause
 from app.core.gender import gender_podium_clause
@@ -96,47 +97,90 @@ def get(db: Session, athlete_id: int) -> Athlete | None:
     return db.get(Athlete, athlete_id)
 
 
-def get_by_identity(
-    db: Session, nom: str, prenom: str, birth_date: date | None
-) -> Athlete | None:
-    """Recherche insensible à la casse sur (nom, prénom, date de naissance)."""
-    return (
-        db.query(Athlete)
-        .filter(
-            func.lower(Athlete.nom) == (nom or "").strip().lower(),
-            func.lower(Athlete.prenom) == (prenom or "").strip().lower(),
-            Athlete.birth_date == birth_date,
-        )
-        .first()
-    )
+IdentityKey = tuple[str | None, str | None]
 
 
-def get_by_identities_batch(
-    db: Session, paires: Sequence[tuple[str, str]]
-) -> dict[tuple[str, str], Athlete]:
-    """Résout un lot de `(nom, prénom)` en une requête (#706).
+def get_by_identity_keys(db: Session, nom: str, prenom: str) -> Athlete | None:
+    """La fiche principale de l'identité de `(nom, prénom)`, quelle que soit sa
+    date de naissance (#900)."""
+    key = athlete_identity_keys(nom, prenom)
+    return get_by_identity_keys_batch(db, [key]).get(key)
 
-    Retourne les athlètes déjà connus, indexés par identité normalisée
-    (nom/prénom en minuscules, tels que la recherche les compare). Les paires
-    sans correspondance sont simplement absentes du résultat — à l'appelant de
-    créer les athlètes manquants. `birth_date IS NULL` en clause fixe : aucune
-    ligne scrapée n'en fournit une (cf. `research.md` de la feature #706), donc
-    l'identité effective à l'import se réduit à `(nom, prénom)`.
+
+def get_by_identity_keys_batch(
+    db: Session, keys: Sequence[IdentityKey]
+) -> dict[IdentityKey, Athlete]:
+    """Résout un lot de clés d'identité en une requête (#706, #907).
+
+    Seules les fiches principales répondent : un homonyme distingué ne reçoit
+    de résultat que par geste admin (#967). Une clé vide ne désigne personne.
+    Les clés sans correspondance sont absentes du résultat ; à l'appelant de
+    créer les fiches manquantes.
     """
-    if not paires:
+    wanted = {key for key in keys if key[0] is not None}
+    if not wanted:
         return {}
-    normalisees = {
-        ((nom or "").strip().lower(), (prenom or "").strip().lower()) for nom, prenom in paires
-    }
     rows = (
         db.query(Athlete)
         .filter(
-            tuple_(func.lower(Athlete.nom), func.lower(Athlete.prenom)).in_(normalisees),
-            Athlete.birth_date.is_(None),
+            tuple_(Athlete.last_name_key, Athlete.first_name_key).in_(wanted),
+            Athlete.homonym_rank == 0,
         )
         .all()
     )
-    return {(athlete.nom.lower(), athlete.prenom.lower()): athlete for athlete in rows}
+    return {(athlete.last_name_key, athlete.first_name_key): athlete for athlete in rows}
+
+
+def find_fallback_matches(
+    db: Session, keys: Sequence[IdentityKey]
+) -> tuple[dict[IdentityKey, Athlete], dict[IdentityKey, list[int]]]:
+    """Repli d'identité pour les clés restées sans fiche (#908) : nom et prénom
+    inversés, ou nom complet sans prénom face à une fiche découpée (dans les
+    deux sens, et dans les deux ordres).
+
+    Ne rattache que sur une correspondance **unique** ; sinon la clé est rendue
+    dans le second dictionnaire avec les fiches candidates, pour le rapport.
+    L'égalité sur la concaténation des clés couvre tous les découpages d'un nom
+    d'un coup.
+    """
+    wanted = [key for key in keys if key[0] is not None]
+    if not wanted:
+        return {}, {}
+    swapped = {(first, last) for last, first in wanted if first and first != last}
+    whole_names = {last for last, first in wanted if not first}
+    joined = {joined for last, first in wanted if first for joined in (last + first, first + last)}
+    clauses = []
+    if swapped:
+        clauses.append(tuple_(Athlete.last_name_key, Athlete.first_name_key).in_(swapped))
+    if whole_names:
+        clauses.append(and_(
+            Athlete.first_name_key != "",
+            or_(
+                (Athlete.last_name_key + Athlete.first_name_key).in_(whole_names),
+                (Athlete.first_name_key + Athlete.last_name_key).in_(whole_names),
+            ),
+        ))
+    if joined:
+        clauses.append(and_(Athlete.first_name_key == "", Athlete.last_name_key.in_(joined)))
+    rows = db.query(Athlete).filter(or_(*clauses), Athlete.homonym_rank == 0).all()
+
+    matches: dict[IdentityKey, Athlete] = {}
+    ambiguous: dict[IdentityKey, list[int]] = {}
+    for key in wanted:
+        last, first = key
+        candidates = {
+            athlete.id: athlete for athlete in rows
+            if (first and first != last and (athlete.last_name_key, athlete.first_name_key) == (first, last))
+            or (not first and athlete.first_name_key and last in (
+                athlete.last_name_key + athlete.first_name_key, athlete.first_name_key + athlete.last_name_key
+            ))
+            or (first and not athlete.first_name_key and athlete.last_name_key in (last + first, first + last))
+        }
+        if len(candidates) == 1:
+            matches[key] = next(iter(candidates.values()))
+        elif candidates:
+            ambiguous[key] = sorted(candidates)
+    return matches, ambiguous
 
 
 def create_batch(db: Session, athletes_fields: Sequence[dict]) -> list[Athlete]:
@@ -248,7 +292,7 @@ def resolve(
     **fusion** (cible préexistante) ; ce drapeau est la seule information qui les
     sépare. `get_or_create` reste le point d'entrée quand le drapeau n'importe pas.
     """
-    existing = get_by_identity(db, nom, prenom, birth_date)
+    existing = get_by_identity_keys(db, nom, prenom)
     if existing:
         # Met à jour le club courant si l'épreuve n'est pas plus ancienne que
         # le dernier club connu (#965), et jamais si un humain l'a corrigé : une

@@ -1350,7 +1350,6 @@ def test_relay_group_names_are_not_split_at_import(db_session):
     import_service.persist_results(db_session, URL_SHEET, resultats)
 
     for resultat in resultats:
-        equipe = athlete_repository.get_by_identity(
-            db_session, resultat.athlete_name, resultat.athlete_firstname, None
-        )
+        equipe = athlete_repository.get_by_identity_keys(
+            db_session, resultat.athlete_name, resultat.athlete_firstname)
         assert [p.teammates for p in equipe.participations] == [[]]

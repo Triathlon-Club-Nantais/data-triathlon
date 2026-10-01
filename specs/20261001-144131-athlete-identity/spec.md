@@ -148,7 +148,7 @@ Un exploitant lance la reprise des données de production : renormalisation des 
 
 ### Edge Cases
 
-- Une graphie normalisée vide (nom réduit à de la ponctuation) : la ligne n'est jamais rattachée à une autre fiche à identité vide. Sans dossard, elle est écartée et comptée au rapport, comme un nom masqué (#897) : rien de stable ne permettrait de la retrouver au rescrape. Avec dossard, elle crée sa propre fiche, retrouvée ensuite par le dossard.
+- Une graphie normalisée vide (nom réduit à de la ponctuation) : la ligne n'est jamais rattachée à une autre fiche à identité vide. Sans dossard, elle est écartée et comptée au rapport, comme un nom masqué (#897) : rien de stable ne permettrait de la retrouver au rescrape. Avec dossard, elle reçoit l'identité « Anonyme <épreuve>-<dossard> », comme un nom masqué, et se retrouve au rescrape.
 - Une inversion qui est un vrai homonyme (« MARTIN Thomas » et « THOMAS Martin ») : à l'import, l'inversion n'est tentée que si l'identité directe ne correspond à aucune fiche ; si elle correspond à une fiche déjà présente sur la même épreuve individuelle, la règle de la story 4 prime.
 - Un nom concaténé dont plusieurs découpages correspondent à des fiches différentes : aucun rattachement automatique, une fiche est créée et le cas est signalé.
 - Plusieurs fiches répondent à la même identité (fiche principale et fiches d'homonymes distinguées) : l'import choisit toujours la fiche principale.

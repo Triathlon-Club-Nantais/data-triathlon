@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
 
+from app.core.athlete_identity import athlete_identity_keys
 from app.core.config import Settings
 from app.core.database import SessionLocal
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
@@ -519,16 +520,18 @@ def _team_key(team_name: str | None) -> str:
     return " ".join((deaccent(team_name) or "").lower().split())
 
 
-def _identity_key(scraped: ScrapedResult) -> tuple[str, str]:
-    """Clé d'identité normalisée d'une ligne scrapée — même formule que
-    `athlete_repository.get_by_identities_batch`, côté nom/prénom stockés
-    (déjà `.strip()`-és en base), pour que les deux se retrouvent."""
+def _identity_key(scraped: ScrapedResult) -> tuple[str | None, str]:
+    """Clé d'identité d'une ligne scrapée, celle que stockent les fiches (#907)."""
     return _pair_key((scraped.athlete_name, scraped.athlete_firstname))
 
 
-def _pair_key(pair: tuple[str | None, str | None]) -> tuple[str, str]:
-    nom, prenom = pair
-    return ((nom or "").strip().lower(), (prenom or "").strip().lower())
+def _pair_key(pair: tuple[str | None, str | None]) -> tuple[str | None, str]:
+    """Une paire sans identité (`-`) garde sa graphie brute comme clé en mémoire :
+    elle ne correspond à aucune fiche et n'en partage aucune avec une autre
+    paire. `add` a déjà renommé ou écarté les lignes dans ce cas ; ne restent
+    que des équipiers de relais."""
+    key = athlete_identity_keys(*pair)
+    return key if key[0] is not None else (None, "|".join(part or "" for part in pair))
 
 
 def _published_name(scraped: ScrapedResult) -> str:
@@ -636,6 +639,9 @@ class _Persister:
         self.skipped = 0
         self.reconciled = 0
         self.reassignments: list[Reassignment] = []
+        # Lignes dont le repli d'identité a trouvé plusieurs fiches (#908) : une
+        # fiche est créée, rien n'est deviné, l'admin tranche.
+        self.ambiguous_identities: list[dict] = []
         # Dédup par `id` de source, pas par ligne scrapée : `add` résout l'épreuve
         # une fois par participant, un classement de 250 lignes rendrait sinon
         # 250 fois la même phrase et ferait compter 250 sources pour une.
@@ -736,11 +742,15 @@ class _Persister:
         )
 
     def add(self, scraped: ScrapedResult) -> None:
-        # Jamais de résolution sur l'identité vide ni sur un nom masqué constant
-        # (« Anonymous », « XXX XXX », #897) : toutes ces lignes, épreuves et
-        # événements confondus, fusionnaient sur une seule fiche.
+        # Jamais de résolution sur une identité vide (`-`, clé normalisée vide,
+        # #907) ni sur un nom masqué constant (« Anonymous », « XXX XXX », #897) :
+        # toutes ces lignes, épreuves et événements confondus, fusionnaient sur
+        # une seule fiche.
         published = _published_name(scraped)
-        nameless = not published.strip() or is_masked_name(published)
+        nameless = (
+            is_masked_name(published)
+            or athlete_identity_keys(scraped.athlete_name, scraped.athlete_firstname)[0] is None
+        )
         if nameless and not scraped.bib_number:
             logger.warning(
                 "Row with a masked or empty name and no bib skipped: %s (%s)",
@@ -878,8 +888,9 @@ class _Persister:
     def _resolve_pending(self, course_id: int) -> None:
         """Résout par lot toutes les lignes en attente d'une course (#706).
 
-        Un seul aller-retour DB pour retrouver les athlètes déjà connus
-        (`get_by_identities_batch`), un seul pour créer les manquants
+        Un aller-retour DB pour retrouver les athlètes déjà connus
+        (`get_by_identity_keys_batch`), un pour le repli d'identité des lignes
+        restées sans fiche (`find_fallback_matches`, #908), un pour créer les manquants
         (`create_batch`, dédupliqué par identité — deux lignes du même scrape
         pour un même athlète neuf ne créent qu'une fiche), un seul pour les
         participations neuves. Rejoue ensuite, ligne par ligne mais sans
@@ -892,9 +903,13 @@ class _Persister:
         pairs = [(item.scraped.athlete_name, item.scraped.athlete_firstname) for item in pending]
         teammate_pairs = [pair for item in pending for pair in item.teammates or ()]
         pairs += teammate_pairs + [pair[::-1] for pair in teammate_pairs]
-        found: dict[tuple[str, str], Athlete] = athlete_repository.get_by_identities_batch(
-            self.db, pairs
-        )
+        found = athlete_repository.get_by_identity_keys_batch(self.db, [_pair_key(pair) for pair in pairs])
+        unresolved = [
+            key for key in dict.fromkeys(_identity_key(item.scraped) for item in pending if item.teammates is None)
+            if key not in found
+        ]
+        fallback, ambiguous = athlete_repository.find_fallback_matches(self.db, unresolved)
+        found.update(fallback)
         pending = [
             replace(item, teammates=_oriented_teammates(item.teammates, found))
             if item.teammates else item
@@ -929,6 +944,11 @@ class _Persister:
                 self.db, [to_create[key] for key in creation_order]
             )
             found.update(zip(creation_order, created_athletes, strict=True))
+        self.ambiguous_identities.extend(
+            {"course_id": course_id, "athlete_id": found[key].id, "candidate_ids": candidate_ids}
+            for key, candidate_ids in ambiguous.items()
+            if key in found
+        )
 
         # Une seule requête par tranche, bornée aux fiches dont le club changerait.
         course_date = self._courses[course_id].event_date
@@ -1244,6 +1264,7 @@ def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
         # sur les trois chemins de `done`, pour que le consommateur n'ait aucun
         # accès conditionnel à gérer.
         "passive_sources": [],
+        "ambiguous_identities": [],
         "courses": [
             {
                 "id": c.id, "name": c.name,
@@ -1535,6 +1556,7 @@ def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict
         "skipped": persister.skipped,
         "reconciled": persister.reconciled,
         "passive_sources": persister.passive_sources,
+        "ambiguous_identities": persister.ambiguous_identities,
         "courses": persister.courses_summary(),
     }
 
@@ -1572,7 +1594,7 @@ def import_event(
     if not results:
         return {
             "imported": 0, "updated": 0, "skipped": 0, "reconciled": 0,
-            "passive_sources": [],
+            "passive_sources": [], "ambiguous_identities": [],
             "courses": _merge_cached_courses(db, [], trace),
             **_fanout_counters(trace),
         }
@@ -1703,6 +1725,7 @@ def iter_import_event(
             "reconciled": 0,
             "reassignments": [],
             "passive_sources": [],
+            "ambiguous_identities": [],
             "total": 0,
             "courses": _merge_cached_courses(db, [], trace),
             **_fanout_counters(trace),
@@ -1768,6 +1791,7 @@ def iter_import_event(
         "reconciled": persister.reconciled,
         "reassignments": persister.reassignments,
         "passive_sources": persister.passive_sources,
+        "ambiguous_identities": persister.ambiguous_identities,
         "total": total,
         "courses": _merge_cached_courses(db, persister.courses_summary(), trace),
         **_fanout_counters(trace),

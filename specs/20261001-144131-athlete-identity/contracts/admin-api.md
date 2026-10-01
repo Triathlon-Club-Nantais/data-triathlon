@@ -75,4 +75,4 @@ Permission : `athletes:write`. Corps `{"athlete_id_a": 1, "athlete_id_b": 2}` (`
 
 ## Import (rapport, additif)
 
-Le rapport de `persist_results` et l'événement SSE `done` gagnent `homonyms_created: [{course_id, bib, athlete_id, homonym_of}]`. Les clés existantes (`imported`, `updated`, `skipped`, `reconciled`, …) gardent leur sens.
+Le rapport de `persist_results` et l'événement SSE `done` gagnent `ambiguous_identities: [{course_id, athlete_id, candidate_ids}]` (PR 1 : la fiche créée faute de repli unique, et les fiches candidates) puis `homonyms_created: [{course_id, bib, athlete_id, homonym_of}]` (PR 4). Les clés existantes (`imported`, `updated`, `skipped`, `reconciled`, …) gardent leur sens.
