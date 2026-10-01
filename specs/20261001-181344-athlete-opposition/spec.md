@@ -83,7 +83,7 @@ En cas de réclamation, un responsable retrouve, pour chaque opposition, la date
 - **FR-003**: À l'application, chaque résultat de la personne MUST devenir anonyme : affiché « Anonyme », avec dossard, temps, rangs et statut conservés, sans nom, prénom, club, catégorie ni ligne brute de la source qui la désignent.
 - **FR-004**: Les rangs, effectifs et classements des autres participants MUST rester identiques avant et après l'application.
 - **FR-005**: La fiche nominative de la personne MUST être supprimée, et les liens qui la référencent ailleurs rompus.
-- **FR-006**: L'opposition MUST être conservée sous la seule forme d'une empreinte non réversible de l'identité normalisée (nom et prénom), jamais en clair.
+- **FR-006**: L'opposition MUST être conservée sous la seule forme d'une empreinte de l'identité normalisée (nom et prénom), un pseudonyme qui ne stocke jamais le nom en clair.
 - **FR-007**: Tout résultat importé dont l'identité normalisée correspond à une opposition MUST être enregistré anonyme (import web, re-scrape, batch par liste de liens, bascule de source) ; un équipier de relais opposé MUST être retiré de la composition ; une saisie manuelle ou une composition d'équipe à son nom MUST être refusée avec un message explicite. La fusion d'épreuves ne réimporte rien et conserve les lignes déjà anonymes.
 - **FR-008**: Chaque application MUST être consignée au journal d'administration avec son auteur, la date de la demande et la date d'application, sans le nom de la personne.
 - **FR-009**: Avant de confirmer, l'administrateur MUST voir le nombre de résultats concernés, homonymes compris, et confirmer un geste présenté comme définitif.
