@@ -46,4 +46,11 @@ describe("GuideSection capture", () => {
     render(<GuideSection section={section} />);
     expect(screen.getByAltText("Espace club, synthèse et podiums")).toBeInTheDocument();
   });
+
+  it("links each capture to its full-resolution file, unreadable on a phone otherwise", () => {
+    render(<GuideSection section={section} />);
+    const lien = screen.getByRole("link", { name: /agrandir la capture/i });
+    expect(lien).toHaveAttribute("href", "/guide/membre/club.jpg");
+    expect(lien).toContainElement(screen.getByAltText("Espace club, synthèse et podiums"));
+  });
 });
