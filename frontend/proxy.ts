@@ -26,6 +26,9 @@ const LOGGED_IN_COOKIE = "tcn_logged_in";
  */
 const CSP_HEADER = "Content-Security-Policy-Report-Only";
 
+const REPORTS_PATH = "/api/v1/csp-reports";
+const REPORTING_GROUP = "csp-endpoint";
+
 /**
  * `sonner@2.0.8` injecte sa feuille de style **à l'import**, au niveau module,
  * sans nonce et sans possibilité de s'y opposer (`dist/index.mjs`, `__insertCSS`) :
@@ -122,6 +125,12 @@ export function buildCspPolicy(nonce: string, { dev }: { dev: boolean }): string
     // Servi en clair en développement, où la promotion casserait toutes les
     // sous-ressources.
     ...(dev ? [] : ["upgrade-insecure-requests"]),
+    // Rapports vers le backend (#1168), par le rewrite `/api/*` : même
+    // origine, donc rien à ouvrir dans `connect-src`. `report-uri` pour
+    // Firefox, qui ignore `report-to` ; un navigateur qui connaît les deux
+    // n'utilise que `report-to`.
+    `report-to ${REPORTING_GROUP}`,
+    `report-uri ${REPORTS_PATH}`,
   ].join("; ");
 }
 
@@ -176,6 +185,7 @@ export function proxy(request: NextRequest) {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set(CSP_HEADER, policy);
+  response.headers.set("Reporting-Endpoints", `${REPORTING_GROUP}="${REPORTS_PATH}"`);
 
   markSessionPresence(request, response);
   return response;

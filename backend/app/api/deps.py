@@ -215,6 +215,12 @@ MAX_PAGE = 1_000_000
 BENEVOLE_LOGIN_RATE_LIMIT_MAX_PER_WINDOW = 30
 BENEVOLE_LOGIN_RATE_LIMIT_WINDOW_SECONDS = 3600
 
+#: #1168, rapports CSP : route anonyme qui n'écrit que des logs. Large, parce
+#: que Firefox envoie un rapport par violation et qu'un club partage une IP ;
+#: le plafond borne le volume de logs qu'un client peut provoquer, rien d'autre.
+CSP_REPORT_RATE_LIMIT_MAX_PER_WINDOW = 120
+CSP_REPORT_RATE_LIMIT_WINDOW_SECONDS = 3600
+
 
 def reset_rate_limits() -> None:
     """Vide les compteurs. Réservé aux tests (fixture autouse de `conftest`)."""
@@ -329,6 +335,16 @@ def site_access_rate_limit(request: Request) -> None:
         "site_access",
         max_per_window=SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW,
         window_seconds=SITE_ACCESS_RATE_LIMIT_WINDOW_SECONDS,
+    )
+
+
+def csp_report_rate_limit(request: Request) -> None:
+    """Plafond de `POST /csp-reports` (#1168), **seau dédié**."""
+    _enforce_rate_limit(
+        request,
+        "csp_report",
+        max_per_window=CSP_REPORT_RATE_LIMIT_MAX_PER_WINDOW,
+        window_seconds=CSP_REPORT_RATE_LIMIT_WINDOW_SECONDS,
     )
 
 

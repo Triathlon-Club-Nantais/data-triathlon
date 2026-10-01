@@ -69,6 +69,16 @@ class AuthUnavailableError(DomainError):
     message = "L'authentification n'est pas configurée sur ce site."
 
 
+class InvalidCspReportError(DomainError):
+    status_code = 400
+    message = "Rapport CSP illisible."
+
+
+class CspReportTooLargeError(DomainError):
+    status_code = 413
+    message = "Rapport CSP trop volumineux."
+
+
 class TooManyRequestsError(DomainError):
     """Limitation de débit dépassée (#267, FR-011)."""
 

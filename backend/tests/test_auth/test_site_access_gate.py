@@ -12,14 +12,15 @@ from app.repositories import athlete_repository, user_repository
 from app.services import benevole_access, shared_password, site_access
 from tests.test_auth.conftest import chemin_concret, toutes_les_routes
 
-#: Les six exceptions nommées (design, § Garde backend) : `health`/`version`
+#: Les sept exceptions nommées (design, § Garde backend) : `health`/`version`
 #: (infra), `site-access` (pose le cookie), `benevoles` (#271 — population
 #: potentiellement non-adhérente), `auth` (SSO — sans elle, personne ne peut
 #: jamais se connecter sur une installation neuve), `admin/site-access` seul,
 #: pas tout `/admin/` (sans elle, personne ne peut jamais poser le tout premier
 #: mot de passe — verrou de démarrage détecté en revue de la garde transverse,
-#: Task 8), et `feedback` (le bouton de signalement vit dans le layout racine
-#: du front, donc sur les pages hors garde aussi — revue de #513).
+#: Task 8), `feedback` (le bouton de signalement vit dans le layout racine
+#: du front, donc sur les pages hors garde aussi — revue de #513), et
+#: `csp-reports` (#1168 : le navigateur envoie les rapports sans cookies).
 ROUTES_EXEMPTEES_PREFIXES = (
     "/api/v1/health",
     "/api/v1/version",
@@ -28,6 +29,7 @@ ROUTES_EXEMPTEES_PREFIXES = (
     "/api/v1/auth/",
     "/api/v1/admin/site-access",
     "/api/v1/feedback",
+    "/api/v1/csp-reports",
 )
 
 
