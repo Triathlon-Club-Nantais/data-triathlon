@@ -4,13 +4,12 @@ import type { NextRequest } from "next/server";
 const LOGGED_IN_COOKIE = "tcn_logged_in";
 
 /**
- * En-tête **bloquant** (#570) — fin du constat A05-2 de l'audit OWASP.
- *
- * La phase d'observation de #448 n'était pas une simulation : `Report-Only`
- * injecte déjà le nonce (`app-render.js` lit les deux noms), donc elle
- * rapportait exactement ce que ce nom applique. Le relevé mené sur la preview
- * a sonné trois sources de style ou d'`eval` en ligne, toutes traitées à la
- * source ou épinglées avant cette bascule :
+ * En-tête d'observation (#448), maintenu par #570 le temps de vérifier ses
+ * corrections jusqu'en production. La phase d'observation n'est pas une
+ * simulation : `Report-Only` injecte déjà le nonce (`app-render.js` lit les
+ * deux noms), donc elle rapporte exactement ce que le mode bloquant
+ * appliquerait. Le relevé mené sur la preview a sonné trois sources de style
+ * ou d'`eval` en ligne, toutes traitées à la source ou épinglées :
  *
  * - `sonner`, qui injecte sa feuille à l'import → les deux hashes ci-dessous ;
  * - Base UI, qui injecte `.base-ui-disable-scrollbar` au montage de ses popups
@@ -20,8 +19,11 @@ const LOGGED_IN_COOKIE = "tcn_logged_in";
  *
  * Le rendu serveur, lui, est propre : sur les onze routes relevées, 100 % des
  * `<script>` et le `<link rel="stylesheet">` portent le nonce.
+ *
+ * Le passage au nom sans `-Report-Only` fait l'objet d'une PR de suite, une
+ * fois la production relevée sans violation.
  */
-const CSP_HEADER = "Content-Security-Policy";
+const CSP_HEADER = "Content-Security-Policy-Report-Only";
 
 /**
  * `sonner@2.0.8` injecte sa feuille de style **à l'import**, au niveau module,
