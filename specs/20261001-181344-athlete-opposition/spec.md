@@ -69,7 +69,7 @@ En cas de réclamation, un responsable retrouve, pour chaque opposition, la date
 - **Homonyme** : deux personnes portent le même nom et le même prénom. L'opposition de l'une rend anonymes aussi les résultats de l'autre ; l'administrateur en est averti avant de confirmer, avec le nombre de résultats concernés.
 - **Variante d'écriture** : la source publie « Jean-Pierre DUPONT » une fois, « Jean Pierre Dupont » une autre. L'empreinte se calcule sur une forme normalisée (casse, accents, espaces, ponctuation), pour que les deux soient couvertes.
 - **Relais** : la personne figure comme équipière d'un relais. Son nom disparaît de la composition ; le résultat de l'équipe reste.
-- **Saisie manuelle** : quelqu'un saisit à la main un résultat au nom d'une personne opposée. La saisie est enregistrée anonyme.
+- **Saisie manuelle** : quelqu'un saisit à la main un résultat au nom d'une personne opposée. La saisie est refusée, avec un message qui dit pourquoi : un résultat manuel anonyme n'aurait ni source ni dossard pour le relier à un classement.
 - **Fiche référencée ailleurs** (compte du back-office lié, déclaration de bénévolat, validation de saison) : ces liens sont rompus, et la fiche nominative disparaît quand même.
 - **Opposition sans résultat en base** : la personne n'apparaît encore dans aucune épreuve. L'opposition peut être enregistrée par nom pour bloquer les imports futurs.
 - **Erreur d'application** : un administrateur se trompe de fiche. Le geste est destructif et sans retour : il est confirmé, avec le nom et le nombre de résultats, avant d'agir.
@@ -84,7 +84,7 @@ En cas de réclamation, un responsable retrouve, pour chaque opposition, la date
 - **FR-004**: Les rangs, effectifs et classements des autres participants MUST rester identiques avant et après l'application.
 - **FR-005**: La fiche nominative de la personne MUST être supprimée, et les liens qui la référencent ailleurs rompus.
 - **FR-006**: L'opposition MUST être conservée sous la seule forme d'une empreinte non réversible de l'identité normalisée (nom et prénom), jamais en clair.
-- **FR-007**: Tout résultat entrant dont l'identité normalisée correspond à une opposition MUST être enregistré anonyme, quel que soit le chemin : import web, re-scrape, batch par liste de liens, bascule de source, saisie manuelle, composition d'une équipe de relais. La fusion d'épreuves ne réimporte rien et conserve les lignes déjà anonymes.
+- **FR-007**: Tout résultat importé dont l'identité normalisée correspond à une opposition MUST être enregistré anonyme (import web, re-scrape, batch par liste de liens, bascule de source) ; un équipier de relais opposé MUST être retiré de la composition ; une saisie manuelle ou une composition d'équipe à son nom MUST être refusée avec un message explicite. La fusion d'épreuves ne réimporte rien et conserve les lignes déjà anonymes.
 - **FR-008**: Chaque application MUST être consignée au journal d'administration avec son auteur, la date de la demande et la date d'application, sans le nom de la personne.
 - **FR-009**: Avant de confirmer, l'administrateur MUST voir le nombre de résultats concernés, homonymes compris, et confirmer un geste présenté comme définitif.
 - **FR-010**: Le formulaire de signalement MUST proposer un type « Retrait de mes données », avec les informations à fournir et le délai de réponse, et l'écran des retours utilisateurs MUST le distinguer.
