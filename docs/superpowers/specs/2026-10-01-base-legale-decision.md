@@ -81,8 +81,8 @@ adhérent n'a pas de sens.
    (#333). La CNIL a sanctionné la Fédération Française d'Athlétisme en 2014
    (délibération n°2014‑293) pour n'avoir pas informé les non‑licenciés :
    l'argument de « l'effort disproportionné » n'a pas été retenu.
-2. **Rendre l'opposition effective** (article 21) : un point de contact relevé,
-   et un retrait réel des résultats d'une personne qui s'y oppose (#334). Le
+2. **Rendre l'opposition effective** (article 21) : un point de contact relevé
+   (`president@triathlon-club-nantais.com`, le représentant légal), et un retrait réel des résultats d'une personne qui s'y oppose (#334). Le
    retrait est la règle ; un refus doit être motivé au cas par cas.
 3. **Fixer et tenir des durées de conservation** (ci‑dessous).
 

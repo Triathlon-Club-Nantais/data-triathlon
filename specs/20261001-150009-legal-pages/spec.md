@@ -12,6 +12,15 @@ toutes les pages, y compris sans le code d'accès. La politique publie la
 décision `docs/superpowers/specs/2026-10-01-base-legale-decision.md` (#332), qui
 prime sur cette spec pour tout fait juridique ou mesuré.
 
+## Clarifications
+
+### Session 2026-10-01
+
+- Q: Quelle adresse donner pour l'exercice des droits ? → A: `president@triathlon-club-nantais.com`.
+- Q: Combien de temps conserver les résultats nominatifs ? → A: tant que le service existe (archive sportive du club), sauf opposition.
+- Q: Quelles durées pour les signalements, le journal d'administration, les profils jeunes ? → A: 12 mois, 12 mois, durée de l'adhésion plus une saison ; les purges sont suivies dans une issue dédiée.
+- Q: Conseil extérieur avant publication ? → A: sollicité (référent fédéral) sans bloquer la publication.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Un athlète non adhérent sait ce que le club fait de ses résultats (Priority: P1)
@@ -139,7 +148,10 @@ l'historique du dépôt montre chaque modification du texte.
   prévalent pas (accès réservé, non-indexation, exclusion des jeunes,
   données déjà publiées).
 - **FR-006**: La politique MUST donner, pour chaque catégorie, sa durée de
-  conservation, reprise de la décision #332.
+  conservation, reprise de la décision #332 : résultats tant que le service
+  existe sauf opposition, signalements 12 mois, journal d'administration
+  12 mois, profils jeunes durée de l'adhésion plus une saison, session de
+  connexion 7 jours, cookie du code d'accès 90 jours.
 - **FR-007**: La politique MUST lister les destinataires (adhérents via le code
   d'accès, bénévoles et administrateurs habilités) et les sous-traitants
   (hébergeurs, fournisseur d'identité, mesure d'audience, exécution des
@@ -147,8 +159,8 @@ l'historique du dépôt montre chaque modification du texte.
   connue, et signaler tout transfert hors Union européenne.
 - **FR-008**: La politique MUST énoncer les droits (accès, rectification,
   effacement, limitation, opposition) et, pour chacun, comment l'exercer :
-  adresse électronique et postale, informations à fournir, délai de réponse
-  d'un mois.
+  adresse électronique (`president@triathlon-club-nantais.com`) et postale,
+  informations à fournir, délai de réponse d'un mois.
 - **FR-009**: La politique MUST mentionner le droit d'introduire une
   réclamation auprès de la CNIL, avec ses coordonnées.
 - **FR-010**: La politique MUST lister chaque cookie et chaque élément stocké
@@ -192,9 +204,9 @@ l'historique du dépôt montre chaque modification du texte.
 
 ## Assumptions
 
-- Le point de contact est `contact@triathlon-club-nantais.com`, adresse
-  générale publiée sur la page contact du site du club ; le club s'engage à la
-  relever.
+- Le point de contact est `president@triathlon-club-nantais.com`, adresse du
+  représentant légal publiée sur la page contact du site du club, relevée par
+  lui.
 - Le directeur de la publication est celui des mentions légales du site du
   club (Aurélien Gantier, commission communication).
 - Les textes sont de simples pages de contenu, sans formulaire : l'exercice des

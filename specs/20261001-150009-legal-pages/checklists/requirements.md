@@ -34,5 +34,5 @@
 - Les faits juridiques (base légale, durées, sous-traitants) sont délégués à la
   décision #332 (`docs/superpowers/specs/2026-10-01-base-legale-decision.md`),
   qui prime.
-- Hypothèses à confirmer en `/speckit-clarify` : point de contact, durées de
+- Hypothèses confirmées en `/speckit-clarify` (session 2026-10-01) : point de contact, durées de
   conservation, conseil extérieur.
