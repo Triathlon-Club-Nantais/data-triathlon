@@ -33,7 +33,8 @@ Toute PR déclenche la CI seule (aucun déploiement).
     corrigent. Un audit rouge se lit donc sur la PR, il ne s'impose pas.
   - Backend sur PostgreSQL 16 (`backend-postgres`, #947) : `alembic upgrade head`,
     `alembic check`, `downgrade -1` puis `upgrade head`, et `tests/test_repositories`
-    contre une base de service. Les fixtures y basculent quand `TEST_POSTGRES_URL`
+    contre une base de service, plus le test de deux imports concurrents sans
+    deadlock (#980). Les fixtures y basculent quand `TEST_POSTGRES_URL`
     est posée ; sans elle, la suite locale reste sur SQLite, sans serveur.
   - Frontend : `npm run lint` (eslint) + `npm test` (vitest) + `npm run build`
     (typecheck TS strict + build Next/RSC).
