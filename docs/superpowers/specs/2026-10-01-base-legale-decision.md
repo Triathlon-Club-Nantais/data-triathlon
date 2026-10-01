@@ -179,12 +179,13 @@ proviennent la plupart des résultats.
 
 - **Téléphone de l'éditeur** : la LCEN (article 6) l'exige d'un éditeur
   personne morale. Le site du club n'en publie aucun ; les mentions légales
-  donnent ceux des trois hébergeurs, relevés sur leurs pages officielles, et
-  attendent celui du club.
+  donnent ceux des trois hébergeurs, relevés sur leurs pages officielles.
+  **Manquement accepté** (2026-10-01) : le club publie son adresse postale et
+  une adresse électronique relevée, pas de numéro.
 
 - **Mesure d'audience PostHog** : elle dépose des traceurs en production sans
   recueil de consentement. Elle n'entre dans l'exemption de consentement de la
   CNIL que sous conditions (finalité strictement statistique, pas
   d'`identify()` sur l'utilisateur connecté, durée de vie limitée). En l'état,
   `identify()` est appelé à la connexion : un bandeau de consentement ou une
-  configuration exemptée est à trancher dans une issue dédiée.
+  configuration exemptée est à trancher dans #1159.
