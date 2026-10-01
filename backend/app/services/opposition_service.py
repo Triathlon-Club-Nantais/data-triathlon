@@ -42,6 +42,8 @@ OPPOSED_MESSAGE = (
 class OpposedIdentityError(DomainError):
     """Saisie manuelle ou composition d'équipe au nom d'une personne opposée."""
 
+    status_code = 422
+
     def __init__(self) -> None:
         super().__init__(OPPOSED_MESSAGE)
 

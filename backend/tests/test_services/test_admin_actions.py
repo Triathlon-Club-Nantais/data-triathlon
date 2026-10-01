@@ -2576,3 +2576,22 @@ def test_deleting_a_source_refuses_a_course_held_by_a_switch(db_session, auteur,
         admin_actions.delete_course_source(
             db_session, course_id=course.id, source_id=passive.id, user_id=auteur.id
         )
+
+
+def test_set_teammates_refuse_un_equipier_oppose(db_session, auteur):
+    """#334 : composer une équipe ne recrée pas, par son nom, une personne opposée."""
+    from app.core.identity import identity_hash
+    from app.repositories import opposition_repository
+    from app.services.opposition_service import OpposedIdentityError
+
+    _, _, ligne, jean, _ = _relais(db_session)
+    opposition_repository.create(
+        db_session, identity_hash=identity_hash("Durand", "Zoé"), requested_on=date(2026, 9, 1),
+        applied_by_user_id=None,
+    )
+
+    with pytest.raises(OpposedIdentityError):
+        admin_actions.set_teammates(
+            db_session, participation_id=ligne.id,
+            teammates=[jean.id, admin_actions.NewTeammate("DURAND", "Zoe")], user_id=auteur.id,
+        )

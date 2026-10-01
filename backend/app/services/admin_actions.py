@@ -43,7 +43,7 @@ from app.repositories import (
 from app.schemas.course import CourseSourceOut
 from app.scrapers.base import STATUS_FINISHER
 from app.scrapers.utils import MAX_RELAY_TEAMMATES, MIN_RELAY_TEAMMATES
-from app.services import import_service, sse_relay
+from app.services import import_service, opposition_service, sse_relay
 from app.services.course_locks import (
     lock_all_courses_or_409,
     lock_courses_or_409,
@@ -811,6 +811,9 @@ def set_teammates(
         raise DomainError(
             f"Un relais s'attribue à {MIN_RELAY_TEAMMATES} à {MAX_RELAY_TEAMMATES} équipiers."
         )
+    for ref in teammates:
+        if isinstance(ref, NewTeammate):
+            opposition_service.ensure_not_opposed(db, ref.athlete_name, ref.athlete_firstname)
     equipiers: list[Athlete | NewTeammate] = [
         _athlete_or_404(db, ref)
         if isinstance(ref, int)
