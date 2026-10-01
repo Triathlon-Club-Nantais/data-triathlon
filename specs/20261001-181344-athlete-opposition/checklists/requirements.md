@@ -31,4 +31,4 @@
 
 ## Notes
 
-- Choix à confirmer en `/speckit-clarify` : anonymiser plutôt que retirer, traitement des homonymes, opposition par nom sans fiche.
+- Choix confirmés en `/speckit-clarify` (session 2026-10-01) : anonymisation, homonymes inclus, écran dédié.

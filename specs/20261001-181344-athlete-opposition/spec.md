@@ -8,6 +8,14 @@
 
 **Input**: Issue #334 (epic #313). Rendre effectif le droit d'opposition qu'annonce la politique de confidentialité. La base légale (intérêt légitime) et ses obligations sont tranchées par `docs/superpowers/specs/2026-10-01-base-legale-decision.md` (#332), qui prime.
 
+## Clarifications
+
+### Session 2026-10-01
+
+- Q: Que deviennent les résultats d'une personne qui s'oppose ? → A: anonymisés (ligne « Anonyme » gardant dossard, temps, rangs et statut), jamais supprimés.
+- Q: Comment traiter un homonyme ? → A: l'empreinte porte sur nom et prénom normalisés ; les homonymes sont couverts, et l'administrateur est averti du nombre de résultats concernés avant de confirmer.
+- Q: Faut-il un écran listant les oppositions ? → A: oui, un écran d'administration dédié, qui liste chaque opposition (date de la demande, date d'application, délai, auteur, nombre de résultats anonymisés) et porte l'enregistrement d'une opposition par nom.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Un administrateur applique une opposition, et elle tient (Priority: P1)
@@ -48,11 +56,13 @@ En cas de réclamation, un responsable retrouve, pour chaque opposition, la date
 
 **Why this priority**: preuve de conformité ; utile sans être bloquant pour l'exercice du droit.
 
-**Independent Test**: lister les oppositions appliquées et lire, pour chacune, l'écart entre demande et application.
+**Independent Test**: ouvrir l'écran des oppositions et lire, pour chacune, l'écart entre demande et application.
 
 **Acceptance Scenarios**:
 
-1. **Given** plusieurs oppositions appliquées, **When** un administrateur consulte le journal, **Then** chacune y figure avec ses deux dates.
+1. **Given** plusieurs oppositions appliquées, **When** un administrateur ouvre l'écran des oppositions, **Then** chacune y figure avec la date de la demande, la date d'application, le délai en jours, l'auteur et le nombre de résultats anonymisés, sans aucun nom.
+2. **Given** une opposition appliquée plus d'un mois après la demande, **When** l'écran l'affiche, **Then** le dépassement du délai légal est signalé.
+3. **Given** l'écran des oppositions, **When** un administrateur saisit un nom, un prénom et une date de demande, **Then** l'opposition est enregistrée (et appliquée aux résultats existants s'il y en a), après confirmation.
 
 ### Edge Cases
 
@@ -69,7 +79,7 @@ En cas de réclamation, un responsable retrouve, pour chaque opposition, la date
 ### Functional Requirements
 
 - **FR-001**: Un administrateur porteur d'un pouvoir dédié MUST pouvoir appliquer une opposition depuis la fiche d'un athlète, en indiquant la date de la demande (par défaut, le jour même).
-- **FR-002**: Un administrateur porteur de ce pouvoir MUST pouvoir enregistrer une opposition par nom et prénom, sans fiche existante.
+- **FR-002**: Un administrateur porteur de ce pouvoir MUST pouvoir enregistrer une opposition par nom et prénom depuis l'écran des oppositions (FR-013), qu'une fiche existe ou non.
 - **FR-003**: À l'application, chaque résultat de la personne MUST devenir anonyme : affiché « Anonyme », avec dossard, temps, rangs et statut conservés, sans nom, prénom, club, catégorie ni ligne brute de la source qui la désignent.
 - **FR-004**: Les rangs, effectifs et classements des autres participants MUST rester identiques avant et après l'application.
 - **FR-005**: La fiche nominative de la personne MUST être supprimée, et les liens qui la référencent ailleurs rompus.
@@ -80,10 +90,11 @@ En cas de réclamation, un responsable retrouve, pour chaque opposition, la date
 - **FR-010**: Le formulaire de signalement MUST proposer un type « Retrait de mes données », avec les informations à fournir et le délai de réponse, et l'écran des retours utilisateurs MUST le distinguer.
 - **FR-011**: La politique de confidentialité MUST annoncer ce canal et l'anonymisation, et sa date de mise à jour changer.
 - **FR-012**: Aucune opposition ne s'annule depuis l'application.
+- **FR-013**: Un écran d'administration, sous le même pouvoir, MUST lister les oppositions (date de la demande, date d'application, délai en jours, auteur, nombre de résultats anonymisés), signaler celles appliquées au-delà d'un mois, et porter l'enregistrement par nom de FR-002. Il n'affiche aucun nom.
 
 ### Key Entities
 
-- **Opposition** : l'empreinte de l'identité normalisée, la date de la demande, la date d'application, l'administrateur qui l'a appliquée. Ne porte aucun nom.
+- **Opposition** : l'empreinte de l'identité normalisée, la date de la demande, la date d'application, l'administrateur qui l'a appliquée, le nombre de résultats anonymisés à l'application. Ne porte aucun nom.
 - **Résultat anonyme** : un résultat d'épreuve sans identité nominative, qui garde dossard, temps, rangs et statut.
 - **Demande de retrait** : un retour utilisateur d'un type dédié, daté à son dépôt.
 
