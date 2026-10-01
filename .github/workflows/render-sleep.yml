@@ -292,5 +292,6 @@ jobs:
       contents: read
       issues: write
     uses: ./.github/workflows/notify-failure.yml
+    secrets: inherit
     with:
       workflow: render-sleep
