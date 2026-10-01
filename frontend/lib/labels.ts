@@ -1,5 +1,6 @@
 import type { RankType } from "@/lib/rank";
 import type { PodiumScope } from "@/lib/podium-scope";
+import type { Feedback } from "@/lib/types";
 
 /**
  * Libellés utilisateur du vocabulaire de rang. Une seule source pour les trois
@@ -77,3 +78,11 @@ export function participationStatusLabel(
 ): string {
   return STATUS_LABEL[status][opts?.form ?? "one"];
 }
+
+/** Statut d'un retour utilisateur : la file des retours et le journal le disent pareil. */
+export const FEEDBACK_STATUS_LABELS: Record<Feedback["status"], string> = {
+  nouveau: "Nouveau",
+  en_cours: "En cours",
+  traite: "Traité",
+  ignore: "Ignoré",
+};
