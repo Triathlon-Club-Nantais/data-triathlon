@@ -104,6 +104,21 @@ def test_updating_a_profile_changes_only_the_given_field(client, ouvrir_session,
     assert body["first_name"] == "Alix"
 
 
+def test_the_membership_end_is_set_then_cleared(client, ouvrir_session, profile):
+    """#1158 : la fin d'adhésion fait courir la purge ; une saisie erronée doit pouvoir s'effacer."""
+    ouvrir_session(P.JEUNES_READ, P.JEUNES_WRITE)
+    assert client.get(f"{BASE}/{profile['id']}").json()["membership_ended_on"] is None
+
+    posee = client.patch(f"{BASE}/{profile['id']}", json={"membership_ended_on": "2026-06-30"})
+    assert posee.json()["membership_ended_on"] == "2026-06-30"
+
+    autre_champ = client.patch(f"{BASE}/{profile['id']}", json={"notes": "x"})
+    assert autre_champ.json()["membership_ended_on"] == "2026-06-30"
+
+    effacee = client.patch(f"{BASE}/{profile['id']}", json={"membership_ended_on": None})
+    assert effacee.json()["membership_ended_on"] is None
+
+
 def test_updating_an_unknown_profile_returns_404(client, ouvrir_session):
     ouvrir_session(P.JEUNES_WRITE)
 

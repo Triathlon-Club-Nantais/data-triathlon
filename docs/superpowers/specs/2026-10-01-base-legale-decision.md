@@ -106,16 +106,18 @@ appliquent dès #334.
 | Données | Durée | État |
 | --- | --- | --- |
 | Résultats et athlètes | tant que le service existe (archive sportive du club), sauf opposition | tenu de fait |
-| Signalements, dont l'adresse IP | 12 mois après leur dépôt | **purge à implémenter** |
-| Journal des actions d'administration | 12 mois | **purge à implémenter** |
+| Signalements, dont l'adresse IP | 12 mois après leur dépôt | tenu (`purge-retention`, #1158) |
+| Journal des actions d'administration | 12 mois | tenu (`purge-retention`, #1158) |
 | Compte du back-office | tant que l'adresse figure sur la liste d'autorisation | suppression de compte à implémenter |
 | Session de connexion | 7 jours | tenu (`auth_session_ttl_days`) |
 | Cookie du code d'accès | 90 jours | tenu (`site_access_session_ttl_days`) |
-| Profils jeunes | durée de l'adhésion, plus une saison | **purge à implémenter** |
+| Profils jeunes | durée de l'adhésion, plus une saison | tenu dès qu'un encadrant saisit la fin d'adhésion (`purge-retention`, #1158) |
 
-Les purges marquées « à implémenter » font l'objet de #1158. La
-politique annonce ces durées : tant qu'une purge n'est pas livrée, la durée
-annoncée n'est pas tenue, ce qui doit rester un état transitoire court.
+`purge-retention` tourne chaque semaine avec le batch planifié
+(`.github/workflows/batch.yml`) ; un échec rougit le run et alerte. Un profil
+jeune n'est purgé qu'une fois sa fin d'adhésion saisie : un départ que personne
+ne renseigne garde le profil, c'est la limite de ce choix. Reste non tenu : la
+suppression d'un compte du back-office retiré de la liste d'autorisation.
 
 ## Scraping, fournisseur par fournisseur
 

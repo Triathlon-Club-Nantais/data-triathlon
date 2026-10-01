@@ -630,6 +630,7 @@ export const apiClient = {
       birth_date?: string | null;
       emergency_contact?: string;
       notes?: string;
+      membership_ended_on?: string | null;
     },
   ) =>
     request<ProfileDetail>(`/admin/profiles/${id}`, {

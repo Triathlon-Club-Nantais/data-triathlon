@@ -627,6 +627,8 @@ export interface ProfileLogEntry {
 export interface ProfileDetail extends Profile {
   emergency_contact: string;
   notes: string;
+  /** Fin d'adhésion (#1158) : le profil est purgé à la fin de la saison suivante. */
+  membership_ended_on: string | null;
   log_entries: ProfileLogEntry[];
 }
 

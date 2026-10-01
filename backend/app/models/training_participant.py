@@ -28,10 +28,10 @@ class TrainingParticipant(Base):
     Pas d'`ondelete` sur les deux FK, comme partout dans le dépôt
     (`core/database.py` n'émet aucun `PRAGMA foreign_keys=ON`) : côté
     `training_session_id`, la cascade ORM (`TrainingSession.participants`,
-    `delete-orphan`) fait le travail des deux côtés ; côté `profile_id`, aucune
-    suppression de `PersonalProfile` n'est une ressource de cette feature —
-    c'est le jour où #867 en posera une qu'il faudra décider quoi faire des
-    inscriptions du profil supprimé.
+    `delete-orphan`) fait le travail des deux côtés ; côté `profile_id`, la seule
+    suppression de `PersonalProfile` est la purge de rétention (#1158), qui retire
+    les inscriptions du profil avant lui
+    (`training_session_repository.delete_participations_of_profile`).
     """
 
     __tablename__ = "training_participants"

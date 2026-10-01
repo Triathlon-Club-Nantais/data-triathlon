@@ -964,6 +964,7 @@ export function useUpdateProfile() {
         birth_date?: string | null;
         emergency_contact?: string;
         notes?: string;
+        membership_ended_on?: string | null;
       };
     }) => apiClient.updateProfile(id, champs),
     onSuccess: (_donnees, { id }) => {

@@ -8,7 +8,15 @@ import {
   toggleSeason,
   seasonSelectionLabel,
   seasonAbsenceLabel,
+  profilePurgeDate,
 } from "./season";
+
+describe("profilePurgeDate (#1158)", () => {
+  it("garde le profil jusqu'à la fin de la saison qui suit celle de la fin d'adhésion", () => {
+    expect(profilePurgeDate("2026-08-31")).toBe("2027-09-01");
+    expect(profilePurgeDate("2026-09-01")).toBe("2028-09-01");
+  });
+});
 
 describe("seasonOf", () => {
   it("31 août appartient à la saison de l'année précédente", () => {
