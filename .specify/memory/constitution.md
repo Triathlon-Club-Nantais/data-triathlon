@@ -15,6 +15,109 @@ Modified sections : Additional Constraints — Modèle normalisé, identité d'`
 Added sections    : (aucune)
 Removed sections  : (aucune)
 Templates touchés : (aucun) — les gates et catégories de tâches ne changent pas.
+
+Sync Impact Report — Constitution v1.2.0
+========================================
+Version change    : 1.1.1 → 1.2.0
+Rationale         : MINOR — « ajout d'un principe ou d'une section » (Governance
+  §3). La section Development Workflow ne documentait que deux voies (Cycle
+  Speckit, workflow vibe) alors qu'`AGENTS.md` en documente trois depuis
+  l'introduction de Superpowers — la voie manquante est ajoutée avec sa règle
+  d'or (pas de croisement entre voies) et le tronc commun de fin de branche. Le
+  bump MINOR porte avec lui le PATCH de Principe II (reformulation de la liste
+  d'exemptions Session, devenue factuellement fausse : 10 fichiers touchent
+  `Session` aujourd'hui contre 2 nommés — vérifié par grep sur
+  `backend/app/services/*.py`, aucune construction de requête hors
+  `repositories/`, `cache.py` ou `reclassify.py`).
+  Proposition : issue #733. Approbation : mainteneur, 2026-08-28.
+Modified principles : II. Architecture en couches — reformulation distinguant
+  construction de requêtes (`app/repositories/`, sans exception) et limites de
+  transaction (`app/services/`, tolérées hors construction de requête) ; liste
+  d'exemptions nommée à deux entrées supprimée.
+Added sections    : Development Workflow — voie Superpowers (`brainstorming` →
+  `writing-plans` → exécution), règle des trois voies parallèles jamais
+  croisées, tronc commun de fin de branche (`requesting-code-review` →
+  `verification-before-completion` → `finishing-a-development-branch`, +
+  `ui-ux-review` si `frontend/` est touché).
+Removed sections  : (aucune) — la « Règle de transition » du Principe II
+  (liste à deux entrées) est retirée, remplacée par la distinction générique
+  ci-dessus.
+Drafting notes :
+  - Vérification terrain avant rédaction : grep sur `backend/app/services/*.py`
+    confirme qu'aucun service hors `cache.py`/`reclassify.py` ne construit de
+    requête (`.query()`/`select()`/`.filter()`) — la rationale du principe
+    (#76) n'est pas violée sur le fond. Mais 8 fichiers de plus que les 2
+    nommés touchent `Session` en limite de transaction (commit/flush/rollback/
+    refresh) : `admin_actions.py`, `import_service.py`, `rescrape_service.py`,
+    `scrape_service.py`, `batch.py`, `course_review.py`, `counter_scope.py`,
+    `course_merge.py`.
+  - Option générique retenue plutôt qu'énumération : la liste à 2 entrées
+    datait de moins d'un mois (amendement v1.1.0) et comptait déjà 4 fois trop
+    peu de fichiers au moment de l'audit — une énumération se démode plus vite
+    que le rythme des amendements.
+Templates alignés :
+  ✅ .specify/templates/plan-template.md   — aucune gate ne change, renvoi de
+     version à bumper.
+  ✅ .specify/templates/spec-template.md   — aucun ajustement nécessaire.
+  ✅ .specify/templates/tasks-template.md  — aucun ajustement nécessaire.
+  ✅ AGENTS.md / backend/AGENTS.md          — déjà alignés sur la voie
+     Superpowers (source du point 1) ; la phrase « seule couche qui touche la
+     Session » resserrée sur « construit des requêtes sur » dans les deux
+     fichiers pour matcher la distinction générique.
+Follow-up TODOs   : (aucun)
+
+Sync Impact Report — Constitution v1.1.1
+========================================
+Version change    : 1.1.0 → 1.1.1
+Rationale         : PATCH — « correction » (Governance §3). La clé d'unicité de
+  `Course` annoncée en §Data Model était périmée : le modèle porte quatre
+  colonnes depuis la migration `b2c3d4e5f6a7` (`is_relay`, cf.
+  `backend/app/models/course.py`), pas trois. Aucun principe touché.
+Modified principles : (aucun) — §Data Model, puce « Modèle normalisé ».
+Propagation       : `AGENTS.md` §Modèle normalisé, docstring de
+  `backend/app/models/course.py`. `docs/modele-donnees.md` était déjà juste.
+Drafting notes :
+  - Correction motivée : trois analyses lancées en parallèle sur le dépôt ont
+    toutes recopié la version périmée sans ouvrir le modèle. Une doc fausse sur
+    un invariant de déduplication se propage à tout ce qui la lit.
+
+Sync Impact Report — Constitution v1.1.0
+========================================
+Version change    : 1.0.0 → 1.1.0
+Rationale         : MINOR — « élargissement substantiel d'une règle existante »
+  (Governance §3). Le Principe I gagne trois clauses : explicitness des
+  identifiants, absence d'exception de vocabulaire métier (l'exception est
+  structurelle — contrat public gelé), et une dérogation bornée à la règle de
+  transition autorisant la campagne de renommage de l'issue #88.
+  Proposition : issue #88 (tjarrier). Approbation : mainteneur, 2026-07-31.
+Modified principles : I. Langue — 3 clauses ajoutées, Rationale complété.
+Added sections    : (aucune)
+Removed sections  : (aucun)
+Drafting notes :
+  - La campagne #88 était en contradiction frontale avec la règle de transition
+    du Principe I (« On ne réécrit rien »). Résolue par amendement de la
+    constitution plutôt que par une règle concurrente dans AGENTS.md : la
+    constitution prime, une règle concurrente aurait recréé la divergence que
+    le rapport v1.0.0 signalait déjà.
+  - La liste de « termes métier autorisés en français » demandée par #88 est
+    close sur l'ensemble **vide**. Ce n'est pas un refus de trancher : le code
+    a déjà tranché (bib_number, rank_overall, total_time, event_*).
+  - La clause d'explicitness est déclarée non automatisable, mesures à l'appui
+    (ruff n'a aucune règle de longueur ; 431 occurrences dans backend/app dont
+    une majorité légitimes). Écrire un lint ici aurait produit du bruit.
+Templates alignés :
+  ✅ .specify/templates/plan-template.md   — la grille des 6 principes est en
+     place (follow-up v1.0.0 résolu) ; seul le renvoi de version est à bumper.
+  ✅ .specify/templates/spec-template.md   — aucun ajustement nécessaire.
+  ✅ .specify/templates/tasks-template.md  — les 4 mentions "Tests are OPTIONAL"
+     ont été retirées (follow-up v1.0.0 résolu) ; renvoi de version à bumper.
+  ✅ AGENTS.md                              — la règle langue renvoie déjà au
+     Principe I (follow-up v1.0.0 résolu). Renvoi de version à bumper, et la
+     phrase de transition doit désormais nommer la dérogation. Le 5ᵉ critère
+     de la dérogation crée en outre une obligation nouvelle **sur ce fichier
+     lui-même** : chaque lot de la campagne #88 devra faire suivre, dans la
+     même PR, les mentions de ses symboles renommés dans AGENTS.md.
+Follow-up TODOs   : (aucun — les trois follow-ups de la v1.0.0 sont résolus)
 -->
 
 # Constitution — data-triathlon
