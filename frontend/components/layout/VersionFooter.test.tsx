@@ -101,4 +101,11 @@ describe("VersionFooter (#134)", () => {
     const liens = within(pied).getByRole("navigation", { name: "Informations légales" });
     expect(within(liens).getByRole("link", { name: "Confidentialité" })).toHaveAttribute("href", "/confidentialite");
   });
+
+  it("dégage, sous md, la zone du bouton de signalement flottant (#333)", async () => {
+    getVersion.mockResolvedValue({ version: "v0.1.3" });
+    render(<VersionFooter />);
+    await waitFor(() => expect(getVersion).toHaveBeenCalled());
+    expect(screen.getByRole("contentinfo")).toHaveClass("pb-[88px]", "md:pb-5");
+  });
 });

@@ -56,7 +56,8 @@ export function VersionFooter() {
     backVersion != null && backVersion !== "" && backVersion !== frontVersion;
 
   const baseStyle = {
-    padding: "16px 20px 20px",
+    paddingTop: 16,
+    paddingInline: 20,
     fontSize: 12,
     color: "var(--tcn-text-faint)",
     textAlign: "center" as const,
@@ -82,7 +83,12 @@ export function VersionFooter() {
   );
 
   return (
-    <footer style={{ ...baseStyle, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+    <footer
+      // Sous md, le bouton de signalement flotte à 24px au-dessus de la barre basse et mesure 52px :
+      // en bas de page, il couvrait les liens légaux.
+      className="pb-[88px] md:pb-5"
+      style={{ ...baseStyle, display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}
+    >
       <LegalLinks />
       {version}
       {accesOuvert && <ForgetSiteAccessButton />}

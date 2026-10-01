@@ -31,7 +31,7 @@ export function LegalPage({ document }: { document: LegalDocument }) {
                   <li key={section.id}>
                     <a
                       href={`#${section.id}`}
-                      // `-deep` : 4,84:1 sur `--tcn-surface`, l'orange simple n'y tient que 3,68:1.
+                      // `-deep` : 4,57:1 sur `--tcn-surface`, l'orange simple n'y tient que 3,68:1.
                       className="text-sm font-medium text-[var(--tcn-orange-deep)] underline-offset-4 hover:underline"
                     >
                       {section.title}

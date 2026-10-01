@@ -13,4 +13,11 @@ describe("LegalLinks (#333)", () => {
       ["Conditions d'utilisation", "/cgu"],
     ]);
   });
+
+  it("agrandit la cible tactile sans changer le texte (WCAG 2.5.8)", () => {
+    render(<LegalLinks />);
+    for (const lien of screen.getAllByRole("link")) {
+      expect(lien).toHaveClass("py-1.5", "-my-1.5");
+    }
+  });
 });

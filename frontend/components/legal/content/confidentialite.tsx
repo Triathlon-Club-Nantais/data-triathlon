@@ -122,6 +122,7 @@ export const PRIVACY_POLICY: LegalDocument = {
       title: "Combien de temps elles sont conservées",
       content: (
         <Table
+          label="Durées de conservation"
           head={["Données", "Durée"]}
           rows={[
             ["Résultats d'épreuves", "Tant que le service existe (archive sportive du club), sauf opposition de votre part"],
@@ -148,6 +149,7 @@ export const PRIVACY_POLICY: LegalDocument = {
           </p>
           <p>Le club s&apos;appuie sur des prestataires techniques, qui n&apos;agissent que pour son compte :</p>
           <Table
+            label="Prestataires techniques"
             head={["Prestataire", "Rôle", "Lieu des données"]}
             rows={[
               ["Vercel Inc.", "Hébergement du site", "États-Unis"],
@@ -216,6 +218,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         <>
           <p>Le site dépose ou lit dans votre navigateur :</p>
           <Table
+            label="Cookies et stockage du navigateur"
             head={["Nom", "Type", "À quoi il sert", "Durée"]}
             rows={[
               ["tcn_site_session", "cookie", "Mémoriser que vous avez saisi le code d'accès", "90 jours"],

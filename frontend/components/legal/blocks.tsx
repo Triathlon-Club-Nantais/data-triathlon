@@ -13,6 +13,7 @@ export function ExternalLink({ href, children }: { href: string; children: React
   return (
     <a href={href} className={LINK_CLASS} target="_blank" rel="noopener noreferrer">
       {children}
+      <span className="sr-only">, nouvel onglet</span>
     </a>
   );
 }
@@ -33,10 +34,11 @@ export function ContactEmail() {
   );
 }
 
-export function Table({ head, rows }: { head: string[]; rows: ReactNode[][] }) {
+export function Table({ label, head, rows }: { label: string; head: string[]; rows: ReactNode[][] }) {
   return (
-    // Défilement horizontal confiné au tableau : la page ne déborde pas à 320 px.
-    <div className="overflow-x-auto">
+    // Défilement horizontal confiné au tableau : la page ne déborde pas à 320 px. Sans cellule focusable,
+    // la zone doit l'être elle-même pour défiler au clavier (WCAG 2.1.1).
+    <div className="overflow-x-auto" role="region" aria-label={label} tabIndex={0}>
       <table className="w-full border-collapse text-left text-sm">
         <thead>
           <tr>
