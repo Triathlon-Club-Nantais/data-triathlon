@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Badge, Card } from "@/components/tcn";
+import { Card } from "@/components/tcn";
 import type { GuideSection as GuideSectionData } from "./types";
 
 export function GuideSection({ section }: { section: GuideSectionData }) {
@@ -27,13 +27,9 @@ export function GuideSection({ section }: { section: GuideSectionData }) {
       <div className="space-y-3">
         {section.captures.map((capture) => (
           <div key={capture.src} className="space-y-2">
-            {capture.placeholder && <Badge variant="orange">Capture à venir</Badge>}
             <Image
               src={capture.src}
-              // Le statut "à venir" est répété dans l'alt : le badge visuel
-              // ne suffit pas pour un lecteur d'écran, qui n'a que le texte
-              // alternatif de l'image (#865, revue de code).
-              alt={capture.placeholder ? `Capture à venir — ${capture.alt}` : capture.alt}
+              alt={capture.alt}
               // Ratio réel des 21 captures livrées (1418×840) : sans ce
               // ratio exact, `width`/`height` imposent une boîte 1200×750
               // (1,6:1) que le navigateur étire, ~5,5 % de distorsion sur

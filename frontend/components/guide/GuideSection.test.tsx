@@ -41,25 +41,9 @@ describe("GuideSection — accès direct par ancre (#865, US3)", () => {
   });
 });
 
-describe("GuideSection — capture placeholder (#865, #874)", () => {
-  const avecPlaceholder: GuideSectionData = {
-    ...section,
-    captures: [{ src: "/guide/admin/epreuves.jpg", alt: "Écran de gestion des épreuves", placeholder: true }],
-  };
-
-  it("le dit dans l'alt, pas seulement visuellement — un lecteur d'écran n'a que le texte alternatif", () => {
-    render(<GuideSection section={avecPlaceholder} />);
-    expect(screen.getByAltText("Capture à venir — Écran de gestion des épreuves")).toBeInTheDocument();
-  });
-
-  it("affiche un badge visuel « Capture à venir »", () => {
-    render(<GuideSection section={avecPlaceholder} />);
-    expect(screen.getByText("Capture à venir")).toBeInTheDocument();
-  });
-
-  it("ne modifie pas l'alt d'une capture réelle", () => {
+describe("GuideSection — capture", () => {
+  it("uses the capture alt text as is", () => {
     render(<GuideSection section={section} />);
     expect(screen.getByAltText("Espace club, synthèse et podiums")).toBeInTheDocument();
-    expect(screen.queryByText("Capture à venir")).not.toBeInTheDocument();
   });
 });
