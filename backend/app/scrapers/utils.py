@@ -59,6 +59,18 @@ def heat_is_relay(*signals: str | None) -> bool:
             return True
     return False
 
+
+def heat_is_challenge(name: str | None) -> bool:
+    """Le nom du heat annonce-t-il un classement Challenge ? (#1008)
+
+    Signal nécessaire, pas suffisant : l'import ne requalifie le heat qu'après
+    avoir mesuré que ses athlètes courent aussi d'autres épreuves du même jour
+    (`services/challenge_service.match`). « La Baule - Challenge », un relais,
+    passe ce filtre et échoue au second.
+    """
+    words = _WORD_SPLIT_RE.split(strip_accents(name or "").lower())
+    return "challenge" in words
+
 _FR_MONTHS = {
     "janvier": 1, "fevrier": 2, "mars": 3, "avril": 4,
     "mai": 5, "juin": 6, "juillet": 7, "aout": 8,
