@@ -15,7 +15,8 @@
   `club` porte le club
   **actuel** : il suit la dernière épreuve **courue**, pas la dernière importée
   (#965). Un import ne le réécrit que si son épreuve est au moins aussi récente
-  que la plus récente participation datée avec club déjà connue
+  que la plus récente participation datée avec club déjà connue (validée, hors
+  relais composé, #1153)
   (`athlete_repository.club_is_current`, même règle dans `resolve` et dans la
   résolution par lot d'`import_service`). Sauf correction humaine : `club_locked` (#439),
   posé par `admin_actions.update_athlete` quand le club écrit diffère de celui en
