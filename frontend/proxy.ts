@@ -15,10 +15,11 @@ const LOGGED_IN_COOKIE = "tcn_logged_in";
  * - Base UI, qui injecte `.base-ui-disable-scrollbar` au montage de ses popups
  *   → nonce transmis par `CSPProvider` (`app/layout.tsx`) ;
  * - `zod`, qui sonde `new Function("")` pour son JIT → `jitless`
- *   (`components/scrape/ManualResultForm.tsx`).
+ *   (`lib/zod.ts`, seule porte d'entrée de zod dans le front).
  *
- * Le rendu serveur, lui, est propre : sur les onze routes relevées, 100 % des
- * `<script>` et le `<link rel="stylesheet">` portent le nonce.
+ * Le rendu serveur, lui, est propre : sur les 32 routes relevées en
+ * production et en preview, tous les `<script>`, `<style>` et feuilles portent
+ * le nonce.
  *
  * Le passage au nom sans `-Report-Only` fait l'objet d'une PR de suite, une
  * fois la production relevée sans violation.
@@ -167,6 +168,10 @@ export function proxy(request: NextRequest) {
   // une politique correcte et un HTML sans nonce, donc un rapport de violations
   // sur les propres scripts de Next.
   const requestHeaders = new Headers(request.headers);
+  // Next et le layout lisent `content-security-policy` en premier : une valeur
+  // venue du client choisirait sinon le nonce du rendu.
+  requestHeaders.delete("content-security-policy");
+  requestHeaders.delete("content-security-policy-report-only");
   requestHeaders.set(CSP_HEADER, policy);
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });

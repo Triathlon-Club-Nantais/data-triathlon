@@ -98,6 +98,19 @@ describe("proxy — Content-Security-Policy (#448, #570)", () => {
     expect(transmise).toBe(reponse.headers.get(CSP));
   });
 
+  it("ne transmet jamais une politique fournie par le client", () => {
+    // Next et le layout lisent `content-security-policy` avant
+    // `-report-only` : relayée telle quelle, la requête choisirait le nonce de
+    // son propre rendu.
+    const requete = new NextRequest("https://exemple.fr/dashboard", {
+      headers: { "content-security-policy": "script-src 'nonce-choisi'" },
+    });
+
+    const reponse = proxy(requete);
+
+    expect(reponse.headers.get("x-middleware-request-content-security-policy")).toBeNull();
+  });
+
   it("expose un nonce que l'extraction de Next sait retrouver", () => {
     const reponse = proxy(requeteAvec({}));
 
