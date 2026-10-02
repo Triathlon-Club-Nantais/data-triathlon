@@ -16,6 +16,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
+from app.core.athlete_identity import athlete_identity_keys
 from app.models.challenge import Challenge
 from app.models.participation import Participation
 from app.repositories import challenge_repository
@@ -68,8 +69,10 @@ class ChallengeMatch:
     course_ids: list[int] = field(default_factory=list)
 
 
-def _key(nom: str | None, prenom: str | None) -> tuple[str, str]:
-    return ((nom or "").strip().lower(), (prenom or "").strip().lower())
+def _key(nom: str | None, prenom: str | None) -> str | None:
+    """Clé d'identité normalisée (#907), au format de `Participation.source_identity_key`."""
+    last_name_key, first_name_key = athlete_identity_keys(nom, prenom)
+    return None if last_name_key is None else f"{last_name_key}|{first_name_key}"
 
 
 def match(
@@ -81,13 +84,17 @@ def match(
 ) -> ChallengeMatch | None:
     if not rows or event_date is None:
         return None
-    by_key: dict[tuple[str, str], dict[int, set[int]]] = {}
-    for athlete_id, nom, prenom, course_id, course_name in challenge_repository.athletes_on_date(
-        db, event_date
+    # Deux clés par résultat : la graphie de la ligne source (#896), qui suit le
+    # chronométreur même après un renommage de la fiche, et celle de la fiche.
+    by_key: dict[str, dict[int, set[int]]] = {}
+    for athlete_id, source_key, last_name_key, first_name_key, course_id, course_name in (
+        challenge_repository.athletes_on_date(db, event_date)
     ):
         if course_id in exclude_course_ids or heat_is_challenge(course_name):
             continue
-        by_key.setdefault(_key(nom, prenom), {}).setdefault(athlete_id, set()).add(course_id)
+        record_key = None if last_name_key is None else f"{last_name_key}|{first_name_key}"
+        for key in {source_key, record_key} - {None}:
+            by_key.setdefault(key, {}).setdefault(athlete_id, set()).add(course_id)
 
     athlete_ids: dict[int, int] = {}
     per_course: Counter[int] = Counter()
@@ -98,6 +105,9 @@ def match(
         if not candidates or len(candidates) != 1:
             continue
         ((athlete_id, course_ids),) = candidates.items()
+        # Deux lignes vers une même fiche : la seconde est un homonyme qu'on ne sait pas placer.
+        if athlete_id in athlete_ids.values():
+            continue
         athlete_ids[index] = athlete_id
         per_course.update(course_ids)
         if len(course_ids) >= MIN_COURSES_PER_ATHLETE:
@@ -107,6 +117,8 @@ def match(
     linked = sorted(
         course_id for course_id, count in per_course.items() if count >= MIN_LINK_SHARE * len(rows)
     )
+    if len(linked) < MIN_COURSES_PER_ATHLETE:
+        return None
     return ChallengeMatch(athlete_ids=athlete_ids, course_ids=linked)
 
 
@@ -121,14 +133,16 @@ def save(
 ) -> Challenge:
     challenge = challenge_repository.upsert(db, name=name, event_date=event_date, source_url=source_url)
     challenge_repository.replace_links(db, challenge, found.course_ids)
+    kept: list[int] = []
     for index, athlete_id in found.athlete_ids.items():
         row = rows[index]
-        challenge_repository.upsert_result(
+        kept.append(challenge_repository.upsert_result(
             db, challenge, athlete_id=athlete_id, bib_number=row.bib_number,
             rank_overall=row.rank_overall, rank_gender=row.rank_gender,
             rank_category=row.rank_category, total_time=row.total_time,
             status=row.status, raw_data=row.raw_data,
-        )
+        ).id)
+    challenge_repository.delete_results_except(db, challenge, kept)
     db.refresh(challenge)
     return challenge
 

@@ -114,3 +114,60 @@ def test_unmatched_rows_are_not_saved(db_session):
         db_session, name="C", event_date=DAY, source_url="u", rows=rows, found=found
     )
     assert "999" not in {r.bib_number for r in challenge.results}
+
+
+def test_accent_and_spacing_variants_match_through_identity_keys(db_session):
+    xs, m = _course(db_session, "XS"), _course(db_session, "M")
+    athlete = Athlete(nom="LE GLOANIC", prenom="Léo")
+    db_session.add(athlete)
+    db_session.flush()
+    for course in (xs, m):
+        db_session.add(Participation(athlete_id=athlete.id, course_id=course.id, bib_number=f"b{course.id}"))
+    db_session.flush()
+    found = challenge_service.match(db_session, [_row("LEGLOANIC", prenom="Leo")], event_date=DAY)
+    assert found is not None
+    assert found.athlete_ids == {0: athlete.id}
+
+
+def test_the_scraped_spelling_kept_on_the_result_matches_a_renamed_record(db_session):
+    xs, m = _course(db_session, "XS"), _course(db_session, "M")
+    athlete = Athlete(nom="DUPONT", prenom="Jean")
+    db_session.add(athlete)
+    db_session.flush()
+    for course in (xs, m):
+        db_session.add(Participation(
+            athlete_id=athlete.id, course_id=course.id, bib_number=f"b{course.id}",
+            source_identity_key="dupond|jean",
+        ))
+    db_session.flush()
+    found = challenge_service.match(db_session, [_row("DUPOND")], event_date=DAY)
+    assert found is not None
+    assert found.athlete_ids == {0: athlete.id}
+
+
+def test_an_athlete_matched_twice_keeps_only_the_first_row(db_session):
+    _, names = _field(db_session)
+    rows = [_row(n) for n in names] + [_row(names[0], bib="dup")]
+    found = challenge_service.match(db_session, rows, event_date=DAY)
+    assert found is not None
+    assert sorted(found.athlete_ids) == list(range(10))
+
+
+def test_a_challenge_needs_at_least_two_linked_courses(db_session):
+    # Chacun court deux épreuves, mais aucune ne réunit la moitié du classement.
+    courses = [_course(db_session, f"C{i}") for i in range(5)]
+    for i in range(5):
+        _runner(db_session, f"NOM{i}", courses[i], courses[(i + 1) % 5])
+    rows = [_row(f"NOM{i}") for i in range(5)]
+    assert challenge_service.match(db_session, rows, event_date=DAY) is None
+
+
+def test_saving_again_drops_rows_that_no_longer_match(db_session):
+    _, names = _field(db_session, size=3)
+    rows = [_row(n) for n in names]
+    found = challenge_service.match(db_session, rows, event_date=DAY)
+    challenge_service.save(db_session, name="C", event_date=DAY, source_url="u", rows=rows, found=found)
+    fewer = rows[:2]
+    found = challenge_service.match(db_session, fewer, event_date=DAY)
+    challenge = challenge_service.save(db_session, name="C", event_date=DAY, source_url="u", rows=fewer, found=found)
+    assert sorted(r.bib_number for r in challenge.results) == sorted(n for n in names[:2])

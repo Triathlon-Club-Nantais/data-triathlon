@@ -12,10 +12,16 @@ from app.models.course import Course
 from app.models.participation import Participation
 
 
-def athletes_on_date(db: Session, event_date: date) -> list[tuple[int, str, str, int, str]]:
-    """(athlete_id, nom, prenom, course_id, course_name) de chaque participation du jour."""
+def athletes_on_date(
+    db: Session, event_date: date
+) -> list[tuple[int, str | None, str | None, str | None, int, str]]:
+    """De chaque participation du jour : (athlete_id, clé source de la ligne, clés
+    d'identité de la fiche, course_id, course_name)."""
     return (
-        db.query(Athlete.id, Athlete.nom, Athlete.prenom, Course.id, Course.name)
+        db.query(
+            Athlete.id, Participation.source_identity_key, Athlete.last_name_key,
+            Athlete.first_name_key, Course.id, Course.name,
+        )
         .join(Participation, Participation.athlete_id == Athlete.id)
         .join(Course, Course.id == Participation.course_id)
         .filter(Course.event_date == event_date)
@@ -107,6 +113,15 @@ def repoint(db: Session, *, from_athlete_id: int, to_athlete_id: int) -> int:
         .where(ChallengeResult.athlete_id == from_athlete_id)
         .values(athlete_id=to_athlete_id)
     ).rowcount
+
+
+def delete_results_except(db: Session, challenge: Challenge, keep_ids: Sequence[int]) -> int:
+    """Retire les lignes qu'un nouveau passage n'a plus appariées."""
+    return (
+        db.query(ChallengeResult)
+        .filter(ChallengeResult.challenge_id == challenge.id, ChallengeResult.id.not_in(set(keep_ids)))
+        .delete(synchronize_session="fetch")
+    )
 
 
 def list_for_course(db: Session, course_id: int) -> list[Challenge]:
