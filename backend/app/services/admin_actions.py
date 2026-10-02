@@ -37,6 +37,7 @@ from app.repositories import (
     admin_action_log_repository,
     athlete_alias_repository,
     athlete_repository,
+    challenge_repository,
     course_repository,
     course_source_repository,
     lock_repository,
@@ -186,6 +187,8 @@ def wipe_all_participations(db: Session, *, user_id: int) -> dict:
     """
     lock_all_courses_or_409(db)
     resume = {"participations_deleted": participation_repository.delete_all(db)}
+    # Les cumuls Challenge dérivent des résultats purgés (#1008).
+    challenge_repository.delete_all(db)
     resume["athletes_purged"] = athlete_repository.delete_unreferenced(db)
     resume["courses_reset"] = course_repository.reset_scraped_at_all(db)
     # Compteurs dénormalisés (#623) : toutes les participations disparaissent,
@@ -254,6 +257,8 @@ def wipe_all_courses(db: Session, *, user_id: int) -> dict:
     """
     lock_all_courses_or_409(db)
     resume = {"courses_deleted": course_repository.delete_all(db)}
+    # Les cumuls Challenge dérivent des résultats purgés (#1008).
+    challenge_repository.delete_all(db)
     resume["athletes_purged"] = athlete_repository.delete_unreferenced(db)
 
     admin_action_log_repository.create(

@@ -25,6 +25,7 @@ from app.models.user import User
 from app.repositories import (
     admin_action_log_repository,
     athlete_repository,
+    challenge_repository,
     course_repository,
     opposition_repository,
     participation_repository,
@@ -129,14 +130,14 @@ def club_today(now: datetime | None = None) -> date:
     return (now or utcnow()).replace(tzinfo=UTC).astimezone(PARIS).date()
 
 
-def _appearances(db: Session, athlete: Athlete) -> tuple[list, list]:
+def _appearances(db: Session, athlete: Athlete) -> tuple[list, list, list]:
     carried = participation_repository.list_carried_by(db, athlete.id)
     carried_ids = {participation.id for participation in carried}
     links = [
         link for link in participation_repository.teammate_links_of(db, athlete.id)
         if link.participation_id not in carried_ids
     ]
-    return carried, links
+    return carried, links, challenge_repository.list_for_athlete_ids(db, athlete.id)
 
 
 def preview(
@@ -146,13 +147,13 @@ def preview(
     athletes = _matching_athletes(db, nom, prenom)
     results = 0
     for athlete in athletes:
-        carried, links = _appearances(db, athlete)
-        results += len(carried) + len(links)
+        carried, links, challenge_rows = _appearances(db, athlete)
+        results += len(carried) + len(links) + len(challenge_rows)
     return OppositionPreview(len(athletes), results, is_opposed(db, nom, prenom))
 
 
 def _anonymise(db: Session, athlete: Athlete) -> int:
-    carried, links = _appearances(db, athlete)
+    carried, links, challenge_rows = _appearances(db, athlete)
     for participation in carried:
         # Le genre reste : il ne désigne personne, et les vues par genre gardent la ligne.
         anonymous = athlete_repository.get_or_create(
@@ -180,12 +181,19 @@ def _anonymise(db: Session, athlete: Athlete) -> int:
         # La ligne brute et le libellé d'un relais portent les noms de toute l'équipe.
         participation.raw_data = {}
         participation.team_name = ""
+    for row in challenge_rows:
+        anonymous = athlete_repository.get_or_create(
+            db, nom=f"Anonyme challenge {row.challenge_id}-{row.bib_number or row.id}",
+            prenom="", gender=athlete.gender or "",
+        )
+        row.athlete_id = anonymous.id
+        row.raw_data = {}
     user_repository.detach_athlete(db, athlete.id)
     volunteer_action_repository.delete_for_athlete(db, athlete.id)
     season_validation_repository.delete_for_athlete(db, athlete.id)
     db.expire(athlete)
     athlete_repository.delete(db, athlete)
-    return len(carried) + len(links)
+    return len(carried) + len(links) + len(challenge_rows)
 
 
 def apply(
