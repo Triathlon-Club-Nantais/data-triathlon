@@ -10,7 +10,8 @@ Les homonymes sont couverts : la clé est le nom et le prénom normalisés
 (`core/identity`), seule identité que les imports connaissent.
 """
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
@@ -22,6 +23,7 @@ from app.models.athlete import Athlete
 from app.models.athlete_opposition import AthleteOpposition
 from app.models.user import User
 from app.repositories import (
+    admin_action_log_repository,
     athlete_repository,
     course_repository,
     opposition_repository,
@@ -30,9 +32,12 @@ from app.repositories import (
     user_repository,
     volunteer_action_repository,
 )
+from app.scrapers.utils import split_relay_teammates
 from app.services import audit
 
 OVERDUE_AFTER_DAYS = 30
+PARIS = ZoneInfo("Europe/Paris")
+REDACTED = "[anonymisé]"
 OPPOSED_MESSAGE = (
     "Cette personne s'est opposée à la publication de ses résultats : "
     "ce résultat ne peut pas être enregistré."
@@ -74,9 +79,18 @@ def _identity(db: Session, athlete_id: int | None, nom: str | None, prenom: str 
         if athlete is None:
             raise NotFoundError("Cet athlète n'existe pas.")
         nom, prenom = athlete.nom, athlete.prenom
-    if not opposition_key(nom or "", prenom or ""):
+        if not opposition_key(nom, prenom):
+            raise DomainError("Cette fiche ne porte aucun nom.")
+    elif not opposition_key(nom or "", "") or not opposition_key(prenom or "", ""):
         raise DomainError("Indiquez le nom et le prénom de la personne.")
     return nom or "", prenom or ""
+
+
+def _names_person(key: str, label: str) -> bool:
+    """`label` désigne la personne : son identité même, ou un libellé de relais non découpé qui la nomme."""
+    return opposition_key(label, "") == key or any(
+        opposition_key(*pair) == key for pair in split_relay_teammates(label) or ()
+    )
 
 
 def _matching_athletes(db: Session, nom: str, prenom: str) -> list[Athlete]:
@@ -84,8 +98,35 @@ def _matching_athletes(db: Session, nom: str, prenom: str) -> list[Athlete]:
     return [
         athlete_repository.get(db, athlete_id)
         for athlete_id, other_nom, other_prenom in athlete_repository.list_identities(db)
-        if opposition_key(other_nom, other_prenom) == key
+        if _names_person(key, f"{other_nom} {other_prenom}")
     ]
+
+
+def _redacted(value, key: str):
+    """Copie de `value` où toute chaîne, ou tout couple nom/prénom, qui désigne la personne est masqué."""
+    if isinstance(value, dict):
+        if isinstance(value.get("nom"), str) and opposition_key(value["nom"], value.get("prenom") or "") == key:
+            value = {**value, "nom": REDACTED, "prenom": REDACTED}
+        return {name: _redacted(item, key) for name, item in value.items()}
+    if isinstance(value, list):
+        return [_redacted(item, key) for item in value]
+    if isinstance(value, str) and _names_person(key, value):
+        return REDACTED
+    return value
+
+
+def _redact_log(db: Session, nom: str, prenom: str) -> None:
+    """Les gestes passés (suppression, correction de fiche) ont pu consigner le nom : il en sort."""
+    key = opposition_key(nom, prenom)
+    for entry in admin_action_log_repository.list_with_payload(db):
+        redacted = _redacted(entry.payload, key)
+        if redacted != entry.payload:
+            entry.payload = redacted
+
+
+def club_today(now: datetime | None = None) -> date:
+    """Le jour du club, à Paris : une demande saisie à 1 h du matin n'est pas « dans le futur »."""
+    return (now or utcnow()).replace(tzinfo=UTC).astimezone(PARIS).date()
 
 
 def _appearances(db: Session, athlete: Athlete) -> tuple[list, list]:
@@ -113,8 +154,10 @@ def preview(
 def _anonymise(db: Session, athlete: Athlete) -> int:
     carried, links = _appearances(db, athlete)
     for participation in carried:
+        # Le genre reste : il ne désigne personne, et les vues par genre gardent la ligne.
         anonymous = athlete_repository.get_or_create(
-            db, nom=anonymous_name(participation.course_id, participation.bib_number, participation.id), prenom=""
+            db, nom=anonymous_name(participation.course_id, participation.bib_number, participation.id),
+            prenom="", gender=athlete.gender or "",
         )
         if athlete.id in participation_repository.teammate_athlete_ids(db, participation.id):
             participation_repository.replace_teammate(
@@ -126,6 +169,7 @@ def _anonymise(db: Session, athlete: Athlete) -> int:
         participation.club = ""
         participation.category = ""
         participation.raw_data = {}
+        participation.team_name = ""
     for link in links:
         participation = link.participation
         base = anonymous_name(participation.course_id, participation.bib_number, participation.id)
@@ -133,8 +177,9 @@ def _anonymise(db: Session, athlete: Athlete) -> int:
         participation_repository.replace_teammate(
             db, participation_id=participation.id, old_athlete_id=athlete.id, new_athlete_id=anonymous.id
         )
-        # La ligne brute d'un relais porte les noms de toute l'équipe.
+        # La ligne brute et le libellé d'un relais portent les noms de toute l'équipe.
         participation.raw_data = {}
+        participation.team_name = ""
     user_repository.detach_athlete(db, athlete.id)
     volunteer_action_repository.delete_for_athlete(db, athlete.id)
     season_validation_repository.delete_for_athlete(db, athlete.id)
@@ -158,10 +203,11 @@ def apply(
     Rend `(opposition, créée)` : une identité déjà opposée est réappliquée (une
     fiche a pu naître d'une saisie antérieure), sur la même ligne.
     """
-    if requested_on > (today or utcnow().date()):
+    if requested_on > (today or club_today()):
         raise DomainError("La date de la demande ne peut pas être dans le futur.")
     nom, prenom = _identity(db, athlete_id, nom, prenom)
     anonymised = sum(_anonymise(db, athlete) for athlete in _matching_athletes(db, nom, prenom))
+    _redact_log(db, nom, prenom)
 
     empreinte = identity_hash(nom, prenom)
     opposition = opposition_repository.get_by_hash(db, empreinte)

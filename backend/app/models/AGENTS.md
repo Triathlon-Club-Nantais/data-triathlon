@@ -68,6 +68,9 @@
   les empreintes une fois par import et rend anonyme (« Anonyme
   {épreuve}-{dossard} ») toute ligne qui correspond. La clé ignore la date de
   naissance, que les imports n'ont jamais, donc les homonymes sont couverts.
+  **Un relais qui nomme la personne arrive anonyme en entier**, jamais découpé :
+  son libellé (`team_name`, ligne brute, fiche d'équipe d'un découpage refusé)
+  la nommerait, et un découpage refusé recréerait ce libellé en fiche.
 - **AbsorbedCourse** (#983) — l'identité publiée (URL, nom, date, type, relais)
   d'une épreuve supprimée par une fusion, et sa cible. Une ligne scrapée qui la
   porte est **ignorée** (`mapping.is_absorbed`, `_Persister.add`) : sans quoi le

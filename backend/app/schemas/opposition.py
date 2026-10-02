@@ -1,4 +1,4 @@
-"""DTO du droit d'opposition (#334) — formes de `contracts/admin-oppositions.md`."""
+"""DTO du droit d'opposition (#334), aux formes de `contracts/admin-oppositions.md`."""
 from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, field_serializer, model_validator
@@ -16,8 +16,10 @@ class OppositionIdentity(BaseModel):
     @model_validator(mode="after")
     def _one_identity(self):
         by_name = bool(self.nom or self.prenom)
-        if (self.athlete_id is None) == (not by_name):
+        if self.athlete_id is not None and by_name:
             raise ValueError("Indiquez soit une fiche athlète, soit un nom et un prénom.")
+        if self.athlete_id is None and not (self.nom and self.prenom):
+            raise ValueError("Indiquez le nom et le prénom de la personne.")
         return self
 
 

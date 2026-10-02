@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Alert, Button, Input, Modal } from "@/components/tcn";
-import { apiClient } from "@/lib/api/client";
+import { ApiError, apiClient } from "@/lib/api/client";
 import { useApplyOpposition } from "@/lib/queries/admin";
 import { useHydratedSession } from "@/lib/queries/auth";
 import type { OppositionPreview } from "@/lib/types";
@@ -46,8 +46,9 @@ export function AthleteOppositionAction({ athlete }: { athlete: CoureurACorriger
       await appliquer.mutateAsync({ athlete_id: athlete.id, requested_on: demande });
       toast.success("Opposition appliquée : les résultats sont anonymes.");
       router.replace("/resultats");
-    } catch {
-      setRefus(ECHEC);
+    } catch (erreur) {
+      // Un refus prononcé par le serveur (date future, fiche disparue) est en français et se lit tel quel.
+      setRefus(erreur instanceof ApiError && erreur.status < 500 ? erreur.message : ECHEC);
     }
   }
 

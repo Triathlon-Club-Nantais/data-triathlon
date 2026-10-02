@@ -980,6 +980,8 @@ def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) 
     demande = {champ: champs[champ] for champ in _CHAMPS_ATHLETE if champ in champs}
 
     vise = {**{champ: getattr(athlete, champ) for champ in _CHAMPS_ATHLETE}, **demande}
+    if "nom" in demande or "prenom" in demande:
+        opposition_service.ensure_not_opposed(db, vise["nom"], vise["prenom"])
     conflit = athlete_repository.get_by_identity(
         db, nom=vise["nom"], prenom=vise["prenom"], birth_date=vise["birth_date"]
     )

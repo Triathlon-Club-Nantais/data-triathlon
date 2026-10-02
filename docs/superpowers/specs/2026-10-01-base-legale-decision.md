@@ -90,7 +90,11 @@ adhérent n'a pas de sens.
    et une empreinte SHA-256 du nom et du prénom normalisés (un pseudonyme, pas
    le nom) fait arriver anonymes les imports suivants, homonymes compris. Canal :
    le type « Retrait de mes données » du formulaire de signalement ; suivi des
-   délais : `/admin/oppositions`.
+   délais : `/admin/oppositions`. Le nom est aussi masqué dans les entrées
+   passées du journal d'administration. Seule la demande elle-même le garde,
+   comme preuve, le temps de la rétention des signalements (12 mois). Un
+   relais importé qui nomme la personne arrive anonyme en entier : ses
+   coéquipiers perdent l'attribution de ce résultat.
 3. **Fixer et tenir des durées de conservation** (ci-dessous).
 
 Le traitement des données des **utilisateurs du back-office** repose sur le même

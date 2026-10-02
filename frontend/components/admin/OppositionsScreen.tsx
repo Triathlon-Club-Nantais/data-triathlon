@@ -30,7 +30,7 @@ export function OppositionsScreen() {
 
   async function enregistrer(evenement: React.SyntheticEvent) {
     evenement.preventDefault();
-    if (!nom.trim() && !prenom.trim()) return;
+    if (!nom.trim() || !prenom.trim()) return;
     const identite = { nom: nom.trim(), prenom: prenom.trim() };
     try {
       const apercu = await apiClient.previewOpposition(identite);
@@ -117,7 +117,7 @@ export function OppositionsScreen() {
                   <TableCell>{formatDate(opposition.requested_on)}</TableCell>
                   <TableCell>{formatDate(opposition.applied_at)}</TableCell>
                   <TableCell>
-                    <span>{opposition.delay_days} jours</span>
+                    <span>{opposition.delay_days} jour{opposition.delay_days > 1 ? "s" : ""}</span>
                     {opposition.overdue && (
                       <span className="ml-2 font-semibold text-[var(--tcn-danger-text)]">hors délai légal</span>
                     )}

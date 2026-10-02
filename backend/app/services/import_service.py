@@ -745,7 +745,7 @@ class _Persister:
         # événements confondus, fusionnaient sur une seule fiche.
         published = _published_name(scraped)
         nameless = not published.strip() or is_masked_name(published)
-        opposed = not nameless and identity_hash(scraped.athlete_name, scraped.athlete_firstname) in self._opposed
+        opposed = not nameless and self._is_opposed(scraped)
         if (nameless or opposed) and not scraped.bib_number:
             logger.warning(
                 "Row with a masked or empty name and no bib skipped: %s (%s)",
@@ -796,7 +796,9 @@ class _Persister:
             )
         if opposed:
             # Opposition (#334) : rien de ce qui désigne la personne n'est gardé, rangs et temps si.
-            scraped = replace(scraped, club="", category="", raw_data={})
+            # Un relais qui la compte reste entier mais anonyme : son libellé la nomme, et le
+            # découper ferait renaître ce libellé en fiche d'équipe dès qu'un découpage est refusé.
+            scraped = replace(scraped, club="", category="", raw_data={}, team_name="")
         bib = scraped.bib_number or None
 
         if bib is not None:
@@ -815,7 +817,7 @@ class _Persister:
                     # est celle de l'équipe, jamais résolue ni réconciliée.
                     self._upsert(existing, scraped)
                     return
-                scraped, teammates = self._unopposed_teammates(course.id, bib, scraped)
+                teammates = _proposed_teammates(scraped)
                 if teammates is not None:
                     # Relais importé avant #895 : découpé au lieu d'être réconcilié.
                     # La garde #66 suit la ligne, pour le cas où le découpage
@@ -857,24 +859,19 @@ class _Persister:
                     self.skipped += 1
                 return
 
-        scraped, teammates = self._unopposed_teammates(course.id, bib, scraped)
-        self._enqueue(course.id, scraped, bib=bib, participation=None, teammates=teammates)
-
-    def _unopposed_teammates(
-        self, course_id: int, bib: str | None, scraped: ScrapedResult
-    ) -> tuple[ScrapedResult, tuple[tuple[str, str], ...] | None]:
-        """Équipiers proposés, un équipier opposé (#334) devenu anonyme à sa position : l'équipe
-        garde ses 2 à 8 membres. Même nom que celui que pose `opposition_service` sur les relais
-        déjà en base. La ligne brute, qui porte son nom, est alors vidée."""
-        teammates = _proposed_teammates(scraped)
-        if not teammates or not any(identity_hash(*pair) in self._opposed for pair in teammates):
-            return scraped, teammates
-        masked = tuple(
-            (f"Anonyme {course_id}-{bib or 'equipe'}-{position}", "")
-            if identity_hash(*pair) in self._opposed else pair
-            for position, pair in enumerate(teammates)
+        self._enqueue(
+            course.id, scraped, bib=bib, participation=None,
+            teammates=_proposed_teammates(scraped),
         )
-        return replace(scraped, raw_data={}), masked
+
+    def _is_opposed(self, scraped: ScrapedResult) -> bool:
+        """La ligne désigne une personne opposée (#334) : elle-même, ou l'un des équipiers
+        qu'un libellé de relais nomme."""
+        if not self._opposed:
+            return False
+        if identity_hash(scraped.athlete_name, scraped.athlete_firstname) in self._opposed:
+            return True
+        return any(identity_hash(*pair) in self._opposed for pair in _proposed_teammates(scraped) or ())
 
     def _enqueue(
         self, course_id: int, scraped: ScrapedResult, *, bib: str | None,

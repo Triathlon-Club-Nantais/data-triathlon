@@ -68,13 +68,32 @@ def test_an_opposition_recorded_before_any_result_blocks_the_first_import(db_ses
     assert db_session.query(Participation).one().athlete.nom.startswith("Anonyme ")
 
 
-def test_an_opposed_teammate_is_replaced_in_a_split_relay(db_session, opposition):
+def _sans_dupont(db):
+    return not any("dupont" in nom.lower() for nom in _noms(db))
+
+
+def test_a_relay_with_an_opposed_member_arrives_anonymous_as_a_whole(db_session, opposition):
+    """Ni découpage ni libellé d'équipe : le libellé publié porte le nom de la personne."""
     import_service.persist_results(
-        db_session, URL, [_ligne("50", "DUPONT Jean-Pierre / MARTIN Alix", "", is_relay=True)]
+        db_session, URL,
+        [_ligne("50", "DUPONT Jean-Pierre / MARTIN Alix", "", is_relay=True, team_name="DUPONT Jean-Pierre / MARTIN Alix")],
     )
 
     relais = db_session.query(Participation).one()
-    equipe = [db_session.get(Athlete, i) for i in participation_repository.teammate_athlete_ids(db_session, relais.id)]
-    assert len(equipe) == 2
-    assert all("dupont" not in a.nom.lower() and "dupont" not in a.prenom.lower() for a in equipe)
-    assert not relais.raw_data
+    assert relais.athlete.nom.startswith("Anonyme ")
+    assert participation_repository.teammate_athlete_ids(db_session, relais.id) == []
+    assert not (relais.team_name or relais.raw_data or relais.club)
+    assert _sans_dupont(db_session)
+
+
+def test_a_rescraped_relay_with_an_opposed_member_stays_anonymous(db_session, opposition):
+    lignes = [
+        _ligne("50", "MARTIN Alix / DURAND Paul", "", is_relay=True),
+        _ligne("51", "DUPONT Jean-Pierre / MARTIN Alix", "", is_relay=True),
+    ]
+    import_service.persist_results(db_session, URL, lignes)
+    import_service.persist_results(db_session, URL, lignes)
+
+    relais = db_session.query(Participation).filter_by(bib_number="51").one()
+    assert relais.athlete.nom.startswith("Anonyme ") and not relais.raw_data
+    assert _sans_dupont(db_session)

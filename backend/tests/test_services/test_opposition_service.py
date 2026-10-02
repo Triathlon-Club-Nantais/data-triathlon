@@ -106,6 +106,7 @@ def test_apply_replaces_the_person_by_an_anonymous_teammate(db, course, admin):
     porteur = _athlete(db, "MARTIN", "Alix")
     jean = _athlete(db, "DUPONT", "Jean")
     relais = _classer(db, course, porteur, 5, "50")
+    relais.team_name = "MARTIN Alix / DUPONT Jean"
     participation_repository.replace_teammates(db, relais, [porteur.id, jean.id])
 
     opposition, _ = opposition_service.apply(db, admin, athlete_id=jean.id, requested_on=TODAY, today=TODAY)
@@ -114,7 +115,57 @@ def test_apply_replaces_the_person_by_an_anonymous_teammate(db, course, admin):
     assert [(a.nom, a.prenom) for a in equipe] == [("MARTIN", "Alix"), (f"Anonyme {course.id}-50-1", "")]
     assert opposition.anonymised_count == 1
     db.refresh(relais)
-    assert not relais.raw_data
+    assert not (relais.raw_data or relais.team_name)
+
+
+def test_apply_anonymises_an_unsplit_team_record_that_names_the_person(db, course, admin):
+    equipe = _athlete(db, "DUPONT Jean / MARTIN Alix", "")
+    relais = _classer(db, course, equipe, 3, "30")
+
+    opposition, _ = opposition_service.apply(db, admin, nom="Dupont", prenom="Jean", requested_on=TODAY, today=TODAY)
+
+    db.refresh(relais)
+    assert relais.athlete.nom == f"Anonyme {course.id}-30"
+    assert opposition.anonymised_count == 1
+    assert db.get(Athlete, equipe.id) is None
+
+
+def test_apply_keeps_the_gender_of_the_anonymised_row(db, course, admin):
+    jean = athlete_repository.get_or_create(db, nom="DUPONT", prenom="Jean", gender="M")
+    sienne = _classer(db, course, jean, 12, "120")
+
+    opposition_service.apply(db, admin, athlete_id=jean.id, requested_on=TODAY, today=TODAY)
+
+    db.refresh(sienne)
+    assert sienne.athlete.gender == "M"
+
+
+def test_apply_redacts_the_name_from_earlier_log_entries(db, course, admin):
+    from app.repositories import admin_action_log_repository
+
+    jean = _athlete(db, "DUPONT", "Jean")
+    _classer(db, course, jean, 12, "120")
+    admin_action_log_repository.create(
+        db, user_id=admin.id, action="participation.delete", entity_type="participation", entity_id=99,
+        payload={"athlete_name": "DUPONT Jean", "course_name": "Triathlon de Nantes"},
+    )
+    admin_action_log_repository.create(
+        db, user_id=admin.id, action="athlete.update", entity_type="athlete", entity_id=jean.id,
+        payload={"before": {"nom": "Dupont", "prenom": "Jean"}, "after": {"nom": "DUPONT", "prenom": "Jean"}},
+    )
+
+    opposition_service.apply(db, admin, athlete_id=jean.id, requested_on=TODAY, today=TODAY)
+
+    for entree in db.query(AdminActionLog).all():
+        assert "dupont" not in str(entree.payload).lower()
+    assert "Triathlon de Nantes" in str(db.query(AdminActionLog).filter_by(entity_id=99).one().payload)
+
+
+def test_today_is_the_club_day_not_the_utc_day():
+    from datetime import datetime
+
+    # 1h05 à Paris le 2 octobre, encore le 1er en UTC.
+    assert opposition_service.club_today(datetime(2026, 10, 1, 23, 5)) == date(2026, 10, 2)
 
 
 def test_apply_cuts_every_other_link_to_the_record(db, course, admin):
@@ -175,6 +226,7 @@ def test_a_future_request_date_is_refused(db, admin):
         opposition_service.apply(db, admin, nom="Dupont", prenom="Jean", requested_on=date(2026, 10, 2), today=TODAY)
 
 
-def test_an_identity_is_required(db, admin):
+@pytest.mark.parametrize(("nom", "prenom"), [(" ", ""), ("Dupont", ""), ("", "Jean")])
+def test_both_name_and_first_name_are_required(db, admin, nom, prenom):
     with pytest.raises(DomainError):
-        opposition_service.apply(db, admin, nom=" ", prenom="", requested_on=TODAY, today=TODAY)
+        opposition_service.apply(db, admin, nom=nom, prenom=prenom, requested_on=TODAY, today=TODAY)
