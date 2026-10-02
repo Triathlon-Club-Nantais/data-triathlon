@@ -16,7 +16,7 @@ La règle de normalisation est **figée ici** plutôt qu'importée de
 `tests/test_migrations.py` vérifie que les deux copies concordent.
 
 Revision ID: b7e41c9d2a58
-Revises: d49e03833de6
+Revises: f2b8d4e61a37
 Create Date: 2026-10-01 16:00:00.000000
 """
 import unicodedata
@@ -27,7 +27,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = 'b7e41c9d2a58'
-down_revision: str | None = 'd49e03833de6'
+down_revision: str | None = 'f2b8d4e61a37'
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
