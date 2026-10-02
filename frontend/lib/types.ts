@@ -650,9 +650,54 @@ export interface AdminUser {
   created_at: string;
 }
 
+/** Épreuve liée à un classement Challenge (#1008). */
+export interface ChallengeCourse {
+  id: number;
+  name: string;
+}
+
+/** Ligne Challenge de la fiche athlète : `GET /athletes/{id}` → `challenges`. */
+export interface AthleteChallenge {
+  id: number;
+  name: string;
+  event_date: string;
+  rank_overall: number | null;
+  /** Nombre de lignes classées du Challenge, pour lire « 1er / 52 ». */
+  ranked_count: number;
+  total_time: string | null;
+  courses: ChallengeCourse[];
+}
+
+/** Challenge auquel compte une épreuve : `GET /courses/{id}/summary` → `challenges`. */
+export interface CourseChallenge {
+  id: number;
+  name: string;
+  ranked_count: number;
+}
+
+export interface ChallengeResult {
+  athlete_id: number;
+  nom: string;
+  prenom: string;
+  rank_overall: number | null;
+  total_time: string | null;
+  status: string;
+}
+
+/** `GET /challenges/{id}` : classement trié par rang, les non classés en fin. */
+export interface ChallengeDetail {
+  id: number;
+  name: string;
+  event_date: string;
+  courses: ChallengeCourse[];
+  results: ChallengeResult[];
+}
+
 export interface AthleteDetail {
   athlete: AthleteBrief;
   participations: Participation[];
+  /** Classements Challenge (#1008), carrière entière quels que soient les filtres. */
+  challenges: AthleteChallenge[];
 }
 
 /** Une ligne de `GET /courses/{id}/sources` — miroir de `CourseSourceOut` (#284). */
@@ -750,6 +795,8 @@ export interface Histogram {
  * garantit que chercher un nom ne fait pas tomber l'histogramme à une barre.
  */
 export interface CourseSummary {
+  /** Classements Challenge auxquels compte l'épreuve (#1008). */
+  challenges: CourseChallenge[];
   total: number;
   finishers: number;
   non_finishers: number;

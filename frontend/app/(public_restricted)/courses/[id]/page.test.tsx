@@ -50,6 +50,7 @@ const COURSE = {
 };
 
 const SUMMARY: CourseSummary = {
+  challenges: [],
   total: 1811,
   finishers: 1768,
   non_finishers: 43,
@@ -348,6 +349,7 @@ describe("CoursePage", () => {
       split_keys: [],
       split_gap_median: null,
       split_gap_rows: 0,
+      challenges: [],
     } satisfies CourseSummary);
 
     const { container } = await afficher();

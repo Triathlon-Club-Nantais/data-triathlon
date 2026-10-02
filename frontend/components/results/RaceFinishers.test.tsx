@@ -68,6 +68,7 @@ function p(over: Partial<Participation> & { id: number; nom: string }): Particip
 
 function synthese(over: Partial<CourseSummary> = {}): CourseSummary {
   return {
+    challenges: [],
     total: 3,
     finishers: 1,
     non_finishers: 2,

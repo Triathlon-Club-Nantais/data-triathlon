@@ -4,6 +4,7 @@ import { errorDetail, toQuery } from "@/lib/api/query";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 import type {
   AthleteDetail,
+  ChallengeDetail,
   AthleteSeasonActivity,
   AuthMethod,
   ClubSummary,
@@ -233,6 +234,7 @@ export const apiServer = {
    * pas (#163).
    */
   getCourseSummary: (id: number) => serverFetch<CourseSummary>(`/courses/${id}/summary`),
+  getChallenge: (id: number) => serverFetch<ChallengeDetail>(`/challenges/${id}`),
   /** Sources connues de l'épreuve, active en tête (#284) — lecture publique (D4). */
   getCourseSources: (id: number) => serverFetch<CourseSource[]>(`/courses/${id}/sources`),
   listEvents: (filters: ParticipationFilters = {}, fetchOpts: FetchOpts = {}) =>

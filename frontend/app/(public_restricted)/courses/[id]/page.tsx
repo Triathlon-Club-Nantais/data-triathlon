@@ -10,6 +10,7 @@ import { RaceFinishers } from "@/components/results/RaceFinishers";
 import { ReliabilityMark, SplitCoverageNote } from "@/components/results/ReliabilityMark";
 import { CourseSourcesPanel } from "@/components/courses/CourseSourcesPanel";
 import { ClubBreakdown } from "@/components/courses/ClubBreakdown";
+import { CourseChallengesNote } from "@/components/challenges/CourseChallengesNote";
 import { eventTypeLabel } from "@/lib/constants";
 import { participationStatusLabel } from "@/lib/labels";
 import { formatToken } from "@/lib/utils/format";
@@ -211,6 +212,8 @@ export default async function CoursePage({
           />
         </Card>
       )}
+
+      <CourseChallengesNote challenges={summary.challenges} />
 
       <RaceFinishers
         participations={participations}

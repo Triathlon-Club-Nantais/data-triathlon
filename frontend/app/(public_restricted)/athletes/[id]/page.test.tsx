@@ -98,7 +98,7 @@ function renderPage(ui: Awaited<ReturnType<typeof AthletePage>>) {
 }
 
 async function renderAthlete(participations: Participation[]) {
-  getAthlete.mockResolvedValue({ athlete: ATHLETE, participations });
+  getAthlete.mockResolvedValue({ athlete: ATHLETE, participations, challenges: [] });
   const ui = await AthletePage({ params: Promise.resolve({ id: "7" }) });
   return renderPage(ui);
 }
@@ -629,6 +629,7 @@ describe("AthletePage — l'en-tête identifie l'athlète (PROF-5, #488)", () =>
     // Un club distinct de « TCN » : la valeur voyage aussi dans la
     // participation, et on veut viser le surtitre sans ambiguïté.
     getAthlete.mockResolvedValue({
+      challenges: [],
       athlete: { ...ATHLETE, club: "Triathlon Club Nantais" },
       participations: [part({ id: 1, rank_overall: 12, category: "V2H" })],
     });
@@ -654,6 +655,7 @@ describe("AthletePage — l'en-tête identifie l'athlète (PROF-5, #488)", () =>
 
   it("retombe sur « Résultats enregistrés » quand l'athlète n'a pas de club", async () => {
     getAthlete.mockResolvedValue({
+      challenges: [],
       athlete: { ...ATHLETE, club: null },
       participations: [part({ id: 1, rank_overall: 12 })],
     });
