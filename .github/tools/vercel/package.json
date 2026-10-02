@@ -1,8 +1,18 @@
 {
   "name": "deploy-tools-vercel",
   "private": true,
-  "description": "CLI Vercel des jobs de déploiement, verrouillée par package-lock.json (#1072).",
+  "description": "CLI Vercel des jobs de déploiement, verrouillée par package-lock.json (#1072). Les overrides forcent les correctifs de sécurité que la CLI épingle en version exacte.",
   "dependencies": {
-    "vercel": "54.21.1"
+    "vercel": "62.2.0"
+  },
+  "overrides": {
+    "ajv@<8.18.0": "^8.20.0",
+    "js-yaml@>=4 <4.3.2": "^4.3.2",
+    "minimatch@>=10 <10.2.6": "^10.2.6",
+    "path-to-regexp@<6.3.0": "^6.3.0",
+    "path-to-regexp@>=8 <8.4.2": "^8.4.2",
+    "smol-toml@<1.9.0": "^1.9.0",
+    "tar@<7.5.22": "^7.5.22",
+    "undici@<6.29.0": "^6.29.0"
   }
 }

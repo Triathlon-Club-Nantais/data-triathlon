@@ -10,6 +10,7 @@ son bandeau de rangs et à ses `div.rd-split`. La page d'épreuve date du
 import logging
 from datetime import date
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import httpx
 import pytest
@@ -597,7 +598,7 @@ def test_scrape_event_all_ignore_un_href_de_fiche_hors_host(monkeypatch):
 
     resultats = t2area.scrape_event_all(URL_EDITION)
 
-    assert not any("evil.example.com" in call for call in client.calls)
+    assert all(urlsplit(call).hostname == "fftri.t2area.com" for call in client.calls)
     assert _par_nom(resultats, "ACCENT").rank_gender is None
 
 
