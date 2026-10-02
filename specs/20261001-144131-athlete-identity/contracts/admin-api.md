@@ -37,7 +37,9 @@ En cas d'identité déjà portée par une autre fiche (clé normalisée ou varia
 
 Modèle : revue des épreuves en doublon (`docs/api/admin-donnees.md`, #288/#754).
 
-### `GET /admin/athletes/identity-review`
+### `GET /admin/identity-review`
+
+Chemin révisé en PR 5b : sous `/admin/athletes/`, la route `/admin/athletes/{athlete_id}` capterait le segment et rendrait 422.
 
 Permission : `athletes:write`. Sans pagination (volume borné : cas du club et reliquat de la reprise).
 
@@ -59,13 +61,13 @@ Permission : `athletes:write`. Sans pagination (volume borné : cas du club et r
 }
 ```
 
-`reason` ∈ `same_course_bibs`, `club_homonym`, `swapped`, `concatenated`, `alias_collision`. Pour `same_course_bibs`, `athletes` porte une seule fiche ; pour les autres, deux. Ordre stable (raison, puis plus petit id).
+`reason` ∈ `same_course_bibs`, `club_homonym`, `swapped`, `concatenated`, `alias_collision`. Pour `same_course_bibs`, `athletes` porte une seule fiche ; pour les autres, deux (trois homonymes du club donnent un cas par paire). Une paire n'apparaît qu'une fois, sous le premier motif. Ordre stable (raison, puis plus petit id).
 
-### `GET /admin/athletes/identity-review/count`
+### `GET /admin/identity-review/count`
 
 Permission : `athletes:write`. `{"total": 12}`, pour le badge de navigation.
 
-### `POST /admin/athletes/identity-review/ignore`
+### `POST /admin/identity-review/ignore`
 
 Permission : `athletes:write`. Corps `{"athlete_id_a": 1, "athlete_id_b": 2}` (`StrictInt`).
 
