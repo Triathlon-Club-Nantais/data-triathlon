@@ -4,7 +4,7 @@ Classements Challenge (#1008) : `challenges`, `challenge_courses` (liens vers N
 épreuves) et `challenge_results`, hors de `participations` par construction.
 
 Revision ID: c1a11e9e1008
-Revises: f2b8d4e61a37
+Revises: e1f3a5c7b9d2
 Create Date: 2026-10-02 18:00:00.000000
 """
 from typing import Sequence, Union
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 
 revision: str = 'c1a11e9e1008'
-down_revision: Union[str, None] = 'f2b8d4e61a37'
+down_revision: Union[str, None] = 'e1f3a5c7b9d2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

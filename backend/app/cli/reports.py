@@ -232,6 +232,7 @@ def render_reconciliation_report(report: dict) -> str:
             if operations else "Rien à faire."
         )
     lignes.append(f"{len(report.get('review', []))} cas laissé(s) en revue (/admin/identites).")
+    return "\n".join(lignes)
 
 
 def render_challenge_requalification_report(rows: list[dict], *, converted: bool) -> str:
