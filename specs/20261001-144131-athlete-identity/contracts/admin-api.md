@@ -61,7 +61,7 @@ Permission : `athletes:write`. Sans pagination (volume borné : cas du club et r
 }
 ```
 
-`reason` ∈ `same_course_bibs`, `club_homonym`, `swapped`, `concatenated`, `alias_collision`. Pour `same_course_bibs`, `athletes` porte une seule fiche ; pour les autres, deux. Ordre stable (raison, puis plus petit id).
+`reason` ∈ `same_course_bibs`, `club_homonym`, `swapped`, `concatenated`, `alias_collision`. Pour `same_course_bibs`, `athletes` porte une seule fiche ; pour les autres, deux (trois homonymes du club donnent un cas par paire). Une paire n'apparaît qu'une fois, sous le premier motif. Ordre stable (raison, puis plus petit id).
 
 ### `GET /admin/identity-review/count`
 

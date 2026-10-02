@@ -122,20 +122,28 @@ succès muet, sans confirmer ce qu'elle avait détruit.
 
 Cinq motifs, calculés à la volée depuis les données (aucune table de cas) :
 
-- `same_course_bibs` : une fiche portant deux résultats sur une même épreuve
-  individuelle, quand la fiche ou l'un de ces résultats relève du club. Ne
-  s'écarte pas : il se règle par réattribution.
-- `club_homonym` : des homonymes distingués dont l'un relève du club (hors club,
-  la mention `homonyms_created` du rapport d'import suffit).
+- `same_course_bibs` : une fiche portant deux dossards distincts sur une même
+  épreuve individuelle, quand la fiche ou l'un de ces résultats relève du club
+  (deux lignes sans dossard ne prouvent pas deux coureurs). Ne s'écarte pas : il
+  se règle par réattribution.
+- `club_homonym` : une **paire** d'homonymes distingués dont l'un relève du club
+  (hors club, la mention `homonyms_created` du rapport d'import suffit) ; trois
+  homonymes du club donnent un cas par paire, chacun écartable.
 - `swapped`, `concatenated` : nom et prénom inversés, ou nom complet face à une
   fiche découpée, **seulement** quand la reprise ne les fusionnerait pas d'elle-même
-  (`recovery_would_merge` : même club ou même genre, renseigné des deux côtés, et
-  jamais une même épreuve).
+  (`recovery_would_merge` : même club ou même genre, renseigné des deux côtés,
+  jamais une même épreuve, porteur ou équipier, et aucun refus de la fusion :
+  deux comptes membres, un même résultat, deux dates de naissance). Une clé qui
+  porte un chiffre (équipe numérotée, `?DOSSARD #n`, `Anonyme …`) n'est pas une
+  personne et n'y figure pas.
 - `alias_collision` : une fiche principale recréée sur une graphie qu'une fusion
   avait rattachée à une autre.
 
+Une paire n'est listée qu'une fois, sous le premier motif qui la retient.
 Chaque cas porte les fiches (identité, club, genre, catégories, nombre de
-résultats, rang d'homonyme) et les épreuves en conflit avec leurs lignes.
+résultats, rang d'homonyme) et les épreuves en conflit avec leurs lignes. Le
+compte (`/count`) ne charge pas ce détail : quatre requêtes de faits par paire
+pour toutes les paires, sans les résultats complets.
 
 ## Journal d'administration, en lecture (#501)
 

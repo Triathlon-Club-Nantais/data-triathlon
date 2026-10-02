@@ -118,9 +118,10 @@ def test_a_concatenated_pair_is_listed(db_session):
 
 
 def test_a_principal_record_on_a_variant_of_another_one_is_listed(db_session):
-    kept = _athlete(db_session, "DUPONT", "Jean")
+    """Même club des deux côtés : la règle de la reprise ne s'applique pas à ce motif."""
+    kept = _athlete(db_session, "DUPONT", "Jean", club="CLUB", gender="M")
     db_session.add(AthleteAlias(last_name_key="dupomt", first_name_key="jean", athlete_id=kept.id))
-    recreated = _athlete(db_session, "DUPOMT", "Jean")
+    recreated = _athlete(db_session, "DUPOMT", "Jean", club="CLUB", gender="M")
 
     assert _reasons(db_session) == [("alias_collision", [kept.id, recreated.id])]
 
@@ -170,7 +171,108 @@ def test_the_recovery_signal_rule_needs_values_on_both_sides():
     """Q3, A1 : même club ou même genre, renseigné des deux côtés, et jamais une même épreuve."""
     signals = athlete_identity_review.recovery_would_merge
 
-    assert signals(Athlete(club="Club ", gender=""), Athlete(club="club", gender="M"), shared_course=False)
-    assert signals(Athlete(club=None, gender="F"), Athlete(club="", gender="F"), shared_course=False)
-    assert not signals(Athlete(club=None, gender=""), Athlete(club=None, gender=""), shared_course=False)
-    assert not signals(Athlete(club="A", gender="M"), Athlete(club="A", gender="M"), shared_course=True)
+    assert signals(Athlete(club="Club ", gender=""), Athlete(club="club", gender="M"), shared_course=False, blocked=False)
+    assert signals(Athlete(club=None, gender="F"), Athlete(club="", gender="F"), shared_course=False, blocked=False)
+    assert not signals(Athlete(club=None, gender=""), Athlete(club=None, gender=""), shared_course=False, blocked=False)
+    assert not signals(Athlete(club="A", gender="M"), Athlete(club="A", gender="M"), shared_course=True, blocked=False)
+    assert not signals(Athlete(club="A", gender="M"), Athlete(club="A", gender="M"), shared_course=False, blocked=True)
+
+
+
+def test_two_bibless_results_of_one_club_record_are_not_listed(db_session):
+    member = _athlete(db_session, "MARTIN", "Thomas", club=TCN)
+    course = _course(db_session)
+    _result(db_session, member, course, None)
+    _result(db_session, member, course, None)
+
+    assert _reasons(db_session) == []
+
+
+def test_a_relay_is_never_a_two_bib_case(db_session):
+    member = _athlete(db_session, "MARTIN", "Thomas", club=TCN)
+    relay = _course(db_session, "Relais", is_relay=True)
+    _result(db_session, member, relay, "1")
+    _result(db_session, member, relay, "2")
+
+    assert _reasons(db_session) == []
+
+
+def test_a_club_homonym_is_listed_when_the_club_member_is_the_homonym(db_session):
+    principal = _athlete(db_session, "MARTIN", "Thomas")
+    homonym = _athlete(db_session, "MARTIN", "Thomas", homonym_rank=1, club=TCN)
+
+    assert _reasons(db_session) == [("club_homonym", [principal.id, homonym.id])]
+
+
+def test_three_homonyms_give_one_case_per_pair_and_each_can_be_set_aside(db_session):
+    member = _athlete(db_session, "MARTIN", "Thomas", club=TCN)
+    second = _athlete(db_session, "MARTIN", "Thomas", homonym_rank=1)
+    third = _athlete(db_session, "MARTIN", "Thomas", homonym_rank=2)
+    admin = user_repository.create(db_session, email="admin@exemple.fr")
+
+    assert _reasons(db_session) == [
+        ("club_homonym", [member.id, second.id]), ("club_homonym", [member.id, third.id]),
+    ]
+    for other in (second, third):
+        athlete_identity_review.ignore_pair(db_session, athlete_id_a=member.id, athlete_id_b=other.id, user_id=admin.id)
+    assert _reasons(db_session) == []
+
+
+def test_a_concatenated_pair_the_recovery_will_merge_is_not_listed(db_session):
+    _athlete(db_session, "DUPONT", "Jean", club="CLUB")
+    _athlete(db_session, "DUPONT JEAN", "", club="club")
+
+    assert _reasons(db_session) == []
+
+
+def test_a_pair_the_merge_would_refuse_stays_listed_despite_agreeing_signals(db_session):
+    """Deux comptes membres : la reprise ne pourra pas fusionner, la paire reste en revue."""
+    first = _athlete(db_session, "DUPONT", "Jean", club="CLUB", gender="M")
+    second = _athlete(db_session, "JEAN", "Dupont", club="CLUB", gender="M")
+    for athlete, email in [(first, "a@x.fr"), (second, "b@x.fr")]:
+        user_repository.create(db_session, email=email).athlete_id = athlete.id
+    db_session.flush()
+
+    assert _reasons(db_session) == [("swapped", [first.id, second.id])]
+
+
+def test_a_pair_on_one_relay_counts_as_a_shared_race(db_session):
+    first = _athlete(db_session, "DUPONT", "Jean", club="CLUB")
+    second = _athlete(db_session, "JEAN", "Dupont", club="CLUB")
+    relay = _result(db_session, first, _course(db_session, "Relais", is_relay=True), "9")
+    participation_repository.replace_teammates(db_session, relay, [first.id, second.id])
+
+    assert _reasons(db_session) == [("swapped", [first.id, second.id])]
+
+
+def test_a_pair_is_listed_once_under_its_first_reason(db_session):
+    kept = _athlete(db_session, "DUPONT", "Jean", club="A", gender="M")
+    db_session.add(AthleteAlias(last_name_key="jean", first_name_key="dupont", athlete_id=kept.id))
+    recreated = _athlete(db_session, "JEAN", "Dupont", club="B", gender="F")
+
+    assert _reasons(db_session) == [("swapped", [kept.id, recreated.id])]
+
+
+def test_numbered_or_placeholder_records_are_left_out_of_swapped_and_concatenated(db_session):
+    _athlete(db_session, "CIC", "7", club="A")
+    _athlete(db_session, "7", "Cic", club="B")
+    _athlete(db_session, "DOSSARD", "12", club="A")
+    _athlete(db_session, "DOSSARD 12", "", club="B")
+
+    assert _reasons(db_session) == []
+
+
+def test_cases_of_one_reason_come_by_smallest_id(db_session):
+    late = _athlete(db_session, "ZORRO", "Ana", club="A", gender="M")
+    early_twin = _athlete(db_session, "ANA", "Zorro", club="B", gender="F")
+    other = _athlete(db_session, "BERT", "Luc", club="A", gender="M")
+    other_twin = _athlete(db_session, "LUC", "Bert", club="B", gender="F")
+
+    assert _reasons(db_session) == [("swapped", [late.id, early_twin.id]), ("swapped", [other.id, other_twin.id])]
+
+
+def test_the_count_matches_the_list(db_session):
+    _athlete(db_session, "DUPONT", "Jean", club="A", gender="M")
+    _athlete(db_session, "JEAN", "Dupont", club="B", gender="F")
+
+    assert athlete_identity_review.count(db_session) == len(athlete_identity_review.find_candidates(db_session)) == 1

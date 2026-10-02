@@ -1,6 +1,7 @@
 """Accès données pour Athlete — seule couche qui touche la Session pour cette table."""
 from collections.abc import Sequence
 from datetime import date
+from typing import NamedTuple
 
 from sqlalchemy import (
     and_,
@@ -967,23 +968,27 @@ def _club_flag(column):
     return func.max(case((tcn_clause(column), 1), else_=0)) == 1
 
 
-def club_records_with_two_results_on_a_race(db: Session) -> list[tuple[int, int]]:
-    """`(athlete_id, course_id)` : une fiche portant deux résultats ou plus sur une
-    même épreuve individuelle, quand la fiche ou l'un de ces résultats relève du club."""
+def club_records_with_two_bibs_on_a_race(db: Session) -> list[tuple[int, int]]:
+    """`(athlete_id, course_id)` : une fiche portant deux dossards distincts sur une
+    même épreuve individuelle, quand la fiche ou l'un de ces résultats relève du
+    club. Deux lignes sans dossard ne comptent pas : rien ne prouve deux coureurs."""
     rows = db.execute(
         select(Participation.athlete_id, Participation.course_id)
         .join(Course, Course.id == Participation.course_id)
         .join(Athlete, Athlete.id == Participation.athlete_id)
         .where(Course.is_relay.is_(False), Participation.is_relay.is_(False))
         .group_by(Participation.athlete_id, Participation.course_id)
-        .having(func.count() > 1, or_(_club_flag(Athlete.club), _club_flag(Participation.club)))
+        .having(
+            func.count(func.distinct(Participation.bib_number)) > 1,
+            or_(_club_flag(Athlete.club), _club_flag(Participation.club)),
+        )
     )
     return [tuple(row) for row in rows]
 
 
-def homonym_groups_touching_the_club(db: Session) -> list[list[int]]:
-    """Les fiches d'une clé qui a des homonymes distingués, par groupe, quand l'une
-    d'elles relève du club (fiche ou résultat). Rang croissant dans chaque groupe."""
+def homonym_groups(db: Session) -> list[tuple[list[int], set[int]]]:
+    """Les fiches d'une clé qui a des homonymes distingués, par groupe (rang croissant),
+    avec celles du groupe qui relèvent du club (fiche ou l'un de ses résultats)."""
     keyed = (
         select(Athlete.last_name_key, Athlete.first_name_key)
         .where(Athlete.homonym_rank > 0)
@@ -991,7 +996,7 @@ def homonym_groups_touching_the_club(db: Session) -> list[list[int]]:
         .subquery()
     )
     members = db.execute(
-        select(Athlete.id, Athlete.last_name_key, Athlete.first_name_key, Athlete.club)
+        select(Athlete.id, Athlete.last_name_key, Athlete.first_name_key)
         .join(keyed, and_(
             keyed.c.last_name_key == Athlete.last_name_key, keyed.c.first_name_key == Athlete.first_name_key
         ))
@@ -999,26 +1004,31 @@ def homonym_groups_touching_the_club(db: Session) -> list[list[int]]:
     ).all()
     if not members:
         return []
-    with_club_results = set(db.scalars(
+    ids = [member.id for member in members]
+    touching = set(db.scalars(
         select(Participation.athlete_id)
-        .where(Participation.athlete_id.in_([m.id for m in members]), tcn_clause(Participation.club))
+        .where(Participation.athlete_id.in_(ids), tcn_clause(Participation.club))
         .distinct()
-    ))
-    with_club_record = set(db.scalars(
-        select(Athlete.id).where(Athlete.id.in_([m.id for m in members]), tcn_clause(Athlete.club))
-    ))
+    )) | set(db.scalars(select(Athlete.id).where(Athlete.id.in_(ids), tcn_clause(Athlete.club))))
     groups: dict[tuple[str, str], list[int]] = {}
     for member in members:
         groups.setdefault((member.last_name_key, member.first_name_key), []).append(member.id)
-    touching = with_club_results | with_club_record
-    return [ids for ids in groups.values() if touching.intersection(ids)]
+    return [(group, touching.intersection(group)) for group in groups.values()]
+
+
+def _has_digit(*keys: str) -> bool:
+    return any(character.isdigit() for key in keys for character in key)
 
 
 def swapped_pairs(db: Session) -> list[tuple[int, int]]:
-    """Paires de fiches principales dont le nom et le prénom sont inversés (#908)."""
+    """Paires de fiches principales dont le nom et le prénom sont inversés (#908).
+
+    Une clé qui porte un chiffre (équipe numérotée, bouche-trou `?DOSSARD #n`,
+    `Anonyme <épreuve>-<dossard>`) n'est pas une personne : la reprise les ignore,
+    la revue aussi."""
     other = aliased(Athlete)
     rows = db.execute(
-        select(Athlete.id, other.id)
+        select(Athlete.id, other.id, Athlete.last_name_key, Athlete.first_name_key)
         .join(other, and_(
             other.last_name_key == Athlete.first_name_key,
             other.first_name_key == Athlete.last_name_key,
@@ -1029,24 +1039,28 @@ def swapped_pairs(db: Session) -> list[tuple[int, int]]:
             Athlete.first_name_key != "", Athlete.first_name_key != Athlete.last_name_key,
         )
     )
-    return [tuple(row) for row in rows]
+    return [(first, second) for first, second, last, given in rows if not _has_digit(last, given)]
 
 
 def concatenated_pairs(db: Session) -> list[tuple[int, int]]:
-    """`(fiche découpée, fiche au nom complet sans prénom)` dont les clés se recouvrent (#908)."""
+    """`(fiche découpée, fiche au nom complet sans prénom)` dont les clés se recouvrent (#908).
+
+    Deux requêtes plutôt qu'un `OR` : chacune joint sur une égalité, que l'index
+    d'expression de la concaténation sert (`ix_athletes_identity_last_first` et
+    `_first_last`)."""
     whole = aliased(Athlete)
-    rows = db.execute(
-        select(Athlete.id, whole.id)
-        .join(whole, or_(
-            whole.last_name_key == Athlete.last_name_key + Athlete.first_name_key,
-            whole.last_name_key == Athlete.first_name_key + Athlete.last_name_key,
-        ))
-        .where(
-            Athlete.homonym_rank == 0, whole.homonym_rank == 0,
-            Athlete.first_name_key != "", whole.first_name_key == "",
+    pairs: set[tuple[int, int]] = set()
+    for joined in (Athlete.last_name_key + Athlete.first_name_key, Athlete.first_name_key + Athlete.last_name_key):
+        rows = db.execute(
+            select(Athlete.id, whole.id, whole.last_name_key)
+            .join(whole, whole.last_name_key == joined)
+            .where(
+                Athlete.homonym_rank == 0, whole.homonym_rank == 0,
+                Athlete.first_name_key != "", whole.first_name_key == "",
+            )
         )
-    )
-    return [tuple(row) for row in rows]
+        pairs.update((split, full) for split, full, key in rows if not _has_digit(key))
+    return sorted(pairs)
 
 
 def alias_collisions(db: Session) -> list[tuple[int, int]]:
@@ -1061,6 +1075,47 @@ def alias_collisions(db: Session) -> list[tuple[int, int]]:
         .where(Athlete.homonym_rank == 0, Athlete.id != AthleteAlias.athlete_id)
     )
     return [tuple(row) for row in rows]
+
+
+class PairFacts(NamedTuple):
+    shared_courses: list[int]
+    blocked: bool
+
+
+def pair_facts(db: Session, pairs: Sequence[tuple[int, int]]) -> dict[tuple[int, int], PairFacts]:
+    """Pour chaque paire : les épreuves où les deux figurent (porteur ou équipier),
+    et si la fusion la refuserait pour une autre raison qu'une épreuve commune
+    (deux comptes membres, un même résultat, deux dates de naissance), les mêmes
+    refus que `athlete_merge`. Quatre requêtes pour toutes les paires."""
+    ids = {athlete_id for pair in pairs for athlete_id in pair}
+    if not ids:
+        return {}
+    memberships = select(Participation.id, Participation.course_id, Participation.athlete_id).where(
+        Participation.athlete_id.in_(ids)
+    ).union_all(
+        select(Participation.id, Participation.course_id, ParticipationTeammate.athlete_id)
+        .join(ParticipationTeammate, ParticipationTeammate.participation_id == Participation.id)
+        .where(ParticipationTeammate.athlete_id.in_(ids))
+    )
+    courses: dict[int, set[int]] = {}
+    results: dict[int, set[int]] = {}
+    for participation_id, course_id, athlete_id in db.execute(memberships):
+        courses.setdefault(athlete_id, set()).add(course_id)
+        results.setdefault(athlete_id, set()).add(participation_id)
+    with_account = set(db.scalars(select(User.athlete_id).where(User.athlete_id.in_(ids)).distinct()))
+    birth_dates = {athlete_id: born for athlete_id, born in db.execute(select(Athlete.id, Athlete.birth_date).where(Athlete.id.in_(ids)))}
+    facts = {}
+    for first, second in pairs:
+        dates = (birth_dates.get(first), birth_dates.get(second))
+        facts[(first, second)] = PairFacts(
+            shared_courses=sorted(courses.get(first, set()) & courses.get(second, set())),
+            blocked=(
+                (first in with_account and second in with_account)
+                or bool(results.get(first, set()) & results.get(second, set()))
+                or (None not in dates and dates[0] != dates[1])
+            ),
+        )
+    return facts
 
 
 def review_details(db: Session, athlete_ids: Sequence[int]) -> tuple[dict[int, Athlete], list]:
@@ -1081,3 +1136,9 @@ def review_details(db: Session, athlete_ids: Sequence[int]) -> tuple[dict[int, A
     ).all()
     return athletes, results
 
+
+def get_many(db: Session, athlete_ids: Sequence[int]) -> dict[int, Athlete]:
+    ids = set(athlete_ids)
+    if not ids:
+        return {}
+    return {athlete.id: athlete for athlete in db.query(Athlete).filter(Athlete.id.in_(ids))}

@@ -41,7 +41,7 @@ def count_identity_cases(
     _: User = Depends(require_permission(P.ATHLETES_WRITE)),
 ) -> IdentityReviewCount:
     """La taille de la liste, pour la pastille de la nav. Même garde que la liste."""
-    return IdentityReviewCount(total=len(athlete_identity_review.find_candidates(db)))
+    return IdentityReviewCount(total=athlete_identity_review.count(db))
 
 
 @router.post("/admin/identity-review/ignore", response_model=IdentityPairIgnoreOut, status_code=201)

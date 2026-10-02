@@ -4,12 +4,13 @@ Calculés à la volée depuis les données, sur le modèle des épreuves en doub
 (`course_duplicates`) : aucune table de cas à tenir synchrone, seulement les
 paires qu'un admin a écartées (`ignored_athlete_pairs`).
 
-Cinq motifs, dans cet ordre :
+Cinq motifs, dans cet ordre de priorité (une paire n'est listée qu'une fois,
+sous le premier motif qui la retient) :
 
-- `same_course_bibs` : une fiche du club porte deux résultats sur une même
+- `same_course_bibs` : une fiche du club porte deux dossards sur une même
   épreuve individuelle (deux personnes fusionnées avant #967) ;
-- `club_homonym` : des homonymes distingués dont l'un relève du club (Q1 : hors
-  club, la mention au rapport d'import suffit) ;
+- `club_homonym` : une paire d'homonymes distingués dont l'un relève du club
+  (Q1 : hors club, la mention au rapport d'import suffit) ;
 - `swapped`, `concatenated` : nom et prénom inversés, ou nom complet face à une
   fiche découpée, que la reprise ne fusionnerait pas d'elle-même
   (`recovery_would_merge`, Q3) ;
@@ -17,6 +18,7 @@ Cinq motifs, dans cet ordre :
   rattachée à une autre.
 """
 from collections import defaultdict
+from itertools import combinations
 
 from sqlalchemy.orm import Session
 
@@ -27,7 +29,7 @@ from app.repositories import athlete_repository, ignored_athlete_pair_repository
 from app.services import audit
 
 REASONS = {
-    "same_course_bibs": "Deux résultats sur une même épreuve",
+    "same_course_bibs": "Deux dossards sur une même épreuve",
     "club_homonym": "Homonymes, dont un du club",
     "swapped": "Nom et prénom inversés",
     "concatenated": "Nom complet face à une fiche découpée",
@@ -35,15 +37,69 @@ REASONS = {
 }
 
 
-def recovery_would_merge(first: Athlete, second: Athlete, *, shared_course: bool) -> bool:
-    """La règle de fusion automatique de la reprise (Q3) : même club ou même genre,
-    renseigné des deux côtés, et jamais sur une même épreuve. Deux valeurs vides ne
-    sont pas un signal."""
-    if shared_course:
+def recovery_would_merge(first: Athlete, second: Athlete, *, shared_course: bool, blocked: bool) -> bool:
+    """La règle de fusion automatique de la reprise (Q3), partagée avec elle.
+
+    Même club ou même genre, renseigné des deux côtés (deux valeurs vides ne sont
+    pas un signal), jamais sur une même épreuve, et aucun des refus de la fusion
+    (`blocked`, cf. `athlete_repository.pair_facts`) : une paire que la fusion
+    refuserait reste en revue au lieu de disparaître de tous les circuits.
+    """
+    if shared_course or blocked:
         return False
     same_club = bool(normalize_club(first.club)) and normalize_club(first.club) == normalize_club(second.club)
     same_gender = bool(first.gender) and first.gender == second.gender
     return same_club or same_gender
+
+
+def _cases(db: Session) -> list[tuple[str, list[int], list[int]]]:
+    """`(motif, fiches, épreuves en conflit)`, dans l'ordre stable de la liste."""
+    ignored = ignored_athlete_pair_repository.all_pairs(db)
+    seen_pairs: set[tuple[int, int]] = set()
+    cases: list[tuple[int, int, str, list[int], list[int]]] = []
+
+    def keep_pair(first: int, second: int) -> bool:
+        pair = ignored_athlete_pair_repository.normalized(first, second)
+        if pair in ignored or pair in seen_pairs:
+            return False
+        seen_pairs.add(pair)
+        return True
+
+    courses_by_athlete: dict[int, list[int]] = defaultdict(list)
+    for athlete_id, course_id in athlete_repository.club_records_with_two_bibs_on_a_race(db):
+        courses_by_athlete[athlete_id].append(course_id)
+    for athlete_id, courses in courses_by_athlete.items():
+        cases.append((0, athlete_id, "same_course_bibs", [athlete_id], sorted(courses)))
+
+    for group, touching in athlete_repository.homonym_groups(db):
+        for first, second in combinations(group, 2):
+            if (first in touching or second in touching) and keep_pair(first, second):
+                cases.append((1, min(first, second), "club_homonym", [first, second], []))
+
+    pairs = {
+        "swapped": athlete_repository.swapped_pairs(db),
+        "concatenated": athlete_repository.concatenated_pairs(db),
+        "alias_collision": athlete_repository.alias_collisions(db),
+    }
+    all_pairs = [pair for found in pairs.values() for pair in found]
+    facts = athlete_repository.pair_facts(db, all_pairs)
+    athletes = athlete_repository.get_many(db, [i for pair in all_pairs for i in pair])
+    for order, reason in enumerate(pairs, start=2):
+        for first, second in pairs[reason]:
+            fact = facts[(first, second)]
+            if reason != "alias_collision" and recovery_would_merge(
+                athletes[first], athletes[second], shared_course=bool(fact.shared_courses), blocked=fact.blocked
+            ):
+                continue
+            if keep_pair(first, second):
+                cases.append((order, min(first, second), reason, [first, second], fact.shared_courses))
+
+    return [(reason, ids, courses) for _, _, reason, ids, courses in sorted(cases, key=lambda case: case[:2])]
+
+
+def count(db: Session) -> int:
+    """La taille de la liste, sans charger le détail des fiches ni de leurs résultats."""
+    return len(_cases(db))
 
 
 def _brief(athlete: Athlete, results: list) -> dict:
@@ -59,82 +115,38 @@ def _brief(athlete: Athlete, results: list) -> dict:
     }
 
 
-def _conflicts(courses: list[int], results_by_course: dict[int, list]) -> list[dict]:
-    conflicts = []
-    for course_id in courses:
-        rows = results_by_course[course_id]
-        conflicts.append({
-            "course_id": course_id,
-            "course_name": rows[0].name,
-            "event_date": rows[0].event_date,
-            "entries": [
-                {
-                    "participation_id": row.id, "athlete_id": row.athlete_id, "bib": row.bib_number,
-                    "category": row.category, "total_time": row.total_time,
-                }
-                for row in rows
-            ],
-        })
-    return conflicts
-
-
 def find_candidates(db: Session) -> list[dict]:
-    """Les cas à trancher, dans un ordre stable : par motif, puis par plus petit id."""
-    two_results = athlete_repository.club_records_with_two_results_on_a_race(db)
-    homonyms = athlete_repository.homonym_groups_touching_the_club(db)
-    pairs = {
-        "swapped": athlete_repository.swapped_pairs(db),
-        "concatenated": athlete_repository.concatenated_pairs(db),
-        "alias_collision": athlete_repository.alias_collisions(db),
-    }
-    ids = {athlete_id for athlete_id, _ in two_results} | {i for group in homonyms for i in group}
-    ids |= {i for found in pairs.values() for pair in found for i in pair}
-    athletes, results = athlete_repository.review_details(db, list(ids))
+    """Les cas à trancher, avec leurs fiches et les épreuves en conflit."""
+    cases = _cases(db)
+    athletes, results = athlete_repository.review_details(db, [i for _, ids, _ in cases for i in ids])
     by_athlete: dict[int, list] = defaultdict(list)
     for row in results:
         by_athlete[row.athlete_id].append(row)
-    ignored = ignored_athlete_pair_repository.all_pairs(db)
 
-    candidates: list[tuple[int, int, dict]] = []
-
-    def add(reason: str, athlete_ids: list[int], conflict_courses: list[int]) -> None:
-        on_courses: dict[int, list] = defaultdict(list)
-        for athlete_id in athlete_ids:
-            for row in by_athlete[athlete_id]:
-                if row.course_id in conflict_courses:
-                    on_courses[row.course_id].append(row)
-        candidates.append((list(REASONS).index(reason), min(athlete_ids), {
+    candidates = []
+    for reason, ids, courses in cases:
+        conflicts = []
+        for course_id in courses:
+            rows = [row for athlete_id in ids for row in by_athlete[athlete_id] if row.course_id == course_id]
+            conflicts.append({
+                "course_id": course_id,
+                "course_name": rows[0].name,
+                "event_date": rows[0].event_date,
+                "entries": [
+                    {
+                        "participation_id": row.id, "athlete_id": row.athlete_id, "bib": row.bib_number,
+                        "category": row.category, "total_time": row.total_time,
+                    }
+                    for row in rows
+                ],
+            })
+        candidates.append({
             "reason": reason,
             "reason_label": REASONS[reason],
-            "athletes": [_brief(athletes[i], by_athlete[i]) for i in athlete_ids],
-            "conflicts": _conflicts(sorted(conflict_courses), on_courses),
-        }))
-
-    courses_by_athlete: dict[int, list[int]] = defaultdict(list)
-    for athlete_id, course_id in two_results:
-        courses_by_athlete[athlete_id].append(course_id)
-    for athlete_id, courses in courses_by_athlete.items():
-        add("same_course_bibs", [athlete_id], courses)
-
-    for group in homonyms:
-        if len(group) == 2 and ignored_athlete_pair_repository.normalized(*group) in ignored:
-            continue
-        add("club_homonym", group, [])
-
-    for reason, found in pairs.items():
-        for first_id, second_id in found:
-            if ignored_athlete_pair_repository.normalized(first_id, second_id) in ignored:
-                continue
-            shared = sorted(
-                {row.course_id for row in by_athlete[first_id]} & {row.course_id for row in by_athlete[second_id]}
-            )
-            if reason != "alias_collision" and recovery_would_merge(
-                athletes[first_id], athletes[second_id], shared_course=bool(shared)
-            ):
-                continue
-            add(reason, [first_id, second_id], shared)
-
-    return [candidate for _, _, candidate in sorted(candidates, key=lambda item: item[:2])]
+            "athletes": [_brief(athletes[i], by_athlete[i]) for i in ids],
+            "conflicts": conflicts,
+        })
+    return candidates
 
 
 def ignore_pair(db: Session, *, athlete_id_a: int, athlete_id_b: int, user_id: int) -> dict:
