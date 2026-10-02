@@ -12,6 +12,7 @@ from app.core.validation import validated_clause
 from app.models.absorbed_course import AbsorbedCourse
 from app.models.course import Course
 from app.models.course_source import CourseSource
+from app.models.participation import Participation
 from app.repositories import ignored_course_duplicate_repository
 from app.repositories.athlete_repository import escape_like, unaccent_like
 
@@ -794,3 +795,19 @@ def update_identity(db: Session, course: Course, **champs) -> Course:
         setattr(course, nom_champ, valeur)
     db.flush()
     return course
+
+
+def list_named_like(db: Session, fragment: str) -> list[Course]:
+    """Épreuves dont le nom contient `fragment`, casse ignorée, résultats et athlètes chargés."""
+    return (
+        db.query(Course)
+        .options(selectinload(Course.participations).selectinload(Participation.athlete))
+        .filter(func.lower(Course.name).contains(fragment.lower()))
+        .order_by(Course.id)
+        .all()
+    )
+
+
+def list_named_on(db: Session, name: str, event_date: date | None) -> list[Course]:
+    """Épreuves de ce nom à cette date, tous types et relais confondus."""
+    return db.query(Course).filter(Course.name == name, Course.event_date == event_date).all()

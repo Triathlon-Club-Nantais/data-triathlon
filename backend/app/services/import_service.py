@@ -50,8 +50,9 @@ from app.scrapers.base import (
     FanoutTrace,
     ScrapedResult,
 )
-from app.scrapers.utils import is_masked_name, split_relay_teammates, to_seconds
-from app.services import cache, course_reconciliation, mapping, quality
+from app.scrapers.utils import heat_is_challenge, is_masked_name, split_relay_teammates, to_seconds
+from app.services import cache, challenge_service, course_reconciliation, mapping, quality
+from app.services.challenge_service import ChallengeRow
 from app.services.deadlock import deadlock_retries
 
 logger = logging.getLogger(__name__)
@@ -670,6 +671,7 @@ class _Persister:
         self.updated = 0
         self.skipped = 0
         self.reconciled = 0
+        self.challenges = 0
         self.reassignments: list[Reassignment] = []
         # Lignes dont le repli d'identité a trouvé plusieurs fiches (#908) : une
         # fiche est créée, rien n'est deviné, l'admin tranche.
@@ -1439,6 +1441,9 @@ class _Persister:
         for course_id, splits in self._pending_splits.items():
             self._pending[course_id] = splits
             self._resolve_pending(course_id)
+        # Un second passage (lignes Challenge rendues au flux normal, #1008) ne
+        # doit pas résoudre deux fois les mêmes découpages.
+        self._pending_splits.clear()
         if self._athlete_updates:
             athlete_repository.apply_updates(
                 self.db, [self._athlete_updates[aid] for aid in sorted(self._athlete_updates)]
@@ -1733,6 +1738,52 @@ def _renumber_duplicate_ranks(results: list[ScrapedResult]) -> None:
             scraped.rank_overall = local_rank
 
 
+def _persist_challenges(
+    db: Session, url: str, held: list[ScrapedResult], persister: "_Persister"
+) -> list[ScrapedResult]:
+    """Enregistre les heats Challenge appariés (#1008) ; rend les lignes des autres.
+
+    Après `finalize` : l'appariement lit en base les participations du jour,
+    celles de ce lot comprises. Un heat qui échoue au test redevient une épreuve.
+    """
+    groups: dict[tuple, list[ScrapedResult]] = {}
+    for scraped in held:
+        groups.setdefault((scraped.event_name, scraped.event_date), []).append(scraped)
+    leftovers: list[ScrapedResult] = []
+    for (name, event_date), rows in groups.items():
+        challenge_rows = [ChallengeRow.from_scraped(r) for r in rows]
+        found = challenge_service.match(db, challenge_rows, event_date=event_date)
+        if found is None:
+            leftovers.extend(rows)
+            continue
+        challenge_service.save(
+            db, name=name, event_date=event_date,
+            source_url=rows[0].source_url or url, rows=challenge_rows, found=found,
+        )
+        persister.challenges += 1
+        _drop_course_twin(db, name, event_date)
+    return leftovers
+
+
+def _drop_course_twin(db: Session, name: str, event_date) -> None:
+    """Supprime l'épreuve qu'un import antérieur a tirée du même heat, faute
+    d'épreuves sœurs à l'époque : sinon le heat compterait deux fois (#1008)."""
+    for course in course_repository.list_named_on(db, name, event_date):
+        logger.info("Course %s replaced by the challenge of the same heat: %s", course.id, name)
+        candidates = athlete_repository.only_on_course(db, course.id)
+        course_repository.delete(db, course)
+        db.flush()
+        athlete_repository.delete_orphans_among(db, candidates)
+
+
+def _prepare_batch(db: Session, url: str, results: list[ScrapedResult]) -> None:
+    """Les rattrapages de lot, dans leur ordre, avant la première ligne écrite."""
+    _redate_heats(db, results)
+    _reclassify_heats(db, url, results)
+    _renumber_duplicate_ranks(results)
+    _renumber_relay_split_ranks(db, results)
+
+
 def persist_steps(
     db: Session, url: str, results: list[ScrapedResult]
 ) -> Iterator[tuple[int, "_Persister"]]:
@@ -1744,20 +1795,29 @@ def persist_steps(
     `Course` est déjà née, ou déjà écrite avec son rang brut, quand on la cherche.
     Le re-scrape admin les sautait en instanciant `_Persister` lui-même.
 
+    Les heats Challenge (#1008) sont mis de côté puis appariés **après** la
+    première finalisation, qui a écrit les participations du jour ; ceux qui
+    échouent au test repassent par le persister comme des épreuves.
+
     Rend `(lignes écrites, persister)` : une première fois à 0, puis après chaque
     ligne, pour qu'un flux SSE rapporte sa progression. Le persister est finalisé
     une fois le générateur épuisé.
     """
-    _redate_heats(db, results)
-    _reclassify_heats(db, url, results)
-    _renumber_duplicate_ranks(results)
-    _renumber_relay_split_ranks(db, results)
+    held = [r for r in results if heat_is_challenge(r.event_name)]
+    results = [r for r in results if not heat_is_challenge(r.event_name)]
+    _prepare_batch(db, url, results)
     persister = _Persister(db, url)
     yield 0, persister
     for done, scraped in enumerate(results, start=1):
         persister.add(scraped)
         yield done, persister
     persister.finalize()
+    leftovers = _persist_challenges(db, url, held, persister)
+    if leftovers:
+        _prepare_batch(db, url, leftovers)
+        for scraped in leftovers:
+            persister.add(scraped)
+        persister.finalize()
 
 
 def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict:
@@ -1779,6 +1839,7 @@ def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict
         "updated": persister.updated,
         "skipped": persister.skipped,
         "reconciled": persister.reconciled,
+        "challenges": persister.challenges,
         "passive_sources": persister.passive_sources,
         "ambiguous_identities": persister.ambiguous_identities,
         "homonyms_created": persister.homonyms_created,
@@ -2014,6 +2075,7 @@ def iter_import_event(
         "updated": persister.updated,
         "skipped": persister.skipped,
         "reconciled": persister.reconciled,
+        "challenges": persister.challenges,
         "reassignments": persister.reassignments,
         "passive_sources": persister.passive_sources,
         "ambiguous_identities": persister.ambiguous_identities,

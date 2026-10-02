@@ -235,6 +235,22 @@ def render_reconciliation_report(report: dict) -> str:
     return "\n".join(lignes)
 
 
+def render_challenge_requalification_report(rows: list[dict], *, converted: bool) -> str:
+    """Épreuves requalifiées en classements Challenge (#1008)."""
+    lignes = ["=== CLASSEMENTS CHALLENGE ==="]
+    if not rows:
+        lignes.append("Aucune épreuve à requalifier.")
+        return "\n".join(lignes)
+    for row in rows:
+        liees = ", ".join(str(i) for i in row["linked_course_ids"])
+        lignes.append(f"{row['course_id']}  {row['name']}  ({row['rows']} lignes)  →  {liees}")
+    lignes.append(
+        f"{len(rows)} épreuve(s) requalifiée(s)." if converted
+        else f"{len(rows)} épreuve(s) à requalifier : relancer avec --yes --by-email <adresse>."
+    )
+    return "\n".join(lignes)
+
+
 def render_club_labels_report(labels: list[dict]) -> str:
     """Inventaire des libellés de club, marqués reconnus (✓) ou non (✗).
 

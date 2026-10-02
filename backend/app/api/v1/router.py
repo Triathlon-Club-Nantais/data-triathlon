@@ -31,6 +31,7 @@ from app.api.v1 import (
     athletes,
     auth,
     benevoles,
+    challenges,
     club,
     courses,
     csp_reports,
@@ -90,6 +91,7 @@ for module in _EXEMPTES_DE_LA_GARDE_SITE:
 for module in (
     scrape,
     athletes,
+    challenges,
     club,
     courses,
     participations,

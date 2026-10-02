@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { AthleteAvatar } from "./AthleteAvatar";
 import { AthleteHeaderActions } from "./AthleteHeaderActions";
 import { EventsTable } from "./EventsTable";
+import { AthleteChallenges } from "@/components/challenges/AthleteChallenges";
 import { SeasonValidationPanel } from "@/components/athletes/SeasonValidationPanel";
 import { VolunteerActionsList } from "@/components/athletes/VolunteerActionsList";
 import { formatToken, disciplineBreakdownBySeason, genderShort, ordinalFr } from "@/lib/utils/format";
@@ -27,7 +28,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const data = await apiServer.getAthlete(idDeRoute(id)).catch(rendreNullSi404);
   if (!data) notFound();
-  const { athlete, participations } = data;
+  const { athlete, participations, challenges } = data;
   const fullName = [athlete.prenom, athlete.nom].filter(Boolean).join(" ");
 
   // Les tuiles ne portent que sur les participations déjà validées : une saisie
@@ -259,6 +260,8 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
         {validated.length > 0 && <AthleteComparisonChart mine={validated} />}
 
         <EventsTable participations={participations} athleteId={athlete.id} athleteName={fullName} />
+
+        <AthleteChallenges challenges={challenges} />
 
         <VolunteerActionsList athleteId={athlete.id} />
       </div>

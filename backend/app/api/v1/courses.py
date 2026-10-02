@@ -24,7 +24,7 @@ from app.schemas.course import (
     EventPage,
 )
 from app.schemas.participation import CourseParticipationPage, ParticipationOut
-from app.services import stats_service
+from app.services import challenge_service, stats_service
 
 router = APIRouter(tags=["courses"])
 
@@ -188,7 +188,9 @@ def get_course_summary(course_id: int, db: Session = Depends(get_db)):
     """
     if not course_repository.get(db, course_id):
         raise NotFoundError("Course introuvable")
-    return stats_service.course_summary(db, course_id)
+    summary = stats_service.course_summary(db, course_id)
+    summary["challenges"] = challenge_service.for_course(db, course_id)
+    return summary
 
 
 @router.get("/courses/{course_id}/sources", response_model=list[CourseSourceOut])

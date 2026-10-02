@@ -33,6 +33,7 @@ from app.core.text import deaccent
 from app.core.validation import validated_clause
 from app.models.athlete import Athlete
 from app.models.athlete_alias import AthleteAlias
+from app.models.challenge import ChallengeResult
 from app.models.course import Course
 from app.models.participation import Participation, ParticipationTeammate
 from app.models.season_validation import SeasonValidation
@@ -539,12 +540,15 @@ def referenced_outside_results(athlete_id):
     Bénévolats, validations de saison et comptes liés pointent vers
     `athletes.id` sans `ondelete` : une telle fiche n'est pas orpheline, même
     sans participation, et la supprimer lèverait une `ForeignKeyViolation` en
-    PostgreSQL (invisible en SQLite, où les FK sont inertes).
+    PostgreSQL (invisible en SQLite, où les FK sont inertes). Les lignes
+    Challenge aussi (#1008) : un cumul n'est pas une participation, mais il
+    désigne la fiche (FK `RESTRICT`).
     """
     return or_(
         exists().where(VolunteerAction.athlete_id == athlete_id),
         exists().where(SeasonValidation.athlete_id == athlete_id),
         exists().where(User.athlete_id == athlete_id),
+        exists().where(ChallengeResult.athlete_id == athlete_id),
     )
 
 

@@ -7,6 +7,7 @@ from app.scrapers.utils import (
     derive_status_from_label,
     fmt_seconds,
     gender_from_category,
+    heat_is_challenge,
     heat_is_relay,
     normalize_time,
     parse_fr_date,
@@ -385,3 +386,20 @@ def test_heat_is_relay_leaves_individual_labels_alone(signal):
 
 def test_heat_is_relay_reads_every_signal():
     assert heat_is_relay("", None, "Triathlon S", "Duo") is True
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("MEDOC ATLANTIQUE FRENCHMAN 2026 - START CHALLENGE (XS - M - L)", True),
+        ("SUPER CHALLENGE (XS - M - L - XXL)", True),
+        ("Challenge 1er Tour", True),
+        ("La Baule - Challenge", True),
+        ("Triathlon M", False),
+        ("Challenger Tour", False),
+        ("", False),
+        (None, False),
+    ],
+)
+def test_heat_is_challenge(name, expected):
+    assert heat_is_challenge(name) is expected
