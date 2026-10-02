@@ -6,7 +6,21 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.time import utcnow
+from app.models.athlete import Athlete
 from app.models.challenge import Challenge, ChallengeCourse, ChallengeResult
+from app.models.course import Course
+from app.models.participation import Participation
+
+
+def athletes_on_date(db: Session, event_date: date) -> list[tuple[int, str, str, int, str]]:
+    """(athlete_id, nom, prenom, course_id, course_name) de chaque participation du jour."""
+    return (
+        db.query(Athlete.id, Athlete.nom, Athlete.prenom, Course.id, Course.name)
+        .join(Participation, Participation.athlete_id == Athlete.id)
+        .join(Course, Course.id == Participation.course_id)
+        .filter(Course.event_date == event_date)
+        .all()
+    )
 
 
 def upsert(db: Session, *, name: str, event_date: date, source_url: str) -> Challenge:
