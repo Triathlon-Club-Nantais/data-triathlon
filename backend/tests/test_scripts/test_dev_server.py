@@ -6,7 +6,6 @@ import socket
 import pytest
 from alembic import command
 from alembic.config import Config
-from alembic.script import ScriptDirectory
 
 import scripts.dev_server as dev_server
 from scripts.dev_server import (
@@ -194,9 +193,7 @@ def test_base_de_dev_a_jour_est_vrai_quand_la_base_est_au_head(sqlite_url):
 def test_base_de_dev_a_jour_est_faux_quand_la_base_a_une_migration_de_retard(sqlite_url):
     cfg = _config_pour_les_scripts()
     command.upgrade(cfg, "head")
-    # Un parent du head : « -1 » est ambigu quand le head fusionne deux branches.
-    parents = ScriptDirectory.from_config(cfg).get_revision("head").down_revision
-    command.downgrade(cfg, parents if isinstance(parents, str) else parents[0])
+    command.downgrade(cfg, "-1")  # une révision avant le head courant
 
     assert base_de_dev_a_jour(sqlite_url) is False
 
