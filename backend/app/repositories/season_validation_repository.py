@@ -46,3 +46,7 @@ def map_by_athlete(db: Session, *, athlete_ids: list[int], season: int) -> dict[
         .all()
     )
     return {athlete_id: True for (athlete_id,) in lignes}
+
+
+def delete_for_athlete(db: Session, athlete_id: int) -> int:
+    return db.query(SeasonValidation).filter(SeasonValidation.athlete_id == athlete_id).delete()

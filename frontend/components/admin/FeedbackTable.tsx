@@ -22,6 +22,7 @@ import { messageDeRefus } from "@/lib/api/refus";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils/date";
 import type { Feedback, FeedbackCounts } from "@/lib/types";
+import { FEEDBACK_TYPE_BADGE } from "./feedback-type";
 
 const REFUS = { sujet: "retours utilisateurs", action: "consulter les retours utilisateurs" };
 
@@ -33,7 +34,6 @@ type Filtre = Statut | "tous";
 const LIBELLE_STATUT = FEEDBACK_STATUS_LABELS;
 
 const STATUTS = Object.keys(LIBELLE_STATUT) as Statut[];
-
 /** Le titre, ramené à ce qui distingue une ligne d'une autre à l'oreille. */
 function abrege(titre: string): string {
   return titre.length <= 60 ? titre : `${titre.slice(0, 60).trimEnd()}…`;
@@ -320,9 +320,7 @@ export function FeedbackTable() {
               <TableRow key={f.id}>
                 <TableCell>{formatDate(f.created_at)}</TableCell>
                 <TableCell>
-                  <Badge variant={f.type === "bug" ? "destructive" : "secondary"}>
-                    {f.type === "bug" ? "Bug" : "Retour"}
-                  </Badge>
+                  <Badge variant={FEEDBACK_TYPE_BADGE[f.type].variant}>{FEEDBACK_TYPE_BADGE[f.type].label}</Badge>
                 </TableCell>
                 {/* Le titre plafonne plus bas sous `sm` : à `max-w-xs` la
                     colonne d'action commençait au-delà du bord d'un téléphone

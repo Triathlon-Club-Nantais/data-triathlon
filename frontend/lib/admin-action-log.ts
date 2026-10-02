@@ -10,6 +10,7 @@ import { FEEDBACK_STATUS_LABELS } from "@/lib/labels";
 
 const ACTION_LABELS: Record<string, string> = {
   "course.delete": "Suppression d'une épreuve",
+  "opposition.apply": "Opposition appliquée",
   "course.update": "Correction d'une épreuve",
   "course.merge": "Fusion de deux épreuves",
   "course.source.switch": "Bascule de la source active",
@@ -62,6 +63,8 @@ export function actionLabel(action: string): string {
 
 const PAYLOAD_KEY_LABELS: Record<string, string> = {
   nom: "Nom",
+  requested_on: "Date de la demande",
+  anonymised_count: "Résultats anonymisés",
   prenom: "Prénom",
   birth_date: "Date de naissance",
   club: "Club",

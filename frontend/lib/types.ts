@@ -627,6 +627,8 @@ export interface ProfileLogEntry {
 export interface ProfileDetail extends Profile {
   emergency_contact: string;
   notes: string;
+  /** Fin d'adhésion (#1158) : le profil est purgé à la fin de la saison suivante. */
+  membership_ended_on: string | null;
   log_entries: ProfileLogEntry[];
 }
 
@@ -1227,7 +1229,7 @@ export interface SessionRevocation {
 
 /** Corps de `POST /feedback` (#267) — route publique. */
 export interface FeedbackCreate {
-  type: "bug" | "feedback";
+  type: "bug" | "feedback" | "retrait";
   title: string;
   body: string;
   page_url?: string | null;
@@ -1245,7 +1247,7 @@ export interface FeedbackCreated {
 /** Un retour utilisateur, tel que rendu à un pouvoir `feedback:read`. */
 export interface Feedback {
   id: number;
-  type: "bug" | "feedback";
+  type: "bug" | "feedback" | "retrait";
   title: string;
   body: string;
   page_url: string | null;
@@ -1290,4 +1292,25 @@ export interface AdminActionLogEntry {
 export interface AdminActionLogPage {
   entries: AdminActionLogEntry[];
   total: number;
+}
+
+/** Identité visée par une opposition (#334) : une fiche, ou un nom et un prénom. */
+export type OppositionIdentity = { athlete_id: number } | { nom: string; prenom: string };
+
+/** `POST /admin/oppositions/preview` : ce que l'application toucherait. */
+export interface OppositionPreview {
+  athletes: number;
+  results: number;
+  already_opposed: boolean;
+}
+
+/** Une opposition appliquée, sans aucun nom (#334). */
+export interface Opposition {
+  id: number;
+  requested_on: string;
+  applied_at: string;
+  delay_days: number;
+  overdue: boolean;
+  applied_by_name: string | null;
+  anonymised_count: number;
 }

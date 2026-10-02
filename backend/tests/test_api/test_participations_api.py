@@ -448,3 +448,22 @@ def test_le_format_de_temps_accepte_est_exactement_celui_documente(client, temps
     statut = client.post("/api/v1/participations", json=payload).status_code
 
     assert statut == (201 if accepte else 422)
+
+
+def test_a_manual_result_for_an_opposed_person_is_refused(client, db_session):
+    """#334 : la saisie manuelle n'a ni source ni dossard fiable, elle est refusée."""
+    from datetime import date
+
+    from app.core.identity import identity_hash
+    from app.repositories import opposition_repository
+
+    opposition_repository.create(
+        db_session, identity_hash=identity_hash("DUPONT", "Jean"), requested_on=date(2026, 9, 1),
+        applied_by_user_id=None,
+    )
+    db_session.commit()
+
+    resp = client.post("/api/v1/participations", json=_payload())
+
+    assert resp.status_code == 422
+    assert "opposée à la publication" in resp.json()["detail"]

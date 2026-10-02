@@ -131,3 +131,11 @@ def test_la_soumission_ne_vit_pas_sous_admin(client):
     client.cookies.clear()
 
     assert client.post("/api/v1/admin/feedback", json=_payload()).status_code == 405
+
+
+def test_une_demande_de_retrait_de_donnees_est_un_type_a_part(client, db_session):
+    """#334 : le canal du droit d'opposition, distinct des bugs et des suggestions."""
+    reponse = client.post(_URL, json=_payload(type="retrait"))
+
+    assert reponse.status_code == 201
+    assert feedback_repository.list_sorted(db_session)[0].type == "retrait"

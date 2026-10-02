@@ -316,6 +316,14 @@ export const NAV: NavSection[] = [
         href: "/admin/journal",
         permission: "admin_log:read",
       },
+      {
+        id: "a-oppositions",
+        label: "Oppositions",
+        description:
+          "Les personnes qui ont demandé le retrait de leurs résultats : délai de traitement, et enregistrement d'une opposition par nom.",
+        href: "/admin/oppositions",
+        permission: "oppositions:manage",
+      },
       // Pas d'entrée « Sessions » : #169 a livré la révocation **dans**
       // « Accès au back-office » — par adresse ligne à ligne, globale en bas de
       // page. Un second écran pour un unique bouton aurait coûté une entrée de

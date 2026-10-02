@@ -170,4 +170,14 @@ describe("FeedbackDetailDialog", () => {
     expect(screen.queryByRole("link", { name: /promouvoir/i })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/url de l.issue/i)).not.toBeInTheDocument();
   });
+
+  it("ne propose jamais de publier une demande de retrait sur le dépôt public (#334)", async () => {
+    const retrait: Feedback = { ...SIGNALEMENT_ANONYME, type: "retrait", title: "Retrait de mes résultats" };
+    getFeedback.mockResolvedValue(retrait);
+    afficher(retrait);
+    await screen.findByText(retrait.title);
+
+    expect(screen.queryByRole("link", { name: /promouvoir/i })).not.toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /écran des oppositions/i })).toHaveAttribute("href", "/admin/oppositions");
+  });
 });

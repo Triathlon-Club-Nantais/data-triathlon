@@ -1,0 +1,135 @@
+"use client";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Alert, Button, Input, Modal } from "@/components/tcn";
+import { ApiError, apiClient } from "@/lib/api/client";
+import { useApplyOpposition } from "@/lib/queries/admin";
+import { useHydratedSession } from "@/lib/queries/auth";
+import type { OppositionPreview } from "@/lib/types";
+import { messageApplique } from "@/lib/opposition";
+import { localToday } from "@/lib/utils/date";
+import type { CoureurACorriger } from "./AthleteAdminPanel";
+
+const ECHEC = "L'opposition n'a pas pu être appliquée. Réessayez dans un instant.";
+const DECOMPTE_IMPOSSIBLE = "Les résultats concernés n'ont pas pu être comptés. Fermez puis rouvrez pour réessayer.";
+
+type Refus = { titre: string; texte: string };
+
+/**
+ * Droit d'opposition (#334), depuis la fiche de l'athlète, sous `oppositions:manage`.
+ * Geste définitif : la confirmation chiffre les résultats touchés, homonymes compris,
+ * et la fiche disparaît ensuite, d'où le retour à la liste des résultats.
+ */
+export function AthleteOppositionAction({ athlete }: { athlete: CoureurACorriger }) {
+  const session = useHydratedSession();
+  const router = useRouter();
+  const appliquer = useApplyOpposition();
+  const [ouverte, setOuverte] = useState(false);
+  const [apercu, setApercu] = useState<OppositionPreview | null>(null);
+  const [demande, setDemande] = useState("");
+  const [refus, setRefus] = useState<Refus | null>(null);
+
+  if (!(session.data?.permissions.includes("oppositions:manage") ?? false)) return null;
+
+  async function ouvrir() {
+    setRefus(null);
+    setApercu(null);
+    setDemande(localToday());
+    setOuverte(true);
+    try {
+      setApercu(await apiClient.previewOpposition({ athlete_id: athlete.id }));
+    } catch {
+      setRefus({ titre: "Décompte impossible", texte: DECOMPTE_IMPOSSIBLE });
+    }
+  }
+
+  async function confirmer() {
+    setRefus(null);
+    try {
+      const opposition = await appliquer.mutateAsync({ athlete_id: athlete.id, requested_on: demande });
+      toast.success(messageApplique(opposition.anonymised_count));
+      router.replace("/resultats");
+    } catch (erreur) {
+      // Un refus prononcé par le serveur (date future, fiche disparue) est en français et se lit tel quel.
+      setRefus({
+        titre: "Opposition non appliquée",
+        texte: erreur instanceof ApiError && erreur.status < 500 ? erreur.message : ECHEC,
+      });
+    }
+  }
+
+  return (
+    <>
+      {/* Geste rare et définitif : plus discret que la correction de fiche, sa voisine. */}
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={ouvrir}
+        aria-label={`Appliquer une opposition pour ${athlete.prenom} ${athlete.nom}`}
+      >
+        Appliquer une opposition
+      </Button>
+
+      {ouverte && (
+        <Modal
+          eyebrow="Droit d'opposition"
+          title={`Anonymiser ${athlete.prenom} ${athlete.nom} ?`}
+          onClose={() => (appliquer.isPending ? null : setOuverte(false))}
+          footer={
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 10 }}>
+              <Button variant="ghost" onClick={() => setOuverte(false)} disabled={appliquer.isPending}>
+                Annuler
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={confirmer}
+                disabled={!apercu || !demande || appliquer.isPending}
+              >
+                {appliquer.isPending ? "Application…" : "Anonymiser définitivement"}
+              </Button>
+            </div>
+          }
+        >
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {refus && (
+              <div role="alert">
+                <Alert status="error" title={refus.titre}>
+                  {refus.texte}
+                </Alert>
+              </div>
+            )}
+            {apercu ? (
+              <p>
+                {apercu.results > 1
+                  ? `${apercu.results} résultats deviendront anonymes`
+                  : `${apercu.results} résultat deviendra anonyme`}
+                , et la fiche sera supprimée. Ce geste est définitif, et tout résultat importé ensuite à ce
+                nom arrivera anonyme.
+                {apercu.athletes > 1 &&
+                  ` Attention : ${apercu.athletes} fiches portent le même nom et le même prénom, elles seront toutes anonymisées.`}
+              </p>
+            ) : (
+              !refus && <p>Calcul des résultats concernés…</p>
+            )}
+            <div>
+              <label
+                htmlFor="opposition-demande"
+                style={{ display: "block", marginBottom: 6, fontSize: 13, fontWeight: 700 }}
+              >
+                Date de la demande
+              </label>
+              <Input
+                id="opposition-demande"
+                type="date"
+                max={localToday()}
+                value={demande}
+                onChange={(e) => setDemande(e.target.value)}
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}

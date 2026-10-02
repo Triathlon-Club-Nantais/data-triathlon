@@ -5,7 +5,7 @@ La transaction reste portée par le service appelant
 (`services/training_session_service.py`) : on `flush()` pour peupler l'id, on ne
 `commit()` jamais ici — même patron que `group_repository.py`.
 """
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -181,3 +181,8 @@ def remove_participant(db: Session, *, training_session_id: int, profile_id: int
     db.delete(inscription)
     db.flush()
     return True
+
+
+def delete_participations_of_profile(db: Session, profile_id: int) -> int:
+    """Retire toutes les présences d'un profil purgé (#1158)."""
+    return db.execute(delete(TrainingParticipant).where(TrainingParticipant.profile_id == profile_id)).rowcount

@@ -8,7 +8,7 @@ from app.core.database import Base
 from app.core.time import utcnow
 
 #: Types acceptés — patron `Course.event_type` (chaîne nue, nomenclature en Python).
-FEEDBACK_TYPES = ("bug", "feedback")
+FEEDBACK_TYPES = ("bug", "feedback", "retrait")
 #: Statuts acceptés, transitions libres dans les deux sens (data-model.md).
 FEEDBACK_STATUSES = ("nouveau", "en_cours", "traite", "ignore")
 

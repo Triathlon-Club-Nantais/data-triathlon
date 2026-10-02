@@ -1,7 +1,7 @@
 """Accès données pour UserFeedback (#267)."""
 from datetime import datetime
 
-from sqlalchemy import func
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.user_feedback import UserFeedback
@@ -106,3 +106,12 @@ def set_github_url(db: Session, feedback_id: int, github_url: str) -> UserFeedba
         entry.github_url = github_url
         db.flush()
     return entry
+
+
+def count_created_before(db: Session, cutoff: datetime) -> int:
+    return db.scalar(select(func.count()).select_from(UserFeedback).where(UserFeedback.created_at < cutoff))
+
+
+def delete_created_before(db: Session, cutoff: datetime) -> int:
+    """Purge de rétention (#1158), adresse IP comprise. Rend le nombre de signalements supprimés."""
+    return db.execute(delete(UserFeedback).where(UserFeedback.created_at < cutoff)).rowcount

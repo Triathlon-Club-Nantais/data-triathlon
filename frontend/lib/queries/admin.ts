@@ -5,6 +5,7 @@ import { queryKeys } from "./keys";
 import { localToday } from "@/lib/utils/date";
 import type {
   AdminAthleteUpdate,
+  OppositionIdentity,
   AdminCourseUpdate,
   Feedback,
   RoleCreate,
@@ -964,6 +965,7 @@ export function useUpdateProfile() {
         birth_date?: string | null;
         emergency_contact?: string;
         notes?: string;
+        membership_ended_on?: string | null;
       };
     }) => apiClient.updateProfile(id, champs),
     onSuccess: (_donnees, { id }) => {
@@ -1177,5 +1179,25 @@ export function useRejectVolunteerAction() {
 export function useDeleteVolunteerAction() {
   return useMutation({
     mutationFn: (id: number) => apiClient.deleteVolunteerAction(id),
+  });
+}
+
+/** Les oppositions appliquées (#334), les plus récentes d'abord. */
+export function useOppositions() {
+  return useQuery({ queryKey: queryKeys.oppositions(), queryFn: () => apiClient.listOppositions() });
+}
+
+/** Applique une opposition : résultats et fiches changent, tout ce qui les montre est périmé. */
+export function useApplyOpposition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: OppositionIdentity & { requested_on: string }) => apiClient.applyOpposition(body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.oppositions() });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.ficheCoureur });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
+    },
   });
 }

@@ -85,6 +85,11 @@ def update_profile(
         birth_date=body.birth_date,
         emergency_contact=body.emergency_contact,
         notes=body.notes,
+        membership_ended_on=(
+            body.membership_ended_on
+            if "membership_ended_on" in body.model_fields_set
+            else profile_service.UNCHANGED
+        ),
     )
     view = profile_service.profile_detail_view(db, profile)
     db.commit()

@@ -1,13 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
+import { saveConsent } from "@/lib/analytics-consent";
 import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import { SESSION_QUERY_DEFAULTS } from "@/lib/queries/auth";
 import type { SessionUser } from "@/lib/types";
 
 const { identify, reset } = vi.hoisted(() => ({ identify: vi.fn(), reset: vi.fn() }));
-vi.mock("posthog-js", () => ({ default: { identify, reset, capture: vi.fn() } }));
+vi.mock("posthog-js", () => ({
+  default: { identify, reset, capture: vi.fn(), opt_in_capturing: vi.fn(), opt_out_capturing: vi.fn() },
+}));
 
 const { useSession } = vi.hoisted(() => ({ useSession: vi.fn() }));
 vi.mock("@/lib/queries/auth", async (importOriginal) => ({
@@ -60,9 +63,30 @@ describe("PostHogSessionSync", () => {
     identify.mockClear();
     reset.mockClear();
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.posthog.com");
+    localStorage.setItem("tcn-analytics-consent", JSON.stringify({ choice: "granted", at: Date.now() }));
   });
 
-  it("identifie l'utilisateur quand une session existe", () => {
+  it("n'identifie personne sans accord à la mesure détaillée (#1159)", () => {
+    localStorage.removeItem("tcn-analytics-consent");
+    useSession.mockReturnValue({ data: SESSION });
+    render(<Providers>{null}</Providers>);
+
+    expect(identify).not.toHaveBeenCalled();
+  });
+
+  it("identifie l'utilisateur dès qu'il accepte la mesure détaillée en cours de visite (#1159)", async () => {
+    localStorage.removeItem("tcn-analytics-consent");
+    useSession.mockReturnValue({ data: SESSION });
+    render(<Providers>{null}</Providers>);
+    expect(identify).not.toHaveBeenCalled();
+
+    act(() => saveConsent("granted"));
+
+    expect(identify).toHaveBeenCalledWith("1", expect.objectContaining({ email: SESSION.email }));
+  });
+
+  it("identifie l'utilisateur quand une session existe et qu'il a accepté la mesure détaillée", () => {
     useSession.mockReturnValue({ data: SESSION });
     render(<Providers>{null}</Providers>);
 

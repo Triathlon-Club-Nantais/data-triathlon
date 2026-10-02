@@ -9,6 +9,7 @@ import { AppNav } from "@/components/layout/AppNav";
 import { VersionFooter } from "@/components/layout/VersionFooter";
 import { Toaster } from "@/components/ui/sonner";
 import { FeedbackButton } from "@/components/tcn/FeedbackButton";
+import { AnalyticsConsentBanner } from "@/components/analytics/AnalyticsConsent";
 import { CLUB_NAME } from "@/lib/club";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 
@@ -100,6 +101,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <div className="flex min-h-screen flex-col md:flex-row">
               <AppNav initialExpanded={initialExpanded} />
               <div className="flex min-w-0 flex-1 flex-col pb-[var(--tcn-nav-bottom)] md:pb-0">
+                <AnalyticsConsentBanner />
                 <main id="contenu" tabIndex={-1} className="flex-1">
                   {children}
                 </main>
