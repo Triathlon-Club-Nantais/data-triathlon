@@ -223,7 +223,7 @@ describe("AdminVolunteerActionsTable", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
-  it("refuser depuis le détail appelle la mutation", async () => {
+  it("refuser depuis le détail appelle la mutation et ferme le dialogue", async () => {
     listPendingVolunteerActions.mockResolvedValueOnce([EN_ATTENTE]).mockResolvedValueOnce([]);
     rejectVolunteerAction.mockResolvedValue({ ...EN_ATTENTE, status: "refusee" });
 
@@ -233,6 +233,28 @@ describe("AdminVolunteerActionsTable", () => {
     await userEvent.click(within(dialogue).getByRole("button", { name: /refuser/i }));
 
     await waitFor(() => expect(rejectVolunteerAction).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("garde le détail ouvert, boutons inertes, tant que la décision n'a pas abouti", async () => {
+    listPendingVolunteerActions.mockResolvedValue([EN_ATTENTE]);
+    let echouer: (e: Error) => void = () => {};
+    acceptVolunteerAction.mockReturnValue(new Promise((_, rejeter) => (echouer = rejeter)));
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /voir/i }));
+    const dialogue = await screen.findByRole("dialog");
+    await userEvent.click(within(dialogue).getByRole("button", { name: /accepter/i }));
+
+    await waitFor(() =>
+      expect(within(screen.getByRole("dialog")).getByRole("button", { name: /accepter/i })).toBeDisabled(),
+    );
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: /refuser/i })).toBeDisabled();
+
+    echouer(new Error("Refusé par le serveur"));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Refusé par le serveur"));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("désactive Accepter et Refuser pendant qu'une suppression est en cours", async () => {

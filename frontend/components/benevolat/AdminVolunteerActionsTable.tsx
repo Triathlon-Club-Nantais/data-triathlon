@@ -66,9 +66,9 @@ export function AdminVolunteerActionsTable() {
   }
 
   async function onAccept(id: number) {
-    setDetail(null);
     try {
       await accepter.mutateAsync(id);
+      setDetail(null);
       toast.success("Déclaration acceptée.");
     } catch (e) {
       toast.error((e as Error).message);
@@ -76,9 +76,9 @@ export function AdminVolunteerActionsTable() {
   }
 
   async function onReject(id: number) {
-    setDetail(null);
     try {
       await refuser.mutateAsync(id);
+      setDetail(null);
       toast.success("Déclaration refusée.");
     } catch (e) {
       toast.error((e as Error).message);
