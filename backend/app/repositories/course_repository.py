@@ -806,3 +806,8 @@ def list_named_like(db: Session, fragment: str) -> list[Course]:
         .order_by(Course.id)
         .all()
     )
+
+
+def list_named_on(db: Session, name: str, event_date: date | None) -> list[Course]:
+    """Épreuves de ce nom à cette date, tous types et relais confondus."""
+    return db.query(Course).filter(Course.name == name, Course.event_date == event_date).all()

@@ -70,3 +70,15 @@ def test_reimport_is_idempotent(db_session):
     assert db_session.query(Challenge).count() == 1
     assert db_session.query(ChallengeResult).count() == 5
     assert db_session.query(Course).count() == 2
+
+
+def test_a_heat_first_stored_as_a_course_is_converted_once_it_matches(db_session):
+    names = [f"NOM{i}" for i in range(5)]
+    challenge_only = [r for r in _batch(names) if "CHALLENGE" in r.event_name]
+    import_service.persist_results(db_session, URL, challenge_only)
+    assert db_session.query(Course).count() == 1
+
+    import_service.persist_results(db_session, URL, _batch(names))
+
+    assert sorted(c.name.rsplit(" - ", 1)[1] for c in db_session.query(Course).all()) == ["M", "XS"]
+    assert db_session.query(ChallengeResult).count() == 5

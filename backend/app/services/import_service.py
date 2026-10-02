@@ -1761,7 +1761,27 @@ def _persist_challenges(
             source_url=rows[0].source_url or url, rows=challenge_rows, found=found,
         )
         persister.challenges += 1
+        _drop_course_twin(db, name, event_date)
     return leftovers
+
+
+def _drop_course_twin(db: Session, name: str, event_date) -> None:
+    """Supprime l'épreuve qu'un import antérieur a tirée du même heat, faute
+    d'épreuves sœurs à l'époque : sinon le heat compterait deux fois (#1008)."""
+    for course in course_repository.list_named_on(db, name, event_date):
+        logger.info("Course %s replaced by the challenge of the same heat: %s", course.id, name)
+        candidates = athlete_repository.only_on_course(db, course.id)
+        course_repository.delete(db, course)
+        db.flush()
+        athlete_repository.delete_orphans_among(db, candidates)
+
+
+def _prepare_batch(db: Session, url: str, results: list[ScrapedResult]) -> None:
+    """Les rattrapages de lot, dans leur ordre, avant la première ligne écrite."""
+    _redate_heats(db, results)
+    _reclassify_heats(db, url, results)
+    _renumber_duplicate_ranks(results)
+    _renumber_relay_split_ranks(db, results)
 
 
 def persist_steps(
@@ -1785,10 +1805,7 @@ def persist_steps(
     """
     held = [r for r in results if heat_is_challenge(r.event_name)]
     results = [r for r in results if not heat_is_challenge(r.event_name)]
-    _redate_heats(db, results)
-    _reclassify_heats(db, url, results)
-    _renumber_duplicate_ranks(results)
-    _renumber_relay_split_ranks(db, results)
+    _prepare_batch(db, url, results)
     persister = _Persister(db, url)
     yield 0, persister
     for done, scraped in enumerate(results, start=1):
@@ -1797,9 +1814,7 @@ def persist_steps(
     persister.finalize()
     leftovers = _persist_challenges(db, url, held, persister)
     if leftovers:
-        _redate_heats(db, leftovers)
-        _reclassify_heats(db, url, leftovers)
-        _renumber_duplicate_ranks(leftovers)
+        _prepare_batch(db, url, leftovers)
         for scraped in leftovers:
             persister.add(scraped)
         persister.finalize()
