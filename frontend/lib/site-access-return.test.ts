@@ -7,7 +7,19 @@ describe("cheminDeRetour", () => {
     expect(cheminDeRetour("/courses/42?onglet=resultats")).toBe("/courses/42?onglet=resultats");
   });
 
-  it.each([undefined, "", "https://evil.example", "//evil.example", "/\\evil.example", "admin"])(
+  it.each([
+    undefined,
+    "",
+    "https://evil.example",
+    "//evil.example",
+    "/\\evil.example",
+    "admin",
+    // Le parseur d'URL retire tabulations et sauts de ligne : « /\t/x » devient « //x ».
+    "/\t/evil.example",
+    "/\n/evil.example",
+    "/\r/evil.example",
+    "/\t\\evil.example",
+  ])(
     "refuse %s : jamais de redirection hors du site",
     (brut) => {
       expect(cheminDeRetour(brut)).toBeNull();
