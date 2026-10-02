@@ -183,7 +183,7 @@ def _anonymise(db: Session, athlete: Athlete) -> int:
         participation.team_name = ""
     for row in challenge_rows:
         anonymous = athlete_repository.get_or_create(
-            db, nom=f"Anonyme challenge {row.challenge_id}-{row.bib_number or row.id}",
+            db, nom=f"Anonyme challenge {row.challenge_id}-{row.bib_number or f'p{row.id}'}",
             prenom="", gender=athlete.gender or "",
         )
         row.athlete_id = anonymous.id
