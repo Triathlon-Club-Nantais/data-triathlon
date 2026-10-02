@@ -117,3 +117,7 @@ def repoint(db: Session, *, from_athlete_id: int, to_athlete_id: int) -> int:
 
 def count_for_athlete(db: Session, athlete_id: int) -> int:
     return db.scalar(select(func.count()).select_from(VolunteerAction).where(VolunteerAction.athlete_id == athlete_id))
+
+
+def delete_for_athlete(db: Session, athlete_id: int) -> int:
+    return db.query(VolunteerAction).filter(VolunteerAction.athlete_id == athlete_id).delete()

@@ -95,3 +95,15 @@ def add_log_entry(
     db.add(entry)
     db.flush()
     return entry
+
+
+def list_membership_ended_before(db: Session, cutoff: date) -> list[PersonalProfile]:
+    """Profils dont l'adhésion a pris fin avant `cutoff` (#1158)."""
+    return list(db.scalars(select(PersonalProfile).where(PersonalProfile.membership_ended_on < cutoff)))
+
+
+def delete(db: Session, profile: PersonalProfile) -> None:
+    """Supprime le profil ; son journal part par la cascade ORM. Les présences
+    aux séances, sans cascade, sont à retirer avant (`training_session_repository`)."""
+    db.delete(profile)
+    db.flush()

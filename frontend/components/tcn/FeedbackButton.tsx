@@ -13,7 +13,7 @@ import { apiClient, ApiError } from "@/lib/api/client";
  */
 export function FeedbackButton() {
   const [open, setOpen] = useState(false);
-  const [type, setType] = useState<"bug" | "feedback">("bug");
+  const [type, setType] = useState<"bug" | "feedback" | "retrait">("bug");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [honeypot, setHoneypot] = useState("");
@@ -105,7 +105,7 @@ export function FeedbackButton() {
         <Modal
           open={open}
           eyebrow="Retour"
-          title="Signaler un bug ou laisser un avis"
+          title="Signaler un bug, laisser un avis ou demander un retrait"
           onClose={fermer}
           width={440}
           dismissible={!saisieEnCours}
@@ -121,7 +121,7 @@ export function FeedbackButton() {
             </div>
           ) : (
             <form onSubmit={soumettre} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div role="radiogroup" aria-label="Type de retour" style={{ display: "flex", gap: 16 }}>
+              <div role="radiogroup" aria-label="Type de retour" style={{ display: "flex", flexWrap: "wrap", columnGap: 16, rowGap: 8 }}>
                 <label style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--tcn-text)" }}>
                   <input
                     type="radio"
@@ -142,7 +142,26 @@ export function FeedbackButton() {
                   />
                   Avis / suggestion
                 </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--tcn-text)" }}>
+                  <input
+                    type="radio"
+                    name="feedback-type"
+                    value="retrait"
+                    checked={type === "retrait"}
+                    onChange={() => setType("retrait")}
+                  />
+                  Retrait de mes données
+                </label>
               </div>
+              {type === "retrait" && (
+                // Le droit d'opposition (#334) : ce qu'il faut pour retrouver les résultats, et le délai dû.
+                // Un demandeur non adhérent n'est pas connecté : sans adresse dans le message, rien ne
+                // permettrait de lui répondre.
+                <p id="feedback-aide-retrait" style={{ color: "var(--tcn-text-muted)", fontSize: 14 }}>
+                  Indiquez votre nom, votre prénom, l&apos;épreuve concernée (nom et date) et une adresse
+                  électronique où le club pourra vous répondre, sous un mois.
+                </p>
+              )}
 
               <Input
                 placeholder="Titre court"
@@ -162,7 +181,7 @@ export function FeedbackButton() {
                 maxLength={10000}
                 aria-label="Description"
                 aria-invalid={invalides.description || undefined}
-                aria-describedby={invalides.description ? "feedback-erreur" : undefined}
+                aria-describedby={[invalides.description && "feedback-erreur", type === "retrait" && "feedback-aide-retrait"].filter(Boolean).join(" ") || undefined}
                 style={{
                   padding: "13px 16px",
                   background: "var(--tcn-fill)",

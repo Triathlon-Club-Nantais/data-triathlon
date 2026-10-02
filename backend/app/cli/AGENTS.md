@@ -26,6 +26,7 @@ uv run python -m app.cli purge-timepulse-duplicates   # épreuves timepulse d'av
 uv run python -m app.cli reconcile-athletes --json > simulation.json   # doublons d'athlètes existants, simulés (#906)
 uv run python -m app.cli reconcile-athletes --yes --by-email <adresse> --plan-from simulation.json   # applique le plan relu
 uv run python -m app.cli geocode-courses --limit 300 --json   # coordonnées des épreuves sans géocodage (carte, #975)
+uv run python -m app.cli purge-retention --dry-run   # durées de conservation publiées (#1158) ; sans --dry-run, supprime
 uv run python -m app.cli allow-email --email <adresse>              # autorise une adresse à se connecter (#170)
 uv run python -m app.cli grant-role --email <adresse> --role admin   # amorce le 1er administrateur (#115)
 uv run python -m app.cli revoke-sessions --all --yes                 # révocation d'urgence : ferme toutes les sessions (#169)

@@ -22,6 +22,7 @@ from app.core.config import Settings
 from app.core.database import SessionLocal
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
 from app.core.gender import normalize_gender
+from app.core.identity import identity_hash
 from app.core.text import deaccent
 from app.core.time import utcnow
 from app.core.youth import is_youth
@@ -35,6 +36,7 @@ from app.repositories import (
     course_repository,
     course_source_repository,
     lock_repository,
+    opposition_repository,
     participation_repository,
 )
 from app.repositories.athlete_repository import IdentityKey
@@ -624,6 +626,8 @@ class _Persister:
     def __init__(self, db: Session, event_url: str):
         self.db = db
         self.event_url = event_url
+        # Empreintes des personnes opposées (#334), lues une fois : chaque ligne se teste en mémoire.
+        self._opposed: set[str] = opposition_repository.all_hashes(db)
         self._by_bib: dict[int, dict[str, Participation]] = {}
         self._added_bibs: dict[int, set[str]] = {}
         self._duplicate_bibs: Counter[int] = Counter()
@@ -800,7 +804,8 @@ class _Persister:
             is_masked_name(published)
             or athlete_identity_keys(scraped.athlete_name, scraped.athlete_firstname)[0] is None
         )
-        if nameless and not scraped.bib_number:
+        opposed = not nameless and self._is_opposed(scraped)
+        if (nameless or opposed) and not scraped.bib_number:
             logger.warning(
                 "Row with a masked or empty name and no bib skipped: %s (%s)",
                 scraped.event_name, scraped.source_url or self.event_url,
@@ -842,12 +847,17 @@ class _Persister:
             course.ranked_by_laps = scraped.ranked_by_laps
         self._courses[course.id] = course
         self._index_course(course.id)
-        if nameless:
+        if nameless or opposed:
             # Le dossard est unique sur l'épreuve : l'identité se retrouve au rescrape.
             scraped = replace(
                 scraped, athlete_name=f"Anonyme {course.id}-{scraped.bib_number}",
                 athlete_firstname="",
             )
+        if opposed:
+            # Opposition (#334) : rien de ce qui désigne la personne n'est gardé, rangs et temps si.
+            # Un relais qui la compte reste entier mais anonyme : son libellé la nomme, et le
+            # découper ferait renaître ce libellé en fiche d'équipe dès qu'un découpage est refusé.
+            scraped = replace(scraped, club="", category="", raw_data={}, team_name="")
         bib = scraped.bib_number or None
 
         if bib is not None:
@@ -919,6 +929,15 @@ class _Persister:
             course.id, scraped, bib=bib, participation=None,
             teammates=_proposed_teammates(scraped),
         )
+
+    def _is_opposed(self, scraped: ScrapedResult) -> bool:
+        """La ligne désigne une personne opposée (#334) : elle-même, ou l'un des équipiers
+        qu'un libellé de relais nomme."""
+        if not self._opposed:
+            return False
+        if identity_hash(scraped.athlete_name, scraped.athlete_firstname) in self._opposed:
+            return True
+        return any(identity_hash(*pair) in self._opposed for pair in _proposed_teammates(scraped) or ())
 
     def _enqueue(
         self, course_id: int, scraped: ScrapedResult, *, bib: str | None,

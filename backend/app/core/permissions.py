@@ -216,6 +216,14 @@ class P:
         "les clubs portés par les résultats déjà enregistrés ne bougent pas.",
         FEATURE_ATHLETES,
     )
+    OPPOSITIONS_MANAGE = Permission(
+        "oppositions:manage",
+        "Appliquer le droit d'opposition",
+        "Rendre anonymes, définitivement, les résultats d'une personne qui s'oppose "
+        "à leur publication, et consulter la liste des oppositions avec leurs délais. "
+        "Les résultats importés ensuite à son nom arrivent anonymes.",
+        FEATURE_ATHLETES,
+    )
     ATHLETES_SEASON_VALIDATE = Permission(
         "athletes:season_validate",
         "Valider la saison d'un athlète",
@@ -365,6 +373,7 @@ ALL: tuple[Permission, ...] = (
     P.COURSES_WIPE_ALL,
     P.ATHLETES_READ,
     P.ATHLETES_WRITE,
+    P.OPPOSITIONS_MANAGE,
     P.ATHLETES_SEASON_VALIDATE,
     P.ATHLETES_VOLUNTEER_VALIDATE,
     P.PARTICIPATIONS_DELETE,

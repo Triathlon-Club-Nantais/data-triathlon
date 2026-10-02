@@ -21,6 +21,7 @@ from app.api.v1 import (
     admin_data,
     admin_feedback,
     admin_groups,
+    admin_oppositions,
     admin_profiles,
     admin_roles,
     admin_sessions,
@@ -32,6 +33,7 @@ from app.api.v1 import (
     benevoles,
     club,
     courses,
+    csp_reports,
     feedback,
     health,
     participations,
@@ -68,7 +70,19 @@ api_router = APIRouter()
 # borne reste ce qui la bornait déjà (honeypot et plafond compté en base,
 # `services/feedback_service`), et elle n'écrit qu'une ligne sans jamais rien
 # rendre à lire : `admin_feedback`, qui expose les signalements, reste gardée.
-_EXEMPTES_DE_LA_GARDE_SITE = (health, site_access, auth, admin_site_access, benevoles, feedback)
+#
+# La septième, `csp_reports` (#1168) : l'API Reporting du navigateur envoie les
+# rapports **sans cookies**, donc une route gardée ne recevrait que des 401.
+# Elle n'écrit que des logs, bornés par sa taille et son propre plafond.
+_EXEMPTES_DE_LA_GARDE_SITE = (
+    health,
+    site_access,
+    auth,
+    admin_site_access,
+    benevoles,
+    feedback,
+    csp_reports,
+)
 
 for module in _EXEMPTES_DE_LA_GARDE_SITE:
     api_router.include_router(module.router)
@@ -98,6 +112,7 @@ for module in (
     admin_groups,
     admin_training_sessions,
     admin_profiles,
+    admin_oppositions,
     admin_sessions,
     admin_volunteer_actions,
     volunteer_actions,

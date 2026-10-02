@@ -143,3 +143,7 @@ def repoint_athlete(db: Session, *, from_athlete_id: int, to_athlete_id: int) ->
     return db.execute(
         update(User).where(User.athlete_id == from_athlete_id).values(athlete_id=to_athlete_id)
     ).rowcount
+
+
+def detach_athlete(db: Session, athlete_id: int) -> None:
+    db.query(User).filter(User.athlete_id == athlete_id).update({User.athlete_id: None})

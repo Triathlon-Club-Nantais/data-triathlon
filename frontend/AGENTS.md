@@ -72,6 +72,18 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   globale en carte de bas de page. Pas d'écran ni d'entrée de navigation
   dédiés — un unique bouton ne les justifiait pas. Jumelle de la CLI, la
   redondance étant le but : le back-office suppose une session, la CLI non.
+- **Textes légaux** (#333) : `/mentions-legales`, `/confidentialite`, `/cgu`
+  sont des routes **sœurs** du groupe gardé : un non-adhérent, qui n'a pas le
+  code, doit pouvoir lire ce que le club fait de ses résultats
+  (`routes-garde-site.test.ts` le tient). Leur contenu vit en TSX dans
+  `components/legal/content/`, rendu par `LegalPage` ; les liens du pied de
+  page viennent de `legal-routes.ts` et sont rendus par `VersionFooter`, donc
+  sur toutes les routes. Deux règles : `updatedAt` change **dans le même
+  commit** que le texte, et les faits juridiques (base légale, durées,
+  sous-traitants) viennent de la décision
+  `docs/superpowers/specs/2026-10-01-base-legale-decision.md` (#332), qui
+  prime. Un nouveau cookie, un nouveau prestataire ou une nouvelle donnée
+  collectée rend la politique fausse tant qu'elle n'est pas mise à jour.
 - **Trois écrans d'absence et de panne** (#464, `ETAT-1`) — `app/not-found.tsx`,
   `app/error.tsx`, `app/global-error.tsx`, la microcopie tenue une seule fois
   dans `components/tcn/ErrorScreen.tsx` que les deux derniers partagent. Quatre
@@ -826,6 +838,11 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     réponse donne une politique correcte et un HTML sans nonce.
   - La CSP est le **tronc** de la fonction, le cookie un effet de bord : une
     sortie précoce la court-circuiterait pour la majorité des visiteurs.
+  - Les violations remontent au backend (#1168) : `report-to` (avec l'en-tête
+    `Reporting-Endpoints`) et `report-uri` visent `POST /api/v1/csp-reports`,
+    qui les écrit dans ses logs (`CSP violation directive=…`). La route est
+    exemptée de la garde du site : le navigateur envoie sans cookies. Brave
+    n'envoie **aucun** rapport ; un relevé se fait dans Chromium ou Firefox.
 
   En `Content-Security-Policy-Report-Only` pour l'instant — le nonce est injecté
   quand même, donc l'observation vaut mesure ; le passage en mode bloquant est

@@ -236,6 +236,22 @@ Spec, plan et tâches : `specs/20260806-180938-admin-crud-actions/`, puis
 `specs/20260820-095442-page-athlete-actions-admin/` pour les gestes portés par la
 page publique du coureur (#439).
 
+## Droit d'opposition (#334)
+
+`admin_oppositions.py` : trois routes gardées par `oppositions:manage`.
+`GET /admin/oppositions` liste les oppositions (dates de demande et
+d'application, délai, `overdue` au-delà de 30 jours, auteur, nombre de
+résultats anonymisés), **sans aucun nom** : la base n'en garde pas.
+`POST /admin/oppositions/preview` chiffre ce qu'une application toucherait,
+homonymes compris, sans rien écrire. `POST /admin/oppositions` applique
+(`201`, ou `200` sur une identité déjà opposée, réappliquée sur la même ligne).
+L'identité est une fiche (`athlete_id`) **ou** un nom et un prénom, jamais les
+deux (`422`). Contrat : `specs/20261001-181344-athlete-opposition/contracts/`.
+
+Ce que l'application fait, et où : `services/opposition_service.py`. Le filtre
+des imports vit dans `import_service._Persister` ; la saisie manuelle et la
+composition d'équipe refusent l'identité (`OpposedIdentityError`, `422`).
+
 ## Doublons suspects (#288)
 
 `admin_course_duplicates.py` — trois routes, toutes gardées par

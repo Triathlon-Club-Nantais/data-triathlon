@@ -7,7 +7,6 @@ from sqlalchemy import (
     and_,
     bindparam,
     case,
-    delete,
     exists,
     false,
     func,
@@ -17,6 +16,9 @@ from sqlalchemy import (
     tuple_,
     union_all,
     update,
+)
+from sqlalchemy import (
+    delete as sql_delete,
 )
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -959,7 +961,7 @@ def lock_for_merge(db: Session, athlete_ids: Sequence[int]) -> dict[int, Athlete
 
 def delete_by_id(db: Session, athlete_id: int) -> None:
     """Supprime une fiche sans passer par la cascade ORM de ses résultats, déjà repointés."""
-    db.execute(delete(Athlete).where(Athlete.id == athlete_id))
+    db.execute(sql_delete(Athlete).where(Athlete.id == athlete_id))
 
 
 # ── Revue d'identité (#908, #967) ────────────────────────────────────────────
@@ -1265,3 +1267,13 @@ def homonyms_with_their_principal(db: Session) -> list[tuple[int, int]]:
     )
     return [tuple(row) for row in rows]
 
+
+
+def list_identities(db: Session) -> list[tuple[int, str, str]]:
+    """`(id, nom, prenom)` de toutes les fiches : la clé d'opposition (#334) se calcule en Python."""
+    return [tuple(row) for row in db.query(Athlete.id, Athlete.nom, Athlete.prenom)]
+
+
+def delete(db: Session, athlete: Athlete) -> None:
+    db.delete(athlete)
+    db.flush()

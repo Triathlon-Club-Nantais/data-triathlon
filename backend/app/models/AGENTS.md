@@ -89,6 +89,16 @@
   `NOT EXISTS` corrélé sur toute la table, recalculé par roster, composition,
   recherche et totaux — à mesurer (`EXPLAIN`) sur la base PostgreSQL si ces
   écrans ralentissent.
+- **AthleteOpposition** (#334) : l'empreinte (`core/identity.identity_hash`)
+  du nom et du prénom normalisés d'une personne qui s'est opposée à la
+  publication de ses résultats, ses dates et son auteur. **Aucun nom ni lien
+  vers `athletes`** : la fiche disparaît à l'application. `_Persister` charge
+  les empreintes une fois par import et rend anonyme (« Anonyme
+  {épreuve}-{dossard} ») toute ligne qui correspond. La clé ignore la date de
+  naissance, que les imports n'ont jamais, donc les homonymes sont couverts.
+  **Un relais qui nomme la personne arrive anonyme en entier**, jamais découpé :
+  son libellé (`team_name`, ligne brute, fiche d'équipe d'un découpage refusé)
+  la nommerait, et un découpage refusé recréerait ce libellé en fiche.
 - **AbsorbedCourse** (#983) — l'identité publiée (URL, nom, date, type, relais)
   d'une épreuve supprimée par une fusion, et sa cible. Une ligne scrapée qui la
   porte est **ignorée** (`mapping.is_absorbed`, `_Persister.add`) : sans quoi le

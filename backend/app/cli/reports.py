@@ -9,6 +9,7 @@ import typer
 from app.services.bulk_import_service import SheetOutcome
 from app.services.geocode_service import GeocodeOutcome
 from app.services.rescrape_service import RescrapeOutcome
+from app.services.retention_service import RetentionOutcome
 
 Outcome = SheetOutcome | RescrapeOutcome | GeocodeOutcome
 
@@ -181,6 +182,17 @@ def render_geocode_report(outcome: GeocodeOutcome, *, dry_run: bool) -> str:
         lignes.append(_LIGNE_ECHEC_TOTAL)
     lignes.extend(_lignes_echecs(outcome))
     return "\n".join(lignes)
+
+
+def render_retention_report(outcome: RetentionOutcome) -> str:
+    """Purge de rétention (#1158) : ce qui a été supprimé, ou le serait en dry-run."""
+    verb = "à supprimer" if outcome.dry_run else "supprimés"
+    return "\n".join([
+        _titre("PURGE DE RÉTENTION", dry_run=outcome.dry_run, interrupted=False),
+        _ligne(f"Signalements {verb}", outcome.feedback),
+        _ligne(f"Entrées du journal {verb}", outcome.admin_log),
+        _ligne(f"Profils jeunes {verb}", outcome.profiles),
+    ])
 
 
 def render_timepulse_duplicates_report(rows: list[dict], *, deleted: bool) -> str:

@@ -72,3 +72,7 @@ def repoint_deduplicated(db: Session, *, from_athlete_id: int, to_athlete_id: in
 
 def count_for_athlete(db: Session, athlete_id: int) -> int:
     return db.scalar(select(func.count()).select_from(SeasonValidation).where(SeasonValidation.athlete_id == athlete_id))
+
+
+def delete_for_athlete(db: Session, athlete_id: int) -> int:
+    return db.query(SeasonValidation).filter(SeasonValidation.athlete_id == athlete_id).delete()

@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { Badge, Card } from "@/components/tcn";
+import { Card } from "@/components/tcn";
 import type { GuideSection as GuideSectionData } from "./types";
 
 export function GuideSection({ section }: { section: GuideSectionData }) {
@@ -26,24 +26,33 @@ export function GuideSection({ section }: { section: GuideSectionData }) {
       </ol>
       <div className="space-y-3">
         {section.captures.map((capture) => (
-          <div key={capture.src} className="space-y-2">
-            {capture.placeholder && <Badge variant="orange">Capture à venir</Badge>}
+          // Une capture de bureau ramenée à la largeur d'un téléphone devient
+          // illisible (texte de ~2,5 px à 360 px) : le lien ouvre le fichier
+          // en pleine résolution.
+          <a
+            key={capture.src}
+            href={capture.src}
+            target="_blank"
+            rel="noopener"
+            className="block space-y-1.5 rounded-[var(--tcn-radius-2xl)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tcn-orange)]"
+          >
             <Image
               src={capture.src}
-              // Le statut "à venir" est répété dans l'alt : le badge visuel
-              // ne suffit pas pour un lecteur d'écran, qui n'a que le texte
-              // alternatif de l'image (#865, revue de code).
-              alt={capture.placeholder ? `Capture à venir — ${capture.alt}` : capture.alt}
-              // Ratio réel des 21 captures livrées (1418×840) : sans ce
-              // ratio exact, `width`/`height` imposent une boîte 1200×750
-              // (1,6:1) que le navigateur étire, ~5,5 % de distorsion sur
-              // chaque image (revue UI/UX, #865).
+              alt={capture.alt}
+              // Ratio de toutes les captures (1418×840) : sans ce ratio exact,
+              // `width`/`height` imposent une boîte 1200×750 (1,6:1) que le
+              // navigateur étire, ~5,5 % de distorsion sur chaque image
+              // (revue UI/UX, #865).
               width={1418}
               height={840}
+              sizes="(min-width: 768px) 75vw, 100vw"
               style={{ width: "100%", height: "auto", borderRadius: "var(--tcn-radius-2xl)" }}
               className="border border-[var(--tcn-border)]"
             />
-          </div>
+            <span className="block text-xs text-[var(--tcn-text-faint)] underline underline-offset-2">
+              Agrandir la capture
+            </span>
+          </a>
         ))}
       </div>
     </Card>

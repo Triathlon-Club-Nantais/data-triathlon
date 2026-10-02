@@ -10,9 +10,10 @@ et le couple `(entity_type, entity_id)` est la seule clé de relecture.
 partout dans le dépôt — `database.py` n'émet aucun `PRAGMA foreign_keys=ON`, la
 contrainte serait inerte en SQLite (dev et tests) et active en PostgreSQL.
 
-**Jamais modifiable** : ni mise à jour, ni suppression — un journal qu'on peut
-réécrire ne prouve rien. Une route de lecture existe (#501,
-`GET /admin/action-log`) ; c'est l'écriture qui reste fermée.
+**Jamais modifiable** : ni mise à jour, ni suppression ciblée — un journal qu'on
+peut réécrire ne prouve rien. Une route de lecture existe (#501,
+`GET /admin/action-log`) ; c'est l'écriture qui reste fermée. Seule exception,
+la purge de rétention (#1158) : par ancienneté (12 mois), jamais par entrée.
 """
 from datetime import datetime
 

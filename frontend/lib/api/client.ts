@@ -6,6 +6,9 @@ import type {
   IdentityPairIgnoreResult,
   IdentityReviewList,
   AdminAthleteUpdate,
+  Opposition,
+  OppositionIdentity,
+  OppositionPreview,
   AdminCourseUpdate,
   AdminUser,
   AdminVolunteerActionOut,
@@ -454,6 +457,15 @@ export const apiClient = {
       body: JSON.stringify(champs),
     }),
   getAthleteAdmin: (id: number) => request<AdminAthlete>(`/admin/athletes/${id}`),
+  // Droit d'opposition (#334), pouvoir `oppositions:manage`.
+  listOppositions: () => request<Opposition[]>("/admin/oppositions"),
+  previewOpposition: (identity: OppositionIdentity) =>
+    request<OppositionPreview>("/admin/oppositions/preview", {
+      method: "POST",
+      body: JSON.stringify(identity),
+    }),
+  applyOpposition: (body: OppositionIdentity & { requested_on: string }) =>
+    request<Opposition>("/admin/oppositions", { method: "POST", body: JSON.stringify(body) }),
   searchAthletesAdmin: (search: string) =>
     request<AdminAthlete[]>(`/admin/athletes${toQuery({ search })}`),
   reassignParticipation: (participationId: number, athleteId: number) =>
@@ -655,6 +667,7 @@ export const apiClient = {
       birth_date?: string | null;
       emergency_contact?: string;
       notes?: string;
+      membership_ended_on?: string | null;
     },
   ) =>
     request<ProfileDetail>(`/admin/profiles/${id}`, {

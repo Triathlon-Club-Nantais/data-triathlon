@@ -78,5 +78,6 @@ export const queryKeys = {
   // Clé distincte de la liste : celle-ci stocke un `ProfileDetail` (journal
   // compris), l'autre un `Profile[]`. Même patron que `group`/`groups`.
   profiles: () => ["admin-profiles"] as const,
+  oppositions: () => ["admin-oppositions"] as const,
   profile: (id: number) => ["admin-profile", id] as const,
 };

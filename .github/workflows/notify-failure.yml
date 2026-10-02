@@ -3,8 +3,10 @@ name: Notify failure
 # Alerte d'équipe d'un workflow planifié en échec (#922). Sans elle, la
 # plateforme ne prévenait que l'auteur du dernier commit du fichier de cron :
 # la reprise hebdomadaire de `batch.yml` a échoué six lundis de suite sans que
-# personne réagisse. Le canal est une issue labellisée `ops`, gratuite et sans
-# compte tiers : une par workflow, ouverte au premier échec, complétée ensuite.
+# personne réagisse. Le canal est une issue labellisée `ops` : une par
+# workflow, ouverte au premier échec, complétée ensuite. Chaque ouverture ou
+# complément est aussi posté dans le canal Slack d'ops, si le secret
+# `SLACK_OPS_WEBHOOK_URL` est posé (webhook entrant, gratuit).
 on:
   workflow_call:
     inputs:
@@ -12,6 +14,9 @@ on:
         description: Nom du workflow appelant, repris dans le titre de l'issue.
         required: true
         type: string
+    secrets:
+      SLACK_OPS_WEBHOOK_URL:
+        required: false
 
 permissions:
   contents: read
@@ -31,6 +36,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           WORKFLOW: ${{ inputs.workflow }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SLACK_OPS_WEBHOOK_URL: ${{ secrets.SLACK_OPS_WEBHOOK_URL }}
         run: |
           set -euo pipefail
           titre="Scheduled workflow failing: $WORKFLOW"
@@ -39,13 +45,22 @@ jobs:
             --json number,title,updatedAt \
             --jq "[.[] | select(.title == \"$titre\")][0] // empty")
           if [ -z "$issue" ]; then
-            gh issue create --title "$titre" --label ops --body "$corps"
-            exit 0
+            lien=$(gh issue create --title "$titre" --label ops --body "$corps")
+          else
+            numero=$(jq -r '.number' <<<"$issue")
+            maj=$(date -u -d "$(jq -r '.updatedAt' <<<"$issue")" +%s)
+            if [ $(( $(date -u +%s) - maj )) -lt 43200 ]; then
+              echo "Issue #$numero complétée il y a moins de 12 h : rien à ajouter."
+              exit 0
+            fi
+            lien=$(gh issue comment "$numero" --body "$corps")
           fi
-          numero=$(jq -r '.number' <<<"$issue")
-          maj=$(date -u -d "$(jq -r '.updatedAt' <<<"$issue")" +%s)
-          if [ $(( $(date -u +%s) - maj )) -lt 43200 ]; then
-            echo "Issue #$numero complétée il y a moins de 12 h : rien à ajouter."
-            exit 0
+          # Slack suit la même cadence que l'issue : au plus un message par 12 h.
+          # Un webhook absent ou en panne ne fait pas échouer l'alerte GitHub.
+          if [ -n "$SLACK_OPS_WEBHOOK_URL" ]; then
+            jq -n --arg t ":rotating_light: *$WORKFLOW* a échoué en exécution planifiée. Run : $RUN_URL · Suivi : $lien" \
+              '{text: $t}' \
+              | curl -sS --fail-with-body --max-time 20 -H "Content-Type: application/json" \
+                  --data @- "$SLACK_OPS_WEBHOOK_URL" \
+              || echo "::warning::Message Slack non envoyé."
           fi
-          gh issue comment "$numero" --body "$corps"

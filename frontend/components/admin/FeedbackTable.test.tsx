@@ -92,6 +92,13 @@ describe("FeedbackTable", () => {
     getSession.mockResolvedValue(INSTRUCTEUR);
   });
 
+  it("distingue une demande de retrait des bugs et des retours (#334)", async () => {
+    listFeedback.mockResolvedValue([{ ...SIGNALEMENT, type: "retrait" }]);
+    afficher();
+
+    expect(await screen.findByText("Retrait de données")).toBeInTheDocument();
+  });
+
   it("affiche les colonnes date, type, titre et statut", async () => {
     afficher();
 

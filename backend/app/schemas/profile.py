@@ -55,6 +55,7 @@ class ProfileDetailRead(ProfileRead):
 
     emergency_contact: str
     notes: str
+    membership_ended_on: date | None
     log_entries: list[ProfileLogEntryRead]
 
 
@@ -82,3 +83,5 @@ class ProfileUpdate(BaseModel):
     birth_date: date | None = None
     emergency_contact: str | None = None
     notes: str | None = None
+    #: Seul champ effaçable par `null` explicite (#1158) : absent = inchangé.
+    membership_ended_on: date | None = None

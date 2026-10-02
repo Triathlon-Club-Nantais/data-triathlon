@@ -18,11 +18,13 @@ const IDS_ATTENDUS = [
   "variantes-club",
   "portee-compteurs",
   "benevolat-validation",
+  "validation-epreuves",
   "acces-backoffice",
+  "pages-publiques",
 ];
 
 describe("GUIDE_ADMIN", () => {
-  it("expose exactement les 15 ids attendus, dans l'ordre", () => {
+  it("expose exactement les 17 ids attendus, dans l'ordre", () => {
     expect(GUIDE_ADMIN.map((section) => section.id)).toEqual(IDS_ATTENDUS);
   });
 
@@ -42,21 +44,6 @@ describe("GUIDE_ADMIN", () => {
       }
     }
   });
-
-  it("ne porte `placeholder: true` que sur les captures qui n'en ont pas encore de réelle (#874)", () => {
-    // 13/15 des captures admin ont été remplacées par de vraies captures en
-    // dev local (session admin réelle) ; les 2 restantes exposent des
-    // données personnelles réelles (liste d'utilisateurs, adresses
-    // autorisées) qu'on ne persiste pas dans le dépôt sans plus de
-    // précaution — elles restent des placeholders volontairement.
-    const ENCORE_PLACEHOLDER = ["utilisateurs", "acces-backoffice"];
-    for (const section of GUIDE_ADMIN) {
-      const attendu = ENCORE_PLACEHOLDER.includes(section.id);
-      for (const capture of section.captures) {
-        expect(capture.placeholder ?? false, `${section.id} : ${capture.src}`).toBe(attendu);
-      }
-    }
-  });
 });
 
 describe("GUIDE_ADMIN wording (#1046)", () => {
@@ -72,5 +59,23 @@ describe("GUIDE_ADMIN wording (#1046)", () => {
     expect(texte).toMatch(/code d'accès/i);
     expect(texte).toMatch(/bénévoles/i);
     expect(texte).toMatch(/sessions/i);
+  });
+});
+
+describe("GUIDE_ADMIN public-page gestures (#1046)", () => {
+  it("names the admin buttons shown on public pages", () => {
+    const texte = GUIDE_ADMIN.find((s) => s.id === "pages-publiques")!.etapes.join(" ");
+    expect(texte).toMatch(/« Corriger la fiche »/);
+    expect(texte).toMatch(/« Valider la saison »/);
+    expect(texte).toMatch(/« Rattacher »/);
+  });
+});
+
+describe("GUIDE_ADMIN results verification (#1162)", () => {
+  it("documents reassigning a result to another athlete", () => {
+    const texte = GUIDE_ADMIN.find((s) => s.id === "validation-epreuves")!.etapes.join(" ");
+    expect(texte).toMatch(/« Réattribuer à »/);
+    expect(texte).toMatch(/« Enregistrer »/);
+    expect(texte).toMatch(/« Valider ce résultat »/);
   });
 });

@@ -6,9 +6,11 @@
  * (`AdminActionLog.action`) ; `formatPayload` traduit les **clés** du JSON
  * libre qu'un geste a consigné, quel que soit le geste.
  */
+import { FEEDBACK_STATUS_LABELS } from "@/lib/labels";
 
 const ACTION_LABELS: Record<string, string> = {
   "course.delete": "Suppression d'une épreuve",
+  "opposition.apply": "Opposition appliquée",
   "course.update": "Correction d'une épreuve",
   "course.merge": "Fusion de deux épreuves",
   "course.source.switch": "Bascule de la source active",
@@ -63,10 +65,12 @@ export function actionLabel(action: string): string {
 
 const PAYLOAD_KEY_LABELS: Record<string, string> = {
   nom: "Nom",
+  requested_on: "Date de la demande",
+  anonymised_count: "Résultats anonymisés",
   prenom: "Prénom",
   birth_date: "Date de naissance",
   club: "Club",
-  name: "Nom de l'épreuve",
+  name: "Nom",
   event_date: "Date",
   event_type: "Type",
   is_relay: "Relais",
@@ -158,7 +162,12 @@ export type LigneDetail = { label: string; value: string; href?: string };
 /** Valeurs codées traduites, par clé : le backend écrit `scope: "all"` (#935). */
 const PAYLOAD_VALUE_LABELS: Record<string, Record<string, string>> = {
   scope: { all: "tous les comptes" },
+  status: FEEDBACK_STATUS_LABELS,
 };
+
+function valueFor(key: string, v: unknown): string {
+  return PAYLOAD_VALUE_LABELS[key]?.[String(v)] ?? formatValue(v);
+}
 
 function labelFor(key: string): string {
   return PAYLOAD_KEY_LABELS[key] ?? key;
@@ -200,7 +209,7 @@ export function formatPayload(payload: Record<string, unknown> | null): LigneDet
         if (JSON.stringify(before[champ]) !== JSON.stringify(after[champ])) {
           lignes.push({
             label: labelFor(champ),
-            value: `${formatValue(before[champ])} → ${formatValue(after[champ])}`,
+            value: `${valueFor(champ, before[champ])} → ${valueFor(champ, after[champ])}`,
           });
         }
       }
@@ -217,7 +226,7 @@ export function formatPayload(payload: Record<string, unknown> | null): LigneDet
     lignes.push(
       base && typeof v === "number"
         ? { label: labelFor(k), value: String(v), href: `${base}/${v}` }
-        : { label: labelFor(k), value: PAYLOAD_VALUE_LABELS[k]?.[String(v)] ?? formatValue(v) },
+        : { label: labelFor(k), value: valueFor(k, v) },
     );
   }
 
