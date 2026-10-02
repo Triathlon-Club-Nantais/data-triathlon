@@ -16,6 +16,7 @@ from app.repositories import (
 )
 from app.schemas.athlete import AthleteBrief, AthleteSearchResult, AthleteSeasonActivity
 from app.schemas.participation import AthleteDetail, AthleteParticipationOut
+from app.services import challenge_service
 
 router = APIRouter(tags=["athletes"])
 
@@ -134,4 +135,8 @@ def get_athlete(
         item = AthleteParticipationOut.model_validate(p)
         item.course_finishers = counts.get((p.course_id, bool(p.is_relay)))
         items.append(item)
-    return {"athlete": AthleteBrief.model_validate(athlete), "participations": items}
+    return {
+        "athlete": AthleteBrief.model_validate(athlete),
+        "participations": items,
+        "challenges": challenge_service.for_athlete(db, athlete_id),
+    }

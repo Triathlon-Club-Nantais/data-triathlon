@@ -131,3 +131,51 @@ def save(
         )
     db.refresh(challenge)
     return challenge
+
+
+def _courses(challenge: Challenge) -> list[dict]:
+    return sorted(
+        ({"id": link.course.id, "name": link.course.name} for link in challenge.links),
+        key=lambda course: course["name"],
+    )
+
+
+def for_athlete(db: Session, athlete_id: int) -> list[dict]:
+    rows = challenge_repository.list_for_athlete(db, athlete_id)
+    counts = challenge_repository.ranked_counts(db, [row.challenge_id for row in rows])
+    return [
+        {
+            "id": row.challenge.id, "name": row.challenge.name,
+            "event_date": row.challenge.event_date, "rank_overall": row.rank_overall,
+            "ranked_count": counts.get(row.challenge_id, 0), "total_time": row.total_time,
+            "courses": _courses(row.challenge),
+        }
+        for row in rows
+    ]
+
+
+def for_course(db: Session, course_id: int) -> list[dict]:
+    challenges = challenge_repository.list_for_course(db, course_id)
+    counts = challenge_repository.ranked_counts(db, [c.id for c in challenges])
+    return [{"id": c.id, "name": c.name, "ranked_count": counts.get(c.id, 0)} for c in challenges]
+
+
+def detail(db: Session, challenge_id: int) -> dict | None:
+    challenge = challenge_repository.get(db, challenge_id)
+    if challenge is None:
+        return None
+    results = sorted(
+        challenge.results,
+        key=lambda r: (r.rank_overall is None, r.rank_overall or 0, r.athlete.nom),
+    )
+    return {
+        "id": challenge.id, "name": challenge.name, "event_date": challenge.event_date,
+        "courses": _courses(challenge),
+        "results": [
+            {
+                "athlete_id": r.athlete_id, "nom": r.athlete.nom, "prenom": r.athlete.prenom,
+                "rank_overall": r.rank_overall, "total_time": r.total_time, "status": r.status,
+            }
+            for r in results
+        ],
+    }

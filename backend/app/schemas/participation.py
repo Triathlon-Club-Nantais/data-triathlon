@@ -7,6 +7,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, computed_fiel
 
 from app.core.club import is_tcn as _is_tcn
 from app.schemas.athlete import AthleteBrief
+from app.schemas.challenge import AthleteChallengeOut
 from app.schemas.course import CourseBrief
 from app.schemas.participation_stats import ParticipationStatsOut
 from app.scrapers.base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
@@ -106,6 +107,9 @@ class AthleteDetail(BaseModel):
 
     athlete: AthleteBrief
     participations: list[AthleteParticipationOut]
+    #: Classements Challenge (#1008) : la carrière entière, `seasons` et
+    #: `federal_only` ne s'y appliquent pas.
+    challenges: list[AthleteChallengeOut] = []
 
 
 class CourseParticipationPage(BaseModel):

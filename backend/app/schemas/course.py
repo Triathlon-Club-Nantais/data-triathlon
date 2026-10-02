@@ -3,6 +3,8 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.challenge import CourseChallengeOut
+
 
 class CourseSourceOut(BaseModel):
     """Une source de chronométrage d'une épreuve, telle que la voit **le public** (#284).
@@ -165,3 +167,5 @@ class CourseSummary(BaseModel):
     #: référence, et la course 65 (neuf enfants, totaux de cinq minutes) faisait
     #: signaler deux lignes pour vingt secondes.
     split_gap_rows: int = 0
+    #: Classements Challenge auxquels compte l'épreuve (#1008).
+    challenges: list[CourseChallengeOut] = []
