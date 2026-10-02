@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminVolunteerActionOut } from "@/lib/types";
@@ -7,6 +7,7 @@ import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
 import { confirmerDansLeDialog } from "@/components/admin/__tests__/dangerConfirm";
 import { AdminVolunteerActionsTable } from "./AdminVolunteerActionsTable";
 import { seasonLabel } from "@/lib/utils/season";
+import { formatDate } from "@/lib/utils/date";
 
 const {
   listPendingVolunteerActions,
@@ -188,6 +189,98 @@ describe("AdminVolunteerActionsTable", () => {
 
     await waitFor(() => expect(deleteVolunteerAction).toHaveBeenCalledWith(1));
     await waitFor(() => expect(screen.queryByText("Ravitaillement")).not.toBeInTheDocument());
+  });
+
+  it("Voir ouvre le détail avec le texte complet, la saison, la date et la fiche athlète", async () => {
+    const description = "Poste eau km 15.\nPuis balisage du parcours vélo jusqu'à la fin de l'épreuve.";
+    listPendingVolunteerActions.mockResolvedValue([{ ...EN_ATTENTE, description }]);
+
+    afficher();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Voir la déclaration « Ravitaillement » de Jean-Marc LEMÉE" }),
+    );
+
+    const dialogue = await screen.findByRole("dialog");
+    expect(within(dialogue).getByRole("heading", { name: "Ravitaillement" })).toBeInTheDocument();
+    const texte = within(dialogue).getByText((_, element) => element?.textContent === description);
+    expect(texte).toHaveClass("whitespace-pre-wrap");
+    expect(within(dialogue).getByText(new RegExp(seasonLabel(2025)))).toBeInTheDocument();
+    expect(within(dialogue).getByText(new RegExp(formatDate(EN_ATTENTE.created_at)))).toBeInTheDocument();
+    expect(within(dialogue).getByRole("link", { name: /jean-marc lemée/i })).toHaveAttribute(
+      "href",
+      "/athletes/42",
+    );
+  });
+
+  it("nomme le bouton Voir sans titre quand la déclaration n'en a pas", async () => {
+    listPendingVolunteerActions.mockResolvedValue([SANS_TITRE]);
+
+    afficher();
+
+    expect(
+      await screen.findByRole("button", { name: "Voir la déclaration de Hadrien KERMARREC" }),
+    ).toBeInTheDocument();
+  });
+
+  it("borne la hauteur du détail et fait défiler la description, au clavier aussi", async () => {
+    listPendingVolunteerActions.mockResolvedValue([{ ...EN_ATTENTE, description: "x".repeat(10000) }]);
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /voir/i }));
+
+    const dialogue = await screen.findByRole("dialog");
+    expect(dialogue).toHaveClass("max-h-[85dvh]", "flex", "flex-col");
+    expect(within(dialogue).getByRole("heading", { name: "Ravitaillement" })).toHaveClass("pr-8", "leading-snug");
+    const defilement = within(dialogue).getByRole("region", { name: /déclaration/i });
+    expect(defilement).toHaveClass("min-h-0", "overflow-y-auto");
+    expect(defilement).toHaveAttribute("tabindex", "0");
+  });
+
+  it("accepter depuis le détail appelle la mutation et ferme le dialogue", async () => {
+    listPendingVolunteerActions.mockResolvedValueOnce([EN_ATTENTE]).mockResolvedValueOnce([]);
+    acceptVolunteerAction.mockResolvedValue({ ...EN_ATTENTE, status: "validee" });
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /voir/i }));
+    const dialogue = await screen.findByRole("dialog");
+    await userEvent.click(within(dialogue).getByRole("button", { name: /accepter/i }));
+
+    await waitFor(() => expect(acceptVolunteerAction).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("refuser depuis le détail appelle la mutation et ferme le dialogue", async () => {
+    listPendingVolunteerActions.mockResolvedValueOnce([EN_ATTENTE]).mockResolvedValueOnce([]);
+    rejectVolunteerAction.mockResolvedValue({ ...EN_ATTENTE, status: "refusee" });
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /voir/i }));
+    const dialogue = await screen.findByRole("dialog");
+    await userEvent.click(within(dialogue).getByRole("button", { name: /refuser/i }));
+
+    await waitFor(() => expect(rejectVolunteerAction).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("garde le détail ouvert, boutons inertes, tant que la décision n'a pas abouti", async () => {
+    listPendingVolunteerActions.mockResolvedValue([EN_ATTENTE]);
+    let echouer: (e: Error) => void = () => {};
+    acceptVolunteerAction.mockReturnValue(new Promise((_, rejeter) => (echouer = rejeter)));
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /voir/i }));
+    const dialogue = await screen.findByRole("dialog");
+    await userEvent.click(within(dialogue).getByRole("button", { name: /accepter/i }));
+
+    await waitFor(() =>
+      expect(within(screen.getByRole("dialog")).getByRole("button", { name: /accepter/i })).toBeDisabled(),
+    );
+    expect(within(screen.getByRole("dialog")).getByRole("button", { name: /refuser/i })).toBeDisabled();
+
+    echouer(new Error("Refusé par le serveur"));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Refusé par le serveur"));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   it("désactive Accepter et Refuser pendant qu'une suppression est en cours", async () => {

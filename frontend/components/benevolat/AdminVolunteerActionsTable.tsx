@@ -1,4 +1,5 @@
 "use client";
+import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -25,6 +26,7 @@ import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
 import { seasonLabel } from "@/lib/utils/season";
 import type { AdminVolunteerActionOut } from "@/lib/types";
+import { AdminVolunteerActionDetailDialog } from "./AdminVolunteerActionDetailDialog";
 
 const REPLI = "—";
 
@@ -50,6 +52,7 @@ export function AdminVolunteerActionsTable() {
   const refuser = useRejectVolunteerAction();
   const supprimer = useDeleteVolunteerAction();
   const confirmerLeDanger = useDangerConfirm();
+  const [detail, setDetail] = useState<AdminVolunteerActionOut | null>(null);
 
   if (isLoading) return <Skeleton data-testid="admin-volunteer-actions-skeleton" className="h-40 w-full" />;
   if (error) return <EmptyState {...messageDeRefus(error, REFUS)} />;
@@ -65,6 +68,7 @@ export function AdminVolunteerActionsTable() {
   async function onAccept(id: number) {
     try {
       await accepter.mutateAsync(id);
+      setDetail(null);
       toast.success("Déclaration acceptée.");
     } catch (e) {
       toast.error((e as Error).message);
@@ -74,6 +78,7 @@ export function AdminVolunteerActionsTable() {
   async function onReject(id: number) {
     try {
       await refuser.mutateAsync(id);
+      setDetail(null);
       toast.success("Déclaration refusée.");
     } catch (e) {
       toast.error((e as Error).message);
@@ -127,6 +132,18 @@ export function AdminVolunteerActionsTable() {
                   <Button
                     size="sm"
                     variant="outline"
+                    onClick={() => setDetail(action)}
+                    aria-label={
+                      action.title
+                        ? `Voir la déclaration « ${action.title} » de ${action.athlete_prenom} ${action.athlete_nom}`
+                        : `Voir la déclaration de ${action.athlete_prenom} ${action.athlete_nom}`
+                    }
+                  >
+                    Voir
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
                     onClick={() => onAccept(action.id)}
                     disabled={accepter.isPending || refuser.isPending || supprimer.isPending}
                     aria-label={`Accepter — ${action.athlete_prenom} ${action.athlete_nom}`}
@@ -157,6 +174,13 @@ export function AdminVolunteerActionsTable() {
           ))}
         </TableBody>
       </Table>
+      <AdminVolunteerActionDetailDialog
+        action={detail}
+        onOpenChange={(ouvert) => !ouvert && setDetail(null)}
+        onAccept={onAccept}
+        onReject={onReject}
+        disabled={accepter.isPending || refuser.isPending || supprimer.isPending}
+      />
     </Card>
   );
 }
