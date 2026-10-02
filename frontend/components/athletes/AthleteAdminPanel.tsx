@@ -1,5 +1,5 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Alert, Button, Input, Modal } from "@/components/tcn";
@@ -7,7 +7,8 @@ import { ApiError } from "@/lib/api/client";
 import { useAdminAthlete, useUpdateAthlete } from "@/lib/queries/admin";
 import { useHydratedSession } from "@/lib/queries/auth";
 import type { AdminAthleteUpdate } from "@/lib/types";
-import { AthleteMergeAction, ConflictMerge } from "./AthleteMergeAction";
+import { MergeAthletesDialog } from "@/components/admin/MergeAthletesDialog";
+import { AthleteMergeAction, useSuivreLaFicheConservee } from "./AthleteMergeAction";
 
 export type CoureurACorriger = {
   id: number;
@@ -112,7 +113,14 @@ export function AthleteAdminPanel({
   // La fiche qui porte déjà l'identité demandée (409, #908) : la fusion est la
   // sortie de ce refus, pour qui peut lire les deux fiches.
   const [conflit, setConflit] = useState<number | null>(null);
-  const [fusionDuConflit, setFusionDuConflit] = useState(false);
+  // La fusion demandée depuis le refus : la fiche en conflit se lit **pendant**
+  // que la correction reste ouverte, qui dit l'attente ou l'échec. Renoncer à
+  // la fusion y ramène, saisie intacte (FR-010).
+  const [fusionDemandee, setFusionDemandee] = useState(false);
+  const ficheEnConflit = useAdminAthlete(fusionDemandee ? conflit : null);
+  const fusionOuverte = fusionDemandee && ficheEnConflit.data !== undefined;
+  const declencheur = useRef<HTMLButtonElement>(null);
+  const suivre = useSuivreLaFicheConservee(athlete.id);
 
   const router = useRouter();
   const correction = useUpdateAthlete();
@@ -134,6 +142,7 @@ export function AthleteAdminPanel({
     setNaissanceSaisie(null);
     setRefus(null);
     setConflit(null);
+    setFusionDemandee(false);
     setOuverte(true);
   }
 
@@ -191,12 +200,14 @@ export function AthleteAdminPanel({
       setRefus(enConflit ? erreur.message : ECHEC);
       const autre = enConflit ? erreur.details.conflicting_athlete_id : undefined;
       setConflit(typeof autre === "number" ? autre : null);
+      setFusionDemandee(false);
     }
   }
 
   return (
     <>
       <Button
+        ref={declencheur}
         variant={primary ? "primary" : "secondary"}
         onClick={ouvrir}
         aria-label={`Corriger la fiche de ${nomComplet}`}
@@ -205,11 +216,21 @@ export function AthleteAdminPanel({
       </Button>
       {peutLireLaFiche && <AthleteMergeAction athlete={athlete} />}
 
-      {fusionDuConflit && conflit !== null && (
-        <ConflictMerge athlete={athlete} conflictId={conflit} onClose={() => setFusionDuConflit(false)} />
+      {fusionOuverte && ficheEnConflit.data && (
+        <MergeAthletesDialog
+          athleteA={athlete}
+          athleteB={ficheEnConflit.data}
+          open
+          onOpenChange={(ouvert) => !ouvert && setFusionDemandee(false)}
+          onMerged={(gardeeId) => {
+            setOuverte(false);
+            suivre(gardeeId);
+          }}
+          finalFocus={declencheur}
+        />
       )}
 
-      {ouverte && (
+      {ouverte && !fusionOuverte && (
         <Modal
           eyebrow="Fiche athlète"
           title="Corriger la fiche"
@@ -232,16 +253,25 @@ export function AthleteAdminPanel({
                   {refus}
                 </Alert>
                 {conflit !== null && peutLireLaFiche && (
-                  <div style={{ marginTop: 10 }}>
+                  <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
                     <Button
                       variant="secondary"
                       onClick={() => {
-                        setOuverte(false);
-                        setFusionDuConflit(true);
+                        setFusionDemandee(true);
+                        if (ficheEnConflit.isError) ficheEnConflit.refetch();
                       }}
+                      disabled={fusionDemandee && ficheEnConflit.isPending}
                     >
-                      Fusionner avec la fiche n° {conflit}
+                      {fusionDemandee && ficheEnConflit.isPending
+                        ? `Lecture de la fiche n° ${conflit}…`
+                        : `Fusionner avec la fiche n° ${conflit}`}
                     </Button>
+                    {fusionDemandee && ficheEnConflit.isError && (
+                      <p style={{ margin: 0, fontSize: 13, color: "var(--tcn-text-muted)" }}>
+                        La fiche n° {conflit} n&apos;a pas pu être lue : elle a peut-être été fusionnée ou
+                        supprimée entre-temps. Corrigez la saisie, ou réessayez.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

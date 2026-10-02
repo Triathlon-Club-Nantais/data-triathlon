@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useDangerConfirm } from "@/components/admin/DangerConfirm";
-import { MergeAthletesDialog } from "@/components/admin/MergeAthletesDialog";
+import { MergeAthletesDialog, nomDe } from "@/components/admin/MergeAthletesDialog";
 import { useIdentityReview, useIgnoreIdentityPair } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
@@ -17,10 +17,6 @@ import { motCompte } from "@/lib/utils/format";
 import type { IdentityReviewAthlete, IdentityReviewCandidate } from "@/lib/types";
 
 const REFUS = { sujet: "cas d'identité", action: "consulter les cas d'identité des athlètes" };
-
-function nomDe(fiche: { nom: string; prenom: string }): string {
-  return [fiche.nom, fiche.prenom].filter(Boolean).join(" ");
-}
 
 function LigneFiche({ fiche }: { fiche: IdentityReviewAthlete }) {
   const details = [
@@ -43,8 +39,12 @@ function LigneFiche({ fiche }: { fiche: IdentityReviewAthlete }) {
 function Conflits({ candidate }: { candidate: IdentityReviewCandidate }) {
   if (candidate.conflicts.length === 0) return null;
   const noms = new Map(candidate.athletes.map((fiche) => [fiche.id, nomDe(fiche)]));
+  const total = candidate.conflicts.length;
   return (
     <div className="space-y-2">
+      <p className="text-sm font-medium">
+        {total} épreuve{total > 1 ? "s" : ""} en conflit
+      </p>
       {candidate.conflicts.map((conflit) => (
         <div key={conflit.course_id} className="text-sm">
           <p className="font-medium">
@@ -79,6 +79,7 @@ function CarteCas({
   const confirmer = useDangerConfirm();
   const [ficheA, ficheB] = candidate.athletes;
   const paire = ficheB !== undefined;
+  const noms = candidate.athletes.map(nomDe).join(" et ");
 
   /** Geste neutre (#499) : rien n'est détruit, une suggestion sort de la liste. */
   async function ecarterLaPaire() {
@@ -103,11 +104,16 @@ function CarteCas({
   }
 
   return (
-    <article aria-label={`${candidate.reason_label} : ${candidate.athletes.map(nomDe).join(" et ")}`}>
+    <article aria-labelledby={`cas-${candidate.reason}-${ficheA.id}-${ficheB?.id ?? ""}`}>
       <Card>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <Badge variant="secondary">{candidate.reason_label}</Badge>
+            <div className="space-y-1">
+              <h2 id={`cas-${candidate.reason}-${ficheA.id}-${ficheB?.id ?? ""}`} className="text-base font-semibold">
+                {noms}
+              </h2>
+              <Badge variant="secondary">{candidate.reason_label}</Badge>
+            </div>
             {paire && (
               <div className="flex gap-2">
                 <Button
@@ -116,11 +122,18 @@ function CarteCas({
                   className="min-h-11"
                   onClick={ecarterLaPaire}
                   disabled={ecarter.isPending}
+                  aria-label={`Écarter la paire ${noms}`}
                 >
                   {ecarter.isPending ? "Mise à l'écart…" : "Écarter"}
                 </Button>
                 {peutFusionner && (
-                  <Button size="sm" variant="destructive" className="min-h-11" onClick={() => setFusionOuverte(true)}>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="min-h-11"
+                    onClick={() => setFusionOuverte(true)}
+                    aria-label={`Fusionner ${noms}`}
+                  >
                     Fusionner
                   </Button>
                 )}

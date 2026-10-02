@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type ComponentProps } from "react";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
@@ -15,7 +15,8 @@ export type FicheAFusionner = {
   participations?: number;
 };
 
-function nomDe(fiche: { nom: string; prenom: string }): string {
+/** « NOM Prénom », l'ordre de la recherche admin et de la revue, sur tout le parcours. */
+export function nomDe(fiche: { nom: string; prenom: string }): string {
   return [fiche.nom, fiche.prenom].filter(Boolean).join(" ");
 }
 
@@ -65,6 +66,7 @@ export function MergeAthletesDialog({
   open,
   onOpenChange,
   onMerged,
+  finalFocus,
 }: {
   athleteA: FicheAFusionner;
   athleteB: FicheAFusionner;
@@ -72,6 +74,8 @@ export function MergeAthletesDialog({
   onOpenChange: (ouvert: boolean) => void;
   /** Appelé avec l'id de la fiche conservée, une fois la fusion faite. */
   onMerged?: (keptId: number) => void;
+  /** Où rendre le focus à la fermeture, quand le déclencheur a disparu entre-temps. */
+  finalFocus?: ComponentProps<typeof DangerConfirm>["finalFocus"];
 }) {
   const [gardeeId, setGardeeId] = useState<number | null>(null);
   const absorbee = gardeeId === null ? null : gardeeId === athleteA.id ? athleteB : athleteA;
@@ -85,11 +89,14 @@ export function MergeAthletesDialog({
     if (gardee === null || absorbee === null) return;
     try {
       await fusion.mutateAsync({ keptId: gardee.id, absorbedId: absorbee.id });
-      toast.success(`« ${nomDe(absorbee)} » a été fusionnée dans « ${nomDe(gardee)} ».`);
+      // Par numéro : deux homonymes ont le même nom, et le toast dirait « X dans X ».
+      toast.success(`La fiche n° ${absorbee.id} a été fusionnée dans la fiche n° ${gardee.id} (${nomDe(gardee)}).`);
       onOpenChange(false);
       onMerged?.(gardee.id);
     } catch (erreur) {
       toast.error((erreur as Error).message);
+      // Un refus apparu depuis l'aperçu doit s'afficher ici, bouton inerte.
+      impact.refetch();
     }
   }
 
@@ -97,6 +104,7 @@ export function MergeAthletesDialog({
     <DangerConfirm
       open={open}
       onOpenChange={onOpenChange}
+      finalFocus={finalFocus}
       titre="Fusionner ces deux fiches ?"
       description={
         <>
@@ -118,16 +126,26 @@ export function MergeAthletesDialog({
       {gardeeId !== null && impact.isLoading && <Skeleton className="h-16 w-full" />}
 
       {gardeeId !== null && impact.error && (
-        <p className="text-sm text-destructive">
-          L&apos;ampleur de la fusion n&apos;a pas pu être chiffrée. Par prudence, la
-          fusion n&apos;est pas activée. Réessayez plus tard.
-        </p>
+        <div className="space-y-2">
+          <p className="text-sm text-destructive">
+            L&apos;ampleur de la fusion n&apos;a pas pu être chiffrée. Par prudence, la
+            fusion n&apos;est pas activée.
+          </p>
+          <button
+            type="button"
+            onClick={() => impact.refetch()}
+            className="min-h-11 rounded-md border px-3 text-sm hover:bg-accent"
+          >
+            Réessayer
+          </button>
+        </div>
       )}
 
       {refus && (
-        <p role="alert" className="text-sm text-destructive">
-          Fusion impossible : {refus}
-        </p>
+        <div role="alert" className="space-y-1 text-sm text-destructive">
+          <p className="font-medium">Fusion impossible</p>
+          <p>{refus}</p>
+        </div>
       )}
 
       {impact.data && refus === null && (

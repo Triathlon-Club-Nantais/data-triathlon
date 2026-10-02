@@ -1,10 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Modal } from "@/components/tcn";
 import { AthleteSearchPicker } from "@/components/admin/AthleteSearchPicker";
-import { MergeAthletesDialog, type FicheAFusionner } from "@/components/admin/MergeAthletesDialog";
-import { useAdminAthlete } from "@/lib/queries/admin";
+import { MergeAthletesDialog, nomDe, type FicheAFusionner } from "@/components/admin/MergeAthletesDialog";
 import type { AdminAthlete } from "@/lib/types";
 
 /**
@@ -25,23 +24,29 @@ export function useSuivreLaFicheConservee(ficheCourante: number) {
  * Deux temps : trouver l'autre fiche (la recherche admin, seule à montrer date
  * de naissance et nombre de résultats, d'où `athletes:read` en plus de
  * `athletes:write`), puis choisir celle qu'on garde dans `MergeAthletesDialog`.
- * L'appelant décide de la visibilité.
+ * La fiche consultée n'est pas proposée. Le focus revient au bouton, la
+ * recherche ayant disparu entre-temps. L'appelant décide de la visibilité.
  */
 export function AthleteMergeAction({ athlete }: { athlete: FicheAFusionner }) {
   const [recherche, setRecherche] = useState(false);
   const [autre, setAutre] = useState<AdminAthlete | null>(null);
+  const declencheur = useRef<HTMLButtonElement>(null);
   const suivre = useSuivreLaFicheConservee(athlete.id);
-  const nom = [athlete.prenom, athlete.nom].filter(Boolean).join(" ");
+  const nom = nomDe(athlete);
 
   function choisir(fiche: AdminAthlete) {
-    if (fiche.id === athlete.id) return;
     setAutre(fiche);
     setRecherche(false);
   }
 
   return (
     <>
-      <Button variant="secondary" onClick={() => setRecherche(true)} aria-label={`Fusionner avec une autre fiche : ${nom}`}>
+      <Button
+        ref={declencheur}
+        variant="secondary"
+        onClick={() => setRecherche(true)}
+        aria-label={`Fusionner avec une autre fiche : ${nom}`}
+      >
         Fusionner avec une autre fiche
       </Button>
 
@@ -61,7 +66,7 @@ export function AthleteMergeAction({ athlete }: { athlete: FicheAFusionner }) {
           <p style={{ margin: "0 0 12px", fontSize: 14, color: "var(--tcn-text-muted)" }}>
             Cherchez l&apos;autre fiche de {nom}. Vous choisirez ensuite celle que vous conservez.
           </p>
-          <AthleteSearchPicker selectedId={autre?.id ?? null} onSelect={choisir} />
+          <AthleteSearchPicker selectedId={autre?.id ?? null} onSelect={choisir} excludeId={athlete.id} />
         </Modal>
       )}
 
@@ -72,35 +77,9 @@ export function AthleteMergeAction({ athlete }: { athlete: FicheAFusionner }) {
           open
           onOpenChange={(ouvert) => !ouvert && setAutre(null)}
           onMerged={suivre}
+          finalFocus={declencheur}
         />
       )}
     </>
-  );
-}
-
-/**
- * La fusion proposée par un renommage refusé (409) : la fiche en conflit est
- * lue avant d'ouvrir le dialogue, pour la présenter comme l'autre.
- */
-export function ConflictMerge({
-  athlete,
-  conflictId,
-  onClose,
-}: {
-  athlete: FicheAFusionner;
-  conflictId: number;
-  onClose: () => void;
-}) {
-  const conflit = useAdminAthlete(conflictId);
-  const suivre = useSuivreLaFicheConservee(athlete.id);
-  if (!conflit.data) return null;
-  return (
-    <MergeAthletesDialog
-      athleteA={athlete}
-      athleteB={conflit.data}
-      open
-      onOpenChange={(ouvert) => !ouvert && onClose()}
-      onMerged={suivre}
-    />
   );
 }

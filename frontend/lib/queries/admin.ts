@@ -459,6 +459,12 @@ export function useMergeAthletes() {
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
       qc.invalidateQueries({ queryKey: queryKeys.identityReview() });
+      // Validations de saison, bénévolat, rang au club et compte membre ont pu
+      // changer de fiche : leurs panneaux ne sont pas rendus côté serveur.
+      qc.invalidateQueries({ queryKey: ["season-quota"] });
+      qc.invalidateQueries({ queryKey: ["validated-volunteer-actions"] });
+      qc.invalidateQueries({ queryKey: ["club-roster-rank"] });
+      qc.invalidateQueries({ queryKey: queryKeys.session() });
     },
   });
 }

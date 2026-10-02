@@ -81,6 +81,8 @@ describe("AthleteIdentityReviewTable", () => {
 
     const cartes = await screen.findAllByRole("article");
     expect(cartes).toHaveLength(2);
+    expect(within(cartes[0]).getByRole("heading", { level: 2, name: /MARTIN Thomas/ })).toBeInTheDocument();
+    expect(within(cartes[0]).getByText(/1 épreuve en conflit/)).toBeInTheDocument();
     expect(within(cartes[0]).getByText("Deux dossards sur une même épreuve")).toBeInTheDocument();
     expect(within(cartes[0]).getByRole("link", { name: /MARTIN Thomas/ })).toHaveAttribute("href", "/athletes/7");
     expect(within(cartes[0]).getByText(/IRONMAN Tours/)).toBeInTheDocument();
@@ -97,8 +99,8 @@ describe("AthleteIdentityReviewTable", () => {
     expect(within(unique).queryByRole("button", { name: /écarter/i })).not.toBeInTheDocument();
     expect(within(unique).queryByRole("button", { name: /fusionner/i })).not.toBeInTheDocument();
     expect(within(unique).getByText(/réattribuez/i)).toBeInTheDocument();
-    expect(within(paire).getByRole("button", { name: /écarter/i })).toBeInTheDocument();
-    expect(within(paire).getByRole("button", { name: /fusionner/i })).toBeInTheDocument();
+    expect(within(paire).getByRole("button", { name: "Écarter la paire DUPONT Jean et JEAN Dupont" })).toBeInTheDocument();
+    expect(within(paire).getByRole("button", { name: "Fusionner DUPONT Jean et JEAN Dupont" })).toBeInTheDocument();
   });
 
   it("écarter une paire demande confirmation puis l'envoie", async () => {
@@ -134,6 +136,6 @@ describe("AthleteIdentityReviewTable", () => {
 
     listIdentityReview.mockRejectedValue(new ApiError(403, "Forbidden"));
     afficher();
-    expect(await screen.findByText(/cas d'identité/i)).toBeInTheDocument();
+    expect(await screen.findByText(/ne permet pas de consulter les cas d'identité/i)).toBeInTheDocument();
   });
 });

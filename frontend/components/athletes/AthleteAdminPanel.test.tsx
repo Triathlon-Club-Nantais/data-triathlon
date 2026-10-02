@@ -455,4 +455,80 @@ describe("fusion de deux fiches (#908)", () => {
     await waitFor(() => expect(mergeAthletes).toHaveBeenCalledWith(77, 42));
     expect(push).toHaveBeenCalledWith("/athletes/77");
   });
+
+  it("la recherche ne propose pas la fiche consultée, et le dit", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
+    searchAthletesAdmin.mockResolvedValue([FICHE_COMPLETE]);
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /fusionner avec une autre fiche/i }));
+    await userEvent.type(screen.getByRole("searchbox"), "lemee");
+
+    expect(await screen.findByText(/la fiche que vous consultez n'est pas proposée/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Lemée Jean-Marc/ })).not.toBeInTheDocument();
+  });
+
+  it("une fiche en conflit illisible le dit dans la correction, sans perdre la saisie", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
+    getAthleteAdmin.mockImplementation((id: number) =>
+      id === 77 ? Promise.reject(new ApiError(404, "Not found")) : Promise.resolve(FICHE_COMPLETE),
+    );
+    updateAthlete.mockRejectedValue(
+      new ApiError(409, "Un athlète porte déjà cette identité (fiche n° 77).", null, {}, null, {
+        conflicting_athlete_id: 77,
+      }),
+    );
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /corriger la fiche/i }));
+    await userEvent.type(screen.getByLabelText("Nom"), "x");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await userEvent.click(await screen.findByRole("button", { name: /fusionner avec la fiche n° 77/i }));
+
+    expect(await screen.findByText(/la fiche n° 77 n'a pas pu être lue/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Nom")).toHaveValue("Leméex");
+  });
+
+  it("renoncer à la fusion ramène à la correction, saisie intacte", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
+    updateAthlete.mockRejectedValue(
+      new ApiError(409, "Un athlète porte déjà cette identité (fiche n° 77).", null, {}, null, {
+        conflicting_athlete_id: 77,
+      }),
+    );
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /corriger la fiche/i }));
+    await userEvent.type(screen.getByLabelText("Nom"), "x");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await userEvent.click(await screen.findByRole("button", { name: /fusionner avec la fiche n° 77/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /renoncer/i }));
+
+    expect(await screen.findByLabelText("Nom")).toHaveValue("Leméex");
+  });
+
+  it("une fusion qui garde la fiche consultée rafraîchit la page", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
+    searchAthletesAdmin.mockResolvedValue([AUTRE]);
+    getAthleteMergeImpact.mockResolvedValue({
+      kept: { id: 42, nom: "Lemée", prenom: "Jean-Marc", club: "Triathlon Club Nantais", participations: 7 },
+      absorbed: { id: 77, nom: "LEMEE", prenom: "Jean Marc", club: null, participations: 2 },
+      moves: { participations: 2, teammates: 0, volunteer_actions: 0, season_validations: 0, users: 0 },
+      alias_added: true,
+      blocking_reason: null,
+      blocking_label: null,
+    });
+    mergeAthletes.mockResolvedValue({ ...FICHE_COMPLETE, participations: 9 });
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /fusionner avec une autre fiche/i }));
+    await userEvent.type(screen.getByRole("searchbox"), "lemee");
+    await userEvent.click(await screen.findByRole("button", { name: /LEMEE/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /garder lemée jean-marc/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /^fusionner$/i }));
+
+    await waitFor(() => expect(mergeAthletes).toHaveBeenCalledWith(42, 77));
+    expect(refresh).toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+  });
 });

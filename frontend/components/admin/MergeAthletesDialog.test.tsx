@@ -33,11 +33,11 @@ const IMPACT: AthleteMergeImpact = {
   blocking_label: null,
 };
 
-function afficher(onMerged = vi.fn()) {
+function afficher(onMerged = vi.fn(), onOpenChange = vi.fn()) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <MergeAthletesDialog athleteA={DUPONT} athleteB={DUPOMT} open onOpenChange={() => {}} onMerged={onMerged} />
+      <MergeAthletesDialog athleteA={DUPONT} athleteB={DUPOMT} open onOpenChange={onOpenChange} onMerged={onMerged} />
     </QueryClientProvider>,
   );
   return onMerged;
@@ -81,7 +81,9 @@ describe("MergeAthletesDialog", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: /garder dupont jean/i }));
 
-    expect(await screen.findByText(/ce sont deux personnes/i)).toBeInTheDocument();
+    const refus = await screen.findByRole("alert");
+    expect(refus).toHaveTextContent("Fusion impossible");
+    expect(refus).toHaveTextContent(/ce sont deux personnes/i);
     expect(screen.getByRole("button", { name: /^fusionner$/i })).toBeDisabled();
   });
 
@@ -94,20 +96,24 @@ describe("MergeAthletesDialog", () => {
     await userEvent.click(await screen.findByRole("button", { name: /^fusionner$/i }));
 
     await waitFor(() => expect(mergeAthletes).toHaveBeenCalledWith(7, 9));
-    expect(toastSuccess).toHaveBeenCalledWith(expect.stringMatching(/fusionnée dans « DUPONT Jean »/));
+    expect(toastSuccess).toHaveBeenCalledWith("La fiche n° 9 a été fusionnée dans la fiche n° 7 (DUPONT Jean).");
     expect(onMerged).toHaveBeenCalledWith(7);
   });
 
   it("un refus du serveur s'affiche en toast, sans fermer ni rien promettre", async () => {
     getAthleteMergeImpact.mockResolvedValue(IMPACT);
     mergeAthletes.mockRejectedValue(new ApiError(409, "Cette fiche est en cours d'import. Réessayez dans un instant."));
-    const onMerged = afficher();
+    const onOpenChange = vi.fn();
+    const onMerged = afficher(vi.fn(), onOpenChange);
 
     await userEvent.click(await screen.findByRole("button", { name: /garder dupomt jean/i }));
     await userEvent.click(await screen.findByRole("button", { name: /^fusionner$/i }));
 
     await waitFor(() => expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/en cours d'import/)));
     expect(onMerged).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    // L'aperçu est relu : un refus apparu entre-temps s'afficherait dans le dialogue.
+    await waitFor(() => expect(getAthleteMergeImpact).toHaveBeenCalledTimes(2));
   });
 
   it("un aperçu illisible n'active pas la fusion", async () => {
@@ -118,5 +124,9 @@ describe("MergeAthletesDialog", () => {
 
     expect(await screen.findByText(/n'a pas pu être chiffrée/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^fusionner$/i })).toBeDisabled();
+
+    getAthleteMergeImpact.mockResolvedValue(IMPACT);
+    await userEvent.click(screen.getByRole("button", { name: /réessayer/i }));
+    expect(await screen.findByRole("list")).toHaveTextContent(/1 résultat/);
   });
 });
