@@ -30,6 +30,7 @@ from app.models.course import Course
 from app.models.course_source import CourseSource
 from app.models.participation import Participation
 from app.repositories import (
+    athlete_alias_repository,
     athlete_repository,
     course_repository,
     course_source_repository,
@@ -972,8 +973,18 @@ class _Persister:
             )
             if key not in found
         ]
+        # Une graphie absorbée par une fusion admin est une variante de la fiche
+        # conservée (#908) : elle passe avant tout repli, et sous la même garde
+        # (deux dossards d'une épreuve sont deux personnes, FR-008). Les équipiers
+        # d'un relais la suivent aussi, dans les deux sens de lecture.
+        teammate_keys = [
+            key for pair in teammate_pairs for key in (_pair_key(pair), _pair_key(pair[::-1])) if key not in found
+        ]
+        found.update(athlete_alias_repository.get_by_keys_batch(self.db, teammate_keys))
+        aliased = athlete_alias_repository.get_by_keys_batch(self.db, unresolved)
+        unresolved = [key for key in unresolved if key not in aliased]
         fallback, ambiguous = athlete_repository.find_fallback_matches(self.db, unresolved)
-        found.update(self._safe_fallbacks(course_id, pending, found, fallback))
+        found.update(self._safe_fallbacks(course_id, pending, found, {**aliased, **fallback}))
         pending = [
             replace(item, teammates=_oriented_teammates(item.teammates, found))
             if item.teammates else item

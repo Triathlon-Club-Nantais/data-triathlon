@@ -18,9 +18,14 @@ class DomainError(Exception):
     #: deux refus au même statut que le front doit traiter différemment (#877).
     code: str | None = None
 
-    def __init__(self, message: str | None = None, *, headers: dict[str, str] | None = None):
+    def __init__(
+        self, message: str | None = None, *, headers: dict[str, str] | None = None, extra: dict | None = None
+    ):
         if message:
             self.message = message
+        # Champs additifs du corps de réponse, pour un front qui doit agir sur
+        # le refus (la fiche en conflit d'un renommage, #908).
+        self.extra = extra or {}
         # Une erreur peut devoir porter des en-têtes de réponse : le 401 de
         # `/auth/me` doit rester `no-store`, et il sort d'ici, pas du endpoint —
         # donc hors de portée de la dépendance de router qui les pose (#114).
@@ -107,7 +112,7 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(DomainError)
     async def _domain_error(request: Request, exc: DomainError):
-        content = {"detail": exc.message}
+        content = {**exc.extra, "detail": exc.message}
         if exc.code:
             content["code"] = exc.code
         return JSONResponse(

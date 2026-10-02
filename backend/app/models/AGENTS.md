@@ -33,6 +33,14 @@
   une `ForeignKeyViolation` que SQLite, FK inertes, ne montre pas. Les tests
   qui l'éprouvent passent par la fixture `db_session_fk`
   (`PRAGMA foreign_keys=ON`).
+- **AthleteAlias** (#908) — une graphie absorbée par une fusion admin,
+  `UNIQUE(last_name_key, first_name_key)`, `athlete_id` en `ON DELETE CASCADE`.
+  L'import la résout comme l'identité de sa fiche, après l'identité directe et
+  avant le repli. Une fusion repointe les variantes de la fiche absorbée et y
+  ajoute la sienne. **Une fusion déplace cinq références** : `participations`,
+  `participation_teammates`, `volunteer_actions`, `season_validations`
+  (dédoublonnées par saison) et `users.athlete_id` ; une nouvelle table qui
+  pointe vers `athletes.id` doit rejoindre `athlete_merge.merge_athletes`.
 - **Course** — `UNIQUE(name, event_date, event_type, is_relay)`
   (`uq_course_identity`) : le relais est un **heat distinct** du solo, sans quoi
   les deux fusionnaient dans la même ligne. Quatre colonnes, pas trois — la

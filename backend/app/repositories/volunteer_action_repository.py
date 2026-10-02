@@ -7,6 +7,7 @@ héritées de ce chemin. `set_status` (#779) est la seule mise à jour — le
 statut, posé sans être jamais relu jusqu'ici, devient significatif pour le
 workflow de validation admin. Pas de suppression.
 """
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.volunteer_action import VolunteerAction
@@ -105,3 +106,14 @@ def delete(db: Session, action: VolunteerAction) -> None:
     """Retire une déclaration, quel que soit son statut (#818)."""
     db.delete(action)
     db.flush()
+
+
+def repoint(db: Session, *, from_athlete_id: int, to_athlete_id: int) -> int:
+    """Repointe les actions bénévoles d'une fiche absorbée par une fusion (#908)."""
+    return db.execute(
+        update(VolunteerAction).where(VolunteerAction.athlete_id == from_athlete_id).values(athlete_id=to_athlete_id)
+    ).rowcount
+
+
+def count_for_athlete(db: Session, athlete_id: int) -> int:
+    return db.scalar(select(func.count()).select_from(VolunteerAction).where(VolunteerAction.athlete_id == athlete_id))

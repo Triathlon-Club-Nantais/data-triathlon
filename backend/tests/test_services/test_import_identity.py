@@ -178,3 +178,81 @@ def test_a_relay_whose_teammates_share_one_identity_is_not_split(db_session, pat
 
     (row,) = _carrier(db_session, "1").participations
     assert row.teammates == []
+
+
+def test_a_merged_spelling_joins_the_kept_record_on_a_new_race(db_session, patch_scraper):
+    """Q2 : la graphie absorbée par une fusion est mémorisée comme variante ; le
+    rescrape de l'épreuve d'origine ne la recrée pas."""
+    from datetime import date
+
+    from app.repositories import user_repository
+    from app.services import athlete_merge
+
+    other, third = "https://www.klikego.com/resultats/event/456", "https://www.klikego.com/resultats/event/789"
+    _import(db_session, patch_scraper, [_result("1", "DUPONT", "Jean")])
+    patch_scraper([_result("5", "DUPOMT", "Jean", event_name="Duathlon", event_date=date(2025, 4, 1), source_url=other)])
+    import_service.import_event(db_session, other, _settings())
+    kept = athlete_repository.get_by_identity_keys(db_session, "DUPONT", "Jean")
+    typo = athlete_repository.get_by_identity_keys(db_session, "DUPOMT", "Jean")
+    admin = user_repository.create(db_session, email="admin@exemple.fr")
+    athlete_merge.merge_athletes(db_session, kept_id=kept.id, absorbed_id=typo.id, user_id=admin.id)
+    db_session.commit()
+
+    patch_scraper([_result("7", "DUPOMT", "Jean", event_name="Aquathlon", event_date=date(2025, 6, 1), source_url=third)])
+    import_service.import_event(db_session, third, _settings())
+    _expire_cache(db_session, other)
+    patch_scraper([_result("5", "DUPOMT", "Jean", event_name="Duathlon", event_date=date(2025, 4, 1),
+                           source_url=other, total_time="02:01:00")])
+    out = import_service.import_event(db_session, other, _settings())
+    db_session.flush()
+
+    assert _carrier(db_session, "7").id == kept.id
+    assert (_carrier(db_session, "5").id, out["reconciled"]) == (kept.id, 0)
+    assert athlete_repository.get_by_identity_keys(db_session, "DUPOMT", "Jean") is None
+
+
+def _merge_typo_into_dupont(db_session, patch_scraper):
+    """« DUPOMT Jean » (autre épreuve) fusionné dans « DUPONT Jean » ; rend la fiche conservée."""
+    from datetime import date
+
+    from app.repositories import user_repository
+    from app.services import athlete_merge
+
+    other = "https://www.klikego.com/resultats/event/456"
+    patch_scraper([_result("5", "DUPOMT", "Jean", event_name="Duathlon", event_date=date(2025, 4, 1), source_url=other)])
+    import_service.import_event(db_session, other, _settings())
+    patch_scraper([_result("6", "DUPONT", "Jean", event_name="Aquathlon", event_date=date(2025, 6, 1),
+                           source_url="https://www.klikego.com/resultats/event/321")])
+    import_service.import_event(db_session, "https://www.klikego.com/resultats/event/321", _settings())
+    kept = athlete_repository.get_by_identity_keys(db_session, "DUPONT", "Jean")
+    typo = athlete_repository.get_by_identity_keys(db_session, "DUPOMT", "Jean")
+    admin = user_repository.create(db_session, email="admin@exemple.fr")
+    athlete_merge.merge_athletes(db_session, kept_id=kept.id, absorbed_id=typo.id, user_id=admin.id)
+    db_session.commit()
+    return kept
+
+
+def test_a_variant_never_puts_two_bibs_of_one_race_on_its_record(db_session, patch_scraper):
+    """FR-008 vaut pour une variante comme pour un repli : « DUPONT Jean » (1) et
+    « DUPOMT Jean » (2) sur une même épreuve sont deux personnes."""
+    kept = _merge_typo_into_dupont(db_session, patch_scraper)
+
+    _import(db_session, patch_scraper, [_result("1", "DUPONT", "Jean"), _result("2", "DUPOMT", "Jean")])
+
+    assert _carrier(db_session, "1").id == kept.id
+    assert (_carrier(db_session, "2").nom, _carrier(db_session, "2").homonym_rank) == ("DUPOMT", 0)
+
+
+def test_a_relay_teammate_written_with_a_variant_joins_the_kept_record(db_session, patch_scraper):
+    from tests.test_services.test_import_service import _relay
+
+    kept = _merge_typo_into_dupont(db_session, patch_scraper)
+
+    _import(db_session, patch_scraper, [_relay("1", "DUPOMT Jean / MARTIN Paul", "")])
+
+    from app.models.participation import Participation
+
+    relay = db_session.query(Participation).filter_by(bib_number="1").one()
+    teammates = {link.athlete_id for link in relay.teammate_links}
+    assert kept.id in teammates
+    assert athlete_repository.get_by_identity_keys(db_session, "DUPOMT", "Jean") is None

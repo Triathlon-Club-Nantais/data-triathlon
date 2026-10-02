@@ -160,3 +160,48 @@ def test_an_admin_rename_of_a_record_held_by_an_import_is_refused_quickly(db_ses
     assert refused.value.status_code == 409
     assert time.monotonic() - started < 9
     db_session.rollback()
+
+
+def test_a_merge_waits_for_an_import_then_moves_its_new_results(db_session, other_session):
+    """T043 : l'import résout B et y rattache un résultat ; la fusion de B dans A
+    attend son commit, puis déplace aussi ce résultat. Aucune clé étrangère violée."""
+    from datetime import date
+
+    from app.models.participation import Participation
+    from app.repositories import course_repository, participation_repository
+    from app.services import athlete_merge
+
+    (kept, absorbed), _ = athlete_repository.create_batch(
+        db_session, [{"nom": "GARDEE", "prenom": "Ana"}, {"nom": "ABSORBEE", "prenom": "Ana"}]
+    )
+    admin = user_repository.create(db_session, email="fusion@exemple.fr")
+    course = course_repository.get_or_create(
+        db_session, name="Concurrence", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    db_session.commit()
+    kept_id, absorbed_id, admin_id = kept.id, absorbed.id, admin.id
+
+    athlete_repository.get_by_identity_keys_batch(db_session, [("absorbee", "ana")])
+    result = participation_repository.create(
+        db_session, athlete_id=absorbed_id, course_id=course.id, bib_number="1", status="finisher"
+    )
+    pid = _backend_pid(other_session)
+
+    def merge():
+        athlete_merge.merge_athletes(other_session, kept_id=kept_id, absorbed_id=absorbed_id, user_id=admin_id)
+        other_session.commit()
+
+    thread, errors = _run(merge)
+    observer = sessionmaker(bind=db_session.get_bind())()
+    try:
+        _wait_until_blocked(observer, pid)
+    finally:
+        observer.close()
+    db_session.commit()
+    thread.join(timeout=30)
+
+    assert not thread.is_alive()
+    assert errors == []
+    db_session.expire_all()
+    assert db_session.get(Participation, result.id).athlete_id == kept_id
+    assert db_session.get(Athlete, absorbed_id) is None

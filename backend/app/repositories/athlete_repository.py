@@ -6,6 +6,7 @@ from sqlalchemy import (
     and_,
     bindparam,
     case,
+    delete,
     exists,
     false,
     func,
@@ -934,3 +935,25 @@ def club_composition(
         .filter(sous_requete.c.rang_recence == 1)
         .all()
     )
+
+
+# ── Fusion de deux fiches (#908) ─────────────────────────────────────────────
+
+
+def lock_for_merge(db: Session, athlete_ids: Sequence[int]) -> dict[int, Athlete]:
+    """Verrouille les fiches à fusionner (`FOR UPDATE`, ordre d'id) : un import qui
+    les a résolues (`FOR KEY SHARE`) termine d'abord, et ses résultats suivent."""
+    rows = (
+        db.query(Athlete)
+        .filter(Athlete.id.in_(set(athlete_ids)))
+        .order_by(Athlete.id)
+        .with_for_update()
+        .populate_existing()
+        .all()
+    )
+    return {athlete.id: athlete for athlete in rows}
+
+
+def delete_by_id(db: Session, athlete_id: int) -> None:
+    """Supprime une fiche sans passer par la cascade ORM de ses résultats, déjà repointés."""
+    db.execute(delete(Athlete).where(Athlete.id == athlete_id))

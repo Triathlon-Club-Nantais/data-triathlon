@@ -26,6 +26,8 @@ from app.schemas.admin import (
     AdminAthleteRead,
     AdminAthleteUpdate,
     AdminCourseUpdate,
+    AthleteMergeImpact,
+    AthleteMergeRequest,
     CourseDeletionImpact,
     CoursesWipeImpact,
     CoursesWipeResult,
@@ -39,7 +41,7 @@ from app.schemas.admin import (
 )
 from app.schemas.course import CourseBrief
 from app.schemas.participation import ParticipationOut
-from app.services import admin_actions
+from app.services import admin_actions, athlete_merge
 
 router = APIRouter(tags=["admin"])
 
@@ -279,6 +281,31 @@ def update_athlete(
         distinct_id=str(user.id),
         properties={"fields_changed": list(champs.keys())},
     )
+    return _fiche(athlete, participation_repository.count_for_athlete(db, athlete_id))
+
+
+@router.get("/admin/athletes/{athlete_id}/merge-impact", response_model=AthleteMergeImpact)
+def athlete_merge_impact(
+    athlete_id: int,
+    absorbed_id: int = Query(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.ATHLETES_WRITE)),
+):
+    """Aperçu de la fusion de `absorbed_id` dans cette fiche, sans écriture (#908)."""
+    return athlete_merge.merge_impact(db, kept_id=athlete_id, absorbed_id=absorbed_id)
+
+
+@router.post("/admin/athletes/{athlete_id}/merge", response_model=AdminAthleteRead)
+def merge_athlete(
+    athlete_id: int,
+    body: AthleteMergeRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.ATHLETES_WRITE)),
+):
+    """Absorbe `absorbed_id` dans cette fiche (#908) ; 409 si la fusion est refusée."""
+    athlete = athlete_merge.merge_athletes(db, kept_id=athlete_id, absorbed_id=body.absorbed_id, user_id=user.id)
+    db.commit()
+    capture_event("athletes_merged", distinct_id=str(user.id), properties={})
     return _fiche(athlete, participation_repository.count_for_athlete(db, athlete_id))
 
 

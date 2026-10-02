@@ -726,3 +726,38 @@ class SeasonQuota(BaseModel):
     has_volunteer_action: bool
     has_pending_volunteer_action: bool
     season_validated: bool
+
+
+class AthleteMergeRequest(BaseModel):
+    """Fusion d'une fiche dans celle de l'URL (#908)."""
+
+    absorbed_id: StrictInt
+
+
+class AthleteMergeSide(BaseModel):
+    id: int
+    nom: str
+    prenom: str
+    club: str | None
+    participations: int
+
+
+class AthleteMergeMoves(BaseModel):
+    participations: int
+    teammates: int
+    volunteer_actions: int
+    season_validations: int
+    users: int
+
+
+class AthleteMergeImpact(BaseModel):
+    """Ce que la fusion ferait. `blocking_reason` non nul : la fusion serait
+    refusée, `blocking_label` dit pourquoi en français."""
+
+    kept: AthleteMergeSide
+    absorbed: AthleteMergeSide
+    moves: AthleteMergeMoves
+    alias_added: bool
+    blocking_reason: str | None
+    blocking_label: str | None
+
