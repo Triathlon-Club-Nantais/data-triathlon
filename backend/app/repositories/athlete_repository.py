@@ -18,7 +18,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.core.athlete_identity import athlete_identity_keys
@@ -28,6 +28,7 @@ from app.core.gender import gender_podium_clause
 from app.core.text import deaccent
 from app.core.validation import validated_clause
 from app.models.athlete import Athlete
+from app.models.athlete_alias import AthleteAlias
 from app.models.course import Course
 from app.models.participation import Participation, ParticipationTeammate
 from app.models.season_validation import SeasonValidation
@@ -957,3 +958,126 @@ def lock_for_merge(db: Session, athlete_ids: Sequence[int]) -> dict[int, Athlete
 def delete_by_id(db: Session, athlete_id: int) -> None:
     """Supprime une fiche sans passer par la cascade ORM de ses résultats, déjà repointés."""
     db.execute(delete(Athlete).where(Athlete.id == athlete_id))
+
+
+# ── Revue d'identité (#908, #967) ────────────────────────────────────────────
+
+
+def _club_flag(column):
+    return func.max(case((tcn_clause(column), 1), else_=0)) == 1
+
+
+def club_records_with_two_results_on_a_race(db: Session) -> list[tuple[int, int]]:
+    """`(athlete_id, course_id)` : une fiche portant deux résultats ou plus sur une
+    même épreuve individuelle, quand la fiche ou l'un de ces résultats relève du club."""
+    rows = db.execute(
+        select(Participation.athlete_id, Participation.course_id)
+        .join(Course, Course.id == Participation.course_id)
+        .join(Athlete, Athlete.id == Participation.athlete_id)
+        .where(Course.is_relay.is_(False), Participation.is_relay.is_(False))
+        .group_by(Participation.athlete_id, Participation.course_id)
+        .having(func.count() > 1, or_(_club_flag(Athlete.club), _club_flag(Participation.club)))
+    )
+    return [tuple(row) for row in rows]
+
+
+def homonym_groups_touching_the_club(db: Session) -> list[list[int]]:
+    """Les fiches d'une clé qui a des homonymes distingués, par groupe, quand l'une
+    d'elles relève du club (fiche ou résultat). Rang croissant dans chaque groupe."""
+    keyed = (
+        select(Athlete.last_name_key, Athlete.first_name_key)
+        .where(Athlete.homonym_rank > 0)
+        .distinct()
+        .subquery()
+    )
+    members = db.execute(
+        select(Athlete.id, Athlete.last_name_key, Athlete.first_name_key, Athlete.club)
+        .join(keyed, and_(
+            keyed.c.last_name_key == Athlete.last_name_key, keyed.c.first_name_key == Athlete.first_name_key
+        ))
+        .order_by(Athlete.last_name_key, Athlete.first_name_key, Athlete.homonym_rank)
+    ).all()
+    if not members:
+        return []
+    with_club_results = set(db.scalars(
+        select(Participation.athlete_id)
+        .where(Participation.athlete_id.in_([m.id for m in members]), tcn_clause(Participation.club))
+        .distinct()
+    ))
+    with_club_record = set(db.scalars(
+        select(Athlete.id).where(Athlete.id.in_([m.id for m in members]), tcn_clause(Athlete.club))
+    ))
+    groups: dict[tuple[str, str], list[int]] = {}
+    for member in members:
+        groups.setdefault((member.last_name_key, member.first_name_key), []).append(member.id)
+    touching = with_club_results | with_club_record
+    return [ids for ids in groups.values() if touching.intersection(ids)]
+
+
+def swapped_pairs(db: Session) -> list[tuple[int, int]]:
+    """Paires de fiches principales dont le nom et le prénom sont inversés (#908)."""
+    other = aliased(Athlete)
+    rows = db.execute(
+        select(Athlete.id, other.id)
+        .join(other, and_(
+            other.last_name_key == Athlete.first_name_key,
+            other.first_name_key == Athlete.last_name_key,
+            other.id > Athlete.id,
+        ))
+        .where(
+            Athlete.homonym_rank == 0, other.homonym_rank == 0,
+            Athlete.first_name_key != "", Athlete.first_name_key != Athlete.last_name_key,
+        )
+    )
+    return [tuple(row) for row in rows]
+
+
+def concatenated_pairs(db: Session) -> list[tuple[int, int]]:
+    """`(fiche découpée, fiche au nom complet sans prénom)` dont les clés se recouvrent (#908)."""
+    whole = aliased(Athlete)
+    rows = db.execute(
+        select(Athlete.id, whole.id)
+        .join(whole, or_(
+            whole.last_name_key == Athlete.last_name_key + Athlete.first_name_key,
+            whole.last_name_key == Athlete.first_name_key + Athlete.last_name_key,
+        ))
+        .where(
+            Athlete.homonym_rank == 0, whole.homonym_rank == 0,
+            Athlete.first_name_key != "", whole.first_name_key == "",
+        )
+    )
+    return [tuple(row) for row in rows]
+
+
+def alias_collisions(db: Session) -> list[tuple[int, int]]:
+    """`(fiche de la variante, fiche principale de la même clé)` : une fiche recréée
+    sur une graphie qu'une fusion avait rattachée à une autre (#908)."""
+    rows = db.execute(
+        select(AthleteAlias.athlete_id, Athlete.id)
+        .join(Athlete, and_(
+            Athlete.last_name_key == AthleteAlias.last_name_key,
+            Athlete.first_name_key == AthleteAlias.first_name_key,
+        ))
+        .where(Athlete.homonym_rank == 0, Athlete.id != AthleteAlias.athlete_id)
+    )
+    return [tuple(row) for row in rows]
+
+
+def review_details(db: Session, athlete_ids: Sequence[int]) -> tuple[dict[int, Athlete], list]:
+    """Les fiches et tous leurs résultats, avec l'épreuve, en deux requêtes."""
+    ids = set(athlete_ids)
+    if not ids:
+        return {}, []
+    athletes = {athlete.id: athlete for athlete in db.query(Athlete).filter(Athlete.id.in_(ids))}
+    results = db.execute(
+        select(
+            Participation.id, Participation.athlete_id, Participation.course_id, Participation.bib_number,
+            Participation.category, Participation.total_time, Participation.is_relay,
+            Course.name, Course.event_date, Course.is_relay.label("course_is_relay"),
+        )
+        .join(Course, Course.id == Participation.course_id)
+        .where(Participation.athlete_id.in_(ids))
+        .order_by(Course.event_date, Participation.id)
+    ).all()
+    return athletes, results
+

@@ -1036,6 +1036,22 @@ def test_the_alias_table_keeps_one_owner_per_spelling(sqlite_url):
         engine.dispose()
 
 
+_BEFORE_IGNORED_PAIRS = "d8b2f4a6c1e3"
+
+
+def test_downgrade_then_upgrade_of_the_ignored_athlete_pairs(sqlite_url):
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    engine = sa.create_engine(sqlite_url)
+    try:
+        uniques = {u["name"]: u["column_names"] for u in sa.inspect(engine).get_unique_constraints("ignored_athlete_pairs")}
+    finally:
+        engine.dispose()
+    assert uniques["uq_ignored_athlete_pair"] == ["athlete_id_low", "athlete_id_high"]
+    command.downgrade(cfg, _BEFORE_IGNORED_PAIRS)
+    command.upgrade(cfg, "head")
+
+
 def test_downgrade_then_upgrade_of_the_alias_table(sqlite_url):
     cfg = _alembic_config()
     command.upgrade(cfg, "head")

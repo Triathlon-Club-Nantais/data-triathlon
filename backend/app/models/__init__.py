@@ -11,6 +11,7 @@ from app.models.course import Course
 from app.models.course_source import CourseSource
 from app.models.group import Group
 from app.models.identity import Identity
+from app.models.ignored_athlete_pair import IgnoredAthletePair
 from app.models.ignored_course_duplicate import IgnoredCourseDuplicate
 from app.models.organisation import Organisation
 from app.models.participation import Participation, ParticipationTeammate
@@ -43,6 +44,7 @@ __all__ = [
     "CourseSource",
     "Group",
     "Identity",
+    "IgnoredAthletePair",
     "IgnoredCourseDuplicate",
     "Organisation",
     "Participation",

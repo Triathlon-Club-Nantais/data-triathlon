@@ -109,6 +109,34 @@ succès muet, sans confirmer ce qu'elle avait détruit.
   `conflicting_athlete_id`, pour proposer la fusion. Une variante compte comme
   l'identité de sa fiche.
 
+## Revue d'identité des athlètes (#908)
+
+| Route | Pouvoir | Effet |
+| --- | --- | --- |
+| `GET /admin/identity-review` | `athletes:write` | Les cas à trancher, sans pagination, dans un ordre stable (motif, puis plus petit id). |
+| `GET /admin/identity-review/count` | `athletes:write` | `{total}`, pour la pastille de la nav. |
+| `POST /admin/identity-review/ignore` `{athlete_id_a, athlete_id_b}` | `athletes:write` | Écarte une paire jugée distincte (201) ; 400 même fiche, 404 fiche inconnue, 409 déjà écartée. Journal `athlete_identity.ignore`. |
+
+`/admin/identity-review` et non `/admin/athletes/identity-review` : la route
+`/admin/athletes/{athlete_id}` capterait le segment et rendrait 422.
+
+Cinq motifs, calculés à la volée depuis les données (aucune table de cas) :
+
+- `same_course_bibs` : une fiche portant deux résultats sur une même épreuve
+  individuelle, quand la fiche ou l'un de ces résultats relève du club. Ne
+  s'écarte pas : il se règle par réattribution.
+- `club_homonym` : des homonymes distingués dont l'un relève du club (hors club,
+  la mention `homonyms_created` du rapport d'import suffit).
+- `swapped`, `concatenated` : nom et prénom inversés, ou nom complet face à une
+  fiche découpée, **seulement** quand la reprise ne les fusionnerait pas d'elle-même
+  (`recovery_would_merge` : même club ou même genre, renseigné des deux côtés, et
+  jamais une même épreuve).
+- `alias_collision` : une fiche principale recréée sur une graphie qu'une fusion
+  avait rattachée à une autre.
+
+Chaque cas porte les fiches (identité, club, genre, catégories, nombre de
+résultats, rang d'homonyme) et les épreuves en conflit avec leurs lignes.
+
 ## Journal d'administration, en lecture (#501)
 
 `GET /admin/action-log` (`admin_log:read`) rend les dernières entrées du
