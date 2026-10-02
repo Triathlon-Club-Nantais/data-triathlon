@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,7 @@ import { useSession } from "@/lib/queries/auth";
 import { formatDate } from "@/lib/utils/date";
 import { GITHUB_REPOSITORY } from "@/lib/github";
 import type { Feedback } from "@/lib/types";
+import { FEEDBACK_TYPE_BADGE } from "./feedback-type";
 
 const LIBELLE_STATUT: Record<Feedback["status"], string> = {
   nouveau: "Nouveau",
@@ -82,9 +84,7 @@ export function FeedbackDetailDialog({
           <DialogTitle>{affiche.title}</DialogTitle>
           <DialogDescription>
             Signalé le {formatDate(affiche.created_at)} ·{" "}
-            <Badge variant={affiche.type === "bug" ? "destructive" : "secondary"}>
-              {affiche.type === "bug" ? "Bug" : "Retour"}
-            </Badge>
+            <Badge variant={FEEDBACK_TYPE_BADGE[affiche.type].variant}>{FEEDBACK_TYPE_BADGE[affiche.type].label}</Badge>
           </DialogDescription>
         </DialogHeader>
 
@@ -139,7 +139,18 @@ export function FeedbackDetailDialog({
           </div>
         )}
 
-        {peutInstruire && (
+        {peutInstruire && affiche.type === "retrait" && (
+          // Une demande de retrait porte des données personnelles : jamais d'issue sur le dépôt public (#334).
+          <p className="border-t pt-3 text-sm">
+            Une demande de retrait ne se publie pas. Appliquez-la depuis l&apos;
+            <Link href="/admin/oppositions" className="underline underline-offset-2">
+              écran des oppositions
+            </Link>
+            , puis passez ce retour en « Traité ».
+          </p>
+        )}
+
+        {peutInstruire && affiche.type !== "retrait" && (
           <div className="space-y-3 border-t pt-3">
             {/* Un lien simple, jamais un appel : aucune GitHub App ni jeton
                 côté backend dans cette v1 — voir contracts/feedback-api.md

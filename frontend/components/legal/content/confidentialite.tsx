@@ -184,8 +184,11 @@ export const PRIVACY_POLICY: LegalDocument = {
           <p>Vous pouvez, à tout moment :</p>
           <List>
             <li>
-              <strong>vous opposer</strong> à la présence de vos résultats sur le site : ils en sont alors retirés,
-              sauf motif impérieux que le club devra vous exposer ;
+              <strong>vous opposer</strong> à la présence de vos résultats sur le site, sauf motif impérieux que le
+              club devra vous exposer : ils sont alors rendus anonymes (le temps et le rang restent dans le
+              classement, sans votre nom, votre club ni votre catégorie) et votre fiche est supprimée. Pour que
+              les imports suivants ne vous fassent pas réapparaître, le site garde une empreinte de votre nom et
+              de votre prénom, jamais le nom lui-même ; les résultats publiés ensuite à ce nom arrivent anonymes ;
             </li>
             <li>
               <strong>accéder</strong> aux données qui vous concernent et en obtenir une copie ;
@@ -199,7 +202,9 @@ export const PRIVACY_POLICY: LegalDocument = {
             </li>
           </List>
           <p>
-            Pour cela, écrivez à <ContactEmail />, ou par courrier à Triathlon Club Nantais, 2 boulevard René Coty,
+            Pour cela, ouvrez le bouton rond de signalement (💬) en bas à droite de chaque page et choisissez
+            « Retrait de mes données »,
+            écrivez à <ContactEmail />, ou par courrier à Triathlon Club Nantais, 2 boulevard René Coty,
             44100 Nantes. Indiquez votre nom et votre prénom tels qu&apos;ils figurent dans les classements, et
             l&apos;épreuve concernée (nom et date) : cela suffit à retrouver vos résultats. Le club vous répond dans
             un délai d&apos;un mois.

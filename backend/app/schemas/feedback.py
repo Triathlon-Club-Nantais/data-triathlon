@@ -17,7 +17,7 @@ class FeedbackCreate(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    type: Literal["bug", "feedback"]
+    type: Literal["bug", "feedback", "retrait"]
     title: str = Field(min_length=1, max_length=200)
     body: str = Field(min_length=1, max_length=10_000)
     #: Auto-joints par le client (research.md) — bornés comme `title`/`body`,

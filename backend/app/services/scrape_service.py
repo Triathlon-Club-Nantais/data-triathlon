@@ -12,13 +12,14 @@ from app.core.exceptions import DuplicateError
 from app.models.participation import Participation
 from app.repositories import participation_repository
 from app.scrapers.base import ScrapedResult
-from app.services import mapping
+from app.services import mapping, opposition_service
 
 logger = logging.getLogger(__name__)
 
 
 def save_one(db: Session, scraped: ScrapedResult, event_url: str = "") -> Participation:
     """Persiste un résultat scrapé/édité (athlète + course + participation)."""
+    opposition_service.ensure_not_opposed(db, scraped.athlete_name, scraped.athlete_firstname)
     course = mapping.get_or_create_course(db, scraped, event_url).course
     if scraped.bib_number and participation_repository.exists_for_bib(
         db, course.id, scraped.bib_number

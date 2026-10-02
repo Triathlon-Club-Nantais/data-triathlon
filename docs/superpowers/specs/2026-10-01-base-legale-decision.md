@@ -85,7 +85,16 @@ adhérent n'a pas de sens.
    l'argument de « l'effort disproportionné » n'a pas été retenu.
 2. **Rendre l'opposition effective** (article 21) : un point de contact relevé
    (`president@triathlon-club-nantais.com`, le représentant légal), et un retrait réel des résultats d'une personne qui s'y oppose (#334). Le
-   retrait est la règle ; un refus doit être motivé au cas par cas.
+   retrait est la règle ; un refus doit être motivé au cas par cas. **Tenu par
+   #334** : les résultats sont anonymisés (rangs intacts), la fiche supprimée,
+   et une empreinte SHA-256 du nom et du prénom normalisés (un pseudonyme, pas
+   le nom) fait arriver anonymes les imports suivants, homonymes compris. Canal :
+   le type « Retrait de mes données » du formulaire de signalement ; suivi des
+   délais : `/admin/oppositions`. Le nom est aussi masqué dans les entrées
+   passées du journal d'administration. Seule la demande elle-même le garde,
+   comme preuve, le temps de la rétention des signalements (12 mois). Un
+   relais importé qui nomme la personne arrive anonyme en entier : ses
+   coéquipiers perdent l'attribution de ce résultat.
 3. **Fixer et tenir des durées de conservation** (ci-dessous).
 
 Le traitement des données des **utilisateurs du back-office** repose sur le même

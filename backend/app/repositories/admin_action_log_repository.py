@@ -85,3 +85,8 @@ def count_created_before(db: Session, cutoff: datetime) -> int:
 def delete_created_before(db: Session, cutoff: datetime) -> int:
     """Purge de rétention (#1158). Rend le nombre d'entrées supprimées."""
     return db.execute(delete(AdminActionLog).where(AdminActionLog.created_at < cutoff)).rowcount
+
+
+def list_with_payload(db: Session) -> list[AdminActionLog]:
+    """Entrées portant une charge, pour en masquer un nom (#334). Bornées par la rétention de 12 mois."""
+    return list(db.scalars(select(AdminActionLog).where(AdminActionLog.payload.is_not(None))))
