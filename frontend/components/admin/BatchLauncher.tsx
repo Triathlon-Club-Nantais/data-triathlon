@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { providerLabel } from "@/lib/constants";
+import { providerLabel } from "@/lib/labels";
 import { useBatchRuns, useLaunchBatch, useProviders } from "@/lib/queries/batches";
 import { useSession } from "@/lib/queries/auth";
 import type { RescrapeLaunch } from "@/lib/types";

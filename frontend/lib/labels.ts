@@ -86,3 +86,37 @@ export const FEEDBACK_STATUS_LABELS: Record<Feedback["status"], string> = {
   traite: "Traité",
   ignore: "Ignoré",
 };
+
+/**
+ * Nom commercial des chronométreurs, dont le slug technique sert de clé en base
+ * (#636). Seule source côté front de ce vocabulaire.
+ */
+const PROVIDER_LABELS: Record<string, string> = {
+  klikego: "Klikego",
+  breizhchrono: "Breizh Chrono",
+  timepulse: "TimePulse",
+  wiclax: "Wiclax",
+  prolivesport: "ProLiveSport",
+  sportinnovation: "Sport Innovation",
+  raceresult: "RaceResult",
+  chronoplace: "Chronoplace",
+  // Competitor est le moteur réel derrière ironman.com (cf. #54) : c'est ce nom
+  // que le backend détecte, mais « IRONMAN » est ce que l'utilisateur a collé.
+  competitor: "IRONMAN (Competitor)",
+  oktime: "OK TIME",
+  runnerbreizh: "Runner Breizh",
+  // T2Area édite la plateforme, mais c'est la FFTRI qui la sert (`fftri.t2area.com`)
+  // et sous ce nom que la fédération y renvoie ses licenciés (cf. #51).
+  t2area: "FFTRI (T2Area)",
+  // Sporthive est la marque endurance de MYLAPS (cf. #53), le site s'annonce
+  // lui-même « MYLAPS Sporthive ». Sans cette entrée le badge affiche le slug
+  // brut : la table ne dit rien du support, elle ne fait que traduire un nom.
+  sporthive: "MYLAPS Sporthive",
+  chronoweb: "Chronoweb",
+};
+
+/** Libellé d'un chronométreur ; le slug brut à défaut, « Source » si non renseigné. */
+export function providerLabel(provider: string | null | undefined): string {
+  if (!provider) return "Source";
+  return PROVIDER_LABELS[provider] ?? provider;
+}
