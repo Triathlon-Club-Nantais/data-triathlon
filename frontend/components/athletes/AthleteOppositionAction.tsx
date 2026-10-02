@@ -7,10 +7,14 @@ import { ApiError, apiClient } from "@/lib/api/client";
 import { useApplyOpposition } from "@/lib/queries/admin";
 import { useHydratedSession } from "@/lib/queries/auth";
 import type { OppositionPreview } from "@/lib/types";
+import { messageApplique } from "@/lib/opposition";
 import { localToday } from "@/lib/utils/date";
 import type { CoureurACorriger } from "./AthleteAdminPanel";
 
 const ECHEC = "L'opposition n'a pas pu être appliquée. Réessayez dans un instant.";
+const DECOMPTE_IMPOSSIBLE = "Les résultats concernés n'ont pas pu être comptés. Fermez puis rouvrez pour réessayer.";
+
+type Refus = { titre: string; texte: string };
 
 /**
  * Droit d'opposition (#334), depuis la fiche de l'athlète, sous `oppositions:manage`.
@@ -24,7 +28,7 @@ export function AthleteOppositionAction({ athlete }: { athlete: CoureurACorriger
   const [ouverte, setOuverte] = useState(false);
   const [apercu, setApercu] = useState<OppositionPreview | null>(null);
   const [demande, setDemande] = useState("");
-  const [refus, setRefus] = useState<string | null>(null);
+  const [refus, setRefus] = useState<Refus | null>(null);
 
   if (!(session.data?.permissions.includes("oppositions:manage") ?? false)) return null;
 
@@ -36,25 +40,34 @@ export function AthleteOppositionAction({ athlete }: { athlete: CoureurACorriger
     try {
       setApercu(await apiClient.previewOpposition({ athlete_id: athlete.id }));
     } catch {
-      setRefus(ECHEC);
+      setRefus({ titre: "Décompte impossible", texte: DECOMPTE_IMPOSSIBLE });
     }
   }
 
   async function confirmer() {
     setRefus(null);
     try {
-      await appliquer.mutateAsync({ athlete_id: athlete.id, requested_on: demande });
-      toast.success("Opposition appliquée : les résultats sont anonymes.");
+      const opposition = await appliquer.mutateAsync({ athlete_id: athlete.id, requested_on: demande });
+      toast.success(messageApplique(opposition.anonymised_count));
       router.replace("/resultats");
     } catch (erreur) {
       // Un refus prononcé par le serveur (date future, fiche disparue) est en français et se lit tel quel.
-      setRefus(erreur instanceof ApiError && erreur.status < 500 ? erreur.message : ECHEC);
+      setRefus({
+        titre: "Opposition non appliquée",
+        texte: erreur instanceof ApiError && erreur.status < 500 ? erreur.message : ECHEC,
+      });
     }
   }
 
   return (
     <>
-      <Button variant="secondary" onClick={ouvrir}>
+      {/* Geste rare et définitif : plus discret que la correction de fiche, sa voisine. */}
+      <Button
+        variant="secondary"
+        size="sm"
+        onClick={ouvrir}
+        aria-label={`Appliquer une opposition pour ${athlete.prenom} ${athlete.nom}`}
+      >
         Appliquer une opposition
       </Button>
 
@@ -64,7 +77,7 @@ export function AthleteOppositionAction({ athlete }: { athlete: CoureurACorriger
           title={`Anonymiser ${athlete.prenom} ${athlete.nom} ?`}
           onClose={() => (appliquer.isPending ? null : setOuverte(false))}
           footer={
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 10 }}>
               <Button variant="ghost" onClick={() => setOuverte(false)} disabled={appliquer.isPending}>
                 Annuler
               </Button>
@@ -81,8 +94,8 @@ export function AthleteOppositionAction({ athlete }: { athlete: CoureurACorriger
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {refus && (
               <div role="alert">
-                <Alert status="error" title="Opposition non appliquée">
-                  {refus}
+                <Alert status="error" title={refus.titre}>
+                  {refus.texte}
                 </Alert>
               </div>
             )}

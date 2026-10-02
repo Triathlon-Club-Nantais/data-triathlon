@@ -62,7 +62,7 @@ describe("AthleteOppositionAction (#334)", () => {
     const user = userEvent.setup();
     afficher();
 
-    await user.click(await screen.findByRole("button", { name: "Appliquer une opposition" }));
+    await user.click(await screen.findByRole("button", { name: "Appliquer une opposition pour Jean DUPONT" }));
     expect(previewOpposition).toHaveBeenCalledWith({ athlete_id: 42 });
     const dialogue = await screen.findByRole("dialog");
     expect(dialogue).toHaveTextContent(/3 résultats/);
@@ -79,12 +79,25 @@ describe("AthleteOppositionAction (#334)", () => {
     expect(replace).toHaveBeenCalledWith("/resultats");
   });
 
+  it("dit que le décompte a échoué, pas l'opposition, et comment réessayer", async () => {
+    previewOpposition.mockRejectedValue(new Error("réseau"));
+    const user = userEvent.setup();
+    afficher();
+
+    await user.click(await screen.findByRole("button", { name: "Appliquer une opposition pour Jean DUPONT" }));
+
+    const alerte = await screen.findByRole("alert");
+    expect(alerte).toHaveTextContent(/décompte impossible/i);
+    expect(alerte).toHaveTextContent(/rouvrez/i);
+    expect(screen.getByRole("button", { name: /anonymiser définitivement/i })).toBeDisabled();
+  });
+
   it("prévient quand des homonymes seront aussi anonymisés", async () => {
     previewOpposition.mockResolvedValue({ athletes: 2, results: 5, already_opposed: false });
     const user = userEvent.setup();
     afficher();
 
-    await user.click(await screen.findByRole("button", { name: "Appliquer une opposition" }));
+    await user.click(await screen.findByRole("button", { name: "Appliquer une opposition pour Jean DUPONT" }));
 
     expect(await screen.findByRole("dialog")).toHaveTextContent(/2 fiches.*même nom/i);
   });

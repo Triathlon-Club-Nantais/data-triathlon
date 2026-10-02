@@ -202,7 +202,8 @@ export const PRIVACY_POLICY: LegalDocument = {
             </li>
           </List>
           <p>
-            Pour cela, choisissez « Retrait de mes données » dans le bouton de signalement présent sur chaque page,
+            Pour cela, ouvrez le bouton rond de signalement (💬) en bas à droite de chaque page et choisissez
+            « Retrait de mes données »,
             écrivez à <ContactEmail />, ou par courrier à Triathlon Club Nantais, 2 boulevard René Coty,
             44100 Nantes. Indiquez votre nom et votre prénom tels qu&apos;ils figurent dans les classements, et
             l&apos;épreuve concernée (nom et date) : cela suffit à retrouver vos résultats. Le club vous répond dans

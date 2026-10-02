@@ -12,6 +12,7 @@ import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { apiClient } from "@/lib/api/client";
 import { messageDeRefus } from "@/lib/api/refus";
 import { useApplyOpposition, useOppositions } from "@/lib/queries/admin";
+import { messageApplique } from "@/lib/opposition";
 import { formatDate, localToday } from "@/lib/utils/date";
 
 const REFUS = { sujet: "oppositions", action: "consulter les oppositions" };
@@ -42,10 +43,10 @@ export function OppositionsScreen() {
         libelleAction: "Anonymiser définitivement",
       });
       if (!accord) return;
-      await appliquer.mutateAsync({ ...identite, requested_on: demande });
+      const opposition = await appliquer.mutateAsync({ ...identite, requested_on: demande });
       setNom("");
       setPrenom("");
-      toast.success("Opposition enregistrée.");
+      toast.success(messageApplique(opposition.anonymised_count));
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -54,7 +55,7 @@ export function OppositionsScreen() {
   return (
     <div className="space-y-6">
       <Card className="space-y-3 p-4">
-        <div className="font-bold">Enregistrer une opposition par nom</div>
+        <h2 className="font-bold">Enregistrer une opposition par nom</h2>
         <p className="text-[var(--tcn-text-faint)] text-sm">
           Pour une personne qui n&apos;a pas encore de fiche, ou depuis une demande reçue par courrier. Si une
           fiche existe, ses résultats sont anonymisés tout de suite.
@@ -62,12 +63,13 @@ export function OppositionsScreen() {
         <form onSubmit={enregistrer} className="grid gap-3 sm:grid-cols-4 sm:items-end">
           <div className="space-y-1.5">
             <Label htmlFor="opposition-nom">Nom</Label>
-            <Input id="opposition-nom" value={nom} onChange={(e) => setNom(e.target.value)} autoComplete="off" />
+            <Input id="opposition-nom" required value={nom} onChange={(e) => setNom(e.target.value)} autoComplete="off" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="opposition-prenom">Prénom</Label>
             <Input
               id="opposition-prenom"
+              required
               value={prenom}
               onChange={(e) => setPrenom(e.target.value)}
               autoComplete="off"
@@ -101,7 +103,7 @@ export function OppositionsScreen() {
         />
       ) : (
         <Card className="p-0">
-          <Table>
+          <Table aria-label="Oppositions appliquées">
             <TableHeader>
               <TableRow>
                 <TableHead>Demande</TableHead>
@@ -114,13 +116,17 @@ export function OppositionsScreen() {
             <TableBody>
               {data.map((opposition) => (
                 <TableRow key={opposition.id}>
-                  <TableCell>{formatDate(opposition.requested_on)}</TableCell>
+                  <TableCell className="whitespace-normal">
+                    {formatDate(opposition.requested_on)}
+                    {/* En première colonne : le seul signal qui appelle une action reste visible sans
+                        défiler le tableau sur mobile. */}
+                    {opposition.overdue && (
+                      <span className="block font-semibold text-[var(--tcn-danger-text)]">hors délai légal</span>
+                    )}
+                  </TableCell>
                   <TableCell>{formatDate(opposition.applied_at)}</TableCell>
                   <TableCell>
-                    <span>{opposition.delay_days} jour{opposition.delay_days > 1 ? "s" : ""}</span>
-                    {opposition.overdue && (
-                      <span className="ml-2 font-semibold text-[var(--tcn-danger-text)]">hors délai légal</span>
-                    )}
+                    {opposition.delay_days} jour{opposition.delay_days > 1 ? "s" : ""}
                   </TableCell>
                   <TableCell>{opposition.applied_by_name ?? "—"}</TableCell>
                   <TableCell>{opposition.anonymised_count}</TableCell>

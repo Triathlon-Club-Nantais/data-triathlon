@@ -129,7 +129,8 @@ describe("FeedbackButton", () => {
     await user.click(screen.getByRole("button", { name: /signaler un bug/i }));
     await user.click(screen.getByRole("radio", { name: "Retrait de mes données" }));
 
-    expect(screen.getByText(/nom, prénom.*épreuve/i)).toBeInTheDocument();
+    expect(screen.getByText(/nom, votre prénom.*épreuve.*adresse électronique/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Description")).toHaveAccessibleDescription(/sous un mois/);
     expect(screen.getByText(/sous un mois/i)).toBeInTheDocument();
     await user.type(screen.getByLabelText("Titre"), "Retrait");
     await user.type(screen.getByLabelText("Description"), "DUPONT Jean, Triathlon de Nantes 2026");
