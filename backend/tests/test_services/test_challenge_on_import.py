@@ -82,3 +82,23 @@ def test_a_heat_first_stored_as_a_course_is_converted_once_it_matches(db_session
 
     assert sorted(c.name.rsplit(" - ", 1)[1] for c in db_session.query(Course).all()) == ["M", "XS"]
     assert db_session.query(ChallengeResult).count() == 5
+
+
+def test_a_same_named_course_from_another_source_is_not_deleted(db_session):
+    names = [f"NOM{i}" for i in range(5)]
+    other = [
+        ScrapedResult(
+            source_url="https://www.runnerbreizh.fr/resultats/frenchman", provider="runnerbreizh",
+            athlete_name=f"AUTRE{i}", athlete_firstname="Paul", bib_number=f"r{i}",
+            event_name=f"{EVENT} - {CHALLENGE_HEAT}", event_date=DAY, event_type="triathlon-m",
+            total_time="06:50:33", rank_overall=i + 1,
+        )
+        for i in range(3)
+    ]
+    import_service.persist_results(db_session, other[0].source_url, other)
+
+    import_service.persist_results(db_session, URL, _batch(names))
+
+    assert db_session.query(Challenge).count() == 1
+    kept = db_session.query(Course).filter(Course.name == f"{EVENT} - {CHALLENGE_HEAT}").one()
+    assert kept.participation_count == 3
