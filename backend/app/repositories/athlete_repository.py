@@ -1,6 +1,7 @@
 """Accès données pour Athlete — seule couche qui touche la Session pour cette table."""
 from collections.abc import Sequence
 from datetime import date
+from typing import NamedTuple
 
 from sqlalchemy import (
     and_,
@@ -11,19 +12,27 @@ from sqlalchemy import (
     func,
     or_,
     select,
+    true,
     tuple_,
     union_all,
     update,
 )
-from sqlalchemy.orm import Session
+from sqlalchemy import (
+    delete as sql_delete,
+)
+from sqlalchemy.dialects.postgresql import insert as postgresql_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.orm import Session, aliased
 from sqlalchemy.orm.attributes import set_committed_value
 
+from app.core.athlete_identity import athlete_identity_keys
 from app.core.club import tcn_clause
 from app.core.discipline import federal_clause
 from app.core.gender import gender_podium_clause
 from app.core.text import deaccent
 from app.core.validation import validated_clause
 from app.models.athlete import Athlete
+from app.models.athlete_alias import AthleteAlias
 from app.models.course import Course
 from app.models.participation import Participation, ParticipationTeammate
 from app.models.season_validation import SeasonValidation
@@ -96,63 +105,222 @@ def get(db: Session, athlete_id: int) -> Athlete | None:
     return db.get(Athlete, athlete_id)
 
 
-def get_by_identity(
-    db: Session, nom: str, prenom: str, birth_date: date | None
-) -> Athlete | None:
-    """Recherche insensible à la casse sur (nom, prénom, date de naissance)."""
-    return (
-        db.query(Athlete)
-        .filter(
-            func.lower(Athlete.nom) == (nom or "").strip().lower(),
-            func.lower(Athlete.prenom) == (prenom or "").strip().lower(),
-            Athlete.birth_date == birth_date,
-        )
-        .first()
-    )
+IdentityKey = tuple[str | None, str | None]
 
 
-def get_by_identities_batch(
-    db: Session, paires: Sequence[tuple[str, str]]
-) -> dict[tuple[str, str], Athlete]:
-    """Résout un lot de `(nom, prénom)` en une requête (#706).
+def get_by_identity_keys(db: Session, nom: str, prenom: str) -> Athlete | None:
+    """La fiche principale de l'identité de `(nom, prénom)`, quelle que soit sa
+    date de naissance (#900)."""
+    key = athlete_identity_keys(nom, prenom)
+    return get_by_identity_keys_batch(db, [key]).get(key)
 
-    Retourne les athlètes déjà connus, indexés par identité normalisée
-    (nom/prénom en minuscules, tels que la recherche les compare). Les paires
-    sans correspondance sont simplement absentes du résultat — à l'appelant de
-    créer les athlètes manquants. `birth_date IS NULL` en clause fixe : aucune
-    ligne scrapée n'en fournit une (cf. `research.md` de la feature #706), donc
-    l'identité effective à l'import se réduit à `(nom, prénom)`.
+
+def get_by_identity_keys_batch(
+    db: Session, keys: Sequence[IdentityKey]
+) -> dict[IdentityKey, Athlete]:
+    """Résout un lot de clés d'identité en une requête (#706, #907).
+
+    Seules les fiches principales répondent : un homonyme distingué ne reçoit
+    de résultat que par geste admin (#967). Une clé vide ne désigne personne.
+    Les clés sans correspondance sont absentes du résultat ; à l'appelant de
+    créer les fiches manquantes.
+
+    `FOR KEY SHARE` (PostgreSQL ; sans effet sous SQLite) : une fiche résolue ne
+    peut plus être supprimée, par une fusion par exemple, avant la fin de la
+    transaction qui va y rattacher des résultats. Il ne gêne ni les autres
+    imports ni les mises à jour de club et de genre ; il fait attendre un
+    renommage (les clés font partie de `uq_athlete_identity`), que
+    `admin_actions.update_athlete` borne par `lock_timeout`.
     """
-    if not paires:
+    wanted = {key for key in keys if key[0] is not None}
+    if not wanted:
         return {}
-    normalisees = {
-        ((nom or "").strip().lower(), (prenom or "").strip().lower()) for nom, prenom in paires
-    }
     rows = (
         db.query(Athlete)
         .filter(
-            tuple_(func.lower(Athlete.nom), func.lower(Athlete.prenom)).in_(normalisees),
-            Athlete.birth_date.is_(None),
+            tuple_(Athlete.last_name_key, Athlete.first_name_key).in_(wanted),
+            Athlete.homonym_rank == 0,
         )
+        .with_for_update(read=True, key_share=True)
         .all()
     )
-    return {(athlete.nom.lower(), athlete.prenom.lower()): athlete for athlete in rows}
+    return {(athlete.last_name_key, athlete.first_name_key): athlete for athlete in rows}
 
 
-def create_batch(db: Session, athletes_fields: Sequence[dict]) -> list[Athlete]:
-    """Crée un lot d'athlètes neufs en un seul aller-retour DB (#706).
+def find_fallback_matches(
+    db: Session, keys: Sequence[IdentityKey]
+) -> tuple[dict[IdentityKey, Athlete], dict[IdentityKey, list[int]]]:
+    """Repli d'identité pour les clés restées sans fiche (#908) : nom et prénom
+    inversés, ou nom complet sans prénom face à une fiche découpée (dans les
+    deux sens, et dans les deux ordres).
 
-    Un seul `db.flush()` pour tout le lot — SQLAlchemy 2.0 compile les objets
-    `pending` de même classe en un `INSERT` multi-lignes. Les instances
-    restent suivies par la session (contrairement à `bulk_insert_mappings`),
-    donc l'appelant peut continuer à leur référer directement après l'appel.
+    Ne rattache que sur une correspondance **unique** ; sinon la clé est rendue
+    dans le second dictionnaire avec les fiches candidates, pour le rapport.
+    L'égalité sur la concaténation des clés couvre tous les découpages d'un nom
+    d'un coup.
     """
-    if not athletes_fields:
-        return []
-    created = [Athlete(**fields) for fields in athletes_fields]
-    db.add_all(created)
-    db.flush()
-    return created
+    wanted = [key for key in keys if key[0] is not None]
+    if not wanted:
+        return {}, {}
+    swapped = {(first, last) for last, first in wanted if first and first != last}
+    whole_names = {last for last, first in wanted if not first}
+    joined = {joined for last, first in wanted if first for joined in (last + first, first + last)}
+    clauses = []
+    if swapped:
+        clauses.append(tuple_(Athlete.last_name_key, Athlete.first_name_key).in_(swapped))
+    if whole_names:
+        clauses.append(and_(
+            Athlete.first_name_key != "",
+            or_(
+                (Athlete.last_name_key + Athlete.first_name_key).in_(whole_names),
+                (Athlete.first_name_key + Athlete.last_name_key).in_(whole_names),
+            ),
+        ))
+    if joined:
+        clauses.append(and_(Athlete.first_name_key == "", Athlete.last_name_key.in_(joined)))
+    rows = (
+        db.query(Athlete)
+        .filter(or_(*clauses), Athlete.homonym_rank == 0)
+        .with_for_update(read=True, key_share=True)
+        .all()
+    )
+
+    matches: dict[IdentityKey, Athlete] = {}
+    ambiguous: dict[IdentityKey, list[int]] = {}
+    for key in wanted:
+        last, first = key
+        candidates = {
+            athlete.id: athlete for athlete in rows
+            if (first and first != last and (athlete.last_name_key, athlete.first_name_key) == (first, last))
+            or (not first and athlete.first_name_key and last in (
+                athlete.last_name_key + athlete.first_name_key, athlete.first_name_key + athlete.last_name_key
+            ))
+            or (first and not athlete.first_name_key and athlete.last_name_key in (last + first, first + last))
+        }
+        if len(candidates) == 1:
+            matches[key] = next(iter(candidates.values()))
+        elif candidates:
+            ambiguous[key] = sorted(candidates)
+    return matches, ambiguous
+
+
+_CREATED_COLUMNS = ("nom", "prenom", "gender", "birth_date", "club")
+
+
+def create_batch(
+    db: Session, athletes_fields: Sequence[dict]
+) -> tuple[list[Athlete], set[int]]:
+    """Crée un lot de fiches principales, ou rend celles qui existent déjà (#706, #981).
+
+    Un `INSERT … ON CONFLICT DO NOTHING RETURNING` multi-lignes sur
+    `uq_athlete_identity`, puis la relecture des seules identités qu'il n'a pas
+    insérées : deux imports qui créent la même personne en même temps aboutissent
+    à la même fiche. En READ COMMITTED, l'insertion en conflit avec une ligne non
+    commitée attend la fin de l'autre transaction ; la relecture voit ensuite sa
+    fiche.
+
+    Les lignes partent triées par clé : deux imports qui listent les mêmes
+    inconnus dans des ordres différents prennent alors leurs verrous d'insertion
+    dans le même ordre, et ne s'interbloquent pas au sein d'une instruction.
+    Entre deux tranches d'une même transaction, l'interblocage reste possible ;
+    `deadlock_retries` rejoue alors la persistance.
+
+    Rend une fiche par entrée, dans l'ordre, suivie par la session, et les ids
+    réellement insérés : une fiche rendue sans l'être existait déjà. Une entrée
+    sans identité (`?`, `-`) a des clés NULL, qui ne se heurtent jamais : elle
+    est créée par l'ORM.
+    """
+    unknown = {column for fields in athletes_fields for column in fields} - set(_CREATED_COLUMNS)
+    if unknown:
+        raise ValueError(f"create_batch does not write {sorted(unknown)}")
+    keys = [athlete_identity_keys(fields.get("nom"), fields.get("prenom")) for fields in athletes_fields]
+    rows = sorted(
+        (
+            {
+                **{column: fields.get(column) for column in _CREATED_COLUMNS},
+                "prenom": fields.get("prenom") or "",
+                "gender": fields.get("gender") or "",
+                "last_name_key": key[0],
+                "first_name_key": key[1],
+            }
+            for fields, key in zip(athletes_fields, keys, strict=True)
+            if key[0] is not None
+        ),
+        key=lambda row: (row["last_name_key"], row["first_name_key"]),
+    )
+
+    by_key: dict[IdentityKey, Athlete] = {}
+    inserted_ids: set[int] = set()
+    if rows:
+        insert = postgresql_insert if db.get_bind().dialect.name == "postgresql" else sqlite_insert
+        inserted = db.scalars(
+            insert(Athlete)
+            .values(rows)
+            .on_conflict_do_nothing(index_elements=["last_name_key", "first_name_key", "homonym_rank"])
+            .returning(Athlete)
+        ).all()
+        by_key = {(athlete.last_name_key, athlete.first_name_key): athlete for athlete in inserted}
+        inserted_ids = {athlete.id for athlete in inserted}
+        missing = {key for key in keys if key[0] is not None and key not in by_key}
+        if missing:
+            by_key.update(get_by_identity_keys_batch(db, list(missing)))
+
+    nameless = [Athlete(**fields) for fields, key in zip(athletes_fields, keys, strict=True) if key[0] is None]
+    if nameless:
+        db.add_all(nameless)
+        db.flush()
+        inserted_ids.update(athlete.id for athlete in nameless)
+    pending_nameless = iter(nameless)
+    return (
+        [by_key[key] if key[0] is not None else next(pending_nameless) for key in keys],
+        inserted_ids,
+    )
+
+
+_HOMONYM_ATTEMPTS = 5
+
+
+def _highest_homonym_rank(db: Session, key: IdentityKey) -> int:
+    """-1 quand la clé n'a aucune fiche : la première créée est alors la principale."""
+    return db.scalar(
+        select(func.coalesce(func.max(Athlete.homonym_rank), -1)).where(
+            Athlete.last_name_key == key[0], Athlete.first_name_key == key[1]
+        )
+    )
+
+
+def create_homonym(db: Session, fields: dict) -> Athlete:
+    """Crée un homonyme distingué de l'identité de `fields`, au rang suivant (#967).
+
+    Le rang lu peut être pris entre-temps par un import concurrent : l'insertion
+    en `ON CONFLICT DO NOTHING` retente alors au rang suivant, quelques fois.
+    """
+    unknown = set(fields) - set(_CREATED_COLUMNS)
+    if unknown:
+        raise ValueError(f"create_homonym does not write {sorted(unknown)}")
+    key = athlete_identity_keys(fields.get("nom"), fields.get("prenom"))
+    if key[0] is None:
+        raise ValueError("an athlete without identity has no homonym")
+    row = {
+        **{column: fields.get(column) for column in _CREATED_COLUMNS},
+        "prenom": fields.get("prenom") or "",
+        "gender": fields.get("gender") or "",
+        "last_name_key": key[0],
+        "first_name_key": key[1],
+    }
+    insert = postgresql_insert if db.get_bind().dialect.name == "postgresql" else sqlite_insert
+    rank = _highest_homonym_rank(db, key)
+    for _ in range(_HOMONYM_ATTEMPTS):
+        rank += 1
+        created = db.scalars(
+            insert(Athlete)
+            .values({**row, "homonym_rank": rank})
+            .on_conflict_do_nothing(index_elements=["last_name_key", "first_name_key", "homonym_rank"])
+            .returning(Athlete)
+        ).first()
+        if created is not None:
+            return created
+    raise RuntimeError(f"no free homonym rank for {key} after {_HOMONYM_ATTEMPTS} attempts")
 
 
 def apply_updates(db: Session, updates: Sequence[tuple[Athlete, dict[str, str]]]) -> None:
@@ -248,7 +416,7 @@ def resolve(
     **fusion** (cible préexistante) ; ce drapeau est la seule information qui les
     sépare. `get_or_create` reste le point d'entrée quand le drapeau n'importe pas.
     """
-    existing = get_by_identity(db, nom, prenom, birth_date)
+    existing = get_by_identity_keys(db, nom, prenom)
     if existing:
         # Met à jour le club courant si l'épreuve n'est pas plus ancienne que
         # le dernier club connu (#965), et jamais si un humain l'a corrigé : une
@@ -772,6 +940,333 @@ def club_composition(
         .filter(sous_requete.c.rang_recence == 1)
         .all()
     )
+
+
+# ── Fusion de deux fiches (#908) ─────────────────────────────────────────────
+
+
+def lock_for_merge(db: Session, athlete_ids: Sequence[int]) -> dict[int, Athlete]:
+    """Verrouille les fiches à fusionner (`FOR UPDATE`, ordre d'id) : un import qui
+    les a résolues (`FOR KEY SHARE`) termine d'abord, et ses résultats suivent."""
+    rows = (
+        db.query(Athlete)
+        .filter(Athlete.id.in_(set(athlete_ids)))
+        .order_by(Athlete.id)
+        .with_for_update()
+        .populate_existing()
+        .all()
+    )
+    return {athlete.id: athlete for athlete in rows}
+
+
+def delete_by_id(db: Session, athlete_id: int) -> None:
+    """Supprime une fiche sans passer par la cascade ORM de ses résultats, déjà repointés."""
+    db.execute(sql_delete(Athlete).where(Athlete.id == athlete_id))
+
+
+# ── Revue d'identité (#908, #967) ────────────────────────────────────────────
+
+
+def _club_flag(column):
+    return func.max(case((tcn_clause(column), 1), else_=0)) == 1
+
+
+def club_records_with_two_bibs_on_a_race(db: Session) -> list[tuple[int, int]]:
+    """`(athlete_id, course_id)` : une fiche portant deux dossards distincts sur une
+    même épreuve individuelle, quand la fiche ou l'un de ces résultats relève du
+    club. Deux lignes sans dossard ne comptent pas : rien ne prouve deux coureurs."""
+    rows = db.execute(
+        select(Participation.athlete_id, Participation.course_id)
+        .join(Course, Course.id == Participation.course_id)
+        .join(Athlete, Athlete.id == Participation.athlete_id)
+        .where(Course.is_relay.is_(False), Participation.is_relay.is_(False))
+        .group_by(Participation.athlete_id, Participation.course_id)
+        .having(
+            func.count(func.distinct(Participation.bib_number)) > 1,
+            or_(_club_flag(Athlete.club), _club_flag(Participation.club)),
+        )
+    )
+    return [tuple(row) for row in rows]
+
+
+def homonym_groups(db: Session) -> list[tuple[list[int], set[int]]]:
+    """Les fiches d'une clé qui a des homonymes distingués, par groupe (rang croissant),
+    avec celles du groupe qui relèvent du club (fiche ou l'un de ses résultats)."""
+    keyed = (
+        select(Athlete.last_name_key, Athlete.first_name_key)
+        .where(Athlete.homonym_rank > 0)
+        .distinct()
+        .subquery()
+    )
+    members = db.execute(
+        select(Athlete.id, Athlete.last_name_key, Athlete.first_name_key)
+        .join(keyed, and_(
+            keyed.c.last_name_key == Athlete.last_name_key, keyed.c.first_name_key == Athlete.first_name_key
+        ))
+        .order_by(Athlete.last_name_key, Athlete.first_name_key, Athlete.homonym_rank)
+    ).all()
+    if not members:
+        return []
+    ids = [member.id for member in members]
+    touching = set(db.scalars(
+        select(Participation.athlete_id)
+        .where(Participation.athlete_id.in_(ids), tcn_clause(Participation.club))
+        .distinct()
+    )) | set(db.scalars(select(Athlete.id).where(Athlete.id.in_(ids), tcn_clause(Athlete.club))))
+    groups: dict[tuple[str, str], list[int]] = {}
+    for member in members:
+        groups.setdefault((member.last_name_key, member.first_name_key), []).append(member.id)
+    return [(group, touching.intersection(group)) for group in groups.values()]
+
+
+def _has_digit(*keys: str) -> bool:
+    return any(character.isdigit() for key in keys for character in key)
+
+
+def swapped_pairs(db: Session) -> list[tuple[int, int]]:
+    """Paires de fiches principales dont le nom et le prénom sont inversés (#908).
+
+    Une clé qui porte un chiffre (équipe numérotée, bouche-trou `?DOSSARD #n`,
+    `Anonyme <épreuve>-<dossard>`) n'est pas une personne : la reprise les ignore,
+    la revue aussi."""
+    other = aliased(Athlete)
+    rows = db.execute(
+        select(Athlete.id, other.id, Athlete.last_name_key, Athlete.first_name_key)
+        .join(other, and_(
+            other.last_name_key == Athlete.first_name_key,
+            other.first_name_key == Athlete.last_name_key,
+            other.id > Athlete.id,
+        ))
+        .where(
+            Athlete.homonym_rank == 0, other.homonym_rank == 0,
+            Athlete.first_name_key != "", Athlete.first_name_key != Athlete.last_name_key,
+        )
+    )
+    return [(first, second) for first, second, last, given in rows if not _has_digit(last, given)]
+
+
+def concatenated_pairs(db: Session) -> list[tuple[int, int]]:
+    """`(fiche découpée, fiche au nom complet sans prénom)` dont les clés se recouvrent (#908).
+
+    Deux requêtes plutôt qu'un `OR` : chacune joint sur une égalité, que l'index
+    d'expression de la concaténation sert (`ix_athletes_identity_last_first` et
+    `_first_last`)."""
+    whole = aliased(Athlete)
+    pairs: set[tuple[int, int]] = set()
+    for joined in (Athlete.last_name_key + Athlete.first_name_key, Athlete.first_name_key + Athlete.last_name_key):
+        rows = db.execute(
+            select(Athlete.id, whole.id, whole.last_name_key)
+            .join(whole, whole.last_name_key == joined)
+            .where(
+                Athlete.homonym_rank == 0, whole.homonym_rank == 0,
+                Athlete.first_name_key != "", whole.first_name_key == "",
+            )
+        )
+        pairs.update((split, full) for split, full, key in rows if not _has_digit(key))
+    return sorted(pairs)
+
+
+def alias_collisions(db: Session) -> list[tuple[int, int]]:
+    """`(fiche de la variante, fiche principale de la même clé)` : une fiche recréée
+    sur une graphie qu'une fusion avait rattachée à une autre (#908)."""
+    rows = db.execute(
+        select(AthleteAlias.athlete_id, Athlete.id)
+        .join(Athlete, and_(
+            Athlete.last_name_key == AthleteAlias.last_name_key,
+            Athlete.first_name_key == AthleteAlias.first_name_key,
+        ))
+        .where(Athlete.homonym_rank == 0, Athlete.id != AthleteAlias.athlete_id)
+    )
+    return [tuple(row) for row in rows]
+
+
+class IdentityFacts(NamedTuple):
+    """Ce qui décide d'une fusion, pour une fiche ou pour l'union de plusieurs."""
+    courses: frozenset[int]
+    individual_courses: frozenset[int]
+    results: frozenset[int]
+    accounts: int
+    birth_dates: frozenset[date]
+    carried: int
+
+    def __or__(self, other: "IdentityFacts") -> "IdentityFacts":
+        return IdentityFacts(
+            self.courses | other.courses, self.individual_courses | other.individual_courses,
+            self.results | other.results, self.accounts + other.accounts,
+            self.birth_dates | other.birth_dates, self.carried + other.carried,
+        )
+
+
+_NO_FACTS = IdentityFacts(frozenset(), frozenset(), frozenset(), 0, frozenset(), 0)
+_FACTS_CHUNK = 5000
+
+
+def identity_facts(db: Session, athlete_ids: Sequence[int]) -> dict[int, IdentityFacts]:
+    """Pour chaque fiche, en trois requêtes par tranche : ses épreuves et résultats
+    (porteur ou équipier), ses épreuves individuelles, ses comptes, sa date de
+    naissance et le nombre de résultats qu'elle porte."""
+    ids = sorted(set(athlete_ids))
+    facts: dict[int, IdentityFacts] = {}
+    for start in range(0, len(ids), _FACTS_CHUNK):
+        chunk = ids[start:start + _FACTS_CHUNK]
+        individual = and_(Course.is_relay.is_(False), Participation.is_relay.is_(False))
+        memberships = (
+            select(Participation.id, Participation.course_id, Participation.athlete_id, individual, true())
+            .join(Course, Course.id == Participation.course_id)
+            .where(Participation.athlete_id.in_(chunk))
+            .union_all(
+                select(Participation.id, Participation.course_id, ParticipationTeammate.athlete_id, false(), false())
+                .join(ParticipationTeammate, ParticipationTeammate.participation_id == Participation.id)
+                .where(ParticipationTeammate.athlete_id.in_(chunk))
+            )
+        )
+        courses: dict[int, set[int]] = {}
+        individual_courses: dict[int, set[int]] = {}
+        results: dict[int, set[int]] = {}
+        carried: dict[int, int] = {}
+        for participation_id, course_id, athlete_id, alone, carrier in db.execute(memberships):
+            courses.setdefault(athlete_id, set()).add(course_id)
+            results.setdefault(athlete_id, set()).add(participation_id)
+            if alone:
+                individual_courses.setdefault(athlete_id, set()).add(course_id)
+            if carrier:
+                carried[athlete_id] = carried.get(athlete_id, 0) + 1
+        accounts = {
+            athlete_id: count for athlete_id, count in db.execute(
+                select(User.athlete_id, func.count()).where(User.athlete_id.in_(chunk)).group_by(User.athlete_id)
+            )
+        }
+        for athlete_id, born in db.execute(select(Athlete.id, Athlete.birth_date).where(Athlete.id.in_(chunk))):
+            facts[athlete_id] = IdentityFacts(
+                frozenset(courses.get(athlete_id, ())), frozenset(individual_courses.get(athlete_id, ())),
+                frozenset(results.get(athlete_id, ())), accounts.get(athlete_id, 0),
+                frozenset({born} if born else ()), carried.get(athlete_id, 0),
+            )
+    return facts
+
+
+def merge_refusal(first: IdentityFacts, second: IdentityFacts) -> str | None:
+    """Le refus que `athlete_merge.blocking_reason` prononcerait, dans le même ordre."""
+    if first.accounts and second.accounts:
+        return "distinct_users"
+    if first.individual_courses & second.individual_courses:
+        return "same_course_bibs"
+    if first.results & second.results:
+        return "same_participation"
+    if first.birth_dates and second.birth_dates and first.birth_dates != second.birth_dates:
+        return "distinct_birth_dates"
+    return None
+
+
+class PairFacts(NamedTuple):
+    shared_courses: list[int]
+    refusal: str | None
+
+    @property
+    def blocked(self) -> bool:
+        """Un refus autre qu'une épreuve commune (déjà lue dans `shared_courses`)."""
+        return self.refusal in {"distinct_users", "same_participation", "distinct_birth_dates"}
+
+
+def pair_facts(db: Session, pairs: Sequence[tuple[int, int]]) -> dict[tuple[int, int], PairFacts]:
+    """Pour chaque paire : les épreuves où les deux figurent (porteur ou équipier), et
+    le refus que la fusion prononcerait (`merge_refusal`)."""
+    facts = identity_facts(db, [athlete_id for pair in pairs for athlete_id in pair])
+    paired = {}
+    for first, second in pairs:
+        one, other = facts.get(first, _NO_FACTS), facts.get(second, _NO_FACTS)
+        paired[(first, second)] = PairFacts(sorted(one.courses & other.courses), merge_refusal(one, other))
+    return paired
+
+
+def review_details(db: Session, athlete_ids: Sequence[int]) -> tuple[dict[int, Athlete], list]:
+    """Les fiches et tous leurs résultats, avec l'épreuve, en deux requêtes."""
+    ids = set(athlete_ids)
+    if not ids:
+        return {}, []
+    athletes = {athlete.id: athlete for athlete in db.query(Athlete).filter(Athlete.id.in_(ids))}
+    results = db.execute(
+        select(
+            Participation.id, Participation.athlete_id, Participation.course_id, Participation.bib_number,
+            Participation.category, Participation.total_time, Participation.is_relay,
+            Course.name, Course.event_date, Course.is_relay.label("course_is_relay"),
+        )
+        .join(Course, Course.id == Participation.course_id)
+        .where(Participation.athlete_id.in_(ids))
+        .order_by(Course.event_date, Participation.id)
+    ).all()
+    return athletes, results
+
+
+def get_many(db: Session, athlete_ids: Sequence[int]) -> dict[int, Athlete]:
+    ids = set(athlete_ids)
+    if not ids:
+        return {}
+    return {athlete.id: athlete for athlete in db.query(Athlete).filter(Athlete.id.in_(ids))}
+
+
+# ── Reprise des doublons existants (#906) ────────────────────────────────────
+
+
+def comma_named(db: Session) -> list[Athlete]:
+    """Les fiches dont le nom ou le prénom porte une virgule (« NOM, Prénom » mal découpé)."""
+    return (
+        db.query(Athlete)
+        .filter(or_(Athlete.nom.contains(","), Athlete.prenom.contains(",")))
+        .order_by(Athlete.id)
+        .all()
+    )
+
+
+def homonyms_without_principal(db: Session) -> list[int]:
+    """Les homonymes distingués dont la clé n'a plus de fiche principale."""
+    principal = aliased(Athlete)
+    return list(db.scalars(
+        select(Athlete.id)
+        .where(
+            Athlete.homonym_rank > 0,
+            ~exists().where(
+                principal.last_name_key == Athlete.last_name_key,
+                principal.first_name_key == Athlete.first_name_key,
+                principal.homonym_rank == 0,
+            ),
+        )
+        .order_by(Athlete.id)
+    ))
+
+
+def relay_only(db: Session, athlete_ids: Sequence[int]) -> set[int]:
+    """Les fiches qui ne portent que des résultats de relais : des équipes, pas des personnes."""
+    ids = set(athlete_ids)
+    if not ids:
+        return set()
+    relay = or_(Course.is_relay.is_(True), Participation.is_relay.is_(True))
+    rows = db.execute(
+        select(Participation.athlete_id)
+        .join(Course, Course.id == Participation.course_id)
+        .where(Participation.athlete_id.in_(ids))
+        .group_by(Participation.athlete_id)
+        .having(func.min(case((relay, 1), else_=0)) == 1)
+    )
+    return {athlete_id for (athlete_id,) in rows}
+
+
+def homonyms_with_their_principal(db: Session) -> list[tuple[int, int]]:
+    """`(fiche principale, homonyme distingué)` de même clé, par homonyme croissant :
+    les doublons rangés par la migration de #907, et les homonymes de #967."""
+    principal = aliased(Athlete)
+    rows = db.execute(
+        select(principal.id, Athlete.id)
+        .join(principal, and_(
+            principal.last_name_key == Athlete.last_name_key,
+            principal.first_name_key == Athlete.first_name_key,
+            principal.homonym_rank == 0,
+        ))
+        .where(Athlete.homonym_rank > 0)
+        .order_by(Athlete.id)
+    )
+    return [tuple(row) for row in rows]
+
 
 
 def list_identities(db: Session) -> list[tuple[int, str, str]]:

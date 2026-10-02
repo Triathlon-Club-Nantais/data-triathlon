@@ -75,6 +75,76 @@ et `{participations_deleted, athletes_purged, courses_reset}` respectivement),
 plus `204` vide — la purge annonçait son ampleur avant le geste mais rendait un
 succès muet, sans confirmer ce qu'elle avait détruit.
 
+## Fusion de deux fiches d'athlète (#908)
+
+| Route | Pouvoir | Effet |
+| --- | --- | --- |
+| `GET /admin/athletes/{id}/merge-impact?absorbed_id=` | `athletes:write` **et** `athletes:read` | Aperçu, sans écriture : les deux fiches avec leur date de naissance (d'où le second pouvoir, FR-025 de #117), ce qui serait déplacé (`moves`), `alias_added`, et `blocking_reason` / `blocking_label` si la fusion serait refusée. |
+| `POST /admin/athletes/{id}/merge` `{absorbed_id}` | `athletes:write` | Absorbe `absorbed_id` dans `{id}` ; rend la fiche conservée. 404 fiche inconnue, 409 refus (`code` = la raison) ou fiche en cours d'import. |
+
+- **Tout passe sur la fiche conservée** : résultats, liens d'équipier de relais,
+  actions bénévoles, validations de saison (une saison validée des deux côtés
+  n'en garde qu'une), comptes membres. Elle prend aussi ce qu'elle n'a pas :
+  club (un club verrouillé par un admin prime), genre, date de naissance.
+- **Refus**, avec le même prédicat dans l'aperçu et l'acte : `same_athlete`,
+  `distinct_users` (deux comptes membres), `same_course_bibs` (un résultat
+  chacune sur une même épreuve individuelle), `same_participation` (un même
+  relais), `distinct_birth_dates`. `same_course_bibs` vaut aussi pour deux
+  résultats sans dossard sur une même épreuve individuelle : on ne court pas
+  deux fois la même course.
+- **Seule une fiche principale lègue sa graphie** : un homonyme distingué
+  absorbé n'ajoute pas de variante, sa clé appartenant à une autre personne.
+- **La graphie absorbée devient une variante** de la fiche conservée
+  (`athlete_aliases`) : l'import la résout désormais comme elle, équipiers de
+  relais compris, et le rescrape de l'épreuve d'origine ne recrée pas la faute.
+  Une variante suit la même garde qu'un repli : deux dossards d'une épreuve
+  individuelle, l'un sous la graphie conservée et l'autre sous la variante, restent
+  deux personnes.
+- **Concurrence** : la fusion verrouille les deux fiches (`FOR UPDATE`) après
+  tout import qui les a résolues, au plus 5 s, puis répond 409 « fiche en cours
+  d'import ».
+- **Journal** : `athlete.merge` sur la fiche conservée, avec l'identité de
+  l'absorbée (sans date de naissance) et le décompte des éléments déplacés.
+- **Renommage en conflit** : le 409 de `PATCH /admin/athletes/{id}` porte en plus
+  `conflicting_athlete_id`, pour proposer la fusion. Une variante compte comme
+  l'identité de sa fiche.
+
+## Revue d'identité des athlètes (#908)
+
+| Route | Pouvoir | Effet |
+| --- | --- | --- |
+| `GET /admin/identity-review` | `athletes:write` | Les cas à trancher, sans pagination, dans un ordre stable (motif, puis plus petit id). |
+| `GET /admin/identity-review/count` | `athletes:write` | `{total}`, pour la pastille de la nav. |
+| `POST /admin/identity-review/ignore` `{athlete_id_a, athlete_id_b}` | `athletes:write` | Écarte une paire jugée distincte (201) ; 400 même fiche, 404 fiche inconnue, 409 déjà écartée. Journal `athlete_identity.ignore`. |
+
+`/admin/identity-review` et non `/admin/athletes/identity-review` : la route
+`/admin/athletes/{athlete_id}` capterait le segment et rendrait 422.
+
+Cinq motifs, calculés à la volée depuis les données (aucune table de cas) :
+
+- `same_course_bibs` : une fiche portant deux dossards distincts sur une même
+  épreuve individuelle, quand la fiche ou l'un de ces résultats relève du club
+  (deux lignes sans dossard ne prouvent pas deux coureurs). Ne s'écarte pas : il
+  se règle par réattribution.
+- `club_homonym` : une **paire** d'homonymes distingués dont l'un relève du club
+  (hors club, la mention `homonyms_created` du rapport d'import suffit) ; trois
+  homonymes du club donnent un cas par paire, chacun écartable.
+- `swapped`, `concatenated` : nom et prénom inversés, ou nom complet face à une
+  fiche découpée, **seulement** quand la reprise ne les fusionnerait pas d'elle-même
+  (`recovery_would_merge` : même club ou même genre, renseigné des deux côtés,
+  jamais une même épreuve, porteur ou équipier, et aucun refus de la fusion :
+  deux comptes membres, un même résultat, deux dates de naissance). Une clé qui
+  porte un chiffre (équipe numérotée, `?DOSSARD #n`, `Anonyme …`) n'est pas une
+  personne et n'y figure pas.
+- `alias_collision` : une fiche principale recréée sur une graphie qu'une fusion
+  avait rattachée à une autre.
+
+Une paire n'est listée qu'une fois, sous le premier motif qui la retient.
+Chaque cas porte les fiches (identité, club, genre, catégories, nombre de
+résultats, rang d'homonyme) et les épreuves en conflit avec leurs lignes. Le
+compte (`/count`) ne charge pas ce détail : quatre requêtes de faits par paire
+pour toutes les paires, sans les résultats complets.
+
 ## Journal d'administration, en lecture (#501)
 
 `GET /admin/action-log` (`admin_log:read`) rend les dernières entrées du
@@ -113,10 +183,32 @@ Sept points à ne pas défaire :
   n'est pas un geste. Un refus, lui, n'écrit rien **et** ne modifie rien — le
   service `flush`, la route `commit`.
 - **`PATCH /admin/athletes/{id}` porte le `club` actuel** en plus du triplet
-  d'identité (#439). Il n'entre **pas** dans `uq_athlete_identity` : deux
+  d'identité (#439). Le doublon se vérifie sur la clé normalisée du nom et du
+  prénom (#907), la date de naissance n'y entre plus (#900) ; une fiche renommée
+  vers une clé neuve en devient la fiche principale. Le club n'entre **pas** dans `uq_athlete_identity` : deux
   homonymes de clubs différents restent la même personne. « Sans club » s'écrit
   `null` ; la chaîne vide est refusée (422), sans quoi elle se rangerait comme un
   libellé de club à part entière.
+- **Le rapport d'import signale les identités ambiguës** (#908) : la clé
+  `ambiguous_identities` (`[{course_id, athlete_id, candidate_ids}]`, présente sur
+  tous les chemins de `done`, vide par défaut) liste les lignes dont le repli
+  d'identité (nom et prénom inversés, nom complet face à une fiche découpée) a
+  trouvé plusieurs fiches : une fiche neuve est créée, rien n'est deviné, et
+  `candidate_ids` donne les fiches entre lesquelles l'admin tranche.
+- **Deux dossards d'un même nom sur une épreuve individuelle sont deux personnes**
+  (#967). Le second reçoit une fiche d'homonyme distinguée (`homonym_rank` ≥ 1),
+  et le rapport d'import le liste dans `homonyms_created`
+  (`[{course_id, bib, athlete_id, homonym_of}]`, présent sur tous les chemins de
+  `done`). Vaut pour un dossard neuf comme pour une correction de nom de la
+  source. Seul compte un autre dossard que ce scrape publie encore sous le même
+  nom : un dossard périmé ou passé à un autre coureur ne fait pas d'homonyme.
+  Un relais n'est pas concerné. L'import ne vise ensuite plus jamais la fiche
+  d'homonyme par l'identité : un nouveau résultat sans conflit va à la fiche
+  principale, et seul un geste admin en donne à l'homonyme. Limites connues :
+  le premier dossard rencontré garde la fiche principale, quel que soit le
+  coureur ; un homonyme dont la source corrige ensuite le nom peut rester vide
+  jusqu'à la purge des orphelins ; `rescrape-db` et `import-sheet` ne reprennent
+  pas encore `homonyms_created` dans leur rapport.
 - **La correction manuelle du club prime sur tout import ultérieur.** Le
   chronométreur d'une course d'il y a trois ans annonce le club de l'époque, et
   le laisser gagner ramènerait la correction à chaque réimport. D'où

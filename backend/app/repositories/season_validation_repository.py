@@ -4,6 +4,8 @@ L'existence de la ligne porte le statut (research.md D5) : `create` valide,
 `delete` dévalide. `map_by_athlete` sert la lecture en masse de
 `athlete_repository.list_with_season_participation_count`.
 """
+from sqlalchemy import delete as sql_delete
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.models.season_validation import SeasonValidation
@@ -46,6 +48,30 @@ def map_by_athlete(db: Session, *, athlete_ids: list[int], season: int) -> dict[
         .all()
     )
     return {athlete_id: True for (athlete_id,) in lignes}
+
+
+def repoint_deduplicated(db: Session, *, from_athlete_id: int, to_athlete_id: int) -> int:
+    """Repointe les validations d'une fiche absorbée par une fusion (#908).
+
+    Une saison validée des deux côtés garde la validation de la fiche conservée :
+    `uq_season_validation_athlete_season` n'en admet qu'une, et l'existence de la
+    ligne porte seule le statut. Rend le nombre de saisons validées reprises.
+    """
+    kept_seasons = select(SeasonValidation.season).where(SeasonValidation.athlete_id == to_athlete_id)
+    db.execute(
+        sql_delete(SeasonValidation).where(
+            SeasonValidation.athlete_id == from_athlete_id, SeasonValidation.season.in_(kept_seasons)
+        )
+    )
+    return db.execute(
+        update(SeasonValidation)
+        .where(SeasonValidation.athlete_id == from_athlete_id)
+        .values(athlete_id=to_athlete_id)
+    ).rowcount
+
+
+def count_for_athlete(db: Session, athlete_id: int) -> int:
+    return db.scalar(select(func.count()).select_from(SeasonValidation).where(SeasonValidation.athlete_id == athlete_id))
 
 
 def delete_for_athlete(db: Session, athlete_id: int) -> int:

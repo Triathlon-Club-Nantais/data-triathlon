@@ -25,7 +25,13 @@ target_metadata = Base.metadata
 
 # PostgreSQL réécrit l'expression de ces index dans son catalogue (casts, `TRIM(BOTH
 # FROM ...)`) : la comparaison textuelle d'Alembic ne converge jamais (#1023).
-_UNCOMPARABLE_EXPRESSION_INDEXES = {"ix_participations_club_normalized"}
+# PostgreSQL relit `last_name_key || first_name_key` avec des casts `::text` qu'Alembic ne
+# sait pas dépouiller symétriquement : comparés, ces index paraîtraient toujours à recréer.
+_UNCOMPARABLE_EXPRESSION_INDEXES = {
+    "ix_participations_club_normalized",
+    "ix_athletes_identity_last_first",
+    "ix_athletes_identity_first_last",
+}
 # Déclarés au modèle avec `ddl_if(dialect="postgresql")` : absents ailleurs, à dessein.
 _POSTGRESQL_ONLY_INDEXES = {"ix_courses_name_trgm"}
 _IS_POSTGRESQL = make_url(get_settings().database_url).get_backend_name() == "postgresql"

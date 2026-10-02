@@ -54,7 +54,7 @@ def _athlete(db, nom, prenom):
 
 def test_preview_counts_results_homonyms_included(db, course):
     jean = _athlete(db, "DUPONT", "Jean")
-    homonyme = athlete_repository.get_or_create(db, nom="Dupont", prenom="Jean", birth_date=date(1990, 1, 1))
+    homonyme = athlete_repository.create_homonym(db, {"nom": "Dupont", "prenom": "Jean"})
     autre = _athlete(db, "MARTIN", "Alix")
     _classer(db, course, jean, 12, "120")
     _classer(db, course, homonyme, 40, "400")

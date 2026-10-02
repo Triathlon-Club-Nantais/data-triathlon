@@ -224,6 +224,17 @@ export const NAV: NavSection[] = [
         permission: "courses:sources",
         badge: "duplicates",
       },
+      // Pas de pastille (#908) : le comptage recalcule les paires inversées et
+      // concaténées sur toutes les fiches, et la nav le déclencherait à chaque
+      // page du back-office. À poser une fois sa durée mesurée en production.
+      {
+        id: "a-identites",
+        label: "Identités des athlètes",
+        description:
+          "Fiches qui mêlent deux personnes, ou paires de fiches qui désignent probablement la même : à écarter ou à fusionner.",
+        href: "/admin/identites",
+        permission: "athletes:write",
+      },
       // Les entrées `soon` ci-dessous n'ont pas de pouvoir nommé : le catalogue
       // n'en porte pas d'évident, et en deviner un serait poser une règle à
       // rectifier le jour où l'écran sort. Sans conséquence — depuis #242 une

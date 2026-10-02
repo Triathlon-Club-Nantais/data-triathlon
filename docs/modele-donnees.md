@@ -13,7 +13,9 @@ Le modèle est **normalisé** autour de trois entités principales reliées par 
 table d'association, plus une entité technique isolée :
 
 - **Athlete** — une personne physique, dédoublonnée (une seule fois en base
-  quelle que soit le nombre de courses).
+  quel que soit le nombre de courses) par la clé normalisée de son nom et de
+  son prénom (#907) : casse, accents, ponctuation et espaces ignorés, chiffres
+  gardés. Deux homonymes réels se distinguent par `homonym_rank`.
 - **Course** — une épreuve (un « heat » : nom + date + type + relais).
 - **CourseSource** — les **N chronométrages** d'une même épreuve, dont un seul
   **actif** (#278). C'est elle, et elle seule, qui porte l'URL d'import et le
@@ -111,7 +113,7 @@ l'absence de doublons à l'import :
 
 | Table            | Contrainte                | Colonnes                                       | Rôle                                                         |
 | ---------------- | ------------------------- | ---------------------------------------------- | ----------------------------------------------------------- |
-| `athletes`       | `uq_athlete_identity`     | `nom`, `prenom`, `birth_date`                  | Une personne = une seule ligne, quelles que soient ses courses |
+| `athletes`       | `uq_athlete_identity`     | `last_name_key`, `first_name_key`, `homonym_rank` | Une personne = une seule ligne, quelles que soient ses courses et la graphie du chronométreur. Rang 0 = fiche principale, la seule que l'import vise. Clés calculées en Python (`core/athlete_identity`) et stockées : `unaccent` n'est pas immuable en PostgreSQL. La date de naissance n'en fait plus partie (#900) |
 | `courses`        | `uq_course_identity`      | `name`, `event_date`, `event_type`, `is_relay` | Une épreuve (heat) = une seule ligne ; le relais est un heat distinct |
 | `participations` | `uq_participation_bib`    | `course_id`, `bib_number`                      | Un dossard est unique au sein d'une course → import idempotent |
 | `course_sources` | `uq_course_source_url`    | `course_id`, `url`                             | Une URL n'est rattachée qu'une fois à une épreuve donnée — **et surtout pas `UNIQUE(url)`** : une URL porte légitimement N épreuves (heats Klikego, multi-catégories Wiclax, multi-listes RaceResult, multi-épreuves Chronoplace) |

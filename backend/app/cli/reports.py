@@ -211,6 +211,30 @@ def render_timepulse_duplicates_report(rows: list[dict], *, deleted: bool) -> st
     return "\n".join(lignes)
 
 
+def render_reconciliation_report(report: dict) -> str:
+    """Bilan de la reprise des doublons d'athlètes (#906), simulée ou appliquée."""
+    applique = report.get("applied", False)
+    lignes = ["=== REPRISE DES FICHES D'ATHLÈTES ===" + ("" if applique else " (simulation)")]
+    for famille, compte in report.get("families", {}).items():
+        details = ", ".join(f"{cle} {valeur}" for cle, valeur in compte.items())
+        lignes.append(f"{famille} : {details}")
+    operations = report.get("operations", [])
+    if applique:
+        lignes.append(f"{report.get('done', 0)} opération(s) appliquée(s) sur {len(operations)}.")
+        for erreur in report.get("errors", []):
+            lignes.append(f"ÉCHEC {erreur['operation']} : {erreur['error']}")
+        if report.get("interrupted"):
+            lignes.append("Interrompue : relancer pour reprendre, rien de fait ne sera refait.")
+    else:
+        lignes.append(
+            f"{len(operations)} opération(s) prévue(s) : appliquer ce plan avec "
+            "--yes --by-email <adresse> --plan-from <cette simulation en --json>."
+            if operations else "Rien à faire."
+        )
+    lignes.append(f"{len(report.get('review', []))} cas laissé(s) en revue (/admin/identites).")
+    return "\n".join(lignes)
+
+
 def render_club_labels_report(labels: list[dict]) -> str:
     """Inventaire des libellés de club, marqués reconnus (✓) ou non (✗).
 

@@ -103,7 +103,9 @@ export function DangerConfirm({
   const motManquant = motDeConfirmation !== undefined && saisie !== motDeConfirmation;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    // Pendant le geste, ni « Renoncer » ni Échap : fermer laisserait croire que
+    // rien ne s'est passé, alors que la requête part quand même.
+    <Dialog open={open} onOpenChange={(ouvert) => (ouvert || !enAttente) && onOpenChange(ouvert)}>
       <DialogContent finalFocus={finalFocus}>
         <DialogHeader>
           <DialogTitle>{titre}</DialogTitle>
@@ -138,7 +140,7 @@ export function DangerConfirm({
         )}
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={enAttente}>
             Renoncer
           </Button>
           <Button

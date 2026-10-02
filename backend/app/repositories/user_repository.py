@@ -4,7 +4,7 @@ La transaction reste portée par le service appelant (`services/auth/`), comme
 dans `import_service` et `scrape_service` : on `flush()` pour peupler l'id, on ne
 `commit()` jamais ici.
 """
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.role import Role
@@ -132,6 +132,17 @@ def set_active(db: Session, users: list[User], *, active: bool) -> int:
         user.is_active = active
     db.flush()
     return len(changes)
+
+
+def ids_linked_to_athlete(db: Session, athlete_id: int) -> set[int]:
+    return set(db.scalars(select(User.id).where(User.athlete_id == athlete_id)))
+
+
+def repoint_athlete(db: Session, *, from_athlete_id: int, to_athlete_id: int) -> int:
+    """Rattache à la fiche conservée les comptes liés à une fiche absorbée (#908)."""
+    return db.execute(
+        update(User).where(User.athlete_id == from_athlete_id).values(athlete_id=to_athlete_id)
+    ).rowcount
 
 
 def detach_athlete(db: Session, athlete_id: int) -> None:

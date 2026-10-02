@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
 
+from app.core.athlete_identity import athlete_identity_keys
 from app.core.config import Settings
 from app.core.database import SessionLocal
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
@@ -30,6 +31,7 @@ from app.models.course import Course
 from app.models.course_source import CourseSource
 from app.models.participation import Participation
 from app.repositories import (
+    athlete_alias_repository,
     athlete_repository,
     course_repository,
     course_source_repository,
@@ -37,6 +39,7 @@ from app.repositories import (
     opposition_repository,
     participation_repository,
 )
+from app.repositories.athlete_repository import IdentityKey
 from app.scrapers import registry
 from app.scrapers import scrape_event_all as registry_scrape_event_all
 from app.scrapers.base import (
@@ -521,16 +524,40 @@ def _team_key(team_name: str | None) -> str:
     return " ".join((deaccent(team_name) or "").lower().split())
 
 
-def _identity_key(scraped: ScrapedResult) -> tuple[str, str]:
-    """Clé d'identité normalisée d'une ligne scrapée — même formule que
-    `athlete_repository.get_by_identities_batch`, côté nom/prénom stockés
-    (déjà `.strip()`-és en base), pour que les deux se retrouvent."""
+def _identity_key(scraped: ScrapedResult) -> IdentityKey:
+    """Clé d'identité d'une ligne scrapée, celle que stockent les fiches (#907)."""
     return _pair_key((scraped.athlete_name, scraped.athlete_firstname))
 
 
-def _pair_key(pair: tuple[str | None, str | None]) -> tuple[str, str]:
-    nom, prenom = pair
-    return ((nom or "").strip().lower(), (prenom or "").strip().lower())
+def _pair_key(pair: tuple[str | None, str | None]) -> IdentityKey:
+    """Une paire sans identité (`-`) garde sa graphie brute comme clé en mémoire :
+    elle ne correspond à aucune fiche et n'en partage aucune avec une autre
+    paire. `add` a déjà renommé ou écarté les lignes dans ce cas ; ne restent
+    que des équipiers de relais."""
+    key = athlete_identity_keys(*pair)
+    return key if key[0] is not None else (None, "|".join(part or "" for part in pair))
+
+
+def _source_key(scraped: ScrapedResult) -> str | None:
+    """Clé source d'une ligne (`<nom>|<prénom>`, #896), celle que retient
+    `Participation.source_identity_key`."""
+    last_name_key, first_name_key = athlete_identity_keys(scraped.athlete_name, scraped.athlete_firstname)
+    return None if last_name_key is None else f"{last_name_key}|{first_name_key}"
+
+
+def _stored_source_key(participation: Participation) -> str | None:
+    """Un résultat saisi à la main n'a pas de clé source : celle de sa fiche en tient lieu."""
+    if participation.source_identity_key is not None:
+        return participation.source_identity_key
+    athlete = participation.athlete
+    return None if athlete.last_name_key is None else f"{athlete.last_name_key}|{athlete.first_name_key}"
+
+
+def _participation_fields(scraped: ScrapedResult, *, athlete_id: int, course_id: int) -> dict:
+    return {
+        **mapping.participation_fields(scraped, athlete_id=athlete_id, course_id=course_id),
+        "source_identity_key": _source_key(scraped),
+    }
 
 
 def _published_name(scraped: ScrapedResult) -> str:
@@ -551,7 +578,7 @@ def _proposed_teammates(scraped: ScrapedResult) -> tuple[tuple[str, str], ...] |
 
 
 def _oriented_teammates(
-    teammates: tuple[tuple[str, str], ...], found: dict[tuple[str, str], Athlete]
+    teammates: tuple[tuple[str, str], ...], found: dict[IdentityKey, Athlete]
 ) -> tuple[tuple[str, str], ...]:
     """Tout en majuscules, « PRÉNOM NOM » se lit « NOM PRÉNOM » (klikego) : une
     fiche connue à l'envers, et pas à l'endroit, tranche l'ordre."""
@@ -585,13 +612,15 @@ class _Persister:
     Point de persistance unique des trois entrées (rescrape-db, import-sheet, web
     SSE). Deux clés d'appariement, par course :
       - le dossard, quand il existe (`uq_participation_bib`) ;
-      - sinon l'athlète, en **multiset** — mais la mise à jour ne s'applique que
-        si l'athlète n'a qu'une seule participation sur la course (cf. `add`).
+      - sinon la clé source de la ligne (`source_identity_key`, #896), en
+        **multiset** — mais la mise à jour ne s'applique que si la clé n'a qu'une
+        seule participation sur la course (cf. `add`).
 
     Une ligne appariée est **fusionnée prudemment** (`_merge_fields`) : la source
     ne réécrit que ses valeurs non vides. `athlete_id` échappe à cette fusion —
-    seule la **réconciliation d'identité** (`_reconcile`, sur le chemin dossard)
-    le réassigne quand la graphie stockée a divergé de la graphie corrigée.
+    seule la **réconciliation d'identité** (`_reconcile_resolved`, sur le chemin
+    dossard) le réassigne, quand la clé source a changé, et jamais sur un
+    résultat verrouillé par un admin (`athlete_locked`).
     """
 
     def __init__(self, db: Session, event_url: str):
@@ -602,19 +631,21 @@ class _Persister:
         self._by_bib: dict[int, dict[str, Participation]] = {}
         self._added_bibs: dict[int, set[str]] = {}
         self._duplicate_bibs: Counter[int] = Counter()
-        self._without_bib: dict[int, dict[int, list[Participation]]] = {}
+        # Lignes sans dossard par clé source (#896) : une ligne réattribuée par un
+        # admin se retrouve ainsi sans que sa fiche d'origine soit recréée.
+        self._without_bib: dict[int, dict[str | None, list[Participation]]] = {}
         self._teams_without_bib: dict[int, dict[str, list[Participation | None]]] = {}
         # Garde des relais découpés (#895, FR-010) : un coureur ne figure qu'une
         # fois par course. Les ids couvrent la base, les clés d'identité les
         # équipiers de ce scrape, qui n'ont pas encore d'id quand on décide.
         self._present_ids: dict[int, set[int]] = {}
-        self._reserved_keys: dict[int, set[tuple[str, str]]] = {}
+        self._reserved_keys: dict[int, set[IdentityKey]] = {}
         # Lignes à découper, résolues après toutes les autres lignes de la course
         # (`finalize`) : la garde voit ainsi chaque coureur de la course, quelle
         # que soit la tranche où il apparaît.
         self._pending_splits: dict[int, list[_PendingResolution]] = {}
-        self._credits: dict[int, dict[int, int]] = {}
-        self._updated_single: dict[int, set[int]] = {}
+        self._credits: dict[int, dict[str | None, int]] = {}
+        self._updated_single: dict[int, set[str | None]] = {}
         self._courses: dict[int, Course] = {}
         #: Changements de club et de genre, appliqués une fois par `finalize` (#980).
         self._athlete_updates: dict[int, tuple[Athlete, dict[str, str]]] = {}
@@ -640,6 +671,19 @@ class _Persister:
         self.skipped = 0
         self.reconciled = 0
         self.reassignments: list[Reassignment] = []
+        # Lignes dont le repli d'identité a trouvé plusieurs fiches (#908) : une
+        # fiche est créée, rien n'est deviné, l'admin tranche.
+        self.ambiguous_identities: list[dict] = []
+        # Fiches d'homonyme créées parce qu'une fiche portait déjà un autre dossard
+        # de la même épreuve individuelle (#967).
+        self.homonyms_created: list[dict] = []
+        self._bibs_by_athlete: dict[int, dict[int, set[str]]] = {}
+        # Clé d'identité publiée pour chaque dossard de ce scrape : un dossard
+        # d'une fiche ne signale un homonyme que s'il court encore sous ce nom.
+        self._bib_keys: dict[int, dict[str, IdentityKey]] = {}
+        # Fiches créées par `_athlete_for_bib` (homonyme ou principale d'une clé
+        # trouvée par repli) : s'y rattacher est une création, pas une fusion.
+        self._created_for_bibs: set[int] = set()
         # Dédup par `id` de source, pas par ligne scrapée : `add` résout l'épreuve
         # une fois par participant, un classement de 250 lignes rendrait sinon
         # 250 fois la même phrase et ferait compter 250 sources pour une.
@@ -671,12 +715,12 @@ class _Persister:
             return
         rows = participation_repository.list_for_course(self.db, course_id)
         by_bib: dict[str, Participation] = {}
-        without: dict[int, list[Participation]] = {}
+        without: dict[str | None, list[Participation]] = {}
         for row in rows:
             if row.bib_number:
                 by_bib[row.bib_number] = row
             else:
-                without.setdefault(row.athlete_id, []).append(row)
+                without.setdefault(_stored_source_key(row), []).append(row)
         self._by_bib[course_id] = by_bib
         # Relais attribués sans dossard (#894) : appariés par nom d'équipe, la
         # fiche de l'équipe ayant disparu au profit des équipiers.
@@ -697,16 +741,22 @@ class _Persister:
         self._reserved_keys[course_id] = set()
         self._added_bibs[course_id] = set()
         self._without_bib[course_id] = without
-        self._credits[course_id] = {aid: len(rs) for aid, rs in without.items()}
+        self._credits[course_id] = {key: len(rs) for key, rs in without.items()}
         self._updated_single[course_id] = set()
         # `finalize()` réutilise cette liste (#706) au lieu d'un second
         # `list_for_course` : les créations de ce scrape s'y ajoutent au fil de
         # `_resolve_pending`, les mises à jour mutent les objets déjà dedans.
         self._participations[course_id] = list(rows)
+        bibs_by_athlete: dict[int, set[str]] = {}
+        for row in rows:
+            if row.bib_number:
+                bibs_by_athlete.setdefault(row.athlete_id, set()).add(row.bib_number)
+        self._bibs_by_athlete[course_id] = bibs_by_athlete
+        self._bib_keys[course_id] = {}
 
     def _upsert(self, existing: Participation, scraped: ScrapedResult) -> None:
         """Fusionne prudemment une ligne appariée. Compte `updated` ou `skipped`."""
-        fields = mapping.participation_fields(
+        fields = _participation_fields(
             scraped, athlete_id=existing.athlete_id, course_id=existing.course_id
         )
         changes = _merge_fields(existing, fields)
@@ -714,11 +764,16 @@ class _Persister:
         status = _resolve_status(existing, scraped, changes)
         if status != existing.status:
             changes["status"] = status
+        # La clé source suit la ligne sans faire compter un résultat « mis à jour ».
+        source_key = changes.pop("source_identity_key", None)
         if changes:
-            participation_repository.update(self.db, existing, **changes)
             self.updated += 1
         else:
             self.skipped += 1
+        if source_key is not None:
+            changes["source_identity_key"] = source_key
+        if changes:
+            participation_repository.update(self.db, existing, **changes)
 
     def _note_passive(self, course: Course, source: CourseSource) -> None:
         """Retient une source passive **une fois**, et rédige le message qui la nomme.
@@ -740,11 +795,15 @@ class _Persister:
         )
 
     def add(self, scraped: ScrapedResult) -> None:
-        # Jamais de résolution sur l'identité vide ni sur un nom masqué constant
-        # (« Anonymous », « XXX XXX », #897) : toutes ces lignes, épreuves et
-        # événements confondus, fusionnaient sur une seule fiche.
+        # Jamais de résolution sur une identité vide (`-`, clé normalisée vide,
+        # #907) ni sur un nom masqué constant (« Anonymous », « XXX XXX », #897) :
+        # toutes ces lignes, épreuves et événements confondus, fusionnaient sur
+        # une seule fiche.
         published = _published_name(scraped)
-        nameless = not published.strip() or is_masked_name(published)
+        nameless = (
+            is_masked_name(published)
+            or athlete_identity_keys(scraped.athlete_name, scraped.athlete_firstname)[0] is None
+        )
         opposed = not nameless and self._is_opposed(scraped)
         if (nameless or opposed) and not scraped.bib_number:
             logger.warning(
@@ -809,12 +868,14 @@ class _Persister:
                 self.skipped += 1
                 self._duplicate_bibs[course.id] += 1
                 return
+            self._bib_keys[course.id][bib] = _identity_key(scraped)
             existing = self._by_bib[course.id].get(bib)
             if existing is not None:
                 added.add(bib)
-                if existing.teammate_links:
-                    # Relais attribué à ses équipiers (#894) : l'identité scrapée
-                    # est celle de l'équipe, jamais résolue ni réconciliée.
+                if existing.teammate_links or existing.athlete_locked:
+                    # Relais attribué à ses équipiers (#894), ou fiche choisie par
+                    # un admin (#896) : l'identité scrapée n'est ni résolue ni
+                    # réconciliée, seules les valeurs suivent.
                     self._upsert(existing, scraped)
                     return
                 teammates = _proposed_teammates(scraped)
@@ -859,6 +920,11 @@ class _Persister:
                     self.skipped += 1
                 return
 
+        if not bib:
+            locked = self._locked_without_bib(course.id, _source_key(scraped))
+            if locked is not None:
+                self._upsert(locked, scraped)
+                return
         self._enqueue(
             course.id, scraped, bib=bib, participation=None,
             teammates=_proposed_teammates(scraped),
@@ -897,8 +963,9 @@ class _Persister:
     def _resolve_pending(self, course_id: int) -> None:
         """Résout par lot toutes les lignes en attente d'une course (#706).
 
-        Un seul aller-retour DB pour retrouver les athlètes déjà connus
-        (`get_by_identities_batch`), un seul pour créer les manquants
+        Un aller-retour DB pour retrouver les athlètes déjà connus
+        (`get_by_identity_keys_batch`), un pour le repli d'identité des lignes
+        restées sans fiche (`find_fallback_matches`, #908), un pour créer les manquants
         (`create_batch`, dédupliqué par identité — deux lignes du même scrape
         pour un même athlète neuf ne créent qu'une fiche), un seul pour les
         participations neuves. Rejoue ensuite, ligne par ligne mais sans
@@ -908,12 +975,35 @@ class _Persister:
         if not pending:
             return
 
-        pairs = [(item.scraped.athlete_name, item.scraped.athlete_firstname) for item in pending]
+        # Une ligne source inchangée garde sa fiche : ni recherche ni repli pour elle.
+        kept = [self._kept_record(course_id, item) if item.teammates is None else None for item in pending]
+        pairs = [
+            (item.scraped.athlete_name, item.scraped.athlete_firstname)
+            for item, record in zip(pending, kept, strict=True) if record is None
+        ]
         teammate_pairs = [pair for item in pending for pair in item.teammates or ()]
         pairs += teammate_pairs + [pair[::-1] for pair in teammate_pairs]
-        found: dict[tuple[str, str], Athlete] = athlete_repository.get_by_identities_batch(
-            self.db, pairs
-        )
+        found = athlete_repository.get_by_identity_keys_batch(self.db, [_pair_key(pair) for pair in pairs])
+        unresolved = [
+            key for key in dict.fromkeys(
+                _identity_key(item.scraped)
+                for item, record in zip(pending, kept, strict=True)
+                if item.teammates is None and record is None
+            )
+            if key not in found
+        ]
+        # Une graphie absorbée par une fusion admin est une variante de la fiche
+        # conservée (#908) : elle passe avant tout repli, et sous la même garde
+        # (deux dossards d'une épreuve sont deux personnes, FR-008). Les équipiers
+        # d'un relais la suivent aussi, dans les deux sens de lecture.
+        teammate_keys = [
+            key for pair in teammate_pairs for key in (_pair_key(pair), _pair_key(pair[::-1])) if key not in found
+        ]
+        found.update(athlete_alias_repository.get_by_keys_batch(self.db, teammate_keys))
+        aliased = athlete_alias_repository.get_by_keys_batch(self.db, unresolved)
+        unresolved = [key for key in unresolved if key not in aliased]
+        fallback, ambiguous = athlete_repository.find_fallback_matches(self.db, unresolved)
+        found.update(self._safe_fallbacks(course_id, pending, found, {**aliased, **fallback}))
         pending = [
             replace(item, teammates=_oriented_teammates(item.teammates, found))
             if item.teammates else item
@@ -921,10 +1011,10 @@ class _Persister:
         ]
         decisions = self._split_decisions(course_id, pending, found)
 
-        to_create: dict[tuple[str, str], dict] = {}
-        creation_order: list[tuple[str, str]] = []
-        for item, teammates in zip(pending, decisions, strict=True):
-            if teammates is None and item.reconcile_blocked:
+        to_create: dict[IdentityKey, dict] = {}
+        creation_order: list[IdentityKey] = []
+        for item, teammates, record in zip(pending, decisions, kept, strict=True):
+            if teammates is None and (item.reconcile_blocked or record is not None):
                 continue
             if teammates is None:
                 candidates = [
@@ -944,29 +1034,41 @@ class _Persister:
                 to_create[key] = fields
                 creation_order.append(key)
         if creation_order:
-            created_athletes = athlete_repository.create_batch(
+            created_athletes, inserted_ids = athlete_repository.create_batch(
                 self.db, [to_create[key] for key in creation_order]
             )
             found.update(zip(creation_order, created_athletes, strict=True))
+            # Une fiche rendue sans avoir été insérée vient d'un import concurrent :
+            # s'y rattacher est une fusion, pas une création (#981).
+            created_keys = {
+                key for key, athlete in zip(creation_order, created_athletes, strict=True)
+                if athlete.id in inserted_ids
+            }
+        else:
+            created_keys = set()
+        self.ambiguous_identities.extend(
+            {"course_id": course_id, "athlete_id": found[key].id, "candidate_ids": candidate_ids}
+            for key, candidate_ids in ambiguous.items()
+            if key in found
+        )
 
         # Une seule requête par tranche, bornée aux fiches dont le club changerait.
         course_date = self._courses[course_id].event_date
         club_changes = {
             athlete.id
-            for item, teammates in zip(pending, decisions, strict=True)
+            for item, teammates, record in zip(pending, decisions, kept, strict=True)
             if teammates is None and not item.reconcile_blocked and item.scraped.club
-            for athlete in [found[_identity_key(item.scraped)]]
+            for athlete in [record or found[_identity_key(item.scraped)]]
             if self._club_of(athlete) != item.scraped.club and not athlete.club_locked
         }
         latest_clubs = athlete_repository.latest_club_dates(self.db, list(club_changes))
 
-        created_keys = set(to_create.keys())
-        creation_consumed: set[tuple[str, str]] = set()
+        creation_consumed: set[IdentityKey] = set()
         new_participation_fields: list[dict] = []
         new_participation_items: list[_PendingResolution] = []
         team_athletes: list[int] = []
 
-        for item, teammates in zip(pending, decisions, strict=True):
+        for item, teammates, record in zip(pending, decisions, kept, strict=True):
             if teammates is not None:
                 self._apply_split(
                     course_id, item, [found[_pair_key(pair)] for pair in teammates],
@@ -979,7 +1081,11 @@ class _Persister:
                 self._upsert(item.participation, item.scraped)
                 continue
             key = _identity_key(item.scraped)
-            athlete = found[key]
+            athlete = record or found[key]
+            created_for_bib = False
+            if record is None and item.bib is not None:
+                resolved, athlete = athlete, self._athlete_for_bib(course_id, item, athlete)
+                created_for_bib = athlete is not resolved and athlete.id in self._created_for_bibs
             self._present_ids[course_id].add(athlete.id)
             club = item.scraped.club or None
             if (
@@ -994,7 +1100,9 @@ class _Persister:
             if gender and not self._gender_of(athlete):
                 self._defer_update(athlete, gender=gender)
 
-            is_creator = key in created_keys and key not in creation_consumed
+            is_creator = created_for_bib or (
+                record is None and key in created_keys and key not in creation_consumed
+            )
             if is_creator:
                 creation_consumed.add(key)
 
@@ -1006,19 +1114,18 @@ class _Persister:
                 continue
 
             if item.bib is None:
-                existing = self._match_without_bib(course_id, athlete.id)
+                source_key = _source_key(item.scraped)
+                existing = self._match_without_bib(course_id, source_key)
                 if existing is not None:
                     self._upsert(existing, item.scraped)
                     continue
-                if self._credits[course_id].get(athlete.id, 0) > 0:
-                    self._credits[course_id][athlete.id] -= 1
+                if self._credits[course_id].get(source_key, 0) > 0:
+                    self._credits[course_id][source_key] -= 1
                     self.skipped += 1
                     continue
 
             new_participation_fields.append(
-                mapping.participation_fields(
-                    item.scraped, athlete_id=athlete.id, course_id=course_id
-                )
+                _participation_fields(item.scraped, athlete_id=athlete.id, course_id=course_id)
             )
             new_participation_items.append(item)
 
@@ -1042,9 +1149,108 @@ class _Persister:
             self.db.flush()
             athlete_repository.delete_orphans_among(self.db, team_athletes)
 
+    def _athlete_for_bib(self, course_id: int, item: _PendingResolution, athlete: Athlete) -> Athlete:
+        """La fiche d'un dossard : celle de son identité, sauf si un autre dossard
+        de cette épreuve individuelle court déjà sous ce nom sur cette fiche (#967).
+
+        Un coureur ne prend pas deux dossards sur une course individuelle : le
+        second reçoit une fiche d'homonyme distinguée, que l'import ne visera plus
+        par l'identité. Vaut pour un dossard neuf comme pour une correction de nom
+        de la source (FR-008). Une fiche trouvée par repli (nom inversé ou
+        concaténé) n'a pas la clé de la ligne : c'est alors la fiche principale de
+        cette clé qui est créée, jamais un homonyme sans principale.
+        """
+        if not self._races_twice(course_id, item, athlete):
+            self._bibs_by_athlete[course_id].setdefault(athlete.id, set()).add(item.bib)
+            return athlete
+        fields = mapping.athlete_creation_fields(item.scraped)
+        if (athlete.last_name_key, athlete.first_name_key) != _identity_key(item.scraped):
+            [principal], inserted = athlete_repository.create_batch(self.db, [fields])
+            self._created_for_bibs.update(inserted)
+            if not self._races_twice(course_id, item, principal):
+                self._bibs_by_athlete[course_id].setdefault(principal.id, set()).add(item.bib)
+                return principal
+            athlete = principal
+        homonym = athlete_repository.create_homonym(self.db, fields)
+        self._created_for_bibs.add(homonym.id)
+        self._bibs_by_athlete[course_id][homonym.id] = {item.bib}
+        self.homonyms_created.append({
+            "course_id": course_id, "bib": item.bib, "athlete_id": homonym.id, "homonym_of": athlete.id,
+        })
+        return homonym
+
+    def _races_twice(self, course_id: int, item: _PendingResolution, athlete: Athlete) -> bool:
+        """Vrai si `athlete` porte, sur cette épreuve individuelle, un autre dossard
+        que ce scrape publie sous la même identité que la ligne. Un dossard absent
+        du scrape (périmé) ou passé à un autre nom ne compte pas. Jamais sur un
+        relais, où une même personne peut figurer plusieurs fois."""
+        if self._courses[course_id].is_relay or item.scraped.is_relay:
+            return False
+        key = _identity_key(item.scraped)
+        published = self._bib_keys[course_id]
+        return any(
+            bib != item.bib and published.get(bib) == key
+            for bib in self._bibs_by_athlete[course_id].get(athlete.id, ())
+        )
+
+    def _kept_record(self, course_id: int, item: _PendingResolution) -> Athlete | None:
+        """La fiche qu'une ligne source inchangée garde, sans résolution (#896).
+
+        Même clé source qu'au dernier passage : la ligne reste sur la fiche de sa
+        participation, même renommée, datée ou distinguée par un admin depuis.
+        La résoudre recréerait l'ancienne graphie en fiche vide.
+        """
+        source_key = _source_key(item.scraped)
+        if item.participation is not None:
+            return item.participation.athlete if _stored_source_key(item.participation) == source_key else None
+        if item.bib is not None:
+            return None
+        # Sans dossard, seulement si la ligne sera bien appariée ou comptée sur
+        # une seule fiche : une ligne de plus que la base, ou une clé dont une
+        # ligne a été réattribuée par un admin, se résout comme une ligne neuve,
+        # sans quoi elle irait à la fiche choisie par l'admin.
+        rows = self._without_bib[course_id].get(source_key, [])
+        if (
+            self._credits[course_id].get(source_key, 0) <= 0
+            or len({row.athlete_id for row in rows}) != 1
+            or any(row.athlete_locked or row.teammate_links for row in rows)
+        ):
+            return None
+        return rows[0].athlete
+
+    def _safe_fallbacks(
+        self, course_id: int, pending: list[_PendingResolution],
+        direct: dict[IdentityKey, Athlete], fallback: dict[IdentityKey, Athlete],
+    ) -> dict[IdentityKey, Athlete]:
+        """Les rattachements par repli qui ne fusionnent pas deux personnes (#908).
+
+        « THOMAS Martin » (dossard 1) et « MARTIN Thomas » (dossard 2) sur une
+        même épreuve sont deux coureurs : un repli est écarté si sa fiche porte,
+        sur l'épreuve, un dossard que ses propres lignes n'ont pas (participation
+        connue, ou ligne de ce lot résolue en direct), ou si une autre clé y
+        aboutit aussi. Comparer les dossards, et non la seule présence, garde le
+        rescrape : la participation déjà rattachée porte celui de la ligne.
+        """
+        if not fallback:
+            return fallback
+        bibs_by_key: dict[IdentityKey, set[str | None]] = {}
+        for item in pending:
+            if item.teammates is None:
+                bibs_by_key.setdefault(_identity_key(item.scraped), set()).add(item.bib)
+        claimed: dict[int, set[str | None]] = {}
+        for key, athlete in direct.items():
+            claimed.setdefault(athlete.id, set()).update(bibs_by_key.get(key, ()))
+        for participation in self._participations[course_id]:
+            claimed.setdefault(participation.athlete_id, set()).add(participation.bib_number or None)
+        targets = Counter(athlete.id for athlete in fallback.values())
+        return {
+            key: athlete for key, athlete in fallback.items()
+            if targets[athlete.id] == 1 and claimed.get(athlete.id, set()) <= bibs_by_key.get(key, set())
+        }
+
     def _split_decisions(
         self, course_id: int, pending: list[_PendingResolution],
-        found: dict[tuple[str, str], Athlete],
+        found: dict[IdentityKey, Athlete],
     ) -> list[tuple[tuple[str, str], ...] | None]:
         """Équipiers retenus par ligne, `None` si la ligne n'est pas découpée (#895).
 
@@ -1055,7 +1261,7 @@ class _Persister:
         present_ids = self._present_ids[course_id]
         reserved = self._reserved_keys[course_id]
         reserved.update(_identity_key(item.scraped) for item in pending if item.teammates is None)
-        claimed_teams: set[int] = set()
+        claimed_teams: set[str | None] = set()
         decisions = []
         for item in pending:
             teammates = item.teammates
@@ -1063,7 +1269,8 @@ class _Persister:
                 keys = [_pair_key(pair) for pair in teammates]
                 ids = {found[key].id for key in keys if key in found}
                 if (
-                    reserved.intersection(keys) or present_ids & ids
+                    len(set(keys)) != len(keys)
+                    or reserved.intersection(keys) or present_ids & ids
                     or not self._bibless_team_claimable(course_id, item, found, claimed_teams)
                 ):
                     teammates = None
@@ -1076,7 +1283,7 @@ class _Persister:
 
     def _bibless_team_claimable(
         self, course_id: int, item: _PendingResolution,
-        found: dict[tuple[str, str], Athlete], claimed_teams: set[int],
+        found: dict[IdentityKey, Athlete], claimed_teams: set[str | None],
     ) -> bool:
         """Faux si la fiche d'équipe d'une ligne sans dossard a des lignes sur la
         course sans qu'une seule puisse être reprise : découper créerait un
@@ -1084,13 +1291,13 @@ class _Persister:
         """
         if item.bib is not None or item.participation is not None:
             return True
-        team = found.get(_identity_key(item.scraped))
-        rows = self._without_bib[course_id].get(team.id, []) if team is not None else []
+        source_key = _source_key(item.scraped)
+        rows = self._without_bib[course_id].get(source_key, [])
         if not rows:
             return True
-        if len(rows) != 1 or team.id in self._updated_single[course_id] or team.id in claimed_teams:
+        if len(rows) != 1 or source_key in self._updated_single[course_id] or source_key in claimed_teams:
             return False
-        claimed_teams.add(team.id)
+        claimed_teams.add(source_key)
         return True
 
     def _apply_split(
@@ -1108,10 +1315,10 @@ class _Persister:
         ids = [athlete.id for athlete in teammates]
         self._present_ids[course_id].update(ids)
         existing = item.participation
-        if existing is None and item.bib is None and team is not None:
-            existing = self._match_without_bib(course_id, team.id)
+        if existing is None and item.bib is None:
+            existing = self._match_without_bib(course_id, _source_key(item.scraped))
         if existing is None:
-            fields = mapping.participation_fields(scraped, athlete_id=ids[0], course_id=course_id)
+            fields = _participation_fields(scraped, athlete_id=ids[0], course_id=course_id)
             fields["teammate_ids"] = ids
             new_fields.append(fields)
             new_items.append(item)
@@ -1136,8 +1343,8 @@ class _Persister:
         self, scraped: ScrapedResult, participation: Participation, athlete: Athlete,
         *, cree: bool,
     ) -> None:
-        """Réassigne l'athlète d'une participation existante si sa graphie a
-        divergé. `athlete`/`cree` sont déjà connus (résolus par lot dans
+        """Réassigne l'athlète d'une participation existante si sa clé source a
+        changé (le chronométreur a corrigé le nom, #896). `athlete`/`cree` sont déjà connus (résolus par lot dans
         `_resolve_pending`, `_reconcile_blocked` déjà écarté à l'enfilement) —
         c'est la seule différence avec l'ancien `_reconcile`, qui résolvait
         lui-même l'athlète par une requête. Ne touche QUE `athlete_id` (via la
@@ -1149,26 +1356,44 @@ class _Persister:
         """
         if athlete.id == participation.athlete_id:
             return
+        # Même ligne source qu'au dernier passage : le chronométreur n'a rien
+        # changé, la fiche actuelle (renommée, datée ou homonyme distingué par un
+        # admin) reste la bonne (#896, #900).
+        if _stored_source_key(participation) == _source_key(scraped):
+            return
         reassignment = Reassignment(
             ancien=_identite(participation.athlete), nouveau=_identite(athlete), fusion=not cree
         )
         participation.athlete = athlete
+        if participation.bib_number:
+            self._bibs_by_athlete[participation.course_id].setdefault(athlete.id, set()).add(
+                participation.bib_number
+            )
         self.reconciled += 1
         self.reassignments.append(reassignment)
 
-    def _match_without_bib(self, course_id: int, athlete_id: int) -> Participation | None:
-        """Ligne sans dossard à mettre à jour : seulement si l'athlète n'a qu'**une**
-        participation sur la course, et pas déjà mise à jour dans ce scrape.
+    def _match_without_bib(self, course_id: int, source_key: str | None) -> Participation | None:
+        """Ligne sans dossard à mettre à jour : seulement si la clé source n'a
+        qu'**une** participation sur la course, et pas déjà mise à jour dans ce scrape.
 
         Deux occurrences ou plus : on ne devine pas quelle ligne source correspond
         à quelle ligne en base, on conserve le skip multiset (cf. `add`).
         """
-        rows = self._without_bib[course_id].get(athlete_id, [])
-        if len(rows) != 1 or athlete_id in self._updated_single[course_id]:
+        rows = self._without_bib[course_id].get(source_key, [])
+        if len(rows) != 1 or source_key in self._updated_single[course_id]:
             return None
-        self._updated_single[course_id].add(athlete_id)
-        self._credits[course_id][athlete_id] -= 1
+        self._updated_single[course_id].add(source_key)
+        self._credits[course_id][source_key] -= 1
         return rows[0]
+
+    def _locked_without_bib(self, course_id: int, source_key: str | None) -> Participation | None:
+        """La ligne sans dossard réattribuée par un admin que cette clé source
+        désigne, appariée **avant** toute résolution : la fiche d'origine, purgée
+        à la réattribution, n'est pas recréée (#896)."""
+        rows = self._without_bib[course_id].get(source_key, [])
+        if len(rows) != 1 or not rows[0].athlete_locked:
+            return None
+        return self._match_without_bib(course_id, source_key)
 
     def _resolve_locked_course(self, scraped: ScrapedResult) -> mapping.CourseResolution:
         """Résout l'épreuve, puis la verrouille (#982).
@@ -1263,6 +1488,7 @@ def _cached_result(db: Session, url: str, settings: Settings) -> dict | None:
         # sur les trois chemins de `done`, pour que le consommateur n'ait aucun
         # accès conditionnel à gérer.
         "passive_sources": [],
+        "ambiguous_identities": [], "homonyms_created": [],
         "courses": [
             {
                 "id": c.id, "name": c.name,
@@ -1554,6 +1780,8 @@ def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict
         "skipped": persister.skipped,
         "reconciled": persister.reconciled,
         "passive_sources": persister.passive_sources,
+        "ambiguous_identities": persister.ambiguous_identities,
+        "homonyms_created": persister.homonyms_created,
         "courses": persister.courses_summary(),
     }
 
@@ -1591,7 +1819,7 @@ def import_event(
     if not results:
         return {
             "imported": 0, "updated": 0, "skipped": 0, "reconciled": 0,
-            "passive_sources": [],
+            "passive_sources": [], "ambiguous_identities": [], "homonyms_created": [],
             "courses": _merge_cached_courses(db, [], trace),
             **_fanout_counters(trace),
         }
@@ -1722,6 +1950,7 @@ def iter_import_event(
             "reconciled": 0,
             "reassignments": [],
             "passive_sources": [],
+            "ambiguous_identities": [], "homonyms_created": [],
             "total": 0,
             "courses": _merge_cached_courses(db, [], trace),
             **_fanout_counters(trace),
@@ -1787,6 +2016,8 @@ def iter_import_event(
         "reconciled": persister.reconciled,
         "reassignments": persister.reassignments,
         "passive_sources": persister.passive_sources,
+        "ambiguous_identities": persister.ambiguous_identities,
+        "homonyms_created": persister.homonyms_created,
         "total": total,
         "courses": _merge_cached_courses(db, persister.courses_summary(), trace),
         **_fanout_counters(trace),

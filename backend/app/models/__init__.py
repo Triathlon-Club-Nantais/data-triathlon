@@ -3,6 +3,7 @@ from app.models.absorbed_course import AbsorbedCourse
 from app.models.admin_action_log import AdminActionLog
 from app.models.allowed_email import AllowedEmail
 from app.models.athlete import Athlete
+from app.models.athlete_alias import AthleteAlias
 from app.models.athlete_opposition import AthleteOpposition
 from app.models.benevole_access_config import BenevoleAccessConfig
 from app.models.club_alias import ClubAlias
@@ -11,6 +12,7 @@ from app.models.course import Course
 from app.models.course_source import CourseSource
 from app.models.group import Group
 from app.models.identity import Identity
+from app.models.ignored_athlete_pair import IgnoredAthletePair
 from app.models.ignored_course_duplicate import IgnoredCourseDuplicate
 from app.models.organisation import Organisation
 from app.models.participation import Participation, ParticipationTeammate
@@ -36,6 +38,7 @@ __all__ = [
     "AllowedEmail",
     "AthleteOpposition",
     "Athlete",
+    "AthleteAlias",
     "BenevoleAccessConfig",
     "ClubAlias",
     "CounterScopeEntry",
@@ -43,6 +46,7 @@ __all__ = [
     "CourseSource",
     "Group",
     "Identity",
+    "IgnoredAthletePair",
     "IgnoredCourseDuplicate",
     "Organisation",
     "Participation",

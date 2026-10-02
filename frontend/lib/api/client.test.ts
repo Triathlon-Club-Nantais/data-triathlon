@@ -23,6 +23,23 @@ describe("request() error messages (#1045)", () => {
     expect(erreur.code).toBe("site_access_required");
   });
 
+  it("keeps the additive fields of a refusal body, such as the conflicting record (#908)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ detail: "Un athlète porte déjà cette identité (fiche n° 77).", conflicting_athlete_id: 77 }),
+          { status: 409 },
+        ),
+      ),
+    );
+
+    const erreur = (await apiClient.updateAthlete(42, { nom: "X" }).catch((e: unknown) => e)) as ApiError;
+
+    expect(erreur.status).toBe(409);
+    expect(erreur.details.conflicting_athlete_id).toBe(77);
+  });
+
   it("leaves the code null when the server sends none", async () => {
     vi.stubGlobal(
       "fetch",

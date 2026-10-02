@@ -4,6 +4,7 @@ from datetime import date, datetime
 from typing import NamedTuple
 
 from sqlalchemy import and_, case, exists, func, or_, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.orm import Session, aliased, contains_eager, joinedload
 
 from app.core import counter_scope
@@ -123,14 +124,19 @@ def exists_for_athlete_on_course(
     return q.first() is not None
 
 
-def reassign(db: Session, participation: Participation, *, athlete_id: int) -> Participation:
+def reassign(
+    db: Session, participation: Participation, *, athlete_id: int, lock: bool = False
+) -> Participation:
     """Rattache ce résultat à un autre coureur. **Ne touche rien d'autre** (#117).
 
     Ni les temps, ni les rangs, ni le statut, ni `course_id` : déplacer un
     résultat vers une autre *épreuve* n'est pas dans le périmètre de #117, et le
-    silence sur les valeurs mesurées est délibéré.
+    silence sur les valeurs mesurées est délibéré. `lock` fige la fiche contre
+    les imports à venir (#896).
     """
     participation.athlete_id = athlete_id
+    if lock:
+        participation.athlete_locked = True
     db.flush()
     return participation
 
@@ -1481,6 +1487,84 @@ def has_untimed(
     if finishers_only:
         requete = requete.filter(Participation.status == STATUS_FINISHER)
     return requete.first() is not None
+
+
+# ── Fusion de deux fiches (#908) ─────────────────────────────────────────────
+
+
+def course_ids_carried_by(db: Session, athlete_id: int) -> set[int]:
+    """Les épreuves où ce coureur a un résultat, en direct ou comme équipier."""
+    return set(db.scalars(select(Participation.course_id).where(carried_by(athlete_id)).distinct()))
+
+
+def count_carried(db: Session, athlete_id: int) -> int:
+    return db.scalar(select(func.count()).select_from(Participation).where(Participation.athlete_id == athlete_id))
+
+
+def count_teammate_links(db: Session, athlete_id: int) -> int:
+    return db.scalar(
+        select(func.count()).select_from(ParticipationTeammate).where(ParticipationTeammate.athlete_id == athlete_id)
+    )
+
+
+def share_an_individual_course(db: Session, first_id: int, second_id: int) -> bool:
+    """Les deux coureurs ont-ils chacun un résultat sur une même épreuve individuelle ?
+    Deux dossards d'une course individuelle sont deux personnes (#967)."""
+    shared = (
+        select(Participation.course_id)
+        .join(Course, Course.id == Participation.course_id)
+        .where(
+            Participation.athlete_id.in_([first_id, second_id]),
+            Course.is_relay.is_(False),
+            Participation.is_relay.is_(False),
+        )
+        .group_by(Participation.course_id)
+        .having(func.count(func.distinct(Participation.athlete_id)) == 2)
+    )
+    return db.scalar(select(exists(shared))) is True
+
+
+def share_a_participation(db: Session, first_id: int, second_id: int) -> bool:
+    """Les deux coureurs figurent-ils sur un même résultat (porteur ou équipier) ?"""
+    members = (
+        select(Participation.id.label("participation_id"), Participation.athlete_id.label("athlete_id"))
+        .union_all(select(ParticipationTeammate.participation_id, ParticipationTeammate.athlete_id))
+        .subquery()
+    )
+    shared = (
+        select(members.c.participation_id)
+        .where(members.c.athlete_id.in_([first_id, second_id]))
+        .group_by(members.c.participation_id)
+        .having(func.count(func.distinct(members.c.athlete_id)) == 2)
+    )
+    return db.scalar(select(exists(shared))) is True
+
+
+def repoint_athlete(db: Session, *, from_athlete_id: int, to_athlete_id: int) -> tuple[int, int]:
+    """Repointe les résultats portés et les liens d'équipier ; rend les deux comptes."""
+    carried = db.execute(
+        sql_update(Participation).where(Participation.athlete_id == from_athlete_id).values(athlete_id=to_athlete_id)
+    ).rowcount
+    teammates = db.execute(
+        sql_update(ParticipationTeammate)
+        .where(ParticipationTeammate.athlete_id == from_athlete_id)
+        .values(athlete_id=to_athlete_id)
+    ).rowcount
+    return carried, teammates
+
+
+def retarget_source_key(db: Session, *, athlete_id: int, old_key: str | None, new_key: str) -> int:
+    """La clé source des résultats d'une fiche renormalisée suit son nouveau découpage
+    (#906) : le rescrape sans dossard, qui découpe désormais « NOM, Prénom »
+    correctement, ne les retrouverait plus sous l'ancienne clé."""
+    clause = Participation.source_identity_key.is_(None) if old_key is None else (
+        Participation.source_identity_key == old_key
+    )
+    return db.execute(
+        sql_update(Participation)
+        .where(Participation.athlete_id == athlete_id, clause)
+        .values(source_identity_key=new_key)
+    ).rowcount
 
 
 def list_carried_by(db: Session, athlete_id: int) -> list[Participation]:

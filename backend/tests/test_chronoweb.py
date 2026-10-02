@@ -962,9 +962,8 @@ def test_relay_group_names_are_not_split_at_import(db_session):
     import_service.persist_results(db_session, EVENT_URL, resultats)
 
     equipes = [
-        athlete_repository.get_by_identity(
-            db_session, result.athlete_name, result.athlete_firstname, None
-        )
+        athlete_repository.get_by_identity_keys(
+            db_session, result.athlete_name, result.athlete_firstname)
         for result in resultats
     ]
     assert {equipe.nom for equipe in equipes} == {"CREUSOTRI", "FRATERIES POZZEBON/SKLADZIEN"}

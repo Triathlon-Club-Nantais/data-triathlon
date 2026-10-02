@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
+import type { ButtonHTMLAttributes, CSSProperties, ReactNode, Ref } from "react";
 
 type ButtonProps = {
   variant?: "primary" | "secondary" | "ghost" | "destructive";
@@ -7,6 +7,8 @@ type ButtonProps = {
   iconRight?: ReactNode;
   children?: ReactNode;
   style?: CSSProperties;
+  /** Une prop comme une autre en React 19 : rendre le focus à ce bouton après un dialogue. */
+  ref?: Ref<HTMLButtonElement>;
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, "style">;
 
 /**

@@ -1,6 +1,18 @@
 # Modèle normalisé
 
-- **Athlete** — `UNIQUE(nom, prenom, birth_date)`. `club` porte le club
+- **Athlete** — `UNIQUE(last_name_key, first_name_key, homonym_rank)` (#907) :
+  les deux clés sont écrites par l'écouteur `_store_identity_keys` à chaque
+  insertion ou mise à jour ORM, jamais par l'appelant ; un `UPDATE` de masse
+  sur `nom`/`prenom` les laisserait périmées. Rang 0 = fiche principale, la
+  seule que l'import résout. Un rang ≥ 1 naît à l'import quand un dossard neuf
+  tomberait sur une fiche qui porte déjà un autre dossard de la même épreuve
+  individuelle (`athlete_repository.create_homonym`, rang suivant, #967) ; une clé vide (`?`, `-`) vaut NULL et ne désigne
+  personne. `birth_date` n'entre pas dans l'identité (#900). La création par
+  l'import est idempotente sous concurrence : `athlete_repository.create_batch`
+  insère en `ON CONFLICT DO NOTHING` puis relit les identités qu'une autre
+  transaction a créées (#981), et la résolution prend `FOR KEY SHARE` sur les
+  fiches trouvées, qu'une fusion ne peut donc pas supprimer sous un import.
+  `club` porte le club
   **actuel** : il suit la dernière épreuve **courue**, pas la dernière importée
   (#965). Un import ne le réécrit que si son épreuve est au moins aussi récente
   que la plus récente participation datée avec club déjà connue
@@ -21,6 +33,14 @@
   une `ForeignKeyViolation` que SQLite, FK inertes, ne montre pas. Les tests
   qui l'éprouvent passent par la fixture `db_session_fk`
   (`PRAGMA foreign_keys=ON`).
+- **AthleteAlias** (#908) — une graphie absorbée par une fusion admin,
+  `UNIQUE(last_name_key, first_name_key)`, `athlete_id` en `ON DELETE CASCADE`.
+  L'import la résout comme l'identité de sa fiche, après l'identité directe et
+  avant le repli. Une fusion repointe les variantes de la fiche absorbée et y
+  ajoute la sienne. **Une fusion déplace cinq références** : `participations`,
+  `participation_teammates`, `volunteer_actions`, `season_validations`
+  (dédoublonnées par saison) et `users.athlete_id` ; une nouvelle table qui
+  pointe vers `athletes.id` doit rejoindre `athlete_merge.merge_athletes`.
 - **Course** — `UNIQUE(name, event_date, event_type, is_relay)`
   (`uq_course_identity`) : le relais est un **heat distinct** du solo, sans quoi
   les deux fusionnaient dans la même ligne. Quatre colonnes, pas trois — la
@@ -29,6 +49,14 @@
   active, cf. plus bas. `source_url` reste la clé du cache TTL.
 - **CourseSource** — `UNIQUE(course_id, url)`, **jamais** `UNIQUE(url)` (cf. plus bas).
 - **Participation** — `UNIQUE(course_id, bib_number)` → plus de doublons à l'import.
+  `source_identity_key` retient la clé (`<nom>|<prénom>`, #907) de la ligne
+  source qui a produit le résultat, indépendamment de sa fiche : l'import
+  apparie par elle les lignes sans dossard, et ne change un résultat de fiche
+  que si elle change, c'est-à-dire si le chronométreur a corrigé le nom (#896).
+  Une fiche renommée, datée ou fusionnée par un admin garde donc ses résultats.
+  `athlete_locked`, posé par `reassign_participation`, fige la fiche choisie :
+  l'import ne met plus à jour que les valeurs. Un résultat saisi à la main n'a
+  pas de clé source, celle de sa fiche en tient lieu.
 - **ParticipationTeammate** (#894) — les équipiers d'un relais attribué, table
   `participation_teammates`, PK `(participation_id, athlete_id)`, ordonnée par
   `position`. Le résultat reste **une** ligne `participations` : classement,

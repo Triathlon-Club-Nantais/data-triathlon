@@ -21,21 +21,25 @@ import logging
 from collections.abc import Iterator
 from typing import NamedTuple
 
+import psycopg.errors
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
+from app.core.athlete_identity import athlete_identity_keys
 from app.core.club import is_tcn
 from app.core.config import Settings
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError, ScraperError
-from app.core.text import deaccent
 from app.core.time import utcnow
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
 from app.repositories import (
     admin_action_log_repository,
+    athlete_alias_repository,
     athlete_repository,
     course_repository,
     course_source_repository,
+    lock_repository,
     participation_repository,
     season_validation_repository,
     volunteer_action_repository,
@@ -752,7 +756,7 @@ def reassign_participation(
 
     course_id = participation.course_id
     participation_repository.replace_teammates(db, participation, [])
-    participation_repository.reassign(db, participation, athlete_id=cible.id)
+    participation_repository.reassign(db, participation, athlete_id=cible.id, lock=True)
     purges = athlete_repository.delete_orphans_among(
         db, [i for i in dict.fromkeys([source_id, *anciens_equipiers]) if i != cible.id]
     )
@@ -817,15 +821,15 @@ def set_teammates(
     equipiers: list[Athlete | NewTeammate] = [
         _athlete_or_404(db, ref)
         if isinstance(ref, int)
-        else athlete_repository.get_by_identity(db, ref.athlete_name, ref.athlete_firstname, None)
+        else athlete_repository.get_by_identity_keys(db, ref.athlete_name, ref.athlete_firstname)
         or ref
         for ref in teammates
     ]
     connus = [e.id for e in equipiers if isinstance(e, Athlete)]
-    # Accents ignorés : deux graphies d'un même nom désignent une seule
-    # personne, et `get_or_create` pourrait les résoudre vers la même fiche.
+    # Deux graphies d'une même identité (#907) désignent une seule personne, et
+    # `get_or_create` les résoudrait vers la même fiche.
     inconnus = [
-        tuple(" ".join(deaccent(v).lower().split()) for v in (e.athlete_name, e.athlete_firstname))
+        athlete_identity_keys(e.athlete_name, e.athlete_firstname)
         for e in equipiers
         if isinstance(e, NewTeammate)
     ]
@@ -964,6 +968,13 @@ def _instantane(entite, champs: tuple[str, ...]) -> dict:
     return valeurs
 
 
+class AthleteBusyError(DomainError):
+    """Un import tient la fiche : un renommage attendrait sa fin (#981)."""
+
+    status_code = 409
+    message = "Cette fiche est en cours d'import. Réessayez dans un instant."
+
+
 def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) -> Athlete:
     """Corrige la fiche d'un coureur — nom, prénom, date de naissance, club (FR-004).
 
@@ -982,13 +993,24 @@ def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) 
     vise = {**{champ: getattr(athlete, champ) for champ in _CHAMPS_ATHLETE}, **demande}
     if "nom" in demande or "prenom" in demande:
         opposition_service.ensure_not_opposed(db, vise["nom"], vise["prenom"])
-    conflit = athlete_repository.get_by_identity(
-        db, nom=vise["nom"], prenom=vise["prenom"], birth_date=vise["birth_date"]
-    )
-    if conflit is not None and conflit.id != athlete.id:
-        raise DuplicateError(
-            f"Un athlète porte déjà cette identité (fiche #{conflit.id})."
-        )
+    # L'identité est la clé normalisée du nom et du prénom ; la date de naissance
+    # n'y entre plus (#900). Une fiche renommée vers une clé neuve en devient la
+    # fiche principale.
+    if athlete_identity_keys(vise["nom"], vise["prenom"]) != (athlete.last_name_key, athlete.first_name_key):
+        # Une variante mémorisée par une fusion vaut l'identité de sa fiche (#908).
+        cle = athlete_identity_keys(vise["nom"], vise["prenom"])
+        conflit = athlete_repository.get_by_identity_keys(
+            db, vise["nom"], vise["prenom"]
+        ) or athlete_alias_repository.get_by_keys_batch(db, [cle]).get(cle)
+        if conflit is not None and conflit.id != athlete.id:
+            raise DuplicateError(
+                f"Un athlète porte déjà cette identité (fiche n° {conflit.id}).",
+                extra={"conflicting_athlete_id": conflit.id},
+            )
+        # Renommée vers l'une de ses propres variantes : la graphie redevient son
+        # identité, la variante n'a plus d'objet.
+        athlete_alias_repository.delete_key(db, cle)
+        demande["homonym_rank"] = 0
 
     # Le verrou se pose sur le **geste**, pas sur la présence du champ : le
     # formulaire renvoie le club prérempli à chaque enregistrement, et verrouiller
@@ -997,7 +1019,15 @@ def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) 
     if "club" in demande and demande["club"] != athlete.club:
         demande["club_locked"] = True
 
-    athlete_repository.update_identity(db, athlete, **demande)
+    # Un import qui vient de résoudre la fiche la tient en `FOR KEY SHARE`, que
+    # changer ses clés d'identité attendrait jusqu'à la fin du rescrape.
+    lock_repository.bound_lock_waits(db, "5s")
+    try:
+        athlete_repository.update_identity(db, athlete, **demande)
+    except OperationalError as exc:
+        if isinstance(exc.orig, psycopg.errors.LockNotAvailable):
+            raise AthleteBusyError() from exc
+        raise
     apres = _instantane(athlete, _CHAMPS_ATHLETE)
     if apres == avant:
         return athlete

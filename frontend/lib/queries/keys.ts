@@ -17,6 +17,9 @@ export const queryKeys = {
     ["admin-courses", "count", filtres] as const,
   adminAthletes: (search: string) => ["admin-athletes", search] as const,
   adminAthlete: (id: number) => ["admin-athlete", id] as const,
+  athleteMergeImpact: (keptId: number, absorbedId: number) =>
+    ["athlete-merge-impact", keptId, absorbedId] as const,
+  identityReview: () => ["identity-review"] as const,
   // Clé distincte de `courseParticipations` : celle-ci stocke un `CourseDetail`,
   // l'autre un `Participation[]`. Même clé, deux formes = un écran qui plante.
   adminCourseDetail: (courseId: number, q: string) =>

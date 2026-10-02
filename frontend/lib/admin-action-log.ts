@@ -25,6 +25,8 @@ const ACTION_LABELS: Record<string, string> = {
   "participation.unreject": "Annulation d'un rejet",
   "participation.correct_fields": "Correction d'un résultat en attente",
   "athlete.update": "Correction d'une fiche athlète",
+  "athlete.merge": "Fusion de deux fiches athlète",
+  "athlete_identity.ignore": "Mise à l'écart d'une paire de fiches athlète",
   "course_duplicate.ignore": "Paire de doublons suspects écartée",
   "course_source.delete": "Suppression d'une source d'épreuve",
   "participation.set_teammates": "Équipiers d'un relais attribués",

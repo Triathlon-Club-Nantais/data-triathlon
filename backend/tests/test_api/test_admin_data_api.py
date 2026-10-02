@@ -130,12 +130,10 @@ def test_supprimer_une_epreuve_rend_204_et_emporte_ses_resultats(client, db_sess
 
 
 def test_supprimer_une_epreuve_purge_les_fiches_devenues_vides(client, db_session, epreuve):
-    exclusif = athlete_repository.get_by_identity(
-        db_session, nom="EXCLUSIF", prenom="Eva", birth_date=None
-    )
-    partage = athlete_repository.get_by_identity(
-        db_session, nom="PARTAGE", prenom="Paul", birth_date=None
-    )
+    exclusif = athlete_repository.get_by_identity_keys(
+        db_session, "EXCLUSIF", "Eva")
+    partage = athlete_repository.get_by_identity_keys(
+        db_session, "PARTAGE", "Paul")
     exclusif_id, partage_id = exclusif.id, partage.id
 
     client.delete(f"/api/v1/admin/courses/{epreuve.id}")
@@ -325,7 +323,7 @@ def test_purger_remet_scraped_at_a_null_sur_toutes_les_epreuves(
 
 
 def test_purger_supprime_les_fiches_devenues_orphelines(client, db_session, base_avec_resultats):
-    jean = athlete_repository.get_by_identity(db_session, nom="COUREUR", prenom="Jean", birth_date=None)
+    jean = athlete_repository.get_by_identity_keys(db_session, "COUREUR", "Jean")
     jean_id = jean.id
 
     client.delete("/api/v1/admin/participations")

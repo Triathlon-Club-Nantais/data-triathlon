@@ -153,7 +153,7 @@ def test_reimport_respecte_un_club_corrige_a_la_main(db_session, patch_scraper):
 
     auteur = user_repository.create(db_session, email="admin@exemple.fr")
     db_session.flush()
-    verrouille = athlete_repository.get_by_identity(db_session, "VERROU", "Vera", None)
+    verrouille = athlete_repository.get_by_identity_keys(db_session, "VERROU", "Vera")
     admin_actions.update_athlete(
         db_session,
         athlete_id=verrouille.id,
@@ -171,7 +171,7 @@ def test_reimport_respecte_un_club_corrige_a_la_main(db_session, patch_scraper):
     import_service.import_event(db_session, URL, _settings(), force=True)
 
     assert athlete_repository.get(db_session, verrouille.id).club == "TRI CLUB NANTAIS"
-    suiveur = athlete_repository.get_by_identity(db_session, "SUIVEUR", "Sam", None)
+    suiveur = athlete_repository.get_by_identity_keys(db_session, "SUIVEUR", "Sam")
     assert suiveur.club == "ASPTT NANTES 44"
 
 
@@ -191,7 +191,7 @@ def test_importing_an_older_race_keeps_the_current_club(db_session, patch_scrape
     ])
     import_service.import_event(db_session, _OLD_URL, _settings())
 
-    athlete = athlete_repository.get_by_identity(db_session, "RECENT", "Rita", None)
+    athlete = athlete_repository.get_by_identity_keys(db_session, "RECENT", "Rita")
     assert athlete.club == "TRIATHLON CLUB NANTAIS"
 
 
@@ -208,7 +208,7 @@ def test_importing_a_newer_race_updates_the_club(db_session, patch_scraper):
     patch_scraper([_result("1", "MOBILE", prenom="Max", club="TRIATHLON CLUB NANTAIS")])
     import_service.import_event(db_session, URL, _settings())
 
-    athlete = athlete_repository.get_by_identity(db_session, "MOBILE", "Max", None)
+    athlete = athlete_repository.get_by_identity_keys(db_session, "MOBILE", "Max")
     assert athlete.club == "TRIATHLON CLUB NANTAIS"
 
     # Rescraping the older race afterwards must not bring its club back: this
@@ -245,7 +245,7 @@ def test_manual_entry_compares_the_course_date_like_the_import(db_session, patch
         event_type="triathlon-m", total_time="01:59:00", club="TRIATHLON ATLANTIQUE CARQUEFOU",
     ))
 
-    athlete = athlete_repository.get_by_identity(db_session, "MEME", "Mia", None)
+    athlete = athlete_repository.get_by_identity_keys(db_session, "MEME", "Mia")
     assert athlete.club == "TRIATHLON CLUB NANTAIS"
 
 
@@ -268,8 +268,8 @@ def test_reimport_backfills_empty_gender_but_keeps_known_one(db_session, patch_s
     )
     import_service.import_event(db_session, URL, _settings(), force=True)
 
-    assert athlete_repository.get_by_identity(db_session, "SANSEXE", "Alex", None).gender == "F"
-    assert athlete_repository.get_by_identity(db_session, "GENRE", "Lou", None).gender == "M"
+    assert athlete_repository.get_by_identity_keys(db_session, "SANSEXE", "Alex").gender == "F"
+    assert athlete_repository.get_by_identity_keys(db_session, "GENRE", "Lou").gender == "M"
 
 
 def test_import_normalizes_the_gender_to_m_f_or_empty(db_session, patch_scraper):
@@ -283,9 +283,9 @@ def test_import_normalizes_the_gender_to_m_f_or_empty(db_session, patch_scraper)
     )
     import_service.import_event(db_session, URL, _settings())
 
-    assert athlete_repository.get_by_identity(db_session, "HOMME", "Hugo", None).gender == "M"
-    assert athlete_repository.get_by_identity(db_session, "FEMME", "Fanny", None).gender == "F"
-    assert athlete_repository.get_by_identity(db_session, "AUTRE", "Alix", None).gender == ""
+    assert athlete_repository.get_by_identity_keys(db_session, "HOMME", "Hugo").gender == "M"
+    assert athlete_repository.get_by_identity_keys(db_session, "FEMME", "Fanny").gender == "F"
+    assert athlete_repository.get_by_identity_keys(db_session, "AUTRE", "Alix").gender == ""
 
 
 def test_reimport_backfills_a_normalized_gender(db_session, patch_scraper):
@@ -297,8 +297,8 @@ def test_reimport_backfills_a_normalized_gender(db_session, patch_scraper):
     patch_scraper([_result("1", "VIDE", prenom="Cam", gender="W"), _result("2", "RESTE", prenom="Sam", gender="X")])
     import_service.import_event(db_session, URL, _settings(), force=True)
 
-    assert athlete_repository.get_by_identity(db_session, "VIDE", "Cam", None).gender == "F"
-    assert athlete_repository.get_by_identity(db_session, "RESTE", "Sam", None).gender == ""
+    assert athlete_repository.get_by_identity_keys(db_session, "VIDE", "Cam").gender == "F"
+    assert athlete_repository.get_by_identity_keys(db_session, "RESTE", "Sam").gender == ""
 
 
 def test_import_skips_youth_heats_and_rows(db_session, patch_scraper):
@@ -316,9 +316,9 @@ def test_import_skips_youth_heats_and_rows(db_session, patch_scraper):
     out = import_service.import_event(db_session, URL, _settings())
 
     assert out["imported"] == 2
-    assert athlete_repository.get_by_identity(db_session, "ENFANT", "Eli", None) is None
-    assert athlete_repository.get_by_identity(db_session, "MINIME", "Max", None) is None
-    assert athlete_repository.get_by_identity(db_session, "CADET", "Cal", None) is not None
+    assert athlete_repository.get_by_identity_keys(db_session, "ENFANT", "Eli") is None
+    assert athlete_repository.get_by_identity_keys(db_session, "MINIME", "Max") is None
+    assert athlete_repository.get_by_identity_keys(db_session, "CADET", "Cal") is not None
 
 
 def test_import_locks_every_course_it_writes(db_session, patch_scraper, monkeypatch):
@@ -986,7 +986,7 @@ def test_reconciliation_refusee_ne_cree_pas_d_orphelin(db_session, patch_scraper
 
     assert out["reconciled"] == 0
     assert len(athlete_repository.search(db_session, page_size=500)) == nb_athletes
-    assert athlete_repository.get_by_identity(db_session, "LOLA BERGE", "", None) is None
+    assert athlete_repository.get_by_identity_keys(db_session, "LOLA BERGE", "") is None
 
 
 def test_reconciliation_dossard_en_double_ne_compte_qu_une_fois(db_session, patch_scraper):
@@ -1289,8 +1289,8 @@ def test_athlete_club_and_gender_updates_are_applied_once_in_id_order(
         _result("2", "ALPHA", prenom="Al", club="ASPTT NANTES"),
     ])
     import_service.import_event(db_session, URL, _settings())
-    zed = athlete_repository.get_by_identity(db_session, "ZED", "Zoe", None)
-    alpha = athlete_repository.get_by_identity(db_session, "ALPHA", "Al", None)
+    zed = athlete_repository.get_by_identity_keys(db_session, "ZED", "Zoe")
+    alpha = athlete_repository.get_by_identity_keys(db_session, "ALPHA", "Al")
     course = course_repository.get_latest_by_source_url(db_session, URL)
     course.scraped_at = utcnow() - timedelta(days=40)
     db_session.commit()
@@ -1977,13 +1977,13 @@ def test_resolve_pending_appelle_les_fonctions_de_lot_par_tranche_pas_par_ligne(
     contrairement au comptage brut de requêtes SQL.
     """
     calls: Counter[str] = Counter()
-    original_get_by_identities = athlete_repository.get_by_identities_batch
+    original_get_by_identity_keys = athlete_repository.get_by_identity_keys_batch
     original_create_athletes = athlete_repository.create_batch
     original_create_participations = participation_repository.create_batch
 
-    def _spy_get_by_identities(db, paires):
-        calls["get_by_identities_batch"] += 1
-        return original_get_by_identities(db, paires)
+    def _spy_get_by_identity_keys(db, paires):
+        calls["get_by_identity_keys_batch"] += 1
+        return original_get_by_identity_keys(db, paires)
 
     def _spy_create_athletes(db, fields):
         calls["athlete_create_batch"] += 1
@@ -1993,7 +1993,7 @@ def test_resolve_pending_appelle_les_fonctions_de_lot_par_tranche_pas_par_ligne(
         calls["participation_create_batch"] += 1
         return original_create_participations(db, fields)
 
-    monkeypatch.setattr(athlete_repository, "get_by_identities_batch", _spy_get_by_identities)
+    monkeypatch.setattr(athlete_repository, "get_by_identity_keys_batch", _spy_get_by_identity_keys)
     monkeypatch.setattr(athlete_repository, "create_batch", _spy_create_athletes)
     monkeypatch.setattr(participation_repository, "create_batch", _spy_create_participations)
 
@@ -2002,7 +2002,7 @@ def test_resolve_pending_appelle_les_fonctions_de_lot_par_tranche_pas_par_ligne(
 
     # 1200 lignes / tranche de ~500 → 3 tranches (500, 500, 200) : quelques
     # appels seulement, jamais 1200.
-    assert calls["get_by_identities_batch"] <= 5
+    assert calls["get_by_identity_keys_batch"] <= 5
     assert calls["athlete_create_batch"] <= 5
     assert calls["participation_create_batch"] <= 5
 
@@ -2077,7 +2077,7 @@ def test_deux_lignes_du_meme_scrape_pour_le_meme_athlete_neuf_ne_creent_qu_une_f
     assert len(athletes) == 1
 
 
-def test_deux_reconciliations_du_meme_scrape_vers_la_meme_identite_neuve_distinguent_creation_et_fusion(
+def test_deux_reconciliations_du_meme_scrape_vers_la_meme_identite_neuve_font_deux_fiches(
     db_session, patch_scraper,
 ):
     """Edge case le plus risqué de la mise en lot (#706) : deux dossards
@@ -2086,12 +2086,10 @@ def test_deux_reconciliations_du_meme_scrape_vers_la_meme_identite_neuve_disting
     collision sur le chemin `_reconcile`, pas sur le chemin dossard neuf déjà
     couvert ci-dessus.
 
-    Ligne à ligne, seule la **première** ligne traitée crée la fiche corrigée
-    (`fusion=False`, renommage) ; la seconde la retrouve déjà flushée
-    (`fusion=True`, fusion). La résolution par lot doit reproduire cet ordre
-    — pas marquer les deux `fusion=False`, ce qui arriverait si le
-    dédoublonnage de création ne trackait pas qui a « consommé » la création
-    en premier (cf. `_resolve_pending`, `creation_consumed`)."""
+    Depuis #967, deux dossards d'une épreuve individuelle sont deux personnes :
+    la première ligne crée la fiche corrigée, la seconde une fiche d'homonyme.
+    Les deux sont des créations (`fusion=False`), jamais une fusion sur une
+    fiche qui porterait alors les deux dossards (FR-008)."""
     patch_scraper(
         [_result("1", "BERRE", "Audrey LE"), _result("2", "BERR", "Audrey LE")]
     )
@@ -2104,21 +2102,23 @@ def test_deux_reconciliations_du_meme_scrape_vers_la_meme_identite_neuve_disting
     done = phases[-1]
 
     assert done["reconciled"] == 2
+    assert len(done["homonyms_created"]) == 1
     by_ancien = {r.ancien: r for r in done["reassignments"]}
     assert by_ancien["BERRE | Audrey LE"].fusion is False
-    assert by_ancien["BERR | Audrey LE"].fusion is True
+    assert by_ancien["BERR | Audrey LE"].fusion is False
     assert by_ancien["BERRE | Audrey LE"].nouveau == "LE BERRE | Audrey"
     assert by_ancien["BERR | Audrey LE"].nouveau == "LE BERRE | Audrey"
 
-    # Une seule fiche cible, et les deux participations y pointent — pas
-    # `search` (sous-chaîne mot à mot) qui retrouverait aussi les fiches
-    # fautives orphelines, non nettoyées par la réconciliation (comportement
-    # existant, hors périmètre de #706).
-    cible = athlete_repository.get_by_identity(db_session, "LE BERRE", "Audrey", None)
+    # Deux fiches de même identité : la principale et son homonyme, une
+    # participation chacune.
+    cible = athlete_repository.get_by_identity_keys(db_session, "LE BERRE", "Audrey")
     assert cible is not None
     course = course_repository.get_latest_by_source_url(db_session, URL)
     rows = participation_repository.list_for_course(db_session, course.id)
-    assert {row.athlete_id for row in rows} == {cible.id}
+    assert sorted((row.athlete.last_name_key, row.athlete.homonym_rank) for row in rows) == [
+        ("leberre", 0), ("leberre", 1),
+    ]
+    assert cible.id in {row.athlete_id for row in rows}
 
 
 # ── Relais attribué à ses équipiers (#894) : le rescrape ne défait rien ──────
@@ -2167,7 +2167,7 @@ def test_rescrape_garde_la_composition_d_un_relais_attribue(db_session, patch_sc
     import_service.import_event(db_session, URL, _settings())
 
     _composition_intacte(db_session, course, ligne, jean, paul)
-    assert athlete_repository.get_by_identity(db_session, "DUPONT Jean / MARTIN Paul", "", None) is None
+    assert athlete_repository.get_by_identity_keys(db_session, "DUPONT Jean / MARTIN Paul", "") is None
 
 
 @pytest.mark.parametrize(
@@ -2208,7 +2208,7 @@ def test_rescrape_avec_dossard_ne_reconcilie_pas_un_relais_attribue(
     import_service.import_event(db_session, URL, _settings())
 
     _composition_intacte(db_session, course, ligne, jean, paul)
-    assert athlete_repository.get_by_identity(db_session, "DUPONT JEAN / MARTIN", "PAUL", None) is None
+    assert athlete_repository.get_by_identity_keys(db_session, "DUPONT JEAN / MARTIN", "PAUL") is None
 
 
 def test_rescrape_met_a_jour_les_valeurs_d_un_relais_attribue(
@@ -2255,9 +2255,8 @@ def test_import_splits_parallel_lists_relay(db_session, patch_scraper):
     assert _names(row.teammates) == [("CANNIOU", "Cedric"), ("OLIVIER", "Leclerc")]
     assert row.athlete_id == row.teammates[0].id
     assert row.team_name == "CANNIOU/OLIVIER Cedric/Leclerc"
-    assert athlete_repository.get_by_identity(
-        db_session, "CANNIOU/OLIVIER", "Cedric/Leclerc", None
-    ) is None
+    assert athlete_repository.get_by_identity_keys(
+        db_session, "CANNIOU/OLIVIER", "Cedric/Leclerc") is None
     assert out["imported"] == 1
 
 
@@ -2278,9 +2277,8 @@ def test_import_split_reuses_existing_athlete_without_touching_clubs(db_session,
         "BESANCON", "FABIEN", "", None
     )
     assert row.club == "TEAM TCC"
-    assert athlete_repository.get_by_identity(
-        db_session, "MASSONNEAU PIERRE", "/ BESANCON FABIEN .", None
-    ) is None
+    assert athlete_repository.get_by_identity_keys(
+        db_session, "MASSONNEAU PIERRE", "/ BESANCON FABIEN .") is None
 
 
 def test_import_split_finds_an_existing_athlete_published_firstname_first(
@@ -2298,7 +2296,7 @@ def test_import_split_finds_an_existing_athlete_published_firstname_first(
     first, second = _only_relay_row(db_session).teammates
     assert first.id == existing.id
     assert (second.nom, second.prenom) == ("FANNY", "LERAY")
-    assert athlete_repository.get_by_identity(db_session, "LUCIE", "KERMARREC", None) is None
+    assert athlete_repository.get_by_identity_keys(db_session, "LUCIE", "KERMARREC") is None
 
 
 @pytest.mark.parametrize("tranche", [500, 1], ids=["un-lot", "tranche-unitaire"])
@@ -2320,7 +2318,7 @@ def test_import_splits_several_relays_in_one_batch(db_session, patch_scraper, mo
         [("CANNIOU", "Cedric"), ("OLIVIER", "Leclerc")],
         [("MASSONNEAU", "PIERRE"), ("BESANCON", "FABIEN")],
     ]
-    solo = athlete_repository.get_by_identity(db_session, "DURAND", "Luc", None)
+    solo = athlete_repository.get_by_identity_keys(db_session, "DURAND", "Luc")
     (solo_row,) = solo.participations
     assert solo_row.teammates == [] and solo_row.team_name is None
 
@@ -2364,10 +2362,10 @@ def test_import_does_not_split_when_a_teammate_already_races_on_the_course(
     out = import_service.import_event(db_session, URL, _settings())
 
     assert out["imported"] == 1
-    team = athlete_repository.get_by_identity(db_session, "DUPONT Jean / MARTIN Paul", "", None)
+    team = athlete_repository.get_by_identity_keys(db_session, "DUPONT Jean / MARTIN Paul", "")
     (row,) = team.participations
     assert row.teammates == []
-    assert athlete_repository.get_by_identity(db_session, "MARTIN", "Paul", None) is None
+    assert athlete_repository.get_by_identity_keys(db_session, "MARTIN", "Paul") is None
 
 
 def test_import_does_not_split_two_lines_sharing_a_new_teammate(db_session, patch_scraper):
@@ -2554,9 +2552,8 @@ def test_split_fallback_keeps_the_reconcile_guard(db_session, patch_scraper, mon
     out = import_service.import_event(db_session, URL, _settings())
 
     assert out["reconciled"] == 0
-    assert athlete_repository.get_by_identity(
-        db_session, "DUPONT JEAN / MARTIN PAUL", "", None
-    ) is None
+    assert athlete_repository.get_by_identity_keys(
+        db_session, "DUPONT JEAN / MARTIN PAUL", "") is None
 
 
 def test_guard_holds_when_the_individual_line_comes_in_a_later_tranche(
@@ -2567,7 +2564,7 @@ def test_guard_holds_when_the_individual_line_comes_in_a_later_tranche(
 
     import_service.import_event(db_session, URL, _settings())
 
-    jean = athlete_repository.get_by_identity(db_session, "DUPONT", "Jean", None)
+    jean = athlete_repository.get_by_identity_keys(db_session, "DUPONT", "Jean")
     rows = _relay_rows(db_session)
     assert [row.bib_number for row in rows if jean.id in {row.athlete_id, *(a.id for a in row.teammates)}] == ["2"]
 
@@ -2628,7 +2625,7 @@ def test_rescrape_does_not_cross_two_composed_relays_with_the_same_team_name(
     assert set(rows) == {first.id, second.id}
     assert rows[first.id].total_time == "01:00:00"
     assert rows[second.id].total_time == "01:10:00"
-    assert athlete_repository.get_by_identity(db_session, "LES COPAINS", "", None) is None
+    assert athlete_repository.get_by_identity_keys(db_session, "LES COPAINS", "") is None
 
 
 def test_rescrape_finds_a_composed_relay_whose_course_only_is_a_relay(db_session, patch_scraper):
@@ -2653,7 +2650,7 @@ def test_rescrape_finds_a_composed_relay_whose_course_only_is_a_relay(db_session
         row.id
     ]
     assert out["imported"] == 0
-    assert athlete_repository.get_by_identity(db_session, "LES COPAINS", "", None) is None
+    assert athlete_repository.get_by_identity_keys(db_session, "LES COPAINS", "") is None
 
 
 _HEAT_URL = "https://www.klikego.com/resultats/frenchman/1677015306084-12?heat=duo"
