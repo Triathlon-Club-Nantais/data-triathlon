@@ -215,7 +215,8 @@ def render_reconciliation_report(report: dict) -> str:
             lignes.append("Interrompue : relancer pour reprendre, rien de fait ne sera refait.")
     else:
         lignes.append(
-            f"{len(operations)} opération(s) prévue(s) : relancer avec --yes --by-email <adresse>."
+            f"{len(operations)} opération(s) prévue(s) : appliquer ce plan avec "
+            "--yes --by-email <adresse> --plan-from <cette simulation en --json>."
             if operations else "Rien à faire."
         )
     lignes.append(f"{len(report.get('review', []))} cas laissé(s) en revue (/admin/identites).")

@@ -608,7 +608,7 @@ production ensuite :
 
 ```bash
 uv run python -m app.cli reconcile-athletes --json > simulation.json    # le plan, rien d'écrit : à relire
-uv run python -m app.cli reconcile-athletes --yes --by-email <adresse admin> --json > application.json
+uv run python -m app.cli reconcile-athletes --yes --by-email <adresse admin> --plan-from simulation.json --json > application.json
 uv run python -m app.cli reconcile-athletes --json                      # contrôle : "operations" vide
 ```
 
@@ -617,10 +617,15 @@ uv run python -m app.cli reconcile-athletes --json                      # contr�
   2026-09-24 : ~2 950 fusions de noms virgulés, ~1 930 de mêmes clés, quelques
   milliers d'inversions et de concaténations), `operations` chaque geste, `review`
   ce qui restera à trancher dans `/admin/identites`.
-- **L'application exécute exactement le plan simulé**, une transaction par
-  opération : une interruption ne laisse aucune fusion à moitié faite, et la
-  relance reprend là où elle s'est arrêtée. `errors` liste les opérations
-  devenues impossibles entre-temps (fiche supprimée, nouvelle épreuve commune).
+- **`--plan-from` applique exactement le plan relu**, pas un plan recalculé
+  sur une base qui a bougé entre-temps ; une transaction par opération, donc une
+  interruption ne laisse aucune fusion à moitié faite. Après un Ctrl-C, relancer
+  une **nouvelle simulation** puis l'appliquer : elle ne contient plus ce qui est
+  fait. `errors` liste les opérations devenues impossibles entre-temps (fiche
+  supprimée, nouvelle épreuve commune, fiche tenue par un import : `409`).
+- **La progression sort sur stderr** (phases du calcul, puis une ligne toutes les
+  100 opérations), à garder visible : en production, l'application compte
+  plusieurs milliers de transactions à distance. `--no-progress` la coupe.
 - **Contrôle SC-001** après coup, en lecture seule : la requête de #907 (groupes
   par clé désaccentuée) ne doit plus rendre que les groupes laissés en revue, et
   `SELECT count(*) FROM athletes WHERE homonym_rank > 0` ne plus compter que de

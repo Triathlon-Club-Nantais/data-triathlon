@@ -23,7 +23,8 @@ uv run python -m app.cli import-sheet --json | jq -r '.failures[].url' \
   | uv run python -m app.cli rescrape-db --urls-from -
 uv run python -m app.cli club-labels --like nant   # libellés club vus en base, marqués TCN ou non
 uv run python -m app.cli purge-timepulse-duplicates   # épreuves timepulse d'avant #674 en double (--yes --by-email pour supprimer, #1004)
-uv run python -m app.cli reconcile-athletes           # doublons d'athlètes existants, simulés (--yes --by-email pour appliquer, #906)
+uv run python -m app.cli reconcile-athletes --json > simulation.json   # doublons d'athlètes existants, simulés (#906)
+uv run python -m app.cli reconcile-athletes --yes --by-email <adresse> --plan-from simulation.json   # applique le plan relu
 uv run python -m app.cli geocode-courses --limit 300 --json   # coordonnées des épreuves sans géocodage (carte, #975)
 uv run python -m app.cli allow-email --email <adresse>              # autorise une adresse à se connecter (#170)
 uv run python -m app.cli grant-role --email <adresse> --role admin   # amorce le 1er administrateur (#115)
@@ -355,21 +356,31 @@ encore autorisée.
 ## `reconcile-athletes` (#906, epic #1146)
 
 Reprise **ponctuelle** des fiches d'athlètes en double. Sans `--yes`, la commande
-calcule le plan complet et n'écrit rien ; avec `--yes --by-email <admin>`, elle
-exécute **exactement** ce plan, une transaction par opération, chaque fusion
-(`athlete_merge.merge_athletes`) et chaque renommage (`athlete.update`)
-journalisés au nom de ce compte. Trois familles, dans cet ordre : noms
+calcule le plan complet et n'écrit rien ; avec `--yes --by-email <adresse>
+--plan-from simulation.json`, elle exécute **exactement** le plan relu (sans
+`--plan-from`, elle en recalcule un juste avant), une transaction par opération,
+chaque fusion (`athlete_merge.merge_athletes`) et chaque renommage
+(`athlete.update`) journalisés au nom de ce compte. Elle ne vérifie pas son rôle,
+comme `grant-role` : l'accès à la base est le privilège. `--plan-from` n'accepte
+que le JSON d'une simulation (code `2` sinon). Trois familles, dans cet ordre : noms
 « NOM, Prénom » mal découpés (renommés, ou fusionnés dans la fiche qui porte
 déjà l'identité), homonymes distingués d'une même clé (fusionnés dans la fiche
 principale, ce qui répare aussi la scission #900), paires inversées et
 concaténées (fusionnées si même club ou même genre, renseignés, et jamais une
 même épreuve, la règle Q3 de `athlete_identity_review.recovery_would_merge`).
-Toute fusion que `athlete_merge.blocking_reason` refuserait part en revue
-(`/admin/identites`), jamais en force ; les fiches factices sont laissées.
+Chaque fusion se juge sur la fiche telle que les fusions précédentes du plan
+l'auront faite (`athlete_repository.identity_facts`, lus en lot) : toute fusion
+que `athlete_merge.blocking_reason` refuserait part en revue (`/admin/identites`),
+jamais en force, comme toute paire qu'un admin a déclarée distincte (`ignored`).
+Partent aussi en revue les noms virgulés sans découpage sûr (`unparsed`) et les
+homonymes sans fiche principale (`no_principal`) ; les fiches factices et les
+équipes (relais seulement, ou `&`) sont laissées. La progression sort sur stderr
+(`--no-progress` la coupe).
 Une opération devenue impossible entre la simulation et l'application est
 consignée dans `errors`, les autres continuent : code `0`, sauf si **toutes**
-échouent (`1`). Ctrl-C rend le bilan partiel (`interrupted`), code `130` ; ce qui
-est fait reste commité et la relance ne le refait pas. Logique :
+échouent (`1`). Ctrl-C, pendant le calcul comme pendant l'application, rend le
+bilan partiel (`interrupted`), code `130` ; ce qui est fait reste commité et une
+nouvelle simulation ne le contient plus. Logique :
 `services/athlete_reconciliation.py`. Procédure : `docs/ci-cd.md`.
 
 ## `purge-timepulse-duplicates` (#1004)

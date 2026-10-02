@@ -1,13 +1,21 @@
 """Recovery of the existing duplicates, simulated before applied (#906, #907, #908, #900)."""
 from datetime import date
 
+import psycopg
 import pytest
+from sqlalchemy.exc import OperationalError
 
 from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.participation import Participation
-from app.repositories import course_repository, participation_repository, user_repository
+from app.repositories import (
+    course_repository,
+    ignored_athlete_pair_repository,
+    participation_repository,
+    user_repository,
+)
 from app.services import athlete_reconciliation
+from app.services.admin_actions import AthleteBusyError
 
 
 def _athlete(db, nom, prenom, **fields) -> Athlete:
@@ -185,7 +193,9 @@ def test_an_interrupted_run_resumes_without_doing_anything_twice(db_session, adm
     athlete_reconciliation.apply(db_session, rest, user_id=admin.id)
 
     assert len(rest["operations"]) == 2
+    assert rest["operations"] == full["operations"][2:]
     assert db_session.query(Athlete).count() == 4
+    assert {a.homonym_rank for a in db_session.query(Athlete)} == {0}
 
 
 def test_each_operation_is_logged_under_the_operator(db_session, admin):
@@ -216,3 +226,168 @@ def test_an_operation_that_became_impossible_is_reported_and_the_others_still_ru
     assert report["errors"][0]["operation"]["absorbed_id"] == duplicate.id
     assert db_session.query(Athlete).filter_by(nom="HOFMANN").count() == 1
     assert db_session.get(Athlete, principal.id) is not None
+
+
+def _ignore(db, first, second, admin):
+    ignored_athlete_pair_repository.create(db, athlete_id_a=first.id, athlete_id_b=second.id, user_id=admin.id)
+    db.commit()
+
+
+def test_a_pair_an_admin_set_aside_is_never_merged(db_session, admin):
+    principal = _athlete(db_session, "LETORT", "Léo")
+    homonym = _athlete(db_session, "LETORT", "Leo", homonym_rank=1)
+    kept = _athlete(db_session, "DUPONT", "Jean", club="CLUB")
+    swapped = _athlete(db_session, "JEAN", "Dupont", club="CLUB")
+    db_session.commit()
+    _ignore(db_session, principal, homonym, admin)
+    _ignore(db_session, kept, swapped, admin)
+
+    plan = athlete_reconciliation.plan(db_session)
+
+    assert _actions(plan) == []
+    assert plan["review"] == [
+        {"family": "same_key", "athlete_ids": [principal.id, homonym.id], "reason": "ignored"},
+        {"family": "swapped", "athlete_ids": [kept.id, swapped.id], "reason": "ignored"},
+    ]
+
+
+def test_a_refusal_counts_everything_the_kept_record_already_absorbed(db_session, admin):
+    """Le plan juge chaque fusion sur la fiche telle que les précédentes l'auront faite."""
+    principal = _athlete(db_session, "LETORT", "Léo", club="CLUB")
+    homonym = _athlete(db_session, "LETORT", "Leo", homonym_rank=1)
+    swapped = _athlete(db_session, "LEO", "Letort", club="CLUB")
+    course = _course(db_session)
+    _result(db_session, homonym, course, "1")
+    _result(db_session, swapped, course, "2")
+    db_session.commit()
+
+    plan = athlete_reconciliation.plan(db_session)
+    report = athlete_reconciliation.apply(db_session, plan, user_id=admin.id)
+
+    assert _actions(plan) == [("same_key", "merge", principal.id, homonym.id, None)]
+    assert plan["review"] == [{"family": "swapped", "athlete_ids": [principal.id, swapped.id], "reason": "shared_course"}]
+    assert report["errors"] == []
+
+
+def test_a_pair_is_judged_on_the_records_it_now_belongs_to(db_session, admin):
+    """Une fiche déjà absorbée ne sort pas du circuit : sa paire se rejuge sur sa fiche d'accueil."""
+    split = _athlete(db_session, "DUPONT", "Jean", club="CLUB")
+    swapped = _athlete(db_session, "JEAN", "Dupont", club="CLUB", gender="M")
+    whole = _athlete(db_session, "DUPONTJEAN", "", gender="M")
+    db_session.commit()
+
+    plan = athlete_reconciliation.plan(db_session)
+    report = athlete_reconciliation.apply(db_session, plan, user_id=admin.id)
+
+    assert _actions(plan) == [
+        ("swapped", "merge", split.id, swapped.id, None),
+        ("concatenated", "merge", split.id, whole.id, None),
+    ]
+    assert plan["review"] == []
+    assert report["errors"] == []
+    assert db_session.query(Athlete).count() == 1
+
+
+def test_a_record_renamed_by_its_comma_is_not_merged_by_its_old_key(db_session, admin):
+    renamed_homonym = _athlete(db_session, "JUMEAUX, ADRIEN", "", homonym_rank=1)
+    whole = _athlete(db_session, "JUMEAUX ADRIEN", "")
+    renamed_principal = _athlete(db_session, "MARTIN, LUC", "")
+    orphan = _athlete(db_session, "MARTIN LUC", "", homonym_rank=1)
+    db_session.commit()
+
+    plan = athlete_reconciliation.plan(db_session)
+
+    assert _actions(plan) == [
+        ("comma_names", "rename", None, None, renamed_homonym.id),
+        ("comma_names", "rename", None, None, renamed_principal.id),
+    ]
+    assert {"family": "same_key", "athlete_ids": [orphan.id], "reason": "no_principal"} in plan["review"]
+    assert whole.id not in {i for entry in plan["review"] for i in entry["athlete_ids"]}
+
+
+def test_a_homonym_without_principal_goes_to_review(db_session, admin):
+    orphan = _athlete(db_session, "LETORT", "Leo", homonym_rank=2)
+    db_session.commit()
+
+    plan = athlete_reconciliation.plan(db_session)
+
+    assert plan["review"] == [{"family": "same_key", "athlete_ids": [orphan.id], "reason": "no_principal"}]
+
+
+def test_comma_records_that_cannot_be_split_go_to_review_and_teams_are_left(db_session, admin):
+    unparsed = _athlete(db_session, "DUPONT,", "")
+    team = _athlete(db_session, "DURAND, MARTIN", "")
+    relay = _course(db_session, "Relais")
+    relay.is_relay = True
+    _result(db_session, team, relay, "1")
+    db_session.commit()
+
+    plan = athlete_reconciliation.plan(db_session)
+
+    assert _actions(plan) == []
+    assert plan["review"] == [{"family": "comma_names", "athlete_ids": [unparsed.id], "reason": "unparsed"}]
+
+
+def test_dated_records_merged_with_their_undated_twin_are_counted(db_session, admin):
+    """FR-030 : la simulation signale les scissions #900 déjà survenues."""
+    _athlete(db_session, "DUPONT", "Jean", birth_date=date(1990, 1, 1))
+    _athlete(db_session, "DUPONT", "Jean", homonym_rank=1)
+    _athlete(db_session, "LETORT", "Léo")
+    _athlete(db_session, "LETORT", "Leo", homonym_rank=1)
+    db_session.commit()
+
+    plan = athlete_reconciliation.plan(db_session)
+
+    assert plan["families"]["same_key"] == {"merged": 2, "review": 0, "dated": 1}
+
+
+def test_a_rename_retargets_the_source_key_of_its_results(db_session, admin):
+    trailing = _athlete(db_session, "HOFMANN,", "Patrick")
+    _result(db_session, trailing, _course(db_session), "1")
+    db_session.commit()
+
+    athlete_reconciliation.apply(db_session, athlete_reconciliation.plan(db_session), user_id=admin.id)
+
+    db_session.expire_all()
+    assert db_session.query(Participation).one().source_identity_key == "hofmann|patrick"
+
+
+def test_the_application_of_a_simulation_does_what_it_announced(db_session, admin):
+    """SC-009, jugé sur l'état d'arrivée : chaque fiche absorbée a disparu, chaque
+    fiche renommée porte son découpage, et plus rien ne reste à faire."""
+    _athlete(db_session, "LETORT", "Léo")
+    _athlete(db_session, "LETORT", "Leo", homonym_rank=1)
+    _athlete(db_session, "HOFMANN,", "Patrick")
+    _athlete(db_session, "JUMEAUX", "Adrien")
+    _athlete(db_session, "JUMEAUX, ADRIEN", "")
+    db_session.commit()
+    simulated = athlete_reconciliation.plan(db_session)
+
+    report = athlete_reconciliation.apply(db_session, simulated, user_id=admin.id)
+
+    db_session.expire_all()
+    assert (report["errors"], report["done"]) == ([], len(simulated["operations"]))
+    for operation in simulated["operations"]:
+        if operation["action"] == "merge":
+            assert db_session.get(Athlete, operation["absorbed_id"]) is None
+            assert db_session.get(Athlete, operation["kept_id"]) is not None
+        else:
+            renamed = db_session.get(Athlete, operation["athlete_id"])
+            assert (renamed.nom, renamed.prenom) == (operation["nom"], operation["prenom"])
+    assert athlete_reconciliation.plan(db_session)["operations"] == []
+
+
+def test_a_rename_on_a_record_an_import_holds_is_reported_busy(db_session, admin, monkeypatch):
+    _athlete(db_session, "HOFMANN,", "Patrick")
+    db_session.commit()
+    planned = athlete_reconciliation.plan(db_session)
+
+    def held(*args, **kwargs):
+        raise OperationalError("UPDATE athletes", {}, psycopg.errors.LockNotAvailable())
+
+    monkeypatch.setattr(athlete_reconciliation.athlete_repository, "update_identity", held)
+
+    report = athlete_reconciliation.apply(db_session, planned, user_id=admin.id)
+
+    assert report["done"] == 0
+    assert report["errors"][0]["error"] == str(AthleteBusyError())

@@ -1565,4 +1565,3 @@ def retarget_source_key(db: Session, *, athlete_id: int, old_key: str | None, ne
         .where(Participation.athlete_id == athlete_id, clause)
         .values(source_identity_key=new_key)
     ).rowcount
-
