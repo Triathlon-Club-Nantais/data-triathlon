@@ -7,6 +7,7 @@ import { ApiError } from "@/lib/api/client";
 import { useAdminAthlete, useUpdateAthlete } from "@/lib/queries/admin";
 import { useHydratedSession } from "@/lib/queries/auth";
 import type { AdminAthleteUpdate } from "@/lib/types";
+import { AthleteMergeAction, ConflictMerge } from "./AthleteMergeAction";
 
 export type CoureurACorriger = {
   id: number;
@@ -108,6 +109,10 @@ export function AthleteAdminPanel({
   // une saisie faite entre-temps.
   const [naissanceSaisie, setNaissanceSaisie] = useState<string | null>(null);
   const [refus, setRefus] = useState<string | null>(null);
+  // La fiche qui porte déjà l'identité demandée (409, #908) : la fusion est la
+  // sortie de ce refus, pour qui peut lire les deux fiches.
+  const [conflit, setConflit] = useState<number | null>(null);
+  const [fusionDuConflit, setFusionDuConflit] = useState(false);
 
   const router = useRouter();
   const correction = useUpdateAthlete();
@@ -128,6 +133,7 @@ export function AthleteAdminPanel({
     setClub(athlete.club ?? "");
     setNaissanceSaisie(null);
     setRefus(null);
+    setConflit(null);
     setOuverte(true);
   }
 
@@ -181,8 +187,10 @@ export function AthleteAdminPanel({
       // au-dessus. La saisie n'est jamais vidée (FR-010). Seul le 409 porte un
       // message écrit pour l'opérateur ; tout le reste est un incident, dont le
       // texte serveur serait technique et anglais (FR-017).
-      const conflit = erreur instanceof ApiError && erreur.status === 409;
-      setRefus(conflit ? erreur.message : ECHEC);
+      const enConflit = erreur instanceof ApiError && erreur.status === 409;
+      setRefus(enConflit ? erreur.message : ECHEC);
+      const autre = enConflit ? erreur.details.conflicting_athlete_id : undefined;
+      setConflit(typeof autre === "number" ? autre : null);
     }
   }
 
@@ -195,6 +203,11 @@ export function AthleteAdminPanel({
       >
         Corriger la fiche
       </Button>
+      {peutLireLaFiche && <AthleteMergeAction athlete={athlete} />}
+
+      {fusionDuConflit && conflit !== null && (
+        <ConflictMerge athlete={athlete} conflictId={conflit} onClose={() => setFusionDuConflit(false)} />
+      )}
 
       {ouverte && (
         <Modal
@@ -218,6 +231,19 @@ export function AthleteAdminPanel({
                 <Alert status="error" title="Correction refusée">
                   {refus}
                 </Alert>
+                {conflit !== null && peutLireLaFiche && (
+                  <div style={{ marginTop: 10 }}>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setOuverte(false);
+                        setFusionDuConflit(true);
+                      }}
+                    >
+                      Fusionner avec la fiche n° {conflit}
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 

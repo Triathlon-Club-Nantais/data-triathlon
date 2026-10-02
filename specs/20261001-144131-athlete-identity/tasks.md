@@ -188,14 +188,14 @@ description: "Task list for epic #1146, one stable identity per real athlete"
 
 ### Tests frontend (rouges d'abord)
 
-- [ ] T056 [P] [US5] Créer `frontend/components/athletes/MergeAthleteDialog.test.tsx` : recherche de la seconde fiche, aperçu (`moves`, `blocking_label`), bouton désactivé si refus, confirmation, toast, invalidation des caches ; et étendre `frontend/components/athletes/AthleteAdminPanel.test.tsx` : commande absente sans `athletes:write`, 409 de renommage qui propose la fusion
-- [ ] T057 [P] [US5] Créer `frontend/components/admin/AthleteIdentityReviewTable.test.tsx` : chargement, vide, erreur, une carte par candidat avec ses conflits, « Écarter » (absent pour `same_course_bibs`) et « Fusionner »
+- [X] T056 [P] [US5] (fait : dialogue dans `components/admin/MergeAthletesDialog.test.tsx`, recherche et 409 dans `components/athletes/AthleteAdminPanel.test.tsx`) Créer `frontend/components/athletes/MergeAthleteDialog.test.tsx` : recherche de la seconde fiche, aperçu (`moves`, `blocking_label`), bouton désactivé si refus, confirmation, toast, invalidation des caches ; et étendre `frontend/components/athletes/AthleteAdminPanel.test.tsx` : commande absente sans `athletes:write`, 409 de renommage qui propose la fusion
+- [X] T057 [P] [US5] Créer `frontend/components/admin/AthleteIdentityReviewTable.test.tsx` : chargement, vide, erreur, une carte par candidat avec ses conflits, « Écarter » (absent pour `same_course_bibs`) et « Fusionner »
 
 ### Implémentation frontend
 
-- [ ] T058 [US5] Ajouter à `frontend/lib/api/client.ts` `getAthleteMergeImpact`, `mergeAthletes`, `listAthleteIdentityReview`, `countAthleteIdentityReview`, `ignoreAthleteIdentityPair` ; hooks dans `frontend/lib/queries/admin.ts` et clés dans `frontend/lib/queries/keys.ts`
-- [ ] T059 [US5] Créer `frontend/components/athletes/MergeAthleteDialog.tsx` (réutilise `AthleteSearchPicker`, modèle `frontend/components/admin/MergeCoursesDialog.tsx`) et le brancher dans `frontend/components/athletes/AthleteAdminPanel.tsx`, y compris depuis le 409 de renommage
-- [ ] T060 [US5] Créer `frontend/components/admin/AthleteIdentityReviewTable.tsx` et `frontend/app/admin/identites/page.tsx` (modèle `frontend/app/admin/doublons/page.tsx`) ; entrée de navigation et badge dans `frontend/components/layout/nav.config.ts`, `frontend/lib/queries/nav-badges.ts`, `frontend/components/layout/AppNav.tsx` ; microcopie française
+- [X] T058 [US5] (fait, sans `countAthleteIdentityReview` : pas de pastille, cf. T060) Ajouter à `frontend/lib/api/client.ts` `getAthleteMergeImpact`, `mergeAthletes`, `listAthleteIdentityReview`, `countAthleteIdentityReview`, `ignoreAthleteIdentityPair` ; hooks dans `frontend/lib/queries/admin.ts` et clés dans `frontend/lib/queries/keys.ts`
+- [X] T059 [US5] (fait : `components/admin/MergeAthletesDialog.tsx`, réutilisé par la revue, et `components/athletes/AthleteMergeAction.tsx` pour la recherche et le 409 ; fusion offerte avec `athletes:write` et `athletes:read`) Créer `frontend/components/athletes/MergeAthleteDialog.tsx` (réutilise `AthleteSearchPicker`, modèle `frontend/components/admin/MergeCoursesDialog.tsx`) et le brancher dans `frontend/components/athletes/AthleteAdminPanel.tsx`, y compris depuis le 409 de renommage
+- [X] T060 [US5] (fait, **sans pastille** : le comptage n'est pas mesuré sur le volume de production et la nav le déclencherait à chaque page du back-office ; à poser après mesure) Créer `frontend/components/admin/AthleteIdentityReviewTable.tsx` et `frontend/app/admin/identites/page.tsx` (modèle `frontend/app/admin/doublons/page.tsx`) ; entrée de navigation et badge dans `frontend/components/layout/nav.config.ts`, `frontend/lib/queries/nav-badges.ts`, `frontend/components/layout/AppNav.tsx` ; microcopie française
 
 **Checkpoint**: fusion et revue opérationnelles (PR 5, scindable en backend puis frontend).
 

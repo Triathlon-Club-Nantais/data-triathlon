@@ -993,6 +993,89 @@ export interface AdminAthlete {
   participations: number;
 }
 
+/** Une fiche telle que l'aperçu d'une fusion la présente (#908). */
+export interface AthleteMergeSide {
+  id: number;
+  nom: string;
+  prenom: string;
+  club: string | null;
+  participations: number;
+}
+
+/** Les refus de fusion : deux fiches qui sont, ou peuvent être, deux personnes (#908). */
+export type AthleteMergeBlockingReason =
+  | "same_athlete"
+  | "distinct_users"
+  | "same_course_bibs"
+  | "same_participation"
+  | "distinct_birth_dates";
+
+/** Ce qu'une fusion de deux fiches ferait, sans rien écrire (`GET /admin/athletes/{id}/merge-impact`). */
+export interface AthleteMergeImpact {
+  kept: AthleteMergeSide;
+  absorbed: AthleteMergeSide;
+  moves: {
+    participations: number;
+    teammates: number;
+    volunteer_actions: number;
+    season_validations: number;
+    users: number;
+  };
+  alias_added: boolean;
+  blocking_reason: AthleteMergeBlockingReason | null;
+  blocking_label: string | null;
+}
+
+export type IdentityReviewReason =
+  | "same_course_bibs"
+  | "club_homonym"
+  | "swapped"
+  | "concatenated"
+  | "alias_collision";
+
+/** Une fiche dans un cas de revue d'identité (#908). */
+export interface IdentityReviewAthlete {
+  id: number;
+  nom: string;
+  prenom: string;
+  club: string | null;
+  gender: string;
+  categories: string[];
+  participations: number;
+  homonym_rank: number;
+}
+
+export interface IdentityReviewConflict {
+  course_id: number;
+  course_name: string;
+  event_date: string | null;
+  entries: {
+    participation_id: number;
+    athlete_id: number;
+    bib: string | null;
+    category: string | null;
+    total_time: string | null;
+  }[];
+}
+
+/** Un cas d'identité à trancher : une fiche (`same_course_bibs`) ou une paire. */
+export interface IdentityReviewCandidate {
+  reason: IdentityReviewReason;
+  reason_label: string;
+  athletes: IdentityReviewAthlete[];
+  conflicts: IdentityReviewConflict[];
+}
+
+export interface IdentityReviewList {
+  candidates: IdentityReviewCandidate[];
+}
+
+export interface IdentityPairIgnoreResult {
+  athlete_id_a: number;
+  athlete_id_b: number;
+  ignored_at: string;
+}
+
 // Miroir de VolunteerActionSelfCreate/Out backend (#778) — formulaire public,
 // seul chemin de création restant (#780).
 export interface VolunteerActionSelfCreate {
