@@ -21,6 +21,7 @@ from app.cli.commands.geocode_courses import geocode_courses
 from app.cli.commands.grant_role import grant_role
 from app.cli.commands.import_sheet import import_sheet
 from app.cli.commands.purge_timepulse_duplicates import purge_timepulse_duplicates
+from app.cli.commands.reconcile_athletes import reconcile_athletes
 from app.cli.commands.rescrape_db import rescrape_db
 from app.cli.commands.revoke_sessions import revoke_sessions
 from app.cli.commands.set_site_code import set_site_code
@@ -33,6 +34,7 @@ app.command("geocode-courses")(geocode_courses)
 app.command("grant-role")(grant_role)
 app.command("import-sheet")(import_sheet)
 app.command("purge-timepulse-duplicates")(purge_timepulse_duplicates)
+app.command("reconcile-athletes")(reconcile_athletes)
 app.command("rescrape-db")(rescrape_db)
 app.command("revoke-sessions")(revoke_sessions)
 app.command("set-site-code")(set_site_code)

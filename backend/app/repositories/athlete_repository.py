@@ -13,6 +13,7 @@ from sqlalchemy import (
     func,
     or_,
     select,
+    true,
     tuple_,
     union_all,
     update,
@@ -1077,45 +1078,103 @@ def alias_collisions(db: Session) -> list[tuple[int, int]]:
     return [tuple(row) for row in rows]
 
 
+class IdentityFacts(NamedTuple):
+    """Ce qui décide d'une fusion, pour une fiche ou pour l'union de plusieurs."""
+    courses: frozenset[int]
+    individual_courses: frozenset[int]
+    results: frozenset[int]
+    accounts: int
+    birth_dates: frozenset[date]
+    carried: int
+
+    def __or__(self, other: "IdentityFacts") -> "IdentityFacts":
+        return IdentityFacts(
+            self.courses | other.courses, self.individual_courses | other.individual_courses,
+            self.results | other.results, self.accounts + other.accounts,
+            self.birth_dates | other.birth_dates, self.carried + other.carried,
+        )
+
+
+_NO_FACTS = IdentityFacts(frozenset(), frozenset(), frozenset(), 0, frozenset(), 0)
+_FACTS_CHUNK = 5000
+
+
+def identity_facts(db: Session, athlete_ids: Sequence[int]) -> dict[int, IdentityFacts]:
+    """Pour chaque fiche, en trois requêtes par tranche : ses épreuves et résultats
+    (porteur ou équipier), ses épreuves individuelles, ses comptes, sa date de
+    naissance et le nombre de résultats qu'elle porte."""
+    ids = sorted(set(athlete_ids))
+    facts: dict[int, IdentityFacts] = {}
+    for start in range(0, len(ids), _FACTS_CHUNK):
+        chunk = ids[start:start + _FACTS_CHUNK]
+        individual = and_(Course.is_relay.is_(False), Participation.is_relay.is_(False))
+        memberships = (
+            select(Participation.id, Participation.course_id, Participation.athlete_id, individual, true())
+            .join(Course, Course.id == Participation.course_id)
+            .where(Participation.athlete_id.in_(chunk))
+            .union_all(
+                select(Participation.id, Participation.course_id, ParticipationTeammate.athlete_id, false(), false())
+                .join(ParticipationTeammate, ParticipationTeammate.participation_id == Participation.id)
+                .where(ParticipationTeammate.athlete_id.in_(chunk))
+            )
+        )
+        courses: dict[int, set[int]] = {}
+        individual_courses: dict[int, set[int]] = {}
+        results: dict[int, set[int]] = {}
+        carried: dict[int, int] = {}
+        for participation_id, course_id, athlete_id, alone, carrier in db.execute(memberships):
+            courses.setdefault(athlete_id, set()).add(course_id)
+            results.setdefault(athlete_id, set()).add(participation_id)
+            if alone:
+                individual_courses.setdefault(athlete_id, set()).add(course_id)
+            if carrier:
+                carried[athlete_id] = carried.get(athlete_id, 0) + 1
+        accounts = {
+            athlete_id: count for athlete_id, count in db.execute(
+                select(User.athlete_id, func.count()).where(User.athlete_id.in_(chunk)).group_by(User.athlete_id)
+            )
+        }
+        for athlete_id, born in db.execute(select(Athlete.id, Athlete.birth_date).where(Athlete.id.in_(chunk))):
+            facts[athlete_id] = IdentityFacts(
+                frozenset(courses.get(athlete_id, ())), frozenset(individual_courses.get(athlete_id, ())),
+                frozenset(results.get(athlete_id, ())), accounts.get(athlete_id, 0),
+                frozenset({born} if born else ()), carried.get(athlete_id, 0),
+            )
+    return facts
+
+
+def merge_refusal(first: IdentityFacts, second: IdentityFacts) -> str | None:
+    """Le refus que `athlete_merge.blocking_reason` prononcerait, dans le même ordre."""
+    if first.accounts and second.accounts:
+        return "distinct_users"
+    if first.individual_courses & second.individual_courses:
+        return "same_course_bibs"
+    if first.results & second.results:
+        return "same_participation"
+    if first.birth_dates and second.birth_dates and first.birth_dates != second.birth_dates:
+        return "distinct_birth_dates"
+    return None
+
+
 class PairFacts(NamedTuple):
     shared_courses: list[int]
-    blocked: bool
+    refusal: str | None
+
+    @property
+    def blocked(self) -> bool:
+        """Un refus autre qu'une épreuve commune (déjà lue dans `shared_courses`)."""
+        return self.refusal in {"distinct_users", "same_participation", "distinct_birth_dates"}
 
 
 def pair_facts(db: Session, pairs: Sequence[tuple[int, int]]) -> dict[tuple[int, int], PairFacts]:
-    """Pour chaque paire : les épreuves où les deux figurent (porteur ou équipier),
-    et si la fusion la refuserait pour une autre raison qu'une épreuve commune
-    (deux comptes membres, un même résultat, deux dates de naissance), les mêmes
-    refus que `athlete_merge`. Quatre requêtes pour toutes les paires."""
-    ids = {athlete_id for pair in pairs for athlete_id in pair}
-    if not ids:
-        return {}
-    memberships = select(Participation.id, Participation.course_id, Participation.athlete_id).where(
-        Participation.athlete_id.in_(ids)
-    ).union_all(
-        select(Participation.id, Participation.course_id, ParticipationTeammate.athlete_id)
-        .join(ParticipationTeammate, ParticipationTeammate.participation_id == Participation.id)
-        .where(ParticipationTeammate.athlete_id.in_(ids))
-    )
-    courses: dict[int, set[int]] = {}
-    results: dict[int, set[int]] = {}
-    for participation_id, course_id, athlete_id in db.execute(memberships):
-        courses.setdefault(athlete_id, set()).add(course_id)
-        results.setdefault(athlete_id, set()).add(participation_id)
-    with_account = set(db.scalars(select(User.athlete_id).where(User.athlete_id.in_(ids)).distinct()))
-    birth_dates = {athlete_id: born for athlete_id, born in db.execute(select(Athlete.id, Athlete.birth_date).where(Athlete.id.in_(ids)))}
-    facts = {}
+    """Pour chaque paire : les épreuves où les deux figurent (porteur ou équipier), et
+    le refus que la fusion prononcerait (`merge_refusal`)."""
+    facts = identity_facts(db, [athlete_id for pair in pairs for athlete_id in pair])
+    paired = {}
     for first, second in pairs:
-        dates = (birth_dates.get(first), birth_dates.get(second))
-        facts[(first, second)] = PairFacts(
-            shared_courses=sorted(courses.get(first, set()) & courses.get(second, set())),
-            blocked=(
-                (first in with_account and second in with_account)
-                or bool(results.get(first, set()) & results.get(second, set()))
-                or (None not in dates and dates[0] != dates[1])
-            ),
-        )
-    return facts
+        one, other = facts.get(first, _NO_FACTS), facts.get(second, _NO_FACTS)
+        paired[(first, second)] = PairFacts(sorted(one.courses & other.courses), merge_refusal(one, other))
+    return paired
 
 
 def review_details(db: Session, athlete_ids: Sequence[int]) -> tuple[dict[int, Athlete], list]:
@@ -1142,3 +1201,67 @@ def get_many(db: Session, athlete_ids: Sequence[int]) -> dict[int, Athlete]:
     if not ids:
         return {}
     return {athlete.id: athlete for athlete in db.query(Athlete).filter(Athlete.id.in_(ids))}
+
+
+# ── Reprise des doublons existants (#906) ────────────────────────────────────
+
+
+def comma_named(db: Session) -> list[Athlete]:
+    """Les fiches dont le nom ou le prénom porte une virgule (« NOM, Prénom » mal découpé)."""
+    return (
+        db.query(Athlete)
+        .filter(or_(Athlete.nom.contains(","), Athlete.prenom.contains(",")))
+        .order_by(Athlete.id)
+        .all()
+    )
+
+
+def homonyms_without_principal(db: Session) -> list[int]:
+    """Les homonymes distingués dont la clé n'a plus de fiche principale."""
+    principal = aliased(Athlete)
+    return list(db.scalars(
+        select(Athlete.id)
+        .where(
+            Athlete.homonym_rank > 0,
+            ~exists().where(
+                principal.last_name_key == Athlete.last_name_key,
+                principal.first_name_key == Athlete.first_name_key,
+                principal.homonym_rank == 0,
+            ),
+        )
+        .order_by(Athlete.id)
+    ))
+
+
+def relay_only(db: Session, athlete_ids: Sequence[int]) -> set[int]:
+    """Les fiches qui ne portent que des résultats de relais : des équipes, pas des personnes."""
+    ids = set(athlete_ids)
+    if not ids:
+        return set()
+    relay = or_(Course.is_relay.is_(True), Participation.is_relay.is_(True))
+    rows = db.execute(
+        select(Participation.athlete_id)
+        .join(Course, Course.id == Participation.course_id)
+        .where(Participation.athlete_id.in_(ids))
+        .group_by(Participation.athlete_id)
+        .having(func.min(case((relay, 1), else_=0)) == 1)
+    )
+    return {athlete_id for (athlete_id,) in rows}
+
+
+def homonyms_with_their_principal(db: Session) -> list[tuple[int, int]]:
+    """`(fiche principale, homonyme distingué)` de même clé, par homonyme croissant :
+    les doublons rangés par la migration de #907, et les homonymes de #967."""
+    principal = aliased(Athlete)
+    rows = db.execute(
+        select(principal.id, Athlete.id)
+        .join(principal, and_(
+            principal.last_name_key == Athlete.last_name_key,
+            principal.first_name_key == Athlete.first_name_key,
+            principal.homonym_rank == 0,
+        ))
+        .where(Athlete.homonym_rank > 0)
+        .order_by(Athlete.id)
+    )
+    return [tuple(row) for row in rows]
+
