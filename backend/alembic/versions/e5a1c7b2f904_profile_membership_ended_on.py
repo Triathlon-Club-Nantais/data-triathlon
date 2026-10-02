@@ -6,7 +6,7 @@ suit. Nulle sur l'existant : aucun profil n'est purgé tant qu'un encadrant n'a
 pas renseigné de fin d'adhésion.
 
 Revision ID: e5a1c7b2f904
-Revises: d49e03833de6
+Revises: 50f5db3c0a88
 Create Date: 2026-10-01 16:00:00.000000
 """
 from typing import Sequence, Union
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 
 
 revision: str = 'e5a1c7b2f904'
-down_revision: Union[str, None] = 'd49e03833de6'
+down_revision: Union[str, None] = '50f5db3c0a88'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
