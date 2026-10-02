@@ -33,6 +33,7 @@ def test_the_impact_announces_the_merge_without_writing(client, db_session, pair
     assert response.status_code == 200
     body = response.json()
     assert (body["moves"]["participations"], body["alias_added"], body["blocking_reason"]) == (1, True, None)
+    assert "birth_date" in body["kept"] and "birth_date" in body["absorbed"]
     assert db_session.get(Athlete, absorbed.id) is not None
 
 
@@ -85,6 +86,16 @@ def test_merge_routes_need_a_session_then_the_athletes_write_power(client, db_se
     assert call().status_code == 401
     _session_etroite(client, db_session, "athletes:read")
     assert call().status_code == 403
+
+
+def test_the_impact_also_needs_athletes_read_since_it_shows_birth_dates(client, db_session, pair):
+    """La date de naissance ne sort que derrière `athletes:read` (FR-025 de #117)."""
+    kept, absorbed = pair
+    _session_etroite(client, db_session, "athletes:write")
+
+    response = client.get(f"/api/v1/admin/athletes/{kept.id}/merge-impact", params={"absorbed_id": absorbed.id})
+
+    assert response.status_code == 403
 
 
 def test_renaming_onto_another_identity_names_the_conflicting_record(client, pair):

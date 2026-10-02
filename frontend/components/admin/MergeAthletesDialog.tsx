@@ -4,7 +4,9 @@ import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { useAthleteMergeImpact, useMergeAthletes } from "@/lib/queries/admin";
+import { formatDate } from "@/lib/utils/date";
 import { motCompte } from "@/lib/utils/format";
+import type { AthleteMergeSide } from "@/lib/types";
 
 /** Une fiche à présenter : de quoi la reconnaître, rien de plus. */
 export type FicheAFusionner = {
@@ -37,8 +39,9 @@ function CarteFiche({
   return (
     <button
       type="button"
+      role="radio"
       onClick={onChoisir}
-      aria-pressed={choisie}
+      aria-checked={choisie}
       className={`w-full rounded-md border p-3 text-left text-sm hover:bg-accent ${
         choisie ? "border-primary bg-accent" : "border-transparent"
       }`}
@@ -118,7 +121,7 @@ export function MergeAthletesDialog({
       enAttente={fusion.isPending}
       onConfirm={confirmer}
     >
-      <div className="space-y-2">
+      <div role="radiogroup" aria-label="Fiche à conserver" className="space-y-2">
         <CarteFiche fiche={athleteA} choisie={gardeeId === athleteA.id} onChoisir={() => setGardeeId(athleteA.id)} />
         <CarteFiche fiche={athleteB} choisie={gardeeId === athleteB.id} onChoisir={() => setGardeeId(athleteB.id)} />
       </div>
@@ -148,8 +151,19 @@ export function MergeAthletesDialog({
         </div>
       )}
 
+      {impact.data && (
+        <ul aria-label="Dates de naissance" className="space-y-1 text-sm">
+          {[impact.data.kept, impact.data.absorbed].map((fiche: AthleteMergeSide) => (
+            <li key={fiche.id}>
+              {nomDe(fiche)} (n° {fiche.id}) :{" "}
+              {fiche.birth_date ? `né(e) le ${formatDate(fiche.birth_date)}` : "date de naissance inconnue"}
+            </li>
+          ))}
+        </ul>
+      )}
+
       {impact.data && refus === null && (
-        <ul className="space-y-1 text-sm">
+        <ul aria-label="Ce que la fusion déplace" className="space-y-1 text-sm">
           <li>
             <strong>{motCompte(impact.data.moves.participations, "résultat")}</strong> et{" "}
             {motCompte(impact.data.moves.teammates, "place")} d&apos;équipier de relais passeront sur la

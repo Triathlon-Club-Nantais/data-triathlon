@@ -6,7 +6,7 @@ Sous `/api/v1`. Tous les ajouts sont **additifs** (Principe IV) : aucune route n
 
 ### `GET /admin/athletes/{kept_id}/merge-impact?absorbed_id={id}`
 
-Permission : `athletes:write`. Lecture seule.
+Permission : `athletes:write` et `athletes:read` (l'aperçu porte la date de naissance des deux fiches, révisé en PR 5c). Lecture seule.
 
 ```json
 {

@@ -999,6 +999,7 @@ export interface AthleteMergeSide {
   nom: string;
   prenom: string;
   club: string | null;
+  birth_date: string | null;
   participations: number;
 }
 

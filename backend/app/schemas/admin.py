@@ -739,6 +739,8 @@ class AthleteMergeSide(BaseModel):
     nom: str
     prenom: str
     club: str | None
+    # Ce qui départage deux homonymes ; d'où `athletes:read` sur l'aperçu.
+    birth_date: date | None
     participations: int
 
 

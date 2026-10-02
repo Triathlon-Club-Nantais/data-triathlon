@@ -290,8 +290,12 @@ def athlete_merge_impact(
     absorbed_id: int = Query(...),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_WRITE)),
+    _lecture: User = Depends(require_permission(P.ATHLETES_READ)),
 ):
-    """Aperçu de la fusion de `absorbed_id` dans cette fiche, sans écriture (#908)."""
+    """Aperçu de la fusion de `absorbed_id` dans cette fiche, sans écriture (#908).
+
+    `athletes:read` en plus : l'aperçu montre la date de naissance des deux
+    fiches, qui ne sort que derrière ce pouvoir (FR-025 de #117)."""
     return athlete_merge.merge_impact(db, kept_id=athlete_id, absorbed_id=absorbed_id)
 
 

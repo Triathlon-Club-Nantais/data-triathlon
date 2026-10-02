@@ -23,10 +23,12 @@ import { MergeAthletesDialog } from "./MergeAthletesDialog";
 
 const DUPONT = { id: 7, nom: "DUPONT", prenom: "Jean", club: "Triathlon Club Nantais", participations: 14 };
 const DUPOMT = { id: 9, nom: "DUPOMT", prenom: "Jean", club: null, participations: 1 };
+const DUPONT_DATE = { ...DUPONT, birth_date: "1990-01-01" };
+const DUPOMT_DATE = { ...DUPOMT, birth_date: null };
 
 const IMPACT: AthleteMergeImpact = {
-  kept: DUPONT,
-  absorbed: DUPOMT,
+  kept: DUPONT_DATE,
+  absorbed: DUPOMT_DATE,
   moves: { participations: 1, teammates: 0, volunteer_actions: 0, season_validations: 1, users: 0 },
   alias_added: true,
   blocking_reason: null,
@@ -48,11 +50,39 @@ beforeEach(() => {
 });
 
 describe("MergeAthletesDialog", () => {
+  it("le choix de la fiche à garder est un choix unique, annoncé comme tel", async () => {
+    getAthleteMergeImpact.mockResolvedValue(IMPACT);
+    afficher();
+
+    const groupe = await screen.findByRole("radiogroup", { name: /fiche à conserver/i });
+    const [dupont, dupomt] = [
+      screen.getByRole("radio", { name: /garder dupont jean/i }),
+      screen.getByRole("radio", { name: /garder dupomt jean/i }),
+    ];
+    expect(groupe).toContainElement(dupont);
+    expect(dupont).toHaveAttribute("aria-checked", "false");
+
+    await userEvent.click(dupont);
+
+    expect(dupont).toHaveAttribute("aria-checked", "true");
+    expect(dupomt).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("l'aperçu montre la date de naissance de chaque fiche, qui départage deux homonymes", async () => {
+    getAthleteMergeImpact.mockResolvedValue(IMPACT);
+    afficher();
+
+    await userEvent.click(await screen.findByRole("radio", { name: /garder dupont jean/i }));
+
+    expect(await screen.findByText(/née? le 1 janv\.? 1990|née? le 01\/01\/1990|1990/i)).toBeInTheDocument();
+    expect(screen.getByText(/date de naissance inconnue/i)).toBeInTheDocument();
+  });
+
   it("présente les deux fiches sans aperçu, fusion inerte tant qu'aucune n'est choisie", async () => {
     afficher();
 
-    expect(await screen.findByRole("button", { name: /garder dupont jean/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /garder dupomt jean/i })).toBeInTheDocument();
+    expect(await screen.findByRole("radio", { name: /garder dupont jean/i })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /garder dupomt jean/i })).toBeInTheDocument();
     expect(getAthleteMergeImpact).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: /^fusionner$/i })).toBeDisabled();
   });
@@ -61,10 +91,10 @@ describe("MergeAthletesDialog", () => {
     getAthleteMergeImpact.mockResolvedValue(IMPACT);
     afficher();
 
-    await userEvent.click(await screen.findByRole("button", { name: /garder dupont jean/i }));
+    await userEvent.click(await screen.findByRole("radio", { name: /garder dupont jean/i }));
 
     expect(getAthleteMergeImpact).toHaveBeenCalledWith(7, 9);
-    const apercu = await screen.findByRole("list");
+    const apercu = await screen.findByRole("list", { name: "Ce que la fusion déplace" });
     expect(apercu).toHaveTextContent(/1 résultat et 0 place d'équipier/i);
     expect(screen.getByText(/1 validation de saison/i)).toBeInTheDocument();
     expect(screen.getByText(/« DUPOMT Jean » sera reconnue/i)).toBeInTheDocument();
@@ -79,7 +109,7 @@ describe("MergeAthletesDialog", () => {
     });
     afficher();
 
-    await userEvent.click(await screen.findByRole("button", { name: /garder dupont jean/i }));
+    await userEvent.click(await screen.findByRole("radio", { name: /garder dupont jean/i }));
 
     const refus = await screen.findByRole("alert");
     expect(refus).toHaveTextContent("Fusion impossible");
@@ -92,7 +122,7 @@ describe("MergeAthletesDialog", () => {
     mergeAthletes.mockResolvedValue({ ...DUPONT, birth_date: null, gender: "M", participations: 15 });
     const onMerged = afficher();
 
-    await userEvent.click(await screen.findByRole("button", { name: /garder dupont jean/i }));
+    await userEvent.click(await screen.findByRole("radio", { name: /garder dupont jean/i }));
     await userEvent.click(await screen.findByRole("button", { name: /^fusionner$/i }));
 
     await waitFor(() => expect(mergeAthletes).toHaveBeenCalledWith(7, 9));
@@ -106,7 +136,7 @@ describe("MergeAthletesDialog", () => {
     const onOpenChange = vi.fn();
     const onMerged = afficher(vi.fn(), onOpenChange);
 
-    await userEvent.click(await screen.findByRole("button", { name: /garder dupomt jean/i }));
+    await userEvent.click(await screen.findByRole("radio", { name: /garder dupomt jean/i }));
     await userEvent.click(await screen.findByRole("button", { name: /^fusionner$/i }));
 
     await waitFor(() => expect(toastError).toHaveBeenCalledWith(expect.stringMatching(/en cours d'import/)));
@@ -120,13 +150,13 @@ describe("MergeAthletesDialog", () => {
     getAthleteMergeImpact.mockRejectedValue(new ApiError(500, "boom"));
     afficher();
 
-    await userEvent.click(await screen.findByRole("button", { name: /garder dupont jean/i }));
+    await userEvent.click(await screen.findByRole("radio", { name: /garder dupont jean/i }));
 
     expect(await screen.findByText(/n'a pas pu être chiffrée/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^fusionner$/i })).toBeDisabled();
 
     getAthleteMergeImpact.mockResolvedValue(IMPACT);
     await userEvent.click(screen.getByRole("button", { name: /réessayer/i }));
-    expect(await screen.findByRole("list")).toHaveTextContent(/1 résultat/);
+    expect(await screen.findByRole("list", { name: "Ce que la fusion déplace" })).toHaveTextContent(/1 résultat/);
   });
 });

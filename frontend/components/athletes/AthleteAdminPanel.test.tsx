@@ -400,7 +400,7 @@ describe("fusion de deux fiches (#908)", () => {
     await userEvent.click(await screen.findByRole("button", { name: /fusionner avec la fiche n° 77/i }));
 
     expect(await screen.findByText("Fusionner ces deux fiches ?")).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: /garder lemee jean marc/i })).toBeInTheDocument();
+    expect(await screen.findByRole("radio", { name: /garder lemee jean marc/i })).toBeInTheDocument();
   });
 
   it("sans `athletes:read`, un renommage refusé ne propose pas la fusion", async () => {
@@ -449,7 +449,7 @@ describe("fusion de deux fiches (#908)", () => {
     await userEvent.click(await screen.findByRole("button", { name: /fusionner avec une autre fiche/i }));
     await userEvent.type(screen.getByRole("searchbox"), "lemee");
     await userEvent.click(await screen.findByRole("button", { name: /LEMEE/ }));
-    await userEvent.click(await screen.findByRole("button", { name: /garder lemee jean marc/i }));
+    await userEvent.click(await screen.findByRole("radio", { name: /garder lemee jean marc/i }));
     await userEvent.click(await screen.findByRole("button", { name: /^fusionner$/i }));
 
     await waitFor(() => expect(mergeAthletes).toHaveBeenCalledWith(77, 42));
@@ -524,7 +524,7 @@ describe("fusion de deux fiches (#908)", () => {
     await userEvent.click(await screen.findByRole("button", { name: /fusionner avec une autre fiche/i }));
     await userEvent.type(screen.getByRole("searchbox"), "lemee");
     await userEvent.click(await screen.findByRole("button", { name: /LEMEE/ }));
-    await userEvent.click(await screen.findByRole("button", { name: /garder lemée jean-marc/i }));
+    await userEvent.click(await screen.findByRole("radio", { name: /garder lemée jean-marc/i }));
     await userEvent.click(await screen.findByRole("button", { name: /^fusionner$/i }));
 
     await waitFor(() => expect(mergeAthletes).toHaveBeenCalledWith(42, 77));

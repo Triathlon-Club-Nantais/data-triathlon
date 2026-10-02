@@ -75,6 +75,7 @@ def _blocking_reason(db: Session, kept: Athlete, absorbed: Athlete) -> str | Non
 def _brief(db: Session, athlete: Athlete) -> dict:
     return {
         "id": athlete.id, "nom": athlete.nom, "prenom": athlete.prenom, "club": athlete.club,
+        "birth_date": athlete.birth_date,
         "participations": participation_repository.count_carried(db, athlete.id),
     }
 
