@@ -79,9 +79,16 @@ def _brief(db: Session, athlete: Athlete) -> dict:
     }
 
 
+def _same_key(kept: Athlete, absorbed: Athlete) -> bool:
+    return kept.last_name_key is not None and (kept.last_name_key, kept.first_name_key) == (
+        absorbed.last_name_key, absorbed.first_name_key
+    )
+
+
 def _adds_alias(kept: Athlete, absorbed: Athlete) -> bool:
-    key = (absorbed.last_name_key, absorbed.first_name_key)
-    return key[0] is not None and key != (kept.last_name_key, kept.first_name_key)
+    """Seule une fiche principale lègue sa graphie : l'import ne vise jamais un
+    homonyme distingué, et sa clé appartient à une autre personne."""
+    return absorbed.last_name_key is not None and absorbed.homonym_rank == 0 and not _same_key(kept, absorbed)
 
 
 def merge_impact(db: Session, *, kept_id: int, absorbed_id: int) -> dict:
@@ -120,6 +127,8 @@ def _lock(db: Session, kept_id: int, absorbed_id: int) -> tuple[Athlete, Athlete
         if isinstance(exc.orig, psycopg.errors.LockNotAvailable):
             raise AthleteBusyError() from exc
         raise
+    # Le délai ne vaut que pour attendre un import sur les deux fiches.
+    lock_repository.bound_lock_waits(db, "0")
     if kept_id not in locked or absorbed_id not in locked:
         raise NotFoundError("Athlète introuvable.")
     courses = participation_repository.course_ids_carried_by(
@@ -154,7 +163,7 @@ def merge_athletes(db: Session, *, kept_id: int, absorbed_id: int, user_id: int)
     summary = {"absorbed": {"id": absorbed.id, "nom": absorbed.nom, "prenom": absorbed.prenom, "club": absorbed.club}}
     alias_key = (absorbed.last_name_key, absorbed.first_name_key)
     alias_added = _adds_alias(kept, absorbed)
-    takes_principal_rank = kept.homonym_rank > 0 and absorbed.homonym_rank == 0 and not alias_added
+    takes_principal_rank = kept.homonym_rank > 0 and absorbed.homonym_rank == 0 and _same_key(kept, absorbed)
 
     db.flush()
     carried, teammates = participation_repository.repoint_athlete(

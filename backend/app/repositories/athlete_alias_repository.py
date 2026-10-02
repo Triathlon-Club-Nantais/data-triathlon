@@ -1,6 +1,7 @@
 """Accès données pour AthleteAlias, les graphies mémorisées par une fusion (#908)."""
 from collections.abc import Sequence
 
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -49,3 +50,12 @@ def repoint(db: Session, *, from_athlete_id: int, to_athlete_id: int) -> int:
 
 def count_for_athlete(db: Session, athlete_id: int) -> int:
     return db.scalar(select(func.count()).select_from(AthleteAlias).where(AthleteAlias.athlete_id == athlete_id))
+
+
+def delete_key(db: Session, key: IdentityKey) -> None:
+    db.execute(
+        sql_delete(AthleteAlias).where(
+            AthleteAlias.last_name_key == key[0], AthleteAlias.first_name_key == key[1]
+        )
+    )
+

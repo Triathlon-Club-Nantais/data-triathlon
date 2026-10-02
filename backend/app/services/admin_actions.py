@@ -1002,6 +1002,9 @@ def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) 
                 f"Un athlète porte déjà cette identité (fiche #{conflit.id}).",
                 extra={"conflicting_athlete_id": conflit.id},
             )
+        # Renommée vers l'une de ses propres variantes : la graphie redevient son
+        # identité, la variante n'a plus d'objet.
+        athlete_alias_repository.delete_key(db, cle)
         demande["homonym_rank"] = 0
 
     # Le verrou se pose sur le **geste**, pas sur la présence du champ : le

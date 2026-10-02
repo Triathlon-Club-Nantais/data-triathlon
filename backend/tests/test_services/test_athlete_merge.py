@@ -194,3 +194,28 @@ def test_the_impact_announces_what_the_merge_does(db_session_fk, admin):
     }
     assert (impact["alias_added"], impact["blocking_reason"]) == (True, None)
     assert db.get(Athlete, absorbed.id) is not None
+
+
+def test_a_homonym_spelling_is_never_recorded_as_a_variant(db_session_fk, admin):
+    """Un homonyme distingué n'est jamais visé par l'import : sa clé, portée par une
+    autre personne, ne doit pas devenir une variante de la fiche conservée."""
+    db = db_session_fk
+    kept = _athlete(db, "DURAND", "Paul")
+    _athlete(db, "MARTIN", "Luc")
+    homonym = _athlete(db, "MARTIN", "Luc", homonym_rank=1)
+
+    athlete_merge.merge_athletes(db, kept_id=kept.id, absorbed_id=homonym.id, user_id=admin.id)
+
+    assert db.query(AthleteAlias).count() == 0
+
+
+def test_a_record_without_identity_merges_into_a_homonym_without_error(db_session_fk, admin):
+    db = db_session_fk
+    _athlete(db, "DUPONT", "Jean")
+    homonym = _athlete(db, "DUPONT", "Jean", homonym_rank=1)
+    nameless = _athlete(db, "?", "")
+
+    athlete_merge.merge_athletes(db, kept_id=homonym.id, absorbed_id=nameless.id, user_id=admin.id)
+
+    assert homonym.homonym_rank == 1
+    assert db.query(AthleteAlias).count() == 0

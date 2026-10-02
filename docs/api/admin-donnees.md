@@ -89,10 +89,17 @@ succès muet, sans confirmer ce qu'elle avait détruit.
 - **Refus**, avec le même prédicat dans l'aperçu et l'acte : `same_athlete`,
   `distinct_users` (deux comptes membres), `same_course_bibs` (un résultat
   chacune sur une même épreuve individuelle), `same_participation` (un même
-  relais), `distinct_birth_dates`.
+  relais), `distinct_birth_dates`. `same_course_bibs` vaut aussi pour deux
+  résultats sans dossard sur une même épreuve individuelle : on ne court pas
+  deux fois la même course.
+- **Seule une fiche principale lègue sa graphie** : un homonyme distingué
+  absorbé n'ajoute pas de variante, sa clé appartenant à une autre personne.
 - **La graphie absorbée devient une variante** de la fiche conservée
-  (`athlete_aliases`) : l'import la résout désormais comme elle, et le rescrape de
-  l'épreuve d'origine ne recrée pas la faute.
+  (`athlete_aliases`) : l'import la résout désormais comme elle, équipiers de
+  relais compris, et le rescrape de l'épreuve d'origine ne recrée pas la faute.
+  Une variante suit la même garde qu'un repli : deux dossards d'une épreuve
+  individuelle, l'un sous la graphie conservée et l'autre sous la variante, restent
+  deux personnes.
 - **Concurrence** : la fusion verrouille les deux fiches (`FOR UPDATE`) après
   tout import qui les a résolues, au plus 5 s, puis répond 409 « fiche en cours
   d'import ».

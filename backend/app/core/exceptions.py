@@ -112,7 +112,7 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(DomainError)
     async def _domain_error(request: Request, exc: DomainError):
-        content = {"detail": exc.message, **exc.extra}
+        content = {**exc.extra, "detail": exc.message}
         if exc.code:
             content["code"] = exc.code
         return JSONResponse(
