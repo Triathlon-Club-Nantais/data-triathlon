@@ -15,7 +15,13 @@ table d'association, plus une entité technique isolée :
 - **Athlete** — une personne physique, dédoublonnée (une seule fois en base
   quel que soit le nombre de courses) par la clé normalisée de son nom et de
   son prénom (#907) : casse, accents, ponctuation et espaces ignorés, chiffres
-  gardés. Deux homonymes réels se distinguent par `homonym_rank`.
+  gardés. Deux homonymes réels se distinguent par `homonym_rank` (0 = fiche
+  principale, la seule que l'import vise). La date de naissance n'entre pas dans
+  l'identité (#900).
+- **AthleteAlias** — une graphie absorbée par une fusion (#908), que l'import
+  résout comme l'identité de la fiche conservée.
+- **IgnoredAthletePair** — deux fiches qu'un admin a déclarées deux personnes
+  (#908) : ni la revue d'identité ni la reprise ne les rapprochent plus.
 - **Course** — une épreuve (un « heat » : nom + date + type + relais).
 - **CourseSource** — les **N chronométrages** d'une même épreuve, dont un seul
   **actif** (#278). C'est elle, et elle seule, qui porte l'URL d'import et le
@@ -37,6 +43,8 @@ athlètes.
 ```mermaid
 erDiagram
     ATHLETE ||--o{ PARTICIPATION : "participe"
+    ATHLETE ||--o{ ATHLETE_ALIAS : "est aussi publié sous"
+    ATHLETE ||--o{ IGNORED_ATHLETE_PAIR : "est distinct de"
     COURSE  ||--o{ PARTICIPATION : "rassemble"
     COURSE  ||--o{ COURSE_SOURCE : "est chronométrée par"
 
@@ -44,6 +52,9 @@ erDiagram
         int id PK
         string nom "indexé"
         string prenom
+        string last_name_key "clé normalisée, écrite par l'ORM (#907)"
+        string first_name_key "clé normalisée"
+        int homonym_rank "0 = fiche principale (#967)"
         string gender
         date birth_date "nullable"
         string club "club actuel, nullable"
@@ -89,9 +100,27 @@ erDiagram
         string total_time "HH:MM:SS, nullable"
         string status "finisher / DNF / DNS"
         bool is_relay
+        string source_identity_key "clé de la ligne source, nullable (#896)"
+        bool athlete_locked "fiche choisie par un admin, figée (#896)"
         json splits "segment→temps, nullable"
         json raw_data "nullable"
         datetime created_at
+    }
+
+    ATHLETE_ALIAS {
+        int id PK
+        string last_name_key "UNIQUE avec first_name_key"
+        string first_name_key
+        int athlete_id FK "ON DELETE CASCADE"
+        datetime created_at
+    }
+
+    IGNORED_ATHLETE_PAIR {
+        int id PK
+        int athlete_id_low FK "ON DELETE CASCADE"
+        int athlete_id_high FK "ON DELETE CASCADE"
+        int ignored_by_user_id FK
+        datetime ignored_at
     }
 
     PENDING_PROVIDER {
@@ -108,12 +137,14 @@ erDiagram
 
 ## Contraintes d'unicité (dédoublonnage)
 
-La normalisation repose sur cinq contraintes d'unicité qui garantissent
+La normalisation repose sur sept contraintes d'unicité qui garantissent
 l'absence de doublons à l'import :
 
 | Table            | Contrainte                | Colonnes                                       | Rôle                                                         |
 | ---------------- | ------------------------- | ---------------------------------------------- | ----------------------------------------------------------- |
 | `athletes`       | `uq_athlete_identity`     | `last_name_key`, `first_name_key`, `homonym_rank` | Une personne = une seule ligne, quelles que soient ses courses et la graphie du chronométreur. Rang 0 = fiche principale, la seule que l'import vise. Clés calculées en Python (`core/athlete_identity`) et stockées : `unaccent` n'est pas immuable en PostgreSQL. La date de naissance n'en fait plus partie (#900) |
+| `athlete_aliases` | `uq_athlete_alias`       | `last_name_key`, `first_name_key`              | Une graphie absorbée n'appartient qu'à une fiche ; elle la suit dans les fusions suivantes |
+| `ignored_athlete_pairs` | `uq_ignored_athlete_pair` | `athlete_id_low`, `athlete_id_high`  | Une paire déclarée distincte une seule fois, normalisée (le plus petit id en premier) |
 | `courses`        | `uq_course_identity`      | `name`, `event_date`, `event_type`, `is_relay` | Une épreuve (heat) = une seule ligne ; le relais est un heat distinct |
 | `participations` | `uq_participation_bib`    | `course_id`, `bib_number`                      | Un dossard est unique au sein d'une course → import idempotent |
 | `course_sources` | `uq_course_source_url`    | `course_id`, `url`                             | Une URL n'est rattachée qu'une fois à une épreuve donnée — **et surtout pas `UNIQUE(url)`** : une URL porte légitimement N épreuves (heats Klikego, multi-catégories Wiclax, multi-listes RaceResult, multi-épreuves Chronoplace) |
@@ -165,10 +196,13 @@ fautes. En SQLite (dev), la recherche retombe sur un `ILIKE` sous-chaîne.
 ### Cascade de suppression
 Supprimer un `Athlete` ou une `Course` supprime ses `Participation` associées, et
 une `Course` emporte aussi ses `CourseSource` (`cascade="all, delete-orphan"`
-côté ORM). Aucune table du dépôt ne porte d'`ondelete` : `core/database.py`
-n'émet aucun `PRAGMA foreign_keys=ON`, une contrainte de base serait inerte en
-SQLite (dev et tests) et active en PostgreSQL — un écart que la suite ne verrait
-jamais.
+côté ORM). Seules `athlete_aliases` et `ignored_athlete_pairs` portent un
+`ON DELETE CASCADE` vers `athletes` (#908) : `core/database.py` n'émet aucun
+`PRAGMA foreign_keys=ON`, la contrainte est donc inerte en SQLite (dev et
+tests) et active en PostgreSQL. Les tests qui en dépendent passent par la
+fixture `db_session_fk`. Une fusion de fiches n'en dépend pas : elle reporte
+variantes et paires écartées sur la fiche conservée avant de supprimer
+l'absorbée.
 
 ## Historique des migrations Alembic
 

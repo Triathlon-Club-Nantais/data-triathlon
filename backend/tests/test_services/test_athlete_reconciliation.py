@@ -391,3 +391,16 @@ def test_a_rename_on_a_record_an_import_holds_is_reported_busy(db_session, admin
 
     assert report["done"] == 0
     assert report["errors"][0]["error"] == str(AthleteBusyError())
+
+
+def test_a_pair_set_aside_still_holds_once_one_side_is_absorbed(db_session, admin):
+    principal = _athlete(db_session, "LETORT", "Léo", club="CLUB")
+    homonym = _athlete(db_session, "LETORT", "Leo", homonym_rank=1)
+    swapped = _athlete(db_session, "LEO", "Letort", club="CLUB")
+    db_session.commit()
+    _ignore(db_session, homonym, swapped, admin)
+
+    plan = athlete_reconciliation.plan(db_session)
+
+    assert _actions(plan) == [("same_key", "merge", principal.id, homonym.id, None)]
+    assert plan["review"] == [{"family": "swapped", "athlete_ids": [principal.id, swapped.id], "reason": "ignored"}]

@@ -84,7 +84,9 @@ succès muet, sans confirmer ce qu'elle avait détruit.
 
 - **Tout passe sur la fiche conservée** : résultats, liens d'équipier de relais,
   actions bénévoles, validations de saison (une saison validée des deux côtés
-  n'en garde qu'une), comptes membres. Elle prend aussi ce qu'elle n'a pas :
+  n'en garde qu'une), comptes membres, variantes de graphie et paires écartées
+  depuis la revue (le jugement « deux personnes » suit la personne ; la paire
+  des deux fiches fusionnées tombe). Elle prend aussi ce qu'elle n'a pas :
   club (un club verrouillé par un admin prime), genre, date de naissance.
 - **Refus**, avec le même prédicat dans l'aperçu et l'acte : `same_athlete`,
   `distinct_users` (deux comptes membres), `same_course_bibs` (un résultat
@@ -114,7 +116,7 @@ succès muet, sans confirmer ce qu'elle avait détruit.
 | Route | Pouvoir | Effet |
 | --- | --- | --- |
 | `GET /admin/identity-review` | `athletes:write` | Les cas à trancher, sans pagination, dans un ordre stable (motif, puis plus petit id). |
-| `GET /admin/identity-review/count` | `athletes:write` | `{total}`, pour la pastille de la nav. |
+| `GET /admin/identity-review/count` | `athletes:write` | `{total}`. Prévu pour une pastille de la nav, que le front n'affiche pas encore : son coût est à mesurer en production d'abord (#1146). |
 | `POST /admin/identity-review/ignore` `{athlete_id_a, athlete_id_b}` | `athletes:write` | Écarte une paire jugée distincte (201) ; 400 même fiche, 404 fiche inconnue, 409 déjà écartée. Journal `athlete_identity.ignore`. |
 
 `/admin/identity-review` et non `/admin/athletes/identity-review` : la route

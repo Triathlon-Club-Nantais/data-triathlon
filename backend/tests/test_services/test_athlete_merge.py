@@ -12,6 +12,7 @@ from app.models.season_validation import SeasonValidation
 from app.models.volunteer_action import VolunteerAction
 from app.repositories import (
     course_repository,
+    ignored_athlete_pair_repository,
     participation_repository,
     season_validation_repository,
     user_repository,
@@ -219,3 +220,24 @@ def test_a_record_without_identity_merges_into_a_homonym_without_error(db_sessio
 
     assert homonym.homonym_rank == 1
     assert db.query(AthleteAlias).count() == 0
+
+
+def test_a_pair_set_aside_follows_the_absorbed_record(db_session_fk, admin):
+    """Un admin a jugé l'absorbée distincte d'une autre fiche : la fiche conservée hérite
+    de ce jugement, sans quoi la revue et la reprise rouvriraient la paire."""
+    kept = _athlete(db_session_fk, "DUPONT", "Jean")
+    absorbed = _athlete(db_session_fk, "DUPONT", "Jéan", homonym_rank=1)
+    other = _athlete(db_session_fk, "JEAN", "Dupont")
+    already = _athlete(db_session_fk, "DUPOND", "Jean")
+    for first, second in [(absorbed, other), (absorbed, kept), (absorbed, already), (kept, already)]:
+        ignored_athlete_pair_repository.create(
+            db_session_fk, athlete_id_a=first.id, athlete_id_b=second.id, user_id=admin.id
+        )
+    db_session_fk.flush()
+
+    athlete_merge.merge_athletes(db_session_fk, kept_id=kept.id, absorbed_id=absorbed.id, user_id=admin.id)
+
+    assert ignored_athlete_pair_repository.all_pairs(db_session_fk) == {
+        ignored_athlete_pair_repository.normalized(kept.id, other.id),
+        ignored_athlete_pair_repository.normalized(kept.id, already.id),
+    }
