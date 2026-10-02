@@ -18,12 +18,13 @@ const IDS_ATTENDUS = [
   "variantes-club",
   "portee-compteurs",
   "benevolat-validation",
+  "validation-epreuves",
   "acces-backoffice",
   "pages-publiques",
 ];
 
 describe("GUIDE_ADMIN", () => {
-  it("expose exactement les 16 ids attendus, dans l'ordre", () => {
+  it("expose exactement les 17 ids attendus, dans l'ordre", () => {
     expect(GUIDE_ADMIN.map((section) => section.id)).toEqual(IDS_ATTENDUS);
   });
 
@@ -67,5 +68,14 @@ describe("GUIDE_ADMIN public-page gestures (#1046)", () => {
     expect(texte).toMatch(/« Corriger la fiche »/);
     expect(texte).toMatch(/« Valider la saison »/);
     expect(texte).toMatch(/« Rattacher »/);
+  });
+});
+
+describe("GUIDE_ADMIN results verification (#1162)", () => {
+  it("documents reassigning a result to another athlete", () => {
+    const texte = GUIDE_ADMIN.find((s) => s.id === "validation-epreuves")!.etapes.join(" ");
+    expect(texte).toMatch(/« Réattribuer à »/);
+    expect(texte).toMatch(/« Enregistrer »/);
+    expect(texte).toMatch(/« Valider ce résultat »/);
   });
 });

@@ -152,6 +152,25 @@ export const GUIDE_ADMIN: GuideSection[] = [
     captures: [{ src: "/guide/admin/benevolat-validation.jpg", alt: "File des déclarations de bénévolat en attente" }],
   },
   {
+    id: "validation-epreuves",
+    titre: "Validation des épreuves",
+    casUsage:
+      "Les bénévoles vérifient un à un les résultats importés, sous le mot de passe bénévoles : corriger, réattribuer à la bonne fiche, valider ou signaler.",
+    etapes: [
+      "Ouvrir « Validation des épreuves » depuis la navigation, puis saisir le mot de passe bénévoles.",
+      "Choisir un résultat dans la file : son détail s'ouvre.",
+      "« Réattribuer à » : rechercher l'athlète par son nom et le choisir quand le résultat est crédité à la mauvaise fiche. Rien n'est enregistré tant que vous n'avez pas cliqué sur « Enregistrer » ou « Valider ce résultat ».",
+      "« Valider ce résultat » enregistre les modifications en cours et passe au suivant.",
+      "« Signaler non conforme », puis « Confirmer le signalement » : le résultat passe dans l'onglet « Non conformes », d'où « Lever le signalement » le fait revenir. Les modifications non enregistrées sont perdues.",
+    ],
+    captures: [
+      {
+        src: "/guide/admin/validation-epreuves.jpg",
+        alt: "Résultat en cours de vérification : un autre athlète choisi dans « Réattribuer à », modification pas encore enregistrée",
+      },
+    ],
+  },
+  {
     id: "acces-backoffice",
     titre: "Accès et mots de passe",
     casUsage:
