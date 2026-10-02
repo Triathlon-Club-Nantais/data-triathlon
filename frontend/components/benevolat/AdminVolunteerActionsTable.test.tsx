@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminVolunteerActionOut } from "@/lib/types";
@@ -7,6 +7,7 @@ import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
 import { confirmerDansLeDialog } from "@/components/admin/__tests__/dangerConfirm";
 import { AdminVolunteerActionsTable } from "./AdminVolunteerActionsTable";
 import { seasonLabel } from "@/lib/utils/season";
+import { formatDate } from "@/lib/utils/date";
 
 const {
   listPendingVolunteerActions,
@@ -188,6 +189,50 @@ describe("AdminVolunteerActionsTable", () => {
 
     await waitFor(() => expect(deleteVolunteerAction).toHaveBeenCalledWith(1));
     await waitFor(() => expect(screen.queryByText("Ravitaillement")).not.toBeInTheDocument());
+  });
+
+  it("Voir ouvre le détail avec le texte complet, la saison, la date et la fiche athlète", async () => {
+    const description = "Poste eau km 15.\nPuis balisage du parcours vélo jusqu'à la fin de l'épreuve.";
+    listPendingVolunteerActions.mockResolvedValue([{ ...EN_ATTENTE, description }]);
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /voir/i }));
+
+    const dialogue = await screen.findByRole("dialog");
+    expect(within(dialogue).getByRole("heading", { name: "Ravitaillement" })).toBeInTheDocument();
+    const texte = within(dialogue).getByText((_, element) => element?.textContent === description);
+    expect(texte).toHaveClass("whitespace-pre-wrap");
+    expect(within(dialogue).getByText(new RegExp(seasonLabel(2025)))).toBeInTheDocument();
+    expect(within(dialogue).getByText(new RegExp(formatDate(EN_ATTENTE.created_at)))).toBeInTheDocument();
+    expect(within(dialogue).getByRole("link", { name: /jean-marc lemée/i })).toHaveAttribute(
+      "href",
+      "/athletes/42",
+    );
+  });
+
+  it("accepter depuis le détail appelle la mutation et ferme le dialogue", async () => {
+    listPendingVolunteerActions.mockResolvedValueOnce([EN_ATTENTE]).mockResolvedValueOnce([]);
+    acceptVolunteerAction.mockResolvedValue({ ...EN_ATTENTE, status: "validee" });
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /voir/i }));
+    const dialogue = await screen.findByRole("dialog");
+    await userEvent.click(within(dialogue).getByRole("button", { name: /accepter/i }));
+
+    await waitFor(() => expect(acceptVolunteerAction).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("refuser depuis le détail appelle la mutation", async () => {
+    listPendingVolunteerActions.mockResolvedValueOnce([EN_ATTENTE]).mockResolvedValueOnce([]);
+    rejectVolunteerAction.mockResolvedValue({ ...EN_ATTENTE, status: "refusee" });
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /voir/i }));
+    const dialogue = await screen.findByRole("dialog");
+    await userEvent.click(within(dialogue).getByRole("button", { name: /refuser/i }));
+
+    await waitFor(() => expect(rejectVolunteerAction).toHaveBeenCalledWith(1));
   });
 
   it("désactive Accepter et Refuser pendant qu'une suppression est en cours", async () => {
