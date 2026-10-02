@@ -25,6 +25,7 @@ uv run python -m app.cli club-labels --like nant   # libellés club vus en base,
 uv run python -m app.cli purge-timepulse-duplicates   # épreuves timepulse d'avant #674 en double (--yes --by-email pour supprimer, #1004)
 uv run python -m app.cli reconcile-athletes --json > simulation.json   # doublons d'athlètes existants, simulés (#906)
 uv run python -m app.cli reconcile-athletes --yes --by-email <adresse> --plan-from simulation.json   # applique le plan relu
+uv run python -m app.cli requalify-challenges         # épreuves qui sont des classements Challenge (--yes --by-email pour convertir, #1008)
 uv run python -m app.cli geocode-courses --limit 300 --json   # coordonnées des épreuves sans géocodage (carte, #975)
 uv run python -m app.cli purge-retention --dry-run   # durées de conservation publiées (#1158) ; sans --dry-run, supprime
 uv run python -m app.cli allow-email --email <adresse>              # autorise une adresse à se connecter (#170)
@@ -394,3 +395,14 @@ commande liste et n'écrit rien. Avec `--yes`, elle passe par
 l'épreuve doit être repris par une épreuve de même URL active, même date, dont le
 nom la prolonge par ` - <parcours>` ; un seul dossard orphelin la garde. La
 logique vit dans `services/timepulse_cleanup.py`. Procédure : `docs/ci-cd.md`.
+
+## `requalify-challenges` (#1008)
+
+Reprise **ponctuelle** des classements Challenge importés avant #1008 comme des
+épreuves (Klikego 286 et 287 en production). Sans `--yes`, la commande liste et
+n'écrit rien. Avec `--yes`, elle enregistre le Challenge (`challenge_service.save`)
+**puis** supprime l'épreuve par `admin_actions.delete_course`, journalisé au nom
+du compte `--by-email`. Elle applique le test de l'import : nom passant
+`heat_is_challenge`, et au moins 90 % des athlètes présents sur au moins deux
+autres épreuves du même jour. La logique vit dans
+`services/challenge_requalification.py`. À lancer une fois après le déploiement.
