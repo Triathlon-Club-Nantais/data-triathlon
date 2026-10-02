@@ -144,6 +144,23 @@ def test_latest_club_dates_ignores_clubless_and_pending_rows(db_session):
     assert athlete_repository.latest_club_dates(db_session, [athlete.id]) == {athlete.id: date(2025, 6, 1)}
 
 
+def test_latest_club_dates_ignores_composed_relay_rows(db_session):
+    """#1153: a composed row carries the team club, not the first teammate's."""
+    athlete = athlete_repository.get_or_create(db_session, nom="RELAIS", prenom="Rae")
+    mate = athlete_repository.get_or_create(db_session, nom="EQUIPIER", prenom="Eli")
+    _dated_participation(db_session, athlete, "TCN", date(2025, 6, 1), "solo")
+    relay_course = course_repository.get_or_create(
+        db_session, name="relais", event_date=date(2026, 6, 1), event_type="triathlon-s",
+        provider="manual", source_url="",
+    )
+    relay = participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=relay_course.id, club="TEAM", status="finisher",
+    )
+    participation_repository.replace_teammates(db_session, relay, [athlete.id, mate.id])
+
+    assert athlete_repository.latest_club_dates(db_session, [athlete.id]) == {athlete.id: date(2025, 6, 1)}
+
+
 def test_search_by_name(db_session):
     athlete_repository.get_or_create(db_session, nom="LEROY", prenom="Anne", club="TCN")
     athlete_repository.get_or_create(db_session, nom="MOREAU", prenom="Eric", club="TCN")

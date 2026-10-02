@@ -2281,6 +2281,24 @@ def test_import_split_reuses_existing_athlete_without_touching_clubs(db_session,
         db_session, "MASSONNEAU PIERRE", "/ BESANCON FABIEN .") is None
 
 
+def test_composed_relay_does_not_freeze_the_first_teammate_club(db_session, patch_scraper):
+    """#1153: the composed row carries the team club, which says nothing of the
+    first teammate's own club, so its date must not block an older solo race."""
+    patch_scraper([_relay("7", "CANNIOU/OLIVIER", "Cedric/Leclerc", club="TEAM TCC")])
+    import_service.import_event(db_session, URL, _settings())
+
+    patch_scraper([
+        _result(
+            "3", "CANNIOU", prenom="Cedric", club="TRIATHLON CLUB NANTAIS",
+            source_url=_OLD_URL, event_name="Triathlon d'antan", event_date=date(2024, 5, 4),
+        )
+    ])
+    import_service.import_event(db_session, _OLD_URL, _settings())
+
+    first = _only_relay_row(db_session).teammates[0]
+    assert (first.nom, first.prenom, first.club) == ("CANNIOU", "Cedric", "TRIATHLON CLUB NANTAIS")
+
+
 def test_import_split_finds_an_existing_athlete_published_firstname_first(
     db_session, patch_scraper
 ):

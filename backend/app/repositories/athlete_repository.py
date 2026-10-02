@@ -363,6 +363,8 @@ def latest_club_dates(db: Session, athlete_ids: Sequence[int]) -> dict[int, date
 
     Les résultats en attente de validation n'y comptent pas : une déclaration
     en quarantaine ne réécrit pas le club (#915), elle ne le fige pas non plus.
+    Un relais composé non plus : sa ligne porte le club de l'équipe, rattachée
+    à son premier équipier (#895), et ne dit rien du club de celui-ci (#1153).
     """
     if not athlete_ids:
         return {}
@@ -375,6 +377,7 @@ def latest_club_dates(db: Session, athlete_ids: Sequence[int]) -> dict[int, date
             func.trim(Participation.club) != "",
             Course.event_date.is_not(None),
             validated_clause(Participation.is_pending_validation),
+            ~exists().where(ParticipationTeammate.participation_id == Participation.id),
         )
         .group_by(Participation.athlete_id)
     )
