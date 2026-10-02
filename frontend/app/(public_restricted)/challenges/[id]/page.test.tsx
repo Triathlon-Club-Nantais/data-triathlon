@@ -45,7 +45,7 @@ describe("ChallengePage", () => {
     expect(lignes).toHaveLength(3);
     expect(within(lignes[1]).getByRole("link", { name: "Jean DUPONT" })).toHaveAttribute("href", "/athletes/1");
     expect(within(lignes[1]).getByText("06:50:33")).toBeInTheDocument();
-    expect(within(lignes[2]).getByText("DNF")).toBeInTheDocument();
+    expect(within(lignes[2]).getByText("Abandon")).toBeInTheDocument();
   });
 
   it("appelle notFound sur un challenge inconnu", async () => {

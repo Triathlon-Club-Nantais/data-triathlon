@@ -15,7 +15,7 @@ export function CourseChallengesNote({ challenges }: { challenges: CourseChallen
             <Link href={`/challenges/${challenge.id}`} className="underline underline-offset-2">
               {challenge.name}
             </Link>{" "}
-            ({challenge.ranked_count} classés)
+            ({challenge.ranked_count} {challenge.ranked_count > 1 ? "classés" : "classé"})
           </span>
         ))}
       </p>

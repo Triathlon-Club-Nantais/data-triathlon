@@ -5,6 +5,7 @@ import { apiServer } from "@/lib/api/server";
 import { rendreNullSi404 } from "@/lib/api/null-si-404";
 import { idDeRoute } from "@/lib/utils/id-de-route";
 import { formatDate } from "@/lib/utils/date";
+import { nonFinisherLabel } from "@/components/results/StatusBadge";
 import { Card } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -48,9 +49,10 @@ export default async function ChallengePage({ params }: { params: Promise<{ id: 
               </tr>
             </thead>
             <tbody>
-              {challenge.results.map((row) => (
-                <tr key={row.athlete_id}>
-                  <td>{row.rank_overall ?? row.status}</td>
+              {challenge.results.map((row, index) => (
+                // Une fusion de fiches peut réunir deux lignes sur un même athlète.
+                <tr key={`${row.athlete_id}-${index}`}>
+                  <td>{row.rank_overall ?? nonFinisherLabel(row.status)}</td>
                   <td>
                     <Link href={`/athletes/${row.athlete_id}`} className="underline underline-offset-2">
                       {row.prenom} {row.nom}

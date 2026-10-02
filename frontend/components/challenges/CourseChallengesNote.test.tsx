@@ -14,4 +14,9 @@ describe("CourseChallengesNote", () => {
     expect(screen.getByRole("link", { name: "START CHALLENGE" })).toHaveAttribute("href", "/challenges/7");
     expect(screen.getByText(/52 classés/)).toBeInTheDocument();
   });
+
+  it("accorde « classé » au singulier", () => {
+    render(<CourseChallengesNote challenges={[{ id: 7, name: "START CHALLENGE", ranked_count: 1 }]} />);
+    expect(screen.getByText(/\(1 classé\)/)).toBeInTheDocument();
+  });
 });
