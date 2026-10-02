@@ -1551,3 +1551,18 @@ def repoint_athlete(db: Session, *, from_athlete_id: int, to_athlete_id: int) ->
         .values(athlete_id=to_athlete_id)
     ).rowcount
     return carried, teammates
+
+
+def retarget_source_key(db: Session, *, athlete_id: int, old_key: str | None, new_key: str) -> int:
+    """La clé source des résultats d'une fiche renormalisée suit son nouveau découpage
+    (#906) : le rescrape sans dossard, qui découpe désormais « NOM, Prénom »
+    correctement, ne les retrouverait plus sous l'ancienne clé."""
+    clause = Participation.source_identity_key.is_(None) if old_key is None else (
+        Participation.source_identity_key == old_key
+    )
+    return db.execute(
+        sql_update(Participation)
+        .where(Participation.athlete_id == athlete_id, clause)
+        .values(source_identity_key=new_key)
+    ).rowcount
+

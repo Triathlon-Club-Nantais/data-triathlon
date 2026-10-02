@@ -599,6 +599,33 @@ Seule une épreuve dont **chaque** dossard nommé est repris par une épreuve
 qualifiée de même URL et même date est supprimée, journalisée au nom de
 `--by-email`. La commande devient sans objet une fois les deux bases nettoyées.
 
+### Reprise des doublons d'athlètes : `reconcile-athletes` (#906, epic #1146)
+
+Geste **ponctuel**, à lancer une fois l'epic #1146 déployée (migrations
+`b7e41c9d2a58` à `e1f3a5c7b9d2` appliquées), depuis `backend/` et sur la base
+concernée, par la même ouverture de pare-feu que ci-dessus. Preview d'abord,
+production ensuite :
+
+```bash
+uv run python -m app.cli reconcile-athletes --json > simulation.json    # le plan, rien d'écrit : à relire
+uv run python -m app.cli reconcile-athletes --yes --by-email <adresse admin> --json > application.json
+uv run python -m app.cli reconcile-athletes --json                      # contrôle : "operations" vide
+```
+
+- **Relire la simulation** avant d'appliquer : `families` donne les volumes par
+  famille (ordres de grandeur attendus en production d'après les mesures du
+  2026-09-24 : ~2 950 fusions de noms virgulés, ~1 930 de mêmes clés, quelques
+  milliers d'inversions et de concaténations), `operations` chaque geste, `review`
+  ce qui restera à trancher dans `/admin/identites`.
+- **L'application exécute exactement le plan simulé**, une transaction par
+  opération : une interruption ne laisse aucune fusion à moitié faite, et la
+  relance reprend là où elle s'est arrêtée. `errors` liste les opérations
+  devenues impossibles entre-temps (fiche supprimée, nouvelle épreuve commune).
+- **Contrôle SC-001** après coup, en lecture seule : la requête de #907 (groupes
+  par clé désaccentuée) ne doit plus rendre que les groupes laissés en revue, et
+  `SELECT count(*) FROM athletes WHERE homonym_rank > 0` ne plus compter que de
+  vrais homonymes (deux dossards sur une même épreuve).
+
 ### Deux environments dédiés : `batch-preview` et `batch-production`
 
 Un par base. Les deux environments ne portent **pas les mêmes secrets** parce

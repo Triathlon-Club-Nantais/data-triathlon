@@ -1,7 +1,7 @@
 """Fusion de deux fiches d'une même personne : l'aperçu et l'acte (#908, epic #1146).
 
 Comme la fusion d'épreuves (`course_merge`), l'aperçu et l'acte partagent le
-même prédicat de refus (`_blocking_reason`) : l'écran ne peut pas annoncer une
+même prédicat de refus (`blocking_reason`) : l'écran ne peut pas annoncer une
 fusion que l'acte refuserait.
 
 La fiche absorbée disparaît ; tout ce qui la référence passe sur la fiche
@@ -58,7 +58,9 @@ def _athlete_or_404(db: Session, athlete_id: int) -> Athlete:
     return athlete
 
 
-def _blocking_reason(db: Session, kept: Athlete, absorbed: Athlete) -> str | None:
+def blocking_reason(db: Session, kept: Athlete, absorbed: Athlete) -> str | None:
+    """Pourquoi la fusion serait refusée, ou `None`. Partagé par l'aperçu, l'acte
+    et la reprise (#906), qui ne doivent jamais diverger."""
     if kept.id == absorbed.id:
         return "same_athlete"
     if user_repository.ids_linked_to_athlete(db, kept.id) and user_repository.ids_linked_to_athlete(db, absorbed.id):
@@ -95,7 +97,7 @@ def _adds_alias(kept: Athlete, absorbed: Athlete) -> bool:
 def merge_impact(db: Session, *, kept_id: int, absorbed_id: int) -> dict:
     """Ce que la fusion ferait, sans rien écrire."""
     kept, absorbed = _athlete_or_404(db, kept_id), _athlete_or_404(db, absorbed_id)
-    reason = _blocking_reason(db, kept, absorbed)
+    reason = blocking_reason(db, kept, absorbed)
     return {
         "kept": _brief(db, kept),
         "absorbed": _brief(db, absorbed),
@@ -157,7 +159,7 @@ def merge_athletes(db: Session, *, kept_id: int, absorbed_id: int, user_id: int)
     if kept_id == absorbed_id:
         raise AthleteMergeRefusedError("same_athlete")
     kept, absorbed = _lock(db, kept_id, absorbed_id)
-    reason = _blocking_reason(db, kept, absorbed)
+    reason = blocking_reason(db, kept, absorbed)
     if reason:
         raise AthleteMergeRefusedError(reason)
 

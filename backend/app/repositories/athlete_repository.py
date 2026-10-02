@@ -1142,3 +1142,34 @@ def get_many(db: Session, athlete_ids: Sequence[int]) -> dict[int, Athlete]:
     if not ids:
         return {}
     return {athlete.id: athlete for athlete in db.query(Athlete).filter(Athlete.id.in_(ids))}
+
+
+# ── Reprise des doublons existants (#906) ────────────────────────────────────
+
+
+def comma_named(db: Session) -> list[Athlete]:
+    """Les fiches dont le nom ou le prénom porte une virgule (« NOM, Prénom » mal découpé)."""
+    return (
+        db.query(Athlete)
+        .filter(or_(Athlete.nom.contains(","), Athlete.prenom.contains(",")))
+        .order_by(Athlete.id)
+        .all()
+    )
+
+
+def homonyms_with_their_principal(db: Session) -> list[tuple[int, int]]:
+    """`(fiche principale, homonyme distingué)` de même clé, par homonyme croissant :
+    les doublons rangés par la migration de #907, et les homonymes de #967."""
+    principal = aliased(Athlete)
+    rows = db.execute(
+        select(principal.id, Athlete.id)
+        .join(principal, and_(
+            principal.last_name_key == Athlete.last_name_key,
+            principal.first_name_key == Athlete.first_name_key,
+            principal.homonym_rank == 0,
+        ))
+        .where(Athlete.homonym_rank > 0)
+        .order_by(Athlete.id)
+    )
+    return [tuple(row) for row in rows]
+
