@@ -23,9 +23,10 @@
   course d'il y a trois ans annonçant le club de l'époque ramènerait la
   correction à chaque réimport. Le club **de l'époque** d'un résultat, lui, vit
   sur `Participation.club` et ne bouge jamais.
-  **Trois tables pointent vers `athletes.id` hors des résultats**, toutes
-  sans `ondelete` : `volunteer_actions`, `season_validations` et
-  `users.athlete_id` (la liaison des équipiers mise à part, ci-dessous). Une
+  **Trois tables pointent vers `athletes.id` hors des résultats sans
+  `ondelete`** : `volunteer_actions`, `season_validations` et
+  `users.athlete_id` (la liaison des équipiers mise à part, ci-dessous ; les
+  variantes et paires écartées, en cascade, plus bas). Une
   fiche sans résultat mais référencée par l'une d'elles n'est **pas
   orpheline** : la purge d'orphelins (`delete_orphans_among`) comme la purge
   totale (`delete_unreferenced`, #994) la conservent via
@@ -37,10 +38,24 @@
   `UNIQUE(last_name_key, first_name_key)`, `athlete_id` en `ON DELETE CASCADE`.
   L'import la résout comme l'identité de sa fiche, après l'identité directe et
   avant le repli. Une fusion repointe les variantes de la fiche absorbée et y
-  ajoute la sienne. **Une fusion déplace cinq références** : `participations`,
+  ajoute la sienne. **Une fusion déplace sept références** : `participations`,
   `participation_teammates`, `volunteer_actions`, `season_validations`
-  (dédoublonnées par saison) et `users.athlete_id` ; une nouvelle table qui
-  pointe vers `athletes.id` doit rejoindre `athlete_merge.merge_athletes`.
+  (dédoublonnées par saison), `users.athlete_id`, `athlete_aliases` et
+  `ignored_athlete_pairs` ; une nouvelle table qui pointe vers `athletes.id`
+  doit rejoindre `athlete_merge.merge_athletes`.
+- **IgnoredAthletePair** (#908) — une paire de fiches qu'un admin a déclarées
+  deux personnes depuis la revue d'identité, `UNIQUE(athlete_id_low,
+  athlete_id_high)` (paire normalisée), les deux ids en `ON DELETE CASCADE`. La
+  revue ne la propose plus, la reprise (`reconcile-athletes`) ne la fusionne
+  jamais. **Le jugement suit la personne** : une fusion le reporte sur la fiche
+  conservée (`ignored_athlete_pair_repository.repoint`), et la reprise l'étend
+  à tout ce qu'une fiche aura absorbé dans son plan. Sans ce report, la cascade
+  effaçait la paire avec la fiche absorbée et rouvrait le cas.
+- **Les deux seules tables en `ON DELETE CASCADE` vers `athletes.id`** sont
+  `athlete_aliases` et `ignored_athlete_pairs` : la suppression d'une fiche
+  (purge d'orphelins, opposition, fusion) les emporte en PostgreSQL, mais
+  **pas en SQLite**, où `database.py` n'émet aucun `PRAGMA foreign_keys=ON`.
+  Les tests qui en dépendent passent par `db_session_fk`.
 - **Course** — `UNIQUE(name, event_date, event_type, is_relay)`
   (`uq_course_identity`) : le relais est un **heat distinct** du solo, sans quoi
   les deux fusionnaient dans la même ligne. Quatre colonnes, pas trois — la

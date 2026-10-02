@@ -226,9 +226,9 @@ description: "Task list for epic #1146, one stable identity per real athlete"
 
 ## Phase 9: Polish & Cross-Cutting
 
-- [ ] T066 [P] Mettre à jour `docs/modele-donnees.md` (identité, tableau des contraintes, variantes, rang d'homonyme) et `backend/app/models/AGENTS.md` (inventaire des références à `athletes.id`, nouvelles tables)
-- [ ] T067 [P] Mettre à jour `docs/api/admin-donnees.md` : fusion, revue d'identité, 409 enrichi, `homonyms_created`, `ambiguous_identities`
-- [ ] T068 Vérification complète selon `quickstart.md` : suites backend et front, `ruff`, `npm run lint`, `npm run build`, tests PostgreSQL, parcours bout en bout en dev
+- [X] T066 [P] Mettre à jour `docs/modele-donnees.md` (identité, tableau des contraintes, variantes, rang d'homonyme) et `backend/app/models/AGENTS.md` (inventaire des références à `athletes.id`, nouvelles tables)
+- [X] T067 [P] Mettre à jour `docs/api/admin-donnees.md` : fusion, revue d'identité, 409 enrichi, `homonyms_created`, `ambiguous_identities`
+- [X] T068 Vérification complète selon `quickstart.md` : suites backend et front, `ruff`, `npm run lint`, `npm run build`, tests PostgreSQL, parcours bout en bout en dev
 - [ ] T069 Essai de la reprise en simulation sur la base de preview (Supabase) et comparaison de ses chiffres aux mesures du 2026-09-24 des sous-issues ; écarts consignés dans la PR parapluie
 
 ---
