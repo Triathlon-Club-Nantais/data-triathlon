@@ -63,8 +63,14 @@ Une migration Alembic crée trois tables.
 
 Le modèle ne porte ni `event_type`, ni splits, ni validation
 (`is_pending_validation`) : une ligne Challenge n'entre dans aucun quota ni
-aucune statistique. L'athlète est résolu par le même `mapping` que les
-participations, donc la même fiche est reliée.
+aucune statistique.
+
+Une ligne Challenge n'est **jamais** créatrice d'athlète : elle est appariée par
+identité `(nom, prénom)` normalisée, ou dans l'ordre inverse (Klikego publie
+« PRÉNOM NOM » en majuscules), aux athlètes déjà présents sur les épreuves du
+même jour. Une ligne sans appariement unique est écartée. Une personne opposée
+(#334) ou un nom masqué, déjà anonymisés sur les épreuves, ne sont donc jamais
+réintroduits par un Challenge.
 
 ## 2. Flux d'import
 
@@ -77,7 +83,8 @@ seul point d'entrée de la persistance, re-scrape admin compris.
    vit dans `backend/app/scrapers/utils.py`, à côté de `heat_is_relay`.
 2. **Persistance normale** des autres heats, inchangée.
 3. **Test de recouvrement, mesuré en base.** Une fois les épreuves écrites, on
-   résout l'athlète de chaque ligne mise à l'écart par le `mapping` habituel.
+   apparie chaque ligne mise à l'écart aux athlètes des épreuves du même jour
+   (section 1).
    Les épreuves candidates sont les `Course` de la même `event_date`, quelle que
    soit leur URL : cela couvre aussi les heats frères non re-scrapés (cache du
    fan-out Klikego). Le groupe de lignes d'un heat est un Challenge si **au
