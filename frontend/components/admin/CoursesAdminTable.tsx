@@ -23,7 +23,8 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { EVENT_TYPE_OPTIONS, eventTypeLabel, providerLabel } from "@/lib/constants";
+import { EVENT_TYPE_OPTIONS, eventTypeLabel } from "@/lib/constants";
+import { providerLabel } from "@/lib/labels";
 import {
   useAdminCourses,
   useAdminCoursesCount,

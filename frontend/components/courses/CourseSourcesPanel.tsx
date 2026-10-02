@@ -10,7 +10,7 @@ import { useRescrapeStream, type RescrapeState } from "@/hooks/useRescrapeStream
 import { useSwitchSourceStream } from "@/hooks/useSwitchSourceStream";
 import { apiClient } from "@/lib/api/client";
 import { useHydratedSession } from "@/lib/queries/auth";
-import { providerLabel } from "@/lib/constants";
+import { providerLabel } from "@/lib/labels";
 import type { CourseSource } from "@/lib/types";
 
 const TITRE_LIEN = "Ouvrir les résultats du chronométreur dans un nouvel onglet";

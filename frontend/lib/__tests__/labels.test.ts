@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankTypeLabel, podiumScopeLabel } from "@/lib/labels";
+import { rankTypeLabel, podiumScopeLabel, providerLabel } from "@/lib/labels";
 
 describe("rankTypeLabel — forme courte (défaut)", () => {
   it("libelle les 4 modes canoniques", () => {
@@ -28,5 +28,36 @@ describe("podiumScopeLabel", () => {
 
   it("scratch (mode toggle) et overall (scope) rendent le MÊME libellé (AC5)", () => {
     expect(rankTypeLabel("scratch")).toBe(podiumScopeLabel("overall"));
+  });
+});
+
+describe("providerLabel", () => {
+  it.each([
+    ["klikego", "Klikego"],
+    ["breizhchrono", "Breizh Chrono"],
+    ["timepulse", "TimePulse"],
+    ["wiclax", "Wiclax"],
+    ["prolivesport", "ProLiveSport"],
+    ["sportinnovation", "Sport Innovation"],
+    ["raceresult", "RaceResult"],
+    ["chronoplace", "Chronoplace"],
+    ["competitor", "IRONMAN (Competitor)"],
+    ["oktime", "OK TIME"],
+    ["runnerbreizh", "Runner Breizh"],
+    ["t2area", "FFTRI (T2Area)"],
+    ["sporthive", "MYLAPS Sporthive"],
+    ["chronoweb", "Chronoweb"],
+  ])("rend lisible le slug %s en « %s »", (slug, label) => {
+    expect(providerLabel(slug)).toBe(label);
+  });
+
+  it("laisse passer un provider inconnu plutôt que de l'effacer", () => {
+    expect(providerLabel("chronopuce")).toBe("chronopuce");
+  });
+
+  it("libelle « Source » à défaut de provider", () => {
+    expect(providerLabel(null)).toBe("Source");
+    expect(providerLabel(undefined)).toBe("Source");
+    expect(providerLabel("")).toBe("Source");
   });
 });

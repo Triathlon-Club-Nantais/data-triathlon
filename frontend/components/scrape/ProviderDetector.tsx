@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { apiClient, type DetectedProvider } from "@/lib/api/client";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useProviders } from "@/lib/queries/batches";
-import { providerLabel } from "@/lib/constants";
+import { providerLabel } from "@/lib/labels";
 import { FormatChip } from "@/components/tcn";
 
 /** Hauteur du verdict, réservée avant qu'il n'existe.

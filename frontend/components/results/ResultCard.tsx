@@ -12,7 +12,7 @@ import { formatDate, timeAgo } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
 import { isHttpUrl } from "@/lib/utils/url";
 import { genderShort, ordinalFr } from "@/lib/utils/format";
-import { providerLabel } from "@/lib/constants";
+import { providerLabel } from "@/lib/labels";
 import type { Participation } from "@/lib/types";
 
 export function ResultCard({ result }: { result: Participation }) {

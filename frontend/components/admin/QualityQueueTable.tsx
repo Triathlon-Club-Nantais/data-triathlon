@@ -35,7 +35,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CourseSourcesPanel } from "@/components/courses/CourseSourcesPanel";
 import { apiClient } from "@/lib/api/client";
-import { eventTypeLabel, providerLabel } from "@/lib/constants";
+import { eventTypeLabel } from "@/lib/constants";
+import { providerLabel } from "@/lib/labels";
 import { describeQualityIssues, QUALITY_ISSUE_LABELS } from "@/lib/quality";
 import {
   useAdminCourses,

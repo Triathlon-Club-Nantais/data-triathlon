@@ -51,7 +51,7 @@ constantes `STATUS_*`) ; `utils.py` = helpers de normalisation (dont
   front ne liste **jamais** les providers : la liste en dur qu'il portait est
   restée figée à six noms et affichait « Non supporté (competitor) » sur une URL
   ironman.com pourtant importable — RaceResult et Chronoplace étaient logés à la
-  même enseigne. `lib/constants.PROVIDER_LABELS` ne fait que traduire un slug en
+  même enseigne. `lib/labels.PROVIDER_LABELS` ne fait que traduire un slug en
   nom commercial ; un slug absent s'affiche tel quel, sans jamais valoir « non
   supporté ».
 - Identification club : **une seule définition**, `app/core/club.py`
