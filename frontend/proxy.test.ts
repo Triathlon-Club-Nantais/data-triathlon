@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
 import { buildCspPolicy, proxy } from "./proxy";
@@ -74,10 +76,10 @@ describe("proxy", () => {
   });
 });
 
-describe("proxy — Content-Security-Policy (#448)", () => {
+describe("proxy — Content-Security-Policy (#448, #570)", () => {
   it("pose la politique en Report-Only, jamais en mode bloquant", () => {
-    // Le mode bloquant est une issue de suite : il ne se décide qu'après avoir
-    // relu ce que la politique rapporte sur la preview.
+    // Les corrections de #570 se vérifient d'abord en observation, jusqu'en
+    // production : la bascule ne se décide qu'après un relevé sans violation.
     const reponse = proxy(requeteAvec({}));
 
     expect(reponse.headers.get(CSP)).toBeTruthy();
@@ -94,6 +96,19 @@ describe("proxy — Content-Security-Policy (#448)", () => {
     const transmise = reponse.headers.get(CSP_TRANSMISE);
     expect(transmise).toBeTruthy();
     expect(transmise).toBe(reponse.headers.get(CSP));
+  });
+
+  it("ne transmet jamais une politique fournie par le client", () => {
+    // Next et le layout lisent `content-security-policy` avant
+    // `-report-only` : relayée telle quelle, la requête choisirait le nonce de
+    // son propre rendu.
+    const requete = new NextRequest("https://exemple.fr/dashboard", {
+      headers: { "content-security-policy": "script-src 'nonce-choisi'" },
+    });
+
+    const reponse = proxy(requete);
+
+    expect(reponse.headers.get("x-middleware-request-content-security-policy")).toBeNull();
   });
 
   it("expose un nonce que l'extraction de Next sait retrouver", () => {
@@ -143,6 +158,18 @@ describe("buildCspPolicy", () => {
     expect(imgSrc).toContain("https://unpkg.com");
   });
 
+  it("couvre les scripts par 'strict-dynamic', ce qui rend tout hash de script inutile", () => {
+    // L'absence de hash dans `script-src` est le fonctionnement nominal, pas un
+    // oubli : les `<script>` du rendu serveur portent le nonce, et tout ce
+    // qu'ils insèrent ensuite passe par propagation. Ce test est le garde-fou
+    // de cette explication — retirer `'strict-dynamic'` sans épingler quoi que
+    // ce soit casserait `array.js`, que `posthog-js` insère lui-même.
+    const scriptSrc = directive(buildCspPolicy("abc", { dev: false }), "script-src")!;
+
+    expect(scriptSrc).toContain("'nonce-abc'");
+    expect(scriptSrc).toContain("'strict-dynamic'");
+  });
+
   it("n'autorise 'unsafe-eval' qu'en développement", () => {
     // React s'en sert pour reconstruire les piles d'erreurs serveur dans le
     // navigateur ; ni React ni Next n'en ont besoin en production.
@@ -158,6 +185,45 @@ describe("buildCspPolicy", () => {
     );
     expect(buildCspPolicy("abc", { dev: true })).not.toContain(
       "upgrade-insecure-requests",
+    );
+  });
+});
+
+describe("buildCspPolicy — les deux hashes de sonner (#570)", () => {
+  /**
+   * Le CSS que `sonner` injecte au niveau module, lu **dans le paquet
+   * installé** : c'est ce qui fait de ce test un détecteur de dérive. Un
+   * `npm update sonner` change la chaîne, donc le hash, donc ce test casse —
+   * au lieu de laisser les toasts perdre leur style en production.
+   */
+  function cssInjecteParSonner(): string {
+    const source = readFileSync(
+      new URL("./node_modules/sonner/dist/index.mjs", import.meta.url),
+      "utf8",
+    );
+    const appel = source.match(/^__insertCSS\((".*")\);?\s*$/m);
+    expect(appel, "sonner n'injecte plus son CSS via __insertCSS").toBeTruthy();
+    return JSON.parse(appel![1]);
+  }
+
+  function hash(contenu: string): string {
+    return `'sha256-${createHash("sha256").update(contenu, "utf8").digest("base64")}'`;
+  }
+
+  it("épingle le <style> vide puis le <style> rempli, les deux temps de l'injection", () => {
+    // `sonner` crée le `<style>`, l'attache vide, *puis* y met le CSS : le
+    // navigateur évalue les deux états et rapporte donc deux hashes.
+    const styleSrc = directive(buildCspPolicy("abc", { dev: false }), "style-src")!;
+
+    expect(styleSrc).toContain(hash(""));
+    expect(styleSrc).toContain(hash(cssInjecteParSonner()));
+  });
+
+  it("garde le nonce sur style-src, que les hashes ne remplacent pas", () => {
+    // Les hashes n'autorisent que ces deux `<style>` précis ; tout le reste du
+    // style en ligne reste soumis au nonce.
+    expect(directive(buildCspPolicy("abc", { dev: false }), "style-src")).toContain(
+      "'nonce-abc'",
     );
   });
 });
