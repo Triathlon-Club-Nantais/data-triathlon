@@ -158,9 +158,9 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Les bénévoles vérifient un à un les résultats importés, sous le mot de passe bénévoles : corriger, réattribuer à la bonne fiche, valider ou signaler.",
     etapes: [
       "Ouvrir « Validation des épreuves » depuis la navigation, puis saisir le mot de passe bénévoles.",
-      "Choisir un résultat dans la file : son détail s'ouvre à côté.",
+      "Choisir un résultat dans la file : son détail s'ouvre.",
       "« Réattribuer à » : rechercher l'athlète par son nom et le choisir quand le résultat est crédité à la mauvaise fiche. Rien n'est écrit tant que vous n'avez pas cliqué sur « Enregistrer » ou « Valider ce résultat ».",
-      "« Valider ce résultat » enregistre les modifications en cours et passe au suivant. « Signaler non conforme » l'écarte jusqu'à ce qu'on lève le signalement.",
+      "« Valider ce résultat » enregistre les modifications en cours et passe au suivant. « Signaler non conforme », puis « Confirmer le signalement », l'écarte dans l'onglet « Non conformes » jusqu'à ce qu'on lève le signalement, sans enregistrer les modifications en cours.",
     ],
     captures: [
       {

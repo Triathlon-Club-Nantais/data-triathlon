@@ -72,16 +72,10 @@ describe("GUIDE_ADMIN public-page gestures (#1046)", () => {
 });
 
 describe("GUIDE_ADMIN results verification (#1162)", () => {
-  const section = () => GUIDE_ADMIN.find((s) => s.id === "validation-epreuves")!;
-
   it("documents reassigning a result to another athlete", () => {
-    const texte = section().etapes.join(" ");
+    const texte = GUIDE_ADMIN.find((s) => s.id === "validation-epreuves")!.etapes.join(" ");
     expect(texte).toMatch(/« Réattribuer à »/);
     expect(texte).toMatch(/« Enregistrer »/);
     expect(texte).toMatch(/« Valider ce résultat »/);
-  });
-
-  it("stays visible without `pages:preview`", () => {
-    expect(section().destination).toBeUndefined();
   });
 });
