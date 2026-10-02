@@ -81,6 +81,7 @@ class _Planner:
         self.operations: list[dict] = []
         self.review: list[dict] = []
         self.absorbed: dict[int, int] = {}
+        self.members: dict[int, set[int]] = {}
         self.renamed: set[int] = set()
         self.facts: dict[int, athlete_repository.IdentityFacts] = {}
         self.ignored = ignored_athlete_pair_repository.all_pairs(db)
@@ -93,8 +94,14 @@ class _Planner:
             athlete_id = self.absorbed[athlete_id]
         return athlete_id
 
-    def is_ignored(self, *pairs: tuple[int, int]) -> bool:
-        return any((min(pair), max(pair)) in self.ignored for pair in pairs)
+    def is_ignored(self, first_root: int, second_root: int) -> bool:
+        """Une paire écartée par un admin vaut pour tout ce que chaque fiche aura absorbé :
+        la fusion reporte ce jugement sur la fiche conservée."""
+        return any(
+            (min(one, other), max(one, other)) in self.ignored
+            for one in self.members.get(first_root, {first_root})
+            for other in self.members.get(second_root, {second_root})
+        )
 
     def refusal(self, kept_id: int, absorbed_id: int) -> str | None:
         """Le refus de `athlete_merge.blocking_reason` sur les deux fiches telles que
@@ -105,6 +112,7 @@ class _Planner:
         self.operations.append({"family": family, "action": "merge", "kept_id": kept_id, "absorbed_id": absorbed_id,
                                 **(extra or {})})
         self.absorbed[absorbed_id] = kept_id
+        self.members[kept_id] = self.members.get(kept_id, {kept_id}) | self.members.pop(absorbed_id, {absorbed_id})
         self.facts[kept_id] = self.facts[kept_id] | self.facts.pop(absorbed_id)
         self.counts[family]["merged"] += 1
 
@@ -112,7 +120,7 @@ class _Planner:
         kept_root, absorbed_root = self.root(kept_id), self.root(absorbed_id)
         if kept_root == absorbed_root:
             return False
-        if self.is_ignored((kept_id, absorbed_id), (kept_root, absorbed_root)):
+        if self.is_ignored(kept_root, absorbed_root):
             self.to_review(family, [kept_id, absorbed_id], "ignored")
             return False
         reason = self.refusal(kept_root, absorbed_root)
@@ -189,7 +197,7 @@ def _plan_pairs(planner: _Planner, pairs: dict[str, list[tuple[int, int]]]) -> N
             first_root, second_root = planner.root(first), planner.root(second)
             if first_root == second_root:
                 continue
-            if planner.is_ignored((first, second), (first_root, second_root)):
+            if planner.is_ignored(first_root, second_root):
                 planner.to_review(family, [first, second], "ignored")
             elif planner.facts[first_root].courses & planner.facts[second_root].courses:
                 planner.to_review(family, [first, second], "shared_course")
