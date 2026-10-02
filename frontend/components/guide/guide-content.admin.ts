@@ -159,13 +159,14 @@ export const GUIDE_ADMIN: GuideSection[] = [
     etapes: [
       "Ouvrir « Validation des épreuves » depuis la navigation, puis saisir le mot de passe bénévoles.",
       "Choisir un résultat dans la file : son détail s'ouvre.",
-      "« Réattribuer à » : rechercher l'athlète par son nom et le choisir quand le résultat est crédité à la mauvaise fiche. Rien n'est écrit tant que vous n'avez pas cliqué sur « Enregistrer » ou « Valider ce résultat ».",
-      "« Valider ce résultat » enregistre les modifications en cours et passe au suivant. « Signaler non conforme », puis « Confirmer le signalement », l'écarte dans l'onglet « Non conformes » jusqu'à ce qu'on lève le signalement, sans enregistrer les modifications en cours.",
+      "« Réattribuer à » : rechercher l'athlète par son nom et le choisir quand le résultat est crédité à la mauvaise fiche. Rien n'est enregistré tant que vous n'avez pas cliqué sur « Enregistrer » ou « Valider ce résultat ».",
+      "« Valider ce résultat » enregistre les modifications en cours et passe au suivant.",
+      "« Signaler non conforme », puis « Confirmer le signalement » : le résultat passe dans l'onglet « Non conformes », d'où « Lever le signalement » le fait revenir. Les modifications non enregistrées sont perdues.",
     ],
     captures: [
       {
         src: "/guide/admin/validation-epreuves.jpg",
-        alt: "Résultat en cours de vérification, réattribué à un autre athlète dans « Réattribuer à »",
+        alt: "Résultat en cours de vérification : un autre athlète choisi dans « Réattribuer à », modification pas encore enregistrée",
       },
     ],
   },
