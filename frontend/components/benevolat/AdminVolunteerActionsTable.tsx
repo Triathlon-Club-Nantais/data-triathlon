@@ -133,7 +133,11 @@ export function AdminVolunteerActionsTable() {
                     size="sm"
                     variant="outline"
                     onClick={() => setDetail(action)}
-                    aria-label={`Voir la déclaration de ${action.athlete_prenom} ${action.athlete_nom}`}
+                    aria-label={
+                      action.title
+                        ? `Voir la déclaration « ${action.title} » de ${action.athlete_prenom} ${action.athlete_nom}`
+                        : `Voir la déclaration de ${action.athlete_prenom} ${action.athlete_nom}`
+                    }
                   >
                     Voir
                   </Button>

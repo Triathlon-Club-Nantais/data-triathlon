@@ -33,15 +33,21 @@ export function AdminVolunteerActionDetailDialog({
   return (
     <Dialog open={action !== null} onOpenChange={onOpenChange}>
       {action && (
-        <DialogContent>
+        <DialogContent className="flex max-h-[85dvh] flex-col sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle className="break-words">{action.title ?? "Déclaration sans titre"}</DialogTitle>
+            <DialogTitle className="break-words pr-8 leading-snug">{action.title ?? "Déclaration sans titre"}</DialogTitle>
             <DialogDescription>
               Déclarée le {formatDate(action.created_at)} · {seasonLabel(action.season)}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-3 text-sm">
+          {/* Focusable : Safari ne fait défiler au clavier qu'un conteneur qui a le focus. */}
+          <div
+            role="region"
+            aria-label="Contenu de la déclaration"
+            tabIndex={0}
+            className="min-h-0 space-y-3 overflow-y-auto text-sm"
+          >
             <p>
               Athlète :{" "}
               <Link href={`/athletes/${action.athlete_id}`} className="underline underline-offset-2">

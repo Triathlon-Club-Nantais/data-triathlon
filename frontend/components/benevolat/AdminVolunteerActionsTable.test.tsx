@@ -196,7 +196,9 @@ describe("AdminVolunteerActionsTable", () => {
     listPendingVolunteerActions.mockResolvedValue([{ ...EN_ATTENTE, description }]);
 
     afficher();
-    await userEvent.click(await screen.findByRole("button", { name: /voir/i }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Voir la déclaration « Ravitaillement » de Jean-Marc LEMÉE" }),
+    );
 
     const dialogue = await screen.findByRole("dialog");
     expect(within(dialogue).getByRole("heading", { name: "Ravitaillement" })).toBeInTheDocument();
@@ -208,6 +210,30 @@ describe("AdminVolunteerActionsTable", () => {
       "href",
       "/athletes/42",
     );
+  });
+
+  it("nomme le bouton Voir sans titre quand la déclaration n'en a pas", async () => {
+    listPendingVolunteerActions.mockResolvedValue([SANS_TITRE]);
+
+    afficher();
+
+    expect(
+      await screen.findByRole("button", { name: "Voir la déclaration de Hadrien KERMARREC" }),
+    ).toBeInTheDocument();
+  });
+
+  it("borne la hauteur du détail et fait défiler la description, au clavier aussi", async () => {
+    listPendingVolunteerActions.mockResolvedValue([{ ...EN_ATTENTE, description: "x".repeat(10000) }]);
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /voir/i }));
+
+    const dialogue = await screen.findByRole("dialog");
+    expect(dialogue).toHaveClass("max-h-[85dvh]", "flex", "flex-col");
+    expect(within(dialogue).getByRole("heading", { name: "Ravitaillement" })).toHaveClass("pr-8", "leading-snug");
+    const defilement = within(dialogue).getByRole("region", { name: /déclaration/i });
+    expect(defilement).toHaveClass("min-h-0", "overflow-y-auto");
+    expect(defilement).toHaveAttribute("tabindex", "0");
   });
 
   it("accepter depuis le détail appelle la mutation et ferme le dialogue", async () => {
