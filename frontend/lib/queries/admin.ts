@@ -434,6 +434,61 @@ export function useSetCourseReliability() {
   });
 }
 
+/**
+ * Ce qu'une fusion de deux fiches ferait (#908), chargé **à la sélection de la
+ * fiche conservée**, comme `useCourseMergeImpact`.
+ */
+export function useAthleteMergeImpact(keptId: number | null, absorbedId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.athleteMergeImpact(keptId ?? 0, absorbedId ?? 0),
+    queryFn: () => apiClient.getAthleteMergeImpact(keptId as number, absorbedId as number),
+    enabled: keptId !== null && absorbedId !== null,
+    retry: false,
+  });
+}
+
+/** Fusion de deux fiches (#908) : tout ce qui montre un athlète ou la revue est périmé. */
+export function useMergeAthletes() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ keptId, absorbedId }: { keptId: number; absorbedId: number }) =>
+      apiClient.mergeAthletes(keptId, absorbedId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.ficheCoureur });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
+      qc.invalidateQueries({ queryKey: queryKeys.identityReview() });
+      // Validations de saison, bénévolat, rang au club et compte membre ont pu
+      // changer de fiche : leurs panneaux ne sont pas rendus côté serveur.
+      qc.invalidateQueries({ queryKey: ["season-quota"] });
+      qc.invalidateQueries({ queryKey: ["validated-volunteer-actions"] });
+      qc.invalidateQueries({ queryKey: ["club-roster-rank"] });
+      qc.invalidateQueries({ queryKey: queryKeys.session() });
+    },
+  });
+}
+
+/** Les cas d'identité à trancher (#908). */
+export function useIdentityReview() {
+  return useQuery({
+    queryKey: queryKeys.identityReview(),
+    queryFn: () => apiClient.listIdentityReview(),
+  });
+}
+
+/** Écarte une paire jugée distincte : elle ne revient plus dans la revue (#908). */
+export function useIgnoreIdentityPair() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ athleteIdA, athleteIdB }: { athleteIdA: number; athleteIdB: number }) =>
+      apiClient.ignoreIdentityPair(athleteIdA, athleteIdB),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.identityReview() });
+    },
+  });
+}
+
 export function useUpdateAthlete() {
   const qc = useQueryClient();
   return useMutation({

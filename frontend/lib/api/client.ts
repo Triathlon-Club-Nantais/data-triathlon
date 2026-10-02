@@ -2,6 +2,9 @@ import { toQuery } from "@/lib/api/query";
 import type {
   AdminActionLogPage,
   AdminAthlete,
+  AthleteMergeImpact,
+  IdentityPairIgnoreResult,
+  IdentityReviewList,
   AdminAthleteUpdate,
   AdminCourseUpdate,
   AdminUser,
@@ -92,6 +95,8 @@ export class ApiError extends Error {
   readonly fieldErrors: Record<string, FieldError>;
   /** Discriminant du serveur entre deux refus au même statut (#877), `null` sinon. */
   readonly code: string | null;
+  /** Champs additifs du corps d'erreur (#908 : `conflicting_athlete_id` d'un renommage refusé). */
+  readonly details: Record<string, unknown>;
 
   constructor(
     status: number,
@@ -99,6 +104,7 @@ export class ApiError extends Error {
     retryAfter: number | null = null,
     fieldErrors: Record<string, FieldError> = {},
     code: string | null = null,
+    details: Record<string, unknown> = {},
   ) {
     super(message);
     this.name = "ApiError";
@@ -106,6 +112,7 @@ export class ApiError extends Error {
     this.retryAfter = retryAfter;
     this.fieldErrors = fieldErrors;
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -179,6 +186,7 @@ async function erreurDeReponse(res: Response): Promise<ApiError> {
     res.status === 429 ? attenteRetryAfter(res) : null,
     res.status === 422 ? champsEnErreur(err.detail) : {},
     typeof err.code === "string" ? err.code : null,
+    err && typeof err === "object" ? err : {},
   );
 }
 
@@ -422,6 +430,23 @@ export const apiClient = {
     request<DuplicateIgnoreResult>("/admin/courses/duplicates/ignore", {
       method: "POST",
       body: JSON.stringify({ course_id_a: courseIdA, course_id_b: courseIdB }),
+    }),
+  /** Ce que la fusion de `absorbedId` dans `keptId` ferait, sans rien écrire (#908). */
+  getAthleteMergeImpact: (keptId: number, absorbedId: number) =>
+    request<AthleteMergeImpact>(
+      `/admin/athletes/${keptId}/merge-impact${toQuery({ absorbed_id: absorbedId })}`,
+    ),
+  /** Absorbe `absorbedId` dans `keptId` ; rend la fiche conservée (#908). */
+  mergeAthletes: (keptId: number, absorbedId: number) =>
+    request<AdminAthlete>(`/admin/athletes/${keptId}/merge`, {
+      method: "POST",
+      body: JSON.stringify({ absorbed_id: absorbedId }),
+    }),
+  listIdentityReview: () => request<IdentityReviewList>("/admin/identity-review"),
+  ignoreIdentityPair: (athleteIdA: number, athleteIdB: number) =>
+    request<IdentityPairIgnoreResult>("/admin/identity-review/ignore", {
+      method: "POST",
+      body: JSON.stringify({ athlete_id_a: athleteIdA, athlete_id_b: athleteIdB }),
     }),
   updateAthlete: (id: number, champs: Partial<AdminAthleteUpdate>) =>
     request<AdminAthlete>(`/admin/athletes/${id}`, {

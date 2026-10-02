@@ -79,7 +79,7 @@ succès muet, sans confirmer ce qu'elle avait détruit.
 
 | Route | Pouvoir | Effet |
 | --- | --- | --- |
-| `GET /admin/athletes/{id}/merge-impact?absorbed_id=` | `athletes:write` | Aperçu, sans écriture : les deux fiches, ce qui serait déplacé (`moves`), `alias_added`, et `blocking_reason` / `blocking_label` si la fusion serait refusée. |
+| `GET /admin/athletes/{id}/merge-impact?absorbed_id=` | `athletes:write` **et** `athletes:read` | Aperçu, sans écriture : les deux fiches avec leur date de naissance (d'où le second pouvoir, FR-025 de #117), ce qui serait déplacé (`moves`), `alias_added`, et `blocking_reason` / `blocking_label` si la fusion serait refusée. |
 | `POST /admin/athletes/{id}/merge` `{absorbed_id}` | `athletes:write` | Absorbe `absorbed_id` dans `{id}` ; rend la fiche conservée. 404 fiche inconnue, 409 refus (`code` = la raison) ou fiche en cours d'import. |
 
 - **Tout passe sur la fiche conservée** : résultats, liens d'équipier de relais,

@@ -999,7 +999,7 @@ def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) 
         ) or athlete_alias_repository.get_by_keys_batch(db, [cle]).get(cle)
         if conflit is not None and conflit.id != athlete.id:
             raise DuplicateError(
-                f"Un athlète porte déjà cette identité (fiche #{conflit.id}).",
+                f"Un athlète porte déjà cette identité (fiche n° {conflit.id}).",
                 extra={"conflicting_athlete_id": conflit.id},
             )
         # Renommée vers l'une de ses propres variantes : la graphie redevient son

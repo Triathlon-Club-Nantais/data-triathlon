@@ -19,13 +19,19 @@ import type { AdminAthlete } from "@/lib/types";
 export function AthleteSearchPicker({
   selectedId,
   onSelect,
+  excludeId,
 }: {
   selectedId: number | null;
   onSelect: (athlete: AdminAthlete) => void;
+  /** Une fiche à ne pas proposer : celle que l'on fusionne, qui sortirait en tête (#908). */
+  excludeId?: number;
 }) {
   const [saisie, setSaisie] = useState("");
   const recherche = useDebounce(saisie, 300);
-  const { data, isFetching } = useAdminAthleteSearch(recherche);
+  const recue = useAdminAthleteSearch(recherche);
+  const { isFetching } = recue;
+  const exclue = excludeId !== undefined && (recue.data ?? []).some((athlete) => athlete.id === excludeId);
+  const data = recue.data?.filter((athlete) => athlete.id !== excludeId);
 
   return (
     <div className="space-y-2">
@@ -38,9 +44,15 @@ export function AthleteSearchPicker({
 
       {isFetching && <Skeleton className="h-20 w-full" />}
 
-      {data && data.length === 0 && (
+      {data && data.length === 0 && !exclue && (
         <p className="text-[var(--tcn-text-faint)] text-sm">
           Aucun athlète ne correspond à cette recherche.
+        </p>
+      )}
+
+      {exclue && (
+        <p className="text-[var(--tcn-text-faint)] text-sm">
+          La fiche que vous consultez n&apos;est pas proposée : choisissez l&apos;autre.
         </p>
       )}
 

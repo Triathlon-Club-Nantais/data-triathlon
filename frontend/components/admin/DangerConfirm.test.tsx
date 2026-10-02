@@ -58,6 +58,17 @@ describe("DangerConfirm", () => {
     expect(screen.queryByLabelText(/Tapez/)).not.toBeInTheDocument();
   });
 
+  it("ne se ferme pas pendant le geste en cours : « Renoncer » est inactif", async () => {
+    const onOpenChange = vi.fn();
+    render(
+      <DangerConfirm open onOpenChange={onOpenChange} titre="Fusionner ?" enAttente onConfirm={() => {}} />,
+    );
+
+    expect(screen.getByRole("button", { name: "Renoncer" })).toBeDisabled();
+    await userEvent.keyboard("{Escape}");
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
   it("ferme sans agir sur « Renoncer »", async () => {
     const onConfirm = vi.fn();
     const onOpenChange = vi.fn();

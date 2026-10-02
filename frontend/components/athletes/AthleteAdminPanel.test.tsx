@@ -6,15 +6,22 @@ import { ApiError } from "@/lib/api/client";
 import type { AdminAthlete, SessionUser } from "@/lib/types";
 import { AthleteAdminPanel } from "./AthleteAdminPanel";
 
-const { getSession, updateAthlete, getAthleteAdmin } = vi.hoisted(() => ({
-  getSession: vi.fn(),
-  updateAthlete: vi.fn(),
-  getAthleteAdmin: vi.fn(),
-}));
+const { getSession, updateAthlete, getAthleteAdmin, getAthleteMergeImpact, mergeAthletes, searchAthletesAdmin } =
+  vi.hoisted(() => ({
+    getSession: vi.fn(),
+    updateAthlete: vi.fn(),
+    getAthleteAdmin: vi.fn(),
+    getAthleteMergeImpact: vi.fn(),
+    mergeAthletes: vi.fn(),
+    searchAthletesAdmin: vi.fn(),
+  }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { getSession, updateAthlete, getAthleteAdmin } };
+  return {
+    ...original,
+    apiClient: { getSession, updateAthlete, getAthleteAdmin, getAthleteMergeImpact, mergeAthletes, searchAthletesAdmin },
+  };
 });
 
 const { toastSuccess, toastError } = vi.hoisted(() => ({
@@ -23,8 +30,8 @@ const { toastSuccess, toastError } = vi.hoisted(() => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
 
-const { refresh } = vi.hoisted(() => ({ refresh: vi.fn() }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+const { refresh, push } = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push }) }));
 
 const COUREUR = {
   id: 42,
@@ -364,5 +371,164 @@ describe("AthleteAdminPanel — corriger le club actuel (US3)", () => {
     // ait eu lieu, et gèlerait le libellé contre tous les imports à venir.
     await waitFor(() => expect(updateAthlete).toHaveBeenCalled());
     expect(Object.keys(updateAthlete.mock.calls[0][1])).toEqual(["nom"]);
+  });
+});
+
+
+describe("fusion de deux fiches (#908)", () => {
+  const AUTRE: AdminAthlete = {
+    id: 77, nom: "LEMEE", prenom: "Jean Marc", birth_date: null, gender: "M", club: null, participations: 2,
+  };
+
+  beforeEach(() => {
+    document.cookie = "tcn_logged_in=1; path=/";
+    getAthleteAdmin.mockImplementation((id: number) => Promise.resolve(id === 77 ? AUTRE : FICHE_COMPLETE));
+  });
+
+  it("propose la fusion avec la fiche en conflit quand un renommage est refusé", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
+    updateAthlete.mockRejectedValue(
+      new ApiError(409, "Un athlète porte déjà cette identité (fiche #77).", null, {}, null, {
+        conflicting_athlete_id: 77,
+      }),
+    );
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /corriger la fiche/i }));
+    await userEvent.type(screen.getByLabelText("Nom"), "x");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await userEvent.click(await screen.findByRole("button", { name: /fusionner avec la fiche n° 77/i }));
+
+    expect(await screen.findByText("Fusionner ces deux fiches ?")).toBeInTheDocument();
+    expect(await screen.findByRole("radio", { name: /garder lemee jean marc/i })).toBeInTheDocument();
+  });
+
+  it("sans `athletes:read`, un renommage refusé ne propose pas la fusion", async () => {
+    getSession.mockResolvedValue(session(["athletes:write"]));
+    updateAthlete.mockRejectedValue(
+      new ApiError(409, "Un athlète porte déjà cette identité (fiche #77).", null, {}, null, {
+        conflicting_athlete_id: 77,
+      }),
+    );
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /corriger la fiche/i }));
+    await userEvent.type(screen.getByLabelText("Nom"), "x");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+
+    expect(await screen.findByText(/fiche #77/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /fusionner avec la fiche/i })).not.toBeInTheDocument();
+  });
+
+  it("le bouton de fusion n'est offert qu'avec `athletes:write` et `athletes:read`", async () => {
+    getSession.mockResolvedValue(session(["athletes:write"]));
+    const { unmount } = afficher();
+    expect(await screen.findByRole("button", { name: /corriger la fiche/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /fusionner avec une autre fiche/i })).not.toBeInTheDocument();
+    unmount();
+
+    getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
+    afficher();
+    expect(await screen.findByRole("button", { name: /fusionner avec une autre fiche/i })).toBeInTheDocument();
+  });
+
+  it("une fusion qui garde l'autre fiche mène à sa page", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
+    searchAthletesAdmin.mockResolvedValue([AUTRE]);
+    getAthleteMergeImpact.mockResolvedValue({
+      kept: { id: 77, nom: "LEMEE", prenom: "Jean Marc", club: null, participations: 2 },
+      absorbed: { id: 42, nom: "Lemée", prenom: "Jean-Marc", club: "Triathlon Club Nantais", participations: 7 },
+      moves: { participations: 7, teammates: 0, volunteer_actions: 0, season_validations: 0, users: 0 },
+      alias_added: true,
+      blocking_reason: null,
+      blocking_label: null,
+    });
+    mergeAthletes.mockResolvedValue({ ...AUTRE, participations: 9 });
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /fusionner avec une autre fiche/i }));
+    await userEvent.type(screen.getByRole("searchbox"), "lemee");
+    await userEvent.click(await screen.findByRole("button", { name: /LEMEE/ }));
+    await userEvent.click(await screen.findByRole("radio", { name: /garder lemee jean marc/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /^fusionner$/i }));
+
+    await waitFor(() => expect(mergeAthletes).toHaveBeenCalledWith(77, 42));
+    expect(push).toHaveBeenCalledWith("/athletes/77");
+  });
+
+  it("la recherche ne propose pas la fiche consultée, et le dit", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
+    searchAthletesAdmin.mockResolvedValue([FICHE_COMPLETE]);
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /fusionner avec une autre fiche/i }));
+    await userEvent.type(screen.getByRole("searchbox"), "lemee");
+
+    expect(await screen.findByText(/la fiche que vous consultez n'est pas proposée/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Lemée Jean-Marc/ })).not.toBeInTheDocument();
+  });
+
+  it("une fiche en conflit illisible le dit dans la correction, sans perdre la saisie", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
+    getAthleteAdmin.mockImplementation((id: number) =>
+      id === 77 ? Promise.reject(new ApiError(404, "Not found")) : Promise.resolve(FICHE_COMPLETE),
+    );
+    updateAthlete.mockRejectedValue(
+      new ApiError(409, "Un athlète porte déjà cette identité (fiche n° 77).", null, {}, null, {
+        conflicting_athlete_id: 77,
+      }),
+    );
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /corriger la fiche/i }));
+    await userEvent.type(screen.getByLabelText("Nom"), "x");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await userEvent.click(await screen.findByRole("button", { name: /fusionner avec la fiche n° 77/i }));
+
+    expect(await screen.findByText(/la fiche n° 77 n'a pas pu être lue/i)).toBeInTheDocument();
+    expect(screen.getByLabelText("Nom")).toHaveValue("Leméex");
+  });
+
+  it("renoncer à la fusion ramène à la correction, saisie intacte", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
+    updateAthlete.mockRejectedValue(
+      new ApiError(409, "Un athlète porte déjà cette identité (fiche n° 77).", null, {}, null, {
+        conflicting_athlete_id: 77,
+      }),
+    );
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /corriger la fiche/i }));
+    await userEvent.type(screen.getByLabelText("Nom"), "x");
+    await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));
+    await userEvent.click(await screen.findByRole("button", { name: /fusionner avec la fiche n° 77/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /renoncer/i }));
+
+    expect(await screen.findByLabelText("Nom")).toHaveValue("Leméex");
+  });
+
+  it("une fusion qui garde la fiche consultée rafraîchit la page", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
+    searchAthletesAdmin.mockResolvedValue([AUTRE]);
+    getAthleteMergeImpact.mockResolvedValue({
+      kept: { id: 42, nom: "Lemée", prenom: "Jean-Marc", club: "Triathlon Club Nantais", participations: 7 },
+      absorbed: { id: 77, nom: "LEMEE", prenom: "Jean Marc", club: null, participations: 2 },
+      moves: { participations: 2, teammates: 0, volunteer_actions: 0, season_validations: 0, users: 0 },
+      alias_added: true,
+      blocking_reason: null,
+      blocking_label: null,
+    });
+    mergeAthletes.mockResolvedValue({ ...FICHE_COMPLETE, participations: 9 });
+
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: /fusionner avec une autre fiche/i }));
+    await userEvent.type(screen.getByRole("searchbox"), "lemee");
+    await userEvent.click(await screen.findByRole("button", { name: /LEMEE/ }));
+    await userEvent.click(await screen.findByRole("radio", { name: /garder lemée jean-marc/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /^fusionner$/i }));
+
+    await waitFor(() => expect(mergeAthletes).toHaveBeenCalledWith(42, 77));
+    expect(refresh).toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
   });
 });
