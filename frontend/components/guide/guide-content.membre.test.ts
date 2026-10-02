@@ -3,10 +3,10 @@ import path from "node:path";
 import { describe, it, expect } from "vitest";
 import { GUIDE_MEMBRE } from "./guide-content.membre";
 
-const IDS_ATTENDUS = ["dashboard", "club", "resultats", "comparaison", "ajouter", "benevolat"];
+const IDS_ATTENDUS = ["dashboard", "club", "resultats", "fiche-athlete", "comparaison", "ajouter", "benevolat"];
 
 describe("GUIDE_MEMBRE", () => {
-  it("expose exactement les 6 ids attendus, dans l'ordre", () => {
+  it("expose exactement les 7 ids attendus, dans l'ordre", () => {
     expect(GUIDE_MEMBRE.map((section) => section.id)).toEqual(IDS_ATTENDUS);
   });
 
@@ -25,5 +25,14 @@ describe("GUIDE_MEMBRE", () => {
         expect(existsSync(fichier), `${section.id} : ${capture.src}`).toBe(true);
       }
     }
+  });
+});
+
+describe("GUIDE_MEMBRE athlete page (#1041)", () => {
+  it("covers the athlete search shortcut and the athlete choice", () => {
+    const texte = GUIDE_MEMBRE.find((s) => s.id === "fiche-athlete")!.etapes.join(" ");
+    expect(texte).toMatch(/Ctrl K/);
+    expect(texte).toMatch(/« Choisir cet athlète »/);
+    expect(texte).toMatch(/tableau de bord/i);
   });
 });

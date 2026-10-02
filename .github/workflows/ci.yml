@@ -121,14 +121,15 @@ jobs:
 
       # Base distincte : les fixtures montent et démontent leur schéma par
       # `create_all`, elles effaceraient celui que la migration vient de poser.
-      # `-n 0` : les workers partageraient la même base.
+      # `-n 0` : les workers partageraient la même base. Le test de concurrence
+      # des imports (#980) s'y ajoute : les verrous de ligne n'existent pas sous SQLite.
       - name: Repositories sur PostgreSQL
         env:
           PGPASSWORD: postgres
           TEST_POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/triathlon_tests
         run: |
           psql -h localhost -U postgres -c "CREATE DATABASE triathlon_tests"
-          uv run pytest tests/test_repositories -m "not integration" -n 0
+          uv run pytest tests/test_repositories tests/test_services/test_concurrent_imports_postgres.py -m "not integration" -n 0
 
   frontend:
     runs-on: ubuntu-latest

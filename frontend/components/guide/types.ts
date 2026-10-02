@@ -1,9 +1,12 @@
-/** Une capture d'écran illustrant une section du guide. */
+/**
+ * Une capture d'écran illustrant une section du guide, en 1418×840.
+ * Prise sur le jeu de démo aux noms anonymisés, jamais sur des données
+ * réelles : le dépôt est public, ces images aussi (#926). Build de
+ * production, pour qu'aucun badge ni overlay de développement n'y figure.
+ */
 export type GuideCapture = {
   src: string;
   alt: string;
-  /** Image "Capture à venir" plutôt qu'un vrai rendu de l'écran (#874). */
-  placeholder?: boolean;
 };
 
 /** Le contenu d'une section du guide (une fonctionnalité documentée). */

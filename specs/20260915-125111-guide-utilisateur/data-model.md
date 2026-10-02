@@ -14,7 +14,7 @@ Défini une fois dans `components/guide/types.ts`, instancié dans
 | `titre` | `string` | Nom de la fonctionnalité, en français |
 | `etapes` | `string[]` | Instructions concises, une entrée par étape courte (FR-006 : pas de pavé de texte) |
 | `casUsage` | `string` | Ce que l'utilisateur cherche à accomplir (FR-008), une à deux phrases |
-| `captures` | `{ src: string; alt: string; placeholder?: boolean }[]` | Au moins un élément (FR-007) — `src` pointe sous `public/guide/`. `placeholder: true` (15 sections admin, #874) fait apparaître « Capture à venir » à la fois dans un badge visuel et dans l'`alt` — la mention doit atteindre un lecteur d'écran, pas seulement l'image |
+| `captures` | `{ src: string; alt: string }[]` | Au moins un élément (FR-007), `src` pointe sous `public/guide/`. Le marqueur de capture provisoire a disparu avec la dernière d'entre elles (#874) |
 
 ## Validation
 

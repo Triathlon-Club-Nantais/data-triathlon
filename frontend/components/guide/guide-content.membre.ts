@@ -28,10 +28,22 @@ export const GUIDE_MEMBRE: GuideSection[] = [
     casUsage: "Retrouver les épreuves du club et consulter le classement d'une épreuve précise.",
     etapes: [
       "Ouvrir « Résultats » depuis la navigation principale.",
-      "Filtrer par saison, portée (club ou toutes) ou recherche libre.",
+      "Filtrer par saison, entre « Tous » et « Membres TCN », ou par recherche libre.",
       "Sélectionner une épreuve pour en voir le classement complet.",
     ],
     captures: [{ src: "/guide/membre/resultats.jpg", alt: "Liste des résultats avec filtres" }],
+  },
+  {
+    id: "fiche-athlete",
+    titre: "Fiche athlète",
+    casUsage:
+      "Retrouver un athlète, voir son historique et sa progression, et le choisir pour personnaliser son tableau de bord.",
+    etapes: [
+      "Ouvrir la recherche d'athlète avec la loupe de la navigation, ou le raccourci ⌘K (Mac) ou Ctrl K.",
+      "Taper quelques lettres du nom, puis ouvrir la fiche.",
+      "Cliquer sur « Choisir cet athlète » : un raccourci « Mes résultats » apparaît dans la navigation et dans les filtres de « Résultats », et sa saison s'affiche en tête du tableau de bord.",
+    ],
+    captures: [{ src: "/guide/membre/fiche-athlete.jpg", alt: "Fiche d'un athlète avec le bouton « Choisir cet athlète »" }],
   },
   {
     id: "comparaison",
@@ -51,7 +63,7 @@ export const GUIDE_MEMBRE: GuideSection[] = [
     etapes: [
       "Ouvrir « Ajouter une épreuve » depuis la navigation principale.",
       "Coller le lien de la page de résultats du chronométreur.",
-      "Vérifier le fournisseur détecté, puis lancer l'import.",
+      "Vérifier le fournisseur détecté, puis cliquer sur « Enregistrer les résultats ».",
     ],
     captures: [{ src: "/guide/membre/ajouter.jpg", alt: "Formulaire d'ajout d'une épreuve par URL" }],
   },
