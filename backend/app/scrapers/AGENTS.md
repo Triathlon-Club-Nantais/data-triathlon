@@ -88,6 +88,14 @@ constantes `STATUS_*`) ; `utils.py` = helpers de normalisation (dont
   d'équipe. Règle et exemples réels :
   `specs/20260925-130402-relay-name-split/contracts/relay-teammates-rule.md` ;
   mesures : `docs/superpowers/specs/2026-09-25-relais-noms-equipiers-sondage.md`.
+- **Un heat Challenge se reconnaît à l'import, jamais dans un scraper** (#1008) :
+  un scraper rend le heat comme les autres, et `import_service` met de côté
+  ceux dont le nom passe `utils.heat_is_challenge` (le mot « challenge »). Ils
+  ne deviennent un `Challenge` que si leurs athlètes courent aussi d'autres
+  épreuves du même jour (`services/challenge_service.match`) ; sinon, ce sont
+  des épreuves comme les autres. Un filtre par fournisseur, comme le
+  `_NON_SPORT_HEAT_PREFIXES` de Breizh Chrono, jetterait le classement au lieu
+  de le ranger.
 
 ## Fournisseurs supportés
 

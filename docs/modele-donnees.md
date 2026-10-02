@@ -137,7 +137,7 @@ erDiagram
 
 ## Contraintes d'unicité (dédoublonnage)
 
-La normalisation repose sur sept contraintes d'unicité qui garantissent
+La normalisation repose sur neuf contraintes d'unicité qui garantissent
 l'absence de doublons à l'import :
 
 | Table            | Contrainte                | Colonnes                                       | Rôle                                                         |
@@ -145,6 +145,8 @@ l'absence de doublons à l'import :
 | `athletes`       | `uq_athlete_identity`     | `last_name_key`, `first_name_key`, `homonym_rank` | Une personne = une seule ligne, quelles que soient ses courses et la graphie du chronométreur. Rang 0 = fiche principale, la seule que l'import vise. Clés calculées en Python (`core/athlete_identity`) et stockées : `unaccent` n'est pas immuable en PostgreSQL. La date de naissance n'en fait plus partie (#900) |
 | `athlete_aliases` | `uq_athlete_alias`       | `last_name_key`, `first_name_key`              | Une graphie absorbée n'appartient qu'à une fiche ; elle la suit dans les fusions suivantes |
 | `ignored_athlete_pairs` | `uq_ignored_athlete_pair` | `athlete_id_low`, `athlete_id_high`  | Une paire déclarée distincte une seule fois, normalisée (le plus petit id en premier) |
+| `challenges`     | `uq_challenge_identity`   | `name`, `event_date`                           | Un classement Challenge (cumul sur plusieurs épreuves du jour) = une seule ligne (#1008) |
+| `challenge_results` | `uq_challenge_result_bib` | `challenge_id`, `bib_number`               | Un dossard est unique au sein d'un Challenge → reprise idempotente |
 | `courses`        | `uq_course_identity`      | `name`, `event_date`, `event_type`, `is_relay` | Une épreuve (heat) = une seule ligne ; le relais est un heat distinct |
 | `participations` | `uq_participation_bib`    | `course_id`, `bib_number`                      | Un dossard est unique au sein d'une course → import idempotent |
 | `course_sources` | `uq_course_source_url`    | `course_id`, `url`                             | Une URL n'est rattachée qu'une fois à une épreuve donnée — **et surtout pas `UNIQUE(url)`** : une URL porte légitimement N épreuves (heats Klikego, multi-catégories Wiclax, multi-listes RaceResult, multi-épreuves Chronoplace) |
@@ -179,6 +181,17 @@ hors de l'équipe publiée, comme la réconciliation d'identité (#66) le faisai
 déjà. Sans composition, la table est vide
 pour ce résultat et rien ne change. Un podium de relais ne compte pas dans les podiums individuels
 et compte une fois pour le club. Détail et pièges : `backend/app/models/AGENTS.md`.
+
+### Classements Challenge : trois tables hors des résultats (#1008)
+Certains événements publient un classement « Challenge » qui cumule le temps
+d'un athlète sur plusieurs épreuves du même jour. Il vit dans `challenges`,
+relié à ses N épreuves par `challenge_courses`, ses lignes dans
+`challenge_results`. Ce ne sont **pas** des `participations` : aucun compteur,
+filtre fédéral, validation de saison ni statistique ne les voit. L'import
+reconnaît un heat dont le nom contient « challenge » **et** dont au moins 90 %
+des athlètes figurent sur au moins deux autres épreuves du jour ; sinon le heat
+reste une épreuve. Les épreuves importées avant #1008 se reprennent par la
+commande `requalify-challenges`. Détail : `backend/app/models/AGENTS.md`.
 
 ### Cache TTL
 `Course.source_url` — l'URL de la **source active**, plus une colonne depuis

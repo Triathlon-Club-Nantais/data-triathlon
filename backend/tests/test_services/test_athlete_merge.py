@@ -7,10 +7,12 @@ from app.core.exceptions import DomainError, NotFoundError
 from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.athlete_alias import AthleteAlias
+from app.models.challenge import ChallengeResult
 from app.models.participation import Participation
 from app.models.season_validation import SeasonValidation
 from app.models.volunteer_action import VolunteerAction
 from app.repositories import (
+    challenge_repository,
     course_repository,
     ignored_athlete_pair_repository,
     participation_repository,
@@ -241,3 +243,18 @@ def test_a_pair_set_aside_follows_the_absorbed_record(db_session_fk, admin):
         ignored_athlete_pair_repository.normalized(kept.id, other.id),
         ignored_athlete_pair_repository.normalized(kept.id, already.id),
     }
+
+
+def test_a_merge_moves_challenge_rows_to_the_kept_record(db_session_fk, admin):
+    db = db_session_fk
+    kept = _athlete(db, "DUPONT", "Jean")
+    absorbed = _athlete(db, "DUPOND", "Jean")
+    challenge = challenge_repository.upsert(db, name="C", event_date=date(2026, 5, 16), source_url="u")
+    challenge_repository.upsert_result(
+        db, challenge, athlete_id=absorbed.id, bib_number="1", rank_overall=1, rank_gender=None,
+        rank_category=None, total_time="06:50:33", status="finisher", raw_data={},
+    )
+
+    athlete_merge.merge_athletes(db, kept_id=kept.id, absorbed_id=absorbed.id, user_id=admin.id)
+
+    assert db.query(ChallengeResult).one().athlete_id == kept.id

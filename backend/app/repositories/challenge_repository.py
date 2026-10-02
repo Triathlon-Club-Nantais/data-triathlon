@@ -2,7 +2,7 @@
 from collections.abc import Sequence
 from datetime import date
 
-from sqlalchemy import func
+from sqlalchemy import func, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.time import utcnow
@@ -98,6 +98,15 @@ def list_for_athlete(db: Session, athlete_id: int) -> list[ChallengeResult]:
 def list_for_athlete_ids(db: Session, athlete_id: int) -> list[ChallengeResult]:
     """Lignes à anonymiser ou à réattribuer (opposition, fusion), sans chargement annexe."""
     return db.query(ChallengeResult).filter(ChallengeResult.athlete_id == athlete_id).all()
+
+
+def repoint(db: Session, *, from_athlete_id: int, to_athlete_id: int) -> int:
+    """Repointe les lignes Challenge d'une fiche absorbée par une fusion (#908)."""
+    return db.execute(
+        update(ChallengeResult)
+        .where(ChallengeResult.athlete_id == from_athlete_id)
+        .values(athlete_id=to_athlete_id)
+    ).rowcount
 
 
 def list_for_course(db: Session, course_id: int) -> list[Challenge]:

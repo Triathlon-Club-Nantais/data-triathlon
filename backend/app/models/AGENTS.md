@@ -39,10 +39,10 @@
   `UNIQUE(last_name_key, first_name_key)`, `athlete_id` en `ON DELETE CASCADE`.
   L'import la résout comme l'identité de sa fiche, après l'identité directe et
   avant le repli. Une fusion repointe les variantes de la fiche absorbée et y
-  ajoute la sienne. **Une fusion déplace sept références** : `participations`,
+  ajoute la sienne. **Une fusion déplace huit références** : `participations`,
   `participation_teammates`, `volunteer_actions`, `season_validations`
-  (dédoublonnées par saison), `users.athlete_id`, `athlete_aliases` et
-  `ignored_athlete_pairs` ; une nouvelle table qui pointe vers `athletes.id`
+  (dédoublonnées par saison), `users.athlete_id`, `challenge_results`,
+  `athlete_aliases` et `ignored_athlete_pairs` ; une nouvelle table qui pointe vers `athletes.id`
   doit rejoindre `athlete_merge.merge_athletes`.
 - **IgnoredAthletePair** (#908) — une paire de fiches qu'un admin a déclarées
   deux personnes depuis la revue d'identité, `UNIQUE(athlete_id_low,
@@ -57,6 +57,19 @@
   (purge d'orphelins, opposition, fusion) les emporte en PostgreSQL, mais
   **pas en SQLite**, où `database.py` n'émet aucun `PRAGMA foreign_keys=ON`.
   Les tests qui en dépendent passent par `db_session_fk`.
+- **Challenge** (#1008) — un classement qui cumule les résultats d'un athlète
+  sur plusieurs épreuves du même jour (Klikego « START CHALLENGE (XS - M - L) »).
+  Trois tables : `challenges` (`UNIQUE(name, event_date)`), `challenge_courses`
+  (les N épreuves liées, cascade des deux côtés) et `challenge_results`
+  (`UNIQUE(challenge_id, bib_number)`, `athlete_id` en `RESTRICT`). **Une ligne
+  Challenge n'est pas une `Participation`** : elle n'entre dans aucun compteur,
+  `federal_only`, validation de saison, stat ni classement, par construction.
+  Elle ne crée jamais de fiche : l'import l'apparie aux athlètes déjà présents
+  sur les épreuves du même jour, et écarte une ligne sans appariement unique
+  (une personne opposée, déjà anonymisée, ne revient donc pas par là). Elle
+  désigne pourtant la fiche : `referenced_outside_results` la compte, la
+  fusion la déplace, l'opposition l'anonymise, les purges totales la vident.
+  Design : `docs/superpowers/specs/2026-10-02-challenge-rankings-design.md`.
 - **Course** — `UNIQUE(name, event_date, event_type, is_relay)`
   (`uq_course_identity`) : le relais est un **heat distinct** du solo, sans quoi
   les deux fusionnaient dans la même ligne. Quatre colonnes, pas trois — la
