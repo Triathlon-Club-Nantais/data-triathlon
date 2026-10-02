@@ -230,3 +230,21 @@ def test_a_future_request_date_is_refused(db, admin):
 def test_both_name_and_first_name_are_required(db, admin, nom, prenom):
     with pytest.raises(DomainError):
         opposition_service.apply(db, admin, nom=nom, prenom=prenom, requested_on=TODAY, today=TODAY)
+
+
+def test_apply_drops_the_source_spelling_of_every_anonymised_row(db, course, admin):
+    # La clé source (`<nom>|<prénom>`, #1146) désigne la personne : elle ne survit pas à l'opposition.
+    jean = _athlete(db, "DUPONT", "Jean")
+    porteur = _athlete(db, "MARTIN", "Alix")
+    sienne = _classer(db, course, jean, 12, "120")
+    relais = _classer(db, course, porteur, 3, "300")
+    participation_repository.update(db, sienne, source_identity_key="dupont|jean")
+    participation_repository.update(db, relais, source_identity_key="martin|alix dupont jean")
+    participation_repository.replace_teammates(db, relais, [porteur.id, jean.id])
+
+    opposition_service.apply(db, admin, athlete_id=jean.id, requested_on=date(2026, 9, 20), today=TODAY)
+
+    db.refresh(sienne)
+    db.refresh(relais)
+    assert sienne.source_identity_key is None
+    assert relais.source_identity_key is None

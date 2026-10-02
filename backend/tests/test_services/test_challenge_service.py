@@ -1,10 +1,11 @@
 """Appariement d'un heat Challenge aux épreuves du même jour (#1008)."""
 from datetime import date
 
+from app.core.identity import identity_hash
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation
-from app.repositories import challenge_repository
+from app.repositories import challenge_repository, opposition_repository
 from app.services import challenge_service
 from app.services.challenge_service import ChallengeRow
 
@@ -171,3 +172,18 @@ def test_saving_again_drops_rows_that_no_longer_match(db_session):
     found = challenge_service.match(db_session, fewer, event_date=DAY)
     challenge = challenge_service.save(db_session, name="C", event_date=DAY, source_url="u", rows=fewer, found=found)
     assert sorted(r.bib_number for r in challenge.results) == sorted(n for n in names[:2])
+
+
+def test_an_opposed_person_is_never_saved_even_when_matched(db_session):
+    # La clé source d'une ligne a pu garder le nom (#334) : l'empreinte tranche à l'enregistrement.
+    _, names = _field(db_session, size=10)
+    opposition_repository.create(
+        db_session, identity_hash=identity_hash(names[0], "Jean"), requested_on=DAY, applied_by_user_id=None
+    )
+    rows = [_row(n, bib=f"b-{n}") for n in names]
+    found = challenge_service.match(db_session, rows, event_date=DAY)
+    challenge = challenge_service.save(
+        db_session, name="C", event_date=DAY, source_url="u", rows=rows, found=found
+    )
+    assert f"b-{names[0]}" not in {r.bib_number for r in challenge.results}
+    assert len(challenge.results) == 9
