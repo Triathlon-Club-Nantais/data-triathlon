@@ -35,6 +35,7 @@ from app.models.course import Course
 from app.models.participation import Participation
 from app.repositories import (
     admin_action_log_repository,
+    athlete_alias_repository,
     athlete_repository,
     course_repository,
     course_source_repository,
@@ -991,10 +992,15 @@ def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) 
     # n'y entre plus (#900). Une fiche renommée vers une clé neuve en devient la
     # fiche principale.
     if athlete_identity_keys(vise["nom"], vise["prenom"]) != (athlete.last_name_key, athlete.first_name_key):
-        conflit = athlete_repository.get_by_identity_keys(db, vise["nom"], vise["prenom"])
+        # Une variante mémorisée par une fusion vaut l'identité de sa fiche (#908).
+        cle = athlete_identity_keys(vise["nom"], vise["prenom"])
+        conflit = athlete_repository.get_by_identity_keys(
+            db, vise["nom"], vise["prenom"]
+        ) or athlete_alias_repository.get_by_keys_batch(db, [cle]).get(cle)
         if conflit is not None and conflit.id != athlete.id:
             raise DuplicateError(
-                f"Un athlète porte déjà cette identité (fiche #{conflit.id})."
+                f"Un athlète porte déjà cette identité (fiche #{conflit.id}).",
+                extra={"conflicting_athlete_id": conflit.id},
             )
         demande["homonym_rank"] = 0
 

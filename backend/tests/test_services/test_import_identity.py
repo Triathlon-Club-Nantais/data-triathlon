@@ -178,3 +178,34 @@ def test_a_relay_whose_teammates_share_one_identity_is_not_split(db_session, pat
 
     (row,) = _carrier(db_session, "1").participations
     assert row.teammates == []
+
+
+def test_a_merged_spelling_joins_the_kept_record_on_a_new_race(db_session, patch_scraper):
+    """Q2 : la graphie absorbée par une fusion est mémorisée comme variante ; le
+    rescrape de l'épreuve d'origine ne la recrée pas."""
+    from datetime import date
+
+    from app.repositories import user_repository
+    from app.services import athlete_merge
+
+    other, third = "https://www.klikego.com/resultats/event/456", "https://www.klikego.com/resultats/event/789"
+    _import(db_session, patch_scraper, [_result("1", "DUPONT", "Jean")])
+    patch_scraper([_result("5", "DUPOMT", "Jean", event_name="Duathlon", event_date=date(2025, 4, 1), source_url=other)])
+    import_service.import_event(db_session, other, _settings())
+    kept = athlete_repository.get_by_identity_keys(db_session, "DUPONT", "Jean")
+    typo = athlete_repository.get_by_identity_keys(db_session, "DUPOMT", "Jean")
+    admin = user_repository.create(db_session, email="admin@exemple.fr")
+    athlete_merge.merge_athletes(db_session, kept_id=kept.id, absorbed_id=typo.id, user_id=admin.id)
+    db_session.commit()
+
+    patch_scraper([_result("7", "DUPOMT", "Jean", event_name="Aquathlon", event_date=date(2025, 6, 1), source_url=third)])
+    import_service.import_event(db_session, third, _settings())
+    _expire_cache(db_session, other)
+    patch_scraper([_result("5", "DUPOMT", "Jean", event_name="Duathlon", event_date=date(2025, 4, 1),
+                           source_url=other, total_time="02:01:00")])
+    out = import_service.import_event(db_session, other, _settings())
+    db_session.flush()
+
+    assert _carrier(db_session, "7").id == kept.id
+    assert (_carrier(db_session, "5").id, out["reconciled"]) == (kept.id, 0)
+    assert athlete_repository.get_by_identity_keys(db_session, "DUPOMT", "Jean") is None

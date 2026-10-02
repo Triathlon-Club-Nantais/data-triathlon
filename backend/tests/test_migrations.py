@@ -1015,6 +1015,39 @@ def test_the_source_identity_migration_backfills_each_participation(sqlite_url):
     ) == [("legloanic|leo", 0), (None, 0)]
 
 
+_BEFORE_ALIASES = "c3a9d1e7f520"
+
+
+def test_the_alias_table_keeps_one_owner_per_spelling(sqlite_url):
+    """#908 : une variante n'appartient qu'à une fiche."""
+    command.upgrade(_alembic_config(), "head")
+    _insert_athletes(sqlite_url, [("DUPONT", "Jean"), ("MARTIN", "Paul")])
+    engine = sa.create_engine(sqlite_url)
+    try:
+        insert = sa.text(
+            "INSERT INTO athlete_aliases (last_name_key, first_name_key, athlete_id, created_at)"
+            " VALUES ('dupomt', 'jean', :athlete_id, '2026-10-02')"
+        )
+        with engine.begin() as connexion:
+            connexion.execute(insert, {"athlete_id": 1})
+        with pytest.raises(sa.exc.IntegrityError), engine.begin() as connexion:
+            connexion.execute(insert, {"athlete_id": 2})
+    finally:
+        engine.dispose()
+
+
+def test_downgrade_then_upgrade_of_the_alias_table(sqlite_url):
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, _BEFORE_ALIASES)
+    engine = sa.create_engine(sqlite_url)
+    try:
+        assert "athlete_aliases" not in sa.inspect(engine).get_table_names()
+    finally:
+        engine.dispose()
+    command.upgrade(cfg, "head")
+
+
 def test_downgrade_then_upgrade_of_the_source_identity(sqlite_url):
     cfg = _alembic_config()
     command.upgrade(cfg, "head")

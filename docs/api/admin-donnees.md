@@ -75,6 +75,33 @@ et `{participations_deleted, athletes_purged, courses_reset}` respectivement),
 plus `204` vide — la purge annonçait son ampleur avant le geste mais rendait un
 succès muet, sans confirmer ce qu'elle avait détruit.
 
+## Fusion de deux fiches d'athlète (#908)
+
+| Route | Pouvoir | Effet |
+| --- | --- | --- |
+| `GET /admin/athletes/{id}/merge-impact?absorbed_id=` | `athletes:write` | Aperçu, sans écriture : les deux fiches, ce qui serait déplacé (`moves`), `alias_added`, et `blocking_reason` / `blocking_label` si la fusion serait refusée. |
+| `POST /admin/athletes/{id}/merge` `{absorbed_id}` | `athletes:write` | Absorbe `absorbed_id` dans `{id}` ; rend la fiche conservée. 404 fiche inconnue, 409 refus (`code` = la raison) ou fiche en cours d'import. |
+
+- **Tout passe sur la fiche conservée** : résultats, liens d'équipier de relais,
+  actions bénévoles, validations de saison (une saison validée des deux côtés
+  n'en garde qu'une), comptes membres. Elle prend aussi ce qu'elle n'a pas :
+  club (un club verrouillé par un admin prime), genre, date de naissance.
+- **Refus**, avec le même prédicat dans l'aperçu et l'acte : `same_athlete`,
+  `distinct_users` (deux comptes membres), `same_course_bibs` (un résultat
+  chacune sur une même épreuve individuelle), `same_participation` (un même
+  relais), `distinct_birth_dates`.
+- **La graphie absorbée devient une variante** de la fiche conservée
+  (`athlete_aliases`) : l'import la résout désormais comme elle, et le rescrape de
+  l'épreuve d'origine ne recrée pas la faute.
+- **Concurrence** : la fusion verrouille les deux fiches (`FOR UPDATE`) après
+  tout import qui les a résolues, au plus 5 s, puis répond 409 « fiche en cours
+  d'import ».
+- **Journal** : `athlete.merge` sur la fiche conservée, avec l'identité de
+  l'absorbée (sans date de naissance) et le décompte des éléments déplacés.
+- **Renommage en conflit** : le 409 de `PATCH /admin/athletes/{id}` porte en plus
+  `conflicting_athlete_id`, pour proposer la fusion. Une variante compte comme
+  l'identité de sa fiche.
+
 ## Journal d'administration, en lecture (#501)
 
 `GET /admin/action-log` (`admin_log:read`) rend les dernières entrées du
