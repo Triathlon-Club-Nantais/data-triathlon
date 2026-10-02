@@ -53,15 +53,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // requête et ne touche pas au Data Cache.
   await connection();
 
-  // Largeur du rail décidée avant la peinture (#482, NAV-3) : le cookie que
-  // `AppNav` écrit au pliage/dépliage (`document.cookie`, jamais relayé à
-  // l'API) est relu ici pour que le rendu serveur et la première passe
-  // client partagent déjà la bonne largeur — plus de bascule 76 px → 288 px
-  // après coup.
   // Nonce relu pour Base UI (#570) : ses popups et zones de défilement
   // injectent un `<style>` (`.base-ui-disable-scrollbar`) au montage, et
   // `CSPProvider` est l'API prévue pour le signer. Sans lui, ce style est
-  // rapporté en violation `style-src-elem`, puis **bloqué** à la bascule — les
+  // rapporté en violation `style-src-elem`, puis **bloqué** à la bascule : les
   // barres de défilement réapparaîtraient sous chaque popup de sélection.
   //
   // Les deux noms d'en-tête sont lus : `proxy.ts` émet l'un ou l'autre selon
@@ -74,6 +69,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     "";
   const nonce = politique.match(/'nonce-([^']+)'/)?.[1];
 
+  // Largeur du rail décidée avant la peinture (#482, NAV-3) : le cookie que
+  // `AppNav` écrit au pliage/dépliage (`document.cookie`, jamais relayé à
+  // l'API) est relu ici pour que le rendu serveur et la première passe
+  // client partagent déjà la bonne largeur — plus de bascule 76 px → 288 px
+  // après coup.
   const jar = await cookies();
   const initialExpanded = jar.get(NAV_WIDTH_COOKIE)?.value === "1";
 
