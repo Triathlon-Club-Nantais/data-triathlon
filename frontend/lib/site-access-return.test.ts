@@ -19,6 +19,13 @@ describe("cheminDeRetour", () => {
     "/\n/evil.example",
     "/\r/evil.example",
     "/\t\\evil.example",
+    // La normalisation des segments « . » et « .. » peut rendre un chemin qui commence par « // ».
+    "/.//evil.example",
+    "/a/..//evil.example",
+    "/%2e//evil.example",
+    "/.%2e//evil.example",
+    "/./\\evil.example",
+    "/\t.//evil.example",
   ])(
     "refuse %s : jamais de redirection hors du site",
     (brut) => {

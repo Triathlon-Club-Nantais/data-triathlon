@@ -19,7 +19,8 @@ export function cheminDeRetour(brut: string | undefined | null): string | null {
   } catch {
     return null;
   }
-  if (url.origin !== ORIGINE_FICTIVE) {
+  // La normalisation de « /.//x » rend « //x », que le routeur lirait comme un hôte.
+  if (url.origin !== ORIGINE_FICTIVE || url.pathname.startsWith("//")) {
     return null;
   }
   return url.pathname + url.search + url.hash;
