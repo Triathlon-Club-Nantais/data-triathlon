@@ -3,11 +3,25 @@
  *
  * Seul un chemin **interne** est rendu : un `retour` pris tel quel ferait de
  * `/acces` une redirection ouverte vers n'importe quel site (`//evil.example`,
- * `/\evil.example` que les navigateurs lisent comme un hôte).
+ * `/\evil.example`, ou `/\t/evil.example`, dont le parseur d'URL retire la
+ * tabulation). On résout donc le chemin comme le fera le routeur, et on refuse
+ * tout ce qui sort de l'origine.
  */
+const ORIGINE_FICTIVE = "http://origine.invalid";
+
 export function cheminDeRetour(brut: string | undefined | null): string | null {
-  if (!brut || !brut.startsWith("/") || brut.startsWith("//") || brut.startsWith("/\\")) {
+  if (!brut || !brut.startsWith("/")) {
     return null;
   }
-  return brut;
+  let url: URL;
+  try {
+    url = new URL(brut, ORIGINE_FICTIVE);
+  } catch {
+    return null;
+  }
+  // La normalisation de « /.//x » rend « //x », que le routeur lirait comme un hôte.
+  if (url.origin !== ORIGINE_FICTIVE || url.pathname.startsWith("//")) {
+    return null;
+  }
+  return url.pathname + url.search + url.hash;
 }

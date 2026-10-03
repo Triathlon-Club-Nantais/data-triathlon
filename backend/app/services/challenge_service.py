@@ -6,8 +6,8 @@ figurer sur au moins `MIN_COURSES_PER_ATHLETE` épreuves. Les épreuves liées s
 celles où figure au moins `MIN_LINK_SHARE` du classement.
 
 Une ligne n'est jamais créatrice d'athlète : sans appariement unique, elle est
-écartée. Une personne opposée (#334) ou un nom masqué, déjà anonymisés sur les
-épreuves, ne reviennent donc pas par ce chemin.
+écartée. Une personne opposée (#334) n'est jamais enregistrée, même appariée :
+l'empreinte de son nom est testée à l'enregistrement.
 """
 from collections import Counter
 from collections.abc import Set
@@ -17,9 +17,10 @@ from datetime import date
 from sqlalchemy.orm import Session
 
 from app.core.athlete_identity import athlete_identity_keys
+from app.core.identity import identity_hash
 from app.models.challenge import Challenge
 from app.models.participation import Participation
-from app.repositories import challenge_repository
+from app.repositories import challenge_repository, opposition_repository
 from app.scrapers.base import ScrapedResult
 from app.scrapers.utils import heat_is_challenge
 from app.services import mapping
@@ -133,9 +134,12 @@ def save(
 ) -> Challenge:
     challenge = challenge_repository.upsert(db, name=name, event_date=event_date, source_url=source_url)
     challenge_repository.replace_links(db, challenge, found.course_ids)
+    opposed = opposition_repository.all_hashes(db)
     kept: list[int] = []
     for index, athlete_id in found.athlete_ids.items():
         row = rows[index]
+        if opposed and identity_hash(row.nom, row.prenom) in opposed:
+            continue
         kept.append(challenge_repository.upsert_result(
             db, challenge, athlete_id=athlete_id, bib_number=row.bib_number,
             rank_overall=row.rank_overall, rank_gender=row.rank_gender,

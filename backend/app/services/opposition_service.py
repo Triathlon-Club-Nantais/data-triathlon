@@ -171,6 +171,8 @@ def _anonymise(db: Session, athlete: Athlete) -> int:
         participation.category = ""
         participation.raw_data = {}
         participation.team_name = ""
+        # La clé source (`<nom>|<prénom>`) nomme la personne ; sans elle, la fiche anonyme en tient lieu.
+        participation.source_identity_key = None
     for link in links:
         participation = link.participation
         base = anonymous_name(participation.course_id, participation.bib_number, participation.id)
@@ -178,9 +180,10 @@ def _anonymise(db: Session, athlete: Athlete) -> int:
         participation_repository.replace_teammate(
             db, participation_id=participation.id, old_athlete_id=athlete.id, new_athlete_id=anonymous.id
         )
-        # La ligne brute et le libellé d'un relais portent les noms de toute l'équipe.
+        # La ligne brute, le libellé et la clé source d'un relais portent les noms de toute l'équipe.
         participation.raw_data = {}
         participation.team_name = ""
+        participation.source_identity_key = None
     for row in challenge_rows:
         anonymous = athlete_repository.get_or_create(
             db, nom=f"Anonyme challenge {row.challenge_id}-{row.bib_number or f'p{row.id}'}",
