@@ -10,7 +10,7 @@ export const PRIVACY_POLICY: LegalDocument = {
   title: "Politique de confidentialité",
   description:
     "Ce que le Triathlon Club Nantais fait des données de ce site, pourquoi, combien de temps, et comment faire valoir vos droits.",
-  updatedAt: "2026-10-01",
+  updatedAt: "2026-10-06",
   sections: [
     {
       id: "responsable",
@@ -56,6 +56,13 @@ export const PRIVACY_POLICY: LegalDocument = {
           <p>
             Les épreuves et catégories jeunes, jusqu&apos;à minime inclus, ne sont pas importées depuis les
             chronométreurs.
+          </p>
+          <p>
+            <strong>La liste des licenciés du club.</strong> Nom, prénom, sexe et numéro de licence des adhérents
+            licenciés au club, saison par saison. Elle est relue chaque semaine sur la page publique du club de la
+            Fédération Française de Triathlon (T2Area), ou importée par un administrateur pour une saison passée.
+            Elle sert à reconnaître comme résultats du club ceux de ses licenciés, quand le chronométreur ne publie
+            pas leur club. Seuls les administrateurs habilités la consultent.
           </p>
           <p>
             <strong>Les comptes du back-office.</strong> Les bénévoles et administrateurs se connectent avec leur
@@ -106,10 +113,11 @@ export const PRIVACY_POLICY: LegalDocument = {
             général sur la protection des données, le RGPD). Cela signifie que le club n&apos;a pas besoin de votre
             accord préalable, mais qu&apos;il doit vous informer, limiter ce qu&apos;il fait de vos données, et
             respecter votre droit de vous y opposer. Le club estime que vos intérêts ne prévalent pas sur le sien,
-            pour quatre raisons :
+            pour cinq raisons :
           </p>
           <List>
             <li>ces résultats ont déjà été rendus publics par le chronométreur, dans le même but ;</li>
+            <li>la liste des licenciés est déjà publiée par la fédération, et ne sert qu&apos;à compter ;</li>
             <li>
               le site est réservé aux adhérents, par un code d&apos;accès, et il est exclu des moteurs de recherche ;
             </li>
@@ -134,6 +142,10 @@ export const PRIVACY_POLICY: LegalDocument = {
           head={["Données", "Durée"]}
           rows={[
             ["Résultats d'épreuves", "Tant que le service existe (archive sportive du club), sauf opposition de votre part"],
+            [
+              "Liste des licenciés du club",
+              "La saison en cours et la précédente ; ensuite, seul le rattachement à la fiche de résultats est gardé, sans numéro de licence et avec le nom de la fiche",
+            ],
             ["Signalements, adresse IP comprise", "12 mois après leur envoi"],
             ["Journal des actions d'administration", "12 mois"],
             ["Compte du back-office", "Tant que son titulaire est autorisé à se connecter"],
