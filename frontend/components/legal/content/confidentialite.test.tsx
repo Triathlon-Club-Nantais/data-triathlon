@@ -128,4 +128,16 @@ describe("Politique de confidentialité (#333)", () => {
     expect(screen.getByRole("button", { name: "Refuser la mesure détaillée" })).toBeInTheDocument();
     expect(screen.getByRole("row", { name: /^ph_/ })).toHaveTextContent("1 an");
   });
+
+  it("annonce la liste des licenciés, sa provenance et sa durée (#1202)", () => {
+    const texte = rendre();
+    expect(texte).toMatch(/liste des licenciés/i);
+    expect(texte).toMatch(/Fédération Française de Triathlon/);
+    expect(texte).toMatch(/numéro de licence/i);
+    expect(texte).toMatch(/saison en cours et la précédente/i);
+  });
+
+  it("date la politique du jour de sa dernière modification", () => {
+    expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-06");
+  });
 });

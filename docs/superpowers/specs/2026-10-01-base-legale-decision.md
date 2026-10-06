@@ -121,6 +121,7 @@ appliquent dès #334.
 | Session de connexion | 7 jours | tenu (`auth_session_ttl_days`) |
 | Cookie du code d'accès | 90 jours | tenu (`site_access_session_ttl_days`) |
 | Profils jeunes | durée de l'adhésion, plus une saison | tenu dès qu'un encadrant saisit la fin d'adhésion (`purge-retention`, #1158) |
+| Liste des licenciés du club (#1202) | saison en cours et précédente ; ensuite, le seul rattachement à une fiche, sans numéro de licence | tenu (`purge-retention`) |
 
 `purge-retention` tourne chaque semaine avec le batch planifié
 (`.github/workflows/batch.yml`) ; un échec rougit le run et alerte. Un profil
@@ -185,6 +186,43 @@ réutilisation de résultats d'épreuves fédérales ne sont pas couverts par ce
 doctrine : la question est posée au référent de la Fédération Française de
 Triathlon (ou de la ligue Pays de la Loire), qui encadre les épreuves dont
 proviennent la plupart des résultats.
+
+## Avenant du 2026-10-06 : liste des licenciés du club (#1202)
+
+**Traitement.** Le club tient, saison par saison, la liste de ses licenciés :
+nom, prénom, sexe, numéro de licence, et la fiche d'athlète à laquelle chacun
+est rattaché. Elle est relue chaque semaine sur la page publique du club de la
+Fédération Française de Triathlon (`fftri.t2area.com`), ou importée d'un
+fichier (CSV ou XLSX) par un administrateur pour une saison passée. Elle sert
+à compter comme résultats du club ceux de ses licenciés pour la saison de
+l'épreuve, même quand le chronométreur ne publie pas leur club. Aucun autre
+usage.
+
+**Base légale.** Intérêt légitime (article 6.1.f), comme les résultats :
+
+- les données sont déjà publiées par la fédération, dans un but voisin (faire
+  connaître l'activité du club) ;
+- elles ne concernent que des adhérents, qui connaissent leur club ;
+- elles restent derrière le back-office : seuls les détenteurs de
+  `club_members:manage` voient la liste.
+
+**Minimisation.** Ni date de naissance, ni catégorie d'âge, ni photo, ni score
+IPR, bien que la page les publie.
+
+**Levier « ciblage des seuls adhérents » réexaminé.** Il reste écarté pour
+l'affichage : le classement complet reste affiché. Il ne s'agit ici que de
+compter : la liste ne restreint ni n'étend ce qui est montré, elle décide
+seulement si un résultat est compté comme résultat du club. C'est un
+traitement de plus, limité aux adhérents, et non un déplacement du cœur du
+produit.
+
+**Conservation.** La saison en cours et la précédente, en clair. Au-delà,
+`purge-retention` supprime les licenciés sans fiche ou rattachés de façon
+ambiguë. Des autres, il ne garde que le fait « cette fiche était licenciée
+cette saison » (une ligne par saison et par fiche) : le numéro de licence est
+effacé, le nom et le prénom sont remplacés par ceux de la fiche, qui suit la
+durée de conservation des résultats. Sans ce fait, les compteurs des saisons
+passées changeraient à chaque purge.
 
 ## Hors de cette décision, signalé
 
