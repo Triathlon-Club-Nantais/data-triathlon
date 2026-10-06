@@ -211,6 +211,16 @@ def render_timepulse_duplicates_report(rows: list[dict], *, deleted: bool) -> st
     return "\n".join(lignes)
 
 
+def render_gender_backfill_report(rows: list[dict], *, applied: bool) -> str:
+    """Fiches dont le sexe vide est rattrapé (#1201)."""
+    femmes = sum(1 for row in rows if row["gender"] == "F")
+    lignes = ["=== SEXE DES FICHES ATHLÈTES ===" + ("" if applied else " (simulation)")]
+    lignes.append(f"{len(rows)} fiche(s) {'remplie(s)' if applied else 'à remplir'} : {len(rows) - femmes} M, {femmes} F.")
+    if not applied and rows:
+        lignes.append("Relancer avec --yes pour écrire.")
+    return "\n".join(lignes)
+
+
 def render_relay_twins_report(rows: list[dict], *, deleted: bool) -> str:
     """Épreuves solo remplacées par leur jumelle relais (#1195, #1197)."""
     lignes = ["=== ÉPREUVES SOLO DOUBLÉES PAR LEUR RELAIS ==="]
