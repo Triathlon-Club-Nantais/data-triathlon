@@ -5,7 +5,7 @@ mécanisme de progression que la bascule de source (#285) — #275 tranche que
 les deux « doivent partager le même mécanisme, pas en inventer deux ».
 
 **La garde d'existence/concurrence est synchrone, pas dans le générateur.**
-`admin_actions.iter_rescrape_course` est une fonction ordinaire (pas un
+`course_rescrape_service.iter_rescrape_course` est une fonction ordinaire (pas un
 générateur) précisément pour ça : appelée ici, elle lève 404/409 *avant* que
 `StreamingResponse` existe. La raison tient à Starlette :
 `StreamingResponse.stream_response` envoie le statut HTTP **avant** de tirer
@@ -21,7 +21,7 @@ from app.core.config import Settings, get_settings
 from app.core.database import SessionLocal
 from app.core.permissions import P
 from app.models.user import User
-from app.services import admin_actions
+from app.services import course_rescrape_service
 
 router = APIRouter(tags=["admin"])
 
@@ -42,7 +42,7 @@ def rescrape_course(
     """
     db = SessionLocal()
     try:
-        events = admin_actions.iter_rescrape_course(
+        events = course_rescrape_service.iter_rescrape_course(
             db, course_id=course_id, user_id=user.id, settings=settings
         )
     except Exception:

@@ -247,7 +247,7 @@ def scrape_all_streaming(
     `scrape.py`) pour la sonde de cache, qu'il referme dans son propre `finally`
     — le thread ne touche plus jamais la Session de l'appelant, quelle que soit
     la vitesse à laquelle celui-ci la ferme. Coût accepté, même nature que le
-    `ponytail:` d'`admin_actions._stream_rescrape` : une connexion tenue jusqu'à
+    `ponytail:` d'`course_rescrape_service._stream_rescrape` : une connexion tenue jusqu'à
     la fin du thread détaché, upgrade si mesuré en production.
     """
     provider = registry.get_provider(url)

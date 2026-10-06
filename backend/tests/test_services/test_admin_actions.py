@@ -21,7 +21,14 @@ from app.repositories import (
     volunteer_action_repository,
 )
 from app.scrapers.base import FanoutTrace, ScrapedResult
-from app.services import admin_actions, course_locks, deadlock, import_dispatch, sse_relay
+from app.services import (
+    admin_actions,
+    course_locks,
+    course_rescrape_service,
+    deadlock,
+    import_dispatch,
+    sse_relay,
+)
 
 
 @pytest.fixture
@@ -754,7 +761,7 @@ def test_rescrape_upsert_purge_les_orphelins_et_consigne_le_geste(db_session, au
         _resultat(course, "2", "RESTE", prenom="Coureur", total_time="02:10:00"),
     ])
 
-    events = list(admin_actions.iter_rescrape_course(
+    events = list(course_rescrape_service.iter_rescrape_course(
         db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
     ))
 
@@ -777,7 +784,7 @@ def test_rescrape_refuse_zero_resultat_et_ne_modifie_rien(db_session, auteur, sc
     db_session.commit()
     scrape([])
 
-    events = list(admin_actions.iter_rescrape_course(
+    events = list(course_rescrape_service.iter_rescrape_course(
         db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
     ))
 
@@ -795,7 +802,7 @@ def test_rescrape_refuse_une_epreuve_divergente_et_ne_modifie_rien(db_session, a
     db_session.commit()
     scrape([_resultat(course, "9", "AUTRE", event_name="Une tout autre épreuve")])
 
-    events = list(admin_actions.iter_rescrape_course(
+    events = list(course_rescrape_service.iter_rescrape_course(
         db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
     ))
 
@@ -824,7 +831,7 @@ def test_rescrape_emet_un_battement_pendant_une_phase_de_scraping_lente(
 
     monkeypatch.setattr(import_dispatch, "registry_scrape_event_all", _scrape_lent)
 
-    events = list(admin_actions.iter_rescrape_course(
+    events = list(course_rescrape_service.iter_rescrape_course(
         db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
     ))
 
@@ -850,7 +857,7 @@ def test_rescrape_termine_et_commite_malgre_un_client_qui_arrete_de_lire(
     db_session.commit()
     scrape([_resultat(course, "1", "NOUVEAU")])
 
-    gen = admin_actions.iter_rescrape_course(
+    gen = course_rescrape_service.iter_rescrape_course(
         db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
     )
     for i, _event in enumerate(gen):
@@ -874,7 +881,7 @@ def test_rescrape_ajoute_les_dossards_manquants_sans_dupliquer(db_session, auteu
         _resultat(course, "2", "MANQUANT"),
     ])
 
-    events = list(admin_actions.iter_rescrape_course(
+    events = list(course_rescrape_service.iter_rescrape_course(
         db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
     ))
 
@@ -903,7 +910,7 @@ def test_rescrape_refuse_un_second_declenchement_sur_la_meme_course(db_session, 
     _epreuve_verrouillee(monkeypatch, course.id)
 
     with pytest.raises(course_locks.CourseRescrapeAlreadyRunningError):
-        admin_actions.iter_rescrape_course(
+        course_rescrape_service.iter_rescrape_course(
             db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
         )
 
@@ -916,7 +923,7 @@ def test_rescrape_sur_une_autre_course_n_est_pas_bloque(db_session, auteur, scra
     scrape([_resultat(course_b, "1", "X")])
 
     _epreuve_verrouillee(monkeypatch, course_a.id)
-    events = list(admin_actions.iter_rescrape_course(
+    events = list(course_rescrape_service.iter_rescrape_course(
         db_session, course_id=course_b.id, user_id=auteur.id, settings=_settings()
     ))
     assert events[-1]["phase"] == "done"
@@ -932,14 +939,14 @@ def test_rescrape_sur_course_sans_source_active_est_un_not_found(db_session, aut
     db_session.commit()
 
     with pytest.raises(NotFoundError):
-        admin_actions.iter_rescrape_course(
+        course_rescrape_service.iter_rescrape_course(
             db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
         )
 
 
 def test_rescrape_sur_course_inconnue_est_un_not_found(db_session, auteur):
     with pytest.raises(NotFoundError):
-        admin_actions.iter_rescrape_course(
+        course_rescrape_service.iter_rescrape_course(
             db_session, course_id=4242, user_id=auteur.id, settings=_settings()
         )
 
@@ -1011,7 +1018,7 @@ def test_switch_replaces_the_ranking_purges_orphans_and_logs_the_switch(
     # déséquilibre qui distingue un remplacement total d'un upsert.
     scrape([_resultat_bascule(course, passive, "9", "NOUVEAU")])
 
-    events = list(admin_actions.iter_switch_course_source(
+    events = list(course_rescrape_service.iter_switch_course_source(
         db_session, course_id=course.id, source_id=passive.id,
         user_id=auteur.id, settings=_settings(),
     ))
@@ -1056,7 +1063,7 @@ def test_switch_termine_et_commite_malgre_un_client_qui_arrete_de_lire(
     db_session.commit()
     scrape([_resultat_bascule(course, passive, "1", "NOUVEAU")])
 
-    gen = admin_actions.iter_switch_course_source(
+    gen = course_rescrape_service.iter_switch_course_source(
         db_session, course_id=course.id, source_id=passive.id,
         user_id=auteur.id, settings=_settings(),
     )
@@ -1080,7 +1087,7 @@ def test_switch_refuses_zero_results_and_leaves_everything_untouched(
     db_session.commit()
     scrape([])
 
-    events = list(admin_actions.iter_switch_course_source(
+    events = list(course_rescrape_service.iter_switch_course_source(
         db_session, course_id=course.id, source_id=passive.id,
         user_id=auteur.id, settings=_settings(),
     ))
@@ -1106,7 +1113,7 @@ def test_switch_refuses_a_divergent_event_and_leaves_everything_untouched(
         course, passive, "9", "AUTRE", event_name="Une tout autre épreuve",
     )])
 
-    events = list(admin_actions.iter_switch_course_source(
+    events = list(course_rescrape_service.iter_switch_course_source(
         db_session, course_id=course.id, source_id=passive.id,
         user_id=auteur.id, settings=_settings(),
     ))
@@ -1128,7 +1135,7 @@ def test_switching_to_the_already_active_source_is_a_noop(db_session, auteur, sc
     db_session.commit()
     appels = scrape([_resultat_bascule(course, active, "9", "NOUVEAU")])
 
-    events = list(admin_actions.iter_switch_course_source(
+    events = list(course_rescrape_service.iter_switch_course_source(
         db_session, course_id=course.id, source_id=active.id,
         user_id=auteur.id, settings=_settings(),
     ))
@@ -1151,7 +1158,7 @@ def test_switch_bypasses_the_cache_ttl_even_on_a_freshly_scraped_course(
     db_session.commit()
     appels = scrape([_resultat_bascule(course, passive, "9", "NOUVEAU")])
 
-    events = list(admin_actions.iter_switch_course_source(
+    events = list(course_rescrape_service.iter_switch_course_source(
         db_session, course_id=course.id, source_id=passive.id,
         user_id=auteur.id, settings=_settings(),
     ))
@@ -1173,7 +1180,7 @@ def test_switch_of_a_fanout_incoming_source_only_replaces_this_events_ranking(
     db_session.commit()
     scrape([_resultat_bascule(course, passive, "9", "NOUVEAU"), voisin])
 
-    events = list(admin_actions.iter_switch_course_source(
+    events = list(course_rescrape_service.iter_switch_course_source(
         db_session, course_id=course.id, source_id=passive.id,
         user_id=auteur.id, settings=_settings(),
     ))
@@ -1204,7 +1211,7 @@ def test_switch_emet_un_battement_pendant_une_phase_de_scraping_lente(
 
     monkeypatch.setattr(import_dispatch, "registry_scrape_event_all", _scrape_lent)
 
-    events = list(admin_actions.iter_switch_course_source(
+    events = list(course_rescrape_service.iter_switch_course_source(
         db_session, course_id=course.id, source_id=passive.id,
         user_id=auteur.id, settings=_settings(),
     ))
@@ -1222,7 +1229,7 @@ def test_switch_of_an_unknown_source_on_the_course_is_a_not_found(db_session, au
     db_session.commit()
 
     with pytest.raises(NotFoundError):
-        admin_actions.iter_switch_course_source(
+        course_rescrape_service.iter_switch_course_source(
             db_session, course_id=course.id, source_id=autre_source.id,
             user_id=auteur.id, settings=_settings(),
         )
@@ -1230,7 +1237,7 @@ def test_switch_of_an_unknown_source_on_the_course_is_a_not_found(db_session, au
 
 def test_switch_on_an_unknown_course_is_a_not_found(db_session, auteur):
     with pytest.raises(NotFoundError):
-        admin_actions.iter_switch_course_source(
+        course_rescrape_service.iter_switch_course_source(
             db_session, course_id=4242, source_id=1,
             user_id=auteur.id, settings=_settings(),
         )
@@ -1244,7 +1251,7 @@ def test_switch_refuses_a_second_trigger_on_the_same_course(db_session, auteur, 
     _epreuve_verrouillee(monkeypatch, course.id)
 
     with pytest.raises(course_locks.CourseRescrapeAlreadyRunningError):
-        admin_actions.iter_switch_course_source(
+        course_rescrape_service.iter_switch_course_source(
             db_session, course_id=course.id, source_id=passive.id,
             user_id=auteur.id, settings=_settings(),
         )
@@ -1258,7 +1265,7 @@ def test_switch_on_another_course_is_not_blocked(db_session, auteur, scrape, mon
     scrape([_resultat_bascule(course_b, passive_b, "1", "X")])
     _epreuve_verrouillee(monkeypatch, course_a.id)
 
-    events = list(admin_actions.iter_switch_course_source(
+    events = list(course_rescrape_service.iter_switch_course_source(
         db_session, course_id=course_b.id, source_id=passive_b.id,
         user_id=auteur.id, settings=_settings(),
     ))
@@ -1274,7 +1281,7 @@ def test_delete_course_source_removes_a_passive_source(db_session, auteur):
     course, passive = _epreuve_deux_sources(db_session)
     db_session.commit()
 
-    admin_actions.delete_course_source(
+    course_rescrape_service.delete_course_source(
         db_session, course_id=course.id, source_id=passive.id, user_id=auteur.id
     )
 
@@ -1294,7 +1301,7 @@ def test_delete_course_source_refuses_the_active_source_and_changes_nothing(
     db_session.commit()
 
     with pytest.raises(DomainError):
-        admin_actions.delete_course_source(
+        course_rescrape_service.delete_course_source(
             db_session, course_id=course.id, source_id=active.id, user_id=auteur.id
         )
 
@@ -1312,7 +1319,7 @@ def test_delete_course_source_consigne_le_geste(db_session, auteur):
     db_session.commit()
     passive_id, url, provider = passive.id, passive.url, passive.provider
 
-    admin_actions.delete_course_source(
+    course_rescrape_service.delete_course_source(
         db_session, course_id=course.id, source_id=passive_id, user_id=auteur.id
     )
 
@@ -1337,14 +1344,14 @@ def test_delete_course_source_of_an_unknown_source_on_the_course_is_a_not_found(
     db_session.commit()
 
     with pytest.raises(NotFoundError):
-        admin_actions.delete_course_source(
+        course_rescrape_service.delete_course_source(
             db_session, course_id=course.id, source_id=autre_source.id, user_id=auteur.id
         )
 
 
 def test_delete_course_source_on_an_unknown_course_is_a_not_found(db_session, auteur):
     with pytest.raises(NotFoundError):
-        admin_actions.delete_course_source(
+        course_rescrape_service.delete_course_source(
             db_session, course_id=4242, source_id=1, user_id=auteur.id
         )
 
@@ -2412,7 +2419,7 @@ def test_rescrape_renumbers_duplicated_ranks_like_every_import_path(db_session, 
                 rank_overall=1, status="finisher", provider="raceresult"),
     ])
 
-    events = list(admin_actions.iter_rescrape_course(
+    events = list(course_rescrape_service.iter_rescrape_course(
         db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
     ))
 
@@ -2424,11 +2431,14 @@ def test_rescrape_renumbers_duplicated_ranks_like_every_import_path(db_session, 
     assert rangs == {"1": 2, "2": 1}
 
 
-def test_no_caller_instantiates_the_persister_outside_import_service():
+def test_no_caller_instantiates_the_persister_outside_import_persistence():
     """#914 : un seul point d'entrée public porte rattrapages de lot et boucle."""
     import inspect
 
+    from app.services import course_rescrape_service
+
     assert "_Persister(" not in inspect.getsource(admin_actions)
+    assert "_Persister(" not in inspect.getsource(course_rescrape_service)
 
 
 
@@ -2510,7 +2520,7 @@ def test_rescrape_persists_nothing_if_the_course_disappeared_during_the_scrape(
 
     monkeypatch.setattr(import_dispatch, "registry_scrape_event_all", _scrape)
 
-    events = list(admin_actions.iter_rescrape_course(
+    events = list(course_rescrape_service.iter_rescrape_course(
         db_session, course_id=course_id, user_id=auteur.id, settings=_settings()
     ))
 
@@ -2540,7 +2550,7 @@ def test_rescrape_retries_a_deadlock_like_every_import_path(db_session, auteur, 
 
     monkeypatch.setattr(db_session, "commit", _commit_deadlock_puis_ok)
 
-    events = list(admin_actions.iter_rescrape_course(
+    events = list(course_rescrape_service.iter_rescrape_course(
         db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
     ))
 
@@ -2574,7 +2584,7 @@ def test_rescrape_persists_nothing_if_another_session_renamed_the_course(
 
     monkeypatch.setattr(import_dispatch, "registry_scrape_event_all", _scrape)
 
-    events = list(admin_actions.iter_rescrape_course(
+    events = list(course_rescrape_service.iter_rescrape_course(
         db_session, course_id=course_id, user_id=auteur.id, settings=_settings()
     ))
 
@@ -2591,7 +2601,7 @@ def test_deleting_a_source_refuses_a_course_held_by_a_switch(db_session, auteur,
     _epreuve_verrouillee(monkeypatch, course.id)
 
     with pytest.raises(course_locks.CourseRescrapeAlreadyRunningError):
-        admin_actions.delete_course_source(
+        course_rescrape_service.delete_course_source(
             db_session, course_id=course.id, source_id=passive.id, user_id=auteur.id
         )
 

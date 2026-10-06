@@ -24,7 +24,7 @@ from app.core.exceptions import DomainError
 from app.core.permissions import P
 from app.models.user import User
 from app.schemas.course import CourseSourceSwitch
-from app.services import admin_actions
+from app.services import course_rescrape_service
 
 router = APIRouter(tags=["admin"])
 
@@ -76,7 +76,7 @@ def switch_course_source(
 
     db = SessionLocal()
     try:
-        events = admin_actions.iter_switch_course_source(
+        events = course_rescrape_service.iter_switch_course_source(
             db,
             course_id=course_id,
             source_id=source_id,
@@ -106,7 +106,7 @@ def delete_course_source(
     la `Course`, pas par la source) et refuse l'active — le journal reste le
     seul filet de ce geste (FR-018 de #117, repris pour #739).
     """
-    admin_actions.delete_course_source(
+    course_rescrape_service.delete_course_source(
         db, course_id=course_id, source_id=source_id, user_id=user.id
     )
     db.commit()

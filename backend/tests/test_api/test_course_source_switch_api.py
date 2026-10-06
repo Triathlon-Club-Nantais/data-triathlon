@@ -7,8 +7,8 @@ la route monte sa propre session (`SessionLocal()`, dédiée — voir la docstri
 de `admin_course_sources.py`), qui n'est **pas** substituable par
 `app.dependency_overrides[get_db]` — la faire tourner ici pour de vrai
 frapperait la base de dev réelle, pas la base de test. On mocke donc
-`admin_actions.iter_switch_course_source` lui-même, exactement comme
-`test_admin_course_rescrape.py` mocke `admin_actions.iter_rescrape_course`.
+`course_rescrape_service.iter_switch_course_source` lui-même, exactement comme
+`test_admin_course_rescrape.py` mocke `course_rescrape_service.iter_rescrape_course`.
 
 **Flux SSE depuis #624** — la bascule était bloquante (#285) : #275 renvoyait
 alors au SSE d'administration comme un chantier propre à #118, sans aucun
@@ -34,7 +34,7 @@ from app.repositories import (
     user_repository,
     user_role_repository,
 )
-from app.services import admin_actions, course_locks, sse_relay
+from app.services import course_locks, course_rescrape_service, sse_relay
 from app.services.auth import session as session_service
 
 
@@ -135,7 +135,7 @@ def test_a_holder_of_courses_sources_streams_the_switch(
         }
 
     monkeypatch.setattr(
-        admin_actions, "iter_switch_course_source", fake_iter_switch_course_source
+        course_rescrape_service, "iter_switch_course_source", fake_iter_switch_course_source
     )
 
     with client.stream("PATCH", _url(1, 2), json={"is_active": True}) as reponse:
@@ -182,7 +182,7 @@ def test_a_heartbeat_marker_becomes_a_comment_frame_not_a_data_frame(
         }
 
     monkeypatch.setattr(
-        admin_actions, "iter_switch_course_source", fake_iter_switch_course_source
+        course_rescrape_service, "iter_switch_course_source", fake_iter_switch_course_source
     )
 
     with client.stream("PATCH", _url(1, 2), json={"is_active": True}) as reponse:
@@ -203,14 +203,14 @@ def test_a_switch_already_running_is_refused_before_any_byte(
     connecte(client, db_session, organisation, P.COURSES_SOURCES.code)
 
     # Fonction **ordinaire**, pas un générateur (patron réel
-    # d'`admin_actions.iter_switch_course_source` — cf. sa docstring) : un
+    # d'`course_rescrape_service.iter_switch_course_source` — cf. sa docstring) : un
     # `yield` ici différerait la levée au premier `next()`, donc *après* que
     # `StreamingResponse` ait déjà envoyé un statut 200.
     def fake_iter_switch_course_source(db, *, course_id, source_id, user_id, settings):
         raise course_locks.CourseRescrapeAlreadyRunningError()
 
     monkeypatch.setattr(
-        admin_actions, "iter_switch_course_source", fake_iter_switch_course_source
+        course_rescrape_service, "iter_switch_course_source", fake_iter_switch_course_source
     )
 
     reponse = client.patch(_url(1, 2), json={"is_active": True})
@@ -226,7 +226,7 @@ def test_an_unknown_course_is_a_not_found(client, db_session, organisation, monk
         raise NotFoundError("Épreuve introuvable.")
 
     monkeypatch.setattr(
-        admin_actions, "iter_switch_course_source", fake_iter_switch_course_source
+        course_rescrape_service, "iter_switch_course_source", fake_iter_switch_course_source
     )
 
     assert client.patch(_url(999999, 1), json={"is_active": True}).status_code == 404
@@ -243,7 +243,7 @@ def test_a_source_of_another_course_is_a_not_found(
         raise NotFoundError("Source introuvable pour cette épreuve.")
 
     monkeypatch.setattr(
-        admin_actions, "iter_switch_course_source", fake_iter_switch_course_source
+        course_rescrape_service, "iter_switch_course_source", fake_iter_switch_course_source
     )
 
     reponse = client.patch(_url(1, 999999), json={"is_active": True})

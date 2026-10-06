@@ -116,7 +116,7 @@ def test_deleting_a_course_deletes_its_sources(db_session):
 
 def test_remove_deletes_the_source_and_spares_its_neighbours(db_session):
     """`course_source_repository.remove` (#739) — pas la garde `is_active`,
-    portée par `admin_actions.delete_course_source`."""
+    portée par `course_rescrape_service.delete_course_source`."""
     course = _course(db_session, "Mesquer")
     partant = _source(db_session, course, URL, is_active=True)
     restant = _source(

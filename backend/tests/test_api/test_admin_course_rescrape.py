@@ -8,7 +8,7 @@ te sa propre session (`SessionLocal()`, dédiée — voir la docstring
 de `admin_course_rescrape.py`), qui n'est **pas** substituable par
 `app.dependency_overrides[get_db]` — la faire tourner ici pour de vrai
 frapperait la base de dev réelle, pas la base de test. On mocke donc
-`admin_actions.iter_rescrape_course` lui-même, exactement comme
+`course_rescrape_service.iter_rescrape_course` lui-même, exactement comme
 `test_scrape_api.py` mocke `import_service.iter_import_event`.
 """
 import json
@@ -22,7 +22,7 @@ from app.core.permissions import P
 from app.models.organisation import Organisation
 from app.models.role_permission import RolePermission
 from app.repositories import role_repository, user_repository, user_role_repository
-from app.services import admin_actions, course_locks, sse_relay
+from app.services import course_locks, course_rescrape_service, sse_relay
 from app.services.auth import session as session_service
 
 
@@ -89,7 +89,7 @@ def test_a_holder_of_courses_sources_streams_the_rescrape(client, monkeypatch):
             "reconciled": 0, "total": 1, "orphans_removed": 0,
         }
 
-    monkeypatch.setattr(admin_actions, "iter_rescrape_course", fake_iter_rescrape_course)
+    monkeypatch.setattr(course_rescrape_service, "iter_rescrape_course", fake_iter_rescrape_course)
 
     with client.stream("POST", _url(1)) as reponse:
         assert reponse.status_code == 200
@@ -126,7 +126,7 @@ def test_a_heartbeat_marker_becomes_a_comment_frame_not_a_data_frame(client, mon
             "reconciled": 0, "total": 1, "orphans_removed": 0,
         }
 
-    monkeypatch.setattr(admin_actions, "iter_rescrape_course", fake_iter_rescrape_course)
+    monkeypatch.setattr(course_rescrape_service, "iter_rescrape_course", fake_iter_rescrape_course)
 
     with client.stream("POST", _url(1)) as reponse:
         assert reponse.status_code == 200
@@ -143,13 +143,13 @@ def test_a_rescrape_already_running_is_refused_before_any_byte(client, monkeypat
     flux déjà ouvert."""
 
     # Fonction **ordinaire**, pas un générateur (patron réel de
-    # `admin_actions.iter_rescrape_course` — cf. sa docstring) : un `yield`
+    # `course_rescrape_service.iter_rescrape_course` — cf. sa docstring) : un `yield`
     # ici différerait la levée au premier `next()`, donc *après* que
     # `StreamingResponse` ait déjà envoyé un statut 200.
     def fake_iter_rescrape_course(db, *, course_id, user_id, settings):
         raise course_locks.CourseRescrapeAlreadyRunningError()
 
-    monkeypatch.setattr(admin_actions, "iter_rescrape_course", fake_iter_rescrape_course)
+    monkeypatch.setattr(course_rescrape_service, "iter_rescrape_course", fake_iter_rescrape_course)
 
     reponse = client.post(_url(1))
 
@@ -161,7 +161,7 @@ def test_an_unknown_course_is_a_not_found(client, monkeypatch):
     def fake_iter_rescrape_course(db, *, course_id, user_id, settings):
         raise NotFoundError("Épreuve introuvable.")
 
-    monkeypatch.setattr(admin_actions, "iter_rescrape_course", fake_iter_rescrape_course)
+    monkeypatch.setattr(course_rescrape_service, "iter_rescrape_course", fake_iter_rescrape_course)
 
     assert client.post(_url(999999)).status_code == 404
 
@@ -172,7 +172,7 @@ def test_a_course_without_active_source_is_a_not_found(client, monkeypatch):
     def fake_iter_rescrape_course(db, *, course_id, user_id, settings):
         raise NotFoundError("Cette épreuve n'a aucune source active à re-scraper.")
 
-    monkeypatch.setattr(admin_actions, "iter_rescrape_course", fake_iter_rescrape_course)
+    monkeypatch.setattr(course_rescrape_service, "iter_rescrape_course", fake_iter_rescrape_course)
 
     reponse = client.post(_url(1))
 
