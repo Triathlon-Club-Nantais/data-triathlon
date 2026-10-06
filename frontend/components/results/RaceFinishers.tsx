@@ -641,6 +641,16 @@ export function RaceFinishers({
                   style={{ fontSize: 13, color: "var(--tcn-text-body)", cursor: p.category ? "help" : undefined }}
                 >
                   {p.category ?? "—"}
+                  {/* Sous le code, pas dans une colonne de plus : la grille
+                      tient déjà ses 1 080 px (#1207). */}
+                  {p.rank_category != null && (
+                    <div
+                      title={`${p.rank_category}e de sa catégorie`}
+                      style={{ fontSize: 11, color: "var(--tcn-text-faint)" }}
+                    >
+                      {p.rank_category}e
+                    </div>
+                  )}
                 </td>
                 <td role="cell" style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{genderShort(p.athlete.gender)}</td>
                 <td role="cell" style={{ fontFamily: "var(--tcn-font-cond)", fontWeight: 700, fontSize: 15, color: "var(--tcn-ink)" }}>
@@ -717,7 +727,9 @@ export function RaceFinishers({
           // club, catégorie ni sexe affichait « — · — · — » là où la grille
           // répartissait trois tirets dans trois colonnes distinctes.
           const genre = p.athlete?.gender ? genderShort(p.athlete.gender) : null;
-          const meta = [p.club, p.category, genre].filter(Boolean).join(" · ");
+          const categorie =
+            p.category && p.rank_category != null ? `${p.category} (${p.rank_category}e)` : p.category;
+          const meta = [p.club, categorie, genre].filter(Boolean).join(" · ");
           return (
             <LigneCarte
               key={p.id}
