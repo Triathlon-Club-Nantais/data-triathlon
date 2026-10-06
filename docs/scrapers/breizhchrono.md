@@ -88,7 +88,10 @@ complet.
 Le classement publié (`clt`) suit `reel`, le temps puce : sur Frenchman L 2025
 (départ par vagues, sondé le 06/10/2026), 0 inversion de l'ordre des rangs
 contre `reel` sur 2 127 lignes, 1 030 contre `officiel`, qui compte depuis le
-premier départ et s'en écarte jusqu'à 40 min. `parse_data_row` retient donc
+premier départ et s'en écarte jusqu'à 40 min. Même mesure côté Klikego, qui
+partage `parse_data_row` : Frenchman 2026, 0 inversion contre `reel` sur chacun
+des 15 heats (jusqu'à 1 103 contre `officiel` sur le L) ; Vierzon 2026, départ
+groupé, les deux temps identiques sur tous les heats. `parse_data_row` retient donc
 `reel.strip() or officiel.strip()`, et garde les deux dans `raw_data`
 (`officiel`, `reel`) pour le contrôle. Le paragraphe suivant (#757) décrit
 l'état d'avant, où `officiel` primait.

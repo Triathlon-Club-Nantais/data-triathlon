@@ -106,6 +106,25 @@ def test_a_new_heat_with_other_bibs_is_a_new_course(db_session, patch_scraper):
     assert noms == {ANCIEN: {"1", "2"}, NOUVEAU: {"8", "9"}}
 
 
+def test_an_admin_identity_correction_is_kept(db_session, patch_scraper):
+    """Un nom corrigé à la main (`course.update`, FR-020) ne revient pas au nom publié."""
+    from app.repositories import admin_action_log_repository, user_repository
+
+    _importer(db_session, patch_scraper, [_result(b, name=ANCIEN) for b in "12"])
+    (epreuve,) = db_session.query(Course).all()
+    admin = user_repository.create(db_session, email="admin@exemple.fr", display_name="Admin")
+    epreuve.name = "Triathlon de Vertou 2025 - S"
+    admin_action_log_repository.create(
+        db_session, user_id=admin.id, action="course.update", entity_type="course",
+        entity_id=epreuve.id, payload={},
+    )
+    db_session.commit()
+
+    _importer(db_session, patch_scraper, [_result(b, name=NOUVEAU) for b in "12"])
+
+    assert db_session.get(Course, epreuve.id).name == "Triathlon de Vertou 2025 - S"
+
+
 def test_a_passive_source_never_renames_the_course(db_session, patch_scraper):
     """La source active fait foi sur l'identité (D2, #303)."""
     _importer(db_session, patch_scraper, [_result(b, name=ANCIEN) for b in "12"])

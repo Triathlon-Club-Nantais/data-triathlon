@@ -22,9 +22,10 @@ def identity_key(text: str | None) -> str:
     return "".join(c for c in folded.translate(_LIGATURES) if c.isalnum())
 
 
-#: Ce qui sépare deux équipiers dans un libellé d'équipe : `&`, `/`, `+`, ou « et »
-#: en mot entier.
-_TEAM_SEPARATOR = re.compile(r"[&/+]|\bet\b", re.IGNORECASE)
+#: Ce qui sépare deux équipiers dans un libellé d'équipe : `&`, `/` ou `+` bordé
+#: d'une espace d'un côté au moins, ou « et » en mot entier. Collé des deux côtés
+#: (« DUPONT/MARTIN »), c'est un nom composé : la personne garde sa clé.
+_TEAM_SEPARATOR = re.compile(r"(?:^|\s)[&/+]|[&/+](?:\s|$)|\bet\b", re.IGNORECASE)
 
 
 def _team_key(nom: str | None, prenom: str | None) -> str | None:

@@ -64,9 +64,9 @@ function cibleSuggeree(a: DuplicateCourse, b: DuplicateCourse): number | null {
  * l'administrateur peut toujours pointer l'autre carte, et un avertissement le
  * retient quand il s'apprête à perdre des résultats du club.
  *
- * Aperçu chargé **à la sélection**, jamais avant (même patron que
- * `DeleteCourseDialog`) : chiffrer une fusion qui n'aura peut-être pas lieu
- * coûterait un aller-retour serveur pour rien.
+ * Aperçu chargé **à la sélection** (même patron que `DeleteCourseDialog`),
+ * donc dès l'ouverture quand une cible est proposée d'office : sans cible, rien
+ * n'est chiffré.
  *
  * Passée sur `DangerConfirm` (#499) : la fusion détruit la ligne absorbée et
  * ses fiches coureur orphelines, sans retour — même mécanisme que les autres

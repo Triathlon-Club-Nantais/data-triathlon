@@ -99,6 +99,20 @@ def test_a_redated_course_twin_is_found_by_its_heat_url(db_session):
     assert db_session.query(Challenge).count() == 1
 
 
+def test_another_edition_under_the_same_url_is_not_a_twin(db_session):
+    """Une page d'organisateur réécrite d'année en année garde son URL : l'édition
+    d'avant n'est pas le jumeau du Challenge de cette année."""
+    names = [f"NOM{i}" for i in range(5)]
+    challenge_only = [r for r in _batch(names) if "CHALLENGE" in r.event_name]
+    import_service.persist_results(db_session, URL, challenge_only)
+    db_session.query(Course).one().event_date = date(2025, 5, 14)
+    db_session.flush()
+
+    import_service.persist_results(db_session, URL, _batch(names))
+
+    assert db_session.query(Course).filter(Course.event_date == date(2025, 5, 14)).count() == 1
+
+
 def test_a_same_named_course_from_another_source_is_not_deleted(db_session):
     names = [f"NOM{i}" for i in range(5)]
     other = [

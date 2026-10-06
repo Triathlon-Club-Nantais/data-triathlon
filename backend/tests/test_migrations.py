@@ -1383,6 +1383,24 @@ def test_the_data_migration_gives_team_labels_a_team_key(sqlite_url):
                     ),
                     {"nom": nom, "prenom": prenom, "faux": False, "cn": cle_nom, "cp": cle_prenom, "rang": rang},
                 )
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO courses (id, name, event_type, is_relay, scraped_at, created_at)"
+                    " VALUES (1, 'Duathlon', 'duathlon-s', :vrai, '2026-01-01', '2026-01-01')"
+                ),
+                {"vrai": True},
+            )
+            # Le résultat d'équipe garde la clé source d'avant ; celui de la
+            # personne, rattaché ailleurs, ne bouge pas.
+            for athlete_id, cle in ((2, "arnaud|vincent"), (1, "arnaud|vincent")):
+                connexion.execute(
+                    sa.text(
+                        "INSERT INTO participations (course_id, athlete_id, status,"
+                        " is_pending_validation, created_at, source_identity_key)"
+                        " VALUES (1, :athlete, 'finisher', :faux, '2026-01-01', :cle)"
+                    ),
+                    {"athlete": athlete_id, "faux": False, "cle": cle},
+                )
     finally:
         engine.dispose()
 
@@ -1397,3 +1415,6 @@ def test_the_data_migration_gives_team_labels_a_team_key(sqlite_url):
         ("ARNAUD &", "VINCENT", "arnaud&vincent", "", 1),
         ("BRETON", "Etienne", "breton", "etienne", 0),
     ]
+    assert _lignes(
+        sqlite_url, "SELECT athlete_id, source_identity_key FROM participations ORDER BY athlete_id"
+    ) == [(1, "arnaud|vincent"), (2, "arnaud&vincent|")]

@@ -32,6 +32,7 @@ from app.models.course_source import CourseSource
 from app.models.participation import Participation
 from app.repositories import (
     absorbed_course_repository,
+    admin_action_log_repository,
     athlete_alias_repository,
     athlete_repository,
     course_repository,
@@ -1613,11 +1614,20 @@ def _reidentify_heats(db: Session, event_url: str, results: list[ScrapedResult])
     heat ajouté à la page, aux dossards distincts, reste une épreuve neuve ; deux
     candidates à égalité ne se tranchent pas, l'import crée alors l'épreuve comme
     avant et `/admin/doublons` la signale.
+
+    Deux exclusions. Klikego et Breizh Chrono ont la règle R (#289), qui retrouve
+    déjà l'épreuve sans regarder son identité, et dont les deux façades nomment
+    différemment : les renommer ferait osciller le nom à chaque bascule. Et une
+    épreuve dont un admin a corrigé l'identité (`course.update`) la garde.
     """
     published: dict[str, dict[CourseIdentity, set[str]]] = {}
     for scraped in results:
         url = scraped.source_url or event_url
-        if not url or not scraped.event_name:
+        if (
+            not url
+            or not scraped.event_name
+            or scraped.provider in course_reconciliation.RECONCILABLE_PROVIDERS
+        ):
             continue
         identity = (
             course_repository.clean_name(scraped.event_name),
@@ -1647,6 +1657,10 @@ def _reidentify_heats(db: Session, event_url: str, results: list[ScrapedResult])
             for course in course_repository.list_by_source_url(db, url)
             if (course.name, course.event_date, course.event_type, course.is_relay) not in identities
         ]
+        corrected = admin_action_log_repository.entity_ids_with_action(
+            db, action="course.update", entity_ids=[c.id for c in orphans]
+        )
+        orphans = [course for course in orphans if course.id not in corrected]
         if not orphans:
             continue
         orphan_bibs = participation_repository.named_bibs_by_course(db, [c.id for c in orphans])
@@ -1845,20 +1859,30 @@ def _persist_challenges(
             source_url=rows[0].source_url or url, rows=challenge_rows, found=found,
         )
         persister.challenges += 1
-        _drop_course_twin(db, name, {r.source_url or url for r in rows})
+        _drop_course_twin(db, name, event_date, {r.source_url or url for r in rows})
     return leftovers
 
 
-def _drop_course_twin(db: Session, name: str, urls: set[str]) -> None:
+#: Écart toléré entre un Challenge et son jumeau redaté par heat (#1196) : un
+#: jour ou deux, jamais une autre édition publiée sous la même URL.
+_TWIN_DAYS = 2
+
+
+def _drop_course_twin(db: Session, name: str, event_date, urls: set[str]) -> None:
     """Supprime l'épreuve qu'un import antérieur a tirée du même heat, faute
     d'épreuves sœurs à l'époque : sinon le heat compterait deux fois (#1008).
 
     Seule une épreuve publiée sous l'URL du heat en est le jumeau : une homonyme
     d'une autre source n'est pas supprimée par un import, `/admin/doublons` la tranche.
-    La date reste hors de la recherche : `heat_dated` a pu redater le jumeau
+    La date est tolérée à `_TWIN_DAYS` près : `heat_dated` a pu redater le jumeau
     sans redater le Challenge (#1196).
     """
     for course in course_repository.list_named_with_source(db, name, urls):
+        if event_date is None or course.event_date is None:
+            if course.event_date != event_date:
+                continue
+        elif abs((course.event_date - event_date).days) > _TWIN_DAYS:
+            continue
         logger.info("Course %s replaced by the challenge of the same heat: %s", course.id, name)
         candidates = athlete_repository.only_on_course(db, course.id)
         course_repository.delete(db, course)

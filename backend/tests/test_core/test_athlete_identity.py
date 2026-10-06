@@ -83,5 +83,10 @@ def test_two_spellings_of_one_team_share_a_key():
     assert athlete_identity_keys("ARNAUD", "& VINCENT .") == athlete_identity_keys("Arnaud &", "Vincent")
 
 
+def test_a_compound_surname_glued_by_a_slash_is_a_person():
+    """Collé des deux côtés, `/` joint un nom composé, il ne sépare pas deux équipiers."""
+    assert athlete_identity_keys("DUPONT/MARTIN", "Marie") == athlete_identity_keys("DUPONT-MARTIN", "Marie")
+
+
 def test_a_name_holding_et_inside_a_word_is_a_person():
     assert athlete_identity_keys("BRETON", "Etienne") == ("breton", "etienne")
