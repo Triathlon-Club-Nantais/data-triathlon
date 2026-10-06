@@ -268,7 +268,10 @@ def parse_data_row(fields: list[str], *, event_id: str, heat: str) -> dict:
     # — d'où le `rank_overall` peuplé sur des participations DNF observé en
     # base, et le `rank_gap` massif qui en découle (`services/quality.py`,
     # ranks des finishers restants non contigus).
-    temps = officiel.strip() or reel.strip()
+    # #1211 — mais le classement publié suit `reel` : sur un départ par vagues
+    # (Frenchman L 2025), `officiel` compte depuis le premier départ et s'en
+    # écarte jusqu'à 40 min. Le réel prime donc, l'officiel n'étant qu'un repli.
+    temps = reel.strip() or officiel.strip()
 
     return {
         "bib_number": dossard.strip(),
@@ -281,6 +284,8 @@ def parse_data_row(fields: list[str], *, event_id: str, heat: str) -> dict:
         "rank_category": None if status else _parse_rank(cltcat),
         "total_time": "" if status == STATUS_DNS else normalize_time(temps),
         "status": status,
+        # Les deux temps publiés, pour pouvoir confronter depuis la base.
+        "raw_times": {"officiel": officiel.strip(), "reel": reel.strip()},
     }
 
 
@@ -524,6 +529,7 @@ def build_heat_results(
         r.total_time = d["total_time"]
         r.status = d["status"]
         r.raw_data["heat_slug"] = heat
+        r.raw_data.update(d["raw_times"])
         # #675 — un checkpoint inter peut publier un temps non nul pour un
         # dossard DNS/DNF/DSQ (même incohérence de source que la page détail,
         # cf. `klikego._parse_detail`) : on ignore ces splits plutôt que de

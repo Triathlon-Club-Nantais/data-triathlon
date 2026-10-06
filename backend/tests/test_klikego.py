@@ -779,6 +779,16 @@ def test_parse_data_row_finisher_falls_back_to_reel_when_officiel_empty():
     assert r["total_time"] == "01:58:37"
 
 
+def test_parse_data_row_keeps_the_real_time_the_ranking_follows():
+    """#1211 — Frenchman L 2025 : départ par vagues, l'officiel compte depuis
+    le premier départ et s'écarte du réel jusqu'à 40 min. Le classement publié
+    suit le réel (0 inversion sur 2 127 lignes, 1 030 contre l'officiel)."""
+    fields = "2015|true|1536|120|TAFFU Quentin|V1|M|CLUB||06:14:54|05:44:56|".split("|")
+    r = parse_data_row(fields, event_id="1354050643080-22", heat="sichel-sport---triathlon-l")
+    assert r["total_time"] == "05:44:56"
+    assert r["raw_times"] == {"officiel": "06:14:54", "reel": "05:44:56"}
+
+
 def test_parse_data_row_dnf_neutralises_rank_and_time():
     fields = "282|false|DNF|DNF|DELAUNAY Juliette|S2|F|||||".split("|")
     r = parse_data_row(fields, event_id="1354050643080-23", heat="triathlon-m")
