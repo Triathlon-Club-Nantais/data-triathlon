@@ -21,6 +21,7 @@ from app.repositories import (
     athlete_alias_repository,
     athlete_repository,
     challenge_repository,
+    club_member_repository,
     ignored_athlete_pair_repository,
     lock_repository,
     participation_repository,
@@ -189,6 +190,7 @@ def merge_athletes(db: Session, *, kept_id: int, absorbed_id: int, user_id: int)
     }
     athlete_alias_repository.repoint(db, from_athlete_id=absorbed.id, to_athlete_id=kept.id)
     ignored_athlete_pair_repository.repoint(db, from_athlete_id=absorbed.id, to_athlete_id=kept.id)
+    club_member_repository.repoint(db, from_athlete_id=absorbed.id, to_athlete_id=kept.id)
     _complete(kept, absorbed)
     db.expunge(absorbed)
     athlete_repository.delete_by_id(db, absorbed.id)
