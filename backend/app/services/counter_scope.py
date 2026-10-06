@@ -12,7 +12,13 @@ from sqlalchemy.orm import Session
 
 from app.core import counter_scope
 from app.core.club import ClubLabels, normalize_club
-from app.core.exceptions import DomainError, DuplicateError, LastClubLabelError, NotFoundError
+from app.core.exceptions import (
+    DomainError,
+    DuplicateError,
+    LastClearClubLabelError,
+    LastClubLabelError,
+    NotFoundError,
+)
 from app.models.counter_scope_entry import CLUB_LABEL, NON_FEDERAL_DISCIPLINE, CounterScopeEntry
 from app.repositories import counter_scope_repository, tcn_count_repository
 from app.services import audit
@@ -137,13 +143,17 @@ def set_ambiguous(
 
     Un libellé ambigu ne compte que si l'athlète est rattaché au club par
     ailleurs : le verdict de chaque résultat se recalcule dans la transaction.
-    Une demande sans effet n'écrit rien au journal (FR-012).
+    Une demande sans effet n'écrit rien au journal (FR-012). Le dernier
+    libellé non ambigu ne peut pas basculer, comme le dernier libellé ne peut
+    pas être retiré.
     """
     entry = counter_scope_repository.get_entry(db, kind=CLUB_LABEL, entry_id=entry_id)
     if entry is None:
         raise NotFoundError("Cette entrée n'existe pas.")
     if entry.ambiguous == ambiguous:
         return entry
+    if ambiguous and counter_scope_repository.count_entries(db, kind=CLUB_LABEL, ambiguous=False) <= 1:
+        raise LastClearClubLabelError
     counter_scope_repository.set_ambiguous(db, entry, ambiguous)
     db.flush()
     _recompute_counts_for_tcn(db)

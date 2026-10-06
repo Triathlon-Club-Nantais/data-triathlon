@@ -304,7 +304,7 @@ sous `counter_scope:manage`.
 | `GET /admin/counter-scope` | Les **deux** listes d'un coup — l'écran les affiche ensemble, deux appels seraient deux allers-retours pour une page. Triées par valeur. |
 | `POST /admin/counter-scope/{kind}` | Déclare une entrée. `201` avec l'entrée créée. |
 | `DELETE /admin/counter-scope/{kind}/{entry_id}` | Retire une entrée. `204`. |
-| `PATCH /admin/counter-scope/club-labels/{entry_id}` | `{ambiguous}` : marque un libellé du club comme ambigu, ou le rétablit (#1206). Un libellé ambigu (« tcn », aussi le Triathlon Club Narbonne) ne compte que si l'athlète est rattaché au club par un autre résultat validé ; le verdict de chaque résultat se recalcule dans la transaction. `200` avec l'entrée ; `400` sur une discipline. |
+| `PATCH /admin/counter-scope/club-labels/{entry_id}` | `{ambiguous}` : marque un libellé du club comme ambigu, ou le rétablit (#1206). Un libellé ambigu (« tcn », aussi le Triathlon Club Narbonne) ne compte que si l'athlète est rattaché au club par un autre résultat validé ou une licence ; le verdict de chaque résultat se recalcule dans la transaction. `200` avec l'entrée ; `400` sur une discipline ; `404` sur une entrée inconnue ; `409` si le libellé est le dernier non ambigu. |
 
 `{kind}` vaut `disciplines` ou `club-labels` — la forme URL des deux natures,
 distincte de ce qui est stocké (`non_federal_discipline`, `tcn_club_label`) :
@@ -346,10 +346,11 @@ puis recharge le registre en mémoire (`core/counter_scope.py`). Recharger
 d'une transaction que rien ne garantit d'aboutir.
 
 Aucun DTO existant ne change de forme. Ce qui change, c'est ce que ces DTO
-**valent** : `ParticipationOut.is_tcn` suit la liste des libellés, tout endpoint
-portant `scope=club` ou `federal_only=true` suit les deux. Les deux se
-prononcent depuis le même registre, donc restent d'accord pour n'importe quelle
-configuration — ce que `tests/test_repositories/test_club_filter.py` éprouve sur
+**valent** : `ParticipationOut.is_tcn` lit le verdict stocké
+`Participation.counts_for_tcn` (#1206), recalculé à chaque écriture de la
+liste des libellés ; tout endpoint portant `scope=club` lit la même colonne, et
+`federal_only=true` suit la liste des disciplines. Ils restent donc d'accord
+pour n'importe quelle configuration — ce que `tests/test_repositories/test_club_filter.py` éprouve sur
 une configuration **modifiée**, pas seulement sur celle livrée.
 
 Conception : `specs/20260826-154613-portee-compteurs-configurable/`.

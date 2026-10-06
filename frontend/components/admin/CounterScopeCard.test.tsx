@@ -373,7 +373,7 @@ describe("CounterScopeCard, libellés ambigus", () => {
     expect(setCounterScopeAmbiguity).toHaveBeenCalledWith("club-labels", 1, true);
     await waitFor(() =>
       expect(toastSuccess).toHaveBeenCalledWith(
-        "« tcn » ne compte plus seul : il faut un autre résultat au club.",
+        "« tcn » ne compte plus seul : il faut un autre résultat validé au club ou une licence.",
       ),
     );
   });
