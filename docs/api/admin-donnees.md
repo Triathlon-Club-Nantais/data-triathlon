@@ -119,7 +119,8 @@ nouvelle fiche d'homonyme (même nom, rang suivant), chacun par le rattachement
 admin (verrouillé contre les imports). La paire est enregistrée comme distincte,
 pour que `reconcile-athletes` ne la refusionne pas. Rend la nouvelle fiche (201).
 Refus : liste vide, résultat d'une autre fiche, fiche qui serait vidée (400),
-deux résultats d'une même épreuve (409). Journal : `athlete.detach`.
+fiche ou résultat inconnu (404), corps mal formé, `participation_ids` absent ou
+non entier (422), deux résultats d'une même épreuve (409). Journal : `athlete.detach`.
 
 ## Revue d'identité des athlètes (#908)
 

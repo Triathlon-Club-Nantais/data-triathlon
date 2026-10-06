@@ -76,6 +76,10 @@ La purge des fiches coureur devenues vides relève ses candidats **avant** la
 suppression et ne tranche qu'**après** le réimport — même primitive et même piège
 que `DELETE /admin/courses/{id}`.
 
+Le réimport résout les identités comme un import neuf : une ligne non
+verrouillée publiée sous un autre club que ceux d'une fiche de membre TCN part
+sur une fiche d'homonyme (#1209), exactement comme à l'import.
+
 ## Supprimer une source inactive : `DELETE /admin/courses/{id}/sources/{source_id}` (#739)
 
 Garde `courses:sources`, comme la bascule — pas `courses:delete` : contrairement
