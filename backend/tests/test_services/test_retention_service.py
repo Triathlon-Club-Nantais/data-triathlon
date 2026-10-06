@@ -9,6 +9,8 @@ from datetime import date, datetime, timedelta
 import pytest
 
 from app.models.admin_action_log import AdminActionLog
+from app.models.athlete import Athlete
+from app.models.club_member import LINK_AUTO, LINK_UNLINKED, SOURCE_FFTRI, ClubMember
 from app.models.organisation import Organisation
 from app.models.personal_profile import PersonalProfile
 from app.models.profile_log_entry import ProfileLogEntry
@@ -16,6 +18,7 @@ from app.models.training_participant import TrainingParticipant
 from app.models.user_feedback import UserFeedback
 from app.repositories import (
     admin_action_log_repository,
+    club_member_repository,
     feedback_repository,
     profile_repository,
     training_session_repository,
@@ -140,3 +143,29 @@ def test_an_entry_exactly_twelve_months_old_is_kept(db_session):
 
     assert outcome.feedback == 0
     assert db_session.get(UserFeedback, juste.id) is not None
+
+
+@pytest.mark.parametrize(
+    ("today", "first_kept"),
+    [(date(2026, 10, 6), 2025), (date(2026, 8, 31), 2024), (date(2026, 9, 1), 2025)],
+)
+def test_club_members_are_kept_for_the_current_and_previous_season(today, first_kept):
+    assert retention_service.club_members_cutoff(today) == first_kept
+
+
+def test_purge_handles_old_member_seasons(db_session):
+    athlete = Athlete(nom="MARTIN", prenom="Anne")
+    db_session.add(athlete)
+    db_session.flush()
+    club_member_repository.replace_season(db_session, 2023, [
+        ClubMember(season=2023, nom="MARTIN", prenom="Anne", licence_id="C1", athlete_id=athlete.id,
+                   link_status=LINK_AUTO, source=SOURCE_FFTRI),
+        ClubMember(season=2023, nom="X", prenom="Y", licence_id="C2",
+                   link_status=LINK_UNLINKED, source=SOURCE_FFTRI),
+    ])
+
+    outcome = retention_service.purge_expired(db_session, now=datetime(2026, 10, 6))
+
+    assert outcome.club_members == 2
+    (kept,) = club_member_repository.list_season(db_session, 2023)
+    assert (kept.athlete_id, kept.licence_id) == (athlete.id, None)

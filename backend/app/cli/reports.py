@@ -193,6 +193,7 @@ def render_retention_report(outcome: RetentionOutcome) -> str:
         _ligne(f"Signalements {verb}", outcome.feedback),
         _ligne(f"Entrées du journal {verb}", outcome.admin_log),
         _ligne(f"Profils jeunes {verb}", outcome.profiles),
+        _ligne(f"Licenciés de saisons anciennes {verb}", outcome.club_members),
     ])
 
 

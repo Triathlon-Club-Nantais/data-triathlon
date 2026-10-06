@@ -28,7 +28,7 @@ def test_dry_run_reports_counts_and_deletes_nothing(brancher_session, db_session
     result = runner.invoke(app, ["purge-retention", "--dry-run", "--json"])
 
     assert result.exit_code == 0
-    assert json.loads(result.stdout) == {"dry_run": True, "feedback": 1, "admin_log": 0, "profiles": 0}
+    assert json.loads(result.stdout) == {"dry_run": True, "feedback": 1, "admin_log": 0, "profiles": 0, "club_members": 0}
     assert db_session.get(UserFeedback, entry.id) is not None
 
 
