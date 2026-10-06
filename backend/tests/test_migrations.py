@@ -1275,7 +1275,7 @@ def test_the_data_migration_empties_splits_made_only_of_zero_segments(sqlite_url
     finally:
         engine.dispose()
 
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "50f5db3c0a88")
 
     restants = [
         None if valeur is None else json.loads(valeur)
@@ -1286,6 +1286,70 @@ def test_the_data_migration_empties_splits_made_only_of_zero_segments(sqlite_url
         None,
         {"swim": "00:12:00", "bike": "00:00:00"},
         {"swim": "FRA", "bike": "00:00:00"},
+        {},
+        None,
+    ]
+
+
+# --- Splits sans aucun segment réel (#1194) ----------------------------------
+
+_BEFORE_UNREADABLE_SPLITS_CLEANUP = "c1a11e9e1008"
+
+
+def test_the_data_migration_empties_splits_without_any_real_segment(sqlite_url):
+    """#1194 : la nationalité lue comme la natation (`{"swim": "FRA"}`) sur les
+    aquathlons Sport Innovation de Carnac. L'import écarte « FRA » depuis #971,
+    mais un rescrape qui n'écrit aucun segment ne vide pas la ligne."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, _BEFORE_UNREADABLE_SPLITS_CLEANUP)
+    splits = [
+        {"swim": "FRA"},
+        {"swim": "FRA", "bike": "00:00:00"},
+        {"swim": "FRA", "run": "00:21:30"},
+        {"swim": "00:12:00"},
+        {},
+        None,
+    ]
+    engine = sa.create_engine(sqlite_url)
+    try:
+        with engine.begin() as connexion:
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO athletes (nom, prenom, gender, club_locked, created_at)"
+                    " VALUES ('DUPONT', 'P', '', :faux, '2026-01-01')"
+                ),
+                {"faux": False},
+            )
+            connexion.execute(
+                sa.text(
+                    "INSERT INTO courses (id, name, event_type, is_relay, scraped_at, created_at)"
+                    " VALUES (1, 'Aquathlon', 'aquathlon-xs', :faux, '2026-01-01', '2026-01-01')"
+                ),
+                {"faux": False},
+            )
+            for valeur in splits:
+                connexion.execute(
+                    sa.text(
+                        "INSERT INTO participations (course_id, athlete_id, status, splits,"
+                        " is_pending_validation, created_at)"
+                        " VALUES (1, 1, 'finisher', :splits, :faux, '2026-01-01')"
+                    ),
+                    {"splits": None if valeur is None else json.dumps(valeur), "faux": False},
+                )
+    finally:
+        engine.dispose()
+
+    command.upgrade(cfg, "head")
+
+    restants = [
+        None if valeur is None else json.loads(valeur)
+        for (valeur,) in _lignes(sqlite_url, "SELECT splits FROM participations ORDER BY id")
+    ]
+    assert restants == [
+        None,
+        None,
+        {"swim": "FRA", "run": "00:21:30"},
+        {"swim": "00:12:00"},
         {},
         None,
     ]
