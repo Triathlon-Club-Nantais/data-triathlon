@@ -1,6 +1,7 @@
 from datetime import date
 
 from app.models.athlete import Athlete
+from app.models.club_member import ClubMember
 from app.repositories import athlete_repository, course_repository, participation_repository
 
 
@@ -1286,3 +1287,65 @@ def test_get_all_ranks_by_identity_keys_returns_homonyms_too(db_session):
 
     assert sorted(a.id for a in found[("martin", "anne")]) == sorted([principal.id, homonym.id])
     assert ("absent", "x") not in found
+
+
+def _course_k(db, name, *, is_relay=False):
+    return course_repository.get_or_create(
+        db, name=name, event_date=date(2026, 5, 16), event_type="triathlon-m", is_relay=is_relay
+    )
+
+
+def _record(db, nom="MARTIN", prenom="Thomas", **fields) -> Athlete:
+    athlete = Athlete(nom=nom, prenom=prenom, **fields)
+    db.add(athlete)
+    db.flush()
+    return athlete
+
+
+def test_member_records_carry_a_tcn_result_or_a_linked_licence(db_session):
+    counted, licensed, outsider, pending = (_record(db_session, n) for n in ("A", "B", "C", "D"))
+    participation_repository.create(
+        db_session, athlete_id=counted.id, course_id=_course_k(db_session, "Tri A").id, club="TCN"
+    )
+    db_session.add(ClubMember(season=2026, nom="B", prenom="Thomas", athlete_id=licensed.id,
+                              link_status="auto", source="fftri"))
+    db_session.add(ClubMember(season=2026, nom="D", prenom="Thomas", athlete_id=pending.id,
+                              link_status="ambiguous", source="fftri"))
+    db_session.flush()
+
+    assert athlete_repository.member_record_ids(db_session) == {counted.id, licensed.id}
+    assert athlete_repository.member_record_ids(db_session, [counted.id, outsider.id]) == {counted.id}
+
+
+def test_club_labels_count_validated_individual_results(db_session):
+    athlete = _record(db_session)
+    for name, club in (("Tri A", "TCN"), ("Tri B", "Vendôme Triathlon"), ("Tri C", "Vendôme Triathlon")):
+        participation_repository.create(
+            db_session, athlete_id=athlete.id, course_id=_course_k(db_session, name).id, club=club
+        )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=_course_k(db_session, "Relais", is_relay=True).id,
+        club="Relais Club", is_relay=True,
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=_course_k(db_session, "Tri D").id,
+        club="En attente", is_pending_validation=True,
+    )
+    single = _record(db_session, "SEUL")
+    participation_repository.create(
+        db_session, athlete_id=single.id, course_id=_course_k(db_session, "Tri A").id, club="TCN"
+    )
+
+    assert athlete_repository.club_labels_by_athlete(db_session, [athlete.id]) == {
+        athlete.id: {"TCN": 1, "Vendôme Triathlon": 2},
+    }
+    assert set(athlete_repository.club_labels_by_athlete(db_session)) == {athlete.id}
+
+
+def test_homonyms_of_a_key_are_listed_by_rank(db_session):
+    principal = _record(db_session)
+    second = athlete_repository.create_homonym(db_session, {"nom": "MARTIN", "prenom": "Thomas"})
+    third = athlete_repository.create_homonym(db_session, {"nom": "MARTIN", "prenom": "Thomas"})
+
+    assert [a.id for a in athlete_repository.homonyms_of(db_session, ("martin", "thomas"))] == [second.id, third.id]
+    assert principal.homonym_rank == 0
