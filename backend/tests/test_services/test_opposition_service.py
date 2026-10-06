@@ -248,3 +248,18 @@ def test_apply_drops_the_source_spelling_of_every_anonymised_row(db, course, adm
     db.refresh(relais)
     assert sienne.source_identity_key is None
     assert relais.source_identity_key is None
+
+
+def test_apply_leaves_the_club_counter_alone_for_a_pending_row(db, course, admin):
+    jean = _athlete(db, "DUPONT", "Jean")
+    paul = _athlete(db, "MARTIN", "Paul")
+    _classer(db, course, paul, 3, "30", club="TRIATHLON CLUB NANTAIS")
+    pending = _classer(db, course, jean, 12, "120", club="TRIATHLON CLUB NANTAIS")
+    pending.is_pending_validation = True
+    course.tcn_count = 1
+    db.flush()
+
+    opposition_service.apply(db, admin, athlete_id=jean.id, requested_on=TODAY, today=TODAY)
+
+    db.refresh(course)
+    assert course.tcn_count == 1

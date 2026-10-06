@@ -120,9 +120,11 @@ def delete_course(db: Session, *, course_id: int, user_id: int) -> dict:
         "participations_deleted": participation_repository.count_for_course(db, course.id),
     }
     candidats = athlete_repository.only_on_course(db, course.id)
+    athlete_ids = participation_repository.athlete_ids_on_course(db, course.id)
 
     course_repository.delete(db, course)
     db.flush()
+    tcn_count_repository.recompute_counts_for_tcn(db, athlete_ids=athlete_ids)
     resume["athletes_purged"] = athlete_repository.delete_orphans_among(db, candidats)
 
     admin_action_log_repository.create(

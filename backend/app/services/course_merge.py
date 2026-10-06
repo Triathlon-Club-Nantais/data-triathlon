@@ -25,6 +25,7 @@ from app.repositories import (
     course_repository,
     course_source_repository,
     participation_repository,
+    tcn_count_repository,
 )
 from app.services.course_locks import lock_courses_or_409
 
@@ -182,6 +183,7 @@ def merge_courses(db: Session, *, course_id: int, absorbed_id: int, user_id: int
         else course_source_repository.get_active(db, absorbed.id)
     )
     candidats = athlete_repository.only_on_course(db, absorbed.id)
+    athlete_ids = participation_repository.athlete_ids_on_course(db, absorbed.id)
 
     # L'URL de l'absorbée peut rester active sur ses sœurs, qui la re-scrapent
     # (#983) : son identité est retenue pour que ses lignes rejoignent la cible
@@ -192,6 +194,7 @@ def merge_courses(db: Session, *, course_id: int, absorbed_id: int, user_id: int
         course_source_repository.move_to(db, source=a_deplacer, course=target)
     course_repository.delete(db, absorbed)
     db.flush()
+    tcn_count_repository.recompute_counts_for_tcn(db, athlete_ids=athlete_ids)
     resume["athletes_purged"] = len(athlete_repository.delete_orphans_among(db, candidats))
     resume["source_added"] = a_deplacer is not None
 

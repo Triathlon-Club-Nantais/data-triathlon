@@ -19,6 +19,7 @@ from app.repositories import (
     course_repository,
     course_source_repository,
     participation_repository,
+    tcn_count_repository,
 )
 from app.schemas.course import CourseSourceOut
 from app.services import (
@@ -207,11 +208,13 @@ def _stream_switch_course_source(
                     if source is None:
                         raise NotFoundError("Source introuvable pour cette épreuve.")
 
+                    previous_athlete_ids = participation_repository.athlete_ids_on_course(db, course_id)
                     supprimees = participation_repository.delete_for_course(db, course)
                     course_source_repository.set_active(db, source)
 
                     emit({"phase": "saving", "total": len(results)})
                     outcome = import_persistence.persist_results(db, source_url, results)
+                    tcn_count_repository.recompute_counts_for_tcn(db, athlete_ids=previous_athlete_ids)
                     purges = athlete_repository.delete_orphans_among(db, candidats)
 
                     admin_action_log_repository.create(

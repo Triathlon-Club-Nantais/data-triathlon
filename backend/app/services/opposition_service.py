@@ -163,7 +163,7 @@ def _anonymise(db: Session, athlete: Athlete) -> int:
             participation_repository.replace_teammate(
                 db, participation_id=participation.id, old_athlete_id=athlete.id, new_athlete_id=anonymous.id
             )
-        if participation.counts_for_tcn:
+        if participation.counts_for_tcn and not participation.is_pending_validation:
             course_repository.adjust_counts(db, participation.course, participation_delta=0, tcn_delta=-1)
         participation_repository.reassign(db, participation, athlete_id=anonymous.id)
         participation.club = ""

@@ -137,3 +137,69 @@ def test_an_import_confirms_an_older_bare_tcn_of_the_same_athlete(db_session, pa
 
     assert _verdict(db_session, bare.id) is True
     assert course_repository.get(db_session, old_course.id).tcn_count == 1
+
+
+def _member_with_bare_elsewhere(db, clear_course):
+    """Un athlète dont le « TCN » nu d'une autre épreuve compte grâce à `clear_course`."""
+    member = athlete_repository.get_or_create(db, nom="OUEST", prenom="Lea")
+    bare_course = _course(db, "Nue", 20)
+    bare = _result(db, member, bare_course, "1", "TCN")
+    clear = _result(db, member, clear_course, "1", "Triathlon Club Nantais")
+    tcn_count_repository.recompute_counts_for_tcn(db)
+    assert _verdict(db, bare.id) is True
+    return member, bare, bare_course, clear
+
+
+def test_deleting_a_course_uncounts_the_bare_tcn_it_was_confirming(db_session, admin):
+    clear_course = _course(db_session, "Claire", 2)
+    _member, bare, bare_course, _clear = _member_with_bare_elsewhere(db_session, clear_course)
+
+    admin_actions.delete_course(db_session, course_id=clear_course.id, user_id=admin.id)
+
+    assert _verdict(db_session, bare.id) is False
+    assert course_repository.get(db_session, bare_course.id).tcn_count == 0
+
+
+def test_merging_courses_uncounts_the_bare_tcn_the_absorbed_one_confirmed(db_session, admin):
+    from app.services import course_merge
+
+    clear_course = _course(db_session, "Claire", 2)
+    target = _course(db_session, "Cible", 2)
+    _member, bare, _bare_course, _clear = _member_with_bare_elsewhere(db_session, clear_course)
+
+    course_merge.merge_courses(
+        db_session, course_id=target.id, absorbed_id=clear_course.id, user_id=admin.id
+    )
+
+    assert _verdict(db_session, bare.id) is False
+
+
+def test_an_import_that_repoints_a_row_recomputes_the_previous_athlete(db_session, patch_scraper):
+    old = athlete_repository.get_or_create(db_session, nom="OUEST", prenom="Lea")
+    event_course = course_repository.get_or_create(
+        db_session, name="Tri neuf", event_date=date(2026, 6, 1), event_type="triathlon-m"
+    )
+    clear = participation_repository.create(
+        db_session, athlete_id=old.id, course_id=event_course.id, bib_number="7",
+        club="Triathlon Club Nantais", source_identity_key="OUEST|Lea",
+    )
+    bare = _result(db_session, old, _course(db_session, "Nue", 20), "1", "TCN")
+    tcn_count_repository.recompute_counts_for_tcn(db_session)
+    assert _verdict(db_session, bare.id) is True
+    db_session.commit()
+    url = "https://www.klikego.com/resultats/event/456"
+    patch_scraper([
+        ScrapedResult(
+            source_url=url, provider="klikego", athlete_name="SUDEST", athlete_firstname="Marc",
+            bib_number="7", club="Triathlon Club Nantais", event_name="Tri neuf",
+            event_date=date(2026, 6, 1), event_type="triathlon-m", total_time="01:59:00",
+        )
+    ])
+
+    import_service.import_event(
+        db_session, url,
+        Settings(cache_ttl_in_progress_seconds=600, cache_ttl_finished_seconds=2592000),
+    )
+
+    assert participation_repository.get(db_session, clear.id).athlete_id != old.id
+    assert _verdict(db_session, bare.id) is False

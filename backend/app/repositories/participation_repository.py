@@ -60,6 +60,16 @@ def carried_by(athlete_id: int):
     )
 
 
+def athlete_ids_on_course(db: Session, course_id: int) -> list[int]:
+    """Tous les athlètes porteurs d'un résultat de l'épreuve, avant une suppression
+    dont le verdict du club de leurs autres résultats dépend (#1206)."""
+    return list(
+        db.scalars(
+            select(Participation.athlete_id).where(Participation.course_id == course_id).distinct()
+        )
+    )
+
+
 def teammate_athlete_ids(db: Session, participation_id: int) -> list[int]:
     return [
         athlete_id

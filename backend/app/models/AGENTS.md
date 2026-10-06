@@ -77,7 +77,8 @@
   n'en font **plus** partie (#279) : deux `hybrid_property` lisant la source
   active, cf. plus bas. `source_url` reste la clé du cache TTL.
 - **CourseSource** — `UNIQUE(course_id, url)`, **jamais** `UNIQUE(url)` (cf. plus bas).
-- **Participation** — `UNIQUE(course_id, bib_number)` → plus de doublons à l'import. `counts_for_tcn` porte le verdict du club (#1206) ; un écouteur n'en pose que
+- **Participation** — `UNIQUE(course_id, bib_number)` → plus de doublons à l'import.
+  `counts_for_tcn` porte le verdict du club (#1206) ; un écouteur n'en pose que
   la condition du libellé, le reste vient de `tcn_count_repository`.
   `source_identity_key` retient la clé (`<nom>|<prénom>`, #907) de la ligne
   source qui a produit le résultat, indépendamment de sa fiche : l'import
