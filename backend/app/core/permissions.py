@@ -48,6 +48,9 @@ FEATURE_PAGES_PREVIEW = "Pages en avant-première"
 #: Fusion des variantes de libellé, généralisée à tout club (#635) —
 #: distincte de la portée des compteurs, réservée au TCN.
 FEATURE_CLUB_ALIASES = "Variantes de club"
+#: Licenciés du club par saison (#1202) : une liste nominative, distincte de la
+#: portée des compteurs dont elle change pourtant le résultat.
+FEATURE_CLUB_MEMBERS = "Licenciés du club"
 #: Encadrement et suivi des jeunes triathlètes (#863) — profils, calendrier
 #: des entraînements, appel de présence. Distincte des autres fonctionnalités :
 #: ces données sont personnelles et sensibles (mineurs), fermées à quiconque
@@ -314,6 +317,14 @@ class P:
         "la portée des compteurs, réservée au TCN.",
         FEATURE_CLUB_ALIASES,
     )
+    CLUB_MEMBERS_MANAGE = Permission(
+        "club_members:manage",
+        "Gérer les licenciés du club",
+        "Relire la liste des licenciés publiée par la FFTri, importer celle "
+        "d'une saison passée et rattacher un licencié à sa fiche. Un licencié "
+        "rattaché fait compter ses résultats de la saison comme résultats du club.",
+        FEATURE_CLUB_MEMBERS,
+    )
     ADMIN_LOG_READ = Permission(
         "admin_log:read",
         "Consulter le journal d'administration",
@@ -385,6 +396,7 @@ ALL: tuple[Permission, ...] = (
     P.FEEDBACK_MANAGE,
     P.COUNTER_SCOPE_MANAGE,
     P.CLUB_ALIASES_MANAGE,
+    P.CLUB_MEMBERS_MANAGE,
     P.ADMIN_LOG_READ,
     P.PAGES_PREVIEW,
     P.JEUNES_READ,

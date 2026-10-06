@@ -337,3 +337,23 @@ configuration — ce que `tests/test_repositories/test_club_filter.py` éprouve 
 une configuration **modifiée**, pas seulement sur celle livrée.
 
 Conception : `specs/20260826-154613-portee-compteurs-configurable/`.
+
+## Licenciés du club (#1202)
+
+Quatre routes sous `/admin/club-members`, toutes gardées par la permission
+`club_members:manage`. Le routeur (`api/v1/admin_club_members.py`) valide, délègue
+à `services/club_members_service.py` et commite ; le service recalcule
+`counts_for_tcn` à chaque écriture.
+
+| Route | Rôle | Réponse |
+| --- | --- | --- |
+| `GET /admin/club-members?season=` | Licenciés d'une saison (début de saison, 2000 à 2100), avec les saisons connues | `ClubMembersSeasonOut` : `season`, `seasons`, compteurs (`total`, `linked`, `unlinked`, `ambiguous`), `members` |
+| `POST /admin/club-members/sync` | Relit la liste publiée par la FFTri et remplace la saison qu'elle couvre, en gardant les rattachements manuels | `MembersSyncReportOut` |
+| `POST /admin/club-members/import` | Multipart `season` + `file` (CSV ou XLSX, colonnes « Nom » et « Prénom » requises) : remplace une saison passée | `MembersSyncReportOut` |
+| `POST /admin/club-members/{member_id}/link` | Corps `{"athlete_id": int}` : rattache à la main un licencié à une fiche | `ClubMemberOut` (`link_status: "manual"`) |
+
+Erreurs propres à ces routes : `502` si la page FFTri est illisible ou
+injoignable, `413` au-delà de 2 Mo (lecture bornée par morceaux dans
+`api/uploads.py`, partagée avec `/admin/batches`), `422` si les colonnes
+« Nom » et « Prénom » manquent ou si la saison sort de la plage, `404` si le
+licencié ou la fiche n'existe pas. `401` sans session, `403` sans la permission.
