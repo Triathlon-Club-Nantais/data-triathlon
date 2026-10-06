@@ -13,6 +13,7 @@ from app.models.participation import Participation
 from app.models.season_validation import SeasonValidation
 from app.models.volunteer_action import VolunteerAction
 from app.repositories import (
+    athlete_known_club_repository,
     challenge_repository,
     course_repository,
     ignored_athlete_pair_repository,
@@ -276,3 +277,13 @@ def test_a_merge_keeps_the_licence_link(db_session_fk):
 
     db.refresh(member)
     assert member.athlete_id == kept.id
+
+
+def test_a_merge_carries_the_confirmed_clubs(db_session_fk, admin):
+    kept = _athlete(db_session_fk, "MARTIN", "Thomas")
+    absorbed = _athlete(db_session_fk, "MARTIN", "Tom")
+    athlete_known_club_repository.add(db_session_fk, athlete_id=absorbed.id, club_key="asptt", user_id=None)
+
+    athlete_merge.merge_athletes(db_session_fk, kept_id=kept.id, absorbed_id=absorbed.id, user_id=admin.id)
+
+    assert athlete_known_club_repository.keys_by_athlete(db_session_fk) == {kept.id: {"asptt"}}

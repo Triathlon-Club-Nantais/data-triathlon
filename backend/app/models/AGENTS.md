@@ -39,10 +39,11 @@
   `UNIQUE(last_name_key, first_name_key)`, `athlete_id` en `ON DELETE CASCADE`.
   L'import la résout comme l'identité de sa fiche, après l'identité directe et
   avant le repli. Une fusion repointe les variantes de la fiche absorbée et y
-  ajoute la sienne. **Une fusion déplace huit références** : `participations`,
+  ajoute la sienne. **Une fusion déplace neuf références** : `participations`,
   `participation_teammates`, `volunteer_actions`, `season_validations`
   (dédoublonnées par saison), `users.athlete_id`, `challenge_results`,
-  `athlete_aliases` et `ignored_athlete_pairs` ; une nouvelle table qui pointe vers `athletes.id`
+  `athlete_aliases`, `ignored_athlete_pairs` et `athlete_known_clubs` (sans
+  compter `club_members`, repointé aussi) ; une nouvelle table qui pointe vers `athletes.id`
   doit rejoindre `athlete_merge.merge_athletes`.
 - **IgnoredAthletePair** (#908) — une paire de fiches qu'un admin a déclarées
   deux personnes depuis la revue d'identité, `UNIQUE(athlete_id_low,
@@ -52,8 +53,13 @@
   conservée (`ignored_athlete_pair_repository.repoint`), et la reprise l'étend
   à tout ce qu'une fiche aura absorbé dans son plan. Sans ce report, la cascade
   effaçait la paire avec la fiche absorbée et rouvrait le cas.
-- **Les deux seules tables en `ON DELETE CASCADE` vers `athletes.id`** sont
-  `athlete_aliases` et `ignored_athlete_pairs` : la suppression d'une fiche
+- **AthleteKnownClub** (#1209) : un club qu'un admin a confirmé pour une fiche
+  (`club_key` canonique), `UNIQUE(athlete_id, club_key)`, `athlete_id` en
+  `ON DELETE CASCADE`. Lu par la revue `multi_club` et par l'import. Une paire
+  posée par l'import n'a pas d'auteur : `ignored_athlete_pairs.ignored_by_user_id`
+  est nullable.
+- **Les trois seules tables en `ON DELETE CASCADE` vers `athletes.id`** sont
+  `athlete_aliases`, `athlete_known_clubs` et `ignored_athlete_pairs` : la suppression d'une fiche
   (purge d'orphelins, opposition, fusion) les emporte en PostgreSQL, mais
   **pas en SQLite**, où `database.py` n'émet aucun `PRAGMA foreign_keys=ON`.
   Les tests qui en dépendent passent par `db_session_fk`.

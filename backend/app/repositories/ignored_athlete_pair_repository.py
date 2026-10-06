@@ -9,7 +9,7 @@ def normalized(athlete_id_a: int, athlete_id_b: int) -> tuple[int, int]:
     return (athlete_id_a, athlete_id_b) if athlete_id_a < athlete_id_b else (athlete_id_b, athlete_id_a)
 
 
-def create(db: Session, *, athlete_id_a: int, athlete_id_b: int, user_id: int) -> IgnoredAthletePair:
+def create(db: Session, *, athlete_id_a: int, athlete_id_b: int, user_id: int | None) -> IgnoredAthletePair:
     low, high = normalized(athlete_id_a, athlete_id_b)
     ignored = IgnoredAthletePair(athlete_id_low=low, athlete_id_high=high, ignored_by_user_id=user_id)
     db.add(ignored)

@@ -24,5 +24,7 @@ class IgnoredAthletePair(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     athlete_id_low: Mapped[int] = mapped_column(ForeignKey("athletes.id", ondelete="CASCADE"), index=True)
     athlete_id_high: Mapped[int] = mapped_column(ForeignKey("athletes.id", ondelete="CASCADE"), index=True)
-    ignored_by_user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    # Nul pour une paire posée par l'import (#1209) : un résultat publié sous un
+    # autre club qu'une fiche de membre crée un homonyme jugé distinct d'office.
+    ignored_by_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     ignored_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
