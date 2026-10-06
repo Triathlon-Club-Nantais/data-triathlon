@@ -94,13 +94,16 @@ atomique du point de vue de ce thread, muter en place lui exposerait un ensemble
 `tests/test_core/test_counter_scope.py` le vérifie en gardant une référence
 prise avant un `load()`.
 
-**Le compteur dénormalisé `Course.tcn_count` ne lit pas le registre** : il fige
-le verdict de l'import. Ajouter ou retirer un libellé du club le recalcule donc
-sur toutes les épreuves, dans la transaction de l'écriture
-(`services/counter_scope._recompute_counts_for_tcn`, #939), à partir des libellés
-**relus en base** et passés, en `ClubLabels`, à
-`tcn_count_repository.recompute_counts_for_tcn` : le registre n'est
-rechargé qu'après le commit.
+**Ce qui compte pour le club est stocké** (#1206) : `Participation.counts_for_tcn`,
+écrit par `repositories/tcn_count_repository.recompute_counts_for_tcn`, et
+`Course.tcn_count` qui en est le compte. Un libellé de la portée peut être
+**ambigu** (« tcn », aussi le Triathlon Club Narbonne) : il ne compte que si
+l'athlète est rattaché au club par un autre résultat validé. Toute écriture
+qui peut changer un verdict recalcule (import, portée, réattachement,
+équipiers, fusion, suppression, validation, correction du club) ; une
+écriture de la portée le fait à partir des libellés **relus en base**, le
+registre n'étant rechargé qu'après le commit. `is_tcn` ne dit plus que
+« libellé de la portée » et ne compte rien.
 
 **Les défauts sont les valeurs d'avant la bascule**, et ce n'est pas un repli de
 confort : un registre vide rendrait zéro résultat du club, donc tous les

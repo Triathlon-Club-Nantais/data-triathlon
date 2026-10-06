@@ -28,19 +28,17 @@ def load_from_db(db: Session) -> None:
     )
 
 
-def _recompute_counts_for_tcn(db: Session, kind: str) -> None:
-    """Recalcule `counts_for_tcn` et `Course.tcn_count` dans la transaction de l'écriture (#939).
+def _recompute_counts_for_tcn(db: Session) -> None:
+    """Recalcule le verdict de chaque résultat dans la transaction de l'écriture (#939, #1206).
 
     Les libellés sont relus **en base**, pas dans le registre : celui-ci n'est
     rechargé qu'après le commit, et le recharger avant exposerait une
     configuration que la transaction pourrait encore annuler.
     """
-    if kind != CLUB_LABEL:
-        return
-    labels = ClubLabels.from_entries(
-        (e.value, e.ambiguous) for e in counter_scope_repository.list_entries(db) if e.kind == CLUB_LABEL
+    entries = counter_scope_repository.list_entries(db, kind=CLUB_LABEL)
+    tcn_count_repository.recompute_counts_for_tcn(
+        db, labels=ClubLabels.from_entries((e.value, e.ambiguous) for e in entries)
     )
-    tcn_count_repository.recompute_counts_for_tcn(db, labels=labels)
 
 
 def normalize_value(kind: str, value: str) -> str:
@@ -86,7 +84,8 @@ def add_entry(
         db, kind=kind, value=normalisee, created_by_user_id=admin_user_id
     )
     db.flush()
-    _recompute_counts_for_tcn(db, kind)
+    if kind == CLUB_LABEL:
+        _recompute_counts_for_tcn(db)
     audit.record(
         db, admin_user_id, action="counter_scope.entry_add", entity_type=_ENTITY_TYPE,
         entity_id=entry.id,
@@ -122,7 +121,8 @@ def remove_entry(
 
     counter_scope_repository.delete_entry(db, entry)
     db.flush()
-    _recompute_counts_for_tcn(db, kind)
+    if kind == CLUB_LABEL:
+        _recompute_counts_for_tcn(db)
     audit.record(
         db, admin_user_id, action="counter_scope.entry_remove", entity_type=_ENTITY_TYPE,
         entity_id=entry.id,

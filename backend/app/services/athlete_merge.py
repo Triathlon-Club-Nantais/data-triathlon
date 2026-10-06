@@ -25,6 +25,7 @@ from app.repositories import (
     lock_repository,
     participation_repository,
     season_validation_repository,
+    tcn_count_repository,
     user_repository,
     volunteer_action_repository,
 )
@@ -196,6 +197,7 @@ def merge_athletes(db: Session, *, kept_id: int, absorbed_id: int, user_id: int)
     if takes_principal_rank:
         kept.homonym_rank = 0
     db.flush()
+    tcn_count_repository.recompute_counts_for_tcn(db, athlete_ids=[kept.id])
     db.expire(kept, ["participations"])
     summary["alias_added"] = alias_added
 
