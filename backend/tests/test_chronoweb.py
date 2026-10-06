@@ -948,7 +948,7 @@ def test_relay_group_names_are_not_split_at_import(db_session):
     """#895 : `CREUSOTRI` et `FRATERIES POZZEBON/SKLADZIEN` (noms sans prénoms)
     restent des fiches d'équipe à leur nom publié."""
     from app.repositories import athlete_repository
-    from app.services import import_service
+    from app.services import import_persistence
 
     soup = chronoweb._soup(AQUATHLON_RELAIS)
     meta = chronoweb._parse_event_meta(soup)
@@ -959,7 +959,7 @@ def test_relay_group_names_are_not_split_at_import(db_session):
     ]
     assert resultats and all(result.is_relay for result in resultats)
 
-    import_service.persist_results(db_session, EVENT_URL, resultats)
+    import_persistence.persist_results(db_session, EVENT_URL, resultats)
 
     equipes = [
         athlete_repository.get_by_identity_keys(

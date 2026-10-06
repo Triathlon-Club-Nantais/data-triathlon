@@ -1,7 +1,7 @@
 from app.cli.reports import render_rescrape_report, render_sheet_report
 from app.services.batch import BatchFailure
 from app.services.bulk_import_service import SheetOutcome
-from app.services.import_service import PassiveSource
+from app.services.import_persistence import PassiveSource
 from app.services.rescrape_service import RescrapeOutcome
 
 

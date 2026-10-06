@@ -251,7 +251,7 @@ def test_import_event_stream_serializes_reassignments(client, monkeypatch):
     échoue avec un TypeError (« Object of type Reassignment is not JSON
     serializable ») levé pendant la consommation du flux.
     """
-    from app.services import import_service
+    from app.services import import_persistence, import_service
 
     def fake_iter_import_event(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "scraping", "message": "Récupération des participants…"}
@@ -261,7 +261,7 @@ def test_import_event_stream_serializes_reassignments(client, monkeypatch):
             "skipped": 0,
             "reconciled": 1,
             "reassignments": [
-                import_service.Reassignment(
+                import_persistence.Reassignment(
                     ancien="DUPOND | Jean", nouveau="DUPONT | Jean", fusion=True
                 ),
             ],

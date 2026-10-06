@@ -1030,10 +1030,10 @@ def test_relay_named_teammates_are_split_at_import(db_session):
     from datetime import date
 
     from app.repositories import athlete_repository
-    from app.services import import_service
+    from app.services import import_persistence
 
     resultats = _resultats(EPREUVE_566, "spaycific-races-2025", date(2025, 9, 21))
-    import_service.persist_results(db_session, "https://exemple/url-demandee", resultats)
+    import_persistence.persist_results(db_session, "https://exemple/url-demandee", resultats)
 
     menardais = athlete_repository.get_by_identity_keys(db_session, "MENARDAIS", "FERDINAND")
     (participation,) = menardais.participations

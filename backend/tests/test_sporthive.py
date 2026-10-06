@@ -1338,7 +1338,7 @@ def test_sporthive_provider_single_heat_falls_back_to_event_scoped(monkeypatch):
 def test_relay_group_names_are_not_split_at_import(db_session):
     """#895 : les équipes Sporthive (`LA COUSINADE`…) restent des fiches d'équipe."""
     from app.repositories import athlete_repository
-    from app.services import import_service
+    from app.services import import_persistence
 
     event = _fixture("sporthive_event.json")
     ctx = sporthive._race_context(URL_SHEET, event, _course(2, nom="Relais Triathlon S"))
@@ -1347,7 +1347,7 @@ def test_relay_group_names_are_not_split_at_import(db_session):
     ]
     assert resultats and all(result.is_relay for result in resultats)
 
-    import_service.persist_results(db_session, URL_SHEET, resultats)
+    import_persistence.persist_results(db_session, URL_SHEET, resultats)
 
     for resultat in resultats:
         equipe = athlete_repository.get_by_identity_keys(

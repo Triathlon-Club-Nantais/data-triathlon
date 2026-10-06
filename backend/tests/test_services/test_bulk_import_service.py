@@ -250,7 +250,7 @@ def test_sheet_outcome_carries_the_registered_passive_sources(db_session, monkey
     traversée `BatchTotals` → `Outcome`, pas le scraping.
     """
     from app.services.batch import BatchTotals
-    from app.services.import_service import PassiveSource
+    from app.services.import_persistence import PassiveSource
 
     signalee = PassiveSource(url="https://k/1", course_name="Mesquer", message="…")
     monkeypatch.setattr(

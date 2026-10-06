@@ -26,7 +26,7 @@ from app.models.course import Course
 from app.models.participation import Participation
 from app.repositories import athlete_repository
 from app.scrapers.base import ScrapedResult
-from app.services import import_service
+from app.services import import_persistence
 
 ATHLETES = 400
 HEAT_SIZE = ATHLETES // 2
@@ -92,7 +92,7 @@ def test_two_multi_heat_imports_sharing_athletes_never_deadlock(
         try:
             session = session_factory()
             barrier.wait(timeout=60)
-            import_service.persist_results(session, url, imports[url])
+            import_persistence.persist_results(session, url, imports[url])
             session.commit()
         except BaseException as exc:  # noqa: BLE001 — remonté par l'assertion
             errors[url] = exc
