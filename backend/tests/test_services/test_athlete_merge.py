@@ -8,6 +8,7 @@ from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.athlete_alias import AthleteAlias
 from app.models.challenge import ChallengeResult
+from app.models.club_member import LINK_AUTO, SOURCE_FFTRI, ClubMember
 from app.models.participation import Participation
 from app.models.season_validation import SeasonValidation
 from app.models.volunteer_action import VolunteerAction
@@ -258,3 +259,20 @@ def test_a_merge_moves_challenge_rows_to_the_kept_record(db_session_fk, admin):
     athlete_merge.merge_athletes(db, kept_id=kept.id, absorbed_id=absorbed.id, user_id=admin.id)
 
     assert db.query(ChallengeResult).one().athlete_id == kept.id
+
+
+def test_a_merge_keeps_the_licence_link(db_session_fk):
+    db = db_session_fk
+    kept, absorbed = _athlete(db, "DUPONT", "Jean"), _athlete(db, "DUPOMT", "Jean")
+    member = ClubMember(
+        season=2026, licence_id="C1", nom="DUPOMT", prenom="Jean", athlete_id=absorbed.id,
+        link_status=LINK_AUTO, source=SOURCE_FFTRI,
+    )
+    db.add(member)
+    db.flush()
+    admin = user_repository.create(db, email="admin2@exemple.fr")
+
+    athlete_merge.merge_athletes(db, kept_id=kept.id, absorbed_id=absorbed.id, user_id=admin.id)
+
+    db.refresh(member)
+    assert member.athlete_id == kept.id
