@@ -13,10 +13,10 @@ import { EventsTable } from "./EventsTable";
 import { AthleteChallenges } from "@/components/challenges/AthleteChallenges";
 import { SeasonValidationPanel } from "@/components/athletes/SeasonValidationPanel";
 import { VolunteerActionsList } from "@/components/athletes/VolunteerActionsList";
-import { formatToken, disciplineBreakdownBySeason, genderShort, ordinalFr } from "@/lib/utils/format";
+import { formatToken, disciplineBreakdownBySeason, genderShort, ordinalFr, formatCount } from "@/lib/utils/format";
 import { BarList } from "@/components/charts/BarList";
 import { CAT_COLORS } from "@/components/charts/CategoryBars";
-import { bestRatio, progressionSeries, recurringWeakSegment } from "@/lib/utils/ranking";
+import { bestRanking, progressionSeries, recurringWeakSegment } from "@/lib/utils/ranking";
 import { resumeAthlete } from "@/lib/utils/athlete-stats";
 import { estRelais } from "@/lib/utils/relais";
 import { ProgressionChart } from "@/components/charts/ProgressionChart";
@@ -60,7 +60,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   const places = individuels
     .map((p) => p.rank_overall)
     .filter((r): r is number => r != null);
-  const best = places.length ? Math.min(...places) : null;
+  const best = bestRanking(individuels);
   const top10 = places.filter((p) => p <= 10).length;
 
   // Format favori : jeton le plus fréquent.
@@ -71,7 +71,6 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   }
   const favFormat = [...formatCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—";
 
-  const topRatio = bestRatio(individuels);
   const progression = progressionSeries(validated);
   const weakSegment = recurringWeakSegment(validated);
   const disciplineBySeason = disciplineBreakdownBySeason(validated);
@@ -170,7 +169,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
         )}
 
         {resume.regime === "complet" && (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <StatCard
               label="Épreuves"
               value={validated.length}
@@ -182,18 +181,12 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
               accent={false}
             />
             <StatCard
-              label="Meilleure place"
-              value={best ?? "—"}
-              hint={horsRelais}
-              valueColor="var(--tcn-orange)"
-              accent={false}
-            />
-            <StatCard
-              label="Meilleur ratio"
-              value={topRatio ? `Top ${topRatio.ratio.percent}%` : "—"}
+              label="Meilleur classement"
+              value={best ? ordinalFr(best.rank) : "—"}
+              // Rapporté au champ (#1212) : un 29e sur 30 n'est pas un 29e sur 2 000.
               hint={
-                topRatio
-                  ? `${ordinalFr(topRatio.ratio.rank)} sur ${topRatio.ratio.total}${horsRelais ? ", hors relais" : ""}`
+                best?.total != null
+                  ? `sur ${formatCount(best.total)} · Top ${best.percent} %${horsRelais ? ", hors relais" : ""}`
                   : horsRelais
               }
               valueColor="var(--tcn-orange)"

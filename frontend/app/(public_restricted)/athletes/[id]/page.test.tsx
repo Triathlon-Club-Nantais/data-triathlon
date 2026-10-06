@@ -154,25 +154,20 @@ describe("AthletePage", () => {
     expect(screen.getByRole("heading", { level: 2, name: "Toutes les épreuves" })).toBeInTheDocument();
   });
 
-  it("retient le meilleur ratio, pas la meilleure place", async () => {
+  it("affiche le meilleur classement rapporté au champ (#1212)", async () => {
     await renderAthlete([
       part({ id: 1, rank_overall: 42, course_finishers: 300 }),
       part({ id: 2, rank_overall: 20, course_finishers: 80 }),
-      // #488 : le régime complet des cinq tuiles commence à 3 épreuves validées.
+      // #488 : le régime complet des tuiles commence à 3 épreuves validées.
       part({ id: 3, rank_overall: 60, course_finishers: 90 }),
     ]);
 
-    expect(screen.getByText("Meilleur ratio")).toBeInTheDocument();
-    expect(screen.getByText("Top 14%")).toBeInTheDocument();
-    expect(screen.getByText("42e sur 300")).toBeInTheDocument();
-    // La tuile « Meilleure place » garde le rang absolu minimum. On cible la
-    // tuile elle-même (via son libellé) plutôt que la page entière, sans quoi
-    // le test resterait vert même si la tuile disparaissait — « 20 » apparaît
-    // aussi dans la pastille de la ligne correspondante du tableau.
-    const label = screen.getByText("Meilleure place");
-    const tile = label.parentElement?.parentElement;
-    expect(tile).not.toBeNull();
-    expect(within(tile as HTMLElement).getByText("20")).toBeInTheDocument();
+    // Le meilleur centile est 42e sur 300 (14 %), pas la meilleure place brute (20e sur 80, 25 %).
+    const tile = screen.getByText("Meilleur classement").parentElement?.parentElement as HTMLElement;
+    expect(within(tile).getByText("42e")).toBeInTheDocument();
+    expect(within(tile).getByText("sur 300 · Top 14 %")).toBeInTheDocument();
+    expect(screen.queryByText("Meilleure place")).not.toBeInTheDocument();
+    expect(screen.queryByText("Meilleur ratio")).not.toBeInTheDocument();
   });
 
   it("affiche le nombre de classés à côté de la place, dans le tableau", async () => {
@@ -191,7 +186,9 @@ describe("AthletePage", () => {
     // Ni le « /N » de la ligne, ni un percentile : la place reste seule.
     expect(screen.queryByText("/20")).not.toBeInTheDocument();
     expect(screen.queryByText(/^Top \d+%$/)).not.toBeInTheDocument();
-    expect(screen.getByText("Meilleur ratio")).toBeInTheDocument();
+    const tile = screen.getByText("Meilleur classement").parentElement?.parentElement as HTMLElement;
+    expect(within(tile).getByText("42e")).toBeInTheDocument();
+    expect(within(tile).queryByText(/sur 20/)).not.toBeInTheDocument();
     // AC3 : « incomplete » ne déclenche PAS le signal `is_reliable=false`.
     expect(screen.queryByTestId("unreliable-marker")).not.toBeInTheDocument();
   });
@@ -475,8 +472,7 @@ describe("AthletePage", () => {
 
     // Aucune tuile : sans résultat validé, les cinq KPI ne rendaient que des
     // zéros et des tirets. Une ligne explique l'absence plutôt que de la subir.
-    expect(screen.queryByText("Meilleure place")).not.toBeInTheDocument();
-    expect(screen.queryByText("Meilleur ratio")).not.toBeInTheDocument();
+    expect(screen.queryByText("Meilleur classement")).not.toBeInTheDocument();
     expect(screen.queryByText("Format favori")).not.toBeInTheDocument();
     expect(
       screen.getByText("Aucun résultat validé pour l'instant — 1 en attente de validation."),
@@ -503,8 +499,8 @@ describe("AthletePage", () => {
     expect(within(episCard as HTMLElement).getByText("1 en attente de validation")).toBeInTheDocument();
 
     // La meilleure place validée est 5, pas le rang 1 de la participation en attente.
-    const placeCard = screen.getByText("Meilleure place").parentElement?.parentElement;
-    expect(within(placeCard as HTMLElement).getByText("5")).toBeInTheDocument();
+    const placeCard = screen.getByText("Meilleur classement").parentElement?.parentElement;
+    expect(within(placeCard as HTMLElement).getByText("5e")).toBeInTheDocument();
   });
 
   it("ne tient pas compte d'un relais dans la meilleure place ni le top 10 (#894)", async () => {
@@ -514,16 +510,14 @@ describe("AthletePage", () => {
       part({ id: 2, rank_overall: 1, course_finishers: 50, is_relay: true }),
     ]);
 
-    const placeCard = screen.getByText("Meilleure place").parentElement?.parentElement;
-    expect(within(placeCard as HTMLElement).getByText("5")).toBeInTheDocument();
+    const placeCard = screen.getByText("Meilleur classement").parentElement?.parentElement;
+    expect(within(placeCard as HTMLElement).getByText("5e")).toBeInTheDocument();
     const top10Card = screen.getByText("Top 10").parentElement?.parentElement;
     expect(within(top10Card as HTMLElement).getByText("1")).toBeInTheDocument();
     // Revue UI/UX #1001 : la tuile dit qu'elle écarte un relais, et le ratio
     // suit la même règle (5ᵉ sur 50, pas le relais 1ᵉʳ sur 50).
-    expect(within(placeCard as HTMLElement).getByText("Hors relais")).toBeInTheDocument();
     expect(within(top10Card as HTMLElement).getByText("Hors relais")).toBeInTheDocument();
-    const ratioCard = screen.getByText("Meilleur ratio").parentElement?.parentElement;
-    expect(within(ratioCard as HTMLElement).getByText("Top 10%")).toBeInTheDocument();
+    expect(within(placeCard as HTMLElement).getByText("sur 50 · Top 10 %, hors relais")).toBeInTheDocument();
   });
 
   it("n'annonce pas « Hors relais » sans relais classé", async () => {
@@ -543,8 +537,8 @@ describe("AthletePage", () => {
       part({ id: 2, rank_overall: 1, course_finishers: 50, course: { is_relay: true } as never }),
     ]);
 
-    const placeCard = screen.getByText("Meilleure place").parentElement?.parentElement;
-    expect(within(placeCard as HTMLElement).getByText("5")).toBeInTheDocument();
+    const placeCard = screen.getByText("Meilleur classement").parentElement?.parentElement;
+    expect(within(placeCard as HTMLElement).getByText("5e")).toBeInTheDocument();
   });
 
   it("n'affiche pas de repère « en attente » sur « Épreuves » quand tout est validé (#438)", async () => {
@@ -570,8 +564,7 @@ describe("AthletePage — tuiles proportionnées au volume (PROF-4, #488)", () =
     expect(screen.getByText("Épreuves")).toBeInTheDocument();
     expect(screen.getByText("Discipline")).toBeInTheDocument();
     expect(screen.getByText("Temps")).toBeInTheDocument();
-    expect(screen.queryByText("Meilleure place")).not.toBeInTheDocument();
-    expect(screen.queryByText("Meilleur ratio")).not.toBeInTheDocument();
+    expect(screen.queryByText("Meilleur classement")).not.toBeInTheDocument();
     expect(screen.queryByText("Top 10")).not.toBeInTheDocument();
     expect(screen.queryByText("Format favori")).not.toBeInTheDocument();
 
@@ -597,14 +590,14 @@ describe("AthletePage — tuiles proportionnées au volume (PROF-4, #488)", () =
     expect(screen.getByRole("link", { name: /Ajouter un résultat/ })).toBeInTheDocument();
   });
 
-  it("au seuil, retrouve les cinq tuiles", async () => {
+  it("au seuil, retrouve les quatre tuiles", async () => {
     await renderAthlete([
       part({ id: 1, rank_overall: 12, course_finishers: 300 }),
       part({ id: 2, rank_overall: 20, course_finishers: 300 }),
       part({ id: 3, rank_overall: 30, course_finishers: 300 }),
     ]);
 
-    for (const label of ["Épreuves", "Meilleure place", "Meilleur ratio", "Top 10", "Format favori"]) {
+    for (const label of ["Épreuves", "Meilleur classement", "Top 10", "Format favori"]) {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
   });
