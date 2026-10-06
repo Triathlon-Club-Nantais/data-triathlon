@@ -348,6 +348,24 @@ export function useReassignParticipation() {
 }
 
 /**
+ * Séparer une fiche (#1209) : mêmes écrans que le rattachement, plus la revue
+ * d'identité, d'où un cas peut sortir.
+ */
+export function useDetachParticipations() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ athleteId, participationIds }: { athleteId: number; participationIds: number[] }) =>
+      apiClient.detachParticipations(athleteId, participationIds),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+      qc.invalidateQueries({ queryKey: queryKeys.identityReview() });
+    },
+  });
+}
+
+/**
  * Attribuer un relais à ses équipiers (#894) : mêmes écrans touchés que le
  * rattachement, auquel ce geste ajoute des coureurs au lieu d'en changer un.
  */
