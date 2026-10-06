@@ -144,7 +144,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             ["Résultats d'épreuves", "Tant que le service existe (archive sportive du club), sauf opposition de votre part"],
             [
               "Liste des licenciés du club",
-              "La saison en cours et la précédente ; ensuite, seul le rattachement à la fiche de résultats est gardé, sans numéro de licence et avec le nom de la fiche",
+              "La saison en cours et la précédente ; ensuite, seuls sont gardés la saison et le rattachement à la fiche de résultats (le numéro de licence et le sexe sont effacés, le nom est celui de la fiche)",
             ],
             ["Signalements, adresse IP comprise", "12 mois après leur envoi"],
             ["Journal des actions d'administration", "12 mois"],
@@ -164,7 +164,8 @@ export const PRIVACY_POLICY: LegalDocument = {
           <p>
             Les résultats sont consultables par les adhérents du club, qui disposent du code d&apos;accès. Les
             saisies en attente, les dates de naissance et les signalements ne sont visibles que des bénévoles
-            (adhérents ou non) et administrateurs habilités ; les données de l&apos;école de triathlon, que des
+            (adhérents ou non) et administrateurs habilités ; la liste des licenciés, que des administrateurs
+            habilités ; les données de l&apos;école de triathlon, que des
             encadrants.
           </p>
           <p>Le club s&apos;appuie sur des prestataires techniques, qui n&apos;agissent que pour son compte :</p>
