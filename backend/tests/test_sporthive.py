@@ -1026,7 +1026,7 @@ def test_an_unknown_event_is_refused_by_name_not_by_http_error(monkeypatch):
 ])
 def test_an_event_yielding_no_race_is_refused_in_french(monkeypatch, courses, pages, cas):
     """FR-008c / D14. This is the guard that closes the hole opened by dropping
-    races one at a time: `import_service._require_event_name` does **not** raise
+    races one at a time: `import_dispatch._require_event_name` does **not** raise
     on an empty list (`any()` of an empty list is false) and `batch` counts "no
     result" as a legitimate short-circuit. Without it, a wholly truncated event
     would be indistinguishable from a successful import in the report — the

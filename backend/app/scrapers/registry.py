@@ -109,7 +109,7 @@ class ScraperProtocol(Protocol):
     #: Vrai si la source publie son rang **par groupe d'affichage** (le genre,
     #: souvent) et non pour l'épreuve entière. Opt-in, mesuré fournisseur par
     #: fournisseur : seuls ceux-là voient leurs doublons de rang renumérotés
-    #: par temps (`import_service._renumber_duplicate_ranks`, #785, #940).
+    #: par temps (`import_persistence._renumber_duplicate_ranks`, #785, #940).
     ranks_per_group: bool
 
     def matches(self, url: str) -> bool:

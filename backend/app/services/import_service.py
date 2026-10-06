@@ -14,10 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
 from app.core.time import utcnow
-from app.repositories import (
-    course_repository,
-    lock_repository,
-)
+from app.repositories import course_repository, lock_repository
 from app.services import import_dispatch, import_persistence
 from app.services.deadlock import deadlock_retries
 

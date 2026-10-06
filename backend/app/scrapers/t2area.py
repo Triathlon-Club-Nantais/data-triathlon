@@ -210,7 +210,7 @@ def _dossard(cle: str) -> str:
     tantôt une licence FFTRI (`A44719`), tantôt un identifiant interne
     (`id-1153352`). Remplir `bib_number` avec les deux autres ferait mentir le
     champ — le front afficherait « #A44719 ». Les éditions sans dossard retombent
-    sur l'appariement par athlète (`import_service._match_without_bib`).
+    sur l'appariement par athlète (`import_persistence`).
     """
     trouve = _BIB_RE.match(cle)
     return trouve.group(1) if trouve else ""

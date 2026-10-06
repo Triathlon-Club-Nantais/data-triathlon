@@ -17,16 +17,10 @@ from app.core.config import Settings
 from app.core.database import SessionLocal
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
 from app.core.youth import is_youth
-from app.repositories import (
-    course_repository,
-    participation_repository,
-)
+from app.repositories import course_repository, participation_repository
 from app.scrapers import registry
 from app.scrapers import scrape_event_all as registry_scrape_event_all
-from app.scrapers.base import (
-    FanoutTrace,
-    ScrapedResult,
-)
+from app.scrapers.base import FanoutTrace, ScrapedResult
 from app.services import (
     cache,
 )
@@ -72,7 +66,7 @@ def merge_cached_courses(
     à 20 heats cachés ne fait pas 20 requêtes. Dédup sur `id` : un heat qui
     aurait à la fois été re-scrapé **et** listé cached (cas théorique) ne
     remonte qu'une fois. Ordre : d'abord les re-scrapés (ordre de rencontre
-    dans `_Persister.add`), puis les cachés (ordre `scraped_at` desc).
+    dans `import_persistence._Persister.add`), puis les cachés (ordre `scraped_at` desc).
     """
     if trace is None or not getattr(trace, "cached_urls", None):
         return persister_courses

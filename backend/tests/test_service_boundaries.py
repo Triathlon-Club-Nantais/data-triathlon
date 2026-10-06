@@ -1,7 +1,7 @@
 """Un module n'utilise pas les symboles `_privés` d'un service (#937).
 
 Le re-scrape admin réimplémentait la persistance à partir de
-`import_service._Persister`, et a divergé : il sautait les trois passes que les
+`import_persistence._Persister`, et a divergé : il sautait les trois passes que les
 autres chemins jouent avant la première ligne. La règle est tenue ici par un
 méta-test, faute de quoi elle se perd à la modification suivante. Lecture par
 `ast` : les mentions en docstring ou en commentaire ne comptent pas.
