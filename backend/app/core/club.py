@@ -25,6 +25,7 @@ changer la façon de comparer, si.
 import re
 import unicodedata
 from collections.abc import Iterable
+from dataclasses import dataclass
 
 from sqlalchemy import column, func
 
@@ -64,13 +65,59 @@ def broad_club_key(club: str | None) -> str:
 
 
 def is_tcn(club: str | None) -> bool:
-    """Vrai si `club` désigne le Triathlon Club Nantais.
+    """Vrai si `club` est un libellé de la portée du club, ambigu compris.
+
+    Ce verdict ne compte rien : un résultat compte pour le club selon
+    `Participation.counts_for_tcn` (#1206).
 
     Déclarer une variante d'orthographe est le geste prévu, et il se fait depuis
     le panel admin — `python -m app.cli club-labels` sert à repérer celles qui
     manquent.
     """
     return normalize_club(club) in counter_scope.tcn_club_labels()
+
+
+@dataclass(frozen=True)
+class ClubLabels:
+    """Les libellés de la portée, séparés selon qu'ils suffisent ou non (#1206).
+
+    `clear` : un résultat qui porte l'un d'eux compte pour le club.
+    `ambiguous` : le libellé désigne aussi d'autres clubs (« TCN » est aussi le
+    Triathlon Club Narbonne) ; il ne compte que si l'athlète est rattaché au club
+    par ailleurs, ce que seule la base sait dire
+    (`repositories/tcn_count_repository`).
+    """
+
+    clear: frozenset[str]
+    ambiguous: frozenset[str]
+
+    @classmethod
+    def from_registry(cls) -> "ClubLabels":
+        labels = counter_scope.tcn_club_labels()
+        ambiguous = counter_scope.ambiguous_club_labels() & labels
+        return cls(clear=labels - ambiguous, ambiguous=ambiguous)
+
+    @classmethod
+    def from_entries(cls, entries: Iterable[tuple[str, bool]]) -> "ClubLabels":
+        """Depuis des couples `(valeur normalisée, ambiguë)` relus en base."""
+        pairs = list(entries)
+        return cls(
+            clear=frozenset(value for value, ambiguous in pairs if not ambiguous),
+            ambiguous=frozenset(value for value, ambiguous in pairs if ambiguous),
+        )
+
+    def counts_by_label(self, club: str | None) -> bool:
+        """Le libellé suffit-il, à lui seul, à compter le résultat pour le club ?"""
+        return normalize_club(club) in self.clear
+
+
+def counts_by_label(club: str | None) -> bool:
+    """`ClubLabels.counts_by_label` sur la configuration en vigueur.
+
+    Seul lecteur : l'écouteur de `models/participation.py`, qui pose la valeur
+    de départ de `counts_for_tcn` sans Session.
+    """
+    return ClubLabels.from_registry().counts_by_label(club)
 
 
 def is_club_scope(scope: str | None) -> bool:

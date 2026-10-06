@@ -91,3 +91,31 @@ def test_load_accepte_nimporte_quel_iterable_et_rend_des_frozenset():
 
     assert counter_scope.non_federal_disciplines() == frozenset({"trail"})
     assert isinstance(counter_scope.tcn_club_labels(), frozenset)
+
+
+def test_no_label_is_ambiguous_by_default():
+    assert counter_scope.ambiguous_club_labels() == frozenset()
+
+
+def test_load_replaces_the_ambiguous_labels_with_the_two_other_sets():
+    counter_scope.load(
+        disciplines={"trail"}, club_labels={"tcn", "tri club nantais"}, ambiguous_club_labels={"tcn"}
+    )
+
+    assert counter_scope.ambiguous_club_labels() == frozenset({"tcn"})
+    assert counter_scope.tcn_club_labels() == frozenset({"tcn", "tri club nantais"})
+
+
+def test_load_without_ambiguous_labels_clears_them():
+    counter_scope.load(disciplines=set(), club_labels={"tcn"}, ambiguous_club_labels={"tcn"})
+    counter_scope.load(disciplines=set(), club_labels={"tcn"})
+
+    assert counter_scope.ambiguous_club_labels() == frozenset()
+
+
+def test_reset_clears_the_ambiguous_labels():
+    counter_scope.load(disciplines=set(), club_labels={"tcn"}, ambiguous_club_labels={"tcn"})
+
+    counter_scope.reset()
+
+    assert counter_scope.ambiguous_club_labels() == frozenset()

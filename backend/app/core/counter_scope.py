@@ -48,13 +48,18 @@ DEFAULT_TCN_CLUB_LABELS: frozenset[str] = frozenset({
     "tcn",
 })
 
-#: Les deux ensembles dans **un seul nom** : `(disciplines, libellés)`. Deux
-#: variables auraient donné deux affectations, donc une fenêtre — courte, mais
-#: réelle — où un lecteur voit les nouvelles disciplines et les anciens
-#: libellés. Un seul nom rend le remplacement atomique pour de bon.
-_scope: tuple[frozenset[str], frozenset[str]] = (
+#: Les trois ensembles dans **un seul nom** : `(disciplines, libellés,
+#: libellés ambigus)`. Deux variables auraient donné deux affectations, donc une
+#: fenêtre (courte, mais réelle) où un lecteur voit les nouvelles disciplines et
+#: les anciens libellés. Un seul nom rend le remplacement atomique pour de bon.
+#:
+#: Aucun libellé n'est ambigu par défaut : les défauts restent les valeurs
+#: d'avant la bascule, et c'est la migration qui marque « tcn » ambigu en base
+#: (#1206).
+_scope: tuple[frozenset[str], frozenset[str], frozenset[str]] = (
     DEFAULT_NON_FEDERAL_DISCIPLINES,
     DEFAULT_TCN_CLUB_LABELS,
+    frozenset(),
 )
 
 
@@ -64,29 +69,43 @@ def non_federal_disciplines() -> frozenset[str]:
 
 
 def tcn_club_labels() -> frozenset[str]:
-    """Les libellés reconnus comme libellés du club, en vigueur."""
+    """Les libellés reconnus comme libellés du club, en vigueur, ambigus compris."""
     return _scope[1]
 
 
-def load(*, disciplines: Iterable[str], club_labels: Iterable[str]) -> None:
-    """Remplace les deux ensembles d'un seul geste, **par réassignation**.
+def ambiguous_club_labels() -> frozenset[str]:
+    """Les libellés du club qui désignent aussi d'autres clubs (#1206).
+
+    Un résultat qui ne porte que l'un d'eux ne compte pour le club que si son
+    athlète y est rattaché par ailleurs (`repositories/tcn_count_repository`).
+    """
+    return _scope[2]
+
+
+def load(
+    *,
+    disciplines: Iterable[str],
+    club_labels: Iterable[str],
+    ambiguous_club_labels: Iterable[str] = (),
+) -> None:
+    """Remplace les trois ensembles d'un seul geste, **par réassignation**.
 
     Deux propriétés, et les deux comptent.
 
-    Les deux ensembles ensemble : ils tiennent dans un seul nom, donc une
+    Les ensembles ensemble : ils tiennent dans un seul nom, donc une
     configuration à moitié rechargée est un état que rien ne peut produire.
 
     Par réassignation, jamais par mutation en place (`add`, `discard`, `clear`) :
-    l'import d'épreuve tourne dans un **thread d'arrière-plan** — le scrape SSE
-    de `services/import_service` — et appelle `is_tcn` ligne par ligne pendant
-    qu'un administrateur peut écrire. Réassigner un nom est atomique du point de
-    vue de ce thread ; muter en place lui exposerait un ensemble à moitié écrit,
-    et le résultat serait quelques lignes mal classées, sans erreur ni trace.
+    l'import d'épreuve tourne dans un **thread d'arrière-plan** (le scrape SSE)
+    et lit ce registre ligne par ligne pendant qu'un administrateur peut écrire.
+    Réassigner un nom est atomique du point de vue de ce thread ; muter en place
+    lui exposerait un ensemble à moitié écrit, et le résultat serait quelques
+    lignes mal classées, sans erreur ni trace.
     """
     global _scope
-    _scope = (frozenset(disciplines), frozenset(club_labels))
+    _scope = (frozenset(disciplines), frozenset(club_labels), frozenset(ambiguous_club_labels))
 
 
 def reset() -> None:
-    """Retour aux défauts — fixture de test, et rien d'autre."""
+    """Retour aux défauts : fixture de test, et rien d'autre."""
     load(disciplines=DEFAULT_NON_FEDERAL_DISCIPLINES, club_labels=DEFAULT_TCN_CLUB_LABELS)
