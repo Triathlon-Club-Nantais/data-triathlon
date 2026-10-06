@@ -1,5 +1,5 @@
 """Accès données pour Athlete — seule couche qui touche la Session pour cette table."""
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import date
 from typing import NamedTuple
 
@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session, aliased
 from sqlalchemy.orm.attributes import set_committed_value
 
 from app.core.athlete_identity import athlete_identity_keys
-from app.core.club import tcn_clause
+from app.core.club import _normalise_sql, tcn_clause
 from app.core.discipline import federal_clause
 from app.core.gender import gender_podium_clause
 from app.core.text import deaccent
@@ -34,6 +34,7 @@ from app.core.validation import validated_clause
 from app.models.athlete import Athlete
 from app.models.athlete_alias import AthleteAlias
 from app.models.challenge import ChallengeResult
+from app.models.club_member import LINKED, ClubMember
 from app.models.course import Course
 from app.models.participation import Participation, ParticipationTeammate
 from app.models.season_validation import SeasonValidation
@@ -1227,6 +1228,68 @@ def review_details(db: Session, athlete_ids: Sequence[int]) -> tuple[dict[int, A
         .order_by(Course.event_date, Participation.id)
     ).all()
     return athletes, results
+
+
+def member_record_ids(db: Session, athlete_ids: Collection[int] | None = None) -> set[int]:
+    """Les fiches de membre TCN (#1209) : un résultat qui compte pour le club, ou
+    une licence rattachée. `None` : toutes les fiches."""
+    counted = select(Participation.athlete_id).where(Participation.counts_for_tcn.is_(True))
+    licensed = select(ClubMember.athlete_id).where(
+        ClubMember.athlete_id.is_not(None), ClubMember.link_status.in_(LINKED)
+    )
+    if athlete_ids is not None:
+        ids = set(athlete_ids)
+        if not ids:
+            return set()
+        counted = counted.where(Participation.athlete_id.in_(ids))
+        licensed = licensed.where(ClubMember.athlete_id.in_(ids))
+    return set(db.scalars(counted.distinct())) | set(db.scalars(licensed.distinct()))
+
+
+def club_labels_by_athlete(db: Session, athlete_ids: Collection[int] | None = None) -> dict[int, dict[str, int]]:
+    """Libellé de club → nombre de résultats individuels validés, par fiche (#1209).
+
+    `None` borne la lecture aux fiches qui portent au moins deux libellés
+    normalisés distincts : la revue `multi_club` n'a pas à charger les autres."""
+    individual = (
+        Participation.club.is_not(None),
+        Participation.is_relay.is_(False),
+        Course.is_relay.is_(False),
+        validated_clause(Participation.is_pending_validation),
+    )
+    query = (
+        select(Participation.athlete_id, Participation.club, func.count(Participation.id))
+        .join(Course, Course.id == Participation.course_id)
+        .where(*individual)
+        .group_by(Participation.athlete_id, Participation.club)
+    )
+    if athlete_ids is not None:
+        ids = set(athlete_ids)
+        if not ids:
+            return {}
+        query = query.where(Participation.athlete_id.in_(ids))
+    else:
+        several = (
+            select(Participation.athlete_id)
+            .join(Course, Course.id == Participation.course_id)
+            .where(*individual)
+            .group_by(Participation.athlete_id)
+            .having(func.count(func.distinct(_normalise_sql(Participation.club))) > 1)
+        )
+        query = query.where(Participation.athlete_id.in_(several))
+    labels: dict[int, dict[str, int]] = {}
+    for athlete_id, club, results in db.execute(query):
+        labels.setdefault(athlete_id, {})[club] = results
+    return labels
+
+
+def homonyms_of(db: Session, key: IdentityKey) -> list[Athlete]:
+    """Les homonymes distingués d'une clé (rang ≥ 1), du plus ancien au plus récent."""
+    return list(db.scalars(
+        select(Athlete)
+        .where(Athlete.last_name_key == key[0], Athlete.first_name_key == key[1], Athlete.homonym_rank > 0)
+        .order_by(Athlete.homonym_rank)
+    ))
 
 
 def get_many(db: Session, athlete_ids: Sequence[int]) -> dict[int, Athlete]:
