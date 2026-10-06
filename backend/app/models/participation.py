@@ -16,12 +16,14 @@ from sqlalchemy import (
     Integer,
     String,
     UniqueConstraint,
+    event,
     false,
+    inspect,
     text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.club import CLUB_NORMALIZED_INDEX_EXPRESSION
+from app.core.club import CLUB_NORMALIZED_INDEX_EXPRESSION, counts_by_label
 from app.core.database import Base
 from app.core.time import utcnow
 
@@ -76,6 +78,13 @@ class Participation(Base):
     # Fiche choisie par un admin (`reassign_participation`) : l'import met encore
     # les valeurs à jour, il ne change plus jamais de fiche (#896).
     athlete_locked: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=false())
+    # Ce résultat compte-t-il pour le club (#1206) ? Seule lecture des compteurs,
+    # statistiques et du badge `is_tcn`. Écrit par `repositories/
+    # tcn_count_repository.recompute_counts_for_tcn`, qui applique la règle
+    # entière ; l'écouteur en bas de module n'en pose que la première condition.
+    counts_for_tcn: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=false(), default=False, index=True
+    )
 
     splits: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     raw_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
@@ -145,3 +154,18 @@ class ParticipationTeammate(Base):
 
     participation: Mapped[Participation] = relationship(back_populates="teammate_links")
     athlete: Mapped["Athlete"] = relationship(lazy="joined")  # noqa: F821
+
+
+# Valeur provisoire, sur le libellé seul (condition 1 de la règle) : elle ne peut
+# que sous-compter, jamais sur-compter. Le rattachement par un autre résultat
+# (et la licence, #1202) attend le recalcul SQL que chaque chemin d'écriture
+# déclenche ensuite.
+@event.listens_for(Participation, "before_insert")
+def _counts_for_tcn_on_insert(mapper, connection, target: Participation) -> None:
+    target.counts_for_tcn = counts_by_label(target.club)
+
+
+@event.listens_for(Participation, "before_update")
+def _counts_for_tcn_on_club_change(mapper, connection, target: Participation) -> None:
+    if inspect(target).attrs.club.history.has_changes():
+        target.counts_for_tcn = counts_by_label(target.club)

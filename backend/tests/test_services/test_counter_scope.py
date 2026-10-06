@@ -60,3 +60,22 @@ def test_load_from_db_ne_lit_que_la_base(db_session):
 
     assert registre.tcn_club_labels() == frozenset()
     assert registre.non_federal_disciplines() == frozenset()
+
+
+def test_load_from_db_loads_the_ambiguous_labels(db_session):
+    from app.core import counter_scope as registre
+    from app.repositories import counter_scope_repository
+
+    tcn = counter_scope_repository.create_entry(
+        db_session, kind=CLUB_LABEL, value="tcn", created_by_user_id=None
+    )
+    tcn.ambiguous = True
+    counter_scope_repository.create_entry(
+        db_session, kind=CLUB_LABEL, value="tri club nantais", created_by_user_id=None
+    )
+    db_session.flush()
+
+    counter_scope.load_from_db(db_session)
+
+    assert registre.tcn_club_labels() == frozenset({"tcn", "tri club nantais"})
+    assert registre.ambiguous_club_labels() == frozenset({"tcn"})

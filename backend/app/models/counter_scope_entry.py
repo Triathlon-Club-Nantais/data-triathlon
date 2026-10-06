@@ -17,7 +17,7 @@ donnerait deux occasions de plus de diverger.
 """
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, UniqueConstraint, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -40,6 +40,13 @@ class CounterScopeEntry(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     kind: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     value: Mapped[str] = mapped_column(String(120), nullable=False)
+    #: Libellé qui désigne aussi d'autres clubs (#1206) : « TCN » est aussi le
+    #: Triathlon Club Narbonne. Un résultat qui ne porte que lui ne compte pour le
+    #: club que si son athlète y est rattaché par ailleurs. N'a de sens que pour
+    #: un libellé de club.
+    ambiguous: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=false(), default=False
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     #: `NULL` pour les lignes posées par la migration d'amorçage — affichées
     #: « Configuration initiale ». Aucune `relationship` inverse sur `User` :

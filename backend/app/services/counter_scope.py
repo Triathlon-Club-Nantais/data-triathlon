@@ -19,11 +19,12 @@ from app.services import audit
 
 
 def load_from_db(db: Session) -> None:
-    """Relit les deux listes en base et remplace le registre d'un seul geste."""
+    """Relit les listes en base et remplace le registre d'un seul geste."""
     entries = counter_scope_repository.list_entries(db)
     counter_scope.load(
         disciplines={e.value for e in entries if e.kind == NON_FEDERAL_DISCIPLINE},
         club_labels={e.value for e in entries if e.kind == CLUB_LABEL},
+        ambiguous_club_labels={e.value for e in entries if e.kind == CLUB_LABEL and e.ambiguous},
     )
 
 
