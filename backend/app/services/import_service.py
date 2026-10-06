@@ -1842,20 +1842,20 @@ def _persist_challenges(
             source_url=rows[0].source_url or url, rows=challenge_rows, found=found,
         )
         persister.challenges += 1
-        _drop_course_twin(db, name, event_date, {r.source_url or url for r in rows})
+        _drop_course_twin(db, name, {r.source_url or url for r in rows})
     return leftovers
 
 
-def _drop_course_twin(db: Session, name: str, event_date, urls: set[str]) -> None:
+def _drop_course_twin(db: Session, name: str, urls: set[str]) -> None:
     """Supprime l'épreuve qu'un import antérieur a tirée du même heat, faute
     d'épreuves sœurs à l'époque : sinon le heat compterait deux fois (#1008).
 
     Seule une épreuve publiée sous l'URL du heat en est le jumeau : une homonyme
     d'une autre source n'est pas supprimée par un import, `/admin/doublons` la tranche.
+    La date reste hors de la recherche : `heat_dated` a pu redater le jumeau
+    sans redater le Challenge (#1196).
     """
-    for course in course_repository.list_named_on(db, name, event_date):
-        if not any(source.url in urls for source in course.sources):
-            continue
+    for course in course_repository.list_named_with_source(db, name, urls):
         logger.info("Course %s replaced by the challenge of the same heat: %s", course.id, name)
         candidates = athlete_repository.only_on_course(db, course.id)
         course_repository.delete(db, course)

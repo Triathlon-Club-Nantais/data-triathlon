@@ -8,10 +8,13 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from app.repositories import course_repository
+from app.repositories import challenge_repository, course_repository
 from app.scrapers.utils import heat_is_challenge
 from app.services import admin_actions, challenge_service
 from app.services.challenge_service import ChallengeRow
+
+#: Écart de date toléré entre une épreuve redatée par heat et son Challenge.
+_NEAR_DAYS = 2
 
 
 @dataclass(frozen=True)
@@ -41,8 +44,14 @@ def requalify(db: Session, *, user_id: int | None) -> list[Requalified]:
             continue
         done.append(Requalified(course.id, course.name, found.course_ids, len(found.athlete_ids)))
         if user_id is not None:
+            # Le Challenge déjà importé peut porter la date d'événement quand
+            # l'épreuve a été redatée par heat (#1196) : on le reprend.
+            existing = challenge_repository.find_named_near(
+                db, name=course.name, event_date=course.event_date, days=_NEAR_DAYS
+            )
             challenge_service.save(
-                db, name=course.name, event_date=course.event_date,
+                db, name=course.name,
+                event_date=existing.event_date if existing else course.event_date,
                 source_url=course.source_url, rows=rows, found=found,
             )
             admin_actions.delete_course(db, course_id=course.id, user_id=user_id)

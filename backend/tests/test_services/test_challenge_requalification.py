@@ -50,6 +50,22 @@ def test_apply_converts_and_deletes_the_course(db_session):
     assert db_session.query(Athlete).count() == 5
 
 
+def test_apply_reuses_a_same_named_challenge_dated_a_day_apart(db_session):
+    """#1196 : le Challenge importé est daté du 14/05, l'épreuve redatée au 13/05.
+    La requalification ne crée pas un second Challenge du même nom."""
+    admin = user_repository.create(db_session, email="admin@exemple.fr", display_name="Admin")
+    _seed(db_session)
+    existing = Challenge(name="E - START CHALLENGE (XS - M - L)", event_date=date(2026, 5, 14))
+    db_session.add(existing)
+    db_session.flush()
+
+    challenge_requalification.requalify(db_session, user_id=admin.id)
+
+    stored = db_session.query(Challenge).one()
+    assert stored.id == existing.id
+    assert len(stored.results) == 5
+
+
 def test_courses_that_fail_the_overlap_test_are_left_alone(db_session):
     lone = Course(name="La Baule - Challenge", event_date=DAY, event_type="triathlon-m", is_relay=True)
     db_session.add(lone)
