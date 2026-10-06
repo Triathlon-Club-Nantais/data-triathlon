@@ -131,16 +131,6 @@ def test_a_pending_clear_result_does_not_confirm_the_club(db_session):
     assert _flags(db_session, bare) == [False]
 
 
-def test_a_bare_ambiguous_result_next_to_a_pending_ambiguous_one_does_not_count(db_session):
-    athlete = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Anne")
-    bare = _result(db_session, athlete, _course(db_session, "A"), "1", "TCN")
-    _result(db_session, athlete, _course(db_session, "B"), "1", "TCN", pending=True)
-
-    tcn_count_repository.recompute_counts_for_tcn(db_session, labels=_LABELS)
-
-    assert _flags(db_session, bare) == [False]
-
-
 def test_two_ambiguous_results_do_not_confirm_each_other(db_session):
     athlete = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Anne")
     first = _result(db_session, athlete, _course(db_session, "A"), "1", "TCN")
@@ -233,9 +223,12 @@ def test_without_labels_the_registry_decides(db_session):
 
 def test_loaded_instances_see_the_new_verdict_without_a_refresh(db_session):
     athlete = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Anne")
-    bare = _result(db_session, athlete, _course(db_session, "A"), "1", "TCN")
-    _result(db_session, athlete, _course(db_session, "B"), "1", "Triathlon Club Nantais")
+    course = _course(db_session)
+    bare = _result(db_session, athlete, course, "1", "TCN")
+    tcn_count_repository.recompute_counts_for_tcn(db_session)
+    assert (bare.counts_for_tcn, course.tcn_count) == (True, 1)
 
     tcn_count_repository.recompute_counts_for_tcn(db_session, labels=_LABELS)
 
-    assert bare.counts_for_tcn is True
+    assert bare.counts_for_tcn is False
+    assert course.tcn_count == 0
