@@ -90,6 +90,23 @@ describe("ParticipationPanel — lecture", () => {
     );
   });
 
+  it("rend les temps intermédiaires en libellés français, dans l'ordre de la discipline (#1180)", () => {
+    render(
+      <ParticipationPanel
+        participation={participation({
+          course: { ...participation().course, event_type: "triathlon-m" },
+          splits: { swim: "00:25:10", t1: "00:01:30", bike: "01:05:00", t2: "00:01:00", run: "00:42:13" },
+        })}
+        onChanged={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Natation/)).toBeInTheDocument();
+    expect(screen.getByText(/Vélo/)).toBeInTheDocument();
+    expect(screen.queryByText(/^swim/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^bike/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^run/)).not.toBeInTheDocument();
+  });
+
   it("n'affiche aucun lien si evidence_url est absent", () => {
     render(<ParticipationPanel participation={participation({ evidence_url: null })} onChanged={vi.fn()} />);
     expect(screen.queryByRole("link", { name: /Lien vers les résultats/ })).not.toBeInTheDocument();
