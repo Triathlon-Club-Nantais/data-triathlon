@@ -360,6 +360,7 @@ export function useDetachParticipations() {
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.ficheCoureur });
       qc.invalidateQueries({ queryKey: queryKeys.identityReview() });
     },
   });
