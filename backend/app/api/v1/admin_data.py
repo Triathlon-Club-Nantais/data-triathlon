@@ -26,6 +26,7 @@ from app.schemas.admin import (
     AdminAthleteRead,
     AdminAthleteUpdate,
     AdminCourseUpdate,
+    AthleteDetachRequest,
     AthleteMergeImpact,
     AthleteMergeRequest,
     CourseDeletionImpact,
@@ -41,7 +42,7 @@ from app.schemas.admin import (
 )
 from app.schemas.course import CourseBrief
 from app.schemas.participation import ParticipationOut
-from app.services import admin_actions, athlete_merge
+from app.services import admin_actions, athlete_detach, athlete_merge
 
 router = APIRouter(tags=["admin"])
 
@@ -311,6 +312,26 @@ def merge_athlete(
     db.commit()
     capture_event("athletes_merged", distinct_id=str(user.id), properties={})
     return _fiche(athlete, participation_repository.count_for_athlete(db, athlete_id))
+
+
+@router.post("/admin/athletes/{athlete_id}/detach", response_model=AdminAthleteRead, status_code=201)
+def detach_athlete_results(
+    athlete_id: int,
+    body: AthleteDetachRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.ATHLETES_WRITE)),
+    _rattachement: User = Depends(require_permission(P.PARTICIPATIONS_REASSIGN)),
+):
+    """Sépare des résultats vers une nouvelle fiche d'homonyme (#1209) et la rend.
+
+    Deux pouvoirs : le geste crée une fiche (`athletes:write`) et déplace des
+    résultats (`participations:reassign`)."""
+    created = athlete_detach.detach_participations(
+        db, athlete_id=athlete_id, participation_ids=body.participation_ids, user_id=user.id
+    )
+    db.commit()
+    capture_event("athlete_detached", distinct_id=str(user.id), properties={"results": len(body.participation_ids)})
+    return _fiche(created, participation_repository.count_for_athlete(db, created.id))
 
 
 @router.get("/admin/athletes/{athlete_id}/season-quota", response_model=SeasonQuota)
