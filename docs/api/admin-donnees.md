@@ -288,6 +288,7 @@ sous `counter_scope:manage`.
 | `GET /admin/counter-scope` | Les **deux** listes d'un coup — l'écran les affiche ensemble, deux appels seraient deux allers-retours pour une page. Triées par valeur. |
 | `POST /admin/counter-scope/{kind}` | Déclare une entrée. `201` avec l'entrée créée. |
 | `DELETE /admin/counter-scope/{kind}/{entry_id}` | Retire une entrée. `204`. |
+| `PATCH /admin/counter-scope/club-labels/{entry_id}` | `{ambiguous}` : marque un libellé du club comme ambigu, ou le rétablit (#1206). Un libellé ambigu (« tcn », aussi le Triathlon Club Narbonne) ne compte que si l'athlète est rattaché au club par un autre résultat validé ; le verdict de chaque résultat se recalcule dans la transaction. `200` avec l'entrée ; `400` sur une discipline. |
 
 `{kind}` vaut `disciplines` ou `club-labels` — la forme URL des deux natures,
 distincte de ce qui est stocké (`non_federal_discipline`, `tcn_club_label`) :

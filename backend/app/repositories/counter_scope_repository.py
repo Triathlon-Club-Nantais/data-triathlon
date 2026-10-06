@@ -82,3 +82,7 @@ def create_entry(
 
 def delete_entry(db: Session, entry: CounterScopeEntry) -> None:
     db.delete(entry)
+
+
+def set_ambiguous(db: Session, entry: CounterScopeEntry, ambiguous: bool) -> None:
+    entry.ambiguous = ambiguous

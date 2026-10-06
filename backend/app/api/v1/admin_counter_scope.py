@@ -16,11 +16,13 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import require_permission
 from app.core.database import get_db
+from app.core.exceptions import DomainError
 from app.core.permissions import P
 from app.models.counter_scope_entry import CLUB_LABEL, NON_FEDERAL_DISCIPLINE, CounterScopeEntry
 from app.models.user import User
 from app.repositories import counter_scope_repository
 from app.schemas.counter_scope import (
+    CounterScopeAmbiguityIn,
     CounterScopeEntryIn,
     CounterScopeEntryOut,
     CounterScopeOut,
@@ -58,6 +60,7 @@ def _vue(entry: CounterScopeEntry) -> CounterScopeEntryOut:
         ),
         created_at=entry.created_at,
         created_by=entry.created_by.display_name if entry.created_by else None,
+        ambiguous=entry.ambiguous,
     )
 
 
@@ -112,3 +115,23 @@ def remove_counter_scope_entry(
     db.commit()
     _recharger(db)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/admin/counter-scope/{kind}/{entry_id}", response_model=CounterScopeEntryOut)
+def set_counter_scope_entry_ambiguity(
+    kind: ScopeKind,
+    entry_id: int,
+    body: CounterScopeAmbiguityIn,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_permission(P.COUNTER_SCOPE_MANAGE)),
+):
+    """Marque un libellé du club comme ambigu, ou le rétablit (#1206)."""
+    if kind is not ScopeKind.CLUB_LABELS:
+        raise DomainError("Seul un libellé du club peut être ambigu.")
+    entry = counter_scope.set_ambiguous(
+        db, entry_id=entry_id, ambiguous=body.ambiguous, user_id=actor.id
+    )
+    db.commit()
+    _recharger(db)
+    db.refresh(entry)
+    return _vue(entry)
