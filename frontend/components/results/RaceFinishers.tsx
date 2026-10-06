@@ -120,7 +120,18 @@ function VoileAttente() {
  * publié. Même lecture que le tri, qui écarte déjà ces valeurs faute de pouvoir
  * les comparer.
  */
-function CelluleInter({ valeur, small, moi }: { valeur?: string; small?: boolean; moi?: boolean }) {
+function CelluleInter({
+  valeur,
+  small,
+  moi,
+  as: Balise = "td",
+}: {
+  valeur?: string;
+  small?: boolean;
+  moi?: boolean;
+  /** `div` dans les cartes : une `<td>` hors d'un `<tr>` casse l'hydratation (#1191). */
+  as?: "td" | "div";
+}) {
   const style = {
     fontSize: 13,
     fontWeight: small ? 400 : 600,
@@ -130,7 +141,7 @@ function CelluleInter({ valeur, small, moi }: { valeur?: string; small?: boolean
   if (valeur && secondsFromHms(valeur) == null) {
     const motif = `Temps illisible chez le chronométreur (« ${valeur} ») — la donnée existe, mais ce n'est pas un temps.`;
     return (
-      <td role="cell" style={style}>
+      <Balise role="cell" style={style}>
         —{" "}
         <span
           // `role="img"` : le marqueur informe, il ne commande rien.
@@ -146,10 +157,10 @@ function CelluleInter({ valeur, small, moi }: { valeur?: string; small?: boolean
         >
           ⚠
         </span>
-      </td>
+      </Balise>
     );
   }
-  return <td role="cell" style={style}>{valeur ?? "—"}</td>;
+  return <Balise role="cell" style={style}>{valeur ?? "—"}</Balise>;
 }
 
 /**
@@ -760,7 +771,7 @@ export function RaceFinishers({
                               <div className="micro-label" style={{ color: "var(--tcn-text-faint)" }}>
                                 {s.label}
                               </div>
-                              <CelluleInter valeur={splits[s.key]} small={s.small} />
+                              <CelluleInter as="div" valeur={splits[s.key]} small={s.small} />
                             </div>
                           ))}
                         </div>
