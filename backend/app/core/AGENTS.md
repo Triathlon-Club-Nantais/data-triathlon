@@ -98,7 +98,8 @@ prise avant un `load()`.
 le verdict de l'import. Ajouter ou retirer un libellé du club le recalcule donc
 sur toutes les épreuves, dans la transaction de l'écriture
 (`services/counter_scope._recompute_counts_for_tcn`, #939), à partir des libellés
-**relus en base** et passés à `tcn_clause(..., labels)` : le registre n'est
+**relus en base** et passés, en `ClubLabels`, à
+`tcn_count_repository.recompute_counts_for_tcn` : le registre n'est
 rechargé qu'après le commit.
 
 **Les défauts sont les valeurs d'avant la bascule**, et ce n'est pas un repli de
