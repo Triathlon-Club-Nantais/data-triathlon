@@ -88,8 +88,9 @@ def test_une_paire_porte_les_huit_champs_de_chaque_epreuve(
 
     (candidat,) = client.get(URL).json()["candidates"]
 
+    assert all(course["created_at"] for course in candidat["courses"])
     assert [
-        {cle: valeur for cle, valeur in course.items() if cle != "id"}
+        {cle: valeur for cle, valeur in course.items() if cle not in ("id", "created_at")}
         for course in candidat["courses"]
     ] == [
         {
