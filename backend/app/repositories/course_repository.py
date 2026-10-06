@@ -484,7 +484,7 @@ def recount(db: Session, course: Course) -> None:
 
     Pas depuis la liste que l'import a chargée à son début : une ligne ajoutée,
     supprimée ou validée ailleurs entre-temps serait écrasée. Même définition que
-    `recompute_tcn_counts_all`.
+    `tcn_count_repository.recompute_counts_for_tcn`.
     """
     from app.models.participation import Participation
 
@@ -504,7 +504,7 @@ def recount(db: Session, course: Course) -> None:
     db.query(Course).filter(Course.id == course.id).update(
         {
             Course.participation_count: _count(),
-            Course.tcn_count: _count(tcn_clause(Participation.club)),
+            Course.tcn_count: _count(Participation.counts_for_tcn.is_(True)),
         },
         synchronize_session=False,
     )
@@ -545,35 +545,6 @@ def zero_counts_all(db: Session) -> int:
     )
     db.flush()
     return touchees
-
-
-def recompute_tcn_counts_all(db: Session, *, club_labels: Iterable[str]) -> int:
-    """Recalcule `tcn_count` sur **toutes** les épreuves, selon `club_labels` (#939).
-
-    Appelée quand la liste des libellés du club change : sans elle, le chemin
-    rapide de `/resultats` garderait l'ancien compte jusqu'au prochain import.
-    Sous-requête corrélée portable SQLite/PostgreSQL, même définition que
-    l'import et que le backfill de la migration `05de2237111f`. Seules les
-    lignes dont le compte change sont réécrites, et leur nombre est rendu.
-    """
-    from app.models.participation import Participation
-
-    comptees = (
-        select(func.count(Participation.id))
-        .where(
-            Participation.course_id == Course.id,
-            validated_clause(Participation.is_pending_validation),
-            tcn_clause(Participation.club, club_labels),
-        )
-        .scalar_subquery()
-    )
-    rewritten = (
-        db.query(Course)
-        .filter(Course.tcn_count != comptees)
-        .update({Course.tcn_count: comptees}, synchronize_session=False)
-    )
-    db.flush()
-    return rewritten
 
 
 def _filtered(
