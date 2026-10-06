@@ -24,7 +24,7 @@ changer la façon de comparer, si.
 """
 import re
 import unicodedata
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 from sqlalchemy import column, func
@@ -75,6 +75,28 @@ def is_tcn(club: str | None) -> bool:
     manquent.
     """
     return normalize_club(club) in counter_scope.tcn_club_labels()
+
+
+#: Une ville publiée à la place d'un club (« nantes (44100) », format
+#: runnerbreizh et Klikego `club_ou_ville`) : un lieu, pas une appartenance.
+_CITY_LABEL = re.compile(r"\(\s*\d{5}\s*\)\s*$")
+
+
+def is_significant_club(label: str | None) -> bool:
+    """Vrai si `label` désigne un club qui sépare deux personnes (#1209) :
+    non vide, pas une ville, hors de la portée TCN (ambiguë comprise)."""
+    normalized = normalize_club(label)
+    return bool(normalized) and not _CITY_LABEL.search(normalized) and not is_tcn(label)
+
+
+def canonical_club_key(label: str | None, aliases: Mapping[str, str]) -> str:
+    """Clé de comparaison de deux clubs (#1209) : nom canonique des alias de club
+    (`club_alias_repository.canonical_map`), puis `broad_club_key`. Tous les
+    libellés de la portée TCN partagent la clé du nom canonique du club."""
+    if is_tcn(label):
+        return broad_club_key(TCN_CANONICAL_NAME)
+    normalized = normalize_club(label)
+    return broad_club_key(aliases.get(normalized, normalized))
 
 
 @dataclass(frozen=True)

@@ -1,7 +1,17 @@
 import pytest
 
 from app.core import counter_scope
-from app.core.club import ClubLabels, counts_by_label, is_club_scope, is_tcn, normalize_club
+from app.core.club import (
+    TCN_CANONICAL_NAME,
+    ClubLabels,
+    broad_club_key,
+    canonical_club_key,
+    counts_by_label,
+    is_club_scope,
+    is_significant_club,
+    is_tcn,
+    normalize_club,
+)
 from app.core.counter_scope import DEFAULT_TCN_CLUB_LABELS
 from tests.club_corpus import CORPUS
 
@@ -61,3 +71,28 @@ def test_an_ambiguous_label_outside_the_scope_is_ignored():
     counter_scope.load(disciplines=set(), club_labels={"tri club nantais"}, ambiguous_club_labels={"tcn"})
 
     assert ClubLabels.from_registry().ambiguous == frozenset()
+
+
+def test_a_significant_club_is_a_real_club_outside_the_tcn_scope():
+    assert is_significant_club("Vendôme Triathlon")
+    assert not is_significant_club(None)
+    assert not is_significant_club("   ")
+    assert not is_significant_club("nantes (44100)")
+    assert not is_significant_club("SAINT HERBLAIN (44800)")
+    assert not is_significant_club("Triathlon Club Nantais")
+    assert not is_significant_club("tcn")
+
+
+def test_the_canonical_key_folds_aliases_case_and_accents():
+    aliases = {"vendome tri": "Vendôme Triathlon"}
+
+    assert canonical_club_key("VENDOME TRI", aliases) == broad_club_key("Vendôme Triathlon")
+    assert canonical_club_key("Vendome  Triathlon", aliases) == "vendometriathlon"
+    assert canonical_club_key("", aliases) == ""
+
+
+def test_every_tcn_label_shares_one_key():
+    tcn = broad_club_key(TCN_CANONICAL_NAME)
+
+    assert canonical_club_key("Tri Club Nantais", {}) == tcn
+    assert canonical_club_key("TCN", {}) == tcn
