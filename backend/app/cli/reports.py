@@ -7,6 +7,7 @@ from dataclasses import asdict
 import typer
 
 from app.services.bulk_import_service import SheetOutcome
+from app.services.club_members_service import MembersSyncReport
 from app.services.geocode_service import GeocodeOutcome
 from app.services.rescrape_service import RescrapeOutcome
 from app.services.retention_service import RetentionOutcome
@@ -406,3 +407,15 @@ def emit_report(rapport: str, payload: dict, *, json_output: bool) -> None:
         _echo(json.dumps(payload, ensure_ascii=False))
     elif not emis:
         _echo(rapport, err=True)  # stdout coupé : le rapport se replie sur stderr
+
+
+def render_members_sync_report(report: MembersSyncReport) -> str:
+    """Synchro des licenciés FFTri (#1202)."""
+    return "\n".join([
+        "=== LICENCIÉS DU CLUB ===",
+        f"Saison {report.season}",
+        _ligne("Licenciés lus", report.total),
+        _ligne("Rattachés à une fiche", report.linked),
+        _ligne("Sans fiche", report.unlinked),
+        _ligne("Plusieurs fiches possibles", report.ambiguous),
+    ])

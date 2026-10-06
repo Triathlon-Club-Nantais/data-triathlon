@@ -30,6 +30,7 @@ uv run python -m app.cli reconcile-athletes --yes --by-email <adresse> --plan-fr
 uv run python -m app.cli requalify-challenges         # épreuves qui sont des classements Challenge (--yes --by-email pour convertir, #1008)
 uv run python -m app.cli geocode-courses --limit 300 --json   # coordonnées des épreuves sans géocodage (carte, #975)
 uv run python -m app.cli purge-retention --dry-run   # durées de conservation publiées (#1158) ; sans --dry-run, supprime
+uv run python -m app.cli sync-club-members --json   # licenciés FFTri de la saison en cours (#1202)
 uv run python -m app.cli allow-email --email <adresse>              # autorise une adresse à se connecter (#170)
 uv run python -m app.cli grant-role --email <adresse> --role admin   # amorce le 1er administrateur (#115)
 uv run python -m app.cli revoke-sessions --all --yes                 # révocation d'urgence : ferme toutes les sessions (#169)

@@ -29,6 +29,7 @@ from app.cli.commands.requalify_challenges import requalify_challenges
 from app.cli.commands.rescrape_db import rescrape_db
 from app.cli.commands.revoke_sessions import revoke_sessions
 from app.cli.commands.set_site_code import set_site_code
+from app.cli.commands.sync_club_members import sync_club_members
 from app.core.logging import setup_logging
 
 app = typer.Typer(help="Outillage d'import de masse et de rescrape.")
@@ -46,6 +47,7 @@ app.command("requalify-challenges")(requalify_challenges)
 app.command("rescrape-db")(rescrape_db)
 app.command("revoke-sessions")(revoke_sessions)
 app.command("set-site-code")(set_site_code)
+app.command("sync-club-members")(sync_club_members)
 
 
 def load_counter_scope() -> None:

@@ -226,10 +226,28 @@ jobs:
           { echo '## Purge de rétention'; echo '```'; cat retention.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $code
 
+      # Licenciés du club (#1202) : la liste FFTri de la saison en cours fait
+      # compter les résultats des membres sans libellé de club. Une page
+      # illisible rougit le run sans priver la base de sa reprise.
+      - name: Sync club members
+        id: members
+        if: inputs.mode != 'urls' && inputs.dry_run != true
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -uo pipefail
+          set +e
+          uv run python -m app.cli sync-club-members > members.txt 2>&1
+          code=$?
+          set -e
+          cat members.txt
+          { echo '## Licenciés du club'; echo '```'; cat members.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $code
+
       - name: Run batch
         id: batch
         # Une purge en échec rougit le run, mais ne prive pas la base de sa reprise.
-        if: ${{ success() || (failure() && steps.purge.outcome == 'failure') }}
+        if: ${{ success() || (failure() && (steps.purge.outcome == 'failure' || steps.members.outcome == 'failure')) }}
         env:
           # `DATABASE_URL` doit viser un hôte IPv4 : les runners GitHub n'ont
           # pas d'IPv6. Sur Supabase (preview), c'est le pooler
