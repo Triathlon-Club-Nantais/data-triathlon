@@ -31,6 +31,7 @@ const KLIKEGO: DuplicateCourse = {
   source_url: "https://klikego.com/x",
   total: 185,
   tcn_count: 3,
+  created_at: "2026-06-14T08:00:00",
 };
 
 const BREIZHCHRONO: DuplicateCourse = {
@@ -43,6 +44,7 @@ const BREIZHCHRONO: DuplicateCourse = {
   source_url: "https://breizhchrono.com/x",
   total: 179,
   tcn_count: 3,
+  created_at: "2026-06-14T08:00:00",
 };
 
 const IMPACT: CourseMergeImpact = {
@@ -75,6 +77,47 @@ describe("MergeCoursesDialog", () => {
     expect(screen.getByText(/breizh chrono/i)).toBeInTheDocument();
     expect(getCourseMergeImpact).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: /^fusionner$/i })).toBeDisabled();
+  });
+
+  describe("Couëron 2025 : la republication runnerbreizh ne porte aucun club (#1199)", () => {
+    const RUNNERBREIZH: DuplicateCourse = {
+      ...KLIKEGO, id: 718, provider: "runnerbreizh", total: 270, tcn_count: 0,
+    };
+    const TIMEPULSE: DuplicateCourse = {
+      ...BREIZHCHRONO, id: 1016, provider: "timepulse", total: 310, tcn_count: 28,
+    };
+
+    function afficherCoueron() {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      return render(
+        <QueryClientProvider client={client}>
+          <MergeCoursesDialog courseA={RUNNERBREIZH} courseB={TIMEPULSE} open onOpenChange={() => {}} />
+        </QueryClientProvider>,
+      );
+    }
+
+    it("propose d'office de garder l'épreuve qui porte les résultats TCN", async () => {
+      getCourseMergeImpact.mockResolvedValue(IMPACT);
+      afficherCoueron();
+
+      expect(await screen.findByRole("button", { name: /garder.*timepulse/i })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      await waitFor(() => expect(getCourseMergeImpact).toHaveBeenCalledWith(1016, 718));
+    });
+
+    it("avertit quand l'épreuve absorbée porte plus de résultats TCN que la cible", async () => {
+      getCourseMergeImpact.mockResolvedValue(IMPACT);
+      const user = userEvent.setup();
+      afficherCoueron();
+
+      await user.click(await screen.findByRole("button", { name: /garder.*runner/i }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        /l'épreuve supprimée porte 28 résultats TCN, celle conservée 0/i,
+      );
+    });
   });
 
   it("choisir une cible déclenche l'aperçu avec l'autre épreuve comme absorbée", async () => {

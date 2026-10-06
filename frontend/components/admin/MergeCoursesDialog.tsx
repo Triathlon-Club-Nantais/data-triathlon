@@ -40,12 +40,29 @@ function CarteEpreuve({
 }
 
 /**
+ * La cible proposée d'office, ou `null` quand rien ne la désigne (#1199).
+ *
+ * La fusion garde les lignes de la cible : garder une republication sans club
+ * efface les résultats TCN de l'autre (Couëron 2025, runnerbreizh 718 gardée,
+ * 28 résultats TCN de timepulse perdus). Celle qui en porte le plus l'emporte ;
+ * à égalité, runnerbreizh, qui ne publie jamais de club, passe en dernier.
+ */
+function cibleSuggeree(a: DuplicateCourse, b: DuplicateCourse): number | null {
+  if (a.tcn_count !== b.tcn_count) return a.tcn_count > b.tcn_count ? a.id : b.id;
+  if ((a.provider === "runnerbreizh") !== (b.provider === "runnerbreizh")) {
+    return a.provider === "runnerbreizh" ? b.id : a.id;
+  }
+  return null;
+}
+
+/**
  * Fusionner deux lignes `Course` qui désignent la même épreuve (#287, #292).
  *
- * **La cible se choisit, elle ne se déduit pas** : rien dans une paire de
- * doublons ne dit laquelle des deux garder — ni l'ordre reçu de l'API, ni le
- * nombre de participations, qui peut favoriser la source la moins fiable.
- * L'administrateur pointe une carte, l'autre devient l'absorbée.
+ * **La cible reste un choix** : le nombre de participations peut favoriser la
+ * source la moins fiable. Seuls les résultats TCN, ou une source qui ne publie
+ * aucun club, désignent une cible proposée d'office (`cibleSuggeree`, #1199) ;
+ * l'administrateur peut toujours pointer l'autre carte, et un avertissement le
+ * retient quand il s'apprête à perdre des résultats du club.
  *
  * Aperçu chargé **à la sélection**, jamais avant (même patron que
  * `DeleteCourseDialog`) : chiffrer une fusion qui n'aura peut-être pas lieu
@@ -66,7 +83,8 @@ export function MergeCoursesDialog({
   open: boolean;
   onOpenChange: (ouvert: boolean) => void;
 }) {
-  const [cibleId, setCibleId] = useState<number | null>(null);
+  const [cibleId, setCibleId] = useState<number | null>(() => cibleSuggeree(courseA, courseB));
+  const cible = cibleId === null ? null : cibleId === courseA.id ? courseA : courseB;
   const absorbee = cibleId === null ? null : cibleId === courseA.id ? courseB : courseA;
 
   const impact = useCourseMergeImpact(cibleId, absorbee?.id ?? null);
@@ -110,6 +128,13 @@ export function MergeCoursesDialog({
         <CarteEpreuve course={courseA} choisie={cibleId === courseA.id} onChoisir={() => setCibleId(courseA.id)} />
         <CarteEpreuve course={courseB} choisie={cibleId === courseB.id} onChoisir={() => setCibleId(courseB.id)} />
       </div>
+
+      {cible && absorbee && absorbee.tcn_count > cible.tcn_count && (
+        <p role="alert" className="text-sm font-medium text-destructive">
+          L&apos;épreuve supprimée porte {absorbee.tcn_count} résultats TCN, celle conservée{" "}
+          {cible.tcn_count} : gardez plutôt l&apos;autre, sans quoi ils seront perdus.
+        </p>
+      )}
 
       {cibleId !== null && impact.isLoading && <Skeleton className="h-16 w-full" />}
 
