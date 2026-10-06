@@ -475,7 +475,10 @@ def _merge_fields(existing, fields: dict) -> dict:
     for key, value in fields.items():
         if key in _CLES_APPARIEMENT or key == "status":
             continue
-        if _is_empty(value):
+        # `raw_data` est la ligne source du moment, pas une valeur à préserver :
+        # vide, elle remplace quand même l'ancienne, sans quoi une colonne que la
+        # source ne publie plus y survivait (#1200).
+        if _is_empty(value) and key != "raw_data":
             continue
         if getattr(existing, key) != value:
             changes[key] = value

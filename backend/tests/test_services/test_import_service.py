@@ -1120,6 +1120,21 @@ def test_merge_fields_ecrit_false_sur_true_et_ignore_vide_et_cles():
     assert changes == {"is_relay": False}
 
 
+def test_rescrape_replaces_raw_data_even_when_the_source_line_has_none(db_session, patch_scraper):
+    """#1200 : la clé de formule `choose([STATUS]+1;[RANK…` survivait au rescrape.
+    Lue comme rang depuis #968, elle ne sort plus en extra : `raw_data` scrapé vaut
+    `{}`, et « vide n'écrase pas » gardait la ligne brute d'avant."""
+    patch_scraper([_result("1", "DUPONT", total_time="01:59:00", raw_data={"choose([STATUS]+1;[RANK1p])": "3"})])
+    import_service.import_event(db_session, URL, _settings())
+    _expire_cache(db_session)
+
+    patch_scraper([_result("1", "DUPONT", total_time="01:59:00", raw_data={})])
+    import_service.import_event(db_session, URL, _settings(), force=True)
+
+    (ligne,) = participation_repository.list_participations(db_session, page_size=100)
+    assert not ligne.raw_data
+
+
 def test_reimport_statut_explicite_ecrase(db_session, patch_scraper):
     """Un statut affirmé par le scraper écrase celui en base."""
     patch_scraper([_result("1", "DUPONT", total_time="01:59:00")])
