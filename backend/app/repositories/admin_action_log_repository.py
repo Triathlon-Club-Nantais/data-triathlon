@@ -37,6 +37,19 @@ def create(
     return entree
 
 
+def entity_ids_with_action(db: Session, *, action: str, entity_ids: list[int]) -> set[int]:
+    """Celles de ces entités qu'un geste `action` a touchées."""
+    if not entity_ids:
+        return set()
+    return set(
+        db.scalars(
+            select(AdminActionLog.entity_id).where(
+                AdminActionLog.action == action, AdminActionLog.entity_id.in_(entity_ids)
+            )
+        )
+    )
+
+
 def list_for_entity(db: Session, *, entity_type: str, entity_id: int) -> list[AdminActionLog]:
     """L'historique d'une entité, la plus récente d'abord.
 

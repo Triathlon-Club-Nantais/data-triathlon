@@ -45,7 +45,7 @@ def upsert(db: Session, *, name: str, event_date: date, source_url: str) -> Chal
 
 
 def find_named_near(db: Session, *, name: str, event_date: date, days: int) -> Challenge | None:
-    """Le Challenge de ce nom au plus près de cette date, à `days` jours au plus."""
+    """Un Challenge de ce nom daté à `days` jours au plus de cette date, le plus ancien créé."""
     return (
         db.query(Challenge)
         .filter(

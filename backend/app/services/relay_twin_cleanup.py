@@ -29,7 +29,8 @@ class RelayTwin:
 def find_superseded(db: Session) -> list[RelayTwin]:
     """Les épreuves solo dont **chaque** dossard nommé est repris par leur jumelle relais.
 
-    Jumelle : même URL de source active, même nom, même date, `is_relay` vrai. Un
+    Jumelle : même URL de source active, même nom, même date, même type,
+    `is_relay` vrai. Un
     seul dossard nommé repris nulle part suffit à garder l'épreuve, les équipes
     absentes du relais (18 à La Baule avant le rescrape) n'étant pas encore
     importées ailleurs.
@@ -37,7 +38,10 @@ def find_superseded(db: Session) -> list[RelayTwin]:
     courses = course_repository.iter_all(db)
     groups = defaultdict(list)
     for course in courses:
-        groups[(course.source_url, course.name, course.event_date)].append(course)
+        # Le type entre dans la clé : une URL publie des heats de même nom et de
+        # même date que seuls `event_type` et `is_relay` séparent (TimePulse 3232).
+        if course.source_url:
+            groups[(course.source_url, course.name, course.event_date, course.event_type)].append(course)
 
     groups = {key: group for key, group in groups.items() if len(group) > 1}
     ids = [course.id for group in groups.values() for course in group]

@@ -15,9 +15,9 @@ JOUR = date(2025, 6, 22)
 NOM = "Triathlon Audencia La Baule 2025 - TREP"
 
 
-def _epreuve(db, *, is_relay, name=NOM, url=URL):
+def _epreuve(db, *, is_relay, name=NOM, url=URL, event_type="triathlon-s"):
     return course_repository.get_or_create(
-        db, name=name, event_date=JOUR, event_type="triathlon-s", source_url=url,
+        db, name=name, event_date=JOUR, event_type=event_type, source_url=url,
         provider="prolivesport", is_relay=is_relay,
     )
 
@@ -59,6 +59,17 @@ def test_courses_under_other_urls_or_names_are_not_twins(db_session):
     autre_nom = _epreuve(db_session, is_relay=True, name=f"{NOM} bis")
     for course in (solo, autre_url, autre_nom):
         _inscrit(db_session, course, "1", "MAZARS 1")
+    db_session.flush()
+
+    assert relay_twin_cleanup.find_superseded(db_session) == []
+
+
+def test_a_relay_heat_of_another_sport_is_not_a_twin(db_session):
+    """TimePulse 3232 : six heats sous une URL et un nom, séparés par le type et le relais."""
+    solo = _epreuve(db_session, is_relay=False, event_type="duathlon-s")
+    relais = _epreuve(db_session, is_relay=True, event_type="triathlon-s")
+    _inscrit(db_session, solo, "1", "MAZARS 1")
+    _inscrit(db_session, relais, "1", "MAZARS 1")
     db_session.flush()
 
     assert relay_twin_cleanup.find_superseded(db_session) == []
