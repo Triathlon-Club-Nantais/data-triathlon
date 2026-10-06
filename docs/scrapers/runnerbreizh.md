@@ -80,7 +80,7 @@ vide et qui passerait sinon pour une épreuve sans classement publié. Un titre
 position depuis la droite, donc un champ manquant décale tout — nom vide, ville
 promue en nom, taille perdue dans le type, date pourtant juste
 (`_require_event_name` : aucune ligne → identifiant inconnu, des lignes → format
-du titre changé). `import_service._require_event_name` rattrape bien le nom vide
+du titre changé). `import_dispatch._require_event_name` rattrape bien le nom vide
 en aval, mais après le scrape, sans nommer la cause, et le type dégradé
 n'y serait rattrapé par personne. Comme la
 FFTRI, le site **republie** (« Chronométrée par BREIZHCHRONO ») : un

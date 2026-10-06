@@ -211,7 +211,7 @@ def get_by_active_source(
     sous le **même** nom, seuls `event_type` et `is_relay` les distinguent (mesuré,
     cf. `services/course_duplicates._same_source_url`). Cette lecture rend donc un
     candidat, pas un verdict — c'est à l'appelant d'établir que le scrape ne publie
-    qu'une classification pour cette clé (`import_service._reclassify_heats`).
+    qu'une classification pour cette clé (`import_persistence._reclassify_heats`).
 
     **Jointure, jamais `Course.source_url`** : l'hybride n'a plus d'`@expression`
     depuis #306, un filtre dessus lève. Et `CourseSource.is_active` porte ici du

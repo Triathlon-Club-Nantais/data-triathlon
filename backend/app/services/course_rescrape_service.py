@@ -27,9 +27,7 @@ from app.services import (
     import_persistence,
     sse_relay,
 )
-from app.services.course_locks import (
-    lock_courses_or_409,
-)
+from app.services.course_locks import lock_courses_or_409
 from app.services.deadlock import deadlock_retries
 
 logger = logging.getLogger(__name__)

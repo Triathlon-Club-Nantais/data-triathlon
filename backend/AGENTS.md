@@ -32,7 +32,12 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
 - `app/services/` — logique métier. **Un service n'importe aucun symbole
   `_privé` d'un autre service** (#937, tenu par `tests/test_service_boundaries.py`) :
   ce qui sert ailleurs devient public. Modules : `mapping`, `cache` (TTL), `scrape_service`,
-  `import_service`, `stats_service`, `geocode_service`, plus les batches CLI
+  l'import en trois modules (#1186) : `import_service` (orchestration, transaction,
+  verrou d'URL), `import_dispatch` (validation d'URL, dispatch vers le fournisseur,
+  cache TTL ; `registry_scrape_event_all`, le point de substitution des tests, y est
+  lu) et `import_persistence` (`persist_steps`, seul point d'entrée de l'écriture,
+  et les passes de lot), `course_rescrape_service` (re-scrape admin et bascule de
+  source, #118, #285), `stats_service`, `geocode_service`, plus les batches CLI
   (`sheet_source`, `batch`, `bulk_import_service`, `rescrape_service`,
   `progress`), `sse_relay` (le thread de travail et le battement des trois flux
   SSE, dont `app/api/sse.py` fait la mise en forme, #1017), `auth/` (socle SSO), `benevole_access` (#271 — mot de passe
@@ -64,7 +69,7 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
 **Cache TTL** — `services/cache.py` : `is_fresh(course)` → 10 min si course en
 cours (une participation **finisher** sans `total_time`, ou n'importe laquelle
 le jour de l'épreuve et le lendemain, #913), sinon 30 j. Deux consommateurs,
-tous deux dans `import_service` : `_cached_result`, le court-circuit global par
+tous deux dans `import_dispatch` : `cached_result`, le court-circuit global par
 URL (sauté par `force=True`), et `_make_cache_probe`, la sonde par heat du
 fan-out Klikego (#156). Réglable via
 `CACHE_TTL_IN_PROGRESS_SECONDS` / `CACHE_TTL_FINISHED_SECONDS`.

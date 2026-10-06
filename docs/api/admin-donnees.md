@@ -251,7 +251,7 @@ L'identité est une fiche (`athlete_id`) **ou** un nom et un prénom, jamais les
 deux (`422`). Contrat : `specs/20261001-181344-athlete-opposition/contracts/`.
 
 Ce que l'application fait, et où : `services/opposition_service.py`. Le filtre
-des imports vit dans `import_service._Persister` ; la saisie manuelle et la
+des imports vit dans `import_persistence._Persister` ; la saisie manuelle et la
 composition d'équipe refusent l'identité (`OpposedIdentityError`, `422`).
 
 ## Doublons suspects (#288)

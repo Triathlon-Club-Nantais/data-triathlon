@@ -31,7 +31,7 @@ l'ordre de `GET /courses/{id}/sources`, pour que l'écran se réaffiche sans
 second appel.
 
 **Flux SSE depuis #624**, même mécanisme que le re-scrape à la demande (#118,
-section suivante) : `admin_actions.iter_switch_course_source` →
+section suivante) : `course_rescrape_service.iter_switch_course_source` →
 `_stream_switch_course_source`, thread dédié, verrou de concurrence **partagé**
 avec `iter_rescrape_course` (les deux écrivent les participations de la même
 course — un verrou distinct les laisserait courir en parallèle et corrompre le
@@ -108,7 +108,7 @@ La promesse faite par la section précédente : même module SSE que
 bascule (geste voisin), mais **upsert** plutôt que remplacement total — c'est ce
 qui distingue les deux gestes. Router mince
 (`admin_course_rescrape.py`) → générateur de service
-(`admin_actions.iter_rescrape_course`) → repositories existants ; zéro
+(`course_rescrape_service.iter_rescrape_course`) → repositories existants ; zéro
 abstraction nouvelle, tout ce qui suit est réutilisé tel quel :
 `_require_same_event` (refus zéro résultat / épreuve divergente, FR-009),
 `athlete_repository.only_on_course`/`delete_orphans_among` (purge d'orphelins,
@@ -157,7 +157,7 @@ substituable par `app.dependency_overrides[get_db]` : un test qui la ferait
 tourner pour de vrai frapperait la base de dev réelle, jamais celle de test
 (mesuré — deux re-scrapes réels de « Triathlon de Vierzon 2026 » déclenchés par
 inadvertance lors de l'écriture de cette section). `test_admin_course_rescrape.py`
-mocke donc `admin_actions.iter_rescrape_course` lui-même pour n'éprouver que le
+mocke donc `course_rescrape_service.iter_rescrape_course` lui-même pour n'éprouver que le
 contrat HTTP/SSE, exactement comme `test_scrape_api.py` mocke
 `import_service.iter_import_event` — le comportement réel (scrape, upsert,
 purge, verrou) est couvert à la couche service, dans
@@ -276,7 +276,7 @@ ses résultats.
 
 **Une limite connue, assumée durablement (#1126).** Après la fusion, basculer sur
 l'autre chronométreur (#285) échoue tant que les deux libellés divergent :
-`admin_actions._require_same_event` compare strictement nom, date, type et relais
+`course_rescrape_service._require_same_event` compare strictement nom, date, type et relais
 entre le scrape et la cible, et refuse une bascule dont le scrape publie une autre
 identité, précisément le cas que la fusion existe pour rapprocher. Le
 contournement officiel est de renommer la cible (`PATCH /admin/courses/{id}`,

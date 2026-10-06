@@ -19,7 +19,7 @@ from app.scrapers.utils import normalize_time
 from app.services.mapping import parse_duration
 
 # Lignes scrapées jetées : deux lignes de la source partagent un dossard, la
-# seconde n'atteint jamais la base (cf. `import_service._Persister.add`).
+# seconde n'atteint jamais la base (cf. `import_persistence._Persister.add`).
 ANOMALY_DUPLICATE_BIB = "duplicate_bib"
 # Statut hors nomenclature (« DQ », « OTL », « Abandon »…) : atterrit dans les
 # indéterminés côté front.
