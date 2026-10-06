@@ -211,6 +211,21 @@ def render_timepulse_duplicates_report(rows: list[dict], *, deleted: bool) -> st
     return "\n".join(lignes)
 
 
+def render_relay_twins_report(rows: list[dict], *, deleted: bool) -> str:
+    """Épreuves solo remplacées par leur jumelle relais (#1195, #1197)."""
+    lignes = ["=== ÉPREUVES SOLO DOUBLÉES PAR LEUR RELAIS ==="]
+    if not rows:
+        lignes.append("Aucune épreuve à supprimer.")
+        return "\n".join(lignes)
+    for row in rows:
+        lignes.append(f"{row['course_id']}  {row['name']}  →  {row['covered_by']}")
+    lignes.append(
+        f"{len(rows)} épreuve(s) supprimée(s)." if deleted
+        else f"{len(rows)} épreuve(s) à supprimer : relancer avec --yes --by-email <adresse>."
+    )
+    return "\n".join(lignes)
+
+
 def render_reconciliation_report(report: dict) -> str:
     """Bilan de la reprise des doublons d'athlètes (#906), simulée ou appliquée."""
     applique = report.get("applied", False)

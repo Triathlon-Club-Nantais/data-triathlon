@@ -23,6 +23,7 @@ uv run python -m app.cli import-sheet --json | jq -r '.failures[].url' \
   | uv run python -m app.cli rescrape-db --urls-from -
 uv run python -m app.cli club-labels --like nant   # libellés club vus en base, marqués TCN ou non
 uv run python -m app.cli purge-timepulse-duplicates   # épreuves timepulse d'avant #674 en double (--yes --by-email pour supprimer, #1004)
+uv run python -m app.cli purge-relay-twins            # épreuves solo doublées par leur relais (--yes --by-email pour supprimer, #1195)
 uv run python -m app.cli reconcile-athletes --json > simulation.json   # doublons d'athlètes existants, simulés (#906)
 uv run python -m app.cli reconcile-athletes --yes --by-email <adresse> --plan-from simulation.json   # applique le plan relu
 uv run python -m app.cli requalify-challenges         # épreuves qui sont des classements Challenge (--yes --by-email pour convertir, #1008)
@@ -395,6 +396,15 @@ commande liste et n'écrit rien. Avec `--yes`, elle passe par
 l'épreuve doit être repris par une épreuve de même URL active, même date, dont le
 nom la prolonge par ` - <parcours>` ; un seul dossard orphelin la garde. La
 logique vit dans `services/timepulse_cleanup.py`. Procédure : `docs/ci-cd.md`.
+
+## `purge-relay-twins` (#1195, #1197)
+
+Même patron que `purge-timepulse-duplicates` : une épreuve solo laissée à côté
+de sa jumelle relais (même URL active, même nom, même date) par un rescrape
+d'après #963. Garde : **chaque** dossard nommé de l'épreuve solo doit être repris
+par la jumelle ; une équipe absente du relais la garde, donc rescraper avant de
+purger. Depuis #1204 l'import requalifie en place quand il le peut, la commande
+ne reprend que l'existant. Logique : `services/relay_twin_cleanup.py`.
 
 ## `requalify-challenges` (#1008)
 
