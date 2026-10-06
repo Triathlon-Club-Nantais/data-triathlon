@@ -198,6 +198,64 @@ def test_compose_course_name_identiques_pas_de_doublon():
     )
 
 
+# ── _reconcile_race_dates : date de course contredite par l'année du titre (#1193)
+#
+# Mesure prod 06/10 : la course L de « Bayman - Triathlon du Mont Saint-Michel
+# 2024 » publie « (10/10/2026) » sur sa page détail, sa sœur M « (06/10/2024) ».
+
+BAYMAN = "Bayman - Triathlon du Mont Saint-Michel 2024"
+
+
+def test_reconcile_race_dates_replaces_a_date_contradicting_the_title_year():
+    dates = _si._reconcile_race_dates([
+        (BAYMAN, date(2024, 10, 6)),
+        (BAYMAN, date(2026, 10, 10)),
+        (BAYMAN, date(2024, 10, 6)),
+    ])
+    assert dates == [date(2024, 10, 6), date(2024, 10, 6), date(2024, 10, 6)]
+
+
+def test_reconcile_race_dates_takes_the_most_frequent_sibling_date():
+    dates = _si._reconcile_race_dates([
+        (BAYMAN, date(2024, 10, 5)),
+        (BAYMAN, date(2024, 10, 6)),
+        (BAYMAN, date(2024, 10, 6)),
+        (BAYMAN, date(2026, 10, 10)),
+    ])
+    assert dates[3] == date(2024, 10, 6)
+
+
+def test_reconcile_race_dates_breaks_a_frequency_tie_on_the_earliest_date():
+    dates = _si._reconcile_race_dates([
+        (BAYMAN, date(2024, 10, 6)),
+        (BAYMAN, date(2024, 10, 5)),
+        (BAYMAN, date(2026, 10, 10)),
+    ])
+    assert dates[2] == date(2024, 10, 5)
+
+
+def test_reconcile_race_dates_drops_the_date_without_a_matching_sibling():
+    assert _si._reconcile_race_dates([(BAYMAN, date(2026, 10, 10))]) == [None]
+
+
+def test_reconcile_race_dates_keeps_dates_that_agree_with_the_title():
+    """Carnac : les aquathlons courent la veille des triathlons, même année."""
+    carnac = "Triathlon de Carnac 2025"
+    metas = [(carnac, date(2025, 10, 4)), (carnac, date(2025, 10, 5))]
+    assert _si._reconcile_race_dates(metas) == [date(2025, 10, 4), date(2025, 10, 5)]
+
+
+def test_reconcile_race_dates_leaves_a_title_without_year_alone():
+    metas = [("BayMan", date(2026, 6, 1)), ("BayMan", None)]
+    assert _si._reconcile_race_dates(metas) == [date(2026, 6, 1), None]
+
+
+def test_reconcile_race_dates_ignores_a_title_carrying_two_years():
+    """« Saison 2024-2025 » ne désigne pas une année : rien n'est corrigé."""
+    metas = [("Challenge 2024-2025", date(2025, 3, 1))]
+    assert _si._reconcile_race_dates(metas) == [date(2025, 3, 1)]
+
+
 # ── _parse_html_row — porte désormais le nom composé et la date ──────────────
 
 def test_parse_html_row_porte_nom_composé_et_date():
@@ -680,6 +738,31 @@ def test_legacy_event_without_race_select_falls_back_on_the_event_id(monkeypatch
     resultats = _si.scrape_event_all("https://sportinnovation.fr/Evenements/Resultats/10")
 
     assert resultats == [("https://sportinnovation.fr/Evenements/Resultats/10", "7")]
+
+
+def test_legacy_event_rewrites_a_race_date_contradicting_the_event_year(monkeypatch):
+    html = (
+        '<select name="raceSearch">'
+        '<option value="6450">L</option><option value="6433">M</option></select>'
+    )
+    _legacy(monkeypatch, html, {"6450": [["a", "1"]], "6433": [["b", "2"]]})
+    metas = {
+        "6450": (BAYMAN, date(2026, 10, 10)),
+        "6433": (BAYMAN, date(2024, 10, 6)),
+    }
+    monkeypatch.setattr(_si, "_fetch_race_meta", lambda rid, c: metas[rid])
+    monkeypatch.setattr(
+        _si, "_parse_html_row",
+        lambda tds, col, race_url, race_name, course_name, event_date: (race_url, event_date),
+    )
+
+    resultats = _si.scrape_event_all("https://sportinnovation.fr/Evenements/Resultats/6450")
+
+    base = "https://sportinnovation.fr/Evenements/Resultats"
+    assert resultats == [
+        (f"{base}/6450", date(2024, 10, 6)),
+        (f"{base}/6433", date(2024, 10, 6)),
+    ]
 
 
 def test_detail_url_resolves_its_race_slug_then_imports_the_race(monkeypatch):

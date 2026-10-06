@@ -21,6 +21,7 @@ Two URL formats:
 """
 import logging
 import re
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from urllib.parse import urlparse
@@ -156,6 +157,41 @@ def _compose_course_name(event_name: str, race_name: str) -> str:
     if not race_name or race_name.lower() == event_name.lower():
         return event_name
     return f"{event_name} - {race_name}"
+
+
+_TITLE_YEAR_RE = re.compile(r"\b(?:19|20)\d{2}\b")
+
+
+def _reconcile_race_dates(metas: list[tuple[str, date | None]]) -> list[date | None]:
+    """Écarte la date d'une course que l'année du titre d'événement contredit (#1193).
+
+    Chaque page détail porte sa propre date, et la source en publie de fausses :
+    la course L de « … Mont Saint-Michel 2024 » est datée du 10/10/2026, sa sœur
+    M du 06/10/2024. Quand le titre porte une seule année, une date d'une autre
+    année prend la date la plus fréquente des courses sœurs qui concordent (la
+    plus ancienne à égalité), sinon `None`. Un titre sans année, ou à deux
+    années (« 2024-2025 »), ne corrige rien.
+    """
+    def title_year(event_name: str) -> int | None:
+        years = {int(y) for y in _TITLE_YEAR_RE.findall(event_name)}
+        return years.pop() if len(years) == 1 else None
+
+    agreeing = Counter(
+        d for name, d in metas if d is not None and d.year == title_year(name)
+    )
+    reconciled: list[date | None] = []
+    for name, d in metas:
+        year = title_year(name)
+        if d is None or year is None or d.year == year:
+            reconciled.append(d)
+            continue
+        fallback = min(agreeing, key=lambda c: (-agreeing[c], c)) if agreeing else None
+        logger.warning(
+            "Date %s contredite par l'année %s du titre « %s » : remplacée par %s",
+            d, year, name, fallback,
+        )
+        reconciled.append(fallback)
+    return reconciled
 
 
 def _col_indices(headers: list[str]) -> dict[str, int]:
@@ -692,12 +728,19 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         if not race_ids:
             race_ids = [event_id]
 
-        all_results: list[ScrapedResult] = []
-        seen_bibs: set[tuple[str, str]] = set()
-
+        races = []
         for rid in race_ids:
             race_name, rows, col = _fetch_all_pages(rid, client)
             event_name, event_date = _fetch_race_meta(rid, client)
+            races.append((rid, race_name, rows, col, event_name, event_date))
+        dates = _reconcile_race_dates([(r[4], r[5]) for r in races])
+
+        all_results: list[ScrapedResult] = []
+        seen_bibs: set[tuple[str, str]] = set()
+
+        for (rid, race_name, rows, col, event_name, _), event_date in zip(
+            races, dates, strict=True
+        ):
             course_name = _compose_course_name(event_name, race_name)
             race_url = f"https://sportinnovation.fr/Evenements/Resultats/{rid}"
             for tds in rows:
