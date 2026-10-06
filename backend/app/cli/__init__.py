@@ -20,6 +20,7 @@ from app.cli.commands.club_labels import club_labels
 from app.cli.commands.geocode_courses import geocode_courses
 from app.cli.commands.grant_role import grant_role
 from app.cli.commands.import_sheet import import_sheet
+from app.cli.commands.purge_relay_twins import purge_relay_twins
 from app.cli.commands.purge_retention import purge_retention
 from app.cli.commands.purge_timepulse_duplicates import purge_timepulse_duplicates
 from app.cli.commands.reconcile_athletes import reconcile_athletes
@@ -36,6 +37,7 @@ app.command("geocode-courses")(geocode_courses)
 app.command("grant-role")(grant_role)
 app.command("import-sheet")(import_sheet)
 app.command("purge-retention")(purge_retention)
+app.command("purge-relay-twins")(purge_relay_twins)
 app.command("purge-timepulse-duplicates")(purge_timepulse_duplicates)
 app.command("reconcile-athletes")(reconcile_athletes)
 app.command("requalify-challenges")(requalify_challenges)
