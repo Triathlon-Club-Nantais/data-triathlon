@@ -69,6 +69,26 @@ export function bestRatio(parts: Participation[]): RatioEntry | null {
   return best;
 }
 
+export interface BestRanking {
+  rank: number;
+  /** Classés de la course, `null` quand le meilleur rang n'a pas de ratio exploitable. */
+  total: number | null;
+  percent: number | null;
+}
+
+/**
+ * Meilleur classement rapporté au champ (#1212) : un 29e sur 30 ne vaut pas un
+ * 29e sur 2 000. Le résultat retenu est celui du meilleur centile ; sans aucun
+ * ratio exploitable (course non fiable, classés inconnus), repli sur le
+ * meilleur rang brut, sans dénominateur.
+ */
+export function bestRanking(parts: Participation[]): BestRanking | null {
+  const ratio = bestRatio(parts);
+  if (ratio) return { rank: ratio.ratio.rank, total: ratio.ratio.total, percent: ratio.ratio.percent };
+  const ranks = parts.map((p) => p.rank_overall).filter((r): r is number => r != null && r >= 1);
+  return ranks.length ? { rank: Math.min(...ranks), total: null, percent: null } : null;
+}
+
 export interface ProgressionPoint {
   participationId: number;
   eventDate: string;

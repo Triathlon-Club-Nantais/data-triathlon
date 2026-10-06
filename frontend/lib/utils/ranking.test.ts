@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rankRatio, bestRatio, progressionSeries, recurringWeakSegment } from "./ranking";
+import { rankRatio, bestRatio, bestRanking, progressionSeries, recurringWeakSegment } from "./ranking";
 import type { Participation } from "@/lib/types";
 
 function part(over: Partial<Participation> & { id: number }): Participation {
@@ -235,5 +235,29 @@ describe("recurringWeakSegment", () => {
     ];
 
     expect(recurringWeakSegment(participations)?.key).toBe("bike");
+  });
+});
+
+describe("bestRanking", () => {
+  it("retient le meilleur centile et porte rang, total et pourcentage", () => {
+    const best = bestRanking([
+      part({ id: 1, rank_overall: 29, course_finishers: 30 }),
+      part({ id: 2, rank_overall: 3, course_finishers: 850 }),
+      part({ id: 3, rank_overall: 2, course_finishers: 10 }),
+    ]);
+    expect(best).toEqual({ rank: 3, total: 850, percent: 1 });
+  });
+
+  it("retombe sur le meilleur rang brut sans ratio exploitable", () => {
+    const best = bestRanking([
+      part({ id: 1, rank_overall: 42, course_finishers: 20 }),
+      part({ id: 2, rank_overall: 50, course_finishers: null }),
+    ]);
+    expect(best).toEqual({ rank: 42, total: null, percent: null });
+  });
+
+  it("ignore les rangs absents ou nuls et rend null sans rang", () => {
+    expect(bestRanking([part({ id: 1, rank_overall: null }), part({ id: 2, rank_overall: 0 })])).toBeNull();
+    expect(bestRanking([])).toBeNull();
   });
 });
