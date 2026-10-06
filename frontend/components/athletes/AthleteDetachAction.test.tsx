@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Participation, SessionUser } from "@/lib/types";
@@ -26,8 +26,14 @@ function session(permissions: string[]): SessionUser {
   return { id: 1, email: "a@exemple.fr", permissions, roles: [], created_at: "2026-01-01T00:00:00Z" } as unknown as SessionUser;
 }
 
-const RESULTAT = (id: number, nom: string, club: string | null) =>
-  ({ id, club, course: { id: id * 10, name: nom, event_date: "2026-05-16" } }) as unknown as Participation;
+const RESULTAT = (id: number, nom: string, club: string | null, extra: Partial<Participation> = {}) =>
+  ({
+    id,
+    club,
+    athlete: { id: 7 },
+    course: { id: id * 10, name: nom, event_date: "2026-05-16" },
+    ...extra,
+  }) as unknown as Participation;
 
 const RESULTATS = [RESULTAT(1, "Tri Nantes", "Triathlon Club Nantais"), RESULTAT(2, "Tri Vendôme", "Vendôme Triathlon")];
 
@@ -136,5 +142,47 @@ describe("AthleteDetachAction", () => {
 
     expect(within(choix).getByRole("button", { name: "Séparer vers une nouvelle fiche" })).toBeDisabled();
     expect(within(choix).getByText(/garder au moins un résultat/i)).toBeInTheDocument();
+  });
+
+  it("n'offre que les résultats portés par la fiche, pas ceux où elle n'est qu'équipière", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "participations:reassign"]));
+    const equipiere = RESULTAT(3, "Relais de Pornic", null, {
+      athlete: { id: 99 } as Participation["athlete"],
+      is_relay: true,
+      teammates: [{ id: 99 }, { id: 7 }] as Participation["teammates"],
+    });
+    afficher([...RESULTATS, equipiere]);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Séparer des résultats/ }));
+    const choix = await screen.findByRole("dialog");
+    expect(within(choix).getAllByRole("checkbox")).toHaveLength(2);
+    expect(within(choix).queryByText(/Relais de Pornic/)).not.toBeInTheDocument();
+  });
+
+  it("n'est pas offert quand la fiche ne porte qu'un résultat, équipière ailleurs", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "participations:reassign"]));
+    const equipiere = RESULTAT(3, "Relais de Pornic", null, { athlete: { id: 99 } as Participation["athlete"] });
+    afficher([RESULTATS[0], equipiere]);
+    await vi.waitFor(() => expect(getSession).toHaveBeenCalled());
+    // La session se résout après l'appel : sans cette attente, l'absence du bouton ne prouve rien.
+    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    expect(screen.queryByRole("button", { name: /séparer/i })).not.toBeInTheDocument();
+  });
+
+  it("signale qu'un relais séparé perd ses équipiers", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "participations:reassign"]));
+    const relais = RESULTAT(3, "Relais de Pornic", null, {
+      is_relay: true,
+      teammates: [{ id: 7 }, { id: 99 }] as Participation["teammates"],
+    });
+    afficher([...RESULTATS, relais]);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Séparer des résultats/ }));
+    const choix = await screen.findByRole("dialog");
+    const caseRelais = within(choix).getByRole("checkbox", { name: /Relais de Pornic/ });
+    expect(caseRelais).toHaveAccessibleName(expect.stringMatching(/équipiers seront retirés/));
+    expect(within(choix).getByRole("checkbox", { name: /Tri Vendôme/ })).not.toHaveAccessibleName(
+      expect.stringMatching(/équipiers/),
+    );
   });
 });

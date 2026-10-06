@@ -16,7 +16,9 @@ import { formatDate } from "@/lib/utils/date";
  *
  * `DangerConfirm` déclaratif et non `useDangerConfirm` : la fiche athlète est
  * publique, hors de tout `DangerConfirmProvider` (patron de `CourseSourcesPanel`).
- * Deux pouvoirs, comme la route ; sans eux, rien n'est rendu.
+ * Deux pouvoirs, comme la route ; sans eux, rien n'est rendu. Seuls les
+ * résultats que la fiche porte se séparent : là où elle n'est qu'équipière, le
+ * résultat appartient au porteur du relais.
  */
 export function AthleteDetachAction({
   athleteId,
@@ -37,10 +39,11 @@ export function AthleteDetachAction({
   const separation = useDetachParticipations();
   const router = useRouter();
 
-  if (!autorise || participations.length < 2) return null;
+  const portes = participations.filter((p) => p.athlete.id === athleteId);
+  if (!autorise || portes.length < 2) return null;
 
   const nombre = coches.size;
-  const ficheVidee = nombre === participations.length;
+  const ficheVidee = nombre === portes.length;
   const envoiPossible = nombre > 0 && !ficheVidee;
   const libelle = `${nombre} résultat${nombre > 1 ? "s" : ""}`;
 
@@ -104,7 +107,7 @@ export function AthleteDetachAction({
             nouvelle fiche, distincte de celle-ci.
           </p>
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
-            {participations.map((p) => (
+            {portes.map((p) => (
               <li key={p.id}>
                 <label style={{ display: "flex", gap: 10, alignItems: "baseline", fontSize: 14, minHeight: 44 }}>
                   <input type="checkbox" checked={coches.has(p.id)} onChange={() => basculer(p.id)} />
@@ -115,6 +118,7 @@ export function AthleteDetachAction({
                       {formatDate(p.course.event_date)}
                       {" · "}
                       {p.club ?? "Sans club"}
+                      {(p.teammates?.length ?? 0) > 0 && " · relais, ses équipiers seront retirés"}
                     </span>
                   </span>
                 </label>
