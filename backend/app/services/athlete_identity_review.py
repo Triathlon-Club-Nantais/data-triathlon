@@ -24,7 +24,12 @@ from itertools import combinations
 
 from sqlalchemy.orm import Session
 
-from app.core.club import canonical_club_key, is_significant_club, is_tcn, normalize_club
+from app.core.club import (
+    TCN_CANONICAL_NAME,
+    canonical_club_key,
+    is_significant_club,
+    normalize_club,
+)
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.models.athlete import Athlete
 from app.repositories import (
@@ -60,36 +65,40 @@ def recovery_would_merge(first: Athlete, second: Athlete, *, shared_course: bool
     return same_club or same_gender
 
 
+def _significant_clubs(labels: dict[str, int], aliases: dict[str, str]) -> dict[str, dict]:
+    """Les clubs significatifs d'une fiche, regroupés par clé canonique (#1209).
+
+    Le libellé le plus fréquent nomme le club (à égalité, l'ordre alphabétique) :
+    la requête ne trie pas, le nom doit rester stable d'une lecture à l'autre."""
+    by_key: dict[str, dict] = {}
+    for label, results in sorted(labels.items(), key=lambda item: (-item[1], item[0])):
+        if not is_significant_club(label):
+            continue  # ville, libellé vide ou portée TCN : pas un autre club
+        key = canonical_club_key(label, aliases)
+        entry = by_key.setdefault(key, {"club": label, "club_key": key, "results": 0})
+        entry["results"] += results
+    return by_key
+
+
 def _unconfirmed_clubs(db: Session) -> dict[int, list[dict]]:
     """Fiches de membre et leurs clubs significatifs non confirmés (#1209).
 
-    Une fiche n'est retenue que si ses résultats portent au moins deux clubs
-    canoniques (le TCN compte pour un) dont un significatif non confirmé : un
-    membre en double licence sort de la liste dès que son second club est confirmé."""
-    labels = athlete_repository.club_labels_by_athlete(db)
-    members = athlete_repository.member_record_ids(db, labels)
+    Une fiche de membre compte le TCN comme un club, même sans résultat étiqueté
+    TCN (licence rattachée) : un seul autre club non confirmé suffit à la retenir.
+    Un membre en double licence sort de la liste dès que son second club est confirmé."""
+    members = athlete_repository.member_record_ids(db)
+    labels = athlete_repository.club_labels_by_athlete(db, members)
     known = athlete_known_club_repository.keys_by_athlete(db, members)
     aliases = club_alias_repository.canonical_map(db)
+    tcn_key = canonical_club_key(TCN_CANONICAL_NAME, aliases)
     cases: dict[int, list[dict]] = {}
     for athlete_id in sorted(members):
-        by_key: dict[str, dict] = {}
-        for label, results in labels[athlete_id].items():
-            significant = is_significant_club(label)
-            if not significant and not is_tcn(label):
-                continue  # ville ou libellé vide : un lieu, pas un club
-            key = canonical_club_key(label, aliases)
-            entry = by_key.setdefault(
-                key, {"club": label, "club_key": key, "results": 0, "top": 0, "significant": significant}
-            )
-            entry["results"] += results
-            if results > entry["top"]:
-                entry["club"], entry["top"] = label, results
         to_check = [
-            {"club": entry["club"], "club_key": entry["club_key"], "results": entry["results"]}
-            for entry in by_key.values()
-            if entry["significant"] and entry["club_key"] not in known.get(athlete_id, set())
+            club
+            for key, club in _significant_clubs(labels.get(athlete_id, {}), aliases).items()
+            if key != tcn_key and key not in known.get(athlete_id, set())
         ]
-        if len(by_key) >= 2 and to_check:
+        if to_check:
             cases[athlete_id] = sorted(to_check, key=lambda club: (-club["results"], club["club"]))
     return cases
 
@@ -229,6 +238,9 @@ def confirm_club(db: Session, *, athlete_id: int, club_key: str, user_id: int) -
         raise DomainError("Le club à confirmer est vide.")
     if athlete_repository.get(db, athlete_id) is None:
         raise NotFoundError("Athlète introuvable.")
+    labels = athlete_repository.club_labels_by_athlete(db, [athlete_id]).get(athlete_id, {})
+    if key not in _significant_clubs(labels, club_alias_repository.canonical_map(db)):
+        raise DomainError("Ce club ne figure pas parmi les clubs des résultats de cette fiche.")
     if athlete_known_club_repository.exists(db, athlete_id=athlete_id, club_key=key):
         raise DuplicateError("Ce club est déjà confirmé pour cette fiche.")
     known = athlete_known_club_repository.add(db, athlete_id=athlete_id, club_key=key, user_id=user_id)

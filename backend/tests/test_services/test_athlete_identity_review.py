@@ -7,6 +7,8 @@ from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.athlete_alias import AthleteAlias
+from app.models.club_alias import ClubAlias
+from app.models.club_member import ClubMember
 from app.repositories import course_repository, participation_repository, user_repository
 from app.services import athlete_identity_review
 
@@ -335,3 +337,52 @@ def test_the_count_includes_multi_club_cases(db_session):
     _member_with_clubs(db_session, TCN, "Vendôme Triathlon")
 
     assert athlete_identity_review.count(db_session) == 1
+
+
+def test_a_licence_only_member_with_one_foreign_club_is_listed(db_session):
+    athlete = _athlete(db_session, "MARTIN", "Thomas")
+    db_session.add(ClubMember(
+        season=2026, nom="MARTIN", prenom="Thomas", athlete_id=athlete.id, link_status="manual", source="test"
+    ))
+    db_session.flush()
+    _result(db_session, athlete, _course(db_session, "Tri A"), "1", club="Vendôme Triathlon")
+
+    assert _reasons(db_session) == [("multi_club", [athlete.id])]
+
+
+def test_only_the_unconfirmed_club_is_listed_when_another_is_confirmed(db_session, admin):
+    member = _member_with_clubs(db_session, TCN, "Vendôme Triathlon", "ASPTT Nantes")
+    athlete_identity_review.confirm_club(
+        db_session, athlete_id=member.id, club_key="vendometriathlon", user_id=admin.id
+    )
+
+    [candidate] = athlete_identity_review.find_candidates(db_session)
+
+    assert [club["club"] for club in candidate["clubs"]] == ["ASPTT Nantes"]
+
+
+def test_a_club_alias_collapses_two_names_into_one_key(db_session):
+    db_session.add(ClubAlias(alias_normalized="vendome tri", canonical_name="Vendôme Triathlon"))
+    db_session.flush()
+    _member_with_clubs(db_session, TCN, "Vendôme Triathlon", "VENDOME TRI")
+
+    [candidate] = athlete_identity_review.find_candidates(db_session)
+
+    assert [(club["club_key"], club["results"]) for club in candidate["clubs"]] == [("vendometriathlon", 2)]
+
+
+def test_a_tie_between_two_labels_names_the_club_deterministically(db_session):
+    _member_with_clubs(db_session, TCN, "VENDOME TRIATHLON", "Vendôme Triathlon")
+
+    [candidate] = athlete_identity_review.find_candidates(db_session)
+
+    assert candidate["clubs"][0]["club"] == "VENDOME TRIATHLON"
+
+
+def test_confirming_a_club_the_record_does_not_carry_is_refused(db_session, admin):
+    member = _member_with_clubs(db_session, TCN, "Vendôme Triathlon")
+
+    with pytest.raises(DomainError):
+        athlete_identity_review.confirm_club(
+            db_session, athlete_id=member.id, club_key="unknownclub", user_id=admin.id
+        )
