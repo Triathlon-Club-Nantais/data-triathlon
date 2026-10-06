@@ -136,6 +136,9 @@ def test_classify_mono_sport(text, expected):
     # Épreuve muette sur le sport : le contexte le nomme (cas ok-time mesuré).
     ("Format M individuel", "SwimRun de la Côte de Beauté", "swimrun-m"),
     ("La Bourriquette", "Trail du Bourraid", "trail"),
+    # Raid de la Loire 2026 (Wiclax, #1213) : trail, kayak et VTT par équipe.
+    ("Tri-Kayak", "Raid de la Loire", "raid-multisport"),
+    ("Bi-Kayak - Indiv", "Raid de la Loire", "raid-multisport"),
     ("Format S", "Triathlon L de Mimizan", "triathlon-s"),   # taille de l'épreuve
     ("Individuel", "Triathlon M de Mimizan", "triathlon-m"),  # taille du contexte
     # Sport nommé de part et d'autre : celui de l'épreuve fait foi.
