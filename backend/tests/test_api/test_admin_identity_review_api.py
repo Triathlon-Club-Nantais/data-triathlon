@@ -1,7 +1,10 @@
 """La revue d'identité par l'API admin (#908) : liste, compte, mise à l'écart."""
+from datetime import date
+
 import pytest
 
 from app.models.athlete import Athlete
+from app.repositories import course_repository, participation_repository
 from tests.test_api.test_admin_data_api import _session_etroite
 
 
@@ -54,7 +57,7 @@ def test_ignoring_refuses_a_single_record_and_an_unknown_one(client, swapped):
 @pytest.mark.parametrize(
     ("method", "path"),
     [("get", "/api/v1/admin/identity-review"), ("get", "/api/v1/admin/identity-review/count"),
-     ("post", "/api/v1/admin/identity-review/ignore")],
+     ("post", "/api/v1/admin/identity-review/ignore"), ("post", "/api/v1/admin/identity-review/confirm-club")],
 )
 def test_the_review_needs_a_session_then_the_athletes_write_power(client, db_session, swapped, method, path):
     first, second = swapped
@@ -62,9 +65,56 @@ def test_the_review_needs_a_session_then_the_athletes_write_power(client, db_ses
     def call():
         if method == "get":
             return client.get(path)
+        if path.endswith("confirm-club"):
+            return client.post(path, json={"athlete_id": first.id, "club_key": "asptt"})
         return client.post(path, json={"athlete_id_a": first.id, "athlete_id_b": second.id})
 
     client.cookies.clear()
     assert call().status_code == 401
     _session_etroite(client, db_session, "athletes:read")
     assert call().status_code == 403
+
+
+@pytest.fixture
+def multi_club(db_session):
+    member = Athlete(nom="MARTIN", prenom="Thomas", club="Triathlon Club Nantais")
+    db_session.add(member)
+    db_session.flush()
+    for name, club in (("Tri A", "Triathlon Club Nantais"), ("Tri B", "Vendôme Triathlon")):
+        participation_repository.create(
+            db_session, athlete_id=member.id, club=club,
+            course_id=course_repository.get_or_create(
+                db_session, name=name, event_date=date(2026, 5, 16), event_type="triathlon-m"
+            ).id,
+        )
+    db_session.commit()
+    return member
+
+
+def test_a_multi_club_case_lists_its_clubs_and_a_confirmation_closes_it(client, multi_club):
+    [candidate] = client.get("/api/v1/admin/identity-review").json()["candidates"]
+    assert candidate["reason"] == "multi_club"
+    assert candidate["clubs"] == [{"club": "Vendôme Triathlon", "club_key": "vendometriathlon", "results": 1}]
+
+    confirmed = client.post(
+        "/api/v1/admin/identity-review/confirm-club",
+        json={"athlete_id": multi_club.id, "club_key": "vendometriathlon"},
+    )
+
+    assert confirmed.status_code == 201
+    assert confirmed.json()["club_key"] == "vendometriathlon"
+    assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 0}
+    again = client.post(
+        "/api/v1/admin/identity-review/confirm-club",
+        json={"athlete_id": multi_club.id, "club_key": "vendometriathlon"},
+    )
+    assert again.status_code == 409
+
+
+def test_confirming_a_club_refuses_an_unknown_record_a_blank_or_uncarried_club(client, multi_club):
+    url = "/api/v1/admin/identity-review/confirm-club"
+
+    assert client.post(url, json={"athlete_id": 99999, "club_key": "vendometriathlon"}).status_code == 404
+    assert client.post(url, json={"athlete_id": multi_club.id, "club_key": "  "}).status_code == 400
+    assert client.post(url, json={"athlete_id": multi_club.id, "club_key": "asptt"}).status_code == 400
+    assert client.post(url, json={"athlete_id": "1", "club_key": "x"}).status_code == 422
