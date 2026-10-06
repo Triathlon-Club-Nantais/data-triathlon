@@ -39,6 +39,7 @@ vi.mock("@/lib/queries/auth", () => ({
 vi.mock("@/lib/queries/admin", () => ({
   useAdminAthlete: () => ({ data: undefined }),
   useUpdateAthlete: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDetachParticipations: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useApplyOpposition: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSeasonQuota: () => quotaCourant,
   useValidateSeason: () => ({ mutateAsync: vi.fn(), isPending: false }),

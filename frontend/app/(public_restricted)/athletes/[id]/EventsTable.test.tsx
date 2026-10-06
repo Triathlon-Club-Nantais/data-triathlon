@@ -34,6 +34,7 @@ vi.mock("@/lib/queries/admin", () => ({
   useUpdateAthlete: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteParticipation: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useReassignParticipation: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDetachParticipations: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useSetParticipationTeammates: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useAdminAthleteSearch: () => ({ data: undefined, isFetching: false }),
 }));

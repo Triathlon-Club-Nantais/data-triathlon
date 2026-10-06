@@ -448,6 +448,12 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify({ absorbed_id: absorbedId }),
     }),
+  /** Sépare des résultats vers une nouvelle fiche d'homonyme ; rend cette fiche (#1209). */
+  detachParticipations: (athleteId: number, participationIds: number[]) =>
+    request<AdminAthlete>(`/admin/athletes/${athleteId}/detach`, {
+      method: "POST",
+      body: JSON.stringify({ participation_ids: participationIds }),
+    }),
   listIdentityReview: () => request<IdentityReviewList>("/admin/identity-review"),
   ignoreIdentityPair: (athleteIdA: number, athleteIdB: number) =>
     request<IdentityPairIgnoreResult>("/admin/identity-review/ignore", {
