@@ -128,3 +128,27 @@ def remove_entry(
         entity_id=entry.id,
     )
     return entry
+
+
+def set_ambiguous(
+    db: Session, *, entry_id: int, ambiguous: bool, user_id: int | None
+) -> CounterScopeEntry:
+    """Marque un libellé du club comme ambigu, ou le rétablit (#1206).
+
+    Un libellé ambigu ne compte que si l'athlète est rattaché au club par
+    ailleurs : le verdict de chaque résultat se recalcule dans la transaction.
+    Une demande sans effet n'écrit rien au journal (FR-012).
+    """
+    entry = counter_scope_repository.get_entry(db, kind=CLUB_LABEL, entry_id=entry_id)
+    if entry is None:
+        raise NotFoundError("Cette entrée n'existe pas.")
+    if entry.ambiguous == ambiguous:
+        return entry
+    counter_scope_repository.set_ambiguous(db, entry, ambiguous)
+    db.flush()
+    _recompute_counts_for_tcn(db)
+    audit.record(
+        db, user_id, action="counter_scope.entry_ambiguous", entity_type=_ENTITY_TYPE,
+        entity_id=entry.id, payload={"ambiguous": ambiguous},
+    )
+    return entry

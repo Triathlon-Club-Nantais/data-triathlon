@@ -358,3 +358,67 @@ def test_l_ajout_accepte_une_valeur_de_120_caracteres(client):
 def test_l_ajout_refuse_une_valeur_de_121_caracteres(client):
     """SQLite ignore la longueur du VARCHAR ; PostgreSQL levait une 500 au flush."""
     assert client.post(f"{BASE}/club-labels", json={"value": "x" * 121}).status_code == 422
+
+
+# --- Libellé ambigu (#1206) ---------------------------------------------------
+
+
+def _entry_id(db_session, value: str) -> int:
+    return counter_scope_repository.find_by_value(db_session, kind=CLUB_LABEL, value=value).id
+
+
+def test_the_read_says_whether_a_label_is_ambiguous(client, db_session):
+    _semer(db_session, CLUB_LABEL, "tcn")
+
+    assert client.get(BASE).json()["club_labels"][0]["ambiguous"] is False
+
+
+def test_marking_a_label_ambiguous_reloads_the_registry(client, db_session):
+    _semer(db_session, CLUB_LABEL, "tcn", "tri club nantais")
+
+    reponse = client.patch(f"{BASE}/club-labels/{_entry_id(db_session, 'tcn')}", json={"ambiguous": True})
+
+    assert reponse.status_code == 200
+    assert reponse.json()["ambiguous"] is True
+    assert counter_scope.ambiguous_club_labels() == frozenset({"tcn"})
+
+
+def test_an_ambiguous_label_stops_counting_a_lone_result(client, db_session, _un_resultat_au_club_inconnu):
+    ajout = client.post(f"{BASE}/club-labels", json={"value": "TRIATHLON CLUB NANTAIS 44"})
+    assert client.get("/api/v1/participations").json()[0]["is_tcn"] is True
+
+    client.patch(f"{BASE}/club-labels/{ajout.json()['id']}", json={"ambiguous": True})
+
+    assert client.get("/api/v1/participations").json()[0]["is_tcn"] is False
+
+
+def test_a_discipline_cannot_be_ambiguous(client, db_session):
+    _semer(db_session, NON_FEDERAL_DISCIPLINE, "trail")
+    entry_id = counter_scope_repository.find_by_value(
+        db_session, kind=NON_FEDERAL_DISCIPLINE, value="trail"
+    ).id
+
+    reponse = client.patch(f"{BASE}/disciplines/{entry_id}", json={"ambiguous": True})
+
+    assert reponse.status_code == 400
+
+
+def test_an_unknown_label_is_not_found(client):
+    assert client.patch(f"{BASE}/club-labels/9999", json={"ambiguous": True}).status_code == 404
+
+
+def test_the_toggle_is_logged(client, db_session):
+    _semer(db_session, CLUB_LABEL, "tcn", "tri club nantais")
+
+    client.patch(f"{BASE}/club-labels/{_entry_id(db_session, 'tcn')}", json={"ambiguous": True})
+
+    actions = [a.action for a in db_session.query(AdminActionLog).all()]
+    assert actions == ["counter_scope.entry_ambiguous"]
+
+
+def test_an_unchanged_toggle_logs_nothing(client, db_session):
+    _semer(db_session, CLUB_LABEL, "tcn")
+
+    client.patch(f"{BASE}/club-labels/{_entry_id(db_session, 'tcn')}", json={"ambiguous": False})
+
+    assert db_session.query(AdminActionLog).count() == 0

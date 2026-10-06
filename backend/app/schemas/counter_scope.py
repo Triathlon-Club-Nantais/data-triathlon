@@ -34,6 +34,9 @@ class CounterScopeEntryOut(BaseModel):
     #: Nom d'affichage de l'auteur, `None` pour les entrées d'amorçage — l'écran
     #: les rend par « Configuration initiale ».
     created_by: str | None
+    #: Libellé qui désigne aussi d'autres clubs (#1206). Toujours `False` pour
+    #: une discipline.
+    ambiguous: bool = False
 
 
 class CounterScopeOut(BaseModel):
@@ -46,3 +49,7 @@ class CounterScopeOut(BaseModel):
 class CounterScopeEntryIn(BaseModel):
     # Borne de la colonne `String(120)` (#1121).
     value: str = Field(max_length=120)
+
+
+class CounterScopeAmbiguityIn(BaseModel):
+    ambiguous: bool
