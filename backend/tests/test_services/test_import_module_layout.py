@@ -77,3 +77,14 @@ def test_patching_the_dispatch_scraper_reaches_iter_import_event(db_session, mon
     assert calls == [URL]
     assert phases[-1]["phase"] == "done"
     assert phases[-1]["imported"] == 1
+
+
+def test_admin_rescrape_lives_in_course_rescrape_service():
+    from app.services import admin_actions, course_rescrape_service
+
+    for name in ("iter_rescrape_course", "iter_switch_course_source", "delete_course_source"):
+        assert callable(getattr(course_rescrape_service, name)), name
+        assert not hasattr(admin_actions, name), name
+    assert callable(admin_actions.course_or_404)
+    assert callable(admin_actions.instantane)
+    assert admin_actions.CHAMPS_COURSE == ("name", "event_date", "event_type", "is_relay")
