@@ -1346,6 +1346,12 @@ def test_homonyms_of_a_key_are_listed_by_rank(db_session):
     principal = _record(db_session)
     second = athlete_repository.create_homonym(db_session, {"nom": "MARTIN", "prenom": "Thomas"})
     third = athlete_repository.create_homonym(db_session, {"nom": "MARTIN", "prenom": "Thomas"})
+    athlete_repository.create_homonym(db_session, {"nom": "DURAND", "prenom": "Léa"})
+    other = athlete_repository.create_homonym(db_session, {"nom": "DURAND", "prenom": "Léa"})
 
-    assert [a.id for a in athlete_repository.homonyms_of(db_session, ("martin", "thomas"))] == [second.id, third.id]
+    homonyms = athlete_repository.homonyms_of(db_session, [("martin", "thomas"), ("durand", "lea"), ("x", "y")])
+
+    assert {key: [a.id for a in found] for key, found in homonyms.items()} == {
+        ("martin", "thomas"): [second.id, third.id], ("durand", "lea"): [other.id],
+    }
     assert principal.homonym_rank == 0

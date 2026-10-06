@@ -1283,13 +1283,20 @@ def club_labels_by_athlete(db: Session, athlete_ids: Collection[int] | None = No
     return labels
 
 
-def homonyms_of(db: Session, key: IdentityKey) -> list[Athlete]:
-    """Les homonymes distingués d'une clé (rang ≥ 1), du plus ancien au plus récent."""
-    return list(db.scalars(
+def homonyms_of(db: Session, keys: Collection[IdentityKey]) -> dict[IdentityKey, list[Athlete]]:
+    """Les homonymes distingués de chaque clé (rang ≥ 1), du plus ancien au plus
+    récent, en une requête. Une clé sans homonyme est absente du résultat."""
+    wanted = set(keys)
+    if not wanted:
+        return {}
+    homonyms: dict[IdentityKey, list[Athlete]] = {}
+    for athlete in db.scalars(
         select(Athlete)
-        .where(Athlete.last_name_key == key[0], Athlete.first_name_key == key[1], Athlete.homonym_rank > 0)
+        .where(tuple_(Athlete.last_name_key, Athlete.first_name_key).in_(wanted), Athlete.homonym_rank > 0)
         .order_by(Athlete.homonym_rank)
-    ))
+    ):
+        homonyms.setdefault((athlete.last_name_key, athlete.first_name_key), []).append(athlete)
+    return homonyms
 
 
 def get_many(db: Session, athlete_ids: Sequence[int]) -> dict[int, Athlete]:
