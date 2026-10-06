@@ -332,6 +332,7 @@ def find_candidates(db: Session) -> list[dict]:
             "source_url": ligne.source_url,
             "total": ligne.total,
             "tcn_count": ligne.tcn_count,
+            "created_at": ligne.created_at,
         }
         for ligne in course_repository.list_identities_with_counts(db)
     ]

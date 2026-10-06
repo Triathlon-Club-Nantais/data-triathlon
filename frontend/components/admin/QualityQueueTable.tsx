@@ -300,6 +300,7 @@ export function QualityQueueTable({
                           {course.name}
                         </Link>
                         <div className="text-xs text-muted-foreground">
+                          <span className="tabular-nums">n° {course.id}</span> ·{" "}
                           {eventTypeLabel(course.event_type)} · {providerLabel(course.provider)}
                         </div>
                       </TableCell>
@@ -550,6 +551,7 @@ function FiltresFile({
   anomalie: string;
   onAnomalieChange: (code: string) => void;
 }) {
+  const [id, setId] = useState(valeurs.id ?? "");
   const [nom, setNom] = useState(valeurs.name ?? "");
   const [du, setDu] = useState(valeurs.date_from ?? "");
   const [au, setAu] = useState(valeurs.date_to ?? "");
@@ -557,10 +559,11 @@ function FiltresFile({
   const actifs = Object.values(valeurs).some(Boolean);
 
   function appliquer() {
-    onFiltrer({ name: nom, date_from: du, date_to: au });
+    onFiltrer({ id, name: nom, date_from: du, date_to: au });
   }
 
   function reinitialiser() {
+    setId("");
     setNom("");
     setDu("");
     setAu("");
@@ -570,6 +573,17 @@ function FiltresFile({
   return (
     <Card>
       <CardContent className="flex flex-wrap items-end gap-3">
+        <Champ label="ID" htmlFor="filtre-id">
+          <Input
+            id="filtre-id"
+            type="number"
+            value={id}
+            onChange={(e) => setId(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && appliquer()}
+            placeholder="Identifiant"
+            className="w-full sm:w-24"
+          />
+        </Champ>
         <Champ label="Nom de l'épreuve" htmlFor="filtre-nom">
           <Input
             id="filtre-nom"

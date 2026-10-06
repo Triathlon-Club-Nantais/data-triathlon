@@ -100,6 +100,8 @@ describe("CoursesAdminTable", () => {
     // La colonne Type porte un libellé, pas le slug de base.
     expect(screen.getByText("Triathlon M")).toBeInTheDocument();
     expect(screen.queryByText("triathlon-m")).not.toBeInTheDocument();
+    // Le suivi d'exploitation désigne les épreuves par identifiant (#1215).
+    expect(screen.getByText("n° 12")).toBeInTheDocument();
   });
 
   it.each(["ID", "Épreuve", "Discipline", "Du", "Au"])(

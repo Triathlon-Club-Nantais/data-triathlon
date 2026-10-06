@@ -252,6 +252,21 @@ describe("QualityQueueTable", () => {
     expect(screen.queryByText("Aucune épreuve à revalider")).not.toBeInTheDocument();
   });
 
+  it("affiche l'identifiant de chaque épreuve (#1215)", async () => {
+    rendre();
+
+    expect(await screen.findByText("n° 7")).toBeInTheDocument();
+  });
+
+  it("recherche une épreuve par son identifiant (#1215)", async () => {
+    rendre();
+    await screen.findByText("Triathlon de Vertou");
+
+    await userEvent.type(screen.getByLabelText("ID", { exact: true }), "1108{Enter}");
+
+    expect(push).toHaveBeenCalledWith(expect.stringContaining("id=1108"));
+  });
+
   it("le filtre par date part dans la requête (#119)", async () => {
     rendre();
     await screen.findByText("Triathlon de Vertou");

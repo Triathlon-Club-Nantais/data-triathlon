@@ -27,7 +27,7 @@ export default async function AdminQualityPage({
         <PageHeader {...ecran("/admin/quality")} />
         <QualityQueueTable
           page={Number(sp.page)}
-          filtres={{ name: sp.name, date_from: sp.date_from, date_to: sp.date_to }}
+          filtres={{ id: sp.id, name: sp.name, date_from: sp.date_from, date_to: sp.date_to }}
         />
       </div>
     </PageShell>

@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,14 +37,27 @@ function NoteRaison({ reason }: { reason: DuplicateCandidate["reason"] }) {
   );
 }
 
+/**
+ * L'identifiant d'abord : les noms d'une paire se ressemblent, et le suivi
+ * d'exploitation cite les épreuves par numéro (#1215). La date de création
+ * dit laquelle des deux est l'ancienne.
+ */
 function LigneEpreuve({ course }: { course: DuplicateCourse }) {
   return (
     <div className="text-sm">
+      <Link
+        href={`/courses/${course.id}`}
+        className="font-medium tabular-nums text-primary underline underline-offset-2"
+      >
+        n° {course.id}
+      </Link>
+      {" · "}
       <span className="font-medium">{providerLabel(course.provider)}</span>{" · "}
       {course.name}
       {course.event_date ? ` · ${formatDate(course.event_date)}` : ""} ·{" "}
       {eventTypeLabel(course.event_type)} · {course.total} résultat{course.total > 1 ? "s" : ""}
       {course.tcn_count > 0 ? ` (dont ${course.tcn_count} TCN)` : ""}
+      <span className="text-[var(--tcn-text-faint)]"> · créée le {formatDate(course.created_at)}</span>
     </div>
   );
 }
