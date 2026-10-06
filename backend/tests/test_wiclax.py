@@ -225,6 +225,32 @@ def test_scrape_event_all_same_type_parcours_distinct_courses(monkeypatch):
     assert all(r.rank_overall == 1 for r in results)
 
 
+def test_a_parcours_published_with_an_indiv_twin_is_a_team_course(monkeypatch):
+    """#1213, Raid de la Loire 2026 : « Tri-Kayak » classe les équipes, « Tri-Kayak
+    - Indiv » leurs équipiers un par un (club = nom de l'équipe)."""
+    xml = _event_xml(
+        competitors=(
+            '<E d="1" n="PEPIFOLIES SQUAD" ca="TP" v="1" p="Tri-Kayak"/>'
+            '<E d="1001" n="CATINON Nicolas" x="M" ca="S4M" v="1001" c="PEPIFOLIES SQUAD" p="Tri-Kayak - Indiv"/>'
+            '<E d="2" n="SOLO" x="M" ca="S4M" v="2" p="Trail"/>'
+        ),
+        results=('<R d="1" t="03:05:00"/><R d="1001" t="03:05:00"/><R d="2" t="01:00:00"/>'),
+    )
+    root = ET.fromstring(xml)
+    monkeypatch.setattr(
+        "app.scrapers.wiclax._fetch_clax",
+        lambda _url: (root, "http://x", "Raid de la Loire", "triathlon", None),
+    )
+
+    relais = {r.event_name: r.is_relay for r in scrape_event_all("http://x")}
+
+    assert relais == {
+        "Raid de la Loire - Tri-Kayak": True,
+        "Raid de la Loire - Tri-Kayak - Indiv": False,
+        "Raid de la Loire - Trail": False,
+    }
+
+
 # --- Chaîne de segments par parcours (détection via les disc) ----------------
 
 

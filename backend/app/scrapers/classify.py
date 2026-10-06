@@ -178,6 +178,9 @@ def _sport_base(t: str) -> str | None:
         return "aquarun"
     if "duathlon" in t:
         return "duathlon"
+    # Mot entier : « Trail du Bourraid » reste un trail (#1213).
+    if re.search(r"\braid\b", t):
+        return "raid-multisport"
 
     # 2. Triathlon explicite, avant les mono-sports : « half » est ambigu
     #    (half-marathon vs half-ironman).

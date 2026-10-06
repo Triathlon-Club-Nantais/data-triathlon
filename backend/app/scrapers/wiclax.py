@@ -672,7 +672,21 @@ def _iter_parcours_results(
         r.event_date = event_date
         _ajouter(parcours, r)
 
+    _mark_team_parcours(par_parcours)
     return par_parcours, ordre
+
+
+def _mark_team_parcours(par_parcours: dict[str, list[ScrapedResult]]) -> None:
+    """Type relais un parcours doublé d'un classement « <parcours> - Indiv » (#1213).
+
+    Raid de la Loire 2026 : « Tri-Kayak » classe les équipes, sans prénom ni club,
+    « Tri-Kayak - Indiv » leurs équipiers un par un, l'équipe en club. Aucun mot
+    d'équipe dans le nom du parcours : seul ce jumeau le désigne.
+    """
+    for parcours, results in par_parcours.items():
+        if parcours and f"{parcours.lower()} - indiv" in {p.lower() for p in par_parcours}:
+            for r in results:
+                r.is_relay = True
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
