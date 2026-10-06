@@ -77,6 +77,17 @@ def test_le_geocodage_rend_le_resultat_le_plus_pertinent(monkeypatch):
     assert geocode_service._nominatim_search("Nantes, France") == (47.2181, -1.5528)
 
 
+def test_la_recherche_est_bornee_a_la_metropole(monkeypatch):
+    """#1203 : « AT BAIN » tombait en Guadeloupe, `countrycodes=fr` couvrant l'outre-mer."""
+    vues = _bouchonne(monkeypatch, lambda _r: _reponse())
+
+    geocode_service.geocode("Triathlon de Laval")
+
+    params = vues[0].url.params
+    assert params["bounded"] == "1"
+    assert params["viewbox"] == geocode_service.VIEWBOX_METROPOLE
+
+
 def test_les_lieux_priment_sur_les_autres_classes(monkeypatch):
     """Un `shop` mieux noté ne doit pas l'emporter sur une commune."""
     _bouchonne(monkeypatch, lambda _: _reponse(
@@ -159,6 +170,11 @@ def test_un_nom_sans_ville_exploitable_ne_declenche_aucune_requete(monkeypatch):
         ("Triathlon de Saint-Brevin", "Brevin"),
         ("Triathlon d'Oléron", "Oléron"),                 # apostrophe droite
         ("Triathlon d’Oléron", "Oléron"),                 # apostrophe typographique
+        # Noms réels restés introuvables au premier géocodage de l'existant (#1203).
+        ("35ème Triathlon de Laval 2025 - Triathlon M", "Laval"),
+        ("14ème Triathlon du Pays de Quimperlé 2024 - S", "Quimperlé"),
+        ("9e édition du Triathlon de Vannes", "Vannes"),
+        ("Triathlon Audencia La Baule 2025 - S", "La Baule"),
     ],
 )
 def test_extraction_de_la_ville(nom_epreuve, attendu):

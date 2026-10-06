@@ -38,19 +38,37 @@ RETRY_APRES = timedelta(days=7)
 _geo_cache: dict[str, tuple[float, float] | None] = {}
 
 
+#: Rectangle de la France métropolitaine, Corse comprise (`ouest,nord,est,sud`) :
+#: `countrycodes=fr` couvre l'outre-mer, et « AT BAIN » tombait en Guadeloupe (#1203).
+VIEWBOX_METROPOLE = "-5.3,51.2,9.7,41.2"
+
+#: Sponsors collés à la ville dans des noms réels (#1203).
+_SPONSORS = re.compile(r"\b(audencia)\s+", re.I)
+
+
 def extract_city(event_name: str) -> str:
     """Extrait une ville/localité cherchable depuis un nom d'épreuve triathlon français."""
     name = event_name.strip()
+    # Ordinal d'édition en tête (« 35ème Triathlon de Laval », « 9e édition du… »),
+    # qui empêchait le retrait du préfixe de discipline (#1203).
+    name = re.sub(
+        r"^\d+\s*(?:e|è|ème|eme|er|ère)\b\s*(?:[ée]dition\s+(?:du|de\s+la|de|des)\s+)?",
+        "", name, flags=re.I,
+    ).strip()
+    name = _SPONSORS.sub("", name)
     name = re.sub(r"\b(20\d{2}|[0-9]+e?\s+edition)\b", "", name, flags=re.I).strip()
     name = re.sub(r"[-–—]+$", "", name).strip()
+    # Suffixe de heat (« … 2025 - Triathlon M ») coupé avant tout autre nettoyage.
+    name = re.split(r"\s+[-–]\s+|\s+[-–]$", name)[0].strip()
 
     prefixes = (
         r"(triathlon|tri|duathlon|swimrun|swim[- ]?run|aquathlon|aquarun|bike[- ]?run"
         r"|run[- ]?bike|challenge|ironman|half|ultra|trail)\s+"
         r"(de\s+la\s+|de\s+le\s+|des\s+|de\s+|du\s+|d'\s*|d’\s*|international\s+)?"
-        r"(la\s+|le\s+|les\s+|saint[-\s]|sainte[-\s])?"
+        r"(saint[-\s]|sainte[-\s])?"
     )
     cleaned = re.sub(prefixes, "", name, flags=re.I).strip()
+    cleaned = re.sub(r"^pays\s+(?:de\s+la\s+|de\s+|du\s+|des\s+|d['’]\s*)", "", cleaned, flags=re.I).strip()
     cleaned = re.sub(
         r"\s+(s|m|l|xl|xs|xxl|sprint|olympique|olympic|half|longue|distance|format)\s*$",
         "", cleaned, flags=re.I,
@@ -70,7 +88,10 @@ def _nominatim_search(query: str) -> tuple[float, float] | None:
         with http.client(timeout=5, follow_redirects=False) as client:
             r = client.get(
                 "https://nominatim.openstreetmap.org/search",
-                params={"q": query, "format": "json", "limit": 5, "countrycodes": "fr"},
+                params={
+                    "q": query, "format": "json", "limit": 5, "countrycodes": "fr",
+                    "viewbox": VIEWBOX_METROPOLE, "bounded": 1,
+                },
                 headers={"User-Agent": settings.geocode_user_agent},
             )
         results = r.json()
