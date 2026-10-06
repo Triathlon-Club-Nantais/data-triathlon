@@ -21,6 +21,7 @@ import { EVENT_TYPE_OPTIONS, eventTypeLabel } from "@/lib/constants";
 import {
   useAddCounterScopeEntry,
   useRemoveCounterScopeEntry,
+  useSetCounterScopeAmbiguity,
 } from "@/lib/queries/admin";
 import type { CounterScopeEntry, ScopeKind } from "@/lib/types";
 import { timeAgo } from "@/lib/utils/date";
@@ -87,6 +88,7 @@ export function CounterScopeCard({
 }) {
   const ajouter = useAddCounterScopeEntry();
   const retirer = useRemoveCounterScopeEntry();
+  const basculer = useSetCounterScopeAmbiguity();
   const [saisie, setSaisie] = useState("");
   const [aRetirer, setARetirer] = useState<CounterScopeEntry | null>(null);
   const champDAjout = useRef<HTMLInputElement>(null);
@@ -123,6 +125,19 @@ export function CounterScopeCard({
       const creee = await ajouter.mutateAsync({ kind, value: valeur });
       setSaisie("");
       toast.success(`« ${creee.value} » ajouté aux ${nom}.`);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function basculerAmbiguite(entree: CounterScopeEntry, ambiguous: boolean) {
+    try {
+      await basculer.mutateAsync({ kind, entryId: entree.id, ambiguous });
+      toast.success(
+        ambiguous
+          ? `« ${entree.value} » ne compte plus seul : il faut un autre résultat au club.`
+          : `« ${entree.value} » compte de nouveau seul.`,
+      );
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -265,6 +280,21 @@ export function CounterScopeCard({
                   ) : (
                     <span className="font-mono text-sm">{entree.value}</span>
                   )}
+                  {kind === "club-labels" && (
+                    // Case native et `<label>` englobant : cible de 24 px au
+                    // moins, nom accessible lu tel quel par les aides techniques.
+                    <label className="flex min-h-6 items-center gap-2 text-xs text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        className="size-4 accent-[var(--tcn-orange-deep)]"
+                        checked={entree.ambiguous}
+                        disabled={basculer.isPending}
+                        onChange={(e) => basculerAmbiguite(entree, e.target.checked)}
+                        aria-label={`« ${entree.value} » est ambigu`}
+                      />
+                      Ambigu
+                    </label>
+                  )}
                   {!entree.is_known && (
                     // Les couples aplat/encre du thème, comme `PendingBadge` :
                     // la bordure de `variant="outline"` rend 1,22:1 sur le
@@ -318,6 +348,14 @@ export function CounterScopeCard({
               <p className="text-xs text-[var(--tcn-text-faint)]">
                 « Discipline inconnue » signale une valeur qui ne correspond à aucune
                 discipline connue de l&apos;application. Elle reste exclue des compteurs.
+              </p>
+            )}
+            {kind === "club-labels" && (
+              <p className="text-xs text-[var(--tcn-text-faint)]">
+                Un libellé ambigu désigne aussi d&apos;autres clubs (« TCN » est aussi le
+                Triathlon Club Narbonne). Un résultat qui ne porte que lui compte pour le
+                club seulement si l&apos;athlète a un autre résultat validé sous un libellé
+                non ambigu.
               </p>
             )}
           </>

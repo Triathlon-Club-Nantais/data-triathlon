@@ -754,6 +754,11 @@ export const apiClient = {
   // une source d'ennuis sans contrepartie.
   removeCounterScopeEntry: (kind: ScopeKind, entryId: number) =>
     request<void>(`/admin/counter-scope/${kind}/${entryId}`, { method: "DELETE" }),
+  setCounterScopeAmbiguity: (kind: ScopeKind, entryId: number, ambiguous: boolean) =>
+    request<CounterScopeEntry>(`/admin/counter-scope/${kind}/${entryId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ ambiguous }),
+    }),
 
   // ── Variantes de club (#635) ───────────────────────────────────────────────
   getClubAliases: () => request<ClubAliasList>("/admin/club-aliases"),

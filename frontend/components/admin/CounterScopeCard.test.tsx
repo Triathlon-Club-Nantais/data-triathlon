@@ -5,10 +5,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { CounterScopeEntry, ScopeKind } from "@/lib/types";
 
-const { addCounterScopeEntry, removeCounterScopeEntry, toastError, toastSuccess } =
+const {
+  addCounterScopeEntry,
+  removeCounterScopeEntry,
+  setCounterScopeAmbiguity,
+  toastError,
+  toastSuccess,
+} =
   vi.hoisted(() => ({
     addCounterScopeEntry: vi.fn(),
     removeCounterScopeEntry: vi.fn(),
+    setCounterScopeAmbiguity: vi.fn(),
     toastError: vi.fn(),
     toastSuccess: vi.fn(),
   }));
@@ -19,7 +26,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { addCounterScopeEntry, removeCounterScopeEntry },
+    apiClient: { addCounterScopeEntry, removeCounterScopeEntry, setCounterScopeAmbiguity },
   };
 });
 
@@ -30,6 +37,7 @@ function entree(surcharge: Partial<CounterScopeEntry> = {}): CounterScopeEntry {
     id: 1,
     value: "tcn",
     is_known: true,
+    ambiguous: false,
     created_at: "2026-08-20T10:00:00Z",
     created_by: "Marie Dupont",
     ...surcharge,
@@ -346,5 +354,64 @@ describe("CounterScopeCard, côté disciplines", () => {
 
     expect(screen.getByLabelText(/nouveau libellé/i)).toHaveAttribute("placeholder", "tcn 44");
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+  });
+});
+
+describe("CounterScopeCard, libellés ambigus", () => {
+  beforeEach(() => {
+    setCounterScopeAmbiguity.mockReset();
+    toastSuccess.mockReset();
+    toastError.mockReset();
+  });
+
+  it("marque un libellé comme ambigu", async () => {
+    setCounterScopeAmbiguity.mockResolvedValue(entree({ ambiguous: true }));
+    afficher();
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "« tcn » est ambigu" }));
+
+    expect(setCounterScopeAmbiguity).toHaveBeenCalledWith("club-labels", 1, true);
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith(
+        "« tcn » ne compte plus seul : il faut un autre résultat au club.",
+      ),
+    );
+  });
+
+  it("rétablit un libellé ambigu", async () => {
+    setCounterScopeAmbiguity.mockResolvedValue(entree({ ambiguous: false }));
+    afficher({ entrees: [entree({ ambiguous: true }), entree({ id: 2, value: "tri club nantais" })] });
+
+    const caseACocher = screen.getByRole("checkbox", { name: "« tcn » est ambigu" });
+    expect(caseACocher).toBeChecked();
+    await userEvent.click(caseACocher);
+
+    expect(setCounterScopeAmbiguity).toHaveBeenCalledWith("club-labels", 1, false);
+    await waitFor(() =>
+      expect(toastSuccess).toHaveBeenCalledWith("« tcn » compte de nouveau seul."),
+    );
+  });
+
+  it("explique ce qu'est un libellé ambigu, en texte visible", () => {
+    afficher();
+
+    expect(
+      screen.getByText(/Un libellé ambigu désigne aussi d'autres clubs/),
+    ).toBeInTheDocument();
+  });
+
+  it("montre le refus du serveur", async () => {
+    setCounterScopeAmbiguity.mockRejectedValue(new ApiError(403, "Accès refusé."));
+    afficher();
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "« tcn » est ambigu" }));
+
+    await waitFor(() => expect(toastError).toHaveBeenCalledWith("Accès refusé."));
+  });
+
+  it("n'offre pas la case pour une discipline", () => {
+    afficher({ kind: "disciplines", entrees: [entree({ value: "trail" })], nom: "disciplines exclues" });
+
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 });
