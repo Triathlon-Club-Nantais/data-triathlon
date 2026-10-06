@@ -25,10 +25,10 @@ _URL = {"url": "https://www.klikego.com/x"}
 @pytest.fixture
 def scraper_muet(monkeypatch):
     """Neutralise le réseau : le plafond se mesure sur le nombre d'appels."""
-    from app.services import import_service
+    from app.services import import_dispatch
 
     monkeypatch.setattr(
-        import_service,
+        import_dispatch,
         "registry_scrape_event_all",
         lambda url, **kwargs: ([
             ScrapedResult(

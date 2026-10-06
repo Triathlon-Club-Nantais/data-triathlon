@@ -16,7 +16,7 @@ class ScrapeRequest(BaseModel):
     #: rate sur ces URLs et, `get_or_create` ne réécrivant pas le `source_url`
     #: d'une ligne existante, le cache TTL reste durablement inefficace pour
     #: elles (re-scrape à chaque import, jamais de doublon).
-    #: Il ne dispense pas de `import_service._validate_url`, qui couvre la CLI.
+    #: Il ne dispense pas de `import_dispatch.validate_url`, qui couvre la CLI.
     url: HttpUrl
 
     #: Choix « import unique / fanout complet » (#698). Défaut `True` : moins

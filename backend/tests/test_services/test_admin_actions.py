@@ -21,7 +21,7 @@ from app.repositories import (
     volunteer_action_repository,
 )
 from app.scrapers.base import FanoutTrace, ScrapedResult
-from app.services import admin_actions, course_locks, deadlock, import_service, sse_relay
+from app.services import admin_actions, course_locks, deadlock, import_dispatch, sse_relay
 
 
 @pytest.fixture
@@ -693,7 +693,7 @@ def scrape(monkeypatch):
                 raise resultats_ou_exception
             return resultats_ou_exception, FanoutTrace(heats_enumerated=1)
 
-        monkeypatch.setattr(import_service, "registry_scrape_event_all", _scrape)
+        monkeypatch.setattr(import_dispatch, "registry_scrape_event_all", _scrape)
         return appels
 
     return armer
@@ -822,7 +822,7 @@ def test_rescrape_emet_un_battement_pendant_une_phase_de_scraping_lente(
         time.sleep(0.6)
         return [_resultat(course, "1", "NOUVEAU")], FanoutTrace(heats_enumerated=1)
 
-    monkeypatch.setattr(import_service, "registry_scrape_event_all", _scrape_lent)
+    monkeypatch.setattr(import_dispatch, "registry_scrape_event_all", _scrape_lent)
 
     events = list(admin_actions.iter_rescrape_course(
         db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
@@ -1202,7 +1202,7 @@ def test_switch_emet_un_battement_pendant_une_phase_de_scraping_lente(
         time.sleep(0.6)
         return [_resultat_bascule(course, passive, "1", "NOUVEAU")], FanoutTrace(heats_enumerated=1)
 
-    monkeypatch.setattr(import_service, "registry_scrape_event_all", _scrape_lent)
+    monkeypatch.setattr(import_dispatch, "registry_scrape_event_all", _scrape_lent)
 
     events = list(admin_actions.iter_switch_course_source(
         db_session, course_id=course.id, source_id=passive.id,
@@ -2508,7 +2508,7 @@ def test_rescrape_persists_nothing_if_the_course_disappeared_during_the_scrape(
         db_session.flush()
         return resultats, FanoutTrace(heats_enumerated=1)
 
-    monkeypatch.setattr(import_service, "registry_scrape_event_all", _scrape)
+    monkeypatch.setattr(import_dispatch, "registry_scrape_event_all", _scrape)
 
     events = list(admin_actions.iter_rescrape_course(
         db_session, course_id=course_id, user_id=auteur.id, settings=_settings()
@@ -2572,7 +2572,7 @@ def test_rescrape_persists_nothing_if_another_session_renamed_the_course(
         autre.close()
         return resultats, FanoutTrace(heats_enumerated=1)
 
-    monkeypatch.setattr(import_service, "registry_scrape_event_all", _scrape)
+    monkeypatch.setattr(import_dispatch, "registry_scrape_event_all", _scrape)
 
     events = list(admin_actions.iter_rescrape_course(
         db_session, course_id=course_id, user_id=auteur.id, settings=_settings()

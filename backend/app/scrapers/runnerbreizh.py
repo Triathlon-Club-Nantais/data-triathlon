@@ -428,7 +428,7 @@ def _require_event_name(meta: EventMeta, rows: list, url: str) -> None:
     - **des lignes** : le titre existe mais son format a changé. Il est lu par
       position depuis la droite, donc un champ manquant décale tout : le nom sort
       vide, la ville prend sa place et le type perd sa taille, la date restant
-      juste. `import_service._require_event_name` rattrape bien le nom vide, mais
+      juste. `import_dispatch._require_event_name` rattrape bien le nom vide, mais
       en aval, sans pouvoir dire lequel des deux cas s'est produit — et le type
       dégradé, lui, ne serait rattrapé par personne.
     """

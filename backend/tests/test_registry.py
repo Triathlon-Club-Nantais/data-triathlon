@@ -929,7 +929,7 @@ def test_two_concurrent_imports_on_the_same_provider_each_read_their_own_trace(m
     import time
 
     from app.scrapers import raceresult
-    from app.services import import_service
+    from app.services import import_dispatch
 
     url_a = "https://my.raceresult.com/1/results?contest=1"
     url_b = "https://my.raceresult.com/2/results"
@@ -954,7 +954,7 @@ def test_two_concurrent_imports_on_the_same_provider_each_read_their_own_trace(m
     traces = {}
 
     def run(name, url, single_heat):
-        _results, traces[name] = import_service._scrape_all(
+        _results, traces[name] = import_dispatch.scrape_all(
             url, None, None, single_heat=single_heat, use_cache_probe=False
         )
 
