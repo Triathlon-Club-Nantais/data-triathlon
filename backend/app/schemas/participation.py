@@ -3,9 +3,16 @@ import re
 from datetime import date, datetime
 from typing import Annotated, Literal
 
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import (
+    AfterValidator,
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+)
 
-from app.core.club import is_tcn as _is_tcn
 from app.schemas.athlete import AthleteBrief
 from app.schemas.challenge import AthleteChallengeOut
 from app.schemas.course import CourseBrief
@@ -51,6 +58,10 @@ class ParticipationOut(BaseModel):
     is_pending_validation: bool = False
     # Écarté par un bénévole comme non conforme (#437).
     is_rejected: bool = False
+    #: Ce résultat compte-t-il pour le club ? Verdict stocké (#1206), lu sur
+    #: `Participation.counts_for_tcn` : le front n'a pas à réimplémenter la règle,
+    #: c'est cette duplication qui avait laissé passer les faux positifs de #76.
+    is_tcn: bool = Field(default=False, validation_alias=AliasChoices("counts_for_tcn", "is_tcn"))
     splits: dict[str, str] | None = None
     created_at: datetime | None = None
     #: Statistiques détaillées, peuplées par la seule lecture d'**une** participation
@@ -60,21 +71,10 @@ class ParticipationOut(BaseModel):
 
     @computed_field
     @property
-    def is_tcn(self) -> bool:
-        """Appartenance au club, tranchée par le backend.
-
-        Exposée pour que le front n'ait pas à réimplémenter le prédicat : c'est
-        cette duplication qui avait divergé et laissé passer les faux positifs
-        de l'issue #76.
-        """
-        return _is_tcn(self.club)
-
-    @computed_field
-    @property
     def split_gap_ratio(self) -> float | None:
         """Écart relatif **signé** entre le temps total et la somme des inters (#486).
 
-        Exposé pour la même raison que `is_tcn` juste au-dessus, et c'est le même
+        Exposé pour la même raison que `is_tcn`, et c'est le même
         précédent qui l'impose : le front en a besoin par ligne, le serveur en a besoin
         pour la médiane d'épreuve, et deux implémentations de la même règle divergent
         (#76). Le serveur mesure, l'écran applique ses seuils d'affichage.

@@ -5,7 +5,6 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session, load_only, selectinload
 
-from app.core.club import tcn_clause
 from app.core.text import deaccent
 from app.core.time import utcnow
 from app.core.validation import validated_clause
@@ -590,7 +589,7 @@ def _filtered(
         q = q.filter(
             Course.id.in_(
                 select(Participation.course_id).where(
-                    tcn_clause(Participation.club),
+                    Participation.counts_for_tcn.is_(True),
                     # #562 : une épreuve dont l'unique participation club est en
                     # attente de validation ne doit pas apparaître dans le catalogue.
                     validated_clause(Participation.is_pending_validation),
@@ -743,7 +742,7 @@ def list_identities_with_counts(db: Session) -> list:
             # là où `COUNT` rend `0`. Deux compteurs affichés côte à côte ne
             # peuvent pas dire l'un « 0 » et l'autre « aucune idée ».
             func.coalesce(
-                func.sum(case((tcn_clause(Participation.club), 1), else_=0)), 0
+                func.sum(case((Participation.counts_for_tcn.is_(True), 1), else_=0)), 0
             ).label("tcn_count"),
         )
         .outerjoin(
