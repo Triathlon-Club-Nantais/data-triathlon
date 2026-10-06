@@ -21,7 +21,7 @@ from app.core.config import Settings
 from app.core.sql_observability import measure_queries
 from app.scrapers.registry import detect_provider
 from app.services import import_service
-from app.services.import_service import PassiveSource, Reassignment
+from app.services.import_persistence import PassiveSource, Reassignment
 from app.services.progress import NullReporter, ProgressReporter
 
 logger = logging.getLogger(__name__)

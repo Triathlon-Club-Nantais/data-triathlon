@@ -15,7 +15,7 @@ from app.models.course import Course
 from app.models.participation import Participation
 from app.repositories import course_repository, user_repository
 from app.scrapers.base import ScrapedResult
-from app.services import course_merge, import_service
+from app.services import course_merge, import_persistence
 
 SHARED = "https://www.wiclax-results.com/mesquer-2026/resultats.clax"
 OTHER = "https://www.klikego.com/resultats/triathlon-de-mesquer-2026/1706667557931-4"
@@ -68,8 +68,8 @@ def _merge(db_session, *, target: Course, absorbed: Course) -> None:
 
 def _setup(db_session, *, absorbed_rows=None, target_rows=None):
     """Deux vagues sous l'URL partagée, la cible chez un autre chronométreur."""
-    import_service.persist_results(db_session, SHARED, absorbed_rows or _shared_url_scrape())
-    import_service.persist_results(
+    import_persistence.persist_results(db_session, SHARED, absorbed_rows or _shared_url_scrape())
+    import_persistence.persist_results(
         db_session, OTHER, target_rows or [_row("1", CIBLE, OTHER, "klikego", "CIBLE")]
     )
     db_session.flush()
@@ -80,7 +80,7 @@ def test_a_rescrape_of_the_shared_url_does_not_recreate_the_absorbed_course(db_s
     vague1, target = _setup(db_session)
     _merge(db_session, target=target, absorbed=vague1)
 
-    import_service.persist_results(db_session, SHARED, _shared_url_scrape())
+    import_persistence.persist_results(db_session, SHARED, _shared_url_scrape())
 
     assert _names(db_session) == [VAGUE2, CIBLE]
 
@@ -90,7 +90,7 @@ def test_the_absorbed_rows_are_ignored_and_counted_as_skipped(db_session):
     _merge(db_session, target=target, absorbed=vague1)
     avant = _rows(db_session, target)
 
-    bilan = import_service.persist_results(db_session, SHARED, _shared_url_scrape())
+    bilan = import_persistence.persist_results(db_session, SHARED, _shared_url_scrape())
 
     assert _rows(db_session, target) == avant
     # La ligne ignorée, plus celle de la vague 2, inchangée.
@@ -110,7 +110,7 @@ def test_an_absorbed_row_never_overwrites_the_target_times_and_ranks(db_session)
     )
     _merge(db_session, target=target, absorbed=vague1)
 
-    import_service.persist_results(
+    import_persistence.persist_results(
         db_session, SHARED,
         [
             _row("7", VAGUE1, SHARED, "wiclax", "DUPONT", total_time="01:20:00", rank=1),
@@ -133,7 +133,7 @@ def test_an_absorbed_row_never_adds_a_second_line_for_the_same_athlete(db_sessio
     )
     _merge(db_session, target=target, absorbed=vague1)
 
-    import_service.persist_results(
+    import_persistence.persist_results(
         db_session, SHARED,
         [_row("8", VAGUE1, SHARED, "wiclax", "MARTIN"), _row("2", VAGUE2, SHARED, "wiclax", "VAGUEDEUX")],
     )
@@ -150,13 +150,13 @@ def test_a_same_url_merge_keeps_the_target_list_alone_and_reliable(db_session):
         _row("1", VAGUE1, SHARED, "wiclax", "AUTREUN", rank=1),
         _row("2", VAGUE1, SHARED, "wiclax", "AUTREDEUX", rank=2),
     ]
-    import_service.persist_results(db_session, SHARED, both)
+    import_persistence.persist_results(db_session, SHARED, both)
     db_session.flush()
     target, vague1 = _course(db_session, CIBLE), _course(db_session, VAGUE1)
     _merge(db_session, target=target, absorbed=vague1)
     avant = _rows(db_session, target)
 
-    import_service.persist_results(db_session, SHARED, both)
+    import_persistence.persist_results(db_session, SHARED, both)
     db_session.flush()
 
     assert _names(db_session) == [CIBLE]
@@ -178,7 +178,7 @@ def test_a_second_merge_carries_the_remembered_identity_along(db_session):
     db_session.flush()
     course_merge.merge_courses(db_session, course_id=final.id, absorbed_id=target.id, user_id=user.id)
 
-    import_service.persist_results(db_session, SHARED, _shared_url_scrape())
+    import_persistence.persist_results(db_session, SHARED, _shared_url_scrape())
 
     assert _names(db_session) == ["Mesquer S", VAGUE2]
 
@@ -189,6 +189,6 @@ def test_deleting_the_target_forgets_the_absorbed_identity(db_session):
 
     course_repository.delete(db_session, target)
     db_session.flush()
-    import_service.persist_results(db_session, SHARED, _shared_url_scrape())
+    import_persistence.persist_results(db_session, SHARED, _shared_url_scrape())
 
     assert _names(db_session) == [VAGUE1, VAGUE2]

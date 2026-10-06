@@ -33,7 +33,7 @@ from app.services.batch import (
     est_echec_total,
     run_batch,
 )
-from app.services.import_service import PassiveSource
+from app.services.import_persistence import PassiveSource
 from app.services.progress import ProgressReporter
 
 

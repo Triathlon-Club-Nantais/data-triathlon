@@ -20,7 +20,7 @@ from datetime import date
 from app.core.config import Settings
 from app.repositories import course_repository, participation_repository
 from app.scrapers.base import STATUS_DSQ, STATUS_FINISHER, ScrapedResult
-from app.services import import_service
+from app.services import import_persistence, import_service
 
 URL = "https://my.raceresult.com/350635/results?contest=1"
 NOM = "Embrunman - {EN:Embrunman|FR:Embruman}"
@@ -261,7 +261,7 @@ def test_relais_runnerbreizh_aux_rangs_partages_n_est_jamais_renumerote():
         )
     ]
 
-    import_service._renumber_duplicate_ranks(results)
+    import_persistence._renumber_duplicate_ranks(results)
 
     assert [r.rank_overall for r in results] == [1, 1, 2, 2]
 

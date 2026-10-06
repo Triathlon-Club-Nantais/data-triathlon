@@ -4,7 +4,7 @@ from datetime import date
 from app.models.athlete import Athlete
 from app.models.participation import Participation
 from app.repositories import athlete_repository
-from app.services import import_service
+from app.services import import_persistence, import_service
 from tests.test_services.test_import_service import URL, _expire_cache, _relay, _result, _settings
 
 OTHER_URL = "https://www.klikego.com/resultats/event/456"
@@ -154,7 +154,7 @@ def test_a_conflict_after_a_fallback_creates_the_row_principal_not_a_homonym(db_
 
 
 def test_a_conflict_across_two_tranches_is_detected(db_session, patch_scraper, monkeypatch):
-    monkeypatch.setattr(import_service, "_TRANCHE_SIZE", 1)
+    monkeypatch.setattr(import_persistence, "_TRANCHE_SIZE", 1)
 
     _import(db_session, patch_scraper, [_result("1", "MARTIN", "Thomas"), _result("2", "MARTIN", "Thomas")])
 

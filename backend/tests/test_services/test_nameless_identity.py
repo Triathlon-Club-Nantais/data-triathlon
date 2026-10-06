@@ -9,7 +9,7 @@ from datetime import date
 from app.models.athlete import Athlete
 from app.models.participation import Participation
 from app.scrapers.base import ScrapedResult
-from app.services import import_service
+from app.services import import_persistence
 
 URL = "https://exemple.fr/resultats"
 
@@ -23,7 +23,7 @@ def _ligne(bib: str, nom: str = "", event_name: str = "Tri A") -> ScrapedResult:
 
 
 def test_une_ligne_sans_nom_avec_dossard_recoit_une_identite_par_epreuve(db_session):
-    import_service.persist_results(
+    import_persistence.persist_results(
         db_session, URL, [_ligne("1"), _ligne("2"), _ligne("1", event_name="Tri B")]
     )
 
@@ -35,7 +35,7 @@ def test_une_ligne_sans_nom_avec_dossard_recoit_une_identite_par_epreuve(db_sess
 
 def test_une_ligne_sans_nom_ni_dossard_est_ecartee_et_journalisee(db_session, caplog):
     with caplog.at_level(logging.WARNING):
-        import_service.persist_results(db_session, URL, [_ligne(""), _ligne("", nom="DUPONT")])
+        import_persistence.persist_results(db_session, URL, [_ligne(""), _ligne("", nom="DUPONT")])
 
     assert [a.nom for a in db_session.query(Athlete).all()] == ["DUPONT"]
     assert db_session.query(Participation).count() == 1
@@ -43,8 +43,8 @@ def test_une_ligne_sans_nom_ni_dossard_est_ecartee_et_journalisee(db_session, ca
 
 
 def test_le_rescrape_retrouve_la_meme_identite_synthetique(db_session):
-    import_service.persist_results(db_session, URL, [_ligne("1")])
-    import_service.persist_results(db_session, URL, [_ligne("1")])
+    import_persistence.persist_results(db_session, URL, [_ligne("1")])
+    import_persistence.persist_results(db_session, URL, [_ligne("1")])
 
     assert db_session.query(Athlete).count() == 1
     assert db_session.query(Participation).count() == 1
@@ -64,7 +64,7 @@ def test_le_rescrape_detache_les_lignes_de_la_fiche_vide_heritee(db_session):
     )
     db_session.flush()
 
-    import_service.persist_results(db_session, URL, [_ligne("1")])
+    import_persistence.persist_results(db_session, URL, [_ligne("1")])
 
     participation = db_session.query(Participation).one()
     assert participation.athlete.nom == f"Anonyme {course.id}-1"
@@ -74,7 +74,7 @@ def test_le_rescrape_detache_les_lignes_de_la_fiche_vide_heritee(db_session):
 def test_a_masked_name_without_bib_is_skipped_and_logged(db_session, caplog):
     """Competitor « Anonymous » sans dossard : même filet qu'un nom vide (revue de #1145)."""
     with caplog.at_level(logging.WARNING):
-        import_service.persist_results(
+        import_persistence.persist_results(
             db_session, URL,
             [_ligne("", nom="Anonymous"), _ligne("", nom="Anonymous"), _ligne("", nom="XXX XXX")],
         )
@@ -85,7 +85,7 @@ def test_a_masked_name_without_bib_is_skipped_and_logged(db_session, caplog):
 
 
 def test_a_masked_name_with_bib_gets_one_identity_per_course_and_bib(db_session):
-    import_service.persist_results(
+    import_persistence.persist_results(
         db_session, URL, [_ligne("1", nom="XXX XXX"), _ligne("2", nom="Anonymous")]
     )
 
@@ -95,6 +95,6 @@ def test_a_masked_name_with_bib_gets_one_identity_per_course_and_bib(db_session)
 
 
 def test_a_synthetic_identity_from_a_scraper_is_kept_as_is(db_session):
-    import_service.persist_results(db_session, URL, [_ligne("1", nom="Anonyme 342814-2-1641")])
+    import_persistence.persist_results(db_session, URL, [_ligne("1", nom="Anonyme 342814-2-1641")])
 
     assert [a.nom for a in db_session.query(Athlete).all()] == ["Anonyme 342814-2-1641"]

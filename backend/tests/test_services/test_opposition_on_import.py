@@ -8,7 +8,7 @@ from app.models.athlete import Athlete
 from app.models.participation import Participation
 from app.repositories import opposition_repository, participation_repository
 from app.scrapers.base import ScrapedResult
-from app.services import import_service
+from app.services import import_persistence
 
 URL = "https://exemple.fr/resultats"
 
@@ -35,7 +35,7 @@ def _noms(db):
 
 
 def test_an_opposed_row_arrives_anonymous_whatever_the_spelling(db_session, opposition):
-    import_service.persist_results(
+    import_persistence.persist_results(
         db_session, URL, [_ligne("12", "JEAN PIERRE", "dupont", rang=12), _ligne("13", "MARTIN", "Alix", rang=13)]
     )
 
@@ -48,22 +48,22 @@ def test_an_opposed_row_arrives_anonymous_whatever_the_spelling(db_session, oppo
 
 
 def test_an_opposed_row_without_bib_is_skipped(db_session, opposition):
-    import_service.persist_results(db_session, URL, [_ligne("", "Dupont", "Jean-Pierre")])
+    import_persistence.persist_results(db_session, URL, [_ligne("", "Dupont", "Jean-Pierre")])
 
     assert db_session.query(Participation).count() == 0
     assert _noms(db_session) == []
 
 
 def test_a_rescrape_keeps_the_row_anonymous_and_recreates_no_record(db_session, opposition):
-    import_service.persist_results(db_session, URL, [_ligne("12", "Dupont", "Jean-Pierre")])
-    import_service.persist_results(db_session, URL, [_ligne("12", "Dupont", "Jean-Pierre")])
+    import_persistence.persist_results(db_session, URL, [_ligne("12", "Dupont", "Jean-Pierre")])
+    import_persistence.persist_results(db_session, URL, [_ligne("12", "Dupont", "Jean-Pierre")])
 
     assert db_session.query(Participation).count() == 1
     assert len(_noms(db_session)) == 1 and _noms(db_session)[0].startswith("Anonyme ")
 
 
 def test_an_opposition_recorded_before_any_result_blocks_the_first_import(db_session, opposition):
-    import_service.persist_results(db_session, URL, [_ligne("7", "DUPONT", "Jean Pierre")])
+    import_persistence.persist_results(db_session, URL, [_ligne("7", "DUPONT", "Jean Pierre")])
 
     assert db_session.query(Participation).one().athlete.nom.startswith("Anonyme ")
 
@@ -74,7 +74,7 @@ def _sans_dupont(db):
 
 def test_a_relay_with_an_opposed_member_arrives_anonymous_as_a_whole(db_session, opposition):
     """Ni découpage ni libellé d'équipe : le libellé publié porte le nom de la personne."""
-    import_service.persist_results(
+    import_persistence.persist_results(
         db_session, URL,
         [_ligne("50", "DUPONT Jean-Pierre / MARTIN Alix", "", is_relay=True, team_name="DUPONT Jean-Pierre / MARTIN Alix")],
     )
@@ -91,8 +91,8 @@ def test_a_rescraped_relay_with_an_opposed_member_stays_anonymous(db_session, op
         _ligne("50", "MARTIN Alix / DURAND Paul", "", is_relay=True),
         _ligne("51", "DUPONT Jean-Pierre / MARTIN Alix", "", is_relay=True),
     ]
-    import_service.persist_results(db_session, URL, lignes)
-    import_service.persist_results(db_session, URL, lignes)
+    import_persistence.persist_results(db_session, URL, lignes)
+    import_persistence.persist_results(db_session, URL, lignes)
 
     relais = db_session.query(Participation).filter_by(bib_number="51").one()
     assert relais.athlete.nom.startswith("Anonyme ") and not relais.raw_data

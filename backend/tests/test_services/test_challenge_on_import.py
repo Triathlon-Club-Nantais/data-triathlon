@@ -4,7 +4,7 @@ from datetime import date
 from app.models.challenge import Challenge, ChallengeResult
 from app.models.course import Course
 from app.scrapers.base import ScrapedResult
-from app.services import import_service, stats_service
+from app.services import import_persistence, stats_service
 
 URL = "https://www.klikego.com/resultats/medoc-atlantique-frenchman-triathlon-carcans-2026/1354050643080-23"
 DAY = date(2026, 5, 13)
@@ -32,7 +32,7 @@ def _batch(names, *, challenge_heat=CHALLENGE_HEAT):
 
 def test_challenge_heat_is_stored_as_a_challenge(db_session):
     names = [f"NOM{i}" for i in range(5)]
-    outcome = import_service.persist_results(db_session, URL, _batch(names))
+    outcome = import_persistence.persist_results(db_session, URL, _batch(names))
 
     courses = db_session.query(Course).all()
     assert sorted(c.name.rsplit(" - ", 1)[1] for c in courses) == ["M", "XS"]
@@ -47,16 +47,16 @@ def test_challenge_heat_is_stored_as_a_challenge(db_session):
 def test_stats_are_identical_with_or_without_the_challenge_heat(db_session):
     names = [f"NOM{i}" for i in range(5)]
     without = [r for r in _batch(names) if "CHALLENGE" not in r.event_name]
-    import_service.persist_results(db_session, URL, without)
+    import_persistence.persist_results(db_session, URL, without)
     before = stats_service.get_stats(db_session)
-    import_service.persist_results(db_session, URL, _batch(names))
+    import_persistence.persist_results(db_session, URL, _batch(names))
     assert db_session.query(Challenge).count() == 1
     assert stats_service.get_stats(db_session) == before
 
 
 def test_isolated_challenge_heat_stays_a_course(db_session):
     rows = [_row("La Baule - Challenge", f"SOLO{i}", f"b{i}") for i in range(4)]
-    outcome = import_service.persist_results(db_session, URL, rows)
+    outcome = import_persistence.persist_results(db_session, URL, rows)
     assert db_session.query(Challenge).count() == 0
     assert db_session.query(Course).one().participation_count == 4
     assert outcome["challenges"] == 0
@@ -65,8 +65,8 @@ def test_isolated_challenge_heat_stays_a_course(db_session):
 
 def test_reimport_is_idempotent(db_session):
     names = [f"NOM{i}" for i in range(5)]
-    import_service.persist_results(db_session, URL, _batch(names))
-    import_service.persist_results(db_session, URL, _batch(names))
+    import_persistence.persist_results(db_session, URL, _batch(names))
+    import_persistence.persist_results(db_session, URL, _batch(names))
     assert db_session.query(Challenge).count() == 1
     assert db_session.query(ChallengeResult).count() == 5
     assert db_session.query(Course).count() == 2
@@ -75,10 +75,10 @@ def test_reimport_is_idempotent(db_session):
 def test_a_heat_first_stored_as_a_course_is_converted_once_it_matches(db_session):
     names = [f"NOM{i}" for i in range(5)]
     challenge_only = [r for r in _batch(names) if "CHALLENGE" in r.event_name]
-    import_service.persist_results(db_session, URL, challenge_only)
+    import_persistence.persist_results(db_session, URL, challenge_only)
     assert db_session.query(Course).count() == 1
 
-    import_service.persist_results(db_session, URL, _batch(names))
+    import_persistence.persist_results(db_session, URL, _batch(names))
 
     assert sorted(c.name.rsplit(" - ", 1)[1] for c in db_session.query(Course).all()) == ["M", "XS"]
     assert db_session.query(ChallengeResult).count() == 5
@@ -89,11 +89,11 @@ def test_a_redated_course_twin_is_found_by_its_heat_url(db_session):
     Challenge, lui, est daté du 14/05. La recherche par nom **et** date la ratait."""
     names = [f"NOM{i}" for i in range(5)]
     challenge_only = [r for r in _batch(names) if "CHALLENGE" in r.event_name]
-    import_service.persist_results(db_session, URL, challenge_only)
+    import_persistence.persist_results(db_session, URL, challenge_only)
     db_session.query(Course).one().event_date = date(2026, 5, 12)
     db_session.flush()
 
-    import_service.persist_results(db_session, URL, _batch(names))
+    import_persistence.persist_results(db_session, URL, _batch(names))
 
     assert sorted(c.name.rsplit(" - ", 1)[1] for c in db_session.query(Course).all()) == ["M", "XS"]
     assert db_session.query(Challenge).count() == 1
@@ -104,11 +104,11 @@ def test_another_edition_under_the_same_url_is_not_a_twin(db_session):
     d'avant n'est pas le jumeau du Challenge de cette année."""
     names = [f"NOM{i}" for i in range(5)]
     challenge_only = [r for r in _batch(names) if "CHALLENGE" in r.event_name]
-    import_service.persist_results(db_session, URL, challenge_only)
+    import_persistence.persist_results(db_session, URL, challenge_only)
     db_session.query(Course).one().event_date = date(2025, 5, 14)
     db_session.flush()
 
-    import_service.persist_results(db_session, URL, _batch(names))
+    import_persistence.persist_results(db_session, URL, _batch(names))
 
     assert db_session.query(Course).filter(Course.event_date == date(2025, 5, 14)).count() == 1
 
@@ -124,9 +124,9 @@ def test_a_same_named_course_from_another_source_is_not_deleted(db_session):
         )
         for i in range(3)
     ]
-    import_service.persist_results(db_session, other[0].source_url, other)
+    import_persistence.persist_results(db_session, other[0].source_url, other)
 
-    import_service.persist_results(db_session, URL, _batch(names))
+    import_persistence.persist_results(db_session, URL, _batch(names))
 
     assert db_session.query(Challenge).count() == 1
     kept = db_session.query(Course).filter(Course.name == f"{EVENT} - {CHALLENGE_HEAT}").one()

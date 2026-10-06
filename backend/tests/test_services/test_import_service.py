@@ -20,7 +20,7 @@ from app.repositories import (
     user_repository,
 )
 from app.scrapers.base import FanoutTrace, ScrapedResult
-from app.services import admin_actions, deadlock, import_service, quality
+from app.services import admin_actions, deadlock, import_persistence, import_service, quality
 
 
 def _settings() -> Settings:
@@ -76,14 +76,14 @@ def test_import_ne_resout_la_course_qu_une_fois_par_lot(db_session, patch_scrape
     zéro (doublon, get_or_create, attach) — mesuré à ~7000 requêtes sur une course
     à 2396 participants en prod.
     """
-    original = import_service.mapping.get_or_create_course
+    original = import_persistence.mapping.get_or_create_course
     appels = []
 
     def _compte(db, scraped, event_url):
         appels.append(scraped.bib_number)
         return original(db, scraped, event_url)
 
-    monkeypatch.setattr(import_service.mapping, "get_or_create_course", _compte)
+    monkeypatch.setattr(import_persistence.mapping, "get_or_create_course", _compte)
 
     patch_scraper([_result(str(i), "DUPONT", prenom=f"P{i}") for i in range(5)])
     import_service.import_event(db_session, URL, _settings())
@@ -739,8 +739,8 @@ def test_import_event_rolls_back_when_persistence_fails(db_session, patch_scrape
         vrai_persist(db, url, results)
         raise RuntimeError("disque plein")
 
-    vrai_persist = import_service.persist_results
-    monkeypatch.setattr(import_service, "persist_results", _persister_puis_lever)
+    vrai_persist = import_persistence.persist_results
+    monkeypatch.setattr(import_persistence, "persist_results", _persister_puis_lever)
 
     with pytest.raises(ScraperError, match="Erreur lors de l'enregistrement des résultats."):
         import_service.import_event(db_session, URL, _settings())
@@ -748,7 +748,7 @@ def test_import_event_rolls_back_when_persistence_fails(db_session, patch_scrape
     assert db_session.query(Course).count() == 0
     assert db_session.query(Participation).count() == 0
     # La Session reste utilisable après le rollback.
-    monkeypatch.setattr(import_service, "persist_results", vrai_persist)
+    monkeypatch.setattr(import_persistence, "persist_results", vrai_persist)
     out = import_service.import_event(db_session, URL, _settings())
     assert _counters(out)["imported"] == 1
 
@@ -1103,18 +1103,18 @@ def test_reimport_ligne_identique_compte_en_skipped(db_session, patch_scraper):
 
 def test_is_empty_distingue_false_et_zero_des_valeurs_vides():
     """`False` et `0` ne sont pas « vides » : ils peuvent corriger une valeur en base."""
-    assert import_service._is_empty(None) is True
-    assert import_service._is_empty("") is True
-    assert import_service._is_empty({}) is True
-    assert import_service._is_empty(False) is False
-    assert import_service._is_empty(0) is False
+    assert import_persistence._is_empty(None) is True
+    assert import_persistence._is_empty("") is True
+    assert import_persistence._is_empty({}) is True
+    assert import_persistence._is_empty(False) is False
+    assert import_persistence._is_empty(0) is False
 
 
 def test_merge_fields_ecrit_false_sur_true_et_ignore_vide_et_cles():
     """Champ non vide et différent → retenu ; `is_relay=False` corrige un `True` ;
     valeur vide ignorée ; clé d'appariement jamais réécrite."""
     existing = SimpleNamespace(is_relay=True, total_time="01:00:00", bib_number="1")
-    changes = import_service._merge_fields(
+    changes = import_persistence._merge_fields(
         existing, {"is_relay": False, "total_time": "", "bib_number": "9"}
     )
     assert changes == {"is_relay": False}
@@ -1945,7 +1945,7 @@ def _queries_for_persist(db_session, *, n: int, marker: str) -> list[str]:
     engine = db_session.get_bind()
     event.listen(engine, "before_cursor_execute", _record)
     try:
-        import_service.persist_results(db_session, f"https://www.klikego.com/{marker}", results)
+        import_persistence.persist_results(db_session, f"https://www.klikego.com/{marker}", results)
     finally:
         event.remove(engine, "before_cursor_execute", _record)
     return queries
@@ -2013,7 +2013,7 @@ def test_resolve_pending_appelle_les_fonctions_de_lot_par_tranche_pas_par_ligne(
     monkeypatch.setattr(participation_repository, "create_batch", _spy_create_participations)
 
     results = [_result(str(i), f"LOT{i}") for i in range(1200)]
-    import_service.persist_results(db_session, "https://www.klikego.com/lot706", results)
+    import_persistence.persist_results(db_session, "https://www.klikego.com/lot706", results)
 
     # 1200 lignes / tranche de ~500 → 3 tranches (500, 500, 200) : quelques
     # appels seulement, jamais 1200.
@@ -2334,7 +2334,7 @@ def test_import_split_finds_an_existing_athlete_published_firstname_first(
 
 @pytest.mark.parametrize("tranche", [500, 1], ids=["un-lot", "tranche-unitaire"])
 def test_import_splits_several_relays_in_one_batch(db_session, patch_scraper, monkeypatch, tranche):
-    monkeypatch.setattr(import_service, "_TRANCHE_SIZE", tranche)
+    monkeypatch.setattr(import_persistence, "_TRANCHE_SIZE", tranche)
     patch_scraper([
         _relay("7", "CANNIOU/OLIVIER", "Cedric/Leclerc"),
         _relay("", "MASSONNEAU PIERRE", "/ BESANCON FABIEN ."),
@@ -2423,7 +2423,7 @@ def test_import_never_splits_outside_relays(db_session, patch_scraper, monkeypat
     def forbidden(_published):
         raise AssertionError("split_relay_teammates appelée hors relais")
 
-    monkeypatch.setattr(import_service, "split_relay_teammates", forbidden)
+    monkeypatch.setattr(import_persistence, "split_relay_teammates", forbidden)
     patch_scraper([
         _result("1", "CHAIGNEAU BENJAMIN", "/ LENOIR-LEDOUX CHRISTELLE ."),
         _result("2", "LES PATATALO", "Gaelle et Laure"),
@@ -2455,7 +2455,7 @@ def test_import_keeps_hyphenated_teammate_names(db_session, patch_scraper):
 def _import_before_895(db_session, patch_scraper, monkeypatch, results):
     """État d'une épreuve importée avant #895 : relais portés par leur fiche d'équipe."""
     with monkeypatch.context() as patch:
-        patch.setattr(import_service, "split_relay_teammates", lambda _published: None)
+        patch.setattr(import_persistence, "split_relay_teammates", lambda _published: None)
         patch_scraper(results)
         import_service.import_event(db_session, URL, _settings())
     db_session.commit()
@@ -2594,7 +2594,7 @@ def test_split_fallback_keeps_the_reconcile_guard(db_session, patch_scraper, mon
 def test_guard_holds_when_the_individual_line_comes_in_a_later_tranche(
     db_session, patch_scraper, monkeypatch
 ):
-    monkeypatch.setattr(import_service, "_TRANCHE_SIZE", 1)
+    monkeypatch.setattr(import_persistence, "_TRANCHE_SIZE", 1)
     patch_scraper([_relay("1", "DUPONT Jean / MARTIN Paul", ""), _relay("2", "DUPONT", "Jean")])
 
     import_service.import_event(db_session, URL, _settings())

@@ -48,7 +48,7 @@ from app.repositories import (
 from app.schemas.course import CourseSourceOut
 from app.scrapers.base import STATUS_FINISHER
 from app.scrapers.utils import MAX_RELAY_TEAMMATES, MIN_RELAY_TEAMMATES
-from app.services import import_service, opposition_service, sse_relay
+from app.services import import_persistence, import_service, opposition_service, sse_relay
 from app.services.course_locks import (
     lock_all_courses_or_409,
     lock_courses_or_409,
@@ -462,7 +462,7 @@ def _stream_switch_course_source(
                     course_source_repository.set_active(db, source)
 
                     emit({"phase": "saving", "total": len(results)})
-                    outcome = import_service.persist_results(db, source_url, results)
+                    outcome = import_persistence.persist_results(db, source_url, results)
                     purges = athlete_repository.delete_orphans_among(db, candidats)
 
                     admin_action_log_repository.create(
@@ -664,7 +664,7 @@ def _stream_rescrape(
                     })
                     # Les rattrapages de lot (#294, #672, #757) passent avec la boucle :
                     # le re-scrape les sautait et défaisait les rangs renumérotés (#914).
-                    for done, persister in import_service.persist_steps(db, source_url, results):
+                    for done, persister in import_persistence.persist_steps(db, source_url, results):
                         if done and (done % 20 == 0 or done == total):
                             emit({
                                 "phase": "saving", "total": total,

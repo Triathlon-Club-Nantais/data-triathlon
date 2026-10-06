@@ -712,7 +712,7 @@ def test_run_batch_pause_entre_epreuves_mais_pas_apres_la_derniere(
 
 def test_run_batch_cumule_les_reconciliations(db_session, monkeypatch):
     from app.services import batch, import_service
-    from app.services.import_service import Reassignment
+    from app.services.import_persistence import Reassignment
 
     def _iter(db, url, settings, force=False, persist=True, **kwargs):
         yield {
@@ -854,7 +854,7 @@ def test_a_registered_passive_source_travels_from_the_done_phase_to_the_totals(
     n'atteint jamais l'`Outcome` de la commande, donc ni le rapport texte ni la
     charge `--json`. C'est le patron de `failures`, épinglé pour la même raison.
     """
-    from app.services.import_service import PassiveSource
+    from app.services.import_persistence import PassiveSource
 
     signalee = PassiveSource(
         url="https://resultats.breizhchrono.com/r/1",
@@ -887,7 +887,7 @@ def test_a_registered_passive_source_is_neither_an_error_nor_an_import(
     rien importé de neuf, ce qui reste un succès (`est_echec_total` compare des
     épreuves, pas des participants).
     """
-    from app.services.import_service import PassiveSource
+    from app.services.import_persistence import PassiveSource
 
     def _phases(db, url, settings, force=False, persist=True, **kwargs):
         yield {"phase": "done", "imported": 0, "updated": 0, "skipped": 12, "total": 12,
