@@ -9,7 +9,7 @@ import { EquipeRelais, nomEquipe } from "@/components/results/EquipeRelais";
 import { isNonFinisher } from "@/lib/utils/raceOrder";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { secondsFromHms } from "@/lib/utils/time";
-import { genderShort } from "@/lib/utils/format";
+import { genderShort, ordinalFr } from "@/lib/utils/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClassementPagination } from "@/components/results/ClassementPagination";
 import { PAGE_SIZE_DEFAUT, PAGE_SIZE_PARAM, parsePageSize } from "@/lib/pageSize";
@@ -645,10 +645,11 @@ export function RaceFinishers({
                       tient déjà ses 1 080 px (#1207). */}
                   {p.rank_category != null && (
                     <div
-                      title={`${p.rank_category}e de sa catégorie`}
+                      title={`${ordinalFr(p.rank_category)} de sa catégorie`}
                       style={{ fontSize: 11, color: "var(--tcn-text-faint)" }}
                     >
-                      {p.rank_category}e
+                      {ordinalFr(p.rank_category)}
+                      <span className="sr-only"> de sa catégorie</span>
                     </div>
                   )}
                 </td>
@@ -728,7 +729,7 @@ export function RaceFinishers({
           // répartissait trois tirets dans trois colonnes distinctes.
           const genre = p.athlete?.gender ? genderShort(p.athlete.gender) : null;
           const categorie =
-            p.category && p.rank_category != null ? `${p.category} (${p.rank_category}e)` : p.category;
+            p.category && p.rank_category != null ? `${p.category} (${ordinalFr(p.rank_category)})` : p.category;
           const meta = [p.club, categorie, genre].filter(Boolean).join(" · ");
           return (
             <LigneCarte

@@ -39,8 +39,8 @@ function NoteRaison({ reason }: { reason: DuplicateCandidate["reason"] }) {
 
 /**
  * L'identifiant d'abord : les noms d'une paire se ressemblent, et le suivi
- * d'exploitation cite les épreuves par numéro (#1215). La date de création
- * dit laquelle des deux est l'ancienne.
+ * d'exploitation cite les épreuves par numéro (#1215). La date d'import dit
+ * laquelle des deux est l'ancienne.
  */
 function LigneEpreuve({ course }: { course: DuplicateCourse }) {
   return (
@@ -57,7 +57,7 @@ function LigneEpreuve({ course }: { course: DuplicateCourse }) {
       {course.event_date ? ` · ${formatDate(course.event_date)}` : ""} ·{" "}
       {eventTypeLabel(course.event_type)} · {course.total} résultat{course.total > 1 ? "s" : ""}
       {course.tcn_count > 0 ? ` (dont ${course.tcn_count} TCN)` : ""}
-      <span className="text-[var(--tcn-text-faint)]"> · créée le {formatDate(course.created_at)}</span>
+      <span className="text-[var(--tcn-text-faint)]"> · importée le {formatDate(course.created_at)}</span>
     </div>
   );
 }

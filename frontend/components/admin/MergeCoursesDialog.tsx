@@ -28,7 +28,9 @@ function CarteEpreuve({
         choisie ? "border-primary bg-accent" : "border-transparent"
       }`}
     >
-      <span className="block font-medium">Garder {providerLabel(course.provider)}</span>
+      <span className="block font-medium">
+        Garder n° {course.id} · {providerLabel(course.provider)}
+      </span>
       <span className="text-[var(--tcn-text-faint)] block text-xs">
         {course.name}
         {course.event_date ? ` · ${formatDate(course.event_date)}` : ""} ·{" "}
@@ -131,8 +133,10 @@ export function MergeCoursesDialog({
 
       {cible && absorbee && absorbee.tcn_count > cible.tcn_count && (
         <p role="alert" className="text-sm font-medium text-destructive">
-          L&apos;épreuve supprimée porte {absorbee.tcn_count} résultats TCN, celle conservée{" "}
-          {cible.tcn_count} : gardez plutôt l&apos;autre, sans quoi ils seront perdus.
+          L&apos;épreuve supprimée porte {motCompte(absorbee.tcn_count, "résultat")} TCN, celle
+          conservée {cible.tcn_count === 0 ? "aucun" : `seulement ${cible.tcn_count}`} : la fusion
+          garde les lignes de la conservée, et ces résultats ne compteront plus pour le club.
+          Gardez plutôt l&apos;autre.
         </p>
       )}
 

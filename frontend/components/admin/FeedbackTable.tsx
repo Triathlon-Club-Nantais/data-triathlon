@@ -329,8 +329,9 @@ export function FeedbackTable() {
                       href={f.github_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="ml-2 text-xs text-primary underline underline-offset-2"
+                      className="ml-2 text-xs text-foreground underline underline-offset-2"
                       title={f.github_url}
+                      aria-label={`Issue GitHub ${libelleIssue(f.github_url)} (nouvel onglet)`}
                     >
                       {libelleIssue(f.github_url)}
                     </a>
