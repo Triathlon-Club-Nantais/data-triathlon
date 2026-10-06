@@ -25,7 +25,6 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.athlete_identity import athlete_identity_keys
-from app.core.club import is_tcn
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.core.time import utcnow
 from app.models.athlete import Athlete
@@ -40,6 +39,7 @@ from app.repositories import (
     lock_repository,
     participation_repository,
     season_validation_repository,
+    tcn_count_repository,
     volunteer_action_repository,
 )
 from app.scrapers.base import STATUS_FINISHER
@@ -317,6 +317,9 @@ def reassign_participation(
     purges = athlete_repository.delete_orphans_among(
         db, [i for i in dict.fromkeys([source_id, *anciens_equipiers]) if i != cible.id]
     )
+    tcn_count_repository.recompute_counts_for_tcn(
+        db, athlete_ids=[source_id, cible.id, *anciens_equipiers], course_ids=[course_id]
+    )
 
     admin_action_log_repository.create(
         db,
@@ -429,6 +432,9 @@ def set_teammates(
     purges = athlete_repository.delete_orphans_among(
         db, [i for i in dict.fromkeys(candidats) if i not in ids]
     )
+    tcn_count_repository.recompute_counts_for_tcn(
+        db, athlete_ids=[source_id, *actuels, *ids], course_ids=[course_id]
+    )
 
     admin_action_log_repository.create(
         db,
@@ -489,17 +495,21 @@ def delete_participation(db: Session, *, participation_id: int, user_id: int) ->
         entity_id=participation_id,
         payload=resume,
     )
+    athlete_id = participation.athlete_id
+    course_id = participation.course_id
     # Compteurs dénormalisés (#623) : ajustés seulement si la ligne comptait
     # déjà (#270) — une participation en attente n'entrait dans aucun agrégat
-    # public, la supprimer n'en retire donc aucun.
+    # public, la supprimer n'en retire donc aucun. Le compte du club, lui, se
+    # recalcule après la suppression : la ligne retirée pouvait rattacher au
+    # club d'autres résultats de l'athlète (#1206).
     if not participation.is_pending_validation:
         course_repository.adjust_counts(
-            db,
-            participation.course,
-            participation_delta=-1,
-            tcn_delta=-1 if is_tcn(participation.club) else 0,
+            db, participation.course, participation_delta=-1, tcn_delta=0
         )
     participation_repository.delete(db, participation)
+    tcn_count_repository.recompute_counts_for_tcn(
+        db, athlete_ids=[athlete_id], course_ids=[course_id]
+    )
     logger.info("Admin %s deleted participation %s", user_id, participation_id)
     return resume
 
@@ -622,7 +632,10 @@ def validate_participation(db: Session, *, participation_id: int, user_id: int) 
         db,
         participation.course,
         participation_delta=1,
-        tcn_delta=1 if is_tcn(participation.club) else 0,
+        tcn_delta=0,
+    )
+    tcn_count_repository.recompute_counts_for_tcn(
+        db, athlete_ids=[participation.athlete_id], course_ids=[participation.course_id]
     )
 
     admin_action_log_repository.create(
@@ -728,6 +741,8 @@ def update_participation_fields(
     apres = instantane(participation, _CHAMPS_PARTICIPATION)
     if apres == avant:
         return participation
+    if avant["club"] != apres["club"]:
+        tcn_count_repository.recompute_counts_for_tcn(db, athlete_ids=[participation.athlete_id])
 
     admin_action_log_repository.create(
         db,

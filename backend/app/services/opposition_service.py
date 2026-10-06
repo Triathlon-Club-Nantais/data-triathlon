@@ -15,7 +15,6 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
-from app.core.club import is_tcn
 from app.core.exceptions import DomainError, NotFoundError
 from app.core.identity import identity_hash, opposition_key
 from app.core.time import utcnow
@@ -164,7 +163,7 @@ def _anonymise(db: Session, athlete: Athlete) -> int:
             participation_repository.replace_teammate(
                 db, participation_id=participation.id, old_athlete_id=athlete.id, new_athlete_id=anonymous.id
             )
-        if is_tcn(participation.club):
+        if participation.counts_for_tcn:
             course_repository.adjust_counts(db, participation.course, participation_delta=0, tcn_delta=-1)
         participation_repository.reassign(db, participation, athlete_id=anonymous.id)
         participation.club = ""

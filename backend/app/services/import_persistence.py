@@ -30,6 +30,7 @@ from app.repositories import (
     lock_repository,
     opposition_repository,
     participation_repository,
+    tcn_count_repository,
 )
 from app.repositories.athlete_repository import IdentityKey
 from app.scrapers import registry
@@ -1091,6 +1092,9 @@ class _Persister:
                 self.db, [self._athlete_updates[aid] for aid in sorted(self._athlete_updates)]
             )
             self._athlete_updates.clear()
+        # Verdict du club avant les compteurs : `recount` le lit (#1206). La
+        # portée s'étend aux autres résultats des athlètes importés.
+        tcn_count_repository.recompute_counts_for_tcn(self.db, course_ids=list(self._courses))
         for course_id, course in self._courses.items():
             course_repository.touch_scraped_at(self.db, course)
             course_source_repository.touch_active_scraped_at(self.db, course_id)

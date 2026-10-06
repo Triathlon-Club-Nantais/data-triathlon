@@ -2037,8 +2037,9 @@ def test_finalize_ne_recharge_plus_les_participations_d_une_deuxieme_fois(db_ses
 
     reloads = [
         q for q in queries
-        if q.strip().upper().startswith("SELECT") and "FROM PARTICIPATIONS" in q.upper()
+        if q.strip().upper().startswith("SELECT PARTICIPATIONS.ID") and "FROM PARTICIPATIONS" in q.upper()
     ]
+    # Le SELECT du recalcul du verdict (#1206) ne charge pas de lignes : exclu.
     assert len(reloads) == 1, (
         f"{len(reloads)} requêtes SELECT...FROM participations pour une course : "
         "finalize() semble encore recharger une deuxième fois"
