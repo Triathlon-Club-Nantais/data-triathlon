@@ -33,9 +33,9 @@ def purge_before(db: Session, season: int, *, dry_run: bool) -> int:
 
     Une ligne non rattachée, ou rattachée à une fiche disparue, disparaît. Une
     ligne rattachée ne garde que le fait « cette fiche était licenciée cette
-    saison », qui fait compter ses résultats d'alors : numéro de licence
-    effacé, nom et prénom remplacés par ceux de la fiche, une seule ligne par
-    fiche et saison.
+    saison », qui fait compter ses résultats d'alors : numéro de licence et
+    sexe effacés, nom, prénom et clés d'identité remplacés par ceux de la
+    fiche, une seule ligne par fiche et saison.
     """
     old_rows = db.execute(
         select(ClubMember.id, ClubMember.athlete_id, ClubMember.season, ClubMember.licence_id, ClubMember.link_status)
@@ -63,6 +63,9 @@ def purge_before(db: Session, season: int, *, dry_run: bool) -> int:
             licence_id=None,
             nom=select(Athlete.nom).where(Athlete.id == ClubMember.athlete_id).scalar_subquery(),
             prenom=select(Athlete.prenom).where(Athlete.id == ClubMember.athlete_id).scalar_subquery(),
+            gender="",
+            last_name_key=select(Athlete.last_name_key).where(Athlete.id == ClubMember.athlete_id).scalar_subquery(),
+            first_name_key=select(Athlete.first_name_key).where(Athlete.id == ClubMember.athlete_id).scalar_subquery(),
         )
         .execution_options(synchronize_session=False)
     )

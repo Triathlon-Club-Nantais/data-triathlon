@@ -121,7 +121,7 @@ appliquent dès #334.
 | Session de connexion | 7 jours | tenu (`auth_session_ttl_days`) |
 | Cookie du code d'accès | 90 jours | tenu (`site_access_session_ttl_days`) |
 | Profils jeunes | durée de l'adhésion, plus une saison | tenu dès qu'un encadrant saisit la fin d'adhésion (`purge-retention`, #1158) |
-| Liste des licenciés du club (#1202) | saison en cours et précédente ; ensuite, le seul rattachement à une fiche, sans numéro de licence | tenu (`purge-retention`) |
+| Liste des licenciés du club (#1202) | saison en cours et précédente ; ensuite, seuls la saison et le rattachement à une fiche, sans numéro de licence ni sexe | tenu (`purge-retention`) |
 
 `purge-retention` tourne chaque semaine avec le batch planifié
 (`.github/workflows/batch.yml`) ; un échec rougit le run et alerte. Un profil
@@ -194,9 +194,11 @@ nom, prénom, sexe, numéro de licence, et la fiche d'athlète à laquelle chacu
 est rattaché. Elle est relue chaque semaine sur la page publique du club de la
 Fédération Française de Triathlon (`fftri.t2area.com`), ou importée d'un
 fichier (CSV ou XLSX) par un administrateur pour une saison passée. Elle sert
-à compter comme résultats du club ceux de ses licenciés pour la saison de
-l'épreuve, même quand le chronométreur ne publie pas leur club. Aucun autre
-usage.
+à compter comme résultats du club ceux de ses licenciés : un résultat compte
+quand l'athlète (ou un équipier du relais) est licencié pour la saison de l'épreuve, même si le
+chronométreur ne publie pas son club. Un club ambigu (qui peut désigner le
+club ou un autre) compte aussi pour un athlète rattaché à un licencié, de
+n'importe quelle saison. Aucun autre usage.
 
 **Base légale.** Intérêt légitime (article 6.1.f), comme les résultats :
 
@@ -218,10 +220,10 @@ produit.
 
 **Conservation.** La saison en cours et la précédente, en clair. Au-delà,
 `purge-retention` supprime les licenciés sans fiche ou rattachés de façon
-ambiguë. Des autres, il ne garde que le fait « cette fiche était licenciée
-cette saison » (une ligne par saison et par fiche) : le numéro de licence est
-effacé, le nom et le prénom sont remplacés par ceux de la fiche, qui suit la
-durée de conservation des résultats. Sans ce fait, les compteurs des saisons
+ambiguë. Des autres, il ne garde que la saison et le rattachement à la fiche
+(une ligne par saison et par fiche) : le numéro de licence et le sexe sont
+effacés, le nom, le prénom et les clés d'identité sont remplacés par ceux de
+la fiche, qui suit la durée de conservation des résultats. Sans ce fait, les compteurs des saisons
 passées changeraient à chaque purge.
 
 ## Hors de cette décision, signalé
