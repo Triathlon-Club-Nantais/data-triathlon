@@ -251,6 +251,31 @@ def test_a_parcours_published_with_an_indiv_twin_is_a_team_course(monkeypatch):
     }
 
 
+def test_a_parcours_of_team_categories_is_a_team_course(monkeypatch):
+    """Altichrono, lac du Bouchet 2026 : « SWIMRUN S » ne classe que des
+    catégories d'équipe (EQX, EQF, EQM), sans mot d'équipe dans le parcours."""
+    xml = _event_xml(
+        competitors=(
+            '<E d="1" n="LES CANARDS" ca="EQX" v="1" p="SWIMRUN S"/>'
+            '<E d="2" n="LES PHOQUES" ca="EQF" v="2" p="SWIMRUN S"/>'
+            '<E d="3" n="SOLO Jean" x="M" ca="S2" v="3" p="DISTANCE M INDIVIDUEL"/>'
+        ),
+        results='<R d="1" t="01:05:00"/><R d="2" t="01:10:00"/><R d="3" t="02:10:00"/>',
+    )
+    root = ET.fromstring(xml)
+    monkeypatch.setattr(
+        "app.scrapers.wiclax._fetch_clax",
+        lambda _url: (root, "http://x", "TRIATHLON DU LAC DU BOUCHET", "triathlon", None),
+    )
+
+    relais = {r.event_name: r.is_relay for r in scrape_event_all("http://x")}
+
+    assert relais == {
+        "TRIATHLON DU LAC DU BOUCHET - SWIMRUN S": True,
+        "TRIATHLON DU LAC DU BOUCHET - DISTANCE M INDIVIDUEL": False,
+    }
+
+
 # --- Chaîne de segments par parcours (détection via les disc) ----------------
 
 

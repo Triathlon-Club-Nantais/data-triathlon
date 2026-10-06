@@ -676,15 +676,25 @@ def _iter_parcours_results(
     return par_parcours, ordre
 
 
-def _mark_team_parcours(par_parcours: dict[str, list[ScrapedResult]]) -> None:
-    """Type relais un parcours doublé d'un classement « <parcours> - Indiv » (#1213).
+#: Catégories d'équipe, les mêmes que chez TimePulse : mixte, hommes, femmes.
+_TEAM_CATEGORIES = frozenset({"EQX", "EQM", "EQF"})
 
-    Raid de la Loire 2026 : « Tri-Kayak » classe les équipes, sans prénom ni club,
-    « Tri-Kayak - Indiv » leurs équipiers un par un, l'équipe en club. Aucun mot
-    d'équipe dans le nom du parcours : seul ce jumeau le désigne.
+
+def _mark_team_parcours(par_parcours: dict[str, list[ScrapedResult]]) -> None:
+    """Type relais un parcours d'équipes que son nom ne désigne pas (#1213).
+
+    Deux marqueurs mesurés, aucun mot d'équipe dans le parcours :
+    - un jumeau « <parcours> - Indiv » (Raid de la Loire 2026 : « Tri-Kayak »
+      classe les équipes, « Tri-Kayak - Indiv » leurs équipiers un par un) ;
+    - une majorité stricte de catégories d'équipe (lac du Bouchet 2026 sur
+      altichrono, « SWIMRUN S » tout en EQX, EQF, EQM).
     """
+    noms = {p.lower() for p in par_parcours}
     for parcours, results in par_parcours.items():
-        if parcours and f"{parcours.lower()} - indiv" in {p.lower() for p in par_parcours}:
+        if not parcours:
+            continue
+        equipes = sum(1 for r in results if (r.category or "").upper() in _TEAM_CATEGORIES)
+        if f"{parcours.lower()} - indiv" in noms or equipes * 2 > len(results):
             for r in results:
                 r.is_relay = True
 
