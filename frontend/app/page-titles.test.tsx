@@ -60,6 +60,7 @@ const ECRANS: [string, () => Promise<{ metadata?: Metadata }>][] = [
   ["/admin/quality", () => import("./admin/quality/page")],
   ["/admin/retours-utilisateurs", () => import("./admin/retours-utilisateurs/page")],
   ["/admin/utilisateurs", () => import("./admin/utilisateurs/page")],
+  ["/admin/membres", () => import("./admin/membres/layout")],
   ["/admin/variantes-club", () => import("./admin/variantes-club/layout")],
 ];
 

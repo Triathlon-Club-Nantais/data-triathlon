@@ -319,6 +319,16 @@ export const NAV: NavSection[] = [
         href: "/admin/variantes-club",
         permission: "club_aliases:manage",
       },
+      // Liste nominative (#1202) : elle change ce que les compteurs du club
+      // additionnent, comme la portée, mais par personne et par saison.
+      {
+        id: "a-membres",
+        label: "Licenciés du club",
+        description:
+          "La liste des licenciés publiée par la FFTri, saison par saison. Un licencié rattaché à sa fiche fait compter ses résultats de la saison pour le club, même sans libellé de club.",
+        href: "/admin/membres",
+        permission: "club_members:manage",
+      },
       {
         id: "a-journal",
         label: "Journal d'administration",

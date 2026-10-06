@@ -1272,3 +1272,42 @@ export function useApplyOpposition() {
     },
   });
 }
+
+// ── Licenciés du club (#1202) ────────────────────────────────────────────────
+
+export function useClubMembers(season: number) {
+  return useQuery({
+    queryKey: queryKeys.clubMembers(season),
+    queryFn: () => apiClient.getClubMembers(season),
+    retry: false,
+  });
+}
+
+// Tout le cache est périmé après une écriture, même raison que
+// `useAddCounterScopeEntry` : un licencié rattaché change ce que tous les
+// compteurs du club additionnent.
+export function useSyncClubMembers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.syncClubMembers(),
+    onSuccess: () => qc.invalidateQueries(),
+  });
+}
+
+export function useImportClubMembers() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ season, file }: { season: number; file: File }) =>
+      apiClient.importClubMembers(season, file),
+    onSuccess: () => qc.invalidateQueries(),
+  });
+}
+
+export function useLinkClubMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ memberId, athleteId }: { memberId: number; athleteId: number }) =>
+      apiClient.linkClubMember(memberId, athleteId),
+    onSuccess: () => qc.invalidateQueries(),
+  });
+}
