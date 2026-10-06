@@ -13,6 +13,7 @@ from dataclasses import dataclass, replace
 from sqlalchemy.orm import Session
 
 from app.core.athlete_identity import athlete_identity_keys
+from app.core.club import canonical_club_key, is_significant_club
 from app.core.gender import normalize_gender
 from app.core.identity import identity_hash
 from app.core.text import deaccent
@@ -24,9 +25,12 @@ from app.repositories import (
     absorbed_course_repository,
     admin_action_log_repository,
     athlete_alias_repository,
+    athlete_known_club_repository,
     athlete_repository,
+    club_alias_repository,
     course_repository,
     course_source_repository,
+    ignored_athlete_pair_repository,
     lock_repository,
     opposition_repository,
     participation_repository,
@@ -331,6 +335,10 @@ class _Persister:
         # Fiches créées par `_athlete_for_bib` (homonyme ou principale d'une clé
         # trouvée par repli) : s'y rattacher est une création, pas une fusion.
         self._created_for_bibs: set[int] = set()
+        # Signal de club (#1209) : alias lus une fois, et l'homonyme choisi pour
+        # chaque couple (clé d'identité, club) de ce scrape.
+        self._club_aliases: dict[str, str] = club_alias_repository.canonical_map(db)
+        self._club_homonyms: dict[tuple[IdentityKey, str], Athlete] = {}
         # Dédup par `id` de source, pas par ligne scrapée : `add` résout l'épreuve
         # une fois par participant, un classement de 250 lignes rendrait sinon
         # 250 fois la même phrase et ferait compter 250 sources pour une.
@@ -617,6 +625,8 @@ class _Persister:
         pour un même athlète neuf ne créent qu'une fiche), un seul pour les
         participations neuves. Rejoue ensuite, ligne par ligne mais sans
         requête, exactement la logique de `add`/`_reconcile` d'origine.
+        Une ligne d'un autre club qu'une fiche de membre part sur un homonyme
+        (#1209, `_athlete_for_club`).
         """
         pending = self._pending.pop(course_id, [])
         if not pending:
@@ -709,6 +719,7 @@ class _Persister:
             if self._club_of(athlete) != item.scraped.club and not athlete.club_locked
         }
         latest_clubs = athlete_repository.latest_club_dates(self.db, list(club_changes))
+        member_clubs, club_homonyms = self._club_routing(course_id, pending, decisions, kept, found)
 
         creation_consumed: set[IdentityKey] = set()
         new_participation_fields: list[dict] = []
@@ -728,11 +739,14 @@ class _Persister:
                 self._upsert(item.participation, item.scraped)
                 continue
             key = _identity_key(item.scraped)
-            athlete = record or found[key]
-            created_for_bib = False
+            athlete = resolved = record or found[key]
+            if record is None and item.participation is None and athlete.id in member_clubs:
+                athlete = self._athlete_for_club(
+                    course_id, item, athlete, member_clubs[athlete.id], club_homonyms.get(key, [])
+                )
             if record is None and item.bib is not None:
-                resolved, athlete = athlete, self._athlete_for_bib(course_id, item, athlete)
-                created_for_bib = athlete is not resolved and athlete.id in self._created_for_bibs
+                athlete = self._athlete_for_bib(course_id, item, athlete)
+            created_for_bib = athlete is not resolved and athlete.id in self._created_for_bibs
             self._present_ids[course_id].add(athlete.id)
             club = item.scraped.club or None
             if (
@@ -825,6 +839,79 @@ class _Persister:
             "course_id": course_id, "bib": item.bib, "athlete_id": homonym.id, "homonym_of": athlete.id,
         })
         return homonym
+
+    def _club_keys(self, athlete_ids: set[int]) -> dict[int, set[str]]:
+        """Clubs d'une fiche : ceux de ses résultats et ceux qu'un admin a confirmés."""
+        labels = athlete_repository.club_labels_by_athlete(self.db, athlete_ids)
+        known = athlete_known_club_repository.keys_by_athlete(self.db, athlete_ids)
+        return {
+            athlete_id: {
+                canonical_club_key(label, self._club_aliases) for label in labels.get(athlete_id, {})
+            } | known.get(athlete_id, set())
+            for athlete_id in athlete_ids
+        }
+
+    def _club_routing(
+        self, course_id: int, pending: list[_PendingResolution], decisions: list,
+        kept: list[Athlete | None], found: dict[IdentityKey, Athlete],
+    ) -> tuple[dict[int, set[str]], dict[IdentityKey, list[tuple[Athlete, set[str]]]]]:
+        """Ce que `_athlete_for_club` lit, en quelques requêtes par tranche (#1209) :
+        les clubs des fiches de membre qu'une ligne d'un autre club pourrait viser,
+        puis les homonymes de ces lignes avec leurs clubs."""
+        if self._courses[course_id].is_relay:
+            return {}, {}
+        candidates = [
+            (_identity_key(item.scraped), canonical_club_key(item.scraped.club, self._club_aliases))
+            for item, teammates, record in zip(pending, decisions, kept, strict=True)
+            if teammates is None and record is None and item.participation is None
+            and not item.reconcile_blocked and not item.scraped.is_relay
+            and is_significant_club(item.scraped.club)
+        ]
+        principals = {found[key].id for key, _ in candidates}
+        if not principals:
+            return {}, {}
+        member_clubs = self._club_keys(athlete_repository.member_record_ids(self.db, principals))
+        foreign = {
+            key for key, club_key in candidates
+            if found[key].id in member_clubs and club_key not in member_clubs[found[key].id]
+            and (key, club_key) not in self._club_homonyms
+        }
+        homonyms = athlete_repository.homonyms_of(self.db, foreign)
+        clubs = self._club_keys({homonym.id for listed in homonyms.values() for homonym in listed})
+        return member_clubs, {
+            key: [(homonym, clubs[homonym.id]) for homonym in listed] for key, listed in homonyms.items()
+        }
+
+    def _athlete_for_club(
+        self, course_id: int, item: _PendingResolution, athlete: Athlete, known_keys: set[str],
+        homonyms: list[tuple[Athlete, set[str]]],
+    ) -> Athlete:
+        """La fiche d'une ligne publiée sous un autre club que ceux d'une fiche de
+        membre (#1209) : l'homonyme de même nom qui porte déjà ce club, sinon un
+        nouvel homonyme, jugé distinct d'office pour que la reprise ne le refusionne
+        pas. Une fiche trouvée par variante ou par repli n'a pas la clé de la
+        ligne : rien n'est décidé sur elle. Club vide, ville ou libellé du club :
+        la ligne reste sur la fiche de membre."""
+        if item.scraped.is_relay or not is_significant_club(item.scraped.club):
+            return athlete
+        club_key = canonical_club_key(item.scraped.club, self._club_aliases)
+        identity = _identity_key(item.scraped)
+        if club_key in known_keys or (athlete.last_name_key, athlete.first_name_key) != identity:
+            return athlete
+        routed = self._club_homonyms.get((identity, club_key))
+        if routed is None:
+            routed = next((homonym for homonym, clubs in homonyms if club_key in clubs), None)
+        if routed is None:
+            routed = athlete_repository.create_homonym(self.db, mapping.athlete_creation_fields(item.scraped))
+            ignored_athlete_pair_repository.create(
+                self.db, athlete_id_a=athlete.id, athlete_id_b=routed.id, user_id=None
+            )
+            self._created_for_bibs.add(routed.id)
+            self.homonyms_created.append({
+                "course_id": course_id, "bib": item.bib, "athlete_id": routed.id, "homonym_of": athlete.id,
+            })
+        self._club_homonyms[(identity, club_key)] = routed
+        return routed
 
     def _races_twice(self, course_id: int, item: _PendingResolution, athlete: Athlete) -> bool:
         """Vrai si `athlete` porte, sur cette épreuve individuelle, un autre dossard
