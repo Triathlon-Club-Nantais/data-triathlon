@@ -43,9 +43,9 @@ def narbonne_and_nantes(db_session):
         db_session, athlete_id=nantes.id, course_id=other.id, bib_number="1",
         club="Triathlon Club Nantais", status="finisher", rank_overall=5,
     )
-    tcn_count_repository.recompute_counts_for_tcn(db_session)
     course_repository.recount(db_session, race)
     course_repository.recount(db_session, other)
+    tcn_count_repository.recompute_counts_for_tcn(db_session)
     db_session.commit()
     yield race, narbonne, nantes
     counter_scope.reset()

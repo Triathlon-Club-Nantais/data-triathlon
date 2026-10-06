@@ -104,15 +104,12 @@ class Course(Base):
     # endroit que `is_reliable_computed`/`quality_issues` ci-dessus
     # (`_Persister.finalize`) — pour que `GET /courses/events` (page
     # `/resultats`, défilement infini) n'ait plus à joindre puis grouper
-    # `participations` sur l'ensemble filtré avant de paginer. Ajustés au
-    # geste plutôt que recalculés depuis zéro par
-    # `admin_actions.validate_participation`/`.delete_participation`, les deux
-    # seuls gestes hors import qui changent l'état compté d'une ligne (cf.
-    # `app/repositories/course_repository.py`, `adjust_counts`). Troisième
-    # geste, qui ne touche aucune ligne mais change ce qui compte comme TCN :
-    # l'ajout, le retrait ou la bascule
-    # ambiguë d'un libellé du club recalcule tout
-    # (`tcn_count_repository.recompute_counts_for_tcn`, #939, #1206).
+    # `participations` sur l'ensemble filtré avant de paginer.
+    # `participation_count` est ajusté au geste par
+    # `admin_actions.validate_participation`/`.delete_participation`
+    # (`course_repository.adjust_counts`). `tcn_count` ne s'écrit que par
+    # `tcn_count_repository.recompute_counts_for_tcn` (#939, #1206), à chaque
+    # geste qui peut changer un verdict.
     participation_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     tcn_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 

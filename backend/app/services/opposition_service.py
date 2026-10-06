@@ -25,10 +25,11 @@ from app.repositories import (
     admin_action_log_repository,
     athlete_repository,
     challenge_repository,
-    course_repository,
+    club_member_repository,
     opposition_repository,
     participation_repository,
     season_validation_repository,
+    tcn_count_repository,
     user_repository,
     volunteer_action_repository,
 )
@@ -163,8 +164,6 @@ def _anonymise(db: Session, athlete: Athlete) -> int:
             participation_repository.replace_teammate(
                 db, participation_id=participation.id, old_athlete_id=athlete.id, new_athlete_id=anonymous.id
             )
-        if participation.counts_for_tcn and not participation.is_pending_validation:
-            course_repository.adjust_counts(db, participation.course, participation_delta=0, tcn_delta=-1)
         participation_repository.reassign(db, participation, athlete_id=anonymous.id)
         participation.club = ""
         participation.category = ""
@@ -190,12 +189,40 @@ def _anonymise(db: Session, athlete: Athlete) -> int:
         )
         row.athlete_id = anonymous.id
         row.raw_data = {}
+    # Le compte du club se relit : un relais peut compter encore par un autre
+    # licencié de l'équipe, ou cesser de compter si la personne en était le licencié.
+    touched = [link.participation for link in links] + carried
+    teammates = {
+        athlete_id
+        for participation in touched
+        for athlete_id in participation_repository.teammate_athlete_ids(db, participation.id)
+    }
+    tcn_count_repository.recompute_counts_for_tcn(
+        db,
+        course_ids={participation.course_id for participation in touched},
+        athlete_ids=teammates | {participation.athlete_id for participation in touched},
+    )
     user_repository.detach_athlete(db, athlete.id)
     volunteer_action_repository.delete_for_athlete(db, athlete.id)
     season_validation_repository.delete_for_athlete(db, athlete.id)
     db.expire(athlete)
     athlete_repository.delete(db, athlete)
     return len(carried) + len(links) + len(challenge_rows)
+
+
+def _remove_club_members(db: Session, nom: str, prenom: str, athlete_ids: set[int]) -> None:
+    """La liste des licenciés ne garde ni le nom ni la licence de la personne opposée."""
+    key = opposition_key(nom, prenom)
+    removed = [
+        (member_id, member_athlete_id)
+        for member_id, member_nom, member_prenom, member_athlete_id in club_member_repository.list_identities(db)
+        if member_athlete_id in athlete_ids or opposition_key(member_nom, member_prenom) == key
+    ]
+    club_member_repository.delete_ids(db, [member_id for member_id, _ in removed])
+    # Une ligne rattachée par une variante d'écriture désigne une autre fiche, dont le compte se relit.
+    tcn_count_repository.recompute_counts_for_tcn(
+        db, athlete_ids={a for _, a in removed if a is not None and a not in athlete_ids}
+    )
 
 
 def apply(
@@ -216,7 +243,9 @@ def apply(
     if requested_on > (today or club_today()):
         raise DomainError("La date de la demande ne peut pas être dans le futur.")
     nom, prenom = _identity(db, athlete_id, nom, prenom)
-    anonymised = sum(_anonymise(db, athlete) for athlete in _matching_athletes(db, nom, prenom))
+    athletes = _matching_athletes(db, nom, prenom)
+    _remove_club_members(db, nom, prenom, {athlete.id for athlete in athletes})
+    anonymised = sum(_anonymise(db, athlete) for athlete in athletes)
     _redact_log(db, nom, prenom)
 
     empreinte = identity_hash(nom, prenom)

@@ -506,7 +506,7 @@ def delete_participation(db: Session, *, participation_id: int, user_id: int) ->
     # club d'autres résultats de l'athlète (#1206).
     if not participation.is_pending_validation:
         course_repository.adjust_counts(
-            db, participation.course, participation_delta=-1, tcn_delta=0
+            db, participation.course, participation_delta=-1
         )
     participation_repository.delete(db, participation)
     tcn_count_repository.recompute_counts_for_tcn(
@@ -634,7 +634,6 @@ def validate_participation(db: Session, *, participation_id: int, user_id: int) 
         db,
         participation.course,
         participation_delta=1,
-        tcn_delta=0,
     )
     tcn_count_repository.recompute_counts_for_tcn(
         db, athlete_ids=[participation.athlete_id], course_ids=[participation.course_id]
@@ -786,6 +785,9 @@ def update_course(db: Session, *, course_id: int, champs: dict, user_id: int) ->
     apres = instantane(course, CHAMPS_COURSE)
     if apres == avant:
         return course
+    if apres["event_date"] != avant["event_date"]:
+        # La date fixe la saison de licence (condition 2 de la règle du club).
+        tcn_count_repository.recompute_counts_for_tcn(db, course_ids=[course_id])
 
     admin_action_log_repository.create(
         db,

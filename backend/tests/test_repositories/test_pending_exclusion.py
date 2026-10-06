@@ -147,7 +147,7 @@ def test_une_participation_validee_apres_coup_entre_dans_les_cinq_sites(db_sessi
     # Compteurs dénormalisés (#623) : ce test bascule le champ directement,
     # hors d'`admin_actions.validate_participation` (le point d'écriture réel
     # qui ajuste les compteurs) — même geste répété ici pour cette fixture.
-    course_repository.adjust_counts(db_session, course, participation_delta=1, tcn_delta=1)
+    course_repository.adjust_counts(db_session, course, participation_delta=1)
     db_session.flush()
 
     assert len(participation_repository.list_participations(db_session, course_id=course.id)) == 2

@@ -28,6 +28,20 @@ def replace_season(db: Session, season: int, members: list[ClubMember]) -> None:
     db.flush()
 
 
+def list_identities(db: Session) -> list[tuple[int, str, str, int | None]]:
+    """`(id, nom, prénom, athlete_id)` de toutes les lignes, pour l'opposition (#334)."""
+    return [
+        tuple(row)
+        for row in db.execute(select(ClubMember.id, ClubMember.nom, ClubMember.prenom, ClubMember.athlete_id))
+    ]
+
+
+def delete_ids(db: Session, member_ids: list[int]) -> None:
+    if member_ids:
+        db.execute(delete(ClubMember).where(ClubMember.id.in_(member_ids)))
+        db.flush()
+
+
 def purge_before(db: Session, season: int, *, dry_run: bool) -> int:
     """Tient la durée de conservation (#1202) : rend le nombre de lignes touchées.
 

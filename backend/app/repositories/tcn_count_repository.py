@@ -1,8 +1,11 @@
 """Ce qui compte pour le club : la règle, et son seul point d'écriture (#1206).
 
 `Participation.counts_for_tcn` porte le verdict de chaque résultat, et
-`Course.tcn_count` en est le compte dénormalisé (#623). Les deux ne s'écrivent
-qu'ici, en SQL, portable SQLite (dev, tests) et PostgreSQL (prod).
+`Course.tcn_count` en est le compte dénormalisé (#623). Les deux se calculent
+ici, en SQL, portable SQLite (dev, tests) et PostgreSQL (prod). Seules autres
+écritures : la valeur provisoire de l'écouteur d'insertion de `Participation`
+(la condition 1 seule, recalculée ensuite) et la remise à zéro de
+`course_repository.zero_counts_all` quand toutes les participations sont effacées.
 
 Un résultat compte pour le club si :
 

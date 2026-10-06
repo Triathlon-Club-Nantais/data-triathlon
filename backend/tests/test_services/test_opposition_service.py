@@ -7,14 +7,17 @@ from app.core.exceptions import DomainError
 from app.core.identity import identity_hash
 from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
+from app.models.club_member import LINK_AUTO, SOURCE_FFTRI, ClubMember
 from app.models.season_validation import SeasonValidation
 from app.models.volunteer_action import VolunteerAction
 from app.repositories import (
     athlete_repository,
+    club_member_repository,
     course_repository,
     opposition_repository,
     participation_repository,
     season_validation_repository,
+    tcn_count_repository,
     user_repository,
     volunteer_action_repository,
 )
@@ -263,3 +266,62 @@ def test_apply_leaves_the_club_counter_alone_for_a_pending_row(db, course, admin
 
     db.refresh(course)
     assert course.tcn_count == 1
+
+
+def _licensed(db, athlete, *, season=2025, nom=None, prenom=None):
+    member = ClubMember(
+        season=season, licence_id=f"L{athlete.id if athlete else nom}",
+        nom=nom or athlete.nom, prenom=prenom or athlete.prenom,
+        athlete_id=athlete.id if athlete else None, link_status=LINK_AUTO, source=SOURCE_FFTRI,
+    )
+    db.add(member)
+    db.flush()
+    return member
+
+
+def _relay(db, course, carrier, teammates, bib):
+    relais = _classer(db, course, carrier, 5, bib)
+    participation_repository.replace_teammates(db, relais, [a.id for a in teammates])
+    tcn_count_repository.recompute_counts_for_tcn(db)
+    db.refresh(relais)
+    assert relais.counts_for_tcn
+    return relais
+
+
+def test_a_relay_carried_by_the_opposer_keeps_counting_through_a_licensed_teammate(db, course, admin):
+    jean = _athlete(db, "DUPONT", "Jean")
+    paul = _athlete(db, "MARTIN", "Paul")
+    _licensed(db, paul)
+    relais = _relay(db, course, jean, [jean, paul], "50")
+
+    opposition_service.apply(db, admin, athlete_id=jean.id, requested_on=TODAY, today=TODAY)
+
+    db.expire_all()
+    assert participation_repository.get(db, relais.id).counts_for_tcn is True
+    assert course_repository.get(db, course.id).tcn_count == 1
+
+
+def test_a_relay_stops_counting_when_the_opposer_was_its_licensed_teammate(db, course, admin):
+    porteur = _athlete(db, "MARTIN", "Alix")
+    jean = _athlete(db, "DUPONT", "Jean")
+    _licensed(db, jean)
+    relais = _relay(db, course, porteur, [porteur, jean], "60")
+
+    opposition_service.apply(db, admin, athlete_id=jean.id, requested_on=TODAY, today=TODAY)
+
+    db.expire_all()
+    assert participation_repository.get(db, relais.id).counts_for_tcn is False
+    assert course_repository.get(db, course.id).tcn_count == 0
+
+
+def test_apply_removes_the_club_member_rows_of_the_person(db, admin):
+    jean = _athlete(db, "DUPONT", "Jean")
+    _licensed(db, jean, season=2025)
+    _licensed(db, None, season=2024, nom="Dupont", prenom="JEAN")
+    paul = _athlete(db, "MARTIN", "Paul")
+    _licensed(db, paul, season=2025)
+
+    opposition_service.apply(db, admin, athlete_id=jean.id, requested_on=TODAY, today=TODAY)
+
+    remaining = club_member_repository.list_season(db, 2025) + club_member_repository.list_season(db, 2024)
+    assert [(m.nom, m.prenom) for m in remaining] == [("MARTIN", "Paul")]
