@@ -1220,7 +1220,7 @@ def review_details(db: Session, athlete_ids: Sequence[int]) -> tuple[dict[int, A
     results = db.execute(
         select(
             Participation.id, Participation.athlete_id, Participation.course_id, Participation.bib_number,
-            Participation.category, Participation.total_time, Participation.is_relay, Participation.club,
+            Participation.category, Participation.total_time, Participation.is_relay,
             Course.name, Course.event_date, Course.is_relay.label("course_is_relay"),
         )
         .join(Course, Course.id == Participation.course_id)

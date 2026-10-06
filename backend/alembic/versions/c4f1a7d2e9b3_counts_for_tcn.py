@@ -3,7 +3,8 @@
 Un libellé « TCN » seul est aussi celui du Triathlon Club Narbonne : la portée
 gagne un drapeau `ambiguous`, posé ici sur `tcn`, et chaque résultat porte son
 verdict dans `participations.counts_for_tcn`. Le backfill applique la règle en
-SQL, **figée ici** : un libellé non ambigu de la portée compte ; un libellé
+SQL, écrite ici (seule la normalisation du libellé est importée de
+`core/club`) : un libellé non ambigu de la portée compte ; un libellé
 ambigu compte si l'athlète a un autre résultat validé sous un libellé non
 ambigu. Puis `courses.tcn_count` est recalculé depuis la colonne.
 
