@@ -22,7 +22,7 @@ import { messageDeRefus } from "@/lib/api/refus";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils/date";
 import type { Feedback, FeedbackCounts } from "@/lib/types";
-import { FEEDBACK_TYPE_BADGE } from "./feedback-type";
+import { FEEDBACK_TYPE_BADGE, libelleIssue } from "./feedback-type";
 
 const REFUS = { sujet: "retours utilisateurs", action: "consulter les retours utilisateurs" };
 
@@ -291,6 +291,7 @@ export function FeedbackTable() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>N°</TableHead>
               <EnTeteTriable
                 colonne="created_at"
                 label="Date"
@@ -318,6 +319,23 @@ export function FeedbackTable() {
           <TableBody>
             {data.map((f) => (
               <TableRow key={f.id}>
+                {/* Les issues et l'exploitation désignent un retour par son
+                    numéro (« retour n° 8 ») : il faut pouvoir le retrouver ici,
+                    et suivre son issue quand il en a une (#1214). */}
+                <TableCell className="whitespace-nowrap">
+                  <span className="tabular-nums">n° {f.id}</span>
+                  {f.github_url && (
+                    <a
+                      href={f.github_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-2 text-xs text-primary underline underline-offset-2"
+                      title={f.github_url}
+                    >
+                      {libelleIssue(f.github_url)}
+                    </a>
+                  )}
+                </TableCell>
                 <TableCell>{formatDate(f.created_at)}</TableCell>
                 <TableCell>
                   <Badge variant={FEEDBACK_TYPE_BADGE[f.type].variant}>{FEEDBACK_TYPE_BADGE[f.type].label}</Badge>

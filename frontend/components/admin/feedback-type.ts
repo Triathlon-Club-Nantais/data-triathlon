@@ -10,3 +10,9 @@ export const FEEDBACK_TYPE_BADGE: Record<
   // Demande d'opposition (#334) : elle se traite depuis l'écran des oppositions.
   retrait: { label: "Retrait de données", variant: "outline" },
 };
+
+/** « #1202 » pour une URL d'issue GitHub, « Issue » pour toute autre forme. */
+export function libelleIssue(url: string): string {
+  const numero = url.match(/\/issues\/(\d+)/)?.[1];
+  return numero ? `#${numero}` : "Issue";
+}

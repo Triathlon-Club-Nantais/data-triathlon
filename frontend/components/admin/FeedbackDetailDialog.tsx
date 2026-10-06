@@ -83,7 +83,7 @@ export function FeedbackDetailDialog({
         <DialogHeader>
           <DialogTitle>{affiche.title}</DialogTitle>
           <DialogDescription>
-            Signalé le {formatDate(affiche.created_at)} ·{" "}
+            Retour n° {affiche.id} · signalé le {formatDate(affiche.created_at)} ·{" "}
             <Badge variant={FEEDBACK_TYPE_BADGE[affiche.type].variant}>{FEEDBACK_TYPE_BADGE[affiche.type].label}</Badge>
           </DialogDescription>
         </DialogHeader>
