@@ -4,10 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Participation, SessionUser } from "@/lib/types";
 
-const { getSession, detachParticipations, push, toastSuccess, toastError } = vi.hoisted(() => ({
+const { getSession, detachParticipations, push, refresh, toastSuccess, toastError } = vi.hoisted(() => ({
   getSession: vi.fn(),
   detachParticipations: vi.fn(),
   push: vi.fn(),
+  refresh: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
 }));
@@ -17,7 +18,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   return { ...original, apiClient: { getSession, detachParticipations } };
 });
 vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: toastError } }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh }) }));
 
 import { AthleteDetachAction } from "./AthleteDetachAction";
 
@@ -32,11 +33,14 @@ const RESULTATS = [RESULTAT(1, "Tri Nantes", "Triathlon Club Nantais"), RESULTAT
 
 function afficher(participations = RESULTATS) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={client}>
-      <AthleteDetachAction athleteId={7} athleteName="MARTIN Thomas" participations={participations} />
-    </QueryClientProvider>,
-  );
+  return {
+    client,
+    ...render(
+      <QueryClientProvider client={client}>
+        <AthleteDetachAction athleteId={7} athleteName="MARTIN Thomas" participations={participations} />
+      </QueryClientProvider>,
+    ),
+  };
 }
 
 beforeEach(() => {
@@ -84,6 +88,42 @@ describe("AthleteDetachAction", () => {
     expect(detachParticipations).toHaveBeenCalledWith(7, [2]);
     expect(push).toHaveBeenCalledWith("/athletes/42");
     expect(toastSuccess).toHaveBeenCalled();
+  });
+
+  it("rafraîchit la fiche source et invalide la fiche admin des deux fiches", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "participations:reassign"]));
+    detachParticipations.mockResolvedValue({ id: 42, nom: "MARTIN", prenom: "Thomas" });
+    const { client } = afficher();
+    const invalider = vi.spyOn(client, "invalidateQueries");
+
+    await userEvent.click(await screen.findByRole("button", { name: /Séparer des résultats/ }));
+    const choix = await screen.findByRole("dialog");
+    await userEvent.click(within(choix).getByRole("checkbox", { name: /Tri Vendôme/ }));
+    await userEvent.click(within(choix).getByRole("button", { name: "Séparer vers une nouvelle fiche" }));
+    const confirmation = await screen.findByRole("dialog", { name: /Séparer 1 résultat/ });
+    await userEvent.click(within(confirmation).getByRole("button", { name: "Séparer" }));
+
+    await vi.waitFor(() => expect(push).toHaveBeenCalledWith("/athletes/42"));
+    expect(refresh).toHaveBeenCalled();
+    expect(invalider).toHaveBeenCalledWith({ queryKey: ["admin-athlete"] });
+  });
+
+  it("sur un refus du serveur, dit la raison et ne navigue pas", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "participations:reassign"]));
+    detachParticipations.mockRejectedValue(new Error("Deux résultats de la même épreuve."));
+    afficher();
+
+    await userEvent.click(await screen.findByRole("button", { name: /Séparer des résultats/ }));
+    const choix = await screen.findByRole("dialog");
+    await userEvent.click(within(choix).getByRole("checkbox", { name: /Tri Vendôme/ }));
+    await userEvent.click(within(choix).getByRole("button", { name: "Séparer vers une nouvelle fiche" }));
+    const confirmation = await screen.findByRole("dialog", { name: /Séparer 1 résultat/ });
+    await userEvent.click(within(confirmation).getByRole("button", { name: "Séparer" }));
+
+    await vi.waitFor(() => expect(toastError).toHaveBeenCalledWith("Deux résultats de la même épreuve."));
+    expect(push).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: /Séparer 1 résultat/ })).toBeInTheDocument();
   });
 
   it("tout cocher laisse l'envoi inerte : la fiche doit garder un résultat", async () => {

@@ -64,6 +64,7 @@ export function AthleteDetachAction({
       toast.success(`${libelle} séparé${nombre > 1 ? "s" : ""} vers une nouvelle fiche.`);
       setConfirmation(false);
       fermer();
+      router.refresh();
       router.push(`/athletes/${nouvelle.id}`);
     } catch (erreur) {
       toast.error((erreur as Error).message);
