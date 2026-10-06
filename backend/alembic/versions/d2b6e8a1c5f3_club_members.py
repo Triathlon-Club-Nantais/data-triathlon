@@ -1,8 +1,10 @@
 """club members per season (#1202)
 
 Licenciés du club par saison (#1202). Un numéro de licence apparaît une fois par
-saison ; sans numéro (fichier importé), le nom seul identifie, d'où l'index
-unique partiel sur `(season, last_name_key, first_name_key)`.
+saison ; sans numéro (fichier importé), le nom seul identifie une ligne non rattachée
+ou ambiguë, d'où l'index unique partiel sur `(season, last_name_key,
+first_name_key)` limité à ces deux statuts : une ligne rattachée est identifiée
+par sa fiche.
 
 Revision ID: d2b6e8a1c5f3
 Revises: c4f1a7d2e9b3
@@ -48,8 +50,8 @@ def upgrade() -> None:
         'club_members',
         ['season', 'last_name_key', 'first_name_key'],
         unique=True,
-        postgresql_where=sa.text('licence_id IS NULL'),
-        sqlite_where=sa.text('licence_id IS NULL'),
+        postgresql_where=sa.text("licence_id IS NULL AND link_status IN ('unlinked', 'ambiguous')"),
+        sqlite_where=sa.text("licence_id IS NULL AND link_status IN ('unlinked', 'ambiguous')"),
     )
 
 

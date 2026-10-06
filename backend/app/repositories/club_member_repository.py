@@ -1,5 +1,5 @@
 """Accès données des licenciés du club par saison (#1202)."""
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.models.athlete import Athlete
@@ -31,20 +31,34 @@ def replace_season(db: Session, season: int, members: list[ClubMember]) -> None:
 def purge_before(db: Session, season: int, *, dry_run: bool) -> int:
     """Tient la durée de conservation (#1202) : rend le nombre de lignes touchées.
 
-    Une ligne non rattachée disparaît. Une ligne rattachée ne garde que le fait
-    « cette fiche était licenciée cette saison », qui fait compter ses
-    résultats d'alors : numéro de licence effacé, nom et prénom remplacés par
-    ceux de la fiche.
+    Une ligne non rattachée, ou rattachée à une fiche disparue, disparaît. Une
+    ligne rattachée ne garde que le fait « cette fiche était licenciée cette
+    saison », qui fait compter ses résultats d'alors : numéro de licence
+    effacé, nom et prénom remplacés par ceux de la fiche, une seule ligne par
+    fiche et saison.
     """
-    old = ClubMember.season < season
-    pending = or_(ClubMember.licence_id.is_not(None), ClubMember.link_status.not_in(LINKED))
-    touched = db.scalar(select(func.count()).select_from(ClubMember).where(old, pending))
-    if dry_run:
+    old_rows = db.execute(
+        select(ClubMember.id, ClubMember.athlete_id, ClubMember.season, ClubMember.licence_id, ClubMember.link_status)
+        .where(ClubMember.season < season)
+        .order_by(ClubMember.id)
+    ).all()
+    to_delete: list[int] = []
+    to_strip: list[int] = []
+    kept: set[tuple[int, int]] = set()
+    for row in old_rows:
+        if row.link_status not in LINKED or row.athlete_id is None or (row.season, row.athlete_id) in kept:
+            to_delete.append(row.id)
+            continue
+        kept.add((row.season, row.athlete_id))
+        if row.licence_id is not None:
+            to_strip.append(row.id)
+    touched = len(to_delete) + len(to_strip)
+    if dry_run or not touched:
         return touched
-    db.execute(delete(ClubMember).where(old, ClubMember.link_status.not_in(LINKED)))
+    db.execute(delete(ClubMember).where(ClubMember.id.in_(to_delete)))
     db.execute(
         update(ClubMember)
-        .where(old, ClubMember.link_status.in_(LINKED))
+        .where(ClubMember.id.in_(to_strip))
         .values(
             licence_id=None,
             nom=select(Athlete.nom).where(Athlete.id == ClubMember.athlete_id).scalar_subquery(),

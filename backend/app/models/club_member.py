@@ -31,14 +31,15 @@ class ClubMember(Base):
     __tablename__ = "club_members"
     __table_args__ = (
         UniqueConstraint("season", "licence_id", name="uq_club_member_licence"),
-        # Sans numéro de licence (fichier importé), le nom seul identifie : deux
-        # homonymes y sont indiscernables. Avec un numéro, ils coexistent.
+        # Sans numéro de licence, le nom seul identifie une ligne non rattachée ou
+        # ambiguë. Une ligne rattachée sans numéro (saison purgée) est identifiée
+        # par sa fiche : hors de l'index, l'import de fichier la dédoublonne.
         Index(
             "uq_club_member_identity_without_licence",
             "season", "last_name_key", "first_name_key",
             unique=True,
-            postgresql_where=text("licence_id IS NULL"),
-            sqlite_where=text("licence_id IS NULL"),
+            postgresql_where=text("licence_id IS NULL AND link_status IN ('unlinked', 'ambiguous')"),
+            sqlite_where=text("licence_id IS NULL AND link_status IN ('unlinked', 'ambiguous')"),
         ),
     )
 

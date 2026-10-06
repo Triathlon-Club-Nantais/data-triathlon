@@ -92,3 +92,56 @@ def test_repoint_moves_every_link_to_the_target(db_session):
         for m in club_member_repository.list_season(db_session, season)
     }
     assert rows == {"C1": target.id, "C2": target.id, "C3": target.id, "C4": None}
+
+
+def test_purge_keeps_two_linked_homonyms_of_an_old_season(db_session):
+    first = Athlete(nom="MARTIN", prenom="Anne")
+    second = Athlete(nom="MARTIN", prenom="Anne", homonym_rank=1)
+    db_session.add_all([first, second])
+    db_session.flush()
+    club_member_repository.replace_season(db_session, 2024, [
+        _member(season=2024, licence_id="C1", athlete_id=first.id, link_status=LINK_AUTO),
+        _member(season=2024, licence_id="C2", athlete_id=second.id, link_status=LINK_AUTO),
+    ])
+
+    club_member_repository.purge_before(db_session, 2025, dry_run=False)
+
+    rows = club_member_repository.list_season(db_session, 2024)
+    assert sorted(m.athlete_id for m in rows) == sorted([first.id, second.id])
+    assert {m.licence_id for m in rows} == {None}
+
+
+def test_purge_keeps_one_row_per_athlete_and_season(db_session):
+    athlete = Athlete(nom="MARTIN", prenom="Anne")
+    db_session.add(athlete)
+    db_session.flush()
+    club_member_repository.replace_season(db_session, 2024, [
+        _member(season=2024, licence_id="C1", athlete_id=athlete.id, link_status=LINK_AUTO),
+        _member(season=2024, licence_id="C2", athlete_id=athlete.id, link_status=LINK_AUTO),
+    ])
+
+    assert club_member_repository.purge_before(db_session, 2025, dry_run=True) == 2
+    assert club_member_repository.purge_before(db_session, 2025, dry_run=False) == 2
+
+    assert len(club_member_repository.list_season(db_session, 2024)) == 1
+    assert club_member_repository.purge_before(db_session, 2025, dry_run=False) == 0
+
+
+def test_purge_deletes_linked_rows_whose_athlete_is_gone(db_session):
+    club_member_repository.replace_season(db_session, 2024, [
+        _member(season=2024, licence_id="C1", athlete_id=None, link_status=LINK_AUTO),
+    ])
+
+    assert club_member_repository.purge_before(db_session, 2025, dry_run=False) == 1
+
+    assert club_member_repository.list_season(db_session, 2024) == []
+    assert club_member_repository.purge_before(db_session, 2025, dry_run=False) == 0
+
+
+def test_two_unlinked_rows_without_licence_still_collide(db_session):
+    db_session.add_all([
+        _member(licence_id=None, link_status=LINK_UNLINKED),
+        _member(licence_id=None, link_status=LINK_UNLINKED),
+    ])
+    with pytest.raises(IntegrityError):
+        db_session.flush()
