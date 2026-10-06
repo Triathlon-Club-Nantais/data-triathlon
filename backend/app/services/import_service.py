@@ -31,6 +31,7 @@ from app.models.course import Course
 from app.models.course_source import CourseSource
 from app.models.participation import Participation
 from app.repositories import (
+    absorbed_course_repository,
     athlete_alias_repository,
     athlete_repository,
     course_repository,
@@ -1589,6 +1590,86 @@ def _reclassify_heats(db: Session, event_url: str, results: list[ScrapedResult])
             course_repository.reclassify(db, course, event_type)
 
 
+CourseIdentity = tuple[str, object, str, bool]
+
+
+def _reidentify_heats(db: Session, event_url: str, results: list[ScrapedResult]) -> None:
+    """Met à jour en place l'épreuve que ce scrape publie sous une autre identité (#1204, #1197).
+
+    Le rescrape de la MEP v0.8.0 a recréé 44 épreuves à côté des anciennes, même
+    URL, mêmes dossards : Wiclax ne met plus l'année dans le nom (« Triathlon de
+    Vertou 2025 - Triathlon S » → « Triathlon de Vertou - Triathlon S »). Et 28
+    épreuves d'équipe autrefois solo ont reçu une jumelle relais, `is_relay`
+    entrant dans l'identité depuis #963.
+
+    Comme `_reclassify_heats`, un geste de lot : une URL publie légitimement
+    plusieurs heats, et une ligne seule ne dit pas si son identité est neuve ou
+    déplacée. Les **dossards** tranchent : une épreuve dont cette URL est la
+    source active, absente de ce scrape, et dont la majorité des dossards est
+    reprise par une identité neuve (et inversement), est la même épreuve. Un
+    heat ajouté à la page, aux dossards distincts, reste une épreuve neuve ; deux
+    candidates à égalité ne se tranchent pas, l'import crée alors l'épreuve comme
+    avant et `/admin/doublons` la signale.
+    """
+    published: dict[str, dict[CourseIdentity, set[str]]] = {}
+    for scraped in results:
+        url = scraped.source_url or event_url
+        if not url or not scraped.event_name:
+            continue
+        identity = (
+            course_repository.clean_name(scraped.event_name),
+            scraped.event_date,
+            scraped.event_type,
+            bool(scraped.is_relay),
+        )
+        bibs = published.setdefault(url, {}).setdefault(identity, set())
+        if scraped.bib_number:
+            bibs.add(scraped.bib_number)
+
+    for url, identities in published.items():
+        missing = [
+            identity
+            for identity, bibs in identities.items()
+            if bibs
+            and course_repository.get_by_identity(db, *identity) is None
+            and not absorbed_course_repository.is_absorbed(
+                db, url=url, name=identity[0], event_date=identity[1],
+                event_type=identity[2], is_relay=identity[3],
+            )
+        ]
+        if not missing:
+            continue
+        orphans = [
+            course
+            for course in course_repository.list_by_source_url(db, url)
+            if (course.name, course.event_date, course.event_type, course.is_relay) not in identities
+        ]
+        if not orphans:
+            continue
+        orphan_bibs = participation_repository.named_bibs_by_course(db, [c.id for c in orphans])
+        for name, event_date, event_type, is_relay in missing:
+            bibs = identities[(name, event_date, event_type, is_relay)]
+            # La date reste hors du geste : seule une date lue par heat la réécrit
+            # (`_redate_heats`, #972), un repli sur la date d'événement jamais.
+            matches = [
+                course
+                for course in orphans
+                if course.event_date == event_date
+                and 2 * len(orphan_bibs[course.id] & bibs) > max(len(orphan_bibs[course.id]), len(bibs))
+            ]
+            if len(matches) != 1:
+                continue
+            (course,) = matches
+            orphans.remove(course)
+            logger.info(
+                "Course %s re-identified by its source %s: %r -> %r (relay %s -> %s)",
+                course.id, url, course.name, name, course.is_relay, is_relay,
+            )
+            course_repository.update_identity(
+                db, course, name=name, event_date=event_date, event_type=event_type, is_relay=is_relay
+            )
+
+
 def _renumber_relay_split_ranks(db: Session, results: list[ScrapedResult]) -> None:
     """Renumérote `rank_overall` en 1..N quand la scission par `is_relay` a lieu (#672).
 
@@ -1786,6 +1867,7 @@ def _prepare_batch(db: Session, url: str, results: list[ScrapedResult]) -> None:
     """Les rattrapages de lot, dans leur ordre, avant la première ligne écrite."""
     _redate_heats(db, results)
     _reclassify_heats(db, url, results)
+    _reidentify_heats(db, url, results)
     _renumber_duplicate_ranks(results)
     _renumber_relay_split_ranks(db, results)
 
