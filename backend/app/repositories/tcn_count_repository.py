@@ -7,12 +7,13 @@ qu'ici, en SQL, portable SQLite (dev, tests) et PostgreSQL (prod).
 Un résultat compte pour le club si :
 
 1. son libellé est dans la portée et n'est pas ambigu ;
-2. (#1202, partie D) ;
+2. son athlète, ou un équipier du relais, est un licencié rattaché pour la
+   saison de l'épreuve (#1202) ;
 3. son libellé est ambigu (« TCN », aussi le Triathlon Club Narbonne) et son
    athlète est rattaché au club par ailleurs : un autre résultat **validé**
-   sous un libellé non ambigu.
+   sous un libellé non ambigu, ou une licence rattachée de n'importe quelle
+   saison.
 
-Points d'extension de la partie D : `_rule`, `_attached_to_club`, `_scope`.
 Nulle part ailleurs la règle ne s'écrit.
 """
 from collections.abc import Iterable
@@ -22,9 +23,11 @@ from sqlalchemy.orm import Session, aliased
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.club import ClubLabels, _normalise_sql
+from app.core.season import season_of_sql
 from app.core.validation import validated_clause
+from app.models.club_member import LINKED, ClubMember
 from app.models.course import Course
-from app.models.participation import Participation
+from app.models.participation import Participation, ParticipationTeammate
 
 
 def _clear_label(club, labels: ClubLabels) -> ColumnElement[bool]:
@@ -35,10 +38,42 @@ def _ambiguous_label(club, labels: ClubLabels) -> ColumnElement[bool]:
     return _normalise_sql(club).in_(sorted(labels.ambiguous))
 
 
+def _linked_member(athlete_id, season=None) -> ColumnElement[bool]:
+    """Un licencié rattaché à cette fiche, pour `season` ou n'importe quelle saison."""
+    clauses = [ClubMember.athlete_id == athlete_id, ClubMember.link_status.in_(LINKED)]
+    if season is not None:
+        clauses.append(ClubMember.season == season)
+    # `correlate_except` : l'équipier de la condition 2 vient de la requête englobante.
+    return select(literal(1)).where(*clauses).correlate_except(ClubMember).exists()
+
+
+def _member_of_course_season() -> ColumnElement[bool]:
+    """Condition 2 : l'athlète, ou un équipier du relais, licencié la saison de l'épreuve.
+
+    Sans date d'épreuve, la saison est NULL : aucune licence ne la couvre.
+    """
+    season = (
+        select(season_of_sql(Course.event_date))
+        .where(Course.id == Participation.course_id)
+        .correlate(Participation)
+        .scalar_subquery()
+    )
+    teammate_licensed = (
+        select(literal(1))
+        .where(
+            ParticipationTeammate.participation_id == Participation.id,
+            _linked_member(ParticipationTeammate.athlete_id, season),
+        )
+        .correlate(Participation)
+        .exists()
+    )
+    return or_(_linked_member(Participation.athlete_id, season), teammate_licensed)
+
+
 def _attached_to_club(labels: ClubLabels) -> ColumnElement[bool]:
     """Condition 3 : l'athlète de la ligne est rattaché au club par ailleurs."""
     other = aliased(Participation)
-    return (
+    clear_result = (
         select(literal(1))
         .where(
             other.athlete_id == Participation.athlete_id,
@@ -49,11 +84,13 @@ def _attached_to_club(labels: ClubLabels) -> ColumnElement[bool]:
         .correlate(Participation)
         .exists()
     )
+    return or_(clear_result, _linked_member(Participation.athlete_id))
 
 
 def _rule(labels: ClubLabels) -> ColumnElement[bool]:
     return or_(
         _clear_label(Participation.club, labels),
+        _member_of_course_season(),
         and_(_ambiguous_label(Participation.club, labels), _attached_to_club(labels)),
     )
 
@@ -72,7 +109,15 @@ def _scope(course_ids: list[int] | None, athlete_ids: list[int] | None) -> Colum
             ),
         ]
     if athlete_ids:
-        conditions.append(Participation.athlete_id.in_(athlete_ids))
+        conditions += [
+            Participation.athlete_id.in_(athlete_ids),
+            # Condition 2 : la licence d'un équipier fait compter le relais.
+            Participation.id.in_(
+                select(ParticipationTeammate.participation_id).where(
+                    ParticipationTeammate.athlete_id.in_(athlete_ids)
+                )
+            ),
+        ]
     return or_(*conditions) if conditions else false()
 
 
