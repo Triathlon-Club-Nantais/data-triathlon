@@ -59,3 +59,29 @@ def test_a_first_name_alone_is_kept_as_a_whole_name():
 def test_a_name_without_identity_gives_no_key():
     assert athlete_identity_keys("?", "-") == (None, None)
     assert athlete_identity_keys("", "") == (None, None)
+
+
+@pytest.mark.parametrize(
+    ("nom", "prenom", "person"),
+    [
+        ("ARNAUD", "& VINCENT .", ("ARNAUD", "Vincent")),
+        ("JACQUES", "& DANIEL", ("DANIEL", "Jacques")),
+        ("MARTIN / DURAND", "", ("MARTIN", "Durand")),
+        ("Paul et Marie", "", ("PAUL", "Marie")),
+        ("LUC + LEA", "", ("LUC", "Lea")),
+    ],
+)
+def test_a_team_label_never_takes_a_person_key(nom, prenom, person):
+    """#1192 : « ARNAUD & VINCENT » prenait la clé de la personne « ARNAUD Vincent »
+    et la reprise des doublons fusionnait le résultat d'équipe dans la personne."""
+    key = athlete_identity_keys(nom, prenom)
+    assert key != athlete_identity_keys(*person)
+    assert key != athlete_identity_keys(person[1], person[0])
+
+
+def test_two_spellings_of_one_team_share_a_key():
+    assert athlete_identity_keys("ARNAUD", "& VINCENT .") == athlete_identity_keys("Arnaud &", "Vincent")
+
+
+def test_a_name_holding_et_inside_a_word_is_a_person():
+    assert athlete_identity_keys("BRETON", "Etienne") == ("breton", "etienne")
