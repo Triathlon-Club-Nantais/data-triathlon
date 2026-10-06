@@ -39,7 +39,7 @@ def _result(bib, nom, prenom="Jean", **kw) -> ScrapedResult:
     # scrapers réels sur chacun de leurs résultats. Depuis #156,
     # `mapping.get_or_create_course` la retient en priorité pour `Course.source_url`
     # (clé de cache TTL) — un placeholder distinct (l'ancien "http://detail")
-    # casserait le cache re-scrape de `_cached_result`.
+    # casserait le cache re-scrape de `cached_result`.
     base = dict(
         source_url=URL,
         provider="klikego",
@@ -494,7 +494,7 @@ def test_import_denormalise_exclut_une_participation_en_attente_preexistante(
 
     # `force=True` : `get_or_create` ci-dessus vient de poser `scraped_at` à
     # maintenant (défaut du modèle), donc la course est déjà « fraîche » —
-    # sans lui, `_cached_result` court-circuiterait le scrape entièrement.
+    # sans lui, `cached_result` court-circuiterait le scrape entièrement.
     import_service.import_event(db_session, URL, _settings(), force=True)
 
     db_session.refresh(course)
@@ -826,7 +826,7 @@ def _patch_fanout_cache_probe_capture(monkeypatch):
 
 def test_import_event_force_desarme_le_cache_probe_fan_out(db_session, monkeypatch):
     """#810 — `force=True` doit aussi désarmer `cache_probe` (cache **par heat**),
-    pas seulement le cache TTL global (`_cached_result`).
+    pas seulement le cache TTL global (`cached_result`).
 
     Sans ça, `rescrape-db --url` sur une épreuve fan-out (Klikego, Wiclax,
     RaceResult…) scrapée il y a moins de 30 j saute silencieusement tous ses
@@ -1548,7 +1548,7 @@ def test_scrape_all_streaming_use_cache_probe_false_desarme_la_sonde_par_heat(
 ):
     """#118 (R2) — `use_cache_probe=False` doit atteindre le chemin **streamé**.
 
-    `_scrape_all` a déjà ce paramètre (#285) ; `scrape_all_streaming` ne
+    `scrape_all` a déjà ce paramètre (#285) ; `scrape_all_streaming` ne
     l'exposait pas encore. Sans lui, un re-scrape demandé sur une épreuve
     fan-out fraîchement importée sauterait tous ses heats jugés frais — le
     classement resterait inchangé malgré la demande explicite.
@@ -1821,7 +1821,7 @@ def test_iter_import_event_single_heat_streame_la_progression_de_detail(
 ):
     """`single_heat=True` garde la progression de la phase C (#698).
 
-    L'ancienne branche appelait `_scrape_all` directement : le flux SSE restait
+    L'ancienne branche appelait `scrape_all` directement : le flux SSE restait
     muet entre « Récupération des participants… » et la phase `saving`, alors
     qu'un seul heat Klikego peut compter ~250 finishers et que la phase C est
     justement la partie lente (#583).

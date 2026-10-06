@@ -1562,7 +1562,7 @@ def _identites_incompatibles(a: ScrapedResult, b: ScrapedResult) -> bool:
 # cache dédiée (une URL de contest "0" n'a pas de sens de « sous-unité »).
 
 # `FanoutTrace` vient de `base` : contrat unique côté `import_service`
-# (`_fanout_counters`, `_merge_cached_courses`).
+# (`import_dispatch.fanout_counters`, `import_dispatch.merge_cached_courses`).
 from app.scrapers.base import FanoutTrace  # noqa: E402 — patron partagé #195
 
 

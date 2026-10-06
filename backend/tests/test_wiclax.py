@@ -1225,7 +1225,7 @@ def _clax_multi_parcours_avec_orphelin() -> ET.Element:
 
     Un participant sans attribut `p=` — dossard inconnu, cas rare mais documenté
     par le bug #79. Sans fix, il crée une Course avec `source_url` = URL de
-    l'événement, qui court-circuite le ré-import via `_cached_result`.
+    l'événement, qui court-circuite le ré-import via `cached_result`.
     """
     xml = (
         '<Root><Event Name="Triathlon Test 2026" dt1="2026-06-08"/>'
@@ -1249,7 +1249,7 @@ def test_fanout_ecarte_les_participants_orphelins_dans_evenement_multi_parcours(
     """Un E sans `p=` dans un événement multi-parcours n'est PAS scrapé.
 
     Sinon il crée une `Course` avec `source_url` = URL de l'événement, qui
-    matchera au ré-import via `_cached_result` et court-circuitera tout le
+    matchera au ré-import via `cached_result` et court-circuitera tout le
     fan-out (issue #195, symptôme constaté sur Vertou 2026). L'orphelin est
     journalisé — pas silencieux — pour que l'exploitant remonte le cas à la
     source (bug #79).

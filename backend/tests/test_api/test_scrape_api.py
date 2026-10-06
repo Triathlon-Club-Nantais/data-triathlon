@@ -399,7 +399,7 @@ def test_import_event_stream_expose_les_courses_touchees(client, monkeypatch):
     On monkeypatche `iter_import_event` (comme `…serializes_reassignments`
     juste au-dessus) plutôt que le scraper : le SSE utilise `SessionLocal()`
     en dur, hors du `Depends(get_db)`, donc l'override de conftest ne s'y
-    applique pas — laisser `_cached_result` tourner ferait taper la vraie
+    applique pas — laisser `cached_result` tourner ferait taper la vraie
     base (« no such table: courses » en CI). La sérialisation par
     `json.dumps(default=…)` est déjà couverte par ce voisin.
     """

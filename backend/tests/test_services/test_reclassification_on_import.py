@@ -28,7 +28,7 @@ from app.models.course import Course
 from app.scrapers.base import ScrapedResult
 from app.services import import_service
 
-#: Hosts réels : `_validate_url` refuse une URL qu'aucun provider ne reconnaît, un
+#: Hosts réels : `validate_url` refuse une URL qu'aucun provider ne reconnaît, un
 #: `.test` ferait échouer ces tests pour une raison étrangère à #294.
 WICLAX = "https://www.chronosmetron.com/754-triathlon-de-mesquer-2026?parcours=s-open"
 #: L'URL d'**événement** TimePulse du cas mesuré : six heats sous une seule adresse

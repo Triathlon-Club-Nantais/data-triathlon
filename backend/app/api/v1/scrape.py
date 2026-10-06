@@ -84,7 +84,7 @@ def scrape_event_stream(
         except Exception:
             # `iter_import_event` encapsule déjà ses échecs attendus en
             # `{phase: error}` — ce filet ne couvre que l'imprévu (ex. le
-            # `SELECT` non protégé de `_cached_result`). Sans lui, le thread
+            # `SELECT` non protégé de `cached_result`). Sans lui, le thread
             # meurt en silence : le flux se referme sur un 200 bien formé mais
             # tronqué — `useImportStream` reste bloqué sur `running: true` pour
             # toujours, pire que l'ancien défaut (l'exception coupait alors

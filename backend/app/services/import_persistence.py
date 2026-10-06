@@ -1544,7 +1544,7 @@ def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict
     `commit` » du reste du dépôt.
 
     `courses` est le résumé **brut** du persister : le repli sur les heats
-    cachés (`_merge_cached_courses`) appartient au compte rendu d'import, pas à
+    cachés (`import_dispatch.merge_cached_courses`) appartient au compte rendu d'import, pas à
     l'écriture.
     """
     *_, (_done, persister) = persist_steps(db, url, results)
