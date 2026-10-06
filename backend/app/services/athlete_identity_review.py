@@ -4,11 +4,13 @@ Calculés à la volée depuis les données, sur le modèle des épreuves en doub
 (`course_duplicates`) : aucune table de cas à tenir synchrone, seulement les
 paires qu'un admin a écartées (`ignored_athlete_pairs`).
 
-Cinq motifs, dans cet ordre de priorité (une paire n'est listée qu'une fois,
+Six motifs, dans cet ordre de priorité (une paire n'est listée qu'une fois,
 sous le premier motif qui la retient) :
 
 - `same_course_bibs` : une fiche du club porte deux dossards sur une même
   épreuve individuelle (deux personnes fusionnées avant #967) ;
+- `multi_club` : une fiche de membre dont les résultats portent un autre club,
+  non confirmé, que les siens (#1209) ; l'admin sépare la fiche ou confirme le club ;
 - `club_homonym` : une paire d'homonymes distingués dont l'un relève du club
   (Q1 : hors club, la mention au rapport d'import suffit) ;
 - `swapped`, `concatenated` : nom et prénom inversés, ou nom complet face à une
@@ -22,14 +24,20 @@ from itertools import combinations
 
 from sqlalchemy.orm import Session
 
-from app.core.club import normalize_club
+from app.core.club import canonical_club_key, is_significant_club, is_tcn, normalize_club
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.models.athlete import Athlete
-from app.repositories import athlete_repository, ignored_athlete_pair_repository
+from app.repositories import (
+    athlete_known_club_repository,
+    athlete_repository,
+    club_alias_repository,
+    ignored_athlete_pair_repository,
+)
 from app.services import audit
 
 REASONS = {
     "same_course_bibs": "Deux dossards sur une même épreuve",
+    "multi_club": "Plusieurs clubs sur une même fiche",
     "club_homonym": "Homonymes, dont un du club",
     "swapped": "Nom et prénom inversés",
     "concatenated": "Nom complet face à une fiche découpée",
@@ -52,11 +60,45 @@ def recovery_would_merge(first: Athlete, second: Athlete, *, shared_course: bool
     return same_club or same_gender
 
 
-def _cases(db: Session) -> list[tuple[str, list[int], list[int]]]:
-    """`(motif, fiches, épreuves en conflit)`, dans l'ordre stable de la liste."""
+def _unconfirmed_clubs(db: Session) -> dict[int, list[dict]]:
+    """Fiches de membre et leurs clubs significatifs non confirmés (#1209).
+
+    Une fiche n'est retenue que si ses résultats portent au moins deux clubs
+    canoniques (le TCN compte pour un) dont un significatif non confirmé : un
+    membre en double licence sort de la liste dès que son second club est confirmé."""
+    labels = athlete_repository.club_labels_by_athlete(db)
+    members = athlete_repository.member_record_ids(db, labels)
+    known = athlete_known_club_repository.keys_by_athlete(db, members)
+    aliases = club_alias_repository.canonical_map(db)
+    cases: dict[int, list[dict]] = {}
+    for athlete_id in sorted(members):
+        by_key: dict[str, dict] = {}
+        for label, results in labels[athlete_id].items():
+            significant = is_significant_club(label)
+            if not significant and not is_tcn(label):
+                continue  # ville ou libellé vide : un lieu, pas un club
+            key = canonical_club_key(label, aliases)
+            entry = by_key.setdefault(
+                key, {"club": label, "club_key": key, "results": 0, "top": 0, "significant": significant}
+            )
+            entry["results"] += results
+            if results > entry["top"]:
+                entry["club"], entry["top"] = label, results
+        to_check = [
+            {"club": entry["club"], "club_key": entry["club_key"], "results": entry["results"]}
+            for entry in by_key.values()
+            if entry["significant"] and entry["club_key"] not in known.get(athlete_id, set())
+        ]
+        if len(by_key) >= 2 and to_check:
+            cases[athlete_id] = sorted(to_check, key=lambda club: (-club["results"], club["club"]))
+    return cases
+
+
+def _cases(db: Session) -> list[tuple[str, list[int], list[int], list[dict]]]:
+    """`(motif, fiches, épreuves en conflit, clubs à vérifier)`, dans l'ordre stable de la liste."""
     ignored = ignored_athlete_pair_repository.all_pairs(db)
     seen_pairs: set[tuple[int, int]] = set()
-    cases: list[tuple[int, int, str, list[int], list[int]]] = []
+    cases: list[tuple[int, int, str, list[int], list[int], list[dict]]] = []
 
     def keep_pair(first: int, second: int) -> bool:
         pair = ignored_athlete_pair_repository.normalized(first, second)
@@ -69,12 +111,15 @@ def _cases(db: Session) -> list[tuple[str, list[int], list[int]]]:
     for athlete_id, course_id in athlete_repository.club_records_with_two_bibs_on_a_race(db):
         courses_by_athlete[athlete_id].append(course_id)
     for athlete_id, courses in courses_by_athlete.items():
-        cases.append((0, athlete_id, "same_course_bibs", [athlete_id], sorted(courses)))
+        cases.append((0, athlete_id, "same_course_bibs", [athlete_id], sorted(courses), []))
+
+    for athlete_id, clubs in _unconfirmed_clubs(db).items():
+        cases.append((1, athlete_id, "multi_club", [athlete_id], [], clubs))
 
     for group, touching in athlete_repository.homonym_groups(db):
         for first, second in combinations(group, 2):
             if (first in touching or second in touching) and keep_pair(first, second):
-                cases.append((1, min(first, second), "club_homonym", [first, second], []))
+                cases.append((2, min(first, second), "club_homonym", [first, second], [], []))
 
     pairs = {
         "swapped": athlete_repository.swapped_pairs(db),
@@ -84,7 +129,7 @@ def _cases(db: Session) -> list[tuple[str, list[int], list[int]]]:
     all_pairs = [pair for found in pairs.values() for pair in found]
     facts = athlete_repository.pair_facts(db, all_pairs)
     athletes = athlete_repository.get_many(db, [i for pair in all_pairs for i in pair])
-    for order, reason in enumerate(pairs, start=2):
+    for order, reason in enumerate(pairs, start=3):
         for first, second in pairs[reason]:
             fact = facts[(first, second)]
             if reason != "alias_collision" and recovery_would_merge(
@@ -92,9 +137,12 @@ def _cases(db: Session) -> list[tuple[str, list[int], list[int]]]:
             ):
                 continue
             if keep_pair(first, second):
-                cases.append((order, min(first, second), reason, [first, second], fact.shared_courses))
+                cases.append((order, min(first, second), reason, [first, second], fact.shared_courses, []))
 
-    return [(reason, ids, courses) for _, _, reason, ids, courses in sorted(cases, key=lambda case: case[:2])]
+    return [
+        (reason, ids, courses, clubs)
+        for _, _, reason, ids, courses, clubs in sorted(cases, key=lambda case: case[:2])
+    ]
 
 
 def count(db: Session) -> int:
@@ -118,13 +166,13 @@ def _brief(athlete: Athlete, results: list) -> dict:
 def find_candidates(db: Session) -> list[dict]:
     """Les cas à trancher, avec leurs fiches et les épreuves en conflit."""
     cases = _cases(db)
-    athletes, results = athlete_repository.review_details(db, [i for _, ids, _ in cases for i in ids])
+    athletes, results = athlete_repository.review_details(db, [i for _, ids, _, _ in cases for i in ids])
     by_athlete: dict[int, list] = defaultdict(list)
     for row in results:
         by_athlete[row.athlete_id].append(row)
 
     candidates = []
-    for reason, ids, courses in cases:
+    for reason, ids, courses, clubs in cases:
         conflicts = []
         for course_id in courses:
             rows = [row for athlete_id in ids for row in by_athlete[athlete_id] if row.course_id == course_id]
@@ -145,6 +193,7 @@ def find_candidates(db: Session) -> list[dict]:
             "reason_label": REASONS[reason],
             "athletes": [_brief(athletes[i], by_athlete[i]) for i in ids],
             "conflicts": conflicts,
+            "clubs": clubs,
         })
     return candidates
 
@@ -170,3 +219,21 @@ def ignore_pair(db: Session, *, athlete_id_a: int, athlete_id_b: int, user_id: i
         "athlete_id_b": ignored.athlete_id_high,
         "ignored_at": ignored.ignored_at,
     }
+
+
+def confirm_club(db: Session, *, athlete_id: int, club_key: str, user_id: int) -> dict:
+    """Confirme qu'un club est bien celui de la personne de la fiche (#1209) : la
+    revue ne le signale plus, et l'import y rattache ses résultats. `flush` sans commit."""
+    key = club_key.strip()
+    if not key:
+        raise DomainError("Le club à confirmer est vide.")
+    if athlete_repository.get(db, athlete_id) is None:
+        raise NotFoundError("Athlète introuvable.")
+    if athlete_known_club_repository.exists(db, athlete_id=athlete_id, club_key=key):
+        raise DuplicateError("Ce club est déjà confirmé pour cette fiche.")
+    known = athlete_known_club_repository.add(db, athlete_id=athlete_id, club_key=key, user_id=user_id)
+    audit.record(
+        db, user_id, action="athlete_identity.confirm_club", entity_type="athlete", entity_id=athlete_id,
+        payload={"club_key": key},
+    )
+    return {"athlete_id": athlete_id, "club_key": key, "confirmed_at": known.created_at}
