@@ -1438,6 +1438,25 @@ describe("rendu carte sous lg", () => {
     expect(carte.getByRole("img", { name: /illisible/i })).toBeInTheDocument();
   });
 
+  it("ne rend aucune cellule de tableau hors d'une ligne de tableau (hydratation, #1191)", () => {
+    const { container } = render(
+      <RaceFinishers
+        participations={[
+          p({ id: 1, nom: "DUPONT", rank_overall: 1, total_time: "01:04:12", splits: { swim: "00:11:37" } }),
+        ]}
+        summary={synthese({ split_keys: ["swim"] })}
+        total={1}
+        page={1}
+        pageSize={20}
+        eventType="triathlon"
+      />,
+    );
+    const cellules = Array.from(container.querySelectorAll("td"));
+    expect(cellules.length).toBeGreaterThan(0);
+    expect(cellules.filter((td) => td.parentElement?.tagName !== "TR")).toHaveLength(0);
+    expect(cartes().texte("00:11:37")).toBeInTheDocument();
+  });
+
   // Trois lignes, dans un ordre backend qui n'est ni croissant ni décroissant :
   // avec deux lignes, « décroissant » redonnerait l'ordre de départ et le test
   // ne prouverait rien.
