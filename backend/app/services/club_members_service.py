@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.athlete_identity import athlete_identity_keys
 from app.core.exceptions import DomainError, NotFoundError
 from app.core.gender import normalize_gender
+from app.core.identity import identity_hash
 from app.core.season import SEASON_MAX, SEASON_MIN
 from app.models.club_member import (
     LINK_AMBIGUOUS,
@@ -30,6 +31,7 @@ from app.repositories import (
     athlete_alias_repository,
     athlete_repository,
     club_member_repository,
+    opposition_repository,
     tcn_count_repository,
 )
 from app.scrapers import fftri_club_members
@@ -104,7 +106,12 @@ def _deduplicated(members: list[RosterMember]) -> list[RosterMember]:
 
 
 def _replace(db: Session, season: int, incoming: list[RosterMember], source: str) -> list[ClubMember]:
-    """Remplace la saison, rattache, et garde les rattachements faits à la main."""
+    """Remplace la saison, rattache, et garde les rattachements faits à la main.
+
+    Une personne inscrite au registre des oppositions (#334) n'y entre pas.
+    """
+    opposed = opposition_repository.all_hashes(db)
+    incoming = [m for m in incoming if identity_hash(m.nom, m.prenom) not in opposed]
     previous = club_member_repository.list_season(db, season)
     manual = {
         _identity(m): m.athlete_id

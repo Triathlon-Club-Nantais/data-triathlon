@@ -4,6 +4,7 @@ from datetime import date
 import pytest
 
 from app.core.exceptions import DomainError, NotFoundError
+from app.core.identity import identity_hash
 from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.club_member import (
@@ -18,6 +19,7 @@ from app.repositories import (
     athlete_alias_repository,
     club_member_repository,
     course_repository,
+    opposition_repository,
     participation_repository,
     user_repository,
 )
@@ -235,3 +237,27 @@ def test_import_file_normalizes_the_gender(db_session, admin):
 
     genders = {m.nom: m.gender for m in club_member_repository.list_season(db_session, 2024)}
     assert genders == {"A": "M", "C": "F", "E": ""}
+
+
+def _oppose(db, admin, nom, prenom):
+    opposition_repository.create(
+        db, identity_hash=identity_hash(nom, prenom), requested_on=date(2026, 9, 1), applied_by_user_id=admin.id
+    )
+
+
+def test_sync_skips_an_identity_in_the_opposition_register(db_session, admin, roster):
+    _oppose(db_session, admin, "Durand", "PAUL")
+
+    report = club_members_service.sync_from_fftri(db_session, user_id=admin.id)
+
+    assert report.total == 2
+    assert "C2" not in {m.licence_id for m in club_member_repository.list_season(db_session, 2026)}
+
+
+def test_import_file_skips_an_identity_in_the_opposition_register(db_session, admin):
+    _oppose(db_session, admin, "MARTIN", "Anne")
+    content = b"Nom,Prenom\nMARTIN,Anne\nDURAND,Paul\n"
+
+    club_members_service.import_file(db_session, season=2024, content=content, filename="l.csv", user_id=admin.id)
+
+    assert [m.nom for m in club_member_repository.list_season(db_session, 2024)] == ["DURAND"]
