@@ -481,6 +481,10 @@ export interface CounterScopeEntry {
   /** Pour une discipline : le slug appartient-il à la nomenclature ? Porte
    * l'avertissement. Toujours `true` pour un libellé de club. */
   is_known: boolean;
+  /** Libellé du club qui désigne aussi d'autres clubs (#1206) : il ne compte
+   * que si l'athlète est rattaché au club par un autre résultat. Toujours
+   * `false` pour une discipline. */
+  ambiguous: boolean;
   created_at: string;
   /** `null` pour les entrées d'amorçage — rendues « Configuration initiale ». */
   created_by: string | null;

@@ -733,6 +733,22 @@ export function useRemoveCounterScopeEntry() {
   });
 }
 
+export function useSetCounterScopeAmbiguity() {
+  const toutPerimer = useInvalidationDeLaPorteeDesCompteurs();
+  return useMutation({
+    mutationFn: ({
+      kind,
+      entryId,
+      ambiguous,
+    }: {
+      kind: ScopeKind;
+      entryId: number;
+      ambiguous: boolean;
+    }) => apiClient.setCounterScopeAmbiguity(kind, entryId, ambiguous),
+    onSuccess: toutPerimer,
+  });
+}
+
 // ── Variantes de club (#635) ─────────────────────────────────────────────────
 
 export function useClubAliases() {
