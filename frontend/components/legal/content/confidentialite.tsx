@@ -62,7 +62,8 @@ export const PRIVACY_POLICY: LegalDocument = {
             licenciés au club, saison par saison. Elle est relue chaque semaine sur la page publique du club de la
             Fédération Française de Triathlon (T2Area), ou importée par un administrateur pour une saison passée.
             Elle sert à reconnaître comme résultats du club ceux de ses licenciés, quand le chronométreur ne publie
-            pas leur club. Seuls les administrateurs habilités la consultent.
+            pas leur club, et à distinguer la fiche d&apos;un licencié de celle d&apos;un homonyme, à l&apos;import
+            des résultats comme lors de la revue des fiches. Seuls les administrateurs habilités la consultent.
           </p>
           <p>
             <strong>Les comptes du back-office.</strong> Les bénévoles et administrateurs se connectent avec leur
@@ -201,7 +202,8 @@ export const PRIVACY_POLICY: LegalDocument = {
               club devra vous exposer : ils sont alors rendus anonymes (le temps et le rang restent dans le
               classement, sans votre nom, votre club ni votre catégorie) et votre fiche est supprimée. Pour que
               les imports suivants ne vous fassent pas réapparaître, le site garde une empreinte de votre nom et
-              de votre prénom, jamais le nom lui-même ; les résultats publiés ensuite à ce nom arrivent anonymes ;
+              de votre prénom, jamais le nom lui-même ; les résultats publiés ensuite à ce nom arrivent anonymes.
+              Vous êtes aussi retiré de la liste des licenciés du club, et ses relectures suivantes vous en écartent ;
             </li>
             <li>
               <strong>accéder</strong> aux données qui vous concernent et en obtenir une copie ;

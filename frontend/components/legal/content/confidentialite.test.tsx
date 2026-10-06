@@ -137,6 +137,14 @@ describe("Politique de confidentialité (#333)", () => {
     expect(texte).toMatch(/saison en cours et la précédente/i);
   });
 
+  it("dit que la liste des licenciés distingue aussi un homonyme (#1209)", () => {
+    expect(rendre()).toMatch(/distinguer la fiche d.un licencié de celle d.un homonyme/i);
+  });
+
+  it("dit qu'une opposition retire aussi la personne de la liste des licenciés", () => {
+    expect(rendre()).toMatch(/retiré[^.]*de la liste des licenciés/i);
+  });
+
   it("date la politique du jour de sa dernière modification", () => {
     expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-06");
   });
