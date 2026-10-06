@@ -1,4 +1,4 @@
-"""La revue d'identité des athlètes (#908) : lecture, compte, mise à l'écart d'une paire.
+"""La revue d'identité des athlètes (#908) : lecture, compte, mise à l'écart d'une paire, confirmation d'un club.
 
 Couche mince : la garde, l'appel au service, la sérialisation. Les motifs et
 leurs seuils vivent dans `services/athlete_identity_review.py`.
@@ -16,6 +16,8 @@ from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
 from app.schemas.athlete_identity import (
+    IdentityClubConfirmCreate,
+    IdentityClubConfirmOut,
     IdentityPairIgnoreCreate,
     IdentityPairIgnoreOut,
     IdentityReviewCount,
@@ -56,3 +58,18 @@ def ignore_identity_pair(
     )
     db.commit()
     return IdentityPairIgnoreOut(**out)
+
+
+@router.post("/admin/identity-review/confirm-club", response_model=IdentityClubConfirmOut, status_code=201)
+def confirm_identity_club(
+    body: IdentityClubConfirmCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.ATHLETES_WRITE)),
+) -> IdentityClubConfirmOut:
+    """Confirme un club pour une fiche (#1209) : il ne la signale plus, et l'import
+    y rattache les résultats publiés sous ce club."""
+    out = athlete_identity_review.confirm_club(
+        db, athlete_id=body.athlete_id, club_key=body.club_key, user_id=user.id
+    )
+    db.commit()
+    return IdentityClubConfirmOut(**out)

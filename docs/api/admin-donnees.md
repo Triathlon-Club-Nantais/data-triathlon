@@ -128,11 +128,12 @@ deux résultats d'une même épreuve (409). Journal : `athlete.detach`.
 | `GET /admin/identity-review` | `athletes:write` | Les cas à trancher, sans pagination, dans un ordre stable (motif, puis plus petit id). |
 | `GET /admin/identity-review/count` | `athletes:write` | `{total}`. Prévu pour une pastille de la nav, que le front n'affiche pas encore : son coût est à mesurer en production d'abord (#1146). |
 | `POST /admin/identity-review/ignore` `{athlete_id_a, athlete_id_b}` | `athletes:write` | Écarte une paire jugée distincte (201) ; 400 même fiche, 404 fiche inconnue, 409 déjà écartée. Journal `athlete_identity.ignore`. |
+| `POST /admin/identity-review/confirm-club` `{athlete_id, club_key}` | `athletes:write` | Confirme un club pour une fiche (201, `{athlete_id, club_key, confirmed_at}`) : elle n'est plus signalée pour lui et l'import y rattache les résultats publiés sous ce club. 400 clé vide ou club que la fiche ne porte pas, 404 fiche inconnue, 409 déjà confirmé. Journal `athlete_identity.confirm_club`. |
 
 `/admin/identity-review` et non `/admin/athletes/identity-review` : la route
 `/admin/athletes/{athlete_id}` capterait le segment et rendrait 422.
 
-Cinq motifs, calculés à la volée depuis les données (aucune table de cas) :
+Six motifs, calculés à la volée depuis les données (aucune table de cas) :
 
 - `same_course_bibs` : une fiche portant deux dossards distincts sur une même
   épreuve individuelle, quand la fiche ou l'un de ces résultats relève du club
@@ -150,6 +151,11 @@ Cinq motifs, calculés à la volée depuis les données (aucune table de cas) :
   personne et n'y figure pas.
 - `alias_collision` : une fiche principale recréée sur une graphie qu'une fusion
   avait rattachée à une autre.
+- `multi_club` : une fiche de membre TCN dont les résultats individuels validés
+  portent un club significatif (ni vide, ni ville, ni libellé de la portée) non
+  confirmé, à côté d'un autre club. Le champ `clubs` (`club`, `club_key`,
+  `results`) liste les clubs à vérifier ; chacun se confirme par la route
+  ci-dessus, ou se sépare par `POST /admin/athletes/{id}/detach`.
 
 Une paire n'est listée qu'une fois, sous le premier motif qui la retient.
 Chaque cas porte les fiches (identité, club, genre, catégories, nombre de
