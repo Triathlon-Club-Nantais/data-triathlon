@@ -38,7 +38,14 @@ def purge_before(db: Session, season: int, *, dry_run: bool) -> int:
     fiche, une seule ligne par fiche et saison.
     """
     old_rows = db.execute(
-        select(ClubMember.id, ClubMember.athlete_id, ClubMember.season, ClubMember.licence_id, ClubMember.link_status)
+        select(
+            ClubMember.id, ClubMember.athlete_id, ClubMember.season, ClubMember.licence_id,
+            ClubMember.link_status, ClubMember.gender, ClubMember.nom, ClubMember.prenom,
+            ClubMember.last_name_key, ClubMember.first_name_key,
+            Athlete.nom.label("athlete_nom"), Athlete.prenom.label("athlete_prenom"),
+            Athlete.last_name_key.label("athlete_last_key"), Athlete.first_name_key.label("athlete_first_key"),
+        )
+        .outerjoin(Athlete, Athlete.id == ClubMember.athlete_id)
         .where(ClubMember.season < season)
         .order_by(ClubMember.id)
     ).all()
@@ -50,7 +57,12 @@ def purge_before(db: Session, season: int, *, dry_run: bool) -> int:
             to_delete.append(row.id)
             continue
         kept.add((row.season, row.athlete_id))
-        if row.licence_id is not None:
+        if (
+            row.licence_id is not None
+            or row.gender != ""
+            or (row.nom, row.prenom) != (row.athlete_nom, row.athlete_prenom)
+            or (row.last_name_key, row.first_name_key) != (row.athlete_last_key, row.athlete_first_key)
+        ):
             to_strip.append(row.id)
     touched = len(to_delete) + len(to_strip)
     if dry_run or not touched:
