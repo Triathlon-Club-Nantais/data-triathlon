@@ -135,7 +135,7 @@ export function CounterScopeCard({
       await basculer.mutateAsync({ kind, entryId: entree.id, ambiguous });
       toast.success(
         ambiguous
-          ? `« ${entree.value} » ne compte plus seul : il faut un autre résultat au club.`
+          ? `« ${entree.value} » ne compte plus seul : il faut un autre résultat validé au club ou une licence.`
           : `« ${entree.value} » compte de nouveau seul.`,
       );
     } catch (e) {
@@ -354,8 +354,8 @@ export function CounterScopeCard({
               <p className="text-xs text-[var(--tcn-text-faint)]">
                 Un libellé ambigu désigne aussi d&apos;autres clubs (« TCN » est aussi le
                 Triathlon Club Narbonne). Un résultat qui ne porte que lui compte pour le
-                club seulement si l&apos;athlète a un autre résultat validé sous un libellé
-                non ambigu.
+                club seulement si l&apos;athlète y est rattaché par un autre résultat validé
+                sous un libellé non ambigu ou par une licence.
               </p>
             )}
           </>

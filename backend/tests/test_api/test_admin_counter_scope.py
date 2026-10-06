@@ -255,8 +255,7 @@ def test_l_acces_anonyme_est_refuse(client):
     assert client.get(BASE).status_code == 401
 
 
-def test_un_compte_sans_le_pouvoir_est_refuse(client, db_session):
-    """Connecté, mais sans `counter_scope:manage` : 403, pas 401."""
+def _connecter_sans_pouvoir(client, db_session) -> None:
     from app.models.organisation import Organisation
 
     organisation = db_session.query(Organisation).filter_by(slug="tcn").one()
@@ -271,6 +270,11 @@ def test_un_compte_sans_le_pouvoir_est_refuse(client, db_session):
     jeton = session_service.open_for(db_session, autre)
     db_session.commit()
     client.cookies.set(session_cookie_name(get_settings()), jeton)
+
+
+def test_un_compte_sans_le_pouvoir_est_refuse(client, db_session):
+    """Connecté, mais sans `counter_scope:manage` : 403, pas 401."""
+    _connecter_sans_pouvoir(client, db_session)
 
     assert client.get(BASE).status_code == 403
 
@@ -384,6 +388,7 @@ def test_marking_a_label_ambiguous_reloads_the_registry(client, db_session):
 
 
 def test_an_ambiguous_label_stops_counting_a_lone_result(client, db_session, _un_resultat_au_club_inconnu):
+    _semer(db_session, CLUB_LABEL, "tri club nantais")
     ajout = client.post(f"{BASE}/club-labels", json={"value": "TRIATHLON CLUB NANTAIS 44"})
     assert client.get("/api/v1/participations").json()[0]["is_tcn"] is True
 
@@ -422,3 +427,34 @@ def test_an_unchanged_toggle_logs_nothing(client, db_session):
     client.patch(f"{BASE}/club-labels/{_entry_id(db_session, 'tcn')}", json={"ambiguous": False})
 
     assert db_session.query(AdminActionLog).count() == 0
+
+
+def test_the_ambiguity_toggle_refuses_an_anonymous_caller(client, db_session):
+    _semer(db_session, CLUB_LABEL, "tcn", "tri club nantais")
+    client.cookies.clear()
+
+    reponse = client.patch(f"{BASE}/club-labels/{_entry_id(db_session, 'tcn')}", json={"ambiguous": True})
+
+    assert reponse.status_code == 401
+
+
+def test_the_ambiguity_toggle_refuses_an_account_without_the_permission(client, db_session):
+    _semer(db_session, CLUB_LABEL, "tcn", "tri club nantais")
+    _connecter_sans_pouvoir(client, db_session)
+
+    reponse = client.patch(f"{BASE}/club-labels/{_entry_id(db_session, 'tcn')}", json={"ambiguous": True})
+
+    assert reponse.status_code == 403
+
+
+def test_marking_the_last_clear_label_ambiguous_is_refused(client, db_session):
+    _semer(db_session, CLUB_LABEL, "tcn", "tri club nantais")
+    client.patch(f"{BASE}/club-labels/{_entry_id(db_session, 'tcn')}", json={"ambiguous": True})
+
+    reponse = client.patch(
+        f"{BASE}/club-labels/{_entry_id(db_session, 'tri club nantais')}", json={"ambiguous": True}
+    )
+
+    assert reponse.status_code == 409
+    assert "non ambigu" in reponse.json()["detail"]
+    assert counter_scope.ambiguous_club_labels() == frozenset({"tcn"})

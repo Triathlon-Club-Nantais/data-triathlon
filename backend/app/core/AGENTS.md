@@ -68,13 +68,15 @@ compare à quoi* vit en base et s'édite depuis `/admin/portee-compteurs`.
 
 Ce module est un **état de processus** dans `core/`, ce que la doctrine de
 `permissions.py` juste au-dessus écarte. La différence est assumée et elle a une
-cause précise : `ParticipationOut.is_tcn` est un champ **calculé de DTO**,
-évalué sans Session et sans personne pour lui en passer une, et les scrapers
-appellent `is_tcn` ligne par ligne à l'intérieur d'un import. Trois formes plus
-pures ont été écartées, et il n'est pas utile de les reproposer :
+cause précise : l'écouteur d'insertion de `Participation` (valeur provisoire
+de `counts_for_tcn`, #1206) tourne au flush sans personne pour lui passer une
+Session, et les scrapers appellent `is_tcn` ligne par ligne à l'intérieur d'un
+import. (`ParticipationOut.is_tcn` lit désormais le verdict stocké, il ne
+justifie plus rien ici.) Trois formes plus pures ont été écartées, et il n'est
+pas utile de les reproposer :
 
-- passer la configuration en **paramètre** aux quatre prédicats — 29 sites
-  d'appel, et le champ calculé de DTO n'a personne pour la lui fournir ;
+- passer la configuration en **paramètre** aux prédicats : des dizaines de
+  sites d'appel, et l'écouteur d'insertion n'a personne pour la lui fournir ;
 - placer le cache dans `services/` et le faire **lire** par `core/` — inversion
   frontale du sens du flux, que le Principe II interdit ;
 - laisser `core/` ouvrir **sa propre Session** — une nouvelle occurrence de
@@ -98,7 +100,7 @@ prise avant un `load()`.
 écrit par `repositories/tcn_count_repository.recompute_counts_for_tcn`, et
 `Course.tcn_count` qui en est le compte. Un libellé de la portée peut être
 **ambigu** (« tcn », aussi le Triathlon Club Narbonne) : il ne compte que si
-l'athlète est rattaché au club par un autre résultat validé. Toute écriture
+l'athlète est rattaché au club par un autre résultat validé ou une licence. Toute écriture
 qui peut changer un verdict recalcule (import, portée, réattachement,
 équipiers, fusion, suppression, validation, correction du club) ; une
 écriture de la portée le fait à partir des libellés **relus en base**, le

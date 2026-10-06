@@ -14,8 +14,9 @@ ce module dans `core/` (Principe II). Le registre est **rempli depuis le
 dessus** : `services/counter_scope.load_from_db` lit la base et pousse le
 résultat ici. Trois points de remplissage, et trois seulement — le démarrage de
 l'API, l'entrée de la CLI, et chaque écriture d'administration. Un chargement
-paresseux depuis la base était exclu : `ParticipationOut.is_tcn` est un champ
-calculé de DTO, évalué sans Session et sans personne pour lui en passer une.
+paresseux depuis la base était exclu : l'écouteur d'insertion de `Participation`
+(valeur provisoire de `counts_for_tcn`) et les scrapers lisent le registre sans
+Session à leur portée.
 
 **Les défauts sont les valeurs d'avant la bascule**, et ce n'est pas un repli de
 confort : un registre vide rendrait zéro résultat du club, donc tous les

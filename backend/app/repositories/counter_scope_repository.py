@@ -50,10 +50,11 @@ def find_by_value(db: Session, *, kind: str, value: str) -> CounterScopeEntry | 
     )
 
 
-def count_entries(db: Session, *, kind: str) -> int:
+def count_entries(db: Session, *, kind: str, ambiguous: bool | None = None) -> int:
     """Compte les entrées de cette nature, **en verrouillant les lignes comptées**.
 
-    Son seul appelant est le refus « dernier libellé de club ». Sans verrou, ce
+    Ses appelants sont les refus « dernier libellé de club » et « dernier
+    libellé non ambigu » (`ambiguous=False`). Sans verrou, ce
     refus ne tient pas : deux suppressions concurrentes lisent chacune 2,
     retirent chacune une ligne, et laissent la liste vide — exactement le cas
     que ce refus existe pour empêcher, et qui ne lève aucune erreur.
@@ -66,7 +67,10 @@ def count_entries(db: Session, *, kind: str) -> int:
     return len(
         db.scalars(
             select(CounterScopeEntry.id)
-            .where(CounterScopeEntry.kind == kind)
+            .where(
+                CounterScopeEntry.kind == kind,
+                *([] if ambiguous is None else [CounterScopeEntry.ambiguous.is_(ambiguous)]),
+            )
             .with_for_update()
         ).all()
     )

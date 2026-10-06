@@ -117,6 +117,20 @@ class LastClubLabelError(DomainError):
     )
 
 
+class LastClearClubLabelError(DomainError):
+    """Bascule en ambigu du dernier libellé de club non ambigu (#1206).
+
+    Même raison que `LastClubLabelError` : plus aucun libellé ne ferait compter
+    un résultat par lui seul, et les compteurs du club s'effondreraient sans erreur.
+    """
+
+    status_code = 409
+    message = (
+        "Au moins un libellé de club doit rester non ambigu : sans lui, aucun "
+        "résultat ne compterait pour le club par son seul libellé."
+    )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Branche les handlers d'exceptions domaine sur l'application FastAPI."""
 
