@@ -1476,3 +1476,21 @@ def test_downgrade_then_upgrade_of_counts_for_tcn(sqlite_url, monkeypatch):
     command.upgrade(cfg, "head")
     get_settings.cache_clear()
     assert "counts_for_tcn" in _columns(sqlite_url, "participations")
+
+
+def test_club_members_table_is_created(base_migree):
+    assert _columns(base_migree, "club_members") == {
+        "id", "season", "licence_id", "nom", "prenom", "gender", "last_name_key",
+        "first_name_key", "athlete_id", "link_status", "source", "created_at",
+    }
+
+
+def test_downgrade_then_upgrade_of_club_members(sqlite_url, monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", sqlite_url)
+    get_settings.cache_clear()
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "c4f1a7d2e9b3")
+    assert "club_members" not in _tables(sqlite_url)
+    command.upgrade(cfg, "head")
+    assert "club_members" in _tables(sqlite_url)

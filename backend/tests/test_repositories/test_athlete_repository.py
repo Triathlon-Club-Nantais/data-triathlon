@@ -1,5 +1,6 @@
 from datetime import date
 
+from app.models.athlete import Athlete
 from app.repositories import athlete_repository, course_repository, participation_repository
 
 
@@ -1270,3 +1271,18 @@ def test_fallback_refuses_to_guess_between_several_records(db_session):
 def test_a_name_without_identity_stores_no_key(db_session):
     athlete = athlete_repository.get_or_create(db_session, nom="?", prenom="")
     assert (athlete.last_name_key, athlete.first_name_key) == (None, None)
+
+
+def test_get_all_ranks_by_identity_keys_returns_homonyms_too(db_session):
+    principal = Athlete(nom="MARTIN", prenom="Anne")
+    homonym = Athlete(nom="Martin", prenom="Anne", homonym_rank=1)
+    other = Athlete(nom="DURAND", prenom="Paul")
+    db_session.add_all([principal, homonym, other])
+    db_session.flush()
+
+    found = athlete_repository.get_all_ranks_by_identity_keys(
+        db_session, [("martin", "anne"), ("absent", "x"), (None, None)]
+    )
+
+    assert sorted(a.id for a in found[("martin", "anne")]) == sorted([principal.id, homonym.id])
+    assert ("absent", "x") not in found

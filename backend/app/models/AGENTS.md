@@ -359,3 +359,26 @@ contributeur un redéploiement.
 **Pas d'`ondelete`**, comme les trois tables de #114 : supprimer l'utilisateur
 qui a inscrit une adresse ne doit jamais retirer l'adresse — ce serait une
 révocation d'accès par effet de bord.
+
+## Licenciés du club par saison (#1202)
+
+`club_members` (`id`, `season`, `licence_id`, `nom`, `prenom`, `gender`,
+`last_name_key`, `first_name_key`, `athlete_id`, `link_status`, `source`,
+`created_at`) liste les licenciés du club, lus sur la page FFTri ou importés d'un
+fichier. Seul point de passage : `club_member_repository`.
+
+- **`season` suit `core/season`** (année de début) : la licence FFTri « 2027 »,
+  publiée dès septembre 2026, couvre la saison 2026.
+- **Deux unicités.** `(season, licence_id)` ; et, pour les lignes sans numéro
+  (fichier), `(season, last_name_key, first_name_key)` par un index partiel.
+  Deux homonymes avec numéros distincts coexistent.
+- **`link_status`** : `auto` et `manual` (rattaché, `LINKED`), `unlinked`,
+  `ambiguous` (plusieurs fiches pour la clé, un humain tranche). `source` :
+  `fftri` ou `file`.
+- **`athlete_id` est en `SET NULL`**, donc une fusion de fiches doit appeler
+  `club_member_repository.repoint` avant de supprimer la fiche absorbée.
+- **Conservation.** Les saisons plus anciennes que `current_season() - 1`
+  passent par `purge_before` : lignes non rattachées supprimées ; lignes
+  rattachées réduites à `(season, athlete_id, link_status, source)`, numéro de
+  licence effacé, nom et prénom remplacés par ceux de la fiche. Les résultats
+  passés continuent ainsi de compter sans second exemplaire de la donnée.
