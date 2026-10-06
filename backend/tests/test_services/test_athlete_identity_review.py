@@ -276,3 +276,62 @@ def test_the_count_matches_the_list(db_session):
     _athlete(db_session, "JEAN", "Dupont", club="B", gender="F")
 
     assert athlete_identity_review.count(db_session) == len(athlete_identity_review.find_candidates(db_session)) == 1
+
+
+@pytest.fixture
+def admin(db_session):
+    return user_repository.create(db_session, email="admin-clubs@exemple.fr")
+
+
+def _member_with_clubs(db, *clubs):
+    member = _athlete(db, "MARTIN", "Thomas", club=TCN)
+    for index, club in enumerate(clubs):
+        _result(db, member, _course(db, f"Tri {index}"), str(index), club=club)
+    return member
+
+
+def test_a_member_record_with_another_unconfirmed_club_is_listed(db_session):
+    member = _member_with_clubs(
+        db_session, TCN, "Vendôme Triathlon", "Vendôme Triathlon", "VENDOME TRIATHLON", "nantes (44100)"
+    )
+
+    [candidate] = athlete_identity_review.find_candidates(db_session)
+
+    assert (candidate["reason"], [a["id"] for a in candidate["athletes"]]) == ("multi_club", [member.id])
+    assert candidate["clubs"] == [{"club": "Vendôme Triathlon", "club_key": "vendometriathlon", "results": 3}]
+
+
+def test_a_record_outside_the_club_or_with_one_club_is_not_listed(db_session):
+    outsider = _athlete(db_session, "DUPONT", "Jean")
+    _result(db_session, outsider, _course(db_session, "Tri A"), "1", club="ASPTT")
+    _result(db_session, outsider, _course(db_session, "Tri B"), "2", club="Vendôme Triathlon")
+    _member_with_clubs(db_session, TCN, TCN)
+
+    assert _reasons(db_session) == []
+
+
+def test_a_confirmed_club_leaves_the_review(db_session, admin):
+    member = _member_with_clubs(db_session, TCN, "Vendôme Triathlon")
+
+    out = athlete_identity_review.confirm_club(
+        db_session, athlete_id=member.id, club_key="vendometriathlon", user_id=admin.id
+    )
+
+    assert (out["athlete_id"], out["club_key"]) == (member.id, "vendometriathlon")
+    assert _reasons(db_session) == []
+    [log] = db_session.query(AdminActionLog).filter_by(action="athlete_identity.confirm_club").all()
+    assert log.payload == {"club_key": "vendometriathlon"}
+    with pytest.raises(DuplicateError):
+        athlete_identity_review.confirm_club(
+            db_session, athlete_id=member.id, club_key="vendometriathlon", user_id=admin.id
+        )
+    with pytest.raises(NotFoundError):
+        athlete_identity_review.confirm_club(db_session, athlete_id=99999, club_key="x", user_id=admin.id)
+    with pytest.raises(DomainError):
+        athlete_identity_review.confirm_club(db_session, athlete_id=member.id, club_key=" ", user_id=admin.id)
+
+
+def test_the_count_includes_multi_club_cases(db_session):
+    _member_with_clubs(db_session, TCN, "Vendôme Triathlon")
+
+    assert athlete_identity_review.count(db_session) == 1

@@ -30,11 +30,20 @@ class IdentityReviewConflict(BaseModel):
     entries: list[IdentityReviewEntry]
 
 
+class IdentityReviewClub(BaseModel):
+    """Un club à vérifier sur une fiche (`multi_club`, #1209)."""
+
+    club: str
+    club_key: str
+    results: int
+
+
 class IdentityReviewCandidate(BaseModel):
     reason: str
     reason_label: str
     athletes: list[IdentityReviewAthlete]
     conflicts: list[IdentityReviewConflict]
+    clubs: list[IdentityReviewClub] = []
 
 
 class IdentityReviewList(BaseModel):
@@ -54,3 +63,14 @@ class IdentityPairIgnoreOut(BaseModel):
     athlete_id_a: int
     athlete_id_b: int
     ignored_at: datetime
+
+
+class IdentityClubConfirmCreate(BaseModel):
+    athlete_id: StrictInt
+    club_key: str
+
+
+class IdentityClubConfirmOut(BaseModel):
+    athlete_id: int
+    club_key: str
+    confirmed_at: datetime
