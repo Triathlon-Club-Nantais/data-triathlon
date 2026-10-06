@@ -400,9 +400,9 @@ class WiclaxProvider(FanoutProvider):
 
     name = "wiclax"
 
-    # Hosts servant un moteur G-Live. `chronowest.fr` : WordPress + iframe
+    # Hosts servant un moteur G-Live. `chronowest.fr` et `altichrono.fr` (#1208) : WordPress + iframe
     # G-Live (issue #35).
-    _HOSTS = ("wiclax-results.com", "chronosmetron.com", "chronowest.fr")
+    _HOSTS = ("wiclax-results.com", "chronosmetron.com", "chronowest.fr", "altichrono.fr")
 
     _module = wiclax
 
