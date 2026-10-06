@@ -198,7 +198,16 @@ fichier (CSV ou XLSX) par un administrateur pour une saison passée. Elle sert
 quand l'athlète (ou un équipier du relais) est licencié pour la saison de l'épreuve, même si le
 chronométreur ne publie pas son club. Un club ambigu (qui peut désigner le
 club ou un autre) compte aussi pour un athlète rattaché à un licencié, de
-n'importe quelle saison. Aucun autre usage.
+n'importe quelle saison. La liste sert aussi à distinguer la fiche d'un
+licencié de celle d'un homonyme : un résultat publié sous un autre club que
+celui d'un licencié part sur une fiche d'homonyme à l'import, et la revue des
+identités signale une fiche qui porte plusieurs clubs (#1209). Aucun autre
+usage.
+
+**Opposition.** Une personne inscrite au registre des oppositions (#334) est
+retirée de la liste à l'application de l'opposition, toutes saisons
+confondues, et la relecture FFTri comme l'import de fichier l'écartent
+ensuite : son empreinte suffit à la reconnaître, sans garder son nom.
 
 **Base légale.** Intérêt légitime (article 6.1.f), comme les résultats :
 
