@@ -1284,3 +1284,23 @@ def list_identities(db: Session) -> list[tuple[int, str, str]]:
 def delete(db: Session, athlete: Athlete) -> None:
     db.delete(athlete)
     db.flush()
+
+
+def genderless_evidence(db: Session) -> list[tuple[int, str | None, dict | None]]:
+    """`(athlete_id, catégorie, ligne brute)` des résultats portés par une fiche sans sexe (#1201)."""
+    return (
+        db.query(Participation.athlete_id, Participation.category, Participation.raw_data)
+        .join(Athlete, Athlete.id == Participation.athlete_id)
+        .filter(or_(Athlete.gender.is_(None), Athlete.gender == ""))
+        .order_by(Participation.athlete_id, Participation.id)
+        .all()
+    )
+
+
+def set_genders(db: Session, genders: dict[int, str]) -> None:
+    """Pose le sexe de chaque fiche, en lot."""
+    if genders:
+        db.execute(
+            update(Athlete),
+            [{"id": athlete_id, "gender": gender} for athlete_id, gender in genders.items()],
+        )

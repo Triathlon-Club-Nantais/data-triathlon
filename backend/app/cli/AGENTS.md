@@ -24,6 +24,7 @@ uv run python -m app.cli import-sheet --json | jq -r '.failures[].url' \
 uv run python -m app.cli club-labels --like nant   # libellés club vus en base, marqués TCN ou non
 uv run python -m app.cli purge-timepulse-duplicates   # épreuves timepulse d'avant #674 en double (--yes --by-email pour supprimer, #1004)
 uv run python -m app.cli purge-relay-twins            # épreuves solo doublées par leur relais (--yes --by-email pour supprimer, #1195)
+uv run python -m app.cli backfill-genders --json      # sexe vide des fiches, déduit de leurs résultats (--yes pour écrire, #1201)
 uv run python -m app.cli reconcile-athletes --json > simulation.json   # doublons d'athlètes existants, simulés (#906)
 uv run python -m app.cli reconcile-athletes --yes --by-email <adresse> --plan-from simulation.json   # applique le plan relu
 uv run python -m app.cli requalify-challenges         # épreuves qui sont des classements Challenge (--yes --by-email pour convertir, #1008)
@@ -405,6 +406,15 @@ d'après #963. Garde : **chaque** dossard nommé de l'épreuve solo doit être r
 par la jumelle ; une équipe absente du relais la garde, donc rescraper avant de
 purger. Depuis #1204 l'import requalifie en place quand il le peut, la commande
 ne reprend que l'existant. Logique : `services/relay_twin_cleanup.py`.
+
+## `backfill-genders` (#1201)
+
+Rattrapage **ponctuel** du sexe vide des fiches, prérequis de #990. Sans
+`--yes`, simulation ; avec, écriture en un lot, sans journal d'administration
+(donnée dérivée, pas un geste). Indice par résultat : la ligne source
+(`sex`, `sexe`, `gender`, `genre`) sinon la catégorie
+(`utils.gender_from_category`). Une fiche n'est remplie que si **tous** ses
+indices s'accordent. Logique : `services/gender_backfill.py`.
 
 ## `requalify-challenges` (#1008)
 

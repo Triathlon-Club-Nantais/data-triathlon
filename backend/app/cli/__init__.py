@@ -16,6 +16,7 @@ import sys
 import typer
 
 from app.cli.commands.allow_email import allow_email
+from app.cli.commands.backfill_genders import backfill_genders
 from app.cli.commands.club_labels import club_labels
 from app.cli.commands.geocode_courses import geocode_courses
 from app.cli.commands.grant_role import grant_role
@@ -32,6 +33,7 @@ from app.core.logging import setup_logging
 
 app = typer.Typer(help="Outillage d'import de masse et de rescrape.")
 app.command("allow-email")(allow_email)
+app.command("backfill-genders")(backfill_genders)
 app.command("club-labels")(club_labels)
 app.command("geocode-courses")(geocode_courses)
 app.command("grant-role")(grant_role)
