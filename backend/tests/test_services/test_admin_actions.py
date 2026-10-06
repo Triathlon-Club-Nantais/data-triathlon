@@ -1048,6 +1048,42 @@ def test_switch_replaces_the_ranking_purges_orphans_and_logs_the_switch(
     assert entrees[0].payload["athletes_purged"] == 2
 
 
+def test_switch_uncounts_the_bare_tcn_of_an_athlete_the_new_source_drops(
+    db_session, auteur, scrape
+):
+    """#1206 : l'athlète absent de la nouvelle source ne confirme plus ses « TCN » nus."""
+    from app.core import counter_scope
+    from app.repositories import tcn_count_repository
+
+    counter_scope.load(
+        disciplines=counter_scope.non_federal_disciplines(),
+        club_labels=counter_scope.tcn_club_labels(),
+        ambiguous_club_labels={"tcn"},
+    )
+    course, passive = _epreuve_deux_sources(db_session)
+    autre = _epreuve(db_session, "Autre", date(2026, 6, 1))
+    membre = _coureur(db_session, "DEPART")
+    participation_repository.create(
+        db_session, athlete_id=membre.id, course_id=course.id, bib_number="1",
+        club="Triathlon Club Nantais",
+    )
+    nue = participation_repository.create(
+        db_session, athlete_id=membre.id, course_id=autre.id, bib_number="1", club="TCN"
+    )
+    tcn_count_repository.recompute_counts_for_tcn(db_session)
+    assert participation_repository.get(db_session, nue.id).counts_for_tcn is True
+    db_session.commit()
+    scrape([_resultat_bascule(course, passive, "9", "NOUVEAU")])
+
+    list(course_rescrape_service.iter_switch_course_source(
+        db_session, course_id=course.id, source_id=passive.id,
+        user_id=auteur.id, settings=_settings(),
+    ))
+
+    db_session.expire_all()
+    assert participation_repository.get(db_session, nue.id).counts_for_tcn is False
+
+
 def test_switch_termine_et_commite_malgre_un_client_qui_arrete_de_lire(
     db_session, auteur, scrape,
 ):

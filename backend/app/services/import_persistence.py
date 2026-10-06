@@ -316,6 +316,8 @@ class _Persister:
         self.reconciled = 0
         self.challenges = 0
         self.reassignments: list[Reassignment] = []
+        # Fiches qui ont perdu un résultat par réconciliation : leur verdict du club se recalcule (#1206).
+        self._previous_athlete_ids: set[int] = set()
         # Lignes dont le repli d'identité a trouvé plusieurs fiches (#908) : une
         # fiche est créée, rien n'est deviné, l'admin tranche.
         self.ambiguous_identities: list[dict] = []
@@ -1009,6 +1011,7 @@ class _Persister:
         reassignment = Reassignment(
             ancien=_identite(participation.athlete), nouveau=_identite(athlete), fusion=not cree
         )
+        self._previous_athlete_ids.add(participation.athlete_id)
         participation.athlete = athlete
         if participation.bib_number:
             self._bibs_by_athlete[participation.course_id].setdefault(athlete.id, set()).add(
@@ -1094,7 +1097,9 @@ class _Persister:
             self._athlete_updates.clear()
         # Verdict du club avant les compteurs : `recount` le lit (#1206). La
         # portée s'étend aux autres résultats des athlètes importés.
-        tcn_count_repository.recompute_counts_for_tcn(self.db, course_ids=list(self._courses))
+        tcn_count_repository.recompute_counts_for_tcn(
+            self.db, course_ids=list(self._courses), athlete_ids=self._previous_athlete_ids
+        )
         for course_id, course in self._courses.items():
             course_repository.touch_scraped_at(self.db, course)
             course_source_repository.touch_active_scraped_at(self.db, course_id)
@@ -1488,8 +1493,10 @@ def _drop_course_twin(db: Session, name: str, event_date, urls: set[str]) -> Non
             continue
         logger.info("Course %s replaced by the challenge of the same heat: %s", course.id, name)
         candidates = athlete_repository.only_on_course(db, course.id)
+        athlete_ids = participation_repository.athlete_ids_on_course(db, course.id)
         course_repository.delete(db, course)
         db.flush()
+        tcn_count_repository.recompute_counts_for_tcn(db, athlete_ids=athlete_ids)
         athlete_repository.delete_orphans_among(db, candidates)
 
 
