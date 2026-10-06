@@ -3,7 +3,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models.athlete import Athlete
-from app.models.club_member import LINK_AUTO, LINK_UNLINKED, SOURCE_FFTRI, ClubMember
+from app.models.club_member import LINK_AUTO, LINK_UNLINKED, SOURCE_FFTRI, SOURCE_FILE, ClubMember
 from app.repositories import club_member_repository
 
 
@@ -162,3 +162,20 @@ def test_purge_keeps_only_the_link_and_the_athlete_identity(db_session):
     assert (kept.nom, kept.prenom, kept.gender) == ("MARTIN", "Anne", "")
     assert (kept.last_name_key, kept.first_name_key) == (athlete.last_name_key, athlete.first_name_key)
     assert kept.licence_id is None
+
+
+def test_purge_minimises_licence_less_file_rows_once(db_session):
+    athlete = Athlete(nom="MARTIN", prenom="Anne")
+    db_session.add(athlete)
+    db_session.flush()
+    club_member_repository.replace_season(db_session, 2024, [
+        _member(season=2024, licence_id=None, athlete_id=athlete.id, link_status=LINK_AUTO,
+                nom="MARTIN DUPONT", prenom="Anne Sophie", gender="F", source=SOURCE_FILE),
+    ])
+
+    assert club_member_repository.purge_before(db_session, 2025, dry_run=False) == 1
+
+    (kept,) = club_member_repository.list_season(db_session, 2024)
+    assert (kept.nom, kept.prenom, kept.gender) == ("MARTIN", "Anne", "")
+    assert (kept.last_name_key, kept.first_name_key) == (athlete.last_name_key, athlete.first_name_key)
+    assert club_member_repository.purge_before(db_session, 2025, dry_run=False) == 0
