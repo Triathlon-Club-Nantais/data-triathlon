@@ -1,6 +1,6 @@
 """Accès aux tables Challenge (#1008)."""
 from collections.abc import Sequence
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import func, update
 from sqlalchemy.orm import Session, selectinload
@@ -42,6 +42,19 @@ def upsert(db: Session, *, name: str, event_date: date, source_url: str) -> Chal
     challenge.scraped_at = utcnow()
     db.flush()
     return challenge
+
+
+def find_named_near(db: Session, *, name: str, event_date: date, days: int) -> Challenge | None:
+    """Le Challenge de ce nom au plus près de cette date, à `days` jours au plus."""
+    return (
+        db.query(Challenge)
+        .filter(
+            Challenge.name == name,
+            Challenge.event_date.between(event_date - timedelta(days=days), event_date + timedelta(days=days)),
+        )
+        .order_by(Challenge.id)
+        .first()
+    )
 
 
 def replace_links(db: Session, challenge: Challenge, course_ids: Sequence[int]) -> None:
