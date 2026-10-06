@@ -141,7 +141,7 @@ function CelluleInter({
   if (valeur && secondsFromHms(valeur) == null) {
     const motif = `Temps illisible chez le chronométreur (« ${valeur} ») — la donnée existe, mais ce n'est pas un temps.`;
     return (
-      <Balise role="cell" style={style}>
+      <Balise role={Balise === "td" ? "cell" : undefined} style={style}>
         —{" "}
         <span
           // `role="img"` : le marqueur informe, il ne commande rien.
@@ -160,7 +160,7 @@ function CelluleInter({
       </Balise>
     );
   }
-  return <Balise role="cell" style={style}>{valeur ?? "—"}</Balise>;
+  return <Balise role={Balise === "td" ? "cell" : undefined} style={style}>{valeur ?? "—"}</Balise>;
 }
 
 /**

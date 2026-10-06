@@ -1455,6 +1455,10 @@ describe("rendu carte sous lg", () => {
     expect(cellules.length).toBeGreaterThan(0);
     expect(cellules.filter((td) => td.parentElement?.tagName !== "TR")).toHaveLength(0);
     expect(cartes().texte("00:11:37")).toBeInTheDocument();
+    const orphelines = Array.from(container.querySelectorAll('[data-affichage="cartes"] [role="cell"]')).filter(
+      (cellule) => !cellule.closest('[role="row"]'),
+    );
+    expect(orphelines).toHaveLength(0);
   });
 
   // Trois lignes, dans un ordre backend qui n'est ni croissant ni décroissant :
