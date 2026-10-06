@@ -117,13 +117,13 @@ beforeEach(() => {
 
 describe("RaceFinishers", () => {
   it("montre le rang catégorie quand la source le publie, en grille comme en cartes (#1207)", () => {
-    const classee = { ...p({ id: 1, nom: "CLASSEE", rank_overall: 5, total_time: "01:00:00" }), rank_category: 3 };
+    const classee = { ...p({ id: 1, nom: "CLASSEE", rank_overall: 5, total_time: "01:00:00" }), rank_category: 1 };
     afficher({ participations: [classee, p({ id: 2, nom: "SANSRANG", rank_overall: 6 })] });
 
     const grille = screen.getByTestId("classement-grille");
-    expect(within(grille).getByTitle("3e de sa catégorie")).toHaveTextContent("3e");
+    expect(within(grille).getByTitle("1er de sa catégorie")).toHaveTextContent("1er de sa catégorie");
     expect(within(grille).getAllByTitle(/de sa catégorie/)).toHaveLength(1);
-    expect(dansLesCartes("classement-cartes").texte(/S4 \(3e\)/)).toBeInTheDocument();
+    expect(dansLesCartes("classement-cartes").texte(/S4 \(1er\)/)).toBeInTheDocument();
   });
 
   it("affiche un badge DNS/DNF pour les non-finishers", () => {

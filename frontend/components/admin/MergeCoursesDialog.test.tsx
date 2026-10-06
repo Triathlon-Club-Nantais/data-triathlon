@@ -115,7 +115,7 @@ describe("MergeCoursesDialog", () => {
       await user.click(await screen.findByRole("button", { name: /garder.*runner/i }));
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        /l'épreuve supprimée porte 28 résultats TCN, celle conservée 0/i,
+        /l'épreuve supprimée porte 28 résultats TCN, celle\s+conservée aucun/i,
       );
     });
   });

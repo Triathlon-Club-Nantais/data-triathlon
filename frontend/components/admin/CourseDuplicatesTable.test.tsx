@@ -124,8 +124,8 @@ describe("CourseDuplicatesTable", () => {
 
     expect(await screen.findByRole("link", { name: "n° 38" })).toHaveAttribute("href", "/courses/38");
     expect(screen.getByRole("link", { name: "n° 50" })).toHaveAttribute("href", "/courses/50");
-    expect(screen.getByText(/créée le 14\/06\/2026/)).toBeInTheDocument();
-    expect(screen.getByText(/créée le 05\/10\/2026/)).toBeInTheDocument();
+    expect(screen.getByText(/importée le 14\/06\/2026/)).toBeInTheDocument();
+    expect(screen.getByText(/importée le 05\/10\/2026/)).toBeInTheDocument();
   });
 
   it("propose la fusion à un porteur de courses:delete", async () => {
