@@ -574,7 +574,7 @@ def test_run_batch_assainit_la_session_apres_une_exception_brute(
     def _phases(db, url, settings, force=False, persist=True, **kwargs):
         if "boom" in url:
             # Simule une coupure DB brute : IntegrityError qui remonte sans
-            # rollback, comme le SELECT non protégé de `_cached_result`.
+            # rollback, comme le SELECT non protégé de `cached_result`.
             db.add(Athlete(nom="Dupont", prenom="Jean", birth_date=date(1990, 1, 1)))
             db.add(Athlete(nom="Dupont", prenom="Jean", birth_date=date(1990, 1, 1)))
             db.flush()
@@ -672,13 +672,13 @@ def test_run_batch_un_reporter_qui_leve_ne_masque_pas_le_ctrl_c(db_session, monk
 
 def test_run_batch_referme_la_transaction_de_lecture_de_chaque_epreuve(db_session, monkeypatch):
     """Chemins « cached » et « error » de `iter_import_event` : le SELECT du cache
-    TTL (`_cached_result`) ouvre une transaction que personne ne referme. Sur
+    TTL (`cached_result`) ouvre une transaction que personne ne referme. Sur
     Supabase, un `import-sheet` relancé sur un Sheet déjà importé la laissait
     `idle in transaction` pendant tout le run.
     """
 
     def _phases_cached(db, url, settings, force=False, persist=True, **kwargs):
-        db.query(Athlete).count()  # le SELECT de `_cached_result` : ouvre la transaction
+        db.query(Athlete).count()  # le SELECT de `cached_result` : ouvre la transaction
         yield {"phase": "done", "imported": 0, "skipped": 3, "total": 3, "cached": True}
 
     monkeypatch.setattr(import_service, "iter_import_event", _phases_cached)

@@ -986,7 +986,7 @@ def test_scrape_event_fanout_on_heat_start_non_notifie_pour_les_cachees(monkeypa
 
 
 def test_registry_rend_la_trace_avec_les_resultats(monkeypatch):
-    """La trace rendue par `ChronoplaceProvider` alimente les 5 compteurs de `_fanout_counters`."""
+    """La trace rendue par `ChronoplaceProvider` alimente les 5 compteurs de `fanout_counters`."""
     from app.scrapers import registry
 
     _client_factice(monkeypatch)

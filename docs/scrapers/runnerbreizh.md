@@ -31,7 +31,7 @@ paramètre d'épreuve), pas par soustraction des vues connues. Portée exacte :
 depuis #156, `mapping.get_or_create_course` préfère `scraped.source_url`, donc
 l'URL canonique devient aussi `Course.source_url` et les deux graphies d'une même
 épreuve partagent une seule source. La limite réelle est ailleurs : la sonde TTL
-de tête d'`import_service` (`_cached_result`) compare l'URL **soumise**, telle
+de tête d'`import_service` (`cached_result`) compare l'URL **soumise**, telle
 quelle, à `CourseSource.url`. Une graphie non canonique (`&page=2`) rate donc ce
 court-circuit et relance un scrape réseau, sans créer de doublon (#1102).
 

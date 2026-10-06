@@ -1263,7 +1263,7 @@ def test_scrape_event_fanout_cache_probe_skips_courses(monkeypatch):
     """cache_probe qui retourne True pour 1 course → seule l'autre est traitée.
 
     La course sautée est comptée dans `heats_cached`, son URL rangée dans
-    `cached_urls`. `import_dispatch._merge_cached_courses` s'en sert pour
+    `cached_urls`. `import_dispatch.merge_cached_courses` s'en sert pour
     remonter les `Course` déjà en base dans le SSE `done`.
     """
     _client_factice(monkeypatch)

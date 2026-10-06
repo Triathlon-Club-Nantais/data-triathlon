@@ -582,7 +582,7 @@ def _drop_orphelins(
 
     Un E sans `p=` (« DOSSARD INCONNU ***** ») créait une `Course` avec
     `source_url` = URL de l'événement, qui matchait au ré-import via
-    `_cached_result` et court-circuitait tout le fan-out (issue #195 sur
+    `cached_result` et court-circuitait tout le fan-out (issue #195 sur
     Vertou 2026 ; symptôme aussi documenté par le bug #79). L'écart n'a lieu
     que sur un événement multi-parcours : un `.clax` mono-parcours où aucun E
     ne porte `p=` (legacy) reste importé entier (rétro-compat).

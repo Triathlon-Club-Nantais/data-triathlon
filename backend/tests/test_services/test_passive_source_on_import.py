@@ -26,7 +26,7 @@ from app.repositories import course_repository, course_source_repository, partic
 from app.scrapers.base import ScrapedResult
 from app.services import import_service, mapping
 
-#: Deux chronométreurs, une seule épreuve. Hosts réels : `_validate_url` refuse
+#: Deux chronométreurs, une seule épreuve. Hosts réels : `validate_url` refuse
 #: une URL qu'aucun provider ne reconnaît, un `.test` ferait échouer les tests
 #: pour une raison qui n'a rien à voir avec #283.
 KLIKEGO = "https://www.klikego.com/resultats/mesquer-2026/1706667557931-4"
