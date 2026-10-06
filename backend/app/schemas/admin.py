@@ -249,6 +249,12 @@ class ParticipationReassign(BaseModel):
     athlete_id: int
 
 
+class AthleteDetachRequest(BaseModel):
+    """Les résultats d'une fiche à séparer vers une nouvelle fiche d'homonyme (#1209)."""
+
+    participation_ids: list[StrictInt] = Field(min_length=1, max_length=500)
+
+
 class TeammateRef(BaseModel):
     """Un équipier de relais (#894) : sa fiche, ou son nom quand il n'en a pas.
 

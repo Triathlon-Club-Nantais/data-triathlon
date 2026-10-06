@@ -29,13 +29,13 @@ from app.repositories import (
 from app.services.auth import session as session_service
 
 
-def _session_etroite(client, db_session, *codes, email="etroit@exemple.fr"):
+def _session_etroite(client, db_session, *codes, email="etroit@exemple.fr", slug="etroit"):
     """Remplace la session large du conftest par une session à pouvoirs comptés."""
     organisation = db_session.query(Organisation).first()
     user = user_repository.create(db_session, email=email)
     db_session.flush()
     if codes:
-        role = role_repository.create(db_session, slug="etroit", name="Étroit")
+        role = role_repository.create(db_session, slug=slug, name="Étroit")
         for code in codes:
             role.permissions.append(RolePermission(permission_code=str(code)))
         db_session.flush()

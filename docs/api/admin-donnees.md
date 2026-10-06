@@ -111,6 +111,16 @@ succès muet, sans confirmer ce qu'elle avait détruit.
   `conflicting_athlete_id`, pour proposer la fusion. Une variante compte comme
   l'identité de sa fiche.
 
+## Séparer une fiche (#1209)
+
+`POST /admin/athletes/{id}/detach` (`athletes:write` et `participations:reassign`),
+corps `{"participation_ids": [...]}`. Les résultats choisis partent sur une
+nouvelle fiche d'homonyme (même nom, rang suivant), chacun par le rattachement
+admin (verrouillé contre les imports). La paire est enregistrée comme distincte,
+pour que `reconcile-athletes` ne la refusionne pas. Rend la nouvelle fiche (201).
+Refus : liste vide, résultat d'une autre fiche, fiche qui serait vidée (400),
+deux résultats d'une même épreuve (409). Journal : `athlete.detach`.
+
 ## Revue d'identité des athlètes (#908)
 
 | Route | Pouvoir | Effet |
