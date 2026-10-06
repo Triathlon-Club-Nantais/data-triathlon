@@ -5,6 +5,7 @@ import { Button, Card } from "@/components/tcn";
 import { apiClient, ApiError } from "@/lib/api/client";
 import type { Participation } from "@/lib/types";
 import { formatEventName } from "@/lib/utils/event";
+import { splitSegments } from "@/lib/utils/splits";
 import { isHttpUrl } from "@/lib/utils/url";
 import { ChampsParticipation } from "./ChampsParticipation";
 import { ReattributionField } from "./ReattributionField";
@@ -32,6 +33,9 @@ export function ParticipationPanel({
 }) {
   const { brouillon, modifier, sale, erreur, enCours, validationEnCours, enregistrer, validerLeResultat } =
     useBrouillon(participation, { onChanged, onSessionExpired });
+
+  // Libellés et ordre de la discipline, comme sur la fiche publique (#1180).
+  const segments = splitSegments(participation.course.event_type, participation.splits);
 
   const [confirmationRejet, setConfirmationRejet] = useState(false);
   const [erreurRejet, setErreurRejet] = useState<string | null>(null);
@@ -134,12 +138,12 @@ export function ParticipationPanel({
           )}
         </div>
 
-        {participation.splits && Object.keys(participation.splits).length > 0 && (
+        {segments.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 18px", fontSize: 13 }}>
-            {Object.entries(participation.splits).map(([cle, valeur]) => (
-              <div key={cle}>
-                <span style={{ color: "var(--tcn-text-faint)" }}>{cle} : </span>
-                <strong>{valeur}</strong>
+            {segments.map((segment) => (
+              <div key={segment.key}>
+                <span style={{ color: "var(--tcn-text-faint)" }}>{segment.label} : </span>
+                <strong>{segment.time}</strong>
               </div>
             ))}
           </div>
