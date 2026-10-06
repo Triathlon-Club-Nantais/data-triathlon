@@ -475,45 +475,36 @@ def set_counts(db: Session, course: Course, *, participation_count: int, tcn_cou
     course.tcn_count = tcn_count
 
 
-_COUNT_COLUMNS = ["participation_count", "tcn_count"]
-
-
 def recount(db: Session, course: Course) -> None:
-    """Recalcule les deux compteurs en SQL, dans la transaction courante (#1099).
+    """Recalcule `participation_count` en SQL, dans la transaction courante (#1099).
 
     Pas depuis la liste que l'import a chargée à son début : une ligne ajoutée,
-    supprimée ou validée ailleurs entre-temps serait écrasée. Même définition que
-    `tcn_count_repository.recompute_counts_for_tcn`.
+    supprimée ou validée ailleurs entre-temps serait écrasée. `tcn_count` vient
+    de `tcn_count_repository.recompute_counts_for_tcn`, que l'import appelle juste avant.
     """
     from app.models.participation import Participation
 
     db.flush()
 
-    def _count(*clauses):
-        return (
-            select(func.count(Participation.id))
-            .where(
-                Participation.course_id == Course.id,
-                validated_clause(Participation.is_pending_validation),
-                *clauses,
-            )
-            .scalar_subquery()
+    counted = (
+        select(func.count(Participation.id))
+        .where(
+            Participation.course_id == Course.id,
+            validated_clause(Participation.is_pending_validation),
         )
-
-    db.query(Course).filter(Course.id == course.id).update(
-        {
-            Course.participation_count: _count(),
-            Course.tcn_count: _count(Participation.counts_for_tcn.is_(True)),
-        },
-        synchronize_session=False,
+        .scalar_subquery()
     )
-    db.expire(course, _COUNT_COLUMNS)
+    db.query(Course).filter(Course.id == course.id).update(
+        {Course.participation_count: counted}, synchronize_session=False
+    )
+    db.expire(course, ["participation_count"])
 
 
-def adjust_counts(db: Session, course: Course, *, participation_delta: int, tcn_delta: int) -> None:
-    """Ajuste les deux compteurs d'un delta — pour un geste qui touche une
+def adjust_counts(db: Session, course: Course, *, participation_delta: int) -> None:
+    """Ajuste `participation_count` d'un delta, pour un geste qui touche une
     seule participation (`admin_actions.validate_participation`/
-    `.delete_participation`), plutôt qu'un recalcul complet.
+    `.delete_participation`), plutôt qu'un recalcul complet. `tcn_count`, lui,
+    ne s'écrit que par `tcn_count_repository.recompute_counts_for_tcn`.
 
     Incrément relatif côté base, pas un read-modify-write en Python : deux gestes
     simultanés sur la même épreuve perdaient un delta (#1099).
@@ -526,11 +517,10 @@ def adjust_counts(db: Session, course: Course, *, participation_delta: int, tcn_
     db.query(Course).filter(Course.id == course.id).update(
         {
             Course.participation_count: _shifted(Course.participation_count, participation_delta),
-            Course.tcn_count: _shifted(Course.tcn_count, tcn_delta),
         },
         synchronize_session=False,
     )
-    db.expire(course, _COUNT_COLUMNS)
+    db.expire(course, ["participation_count"])
 
 
 def zero_counts_all(db: Session) -> int:

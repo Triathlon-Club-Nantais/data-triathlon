@@ -653,13 +653,13 @@ def test_concurrent_count_adjustments_keep_every_delta(tmp_path):
         assert stale.participation_count == 5
 
         other = second.get(Course, course.id)
-        course_repository.adjust_counts(second, other, participation_delta=1, tcn_delta=1)
+        course_repository.adjust_counts(second, other, participation_delta=1)
         second.commit()
 
-        course_repository.adjust_counts(first, stale, participation_delta=1, tcn_delta=-3)
+        course_repository.adjust_counts(first, stale, participation_delta=1)
         first.commit()
 
-        assert (stale.participation_count, stale.tcn_count) == (7, 0)
+        assert stale.participation_count == 7
     finally:
         first.close()
         second.close()
@@ -688,7 +688,7 @@ def test_recount_reads_rows_written_by_another_session(tmp_path):
         course_repository.recount(first, loaded)
         first.commit()
 
-        assert (loaded.participation_count, loaded.tcn_count) == (2, 1)
+        assert loaded.participation_count == 2
     finally:
         first.close()
         second.close()

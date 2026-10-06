@@ -5,6 +5,7 @@ import pytest
 
 from app.core import counter_scope
 from app.core.config import Settings
+from app.models.club_member import LINK_AUTO, LINK_UNLINKED, SOURCE_FFTRI, ClubMember
 from app.repositories import (
     athlete_repository,
     course_repository,
@@ -13,7 +14,8 @@ from app.repositories import (
     user_repository,
 )
 from app.scrapers.base import ScrapedResult
-from app.services import admin_actions, athlete_merge, import_service
+from app.scrapers.fftri_club_members import ClubRoster, RosterMember
+from app.services import admin_actions, athlete_merge, club_members_service, import_service
 
 
 @pytest.fixture(autouse=True)
@@ -203,3 +205,68 @@ def test_an_import_that_repoints_a_row_recomputes_the_previous_athlete(db_sessio
 
     assert participation_repository.get(db_session, clear.id).athlete_id != old.id
     assert _verdict(db_session, bare.id) is False
+
+
+def _licensed(db, athlete, season):
+    db.add(ClubMember(
+        season=season, licence_id=f"C{athlete.id}-{season}", nom=athlete.nom, prenom=athlete.prenom,
+        athlete_id=athlete.id, link_status=LINK_AUTO, source=SOURCE_FFTRI,
+    ))
+    db.flush()
+
+
+def test_moving_a_course_across_the_first_of_september_changes_its_licence_season(db_session, admin):
+    member = athlete_repository.get_or_create(db_session, nom="OUEST", prenom="Lea")
+    _licensed(db_session, member, 2026)
+    course = course_repository.get_or_create(
+        db_session, name="Tri de rentrée", event_date=date(2026, 8, 30), event_type="triathlon-m"
+    )
+    result = _result(db_session, member, course, "1", "Blain Tri")
+    tcn_count_repository.recompute_counts_for_tcn(db_session)
+    assert _verdict(db_session, result.id) is False
+
+    admin_actions.update_course(
+        db_session, course_id=course.id, champs={"event_date": date(2026, 9, 6)}, user_id=admin.id
+    )
+
+    assert _verdict(db_session, result.id) is True
+    assert course_repository.get(db_session, course.id).tcn_count == 1
+
+
+def test_an_athlete_dropped_by_a_resync_stops_counting(db_session, admin, monkeypatch):
+    member = athlete_repository.get_or_create(db_session, nom="OUEST", prenom="Lea")
+    course = _course(db_session, "Tri d'automne", 1)
+    course.event_date = date(2026, 10, 4)
+    result = _result(db_session, member, course, "1", "Blain Tri")
+    roster = [RosterMember("OUEST", "Lea", "F", "C1")]
+    monkeypatch.setattr(
+        club_members_service.fftri_club_members, "fetch_club_roster",
+        lambda url: ClubRoster(licence_year=2027, members=list(roster)),
+    )
+    club_members_service.sync_from_fftri(db_session, user_id=admin.id)
+    assert _verdict(db_session, result.id) is True
+
+    roster.clear()
+    club_members_service.sync_from_fftri(db_session, user_id=admin.id)
+
+    assert _verdict(db_session, result.id) is False
+    assert course_repository.get(db_session, course.id).tcn_count == 0
+
+
+def test_a_relay_counts_when_a_teammate_becomes_a_member(db_session, admin):
+    carrier = athlete_repository.get_or_create(db_session, nom="SUD", prenom="Leo")
+    teammate = athlete_repository.get_or_create(db_session, nom="OUEST", prenom="Lea")
+    course = _course(db_session, "Relais", 3)
+    relay = _result(db_session, carrier, course, "1", "Blain Tri")
+    participation_repository.replace_teammates(db_session, relay, [carrier.id, teammate.id])
+    unlinked = ClubMember(
+        season=2025, licence_id="C9", nom="OUEST", prenom="Lea", link_status=LINK_UNLINKED, source=SOURCE_FFTRI,
+    )
+    db_session.add(unlinked)
+    tcn_count_repository.recompute_counts_for_tcn(db_session)
+    assert _verdict(db_session, relay.id) is False
+
+    club_members_service.link_member(db_session, member_id=unlinked.id, athlete_id=teammate.id, user_id=admin.id)
+
+    assert _verdict(db_session, relay.id) is True
+    assert course_repository.get(db_session, course.id).tcn_count == 1
