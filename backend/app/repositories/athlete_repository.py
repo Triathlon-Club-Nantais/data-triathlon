@@ -148,6 +148,27 @@ def get_by_identity_keys_batch(
     return {(athlete.last_name_key, athlete.first_name_key): athlete for athlete in rows}
 
 
+def get_all_ranks_by_identity_keys(
+    db: Session, keys: Sequence[IdentityKey]
+) -> dict[IdentityKey, list[Athlete]]:
+    """Toutes les fiches de ces clés, homonymes distingués compris (#1202).
+
+    Le rattachement d'un licencié doit voir les homonymes : deux fiches pour
+    une clé, c'est un rattachement ambigu, que seul un humain tranche.
+    """
+    wanted = {key for key in keys if key[0] is not None}
+    if not wanted:
+        return {}
+    found: dict[IdentityKey, list[Athlete]] = {}
+    for athlete in db.scalars(
+        select(Athlete)
+        .where(tuple_(Athlete.last_name_key, Athlete.first_name_key).in_(wanted))
+        .order_by(Athlete.homonym_rank)
+    ):
+        found.setdefault((athlete.last_name_key, athlete.first_name_key), []).append(athlete)
+    return found
+
+
 def find_fallback_matches(
     db: Session, keys: Sequence[IdentityKey]
 ) -> tuple[dict[IdentityKey, Athlete], dict[IdentityKey, list[int]]]:

@@ -8,6 +8,7 @@ from app.models.athlete_opposition import AthleteOpposition
 from app.models.benevole_access_config import BenevoleAccessConfig
 from app.models.challenge import Challenge, ChallengeCourse, ChallengeResult
 from app.models.club_alias import ClubAlias
+from app.models.club_member import ClubMember
 from app.models.counter_scope_entry import CounterScopeEntry
 from app.models.course import Course
 from app.models.course_source import CourseSource
@@ -45,6 +46,7 @@ __all__ = [
     "ChallengeCourse",
     "ChallengeResult",
     "ClubAlias",
+    "ClubMember",
     "CounterScopeEntry",
     "Course",
     "CourseSource",
