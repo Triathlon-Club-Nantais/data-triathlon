@@ -6,6 +6,14 @@ from sqlalchemy import String, literal, select
 
 from app.core import counter_scope
 from app.core.club import ClubLabels, counts_by_label, tcn_clause
+from app.models.club_member import (
+    LINK_AMBIGUOUS,
+    LINK_AUTO,
+    LINK_MANUAL,
+    LINK_UNLINKED,
+    SOURCE_FFTRI,
+    ClubMember,
+)
 from app.repositories import (
     athlete_repository,
     course_repository,
@@ -232,3 +240,158 @@ def test_loaded_instances_see_the_new_verdict_without_a_refresh(db_session):
 
     assert bare.counts_for_tcn is False
     assert course.tcn_count == 0
+
+
+def _dated_course(db, event_date=date(2026, 10, 10), name="Tri saison", is_relay=False):
+    return course_repository.get_or_create(
+        db, name=name, event_date=event_date, event_type="triathlon-m", is_relay=is_relay
+    )
+
+
+def _licence(db, athlete, season, link_status=LINK_AUTO):
+    db.add(ClubMember(
+        season=season, nom=athlete.nom, prenom=athlete.prenom,
+        licence_id=f"C{athlete.id}-{season}", athlete_id=athlete.id,
+        link_status=link_status, source=SOURCE_FFTRI,
+    ))
+    db.flush()
+
+
+def _relay(db, team, teammate, bib="7"):
+    course = _dated_course(db, is_relay=True)
+    return participation_repository.create_batch(db, [{
+        "athlete_id": team.id, "course_id": course.id, "bib_number": bib,
+        "club": "ASPTT", "teammate_ids": [teammate.id],
+    }])[0]
+
+
+def test_a_member_of_the_course_season_counts_without_club_label(db_session):
+    athlete = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Anne")
+    row = _result(db_session, athlete, _dated_course(db_session), "1", "ASPTT")
+    _licence(db_session, athlete, season=2026)
+
+    tcn_count_repository.recompute_counts_for_tcn(db_session, labels=_LABELS)
+
+    assert _flags(db_session, row) == [True]
+
+
+def test_a_licence_of_another_season_does_not_count(db_session):
+    athlete = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Anne")
+    # Le 31 août 2026 appartient à la saison 2025 : la licence 2026 ne la couvre pas.
+    row = _result(db_session, athlete, _dated_course(db_session, date(2026, 8, 31)), "1", None)
+    _licence(db_session, athlete, season=2026)
+
+    tcn_count_repository.recompute_counts_for_tcn(db_session, labels=_LABELS)
+
+    assert _flags(db_session, row) == [False]
+
+
+def test_a_course_without_date_is_covered_by_no_licence(db_session):
+    athlete = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Anne")
+    row = _result(db_session, athlete, _dated_course(db_session, None), "1", None)
+    _licence(db_session, athlete, season=2026)
+
+    tcn_count_repository.recompute_counts_for_tcn(db_session, labels=_LABELS)
+
+    assert _flags(db_session, row) == [False]
+
+
+@pytest.mark.parametrize("link_status", [LINK_UNLINKED, LINK_AMBIGUOUS])
+def test_an_unlinked_member_row_does_not_count(db_session, link_status):
+    athlete = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Anne")
+    row = _result(db_session, athlete, _dated_course(db_session), "1", None)
+    _licence(db_session, athlete, season=2026, link_status=link_status)
+
+    tcn_count_repository.recompute_counts_for_tcn(db_session, labels=_LABELS)
+
+    assert _flags(db_session, row) == [False]
+
+
+def test_a_manual_link_counts(db_session):
+    athlete = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Anne")
+    row = _result(db_session, athlete, _dated_course(db_session), "1", None)
+    _licence(db_session, athlete, season=2026, link_status=LINK_MANUAL)
+
+    tcn_count_repository.recompute_counts_for_tcn(db_session, labels=_LABELS)
+
+    assert _flags(db_session, row) == [True]
+
+
+def test_a_relay_counts_when_a_teammate_is_a_member(db_session):
+    team = athlete_repository.get_or_create(db_session, nom="EQUIPE", prenom="Bleue")
+    teammate = athlete_repository.get_or_create(db_session, nom="DURAND", prenom="Paul")
+    row = _relay(db_session, team, teammate)
+    _licence(db_session, teammate, season=2026)
+
+    tcn_count_repository.recompute_counts_for_tcn(db_session, labels=_LABELS)
+
+    assert _flags(db_session, row) == [True]
+
+
+def test_a_relay_teammate_licensed_another_season_does_not_count(db_session):
+    team = athlete_repository.get_or_create(db_session, nom="EQUIPE", prenom="Bleue")
+    teammate = athlete_repository.get_or_create(db_session, nom="DURAND", prenom="Paul")
+    row = _relay(db_session, team, teammate)
+    _licence(db_session, teammate, season=2025)
+
+    tcn_count_repository.recompute_counts_for_tcn(db_session, labels=_LABELS)
+
+    assert _flags(db_session, row) == [False]
+
+
+def test_a_member_on_another_relay_does_not_count_for_this_one(db_session):
+    member = athlete_repository.get_or_create(db_session, nom="DURAND", prenom="Paul")
+    stranger = athlete_repository.get_or_create(db_session, nom="PETIT", prenom="Luc")
+    _relay(db_session, athlete_repository.get_or_create(db_session, nom="EQUIPE", prenom="Bleue"), member)
+    other = _relay(db_session, athlete_repository.get_or_create(db_session, nom="EQUIPE", prenom="Rouge"), stranger, bib="8")
+    _licence(db_session, member, season=2026)
+
+    tcn_count_repository.recompute_counts_for_tcn(db_session, labels=_LABELS)
+
+    assert _flags(db_session, other) == [False]
+
+
+def test_an_athlete_scope_reaches_the_relays_of_a_teammate(db_session):
+    team = athlete_repository.get_or_create(db_session, nom="EQUIPE", prenom="Bleue")
+    teammate = athlete_repository.get_or_create(db_session, nom="DURAND", prenom="Paul")
+    row = _relay(db_session, team, teammate)
+    tcn_count_repository.recompute_counts_for_tcn(db_session, labels=_LABELS)
+    _licence(db_session, teammate, season=2026)
+
+    tcn_count_repository.recompute_counts_for_tcn(
+        db_session, athlete_ids=[teammate.id], labels=_LABELS
+    )
+
+    assert _flags(db_session, row) == [True]
+
+
+def test_an_ambiguous_label_counts_for_a_licensed_athlete_of_any_season(db_session):
+    athlete = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Anne")
+    row = _result(db_session, athlete, _dated_course(db_session), "1", "TCN")
+    _licence(db_session, athlete, season=2019)
+
+    tcn_count_repository.recompute_counts_for_tcn(db_session, labels=_LABELS)
+
+    assert _flags(db_session, row) == [True]
+
+
+def test_an_unlinked_licence_does_not_confirm_an_ambiguous_label(db_session):
+    athlete = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Anne")
+    row = _result(db_session, athlete, _dated_course(db_session), "1", "TCN")
+    _licence(db_session, athlete, season=2019, link_status=LINK_UNLINKED)
+
+    tcn_count_repository.recompute_counts_for_tcn(db_session, labels=_LABELS)
+
+    assert _flags(db_session, row) == [False]
+
+
+def test_the_course_counter_follows_membership(db_session):
+    athlete = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Anne")
+    course = _dated_course(db_session)
+    _result(db_session, athlete, course, "1", None)
+    _licence(db_session, athlete, season=2026)
+
+    tcn_count_repository.recompute_counts_for_tcn(db_session, labels=_LABELS)
+
+    db_session.expire_all()
+    assert course.tcn_count == 1

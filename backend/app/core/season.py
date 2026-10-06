@@ -1,9 +1,13 @@
 """Helpers de saison sportive : du 1ᵉʳ septembre Y au 31 août Y+1.
 
-Module pur (aucune dépendance DB). L'identifiant d'une saison est son année de
-début Y. La saison Y couvre [Y-09-01, (Y+1)-08-31] et s'affiche « Saison Y — Y+1 ».
+Aucun accès DB : `season_of_sql` ne fait que bâtir une expression. L'identifiant
+d'une saison est son année de début Y. La saison Y couvre [Y-09-01, (Y+1)-08-31]
+et s'affiche « Saison Y — Y+1 ».
 """
 from datetime import MAXYEAR, MINYEAR, date
+
+from sqlalchemy import Integer, case, cast, extract
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.time import utcnow
 
@@ -16,6 +20,15 @@ SEASON_MAX = 2100
 def season_of(d: date) -> int:
     """Année de début de la saison contenant `d` (bascule au 1ᵉʳ septembre)."""
     return d.year if d.month >= 9 else d.year - 1
+
+
+def season_of_sql(day) -> ColumnElement[int]:
+    """Miroir SQL de `season_of`, portable SQLite et PostgreSQL. NULL sans date.
+
+    `cast` : PostgreSQL rend `EXTRACT` en numeric, SQLite en entier.
+    """
+    year = cast(extract("year", day), Integer)
+    return case((cast(extract("month", day), Integer) >= 9, year), else_=year - 1)
 
 
 def season_bounds(start_year: int) -> tuple[date, date]:

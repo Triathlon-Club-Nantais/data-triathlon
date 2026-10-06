@@ -1,6 +1,7 @@
 from datetime import date
 
 import pytest
+from sqlalchemy import Date, literal, select
 
 from app.core import season
 
@@ -15,6 +16,15 @@ def test_season_of_borne_1er_septembre_ouvre_nouvelle_saison():
 
 def test_season_of_janvier_appartient_saison_de_l_annee_precedente():
     assert season.season_of(date(2026, 1, 15)) == 2025
+
+
+@pytest.mark.parametrize(
+    "day", [date(2026, 8, 31), date(2026, 9, 1), date(2026, 1, 1), date(2025, 12, 31)]
+)
+def test_season_of_sql_matches_season_of(db_session, day):
+    sql_season = db_session.execute(select(season.season_of_sql(literal(day, Date)))).scalar()
+
+    assert sql_season == season.season_of(day)
 
 
 def test_season_bounds():
