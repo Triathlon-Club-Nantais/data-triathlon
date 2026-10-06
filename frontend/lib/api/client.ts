@@ -3,6 +3,7 @@ import type {
   AdminActionLogPage,
   AdminAthlete,
   AthleteMergeImpact,
+  IdentityClubConfirmResult,
   IdentityPairIgnoreResult,
   IdentityReviewList,
   AdminAthleteUpdate,
@@ -459,6 +460,11 @@ export const apiClient = {
     request<IdentityPairIgnoreResult>("/admin/identity-review/ignore", {
       method: "POST",
       body: JSON.stringify({ athlete_id_a: athleteIdA, athlete_id_b: athleteIdB }),
+    }),
+  confirmIdentityClub: (athleteId: number, clubKey: string) =>
+    request<IdentityClubConfirmResult>("/admin/identity-review/confirm-club", {
+      method: "POST",
+      body: JSON.stringify({ athlete_id: athleteId, club_key: clubKey }),
     }),
   updateAthlete: (id: number, champs: Partial<AdminAthleteUpdate>) =>
     request<AdminAthlete>(`/admin/athletes/${id}`, {

@@ -1083,6 +1083,7 @@ export interface AthleteMergeImpact {
 
 export type IdentityReviewReason =
   | "same_course_bibs"
+  | "multi_club"
   | "club_homonym"
   | "swapped"
   | "concatenated"
@@ -1113,16 +1114,31 @@ export interface IdentityReviewConflict {
   }[];
 }
 
+/** Un club à vérifier sur une fiche (`multi_club`, #1209). */
+export interface IdentityReviewClub {
+  club: string;
+  club_key: string;
+  results: number;
+}
+
 /** Un cas d'identité à trancher : une fiche (`same_course_bibs`) ou une paire. */
 export interface IdentityReviewCandidate {
   reason: IdentityReviewReason;
   reason_label: string;
   athletes: IdentityReviewAthlete[];
   conflicts: IdentityReviewConflict[];
+  /** Vide hors `multi_club`. */
+  clubs: IdentityReviewClub[];
 }
 
 export interface IdentityReviewList {
   candidates: IdentityReviewCandidate[];
+}
+
+export interface IdentityClubConfirmResult {
+  athlete_id: number;
+  club_key: string;
+  confirmed_at: string;
 }
 
 export interface IdentityPairIgnoreResult {

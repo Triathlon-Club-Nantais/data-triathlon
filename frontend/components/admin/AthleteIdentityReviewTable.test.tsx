@@ -7,17 +7,18 @@ import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
 import { confirmerDansLeDialog } from "@/components/admin/__tests__/dangerConfirm";
 import type { IdentityReviewList, SessionUser } from "@/lib/types";
 
-const { listIdentityReview, getSession, ignoreIdentityPair, toastError, toastSuccess } = vi.hoisted(() => ({
+const { listIdentityReview, getSession, ignoreIdentityPair, confirmIdentityClub, toastError, toastSuccess } = vi.hoisted(() => ({
   listIdentityReview: vi.fn(),
   getSession: vi.fn(),
   ignoreIdentityPair: vi.fn(),
+  confirmIdentityClub: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { listIdentityReview, getSession, ignoreIdentityPair } };
+  return { ...original, apiClient: { listIdentityReview, getSession, ignoreIdentityPair, confirmIdentityClub } };
 });
 vi.mock("sonner", () => ({ toast: { error: toastError, success: toastSuccess } }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }) }));
@@ -47,12 +48,26 @@ const CAS: IdentityReviewList = {
           ],
         },
       ],
+      clubs: [],
     },
     {
       reason: "swapped",
       reason_label: "Nom et prénom inversés",
       athletes: [FICHE(10, "DUPONT", "Jean"), FICHE(11, "JEAN", "Dupont", { homonym_rank: 0 })],
       conflicts: [],
+      clubs: [],
+    },
+  ],
+};
+
+const MULTI: IdentityReviewList = {
+  candidates: [
+    {
+      reason: "multi_club",
+      reason_label: "Plusieurs clubs sur une même fiche",
+      athletes: [FICHE(37, "MARTIN", "Thomas", { club: "Triathlon Club Nantais", participations: 17 })],
+      conflicts: [],
+      clubs: [{ club: "Vendôme Triathlon", club_key: "vendometriathlon", results: 6 }],
     },
   ],
 };
@@ -137,5 +152,34 @@ describe("AthleteIdentityReviewTable", () => {
     listIdentityReview.mockRejectedValue(new ApiError(403, "Forbidden"));
     afficher();
     expect(await screen.findByText(/ne permet pas de consulter les cas d'identité/i)).toBeInTheDocument();
+  });
+
+  it("un cas multi-club liste ses clubs et confirme l'un d'eux", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
+    listIdentityReview.mockResolvedValue(MULTI);
+    confirmIdentityClub.mockResolvedValue({ athlete_id: 37, club_key: "vendometriathlon", confirmed_at: "2026-10-06T10:00:00Z" });
+    afficher();
+
+    const [carte] = await screen.findAllByRole("article");
+    expect(within(carte).getByText(/Vendôme Triathlon · 6 résultats/)).toBeInTheDocument();
+    expect(within(carte).getByText(/séparez/i)).toBeInTheDocument();
+    await userEvent.click(within(carte).getByRole("button", { name: "Confirmer Vendôme Triathlon pour MARTIN Thomas" }));
+    await confirmerDansLeDialog("Confirmer");
+
+    expect(confirmIdentityClub).toHaveBeenCalledWith(37, "vendometriathlon");
+    expect(toastSuccess).toHaveBeenCalled();
+  });
+
+  it("un refus de l'API s'affiche en toast", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
+    listIdentityReview.mockResolvedValue(MULTI);
+    confirmIdentityClub.mockRejectedValue(new Error("Ce club est déjà confirmé pour cette fiche."));
+    afficher();
+
+    const [carte] = await screen.findAllByRole("article");
+    await userEvent.click(within(carte).getByRole("button", { name: /Confirmer Vendôme Triathlon/ }));
+    await confirmerDansLeDialog("Confirmer");
+
+    expect(toastError).toHaveBeenCalledWith("Ce club est déjà confirmé pour cette fiche.");
   });
 });

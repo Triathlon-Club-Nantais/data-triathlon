@@ -509,6 +509,18 @@ export function useIgnoreIdentityPair() {
   });
 }
 
+/** Confirme un club pour une fiche : elle ne sera plus signalée pour lui (#1209). */
+export function useConfirmIdentityClub() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ athleteId, clubKey }: { athleteId: number; clubKey: string }) =>
+      apiClient.confirmIdentityClub(athleteId, clubKey),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.identityReview() });
+    },
+  });
+}
+
 export function useUpdateAthlete() {
   const qc = useQueryClient();
   return useMutation({

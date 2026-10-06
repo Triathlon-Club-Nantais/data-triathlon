@@ -9,12 +9,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { MergeAthletesDialog, nomDe } from "@/components/admin/MergeAthletesDialog";
-import { useIdentityReview, useIgnoreIdentityPair } from "@/lib/queries/admin";
+import { useConfirmIdentityClub, useIdentityReview, useIgnoreIdentityPair } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
 import { motCompte } from "@/lib/utils/format";
-import type { IdentityReviewAthlete, IdentityReviewCandidate } from "@/lib/types";
+import type { IdentityReviewAthlete, IdentityReviewCandidate, IdentityReviewClub } from "@/lib/types";
 
 const REFUS = { sujet: "cas d'identité", action: "consulter les cas d'identité des athlètes" };
 
@@ -63,6 +63,59 @@ function Conflits({ candidate }: { candidate: IdentityReviewCandidate }) {
           </ul>
         </div>
       ))}
+    </div>
+  );
+}
+
+function ClubsAVerifier({ candidate }: { candidate: IdentityReviewCandidate }) {
+  const confirmerClub = useConfirmIdentityClub();
+  const confirmer = useDangerConfirm();
+  const [fiche] = candidate.athletes;
+  if (candidate.clubs.length === 0) return null;
+
+  /** Geste neutre (#499) : aucun résultat ne bouge, le club ne sera plus signalé. */
+  async function confirmerLeClub(club: IdentityReviewClub) {
+    if (
+      !(await confirmer({
+        titre: `Confirmer « ${club.club} » pour ${nomDe(fiche)} ?`,
+        description:
+          "Ce club est bien celui de cette personne : il ne sera plus signalé, et ses prochains résultats sous ce club resteront sur cette fiche.",
+        libelleAction: "Confirmer",
+        actionNeutre: true,
+      }))
+    ) {
+      return;
+    }
+    try {
+      await confirmerClub.mutateAsync({ athleteId: fiche.id, clubKey: club.club_key });
+      toast.success("Club confirmé : il ne sera plus signalé pour cette fiche.");
+    } catch (erreur) {
+      toast.error((erreur as Error).message);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm font-medium">Clubs à vérifier</p>
+      <ul className="space-y-2">
+        {candidate.clubs.map((club) => (
+          <li key={club.club_key} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+            <span>
+              {club.club} · {motCompte(club.results, "résultat")}
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="min-h-11"
+              onClick={() => confirmerLeClub(club)}
+              disabled={confirmerClub.isPending}
+              aria-label={`Confirmer ${club.club} pour ${nomDe(fiche)}`}
+            >
+              Confirmer ce club
+            </Button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -146,10 +199,12 @@ function CarteCas({
             ))}
           </div>
           <Conflits candidate={candidate} />
+          <ClubsAVerifier candidate={candidate} />
           {!paire && (
             <p className="text-[var(--tcn-text-faint)] text-xs">
-              Deux personnes partagent cette fiche : ouvrez-la et réattribuez les résultats de l&apos;autre
-              athlète à sa propre fiche.
+              {candidate.reason === "multi_club"
+                ? "Plusieurs personnes peuvent partager cette fiche : ouvrez-la et séparez les résultats de l'autre athlète, ou confirmez les clubs qui sont bien les siens."
+                : "Deux personnes partagent cette fiche : ouvrez-la et réattribuez les résultats de l'autre athlète à sa propre fiche."}
             </p>
           )}
         </CardContent>
@@ -165,7 +220,8 @@ function CarteCas({
 /**
  * Les cas d'identité qu'un admin tranche (#908, #967) : deux dossards sur une
  * même fiche, homonymes du club, paires inversées ou concaténées que la reprise
- * ne fusionne pas, fiches recréées sur une graphie fusionnée.
+ * ne fusionne pas, fiches recréées sur une graphie fusionnée, fiches de membre
+ * à plusieurs clubs (séparation depuis la fiche, ou confirmation du club).
  *
  * Lecture et écart derrière `athletes:write`. La fusion demande en plus
  * `athletes:read` (l'aperçu montre des fiches gardées) : sans lui, le bouton
