@@ -78,3 +78,5 @@ frontend/.claude/
 # racine et sous backend/.claude/ (motif identique à frontend/.claude/ ci-dessus).
 .posthog/
 backend/.claude/
+
+graphify-out/
