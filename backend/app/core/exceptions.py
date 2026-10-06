@@ -51,7 +51,7 @@ class ScraperError(DomainError):
 class BlockedTargetError(DomainError):
     """Destination réseau refusée par le garde de `core/http` (SSRF, #101).
 
-    Ne dérive **pas** de `ValueError` : `import_service._scrape_all` attrape
+    Ne dérive **pas** de `ValueError` : `import_dispatch.scrape_all` attrape
     `ValueError` pour dire « fournisseur non supporté », et une destination
     refusée s'y afficherait comme un problème de fournisseur. Elle tombe donc
     dans le `except Exception` qui suit, et ressort en `ScraperError` avec sa

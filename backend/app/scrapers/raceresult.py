@@ -1627,7 +1627,7 @@ def scrape_event_fanout(
     de repli `_groupes_zero_fiables`).
 
     Retour : `(results, trace)`. `trace.heats_imported` reste à 0 —
-    `import_service._fanout_counters` le dérive.
+    `import_dispatch.fanout_counters` le dérive.
     """
     return _run_pipeline(url, cache_probe=cache_probe, on_heat_start=on_heat_start)
 

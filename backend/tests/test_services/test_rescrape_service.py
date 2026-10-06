@@ -3,7 +3,7 @@ from datetime import date
 from app.core.config import Settings
 from app.repositories import course_repository, participation_repository
 from app.scrapers.base import FanoutTrace, ScrapedResult
-from app.services import import_service, rescrape_service
+from app.services import import_dispatch, import_service, rescrape_service
 
 
 def _settings() -> Settings:
@@ -200,7 +200,7 @@ def test_a_failed_orphan_purge_is_reported_instead_of_losing_the_batch_outcome(
 
     url = "https://www.klikego.com/resultats/event/123"
     monkeypatch.setattr(
-        import_service,
+        import_dispatch,
         "registry_scrape_event_all",
         lambda _u, **kwargs: ([_scraped_nomme("1", "DUPONT", "Jean")], FanoutTrace(heats_enumerated=1)),
     )
@@ -223,7 +223,7 @@ def test_rescrape_reconcilie_et_supprime_les_orphelins(db_session, monkeypatch):
 
     def _scraper(resultats):
         monkeypatch.setattr(
-            import_service, "registry_scrape_event_all",
+            import_dispatch, "registry_scrape_event_all",
             lambda _u, **kwargs: (resultats, FanoutTrace(heats_enumerated=1)),
         )
 
@@ -250,7 +250,7 @@ def test_rescrape_dry_run_scrape_mais_ne_persiste_rien(db_session, monkeypatch):
 
     def _scraper(resultats):
         monkeypatch.setattr(
-            import_service, "registry_scrape_event_all",
+            import_dispatch, "registry_scrape_event_all",
             lambda _u, **kwargs: (resultats, FanoutTrace(heats_enumerated=1)),
         )
 
@@ -282,7 +282,7 @@ def test_run_rescrape_traverse_le_vrai_generateur_et_bypasse_le_cache(db_session
 
     def _scraper(resultats: list[ScrapedResult]) -> None:
         monkeypatch.setattr(
-            import_service, "registry_scrape_event_all",
+            import_dispatch, "registry_scrape_event_all",
             lambda _u, **kwargs: (resultats, FanoutTrace(heats_enumerated=1)),
         )
 

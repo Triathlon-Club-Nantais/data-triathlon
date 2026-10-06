@@ -100,11 +100,12 @@ def patch_scraper(monkeypatch):
     l'appelant passe et que la doublure ne consulte pas.
     """
     from app.scrapers.base import FanoutTrace
-    from app.services import import_service
 
     def _set(results):
+        from app.services import import_dispatch
+
         monkeypatch.setattr(
-            import_service,
+            import_dispatch,
             "registry_scrape_event_all",
             lambda url, **kwargs: (results, FanoutTrace(heats_enumerated=1)),
         )

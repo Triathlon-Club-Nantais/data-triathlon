@@ -225,10 +225,10 @@ def test_providers_derive_du_registre(client):
 
 
 def test_import_event(client, monkeypatch):
-    from app.services import import_service
+    from app.services import import_dispatch
 
     monkeypatch.setattr(
-        import_service, "registry_scrape_event_all",
+        import_dispatch, "registry_scrape_event_all",
         lambda url, **kwargs: ([_result("1", "DUPONT"), _result("2", "MARTIN")], FanoutTrace(heats_enumerated=1)),
     )
     resp = client.post("/api/v1/scrape/event", json={"url": "https://www.klikego.com/x"})
@@ -444,10 +444,10 @@ def test_import_event_stream_expose_les_courses_touchees(client, monkeypatch):
 def test_import_event_expose_updated_counter(client, monkeypatch):
     """Le compteur `updated` (upsert) doit être exposé dans la réponse — pas seulement
     calculé en interne : `ImportResult` doit le déclarer, sinon Pydantic le tait."""
-    from app.services import import_service
+    from app.services import import_dispatch
 
     monkeypatch.setattr(
-        import_service, "registry_scrape_event_all",
+        import_dispatch, "registry_scrape_event_all",
         lambda url, **kwargs: ([_result("1", "DUPONT")], FanoutTrace(heats_enumerated=1)),
     )
     resp = client.post("/api/v1/scrape/event", json={"url": "https://www.klikego.com/x"})
@@ -477,15 +477,16 @@ def test_schema_non_http_rejete_a_la_porte(client, route, url):
 
 def test_url_http_valide_toujours_acceptee(client, monkeypatch):
     """Non-régression : `HttpUrl` ne doit refuser aucune URL de chronométrage réelle."""
-    from app.services import import_service
+    from app.services import import_dispatch
 
     vues: list[str] = []
 
     def fake_scrape(url, **kwargs):
+
         vues.append(url)
         return [_result("1", "DUPONT")], FanoutTrace(heats_enumerated=1)
 
-    monkeypatch.setattr(import_service, "registry_scrape_event_all", fake_scrape)
+    monkeypatch.setattr(import_dispatch, "registry_scrape_event_all", fake_scrape)
 
     url = "https://www.prolivesport.fr/index.php?chap=event&eventId=979&race=Triathlon%20M"
     resp = client.post("/api/v1/scrape/event", json={"url": url})

@@ -1185,7 +1185,7 @@ def test_scrape_event_fanout_source_url_canonique_par_parcours(monkeypatch):
 def test_wiclax_provider_returns_its_trace(monkeypatch):
     """Le `WiclaxProvider` rend sa `FanoutTrace` avec ses résultats, comme `KlikegoProvider`.
 
-    `import_service._scrape_all` en dépend pour peupler les 5 compteurs
+    `import_dispatch.scrape_all` en dépend pour peupler les 5 compteurs
     remontés par le SSE.
     """
     _stub_fetch_clax(monkeypatch, _clax_multi_parcours())

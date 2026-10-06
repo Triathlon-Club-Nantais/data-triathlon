@@ -1,7 +1,7 @@
 """Les trois recherches par URL passent par `course_sources` (#281).
 
 `get_latest_by_source_url`, `list_by_source_url` et `list_by_source_urls`
-alimentent le cache TTL (`import_service._cached_result`), sa sonde par heat
+alimentent le cache TTL (`import_dispatch.cached_result`), sa sonde par heat
 (`_make_cache_probe`) et le lot du fan-out (`_merge_cached_courses`). Depuis #279
 elles filtraient `Course.source_url`, c'est-à-dire la sous-requête scalaire
 corrélée du hybride — **évaluée une fois par ligne de `courses`**. Elles joignent

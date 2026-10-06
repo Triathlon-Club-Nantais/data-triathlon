@@ -266,7 +266,7 @@ def test_memo_une_seule_resolution_par_host(dns):
 
 
 def test_blocked_target_error_nest_pas_une_value_error():
-    """`import_service._scrape_all` attrape `ValueError` pour « provider non
+    """`import_dispatch.scrape_all` attrape `ValueError` pour « provider non
     supporté » : une destination refusée s'y afficherait comme un problème de
     fournisseur."""
     assert not issubclass(BlockedTargetError, ValueError)

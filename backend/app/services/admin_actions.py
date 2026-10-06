@@ -48,7 +48,12 @@ from app.repositories import (
 from app.schemas.course import CourseSourceOut
 from app.scrapers.base import STATUS_FINISHER
 from app.scrapers.utils import MAX_RELAY_TEAMMATES, MIN_RELAY_TEAMMATES
-from app.services import import_persistence, import_service, opposition_service, sse_relay
+from app.services import (
+    import_dispatch,
+    import_persistence,
+    opposition_service,
+    sse_relay,
+)
 from app.services.course_locks import (
     lock_all_courses_or_409,
     lock_courses_or_409,
@@ -438,7 +443,7 @@ def _stream_switch_course_source(
             emit({"phase": "scraping", "message": "Récupération des participants…"})
 
             results, _trace = _drain_scrape(
-                import_service.scrape_all_streaming(
+                import_dispatch.scrape_all_streaming(
                     source_url, db, settings, use_cache_probe=False
                 ),
                 emit,
@@ -644,7 +649,7 @@ def _stream_rescrape(
             # par heat (fan-out Klikego, #156) — relayés tels quels par
             # `_drain_scrape`, aucun callback à brancher ici.
             results, _trace = _drain_scrape(
-                import_service.scrape_all_streaming(
+                import_dispatch.scrape_all_streaming(
                     source_url, db, settings, use_cache_probe=False
                 ),
                 emit,

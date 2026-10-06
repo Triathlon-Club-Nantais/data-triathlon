@@ -910,7 +910,7 @@ def test_scrape_event_fanout_on_heat_start_not_notified_for_cached(monkeypatch):
 
 def test_chronoweb_provider_delegates_to_fanout_and_stores_trace(monkeypatch):
     """Le `ChronoWebProvider` du registry rend sa trace : c'est ce que lit
-    `import_service._scrape_all` pour peupler les 5 compteurs de FR-008.
+    `import_dispatch.scrape_all` pour peupler les 5 compteurs de FR-008.
     """
     from app.scrapers import registry
 

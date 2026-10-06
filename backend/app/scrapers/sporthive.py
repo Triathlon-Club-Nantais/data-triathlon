@@ -222,7 +222,7 @@ class _IncompleteRankingError(Exception):
 
     A private type, not a `ValueError` filtered on its message: sorting
     failures by text breaks at the first rephrasing, and the infrastructure
-    already wraps the scraper's `ValueError`s (`import_service._scrape_all`).
+    already wraps the scraper's `ValueError`s (`import_dispatch.scrape_all`).
     The triage in `scrape_event_all` is therefore on the **type**.
 
     Carries the numbers the log line needs rather than a formatted message: the
@@ -598,7 +598,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     or when **no** race could be read at all.
 
     That last guard is what closes the hole the per-race drop opens:
-    `import_service._require_event_name` does not raise on an empty list, and
+    `import_dispatch._require_event_name` does not raise on an empty list, and
     `batch` counts "no result" as a legitimate short-circuit — so without it a
     wholly truncated event would be indistinguishable, in the report, from a
     successful import.

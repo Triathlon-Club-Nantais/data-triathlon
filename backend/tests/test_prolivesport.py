@@ -960,7 +960,7 @@ def test_parse_url_racine_reste_une_url_sans_identifiant():
 # --- le provider du registre -------------------------------------------------
 
 def test_provider_delegue_au_fanout_et_rend_sa_trace(monkeypatch):
-    """`import_service._scrape_all` lit la trace rendue pour peupler les 5 compteurs."""
+    """`import_dispatch.scrape_all` lit la trace rendue pour peupler les 5 compteurs."""
     from app.scrapers import registry
 
     _api(monkeypatch)

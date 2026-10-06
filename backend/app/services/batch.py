@@ -153,7 +153,7 @@ def _liberer_session(db: Session) -> None:
 
     Deux raisons, une seule instruction :
 
-    - **Transaction de lecture jamais refermée.** `import_service._cached_result`
+    - **Transaction de lecture jamais refermée.** `import_dispatch.cached_result`
       ouvre une transaction (SELECT du cache TTL) ; sur les retours « cached » et
       « error », personne ne commit ni ne rollback. Relancer `import-sheet` sur un
       Sheet déjà importé (300 liens tous frais) laissait une transaction Postgres

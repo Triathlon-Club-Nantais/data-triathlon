@@ -686,7 +686,7 @@ def scrape_event_fanout(
     - échec par sous-unité isolé (`try/except` autour de `_course_results`),
       journalisé et ajouté à `trace.failures` sans stopper les autres.
 
-    `trace.heats_imported` reste à 0 : dérivé par `import_service._fanout_counters`
+    `trace.heats_imported` reste à 0 : dérivé par `import_dispatch.fanout_counters`
     via l'invariant `enumerated = imported + cached + len(failures)`.
     """
     trace = FanoutTrace()
