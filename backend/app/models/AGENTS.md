@@ -370,8 +370,10 @@ fichier. Seul point de passage : `club_member_repository`.
 - **`season` suit `core/season`** (année de début) : la licence FFTri « 2027 »,
   publiée dès septembre 2026, couvre la saison 2026.
 - **Deux unicités.** `(season, licence_id)` ; et, pour les lignes sans numéro
-  (fichier), `(season, last_name_key, first_name_key)` par un index partiel.
-  Deux homonymes avec numéros distincts coexistent.
+  (fichier) non rattachées ou ambiguës, `(season, last_name_key, first_name_key)`
+  par un index partiel. Une ligne rattachée sans numéro est identifiée par sa
+  fiche, hors de l'index (le service d'import dédoublonne). Deux homonymes avec
+  numéros distincts coexistent.
 - **`link_status`** : `auto` et `manual` (rattaché, `LINKED`), `unlinked`,
   `ambiguous` (plusieurs fiches pour la clé, un humain tranche). `source` :
   `fftri` ou `file`.
@@ -379,6 +381,7 @@ fichier. Seul point de passage : `club_member_repository`.
   `club_member_repository.repoint` avant de supprimer la fiche absorbée.
 - **Conservation.** Les saisons plus anciennes que `current_season() - 1`
   passent par `purge_before` : lignes non rattachées supprimées ; lignes
-  rattachées réduites à `(season, athlete_id, link_status, source)`, numéro de
+  rattachées réduites à `(season, athlete_id, link_status, source)` (une seule par
+  fiche et saison ; celles dont la fiche a disparu sont supprimées), numéro de
   licence effacé, nom et prénom remplacés par ceux de la fiche. Les résultats
   passés continuent ainsi de compter sans second exemplaire de la donnée.
