@@ -109,6 +109,29 @@ describe("FeedbackTable", () => {
     expect(screen.getByRole("columnheader", { name: /statut/i })).toBeInTheDocument();
   });
 
+  it("montre le numéro du retour et le lien vers son issue (#1214)", async () => {
+    listFeedback.mockResolvedValue([
+      SIGNALEMENT,
+      {
+        ...SIGNALEMENT,
+        id: 8,
+        title: "Mon swimrun n'apparaît pas",
+        github_url: "https://github.com/Triathlon-Club-Nantais/data-triathlon/issues/1202",
+      },
+    ]);
+    afficher();
+
+    expect(await screen.findByText("n° 1")).toBeInTheDocument();
+    expect(screen.getByText("n° 8")).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "N°" })).toBeInTheDocument();
+    const issue = screen.getByRole("link", { name: /#1202/ });
+    expect(issue).toHaveAttribute(
+      "href",
+      "https://github.com/Triathlon-Club-Nantais/data-triathlon/issues/1202",
+    );
+    expect(screen.getAllByRole("link", { name: /#\d+/ })).toHaveLength(1);
+  });
+
   it("change le tri au clic sur un en-tête", async () => {
     afficher();
     await screen.findByText(SIGNALEMENT.title);

@@ -79,6 +79,13 @@ describe("FeedbackDetailDialog", () => {
     expect(screen.getByText(SIGNALEMENT_ANONYME.page_url!)).toBeInTheDocument();
   });
 
+  it("annonce le numéro du retour (#1214)", async () => {
+    getFeedback.mockResolvedValue(SIGNALEMENT_CONNECTE);
+    afficher(SIGNALEMENT_CONNECTE);
+
+    expect(await screen.findByText(/retour n° 2/i)).toBeInTheDocument();
+  });
+
   it("ne mentionne aucun email pour un signalement anonyme", async () => {
     afficher(SIGNALEMENT_ANONYME);
 
