@@ -19,6 +19,10 @@ import { useImportClubMembers, useLinkClubMember, useSyncClubMembers } from "@/l
 import type { ClubMember, ClubMembersSeason } from "@/lib/types";
 import { seasonLabel } from "@/lib/utils/season";
 
+function licencies(n: number): string {
+  return `${n} licencié${n > 1 ? "s" : ""}`;
+}
+
 const MOTIF: Record<ClubMember["link_status"], string> = {
   auto: "Rattaché",
   manual: "Rattaché à la main",
@@ -65,7 +69,7 @@ export function ClubMembersPanel({
               relire.mutate(undefined, {
                 onSuccess: (r) => {
                   onSeasonChange(r.season);
-                  toast.success(`${r.total} licenciés lus pour la ${seasonLabel(r.season).toLowerCase()}.`);
+                  toast.success(`${licencies(r.total)} lu${r.total > 1 ? "s" : ""} pour la ${seasonLabel(r.season).toLowerCase()}.`);
                 },
                 onError: (erreur: Error) => toast.error(erreur.message),
               })
@@ -79,15 +83,22 @@ export function ClubMembersPanel({
           <Skeleton className="h-6 w-64" />
         ) : data ? (
           <p className="text-sm">
-            {data.total} licenciés : {data.linked} rattaché{data.linked > 1 ? "s" : ""}, {data.unlinked} sans
-            fiche, {data.ambiguous} à départager.
+            {`${licencies(data.total)} : ${data.linked} rattaché${data.linked > 1 ? "s" : ""}, ${data.unlinked} sans fiche, ${data.ambiguous} à départager.`}
           </p>
         ) : null}
+        {data && data.total === 0 && (
+          <p className="text-sm text-[var(--tcn-text-faint)]">
+            Aucun licencié pour cette saison. Lancez « Relire la liste FFTri », ou importez un fichier plus bas.
+          </p>
+        )}
       </Card>
 
-      {aRattacher.length > 0 && (
+      {data && data.total > 0 && (
         <Card className="space-y-3 p-6">
           <h2 className="font-semibold">Licenciés à rattacher</h2>
+          {aRattacher.length === 0 && (
+            <p className="text-sm text-[var(--tcn-text-faint)]">Tous les licenciés sont rattachés à une fiche.</p>
+          )}
           <ul className="divide-y">
             {aRattacher.map((membre) => (
               <li key={membre.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
@@ -102,7 +113,7 @@ export function ClubMembersPanel({
         </Card>
       )}
 
-      <ClubMembersImport defaultSeason={season - 1} />
+      <ClubMembersImport key={season} defaultSeason={season - 1} />
     </div>
   );
 }
@@ -112,7 +123,13 @@ function LienFiche({ membre }: { membre: ClubMember }) {
   const rattacher = useLinkClubMember();
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOuvert(true)}>
+      <Button
+        variant="outline"
+        size="sm"
+        aria-label={`Rattacher ${membre.nom} ${membre.prenom} à une fiche`}
+        disabled={rattacher.isPending}
+        onClick={() => setOuvert(true)}
+      >
         Rattacher à une fiche
       </Button>
       <Dialog open={ouvert} onOpenChange={setOuvert}>
@@ -129,7 +146,10 @@ function LienFiche({ membre }: { membre: ClubMember }) {
               rattacher.mutate(
                 { memberId: membre.id, athleteId: athlete.id },
                 {
-                  onSuccess: () => setOuvert(false),
+                  onSuccess: () => {
+                    setOuvert(false);
+                    toast.success(`${membre.nom} ${membre.prenom} est rattaché à la fiche choisie.`);
+                  },
                   onError: (erreur: Error) => toast.error(erreur.message),
                 },
               )
@@ -142,8 +162,10 @@ function LienFiche({ membre }: { membre: ClubMember }) {
 }
 
 export function ClubMembersImport({ defaultSeason }: { defaultSeason: number }) {
-  const [season, setSeason] = useState(defaultSeason);
+  const [season, setSeason] = useState(String(defaultSeason));
   const [fichier, setFichier] = useState<File | null>(null);
+  const [champ, setChamp] = useState(0);
+  const saisonValide = Number.isInteger(Number(season)) && season.trim() !== "";
   const importer = useImportClubMembers();
   return (
     <Card className="space-y-4 p-6">
@@ -159,13 +181,14 @@ export function ClubMembersImport({ defaultSeason }: { defaultSeason: number }) 
             id="saison-import"
             type="number"
             value={season}
-            onChange={(e) => setSeason(Number(e.target.value))}
+            onChange={(e) => setSeason(e.target.value)}
             className="w-28"
           />
         </div>
         <div className="space-y-2">
           <Label htmlFor="fichier-licencies">Fichier des licenciés (.csv ou .xlsx)</Label>
           <Input
+            key={champ}
             id="fichier-licencies"
             type="file"
             accept=".csv,.xlsx"
@@ -173,16 +196,19 @@ export function ClubMembersImport({ defaultSeason }: { defaultSeason: number }) 
           />
         </div>
         <Button
-          disabled={!fichier || importer.isPending}
+          disabled={!fichier || !saisonValide || importer.isPending}
           onClick={() =>
             fichier &&
             importer.mutate(
-              { season, file: fichier },
+              { season: Number(season), file: fichier },
               {
-                onSuccess: (r) =>
+                onSuccess: (r) => {
                   toast.success(
-                    `${r.total} licenciés importés pour la ${seasonLabel(r.season).toLowerCase()}.`,
-                  ),
+                    `${licencies(r.total)} importé${r.total > 1 ? "s" : ""} pour la ${seasonLabel(r.season).toLowerCase()}.`,
+                  );
+                  setFichier(null);
+                  setChamp((n) => n + 1);
+                },
                 onError: (erreur: Error) => toast.error(erreur.message),
               },
             )

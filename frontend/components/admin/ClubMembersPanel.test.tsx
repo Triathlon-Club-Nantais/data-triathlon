@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { ClubMember, ClubMembersSeason } from "@/lib/types";
 
 const { mutate } = vi.hoisted(() => ({ mutate: vi.fn() }));
 vi.mock("@/lib/queries/admin", async (importOriginal) => {
@@ -12,7 +13,18 @@ vi.mock("@/lib/queries/admin", async (importOriginal) => {
   };
 });
 
-import { ClubMembersImport } from "./ClubMembersPanel";
+import { ClubMembersImport, ClubMembersPanel } from "./ClubMembersPanel";
+
+function membre(extra: Partial<ClubMember>): ClubMember {
+  return {
+    id: 1, season: 2026, licence_id: "C1", nom: "MARTIN", prenom: "Anne", gender: "F",
+    athlete_id: 5, link_status: "auto", source: "fftri", ...extra,
+  };
+}
+
+function saison(extra: Partial<ClubMembersSeason>): ClubMembersSeason {
+  return { season: 2026, seasons: [2026], total: 0, linked: 0, unlinked: 0, ambiguous: 0, members: [], ...extra };
+}
 
 describe("ClubMembersImport", () => {
   it("importe le fichier pour la saison choisie", () => {
@@ -23,5 +35,64 @@ describe("ClubMembersImport", () => {
     fireEvent.click(screen.getByRole("button", { name: /importer/i }));
 
     expect(mutate).toHaveBeenCalledWith({ season: 2025, file: fichier }, expect.anything());
+  });
+
+  it("refuse une saison vide", () => {
+    render(<ClubMembersImport defaultSeason={2025} />);
+    const fichier = new File(["x"], "licencies.csv", { type: "text/csv" });
+    fireEvent.change(screen.getByLabelText(/fichier des licenciés/i), { target: { files: [fichier] } });
+    fireEvent.change(screen.getByLabelText(/saison \(année de début\)/i), { target: { value: "" } });
+
+    expect(screen.getByRole("button", { name: /importer/i })).toBeDisabled();
+  });
+});
+
+describe("ClubMembersPanel", () => {
+  const props = { season: 2026, onSeasonChange: vi.fn(), isLoading: false };
+
+  it("recale la saison par défaut de l'import quand la saison affichée change", () => {
+    const { rerender } = render(<ClubMembersPanel {...props} data={saison({})} />);
+    expect(screen.getByLabelText(/saison \(année de début\)/i)).toHaveValue(2025);
+
+    rerender(<ClubMembersPanel {...props} season={2024} data={saison({ season: 2024 })} />);
+
+    expect(screen.getByLabelText(/saison \(année de début\)/i)).toHaveValue(2023);
+  });
+
+  it("invite à relire la liste ou à importer quand la saison est vide", () => {
+    render(<ClubMembersPanel {...props} data={saison({})} />);
+
+    expect(screen.getByText(/aucun licencié pour cette saison/i)).toBeInTheDocument();
+  });
+
+  it("dit que tout le monde est rattaché quand il ne reste rien à rattacher", () => {
+    render(
+      <ClubMembersPanel {...props} data={saison({ total: 1, linked: 1, members: [membre({})] })} />,
+    );
+
+    expect(screen.getByText(/tous les licenciés sont rattachés/i)).toBeInTheDocument();
+    expect(screen.queryByText(/aucun licencié pour cette saison/i)).not.toBeInTheDocument();
+  });
+
+  it("accorde « licencié » au singulier", () => {
+    render(
+      <ClubMembersPanel {...props} data={saison({ total: 1, linked: 1, members: [membre({})] })} />,
+    );
+
+    expect(screen.getByText(/^1 licencié :/)).toBeInTheDocument();
+  });
+
+  it("nomme le licencié sur le bouton de rattachement", () => {
+    render(
+      <ClubMembersPanel
+        {...props}
+        data={saison({
+          total: 1, unlinked: 1,
+          members: [membre({ nom: "DURAND", prenom: "Paul", athlete_id: null, link_status: "unlinked" })],
+        })}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: /rattacher durand paul à une fiche/i })).toBeInTheDocument();
   });
 });
