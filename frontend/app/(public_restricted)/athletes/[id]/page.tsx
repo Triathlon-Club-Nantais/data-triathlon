@@ -35,7 +35,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
   // manuelle « en attente de validation » (#270) ne doit pas fausser les KPI
   // avant qu'un bénévole ne l'ait vérifiée (#438). Le tableau détaillé plus bas,
   // lui, continue d'afficher `participations` au complet.
-  // Le **régime** de tuiles, lui, suit le volume : sous 3 épreuves, les cinq
+  // Le **régime** de tuiles, lui, suit le volume : sous 3 épreuves, les quatre
   // tuiles habituelles ne rendent que des tautologies et des tirets (#488).
   const resume = resumeAthlete(participations);
   const { validees: validated, enAttente: pendingCount } = resume;

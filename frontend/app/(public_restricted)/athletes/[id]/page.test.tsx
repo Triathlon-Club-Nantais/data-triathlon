@@ -471,7 +471,7 @@ describe("AthletePage", () => {
       part({ id: 1, is_pending_validation: true, rank_overall: 1, course_finishers: 50 }),
     ]);
 
-    // Aucune tuile : sans résultat validé, les cinq KPI ne rendaient que des
+    // Aucune tuile : sans résultat validé, les quatre KPI ne rendaient que des
     // zéros et des tirets. Une ligne explique l'absence plutôt que de la subir.
     expect(screen.queryByText("Meilleur classement")).not.toBeInTheDocument();
     expect(screen.queryByText("Format favori")).not.toBeInTheDocument();
