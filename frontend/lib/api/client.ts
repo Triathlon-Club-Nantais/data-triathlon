@@ -24,6 +24,9 @@ import type {
   BenevoleAccessGenerated,
   ClubAlias,
   ClubAliasList,
+  ClubMember,
+  ClubMembersSeason,
+  MembersSyncReport,
   CounterScope,
   CounterScopeEntry,
   CourseBrief,
@@ -769,6 +772,22 @@ export const apiClient = {
     }),
   removeClubAlias: (entryId: number) =>
     request<void>(`/admin/club-aliases/${entryId}`, { method: "DELETE" }),
+
+  // ── Licenciés du club (#1202) ──────────────────────────────────────────────
+  getClubMembers: (season: number) =>
+    request<ClubMembersSeason>(`/admin/club-members?season=${season}`),
+  syncClubMembers: () => request<MembersSyncReport>("/admin/club-members/sync", { method: "POST" }),
+  importClubMembers: (season: number, file: File) => {
+    const form = new FormData();
+    form.append("season", String(season));
+    form.append("file", file);
+    return upload<MembersSyncReport>("/admin/club-members/import", form);
+  },
+  linkClubMember: (memberId: number, athleteId: number) =>
+    request<ClubMember>(`/admin/club-members/${memberId}/link`, {
+      method: "POST",
+      body: JSON.stringify({ athlete_id: athleteId }),
+    }),
 
   // ── Retours utilisateurs (#267) ────────────────────────────────────────────
   // Route publique, et son chemin le dit : `/feedback`, hors de `/admin` où

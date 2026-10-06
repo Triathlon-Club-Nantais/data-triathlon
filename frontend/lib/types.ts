@@ -1450,3 +1450,31 @@ export interface Opposition {
   applied_by_name: string | null;
   anonymised_count: number;
 }
+
+/** Licenciés du club par saison (#1202). */
+export type ClubMemberLinkStatus = "auto" | "manual" | "unlinked" | "ambiguous";
+
+export interface ClubMember {
+  id: number;
+  season: number;
+  licence_id: string | null;
+  nom: string;
+  prenom: string;
+  gender: string;
+  athlete_id: number | null;
+  link_status: ClubMemberLinkStatus;
+  source: "fftri" | "file";
+}
+
+export interface MembersSyncReport {
+  season: number;
+  total: number;
+  linked: number;
+  unlinked: number;
+  ambiguous: number;
+}
+
+export interface ClubMembersSeason extends MembersSyncReport {
+  seasons: number[];
+  members: ClubMember[];
+}
