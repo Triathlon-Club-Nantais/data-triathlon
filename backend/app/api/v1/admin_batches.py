@@ -11,6 +11,7 @@ service web ne porte jamais le batch (FR-013).
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 
 from app.api.deps import require_permission
+from app.api.uploads import read_bounded_upload
 from app.core.analytics import capture_event
 from app.core.config import get_settings
 from app.core.exceptions import DomainError
@@ -27,9 +28,6 @@ from app.services import batch_runs, sheet_source
 
 router = APIRouter(tags=["admin"])
 
-#: Deux méga-octets — largement au-dessus de tout export du club, largement en
-#: dessous de ce qui met un process web à genoux.
-TAILLE_MAX = 2 * 1024 * 1024
 #: Bornes du lot, en épreuves après dédoublonnage. Au-delà, refus explicite : un
 #: lot tronqué se termine en vert, et les épreuves manquantes ne se voient
 #: nulle part.
@@ -38,11 +36,6 @@ URLS_MAX = 500
 #: rejouent pas le fichier dans la réponse.
 ECHANTILLONS = 3
 LONGUEUR_ECHANTILLON = 80
-
-
-class FileTooLargeError(DomainError):
-    status_code = 413
-    message = "Fichier trop volumineux : la limite est de 2 Mo."
 
 
 class ColumnOutOfRangeError(DomainError):
@@ -64,23 +57,6 @@ class TooManyUrlsError(DomainError):
         f"Plus de {URLS_MAX} épreuves après dédoublonnage. Découpez le fichier : "
         "un lot tronqué se terminerait en vert sans dire ce qu'il a laissé."
     )
-
-
-async def _lire_borne(fichier: UploadFile) -> bytes:
-    """Lit le corps **par morceaux**, en comptant au fur et à mesure.
-
-    Jamais d'après `Content-Length` (D9) : c'est un en-tête écrit par le client,
-    et un client qui ment sur la taille est exactement celui dont on se garde.
-    Le compte réel, lui, ne se falsifie pas.
-    """
-    morceaux: list[bytes] = []
-    total = 0
-    while morceau := await fichier.read(64 * 1024):
-        total += len(morceau)
-        if total > TAILLE_MAX:
-            raise FileTooLargeError
-        morceaux.append(morceau)
-    return b"".join(morceaux)
 
 
 # `exclude_none` : `epreuves` et `ignored_by_host` n'ont de sens qu'au
@@ -139,7 +115,7 @@ async def read_sheet_columns(
     navigateur le garde pour le second appel (FR-011). C'est ce qui évite un
     stockage temporaire côté serveur, et la question de sa purge.
     """
-    contenu = await _lire_borne(file)
+    contenu = await read_bounded_upload(file)
     entetes, lignes = sheet_source.read_table(contenu, file.filename or "")
 
     colonnes = [
@@ -186,7 +162,7 @@ async def launch_batch_from_file(
     settings = get_settings()
     batch_runs.ensure_idle(settings)
 
-    contenu = await _lire_borne(file)
+    contenu = await read_bounded_upload(file)
     entetes, lignes = sheet_source.read_table(contenu, file.filename or "")
     if not 0 <= url_column < len(entetes):
         raise ColumnOutOfRangeError
