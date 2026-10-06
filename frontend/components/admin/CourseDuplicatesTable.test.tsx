@@ -47,12 +47,12 @@ const PAIRE: DuplicateCandidateList = {
         {
           id: 38, name: "Triathlon et SwimRun Mesquer-Quimiac 2026", event_date: "2026-06-13",
           event_type: "swimrun-s", is_relay: false, provider: "klikego",
-          source_url: "https://klikego.com/x", total: 185, tcn_count: 3,
+          source_url: "https://klikego.com/x", total: 185, tcn_count: 3, created_at: "2026-06-14T08:00:00",
         },
         {
           id: 50, name: "Triathlon et SwimRun Mesquer-Quimiac 2026", event_date: "2026-06-13",
           event_type: "triathlon-s", is_relay: false, provider: "breizhchrono",
-          source_url: "https://breizhchrono.com/x", total: 179, tcn_count: 3,
+          source_url: "https://breizhchrono.com/x", total: 179, tcn_count: 3, created_at: "2026-10-05T09:30:00",
         },
       ],
     },
@@ -68,12 +68,12 @@ const MEME_URL: DuplicateCandidateList = {
         {
           id: 38, name: "Mesquer", event_date: "2026-06-13", event_type: "swimrun-s",
           is_relay: false, provider: "klikego", source_url: "https://klikego.com/x",
-          total: 185, tcn_count: 3,
+          total: 185, tcn_count: 3, created_at: "2026-06-14T08:00:00",
         },
         {
           id: 39, name: "Mesquer", event_date: "2026-06-13", event_type: "triathlon-s",
           is_relay: false, provider: "klikego", source_url: "https://klikego.com/x",
-          total: 60, tcn_count: 0,
+          total: 60, tcn_count: 0, created_at: "2026-06-14T08:00:00",
         },
       ],
     },
@@ -114,6 +114,18 @@ describe("CourseDuplicatesTable", () => {
     expect(await screen.findByText(/identifiant d'événement partagé/i)).toBeInTheDocument();
     expect(screen.getByText(/klikego/i)).toBeInTheDocument();
     expect(screen.getByText(/breizh chrono/i)).toBeInTheDocument();
+  });
+
+  it("désigne chaque épreuve par son identifiant, avec un lien et sa date de création (#1215)", async () => {
+    getSession.mockResolvedValue(AVEC_DROIT);
+    listCourseDuplicates.mockResolvedValue(PAIRE);
+
+    afficher();
+
+    expect(await screen.findByRole("link", { name: "n° 38" })).toHaveAttribute("href", "/courses/38");
+    expect(screen.getByRole("link", { name: "n° 50" })).toHaveAttribute("href", "/courses/50");
+    expect(screen.getByText(/créée le 14\/06\/2026/)).toBeInTheDocument();
+    expect(screen.getByText(/créée le 05\/10\/2026/)).toBeInTheDocument();
   });
 
   it("propose la fusion à un porteur de courses:delete", async () => {

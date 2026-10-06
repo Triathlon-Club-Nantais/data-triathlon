@@ -22,6 +22,8 @@ class DuplicateCourse(BaseModel):
     source_url: str
     total: int
     tcn_count: int
+    # Dit laquelle des deux est l'ancienne (#1215).
+    created_at: datetime
 
 
 class DuplicateCandidate(BaseModel):

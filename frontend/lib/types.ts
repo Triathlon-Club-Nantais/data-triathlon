@@ -1004,6 +1004,7 @@ export interface DuplicateCourse {
   source_url: string;
   total: number;
   tcn_count: number;
+  created_at: string;
 }
 
 /** Une paire suspecte, jamais un cluster — miroir de `DuplicateCandidate` (#288). */

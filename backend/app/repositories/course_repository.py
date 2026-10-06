@@ -737,7 +737,7 @@ def list_identities_with_counts(db: Session) -> list:
     """Toute la base en **une** ligne par épreuve : identité, source active, compteurs.
 
     La détection de doublons (#288) compare les épreuves entre elles : elle a
-    besoin de la base entière, et de rien d'autre que ces neuf colonnes. Trois
+    besoin de la base entière, et de rien d'autre que ces dix colonnes. Trois
     raisons de la servir en une requête agrégée plutôt qu'en entités :
 
     - lire `course.participations` par épreuve donnerait la même réponse en une
@@ -763,6 +763,7 @@ def list_identities_with_counts(db: Session) -> list:
             Course.event_date.label("event_date"),
             Course.event_type.label("event_type"),
             Course.is_relay.label("is_relay"),
+            Course.created_at.label("created_at"),
             func.coalesce(CourseSource.provider, "").label("provider"),
             func.coalesce(CourseSource.url, "").label("source_url"),
             func.count(Participation.id).label("total"),

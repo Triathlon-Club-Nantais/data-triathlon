@@ -177,7 +177,10 @@ export function CoursesAdminTable({
           <TableBody>
             {data.map((course) => (
               <TableRow key={course.id}>
-                <TableCell className="max-w-xs truncate">{course.name}</TableCell>
+                <TableCell className="max-w-xs truncate">
+                  <span className="tabular-nums text-xs text-muted-foreground">n° {course.id}</span>{" "}
+                  {course.name}
+                </TableCell>
                 <TableCell>{formatDate(course.event_date)}</TableCell>
                 {/* Le slug reste affiché tel quel s'il est inconnu de la table :
                     une administration qui masque « triathlon-xxl » derrière un

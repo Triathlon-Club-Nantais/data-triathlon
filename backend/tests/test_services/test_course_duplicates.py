@@ -402,6 +402,7 @@ def test_chaque_paire_porte_de_quoi_trancher_sans_seconde_requete(db_session):
         "source_url": VERTOU_WICLAX,
         "total": 5,
         "tcn_count": 3,
+        "created_at": gauche.created_at,
     }
     assert candidat["courses"][1]["id"] == droite.id
     assert (candidat["courses"][1]["total"], candidat["courses"][1]["tcn_count"]) == (2, 1)
