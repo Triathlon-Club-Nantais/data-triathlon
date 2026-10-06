@@ -1,5 +1,10 @@
 # Batches de production — re-scrape de la base, ou import d'une liste d'URL.
 #
+# Hors mode `urls`, trois étapes précèdent le batch : la purge de rétention, la
+# relecture hebdomadaire des licenciés du club sur la page FFTri
+# (`sync-club-members`, #1202, sautée en dry-run), puis la reprise. Une étape
+# en échec rougit le run sans priver la base des suivantes.
+#
 # Ce workflow n'est pas de l'intégration continue : il détient la base de
 # **production** et exécute ce que l'interface d'administration lui demande
 # (#47). Il se relit comme du code de production.
@@ -228,10 +233,11 @@ jobs:
 
       # Licenciés du club (#1202) : la liste FFTri de la saison en cours fait
       # compter les résultats des membres sans libellé de club. Une page
-      # illisible rougit le run sans priver la base de sa reprise.
+      # illisible rougit le run sans priver la base de sa reprise ; une purge
+      # en échec ne la prive pas de cette relecture.
       - name: Sync club members
         id: members
-        if: inputs.mode != 'urls' && inputs.dry_run != true
+        if: ${{ !cancelled() && (success() || steps.purge.outcome == 'failure') && inputs.mode != 'urls' && inputs.dry_run != true }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |

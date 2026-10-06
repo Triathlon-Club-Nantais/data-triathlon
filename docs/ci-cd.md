@@ -881,6 +881,14 @@ lancement manuel : elle est ignorée si un batch tourne déjà. C'est voulu.
    est bruyant et donc acceptable — mais tant que #258 n'est pas traité, la
    reprise hebdomadaire est à surveiller, voire à borner par un `limit`.
 
+**Les licenciés du club se relisent avant la reprise** (#1202) : l'étape
+« Sync club members » lance `sync-club-members`, qui relit la page FFTri du
+club et remplace la saison en cours (rattachements manuels gardés), puis
+recalcule ce qui compte pour le club. Jamais en mode `urls` ni en dry-run. Elle
+tourne même si la purge de rétention a échoué, et son propre échec (page
+illisible) rougit le run sans empêcher la reprise. Rapport dans le résumé du
+run, section « Licenciés du club ».
+
 **Le géocodage suit la reprise** (#975) : l'étape « Geocode new courses »
 lance `geocode-courses --limit 300` après une reprise réussie, jamais en mode
 `urls` ni en dry-run. C'est le seul passage qui remplit la carte des épreuves

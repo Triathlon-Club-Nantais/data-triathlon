@@ -131,6 +131,15 @@ def test_the_periodic_rescrape_is_still_scheduled(workflow):
     assert declencheurs["schedule"], "la reprise périodique a disparu"
 
 
+def test_the_members_sync_survives_a_failed_purge(workflow):
+    """Une purge en échec rougit le run ; elle ne prive pas la base de la liste des licenciés (#1202)."""
+    steps = {step.get("id"): step for job in _step_jobs(workflow) for step in job["steps"]}
+    condition = steps["members"]["if"]
+    assert "!cancelled()" in condition
+    assert "steps.purge.outcome == 'failure'" in condition
+    assert "inputs.mode != 'urls'" in condition and "inputs.dry_run != true" in condition
+
+
 def test_job_cannot_hang_forever(workflow):
     """Sans borne, une exécution coincée gèle tout lancement six heures durant."""
     for job in _step_jobs(workflow):
