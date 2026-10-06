@@ -11,10 +11,10 @@ d'administration ci-dessous.
 from sqlalchemy.orm import Session
 
 from app.core import counter_scope
-from app.core.club import normalize_club
+from app.core.club import ClubLabels, normalize_club
 from app.core.exceptions import DomainError, DuplicateError, LastClubLabelError, NotFoundError
 from app.models.counter_scope_entry import CLUB_LABEL, NON_FEDERAL_DISCIPLINE, CounterScopeEntry
-from app.repositories import counter_scope_repository, course_repository
+from app.repositories import counter_scope_repository, tcn_count_repository
 from app.services import audit
 
 
@@ -28,8 +28,8 @@ def load_from_db(db: Session) -> None:
     )
 
 
-def _recompute_tcn_counts(db: Session, kind: str) -> None:
-    """Recalcule `Course.tcn_count` dans la transaction de l'écriture (#939).
+def _recompute_counts_for_tcn(db: Session, kind: str) -> None:
+    """Recalcule `counts_for_tcn` et `Course.tcn_count` dans la transaction de l'écriture (#939).
 
     Les libellés sont relus **en base**, pas dans le registre : celui-ci n'est
     rechargé qu'après le commit, et le recharger avant exposerait une
@@ -37,8 +37,10 @@ def _recompute_tcn_counts(db: Session, kind: str) -> None:
     """
     if kind != CLUB_LABEL:
         return
-    labels = {e.value for e in counter_scope_repository.list_entries(db) if e.kind == CLUB_LABEL}
-    course_repository.recompute_tcn_counts_all(db, club_labels=labels)
+    labels = ClubLabels.from_entries(
+        (e.value, e.ambiguous) for e in counter_scope_repository.list_entries(db) if e.kind == CLUB_LABEL
+    )
+    tcn_count_repository.recompute_counts_for_tcn(db, labels=labels)
 
 
 def normalize_value(kind: str, value: str) -> str:
@@ -84,7 +86,7 @@ def add_entry(
         db, kind=kind, value=normalisee, created_by_user_id=admin_user_id
     )
     db.flush()
-    _recompute_tcn_counts(db, kind)
+    _recompute_counts_for_tcn(db, kind)
     audit.record(
         db, admin_user_id, action="counter_scope.entry_add", entity_type=_ENTITY_TYPE,
         entity_id=entry.id,
@@ -120,7 +122,7 @@ def remove_entry(
 
     counter_scope_repository.delete_entry(db, entry)
     db.flush()
-    _recompute_tcn_counts(db, kind)
+    _recompute_counts_for_tcn(db, kind)
     audit.record(
         db, admin_user_id, action="counter_scope.entry_remove", entity_type=_ENTITY_TYPE,
         entity_id=entry.id,
