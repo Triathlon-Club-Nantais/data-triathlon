@@ -32,7 +32,13 @@ from app.core import http
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
 from .classify import classify_event_type
-from .utils import DEFAULT_HEADERS, derive_status_from_label, normalize_rank, normalize_time
+from .utils import (
+    DEFAULT_HEADERS,
+    derive_status_from_label,
+    normalize_rank,
+    normalize_time,
+    to_seconds,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -551,13 +557,38 @@ def _race_results_api(
         # L'API répond 500 avec un objet d'erreur sur certaines courses.
         raise ValueError(f"Résultats indisponibles pour la course {race_slug} : {athletes}")
     splits_by_bib = _fetch_splits_parallel(athletes)
-    return [
+    results = [
         _parse_api_athlete(
             a, url, course_name, event_type, event_date,
             splits_by_bib.get(a.get("bib", ""), {}),
         )
         for a in athletes
     ]
+    _derive_overall_ranks(results, athletes)
+    return results
+
+
+def _derive_overall_ranks(results: list[ScrapedResult], athletes: list[dict]) -> None:
+    """Classe les finishers d'une course qui ne publie **aucun** rang (#1210).
+
+    Les Défis de Saint-Nazaire 2026 ne portent que `rankingSeconds` : sans ce
+    calcul, toute la course restait sans classement. Un seul rang publié suffit
+    à laisser la course telle quelle, la source faisant alors foi.
+    """
+    if any(r.rank_overall is not None for r in results):
+        return
+    timed = []
+    for result, athlete in zip(results, athletes, strict=True):
+        if result.status:
+            continue
+        seconds = athlete.get("rankingSeconds")
+        if not isinstance(seconds, (int, float)) or seconds <= 0:
+            seconds = to_seconds(result.total_time, strict=True)
+        if seconds:
+            timed.append((seconds, result))
+    timed.sort(key=lambda entry: entry[0])
+    for rank, (_seconds, result) in enumerate(timed, start=1):
+        result.rank_overall = rank
 
 
 def _scrape_results_race(slug: str, url: str, client: httpx.Client) -> list[ScrapedResult]:

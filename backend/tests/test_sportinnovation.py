@@ -477,6 +477,44 @@ def test_scrape_event_api_reponse_races_en_erreur():
         si._scrape_event_api("mon_event", "http://x", client)
 
 
+def test_race_results_api_derives_the_overall_rank_when_none_is_published(monkeypatch):
+    """#1210 : Défis de Saint-Nazaire 2026, schéma FFA sans aucun rang publié.
+    Le rang se déduit de `rankingSeconds`, finishers seulement."""
+    from app.scrapers import sportinnovation as si
+
+    monkeypatch.setattr(si, "_fetch_splits_parallel", lambda athletes, **kw: {})
+    client = _FakeClient({
+        "/races/tri-s/results": [
+            {"lastName": "LENT", "bib": "3", "rankingSeconds": 4000, "officialTimeFfa": "01:06:40"},
+            {"lastName": "ABANDON", "bib": "4", "status": "DNF", "rankingSeconds": None},
+            {"lastName": "RAPIDE", "bib": "1", "rankingSeconds": 3600, "officialTimeFfa": "01:00:00"},
+            {"lastName": "MOYEN", "bib": "2", "officialTimeFfa": "01:03:00"},
+        ],
+    })
+
+    results = si._race_results_api("tri-s", "Triathlon S", "Défis", None, "http://x", client)
+
+    rangs = {r.athlete_name: r.rank_overall for r in results}
+    assert rangs == {"RAPIDE": 1, "MOYEN": 2, "LENT": 3, "ABANDON": None}
+
+
+def test_race_results_api_keeps_published_ranks(monkeypatch):
+    """Un rang publié n'est jamais recalculé, même s'il manque sur une ligne."""
+    from app.scrapers import sportinnovation as si
+
+    monkeypatch.setattr(si, "_fetch_splits_parallel", lambda athletes, **kw: {})
+    client = _FakeClient({
+        "/races/tri-s/results": [
+            {"lastName": "A", "bib": "1", "generalRank": 2, "rankingSeconds": 3600},
+            {"lastName": "B", "bib": "2", "rankingSeconds": 3500, "officialTimeFfa": "00:58:20"},
+        ],
+    })
+
+    results = si._race_results_api("tri-s", "Triathlon S", "Défis", None, "http://x", client)
+
+    assert [r.rank_overall for r in results] == [2, None]
+
+
 def test_scrape_results_race_compose_le_nom_et_porte_la_date(monkeypatch):
     from app.scrapers import sportinnovation as si
 
