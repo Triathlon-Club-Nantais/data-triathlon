@@ -1353,3 +1353,47 @@ def test_the_data_migration_empties_splits_without_any_real_segment(sqlite_url):
         {},
         None,
     ]
+
+
+# --- Clé d'identité des libellés d'équipe (#1192) ----------------------------
+
+_BEFORE_TEAM_KEYS = "eead8cc8c19d"
+
+
+def test_the_data_migration_gives_team_labels_a_team_key(sqlite_url):
+    """#1192 : « ARNAUD & VINCENT » portait la clé de la personne « ARNAUD Vincent ».
+    Deux graphies d'une même équipe se départagent par leur rang d'homonyme."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, _BEFORE_TEAM_KEYS)
+    fiches = [
+        ("ARNAUD", "Vincent", "arnaud", "vincent", 0),
+        ("ARNAUD", "& VINCENT .", "arnaud", "vincent", 1),
+        ("ARNAUD &", "VINCENT", "arnaud", "vincent", 2),
+        ("BRETON", "Etienne", "breton", "etienne", 0),
+    ]
+    engine = sa.create_engine(sqlite_url)
+    try:
+        with engine.begin() as connexion:
+            for nom, prenom, cle_nom, cle_prenom, rang in fiches:
+                connexion.execute(
+                    sa.text(
+                        "INSERT INTO athletes (nom, prenom, gender, club_locked, created_at,"
+                        " last_name_key, first_name_key, homonym_rank)"
+                        " VALUES (:nom, :prenom, '', :faux, '2026-01-01', :cn, :cp, :rang)"
+                    ),
+                    {"nom": nom, "prenom": prenom, "faux": False, "cn": cle_nom, "cp": cle_prenom, "rang": rang},
+                )
+    finally:
+        engine.dispose()
+
+    command.upgrade(cfg, "head")
+
+    assert _lignes(
+        sqlite_url,
+        "SELECT nom, prenom, last_name_key, first_name_key, homonym_rank FROM athletes ORDER BY id",
+    ) == [
+        ("ARNAUD", "Vincent", "arnaud", "vincent", 0),
+        ("ARNAUD", "& VINCENT .", "arnaud&vincent", "", 0),
+        ("ARNAUD &", "VINCENT", "arnaud&vincent", "", 1),
+        ("BRETON", "Etienne", "breton", "etienne", 0),
+    ]

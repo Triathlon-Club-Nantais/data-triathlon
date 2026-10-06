@@ -2570,8 +2570,10 @@ def test_split_fallback_keeps_the_reconcile_guard(db_session, patch_scraper, mon
     out = import_service.import_event(db_session, URL, _settings())
 
     assert out["reconciled"] == 0
-    assert athlete_repository.get_by_identity_keys(
-        db_session, "DUPONT JEAN / MARTIN PAUL", "") is None
+    # Les deux graphies d'une équipe partagent une clé depuis #1192 : la fiche
+    # retrouvée est celle d'origine, prénom intact.
+    equipe = athlete_repository.get_by_identity_keys(db_session, "DUPONT JEAN / MARTIN PAUL", "")
+    assert (equipe.nom, equipe.prenom) == ("DUPONT JEAN", "/ MARTIN PAUL")
 
 
 def test_guard_holds_when_the_individual_line_comes_in_a_later_tranche(
