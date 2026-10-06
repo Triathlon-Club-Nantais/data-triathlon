@@ -4,7 +4,7 @@ from collections import Counter
 from sqlalchemy.orm import Session
 
 from app.core import season as season_module
-from app.core.club import TCN_CANONICAL_NAME, broad_club_key, is_tcn, normalize_club
+from app.core.club import TCN_CANONICAL_NAME, broad_club_key, normalize_club
 from app.repositories import club_alias_repository, course_repository, participation_repository
 from app.scrapers.base import STATUS_FINISHER
 from app.scrapers.utils import to_seconds
@@ -269,7 +269,7 @@ def course_summary(db: Session, course_id: int) -> dict:
     # épreuve porte jusqu'à ~1800 participations (#163).
     alias_map = club_alias_repository.canonical_map(db)
     lignes = participation_repository.summary_rows_for_course(db, course_id)
-    for status, club, category, total_time, splits, gender in lignes:
+    for status, club, category, total_time, splits, gender, counts_for_tcn in lignes:
         statut = (status or "").strip()
         cle_non_finisher = _STATUTS_NON_FINISHERS.get(statut.upper())
         if cle_non_finisher == "dnf":
@@ -299,20 +299,21 @@ def course_summary(db: Session, course_id: int) -> dict:
             # #635) sont fusionnées sous un libellé canonique dans « Top
             # clubs » (#200, #635). Sans quoi le même club apparaissait sur
             # plusieurs lignes selon les saisies du chronométreur. Le TCN
-            # reste gouverné par `is_tcn` (registre séparé, #95) ; tout autre
+            # est la ligne qui compte pour le club (`counts_for_tcn`, #1206) : un
+            # « TCN » de Narbonne reste sur sa propre ligne ; tout autre
             # club par `alias_map`, chargé une fois plus haut, avec repli sur
             # la forme normalisée (`libelles_par_forme`) pour rester
             # cohérent avec ce que `_club_filter_targets` matche déjà sans
             # alias déclaré. La base garde le verbatim — seul l'agrégat
             # d'affichage bascule.
-            if is_tcn(club):
+            if counts_for_tcn:
                 clubs[TCN_CANONICAL_NAME] += 1
             elif canonique := alias_map.get(normalize_club(club)):
                 clubs[canonique] += 1
             elif cle := broad_club_key(club):
                 # Clé vide : « - » ou « -- », remplissage d'un club inconnu.
                 variantes_par_cle.setdefault(cle, Counter())[club.strip()] += 1
-        if is_tcn(club):
+        if counts_for_tcn:
             tcn_count += 1
 
         for cle, valeur in (splits or {}).items():
@@ -362,7 +363,7 @@ def course_summary(db: Session, course_id: int) -> dict:
         # sommer à 100 %, ce qu'elles ne font pas.
         "categories_total": sum(categories.values()),
         "clubs": [
-            {"name": nom, "count": nombre, "is_tcn": is_tcn(nom)}
+            {"name": nom, "count": nombre, "is_tcn": nom == TCN_CANONICAL_NAME}
             for nom, nombre in _plus_frequents(clubs, _MAX_CLUBS)
         ],
         # Dénominateur du « et N autres clubs » (#486). **Pas homogène** à

@@ -326,9 +326,10 @@ def test_delete_ne_touche_pas_les_epreuves_voisines(db_session):
 def test_le_filtre_scope_club_utilise_l_index_fonctionnel(db_session):
     """Non-régression #351 : `_filtered(club_only=True)` ne balaie plus `participations`.
 
-    Sans index fonctionnel, `tcn_clause(Participation.club)` (huit fonctions SQL
-    imbriquées) ne peut être servi que ligne à ligne — mesuré 15-20x plus lent en
-    production sur ce chemin (876-1906 ms contre 92-109 ms, sondage #328). Ce test
+    Sans index, le filtre de portée ne peut être servi que ligne à ligne — avec
+    `tcn_clause(Participation.club)` (huit fonctions SQL imbriquées), mesuré 15-20x
+    plus lent en production (876-1906 ms contre 92-109 ms, sondage #328). Depuis
+    #1206 le filtre lit la colonne indexée `counts_for_tcn`. Ce test
     verrouille le **plan de requête**, pas un temps d'exécution : à cette échelle,
     SQLite en mémoire reste rapide même sans index (~13 ms mesurés sur la base de
     dev, 20 300 lignes, cf. le commit) — un test chronométré ne détecterait donc
@@ -389,7 +390,7 @@ def test_le_filtre_scope_club_utilise_l_index_fonctionnel(db_session):
         plan = [tuple(row) for row in conn.execute(text(f"EXPLAIN QUERY PLAN {compiled}"))]
 
     plan_text = " | ".join(str(row) for row in plan)
-    assert "ix_participations_club_normalized" in plan_text, plan_text
+    assert "ix_participations_counts_for_tcn" in plan_text, plan_text
 
 
 def test_reset_scraped_at_all_remet_toutes_les_epreuves_a_null(db_session):

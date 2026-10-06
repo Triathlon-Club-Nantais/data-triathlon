@@ -69,12 +69,11 @@ def valider_toutes_les_participations(db_session):
     Recalcule aussi les compteurs dénormalisés de `Course` (#623) : ce raccourci
     bascule l'état en masse, hors d'`admin_actions.validate_participation` (le
     point d'écriture réel qui les ajuste un par un) — même définition que
-    `_apply_filters`/`validated_clause`/`tcn_clause`, sur le patron de la
+    `_apply_filters`/`validated_clause`/`counts_for_tcn`, sur le patron de la
     migration `05de2237111f`.
     """
     import sqlalchemy as sa
 
-    from app.core.club import tcn_clause
     from app.core.validation import validated_clause
     from app.models.course import Course
     from app.models.participation import Participation
@@ -96,7 +95,7 @@ def valider_toutes_les_participations(db_session):
     db_session.query(Course).update(
         {
             Course.participation_count: _compte(),
-            Course.tcn_count: _compte(tcn_clause(Participation.club)),
+            Course.tcn_count: _compte(Participation.counts_for_tcn.is_(True)),
         },
         synchronize_session=False,
     )

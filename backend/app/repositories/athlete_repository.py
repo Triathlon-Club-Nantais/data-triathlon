@@ -733,7 +733,7 @@ def list_with_season_participation_count(
     total = func.count(Participation.id)
     validees = func.sum(case((est_valide, 1), else_=0))
     affiliees_club = func.sum(
-        case((and_(est_valide, tcn_clause(Participation.club)), 1), else_=0)
+        case((and_(est_valide, Participation.counts_for_tcn.is_(True)), 1), else_=0)
     )
     lien = credits()
     requete = (
@@ -863,7 +863,7 @@ def _club_roster_requete(db: Session, *, federal_only: bool):
         .join(Participation, Participation.id == lien.c.participation_id)
         .join(Course, Participation.course_id == Course.id)
         .filter(validated_clause(Participation.is_pending_validation))
-        .filter(tcn_clause(Participation.club))
+        .filter(Participation.counts_for_tcn.is_(True))
         .group_by(Athlete.id)
     )
     if federal_only:
@@ -937,7 +937,7 @@ def club_composition(
         .join(Participation, Participation.id == lien.c.participation_id)
         .join(Course, Participation.course_id == Course.id)
         .filter(validated_clause(Participation.is_pending_validation))
-        .filter(tcn_clause(Participation.club))
+        .filter(Participation.counts_for_tcn.is_(True))
     )
     if federal_only:
         sous_requete = sous_requete.filter(federal_clause(Course.event_type))
@@ -990,7 +990,10 @@ def club_records_with_two_bibs_on_a_race(db: Session) -> list[tuple[int, int]]:
         .group_by(Participation.athlete_id, Participation.course_id)
         .having(
             func.count(func.distinct(Participation.bib_number)) > 1,
-            or_(_club_flag(Athlete.club), _club_flag(Participation.club)),
+            or_(
+                _club_flag(Athlete.club),
+                func.max(case((Participation.counts_for_tcn.is_(True), 1), else_=0)) == 1,
+            ),
         )
     )
     return [tuple(row) for row in rows]
@@ -1017,7 +1020,7 @@ def homonym_groups(db: Session) -> list[tuple[list[int], set[int]]]:
     ids = [member.id for member in members]
     touching = set(db.scalars(
         select(Participation.athlete_id)
-        .where(Participation.athlete_id.in_(ids), tcn_clause(Participation.club))
+        .where(Participation.athlete_id.in_(ids), Participation.counts_for_tcn.is_(True))
         .distinct()
     )) | set(db.scalars(select(Athlete.id).where(Athlete.id.in_(ids), tcn_clause(Athlete.club))))
     groups: dict[tuple[str, str], list[int]] = {}

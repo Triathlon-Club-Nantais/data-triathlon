@@ -595,7 +595,7 @@ def test_course_summary_ne_charge_que_les_colonnes_utiles(db_session):
 
     lignes = participation_repository.summary_rows_for_course(db_session, course.id)
     assert lignes and not hasattr(lignes[0], "__mapper__")
-    assert len(lignes[0]) == 6
+    assert len(lignes[0]) == 7
 
     requetes = []
 

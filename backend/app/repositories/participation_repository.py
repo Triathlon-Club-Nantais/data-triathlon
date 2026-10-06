@@ -11,7 +11,7 @@ from app.core import counter_scope
 
 # `_normalise_sql` est module-privé (`core/club.py`) mais réutilisé tel quel —
 # même miroir SQL que `tcn_clause`, single source of truth (cf. plan #635).
-from app.core.club import _normalise_sql, broad_club_key, is_tcn, normalize_club, tcn_clause
+from app.core.club import _normalise_sql, broad_club_key, is_tcn, normalize_club
 from app.core.discipline import federal_clause
 from app.core.season import season_bounds, season_of
 from app.core.validation import validated_clause
@@ -317,7 +317,7 @@ def count_bibs_absent_from(
     total, tcn = (
         db.query(
             func.count(Participation.id),
-            func.sum(case((tcn_clause(Participation.club), 1), else_=0)),
+            func.sum(case((Participation.counts_for_tcn.is_(True), 1), else_=0)),
         )
         .filter(
             Participation.course_id == course_id,
@@ -495,7 +495,7 @@ def _apply_filters(
     if name:
         q = q.filter(name_filter(name))
     if club_only:
-        q = q.filter(tcn_clause(Participation.club))
+        q = q.filter(Participation.counts_for_tcn.is_(True))
     q = _apply_course_filters(
         q,
         db,
@@ -842,7 +842,7 @@ def list_page_for_course(
         .filter(validated_clause(Participation.is_pending_validation))
     )
     if club_only:
-        query = query.filter(tcn_clause(Participation.club))
+        query = query.filter(Participation.counts_for_tcn.is_(True))
     if club:
         query = query.filter(_normalise_sql(Participation.club).in_(_club_filter_targets(db, club, course_id)))
     if category:
@@ -891,6 +891,8 @@ def summary_rows_for_course(db: Session, course_id: int) -> list[tuple]:
 
     Exclut les résultats en attente de validation (#270, FR-021) : la synthèse
     ne doit pas compter un résultat que le classement paginé n'affiche pas.
+
+    La septième colonne est le verdict stocké du club (#1206).
     """
     return (
         db.query(
@@ -900,6 +902,7 @@ def summary_rows_for_course(db: Session, course_id: int) -> list[tuple]:
             Participation.total_time,
             Participation.splits,
             Athlete.gender,
+            Participation.counts_for_tcn,
         )
         .join(Athlete, Participation.athlete_id == Athlete.id)
         .filter(Participation.course_id == course_id)
@@ -928,7 +931,7 @@ def _stats_filters(q, *, club_only: bool, seasons: list[int] | None, federal_onl
     de la jointure pour ses propres colonnes.
     """
     if club_only:
-        q = q.filter(tcn_clause(Participation.club))
+        q = q.filter(Participation.counts_for_tcn.is_(True))
     if seasons:
         q = q.filter(season_clause(seasons))
     if federal_only:
@@ -1120,7 +1123,7 @@ def club_podiums(db: Session, *, federal_only: bool = False):
         .join(Athlete, Participation.athlete_id == Athlete.id)
         .join(Course, Participation.course_id == Course.id)
         .filter(validated_clause(Participation.is_pending_validation))
-        .filter(tcn_clause(Participation.club))
+        .filter(Participation.counts_for_tcn.is_(True))
         .filter(
             or_(
                 Participation.rank_overall.between(1, 3),
@@ -1162,7 +1165,7 @@ def _grouped_events_query(
         Course.is_reliable.label("is_reliable"),
         Course.quality_issues.label("quality_issues"),
         func.count(Participation.id).label("total"),
-        func.sum(case((tcn_clause(Participation.club), 1), else_=0)).label("tcn_count"),
+        func.sum(case((Participation.counts_for_tcn.is_(True), 1), else_=0)).label("tcn_count"),
     )
     q = _apply_filters(
         q,
@@ -1438,7 +1441,7 @@ def distinct_seasons(
         .filter(validated_clause(Participation.is_pending_validation))
     )
     if club_only:
-        q = q.filter(tcn_clause(Participation.club))
+        q = q.filter(Participation.counts_for_tcn.is_(True))
     if federal_only:
         q = q.filter(federal_clause(Course.event_type))
     rows = q.group_by(Course.id, Course.event_date).all()
