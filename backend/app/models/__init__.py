@@ -4,6 +4,7 @@ from app.models.admin_action_log import AdminActionLog
 from app.models.allowed_email import AllowedEmail
 from app.models.athlete import Athlete
 from app.models.athlete_alias import AthleteAlias
+from app.models.athlete_known_club import AthleteKnownClub
 from app.models.athlete_opposition import AthleteOpposition
 from app.models.benevole_access_config import BenevoleAccessConfig
 from app.models.challenge import Challenge, ChallengeCourse, ChallengeResult
@@ -41,6 +42,7 @@ __all__ = [
     "AthleteOpposition",
     "Athlete",
     "AthleteAlias",
+    "AthleteKnownClub",
     "BenevoleAccessConfig",
     "Challenge",
     "ChallengeCourse",

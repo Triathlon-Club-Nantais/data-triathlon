@@ -1494,3 +1494,20 @@ def test_downgrade_then_upgrade_of_club_members(sqlite_url, monkeypatch):
     assert "club_members" not in _tables(sqlite_url)
     command.upgrade(cfg, "head")
     assert "club_members" in _tables(sqlite_url)
+
+
+def test_athlete_known_clubs_table_is_created(base_migree):
+    assert _columns(base_migree, "athlete_known_clubs") == {
+        "id", "athlete_id", "club_key", "created_at", "created_by_user_id",
+    }
+
+
+def test_downgrade_then_upgrade_of_athlete_known_clubs(sqlite_url, monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", sqlite_url)
+    get_settings.cache_clear()
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, "d2b6e8a1c5f3")
+    assert "athlete_known_clubs" not in _tables(sqlite_url)
+    command.upgrade(cfg, "head")
+    assert "athlete_known_clubs" in _tables(sqlite_url)
