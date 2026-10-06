@@ -56,11 +56,11 @@ const ECRANS: [string, () => Promise<{ metadata?: Metadata }>][] = [
   ["/admin/journal", () => import("./admin/journal/page")],
   ["/admin/oppositions", () => import("./admin/oppositions/page")],
   ["/admin/maintenance", () => import("./admin/maintenance/layout")],
+  ["/admin/membres", () => import("./admin/membres/layout")],
   ["/admin/portee-compteurs", () => import("./admin/portee-compteurs/layout")],
   ["/admin/quality", () => import("./admin/quality/page")],
   ["/admin/retours-utilisateurs", () => import("./admin/retours-utilisateurs/page")],
   ["/admin/utilisateurs", () => import("./admin/utilisateurs/page")],
-  ["/admin/membres", () => import("./admin/membres/layout")],
   ["/admin/variantes-club", () => import("./admin/variantes-club/layout")],
 ];
 
