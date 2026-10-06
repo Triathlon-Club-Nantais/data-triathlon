@@ -1418,3 +1418,61 @@ def test_the_data_migration_gives_team_labels_a_team_key(sqlite_url):
     assert _lignes(
         sqlite_url, "SELECT athlete_id, source_identity_key FROM participations ORDER BY athlete_id"
     ) == [(1, "arnaud|vincent"), (2, "arnaud&vincent|")]
+
+
+_BEFORE_COUNTS_FOR_TCN = "baef0d35bb4f"
+
+
+def test_counts_for_tcn_backfill_applies_the_rule(sqlite_url, monkeypatch):
+    """#1206: `tcn` becomes ambiguous; a bare `TCN` counts only when the athlete
+    has another validated result under a clear label."""
+    monkeypatch.setenv("DATABASE_URL", sqlite_url)
+    get_settings.cache_clear()
+    cfg = _alembic_config()
+    command.upgrade(cfg, _BEFORE_COUNTS_FOR_TCN)
+    engine = sa.create_engine(sqlite_url)
+    with engine.begin() as connexion:
+        connexion.execute(sa.text(
+            "INSERT INTO athletes (id, nom, prenom, gender, club_locked, created_at, homonym_rank)"
+            " VALUES (1, 'MARTIN', 'Anne', '', 0, '2026-01-01', 0),"
+            " (2, 'DURAND', 'Paul', '', 0, '2026-01-01', 0)"
+        ))
+        connexion.execute(sa.text(
+            "INSERT INTO courses (id, name, event_date, event_type, is_relay, ranked_by_laps,"
+            " created_at, participation_count, tcn_count)"
+            " VALUES (1, 'A', '2026-05-01', 'triathlon-m', 0, 0, '2026-01-01', 0, 0),"
+            " (2, 'B', '2026-06-01', 'triathlon-m', 0, 0, '2026-01-01', 0, 0)"
+        ))
+        connexion.execute(sa.text(
+            "INSERT INTO participations (id, athlete_id, course_id, club, bib_number, status,"
+            " is_relay, is_pending_validation, is_rejected, athlete_locked, created_at) VALUES"
+            " (1, 1, 1, 'TCN', '1', 'finisher', 0, 0, 0, 0, '2026-01-01'),"
+            " (2, 1, 2, 'Triathlon Club Nantais', '1', 'finisher', 0, 0, 0, 0, '2026-01-01'),"
+            " (3, 2, 1, 'TCN', '2', 'finisher', 0, 0, 0, 0, '2026-01-01')"
+        ))
+    engine.dispose()
+
+    command.upgrade(cfg, "head")
+    get_settings.cache_clear()
+
+    assert _lignes(
+        sqlite_url, "SELECT value, ambiguous FROM counter_scope_entries"
+        " WHERE kind = 'tcn_club_label' ORDER BY value"
+    ) == [("tcn", 1), ("tri club nantais", 0), ("triathlon club nantais", 0)]
+    assert _lignes(
+        sqlite_url, "SELECT id, counts_for_tcn FROM participations ORDER BY id"
+    ) == [(1, 1), (2, 1), (3, 0)]
+    assert _lignes(sqlite_url, "SELECT id, tcn_count FROM courses ORDER BY id") == [(1, 1), (2, 1)]
+
+
+def test_downgrade_then_upgrade_of_counts_for_tcn(sqlite_url, monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", sqlite_url)
+    get_settings.cache_clear()
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    command.downgrade(cfg, _BEFORE_COUNTS_FOR_TCN)
+    assert "counts_for_tcn" not in _columns(sqlite_url, "participations")
+    assert "ambiguous" not in _columns(sqlite_url, "counter_scope_entries")
+    command.upgrade(cfg, "head")
+    get_settings.cache_clear()
+    assert "counts_for_tcn" in _columns(sqlite_url, "participations")
