@@ -711,6 +711,7 @@ class _Persister:
 
         # Une seule requête par tranche, bornée aux fiches dont le club changerait.
         course_date = self._courses[course_id].event_date
+        member_clubs, club_homonyms = self._club_routing(course_id, pending, decisions, kept, found)
         club_changes = {
             athlete.id
             for item, teammates, record in zip(pending, decisions, kept, strict=True)
@@ -718,8 +719,12 @@ class _Persister:
             for athlete in [record or found[_identity_key(item.scraped)]]
             if self._club_of(athlete) != item.scraped.club and not athlete.club_locked
         }
+        # Un homonyme repris par le signal de club suit la même garde de date (#965).
+        club_changes.update(
+            homonym.id for listed in club_homonyms.values() for homonym, _ in listed if not homonym.club_locked
+        )
+        club_changes.update(homonym.id for homonym in self._club_homonyms.values() if not homonym.club_locked)
         latest_clubs = athlete_repository.latest_club_dates(self.db, list(club_changes))
-        member_clubs, club_homonyms = self._club_routing(course_id, pending, decisions, kept, found)
 
         creation_consumed: set[IdentityKey] = set()
         new_participation_fields: list[dict] = []
@@ -851,6 +856,14 @@ class _Persister:
             for athlete_id in athlete_ids
         }
 
+    def _club_routable(self, course_id: int, item: _PendingResolution) -> bool:
+        """Vrai si le club de la ligne peut l'envoyer sur un homonyme (#1209). Une
+        ligne sans dossard dont la clé source a déjà des résultats sur l'épreuve ne
+        fait que mettre à jour ou sauter l'un d'eux : l'homonyme resterait vide."""
+        if self._courses[course_id].is_relay or item.scraped.is_relay or not is_significant_club(item.scraped.club):
+            return False
+        return item.bib is not None or not self._without_bib[course_id].get(_source_key(item.scraped))
+
     def _club_routing(
         self, course_id: int, pending: list[_PendingResolution], decisions: list,
         kept: list[Athlete | None], found: dict[IdentityKey, Athlete],
@@ -858,14 +871,14 @@ class _Persister:
         """Ce que `_athlete_for_club` lit, en quelques requêtes par tranche (#1209) :
         les clubs des fiches de membre qu'une ligne d'un autre club pourrait viser,
         puis les homonymes de ces lignes avec leurs clubs."""
-        if self._courses[course_id].is_relay:
-            return {}, {}
+        # La fiche de membre se juge sur l'état d'avant l'import : les verdicts du
+        # club ne se recalculent qu'en `finalize`. Une fiche qui devient membre par
+        # cet import même est rattrapée par la revue `multi_club`.
         candidates = [
             (_identity_key(item.scraped), canonical_club_key(item.scraped.club, self._club_aliases))
             for item, teammates, record in zip(pending, decisions, kept, strict=True)
             if teammates is None and record is None and item.participation is None
-            and not item.reconcile_blocked and not item.scraped.is_relay
-            and is_significant_club(item.scraped.club)
+            and not item.reconcile_blocked and self._club_routable(course_id, item)
         ]
         principals = {found[key].id for key, _ in candidates}
         if not principals:
@@ -892,7 +905,7 @@ class _Persister:
         pas. Une fiche trouvée par variante ou par repli n'a pas la clé de la
         ligne : rien n'est décidé sur elle. Club vide, ville ou libellé du club :
         la ligne reste sur la fiche de membre."""
-        if item.scraped.is_relay or not is_significant_club(item.scraped.club):
+        if not self._club_routable(course_id, item):
             return athlete
         club_key = canonical_club_key(item.scraped.club, self._club_aliases)
         identity = _identity_key(item.scraped)
