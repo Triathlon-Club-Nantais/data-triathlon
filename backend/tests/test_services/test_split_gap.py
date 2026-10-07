@@ -286,3 +286,15 @@ def test_a_bike_run_is_evaluated_on_its_three_segments():
         event_type="bike-run",
     )
     assert _gap(row) == pytest.approx(0.0)
+
+
+def test_chronological_ranks_source_labels_like_their_canonical_key():
+    """#1234 : les libellés bruts de RaceResult tombaient tous hors gabarit."""
+    assert split_gap.chronological(["Natation", "Vélo", "CAP", "T1", "T2"]) == [
+        "Natation", "T1", "Vélo", "T2", "CAP",
+    ]
+    assert split_gap.chronological(["RUN", "velo", "swim", "t2"]) == ["swim", "velo", "t2", "RUN"]
+
+
+def test_chronological_keeps_unknown_labels_last():
+    assert split_gap.chronological(["Tour 1", "CAP", "Natation"]) == ["Natation", "CAP", "Tour 1"]
