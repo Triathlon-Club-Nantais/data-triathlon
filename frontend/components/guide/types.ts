@@ -24,4 +24,9 @@ export type GuideSection = {
    * quand le rail tait cette destination au visiteur (`destinationVisible`).
    */
   destination?: string;
+  /**
+   * Écrans du back-office que la section documente (#1245) : leur `PageHeader`
+   * y renvoie par un lien « Aide », via `ecran()`.
+   */
+  ecrans?: string[];
 };

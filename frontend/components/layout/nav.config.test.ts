@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { A_TRAITER, NAV, ROLE, ecran, estVisible } from "./nav.config";
+import { GUIDE_ADMIN } from "@/components/guide/guide-content.admin";
 
 /** Les destinations du back-office : celles que le sommaire `/admin` annonce. */
 const ECRANS_ADMIN = NAV.flatMap((s) => s.items).filter(
@@ -42,6 +43,13 @@ describe("nav.config", () => {
       "a-benevolat-validation",
     ]);
     for (const item of files) expect(item.badge, item.id).toBeTruthy();
+  });
+
+  it("renvoie chaque écran d'administration à une section du guide (#1245)", () => {
+    const sections = new Set(GUIDE_ADMIN.map((section) => `/admin/guide#${section.id}`));
+    for (const item of ECRANS_ADMIN) {
+      expect(sections, item.href).toContain(ecran(item.href as string).aide);
+    }
   });
 
   it("ne porte pas d'entrée pour le guide admin (#865)", () => {

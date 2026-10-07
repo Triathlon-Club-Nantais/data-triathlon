@@ -11,6 +11,7 @@ import {
   UserCog,
   Users,
 } from "lucide-react";
+import { GUIDE_ADMIN } from "@/components/guide/guide-content.admin";
 
 /**
  * Table de configuration **unique** de la navigation (proto « Navigation TCN »).
@@ -523,16 +524,19 @@ export function ecran(href: string): {
   eyebrow: string;
   title: string;
   description: string;
+  aide?: string;
 } {
   const section = NAV.find((s) => s.items.some((i) => i.href === href));
   const item = section?.items.find((i) => i.href === href);
   if (!section || !item?.description) {
     throw new Error(`Aucune entrée de navigation décrite pour ${href}`);
   }
+  const guide = GUIDE_ADMIN.find((s) => s.ecrans?.includes(href));
   return {
     eyebrow: section.label,
     title: item.label,
     description: item.description,
+    aide: guide && `/admin/guide#${guide.id}`,
   };
 }
 
