@@ -114,4 +114,18 @@ describe("ClubMembersPanel", () => {
 
     expect(unlink).toHaveBeenCalledWith(2, expect.anything());
   });
+
+  it("mène d'un rattachement fait à la main à la fiche rattachée", () => {
+    render(
+      <ClubMembersPanel
+        {...props}
+        data={saison({
+          total: 1, linked: 1,
+          members: [membre({ nom: "DURAND", prenom: "Paul", athlete_id: 4812, link_status: "manual" })],
+        })}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "fiche n° 4812" })).toHaveAttribute("href", "/athletes/4812");
+  });
 });
