@@ -458,3 +458,13 @@ def test_marking_the_last_clear_label_ambiguous_is_refused(client, db_session):
     assert reponse.status_code == 409
     assert "non ambigu" in reponse.json()["detail"]
     assert counter_scope.ambiguous_club_labels() == frozenset({"tcn"})
+
+
+def test_removing_the_last_clear_label_is_refused(client, db_session):
+    _semer(db_session, CLUB_LABEL, "tcn", "tri club nantais")
+    client.patch(f"{BASE}/club-labels/{_entry_id(db_session, 'tcn')}", json={"ambiguous": True})
+
+    reponse = client.delete(f"{BASE}/club-labels/{_entry_id(db_session, 'tri club nantais')}")
+
+    assert reponse.status_code == 409
+    assert "non ambigu" in reponse.json()["detail"]

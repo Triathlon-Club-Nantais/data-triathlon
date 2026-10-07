@@ -124,6 +124,13 @@ def remove_entry(
 
     if kind == CLUB_LABEL and counter_scope_repository.count_entries(db, kind=kind) <= 1:
         raise LastClubLabelError
+    # Ne garder que des libellés ambigus reviendrait au même vide (#1206).
+    if (
+        kind == CLUB_LABEL
+        and not entry.ambiguous
+        and counter_scope_repository.count_entries(db, kind=kind, ambiguous=False) <= 1
+    ):
+        raise LastClearClubLabelError
 
     counter_scope_repository.delete_entry(db, entry)
     db.flush()
