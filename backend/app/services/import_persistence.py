@@ -221,6 +221,8 @@ def _proposed_teammates(scraped: ScrapedResult) -> tuple[tuple[str, str], ...] |
     """Équipiers nommés d'une ligne de relais (#895) ; jamais hors relais (#63)."""
     if not scraped.is_relay:
         return None
+    if scraped.teammates:
+        return scraped.teammates
     teammates = split_relay_teammates(_published_name(scraped))
     return tuple(teammates) if teammates else None
 

@@ -227,14 +227,18 @@ def test_scrape_event_all_same_type_parcours_distinct_courses(monkeypatch):
 
 def test_a_parcours_published_with_an_indiv_twin_is_a_team_course(monkeypatch):
     """#1213, Raid de la Loire 2026 : « Tri-Kayak » classe les équipes, « Tri-Kayak
-    - Indiv » leurs équipiers un par un (club = nom de l'équipe)."""
+    - Indiv » leurs équipiers un par un (club = nom de l'équipe). #1220 : ce jumeau
+    n'est pas une épreuve, il nomme les équipiers de chaque équipe."""
     xml = _event_xml(
         competitors=(
             '<E d="1" n="PEPIFOLIES SQUAD" ca="TP" v="1" p="Tri-Kayak"/>'
+            '<E d="3" n="LES AUTRES" ca="TP" v="3" p="Tri-Kayak"/>'
             '<E d="1001" n="CATINON Nicolas" x="M" ca="S4M" v="1001" c="PEPIFOLIES SQUAD" p="Tri-Kayak - Indiv"/>'
+            '<E d="1002" n="PEPIN Léa" x="F" ca="S4F" v="1002" c="Pepifolies Squad" p="Tri-Kayak - Indiv"/>'
+            '<E d="1003" n="SEUL Paul" x="M" ca="S4M" v="1003" c="LES AUTRES" p="Tri-Kayak - Indiv"/>'
             '<E d="2" n="SOLO" x="M" ca="S4M" v="2" p="Trail"/>'
         ),
-        results=('<R d="1" t="03:05:00"/><R d="1001" t="03:05:00"/><R d="2" t="01:00:00"/>'),
+        results=('<R d="1" t="03:05:00"/><R d="3" t="03:10:00"/><R d="2" t="01:00:00"/>'),
     )
     root = ET.fromstring(xml)
     monkeypatch.setattr(
@@ -242,13 +246,14 @@ def test_a_parcours_published_with_an_indiv_twin_is_a_team_course(monkeypatch):
         lambda _url: (root, "http://x", "Raid de la Loire", "triathlon", None),
     )
 
-    relais = {r.event_name: r.is_relay for r in scrape_event_all("http://x")}
+    results = scrape_event_all("http://x")
 
-    assert relais == {
-        "Raid de la Loire - Tri-Kayak": True,
-        "Raid de la Loire - Tri-Kayak - Indiv": False,
-        "Raid de la Loire - Trail": False,
-    }
+    assert [(r.event_name, r.athlete_name, r.is_relay, r.teammates) for r in results] == [
+        ("Raid de la Loire - Tri-Kayak", "PEPIFOLIES SQUAD", True, (("CATINON", "Nicolas"), ("PEPIN", "Léa"))),
+        # Un seul équipier publié : pas un relais composable, la ligne reste entière.
+        ("Raid de la Loire - Tri-Kayak", "LES AUTRES", True, None),
+        ("Raid de la Loire - Trail", "SOLO", False, None),
+    ]
 
 
 def test_a_parcours_of_team_categories_is_a_team_course(monkeypatch):

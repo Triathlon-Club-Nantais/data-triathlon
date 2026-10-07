@@ -2349,6 +2349,18 @@ def test_import_splits_parallel_lists_relay(db_session, patch_scraper):
     assert out["imported"] == 1
 
 
+def test_import_attaches_teammates_published_by_the_source(db_session, patch_scraper):
+    """#1220 : Wiclax publie les équipiers à part ; l'équipe garde son nom."""
+    patch_scraper([_relay("1", "PEPIFOLIES SQUAD", "", teammates=(("CATINON", "Nicolas"), ("PEPIN", "Lea")))])
+
+    import_service.import_event(db_session, URL, _settings())
+
+    row = _only_relay_row(db_session)
+    assert _names(row.teammates) == [("CATINON", "Nicolas"), ("PEPIN", "Lea")]
+    assert row.team_name == "PEPIFOLIES SQUAD"
+    assert athlete_repository.get_by_identity_keys(db_session, "PEPIFOLIES SQUAD", "") is None
+
+
 def test_import_split_reuses_existing_athlete_without_touching_clubs(db_session, patch_scraper):
     existing = athlete_repository.get_or_create(
         db_session, nom="MASSONNEAU", prenom="Pierre", club="TRI CLUB"
