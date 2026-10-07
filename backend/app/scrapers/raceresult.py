@@ -1294,6 +1294,26 @@ def _cellule_temps(ligne: list, roles: dict[str, int]) -> str:
     return _strip_rank_suffix(_clean_cell(ligne[col]))
 
 
+def _cellule_nom(ligne: list, roles: dict[str, int]) -> str:
+    """Cellule brute du nom (ou de l'équipe), pliée en minuscules sans accents."""
+    for role in ("nom", "nom_equipe"):
+        col = roles.get(role)
+        if col is not None and col < len(ligne):
+            if valeur := _strip_rank_suffix(_clean_cell(ligne[col])):
+                return strip_accents(valeur).lower()
+    return ""
+
+
+def _noms_masques_compatibles(a: str, b: str) -> bool:
+    """Deux cellules de nom masquées par `_` désignent la même personne (#1238) :
+    même longueur, et accord sur chaque caractère connu des deux côtés. Une mise
+    en forme différente (« NOM, Prénom » contre « Prénom NOM ») échoue : la
+    cellule est alors écartée, par prudence."""
+    return bool(a) and len(a) == len(b) and all(
+        x == y or "_" in (x, y) for x, y in zip(a, b, strict=True)
+    )
+
+
 def _fusionner_temps_masques(candidats: list[str]) -> str:
     """Temps reconstruit en croisant les cellules d'un même enregistrement,
     `_` valant inconnu (#1238) ; `""` si un caractère reste inconnu, si deux
@@ -1731,6 +1751,7 @@ def _run_pipeline(
         fusion: dict[tuple[str, str], ScrapedResult] = {}
         # Cellules de temps brutes par clé, matière de `_fusionner_temps_masques`.
         temps_par_cle: dict[tuple[str, str], list[str]] = {}
+        nom_par_cle: dict[tuple[str, str], str] = {}
 
         # Phase 1 : tout récupérer (mêmes requêtes, même ordre qu'avant) avant de
         # décider des libellés. La fiabilité du groupement `Contest="0"` est une
@@ -1899,6 +1920,8 @@ def _run_pipeline(
                     cle = (libelle, r.bib_number)
                     if temps_brut := _cellule_temps(ligne, roles):
                         temps_par_cle.setdefault(cle, []).append(temps_brut)
+                        if "_" in temps_brut:
+                            nom_par_cle[cle] = _cellule_nom(ligne, roles)
                     ancien = fusion.get(cle)
                     # §13.19 (issue #65) : sur le repli `Contest="0"` non
                     # corroboré, toutes les lignes partagent le qualifiant vide.
@@ -2007,13 +2030,17 @@ def _run_pipeline(
                         continue
                     publie = fusion[cles[0]]
                     # Le masque frappe aussi le nom, que la garde d'identité
-                    # ci-dessous rejetterait : le croisement des temps s'en passe,
-                    # borné à un enregistrement déjà masqué au publié.
-                    temps_publies = temps_par_cle.get(cles[0], [])
-                    if any("_" in t for t in temps_publies) and (
-                        temps_brut := _cellule_temps(ligne, roles)
+                    # ci-dessous rejetterait : le croisement des temps compare
+                    # les noms bruts, `_` valant joker, et seulement pour un
+                    # enregistrement déjà masqué au publié.
+                    if (
+                        cles[0] in nom_par_cle
+                        and (temps_brut := _cellule_temps(ligne, roles))
+                        and _noms_masques_compatibles(
+                            nom_par_cle[cles[0]], _cellule_nom(ligne, roles)
+                        )
                     ):
-                        temps_publies.append(temps_brut)
+                        temps_par_cle[cles[0]].append(temps_brut)
                     if _identites_incompatibles(apport, publie):
                         logger.warning(
                             "RaceResult %s : dossard %s — identité divergente "
