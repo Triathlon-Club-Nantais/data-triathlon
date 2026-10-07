@@ -6,7 +6,7 @@ renumérotations #757, #785 et #672) passent avant la première ligne écrite.
 Ne clôt jamais la transaction : l'appelant commite ou annule.
 """
 import logging
-from collections import Counter
+from collections import Counter, defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
 
@@ -279,6 +279,7 @@ class _Persister:
         self._by_bib: dict[int, dict[str, Participation]] = {}
         self._added_bibs: dict[int, set[str]] = {}
         self._duplicate_bibs: Counter[int] = Counter()
+        self._excluded_ranks: defaultdict[int, set[int]] = defaultdict(set)
         # Lignes sans dossard par clé source (#896) : une ligne réattribuée par un
         # admin se retrouve ainsi sans que sa fiche d'origine soit recréée.
         self._without_bib: dict[int, dict[str | None, list[Participation]]] = {}
@@ -501,6 +502,7 @@ class _Persister:
             # Constat de la machine, réécrit à chaque passage (#993).
             course.ranked_by_laps = scraped.ranked_by_laps
         self._courses[course.id] = course
+        self._excluded_ranks[course.id] |= scraped.excluded_ranks
         self._index_course(course.id)
         if nameless or opposed:
             # Le dossard est unique sur l'épreuve : l'identité se retrouve au rescrape.
@@ -1207,7 +1209,11 @@ class _Persister:
             # jour par `_resolve_pending`, au lieu d'un second `list_for_course`.
             # Les compteurs, eux, se recalculent en base (#1099).
             rows = self._participations[course_id]
-            report = quality.analyze(rows, duplicate_bibs=self._duplicate_bibs[course_id])
+            report = quality.analyze(
+                rows,
+                duplicate_bibs=self._duplicate_bibs[course_id],
+                excluded_ranks=self._excluded_ranks[course_id],
+            )
             course_repository.set_quality(
                 self.db,
                 course,

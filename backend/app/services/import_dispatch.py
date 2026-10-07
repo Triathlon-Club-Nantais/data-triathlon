@@ -9,15 +9,17 @@ import logging
 import queue
 import re
 import threading
+from collections import defaultdict
 from collections.abc import Iterator
+from dataclasses import replace
 from urllib.parse import urlparse
 
 from sqlalchemy.orm import Session
 
+from app.core.club import is_tcn
 from app.core.config import Settings
 from app.core.database import SessionLocal
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
-from app.core.club import is_tcn
 from app.core.youth import is_youth
 from app.repositories import course_repository, participation_repository
 from app.scrapers import registry
@@ -373,11 +375,20 @@ def _importable(url: str, results: list[ScrapedResult]) -> list[ScrapedResult]:
         for r in results
         if is_youth(r.event_name, r.category) and is_tcn(r.club)
     }
-    retenus = [
-        r for r in results
-        if not is_youth(r.event_name, r.category)
-        or (r.event_name, r.event_date) in heats_with_tcn_youth
-    ]
+    retenus: list[ScrapedResult] = []
+    excluded_ranks: dict[tuple, set[int]] = defaultdict(set)
+    for r in results:
+        heat = (r.event_name, r.event_date)
+        if not is_youth(r.event_name, r.category) or heat in heats_with_tcn_youth:
+            retenus.append(r)
+        elif r.rank_overall:
+            excluded_ranks[heat].add(r.rank_overall)
+    if excluded_ranks:
+        retenus = [
+            replace(r, excluded_ranks=frozenset(excluded_ranks[(r.event_name, r.event_date)]))
+            if (r.event_name, r.event_date) in excluded_ranks else r
+            for r in retenus
+        ]
     if len(retenus) < len(results):
         logger.info("Import %s : %d ligne(s) d'épreuve jeune écartée(s)", url, len(results) - len(retenus))
     return retenus

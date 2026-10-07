@@ -375,6 +375,24 @@ def test_import_keeps_a_youth_named_heat_with_a_tcn_youth_only(db_session, patch
     assert athlete_repository.get_by_identity_keys(db_session, "PUPILLE", "Pia") is None
 
 
+def test_import_does_not_count_excluded_youth_ranks_as_gaps(db_session, patch_scraper):
+    """#1222: a mixed ranking whose youth rows are excluded stays reliable."""
+    from app.models.course import Course
+
+    patch_scraper(
+        [
+            _result("1", "PREMIER", prenom="Ada", rank_overall=1),
+            _result("2", "MINIME", prenom="Max", category="MIH", rank_overall=2),
+            _result("3", "TROISIEME", prenom="Tom", rank_overall=3),
+        ]
+    )
+
+    import_service.import_event(db_session, URL, _settings())
+
+    course = db_session.query(Course).one()
+    assert "rank_gap" not in (course.quality_issues or {})
+
+
 def test_import_locks_every_course_it_writes(db_session, patch_scraper, monkeypatch):
     """#982: an import waits on the course lock an admin gesture holds, instead
     of writing under it; the admin gesture, in turn, gets a 409."""
