@@ -173,6 +173,7 @@ describe("CourseAdminActions", () => {
     const candidat = await screen.findByRole("button", { name: /n° 1162/ }, { timeout: 3000 });
     expect(screen.queryByRole("button", { name: /n° 1047/ })).not.toBeInTheDocument();
     expect(api.listCourses).toHaveBeenCalledWith(expect.objectContaining({ name: "Bayman" }));
+    expect(screen.getByRole("status")).toHaveTextContent("1 épreuve trouvée.");
 
     await user.click(candidat);
 

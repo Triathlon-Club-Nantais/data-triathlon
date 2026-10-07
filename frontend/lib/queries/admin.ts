@@ -98,12 +98,13 @@ export type FiltresCourses = {
   unreliable?: true;
 };
 
-export function useAdminCourses(page = 1, filtres: FiltresCourses = {}) {
+export function useAdminCourses(page = 1, filtres: FiltresCourses = {}, enabled = true) {
   return useQuery({
     queryKey: queryKeys.adminCourses(page, filtres as Record<string, string>),
     queryFn: () =>
       apiClient.listCourses({ ...filtres, page, page_size: TAILLE_PAGE_ADMIN }),
     placeholderData: (precedent) => precedent,
+    enabled,
   });
 }
 
