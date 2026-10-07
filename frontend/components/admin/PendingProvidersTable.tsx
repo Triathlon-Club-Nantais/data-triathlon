@@ -81,6 +81,7 @@ export function PendingProvidersTable() {
             {data.map((p) => (
               <TableRow key={p.id}>
                 <TableCell className="max-w-xs truncate">
+                  <span className="tabular-nums text-xs text-muted-foreground">n° {p.id}</span>{" "}
                   <a href={p.url} target="_blank" rel="noopener noreferrer" className="hover:underline">
                     {p.url}
                   </a>
