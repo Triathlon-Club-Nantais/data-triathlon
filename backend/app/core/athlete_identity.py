@@ -41,6 +41,10 @@ def _team_key(nom: str | None, prenom: str | None) -> str | None:
     return "&".join(parts) if len(parts) > 1 else None
 
 
+def is_team_label(nom: str | None, prenom: str | None) -> bool:
+    return _team_key(nom, prenom) is not None
+
+
 def athlete_identity_keys(nom: str | None, prenom: str | None) -> tuple[str | None, str | None]:
     """A first name alone is a whole name (Klikego gives `("", "Jean Dupont")`
     when the first word is not upper case), keyed like `("JEAN DUPONT", "")`.

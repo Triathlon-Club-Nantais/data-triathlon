@@ -91,7 +91,9 @@ succès muet, sans confirmer ce qu'elle avait détruit.
 - **Refus**, avec le même prédicat dans l'aperçu et l'acte : `same_athlete`,
   `distinct_users` (deux comptes membres), `same_course_bibs` (un résultat
   chacune sur une même épreuve individuelle), `same_participation` (un même
-  relais), `distinct_birth_dates`. `same_course_bibs` vaut aussi pour deux
+  relais), `distinct_birth_dates`, `team_and_person` (une fiche d'équipe,
+  libellé à `&`, `/`, `+` ou « et », face à une fiche de personne, #1192).
+  `same_course_bibs` vaut aussi pour deux
   résultats sans dossard sur une même épreuve individuelle : on ne court pas
   deux fois la même course.
 - **Seule une fiche principale lègue sa graphie** : un homonyme distingué

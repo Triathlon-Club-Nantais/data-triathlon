@@ -31,7 +31,7 @@ import psycopg
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.core.athlete_identity import athlete_identity_keys
+from app.core.athlete_identity import athlete_identity_keys, is_team_label
 from app.core.exceptions import DomainError
 from app.models.athlete import Athlete
 from app.repositories import (
@@ -51,10 +51,6 @@ Progress = Callable[[str], None]
 def _source_key(nom: str | None, prenom: str | None) -> str | None:
     last, first = athlete_identity_keys(nom, prenom)
     return None if last is None else f"{last}|{first}"
-
-
-def _is_team(athlete: Athlete) -> bool:
-    return "&" in (athlete.nom or "") or "&" in (athlete.prenom or "")
 
 
 def _split(athlete: Athlete) -> tuple[str, str] | None:
@@ -150,7 +146,7 @@ def _plan_comma_names(planner: _Planner, athletes: list[Athlete], twins: dict) -
     teams = athlete_repository.relay_only(planner.db, [athlete.id for athlete in athletes])
     renamed_into: dict[tuple, int] = {}
     for athlete in athletes:
-        if _is_team(athlete) or athlete.id in teams:
+        if is_team_label(athlete.nom, athlete.prenom) or athlete.id in teams:
             continue
         target = _split(athlete)
         if target is None:

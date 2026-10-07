@@ -1355,3 +1355,18 @@ def test_homonyms_of_a_key_are_listed_by_rank(db_session):
         ("martin", "thomas"): [second.id, third.id], ("durand", "lea"): [other.id],
     }
     assert principal.homonym_rank == 0
+
+
+def test_pair_facts_refuse_a_team_and_a_person_like_the_merge_does(db_session):
+    """#1192 : la revue des identités et la reprise jugent comme `athlete_merge.blocking_reason`."""
+    person = Athlete(nom="DANIEL", prenom="Jacques")
+    team = Athlete(nom="JACQUES", prenom="& DANIEL")
+    other_team = Athlete(nom="JACQUES /", prenom="DANIEL", homonym_rank=1)
+    db_session.add_all([person, team, other_team])
+    db_session.flush()
+
+    facts = athlete_repository.pair_facts(db_session, [(person.id, team.id), (team.id, other_team.id)])
+
+    assert facts[(person.id, team.id)].refusal == "team_and_person"
+    assert facts[(person.id, team.id)].blocked
+    assert facts[(team.id, other_team.id)].refusal is None
