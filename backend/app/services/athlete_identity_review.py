@@ -37,6 +37,7 @@ from app.repositories import (
     athlete_repository,
     club_alias_repository,
     ignored_athlete_pair_repository,
+    participation_repository,
 )
 from app.services import audit
 
@@ -281,14 +282,38 @@ def unignore_pair(db: Session, *, pair_id: int, user_id: int) -> None:
     )
 
 
+def _label_for_key(labels: dict[str, int], key: str, aliases: dict[str, str]) -> str | None:
+    """Le libellé le plus fréquent qui porte cette clé (à égalité, l'ordre alphabétique)."""
+    for label, _ in sorted(labels.items(), key=lambda item: (-item[1], item[0])):
+        if canonical_club_key(label, aliases) == key:
+            return label
+    return None
+
+
 def list_confirmed_clubs(db: Session) -> list[dict]:
-    """Les clubs confirmés pour une fiche, pour les revoir (#1243)."""
+    """Les clubs confirmés pour une fiche, pour les revoir (#1243).
+
+    `club_key` ne se lit pas : le club est nommé par le libellé le plus fréquent
+    de sa clé sur la fiche, à défaut sur toute la base, à défaut par la clé."""
+    rows = athlete_known_club_repository.list_with_athletes(db)
+    labels = athlete_repository.club_labels_by_athlete(db, {athlete.id for _, athlete in rows})
+    aliases = club_alias_repository.canonical_map(db)
+    names = {
+        (known.athlete_id, known.club_key): _label_for_key(labels.get(known.athlete_id, {}), known.club_key, aliases)
+        for known, _ in rows
+    }
+    if None in names.values():
+        everywhere = dict(participation_repository.club_label_counts(db))
+        for pair, name in names.items():
+            if name is None:
+                names[pair] = _label_for_key(everywhere, pair[1], aliases) or pair[1]
     return [
         {
             "id": known.id, "athlete_id": athlete.id, "nom": athlete.nom, "prenom": athlete.prenom,
-            "club_key": known.club_key, "confirmed_at": known.created_at,
+            "club_key": known.club_key, "club": names[(known.athlete_id, known.club_key)],
+            "confirmed_at": known.created_at,
         }
-        for known, athlete in athlete_known_club_repository.list_with_athletes(db)
+        for known, athlete in rows
     ]
 
 

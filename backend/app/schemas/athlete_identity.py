@@ -100,6 +100,8 @@ class ConfirmedIdentityClub(BaseModel):
     nom: str
     prenom: str
     club_key: str
+    # Libellé affichable de la clé (#1243) : `club_key` est une clé de comparaison.
+    club: str
     confirmed_at: datetime
 
 

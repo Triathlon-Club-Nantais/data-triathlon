@@ -166,8 +166,8 @@ def test_a_confirmed_club_is_listed_then_its_undo_returns_the_case(client, db_se
     )
 
     [club] = client.get("/api/v1/admin/identity-review/confirmed-clubs").json()["clubs"]
-    assert (club["athlete_id"], club["nom"], club["prenom"], club["club_key"]) == (
-        multi_club.id, "MARTIN", "Thomas", "vendometriathlon",
+    assert (club["athlete_id"], club["nom"], club["prenom"], club["club_key"], club["club"]) == (
+        multi_club.id, "MARTIN", "Thomas", "vendometriathlon", "Vendôme Triathlon",
     )
 
     undone = client.delete(f"/api/v1/admin/identity-review/confirmed-clubs/{club['id']}")
