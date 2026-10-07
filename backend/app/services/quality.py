@@ -95,6 +95,8 @@ def _rank_anomalies(finishers: list, excluded_ranks: Set[int]) -> dict[str, int]
         distinct = set(ranks)
         duplicates = len(ranks) - len(distinct)
         # Un classement sain va de 1 à N sans trou : `max` borne le nombre attendu.
+        # ponytail: rangs exclus partagés entre solos et relais, à séparer si un
+        # relais jeune écarté masque un jour un vrai trou.
         top = max(distinct)
         gaps = top - len(distinct | {r for r in excluded_ranks if r < top})
         if duplicates:
