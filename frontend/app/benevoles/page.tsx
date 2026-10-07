@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { toast } from "sonner";
 import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { AccessGate } from "@/components/benevoles/AccessGate";
 import { ParticipationPanel } from "@/components/benevoles/ParticipationPanel";
@@ -12,6 +13,7 @@ import { ValidationBacklogChart } from "@/components/charts/ValidationBacklogCha
 import { AnnonceStatut, Eyebrow, Button } from "@/components/tcn";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useEstCompact } from "@/hooks/useEstCompact";
+import { apiClient } from "@/lib/api/client";
 import type { Participation } from "@/lib/types";
 
 /**
@@ -128,6 +130,18 @@ export default function BenevolesPage() {
     if (compact) setFeuilleOuverte(true);
   }
 
+  // Un échec laisse l'écran en place : revenir à l'accès alors que le cookie
+  // vit encore ferait croire à une déconnexion sur un poste partagé (#1247).
+  async function seDeconnecter() {
+    try {
+      await apiClient.benevoleLogout();
+    } catch {
+      toast.error("Déconnexion impossible. Réessayez.");
+      return;
+    }
+    file.surSessionExpiree();
+  }
+
   function surChangement(maj: Participation) {
     brouillonSale.current = false;
     file.surChangement(maj);
@@ -219,7 +233,12 @@ export default function BenevolesPage() {
 
   return (
     <div style={{ maxWidth: 1100, margin: "40px auto", padding: "0 24px" }}>
-      <Eyebrow style={{ marginBottom: 6 }}>Validation des épreuves</Eyebrow>
+      <div className="flex items-start justify-between gap-4">
+        <Eyebrow style={{ marginBottom: 6 }}>Validation des épreuves</Eyebrow>
+        <Button variant="ghost" size="sm" onClick={seDeconnecter}>
+          Se déconnecter
+        </Button>
+      </div>
       <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(26px, 4vw, 34px)", color: "var(--tcn-ink)", marginBottom: 24, fontWeight: 400 }}>
         Vérification des résultats
       </h1>

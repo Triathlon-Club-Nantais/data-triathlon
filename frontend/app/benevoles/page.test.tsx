@@ -9,6 +9,7 @@ const {
   getBenevoleQueue,
   getBenevoleRejected,
   benevoleLogin,
+  benevoleLogout,
   validateParticipationBenevole,
   rejectParticipationBenevole,
   unrejectParticipationBenevole,
@@ -19,6 +20,7 @@ const {
   getBenevoleQueue: vi.fn(),
   getBenevoleRejected: vi.fn(),
   benevoleLogin: vi.fn(),
+  benevoleLogout: vi.fn(),
   validateParticipationBenevole: vi.fn(),
   rejectParticipationBenevole: vi.fn(),
   unrejectParticipationBenevole: vi.fn(),
@@ -37,6 +39,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       getBenevoleQueue,
       getBenevoleRejected,
       benevoleLogin,
+      benevoleLogout,
       validateParticipationBenevole,
       rejectParticipationBenevole,
       unrejectParticipationBenevole,
@@ -48,6 +51,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 });
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+import { toast } from "sonner";
 import BenevolesPage from "./page";
 
 /**
@@ -170,6 +174,29 @@ describe("BenevolesPage", () => {
     await user.click(screen.getByRole("button", { name: /se connecter/i }));
 
     expect(await screen.findByText("Coureur1 HERRMANN")).toBeInTheDocument();
+  });
+
+  it("se déconnecte et revient à l'écran d'accès (#1247)", async () => {
+    benevoleLogout.mockResolvedValue(null);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /se déconnecter/i }));
+
+    expect(benevoleLogout).toHaveBeenCalledOnce();
+    expect(await screen.findByLabelText(/mot de passe/i)).toBeInTheDocument();
+  });
+
+  it("reste dans l'espace et le signale si la déconnexion échoue (#1247)", async () => {
+    benevoleLogout.mockRejectedValue(new Error("réseau"));
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /se déconnecter/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    expect(screen.queryByLabelText(/mot de passe/i)).not.toBeInTheDocument();
+    expect(screen.getByText("Coureur1 HERRMANN")).toBeInTheDocument();
   });
 
   it("affiche directement la file quand la session est déjà valide", async () => {
