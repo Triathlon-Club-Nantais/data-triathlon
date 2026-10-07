@@ -231,7 +231,7 @@ export const NAV: NavSection[] = [
         id: "a-identites",
         label: "Identités des athlètes",
         description:
-          "Fiches qui mêlent deux personnes, ou paires de fiches qui désignent probablement la même : à écarter ou à fusionner.",
+          "Fiches qui mêlent deux personnes, ou paires de fiches qui désignent probablement la même : chaque cas dit quoi faire et offre ses gestes.",
         href: "/admin/identites",
         permission: "athletes:write",
       },

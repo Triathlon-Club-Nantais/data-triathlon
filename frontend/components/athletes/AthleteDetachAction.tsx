@@ -19,15 +19,27 @@ import { formatDate } from "@/lib/utils/date";
  * Deux pouvoirs, comme la route ; sans eux, rien n'est rendu. Seuls les
  * résultats que la fiche porte se séparent : là où elle n'est qu'équipière, le
  * résultat appartient au porteur du relais.
+ *
+ * Réutilisé par la revue d'identité (#1241) : `preselection` coche d'avance le
+ * résultat d'une ligne en conflit, et `ouvrirLaNouvelleFiche={false}` laisse
+ * l'admin sur la revue.
  */
 export function AthleteDetachAction({
   athleteId,
   athleteName,
   participations,
+  preselection = [],
+  texte = "Séparer des résultats",
+  ariaLabel = `Séparer des résultats de ${athleteName}`,
+  ouvrirLaNouvelleFiche = true,
 }: {
   athleteId: number;
   athleteName: string;
   participations: Participation[];
+  preselection?: number[];
+  texte?: string;
+  ariaLabel?: string;
+  ouvrirLaNouvelleFiche?: boolean;
 }) {
   const session = useHydratedSession();
   const pouvoirs = session.data?.permissions ?? [];
@@ -68,7 +80,7 @@ export function AthleteDetachAction({
       setConfirmation(false);
       fermer();
       router.refresh();
-      router.push(`/athletes/${nouvelle.id}`);
+      if (ouvrirLaNouvelleFiche) router.push(`/athletes/${nouvelle.id}`);
     } catch (erreur) {
       toast.error((erreur as Error).message);
     }
@@ -80,10 +92,13 @@ export function AthleteDetachAction({
         ref={declencheur}
         variant="secondary"
         size="sm"
-        onClick={() => setOuvert(true)}
-        aria-label={`Séparer des résultats de ${athleteName}`}
+        onClick={() => {
+          setCoches(new Set(preselection));
+          setOuvert(true);
+        }}
+        aria-label={ariaLabel}
       >
-        Séparer des résultats
+        {texte}
       </Button>
 
       {ouvert && !confirmation && (
