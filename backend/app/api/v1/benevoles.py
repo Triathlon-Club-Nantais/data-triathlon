@@ -11,7 +11,6 @@ conforme et son annulation (`reject_participation`/`unreject_participation`,
 deux dernières (`queue`, `rejected`) lisent directement le repository.
 """
 from fastapi import APIRouter, Depends, Query, Response
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -32,6 +31,7 @@ from app.repositories import (
 from app.schemas.admin import ParticipationReassign
 from app.schemas.athlete import AthleteBrief
 from app.schemas.benevole import BenevoleCourseRename, BenevoleLogin, ParticipationFieldsUpdate
+from app.schemas.count import QueueCount
 from app.schemas.course import CourseBrief
 from app.schemas.participation import ParticipationOut
 from app.schemas.validation_queue import ValidationQueueHistory
@@ -90,10 +90,6 @@ def close_session(response: Response, settings: Settings = Depends(get_settings)
 def queue(db: Session = Depends(get_db)):
     """Résultats en attente de validation, tous clubs confondus (research.md §D5)."""
     return participation_repository.list_pending(db)
-
-
-class QueueCount(BaseModel):
-    total: int
 
 
 @router.get(
