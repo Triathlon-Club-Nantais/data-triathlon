@@ -4110,18 +4110,21 @@ def test_masked_time_merges_only_cells_of_masked_published_bibs(monkeypatch):
     """#1238 : seul un dossard masqué au publié reçoit des cellules `hidden` ;
     celles d'un dossard publié en clair n'entrent dans aucun croisement."""
     appels: list[list[str]] = []
-    vraie = raceresult._fusionner_temps_masques
+    vraie = raceresult._fusionner_masques
 
     def espion(candidats):
         appels.append(list(candidats))
         return vraie(candidats)
 
-    monkeypatch.setattr(raceresult, "_fusionner_temps_masques", espion)
+    monkeypatch.setattr(raceresult, "_fusionner_masques", espion)
     _monte_312695(monkeypatch)
 
     raceresult.scrape_event_all("https://my.raceresult.com/312695/results")
 
-    assert appels == [["_2:30:14", "02:_0:14", "0_:_0:14"]]
+    assert appels == [
+        ["_2:30:14", "02:_0:14", "0_:_0:14"],
+        ["Re_aille_u_ Pascal", "Ret_il_eau, __scal", "Ret_i_leau,_Pascal"],
+    ]
 
 
 def test_masked_time_does_not_mix_cells_across_published_contests(monkeypatch):
@@ -4160,4 +4163,72 @@ def test_masked_time_does_not_mix_cells_across_published_contests(monkeypatch):
     (["2:0_:51"], ""),
 ])
 def test_merge_masked_times(candidats, attendu):
-    assert raceresult._fusionner_temps_masques(candidats) == attendu
+    assert raceresult._fusionner_masques(candidats) == attendu
+
+
+def _retouche_2227(colonne: str, valeurs: dict[str, str]):
+    """Retouche la cellule `colonne` du dossard 2227 : clé = contest publié,
+    ou nom de liste pour une `hidden`."""
+    def retouche(listname, contest, payload):
+        col = payload["DataFields"].index(colonne)
+        cle = contest if contest != "0" else listname
+        for ligne in _lignes(payload):
+            if ligne[0] == "2227" and cle in valeurs:
+                ligne[col] = valeurs[cle]
+    return retouche
+
+
+def _scrape_312695() -> dict[str, ScrapedResult]:
+    return {r.bib_number: r for r in raceresult.scrape_event_all(
+        "https://my.raceresult.com/312695/results"
+    )}
+
+
+def test_masked_name_is_rebuilt_across_lists(monkeypatch, caplog):
+    """#1239 : `Re_aille_u_ Pascal` au publié, `Ret_il_eau, __scal` et
+    `Ret_i_leau,_Pascal` en `hidden` rendent « Retailleau, Pascal » ; la ligne
+    `hidden` n'est plus refusée pour identité divergente."""
+    _monte_312695(monkeypatch)
+
+    with caplog.at_level("WARNING"):
+        r = _scrape_312695()["2227"]
+
+    assert (r.athlete_name, r.athlete_firstname) == ("Retailleau", "Pascal")
+    assert "identité divergente" not in caplog.text
+
+
+def test_masked_club_is_rebuilt_across_lists(monkeypatch):
+    """#1239 : `B_A_P_EAU TRI` se reconstruit en croisant les listes."""
+    _monte_312695(monkeypatch, _retouche_2227("ucase([CLUB])", {
+        "3": "B_A_P_EAU TRI",
+        "2-Chrono|Tri Ind.Detaille dua": "BEAUPR_AU _RI",
+        "2-Chrono|Triathlon Ind Tour Vélo": "_EAUPREAU T_I",
+    }))
+
+    assert _scrape_312695()["2227"].club == "BEAUPREAU TRI"
+
+
+def test_unrecoverable_masked_name_gets_a_synthetic_identity(monkeypatch):
+    """#1239 : un caractère masqué dans toutes les listes ne crée pas de fiche
+    au nom masqué, mais une identité synthétique."""
+    masque = "Re_ailleau, Pascal"
+    _monte_312695(monkeypatch, _retouche_2227("LFNAME", {
+        "3": masque,
+        "2-Chrono|Tri Ind.Detaille dua": masque,
+        "2-Chrono|Triathlon Ind Tour Vélo": masque,
+    }))
+
+    r = _scrape_312695()["2227"]
+
+    assert (r.athlete_name, r.athlete_firstname) == ("Anonyme 312695-3-2227", "")
+
+
+def test_unrecoverable_masked_club_is_left_empty(monkeypatch):
+    """#1239 : un club au masque irréductible n'est pas enregistré tel quel."""
+    masque = "B_AUPREAU TRI"
+    _monte_312695(monkeypatch, _retouche_2227("ucase([CLUB])", {
+        "3": masque,
+        "2-Chrono|Tri Ind.Detaille dua": masque,
+    }))
+
+    assert _scrape_312695()["2227"].club == ""

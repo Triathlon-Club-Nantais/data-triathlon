@@ -1294,30 +1294,45 @@ def _cellule_temps(ligne: list, roles: dict[str, int]) -> str:
     return _strip_rank_suffix(_clean_cell(ligne[col]))
 
 
-def _cellule_nom(ligne: list, roles: dict[str, int]) -> str:
-    """Cellule brute du nom (ou de l'équipe), pliée en minuscules sans accents."""
+def _cellule_nom(ligne: list, roles: dict[str, int]) -> tuple[str, str]:
+    """(rôle, cellule brute) du nom ou, à défaut, de l'équipe."""
     for role in ("nom", "nom_equipe"):
         col = roles.get(role)
         if col is not None and col < len(ligne):
             if valeur := _strip_rank_suffix(_clean_cell(ligne[col])):
-                return strip_accents(valeur).lower()
-    return ""
+                return role, valeur
+    return "", ""
+
+
+def _cellule_club(ligne: list, roles: dict[str, int]) -> str:
+    col = roles.get("club")
+    if col is None or col >= len(ligne):
+        return ""
+    return _strip_rank_suffix(_clean_cell(ligne[col]))
+
+
+def _identite_de_cellule(cellule: str, role: str, nom_col_expr: str) -> tuple[str, str]:
+    """(nom, prénom) d'une cellule de nom, découpée comme dans `_build_result`."""
+    if role == "nom_equipe" or _est_nom_equipe(nom_col_expr, cellule):
+        return cellule, ""
+    return split_athlete_name(cellule)
 
 
 def _noms_masques_compatibles(a: str, b: str) -> bool:
     """Deux cellules de nom masquées par `_` désignent la même personne (#1238) :
-    même longueur, et accord sur chaque caractère connu des deux côtés. Une mise
-    en forme différente (« NOM, Prénom » contre « Prénom NOM ») échoue : la
-    cellule est alors écartée, par prudence."""
+    même longueur, et accord sur chaque caractère connu des deux côtés, casse et
+    accents neutralisés. Une mise en forme différente (« NOM, Prénom » contre
+    « Prénom NOM ») échoue : la cellule est alors écartée, par prudence."""
+    a, b = strip_accents(a).lower(), strip_accents(b).lower()
     return bool(a) and len(a) == len(b) and all(
         x == y or "_" in (x, y) for x, y in zip(a, b, strict=True)
     )
 
 
-def _fusionner_temps_masques(candidats: list[str]) -> str:
-    """Temps reconstruit en croisant les cellules d'un même enregistrement,
-    `_` valant inconnu (#1238) ; `""` si un caractère reste inconnu, si deux
-    cellules se contredisent ou n'ont pas la même longueur."""
+def _fusionner_masques(candidats: list[str]) -> str:
+    """Cellule reconstruite en croisant celles d'un même enregistrement (temps,
+    nom ou club), `_` valant inconnu (#1238, #1239) ; `""` si un caractère reste
+    inconnu, si deux cellules se contredisent ou n'ont pas la même longueur."""
     if len({len(c) for c in candidats}) != 1:
         return ""
     fusion = []
@@ -1749,9 +1764,24 @@ def _run_pipeline(
         # porter le même dossard — c'est précisément le cas que la qualification
         # par contest règle (issue #21).
         fusion: dict[tuple[str, str], ScrapedResult] = {}
-        # Cellules de temps brutes par clé, matière de `_fusionner_temps_masques`.
-        temps_par_cle: dict[tuple[str, str], list[str]] = {}
-        nom_par_cle: dict[tuple[str, str], str] = {}
+        # Cellules brutes (temps, nom, club) par clé, matière de
+        # `_fusionner_masques` ; `nom_par_cle` retient la cellule de nom (rôle,
+        # expression) d'une ligne publiée masquée par `_` (#1238, #1239).
+        cellules_par_cle: dict[tuple[str, str], dict[str, list[str]]] = {}
+        nom_par_cle: dict[tuple[str, str], tuple[str, str, str]] = {}
+
+        def _collecte(cle: tuple[str, str], ligne: list, roles: dict[str, int]) -> bool:
+            """Range les cellules masquables de `ligne` ; vrai si l'une porte `_`."""
+            cellules = {
+                "temps": _cellule_temps(ligne, roles),
+                "nom": _cellule_nom(ligne, roles)[1],
+                "club": _cellule_club(ligne, roles),
+            }
+            par_champ = cellules_par_cle.setdefault(cle, {c: [] for c in cellules})
+            for champ, valeur in cellules.items():
+                if valeur:
+                    par_champ[champ].append(valeur)
+            return any("_" in v for v in cellules.values())
 
         # Phase 1 : tout récupérer (mêmes requêtes, même ordre qu'avant) avant de
         # décider des libellés. La fiabilité du groupement `Contest="0"` est une
@@ -1918,10 +1948,9 @@ def _run_pipeline(
                     if not r.bib_number:
                         continue
                     cle = (libelle, r.bib_number)
-                    if temps_brut := _cellule_temps(ligne, roles):
-                        temps_par_cle.setdefault(cle, []).append(temps_brut)
-                        if "_" in temps_brut:
-                            nom_par_cle[cle] = _cellule_nom(ligne, roles)
+                    if _collecte(cle, ligne, roles):
+                        role, nom_brut = _cellule_nom(ligne, roles)
+                        nom_par_cle[cle] = (nom_brut, role, nom_col_expr)
                     ancien = fusion.get(cle)
                     # §13.19 (issue #65) : sur le repli `Contest="0"` non
                     # corroboré, toutes les lignes partagent le qualifiant vide.
@@ -2030,18 +2059,15 @@ def _run_pipeline(
                         continue
                     publie = fusion[cles[0]]
                     # Le masque frappe aussi le nom, que la garde d'identité
-                    # ci-dessous rejetterait : le croisement des temps compare
-                    # les noms bruts, `_` valant joker, et seulement pour un
-                    # enregistrement déjà masqué au publié.
-                    if (
-                        cles[0] in nom_par_cle
-                        and (temps_brut := _cellule_temps(ligne, roles))
-                        and _noms_masques_compatibles(
-                            nom_par_cle[cles[0]], _cellule_nom(ligne, roles)
-                        )
-                    ):
-                        temps_par_cle[cles[0]].append(temps_brut)
-                    if _identites_incompatibles(apport, publie):
+                    # rejetterait : pour un enregistrement déjà masqué au publié,
+                    # elle cède à une comparaison des noms bruts, `_` valant
+                    # joker, et la ligne alimente le croisement des cellules.
+                    masque_compatible = cles[0] in nom_par_cle and _noms_masques_compatibles(
+                        nom_par_cle[cles[0]][0], _cellule_nom(ligne, roles)[1]
+                    )
+                    if masque_compatible:
+                        _collecte(cles[0], ligne, roles)
+                    elif _identites_incompatibles(apport, publie):
                         logger.warning(
                             "RaceResult %s : dossard %s — identité divergente "
                             "entre le hidden (%s %s) et le publié (%s %s) : "
@@ -2056,14 +2082,28 @@ def _run_pipeline(
                         continue
                     _enrichir(publie, apport)
 
-        for cle, candidats in temps_par_cle.items():
+        for cle, cellules in cellules_par_cle.items():
             r = fusion[cle]
-            if r.total_time or r.status != STATUS_FINISHER:
-                continue
-            if any("_" in t for t in candidats):
-                temps = normalize_time(_fusionner_temps_masques(candidats))
+            temps = cellules["temps"]
+            if (
+                not r.total_time
+                and r.status == STATUS_FINISHER
+                and any("_" in t for t in temps)
+            ):
+                temps = normalize_time(_fusionner_masques(temps))
                 if _RE_DUREE_NORMALISEE.match(temps):
                     r.total_time = temps
+            # Un nom masqué irréductible est vidé : `_anonymise_identities` lui
+            # pose une identité synthétique plutôt qu'une fausse fiche (#1239).
+            if "_" in r.athlete_name + r.athlete_firstname:
+                nom = _fusionner_masques(cellules["nom"])
+                _brut, role, nom_col_expr = nom_par_cle.get(cle, ("", "", ""))
+                r.athlete_name, r.athlete_firstname = (
+                    _identite_de_cellule(nom, role, nom_col_expr)
+                    if nom and role else ("", "")
+                )
+            if "_" in r.club:
+                r.club = _fusionner_masques(cellules["club"])
 
     # Fan-out : un événement dont **tous** les contests sont cachés (ou dont le
     # seul contenu à scraper l'est) renvoie légitimement une fusion vide — la
