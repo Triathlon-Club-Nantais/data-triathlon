@@ -89,35 +89,65 @@ def _rejeux_klikego_sans_attente(request, monkeypatch):
     monkeypatch.setattr(klikego_platform, "_sleep", lambda _seconds: None)
 
 
-def _test_engine():
-    """SQLite en mémoire, ou le PostgreSQL de `TEST_POSTGRES_URL` (job CI dédié, #947).
+@pytest.fixture(scope="session")
+def _postgres_engine():
+    """Le PostgreSQL de `TEST_POSTGRES_URL` (job CI dédié, #947), ou `None`.
 
-    Le job PostgreSQL rejoue les repositories, seule couche qui construit du SQL,
-    sur le moteur de production. Séquentiel (`-n 0`) : les workers partageraient
-    la même base.
+    Schéma posé une fois par session (#1249) : le DDL par test coûtait
+    l'essentiel de la durée du job. Séquentiel (`-n 0`) : les workers
+    partageraient la même base.
     """
     url = os.environ.get("TEST_POSTGRES_URL")
     if not url:
-        return create_engine(
-            "sqlite://",
-            connect_args={"check_same_thread": False},
-            poolclass=StaticPool,
-        )
+        yield None
+        return
+    import app.models  # noqa: F401 — enregistre toutes les tables sur Base.metadata
+    from app.core.database import Base
+
     # Same driver resolution as production (#1136).
     engine = create_engine(_config.Settings(database_url=url).database_url)
     with engine.begin() as connection:
         for extension in ("pg_trgm", "unaccent"):
             connection.exec_driver_sql(f"CREATE EXTENSION IF NOT EXISTS {extension}")
-    return engine
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    yield engine
+    Base.metadata.drop_all(bind=engine)
+    engine.dispose()
 
 
 @pytest.fixture
-def db_session():
-    """Session SQLAlchemy sur une base jetable, schéma créé via les modèles."""
+def db_session(_postgres_engine):
+    """Session SQLAlchemy sur une base jetable, schéma créé via les modèles.
+
+    SQLite en mémoire par défaut. Sous `TEST_POSTGRES_URL`, la base de la session,
+    vidée en fin de test et ses séquences remises à 1 : les tests de concurrence
+    commitent depuis plusieurs connexions, un rollback englobant ne les
+    isolerait pas. `DELETE` plutôt que `TRUNCATE`, quatre fois plus lent sur des
+    tables presque vides.
+    """
     import app.models  # noqa: F401 — enregistre toutes les tables sur Base.metadata
     from app.core.database import Base
 
-    engine = _test_engine()
+    if _postgres_engine is not None:
+        session = sessionmaker(autocommit=False, autoflush=False, bind=_postgres_engine)()
+        try:
+            yield session
+        finally:
+            session.close()
+            with _postgres_engine.begin() as connection:
+                for table in reversed(Base.metadata.sorted_tables):
+                    connection.execute(table.delete())
+                connection.exec_driver_sql(
+                    "SELECT setval(oid::regclass, 1, false) FROM pg_class WHERE relkind = 'S'"
+                )
+        return
+
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(bind=engine)
     session_factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     session = session_factory()

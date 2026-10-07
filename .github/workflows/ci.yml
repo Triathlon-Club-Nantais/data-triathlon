@@ -119,8 +119,9 @@ jobs:
           uv run alembic downgrade -1
           uv run alembic upgrade head
 
-      # Base distincte : les fixtures montent et démontent leur schéma par
-      # `create_all`, elles effaceraient celui que la migration vient de poser.
+      # Base distincte : les fixtures posent et démontent leur schéma par
+      # `create_all` (une fois par session, #1249), elles effaceraient celui que
+      # la migration vient de poser.
       # `-n 0` : les workers partageraient la même base. Le test de concurrence
       # des imports (#980) s'y ajoute : les verrous de ligne n'existent pas sous SQLite.
       - name: Repositories sur PostgreSQL
