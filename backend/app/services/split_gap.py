@@ -16,6 +16,7 @@ module : le seuil de 2 % proposé par l'audit signalait 6,89 % du classement, do
 lignes d'une épreuve que le produit tient pour fiable. Les ajuster se fait là-bas, en
 re-mesurant, pas ici.
 """
+import re
 import statistics
 
 from app.core.text import deaccent
@@ -61,8 +62,23 @@ _SEGMENT_RANK: dict[str, int] = {
 _SOURCE_LABELS: dict[str, str] = {
     "natation": "swim", "nat": "swim",
     "velo": "bike", "cycle": "bike",
-    "cap": "run", "course": "run", "course a pied": "run",
+    "transition 1": "t1", "transition 2": "t2",
 }
+
+#: Libellés de course à pied : numérotés (`CAP 2`, ou `CAP (2)` que pose
+#: `mapping.build_splits` sur un libellé répété), ce sont les deux courses du duathlon.
+_RUN_LABELS = {"cap", "course", "course a pied", "run"}
+_NUMBERED_LABEL = re.compile(r"(.+?) ?([12])?")
+
+
+def _canonical(key: str, *, two_runs: bool) -> str:
+    label = " ".join(deaccent(key).lower().replace("(", " ").replace(")", " ").split())
+    base, number = _NUMBERED_LABEL.fullmatch(label).groups()
+    if base in _RUN_LABELS:
+        if number:
+            return f"course{number}"
+        return "course1" if two_runs else "run"
+    return _SOURCE_LABELS.get(label, label)
 
 #: Écart relatif à la médiane de l'épreuve au-delà duquel une ligne est signalée.
 #: Mesuré : 0 ligne sur les 4 150 évaluables de la base de dev.
@@ -90,14 +106,21 @@ def chronological(keys) -> list[str]:
 
     L'ordre d'apparition ne suffit pas : un premier participant sans natation
     chronométrée renvoyait la natation après la course à pied. Les clés hors
-    gabarit suivent, dans leur ordre reçu (`sorted` est stable). Un libellé usuel
-    de la source (`Natation`, `T1`, `Vélo`) prend le rang de sa clé canonique.
+    gabarit ne remontent jamais devant une clé connue reçue avant elles (`sorted`
+    est stable). Un libellé usuel de la source (`Natation`, `T1`, `Vélo`) prend le
+    rang de sa clé canonique.
     """
-    def rank(key: str) -> int:
-        label = deaccent(key).strip().lower()
-        return _SEGMENT_RANK.get(_SOURCE_LABELS.get(label, label), len(_SLOTS))
-
-    return sorted(keys, key=rank)
+    keys = list(keys)
+    two_runs = any(_canonical(key, two_runs=False) == "course2" for key in keys)
+    # Une clé inconnue prend le plus haut rang des clés connues reçues avant elle :
+    # elle ne remonte jamais devant elles, et sans aucune elle reste à la fin.
+    ranks, highest = [], None
+    for key in keys:
+        rank = _SEGMENT_RANK.get(_canonical(key, two_runs=two_runs))
+        if rank is not None:
+            highest = rank if highest is None else max(highest, rank)
+        ranks.append(rank if rank is not None else (len(_SLOTS) if highest is None else highest))
+    return [key for _, key in sorted(zip(ranks, keys, strict=True), key=lambda pair: pair[0])]
 
 
 def gap(
