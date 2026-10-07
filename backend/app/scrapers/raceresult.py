@@ -1218,6 +1218,7 @@ def _build_result(
     # peut injecter qu'une vraie durée, jamais un statut. Élargissement latéral
     # assumé, et inerte sur le panel : aucune épreuve n'y gagne ni n'y perd de temps.
     temps = _strip_rank_suffix(cellule("temps"))
+    temps_masque = "_" in temps
     if not _RE_DUREE_NORMALISEE.match(normalize_time(temps)):
         temps = ""
     if not temps:
@@ -1276,13 +1277,36 @@ def _build_result(
     if r.status in _NON_FINISHERS:
         r.total_time = ""
         r.rank_overall = r.rank_category = r.rank_gender = None
-    elif r.total_time or r.rank_overall:
-        # Un rang sans statut est un classé, même au temps illisible :
-        # RaceResult masque par `_` des caractères de certains enregistrements
-        # (`'_2:30:14'`), et l'import en faisait un DNF classé (#1238).
+    elif r.total_time or (r.rank_overall and temps_masque):
+        # Un rang sans statut est un classé quand son temps est masqué par `_`
+        # (`'_2:30:14'`) : l'import en faisait un DNF classé (#1238). Le temps
+        # est reconstruit en fin de pipeline (`_fusionner_temps_masques`).
         r.status = r.status or "finisher"
 
     return r
+
+
+def _cellule_temps(ligne: list, roles: dict[str, int]) -> str:
+    """Cellule brute du temps d'arrivée, rang suffixé décollé."""
+    col = roles.get("temps")
+    if col is None or col >= len(ligne):
+        return ""
+    return _strip_rank_suffix(_clean_cell(ligne[col]))
+
+
+def _fusionner_temps_masques(candidats: list[str]) -> str:
+    """Temps reconstruit en croisant les cellules d'un même enregistrement,
+    `_` valant inconnu (#1238) ; `""` si un caractère reste inconnu, si deux
+    cellules se contredisent ou n'ont pas la même longueur."""
+    if len({len(c) for c in candidats}) != 1:
+        return ""
+    fusion = []
+    for caracteres in zip(*candidats, strict=True):
+        connus = set(caracteres) - {"_"}
+        if len(connus) != 1:
+            return ""
+        fusion.append(connus.pop())
+    return "".join(fusion)
 
 
 def _fetch_list(
@@ -1705,6 +1729,8 @@ def _run_pipeline(
         # porter le même dossard — c'est précisément le cas que la qualification
         # par contest règle (issue #21).
         fusion: dict[tuple[str, str], ScrapedResult] = {}
+        # Cellules de temps brutes par clé, matière de `_fusionner_temps_masques`.
+        temps_par_cle: dict[tuple[str, str], list[str]] = {}
 
         # Phase 1 : tout récupérer (mêmes requêtes, même ordre qu'avant) avant de
         # décider des libellés. La fiabilité du groupement `Contest="0"` est une
@@ -1871,6 +1897,8 @@ def _run_pipeline(
                     if not r.bib_number:
                         continue
                     cle = (libelle, r.bib_number)
+                    if temps_brut := _cellule_temps(ligne, roles):
+                        temps_par_cle.setdefault(cle, []).append(temps_brut)
                     ancien = fusion.get(cle)
                     # §13.19 (issue #65) : sur le repli `Contest="0"` non
                     # corroboré, toutes les lignes partagent le qualifiant vide.
@@ -1978,6 +2006,14 @@ def _run_pipeline(
                         )
                         continue
                     publie = fusion[cles[0]]
+                    # Le masque frappe aussi le nom, que la garde d'identité
+                    # ci-dessous rejetterait : le croisement des temps s'en passe,
+                    # borné à un enregistrement déjà masqué au publié.
+                    temps_publies = temps_par_cle.get(cles[0], [])
+                    if any("_" in t for t in temps_publies) and (
+                        temps_brut := _cellule_temps(ligne, roles)
+                    ):
+                        temps_publies.append(temps_brut)
                     if _identites_incompatibles(apport, publie):
                         logger.warning(
                             "RaceResult %s : dossard %s — identité divergente "
@@ -1992,6 +2028,15 @@ def _run_pipeline(
                         )
                         continue
                     _enrichir(publie, apport)
+
+        for cle, candidats in temps_par_cle.items():
+            r = fusion[cle]
+            if r.total_time or r.status != STATUS_FINISHER:
+                continue
+            if any("_" in t for t in candidats):
+                temps = normalize_time(_fusionner_temps_masques(candidats))
+                if _RE_DUREE_NORMALISEE.match(temps):
+                    r.total_time = temps
 
     # Fan-out : un événement dont **tous** les contests sont cachés (ou dont le
     # seul contenu à scraper l'est) renvoie légitimement une fusion vide — la

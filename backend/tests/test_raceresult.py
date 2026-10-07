@@ -4015,3 +4015,53 @@ def test_scrape_event_all_312695_ranked_row_with_masked_time_stays_finisher(monk
     assert res["2207"].status == "finisher" and res["2207"].total_time == "02:29:44"
     assert res["2186"].status == "DNF" and res["2186"].rank_overall is None
     assert res["2226"].status == "DSQ" and res["2226"].rank_overall is None
+
+
+def test_build_result_ranked_row_with_empty_time_gets_no_status():
+    """#1238 : seul un temps masqué fait d'une ligne classée un finisher ; une
+    cellule de temps vide garde le comportement antérieur (aucun statut)."""
+    payload = _payload_rumilly()
+    roles, _segments, _extras = raceresult._map_columns(payload)
+    ligne = list(payload["data"]["#1_Distance M"]["#1_"][1])
+    ligne[roles["temps"]] = ""
+
+    r = _construire(ligne)
+
+    assert r.rank_overall == 2
+    assert r.total_time == ""
+    assert r.status == ""
+
+
+def test_scrape_event_all_312695_rebuilds_masked_time_from_hidden_lists(monkeypatch):
+    """#1238 : le 28e porte `_2:30:14` au publié, `02:_0:14` et `0_:_0:14`
+    dans les deux listes `hidden` ; leur croisement rend `02:30:14`."""
+    fichiers = {
+        ("2-Chrono|Tri Ind.Detaille dua", "3"): "312695_pub_c3.json",
+        ("2-Chrono|Tri Ind.Detaille dua", "0"): "312695_hidden_detaille_c0.json",
+        ("2-Chrono|Triathlon Ind Tour Vélo", "0"): "312695_hidden_tour_velo_c0.json",
+    }
+    _monte_pipeline_fixtures(
+        monkeypatch, "312695", lambda listname, contest: fichiers.get((listname, contest))
+    )
+
+    res = {r.bib_number: r for r in raceresult.scrape_event_all(
+        "https://my.raceresult.com/312695/results"
+    )}
+
+    masque = res["2227"]
+    assert masque.total_time == "02:30:14"
+    assert masque.status == "finisher"
+    assert masque.rank_overall == 28
+    assert res["2186"].status == "DNF" and res["2186"].total_time == ""
+
+
+@pytest.mark.parametrize("candidats, attendu", [
+    (["2:0_:5_", "2:02:5_", "2:0_:51"], "2:02:51"),
+    (["_2:30:14", "02:_0:14"], "02:30:14"),
+    (["0_:_0:01", "0_:30_01"], ""),        # un `_` subsiste
+    (["2:02:51", "2:03:5_"], ""),          # désaccord sur un caractère connu
+    (["2:0_:51", "02:02:5_"], ""),         # longueurs différentes
+    (["2:0_:51"], ""),
+])
+def test_merge_masked_times(candidats, attendu):
+    assert raceresult._fusionner_temps_masques(candidats) == attendu
