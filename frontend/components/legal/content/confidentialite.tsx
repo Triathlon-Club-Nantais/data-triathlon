@@ -10,7 +10,7 @@ export const PRIVACY_POLICY: LegalDocument = {
   title: "Politique de confidentialité",
   description:
     "Ce que le Triathlon Club Nantais fait des données de ce site, pourquoi, combien de temps, et comment faire valoir vos droits.",
-  updatedAt: "2026-10-06",
+  updatedAt: "2026-10-07",
   sections: [
     {
       id: "responsable",
@@ -45,8 +45,9 @@ export const PRIVACY_POLICY: LegalDocument = {
             <li>
               les sites des chronométreurs, où ils sont déjà publiés : Klikego, Breizh Chrono, TimePulse,
               Sportinnovation, ProLiveSport, Chronoplace, Wiclax (G-Live), RaceResult, T2Area (Fédération Française
-              de Triathlon), Competitor (Ironman), ok-time, runnerbreizh, Sporthive (MYLAPS) et chronoweb. Le lien
-              d&apos;une épreuve est collé par un adhérent, ou fourni par un administrateur dans une liste de liens ;
+              de Triathlon), Competitor (Ironman), ok-time, runnerbreizh, Sporthive (MYLAPS), chronoweb et nextrun.
+              Le lien d&apos;une épreuve est collé par un adhérent, ou fourni par un administrateur dans une liste de
+              liens ;
             </li>
             <li>
               la saisie manuelle, par un adhérent, d&apos;un résultat qu&apos;aucun chronométreur ne publie, avec un

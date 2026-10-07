@@ -24,7 +24,7 @@ divergence avec le code se tranche en re-mesurant.
 | Jeunes de l'école de triathlon | identité, date de naissance, contact d'urgence, notes, présence aux séances, fermé derrière `jeunes:read` | `models/personal_profile.py` |
 | Tout visiteur | mesure d'audience PostHog (région UE), en production : pages vues, interactions (autocapture), erreurs ; pour un utilisateur connecté, `identify()` transmet e-mail, nom affiché et rôles (`frontend/app/providers.tsx`) | `frontend/instrumentation-client.ts`, `backend/app/core/analytics.py` |
 
-Provenance des résultats : 14 chronométreurs (`backend/app/scrapers/AGENTS.md`),
+Provenance des résultats : 15 chronométreurs (`backend/app/scrapers/AGENTS.md`),
 atteints par le lien d'une épreuve collé par un membre ou par un fichier de
 liens importé par un administrateur (`admin_batches`, `sheet_source` : le
 fichier ne porte que des liens, jamais de résultats), et la saisie manuelle,
@@ -72,7 +72,7 @@ adhérent n'a pas de sens.
   déjà fermé.
 - *Consentement* : il est impossible à recueillir auprès de non-adhérents
   qu'on ne connaît que par une ligne de classement.
-- *Partenariat* : solution durable, hors de portée à court terme sur 14
+- *Partenariat* : solution durable, hors de portée à court terme sur 15
   fournisseurs. Il reste la voie pour les trois sources dont le `robots.txt`
   ferme les routes utilisées (voir plus bas).
 
@@ -155,6 +155,7 @@ chaque résultat est conservée et affichée.
 | runnerbreizh | `www.runnerbreizh.fr` | tout autorisé |
 | Sporthive (MYLAPS) | `eventresults-api.speedhive.com` | **`Disallow: /`** |
 | chronoweb | `chronoweb.com` | tout autorisé, `Crawl-delay: 3600` |
+| nextrun.fr | `nextrun.fr` | tout autorisé (relevé le 2026-10-06, ajouté par #1224) |
 
 **Position** :
 

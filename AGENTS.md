@@ -26,7 +26,7 @@ n'accueille que ce qu'on voudrait relire à chaque session.
 | Gestion de projet : Definition of Ready, epics, priorité, workflow git des epics | `docs/gestion-de-projet.md` |
 | Review UI/UX : grille, seuils chiffrés, faux positifs connus | `.claude/agents/ui-ux-review.md` |
 | Architecture backend : inventaire des modules, cache TTL | `backend/AGENTS.md` |
-| Conventions scrapers + les 14 fournisseurs supportés | `backend/app/scrapers/AGENTS.md` |
+| Conventions scrapers + les 15 fournisseurs supportés | `backend/app/scrapers/AGENTS.md` |
 | Un fournisseur en particulier (pièges mesurés, formes d'URL) | `docs/scrapers/<fournisseur>.md` |
 | CLI de batch : ses commandes, stdout parsable, codes de sortie | `backend/app/cli/AGENTS.md` |
 | API de lecture : `scope`, `federal_only`, pagination du classement | `backend/app/api/AGENTS.md` |
