@@ -31,6 +31,8 @@ from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, FanoutTrace, ScrapedResult
 from .classify import classify_event_type
 from .utils import (
     DEFAULT_HEADERS,
+    MAX_RELAY_TEAMMATES,
+    MIN_RELAY_TEAMMATES,
     derive_status_from_label,
     heat_is_relay,
     normalize_rank,
@@ -672,7 +674,7 @@ def _iter_parcours_results(
         r.event_date = event_date
         _ajouter(parcours, r)
 
-    _mark_team_parcours(par_parcours)
+    _mark_team_parcours(par_parcours, ordre)
     return par_parcours, ordre
 
 
@@ -680,7 +682,7 @@ def _iter_parcours_results(
 _TEAM_CATEGORIES = frozenset({"EQX", "EQM", "EQF"})
 
 
-def _mark_team_parcours(par_parcours: dict[str, list[ScrapedResult]]) -> None:
+def _mark_team_parcours(par_parcours: dict[str, list[ScrapedResult]], ordre: list[str]) -> None:
     """Type relais un parcours d'équipes que son nom ne désigne pas (#1213).
 
     Deux marqueurs mesurés, aucun mot d'équipe dans le parcours :
@@ -689,14 +691,38 @@ def _mark_team_parcours(par_parcours: dict[str, list[ScrapedResult]]) -> None:
     - une majorité stricte de catégories d'équipe (lac du Bouchet 2026 sur
       altichrono, « SWIMRUN S » tout en EQX, EQF, EQM).
     """
-    noms = {p.lower() for p in par_parcours}
-    for parcours, results in par_parcours.items():
-        if not parcours:
+    jumeaux = {p.lower(): p for p in par_parcours}
+    for parcours, results in list(par_parcours.items()):
+        if not parcours or parcours not in par_parcours:
             continue
         equipes = sum(1 for r in results if (r.category or "").upper() in _TEAM_CATEGORIES)
-        if f"{parcours.lower()} - indiv" in noms or equipes * 2 > len(results):
+        jumeau = jumeaux.get(f"{parcours.lower()} - indiv")
+        if jumeau is not None or equipes * 2 > len(results):
             for r in results:
                 r.is_relay = True
+        if jumeau is not None:
+            # #1220 : le jumeau n'est pas une épreuve (chaque équipier y figure DNF,
+            # sans temps), il nomme les équipiers de chaque équipe.
+            _attach_teammates(results, par_parcours.pop(jumeau))
+            ordre.remove(jumeau)
+
+
+def _team_key(name: str) -> str:
+    """Nom d'équipe comparable, quel que soit l'ordre où le scraper a coupé ses mots."""
+    return " ".join(sorted(strip_accents(name).lower().split()))
+
+
+def _attach_teammates(teams: list[ScrapedResult], members: list[ScrapedResult]) -> None:
+    """Rattache à chaque équipe les équipiers dont le club porte son nom (#1220)."""
+    par_equipe: dict[str, list[tuple[str, str]]] = {}
+    for m in members:
+        par_equipe.setdefault(_team_key(m.club), []).append((m.athlete_name, m.athlete_firstname))
+    for team in teams:
+        nom = " ".join(filter(None, [team.athlete_name, team.athlete_firstname]))
+        equipiers = par_equipe.get(_team_key(nom), [])
+        # Hors bornes, l'équipe reste entière, comme un libellé indécoupable (#895).
+        if MIN_RELAY_TEAMMATES <= len(equipiers) <= MAX_RELAY_TEAMMATES:
+            team.teammates = tuple(equipiers)
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
