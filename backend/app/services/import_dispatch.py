@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.core.database import SessionLocal
 from app.core.exceptions import InvalidUrlError, ProviderNotSupportedError, ScraperError
+from app.core.club import is_tcn
 from app.core.youth import is_youth
 from app.repositories import course_repository, participation_repository
 from app.scrapers import registry
@@ -359,14 +360,24 @@ def scrape_all_streaming(
 
 def _importable(url: str, results: list[ScrapedResult]) -> list[ScrapedResult]:
     """Les résultats scrapés que l'import écrit : l'épreuve doit avoir un nom, et
-    les épreuves jeunes (jusqu'à Minime) sont écartées (#881, RGPD).
+    les épreuves jeunes (jusqu'à Minime) sont écartées (#881, RGPD), sauf dans
+    un heat qui porte au moins un jeune TCN : celui-ci est gardé entier (#1221).
 
     Ici et non dans chaque scraper : les deux chemins de scrape (bloquant et
     SSE) aboutissent là, et tout chemin d'écriture, import comme re-scrape
     admin, passe par l'un d'eux.
     """
     _require_event_name(url, results)
-    retenus = [r for r in results if not is_youth(r.event_name, r.category)]
+    heats_with_tcn_youth = {
+        (r.event_name, r.event_date)
+        for r in results
+        if is_youth(r.event_name, r.category) and is_tcn(r.club)
+    }
+    retenus = [
+        r for r in results
+        if not is_youth(r.event_name, r.category)
+        or (r.event_name, r.event_date) in heats_with_tcn_youth
+    ]
     if len(retenus) < len(results):
         logger.info("Import %s : %d ligne(s) d'épreuve jeune écartée(s)", url, len(results) - len(retenus))
     return retenus

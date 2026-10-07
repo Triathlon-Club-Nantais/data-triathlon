@@ -328,6 +328,53 @@ def test_import_skips_youth_heats_and_rows(db_session, patch_scraper):
     assert athlete_repository.get_by_identity_keys(db_session, "CADET", "Cal") is not None
 
 
+def test_import_keeps_a_mixed_heat_youth_rows_when_one_is_tcn(db_session, patch_scraper):
+    """#1221: a heat carrying at least one TCN youth keeps all its youth rows."""
+    patch_scraper(
+        [
+            _result("1", "ADULTE", prenom="Ada"),
+            _result("2", "MINIME", prenom="Max", category="MIH", club="TRIATHLON CLUB NANTAIS"),
+            _result("3", "BENJAMIN", prenom="Ben", category="BEH", club="ASPTT NANTES"),
+        ]
+    )
+
+    out = import_service.import_event(db_session, URL, _settings())
+
+    assert out["imported"] == 3
+
+
+def test_import_drops_a_mixed_heat_youth_rows_without_a_tcn_youth(db_session, patch_scraper):
+    """#1221: without a TCN youth, #881 still applies, even when an adult is TCN."""
+    patch_scraper(
+        [
+            _result("1", "ADULTE", prenom="Ada", club="TRIATHLON CLUB NANTAIS"),
+            _result("2", "BENJAMIN", prenom="Ben", category="BEH", club="ASPTT NANTES"),
+        ]
+    )
+
+    out = import_service.import_event(db_session, URL, _settings())
+
+    assert out["imported"] == 1
+
+
+def test_import_keeps_a_youth_named_heat_with_a_tcn_youth_only(db_session, patch_scraper):
+    """#1221: a heat youth by its name follows the same rule, heat by heat."""
+    gardee = "Triathlon de Nantes - Poussins"
+    ecartee = "Triathlon de Nantes - Pupilles"
+    patch_scraper(
+        [
+            _result("1", "POUSSIN", prenom="Paul", event_name=gardee, club="TRIATHLON CLUB NANTAIS"),
+            _result("2", "AUTRE", prenom="Alix", event_name=gardee, club="ASPTT NANTES"),
+            _result("3", "PUPILLE", prenom="Pia", event_name=ecartee, club="ASPTT NANTES"),
+        ]
+    )
+
+    out = import_service.import_event(db_session, URL, _settings())
+
+    assert out["imported"] == 2
+    assert athlete_repository.get_by_identity_keys(db_session, "PUPILLE", "Pia") is None
+
+
 def test_import_locks_every_course_it_writes(db_session, patch_scraper, monkeypatch):
     """#982: an import waits on the course lock an admin gesture holds, instead
     of writing under it; the admin gesture, in turn, gets a 409."""
