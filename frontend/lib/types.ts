@@ -1146,6 +1146,8 @@ export interface IdentityClubConfirmResult {
 export interface IgnoredIdentityPair {
   id: number;
   ignored_at: string;
+  /** Posée par l'import, sans auteur. */
+  automatic: boolean;
   athletes: { id: number; nom: string; prenom: string }[];
 }
 

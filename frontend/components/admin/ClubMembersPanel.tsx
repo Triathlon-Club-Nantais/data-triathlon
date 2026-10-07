@@ -116,7 +116,7 @@ export function ClubMembersPanel({
               </li>
             ))}
           </ul>
-          <RattachementsManuels membres={data.members.filter((m) => m.link_status === "manual")} />
+          <ManualLinks members={data.members.filter((m) => m.link_status === "manual")} />
         </Card>
       )}
 
@@ -125,27 +125,27 @@ export function ClubMembersPanel({
   );
 }
 
-function RattachementsManuels({ membres }: { membres: ClubMember[] }) {
-  const annuler = useUnlinkClubMember();
+function ManualLinks({ members }: { members: ClubMember[] }) {
+  const unlink = useUnlinkClubMember();
   return (
     <UndoList
       title="Rattachements faits à la main"
       empty="Aucun rattachement fait à la main pour cette saison."
-      pending={annuler.isPending}
-      items={membres.map((m) => ({
+      pending={unlink.isPending}
+      items={members.map((m) => ({
         id: m.id,
         label: `${m.nom} ${m.prenom} → fiche n° ${m.athlete_id}`,
         undoLabel: `Annuler le rattachement de ${m.nom} ${m.prenom}`,
       }))}
-      onUndo={(id) =>
-        annuler.mutate(id, {
+      onUndo={(item) =>
+        unlink.mutate(item.id, {
           onSuccess: (m) =>
             toast.success(
               m.athlete_id === null
                 ? `${m.nom} ${m.prenom} revient dans les licenciés à rattacher.`
                 : `${m.nom} ${m.prenom} reprend son rattachement automatique.`,
             ),
-          onError: (erreur: Error) => toast.error(erreur.message),
+          onError: (error: Error) => toast.error(error.message),
         })
       }
     />

@@ -108,8 +108,8 @@ describe("ClubMembersPanel", () => {
       />,
     );
 
-    const resume = screen.getByText("Rattachements faits à la main (1)");
-    expect(resume.closest("details")).not.toHaveAttribute("open");
+    const summary = screen.getByText("Rattachements faits à la main (1)");
+    expect(summary.closest("details")).not.toHaveAttribute("open");
     fireEvent.click(screen.getByRole("button", { name: /annuler le rattachement de durand paul/i }));
 
     expect(unlink).toHaveBeenCalledWith(2, expect.anything());
