@@ -58,7 +58,8 @@ const TOUTES = "all";
  * La file de revalidation qualité (#119).
  *
  * **Une vue filtrée du catalogue, pas une seconde liste** : `GET /courses` avec
- * `unreliable=true` pagine, trie par date décroissante et rend déjà
+ * `awaiting_review=true` (`unreliable=true` sous la bascule, #1232) pagine, trie
+ * par date décroissante et rend déjà
  * `quality_issues`. Une route dédiée aurait dupliqué tout cela pour un préfixe
  * d'URL, et une seconde liste à tenir à jour après chaque verdict.
  *
@@ -74,16 +75,23 @@ const TOUTES = "all";
 export function QualityQueueTable({
   page: pageDemandee = 1,
   filtres = {},
+  includeJudged = false,
 }: {
   page?: number;
   filtres?: FiltresCourses;
+  /** `?jugees=1` : aussi les épreuves déjà jugées douteuses (#1232). */
+  includeJudged?: boolean;
 }) {
   const router = useRouter();
   const chemin = usePathname();
   const qc = useQueryClient();
   const page = Math.max(1, Math.trunc(pageDemandee) || 1);
 
-  const requete = { ...filtres, unreliable: true as const };
+  // Par défaut, ce que compte la pastille de la nav : les épreuves sans avis
+  // humain (#1232). Celles déjà jugées douteuses restent à une bascule.
+  const requete = includeJudged
+    ? { ...filtres, unreliable: true as const }
+    : { ...filtres, awaiting_review: true as const };
   const { data, isLoading, error } = useAdminCourses(page, requete);
   const { data: comptage } = useAdminCoursesCount(requete);
   const session = useSession();
@@ -148,9 +156,10 @@ export function QualityQueueTable({
   const total = comptage?.total ?? 0;
   const pages = Math.max(1, Math.ceil(total / TAILLE_PAGE_ADMIN));
 
-  function naviguer(valeurs: FiltresCourses, versLaPage: number) {
+  function naviguer(valeurs: FiltresCourses, versLaPage: number, judged = includeJudged) {
     const qs = new URLSearchParams();
     Object.entries(valeurs).forEach(([cle, valeur]) => valeur && qs.set(cle, String(valeur)));
+    if (judged) qs.set("jugees", "1");
     if (versLaPage > 1) qs.set("page", String(versLaPage));
     router.push(qs.size ? `${chemin}?${qs}` : chemin);
   }
@@ -178,14 +187,25 @@ export function QualityQueueTable({
   // navigateur laisserait les champs remplis au-dessus d'une liste qui montre
   // autre chose (même patron que `CoursesAdminTable`).
   const barre = (
-    <FiltresFile
-      key={JSON.stringify(filtres)}
-      valeurs={filtres}
-      onFiltrer={(v) => naviguer(v, 1)}
-      codes={codes}
-      anomalie={anomalie}
-      onAnomalieChange={setAnomalie}
-    />
+    <>
+      <FiltresFile
+        key={JSON.stringify(filtres)}
+        valeurs={filtres}
+        onFiltrer={(v) => naviguer(v, 1)}
+        codes={codes}
+        anomalie={anomalie}
+        onAnomalieChange={setAnomalie}
+      />
+      <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="size-4 accent-[var(--tcn-orange)]"
+          checked={includeJudged}
+          onChange={(e) => naviguer(filtres, 1, e.target.checked)}
+        />
+        Voir aussi les épreuves déjà jugées
+      </label>
+    </>
   );
 
   // Un `?name=` ou une plage de dates sans correspondance vide la file tout

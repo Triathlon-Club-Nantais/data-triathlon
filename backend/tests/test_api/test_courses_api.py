@@ -302,6 +302,22 @@ def test_le_comptage_suit_le_meme_filtre(client, db_session):
     assert reponse.json()["total"] == 2
 
 
+def test_awaiting_review_keeps_only_courses_without_a_human_verdict(client, db_session):
+    """#1232: the quality queue shows what its nav badge counts."""
+    waiting = _epreuve(db_session, name="À revoir", is_reliable_computed=False)
+    _epreuve(db_session, name="Jugée douteuse", is_reliable_computed=False, reliability_override=False)
+    _epreuve(db_session, name="Jugée fiable", is_reliable_computed=False, reliability_override=True)
+    _epreuve(db_session, name="Fiable", is_reliable_computed=True)
+    _epreuve(db_session, name="Jamais évaluée")
+
+    listed = client.get("/api/v1/courses", params={"awaiting_review": "true"}).json()
+    counted = client.get("/api/v1/courses/count", params={"awaiting_review": "true"}).json()
+    badge = client.get("/api/v1/admin/quality/count").json()
+
+    assert [c["id"] for c in listed] == [waiting.id]
+    assert counted == badge == {"total": 1}
+
+
 def test_la_file_est_triee_par_date_la_plus_recente(client, db_session):
     """AC1 — le tri vient de `list_all`, ce test le verrouille au niveau route."""
     ancienne = _epreuve(

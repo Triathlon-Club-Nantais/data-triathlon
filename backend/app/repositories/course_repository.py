@@ -546,6 +546,7 @@ def _filtered(
     date_from: date | None,
     date_to: date | None,
     unreliable: bool = False,
+    awaiting_review: bool = False,
 ):
     """Les filtres du catalogue, en un seul endroit — `list_all` et `count_all`.
 
@@ -571,6 +572,8 @@ def _filtered(
         # comparaison, donc reste hors de la file. Toute la règle tient dans
         # l'`@expression` du modèle ; il n'y a rien à brancher ici.
         q = q.filter(Course.is_reliable.is_(False))
+    if awaiting_review:
+        q = q.filter(Course.reliability_override.is_(None), Course.is_reliable_computed.is_(False))
     if club_only:
         # Semi-jointure `IN` et non `join` + `DISTINCT` : PostgreSQL n'a pas
         # d'égalité sur `json` (`quality_issues`), le `DISTINCT` y échoue (#918).
@@ -599,6 +602,7 @@ def list_all(
     date_from: date | None = None,
     date_to: date | None = None,
     unreliable: bool = False,
+    awaiting_review: bool = False,
     page: int = 1,
     page_size: int = 50,
 ) -> list[Course]:
@@ -611,6 +615,7 @@ def list_all(
         date_from=date_from,
         date_to=date_to,
         unreliable=unreliable,
+        awaiting_review=awaiting_review,
     )
     offset = (page - 1) * page_size
     # `selectinload` et non `_filtered` : le catalogue sérialise `CourseBrief`,
@@ -636,6 +641,7 @@ def count_all(
     date_from: date | None = None,
     date_to: date | None = None,
     unreliable: bool = False,
+    awaiting_review: bool = False,
 ) -> int:
     """Combien d'épreuves la liste rendrait sans pagination — le « sur 7 »."""
     return _filtered(
@@ -647,20 +653,18 @@ def count_all(
         date_from=date_from,
         date_to=date_to,
         unreliable=unreliable,
+        awaiting_review=awaiting_review,
     ).count()
 
 
 def count_awaiting_review(db: Session) -> int:
     """Épreuves calculées non fiables qu'aucun humain n'a encore jugées (#1232).
 
-    Ce que la pastille de la revalidation annonce : un avis posé sort l'épreuve
-    de la file, qu'il la déclare fiable ou non.
+    Ce que la pastille de la revalidation annonce, et ce que sa file affiche
+    par défaut : un avis posé sort l'épreuve de la file, qu'il la déclare
+    fiable ou non.
     """
-    return (
-        db.query(Course)
-        .filter(Course.reliability_override.is_(None), Course.is_reliable_computed.is_(False))
-        .count()
-    )
+    return count_all(db, awaiting_review=True)
 
 
 def iter_all(

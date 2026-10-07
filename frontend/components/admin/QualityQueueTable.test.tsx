@@ -98,11 +98,11 @@ function fluxControle(fin: object) {
   return { generateur: generateur(), liberer: () => liberer() };
 }
 
-function rendre() {
+function rendre(props: Parameters<typeof QualityQueueTable>[0] = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   render(
     <QueryClientProvider client={client}>
-      <QualityQueueTable />
+      <QualityQueueTable {...props} />
     </QueryClientProvider>,
   );
 }
@@ -134,14 +134,39 @@ beforeEach(() => {
 });
 
 describe("QualityQueueTable", () => {
-  it("ne demande que les épreuves à revalider", async () => {
+  it("lists by default only the courses its badge counts (#1232)", async () => {
     rendre();
 
     await waitFor(() =>
-      expect(listCourses).toHaveBeenCalledWith(
-        expect.objectContaining({ unreliable: true }),
-      ),
+      expect(listCourses).toHaveBeenCalledWith(expect.objectContaining({ awaiting_review: true })),
     );
+    expect(countCourses).toHaveBeenCalledWith(expect.objectContaining({ awaiting_review: true }));
+    expect(listCourses).not.toHaveBeenCalledWith(expect.objectContaining({ unreliable: true }));
+  });
+
+  it("the toggle also shows the courses already judged doubtful (#1232)", async () => {
+    rendre({ includeJudged: true, filtres: { name: "Vertou" } });
+
+    await waitFor(() =>
+      expect(listCourses).toHaveBeenCalledWith(expect.objectContaining({ unreliable: true })),
+    );
+    expect(listCourses).not.toHaveBeenCalledWith(expect.objectContaining({ awaiting_review: true }));
+    const bascule = screen.getByRole("checkbox", { name: "Voir aussi les épreuves déjà jugées" });
+    expect(bascule).toBeChecked();
+
+    await userEvent.click(bascule);
+
+    expect(push).toHaveBeenCalledWith("/admin/quality?name=Vertou");
+  });
+
+  it("turning the toggle on keeps the filters and goes back to page 1 (#1232)", async () => {
+    rendre({ page: 3, filtres: { name: "Vertou" } });
+
+    await userEvent.click(
+      await screen.findByRole("checkbox", { name: "Voir aussi les épreuves déjà jugées" }),
+    );
+
+    expect(push).toHaveBeenCalledWith("/admin/quality?name=Vertou&jugees=1");
   });
 
   it("affiche les anomalies de chaque épreuve en libellés lisibles (AC2)", async () => {
