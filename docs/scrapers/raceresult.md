@@ -147,8 +147,15 @@ positions changent d'une liste à l'autre ; les lignes masquées le 07/10 sont
 celles déjà fautives à l'import du 05/10, une pause ne les rend pas lisibles :
 ce n'est pas une limitation de débit. Mesuré le 07/10
 sur 402644 (Triathlon des Étangs, 6 lignes du M), 367799 (Cyclathlon La
-Chaussaire, 3 duos du M) et 312695 (Duathlon de Cholet, 1 ligne du M). Le temps
-masqué est écarté, mais la ligne garde son rang : un rang sans statut fait
-désormais un `finisher`, même sans temps lisible, au lieu d'un DNF classé. Ces
-lignes ressortent donc en `finisher_without_time`, et leur nom masqué n'est pas
-corrigé.
+Chaussaire, 3 duos du M) et 312695 (Duathlon de Cholet, 1 ligne du M). Une
+ligne classée, sans statut, dont la cellule de temps porte un `_` est un
+`finisher` (et non plus un DNF classé) ; une cellule de temps **vide** garde le
+comportement antérieur. Le temps est reconstruit en croisant les cellules du
+même dossard dans toutes les listes, publiées et `hidden`, `_` valant inconnu
+(`_fusionner_temps_masques` : `2:0_:5_` + `2:02:5_` + `2:0_:51` → `2:02:51`). Le
+résultat n'est retenu que si les cellules ont la même longueur, s'accordent sur
+chaque caractère connu et ne laissent aucun `_` ; sinon la ligne reste finisher
+sans temps (`finisher_without_time`). Côté `hidden`, une cellule n'est prise que
+pour un dossard déjà masqué au publié, et sans la garde d'identité, puisque le
+masque frappe aussi le nom. Mesuré : 8 temps sur 10 reconstruits, les duos 786
+et 787 de 367799 restent sans temps. Le nom masqué n'est pas corrigé.

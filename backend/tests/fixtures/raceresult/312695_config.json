@@ -20,6 +20,30 @@
     "Leader": 0,
     "Details": "details",
     "ID": "97AEC1"
+   },
+   {
+    "Name": "2-Chrono|Tri Ind.Detaille dua",
+    "Mode": "hidden",
+    "Contest": "0",
+    "ShowAs": "Résultats",
+    "Format": "VP",
+    "Live": 1,
+    "Sortable": 1,
+    "Leader": 0,
+    "Details": "details",
+    "ID": "FCCA90"
+   },
+   {
+    "Name": "2-Chrono|Triathlon Ind Tour Vélo",
+    "Mode": "hidden",
+    "Contest": "0",
+    "ShowAs": "Résultats  T Vélo",
+    "Format": "VP",
+    "Live": 1,
+    "Sortable": 1,
+    "Leader": 0,
+    "Details": "details",
+    "ID": "2A8C93"
    }
   ]
  }
