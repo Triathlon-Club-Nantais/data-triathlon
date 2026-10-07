@@ -33,6 +33,7 @@ from app.scrapers import (
     chronoweb,
     competitor,
     klikego,
+    nextrun,
     oktime,
     prolivesport,
     raceresult,
@@ -654,6 +655,7 @@ PROVIDERS: list[ScraperProtocol] = [
     ModuleProvider("runnerbreizh", ("runnerbreizh.fr",), runnerbreizh),
     SporthiveProvider(),
     ChronoWebProvider(),
+    ModuleProvider("nextrun", ("nextrun.fr",), nextrun),
     T2AreaProvider(),
 ]
 

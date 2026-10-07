@@ -1,0 +1,25 @@
+{
+ "rows": [
+  {
+   "bib_number": "251",
+   "first_name": "Sarah",
+   "last_name": "DUPUY",
+   "club": "Licence Expérience",
+   "team_name": "",
+   "gender": "female",
+   "category": "M1",
+   "status": "finisher",
+   "official_time_ms": 2836000,
+   "real_time_ms": null,
+   "laps": null,
+   "distance_m": null,
+   "scratch_rank": 51,
+   "gender_rank": 27,
+   "category_rank": 4,
+   "is_orphan": false
+  }
+ ],
+ "total": 4,
+ "page": 2,
+ "page_size": 200
+}
