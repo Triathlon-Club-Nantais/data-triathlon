@@ -156,6 +156,9 @@ même dossard dans toutes les listes, publiées et `hidden`, `_` valant inconnu
 résultat n'est retenu que si les cellules ont la même longueur, s'accordent sur
 chaque caractère connu et ne laissent aucun `_` ; sinon la ligne reste finisher
 sans temps (`finisher_without_time`). Côté `hidden`, une cellule n'est prise que
-pour un dossard déjà masqué au publié, et sans la garde d'identité, puisque le
-masque frappe aussi le nom. Mesuré : 8 temps sur 10 reconstruits, les duos 786
+pour un dossard déjà masqué au publié. La garde d'identité habituelle y est
+remplacée par une comparaison des cellules de nom brutes, `_` valant joker
+(`_noms_masques_compatibles` : même longueur, accord sur chaque caractère
+connu, casse et accents neutralisés), puisque le masque frappe aussi le nom ;
+une mise en forme de nom différente écarte la cellule. Mesuré : 8 temps sur 10 reconstruits, les duos 786
 et 787 de 367799 restent sans temps. Le nom masqué n'est pas corrigé.

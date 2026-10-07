@@ -4055,6 +4055,102 @@ def test_scrape_event_all_312695_rebuilds_masked_time_from_hidden_lists(monkeypa
     assert res["2186"].status == "DNF" and res["2186"].total_time == ""
 
 
+_FICHIERS_312695 = {
+    ("2-Chrono|Tri Ind.Detaille dua", "3"): "312695_pub_c3.json",
+    ("2-Chrono|Tri Ind.Detaille dua", "0"): "312695_hidden_detaille_c0.json",
+    ("2-Chrono|Triathlon Ind Tour Vélo", "0"): "312695_hidden_tour_velo_c0.json",
+}
+
+
+def _monte_312695(monkeypatch, retouche=lambda listname, contest, payload: None,
+                  fichiers=_FICHIERS_312695, config=None):
+    """Pipeline 312695 dont chaque payload passe par `retouche` avant usage."""
+    _monte_pipeline_fixtures(monkeypatch, "312695", lambda ln, c: fichiers.get((ln, c)))
+    if config is not None:
+        monkeypatch.setattr(raceresult, "_fetch_config", lambda ev, client: config)
+
+    def faux_fetch(ev, key, listname, contest, client):
+        nom = fichiers.get((listname, contest))
+        if nom is None:
+            return None
+        payload = json.loads((RR_FIXTURES / nom).read_text("utf-8"))
+        retouche(listname, contest, payload)
+        return payload
+
+    monkeypatch.setattr(raceresult, "_fetch_list", faux_fetch)
+
+
+def _lignes(payload: dict) -> list[list]:
+    return [ligne for groupe in payload["data"].values()
+            for lignes in groupe.values() for ligne in lignes]
+
+
+def test_masked_time_ignores_hidden_cells_of_another_person(monkeypatch):
+    """#1238 : un dossard réutilisé par un inconnu dans une liste `hidden` ne
+    prête pas sa cellule de temps, même quand elle s'accorde au masque."""
+    def retouche(listname, contest, payload):
+        if contest != "0":
+            return
+        col = payload["DataFields"].index("LFNAME")
+        for ligne in _lignes(payload):
+            if ligne[0] == "2227":
+                ligne[col] = "DUPONT, Jean"
+
+    _monte_312695(monkeypatch, retouche)
+
+    res = {r.bib_number: r for r in raceresult.scrape_event_all(
+        "https://my.raceresult.com/312695/results"
+    )}
+
+    assert res["2227"].status == "finisher"
+    assert res["2227"].total_time == ""
+
+
+def test_masked_time_merges_only_cells_of_masked_published_bibs(monkeypatch):
+    """#1238 : seul un dossard masqué au publié reçoit des cellules `hidden` ;
+    celles d'un dossard publié en clair n'entrent dans aucun croisement."""
+    appels: list[list[str]] = []
+    vraie = raceresult._fusionner_temps_masques
+
+    def espion(candidats):
+        appels.append(list(candidats))
+        return vraie(candidats)
+
+    monkeypatch.setattr(raceresult, "_fusionner_temps_masques", espion)
+    _monte_312695(monkeypatch)
+
+    raceresult.scrape_event_all("https://my.raceresult.com/312695/results")
+
+    assert appels == [["_2:30:14", "02:_0:14", "0_:_0:14"]]
+
+
+def test_masked_time_does_not_mix_cells_across_published_contests(monkeypatch):
+    """#1238 : le même dossard dans deux contests publiés, masqué dans un seul,
+    ne prête pas la cellule en clair de l'autre contest."""
+    config = json.loads((RR_FIXTURES / "312695_config.json").read_text("utf-8"))
+    config["TabConfig"]["Lists"].append(
+        {"Name": "2-Chrono|Tri Ind.Detaille dua", "Mode": "", "Contest": "2"}
+    )
+    fichiers = {**_FICHIERS_312695, ("2-Chrono|Tri Ind.Detaille dua", "2"): "312695_pub_c3.json"}
+
+    def retouche(listname, contest, payload):
+        if contest != "2":
+            return
+        col = payload["DataFields"].index("TIME")
+        for ligne in _lignes(payload):
+            if ligne[0] == "2227":
+                ligne[col] = "02:30:14"
+
+    _monte_312695(monkeypatch, retouche, fichiers=fichiers, config=config)
+
+    res = {(r.event_name, r.bib_number): r for r in raceresult.scrape_event_all(
+        "https://my.raceresult.com/312695/results"
+    )}
+
+    assert res[("DUATHLON DE CHOLET - DUATHLON S INDIVIDUEL", "2227")].total_time == "02:30:14"
+    assert res[("DUATHLON DE CHOLET - DISTANCE M", "2227")].total_time == ""
+
+
 @pytest.mark.parametrize("candidats, attendu", [
     (["2:0_:5_", "2:02:5_", "2:0_:51"], "2:02:51"),
     (["_2:30:14", "02:_0:14"], "02:30:14"),
