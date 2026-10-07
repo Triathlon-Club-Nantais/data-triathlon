@@ -104,11 +104,16 @@ describe("CourseAdminActions", () => {
     api.getSession.mockResolvedValue(session([...permissions]));
     afficher();
     await waitFor(() => expect(api.getSession).toHaveBeenCalled());
-    for (const [cle, nom] of Object.entries(BOUTONS)) {
-      const doitEtre = (attendus as readonly string[]).includes(cle);
-      if (doitEtre) {
-        expect(await screen.findByRole("button", { name: nom })).toBeInTheDocument();
-      } else {
+    // Les présents d'abord : les absences ne se lisent qu'une fois le panneau
+    // chargé (import dynamique, lent sur une machine chargée).
+    const entrees = Object.entries(BOUTONS);
+    for (const [cle, nom] of entrees) {
+      if ((attendus as readonly string[]).includes(cle)) {
+        expect(await screen.findByRole("button", { name: nom }, { timeout: 3000 })).toBeInTheDocument();
+      }
+    }
+    for (const [cle, nom] of entrees) {
+      if (!(attendus as readonly string[]).includes(cle)) {
         expect(screen.queryByRole("button", { name: nom })).not.toBeInTheDocument();
       }
     }
@@ -120,7 +125,7 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await user.click(await screen.findByRole("button", { name: BOUTONS.corriger }));
+    await user.click(await screen.findByRole("button", { name: BOUTONS.corriger }, { timeout: 3000 }));
     await user.click(await screen.findByRole("button", { name: /enregistrer/i }));
 
     await waitFor(() => expect(refresh).toHaveBeenCalled());
@@ -134,7 +139,7 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await user.click(await screen.findByRole("button", { name: BOUTONS.supprimer }));
+    await user.click(await screen.findByRole("button", { name: BOUTONS.supprimer }, { timeout: 3000 }));
     const confirmer = await screen.findByRole("button", { name: /supprimer définitivement/i });
     await waitFor(() => expect(confirmer).toBeEnabled());
     await user.click(confirmer);
@@ -149,7 +154,7 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await user.click(await screen.findByRole("button", { name: BOUTONS.avis }));
+    await user.click(await screen.findByRole("button", { name: BOUTONS.avis }, { timeout: 3000 }));
     await user.click(await screen.findByRole("menuitem", { name: /marquer fiable/i }));
     await user.click(await screen.findByRole("button", { name: /^marquer fiable$/i }));
 
@@ -173,7 +178,7 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await user.click(await screen.findByRole("button", { name: BOUTONS.fusionner }));
+    await user.click(await screen.findByRole("button", { name: BOUTONS.fusionner }, { timeout: 3000 }));
     await user.type(screen.getByRole("searchbox"), "Bayman");
 
     // L'épreuve consultée n'est pas proposée : on ne la fusionne pas avec elle-même.
@@ -201,7 +206,7 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await user.click(await screen.findByRole("button", { name: BOUTONS.fusionner }));
+    await user.click(await screen.findByRole("button", { name: BOUTONS.fusionner }, { timeout: 3000 }));
     await user.type(screen.getByRole("searchbox"), "1162");
 
     await screen.findByRole("button", { name: /n° 1162/ }, { timeout: 3000 });
@@ -214,7 +219,7 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await user.click(await screen.findByRole("button", { name: BOUTONS.fusionner }));
+    await user.click(await screen.findByRole("button", { name: BOUTONS.fusionner }, { timeout: 3000 }));
     await user.type(screen.getByRole("searchbox"), "Bayman");
 
     expect(
@@ -230,7 +235,7 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await user.click(await screen.findByRole("button", { name: BOUTONS.fusionner }));
+    await user.click(await screen.findByRole("button", { name: BOUTONS.fusionner }, { timeout: 3000 }));
     await user.type(screen.getByRole("searchbox"), "1162");
     const candidat = await screen.findByRole("button", { name: /n° 1162/ }, { timeout: 3000 });
     await user.click(candidat);
