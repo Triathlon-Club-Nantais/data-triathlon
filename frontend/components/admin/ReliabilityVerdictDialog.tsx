@@ -72,11 +72,13 @@ export function ReliabilityVerdictDialog({
   course,
   verdict,
   onOpenChange,
+  onDecided,
 }: {
   course: CourseBrief;
   /** `null` = fermé. */
   verdict: Verdict | null;
   onOpenChange: (ouvert: boolean) => void;
+  onDecided?: () => void;
 }) {
   const textes = verdict ? TEXTES[verdict] : null;
   const anomalies = describeQualityIssues(course.quality_issues);
@@ -111,6 +113,7 @@ export function ReliabilityVerdictDialog({
             cta={textes.cta}
             toast={textes.toast}
             onOpenChange={onOpenChange}
+            onDecided={onDecided}
           />
         )}
       </DialogContent>
@@ -124,12 +127,14 @@ function Corps({
   cta,
   toast: toastMessage,
   onOpenChange,
+  onDecided,
 }: {
   courseId: number;
   valeur: boolean | null;
   cta: string;
   toast: string;
   onOpenChange: (ouvert: boolean) => void;
+  onDecided?: () => void;
 }) {
   const [motif, setMotif] = useState("");
   const decision = useSetCourseReliability();
@@ -152,6 +157,7 @@ function Corps({
       });
       toast.success(toastMessage);
       onOpenChange(false);
+      onDecided?.();
     } catch (erreur) {
       toast.error(erreur instanceof Error ? erreur.message : "Décision refusée.");
     } finally {

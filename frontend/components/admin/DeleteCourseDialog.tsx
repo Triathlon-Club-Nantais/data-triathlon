@@ -27,10 +27,12 @@ export function DeleteCourseDialog({
   course,
   open,
   onOpenChange,
+  onDeleted,
 }: {
   course: CourseBrief;
   open: boolean;
   onOpenChange: (ouvert: boolean) => void;
+  onDeleted?: () => void;
 }) {
   const impact = useCourseDeletionImpact(open ? course.id : null);
   const suppression = useDeleteCourse();
@@ -40,6 +42,7 @@ export function DeleteCourseDialog({
       await suppression.mutateAsync(course.id);
       toast.success(`« ${course.name} » a été supprimée.`);
       onOpenChange(false);
+      onDeleted?.();
     } catch (erreur) {
       toast.error((erreur as Error).message);
     }
