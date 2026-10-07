@@ -139,7 +139,7 @@ non entier (422), deux résultats d'une même épreuve (409). Journal : `athlete
 | Route | Pouvoir | Effet |
 | --- | --- | --- |
 | `GET /admin/identity-review` | `athletes:write` | Les cas à trancher, sans pagination, dans un ordre stable (motif, puis plus petit id). |
-| `GET /admin/identity-review/count` | `athletes:write` | `{total}`. Prévu pour une pastille de la nav, que le front n'affiche pas encore : son coût est à mesurer en production d'abord (#1146). |
+| `GET /admin/identity-review/count` | `athletes:write` | `{total}`, la pastille de la nav (#1232). |
 | `POST /admin/identity-review/ignore` `{athlete_id_a, athlete_id_b}` | `athletes:write` | Écarte une paire jugée distincte (201) ; 400 même fiche, 404 fiche inconnue, 409 déjà écartée. Journal `athlete_identity.ignore`. |
 | `POST /admin/identity-review/confirm-club` `{athlete_id, club_key}` | `athletes:write` | Confirme un club pour une fiche (201, `{athlete_id, club_key, confirmed_at}`) : elle n'est plus signalée pour lui et l'import y rattache les résultats publiés sous ce club. 400 clé vide ou club que la fiche ne porte pas, 404 fiche inconnue, 409 déjà confirmé. Journal `athlete_identity.confirm_club`. |
 | `GET /admin/identity-review/ignored` | `athletes:write` | `{pairs: [{id, ignored_at, automatic, athletes: [{id, nom, prenom}×2]}]}`, la plus récente d'abord (#1243). `automatic` : paire posée par l'import, sans auteur. Une paire posée par la séparation porte l'admin qui l'a faite et ne s'en distingue pas. |
@@ -384,6 +384,7 @@ Cinq routes sous `/admin/club-members`, toutes gardées par la permission
 | Route | Rôle | Réponse |
 | --- | --- | --- |
 | `GET /admin/club-members?season=` | Licenciés d'une saison (début de saison, 2000 à 2100), avec les saisons connues | `ClubMembersSeasonOut` : `season`, `seasons`, compteurs (`total`, `linked`, `unlinked`, `ambiguous`), `members` |
+| `GET /admin/club-members/count` | Licenciés à arbitrer de la saison en cours, sans fiche ou à plusieurs fiches possibles : la pastille de la nav (#1232) | `{total}` |
 | `POST /admin/club-members/sync` | Relit la liste publiée par la FFTri et remplace la saison qu'elle couvre, en gardant les rattachements manuels | `MembersSyncReportOut` |
 | `POST /admin/club-members/import` | Multipart `season` + `file` (CSV ou XLSX, colonnes « Nom » et « Prénom » requises) : remplace une saison passée | `MembersSyncReportOut` |
 | `POST /admin/club-members/{member_id}/link` | Corps `{"athlete_id": int}` : rattache à la main un licencié à une fiche | `ClubMemberOut` (`link_status: "manual"`) |

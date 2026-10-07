@@ -66,6 +66,10 @@ def pending_exists_for_athlete_season(db: Session, *, athlete_id: int, season: i
     )
 
 
+def count_pending(db: Session) -> int:
+    return db.query(VolunteerAction).filter(VolunteerAction.status == "en_attente").count()
+
+
 def list_pending(db: Session) -> list[VolunteerAction]:
     """File d'attente admin (#779, FR-001) — tous athlètes confondus.
 

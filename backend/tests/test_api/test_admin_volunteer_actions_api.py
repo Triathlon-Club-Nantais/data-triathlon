@@ -271,3 +271,17 @@ def test_supprimer_sans_le_pouvoir_rend_403(client, db_session):
     _session_etroite(client, db_session)
 
     assert client.delete(f"{_URL}/{action.id}").status_code == 403
+
+
+def test_compter_les_declarations_en_attente(client, db_session):
+    """#1232 : la pastille de la nav, sans charger la liste."""
+    _declaration(db_session)
+    _declaration(db_session, status="validee")
+
+    assert client.get(f"{_URL}/pending/count").json() == {"total": 1}
+
+
+def test_compter_sans_le_pouvoir_rend_403(client, db_session):
+    _session_etroite(client, db_session)
+
+    assert client.get(f"{_URL}/pending/count").status_code == 403

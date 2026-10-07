@@ -5,12 +5,14 @@ depuis le retrait du geste admin (#780) — routers distincts, « le chemin dit
 qui peut appeler ».
 """
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
+from app.repositories import volunteer_action_repository
 from app.schemas.volunteer_action import AdminVolunteerActionOut
 from app.services import volunteer_action_service
 
@@ -23,6 +25,19 @@ def lister_les_declarations_en_attente(
     _: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)),
 ):
     return volunteer_action_service.list_pending(db)
+
+
+class PendingVolunteerActionCount(BaseModel):
+    total: int
+
+
+@router.get("/admin/volunteer-actions/pending/count", response_model=PendingVolunteerActionCount)
+def compter_les_declarations_en_attente(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)),
+):
+    """La pastille de la nav (#1232) : même garde que la liste."""
+    return PendingVolunteerActionCount(total=volunteer_action_repository.count_pending(db))
 
 
 @router.post(

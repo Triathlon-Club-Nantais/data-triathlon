@@ -109,6 +109,54 @@ export function useAdminCourses(page = 1, filtres: FiltresCourses = {}, enabled 
 }
 
 /**
+ * Les autres pastilles de la nav (#1232), même patron que
+ * `usePendingProvidersCount`. La revalidation qualité ne compte que les
+ * épreuves **sans avis humain** : `useAdminCoursesCount({ unreliable: true })`
+ * compte aussi celles déjà jugées douteuses, et ne redescendait jamais à zéro.
+ */
+export function useQualityQueueCount(actif = true) {
+  return useQuery({
+    queryKey: queryKeys.qualityQueueCount(),
+    queryFn: () => apiClient.countQualityQueue(),
+    enabled: actif,
+  });
+}
+
+export function useIdentityReviewCount(actif = true) {
+  return useQuery({
+    queryKey: queryKeys.identityReviewCount(),
+    queryFn: () => apiClient.countIdentityReview(),
+    enabled: actif,
+  });
+}
+
+export function useClubMembersToSettleCount(actif = true) {
+  return useQuery({
+    queryKey: queryKeys.clubMembersToSettleCount(),
+    queryFn: () => apiClient.countClubMembersToSettle(),
+    enabled: actif,
+  });
+}
+
+export function usePendingVolunteerActionsCount(actif = true) {
+  return useQuery({
+    queryKey: queryKeys.pendingVolunteerActionsCount(),
+    queryFn: () => apiClient.countPendingVolunteerActions(),
+    enabled: actif,
+  });
+}
+
+/** `retry: false` : sans cookie bénévoles, le 401 est la réponse attendue. */
+export function useBenevoleQueueCount(actif = true) {
+  return useQuery({
+    queryKey: queryKeys.benevoleQueueCount(),
+    queryFn: () => apiClient.countBenevoleQueue(),
+    enabled: actif,
+    retry: false,
+  });
+}
+
+/**
  * Le total du catalogue aux mêmes filtres — le « sur 7 » de la pagination.
  *
  * Clé **sans la page** : feuilleter ne redemande pas un total qui ne bouge pas.

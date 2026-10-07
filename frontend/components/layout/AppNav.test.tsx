@@ -15,6 +15,11 @@ const {
   countCourseDuplicates,
   countPendingProviders,
   countFeedback,
+  countQualityQueue,
+  countIdentityReview,
+  countClubMembersToSettle,
+  countPendingVolunteerActions,
+  countBenevoleQueue,
 } = vi.hoisted(() => ({
   push: vi.fn(),
   getSession: vi.fn(),
@@ -24,6 +29,11 @@ const {
   countCourseDuplicates: vi.fn(),
   countPendingProviders: vi.fn(),
   countFeedback: vi.fn(),
+  countQualityQueue: vi.fn(),
+  countIdentityReview: vi.fn(),
+  countClubMembersToSettle: vi.fn(),
+  countPendingVolunteerActions: vi.fn(),
+  countBenevoleQueue: vi.fn(),
 }));
 
 /** Mutable : le surlignage se teste depuis plusieurs écrans. */
@@ -85,6 +95,11 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       countCourseDuplicates,
       countPendingProviders,
       countFeedback,
+      countQualityQueue,
+      countIdentityReview,
+      countClubMembersToSettle,
+      countPendingVolunteerActions,
+      countBenevoleQueue,
     },
   };
 });
@@ -139,6 +154,11 @@ beforeEach(() => {
   countCourseDuplicates.mockResolvedValue({ total: 0 });
   countPendingProviders.mockResolvedValue({ total: 0 });
   countFeedback.mockResolvedValue({ nouveau: 0, en_cours: 0, traite: 0, ignore: 0, total: 0 });
+  countQualityQueue.mockResolvedValue({ total: 0 });
+  countIdentityReview.mockResolvedValue({ total: 0 });
+  countClubMembersToSettle.mockResolvedValue({ total: 0 });
+  countPendingVolunteerActions.mockResolvedValue({ total: 0 });
+  countBenevoleQueue.mockResolvedValue({ total: 0 });
 
   // Node 20 (la CI) fournit `window.localStorage` à jsdom, Node 26 non. Sans
   // stock déterministe, la persistance de l'état déplié fuit d'un test à
@@ -1186,11 +1206,11 @@ describe("AppNav — session (#114)", () => {
 
 describe("badge de la file de revalidation (#119)", () => {
   beforeEach(() => {
-    countCourses.mockReset();
+    countQualityQueue.mockReset();
   });
 
   it("affiche le nombre d'épreuves à revalider sur son entrée", async () => {
-    countCourses.mockResolvedValue({ total: 4 });
+    countQualityQueue.mockResolvedValue({ total: 4 });
     afficher(habilite("quality:override"));
     await deplier();
 
@@ -1199,12 +1219,12 @@ describe("badge de la file de revalidation (#119)", () => {
   });
 
   it("n'affiche aucun badge quand la file est vide", async () => {
-    countCourses.mockResolvedValue({ total: 0 });
+    countQualityQueue.mockResolvedValue({ total: 0 });
     afficher(habilite("quality:override"));
     await deplier();
 
     const entree = await screen.findByRole("link", { name: /revalidation qualité/i });
-    await waitFor(() => expect(countCourses).toHaveBeenCalled());
+    await waitFor(() => expect(countQualityQueue).toHaveBeenCalled());
     expect(within(entree).queryByText("0")).not.toBeInTheDocument();
   });
 
@@ -1213,11 +1233,11 @@ describe("badge de la file de revalidation (#119)", () => {
     await deplier();
 
     await screen.findByRole("link", { name: /retours utilisateurs/i });
-    expect(countCourses).not.toHaveBeenCalled();
+    expect(countQualityQueue).not.toHaveBeenCalled();
   });
 
   it("porte un nom accessible explicite, pas seulement le chiffre nu", async () => {
-    countCourses.mockResolvedValue({ total: 4 });
+    countQualityQueue.mockResolvedValue({ total: 4 });
     afficher(habilite("quality:override"));
     await deplier();
 
@@ -1636,5 +1656,28 @@ describe("AppNav — le tiroir ne se ferme plus au clic du pied (#482, NAV-4)", 
     await userEvent.click(within(tiroir).getByText(SESSION.email));
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+});
+
+describe("pastilles des autres files (#1232)", () => {
+  it.each([
+    ["athletes:write", /identités des athlètes/i, countIdentityReview, "4 cas d'identité à trancher"],
+    ["club_members:manage", /licenciés du club/i, countClubMembersToSettle, "4 licenciés à rattacher"],
+  ])("porte le compte de la file de %s, nommé", async (pouvoir, entreeNom, compter, nom) => {
+    compter.mockResolvedValue({ total: 4 });
+    afficher(habilite(pouvoir));
+    await deplier();
+
+    const entree = await screen.findByRole("link", { name: entreeNom });
+    expect(await within(entree).findByText("4")).toBeInTheDocument();
+    expect(screen.getByText(nom)).toHaveClass("sr-only");
+  });
+
+  it("porte le compte de la validation des épreuves pour un compte d'administration", async () => {
+    countBenevoleQueue.mockResolvedValue({ total: 2 });
+    afficher({ ...habilite("feedback:read"), can_administer: true });
+    await deplier();
+
+    expect(await screen.findByText("2 résultats à valider")).toHaveClass("sr-only");
   });
 });

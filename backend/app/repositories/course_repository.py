@@ -650,6 +650,19 @@ def count_all(
     ).count()
 
 
+def count_awaiting_review(db: Session) -> int:
+    """Épreuves calculées non fiables qu'aucun humain n'a encore jugées (#1232).
+
+    Ce que la pastille de la revalidation annonce : un avis posé sort l'épreuve
+    de la file, qu'il la déclare fiable ou non.
+    """
+    return (
+        db.query(Course)
+        .filter(Course.reliability_override.is_(None), Course.is_reliable_computed.is_(False))
+        .count()
+    )
+
+
 def iter_all(
     db: Session,
     *,

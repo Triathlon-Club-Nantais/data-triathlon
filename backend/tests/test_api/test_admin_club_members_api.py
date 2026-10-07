@@ -132,3 +132,31 @@ def test_every_route_requires_a_session(client):
     assert client.post(
         "/api/v1/admin/club-members/import", data={"season": "2024"}, files=_csv_file()
     ).status_code == 401
+
+
+def test_count_the_members_to_settle_in_the_current_season(client, db_session):
+    """#1232 : la pastille compte les licenciés sans fiche ou à plusieurs fiches."""
+    from app.core.season import current_season
+
+    db_session.add_all([
+        Athlete(nom="MARTIN", prenom="Anne"),
+        Athlete(nom="MARTIN", prenom="Anne", homonym_rank=2),
+        Athlete(nom="PETIT", prenom="Luc"),
+    ])
+    db_session.commit()
+    content = b"Nom,Prenom\nMARTIN,Anne\nPETIT,Luc\nDURAND,Paul\n"
+    for season in (current_season() - 1, current_season()):
+        imported = client.post(
+            "/api/v1/admin/club-members/import",
+            data={"season": str(season)},
+            files={"file": ("l.csv", content, "text/csv")},
+        )
+        assert imported.json()["unlinked"] + imported.json()["ambiguous"] == 2
+
+    assert client.get("/api/v1/admin/club-members/count").json() == {"total": 2}
+
+
+def test_counting_needs_the_members_power(client, db_session):
+    _session_etroite(client, db_session, "athletes:read")
+
+    assert client.get("/api/v1/admin/club-members/count").status_code == 403

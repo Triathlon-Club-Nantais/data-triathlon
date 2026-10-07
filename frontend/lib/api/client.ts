@@ -539,6 +539,14 @@ export const apiClient = {
   // Pastille de la nav (#726) : même donnée que la liste ci-dessus, en taille.
   countPendingProviders: () =>
     request<{ total: number }>("/admin/pending-providers/count"),
+  // Pastilles des autres files de la nav (#1232), chacune sous la garde de son écran.
+  countQualityQueue: () => request<{ total: number }>("/admin/quality/count"),
+  countIdentityReview: () => request<{ total: number }>("/admin/identity-review/count"),
+  countClubMembersToSettle: () => request<{ total: number }>("/admin/club-members/count"),
+  countPendingVolunteerActions: () =>
+    request<{ total: number }>("/admin/volunteer-actions/pending/count"),
+  // Garde du mot de passe bénévoles, pas du SSO : 401 sans son cookie.
+  countBenevoleQueue: () => request<{ total: number }>("/benevoles/queue/count"),
   reportPendingProvider: (url: string) =>
     request<PendingProvider>("/admin/pending-providers", {
       method: "POST",
