@@ -1348,3 +1348,38 @@ def test_fetch_clax_lit_un_element_event_sans_enfant(monkeypatch):
 
     assert event_name == "Duathlon de Vertou"
     assert event_type == "duathlon"
+
+
+def _row(name, firstname="", club="", category="", is_relay=False):
+    from app.scrapers.base import ScrapedResult
+
+    return ScrapedResult(
+        source_url="http://x", provider="wiclax", athlete_name=name,
+        athlete_firstname=firstname, club=club, category=category, is_relay=is_relay,
+    )
+
+
+def test_a_youth_teammate_gives_its_category_to_the_team_row():
+    """#881: the import filter only reads the row category, so it must see the youth."""
+    from app.core.youth import is_youth
+    from app.scrapers.wiclax import _attach_teammates
+
+    team = _row("LES RAPIDES", category="EQX", is_relay=True)
+    _attach_teammates([team], [
+        _row("DUPONT", "Jean", club="LES RAPIDES", category="SEH"),
+        _row("DUPONT", "Lea", club="LES RAPIDES", category="MIF"),
+    ])
+
+    assert is_youth(team.event_name, team.category)
+
+
+def test_teammates_without_a_first_name_are_not_attached():
+    from app.scrapers.wiclax import _attach_teammates
+
+    team = _row("LES RAPIDES", category="EQX", is_relay=True)
+    _attach_teammates([team], [
+        _row("DUPONT", "Jean", club="LES RAPIDES"),
+        _row("MARTIN", "", club="LES RAPIDES"),
+    ])
+
+    assert team.teammates is None

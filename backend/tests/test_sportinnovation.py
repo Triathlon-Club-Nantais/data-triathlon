@@ -878,3 +878,43 @@ def test_duo_race_imports_both_teammates_without_duplicate_bib(db_session, monke
     assert participation.teammates == [martin, le_gall]
     assert participation.course.is_relay
     assert "duplicate_bib" not in (participation.course.quality_issues or {})
+
+
+def _api_rows(monkeypatch, rows, title="Swimrun"):
+    monkeypatch.setattr(_si, "_fetch_splits_parallel", lambda athletes, **kw: {})
+    client = _FakeClient({"/races/sr/results": rows})
+    return _si._race_results_api("sr", title, "Défis", None, "http://x", client)
+
+
+def test_duo_team_keeps_a_youth_category_so_the_import_filter_sees_it(monkeypatch):
+    """#881: a mixed minime duo must still be recognised as youth at import."""
+    from app.core.youth import is_youth
+
+    (team,) = _api_rows(monkeypatch, [
+        {"lastName": "DUPONT", "firstName": "Jean", "bib": "1", "category": "MIM", "officialTimeFfa": "01:00:00"},
+        {"lastName": "DUPONT", "firstName": "Lea", "bib": "1", "category": "MIF", "officialTimeFfa": "01:00:00"},
+    ], title="Swimrun DUO")
+
+    assert is_youth(team.event_name, team.category)
+
+
+def test_a_single_duplicated_bib_does_not_turn_a_solo_race_into_a_relay(monkeypatch):
+    results = _api_rows(monkeypatch, [
+        {"lastName": "DUPONT", "firstName": "Jean", "bib": "1", "officialTimeFfa": "01:00:00"},
+        {"lastName": "MARTIN", "firstName": "Paul", "bib": "1", "officialTimeFfa": "01:01:00"},
+        {"lastName": "DURAND", "firstName": "Luc", "bib": "2", "officialTimeFfa": "01:02:00"},
+        {"lastName": "PETIT", "firstName": "Noé", "bib": "3", "officialTimeFfa": "01:03:00"},
+    ])
+
+    assert not any(r.is_relay for r in results)
+    assert len(results) == 4
+
+
+def test_duo_team_carries_its_teammates_as_published(monkeypatch):
+    """A multi-word surname would defeat the name-splitting heuristic of #895."""
+    (team,) = _api_rows(monkeypatch, [
+        {"lastName": "de la Tour", "firstName": "Jean Marc", "bib": "1", "officialTimeFfa": "01:00:00"},
+        {"lastName": "Martin", "firstName": "Paul", "bib": "1", "officialTimeFfa": "01:00:00"},
+    ], title="Swimrun DUO")
+
+    assert team.teammates == (("DE LA TOUR", "Jean Marc"), ("MARTIN", "Paul"))

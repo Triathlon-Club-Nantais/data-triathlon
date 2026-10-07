@@ -11,6 +11,7 @@ on les importe tels quels, comme runnerbreizh. Détail et mesures :
 """
 import re
 from datetime import date, datetime
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 from app.core import http
@@ -87,7 +88,8 @@ def _result(
 
 
 def _rows(client, race_id: str) -> list[dict]:
-    """Toutes les lignes d'une course, pages suivies jusqu'au `total` annoncé."""
+    """Toutes les lignes d'une course, pages suivies jusqu'au `total` annoncé, ou
+    tant qu'elles sont pleines si la source ne l'annonce pas."""
     rows: list[dict] = []
     for page in range(1, _MAX_PAGES + 1):
         response = client.get(
@@ -97,7 +99,8 @@ def _rows(client, race_id: str) -> list[dict]:
         payload = response.json()
         batch = payload.get("rows") or []
         rows.extend(batch)
-        if not batch or len(rows) >= (payload.get("total") or 0):
+        total = payload.get("total")
+        if not batch or (len(rows) >= total if total else len(batch) < PAGE_SIZE):
             return rows
     # Rendre un classement tronqué le figerait dans le cache.
     raise ValueError(f"Pagination nextrun interrompue après {_MAX_PAGES} pages (course {race_id}).")
@@ -105,7 +108,7 @@ def _rows(client, race_id: str) -> list[dict]:
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
     """Tous les participants des courses publiées de l'édition visée par l'URL."""
-    match = _RE_EDITION.search(url)
+    match = _RE_EDITION.search(urlparse(url).path)
     if not match:
         raise ValueError(
             f"URL nextrun sans édition : {url} (forme attendue "

@@ -152,3 +152,20 @@ def test_empty_name_gets_an_anonymous_identity():
                              is_relay=False, race_id=SOLO)
 
     assert result.athlete_name.startswith("Anonyme")
+
+
+def test_pagination_without_total_follows_full_pages(monkeypatch):
+    rows = _fixture("xs_solo_p1")["rows"][:2]
+    fake = FakeClient({
+        "https://nextrun.fr/api/races/r/results/rows?page=1": {"rows": rows},
+        "https://nextrun.fr/api/races/r/results/rows?page=2": {"rows": rows[:1]},
+    })
+    monkeypatch.setattr(nextrun, "PAGE_SIZE", 2)
+
+    assert len(nextrun._rows(fake, "r")) == 3
+
+
+def test_edition_slug_stops_before_a_query_string(client):
+    nextrun.scrape_event_all("https://nextrun.fr/events/defi-swimrun-de-lancieux/editions/2026?utm=x")
+
+    assert client.calls[0] == "https://nextrun.fr/api/events/defi-swimrun-de-lancieux/editions/2026/results"

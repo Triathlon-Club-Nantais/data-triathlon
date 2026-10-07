@@ -724,7 +724,7 @@ def test_chronoweb_altriman_2025_transitions_longues():
 
 
 @pytest.mark.integration
-def test_nextrun_lancieux_importe_toutes_les_lignes_publiees():
+def test_nextrun_lancieux_imports_every_published_row():
     """Chaque course publiée est importée en entier, pages suivies (#1224)."""
     results, _trace = registry.scrape_event_all(LIVE_URLS["nextrun"])
     par_course = Counter(r.event_name for r in results)

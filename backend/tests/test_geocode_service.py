@@ -194,6 +194,8 @@ def test_un_nom_sans_ville_exploitable_ne_declenche_aucune_requete(monkeypatch):
         ("9e édition du Triathlon de Vannes", "Vannes"),
         ("Triathlon Audencia La Baule 2025 - S", "La Baule"),
         ("Triathlon de Laval 9ème édition 2025", "Laval"),  # ordinal en fin de nom
+        ("Triathlon de Vannes 1re édition", "Vannes"),
+        ("Triathlon de Vannes 1ère édition", "Vannes"),
         ("Triathlon de Laval 5 ème édition", "Laval"),
     ],
 )

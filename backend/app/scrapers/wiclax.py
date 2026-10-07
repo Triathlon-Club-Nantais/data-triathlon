@@ -26,6 +26,7 @@ from bs4 import BeautifulSoup
 from defusedxml.ElementTree import fromstring as parse_xml
 
 from app.core import http
+from app.core.youth import is_youth
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, FanoutTrace, ScrapedResult
 from .classify import classify_event_type
@@ -714,15 +715,23 @@ def _team_key(name: str) -> str:
 
 def _attach_teammates(teams: list[ScrapedResult], members: list[ScrapedResult]) -> None:
     """Rattache à chaque équipe les équipiers dont le club porte son nom (#1220)."""
-    par_equipe: dict[str, list[tuple[str, str]]] = {}
+    par_equipe: dict[str, list[ScrapedResult]] = {}
     for m in members:
-        par_equipe.setdefault(_team_key(m.club), []).append((m.athlete_name, m.athlete_firstname))
+        par_equipe.setdefault(_team_key(m.club), []).append(m)
     for team in teams:
         nom = " ".join(filter(None, [team.athlete_name, team.athlete_firstname]))
         equipiers = par_equipe.get(_team_key(nom), [])
-        # Hors bornes, l'équipe reste entière, comme un libellé indécoupable (#895).
-        if MIN_RELAY_TEAMMATES <= len(equipiers) <= MAX_RELAY_TEAMMATES:
-            team.teammates = tuple(equipiers)
+        # Un équipier jeune laisse sa catégorie à l'équipe : le filtre de l'import
+        # (#881) ne juge que la catégorie de la ligne.
+        team.category = next(
+            (m.category for m in equipiers if is_youth("", m.category)), team.category
+        )
+        # Hors bornes ou sans nom et prénom, l'équipe reste entière, comme un
+        # libellé indécoupable (#895).
+        if MIN_RELAY_TEAMMATES <= len(equipiers) <= MAX_RELAY_TEAMMATES and all(
+            m.athlete_name and m.athlete_firstname for m in equipiers
+        ):
+            team.teammates = tuple((m.athlete_name, m.athlete_firstname) for m in equipiers)
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
