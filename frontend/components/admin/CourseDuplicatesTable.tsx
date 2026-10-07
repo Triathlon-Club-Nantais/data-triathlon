@@ -81,8 +81,8 @@ function CandidatCard({
    * donnée, il retire une suggestion. Confirmé malgré tout (revue UI/UX de fin
    * de branche) : contrairement à « Marquer comme traité » de
    * `PendingProvidersTable` — reversible, un signalement à nouveau reçu
-   * recrée la ligne —, aucun écran « paires écartées » n'existe dans ce ticket
-   * pour revenir sur un clic. `useDangerConfirm({ actionNeutre: true })`, sur
+   * recrée la ligne —, revenir sur un clic demande d'ouvrir la liste repliée
+   * des paires écartées (#1243). `useDangerConfirm({ actionNeutre: true })`, sur
    * le patron de `basculerLeStatut` de `RolePermissionsEditor` : confirmé dans
    * les deux sens, mais sans la couleur destructive — le geste ne ferme aucun
    * accès et ne détruit aucune donnée (#499), il n'invente pas une troisième
