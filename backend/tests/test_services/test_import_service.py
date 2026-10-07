@@ -391,6 +391,7 @@ def test_import_does_not_count_excluded_youth_ranks_as_gaps(db_session, patch_sc
 
     course = db_session.query(Course).one()
     assert "rank_gap" not in (course.quality_issues or {})
+    assert course.is_reliable_computed is True
 
 
 def test_import_locks_every_course_it_writes(db_session, patch_scraper, monkeypatch):
@@ -2873,11 +2874,11 @@ def test_cache_probe_ends_its_read_transaction_after_each_heat(db_session):
     assert db_session.in_transaction() is False
 
 
-def test_validate_url_decode_un_chemin_encode_deux_fois():
+def test_validate_url_decodes_a_doubly_encoded_path():
     """#1225 : un copier-coller d'URL déjà encodée donne `%2520` et un 404."""
     from app.services.import_dispatch import validate_url
 
     double = "https://www.chronosmetron.wiclax-results.com/Triathlon%2520de%2520Veign%C3%A9%25202024/"
-    assert validate_url(double) == (
-        "https://www.chronosmetron.wiclax-results.com/Triathlon%20de%20Veign%C3%A9%202024/"
-    )
+    normale = "https://www.chronosmetron.wiclax-results.com/Triathlon%20de%20Veign%C3%A9%202024/"
+    assert validate_url(double) == normale
+    assert validate_url(normale) == normale

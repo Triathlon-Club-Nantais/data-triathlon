@@ -371,27 +371,31 @@ def _importable(url: str, results: list[ScrapedResult]) -> list[ScrapedResult]:
     """
     _require_event_name(url, results)
     heats_with_tcn_youth = {
-        (r.event_name, r.event_date)
+        _heat(r)
         for r in results
         if is_youth(r.event_name, r.category) and is_tcn(r.club)
     }
     retenus: list[ScrapedResult] = []
     excluded_ranks: dict[tuple, set[int]] = defaultdict(set)
     for r in results:
-        heat = (r.event_name, r.event_date)
+        heat = _heat(r)
         if not is_youth(r.event_name, r.category) or heat in heats_with_tcn_youth:
             retenus.append(r)
         elif r.rank_overall:
             excluded_ranks[heat].add(r.rank_overall)
     if excluded_ranks:
         retenus = [
-            replace(r, excluded_ranks=frozenset(excluded_ranks[(r.event_name, r.event_date)]))
-            if (r.event_name, r.event_date) in excluded_ranks else r
+            replace(r, excluded_ranks=frozenset(excluded_ranks[_heat(r)]))
+            if _heat(r) in excluded_ranks else r
             for r in retenus
         ]
     if len(retenus) < len(results):
         logger.info("Import %s : %d ligne(s) d'épreuve jeune écartée(s)", url, len(results) - len(retenus))
     return retenus
+
+
+def _heat(result: ScrapedResult) -> tuple:
+    return (result.source_url, result.event_name, result.event_date)
 
 
 def _require_event_name(url: str, results: list[ScrapedResult]) -> None:
