@@ -133,7 +133,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // au-delà vient des **pouvoirs**, seuls réellement renseignés (#115).
   const rank: number = session ? ROLE.CONNECTED : ROLE.ANON;
   const pouvoirs = new Set(session?.permissions ?? []);
-  const badges = useNavBadges(pouvoirs);
+  const badges = useNavBadges(pouvoirs, session?.can_administer ?? false);
   const sections = NAV.filter((s) => rank >= s.minRole)
     .map((s) => ({
       ...s,
@@ -863,6 +863,14 @@ function libelleCompteur(item: Destination): string {
       return `${n} fournisseur${n > 1 ? "s" : ""} en attente`;
     case "feedback":
       return `${n} nouveau${n > 1 ? "x" : ""} retour${n > 1 ? "s" : ""} utilisateur${n > 1 ? "s" : ""}`;
+    case "identities":
+      return `${n} cas d'identité à trancher`;
+    case "members":
+      return `${n} licencié${n > 1 ? "s" : ""} à rattacher`;
+    case "volunteer":
+      return `${n} déclaration${n > 1 ? "s" : ""} de bénévolat en attente`;
+    case "validation":
+      return `${n} résultat${n > 1 ? "s" : ""} à valider`;
     default:
       return String(n);
   }
@@ -952,8 +960,8 @@ function Entree({
         ) : (
           // Pas de pastille de compteur ici : elle serait inatteignable. Seule
           // la section `root` rend des entrées repliées à plat (l.548), et
-          // « Administration » — seule section à porter un `badge` aujourd'hui —
-          // n'est pas `root`. Porter le signal sur la tuile de catégorie qui la
+          // aucune section à `badge` (« Administration », « Club ») n'est
+          // `root`. Porter le signal sur la tuile de catégorie qui la
           // remplace au rail replié est une autre fonctionnalité, hors périmètre
           // (#119).
           Icon && <Icon size={20} />

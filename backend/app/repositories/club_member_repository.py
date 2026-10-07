@@ -1,9 +1,9 @@
 """Accès données des licenciés du club par saison (#1202)."""
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.models.athlete import Athlete
-from app.models.club_member import LINKED, ClubMember
+from app.models.club_member import LINK_AMBIGUOUS, LINK_UNLINKED, LINKED, ClubMember
 
 
 def list_season(db: Session, season: int) -> list[ClubMember]:
@@ -14,6 +14,16 @@ def list_season(db: Session, season: int) -> list[ClubMember]:
 
 def seasons(db: Session) -> list[int]:
     return list(db.scalars(select(ClubMember.season).distinct().order_by(ClubMember.season.desc())))
+
+
+def count_to_settle(db: Session, season: int) -> int:
+    """Licenciés de la saison sans fiche ou à plusieurs fiches possibles (#1232)."""
+    return db.scalar(
+        select(func.count()).select_from(ClubMember).where(
+            ClubMember.season == season,
+            ClubMember.link_status.in_((LINK_UNLINKED, LINK_AMBIGUOUS)),
+        )
+    )
 
 
 def get(db: Session, member_id: int) -> ClubMember | None:

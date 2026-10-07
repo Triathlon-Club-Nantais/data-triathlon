@@ -22,6 +22,7 @@ from app.schemas.admin import (
     PendingProviderOut,
     PendingProviderReported,
 )
+from app.schemas.course import CourseCount
 from app.services import course_review, pending_providers
 
 router = APIRouter(tags=["admin"])
@@ -85,6 +86,17 @@ def mark_handled(
 ):
     pending_providers.mark_handled(db, actor, entry_id)
     db.commit()
+
+
+@router.get("/admin/quality/count", response_model=CourseCount)
+def count_courses_awaiting_review(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.QUALITY_OVERRIDE)),
+) -> CourseCount:
+    """La pastille de la revalidation (#1232) : les épreuves calculées non
+    fiables **sans avis humain**. `GET /courses/count?unreliable=true` compte
+    aussi celles qu'un humain a déjà jugées douteuses, et ne redescend jamais."""
+    return CourseCount(total=course_repository.count_awaiting_review(db))
 
 
 @router.patch(

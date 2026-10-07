@@ -171,6 +171,7 @@ export const NAV: NavSection[] = [
         labelCourt: "Validation",
         href: "/benevoles",
         icon: UserCheck,
+        badge: "validation",
       },
     ],
   },
@@ -224,9 +225,6 @@ export const NAV: NavSection[] = [
         permission: "courses:sources",
         badge: "duplicates",
       },
-      // Pas de pastille (#908) : le comptage recalcule les paires inversées et
-      // concaténées sur toutes les fiches, et la nav le déclencherait à chaque
-      // page du back-office. À poser une fois sa durée mesurée en production.
       {
         id: "a-identites",
         label: "Identités des athlètes",
@@ -234,6 +232,7 @@ export const NAV: NavSection[] = [
           "Fiches qui mêlent deux personnes, ou paires de fiches qui désignent probablement la même : chaque cas dit quoi faire et offre ses gestes.",
         href: "/admin/identites",
         permission: "athletes:write",
+        badge: "identities",
       },
       // Les entrées `soon` ci-dessous n'ont pas de pouvoir nommé : le catalogue
       // n'en porte pas d'évident, et en deviner un serait poser une règle à
@@ -283,6 +282,7 @@ export const NAV: NavSection[] = [
         href: "/admin/benevolat",
         permission: "athletes:volunteer_validate",
         preview: true,
+        badge: "volunteer",
       },
       // Les deux purges globales vivaient en pied de `/admin/courses`, l'écran
       // où l'on vient corriger une date : feuilleter le catalogue jusqu'au bout
@@ -328,6 +328,7 @@ export const NAV: NavSection[] = [
           "La liste des licenciés publiée par la FFTri, saison par saison. Un licencié rattaché à sa fiche fait compter ses résultats de la saison pour le club, même sans libellé de club.",
         href: "/admin/membres",
         permission: "club_members:manage",
+        badge: "members",
       },
       {
         id: "a-journal",

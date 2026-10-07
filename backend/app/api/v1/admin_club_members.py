@@ -4,14 +4,16 @@ Routeur fin : validation et délégation au service, qui recalcule les
 compteurs ; le routeur commite. Chaque route porte sa garde.
 """
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.deps import require_permission
 from app.api.uploads import read_bounded_upload
 from app.core.database import get_db
 from app.core.permissions import P
-from app.core.season import SEASON_MAX, SEASON_MIN
+from app.core.season import SEASON_MAX, SEASON_MIN, current_season
 from app.models.user import User
+from app.repositories import club_member_repository
 from app.schemas.club_member import (
     ClubMemberLinkIn,
     ClubMemberOut,
@@ -36,6 +38,20 @@ def list_club_members(
         seasons=club_members_service.seasons(db),
         members=[ClubMemberOut.model_validate(m) for m in members],
     )
+
+
+class ClubMembersToSettleCount(BaseModel):
+    total: int
+
+
+@router.get("/admin/club-members/count", response_model=ClubMembersToSettleCount)
+def count_club_members_to_settle(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.CLUB_MEMBERS_MANAGE)),
+):
+    """La pastille de la nav (#1232) : licenciés à arbitrer de la saison en
+    cours, celle que l'écran ouvre par défaut."""
+    return ClubMembersToSettleCount(total=club_member_repository.count_to_settle(db, current_season()))
 
 
 @router.post("/admin/club-members/sync", response_model=MembersSyncReportOut)

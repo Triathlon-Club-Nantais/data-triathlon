@@ -609,6 +609,15 @@ def list_pending(db: Session) -> list[Participation]:
     )
 
 
+def count_pending(db: Session) -> int:
+    """La taille de `list_pending`, pour la pastille de la nav (#1232)."""
+    return (
+        db.query(Participation)
+        .filter(Participation.is_pending_validation.is_(True), Participation.is_rejected.is_(False))
+        .count()
+    )
+
+
 def list_rejected(db: Session) -> list[Participation]:
     """Résultats signalés non conformes par un bénévole, tous clubs confondus (#437)."""
     return (

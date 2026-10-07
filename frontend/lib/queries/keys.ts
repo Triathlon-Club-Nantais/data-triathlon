@@ -23,6 +23,12 @@ export const queryKeys = {
   // Sous le préfixe de la revue : écarter ou confirmer les rafraîchit aussi (#1243).
   ignoredIdentityPairs: () => ["identity-review", "ignored"] as const,
   confirmedIdentityClubs: () => ["identity-review", "confirmed-clubs"] as const,
+  // Préfixes de leurs listes, à dessein : voir `adminCoursesCount` (#1232).
+  identityReviewCount: () => ["identity-review", "count"] as const,
+  qualityQueueCount: () => ["admin-courses", "quality-queue-count"] as const,
+  clubMembersToSettleCount: () => ["club-members", "count"] as const,
+  pendingVolunteerActionsCount: () => ["pending-volunteer-actions", "count"] as const,
+  benevoleQueueCount: () => ["benevole-queue", "count"] as const,
   // Clé distincte de `courseParticipations` : celle-ci stocke un `CourseDetail`,
   // l'autre un `Participation[]`. Même clé, deux formes = un écran qui plante.
   adminCourseDetail: (courseId: number, q: string) =>

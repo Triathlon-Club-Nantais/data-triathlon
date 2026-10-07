@@ -543,3 +543,14 @@ def test_valider_rend_le_resultat_visible_sur_la_fiche_et_dans_les_agregats(
 
     stats = benevole_connecte.get("/api/v1/stats").json()
     assert stats["total"] >= 1
+
+
+# --- GET /benevoles/queue/count (#1232) --------------------------------------
+
+
+def test_queue_count_refuse_sans_cookie(client):
+    assert client.get("/api/v1/benevoles/queue/count").status_code == 401
+
+
+def test_queue_count_compte_la_file(benevole_connecte, resultat_pendant):
+    assert benevole_connecte.get("/api/v1/benevoles/queue/count").json() == {"total": 1}
