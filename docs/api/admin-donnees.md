@@ -113,6 +113,16 @@ succès muet, sans confirmer ce qu'elle avait détruit.
   `conflicting_athlete_id`, pour proposer la fusion. Une variante compte comme
   l'identité de sa fiche.
 
+## Variantes d'identité d'une fiche (#1242)
+
+| Route | Pouvoir | Effet |
+| --- | --- | --- |
+| `GET /admin/athletes/{id}/aliases` | `athletes:write` | `{aliases: [{id, last_name_key, first_name_key, created_at}]}`, les graphies que l'import rattache à la fiche. 404 fiche inconnue. |
+| `DELETE /admin/athletes/{id}/aliases/{alias_id}` | `athletes:write` | Retire la variante (204) : l'import ne range plus cette graphie sur la fiche, les résultats déjà rattachés restent. 404 variante inconnue ou d'une autre fiche. Journal `athlete.alias_remove`, avec les deux clés. |
+
+La fiche athlète les liste sous l'ancre `#variantes` (rien n'est rendu sans
+variante) ; la carte `alias_collision` de `/admin/identites` y renvoie.
+
 ## Séparer une fiche (#1209)
 
 `POST /admin/athletes/{id}/detach` (`athletes:write` et `participations:reassign`),

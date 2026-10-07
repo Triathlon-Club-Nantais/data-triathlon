@@ -59,3 +59,17 @@ def delete_key(db: Session, key: IdentityKey) -> None:
         )
     )
 
+
+def list_for_athlete(db: Session, athlete_id: int) -> list[AthleteAlias]:
+    return list(db.scalars(
+        select(AthleteAlias).where(AthleteAlias.athlete_id == athlete_id).order_by(AthleteAlias.id)
+    ))
+
+
+def get(db: Session, alias_id: int) -> AthleteAlias | None:
+    return db.get(AthleteAlias, alias_id)
+
+
+def delete(db: Session, alias: AthleteAlias) -> None:
+    db.delete(alias)
+

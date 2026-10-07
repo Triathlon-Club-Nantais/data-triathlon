@@ -2,6 +2,7 @@ import { toQuery } from "@/lib/api/query";
 import type {
   AdminActionLogPage,
   AdminAthlete,
+  AthleteAliasList,
   AthleteMergeImpact,
   ConfirmedIdentityClub,
   IgnoredCourseDuplicate,
@@ -462,6 +463,11 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify({ participation_ids: participationIds }),
     }),
+  /** Les variantes de graphie d'une fiche, que l'import lui rattache (#1242). */
+  listAthleteAliases: (athleteId: number) =>
+    request<AthleteAliasList>(`/admin/athletes/${athleteId}/aliases`),
+  removeAthleteAlias: (athleteId: number, aliasId: number) =>
+    request<void>(`/admin/athletes/${athleteId}/aliases/${aliasId}`, { method: "DELETE" }),
   listIdentityReview: () => request<IdentityReviewList>("/admin/identity-review"),
   ignoreIdentityPair: (athleteIdA: number, athleteIdB: number) =>
     request<IdentityPairIgnoreResult>("/admin/identity-review/ignore", {

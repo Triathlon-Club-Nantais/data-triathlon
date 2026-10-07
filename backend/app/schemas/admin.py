@@ -255,6 +255,21 @@ class AthleteDetachRequest(BaseModel):
     participation_ids: list[StrictInt] = Field(min_length=1, max_length=500)
 
 
+class AthleteAliasOut(BaseModel):
+    """Une variante de graphie d'une fiche (#1242), en clés normalisées."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    last_name_key: str
+    first_name_key: str
+    created_at: datetime
+
+
+class AthleteAliasList(BaseModel):
+    aliases: list[AthleteAliasOut]
+
+
 class TeammateRef(BaseModel):
     """Un équipier de relais (#894) : sa fiche, ou son nom quand il n'en a pas.
 
