@@ -28,6 +28,7 @@ export default async function AdminQualityPage({
         <QualityQueueTable
           page={Number(sp.page)}
           filtres={{ id: sp.id, name: sp.name, date_from: sp.date_from, date_to: sp.date_to }}
+          includeJudged={sp.jugees === "1"}
         />
       </div>
     </PageShell>

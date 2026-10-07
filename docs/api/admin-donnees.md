@@ -75,6 +75,24 @@ et `{participations_deleted, athletes_purged, courses_reset}` respectivement),
 plus `204` vide — la purge annonçait son ampleur avant le geste mais rendait un
 succès muet, sans confirmer ce qu'elle avait détruit.
 
+## Pastilles des files de travail (#1232)
+
+Chaque file d'administration a une route de compte, `{total}` (schéma
+`QueueCount`), sous la garde de son écran. Les comptes qui ne figurent pas ici
+sont documentés avec leur écran (revue d'identité, licenciés du club) ou
+préexistaient (`/admin/pending-providers/count`, doublons, retours).
+
+| Route | Pouvoir | Compte |
+| --- | --- | --- |
+| `GET /admin/quality/count` | `quality:override` | Épreuves calculées non fiables **sans avis humain** (`reliability_override` nul). Un avis posé, fiable ou douteux, sort l'épreuve de la file. `GET /courses/count?unreliable=true` compte aussi les épreuves déjà jugées douteuses, et ne redescend jamais à zéro. |
+| `GET /admin/volunteer-actions/pending/count` | `athletes:volunteer_validate` | Déclarations de bénévolat `en_attente`, la taille de `GET /admin/volunteer-actions/pending`. |
+
+La file `/admin/quality` lit `GET /courses?awaiting_review=true` (et le
+`/courses/count` du même filtre) : elle montre ce que compte sa pastille, avec le
+même prédicat (`course_repository._filtered`). Sa bascule « Voir aussi les
+épreuves déjà jugées » revient à `unreliable=true`. Les deux paramètres sont
+additifs (Principe IV).
+
 ## Fusion de deux fiches d'athlète (#908)
 
 | Route | Pouvoir | Effet |

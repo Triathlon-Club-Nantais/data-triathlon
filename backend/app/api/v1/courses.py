@@ -78,6 +78,10 @@ def list_courses(
         False,
         description="Ne garde que les épreuves à revalider (indice de fiabilité défavorable).",
     ),
+    awaiting_review: bool = Query(
+        False,
+        description="Ne garde que les épreuves calculées non fiables sans avis humain (#1232).",
+    ),
     page: int = Query(1, ge=1, le=MAX_PAGE),
     page_size: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
@@ -88,6 +92,8 @@ def list_courses(
     aurait dupliqué cette pagination, ce tri et cette sérialisation pour le seul
     bénéfice d'un préfixe d'URL. Le paramètre n'expose rien de neuf —
     `CourseBrief` rend `is_reliable` et `quality_issues` depuis l'origine.
+    `awaiting_review=true` (#1232) restreint la file à ce que compte sa
+    pastille : les épreuves qu'aucun avis humain n'a encore tranchées.
 
     `id` (#718) retrouve une épreuve précise sans deviner son nom exact —
     utile quand on part d'un identifiant lu ailleurs (URL publique, journal
@@ -103,6 +109,7 @@ def list_courses(
         date_from=_parse_date(date_from),
         date_to=_parse_date(date_to),
         unreliable=unreliable,
+        awaiting_review=awaiting_review,
         page=page,
         page_size=page_size,
     )
@@ -121,6 +128,10 @@ def count_courses(
     unreliable: bool = Query(
         False,
         description="Ne garde que les épreuves à revalider (indice de fiabilité défavorable).",
+    ),
+    awaiting_review: bool = Query(
+        False,
+        description="Ne garde que les épreuves calculées non fiables sans avis humain (#1232).",
     ),
     db: Session = Depends(get_db),
 ):
@@ -142,6 +153,7 @@ def count_courses(
             date_from=_parse_date(date_from),
             date_to=_parse_date(date_to),
             unreliable=unreliable,
+            awaiting_review=awaiting_review,
         )
     )
 

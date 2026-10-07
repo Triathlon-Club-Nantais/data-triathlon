@@ -358,6 +358,8 @@ export const apiClient = {
       // `undefined`, ni `null`, ni `""` — un `false` partirait en
       // `?unreliable=false` et brouillerait les clés de cache pour rien.
       unreliable?: true;
+      // La file telle que la compte sa pastille : sans avis humain (#1232).
+      awaiting_review?: true;
       page?: number;
       page_size?: number;
     } = {},
@@ -370,6 +372,7 @@ export const apiClient = {
       date_from?: string;
       date_to?: string;
       unreliable?: true;
+      awaiting_review?: true;
     } = {},
   ) => request<{ total: number }>(`/courses/count${toQuery(opts)}`),
   getCourseDeletionImpact: (id: number) =>

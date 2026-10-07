@@ -96,6 +96,8 @@ export type FiltresCourses = {
   date_to?: string;
   /** La file de revalidation (#119). `true` seul — voir `client.listCourses`. */
   unreliable?: true;
+  /** La même file, réduite à ce que compte sa pastille (#1232). */
+  awaiting_review?: true;
 };
 
 export function useAdminCourses(page = 1, filtres: FiltresCourses = {}, enabled = true) {

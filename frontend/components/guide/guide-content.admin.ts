@@ -74,6 +74,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
     etapes: [
       "Ouvrir « Revalidation qualité » depuis la navigation admin.",
       "Inspecter une épreuve signalée, corriger si besoin, puis trancher : « Marquer fiable », « Marquer douteuse », ou « Revenir à l'avis calculé » pour annuler un verdict manuel.",
+      "La file ne montre que les épreuves encore sans avis, celles que compte la pastille de la navigation : un avis posé, fiable ou douteux, l'en sort. « Voir aussi les épreuves déjà jugées » y ajoute celles marquées douteuses, pour revenir sur un verdict.",
     ],
     captures: [{ src: "/guide/admin/quality.jpg", alt: "Liste des épreuves en revalidation qualité" }],
   },
