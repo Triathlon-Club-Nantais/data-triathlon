@@ -117,6 +117,7 @@ fournisseur — à lire **avant** de toucher au module correspondant.
 | runnerbreizh | HTML statique paginé (50 lignes/page) ; ni dossard, ni club, ni date de naissance ; URL canonicalisée par allowlist. | `docs/scrapers/runnerbreizh.md` |
 | Sporthive (MYLAPS) | API JSON publique sur `eventresults-api.speedhive.com` ; `size` plafonné à 10, statut dans `validity`, une course incomplète est écartée sans perdre l'événement. | `docs/scrapers/sporthive.md` |
 | chronoweb | HTML statique, une requête pour l'événement entier ; une ligne = un **passage**, pas un participant. | `docs/scrapers/chronoweb.md` |
+| nextrun.fr | API JSON publique, deux routes (courses d'une édition, lignes d'une course paginées par 200 au plus) ; un duo publie chaque équipier sur sa ligne, importée telle quelle comme chez runnerbreizh ; « Licence Expérience » n'est pas un club. | `docs/scrapers/nextrun.md` |
 
 Types d'épreuve : Triathlon XS/S/M/L/XL, Duathlon XS/S/M/L/XL, SwimRun S/M/L,
 Aquathlon XS/S/M/L/XL, Aquarun, Bike & Run, Swim Bike XS/S/M/L/XL, Cross

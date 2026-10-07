@@ -71,6 +71,9 @@ LIVE_URLS = {
     # donnée avec son paramètre d'épreuve, la forme réellement collée par les
     # contributeurs : le scraper doit importer l'événement entier.
     "chronoweb": "https://chronoweb.com/resultats_evenement.php?event=323&epreuve=1147",
+    # Défi-Swimrun de Lancieux 2026 : 6 courses publiées (3 duos, 3 solos), une
+    # ligne par personne y compris en duo ; la course « Kids » n'est pas publiée.
+    "nextrun": "https://nextrun.fr/events/defi-swimrun-de-lancieux/editions/2026/results",
 }
 
 #: Hors de `LIVE_URLS`, qui est indexé **par provider** — une seconde entrée
@@ -718,3 +721,13 @@ def test_chronoweb_altriman_2025_transitions_longues():
     assert longues, "chronoweb : aucune transition longue, le calcul est suspect"
     for r in longues[:20]:
         assert r.t1_time < r.total_time
+
+
+@pytest.mark.integration
+def test_nextrun_lancieux_importe_toutes_les_lignes_publiees():
+    """Chaque course publiée est importée en entier, pages suivies (#1224)."""
+    results, _trace = registry.scrape_event_all(LIVE_URLS["nextrun"])
+    par_course = Counter(r.event_name for r in results)
+    assert len(par_course) == 6
+    assert par_course["Défi-Swimrun de Lancieux - SwimRun S - Duo"] == 187
+    assert all(r.is_relay == r.event_name.endswith("Duo") for r in results)

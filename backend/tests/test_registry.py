@@ -225,6 +225,7 @@ _JETONS_PROVIDERS = [
     "runnerbreizh.fr",
     "sporthive.com",
     "chronoweb.com",
+    "nextrun.fr",
 ]
 
 #: Les quatre familles de contournement de l'issue #49, plus la confusion userinfo.

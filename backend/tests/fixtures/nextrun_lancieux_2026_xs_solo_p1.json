@@ -1,0 +1,61 @@
+{
+ "rows": [
+  {
+   "bib_number": "247",
+   "first_name": "Rémi",
+   "last_name": "DELFOSSE",
+   "club": "Licence Expérience",
+   "team_name": "",
+   "gender": "male",
+   "category": "S3",
+   "status": "finisher",
+   "official_time_ms": 2187000,
+   "real_time_ms": null,
+   "laps": null,
+   "distance_m": null,
+   "scratch_rank": 1,
+   "gender_rank": 1,
+   "category_rank": 1,
+   "is_orphan": false
+  },
+  {
+   "bib_number": "234",
+   "first_name": "Noé",
+   "last_name": "CABEL",
+   "club": "Licence Expérience",
+   "team_name": "",
+   "gender": "male",
+   "category": "S4",
+   "status": "finisher",
+   "official_time_ms": 2187000,
+   "real_time_ms": null,
+   "laps": null,
+   "distance_m": null,
+   "scratch_rank": 2,
+   "gender_rank": 2,
+   "category_rank": 1,
+   "is_orphan": false
+  },
+  {
+   "bib_number": "283",
+   "first_name": "Bertrand",
+   "last_name": "MARTIN",
+   "club": "",
+   "team_name": "",
+   "gender": "male",
+   "category": "",
+   "status": "finisher",
+   "official_time_ms": 2499000,
+   "real_time_ms": null,
+   "laps": null,
+   "distance_m": null,
+   "scratch_rank": 19,
+   "gender_rank": 18,
+   "category_rank": null,
+   "is_orphan": true
+  }
+ ],
+ "total": 4,
+ "page": 1,
+ "page_size": 200
+}
