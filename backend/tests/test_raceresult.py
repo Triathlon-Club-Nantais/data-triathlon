@@ -3992,3 +3992,26 @@ def test_la_fixture_342814_ne_porte_aucun_nom_d_equipe_reel():
 
     assert groupes
     assert all(re.fullmatch(r"#\d+_EQUIPE \d+", cle) for cle in groupes)
+
+
+def test_scrape_event_all_312695_ranked_row_with_masked_time_stays_finisher(monkeypatch):
+    """#1238, Duathlon de Cholet 312695 contest 3 : RaceResult masque par `_`
+    des caractères de certains enregistrements (`'_2:30:14'`). Le temps
+    illisible est écarté, mais la ligne classée 28e reste finisher, rang
+    intact ; les vrais DNF et DSQ restent sans rang."""
+    def routeur(listname, contest):
+        return "312695_pub_c3.json" if contest == "3" else None
+
+    _monte_pipeline_fixtures(monkeypatch, "312695", routeur)
+
+    res = {r.bib_number: r for r in raceresult.scrape_event_all(
+        "https://my.raceresult.com/312695/results"
+    )}
+
+    masque = res["2227"]
+    assert masque.status == "finisher"
+    assert masque.rank_overall == 28
+    assert masque.total_time == ""
+    assert res["2207"].status == "finisher" and res["2207"].total_time == "02:29:44"
+    assert res["2186"].status == "DNF" and res["2186"].rank_overall is None
+    assert res["2226"].status == "DSQ" and res["2226"].rank_overall is None
