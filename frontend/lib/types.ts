@@ -1151,8 +1151,6 @@ export interface IdentityReviewList {
 export interface IdentityClubConfirmResult {
   athlete_id: number;
   club_key: string;
-  /** Libellé affichable de la clé (#1243). */
-  club: string;
   confirmed_at: string;
 }
 
@@ -1171,6 +1169,8 @@ export interface ConfirmedIdentityClub {
   nom: string;
   prenom: string;
   club_key: string;
+  /** Libellé affichable de la clé (#1243). */
+  club: string;
   confirmed_at: string;
 }
 
