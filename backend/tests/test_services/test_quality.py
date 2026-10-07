@@ -54,6 +54,19 @@ def test_rangs_non_contigus():
     assert report.anomalies[quality.ANOMALY_RANK_GAP] == 2  # 2 et 3 manquants
 
 
+def test_excluded_youth_ranks_are_not_gaps():
+    """#1222: ranks left free by youth rows excluded at import are not gaps."""
+    parts = [_part(rank_overall=1), _part(rank_overall=4)]
+    report = quality.analyze(parts, excluded_ranks={2, 3, 7})
+    assert report.is_reliable
+
+
+def test_a_real_gap_is_still_a_gap_next_to_excluded_youth_ranks():
+    parts = [_part(rank_overall=1), _part(rank_overall=5)]
+    report = quality.analyze(parts, excluded_ranks={2})
+    assert report.anomalies[quality.ANOMALY_RANK_GAP] == 2
+
+
 def test_solos_et_relais_sont_classes_separement():
     """TimePulse mélange solos et relais : deux « rang 1 » ne sont pas un doublon."""
     parts = [

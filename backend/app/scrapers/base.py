@@ -62,6 +62,9 @@ class ScrapedResult:
     # Résultat déclaré non encore vérifié par un bénévole (#270). `False` pour
     # tout import : c'est `POST /participations` qui le force à `True`.
     is_pending_validation: bool = False
+    #: Rangs des lignes jeunes du même heat écartées à l'import (#881) : posés par
+    #: l'import (#1222) pour que leurs places libres ne passent pas pour des trous.
+    excluded_ranks: frozenset[int] = frozenset()
     raw_data: dict[str, Any] = field(default_factory=dict)
 
 

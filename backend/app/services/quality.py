@@ -11,7 +11,7 @@ listées ci-dessous. Le rapport est stocké sur `Course` (`is_reliable` +
 Une course est fiable si, et seulement si, aucune anomalie n'est relevée : c'est
 un signal de revue humaine, pas une note. Tout seuil de tolérance serait arbitraire.
 """
-from collections.abc import Iterable
+from collections.abc import Iterable, Set
 from dataclasses import dataclass
 
 from app.scrapers.base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
@@ -75,11 +75,13 @@ def _has_invalid_time(participation) -> bool:
     return secondes is None or secondes <= 0
 
 
-def _rank_anomalies(finishers: list) -> dict[str, int]:
+def _rank_anomalies(finishers: list, excluded_ranks: Set[int]) -> dict[str, int]:
     """Doublons et trous dans le classement des finishers.
 
     Solos et relais sont classés séparément (TimePulse mélange les deux dans une
-    même course) : deux « rang 1 » n'y sont pas un doublon.
+    même course) : deux « rang 1 » n'y sont pas un doublon. Un rang de
+    `excluded_ranks`, tenu par une ligne jeune écartée à l'import, n'est pas un
+    trou (#1222).
     """
     anomalies: dict[str, int] = {}
     for is_relay in (False, True):
@@ -93,7 +95,8 @@ def _rank_anomalies(finishers: list) -> dict[str, int]:
         distinct = set(ranks)
         duplicates = len(ranks) - len(distinct)
         # Un classement sain va de 1 à N sans trou : `max` borne le nombre attendu.
-        gaps = max(distinct) - len(distinct)
+        top = max(distinct)
+        gaps = top - len(distinct | {r for r in excluded_ranks if r < top})
         if duplicates:
             anomalies[ANOMALY_DUPLICATE_RANK] = anomalies.get(ANOMALY_DUPLICATE_RANK, 0) + duplicates
         if gaps:
@@ -101,11 +104,14 @@ def _rank_anomalies(finishers: list) -> dict[str, int]:
     return anomalies
 
 
-def analyze(participations: Iterable, *, duplicate_bibs: int = 0) -> QualityReport:
+def analyze(
+    participations: Iterable, *, duplicate_bibs: int = 0, excluded_ranks: Set[int] = frozenset(),
+) -> QualityReport:
     """Rapport de fiabilité d'une course.
 
     `participations` = celles réellement persistées ; `duplicate_bibs` = les lignes
-    scrapées jetées faute de dossard unique, connues du seul `import_service`.
+    scrapées jetées faute de dossard unique, et `excluded_ranks` les rangs des
+    lignes jeunes écartées, tous deux connus du seul import.
     """
     participations = list(participations)
     anomalies: dict[str, int] = {}
@@ -139,6 +145,6 @@ def analyze(participations: Iterable, *, duplicate_bibs: int = 0) -> QualityRepo
     if with_result:
         anomalies[ANOMALY_NON_FINISHER_WITH_RESULT] = with_result
 
-    anomalies.update(_rank_anomalies(finishers))
+    anomalies.update(_rank_anomalies(finishers, excluded_ranks))
 
     return QualityReport(is_reliable=not anomalies, anomalies=anomalies)
