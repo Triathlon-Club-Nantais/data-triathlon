@@ -19,7 +19,7 @@ Un résultat compte pour le club si :
 
 Nulle part ailleurs la règle ne s'écrit.
 """
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 
 from sqlalchemy import and_, case, false, func, literal, or_, select, update
 from sqlalchemy.orm import Session, aliased
@@ -41,11 +41,16 @@ def _ambiguous_label(club, labels: ClubLabels) -> ColumnElement[bool]:
     return _normalise_sql(club).in_(sorted(labels.ambiguous))
 
 
-def linked_member(athlete_id, season=None) -> ColumnElement[bool]:
-    """Un licencié rattaché à cette fiche, pour `season` ou n'importe quelle saison."""
+def linked_member(
+    athlete_id, season=None, *, seasons: Collection[int] | None = None
+) -> ColumnElement[bool]:
+    """Un licencié rattaché à cette fiche, pour `season`, l'une des `seasons`, ou
+    n'importe quelle saison si aucune n'est donnée."""
     clauses = [ClubMember.athlete_id == athlete_id, ClubMember.link_status.in_(LINKED)]
     if season is not None:
         clauses.append(ClubMember.season == season)
+    if seasons:
+        clauses.append(ClubMember.season.in_(sorted(seasons)))
     # `correlate_except` : l'équipier de la condition 2 vient de la requête englobante.
     return select(literal(1)).where(*clauses).correlate_except(ClubMember).exists()
 
