@@ -1,14 +1,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { SessionUser } from "@/lib/types";
 
-const { getSession } = vi.hoisted(() => ({ getSession: vi.fn() }));
+const { getSession, countFeedback, countIdentityReview } = vi.hoisted(() => ({
+  getSession: vi.fn(),
+  countFeedback: vi.fn(),
+  countIdentityReview: vi.fn(),
+}));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { getSession } };
+  return { ...original, apiClient: { getSession, countFeedback, countIdentityReview } };
 });
 
 import { AdminIndex } from "./AdminIndex";
@@ -35,6 +39,8 @@ function afficher() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  countFeedback.mockResolvedValue({ nouveau: 0 });
+  countIdentityReview.mockResolvedValue({ total: 0 });
 });
 
 describe("AdminIndex", () => {
@@ -93,5 +99,29 @@ describe("AdminIndex", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/injoignable/i)).toBeNull();
     expect(screen.queryByText(/Aucun écran d'administration/)).toBeNull();
+  });
+});
+
+describe("AdminIndex, files « À traiter » (#1246)", () => {
+  it("met en tête les files ouvertes à la session, avec leur compteur et leur lien", async () => {
+    countFeedback.mockResolvedValue({ nouveau: 3 });
+    getSession.mockResolvedValue(SESSION(["feedback:read", "athletes:write", "admin_log:read"]));
+    afficher();
+
+    const files = await screen.findByRole("region", { name: "À traiter" });
+    const retours = within(files).getByRole("link", { name: /Retours utilisateurs/ });
+    expect(retours).toHaveAttribute("href", "/admin/retours-utilisateurs");
+    expect(await within(retours).findByText("3 nouveaux retours utilisateurs")).toBeInTheDocument();
+    expect(await within(files).findByText("Rien en attente")).toBeInTheDocument();
+    expect(within(files).queryByRole("link", { name: /Journal/ })).toBeNull();
+  });
+
+  it("range les autres écrans sous leurs sous-sections, sans répéter les files", async () => {
+    getSession.mockResolvedValue(SESSION(["feedback:read", "admin_log:read"]));
+    afficher();
+
+    expect(await screen.findByRole("heading", { name: "Conformité" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Journal d'administration/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Retours utilisateurs/ })).toHaveLength(1);
   });
 });

@@ -54,3 +54,32 @@ export function useNavBadges(
     validation: validation.data?.total,
   };
 }
+
+/**
+ * Nom accessible du compteur d'une entrée (#119, #726) : un lecteur d'écran
+ * annonçant juste le chiffre (« Revalidation qualité 4 ») ne dit pas ce qu'il
+ * dénombre. Une clé par entrée du `switch`, sur le même patron que
+ * `useNavBadges`. Partagé par le rail et le sommaire `/admin` (#1246).
+ */
+export function libelleCompteur(badge: string | undefined, n: number): string {
+  switch (badge) {
+    case "quality":
+      return `${n} épreuve${n > 1 ? "s" : ""} à revalider`;
+    case "duplicates":
+      return `${n} doublon${n > 1 ? "s" : ""} suspect${n > 1 ? "s" : ""}`;
+    case "providers":
+      return `${n} fournisseur${n > 1 ? "s" : ""} en attente`;
+    case "feedback":
+      return `${n} nouveau${n > 1 ? "x" : ""} retour${n > 1 ? "s" : ""} utilisateur${n > 1 ? "s" : ""}`;
+    case "identities":
+      return `${n} cas d'identité à trancher`;
+    case "members":
+      return `${n} licencié${n > 1 ? "s" : ""} à rattacher`;
+    case "volunteer":
+      return `${n} déclaration${n > 1 ? "s" : ""} de bénévolat en attente`;
+    case "validation":
+      return `${n} résultat${n > 1 ? "s" : ""} à valider`;
+    default:
+      return String(n);
+  }
+}

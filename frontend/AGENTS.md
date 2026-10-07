@@ -290,6 +290,19 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `--background` (`--tcn-fill` = `--tcn-paper` = `#f4f3f0`, ratio 1,00:1) —
   `animate-pulse` n'animant que l'opacité, tous les squelettes du front étaient
   invisibles.
+- **Administration en sous-sections, files en tête du sommaire** (#1246,
+  #1232) : chaque entrée d'« Administration » porte un `groupe` (À traiter,
+  Données, Paramétrage, Conformité, Maintenance), rendu en intertitre par le
+  rail déplié et par `AdminIndex` ; les entrées d'un groupe se suivent dans la
+  table, `nav.config.test.ts` le tient. Le sommaire met les files « À
+  traiter » en tête, avec le compteur de leur pastille (`useNavBadges`, même
+  nom accessible via `libelleCompteur`), et ne les répète pas en tuiles. Chaque
+  file a sa pastille et sa route de compte sous la garde de son écran ; celle
+  de « Validation des épreuves » est gardée par le cookie bénévoles, illisible
+  côté client, donc demandée pour un compte d'administration seulement (401
+  avalé). La palette ⌘K mène aussi aux écrans : `AthletePicker` reçoit les
+  destinations visibles du rail et les filtre sur place, en liens hors du
+  combobox des athlètes.
 - **Navigation** — `components/layout/nav.config.ts` en est la description
   **unique** ; ajouter une destination y tient en une ligne. Deux échelons de
   visibilité, à ne pas confondre : `minRole` ne distingue qu'anonyme et

@@ -1,14 +1,14 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
 import { Ellipsis, LogIn, Menu, PanelLeft, Plus, RotateCw, Search, X } from "lucide-react";
 import { Avatar, Button } from "@/components/tcn";
 import { SessionEnLecture, UserMenu } from "@/components/auth/UserMenu";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/lib/queries/auth";
-import { useNavBadges } from "@/lib/queries/nav-badges";
+import { libelleCompteur, useNavBadges } from "@/lib/queries/nav-badges";
 import { AthletePicker, ATHLETE_CHANGED_EVENT, OPEN_PICKER_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete, type PickerMode } from "./AthletePicker";
 import { BOTTOM_BAR_MAX, NAV, ROLE, estVisible, type NavItem, type NavSection } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
@@ -504,6 +504,13 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
       {pickerMode && (
         <AthletePicker
           mode={pickerMode}
+          ecrans={sections.flatMap((sec) =>
+            sec.items.map((i) => ({
+              label: i.label,
+              href: i.href,
+              contexte: i.groupe ? `${sec.label} · ${i.groupe}` : sec.label,
+            })),
+          )}
           onClose={() => setPickerMode(null)}
           onPick={(a) => {
             if (pickerMode === "select") {
@@ -813,14 +820,15 @@ function NavContent({
                 // bouton dépliant ci-dessus : deux gestes pour une seule
                 // destination n'ont plus de sens (#482, NAV-2).
                 <div style={{ display: "flex", flexDirection: "column", gap: expanded ? 2 : 0 }}>
-                  {sec.items.map((it) => (
-                    <Entree
-                      key={it.id}
-                      item={it}
-                      actif={isActive(it.href)}
-                      expanded={expanded}
-                      onNavigate={onNavigate}
-                    />
+                  {sec.items.map((it, n) => (
+                    <Fragment key={it.id}>
+                      {/* Intertitre de sous-section (#1246), au rail déplié seul :
+                          replié, une section à plusieurs entrées n'est qu'une tuile. */}
+                      {expanded && it.groupe && it.groupe !== sec.items[n - 1]?.groupe && (
+                        <div style={intertitre}>{it.groupe}</div>
+                      )}
+                      <Entree item={it} actif={isActive(it.href)} expanded={expanded} onNavigate={onNavigate} />
+                    </Fragment>
                   ))}
                 </div>
               )}
@@ -845,36 +853,6 @@ function NavContent({
  * retirait un second prefetch RSC — mesuré 2 fois à l'atterrissage rail
  * persisté déplié, 3 fois après un pliage/dépliage à la main.
  */
-
-/**
- * Nom accessible du compteur d'une entrée (#119, #726) : un lecteur d'écran
- * annonçant juste le chiffre (« Revalidation qualité 4 ») ne dit pas ce qu'il
- * dénombre. Une clé par entrée du `switch`, sur le même patron que
- * `useNavBadges`.
- */
-function libelleCompteur(item: Destination): string {
-  const n = item.count ?? 0;
-  switch (item.badge) {
-    case "quality":
-      return `${n} épreuve${n > 1 ? "s" : ""} à revalider`;
-    case "duplicates":
-      return `${n} doublon${n > 1 ? "s" : ""} suspect${n > 1 ? "s" : ""}`;
-    case "providers":
-      return `${n} fournisseur${n > 1 ? "s" : ""} en attente`;
-    case "feedback":
-      return `${n} nouveau${n > 1 ? "x" : ""} retour${n > 1 ? "s" : ""} utilisateur${n > 1 ? "s" : ""}`;
-    case "identities":
-      return `${n} cas d'identité à trancher`;
-    case "members":
-      return `${n} licencié${n > 1 ? "s" : ""} à rattacher`;
-    case "volunteer":
-      return `${n} déclaration${n > 1 ? "s" : ""} de bénévolat en attente`;
-    case "validation":
-      return `${n} résultat${n > 1 ? "s" : ""} à valider`;
-    default:
-      return String(n);
-  }
-}
 
 function Entree({
   item,
@@ -953,7 +931,7 @@ function Entree({
                 >
                   {item.count}
                 </span>
-                <span className="sr-only">{libelleCompteur(item)}</span>
+                <span className="sr-only">{libelleCompteur(item.badge, item.count ?? 0)}</span>
               </span>
             )}
           </>
@@ -984,6 +962,14 @@ const eyebrow: CSSProperties = {
   textTransform: "uppercase",
   color: "var(--tcn-orange-deeper)",
   padding: "0 2px 2px",
+};
+
+const intertitre: CSSProperties = {
+  fontFamily: "var(--tcn-font-cond)",
+  fontWeight: 700,
+  fontSize: 12,
+  color: "var(--tcn-text-muted)",
+  padding: "8px 12px 2px",
 };
 
 const boutonFantome: CSSProperties = {

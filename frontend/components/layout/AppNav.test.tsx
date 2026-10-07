@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
@@ -105,6 +105,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 });
 
 import { AppNav } from "./AppNav";
+import { NAV, ROLE, estVisible } from "./nav.config";
 import { clearAthlete, readAthlete, writeAthlete } from "./AthletePicker";
 
 function afficher(session: SessionUser | null, { initialExpanded = false }: { initialExpanded?: boolean } = {}) {
@@ -408,7 +409,7 @@ describe("AppNav: searching is not choosing (#952)", () => {
 
   async function choisirDansLaPalette(verbe = "Ouvrir la fiche de") {
     const modale = await screen.findByRole("dialog");
-    await userEvent.type(within(modale).getByPlaceholderText("Rechercher un nom…"), "martin");
+    await userEvent.type(within(modale).getByRole("combobox"), "martin");
     await userEvent.click(await screen.findByRole("option", { name: `${verbe} Paul Martin, TCN, 2 épreuves` }));
   }
 
@@ -1679,5 +1680,50 @@ describe("pastilles des autres files (#1232)", () => {
     await deplier();
 
     expect(await screen.findByText("2 résultats à valider")).toHaveClass("sr-only");
+  });
+});
+
+describe("Administration en sous-sections (#1246)", () => {
+  it("intitule les sous-sections que la session ouvre, et elles seules", async () => {
+    afficher(habilite("feedback:read", "admin_log:read"), { initialExpanded: true });
+
+    expect(await screen.findByText("À traiter")).toBeInTheDocument();
+    expect(screen.getByText("Conformité")).toBeInTheDocument();
+    expect(screen.queryByText("Paramétrage")).not.toBeInTheDocument();
+  });
+});
+
+describe("recherche ⌘K vers les écrans (#1246)", () => {
+  const TOUS_LES_POUVOIRS = NAV.flatMap((s) => s.items)
+    .flatMap((i) => (Array.isArray(i.permission) ? i.permission : i.permission ? [i.permission] : []))
+    .concat("pages:preview");
+
+  it("atteint chaque entrée d'administration visible", async () => {
+    afficher({ ...habilite(...TOUS_LES_POUVOIRS), can_administer: true });
+    await screen.findAllByRole("button", { name: "Administration" });
+    await userEvent.keyboard("{Control>}k{/Control}");
+    const champ = await screen.findByRole("combobox", { name: /Rechercher/ });
+
+    const ecrans = NAV.filter((s) => s.id === "admin")
+      .flatMap((s) => s.items)
+      .filter((i) => estVisible(i, new Set(TOUS_LES_POUVOIRS), ROLE.CONNECTED));
+    expect(ecrans.length).toBeGreaterThan(10);
+    for (const ecran of ecrans) {
+      fireEvent.change(champ, { target: { value: ecran.label } });
+      const liste = await screen.findByRole("list", { name: "Écrans" });
+      const liens = within(liste).getAllByRole("link");
+      expect(liens.map((l) => l.getAttribute("href")), ecran.label).toContain(ecran.href);
+    }
+  });
+
+  it("ferme la palette en suivant un écran", async () => {
+    afficher(habilite("admin_log:read"));
+    await screen.findAllByRole("link", { name: /Journal/ });
+    await userEvent.keyboard("{Control>}k{/Control}");
+    await userEvent.type(await screen.findByRole("combobox", { name: /Rechercher/ }), "journal");
+
+    await userEvent.click(within(await screen.findByRole("list", { name: "Écrans" })).getByRole("link"));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
