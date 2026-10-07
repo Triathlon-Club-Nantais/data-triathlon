@@ -20,6 +20,9 @@ export const queryKeys = {
   athleteMergeImpact: (keptId: number, absorbedId: number) =>
     ["athlete-merge-impact", keptId, absorbedId] as const,
   identityReview: () => ["identity-review"] as const,
+  // Sous le préfixe de la revue : écarter ou confirmer les rafraîchit aussi (#1243).
+  ignoredIdentityPairs: () => ["identity-review", "ignored"] as const,
+  confirmedIdentityClubs: () => ["identity-review", "confirmed-clubs"] as const,
   // Clé distincte de `courseParticipations` : celle-ci stocke un `CourseDetail`,
   // l'autre un `Participation[]`. Même clé, deux formes = un écran qui plante.
   adminCourseDetail: (courseId: number, q: string) =>
@@ -31,6 +34,7 @@ export const queryKeys = {
   courseDuplicates: () => ["course-duplicates"] as const,
   // Sous le même préfixe que la liste, à dessein : voir `adminCoursesCount`.
   courseDuplicatesCount: () => ["course-duplicates", "count"] as const,
+  ignoredCourseDuplicates: () => ["course-duplicates", "ignored"] as const,
   courseMergeImpact: (courseId: number, absorbedId: number) =>
     ["course-merge-impact", courseId, absorbedId] as const,
   adminUsers: () => ["admin-users"] as const,

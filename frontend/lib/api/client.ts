@@ -3,6 +3,9 @@ import type {
   AdminActionLogPage,
   AdminAthlete,
   AthleteMergeImpact,
+  ConfirmedIdentityClub,
+  IgnoredCourseDuplicate,
+  IgnoredIdentityPair,
   IdentityClubConfirmResult,
   IdentityPairIgnoreResult,
   IdentityReviewList,
@@ -438,6 +441,10 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify({ course_id_a: courseIdA, course_id_b: courseIdB }),
     }),
+  listIgnoredCourseDuplicates: () =>
+    request<{ pairs: IgnoredCourseDuplicate[] }>("/admin/courses/duplicates/ignored"),
+  unignoreCourseDuplicate: (pairId: number) =>
+    request<void>(`/admin/courses/duplicates/ignored/${pairId}`, { method: "DELETE" }),
   /** Ce que la fusion de `absorbedId` dans `keptId` ferait, sans rien écrire (#908). */
   getAthleteMergeImpact: (keptId: number, absorbedId: number) =>
     request<AthleteMergeImpact>(
@@ -466,6 +473,14 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify({ athlete_id: athleteId, club_key: clubKey }),
     }),
+  listIgnoredIdentityPairs: () =>
+    request<{ pairs: IgnoredIdentityPair[] }>("/admin/identity-review/ignored"),
+  unignoreIdentityPair: (pairId: number) =>
+    request<void>(`/admin/identity-review/ignored/${pairId}`, { method: "DELETE" }),
+  listConfirmedIdentityClubs: () =>
+    request<{ clubs: ConfirmedIdentityClub[] }>("/admin/identity-review/confirmed-clubs"),
+  unconfirmIdentityClub: (knownId: number) =>
+    request<void>(`/admin/identity-review/confirmed-clubs/${knownId}`, { method: "DELETE" }),
   updateAthlete: (id: number, champs: Partial<AdminAthleteUpdate>) =>
     request<AdminAthlete>(`/admin/athletes/${id}`, {
       method: "PATCH",
@@ -800,6 +815,8 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify({ athlete_id: athleteId }),
     }),
+  unlinkClubMember: (memberId: number) =>
+    request<ClubMember>(`/admin/club-members/${memberId}/link`, { method: "DELETE" }),
 
   // ── Retours utilisateurs (#267) ────────────────────────────────────────────
   // Route publique, et son chemin le dit : `/feedback`, hors de `/admin` où

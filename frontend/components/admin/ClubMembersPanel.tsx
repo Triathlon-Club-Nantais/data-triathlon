@@ -15,7 +15,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useImportClubMembers, useLinkClubMember, useSyncClubMembers } from "@/lib/queries/admin";
+import { UndoList } from "@/components/admin/ArbitrationUndoList";
+import {
+  useImportClubMembers,
+  useLinkClubMember,
+  useSyncClubMembers,
+  useUnlinkClubMember,
+} from "@/lib/queries/admin";
 import type { ClubMember, ClubMembersSeason } from "@/lib/types";
 import { seasonLabel } from "@/lib/utils/season";
 
@@ -110,11 +116,39 @@ export function ClubMembersPanel({
               </li>
             ))}
           </ul>
+          <RattachementsManuels membres={data.members.filter((m) => m.link_status === "manual")} />
         </Card>
       )}
 
       <ClubMembersImport key={season} defaultSeason={season - 1} />
     </div>
+  );
+}
+
+function RattachementsManuels({ membres }: { membres: ClubMember[] }) {
+  const annuler = useUnlinkClubMember();
+  return (
+    <UndoList
+      title="Rattachements faits à la main"
+      empty="Aucun rattachement fait à la main pour cette saison."
+      pending={annuler.isPending}
+      items={membres.map((m) => ({
+        id: m.id,
+        label: `${m.nom} ${m.prenom} → fiche n° ${m.athlete_id}`,
+        undoLabel: `Annuler le rattachement de ${m.nom} ${m.prenom}`,
+      }))}
+      onUndo={(id) =>
+        annuler.mutate(id, {
+          onSuccess: (m) =>
+            toast.success(
+              m.athlete_id === null
+                ? `${m.nom} ${m.prenom} revient dans les licenciés à rattacher.`
+                : `${m.nom} ${m.prenom} reprend son rattachement automatique.`,
+            ),
+          onError: (erreur: Error) => toast.error(erreur.message),
+        })
+      }
+    />
   );
 }
 

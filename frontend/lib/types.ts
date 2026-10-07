@@ -1142,6 +1142,28 @@ export interface IdentityClubConfirmResult {
   confirmed_at: string;
 }
 
+// Arbitrages à revoir et annuler (#1243).
+export interface IgnoredIdentityPair {
+  id: number;
+  ignored_at: string;
+  athletes: { id: number; nom: string; prenom: string }[];
+}
+
+export interface ConfirmedIdentityClub {
+  id: number;
+  athlete_id: number;
+  nom: string;
+  prenom: string;
+  club_key: string;
+  confirmed_at: string;
+}
+
+export interface IgnoredCourseDuplicate {
+  id: number;
+  ignored_at: string;
+  courses: { id: number; name: string; event_date: string | null }[];
+}
+
 export interface IdentityPairIgnoreResult {
   athlete_id_a: number;
   athlete_id_b: number;
