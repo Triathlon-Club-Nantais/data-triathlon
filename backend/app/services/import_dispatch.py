@@ -7,6 +7,7 @@ consommateurs, `cached_result` (court-circuit global par URL) et
 """
 import logging
 import queue
+import re
 import threading
 from collections.abc import Iterator
 from urllib.parse import urlparse
@@ -25,6 +26,8 @@ from app.services import cache
 
 logger = logging.getLogger(__name__)
 
+_DOUBLE_ENCODED = re.compile(r"%25([0-9A-Fa-f]{2})")
+
 
 def validate_url(url: str) -> str:
     """Refuse tout ce qui n'est pas une URL http(s) nommant un host.
@@ -34,7 +37,10 @@ def validate_url(url: str) -> str:
     aucun schéma Pydantic devant lui. L'ancien `startswith("http")` laissait
     passer `httpfoo://` comme une URL sans host (#49).
 
-    Ne réécrit rien au-delà du strip : `source_url` est la clé du cache TTL.
+    Ne réécrit rien au-delà du strip et d'un chemin encodé deux fois (#1225) :
+    `source_url` est la clé du cache TTL. Un `%25XX` dans le chemin vient d'un
+    copier-coller d'URL déjà encodée et répond 404 ; seule cette couche en trop
+    est retirée, `%20` ou `%C3%A9` restent tels quels.
 
     `urlparse` lève `ValueError` sur un host IPv6 malformé (ex. `https://[oops/x`) :
     à traiter comme une URL invalide parmi d'autres, pas comme un crash.
@@ -46,6 +52,8 @@ def validate_url(url: str) -> str:
         raise InvalidUrlError() from exc
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
         raise InvalidUrlError()
+    if "%25" in parsed.path:
+        url = parsed._replace(path=_DOUBLE_ENCODED.sub(r"%\1", parsed.path)).geturl()
     return url
 
 

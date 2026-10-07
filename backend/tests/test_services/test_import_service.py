@@ -2806,3 +2806,13 @@ def test_cache_probe_ends_its_read_transaction_after_each_heat(db_session):
     probe("https://www.klikego.com/resultats/inconnu/1")
 
     assert db_session.in_transaction() is False
+
+
+def test_validate_url_decode_un_chemin_encode_deux_fois():
+    """#1225 : un copier-coller d'URL déjà encodée donne `%2520` et un 404."""
+    from app.services.import_dispatch import validate_url
+
+    double = "https://www.chronosmetron.wiclax-results.com/Triathlon%2520de%2520Veign%C3%A9%25202024/"
+    assert validate_url(double) == (
+        "https://www.chronosmetron.wiclax-results.com/Triathlon%20de%20Veign%C3%A9%202024/"
+    )
