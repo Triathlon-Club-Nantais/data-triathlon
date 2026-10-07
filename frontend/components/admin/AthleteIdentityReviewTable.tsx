@@ -9,7 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { MergeAthletesDialog, nomDe } from "@/components/admin/MergeAthletesDialog";
-import { AideDuMotif, GestesDesFiches, GestesDuResultat } from "@/components/admin/IdentityCaseGestures";
+import { ReasonHelp, RecordGestures, ResultGestures } from "@/components/admin/IdentityCaseGestures";
 import { useConfirmIdentityClub, useIdentityReview, useIgnoreIdentityPair } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
@@ -59,7 +59,7 @@ function Conflits({ candidate }: { candidate: IdentityReviewCandidate }) {
                 {ligne.category ? ` · ${ligne.category}` : ""}
                 {ligne.total_time ? ` · ${ligne.total_time}` : ""}
                 {candidate.athletes.length > 1 ? ` · ${noms.get(ligne.athlete_id)}` : ""}
-                <GestesDuResultat candidate={candidate} conflit={conflit} ligne={ligne} />
+                <ResultGestures candidate={candidate} conflict={conflit} entry={ligne} />
               </li>
             ))}
           </ul>
@@ -200,8 +200,8 @@ function CarteCas({
               <LigneFiche key={fiche.id} fiche={fiche} />
             ))}
           </div>
-          <AideDuMotif candidate={candidate} />
-          <GestesDesFiches candidate={candidate} />
+          <ReasonHelp candidate={candidate} />
+          <RecordGestures candidate={candidate} />
           <Conflits candidate={candidate} />
           <ClubsAVerifier candidate={candidate} />
         </CardContent>

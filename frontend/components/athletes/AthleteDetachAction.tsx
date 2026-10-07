@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button, Modal } from "@/components/tcn";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
-import { useDetachParticipations } from "@/lib/queries/admin";
+import { useAthleteResults, useDetachParticipations } from "@/lib/queries/admin";
 import { useHydratedSession } from "@/lib/queries/auth";
 import type { Participation } from "@/lib/types";
 import { formatDate } from "@/lib/utils/date";
@@ -20,26 +20,27 @@ import { formatDate } from "@/lib/utils/date";
  * résultats que la fiche porte se séparent : là où elle n'est qu'équipière, le
  * résultat appartient au porteur du relais.
  *
- * Réutilisé par la revue d'identité (#1241) : `preselection` coche d'avance le
- * résultat d'une ligne en conflit, et `ouvrirLaNouvelleFiche={false}` laisse
- * l'admin sur la revue.
+ * Réutilisé par la revue d'identité (#1241) : sans `participations`, les
+ * résultats de la fiche ne se lisent qu'à l'ouverture de la fenêtre ;
+ * `preselectedIds` coche d'avance le résultat d'une ligne en conflit, et
+ * `openNewRecord={false}` laisse l'admin sur la revue.
  */
 export function AthleteDetachAction({
   athleteId,
   athleteName,
   participations,
-  preselection = [],
-  texte = "Séparer des résultats",
+  preselectedIds = [],
+  label = "Séparer des résultats",
   ariaLabel = `Séparer des résultats de ${athleteName}`,
-  ouvrirLaNouvelleFiche = true,
+  openNewRecord = true,
 }: {
   athleteId: number;
   athleteName: string;
-  participations: Participation[];
-  preselection?: number[];
-  texte?: string;
+  participations?: Participation[];
+  preselectedIds?: number[];
+  label?: string;
   ariaLabel?: string;
-  ouvrirLaNouvelleFiche?: boolean;
+  openNewRecord?: boolean;
 }) {
   const session = useHydratedSession();
   const pouvoirs = session.data?.permissions ?? [];
@@ -50,13 +51,15 @@ export function AthleteDetachAction({
   const declencheur = useRef<HTMLButtonElement>(null);
   const separation = useDetachParticipations();
   const router = useRouter();
+  const lazyResults = useAthleteResults(athleteId, autorise && ouvert && participations === undefined);
 
-  const portes = participations.filter((p) => p.athlete.id === athleteId);
-  if (!autorise || portes.length < 2) return null;
+  const portes = (participations ?? lazyResults.data ?? []).filter((p) => p.athlete.id === athleteId);
+  if (!autorise || (participations !== undefined && portes.length < 2)) return null;
 
   const nombre = coches.size;
-  const ficheVidee = nombre === portes.length;
-  const envoiPossible = nombre > 0 && !ficheVidee;
+  // Avant la lecture différée, aucune liste : ni refus affiché, ni envoi possible.
+  const ficheVidee = portes.length > 0 && nombre === portes.length;
+  const envoiPossible = portes.length > 0 && nombre > 0 && !ficheVidee;
   const libelle = `${nombre} résultat${nombre > 1 ? "s" : ""}`;
 
   function basculer(id: number) {
@@ -80,7 +83,7 @@ export function AthleteDetachAction({
       setConfirmation(false);
       fermer();
       router.refresh();
-      if (ouvrirLaNouvelleFiche) router.push(`/athletes/${nouvelle.id}`);
+      if (openNewRecord) router.push(`/athletes/${nouvelle.id}`);
     } catch (erreur) {
       toast.error((erreur as Error).message);
     }
@@ -93,12 +96,12 @@ export function AthleteDetachAction({
         variant="secondary"
         size="sm"
         onClick={() => {
-          setCoches(new Set(preselection));
+          setCoches(new Set(preselectedIds));
           setOuvert(true);
         }}
         aria-label={ariaLabel}
       >
-        {texte}
+        {label}
       </Button>
 
       {ouvert && !confirmation && (
@@ -121,6 +124,16 @@ export function AthleteDetachAction({
             Cochez les résultats d&apos;une autre personne nommée {athleteName}. Ils partiront sur une
             nouvelle fiche, distincte de celle-ci.
           </p>
+          {participations === undefined && lazyResults.isPending && (
+            <p role="status" style={{ margin: "0 0 12px", fontSize: 13, color: "var(--tcn-text-muted)" }}>
+              Lecture des résultats…
+            </p>
+          )}
+          {lazyResults.isError && (
+            <p role="alert" style={{ margin: "0 0 12px", fontSize: 13, color: "var(--tcn-text-muted)" }}>
+              Les résultats de la fiche n&apos;ont pas pu être lus. Fermez et réessayez.
+            </p>
+          )}
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
             {portes.map((p) => (
               <li key={p.id}>
