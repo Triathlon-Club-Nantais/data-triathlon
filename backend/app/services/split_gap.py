@@ -18,6 +18,7 @@ re-mesurant, pas ici.
 """
 import statistics
 
+from app.core.text import deaccent
 from app.services.mapping import (
     DEFAULT_SPLIT_KEYS,
     SPLIT_KEYS_BY_SPORT,
@@ -55,6 +56,14 @@ _SEGMENT_RANK: dict[str, int] = {
     for field, key in gabarit.items()
 }
 
+#: Libellés bruts usuels d'une source (RaceResult publie `Natation`, `Vélo`, `CAP`),
+#: comparés sans casse ni accent, et la clé canonique dont ils prennent le rang (#1234).
+_SOURCE_LABELS: dict[str, str] = {
+    "natation": "swim", "nat": "swim",
+    "velo": "bike", "cycle": "bike",
+    "cap": "run", "course": "run", "course a pied": "run",
+}
+
 #: Écart relatif à la médiane de l'épreuve au-delà duquel une ligne est signalée.
 #: Mesuré : 0 ligne sur les 4 150 évaluables de la base de dev.
 OUTLIER_RATIO = 0.05
@@ -81,10 +90,14 @@ def chronological(keys) -> list[str]:
 
     L'ordre d'apparition ne suffit pas : un premier participant sans natation
     chronométrée renvoyait la natation après la course à pied. Les clés hors
-    gabarit (libellés de la source) suivent, dans leur ordre reçu — `sorted` est
-    stable.
+    gabarit suivent, dans leur ordre reçu (`sorted` est stable). Un libellé usuel
+    de la source (`Natation`, `T1`, `Vélo`) prend le rang de sa clé canonique.
     """
-    return sorted(keys, key=lambda key: _SEGMENT_RANK.get(key, len(_SLOTS)))
+    def rank(key: str) -> int:
+        label = deaccent(key).strip().lower()
+        return _SEGMENT_RANK.get(_SOURCE_LABELS.get(label, label), len(_SLOTS))
+
+    return sorted(keys, key=rank)
 
 
 def gap(
