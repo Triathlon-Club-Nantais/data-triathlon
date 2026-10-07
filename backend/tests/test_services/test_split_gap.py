@@ -298,3 +298,20 @@ def test_chronological_ranks_source_labels_like_their_canonical_key():
 
 def test_chronological_keeps_unknown_labels_last():
     assert split_gap.chronological(["Tour 1", "CAP", "Natation"]) == ["Natation", "CAP", "Tour 1"]
+
+
+@pytest.mark.parametrize("keys", [
+    ["CAP", "T1", "Vélo", "T2", "CAP (2)"],
+    ["CAP 1", "T1", "Vélo", "T2", "CAP 2"],
+    ["Swim", "Transition 1", "Bike", "Transition 2", "Run"],
+])
+def test_chronological_keeps_a_received_race_order(keys):
+    """#1234 : un duathlon suffixé par `build_splits` ou des transitions en toutes lettres."""
+    assert split_gap.chronological(keys) == keys
+
+
+def test_chronological_never_moves_an_unknown_label_before_a_known_one_received_earlier():
+    assert split_gap.chronological(["CAP", "T1", "Tour 1", "Natation"]) == [
+        "Natation", "T1", "CAP", "Tour 1",
+    ]
+    assert split_gap.chronological(["Natation", "Tour 1", "Vélo"]) == ["Natation", "Tour 1", "Vélo"]
