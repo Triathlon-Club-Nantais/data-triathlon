@@ -195,14 +195,14 @@ describe("AthleteIdentityReviewTable", () => {
   });
 });
 
-const TOUS = ["athletes:write", "athletes:read", "participations:reassign", "participations:delete"];
+const ALL_POWERS = ["athletes:write", "athletes:read", "participations:reassign", "participations:delete"];
 
-const RESULTAT = (id: number, athleteId: number, club: string) =>
+const result = (id: number, athleteId: number, club: string) =>
   ({
     id, club, athlete: { id: athleteId }, course: { id: id * 10, name: `Course ${id}`, event_date: "2025-06-01" },
   }) as unknown as Participation;
 
-const PAIRE = (reason: IdentityReviewCandidate["reason"], label: string): IdentityReviewList => ({
+const pair = (reason: IdentityReviewCandidate["reason"], label: string): IdentityReviewList => ({
   candidates: [
     {
       reason, reason_label: label, athletes: [FICHE(10, "DUPONT", "Jean"), FICHE(11, "JEAN", "Dupont")],
@@ -213,49 +213,49 @@ const PAIRE = (reason: IdentityReviewCandidate["reason"], label: string): Identi
 
 describe("AthleteIdentityReviewTable : gestes et aide par motif (#1241)", () => {
   it("chaque carte renvoie vers la section du guide admin", async () => {
-    getSession.mockResolvedValue(session(TOUS));
+    getSession.mockResolvedValue(session(ALL_POWERS));
     listIdentityReview.mockResolvedValue(CAS);
-    getAthlete.mockResolvedValue({ participations: [] });
     afficher();
 
-    const cartes = await screen.findAllByRole("article");
-    for (const carte of cartes) {
-      expect(within(carte).getByRole("link", { name: /aide/i })).toHaveAttribute("href", "/admin/guide#identites");
+    const cards = await screen.findAllByRole("article");
+    for (const card of cards) {
+      expect(within(card).getByRole("link", { name: /aide/i })).toHaveAttribute("href", "/admin/guide#identites");
     }
   });
 
-  it("same_course_bibs : chaque ligne en conflit se rattache, se supprime ou se sépare", async () => {
-    getSession.mockResolvedValue(session(TOUS));
+  it("same_course_bibs : chaque ligne en conflit se rattache, se supprime ou se sépare, sans rien lire d'avance", async () => {
+    getSession.mockResolvedValue(session(ALL_POWERS));
     listIdentityReview.mockResolvedValue(CAS);
-    getAthlete.mockResolvedValue({ participations: [RESULTAT(1, 7, "TCN"), RESULTAT(2, 7, "TCN")] });
     afficher();
 
-    const [carte] = await screen.findAllByRole("article");
-    expect(within(carte).getByText(/ce sont deux personnes/i)).toBeInTheDocument();
-    for (const dossard of ["2348", "1715"]) {
+    const [card] = await screen.findAllByRole("article");
+    expect(within(card).getByText(/ce sont deux personnes/i)).toBeInTheDocument();
+    for (const bib of ["2348", "1715"]) {
       expect(
-        within(carte).getByRole("button", { name: new RegExp(`Rattacher le résultat .*dossard ${dossard}`) }),
+        within(card).getByRole("button", { name: new RegExp(`Rattacher le résultat .*dossard ${bib}`) }),
       ).toBeInTheDocument();
       expect(
-        within(carte).getByRole("button", { name: new RegExp(`Supprimer le résultat .*dossard ${dossard}`) }),
+        within(card).getByRole("button", { name: new RegExp(`Supprimer le résultat .*dossard ${bib}`) }),
       ).toBeInTheDocument();
     }
-    expect(await within(carte).findAllByRole("button", { name: /Séparer le résultat/ })).toHaveLength(2);
+    expect(await within(card).findAllByRole("button", { name: /Séparer le résultat/ })).toHaveLength(2);
+    expect(getAthlete).not.toHaveBeenCalled();
   });
 
-  it("same_course_bibs : séparer une ligne la coche d'avance et reste sur la revue", async () => {
-    getSession.mockResolvedValue(session(TOUS));
+  it("same_course_bibs : séparer une ligne lit la fiche, la coche d'avance et reste sur la revue", async () => {
+    getSession.mockResolvedValue(session(ALL_POWERS));
     listIdentityReview.mockResolvedValue(CAS);
-    getAthlete.mockResolvedValue({ participations: [RESULTAT(1, 7, "TCN"), RESULTAT(2, 7, "TCN")] });
+    getAthlete.mockResolvedValue({ participations: [result(1, 7, "TCN"), result(2, 7, "TCN")] });
     detachParticipations.mockResolvedValue({ id: 99 });
     afficher();
 
-    const [carte] = await screen.findAllByRole("article");
-    await userEvent.click(await within(carte).findByRole("button", { name: /Séparer le résultat .*dossard 1715/ }));
-    const modale = await screen.findByRole("dialog");
-    expect(within(modale).getByRole("checkbox", { name: /Course 2/ })).toBeChecked();
-    expect(within(modale).getByRole("checkbox", { name: /Course 1/ })).not.toBeChecked();
-    await userEvent.click(within(modale).getByRole("button", { name: "Séparer vers une nouvelle fiche" }));
+    const [card] = await screen.findAllByRole("article");
+    await userEvent.click(await within(card).findByRole("button", { name: /Séparer le résultat .*dossard 1715/ }));
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByRole("checkbox", { name: /Course 2/ })).toBeChecked();
+    expect(within(dialog).getByRole("checkbox", { name: /Course 1/ })).not.toBeChecked();
+    expect(getAthlete).toHaveBeenCalledWith(7);
+    await userEvent.click(within(dialog).getByRole("button", { name: "Séparer vers une nouvelle fiche" }));
     await confirmerDansLeDialog("Séparer");
 
     await vi.waitFor(() => expect(detachParticipations).toHaveBeenCalledWith(7, [2]));
@@ -267,24 +267,26 @@ describe("AthleteIdentityReviewTable : gestes et aide par motif (#1241)", () => 
     listIdentityReview.mockResolvedValue(CAS);
     afficher();
 
-    const [carte] = await screen.findAllByRole("article");
-    expect(within(carte).queryByRole("button", { name: /rattacher|supprimer|séparer/i })).not.toBeInTheDocument();
-    expect(getAthlete).not.toHaveBeenCalled();
+    const [card] = await screen.findAllByRole("article");
+    expect(within(card).queryByRole("button", { name: /rattacher|supprimer|séparer/i })).not.toBeInTheDocument();
   });
 
-  it("multi_club : séparer des résultats est offert à côté de la confirmation du club", async () => {
-    getSession.mockResolvedValue(session(TOUS));
+  it("multi_club : séparer des résultats est offert à côté de la confirmation, la fiche n'est lue qu'à l'ouverture", async () => {
+    getSession.mockResolvedValue(session(ALL_POWERS));
     listIdentityReview.mockResolvedValue(MULTI);
     getAthlete.mockResolvedValue({
-      participations: [RESULTAT(1, 37, "TCN"), RESULTAT(2, 37, "Vendôme Triathlon")],
+      participations: [result(1, 37, "TCN"), result(2, 37, "Vendôme Triathlon")],
     });
     afficher();
 
-    const [carte] = await screen.findAllByRole("article");
-    expect(
-      await within(carte).findByRole("button", { name: "Séparer des résultats de MARTIN Thomas" }),
-    ).toBeInTheDocument();
-    expect(within(carte).getByRole("button", { name: /Confirmer Vendôme Triathlon/ })).toBeInTheDocument();
+    const [card] = await screen.findAllByRole("article");
+    const detach = await within(card).findByRole("button", { name: "Séparer des résultats de MARTIN Thomas" });
+    expect(within(card).getByRole("button", { name: /Confirmer Vendôme Triathlon/ })).toBeInTheDocument();
+    expect(getAthlete).not.toHaveBeenCalled();
+
+    await userEvent.click(detach);
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByRole("checkbox", { name: /Vendôme Triathlon/ })).toBeInTheDocument();
     expect(getAthlete).toHaveBeenCalledWith(37);
   });
 
@@ -293,48 +295,48 @@ describe("AthleteIdentityReviewTable : gestes et aide par motif (#1241)", () => 
     listIdentityReview.mockResolvedValue(MULTI);
     afficher();
 
-    const [carte] = await screen.findAllByRole("article");
-    expect(within(carte).getByRole("button", { name: /Confirmer Vendôme Triathlon/ })).toBeInTheDocument();
-    expect(within(carte).queryByRole("button", { name: /séparer/i })).not.toBeInTheDocument();
+    const [card] = await screen.findAllByRole("article");
+    expect(within(card).getByRole("button", { name: /Confirmer Vendôme Triathlon/ })).toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: /séparer/i })).not.toBeInTheDocument();
   });
 
   it.each([
     ["swapped", "Nom et prénom inversés", /inversez/i],
     ["concatenated", "Nom complet face à une fiche découpée", /redécoupez/i],
-  ] as const)("%s : chaque fiche se corrige, la paire s'écarte ou se fusionne une seule fois", async (reason, label, aide) => {
-    getSession.mockResolvedValue(session(TOUS));
-    listIdentityReview.mockResolvedValue(PAIRE(reason, label));
+  ] as const)("%s : chaque fiche se corrige, la paire s'écarte ou se fusionne une seule fois", async (reason, label, help) => {
+    getSession.mockResolvedValue(session(ALL_POWERS));
+    listIdentityReview.mockResolvedValue(pair(reason, label));
     afficher();
 
-    const [carte] = await screen.findAllByRole("article");
-    expect(within(carte).getByText(aide)).toBeInTheDocument();
-    expect(within(carte).getByRole("button", { name: "Corriger la fiche de Jean DUPONT" })).toBeInTheDocument();
-    expect(within(carte).getByRole("button", { name: "Corriger la fiche de Dupont JEAN" })).toBeInTheDocument();
-    expect(within(carte).getByRole("button", { name: /écarter/i })).toBeInTheDocument();
-    expect(within(carte).getAllByRole("button", { name: /fusionner/i })).toHaveLength(1);
+    const [card] = await screen.findAllByRole("article");
+    expect(within(card).getByText(help)).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "Corriger la fiche de Jean DUPONT" })).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: "Corriger la fiche de Dupont JEAN" })).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: /écarter/i })).toBeInTheDocument();
+    expect(within(card).getAllByRole("button", { name: /fusionner/i })).toHaveLength(1);
   });
 
   it("club_homonym : écarter ou fusionner, sans correction de fiche", async () => {
-    getSession.mockResolvedValue(session(TOUS));
-    listIdentityReview.mockResolvedValue(PAIRE("club_homonym", "Homonymes, dont un du club"));
+    getSession.mockResolvedValue(session(ALL_POWERS));
+    listIdentityReview.mockResolvedValue(pair("club_homonym", "Homonymes, dont un du club"));
     afficher();
 
-    const [carte] = await screen.findAllByRole("article");
-    expect(within(carte).getByRole("button", { name: /écarter/i })).toBeInTheDocument();
-    expect(within(carte).getByRole("button", { name: /fusionner/i })).toBeInTheDocument();
-    expect(within(carte).queryByRole("button", { name: /corriger/i })).not.toBeInTheDocument();
+    const [card] = await screen.findAllByRole("article");
+    expect(within(card).getByRole("button", { name: /écarter/i })).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: /fusionner/i })).toBeInTheDocument();
+    expect(within(card).queryByRole("button", { name: /corriger/i })).not.toBeInTheDocument();
   });
 
   it("alias_collision : la carte renvoie vers les variantes de la fiche qui porte la graphie", async () => {
-    getSession.mockResolvedValue(session(TOUS));
-    listIdentityReview.mockResolvedValue(PAIRE("alias_collision", "Fiche recréée sur une graphie fusionnée"));
+    getSession.mockResolvedValue(session(ALL_POWERS));
+    listIdentityReview.mockResolvedValue(pair("alias_collision", "Fiche recréée sur une graphie fusionnée"));
     afficher();
 
-    const [carte] = await screen.findAllByRole("article");
-    expect(within(carte).getByRole("link", { name: "Voir les variantes de DUPONT Jean" })).toHaveAttribute(
+    const [card] = await screen.findAllByRole("article");
+    expect(within(card).getByRole("link", { name: "Voir les variantes de DUPONT Jean" })).toHaveAttribute(
       "href",
       "/athletes/10#variantes",
     );
-    expect(within(carte).getByRole("button", { name: /écarter/i })).toBeInTheDocument();
+    expect(within(card).getByRole("button", { name: /écarter/i })).toBeInTheDocument();
   });
 });

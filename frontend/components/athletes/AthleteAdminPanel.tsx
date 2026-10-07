@@ -91,12 +91,12 @@ function Champ({
 export function AthleteAdminPanel({
   athlete,
   primary = false,
-  avecFusion = true,
+  withMerge = true,
 }: {
   athlete: CoureurACorriger;
   primary?: boolean;
   /** Faux sur la revue d'identité (#1241), dont la carte offre déjà la fusion de la paire. */
-  avecFusion?: boolean;
+  withMerge?: boolean;
 }) {
   const session = useHydratedSession();
   const peutCorriger = session.data?.permissions.includes("athletes:write") ?? false;
@@ -217,7 +217,7 @@ export function AthleteAdminPanel({
       >
         Corriger la fiche
       </Button>
-      {avecFusion && peutLireLaFiche && <AthleteMergeAction athlete={athlete} />}
+      {withMerge && peutLireLaFiche && <AthleteMergeAction athlete={athlete} />}
 
       {fusionOuverte && ficheEnConflit.data && (
         <MergeAthletesDialog
