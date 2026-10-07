@@ -67,6 +67,26 @@ describe("AthleteVariantsPanel", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("dit l'échec de la lecture au lieu de disparaître", async () => {
+    getSession.mockResolvedValue(session(["athletes:write"]));
+    listAthleteAliases.mockRejectedValue(new Error("boom"));
+
+    renderPanel();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Les variantes de cette fiche n'ont pas pu être lues.",
+    );
+  });
+
+  it("présente les variantes comme des graphies normalisées", async () => {
+    getSession.mockResolvedValue(session(["athletes:write"]));
+    listAthleteAliases.mockResolvedValue({ aliases: [VARIANT] });
+
+    renderPanel();
+
+    expect(await screen.findByText(/graphies normalisées/i)).toBeInTheDocument();
+  });
+
   it("liste les variantes sous l'ancre #variantes", async () => {
     getSession.mockResolvedValue(session(["athletes:write"]));
     listAthleteAliases.mockResolvedValue({ aliases: [VARIANT] });
