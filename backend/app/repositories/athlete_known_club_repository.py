@@ -4,6 +4,7 @@ from collections.abc import Collection
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.athlete import Athlete
 from app.models.athlete_known_club import AthleteKnownClub
 
 
@@ -12,6 +13,27 @@ def add(db: Session, *, athlete_id: int, club_key: str, user_id: int | None) -> 
     db.add(known)
     db.flush()
     return known
+
+
+def get(db: Session, known_id: int) -> AthleteKnownClub | None:
+    return db.get(AthleteKnownClub, known_id)
+
+
+def delete(db: Session, known: AthleteKnownClub) -> None:
+    db.delete(known)
+    db.flush()
+
+
+def list_with_athletes(db: Session) -> list[tuple[AthleteKnownClub, Athlete]]:
+    """Les clubs confirmés et leur fiche, le plus récent d'abord (#1243)."""
+    return [
+        tuple(row)
+        for row in db.execute(
+            select(AthleteKnownClub, Athlete)
+            .join(Athlete, Athlete.id == AthleteKnownClub.athlete_id)
+            .order_by(AthleteKnownClub.created_at.desc(), AthleteKnownClub.id.desc())
+        )
+    ]
 
 
 def exists(db: Session, *, athlete_id: int, club_key: str) -> bool:

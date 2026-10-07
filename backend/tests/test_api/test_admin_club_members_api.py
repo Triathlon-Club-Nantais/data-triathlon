@@ -1,6 +1,7 @@
 """Licenciés du club, écran d'administration (#1202)."""
 import pytest
 
+from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.club_member import LINK_MANUAL
 from app.scrapers.fftri_club_members import ClubRoster, RosterMember
@@ -75,8 +76,43 @@ def test_link_a_member_by_hand(client, db_session, roster):
     assert (response.json()["athlete_id"], response.json()["link_status"]) == (other.id, LINK_MANUAL)
 
 
+def test_undoing_a_manual_link_returns_the_member_to_the_queue(client, db_session, roster):
+    client.post("/api/v1/admin/club-members/sync")
+    other = Athlete(nom="DURAND", prenom="Anne")
+    db_session.add(other)
+    db_session.commit()
+    member_id = client.get("/api/v1/admin/club-members", params={"season": 2026}).json()["members"][0]["id"]
+    client.post(f"/api/v1/admin/club-members/{member_id}/link", json={"athlete_id": other.id})
+
+    response = client.delete(f"/api/v1/admin/club-members/{member_id}/link")
+
+    assert response.status_code == 200
+    assert (response.json()["athlete_id"], response.json()["link_status"]) == (None, "unlinked")
+    db_session.expire_all()
+    last = db_session.query(AdminActionLog).order_by(AdminActionLog.id.desc()).first()
+    assert (last.action, last.entity_id) == ("club_member.unlink", member_id)
+    assert client.delete(f"/api/v1/admin/club-members/{member_id}/link").status_code == 400
+    assert client.delete("/api/v1/admin/club-members/99999/link").status_code == 404
+
+
+def test_undoing_a_manual_link_restores_the_automatic_match(client, db_session, roster):
+    anne = Athlete(nom="MARTIN", prenom="Anne")
+    other = Athlete(nom="DURAND", prenom="Anne")
+    db_session.add_all([anne, other])
+    db_session.commit()
+    client.post("/api/v1/admin/club-members/sync")
+    member_id = client.get("/api/v1/admin/club-members", params={"season": 2026}).json()["members"][0]["id"]
+    client.post(f"/api/v1/admin/club-members/{member_id}/link", json={"athlete_id": other.id})
+
+    response = client.delete(f"/api/v1/admin/club-members/{member_id}/link")
+
+    assert (response.json()["athlete_id"], response.json()["link_status"]) == (anne.id, "auto")
+
+
 def test_every_route_requires_the_permission(client, db_session):
     _session_etroite(client, db_session, "athletes:read")
+
+    assert client.delete("/api/v1/admin/club-members/1/link").status_code == 403
 
     assert client.get("/api/v1/admin/club-members", params={"season": 2026}).status_code == 403
     assert client.post("/api/v1/admin/club-members/sync").status_code == 403
@@ -89,6 +125,7 @@ def test_every_route_requires_the_permission(client, db_session):
 def test_every_route_requires_a_session(client):
     client.cookies.clear()
 
+    assert client.delete("/api/v1/admin/club-members/1/link").status_code == 401
     assert client.get("/api/v1/admin/club-members", params={"season": 2026}).status_code == 401
     assert client.post("/api/v1/admin/club-members/sync").status_code == 401
     assert client.post("/api/v1/admin/club-members/1/link", json={"athlete_id": 1}).status_code == 401

@@ -74,3 +74,32 @@ class IdentityClubConfirmOut(BaseModel):
     athlete_id: int
     club_key: str
     confirmed_at: datetime
+
+
+class IdentityNamedAthlete(BaseModel):
+    id: int
+    nom: str
+    prenom: str
+
+
+class IgnoredIdentityPair(BaseModel):
+    id: int
+    ignored_at: datetime
+    athletes: list[IdentityNamedAthlete]
+
+
+class IgnoredIdentityPairList(BaseModel):
+    pairs: list[IgnoredIdentityPair]
+
+
+class ConfirmedIdentityClub(BaseModel):
+    id: int
+    athlete_id: int
+    nom: str
+    prenom: str
+    club_key: str
+    confirmed_at: datetime
+
+
+class ConfirmedIdentityClubList(BaseModel):
+    clubs: list[ConfirmedIdentityClub]

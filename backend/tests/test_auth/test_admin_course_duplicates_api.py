@@ -13,6 +13,7 @@ from datetime import date
 import pytest
 
 from app.core.permissions import P
+from app.models.admin_action_log import AdminActionLog
 from app.repositories import course_repository
 
 URL = "/api/v1/admin/courses/duplicates"
@@ -267,3 +268,38 @@ def test_ignorer_une_epreuve_inconnue_est_un_404(client, ouvrir_session, mesquer
     )
 
     assert reponse.status_code == 404
+
+
+# --- Paires écartées : liste et annulation (#1243) ---------------------------
+
+IGNORED_URL = "/api/v1/admin/courses/duplicates/ignored"
+
+
+def test_une_paire_ecartee_est_listee_et_son_annulation_la_remet_dans_la_liste(
+    client, ouvrir_session, mesquer, db_session
+):
+    ouvrir_session(P.COURSES_SOURCES)
+    (swimrun, triathlon) = course_repository.list_identities_with_counts(db_session)[:2]
+    client.post(IGNORE_URL, json={"course_id_a": swimrun.id, "course_id_b": triathlon.id})
+
+    [paire] = client.get(IGNORED_URL).json()["pairs"]
+    assert sorted(c["id"] for c in paire["courses"]) == sorted([swimrun.id, triathlon.id])
+    assert paire["courses"][0]["name"] == "Triathlon et SwimRun Mesquer-Quimiac 2026"
+    assert paire["ignored_at"]
+
+    reponse = client.delete(f"{IGNORED_URL}/{paire['id']}")
+
+    assert reponse.status_code == 204
+    assert client.get(IGNORED_URL).json() == {"pairs": []}
+    assert len(client.get(URL).json()["candidates"]) == 1
+    db_session.expire_all()
+    derniere = db_session.query(AdminActionLog).order_by(AdminActionLog.id.desc()).first()
+    assert derniere.action == "course_duplicate.unignore"
+    assert client.delete(f"{IGNORED_URL}/{paire['id']}").status_code == 404
+
+
+@pytest.mark.parametrize(("methode", "chemin"), [("get", IGNORED_URL), ("delete", f"{IGNORED_URL}/1")])
+def test_la_liste_et_l_annulation_exigent_courses_sources(client, ouvrir_session, methode, chemin):
+    assert getattr(client, methode)(chemin).status_code == 401
+    ouvrir_session(P.COURSES_WRITE)
+    assert getattr(client, methode)(chemin).status_code == 403

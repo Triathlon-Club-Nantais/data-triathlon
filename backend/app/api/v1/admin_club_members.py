@@ -75,3 +75,14 @@ def link_club_member(
     )
     db.commit()
     return ClubMemberOut.model_validate(member)
+
+
+@router.delete("/admin/club-members/{member_id}/link", response_model=ClubMemberOut)
+def unlink_club_member(
+    member_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_permission(P.CLUB_MEMBERS_MANAGE)),
+):
+    member = club_members_service.unlink_member(db, member_id=member_id, user_id=actor.id)
+    db.commit()
+    return ClubMemberOut.model_validate(member)

@@ -132,6 +132,10 @@ non entier (422), deux résultats d'une même épreuve (409). Journal : `athlete
 | `GET /admin/identity-review/count` | `athletes:write` | `{total}`. Prévu pour une pastille de la nav, que le front n'affiche pas encore : son coût est à mesurer en production d'abord (#1146). |
 | `POST /admin/identity-review/ignore` `{athlete_id_a, athlete_id_b}` | `athletes:write` | Écarte une paire jugée distincte (201) ; 400 même fiche, 404 fiche inconnue, 409 déjà écartée. Journal `athlete_identity.ignore`. |
 | `POST /admin/identity-review/confirm-club` `{athlete_id, club_key}` | `athletes:write` | Confirme un club pour une fiche (201, `{athlete_id, club_key, confirmed_at}`) : elle n'est plus signalée pour lui et l'import y rattache les résultats publiés sous ce club. 400 clé vide ou club que la fiche ne porte pas, 404 fiche inconnue, 409 déjà confirmé. Journal `athlete_identity.confirm_club`. |
+| `GET /admin/identity-review/ignored` | `athletes:write` | `{pairs: [{id, ignored_at, athletes: [{id, nom, prenom}×2]}]}`, la plus récente d'abord, paires posées par l'import comprises (#1243). |
+| `DELETE /admin/identity-review/ignored/{id}` | `athletes:write` | Annule une mise à l'écart (204) : la paire revient dans la revue si un motif la retient encore. 404 inconnue. Journal `athlete_identity.unignore`. |
+| `GET /admin/identity-review/confirmed-clubs` | `athletes:write` | `{clubs: [{id, athlete_id, nom, prenom, club_key, confirmed_at}]}`, le plus récent d'abord (#1243). |
+| `DELETE /admin/identity-review/confirmed-clubs/{id}` | `athletes:write` | Annule une confirmation (204) : la fiche est de nouveau signalée pour ce club. Les résultats déjà rattachés par l'import sous ce club restent sur la fiche. 404 inconnue. Journal `athlete_identity.unconfirm_club`. |
 
 `/admin/identity-review` et non `/admin/athletes/identity-review` : la route
 `/admin/athletes/{athlete_id}` capterait le segment et rendrait 422.
@@ -275,11 +279,13 @@ composition d'équipe refusent l'identité (`OpposedIdentityError`, `422`).
 
 ## Doublons suspects (#288)
 
-`admin_course_duplicates.py` — trois routes, toutes gardées par
+`admin_course_duplicates.py` — cinq routes, toutes gardées par
 `courses:sources` : `GET /admin/courses/duplicates` (la liste, ni pagination
-ni filtre), `GET .../count` (#726, la pastille de nav) et
+ni filtre), `GET .../count` (#726, la pastille de nav),
 `POST .../ignore` (#754, écarte une paire — un faux positif vérifié une fois
-par un humain ne doit plus revenir). La liste est la porte d'entrée de la
+par un humain ne doit plus revenir), et pour revenir sur une erreur (#1243)
+`GET .../ignored` (`{pairs: [{id, ignored_at, courses: [{id, name, event_date}×2]}]}`)
+et `DELETE .../ignored/{id}` (204, journal `course_duplicate.unignore`). La liste est la porte d'entrée de la
 fusion (#289) et de l'arbitrage entre chronométreurs (#285), pas une
 correction d'identité — `courses:sources` et non `courses:write` pour les
 trois. `ignore` n'exige **pas** `courses:delete` comme la fusion : le geste ne
@@ -360,7 +366,7 @@ Conception : `specs/20260826-154613-portee-compteurs-configurable/`.
 
 ## Licenciés du club (#1202)
 
-Quatre routes sous `/admin/club-members`, toutes gardées par la permission
+Cinq routes sous `/admin/club-members`, toutes gardées par la permission
 `club_members:manage`. Le routeur (`api/v1/admin_club_members.py`) valide, délègue
 à `services/club_members_service.py` et commite ; le service recalcule
 `counts_for_tcn` à chaque écriture.
@@ -371,6 +377,7 @@ Quatre routes sous `/admin/club-members`, toutes gardées par la permission
 | `POST /admin/club-members/sync` | Relit la liste publiée par la FFTri et remplace la saison qu'elle couvre, en gardant les rattachements manuels | `MembersSyncReportOut` |
 | `POST /admin/club-members/import` | Multipart `season` + `file` (CSV ou XLSX, colonnes « Nom » et « Prénom » requises) : remplace une saison passée | `MembersSyncReportOut` |
 | `POST /admin/club-members/{member_id}/link` | Corps `{"athlete_id": int}` : rattache à la main un licencié à une fiche | `ClubMemberOut` (`link_status: "manual"`) |
+| `DELETE /admin/club-members/{member_id}/link` | Annule un rattachement manuel (#1243) : le licencié reprend le rattachement automatique, comme à la relecture suivante, sinon revient « à rattacher ». `400` s'il n'est pas rattaché à la main. Journal `club_member.unlink` | `ClubMemberOut` |
 
 Erreurs propres à ces routes : `502` si la page FFTri est illisible ou
 injoignable, `413` au-delà de 2 Mo (lecture bornée par morceaux dans

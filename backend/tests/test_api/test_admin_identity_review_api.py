@@ -3,6 +3,7 @@ from datetime import date
 
 import pytest
 
+from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.repositories import course_repository, participation_repository
 from tests.test_api.test_admin_data_api import _session_etroite
@@ -118,3 +119,59 @@ def test_confirming_a_club_refuses_an_unknown_record_a_blank_or_uncarried_club(c
     assert client.post(url, json={"athlete_id": multi_club.id, "club_key": "  "}).status_code == 400
     assert client.post(url, json={"athlete_id": multi_club.id, "club_key": "asptt"}).status_code == 400
     assert client.post(url, json={"athlete_id": "1", "club_key": "x"}).status_code == 422
+
+
+def _last_action(db_session) -> str:
+    db_session.expire_all()
+    return db_session.query(AdminActionLog).order_by(AdminActionLog.id.desc()).first().action
+
+
+def test_an_ignored_pair_is_listed_then_its_undo_returns_it_to_the_review(client, db_session, swapped):
+    first, second = swapped
+    client.post("/api/v1/admin/identity-review/ignore", json={"athlete_id_a": first.id, "athlete_id_b": second.id})
+
+    [pair] = client.get("/api/v1/admin/identity-review/ignored").json()["pairs"]
+    assert [a["id"] for a in pair["athletes"]] == [first.id, second.id]
+    assert (pair["athletes"][0]["nom"], pair["athletes"][0]["prenom"]) == ("DUPONT", "Jean")
+    assert pair["ignored_at"]
+
+    undone = client.delete(f"/api/v1/admin/identity-review/ignored/{pair['id']}")
+
+    assert undone.status_code == 204
+    assert client.get("/api/v1/admin/identity-review/ignored").json() == {"pairs": []}
+    assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 1}
+    assert _last_action(db_session) == "athlete_identity.unignore"
+    assert client.delete(f"/api/v1/admin/identity-review/ignored/{pair['id']}").status_code == 404
+
+
+def test_a_confirmed_club_is_listed_then_its_undo_returns_the_case(client, db_session, multi_club):
+    client.post(
+        "/api/v1/admin/identity-review/confirm-club",
+        json={"athlete_id": multi_club.id, "club_key": "vendometriathlon"},
+    )
+
+    [club] = client.get("/api/v1/admin/identity-review/confirmed-clubs").json()["clubs"]
+    assert (club["athlete_id"], club["nom"], club["prenom"], club["club_key"]) == (
+        multi_club.id, "MARTIN", "Thomas", "vendometriathlon",
+    )
+
+    undone = client.delete(f"/api/v1/admin/identity-review/confirmed-clubs/{club['id']}")
+
+    assert undone.status_code == 204
+    assert client.get("/api/v1/admin/identity-review/confirmed-clubs").json() == {"clubs": []}
+    assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 1}
+    assert _last_action(db_session) == "athlete_identity.unconfirm_club"
+    assert client.delete(f"/api/v1/admin/identity-review/confirmed-clubs/{club['id']}").status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [("get", "/api/v1/admin/identity-review/ignored"), ("delete", "/api/v1/admin/identity-review/ignored/1"),
+     ("get", "/api/v1/admin/identity-review/confirmed-clubs"),
+     ("delete", "/api/v1/admin/identity-review/confirmed-clubs/1")],
+)
+def test_the_undo_routes_need_the_athletes_write_power(client, db_session, method, path):
+    client.cookies.clear()
+    assert getattr(client, method)(path).status_code == 401
+    _session_etroite(client, db_session, "athletes:read")
+    assert getattr(client, method)(path).status_code == 403

@@ -1,7 +1,8 @@
 """Accès données pour IgnoredAthletePair (#908). L'existence de la ligne porte la décision."""
 from sqlalchemy import or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
+from app.models.athlete import Athlete
 from app.models.ignored_athlete_pair import IgnoredAthletePair
 
 
@@ -24,6 +25,29 @@ def exists(db: Session, *, athlete_id_a: int, athlete_id_b: int) -> bool:
             IgnoredAthletePair.athlete_id_low == low, IgnoredAthletePair.athlete_id_high == high
         )
     ) is not None
+
+
+def get(db: Session, pair_id: int) -> IgnoredAthletePair | None:
+    return db.get(IgnoredAthletePair, pair_id)
+
+
+def delete(db: Session, pair: IgnoredAthletePair) -> None:
+    db.delete(pair)
+    db.flush()
+
+
+def list_with_athletes(db: Session) -> list[tuple[IgnoredAthletePair, Athlete, Athlete]]:
+    """Les paires écartées et leurs deux fiches, la plus récente d'abord (#1243)."""
+    low, high = aliased(Athlete), aliased(Athlete)
+    return [
+        tuple(row)
+        for row in db.execute(
+            select(IgnoredAthletePair, low, high)
+            .join(low, low.id == IgnoredAthletePair.athlete_id_low)
+            .join(high, high.id == IgnoredAthletePair.athlete_id_high)
+            .order_by(IgnoredAthletePair.ignored_at.desc(), IgnoredAthletePair.id.desc())
+        )
+    ]
 
 
 def all_pairs(db: Session) -> set[tuple[int, int]]:

@@ -1,9 +1,7 @@
 """Modèle IgnoredCourseDuplicate — une paire de doublons suspects écartée (#754).
 
 **L'existence de la ligne porte la décision**, patron de `SeasonValidation` :
-ignorer crée la ligne. Il n'y a pas de retour dans ce ticket — #754 laisse
-« revenir sur une paire ignorée par erreur » hors périmètre, à évaluer
-séparément si le besoin se confirme.
+ignorer crée la ligne, annuler la mise à l'écart la supprime (#1243).
 
 `course_id_low`/`course_id_high` normalisent la paire non ordonnée (le plus
 petit id en premier) : la route `POST /admin/courses/duplicates/ignore`
@@ -44,7 +42,7 @@ class IgnoredCourseDuplicate(Base):
     ignored_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     # Pas de relation `ignored_by`, contrairement à `AdminActionLog.user` : rien
-    # ne la lit — #754 exclut explicitement un écran « paires ignorées », et
+    # ne la lit : la liste des paires écartées (#1243) ne montre pas l'auteur, et
     # l'entrée du journal (`course_duplicate.ignore`) porte déjà le chemin de
     # lecture pour l'auteur. L'ajouter maintenant serait de l'indirection
     # spéculative (principes de conception, AGENTS.md).

@@ -1,11 +1,12 @@
 """Accès données pour IgnoredCourseDuplicate — seule couche qui touche la Session (Principe II).
 
 L'existence de la ligne porte la décision (patron `season_validation_repository`) :
-`create` écarte une paire, il n'y a pas de retour dans ce ticket (#754).
+`create` écarte une paire (#754), `delete` annule la mise à l'écart (#1243).
 """
-from sqlalchemy import or_
-from sqlalchemy.orm import Session
+from sqlalchemy import or_, select
+from sqlalchemy.orm import Session, aliased
 
+from app.models.course import Course
 from app.models.ignored_course_duplicate import IgnoredCourseDuplicate
 
 
@@ -42,6 +43,29 @@ def exists(db: Session, *, course_id_a: int, course_id_b: int) -> bool:
         .first()
         is not None
     )
+
+
+def get(db: Session, pair_id: int) -> IgnoredCourseDuplicate | None:
+    return db.get(IgnoredCourseDuplicate, pair_id)
+
+
+def delete(db: Session, pair: IgnoredCourseDuplicate) -> None:
+    db.delete(pair)
+    db.flush()
+
+
+def list_with_courses(db: Session) -> list[tuple[IgnoredCourseDuplicate, Course, Course]]:
+    """Les paires écartées et leurs deux épreuves, la plus récente d'abord (#1243)."""
+    low, high = aliased(Course), aliased(Course)
+    return [
+        tuple(row)
+        for row in db.execute(
+            select(IgnoredCourseDuplicate, low, high)
+            .join(low, low.id == IgnoredCourseDuplicate.course_id_low)
+            .join(high, high.id == IgnoredCourseDuplicate.course_id_high)
+            .order_by(IgnoredCourseDuplicate.ignored_at.desc(), IgnoredCourseDuplicate.id.desc())
+        )
+    ]
 
 
 def all_pairs(db: Session) -> set[tuple[int, int]]:

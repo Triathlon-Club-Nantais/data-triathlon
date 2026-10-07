@@ -65,6 +65,7 @@ from app.repositories import (
     ignored_course_duplicate_repository,
     participation_repository,
 )
+from app.services import audit
 
 logger = logging.getLogger(__name__)
 
@@ -430,3 +431,28 @@ def ignore_pair(db: Session, *, course_id_a: int, course_id_b: int, user_id: int
         "course_id_b": course_id_b,
         "ignored_at": ignoree.ignored_at,
     }
+
+
+def _brief(course) -> dict:
+    return {"id": course.id, "name": course.name, "event_date": course.event_date}
+
+
+def list_ignored(db: Session) -> list[dict]:
+    """Les paires écartées, pour les revoir (#1243)."""
+    return [
+        {"id": pair.id, "ignored_at": pair.ignored_at, "courses": [_brief(low), _brief(high)]}
+        for pair, low, high in ignored_course_duplicate_repository.list_with_courses(db)
+    ]
+
+
+def unignore_pair(db: Session, *, pair_id: int, user_id: int) -> None:
+    """Annule une mise à l'écart : la paire revient dans la liste si un motif la retient encore."""
+    pair = ignored_course_duplicate_repository.get(db, pair_id)
+    if pair is None:
+        raise NotFoundError("Cette paire d'épreuves n'est pas écartée.")
+    low, high = pair.course_id_low, pair.course_id_high
+    ignored_course_duplicate_repository.delete(db, pair)
+    audit.record(
+        db, user_id, action="course_duplicate.unignore", entity_type="course_duplicate", entity_id=low,
+        payload={"course_id_a": low, "course_id_b": high},
+    )

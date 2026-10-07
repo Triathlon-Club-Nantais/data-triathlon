@@ -77,3 +77,21 @@ class DuplicateIgnoreOut(BaseModel):
     course_id_a: int
     course_id_b: int
     ignored_at: datetime
+
+
+class IgnoredDuplicateCourse(BaseModel):
+    id: int
+    name: str
+    event_date: date | None
+
+
+class IgnoredDuplicate(BaseModel):
+    """Une paire écartée, pour la revoir et annuler sa mise à l'écart (#1243)."""
+
+    id: int
+    ignored_at: datetime
+    courses: list[IgnoredDuplicateCourse]
+
+
+class IgnoredDuplicateList(BaseModel):
+    pairs: list[IgnoredDuplicate]

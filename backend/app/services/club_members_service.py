@@ -105,6 +105,15 @@ def _deduplicated(members: list[RosterMember]) -> list[RosterMember]:
     return list(seen.values())
 
 
+def _auto_match(by_key: dict, by_alias: dict, key: tuple) -> tuple[int | None, str]:
+    candidates = {a.id for a in by_key.get(key, [])}
+    if key in by_alias:
+        candidates.add(by_alias[key].id)
+    if len(candidates) == 1:
+        return candidates.pop(), LINK_AUTO
+    return None, LINK_AMBIGUOUS if candidates else LINK_UNLINKED
+
+
 def _replace(db: Session, season: int, incoming: list[RosterMember], source: str) -> list[ClubMember]:
     """Remplace la saison, rattache, et garde les rattachements faits à la main.
 
@@ -130,13 +139,7 @@ def _replace(db: Session, season: int, incoming: list[RosterMember], source: str
     for member, key in zip(incoming, keys, strict=True):
         athlete_id, status = manual.get(_identity(member)), LINK_MANUAL
         if athlete_id is None:
-            candidates = {a.id for a in by_key.get(key, [])}
-            if key in by_alias:
-                candidates.add(by_alias[key].id)
-            if len(candidates) == 1:
-                athlete_id, status = candidates.pop(), LINK_AUTO
-            else:
-                status = LINK_AMBIGUOUS if candidates else LINK_UNLINKED
+            athlete_id, status = _auto_match(by_key, by_alias, key)
         if athlete_id is not None and not member.licence_id:
             if athlete_id in licence_less_linked:
                 continue
@@ -216,5 +219,36 @@ def link_member(db: Session, *, member_id: int, athlete_id: int, user_id: int | 
     audit.record(
         db, user_id, action="club_member.link", entity_type=_MEMBER_ENTITY, entity_id=member.id,
         payload={"athlete_id": athlete_id},
+    )
+    return member
+
+
+class NotManuallyLinkedError(DomainError):
+    status_code = 400
+    message = "Ce licencié n'a pas été rattaché à la main : il n'y a rien à annuler."
+
+
+def unlink_member(db: Session, *, member_id: int, user_id: int | None) -> ClubMember:
+    """Annule un rattachement manuel (#1243) : le licencié reprend le rattachement
+    automatique, comme à la prochaine relecture, et revient à rattacher s'il n'en a pas."""
+    member = club_member_repository.get(db, member_id)
+    if member is None:
+        raise NotFoundError("Ce licencié n'existe pas.")
+    if member.link_status != LINK_MANUAL:
+        raise NotManuallyLinkedError
+    previous = member.athlete_id
+    key = athlete_identity_keys(member.nom, member.prenom)
+    member.athlete_id, member.link_status = _auto_match(
+        athlete_repository.get_all_ranks_by_identity_keys(db, [key]),
+        athlete_alias_repository.get_by_keys_batch(db, [key]),
+        key,
+    )
+    db.flush()
+    tcn_count_repository.recompute_counts_for_tcn(
+        db, athlete_ids={i for i in (previous, member.athlete_id) if i is not None}
+    )
+    audit.record(
+        db, user_id, action="club_member.unlink", entity_type=_MEMBER_ENTITY, entity_id=member.id,
+        payload={"athlete_id": previous},
     )
     return member
