@@ -212,6 +212,9 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   fusion qui absorbe la fiche consultée). La fusion y choisit sa cible par
   recherche libre (nom ou numéro, `GET /courses`), **sans contrainte de date**,
   ce que `/admin/doublons` ne sait pas rapprocher ; le backend ne l'interdit pas.
+  `CourseAdminActions` n'est que la garde de pouvoir : le panneau
+  (`CourseAdminPanel`) et ses quatre fenêtres se chargent en `next/dynamic`
+  derrière elle, rien n'est téléchargé pour un visiteur sans pouvoir.
 - **Gardes d'écriture du back-office** (#496) — un contrôle qui écrit teste
   **son** code de pouvoir avant de se rendre, jamais celui qui a ouvert l'écran :
   `session.data?.permissions.includes("x:y") ?? false`, puis `{peutX && …}`. Six
