@@ -1332,15 +1332,27 @@ def _noms_masques_compatibles(a: str, b: str) -> bool:
 def _fusionner_masques(candidats: list[str]) -> str:
     """Cellule reconstruite en croisant celles d'un même enregistrement (temps,
     nom ou club), `_` valant inconnu (#1238, #1239) ; `""` si un caractère reste
-    inconnu, si deux cellules se contredisent ou n'ont pas la même longueur."""
+    inconnu, si deux cellules se contredisent ou n'ont pas la même longueur.
+    L'accord se juge casse et accents neutralisés, comme
+    `_noms_masques_compatibles` ; le caractère retenu est celui de la première
+    cellule qui le connaît, la publiée passant en tête, et prend la casse du
+    reste de son mot dans la publiée (`DU_ONT` + `Dupont` → `DUPONT`)."""
     if len({len(c) for c in candidats}) != 1:
         return ""
     fusion = []
     for caracteres in zip(*candidats, strict=True):
-        connus = set(caracteres) - {"_"}
-        if len(connus) != 1:
+        connus = [c for c in caracteres if c != "_"]
+        if not connus or len({strip_accents(c).lower() for c in connus}) != 1:
             return ""
-        fusion.append(connus.pop())
+        fusion.append(connus[0])
+    publie = candidats[0]
+    for mot in re.finditer(r"[^\s,]+", publie):
+        suite = [c for c in mot.group()[1:] if c.isalpha()]
+        for i in range(mot.start() + 1, mot.end()):
+            if publie[i] == "_" and suite and all(c.isupper() for c in suite):
+                fusion[i] = fusion[i].upper()
+            elif publie[i] == "_" and suite and all(c.islower() for c in suite):
+                fusion[i] = fusion[i].lower()
     return "".join(fusion)
 
 
@@ -2102,8 +2114,11 @@ def _run_pipeline(
                     _identite_de_cellule(nom, role, nom_col_expr)
                     if nom and role else ("", "")
                 )
-            if "_" in r.club:
-                r.club = _fusionner_masques(cellules["club"])
+            # Un club identique dans plusieurs listes porte un vrai `_` : le
+            # masque change de positions d'une liste à l'autre.
+            clubs = cellules["club"]
+            if "_" in r.club and not (len(clubs) > 1 and len(set(clubs)) == 1):
+                r.club = _fusionner_masques(clubs)
 
     # Fan-out : un événement dont **tous** les contests sont cachés (ou dont le
     # seul contenu à scraper l'est) renvoie légitimement une fusion vide — la

@@ -172,5 +172,9 @@ nom (`Re_aille_u_ Pascal` + `Ret_il_eau, __scal` + `Ret_i_leau,_Pascal` →
 (`B_A_P_EAU TRI` → `BEAUPREAU TRI`, que `is_tcn` reconnaît alors). Un nom
 irréductible est vidé et reçoit l'identité synthétique « Anonyme
 <événement>-<contest>-<dossard> » (`_anonymise_identities`) plutôt que de
-créer une fausse fiche ; un club irréductible est laissé vide. Limite assumée :
-un vrai `_` dans un nom ou un club se lit comme un masque.
+créer une fausse fiche ; un club irréductible est laissé vide. L'accord entre
+cellules se juge casse et accents neutralisés ; le caractère gardé est celui du
+publié, sinon celui d'une autre liste à la casse du mot publié (`DU_ONT` +
+`Dupont` → `DUPONT`). Un club identique dans plusieurs listes garde son `_`
+(`TRI_CLUB`) : le masque, lui, change de positions. Limite assumée : un vrai `_`
+dans un nom, ou dans un club publié par une seule liste, se lit comme un masque.
