@@ -20,6 +20,17 @@ def get(db: Session, member_id: int) -> ClubMember | None:
     return db.get(ClubMember, member_id)
 
 
+def has_licence_less_link(db: Session, *, season: int, athlete_id: int, except_id: int) -> bool:
+    return db.scalar(
+        select(ClubMember.id).where(
+            ClubMember.season == season,
+            ClubMember.athlete_id == athlete_id,
+            ClubMember.licence_id.is_(None),
+            ClubMember.id != except_id,
+        ).limit(1)
+    ) is not None
+
+
 def replace_season(db: Session, season: int, members: list[ClubMember]) -> None:
     """Remplace toute la liste d'une saison, en une transaction."""
     db.execute(delete(ClubMember).where(ClubMember.season == season))
