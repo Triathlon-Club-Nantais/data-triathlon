@@ -491,8 +491,7 @@ def _club_record(seasons: Collection[int] = ()) -> ColumnElement[bool]:
     """Une fiche du club : son club de fiche, ou une licence rattachée pour l'une
     des `seasons`, n'importe laquelle si vide (#1231). Une ville lue en colonne
     club par une source ne retire pas un licencié des listes du club."""
-    licensed = or_(*(linked_member(Athlete.id, season) for season in seasons)) if seasons else linked_member(Athlete.id)
-    return or_(tcn_clause(Athlete.club), licensed)
+    return or_(tcn_clause(Athlete.club), linked_member(Athlete.id, seasons=seasons))
 
 
 def search(
@@ -1006,23 +1005,23 @@ def delete_by_id(db: Session, athlete_id: int) -> None:
 # ── Revue d'identité (#908, #967) ────────────────────────────────────────────
 
 
-
-
 def club_records_with_two_bibs_on_a_race(db: Session) -> list[tuple[int, int]]:
     """`(athlete_id, course_id)` : une fiche portant deux dossards distincts sur une
     même épreuve individuelle, quand la fiche ou l'un de ces résultats relève du
     club. Deux lignes sans dossard ne comptent pas : rien ne prouve deux coureurs."""
     rows = db.execute(
-        select(Participation.athlete_id, Participation.course_id)
+        select(Athlete.id, Participation.course_id)
         .join(Course, Course.id == Participation.course_id)
         .join(Athlete, Athlete.id == Participation.athlete_id)
         .where(Course.is_relay.is_(False), Participation.is_relay.is_(False))
-        .group_by(Participation.athlete_id, Participation.course_id)
+        # Grouper sur `Athlete.id` (clé primaire) laisse `_club_record` hors agrégat :
+        # il ne s'évalue que sur les groupes candidats, pas sur chaque résultat.
+        .group_by(Athlete.id, Participation.course_id)
         .having(
             func.count(func.distinct(Participation.bib_number)) > 1,
             or_(
-                func.max(case((_club_record(), 1), else_=0)) == 1,
                 func.max(case((Participation.counts_for_tcn.is_(True), 1), else_=0)) == 1,
+                _club_record(),
             ),
         )
     )
