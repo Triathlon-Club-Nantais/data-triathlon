@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/tcn";
 import {
@@ -26,8 +25,10 @@ import { ReliabilityVerdictDialog, type Verdict } from "@/components/admin/Relia
 import { useDebounce } from "@/hooks/useDebounce";
 import { apiClient } from "@/lib/api/client";
 import { providerLabel } from "@/lib/labels";
+import { useAdminCourses } from "@/lib/queries/admin";
 import { useHydratedSession } from "@/lib/queries/auth";
 import { formatDate } from "@/lib/utils/date";
+import { plural } from "@/lib/utils/format";
 import type { CourseBrief } from "@/lib/types";
 
 /**
@@ -49,21 +50,21 @@ export function CourseAdminActions({
   tcnCount: number;
 }) {
   const router = useRouter();
-  const pouvoirs = useHydratedSession().data?.permissions ?? [];
-  const peutCorriger = pouvoirs.includes("courses:write");
-  const peutSupprimer = pouvoirs.includes("courses:delete");
-  const peutTrancher = pouvoirs.includes("quality:override");
-  const peutFusionner = peutSupprimer && pouvoirs.includes("courses:sources");
+  const permissions = useHydratedSession().data?.permissions ?? [];
+  const canEdit = permissions.includes("courses:write");
+  const canDelete = permissions.includes("courses:delete");
+  const canReview = permissions.includes("quality:override");
+  const canMerge = canDelete && permissions.includes("courses:sources");
 
-  const [correction, setCorrection] = useState(false);
-  const [suppression, setSuppression] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [verdict, setVerdict] = useState<Verdict | null>(null);
-  const [recherche, setRecherche] = useState(false);
-  const [autre, setAutre] = useState<MergeableCourse | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [other, setOther] = useState<MergeableCourse | null>(null);
 
-  if (!peutCorriger && !peutSupprimer && !peutTrancher) return null;
+  if (!canEdit && !canDelete && !canReview) return null;
 
-  const courante: MergeableCourse = {
+  const current: MergeableCourse = {
     id: course.id,
     name: course.name,
     event_date: course.event_date,
@@ -75,26 +76,26 @@ export function CourseAdminActions({
     tcn_count: tcnCount,
   };
 
-  async function choisirCible(cible: CourseBrief) {
+  async function pickTarget(target: CourseBrief) {
     try {
       // La liste ne porte ni total ni effectif TCN, dont la fusion a besoin pour
       // proposer la cible et avertir d'une perte de résultats du club.
-      const synthese = await apiClient.getCourseSummary(cible.id);
-      setAutre({ ...cible, total: synthese.total, tcn_count: synthese.tcn_count });
-      setRecherche(false);
-    } catch (erreur) {
-      toast.error((erreur as Error).message);
+      const summary = await apiClient.getCourseSummary(target.id);
+      setOther({ ...target, total: summary.total, tcn_count: summary.tcn_count });
+      setSearchOpen(false);
+    } catch (error) {
+      toast.error((error as Error).message);
     }
   }
 
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-      {peutCorriger && (
-        <Button size="sm" variant="secondary" onClick={() => setCorrection(true)}>
+      {canEdit && (
+        <Button size="sm" variant="secondary" onClick={() => setEditOpen(true)}>
           Corriger l&apos;épreuve
         </Button>
       )}
-      {peutTrancher && (
+      {canReview && (
         <DropdownMenu>
           <DropdownMenuTrigger className="tcn-btn tcn-btn--sm tcn-btn--secondary">
             Avis de fiabilité
@@ -108,50 +109,50 @@ export function CourseAdminActions({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      {peutFusionner && (
-        <Button size="sm" variant="destructive" onClick={() => setRecherche(true)}>
+      {canMerge && (
+        <Button size="sm" variant="destructive" onClick={() => setSearchOpen(true)}>
           Fusionner avec une autre épreuve
         </Button>
       )}
-      {peutSupprimer && (
-        <Button size="sm" variant="destructive" onClick={() => setSuppression(true)}>
+      {canDelete && (
+        <Button size="sm" variant="destructive" onClick={() => setDeleteOpen(true)}>
           Supprimer
         </Button>
       )}
 
-      {correction && (
+      {editOpen && (
         <EditCourseDialog
           course={course}
           open
-          onOpenChange={setCorrection}
+          onOpenChange={setEditOpen}
           onSaved={() => router.refresh()}
         />
       )}
       <ReliabilityVerdictDialog
         course={course}
         verdict={verdict}
-        onOpenChange={(ouvert) => !ouvert && setVerdict(null)}
+        onOpenChange={(open) => !open && setVerdict(null)}
         onDecided={() => router.refresh()}
       />
-      {suppression && (
+      {deleteOpen && (
         <DeleteCourseDialog
           course={course}
           open
-          onOpenChange={setSuppression}
+          onOpenChange={setDeleteOpen}
           onDeleted={() => router.push("/resultats")}
         />
       )}
-      {recherche && (
-        <RechercheCible courseId={course.id} onOpenChange={setRecherche} onSelect={choisirCible} />
+      {searchOpen && (
+        <TargetSearch courseId={course.id} onOpenChange={setSearchOpen} onSelect={pickTarget} />
       )}
-      {autre && (
+      {other && (
         <MergeCoursesDialog
-          courseA={courante}
-          courseB={autre}
+          courseA={current}
+          courseB={other}
           open
-          onOpenChange={(ouvert) => !ouvert && setAutre(null)}
-          onMerged={(conserveeId) =>
-            conserveeId === course.id ? router.refresh() : router.push(`/courses/${conserveeId}`)
+          onOpenChange={(open) => !open && setOther(null)}
+          onMerged={(keptId) =>
+            keptId === course.id ? router.refresh() : router.push(`/courses/${keptId}`)
           }
         />
       )}
@@ -164,24 +165,20 @@ export function CourseAdminActions({
  * ne rapproche que des épreuves du même jour, et une jumelle mal datée lui
  * échappe. Un nombre seul cherche par identifiant, sinon par nom.
  */
-function RechercheCible({
+function TargetSearch({
   courseId,
   onOpenChange,
   onSelect,
 }: {
   courseId: number;
-  onOpenChange: (ouvert: boolean) => void;
+  onOpenChange: (open: boolean) => void;
   onSelect: (course: CourseBrief) => void;
 }) {
-  const [saisie, setSaisie] = useState("");
-  const terme = useDebounce(saisie.trim(), 300);
-  const filtre = /^\d+$/.test(terme) ? { id: terme } : { name: terme };
-  const resultats = useQuery({
-    queryKey: ["course-merge-search", filtre],
-    queryFn: () => apiClient.listCourses({ ...filtre, page_size: 20 }),
-    enabled: terme.length > 0,
-  });
-  const candidates = resultats.data?.filter((c) => c.id !== courseId);
+  const [input, setInput] = useState("");
+  const term = useDebounce(input.trim(), 300);
+  const filter = /^\d+$/.test(term) ? { id: term } : { name: term };
+  const results = useAdminCourses(1, filter, term.length > 0);
+  const candidates = term ? results.data?.filter((c) => c.id !== courseId) : undefined;
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -198,17 +195,19 @@ function RechercheCible({
           type="search"
           aria-label="Chercher une épreuve"
           placeholder="Nom ou numéro de l'épreuve…"
-          value={saisie}
-          onChange={(e) => setSaisie(e.target.value)}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
         />
 
-        {resultats.isFetching && <Skeleton className="h-20 w-full" />}
+        {results.isFetching && <Skeleton className="h-20 w-full" />}
 
-        {candidates && candidates.length === 0 && (
-          <p className="text-[var(--tcn-text-faint)] text-sm">
-            Aucune autre épreuve ne correspond à cette recherche.
-          </p>
-        )}
+        <p role="status" aria-live="polite" className="text-[var(--tcn-text-faint)] text-sm">
+          {candidates === undefined
+            ? ""
+            : candidates.length === 0
+              ? "Aucune autre épreuve ne correspond à cette recherche."
+              : `${candidates.length} ${plural(candidates.length, "épreuve trouvée", "épreuves trouvées")}.`}
+        </p>
 
         {candidates && candidates.length > 0 && (
           <ul className="max-h-64 space-y-1 overflow-y-auto">
