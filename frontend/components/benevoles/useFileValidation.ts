@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient, ApiError } from "@/lib/api/client";
+import { queryKeys } from "@/lib/queries/keys";
 import { suivantApresRetrait } from "@/lib/benevoles/file";
 import type { Participation } from "@/lib/types";
 
@@ -29,6 +31,14 @@ export function useFileValidation() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [traitees, setTraitees] = useState(0);
   const [annonce, setAnnonce] = useState("");
+  const [sessionNotice, setSessionNotice] = useState("");
+  // La pastille « Validation des épreuves » de la nav (#1232) : la file vient
+  // de changer de taille, ou le cookie qui la garde d'apparaître ou de partir.
+  const queryClient = useQueryClient();
+  const refreshBadge = useCallback(
+    () => queryClient.invalidateQueries({ queryKey: queryKeys.benevoleQueueCount() }),
+    [queryClient],
+  );
 
   const charger = useCallback(async () => {
     setEtat("chargement");
@@ -39,11 +49,13 @@ export function useFileValidation() {
       ]);
       setParticipations(resultats);
       setRejetees(rejets);
+      setSessionNotice("");
       setEtat("file");
     } catch (err) {
       setEtat(err instanceof ApiError && err.status === 401 ? "gate" : "erreur");
     }
-  }, []);
+    refreshBadge();
+  }, [refreshBadge]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -65,8 +77,9 @@ export function useFileValidation() {
       toast.success(texte);
       setAnnonce(texte);
       setTraitees((n) => n + 1);
+      refreshBadge();
     },
-    [participations],
+    [participations, refreshBadge],
   );
 
   const surChangement = useCallback(
@@ -89,13 +102,14 @@ export function useFileValidation() {
       if (rejetees.some((p) => p.id === maj.id)) {
         setRejetees((liste) => liste.filter((p) => p.id !== maj.id));
         setParticipations((liste) => [maj, ...liste.filter((p) => p.id !== maj.id)]);
+        refreshBadge();
         return;
       }
       // Simple enregistrement de champs : on rafraîchit sur place, sans
       // enchaîner ni compter.
       setParticipations((liste) => liste.map((p) => (p.id === maj.id ? maj : p)));
     },
-    [rejetees, retirerEtEnchainer],
+    [rejetees, retirerEtEnchainer, refreshBadge],
   );
 
   const selectionnee =
@@ -111,10 +125,17 @@ export function useFileValidation() {
     selectionnee,
     traitees,
     annonce,
+    /** Annonce de session, montée dans tous les états de l'écran (#1232). */
+    sessionNotice,
     charger,
     selectionner: setSelectedId,
     surChangement,
     /** Cookie expiré ou mot de passe changé pendant que l'écran était ouvert. */
     surSessionExpiree: useCallback(() => setEtat("gate"), []),
+    onLoggedOut: useCallback(() => {
+      setSessionNotice("Vous êtes déconnecté.");
+      setEtat("gate");
+      refreshBadge();
+    }, [refreshBadge]),
   };
 }

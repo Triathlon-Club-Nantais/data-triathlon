@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -62,9 +63,11 @@ import BenevolesPage from "./page";
  */
 function renderPage() {
   return render(
-    <DangerConfirmProvider>
-      <BenevolesPage />
-    </DangerConfirmProvider>,
+    <QueryClientProvider client={new QueryClient()}>
+      <DangerConfirmProvider>
+        <BenevolesPage />
+      </DangerConfirmProvider>
+    </QueryClientProvider>,
   );
 }
 
@@ -185,6 +188,19 @@ describe("BenevolesPage", () => {
 
     expect(benevoleLogout).toHaveBeenCalledOnce();
     expect(await screen.findByLabelText(/mot de passe/i)).toBeInTheDocument();
+  });
+
+  it("announces the logout once back on the access screen (#1232)", async () => {
+    benevoleLogout.mockResolvedValue(null);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /se déconnecter/i }));
+
+    await screen.findByLabelText(/mot de passe/i);
+    expect(
+      screen.getAllByRole("status").some((region) => region.textContent === "Vous êtes déconnecté."),
+    ).toBe(true);
   });
 
   it("reste dans l'espace et le signale si la déconnexion échoue (#1247)", async () => {
@@ -381,7 +397,9 @@ describe("BenevolesPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /Valider ce résultat/ }));
 
     await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent("Résultat validé — 2 restants."),
+      expect(screen.getAllByRole("status").map((r) => r.textContent)).toContain(
+        "Résultat validé — 2 restants.",
+      ),
     );
   });
 

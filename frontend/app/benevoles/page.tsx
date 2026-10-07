@@ -148,7 +148,7 @@ export default function BenevolesPage() {
       return;
     }
     brouillonSale.current = false;
-    file.surSessionExpiree();
+    file.onLoggedOut();
   }
 
   function surChangement(maj: Participation) {
@@ -186,6 +186,11 @@ export default function BenevolesPage() {
     document.getElementById("benevole-panel-titre")?.focus();
   }, [file.selectionnee?.id]);
 
+  // Même position dans la file et à l'accès : la région reste montée quand
+  // l'écran passe de l'une à l'autre, et « Vous êtes déconnecté. » y est bien
+  // annoncé (#1232).
+  const sessionRegion = <AnnonceStatut texte={file.sessionNotice} />;
+
   if (file.etat === "chargement") {
     // `role="status"` + `<h1>` : un « Chargement… » nu n'était ni annoncé ni
     // identifié — l'écran perdait jusqu'à son titre pendant l'attente (#490,
@@ -201,7 +206,12 @@ export default function BenevolesPage() {
   }
 
   if (file.etat === "gate") {
-    return <AccessGate onSuccess={file.charger} />;
+    return (
+      <>
+        {sessionRegion}
+        <AccessGate onSuccess={file.charger} />
+      </>
+    );
   }
 
   if (file.etat === "erreur") {
@@ -241,93 +251,96 @@ export default function BenevolesPage() {
   const quelqueChoseASelectionner = file.participations.length > 0 || file.rejetees.length > 0;
 
   return (
-    <div style={{ maxWidth: 1100, margin: "40px auto", padding: "0 24px" }}>
-      <div className="flex items-start justify-between gap-4">
-        <Eyebrow style={{ marginBottom: 6 }}>Validation des épreuves</Eyebrow>
-        <Button variant="ghost" size="sm" onClick={logout}>
-          Se déconnecter
-        </Button>
-      </div>
-      <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(26px, 4vw, 34px)", color: "var(--tcn-ink)", marginBottom: 24, fontWeight: 400 }}>
-        Vérification des résultats
-      </h1>
-      {/* Le toast passe inaperçu d'un lecteur d'écran : la même phrase vit ici
-          en région `status` (WCAG 4.1.3, patron `AnnonceStatut`). Seulement
-          au-dessus de `md` : sous `md` l'annonce vit dans la feuille. */}
-      {!compact && annonce}
-      <div className="mb-6">
-        <ValidationBacklogChart />
-      </div>
-      <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[minmax(280px,360px)_1fr]">
-        <ValidationQueue
-          participations={file.participations}
-          rejected={file.rejetees}
-          selectedId={file.selectedId}
-          onSelect={selectionner}
-          traitees={file.traitees}
-        />
-        {/* Ancrage bureau : accueille `hote` au-dessus de `md` (#609). Ne
-            porte lui-même que le texte d'invite quand rien n'est
-            sélectionné — `panneau` vit dans `hote`, jamais ici en JSX. */}
-        <div ref={emplacementGrilleRef}>
-          {panneau === null && (quelqueChoseASelectionner ? (
-            <div style={{ color: "var(--tcn-text-faint)", fontSize: 14, padding: 24 }}>
-              Sélectionnez un résultat dans la file pour le relire.
-            </div>
-          ) : null)}
+    <>
+      {sessionRegion}
+      <div style={{ maxWidth: 1100, margin: "40px auto", padding: "0 24px" }}>
+        <div className="flex items-start justify-between gap-4">
+          <Eyebrow style={{ marginBottom: 6 }}>Validation des épreuves</Eyebrow>
+          <Button variant="ghost" size="sm" onClick={logout}>
+            Se déconnecter
+          </Button>
         </div>
+        <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(26px, 4vw, 34px)", color: "var(--tcn-ink)", marginBottom: 24, fontWeight: 400 }}>
+          Vérification des résultats
+        </h1>
+        {/* Le toast passe inaperçu d'un lecteur d'écran : la même phrase vit ici
+            en région `status` (WCAG 4.1.3, patron `AnnonceStatut`). Seulement
+            au-dessus de `md` : sous `md` l'annonce vit dans la feuille. */}
+        {!compact && annonce}
+        <div className="mb-6">
+          <ValidationBacklogChart />
+        </div>
+        <div className="grid grid-cols-1 items-start gap-6 md:grid-cols-[minmax(280px,360px)_1fr]">
+          <ValidationQueue
+            participations={file.participations}
+            rejected={file.rejetees}
+            selectedId={file.selectedId}
+            onSelect={selectionner}
+            traitees={file.traitees}
+          />
+          {/* Ancrage bureau : accueille `hote` au-dessus de `md` (#609). Ne
+              porte lui-même que le texte d'invite quand rien n'est
+              sélectionné — `panneau` vit dans `hote`, jamais ici en JSX. */}
+          <div ref={emplacementGrilleRef}>
+            {panneau === null && (quelqueChoseASelectionner ? (
+              <div style={{ color: "var(--tcn-text-faint)", fontSize: 14, padding: 24 }}>
+                Sélectionnez un résultat dans la file pour le relire.
+              </div>
+            ) : null)}
+          </div>
+        </div>
+        {compact && (
+          <Sheet open={feuilleOuverte && panneau !== null} onOpenChange={setFeuilleOuverte}>
+            {/* `keepMounted` : Échap ou un tap hors de la feuille la ferment
+                sans confirmation (aucun des deux n'est désactivé), et par
+                défaut `Popup`/`Portal` démontent alors ce que porte la feuille
+                — avec lui le brouillon de `useBrouillon`, en silence. La
+                feuille reste montée (juste masquée) à la fermeture ; seul un
+                changement d'entrée via `selectionner` peut encore abandonner
+                un brouillon, et seulement après confirmation (#490, revue
+                ronde 1). */}
+            <SheetContent side="right" className="w-full overflow-y-auto p-4" keepMounted>
+              {/* La largeur ne fige plus `max-w-[520px]` : sous 520px de
+                  viewport — tous les téléphones — cette valeur remplaçait
+                  entièrement le `max-w-[85%]` de la primitive (`cn` fait un
+                  `twMerge`, pas une union) et couvrait tout l'écran, sans
+                  bande de fond restant tactile pour fermer la feuille. Un
+                  `SheetClose` explicite couvre le cas général ; garder
+                  `max-w-[85%]` garde aussi une bande de secours (#490, revue
+                  de branche finale). */}
+              <div className="flex items-center justify-between">
+                {/* `sr-only`, pas `fontSize: 0` : certaines combinaisons
+                    navigateur/lecteur d'écran traitent une taille de police
+                    nulle comme « pas rendu », laissant le dialogue sans nom
+                    accessible (#490, revue UI/UX, item 9). */}
+                <SheetTitle className="sr-only">Détail du résultat</SheetTitle>
+                {/* `size-11` (44×44) plutôt que le `p-2.5` suggéré en revue :
+                    avec l'icône `size-4` (16 px), un padding de 10 px de
+                    chaque côté ne totalise que 36 px, sous le plancher WCAG
+                    2.5.8 — une dimension fixe l'atteint quelle que soit
+                    l'icône, comme la croix analogue d'`AppNav.tsx` (#490,
+                    revue UI/UX, item 4). `.tcn-icon-btn` porte le survol et
+                    l'anneau de focus ; `hover:` seul ne réagit jamais au
+                    tactile. */}
+                <SheetClose
+                  aria-label="Fermer le détail du résultat"
+                  className="tcn-icon-btn flex size-11 items-center justify-center rounded-full text-[var(--tcn-text-faint)] hover:text-[var(--tcn-ink)]"
+                >
+                  <X className="size-4" />
+                </SheetClose>
+              </div>
+              {annonce}
+              {/* Ancrage feuille : accueille `hote` sous `md` (#609). */}
+              <div ref={emplacementFeuilleRef} />
+            </SheetContent>
+          </Sheet>
+        )}
+        {/* `panneau` ne se rend qu'ici, à une position fixe de l'arbre React —
+            l'effet plus haut déplace `hote` lui-même (DOM brut, jamais un
+            second rendu React) vers l'ancrage bureau ou celui de la feuille
+            selon `compact` (#609). */}
+        {hote && createPortal(panneau, hote)}
       </div>
-      {compact && (
-        <Sheet open={feuilleOuverte && panneau !== null} onOpenChange={setFeuilleOuverte}>
-          {/* `keepMounted` : Échap ou un tap hors de la feuille la ferment
-              sans confirmation (aucun des deux n'est désactivé), et par
-              défaut `Popup`/`Portal` démontent alors ce que porte la feuille
-              — avec lui le brouillon de `useBrouillon`, en silence. La
-              feuille reste montée (juste masquée) à la fermeture ; seul un
-              changement d'entrée via `selectionner` peut encore abandonner
-              un brouillon, et seulement après confirmation (#490, revue
-              ronde 1). */}
-          <SheetContent side="right" className="w-full overflow-y-auto p-4" keepMounted>
-            {/* La largeur ne fige plus `max-w-[520px]` : sous 520px de
-                viewport — tous les téléphones — cette valeur remplaçait
-                entièrement le `max-w-[85%]` de la primitive (`cn` fait un
-                `twMerge`, pas une union) et couvrait tout l'écran, sans
-                bande de fond restant tactile pour fermer la feuille. Un
-                `SheetClose` explicite couvre le cas général ; garder
-                `max-w-[85%]` garde aussi une bande de secours (#490, revue
-                de branche finale). */}
-            <div className="flex items-center justify-between">
-              {/* `sr-only`, pas `fontSize: 0` : certaines combinaisons
-                  navigateur/lecteur d'écran traitent une taille de police
-                  nulle comme « pas rendu », laissant le dialogue sans nom
-                  accessible (#490, revue UI/UX, item 9). */}
-              <SheetTitle className="sr-only">Détail du résultat</SheetTitle>
-              {/* `size-11` (44×44) plutôt que le `p-2.5` suggéré en revue :
-                  avec l'icône `size-4` (16 px), un padding de 10 px de
-                  chaque côté ne totalise que 36 px, sous le plancher WCAG
-                  2.5.8 — une dimension fixe l'atteint quelle que soit
-                  l'icône, comme la croix analogue d'`AppNav.tsx` (#490,
-                  revue UI/UX, item 4). `.tcn-icon-btn` porte le survol et
-                  l'anneau de focus ; `hover:` seul ne réagit jamais au
-                  tactile. */}
-              <SheetClose
-                aria-label="Fermer le détail du résultat"
-                className="tcn-icon-btn flex size-11 items-center justify-center rounded-full text-[var(--tcn-text-faint)] hover:text-[var(--tcn-ink)]"
-              >
-                <X className="size-4" />
-              </SheetClose>
-            </div>
-            {annonce}
-            {/* Ancrage feuille : accueille `hote` sous `md` (#609). */}
-            <div ref={emplacementFeuilleRef} />
-          </SheetContent>
-        </Sheet>
-      )}
-      {/* `panneau` ne se rend qu'ici, à une position fixe de l'arbre React —
-          l'effet plus haut déplace `hote` lui-même (DOM brut, jamais un
-          second rendu React) vers l'ancrage bureau ou celui de la feuille
-          selon `compact` (#609). */}
-      {hote && createPortal(panneau, hote)}
-    </div>
+    </>
   );
 }
