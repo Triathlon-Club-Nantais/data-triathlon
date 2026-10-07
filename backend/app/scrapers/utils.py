@@ -347,10 +347,12 @@ def _relay_segment(segment: str) -> tuple[str, str] | None:
     return (head, tail) if upper[0] else (tail, head)
 
 
-# Particules de nom de famille relevées sur les duos klikego (#1237).
+# Particules de nom de famille relevées sur les duos klikego (#1237). VAN en est
+# exclu, intercalaire vietnamien courant (« NGUYEN VAN ANH »), et avec lui les
+# DER/DEN/TER/TEN qui ne le suivent que lui.
 _NAME_PARTICLES = frozenset({
     "LE", "LA", "LES", "DE", "DU", "DES", "DI", "DA", "DEL", "DELLA", "DOS",
-    "VAN", "VON", "DER", "DEN", "TER", "TEN", "ST", "STE", "SAINT", "SAINTE",
+    "VON", "ST", "STE", "SAINT", "SAINTE",
 })
 
 
@@ -366,9 +368,9 @@ def _split_on_particle(tokens: list[str]) -> tuple[str, str] | None:
         words.append(" ".join([*pending, token]))
         glued.append(bool(pending))
         pending = []
-    if pending or len(words) != 2 or glued == [False, False]:
+    if pending or len(words) != 2 or glued.count(True) != 1:
         return None
-    return (words[1], words[0]) if glued == [False, True] else (words[0], words[1])
+    return (words[1], words[0]) if glued[1] else (words[0], words[1])
 
 
 def _joins_names(tokens: list[str]) -> bool:
