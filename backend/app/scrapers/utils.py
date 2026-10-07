@@ -333,8 +333,10 @@ def _relay_segment(segment: str) -> tuple[str, str] | None:
     upper = [token.isupper() for token in tokens]
     if all(upper):
         # Tout en majuscules : lu « NOM PRÉNOM » (klikego, oktime, chronoplace) ;
-        # au-delà de deux mots, la frontière entre nom et prénom est indécidable.
-        return (tokens[0], tokens[1]) if len(tokens) == 2 else None
+        # au-delà de deux mots, seule une particule (« LE TULZO ») situe le nom (#1237).
+        if len(tokens) == 2:
+            return tokens[0], tokens[1]
+        return _split_on_particle(tokens)
     if not any(upper):
         return None
     # Casse mixte : un seul bloc majuscule, en tête ou en queue, porte le nom.
@@ -343,6 +345,30 @@ def _relay_segment(segment: str) -> tuple[str, str] | None:
         return None
     head, tail = " ".join(tokens[:boundary]), " ".join(tokens[boundary:])
     return (head, tail) if upper[0] else (tail, head)
+
+
+# Particules de nom de famille relevées sur les duos klikego (#1237).
+_NAME_PARTICLES = frozenset({
+    "LE", "LA", "LES", "DE", "DU", "DES", "DI", "DA", "DEL", "DELLA", "DOS",
+    "VAN", "VON", "DER", "DEN", "TER", "TEN", "ST", "STE", "SAINT", "SAINTE",
+})
+
+
+def _split_on_particle(tokens: list[str]) -> tuple[str, str] | None:
+    """`(nom, prénom)` of an all-caps segment whose particle glues the name, in either order."""
+    words: list[str] = []
+    glued: list[bool] = []
+    pending: list[str] = []
+    for token in tokens:
+        if deaccent(token) in _NAME_PARTICLES:
+            pending.append(token)
+            continue
+        words.append(" ".join([*pending, token]))
+        glued.append(bool(pending))
+        pending = []
+    if pending or len(words) != 2 or glued == [False, False]:
+        return None
+    return (words[1], words[0]) if glued == [False, True] else (words[0], words[1])
 
 
 def _joins_names(tokens: list[str]) -> bool:

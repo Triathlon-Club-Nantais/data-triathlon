@@ -179,9 +179,15 @@ def test_fmt_seconds_est_l_inverse_de_to_seconds():
     ("MENARDAIS FERDINAND / COMPAIN LENA", [("MENARDAIS", "FERDINAND"), ("COMPAIN", "LENA")]),
     ("DUPONT Jean / MARTIN Paul", [("DUPONT", "Jean"), ("MARTIN", "Paul")]),
     ("Jean DUPONT / Paul MARTIN", [("DUPONT", "Jean"), ("MARTIN", "Paul")]),
+    # klikego, chronoplace : une particule se colle au nom qu'elle précède (#1237)
+    ("LE TULZO NICOLAS / LE TULZO ROXANE .", [("LE TULZO", "NICOLAS"), ("LE TULZO", "ROXANE")]),
+    ("NICOLAS LE TULZO / ROXANE LE TULZO .", [("LE TULZO", "NICOLAS"), ("LE TULZO", "ROXANE")]),
+    ("LE BRAS LUC / LE PAGE GUULLAUME .", [("LE BRAS", "LUC"), ("LE PAGE", "GUULLAUME")]),
+    ("LE BOZEC HENRI / BABINET SYLVAIN", [("LE BOZEC", "HENRI"), ("BABINET", "SYLVAIN")]),
+    ("DE LA TOUR JEAN / D'ARC JEANNE", [("DE LA TOUR", "JEAN"), ("D'ARC", "JEANNE")]),
     # frontière nom/prénom indécidable
-    ("LE BRAS LUC / LE PAGE GUULLAUME .", None),
-    ("LE BOZEC HENRI / BABINET SYLVAIN", None),
+    ("MARTIN JEAN PIERRE / DUPONT PAUL", None),
+    ("LE TULZO NICOLAS ANNE / DUPONT PAUL", None),
     ("DAUGUET PIERRE E. / BELMONTE ALEXANDRE .", None),
     ("MARTIN Jean DUPONT / Paul", None),
     # un segment sans nom et prénom
