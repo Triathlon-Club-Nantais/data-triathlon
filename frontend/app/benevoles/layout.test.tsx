@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/client";
@@ -31,7 +32,11 @@ describe("BenevolesLayout", () => {
   it("mène un bénévole sans compte au formulaire de mot de passe, sans lire de session", async () => {
     getBenevoleQueue.mockRejectedValue(new ApiError(401, "Non autorisé"));
 
-    render(BenevolesLayout({ children: <BenevolesPage /> }));
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        {BenevolesLayout({ children: <BenevolesPage /> })}
+      </QueryClientProvider>,
+    );
 
     expect(await screen.findByLabelText("Mot de passe")).toBeInTheDocument();
     expect(screen.queryByText("Vous n'avez pas la permission nécessaire")).not.toBeInTheDocument();

@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { act, renderHook as renderHookBrut, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { AthleteBrief, Participation } from "@/lib/types";
 
@@ -15,7 +16,24 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 vi.mock("sonner", () => ({ toast: { success: toastSuccess, error: vi.fn() } }));
 
 import { ApiError } from "@/lib/api/client";
+import { queryKeys } from "@/lib/queries/keys";
 import { useFileValidation } from "./useFileValidation";
+
+let queryClient: QueryClient;
+
+function renderHook<T>(hook: () => T) {
+  return renderHookBrut(hook, {
+    wrapper: ({ children }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>,
+  });
+}
+
+function badgeRefreshes() {
+  return vi
+    .mocked(queryClient.invalidateQueries)
+    .mock.calls.filter(([filtre]) =>
+      JSON.stringify(filtre?.queryKey) === JSON.stringify(queryKeys.benevoleQueueCount()),
+    ).length;
+}
 
 const ATHLETE: AthleteBrief = { id: 1, nom: "HERRMANN", prenom: "Mathieu", gender: "M", club: "TCN" };
 
@@ -60,6 +78,8 @@ async function monter(file = [participation(1), participation(2), participation(
 
 beforeEach(() => {
   vi.clearAllMocks();
+  queryClient = new QueryClient();
+  vi.spyOn(queryClient, "invalidateQueries");
 });
 
 describe("useFileValidation", () => {
@@ -141,5 +161,39 @@ describe("useFileValidation", () => {
     expect(result.current.participations.map((p) => p.id)).toEqual([5, 1]);
     expect(result.current.rejetees).toHaveLength(0);
     expect(result.current.traitees).toBe(0);
+  });
+
+  it("refreshes the nav badge once the queue is loaded (#1232)", async () => {
+    await monter();
+    expect(badgeRefreshes()).toBe(1);
+  });
+
+  it("refreshes the nav badge when an entry leaves or comes back to the queue (#1232)", async () => {
+    getBenevoleQueue.mockResolvedValue([participation(1), participation(2)]);
+    getBenevoleRejected.mockResolvedValue([participation(5, { is_rejected: true })]);
+    const { result } = renderHook(() => useFileValidation());
+    await waitFor(() => expect(result.current.etat).toBe("file"));
+
+    act(() => result.current.surChangement(participation(1, { is_pending_validation: false })));
+    act(() => result.current.surChangement(participation(2, { is_rejected: true })));
+    act(() => result.current.surChangement(participation(5, { is_rejected: false })));
+
+    expect(badgeRefreshes()).toBe(4);
+  });
+
+  it("does not refresh the badge on a plain field save (#1232)", async () => {
+    const { result } = await monter();
+    act(() => result.current.surChangement(participation(2, { bib_number: "413" })));
+    expect(badgeRefreshes()).toBe(1);
+  });
+
+  it("logging out goes back to the gate, says so and refreshes the badge (#1232)", async () => {
+    const { result } = await monter();
+
+    act(() => result.current.onLoggedOut());
+
+    expect(result.current.etat).toBe("gate");
+    expect(result.current.sessionNotice).toBe("Vous êtes déconnecté.");
+    expect(badgeRefreshes()).toBe(2);
   });
 });
