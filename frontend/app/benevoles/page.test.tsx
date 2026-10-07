@@ -199,6 +199,48 @@ describe("BenevolesPage", () => {
     expect(screen.getByText("Coureur1 HERRMANN")).toBeInTheDocument();
   });
 
+  it("garde le brouillon si la déconnexion n'est pas confirmée (#1247)", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /Coureur1/ }));
+    await user.type(screen.getByLabelText(/Dossard/), "412");
+    await user.click(screen.getByRole("button", { name: /se déconnecter/i }));
+
+    const confirmation = await screen.findByRole("dialog", { name: /abandonner/i });
+    await user.click(within(confirmation).getByRole("button", { name: /renoncer/i }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(benevoleLogout).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(/Dossard/)).toHaveValue("412");
+  });
+
+  it("se déconnecte après abandon confirmé du brouillon, sans garde-fou résiduel pour le bénévole suivant (#1247)", async () => {
+    benevoleLogout.mockResolvedValue(null);
+    benevoleLogin.mockResolvedValue(null);
+    // Le résultat en cours a quitté la file entre-temps : aucun panneau ne se
+    // remonte, donc rien d'autre que la déconnexion ne remet le garde-fou à zéro.
+    getBenevoleQueue
+      .mockResolvedValueOnce([participation(1), participation(2)])
+      .mockResolvedValueOnce([participation(2)]);
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: /Coureur1/ }));
+    await user.type(screen.getByLabelText(/Dossard/), "412");
+    await user.click(screen.getByRole("button", { name: /se déconnecter/i }));
+    const confirmation = await screen.findByRole("dialog", { name: /abandonner/i });
+    await user.click(within(confirmation).getByRole("button", { name: /^abandonner$/i }));
+
+    await user.type(await screen.findByLabelText(/mot de passe/i), "secret-du-club");
+    await user.click(screen.getByRole("button", { name: /se connecter/i }));
+    await user.click(await screen.findByRole("button", { name: /se déconnecter/i }));
+
+    expect(await screen.findByLabelText(/mot de passe/i)).toBeInTheDocument();
+    expect(benevoleLogout).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
   it("affiche directement la file quand la session est déjà valide", async () => {
     getBenevoleQueue.mockResolvedValue([participation(1), participation(2)]);
     renderPage();
