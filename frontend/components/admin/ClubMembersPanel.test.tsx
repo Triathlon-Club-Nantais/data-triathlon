@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { ClubMember, ClubMembersSeason } from "@/lib/types";
 
-const { mutate } = vi.hoisted(() => ({ mutate: vi.fn() }));
+const { mutate, unlink } = vi.hoisted(() => ({ mutate: vi.fn(), unlink: vi.fn() }));
 vi.mock("@/lib/queries/admin", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/queries/admin")>();
   return {
@@ -10,6 +10,7 @@ vi.mock("@/lib/queries/admin", async (importOriginal) => {
     useImportClubMembers: () => ({ mutate, isPending: false }),
     useSyncClubMembers: () => ({ mutate: vi.fn(), isPending: false }),
     useLinkClubMember: () => ({ mutate: vi.fn(), isPending: false }),
+    useUnlinkClubMember: () => ({ mutate: unlink, isPending: false }),
   };
 });
 
@@ -94,5 +95,23 @@ describe("ClubMembersPanel", () => {
     );
 
     expect(screen.getByRole("button", { name: /rattacher durand paul à une fiche/i })).toBeInTheDocument();
+  });
+
+  it("liste, repliés, les rattachements faits à la main, et annule l'un", () => {
+    render(
+      <ClubMembersPanel
+        {...props}
+        data={saison({
+          total: 2, linked: 2,
+          members: [membre({}), membre({ id: 2, nom: "DURAND", prenom: "Paul", link_status: "manual" })],
+        })}
+      />,
+    );
+
+    const resume = screen.getByText("Rattachements faits à la main (1)");
+    expect(resume.closest("details")).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByRole("button", { name: /annuler le rattachement de durand paul/i }));
+
+    expect(unlink).toHaveBeenCalledWith(2, expect.anything());
   });
 });

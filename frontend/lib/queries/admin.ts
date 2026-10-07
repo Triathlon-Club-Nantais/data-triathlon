@@ -509,6 +509,53 @@ export function useIgnoreIdentityPair() {
   });
 }
 
+// Arbitrages à revoir et annuler (#1243). Chaque annulation invalide le préfixe
+// de son écran : la liste des arbitrages et la file qu'il rejoint.
+export function useIgnoredIdentityPairs() {
+  return useQuery({
+    queryKey: queryKeys.ignoredIdentityPairs(),
+    queryFn: () => apiClient.listIgnoredIdentityPairs(),
+  });
+}
+
+export function useUnignoreIdentityPair() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (pairId: number) => apiClient.unignoreIdentityPair(pairId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.identityReview() }),
+  });
+}
+
+export function useConfirmedIdentityClubs() {
+  return useQuery({
+    queryKey: queryKeys.confirmedIdentityClubs(),
+    queryFn: () => apiClient.listConfirmedIdentityClubs(),
+  });
+}
+
+export function useUnconfirmIdentityClub() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (knownId: number) => apiClient.unconfirmIdentityClub(knownId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.identityReview() }),
+  });
+}
+
+export function useIgnoredCourseDuplicates() {
+  return useQuery({
+    queryKey: queryKeys.ignoredCourseDuplicates(),
+    queryFn: () => apiClient.listIgnoredCourseDuplicates(),
+  });
+}
+
+export function useUnignoreCourseDuplicate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (pairId: number) => apiClient.unignoreCourseDuplicate(pairId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.courseDuplicates() }),
+  });
+}
+
 /** Confirme un club pour une fiche : elle ne sera plus signalée pour lui (#1209). */
 export function useConfirmIdentityClub() {
   const qc = useQueryClient();
@@ -1339,6 +1386,14 @@ export function useLinkClubMember() {
   return useMutation({
     mutationFn: ({ memberId, athleteId }: { memberId: number; athleteId: number }) =>
       apiClient.linkClubMember(memberId, athleteId),
+    onSuccess: () => qc.invalidateQueries(),
+  });
+}
+
+export function useUnlinkClubMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (memberId: number) => apiClient.unlinkClubMember(memberId),
     onSuccess: () => qc.invalidateQueries(),
   });
 }
