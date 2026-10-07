@@ -41,7 +41,7 @@ def _ambiguous_label(club, labels: ClubLabels) -> ColumnElement[bool]:
     return _normalise_sql(club).in_(sorted(labels.ambiguous))
 
 
-def _linked_member(athlete_id, season=None) -> ColumnElement[bool]:
+def linked_member(athlete_id, season=None) -> ColumnElement[bool]:
     """Un licencié rattaché à cette fiche, pour `season` ou n'importe quelle saison."""
     clauses = [ClubMember.athlete_id == athlete_id, ClubMember.link_status.in_(LINKED)]
     if season is not None:
@@ -65,12 +65,12 @@ def _member_of_course_season() -> ColumnElement[bool]:
         select(literal(1))
         .where(
             ParticipationTeammate.participation_id == Participation.id,
-            _linked_member(ParticipationTeammate.athlete_id, season),
+            linked_member(ParticipationTeammate.athlete_id, season),
         )
         .correlate(Participation)
         .exists()
     )
-    return or_(_linked_member(Participation.athlete_id, season), teammate_licensed)
+    return or_(linked_member(Participation.athlete_id, season), teammate_licensed)
 
 
 def _attached_to_club(labels: ClubLabels) -> ColumnElement[bool]:
@@ -87,7 +87,7 @@ def _attached_to_club(labels: ClubLabels) -> ColumnElement[bool]:
         .correlate(Participation)
         .exists()
     )
-    return or_(clear_result, _linked_member(Participation.athlete_id))
+    return or_(clear_result, linked_member(Participation.athlete_id))
 
 
 def _rule(labels: ClubLabels) -> ColumnElement[bool]:

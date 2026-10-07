@@ -24,6 +24,7 @@ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.orm.attributes import set_committed_value
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.athlete_identity import athlete_identity_keys, is_team_label
 from app.core.club import _normalise_sql, tcn_clause
@@ -40,6 +41,7 @@ from app.models.participation import Participation, ParticipationTeammate
 from app.models.season_validation import SeasonValidation
 from app.models.user import User
 from app.models.volunteer_action import VolunteerAction
+from app.repositories.tcn_count_repository import linked_member
 from app.scrapers.base import STATUS_FINISHER
 
 
@@ -485,6 +487,14 @@ def get_or_create(
     return athlete
 
 
+def _club_record(seasons: Collection[int] = ()) -> ColumnElement[bool]:
+    """Une fiche du club : son club de fiche, ou une licence rattachée pour l'une
+    des `seasons`, n'importe laquelle si vide (#1231). Une ville lue en colonne
+    club par une source ne retire pas un licencié des listes du club."""
+    licensed = or_(*(linked_member(Athlete.id, season) for season in seasons)) if seasons else linked_member(Athlete.id)
+    return or_(tcn_clause(Athlete.club), licensed)
+
+
 def search(
     db: Session,
     *,
@@ -497,7 +507,7 @@ def search(
     if name:
         q = q.filter(name_filter(name))
     if club_only:
-        q = q.filter(tcn_clause(Athlete.club))
+        q = q.filter(_club_record())
     offset = (page - 1) * page_size
     return q.order_by(Athlete.nom, Athlete.prenom).offset(offset).limit(page_size).all()
 
@@ -730,8 +740,8 @@ def list_with_season_participation_count(
     publient jamais l'affiliation club sur la ligne de résultat, et le
     critère précédent (`tcn_clause(Participation.club)`) excluait de la liste
     un membre confirmé du club faute d'affiliation publiée *sur cette
-    saison* — pas seulement le sous-comptait. Même critère que
-    `athlete_repository.search()`.
+    saison* — pas seulement le sous-comptait. Une licence rattachée pour l'une
+    des `seasons` suffit aussi (`_club_record`, #1231).
 
     Trois agrégats indépendants sur les mêmes lignes jointes (research.md D2),
     chacun nommé pour ce qu'il compte : `total_count` (toute participation de
@@ -766,7 +776,7 @@ def list_with_season_participation_count(
         .group_by(Athlete.id)
     )
     if club_only:
-        requete = requete.filter(tcn_clause(Athlete.club))
+        requete = requete.filter(_club_record(seasons))
     if seasons:
         requete = requete.filter(season_clause(seasons))
     if federal_only:
@@ -849,7 +859,7 @@ def search_by_relevance(
         .group_by(Athlete.id)
     )
     if club_only:
-        requete = requete.filter(tcn_clause(Athlete.club))
+        requete = requete.filter(_club_record())
     return (
         requete.order_by(rang, compte.desc(), Athlete.nom, Athlete.prenom)
         .limit(limit)
@@ -996,8 +1006,6 @@ def delete_by_id(db: Session, athlete_id: int) -> None:
 # ── Revue d'identité (#908, #967) ────────────────────────────────────────────
 
 
-def _club_flag(column):
-    return func.max(case((tcn_clause(column), 1), else_=0)) == 1
 
 
 def club_records_with_two_bibs_on_a_race(db: Session) -> list[tuple[int, int]]:
@@ -1013,7 +1021,7 @@ def club_records_with_two_bibs_on_a_race(db: Session) -> list[tuple[int, int]]:
         .having(
             func.count(func.distinct(Participation.bib_number)) > 1,
             or_(
-                _club_flag(Athlete.club),
+                func.max(case((_club_record(), 1), else_=0)) == 1,
                 func.max(case((Participation.counts_for_tcn.is_(True), 1), else_=0)) == 1,
             ),
         )
@@ -1044,7 +1052,7 @@ def homonym_groups(db: Session) -> list[tuple[list[int], set[int]]]:
         select(Participation.athlete_id)
         .where(Participation.athlete_id.in_(ids), Participation.counts_for_tcn.is_(True))
         .distinct()
-    )) | set(db.scalars(select(Athlete.id).where(Athlete.id.in_(ids), tcn_clause(Athlete.club))))
+    )) | set(db.scalars(select(Athlete.id).where(Athlete.id.in_(ids), _club_record())))
     groups: dict[tuple[str, str], list[int]] = {}
     for member in members:
         groups.setdefault((member.last_name_key, member.first_name_key), []).append(member.id)

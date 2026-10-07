@@ -1370,3 +1370,63 @@ def test_pair_facts_refuse_a_team_and_a_person_like_the_merge_does(db_session):
     assert facts[(person.id, team.id)].refusal == "team_and_person"
     assert facts[(person.id, team.id)].blocked
     assert facts[(team.id, other_team.id)].refusal is None
+
+
+# ── Licencié rattaché, club de fiche quelconque (#1231) ─────────────────────
+
+
+def _licence(db, athlete, season):
+    db.add(ClubMember(season=season, nom=athlete.nom, prenom=athlete.prenom, athlete_id=athlete.id,
+                      link_status="auto", source="fftri"))
+    db.flush()
+
+
+def _city_records(db_session):
+    """Deux fiches au club de fiche « ville », dont une seule licenciée pour la saison 2025."""
+    course = _epreuve_datee(db_session, "Licence", date(2026, 3, 1))
+    licensed = _record(db_session, "LICENCIE", club="LE PERREUX-SUR-MARNE (94170)")
+    outsider = _record(db_session, "VOISIN", club="LE PERREUX-SUR-MARNE (94170)")
+    _inscrit_club(db_session, licensed, course, "1", club=None)
+    _inscrit_club(db_session, outsider, course, "2", club=None)
+    _licence(db_session, licensed, 2025)
+    return licensed, outsider
+
+
+def _season_names(db_session, seasons):
+    return [a.nom for a, *_ in athlete_repository.list_with_season_participation_count(
+        db_session, seasons=seasons, club_only=True
+    )]
+
+
+def test_saison_club_only_lists_a_licensed_member_whatever_the_record_club(db_session):
+    _city_records(db_session)
+
+    assert _season_names(db_session, [2025]) == ["LICENCIE"]
+    assert _season_names(db_session, []) == ["LICENCIE"]
+
+
+def test_saison_club_only_needs_a_licence_for_the_requested_season(db_session):
+    licensed, _outsider = _city_records(db_session)
+    _inscrit_club(db_session, licensed, _epreuve_datee(db_session, "Avant", date(2024, 10, 1)), "3", club=None)
+
+    assert _season_names(db_session, [2024]) == []
+
+
+def test_club_search_lists_a_licensed_member_whatever_the_record_club(db_session):
+    _city_records(db_session)
+
+    assert [a.nom for a in athlete_repository.search(db_session, club_only=True)] == ["LICENCIE"]
+    assert [a.nom for a, _ in athlete_repository.search_by_relevance(
+        db_session, term="i", club_only=True
+    )] == ["LICENCIE"]
+
+
+def test_club_roster_and_rank_list_a_licensed_member_whatever_the_record_club(db_session):
+    from app.repositories import tcn_count_repository
+
+    licensed, outsider = _city_records(db_session)
+    tcn_count_repository.recompute_counts_for_tcn(db_session)
+
+    assert [a.nom for a, *_ in athlete_repository.club_roster(db_session)] == ["LICENCIE"]
+    assert athlete_repository.club_rank(db_session, licensed.id) == (1, 1)
+    assert athlete_repository.club_rank(db_session, outsider.id) is None
