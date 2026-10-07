@@ -57,7 +57,7 @@ def extract_city(event_name: str) -> str:
         "", name, flags=re.I,
     ).strip()
     name = _SPONSORS.sub("", name)
-    name = re.sub(r"\b(20\d{2}|\d+\s*(?:e|è|ème|eme)?\s+[ée]dition)(?!\w)", "", name, flags=re.I).strip()
+    name = re.sub(r"\b(20\d{2}|\d+\s*(?:e|è|ème|eme|er|re|ère)?\s+[ée]dition)(?!\w)", "", name, flags=re.I).strip()
     name = re.sub(r"[-–—]+$", "", name).strip()
     # Suffixe de heat (« … 2025 - Triathlon M ») coupé avant tout autre nettoyage.
     name = re.split(r"\s+[-–]\s+|\s+[-–]$", name)[0].strip()

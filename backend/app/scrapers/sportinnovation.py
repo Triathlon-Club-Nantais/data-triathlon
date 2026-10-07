@@ -30,6 +30,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.core import http
+from app.core.youth import is_youth
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
 from .classify import classify_event_type
@@ -614,28 +615,38 @@ def _merge_duo_teams(results: list[ScrapedResult], race_title: str) -> list[Scra
     Sur un swimrun DUO (Défis de Saint-Nazaire 2026), la source publie une ligne
     par équipier sous le dossard commun : la seconde était perdue à l'import
     (`duplicate_bib`). Les lignes d'un dossard sont fusionnées en un relais
-    « NOM Prénom / NOM Prénom », que l'import découpe en équipiers (#895). Le
-    titre « DUO » suffit à marquer la course relais : toutes ses lignes doivent
-    porter le même `is_relay`, qui entre dans l'identité de l'épreuve.
+    « NOM Prénom / NOM Prénom », dont les équipiers passent tels que publiés.
+    Le titre « DUO », ou une majorité de dossards portés par deux lignes, marque
+    la course relais : toutes ses lignes doivent porter le même `is_relay`, qui
+    entre dans l'identité de l'épreuve. Un doublon isolé dans une course solo
+    reste une erreur de saisie, signalée à l'import (`duplicate_bib`).
     """
     by_bib: dict[str, list[ScrapedResult]] = {}
     for result in results:
         by_bib.setdefault(result.bib_number or f"#{id(result)}", []).append(result)
-    if not _DUO_RE.search(race_title) and all(len(rows) == 1 for rows in by_bib.values()):
+    pairs = sum(1 for rows in by_bib.values() if len(rows) == 2)
+    if not _DUO_RE.search(race_title) and pairs * 2 <= len(by_bib):
         return results
     merged = []
     for rows in by_bib.values():
         team = rows[0]
         team.is_relay = True
         if len(rows) > 1:
+            members = [(r.athlete_name, r.athlete_firstname, r.category) for r in rows]
             team.athlete_name = " / ".join(
-                " ".join(filter(None, [r.athlete_name, r.athlete_firstname])) for r in rows
+                " ".join(filter(None, [name, firstname])) for name, firstname, _ in members
             )
             team.athlete_firstname = ""
+            team.teammates = tuple((name, firstname) for name, firstname, _ in members)
             # Genre et catégorie d'une équipe mixte n'appartiennent à aucun équipier.
             for attr in ("gender", "category", "club"):
                 values = {getattr(r, attr) for r in rows} - {""}
                 setattr(team, attr, values.pop() if len(values) == 1 else "")
+            # Un équipier jeune laisse sa catégorie à l'équipe : le filtre de
+            # l'import (#881) ne juge que la catégorie de la ligne.
+            team.category = next(
+                (cat for _, _, cat in members if is_youth("", cat)), team.category
+            )
         merged.append(team)
     return merged
 
