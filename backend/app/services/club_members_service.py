@@ -238,11 +238,17 @@ def unlink_member(db: Session, *, member_id: int, user_id: int | None) -> ClubMe
         raise NotManuallyLinkedError
     previous = member.athlete_id
     key = athlete_identity_keys(member.nom, member.prenom)
-    member.athlete_id, member.link_status = _auto_match(
+    athlete_id, status = _auto_match(
         athlete_repository.get_all_ranks_by_identity_keys(db, [key]),
         athlete_alias_repository.get_by_keys_batch(db, [key]),
         key,
     )
+    # Même règle que `_replace` : une fiche ne garde qu'une ligne sans licence par saison.
+    if athlete_id is not None and not member.licence_id and club_member_repository.has_licence_less_link(
+        db, season=member.season, athlete_id=athlete_id, except_id=member.id
+    ):
+        athlete_id, status = None, LINK_UNLINKED
+    member.athlete_id, member.link_status = athlete_id, status
     db.flush()
     tcn_count_repository.recompute_counts_for_tcn(
         db, athlete_ids={i for i in (previous, member.athlete_id) if i is not None}

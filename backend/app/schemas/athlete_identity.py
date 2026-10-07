@@ -85,6 +85,8 @@ class IdentityNamedAthlete(BaseModel):
 class IgnoredIdentityPair(BaseModel):
     id: int
     ignored_at: datetime
+    # Posée par l'import (#1209), sans auteur ; la séparation, elle, porte l'admin qui l'a faite.
+    automatic: bool
     athletes: list[IdentityNamedAthlete]
 
 

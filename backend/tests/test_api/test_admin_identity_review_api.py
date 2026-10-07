@@ -5,7 +5,11 @@ import pytest
 
 from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
-from app.repositories import course_repository, participation_repository
+from app.repositories import (
+    course_repository,
+    ignored_athlete_pair_repository,
+    participation_repository,
+)
 from tests.test_api.test_admin_data_api import _session_etroite
 
 
@@ -134,6 +138,7 @@ def test_an_ignored_pair_is_listed_then_its_undo_returns_it_to_the_review(client
     assert [a["id"] for a in pair["athletes"]] == [first.id, second.id]
     assert (pair["athletes"][0]["nom"], pair["athletes"][0]["prenom"]) == ("DUPONT", "Jean")
     assert pair["ignored_at"]
+    assert pair["automatic"] is False
 
     undone = client.delete(f"/api/v1/admin/identity-review/ignored/{pair['id']}")
 
@@ -142,6 +147,16 @@ def test_an_ignored_pair_is_listed_then_its_undo_returns_it_to_the_review(client
     assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 1}
     assert _last_action(db_session) == "athlete_identity.unignore"
     assert client.delete(f"/api/v1/admin/identity-review/ignored/{pair['id']}").status_code == 404
+
+
+def test_a_pair_set_by_the_import_is_listed_as_automatic(client, db_session, swapped):
+    first, second = swapped
+    ignored_athlete_pair_repository.create(db_session, athlete_id_a=first.id, athlete_id_b=second.id, user_id=None)
+    db_session.commit()
+
+    [pair] = client.get("/api/v1/admin/identity-review/ignored").json()["pairs"]
+
+    assert pair["automatic"] is True
 
 
 def test_a_confirmed_club_is_listed_then_its_undo_returns_the_case(client, db_session, multi_club):

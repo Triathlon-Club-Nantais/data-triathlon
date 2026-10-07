@@ -230,6 +230,43 @@ def test_licence_less_rows_of_one_athlete_collapse_to_one(db_session, admin):
     assert (report.total, report.linked) == (1, 1)
 
 
+def test_unlink_member_recomputes_the_tcn_counters(db_session, admin, roster):
+    other = _athlete(db_session, "AUTRE", "Zoé")
+    course = course_repository.get_or_create(
+        db_session, name="Tri", event_date=date(2026, 10, 4), event_type="triathlon-m"
+    )
+    result = participation_repository.create(
+        db_session, athlete_id=other.id, course_id=course.id, bib_number="1", status="finisher"
+    )
+    club_members_service.sync_from_fftri(db_session, user_id=admin.id)
+    member = next(m for m in club_member_repository.list_season(db_session, 2026) if m.licence_id == "C3")
+    club_members_service.link_member(db_session, member_id=member.id, athlete_id=other.id, user_id=admin.id)
+    db_session.refresh(result)
+    assert result.counts_for_tcn
+
+    club_members_service.unlink_member(db_session, member_id=member.id, user_id=admin.id)
+
+    db_session.refresh(result)
+    assert (member.athlete_id, member.link_status) == (None, LINK_UNLINKED)
+    assert not result.counts_for_tcn
+
+
+def test_unlink_member_keeps_one_licence_less_row_per_athlete(db_session, admin):
+    martin = _athlete(db_session, "MARTIN", "Anne")
+    other = _athlete(db_session, "AUTRE", "Anne")
+    club_members_service.import_file(
+        db_session, season=2024, content=b"Nom,Prenom\nMARTIN,Anne\nMARTN,Anne\n", filename="l.csv",
+        user_id=admin.id,
+    )
+    typo = next(m for m in club_member_repository.list_season(db_session, 2024) if m.nom == "MARTN")
+    club_members_service.link_member(db_session, member_id=typo.id, athlete_id=other.id, user_id=admin.id)
+    athlete_alias_repository.add(db_session, ("martn", "anne"), martin.id)
+
+    club_members_service.unlink_member(db_session, member_id=typo.id, user_id=admin.id)
+
+    assert (typo.athlete_id, typo.link_status) == (None, LINK_UNLINKED)
+
+
 def test_import_file_normalizes_the_gender(db_session, admin):
     content = b"Nom,Prenom,Sexe\nA,B,Homme\nC,D,Femme\nE,F,?\n"
 

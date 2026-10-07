@@ -258,13 +258,18 @@ def _named(athlete: Athlete) -> dict:
 def list_ignored(db: Session) -> list[dict]:
     """Les paires écartées, pour les revoir (#1243)."""
     return [
-        {"id": pair.id, "ignored_at": pair.ignored_at, "athletes": [_named(low), _named(high)]}
+        {
+            "id": pair.id, "ignored_at": pair.ignored_at, "automatic": pair.ignored_by_user_id is None,
+            "athletes": [_named(low), _named(high)],
+        }
         for pair, low, high in ignored_athlete_pair_repository.list_with_athletes(db)
     ]
 
 
 def unignore_pair(db: Session, *, pair_id: int, user_id: int) -> None:
-    """Annule une mise à l'écart : la paire revient dans la revue si un motif la retient encore."""
+    """Annule une mise à l'écart. La paire ne revient dans la revue que si un motif la
+    retient sans que la reprise la fusionne : deux fiches de même clé, ou que
+    `recovery_would_merge` accepte, seront fusionnées par la prochaine reprise."""
     pair = ignored_athlete_pair_repository.get(db, pair_id)
     if pair is None:
         raise NotFoundError("Cette paire n'est pas écartée.")
