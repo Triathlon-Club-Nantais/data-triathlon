@@ -88,6 +88,24 @@ def test_la_recherche_est_bornee_a_la_metropole(monkeypatch):
     assert params["viewbox"] == geocode_service.VIEWBOX_METROPOLE
 
 
+def test_un_resultat_hors_metropole_est_refuse(monkeypatch):
+    """#1203 : même borné, un résultat d'outre-mer ne doit jamais être retenu."""
+    _bouchonne(monkeypatch, lambda _: _reponse(
+        {"lat": "16.0", "lon": "-61.7", "class": "place", "importance": 0.9},
+    ))
+
+    assert geocode_service._nominatim_search("AT BAIN, France") is None
+
+
+def test_le_resultat_metropolitain_l_emporte_sur_un_plus_pertinent_d_outre_mer(monkeypatch):
+    _bouchonne(monkeypatch, lambda _: _reponse(
+        {"lat": "16.0", "lon": "-61.7", "class": "place", "importance": 0.9},
+        {"lat": "47.8", "lon": "-1.6", "class": "place", "importance": 0.2},
+    ))
+
+    assert geocode_service._nominatim_search("Bain, France") == (47.8, -1.6)
+
+
 def test_les_lieux_priment_sur_les_autres_classes(monkeypatch):
     """Un `shop` mieux noté ne doit pas l'emporter sur une commune."""
     _bouchonne(monkeypatch, lambda _: _reponse(
@@ -175,6 +193,8 @@ def test_un_nom_sans_ville_exploitable_ne_declenche_aucune_requete(monkeypatch):
         ("14ème Triathlon du Pays de Quimperlé 2024 - S", "Quimperlé"),
         ("9e édition du Triathlon de Vannes", "Vannes"),
         ("Triathlon Audencia La Baule 2025 - S", "La Baule"),
+        ("Triathlon de Laval 9ème édition 2025", "Laval"),  # ordinal en fin de nom
+        ("Triathlon de Laval 5 ème édition", "Laval"),
     ],
 )
 def test_extraction_de_la_ville(nom_epreuve, attendu):
@@ -217,9 +237,10 @@ class _CourseFactice:
     évite d'ouvrir une vraie base pour tester la seule orchestration du batch.
     """
 
-    def __init__(self, name: str) -> None:
+    def __init__(self, name: str, event_date=None) -> None:
         self.id = id(self)
         self.name = name
+        self.event_date = event_date
         self.latitude = None
         self.longitude = None
         self.geocoded_at = None
@@ -355,3 +376,52 @@ def test_run_geocode_courses_interrompu_garde_le_bilan_partiel(monkeypatch, db_s
     assert outcome.processed == 1
     assert outcome.geocoded == 1
     assert premiere.latitude == 47.2
+
+
+def test_run_geocode_courses_une_recherche_par_evenement(monkeypatch, db_session):
+    """#1203 : les heats d'un même événement (même nom avant « - », même date)
+    partagent un lieu : une seule recherche, propagée à toutes."""
+    from datetime import date
+
+    from app.repositories import course_repository as cr
+
+    jour = date(2025, 10, 5)
+    heats = [
+        _CourseFactice("Triathlon de Carnac 2025 - Triathlon M", jour),
+        _CourseFactice("Triathlon de Carnac 2025 - Triathlon S", jour),
+        _CourseFactice("Triathlon de Carnac 2025 - Aquathlon Pupilles", jour),
+    ]
+    autre = _CourseFactice("Triathlon de Vertou - S-Open", jour)
+    monkeypatch.setattr(cr, "list_missing_geocode", lambda db, **kw: [*heats, autre])
+    appels = []
+
+    def _geocode(nom):
+        appels.append(nom)
+        return (47.58, -3.07) if "Carnac" in nom else None
+
+    monkeypatch.setattr(geocode_service, "geocode", _geocode)
+
+    outcome = geocode_service.run_geocode_courses(db_session)
+
+    assert appels == ["Triathlon de Carnac 2025", "Triathlon de Vertou"]
+    assert all((h.latitude, h.longitude) == (47.58, -3.07) for h in heats)
+    assert (outcome.total, outcome.geocoded, outcome.errors) == (4, 3, 1)
+    assert [f.url for f in outcome.failures] == ["Triathlon de Vertou - S-Open"]
+
+
+def test_run_geocode_courses_des_dates_differentes_font_deux_evenements(monkeypatch, db_session):
+    from datetime import date
+
+    from app.repositories import course_repository as cr
+
+    samedi = _CourseFactice("Tri Dinard - Longue Distance", date(2025, 9, 13))
+    dimanche = _CourseFactice("Tri Dinard - Olympique", date(2025, 9, 14))
+    monkeypatch.setattr(cr, "list_missing_geocode", lambda db, **kw: [samedi, dimanche])
+    appels = []
+    monkeypatch.setattr(
+        geocode_service, "geocode", lambda nom: appels.append(nom) or (48.6, -2.0)
+    )
+
+    geocode_service.run_geocode_courses(db_session)
+
+    assert appels == ["Tri Dinard", "Tri Dinard"]
