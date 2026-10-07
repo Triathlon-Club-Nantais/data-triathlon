@@ -47,6 +47,7 @@ describe("providerLabel", () => {
     ["t2area", "FFTRI (T2Area)"],
     ["sporthive", "MYLAPS Sporthive"],
     ["chronoweb", "Chronoweb"],
+    ["nextrun", "Nextrun"],
   ])("rend lisible le slug %s en « %s »", (slug, label) => {
     expect(providerLabel(slug)).toBe(label);
   });

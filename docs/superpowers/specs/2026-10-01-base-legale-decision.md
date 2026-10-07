@@ -73,7 +73,7 @@ adhérent n'a pas de sens.
 - *Consentement* : il est impossible à recueillir auprès de non-adhérents
   qu'on ne connaît que par une ligne de classement.
 - *Partenariat* : solution durable, hors de portée à court terme sur 15
-  fournisseurs. Il reste la voie pour les trois sources dont le `robots.txt`
+  fournisseurs. Il reste la voie pour les quatre sources dont le `robots.txt`
   ferme les routes utilisées (voir plus bas).
 
 **Ce que ce choix coûte au produit**, et qui devient obligatoire :
@@ -144,7 +144,7 @@ chaque résultat est conservée et affichée.
 | Klikego | `www.klikego.com` | `/resultats/…` autorisé |
 | Breizh Chrono | `resultats.breizhchrono.com` | `/resultats-courses/…` autorisé |
 | TimePulse | `www.timepulse.fr` | autorisé (seul `/ajax/` fermé) |
-| Sportinnovation | `sportinnovation.fr` | autorisé (`/api/` fermé, non utilisé) |
+| Sportinnovation | `sportinnovation.fr` | **`Disallow: /api/`**, `/api/` visé : format 2026 et duos (relevé corrigé le 2026-10-07, le relevé initial le croyait inutilisé) |
 | ProLiveSport | `api.prolivesport.fr` | **`Disallow: /`** |
 | Chronoplace | `www.chronoplace.fr` | autorisé |
 | Wiclax / G-Live | `*.wiclax-results.com`, `www.chronowest.fr` | pas de `robots.txt` / tout autorisé |
@@ -161,8 +161,9 @@ chaque résultat est conservée et affichée.
 
 - `robots.txt` (RFC 9309) vise les robots d'exploration ; il n'a pas de force
   juridique propre, mais il exprime la volonté de l'éditeur et pèse dans
-  l'appréciation d'une extraction. Les **trois** sources qui ferment
-  explicitement les routes utilisées (ProLiveSport, RaceResult, Sporthive) sont
+  l'appréciation d'une extraction. Les **quatre** sources qui ferment
+  explicitement les routes utilisées (ProLiveSport, RaceResult, Sporthive,
+  Sportinnovation) sont
   maintenues en connaissance de cause, avec une demande d'autorisation à leur
   adresser ; un refus explicite d'un éditeur entraîne le retrait du
   fournisseur.
@@ -175,7 +176,7 @@ chaque résultat est conservée et affichée.
   pas supprimé. C'est le levier *partenariat* qui le lève.
 - Les CGU des fournisseurs n'ont pas été relues une à une : aucun n'a fait
   savoir au club une opposition. La relecture accompagne la demande
-  d'autorisation aux trois sources ci-dessus.
+  d'autorisation aux quatre sources ci-dessus.
 
 ## Conseil extérieur
 
