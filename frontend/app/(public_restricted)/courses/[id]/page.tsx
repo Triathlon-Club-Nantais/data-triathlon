@@ -9,6 +9,7 @@ import { BackLink } from "@/components/layout/PageHeader";
 import { RaceFinishers } from "@/components/results/RaceFinishers";
 import { ReliabilityMark, SplitCoverageNote } from "@/components/results/ReliabilityMark";
 import { CourseSourcesPanel } from "@/components/courses/CourseSourcesPanel";
+import { CourseAdminActions } from "@/components/courses/CourseAdminActions";
 import { ClubBreakdown } from "@/components/courses/ClubBreakdown";
 import { CourseChallengesNote } from "@/components/challenges/CourseChallengesNote";
 import { eventTypeLabel } from "@/lib/constants";
@@ -170,6 +171,7 @@ export default async function CoursePage({
           <CourseSourcesPanel courseId={course.id} initialSources={sources ?? []} />
         </div>
         <SplitCoverageNote median={summary.split_gap_median} rows={summary.split_gap_rows} />
+        <CourseAdminActions course={course} total={total} tcnCount={tcnCount} />
       </div>
 
       <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

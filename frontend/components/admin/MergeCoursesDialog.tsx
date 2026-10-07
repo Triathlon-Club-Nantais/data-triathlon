@@ -10,12 +10,15 @@ import { formatDate } from "@/lib/utils/date";
 import { motCompte, plural } from "@/lib/utils/format";
 import type { DuplicateCourse } from "@/lib/types";
 
+/** `created_at` n'y sert pas : la fiche épreuve ouvre la fusion sans le connaître (#1244). */
+export type MergeableCourse = Omit<DuplicateCourse, "created_at">;
+
 function CarteEpreuve({
   course,
   choisie,
   onChoisir,
 }: {
-  course: DuplicateCourse;
+  course: MergeableCourse;
   choisie: boolean;
   onChoisir: () => void;
 }) {
@@ -49,7 +52,7 @@ function CarteEpreuve({
  * 28 résultats TCN de timepulse perdus). Celle qui en porte le plus l'emporte ;
  * à égalité, runnerbreizh, qui ne publie jamais de club, passe en dernier.
  */
-function cibleSuggeree(a: DuplicateCourse, b: DuplicateCourse): number | null {
+function cibleSuggeree(a: MergeableCourse, b: MergeableCourse): number | null {
   if (a.tcn_count !== b.tcn_count) return a.tcn_count > b.tcn_count ? a.id : b.id;
   if ((a.provider === "runnerbreizh") !== (b.provider === "runnerbreizh")) {
     return a.provider === "runnerbreizh" ? b.id : a.id;
@@ -79,11 +82,14 @@ export function MergeCoursesDialog({
   courseB,
   open,
   onOpenChange,
+  onMerged,
 }: {
-  courseA: DuplicateCourse;
-  courseB: DuplicateCourse;
+  courseA: MergeableCourse;
+  courseB: MergeableCourse;
   open: boolean;
   onOpenChange: (ouvert: boolean) => void;
+  /** Reçoit l'épreuve conservée. */
+  onMerged?: (keptId: number) => void;
 }) {
   const [cibleId, setCibleId] = useState<number | null>(() => cibleSuggeree(courseA, courseB));
   const cible = cibleId === null ? null : cibleId === courseA.id ? courseA : courseB;
@@ -104,6 +110,7 @@ export function MergeCoursesDialog({
           `${motCompte(a, "fiche")} athlète ${plural(a, "purgée")}.`,
       );
       onOpenChange(false);
+      onMerged?.(cibleId);
     } catch (erreur) {
       toast.error((erreur as Error).message);
     }

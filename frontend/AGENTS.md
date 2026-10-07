@@ -203,6 +203,15 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   page streamée (fiches athlète et épreuve), les gestes réservés apparaissaient
   à l'hydratation et levaient l'erreur #418. Le rail, `UserMenu` et les écrans
   `/admin` (rendus client) gardent `useSession`.
+- **Gestes d'administration sur la fiche épreuve** (#1244) :
+  `CourseAdminActions` réutilise les fenêtres du back-office (correction,
+  suppression, verdict de fiabilité, fusion) sans les recopier. Elles exposent
+  un rappel de succès optionnel (`onSaved`, `onDeleted`, `onDecided`,
+  `onMerged`) pour que la page serveur se rafraîchisse, ou quitte une fiche qui
+  n'existe plus (`/resultats` après suppression, l'épreuve conservée après une
+  fusion qui absorbe la fiche consultée). La fusion y choisit sa cible par
+  recherche libre (nom ou numéro, `GET /courses`), **sans contrainte de date**,
+  ce que `/admin/doublons` ne sait pas rapprocher ; le backend ne l'interdit pas.
 - **Gardes d'écriture du back-office** (#496) — un contrôle qui écrit teste
   **son** code de pouvoir avant de se rendre, jamais celui qui a ouvert l'écran :
   `session.data?.permissions.includes("x:y") ?? false`, puis `{peutX && …}`. Six

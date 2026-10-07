@@ -35,10 +35,12 @@ export function EditCourseDialog({
   course,
   open,
   onOpenChange,
+  onSaved,
 }: {
   course: CourseBrief;
   open: boolean;
   onOpenChange: (ouvert: boolean) => void;
+  onSaved?: () => void;
 }) {
   const [nom, setNom] = useState(course.name);
   const [date, setDate] = useState(course.event_date ?? "");
@@ -68,6 +70,7 @@ export function EditCourseDialog({
       });
       toast.success("Épreuve corrigée.");
       onOpenChange(false);
+      onSaved?.();
     } catch (erreur) {
       toast.error((erreur as Error).message);
     }
