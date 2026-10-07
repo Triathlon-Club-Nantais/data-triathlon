@@ -1029,14 +1029,6 @@ export interface DuplicateIgnoreResult {
   ignored_at: string;
 }
 
-/**
- * Une fiche coureur **complète**, servie derrière le pouvoir `athletes:read` (#117).
- *
- * Deux champs de plus que `AthleteBrief`, et ce sont les deux qui permettent de
- * départager deux homonymes avant un rattachement sans retour en arrière : la
- * date de naissance — seule donnée personnelle fermée du site — et le nombre de
- * résultats portés par la fiche.
- */
 /** Une variante de graphie d'une fiche (#1242), en clés normalisées. */
 export interface AthleteAlias {
   id: number;
@@ -1049,6 +1041,14 @@ export interface AthleteAliasList {
   aliases: AthleteAlias[];
 }
 
+/**
+ * Une fiche coureur **complète**, servie derrière le pouvoir `athletes:read` (#117).
+ *
+ * Deux champs de plus que `AthleteBrief`, et ce sont les deux qui permettent de
+ * départager deux homonymes avant un rattachement sans retour en arrière : la
+ * date de naissance — seule donnée personnelle fermée du site — et le nombre de
+ * résultats portés par la fiche.
+ */
 export interface AdminAthlete {
   id: number;
   nom: string;

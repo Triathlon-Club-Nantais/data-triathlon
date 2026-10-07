@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { Button, Card } from "@/components/tcn";
@@ -8,9 +8,9 @@ import { useHydratedSession } from "@/lib/queries/auth";
 import type { AthleteAlias } from "@/lib/types";
 import { formatDate } from "@/lib/utils/date";
 
-export const ANCRE_VARIANTES = "variantes";
+export const VARIANTS_ANCHOR = "variantes";
 
-function graphie(alias: AthleteAlias) {
+function spelling(alias: AthleteAlias) {
   return `${alias.last_name_key.toUpperCase()} ${alias.first_name_key}`;
 }
 
@@ -19,66 +19,110 @@ function graphie(alias: AthleteAlias) {
  * absorbée à la fiche gardée, et l'import y range désormais les résultats publiés
  * sous elle. Sans `athletes:write` ou sans variante, rien n'est rendu.
  *
+ * Le panneau n'existe qu'après la session et la lecture des variantes : l'ancre
+ * `#variantes` (lien de la revue d'identité) ne peut pas y mener seule, d'où le
+ * défilement à l'arrivée des données.
+ *
  * `DangerConfirm` déclaratif : la fiche athlète est hors de tout
  * `DangerConfirmProvider` (patron de `VolunteerActionsList`).
  */
 export function AthleteVariantsPanel({ athleteId }: { athleteId: number }) {
   const session = useHydratedSession();
-  const autorise = session.data?.permissions.includes("athletes:write") ?? false;
-  const variantes = useAthleteAliases(athleteId, autorise);
-  const retrait = useRemoveAthleteAlias();
-  const [aRetirer, setARetirer] = useState<AthleteAlias | null>(null);
+  const allowed = session.data?.permissions.includes("athletes:write") ?? false;
+  const variants = useAthleteAliases(athleteId, allowed);
+  const removal = useRemoveAthleteAlias();
+  const [toRemove, setToRemove] = useState<AthleteAlias | null>(null);
+  const card = useRef<HTMLDivElement>(null);
+  const visible = allowed && (variants.data?.aliases.length ?? 0) > 0;
 
-  if (!autorise || !variantes.data?.aliases.length) return null;
+  useEffect(() => {
+    if (visible && window.location.hash === `#${VARIANTS_ANCHOR}`)
+      card.current?.scrollIntoView();
+  }, [visible]);
 
-  async function retirer() {
-    if (!aRetirer) return;
+  if (!visible || !variants.data) return null;
+
+  async function remove() {
+    if (!toRemove) return;
     try {
-      await retrait.mutateAsync({ athleteId, aliasId: aRetirer.id });
+      await removal.mutateAsync({ athleteId, aliasId: toRemove.id });
       toast.success("Variante retirée.");
-      setARetirer(null);
-    } catch (erreur) {
-      toast.error((erreur as Error).message);
+      setToRemove(null);
+    } catch (error) {
+      toast.error((error as Error).message);
     }
   }
 
   return (
-    <Card id={ANCRE_VARIANTES}>
-      <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, margin: "0 0 6px" }}>
-        Variantes d&apos;identité
-      </h2>
-      <p style={{ margin: "0 0 12px", fontSize: 14, color: "var(--tcn-text-muted)" }}>
-        Graphies rattachées à cette fiche par une fusion : l&apos;import y range les résultats publiés sous
-        elles.
-      </p>
-      <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
-        {variantes.data.aliases.map((alias) => (
-          <li key={alias.id} style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <span style={{ fontWeight: 700 }}>{graphie(alias)}</span>
-            <span style={{ fontSize: 13, color: "var(--tcn-text-faint)" }}>depuis le {formatDate(alias.created_at)}</span>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => setARetirer(alias)}
-              aria-label={`Retirer la variante ${graphie(alias)}`}
+    <div id={VARIANTS_ANCHOR} ref={card} style={{ scrollMarginTop: "80px" }}>
+      <Card>
+        <h2
+          style={{
+            fontFamily: "var(--tcn-font-display)",
+            fontSize: 22,
+            fontWeight: 400,
+            margin: "0 0 6px",
+          }}
+        >
+          Variantes d&apos;identité
+        </h2>
+        <p
+          style={{
+            margin: "0 0 12px",
+            fontSize: 14,
+            color: "var(--tcn-text-muted)",
+          }}
+        >
+          Graphies rattachées à cette fiche par une fusion : l&apos;import y
+          range les résultats publiés sous elles.
+        </p>
+        <ul
+          style={{
+            listStyle: "none",
+            margin: 0,
+            padding: 0,
+            display: "grid",
+            gap: 8,
+          }}
+        >
+          {variants.data.aliases.map((alias) => (
+            <li
+              key={alias.id}
+              style={{
+                display: "flex",
+                gap: 12,
+                alignItems: "center",
+                flexWrap: "wrap",
+              }}
             >
-              Retirer
-            </Button>
-          </li>
-        ))}
-      </ul>
+              <span style={{ fontWeight: 700 }}>{spelling(alias)}</span>
+              <span style={{ fontSize: 13, color: "var(--tcn-text-faint)" }}>
+                depuis le {formatDate(alias.created_at)}
+              </span>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setToRemove(alias)}
+                aria-label={`Retirer la variante ${spelling(alias)}`}
+              >
+                Retirer
+              </Button>
+            </li>
+          ))}
+        </ul>
 
-      <DangerConfirm
-        open={aRetirer !== null}
-        onOpenChange={(ouvert) => {
-          if (!ouvert && !retrait.isPending) setARetirer(null);
-        }}
-        titre={aRetirer ? `Retirer la variante ${graphie(aRetirer)} ?` : ""}
-        description="L'import ne rattachera plus cette graphie à la fiche. Les résultats déjà rattachés restent en place."
-        libelleAction="Retirer"
-        enAttente={retrait.isPending}
-        onConfirm={retirer}
-      />
-    </Card>
+        <DangerConfirm
+          open={toRemove !== null}
+          onOpenChange={(open) => {
+            if (!open && !removal.isPending) setToRemove(null);
+          }}
+          titre={toRemove ? `Retirer la variante ${spelling(toRemove)} ?` : ""}
+          description="L'import ne rattachera plus cette graphie à la fiche. Les résultats déjà rattachés restent en place."
+          libelleAction="Retirer"
+          enAttente={removal.isPending}
+          onConfirm={remove}
+        />
+      </Card>
+    </div>
   );
 }
