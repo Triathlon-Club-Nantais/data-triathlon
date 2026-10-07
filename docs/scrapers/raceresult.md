@@ -152,13 +152,25 @@ ligne classée, sans statut, dont la cellule de temps porte un `_` est un
 `finisher` (et non plus un DNF classé) ; une cellule de temps **vide** garde le
 comportement antérieur. Le temps est reconstruit en croisant les cellules du
 même dossard dans toutes les listes, publiées et `hidden`, `_` valant inconnu
-(`_fusionner_temps_masques` : `2:0_:5_` + `2:02:5_` + `2:0_:51` → `2:02:51`). Le
+(`_fusionner_masques` : `2:0_:5_` + `2:02:5_` + `2:0_:51` → `2:02:51`). Le
 résultat n'est retenu que si les cellules ont la même longueur, s'accordent sur
 chaque caractère connu et ne laissent aucun `_` ; sinon la ligne reste finisher
 sans temps (`finisher_without_time`). Côté `hidden`, une cellule n'est prise que
-pour un dossard déjà masqué au publié. La garde d'identité habituelle y est
+pour un dossard déjà masqué au publié (un `_` dans son temps, son nom ou son
+club). La garde d'identité habituelle y est
 remplacée par une comparaison des cellules de nom brutes, `_` valant joker
 (`_noms_masques_compatibles` : même longueur, accord sur chaque caractère
 connu, casse et accents neutralisés), puisque le masque frappe aussi le nom ;
-une mise en forme de nom différente écarte la cellule. Mesuré : 8 temps sur 10 reconstruits, les duos 786
-et 787 de 367799 restent sans temps. Le nom masqué n'est pas corrigé.
+une mise en forme de nom différente écarte la cellule. Une ligne `hidden`
+compatible enrichit donc le publié au lieu d'être refusée pour « identité
+divergente ». Mesuré : 8 temps sur 10 reconstruits, les duos 786
+et 787 de 367799 restent sans temps.
+
+**Nom et club masqués (#1239).** Le même croisement reconstruit la cellule de
+nom (`Re_aille_u_ Pascal` + `Ret_il_eau, __scal` + `Ret_i_leau,_Pascal` →
+`Retailleau, Pascal`, redécoupée comme au publié) et celle du club
+(`B_A_P_EAU TRI` → `BEAUPREAU TRI`, que `is_tcn` reconnaît alors). Un nom
+irréductible est vidé et reçoit l'identité synthétique « Anonyme
+<événement>-<contest>-<dossard> » (`_anonymise_identities`) plutôt que de
+créer une fausse fiche ; un club irréductible est laissé vide. Limite assumée :
+un vrai `_` dans un nom ou un club se lit comme un masque.
