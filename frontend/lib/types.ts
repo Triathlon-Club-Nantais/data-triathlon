@@ -1037,6 +1037,18 @@ export interface DuplicateIgnoreResult {
  * date de naissance — seule donnée personnelle fermée du site — et le nombre de
  * résultats portés par la fiche.
  */
+/** Une variante de graphie d'une fiche (#1242), en clés normalisées. */
+export interface AthleteAlias {
+  id: number;
+  last_name_key: string;
+  first_name_key: string;
+  created_at: string;
+}
+
+export interface AthleteAliasList {
+  aliases: AthleteAlias[];
+}
+
 export interface AdminAthlete {
   id: number;
   nom: string;

@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.core.athlete_identity import is_team_label
 from app.core.exceptions import DomainError, NotFoundError
 from app.models.athlete import Athlete
+from app.models.athlete_alias import AthleteAlias
 from app.repositories import (
     athlete_alias_repository,
     athlete_known_club_repository,
@@ -212,3 +213,24 @@ def merge_athletes(db: Session, *, kept_id: int, absorbed_id: int, user_id: int)
     audit.record(db, user_id, action="athlete.merge", entity_type="athlete", entity_id=kept.id, payload=summary)
     logger.info("Admin %s merged athlete %s into %s", user_id, absorbed_id, kept_id)
     return kept
+
+
+def list_aliases(db: Session, *, athlete_id: int) -> list[AthleteAlias]:
+    """Les variantes de graphie d'une fiche (#1242), ou 404."""
+    if athlete_repository.get(db, athlete_id) is None:
+        raise NotFoundError("Athlète introuvable.")
+    return athlete_alias_repository.list_for_athlete(db, athlete_id)
+
+
+def remove_alias(db: Session, *, athlete_id: int, alias_id: int, user_id: int) -> None:
+    """Retire une variante (#1242) : l'import ne rattache plus cette graphie à la fiche.
+    `flush` sans `commit` : la route clôt."""
+    alias = athlete_alias_repository.get(db, alias_id)
+    if alias is None or alias.athlete_id != athlete_id:
+        raise NotFoundError("Variante introuvable.")
+    payload = {"alias_id": alias.id, "last_name_key": alias.last_name_key, "first_name_key": alias.first_name_key}
+    athlete_alias_repository.delete(db, alias)
+    db.flush()
+    audit.record(
+        db, user_id, action="athlete.alias_remove", entity_type="athlete", entity_id=athlete_id, payload=payload
+    )

@@ -26,6 +26,7 @@ from app.schemas.admin import (
     AdminAthleteRead,
     AdminAthleteUpdate,
     AdminCourseUpdate,
+    AthleteAliasList,
     AthleteDetachRequest,
     AthleteMergeImpact,
     AthleteMergeRequest,
@@ -332,6 +333,28 @@ def detach_athlete_results(
     db.commit()
     capture_event("athlete_detached", distinct_id=str(user.id), properties={"results": len(body.participation_ids)})
     return _fiche(created, participation_repository.count_for_athlete(db, created.id))
+
+
+@router.get("/admin/athletes/{athlete_id}/aliases", response_model=AthleteAliasList)
+def list_athlete_aliases(
+    athlete_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.ATHLETES_WRITE)),
+):
+    """Les variantes de graphie de la fiche, que l'import lui rattache (#1242)."""
+    return AthleteAliasList(aliases=athlete_merge.list_aliases(db, athlete_id=athlete_id))
+
+
+@router.delete("/admin/athletes/{athlete_id}/aliases/{alias_id}", status_code=204)
+def remove_athlete_alias(
+    athlete_id: int,
+    alias_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.ATHLETES_WRITE)),
+):
+    """Retire une variante de la fiche (#1242) ; 404 si elle n'est pas la sienne."""
+    athlete_merge.remove_alias(db, athlete_id=athlete_id, alias_id=alias_id, user_id=user.id)
+    db.commit()
 
 
 @router.get("/admin/athletes/{athlete_id}/season-quota", response_model=SeasonQuota)

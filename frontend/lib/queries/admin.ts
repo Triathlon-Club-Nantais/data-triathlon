@@ -366,6 +366,28 @@ export function useDetachParticipations() {
   });
 }
 
+/** Les variantes de graphie d'une fiche (#1242). */
+export function useAthleteAliases(athleteId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["athlete-aliases", athleteId],
+    queryFn: () => apiClient.listAthleteAliases(athleteId),
+    enabled,
+  });
+}
+
+/** Retirer une variante (#1242) : la revue d'identité peut perdre un cas `alias_collision`. */
+export function useRemoveAthleteAlias() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ athleteId, aliasId }: { athleteId: number; aliasId: number }) =>
+      apiClient.removeAthleteAlias(athleteId, aliasId),
+    onSuccess: (_data, { athleteId }) => {
+      qc.invalidateQueries({ queryKey: ["athlete-aliases", athleteId] });
+      qc.invalidateQueries({ queryKey: queryKeys.identityReview() });
+    },
+  });
+}
+
 /**
  * Attribuer un relais à ses équipiers (#894) : mêmes écrans touchés que le
  * rattachement, auquel ce geste ajoute des coureurs au lieu d'en changer un.

@@ -49,6 +49,8 @@ vi.mock("@/lib/queries/admin", () => ({
   useDeleteParticipation: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useReassignParticipation: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useAdminAthleteSearch: () => ({ data: undefined, isFetching: false }),
+  useAthleteAliases: () => ({ data: undefined }),
+  useRemoveAthleteAlias: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 import AthletePage from "./page";
