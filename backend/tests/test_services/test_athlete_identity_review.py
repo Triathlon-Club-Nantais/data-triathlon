@@ -84,6 +84,31 @@ def test_homonyms_are_listed_only_when_one_belongs_to_the_club(db_session):
     assert _reasons(db_session) == [("club_homonym", [principal.id, homonym.id])]
 
 
+def _licence(db, athlete, season=2024):
+    db.add(ClubMember(season=season, nom=athlete.nom, prenom=athlete.prenom, athlete_id=athlete.id,
+                      link_status="auto", source="fftri"))
+    db.flush()
+
+
+def test_a_licensed_record_with_two_bibs_is_listed_whatever_its_club(db_session):
+    """#1231 : la licence fait la fiche du club, même sans résultat qui compte."""
+    licensed = _athlete(db_session, "MARTIN", "Thomas", club="LE PERREUX-SUR-MARNE (94170)")
+    course = _course(db_session)
+    _result(db_session, licensed, course, "1")
+    _result(db_session, licensed, course, "2")
+    _licence(db_session, licensed)
+
+    assert _reasons(db_session) == [("same_course_bibs", [licensed.id])]
+
+
+def test_homonyms_are_listed_when_one_is_a_licensed_member(db_session):
+    licensed = _athlete(db_session, "MARTIN", "Thomas", club="LE PERREUX-SUR-MARNE (94170)")
+    homonym = _athlete(db_session, "MARTIN", "Thomas", homonym_rank=1)
+    _licence(db_session, licensed)
+
+    assert _reasons(db_session) == [("club_homonym", [licensed.id, homonym.id])]
+
+
 def test_a_swapped_pair_the_recovery_would_not_merge_is_listed(db_session):
     """Q3 : sans club ni genre communs, la reprise ne fusionne pas ; la paire va en revue."""
     first = _athlete(db_session, "DUPONT", "Jean", club="A", gender="M")

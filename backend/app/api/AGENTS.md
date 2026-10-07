@@ -7,7 +7,10 @@ Deux paramètres traversent l'API de lecture, sur le même patron que `seasons` 
 - `scope=club` — restreint aux membres du TCN. Remplace l'ancien `club`, un
   texte libre cherché en sous-chaîne : c'est lui qui laissait la définition du
   club chez l'appelant, et un `%nantais%` comptait les clubs d'athlétisme
-  nantais (#76).
+  nantais (#76). Sur les listes d'athlètes (`GET /athletes`, `/athletes/search`,
+  `/athletes/season-activity`), une fiche est du club par son club de fiche
+  ou par une licence rattachée (`club_members`), pour l'une des saisons
+  demandées s'il y en a (`athlete_repository._club_record`, #1231).
 - `federal_only=true` — retire les disciplines hors fédération triathlon
   (`trail`, `course-a-pied*`, `cyclisme*`). **Défaut à `false` : l'API reste
   neutre.** Ce sont le dashboard et la page club qui l'activent, via le toggle
