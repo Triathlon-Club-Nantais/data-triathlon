@@ -137,3 +137,18 @@ libellé, l'expression `ATF5` ne disant rien), puis `LASTNAME`/`FIRSTNAME`. Une
 ligne restée sans nom, ou au nom masqué (« Anonymous », « XXX »), reçoit avec son
 dossard l'identité « Anonyme <événement>-<contest>-<dossard> »
 (`raceresult._anonymise_identities`, patron #725).
+
+**Enregistrements masqués par `_` (#1238).** Sur certaines épreuves, l'API
+remplace au hasard des caractères de quelques enregistrements par `_`, dans le
+nom, le club et le temps d'arrivée (`'_2:30:14'`, `'Re_aille_u_ Pascal'`) ; le
+rang, les splits suffixés et le statut restent intacts. Le masque touche
+toujours les mêmes enregistrements (une dizaine par liste au plus), mais ses
+positions changent d'une liste à l'autre ; les lignes masquées le 07/10 sont
+celles déjà fautives à l'import du 05/10, une pause ne les rend pas lisibles :
+ce n'est pas une limitation de débit. Mesuré le 07/10
+sur 402644 (Triathlon des Étangs, 6 lignes du M), 367799 (Cyclathlon La
+Chaussaire, 3 duos du M) et 312695 (Duathlon de Cholet, 1 ligne du M). Le temps
+masqué est écarté, mais la ligne garde son rang : un rang sans statut fait
+désormais un `finisher`, même sans temps lisible, au lieu d'un DNF classé. Ces
+lignes ressortent donc en `finisher_without_time`, et leur nom masqué n'est pas
+corrigé.

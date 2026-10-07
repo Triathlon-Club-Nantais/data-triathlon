@@ -1,0 +1,26 @@
+{
+ "key": "x",
+ "contests": {
+  "1": "DUATHLON S EN RELAIS",
+  "2": "DUATHLON S INDIVIDUEL",
+  "3": "DISTANCE M",
+  "4": "RELAIS DISTANCE M"
+ },
+ "eventname": "DUATHLON DE CHOLET",
+ "TabConfig": {
+  "Lists": [
+   {
+    "Name": "2-Chrono|Tri Ind.Detaille dua",
+    "Mode": "",
+    "Contest": "3",
+    "ShowAs": "Résultats",
+    "Format": "VP",
+    "Live": 1,
+    "Sortable": 1,
+    "Leader": 0,
+    "Details": "details",
+    "ID": "97AEC1"
+   }
+  ]
+ }
+}

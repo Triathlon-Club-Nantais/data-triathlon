@@ -1276,7 +1276,10 @@ def _build_result(
     if r.status in _NON_FINISHERS:
         r.total_time = ""
         r.rank_overall = r.rank_category = r.rank_gender = None
-    elif r.total_time:
+    elif r.total_time or r.rank_overall:
+        # Un rang sans statut est un classé, même au temps illisible :
+        # RaceResult masque par `_` des caractères de certains enregistrements
+        # (`'_2:30:14'`), et l'import en faisait un DNF classé (#1238).
         r.status = r.status or "finisher"
 
     return r
