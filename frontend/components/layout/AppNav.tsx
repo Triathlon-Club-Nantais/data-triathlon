@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useSession } from "@/lib/queries/auth";
 import { libelleCompteur, useNavBadges } from "@/lib/queries/nav-badges";
 import { AthletePicker, ATHLETE_CHANGED_EVENT, OPEN_PICKER_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete, type PickerMode } from "./AthletePicker";
-import { BOTTOM_BAR_MAX, NAV, ROLE, estVisible, type NavItem, type NavSection } from "./nav.config";
+import { BOTTOM_BAR_MAX, NAV, ROLE, byGroup, estVisible, type NavItem, type NavSection } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 
@@ -133,7 +133,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // au-delà vient des **pouvoirs**, seuls réellement renseignés (#115).
   const rank: number = session ? ROLE.CONNECTED : ROLE.ANON;
   const pouvoirs = new Set(session?.permissions ?? []);
-  const badges = useNavBadges(pouvoirs, session?.can_administer ?? false);
+  const { counts: badges } = useNavBadges(pouvoirs, session?.can_administer ?? false);
   const sections = NAV.filter((s) => rank >= s.minRole)
     .map((s) => ({
       ...s,
@@ -504,13 +504,24 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
       {pickerMode && (
         <AthletePicker
           mode={pickerMode}
-          ecrans={sections.flatMap((sec) =>
-            sec.items.map((i) => ({
-              label: i.label,
-              href: i.href,
-              contexte: i.groupe ? `${sec.label} · ${i.groupe}` : sec.label,
-            })),
-          )}
+          screens={sections
+            .flatMap((sec) =>
+              sec.items.map((i) => ({
+                label: i.label,
+                href: i.href,
+                context: i.group ? `${sec.label} · ${i.group}` : sec.label,
+              })),
+            )
+            // Hors de la table de nav (#865), mais à portée de la palette : le
+            // sommaire et le guide, sous la même garde que leur layout.
+            .concat(
+              session?.can_administer
+                ? [
+                    { label: "Back-office", href: "/admin", context: "Administration · Sommaire" },
+                    { label: "Guide d'administration", href: "/admin/guide", context: "Administration" },
+                  ]
+                : [],
+            )}
           onClose={() => setPickerMode(null)}
           onPick={(a) => {
             if (pickerMode === "select") {
@@ -820,16 +831,32 @@ function NavContent({
                 // bouton dépliant ci-dessus : deux gestes pour une seule
                 // destination n'ont plus de sens (#482, NAV-2).
                 <div style={{ display: "flex", flexDirection: "column", gap: expanded ? 2 : 0 }}>
-                  {sec.items.map((it, n) => (
-                    <Fragment key={it.id}>
-                      {/* Intertitre de sous-section (#1246), au rail déplié seul :
-                          replié, une section à plusieurs entrées n'est qu'une tuile. */}
-                      {expanded && it.groupe && it.groupe !== sec.items[n - 1]?.groupe && (
-                        <div style={intertitre}>{it.groupe}</div>
-                      )}
-                      <Entree item={it} actif={isActive(it.href)} expanded={expanded} onNavigate={onNavigate} />
-                    </Fragment>
-                  ))}
+                  {byGroup(sec.items).map(({ group, items }) => {
+                    const entries = items.map((it) => (
+                      <Entree key={it.id} item={it} actif={isActive(it.href)} expanded={expanded} onNavigate={onNavigate} />
+                    ));
+                    // Sous-section (#1246) : un groupe nommé pour le lecteur
+                    // d'écran dans les deux états, pour que ses liens restent à
+                    // la même place de l'arbre (#428). L'intertitre visible, au
+                    // rail déplié seul, double ce nom : il est tu.
+                    return group ? (
+                      <div
+                        key={group}
+                        role="group"
+                        aria-label={group}
+                        style={{ display: "flex", flexDirection: "column", gap: expanded ? 2 : 0 }}
+                      >
+                        {expanded && (
+                          <div aria-hidden="true" style={subheading}>
+                            {group}
+                          </div>
+                        )}
+                        {entries}
+                      </div>
+                    ) : (
+                      <Fragment key={items[0].id}>{entries}</Fragment>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -964,7 +991,7 @@ const eyebrow: CSSProperties = {
   padding: "0 2px 2px",
 };
 
-const intertitre: CSSProperties = {
+const subheading: CSSProperties = {
   fontFamily: "var(--tcn-font-cond)",
   fontWeight: 700,
   fontSize: 12,

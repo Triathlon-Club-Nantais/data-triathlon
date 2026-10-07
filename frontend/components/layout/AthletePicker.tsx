@@ -200,10 +200,10 @@ function echecRecherche(erreur: unknown): { titre: string; detail: string; acces
 }
 
 /** Un écran que la palette ⌘K peut ouvrir (#1246), déjà filtré par `estVisible`. */
-export type EcranRecherche = { label: string; href: string; contexte: string };
+export type ScreenLink = { label: string; href: string; context: string };
 
-function sansAccent(texte: string): string {
-  return texte.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+function fold(text: string): string {
+  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
 /**
@@ -218,12 +218,12 @@ export function AthletePicker({
   mode,
   onClose,
   onPick,
-  ecrans = [],
+  screens = [],
 }: {
   mode: PickerMode;
   onClose: () => void;
   onPick: (athlete: PickedAthlete) => void;
-  ecrans?: EcranRecherche[];
+  screens?: ScreenLink[];
 }) {
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<AthleteSearchResult[]>([]);
@@ -288,9 +288,13 @@ export function AthletePicker({
   const choisir = (a: AthleteSearchResult) => onPick({ id: a.id, prenom: a.prenom, nom: a.nom });
 
   const q = query.trim();
-  const ecransTrouves =
-    designation || q.length < 2 ? [] : ecrans.filter((e) => sansAccent(e.label).includes(sansAccent(q)));
+  const withScreens = !designation && screens.length > 0;
+  const matchedScreens = !withScreens || q.length < 2 ? [] : screens.filter((e) => fold(e.label).includes(fold(q)));
   const echec = q.length >= 2 && !loading && erreur !== null ? echecRecherche(erreur) : null;
+  // Les écrans trouvés se comptent en tête : « Aucun athlète trouvé » seul
+  // contredirait la liste d'écrans affichée juste dessous.
+  const screensFound =
+    matchedScreens.length > 0 ? `${matchedScreens.length} écran${matchedScreens.length > 1 ? "s" : ""}, ` : "";
   const statut =
     q.length < 2
       ? "Saisissez au moins 2 lettres"
@@ -299,10 +303,10 @@ export function AthletePicker({
         : echec
           ? echec.titre
           : visibles.length === 0
-          ? "Aucun athlète trouvé"
-          : rows.length > PAGE_SIZE
-            ? `Plus de ${PAGE_SIZE} athlètes trouvés, précisez la recherche`
-            : `${visibles.length} athlète${visibles.length > 1 ? "s" : ""} trouvé${visibles.length > 1 ? "s" : ""}`;
+          ? screensFound ? `${screensFound}aucun athlète` : "Aucun athlète trouvé"
+          : screensFound + (rows.length > PAGE_SIZE
+            ? `${screensFound ? "plus" : "Plus"} de ${PAGE_SIZE} athlètes trouvés, précisez la recherche`
+            : `${visibles.length} athlète${visibles.length > 1 ? "s" : ""} trouvé${visibles.length > 1 ? "s" : ""}`);
 
   return (
     <Modal
@@ -324,7 +328,7 @@ export function AthletePicker({
         autoFocus
         onChange={(e) => setQuery(e.target.value)}
         role="combobox"
-        aria-label="Rechercher un athlète"
+        aria-label={withScreens ? "Rechercher un nom ou un écran" : "Rechercher un athlète"}
         aria-autocomplete="list"
         aria-expanded={visibles.length > 0}
         aria-controls={visibles.length > 0 ? listboxId : undefined}
@@ -342,13 +346,13 @@ export function AthletePicker({
             choisir(visibles[actif]);
           }
         }}
-        placeholder={!designation && ecrans.length > 0 ? "Rechercher un nom ou un écran…" : "Rechercher un nom…"}
+        placeholder={withScreens ? "Rechercher un nom ou un écran…" : "Rechercher un nom…"}
       />
       <AnnonceStatut texte={statut} busy={loading} />
       <div style={{ marginTop: 8 }}>
-        {ecransTrouves.length > 0 && (
+        {matchedScreens.length > 0 && (
           <ul aria-label="Écrans" style={{ listStyle: "none", margin: "0 0 8px", padding: 0 }}>
-            {ecransTrouves.map((e) => (
+            {matchedScreens.map((e) => (
               <li key={e.href}>
                 <Link
                   href={e.href}
@@ -366,7 +370,7 @@ export function AthletePicker({
                 >
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, color: "var(--tcn-ink)", fontSize: 15 }}>{e.label}</div>
-                    <div style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>{e.contexte}</div>
+                    <div style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>{e.context}</div>
                   </div>
                   <span aria-hidden="true" style={{ color: "var(--tcn-text-disabled)", fontSize: 18 }}>→</span>
                 </Link>
@@ -449,7 +453,7 @@ export function AthletePicker({
             }
           />
         )}
-        {query.trim().length >= 2 && !loading && !echec && rows.length === 0 && (
+        {query.trim().length >= 2 && !loading && !echec && rows.length === 0 && matchedScreens.length === 0 && (
           <EmptyState
             bare
             title="Aucun athlète trouvé"
@@ -466,7 +470,11 @@ export function AthletePicker({
         )}
         {query.trim().length < 2 && (
           <div style={{ padding: 30, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>
-            {designation ? "Saisissez au moins 2 lettres de votre nom." : "Saisissez au moins 2 lettres d'un nom."}
+            {designation
+              ? "Saisissez au moins 2 lettres de votre nom."
+              : withScreens
+                ? "Saisissez au moins 2 lettres d'un nom ou d'un écran."
+                : "Saisissez au moins 2 lettres d'un nom."}
           </div>
         )}
       </div>

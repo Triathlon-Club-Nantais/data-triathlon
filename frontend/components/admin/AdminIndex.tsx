@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Card, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { A_TRAITER, NAV, ROLE, estVisible, type NavItem } from "@/components/layout/nav.config";
+import { NAV, ROLE, TO_HANDLE, byGroup, estVisible } from "@/components/layout/nav.config";
 import { useSession } from "@/lib/queries/auth";
 import { libelleCompteur, useNavBadges } from "@/lib/queries/nav-badges";
 import { NoAdminAccess } from "./NoAdminAccess";
@@ -34,24 +34,13 @@ const SECTIONS = NAV.filter((s) =>
   s.items.some((i) => i.href?.startsWith("/admin/")),
 );
 
-/** Les entrées se suivent par groupe dans la table : l'ordre des intertitres en découle. */
-function parGroupe<T extends NavItem>(items: T[]): { groupe: string | undefined; items: T[] }[] {
-  const groupes: { groupe: string | undefined; items: T[] }[] = [];
-  for (const item of items) {
-    const dernier = groupes.at(-1);
-    if (dernier && dernier.groupe === item.groupe) dernier.items.push(item);
-    else groupes.push({ groupe: item.groupe, items: [item] });
-  }
-  return groupes;
-}
-
-const ANNEAU =
+const FOCUS_RING =
   "block h-full rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tcn-orange)]";
 
 export function AdminIndex() {
   const session = useSession();
   const pouvoirs = new Set(session.data?.permissions ?? []);
-  const compteurs = useNavBadges(pouvoirs, session.data?.can_administer ?? false);
+  const badges = useNavBadges(pouvoirs, session.data?.can_administer ?? false);
 
   if (session.isPending)
     return <Skeleton className="h-40 w-full" aria-label="Chargement des écrans" />;
@@ -77,9 +66,9 @@ export function AdminIndex() {
     ...s,
     items: s.items.filter((i) => estVisible(i, pouvoirs, ROLE.CONNECTED)),
   }));
-  const files = visibles.flatMap((s) => s.items).filter((i) => i.groupe === A_TRAITER);
+  const files = visibles.flatMap((s) => s.items).filter((i) => i.group === TO_HANDLE);
   const sections = visibles
-    .map((s) => ({ ...s, items: s.items.filter((i) => i.groupe !== A_TRAITER) }))
+    .map((s) => ({ ...s, items: s.items.filter((i) => i.group !== TO_HANDLE) }))
     .filter((s) => s.items.length > 0);
 
   // Un pouvoir sans écran à lui dit la même chose que l'absence de pouvoir :
@@ -91,14 +80,15 @@ export function AdminIndex() {
       {files.length > 0 && (
         <section aria-labelledby="admin-a-traiter" className="space-y-4">
           <h2 id="admin-a-traiter" className="font-heading text-lg font-semibold">
-            {A_TRAITER}
+            {TO_HANDLE}
           </h2>
           <ul className="grid list-none gap-3 sm:grid-cols-2">
             {files.map((item) => {
-              const n = item.badge ? compteurs[item.badge] : undefined;
+              const n = item.badge ? badges.counts[item.badge] : undefined;
+              const loading = !!item.badge && badges.loading.has(item.badge);
               return (
                 <li key={item.id}>
-                  <Link href={item.href} className={ANNEAU}>
+                  <Link href={item.href} className={FOCUS_RING}>
                     <Card className="h-full flex-row items-center gap-4 p-5 transition-all hover:ring-foreground/25">
                       <div className="flex-1 space-y-1">
                         <CardTitle>{item.label}</CardTitle>
@@ -117,6 +107,12 @@ export function AdminIndex() {
                           <span className="sr-only">{libelleCompteur(item.badge, n)}</span>
                         </span>
                       )}
+                      {loading && (
+                        // Discret, et tu : le lien se lit déjà par son titre.
+                        <span aria-hidden="true" className="flex-none text-sm text-[var(--tcn-text-muted)]">
+                          …
+                        </span>
+                      )}
                       {n === 0 && (
                         <span className="flex-none text-sm text-[var(--tcn-text-muted)]">Rien en attente</span>
                       )}
@@ -131,9 +127,9 @@ export function AdminIndex() {
       {sections.map((section) => (
         <section key={section.id} className="space-y-4">
           <h2 className="font-heading text-lg font-semibold">{section.label}</h2>
-          {parGroupe(section.items).map(({ groupe, items }) => (
-            <div key={groupe ?? section.id} className="space-y-3">
-              {groupe && <h3 className="text-sm font-semibold text-[var(--tcn-text-muted)]">{groupe}</h3>}
+          {byGroup(section.items).map(({ group, items }) => (
+            <div key={group ?? section.id} className="space-y-3">
+              {group && <h3 className="text-sm font-semibold text-[var(--tcn-text-muted)]">{group}</h3>}
               {/* Une liste, et pas des liens frères : le lecteur d'écran annonce le
                   nombre d'écrans ouverts et la position dans la section. */}
               <ul className="grid list-none gap-4 sm:grid-cols-2">
@@ -149,7 +145,7 @@ export function AdminIndex() {
                         dépend — l'anneau ne se dessinait pas du tout (constaté au
                         navigateur, invisible en revue de code). Sans lui, le repos
                         n'a pas d'anneau de toute façon. */}
-                    <Link href={item.href} className={ANNEAU}>
+                    <Link href={item.href} className={FOCUS_RING}>
                       <Card className="h-full gap-2 p-6 transition-all hover:ring-foreground/25">
                         <CardTitle>{item.label}</CardTitle>
                         <p className="text-sm text-[var(--tcn-text-faint)]">

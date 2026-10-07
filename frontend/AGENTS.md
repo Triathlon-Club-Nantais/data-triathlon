@@ -276,10 +276,12 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   des courses » quand l'écran s'intitulait « Épreuves »). `ecran()` **lève** sur
   une entrée sans phrase : c'est une erreur de configuration, pas un cas à
   couvrir en silence, et `nav.config.test.ts` la rattrape avant l'écran.
-  `ecran()` rend aussi `aide`, le lien « Aide » du `PageHeader` vers la section
-  du guide admin dont `ecrans` liste l'écran (#1245) : un nouvel écran se
-  déclare dans `guide-content.admin.ts`, et `nav.config.test.ts` échoue tant
-  qu'aucune section ne le couvre. Corollaire du même lot : plus aucune entrée d'administration sans
+  `ecran()` rend aussi `helpHref`, le lien « Aide » du `PageHeader` vers la
+  section du guide admin que nomme le `helpAnchor` de l'entrée (#1245). Une
+  ancre et non un import du guide : `nav.config.ts` est lu par le rail de
+  chaque page, et importer `GUIDE_ADMIN` y faisait entrer tout le texte du
+  guide. `nav.config.test.ts` échoue tant qu'une entrée vers `/admin`, quelle
+  que soit sa section, n'a pas d'ancre existante dans le guide. Corollaire du même lot : plus aucune entrée d'administration sans
   `permission`, « Épreuves » ayant été la dernière — donc la seule proposée à
   qui n'y peut rien faire. Enfin, `/admin/batches` **est** l'écran de
   `batch:run`, et c'est `BatchRunList` qui porte la garde de `batch:read` : sans
@@ -297,18 +299,26 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `animate-pulse` n'animant que l'opacité, tous les squelettes du front étaient
   invisibles.
 - **Administration en sous-sections, files en tête du sommaire** (#1246,
-  #1232) : chaque entrée d'« Administration » porte un `groupe` (À traiter,
-  Données, Paramétrage, Conformité, Maintenance), rendu en intertitre par le
-  rail déplié et par `AdminIndex` ; les entrées d'un groupe se suivent dans la
-  table, `nav.config.test.ts` le tient. Le sommaire met les files « À
+  #1232) : chaque entrée d'« Administration » porte un `group` (À traiter,
+  Données, Paramétrage, Conformité, Gestes sans retour), rendu en intertitre
+  par le rail déplié et par `AdminIndex` ; les entrées d'un groupe se suivent
+  dans la table (`byGroup`), `nav.config.test.ts` le tient. Au rail, chaque
+  sous-section est un `role="group"` nommé, dans les deux états du rail, pour
+  que ses liens gardent leur place dans l'arbre (#428). Le sommaire met les files « À
   traiter » en tête, avec le compteur de leur pastille (`useNavBadges`, même
-  nom accessible via `libelleCompteur`), et ne les répète pas en tuiles. Chaque
+  nom accessible via `libelleCompteur`, « … » discret au premier chargement),
+  et ne les répète pas en tuiles. Chaque
   file a sa pastille et sa route de compte sous la garde de son écran ; celle
   de « Validation des épreuves » est gardée par le cookie bénévoles, illisible
   côté client, donc demandée pour un compte d'administration seulement (401
-  avalé). La palette ⌘K mène aussi aux écrans : `AthletePicker` reçoit les
-  destinations visibles du rail et les filtre sur place, en liens hors du
-  combobox des athlètes.
+  avalé) ; `useFileValidation` l'invalide quand la file change de taille, à la
+  connexion et à la déconnexion. La pastille de la revalidation compte les
+  épreuves sans avis humain, et sa file les montre par défaut
+  (`awaiting_review=true`). Celle des identités garde son compte 5 min : il
+  exécute toute la revue. La palette ⌘K mène aussi aux écrans : `AthletePicker`
+  reçoit les destinations visibles du rail, plus `/admin` et `/admin/guide`
+  pour un compte d'administration, les filtre sur place, en liens hors du
+  combobox des athlètes, et compte les écrans trouvés dans son statut.
 - **Navigation** — `components/layout/nav.config.ts` en est la description
   **unique** ; ajouter une destination y tient en une ligne. Deux échelons de
   visibilité, à ne pas confondre : `minRole` ne distingue qu'anonyme et

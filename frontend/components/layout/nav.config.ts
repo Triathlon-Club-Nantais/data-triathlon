@@ -11,7 +11,6 @@ import {
   UserCog,
   Users,
 } from "lucide-react";
-import { GUIDE_ADMIN } from "@/components/guide/guide-content.admin";
 
 /**
  * Table de configuration **unique** de la navigation (proto « Navigation TCN »).
@@ -107,11 +106,18 @@ export type NavItem = {
    * rail et le sommaire `/admin`. Les entrées d'un même groupe se suivent
    * dans la table : c'est leur ordre qui fait celui des intertitres.
    */
-  groupe?: string;
+  group?: string;
+  /**
+   * Section du guide admin qui documente l'écran (#1245), l'`id` d'une entrée
+   * de `GUIDE_ADMIN` : `ecran()` en fait le lien « Aide » du `PageHeader`.
+   * Une ancre plutôt qu'un import du guide, qui ferait entrer tout son texte
+   * dans chaque page qui lit cette table (le rail les lit toutes).
+   */
+  helpAnchor?: string;
 };
 
 /** Les files de travail : le sommaire `/admin` les met en tête, compteur compris. */
-export const A_TRAITER = "À traiter";
+export const TO_HANDLE = "À traiter";
 
 export type NavSection = {
   id: string;
@@ -200,7 +206,7 @@ export const NAV: NavSection[] = [
       // cliquable dont l'API rend 403. C'est exactement ce que `permission`
       // sert à éviter.
       //
-      // Sous-sections dans l'ordre de `groupe` (#1246) : 14 entrées à plat
+      // Sous-sections dans l'ordre de `group` (#1246) : 14 entrées à plat
       // mêlaient les files quotidiennes, le paramétrage et les gestes rares.
       // ── À traiter ──
       {
@@ -209,9 +215,10 @@ export const NAV: NavSection[] = [
         description:
           "Fournisseurs de chronométrage non pris en charge, signalés automatiquement lors d'un import en échec.",
         href: "/admin/fournisseurs",
+        helpAnchor: "fournisseurs",
         permission: "pending_providers:read",
         badge: "providers",
-        groupe: A_TRAITER,
+        group: TO_HANDLE,
       },
       // Pouvoir de lecture de l'écran : `courses:sources` garde les trois
       // routes qu'il consomme (liste, aperçu de fusion, fusion elle-même côté
@@ -223,9 +230,10 @@ export const NAV: NavSection[] = [
         description:
           "Paires d'épreuves qui désignent probablement le même événement — même URL, même identifiant de plateforme, ou noms proches à la même date.",
         href: "/admin/doublons",
+        helpAnchor: "doublons",
         permission: "courses:sources",
         badge: "duplicates",
-        groupe: A_TRAITER,
+        group: TO_HANDLE,
       },
       {
         id: "a-identites",
@@ -233,9 +241,10 @@ export const NAV: NavSection[] = [
         description:
           "Fiches qui mêlent deux personnes, ou paires de fiches qui désignent probablement la même : chaque cas dit quoi faire et offre ses gestes.",
         href: "/admin/identites",
+        helpAnchor: "identites",
         permission: "athletes:write",
         badge: "identities",
-        groupe: A_TRAITER,
+        group: TO_HANDLE,
       },
       {
         id: "a-quality",
@@ -243,9 +252,10 @@ export const NAV: NavSection[] = [
         description:
           "Les épreuves dont l'indice de fiabilité doute. Inspecter, corriger, puis trancher — chaque décision est tracée.",
         href: "/admin/quality",
+        helpAnchor: "quality",
         permission: "quality:override",
         badge: "quality",
-        groupe: A_TRAITER,
+        group: TO_HANDLE,
       },
       // Signalement public (#267) — même contraste que « Fournisseurs en
       // attente » : la soumission est ouverte à tous, la consulter exige
@@ -256,9 +266,10 @@ export const NAV: NavSection[] = [
         description:
           "Signalements de bug et retours soumis depuis le bouton du site public.",
         href: "/admin/retours-utilisateurs",
+        helpAnchor: "retours-utilisateurs",
         permission: "feedback:read",
         badge: "feedback",
-        groupe: A_TRAITER,
+        group: TO_HANDLE,
       },
       // Validation des déclarations de crédit d'athlète (#779, #817) —
       // l'API existait déjà, l'écran non. Id distinct de l'ancien
@@ -270,10 +281,11 @@ export const NAV: NavSection[] = [
         description:
           "Déclarations de crédit d'athlète en attente, soumises par un membre depuis la page publique de bénévolat : accepter ou refuser.",
         href: "/admin/benevolat",
+        helpAnchor: "benevolat-validation",
         permission: "athletes:volunteer_validate",
         preview: true,
         badge: "volunteer",
-        groupe: A_TRAITER,
+        group: TO_HANDLE,
       },
       // ── Données ──
       // `courses:write` : la correction est le geste courant de l'écran, et
@@ -288,8 +300,9 @@ export const NAV: NavSection[] = [
         description:
           "Corriger ou retirer une épreuve du catalogue. Ces actions sont irréversibles et tracées.",
         href: "/admin/courses",
+        helpAnchor: "epreuves",
         permission: "courses:write",
-        groupe: "Données",
+        group: "Données",
       },
       // Liste nominative (#1202) : elle change ce que les compteurs du club
       // additionnent, comme la portée, mais par personne et par saison.
@@ -299,9 +312,10 @@ export const NAV: NavSection[] = [
         description:
           "La liste des licenciés publiée par la FFTri, saison par saison. Un licencié rattaché à sa fiche fait compter ses résultats de la saison pour le club, même sans libellé de club.",
         href: "/admin/membres",
+        helpAnchor: "membres",
         permission: "club_members:manage",
         badge: "members",
-        groupe: "Données",
+        group: "Données",
       },
       // L'écran promis par cette entrée existe depuis #47. `batch:run` et non
       // `batch:read` : `permission` ne porte qu'un code, et c'est le lancement
@@ -312,8 +326,9 @@ export const NAV: NavSection[] = [
         description:
           "Relancer la récupération des épreuves déjà enregistrées, importer une liste d'épreuves depuis un fichier, et relire le bilan des lancements précédents.",
         href: "/admin/batches",
+        helpAnchor: "batches",
         permission: "batch:run",
-        groupe: "Données",
+        group: "Données",
       },
       // ── Paramétrage ──
       // Distincte des Épreuves, et le libellé doit le rester : corriger une
@@ -325,8 +340,9 @@ export const NAV: NavSection[] = [
         description:
           "Les orthographes sous lesquelles un chronométreur désigne le club, et les disciplines que les compteurs de triathlon laissent de côté.",
         href: "/admin/portee-compteurs",
+        helpAnchor: "portee-compteurs",
         permission: "counter_scope:manage",
-        groupe: "Paramétrage",
+        group: "Paramétrage",
       },
       {
         id: "a-variantes-club",
@@ -334,8 +350,9 @@ export const NAV: NavSection[] = [
         description:
           "Regrouper les orthographes d'un même club — hors TCN, qui garde son propre réglage — sous un nom affiché commun, pour « Top clubs » et le filtre du classement.",
         href: "/admin/variantes-club",
+        helpAnchor: "variantes-club",
         permission: "club_aliases:manage",
-        groupe: "Paramétrage",
+        group: "Paramétrage",
       },
       // Pas d'entrée « Sessions » : #169 a livré la révocation **dans**
       // « Accès au back-office » — par adresse ligne à ligne, globale en bas de
@@ -345,7 +362,7 @@ export const NAV: NavSection[] = [
       // d'évident, et en deviner un serait poser une règle à rectifier le jour
       // où l'écran sort. Sans conséquence, depuis #242 une entrée `soon` n'est
       // plus rendue du tout.
-      { id: "a-flags", label: "Feature flags", minRole: ROLE.ADMIN, soon: true, groupe: "Paramétrage" },
+      { id: "a-flags", label: "Feature flags", minRole: ROLE.ADMIN, soon: true, group: "Paramétrage" },
       // ── Conformité ──
       // Lecture du journal existant (#117) — sans elle, la promesse de trace
       // de `DeleteCourseDialog`/`WipeCoursesCard` était invérifiable (#501,
@@ -357,8 +374,9 @@ export const NAV: NavSection[] = [
         description:
           "L'historique des gestes d'administration sur les données — qui, quoi, quand. Rien ici ne s'annule.",
         href: "/admin/journal",
+        helpAnchor: "journal",
         permission: "admin_log:read",
-        groupe: "Conformité",
+        group: "Conformité",
       },
       {
         id: "a-oppositions",
@@ -366,10 +384,11 @@ export const NAV: NavSection[] = [
         description:
           "Les personnes qui ont demandé le retrait de leurs résultats : délai de traitement, et enregistrement d'une opposition par nom.",
         href: "/admin/oppositions",
+        helpAnchor: "oppositions",
         permission: "oppositions:manage",
-        groupe: "Conformité",
+        group: "Conformité",
       },
-      // ── Maintenance ──
+      // ── Gestes sans retour ──
       // Les deux purges globales vivaient en pied de `/admin/courses`, l'écran
       // où l'on vient corriger une date : feuilleter le catalogue jusqu'au bout
       // menait à un clic de la destruction de toute la base (#499, ADM-7). Un
@@ -380,8 +399,9 @@ export const NAV: NavSection[] = [
         description:
           "Les gestes sans retour : vider les résultats, ou vider le catalogue entier. Rien ici ne se répare — chaque geste annonce son ampleur avant d'agir.",
         href: "/admin/maintenance",
+        helpAnchor: "maintenance",
         permission: ["participations:wipe_all", "courses:wipe_all"],
-        groupe: "Maintenance",
+        group: "Gestes sans retour",
       },
       // Le guide admin (#865) n'est volontairement **pas** ici : une entrée de
       // cette table compte dans le nombre d'écrans visibles par section
@@ -414,6 +434,7 @@ export const NAV: NavSection[] = [
         description:
           "Adresses autorisées au back-office, code d'accès du site, mot de passe bénévoles et fermeture des sessions ouvertes.",
         href: "/admin/acces",
+        helpAnchor: "acces-backoffice",
         permission: "allowed_emails:manage",
       },
       // `roles:assign` seul, alors que l'écran lit aussi `users:read` et
@@ -426,6 +447,7 @@ export const NAV: NavSection[] = [
         description:
           "Qui s'est connecté au moins une fois, et ce que chacun porte. Un rôle prend effet à la requête suivante, sans reconnexion.",
         href: "/admin/utilisateurs",
+        helpAnchor: "utilisateurs",
         permission: "roles:assign",
       },
       // Composer un rôle (#240). Le pouvoir annoncé est celui d'écriture, mais
@@ -438,6 +460,7 @@ export const NAV: NavSection[] = [
         description:
           "Un rôle porte des pouvoirs ; les personnes portent des rôles. Une recomposition s'applique dès la requête suivante de chaque porteur, sans reconnexion.",
         href: "/admin/droits",
+        helpAnchor: "droits",
         permission: "roles:write",
       },
       // `groups:assign` plutôt que `groups:read` : l'écran se **consulte** avec
@@ -449,6 +472,7 @@ export const NAV: NavSection[] = [
         description:
           "À quoi chacun appartient — le Codir, les officiels, une section. Un groupe n'accorde aucun droit : ce que l'on peut faire vient des rôles.",
         href: "/admin/groupes",
+        helpAnchor: "groupes",
         permission: "groups:assign",
       },
     ],
@@ -483,6 +507,7 @@ export const NAV: NavSection[] = [
         description:
           "Profils des jeunes encadrés par le club — contact d'urgence, âge, notes et journal de bord. Données personnelles, fermées à qui ne porte pas ce pouvoir.",
         href: "/admin/jeunes",
+        helpAnchor: "jeunes",
         permission: "jeunes:read",
       },
       {
@@ -491,6 +516,7 @@ export const NAV: NavSection[] = [
         description:
           "Les séances d'entraînement jeunes et leurs participants inscrits.",
         href: "/admin/jeunes/calendrier",
+        helpAnchor: "jeunes",
         permission: "jeunes:read",
       },
       // Appel de présence (#869) — pointage présent/absent d'une séance,
@@ -503,6 +529,7 @@ export const NAV: NavSection[] = [
         description:
           "Pointer les jeunes présents ou absents à une séance, vérifier qu'aucun n'est manquant en fin de séance, et consigner une note.",
         href: "/admin/jeunes/appel",
+        helpAnchor: "jeunes",
         permission: "jeunes:read",
       },
     ],
@@ -524,20 +551,30 @@ export function ecran(href: string): {
   eyebrow: string;
   title: string;
   description: string;
-  aide?: string;
+  helpHref?: string;
 } {
   const section = NAV.find((s) => s.items.some((i) => i.href === href));
   const item = section?.items.find((i) => i.href === href);
   if (!section || !item?.description) {
     throw new Error(`Aucune entrée de navigation décrite pour ${href}`);
   }
-  const guide = GUIDE_ADMIN.find((s) => s.ecrans?.includes(href));
   return {
     eyebrow: section.label,
     title: item.label,
     description: item.description,
-    aide: guide && `/admin/guide#${guide.id}`,
+    helpHref: item.helpAnchor && `/admin/guide#${item.helpAnchor}`,
   };
+}
+
+/** Les entrées se suivent par groupe dans la table : l'ordre des intertitres en découle (#1246). */
+export function byGroup<T extends NavItem>(items: T[]): { group: string | undefined; items: T[] }[] {
+  const groups: { group: string | undefined; items: T[] }[] = [];
+  for (const item of items) {
+    const last = groups.at(-1);
+    if (last && last.group === item.group) last.items.push(item);
+    else groups.push({ group: item.group, items: [item] });
+  }
+  return groups;
 }
 
 /**

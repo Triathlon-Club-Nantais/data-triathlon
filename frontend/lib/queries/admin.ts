@@ -124,11 +124,17 @@ export function useQualityQueueCount(actif = true) {
   });
 }
 
+/**
+ * `staleTime` de 5 min : le compte exécute toute la revue (paires inversées et
+ * concaténées sur toutes les fiches, #908), et la nav le demanderait sinon à
+ * chaque écran. Un geste de la revue l'invalide quand même par son préfixe.
+ */
 export function useIdentityReviewCount(actif = true) {
   return useQuery({
     queryKey: queryKeys.identityReviewCount(),
     queryFn: () => apiClient.countIdentityReview(),
     enabled: actif,
+    staleTime: 5 * 60_000,
   });
 }
 

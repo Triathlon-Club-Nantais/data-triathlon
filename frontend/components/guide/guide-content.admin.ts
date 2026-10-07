@@ -3,7 +3,6 @@ import type { GuideSection } from "./types";
 export const GUIDE_ADMIN: GuideSection[] = [
   {
     id: "epreuves",
-    ecrans: ["/admin/courses"],
     titre: "Épreuves",
     casUsage: "Corriger ou retirer une épreuve du catalogue. Ces actions sont irréversibles et tracées.",
     etapes: [
@@ -15,7 +14,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "fournisseurs",
-    ecrans: ["/admin/fournisseurs"],
     titre: "Fournisseurs en attente",
     casUsage: "Fournisseurs de chronométrage non pris en charge, signalés automatiquement lors d'un import en échec.",
     etapes: [
@@ -26,7 +24,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "doublons",
-    ecrans: ["/admin/doublons"],
     titre: "Doublons suspects",
     casUsage:
       "Paires d'épreuves qui désignent probablement le même événement — même URL, même identifiant de plateforme, ou noms proches à la même date.",
@@ -39,7 +36,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "identites",
-    ecrans: ["/admin/identites"],
     titre: "Identités des athlètes",
     casUsage:
       "Fiches qui mêlent deux personnes, ou paires de fiches qui désignent probablement la même. Chaque carte nomme son motif, rappelle le geste à choisir et offre ce geste sur place. Fusionner, rattacher et supprimer sont définitifs ; écarter une paire et confirmer un club se reprennent.",
@@ -50,13 +46,12 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Homonyme du club : même personne, « Fusionner », en choisissant la fiche conservée (l'autre est supprimée, ses résultats, validations de saison, bénévolat et compte membre passent sur la fiche conservée). Deux personnes : « Écarter ». La paire sort de la liste, aucune donnée n'est modifiée.",
       "Nom et prénom inversés, ou nom complet face à une fiche découpée : « Corriger la fiche » fautive pour remettre nom et prénom en place, ou « Fusionner ». Une même épreuve courue par les deux fiches prouve deux personnes : « Écarter ».",
       "Fiche recréée sur une graphie déjà fusionnée : même personne, « Fusionner ». Variante posée par erreur : « Voir les variantes » ouvre la fiche qui la porte, où « Retirer » la détache.",
-      "Revenir sur un arbitrage : sous la liste, déplier « Paires écartées » ou « Clubs confirmés », puis « Annuler ». La paire revient dans la revue, ou le club est de nouveau signalé pour la fiche.",
+      "Revenir sur un arbitrage : sous la liste, déplier « Paires écartées » ou « Clubs confirmés », puis « Annuler ». La paire revient dans la revue, ou le club est de nouveau signalé pour la fiche. Si les deux fiches d'une paire portent la même clé, la prochaine reprise peut les fusionner, sans retour.",
     ],
     captures: [],
   },
   {
     id: "droits",
-    ecrans: ["/admin/droits"],
     titre: "Droits des rôles",
     casUsage:
       "Un rôle porte des pouvoirs ; les personnes portent des rôles. Une recomposition s'applique dès la requête suivante de chaque porteur, sans reconnexion.",
@@ -68,7 +63,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "quality",
-    ecrans: ["/admin/quality"],
     titre: "Revalidation qualité",
     casUsage: "Les épreuves dont l'indice de fiabilité doute. Inspecter, corriger, puis trancher — chaque décision est tracée.",
     etapes: [
@@ -80,7 +74,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "batches",
-    ecrans: ["/admin/batches"],
     titre: "Batches",
     casUsage:
       "Relancer la récupération des épreuves déjà enregistrées, importer une liste d'épreuves depuis un fichier, et relire le bilan des lancements précédents.",
@@ -93,7 +86,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "groupes",
-    ecrans: ["/admin/groupes"],
     titre: "Groupes d'appartenance",
     casUsage:
       "À quoi chacun appartient — le Codir, les officiels, une section. Un groupe n'accorde aucun droit : ce que l'on peut faire vient des rôles.",
@@ -105,7 +97,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "utilisateurs",
-    ecrans: ["/admin/utilisateurs"],
     titre: "Rôles des utilisateurs",
     casUsage: "Qui s'est connecté au moins une fois, et ce que chacun porte. Un rôle prend effet à la requête suivante, sans reconnexion.",
     etapes: [
@@ -116,7 +107,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "journal",
-    ecrans: ["/admin/journal"],
     titre: "Journal d'administration",
     casUsage: "L'historique des gestes d'administration sur les données — qui, quoi, quand. Rien ici ne s'annule.",
     etapes: [
@@ -127,7 +117,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "maintenance",
-    ecrans: ["/admin/maintenance"],
     titre: "Maintenance",
     casUsage:
       "Les gestes sans retour : vider les résultats, ou vider le catalogue entier. Rien ici ne se répare — chaque geste annonce son ampleur avant d'agir.",
@@ -139,7 +128,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "retours-utilisateurs",
-    ecrans: ["/admin/retours-utilisateurs"],
     titre: "Retours utilisateurs",
     casUsage: "Signalements de bug et retours soumis depuis le bouton du site public.",
     etapes: [
@@ -150,7 +138,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "variantes-club",
-    ecrans: ["/admin/variantes-club"],
     titre: "Variantes de club",
     casUsage:
       "Regrouper les orthographes d'un même club — hors TCN, qui garde son propre réglage — sous un nom affiché commun, pour « Top clubs » et le filtre du classement.",
@@ -162,7 +149,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "portee-compteurs",
-    ecrans: ["/admin/portee-compteurs"],
     titre: "Portée des compteurs",
     casUsage:
       "Les orthographes sous lesquelles un chronométreur désigne le club, et les disciplines que les compteurs de triathlon laissent de côté.",
@@ -174,7 +160,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "membres",
-    ecrans: ["/admin/membres"],
     titre: "Licenciés du club",
     casUsage:
       "La liste des licenciés publiée par la FFTri, saison par saison. Un licencié rattaché à sa fiche fait compter ses résultats de la saison pour le club, même sans libellé de club. Chaque changement recalcule les compteurs du club.",
@@ -189,7 +174,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "oppositions",
-    ecrans: ["/admin/oppositions"],
     titre: "Oppositions",
     casUsage:
       "Les personnes qui ont demandé le retrait de leurs résultats. Une opposition anonymise leurs résultats, et tout résultat importé ensuite à ce nom arrive anonyme. Ce geste est définitif. Aucun nom n'est affiché : la base n'en garde pas.",
@@ -203,7 +187,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "benevolat-validation",
-    ecrans: ["/admin/benevolat"],
     titre: "Bénévolat",
     casUsage:
       "Déclarations de crédit d'athlète en attente, soumises par un membre depuis la page publique de bénévolat : accepter ou refuser.",
@@ -234,7 +217,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "acces-backoffice",
-    ecrans: ["/admin/acces"],
     titre: "Accès et mots de passe",
     casUsage:
       "Un seul écran pour tout ce qui ouvre ou ferme un accès : adresses autorisées au back-office, code d'accès du site, mot de passe bénévoles, sessions ouvertes.",
@@ -249,7 +231,6 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "jeunes",
-    ecrans: ["/admin/jeunes", "/admin/jeunes/calendrier", "/admin/jeunes/appel"],
     titre: "Jeunes",
     casUsage:
       "L'encadrement des jeunes triathlètes : leurs profils, le calendrier des entraînements et l'appel de présence. Données personnelles de mineurs : la lecture suffit pour consulter, les gestes d'écriture demandent un pouvoir de plus.",
@@ -273,11 +254,11 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "« Corriger la fiche » : modifier le nom, le prénom, la date de naissance ou le club actuel. Un club corrigé à la main n'est plus réécrit par les imports suivants.",
       "« Valider la saison » : choisir la saison, lire le décompte des épreuves et du bénévolat affiché dessous, puis valider. Une saison déjà validée propose « Dévalider la saison ».",
       "Dans la liste de ses épreuves, « Rattacher » déplace un résultat vers la bonne fiche, « Supprimer » le retire, et « Attribuer aux équipiers » répartit un résultat de relais.",
-      "« Fusionner avec une autre fiche » : rechercher l'autre fiche de la même personne, puis choisir celle à conserver. L'autre est supprimée sans retour : ses résultats, ses validations de saison, son bénévolat et son compte membre passent sur la fiche conservée, et sa graphie y reste rattachée comme variante.",
-      "« Séparer des résultats », au dessus de la liste des épreuves : cocher les résultats d'une autre personne du même nom, puis « Séparer vers une nouvelle fiche ». Les deux fiches sont jugées distinctes et ne seront plus proposées à la fusion.",
+      "« Fusionner avec une autre fiche » : rechercher l'autre fiche de la même personne, puis choisir celle à conserver. L'autre est supprimée sans retour : ses résultats, ses validations de saison, son bénévolat et son compte membre passent sur la fiche conservée. Sa graphie y reste en général rattachée comme variante : quand elle diffère de celle de la fiche conservée et n'est pas celle d'un homonyme distingué.",
+      "« Séparer des résultats », au-dessus de la liste des épreuves : cocher les résultats d'une autre personne du même nom, puis « Séparer vers une nouvelle fiche ». Les deux fiches sont jugées distinctes et ne seront plus proposées à la fusion.",
       "« Variantes d'identité » liste les graphies qu'une fusion a rattachées à la fiche : l'import y range les résultats publiés sous elles. « Retirer » détache une variante posée par erreur ; les résultats déjà rattachés restent en place.",
       "Sur la page d'une épreuve : « Corriger l'épreuve » modifie ses informations, « Avis de fiabilité » la marque fiable ou douteuse, ou revient à l'avis calculé.",
-      "« Fusionner avec une autre épreuve » : chercher l'autre épreuve par son nom ou son numéro, sans contrainte de date, puis choisir celle à conserver après l'aperçu. L'autre est supprimée : ses résultats sans correspondance disparaissent, et son adresse devient une source de l'épreuve conservée. « Supprimer » retire l'épreuve. Ces deux gestes sont irréversibles et tracés dans le journal.",
+      "« Fusionner avec une autre épreuve » : chercher l'autre épreuve par son nom ou son numéro, sans contrainte de date, puis choisir celle à conserver après l'aperçu. L'autre est supprimée : ses résultats sans correspondance disparaissent, et son adresse devient une source de l'épreuve conservée. « Supprimer l'épreuve » la retire. Ces deux gestes sont irréversibles et tracés dans le journal.",
     ],
     captures: [
       {

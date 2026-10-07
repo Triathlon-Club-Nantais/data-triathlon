@@ -34,13 +34,15 @@ describe("PageHeader — slot actions", () => {
   });
 });
 
-describe("PageHeader — lien d'aide (#1245)", () => {
-  it("renvoie à la section du guide quand `aide` est fourni", () => {
-    render(<PageHeader title="Titre" aide="/admin/guide#identites" />);
-    expect(screen.getByRole("link", { name: "Aide" })).toHaveAttribute("href", "/admin/guide#identites");
+describe("PageHeader: help link (#1245)", () => {
+  it("links to the guide section when `helpHref` is given, with a 44 px target", () => {
+    render(<PageHeader title="Titre" helpHref="/admin/guide#identites" />);
+    const link = screen.getByRole("link", { name: "Aide" });
+    expect(link).toHaveAttribute("href", "/admin/guide#identites");
+    expect(link).toHaveClass("min-h-11");
   });
 
-  it("n'affiche aucun lien d'aide sans `aide`", () => {
+  it("renders no help link without `helpHref`", () => {
     render(<PageHeader title="Titre" />);
     expect(screen.queryByRole("link", { name: "Aide" })).toBeNull();
   });

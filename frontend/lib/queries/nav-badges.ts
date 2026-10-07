@@ -26,32 +26,38 @@ import {
  *
  * `validation` (« Validation des épreuves ») n'a pas de pouvoir RBAC : sa garde
  * est le cookie du mot de passe bénévoles, illisible côté client. La requête
- * part donc pour un compte d'administration (`peutAdministrer`), le seul
+ * part donc pour un compte d'administration (`canAdminister`), le seul
  * susceptible de porter aussi ce cookie, et son 401 tait la pastille. Un
  * bénévole sans compte n'a pas de pastille : la demander à tout visiteur
  * ferait payer la nav à chacun.
  */
 export function useNavBadges(
-  pouvoirs: Set<string>,
-  peutAdministrer: boolean,
-): Record<string, number | undefined> {
-  const qualite = useQualityQueueCount(pouvoirs.has("quality:override"));
-  const doublons = useCourseDuplicatesCount(pouvoirs.has("courses:sources"));
-  const fournisseurs = usePendingProvidersCount(pouvoirs.has("pending_providers:read"));
-  const retours = useFeedbackCounts(pouvoirs.has("feedback:read"));
-  const identites = useIdentityReviewCount(pouvoirs.has("athletes:write"));
-  const licencies = useClubMembersToSettleCount(pouvoirs.has("club_members:manage"));
-  const benevolat = usePendingVolunteerActionsCount(pouvoirs.has("athletes:volunteer_validate"));
-  const validation = useBenevoleQueueCount(peutAdministrer);
+  permissions: Set<string>,
+  canAdminister: boolean,
+): { counts: Record<string, number | undefined>; loading: Set<string> } {
+  const quality = useQualityQueueCount(permissions.has("quality:override"));
+  const duplicates = useCourseDuplicatesCount(permissions.has("courses:sources"));
+  const providers = usePendingProvidersCount(permissions.has("pending_providers:read"));
+  const feedback = useFeedbackCounts(permissions.has("feedback:read"));
+  const identities = useIdentityReviewCount(permissions.has("athletes:write"));
+  const members = useClubMembersToSettleCount(permissions.has("club_members:manage"));
+  const volunteer = usePendingVolunteerActionsCount(permissions.has("athletes:volunteer_validate"));
+  const validation = useBenevoleQueueCount(canAdminister);
+  const queries = { quality, duplicates, providers, feedback, identities, members, volunteer, validation };
   return {
-    quality: qualite.data?.total,
-    duplicates: doublons.data?.total,
-    providers: fournisseurs.data?.total,
-    feedback: retours.data?.nouveau,
-    identities: identites.data?.total,
-    members: licencies.data?.total,
-    volunteer: benevolat.data?.total,
-    validation: validation.data?.total,
+    counts: {
+      quality: quality.data?.total,
+      duplicates: duplicates.data?.total,
+      providers: providers.data?.total,
+      feedback: feedback.data?.nouveau,
+      identities: identities.data?.total,
+      members: members.data?.total,
+      volunteer: volunteer.data?.total,
+      validation: validation.data?.total,
+    },
+    // Le premier chargement seul : un compte déjà connu se garde à l'écran
+    // pendant qu'il se rafraîchit.
+    loading: new Set(Object.entries(queries).filter(([, q]) => q.isLoading).map(([key]) => key)),
   };
 }
 
