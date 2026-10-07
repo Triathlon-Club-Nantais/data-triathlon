@@ -16,12 +16,14 @@ from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
 from app.schemas.athlete_identity import (
+    ConfirmedIdentityClubList,
     IdentityClubConfirmCreate,
     IdentityClubConfirmOut,
     IdentityPairIgnoreCreate,
     IdentityPairIgnoreOut,
     IdentityReviewCount,
     IdentityReviewList,
+    IgnoredIdentityPairList,
 )
 from app.services import athlete_identity_review
 
@@ -73,3 +75,43 @@ def confirm_identity_club(
     )
     db.commit()
     return IdentityClubConfirmOut(**out)
+
+
+@router.get("/admin/identity-review/ignored", response_model=IgnoredIdentityPairList)
+def list_ignored_identity_pairs(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.ATHLETES_WRITE)),
+) -> IgnoredIdentityPairList:
+    """Les paires écartées, pour revoir un arbitrage (#1243)."""
+    return IgnoredIdentityPairList(pairs=athlete_identity_review.list_ignored(db))
+
+
+@router.delete("/admin/identity-review/ignored/{pair_id}", status_code=204)
+def unignore_identity_pair(
+    pair_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.ATHLETES_WRITE)),
+) -> None:
+    """Annule une mise à l'écart : la paire revient dans la revue."""
+    athlete_identity_review.unignore_pair(db, pair_id=pair_id, user_id=user.id)
+    db.commit()
+
+
+@router.get("/admin/identity-review/confirmed-clubs", response_model=ConfirmedIdentityClubList)
+def list_confirmed_identity_clubs(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.ATHLETES_WRITE)),
+) -> ConfirmedIdentityClubList:
+    """Les clubs confirmés pour une fiche, pour revoir un arbitrage (#1243)."""
+    return ConfirmedIdentityClubList(clubs=athlete_identity_review.list_confirmed_clubs(db))
+
+
+@router.delete("/admin/identity-review/confirmed-clubs/{known_id}", status_code=204)
+def unconfirm_identity_club(
+    known_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.ATHLETES_WRITE)),
+) -> None:
+    """Annule une confirmation de club : la fiche est de nouveau signalée pour lui."""
+    athlete_identity_review.unconfirm_club(db, known_id=known_id, user_id=user.id)
+    db.commit()

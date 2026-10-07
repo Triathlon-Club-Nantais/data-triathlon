@@ -25,6 +25,7 @@ from app.schemas.course_duplicates import (
     DuplicateCandidateList,
     DuplicateIgnoreCreate,
     DuplicateIgnoreOut,
+    IgnoredDuplicateList,
 )
 from app.services import course_duplicates
 
@@ -79,3 +80,23 @@ def ignore_duplicate(
     )
     db.commit()
     return resultat
+
+
+@router.get("/admin/courses/duplicates/ignored", response_model=IgnoredDuplicateList)
+def list_ignored_duplicates(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.COURSES_SOURCES)),
+) -> IgnoredDuplicateList:
+    """Les paires écartées, pour revoir un arbitrage (#1243)."""
+    return IgnoredDuplicateList(pairs=course_duplicates.list_ignored(db))
+
+
+@router.delete("/admin/courses/duplicates/ignored/{pair_id}", status_code=204)
+def unignore_duplicate(
+    pair_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.COURSES_SOURCES)),
+) -> None:
+    """Annule une mise à l'écart : la paire revient dans la liste. Même garde que le geste d'origine."""
+    course_duplicates.unignore_pair(db, pair_id=pair_id, user_id=user.id)
+    db.commit()

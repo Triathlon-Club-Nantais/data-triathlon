@@ -249,3 +249,53 @@ def confirm_club(db: Session, *, athlete_id: int, club_key: str, user_id: int) -
         payload={"club_key": key},
     )
     return {"athlete_id": athlete_id, "club_key": key, "confirmed_at": known.created_at}
+
+
+def _named(athlete: Athlete) -> dict:
+    return {"id": athlete.id, "nom": athlete.nom, "prenom": athlete.prenom}
+
+
+def list_ignored(db: Session) -> list[dict]:
+    """Les paires écartées, pour les revoir (#1243)."""
+    return [
+        {"id": pair.id, "ignored_at": pair.ignored_at, "athletes": [_named(low), _named(high)]}
+        for pair, low, high in ignored_athlete_pair_repository.list_with_athletes(db)
+    ]
+
+
+def unignore_pair(db: Session, *, pair_id: int, user_id: int) -> None:
+    """Annule une mise à l'écart : la paire revient dans la revue si un motif la retient encore."""
+    pair = ignored_athlete_pair_repository.get(db, pair_id)
+    if pair is None:
+        raise NotFoundError("Cette paire n'est pas écartée.")
+    low, high = pair.athlete_id_low, pair.athlete_id_high
+    ignored_athlete_pair_repository.delete(db, pair)
+    audit.record(
+        db, user_id, action="athlete_identity.unignore", entity_type="athlete", entity_id=low,
+        payload={"athlete_id_a": low, "athlete_id_b": high},
+    )
+
+
+def list_confirmed_clubs(db: Session) -> list[dict]:
+    """Les clubs confirmés pour une fiche, pour les revoir (#1243)."""
+    return [
+        {
+            "id": known.id, "athlete_id": athlete.id, "nom": athlete.nom, "prenom": athlete.prenom,
+            "club_key": known.club_key, "confirmed_at": known.created_at,
+        }
+        for known, athlete in athlete_known_club_repository.list_with_athletes(db)
+    ]
+
+
+def unconfirm_club(db: Session, *, known_id: int, user_id: int) -> None:
+    """Annule une confirmation de club : la fiche est de nouveau signalée pour lui.
+    Les résultats que l'import a déjà rattachés sous ce club restent sur la fiche."""
+    known = athlete_known_club_repository.get(db, known_id)
+    if known is None:
+        raise NotFoundError("Ce club n'est pas confirmé.")
+    athlete_id, key = known.athlete_id, known.club_key
+    athlete_known_club_repository.delete(db, known)
+    audit.record(
+        db, user_id, action="athlete_identity.unconfirm_club", entity_type="athlete", entity_id=athlete_id,
+        payload={"club_key": key},
+    )
