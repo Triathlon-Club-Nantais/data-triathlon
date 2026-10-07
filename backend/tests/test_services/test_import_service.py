@@ -2446,7 +2446,7 @@ def test_import_keeps_group_names_as_team_athletes(db_session, patch_scraper):
     patch_scraper([
         _relay("1", "TEAM GV", "."),
         _relay("2", "LES BARBAPAPAS", "Alex et Margot"),
-        _relay("3", "LE BRAS LUC", "/ LE PAGE GUULLAUME ."),
+        _relay("3", "MARTIN JEAN PIERRE", "/ DUPONT PAUL ."),
     ])
 
     import_service.import_event(db_session, URL, _settings())
@@ -2454,7 +2454,7 @@ def test_import_keeps_group_names_as_team_athletes(db_session, patch_scraper):
     course = course_repository.get_latest_by_source_url(db_session, URL)
     rows = participation_repository.list_for_course(db_session, course.id)
     assert sorted((row.athlete.nom, row.athlete.prenom) for row in rows) == [
-        ("LE BRAS LUC", "/ LE PAGE GUULLAUME ."), ("LES BARBAPAPAS", "Alex et Margot"),
+        ("LES BARBAPAPAS", "Alex et Margot"), ("MARTIN JEAN PIERRE", "/ DUPONT PAUL ."),
         ("TEAM GV", "."),
     ]
     assert all(row.teammates == [] and row.team_name is None for row in rows)
@@ -2565,6 +2565,33 @@ def test_rescrape_splits_a_relay_imported_before_895(db_session, patch_scraper, 
     assert row.team_name == "MASSONNEAU PIERRE / BESANCON FABIEN ."
     assert athlete_repository.get(db_session, team_id) is None
     assert (out["imported"], out["updated"]) == (0, 1)
+
+
+@pytest.mark.parametrize("bib", ["400", ""], ids=["avec-dossard", "sans-dossard"])
+def test_rescrape_splits_a_duo_whose_name_carries_a_particle(db_session, patch_scraper, monkeypatch, bib):
+    # Épreuve 400 (#1237) : la source coupe « LE TULZO NICOLAS / LE TULZO ROXANE . » au « / ».
+    duo = _relay(bib, "LE TULZO NICOLAS", "/ LE TULZO ROXANE .", total_time="01:12:34")
+    solo = _relay("12", "DURAND", "Luc")
+    _import_before_895(db_session, patch_scraper, monkeypatch, [duo, solo])
+    course = course_repository.get_latest_by_source_url(db_session, URL)
+    before = next(
+        row for row in participation_repository.list_for_course(db_session, course.id)
+        if row.athlete.nom == "LE TULZO NICOLAS"
+    )
+    before_id, team_id = before.id, before.athlete_id
+
+    patch_scraper([duo, solo])
+    import_service.import_event(db_session, URL, _settings())
+
+    rows = participation_repository.list_for_course(db_session, course.id)
+    assert len(rows) == 2
+    row = next(row for row in rows if row.id == before_id)
+    assert _names(row.teammates) == [("LE TULZO", "NICOLAS"), ("LE TULZO", "ROXANE")]
+    assert row.team_name == "LE TULZO NICOLAS / LE TULZO ROXANE ."
+    assert row.total_time == "01:12:34"
+    assert athlete_repository.get(db_session, team_id) is None
+    single = next(row for row in rows if row.id != before_id)
+    assert (single.athlete.nom, single.athlete.prenom, single.teammates) == ("DURAND", "Luc", [])
 
 
 def test_rescrape_keeps_a_team_athlete_that_still_has_other_results(

@@ -1026,7 +1026,7 @@ def test_chronoplace_provider_single_heat_scrapes_every_race_without_probe(monke
 
 def test_relay_named_teammates_are_split_at_import(db_session):
     """#895 : « MENARDAIS FERDINAND / COMPAIN LENA » est composée ; « LE BOZEC HENRI »
-    (trois mots en majuscules) laisse sa ligne entière, en fiche d'équipe."""
+    l'est aussi depuis que la particule situe le nom (#1237)."""
     from datetime import date
 
     from app.repositories import athlete_repository
@@ -1040,10 +1040,11 @@ def test_relay_named_teammates_are_split_at_import(db_session):
     assert [(a.nom, a.prenom) for a in participation.teammates] == [
         ("MENARDAIS", "FERDINAND"), ("COMPAIN", "LENA"),
     ]
-    equipe = athlete_repository.get_by_identity_keys(
-        db_session, "LE BOZEC HENRI / BABINET SYLVAIN", "")
-    (non_decoupee,) = equipe.participations
-    assert non_decoupee.teammates == []
+    le_bozec = athlete_repository.get_by_identity_keys(db_session, "LE BOZEC", "HENRI")
+    (duo,) = le_bozec.participations
+    assert [(a.nom, a.prenom) for a in duo.teammates] == [
+        ("LE BOZEC", "HENRI"), ("BABINET", "SYLVAIN"),
+    ]
 
 
 # ── Markup de 2026 : l'épreuve sort du `<h1>` (#979) ─────────────────────────

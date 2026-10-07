@@ -27,7 +27,9 @@ ou `None` (ligne non découpée). Jamais de liste partielle.
    - contient `&`, `+` ou le mot `et` (toute casse) → `None` ;
    - casse mixte : les jetons majuscules forment **un seul** bloc contigu, en tête ou en
      queue → (bloc, reste) ; sinon `None` ;
-   - tout en majuscules : **exactement deux** jetons → (1er, 2e) ; sinon `None` ;
+   - tout en majuscules : deux jetons → (1er, 2e) ; au-delà, une particule (`LE`, `DE`,
+     `DU`, `VAN`…) se colle au jeton qui la suit, et il doit rester deux mots dont un
+     seul porte la particule : il est le nom, en tête ou en queue (#1237) ; sinon `None` ;
    - aucune majuscule → `None`.
 5. Chaque nom et chaque prénom porte au moins deux lettres.
 6. Nombre d'équipiers entre 2 et 8.
@@ -47,8 +49,10 @@ Tout échec d'une étape → `None`.
 | `GUILLON RÉMI / CHARPENTIER EMMANUEL` (oktime) | `[("GUILLON", "RÉMI"), ("CHARPENTIER", "EMMANUEL")]` |
 | `MENARDAIS FERDINAND / COMPAIN LENA` (chronoplace) | `[("MENARDAIS", "FERDINAND"), ("COMPAIN", "LENA")]` |
 | `DUPONT Jean / MARTIN Paul` | `[("DUPONT", "Jean"), ("MARTIN", "Paul")]` |
-| `LE BRAS LUC / LE PAGE GUULLAUME .` (klikego, 3 jetons) | `None` |
-| `LE BOZEC HENRI / BABINET SYLVAIN` (chronoplace) | `None` |
+| `LE TULZO NICOLAS / LE TULZO ROXANE .` (klikego, épreuve 400, #1237) | `[("LE TULZO", "NICOLAS"), ("LE TULZO", "ROXANE")]` |
+| `LE BRAS LUC / LE PAGE GUULLAUME .` (klikego) | `[("LE BRAS", "LUC"), ("LE PAGE", "GUULLAUME")]` |
+| `LE BOZEC HENRI / BABINET SYLVAIN` (chronoplace) | `[("LE BOZEC", "HENRI"), ("BABINET", "SYLVAIN")]` |
+| `MARTIN JEAN PIERRE / DUPONT PAUL` (3 jetons sans particule) | `None` |
 | `DAUGUET PIERRE E. / BELMONTE ALEXANDRE .` | `None` |
 | `DAMIEN/FRANCOIS Francois et Benjamin` (breizhchrono) | `None` |
 | `ECN / USCAL Sarah et Francois` | `None` |
