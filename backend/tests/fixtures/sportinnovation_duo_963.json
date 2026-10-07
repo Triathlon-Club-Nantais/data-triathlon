@@ -1,0 +1,15 @@
+{
+  "_comment": "Swimrun course DUO, Les Défis de Saint-Nazaire 2026 (épreuve 963, #1226). Schéma FFA de /api/races/{slug}/results : aucun rang publié, deux lignes par dossard (une par équipier). Noms pseudonymisés, 4 équipes sur 98.",
+  "race": {"slug": "swimrun-duo-s", "title": "Swimrun course DUO", "eventSlug": "v5ua3w-les-de-fis-de-saint-nazaire"},
+  "event": {"title": "Les Défis de Saint-Nazaire", "eventDate": "2026-09-26"},
+  "results": [
+    {"lastName": "MARTIN", "firstName": "Paul", "bib": "12", "sex": "M", "category": "SEM", "clubName": "TRIATHLON CLUB NANTAIS", "rankingSeconds": 5410, "officialTimeFfa": "01:30:10", "realTimeFfa": "01:30:10", "status": null},
+    {"lastName": "LE GALL", "firstName": "Marie-Anne", "bib": "12", "sex": "F", "category": "SEF", "clubName": "", "rankingSeconds": 5410, "officialTimeFfa": "01:30:10", "realTimeFfa": "01:30:10", "status": null},
+    {"lastName": "DURAND", "firstName": "Luc", "bib": "7", "sex": "M", "category": "M1M", "clubName": "ST NAZAIRE TRI", "rankingSeconds": 4980, "officialTimeFfa": "01:23:00", "realTimeFfa": "01:23:00", "status": null},
+    {"lastName": "BERNARD", "firstName": "Hugo", "bib": "31", "sex": "M", "category": "SEM", "clubName": "", "rankingSeconds": null, "officialTimeFfa": null, "realTimeFfa": null, "status": "DNF"},
+    {"lastName": "PETIT", "firstName": "Marc", "bib": "7", "sex": "M", "category": "M2M", "clubName": "ST NAZAIRE TRI", "rankingSeconds": 4980, "officialTimeFfa": "01:23:00", "realTimeFfa": "01:23:00", "status": null},
+    {"lastName": "ROUX", "firstName": "Léa", "bib": "31", "sex": "F", "category": "SEF", "clubName": "", "rankingSeconds": null, "officialTimeFfa": null, "realTimeFfa": null, "status": "DNF"},
+    {"lastName": "FAURE", "firstName": "Anne", "bib": "45", "sex": "F", "category": "M1F", "clubName": "", "rankingSeconds": 6120, "officialTimeFfa": "01:42:00", "realTimeFfa": "01:42:00", "status": null},
+    {"lastName": "GIRARD", "firstName": "Julie", "bib": "45", "sex": "F", "category": "M1F", "clubName": "", "rankingSeconds": 6120, "officialTimeFfa": "01:42:00", "realTimeFfa": "01:42:00", "status": null}
+  ]
+}

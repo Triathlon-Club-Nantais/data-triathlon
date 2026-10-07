@@ -600,11 +600,47 @@ def _race_results_api(
         )
         for a in athletes
     ]
-    _derive_overall_ranks(results, athletes)
+    results = _merge_duo_teams(results, race_title)
+    _derive_overall_ranks(results)
     return results
 
 
-def _derive_overall_ranks(results: list[ScrapedResult], athletes: list[dict]) -> None:
+_DUO_RE = re.compile(r"\bduo\b", re.IGNORECASE)
+
+
+def _merge_duo_teams(results: list[ScrapedResult], race_title: str) -> list[ScrapedResult]:
+    """Une ligne par équipe sur une course en duo (#1226).
+
+    Sur un swimrun DUO (Défis de Saint-Nazaire 2026), la source publie une ligne
+    par équipier sous le dossard commun : la seconde était perdue à l'import
+    (`duplicate_bib`). Les lignes d'un dossard sont fusionnées en un relais
+    « NOM Prénom / NOM Prénom », que l'import découpe en équipiers (#895). Le
+    titre « DUO » suffit à marquer la course relais : toutes ses lignes doivent
+    porter le même `is_relay`, qui entre dans l'identité de l'épreuve.
+    """
+    by_bib: dict[str, list[ScrapedResult]] = {}
+    for result in results:
+        by_bib.setdefault(result.bib_number or f"#{id(result)}", []).append(result)
+    if not _DUO_RE.search(race_title) and all(len(rows) == 1 for rows in by_bib.values()):
+        return results
+    merged = []
+    for rows in by_bib.values():
+        team = rows[0]
+        team.is_relay = True
+        if len(rows) > 1:
+            team.athlete_name = " / ".join(
+                " ".join(filter(None, [r.athlete_name, r.athlete_firstname])) for r in rows
+            )
+            team.athlete_firstname = ""
+            # Genre et catégorie d'une équipe mixte n'appartiennent à aucun équipier.
+            for attr in ("gender", "category", "club"):
+                values = {getattr(r, attr) for r in rows} - {""}
+                setattr(team, attr, values.pop() if len(values) == 1 else "")
+        merged.append(team)
+    return merged
+
+
+def _derive_overall_ranks(results: list[ScrapedResult]) -> None:
     """Classe les finishers d'une course qui ne publie **aucun** rang (#1210).
 
     Les Défis de Saint-Nazaire 2026 ne portent que `rankingSeconds` : sans ce
@@ -614,10 +650,10 @@ def _derive_overall_ranks(results: list[ScrapedResult], athletes: list[dict]) ->
     if any(r.rank_overall is not None for r in results):
         return
     timed = []
-    for result, athlete in zip(results, athletes, strict=True):
+    for result in results:
         if result.status:
             continue
-        seconds = athlete.get("rankingSeconds")
+        seconds = result.raw_data.get("rankingSeconds")
         if not isinstance(seconds, (int, float)) or seconds <= 0:
             seconds = to_seconds(result.total_time, strict=True)
         if seconds:

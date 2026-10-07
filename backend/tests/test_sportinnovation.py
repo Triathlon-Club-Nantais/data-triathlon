@@ -784,3 +784,97 @@ def test_detail_url_without_race_slug_says_so(monkeypatch):
 
     with pytest.raises(ValueError, match="raceSlug"):
         _si.scrape_event_all("https://results.sportinnovation.fr/detail/3953335")
+
+
+# ── Swimrun DUO : deux lignes par dossard (#1226) ────────────────────────────
+
+def _duo_963_results(monkeypatch):
+    import json
+
+    data = json.loads((FIXTURES / "sportinnovation_duo_963.json").read_text(encoding="utf-8"))
+    monkeypatch.setattr(_si, "_fetch_splits_parallel", lambda athletes, **kw: {})
+    client = _FakeClient({
+        f"/races/{data['race']['slug']}": data["race"],
+        f"/events/{data['race']['eventSlug']}": data["event"],
+        f"/races/{data['race']['slug']}/results": data["results"],
+    })
+    return _si._scrape_results_race(data["race"]["slug"], "http://x", client)
+
+
+def test_duo_race_yields_one_relay_row_per_team(monkeypatch):
+    from app.scrapers.utils import split_relay_teammates
+
+    results = _duo_963_results(monkeypatch)
+
+    by_bib = {r.bib_number: r for r in results}
+    assert sorted(by_bib) == ["12", "31", "45", "7"]
+    assert all(r.is_relay for r in results)
+    assert by_bib["12"].athlete_name == "MARTIN Paul / LE GALL Marie-Anne"
+    assert by_bib["12"].athlete_firstname == ""
+    assert split_relay_teammates(by_bib["12"].athlete_name) == [
+        ("MARTIN", "Paul"), ("LE GALL", "Marie-Anne"),
+    ]
+    assert by_bib["12"].total_time == "01:30:10"
+
+
+def test_duo_race_ranks_teams_not_teammates(monkeypatch):
+    results = _duo_963_results(monkeypatch)
+
+    assert {r.bib_number: r.rank_overall for r in results} == {
+        "7": 1, "12": 2, "45": 3, "31": None,
+    }
+    assert {r.bib_number: r.status for r in results}["31"] == "DNF"
+
+
+def test_duo_race_keeps_shared_team_attributes_only(monkeypatch):
+    by_bib = {r.bib_number: r for r in _duo_963_results(monkeypatch)}
+
+    assert (by_bib["45"].gender, by_bib["45"].category) == ("F", "M1F")
+    assert by_bib["7"].club == "ST NAZAIRE TRI"
+    # Équipe mixte : ni le genre ni la catégorie d'un seul équipier.
+    assert (by_bib["12"].gender, by_bib["12"].category) == ("", "")
+    assert by_bib["12"].club == "TRIATHLON CLUB NANTAIS"
+
+
+def test_race_titled_duo_is_a_relay_even_with_one_row_per_bib(monkeypatch):
+    monkeypatch.setattr(_si, "_fetch_splits_parallel", lambda athletes, **kw: {})
+    client = _FakeClient({
+        "/races/sr/results": [
+            {"lastName": "DUPONT", "firstName": "Jean", "bib": "1", "officialTimeFfa": "01:00:00"},
+        ],
+    })
+
+    (result,) = _si._race_results_api("sr", "Swimrun DUO", "Défis", None, "http://x", client)
+
+    assert result.is_relay
+    assert (result.athlete_name, result.athlete_firstname) == ("DUPONT", "Jean")
+
+
+def test_solo_race_is_not_a_relay(monkeypatch):
+    monkeypatch.setattr(_si, "_fetch_splits_parallel", lambda athletes, **kw: {})
+    client = _FakeClient({
+        "/races/sr/results": [
+            {"lastName": "DUPONT", "firstName": "Jean", "bib": "1", "officialTimeFfa": "01:00:00"},
+            {"lastName": "MARTIN", "firstName": "Paul", "bib": "2", "officialTimeFfa": "01:01:00"},
+        ],
+    })
+
+    results = _si._race_results_api("sr", "Swimrun Solo", "Défis", None, "http://x", client)
+
+    assert [(r.athlete_name, r.is_relay, r.rank_overall) for r in results] == [
+        ("DUPONT", False, 1), ("MARTIN", False, 2),
+    ]
+
+
+def test_duo_race_imports_both_teammates_without_duplicate_bib(db_session, monkeypatch):
+    from app.repositories import athlete_repository
+    from app.services import import_persistence
+
+    import_persistence.persist_results(db_session, "http://x", _duo_963_results(monkeypatch))
+
+    martin = athlete_repository.get_by_identity_keys(db_session, "MARTIN", "Paul")
+    le_gall = athlete_repository.get_by_identity_keys(db_session, "LE GALL", "Marie-Anne")
+    (participation,) = martin.participations
+    assert participation.teammates == [martin, le_gall]
+    assert participation.course.is_relay
+    assert "duplicate_bib" not in (participation.course.quality_issues or {})
