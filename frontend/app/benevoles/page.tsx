@@ -132,13 +132,22 @@ export default function BenevolesPage() {
 
   // Un échec laisse l'écran en place : revenir à l'accès alors que le cookie
   // vit encore ferait croire à une déconnexion sur un poste partagé (#1247).
-  async function seDeconnecter() {
+  async function logout() {
+    if (brouillonSale.current) {
+      const ok = await confirmer({
+        titre: "Abandonner les modifications non enregistrées ?",
+        description: "Ce résultat porte des modifications non enregistrées.",
+        libelleAction: "Abandonner",
+      });
+      if (!ok) return;
+    }
     try {
       await apiClient.benevoleLogout();
     } catch {
       toast.error("Déconnexion impossible. Réessayez.");
       return;
     }
+    brouillonSale.current = false;
     file.surSessionExpiree();
   }
 
@@ -235,7 +244,7 @@ export default function BenevolesPage() {
     <div style={{ maxWidth: 1100, margin: "40px auto", padding: "0 24px" }}>
       <div className="flex items-start justify-between gap-4">
         <Eyebrow style={{ marginBottom: 6 }}>Validation des épreuves</Eyebrow>
-        <Button variant="ghost" size="sm" onClick={seDeconnecter}>
+        <Button variant="ghost" size="sm" onClick={logout}>
           Se déconnecter
         </Button>
       </div>
