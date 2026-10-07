@@ -113,6 +113,7 @@ const PROVIDER_LABELS: Record<string, string> = {
   // brut : la table ne dit rien du support, elle ne fait que traduire un nom.
   sporthive: "MYLAPS Sporthive",
   chronoweb: "Chronoweb",
+  nextrun: "Nextrun",
 };
 
 /** Libellé d'un chronométreur ; le slug brut à défaut, « Source » si non renseigné. */
