@@ -328,6 +328,17 @@ def test_comma_records_that_cannot_be_split_go_to_review_and_teams_are_left(db_s
     assert plan["review"] == [{"family": "comma_names", "athlete_ids": [unparsed.id], "reason": "unparsed"}]
 
 
+def test_a_team_label_ending_with_a_comma_is_not_split_into_a_person(db_session, admin):
+    """#1192 : un libellé d'équipe ne prend jamais une identité de personne."""
+    _athlete(db_session, "PAUL ET MARIE,", "Relais")
+    _athlete(db_session, "LUC / LEA,", "Duo")
+    db_session.commit()
+
+    plan = athlete_reconciliation.plan(db_session)
+
+    assert (_actions(plan), plan["review"]) == ([], [])
+
+
 def test_dated_records_merged_with_their_undated_twin_are_counted(db_session, admin):
     """FR-030 : la simulation signale les scissions #900 déjà survenues."""
     _athlete(db_session, "DUPONT", "Jean", birth_date=date(1990, 1, 1))

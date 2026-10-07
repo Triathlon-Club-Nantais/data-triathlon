@@ -25,7 +25,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.orm.attributes import set_committed_value
 
-from app.core.athlete_identity import athlete_identity_keys
+from app.core.athlete_identity import athlete_identity_keys, is_team_label
 from app.core.club import _normalise_sql, tcn_clause
 from app.core.discipline import federal_clause
 from app.core.gender import gender_podium_clause
@@ -1120,23 +1120,26 @@ class IdentityFacts(NamedTuple):
     accounts: int
     birth_dates: frozenset[date]
     carried: int
+    team: bool
 
     def __or__(self, other: "IdentityFacts") -> "IdentityFacts":
         return IdentityFacts(
             self.courses | other.courses, self.individual_courses | other.individual_courses,
             self.results | other.results, self.accounts + other.accounts,
             self.birth_dates | other.birth_dates, self.carried + other.carried,
+            # Seules deux fiches de même nature fusionnent : la conservée donne la sienne.
+            self.team,
         )
 
 
-_NO_FACTS = IdentityFacts(frozenset(), frozenset(), frozenset(), 0, frozenset(), 0)
+_NO_FACTS = IdentityFacts(frozenset(), frozenset(), frozenset(), 0, frozenset(), 0, False)
 _FACTS_CHUNK = 5000
 
 
 def identity_facts(db: Session, athlete_ids: Sequence[int]) -> dict[int, IdentityFacts]:
     """Pour chaque fiche, en trois requêtes par tranche : ses épreuves et résultats
     (porteur ou équipier), ses épreuves individuelles, ses comptes, sa date de
-    naissance et le nombre de résultats qu'elle porte."""
+    naissance, le nombre de résultats qu'elle porte et si c'est une équipe."""
     ids = sorted(set(athlete_ids))
     facts: dict[int, IdentityFacts] = {}
     for start in range(0, len(ids), _FACTS_CHUNK):
@@ -1168,11 +1171,12 @@ def identity_facts(db: Session, athlete_ids: Sequence[int]) -> dict[int, Identit
                 select(User.athlete_id, func.count()).where(User.athlete_id.in_(chunk)).group_by(User.athlete_id)
             )
         }
-        for athlete_id, born in db.execute(select(Athlete.id, Athlete.birth_date).where(Athlete.id.in_(chunk))):
+        identities = select(Athlete.id, Athlete.birth_date, Athlete.nom, Athlete.prenom).where(Athlete.id.in_(chunk))
+        for athlete_id, born, nom, prenom in db.execute(identities):
             facts[athlete_id] = IdentityFacts(
                 frozenset(courses.get(athlete_id, ())), frozenset(individual_courses.get(athlete_id, ())),
                 frozenset(results.get(athlete_id, ())), accounts.get(athlete_id, 0),
-                frozenset({born} if born else ()), carried.get(athlete_id, 0),
+                frozenset({born} if born else ()), carried.get(athlete_id, 0), is_team_label(nom, prenom),
             )
     return facts
 
@@ -1187,6 +1191,8 @@ def merge_refusal(first: IdentityFacts, second: IdentityFacts) -> str | None:
         return "same_participation"
     if first.birth_dates and second.birth_dates and first.birth_dates != second.birth_dates:
         return "distinct_birth_dates"
+    if first.team != second.team:
+        return "team_and_person"
     return None
 
 
@@ -1197,7 +1203,7 @@ class PairFacts(NamedTuple):
     @property
     def blocked(self) -> bool:
         """Un refus autre qu'une épreuve commune (déjà lue dans `shared_courses`)."""
-        return self.refusal in {"distinct_users", "same_participation", "distinct_birth_dates"}
+        return self.refusal in {"distinct_users", "same_participation", "distinct_birth_dates", "team_and_person"}
 
 
 def pair_facts(db: Session, pairs: Sequence[tuple[int, int]]) -> dict[tuple[int, int], PairFacts]:

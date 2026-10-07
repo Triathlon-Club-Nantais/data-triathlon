@@ -1063,7 +1063,8 @@ export type AthleteMergeBlockingReason =
   | "distinct_users"
   | "same_course_bibs"
   | "same_participation"
-  | "distinct_birth_dates";
+  | "distinct_birth_dates"
+  | "team_and_person";
 
 /** Ce qu'une fusion de deux fiches ferait, sans rien écrire (`GET /admin/athletes/{id}/merge-impact`). */
 export interface AthleteMergeImpact {

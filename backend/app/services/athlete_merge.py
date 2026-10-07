@@ -15,6 +15,7 @@ import psycopg.errors
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
+from app.core.athlete_identity import is_team_label
 from app.core.exceptions import DomainError, NotFoundError
 from app.models.athlete import Athlete
 from app.repositories import (
@@ -45,6 +46,7 @@ _REFUSALS = {
     "same_course_bibs": "Les deux fiches ont chacune un résultat sur une même épreuve individuelle : ce sont deux personnes.",
     "same_participation": "Les deux fiches figurent sur un même résultat de relais.",
     "distinct_birth_dates": "Les deux fiches portent deux dates de naissance différentes.",
+    "team_and_person": "Une fiche d'équipe ne se fusionne pas avec une fiche de personne.",
 }
 
 
@@ -76,6 +78,8 @@ def blocking_reason(db: Session, kept: Athlete, absorbed: Athlete) -> str | None
         return "same_participation"
     if kept.birth_date and absorbed.birth_date and kept.birth_date != absorbed.birth_date:
         return "distinct_birth_dates"
+    if is_team_label(kept.nom, kept.prenom) != is_team_label(absorbed.nom, absorbed.prenom):
+        return "team_and_person"
     return None
 
 

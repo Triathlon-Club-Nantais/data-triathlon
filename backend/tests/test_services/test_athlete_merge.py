@@ -133,6 +133,7 @@ def test_merging_a_homonym_into_its_principal_keeps_rank_zero(db_session_fk, adm
         ("bibs", "same_course_bibs"),
         ("relay", "same_participation"),
         ("birth", "distinct_birth_dates"),
+        ("team", "team_and_person"),
     ],
 )
 def test_a_refused_merge_writes_nothing(db_session_fk, admin, setup, reason):
@@ -151,6 +152,8 @@ def test_a_refused_merge_writes_nothing(db_session_fk, admin, setup, reason):
         participation_repository.replace_teammates(db, relay, [kept.id, absorbed.id])
     if setup == "birth":
         kept.birth_date, absorbed.birth_date = date(1990, 1, 1), date(1991, 1, 1)
+    if setup == "team":
+        absorbed.nom, absorbed.prenom = "DUPONT", "& JEAN"
     db.flush()
 
     impact = athlete_merge.merge_impact(db, kept_id=kept.id, absorbed_id=absorbed_id)
@@ -161,6 +164,23 @@ def test_a_refused_merge_writes_nothing(db_session_fk, admin, setup, reason):
     assert (refused.value.status_code, refused.value.code) == (409, reason)
     assert db.get(Athlete, absorbed.id) is not None
     assert db.query(AdminActionLog).count() == 0
+
+
+def test_a_person_never_merges_into_a_team_record(db_session_fk, admin):
+    """#1192 : la reprise des doublons a versé « ARNAUD & VINCENT » dans ARNAUD Vincent."""
+    team, person = _athlete(db_session_fk, "ARNAUD", "& VINCENT ."), _athlete(db_session_fk, "ARNAUD", "Vincent")
+
+    with pytest.raises(DomainError) as refused:
+        athlete_merge.merge_athletes(db_session_fk, kept_id=team.id, absorbed_id=person.id, user_id=admin.id)
+
+    assert refused.value.code == "team_and_person"
+
+
+def test_two_spellings_of_one_team_still_merge(db_session_fk, admin):
+    kept = _athlete(db_session_fk, "ARNAUD", "& VINCENT .")
+    absorbed = _athlete(db_session_fk, "ARNAUD /", "VINCENT", homonym_rank=1)
+
+    assert athlete_merge.merge_impact(db_session_fk, kept_id=kept.id, absorbed_id=absorbed.id)["blocking_reason"] is None
 
 
 def test_a_merge_with_an_unknown_record_is_a_404(db_session_fk, admin):
