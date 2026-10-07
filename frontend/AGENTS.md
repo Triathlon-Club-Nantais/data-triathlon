@@ -273,7 +273,10 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   des courses » quand l'écran s'intitulait « Épreuves »). `ecran()` **lève** sur
   une entrée sans phrase : c'est une erreur de configuration, pas un cas à
   couvrir en silence, et `nav.config.test.ts` la rattrape avant l'écran.
-  Corollaire du même lot : plus aucune entrée d'administration sans
+  `ecran()` rend aussi `aide`, le lien « Aide » du `PageHeader` vers la section
+  du guide admin dont `ecrans` liste l'écran (#1245) : un nouvel écran se
+  déclare dans `guide-content.admin.ts`, et `nav.config.test.ts` échoue tant
+  qu'aucune section ne le couvre. Corollaire du même lot : plus aucune entrée d'administration sans
   `permission`, « Épreuves » ayant été la dernière — donc la seule proposée à
   qui n'y peut rien faire. Enfin, `/admin/batches` **est** l'écran de
   `batch:run`, et c'est `BatchRunList` qui porte la garde de `batch:read` : sans

@@ -33,3 +33,15 @@ describe("PageHeader — slot actions", () => {
     expect(conteneur?.className).toContain("min-w-0");
   });
 });
+
+describe("PageHeader — lien d'aide (#1245)", () => {
+  it("renvoie à la section du guide quand `aide` est fourni", () => {
+    render(<PageHeader title="Titre" aide="/admin/guide#identites" />);
+    expect(screen.getByRole("link", { name: "Aide" })).toHaveAttribute("href", "/admin/guide#identites");
+  });
+
+  it("n'affiche aucun lien d'aide sans `aide`", () => {
+    render(<PageHeader title="Titre" />);
+    expect(screen.queryByRole("link", { name: "Aide" })).toBeNull();
+  });
+});

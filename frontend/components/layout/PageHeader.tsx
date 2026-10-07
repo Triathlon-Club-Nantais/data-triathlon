@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
+import { ChevronLeft, CircleHelp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /** Lien de remontée vers le parent hiérarchique, partagé avec les en-têtes composés à la main (#1085). */
@@ -31,6 +31,7 @@ export function PageHeader({
   actions,
   backHref,
   backLabel = "Retour",
+  aide,
   className,
   children,
 }: {
@@ -40,6 +41,8 @@ export function PageHeader({
   actions?: React.ReactNode;
   backHref?: string;
   backLabel?: string;
+  /** Section du guide admin qui documente l'écran (#1245), fournie par `ecran()`. */
+  aide?: string;
   className?: string;
   /** Contenu additionnel sous le titre (badges, méta…). */
   children?: React.ReactNode;
@@ -58,6 +61,15 @@ export function PageHeader({
           )}
           {children}
         </div>
+        {aide && (
+          <Link
+            href={aide}
+            className="-my-1 inline-flex shrink-0 items-center gap-1 py-1 text-sm font-medium text-[var(--tcn-text-faint)] transition-colors hover:text-foreground"
+          >
+            <CircleHelp className="size-4" aria-hidden />
+            Aide
+          </Link>
+        )}
         {actions && (
           // `flex-wrap` : `.tcn-btn` porte `white-space: nowrap`, donc deux
           // commandes larges (profil athlète) forment un bloc incompressible
