@@ -101,7 +101,16 @@ export type NavItem = {
    * n'est émise que si la session porte le `permission` de l'entrée.
    */
   badge?: string;
+  /**
+   * Sous-section d'« Administration » (#1246), rendue en intertitre par le
+   * rail et le sommaire `/admin`. Les entrées d'un même groupe se suivent
+   * dans la table : c'est leur ordre qui fait celui des intertitres.
+   */
+  groupe?: string;
 };
+
+/** Les files de travail : le sommaire `/admin` les met en tête, compteur compris. */
+export const A_TRAITER = "À traiter";
 
 export type NavSection = {
   id: string;
@@ -181,14 +190,18 @@ export const NAV: NavSection[] = [
     icon: Briefcase,
     minRole: ROLE.CONNECTED,
     items: [
-      // Aucune entrée ne pointe `/admin` : la racine est le futur tableau de
-      // bord global, et un `href` préfixe de tous les autres (`isActive` teste
-      // `startsWith`) allumerait cette entrée sur chaque écran d'administration.
+      // Aucune entrée ne pointe `/admin` : la racine est le sommaire, avec les
+      // files « À traiter » (#1246), et un `href` préfixe de tous les autres
+      // allumerait cette entrée sur chaque écran d'administration.
       //
       // `permission` posé depuis #239 : sans lui, quelqu'un qui vient de se
       // connecter et n'a pas encore de rôle se voyait proposer un lien
       // cliquable dont l'API rend 403. C'est exactement ce que `permission`
       // sert à éviter.
+      //
+      // Sous-sections dans l'ordre de `groupe` (#1246) : 14 entrées à plat
+      // mêlaient les files quotidiennes, le paramétrage et les gestes rares.
+      // ── À traiter ──
       {
         id: "a-providers",
         label: "Fournisseurs en attente",
@@ -197,20 +210,7 @@ export const NAV: NavSection[] = [
         href: "/admin/fournisseurs",
         permission: "pending_providers:read",
         badge: "providers",
-      },
-      // `courses:write` : la correction est le geste courant de l'écran, et
-      // c'était la seule entrée de la section sans aucun `permission` — donc la
-      // seule proposée à qui n'y peut rien faire (ADM-6). Qui porte
-      // `courses:delete` sans l'écriture y arrive par l'URL et trouve la
-      // suppression offerte, `CoursesAdminTable` testant les deux séparément :
-      // la navigation n'est pas une garde.
-      {
-        id: "a-courses",
-        label: "Épreuves",
-        description:
-          "Corriger ou retirer une épreuve du catalogue. Ces actions sont irréversibles et tracées.",
-        href: "/admin/courses",
-        permission: "courses:write",
+        groupe: A_TRAITER,
       },
       // Pouvoir de lecture de l'écran : `courses:sources` garde les trois
       // routes qu'il consomme (liste, aperçu de fusion, fusion elle-même côté
@@ -224,6 +224,7 @@ export const NAV: NavSection[] = [
         href: "/admin/doublons",
         permission: "courses:sources",
         badge: "duplicates",
+        groupe: A_TRAITER,
       },
       {
         id: "a-identites",
@@ -233,21 +234,7 @@ export const NAV: NavSection[] = [
         href: "/admin/identites",
         permission: "athletes:write",
         badge: "identities",
-      },
-      // Les entrées `soon` ci-dessous n'ont pas de pouvoir nommé : le catalogue
-      // n'en porte pas d'évident, et en deviner un serait poser une règle à
-      // rectifier le jour où l'écran sort. Sans conséquence — depuis #242 une
-      // entrée `soon` n'est plus rendue du tout.
-      // L'écran promis par cette entrée existe depuis #47. `batch:run` et non
-      // `batch:read` : `permission` ne porte qu'un code, et c'est le lancement
-      // qui donne son nom à l'écran — même arbitrage que `u-roles`.
-      {
-        id: "a-scrape",
-        label: "Batches",
-        description:
-          "Relancer la récupération des épreuves déjà enregistrées, importer une liste d'épreuves depuis un fichier, et relire le bilan des lancements précédents.",
-        href: "/admin/batches",
-        permission: "batch:run",
+        groupe: A_TRAITER,
       },
       {
         id: "a-quality",
@@ -257,6 +244,7 @@ export const NAV: NavSection[] = [
         href: "/admin/quality",
         permission: "quality:override",
         badge: "quality",
+        groupe: A_TRAITER,
       },
       // Signalement public (#267) — même contraste que « Fournisseurs en
       // attente » : la soumission est ouverte à tous, la consulter exige
@@ -269,6 +257,7 @@ export const NAV: NavSection[] = [
         href: "/admin/retours-utilisateurs",
         permission: "feedback:read",
         badge: "feedback",
+        groupe: A_TRAITER,
       },
       // Validation des déclarations de crédit d'athlète (#779, #817) —
       // l'API existait déjà, l'écran non. Id distinct de l'ancien
@@ -283,41 +272,23 @@ export const NAV: NavSection[] = [
         permission: "athletes:volunteer_validate",
         preview: true,
         badge: "volunteer",
+        groupe: A_TRAITER,
       },
-      // Les deux purges globales vivaient en pied de `/admin/courses`, l'écran
-      // où l'on vient corriger une date : feuilleter le catalogue jusqu'au bout
-      // menait à un clic de la destruction de toute la base (#499, ADM-7). Un
-      // écran à elles, et le voisinage disparaît.
+      // ── Données ──
+      // `courses:write` : la correction est le geste courant de l'écran, et
+      // c'était la seule entrée de la section sans aucun `permission` — donc la
+      // seule proposée à qui n'y peut rien faire (ADM-6). Qui porte
+      // `courses:delete` sans l'écriture y arrive par l'URL et trouve la
+      // suppression offerte, `CoursesAdminTable` testant les deux séparément :
+      // la navigation n'est pas une garde.
       {
-        id: "a-maintenance",
-        label: "Maintenance",
+        id: "a-courses",
+        label: "Épreuves",
         description:
-          "Les gestes sans retour : vider les résultats, ou vider le catalogue entier. Rien ici ne se répare — chaque geste annonce son ampleur avant d'agir.",
-        href: "/admin/maintenance",
-        permission: ["participations:wipe_all", "courses:wipe_all"],
-      },
-      // Lecture du journal existant (#117) — sans elle, la promesse de trace
-      // de `DeleteCourseDialog`/`WipeCoursesCard` était invérifiable (#501,
-      // ADM-5). Pouvoir dédié : le journal couvre des entités que
-      // `courses:delete`/`participations:wipe_all` ne gardent pas.
-      // Distincte des Épreuves, et le libellé doit le rester : corriger une
-      // épreuve rectifie une ligne, changer cette configuration redéfinit ce
-      // que **tous** les compteurs additionnent.
-      {
-        id: "a-portee-compteurs",
-        label: "Portée des compteurs",
-        description:
-          "Les orthographes sous lesquelles un chronométreur désigne le club, et les disciplines que les compteurs de triathlon laissent de côté.",
-        href: "/admin/portee-compteurs",
-        permission: "counter_scope:manage",
-      },
-      {
-        id: "a-variantes-club",
-        label: "Variantes de club",
-        description:
-          "Regrouper les orthographes d'un même club — hors TCN, qui garde son propre réglage — sous un nom affiché commun, pour « Top clubs » et le filtre du classement.",
-        href: "/admin/variantes-club",
-        permission: "club_aliases:manage",
+          "Corriger ou retirer une épreuve du catalogue. Ces actions sont irréversibles et tracées.",
+        href: "/admin/courses",
+        permission: "courses:write",
+        groupe: "Données",
       },
       // Liste nominative (#1202) : elle change ce que les compteurs du club
       // additionnent, comme la portée, mais par personne et par saison.
@@ -329,7 +300,56 @@ export const NAV: NavSection[] = [
         href: "/admin/membres",
         permission: "club_members:manage",
         badge: "members",
+        groupe: "Données",
       },
+      // L'écran promis par cette entrée existe depuis #47. `batch:run` et non
+      // `batch:read` : `permission` ne porte qu'un code, et c'est le lancement
+      // qui donne son nom à l'écran — même arbitrage que `u-roles`.
+      {
+        id: "a-scrape",
+        label: "Batches",
+        description:
+          "Relancer la récupération des épreuves déjà enregistrées, importer une liste d'épreuves depuis un fichier, et relire le bilan des lancements précédents.",
+        href: "/admin/batches",
+        permission: "batch:run",
+        groupe: "Données",
+      },
+      // ── Paramétrage ──
+      // Distincte des Épreuves, et le libellé doit le rester : corriger une
+      // épreuve rectifie une ligne, changer cette configuration redéfinit ce
+      // que **tous** les compteurs additionnent.
+      {
+        id: "a-portee-compteurs",
+        label: "Portée des compteurs",
+        description:
+          "Les orthographes sous lesquelles un chronométreur désigne le club, et les disciplines que les compteurs de triathlon laissent de côté.",
+        href: "/admin/portee-compteurs",
+        permission: "counter_scope:manage",
+        groupe: "Paramétrage",
+      },
+      {
+        id: "a-variantes-club",
+        label: "Variantes de club",
+        description:
+          "Regrouper les orthographes d'un même club — hors TCN, qui garde son propre réglage — sous un nom affiché commun, pour « Top clubs » et le filtre du classement.",
+        href: "/admin/variantes-club",
+        permission: "club_aliases:manage",
+        groupe: "Paramétrage",
+      },
+      // Pas d'entrée « Sessions » : #169 a livré la révocation **dans**
+      // « Accès au back-office » — par adresse ligne à ligne, globale en bas de
+      // page. Un second écran pour un unique bouton aurait coûté une entrée de
+      // navigation de plus, sur un rail déjà long.
+      // Une entrée `soon` sans pouvoir nommé : le catalogue n'en porte pas
+      // d'évident, et en deviner un serait poser une règle à rectifier le jour
+      // où l'écran sort. Sans conséquence, depuis #242 une entrée `soon` n'est
+      // plus rendue du tout.
+      { id: "a-flags", label: "Feature flags", minRole: ROLE.ADMIN, soon: true, groupe: "Paramétrage" },
+      // ── Conformité ──
+      // Lecture du journal existant (#117) — sans elle, la promesse de trace
+      // de `DeleteCourseDialog`/`WipeCoursesCard` était invérifiable (#501,
+      // ADM-5). Pouvoir dédié : le journal couvre des entités que
+      // `courses:delete`/`participations:wipe_all` ne gardent pas.
       {
         id: "a-journal",
         label: "Journal d'administration",
@@ -337,6 +357,7 @@ export const NAV: NavSection[] = [
           "L'historique des gestes d'administration sur les données — qui, quoi, quand. Rien ici ne s'annule.",
         href: "/admin/journal",
         permission: "admin_log:read",
+        groupe: "Conformité",
       },
       {
         id: "a-oppositions",
@@ -345,12 +366,22 @@ export const NAV: NavSection[] = [
           "Les personnes qui ont demandé le retrait de leurs résultats : délai de traitement, et enregistrement d'une opposition par nom.",
         href: "/admin/oppositions",
         permission: "oppositions:manage",
+        groupe: "Conformité",
       },
-      // Pas d'entrée « Sessions » : #169 a livré la révocation **dans**
-      // « Accès au back-office » — par adresse ligne à ligne, globale en bas de
-      // page. Un second écran pour un unique bouton aurait coûté une entrée de
-      // navigation de plus, sur un rail déjà long.
-      { id: "a-flags", label: "Feature flags", minRole: ROLE.ADMIN, soon: true },
+      // ── Maintenance ──
+      // Les deux purges globales vivaient en pied de `/admin/courses`, l'écran
+      // où l'on vient corriger une date : feuilleter le catalogue jusqu'au bout
+      // menait à un clic de la destruction de toute la base (#499, ADM-7). Un
+      // écran à elles, et le voisinage disparaît.
+      {
+        id: "a-maintenance",
+        label: "Maintenance",
+        description:
+          "Les gestes sans retour : vider les résultats, ou vider le catalogue entier. Rien ici ne se répare — chaque geste annonce son ampleur avant d'agir.",
+        href: "/admin/maintenance",
+        permission: ["participations:wipe_all", "courses:wipe_all"],
+        groupe: "Maintenance",
+      },
       // Le guide admin (#865) n'est volontairement **pas** ici : une entrée de
       // cette table compte dans le nombre d'écrans visibles par section
       // (`AdminIndex` — état vide, repli #482/NAV-2 sur une section à une

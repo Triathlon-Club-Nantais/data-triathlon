@@ -1,6 +1,7 @@
 // Pas de `"use client"` ici : ce module n'est importé que par `AppNav`, qui
 // porte la directive. L'ajouter en ferait un **point d'entrée** client, dont
 // Next exige des props sérialisables — or ce composant prend deux callbacks.
+import Link from "next/link";
 import { useCallback, useEffect, useId, useState, useSyncExternalStore } from "react";
 import { AnnonceStatut, Avatar, Input, Modal } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -198,18 +199,31 @@ function echecRecherche(erreur: unknown): { titre: string; detail: string; acces
   };
 }
 
+/** Un écran que la palette ⌘K peut ouvrir (#1246), déjà filtré par `estVisible`. */
+export type EcranRecherche = { label: string; href: string; contexte: string };
+
+function sansAccent(texte: string): string {
+  return texte.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
 /**
  * Recherche d'un athlète du club. Interroge l'API à partir de **2 caractères**,
  * après 250 ms de silence, et plafonne à 12 résultats.
+ *
+ * En mode recherche, elle mène aussi aux écrans de la nav dont le libellé
+ * contient la saisie (#1246) : filtrés sur place, sans requête, et en liens
+ * plutôt qu'en options du combobox, qui reste celui des athlètes.
  */
 export function AthletePicker({
   mode,
   onClose,
   onPick,
+  ecrans = [],
 }: {
   mode: PickerMode;
   onClose: () => void;
   onPick: (athlete: PickedAthlete) => void;
+  ecrans?: EcranRecherche[];
 }) {
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<AthleteSearchResult[]>([]);
@@ -274,6 +288,8 @@ export function AthletePicker({
   const choisir = (a: AthleteSearchResult) => onPick({ id: a.id, prenom: a.prenom, nom: a.nom });
 
   const q = query.trim();
+  const ecransTrouves =
+    designation || q.length < 2 ? [] : ecrans.filter((e) => sansAccent(e.label).includes(sansAccent(q)));
   const echec = q.length >= 2 && !loading && erreur !== null ? echecRecherche(erreur) : null;
   const statut =
     q.length < 2
@@ -326,10 +342,38 @@ export function AthletePicker({
             choisir(visibles[actif]);
           }
         }}
-        placeholder="Rechercher un nom…"
+        placeholder={!designation && ecrans.length > 0 ? "Rechercher un nom ou un écran…" : "Rechercher un nom…"}
       />
       <AnnonceStatut texte={statut} busy={loading} />
       <div style={{ marginTop: 8 }}>
+        {ecransTrouves.length > 0 && (
+          <ul aria-label="Écrans" style={{ listStyle: "none", margin: "0 0 8px", padding: 0 }}>
+            {ecransTrouves.map((e) => (
+              <li key={e.href}>
+                <Link
+                  href={e.href}
+                  onClick={onClose}
+                  className="hover:bg-[var(--tcn-fill)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--tcn-orange)]"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 14,
+                    minHeight: 44,
+                    padding: "8px 14px",
+                    borderRadius: 12,
+                    textDecoration: "none",
+                  }}
+                >
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, color: "var(--tcn-ink)", fontSize: 15 }}>{e.label}</div>
+                    <div style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>{e.contexte}</div>
+                  </div>
+                  <span aria-hidden="true" style={{ color: "var(--tcn-text-disabled)", fontSize: 18 }}>→</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
         {visibles.length > 0 && (
           <div role="listbox" id={listboxId} aria-label="Athlètes trouvés">
             {visibles.map((a, i) => {

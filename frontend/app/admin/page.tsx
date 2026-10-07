@@ -23,7 +23,7 @@ export default function AdminPage() {
             quatrième vocabulaire, donnait trois noms au même endroit. */}
         <PageHeader
           title="Back-office"
-          description="Les écrans qui vous sont ouverts, et ce que chacun permet de faire."
+          description="Ce qui attend un geste de votre part, puis les écrans qui vous sont ouverts."
         />
         <AdminIndex />
       </div>

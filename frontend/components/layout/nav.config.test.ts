@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { NAV, ROLE, ecran, estVisible } from "./nav.config";
+import { A_TRAITER, NAV, ROLE, ecran, estVisible } from "./nav.config";
 
 /** Les destinations du back-office : celles que le sommaire `/admin` annonce. */
 const ECRANS_ADMIN = NAV.flatMap((s) => s.items).filter(
@@ -21,6 +21,27 @@ describe("nav.config", () => {
     for (const item of ECRANS_ADMIN) {
       expect(item.permission, item.href).toBeTruthy();
     }
+  });
+
+  it("range « Administration » en sous-sections contiguës (#1246)", () => {
+    const groupes = NAV.find((s) => s.id === "admin")!.items.map((i) => i.groupe);
+    const ordre = groupes.filter((g, n) => g !== groupes[n - 1]);
+
+    expect(ordre).toEqual([A_TRAITER, "Données", "Paramétrage", "Conformité", "Maintenance"]);
+  });
+
+  it("donne une pastille à chaque file « À traiter » (#1246)", () => {
+    const files = NAV.flatMap((s) => s.items).filter((i) => i.groupe === A_TRAITER);
+
+    expect(files.map((i) => i.id)).toEqual([
+      "a-providers",
+      "a-doublons",
+      "a-identites",
+      "a-quality",
+      "a-feedback",
+      "a-benevolat-validation",
+    ]);
+    for (const item of files) expect(item.badge, item.id).toBeTruthy();
   });
 
   it("ne porte pas d'entrée pour le guide admin (#865)", () => {
