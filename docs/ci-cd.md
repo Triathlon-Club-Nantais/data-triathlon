@@ -36,6 +36,8 @@ Toute PR déclenche la CI seule (aucun déploiement).
     contre une base de service, plus le test de deux imports concurrents sans
     deadlock (#980). Les fixtures y basculent quand `TEST_POSTGRES_URL`
     est posée ; sans elle, la suite locale reste sur SQLite, sans serveur.
+    Le schéma y est posé une fois par session et les tables vidées entre deux
+    tests (#1249) : recréé à chaque test, il coûtait l'essentiel du job.
   - Frontend : `npm run lint` (eslint) + `npm test` (vitest) + `npm run build`
     (typecheck TS strict + build Next/RSC).
   - `ci-ok` : agrégateur, en échec dès qu'un job amont (hors audit) n'est pas
