@@ -548,9 +548,9 @@ def test_valider_rend_le_resultat_visible_sur_la_fiche_et_dans_les_agregats(
 # --- GET /benevoles/queue/count (#1232) --------------------------------------
 
 
-def test_queue_count_refuse_sans_cookie(client):
+def test_queue_count_requires_the_cookie(client):
     assert client.get("/api/v1/benevoles/queue/count").status_code == 401
 
 
-def test_queue_count_compte_la_file(benevole_connecte, resultat_pendant):
+def test_queue_count_counts_the_queue(benevole_connecte, resultat_pendant):
     assert benevole_connecte.get("/api/v1/benevoles/queue/count").json() == {"total": 1}

@@ -468,6 +468,11 @@ déjà. Elle rend `AthleteBrief`, donc sans `birth_date`.
 de l'arriéré de la file par jour et du délai moyen de résolution, pour le
 graphique de la page bénévoles. Même garde, aucune écriture.
 
+**La onzième est `GET /benevoles/queue/count`** (#1232) : `{total}`, la taille
+de `GET /benevoles/queue` sans charger la file, pour la pastille « Validation
+des épreuves » de la nav. Même garde : le front ne la demande que pour un
+compte d'administration, et avale le 401 de qui n'a pas le cookie bénévoles.
+
 **Le renommage, la réattribution, la validation, le rejet et la correction de
 champs sont scopés au résultat en attente actionnable** (relevé en revue de
 code, #437) : déléguer tel quel à `admin_actions` donnerait au mot de passe

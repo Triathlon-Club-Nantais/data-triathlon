@@ -284,8 +284,8 @@ def test_un_refus_n_ecrit_ni_verdict_ni_trace(client, db_session, epreuve_douteu
     )
 
 
-def test_le_compte_de_la_pastille_ignore_les_epreuves_deja_tranchees(client, db_session):
-    """#1232 : la file ne compte que l'avis calculé « non fiable » sans avis humain."""
+def test_badge_count_ignores_courses_already_judged(client, db_session):
+    """#1232: only computed "unreliable" verdicts without a human verdict count."""
     db_session.add_all([
         Course(name="À revoir", event_type="triathlon-m", is_reliable_computed=False),
         Course(name="Jugée douteuse", event_type="triathlon-m", is_reliable_computed=False,
@@ -300,7 +300,7 @@ def test_le_compte_de_la_pastille_ignore_les_epreuves_deja_tranchees(client, db_
     assert client.get("/api/v1/admin/quality/count").json() == {"total": 1}
 
 
-def test_le_compte_de_la_pastille_exige_le_pouvoir_de_qualite(client, db_session):
+def test_badge_count_requires_the_quality_power(client, db_session):
     client.cookies.clear()
     assert client.get("/api/v1/admin/quality/count").status_code == 401
     _session_etroite(client, db_session, P.COURSES_WRITE)
