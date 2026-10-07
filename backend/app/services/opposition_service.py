@@ -265,7 +265,7 @@ def apply(
 
 
 def opposition_view(opposition: AthleteOpposition) -> dict:
-    delay_days = (opposition.applied_at.date() - opposition.requested_on).days
+    delay_days = (club_today(opposition.applied_at) - opposition.requested_on).days
     return {
         "id": opposition.id,
         "requested_on": opposition.requested_on,

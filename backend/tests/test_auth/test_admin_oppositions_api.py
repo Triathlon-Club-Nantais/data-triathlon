@@ -4,11 +4,11 @@ from datetime import date, timedelta
 import pytest
 
 from app.core.permissions import P
-from app.core.time import utcnow
 from app.repositories import athlete_repository
+from app.services.opposition_service import club_today
 
 BASE = "/api/v1/admin/oppositions"
-TODAY = utcnow().date()
+TODAY = club_today()
 
 
 @pytest.fixture
