@@ -53,7 +53,7 @@ beforeEach(() => {
     clubs: [
       {
         id: 3, athlete_id: 5, nom: "MARTIN", prenom: "Thomas",
-        club_key: "vendometriathlon", confirmed_at: "2026-10-07T09:00:00",
+        club_key: "vendometriathlon", club: "Vendôme Triathlon", confirmed_at: "2026-10-07T09:00:00",
       },
     ],
   });
@@ -79,6 +79,14 @@ describe("IdentityArbitrations", () => {
     const clubs = await screen.findByText("Clubs confirmés (1)");
     expect(pairs.closest("details")).not.toHaveAttribute("open");
     expect(clubs.closest("details")).not.toHaveAttribute("open");
+  });
+
+  it("donne au repli une cible tactile et un chevron qui suit son état", async () => {
+    renderWithProviders(<IdentityArbitrations />);
+
+    const summary = (await screen.findByText("Paires écartées (1)")).closest("summary")!;
+    expect(summary).toHaveClass("tcn-lien-action--tactile");
+    expect(summary.querySelector("svg")).toHaveClass("group-open:rotate-90");
   });
 
   it("annule la mise à l'écart d'une paire après une confirmation qui prévient de la fusion", async () => {
@@ -129,8 +137,11 @@ describe("IdentityArbitrations", () => {
     await userEvent.click(await screen.findByText("Clubs confirmés (1)"));
 
     const row = screen.getByText(/MARTIN Thomas/).closest("li")!;
-    expect(within(row).getByText(/vendometriathlon/)).toBeInTheDocument();
-    await userEvent.click(within(row).getByRole("button", { name: /annuler/i }));
+    expect(within(row).getByText(/Vendôme Triathlon/)).toBeInTheDocument();
+    expect(within(row).queryByText(/vendometriathlon/)).not.toBeInTheDocument();
+    await userEvent.click(
+      within(row).getByRole("button", { name: "Annuler la confirmation de Vendôme Triathlon pour MARTIN Thomas" }),
+    );
 
     expect(api.unconfirmIdentityClub).toHaveBeenCalledWith(3);
   });

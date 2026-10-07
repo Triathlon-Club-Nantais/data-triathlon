@@ -9,7 +9,12 @@ from app.models.athlete import Athlete
 from app.models.athlete_alias import AthleteAlias
 from app.models.club_alias import ClubAlias
 from app.models.club_member import ClubMember
-from app.repositories import course_repository, participation_repository, user_repository
+from app.repositories import (
+    athlete_known_club_repository,
+    course_repository,
+    participation_repository,
+    user_repository,
+)
 from app.services import athlete_identity_review
 
 TCN = "Triathlon Club Nantais"
@@ -411,3 +416,29 @@ def test_confirming_a_club_the_record_does_not_carry_is_refused(db_session, admi
         athlete_identity_review.confirm_club(
             db_session, athlete_id=member.id, club_key="unknownclub", user_id=admin.id
         )
+
+
+def test_a_confirmed_club_is_named_by_its_most_frequent_label_on_the_record(db_session, admin):
+    member = _member_with_clubs(db_session, TCN, "VENDOME TRIATHLON", "Vendôme Triathlon", "Vendôme Triathlon")
+    athlete_identity_review.confirm_club(
+        db_session, athlete_id=member.id, club_key="vendometriathlon", user_id=admin.id
+    )
+
+    [club] = athlete_identity_review.list_confirmed_clubs(db_session)
+
+    assert (club["club_key"], club["club"]) == ("vendometriathlon", "Vendôme Triathlon")
+
+
+def test_a_confirmed_club_the_record_no_longer_carries_is_named_from_the_whole_base(db_session, admin):
+    member = _athlete(db_session, "MARTIN", "Thomas", club=TCN)
+    other = _athlete(db_session, "DURAND", "Paul")
+    _result(db_session, other, _course(db_session), "1", club="Vendôme Triathlon")
+    athlete_known_club_repository.add(db_session, athlete_id=member.id, club_key="vendometriathlon", user_id=admin.id)
+    athlete_known_club_repository.add(db_session, athlete_id=member.id, club_key="unknownclub", user_id=admin.id)
+
+    clubs = athlete_identity_review.list_confirmed_clubs(db_session)
+
+    assert sorted((club["club_key"], club["club"]) for club in clubs) == [
+        ("unknownclub", "unknownclub"),
+        ("vendometriathlon", "Vendôme Triathlon"),
+    ]

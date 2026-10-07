@@ -1,5 +1,6 @@
 "use client";
 import type { ReactNode } from "react";
+import { ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { Button } from "@/components/ui/button";
@@ -42,8 +43,11 @@ export function UndoList({
   onUndo: (item: UndoItem) => void;
 }) {
   return (
-    <details className="text-sm">
-      <summary className="tcn-lien-action cursor-pointer font-medium">{`${title} (${items.length})`}</summary>
+    <details className="group text-sm">
+      <summary className="tcn-lien-action tcn-lien-action--tactile flex cursor-pointer list-none items-center gap-1 font-medium [&::-webkit-details-marker]:hidden">
+        <ChevronRight size={14} aria-hidden="true" className="transition-transform group-open:rotate-90" />
+        {`${title} (${items.length})`}
+      </summary>
       {items.length === 0 ? (
         <p className="mt-2 text-[var(--tcn-text-faint)]">{empty}</p>
       ) : (
@@ -138,8 +142,8 @@ export function IdentityArbitrations() {
         pending={unconfirm.isPending}
         items={clubs.data.clubs.map((club) => ({
           id: club.id,
-          label: `${fullName(club)} : ${club.club_key}`,
-          undoLabel: `Annuler la confirmation de ${club.club_key} pour ${fullName(club)}`,
+          label: `${fullName(club)} : ${club.club}`,
+          undoLabel: `Annuler la confirmation de ${club.club} pour ${fullName(club)}`,
           date: club.confirmed_at,
         }))}
         onUndo={(item) =>
