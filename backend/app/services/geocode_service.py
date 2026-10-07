@@ -14,7 +14,7 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -40,7 +40,8 @@ _geo_cache: dict[str, tuple[float, float] | None] = {}
 
 #: Rectangle de la France métropolitaine, Corse comprise (`ouest,nord,est,sud`) :
 #: `countrycodes=fr` couvre l'outre-mer, et « AT BAIN » tombait en Guadeloupe (#1203).
-VIEWBOX_METROPOLE = "-5.3,51.2,9.7,41.2"
+_OUEST, _NORD, _EST, _SUD = -5.3, 51.2, 9.7, 41.2
+VIEWBOX_METROPOLE = f"{_OUEST},{_NORD},{_EST},{_SUD}"
 
 #: Sponsors collés à la ville dans des noms réels (#1203).
 _SPONSORS = re.compile(r"\b(audencia)\s+", re.I)
@@ -56,7 +57,7 @@ def extract_city(event_name: str) -> str:
         "", name, flags=re.I,
     ).strip()
     name = _SPONSORS.sub("", name)
-    name = re.sub(r"\b(20\d{2}|[0-9]+e?\s+edition)\b", "", name, flags=re.I).strip()
+    name = re.sub(r"\b(20\d{2}|\d+\s*(?:e|è|ème|eme)?\s+[ée]dition)(?!\w)", "", name, flags=re.I).strip()
     name = re.sub(r"[-–—]+$", "", name).strip()
     # Suffixe de heat (« … 2025 - Triathlon M ») coupé avant tout autre nettoyage.
     name = re.split(r"\s+[-–]\s+|\s+[-–]$", name)[0].strip()
@@ -78,6 +79,11 @@ def extract_city(event_name: str) -> str:
     return cleaned or event_name
 
 
+def event_stem(name: str) -> str:
+    """Nom de l'événement, sans le suffixe de heat (« Triathlon de Carnac 2025 - Triathlon M »)."""
+    return re.split(r"\s+[-–]\s+", name.strip())[0]
+
+
 def _nominatim_search(query: str) -> tuple[float, float] | None:
     """Un appel Nominatim ; renvoie (lat, lon) du résultat le plus pertinent, ou None."""
     settings = get_settings()
@@ -96,6 +102,11 @@ def _nominatim_search(query: str) -> tuple[float, float] | None:
             )
         results = r.json()
         time.sleep(settings.geocode_min_interval_seconds)  # rate limit Nominatim
+        # Filet derrière `bounded=1` : un résultat d'outre-mer n'est jamais retenu (#1203).
+        results = [
+            x for x in results
+            if _SUD <= float(x["lat"]) <= _NORD and _OUEST <= float(x["lon"]) <= _EST
+        ]
         places = [
             x for x in results if x.get("class") in ("place", "boundary", "administrative")
         ]
@@ -187,20 +198,31 @@ def run_geocode_courses(
         outcome.dry_run_names = [c.name for c in courses]
         return outcome
 
+    # Une recherche par événement, propagée à ses heats (#1203). L'URL ne
+    # regroupe pas : elle diffère d'un heat à l'autre (`?heat=`, `?parcours=`,
+    # un id par heat chez sportinnovation) ; le nom avant « - » et la date, si.
+    events: dict[tuple[str, date | None], list] = {}
+    for course in courses:
+        stem = event_stem(course.name)
+        events.setdefault((stem.casefold(), course.event_date), []).append(course)
+
+    index = 0
     try:
-        for index, course in enumerate(courses):
-            coord = geocode(course.name)
-            course_repository.save_geocode_attempt(db, course, coord)
-            outcome.processed += 1
-            if coord is not None:
-                outcome.geocoded += 1
-            else:
-                outcome.errors += 1
-                outcome.failures.append(
-                    BatchFailure(url=course.name, label=course.name, message="ville introuvable")
-                )
-            if on_item is not None:
-                on_item(index, outcome.total, course.name, coord)
+        for heats in events.values():
+            coord = geocode(event_stem(heats[0].name))
+            for course in heats:
+                course_repository.save_geocode_attempt(db, course, coord)
+                outcome.processed += 1
+                if coord is not None:
+                    outcome.geocoded += 1
+                else:
+                    outcome.errors += 1
+                    outcome.failures.append(
+                        BatchFailure(url=course.name, label=course.name, message="ville introuvable")
+                    )
+                if on_item is not None:
+                    on_item(index, outcome.total, course.name, coord)
+                index += 1
     except KeyboardInterrupt:
         outcome.interrupted = True
 
