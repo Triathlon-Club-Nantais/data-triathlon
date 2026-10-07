@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { AthleteSearchPicker } from "@/components/admin/AthleteSearchPicker";
 import { Button } from "@/components/ui/button";
@@ -134,7 +135,14 @@ function ManualLinks({ members }: { members: ClubMember[] }) {
       pending={unlink.isPending}
       items={members.map((m) => ({
         id: m.id,
-        label: `${m.nom} ${m.prenom} → fiche n° ${m.athlete_id}`,
+        label: (
+          <>
+            {`${m.nom} ${m.prenom} → `}
+            <Link href={`/athletes/${m.athlete_id}`} className="tcn-lien-action">
+              fiche n° {m.athlete_id}
+            </Link>
+          </>
+        ),
         undoLabel: `Annuler le rattachement de ${m.nom} ${m.prenom}`,
       }))}
       onUndo={(item) =>
