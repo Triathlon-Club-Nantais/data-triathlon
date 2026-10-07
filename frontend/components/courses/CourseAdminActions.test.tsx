@@ -23,6 +23,13 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+// Témoin du chargement paresseux : le panneau ne doit être importé que pour qui a un pouvoir.
+const panelLoaded = vi.hoisted(() => vi.fn());
+vi.mock("./CourseAdminPanel", async (importOriginal) => {
+  panelLoaded();
+  return importOriginal();
+});
+
 const { refresh, push } = vi.hoisted(() => ({ refresh: vi.fn(), push: vi.fn() }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh, push }) }));
 
@@ -69,7 +76,7 @@ function afficher() {
 
 const BOUTONS = {
   corriger: /corriger l'épreuve/i,
-  supprimer: /^supprimer$/i,
+  supprimer: /^supprimer l'épreuve$/i,
   avis: /avis de fiabilité/i,
   fusionner: /fusionner avec une autre épreuve/i,
 };
@@ -84,6 +91,7 @@ describe("CourseAdminActions", () => {
     const { container } = afficher();
     await waitFor(() => expect(api.getSession).toHaveBeenCalled());
     expect(container).toBeEmptyDOMElement();
+    expect(panelLoaded).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -198,5 +206,41 @@ describe("CourseAdminActions", () => {
 
     await screen.findByRole("button", { name: /n° 1162/ }, { timeout: 3000 });
     expect(api.listCourses).toHaveBeenCalledWith(expect.objectContaining({ id: "1162" }));
+  });
+
+  it("annonce l'échec de la recherche", async () => {
+    api.getSession.mockResolvedValue(session(["courses:delete", "courses:sources"]));
+    api.listCourses.mockRejectedValue(new Error("boom"));
+    const user = userEvent.setup();
+    afficher();
+
+    await user.click(await screen.findByRole("button", { name: BOUTONS.fusionner }));
+    await user.type(screen.getByRole("searchbox"), "Bayman");
+
+    expect(
+      await screen.findByText("La recherche n'a pas abouti. Réessayez.", {}, { timeout: 3000 }),
+    ).toBeInTheDocument();
+  });
+
+  it("occupe le candidat choisi pendant la lecture de son résumé, puis affiche l'échec", async () => {
+    api.getSession.mockResolvedValue(session(["courses:delete", "courses:sources"]));
+    api.listCourses.mockResolvedValue([JUMELLE]);
+    let rejeter: (error: Error) => void = () => {};
+    api.getCourseSummary.mockReturnValue(new Promise((_, reject) => (rejeter = reject)));
+    const user = userEvent.setup();
+    afficher();
+
+    await user.click(await screen.findByRole("button", { name: BOUTONS.fusionner }));
+    await user.type(screen.getByRole("searchbox"), "1162");
+    const candidat = await screen.findByRole("button", { name: /n° 1162/ }, { timeout: 3000 });
+    await user.click(candidat);
+
+    expect(candidat).toHaveAttribute("aria-busy", "true");
+    expect(candidat).toBeDisabled();
+
+    rejeter(new Error("Épreuve introuvable"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Épreuve introuvable");
+    expect(candidat).not.toHaveAttribute("aria-busy", "true");
+    expect(candidat).toBeEnabled();
   });
 });
