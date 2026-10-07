@@ -63,6 +63,18 @@ describe("PendingProvidersTable", () => {
     getSession.mockResolvedValue(MODERATEUR);
   });
 
+  it("affiche le numéro de chaque signalement (#1223)", async () => {
+    listPendingProviders.mockResolvedValue([
+      { ...SIGNALEMENT, id: 26 },
+      { ...SIGNALEMENT, id: 27 },
+    ]);
+
+    afficher();
+
+    expect(await screen.findByText("n° 26")).toBeInTheDocument();
+    expect(screen.getByText("n° 27")).toBeInTheDocument();
+  });
+
   it("affiche les signalements", async () => {
     listPendingProviders.mockResolvedValue([SIGNALEMENT]);
 
