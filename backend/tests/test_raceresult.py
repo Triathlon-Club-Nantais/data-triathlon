@@ -4161,6 +4161,8 @@ def test_masked_time_does_not_mix_cells_across_published_contests(monkeypatch):
     (["2:02:51", "2:03:5_"], ""),          # désaccord sur un caractère connu
     (["2:0_:51", "02:02:5_"], ""),         # longueurs différentes
     (["2:0_:51"], ""),
+    (["DU_ONT Jean", "Dupont Jean"], "DUPONT Jean"),  # casse du mot publié
+    (["Ré_y", "RE_Y", "__my"], "Rémy"),                 # accents neutralisés
 ])
 def test_merge_masked_times(candidats, attendu):
     assert raceresult._fusionner_masques(candidats) == attendu
@@ -4225,10 +4227,65 @@ def test_unrecoverable_masked_name_gets_a_synthetic_identity(monkeypatch):
 
 def test_unrecoverable_masked_club_is_left_empty(monkeypatch):
     """#1239 : un club au masque irréductible n'est pas enregistré tel quel."""
-    masque = "B_AUPREAU TRI"
     _monte_312695(monkeypatch, _retouche_2227("ucase([CLUB])", {
-        "3": masque,
-        "2-Chrono|Tri Ind.Detaille dua": masque,
+        "3": "B_AUPREAU TRI",
+        "2-Chrono|Tri Ind.Detaille dua": "B_AUPRE_U TRI",
     }))
 
     assert _scrape_312695()["2227"].club == ""
+
+
+def test_club_identical_across_lists_keeps_its_underscore(monkeypatch):
+    """#1239 : un `_` identique dans toutes les listes n'est pas un masque."""
+    _monte_312695(monkeypatch, _retouche_2227("ucase([CLUB])", {
+        "3": "TRI_CLUB",
+        "2-Chrono|Tri Ind.Detaille dua": "TRI_CLUB",
+        "2-Chrono|Triathlon Ind Tour Vélo": "TRI_CLUB",
+    }))
+
+    assert _scrape_312695()["2227"].club == "TRI_CLUB"
+
+
+def test_masked_name_is_rebuilt_despite_case_and_accents_differences(monkeypatch):
+    """#1239 : une liste en majuscules sans accents s'accorde au publié, dont
+    les caractères connus sont gardés."""
+    _monte_312695(monkeypatch, _retouche_2227("LFNAME", {
+        "3": "Ré_aille_u, Pascal",
+        "2-Chrono|Tri Ind.Detaille dua": "RETAILLEAU, PASCAL",
+        "2-Chrono|Triathlon Ind Tour Vélo": "",
+    }))
+
+    r = _scrape_312695()["2227"]
+
+    assert (r.athlete_name, r.athlete_firstname) == ("Rétailleau", "Pascal")
+
+
+def test_masked_club_with_clear_name_is_not_enriched_by_another_person(
+    monkeypatch, caplog
+):
+    """#1239 : publié au club masqué et nom clair, la ligne `hidden` d'une autre
+    personne au même dossard n'enrichit rien et ne prête pas son club."""
+    publie = _retouche_2227("LFNAME", {"3": "Retailleau, Pascal"})
+    club = _retouche_2227("ucase([CLUB])", {
+        "3": "B_A_P_EAU TRI",
+        "2-Chrono|Tri Ind.Detaille dua": "TRIATHLON CLUB NANTAIS",
+        "2-Chrono|Triathlon Ind Tour Vélo": "TRIATHLON CLUB NANTAIS",
+    })
+    autre = _retouche_2227("LFNAME", {
+        "2-Chrono|Tri Ind.Detaille dua": "Dupont, Jean",
+        "2-Chrono|Triathlon Ind Tour Vélo": "Dupont, Jean",
+    })
+
+    def retouche(listname, contest, payload):
+        for etape in (publie, club, autre):
+            etape(listname, contest, payload)
+
+    _monte_312695(monkeypatch, retouche)
+
+    with caplog.at_level("WARNING"):
+        r = _scrape_312695()["2227"]
+
+    assert (r.athlete_name, r.athlete_firstname) == ("Retailleau", "Pascal")
+    assert r.club == ""
+    assert r.total_time == ""
+    assert "identité divergente" in caplog.text
