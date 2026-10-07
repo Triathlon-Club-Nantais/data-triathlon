@@ -188,6 +188,9 @@ def test_fmt_seconds_est_l_inverse_de_to_seconds():
     # frontière nom/prénom indécidable
     ("MARTIN JEAN PIERRE / DUPONT PAUL", None),
     ("LE TULZO NICOLAS ANNE / DUPONT PAUL", None),
+    ("DA SILVA DOS SANTOS / DUPONT PAUL", None),
+    ("NGUYEN VAN ANH / DUPONT PAUL", None),
+    ("VAN DER BERG JAN / DUPONT PAUL", None),
     ("DAUGUET PIERRE E. / BELMONTE ALEXANDRE .", None),
     ("MARTIN Jean DUPONT / Paul", None),
     # un segment sans nom et prénom

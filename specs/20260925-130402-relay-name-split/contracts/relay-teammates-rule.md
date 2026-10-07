@@ -28,8 +28,12 @@ ou `None` (ligne non découpée). Jamais de liste partielle.
    - casse mixte : les jetons majuscules forment **un seul** bloc contigu, en tête ou en
      queue → (bloc, reste) ; sinon `None` ;
    - tout en majuscules : deux jetons → (1er, 2e) ; au-delà, une particule (`LE`, `DE`,
-     `DU`, `VAN`…) se colle au jeton qui la suit, et il doit rester deux mots dont un
-     seul porte la particule : il est le nom, en tête ou en queue (#1237) ; sinon `None` ;
+     `DU`, `DOS`…, liste `_NAME_PARTICLES`) se colle au jeton qui la suit, et il doit
+     rester deux mots dont un seul porte la particule : il est le nom, en tête ou en
+     queue (#1237) ; sinon `None`. `VAN` n'est pas une particule (intercalaire
+     vietnamien : `NGUYEN VAN ANH` reste indécidable). Limite connue : un nom
+     vietnamien `LE` (`LE ANH TUAN`) se lit `("LE ANH", "TUAN")`, faux découpage
+     qu'on ne peut exclure sans perdre `LE TULZO NICOLAS` ;
    - aucune majuscule → `None`.
 5. Chaque nom et chaque prénom porte au moins deux lettres.
 6. Nombre d'équipiers entre 2 et 8.
@@ -53,6 +57,8 @@ Tout échec d'une étape → `None`.
 | `LE BRAS LUC / LE PAGE GUULLAUME .` (klikego) | `[("LE BRAS", "LUC"), ("LE PAGE", "GUULLAUME")]` |
 | `LE BOZEC HENRI / BABINET SYLVAIN` (chronoplace) | `[("LE BOZEC", "HENRI"), ("BABINET", "SYLVAIN")]` |
 | `MARTIN JEAN PIERRE / DUPONT PAUL` (3 jetons sans particule) | `None` |
+| `DA SILVA DOS SANTOS / DUPONT PAUL` (deux mots à particule) | `None` |
+| `NGUYEN VAN ANH / DUPONT PAUL` | `None` |
 | `DAUGUET PIERRE E. / BELMONTE ALEXANDRE .` | `None` |
 | `DAMIEN/FRANCOIS Francois et Benjamin` (breizhchrono) | `None` |
 | `ECN / USCAL Sarah et Francois` | `None` |
