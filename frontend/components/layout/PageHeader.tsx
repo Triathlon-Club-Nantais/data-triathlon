@@ -31,7 +31,7 @@ export function PageHeader({
   actions,
   backHref,
   backLabel = "Retour",
-  aide,
+  helpHref,
   className,
   children,
 }: {
@@ -42,7 +42,7 @@ export function PageHeader({
   backHref?: string;
   backLabel?: string;
   /** Section du guide admin qui documente l'écran (#1245), fournie par `ecran()`. */
-  aide?: string;
+  helpHref?: string;
   className?: string;
   /** Contenu additionnel sous le titre (badges, méta…). */
   children?: React.ReactNode;
@@ -61,10 +61,10 @@ export function PageHeader({
           )}
           {children}
         </div>
-        {aide && (
+        {helpHref && (
           <Link
-            href={aide}
-            className="-my-1 inline-flex shrink-0 items-center gap-1 py-1 text-sm font-medium text-[var(--tcn-text-faint)] transition-colors hover:text-foreground"
+            href={helpHref}
+            className="inline-flex min-h-11 shrink-0 items-center gap-1 text-sm font-medium text-[var(--tcn-text-faint)] transition-colors hover:text-foreground"
           >
             <CircleHelp className="size-4" aria-hidden />
             Aide

@@ -769,7 +769,7 @@ describe("AppNav — actions primaires", () => {
 
     const modale = await screen.findByRole("dialog");
     expect(within(modale).getByText("Rechercher un athlète")).toBeInTheDocument();
-    expect(within(modale).getByText("Saisissez au moins 2 lettres d'un nom.")).toBeInTheDocument();
+    expect(within(modale).getByText("Saisissez au moins 2 lettres d'un nom ou d'un écran.")).toBeInTheDocument();
   });
 
   it("offers no athlete search on /acces, where the search can only fail (#953)", async () => {
@@ -1660,21 +1660,21 @@ describe("AppNav — le tiroir ne se ferme plus au clic du pied (#482, NAV-4)", 
   });
 });
 
-describe("pastilles des autres files (#1232)", () => {
+describe("badges of the other queues (#1232)", () => {
   it.each([
     ["athletes:write", /identités des athlètes/i, countIdentityReview, "4 cas d'identité à trancher"],
     ["club_members:manage", /licenciés du club/i, countClubMembersToSettle, "4 licenciés à rattacher"],
-  ])("porte le compte de la file de %s, nommé", async (pouvoir, entreeNom, compter, nom) => {
-    compter.mockResolvedValue({ total: 4 });
-    afficher(habilite(pouvoir));
+  ])("carries the named count of the %s queue", async (permission, entryName, count, name) => {
+    count.mockResolvedValue({ total: 4 });
+    afficher(habilite(permission));
     await deplier();
 
-    const entree = await screen.findByRole("link", { name: entreeNom });
-    expect(await within(entree).findByText("4")).toBeInTheDocument();
-    expect(screen.getByText(nom)).toHaveClass("sr-only");
+    const entry = await screen.findByRole("link", { name: entryName });
+    expect(await within(entry).findByText("4")).toBeInTheDocument();
+    expect(screen.getByText(name)).toHaveClass("sr-only");
   });
 
-  it("porte le compte de la validation des épreuves pour un compte d'administration", async () => {
+  it("carries the volunteer validation count for an admin account", async () => {
     countBenevoleQueue.mockResolvedValue({ total: 2 });
     afficher({ ...habilite("feedback:read"), can_administer: true });
     await deplier();
@@ -1683,22 +1683,31 @@ describe("pastilles des autres files (#1232)", () => {
   });
 });
 
-describe("Administration en sous-sections (#1246)", () => {
-  it("intitule les sous-sections que la session ouvre, et elles seules", async () => {
+describe("Administration subsections (#1246)", () => {
+  it("titles the subsections the session opens, and only those", async () => {
     afficher(habilite("feedback:read", "admin_log:read"), { initialExpanded: true });
 
     expect(await screen.findByText("À traiter")).toBeInTheDocument();
     expect(screen.getByText("Conformité")).toBeInTheDocument();
     expect(screen.queryByText("Paramétrage")).not.toBeInTheDocument();
   });
+
+  it("exposes each subsection as a named group of its links", async () => {
+    afficher(habilite("feedback:read", "participations:wipe_all"), { initialExpanded: true });
+
+    const toHandle = await screen.findByRole("group", { name: "À traiter" });
+    expect(within(toHandle).getByRole("link", { name: /Retours utilisateurs/ })).toBeInTheDocument();
+    const noReturn = screen.getByRole("group", { name: "Gestes sans retour" });
+    expect(within(noReturn).getByRole("link", { name: /Maintenance/ })).toBeInTheDocument();
+  });
 });
 
-describe("recherche ⌘K vers les écrans (#1246)", () => {
+describe("⌘K search to screens (#1246)", () => {
   const TOUS_LES_POUVOIRS = NAV.flatMap((s) => s.items)
     .flatMap((i) => (Array.isArray(i.permission) ? i.permission : i.permission ? [i.permission] : []))
     .concat("pages:preview");
 
-  it("atteint chaque entrée d'administration visible", async () => {
+  it("reaches every visible admin entry", async () => {
     afficher({ ...habilite(...TOUS_LES_POUVOIRS), can_administer: true });
     await screen.findAllByRole("button", { name: "Administration" });
     await userEvent.keyboard("{Control>}k{/Control}");
@@ -1716,7 +1725,20 @@ describe("recherche ⌘K vers les écrans (#1246)", () => {
     }
   });
 
-  it("ferme la palette en suivant un écran", async () => {
+  it.each([
+    ["back-office", "/admin"],
+    ["guide d'admin", "/admin/guide"],
+  ])("reaches %s, outside the nav table, for an admin account", async (term, href) => {
+    afficher({ ...habilite("admin_log:read"), can_administer: true });
+    await screen.findAllByRole("link", { name: /Journal/ });
+    await userEvent.keyboard("{Control>}k{/Control}");
+    await userEvent.type(await screen.findByRole("combobox", { name: /Rechercher/ }), term);
+
+    const list = await screen.findByRole("list", { name: "Écrans" });
+    expect(within(list).getAllByRole("link").map((l) => l.getAttribute("href"))).toContain(href);
+  });
+
+  it("closes the palette when following a screen", async () => {
     afficher(habilite("admin_log:read"));
     await screen.findAllByRole("link", { name: /Journal/ });
     await userEvent.keyboard("{Control>}k{/Control}");

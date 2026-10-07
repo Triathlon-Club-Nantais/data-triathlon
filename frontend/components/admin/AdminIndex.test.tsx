@@ -102,8 +102,8 @@ describe("AdminIndex", () => {
   });
 });
 
-describe("AdminIndex, files « À traiter » (#1246)", () => {
-  it("met en tête les files ouvertes à la session, avec leur compteur et leur lien", async () => {
+describe("AdminIndex: work queues first (#1246)", () => {
+  it("puts first the queues open to the session, with their count and link", async () => {
     countFeedback.mockResolvedValue({ nouveau: 3 });
     getSession.mockResolvedValue(SESSION(["feedback:read", "athletes:write", "admin_log:read"]));
     afficher();
@@ -116,7 +116,18 @@ describe("AdminIndex, files « À traiter » (#1246)", () => {
     expect(within(files).queryByRole("link", { name: /Journal/ })).toBeNull();
   });
 
-  it("range les autres écrans sous leurs sous-sections, sans répéter les files", async () => {
+  it("shows a discreet ellipsis while a counter loads", async () => {
+    countFeedback.mockReturnValue(new Promise(() => {}));
+    getSession.mockResolvedValue(SESSION(["feedback:read"]));
+    afficher();
+
+    const files = await screen.findByRole("region", { name: "À traiter" });
+    const loading = within(files).getByText("…");
+    expect(loading).toHaveAttribute("aria-hidden", "true");
+    expect(within(files).queryByText("Rien en attente")).toBeNull();
+  });
+
+  it("files the other screens under their subsections, without repeating the queues", async () => {
     getSession.mockResolvedValue(SESSION(["feedback:read", "admin_log:read"]));
     afficher();
 

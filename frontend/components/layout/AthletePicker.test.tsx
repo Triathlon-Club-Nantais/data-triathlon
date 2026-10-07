@@ -491,3 +491,54 @@ describe("useSelectedAthlete", () => {
     expect(screen.getByTestId("sonde")).toHaveTextContent("aucun");
   });
 });
+
+describe("AthletePicker: screens in the ⌘K palette (#1246)", () => {
+  const SCREENS = [
+    { label: "Journal d'administration", href: "/admin/journal", context: "Administration · Conformité" },
+    { label: "Licenciés du club", href: "/admin/membres", context: "Administration · Données" },
+  ];
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    searchAthletes.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function search(term: string) {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<AthletePicker mode="search" onClose={vi.fn()} onPick={vi.fn()} screens={SCREENS} />);
+    await user.type(screen.getByRole("combobox"), term);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    return user;
+  }
+
+  it("names the field and the hint after names and screens", () => {
+    render(<AthletePicker mode="search" onClose={vi.fn()} onPick={vi.fn()} screens={SCREENS} />);
+    expect(screen.getByRole("combobox", { name: "Rechercher un nom ou un écran" })).toBeInTheDocument();
+    expect(screen.getByText("Saisissez au moins 2 lettres d'un nom ou d'un écran.")).toBeInTheDocument();
+  });
+
+  it("counts the screens in the status and shows no empty state when one matches", async () => {
+    await search("journal");
+
+    expect(screen.getByRole("status")).toHaveTextContent("1 écran, aucun athlète");
+    expect(screen.getByRole("link", { name: /Journal d'administration/ })).toHaveAttribute("href", "/admin/journal");
+    expect(screen.queryByText("Aucun athlète trouvé", { ignore: "[role=status]" })).not.toBeInTheDocument();
+  });
+
+  it("matches without accents and keeps the athlete wording when no screen matches", async () => {
+    const user = await search("licencies");
+    expect(screen.getByRole("status")).toHaveTextContent("1 écran, aucun athlète");
+
+    await user.type(screen.getByRole("combobox"), "zz");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(250);
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("Aucun athlète trouvé");
+  });
+});

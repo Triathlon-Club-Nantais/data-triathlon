@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { A_TRAITER, NAV, ROLE, ecran, estVisible } from "./nav.config";
+import { NAV, ROLE, TO_HANDLE, ecran, estVisible } from "./nav.config";
 import { GUIDE_ADMIN } from "@/components/guide/guide-content.admin";
 
 /** Les destinations du back-office : celles que le sommaire `/admin` annonce. */
@@ -24,15 +24,15 @@ describe("nav.config", () => {
     }
   });
 
-  it("range « Administration » en sous-sections contiguës (#1246)", () => {
-    const groupes = NAV.find((s) => s.id === "admin")!.items.map((i) => i.groupe);
-    const ordre = groupes.filter((g, n) => g !== groupes[n - 1]);
+  it("files « Administration » into contiguous subsections (#1246)", () => {
+    const groups = NAV.find((s) => s.id === "admin")!.items.map((i) => i.group);
+    const order = groups.filter((g, n) => g !== groups[n - 1]);
 
-    expect(ordre).toEqual([A_TRAITER, "Données", "Paramétrage", "Conformité", "Maintenance"]);
+    expect(order).toEqual([TO_HANDLE, "Données", "Paramétrage", "Conformité", "Gestes sans retour"]);
   });
 
-  it("donne une pastille à chaque file « À traiter » (#1246)", () => {
-    const files = NAV.flatMap((s) => s.items).filter((i) => i.groupe === A_TRAITER);
+  it("gives a badge to every work queue (#1246)", () => {
+    const files = NAV.flatMap((s) => s.items).filter((i) => i.group === TO_HANDLE);
 
     expect(files.map((i) => i.id)).toEqual([
       "a-providers",
@@ -45,10 +45,14 @@ describe("nav.config", () => {
     for (const item of files) expect(item.badge, item.id).toBeTruthy();
   });
 
-  it("renvoie chaque écran d'administration à une section du guide (#1245)", () => {
-    const sections = new Set(GUIDE_ADMIN.map((section) => `/admin/guide#${section.id}`));
+  it("links every /admin entry of every section to an existing guide section (#1245)", () => {
+    const anchors = new Set(GUIDE_ADMIN.map((section) => section.id));
+    const sections = new Set(ECRANS_ADMIN.map((i) => NAV.find((s) => s.items.includes(i))!.id));
+    // Jeunes and Gestion des utilisateurs live outside « Administration ».
+    expect(sections).toEqual(new Set(["admin", "utilisateurs", "jeunes"]));
     for (const item of ECRANS_ADMIN) {
-      expect(sections, item.href).toContain(ecran(item.href as string).aide);
+      expect(anchors, item.href).toContain(item.helpAnchor);
+      expect(ecran(item.href as string).helpHref).toBe(`/admin/guide#${item.helpAnchor}`);
     }
   });
 
