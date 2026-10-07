@@ -343,6 +343,8 @@ export function useReassignParticipation() {
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.ficheCoureur });
+      qc.invalidateQueries({ queryKey: queryKeys.identityReview() });
     },
   });
 }
@@ -363,6 +365,19 @@ export function useDetachParticipations() {
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.ficheCoureur });
       qc.invalidateQueries({ queryKey: queryKeys.identityReview() });
     },
+  });
+}
+
+/**
+ * Les résultats d'une fiche, pour séparer depuis la revue d'identité (#1241).
+ * Sous `ficheCoureur` : séparer, rattacher, supprimer et corriger la relisent.
+ */
+export function useAthleteResults(athleteId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: [...CACHES_ADMIN.ficheCoureur, "resultats", athleteId],
+    queryFn: () => apiClient.getAthlete(athleteId),
+    select: (fiche) => fiche.participations,
+    enabled,
   });
 }
 
@@ -425,6 +440,8 @@ export function useDeleteParticipation() {
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.coureurs });
+      qc.invalidateQueries({ queryKey: CACHES_ADMIN.ficheCoureur });
+      qc.invalidateQueries({ queryKey: queryKeys.identityReview() });
     },
   });
 }
@@ -600,6 +617,7 @@ export function useUpdateAthlete() {
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.ficheCoureur });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.detailEpreuve });
       qc.invalidateQueries({ queryKey: CACHES_ADMIN.resultatsPublics });
+      qc.invalidateQueries({ queryKey: queryKeys.identityReview() });
     },
   });
 }

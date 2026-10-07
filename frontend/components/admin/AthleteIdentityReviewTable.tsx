@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { MergeAthletesDialog, nomDe } from "@/components/admin/MergeAthletesDialog";
+import { AideDuMotif, GestesDesFiches, GestesDuResultat } from "@/components/admin/IdentityCaseGestures";
 import { useConfirmIdentityClub, useIdentityReview, useIgnoreIdentityPair } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
@@ -53,11 +54,12 @@ function Conflits({ candidate }: { candidate: IdentityReviewCandidate }) {
           </p>
           <ul className="text-[var(--tcn-text-faint)] text-xs">
             {conflit.entries.map((ligne) => (
-              <li key={ligne.participation_id}>
+              <li key={ligne.participation_id} className="space-y-1">
                 {ligne.bib ? `Dossard ${ligne.bib}` : "Sans dossard"}
                 {ligne.category ? ` · ${ligne.category}` : ""}
                 {ligne.total_time ? ` · ${ligne.total_time}` : ""}
                 {candidate.athletes.length > 1 ? ` · ${noms.get(ligne.athlete_id)}` : ""}
+                <GestesDuResultat candidate={candidate} conflit={conflit} ligne={ligne} />
               </li>
             ))}
           </ul>
@@ -198,15 +200,10 @@ function CarteCas({
               <LigneFiche key={fiche.id} fiche={fiche} />
             ))}
           </div>
+          <AideDuMotif candidate={candidate} />
+          <GestesDesFiches candidate={candidate} />
           <Conflits candidate={candidate} />
           <ClubsAVerifier candidate={candidate} />
-          {!paire && (
-            <p className="text-[var(--tcn-text-faint)] text-xs">
-              {candidate.reason === "multi_club"
-                ? "Plusieurs personnes peuvent partager cette fiche : ouvrez-la et séparez les résultats de l'autre athlète, ou confirmez les clubs qui sont bien les siens."
-                : "Deux personnes partagent cette fiche : ouvrez-la et réattribuez les résultats de l'autre athlète à sa propre fiche."}
-            </p>
-          )}
         </CardContent>
       </Card>
 
@@ -227,7 +224,8 @@ function CarteCas({
  * `athletes:read` (l'aperçu montre des fiches gardées) : sans lui, le bouton
  * n'est pas offert plutôt que de finir en 403 (gardes d'écriture,
  * `frontend/AGENTS.md`). Un cas à une seule fiche ne s'écarte pas : il se règle
- * par réattribution, depuis la fiche.
+ * par séparation, rattachement ou suppression, depuis la carte (#1241,
+ * `IdentityCaseGestures`), chaque geste sous ses propres pouvoirs.
  */
 export function AthleteIdentityReviewTable() {
   const { data, isLoading, error } = useIdentityReview();
