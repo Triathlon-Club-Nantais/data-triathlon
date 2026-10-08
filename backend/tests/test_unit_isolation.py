@@ -4,6 +4,8 @@ Sans cela, un `.env` pointant vers la base de production faisait ouvrir au
 lifespan de chaque `TestClient` une connexion vers Azure, et un jeton PostHog
 renseigné envoyait les événements des routes testées vers le vrai projet.
 """
+import pytest
+
 from app.core import database
 from app.core.config import Settings, get_settings
 
@@ -30,3 +32,17 @@ def test_the_global_engine_is_a_throwaway_sqlite():
 
 def test_posthog_is_off_for_the_unit_suite():
     assert get_settings().posthog_project_token.get_secret_value() == ""
+
+
+def test_the_unit_suite_resolves_no_name():
+    """`getaddrinfo` n'a pas de délai : un résolveur qui cale figeait la suite
+    (5 s par test de `test_batch_runs`, gel complet en CI le 07/10). En unitaire,
+    une résolution échoue tout de suite, comme un DNS mort."""
+    import socket
+    import time
+
+    started = time.monotonic()
+    with pytest.raises(socket.gaierror):
+        socket.getaddrinfo("api.github.com", 443)
+
+    assert time.monotonic() - started < 0.1
