@@ -84,8 +84,53 @@ def event_stem(name: str) -> str:
     return re.split(r"\s+[-–]\s+", name.strip())[0]
 
 
-def _nominatim_search(query: str) -> tuple[float, float] | None:
-    """Un appel Nominatim ; renvoie (lat, lon) du résultat le plus pertinent, ou None."""
+#: Plafond des recherches par fenêtre de mots, pour une épreuve (#1256) : à
+#: 1 req/s, il borne la durée d'une épreuve introuvable.
+MAX_WINDOW_QUERIES = 6
+
+_WINDOW_SKIPPED = re.compile(
+    r"(?:tri|triathlons?|duathlons?|biathlons?|aquathlons?|aquarun|swim-?run|bike|run|trail"
+    r"|challenge|ironman|half|ultra|raid|relais|xs|s|m|l|xl|xxl|20\d{2}|[^\w]+)",
+    re.I,
+)
+#: Mots courants qui sont aussi des communes (« Mer », « Grand ») : seuls, ils
+#: placeraient le « Triathlon de la Mer » sur la mauvaise (revue de #1256).
+_GENERIC_WORDS = frozenset({
+    "mer", "lac", "port", "bourg", "grand", "val", "ile", "île", "cote", "côte", "pays",
+    "plage", "plages", "baie", "pointe", "nord", "sud", "est", "ouest", "saint", "sainte",
+})
+#: Les seules classes Nominatim qui nomment une commune.
+_COMMUNE_TYPES = frozenset({("place", "city"), ("place", "town"), ("place", "village"),
+                            ("place", "hamlet"), ("boundary", "administrative")})
+#: Mots qui ne commencent ni ne finissent un nom de lieu.
+_WINDOW_EDGE = re.compile(r"(?:de|du|des|la|le|les|d['’]|by|and|et|en|sur)", re.I)
+
+
+def _word_windows(event_name: str) -> list[str]:
+    """Suites de mots du nom, de la plus longue à un seul mot, hors mots de sport,
+    sponsors et années : la ville est souvent entourée d'une marque (#1256)."""
+    words = [
+        w for w in _SPONSORS.sub("", event_stem(event_name)).split()
+        if not _WINDOW_SKIPPED.fullmatch(w)
+    ]
+    windows = []
+    for size in range(len(words), 0, -1):
+        for start in range(len(words) - size + 1):
+            window = words[start:start + size]
+            if _WINDOW_EDGE.fullmatch(window[0]) or _WINDOW_EDGE.fullmatch(window[-1]):
+                continue
+            if size == 1 and window[0].casefold() in _GENERIC_WORDS:
+                continue
+            windows.append(" ".join(window))
+    return windows
+
+
+def _nominatim_search(query: str, *, places_only: bool = False) -> tuple[float, float] | None:
+    """Un appel Nominatim ; renvoie (lat, lon) du résultat le plus pertinent, ou None.
+
+    `places_only` ne retient qu'une commune (ni rue, ni lieu-dit, ni parc
+    naturel) : un mot isolé du nom ne vaut que s'il nomme la ville.
+    """
     settings = get_settings()
     try:
         # L'appel d'origine était un httpx.get nu (follow_redirects=False par
@@ -110,7 +155,10 @@ def _nominatim_search(query: str) -> tuple[float, float] | None:
         places = [
             x for x in results if x.get("class") in ("place", "boundary", "administrative")
         ]
-        hits = places or results
+        if places_only:
+            hits = [x for x in results if (x.get("class"), x.get("type")) in _COMMUNE_TYPES]
+        else:
+            hits = places or results
         if hits:
             hits.sort(key=lambda x: float(x.get("importance", 0)), reverse=True)
             return (float(hits[0]["lat"]), float(hits[0]["lon"]))
@@ -129,9 +177,17 @@ def geocode(event_name: str) -> tuple[float, float] | None:
         _geo_cache[event_name] = None
         return None
 
-    coord = _nominatim_search(f"{city}, France")
+    coord = None if city.casefold() in _GENERIC_WORDS else _nominatim_search(f"{city}, France")
+    tried = {city.casefold()}
     if coord is None and city.lower() != event_name.lower():
         coord = _nominatim_search(f"{event_name}, France")
+        tried.add(event_name.casefold())
+    if coord is None:
+        windows = [w for w in _word_windows(event_name) if w.casefold() not in tried]
+        for window in windows[:MAX_WINDOW_QUERIES]:
+            coord = _nominatim_search(f"{window}, France", places_only=True)
+            if coord is not None:
+                break
 
     _geo_cache[event_name] = coord
     return coord
@@ -174,6 +230,7 @@ def run_geocode_courses(
     limit: int | None = None,
     retry_after: timedelta = RETRY_APRES,
     dry_run: bool = False,
+    course_ids: list[int] | None = None,
     on_item: Callable[[int, int, str, tuple[float, float] | None], None] | None = None,
 ) -> GeocodeOutcome:
     """Géocode les épreuves qui n'ont pas encore de coordonnées (#579).
@@ -188,10 +245,15 @@ def run_geocode_courses(
     (`course_repository.save_geocode_attempt`) : un Ctrl-C au milieu du lot ne
     perd pas le travail déjà fait, seule la tentative en cours l'est.
     `on_item`, s'il est fourni, est notifié après chaque tentative — la CLI
-    l'utilise pour afficher la progression sur stderr.
+    l'utilise pour afficher la progression sur stderr. `course_ids` force le
+    géocodage de ces épreuves, coordonnées présentes ou non : c'est la reprise
+    d'une épreuve mal placée (#1256).
     """
-    cutoff = utcnow() - retry_after
-    courses = course_repository.list_missing_geocode(db, retry_after=cutoff, limit=limit)
+    if course_ids:
+        courses = [c for c in (course_repository.get(db, i) for i in course_ids) if c is not None]
+    else:
+        cutoff = utcnow() - retry_after
+        courses = course_repository.list_missing_geocode(db, retry_after=cutoff, limit=limit)
     outcome = GeocodeOutcome(total=len(courses), dry_run=dry_run)
 
     if dry_run:

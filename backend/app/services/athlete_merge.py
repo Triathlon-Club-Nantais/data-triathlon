@@ -26,6 +26,7 @@ from app.repositories import (
     challenge_repository,
     club_member_repository,
     ignored_athlete_pair_repository,
+    ignored_identity_case_repository,
     lock_repository,
     participation_repository,
     season_validation_repository,
@@ -198,6 +199,9 @@ def merge_athletes(db: Session, *, kept_id: int, absorbed_id: int, user_id: int)
     ignored_athlete_pair_repository.repoint(db, from_athlete_id=absorbed.id, to_athlete_id=kept.id)
     club_member_repository.repoint(db, from_athlete_id=absorbed.id, to_athlete_id=kept.id)
     athlete_known_club_repository.repoint(db, from_athlete_id=absorbed.id, to_athlete_id=kept.id)
+    # Un cas écarté jugeait les épreuves de la fiche absorbée : il ne vaut plus
+    # pour la fiche conservée, qui les réunit aux siennes (#1252).
+    ignored_identity_case_repository.delete_for_athlete(db, absorbed.id)
     _complete(kept, absorbed)
     db.expunge(absorbed)
     athlete_repository.delete_by_id(db, absorbed.id)

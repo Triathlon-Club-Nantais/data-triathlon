@@ -38,15 +38,15 @@ export const GUIDE_ADMIN: GuideSection[] = [
     id: "identites",
     titre: "Identités des athlètes",
     casUsage:
-      "Fiches qui mêlent deux personnes, ou paires de fiches qui désignent probablement la même. Chaque carte nomme son motif, rappelle le geste à choisir et offre ce geste sur place. Fusionner, rattacher et supprimer sont définitifs ; écarter une paire et confirmer un club se reprennent.",
+      "Fiches qui mêlent deux personnes, ou paires de fiches qui désignent probablement la même. Chaque carte nomme son motif, rappelle le geste à choisir et offre ce geste sur place. Fusionner, rattacher et supprimer sont définitifs ; écarter une paire ou un cas et confirmer un club se reprennent.",
     etapes: [
       "Ouvrir « Identités des athlètes » depuis la navigation admin. Le nom d'une fiche ouvre sa page publique.",
-      "Deux dossards sur une même épreuve : deux personnes partagent la fiche. Sur la ligne du résultat en conflit, « Séparer » le déplace vers une nouvelle fiche, « Rattacher » vers la fiche existante de l'autre personne, et « Supprimer » retire un doublon, sans retour.",
+      "Deux dossards sur une même épreuve : deux personnes partagent la fiche. Sur la ligne du résultat en conflit, « Séparer » le déplace vers une nouvelle fiche, « Rattacher » vers la fiche existante de l'autre personne, et « Supprimer » retire un doublon, sans retour. Deux dossards légitimes (un relais et une épreuve individuelle) : « Écarter » sort le cas de la liste sans toucher aux résultats, jusqu'à ce qu'une autre épreuve entre en conflit.",
       "Un autre club sur une fiche de membre : si la personne a changé de club, « Confirmer ce club ». Aucun résultat ne bouge, et le club n'est plus signalé pour cette fiche. Si c'est un homonyme, « Séparer des résultats » coche ses résultats et les déplace vers une nouvelle fiche.",
       "Homonyme du club : même personne, « Fusionner », en choisissant la fiche conservée (l'autre est supprimée, ses résultats, validations de saison, bénévolat et compte membre passent sur la fiche conservée). Deux personnes : « Écarter ». La paire sort de la liste, aucune donnée n'est modifiée.",
       "Nom et prénom inversés, ou nom complet face à une fiche découpée : « Corriger la fiche » fautive pour remettre nom et prénom en place, ou « Fusionner ». Une même épreuve courue par les deux fiches prouve deux personnes : « Écarter ».",
       "Fiche recréée sur une graphie déjà fusionnée : même personne, « Fusionner ». Variante posée par erreur : « Voir les variantes » ouvre la fiche qui la porte, où « Retirer » la détache.",
-      "Revenir sur un arbitrage : sous la liste, déplier « Paires écartées » ou « Clubs confirmés », puis « Annuler ». La paire revient dans la revue, ou le club est de nouveau signalé pour la fiche. Si les deux fiches d'une paire portent la même clé, la prochaine reprise peut les fusionner, sans retour.",
+      "Revenir sur un arbitrage : sous la liste, déplier « Paires écartées », « Cas écartés » ou « Clubs confirmés », puis « Annuler ». La paire ou le cas revient dans la revue, ou le club est de nouveau signalé pour la fiche. Si les deux fiches d'une paire portent la même clé, la prochaine reprise peut les fusionner, sans retour.",
     ],
     captures: [],
   },

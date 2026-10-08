@@ -788,13 +788,10 @@ def list_named_like(db: Session, fragment: str) -> list[Course]:
 
 def list_named_with_source(db: Session, name: str, urls: Iterable[str]) -> list[Course]:
     """Épreuves de ce nom publiées sous l'une de ces URL, toutes dates confondues."""
-    return (
-        db.query(Course)
-        .join(CourseSource, CourseSource.course_id == Course.id)
-        .filter(Course.name == clean_name(name), CourseSource.url.in_(list(urls)))
-        .distinct()
-        .all()
-    )
+    # Sous-requête plutôt que jointure + DISTINCT : PostgreSQL ne compare pas
+    # une colonne `json` (`quality_issues`), #1250.
+    sourced = select(CourseSource.course_id).where(CourseSource.url.in_(list(urls)))
+    return db.query(Course).filter(Course.name == clean_name(name), Course.id.in_(sourced)).all()
 
 
 def list_named_on(db: Session, name: str, event_date: date | None) -> list[Course]:

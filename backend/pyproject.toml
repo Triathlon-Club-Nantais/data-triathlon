@@ -65,6 +65,9 @@ pythonpath = ["."]
 # pour un seul fichier). `-n 0` le rend, et rétablit au passage `--pdb` et une
 # sortie non entrelacée. Mesures : docs/superpowers/specs/2026-08-20-suites-de-tests-sondage.md
 addopts = "-n 4"
+# Un test bloqué au-delà vide la pile de ses threads sur stderr : un gel de la
+# suite se lit au lieu de se deviner (le DNS réel en unitaire en était un).
+faulthandler_timeout = 120
 markers = [
     "integration: tests nécessitant un accès réseau réel (pytest -m integration)",
 ]

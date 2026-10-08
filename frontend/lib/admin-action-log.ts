@@ -28,6 +28,8 @@ const ACTION_LABELS: Record<string, string> = {
   "athlete.merge": "Fusion de deux fiches athlète",
   "athlete_identity.ignore": "Mise à l'écart d'une paire de fiches athlète",
   "athlete_identity.unignore": "Annulation de la mise à l'écart d'une paire de fiches athlète",
+  "athlete_identity.dismiss": "Mise à l'écart d'un cas d'identité à une fiche",
+  "athlete_identity.undismiss": "Annulation de la mise à l'écart d'un cas d'identité à une fiche",
   "athlete.detach": "Séparation de résultats vers une nouvelle fiche athlète",
   "athlete_identity.confirm_club": "Confirmation d'un club pour une fiche athlète",
   "athlete_identity.unconfirm_club": "Annulation de la confirmation d'un club pour une fiche athlète",

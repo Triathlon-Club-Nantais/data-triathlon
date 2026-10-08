@@ -8,9 +8,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { messageDeRefus } from "@/lib/api/refus";
 import {
   useConfirmedIdentityClubs,
+  useDismissedIdentityCases,
   useIgnoredCourseDuplicates,
   useIgnoredIdentityPairs,
   useUnconfirmIdentityClub,
+  useUndismissIdentityCase,
   useUnignoreCourseDuplicate,
   useUnignoreIdentityPair,
 } from "@/lib/queries/admin";
@@ -92,17 +94,19 @@ function fullName(person: { nom: string; prenom: string }): string {
 const IDENTITY_REFUSAL = { sujet: "arbitrages d'identité", action: "revoir les arbitrages d'identité" };
 const DUPLICATE_REFUSAL = { sujet: "paires écartées", action: "revoir les paires d'épreuves écartées" };
 
-/** Paires écartées et clubs confirmés de la revue d'identité. */
+/** Paires écartées, cas à une fiche écartés et clubs confirmés de la revue d'identité. */
 export function IdentityArbitrations() {
   const pairs = useIgnoredIdentityPairs();
+  const cases = useDismissedIdentityCases();
   const clubs = useConfirmedIdentityClubs();
   const unignore = useUnignoreIdentityPair();
+  const undismiss = useUndismissIdentityCase();
   const unconfirm = useUnconfirmIdentityClub();
   const confirm = useDangerConfirm();
 
-  const error = pairs.error ?? clubs.error;
+  const error = pairs.error ?? cases.error ?? clubs.error;
   if (error) return <EmptyState {...messageDeRefus(error, IDENTITY_REFUSAL)} />;
-  if (!pairs.data || !clubs.data) return null;
+  if (!pairs.data || !cases.data || !clubs.data) return null;
 
   /**
    * Annuler une mise à l'écart n'est pas un simple retour en revue : la reprise
@@ -135,6 +139,21 @@ export function IdentityArbitrations() {
           };
         })}
         onUndo={(item) => void undoPair(item)}
+      />
+      <UndoList
+        title="Cas écartés"
+        empty="Aucun cas écarté."
+        pending={undismiss.isPending}
+        items={cases.data.cases.map((dismissed) => ({
+          id: dismissed.id,
+          label: fullName(dismissed.athlete),
+          undoLabel: `Annuler la mise à l'écart du cas de ${fullName(dismissed.athlete)}`,
+          date: dismissed.dismissed_at,
+          note: dismissed.reason_label,
+        }))}
+        onUndo={(item) =>
+          undismiss.mutate(item.id, notifyOutcome("Mise à l'écart annulée : le cas revient dans la revue s'il tient toujours."))
+        }
       />
       <UndoList
         title="Clubs confirmés"

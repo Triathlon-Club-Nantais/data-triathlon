@@ -158,14 +158,88 @@ def test_le_resultat_est_mis_en_cache(monkeypatch):
 def test_un_echec_est_mis_en_cache_lui_aussi(monkeypatch):
     """Un nom qu'on ne sait pas géocoder ne doit pas être redemandé à chaque appel.
 
-    `geocode` tente la ville puis, à défaut, le nom complet : deux requêtes au
-    premier appel, aucune au second.
+    `geocode` tente la ville, le nom complet puis ses fenêtres de mots au
+    premier appel, aucune requête au second.
     """
     vues = _bouchonne(monkeypatch, lambda _: _reponse())
 
     assert geocode_service.geocode("Triathlon de Nulle Part") is None
+    premier_appel = len(vues)
     assert geocode_service.geocode("Triathlon de Nulle Part") is None
-    assert len(vues) == 2
+    assert len(vues) == premier_appel
+
+
+def _seul_lieu_connu(monkeypatch, lieu: str) -> list[httpx.Request]:
+    """Nominatim ne trouve que `lieu` ; toute autre requête revient vide."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.params["q"] == f"{lieu}, France":
+            return _reponse({
+                "lat": "45.08", "lon": "-1.04", "class": "place", "type": "village", "importance": 0.5,
+            })
+        return _reponse()
+
+    return _bouchonne(monkeypatch, handler)
+
+
+@pytest.mark.parametrize(
+    ("nom_epreuve", "lieu"),
+    [
+        # Noms réels restés introuvables après #1203 (#1256).
+        ("H&A Frenchman Triathlon Carcans 2025", "Carcans"),
+        ("Toulouse Triathlon by Supertri", "Toulouse"),
+        ("Biathlon de Damgan 2025", "Damgan"),
+        ("Diaoulman Pontivy 2026", "Pontivy"),
+        ("Triathlon SwimRun Dinard Côte d'Emeraude", "Dinard"),
+        ("Trail + Run and Bike du Bignon", "Bignon"),
+        ("Les Triathlons du Val André", "Val André"),
+    ],
+)
+def test_le_geocodage_essaie_les_fenetres_de_mots_du_nom(monkeypatch, nom_epreuve, lieu):
+    vues = _seul_lieu_connu(monkeypatch, lieu)
+
+    assert geocode_service.geocode(nom_epreuve) == (45.08, -1.04)
+    assert len(vues) <= 2 + geocode_service.MAX_WINDOW_QUERIES
+
+
+def test_une_fenetre_ne_retient_qu_un_lieu(monkeypatch):
+    """Un mot de marque peut nommer une rue ou un commerce : seule une commune compte."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.params["q"] == "Frenchman, France":
+            return _reponse({"lat": "48.0", "lon": "2.0", "class": "highway", "importance": 0.9})
+        return _reponse()
+
+    _bouchonne(monkeypatch, handler)
+
+    assert geocode_service.geocode("Frenchman Triathlon") is None
+
+
+@pytest.mark.parametrize("lieu", [
+    {"class": "place", "type": "locality"},
+    {"class": "boundary", "type": "protected_area"},
+])
+def test_une_fenetre_ne_retient_qu_une_commune(monkeypatch, lieu):
+    """Revue #1256 : un lieu-dit ou un parc naturel n'est pas la ville de l'épreuve."""
+    _bouchonne(monkeypatch, lambda request: _reponse({"lat": "48.0", "lon": "2.0", **lieu})
+               if request.url.params["q"] == "Frenchman, France" else _reponse())
+
+    assert geocode_service.geocode("Frenchman Triathlon") is None
+
+
+def test_un_mot_generique_seul_n_est_pas_cherche(monkeypatch):
+    """Revue #1256 : « Mer » est une commune, pas la ville du « Triathlon de la Mer »."""
+    vues = _bouchonne(monkeypatch, lambda _: _reponse())
+
+    geocode_service.geocode("Triathlon de la Mer")
+
+    assert "Mer, France" not in [r.url.params["q"] for r in vues]
+
+
+def test_les_fenetres_sont_plafonnees(monkeypatch):
+    vues = _bouchonne(monkeypatch, lambda _: _reponse())
+
+    geocode_service.geocode("Alpha Bravo Charlie Delta Echo Foxtrot Golf")
+
+    assert len(vues) <= 2 + geocode_service.MAX_WINDOW_QUERIES
 
 
 def test_un_nom_sans_ville_exploitable_ne_declenche_aucune_requete(monkeypatch):
@@ -316,6 +390,29 @@ def test_run_geocode_courses_respecte_le_cooldown_par_la_requete(monkeypatch, db
     geocode_service.run_geocode_courses(db_session, retry_after=delai)
 
     assert "retry_after" in captes
+
+
+def test_run_geocode_courses_force_les_epreuves_designees(monkeypatch, db_session):
+    """`--course` reprend une épreuve déjà géocodée, mal placée (#1256, 249 et 250)."""
+    from datetime import date
+
+    from app.repositories import course_repository as cr
+
+    placee = cr.get_or_create(
+        db_session, name="TRI AT BAIN 2026", event_date=date(2026, 6, 1), event_type="triathlon-s"
+    )
+    autre = cr.get_or_create(
+        db_session, name="Triathlon de Nantes", event_date=date(2026, 6, 2), event_type="triathlon-s"
+    )
+    placee.latitude, placee.longitude = 16.0, -61.7
+    db_session.flush()
+    monkeypatch.setattr(geocode_service, "geocode", lambda nom: (47.8, -1.7))
+
+    outcome = geocode_service.run_geocode_courses(db_session, course_ids=[placee.id])
+
+    assert (outcome.total, outcome.geocoded) == (1, 1)
+    assert (placee.latitude, placee.longitude) == (47.8, -1.7)
+    assert autre.latitude is None
 
 
 def test_run_geocode_courses_dry_run_ne_touche_pas_nominatim(monkeypatch, db_session):

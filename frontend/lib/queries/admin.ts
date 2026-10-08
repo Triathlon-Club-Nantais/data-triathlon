@@ -605,6 +605,30 @@ export function useIgnoreIdentityPair() {
   });
 }
 
+/** Écarte un cas à une seule fiche, sans toucher aux résultats (#1252). */
+export function useDismissIdentityCase() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (athleteId: number) => apiClient.dismissIdentityCase(athleteId, "same_course_bibs"),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.identityReview() }),
+  });
+}
+
+export function useDismissedIdentityCases() {
+  return useQuery({
+    queryKey: queryKeys.dismissedIdentityCases(),
+    queryFn: () => apiClient.listDismissedIdentityCases(),
+  });
+}
+
+export function useUndismissIdentityCase() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (caseId: number) => apiClient.undismissIdentityCase(caseId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.identityReview() }),
+  });
+}
+
 // Arbitrages à revoir et annuler (#1243). Chaque annulation invalide le préfixe
 // de son écran : la liste des arbitrages et la file qu'il rejoint.
 export function useIgnoredIdentityPairs() {

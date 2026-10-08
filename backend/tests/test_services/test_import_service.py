@@ -2594,6 +2594,27 @@ def test_rescrape_splits_a_duo_whose_name_carries_a_particle(db_session, patch_s
     assert (single.athlete.nom, single.athlete.prenom, single.teammates) == ("DURAND", "Luc", [])
 
 
+def test_rescrape_splits_a_solo_row_carried_by_its_first_teammate(db_session, patch_scraper):
+    """#1254, épreuve 963 : importée en solo (une ligne par dossard, rattachée au
+    premier équipier), puis rescrapée en duo avec ses deux équipiers."""
+    patch_scraper([_relay("7", "DUPONT", "Jean")])
+    import_service.import_event(db_session, URL, _settings())
+    db_session.commit()
+    _expire_cache(db_session)
+    before = _only_relay_row(db_session)
+
+    patch_scraper([_relay(
+        "7", "DUPONT Jean / MARTIN Paul", "", teammates=(("DUPONT", "Jean"), ("MARTIN", "Paul")),
+    )])
+    out = import_service.import_event(db_session, URL, _settings())
+
+    row = _only_relay_row(db_session)
+    assert row.id == before.id
+    assert _names(row.teammates) == [("DUPONT", "Jean"), ("MARTIN", "Paul")]
+    assert row.athlete_id == before.athlete_id
+    assert (out["imported"], out["updated"]) == (0, 1)
+
+
 def test_rescrape_keeps_a_team_athlete_that_still_has_other_results(
     db_session, patch_scraper, monkeypatch
 ):

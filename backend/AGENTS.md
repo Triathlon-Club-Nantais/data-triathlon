@@ -65,6 +65,10 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
   sa lecture et force, avant tout import de `core/database.py`, une SQLite
   jetable et un jeton PostHog vide (`tests/test_unit_isolation.py` le garde).
   Un test qui a besoin d'une variable la pose par `monkeypatch.setenv`.
+  **Ni aucune résolution DNS** : `getaddrinfo` y échoue tout de suite, hors
+  `localhost` et adresses littérales (fixture `_sans_resolution_dns`). Il n'a
+  pas de délai, et un résolveur qui calait figeait la suite entière (CI du
+  07/10). Un test qui traverse le garde SSRF bouchonne `http._resolve`.
 
 **Cache TTL** — `services/cache.py` : `is_fresh(course)` → 10 min si course en
 cours (une participation **finisher** sans `total_time`, ou n'importe laquelle

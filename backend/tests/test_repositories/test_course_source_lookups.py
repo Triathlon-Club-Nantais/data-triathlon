@@ -182,3 +182,22 @@ def test_an_empty_batch_asks_nothing_of_the_database(db_session, compteur_sql):
         assert course_repository.list_by_source_urls(db_session, []) == []
 
     assert stats.count == 0
+
+
+def test_list_named_with_source_runs_on_postgresql(db_session):
+    """#1250 : `DISTINCT` sur `Course` échouait en PostgreSQL (colonne `json`)."""
+    course = _epreuve(db_session, "Challenge", URL)
+    course_repository.get_or_create(
+        db_session,
+        name="Challenge",
+        event_date=date(2026, 5, 17),
+        event_type="triathlon-c",
+        source_url=URL,
+        provider="klikego",
+    )
+    db_session.flush()
+
+    found = course_repository.list_named_with_source(db_session, "Challenge", [URL, AUTRE])
+
+    assert course in found
+    assert len(found) == 2

@@ -9,8 +9,9 @@ import type { IdentityReviewCandidate, IdentityReviewList, Participation, Sessio
 
 const {
   listIdentityReview, getSession, ignoreIdentityPair, confirmIdentityClub, getAthlete, detachParticipations, push,
-  toastError, toastSuccess,
+  toastError, toastSuccess, dismissIdentityCase,
 } = vi.hoisted(() => ({
+  dismissIdentityCase: vi.fn(),
   listIdentityReview: vi.fn(),
   getAthlete: vi.fn(),
   detachParticipations: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
     ...original,
     apiClient: {
       listIdentityReview, getSession, ignoreIdentityPair, confirmIdentityClub, getAthlete, detachParticipations,
+      dismissIdentityCase,
     },
   };
 });
@@ -116,13 +118,13 @@ describe("AthleteIdentityReviewTable", () => {
     expect(within(cartes[0]).getByText(/1715/)).toBeInTheDocument();
   });
 
-  it("un cas à une fiche ne s'écarte ni ne se fusionne : il se règle sur la fiche", async () => {
+  it("un cas à une fiche s'écarte sans se fusionner, et se règle aussi sur la fiche", async () => {
     getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
     listIdentityReview.mockResolvedValue(CAS);
     afficher();
 
     const [unique, paire] = await screen.findAllByRole("article");
-    expect(within(unique).queryByRole("button", { name: /écarter/i })).not.toBeInTheDocument();
+    expect(within(unique).getByRole("button", { name: "Écarter le cas de MARTIN Thomas" })).toBeInTheDocument();
     expect(within(unique).queryByRole("button", { name: /fusionner/i })).not.toBeInTheDocument();
     expect(within(unique).getByText(/deux personnes/i)).toBeInTheDocument();
     expect(within(paire).getByRole("button", { name: "Écarter la paire DUPONT Jean et JEAN Dupont" })).toBeInTheDocument();
@@ -140,6 +142,22 @@ describe("AthleteIdentityReviewTable", () => {
     await confirmerDansLeDialog("Écarter");
 
     expect(ignoreIdentityPair).toHaveBeenCalledWith(10, 11);
+    expect(toastSuccess).toHaveBeenCalled();
+  });
+
+  it("écarter un cas à une fiche demande confirmation, dit que les résultats restent, puis l'envoie (#1252)", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
+    listIdentityReview.mockResolvedValue(CAS);
+    dismissIdentityCase.mockResolvedValue({ athlete_id: 7, reason: "same_course_bibs", dismissed_at: "2026-10-08T10:00:00Z" });
+    afficher();
+
+    const [unique] = await screen.findAllByRole("article");
+    await userEvent.click(within(unique).getByRole("button", { name: "Écarter le cas de MARTIN Thomas" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/aucun résultat n'est modifié/i)).toBeInTheDocument();
+    await confirmerDansLeDialog("Écarter");
+
+    expect(dismissIdentityCase).toHaveBeenCalledWith(7, "same_course_bibs");
     expect(toastSuccess).toHaveBeenCalled();
   });
 

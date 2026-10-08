@@ -89,6 +89,37 @@ def _rejeux_klikego_sans_attente(request, monkeypatch):
     monkeypatch.setattr(klikego_platform, "_sleep", lambda _seconds: None)
 
 
+@pytest.fixture(autouse=True)
+def _sans_resolution_dns(request, monkeypatch):
+    """Aucune résolution de nom en unitaire : `getaddrinfo` n'a pas de délai, et
+    le garde SSRF de `core/http` résolvait les vrais hosts des tests qui ne
+    bouchonnent pas `http._resolve` (`test_batch_runs` : 5 s par test, et un
+    résolveur qui cale figeait la suite). Échec immédiat, comme un DNS mort ;
+    l'encodage `idna` reste fait, `_resolve` en éprouve l'erreur. `localhost` et
+    les adresses littérales restent résolus : ils ne sortent pas de la machine,
+    et psycopg les résout ainsi pour le job PostgreSQL."""
+    if request.node.get_closest_marker("integration"):
+        return
+    import ipaddress
+    import socket
+
+    reel = socket.getaddrinfo
+
+    def _dns_mort(host, *args, **kwargs):
+        if host in (None, "localhost"):
+            return reel(host, *args, **kwargs)
+        if isinstance(host, str):
+            try:
+                ipaddress.ip_address(host)
+            except ValueError:
+                host.encode("idna")
+            else:
+                return reel(host, *args, **kwargs)
+        raise socket.gaierror(socket.EAI_NONAME, "aucune résolution DNS dans la suite unitaire")
+
+    monkeypatch.setattr(socket, "getaddrinfo", _dns_mort)
+
+
 @pytest.fixture(scope="session")
 def _postgres_engine():
     """Le PostgreSQL de `TEST_POSTGRES_URL` (job CI dédié, #947), ou `None`.
