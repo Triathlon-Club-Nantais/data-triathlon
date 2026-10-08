@@ -97,6 +97,25 @@ def test_retry_after_days_reduit_le_cooldown(monkeypatch, db_session):
     assert course.latitude == 1.0
 
 
+def test_course_reprend_une_epreuve_deja_geocodee(monkeypatch, db_session):
+    """#1256 : une épreuve mal placée se reprend par son id."""
+    course = _course(db_session, "TRI AT BAIN 2026", geocoded_at=utcnow())
+    course.latitude, course.longitude = 16.0, -61.7
+    _course(db_session, "Triathlon de Nantes")
+    _brancher_session(monkeypatch, db_session)
+    vus = []
+    monkeypatch.setattr(
+        "app.services.geocode_service.geocode", lambda nom: vus.append(nom) or (47.8, -1.7)
+    )
+
+    resultat = _lancer("--course", str(course.id))
+
+    assert resultat.exit_code == 0
+    assert vus == ["TRI AT BAIN 2026"]
+    db_session.refresh(course)
+    assert (course.latitude, course.longitude) == (47.8, -1.7)
+
+
 def test_dry_run_ne_persiste_rien_et_sort_en_0(monkeypatch, db_session):
     course = _course(db_session, "Triathlon Aperçu")
     _brancher_session(monkeypatch, db_session)

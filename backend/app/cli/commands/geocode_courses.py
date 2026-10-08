@@ -48,6 +48,10 @@ def geocode_courses(
     no_progress: bool = typer.Option(
         False, "--no-progress", help="Aucun affichage de progression."
     ),
+    course_ids: list[int] | None = typer.Option(
+        None, "--course",
+        help="Force le géocodage de cette épreuve (id), même déjà placée. Répétable.",
+    ),
 ) -> None:
     """Géocode les épreuves sans coordonnées (Nominatim, ~1 à 2 s par épreuve).
 
@@ -67,6 +71,7 @@ def geocode_courses(
             limit=limit,
             retry_after=timedelta(days=retry_after_days),
             dry_run=dry_run,
+            course_ids=course_ids,
             on_item=_progression(not no_progress and not dry_run),
         )
 
