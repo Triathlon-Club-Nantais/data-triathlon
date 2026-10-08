@@ -224,7 +224,8 @@ def test_a_single_record_case_is_dismissed_listed_then_undone(client, db_session
     assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 0}
     assert _bibs(db_session, two_bibs) == ["1", "2"]
     assert _last_action(db_session) == "athlete_identity.dismiss"
-    assert client.post(url, json={"athlete_id": two_bibs.id, "reason": "same_course_bibs"}).status_code == 409
+    again = client.post(url, json={"athlete_id": two_bibs.id, "reason": "same_course_bibs"})
+    assert again.status_code == 409
     [case] = client.get("/api/v1/admin/identity-review/dismissed").json()["cases"]
     assert (case["athlete"]["id"], case["athlete"]["nom"], case["reason"], case["reason_label"]) == (
         two_bibs.id, "MARTIN", "same_course_bibs", "Deux dossards sur une même épreuve",
@@ -236,7 +237,8 @@ def test_a_single_record_case_is_dismissed_listed_then_undone(client, db_session
     assert undone.status_code == 204
     assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 1}
     assert _last_action(db_session) == "athlete_identity.undismiss"
-    assert client.delete(f"/api/v1/admin/identity-review/dismissed/{case['id']}").status_code == 404
+    undone_again = client.delete(f"/api/v1/admin/identity-review/dismissed/{case['id']}")
+    assert undone_again.status_code == 404
 
 
 def test_a_dismissed_case_comes_back_when_another_race_conflicts(client, db_session, two_bibs):
@@ -264,9 +266,11 @@ def test_dismissing_refuses_a_case_not_in_the_review_or_a_pair_reason(client, sw
     first, _ = swapped
     url = "/api/v1/admin/identity-review/dismiss"
 
-    assert client.post(url, json={"athlete_id": first.id, "reason": "same_course_bibs"}).status_code == 400
-    assert client.post(url, json={"athlete_id": first.id, "reason": "swapped"}).status_code == 422
-    assert client.post(url, json={"athlete_id": 99999, "reason": "same_course_bibs"}).status_code == 404
+    not_in_review = client.post(url, json={"athlete_id": first.id, "reason": "same_course_bibs"})
+    pair_reason = client.post(url, json={"athlete_id": first.id, "reason": "swapped"})
+    unknown = client.post(url, json={"athlete_id": 99999, "reason": "same_course_bibs"})
+
+    assert (not_in_review.status_code, pair_reason.status_code, unknown.status_code) == (400, 422, 404)
 
 
 @pytest.mark.parametrize(
