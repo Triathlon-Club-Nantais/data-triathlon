@@ -47,3 +47,9 @@ def test_youth_rows_are_recognised_by_category(category):
 ])
 def test_other_rows_are_imported(event_name, category):
     assert is_youth(event_name, category) is False
+
+
+def test_birth_years_are_read_against_the_race_year():
+    """Revue #1255 : nés 2008-2009 étaient minimes en 2022, plus en 2026."""
+    assert is_youth("Course (nés 2008-2009)", "", event_year=2022) is True
+    assert is_youth("Course (nés 2008-2009)", "", event_year=2026) is False

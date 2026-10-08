@@ -360,6 +360,10 @@ def scrape_all_streaming(
     return (_importable(url, results), trace)
 
 
+def _row_is_youth(r: ScrapedResult) -> bool:
+    return is_youth(r.event_name, r.category, event_year=r.event_date.year if r.event_date else None)
+
+
 def _importable(url: str, results: list[ScrapedResult]) -> list[ScrapedResult]:
     """Les résultats scrapés que l'import écrit : l'épreuve doit avoir un nom, et
     les épreuves jeunes (jusqu'à Minime) sont écartées (#881, RGPD), sauf dans
@@ -373,13 +377,13 @@ def _importable(url: str, results: list[ScrapedResult]) -> list[ScrapedResult]:
     heats_with_tcn_youth = {
         _heat(r)
         for r in results
-        if is_youth(r.event_name, r.category) and is_tcn(r.club)
+        if _row_is_youth(r) and is_tcn(r.club)
     }
     retenus: list[ScrapedResult] = []
     excluded_ranks: dict[tuple, set[int]] = defaultdict(set)
     for r in results:
         heat = _heat(r)
-        if not is_youth(r.event_name, r.category) or heat in heats_with_tcn_youth:
+        if not _row_is_youth(r) or heat in heats_with_tcn_youth:
             retenus.append(r)
         elif r.rank_overall:
             excluded_ranks[heat].add(r.rank_overall)

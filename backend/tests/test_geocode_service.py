@@ -173,7 +173,9 @@ def _seul_lieu_connu(monkeypatch, lieu: str) -> list[httpx.Request]:
     """Nominatim ne trouve que `lieu` ; toute autre requête revient vide."""
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.params["q"] == f"{lieu}, France":
-            return _reponse({"lat": "45.08", "lon": "-1.04", "class": "place", "importance": 0.5})
+            return _reponse({
+                "lat": "45.08", "lon": "-1.04", "class": "place", "type": "village", "importance": 0.5,
+            })
         return _reponse()
 
     return _bouchonne(monkeypatch, handler)
@@ -209,6 +211,27 @@ def test_une_fenetre_ne_retient_qu_un_lieu(monkeypatch):
     _bouchonne(monkeypatch, handler)
 
     assert geocode_service.geocode("Frenchman Triathlon") is None
+
+
+@pytest.mark.parametrize("lieu", [
+    {"class": "place", "type": "locality"},
+    {"class": "boundary", "type": "protected_area"},
+])
+def test_une_fenetre_ne_retient_qu_une_commune(monkeypatch, lieu):
+    """Revue #1256 : un lieu-dit ou un parc naturel n'est pas la ville de l'épreuve."""
+    _bouchonne(monkeypatch, lambda request: _reponse({"lat": "48.0", "lon": "2.0", **lieu})
+               if request.url.params["q"] == "Frenchman, France" else _reponse())
+
+    assert geocode_service.geocode("Frenchman Triathlon") is None
+
+
+def test_un_mot_generique_seul_n_est_pas_cherche(monkeypatch):
+    """Revue #1256 : « Mer » est une commune, pas la ville du « Triathlon de la Mer »."""
+    vues = _bouchonne(monkeypatch, lambda _: _reponse())
+
+    geocode_service.geocode("Triathlon de la Mer")
+
+    assert "Mer, France" not in [r.url.params["q"] for r in vues]
 
 
 def test_les_fenetres_sont_plafonnees(monkeypatch):

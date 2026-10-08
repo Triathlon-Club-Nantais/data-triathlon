@@ -121,6 +121,12 @@ def _fingerprint(courses: list[int]) -> str:
     return ",".join(str(course_id) for course_id in courses)
 
 
+def _covers(fingerprint: str | None, courses: list[int]) -> bool:
+    """La mise à l'écart a déjà jugé toutes ces épreuves : un conflit levé depuis
+    ne rouvre pas le cas, seule une épreuve de plus le fait."""
+    return fingerprint is not None and set(courses) <= {int(i) for i in fingerprint.split(",") if i}
+
+
 def _cases(db: Session) -> list[tuple[str, list[int], list[int], list[dict]]]:
     """`(motif, fiches, épreuves en conflit, clubs à vérifier)`, dans l'ordre stable de la liste."""
     ignored = ignored_athlete_pair_repository.all_pairs(db)
@@ -136,7 +142,7 @@ def _cases(db: Session) -> list[tuple[str, list[int], list[int], list[dict]]]:
 
     dismissed = ignored_identity_case_repository.fingerprints(db, "same_course_bibs")
     for athlete_id, courses in _two_bibs_courses(db).items():
-        if dismissed.get(athlete_id) != _fingerprint(courses):
+        if not _covers(dismissed.get(athlete_id), courses):
             cases.append((0, athlete_id, "same_course_bibs", [athlete_id], courses, []))
 
     for athlete_id, clubs in _unconfirmed_clubs(db).items():
@@ -358,7 +364,7 @@ def dismiss_case(db: Session, *, athlete_id: int, reason: str, user_id: int) -> 
         raise DomainError("Cette fiche n'a pas de cas à écarter dans la revue.")
     fingerprint = _fingerprint(courses)
     known = ignored_identity_case_repository.find(db, athlete_id=athlete_id, reason=reason)
-    if known is not None and known.fingerprint == fingerprint:
+    if known is not None and _covers(known.fingerprint, courses):
         raise DuplicateError("Ce cas est déjà écarté.")
     case = ignored_identity_case_repository.save(
         db, athlete_id=athlete_id, reason=reason, fingerprint=fingerprint, user_id=user_id

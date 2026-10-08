@@ -1021,7 +1021,7 @@ class _Persister:
                 ids = {found[key].id for key in keys if key in found}
                 if (
                     len(set(keys)) != len(keys)
-                    or reserved.intersection(keys) or present_ids & ids - self._own_athlete(course_id, item)
+                    or reserved.intersection(keys) or present_ids & (ids - self._own_athlete(course_id, item))
                     or not self._bibless_team_claimable(course_id, item, found, claimed_teams)
                 ):
                     teammates = None

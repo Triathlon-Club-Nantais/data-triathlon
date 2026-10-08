@@ -25,7 +25,7 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('athlete_id', sa.Integer(), nullable=False),
     sa.Column('reason', sa.String(length=32), nullable=False),
-    sa.Column('fingerprint', sa.String(length=1024), nullable=False),
+    sa.Column('fingerprint', sa.Text(), nullable=False),
     sa.Column('ignored_by_user_id', sa.Integer(), nullable=False),
     sa.Column('ignored_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['athlete_id'], ['athletes.id'], ondelete='CASCADE'),
@@ -33,12 +33,7 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('athlete_id', 'reason', name='uq_ignored_identity_case')
     )
-    with op.batch_alter_table('ignored_identity_cases', schema=None) as batch_op:
-        batch_op.create_index(batch_op.f('ix_ignored_identity_cases_athlete_id'), ['athlete_id'], unique=False)
 
 
 def downgrade() -> None:
-    with op.batch_alter_table('ignored_identity_cases', schema=None) as batch_op:
-        batch_op.drop_index(batch_op.f('ix_ignored_identity_cases_athlete_id'))
-
     op.drop_table('ignored_identity_cases')

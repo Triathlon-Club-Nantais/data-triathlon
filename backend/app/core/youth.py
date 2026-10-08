@@ -31,20 +31,24 @@ _WORD_SPLIT_RE = re.compile(r"[^a-z0-9]+")
 _YOUTH_CATEGORY_RE = re.compile(r"(?:MPO?|PO|PU|BE|MI)[HFMX]?")
 
 
-def _has_youth_word(text: str) -> bool:
+def _has_youth_word(text: str, event_year: int | None = None) -> bool:
     text = (deaccent(text) or "").lower()
     if any(_YOUTH_WORD_RE.fullmatch(word) for word in _WORD_SPLIT_RE.split(text)):
         return True
     if any(int(top) <= _YOUTH_MAX_AGE for top in _AGE_RANGE_RE.findall(text)):
         return True
-    youngest = date.today().year - _YOUTH_MAX_AGE
+    youngest = (event_year or date.today().year) - _YOUTH_MAX_AGE
     return any(int(year) >= youngest for year in _BIRTH_YEAR_RE.findall(text))
 
 
-def is_youth(event_name: str | None, category: str | None) -> bool:
-    """Vrai si la ligne appartient à une épreuve jeune, à ne pas importer."""
+def is_youth(event_name: str | None, category: str | None, *, event_year: int | None = None) -> bool:
+    """Vrai si la ligne appartient à une épreuve jeune, à ne pas importer.
+
+    `event_year` date les années de naissance du libellé : « nés 2008 » désigne
+    des minimes en 2022, plus en 2026. À défaut, l'année en cours.
+    """
     # « MI H » s'écrit aussi avec une espace : le code se compare sans elle.
     code = "".join((category or "").split()).upper()
     if _YOUTH_CATEGORY_RE.fullmatch(code):
         return True
-    return _has_youth_word(event_name or "") or _has_youth_word(category or "")
+    return _has_youth_word(event_name or "", event_year) or _has_youth_word(category or "", event_year)

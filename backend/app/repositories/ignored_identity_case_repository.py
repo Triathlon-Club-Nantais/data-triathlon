@@ -47,7 +47,7 @@ def fingerprints(db: Session, reason: str) -> dict[int, str]:
         db.execute(
             select(IgnoredIdentityCase.athlete_id, IgnoredIdentityCase.fingerprint)
             .where(IgnoredIdentityCase.reason == reason)
-        ).tuples().all()
+        ).all()
     )
 
 
