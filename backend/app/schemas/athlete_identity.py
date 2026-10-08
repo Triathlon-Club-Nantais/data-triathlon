@@ -1,5 +1,6 @@
 """DTO de la revue d'identité des athlètes (#908)."""
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, StrictInt
 
@@ -107,3 +108,27 @@ class ConfirmedIdentityClub(BaseModel):
 
 class ConfirmedIdentityClubList(BaseModel):
     clubs: list[ConfirmedIdentityClub]
+
+
+class IdentityCaseDismissCreate(BaseModel):
+    athlete_id: StrictInt
+    # Les cas à deux fiches s'écartent par paire (`IdentityPairIgnoreCreate`).
+    reason: Literal["same_course_bibs"]
+
+
+class IdentityCaseDismissOut(BaseModel):
+    athlete_id: int
+    reason: str
+    dismissed_at: datetime
+
+
+class DismissedIdentityCase(BaseModel):
+    id: int
+    reason: str
+    reason_label: str
+    dismissed_at: datetime
+    athlete: IdentityNamedAthlete
+
+
+class DismissedIdentityCaseList(BaseModel):
+    cases: list[DismissedIdentityCase]

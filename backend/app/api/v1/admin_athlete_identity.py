@@ -1,4 +1,4 @@
-"""La revue d'identité des athlètes (#908) : lecture, compte, mise à l'écart d'une paire, confirmation d'un club.
+"""La revue d'identité des athlètes (#908) : lecture, compte, mise à l'écart d'une paire ou d'un cas à une fiche, confirmation d'un club.
 
 Couche mince : la garde, l'appel au service, la sérialisation. Les motifs et
 leurs seuils vivent dans `services/athlete_identity_review.py`.
@@ -17,6 +17,9 @@ from app.core.permissions import P
 from app.models.user import User
 from app.schemas.athlete_identity import (
     ConfirmedIdentityClubList,
+    DismissedIdentityCaseList,
+    IdentityCaseDismissCreate,
+    IdentityCaseDismissOut,
     IdentityClubConfirmCreate,
     IdentityClubConfirmOut,
     IdentityPairIgnoreCreate,
@@ -114,4 +117,36 @@ def unconfirm_identity_club(
 ) -> None:
     """Annule une confirmation de club : la fiche est de nouveau signalée pour lui."""
     athlete_identity_review.unconfirm_club(db, known_id=known_id, user_id=user.id)
+    db.commit()
+
+
+@router.post("/admin/identity-review/dismiss", response_model=IdentityCaseDismissOut, status_code=201)
+def dismiss_identity_case(
+    body: IdentityCaseDismissCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.ATHLETES_WRITE)),
+) -> IdentityCaseDismissOut:
+    """Écarte un cas à une seule fiche (#1252) : il ne revient que si ses données changent."""
+    out = athlete_identity_review.dismiss_case(db, athlete_id=body.athlete_id, reason=body.reason, user_id=user.id)
+    db.commit()
+    return IdentityCaseDismissOut(**out)
+
+
+@router.get("/admin/identity-review/dismissed", response_model=DismissedIdentityCaseList)
+def list_dismissed_identity_cases(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.ATHLETES_WRITE)),
+) -> DismissedIdentityCaseList:
+    """Les cas à une seule fiche écartés, pour revoir un arbitrage."""
+    return DismissedIdentityCaseList(cases=athlete_identity_review.list_dismissed(db))
+
+
+@router.delete("/admin/identity-review/dismissed/{case_id}", status_code=204)
+def undismiss_identity_case(
+    case_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(P.ATHLETES_WRITE)),
+) -> None:
+    """Annule une mise à l'écart : le cas revient dans la revue s'il tient toujours."""
+    athlete_identity_review.undismiss_case(db, case_id=case_id, user_id=user.id)
     db.commit()

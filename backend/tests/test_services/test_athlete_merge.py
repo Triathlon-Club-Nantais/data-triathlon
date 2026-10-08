@@ -299,6 +299,22 @@ def test_a_merge_keeps_the_licence_link(db_session_fk):
     assert member.athlete_id == kept.id
 
 
+def test_a_merge_drops_the_dismissed_case_of_the_absorbed_record(db_session, admin):
+    """#1252 : la mise à l'écart jugeait les épreuves de la fiche absorbée seule."""
+    from app.models.ignored_identity_case import IgnoredIdentityCase
+
+    kept = _athlete(db_session, "MARTIN", "Thomas")
+    absorbed = _athlete(db_session, "MARTIN", "Tom")
+    db_session.add(IgnoredIdentityCase(
+        athlete_id=absorbed.id, reason="same_course_bibs", fingerprint="1", ignored_by_user_id=admin.id,
+    ))
+    db_session.flush()
+
+    athlete_merge.merge_athletes(db_session, kept_id=kept.id, absorbed_id=absorbed.id, user_id=admin.id)
+
+    assert db_session.query(IgnoredIdentityCase).count() == 0
+
+
 def test_a_merge_carries_the_confirmed_clubs(db_session_fk, admin):
     kept = _athlete(db_session_fk, "MARTIN", "Thomas")
     absorbed = _athlete(db_session_fk, "MARTIN", "Tom")

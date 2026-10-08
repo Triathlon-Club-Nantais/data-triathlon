@@ -190,3 +190,97 @@ def test_the_undo_routes_need_the_athletes_write_power(client, db_session, metho
     assert getattr(client, method)(path).status_code == 401
     _session_etroite(client, db_session, "athletes:read")
     assert getattr(client, method)(path).status_code == 403
+
+
+@pytest.fixture
+def two_bibs(db_session):
+    """Une fiche du club, deux dossards sur une même épreuve (`same_course_bibs`)."""
+    member = Athlete(nom="MARTIN", prenom="Thomas", club="Triathlon Club Nantais")
+    db_session.add(member)
+    db_session.flush()
+    course = course_repository.get_or_create(
+        db_session, name="Relais et individuel", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    for bib in ("1", "2"):
+        participation_repository.create(
+            db_session, athlete_id=member.id, course_id=course.id, bib_number=bib, status="finisher"
+        )
+    db_session.commit()
+    return member
+
+
+def _bibs(db_session, athlete) -> list[str]:
+    db_session.expire_all()
+    return sorted(p.bib_number for p in db_session.get(Athlete, athlete.id).participations)
+
+
+def test_a_single_record_case_is_dismissed_listed_then_undone(client, db_session, two_bibs):
+    """#1252 : un faux positif `same_course_bibs` sort de la revue sans toucher aux résultats."""
+    url = "/api/v1/admin/identity-review/dismiss"
+
+    dismissed = client.post(url, json={"athlete_id": two_bibs.id, "reason": "same_course_bibs"})
+
+    assert dismissed.status_code == 201
+    assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 0}
+    assert _bibs(db_session, two_bibs) == ["1", "2"]
+    assert _last_action(db_session) == "athlete_identity.dismiss"
+    assert client.post(url, json={"athlete_id": two_bibs.id, "reason": "same_course_bibs"}).status_code == 409
+    [case] = client.get("/api/v1/admin/identity-review/dismissed").json()["cases"]
+    assert (case["athlete"]["id"], case["athlete"]["nom"], case["reason"], case["reason_label"]) == (
+        two_bibs.id, "MARTIN", "same_course_bibs", "Deux dossards sur une même épreuve",
+    )
+    assert case["dismissed_at"]
+
+    undone = client.delete(f"/api/v1/admin/identity-review/dismissed/{case['id']}")
+
+    assert undone.status_code == 204
+    assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 1}
+    assert _last_action(db_session) == "athlete_identity.undismiss"
+    assert client.delete(f"/api/v1/admin/identity-review/dismissed/{case['id']}").status_code == 404
+
+
+def test_a_dismissed_case_comes_back_when_another_race_conflicts(client, db_session, two_bibs):
+    client.post("/api/v1/admin/identity-review/dismiss", json={"athlete_id": two_bibs.id, "reason": "same_course_bibs"})
+    other = course_repository.get_or_create(
+        db_session, name="Autre épreuve", event_date=date(2026, 6, 1), event_type="triathlon-s"
+    )
+    for bib in ("7", "8"):
+        participation_repository.create(
+            db_session, athlete_id=two_bibs.id, course_id=other.id, bib_number=bib, status="finisher"
+        )
+    db_session.commit()
+
+    assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 1}
+    # Écarté de nouveau, le cas porte ses deux épreuves.
+    again = client.post(
+        "/api/v1/admin/identity-review/dismiss", json={"athlete_id": two_bibs.id, "reason": "same_course_bibs"}
+    )
+    assert again.status_code == 201
+    assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 0}
+    assert len(client.get("/api/v1/admin/identity-review/dismissed").json()["cases"]) == 1
+
+
+def test_dismissing_refuses_a_case_not_in_the_review_or_a_pair_reason(client, swapped, two_bibs):
+    first, _ = swapped
+    url = "/api/v1/admin/identity-review/dismiss"
+
+    assert client.post(url, json={"athlete_id": first.id, "reason": "same_course_bibs"}).status_code == 400
+    assert client.post(url, json={"athlete_id": first.id, "reason": "swapped"}).status_code == 422
+    assert client.post(url, json={"athlete_id": 99999, "reason": "same_course_bibs"}).status_code == 404
+
+
+@pytest.mark.parametrize(
+    ("method", "path"),
+    [("post", "/api/v1/admin/identity-review/dismiss"), ("get", "/api/v1/admin/identity-review/dismissed"),
+     ("delete", "/api/v1/admin/identity-review/dismissed/1")],
+)
+def test_the_dismissal_routes_need_the_athletes_write_power(client, db_session, two_bibs, method, path):
+    def call():
+        if method == "post":
+            return client.post(path, json={"athlete_id": two_bibs.id, "reason": "same_course_bibs"})
+        return getattr(client, method)(path)
+
+    client.cookies.clear()
+    assert call().status_code == 401
+    _session_etroite(client, db_session, "athletes:read")
+    assert call().status_code == 403

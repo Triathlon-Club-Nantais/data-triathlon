@@ -58,8 +58,15 @@
   `ON DELETE CASCADE`. Lu par la revue `multi_club` et par l'import. Une paire
   posée par l'import n'a pas d'auteur : `ignored_athlete_pairs.ignored_by_user_id`
   est nullable.
-- **Les trois seules tables en `ON DELETE CASCADE` vers `athletes.id`** sont
-  `athlete_aliases`, `athlete_known_clubs` et `ignored_athlete_pairs` : la suppression d'une fiche
+- **IgnoredIdentityCase** (#1252) : un cas de revue à une seule fiche
+  (`same_course_bibs`) qu'un admin a écarté, `UNIQUE(athlete_id, reason)`,
+  `athlete_id` en `ON DELETE CASCADE`. `fingerprint` retient les épreuves en
+  conflit jugées : une épreuve de plus rouvre le cas. Une fusion **ne le
+  reporte pas**, elle l'efface (`athlete_merge`) : la fiche conservée réunit
+  d'autres épreuves que celles jugées.
+- **Les quatre seules tables en `ON DELETE CASCADE` vers `athletes.id`** sont
+  `athlete_aliases`, `athlete_known_clubs`, `ignored_athlete_pairs` et
+  `ignored_identity_cases` : la suppression d'une fiche
   (purge d'orphelins, opposition, fusion) les emporte en PostgreSQL, mais
   **pas en SQLite**, où `database.py` n'émet aucun `PRAGMA foreign_keys=ON`.
   Les tests qui en dépendent passent par `db_session_fk`.

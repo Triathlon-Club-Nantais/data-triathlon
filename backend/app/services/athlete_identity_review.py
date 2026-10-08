@@ -18,6 +18,9 @@ sous le premier motif qui la retient) :
   (`recovery_would_merge`, Q3) ;
 - `alias_collision` : une fiche recréée sur une graphie qu'une fusion avait
   rattachée à une autre.
+
+Un cas `same_course_bibs` s'écarte à part (`ignored_identity_cases`, #1252) : il
+ne revient que si ses épreuves en conflit changent.
 """
 from collections import defaultdict
 from itertools import combinations
@@ -37,6 +40,7 @@ from app.repositories import (
     athlete_repository,
     club_alias_repository,
     ignored_athlete_pair_repository,
+    ignored_identity_case_repository,
     participation_repository,
 )
 from app.services import audit
@@ -104,6 +108,19 @@ def _unconfirmed_clubs(db: Session) -> dict[int, list[dict]]:
     return cases
 
 
+def _two_bibs_courses(db: Session) -> dict[int, list[int]]:
+    """Fiches du club à deux dossards sur une épreuve, et ces épreuves (triées)."""
+    courses_by_athlete: dict[int, list[int]] = defaultdict(list)
+    for athlete_id, course_id in athlete_repository.club_records_with_two_bibs_on_a_race(db):
+        courses_by_athlete[athlete_id].append(course_id)
+    return {athlete_id: sorted(courses) for athlete_id, courses in courses_by_athlete.items()}
+
+
+def _fingerprint(courses: list[int]) -> str:
+    """Les données jugées par une mise à l'écart : une épreuve de plus rouvre le cas."""
+    return ",".join(str(course_id) for course_id in courses)
+
+
 def _cases(db: Session) -> list[tuple[str, list[int], list[int], list[dict]]]:
     """`(motif, fiches, épreuves en conflit, clubs à vérifier)`, dans l'ordre stable de la liste."""
     ignored = ignored_athlete_pair_repository.all_pairs(db)
@@ -117,11 +134,10 @@ def _cases(db: Session) -> list[tuple[str, list[int], list[int], list[dict]]]:
         seen_pairs.add(pair)
         return True
 
-    courses_by_athlete: dict[int, list[int]] = defaultdict(list)
-    for athlete_id, course_id in athlete_repository.club_records_with_two_bibs_on_a_race(db):
-        courses_by_athlete[athlete_id].append(course_id)
-    for athlete_id, courses in courses_by_athlete.items():
-        cases.append((0, athlete_id, "same_course_bibs", [athlete_id], sorted(courses), []))
+    dismissed = ignored_identity_case_repository.fingerprints(db, "same_course_bibs")
+    for athlete_id, courses in _two_bibs_courses(db).items():
+        if dismissed.get(athlete_id) != _fingerprint(courses):
+            cases.append((0, athlete_id, "same_course_bibs", [athlete_id], courses, []))
 
     for athlete_id, clubs in _unconfirmed_clubs(db).items():
         cases.append((1, athlete_id, "multi_club", [athlete_id], [], clubs))
@@ -328,4 +344,51 @@ def unconfirm_club(db: Session, *, known_id: int, user_id: int) -> None:
     audit.record(
         db, user_id, action="athlete_identity.unconfirm_club", entity_type="athlete", entity_id=athlete_id,
         payload={"club_key": key},
+    )
+
+
+def dismiss_case(db: Session, *, athlete_id: int, reason: str, user_id: int) -> dict:
+    """Écarte un cas à une seule fiche, jugé faux positif, sans toucher aux résultats
+    (#1252). Seul `same_course_bibs` s'écarte ainsi : `multi_club` se règle par la
+    confirmation du club. `flush` sans commit."""
+    if athlete_repository.get(db, athlete_id) is None:
+        raise NotFoundError("Athlète introuvable.")
+    courses = _two_bibs_courses(db).get(athlete_id)
+    if courses is None:
+        raise DomainError("Cette fiche n'a pas de cas à écarter dans la revue.")
+    fingerprint = _fingerprint(courses)
+    known = ignored_identity_case_repository.find(db, athlete_id=athlete_id, reason=reason)
+    if known is not None and known.fingerprint == fingerprint:
+        raise DuplicateError("Ce cas est déjà écarté.")
+    case = ignored_identity_case_repository.save(
+        db, athlete_id=athlete_id, reason=reason, fingerprint=fingerprint, user_id=user_id
+    )
+    audit.record(
+        db, user_id, action="athlete_identity.dismiss", entity_type="athlete", entity_id=athlete_id,
+        payload={"reason": reason, "course_ids": courses},
+    )
+    return {"athlete_id": athlete_id, "reason": reason, "dismissed_at": case.ignored_at}
+
+
+def list_dismissed(db: Session) -> list[dict]:
+    """Les cas à une seule fiche écartés, pour les revoir (#1252)."""
+    return [
+        {
+            "id": case.id, "reason": case.reason, "reason_label": REASONS[case.reason],
+            "dismissed_at": case.ignored_at, "athlete": _named(athlete),
+        }
+        for case, athlete in ignored_identity_case_repository.list_with_athletes(db)
+    ]
+
+
+def undismiss_case(db: Session, *, case_id: int, user_id: int) -> None:
+    """Annule une mise à l'écart : le cas revient dans la revue s'il tient toujours."""
+    case = ignored_identity_case_repository.get(db, case_id)
+    if case is None:
+        raise NotFoundError("Ce cas n'est pas écarté.")
+    athlete_id, reason = case.athlete_id, case.reason
+    ignored_identity_case_repository.delete(db, case)
+    audit.record(
+        db, user_id, action="athlete_identity.undismiss", entity_type="athlete", entity_id=athlete_id,
+        payload={"reason": reason},
     )
