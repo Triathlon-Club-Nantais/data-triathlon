@@ -256,6 +256,29 @@ def test_a_parcours_published_with_an_indiv_twin_is_a_team_course(monkeypatch):
     ]
 
 
+def test_an_indiv_twin_without_spaces_around_the_dash_names_the_teammates(monkeypatch):
+    """#1253, Triathlon Sud Vendée 2026 : « Relais S » et son jumeau « Relais S-Indiv »."""
+    xml = _event_xml(
+        competitors=(
+            '<E d="1" n="LES MOUETTES" ca="EQX" v="1" p="Relais S"/>'
+            '<E d="1001" n="MARTIN Jean" x="M" ca="S4M" v="1001" c="LES MOUETTES" p="Relais S-Indiv"/>'
+            '<E d="1002" n="DURAND Anne" x="F" ca="S4F" v="1002" c="LES MOUETTES" p="Relais S-Indiv"/>'
+        ),
+        results='<R d="1" t="01:05:00"/>',
+    )
+    root = ET.fromstring(xml)
+    monkeypatch.setattr(
+        "app.scrapers.wiclax._fetch_clax",
+        lambda _url: (root, "http://x", "Triathlon Sud Vendée", "triathlon", None),
+    )
+
+    results = scrape_event_all("http://x")
+
+    assert [(r.event_name, r.is_relay, r.teammates) for r in results] == [
+        ("Triathlon Sud Vendée - Relais S", True, (("MARTIN", "Jean"), ("DURAND", "Anne"))),
+    ]
+
+
 def test_a_parcours_of_team_categories_is_a_team_course(monkeypatch):
     """Altichrono, lac du Bouchet 2026 : « SWIMRUN S » ne classe que des
     catégories d'équipe (EQX, EQF, EQM), sans mot d'équipe dans le parcours."""

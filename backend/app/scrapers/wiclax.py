@@ -681,6 +681,7 @@ def _iter_parcours_results(
 
 #: Catégories d'équipe, les mêmes que chez TimePulse : mixte, hommes, femmes.
 _TEAM_CATEGORIES = frozenset({"EQX", "EQM", "EQF"})
+_INDIV_SUFFIX = re.compile(r"\s*-\s*indiv$")
 
 
 def _mark_team_parcours(par_parcours: dict[str, list[ScrapedResult]], ordre: list[str]) -> None:
@@ -692,7 +693,8 @@ def _mark_team_parcours(par_parcours: dict[str, list[ScrapedResult]], ordre: lis
     - une majorité stricte de catégories d'équipe (lac du Bouchet 2026 sur
       altichrono, « SWIMRUN S » tout en EQX, EQF, EQM).
     """
-    jumeaux = {p.lower(): p for p in par_parcours}
+    # « Relais S-Indiv » (Sud Vendée 2026) comme « Tri-Kayak - Indiv » (#1253).
+    jumeaux = {_INDIV_SUFFIX.sub(" - indiv", p.lower()): p for p in par_parcours}
     for parcours, results in list(par_parcours.items()):
         if not parcours or parcours not in par_parcours:
             continue
