@@ -1021,7 +1021,7 @@ class _Persister:
                 ids = {found[key].id for key in keys if key in found}
                 if (
                     len(set(keys)) != len(keys)
-                    or reserved.intersection(keys) or present_ids & ids
+                    or reserved.intersection(keys) or present_ids & ids - self._own_athlete(course_id, item)
                     or not self._bibless_team_claimable(course_id, item, found, claimed_teams)
                 ):
                     teammates = None
@@ -1031,6 +1031,17 @@ class _Persister:
                     present_ids.update(ids)
             decisions.append(teammates)
         return decisions
+
+    def _own_athlete(self, course_id: int, item: _PendingResolution) -> set[int]:
+        """L'athlète que porte seule la ligne reprise : une épreuve importée en solo
+        rattache le duo à son premier équipier, qui n'est pas « déjà présent » (#1254)."""
+        existing = item.participation
+        if existing is None:
+            return set()
+        others = (p for p in self._participations[course_id] if p is not existing)
+        if any(p.athlete_id == existing.athlete_id for p in others):
+            return set()
+        return {existing.athlete_id}
 
     def _bibless_team_claimable(
         self, course_id: int, item: _PendingResolution,
