@@ -23,6 +23,7 @@ export const queryKeys = {
   // Sous le préfixe de la revue : écarter ou confirmer les rafraîchit aussi (#1243).
   ignoredIdentityPairs: () => ["identity-review", "ignored"] as const,
   confirmedIdentityClubs: () => ["identity-review", "confirmed-clubs"] as const,
+  dismissedIdentityCases: () => ["identity-review", "dismissed"] as const,
   // Préfixes de leurs listes, à dessein : voir `adminCoursesCount` (#1232).
   identityReviewCount: () => ["identity-review", "count"] as const,
   qualityQueueCount: () => ["admin-courses", "quality-queue-count"] as const,

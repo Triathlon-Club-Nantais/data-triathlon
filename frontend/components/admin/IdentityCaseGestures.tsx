@@ -10,7 +10,7 @@ export const IDENTITY_HELP_URL = "/admin/guide#identites";
 
 const REASON_HELP: Record<IdentityReviewReason, string> = {
   same_course_bibs:
-    "Deux dossards sur une même épreuve : ce sont deux personnes sous une même fiche. Séparez les résultats de l'autre vers une nouvelle fiche, rattachez-les à sa fiche existante, ou supprimez un doublon.",
+    "Deux dossards sur une même épreuve : ce sont deux personnes sous une même fiche. Séparez les résultats de l'autre vers une nouvelle fiche, rattachez-les à sa fiche existante, ou supprimez un doublon. Deux dossards légitimes (relais et épreuve individuelle) : écartez le cas.",
   multi_club:
     "Un autre club que le sien apparaît sur cette fiche. Même personne qui a changé de club : confirmez ce club. Un homonyme : séparez ses résultats vers une nouvelle fiche.",
   club_homonym: "Deux fiches du même nom, dont une du club. Même personne : fusionnez. Deux personnes : écartez la paire.",

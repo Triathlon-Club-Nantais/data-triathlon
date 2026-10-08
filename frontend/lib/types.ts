@@ -1163,6 +1163,15 @@ export interface IgnoredIdentityPair {
   athletes: { id: number; nom: string; prenom: string }[];
 }
 
+/** Un cas à une seule fiche écarté de la revue (#1252). */
+export interface DismissedIdentityCase {
+  id: number;
+  reason: IdentityReviewReason;
+  reason_label: string;
+  dismissed_at: string;
+  athlete: { id: number; nom: string; prenom: string };
+}
+
 export interface ConfirmedIdentityClub {
   id: number;
   athlete_id: number;

@@ -10,7 +10,12 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { MergeAthletesDialog, nomDe } from "@/components/admin/MergeAthletesDialog";
 import { ReasonHelp, RecordGestures, ResultGestures } from "@/components/admin/IdentityCaseGestures";
-import { useConfirmIdentityClub, useIdentityReview, useIgnoreIdentityPair } from "@/lib/queries/admin";
+import {
+  useConfirmIdentityClub,
+  useDismissIdentityCase,
+  useIdentityReview,
+  useIgnoreIdentityPair,
+} from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
@@ -131,10 +136,36 @@ function CarteCas({
 }) {
   const [fusionOuverte, setFusionOuverte] = useState(false);
   const ecarter = useIgnoreIdentityPair();
+  const ecarterLeCas = useDismissIdentityCase();
   const confirmer = useDangerConfirm();
   const [ficheA, ficheB] = candidate.athletes;
   const paire = ficheB !== undefined;
   const noms = candidate.athletes.map(nomDe).join(" et ");
+  // Un faux positif à une fiche (relais et individuel sur une même épreuve) n'a
+  // pas de seconde fiche : il s'écarte seul (#1252). `multi_club` se règle par
+  // la confirmation du club.
+  const casEcartable = candidate.reason === "same_course_bibs";
+
+  /** Geste neutre (#499) : les deux résultats restent, le cas sort de la liste. */
+  async function ecarterCeCas() {
+    if (
+      !(await confirmer({
+        titre: "Écarter ce cas ?",
+        description:
+          "Ces dossards sont légitimes : le cas sort de cette liste, et n'y revient que si une autre épreuve entre en conflit. Aucun résultat n'est modifié.",
+        libelleAction: "Écarter",
+        actionNeutre: true,
+      }))
+    ) {
+      return;
+    }
+    try {
+      await ecarterLeCas.mutateAsync(ficheA.id);
+      toast.success("Cas écarté : il ne reviendra que si ses épreuves en conflit changent.");
+    } catch (erreur) {
+      toast.error((erreur as Error).message);
+    }
+  }
 
   /** Geste neutre (#499) : rien n'est détruit, une suggestion sort de la liste. */
   async function ecarterLaPaire() {
@@ -194,6 +225,18 @@ function CarteCas({
                 )}
               </div>
             )}
+            {casEcartable && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="min-h-11"
+                onClick={ecarterCeCas}
+                disabled={ecarterLeCas.isPending}
+                aria-label={`Écarter le cas de ${noms}`}
+              >
+                {ecarterLeCas.isPending ? "Mise à l'écart…" : "Écarter"}
+              </Button>
+            )}
           </div>
           <div className="space-y-1">
             {candidate.athletes.map((fiche) => (
@@ -223,9 +266,10 @@ function CarteCas({
  * Lecture et écart derrière `athletes:write`. La fusion demande en plus
  * `athletes:read` (l'aperçu montre des fiches gardées) : sans lui, le bouton
  * n'est pas offert plutôt que de finir en 403 (gardes d'écriture,
- * `frontend/AGENTS.md`). Un cas à une seule fiche ne s'écarte pas : il se règle
- * par séparation, rattachement ou suppression, depuis la carte (#1241,
- * `IdentityCaseGestures`), chaque geste sous ses propres pouvoirs.
+ * `frontend/AGENTS.md`). Un cas à une seule fiche se règle par séparation,
+ * rattachement ou suppression, depuis la carte (#1241, `IdentityCaseGestures`),
+ * chaque geste sous ses propres pouvoirs ; un faux positif `same_course_bibs`
+ * s'écarte aussi (#1252).
  */
 export function AthleteIdentityReviewTable() {
   const { data, isLoading, error } = useIdentityReview();

@@ -10,6 +10,8 @@ const api = vi.hoisted(() => ({
   unignoreIdentityPair: vi.fn(),
   listConfirmedIdentityClubs: vi.fn(),
   unconfirmIdentityClub: vi.fn(),
+  listDismissedIdentityCases: vi.fn(),
+  undismissIdentityCase: vi.fn(),
   listIgnoredCourseDuplicates: vi.fn(),
   unignoreCourseDuplicate: vi.fn(),
   toastSuccess: vi.fn(),
@@ -54,6 +56,14 @@ beforeEach(() => {
       {
         id: 3, athlete_id: 5, nom: "MARTIN", prenom: "Thomas",
         club_key: "vendometriathlon", club: "Vendôme Triathlon", confirmed_at: "2026-10-07T09:00:00",
+      },
+    ],
+  });
+  api.listDismissedIdentityCases.mockResolvedValue({
+    cases: [
+      {
+        id: 4, reason: "same_course_bibs", reason_label: "Deux dossards sur une même épreuve",
+        dismissed_at: "2026-10-08T09:00:00", athlete: { id: 6, nom: "LEROY", prenom: "Anne" },
       },
     ],
   });
@@ -144,6 +154,18 @@ describe("IdentityArbitrations", () => {
     );
 
     expect(api.unconfirmIdentityClub).toHaveBeenCalledWith(3);
+  });
+
+  it("annule la mise à l'écart d'un cas à une fiche (#1252)", async () => {
+    api.undismissIdentityCase.mockResolvedValue(undefined);
+    renderWithProviders(<IdentityArbitrations />);
+    await userEvent.click(await screen.findByText("Cas écartés (1)"));
+
+    const row = screen.getByText(/LEROY Anne/).closest("li")!;
+    expect(within(row).getByText(/Deux dossards sur une même épreuve/)).toBeInTheDocument();
+    await userEvent.click(within(row).getByRole("button", { name: "Annuler la mise à l'écart du cas de LEROY Anne" }));
+
+    expect(api.undismissIdentityCase).toHaveBeenCalledWith(4);
   });
 
   it("dit l'échec d'une annulation", async () => {

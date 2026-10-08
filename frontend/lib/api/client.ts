@@ -5,6 +5,7 @@ import type {
   AthleteAliasList,
   AthleteMergeImpact,
   ConfirmedIdentityClub,
+  DismissedIdentityCase,
   IgnoredCourseDuplicate,
   IgnoredIdentityPair,
   IdentityClubConfirmResult,
@@ -482,6 +483,15 @@ export const apiClient = {
       method: "POST",
       body: JSON.stringify({ athlete_id: athleteId, club_key: clubKey }),
     }),
+  dismissIdentityCase: (athleteId: number, reason: "same_course_bibs") =>
+    request<{ athlete_id: number; reason: string; dismissed_at: string }>("/admin/identity-review/dismiss", {
+      method: "POST",
+      body: JSON.stringify({ athlete_id: athleteId, reason }),
+    }),
+  listDismissedIdentityCases: () =>
+    request<{ cases: DismissedIdentityCase[] }>("/admin/identity-review/dismissed"),
+  undismissIdentityCase: (caseId: number) =>
+    request<void>(`/admin/identity-review/dismissed/${caseId}`, { method: "DELETE" }),
   listIgnoredIdentityPairs: () =>
     request<{ pairs: IgnoredIdentityPair[] }>("/admin/identity-review/ignored"),
   unignoreIdentityPair: (pairId: number) =>
