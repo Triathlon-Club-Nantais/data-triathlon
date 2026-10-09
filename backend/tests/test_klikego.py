@@ -2505,3 +2505,45 @@ def test_scrape_event_fanout_surfaces_a_network_failure_of_the_event_page(monkey
 
     with pytest.raises(httpx.HTTPError):
         klikego.scrape_event_fanout("1677015306084-12", "Mesquer", "mesquer-2026")
+
+
+# ── _mark_duo_heat — un heat de duos que son nom ne désigne pas (#1263) ──────
+
+
+def _row(label: str) -> ScrapedResult:
+    r = ScrapedResult(source_url="https://x", provider="klikego")
+    r.athlete_name = label
+    return r
+
+
+def test_mark_duo_heat_types_a_majority_of_duo_labels_as_relay():
+    """« Format M », « Swimrun S » : presque toutes les lignes sont des duos (#1263)."""
+    from app.services.import_persistence import _proposed_teammates
+
+    results = [
+        _row("DUPONT JEAN/MARTIN PAUL ."),
+        _row("LEROY ANNE/MOREAU CLAIRE ."),
+        _row("DURAND LUC"),
+    ]
+
+    klikego._mark_duo_heat(results)
+
+    assert all(r.is_relay for r in results)
+    assert _proposed_teammates(results[0]) == (("DUPONT", "JEAN"), ("MARTIN", "PAUL"))
+
+
+def test_mark_duo_heat_leaves_isolated_duo_labels_individual():
+    """297, 298, 694 : une épreuve individuelle avec un libellé « / » isolé."""
+    results = [_row("DUPONT JEAN/MARTIN PAUL ."), _row("DURAND LUC"), _row("PETIT MARC")]
+
+    klikego._mark_duo_heat(results)
+
+    assert not any(r.is_relay for r in results)
+
+
+def test_mark_duo_heat_needs_a_strict_majority():
+    results = [_row("DUPONT JEAN/MARTIN PAUL ."), _row("DURAND LUC")]
+
+    klikego._mark_duo_heat(results)
+
+    assert not any(r.is_relay for r in results)
