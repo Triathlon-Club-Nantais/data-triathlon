@@ -314,7 +314,9 @@ def split_relay_teammates(published: str) -> list[tuple[str, str]] | None:
             return None
         teammates = list(zip(name_items, firstname_items, strict=True))
     else:
-        teammates = [_relay_segment(segment) for segment in value.split("/")]
+        teammates = _names_first_duo(tokens) or [
+            _relay_segment(segment) for segment in value.split("/")
+        ]
         if None in teammates:
             return None
     if not MIN_RELAY_TEAMMATES <= len(teammates) <= MAX_RELAY_TEAMMATES:
@@ -325,6 +327,20 @@ def split_relay_teammates(published: str) -> list[tuple[str, str]] | None:
     if len(keys) != len(teammates):
         return None
     return teammates
+
+
+def _names_first_duo(tokens: list[str]) -> list[tuple[str, str]] | None:
+    """Klikego « NOM1 / NOM2 PRÉNOM1 / PRÉNOM2 » (#1270), whose `_` stands for a space.
+
+    Only this exact shape: one word per name and first name keeps the split unambiguous.
+    """
+    if len(tokens) != 6 or tokens[1] != "/" or tokens[4] != "/":
+        return None
+    words = [tokens[i] for i in (0, 2, 3, 5)]
+    if not all(word.isupper() and "/" not in word for word in words):
+        return None
+    name1, name2, firstname1, firstname2 = (word.replace("_", " ") for word in words)
+    return [(name1, firstname1), (name2, firstname2)]
 
 
 def _relay_segment(segment: str) -> tuple[str, str] | None:
