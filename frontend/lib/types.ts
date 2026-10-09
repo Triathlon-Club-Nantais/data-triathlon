@@ -759,6 +759,12 @@ export interface CourseDetail {
   page: number;
   /** `null` quand tout le classement a été demandé (`page_size=all`). */
   page_size: number | null;
+  /**
+   * Résultats en attente de validation (#1273), aux filtres du classement, hors
+   * de `participations` et de `total` : ils ne comptent nulle part. Rendus en
+   * entier à chaque page ; l'écran les place après le dernier résultat validé.
+   */
+  pending_participations?: Participation[];
 }
 
 /** Paramètres de lecture d'un classement d'épreuve (#163). */
