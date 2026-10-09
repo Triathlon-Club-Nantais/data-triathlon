@@ -87,4 +87,18 @@ describe("RecentCourses", () => {
 
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
+
+  it("dit « 1 résultat en attente » au lieu de 0 pour une épreuve sans résultat validé (#1273)", () => {
+    render(<RecentCourses events={[{ ...EVENT, total: 0, tcn_count: 0, pending_count: 1 }]} />);
+
+    expect(screen.getByText("1 résultat en attente")).toBeInTheDocument();
+    expect(screen.queryByText("0")).not.toBeInTheDocument();
+  });
+
+  it("garde le compte d'une épreuve qui a des résultats validés (#1273)", () => {
+    render(<RecentCourses events={[{ ...EVENT, pending_count: 1 }]} />);
+
+    expect(screen.getByText("30")).toBeInTheDocument();
+    expect(screen.queryByText(/en attente/)).not.toBeInTheDocument();
+  });
 });

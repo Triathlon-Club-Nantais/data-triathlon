@@ -7,7 +7,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TcnScrapeForm } from "@/components/scrape/TcnScrapeForm";
 import { formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
-import { formatEventName } from "@/lib/utils/event";
+import { formatEventName, pendingOnlyLabel } from "@/lib/utils/event";
+import type { EventOut } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Ajouter une épreuve" };
 
@@ -19,7 +20,10 @@ const RCOLS = "140px 1fr 90px 130px";
  * (#461, leçon de la tâche 5 : une carte sans membre du club ne rendait
  * rien là où la grille rendait un tiret).
  */
-function compteurClub(tcnCount: number) {
+function compteurClub({ tcn_count: tcnCount, total, pending_count }: EventOut) {
+  // Une épreuve qui n'a que des résultats en attente le dit, plutôt qu'un tiret (#1273).
+  const attente = pendingOnlyLabel(total, pending_count);
+  if (attente) return <span style={{ color: "var(--tcn-text-muted)", fontSize: 13 }}>{attente}</span>;
   return tcnCount > 0 ? (
     <Badge count>{tcnCount}</Badge>
   ) : (
@@ -90,7 +94,7 @@ export default async function AjouterPage() {
                       <Link href={`/courses/${e.id}`} className="tcn-rowlink__cible">{formatEventName(e.event_name, e.is_relay)}</Link>
                     </td>
                     <td role="cell"><FormatChip>{formatToken(e.event_type, e.distance_km)}</FormatChip></td>
-                    <td role="cell">{compteurClub(e.tcn_count)}</td>
+                    <td role="cell">{compteurClub(e)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -117,7 +121,7 @@ export default async function AjouterPage() {
                 href={`/courses/${e.id}`}
                 surtitre={formatDate(e.event_date)}
                 titre={formatEventName(e.event_name, e.is_relay)}
-                valeur={compteurClub(e.tcn_count)}
+                valeur={compteurClub(e)}
                 meta={<FormatChip>{formatToken(e.event_type, e.distance_km)}</FormatChip>}
               />
             ))

@@ -175,6 +175,8 @@ export interface EventOut {
   distance_km?: number | null;
   total: number;
   tcn_count: number;
+  // Résultats en attente de validation (#1273), jamais comptés dans `total`.
+  pending_count?: number;
   // Miroir des deux champs de `CourseBrief` : sans eux, la liste ne peut pas
   // marquer ce qu'elle liste sans un second appel (#486). `null` = épreuve
   // jamais évaluée, état normal des imports antérieurs au calcul.

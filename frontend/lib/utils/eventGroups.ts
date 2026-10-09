@@ -6,6 +6,8 @@ export interface EventGroup {
   events: EventOut[];
   total: number;
   tcnCount: number;
+  // Résultats en attente des épreuves du groupe (#1273), à part de `total`.
+  pendingCount: number;
 }
 
 /** Compétition parente d'une épreuve : ce qui précède le premier « - ». */
@@ -51,8 +53,15 @@ export function groupEventsByCompetition(events: EventOut[]): EventGroup[] {
       last.events.push(event);
       last.total += event.total;
       last.tcnCount += event.tcn_count;
+      last.pendingCount += event.pending_count ?? 0;
     } else {
-      groups.push({ prefix, events: [event], total: event.total, tcnCount: event.tcn_count });
+      groups.push({
+        prefix,
+        events: [event],
+        total: event.total,
+        tcnCount: event.tcn_count,
+        pendingCount: event.pending_count ?? 0,
+      });
     }
   }
   return groups;

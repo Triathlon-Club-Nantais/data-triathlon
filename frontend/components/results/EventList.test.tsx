@@ -815,6 +815,67 @@ describe("rendu carte sous md", () => {
     };
   }
 
+  it("dit « 1 résultat en attente » au lieu de 0 résultat, grille et cartes (#1273)", () => {
+    setEvents({
+      data: {
+        pages: [
+          {
+            items: [epreuve({ total: 0, tcn_count: 0, pending_count: 1 })],
+            total_events: 1,
+            total_participations: 0,
+          },
+        ],
+      },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+    renderList();
+
+    expect(within(screen.getByTestId("epreuves-grille")).getByText("1 résultat en attente")).toBeInTheDocument();
+    expect(screen.queryByText("0 résultat")).not.toBeInTheDocument();
+    expect(cartes().texte("1 résultat en attente")).toBeTruthy();
+  });
+
+  it("garde le compte validé d'une épreuve mixte, sans mention d'attente (#1273)", () => {
+    setEvents({
+      data: { pages: [{ items: [epreuve({ pending_count: 2 })], total_events: 1, total_participations: 148 }] },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+    renderList();
+
+    expect(within(screen.getByTestId("epreuves-grille")).getByText("148 résultats")).toBeInTheDocument();
+    expect(screen.queryByText(/en attente/)).not.toBeInTheDocument();
+  });
+
+  it("dit l'attente sur la ligne d'une compétition dont aucune épreuve n'a de résultat validé (#1273)", () => {
+    setEvents({
+      data: {
+        pages: [
+          {
+            items: [
+              epreuve({ id: 1, event_name: "Coupe - Sprint", total: 0, tcn_count: 0, pending_count: 1 }),
+              epreuve({ id: 2, event_name: "Coupe - Olympique", total: 0, tcn_count: 0, pending_count: 1 }),
+            ],
+            total_events: 2,
+            total_participations: 0,
+          },
+        ],
+      },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+    renderList();
+
+    expect(within(screen.getByTestId("epreuves-grille")).getByText("2 résultats en attente")).toBeInTheDocument();
+  });
+
   it("bascule la grille et les cartes aux seuils annoncés", () => {
     setEvents({
       data: { pages: [{ items: [epreuve({})], total_events: 1, total_participations: 148 }] },
