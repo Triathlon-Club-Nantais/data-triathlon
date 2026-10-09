@@ -179,7 +179,7 @@ export const PRIVACY_POLICY: LegalDocument = {
               ["Render Services, Inc.", "Hébergement du serveur de données", "Francfort (Allemagne)"],
               ["Microsoft Ireland Operations Ltd (Azure)", "Base de données", "France"],
               ["Supabase Inc.", "Base de données de test, avant mise en ligne", "Non précisé par le prestataire"],
-              ["GitHub, Inc.", "Connexion au back-office, mises à jour planifiées des résultats", "États-Unis"],
+              ["GitHub, Inc.", "Connexion au back-office, mises à jour des résultats et nettoyages planifiés de la base", "États-Unis"],
               ["PostHog Inc.", "Mesure d'audience", "Union européenne"],
             ]}
           />

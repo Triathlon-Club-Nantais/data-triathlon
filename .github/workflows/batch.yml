@@ -1,11 +1,11 @@
 # Batches de production — re-scrape de la base, ou import d'une liste d'URL.
 #
-# Hors mode `urls`, trois étapes précèdent le batch : la purge de rétention, la
-# relecture des licenciés du club sur la page FFTri (`sync-club-members`,
-# #1202), puis le balayage des athlètes orphelins (`purge-orphans`, #1271), ces
-# deux dernières sautées en dry-run. Une étape en échec rougit le run sans
-# priver la base des suivantes. La planification hebdomadaire n'exécute **que**
-# ces trois étapes (#1271) : la reprise et le géocodage ne se lancent qu'à la main.
+# Hors mode `urls`, deux étapes précèdent le batch : la purge de rétention, puis
+# la relecture des licenciés du club sur la page FFTri (`sync-club-members`,
+# #1202, sautée en dry-run). Une étape en échec rougit le run sans priver la
+# base des suivantes. La planification hebdomadaire n'exécute **que** ces deux
+# étapes et le balayage des athlètes orphelins (`purge-orphans`, #1271), propre
+# à elle : la reprise et le géocodage ne se lancent qu'à la main.
 #
 # Ce workflow n'est pas de l'intégration continue : il détient la base de
 # **production** et exécute ce que l'interface d'administration lui demande
@@ -110,8 +110,9 @@ jobs:
       id-token: write
       contents: read
     # Sans cette borne, une exécution coincée gèlerait tout nouveau lancement
-    # six heures durant (défaut de la plateforme). Une reprise complète tient
-    # très largement dans deux heures.
+    # six heures durant (défaut de la plateforme). Une reprise manuelle complète
+    # peut atteindre la borne (run du 2026-09-25) et finit alors en rouge : la
+    # borner par `provider`, `older_than` ou `limit`.
     timeout-minutes: 120
     # Un environment par base — `batch-preview` ou `batch-production` —, chacun
     # portant son `DATABASE_URL`. C'est lui, et lui seul, qui décide de la base
@@ -258,11 +259,12 @@ jobs:
       # Athlètes orphelins (#1271) : fiches vidées par une réassignation de dossard
       # (import web d'une épreuve déjà en base). Ce balayage ne tournait qu'en fin
       # de `rescrape-db`, que la planification ne lance plus : il a donc sa propre
-      # étape. Mêmes conditions que la relecture des licenciés ; une reprise
-      # manuelle le refait en fin de batch, sans dommage.
+      # étape, sur la seule planification. Un lancement manuel reste inchangé :
+      # sa reprise balaie déjà en fin de batch. Un échec d'une étape précédente
+      # ne prive pas la base de ce balayage.
       - name: Purge orphan athletes
         id: orphans
-        if: ${{ !cancelled() && (success() || steps.purge.outcome == 'failure' || steps.members.outcome == 'failure') && inputs.mode != 'urls' && inputs.dry_run != true }}
+        if: ${{ !cancelled() && github.event_name == 'schedule' && (success() || steps.purge.outcome == 'failure' || steps.members.outcome == 'failure') }}
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
@@ -341,7 +343,7 @@ jobs:
 
       # `always()` : un échec total (code 1) est un résultat, pas une panne — son
       # bilan est précisément ce qu'on vient lire. Rien sur la planification, qui
-      # ne lance pas de batch (#1271) : les trois étapes précédentes ont leur résumé.
+      # ne lance pas de batch (#1271) : les étapes précédentes ont leur résumé.
       - name: Write summary
         if: always() && github.event_name != 'schedule'
         run: |

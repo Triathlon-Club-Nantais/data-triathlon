@@ -132,8 +132,10 @@ def test_the_weekly_purges_and_members_sync_are_still_scheduled(workflow):
     declencheurs = workflow.get("on") or workflow[True]
     assert declencheurs["schedule"], "la planification hebdomadaire a disparu"
     steps = {step.get("id"): step for job in _step_jobs(workflow) for step in job["steps"]}
-    for step_id in ("purge", "members", "orphans"):
+    for step_id in ("purge", "members"):
         assert "schedule" not in steps[step_id].get("if", ""), step_id
+    # Planification seule : une reprise manuelle balaie déjà en fin de `rescrape-db`.
+    assert "github.event_name == 'schedule'" in steps["orphans"]["if"]
     assert "app.cli purge-orphans" in steps["orphans"]["run"]
 
 
