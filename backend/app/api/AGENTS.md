@@ -22,8 +22,8 @@ Deux paramètres traversent l'API de lecture, sur le même patron que `seasons` 
 
 Un résultat créé par `POST /participations` porte `is_pending_validation=True`
 (forcé par la route, jamais par le client) et reste invisible de tout agrégat
-public jusqu'à ce qu'un bénévole le valide — sa seule surface d'affichage est
-la fiche de son athlète (FR-019). **Aucun paramètre pour lever l'exclusion** :
+public jusqu'à ce qu'un bénévole le valide. Il s'affiche sur
+la fiche de son athlète (FR-019) et, depuis #1273, sur son épreuve (voir plus bas). **Aucun paramètre pour lever l'exclusion** :
 contrairement à `scope`/`federal_only`, ce n'est pas une préférence
 d'affichage mais un invariant d'intégrité, et le Principe V est en violation
 assumée sur ce point (justifiée dans `plan.md` §Complexity Tracking de la
@@ -69,6 +69,27 @@ participation pendante + une validée, assertion par fonction publique) dans
 `_apply_filters` est un helper partagé par trois fonctions publiques, qu'un
 lecteur d'appels statique attribuerait mal, et la règle traverse trois
 fichiers différents.
+
+**Affichées, jamais comptées (#1273).** L'exclusion vaut pour les **comptes** ;
+l'affichage a deux surfaces de plus que la fiche d'athlète, toutes deux sous
+`core/validation.awaiting_validation_clause` (en attente **et** non refusé) :
+
+- `GET /courses/{id}` rend `pending_participations`, lu par
+  `participation_repository.list_pending_for_course` : mêmes filtres que le
+  classement (`_course_rows`), triés par nom, hors de `participations` et de
+  `total`, rendus en entier à chaque page. L'écran les place en fin de
+  dernière page, sans rang ni écart.
+- `events_page` (`GET /courses/events`) liste aussi une épreuve qui n'a que
+  des résultats en attente, avec `pending_count`. Ses comptes passent en
+  `SUM(CASE validated_clause)` sur le chemin groupé ; le chemin rapide (#623)
+  lit `pending_count` en sous-requête corrélée à l'épreuve, sans jointure.
+  `total_events` compte les épreuves listées. `events_with_counts` (carte,
+  stats) n'est pas touchée.
+
+Une ligne refusée n'apparaît nulle part. Preuve : un test par compte, avant et
+après l'ajout d'une ligne en attente, dans
+`tests/test_api/test_course_pending_rows.py`. Spec :
+`specs/20261009-162149-pending-results-on-course/`.
 
 ## Classement d'une épreuve : paginé, et l'ordre est en base (#163)
 

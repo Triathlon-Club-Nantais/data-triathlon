@@ -180,8 +180,8 @@
   stats, classement, synthèse, saisons distinctes ; `course_repository.py` :
   catalogue en portée club ; `athlete_repository.py` : activité par saison,
   recherche de la palette ⌘K — détail dans `app/api/AGENTS.md`) et
-  délibérément absente de `list_for_athlete` — seule surface qui doit montrer
-  une participation pendante (FR-019).
+  délibérément absente de `list_for_athlete`, qui doit montrer
+  une participation pendante (FR-019) ; la page épreuve la lit à part (#1273).
   **Piège mesuré** : `server_default="false"` (chaîne) sur SQLite se relit
   `True` via l'ORM — une chaîne non vide est vraie en Python. `is_relay`
   ci-dessous en porte le même défaut, non corrigé (hors périmètre de #270) ;
