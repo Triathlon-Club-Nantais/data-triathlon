@@ -17,6 +17,7 @@ const {
   searchAthletesBenevole,
   updateParticipationFieldsBenevole,
   getValidationQueueHistory,
+  getSession,
 } = vi.hoisted(() => ({
   getBenevoleQueue: vi.fn(),
   getBenevoleRejected: vi.fn(),
@@ -30,6 +31,7 @@ const {
   // Toujours en attente : ValidationBacklogChart (US13, #466) est secondaire à
   // cette page, cette suite n'a pas à en asserter le contenu.
   getValidationQueueHistory: vi.fn(() => new Promise(() => {})),
+  getSession: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -47,6 +49,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       searchAthletesBenevole,
       updateParticipationFieldsBenevole,
       getValidationQueueHistory,
+      getSession,
     },
   };
 });
@@ -255,6 +258,46 @@ describe("BenevolesPage", () => {
     expect(await screen.findByLabelText(/mot de passe/i)).toBeInTheDocument();
     expect(benevoleLogout).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  describe("SSO user holding benevole_access:manage (#1272)", () => {
+    function signedInWith(permissions: string[]) {
+      document.cookie = "tcn_logged_in=1; path=/";
+      getSession.mockResolvedValue({
+        id: 7,
+        email: "admin@exemple.fr",
+        display_name: "Admin",
+        created_at: "2026-10-09T00:00:00Z",
+        permissions,
+        roles: [],
+        groups: [],
+        can_administer: true,
+      });
+    }
+
+    afterEach(() => {
+      document.cookie = "tcn_logged_in=; path=/; max-age=0";
+    });
+
+    it("shows the queue without the logout button", async () => {
+      signedInWith(["benevole_access:manage"]);
+      renderPage();
+
+      expect(await screen.findByText("Coureur1 HERRMANN")).toBeInTheDocument();
+      await waitFor(() => expect(getSession).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(screen.queryByRole("button", { name: /se déconnecter/i })).not.toBeInTheDocument(),
+      );
+      expect(screen.queryByLabelText(/mot de passe/i)).not.toBeInTheDocument();
+    });
+
+    it("keeps the logout button for a signed-in user without the power", async () => {
+      signedInWith(["site_access:manage"]);
+      renderPage();
+
+      await waitFor(() => expect(getSession).toHaveBeenCalled());
+      expect(await screen.findByRole("button", { name: /se déconnecter/i })).toBeInTheDocument();
+    });
   });
 
   it("affiche directement la file quand la session est déjà valide", async () => {
