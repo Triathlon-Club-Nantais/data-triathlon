@@ -2892,6 +2892,46 @@ def test_redate_skips_a_date_whose_identity_is_already_taken(db_session, patch_s
     assert course.event_date == date(2026, 5, 13)
 
 
+def test_rescrape_turns_a_reconciled_course_into_a_relay(db_session, patch_scraper):
+    # #1263 : un heat de duos importé en solo, que la règle R retrouve sans
+    # jamais réécrire son `is_relay`.
+    course = _imported_heat(db_session, patch_scraper, date(2026, 5, 13))
+
+    _import_heat(db_session, patch_scraper, event_date=date(2026, 5, 13), is_relay=True)
+
+    assert db_session.query(Course.id, Course.is_relay).all() == [(course.id, True)]
+
+
+def test_relay_rescrape_skips_an_identity_already_taken(db_session, patch_scraper):
+    course = _imported_heat(db_session, patch_scraper, date(2026, 5, 13))
+    course_repository.get_or_create(
+        db_session, name=course.name, event_date=course.event_date,
+        event_type=course.event_type, source_url="https://www.klikego.com/autre",
+        provider="klikego", is_relay=True,
+    )
+    db_session.commit()
+
+    _import_heat(db_session, patch_scraper, event_date=date(2026, 5, 13), is_relay=True)
+
+    assert course.is_relay is False
+
+
+def test_relay_rescrape_keeps_an_admin_identity_correction(db_session, patch_scraper):
+    from app.repositories import admin_action_log_repository, user_repository
+
+    course = _imported_heat(db_session, patch_scraper, date(2026, 5, 13))
+    admin = user_repository.create(db_session, email="admin@exemple.fr", display_name="Admin")
+    admin_action_log_repository.create(
+        db_session, user_id=admin.id, action="course.update", entity_type="course",
+        entity_id=course.id, payload={},
+    )
+    db_session.commit()
+
+    _import_heat(db_session, patch_scraper, event_date=date(2026, 5, 13), is_relay=True)
+
+    assert course.is_relay is False
+
+
 # ── Aucune transaction de lecture tenue pendant le scrape (#1015) ────────────
 
 

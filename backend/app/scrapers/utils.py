@@ -296,7 +296,8 @@ def split_relay_teammates(published: str) -> list[tuple[str, str]] | None:
 
     All or nothing: `None` as soon as one teammate lacks an unambiguous name and
     first name. Rule and measured examples: `specs/20260925-130402-relay-name-split/
-    contracts/relay-teammates-rule.md`. Callers only pass relay lines (#63).
+    contracts/relay-teammates-rule.md`. The import only splits relay lines (#63);
+    Klikego also counts splittable lines to type a duo heat as relay (#1263).
     """
     # Le « . » isolé est un artefact klikego, jamais un nom.
     tokens = [token for token in published.split() if token.strip(".")]
