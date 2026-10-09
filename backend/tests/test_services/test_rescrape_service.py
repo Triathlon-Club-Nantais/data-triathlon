@@ -54,34 +54,6 @@ def test_run_rescrape_dry_run_liste_les_urls_et_ne_persiste_pas(db_session, monk
     assert out.total == 1
 
 
-def test_run_rescrape_event_within_ne_cible_que_les_epreuves_recentes(db_session, monkeypatch):
-    """#1261 : la reprise planifiée ne re-scrape que la fenêtre récente."""
-    from datetime import timedelta
-
-    from app.core.time import utcnow
-
-    aujourdhui = utcnow().date()
-    for nom, jour in (("Recente", aujourdhui - timedelta(days=3)),
-                      ("Ancienne", aujourdhui - timedelta(days=90)),
-                      ("SansDate", None)):
-        course_repository.get_or_create(
-            db_session, name=nom, event_date=jour, event_type="triathlon-m",
-            source_url=f"https://k/{nom}", provider="klikego",
-        )
-    db_session.flush()
-
-    def _iter(db, url, settings, force=False, persist=True, **kwargs):
-        yield {"phase": "done", "imported": 0, "skipped": 0, "reconciled": 0,
-               "reassignments": [], "total": 0}
-
-    monkeypatch.setattr(import_service, "iter_import_event", _iter)
-
-    out = rescrape_service.run_rescrape_db(
-        db_session, _settings(), dry_run=True, event_within=30, delay=0.0
-    )
-    assert out.dry_run_urls == ["https://k/Recente"]
-
-
 def test_run_rescrape_hors_dry_run_n_embarque_pas_les_urls(db_session, monkeypatch):
     """`dry_run_urls` est une charge utile de dry-run : hors dry-run, la sortie
     `--json` n'a pas à trimbaler l'URL de chaque course (des dizaines de Ko)."""

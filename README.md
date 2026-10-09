@@ -234,7 +234,7 @@ Trois voies, une seule exécution en aval :
 |------|----|----------|
 | Écran `/admin/batches` | back-office | pouvoir `batch:run` |
 | Onglet **Actions** → *Batch* → **Run workflow** | GitHub | droits d'écriture sur le dépôt |
-| Planification hebdomadaire (lundi 3 h UTC) | automatique | — |
+| Planification hebdomadaire (lundi 3 h UTC) : purge de rétention, licenciés FFTri et athlètes orphelins, **sans** reprise ni géocodage (#1271) | automatique | — |
 
 Depuis l'écran, deux façons de composer la liste d'épreuves : un **filtre** sur la base (fournisseur, ancienneté, nombre maximum), ou le **téléversement d'un fichier** `.csv`/`.xlsx` dont on désigne la colonne portant les liens de résultats — ce qui remplace l'import du Google Sheet. Le fichier n'est jamais stocké côté serveur.
 

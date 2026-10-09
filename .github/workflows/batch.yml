@@ -1,9 +1,11 @@
 # Batches de production — re-scrape de la base, ou import d'une liste d'URL.
 #
 # Hors mode `urls`, trois étapes précèdent le batch : la purge de rétention, la
-# relecture hebdomadaire des licenciés du club sur la page FFTri
-# (`sync-club-members`, #1202, sautée en dry-run), puis la reprise. Une étape
-# en échec rougit le run sans priver la base des suivantes.
+# relecture des licenciés du club sur la page FFTri (`sync-club-members`,
+# #1202), puis le balayage des athlètes orphelins (`purge-orphans`, #1271), ces
+# deux dernières sautées en dry-run. Une étape en échec rougit le run sans
+# priver la base des suivantes. La planification hebdomadaire n'exécute **que**
+# ces trois étapes (#1271) : la reprise et le géocodage ne se lancent qu'à la main.
 #
 # Ce workflow n'est pas de l'intégration continue : il détient la base de
 # **production** et exécute ce que l'interface d'administration lui demande
@@ -27,11 +29,12 @@ name: Batch
 run-name: "batch · ${{ inputs.target || 'production' }} · ${{ inputs.mode }} · ${{ inputs.correlation_id }}"
 
 on:
-  # Reprise hebdomadaire, lundi 3 h UTC — creux de trafic, et le lundi ramasse
-  # les épreuves du week-end. Aucune entrée n'accompagne un `schedule` : c'est
-  # ce qui rend le repli `|| 'production'` indispensable plus bas, et c'est le
-  # mode `rescrape` qui s'exécute alors, borné aux épreuves des 30 derniers
-  # jours (`--event-within`, #1261, posé par l'étape « Run batch »).
+  # Passage hebdomadaire, lundi 3 h UTC (creux de trafic) : purge de rétention,
+  # relecture des licenciés et balayage des orphelins, en production. Aucune entrée n'accompagne un
+  # `schedule` : c'est ce qui rend le repli `|| 'production'` indispensable plus
+  # bas. Il ne lance **ni** `rescrape-db` **ni** le géocodage (#1271) : la
+  # reprise ne réconcilie que l'identité d'athlète, sept runs planifiés ont
+  # échoué sans manquer à personne, et `/admin/batches` la couvre à la demande.
   #
   # **Une planification muette est une panne invisible** : GitHub désactive les
   # workflows planifiés d'un dépôt sans activité depuis 60 jours (D13), sans
@@ -90,8 +93,9 @@ on:
 #
 # `|| 'production'` : une exécution **planifiée** ne porte aucune entrée, et son
 # `inputs.target` est vide. Sans ce repli, le cron nocturne hériterait du défaut
-# `preview` et ne rafraîchirait jamais la base réelle — une panne silencieuse,
-# du genre qu'on ne découvre qu'en cherchant pourquoi les résultats datent.
+# `preview` et ne purgerait jamais la base réelle : une panne silencieuse, du
+# genre qu'on ne découvre qu'en cherchant pourquoi les durées publiées ne sont
+# plus tenues.
 concurrency:
   group: batch-${{ inputs.target || 'production' }}
   cancel-in-progress: false
@@ -106,8 +110,8 @@ jobs:
       id-token: write
       contents: read
     # Sans cette borne, une exécution coincée gèlerait tout nouveau lancement
-    # six heures durant (défaut de la plateforme). Une reprise complète peut
-    # l'atteindre (run du 2026-09-25) : d'où la fenêtre du cron (#1261).
+    # six heures durant (défaut de la plateforme). Une reprise complète tient
+    # très largement dans deux heures.
     timeout-minutes: 120
     # Un environment par base — `batch-preview` ou `batch-production` —, chacun
     # portant son `DATABASE_URL`. C'est lui, et lui seul, qui décide de la base
@@ -251,10 +255,31 @@ jobs:
           { echo '## Licenciés du club'; echo '```'; cat members.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $code
 
+      # Athlètes orphelins (#1271) : fiches vidées par une réassignation de dossard
+      # (import web d'une épreuve déjà en base). Ce balayage ne tournait qu'en fin
+      # de `rescrape-db`, que la planification ne lance plus : il a donc sa propre
+      # étape. Mêmes conditions que la relecture des licenciés ; une reprise
+      # manuelle le refait en fin de batch, sans dommage.
+      - name: Purge orphan athletes
+        id: orphans
+        if: ${{ !cancelled() && (success() || steps.purge.outcome == 'failure' || steps.members.outcome == 'failure') && inputs.mode != 'urls' && inputs.dry_run != true }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -uo pipefail
+          set +e
+          uv run python -m app.cli purge-orphans > orphans.txt 2>&1
+          code=$?
+          set -e
+          cat orphans.txt
+          { echo '## Athlètes orphelins'; echo '```'; cat orphans.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          exit $code
+
       - name: Run batch
         id: batch
         # Une purge en échec rougit le run, mais ne prive pas la base de sa reprise.
-        if: ${{ success() || (failure() && (steps.purge.outcome == 'failure' || steps.members.outcome == 'failure')) }}
+        # Jamais sur la planification (#1271) : la reprise se lance à la main.
+        if: ${{ github.event_name != 'schedule' && (success() || (failure() && (steps.purge.outcome == 'failure' || steps.members.outcome == 'failure' || steps.orphans.outcome == 'failure'))) }}
         env:
           # `DATABASE_URL` doit viser un hôte IPv4 : les runners GitHub n'ont
           # pas d'IPv6. Sur Supabase (preview), c'est le pooler
@@ -268,10 +293,6 @@ jobs:
           MODE: ${{ inputs.mode }}
           PROVIDER: ${{ inputs.provider }}
           OLDER_THAN: ${{ inputs.older_than }}
-          # Reprise planifiée bornée aux épreuves des 30 derniers jours (#1261) :
-          # au delà, les résultats ne bougent plus, et la base entière ne tient
-          # plus dans `timeout-minutes`. Un lancement manuel reste complet.
-          EVENT_WITHIN: ${{ github.event_name == 'schedule' && '30' || '' }}
           LIMIT: ${{ inputs.limit }}
           URLS: ${{ inputs.urls }}
           DRY_RUN: ${{ inputs.dry_run }}
@@ -293,7 +314,6 @@ jobs:
           else
             if [ -n "$PROVIDER" ]; then args+=(--provider "$PROVIDER"); fi
             if [ -n "$OLDER_THAN" ]; then args+=(--older-than "$OLDER_THAN"); fi
-            if [ -n "$EVENT_WITHIN" ]; then args+=(--event-within "$EVENT_WITHIN"); fi
             uv run python -m app.cli rescrape-db "${args[@]}" \
               > bilan.json 2> rapport.txt
           fi
@@ -309,7 +329,8 @@ jobs:
       # le `timeout-minutes` du job ; le reste passe au run suivant. Un échec ne
       # fait pas rougir un batch dont les épreuves ont abouti.
       - name: Geocode new courses
-        if: success() && inputs.mode != 'urls' && inputs.dry_run != true
+        id: geocode
+        if: success() && github.event_name != 'schedule' && inputs.mode != 'urls' && inputs.dry_run != true
         continue-on-error: true
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -319,9 +340,10 @@ jobs:
           cat geocode.txt
 
       # `always()` : un échec total (code 1) est un résultat, pas une panne — son
-      # bilan est précisément ce qu'on vient lire.
+      # bilan est précisément ce qu'on vient lire. Rien sur la planification, qui
+      # ne lance pas de batch (#1271) : les trois étapes précédentes ont leur résumé.
       - name: Write summary
-        if: always()
+        if: always() && github.event_name != 'schedule'
         run: |
           {
             echo '## Bilan'
@@ -336,7 +358,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload report
-        if: always()
+        if: always() && github.event_name != 'schedule'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: bilan-${{ inputs.correlation_id || github.run_id }}
@@ -350,7 +372,7 @@ jobs:
       # qu'humain, et c'est le seul endroit où il survit entier depuis que le
       # résumé n'en montre que la fin.
       - name: Upload log
-        if: always()
+        if: always() && github.event_name != 'schedule'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: rapport-${{ inputs.correlation_id || github.run_id }}

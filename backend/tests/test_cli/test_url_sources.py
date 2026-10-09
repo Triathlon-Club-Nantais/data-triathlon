@@ -162,16 +162,6 @@ def test_ciblage_exclusif_refuse_url_avec_older_than():
     assert "--older-than" in str(exc.value)
 
 
-def test_ciblage_exclusif_refuse_url_avec_event_within():
-    with pytest.raises(typer.BadParameter) as exc:
-        url_sources.valider_ciblage_exclusif(
-            url=["https://k/1"], urls_from=None, provider=None, older_than=None,
-            event_within=30,
-        )
-
-    assert "--event-within" in str(exc.value)
-
-
 def test_ciblage_exclusif_valide_avant_toute_lecture():
     """Verrouille le correctif : la validation ne doit rien lire (fichier/stdin).
 

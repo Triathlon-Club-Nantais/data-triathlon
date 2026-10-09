@@ -119,28 +119,33 @@ def test_no_secret_read_from_a_condition(workflow):
     )
 
 
-def test_the_periodic_rescrape_is_still_scheduled(workflow):
-    """US3 tient à une seule ligne de YAML, et rien d'autre ne la nomme.
+def test_the_weekly_purges_and_members_sync_are_still_scheduled(workflow):
+    """La purge de rétention (#1158), la relecture des licenciés (#1202) et le
+    balayage des athlètes orphelins (#1271) tiennent à la planification, et rien
+    d'autre ne la nomme.
 
     La retirer ne casse aucun test, ne rougit aucune CI, et ne se remarque
-    qu'en constatant des semaines plus tard que les résultats datent. C'est
-    précisément la panne que ce test existe pour rendre bruyante.
+    qu'en constatant des semaines plus tard que les durées publiées ne sont plus
+    tenues. C'est précisément la panne que ce test existe pour rendre bruyante.
     """
     # PyYAML lit `on:` comme le booléen `True` (norme YAML 1.1) — d'où la clé.
     declencheurs = workflow.get("on") or workflow[True]
-    assert declencheurs["schedule"], "la reprise périodique a disparu"
+    assert declencheurs["schedule"], "la planification hebdomadaire a disparu"
+    steps = {step.get("id"): step for job in _step_jobs(workflow) for step in job["steps"]}
+    for step_id in ("purge", "members", "orphans"):
+        assert "schedule" not in steps[step_id].get("if", ""), step_id
+    assert "app.cli purge-orphans" in steps["orphans"]["run"]
 
 
-def test_only_the_scheduled_rescrape_is_bounded_to_recent_events(workflow):
-    """#1261 : le cron ne reprend que les épreuves des 30 derniers jours.
+def test_the_schedule_no_longer_rescrapes(workflow):
+    """#1271 : la planification ne lance plus `rescrape-db` ni le géocodage.
 
-    La fenêtre ne vaut que pour `schedule` : un lancement manuel depuis
-    `/admin/batches` doit pouvoir reprendre toute la base.
+    Le lancement manuel depuis `/admin/batches` (modes `rescrape` et `urls`)
+    reste la seule voie de reprise.
     """
     steps = {step.get("id"): step for job in _step_jobs(workflow) for step in job["steps"]}
-    batch = steps["batch"]
-    assert batch["env"]["EVENT_WITHIN"] == "${{ github.event_name == 'schedule' && '30' || '' }}"
-    assert '--event-within "$EVENT_WITHIN"' in batch["run"]
+    for step_id in ("batch", "geocode"):
+        assert "github.event_name != 'schedule'" in steps[step_id]["if"], step_id
 
 
 def test_the_members_sync_survives_a_failed_purge(workflow):

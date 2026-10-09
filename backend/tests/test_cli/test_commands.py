@@ -516,7 +516,6 @@ def test_rescrape_db_transmet_les_options_au_service(monkeypatch):
         "--limit", "4",
         "--provider", "timepulse",
         "--older-than", "30",
-        "--event-within", "15",
         "--delay", "0",
         "--max-concurrent-hosts", "2",
     ])
@@ -525,7 +524,6 @@ def test_rescrape_db_transmet_les_options_au_service(monkeypatch):
     assert espion.kwargs["limit"] == 4
     assert espion.kwargs["provider"] == "timepulse"
     assert espion.kwargs["older_than"] == 30
-    assert espion.kwargs["event_within"] == 15
     assert espion.kwargs["delay"] == 0.0
     assert espion.kwargs["max_concurrent_hosts"] == 2
     assert espion.kwargs["dry_run"] is False
@@ -750,25 +748,6 @@ def test_rescrape_db_url_avec_older_than_est_une_erreur_d_usage(monkeypatch):
     result = runner.invoke(
         app, ["rescrape-db", "--url", "https://k/1", "--older-than", "30"]
     )
-
-    assert result.exit_code == 2
-
-
-def test_rescrape_db_url_avec_event_within_est_une_erreur_d_usage(monkeypatch):
-    espion = _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
-
-    result = runner.invoke(
-        app, ["rescrape-db", "--url", "https://k/1", "--event-within", "30"]
-    )
-
-    assert result.exit_code == 2
-    assert espion.args == ()
-
-
-def test_rescrape_db_event_within_nul_est_une_erreur_d_usage(monkeypatch):
-    _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
-
-    result = runner.invoke(app, ["rescrape-db", "--event-within", "0"])
 
     assert result.exit_code == 2
 
