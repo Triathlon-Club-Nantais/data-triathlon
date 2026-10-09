@@ -20,15 +20,23 @@ const RCOLS = "140px 1fr 90px 130px";
  * (#461, leçon de la tâche 5 : une carte sans membre du club ne rendait
  * rien là où la grille rendait un tiret).
  */
-function compteurClub({ tcn_count: tcnCount, total, pending_count }: EventOut) {
-  // Une épreuve qui n'a que des résultats en attente le dit, plutôt qu'un tiret (#1273).
-  const attente = pendingOnlyLabel(total, pending_count);
-  if (attente) return <span style={{ color: "var(--tcn-text-muted)", fontSize: 13 }}>{attente}</span>;
+function compteurClub(tcnCount: number) {
   return tcnCount > 0 ? (
     <Badge count>{tcnCount}</Badge>
   ) : (
     <span style={{ color: "var(--tcn-text-faint)", fontSize: 13 }}>—</span>
   );
+}
+
+/**
+ * Une épreuve qui n'a que des résultats en attente le dit sous son nom (#1273),
+ * jamais dans « Athlètes club », qui garde son sens et son tiret.
+ */
+function mentionAttente({ total, pending_count }: EventOut) {
+  const attente = pendingOnlyLabel(total, pending_count);
+  return attente ? (
+    <span style={{ display: "block", fontSize: 13, fontWeight: 400, color: "var(--tcn-text-muted)" }}>{attente}</span>
+  ) : null;
 }
 
 export default async function AjouterPage() {
@@ -92,9 +100,10 @@ export default async function AjouterPage() {
                     <td role="cell" style={{ fontSize: 14, color: "var(--tcn-text-muted)", fontWeight: 600 }}>{formatDate(e.event_date)}</td>
                     <td role="cell" style={{ fontSize: 15, fontWeight: 700, color: "var(--tcn-ink)" }}>
                       <Link href={`/courses/${e.id}`} className="tcn-rowlink__cible">{formatEventName(e.event_name, e.is_relay)}</Link>
+                      {mentionAttente(e)}
                     </td>
                     <td role="cell"><FormatChip>{formatToken(e.event_type, e.distance_km)}</FormatChip></td>
-                    <td role="cell">{compteurClub(e)}</td>
+                    <td role="cell">{compteurClub(e.tcn_count)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -121,8 +130,13 @@ export default async function AjouterPage() {
                 href={`/courses/${e.id}`}
                 surtitre={formatDate(e.event_date)}
                 titre={formatEventName(e.event_name, e.is_relay)}
-                valeur={compteurClub(e)}
-                meta={<FormatChip>{formatToken(e.event_type, e.distance_km)}</FormatChip>}
+                valeur={compteurClub(e.tcn_count)}
+                meta={
+                  <>
+                    <FormatChip>{formatToken(e.event_type, e.distance_km)}</FormatChip>
+                    {pendingOnlyLabel(e.total, e.pending_count)}
+                  </>
+                }
               />
             ))
           )}

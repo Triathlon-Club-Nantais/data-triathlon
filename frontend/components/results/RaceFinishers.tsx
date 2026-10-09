@@ -251,9 +251,11 @@ function donneesLigne(p: Participation) {
  * `PlaceBadge` (`minWidth`, `fontSize`), la carte n'a pas cette contrainte.
  */
 function marqueurRang(p: Participation, nf: boolean, enAttente: boolean, stylePlace?: CSSProperties) {
-  // Un rang déclaré n'est pas un rang tant que la ligne n'est pas validée (#1273).
-  if (enAttente) return <span style={{ color: "var(--tcn-text-faint)" }}>—</span>;
+  // Le statut d'abord : un abandon en attente reste un abandon, et son badge
+  // est sa seule marque non chromatique (WCAG 1.4.1). Un rang déclaré, lui,
+  // n'est pas un rang tant que la ligne n'est pas validée (#1273).
   if (nf) return <StatusBadge status={p.status} />;
+  if (enAttente) return <span style={{ color: "var(--tcn-text-faint)" }}>—</span>;
   if (p.rank_overall != null) return <PlaceBadge place={p.rank_overall} style={stylePlace} />;
   return <span style={{ color: "var(--tcn-text-faint)" }}>—</span>;
 }
@@ -532,7 +534,7 @@ export function RaceFinishers({
               filtreClub,
               club: clubChoisi,
               categorie: categorieChoisie,
-            })}
+            }, lignesEnAttente.length)}
           </span>
           {/* Un repère par filtre, **retirable indépendamment** : deux
               sélections actives ne se retirent pas d'un bloc, sinon activer une
@@ -644,7 +646,7 @@ export function RaceFinishers({
                   <Link
                     href={detailHref(p)}
                     prefetch={false}
-                    aria-label={`Voir le détail du résultat de ${name}`}
+                    aria-label={`Voir le détail du résultat de ${name}${attente ? ", en attente de validation" : ""}`}
                     className="tcn-rowlink__cible"
                     style={{ display: "flex", alignItems: "center", gap: 8, maxWidth: "100%" }}
                   >
@@ -811,7 +813,7 @@ export function RaceFinishers({
         // page sautée (`?q=zzz&page=5`) tombe dans cette branche — `nbPages`
         // vaut 1 faute de résultats, donc `page > nbPages` est vrai pour une
         // tout autre raison que « cette page n'existe pas ».
-        page > nbPages && total > 0 ? (
+        page > nbPages && (total > 0 || lignesEnAttente.length > 0) ? (
           <EmptyState
             bare
             title="Cette page n'existe pas"
@@ -931,8 +933,11 @@ function libelleSelection(
   total: number,
   totalEpreuve: number,
   selection: { recherche: string; filtreClub: boolean; club: string; categorie: string },
+  enAttente: number,
 ): string {
   const tete = `${total} résultat${total > 1 ? "s" : ""} sur ${totalEpreuve}`;
+  // Hors des totaux, mais dit : sans lui, « 0 résultat » coiffe des lignes visibles (#1273).
+  const attente = enAttente > 0 ? `, et ${enAttente} en attente de validation` : "";
   const morceaux = [];
   if (selection.recherche) morceaux.push(`pour « ${selection.recherche} »`);
   if (selection.filtreClub) morceaux.push(`du ${CLUB_NAME}`);
@@ -941,7 +946,7 @@ function libelleSelection(
   // `join(" ")`, pas `join(", ")` : les deux clauses n'ont pas la même nature
   // (l'une qualifie la recherche, l'autre le périmètre), la virgule les met à
   // tort sur le même plan (revue UI/UX #485).
-  return `${tete} ${morceaux.join(" ")}`.trimEnd();
+  return `${tete} ${morceaux.join(" ")}`.trimEnd() + attente;
 }
 
 /**

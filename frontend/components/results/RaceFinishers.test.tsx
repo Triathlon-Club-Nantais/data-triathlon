@@ -1593,8 +1593,34 @@ describe("RaceFinishers — résultats en attente de validation (#1273)", () => 
     expect(lignes[3]).toHaveTextContent("ATTENTE T");
     expect(within(lignes[3]).getByText("En attente de validation")).toBeInTheDocument();
     expect(
-      within(lignes[3]).getByRole("link", { name: "Voir le détail du résultat de ATTENTE T" }),
+      within(lignes[3]).getByRole("link", {
+        name: "Voir le détail du résultat de ATTENTE T, en attente de validation",
+      }),
     ).toHaveAttribute("href", "/courses/1/participations/50");
+  });
+
+  it("garde le badge de statut d'un non-finisher en attente : un statut n'est pas un rang", () => {
+    afficher({ pending: [{ ...EN_ATTENTE, status: "DNF" } as Participation] });
+
+    const ligne = lignesDeLaGrille()[3];
+    const [rang] = within(ligne).getAllByRole("cell");
+    expect(rang).toHaveTextContent("DNF");
+    expect(within(ligne).getByText("En attente de validation")).toBeInTheDocument();
+  });
+
+  it("dit le nombre de lignes en attente dans le cadre de la sélection filtrée", () => {
+    searchParams = new URLSearchParams({ q: "attente" });
+    afficher({ participations: [], total: 0, summary: synthese({ total: 0 }), pending: [EN_ATTENTE] });
+
+    expect(
+      screen.getByText("0 résultat sur 0 pour « attente », et 1 en attente de validation"),
+    ).toBeInTheDocument();
+  });
+
+  it("dit qu'une page hors bornes n'existe pas, même quand seules des lignes en attente existent", () => {
+    afficher({ participations: [], total: 0, summary: synthese({ total: 0 }), pending: [EN_ATTENTE], page: 5 });
+
+    expect(screen.getByText("Cette page n'existe pas")).toBeInTheDocument();
   });
 
   it("n'affiche ni rang, ni rang de catégorie, ni marqueur d'écart sur la ligne en attente", () => {
