@@ -279,6 +279,36 @@ def test_an_indiv_twin_without_spaces_around_the_dash_names_the_teammates(monkey
     ]
 
 
+def test_an_indiv_twin_without_club_names_the_teammates_by_bib_prefix(monkeypatch):
+    """#1262, Triathlon Sud Vendée 2026 : le club des équipiers est vide, l'équipe
+    431 nomme ses équipiers 4311, 4312, 4313 (son dossard suivi d'un chiffre)."""
+    xml = _event_xml(
+        competitors=(
+            '<E d="431" n="LES MOUETTES" ca="EQX" v="431" p="Relais S"'
+            ' ip2="Jean MARTIN" ip3="Anne DURAND" ip4="Paul PETIT"/>'
+            '<E d="432" n="LES GOELANDS" ca="EQX" v="432" p="Relais S"/>'
+            '<E d="4311" n="MARTIN&#160;Jean" x="M" ca="S4M" v="4311" p="Relais S-Indiv"/>'
+            '<E d="4312" n="DURAND&#160;Anne" x="F" ca="S4F" v="4312" p="Relais S-Indiv"/>'
+            '<E d="4313" n="PETIT&#160;Paul" x="M" ca="S4M" v="4313" p="Relais S-Indiv"/>'
+            '<E d="4321" n="SEUL&#160;Luc" x="M" ca="S4M" v="4321" p="Relais S-Indiv"/>'
+        ),
+        results='<R d="431" t="01:05:00"/><R d="432" t="01:10:00"/>',
+    )
+    root = ET.fromstring(xml)
+    monkeypatch.setattr(
+        "app.scrapers.wiclax._fetch_clax",
+        lambda _url: (root, "http://x", "Triathlon Sud Vendée", "triathlon", None),
+    )
+
+    results = scrape_event_all("http://x")
+
+    assert [(r.athlete_name, r.is_relay, r.teammates) for r in results] == [
+        ("LES MOUETTES", True, (("MARTIN", "Jean"), ("DURAND", "Anne"), ("PETIT", "Paul"))),
+        # Un seul équipier publié : la ligne reste entière.
+        ("LES GOELANDS", True, None),
+    ]
+
+
 def test_a_parcours_of_team_categories_is_a_team_course(monkeypatch):
     """Altichrono, lac du Bouchet 2026 : « SWIMRUN S » ne classe que des
     catégories d'équipe (EQX, EQF, EQM), sans mot d'équipe dans le parcours."""
