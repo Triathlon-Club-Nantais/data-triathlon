@@ -1,6 +1,7 @@
 /** Mention explicite d'un résultat saisi manuellement, non encore vérifié
  *  par un bénévole (#270), ou signalé non conforme par un bénévole (#437).
- *  Seule surface où une participation pendante est visible (FR-019) :
+ *  Marque une participation pendante partout où elle s'affiche, fiche
+ *  d'athlète (FR-019) et fin de classement de son épreuve (#1273) :
  *  distincte au premier coup d'œil, sans survol ni clic (SC-003). */
 export function PendingBadge({ rejected = false }: { rejected?: boolean }) {
   return (

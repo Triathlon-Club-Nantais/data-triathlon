@@ -1569,3 +1569,81 @@ describe("RaceFinishers — relais attribué (#894)", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("RaceFinishers — résultats en attente de validation (#1273)", () => {
+  // Rang et rang de catégorie déclarés, écart d'inters extrême : rien de tout
+  // cela ne doit s'afficher tant que la ligne n'est pas validée.
+  const EN_ATTENTE = {
+    ...p({ id: 50, nom: "ATTENTE", rank_overall: 1, total_time: "02:00:00", split_gap_ratio: 0.9 }),
+    rank_category: 1,
+    is_pending_validation: true,
+  } as Participation;
+  const ecartSignale = synthese({ split_gap_median: 0, split_gap_rows: 50 });
+
+  function lignesDeLaGrille() {
+    const grille = screen.getByTestId("classement-grille");
+    return within(grille).getAllByRole("row").slice(1);
+  }
+
+  it("ajoute la ligne en attente après le classement, sur la dernière page", () => {
+    afficher({ pending: [EN_ATTENTE] });
+
+    const lignes = lignesDeLaGrille();
+    expect(lignes).toHaveLength(4);
+    expect(lignes[3]).toHaveTextContent("ATTENTE T");
+    expect(within(lignes[3]).getByText("En attente de validation")).toBeInTheDocument();
+    expect(
+      within(lignes[3]).getByRole("link", { name: "Voir le détail du résultat de ATTENTE T" }),
+    ).toHaveAttribute("href", "/courses/1/participations/50");
+  });
+
+  it("n'affiche ni rang, ni rang de catégorie, ni marqueur d'écart sur la ligne en attente", () => {
+    afficher({ pending: [EN_ATTENTE], summary: ecartSignale });
+
+    const ligne = lignesDeLaGrille()[3];
+    const [rang] = within(ligne).getAllByRole("cell");
+    expect(rang).toHaveTextContent(/^—$/);
+    expect(within(ligne).queryByTitle(/de sa catégorie/)).toBeNull();
+    expect(within(ligne).queryByText("≠")).toBeNull();
+  });
+
+  it("ne montre pas la ligne en attente sur une page qui n'est pas la dernière", () => {
+    afficher({ pending: [EN_ATTENTE], total: 45, page: 1, pageSize: 20 });
+
+    expect(screen.queryByText("ATTENTE T")).toBeNull();
+  });
+
+  it("montre la ligne en attente sur la dernière page d'un classement paginé", () => {
+    afficher({ pending: [EN_ATTENTE], total: 45, page: 3, pageSize: 20 });
+
+    expect(lignesDeLaGrille().at(-1)).toHaveTextContent("ATTENTE T");
+  });
+
+  it("montre la ligne en attente au lieu de l'état vide quand rien n'est validé", () => {
+    afficher({ participations: [], total: 0, summary: synthese({ total: 0 }), pending: [EN_ATTENTE] });
+
+    expect(screen.queryByText("Aucun participant à afficher")).toBeNull();
+    expect(lignesDeLaGrille()).toHaveLength(1);
+    expect(screen.getByText("En attente de validation")).toBeInTheDocument();
+  });
+
+  it("garde l'état vide existant quand il n'y a ni ligne validée ni ligne en attente", () => {
+    afficher({ participations: [], total: 0, summary: synthese({ total: 0 }), pending: [] });
+
+    expect(screen.getByText("Aucun participant à afficher")).toBeInTheDocument();
+  });
+
+  it("laisse la ligne en attente en fin de tableau quand on trie par temps", async () => {
+    afficher({ pending: [{ ...EN_ATTENTE, total_time: "00:10:00" } as Participation] });
+
+    await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/i }));
+
+    expect(lignesDeLaGrille().at(-1)).toHaveTextContent("ATTENTE T");
+  });
+
+  it("marque aussi la ligne en attente dans l'arbre cartes", () => {
+    afficher({ pending: [EN_ATTENTE] });
+
+    expect(dansLesCartes("classement-cartes").texte("En attente de validation")).toBeInTheDocument();
+  });
+});

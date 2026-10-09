@@ -224,6 +224,7 @@ export default async function CoursePage({
         page={data.page}
         pageSize={data.page_size}
         eventType={course.event_type}
+        pending={data.pending_participations}
       />
     </PageShell>
   );

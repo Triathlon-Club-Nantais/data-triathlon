@@ -2,7 +2,7 @@
 import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition, type CSSProperties } from "react";
-import { Card, SegmentedControl, PlaceBadge, AnnonceStatut, VousChip, LigneCarte } from "@/components/tcn";
+import { Card, SegmentedControl, PlaceBadge, AnnonceStatut, VousChip, LigneCarte, PendingBadge } from "@/components/tcn";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { StatusBadge } from "@/components/results/StatusBadge";
 import { EquipeRelais, nomEquipe } from "@/components/results/EquipeRelais";
@@ -250,7 +250,9 @@ function donneesLigne(p: Participation) {
  * tiret d'absence. `stylePlace` reste un paramètre : seule la grille resserre
  * `PlaceBadge` (`minWidth`, `fontSize`), la carte n'a pas cette contrainte.
  */
-function marqueurRang(p: Participation, nf: boolean, stylePlace?: CSSProperties) {
+function marqueurRang(p: Participation, nf: boolean, enAttente: boolean, stylePlace?: CSSProperties) {
+  // Un rang déclaré n'est pas un rang tant que la ligne n'est pas validée (#1273).
+  if (enAttente) return <span style={{ color: "var(--tcn-text-faint)" }}>—</span>;
   if (nf) return <StatusBadge status={p.status} />;
   if (p.rank_overall != null) return <PlaceBadge place={p.rank_overall} style={stylePlace} />;
   return <span style={{ color: "var(--tcn-text-faint)" }}>—</span>;
@@ -263,9 +265,16 @@ export function RaceFinishers({
   page,
   pageSize,
   eventType,
+  pending: lignesEnAttente = [],
 }: {
   /** La tranche courante, **déjà ordonnée par le backend** — ne pas la retrier. */
   participations: Participation[];
+  /**
+   * Résultats en attente de validation (#1273) : ajoutés après le dernier
+   * résultat validé, donc sur la dernière page seulement, sans rang ni écart.
+   * Ils ne comptent dans aucun total affiché.
+   */
+  pending?: Participation[];
   /** Synthèse de l'épreuve entière : indépendante de la recherche et du filtre. */
   summary: CourseSummary;
   /** Total de la sélection (recherche + filtre club), qui donne le nombre de pages. */
@@ -379,6 +388,8 @@ export function RaceFinishers({
   const fcols = [BASE_COLS, ...segments.map((s) => (s.small ? "64px" : "80px")), CLUB_COL].join(" ");
 
   const nbPages = pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1;
+  const enAttente = page === nbPages ? lignesEnAttente : [];
+  const idsEnAttente = new Set(enAttente.map((p) => p.id));
 
   /**
    * État du tri **de la colonne**, pour l'aide technique (#481, WCAG 1.3.1).
@@ -411,6 +422,8 @@ export function RaceFinishers({
         return tri.direction === "asc" ? sa - sb : sb - sa;
       })
     : participations;
+  // Hors du tri : les lignes en attente restent en fin de tableau, quel qu'il soit.
+  const rangees = [...lignes, ...enAttente];
 
   // WCAG 4.1.3 (#477) : le tri par en-tête réordonne les 1080 px du tableau
   // sans déplacer le focus — sans cette annonce, un lecteur d'écran ne le voit
@@ -441,6 +454,9 @@ export function RaceFinishers({
     (perimetreFiltres ? `, ${perimetreFiltres}` : "") +
     (libelleTri
       ? `, trié par ${libelleTri}, ${tri!.direction === "asc" ? "croissant" : "décroissant"}${perimetreTri}`
+      : "") +
+    (enAttente.length > 0
+      ? `, et ${enAttente.length} résultat${enAttente.length > 1 ? "s" : ""} en attente de validation`
       : "");
 
   return (
@@ -582,10 +598,11 @@ export function RaceFinishers({
           </tr>
           </thead>
           <tbody role="rowgroup">
-          {lignes.map((p) => {
+          {rangees.map((p) => {
             const own = p.is_tcn;
             const { nf, name, splits } = donneesLigne(p);
             const moi = estMaLigne(p, athleteRetenu?.id);
+            const attente = idsEnAttente.has(p.id);
             return (
               <tr
                 key={p.id}
@@ -616,7 +633,7 @@ export function RaceFinishers({
                     : undefined,
                 }}
               >
-                <td role="cell">{marqueurRang(p, nf, { minWidth: 28, fontSize: 16 })}</td>
+                <td role="cell">{marqueurRang(p, nf, attente, { minWidth: 28, fontSize: 16 })}</td>
                 {/* `minWidth: 0` remplace l'`overflow: hidden` que portait la
                     cellule, et l'ellipsis descend sur le `<span>` intérieur.
                     Les deux faisaient le même travail sur la piste `1fr` — mais
@@ -640,6 +657,9 @@ export function RaceFinishers({
                     <VoileAttente />
                   </Link>
                   <EquipeRelais participation={p} avecEquipe={false} />
+                  {/* Hors du lien : son `aria-label` remplacerait la mention
+                      pour un lecteur d'écran. */}
+                  {attente && <PendingBadge />}
                 </td>
                 {/* Le code reste la clé de lecture — l'élargir en « Vétéran 2 »
                     n'apprendrait rien à qui connaît la nomenclature, sur un tableau
@@ -654,7 +674,7 @@ export function RaceFinishers({
                   {p.category ?? "—"}
                   {/* Sous le code, pas dans une colonne de plus : la grille
                       tient déjà ses 1 080 px (#1207). */}
-                  {p.rank_category != null && (
+                  {p.rank_category != null && !attente && (
                     <div
                       title={`${ordinalFr(p.rank_category)} de sa catégorie`}
                       style={{ fontSize: 11, color: "var(--tcn-text-faint)" }}
@@ -667,12 +687,12 @@ export function RaceFinishers({
                 <td role="cell" style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{genderShort(p.athlete.gender)}</td>
                 <td role="cell" style={{ fontFamily: "var(--tcn-font-cond)", fontWeight: 700, fontSize: 15, color: "var(--tcn-ink)" }}>
                   {p.total_time ?? "—"}
-                  <MarqueurEcart
+                  {!attente && <MarqueurEcart
                     ratio={p.split_gap_ratio}
                     mediane={summary.split_gap_median}
                     lignesEvaluees={summary.split_gap_rows}
                     totalTime={p.total_time}
-                  />
+                  />}
                 </td>
                 {segments.map((s) => (
                   <CelluleInter key={s.key} valeur={splits[s.key]} small={s.small} moi={moi} />
@@ -730,9 +750,10 @@ export function RaceFinishers({
             </button>
           </div>
         )}
-        {lignes.map((p) => {
+        {rangees.map((p) => {
           const { nf, name, splits } = donneesLigne(p);
           const moi = estMaLigne(p, athleteRetenu?.id);
+          const attente = idsEnAttente.has(p.id);
           // `.filter(Boolean)` sur les valeurs **brutes** : les replis (« — »,
           // `genderShort(null)`) sont eux-mêmes des chaînes non vides, donc un
           // filtre posé après eux ne retire jamais rien — un participant sans
@@ -740,7 +761,7 @@ export function RaceFinishers({
           // répartissait trois tirets dans trois colonnes distinctes.
           const genre = p.athlete?.gender ? genderShort(p.athlete.gender) : null;
           const categorie =
-            p.category && p.rank_category != null ? `${p.category} (${ordinalFr(p.rank_category)})` : p.category;
+            p.category && p.rank_category != null && !attente ? `${p.category} (${ordinalFr(p.rank_category)})` : p.category;
           const meta = [p.club, categorie, genre].filter(Boolean).join(" · ");
           return (
             <LigneCarte
@@ -748,12 +769,13 @@ export function RaceFinishers({
               href={detailHref(p)}
               accent={p.is_tcn}
               attenue={nf}
-              marqueur={marqueurRang(p, nf)}
+              marqueur={marqueurRang(p, nf, attente)}
               titre={
                 <>
                   {name}
                   {moi && <VousChip />}
                   <EquipeRelais participation={p} avecEquipe={false} />
+                  {attente && <PendingBadge />}
                 </>
               }
               valeur={p.total_time ?? "—"}
@@ -784,7 +806,7 @@ export function RaceFinishers({
         })}
       </div>
 
-      {participations.length === 0 && (
+      {rangees.length === 0 && (
         // `total > 0` : sans ce garde, une recherche sans résultat sur une
         // page sautée (`?q=zzz&page=5`) tombe dans cette branche — `nbPages`
         // vaut 1 faute de résultats, donc `page > nbPages` est vrai pour une
