@@ -2547,3 +2547,17 @@ def test_mark_duo_heat_needs_a_strict_majority():
     klikego._mark_duo_heat(results)
 
     assert not any(r.is_relay for r in results)
+
+
+def test_scrape_single_heat_types_a_duo_heat_as_relay(monkeypatch):
+    """L'appel lui-même : « Format M » ne porte aucun mot d'équipe (#1263)."""
+    rows = [_row("DUPONT JEAN/MARTIN PAUL ."), _row("LEROY ANNE/MOREAU CLAIRE .")]
+    monkeypatch.setattr(plat, "get_page", lambda client, url: type("R", (), {"text": ""})())
+    monkeypatch.setattr(plat, "build_heat_results", lambda **kw: rows)
+    monkeypatch.setattr(klikego, "_fetch_and_apply_detail", lambda *a: None)
+
+    results = klikego._scrape_single_heat(
+        "1", "format-m", "Format M", "Swimrun", "swimrun", None, client=None,
+    )
+
+    assert [r.is_relay for r in results] == [True, True]

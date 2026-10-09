@@ -1263,6 +1263,42 @@ def _redate_heats(db: Session, results: list[ScrapedResult]) -> None:
             course_repository.redate(db, course, event_date)
 
 
+def _relay_heats(db: Session, results: list[ScrapedResult]) -> None:
+    """Type relais l'épreuve rapprochée par la règle R dont tout le heat est relais (#1263).
+
+    Même angle mort que `_redate_heats` : `mapping.get_or_create_course` retrouve
+    l'épreuve sans réécrire son `is_relay`, que `_reidentify_heats` ne touche pas
+    pour ces fournisseurs. Un heat Klikego de duos typé solo avant #1263 le
+    restait, avec des participations relais sous une épreuve solo. Sens unique,
+    solo vers relais : une identité déjà prise n'est pas écrasée, et une
+    identité corrigée par un admin (`course.update`) est gardée.
+    """
+    relay: dict[tuple[str, str], bool] = {}
+    for scraped in results:
+        if scraped.source_url:
+            key = (scraped.provider, scraped.source_url)
+            relay[key] = relay.get(key, True) and bool(scraped.is_relay)
+    for (provider, url), is_relay in relay.items():
+        if not is_relay:
+            continue
+        course = course_reconciliation.find_reconcilable_course(
+            db, provider=provider, source_url=url
+        )
+        if (
+            course is None
+            or course.is_relay
+            or course_repository.get_by_identity(
+                db, course.name, course.event_date, course.event_type, True
+            )
+            or admin_action_log_repository.entity_ids_with_action(
+                db, action="course.update", entity_ids=[course.id]
+            )
+        ):
+            continue
+        logger.info("Course %s typed relay by its source %s", course.id, url)
+        course_repository.update_identity(db, course, is_relay=True)
+
+
 def _reclassify_heats(db: Session, event_url: str, results: list[ScrapedResult]) -> None:
     """Aligne la classification des épreuves déjà en base sur ce scrape-ci (#294).
 
@@ -1622,6 +1658,7 @@ def _drop_course_twin(db: Session, name: str, event_date, urls: set[str]) -> Non
 def _prepare_batch(db: Session, url: str, results: list[ScrapedResult]) -> None:
     """Les rattrapages de lot, dans leur ordre, avant la première ligne écrite."""
     _redate_heats(db, results)
+    _relay_heats(db, results)
     _reclassify_heats(db, url, results)
     _reidentify_heats(db, url, results)
     _renumber_duplicate_ranks(results)
