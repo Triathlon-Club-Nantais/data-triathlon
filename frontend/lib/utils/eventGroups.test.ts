@@ -167,3 +167,16 @@ describe("eventSuffix", () => {
     expect(eventSuffix("Triathlon de Nantes", "Triathlon de Nantes")).toBe("Triathlon de Nantes");
   });
 });
+
+describe("groupEventsByCompetition : résultats en attente (#1273)", () => {
+  it("additionne les résultats en attente des épreuves du groupe, à part du total", () => {
+    const [groupe] = groupEventsByCompetition([
+      ev(1, "Coupe - Sprint", { total: 0, tcn_count: 0, pending_count: 1 }),
+      ev(2, "Coupe - Olympique", { total: 0, tcn_count: 0, pending_count: 2 }),
+      ev(3, "Coupe - Relais", { total: 0, tcn_count: 0 }),
+    ]);
+
+    expect(groupe.total).toBe(0);
+    expect(groupe.pendingCount).toBe(3);
+  });
+});

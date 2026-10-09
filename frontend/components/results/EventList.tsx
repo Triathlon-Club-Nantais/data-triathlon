@@ -15,7 +15,7 @@ import { useInfiniteEvents } from "@/lib/queries/events";
 import { eventTypeLabel } from "@/lib/constants";
 import { formatCount, formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
-import { formatEventName } from "@/lib/utils/event";
+import { formatEventName, pendingOnlyLabel } from "@/lib/utils/event";
 import { groupEventsByCompetition, eventSuffix, type EventGroup } from "@/lib/utils/eventGroups";
 import { ReliabilityMark } from "@/components/results/ReliabilityMark";
 import { gridColumns, gridMinWidth, type Track } from "@/lib/utils/table";
@@ -356,9 +356,14 @@ function eventDerived(ev: EventOut, label?: string) {
     relais: ev.is_relay ? <Badge variant="orange">Relais</Badge> : null,
     type: eventTypeLabel(ev.event_type),
     format: formatToken(ev.event_type, ev.distance_km),
-    resultats: `${ev.total} résultat${ev.total > 1 ? "s" : ""}`,
+    resultats: libelleResultats(ev.total, ev.pending_count),
     tcn: tcnCompteur(ev.tcn_count),
   };
+}
+
+/** Une épreuve qui n'a que des résultats en attente le dit, au lieu de « 0 résultat » (#1273). */
+function libelleResultats(total: number, pendingCount: number | undefined): string {
+  return pendingOnlyLabel(total, pendingCount) ?? `${total} résultat${total > 1 ? "s" : ""}`;
 }
 
 /** Même dérivation pour une ligne de compétition parente. */
@@ -366,7 +371,7 @@ function groupDerived(groupe: EventGroup) {
   return {
     date: formatDate(groupe.events[0].event_date),
     epreuves: `${groupe.events.length} épreuves`,
-    resultats: `${groupe.total} résultat${groupe.total > 1 ? "s" : ""}`,
+    resultats: libelleResultats(groupe.total, groupe.pendingCount),
     tcn: tcnCompteur(groupe.tcnCount),
   };
 }

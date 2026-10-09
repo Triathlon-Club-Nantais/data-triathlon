@@ -171,4 +171,17 @@ describe("AjouterPage", () => {
     const carte = dansLesCartes("recents-cartes");
     expect(carte.texte("—")).toBeTruthy();
   });
+
+  it("dit « 1 résultat en attente » pour une épreuve sans résultat validé, grille et cartes (#1273)", async () => {
+    listEvents.mockResolvedValue({
+      items: [{ ...epreuve, total: 0, tcn_count: 0, pending_count: 1 }],
+      total_events: 1,
+      total_participations: 0,
+    });
+    const ui = await AjouterPage();
+    render(ui);
+
+    expect(within(screen.getByTestId("recents-grille")).getByText("1 résultat en attente")).toBeInTheDocument();
+    expect(dansLesCartes("recents-cartes").texte("1 résultat en attente")).toBeTruthy();
+  });
 });

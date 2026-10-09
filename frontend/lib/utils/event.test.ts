@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { EventOut } from "@/lib/types";
-import { formatEventName, sortEventsByDateDesc } from "./event";
+import { formatEventName, pendingOnlyLabel, sortEventsByDateDesc } from "./event";
 
 describe("formatEventName", () => {
   it("suffixe « (Relais) » quand isRelay est vrai", () => {
@@ -48,5 +48,18 @@ describe("sortEventsByDateDesc", () => {
     const original = [...events];
     sortEventsByDateDesc(events);
     expect(events).toEqual(original);
+  });
+});
+
+describe("pendingOnlyLabel (#1273)", () => {
+  it("dit le nombre de résultats en attente d'une épreuve sans résultat validé", () => {
+    expect(pendingOnlyLabel(0, 1)).toBe("1 résultat en attente");
+    expect(pendingOnlyLabel(0, 2)).toBe("2 résultats en attente");
+  });
+
+  it("ne dit rien quand l'épreuve a des résultats validés ou rien en attente", () => {
+    expect(pendingOnlyLabel(3, 1)).toBeNull();
+    expect(pendingOnlyLabel(0, 0)).toBeNull();
+    expect(pendingOnlyLabel(0, undefined)).toBeNull();
   });
 });
