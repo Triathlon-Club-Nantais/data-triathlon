@@ -5,15 +5,17 @@ without the shared-password cookie, and their writes are logged under their
 own id. Everyone else keeps the unchanged cookie guard (same 401, never 403).
 Spec: `specs/20261009-161930-benevole-sso-bypass/`.
 """
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
 from app.core.permissions import P
+from app.core.time import utcnow
 from app.models.admin_action_log import AdminActionLog
 from app.models.benevole_access_config import BenevoleAccessConfig
 from app.models.user import SYSTEM_USER_EMAIL
 from app.models.user_role import UserRole
+from app.models.user_session import UserSession
 from app.repositories import (
     athlete_repository,
     course_repository,
@@ -133,9 +135,37 @@ def test_invalid_sso_token_without_cookie_is_401(client):
     from app.api.v1.auth import session_cookie_name
     from app.core.config import get_settings
 
+    anonymous = client.get(f"{BASE}/queue")
     client.cookies.set(session_cookie_name(get_settings()), "x" * 43)
 
-    assert client.get(f"{BASE}/queue").status_code == 401
+    response = client.get(f"{BASE}/queue")
+
+    assert response.status_code == 401
+    assert response.json() == anonymous.json()
+
+
+def _deactivate(db_session, user):
+    user.is_active = False
+
+
+def _expire(db_session, user):
+    for session in db_session.query(UserSession).filter_by(user_id=user.id):
+        session.expires_at = utcnow() - timedelta(minutes=1)
+
+
+@pytest.mark.parametrize("break_session", [_deactivate, _expire], ids=["inactive", "expired"])
+def test_unusable_session_of_a_power_holder_is_401(
+    client, ouvrir_session, db_session, break_session
+):
+    anonymous = client.get(f"{BASE}/queue")
+    admin = ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    break_session(db_session, admin)
+    db_session.commit()
+
+    response = client.get(f"{BASE}/queue")
+
+    assert response.status_code == 401
+    assert response.json() == anonymous.json()
 
 
 def test_missing_configuration_still_refuses_an_old_cookie(

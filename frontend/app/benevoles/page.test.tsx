@@ -66,7 +66,7 @@ import BenevolesPage from "./page";
  */
 function renderPage() {
   return render(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <DangerConfirmProvider>
         <BenevolesPage />
       </DangerConfirmProvider>
@@ -289,6 +289,24 @@ describe("BenevolesPage", () => {
         expect(screen.queryByRole("button", { name: /se déconnecter/i })).not.toBeInTheDocument(),
       );
       expect(screen.queryByLabelText(/mot de passe/i)).not.toBeInTheDocument();
+    });
+
+    it("does not flash the logout button while the session is still loading", async () => {
+      document.cookie = "tcn_logged_in=1; path=/";
+      getSession.mockReturnValue(new Promise(() => {}));
+      renderPage();
+
+      expect(await screen.findByText("Coureur1 HERRMANN")).toBeInTheDocument();
+      expect(getSession).toHaveBeenCalled();
+      expect(screen.queryByRole("button", { name: /se déconnecter/i })).not.toBeInTheDocument();
+    });
+
+    it("keeps the logout button when the session cannot be read", async () => {
+      document.cookie = "tcn_logged_in=1; path=/";
+      getSession.mockRejectedValue(new ApiError(403, "Interdit"));
+      renderPage();
+
+      expect(await screen.findByRole("button", { name: /se déconnecter/i })).toBeInTheDocument();
     });
 
     it("keeps the logout button for a signed-in user without the power", async () => {
