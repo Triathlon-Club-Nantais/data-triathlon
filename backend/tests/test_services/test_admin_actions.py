@@ -3,6 +3,7 @@
 Le fil de tous ces tests : **un refus ne laisse aucune trace, ni en base ni au
 journal** (FR-015), et **une demande sans effet n'est pas un geste** (FR-012).
 """
+import threading
 import time
 from datetime import date
 
@@ -728,19 +729,14 @@ def _rescrapes(db_session, course_id):
     ]
 
 
-def _attendre(condition, timeout=2.0, intervalle=0.02):
-    """Sonde `condition` jusqu'à vrai — le thread de re-scrape termine hors du
-    fil qui a itéré le générateur (FR-011), donc son effet n'est visible
-    qu'après un délai, jamais synchrone avec le dernier `next()` du test."""
-    fin = time.monotonic() + timeout
-    while time.monotonic() < fin:
-        try:
-            if condition():
-                return True
-        except Exception:
-            pass
-        time.sleep(intervalle)
-    return condition()
+def _attendre_les_fils_de_fond(avant: set[threading.Thread], timeout=10.0) -> None:
+    """Attend la fin des threads lancés depuis `avant` (le thread de travail de
+    `sse_relay`, FR-011) : `db_session` n'est lu qu'ensuite. Le lire pendant que
+    ce thread l'écrit faisait partager une même connexion SQLite à deux threads,
+    qui s'y bloquaient parfois pour de bon et figeaient la suite."""
+    for fil in set(threading.enumerate()) - avant:
+        fil.join(timeout)
+        assert not fil.is_alive(), f"{fil.name} n'a pas terminé en {timeout} s"
 
 
 def test_rescrape_upsert_purge_les_orphelins_et_consigne_le_geste(db_session, auteur, scrape):
@@ -845,18 +841,16 @@ def test_rescrape_termine_et_commite_malgre_un_client_qui_arrete_de_lire(
     """T007 — FR-011 : le thread de fond persiste même si le générateur est
     abandonné à mi-flux (les deux premiers events seuls sont consommés).
 
-    `ponytail:` `db_session` est ensuite lu (`_attendre`) depuis le fil de
-    test pendant que le thread de fond peut encore l'écrire — inévitable pour
-    éprouver ce comportement pour de vrai, sur le même patron que
-    `scrape_all_streaming` en production. Amorti par le polling/retry
-    d'`_attendre` (ré-essaie sur exception), pas par une garantie de
-    non-concurrence — un flake occasionnel sous forte contention CI est
-    possible ; sans impact production, où le générateur qui pilote le thread
-    ne touche jamais `db` en parallèle de lui (cf. `_stream_rescrape`)."""
+    `db_session` n'est lu qu'une fois le thread de fond terminé : le lire
+    pendant qu'il l'écrit faisait partager une connexion SQLite à deux threads,
+    qui s'y bloquaient parfois pour de bon (suite figée, ~3 % des exécutions
+    sous charge). En production, le générateur qui pilote le thread ne touche
+    jamais `db` en parallèle de lui (cf. `_stream_rescrape`)."""
     course = _epreuve(db_session)
     db_session.commit()
     scrape([_resultat(course, "1", "NOUVEAU")])
 
+    avant = set(threading.enumerate())
     gen = course_rescrape_service.iter_rescrape_course(
         db_session, course_id=course.id, user_id=auteur.id, settings=_settings()
     )
@@ -864,10 +858,9 @@ def test_rescrape_termine_et_commite_malgre_un_client_qui_arrete_de_lire(
         if i >= 1:
             break  # le client cesse de lire — `gen` n'est plus jamais itéré
 
-    assert _attendre(
-        lambda: participation_repository.count_for_course(db_session, course.id) == 1
-    )
-    assert _attendre(lambda: len(_rescrapes(db_session, course.id)) == 1)
+    _attendre_les_fils_de_fond(avant)
+    assert participation_repository.count_for_course(db_session, course.id) == 1
+    assert len(_rescrapes(db_session, course.id)) == 1
 
 
 def test_rescrape_ajoute_les_dossards_manquants_sans_dupliquer(db_session, auteur, scrape):
@@ -1090,8 +1083,8 @@ def test_switch_termine_et_commite_malgre_un_client_qui_arrete_de_lire(
     """#624 — le thread de fond de la bascule persiste même si le générateur
     est abandonné à mi-flux, patron exact de
     `test_rescrape_termine_et_commite_malgre_un_client_qui_arrete_de_lire`
-    (sa docstring détaille le compromis `_attendre`/lecture concurrente de
-    `db_session`). C'est précisément le scénario que #624 corrige : un proxy
+    (sa docstring dit pourquoi `db_session` n'est lu qu'après le thread de
+    fond). C'est précisément le scénario que #624 corrige : un proxy
     qui coupe la requête avant le premier octet ne doit pas empêcher la
     suppression puis le réimport d'aboutir — la version bloquante d'origine
     (#285) laissait alors une épreuve dans un état inconnu de l'administrateur."""
@@ -1099,6 +1092,7 @@ def test_switch_termine_et_commite_malgre_un_client_qui_arrete_de_lire(
     db_session.commit()
     scrape([_resultat_bascule(course, passive, "1", "NOUVEAU")])
 
+    avant = set(threading.enumerate())
     gen = course_rescrape_service.iter_switch_course_source(
         db_session, course_id=course.id, source_id=passive.id,
         user_id=auteur.id, settings=_settings(),
@@ -1107,10 +1101,9 @@ def test_switch_termine_et_commite_malgre_un_client_qui_arrete_de_lire(
         if i >= 1:
             break  # le client cesse de lire — `gen` n'est plus jamais itéré
 
-    assert _attendre(
-        lambda: participation_repository.count_for_course(db_session, course.id) == 1
-    )
-    assert _attendre(lambda: len(_bascules(db_session, course.id)) == 1)
+    _attendre_les_fils_de_fond(avant)
+    assert participation_repository.count_for_course(db_session, course.id) == 1
+    assert len(_bascules(db_session, course.id)) == 1
 
 
 def test_switch_refuses_zero_results_and_leaves_everything_untouched(
