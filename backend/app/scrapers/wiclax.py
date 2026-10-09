@@ -650,6 +650,8 @@ def _iter_parcours_results(
         if not join_key:
             continue
         r = _parse_competitor(comp, base_url, event_name, event_type)
+        # Seul `d` relie une équipe à ses équipiers du jumeau Indiv (#1269).
+        r.raw_data["d"] = join_key
         parcours = comp.get("p") or comp.get("P") or ""
         if parcours not in split_cache:
             split_cache[parcours] = _parcours_split_map(segments, parcours)
@@ -717,19 +719,22 @@ def _team_key(name: str) -> str:
 
 def _attach_teammates(teams: list[ScrapedResult], members: list[ScrapedResult]) -> None:
     """Rattache à chaque équipe ses équipiers : club d'abord, ceux dont le club
-    porte son nom (#1220) ; dossard si aucun ne matche par club, ceux dont le
-    dossard est le sien suivi d'un chiffre (Sud Vendée 2026 : équipe 431,
-    équipiers 4311 à 4313, club vide ou sans rapport, #1262)."""
+    porte son nom (#1220) ; identifiant interne `d` si aucun ne matche par club,
+    ceux dont le `d` est celui de l'équipe suivi d'un chiffre (Sud Vendée 2026 :
+    équipe 431, équipiers 4311 à 4313, club vide ou sans rapport, #1262). Pas le
+    dossard affiché : au Relais M, équipe d=5431 v=431, équipiers d=54311
+    v=51311 (#1269)."""
     par_club: dict[str, list[ScrapedResult]] = {}
-    par_dossard: dict[str, list[ScrapedResult]] = {}
+    par_ident: dict[str, list[ScrapedResult]] = {}
     for m in members:
         if m.club:
             par_club.setdefault(_team_key(m.club), []).append(m)
-        if m.bib_number.isdigit() and len(m.bib_number) > 1:
-            par_dossard.setdefault(m.bib_number[:-1], []).append(m)
+        ident = m.raw_data.get("d", "")
+        if ident.isdigit() and len(ident) > 1:
+            par_ident.setdefault(ident[:-1], []).append(m)
     for team in teams:
         nom = " ".join(filter(None, [team.athlete_name, team.athlete_firstname]))
-        equipiers = par_club.get(_team_key(nom)) or par_dossard.get(team.bib_number, [])
+        equipiers = par_club.get(_team_key(nom)) or par_ident.get(team.raw_data.get("d", ""), [])
         # Un équipier jeune laisse sa catégorie à l'équipe : le filtre de l'import
         # (#881) ne juge que la catégorie de la ligne.
         team.category = next(
