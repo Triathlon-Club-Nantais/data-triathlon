@@ -89,6 +89,48 @@ def test_une_ligne_validee_apres_coup_quitte_les_en_attente_pour_le_classement(d
     assert [p.id for p in participation_repository.list_pending_for_course(db_session, course.id)] == [zulu.id]
 
 
+def test_list_pending_for_course_est_plafonnee(db_session):
+    """`POST /participations` est ouvert à tout porteur du mot de passe du site :
+    des saisies répétées ne doivent pas gonfler chaque réponse sans borne."""
+    course = _epreuve(db_session)
+    for index in range(participation_repository.PENDING_ROWS_CAP + 1):
+        _participation(db_session, course, f"NOM{index:03d}", str(index), pending=True)
+    db_session.flush()
+
+    rows = participation_repository.list_pending_for_course(db_session, course.id)
+
+    assert len(rows) == participation_repository.PENDING_ROWS_CAP
+
+
+def test_list_pending_for_course_ecarte_les_categories_jeunes(db_session):
+    """RGPD (#881) : l'import écarte jusqu'à Minime ; une saisie en attente ne
+    doit pas les faire apparaître sur la page publique de l'épreuve."""
+    course = _epreuve(db_session)
+    adulte = _participation(db_session, course, "ADULTE", "1", pending=True)
+    _participation(db_session, course, "MINIME", "2", pending=True, category="MIH")
+    jeunes = _epreuve(db_session, name="Triathlon Jeunes")
+    _participation(db_session, jeunes, "ENFANT", "1", pending=True)
+    db_session.flush()
+
+    assert [p.id for p in participation_repository.list_pending_for_course(db_session, course.id)] == [adulte.id]
+    assert participation_repository.list_pending_for_course(db_session, jeunes.id) == []
+
+
+def test_events_page_ne_compte_ni_ne_liste_les_lignes_jeunes_en_attente(db_session):
+    course = _epreuve(db_session)
+    _participation(db_session, course, "ADULTE", "1", pending=True)
+    _participation(db_session, course, "MINIME", "2", pending=True, category="MIH")
+    jeunes = _epreuve(db_session, name="Triathlon Jeunes")
+    _participation(db_session, jeunes, "ENFANT", "1", pending=True)
+    db_session.flush()
+
+    for filtres in [{}, {"club_only": False, "name": "e"}]:
+        page = participation_repository.events_page(db_session, **filtres)
+        lignes = {r.course_id: r.pending_count for r in page["items"]}
+        assert lignes == {course.id: 1}, filtres
+        assert page["total_events"] == 1, filtres
+
+
 # --- Listes d'épreuves : `events_page` (US2) ---
 
 

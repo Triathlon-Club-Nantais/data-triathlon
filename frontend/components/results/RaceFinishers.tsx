@@ -391,7 +391,6 @@ export function RaceFinishers({
 
   const nbPages = pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1;
   const enAttente = page === nbPages ? lignesEnAttente : [];
-  const idsEnAttente = new Set(enAttente.map((p) => p.id));
 
   /**
    * État du tri **de la colonne**, pour l'aide technique (#481, WCAG 1.3.1).
@@ -604,7 +603,7 @@ export function RaceFinishers({
             const own = p.is_tcn;
             const { nf, name, splits } = donneesLigne(p);
             const moi = estMaLigne(p, athleteRetenu?.id);
-            const attente = idsEnAttente.has(p.id);
+            const attente = p.is_pending_validation === true;
             return (
               <tr
                 key={p.id}
@@ -755,7 +754,7 @@ export function RaceFinishers({
         {rangees.map((p) => {
           const { nf, name, splits } = donneesLigne(p);
           const moi = estMaLigne(p, athleteRetenu?.id);
-          const attente = idsEnAttente.has(p.id);
+          const attente = p.is_pending_validation === true;
           // `.filter(Boolean)` sur les valeurs **brutes** : les replis (« — »,
           // `genderShort(null)`) sont eux-mêmes des chaînes non vides, donc un
           // filtre posé après eux ne retire jamais rien — un participant sans
