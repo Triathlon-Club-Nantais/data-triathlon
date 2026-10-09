@@ -25,6 +25,7 @@ from .utils import (
     DEFAULT_HEADERS,
     normalize_time,
     parse_fr_date,
+    split_relay_teammates,
     to_seconds,
 )
 
@@ -409,6 +410,7 @@ def _scrape_single_heat(
     )
     for r in results:
         r.event_name = plat.course_name(r.event_name, heat_label)
+    _mark_duo_heat(results)
 
     # Phase C — splits fins via la page détail pour TOUS les participants.
     # La page détail (natation/T1/vélo/T2/course) est la source fine ; elle
@@ -450,6 +452,22 @@ def _scrape_single_heat(
         )
 
     return results
+
+
+def _mark_duo_heat(results: list["ScrapedResult"]) -> None:
+    """Type relais un heat de duos que son nom ne désigne pas (#1263).
+
+    « Format M », « Swimrun S » : une majorité stricte de libellés « NOM1
+    PRÉNOM1/NOM2 PRÉNOM2 . », que l'import découpe en équipiers (#895). Pendant
+    Klikego des catégories d'équipe de Wiclax (#1213).
+    """
+    duos = sum(
+        1 for r in results
+        if split_relay_teammates(" ".join(filter(None, [r.athlete_name, r.athlete_firstname])))
+    )
+    if duos * 2 > len(results):
+        for r in results:
+            r.is_relay = True
 
 
 def scrape_event_all(
