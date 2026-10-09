@@ -86,7 +86,7 @@ constantes `STATUS_*`) ; `utils.py` = helpers de normalisation (dont
   `utils.split_relay_teammates` (séparateur `/` seul, un nom **et** un prénom par
   équipier, tout ou rien ; en majuscules au-delà de deux mots, seule une particule
   comme « LE TULZO » situe le nom, #1237 ; Klikego publie aussi
-  « NOM1 / NOM2 PRÉNOM1 / PRÉNOM2 » avec « _ » pour l'espace, #1270). Un scraper garde donc sa coupe habituelle d'un nom
+  « NOM1 / NOM2 PRÉNOM1 / PRÉNOM2 . » avec « _ » pour l'espace, #1270). Un scraper garde donc sa coupe habituelle d'un nom
   d'équipe. Règle et exemples réels :
   `specs/20260925-130402-relay-name-split/contracts/relay-teammates-rule.md` ;
   mesures : `docs/superpowers/specs/2026-09-25-relais-noms-equipiers-sondage.md`.

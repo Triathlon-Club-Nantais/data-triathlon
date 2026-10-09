@@ -23,7 +23,14 @@ ou `None` (ligne non découpée). Jamais de liste partielle.
 3. **Listes parallèles** : `(noms, prénoms) = split_athlete_name(valeur)`. Si les deux
    contiennent `/` : couper chacun sur `/`, retirer les espaces ; même nombre
    d'éléments exigé ; paires position à position.
-4. **Segments** (sinon) : couper la valeur sur `/`. Pour chaque segment :
+4. **Duo « noms d'abord »** (klikego 517 et 518, #1270), sinon : la valeur publiée,
+   avant l'étape 1, compte exactement sept jetons `NOM1 / NOM2 PRÉNOM1 / PRÉNOM2 .`,
+   les quatre mots tout en majuscules et le `.` final présent (il écarte les noms
+   d'équipe des autres fournisseurs, `BREIZH / IRON MEN / TCN`) → `[(NOM1, PRÉNOM1),
+   (NOM2, PRÉNOM2)]`. Un `_` y tient lieu d'espace : chaque mot est coupé sur `_` et
+   recollé par une espace, morceaux vides ôtés (`LE__ROUX_` → `LE ROUX`). Un nom
+   composé publié avec une espace (`LE ROUX`) ne suit pas cette étape.
+5. **Segments** (sinon) : couper la valeur sur `/`. Pour chaque segment :
    - contient `&`, `+` ou le mot `et` (toute casse) → `None` ;
    - casse mixte : les jetons majuscules forment **un seul** bloc contigu, en tête ou en
      queue → (bloc, reste) ; sinon `None` ;
@@ -35,9 +42,9 @@ ou `None` (ligne non découpée). Jamais de liste partielle.
      vietnamien `LE` (`LE ANH TUAN`) se lit `("LE ANH", "TUAN")`, faux découpage
      qu'on ne peut exclure sans perdre `LE TULZO NICOLAS` ;
    - aucune majuscule → `None`.
-5. Chaque nom et chaque prénom porte au moins deux lettres.
-6. Nombre d'équipiers entre 2 et 8.
-7. Aucune paire en double (comparaison sans accents ni casse).
+6. Chaque nom et chaque prénom porte au moins deux lettres.
+7. Nombre d'équipiers entre 2 et 8.
+8. Aucune paire en double (comparaison sans accents ni casse).
 
 Tout échec d'une étape → `None`.
 
@@ -56,6 +63,10 @@ Tout échec d'une étape → `None`.
 | `LE TULZO NICOLAS / LE TULZO ROXANE .` (klikego, épreuve 400, #1237) | `[("LE TULZO", "NICOLAS"), ("LE TULZO", "ROXANE")]` |
 | `LE BRAS LUC / LE PAGE GUULLAUME .` (klikego) | `[("LE BRAS", "LUC"), ("LE PAGE", "GUULLAUME")]` |
 | `LE BOZEC HENRI / BABINET SYLVAIN` (chronoplace) | `[("LE BOZEC", "HENRI"), ("BABINET", "SYLVAIN")]` |
+| `GUERIN / LE_ROUX JULIEN / MARC .` (klikego 517, #1270) | `[("GUERIN", "JULIEN"), ("LE ROUX", "MARC")]` |
+| `BOUTIER_LAURET / PETIT ANNE_SOPHIE / LUC .` (klikego 518, #1270) | `[("BOUTIER LAURET", "ANNE SOPHIE"), ("PETIT", "LUC")]` |
+| `GUERIN / LE ROUX JULIEN / MARC .` (nom composé non soudé) | `None` |
+| `BREIZH / IRON MEN / TCN` (nom d'équipe, sans `.` final) | `None` |
 | `MARTIN JEAN PIERRE / DUPONT PAUL` (3 jetons sans particule) | `None` |
 | `DA SILVA DOS SANTOS / DUPONT PAUL` (deux mots à particule) | `None` |
 | `NGUYEN VAN ANH / DUPONT PAUL` | `None` |
