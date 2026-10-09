@@ -274,12 +274,17 @@ def _fetch_indiv(event_id: str, race: str, client: httpx.Client) -> list[dict]:
 #: `_ESSAIS_INDIV` sur des 500 intermittents avant d'échouer, soit jusqu'à
 #: `(1 + _ESSAIS_STABILITE_DEBORDEMENT) * _ESSAIS_INDIV` requêtes de 14,7 Mo
 #: dans le pire cas — accepté : l'objectif est d'éviter le coût systématique
-#: sur le chemin courant, pas de borner le pire cas.
+#: sur le chemin courant, pas de borner le pire cas. Depuis #1264, une
+#: réponse tronquée à `_PLAFOND_INDIV` ne couvre plus les autres courses :
+#: chacune redemandée qui déborde encore paie ce pire cas, qui se multiplie
+#: donc par le nombre de courses en débordement tronqué.
 _ESSAIS_STABILITE_DEBORDEMENT = 2
 
 #: Mesuré (#1264, eventId=1082) : la source tronque une réponse `result/indiv`
 #: à 4000 lignes pile. Une réponse de cette taille n'est plus l'événement
-#: entier et ne couvre que la course demandée.
+#: entier et ne couvre que la course demandée. Limite connue : une réponse
+#: qui honore son filtre et fait 4000 lignes pile (course unique énorme)
+#: n'est pas détectée comme tronquée.
 _PLAFOND_INDIV = 4000
 
 
@@ -559,6 +564,19 @@ def _lignes_par_course(
             continue
 
         evenement_entier = bool(vues - {race}) and len(reponse) < _PLAFOND_INDIV
+        if vues - {race} and not evenement_entier:
+            logger.warning(
+                "Prolivesport indiv %s/%s : débordement tronqué (%d lignes), "
+                "les autres courses sont redemandées",
+                event_id, race, len(reponse),
+            )
+            if race not in vues:
+                trace.failures.append({
+                    "heat_slug": race,
+                    "reason": f"Débordement tronqué à {len(reponse)} lignes "
+                    "sans aucune ligne de la course demandée.",
+                })
+                continue
         for ligne in reponse:
             code = (ligne.get("race") or "").strip()
             if code in attendues and code not in couvertes and (
