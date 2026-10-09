@@ -15,6 +15,7 @@ from app.core.club import _normalise_sql, broad_club_key, is_tcn, normalize_club
 from app.core.discipline import federal_clause
 from app.core.season import season_bounds, season_of
 from app.core.validation import awaiting_validation_clause, validated_clause
+from app.core.youth import is_youth
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation, ParticipationTeammate
@@ -504,7 +505,7 @@ def _apply_filters(
     """
     kept = validated_clause(Participation.is_pending_validation)
     if include_pending:
-        kept = or_(kept, _awaiting())
+        kept = or_(kept, _shown_awaiting(db))
     q = q.join(Athlete, Participation.athlete_id == Athlete.id).join(
         Course, Participation.course_id == Course.id
     ).filter(kept)
@@ -862,6 +863,40 @@ def list_page_for_course(
     return query.all(), total
 
 
+#: Plafond des lignes en attente rendues par épreuve (#1273). `POST /participations`
+#: n'est gardé que par le mot de passe du site, et la liste repart à chaque page
+#: du classement : sans borne, des saisies répétées gonfleraient chaque réponse.
+PENDING_ROWS_CAP = 50
+
+
+def _youth_pending_ids(db: Session) -> list[int]:
+    """Résultats en attente d'une épreuve ou d'une catégorie jeune (#881, RGPD).
+
+    `core.youth.is_youth` est une règle Python (mots, tranches d'âge, années de
+    naissance) sans équivalent SQL : on l'applique ici à la file d'attente,
+    petite par nature (celle que la page bénévoles charge en entier), pour en
+    tirer des identifiants à exclure en SQL. L'import écarte ces lignes ; une
+    saisie manuelle ne le fait pas encore.
+    """
+    rows = (
+        db.query(Participation.id, Participation.category, Course.name, Course.event_date)
+        .join(Course, Participation.course_id == Course.id)
+        .filter(awaiting_validation_clause(Participation.is_pending_validation, Participation.is_rejected))
+    )
+    return [
+        participation_id
+        for participation_id, category, name, event_date in rows
+        if is_youth(name, category, event_year=event_date.year if event_date else None)
+    ]
+
+
+def _shown_awaiting(db: Session):
+    """Lignes en attente **affichables** (#1273) : non refusées, hors jeunes."""
+    clause = awaiting_validation_clause(Participation.is_pending_validation, Participation.is_rejected)
+    youth = _youth_pending_ids(db)
+    return and_(clause, Participation.id.not_in(youth)) if youth else clause
+
+
 def list_pending_for_course(
     db: Session,
     course_id: int,
@@ -878,11 +913,13 @@ def list_pending_for_course(
     `_ordre_affichage` : un rang déclaré n'est ni affiché ni comparé tant que
     la ligne n'est pas validée. Ni paginés ni comptés : ces lignes n'entrent
     dans aucun total (FR-006), elles s'ajoutent en fin de classement.
+    Plafonnés à `PENDING_ROWS_CAP`, catégories et épreuves jeunes exclues.
     """
     return (
         _course_rows(db, course_id, q=q, club_only=club_only, club=club, category=category)
-        .filter(awaiting_validation_clause(Participation.is_pending_validation, Participation.is_rejected))
+        .filter(_shown_awaiting(db))
         .order_by(func.lower(Athlete.nom), func.lower(Athlete.prenom), Participation.id)
+        .limit(PENDING_ROWS_CAP)
         .all()
     )
 
@@ -1197,10 +1234,6 @@ def club_podiums(db: Session, *, federal_only: bool = False):
     return q.all()
 
 
-def _awaiting():
-    return awaiting_validation_clause(Participation.is_pending_validation, Participation.is_rejected)
-
-
 def _grouped_events_query(
     db: Session,
     *,
@@ -1239,7 +1272,7 @@ def _grouped_events_query(
         func.sum(
             case((and_(validated, Participation.counts_for_tcn.is_(True)), 1), else_=0)
         ).label("tcn_count"),
-        func.sum(case((_awaiting(), 1), else_=0)).label("pending_count"),
+        func.sum(case((_shown_awaiting(db), 1), else_=0)).label("pending_count"),
     )
     q = _apply_filters(
         q,
@@ -1293,7 +1326,7 @@ def _events_query_fast(
     """
     pending_rows = (
         select(func.count(Participation.id))
-        .where(Participation.course_id == Course.id, _awaiting())
+        .where(Participation.course_id == Course.id, _shown_awaiting(db))
         .correlate(Course)
         .scalar_subquery()
     )

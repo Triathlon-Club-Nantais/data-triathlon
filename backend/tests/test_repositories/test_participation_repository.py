@@ -460,16 +460,15 @@ def test_events_page_par_defaut_ne_joint_jamais_participation(db_session):
 
     requetes = _requetes(db_session, lambda: participation_repository.events_page(db_session))
 
-    # Depuis #1273, `participations` n'y est plus lue que par une sous-requête
-    # **corrélée à l'épreuve** (les résultats en attente, sur l'index
-    # `course_id`) : ni jointure, ni agrégat sur l'ensemble filtré, donc un
-    # coût qui suit le nombre d'épreuves et non le nombre de participations.
+    # Depuis #1273, `participations` n'y est plus lue que pour les résultats
+    # **en attente** (la file, petite par nature, et une sous-requête corrélée
+    # à l'épreuve) : ni jointure vers elle, ni agrégat sur l'ensemble filtré,
+    # donc un coût qui ne suit pas le nombre de participations validées.
     for requete in (r.lower() for r in requetes):
         assert "join participations" not in requete, requete
         assert "group by" not in requete, requete
-        assert requete.count("from participations") == requete.count(
-            "where participations.course_id = courses.id"
-        ), requete
+        if "from participations" in requete:
+            assert "participations.is_pending_validation" in requete, requete
 
 
 def test_events_page_avec_name_ou_club_only_rejoint_participation(db_session):

@@ -97,7 +97,7 @@ def list_courses(
 
     `id` (#718) retrouve une épreuve précise sans deviner son nom exact —
     utile quand on part d'un identifiant lu ailleurs (URL publique, journal
-    d'administration). Il se cumule avec les autres filtres comme eux tous,
+    d'administration). Il se cumule avec les autres filters comme eux tous,
     même si en pratique une seule épreuve porte un `id` donné.
     """
     return course_repository.list_all(
@@ -135,7 +135,7 @@ def count_courses(
     ),
     db: Session = Depends(get_db),
 ):
-    """Combien d'épreuves `GET /courses` rendrait aux mêmes filtres.
+    """Combien d'épreuves `GET /courses` rendrait aux mêmes filters.
 
     Une route à part plutôt qu'un `total` ajouté à `GET /courses` : cette
     dernière rend une **liste**, l'envelopper serait un changement de contrat de
@@ -266,11 +266,11 @@ def get_course(
     if not course:
         raise NotFoundError("Course introuvable")
     taille = _resolve_page_size(page_size)
-    filtres = {"q": q, "club_only": is_club_scope(scope), "club": club, "category": category}
+    filters = {"q": q, "club_only": is_club_scope(scope), "club": club, "category": category}
     participations, total = participation_repository.list_page_for_course(
-        db, course_id, page=page, page_size=taille, **filtres
+        db, course_id, page=page, page_size=taille, **filters
     )
-    pending = participation_repository.list_pending_for_course(db, course_id, **filtres)
+    pending = participation_repository.list_pending_for_course(db, course_id, **filters)
     return {
         "course": CourseBrief.model_validate(course),
         "participations": [ParticipationOut.model_validate(p) for p in participations],

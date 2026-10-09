@@ -86,7 +86,11 @@ l'affichage a deux surfaces de plus que la fiche d'athlète, toutes deux sous
   `total_events` compte les épreuves listées. `events_with_counts` (carte,
   stats) n'est pas touchée.
 
-Une ligne refusée n'apparaît nulle part. Preuve : un test par compte, avant et
+Une ligne refusée n'apparaît nulle part, une ligne jeune non plus
+(`core.youth.is_youth`, #881, appliquée en Python à la file d'attente par
+`_youth_pending_ids` puis exclue en SQL). La liste d'une épreuve est plafonnée
+à `PENDING_ROWS_CAP` (50) : `POST /participations` n'est gardé que par le mot
+de passe du site. Preuve : un test par compte, avant et
 après l'ajout d'une ligne en attente, dans
 `tests/test_api/test_course_pending_rows.py`. Spec :
 `specs/20261009-162149-pending-results-on-course/`.
