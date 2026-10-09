@@ -30,7 +30,8 @@ on:
   # Reprise hebdomadaire, lundi 3 h UTC — creux de trafic, et le lundi ramasse
   # les épreuves du week-end. Aucune entrée n'accompagne un `schedule` : c'est
   # ce qui rend le repli `|| 'production'` indispensable plus bas, et c'est le
-  # mode `rescrape` sans filtre qui s'exécute alors, par les défauts ci-dessous.
+  # mode `rescrape` qui s'exécute alors, borné aux épreuves des 30 derniers
+  # jours (`--event-within`, #1261, posé par l'étape « Run batch »).
   #
   # **Une planification muette est une panne invisible** : GitHub désactive les
   # workflows planifiés d'un dépôt sans activité depuis 60 jours (D13), sans
@@ -105,8 +106,8 @@ jobs:
       id-token: write
       contents: read
     # Sans cette borne, une exécution coincée gèlerait tout nouveau lancement
-    # six heures durant (défaut de la plateforme). Une reprise complète tient
-    # très largement dans deux heures.
+    # six heures durant (défaut de la plateforme). Une reprise complète peut
+    # l'atteindre (run du 2026-09-25) : d'où la fenêtre du cron (#1261).
     timeout-minutes: 120
     # Un environment par base — `batch-preview` ou `batch-production` —, chacun
     # portant son `DATABASE_URL`. C'est lui, et lui seul, qui décide de la base
@@ -267,6 +268,10 @@ jobs:
           MODE: ${{ inputs.mode }}
           PROVIDER: ${{ inputs.provider }}
           OLDER_THAN: ${{ inputs.older_than }}
+          # Reprise planifiée bornée aux épreuves des 30 derniers jours (#1261) :
+          # au delà, les résultats ne bougent plus, et la base entière ne tient
+          # plus dans `timeout-minutes`. Un lancement manuel reste complet.
+          EVENT_WITHIN: ${{ github.event_name == 'schedule' && '30' || '' }}
           LIMIT: ${{ inputs.limit }}
           URLS: ${{ inputs.urls }}
           DRY_RUN: ${{ inputs.dry_run }}
@@ -288,6 +293,7 @@ jobs:
           else
             if [ -n "$PROVIDER" ]; then args+=(--provider "$PROVIDER"); fi
             if [ -n "$OLDER_THAN" ]; then args+=(--older-than "$OLDER_THAN"); fi
+            if [ -n "$EVENT_WITHIN" ]; then args+=(--event-within "$EVENT_WITHIN"); fi
             uv run python -m app.cli rescrape-db "${args[@]}" \
               > bilan.json 2> rapport.txt
           fi

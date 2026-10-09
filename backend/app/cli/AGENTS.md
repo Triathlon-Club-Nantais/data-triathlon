@@ -14,6 +14,7 @@ configuration périmée classe des milliers de participations à côté, en sile
 uv run python -m app.cli import-sheet --dry-run     # import de masse (Sheet) : ce qui serait importé
 uv run python -m app.cli import-sheet --limit 5     # import réel — progression en direct
 uv run python -m app.cli rescrape-db --limit 10     # re-scrape la DB (force=True) ; --plain, --no-progress
+uv run python -m app.cli rescrape-db --event-within 30   # épreuves datées des 30 derniers jours (cron hebdomadaire, #1261)
 uv run python -m app.cli rescrape-db --max-concurrent-hosts 8   # plus de chronométreurs en parallèle (défaut : 4)
 uv run python -m app.cli rescrape-db --json | jq    # bilan machine-lisible (stdout = JSON seul)
 uv run python -m app.cli rescrape-db --url <url> --url <url2>   # cible des épreuves précises
@@ -117,13 +118,23 @@ avant le batch, donc « Épreuves ciblées : 12 » sur une table de 53 courses n
 pas une perte.
 
 **Deux modes de sélection pour `rescrape-db`**, exclusifs l'un de l'autre :
-par filtre sur la base (`--provider`, `--older-than`), ou par URL explicite
+par filtre sur la base (`--provider`, `--older-than`, `--event-within`), ou par URL explicite
 (`--url`, répétable, et `--urls-from <fichier|->`). Le second **court-circuite
 la base** : une URL inconnue en table `course` est scrapée normalement, sans
 avertissement — c'est le cas nominal du rejeu d'un échec d'import, dont
 l'épreuve n'a rien persisté. Les combiner est une erreur d'usage (code 2) : ce
 sont deux modes, pas des filtres à composer. `--limit` reste compatible avec les
 deux : il borne la liste finale, il ne sélectionne rien.
+
+**Deux filtres de temps, à ne pas confondre** (#1261). `--older-than N` porte
+sur `scraped_at` (dernier scrape) : appliqué chaque semaine, il finit par
+retomber sur toute la base. `--event-within N` porte sur la **date de
+l'épreuve** : il retient celles datées des N derniers jours ou à venir, et
+c'est lui que le cron hebdomadaire passe (`--event-within 30`), parce qu'une
+reprise complète ne tient plus dans les 120 minutes du job. Une épreuve **sans
+date** n'est jamais retenue par ce filtre (rien ne la dit récente) ; seule une
+reprise sans `--event-within`, lancée à la main, la couvre. L'écran
+`/admin/batches` n'expose pas ce filtre : un lancement manuel reste complet.
 
 **Ce que le rescrape ne touche jamais : les sources passives** (#282). Une épreuve
 publiée par deux chronométreurs porte N sources dont une seule active, et le batch

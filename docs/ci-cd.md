@@ -860,11 +860,22 @@ schedule:
 ```
 
 Le lundi ramasse les épreuves du week-end, à une heure creuse. Une occurrence
-planifiée ne porte **aucune entrée** : c'est le mode `rescrape` sans filtre qui
-s'exécute, et c'est la raison du repli `|| 'production'` sur `environment` et
+planifiée ne porte **aucune entrée** : c'est le mode `rescrape` qui s'exécute,
+et c'est la raison du repli `|| 'production'` sur `environment` et
 `concurrency`. Sans lui, le cron hériterait du défaut `preview` et ne
 rafraîchirait jamais la base réelle — une panne qu'on ne découvre qu'en
 cherchant pourquoi les résultats datent.
+
+**La reprise planifiée ne porte que sur les épreuves récentes** (#1261) : l'étape
+« Run batch » ajoute `--event-within 30` quand `github.event_name == 'schedule'`,
+soit les épreuves datées des 30 derniers jours (ou à venir). Une fois publiés,
+les résultats d'une épreuve passée ne bougent presque plus, et la base entière
+ne tient plus dans les 120 minutes du job (run du 2026-09-25, coupé à la borne).
+Une épreuve **sans date** n'est pas reprise par le cron : rien ne la dit
+récente. Le filtre porte sur la date de l'épreuve, pas sur `scraped_at` comme
+`--older-than`, qui finissait par retomber sur toute la base. Un lancement
+manuel depuis `/admin/batches` ne passe pas ce filtre : c'est la voie d'une
+reprise complète, épreuves sans date comprises.
 
 Une occurrence planifiée est soumise au même verrou de concurrence qu'un
 lancement manuel : elle est ignorée si un batch tourne déjà. C'est voulu.
@@ -880,8 +891,9 @@ lancement manuel : elle est ignorée si un batch tourne déjà. C'est voulu.
 2. **La durée.** Le job est borné à 120 minutes, et l'import paie aujourd'hui
    deux requêtes par participant contre une base distante (issue #258) : une
    reprise complète peut atteindre la borne. Elle sort alors **rouge**, ce qui
-   est bruyant et donc acceptable — mais tant que #258 n'est pas traité, la
-   reprise hebdomadaire est à surveiller, voire à borner par un `limit`.
+   est bruyant et donc acceptable. Le cron l'évite par sa fenêtre de 30 jours
+   (#1261) ; c'est la reprise **manuelle** complète qui reste exposée, à borner
+   au besoin par `provider`, `older_than` ou `limit`.
 
 **Les licenciés du club se relisent avant la reprise** (#1202) : l'étape
 « Sync club members » lance `sync-club-members`, qui relit la page FFTri du

@@ -272,6 +272,41 @@ def test_iter_all_filtre_par_provider_et_anciennete(db_session):
     assert {c.name for c in anciens} == {"Vieux"}
 
 
+def test_iter_all_event_within_porte_sur_la_date_de_l_epreuve(db_session):
+    """#1261 : la fenêtre porte sur `event_date`, pas sur `scraped_at`.
+
+    Une épreuve sans date n'est pas retenue : rien ne la dit récente. La reprise
+    complète (sans fenêtre) la couvre toujours.
+    """
+    from datetime import timedelta
+
+    from app.core.time import utcnow
+
+    aujourdhui = utcnow().date()
+    for nom, jour in (
+        ("Recente", aujourdhui - timedelta(days=10)),
+        ("Ancienne", aujourdhui - timedelta(days=40)),
+        ("SansDate", None),
+    ):
+        epreuve = course_repository.get_or_create(
+            db_session, name=nom, event_date=jour, event_type="triathlon-m",
+            source_url=f"https://k/{nom}", provider="klikego",
+        )
+        # Fraîchement scrapée : la fenêtre ne doit pas dépendre de `scraped_at`.
+        epreuve.scraped_at = utcnow()
+    db_session.flush()
+
+    recentes = course_repository.iter_all(db_session, event_within_days=30)
+    assert {c.name for c in recentes} == {"Recente"}
+
+    assert {c.name for c in course_repository.iter_all(db_session)} == {
+        "Recente", "Ancienne", "SansDate",
+    }
+    assert course_repository.iter_all(
+        db_session, provider="timepulse", event_within_days=30
+    ) == []
+
+
 def _epreuve_peuplee(db_session, nom, nb_participations):
     """Une épreuve et ses N résultats, chacun sur un athlète distinct."""
     from app.repositories import athlete_repository, participation_repository

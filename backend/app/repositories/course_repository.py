@@ -672,8 +672,15 @@ def iter_all(
     *,
     provider: str | None = None,
     older_than_days: int | None = None,
+    event_within_days: int | None = None,
 ) -> list[Course]:
     """Les courses **scrapables** (non paginé), filtrables par provider et ancienneté.
+
+    `event_within_days` porte sur la **date de l'épreuve** (#1261), là où
+    `older_than_days` porte sur `scraped_at` : il retient les épreuves datées
+    des N derniers jours, ou à venir. Une épreuve **sans date** n'est pas
+    retenue (`NULL` ne matche pas la comparaison SQL) : rien ne la dit récente,
+    et la reprise complète, sans ce filtre, la couvre toujours.
 
     Alimente le rescrape en masse ; l'accès DB reste confiné au repository.
 
@@ -707,6 +714,8 @@ def iter_all(
     if older_than_days is not None:
         cutoff = utcnow() - timedelta(days=older_than_days)
         q = q.filter(Course.scraped_at < cutoff)
+    if event_within_days is not None:
+        q = q.filter(Course.event_date >= utcnow().date() - timedelta(days=event_within_days))
     return q.order_by(Course.event_date.desc().nullslast(), Course.name).all()
 
 

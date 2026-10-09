@@ -230,6 +230,7 @@ def run_rescrape_db(
     *,
     dry_run: bool = False,
     older_than: int | None = None,
+    event_within: int | None = None,
     provider: str | None = None,
     limit: int | None = None,
     delay: float = 1.0,
@@ -247,7 +248,7 @@ def run_rescrape_db(
     persister.
 
     Deux modes de sélection, un seul batch en aval. `urls=None` : les épreuves
-    viennent de la base (`provider`, `older_than`, dédup par URL). `urls`
+    viennent de la base (`provider`, `older_than`, `event_within`, dédup par URL). `urls`
     fourni : la base **n'est pas interrogée pour sélectionner**, chaque URL
     devient une épreuve — c'est ce qui permet de rejouer un échec d'import, dont
     l'épreuve n'existe pas en base. `limit` borne la liste finale dans les deux
@@ -259,7 +260,8 @@ def run_rescrape_db(
         # Pas de second filtre sur `source_url` : `iter_all` joint la source
         # active, donc chaque course rendue en a une par construction (#282).
         courses = course_repository.iter_all(
-            db, provider=provider, older_than_days=older_than
+            db, provider=provider, older_than_days=older_than,
+            event_within_days=event_within,
         )
         epreuves = _dedupe_par_url(courses)
         # Le nom de la course vient de la DB : on peut libeller proprement.
