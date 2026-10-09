@@ -197,6 +197,14 @@ def render_retention_report(outcome: RetentionOutcome) -> str:
     ])
 
 
+def render_orphans_report(removed: int) -> str:
+    """Balayage des athlètes orphelins (#1271)."""
+    return "\n".join([
+        _titre("ATHLÈTES ORPHELINS", dry_run=False, interrupted=False),
+        _ligne("Athlètes orphelins supprimés", removed),
+    ])
+
+
 def render_timepulse_duplicates_report(rows: list[dict], *, deleted: bool) -> str:
     """Épreuves timepulse remplacées par leurs parcours qualifiés (#1004)."""
     lignes = ["=== ÉPREUVES TIMEPULSE REMPLACÉES ==="]

@@ -1,6 +1,6 @@
 """Commande `purge-retention` : tient les durées de conservation publiées (#1158). Zéro logique métier.
 
-Lancée par le batch hebdomadaire (`.github/workflows/batch.yml`), après la reprise.
+Lancée par le passage hebdomadaire (`.github/workflows/batch.yml`).
 """
 from dataclasses import asdict
 

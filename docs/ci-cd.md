@@ -852,30 +852,29 @@ avant. Le jour où l'une tombe sans avoir été vue, le symptôme est borné à 
 instance : l'écran de lancement des batches refuse en nommant la cause (tableau ci-dessus), et rien d'autre du site
 ne bouge (#259).
 
-### Reprise périodique — `schedule` (#47)
+### Passage hebdomadaire : `schedule` (#47, #1271)
 
 ```yaml
 schedule:
   - cron: "0 3 * * 1"   # lundi 3 h UTC
 ```
 
-Le lundi ramasse les épreuves du week-end, à une heure creuse. Une occurrence
-planifiée ne porte **aucune entrée** : c'est le mode `rescrape` qui s'exécute,
-et c'est la raison du repli `|| 'production'` sur `environment` et
-`concurrency`. Sans lui, le cron hériterait du défaut `preview` et ne
-rafraîchirait jamais la base réelle — une panne qu'on ne découvre qu'en
-cherchant pourquoi les résultats datent.
+Une occurrence planifiée ne lance **que** trois étapes, en production : la purge
+de rétention (#1158), la relecture des licenciés (#1202) puis le balayage des
+athlètes orphelins (`purge-orphans`, #1271). Elle ne lance
+**ni** `rescrape-db` **ni** le géocodage (#1271) : les étapes « Run batch » et
+« Geocode new courses » portent `github.event_name != 'schedule'`, et le résumé
+comme les artefacts du batch sont sautés avec elles. La reprise ne réconcilie
+que l'identité d'athlète (temps, rangs et splits restent intouchés), sept runs
+planifiés du 17/08 au 28/09/2026 ont échoué sans manquer à personne, et le
+lancement manuel depuis `/admin/batches` (modes `rescrape` et `urls`) la
+couvre à la demande.
 
-**La reprise planifiée ne porte que sur les épreuves récentes** (#1261) : l'étape
-« Run batch » ajoute `--event-within 30` quand `github.event_name == 'schedule'`,
-soit les épreuves datées des 30 derniers jours (ou à venir). Une fois publiés,
-les résultats d'une épreuve passée ne bougent presque plus, et la base entière
-ne tient plus dans les 120 minutes du job (run du 2026-09-25, coupé à la borne).
-Une épreuve **sans date** n'est pas reprise par le cron : rien ne la dit
-récente. Le filtre porte sur la date de l'épreuve, pas sur `scraped_at` comme
-`--older-than`, qui finissait par retomber sur toute la base. Un lancement
-manuel depuis `/admin/batches` ne passe pas ce filtre : c'est la voie d'une
-reprise complète, épreuves sans date comprises.
+Une occurrence planifiée ne porte **aucune entrée** : c'est la raison du repli
+`|| 'production'` sur `environment` et `concurrency`. Sans lui, le cron
+hériterait du défaut `preview` et ne purgerait jamais la base réelle, une panne
+qu'on ne découvre qu'en cherchant pourquoi les durées publiées ne sont plus
+tenues.
 
 Une occurrence planifiée est soumise au même verrou de concurrence qu'un
 lancement manuel : elle est ignorée si un batch tourne déjà. C'est voulu.
@@ -885,15 +884,14 @@ lancement manuel : elle est ignorée si un batch tourne déjà. C'est voulu.
 1. **GitHub désactive les workflows planifiés d'un dépôt sans activité depuis
    60 jours** (D13). Rien ne casse, rien n'est notifié : le cron cesse
    simplement de se déclencher. Un dépôt actif ne le rencontre pas, mais une
-   période creuse suffit. La seule parade est de le constater — d'où le rappel
+   période creuse suffit. La seule parade est de le constater, d'où le rappel
    de suivi à J+30 et le contrôle de SC-007 (quatre échéances consécutives sans
    intervention).
 2. **La durée.** Le job est borné à 120 minutes, et l'import paie aujourd'hui
    deux requêtes par participant contre une base distante (issue #258) : une
-   reprise complète peut atteindre la borne. Elle sort alors **rouge**, ce qui
-   est bruyant et donc acceptable. Le cron l'évite par sa fenêtre de 30 jours
-   (#1261) ; c'est la reprise **manuelle** complète qui reste exposée, à borner
-   au besoin par `provider`, `older_than` ou `limit`.
+   reprise **manuelle** complète peut atteindre la borne. Elle sort alors
+   **rouge**, ce qui est bruyant et donc acceptable ; la borner au besoin par
+   `provider`, `older_than` ou `limit`.
 
 **Les licenciés du club se relisent avant la reprise** (#1202) : l'étape
 « Sync club members » lance `sync-club-members`, qui relit la page FFTri du
@@ -903,13 +901,25 @@ tourne même si la purge de rétention a échoué, et son propre échec (page
 illisible) rougit le run sans empêcher la reprise. Rapport dans le résumé du
 run, section « Licenciés du club ».
 
-**Le géocodage suit la reprise** (#975) : l'étape « Geocode new courses »
-lance `geocode-courses --limit 300` après une reprise réussie, jamais en mode
-`urls` ni en dry-run. C'est le seul passage qui remplit la carte des épreuves
-(`GET /stats/events-geo` ne géocode plus à la volée). Nominatim coûte 1 à 2 s
-par épreuve : la borne tient l'étape à une dizaine de minutes, et le reste passe
-au lundi suivant. Elle est en `continue-on-error`, pour qu'un Nominatim muet ne
-fasse pas rougir un batch dont les épreuves ont abouti.
+**Le géocodage suit la reprise manuelle** (#975) : l'étape « Geocode new
+courses » lance `geocode-courses --limit 300` après une reprise réussie, jamais
+sur la planification, en mode `urls` ni en dry-run. C'est le seul passage qui
+remplit la carte des épreuves (`GET /stats/events-geo` ne géocode plus à la
+volée). Nominatim coûte 1 à 2 s par épreuve : la borne tient l'étape à une
+dizaine de minutes, et le reste passe à la reprise suivante. Elle est en
+`continue-on-error`, pour qu'un Nominatim muet ne fasse pas rougir un batch
+dont les épreuves ont abouti.
+
+**Les athlètes orphelins sont balayés chaque semaine** (#1271) : l'étape
+« Purge orphan athletes » lance `purge-orphans` (`athlete_repository.delete_orphans`),
+jamais en mode `urls` ni en dry-run. Ce balayage ne tournait qu'en fin de
+`rescrape-db`, que la planification ne lance plus. Les chemins d'édition
+(suppression, fusion, reprise d'une épreuve) nettoient déjà leurs propres
+candidats ; seule la réassignation d'un dossard par un import web d'une épreuve
+déjà en base laisse une fiche vidée, visible à 0 résultat dans la recherche
+jusqu'au balayage suivant. Mêmes conditions que la relecture des licenciés ; une
+reprise manuelle le refait en fin de batch, sans dommage. Rapport dans le résumé
+du run, section « Athlètes orphelins ».
 
 **Destinataire de la notification d'échec** (#922) : la plateforme ne notifie
 que l'auteur de la dernière modification du fichier de cron, et la reprise a

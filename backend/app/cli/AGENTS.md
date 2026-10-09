@@ -14,7 +14,6 @@ configuration périmée classe des milliers de participations à côté, en sile
 uv run python -m app.cli import-sheet --dry-run     # import de masse (Sheet) : ce qui serait importé
 uv run python -m app.cli import-sheet --limit 5     # import réel — progression en direct
 uv run python -m app.cli rescrape-db --limit 10     # re-scrape la DB (force=True) ; --plain, --no-progress
-uv run python -m app.cli rescrape-db --event-within 30   # épreuves datées des 30 derniers jours (cron hebdomadaire, #1261)
 uv run python -m app.cli rescrape-db --max-concurrent-hosts 8   # plus de chronométreurs en parallèle (défaut : 4)
 uv run python -m app.cli rescrape-db --json | jq    # bilan machine-lisible (stdout = JSON seul)
 uv run python -m app.cli rescrape-db --url <url> --url <url2>   # cible des épreuves précises
@@ -33,6 +32,7 @@ uv run python -m app.cli geocode-courses --limit 300 --json   # coordonnées des
 uv run python -m app.cli geocode-courses --course 249 --course 250   # reprend une épreuve mal placée, même déjà géocodée (#1256)
 uv run python -m app.cli purge-retention --dry-run   # durées de conservation publiées (#1158) ; sans --dry-run, supprime
 uv run python -m app.cli sync-club-members --json   # licenciés FFTri de la saison en cours (#1202)
+uv run python -m app.cli purge-orphans               # athlètes sans résultat ni autre référence (#1271)
 uv run python -m app.cli allow-email --email <adresse>              # autorise une adresse à se connecter (#170)
 uv run python -m app.cli grant-role --email <adresse> --role admin   # amorce le 1er administrateur (#115)
 uv run python -m app.cli revoke-sessions --all --yes                 # révocation d'urgence : ferme toutes les sessions (#169)
@@ -96,7 +96,9 @@ est rattrapé, et le bilan bascule sur stderr plutôt que d'être perdu.
 
 **Où ces batches tournent désormais** (#47) : plus sur un poste de développement,
 mais sur un runner GitHub Actions (`.github/workflows/batch.yml`), déclenché
-depuis `/admin/batches` ou par une planification hebdomadaire. Rien n'a changé
+depuis `/admin/batches`. La planification hebdomadaire ne lance plus
+`rescrape-db` (#1271) : seulement `purge-retention`, `sync-club-members` et
+`purge-orphans`. Rien n'a changé
 dans la CLI — c'est bien elle qui s'exécute — mais le workflow **dépend** de deux
 propriétés décrites ci-dessus, et les casser casserait l'écran d'administration
 sans qu'aucun test de la CLI ne bouge :
@@ -118,23 +120,13 @@ avant le batch, donc « Épreuves ciblées : 12 » sur une table de 53 courses n
 pas une perte.
 
 **Deux modes de sélection pour `rescrape-db`**, exclusifs l'un de l'autre :
-par filtre sur la base (`--provider`, `--older-than`, `--event-within`), ou par URL explicite
+par filtre sur la base (`--provider`, `--older-than`), ou par URL explicite
 (`--url`, répétable, et `--urls-from <fichier|->`). Le second **court-circuite
 la base** : une URL inconnue en table `course` est scrapée normalement, sans
 avertissement — c'est le cas nominal du rejeu d'un échec d'import, dont
 l'épreuve n'a rien persisté. Les combiner est une erreur d'usage (code 2) : ce
 sont deux modes, pas des filtres à composer. `--limit` reste compatible avec les
 deux : il borne la liste finale, il ne sélectionne rien.
-
-**Deux filtres de temps, à ne pas confondre** (#1261). `--older-than N` porte
-sur `scraped_at` (dernier scrape) : appliqué chaque semaine, il finit par
-retomber sur toute la base. `--event-within N` porte sur la **date de
-l'épreuve** : il retient celles datées des N derniers jours ou à venir, et
-c'est lui que le cron hebdomadaire passe (`--event-within 30`), parce qu'une
-reprise complète ne tient plus dans les 120 minutes du job. Une épreuve **sans
-date** n'est jamais retenue par ce filtre (rien ne la dit récente) ; seule une
-reprise sans `--event-within`, lancée à la main, la couvre. L'écran
-`/admin/batches` n'expose pas ce filtre : un lancement manuel reste complet.
 
 **Ce que le rescrape ne touche jamais : les sources passives** (#282). Une épreuve
 publiée par deux chronométreurs porte N sources dont une seule active, et le batch
@@ -211,11 +203,12 @@ délibéré (idempotence contre additivité : une autre question, une autre issu
 Garde structurante : une correction qui **viderait le prénom** n'est jamais
 appliquée (cas « JP ROUX » / prénoms stockés en majuscules).
 
-Le nettoyage des orphelins (`delete_orphans`) ne tourne **que** dans
-`rescrape-db`, en fin de batch : le chemin web (`import_event`/SSE, une épreuve
-à la fois) réassigne et commite mais **ne** balaie **pas** l'ancienne fiche
-vidée — elle reste orpheline jusqu'au prochain `rescrape-db`, qui seul peut
-constater qu'aucune autre épreuve du batch ne l'a entre-temps réutilisée.
+Le nettoyage des orphelins (`delete_orphans`) tourne en fin de `rescrape-db`
+et dans `purge-orphans`, que la planification hebdomadaire lance seule (#1271) :
+le chemin web (`import_event`/SSE, une épreuve à la fois) réassigne et commite
+mais **ne** balaie **pas** l'ancienne fiche vidée. Elle reste orpheline jusqu'au
+balayage suivant, et ce n'est jamais un balayage **par épreuve** : un orphelin
+après l'épreuve A peut être ré-attaché par l'épreuve B du même batch.
 
 `--dry-run` a changé de nature : il **scrape désormais** (le prix d'un aperçu
 véritable) et **ne persiste rien** (rollback au lieu de commit). Il rend le détail

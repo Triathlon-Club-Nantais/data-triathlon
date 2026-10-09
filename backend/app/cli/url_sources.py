@@ -121,15 +121,14 @@ def valider_single_heat(
 
 
 def valider_ciblage_exclusif(
-    *, url: list[str], urls_from: str | None, provider: str | None, older_than: int | None,
-    event_within: int | None = None,
+    *, url: list[str], urls_from: str | None, provider: str | None, older_than: int | None
 ) -> None:
-    """Refuse un ciblage par URL combiné à `--provider`, `--older-than` ou `--event-within`.
+    """Refuse un ciblage par URL combiné à `--provider` ou `--older-than`.
 
     Ce sont deux **modes de sélection**, pas des filtres à composer : `--url`
     court-circuite la base (c'est tout l'intérêt du rejeu d'un échec d'import,
-    dont l'épreuve n'est jamais persistée), tandis que `--provider`,
-    `--older-than` et `--event-within` filtrent ce que la base contient. Les combiner produirait un
+    dont l'épreuve n'est jamais persistée), tandis que `--provider` et
+    `--older-than` filtrent ce que la base contient. Les combiner produirait un
     ET dont personne ne peut prédire le résultat.
 
     Prend les paramètres **bruts** de la commande (`url`, `urls_from`), pas le
@@ -150,8 +149,6 @@ def valider_ciblage_exclusif(
         incompatibles.append("--provider")
     if older_than is not None:
         incompatibles.append("--older-than")
-    if event_within is not None:
-        incompatibles.append("--event-within")
     if incompatibles:
         raise typer.BadParameter(
             f"--url / --urls-from est exclusif de {' et '.join(incompatibles)} : "
