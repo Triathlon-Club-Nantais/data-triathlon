@@ -882,7 +882,8 @@ export const apiClient = {
 
   // ── Page de vérification des résultats par les bénévoles (#271) ────────────
   // Garde par mot de passe partagé (`require_benevole_access`), **pas** par
-  // pouvoir SSO/RBAC — research.md §D1 de la feature. `benevoleLogin` répond
+  // pouvoir SSO/RBAC — research.md §D1 de la feature, sauf pour qui détient
+  // `benevole_access:manage`, admis sans cookie (#1272). `benevoleLogin` répond
   // 401 sur un mot de passe incorrect ou non configuré ; les quatre autres
   // répondent 401 sans le cookie que `benevoleLogin` pose.
   //

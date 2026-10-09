@@ -14,6 +14,7 @@ import { AnnonceStatut, Eyebrow, Button } from "@/components/tcn";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useEstCompact } from "@/hooks/useEstCompact";
 import { apiClient } from "@/lib/api/client";
+import { useSession } from "@/lib/queries/auth";
 import type { Participation } from "@/lib/types";
 
 /**
@@ -38,6 +39,11 @@ const useEffetDeMiseEnPage = typeof window === "undefined" ? useEffect : useLayo
  */
 export default function BenevolesPage() {
   const file = useFileValidation();
+  // #1272 : le backend ouvre la page à qui détient ce pouvoir, sans le mot de
+  // passe partagé. « Se déconnecter » ne retire que le cookie bénévoles et ne
+  // lui ôterait pas l'accès : on ne le lui propose pas.
+  const entreParPouvoir =
+    useSession().data?.permissions.includes("benevole_access:manage") ?? false;
   const compact = useEstCompact();
   const [feuilleOuverte, setFeuilleOuverte] = useState(false);
   /** Une ref plutôt qu'un état : le garde-fou est lu dans un gestionnaire de
@@ -256,9 +262,11 @@ export default function BenevolesPage() {
       <div style={{ maxWidth: 1100, margin: "40px auto", padding: "0 24px" }}>
         <div className="flex items-start justify-between gap-4">
           <Eyebrow style={{ marginBottom: 6 }}>Validation des épreuves</Eyebrow>
-          <Button variant="ghost" size="sm" onClick={logout}>
-            Se déconnecter
-          </Button>
+          {!entreParPouvoir && (
+            <Button variant="ghost" size="sm" onClick={logout}>
+              Se déconnecter
+            </Button>
+          )}
         </div>
         <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(26px, 4vw, 34px)", color: "var(--tcn-ink)", marginBottom: 24, fontWeight: 400 }}>
           Vérification des résultats
