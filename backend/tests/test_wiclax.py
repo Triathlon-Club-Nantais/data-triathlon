@@ -1452,7 +1452,7 @@ def test_a_youth_teammate_gives_its_category_to_the_team_row():
     assert is_youth(team.event_name, team.category)
 
 
-def test_a_teammate_whose_club_is_not_the_team_stays_attached_by_bib():
+def test_a_teammate_whose_club_is_not_the_team_stays_attached_by_internal_id():
     """#1262 : 4311 porte son club (TCN), 4312 et 4313 n'en ont pas ; l'équipe 431
     garde ses trois équipiers."""
     from app.scrapers.wiclax import _attach_teammates
