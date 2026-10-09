@@ -423,6 +423,15 @@ CLI d'amorçage, sans acteur, n'écrivent rien.
 bénévoles). Décision produit et alternatives rejetées : `specs/20260815-
 114258-page-validation-benevoles/research.md` §D1.
 
+**Exception par pouvoir (#1272)** : un connecté qui détient
+`benevole_access:manage` (superutilisateur compris) passe sans le cookie, ses
+écritures journalisées à **son** `user_id` (`benevole_access.actor_user_id`).
+Tout autre appelant garde le même 401, jamais un 403. La garde rend donc
+`User | None` ; les écritures la prennent en paramètre, les lectures en
+`dependencies=`. Le client des tests `tests/test_api/` porte une session
+superutilisateur : `test_benevoles_api.py` la retire pour éprouver le bénévole.
+`specs/20261009-161930-benevole-sso-bypass/`.
+
 **Le mot de passe est géré depuis le back-office, plus une variable
 d'environnement** (`specs/20260815-173645-admin-mdp-benevoles/`) : trois
 routes sous `admin_benevole_access.py`, gardées par le pouvoir dédié
@@ -443,7 +452,8 @@ Deux d'entre elles délèguent à `admin_actions.update_course`/
 `.reassign_participation` (déjà livrées pour `/admin/*`) sous le `user_id`
 d'un **compte système** (« Bénévoles (accès partagé) », seedé par migration,
 jamais par le code applicatif) — `AdminActionLog.user_id` est une FK `NOT
-NULL`, et il n'y a pas d'identité individuelle à y mettre. **Quatre sont une
+NULL`, et il n'y a pas d'identité individuelle à y mettre (sauf admission
+par pouvoir, ci-dessus). **Quatre sont une
 logique neuve** (#437) : `validate_participation`
 (`is_pending_validation → false`), `reject_participation`/
 `unreject_participation` (bascule `is_rejected`, jamais `is_pending_validation`

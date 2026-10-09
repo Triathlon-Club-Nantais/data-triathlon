@@ -28,6 +28,22 @@ def test_system_user_id_leve_si_le_compte_n_a_jamais_ete_seme(db_session):
         benevole_access.system_user_id(db_session)
 
 
+def test_actor_user_id_is_the_admin_when_admitted_by_power(db_session):
+    admin = user_repository.create(db_session, email="admin@exemple.fr", display_name="Admin")
+    db_session.flush()
+
+    assert benevole_access.actor_user_id(db_session, admin) == admin.id
+
+
+def test_actor_user_id_falls_back_to_the_system_account(db_session):
+    compte = user_repository.create(
+        db_session, email=SYSTEM_USER_EMAIL, display_name="Bénévoles (accès partagé)"
+    )
+    db_session.flush()
+
+    assert benevole_access.actor_user_id(db_session, None) == compte.id
+
+
 # --- Secret de session (research.md §D2) -------------------------------------
 
 
