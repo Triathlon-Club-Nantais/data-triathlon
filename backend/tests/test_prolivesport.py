@@ -609,6 +609,29 @@ def test_fanout_redemande_les_courses_dun_debordement_tronque(monkeypatch):
     }
 
 
+def test_fanout_trace_une_course_absente_de_son_propre_debordement_tronque(monkeypatch):
+    """#1264 : les codes à espace ou tiret bas débordent toujours, même en
+    requête directe. Une réponse tronquée peut donc omettre la course demandée
+    elle même : elle part dans `failures`, jamais couverte en silence."""
+    tronquee = [_ligne("Triathlon M", str(n), f"M{n}") for n in range(1000, 5000)]
+
+    def indiv(race):
+        if race == "Triathlon XS":
+            return tronquee
+        return [ligne for ligne in EVENEMENT_979 if ligne["race"] == race]
+
+    _api(monkeypatch, indiv=indiv)
+
+    resultats, trace = prolivesport.scrape_event_fanout(URL_979)
+
+    assert [echec["heat_slug"] for echec in trace.failures] == ["Triathlon XS"]
+    tailles = {url: len(rs) for url, rs in _par_course(resultats).items()}
+    assert tailles == {
+        _sub_source_url("979", "Triathlon S"): 2,
+        _sub_source_url("979", "Triathlon M"): 2,
+    }
+
+
 def test_fanout_appelle_chaque_course_quand_le_filtre_est_honore(monkeypatch):
     """Filtre honoré (codes sans espace ni tiret bas) : une requête par course."""
     api = _api(monkeypatch, indiv=lambda race: [
