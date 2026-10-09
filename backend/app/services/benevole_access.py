@@ -21,7 +21,7 @@ import secrets
 from sqlalchemy.orm import Session
 
 from app.models.benevole_access_config import BenevoleAccessConfig
-from app.models.user import SYSTEM_USER_EMAIL
+from app.models.user import SYSTEM_USER_EMAIL, User
 from app.repositories import benevole_config_repository, user_repository
 from app.services import audit, shared_password
 
@@ -49,6 +49,12 @@ def system_user_id(db: Session) -> int:
             "la migration de seed a-t-elle été appliquée ?"
         )
     return comptes[0].id
+
+
+def actor_user_id(db: Session, admin: User | None) -> int:
+    """Acteur du journal d'un geste bénévole (#1272) : l'administrateur admis
+    par pouvoir, sinon le compte système de l'accès partagé."""
+    return admin.id if admin is not None else system_user_id(db)
 
 
 def new_session_secret() -> str:

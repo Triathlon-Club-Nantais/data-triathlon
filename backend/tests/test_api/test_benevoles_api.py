@@ -29,6 +29,18 @@ MOT_DE_PASSE = "secret-du-club"
 
 
 @pytest.fixture(autouse=True)
+def benevole_sans_session_sso(session_de_saisie, client):
+    """Retire la session superutilisateur que `tests/test_api/conftest.py` pose
+    sur le client : depuis #1272 elle ouvrirait la page par le pouvoir, et ces
+    tests éprouvent le bénévole, qui n'a que le mot de passe partagé. L'accès
+    par pouvoir est éprouvé dans `tests/test_auth/test_benevole_access_sso.py`."""
+    from app.api.v1.auth import session_cookie_name
+    from app.core.config import get_settings
+
+    client.cookies.delete(session_cookie_name(get_settings()))
+
+
+@pytest.fixture(autouse=True)
 def mot_de_passe_configure(db_session, administrateur):
     benevole_access.replace_password(
         db_session, password=MOT_DE_PASSE, admin_user_id=administrateur.id

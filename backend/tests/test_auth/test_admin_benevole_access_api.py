@@ -11,6 +11,16 @@ URL = "/api/v1/admin/benevoles/access"
 URL_GENERATE = f"{URL}/generate"
 
 
+def sans_session_sso(client) -> None:
+    """Ne garde que le cookie bénévoles : depuis #1272 la session de
+    l'administrateur ouvrirait `/benevoles` par son pouvoir, et ces tests
+    éprouvent l'invalidation du cookie, pas l'accès par pouvoir."""
+    from app.api.v1.auth import session_cookie_name
+    from app.core.config import get_settings
+
+    client.cookies.delete(session_cookie_name(get_settings()))
+
+
 # --- GET : état courant (FR-005) ---------------------------------------------
 
 
@@ -90,6 +100,7 @@ def test_remplacement_invalide_les_sessions_deja_ouvertes(client, ouvrir_session
     assert session_benevole.status_code == 204
 
     client.put(URL, json={"password": "second-secret-assez-long"})
+    sans_session_sso(client)
 
     assert client.get("/api/v1/benevoles/queue").status_code == 401
     ancien = client.post(
@@ -151,6 +162,7 @@ def test_generation_invalide_aussi_les_sessions_ouvertes(client, ouvrir_session)
     assert session_benevole.status_code == 204
 
     client.post(URL_GENERATE)
+    sans_session_sso(client)
 
     assert client.get("/api/v1/benevoles/queue").status_code == 401
 

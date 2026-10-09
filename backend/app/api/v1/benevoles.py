@@ -4,7 +4,8 @@ Couche mince : garde dédiée (`require_benevole_access`, cf. `api/deps.py`),
 **distincte** de `require_permission` (SSO/RBAC) — mot de passe partagé, pas
 de rôle. Deux des huit routes gardées délèguent à des fonctions déjà livrées
 de `services/admin_actions.py` (réutilisées, pas dupliquées) sous le
-`user_id` du compte système « Bénévoles (accès partagé) » ; quatre sont une
+`user_id` du compte système « Bénévoles (accès partagé) », ou de
+l'administrateur admis par le pouvoir `benevole_access:manage` (#1272) ; quatre sont une
 logique nouvelle — validation (`validate_participation`), signalement non
 conforme et son annulation (`reject_participation`/`unreject_participation`,
 #437), et correction de champs (`update_participation_fields`, #437). Les
@@ -23,6 +24,7 @@ from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.time import utcnow
 from app.core.validation import is_actionable_pending
+from app.models.user import User
 from app.repositories import (
     athlete_repository,
     benevole_config_repository,
@@ -148,9 +150,13 @@ def search_athletes(
 @router.patch(
     "/benevoles/courses/{course_id}",
     response_model=CourseBrief,
-    dependencies=[Depends(require_benevole_access)],
 )
-def rename_course(course_id: int, body: BenevoleCourseRename, db: Session = Depends(get_db)):
+def rename_course(
+    course_id: int,
+    body: BenevoleCourseRename,
+    db: Session = Depends(get_db),
+    admin: User | None = Depends(require_benevole_access),
+):
     """Uniformise le nom d'une épreuve associée à un résultat en attente (US2).
 
     **Scopée aux épreuves qui portent un résultat en attente** (revue de
@@ -161,7 +167,10 @@ def rename_course(course_id: int, body: BenevoleCourseRename, db: Session = Depe
     if not participation_repository.has_pending_for_course(db, course_id):
         raise NotFoundError("Aucun résultat en attente n'est associé à cette épreuve.")
     course = admin_actions.update_course(
-        db, course_id=course_id, champs={"name": body.name}, user_id=benevole_access.system_user_id(db)
+        db,
+        course_id=course_id,
+        champs={"name": body.name},
+        user_id=benevole_access.actor_user_id(db, admin),
     )
     db.commit()
     return course
@@ -170,9 +179,13 @@ def rename_course(course_id: int, body: BenevoleCourseRename, db: Session = Depe
 @router.post(
     "/benevoles/participations/{participation_id}/reassign",
     response_model=ParticipationOut,
-    dependencies=[Depends(require_benevole_access)],
 )
-def reassign(participation_id: int, body: ParticipationReassign, db: Session = Depends(get_db)):
+def reassign(
+    participation_id: int,
+    body: ParticipationReassign,
+    db: Session = Depends(get_db),
+    admin: User | None = Depends(require_benevole_access),
+):
     """Réattribue un résultat en attente à un autre athlète existant (US3).
 
     **Scopée aux résultats encore en attente** (revue de code) : une fois
@@ -186,7 +199,7 @@ def reassign(participation_id: int, body: ParticipationReassign, db: Session = D
         db,
         participation_id=participation_id,
         athlete_id=body.athlete_id,
-        user_id=benevole_access.system_user_id(db),
+        user_id=benevole_access.actor_user_id(db, admin),
     )
     db.commit()
     return participation
@@ -195,15 +208,18 @@ def reassign(participation_id: int, body: ParticipationReassign, db: Session = D
 @router.post(
     "/benevoles/participations/{participation_id}/validate",
     response_model=ParticipationOut,
-    dependencies=[Depends(require_benevole_access)],
 )
-def validate(participation_id: int, db: Session = Depends(get_db)):
+def validate(
+    participation_id: int,
+    db: Session = Depends(get_db),
+    admin: User | None = Depends(require_benevole_access),
+):
     """Valide un résultat en attente (US1) — le fait passer visible partout."""
     cible = participation_repository.get(db, participation_id)
     if cible is None or not is_actionable_pending(cible):
         raise NotFoundError("Ce résultat n'est pas ou plus en attente de validation.")
     participation = admin_actions.validate_participation(
-        db, participation_id=participation_id, user_id=benevole_access.system_user_id(db)
+        db, participation_id=participation_id, user_id=benevole_access.actor_user_id(db, admin)
     )
     db.commit()
     return participation
@@ -222,15 +238,18 @@ def rejected(db: Session = Depends(get_db)):
 @router.post(
     "/benevoles/participations/{participation_id}/reject",
     response_model=ParticipationOut,
-    dependencies=[Depends(require_benevole_access)],
 )
-def reject(participation_id: int, db: Session = Depends(get_db)):
+def reject(
+    participation_id: int,
+    db: Session = Depends(get_db),
+    admin: User | None = Depends(require_benevole_access),
+):
     """Signale un résultat en attente comme non conforme (#437)."""
     cible = participation_repository.get(db, participation_id)
     if cible is None or not is_actionable_pending(cible):
         raise NotFoundError("Ce résultat n'est pas ou plus en attente de validation.")
     participation = admin_actions.reject_participation(
-        db, participation_id=participation_id, user_id=benevole_access.system_user_id(db)
+        db, participation_id=participation_id, user_id=benevole_access.actor_user_id(db, admin)
     )
     db.commit()
     return participation
@@ -239,15 +258,18 @@ def reject(participation_id: int, db: Session = Depends(get_db)):
 @router.post(
     "/benevoles/participations/{participation_id}/unreject",
     response_model=ParticipationOut,
-    dependencies=[Depends(require_benevole_access)],
 )
-def unreject(participation_id: int, db: Session = Depends(get_db)):
+def unreject(
+    participation_id: int,
+    db: Session = Depends(get_db),
+    admin: User | None = Depends(require_benevole_access),
+):
     """Annule le signalement d'un résultat non conforme (#437)."""
     cible = participation_repository.get(db, participation_id)
     if cible is None or not cible.is_pending_validation or not cible.is_rejected:
         raise NotFoundError("Ce résultat n'est pas ou plus signalé non conforme.")
     participation = admin_actions.unreject_participation(
-        db, participation_id=participation_id, user_id=benevole_access.system_user_id(db)
+        db, participation_id=participation_id, user_id=benevole_access.actor_user_id(db, admin)
     )
     db.commit()
     return participation
@@ -256,9 +278,13 @@ def unreject(participation_id: int, db: Session = Depends(get_db)):
 @router.patch(
     "/benevoles/participations/{participation_id}",
     response_model=ParticipationOut,
-    dependencies=[Depends(require_benevole_access)],
 )
-def update_fields(participation_id: int, body: ParticipationFieldsUpdate, db: Session = Depends(get_db)):
+def update_fields(
+    participation_id: int,
+    body: ParticipationFieldsUpdate,
+    db: Session = Depends(get_db),
+    admin: User | None = Depends(require_benevole_access),
+):
     """Corrige dossard, place au général, club et catégorie (#437)."""
     cible = participation_repository.get(db, participation_id)
     if cible is None or not is_actionable_pending(cible):
@@ -267,7 +293,7 @@ def update_fields(participation_id: int, body: ParticipationFieldsUpdate, db: Se
         db,
         participation_id=participation_id,
         champs=body.model_dump(exclude_unset=True),
-        user_id=benevole_access.system_user_id(db),
+        user_id=benevole_access.actor_user_id(db, admin),
     )
     db.commit()
     return participation
