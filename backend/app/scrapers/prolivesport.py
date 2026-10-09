@@ -277,6 +277,11 @@ def _fetch_indiv(event_id: str, race: str, client: httpx.Client) -> list[dict]:
 #: sur le chemin courant, pas de borner le pire cas.
 _ESSAIS_STABILITE_DEBORDEMENT = 2
 
+#: Mesuré (#1264, eventId=1082) : la source tronque une réponse `result/indiv`
+#: à 4000 lignes pile. Une réponse de cette taille n'est plus l'événement
+#: entier et ne couvre que la course demandée.
+_PLAFOND_INDIV = 4000
+
 
 def _empreinte(lignes: list[dict]) -> frozenset:
     """Identité d'un jeu de lignes, insensible à l'ordre : (course, dossard)."""
@@ -520,7 +525,9 @@ def _lignes_par_course(
       course que son champ `race` désigne, jamais à celle qu'on a demandée.
     - **Une réponse qui déborde de la course demandée est l'événement entier**
       (comportement mesuré de la source) : elle est réutilisée pour toutes les
-      autres courses, plutôt que de redemander N fois 14,7 Mo.
+      autres courses, plutôt que de redemander N fois 14,7 Mo. **Sauf si elle
+      atteint `_PLAFOND_INDIV`** : tronquée, elle ne sert que la course
+      demandée, les autres sont redemandées directement (#1264).
 
     Une course déjà **couverte par sa propre requête directe** ignore les
     lignes qui la concernent si elles resurgissent dans une réponse « événement
@@ -551,11 +558,14 @@ def _lignes_par_course(
             trace.failures.append({"heat_slug": race, "reason": str(exc)})
             continue
 
+        evenement_entier = bool(vues - {race}) and len(reponse) < _PLAFOND_INDIV
         for ligne in reponse:
             code = (ligne.get("race") or "").strip()
-            if code in attendues and code not in couvertes:
+            if code in attendues and code not in couvertes and (
+                evenement_entier or code == race
+            ):
                 lignes.setdefault(code, []).append(ligne)
-        couvertes.update(courses if vues - {race} else {race})
+        couvertes.update(courses if evenement_entier else {race})
 
     # Une course peut avoir échoué puis avoir été rattrapée par une réponse
     # « événement entier » plus tardive : la laisser dans `failures` alors que ses

@@ -577,6 +577,38 @@ def test_fanout_fuite_tardive_ne_duplique_pas_une_course_deja_couverte(monkeypat
     }
 
 
+def test_fanout_redemande_les_courses_dun_debordement_tronque(monkeypatch):
+    """Non-régression #1264 (La Baule 2025, eventId=1082).
+
+    La source tronque une réponse en débordement à 4000 lignes pile : elle
+    n'est plus l'événement entier. « Triathlon S » y est partielle (1 ligne
+    sur 2), « Triathlon M » absente : toutes deux doivent être redemandées
+    directement, sans doublon des lignes partielles.
+    """
+    xs = [_ligne("Triathlon XS", str(n), f"X{n}") for n in range(1000, 4999)]
+    tronquee = [*xs, _ligne("Triathlon S", "2", "BBB")]
+    assert len(tronquee) == 4000
+
+    def indiv(race):
+        if race == "Triathlon XS":
+            return tronquee
+        return [ligne for ligne in EVENEMENT_979 if ligne["race"] == race]
+
+    api = _api(monkeypatch, indiv=indiv)
+
+    resultats, trace = prolivesport.scrape_event_fanout(URL_979)
+
+    # XS (débordement + 1 confirmation) puis S et M en requête directe.
+    assert len(api.appels_indiv) == 4
+    assert trace.failures == []
+    tailles = {url: len(rs) for url, rs in _par_course(resultats).items()}
+    assert tailles == {
+        _sub_source_url("979", "Triathlon XS"): 3999,
+        _sub_source_url("979", "Triathlon S"): 2,
+        _sub_source_url("979", "Triathlon M"): 2,
+    }
+
+
 def test_fanout_appelle_chaque_course_quand_le_filtre_est_honore(monkeypatch):
     """Filtre honoré (codes sans espace ni tiret bas) : une requête par course."""
     api = _api(monkeypatch, indiv=lambda race: [
