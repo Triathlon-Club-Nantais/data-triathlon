@@ -309,6 +309,32 @@ def test_an_indiv_twin_without_club_names_the_teammates_by_bib_prefix(monkeypatc
     ]
 
 
+def test_an_indiv_twin_names_the_teammates_by_internal_id_prefix(monkeypatch):
+    """#1269, Relais M de Sud Vendée 2026 : la vague préfixe l'identifiant interne
+    `d` (équipe 5431, équipiers 54311 à 54313) et le dossard affiché ne suit plus
+    la règle (équipe 431, équipiers 51311 à 51313)."""
+    xml = _event_xml(
+        competitors=(
+            '<E d="5431" n="LES MOUETTES" ca="EQX" v="431" p="Relais M"/>'
+            '<E d="54311" n="MARTIN&#160;Jean" x="M" ca="S4M" v="51311" p="Relais M-Indiv"/>'
+            '<E d="54312" n="DURAND&#160;Anne" x="F" ca="S4F" v="51312" p="Relais M-Indiv"/>'
+            '<E d="54313" n="PETIT&#160;Paul" x="M" ca="S4M" v="51313" p="Relais M-Indiv"/>'
+        ),
+        results='<R d="5431" t="02:05:00"/>',
+    )
+    root = ET.fromstring(xml)
+    monkeypatch.setattr(
+        "app.scrapers.wiclax._fetch_clax",
+        lambda _url: (root, "http://x", "Triathlon Sud Vendée", "triathlon", None),
+    )
+
+    results = scrape_event_all("http://x")
+
+    assert [(r.bib_number, r.teammates) for r in results] == [
+        ("431", (("MARTIN", "Jean"), ("DURAND", "Anne"), ("PETIT", "Paul"))),
+    ]
+
+
 def test_a_parcours_of_team_categories_is_a_team_course(monkeypatch):
     """Altichrono, lac du Bouchet 2026 : « SWIMRUN S » ne classe que des
     catégories d'équipe (EQX, EQF, EQM), sans mot d'équipe dans le parcours."""
@@ -1432,14 +1458,14 @@ def test_a_teammate_whose_club_is_not_the_team_stays_attached_by_bib():
     from app.scrapers.wiclax import _attach_teammates
 
     team = _row("LES MOUETTES", category="EQX", is_relay=True)
-    team.bib_number = "431"
+    team.raw_data["d"] = "431"
     members = [
         _row("MARTIN", "Jean", club="TCN"),
         _row("DURAND", "Anne"),
         _row("PETIT", "Paul"),
     ]
-    for bib, m in zip(("4311", "4312", "4313"), members, strict=True):
-        m.bib_number = bib
+    for ident, m in zip(("4311", "4312", "4313"), members, strict=True):
+        m.raw_data["d"] = ident
     _attach_teammates([team], members)
 
     assert team.teammates == (("MARTIN", "Jean"), ("DURAND", "Anne"), ("PETIT", "Paul"))
