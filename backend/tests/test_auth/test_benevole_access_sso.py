@@ -253,3 +253,19 @@ def test_cookie_without_power_is_logged_under_the_system_account(
 
     assert _validate(client, *pending_result, db_session).status_code == 200
     assert last_log_user_id(db_session) == system_account.id
+
+
+# --- SSO logout also drops the volunteer cookie ------------------------------
+
+
+def test_sso_logout_clears_the_volunteer_cookie(client, ouvrir_session, volunteer_cookie):
+    """Admitted by power, the admin no longer sees the volunteer logout button:
+    a volunteer cookie left on the browser must not outlive the SSO logout."""
+    ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    volunteer_cookie()
+
+    response = client.post("/api/v1/auth/logout")
+
+    assert response.status_code == 204
+    assert benevole_access.BENEVOLE_SESSION_COOKIE not in client.cookies
+    assert client.get(f"{BASE}/queue").status_code == 401

@@ -28,6 +28,7 @@ from app.schemas.auth import (
     SessionRoleRead,
     SessionUserRead,
 )
+from app.services import benevole_access
 from app.services.auth import authorization, flow
 from app.services.auth import session as session_service
 from app.services.auth.errors import ERROR_CODES, LoginError
@@ -289,6 +290,10 @@ def logout(
     _clear_auth_cookie(
         response, name=LOGGED_IN_COOKIE, settings=settings, httponly=False
     )
+    # #1272 : admis par son pouvoir, l'admin ne voit plus « Se déconnecter » de
+    # `/benevoles`. Un cookie bénévoles resté sur ce navigateur ne doit pas
+    # survivre à sa déconnexion. Mêmes attributs qu'à la pose.
+    _clear_auth_cookie(response, name=benevole_access.BENEVOLE_SESSION_COOKIE, settings=settings)
     return response
 
 

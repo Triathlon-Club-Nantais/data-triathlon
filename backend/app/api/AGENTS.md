@@ -430,6 +430,9 @@ Tout autre appelant garde le même 401, jamais un 403. La garde rend donc
 `User | None` ; les écritures la prennent en paramètre, les lectures en
 `dependencies=`. Le client des tests `tests/test_api/` porte une session
 superutilisateur : `test_benevoles_api.py` la retire pour éprouver le bénévole.
+Le front masque à cet admin « Se déconnecter » de la page ; en
+contrepartie `POST /auth/logout` efface aussi le cookie bénévoles, qui sinon
+survivrait à sa déconnexion sur un poste partagé.
 `specs/20261009-161930-benevole-sso-bypass/`.
 
 **Le mot de passe est géré depuis le back-office, plus une variable
