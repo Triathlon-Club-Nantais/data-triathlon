@@ -716,15 +716,16 @@ def _team_key(name: str) -> str:
 
 
 def _attach_teammates(teams: list[ScrapedResult], members: list[ScrapedResult]) -> None:
-    """Rattache à chaque équipe les équipiers dont le club porte son nom (#1220),
-    ou, club vide, dont le dossard est le sien suivi d'un chiffre (Sud Vendée
-    2026 : équipe 431, équipiers 4311 à 4313, #1262)."""
+    """Rattache à chaque équipe ses équipiers : club d'abord, ceux dont le club
+    porte son nom (#1220) ; dossard si aucun ne matche par club, ceux dont le
+    dossard est le sien suivi d'un chiffre (Sud Vendée 2026 : équipe 431,
+    équipiers 4311 à 4313, club vide ou sans rapport, #1262)."""
     par_club: dict[str, list[ScrapedResult]] = {}
     par_dossard: dict[str, list[ScrapedResult]] = {}
     for m in members:
         if m.club:
             par_club.setdefault(_team_key(m.club), []).append(m)
-        elif len(m.bib_number) > 1 and m.bib_number[-1].isdigit():
+        if m.bib_number.isdigit() and len(m.bib_number) > 1:
             par_dossard.setdefault(m.bib_number[:-1], []).append(m)
     for team in teams:
         nom = " ".join(filter(None, [team.athlete_name, team.athlete_firstname]))

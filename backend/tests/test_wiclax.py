@@ -1426,6 +1426,25 @@ def test_a_youth_teammate_gives_its_category_to_the_team_row():
     assert is_youth(team.event_name, team.category)
 
 
+def test_a_teammate_whose_club_is_not_the_team_stays_attached_by_bib():
+    """#1262 : 4311 porte son club (TCN), 4312 et 4313 n'en ont pas ; l'équipe 431
+    garde ses trois équipiers."""
+    from app.scrapers.wiclax import _attach_teammates
+
+    team = _row("LES MOUETTES", category="EQX", is_relay=True)
+    team.bib_number = "431"
+    members = [
+        _row("MARTIN", "Jean", club="TCN"),
+        _row("DURAND", "Anne"),
+        _row("PETIT", "Paul"),
+    ]
+    for bib, m in zip(("4311", "4312", "4313"), members, strict=True):
+        m.bib_number = bib
+    _attach_teammates([team], members)
+
+    assert team.teammates == (("MARTIN", "Jean"), ("DURAND", "Anne"), ("PETIT", "Paul"))
+
+
 def test_teammates_without_a_first_name_are_not_attached():
     from app.scrapers.wiclax import _attach_teammates
 
