@@ -48,6 +48,9 @@ Trois particularités du fournisseur s'y ajoutent :
 - **Une réponse qui déborde de la course demandée est l'événement entier**, et
   elle est réutilisée pour toutes les autres courses. Sur l'événement 1060, un
   seul GET rend les 11 courses : en refaire 11 de 14,7 Mo serait absurde.
+  **Sauf à 4000 lignes** : la source tronque là (#1264, 1082 : TRGP absente,
+  TREP partielle). Une telle réponse ne sert que la course demandée, les
+  autres sont redemandées directement.
 - **`on_heat_start` est notifié pour chaque course à scraper**, y compris celles
   servies par une réponse déjà en main : la progression compte les courses
   importées, pas les requêtes émises.
