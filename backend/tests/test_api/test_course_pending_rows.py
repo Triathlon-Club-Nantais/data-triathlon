@@ -130,6 +130,22 @@ def test_page_epreuve_filtre_les_lignes_en_attente_comme_le_classement(client, d
     assert absente["pending_participations"] == []
 
 
+def test_liste_des_epreuves_rend_l_epreuve_en_attente_seule_avec_pending_count(client, db_session, epreuve):
+    course, _ = epreuve
+    _ajoute_en_attente(db_session, course)
+    seule = scrape_service.save_one(
+        db_session, _scraped("1", "SOLO", pending=True, event_name="Alpe solo")
+    ).course
+
+    body = client.get("/api/v1/courses/events").json()
+    items = {e["id"]: e for e in body["items"]}
+
+    assert (items[seule.id]["total"], items[seule.id]["pending_count"]) == (0, 1)
+    assert (items[course.id]["total"], items[course.id]["pending_count"]) == (2, 1)
+    assert body["total_participations"] == 2
+    assert body["total_events"] == 2
+
+
 def test_page_epreuve_sans_ligne_en_attente_rend_une_liste_vide(client, epreuve):
     course, _ = epreuve
     body = client.get(f"/api/v1/courses/{course.id}").json()

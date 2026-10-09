@@ -15,7 +15,6 @@ distincte (`awaiting_validation_clause`) qui ne sert jamais à compter.
 from sqlalchemy import and_
 
 
-
 def validated_clause(column):
     """Clause SQLAlchemy : `column` (un `Participation.is_pending_validation`)
     désigne un résultat déjà vérifié.

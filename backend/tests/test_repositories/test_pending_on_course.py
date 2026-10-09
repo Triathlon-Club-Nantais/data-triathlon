@@ -87,3 +87,60 @@ def test_une_ligne_validee_apres_coup_quitte_les_en_attente_pour_le_classement(d
     assert total == 2
     assert {p.id for p in rows} == {validee.id, bravo.id}
     assert [p.id for p in participation_repository.list_pending_for_course(db_session, course.id)] == [zulu.id]
+
+
+# --- Listes d'épreuves : `events_page` (US2) ---
+
+
+def _trois_epreuves(db):
+    """Une épreuve en attente seule, une refusée seule, une mixte (1 validée TCN + 1 en attente)."""
+    seule = _epreuve(db, name="Seule en attente")
+    attente = _participation(db, seule, "SEUL", "1", pending=True, club="TCN")
+    refusee = _epreuve(db, name="Refusee seule")
+    _participation(db, refusee, "REFUSE", "1", pending=True, rejected=True, club="TCN")
+    mixte = _epreuve(db, name="Mixte")
+    validee = _participation(db, mixte, "MIXTE", "1", club="TCN")
+    _participation(db, mixte, "MIXTEBIS", "2", pending=True, club="TCN")
+    for p in (attente, validee):
+        p.counts_for_tcn = True
+    course_repository.set_counts(db, mixte, participation_count=1, tcn_count=1)
+    db.flush()
+    return seule, refusee, mixte
+
+
+def _lignes(page):
+    return {r.course_id: (r.total, r.tcn_count, r.pending_count) for r in page["items"]}
+
+
+
+
+def test_events_page_liste_l_epreuve_en_attente_seule_sans_la_compter(db_session):
+    seule, refusee, mixte = _trois_epreuves(db_session)
+
+    for filtres in [{}, {"club_only": True}]:
+        page = participation_repository.events_page(db_session, **filtres)
+        lignes = _lignes(page)
+
+        assert lignes[seule.id] == (0, 0, 1), filtres
+        assert lignes[mixte.id] == (1, 1, 1), filtres
+        assert refusee.id not in lignes, filtres
+        assert page["total_participations"] == 1, filtres
+        assert page["total_events"] == 2, filtres
+
+
+def test_events_page_par_nom_suit_les_lignes_en_attente(db_session):
+    seule, _, mixte = _trois_epreuves(db_session)
+
+    assert _lignes(participation_repository.events_page(db_session, name="seul")) == {seule.id: (0, 0, 1)}
+    assert _lignes(participation_repository.events_page(db_session, name="mixtebis")) == {mixte.id: (0, 0, 1)}
+    page = participation_repository.events_page(db_session, name="mixte")
+    assert _lignes(page)[mixte.id] == (1, 1, 1)
+    assert page["total_participations"] == 1
+
+
+def test_events_with_counts_ne_liste_toujours_pas_l_epreuve_en_attente_seule(db_session):
+    seule, _, mixte = _trois_epreuves(db_session)
+
+    for filtres in [{}, {"club_only": True}]:
+        ids = {r.course_id for r in participation_repository.events_with_counts(db_session, **filtres)}
+        assert seule.id not in ids and mixte.id in ids, filtres

@@ -3,7 +3,7 @@ from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from typing import NamedTuple
 
-from sqlalchemy import and_, case, exists, func, or_, select
+from sqlalchemy import and_, case, exists, func, literal, or_, select
 from sqlalchemy import update as sql_update
 from sqlalchemy.orm import Session, aliased, contains_eager, joinedload
 
@@ -489,6 +489,7 @@ def _apply_filters(
     course_id=None,
     seasons=None,
     federal_only=False,
+    include_pending=False,
 ):
     """Joint Athlete + Course et applique les filtres communs (liste + épreuves).
 
@@ -496,10 +497,17 @@ def _apply_filters(
     validation (#270, FR-021) : cette fonction alimente `list_participations`
     et, via `_grouped_events_query`, `events_with_counts`/`events_page` — soit
     trois surfaces publiques agrégées.
+
+    `include_pending` (#1273, `events_page` seulement) garde en plus les lignes
+    en attente non refusées, pour qu'une épreuve qui n'a qu'elles soit listée.
+    Les comptes restent alors à la charge de l'appelant, sous `validated_clause`.
     """
+    kept = validated_clause(Participation.is_pending_validation)
+    if include_pending:
+        kept = or_(kept, _awaiting())
     q = q.join(Athlete, Participation.athlete_id == Athlete.id).join(
         Course, Participation.course_id == Course.id
-    ).filter(validated_clause(Participation.is_pending_validation))
+    ).filter(kept)
     if course_id is not None:
         q = q.filter(Participation.course_id == course_id)
     if name:
@@ -1189,6 +1197,10 @@ def club_podiums(db: Session, *, federal_only: bool = False):
     return q.all()
 
 
+def _awaiting():
+    return awaiting_validation_clause(Participation.is_pending_validation, Participation.is_rejected)
+
+
 def _grouped_events_query(
     db: Session,
     *,
@@ -1200,8 +1212,15 @@ def _grouped_events_query(
     date_to=None,
     seasons=None,
     federal_only=False,
+    include_pending=False,
 ):
-    """Requête de base : une ligne par épreuve (course) avec compteurs total + TCN."""
+    """Requête de base : une ligne par épreuve (course) avec compteurs total + TCN.
+
+    Les comptes ne retiennent que les lignes validées, même quand
+    `include_pending` fait entrer les lignes en attente dans la jointure : ces
+    dernières ne sont comptées que dans `pending_count` (#1273).
+    """
+    validated = validated_clause(Participation.is_pending_validation)
     q = db.query(
         Course.id.label("course_id"),
         Course.name.label("event_name"),
@@ -1216,8 +1235,11 @@ def _grouped_events_query(
         # ce qui rend d'ailleurs les cinq colonnes déjà listées redondantes.
         Course.is_reliable.label("is_reliable"),
         Course.quality_issues.label("quality_issues"),
-        func.count(Participation.id).label("total"),
-        func.sum(case((Participation.counts_for_tcn.is_(True), 1), else_=0)).label("tcn_count"),
+        func.sum(case((validated, 1), else_=0)).label("total"),
+        func.sum(
+            case((and_(validated, Participation.counts_for_tcn.is_(True)), 1), else_=0)
+        ).label("tcn_count"),
+        func.sum(case((_awaiting(), 1), else_=0)).label("pending_count"),
     )
     q = _apply_filters(
         q,
@@ -1230,6 +1252,7 @@ def _grouped_events_query(
         date_to=date_to,
         seasons=seasons,
         federal_only=federal_only,
+        include_pending=include_pending,
     )
     return q.group_by(
         Course.id,
@@ -1250,6 +1273,7 @@ def _events_query_fast(
     date_to=None,
     seasons=None,
     federal_only=False,
+    include_pending=False,
 ):
     """Même forme de ligne que `_grouped_events_query`, lue sur les compteurs
     dénormalisés de `Course` (#623) — **aucune jointure** `Participation`/
@@ -1261,7 +1285,18 @@ def _events_query_fast(
     interne de `_grouped_events_query` fait par construction : une épreuve
     sans aucune participation validée (#270) n'y apparaît jamais, faute de
     ligne `Participation` à joindre.
+
+    `include_pending` (#1273) l'y fait apparaître si elle porte un résultat en
+    attente non refusé, et lit `pending_count` en sous-requête corrélée : pas
+    de compteur dénormalisé pour une poignée de lignes (17 en production),
+    qu'il faudrait tenir à chaque saisie, validation, refus et suppression.
     """
+    pending_rows = (
+        select(func.count(Participation.id))
+        .where(Participation.course_id == Course.id, _awaiting())
+        .correlate(Course)
+        .scalar_subquery()
+    )
     q = db.query(
         Course.id.label("course_id"),
         Course.name.label("event_name"),
@@ -1273,7 +1308,12 @@ def _events_query_fast(
         Course.quality_issues.label("quality_issues"),
         Course.participation_count.label("total"),
         Course.tcn_count.label("tcn_count"),
-    ).filter(Course.participation_count > 0)
+        (pending_rows if include_pending else literal(0)).label("pending_count"),
+    )
+    if include_pending:
+        q = q.filter(or_(Course.participation_count > 0, pending_rows > 0))
+    else:
+        q = q.filter(Course.participation_count > 0)
     return _apply_course_filters(
         q,
         db,
@@ -1391,6 +1431,12 @@ def events_page(
     `name`/`club_only` restent sur l'ancien chemin, plus lent mais correct :
     ils filtrent au niveau de la participation, avant l'agrégat par épreuve,
     ce qu'un compteur déjà agrégé ne peut pas reproduire.
+
+    Les deux chemins listent aussi une épreuve qui n'a que des résultats en
+    attente non refusés (#1273), avec `pending_count` ; `total`, `tcn_count`
+    et `total_participations` ne comptent toujours que des résultats validés.
+    `total_events` compte les épreuves listées, c'est sur lui que s'arrête le
+    défilement infini.
     """
     offset = (page - 1) * page_size
     if name is None and not club_only:
@@ -1402,6 +1448,7 @@ def events_page(
             date_to=date_to,
             seasons=seasons,
             federal_only=federal_only,
+            include_pending=True,
         )
         totals = q.with_entities(
             func.count(Course.id).label("total_events"),
@@ -1431,6 +1478,7 @@ def events_page(
         date_to=date_to,
         seasons=seasons,
         federal_only=federal_only,
+        include_pending=True,
     )
 
     # `total_events` : COUNT(DISTINCT course_id) sur la requête filtrée plutôt
@@ -1443,7 +1491,9 @@ def events_page(
     counts = _apply_filters(
         db.query(
             func.count(func.distinct(Participation.course_id)).label("total_events"),
-            func.count(Participation.id).label("total_participations"),
+            func.coalesce(
+                func.sum(case((validated_clause(Participation.is_pending_validation), 1), else_=0)), 0
+            ).label("total_participations"),
         ),
         db,
         name=name,
@@ -1454,6 +1504,7 @@ def events_page(
         date_to=date_to,
         seasons=seasons,
         federal_only=federal_only,
+        include_pending=True,
     ).one()
     total_events = counts.total_events or 0
     total_participations = counts.total_participations or 0
