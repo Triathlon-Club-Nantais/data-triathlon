@@ -128,8 +128,8 @@ def valider_ciblage_exclusif(
 
     Ce sont deux **modes de sélection**, pas des filtres à composer : `--url`
     court-circuite la base (c'est tout l'intérêt du rejeu d'un échec d'import,
-    dont l'épreuve n'est jamais persistée), tandis que `--provider` et
-    `--older-than` filtrent ce que la base contient. Les combiner produirait un
+    dont l'épreuve n'est jamais persistée), tandis que `--provider`,
+    `--older-than` et `--event-within` filtrent ce que la base contient. Les combiner produirait un
     ET dont personne ne peut prédire le résultat.
 
     Prend les paramètres **bruts** de la commande (`url`, `urls_from`), pas le

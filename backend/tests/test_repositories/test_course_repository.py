@@ -285,6 +285,9 @@ def test_iter_all_event_within_porte_sur_la_date_de_l_epreuve(db_session):
     aujourdhui = utcnow().date()
     for nom, jour in (
         ("Recente", aujourdhui - timedelta(days=10)),
+        ("Borne", aujourdhui - timedelta(days=30)),
+        ("JusteHors", aujourdhui - timedelta(days=31)),
+        ("AVenir", aujourdhui + timedelta(days=7)),
         ("Ancienne", aujourdhui - timedelta(days=40)),
         ("SansDate", None),
     ):
@@ -297,10 +300,10 @@ def test_iter_all_event_within_porte_sur_la_date_de_l_epreuve(db_session):
     db_session.flush()
 
     recentes = course_repository.iter_all(db_session, event_within_days=30)
-    assert {c.name for c in recentes} == {"Recente"}
+    assert {c.name for c in recentes} == {"Recente", "Borne", "AVenir"}
 
     assert {c.name for c in course_repository.iter_all(db_session)} == {
-        "Recente", "Ancienne", "SansDate",
+        "Recente", "Borne", "JusteHors", "AVenir", "Ancienne", "SansDate",
     }
     assert course_repository.iter_all(
         db_session, provider="timepulse", event_within_days=30
