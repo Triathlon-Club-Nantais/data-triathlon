@@ -2532,6 +2532,18 @@ def test_mark_duo_heat_types_a_majority_of_duo_labels_as_relay():
     assert _proposed_teammates(results[0]) == (("DUPONT", "JEAN"), ("MARTIN", "PAUL"))
 
 
+def test_mark_duo_heat_types_names_first_duo_labels_as_relay():
+    """517, 518 : nom « NOM1 », prénom « / NOM2 PRÉNOM1 / PRÉNOM2 . » (#1270)."""
+    results = [_row("GUERIN"), _row("PETIT"), _row("DURAND")]
+    results[0].athlete_firstname = "/ LE_ROUX JULIEN / MARC ."
+    results[1].athlete_firstname = "/ MOREAU ANNE / CLAIRE ."
+    results[2].athlete_firstname = "LUC"
+
+    klikego._mark_duo_heat(results)
+
+    assert all(r.is_relay for r in results)
+
+
 def test_mark_duo_heat_leaves_isolated_duo_labels_individual():
     """297, 298, 694 : une épreuve individuelle avec un libellé « / » isolé."""
     results = [_row("DUPONT JEAN/MARTIN PAUL ."), _row("DURAND LUC"), _row("PETIT MARC")]

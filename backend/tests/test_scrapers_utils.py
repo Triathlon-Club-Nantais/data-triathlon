@@ -185,6 +185,14 @@ def test_fmt_seconds_est_l_inverse_de_to_seconds():
     ("LE BRAS LUC / LE PAGE GUULLAUME .", [("LE BRAS", "LUC"), ("LE PAGE", "GUULLAUME")]),
     ("LE BOZEC HENRI / BABINET SYLVAIN", [("LE BOZEC", "HENRI"), ("BABINET", "SYLVAIN")]),
     ("DE LA TOUR JEAN / D'ARC JEANNE", [("DE LA TOUR", "JEAN"), ("D'ARC", "JEANNE")]),
+    # klikego 517, 518 : les deux noms puis les deux prénoms, « _ » pour l'espace (#1270)
+    ("GUERIN / LE_ROUX JULIEN / MARC .", [("GUERIN", "JULIEN"), ("LE ROUX", "MARC")]),
+    (
+        "BOUTIER_LAURET / PETIT ANNE_SOPHIE / LUC .",
+        [("BOUTIER LAURET", "ANNE SOPHIE"), ("PETIT", "LUC")],
+    ),
+    ("GUERIN / LE ROUX JULIEN / MARC .", None),
+    ("GUERIN / ROUX / JULIEN / MARC .", None),
     # frontière nom/prénom indécidable
     ("MARTIN JEAN PIERRE / DUPONT PAUL", None),
     ("LE TULZO NICOLAS ANNE / DUPONT PAUL", None),
