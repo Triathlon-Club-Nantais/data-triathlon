@@ -133,6 +133,11 @@ class CourseParticipationPage(BaseModel):
     page: int
     # `None` quand `page_size=all` a été demandé : il n'y a pas eu de découpage.
     page_size: int | None = None
+    #: Résultats en attente de validation non refusés (#1273), aux mêmes filtres
+    #: que le classement mais hors de `participations` et de `total` : ils
+    #: n'entrent dans aucun compte. Rendus en entier à chaque page, l'écran les
+    #: place après le dernier résultat validé.
+    pending_participations: list[ParticipationOut] = []
 
 
 class ParticipationCreate(BaseModel):

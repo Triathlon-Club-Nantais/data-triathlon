@@ -257,25 +257,25 @@ def get_course(
     athlètes. Facultatifs et à défaut neutre (Principe V), ils se cumulent entre
     eux, avec `q` et avec `scope`. Une valeur qui ne correspond à personne rend
     une sélection vide, **jamais** un 404 : l'épreuve existe.
+
+    `pending_participations` (#1273) : les résultats en attente de validation,
+    aux mêmes filtres, hors de `participations` et de `total`. Lisibles de
+    tous, comme sur la fiche d'athlète ; comptés nulle part.
     """
     course = course_repository.get(db, course_id)
     if not course:
         raise NotFoundError("Course introuvable")
     taille = _resolve_page_size(page_size)
+    filtres = {"q": q, "club_only": is_club_scope(scope), "club": club, "category": category}
     participations, total = participation_repository.list_page_for_course(
-        db,
-        course_id,
-        page=page,
-        page_size=taille,
-        q=q,
-        club_only=is_club_scope(scope),
-        club=club,
-        category=category,
+        db, course_id, page=page, page_size=taille, **filtres
     )
+    pending = participation_repository.list_pending_for_course(db, course_id, **filtres)
     return {
         "course": CourseBrief.model_validate(course),
         "participations": [ParticipationOut.model_validate(p) for p in participations],
         "total": total,
         "page": page,
         "page_size": taille,
+        "pending_participations": [ParticipationOut.model_validate(p) for p in pending],
     }

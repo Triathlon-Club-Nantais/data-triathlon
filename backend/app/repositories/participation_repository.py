@@ -14,7 +14,7 @@ from app.core import counter_scope
 from app.core.club import _normalise_sql, broad_club_key, is_tcn, normalize_club
 from app.core.discipline import federal_clause
 from app.core.season import season_bounds, season_of
-from app.core.validation import validated_clause
+from app.core.validation import awaiting_validation_clause, validated_clause
 from app.models.athlete import Athlete
 from app.models.course import Course
 from app.models.participation import Participation, ParticipationTeammate
@@ -841,8 +841,47 @@ def list_page_for_course(
     cumulent, et leur intersection peut légitimement être vide.
 
     Exclut les résultats en attente de validation (#270, FR-021) : c'est le
-    classement publié d'une épreuve.
+    classement publié d'une épreuve. Ses lignes en attente se lisent à part,
+    par `list_pending_for_course` (#1273).
     """
+    query = _course_rows(
+        db, course_id, q=q, club_only=club_only, club=club, category=category
+    ).filter(validated_clause(Participation.is_pending_validation))
+    total = query.count()
+    query = query.order_by(*_ordre_affichage())
+    if page_size is not None:
+        query = query.offset((page - 1) * page_size).limit(page_size)
+    return query.all(), total
+
+
+def list_pending_for_course(
+    db: Session,
+    course_id: int,
+    *,
+    q: str | None = None,
+    club_only: bool = False,
+    club: str | None = None,
+    category: str | None = None,
+) -> list[Participation]:
+    """Les résultats en attente non refusés d'une épreuve, à afficher (#1273).
+
+    Mêmes filtres que `list_page_for_course` : une recherche trouve ou masque
+    une ligne en attente comme une ligne validée. Triés par nom et non par
+    `_ordre_affichage` : un rang déclaré n'est ni affiché ni comparé tant que
+    la ligne n'est pas validée. Ni paginés ni comptés : ces lignes n'entrent
+    dans aucun total (FR-006), elles s'ajoutent en fin de classement.
+    """
+    return (
+        _course_rows(db, course_id, q=q, club_only=club_only, club=club, category=category)
+        .filter(awaiting_validation_clause(Participation.is_pending_validation, Participation.is_rejected))
+        .order_by(func.lower(Athlete.nom), func.lower(Athlete.prenom), Participation.id)
+        .all()
+    )
+
+
+def _course_rows(db: Session, course_id: int, *, q, club_only, club, category):
+    """Lignes d'une épreuve aux filtres du classement, **sans** clause de validation :
+    chaque appelant pose la sienne."""
     query = (
         db.query(Participation)
         .join(Athlete, Participation.athlete_id == Athlete.id)
@@ -858,7 +897,6 @@ def list_page_for_course(
             joinedload(Participation.course).selectinload(Course.sources),
         )
         .filter(Participation.course_id == course_id)
-        .filter(validated_clause(Participation.is_pending_validation))
     )
     if club_only:
         query = query.filter(Participation.counts_for_tcn.is_(True))
@@ -869,12 +907,7 @@ def list_page_for_course(
     terme = (q or "").strip()
     if terme:
         query = query.filter(name_filter(terme, also=_relay_name_matches))
-
-    total = query.count()
-    query = query.order_by(*_ordre_affichage())
-    if page_size is not None:
-        query = query.offset((page - 1) * page_size).limit(page_size)
-    return query.all(), total
+    return query
 
 
 def _relay_name_matches(pattern: str) -> list:
