@@ -41,9 +41,12 @@ export default function BenevolesPage() {
   const file = useFileValidation();
   // #1272 : le backend ouvre la page à qui détient ce pouvoir, sans le mot de
   // passe partagé. « Se déconnecter » ne retire que le cookie bénévoles et ne
-  // lui ôterait pas l'accès : on ne le lui propose pas.
-  const entreParPouvoir =
-    useSession().data?.permissions.includes("benevole_access:manage") ?? false;
+  // lui ôterait pas l'accès : on ne le lui propose pas. Attendre la session
+  // évite que le bouton apparaisse puis disparaisse ; une panne le laisse.
+  const session = useSession();
+  const montrerDeconnexion =
+    session.isError ||
+    (session.isSuccess && !session.data?.permissions.includes("benevole_access:manage"));
   const compact = useEstCompact();
   const [feuilleOuverte, setFeuilleOuverte] = useState(false);
   /** Une ref plutôt qu'un état : le garde-fou est lu dans un gestionnaire de
@@ -262,7 +265,7 @@ export default function BenevolesPage() {
       <div style={{ maxWidth: 1100, margin: "40px auto", padding: "0 24px" }}>
         <div className="flex items-start justify-between gap-4">
           <Eyebrow style={{ marginBottom: 6 }}>Validation des épreuves</Eyebrow>
-          {!entreParPouvoir && (
+          {montrerDeconnexion && (
             <Button variant="ghost" size="sm" onClick={logout}>
               Se déconnecter
             </Button>
