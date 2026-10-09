@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -10,7 +11,7 @@ import { ParticipationPanel } from "@/components/benevoles/ParticipationPanel";
 import { useFileValidation } from "@/components/benevoles/useFileValidation";
 import { ValidationQueue } from "@/components/benevoles/ValidationQueue";
 import { ValidationBacklogChart } from "@/components/charts/ValidationBacklogChart";
-import { AnnonceStatut, Eyebrow, Button } from "@/components/tcn";
+import { Alert, AnnonceStatut, Eyebrow, Button } from "@/components/tcn";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useEstCompact } from "@/hooks/useEstCompact";
 import { apiClient } from "@/lib/api/client";
@@ -25,6 +26,8 @@ import type { Participation } from "@/lib/types";
  * rendu serveur ne dépend de `hote` (#609, voir plus bas) — et supprime
  * l'avertissement.
  */
+const SESSION_SSO_EXPIREE = "Votre session a expiré. Reconnectez-vous pour reprendre la validation.";
+
 const useEffetDeMiseEnPage = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /**
@@ -44,9 +47,8 @@ export default function BenevolesPage() {
   // lui ôterait pas l'accès : on ne le lui propose pas. Attendre la session
   // évite que le bouton apparaisse puis disparaisse ; une panne le laisse.
   const session = useSession();
-  const montrerDeconnexion =
-    session.isError ||
-    (session.isSuccess && !session.data?.permissions.includes("benevole_access:manage"));
+  const entreParPouvoir = session.data?.permissions.includes("benevole_access:manage") ?? false;
+  const montrerDeconnexion = session.isError || (session.isSuccess && !entreParPouvoir);
   const compact = useEstCompact();
   const [feuilleOuverte, setFeuilleOuverte] = useState(false);
   /** Une ref plutôt qu'un état : le garde-fou est lu dans un gestionnaire de
@@ -198,7 +200,13 @@ export default function BenevolesPage() {
   // Même position dans la file et à l'accès : la région reste montée quand
   // l'écran passe de l'une à l'autre, et « Vous êtes déconnecté. » y est bien
   // annoncé (#1232).
-  const sessionRegion = <AnnonceStatut texte={file.sessionNotice} />;
+  // Un admin entré par son pouvoir, renvoyé à l'accès par un 401 (session SSO
+  // expirée, pouvoir retiré), n'a pas forcément le mot de passe partagé : on
+  // lui dit pourquoi et où se reconnecter (#1272).
+  const sessionSsoExpiree = file.etat === "gate" && entreParPouvoir;
+  const sessionRegion = (
+    <AnnonceStatut texte={sessionSsoExpiree ? SESSION_SSO_EXPIREE : file.sessionNotice} />
+  );
 
   if (file.etat === "chargement") {
     // `role="status"` + `<h1>` : un « Chargement… » nu n'était ni annoncé ni
@@ -218,6 +226,23 @@ export default function BenevolesPage() {
     return (
       <>
         {sessionRegion}
+        {sessionSsoExpiree && (
+          <div style={{ maxWidth: 380, margin: "40px auto -56px" }}>
+            <Alert
+              status="warning"
+              action={
+                <Link
+                  href="/login"
+                  className="tcn-cible-tactile inline-flex items-center text-sm font-semibold text-accent-ink underline underline-offset-2"
+                >
+                  Se connecter
+                </Link>
+              }
+            >
+              {SESSION_SSO_EXPIREE}
+            </Alert>
+          </div>
+        )}
         <AccessGate onSuccess={file.charger} />
       </>
     );

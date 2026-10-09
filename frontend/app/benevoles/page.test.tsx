@@ -276,7 +276,8 @@ describe("BenevolesPage", () => {
     }
 
     afterEach(() => {
-      document.cookie = "tcn_logged_in=; path=/; max-age=0";
+      document.cookie = "tcn_logged_in=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
+      getSession.mockReset();
     });
 
     it("shows the queue without the logout button", async () => {
@@ -307,6 +308,37 @@ describe("BenevolesPage", () => {
       renderPage();
 
       expect(await screen.findByRole("button", { name: /se déconnecter/i })).toBeInTheDocument();
+    });
+
+    it("explains an expired SSO session above the password form, with a sign-in link", async () => {
+      signedInWith(["benevole_access:manage"]);
+      validateParticipationBenevole.mockRejectedValue(new ApiError(401, "Non autorisé"));
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole("button", { name: /Coureur1/ }));
+      await waitFor(() => expect(getSession).toHaveBeenCalled());
+      await user.click(screen.getByRole("button", { name: /Valider ce résultat/ }));
+
+      expect(await screen.findByLabelText(/mot de passe/i)).toBeInTheDocument();
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Votre session a expiré. Reconnectez-vous pour reprendre la validation.",
+      );
+      expect(screen.getByRole("link", { name: /se connecter/i })).toHaveAttribute("href", "/login");
+    });
+
+    it("keeps the plain password form for a volunteer whose cookie expired", async () => {
+      getSession.mockResolvedValue(null);
+      validateParticipationBenevole.mockRejectedValue(new ApiError(401, "Non autorisé"));
+      const user = userEvent.setup();
+      renderPage();
+
+      await user.click(await screen.findByRole("button", { name: /Coureur1/ }));
+      await user.click(screen.getByRole("button", { name: /Valider ce résultat/ }));
+
+      expect(await screen.findByLabelText(/mot de passe/i)).toBeInTheDocument();
+      expect(screen.queryByText(/Votre session a expiré/)).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /se connecter/i })).not.toBeInTheDocument();
     });
 
     it("keeps the logout button for a signed-in user without the power", async () => {
