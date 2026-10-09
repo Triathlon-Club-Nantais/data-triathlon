@@ -191,7 +191,9 @@ def test_fmt_seconds_est_l_inverse_de_to_seconds():
         "BOUTIER_LAURET / PETIT ANNE_SOPHIE / LUC .",
         [("BOUTIER LAURET", "ANNE SOPHIE"), ("PETIT", "LUC")],
     ),
+    ("GUERIN / LE__ROUX_ JULIEN / MARC .", [("GUERIN", "JULIEN"), ("LE ROUX", "MARC")]),
     ("GUERIN / LE ROUX JULIEN / MARC .", None),
+    ("BREIZH / IRON MEN / TCN", None),
     ("GUERIN / ROUX / JULIEN / MARC .", None),
     # frontière nom/prénom indécidable
     ("MARTIN JEAN PIERRE / DUPONT PAUL", None),
