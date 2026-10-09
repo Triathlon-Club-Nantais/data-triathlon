@@ -912,14 +912,15 @@ dont les épreuves ont abouti.
 
 **Les athlètes orphelins sont balayés chaque semaine** (#1271) : l'étape
 « Purge orphan athletes » lance `purge-orphans` (`athlete_repository.delete_orphans`),
-jamais en mode `urls` ni en dry-run. Ce balayage ne tournait qu'en fin de
+sur la **seule** planification. Ce balayage ne tournait qu'en fin de
 `rescrape-db`, que la planification ne lance plus. Les chemins d'édition
 (suppression, fusion, reprise d'une épreuve) nettoient déjà leurs propres
 candidats ; seule la réassignation d'un dossard par un import web d'une épreuve
 déjà en base laisse une fiche vidée, visible à 0 résultat dans la recherche
-jusqu'au balayage suivant. Mêmes conditions que la relecture des licenciés ; une
-reprise manuelle le refait en fin de batch, sans dommage. Rapport dans le résumé
-du run, section « Athlètes orphelins ».
+jusqu'au balayage suivant. Un lancement manuel reste inchangé : sa reprise
+balaie déjà en fin de batch. Un import concurrent qui rattache un orphelin
+(#1100) reporte le balayage au passage suivant, sans rougir le run. Rapport
+dans le résumé du run, section « Athlètes orphelins ».
 
 **Destinataire de la notification d'échec** (#922) : la plateforme ne notifie
 que l'auteur de la dernière modification du fichier de cron, et la reprise a

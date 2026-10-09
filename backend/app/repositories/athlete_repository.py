@@ -668,10 +668,10 @@ def delete_orphans_among(db: Session, athlete_ids: list[int] | None = None) -> l
 def delete_orphans(db: Session) -> int:
     """Balaie **toute** la base et rend le nombre d'athlètes supprimés.
 
-    Contrat inchangé pour son appelant historique : `rescrape_service` l'appelle
-    **une fois** en fin de batch (jamais par épreuve — un orphelin après
-    l'épreuve A peut être ré-attaché par l'épreuve B) et sérialise son entier
-    dans `orphans_removed`.
+    Deux appelants : `rescrape_service`, **une fois** en fin de batch (jamais
+    par épreuve, car un orphelin après l'épreuve A peut être ré-attaché par
+    l'épreuve B), qui sérialise son entier dans `orphans_removed` ; et la
+    commande `purge-orphans`, lancée par le passage planifié (#1271).
     """
     return len(delete_orphans_among(db))
 
