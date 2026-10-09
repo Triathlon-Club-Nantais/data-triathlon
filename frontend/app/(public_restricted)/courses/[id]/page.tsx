@@ -134,6 +134,7 @@ export default async function CoursePage({
   const { course, participations } = data;
 
   const { total, finishers, dnf, dns, dsq, unknown, tcn_count: tcnCount } = summary;
+  const enAttente = data.pending_participations?.length ?? 0;
 
   // ── Répartition genre ──
   const genderTotal = summary.male + summary.female;
@@ -161,6 +162,9 @@ export default async function CoursePage({
           <MetaPill label="Format">{formatToken(course.event_type, course.distance_km)}</MetaPill>
           {course.event_date && <MetaPill label="Date">{formatDate(course.event_date)}</MetaPill>}
           <MetaPill label="Participants">{total}</MetaPill>
+          {/* Hors du total, mais dit sur toutes les pages : les lignes en
+              attente ne s'affichent qu'en fin de classement (#1273). */}
+          {enAttente > 0 && <MetaPill label="En attente de validation">{enAttente}</MetaPill>}
           <MetaPill label={participationStatusLabel("finisher", { form: "many" })}>{finishers}</MetaPill>
           {dnf > 0 && <MetaPill label={participationStatusLabel("DNF", { form: "many" })}>{dnf}</MetaPill>}
           {dns > 0 && <MetaPill label={participationStatusLabel("DNS", { form: "many" })}>{dns}</MetaPill>}

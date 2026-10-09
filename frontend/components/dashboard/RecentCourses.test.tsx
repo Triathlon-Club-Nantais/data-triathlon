@@ -88,10 +88,11 @@ describe("RecentCourses", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
-  it("dit « 1 résultat en attente » au lieu de 0 pour une épreuve sans résultat validé (#1273)", () => {
+  it("dit « 1 en attente » au lieu de 0 pour une épreuve sans résultat validé (#1273)", () => {
+    // Forme courte : la piste `auto` de la colonne ne doit pas écraser le nom à 360 px.
     render(<RecentCourses events={[{ ...EVENT, total: 0, tcn_count: 0, pending_count: 1 }]} />);
 
-    expect(screen.getByText("1 résultat en attente")).toBeInTheDocument();
+    expect(screen.getByText("1 en attente")).toBeInTheDocument();
     expect(screen.queryByText("0")).not.toBeInTheDocument();
   });
 

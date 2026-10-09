@@ -217,6 +217,30 @@ describe("CoursePage", () => {
     expect(screen.queryByText("Disqualifiés")).not.toBeInTheDocument();
   });
 
+  it("signale les résultats en attente par une pastille, sur toutes les pages, sans toucher au total (#1273)", async () => {
+    const enAttente = { id: 99, athlete: { id: 9, nom: "ATTENTE", prenom: "A", gender: "M", club: null } };
+    getCourse.mockResolvedValue({
+      course: COURSE,
+      participations: [],
+      total: 1811,
+      page: 1,
+      page_size: 20,
+      pending_participations: [enAttente],
+    });
+
+    await afficher();
+
+    const pastille = screen.getByText("En attente de validation").parentElement!;
+    expect(pastille).toHaveTextContent(/^En attente de validation1$/);
+    expect(screen.getByText("Participants").parentElement).toHaveTextContent("1811");
+  });
+
+  it("n'affiche pas la pastille d'attente quand rien n'attend (#1273)", async () => {
+    await afficher();
+
+    expect(screen.queryByText("En attente de validation")).not.toBeInTheDocument();
+  });
+
   it("annonce le total comme un nombre de participants, pas de partants", async () => {
     // `course_summary` additionne finishers + non_finishers + unknown, et range
     // les DNS dans le deuxième : le chiffre compte tous ceux qui figurent sur

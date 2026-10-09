@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Card, FormatChip } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
 import { formatDate } from "@/lib/utils/date";
-import { formatEventName, pendingOnlyLabel } from "@/lib/utils/event";
+import { formatEventName } from "@/lib/utils/event";
 import { formatToken } from "@/lib/utils/format";
 import type { EventOut } from "@/lib/types";
 
@@ -98,10 +98,12 @@ export function RecentCourses({ events }: { events: EventOut[] }) {
                 </td>
                 <td role="cell"><FormatChip>{formatToken(e.event_type, e.distance_km)}</FormatChip></td>
                 {/* Une épreuve qui n'a que des résultats en attente le dit,
-                    plutôt qu'un « 0 » qui la ferait paraître vide (#1273). */}
-                {pendingOnlyLabel(e.total, e.pending_count) ? (
+                    plutôt qu'un « 0 » qui la ferait paraître vide (#1273). En
+                    forme courte : la piste `auto` ne doit pas écraser le nom à
+                    360 px. */}
+                {e.total === 0 && e.pending_count ? (
                   <td role="cell" style={{ textAlign: "right", fontSize: 13, color: "var(--tcn-text-muted)" }}>
-                    {pendingOnlyLabel(e.total, e.pending_count)}
+                    {e.pending_count} en attente
                   </td>
                 ) : (
                   <td role="cell" style={{ textAlign: "right", fontFamily: "var(--tcn-font-display)", color: "var(--tcn-ink)", fontWeight: 700 }}>

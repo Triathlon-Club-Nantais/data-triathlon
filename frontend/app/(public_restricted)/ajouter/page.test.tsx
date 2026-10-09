@@ -181,7 +181,12 @@ describe("AjouterPage", () => {
     const ui = await AjouterPage();
     render(ui);
 
-    expect(within(screen.getByTestId("recents-grille")).getByText("1 résultat en attente")).toBeInTheDocument();
+    // Sous le nom de l'épreuve, jamais dans « Athlètes club » : la colonne
+    // garde son sens, et son tiret d'absence.
+    const ligne = within(screen.getByTestId("recents-grille")).getAllByRole("row")[1];
+    const [, epreuveCell, , clubCell] = within(ligne).getAllByRole("cell");
+    expect(epreuveCell).toHaveTextContent("Triathlon de Mesquer1 résultat en attente");
+    expect(clubCell).toHaveTextContent(/^—$/);
     expect(dansLesCartes("recents-cartes").texte("1 résultat en attente")).toBeTruthy();
   });
 });
