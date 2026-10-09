@@ -39,6 +39,13 @@ def rescrape_db(
         None, "--older-than",
         help="Ne re-scrape que les épreuves scrapées il y a plus de N jours.",
     ),
+    event_within: int | None = typer.Option(
+        None, "--event-within", min=1,
+        help=(
+            "Ne re-scrape que les épreuves datées des N derniers jours (ou à venir). "
+            "Une épreuve sans date est exclue."
+        ),
+    ),
     provider: str | None = typer.Option(
         None, "--provider", callback=valider_provider,
         help="Restreint à un provider (défaut : tous).",
@@ -87,14 +94,17 @@ def rescrape_db(
     passée à `--url` est remplacée par l'active de son épreuve.
 
     Deux modes de sélection, exclusifs l'un de l'autre : par filtre sur la base
-    (`--provider`, `--older-than`), ou par URL explicite (`--url`,
+    (`--provider`, `--older-than`, `--event-within`), ou par URL explicite (`--url`,
     `--urls-from`). Le second court-circuite la base — c'est ce qui permet de
     rejouer une épreuve en échec à l'import, absente de la table `course` :
 
         … import-sheet --json | jq -r '.failures[].url' \\
           | … rescrape-db --urls-from -
     """
-    valider_ciblage_exclusif(url=url, urls_from=urls_from, provider=provider, older_than=older_than)
+    valider_ciblage_exclusif(
+        url=url, urls_from=urls_from, provider=provider, older_than=older_than,
+        event_within=event_within,
+    )
     valider_single_heat(
         single_heat=single_heat, url=url, urls_from=urls_from,
         provider=provider, older_than=older_than,
@@ -132,7 +142,8 @@ def rescrape_db(
 
         outcome = rescrape_service.run_rescrape_db(
             db, settings,
-            dry_run=dry_run, older_than=older_than, provider=provider,
+            dry_run=dry_run, older_than=older_than, event_within=event_within,
+            provider=provider,
             limit=limit, delay=delay, reporter=reporter, urls=urls,
             single_heat=single_heat, max_concurrent_hosts=max_concurrent_hosts,
         )

@@ -131,6 +131,18 @@ def test_the_periodic_rescrape_is_still_scheduled(workflow):
     assert declencheurs["schedule"], "la reprise périodique a disparu"
 
 
+def test_only_the_scheduled_rescrape_is_bounded_to_recent_events(workflow):
+    """#1261 : le cron ne reprend que les épreuves des 30 derniers jours.
+
+    La fenêtre ne vaut que pour `schedule` : un lancement manuel depuis
+    `/admin/batches` doit pouvoir reprendre toute la base.
+    """
+    steps = {step.get("id"): step for job in _step_jobs(workflow) for step in job["steps"]}
+    batch = steps["batch"]
+    assert batch["env"]["EVENT_WITHIN"] == "${{ github.event_name == 'schedule' && '30' || '' }}"
+    assert '--event-within "$EVENT_WITHIN"' in batch["run"]
+
+
 def test_the_members_sync_survives_a_failed_purge(workflow):
     """Une purge en échec rougit le run ; elle ne prive pas la base de la liste des licenciés (#1202)."""
     steps = {step.get("id"): step for job in _step_jobs(workflow) for step in job["steps"]}
