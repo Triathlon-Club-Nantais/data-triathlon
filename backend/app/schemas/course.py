@@ -74,6 +74,10 @@ class EventOut(BaseModel):
     distance_km: float | None = None
     total: int
     tcn_count: int
+    #: Résultats en attente de validation non refusés (#1273), jamais comptés
+    #: dans `total` ni `tcn_count`. Une épreuve qui n'a qu'eux est listée avec
+    #: `total = 0`, et l'écran dit « N résultat(s) en attente ».
+    pending_count: int = 0
     #: Miroir des deux champs de `CourseBrief` (#486). Sans eux, la liste des
     #: épreuves ne peut pas marquer ce qu'elle liste sans un second appel, alors
     #: que sa requête agrège déjà par `Course.id`. `None` = épreuve jamais

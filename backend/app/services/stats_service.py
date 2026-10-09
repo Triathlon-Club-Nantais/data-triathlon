@@ -173,6 +173,7 @@ def _event_row(r) -> dict:
         "distance_km": r.distance_km,
         "total": r.total,
         "tcn_count": int(r.tcn_count or 0),
+        "pending_count": int(r.pending_count or 0),
         "is_reliable": r.is_reliable,
         "quality_issues": r.quality_issues,
     }
