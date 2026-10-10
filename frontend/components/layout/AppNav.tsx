@@ -9,7 +9,7 @@ import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/she
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/lib/queries/auth";
 import { libelleCompteur, useNavBadges } from "@/lib/queries/nav-badges";
-import { SpaceSwitcher } from "./SpaceSwitcher";
+import { SpaceSwitcher, type SwitcherSpace } from "./SpaceSwitcher";
 import { AthletePicker, ATHLETE_CHANGED_EVENT, OPEN_PICKER_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete, type PickerMode } from "./AthletePicker";
 import { NAV, ROLE, SPACES, TO_HANDLE, byGroup, estVisible, spaceOf, type NavItem, type NavSection, type SpaceId } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
@@ -184,9 +184,8 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
     .flatMap((s) => s.items)
     .filter((i) => i.group === TO_HANDLE && i.count !== undefined);
   const countAdmin = compteurAdmin.length > 0 ? compteurAdmin.reduce((somme, i) => somme + (i.count ?? 0), 0) : undefined;
-  type EspaceOuvert = { id: SpaceId; label: string; href: string; count?: number };
-  const espacesOuverts: EspaceOuvert[] = (["public", "encadrement", "admin"] as const)
-    .filter((id) => toutesSections.some((s) => s.space === id) || (id === "admin" && session?.can_administer))
+  const espacesOuverts: SwitcherSpace[] = (Object.keys(SPACES) as SpaceId[])
+    .filter((id) => id === "admin" ? Boolean(session?.can_administer) : toutesSections.some((s) => s.space === id))
     .map((id) => ({
       id,
       label: SPACES[id].label,

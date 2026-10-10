@@ -12,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { libelleCompteur } from "@/lib/queries/nav-badges";
 import { SPACES, type SpaceId } from "./nav.config";
 
-type EspaceProposé = { id: SpaceId; label: string; href: string; count?: number };
+export type SwitcherSpace = { id: SpaceId; label: string; href: string; count?: number };
 
 /** Mène d'un espace à l'autre ; `compact` : icône seule, pour le rail replié. */
 export function SpaceSwitcher({
@@ -21,7 +21,7 @@ export function SpaceSwitcher({
   compact = false,
 }: {
   current: SpaceId;
-  spaces: EspaceProposé[];
+  spaces: SwitcherSpace[];
   compact?: boolean;
 }) {
   if (spaces.length < 2) return null;
@@ -59,7 +59,7 @@ export function SpaceSwitcher({
           <DropdownMenuLinkItem
             key={espace.id}
             render={<Link href={espace.href} prefetch={false} />}
-            aria-current={espace.id === current ? "page" : undefined}
+            aria-current={espace.id === current ? "true" : undefined}
             className="justify-between gap-3"
           >
             {espace.label}

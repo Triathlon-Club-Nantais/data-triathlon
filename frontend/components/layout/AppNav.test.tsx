@@ -1064,18 +1064,24 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
    * elle-même sans `allowed_emails:manage`.
    */
   it("cache la section à un connecté sans pouvoir", async () => {
-    chemin.courant = "/dashboard";
+    chemin.courant = "/admin";
     afficher(SESSION);
     await deplier();
-    // Scopé au rail : la barre basse mobile (#482, NAV-4) porte, elle aussi,
-    // un « Résultats ».
-    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    await waitFor(() => expect(within(rail).getByText("Résultats")).toBeInTheDocument());
+    await screen.findByRole("button", { name: /Compte/ });
     expect(screen.queryByText("Gestion des utilisateurs")).not.toBeInTheDocument();
     // « Administration » disparaît de même depuis qu'« Épreuves » porte un
     // pouvoir : c'était la seule entrée de la section à n'en porter aucun,
     // donc la seule proposée à qui n'y peut rien faire (ADM-6).
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
+  });
+
+  it("n'ouvre pas l'espace admin à qui porte un pouvoir sans can_administer", async () => {
+    chemin.courant = "/dashboard";
+    afficher(habilite("allowed_emails:manage"));
+    await deplier();
+    await screen.findByRole("button", { name: /Compte/ });
+    expect(screen.queryByText("Back-office")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /changer d'espace/ })).not.toBeInTheDocument();
   });
 
   it("ouvre « Accès et mots de passe » à qui porte allowed_emails:manage", async () => {

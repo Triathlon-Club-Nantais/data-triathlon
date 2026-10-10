@@ -359,13 +359,13 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     comme le logo du rail corrigé ici. Hors périmètre de #428 également : sous
     `md` le rail est en `display:none`, le coût réel est celui de l'ouverture
     du tiroir, repayé à chaque ouverture.
-  - **Trois espaces** (#1295) : chaque section porte un `space` (`public`,
-    `encadrement`, `admin`) ; le rail et le tiroir ne rendent que l'espace de la
-    page, déduit du premier segment d'URL par `spaceOf`. La barre basse reste
-    celle de l'espace public. `SpaceSwitcher` mène d'un espace à l'autre et
-    disparaît pour qui n'en a qu'un ; dans l'espace public, une entrée
-    « Back-office » portant le total des files « À traiter » mène au sommaire.
-    La palette ⌘K garde les écrans de tous les espaces ouverts.
+- **Trois espaces** (#1295) : chaque section porte un `space` (`public`,
+  `encadrement`, `admin`) ; le rail et le tiroir ne rendent que l'espace de la
+  page, déduit du premier segment d'URL par `spaceOf`. La barre basse reste
+  celle de l'espace public. `SpaceSwitcher` mène d'un espace à l'autre et
+  disparaît pour qui n'en a qu'un ; dans l'espace public, une entrée
+  « Back-office » portant le total des files « À traiter » mène au sommaire.
+  La palette ⌘K garde les écrans de tous les espaces ouverts.
 - **Sélecteurs d'URL : `pushState` ou `router.push`, et la question qui tranche**
   — *un rendu serveur lit-il ce paramètre ?* `?rank=` ne l'est par aucun, donc
   `RankTypeToggle` écrit l'URL par `window.history.pushState` et les trois
@@ -507,14 +507,14 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   les deux (« Accueil, tableau de bord »). L'onglet courant porte, en plus de
   sa couleur, un trait `--tcn-orange` de 3 px (pendant de `barreActive` du
   rail, WCAG 1.4.1), et « Plus » s'allume quand la page courante vit dans le
-  tiroir. Le tiroir porte « le reste » : toutes les destinations que
-  la barre ne montre pas, sections publiques débordantes comprises, et les
-  deux actions primaires, **sauf** repli (#621) : la barre basse est masquée
+  tiroir. Le tiroir porte « le reste » : ce que la barre laisse de l'espace
+  courant, sections débordantes comprises, l'entrée « Back-office » dans
+  l'espace public, et les deux actions primaires, **sauf** repli (#621) : la barre basse est masquée
   pendant que le tiroir est ouvert (le `Sheet` passe par-dessus), donc un
   visiteur dont la barre porte tout (anonyme, ou adhérent sans pouvoir) se
   retrouvait sans aucune destination à l'écran une fois le tiroir ouvert par
-  le hamburger. `sectionsTiroir` (`AppNav.tsx`) retombe alors sur l'ensemble
-  des sections ; c'est le seul cas de doublon avec la barre. Le
+  le hamburger. `sectionsRepli` (`AppNav.tsx`) retombe alors sur les sections
+  de l'espace courant (`sections`) ; c'est le seul cas de doublon avec la barre. Le
   pied du tiroir ne ferme plus au clic : `UserMenu` ferme lui-même via
   `onNavigate`, au moment où la navigation a réellement lieu (immédiat pour la
   connexion, après le succès de la mutation pour la déconnexion) — jamais au

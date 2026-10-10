@@ -25,7 +25,7 @@ describe("SpaceSwitcher (#1296)", () => {
     render(<SpaceSwitcher current="public" spaces={[PUBLIC, ADMIN]} />);
     await userEvent.click(screen.getByRole("button", { name: "Espace : Résultats, changer d'espace" }));
     expect(await screen.findByRole("menuitem", { name: /Back-office/ })).toHaveAttribute("href", "/admin");
-    expect(screen.getByRole("menuitem", { name: /Résultats/ })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("menuitem", { name: /Résultats/ })).toHaveAttribute("aria-current", "true");
   });
 
   it("porte le compteur du back-office avec son nom accessible", async () => {
@@ -39,5 +39,14 @@ describe("SpaceSwitcher (#1296)", () => {
     render(<SpaceSwitcher current="public" spaces={[PUBLIC, ADMIN]} compact />);
     const bouton = screen.getByRole("button", { name: "Espace : Résultats, changer d'espace" });
     expect(bouton).not.toHaveTextContent("Résultats");
+  });
+
+  it("en mode compact, montre une infobulle et ouvre le menu", async () => {
+    render(<SpaceSwitcher current="public" spaces={[PUBLIC, ADMIN]} compact />);
+    const bouton = screen.getByRole("button", { name: /changer d'espace/ });
+    await userEvent.hover(bouton);
+    expect(await screen.findByRole("tooltip")).toBeInTheDocument();
+    await userEvent.click(bouton);
+    expect(await screen.findByRole("menuitem", { name: /Back-office/ })).toBeInTheDocument();
   });
 });
