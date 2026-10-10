@@ -329,12 +329,17 @@ def split_relay_teammates(published: str) -> list[tuple[str, str]] | None:
     return teammates
 
 
+# Mesuré au plus 2 mots par prénom sur 517 et 518 (#1282).
+MAX_DUO_FIRSTNAME_WORDS = 3
+
+
 def _names_first_duo(tokens: list[str]) -> list[tuple[str, str]] | None:
     """Klikego « NOM1 / NOM2 Prénom1 / Prénom2 . » (#1270, #1282), whose `_` stands for a space.
 
     Names are one upper-case word each. First names are either one upper-case word each
     or one or more mixed-case words each: the case change marks the name/first name
-    boundary. The final « . » keeps other providers' team names out.
+    boundary. The final « . » keeps other providers' team names out; a stray « . »
+    or a first name longer than `MAX_DUO_FIRSTNAME_WORDS` words rejects the label.
     """
     if len(tokens) < 7 or tokens[1] != "/" or tokens[-1] != ".":
         return None
@@ -345,8 +350,13 @@ def _names_first_duo(tokens: list[str]) -> list[tuple[str, str]] | None:
     firstname1, firstname2 = tokens[3:slash], tokens[slash + 1:-1]
     if not (name1.isupper() and name2.isupper()):
         return None
+    if max(len(firstname1), len(firstname2)) > MAX_DUO_FIRSTNAME_WORDS:
+        return None
     firstname_words = firstname1 + firstname2
-    all_caps = len(firstname1) == len(firstname2) == 1 and all(w.isupper() for w in firstname_words)
+    if not all(word.strip(".") for word in firstname_words):
+        return None
+    one_word_each = len(firstname1) == len(firstname2) == 1
+    all_caps = one_word_each and all(word.isupper() for word in firstname_words)
     if not all_caps and any(word.isupper() for word in firstname_words):
         return None
 

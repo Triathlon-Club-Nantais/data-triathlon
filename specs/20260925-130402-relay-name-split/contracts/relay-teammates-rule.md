@@ -29,12 +29,13 @@ ou `None` (ligne non découpée). Jamais de liste partielle.
    `BREIZH / IRON MEN / TCN`). Chaque nom est **un seul** mot tout en majuscules. Les
    prénoms prennent l'une de deux formes :
    - un mot tout en majuscules chacun (`GUERIN / LE_ROUX JULIEN / MARC .`) ;
-   - un ou plusieurs mots en casse mixte chacun, aucun tout en majuscules : le passage
+   - un à trois mots en casse mixte chacun, aucun tout en majuscules : le passage
      majuscules → casse mixte marque la frontière nom/prénom
      (`GUERIN / ROUX Jean Paul / Anne Sophie .`). C'est la forme réellement publiée
      (#1282).
 
-   → `[(NOM1, Prénom1), (NOM2, Prénom2)]`. Un `_` y tient lieu d'espace : chaque mot est
+   → `[(NOM1, Prénom1), (NOM2, Prénom2)]`. Un `.` isolé ailleurs qu'en fin de valeur
+   rejette le libellé, sans nettoyage. Un `_` y tient lieu d'espace : chaque mot est
    coupé sur `_` et recollé par une espace, morceaux vides ôtés (`LE__ROUX_` → `LE ROUX`).
    Un nom composé publié avec une espace (`LE ROUX`) ne suit pas cette étape.
 5. **Segments** (sinon) : couper la valeur sur `/`. Pour chaque segment :
@@ -78,6 +79,8 @@ Tout échec d'une étape → `None`.
 | `GUERIN / ROUX Julien / Anne Sophie .` (prénom composé à droite, #1282) | `[("GUERIN", "Julien"), ("ROUX", "Anne Sophie")]` |
 | `GUERIN / LE ROUX JULIEN / MARC .` (nom composé non soudé) | `None` |
 | `GUERIN / ROUX Julien / MARC .` (casse des prénoms mêlée) | `None` |
+| `GUERIN / ROUX Jean Paul Louis Marie / Marc .` (prénom de quatre mots) | `None` |
+| `GUERIN / ROUX Julien . / Marc .` (`.` isolé en trop) | `None` |
 | `BREIZH / IRON MEN / TCN` (nom d'équipe, sans `.` final) | `None` |
 | `MARTIN JEAN PIERRE / DUPONT PAUL` (3 jetons sans particule) | `None` |
 | `DA SILVA DOS SANTOS / DUPONT PAUL` (deux mots à particule) | `None` |
