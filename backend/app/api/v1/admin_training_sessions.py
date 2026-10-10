@@ -57,7 +57,7 @@ def create_training_session(
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.JEUNES_WRITE)),
 ):
-    """Crée un entraînement. Il naît sans participant."""
+    """Crée un entraînement ; les membres des groupes visés y sont inscrits d'office."""
     training_session = training_session_service.create_training_session(
         db,
         actor,
@@ -65,6 +65,7 @@ def create_training_session(
         start_time=body.start_time,
         location=body.location,
         session_type=body.session_type,
+        group_ids=body.group_ids,
     )
     view = training_session_service.training_session_detail_view(db, training_session)
     db.commit()
@@ -99,6 +100,7 @@ def update_training_session(
         location=champs_fournis.get("location", ...),
         session_type=champs_fournis.get("session_type", ...),
         note=note_fournie,
+        group_ids=champs_fournis.get("group_ids"),
     )
     view = training_session_service.training_session_detail_view(db, training_session)
     db.commit()

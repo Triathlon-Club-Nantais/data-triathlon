@@ -19,6 +19,10 @@ class ParticipantRead(BaseModel):
 
     profile_id: int
     present: bool | None = None
+    #: Faux pour une inscription d'office par groupe (#1291).
+    added_manually: bool
+    #: Catégorie FFTri du profil, `None` sans date de naissance (#1291).
+    category: str | None
     created_at: datetime
 
     @field_serializer("created_at")
@@ -41,6 +45,10 @@ class TrainingSessionRead(BaseModel):
     #: Note de séance en texte libre (#869) — rapport de l'encadrant.
     note: str
     participant_count: int
+    #: Groupes visés, récurrence d'origine et séance modifiée seule (#1291).
+    group_ids: list[int]
+    recurrence_id: int | None
+    detached: bool
 
 
 class TrainingSessionDetailRead(TrainingSessionRead):
@@ -58,6 +66,7 @@ class TrainingSessionCreate(BaseModel):
     start_time: time_ | None = None
     location: str | None = None
     session_type: str | None = None
+    group_ids: list[int] = []
 
 
 class TrainingSessionUpdate(BaseModel):
@@ -76,6 +85,8 @@ class TrainingSessionUpdate(BaseModel):
     location: str | None = None
     session_type: str | None = None
     note: str | None = None
+    #: Absent = groupes inchangés ; `[]` retire tous les groupes visés (#1291).
+    group_ids: list[int] | None = None
 
 
 class ParticipantAdd(BaseModel):
