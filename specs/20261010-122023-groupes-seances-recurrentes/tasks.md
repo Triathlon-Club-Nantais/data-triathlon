@@ -94,7 +94,7 @@
 
 - [X] T043 [P] Documenter groupes, inscription d'office et récurrences dans la section « jeunes » du guide admin frontend/components/guide/guide-content.admin.ts
 - [X] T044 [P] Ajouter une ligne sur les groupes et la synchronisation R3 dans backend/AGENTS.md (inventaire des modules)
-- [ ] T045 Lancer `uv run pytest -m "not integration"`, `uv run ruff check .`, `npm test`, `npm run lint`, `npx tsc --noEmit`, puis dérouler quickstart.md
+- [X] T045 (suites automatiques vertes ; parcours manuel de quickstart.md laissé à la recette, listé dans la PR) Lancer `uv run pytest -m "not integration"`, `uv run ruff check .`, `npm test`, `npm run lint`, `npx tsc --noEmit`, puis dérouler quickstart.md
 
 ## Dependencies & Execution Order
 
