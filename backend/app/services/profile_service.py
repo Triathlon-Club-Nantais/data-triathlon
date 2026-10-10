@@ -15,7 +15,8 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import DomainError, NotFoundError
 from app.models.personal_profile import PersonalProfile
 from app.models.user import User
-from app.repositories import profile_repository, role_repository
+from app.repositories import profile_repository, role_repository, training_group_repository
+from app.services.fftri_category import fftri_category
 
 #: Sentinelle de `update_profile` : le champ n'a pas été fourni, distinct d'un `None` qui efface.
 UNCHANGED = object()
@@ -35,7 +36,7 @@ class NoOrganisationError(DomainError):
     message = "Aucune organisation n'existe."
 
 
-def _default_organisation_id(db: Session) -> int:
+def default_organisation_id(db: Session) -> int:
     organisation = role_repository.default_organisation(db)
     if organisation is None:
         raise NoOrganisationError()
@@ -67,6 +68,8 @@ def profile_view(profile: PersonalProfile) -> dict:
         "first_name": profile.first_name,
         "last_name": profile.last_name,
         "birth_date": profile.birth_date,
+        "category": fftri_category(profile.birth_date, date.today()),
+        "membership_ended_on": profile.membership_ended_on,
         "created_at": profile.created_at,
     }
 
@@ -76,7 +79,10 @@ def profile_detail_view(db: Session, profile: PersonalProfile) -> dict:
     return profile_view(profile) | {
         "emergency_contact": profile.emergency_contact,
         "notes": profile.notes,
-        "membership_ended_on": profile.membership_ended_on,
+        "groups": [
+            {"id": group.id, "name": group.name}
+            for group in training_group_repository.list_groups_of_profile(db, profile.id)
+        ],
         "log_entries": [
             _log_entry_view(entry)
             for entry in profile_repository.list_log_entries(db, profile.id)
@@ -100,7 +106,7 @@ def create_profile(
 ) -> PersonalProfile:
     profile = profile_repository.create(
         db,
-        organisation_id=_default_organisation_id(db),
+        organisation_id=default_organisation_id(db),
         first_name=first_name,
         last_name=last_name,
         birth_date=birth_date,
