@@ -177,7 +177,29 @@ def test_le_module_ne_touche_ni_la_base_ni_le_reseau():
 
 def test_only_pages_preview_is_a_consultation_power():
     """#1109 : le marqueur vit dans le catalogue, pas dans une liste du front."""
-    assert [p.code for p in permissions.ALL if p.consultation] == [P.PAGES_PREVIEW.code]
+    assert [p.code for p in permissions.ALL if p.kind == "consultation"] == [P.PAGES_PREVIEW.code]
+
+
+def test_supervision_powers_are_youth_and_volunteer_validation():
+    """#1297 : l'espace Encadrement, distinct du back-office."""
+    assert {p.code for p in permissions.ALL if p.kind == "supervision"} == {
+        P.JEUNES_READ.code,
+        P.JEUNES_WRITE.code,
+        P.ATHLETES_VOLUNTEER_VALIDATE.code,
+    }
+
+
+def test_administers_ignores_supervision_powers():
+    assert permissions.administers({P.JEUNES_READ.code, P.JEUNES_WRITE.code}) is False
+    assert permissions.administers({P.ATHLETES_VOLUNTEER_VALIDATE.code}) is False
+
+
+def test_supervises_reads_only_supervision_powers():
+    assert permissions.supervises({P.JEUNES_READ.code}) is True
+    assert permissions.supervises({P.ATHLETES_VOLUNTEER_VALIDATE.code}) is True
+    assert permissions.supervises({P.QUALITY_OVERRIDE.code, P.PAGES_PREVIEW.code}) is False
+    assert permissions.supervises({"inconnu:code"}) is False
+    assert permissions.supervises(set()) is False
 
 
 def test_administers_ignores_consultation_and_unknown_codes():

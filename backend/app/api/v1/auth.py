@@ -9,6 +9,7 @@ de données techniques dans un navigateur en pleine navigation, ce qui était le
 défaut reconnu de la PR #159.
 """
 import logging
+from collections.abc import Iterable
 
 from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import RedirectResponse
@@ -89,6 +90,15 @@ def _not_found() -> NotFoundError:
     return NotFoundError(
         "Ce moyen de connexion n'existe pas.", headers=NO_STORE_HEADERS
     )
+
+
+def _landing_path(codes: Iterable[str]) -> str:
+    """Le premier espace ouvert : back-office, sinon encadrement, sinon accueil."""
+    if permissions.administers(codes):
+        return "/admin"
+    if permissions.supervises(codes):
+        return "/encadrement"
+    return "/dashboard"
 
 
 def _redirect_to(url: str) -> RedirectResponse:
@@ -225,10 +235,10 @@ def callback(
         capture_event(
             "user_logged_in", distinct_id=str(user.id), properties={"provider": provider}
         )
-        # Le back-office, seul écran que la connexion ouvre aujourd'hui. La
-        # destination reste **fixée par la configuration** (FR-026) : aucun
-        # paramètre d'entrée n'y entre, la redirection ouverte reste fermée.
-        response = _redirect_to(f"{settings.auth_redirect_base_url}/admin")
+        # La destination reste **fixée par le code** (FR-026) : aucun paramètre
+        # d'entrée n'y entre, la redirection ouverte reste fermée.
+        effectifs = authorization.effective_permissions(db, user)
+        response = _redirect_to(f"{settings.auth_redirect_base_url}{_landing_path(effectifs)}")
         session_max_age = settings.auth_session_ttl_days * 24 * 60 * 60
         _set_auth_cookie(
             response,
@@ -324,6 +334,7 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
         created_at=charge.created_at,
         permissions=sorted(effectifs),
         can_administer=permissions.administers(effectifs),
+        can_supervise=permissions.supervises(effectifs),
         roles=[
             SessionRoleRead(
                 id=attribution.role.id,

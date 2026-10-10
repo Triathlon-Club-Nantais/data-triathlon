@@ -1,5 +1,9 @@
 """`authorize` et `callback` — le parcours vu depuis HTTP."""
+import pytest
+
+from app.api.v1.auth import _landing_path
 from app.core.config import get_settings
+from app.core.permissions import P
 from app.models.user import User
 from app.services.auth import session, state
 
@@ -72,7 +76,7 @@ def test_le_callback_nominal_ouvre_une_session(client, doublure, db_session):
     )
 
     assert reponse.status_code == 302
-    assert reponse.headers["location"] == f"{get_settings().auth_redirect_base_url}/admin"
+    assert reponse.headers["location"] == f"{get_settings().auth_redirect_base_url}/dashboard"
 
     settings = get_settings()
     jeton = client.cookies[session_cookie_name(settings)]
@@ -110,3 +114,16 @@ def test_un_callback_rejoue_est_refuse(client, doublure, db_session):
 
     assert rejeu.headers["location"].endswith("/login?error=state_mismatch")
     assert db_session.query(User).count() == 1
+
+
+@pytest.mark.parametrize(
+    ("codes", "expected"),
+    [
+        ({P.QUALITY_OVERRIDE.code, P.JEUNES_READ.code}, "/admin"),
+        ({P.JEUNES_READ.code}, "/encadrement"),
+        ({P.PAGES_PREVIEW.code}, "/dashboard"),
+        (set(), "/dashboard"),
+    ],
+)
+def test_landing_goes_to_the_first_open_space(codes, expected):
+    assert _landing_path(codes) == expected

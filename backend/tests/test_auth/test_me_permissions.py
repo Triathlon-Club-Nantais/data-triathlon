@@ -166,3 +166,22 @@ def test_me_a_preview_only_session_cannot_administer(client, ouvrir_session):
 def test_me_a_roleless_session_cannot_administer(client, ouvrir_session):
     ouvrir_session()
     assert client.get("/api/v1/auth/me").json()["can_administer"] is False
+
+
+def test_me_exposes_can_supervise_apart_from_can_administer(client, ouvrir_session):
+    """#1297 : un encadrant n'est pas un administrateur."""
+    ouvrir_session(P.JEUNES_READ)
+
+    corps = client.get("/api/v1/auth/me").json()
+
+    assert corps["can_supervise"] is True
+    assert corps["can_administer"] is False
+
+
+def test_me_admin_without_supervision_power(client, ouvrir_session):
+    ouvrir_session(P.QUALITY_OVERRIDE)
+
+    corps = client.get("/api/v1/auth/me").json()
+
+    assert corps["can_supervise"] is False
+    assert corps["can_administer"] is True
