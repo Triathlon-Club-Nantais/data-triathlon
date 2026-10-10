@@ -172,4 +172,31 @@ describe("ProfilesList", () => {
       expect(createProfile).toHaveBeenCalledWith({ first_name: "Alix", last_name: "Martin" }),
     );
   });
+
+  describe("catégorie FFTri (#1291)", () => {
+    const ZOE: Profile = { ...ALIX, id: 2, first_name: "Zoé", category: "Benjamin" };
+    const NOE: Profile = { ...ALIX, id: 3, first_name: "Noé", birth_date: null, category: null };
+
+    it("affiche la catégorie, ou qu'elle est inconnue", async () => {
+      listProfiles.mockResolvedValue([ALIX, NOE]);
+
+      afficher();
+
+      expect(await screen.findByText(/ans · Pupille/)).toBeInTheDocument();
+      expect(screen.getByText(/Âge inconnu · Catégorie inconnue/)).toBeInTheDocument();
+    });
+
+    it("filtre la liste par catégorie", async () => {
+      listProfiles.mockResolvedValue([ALIX, ZOE, NOE]);
+      const utilisateur = userEvent.setup();
+
+      afficher();
+      await screen.findByText("Zoé Martin");
+      await utilisateur.selectOptions(screen.getByLabelText("Catégorie"), "Pupille");
+
+      expect(screen.getByText("Alix Martin")).toBeInTheDocument();
+      expect(screen.queryByText("Zoé Martin")).not.toBeInTheDocument();
+      expect(screen.queryByText("Noé Martin")).not.toBeInTheDocument();
+    });
+  });
 });

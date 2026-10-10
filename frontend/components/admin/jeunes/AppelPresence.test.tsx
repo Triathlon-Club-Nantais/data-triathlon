@@ -124,6 +124,17 @@ describe("AppelPresence", () => {
     expect(screen.queryByText("Séance introuvable")).not.toBeInTheDocument();
   });
 
+  it("affiche la catégorie FFTri de chaque inscrit (#1291)", async () => {
+    getTrainingSession.mockResolvedValue({
+      ...DETAIL_UN_PARTICIPANT,
+      participants: [{ ...DETAIL_UN_PARTICIPANT.participants[0], category: "Benjamin" }],
+    });
+
+    afficher();
+
+    expect(await screen.findByText("Benjamin")).toBeInTheDocument();
+  });
+
   it("dit qu'une séance absente est introuvable", async () => {
     getTrainingSession.mockRejectedValue(new ApiError(404, "Cet entraînement n'existe pas."));
 
