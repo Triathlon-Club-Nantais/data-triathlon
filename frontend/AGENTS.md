@@ -876,6 +876,10 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     réponse donne une politique correcte et un HTML sans nonce.
   - La CSP est le **tronc** de la fonction, le cookie un effet de bord : une
     sortie précoce la court-circuiterait pour la majorité des visiteurs.
+  - `router.refresh()` rejoue le layout racine avec le nonce d'une **nouvelle**
+    requête, que la CSP du document ignore : un nonce lu côté client se fige
+    sur le premier rendu (`StableCSPProvider`, #570), sans quoi le premier
+    `<style>` de Base UI inséré après un geste admin part en violation.
   - Les violations remontent au backend (#1168) : `report-to` (avec l'en-tête
     `Reporting-Endpoints`) et `report-uri` visent `POST /api/v1/csp-reports`,
     qui les écrit dans ses logs (`CSP violation directive=…`). La route est
