@@ -11,6 +11,7 @@ import type {
   RoleCreate,
   RoleUpdate,
   ScopeKind,
+  TrainingRecurrenceInput,
 } from "@/lib/types";
 
 export function usePendingProviders() {
@@ -1105,6 +1106,7 @@ export function useCreateTrainingSession() {
       start_time?: string | null;
       location?: string | null;
       session_type?: string | null;
+      group_ids?: number[];
     }) => apiClient.createTrainingSession(entrainement),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.trainingSessions() }),
   });
@@ -1124,6 +1126,7 @@ export function useUpdateTrainingSession() {
         location?: string | null;
         session_type?: string | null;
         note?: string;
+        group_ids?: number[];
       };
     }) => apiClient.updateTrainingSession(id, champs),
     onSuccess: (_donnees, { id }) => {
@@ -1194,6 +1197,123 @@ export function useSetPresence() {
       qc.invalidateQueries({ queryKey: queryKeys.trainingSessions() });
       qc.invalidateQueries({ queryKey: queryKeys.trainingSession(sessionId) });
     },
+  });
+}
+
+// ── Groupes d'entraînement et récurrences (#1291) ────────────────────────────
+
+/** Une composition de groupe ou une récurrence change les inscrits des séances
+ * à venir, la fiche des profils et les comptes de membres : tout se périme. */
+function perimerJeunes(qc: ReturnType<typeof useQueryClient>) {
+  for (const queryKey of [
+    queryKeys.trainingGroups(),
+    ["admin-training-group"],
+    queryKeys.trainingRecurrences(),
+    queryKeys.trainingSessions(),
+    ["admin-training-session"],
+    queryKeys.profiles(),
+    ["admin-profile"],
+  ]) {
+    qc.invalidateQueries({ queryKey });
+  }
+}
+
+export function useTrainingGroups() {
+  return useQuery({
+    queryKey: queryKeys.trainingGroups(),
+    queryFn: () => apiClient.listTrainingGroups(),
+  });
+}
+
+export function useTrainingGroup(groupId: number | null) {
+  return useQuery({
+    queryKey: queryKeys.trainingGroup(groupId ?? 0),
+    queryFn: () => apiClient.getTrainingGroup(groupId as number).catch(rendreNullSi404),
+    enabled: groupId !== null,
+  });
+}
+
+export function useCreateTrainingGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => apiClient.createTrainingGroup(name),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.trainingGroups() }),
+  });
+}
+
+export function useRenameTrainingGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, name }: { id: number; name: string }) => apiClient.renameTrainingGroup(id, name),
+    onSuccess: () => perimerJeunes(qc),
+  });
+}
+
+export function useDeleteTrainingGroup() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiClient.deleteTrainingGroup(id),
+    onSuccess: () => perimerJeunes(qc),
+  });
+}
+
+export function useAddTrainingGroupMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ groupId, profileId }: { groupId: number; profileId: number }) =>
+      apiClient.addTrainingGroupMember(groupId, profileId),
+    onSuccess: () => perimerJeunes(qc),
+  });
+}
+
+export function useRemoveTrainingGroupMember() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ groupId, profileId }: { groupId: number; profileId: number }) =>
+      apiClient.removeTrainingGroupMember(groupId, profileId),
+    onSuccess: () => perimerJeunes(qc),
+  });
+}
+
+export function useTrainingRecurrences() {
+  return useQuery({
+    queryKey: queryKeys.trainingRecurrences(),
+    queryFn: () => apiClient.listTrainingRecurrences(),
+  });
+}
+
+/** L'aperçu d'une récurrence (FR-011) : désactivé tant que la période n'est pas saisie. */
+export function useTrainingRecurrencePreview(champs: TrainingRecurrenceInput | null) {
+  return useQuery({
+    queryKey: ["admin-training-recurrence-preview", champs],
+    queryFn: () => apiClient.previewTrainingRecurrence(champs as TrainingRecurrenceInput),
+    enabled: champs !== null,
+    retry: false,
+  });
+}
+
+export function useCreateTrainingRecurrence() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (champs: TrainingRecurrenceInput) => apiClient.createTrainingRecurrence(champs),
+    onSuccess: () => perimerJeunes(qc),
+  });
+}
+
+export function useUpdateTrainingRecurrence() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, champs }: { id: number; champs: Partial<TrainingRecurrenceInput> }) =>
+      apiClient.updateTrainingRecurrence(id, champs),
+    onSuccess: () => perimerJeunes(qc),
+  });
+}
+
+export function useDeleteTrainingRecurrence() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiClient.deleteTrainingRecurrence(id),
+    onSuccess: () => perimerJeunes(qc),
   });
 }
 

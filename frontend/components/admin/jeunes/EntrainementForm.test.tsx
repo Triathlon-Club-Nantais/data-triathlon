@@ -12,6 +12,9 @@ const SEANCE: TrainingSession = {
   session_type: "Natation",
   note: "",
   participant_count: 0,
+  group_ids: [],
+  recurrence_id: null,
+  detached: false,
 };
 
 describe("EntrainementForm", () => {

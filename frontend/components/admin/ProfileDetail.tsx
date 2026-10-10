@@ -8,7 +8,14 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useAddProfileLogEntry, useProfile, useUpdateProfile } from "@/lib/queries/admin";
+import {
+  useAddProfileLogEntry,
+  useAddTrainingGroupMember,
+  useProfile,
+  useRemoveTrainingGroupMember,
+  useTrainingGroups,
+  useUpdateProfile,
+} from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate, localToday } from "@/lib/utils/date";
@@ -123,7 +130,7 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
           {data.first_name} {data.last_name}
         </div>
         <div className="text-[var(--tcn-text-faint)] text-sm">
-          {age === null ? "Âge inconnu" : `${age} ans`}
+          {age === null ? "Âge inconnu" : `${age} ans`} · {data.category ?? "Catégorie inconnue"}
         </div>
 
         {edition ? (
@@ -228,6 +235,8 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
         )}
       </Card>
 
+      <GroupesDuProfil profileId={profileId} groupes={data.groups} peutEcrire={peutEcrire} />
+
       <Card className="space-y-3 p-4">
         <div className="text-lg font-bold">Journal de bord</div>
 
@@ -265,6 +274,88 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
         )}
       </Card>
     </div>
+  );
+}
+
+/** Les groupes du profil (#1291), avec ajout et retrait depuis la fiche (FR-018). */
+function GroupesDuProfil({
+  profileId,
+  groupes,
+  peutEcrire,
+}: {
+  profileId: number;
+  groupes: { id: number; name: string }[];
+  peutEcrire: boolean;
+}) {
+  const tous = useTrainingGroups();
+  const ajouter = useAddTrainingGroupMember();
+  const retirer = useRemoveTrainingGroupMember();
+  const idsActuels = new Set(groupes.map((groupe) => groupe.id));
+  const ajoutables = (tous.data ?? []).filter((groupe) => !idsActuels.has(groupe.id));
+
+  async function agir(geste: () => Promise<unknown>, succes: string) {
+    try {
+      await geste();
+      toast.success(succes);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  return (
+    <Card className="space-y-3 p-4">
+      <div className="text-lg font-bold">Groupes</div>
+      {groupes.length === 0 ? (
+        <p className="text-[var(--tcn-text-faint)] text-sm">Membre d&apos;aucun groupe.</p>
+      ) : (
+        <ul className="divide-border divide-y">
+          {groupes.map((groupe) => (
+            <li key={groupe.id} className="flex items-center justify-between gap-2 py-2">
+              <span>{groupe.name}</span>
+              {peutEcrire && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`Retirer du groupe ${groupe.name}`}
+                  onClick={() =>
+                    agir(() => retirer.mutateAsync({ groupId: groupe.id, profileId }), "Retiré du groupe.")
+                  }
+                >
+                  Retirer
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {peutEcrire && (
+        <div className="space-y-1.5">
+          <Label htmlFor="jeune-ajouter-groupe">Ajouter à un groupe</Label>
+          <select
+            id="jeune-ajouter-groupe"
+            className="border-input h-9 w-full rounded-md border bg-transparent px-2 text-sm"
+            value=""
+            disabled={ajouter.isPending || ajoutables.length === 0}
+            onChange={(e) =>
+              e.target.value &&
+              agir(
+                () => ajouter.mutateAsync({ groupId: Number(e.target.value), profileId }),
+                "Ajouté au groupe.",
+              )
+            }
+          >
+            <option value="" disabled>
+              Choisir un groupe…
+            </option>
+            {ajoutables.map((groupe) => (
+              <option key={groupe.id} value={groupe.id}>
+                {groupe.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+    </Card>
   );
 }
 

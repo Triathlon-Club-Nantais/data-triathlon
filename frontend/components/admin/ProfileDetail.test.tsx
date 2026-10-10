@@ -6,18 +6,37 @@ import type { ProfileDetail as ProfileDetailType, SessionUser } from "@/lib/type
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-const { getProfile, updateProfile, addProfileLogEntry, getSession } = vi.hoisted(() => ({
+const {
+  getProfile,
+  updateProfile,
+  addProfileLogEntry,
+  getSession,
+  listTrainingGroups,
+  addTrainingGroupMember,
+  removeTrainingGroupMember,
+} = vi.hoisted(() => ({
   getProfile: vi.fn(),
   updateProfile: vi.fn(),
   addProfileLogEntry: vi.fn(),
   getSession: vi.fn(),
+  listTrainingGroups: vi.fn(),
+  addTrainingGroupMember: vi.fn(),
+  removeTrainingGroupMember: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { getProfile, updateProfile, addProfileLogEntry, getSession },
+    apiClient: {
+      getProfile,
+      updateProfile,
+      addProfileLogEntry,
+      getSession,
+      listTrainingGroups,
+      addTrainingGroupMember,
+      removeTrainingGroupMember,
+    },
   };
 });
 
@@ -35,6 +54,8 @@ const PROFIL: ProfileDetailType = {
   emergency_contact: "Mère — 06 00 00 00 00",
   notes: "Allergie aux fruits à coque.",
   membership_ended_on: null,
+  category: null,
+  groups: [],
   log_entries: [
     {
       id: 2,
@@ -82,6 +103,7 @@ describe("ProfileDetail", () => {
     vi.clearAllMocks();
     getSession.mockResolvedValue(AVEC_ECRITURE);
     getProfile.mockResolvedValue(PROFIL);
+    listTrainingGroups.mockResolvedValue([]);
   });
 
   afterEach(() => focusManager.setFocused(undefined));
@@ -284,5 +306,56 @@ describe("ProfileDetail", () => {
     await waitFor(() =>
       expect(addProfileLogEntry).toHaveBeenCalledWith(1, "Bonne séance", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)),
     );
+  });
+
+  describe("groupes (#1291)", () => {
+    const AVEC_GROUPE = { ...PROFIL, category: "Pupille", groups: [{ id: 7, name: "Benjamins mercredi" }] };
+
+    it("liste les groupes du profil et sa catégorie", async () => {
+      getProfile.mockResolvedValue(AVEC_GROUPE);
+
+      afficher();
+
+      expect(await screen.findByText("Benjamins mercredi")).toBeInTheDocument();
+      expect(screen.getByText(/Pupille/)).toBeInTheDocument();
+    });
+
+    it("ajoute le profil à un groupe depuis la fiche", async () => {
+      listTrainingGroups.mockResolvedValue([
+        { id: 7, name: "Benjamins mercredi", member_count: 1 },
+        { id: 8, name: "Minimes", member_count: 0 },
+      ]);
+      getProfile.mockResolvedValue(AVEC_GROUPE);
+      addTrainingGroupMember.mockResolvedValue({ id: 8, name: "Minimes", members: [] });
+
+      afficher();
+      const choix = await screen.findByLabelText("Ajouter à un groupe");
+      await waitFor(() => expect(screen.getByRole("option", { name: "Minimes" })).toBeInTheDocument());
+      expect(screen.queryByRole("option", { name: "Benjamins mercredi" })).not.toBeInTheDocument();
+      await userEvent.selectOptions(choix, "8");
+
+      await waitFor(() => expect(addTrainingGroupMember).toHaveBeenCalledWith(8, 1));
+    });
+
+    it("retire le profil d'un groupe", async () => {
+      getProfile.mockResolvedValue(AVEC_GROUPE);
+      removeTrainingGroupMember.mockResolvedValue({ id: 7, name: "Benjamins mercredi", members: [] });
+
+      afficher();
+      await userEvent.click(await screen.findByRole("button", { name: "Retirer du groupe Benjamins mercredi" }));
+
+      await waitFor(() => expect(removeTrainingGroupMember).toHaveBeenCalledWith(7, 1));
+    });
+
+    it("ne propose aucun geste de groupe sans jeunes:write", async () => {
+      getSession.mockResolvedValue(LECTURE_SEULE);
+      getProfile.mockResolvedValue(AVEC_GROUPE);
+
+      afficher();
+
+      expect(await screen.findByText("Benjamins mercredi")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Ajouter à un groupe")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /retirer du groupe/i })).not.toBeInTheDocument();
+    });
   });
 });

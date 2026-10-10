@@ -36,6 +36,9 @@ function seance(id: number, champs: Partial<TrainingSession> = {}): TrainingSess
     session_type: null,
     note: "",
     participant_count: 0,
+    group_ids: [],
+    recurrence_id: null,
+    detached: false,
     ...champs,
   };
 }

@@ -39,6 +39,8 @@ const ALIX: Profile = {
   first_name: "Alix",
   last_name: "Martin",
   birth_date: null,
+  category: null,
+  membership_ended_on: null,
   created_at: "2026-01-01T00:00:00Z",
 };
 
@@ -52,7 +54,10 @@ const DETAIL_AVEC_PARTICIPANT: TrainingSessionDetail = {
   session_type: null,
   note: "",
   participant_count: 1,
-  participants: [{ profile_id: 42, present: null, created_at: "2026-09-15T10:00:00Z" }],
+  group_ids: [],
+  recurrence_id: null,
+  detached: false,
+  participants: [{ profile_id: 42, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" }],
 };
 
 const DETAIL_VIDE: TrainingSessionDetail = { ...DETAIL_AVEC_PARTICIPANT, participant_count: 0, participants: [] };
