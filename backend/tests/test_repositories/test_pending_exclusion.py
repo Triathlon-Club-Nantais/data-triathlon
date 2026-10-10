@@ -278,11 +278,3 @@ def test_list_ranking_for_course_exclut_une_pendante(db_session):
     course, pendante, validee = _duo(db_session)
     rows = participation_repository.list_ranking_for_course(db_session, course.id)
     assert [r.id for r in rows] == [validee.id]
-
-
-def test_list_ranking_for_course_garde_la_participation_consultee(db_session):
-    course, pendante, validee = _duo(db_session)
-    rows = participation_repository.list_ranking_for_course(
-        db_session, course.id, keep_participation_id=pendante.id
-    )
-    assert [r.id for r in rows] == [pendante.id, validee.id]

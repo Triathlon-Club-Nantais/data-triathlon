@@ -40,7 +40,12 @@ class ImprovementRow(BaseModel):
 
 
 class ParticipationStatsOut(BaseModel):
-    """Enveloppe des trois agrégats. `null` en sortie d'API quand la course n'est pas éligible."""
+    """Enveloppe des trois agrégats.
+
+    `null` en sortie d'API quand la course n'est pas éligible, pour un relais,
+    et depuis #1281 pour un résultat en attente de validation ou refusé : un
+    rang déclaré n'est pas un rang tant qu'un bénévole ne l'a pas validé.
+    """
 
     #: Segments effectivement publiés par l'épreuve, dans l'ordre d'affichage.
     #: Porté par l'enveloppe plutôt que déduit des blocs : ceux-ci omettent les

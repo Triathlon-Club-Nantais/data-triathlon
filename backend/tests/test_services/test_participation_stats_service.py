@@ -11,6 +11,7 @@ def _participation(*, provider="raceresult", is_relay=False, splits=None, rank=1
         course_id=1,
         course=SimpleNamespace(id=1, provider=provider),
         is_relay=is_relay,
+        is_pending_validation=False,
         rank_overall=rank,
         total_time=total,
         splits=splits if splits is not None else {},
@@ -374,13 +375,9 @@ def test_build_ignores_a_pending_declaration_of_another_athlete(db_session):
     assert stats.ranking_evolution[-1].scratch_position == 3
 
 
-def test_build_keeps_the_consulted_pending_participation_as_measure_point(db_session):
-    """FR-019: a pending result stays visible on its own athlete page."""
+def test_build_returns_none_for_a_pending_participation(db_session):
+    """#1281: a declared rank is not a rank until a volunteer validates it."""
     course, _ = _seed_course(db_session)
     pending = _add_pending_declaration(db_session, course, rank=4, total="01:50:00")
 
-    stats = participation_stats_service.build(db_session, pending)
-
-    assert stats is not None
-    assert stats.comparison[0].theirs_seconds["total"] == 4800
-    assert stats.ranking_evolution[-1].scratch_position == 4
+    assert participation_stats_service.build(db_session, pending) is None

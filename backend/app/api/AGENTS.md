@@ -40,7 +40,7 @@ trois repositories :
 | `stats_totals`/`stats_by_type`/`stats_by_month_rows`/`stats_recent_rows`/`stats_rank_rows` | `participation_repository.py` | tableau de bord et page club via `stats_service.get_stats` — dont `rank_counters` (#376), calculé côté service ; remplacent `for_stats`, supprimée (#580). La liste de podiums de `/club`, elle, vient de `club_podiums` (#581) |
 | `list_page_for_course` | `participation_repository.py` | classement paginé d'une épreuve |
 | `summary_rows_for_course` | `participation_repository.py` | synthèse d'épreuve |
-| `list_ranking_for_course` | `participation_repository.py` | `stats` de `GET /participations/{id}` ; garde la participation consultée même en attente (FR-019, #938) |
+| `list_ranking_for_course` | `participation_repository.py` | `stats` de `GET /participations/{id}` (#938) ; une participation en attente n'en reçoit pas, `stats` vaut `null` (#1281) |
 | `finishers_count_by_group` | `participation_repository.py` | `course_finishers` de la fiche athlète |
 | `distinct_seasons` | `participation_repository.py` | `stats_service.list_seasons` → sélecteur de saisons |
 | `_filtered` (branche `club_only`) | `course_repository.py` | `GET /courses?scope=club` et `GET /courses/count?scope=club` |
@@ -85,6 +85,12 @@ l'affichage a deux surfaces de plus que la fiche d'athlète, toutes deux sous
   lit `pending_count` en sous-requête corrélée à l'épreuve, sans jointure.
   `total_events` compte les épreuves listées. `events_with_counts` (carte,
   stats) n'est pas touchée.
+- `GET /participations/{id}` d'une ligne en attente ou refusée rend
+  `stats: null` (#1281), comme pour un relais ou une course non éligible :
+  aucun rang par étape, aucune comparaison, aucune simulation. Le champ
+  existait déjà nullable, le contrat ne change pas de forme. Les champs bruts
+  (`rank_overall`…) restent servis tels que déclarés ; l'écran ne les affiche
+  pas.
 
 Une ligne refusée n'apparaît nulle part, une ligne jeune non plus
 (`core.youth.is_youth`, #881, appliquée en Python à la file d'attente par
