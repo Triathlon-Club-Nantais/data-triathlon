@@ -256,6 +256,7 @@ describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", 
   });
 
   it("remonte l'entrée d'une catégorie à plusieurs destinations à chaque dépliage — limite assumée du correctif", async () => {
+    chemin.courant = "/admin";
     // Caractérisation, pas un objectif : l'unification ne vaut que pour la
     // section **racine** et, depuis #482 (NAV-2), pour une catégorie réduite à
     // une seule destination livrée (« Club », qui rend désormais son `Link`
@@ -276,9 +277,8 @@ describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", 
     await userEvent.click(screen.getByRole("button", { name: "Replier la navigation" }));
     await userEvent.click(screen.getByRole("button", { name: "Déplier la navigation" }));
     expect(montages.get("/admin/fournisseurs")).toBe(2);
-    // La racine, elle, tient : c'est ce que le correctif garantit. 2, pas 1 :
-    // la barre basse mobile (#482, NAV-4) porte, elle aussi, « Résultats ».
-    expect(montages.get("/resultats")).toBe(2);
+    // Dans le back-office, « Résultats » ne vit plus que dans la barre basse.
+    expect(montages.get("/resultats")).toBe(1);
   });
 
   it("ne prefetche pas le logo du rail déplié, qui double la route de « Tableau de bord »", async () => {
@@ -621,6 +621,7 @@ describe("AppNav: unreadable session (#954)", () => {
   });
 
   it("keeps the last known sections when a later session refetch fails", async () => {
+    chemin.courant = "/admin";
     getSession.mockResolvedValue(habilite("courses:write"));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -911,6 +912,7 @@ describe("AppNav — arborescence", () => {
   });
 
   it("rend un lien direct sur le rail replié pour une section à une seule destination livrée (#482, NAV-2)", async () => {
+    chemin.courant = "/admin";
     // « Club » tenait ce rôle jusqu'à #487, qui lui a livré sa seconde
     // destination. La branche reste vivante : elle dépend des pouvoirs, et
     // « Administration » se réduit à une destination pour qui n'en porte qu'un.
@@ -952,6 +954,7 @@ describe("AppNav — arborescence", () => {
   });
 
   it("garde le bouton dépliant pour une section à plusieurs destinations livrées (#482, NAV-2)", async () => {
+    chemin.courant = "/admin";
     afficher(habilite("pending_providers:read", "batch:run"));
 
     await waitFor(() =>
@@ -986,6 +989,7 @@ describe("AppNav — arborescence", () => {
   });
 
   it("cache Administration à un anonyme et la montre à un connecté", async () => {
+    chemin.courant = "/admin";
     const { unmount } = afficher(null);
     await deplier();
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
@@ -1042,6 +1046,10 @@ describe("AppNav — arborescence", () => {
 });
 
 describe("AppNav — Gestion des utilisateurs (#170)", () => {
+  beforeEach(() => {
+    chemin.courant = "/admin";
+  });
+
   /**
    * La section se règle sur les **pouvoirs**, pas sur `ROLE.ADMIN`.
    *
@@ -1054,6 +1062,7 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
    * elle-même sans `allowed_emails:manage`.
    */
   it("cache la section à un connecté sans pouvoir", async () => {
+    chemin.courant = "/dashboard";
     afficher(SESSION);
     await deplier();
     // Scopé au rail : la barre basse mobile (#482, NAV-4) porte, elle aussi,
@@ -1207,6 +1216,10 @@ describe("AppNav — session (#114)", () => {
 
 describe("badge de la file de revalidation (#119)", () => {
   beforeEach(() => {
+    chemin.courant = "/admin";
+  });
+
+  beforeEach(() => {
     countQualityQueue.mockReset();
   });
 
@@ -1252,6 +1265,10 @@ describe("badge de la file de revalidation (#119)", () => {
 
 describe("badge des doublons suspects (#726)", () => {
   beforeEach(() => {
+    chemin.courant = "/admin";
+  });
+
+  beforeEach(() => {
     countCourseDuplicates.mockReset();
   });
 
@@ -1293,6 +1310,10 @@ describe("badge des doublons suspects (#726)", () => {
 
 describe("badge des fournisseurs en attente (#726)", () => {
   beforeEach(() => {
+    chemin.courant = "/admin";
+  });
+
+  beforeEach(() => {
     countPendingProviders.mockReset();
   });
 
@@ -1333,6 +1354,10 @@ describe("badge des fournisseurs en attente (#726)", () => {
 });
 
 describe("badge des retours utilisateurs (#726)", () => {
+  beforeEach(() => {
+    chemin.courant = "/admin";
+  });
+
   beforeEach(() => {
     countFeedback.mockReset();
   });
@@ -1439,6 +1464,7 @@ describe("AppNav — infobulles du rail replié remplacent les title (#482, NAV-
   });
 
   it("porte une infobulle sur la tuile de catégorie repliée (« Administration »)", async () => {
+    chemin.courant = "/admin";
     afficher(habilite("pending_providers:read", "batch:run"));
     const bouton = await screen.findByRole("button", { name: "Administration" });
 
@@ -1566,6 +1592,7 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
   });
 
   it("ne porte aucune destination privée, connecté ou non", async () => {
+    chemin.courant = "/admin";
     // Deux pouvoirs, pas un seul : une seule destination livrée ferait rendre
     // « Administration » en lien direct plutôt qu'en tuile de catégorie
     // (#482, NAV-2). Attend la tuile par son nom accessible, pas par un texte
@@ -1581,6 +1608,7 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
 
 describe("AppNav — tiroir mobile réduit à l'administration et au compte (#482, NAV-4)", () => {
   it("garde les sections privées dans le tiroir pour un connecté habilité, sans y dupliquer les sections publiques", async () => {
+    chemin.courant = "/admin";
     afficher(habilite("pending_providers:read"));
     await userEvent.click(await screen.findByRole("button", { name: "Ouvrir le menu" }));
 
@@ -1662,6 +1690,10 @@ describe("AppNav — le tiroir ne se ferme plus au clic du pied (#482, NAV-4)", 
 });
 
 describe("badges of the other queues (#1232)", () => {
+  beforeEach(() => {
+    chemin.courant = "/admin";
+  });
+
   it.each([
     ["athletes:write", /identités des athlètes/i, countIdentityReview, "4 cas d'identité à trancher"],
     ["club_members:manage", /licenciés du club/i, countClubMembersToSettle, "4 licenciés à rattacher"],
@@ -1676,6 +1708,7 @@ describe("badges of the other queues (#1232)", () => {
   });
 
   it("carries the volunteer validation count for an admin account", async () => {
+    chemin.courant = "/dashboard";
     countBenevoleQueue.mockResolvedValue({ total: 2 });
     afficher({ ...habilite("feedback:read"), can_administer: true });
     await deplier();
@@ -1685,6 +1718,10 @@ describe("badges of the other queues (#1232)", () => {
 });
 
 describe("Administration subsections (#1246)", () => {
+  beforeEach(() => {
+    chemin.courant = "/admin";
+  });
+
   it("titles the subsections the session opens, and only those", async () => {
     afficher(habilite("feedback:read", "admin_log:read"), { initialExpanded: true });
 
@@ -1704,6 +1741,10 @@ describe("Administration subsections (#1246)", () => {
 });
 
 describe("⌘K search to screens (#1246)", () => {
+  beforeEach(() => {
+    chemin.courant = "/admin";
+  });
+
   const TOUS_LES_POUVOIRS = NAV.flatMap((s) => s.items)
     .flatMap((i) => (Array.isArray(i.permission) ? i.permission : i.permission ? [i.permission] : []))
     .concat("pages:preview");
@@ -1748,5 +1789,46 @@ describe("⌘K search to screens (#1246)", () => {
     await userEvent.click(within(await screen.findByRole("list", { name: "Écrans" })).getByRole("link"));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("AppNav — espaces (#1296)", () => {
+  const rail = () => screen.getByRole("navigation", { name: "Navigation principale" });
+  const admin = () => ({
+    ...habilite("pending_providers:read", "batch:run", "courses:write"),
+    can_administer: true,
+  });
+
+  it("dans l'espace public, ne montre aucun écran d'administration", async () => {
+    chemin.courant = "/dashboard";
+    afficher(admin());
+    await waitFor(() => expect(within(rail()).getByRole("link", { name: /Back-office/ })).toHaveAttribute("href", "/admin"));
+    for (const lien of within(rail()).getAllByRole("link"))
+      expect(lien.getAttribute("href") === "/admin" || !lien.getAttribute("href")?.startsWith("/admin")).toBe(true);
+  });
+
+  it("dans le back-office, ne montre que ses écrans", async () => {
+    chemin.courant = "/admin/courses";
+    afficher(admin(), { initialExpanded: true });
+    await waitFor(() => expect(within(rail()).getByRole("link", { name: "Épreuves" })).toBeInTheDocument());
+    expect(within(rail()).queryByRole("link", { name: "Résultats" })).not.toBeInTheDocument();
+  });
+
+  it("n'offre pas d'entrée Back-office à un membre sans pouvoir", async () => {
+    chemin.courant = "/dashboard";
+    afficher(SESSION);
+    await waitFor(() => expect(getSession).toHaveBeenCalled());
+    expect(within(rail()).queryByRole("link", { name: /Back-office/ })).not.toBeInTheDocument();
+  });
+
+  it("garde dans la palette les écrans de tous les espaces", async () => {
+    chemin.courant = "/dashboard";
+    afficher(admin());
+    await waitFor(() => expect(within(rail()).getByRole("link", { name: /Back-office/ })).toBeInTheDocument());
+    await userEvent.keyboard("{Control>}k{/Control}");
+    await userEvent.type(await screen.findByRole("combobox", { name: /Rechercher/ }), "Épreuves");
+
+    const liste = await screen.findByRole("list", { name: "Écrans" });
+    expect(within(liste).getAllByRole("link").map((l) => l.getAttribute("href"))).toContain("/admin/courses");
   });
 });
