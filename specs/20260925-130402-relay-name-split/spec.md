@@ -93,6 +93,7 @@ Une épreuve importée avant la fonctionnalité est re-scrapée. Ses relais aux 
 - Marqueur parasite ajouté par la source (le « . » final de klikego) : il ne fait partie d'aucun nom.
 - Deux équipiers de même nom de famille et de prénoms différents (familles, 11 lignes timepulse) : deux équipiers distincts.
 - Même personne répétée deux fois dans une ligne : la ligne n'est pas découpée.
+- Équipiers publiés à part, un par relais (jumeau « Indiv » Wiclax, #1283) : un équipier de plusieurs relais y figure plusieurs fois. Il ne compte qu'une fois, à sa première place, et l'équipe se découpe avec ses membres distincts ; réduite sous deux personnes, elle reste entière.
 - Initiales seules (« S. D. ») : la ligne n'est pas découpée.
 - Un équipier porte déjà un autre résultat sur la même épreuve : la ligne n'est pas découpée, et l'import de l'épreuve ne doit pas échouer pour autant.
 - Un segment d'une ligne découpée ne porte qu'un seul mot (« DAMIEN/FRANCOIS ») : la ligne n'est pas découpée.
@@ -110,7 +111,7 @@ Une épreuve importée avant la fonctionnalité est re-scrapée. Ses relais aux 
 - **FR-007**: Un résultat ou une épreuve qui n'est pas un relais MUST être importé exactement comme aujourd'hui, quels que soient les caractères présents dans les noms.
 - **FR-008**: Une ligne non découpée MUST être importée comme aujourd'hui (une fiche d'équipe), et rester attribuable à la main par #894.
 - **FR-009**: Le rescrape d'une épreuve MUST appliquer la même règle aux relais encore portés par une fiche d'équipe, et purger la fiche d'équipe vidée selon la règle existante. Il MUST ne jamais modifier une composition posée par un administrateur, ni dupliquer un résultat ou une fiche au rescrape suivant.
-- **FR-010**: Une ligne dont un équipier porte déjà un autre résultat sur la même épreuve, ou qui répète la même personne, MUST rester non découpée, sans faire échouer l'import de l'épreuve.
+- **FR-010**: Une ligne dont un équipier porte déjà un autre résultat sur la même épreuve, ou qui répète la même personne, MUST rester non découpée, sans faire échouer l'import de l'épreuve. La répétition se juge sur le libellé publié ; des équipiers publiés un par relais sont d'abord dédoublonnés dans l'ordre publié (#1283).
 - **FR-011**: La couverture de tests MUST s'appuyer sur des lignes réelles, par fournisseur qui publie des relais nommés : timepulse, klikego, oktime et chronoplace (formes mesurées au sondage). Pour raceresult et chronoweb, que l'issue cite mais pour lesquels le sondage ne trouve aucun relais aux équipiers nommés, la couverture porte sur leurs formes réelles de relais (noms de groupe), qui MUST rester non découpées.
 
 ### Key Entities
