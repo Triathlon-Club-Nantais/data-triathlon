@@ -157,7 +157,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   const dansLaBarre = new Set(barreItems.map((i) => i.id));
 
   // Le tiroir porte « le reste » : tout ce que la barre ne montre pas, sections
-  // publiques débordantes comprises. C'est ce reste qui fait naître « Plus ».
+  // publiques débordantes comprises. Il s'ouvre par « Plus ».
   const sectionsReste = sections
     .map((s) => ({ ...s, items: s.items.filter((i) => !dansLaBarre.has(i.id)) }))
     .filter((s) => s.items.length > 0);
@@ -166,7 +166,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // basse est masquée pendant que le tiroir est ouvert (le `Sheet` passe
   // par-dessus), donc un visiteur dont la barre porte tout (anonyme, ou
   // adhérent sans pouvoir) se retrouvait sans aucune destination à l'écran une
-  // fois le tiroir ouvert par le hamburger. Seul cas de doublon avec la barre.
+  // fois le tiroir ouvert par le hamburger ou « Plus ». Seul cas de doublon avec la barre.
   const sectionsTiroir = sectionsReste.length > 0 ? sectionsReste : sections;
 
   /**
@@ -395,7 +395,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
       >
         {/* État posé à la main : le `Sheet` vit plus bas, hors de portée d'un
             `SheetTrigger` (#1077). */}
-          <button
+        <button
           type="button"
           aria-label="Ouvrir le menu"
           aria-haspopup="dialog"
@@ -447,7 +447,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             </Link>
           );
         })}
-      <button
+        <button
           type="button"
           aria-haspopup="dialog"
           aria-expanded={drawerOpen}
