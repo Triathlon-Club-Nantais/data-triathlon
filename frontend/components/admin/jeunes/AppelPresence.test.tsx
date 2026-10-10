@@ -105,6 +105,29 @@ describe("AppelPresence", () => {
     expect(await screen.findByText("Séance introuvable")).toBeInTheDocument();
   });
 
+  it("nomme la séance par sa date, son heure et son lieu", async () => {
+    getTrainingSession.mockResolvedValue({
+      ...DETAIL_UN_PARTICIPANT,
+      start_time: "18:00:00",
+      location: "Base nautique",
+    });
+
+    afficher();
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Appel du 20/09/2026" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("18:00, Base nautique")).toBeInTheDocument();
+  });
+
+  it("garde un titre d'appel tant que la séance n'est pas chargée", () => {
+    getTrainingSession.mockReturnValue(new Promise(() => {}));
+
+    afficher();
+
+    expect(screen.getByRole("heading", { level: 1, name: "Appel" })).toBeInTheDocument();
+  });
+
   it("liste les jeunes inscrits avec leur nom", async () => {
     getTrainingSession.mockResolvedValue(DETAIL_UN_PARTICIPANT);
 

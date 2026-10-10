@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AjouterNoteJeuneDialog } from "@/components/admin/jeunes/AjouterNoteJeuneDialog";
@@ -20,6 +21,7 @@ import {
 } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
+import { formatDate } from "@/lib/utils/date";
 
 // `sujet` au masculin pluriel : « consulter les … », « Les … n'ont pas pu être chargés ».
 const REFUS = { sujet: "relevés de présence", action: "consulter l'appel" };
@@ -75,157 +77,174 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
     }
   }
 
-  if (isLoading) return <Skeleton className="h-40 w-full" />;
-  if (error) return <EmptyState {...messageDeRefus(error, REFUS)} />;
-  if (!data) {
-    return (
+  const heureEtLieu = [data?.start_time?.slice(0, 5), data?.location].filter(Boolean).join(", ");
+
+  let corps: ReactNode;
+  if (isLoading) {
+    corps = <Skeleton className="h-40 w-full" />;
+  } else if (error) {
+    corps = <EmptyState {...messageDeRefus(error, REFUS)} />;
+  } else if (!data) {
+    corps = (
       <EmptyState
         title="Séance introuvable"
         description="Cette séance n'existe pas, ou n'existe plus."
       />
     );
+  } else {
+    corps = (
+      <>
+        {/* Hors des onglets : le compteur reste sous les yeux pendant les deux appels. */}
+        <p aria-live="polite" className="mb-4 text-lg font-medium">
+          {participants.length > 0 &&
+            `${presents} présent${presents > 1 ? "s" : ""} sur ${participants.length}, ` +
+            `${absents} absent${absents > 1 ? "s" : ""}` +
+            (aPointer > 0 ? `, ${aPointer} à pointer` : "")}
+        </p>
+        <Tabs defaultValue="debut">
+          <TabsList className="w-full">
+            <TabsTrigger value="debut">Appel de début</TabsTrigger>
+            <TabsTrigger value="fin">Appel de fin</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="debut" className="space-y-4 pt-4">
+            <NoteSeanceForm
+              sessionId={sessionId}
+              note={data?.note ?? ""}
+              peutEcrire={peutEcrire}
+            />
+
+            {peutEcrire && (
+              <div className="space-y-1.5">
+                <Label htmlFor="appel-ajouter-jeune">Ajouter un jeune</Label>
+                {/* `<select>` natif, patron `GroupDetailDialog` : clavier et
+                    lecteur d'écran compris, sans état local — la valeur
+                    retombe sur le libellé dès que la liste se rafraîchit. */}
+                <select
+                  id="appel-ajouter-jeune"
+                  className="border-input h-9 w-full rounded-md border bg-transparent px-2 text-sm"
+                  value=""
+                  disabled={ajoutables.length === 0}
+                  onChange={(e) => e.target.value && ajouterEtPointer(Number(e.target.value))}
+                >
+                  <option value="" disabled>
+                    Choisir un jeune…
+                  </option>
+                  {ajoutables.map((profil) => (
+                    <option key={profil.id} value={profil.id}>
+                      {profil.first_name} {profil.last_name}
+                    </option>
+                  ))}
+                </select>
+                {profils.error && (
+                  <p className="text-[var(--tcn-text-faint)] text-xs">
+                    La liste des jeunes n&apos;a pas pu être chargée : ajouter un
+                    jeune n&apos;est pas possible pour l&apos;instant.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {participants.length === 0 ? (
+              <EmptyState
+                title="Aucun jeune inscrit"
+                description="Ajoutez un jeune pour commencer l'appel."
+              />
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {participants.map((participant) => {
+                  const profil = profilsParId.get(participant.profile_id);
+                  const nom = profil
+                    ? `${profil.first_name} ${profil.last_name}`
+                    : `Jeune n° ${participant.profile_id}`;
+                  return (
+                    <Card key={participant.profile_id} className="space-y-2 p-4">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium">{nom}</span>
+                        {participant.present === true && <Badge>Présent</Badge>}
+                        {participant.present === false && (
+                          <Badge variant="secondary">Absent</Badge>
+                        )}
+                      </div>
+                      {peutEcrire && (
+                        // `aria-pressed` : l'état choisi ne se lisait qu'à la couleur (#1013).
+                        <div className="flex gap-2" role="group" aria-label={`Présence de ${nom}`}>
+                          <Button
+                            size="sm"
+                            variant={participant.present === true ? "default" : "outline"}
+                            className="tcn-cible-tactile"
+                            aria-pressed={participant.present === true}
+                            disabled={setPresence.isPending}
+                            onClick={() => pointer(participant.profile_id, true)}
+                          >
+                            Présent
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={participant.present === false ? "default" : "outline"}
+                            className="tcn-cible-tactile"
+                            aria-pressed={participant.present === false}
+                            disabled={setPresence.isPending}
+                            onClick={() => pointer(participant.profile_id, false)}
+                          >
+                            Absent
+                          </Button>
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        {/* Accès profil (FR-010) : jamais gardé par
+                            `peutEcrire`, c'est une navigation, pas une
+                            écriture — un porteur de `jeunes:read` seul y a
+                            droit comme au reste de l'appel. */}
+                        <Link
+                          href={`/admin/jeunes/${participant.profile_id}`}
+                          className={buttonVariants({ variant: "ghost", size: "sm" })}
+                        >
+                          Voir le profil
+                        </Link>
+                        {peutEcrire && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setJeuneNote({ id: participant.profile_id, nom })}
+                          >
+                            Ajouter une note
+                          </Button>
+                        )}
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </TabsContent>
+
+          <TabsContent value="fin" className="pt-4">
+            <AppelFin participants={participants} profils={profils.data ?? []} />
+          </TabsContent>
+        </Tabs>
+
+        {jeuneNote && (
+          <AjouterNoteJeuneDialog
+            profileId={jeuneNote.id}
+            jeuneNom={jeuneNote.nom}
+            open
+            onOpenChange={(ouvert) => !ouvert && setJeuneNote(null)}
+          />
+        )}
+      </>
+    );
   }
 
   return (
-    <>
-      {/* Hors des onglets : le compteur reste sous les yeux pendant les deux appels. */}
-      <p aria-live="polite" className="mb-4 text-lg font-medium">
-        {participants.length > 0 &&
-          `${presents} présent${presents > 1 ? "s" : ""} sur ${participants.length}, ` +
-          `${absents} absent${absents > 1 ? "s" : ""}` +
-          (aPointer > 0 ? `, ${aPointer} à pointer` : "")}
-      </p>
-      <Tabs defaultValue="debut">
-        <TabsList className="w-full">
-          <TabsTrigger value="debut">Appel de début</TabsTrigger>
-          <TabsTrigger value="fin">Appel de fin</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="debut" className="space-y-4 pt-4">
-          <NoteSeanceForm
-            sessionId={sessionId}
-            note={data?.note ?? ""}
-            peutEcrire={peutEcrire}
-          />
-
-          {peutEcrire && (
-            <div className="space-y-1.5">
-              <Label htmlFor="appel-ajouter-jeune">Ajouter un jeune</Label>
-              {/* `<select>` natif, patron `GroupDetailDialog` : clavier et
-                  lecteur d'écran compris, sans état local — la valeur
-                  retombe sur le libellé dès que la liste se rafraîchit. */}
-              <select
-                id="appel-ajouter-jeune"
-                className="border-input h-9 w-full rounded-md border bg-transparent px-2 text-sm"
-                value=""
-                disabled={ajoutables.length === 0}
-                onChange={(e) => e.target.value && ajouterEtPointer(Number(e.target.value))}
-              >
-                <option value="" disabled>
-                  Choisir un jeune…
-                </option>
-                {ajoutables.map((profil) => (
-                  <option key={profil.id} value={profil.id}>
-                    {profil.first_name} {profil.last_name}
-                  </option>
-                ))}
-              </select>
-              {profils.error && (
-                <p className="text-[var(--tcn-text-faint)] text-xs">
-                  La liste des jeunes n&apos;a pas pu être chargée : ajouter un
-                  jeune n&apos;est pas possible pour l&apos;instant.
-                </p>
-              )}
-            </div>
-          )}
-
-          {participants.length === 0 ? (
-            <EmptyState
-              title="Aucun jeune inscrit"
-              description="Ajoutez un jeune pour commencer l'appel."
-            />
-          ) : (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {participants.map((participant) => {
-                const profil = profilsParId.get(participant.profile_id);
-                const nom = profil
-                  ? `${profil.first_name} ${profil.last_name}`
-                  : `Jeune n° ${participant.profile_id}`;
-                return (
-                  <Card key={participant.profile_id} className="space-y-2 p-4">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium">{nom}</span>
-                      {participant.present === true && <Badge>Présent</Badge>}
-                      {participant.present === false && (
-                        <Badge variant="secondary">Absent</Badge>
-                      )}
-                    </div>
-                    {peutEcrire && (
-                      // `aria-pressed` : l'état choisi ne se lisait qu'à la couleur (#1013).
-                      <div className="flex gap-2" role="group" aria-label={`Présence de ${nom}`}>
-                        <Button
-                          size="sm"
-                          variant={participant.present === true ? "default" : "outline"}
-                          className="tcn-cible-tactile"
-                          aria-pressed={participant.present === true}
-                          disabled={setPresence.isPending}
-                          onClick={() => pointer(participant.profile_id, true)}
-                        >
-                          Présent
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={participant.present === false ? "default" : "outline"}
-                          className="tcn-cible-tactile"
-                          aria-pressed={participant.present === false}
-                          disabled={setPresence.isPending}
-                          onClick={() => pointer(participant.profile_id, false)}
-                        >
-                          Absent
-                        </Button>
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      {/* Accès profil (FR-010) : jamais gardé par
-                          `peutEcrire`, c'est une navigation, pas une
-                          écriture — un porteur de `jeunes:read` seul y a
-                          droit comme au reste de l'appel. */}
-                      <Link
-                        href={`/admin/jeunes/${participant.profile_id}`}
-                        className={buttonVariants({ variant: "ghost", size: "sm" })}
-                      >
-                        Voir le profil
-                      </Link>
-                      {peutEcrire && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => setJeuneNote({ id: participant.profile_id, nom })}
-                        >
-                          Ajouter une note
-                        </Button>
-                      )}
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="fin" className="pt-4">
-          <AppelFin participants={participants} profils={profils.data ?? []} />
-        </TabsContent>
-      </Tabs>
-
-      {jeuneNote && (
-        <AjouterNoteJeuneDialog
-          profileId={jeuneNote.id}
-          jeuneNom={jeuneNote.nom}
-          open
-          onOpenChange={(ouvert) => !ouvert && setJeuneNote(null)}
-        />
-      )}
-    </>
+    <div className="space-y-10">
+      <PageHeader
+        title={data ? `Appel du ${formatDate(data.date)}` : "Appel"}
+        description={heureEtLieu || undefined}
+        backHref="/admin/jeunes/calendrier"
+        backLabel="Retour au calendrier"
+      />
+      <div>{corps}</div>
+    </div>
   );
 }
