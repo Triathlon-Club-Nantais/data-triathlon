@@ -63,7 +63,6 @@ export default async function ParticipationDetailPage({
   const { stats, course } = participation;
   const eventDate = formatDate(course.event_date);
   const segments = stats?.segments ?? Object.keys(participation.splits ?? {});
-  const markerSec = secondsFromHms(participation.total_time);
   // Dénominateur du classement en catégorie (US3, #466) : `summary.categories`
   // ne porte que les 8 catégories les plus fournies (RES-7, hors périmètre) —
   // une catégorie absente de cette liste n'affiche aucun dénominateur plutôt
@@ -75,6 +74,8 @@ export default async function ParticipationDetailPage({
     : participation.is_rejected
       ? "rejected"
       : "pending";
+  // Repérer le temps déclaré dans la distribution le comparerait aux autres.
+  const markerSec = validation ? null : secondsFromHms(participation.total_time);
 
   return (
     <PageShell>
@@ -114,7 +115,7 @@ export default async function ParticipationDetailPage({
         {summary?.histogram && (
           <Card padding={28} style={{ marginTop: 18 }}>
             <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 4 }}>Distribution des temps des arrivants</h2>
-            <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de 5 minutes — le temps de l&apos;athlète est repéré</div>
+            <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de 5 minutes{markerSec != null && <> — le temps de l&apos;athlète est repéré</>}</div>
             <Histogram
               bars={summary.histogram.bars}
               max={Math.max(...summary.histogram.bars)}

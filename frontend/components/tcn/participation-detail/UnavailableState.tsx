@@ -3,6 +3,17 @@
 import { Card } from "../Card";
 import { Eyebrow } from "../Eyebrow";
 
+const VALIDATION_COPY = {
+  pending: {
+    title: "Comparaison en attente de validation",
+    body: "Ce résultat a été saisi manuellement et n'a pas encore été validé par un bénévole. Son rang et sa comparaison au classement s'afficheront après validation.",
+  },
+  rejected: {
+    title: "Pas de comparaison pour ce résultat",
+    body: "Ce résultat a été signalé non conforme par un bénévole : il n'entre pas au classement de l'épreuve.",
+  },
+} as const;
+
 /**
  * Rendu, à la place des trois blocs calculés (comparaison, évolution,
  * matrice), quand les statistiques détaillées ne peuvent pas être calculées :
@@ -23,17 +34,6 @@ import { Eyebrow } from "../Eyebrow";
  * Même largeur que les blocs qu'elle remplace, plutôt que centrée en pleine
  * page : ce n'est plus l'état unique de l'écran.
  */
-const VALIDATION_COPY = {
-  pending: {
-    title: "Comparaison en attente de validation",
-    body: "Ce résultat a été saisi manuellement et n'a pas encore été vérifié par un bénévole. Son rang et sa comparaison au classement s'afficheront une fois le résultat validé.",
-  },
-  rejected: {
-    title: "Pas de comparaison pour ce résultat",
-    body: "Ce résultat a été signalé non conforme par un bénévole : il n'entre pas au classement de l'épreuve.",
-  },
-} as const;
-
 export function UnavailableState({
   isRelay,
   validation,
