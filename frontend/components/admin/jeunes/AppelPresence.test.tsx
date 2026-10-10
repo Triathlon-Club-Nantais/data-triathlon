@@ -195,7 +195,7 @@ describe("AppelPresence", () => {
 
     expect(screen.getByRole("link", { name: /voir le profil/i })).toHaveAttribute(
       "href",
-      "/admin/jeunes/42",
+      "/encadrement/jeunes/42",
     );
   });
 

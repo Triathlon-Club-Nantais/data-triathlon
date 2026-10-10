@@ -5,7 +5,7 @@ import { PageShell } from "@/components/layout/PageShell";
 import { AdminVolunteerActionsTable } from "@/components/benevolat/AdminVolunteerActionsTable";
 import { previewGate } from "@/components/layout/PreviewRefusal";
 
-export const metadata: Metadata = { title: ecran("/admin/benevolat").title };
+export const metadata: Metadata = { title: ecran("/encadrement/benevolat").title };
 
 /**
  * Écran de validation des déclarations de crédit d'athlète (#779, jamais
@@ -14,12 +14,12 @@ export const metadata: Metadata = { title: ecran("/admin/benevolat").title };
  * du bénévolat.
  */
 export default async function AdminBenevolatPage() {
-  const refus = await previewGate(<PageHeader {...ecran("/admin/benevolat")} />);
+  const refus = await previewGate(<PageHeader {...ecran("/encadrement/benevolat")} />);
   if (refus) return refus;
   return (
     <PageShell>
       <div className="space-y-6">
-        <PageHeader {...ecran("/admin/benevolat")} />
+        <PageHeader {...ecran("/encadrement/benevolat")} />
         <AdminVolunteerActionsTable />
       </div>
     </PageShell>

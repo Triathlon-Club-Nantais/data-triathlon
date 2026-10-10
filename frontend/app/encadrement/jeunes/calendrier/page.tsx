@@ -4,7 +4,7 @@ import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { CalendrierEntrainements } from "@/components/admin/jeunes/CalendrierEntrainements";
 
-export const metadata: Metadata = { title: ecran("/admin/jeunes/calendrier").title };
+export const metadata: Metadata = { title: ecran("/encadrement/jeunes/calendrier").title };
 
 /**
  * Le calendrier des entraînements jeunes (#868, epic #863).
@@ -17,7 +17,7 @@ export default function AdminJeunesCalendrierPage() {
   return (
     <PageShell>
       <div className="space-y-10">
-        <PageHeader {...ecran("/admin/jeunes/calendrier")} />
+        <PageHeader {...ecran("/encadrement/jeunes/calendrier")} />
         <CalendrierEntrainements />
       </div>
     </PageShell>

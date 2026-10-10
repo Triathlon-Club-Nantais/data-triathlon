@@ -23,7 +23,7 @@ export default async function AdminJeuneAppelPage({
       <div className="space-y-10">
         <PageHeader
           title="Appel"
-          backHref="/admin/jeunes/calendrier"
+          backHref="/encadrement/jeunes/calendrier"
           backLabel="Retour au calendrier"
         />
         <AppelPresence sessionId={sessionId} />

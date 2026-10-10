@@ -4,7 +4,7 @@ import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
 import { ProfilesList } from "@/components/admin/ProfilesList";
 
-export const metadata: Metadata = { title: ecran("/admin/jeunes").title };
+export const metadata: Metadata = { title: ecran("/encadrement/jeunes").title };
 
 /**
  * Écran « Jeunes » (#867, epic #863) — référencement des profils, mobile-first.
@@ -17,7 +17,7 @@ export default function AdminJeunesPage() {
   return (
     <PageShell>
       <div className="space-y-10">
-        <PageHeader {...ecran("/admin/jeunes")} />
+        <PageHeader {...ecran("/encadrement/jeunes")} />
         <ProfilesList />
       </div>
     </PageShell>
