@@ -713,18 +713,16 @@ def list_for_course(db: Session, course_id: int) -> list[Participation]:
     )
 
 
-def list_ranking_for_course(
-    db: Session, course_id: int, *, keep_participation_id: int | None = None
-) -> list[Participation]:
-    """Classement de référence affiché (#938) : sans les résultats en attente,
-    sauf la participation consultée, qui reste son propre point de mesure (FR-019).
+def list_ranking_for_course(db: Session, course_id: int) -> list[Participation]:
+    """Classement de référence des statistiques détaillées (#938) : sans les
+    résultats en attente, qui n'en reçoivent pas non plus (#1281).
     """
-    kept = validated_clause(Participation.is_pending_validation)
-    if keep_participation_id is not None:
-        kept = kept | (Participation.id == keep_participation_id)
     return (
         db.query(Participation)
-        .filter(Participation.course_id == course_id, kept)
+        .filter(
+            Participation.course_id == course_id,
+            validated_clause(Participation.is_pending_validation),
+        )
         .order_by(Participation.rank_overall.is_(None), Participation.rank_overall)
         .all()
     )

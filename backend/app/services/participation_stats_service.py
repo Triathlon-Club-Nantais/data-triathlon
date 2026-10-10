@@ -45,13 +45,18 @@ def build(db: Session, participation: Participation) -> ParticipationStatsOut | 
     """Agrégats de cette participation, ou `None` si elle n'y a pas droit.
 
     Un relais est exclu : ses segments se répartissent entre plusieurs athlètes,
-    une lecture individuelle y serait fausse plutôt qu'incomplète.
+    une lecture individuelle y serait fausse plutôt qu'incomplète. Un résultat
+    en attente de validation (ou refusé) aussi : un rang déclaré n'est pas un
+    rang tant qu'un bénévole ne l'a pas validé, et la page de l'épreuve ne lui
+    en donne pas (#1281).
     """
-    if participation.is_relay or not is_stats_eligible(participation.course):
+    if (
+        participation.is_relay
+        or participation.is_pending_validation
+        or not is_stats_eligible(participation.course)
+    ):
         return None
-    ranking = participation_repository.list_ranking_for_course(
-        db, participation.course_id, keep_participation_id=participation.id
-    )
+    ranking = participation_repository.list_ranking_for_course(db, participation.course_id)
     return build_from_ranking(participation, ranking)
 
 
