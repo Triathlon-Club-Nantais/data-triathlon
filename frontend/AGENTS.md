@@ -651,7 +651,7 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     laisse la touche Entrée lancer l'import que le verdict vient d'exclure.
 - `components/` — `scrape/` (TcnScrapeForm, ProviderDetector),
   `results/` (ResultCard, ResultsList), `club/` (ClubDashboard, PodiumsList),
-  `map/` (MapView), `dashboard/` (StatCardsRank, RecentCourses),
+  `map/` (MapView), `dashboard/` (MaSaison, RecentCourses),
   `athletes/` (AthleteAdminPanel, ParticipationAdminActions — les gestes
   d'administration posés sur la page publique d'un athlète, #439 : ils prennent
   `tcn/` parce que c'est un écran public, et décident leur visibilité **dans le

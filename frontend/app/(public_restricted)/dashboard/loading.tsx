@@ -14,15 +14,9 @@ export default function Loading() {
           <Skeleton className="h-9 w-72" />
         </div>
       </div>
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <Skeleton key={i} className="h-28 w-full rounded-lg" />
-        ))}
-      </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Skeleton className="h-72 w-full rounded-lg" />
-        <Skeleton className="h-72 w-full rounded-lg" />
-      </div>
+      <Skeleton className="mb-4 h-24 w-full rounded-lg" />
+      <Skeleton className="h-72 w-full rounded-lg" />
+      <Skeleton className="mt-4 h-28 w-full rounded-lg" />
     </PageShell>
   );
 }
