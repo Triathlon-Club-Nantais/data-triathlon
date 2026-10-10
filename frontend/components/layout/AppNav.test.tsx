@@ -1172,7 +1172,7 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
       screen.getByRole("link", { name: "Revalidation qualité" }),
     ).toHaveAttribute("href", "/admin/quality");
 
-    // « Bénévolat », public (`/benevolat`) comme admin (`/encadrement/benevolat`),
+    // « Bénévolat », public (`/benevolat`) comme encadrement (`/encadrement/benevolat`),
     // passe derrière `pages:preview` (#879), que cette session ne porte pas.
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
     expect(within(rail).queryByRole("link", { name: "Bénévolat" })).not.toBeInTheDocument();
@@ -1884,8 +1884,14 @@ describe("AppNav: supervision space (#1297)", () => {
     await waitFor(() => expect(within(rail()).getByRole("link", { name: "Profils" })).toBeInTheDocument());
     expect(within(rail()).getByRole("link", { name: "Calendrier des entraînements" })).toBeInTheDocument();
     expect(within(rail()).getByRole("link", { name: "Appel" })).toBeInTheDocument();
-    for (const lien of within(rail()).getAllByRole("link"))
-      expect(lien.getAttribute("href")).not.toMatch(/^\/admin/);
+    const hrefs = within(rail()).getAllByRole("link").map((lien) => lien.getAttribute("href"));
+    expect(hrefs.filter((href) => href?.startsWith("/encadrement"))).toEqual([
+      "/encadrement/jeunes",
+      "/encadrement/jeunes/calendrier",
+      "/encadrement/jeunes/appel",
+    ]);
+    expect(hrefs.filter((href) => href?.startsWith("/admin"))).toEqual([]);
+    expect(hrefs).not.toContain("/resultats");
   });
 
   it("the Back-office count no longer includes volunteer declarations", async () => {
