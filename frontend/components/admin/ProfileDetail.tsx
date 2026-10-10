@@ -316,6 +316,7 @@ function GroupesDuProfil({
                 <Button
                   size="sm"
                   variant="ghost"
+                  className="tcn-cible-tactile"
                   aria-label={`Retirer du groupe ${groupe.name}`}
                   onClick={() =>
                     agir(() => retirer.mutateAsync({ groupId: groupe.id, profileId }), "Retiré du groupe.")
@@ -333,7 +334,7 @@ function GroupesDuProfil({
           <Label htmlFor="jeune-ajouter-groupe">Ajouter à un groupe</Label>
           <select
             id="jeune-ajouter-groupe"
-            className="border-input h-9 w-full rounded-md border bg-transparent px-2 text-sm"
+            className="border-input h-9 min-h-11 w-full rounded-md border bg-transparent px-2 text-sm md:min-h-0"
             value=""
             disabled={ajouter.isPending || ajoutables.length === 0}
             onChange={(e) =>

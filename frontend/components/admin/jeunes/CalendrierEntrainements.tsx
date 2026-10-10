@@ -112,8 +112,6 @@ export function CalendrierEntrainements() {
         />
       )}
 
-      <RecurrencesSection groupes={groupes.data ?? []} peutEcrire={peutEcrire} />
-
       {isPending ? (
         <Skeleton className="h-40 w-full" />
       ) : error ? (
@@ -153,6 +151,8 @@ export function CalendrierEntrainements() {
           )}
         </div>
       )}
+
+      <RecurrencesSection groupes={groupes.data ?? []} peutEcrire={peutEcrire} />
 
       {ouvert && (
         <EntrainementDetailDialog

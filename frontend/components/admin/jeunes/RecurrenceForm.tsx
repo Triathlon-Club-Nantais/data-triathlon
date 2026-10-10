@@ -32,6 +32,12 @@ function pluriel(n: number, mot: string): string {
   return `${n} ${mot}${n > 1 ? "s" : ""}`;
 }
 
+/** « du mercredi à 14:00 » : distingue les commandes d'une récurrence de celles des autres. */
+function creneau(recurrence: TrainingRecurrence): string {
+  const heure = recurrence.start_time ? ` à ${recurrence.start_time.slice(0, 5)}` : "";
+  return `du ${JOURS[recurrence.weekday]}${heure}`;
+}
+
 function decrire(recurrence: TrainingRecurrence): string {
   const heure = recurrence.start_time ? ` à ${recurrence.start_time.slice(0, 5)}` : "";
   const lieu = recurrence.location ? ` · ${recurrence.location}` : "";
@@ -140,8 +146,12 @@ export function RecurrenceForm({
       </div>
       <GroupesPicker groupes={groupes} value={groupIds} onChange={setGroupIds} />
       <p aria-live="polite" className="min-h-5 text-sm">
-        {apercu.error ? (
+        {periode === null ? (
+          "Choisissez le jour et la période pour voir le nombre de séances."
+        ) : apercu.error ? (
           <span className="text-destructive">{apercu.error.message}</span>
+        ) : apercu.isPending ? (
+          "Calcul du nombre de séances…"
         ) : nombre !== undefined ? (
           recurrence ? (
             `La période compte ${pluriel(nombre, "séance")}.`
@@ -152,8 +162,8 @@ export function RecurrenceForm({
           ""
         )}
       </p>
-      <Button type="submit" disabled={enCours || nombre === undefined}>
-        {recurrence ? "Enregistrer" : "Créer les séances"}
+      <Button type="submit" className="tcn-cible-tactile" disabled={enCours || nombre === undefined}>
+        {recurrence ? "Enregistrer les modifications" : "Créer les séances"}
       </Button>
     </form>
   );
@@ -197,7 +207,9 @@ export function RecurrencesSection({ groupes, peutEcrire }: { groupes: TrainingG
     if (!accord) return;
     try {
       const bilan = await supprimer.mutateAsync(recurrence.id);
-      toast.success(`Récurrence supprimée, ${pluriel(bilan.deleted_session_count, "séance")} retirée${bilan.deleted_session_count > 1 ? "s" : ""}.`);
+      toast.success(
+        `Récurrence supprimée, ${pluriel(bilan.deleted_session_count, "séance")} supprimée${bilan.deleted_session_count > 1 ? "s" : ""}.`,
+      );
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -210,7 +222,7 @@ export function RecurrencesSection({ groupes, peutEcrire }: { groupes: TrainingG
           Séances récurrentes
         </h2>
         {peutEcrire && (
-          <Button variant="outline" size="sm" onClick={() => setEdition("nouvelle")}>
+          <Button variant="outline" size="sm" className="tcn-cible-tactile" onClick={() => setEdition("nouvelle")}>
             Nouvelle récurrence
           </Button>
         )}
@@ -241,7 +253,8 @@ export function RecurrencesSection({ groupes, peutEcrire }: { groupes: TrainingG
                   <Button
                     size="sm"
                     variant="outline"
-                    aria-label="Modifier la récurrence"
+                    className="tcn-cible-tactile"
+                    aria-label={`Modifier la récurrence ${creneau(recurrence)}`}
                     onClick={() => setEdition(recurrence)}
                   >
                     Modifier
@@ -249,7 +262,8 @@ export function RecurrencesSection({ groupes, peutEcrire }: { groupes: TrainingG
                   <Button
                     size="sm"
                     variant="destructive"
-                    aria-label="Supprimer la récurrence"
+                    className="tcn-cible-tactile"
+                    aria-label={`Supprimer la récurrence ${creneau(recurrence)}`}
                     disabled={supprimer.isPending}
                     onClick={() => detruire(recurrence)}
                   >
@@ -264,7 +278,7 @@ export function RecurrencesSection({ groupes, peutEcrire }: { groupes: TrainingG
 
       {edition !== null && (
         <Dialog open onOpenChange={(ouvert) => !ouvert && setEdition(null)}>
-          <DialogContent className="sm:max-w-lg">
+          <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>{edition === "nouvelle" ? "Nouvelle récurrence" : "Modifier la récurrence"}</DialogTitle>
               <DialogDescription>

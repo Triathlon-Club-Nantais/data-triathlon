@@ -159,7 +159,8 @@ describe("GroupesList", () => {
     const dialog = await ouvrirLeGroupe();
 
     expect(await within(dialog).findByText("Alix Martin")).toBeInTheDocument();
-    expect(within(dialog).getByText(/adhésion terminée/i)).toBeInTheDocument();
+    expect(within(dialog).getByText("Adhésion terminée, plus inscrit d'office")).toBeInTheDocument();
+    expect(dialog).toHaveClass("max-h-[85dvh]", "overflow-y-auto");
     await userEvent.selectOptions(within(dialog).getByLabelText("Ajouter un jeune"), "3");
 
     await waitFor(() => expect(addTrainingGroupMember).toHaveBeenCalledWith(7, 3));
