@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { NAV, ROLE, TO_HANDLE, ecran, estVisible } from "./nav.config";
+import { BOTTOM_BAR_MAX, NAV, ROLE, TO_HANDLE, ecran, estVisible } from "./nav.config";
 import { GUIDE_ADMIN } from "@/components/guide/guide-content.admin";
 
 /** Les destinations du back-office : celles que le sommaire `/admin` annonce. */
@@ -185,5 +185,23 @@ describe("permission en OU", () => {
 
   it("ne l'annonce pas à qui n'a ni l'une ni l'autre", () => {
     expect(estVisible(MAINTENANCE, new Set(["courses:write"]), ROLE.CONNECTED)).toBe(false);
+  });
+});
+
+describe("barre basse mobile (#1300)", () => {
+  const onglets = NAV.flatMap((s) => s.items).filter((i) => i.bottomBar);
+
+  it("déclare au plus BOTTOM_BAR_MAX onglets", () => {
+    expect(onglets.length).toBeGreaterThan(0);
+    expect(onglets.length).toBeLessThanOrEqual(BOTTOM_BAR_MAX);
+  });
+
+  it("ne déclare que des destinations visibles pour tous, sans session", () => {
+    for (const section of NAV) {
+      for (const item of section.items.filter((i) => i.bottomBar)) {
+        expect(section.minRole).toBe(ROLE.ANON);
+        expect(estVisible(item, new Set(), ROLE.ANON)).toBe(true);
+      }
+    }
   });
 });

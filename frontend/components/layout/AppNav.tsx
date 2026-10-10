@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useSession } from "@/lib/queries/auth";
 import { libelleCompteur, useNavBadges } from "@/lib/queries/nav-badges";
 import { AthletePicker, ATHLETE_CHANGED_EVENT, OPEN_PICKER_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete, type PickerMode } from "./AthletePicker";
-import { BOTTOM_BAR_MAX, NAV, ROLE, byGroup, estVisible, type NavItem, type NavSection } from "./nav.config";
+import { NAV, ROLE, byGroup, estVisible, type NavItem, type NavSection } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 
@@ -150,18 +150,14 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
     // pouvoirs de la session — « Club » l'illustrait jusqu'à #487.
     .filter((s) => s.items.length > 0);
 
-  // Barre basse mobile (#482, NAV-4) : jamais codée en dur. Les
-  // `BOTTOM_BAR_MAX` premières destinations publiques visibles pour le profil,
-  // dans l'ordre de `nav.config.ts` (#1012) : sept onglets à 375 px repliaient
-  // leurs libellés sur deux lignes.
-  const barreItems = sections
-    .filter((s) => s.minRole === ROLE.ANON)
-    .flatMap((s) => s.items)
-    .slice(0, BOTTOM_BAR_MAX);
+  // Barre basse mobile (#482, NAV-4) : ses onglets sont déclarés dans
+  // `nav.config.ts` (`bottomBar`, #1300), visibles pour tous, donc identiques
+  // avant et après la lecture de la session.
+  const barreItems = sections.flatMap((s) => s.items).filter((i) => i.bottomBar);
   const dansLaBarre = new Set(barreItems.map((i) => i.id));
 
   // Le tiroir porte « le reste » : tout ce que la barre ne montre pas, sections
-  // publiques débordantes comprises. C'est ce reste qui fait naître « Plus ».
+  // publiques débordantes comprises. Il s'ouvre par « Plus ».
   const sectionsReste = sections
     .map((s) => ({ ...s, items: s.items.filter((i) => !dansLaBarre.has(i.id)) }))
     .filter((s) => s.items.length > 0);
@@ -170,7 +166,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // basse est masquée pendant que le tiroir est ouvert (le `Sheet` passe
   // par-dessus), donc un visiteur dont la barre porte tout (anonyme, ou
   // adhérent sans pouvoir) se retrouvait sans aucune destination à l'écran une
-  // fois le tiroir ouvert par le hamburger. Seul cas de doublon avec la barre.
+  // fois le tiroir ouvert par le hamburger ou « Plus ». Seul cas de doublon avec la barre.
   const sectionsTiroir = sectionsReste.length > 0 ? sectionsReste : sections;
 
   /**
@@ -451,20 +447,18 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             </Link>
           );
         })}
-        {sectionsReste.length > 0 && (
-          <button
-            type="button"
-            aria-haspopup="dialog"
-            aria-expanded={drawerOpen}
-            aria-controls={drawerOpen ? TIROIR_ID : undefined}
-            onClick={() => setDrawerOpen(true)}
-            style={ongletBarre(plusActif)}
-          >
-            {plusActif && <span data-trait-actif style={traitOnglet} />}
-            <Ellipsis size={20} />
-            <span>Plus</span>
-          </button>
-        )}
+        <button
+          type="button"
+          aria-haspopup="dialog"
+          aria-expanded={drawerOpen}
+          aria-controls={drawerOpen ? TIROIR_ID : undefined}
+          onClick={() => setDrawerOpen(true)}
+          style={ongletBarre(plusActif)}
+        >
+          {plusActif && <span data-trait-actif style={traitOnglet} />}
+          <Ellipsis size={20} />
+          <span>Plus</span>
+        </button>
       </nav>
 
       {/* ── Tiroir mobile : le panneau déplié, à l'identique ── */}
