@@ -24,8 +24,11 @@ const SESSION = (permissions: string[]): SessionUser =>
     display_name: "Bénévole",
     roles: [],
     permissions,
-    // Miroir du marqueur du catalogue backend (#1109) : seul `pages:preview` consulte.
-    can_administer: permissions.some((code) => code !== "pages:preview"),
+    // Miroir du catalogue backend (#1109, #1297) : `pages:preview` consulte, les
+    // pouvoirs de supervision (jeunes, validation des crédits) ne comptent pas.
+    can_administer: permissions.some(
+      (code) => !["pages:preview", "jeunes:read", "jeunes:write", "athletes:volunteer_validate"].includes(code),
+    ),
   }) as unknown as SessionUser;
 
 function afficher() {

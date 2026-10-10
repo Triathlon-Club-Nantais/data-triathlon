@@ -187,11 +187,11 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "benevolat-validation",
-    titre: "Bénévolat",
+    titre: "Crédits bénévoles",
     casUsage:
-      "Déclarations de crédit d'athlète en attente, soumises par un membre depuis la page publique de bénévolat : accepter ou refuser.",
+      "Déclarations de crédit d'athlète en attente, soumises par un membre depuis la page publique de bénévolat : accepter ou refuser. L'écran vit dans l'espace Encadrement.",
     etapes: [
-      "Ouvrir « Bénévolat » depuis la navigation admin.",
+      "Ouvrir « Crédits bénévoles » depuis l'espace Encadrement.",
       "Examiner une déclaration en attente, puis l'accepter ou la refuser.",
     ],
     captures: [{ src: "/guide/admin/benevolat-validation.jpg", alt: "File des déclarations de bénévolat en attente" }],
@@ -233,7 +233,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
     id: "jeunes",
     titre: "Jeunes",
     casUsage:
-      "L'encadrement des jeunes triathlètes : leurs profils, le calendrier des entraînements et l'appel de présence. Données personnelles de mineurs : la lecture suffit pour consulter, les gestes d'écriture demandent un pouvoir de plus.",
+      "Dans l'espace Encadrement, le suivi des jeunes triathlètes : leurs profils, le calendrier des entraînements et l'appel de présence. Données personnelles de mineurs : la lecture suffit pour consulter, les gestes d'écriture demandent un pouvoir de plus.",
     etapes: [
       "« Profils » : saisir prénom, nom et date de naissance, puis « Créer le profil ». Ouvrir un profil, puis « Modifier le profil » pour le contact d'urgence, les notes et la fin d'adhésion. « Ajouter au journal » consigne une entrée datée.",
       "Fin d'adhésion : à renseigner quand le jeune quitte le club. Le profil, son journal et ses présences sont alors supprimés définitivement à la fin de la saison suivante, par la purge hebdomadaire.",

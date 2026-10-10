@@ -31,7 +31,7 @@ function libelleSeance(entrainement: TrainingSession): string {
  * Résout la séance du jour et ouvre son appel (#869, epic #863) — L'appel
  * peut **peupler le calendrier** : une séance datée d'aujourd'hui absente du
  * calendrier se crée ici, en un geste, plutôt que d'obliger l'encadrant à
- * détourner par `/admin/jeunes/calendrier` avant de pouvoir faire l'appel.
+ * détourner par `/encadrement/jeunes/calendrier` avant de pouvoir faire l'appel.
  *
  * Plusieurs séances le même jour (natation le matin, course le soir) ne se
  * départagent pas à la place de l'encadrant : il choisit, sans quoi l'appel
@@ -51,7 +51,7 @@ export default function AdminJeuneAppelDuJourPage() {
 
   useEffect(() => {
     if (seanceUnique) {
-      router.replace(`/admin/jeunes/appel/${seanceUnique.id}`);
+      router.replace(`/encadrement/jeunes/appel/${seanceUnique.id}`);
     }
   }, [seanceUnique, router]);
 
@@ -59,7 +59,7 @@ export default function AdminJeuneAppelDuJourPage() {
     setCreationLancee(true);
     try {
       const entrainement = await creer.mutateAsync({ date: localToday() });
-      router.replace(`/admin/jeunes/appel/${entrainement.id}`);
+      router.replace(`/encadrement/jeunes/appel/${entrainement.id}`);
     } catch (e) {
       setCreationLancee(false);
       toast.error((e as Error).message);
@@ -69,7 +69,7 @@ export default function AdminJeuneAppelDuJourPage() {
   return (
     <PageShell>
       <div className="space-y-10">
-        <PageHeader {...ecran("/admin/jeunes/appel")} />
+        <PageHeader {...ecran("/encadrement/jeunes/appel")} />
         {isLoading || seanceUnique || creationLancee ? (
           <Skeleton className="h-40 w-full" />
         ) : error ? (
@@ -79,7 +79,7 @@ export default function AdminJeuneAppelDuJourPage() {
             <p className="text-sm">Plusieurs séances aujourd&apos;hui : choisissez celle de l&apos;appel.</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {seancesDuJour.map((entrainement) => (
-                <Link key={entrainement.id} href={`/admin/jeunes/appel/${entrainement.id}`}>
+                <Link key={entrainement.id} href={`/encadrement/jeunes/appel/${entrainement.id}`}>
                   <Card className="p-4 font-medium transition-colors hover:bg-[var(--tcn-orange-08)]">
                     {libelleSeance(entrainement)}
                   </Card>

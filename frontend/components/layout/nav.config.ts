@@ -135,7 +135,7 @@ export type SpaceId = "public" | "encadrement" | "admin";
  */
 export const SPACES: Record<SpaceId, { label: string; home?: string }> = {
   public: { label: "Résultats", home: "/dashboard" },
-  encadrement: { label: "Encadrement" },
+  encadrement: { label: "Encadrement", home: "/encadrement" },
   admin: { label: "Back-office", home: "/admin" },
 };
 
@@ -300,22 +300,6 @@ export const NAV: NavSection[] = [
         helpAnchor: "retours-utilisateurs",
         permission: "feedback:read",
         badge: "feedback",
-        group: TO_HANDLE,
-      },
-      // Validation des déclarations de crédit d'athlète (#779, #817) —
-      // l'API existait déjà, l'écran non. Id distinct de l'ancien
-      // `a-benevolat` (auto-déclaration, #751, retiré par #816) : pas de
-      // réutilisation, ressource neuve.
-      {
-        id: "a-benevolat-validation",
-        label: "Bénévolat",
-        description:
-          "Déclarations de crédit d'athlète en attente, soumises par un membre depuis la page publique de bénévolat : accepter ou refuser.",
-        href: "/admin/benevolat",
-        helpAnchor: "benevolat-validation",
-        permission: "athletes:volunteer_validate",
-        preview: true,
-        badge: "volunteer",
         group: TO_HANDLE,
       },
       // ── Données ──
@@ -514,7 +498,8 @@ export const NAV: NavSection[] = [
     // personnelles et sensibles (mineurs), fermées par pouvoir RBAC quel que
     // soit le rôle par ailleurs (`FEATURE_JEUNES`, `core/permissions.py`).
     // Section à part, jamais fondue dans « Administration » : ce n'est pas de
-    // l'administration du site, c'est de l'encadrement sportif.
+    // l'administration du site, c'est de l'encadrement sportif. Elle forme
+    // l'espace Encadrement (#1297).
     //
     // Trois destinations, fusionnées en une seule section par #869 : #867
     // (profils) et #868 (calendrier) avaient chacune ajouté leur propre
@@ -529,18 +514,17 @@ export const NAV: NavSection[] = [
     // `jeunes:write` n'ouvrant que les formulaires d'édition (patron
     // `u-groupes` ci-dessus).
     id: "jeunes",
-    label: "Jeunes",
+    label: "Encadrement",
     icon: CalendarDays,
     minRole: ROLE.CONNECTED,
-    space: "admin",
+    space: "encadrement",
     items: [
       {
         id: "j-profils",
         label: "Profils",
         description:
           "Profils des jeunes encadrés par le club — contact d'urgence, âge, notes et journal de bord. Données personnelles, fermées à qui ne porte pas ce pouvoir.",
-        href: "/admin/jeunes",
-        helpAnchor: "jeunes",
+        href: "/encadrement/jeunes",
         permission: "jeunes:read",
       },
       {
@@ -548,8 +532,7 @@ export const NAV: NavSection[] = [
         label: "Calendrier des entraînements",
         description:
           "Les séances d'entraînement jeunes et leurs participants inscrits.",
-        href: "/admin/jeunes/calendrier",
-        helpAnchor: "jeunes",
+        href: "/encadrement/jeunes/calendrier",
         permission: "jeunes:read",
       },
       // Appel de présence (#869) — pointage présent/absent d'une séance,
@@ -561,9 +544,20 @@ export const NAV: NavSection[] = [
         label: "Appel",
         description:
           "Pointer les jeunes présents ou absents à une séance, vérifier qu'aucun n'est manquant en fin de séance, et consigner une note.",
-        href: "/admin/jeunes/appel",
-        helpAnchor: "jeunes",
+        href: "/encadrement/jeunes/appel",
         permission: "jeunes:read",
+      },
+      // Validation des déclarations de crédit d'athlète (#779, #817), passée
+      // du back-office à l'Encadrement (#1297).
+      {
+        id: "a-benevolat-validation",
+        label: "Crédits bénévoles",
+        description:
+          "Déclarations de crédit d'athlète en attente, soumises par un membre depuis la page publique de bénévolat : accepter ou refuser.",
+        href: "/encadrement/benevolat",
+        permission: "athletes:volunteer_validate",
+        preview: true,
+        badge: "volunteer",
       },
     ],
   },

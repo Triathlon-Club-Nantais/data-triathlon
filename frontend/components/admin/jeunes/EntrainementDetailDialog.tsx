@@ -70,7 +70,7 @@ export function EntrainementDetailDialog({
         {/* Appel de présence (#869) — route dédiée, mobile-first : ce détail
             reste le point d'entrée le plus court depuis le calendrier. */}
         <Link
-          href={`/admin/jeunes/appel/${entrainement.id}`}
+          href={`/encadrement/jeunes/appel/${entrainement.id}`}
           className={buttonVariants({ variant: "outline", size: "sm", className: "w-fit" })}
         >
           Ouvrir l&apos;appel

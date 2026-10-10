@@ -115,6 +115,7 @@ const SESSION: SessionUser = {
   roles: [{ id: ADMIN.id, slug: "admin", name: "Administrateur", organisation_id: null }],
   groups: [],
   can_administer: true,
+  can_supervise: false,
 };
 
 /** `null` = visiteur anonyme (401, qui n'est pas une panne) ; une `Error` = panne réelle. */

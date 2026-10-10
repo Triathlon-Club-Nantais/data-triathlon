@@ -327,7 +327,7 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   au-delà passe par `permission`, un code de `core/permissions.py` confronté à
   `session.permissions` (#115). Un écran livré mais retiré du grand public porte
   `preview: true` (#879, les déclarations de crédit bénévole : `/benevolat`
-  et `/admin/benevolat`) : il exige `pages:preview` **en plus** de son
+  et `/encadrement/benevolat`) : il exige `pages:preview` **en plus** de son
   `permission`, une liste de `permission` se lisant en OU, et sa route rend
   `PreviewRefusal` à qui ne le porte pas (même idiome que `/club/athletes`,
   jamais de redirection). Masque d'interface seulement : les routes de l'API
@@ -365,7 +365,10 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   celle de l'espace public. `SpaceSwitcher` mène d'un espace à l'autre et
   disparaît pour qui n'en a qu'un ; dans l'espace public, une entrée
   « Back-office » portant le total des files « À traiter » mène au sommaire.
-  La palette ⌘K garde les écrans de tous les espaces ouverts.
+  La palette ⌘K garde les écrans de tous les espaces ouverts. L'espace
+  Encadrement (Jeunes, Crédits bénévoles) vit sous `/encadrement`, gardé par
+  `can_supervise` via `components/layout/space-guard.tsx`, partagé avec
+  `/admin` ; `/encadrement` mène au premier écran ouvert.
 - **Sélecteurs d'URL : `pushState` ou `router.push`, et la question qui tranche**
   — *un rendu serveur lit-il ce paramètre ?* `?rank=` ne l'est par aucun, donc
   `RankTypeToggle` écrit l'URL par `window.history.pushState` et les trois

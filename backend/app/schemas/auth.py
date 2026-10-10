@@ -65,6 +65,9 @@ class SessionUserRead(BaseModel):
     #: #1109 : au moins un pouvoir d'administration, `pages:preview` exclu. Dérivé
     #: du catalogue pour que le front n'en tienne pas une seconde liste.
     can_administer: bool = False
+    #: #1297 : au moins un pouvoir d'encadrement (jeunes, validation des
+    #: crédits bénévoles). Même dérivation que `can_administer`.
+    can_supervise: bool = False
 
     @field_serializer("created_at")
     def _serialize_utc(self, value: datetime) -> str:

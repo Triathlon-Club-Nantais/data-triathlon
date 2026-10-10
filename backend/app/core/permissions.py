@@ -20,6 +20,7 @@ Aucune session, aucun état, aucune sortie : c'est ce qui autorise `core/`
 """
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Literal
 
 #: Fonctionnalités, dans l'ordre d'affichage de `GET /admin/permissions`.
 FEATURE_ROLES = "Rôles et accès"
@@ -58,6 +59,9 @@ FEATURE_CLUB_MEMBERS = "Licenciés du club"
 FEATURE_JEUNES = "Jeunes"
 
 
+PermissionKind = Literal["administration", "supervision", "consultation"]
+
+
 @dataclass(frozen=True, slots=True)
 class Permission:
     """Un pouvoir : un code technique, et le français qui le présente.
@@ -71,10 +75,11 @@ class Permission:
     label: str
     description: str
     feature: str
-    #: Pouvoir de **consultation** (#1109) : il ouvre des pages publiques, aucun
-    #: écran d'administration. Seul critère que lisent la garde `/admin` et son
-    #: sommaire, via le drapeau `can_administer` de `GET /auth/me`.
-    consultation: bool = False
+    #: Ce que le pouvoir ouvre (#1109, #1297). `consultation` : des pages
+    #: publiques, aucun écran d'administration. `supervision` : l'espace
+    #: Encadrement. Seul critère que lisent les gardes `/admin` et
+    #: `/encadrement`, via `can_administer` et `can_supervise` de `GET /auth/me`.
+    kind: PermissionKind = "administration"
 
     def __str__(self) -> str:  # `require_permission(P.X)` journalise le code seul
         return self.code
@@ -243,6 +248,7 @@ class P:
         "attente, puis les accepter ou les refuser pour le quota de "
         "validation de saison.",
         FEATURE_ATHLETES,
+        kind="supervision",
     )
     # `participations:write` a existé (#115) puis a été retiré (#270) :
     # POST /participations est redevenue publique, la mise en quarantaine
@@ -339,7 +345,7 @@ class P:
         "saison et les pages encore marquées « bientôt » — la carte "
         "notamment — avant leur ouverture au grand public.",
         FEATURE_PAGES_PREVIEW,
-        consultation=True,
+        kind="consultation",
     )
     # Deux pouvoirs et non un : un accompagnant peut avoir besoin de consulter
     # un profil ou le calendrier sans pour autant écrire dans le journal de
@@ -350,6 +356,7 @@ class P:
         "Voir la liste des jeunes, leur profil (contact d'urgence, âge, "
         "notes, journal de bord) et le calendrier des entraînements.",
         FEATURE_JEUNES,
+        kind="supervision",
     )
     JEUNES_WRITE = Permission(
         "jeunes:write",
@@ -358,6 +365,7 @@ class P:
         "entraînements, faire l'appel de présence et ajouter une entrée au "
         "journal de bord.",
         FEATURE_JEUNES,
+        kind="supervision",
     )
 
 
@@ -421,12 +429,22 @@ def is_known(code: str) -> bool:
 
 
 def administers(codes: Iterable[str]) -> bool:
-    """Ces codes ouvrent-ils au moins un écran d'administration ? (#1109)
+    """Ces codes ouvrent-ils au moins un écran du back-office ? (#1109)
 
-    Un pouvoir de consultation ne compte pas, un code inconnu non plus.
+    Ni un pouvoir de consultation ni un pouvoir d'encadrement ne compte, un
+    code inconnu non plus.
     """
+    return _any_of_kind(codes, "administration")
+
+
+def supervises(codes: Iterable[str]) -> bool:
+    """Ces codes ouvrent-ils au moins un écran de l'espace Encadrement ? (#1297)"""
+    return _any_of_kind(codes, "supervision")
+
+
+def _any_of_kind(codes: Iterable[str], kind: PermissionKind) -> bool:
     return any(
-        (pouvoir := _BY_CODE.get(code)) is not None and not pouvoir.consultation
+        (pouvoir := _BY_CODE.get(code)) is not None and pouvoir.kind == kind
         for code in codes
     )
 
