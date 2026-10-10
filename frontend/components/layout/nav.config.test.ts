@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { BOTTOM_BAR_MAX, NAV, ROLE, TO_HANDLE, ecran, estVisible } from "./nav.config";
+import { BOTTOM_BAR_MAX, NAV, ROLE, SPACES, TO_HANDLE, ecran, estVisible, spaceOf } from "./nav.config";
 import { GUIDE_ADMIN } from "@/components/guide/guide-content.admin";
 
 /** Les destinations du back-office : celles que le sommaire `/admin` annonce. */
@@ -203,5 +203,32 @@ describe("barre basse mobile (#1300)", () => {
         expect(estVisible(item, new Set(), ROLE.ANON)).toBe(true);
       }
     }
+  });
+});
+
+describe("espaces de navigation (#1296)", () => {
+  it("range chaque section dans un espace connu", () => {
+    for (const section of NAV) expect(Object.keys(SPACES)).toContain(section.space);
+  });
+
+  it("met dans l'espace public les seules sections ouvertes aux anonymes", () => {
+    for (const section of NAV) expect(section.space === "public").toBe(section.minRole === ROLE.ANON);
+  });
+
+  it("met toute destination /admin hors de l'espace public", () => {
+    for (const section of NAV.filter((s) => s.space === "public"))
+      for (const item of section.items) expect(item.href?.startsWith("/admin") ?? false).toBe(false);
+  });
+
+  it.each([
+    ["/admin", "admin"],
+    ["/admin/courses", "admin"],
+    ["/administration", "public"],
+    ["/encadrement", "encadrement"],
+    ["/encadrement/jeunes/12", "encadrement"],
+    ["/dashboard", "public"],
+    ["/", "public"],
+  ] as const)("spaceOf(%s) vaut %s", (pathname, attendu) => {
+    expect(spaceOf(pathname)).toBe(attendu);
   });
 });
