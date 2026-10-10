@@ -45,7 +45,7 @@ export function MonthlyTrend({ byMonth }: { byMonth: Record<string, number> }) {
   // `role="img"` élague tous les descendants de l'arbre d'accessibilité : sans
   // énumération ici, les douze couples mois/valeur — pourtant lisibles à
   // l'écran — disparaissent pour un lecteur d'écran (#480). Même patron que
-  // `DisciplineBar`, `BarList` et `CategoryBars` : « X : liste. ».
+  // `BarList` et `CategoryBars` : « X : liste. ».
   const summary = entries
     .map(([, value], index) => `${labels[index]} ${value}`)
     .join(", ");

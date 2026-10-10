@@ -8,10 +8,9 @@ import type { DashboardRankCounters } from "@/lib/types";
 /**
  * KPI « Podiums » côté client — recalcule selon `?rank=…` sans re-fetch RSC.
  * Lit `rankCounters` (déjà calculé côté backend, #376) au lieu de recompter
- * sur les participations brutes (#581) : même source que `StatCardsRank`.
+ * sur les participations brutes (#581) : même source que `MaSaison`.
  * Les autres KPI (Résultats / Athlètes / Épreuves) ne dépendent pas du rank
- * et restent SSR dans `ClubDashboard`. Miroir du couple `StatCardsRank` +
- * `PodiumsList` (issue #132).
+ * et restent SSR dans `ClubDashboard`. Miroir de `PodiumsList` (issue #132).
  */
 export function ClubPodiumKpi({ rankCounters }: { rankCounters: DashboardRankCounters }) {
   const sp = useSearchParams();
@@ -25,7 +24,7 @@ export function ClubPodiumKpi({ rankCounters }: { rankCounters: DashboardRankCou
   // Le `delta` nomme la portée du décompte (#488, PROF-3) : le roster deux
   // blocs plus bas compte sur les trois portées cumulées, sans condition. Les
   // deux nombres sont justes et incomparables — chacun porte donc le sien.
-  // Même geste que `StatCardsRank`, qui écrit déjà « 12 · général ».
+  // Le rang s'écrit à côté du nombre : « 12 · général ».
   return (
     <StatCard
       label="Podiums"

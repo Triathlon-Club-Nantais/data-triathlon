@@ -387,7 +387,6 @@ describe("DashboardPage: personal home, collective on Club (#1299)", () => {
 
     expect(screen.queryByRole("heading", { name: "Performance du club" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Type d'épreuves" })).toBeNull();
-    expect(screen.queryByText("Type de rang")).toBeNull();
   });
 
   it("links to Club for the collective view", async () => {

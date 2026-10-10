@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  FAMILY_ORDER,
-  disciplineFamily,
-  eventTypeColor,
-  tintedStyle,
-} from "./sport-colors";
+import { eventTypeColor, tintedStyle } from "./sport-colors";
 import {
   SURFACES,
   contrast,
@@ -15,14 +10,7 @@ import {
   versOklch,
 } from "@/test/couleur";
 
-/** Seuil d'adjacence de deux familles voisines dans la barre empilée. */
-const ADJACENCY_THRESHOLD = 1.6;
-
-/**
- * Un `event_type` représentatif par famille, **dans l'ordre de FAMILY_ORDER**.
- * On ne peut pas retrouver une famille depuis son nom : `disciplineFamily` prend
- * un type d'épreuve, pas un libellé.
- */
+/** Un `event_type` représentatif par famille. */
 const REPRESENTATIVE_TYPE: Record<string, string> = {
   Triathlon: "triathlon-m",
   "Swim & Run": "swimrun-l",
@@ -35,9 +23,9 @@ const REPRESENTATIVE_TYPE: Record<string, string> = {
 /** Les couleurs qui entrent dans `tintedStyle` : les six familles, plus les
  *  trois alias de splits et le neutre des transitions. */
 const TINTS = [
-  ...FAMILY_ORDER.map((name) => ({
-    name: name,
-    color: disciplineFamily(REPRESENTATIVE_TYPE[name]).color,
+  ...Object.entries(REPRESENTATIVE_TYPE).map(([name, type]) => ({
+    name,
+    color: eventTypeColor(type),
   })),
   { name: "swim", color: "var(--swim)" },
   { name: "bike", color: "var(--bike)" },
@@ -46,17 +34,6 @@ const TINTS = [
 ];
 
 describe("échelle unique des disciplines", () => {
-  it("nomme les six familles dans l'ordre d'empilement", () => {
-    expect([...FAMILY_ORDER]).toEqual([
-      "Triathlon",
-      "Swim & Run",
-      "Duathlon",
-      "Aquathlon",
-      "Run & Bike",
-      "Autres",
-    ]);
-  });
-
   it.each([
     ["triathlon-m", "Triathlon"],
     ["swimrun-l", "Swim & Run"],
@@ -69,36 +46,12 @@ describe("échelle unique des disciplines", () => {
     ["", "Autres"],
     [null, "Autres"],
   ])("range %s dans « %s »", (type, expected) => {
-    expect(disciplineFamily(type).name).toBe(expected);
+    expect(eventTypeColor(type)).toBe(eventTypeColor(REPRESENTATIVE_TYPE[expected]));
   });
 
   it("donne à chaque famille une couleur de la palette TCN", () => {
-    for (const name of FAMILY_ORDER) {
-      expect(disciplineFamily(REPRESENTATIVE_TYPE[name]).color).toMatch(
-        /^var\(--tcn-[a-z0-9-]+\)$/,
-      );
-    }
-  });
-
-  it("sépare d'au moins 1,6:1 deux familles voisines dans l'ordre complet", () => {
-    // C'est la seule garde de l'arbitrage de la spec : la palette ne permet pas
-    // de séparer les 15 paires, seulement les 5 qui se **touchent** dans la
-    // barre empilée. Réordonner FAMILY_ORDER ou retoucher un token casse cette
-    // séparation sans qu'aucun autre test ne bronche.
-    //
-    // Ce que ce test ne dit pas, et qu'aucun ne peut dire :
-    // `aggregateDisciplines` n'émet que les familles présentes dans les
-    // données, donc l'adjacence **rendue** dépend du club et de la saison. Sans
-    // « Swim & Run », Triathlon et Duathlon se touchent à 1,45:1 ; sans
-    // « Run & Bike », Aquathlon et Autres à 1,11:1. Ces paires-là ne sont pas
-    // rattrapables dans la palette (cf. l'en-tête de `sport-colors.ts`) : ce
-    // qui tient WCAG 1.4.1 pour tout sous-ensemble est le filet, le nom du
-    // segment et la légende, gardés par `DisciplineBar.test.tsx`.
-    const colors = FAMILY_ORDER.map(
-      (name) => evalue(disciplineFamily(REPRESENTATIVE_TYPE[name]).color).hex,
-    );
-    for (let i = 0; i < colors.length - 1; i++) {
-      expect(contrast(colors[i], colors[i + 1])).toBeGreaterThanOrEqual(ADJACENCY_THRESHOLD);
+    for (const type of Object.values(REPRESENTATIVE_TYPE)) {
+      expect(eventTypeColor(type)).toMatch(/^var\(--tcn-[a-z0-9-]+\)$/);
     }
   });
 
@@ -106,16 +59,6 @@ describe("échelle unique des disciplines", () => {
     // `--run` et `--tri` valaient tous deux `--tcn-orange` : le grief de VIZ-1.
     expect(eventTypeColor("trail-court")).not.toBe(eventTypeColor("triathlon-m"));
   });
-
-  it.each(FAMILY_ORDER)(
-    "« %s » porte son libellé de segment à 4,5:1 sur son propre aplat (#480)",
-    (name) => {
-      // WCAG 1.4.3, sur l'aplat plein (pas un fond teinté) : pas de composition
-      // sur surface à faire, `evalue(...).hex` des deux côtés suffit.
-      const { ink, color } = disciplineFamily(REPRESENTATIVE_TYPE[name]);
-      expect(contrast(evalue(ink).hex, evalue(color).hex)).toBeGreaterThanOrEqual(4.5);
-    },
-  );
 });
 
 describe("tintedStyle", () => {

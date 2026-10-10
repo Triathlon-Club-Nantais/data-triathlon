@@ -372,7 +372,7 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
 - **Sélecteurs d'URL : `pushState` ou `router.push`, et la question qui tranche**
   — *un rendu serveur lit-il ce paramètre ?* `?rank=` ne l'est par aucun, donc
   `RankTypeToggle` écrit l'URL par `window.history.pushState` et les trois
-  consommateurs (`StatCardsRank`, `ClubPodiumKpi`, `PodiumsList`) recalculent en
+  consommateurs (`MaSaison`, `ClubPodiumKpi`, `PodiumsList`) recalculent en
   mémoire : zéro requête (#328). `?scope`, `?sports` et `?seasons` **le sont**
   (`app/club/page.tsx`, `app/dashboard/page.tsx`), donc `ScopeToggle` et
   `DisciplineToggle` gardent `router.push` — les basculer serait un bug
@@ -471,9 +471,8 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   une région déjà pleine à l'injection est le cas que NVDA, JAWS et VoiceOver
   laissent tomber. Les tests jsdom passent quand même : ils ne vérifient que
   le texte du DOM. Tous les autres consommateurs du dépôt le faisaient déjà
-  (`StatCardsRank.tsx`, `PodiumsList.tsx`, `EventList.tsx`,
-  `RaceFinishers.tsx`) ; `MaSaison.tsx` avait été le seul à s'en écarter, et la
-  revue l'a rattrapé.
+  (`MaSaison.tsx`, `PodiumsList.tsx`, `EventList.tsx`,
+  `RaceFinishers.tsx`).
 - **Hiérarchie des deux commandes en tête de fiche athlète, conditionnelle au
   pouvoir** (#753) — `AthleteHeaderActions.tsx` lit `athletes:write` et
   décide ordre et variant de `AthleteSelection` et `AthleteAdminPanel` : sans

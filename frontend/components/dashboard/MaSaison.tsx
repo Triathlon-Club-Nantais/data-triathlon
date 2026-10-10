@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AnnonceStatut, Button, Card, Eyebrow } from "@/components/tcn";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RankTypeToggle } from "@/components/layout/RankTypeToggle";
 import {
   ATHLETE_LOST_EVENT,
   clearAthlete,
@@ -107,7 +108,7 @@ function capitaliser(s: string): string {
  *
  * La région `role="status"` est montée **inconditionnellement**, dans les
  * quatre branches (y compris `chargement` et `echec`) — comme tous les autres
- * usages du dépôt (`StatCardsRank`, `PodiumsList`, `EventList`,
+ * usages du dépôt (`PodiumsList`, `EventList`,
  * `RaceFinishers`). Une région ARIA live injectée déjà pleine (montage
  * conditionnel sur son propre contenu) est le cas que les lecteurs d'écran
  * laissent tomber : seul son **texte** doit changer après l'enregistrement de
@@ -333,7 +334,15 @@ function Bande({ titre, children }: { titre: string; children: React.ReactNode }
             second point d'entrée (la sémantique de landmark) pour un bloc qui
             n'en a nul besoin ailleurs sur la page. */}
         <h2 className="sr-only">{titre}</h2>
-        <Eyebrow>{titre}</Eyebrow>
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <Eyebrow>{titre}</Eyebrow>
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", marginBottom: 6 }}>
+              Type de rang
+            </div>
+            <RankTypeToggle />
+          </div>
+        </div>
         <div className="flex min-h-[84px] items-center sm:min-h-[68px]">
           {children}
         </div>
