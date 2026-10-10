@@ -100,6 +100,13 @@ def groups_or_404(db: Session, group_ids: list[int]) -> list[TrainingGroup]:
     return groups
 
 
+def is_syncable(db: Session, training_session: TrainingSession) -> bool:
+    """À venir et sans appel commencé (data-model, états dérivés)."""
+    return training_session.date >= date_.today() and not training_session_repository.roll_call_started(
+        db, training_session.id
+    )
+
+
 def sync_group_enrolment(db: Session, training_session: TrainingSession) -> None:
     """La règle unique de l'inscription d'office (#1291, research R3).
 
@@ -107,9 +114,7 @@ def sync_group_enrolment(db: Session, training_session: TrainingSession) -> None
     actifs des groupes visés qui manquent, désinscrit les inscrits d'office
     qui n'en font plus partie. Une inscription manuelle n'est jamais retirée.
     """
-    if training_session.date < date_.today() or training_session_repository.roll_call_started(
-        db, training_session.id
-    ):
+    if not is_syncable(db, training_session):
         return
     wanted = training_group_repository.active_member_ids(
         db, [group.id for group in training_session.groups], on=training_session.date
@@ -170,7 +175,14 @@ def update_training_session(
     group_ids: list[int] | None = None,
 ) -> TrainingSession:
     """Corrige un entraînement. Seuls les champs fournis sont écrits ;
-    `group_ids` absent laisse les groupes visés inchangés."""
+    `group_ids` absent laisse les groupes visés inchangés. Une séance issue
+    d'une récurrence modifiée seule (hors note) en devient détachée (FR-009)."""
+    if training_session.recurrence_id is not None and (
+        date is not None
+        or group_ids is not None
+        or any(value is not ... for value in (start_time, location, session_type))
+    ):
+        training_session_repository.mark_detached(db, training_session)
     if group_ids is not None:
         training_session_repository.set_groups(db, training_session, groups_or_404(db, group_ids))
     training_session_repository.update(

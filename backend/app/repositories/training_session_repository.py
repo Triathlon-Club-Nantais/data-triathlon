@@ -78,9 +78,14 @@ def create(
     start_time=None,
     location: str | None = None,
     session_type: str | None = None,
+    recurrence_id: int | None = None,
 ) -> TrainingSession:
     training_session = TrainingSession(
-        date=date, start_time=start_time, location=location, session_type=session_type
+        date=date,
+        start_time=start_time,
+        location=location,
+        session_type=session_type,
+        recurrence_id=recurrence_id,
     )
     db.add(training_session)
     db.flush()
@@ -266,3 +271,13 @@ def make_group_enrolments_manual(db: Session, training_group_id: int) -> None:
         .values(added_manually=True)
         .execution_options(synchronize_session="fetch")
     )
+
+
+def mark_detached(db: Session, training_session: TrainingSession) -> None:
+    training_session.detached = True
+    db.flush()
+
+
+def unlink_from_recurrence(db: Session, training_session: TrainingSession) -> None:
+    training_session.recurrence_id = None
+    db.flush()
