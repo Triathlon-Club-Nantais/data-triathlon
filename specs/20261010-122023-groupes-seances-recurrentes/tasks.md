@@ -36,12 +36,12 @@
 - [X] T014 [US1] Implémenter backend/app/api/v1/admin_training_groups.py et l'enregistrer dans backend/app/api/v1/router.py
 - [X] T015 [P] [US1] Écrire les tests des vues profil (`category` dans `ProfileRead`, `groups` dans `ProfileDetailRead`) dans backend/tests/test_auth/test_admin_profiles_api.py
 - [X] T016 [US1] Étendre `profile_view` et `profile_detail_view` dans backend/app/services/profile_service.py et les schémas de réponse de backend/app/api/v1/admin_profiles.py
-- [ ] T017 [P] [US1] Ajouter types et appels API (groupes, `category`, `groups`) dans frontend/lib/types.ts et frontend/lib/api/client.ts
-- [ ] T018 [P] [US1] Écrire les tests de l'écran groupes (liste, création, renommage refusé, suppression confirmée par `useDangerConfirm`, lecture seule sans `jeunes:write`, état d'erreur distinct de l'état vide) dans frontend/components/admin/jeunes/GroupesList.test.tsx
-- [ ] T019 [US1] Implémenter frontend/components/admin/jeunes/GroupesList.tsx, frontend/components/admin/jeunes/GroupeDetail.tsx et la page frontend/app/admin/jeunes/groupes/page.tsx (mobile-first, 375 px sans défilement horizontal)
-- [ ] T020 [US1] Ajouter l'entrée « Groupes » à la section « Jeunes » (permission `jeunes:read`, `helpAnchor: "jeunes"`) dans frontend/components/layout/nav.config.ts et faire passer frontend/components/layout/nav.config.test.ts
-- [ ] T021 [P] [US1] Écrire les tests de la fiche profil (section « Groupes », ajout et retrait depuis la fiche) dans frontend/components/admin/ProfileDetail.test.tsx
-- [ ] T022 [US1] Ajouter la section « Groupes » dans frontend/components/admin/ProfileDetail.tsx
+- [X] T017 [P] [US1] Ajouter types et appels API (groupes, `category`, `groups`) dans frontend/lib/types.ts et frontend/lib/api/client.ts
+- [X] T018 [P] [US1] Écrire les tests de l'écran groupes (liste, création, renommage refusé, suppression confirmée par `useDangerConfirm`, lecture seule sans `jeunes:write`, état d'erreur distinct de l'état vide) dans frontend/components/admin/jeunes/GroupesList.test.tsx
+- [X] T019 [US1] Implémenter frontend/components/admin/jeunes/GroupesList.tsx, frontend/components/admin/jeunes/GroupeDetail.tsx et la page frontend/app/admin/jeunes/groupes/page.tsx (mobile-first, 375 px sans défilement horizontal)
+- [X] T020 [US1] Ajouter l'entrée « Groupes » à la section « Jeunes » (permission `jeunes:read`, `helpAnchor: "jeunes"`) dans frontend/components/layout/nav.config.ts et faire passer frontend/components/layout/nav.config.test.ts
+- [X] T021 [P] [US1] Écrire les tests de la fiche profil (section « Groupes », ajout et retrait depuis la fiche) dans frontend/components/admin/ProfileDetail.test.tsx
+- [X] T022 [US1] Ajouter la section « Groupes » dans frontend/components/admin/ProfileDetail.tsx
 
 **Checkpoint**: US1 utilisable seule.
 

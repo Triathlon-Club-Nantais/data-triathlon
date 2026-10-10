@@ -43,6 +43,8 @@ const ALIX: Profile = {
   first_name: "Alix",
   last_name: "Martin",
   birth_date: null,
+  category: null,
+  membership_ended_on: null,
   created_at: "2026-01-01T00:00:00Z",
 };
 
@@ -52,6 +54,8 @@ const ZOE: Profile = {
   first_name: "Zoé",
   last_name: "Roux",
   birth_date: null,
+  category: null,
+  membership_ended_on: null,
   created_at: "2026-01-01T00:00:00Z",
 };
 
@@ -63,7 +67,10 @@ const DETAIL_UN_PARTICIPANT: TrainingSessionDetail = {
   session_type: null,
   note: "",
   participant_count: 1,
-  participants: [{ profile_id: 42, present: null, created_at: "2026-09-15T10:00:00Z" }],
+  group_ids: [],
+  recurrence_id: null,
+  detached: false,
+  participants: [{ profile_id: 42, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" }],
 };
 
 const DETAIL_VIDE: TrainingSessionDetail = { ...DETAIL_UN_PARTICIPANT, participant_count: 0, participants: [] };
@@ -245,10 +252,13 @@ describe("AppelPresence", () => {
     getTrainingSession.mockResolvedValue({
       ...DETAIL_UN_PARTICIPANT,
       participant_count: 3,
+      group_ids: [],
+      recurrence_id: null,
+      detached: false,
       participants: [
-        { profile_id: 42, present: true, created_at: "2026-09-15T10:00:00Z" },
-        { profile_id: 43, present: false, created_at: "2026-09-15T10:00:00Z" },
-        { profile_id: 44, present: null, created_at: "2026-09-15T10:00:00Z" },
+        { profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
+        { profile_id: 43, present: false, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
+        { profile_id: 44, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
       ],
     });
 
@@ -263,9 +273,12 @@ describe("AppelPresence", () => {
     getTrainingSession.mockResolvedValue({
       ...DETAIL_UN_PARTICIPANT,
       participant_count: 2,
+      group_ids: [],
+      recurrence_id: null,
+      detached: false,
       participants: [
-        { profile_id: 42, present: true, created_at: "2026-09-15T10:00:00Z" },
-        { profile_id: 43, present: true, created_at: "2026-09-15T10:00:00Z" },
+        { profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
+        { profile_id: 43, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
       ],
     });
 
@@ -277,7 +290,7 @@ describe("AppelPresence", () => {
   it("bascule vers l'appel de fin sans écrire aucune donnée", async () => {
     const detail: TrainingSessionDetail = {
       ...DETAIL_UN_PARTICIPANT,
-      participants: [{ profile_id: 42, present: true, created_at: "2026-09-15T10:00:00Z" }],
+      participants: [{ profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" }],
     };
     getTrainingSession.mockResolvedValue(detail);
 

@@ -68,6 +68,10 @@ import type {
   PermissionGroup,
   Profile,
   ProfileDetail,
+  TrainingGroup,
+  TrainingGroupDetail,
+  TrainingRecurrence,
+  TrainingRecurrenceInput,
   RescrapeLaunch,
   Role,
   RoleCreate,
@@ -663,6 +667,7 @@ export const apiClient = {
     start_time?: string | null;
     location?: string | null;
     session_type?: string | null;
+    group_ids?: number[];
   }) =>
     request<TrainingSessionDetail>("/admin/training-sessions", {
       method: "POST",
@@ -676,6 +681,7 @@ export const apiClient = {
       location?: string | null;
       session_type?: string | null;
       note?: string;
+      group_ids?: number[];
     }
   ) =>
     request<TrainingSessionDetail>(`/admin/training-sessions/${id}`, {
@@ -701,6 +707,51 @@ export const apiClient = {
     request<TrainingSessionDetail>(
       `/admin/training-sessions/${sessionId}/participants/${profileId}/presence`,
       { method: "PATCH", body: JSON.stringify({ present }) }
+    ),
+  // ── Groupes d'entraînement et récurrences (#1291) ──────────────────────────
+  listTrainingGroups: () => request<TrainingGroup[]>("/admin/training-groups"),
+  getTrainingGroup: (id: number) => request<TrainingGroupDetail>(`/admin/training-groups/${id}`),
+  createTrainingGroup: (name: string) =>
+    request<TrainingGroupDetail>("/admin/training-groups", {
+      method: "POST",
+      body: JSON.stringify({ name }),
+    }),
+  renameTrainingGroup: (id: number, name: string) =>
+    request<TrainingGroupDetail>(`/admin/training-groups/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+  deleteTrainingGroup: (id: number) =>
+    request<null>(`/admin/training-groups/${id}`, { method: "DELETE" }),
+  addTrainingGroupMember: (groupId: number, profileId: number) =>
+    request<TrainingGroupDetail>(`/admin/training-groups/${groupId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ profile_id: profileId }),
+    }),
+  removeTrainingGroupMember: (groupId: number, profileId: number) =>
+    request<TrainingGroupDetail>(`/admin/training-groups/${groupId}/members/${profileId}`, {
+      method: "DELETE",
+    }),
+  listTrainingRecurrences: () => request<TrainingRecurrence[]>("/admin/training-recurrences"),
+  previewTrainingRecurrence: (body: TrainingRecurrenceInput) =>
+    request<{ occurrence_count: number; dates: string[] }>("/admin/training-recurrences/preview", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  createTrainingRecurrence: (body: TrainingRecurrenceInput) =>
+    request<TrainingRecurrence & { created_session_count: number }>("/admin/training-recurrences", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateTrainingRecurrence: (id: number, champs: Partial<TrainingRecurrenceInput>) =>
+    request<TrainingRecurrence>(`/admin/training-recurrences/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(champs),
+    }),
+  deleteTrainingRecurrence: (id: number) =>
+    request<{ deleted_session_count: number; kept_session_count: number }>(
+      `/admin/training-recurrences/${id}`,
+      { method: "DELETE" },
     ),
   // ── Profils individuels (#867, epic #863) ──────────────────────────────────
   // Schéma générique côté backend ; `jeunes:read` pour les deux lectures,

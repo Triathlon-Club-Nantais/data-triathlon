@@ -156,15 +156,16 @@ describe("nav.config — section « Jeunes » unifiée (#869)", () => {
     expect(admin.items.find((i) => i.id === "a-jeunes")).toBeUndefined();
   });
 
-  it("propose les trois destinations profils, calendrier, appel", () => {
+  it("propose les destinations profils, groupes, calendrier, appel", () => {
     const jeunes = NAV.find((s) => s.id === "jeunes")!;
     const hrefs = jeunes.items.map((i) => i.href);
     expect(hrefs).toContain("/admin/jeunes");
+    expect(hrefs).toContain("/admin/jeunes/groupes");
     expect(hrefs).toContain("/admin/jeunes/calendrier");
     expect(hrefs).toContain("/admin/jeunes/appel");
   });
 
-  it("garde les trois destinations derrière jeunes:read", () => {
+  it("garde toutes ses destinations derrière jeunes:read", () => {
     const jeunes = NAV.find((s) => s.id === "jeunes")!;
     for (const item of jeunes.items) {
       expect(item.permission, item.href).toBe("jeunes:read");

@@ -29,6 +29,8 @@ const ALIX: Profile = {
   first_name: "Alix",
   last_name: "Martin",
   birth_date: "2015-04-12",
+  category: "Pupille",
+  membership_ended_on: null,
   created_at: "2026-01-01T00:00:00Z",
 };
 

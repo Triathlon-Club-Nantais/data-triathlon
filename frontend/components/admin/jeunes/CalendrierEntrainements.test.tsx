@@ -53,6 +53,9 @@ const SEANCE: TrainingSession = {
   session_type: "Natation",
   note: "",
   participant_count: 2,
+  group_ids: [],
+  recurrence_id: null,
+  detached: false,
 };
 
 const SEANCE_SANS_CHAMPS: TrainingSession = {
@@ -63,6 +66,9 @@ const SEANCE_SANS_CHAMPS: TrainingSession = {
   session_type: null,
   note: "",
   participant_count: 0,
+  group_ids: [],
+  recurrence_id: null,
+  detached: false,
 };
 
 const DETAIL: TrainingSessionDetail = { ...SEANCE, participants: [] };
