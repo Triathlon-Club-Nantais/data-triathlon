@@ -135,7 +135,7 @@ export type SpaceId = "public" | "encadrement" | "admin";
  */
 export const SPACES: Record<SpaceId, { label: string; home?: string }> = {
   public: { label: "Résultats", home: "/dashboard" },
-  encadrement: { label: "Encadrement" },
+  encadrement: { label: "Encadrement", home: "/encadrement" },
   admin: { label: "Back-office", home: "/admin" },
 };
 

@@ -129,6 +129,7 @@ const SESSION: SessionUser = {
   roles: [],
   groups: [],
   can_administer: false,
+  can_supervise: false,
 };
 
 /** La même session, habilitée. `permissions` est l'unique source (#115). */
@@ -1793,6 +1794,7 @@ describe("AppNav — espaces (#1296)", () => {
   const admin = () => ({
     ...habilite("pending_providers:read", "batch:run", "courses:write"),
     can_administer: true,
+    can_supervise: false,
   });
 
   it("dans l'espace public, ne montre aucun écran d'administration", async () => {
