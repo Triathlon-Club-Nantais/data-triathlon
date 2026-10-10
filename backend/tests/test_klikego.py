@@ -2544,6 +2544,18 @@ def test_mark_duo_heat_types_names_first_duo_labels_as_relay():
     assert all(r.is_relay for r in results)
 
 
+def test_mark_duo_heat_types_mixed_case_names_first_duo_as_relay():
+    """517, 518 tels que publiés : prénoms en casse mixte (#1282)."""
+    results = [_row("GUERIN"), _row("BOUTIER_LAURET"), _row("DURAND")]
+    results[0].athlete_firstname = "/ LE_ROUX Julien / Marc ."
+    results[1].athlete_firstname = "/ PETIT Anne Sophie / Luc ."
+    results[2].athlete_firstname = "Luc"
+
+    klikego._mark_duo_heat(results)
+
+    assert all(r.is_relay for r in results)
+
+
 def test_mark_duo_heat_leaves_isolated_duo_labels_individual():
     """297, 298, 694 : une épreuve individuelle avec un libellé « / » isolé."""
     results = [_row("DUPONT JEAN/MARTIN PAUL ."), _row("DURAND LUC"), _row("PETIT MARC")]
