@@ -17,7 +17,7 @@ import { formatDate } from "@/lib/utils/date";
 import type { TrainingSession } from "@/lib/types";
 
 /**
- * Le détail d'un entraînement : sa correction et sa liste de participants
+ * Le détail d'une séance : sa correction et sa liste de participants
  * (#868). Même patron que `GroupDetailDialog` — la prop fait foi tant que le
  * détail n'est pas arrivé, jamais après.
  */
@@ -44,7 +44,7 @@ export function EntrainementDetailDialog({
   }) {
     try {
       await modifier.mutateAsync({ id: entrainement.id, champs });
-      toast.success("Entraînement modifié.");
+      toast.success("Séance modifiée.");
     } catch (e) {
       toast.error((e as Error).message);
     }
@@ -69,9 +69,9 @@ export function EntrainementDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Entraînement du {formatDate(entrainement.date)}</DialogTitle>
+          <DialogTitle>Séance du {formatDate(entrainement.date)}</DialogTitle>
           <DialogDescription>
             Les jeunes inscrits à cette séance. Une inscription se retire d&apos;un
             clic et se refait tout aussi simplement.

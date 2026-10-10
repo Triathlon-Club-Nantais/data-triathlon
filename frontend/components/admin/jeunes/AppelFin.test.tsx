@@ -48,7 +48,8 @@ describe("AppelFin", () => {
   it("coche un jeune sans écrire aucune donnée", async () => {
     render(<AppelFin participants={PARTICIPANTS} profils={[ALIX, ZOE]} />);
 
-    expect(screen.getByText(/1 jeune restant/i)).toBeInTheDocument();
+    // Le chiffre utile n'est pas plus petit que celui de l'appel de début.
+    expect(screen.getByText(/1 jeune restant/i)).toHaveClass("text-lg");
     await userEvent.click(screen.getByRole("checkbox", { name: /alix martin/i }));
 
     expect(screen.getByText(/tous les jeunes présents/i)).toBeInTheDocument();

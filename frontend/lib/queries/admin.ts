@@ -1137,7 +1137,10 @@ export function useDeleteTrainingSession() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => apiClient.deleteTrainingSession(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.trainingSessions() }),
+    onSuccess: (_donnees, id) => {
+      qc.removeQueries({ queryKey: queryKeys.trainingSession(id) });
+      qc.invalidateQueries({ queryKey: queryKeys.trainingSessions() });
+    },
   });
 }
 
