@@ -8,8 +8,12 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import DomainError, NotFoundError
 from app.models.training_group import TrainingGroup
 from app.models.user import User
-from app.repositories import profile_repository, training_group_repository
-from app.services import profile_service
+from app.repositories import (
+    profile_repository,
+    training_group_repository,
+    training_session_repository,
+)
+from app.services import profile_service, training_session_service
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +80,8 @@ def rename_group(db: Session, actor: User, group: TrainingGroup, *, name: str) -
 
 def delete_group(db: Session, actor: User, group: TrainingGroup) -> None:
     group_id = group.id
+    # Ses membres restent inscrits aux séances existantes (spec, Edge Cases).
+    training_session_repository.make_group_enrolments_manual(db, group_id)
     training_group_repository.delete_group(db, group)
     logger.info("Training group deleted: actor=%s group=%s", actor.id, group_id)
 
@@ -84,9 +90,11 @@ def add_member(db: Session, actor: User, group: TrainingGroup, *, profile_id: in
     if profile_repository.get(db, profile_id) is None:
         raise NotFoundError("Ce profil n'existe pas.")
     _, created = training_group_repository.add_member(db, training_group_id=group.id, profile_id=profile_id)
+    training_session_service.sync_upcoming_sessions_of_group(db, group)
     logger.info("Group member added: actor=%s group=%s profile=%s new=%s", actor.id, group.id, profile_id, created)
 
 
 def remove_member(db: Session, actor: User, group: TrainingGroup, *, profile_id: int) -> None:
     training_group_repository.remove_member(db, training_group_id=group.id, profile_id=profile_id)
+    training_session_service.sync_upcoming_sessions_of_group(db, group)
     logger.info("Group member removed: actor=%s group=%s profile=%s", actor.id, group.id, profile_id)

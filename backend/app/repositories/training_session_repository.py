@@ -5,11 +5,16 @@ La transaction reste portée par le service appelant
 (`services/training_session_service.py`) : on `flush()` pour peupler l'id, on ne
 `commit()` jamais ici — même patron que `group_repository.py`.
 """
-from sqlalchemy import delete, func, select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from datetime import date as date_
 
+from sqlalchemy import delete, func, select
+from sqlalchemy import update as sql_update
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, selectinload
+
+from app.models.training_group import TrainingGroup, TrainingGroupMember
 from app.models.training_participant import TrainingParticipant
+from app.models.training_recurrence import training_session_groups
 from app.models.training_session import TrainingSession
 
 
@@ -27,7 +32,9 @@ def list_all(db: Session) -> list[TrainingSession]:
     """
     return list(
         db.scalars(
-            select(TrainingSession).order_by(
+            select(TrainingSession)
+            .options(selectinload(TrainingSession.groups))
+            .order_by(
                 TrainingSession.date,
                 TrainingSession.start_time.is_(None),
                 TrainingSession.start_time,
@@ -57,6 +64,7 @@ def list_participants(db: Session, training_session_id: int) -> list[TrainingPar
     return list(
         db.scalars(
             select(TrainingParticipant)
+            .options(selectinload(TrainingParticipant.profile))
             .where(TrainingParticipant.training_session_id == training_session_id)
             .order_by(TrainingParticipant.created_at)
         )
@@ -129,7 +137,12 @@ def find_participant(
 
 
 def add_participant(
-    db: Session, *, training_session_id: int, profile_id: int, present: bool | None = None
+    db: Session,
+    *,
+    training_session_id: int,
+    profile_id: int,
+    present: bool | None = None,
+    added_manually: bool = True,
 ) -> tuple[TrainingParticipant, bool]:
     """Inscrit le jeune. Rend `(inscription, créée)` — **idempotent**.
 
@@ -143,9 +156,15 @@ def add_participant(
     second chemin d'écriture (research.md D4). Fourni sur une inscription déjà
     existante, il met aussi à jour son statut : re-pointer quelqu'un déjà
     inscrit reste le même geste, idempotent des deux côtés.
+
+    `added_manually` (#1291) : un ajout manuel d'un jeune déjà inscrit d'office
+    rend l'inscription manuelle ; l'inverse ne la rétrograde jamais.
     """
     inscription = TrainingParticipant(
-        training_session_id=training_session_id, profile_id=profile_id, present=present
+        training_session_id=training_session_id,
+        profile_id=profile_id,
+        present=present,
+        added_manually=added_manually,
     )
     try:
         with db.begin_nested():
@@ -157,7 +176,9 @@ def add_participant(
             raise
         if present is not None:
             existante.present = present
-            db.flush()
+        if added_manually:
+            existante.added_manually = True
+        db.flush()
         return existante, False
     return inscription, True
 
@@ -193,3 +214,55 @@ def remove_participant(db: Session, *, training_session_id: int, profile_id: int
 def delete_participations_of_profile(db: Session, profile_id: int) -> int:
     """Retire toutes les présences d'un profil purgé (#1158)."""
     return db.execute(delete(TrainingParticipant).where(TrainingParticipant.profile_id == profile_id)).rowcount
+
+
+def set_groups(db: Session, training_session: TrainingSession, groups: list[TrainingGroup]) -> None:
+    training_session.groups = groups
+    db.flush()
+
+
+def roll_call_started(db: Session, training_session_id: int) -> bool:
+    """« Appel commencé » : au moins un statut de présence saisi (#1291)."""
+    return db.scalar(
+        select(
+            select(TrainingParticipant.id)
+            .where(
+                TrainingParticipant.training_session_id == training_session_id,
+                TrainingParticipant.present.is_not(None),
+            )
+            .exists()
+        )
+    )
+
+
+def list_upcoming_targeting_group(db: Session, training_group_id: int, *, today: date_) -> list[TrainingSession]:
+    return list(
+        db.scalars(
+            select(TrainingSession)
+            .join(training_session_groups, training_session_groups.c.training_session_id == TrainingSession.id)
+            .where(training_session_groups.c.training_group_id == training_group_id, TrainingSession.date >= today)
+        )
+    )
+
+
+def make_group_enrolments_manual(db: Session, training_group_id: int) -> None:
+    """Avant la suppression d'un groupe : ses inscriptions d'office deviennent
+    manuelles, pour qu'aucune resynchronisation ultérieure ne les retire."""
+    db.execute(
+        sql_update(TrainingParticipant)
+        .where(
+            TrainingParticipant.added_manually.is_(False),
+            TrainingParticipant.training_session_id.in_(
+                select(training_session_groups.c.training_session_id).where(
+                    training_session_groups.c.training_group_id == training_group_id
+                )
+            ),
+            TrainingParticipant.profile_id.in_(
+                select(TrainingGroupMember.profile_id).where(
+                    TrainingGroupMember.training_group_id == training_group_id
+                )
+            ),
+        )
+        .values(added_manually=True)
+        .execution_options(synchronize_session="fetch")
+    )

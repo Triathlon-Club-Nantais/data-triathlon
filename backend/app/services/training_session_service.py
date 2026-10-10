@@ -8,13 +8,20 @@ Depuis le merge de #867 dans `epic/863-jeunes`, `profile_id` référence
 Python ci-dessous — cf. `_ensure_profile_exists`).
 """
 import logging
+from datetime import date as date_
 
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import NotFoundError
+from app.models.training_group import TrainingGroup
 from app.models.training_session import TrainingSession
 from app.models.user import User
-from app.repositories import profile_repository, training_session_repository
+from app.repositories import (
+    profile_repository,
+    training_group_repository,
+    training_session_repository,
+)
+from app.services.fftri_category import fftri_category
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +57,9 @@ def training_session_view(training_session: TrainingSession, participant_count: 
         "session_type": training_session.session_type,
         "note": training_session.note,
         "participant_count": participant_count,
+        "group_ids": [group.id for group in training_session.groups],
+        "recurrence_id": training_session.recurrence_id,
+        "detached": training_session.detached,
     }
 
 
@@ -61,6 +71,8 @@ def training_session_detail_view(db: Session, training_session: TrainingSession)
             {
                 "profile_id": participant.profile_id,
                 "present": participant.present,
+                "added_manually": participant.added_manually,
+                "category": fftri_category(participant.profile.birth_date, date_.today()),
                 "created_at": participant.created_at,
             }
             for participant in participants
@@ -69,8 +81,8 @@ def training_session_detail_view(db: Session, training_session: TrainingSession)
 
 
 def list_training_session_views(db: Session) -> list[dict]:
-    """Toute la liste du calendrier en deux requêtes, quel que soit le nombre
-    de séances : les séances, puis leurs comptes d'inscrits agrégés."""
+    """Toute la liste du calendrier en trois requêtes, quel que soit le nombre
+    de séances : les séances et leurs groupes, puis leurs comptes d'inscrits agrégés."""
     training_sessions = training_session_repository.list_all(db)
     comptes = training_session_repository.count_participants_by_training_session(
         db, [training_session.id for training_session in training_sessions]
@@ -81,6 +93,46 @@ def list_training_session_views(db: Session) -> list[dict]:
     ]
 
 
+def groups_or_404(db: Session, group_ids: list[int]) -> list[TrainingGroup]:
+    groups = training_group_repository.list_by_ids(db, group_ids)
+    if len(groups) != len(set(group_ids)):
+        raise NotFoundError("Ce groupe n'existe pas.")
+    return groups
+
+
+def sync_group_enrolment(db: Session, training_session: TrainingSession) -> None:
+    """La règle unique de l'inscription d'office (#1291, research R3).
+
+    Sur une séance à venir dont l'appel n'a pas commencé : inscrit les membres
+    actifs des groupes visés qui manquent, désinscrit les inscrits d'office
+    qui n'en font plus partie. Une inscription manuelle n'est jamais retirée.
+    """
+    if training_session.date < date_.today() or training_session_repository.roll_call_started(
+        db, training_session.id
+    ):
+        return
+    wanted = training_group_repository.active_member_ids(
+        db, [group.id for group in training_session.groups], on=training_session.date
+    )
+    enrolled = training_session_repository.list_participants(db, training_session.id)
+    for profile_id in wanted - {participant.profile_id for participant in enrolled}:
+        training_session_repository.add_participant(
+            db, training_session_id=training_session.id, profile_id=profile_id, added_manually=False
+        )
+    for participant in enrolled:
+        if not participant.added_manually and participant.profile_id not in wanted:
+            training_session_repository.remove_participant(
+                db, training_session_id=training_session.id, profile_id=participant.profile_id
+            )
+
+
+def sync_upcoming_sessions_of_group(db: Session, group: TrainingGroup) -> None:
+    for training_session in training_session_repository.list_upcoming_targeting_group(
+        db, group.id, today=date_.today()
+    ):
+        sync_group_enrolment(db, training_session)
+
+
 def create_training_session(
     db: Session,
     actor: User,
@@ -89,13 +141,16 @@ def create_training_session(
     start_time=None,
     location: str | None = None,
     session_type: str | None = None,
+    group_ids: list[int] | None = None,
 ) -> TrainingSession:
-    """Crée un entraînement. Il naît sans participant, note vide (`""`) — la
-    note de séance (#869) s'ajoute après coup via `update_training_session`,
-    jamais à la création."""
+    """Crée un entraînement, note vide (`""`) : la note de séance (#869)
+    s'ajoute après coup. Les membres des groupes visés y sont inscrits d'office."""
+    groups = groups_or_404(db, group_ids or [])
     training_session = training_session_repository.create(
         db, date=date, start_time=start_time, location=location, session_type=session_type
     )
+    training_session_repository.set_groups(db, training_session, groups)
+    sync_group_enrolment(db, training_session)
     logger.info(
         "Training session created: actor=%s training_session=%s date=%s", actor.id, training_session.id, date
     )
@@ -112,8 +167,12 @@ def update_training_session(
     location=...,
     session_type=...,
     note=...,
+    group_ids: list[int] | None = None,
 ) -> TrainingSession:
-    """Corrige un entraînement. Seuls les champs fournis sont écrits."""
+    """Corrige un entraînement. Seuls les champs fournis sont écrits ;
+    `group_ids` absent laisse les groupes visés inchangés."""
+    if group_ids is not None:
+        training_session_repository.set_groups(db, training_session, groups_or_404(db, group_ids))
     training_session_repository.update(
         db,
         training_session,
@@ -123,6 +182,7 @@ def update_training_session(
         session_type=session_type,
         note=note,
     )
+    sync_group_enrolment(db, training_session)
     logger.info("Training session updated: actor=%s training_session=%s", actor.id, training_session.id)
     return training_session
 

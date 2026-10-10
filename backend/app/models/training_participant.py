@@ -66,3 +66,4 @@ class TrainingParticipant(Base):
     training_session: Mapped["TrainingSession"] = relationship(  # noqa: F821
         back_populates="participants"
     )
+    profile: Mapped["PersonalProfile"] = relationship()  # noqa: F821
