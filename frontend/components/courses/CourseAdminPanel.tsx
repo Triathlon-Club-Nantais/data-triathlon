@@ -1,11 +1,15 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Button, Input, Modal } from "@/components/tcn";
+import { Input, Modal } from "@/components/tcn";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,7 +29,7 @@ import type { CourseBrief } from "@/lib/types";
  * Les gestes d'administration d'une épreuve, depuis sa fiche publique (#1244).
  * Chargé à la demande par `CourseAdminActions`, une fois un pouvoir établi.
  *
- * Chaque bouton teste **son** pouvoir, celui de la route qu'il appelle : la
+ * Chaque entrée du menu « Gérer l'épreuve » teste **son** pouvoir, celui de la route qu'il appelle : la
  * fusion en exige deux (`courses:sources` et `courses:delete`, deux `Depends`
  * côté backend). Les fenêtres sont celles du back-office, réutilisées telles
  * quelles ; seul leur dénouement change, la page étant rendue côté serveur :
@@ -68,34 +72,40 @@ export function CourseAdminPanel({
 
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-      {canEdit && (
-        <Button size="sm" variant="secondary" onClick={() => setEditOpen(true)}>
-          Corriger l&apos;épreuve
-        </Button>
-      )}
-      {canReview && (
+      {(canEdit || canReview || canMerge || canDelete) && (
         <DropdownMenu>
           <DropdownMenuTrigger className="tcn-btn tcn-btn--sm tcn-btn--secondary">
-            Avis de fiabilité
+            Gérer l&apos;épreuve
           </DropdownMenuTrigger>
           <DropdownMenuContent>
-            <DropdownMenuItem onClick={() => setVerdict("fiable")}>Marquer fiable</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setVerdict("douteuse")}>Marquer douteuse</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setVerdict("calcule")}>
-              Revenir à l&apos;avis calculé
-            </DropdownMenuItem>
+            {canEdit && (
+              <DropdownMenuItem onClick={() => setEditOpen(true)}>Corriger l&apos;épreuve</DropdownMenuItem>
+            )}
+            {canReview && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>Avis de fiabilité</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem onClick={() => setVerdict("fiable")}>Marquer fiable</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setVerdict("douteuse")}>Marquer douteuse</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setVerdict("calcule")}>
+                    Revenir à l&apos;avis calculé
+                  </DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
+            {(canMerge || canDelete) && (canEdit || canReview) && <DropdownMenuSeparator />}
+            {canMerge && (
+              <DropdownMenuItem variant="destructive" onClick={() => setSearchOpen(true)}>
+                Fusionner avec une autre épreuve
+              </DropdownMenuItem>
+            )}
+            {canDelete && (
+              <DropdownMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}>
+                Supprimer l&apos;épreuve
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
-      )}
-      {canMerge && (
-        <Button size="sm" variant="destructive" onClick={() => setSearchOpen(true)}>
-          Fusionner avec une autre épreuve
-        </Button>
-      )}
-      {canDelete && (
-        <Button size="sm" variant="destructive" onClick={() => setDeleteOpen(true)}>
-          Supprimer l&apos;épreuve
-        </Button>
       )}
 
       {editOpen && (

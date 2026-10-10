@@ -222,6 +222,10 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `CourseAdminActions` n'est que la garde de pouvoir : le panneau
   (`CourseAdminPanel`) et ses quatre fenêtres se chargent en `next/dynamic`
   derrière elle, rien n'est téléchargé pour un visiteur sans pouvoir.
+  Ils se rangent sous un seul menu « Gérer l'épreuve » (#1301), chaque entrée
+  sous son pouvoir, la fusion et la suppression en `variant="destructive"` :
+  quatre boutons côte à côte repoussaient le classement sous la ligne de
+  flottaison sur mobile.
 - **Gardes d'écriture du back-office** (#496) — un contrôle qui écrit teste
   **son** code de pouvoir avant de se rendre, jamais celui qui a ouvert l'écran :
   `session.data?.permissions.includes("x:y") ?? false`, puis `{peutX && …}`. Six
