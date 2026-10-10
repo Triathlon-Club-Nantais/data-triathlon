@@ -56,10 +56,10 @@
 - [X] T025 [US2] Appeler la resynchronisation des séances concernées après ajout et retrait de membre dans backend/app/services/training_group_service.py, test dans backend/tests/test_services/test_training_group_service.py
 - [X] T026 [P] [US2] Écrire les tests d'API séances (`group_ids` à la création et au PATCH, `added_manually` et `category` sur les participants, `group_ids` absent au PATCH = inchangé) dans backend/tests/test_api/test_admin_training_sessions.py
 - [X] T027 [US2] Étendre les schémas et routes de backend/app/api/v1/admin_training_sessions.py et les vues de backend/app/services/training_session_service.py
-- [ ] T028 [P] [US2] Écrire les tests du sélecteur de groupes et de la fenêtre de séance (choix multiple, inscrits mis à jour après enregistrement) dans frontend/components/admin/jeunes/EntrainementDetailDialog.test.tsx
-- [ ] T029 [US2] Implémenter frontend/components/admin/jeunes/GroupesPicker.tsx et l'utiliser dans frontend/components/admin/jeunes/EntrainementForm.tsx et frontend/components/admin/jeunes/EntrainementDetailDialog.tsx (utilisable à 375 px)
-- [ ] T030 [P] [US2] Écrire les tests de la création rapide de la séance du jour avec choix des groupes (FR-019) dans frontend/app/admin/jeunes/appel/page.test.tsx
-- [ ] T031 [US2] Proposer les groupes dans la création de la séance du jour sur frontend/app/admin/jeunes/appel/page.tsx
+- [X] T028 [P] [US2] Écrire les tests du sélecteur de groupes et de la fenêtre de séance (choix multiple, inscrits mis à jour après enregistrement) dans frontend/components/admin/jeunes/EntrainementDetailDialog.test.tsx
+- [X] T029 [US2] Implémenter frontend/components/admin/jeunes/GroupesPicker.tsx et l'utiliser dans frontend/components/admin/jeunes/EntrainementForm.tsx et frontend/components/admin/jeunes/EntrainementDetailDialog.tsx (utilisable à 375 px)
+- [X] T030 [P] [US2] Écrire les tests de la création rapide de la séance du jour avec choix des groupes (FR-019) dans frontend/app/admin/jeunes/appel/page.test.tsx
+- [X] T031 [US2] Proposer les groupes dans la création de la séance du jour sur frontend/app/admin/jeunes/appel/page.tsx
 
 **Checkpoint**: US1 et US2 utilisables ; SC-001 vérifiable.
 

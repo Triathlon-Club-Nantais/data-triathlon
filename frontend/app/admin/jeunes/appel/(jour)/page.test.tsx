@@ -1,16 +1,19 @@
 import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { TrainingSession, SessionUser } from "@/lib/types";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-const { replace, listTrainingSessions, createTrainingSession, getSession } = vi.hoisted(() => ({
-  replace: vi.fn(),
-  listTrainingSessions: vi.fn(),
-  createTrainingSession: vi.fn(),
-  getSession: vi.fn(),
-}));
+const { replace, listTrainingSessions, createTrainingSession, getSession, listTrainingGroups } = vi.hoisted(
+  () => ({
+    replace: vi.fn(),
+    listTrainingSessions: vi.fn(),
+    createTrainingSession: vi.fn(),
+    getSession: vi.fn(),
+    listTrainingGroups: vi.fn(),
+  }),
+);
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
@@ -19,7 +22,10 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { listTrainingSessions, createTrainingSession, getSession } };
+  return {
+    ...original,
+    apiClient: { listTrainingSessions, createTrainingSession, getSession, listTrainingGroups },
+  };
 });
 
 import { ApiError } from "@/lib/api/client";
@@ -71,6 +77,7 @@ describe("AdminJeuneAppelDuJourPage", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2026, 8, 24, 16, 0));
     getSession.mockResolvedValue(session(["jeunes:read", "jeunes:write"]));
+    listTrainingGroups.mockResolvedValue([]);
   });
 
   it("ne propose pas de créer la séance du jour pendant une relance suspendue (#1290)", async () => {
@@ -141,5 +148,23 @@ describe("AdminJeuneAppelDuJourPage", () => {
     expect(
       screen.queryByRole("button", { name: /créer la séance du jour/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("crée la séance du jour pour les groupes choisis (#1291)", async () => {
+    listTrainingSessions.mockResolvedValue([]);
+    listTrainingGroups.mockResolvedValue([
+      { id: 7, name: "Benjamins", member_count: 3 },
+      { id: 8, name: "Minimes", member_count: 2 },
+    ]);
+    createTrainingSession.mockResolvedValue({ ...seance(12), participants: [] });
+
+    afficher();
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Benjamins" }));
+    fireEvent.click(screen.getByRole("button", { name: /créer la séance du jour/i }));
+
+    await waitFor(() =>
+      expect(createTrainingSession).toHaveBeenCalledWith({ date: AUJOURDHUI, group_ids: [7] }),
+    );
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/admin/jeunes/appel/12"));
   });
 });
