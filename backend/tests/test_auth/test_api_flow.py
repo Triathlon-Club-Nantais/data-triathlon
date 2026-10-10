@@ -85,6 +85,34 @@ def test_le_callback_nominal_ouvre_une_session(client, doublure, db_session):
     assert state_cookie_name(settings) not in client.cookies
 
 
+def test_le_callback_mene_un_encadrant_a_l_espace_encadrement(
+    client, doublure, db_session, ouvrir_session
+):
+    from app.repositories import identity_repository
+
+    user = ouvrir_session(P.JEUNES_READ, pose_le_cookie=False)
+    identite = doublure.identite
+    identity_repository.create(
+        db_session,
+        user_id=user.id,
+        provider=identite.provider,
+        subject=identite.subject,
+        email=identite.email,
+    )
+    db_session.commit()
+    _authorize(client)
+    charge = state.read(_state_cookie(client))
+
+    reponse = client.get(
+        f"/api/v1/auth/doublure/callback?code=code-1&state={charge.state}",
+        follow_redirects=False,
+    )
+
+    assert reponse.headers["location"] == (
+        f"{get_settings().auth_redirect_base_url}/encadrement"
+    )
+
+
 def test_le_callback_sans_cookie_d_etat_redirige_vers_login(client, doublure):
     reponse = client.get(
         "/api/v1/auth/doublure/callback?code=code-1&state=inventé",
