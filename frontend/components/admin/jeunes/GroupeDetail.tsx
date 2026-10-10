@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -44,11 +44,6 @@ export function GroupeDetail({
   const ajouter = useAddTrainingGroupMember();
   const retirer = useRemoveTrainingGroupMember();
   const confirmer = useDangerConfirm();
-  const [nom, setNom] = useState("");
-
-  useEffect(() => {
-    if (data) setNom(data.name);
-  }, [data]);
 
   const membres = data?.members ?? [];
   const idsMembres = new Set(membres.map((membre) => membre.id));
@@ -102,23 +97,14 @@ export function GroupeDetail({
         ) : (
           <div className="space-y-4">
             {peutEcrire && (
-              <form
-                className="flex items-end gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (nom.trim()) {
-                    agir(() => renommer.mutateAsync({ id: groupId, name: nom.trim() }), "Groupe renommé.");
-                  }
-                }}
-              >
-                <div className="min-w-0 flex-1 space-y-1.5">
-                  <Label htmlFor="groupe-renommer">Nom</Label>
-                  <Input id="groupe-renommer" required value={nom} onChange={(e) => setNom(e.target.value)} />
-                </div>
-                <Button type="submit" variant="outline" disabled={renommer.isPending}>
-                  Renommer
-                </Button>
-              </form>
+              <Renommer
+                key={data.name}
+                nomActuel={data.name}
+                enCours={renommer.isPending}
+                renommer={(nom) =>
+                  agir(() => renommer.mutateAsync({ id: groupId, name: nom }), "Groupe renommé.")
+                }
+              />
             )}
 
             {peutEcrire && (
@@ -194,5 +180,35 @@ export function GroupeDetail({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Remonté à chaque nom serveur (`key`), il repart du nom à jour sans effet de synchronisation. */
+function Renommer({
+  nomActuel,
+  enCours,
+  renommer,
+}: {
+  nomActuel: string;
+  enCours: boolean;
+  renommer: (nom: string) => void;
+}) {
+  const [nom, setNom] = useState(nomActuel);
+  return (
+    <form
+      className="flex items-end gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (nom.trim()) renommer(nom.trim());
+      }}
+    >
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <Label htmlFor="groupe-renommer">Nom</Label>
+        <Input id="groupe-renommer" required value={nom} onChange={(e) => setNom(e.target.value)} />
+      </div>
+      <Button type="submit" variant="outline" disabled={enCours}>
+        Renommer
+      </Button>
+    </form>
   );
 }
