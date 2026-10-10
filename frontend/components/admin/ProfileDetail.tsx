@@ -15,6 +15,7 @@ import { formatDate, localToday } from "@/lib/utils/date";
 import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { calculerAge } from "@/lib/utils/age";
 import { profilePurgeDate } from "@/lib/utils/season";
+import { trouverTelephone } from "@/lib/utils/telephone";
 
 const REFUS = { sujet: "jeunes", action: "consulter ce profil" };
 
@@ -201,7 +202,7 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
           <>
             <div>
               <span className="font-medium">Contact d&apos;urgence : </span>
-              {data.emergency_contact || "—"}
+              <ContactUrgence texte={data.emergency_contact} />
             </div>
             <div>
               <span className="font-medium">Notes : </span>
@@ -264,5 +265,24 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
         )}
       </Card>
     </div>
+  );
+}
+
+/** Au bord du bassin, un numéro se compose d'un geste plutôt que de se recopier (#1290). */
+function ContactUrgence({ texte }: { texte: string }) {
+  if (!texte) return <>—</>;
+  const telephone = trouverTelephone(texte);
+  if (!telephone) return <>{texte}</>;
+  return (
+    <>
+      {texte.slice(0, telephone.debut)}
+      <a
+        href={telephone.href}
+        className="font-semibold text-accent-ink underline underline-offset-2"
+      >
+        {texte.slice(telephone.debut, telephone.fin)}
+      </a>
+      {texte.slice(telephone.fin)}
+    </>
   );
 }
