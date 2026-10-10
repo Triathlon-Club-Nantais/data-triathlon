@@ -26,6 +26,7 @@ from bs4 import BeautifulSoup
 from defusedxml.ElementTree import fromstring as parse_xml
 
 from app.core import http
+from app.core.athlete_identity import athlete_identity_keys
 from app.core.youth import is_youth
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, FanoutTrace, ScrapedResult
@@ -745,11 +746,14 @@ def _attach_teammates(teams: list[ScrapedResult], members: list[ScrapedResult]) 
         if not all(m.athlete_name and m.athlete_firstname for m in equipiers):
             continue
         # Un équipier de plusieurs relais figure une fois par relais dans le jumeau
-        # (#1283) : il ne compte qu'une fois, à sa première place.
-        distincts: dict[tuple[str, str], tuple[str, str]] = {}
+        # (#1283) : il ne compte qu'une fois, à sa première place, sous la clé
+        # d'identité de l'import (FR-010).
+        distincts: dict[tuple[str | None, str | None], tuple[str, str]] = {}
         for m in equipiers:
-            pair = (m.athlete_name, m.athlete_firstname)
-            distincts.setdefault(tuple(" ".join(strip_accents(p).lower().split()) for p in pair), pair)
+            distincts.setdefault(
+                athlete_identity_keys(m.athlete_name, m.athlete_firstname),
+                (m.athlete_name, m.athlete_firstname),
+            )
         if MIN_RELAY_TEAMMATES <= len(distincts) <= MAX_RELAY_TEAMMATES:
             team.teammates = tuple(distincts.values())
 
