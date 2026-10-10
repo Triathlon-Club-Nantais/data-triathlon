@@ -268,7 +268,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             alignItems: "center",
             justifyContent: expanded ? "flex-start" : "center",
             gap: expanded ? 10 : 4,
-            height: expanded ? 68 : 112,
+            minHeight: 68,
             padding: expanded ? "0 14px" : "8px 0",
             borderBottom: "1px solid var(--tcn-border-faint)",
           }}
