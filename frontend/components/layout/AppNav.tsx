@@ -156,14 +156,20 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   const espace = spaceOf(pathname);
   const sections = toutesSections.filter((s) => s.space === espace);
 
-  // Barre basse mobile (#482, NAV-4) : ses onglets sont déclarés dans
-  // `nav.config.ts` (`bottomBar`, #1300), visibles pour tous, donc identiques
-  // avant et après la lecture de la session. Ils viennent des sections
-  // publiques, quel que soit l'espace courant.
-  const barreItems = toutesSections
-    .filter((s) => s.space === "public")
+  // Barre basse mobile (#482, NAV-4) : les onglets de l'espace courant,
+  // déclarés dans `nav.config.ts` (`bottomBar`). Ceux de l'espace public sont
+  // visibles pour tous, donc identiques avant et après la session (#1300).
+  // Le back-office ouvre sur son sommaire, qui porte le total « À traiter ».
+  // `/admin` existe pour tout compte qui administre, même sans entrée visible.
+  const compteurAdmin = toutesSections
     .flatMap((s) => s.items)
-    .filter((i) => i.bottomBar);
+    .filter((i) => i.group === TO_HANDLE && i.count !== undefined);
+  const countAdmin = compteurAdmin.length > 0 ? compteurAdmin.reduce((somme, i) => somme + (i.count ?? 0), 0) : undefined;
+  const ongletsEspace = sections.flatMap((s) => s.items).filter((i) => i.bottomBar);
+  const barreItems: Destination[] =
+    espace === "admin"
+      ? [{ id: "sommaire", label: "Sommaire", href: "/admin", icon: Briefcase, badge: "backoffice", count: countAdmin }, ...ongletsEspace]
+      : ongletsEspace;
   const dansLaBarre = new Set(barreItems.map((i) => i.id));
 
   // Le tiroir porte « le reste » de l'espace courant : tout ce que la barre ne
@@ -179,11 +185,6 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // fois le tiroir ouvert par le hamburger ou « Plus ». Seul cas de doublon avec la barre.
   const sectionsRepli = sectionsReste.length > 0 ? sectionsReste : sections;
 
-  // `/admin` existe pour tout compte qui administre, même sans entrée visible.
-  const compteurAdmin = toutesSections
-    .flatMap((s) => s.items)
-    .filter((i) => i.group === TO_HANDLE && i.count !== undefined);
-  const countAdmin = compteurAdmin.length > 0 ? compteurAdmin.reduce((somme, i) => somme + (i.count ?? 0), 0) : undefined;
   const espacesOuverts: SwitcherSpace[] = (Object.keys(SPACES) as SpaceId[])
     .filter((id) => id === "admin" ? Boolean(session?.can_administer) : toutesSections.some((s) => s.space === id))
     .map((id) => ({
@@ -463,7 +464,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
         </Link>
       </header>
 
-      {/* ── Barre basse mobile — les destinations publiques (#482, NAV-4) ── */}
+      {/* ── Barre basse mobile — les onglets de l'espace courant (#482, NAV-4) ── */}
       <nav
         aria-label="Navigation"
         className="fixed inset-x-0 bottom-0 z-30 flex md:hidden"
@@ -487,6 +488,9 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               {actif && <span data-trait-actif style={traitOnglet} />}
               {Icon && <Icon size={20} />}
               <span>{it.labelCourt ?? it.label}</span>
+              {!!it.count && it.badge && (
+                <PastilleOnglet count={it.count} annonce={it.labelCourt ? undefined : libelleCompteur(it.badge, it.count)} />
+              )}
             </Link>
           );
         })}
@@ -1085,11 +1089,13 @@ const carrePrimaire: CSSProperties = {
  * visible (WCAG 2.5.3), sans quoi la commande vocale « Accueil » ne trouve rien.
  * Le libellé complet suffit quand il commence déjà par le court.
  */
-function nomAccessibleOnglet(item: Pick<NavItem, "label" | "labelCourt">): string | undefined {
-  const { label, labelCourt } = item;
+function nomAccessibleOnglet(item: Pick<NavItem, "label" | "labelCourt" | "badge"> & { count?: number }): string | undefined {
+  const { label, labelCourt, badge, count } = item;
   if (!labelCourt) return undefined;
-  if (label.toLocaleLowerCase("fr").startsWith(labelCourt.toLocaleLowerCase("fr"))) return label;
-  return `${labelCourt}, ${label.charAt(0).toLocaleLowerCase("fr")}${label.slice(1)}`;
+  const nom = label.toLocaleLowerCase("fr").startsWith(labelCourt.toLocaleLowerCase("fr"))
+    ? label
+    : `${labelCourt}, ${label.charAt(0).toLocaleLowerCase("fr")}${label.slice(1)}`;
+  return count && badge ? `${nom}, ${libelleCompteur(badge, count)}` : nom;
 }
 
 /** Trait de l'onglet courant, pendant horizontal de `barreActive` du rail :
@@ -1103,6 +1109,34 @@ const traitOnglet: CSSProperties = {
   borderRadius: "0 0 3px 3px",
   background: "var(--tcn-orange)",
 };
+
+/** Pastille de compteur d'un onglet : décorative, le nom accessible est le texte `sr-only`. */
+function PastilleOnglet({ count, annonce }: { count: number; annonce?: string }) {
+  return (
+    <>
+      <span
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          top: 4,
+          left: "calc(50% + 6px)",
+          minWidth: 16,
+          padding: "0 4px",
+          borderRadius: "var(--tcn-radius-pill)",
+          background: "var(--tcn-orange-deep)",
+          color: "#fff",
+          fontSize: 11,
+          fontWeight: 700,
+          lineHeight: "16px",
+          textAlign: "center",
+        }}
+      >
+        {count}
+      </span>
+      {annonce && <span className="sr-only">{annonce}</span>}
+    </>
+  );
+}
 
 /** Onglet de la barre basse mobile, lien ou bouton « Plus » (#1012). */
 function ongletBarre(actif: boolean): CSSProperties {
