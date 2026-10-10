@@ -102,6 +102,12 @@ export type NavItem = {
    */
   badge?: string;
   /**
+   * Onglet de la barre basse mobile (#1300). Déclaré, jamais calculé sur le
+   * profil : un onglet qui dépend des pouvoirs change de place quand la
+   * session arrive. Réservé à une destination visible pour tous.
+   */
+  bottomBar?: boolean;
+  /**
    * Sous-section d'« Administration » (#1246), rendue en intertitre par le
    * rail et le sommaire `/admin`. Les entrées d'un même groupe se suivent
    * dans la table : c'est leur ordre qui fait celui des intertitres.
@@ -140,8 +146,8 @@ export const NAV: NavSection[] = [
     minRole: ROLE.ANON,
     root: true,
     items: [
-      { id: "dashboard", label: "Tableau de bord", labelCourt: "Accueil", href: "/dashboard", icon: LayoutGrid },
-      { id: "resultats", label: "Résultats", href: "/resultats", icon: List },
+      { id: "dashboard", label: "Tableau de bord", labelCourt: "Accueil", href: "/dashboard", icon: LayoutGrid, bottomBar: true },
+      { id: "resultats", label: "Résultats", href: "/resultats", icon: List, bottomBar: true },
       // `MapView.tsx` existe déjà, et la route `/carte` répond déjà en
       // direct : `soon` ne masque que l'entrée du rail (#10, #28), pas la
       // page. `pages:preview` (#811) la débloque en avant-première, pour un
@@ -159,7 +165,7 @@ export const NAV: NavSection[] = [
       // entrée pour les deux, pas une par bloc. `Gauge` et non `Trophy` — ce
       // dernier est le glyphe du podium scratch (`lib/podium-scope.tsx`), rendu
       // par `PodiumsList` sur cet écran même.
-      { id: "vueclub", label: "Espace club", href: "/club", icon: Gauge },
+      { id: "vueclub", label: "Espace club", href: "/club", icon: Gauge, bottomBar: true },
       { id: "stats", label: "Statistiques", soon: true },
       // Page dédiée, distincte de « Espace club » (#274) : liste nominative
       // par saison, pas une synthèse.
@@ -188,6 +194,7 @@ export const NAV: NavSection[] = [
         href: "/benevoles",
         icon: UserCheck,
         badge: "validation",
+        bottomBar: true,
       },
     ],
   },

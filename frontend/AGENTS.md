@@ -495,10 +495,10 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `localStorage` relu au montage — la seule exception documentée au refus de
   miroir cookie de #467, parce que le besoin serveur y est authentique et
   qu'aucun `fetch()` vers `/api/v1` n'est concerné. Sous `md`, une barre
-  basse fixe porte **au plus `BOTTOM_BAR_MAX` (4) destinations** dont
-  `minRole === ROLE.ANON`, visibles pour le profil et prises dans l'ordre de
-  `nav.config.ts` (calculées, jamais en dur), puis un onglet « Plus » qui
-  ouvre le tiroir s'il reste quoi que ce soit à y voir (#1012 : sept onglets à
+  basse fixe porte les destinations marquées `bottomBar` dans `nav.config.ts` (#1300 : quatre,
+  visibles pour tous, donc identiques avant et après la lecture de la session ;
+  `nav.config.test.ts` borne leur nombre à `BOTTOM_BAR_MAX`), puis un onglet
+  « Plus », toujours présent, qui ouvre le tiroir (#1012 : sept onglets à
   375 px repliaient leurs libellés sur deux lignes ; cinq au plus tiennent sur
   une ligne, ~75 px chacun). Un `labelCourt` change le **texte visible**, et le
   nom accessible **commence par lui** (WCAG 2.5.3, commande vocale) : `label`
@@ -513,8 +513,7 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   visiteur dont la barre porte tout (anonyme, ou adhérent sans pouvoir) se
   retrouvait sans aucune destination à l'écran une fois le tiroir ouvert par
   le hamburger. `sectionsTiroir` (`AppNav.tsx`) retombe alors sur l'ensemble
-  des sections ; c'est le seul cas de doublon avec la barre, et le seul où
-  « Plus » n'apparaît pas. Le
+  des sections ; c'est le seul cas de doublon avec la barre. Le
   pied du tiroir ne ferme plus au clic : `UserMenu` ferme lui-même via
   `onNavigate`, au moment où la navigation a réellement lieu (immédiat pour la
   connexion, après le succès de la mutation pour la déconnexion) — jamais au
