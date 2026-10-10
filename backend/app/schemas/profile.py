@@ -43,6 +43,9 @@ class ProfileRead(BaseModel):
     first_name: str
     last_name: str
     birth_date: date | None
+    #: Catégorie d'âge FFTri de la saison en cours (#1291) ; `None` sans date de naissance.
+    category: str | None
+    membership_ended_on: date | None
     created_at: datetime
 
     @field_serializer("created_at")
@@ -50,12 +53,17 @@ class ProfileRead(BaseModel):
         return f"{value.isoformat()}Z"
 
 
+class ProfileGroupRead(BaseModel):
+    id: int
+    name: str
+
+
 class ProfileDetailRead(ProfileRead):
     """Un profil et son journal — la ressource qui justifie l'objet entier."""
 
     emergency_contact: str
     notes: str
-    membership_ended_on: date | None
+    groups: list[ProfileGroupRead]
     log_entries: list[ProfileLogEntryRead]
 
 

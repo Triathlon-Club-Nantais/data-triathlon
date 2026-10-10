@@ -30,12 +30,12 @@
 
 - [X] T009 [P] [US1] Écrire les tests du dépôt (liste triée par nom avec nombre de membres, ajout idempotent, retrait, groupes d'un profil) dans backend/tests/test_repositories/test_training_group_repository.py
 - [X] T010 [US1] Implémenter backend/app/repositories/training_group_repository.py
-- [ ] T011 [P] [US1] Écrire les tests du service (nom vide ou déjà pris refusé en `DomainError` français, profil absent en 404, suppression qui laisse en place les inscriptions déjà produites) dans backend/tests/test_services/test_training_group_service.py
-- [ ] T012 [US1] Implémenter backend/app/services/training_group_service.py (sans la resynchronisation, ajoutée en US2)
-- [ ] T013 [P] [US1] Écrire les tests d'API (gardes 401/403 lecture et écriture, contrat de contracts/api.md section Groupes) dans backend/tests/test_api/test_admin_training_groups.py
-- [ ] T014 [US1] Implémenter backend/app/api/v1/admin_training_groups.py et l'enregistrer dans backend/app/api/v1/router.py
-- [ ] T015 [P] [US1] Écrire les tests des vues profil (`category` dans `ProfileRead`, `groups` dans `ProfileDetailRead`) dans backend/tests/test_auth/test_admin_profiles_api.py
-- [ ] T016 [US1] Étendre `profile_view` et `profile_detail_view` dans backend/app/services/profile_service.py et les schémas de réponse de backend/app/api/v1/admin_profiles.py
+- [X] T011 [P] [US1] Écrire les tests du service (nom vide ou déjà pris refusé en `DomainError` français, profil absent en 404, suppression qui laisse en place les inscriptions déjà produites) dans backend/tests/test_services/test_training_group_service.py
+- [X] T012 [US1] Implémenter backend/app/services/training_group_service.py (sans la resynchronisation, ajoutée en US2)
+- [X] T013 [P] [US1] Écrire les tests d'API (gardes 401/403 lecture et écriture, contrat de contracts/api.md section Groupes) dans backend/tests/test_api/test_admin_training_groups.py
+- [X] T014 [US1] Implémenter backend/app/api/v1/admin_training_groups.py et l'enregistrer dans backend/app/api/v1/router.py
+- [X] T015 [P] [US1] Écrire les tests des vues profil (`category` dans `ProfileRead`, `groups` dans `ProfileDetailRead`) dans backend/tests/test_auth/test_admin_profiles_api.py
+- [X] T016 [US1] Étendre `profile_view` et `profile_detail_view` dans backend/app/services/profile_service.py et les schémas de réponse de backend/app/api/v1/admin_profiles.py
 - [ ] T017 [P] [US1] Ajouter types et appels API (groupes, `category`, `groups`) dans frontend/lib/types.ts et frontend/lib/api/client.ts
 - [ ] T018 [P] [US1] Écrire les tests de l'écran groupes (liste, création, renommage refusé, suppression confirmée par `useDangerConfirm`, lecture seule sans `jeunes:write`, état d'erreur distinct de l'état vide) dans frontend/components/admin/jeunes/GroupesList.test.tsx
 - [ ] T019 [US1] Implémenter frontend/components/admin/jeunes/GroupesList.tsx, frontend/components/admin/jeunes/GroupeDetail.tsx et la page frontend/app/admin/jeunes/groupes/page.tsx (mobile-first, 375 px sans défilement horizontal)
