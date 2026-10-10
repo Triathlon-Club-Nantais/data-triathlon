@@ -442,6 +442,36 @@ describe("rendu carte sous md", () => {
     expect(screen.getByTestId("epreuves-cartes").className).toContain("min-[1145px]:hidden");
   });
 
+  it.each([
+    ["en attente", { is_pending_validation: true }],
+    ["non conforme", { is_pending_validation: true, is_rejected: true }],
+  ])("n'affiche pas le rang déclaré d'un résultat %s (#1281)", (_, over) => {
+    render(
+      <EventsTable
+        participations={[{ ...participation(1), rank_overall: 4, ...over }]}
+        athleteId={7}
+        athleteName="Jean DUPONT"
+      />,
+    );
+
+    expect(screen.getByTestId("epreuves-grille").textContent).not.toContain("4");
+    expect(screen.getByTestId("epreuves-cartes").textContent).not.toContain("4");
+  });
+
+  it("n'affiche pas le rang déclaré d'un abandon en attente (#1281)", () => {
+    render(
+      <EventsTable
+        participations={[
+          { ...participation(1), status: "DNF", rank_overall: 4, is_pending_validation: true },
+        ]}
+        athleteId={7}
+        athleteName="Jean DUPONT"
+      />,
+    );
+
+    expect(screen.getByTestId("epreuves-grille").textContent).not.toContain("(4");
+  });
+
   it("porte date, épreuve, temps et place dans la carte", () => {
     render(
       <EventsTable

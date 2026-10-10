@@ -92,20 +92,23 @@ function marqueurPlace(
   { ratio, nonFinisher, sigle }: Pick<ReturnType<typeof rowDerived>, "ratio" | "nonFinisher" | "sigle">,
   carte = false,
 ) {
+  // Un rang déclaré n'est pas un rang tant qu'un bénévole ne l'a pas validé
+  // (#1273, #1281) ; le `PendingBadge` de la ligne dit pourquoi il manque.
+  const rank = p.is_pending_validation ? null : p.rank_overall;
   if (nonFinisher) {
     return (
       <span style={{ fontSize: carte ? undefined : 14, fontWeight: 700, color: "var(--tcn-text-muted)" }}>
         {sigle}
-        {p.rank_overall != null ? (
-          <>({p.rank_overall}{ratio ? `/${ratio.total}` : ""})</>
+        {rank != null ? (
+          <>({rank}{ratio ? `/${ratio.total}` : ""})</>
         ) : null}
       </span>
     );
   }
-  if (p.rank_overall != null) {
+  if (rank != null) {
     const badge = (
       <>
-        <PlaceBadge place={p.rank_overall} />
+        <PlaceBadge place={rank} />
         {ratio ? (
           <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tcn-text-faint)" }}>
             /{ratio.total}
