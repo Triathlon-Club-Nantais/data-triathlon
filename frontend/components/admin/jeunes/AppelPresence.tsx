@@ -160,7 +160,12 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
                   return (
                     <Card key={participant.profile_id} className="space-y-2 p-4">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-medium">{nom}</span>
+                        <span className="min-w-0">
+                          <span className="font-medium">{nom}</span>
+                          <span className="block text-[var(--tcn-text-faint)] text-xs">
+                            {participant.category ?? "Catégorie inconnue"}
+                          </span>
+                        </span>
                         {participant.present === true && <Badge>Présent</Badge>}
                         {participant.present === false && (
                           <Badge variant="secondary">Absent</Badge>

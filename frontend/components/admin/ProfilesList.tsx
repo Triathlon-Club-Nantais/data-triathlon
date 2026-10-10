@@ -21,6 +21,21 @@ import { calculerAge } from "@/lib/utils/age";
  */
 const REFUS = { sujet: "jeunes", action: "consulter les profils" };
 
+const INCONNUE = "Catégorie inconnue";
+/** Libellés de `services/fftri_category.py`, du plus jeune au plus âgé, pour le filtre. */
+const ORDRE_CATEGORIES = [
+  "Moins de 6 ans",
+  "Mini-poussin",
+  "Poussin",
+  "Pupille",
+  "Benjamin",
+  "Minime",
+  "Cadet",
+  "Junior",
+  "Senior",
+  INCONNUE,
+];
+
 export function ProfilesList() {
   const { data, isPending, error } = useProfiles();
   const session = useSession();
@@ -28,6 +43,8 @@ export function ProfilesList() {
   const [prenom, setPrenom] = useState("");
   const [nom, setNom] = useState("");
   const [naissance, setNaissance] = useState("");
+  // Filtre par catégorie FFTri (#1291) : aide à constituer un groupe.
+  const [categorie, setCategorie] = useState("");
 
   // Confort d'affichage seul : chaque ressource porte sa garde côté API
   // (patron #496 — `GroupsTable`).
@@ -50,6 +67,12 @@ export function ProfilesList() {
       toast.error((e as Error).message);
     }
   }
+
+  const presentes = new Set((data ?? []).map((profil) => profil.category ?? INCONNUE));
+  const categories = ORDRE_CATEGORIES.filter((libelle) => presentes.has(libelle));
+  const affiches = (data ?? []).filter(
+    (profil) => !categorie || (profil.category ?? INCONNUE) === categorie,
+  );
 
   return (
     <div className="space-y-4">
@@ -101,22 +124,43 @@ export function ProfilesList() {
           description="Un profil rassemble le contact d'urgence et le journal de bord d'un jeune. Créez-en un pour commencer."
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {data.map((profil) => {
-            const age = calculerAge(profil.birth_date);
-            return (
-              <Link key={profil.id} href={`/admin/jeunes/${profil.id}`}>
-                <Card className="p-4 transition-colors hover:bg-[var(--tcn-orange-08)]">
-                  <div className="font-medium">
-                    {profil.first_name} {profil.last_name}
-                  </div>
-                  <div className="text-[var(--tcn-text-faint)] text-sm">
-                    {age === null ? "Âge inconnu" : `${age} ans`}
-                  </div>
-                </Card>
-              </Link>
-            );
-          })}
+        <div className="space-y-3">
+          {categories.length > 1 && (
+            <div className="space-y-1.5 sm:max-w-xs">
+              <Label htmlFor="jeunes-categorie">Catégorie</Label>
+              <select
+                id="jeunes-categorie"
+                className="border-input h-9 w-full rounded-md border bg-transparent px-2 text-sm"
+                value={categorie}
+                onChange={(e) => setCategorie(e.target.value)}
+              >
+                <option value="">Toutes les catégories</option>
+                {categories.map((libelle) => (
+                  <option key={libelle} value={libelle}>
+                    {libelle}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {affiches.map((profil) => {
+              const age = calculerAge(profil.birth_date);
+              return (
+                <Link key={profil.id} href={`/admin/jeunes/${profil.id}`}>
+                  <Card className="p-4 transition-colors hover:bg-[var(--tcn-orange-08)]">
+                    <div className="font-medium">
+                      {profil.first_name} {profil.last_name}
+                    </div>
+                    <div className="text-[var(--tcn-text-faint)] text-sm">
+                      {age === null ? "Âge inconnu" : `${age} ans`} ·{" "}
+                      {profil.category ?? INCONNUE}
+                    </div>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

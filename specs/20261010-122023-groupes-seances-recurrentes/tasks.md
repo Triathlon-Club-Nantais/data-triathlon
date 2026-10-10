@@ -87,8 +87,8 @@
 
 **Independent Test**: un profil né en 2013 affiche « Benjamin » en saison 2026 ; filtre « Pupille ».
 
-- [ ] T041 [P] [US4] Écrire les tests de la liste (catégorie affichée, « Catégorie inconnue », filtre) dans frontend/components/admin/ProfilesList.test.tsx
-- [ ] T042 [US4] Afficher la catégorie et le filtre dans frontend/components/admin/ProfilesList.tsx, et la catégorie dans frontend/components/admin/ProfileDetail.tsx et frontend/components/admin/jeunes/AppelPresence.tsx
+- [X] T041 [P] [US4] Écrire les tests de la liste (catégorie affichée, « Catégorie inconnue », filtre) dans frontend/components/admin/ProfilesList.test.tsx
+- [X] T042 [US4] Afficher la catégorie et le filtre dans frontend/components/admin/ProfilesList.tsx, et la catégorie dans frontend/components/admin/ProfileDetail.tsx et frontend/components/admin/jeunes/AppelPresence.tsx
 
 ## Phase 7: Polish
 
