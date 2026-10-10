@@ -53,7 +53,7 @@ export function AppelFin({
 
   return (
     <div className="space-y-4">
-      <p aria-live="polite" className="text-sm font-medium">
+      <p aria-live="polite" className="text-lg font-medium">
         {manquants === 0
           ? "Tous les jeunes présents à l'appel de début ont été retrouvés."
           : `${manquants} jeune${manquants > 1 ? "s" : ""} restant${manquants > 1 ? "s" : ""} à vérifier.`}

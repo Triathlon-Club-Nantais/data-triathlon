@@ -278,7 +278,7 @@ function ContactUrgence({ texte }: { texte: string }) {
       {texte.slice(0, telephone.debut)}
       <a
         href={telephone.href}
-        className="font-semibold text-accent-ink underline underline-offset-2"
+        className="ph-no-capture tcn-cible-tactile inline-flex items-center font-semibold text-accent-ink underline underline-offset-2"
       >
         {texte.slice(telephone.debut, telephone.fin)}
       </a>

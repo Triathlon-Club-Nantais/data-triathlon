@@ -121,6 +121,8 @@ describe("ProfileDetail", () => {
 
     const lien = await screen.findByRole("link", { name: "06 00 00 00 00" });
     expect(lien).toHaveAttribute("href", "tel:0600000000");
+    // Numéro d'un parent de mineur : hors de l'autocapture PostHog (RGPD).
+    expect(lien).toHaveClass("ph-no-capture", "tcn-cible-tactile");
     expect(screen.getByText(/Parent X/)).toBeInTheDocument();
   });
 

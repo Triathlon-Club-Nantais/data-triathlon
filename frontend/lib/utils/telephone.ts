@@ -1,4 +1,6 @@
-const TELEPHONE_FR = /(?<![\d+])(?:\+33\s?|0)[1-9](?:[\s.-]?\d{2}){4}(?!\d)/;
+// Dix chiffres groupés librement (« 0612 345 678 ») ; l'indicatif s'écrit
+// +33 ou 0033, suivi ou non du « (0) » de courtoisie.
+const TELEPHONE_FR = /(?<![\d+])(?:(?:\+|00)33\s?(?:\(0\)\s?)?|0)[1-9](?:[\s.-]?\d){8}(?!\d)/;
 
 /**
  * Le premier numéro français d'un texte libre (« Parent X 06 00 00 00 00 »),
@@ -12,6 +14,9 @@ export function trouverTelephone(
   return {
     debut: trouve.index,
     fin: trouve.index + trouve[0].length,
-    href: `tel:${trouve[0].replace(/[^\d+]/g, "")}`,
+    href: `tel:${trouve[0]
+      .replace("(0)", "")
+      .replace(/[^\d+]/g, "")
+      .replace(/^0033/, "+33")}`,
   };
 }

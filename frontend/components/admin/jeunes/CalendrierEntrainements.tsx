@@ -66,7 +66,7 @@ export function CalendrierEntrainements() {
         }}
         className={cn(
           "cursor-pointer space-y-2 p-4",
-          duJour && "ring-2 ring-[var(--tcn-orange)]",
+          duJour && "border-l-4 border-l-[var(--tcn-orange)]",
         )}
       >
         <div className="flex items-center justify-between gap-2">
@@ -124,7 +124,11 @@ export function CalendrierEntrainements() {
               Séances à venir
             </h2>
             {aVenir.length === 0 ? (
-              <p className="text-[var(--tcn-text-faint)] text-sm">Aucune séance à venir.</p>
+              <p className="text-[var(--tcn-text-faint)] text-sm">
+                {peutEcrire
+                  ? "Aucune séance à venir : créez la prochaine avec le formulaire ci-dessus."
+                  : "Aucune séance à venir."}
+              </p>
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {aVenir.map(carte)}
