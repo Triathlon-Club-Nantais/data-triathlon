@@ -197,6 +197,11 @@ describe("barre basse mobile (#1300)", () => {
   });
 
   it("ne déclare que des destinations visibles pour tous, sans session", () => {
-    for (const item of onglets) expect(estVisible(item, new Set(), ROLE.ANON)).toBe(true);
+    for (const section of NAV) {
+      for (const item of section.items.filter((i) => i.bottomBar)) {
+        expect(section.minRole).toBe(ROLE.ANON);
+        expect(estVisible(item, new Set(), ROLE.ANON)).toBe(true);
+      }
+    }
   });
 });
