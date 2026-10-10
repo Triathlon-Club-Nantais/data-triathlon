@@ -231,6 +231,10 @@ describe("barre basse mobile (#1300, #1298)", () => {
     expect(ongletsDe(space).map((i) => i.href)).toEqual(hrefs);
   });
 
+  it("every tab has an icon", () => {
+    for (const item of NAV.flatMap((s) => s.items).filter((i) => i.bottomBar)) expect(item.icon).toBeDefined();
+  });
+
   it("every tab label fits: labelCourt when the label is long", () => {
     for (const item of NAV.flatMap((s) => s.items).filter((i) => i.bottomBar)) {
       expect((item.labelCourt ?? item.label).length).toBeLessThanOrEqual(12);

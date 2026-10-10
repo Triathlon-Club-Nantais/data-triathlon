@@ -1517,7 +1517,7 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
     await waitFor(() => expect(liens()).toEqual(["/admin", "/admin/identites", "/admin/courses"]));
     expect(within(barre()).getByRole("link", { name: /Épreuves/ })).toHaveAttribute("aria-current", "page");
     await waitFor(() =>
-      expect(within(barre()).getByRole("link", { name: /Sommaire/ })).toHaveTextContent("3 éléments à traiter"),
+      expect(within(barre()).getByRole("link", { name: /Sommaire.*3 éléments à traiter/ })).toBeInTheDocument(),
     );
   });
 
@@ -1532,6 +1532,24 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
     chemin.courant = "/club";
     afficher(habilite("courses:write", "jeunes:read"));
     await waitFor(() => expect(liens()).toEqual(["/dashboard", "/resultats", "/club", "/benevoles"]));
+  });
+
+  it("a short-labelled tab keeps its count in its accessible name, announced once", async () => {
+    chemin.courant = "/dashboard";
+    countBenevoleQueue.mockResolvedValue({ total: 2 });
+    afficher({ ...habilite("feedback:read"), can_administer: true });
+    const lien = await waitFor(() => within(barre()).getByRole("link", { name: /Validation.*2 résultats à valider/ }));
+    expect(lien).toHaveAttribute("aria-label", expect.stringContaining("2 résultats à valider"));
+    expect(lien.querySelector(".sr-only")).toBeNull();
+  });
+
+  it("in the supervision space, « Plus » falls back to the space entries when the bar carries them all (#621)", async () => {
+    chemin.courant = "/encadrement/jeunes";
+    afficher(habilite("jeunes:read", "athletes:volunteer_validate", "pages:preview"));
+    await waitFor(() => expect(liens()).toContain("/encadrement/benevolat"));
+    await userEvent.click(within(barre()).getByRole("button", { name: "Plus" }));
+    const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).getByRole("link", { name: /Profils/ })).toHaveAttribute("href", "/encadrement/jeunes");
   });
 
   it("garde les mêmes onglets avant et après la lecture de la session", async () => {

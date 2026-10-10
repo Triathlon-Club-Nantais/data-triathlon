@@ -488,7 +488,9 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               {actif && <span data-trait-actif style={traitOnglet} />}
               {Icon && <Icon size={20} />}
               <span>{it.labelCourt ?? it.label}</span>
-              {!!it.count && it.badge && <PastilleOnglet badge={it.badge} count={it.count} />}
+              {!!it.count && it.badge && (
+                <PastilleOnglet count={it.count} annonce={it.labelCourt ? undefined : libelleCompteur(it.badge, it.count)} />
+              )}
             </Link>
           );
         })}
@@ -1087,11 +1089,13 @@ const carrePrimaire: CSSProperties = {
  * visible (WCAG 2.5.3), sans quoi la commande vocale « Accueil » ne trouve rien.
  * Le libellé complet suffit quand il commence déjà par le court.
  */
-function nomAccessibleOnglet(item: Pick<NavItem, "label" | "labelCourt">): string | undefined {
-  const { label, labelCourt } = item;
+function nomAccessibleOnglet(item: Pick<NavItem, "label" | "labelCourt" | "badge"> & { count?: number }): string | undefined {
+  const { label, labelCourt, badge, count } = item;
   if (!labelCourt) return undefined;
-  if (label.toLocaleLowerCase("fr").startsWith(labelCourt.toLocaleLowerCase("fr"))) return label;
-  return `${labelCourt}, ${label.charAt(0).toLocaleLowerCase("fr")}${label.slice(1)}`;
+  const nom = label.toLocaleLowerCase("fr").startsWith(labelCourt.toLocaleLowerCase("fr"))
+    ? label
+    : `${labelCourt}, ${label.charAt(0).toLocaleLowerCase("fr")}${label.slice(1)}`;
+  return count && badge ? `${nom}, ${libelleCompteur(badge, count)}` : nom;
 }
 
 /** Trait de l'onglet courant, pendant horizontal de `barreActive` du rail :
@@ -1107,7 +1111,7 @@ const traitOnglet: CSSProperties = {
 };
 
 /** Pastille de compteur d'un onglet : décorative, le nom accessible est le texte `sr-only`. */
-function PastilleOnglet({ badge, count }: { badge: string; count: number }) {
+function PastilleOnglet({ count, annonce }: { count: number; annonce?: string }) {
   return (
     <>
       <span
@@ -1129,7 +1133,7 @@ function PastilleOnglet({ badge, count }: { badge: string; count: number }) {
       >
         {count}
       </span>
-      <span className="sr-only">{libelleCompteur(badge, count)}</span>
+      {annonce && <span className="sr-only">{annonce}</span>}
     </>
   );
 }

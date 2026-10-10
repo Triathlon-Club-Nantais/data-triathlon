@@ -2,7 +2,11 @@ import type { LucideIcon } from "lucide-react";
 import {
   Briefcase,
   CalendarDays,
+  ClipboardCheck,
+  Fingerprint,
+  Flag,
   Gauge,
+  HandHeart,
   HeartHandshake,
   LayoutGrid,
   List,
@@ -271,6 +275,7 @@ export const NAV: NavSection[] = [
       },
       {
         id: "a-identites",
+        icon: Fingerprint,
         bottomBar: true,
         labelCourt: "Identités",
         label: "Identités des athlètes",
@@ -316,6 +321,7 @@ export const NAV: NavSection[] = [
       // la navigation n'est pas une garde.
       {
         id: "a-courses",
+        icon: Flag,
         bottomBar: true,
         label: "Épreuves",
         description:
@@ -527,6 +533,7 @@ export const NAV: NavSection[] = [
     items: [
       {
         id: "j-profils",
+        icon: Users,
         bottomBar: true,
         labelCourt: "Jeunes",
         label: "Profils",
@@ -537,6 +544,7 @@ export const NAV: NavSection[] = [
       },
       {
         id: "j-calendrier",
+        icon: CalendarDays,
         bottomBar: true,
         labelCourt: "Calendrier",
         label: "Calendrier des entraînements",
@@ -551,6 +559,7 @@ export const NAV: NavSection[] = [
       // `jeunes:write`, gardé côté écran (patron #496) et côté API.
       {
         id: "j-appel",
+        icon: ClipboardCheck,
         bottomBar: true,
         label: "Appel",
         description:
@@ -562,6 +571,7 @@ export const NAV: NavSection[] = [
       // du back-office à l'Encadrement (#1297).
       {
         id: "a-benevolat-validation",
+        icon: HandHeart,
         bottomBar: true,
         labelCourt: "Bénévolat",
         label: "Crédits bénévoles",
