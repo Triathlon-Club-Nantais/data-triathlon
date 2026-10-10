@@ -10,7 +10,8 @@ import { EntrainementForm } from "@/components/admin/jeunes/EntrainementForm";
 import { useCreateTrainingSession, useTrainingSessions } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
-import { formatDate } from "@/lib/utils/date";
+import { cn } from "@/lib/utils";
+import { formatDate, localToday } from "@/lib/utils/date";
 import type { TrainingSession } from "@/lib/types";
 
 const REFUS = { sujet: "entraînements", action: "consulter le calendrier des entraînements" };
@@ -43,6 +44,60 @@ export function CalendrierEntrainements() {
     }
   }
 
+  // Le backend trie par date croissante : l'encadrant cherche d'abord la
+  // prochaine séance, les passées viennent ensuite, la plus récente en tête.
+  const aujourdhui = localToday();
+  const aVenir = (data ?? []).filter((entrainement) => entrainement.date >= aujourdhui);
+  const passees = (data ?? []).filter((entrainement) => entrainement.date < aujourdhui).reverse();
+
+  function carte(entrainement: TrainingSession) {
+    const duJour = entrainement.date === aujourdhui;
+    return (
+      <Card
+        key={entrainement.id}
+        role="button"
+        tabIndex={0}
+        onClick={() => setOuvert(entrainement)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setOuvert(entrainement);
+          }
+        }}
+        className={cn(
+          "cursor-pointer space-y-2 p-4",
+          duJour && "ring-2 ring-[var(--tcn-orange)]",
+        )}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2">
+            <span className="font-medium">{formatDate(entrainement.date)}</span>
+            {duJour && <Badge>Aujourd&apos;hui</Badge>}
+          </span>
+          {entrainement.start_time && (
+            <span className="text-[var(--tcn-text-faint)] text-sm">
+              {entrainement.start_time.slice(0, 5)}
+            </span>
+          )}
+        </div>
+        <div className="text-[var(--tcn-text-faint)] text-sm">
+          {entrainement.location || "Lieu non renseigné"}
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          {entrainement.session_type ? (
+            <Badge variant="secondary">{entrainement.session_type}</Badge>
+          ) : (
+            <span />
+          )}
+          <span className="text-[var(--tcn-text-faint)] text-xs">
+            {entrainement.participant_count} inscrit
+            {entrainement.participant_count > 1 ? "s" : ""}
+          </span>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {peutEcrire && (
@@ -63,45 +118,29 @@ export function CalendrierEntrainements() {
           description="Le calendrier est vide pour l'instant. Créez la première séance depuis ce formulaire."
         />
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {data.map((entrainement) => (
-            <Card
-              key={entrainement.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => setOuvert(entrainement)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  setOuvert(entrainement);
-                }
-              }}
-              className="cursor-pointer space-y-2 p-4"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">{formatDate(entrainement.date)}</span>
-                {entrainement.start_time && (
-                  <span className="text-[var(--tcn-text-faint)] text-sm">
-                    {entrainement.start_time.slice(0, 5)}
-                  </span>
-                )}
+        <div className="space-y-8">
+          <section aria-labelledby="seances-a-venir" className="space-y-3">
+            <h2 id="seances-a-venir" className="font-heading text-lg font-semibold">
+              Séances à venir
+            </h2>
+            {aVenir.length === 0 ? (
+              <p className="text-[var(--tcn-text-faint)] text-sm">Aucune séance à venir.</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {aVenir.map(carte)}
               </div>
-              <div className="text-[var(--tcn-text-faint)] text-sm">
-                {entrainement.location || "Lieu non renseigné"}
+            )}
+          </section>
+          {passees.length > 0 && (
+            <section aria-labelledby="seances-passees" className="space-y-3">
+              <h2 id="seances-passees" className="font-heading text-lg font-semibold">
+                Séances passées
+              </h2>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {passees.map(carte)}
               </div>
-              <div className="flex items-center justify-between gap-2">
-                {entrainement.session_type ? (
-                  <Badge variant="secondary">{entrainement.session_type}</Badge>
-                ) : (
-                  <span />
-                )}
-                <span className="text-[var(--tcn-text-faint)] text-xs">
-                  {entrainement.participant_count} inscrit
-                  {entrainement.participant_count > 1 ? "s" : ""}
-                </span>
-              </div>
-            </Card>
-          ))}
+            </section>
+          )}
         </div>
       )}
 
