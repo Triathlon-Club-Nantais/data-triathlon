@@ -237,6 +237,21 @@ describe("ParticipationDetailPage — résultat en attente de validation (#1281)
     expect(screen.getByText(/répartition par catégorie/i)).toBeTruthy();
   });
 
+  it.each([
+    ["en attente", { is_pending_validation: true }],
+    ["non conforme", { is_pending_validation: true, is_rejected: true }],
+  ])("ne place pas un résultat %s dans la distribution des temps", async (_, over) => {
+    getCourseSummary.mockResolvedValue({
+      histogram: { bars: [2, 5, 3], start_sec: 0, bucket_sec: 1800 },
+    });
+
+    await renderPage(participation({ stats: null, total_time: "00:22:31", ...over }));
+
+    const histogramme = screen.getByRole("img", { name: /distribution des temps/i });
+    expect(histogramme.getAttribute("aria-label")).not.toMatch(/temps de l'athlète/i);
+    expect(screen.queryByText(/temps de l'athlète est repéré/i)).toBeNull();
+  });
+
   it("dit d'un résultat non conforme qu'il n'entre pas au classement", async () => {
     await renderPage(
       participation({ stats: null, is_pending_validation: true, is_rejected: true }),
