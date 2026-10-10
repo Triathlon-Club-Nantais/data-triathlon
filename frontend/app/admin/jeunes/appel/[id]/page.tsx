@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { idDeRoute } from "@/lib/utils/id-de-route";
 import { AppelPresence } from "@/components/admin/jeunes/AppelPresence";
@@ -20,14 +19,7 @@ export default async function AdminJeuneAppelPage({
 
   return (
     <PageShell>
-      <div className="space-y-10">
-        <PageHeader
-          title="Appel"
-          backHref="/admin/jeunes/calendrier"
-          backLabel="Retour au calendrier"
-        />
-        <AppelPresence sessionId={sessionId} />
-      </div>
+      <AppelPresence sessionId={sessionId} />
     </PageShell>
   );
 }
