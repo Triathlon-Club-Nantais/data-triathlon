@@ -1460,42 +1460,43 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
   const barre = () => screen.getByRole("navigation", { name: "Navigation" });
   const liens = () => within(barre()).getAllByRole("link").map((a) => a.getAttribute("href"));
 
-  // #1012 : à 375 px, sept onglets repliaient leurs libellés sur deux lignes.
-  // Au plus quatre destinations visibles pour le profil, dans l'ordre de
-  // `nav.config.ts`, puis « Plus » s'il en reste. Chaque profil est vérifié.
+  // #1300 : la barre ne dépend plus du profil, donc ni de la session ; elle
+  // ne bouge pas quand la session arrive.
   it.each([
-    ["anonyme", null, ["/dashboard", "/resultats", "/club", "/benevoles"], false],
-    ["membre sans pouvoir", SESSION, ["/dashboard", "/resultats", "/club", "/benevoles"], false],
-    ["porteur de pages:preview", habilite("pages:preview"), ["/dashboard", "/resultats", "/carte", "/club"], true],
-    [
-      "administrateur sans pages:preview",
-      habilite("pending_providers:read", "batch:run"),
-      ["/dashboard", "/resultats", "/club", "/benevoles"],
-      true,
-    ],
-    [
-      "administrateur complet",
-      habilite("pages:preview", "pending_providers:read", "batch:run", "athletes:volunteer_validate", "jeunes:read"),
-      ["/dashboard", "/resultats", "/carte", "/club"],
-      true,
-    ],
-  ] as const)("profil %s : au plus quatre destinations, puis « Plus » s'il en reste", async (_profil, session, attendus, plus) => {
+    ["anonyme", null],
+    ["membre sans pouvoir", SESSION],
+    ["porteur de pages:preview", habilite("pages:preview")],
+    ["administrateur complet", habilite("pages:preview", "pending_providers:read", "batch:run", "athletes:volunteer_validate", "jeunes:read")],
+  ] as const)("profil %s : les mêmes quatre destinations, puis « Plus »", async (_profil, session) => {
     afficher(session);
+    await waitFor(() => expect(getSession).toHaveBeenCalled());
+    await waitFor(() => expect(liens()).toEqual(["/dashboard", "/resultats", "/club", "/benevoles"]));
+    expect(within(barre()).getByRole("button", { name: "Plus" })).toBeInTheDocument();
+  });
 
-    await waitFor(() => expect(liens()).toEqual(attendus));
-    if (plus) {
-      await waitFor(() => expect(within(barre()).getByRole("button", { name: "Plus" })).toBeInTheDocument());
-    } else {
-      // Laisse la session se poser : « Plus » n'apparaît pas après coup.
-      await waitFor(() => expect(getSession).toHaveBeenCalled());
-      expect(within(barre()).queryByRole("button", { name: "Plus" })).not.toBeInTheDocument();
-    }
-    expect(liens().length).toBeLessThanOrEqual(4);
+  it("garde les mêmes onglets avant et après la lecture de la session", async () => {
+    let resoudre: (s: SessionUser) => void = () => {};
+    getSession.mockReturnValue(new Promise<SessionUser>((r) => (resoudre = r)));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <AppNav />
+      </QueryClientProvider>,
+    );
+    const avant = liens();
+    expect(within(barre()).getByRole("button", { name: "Plus" })).toBeInTheDocument();
+
+    await act(async () => resoudre(habilite("pages:preview", "pending_providers:read")));
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Compte/ })).toBeInTheDocument());
+
+    expect(liens()).toEqual(avant);
+    expect(within(barre()).getByRole("button", { name: "Plus" })).toBeInTheDocument();
   });
 
   it("« Plus » ouvre le tiroir, qui porte le reste sans répéter la barre", async () => {
     afficher(habilite("pages:preview"));
-    const plus = await waitFor(() => within(barre()).getByRole("button", { name: "Plus" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Compte/ })).toBeInTheDocument());
+    const plus = within(barre()).getByRole("button", { name: "Plus" });
     expect(plus).toHaveAttribute("aria-haspopup", "dialog");
     expect(plus).toHaveAttribute("aria-expanded", "false");
 
@@ -1505,7 +1506,7 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
     expect(plus).toHaveAttribute("aria-expanded", "true");
     expect(within(tiroir).getByRole("link", { name: "Athlètes par saison" })).toHaveAttribute("href", "/club/athletes");
     expect(within(tiroir).getByRole("link", { name: "Bénévolat" })).toHaveAttribute("href", "/benevolat");
-    expect(within(tiroir).getByRole("link", { name: "Validation des épreuves" })).toHaveAttribute("href", "/benevoles");
+    expect(within(tiroir).queryByRole("link", { name: "Validation des épreuves" })).not.toBeInTheDocument();
     expect(within(tiroir).queryByRole("link", { name: "Tableau de bord" })).not.toBeInTheDocument();
     expect(within(tiroir).queryByRole("link", { name: "Espace club" })).not.toBeInTheDocument();
   });
@@ -1549,8 +1550,8 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
     chemin.courant = "/club/athletes";
     try {
       afficher(habilite("pages:preview"));
-      const plus = await waitFor(() => within(barre()).getByRole("button", { name: "Plus" }));
-      expect(plus).toHaveStyle({ color: "var(--tcn-orange-deep)" });
+      const plus = within(barre()).getByRole("button", { name: "Plus" });
+      await waitFor(() => expect(plus).toHaveStyle({ color: "var(--tcn-orange-deep)" }));
       expect(plus.querySelector("[data-trait-actif]")).not.toBeNull();
       expect(within(barre()).queryByRole("link", { current: "page" })).toBeNull();
     } finally {
