@@ -8,17 +8,17 @@
 
 ## Phase 1: Setup
 
-- [ ] T001 Rebaser `feat/1291-training-groups` sur `origin/main` après fusion de #1290 et vérifier que `cd backend && uv run pytest -m "not integration"` et `cd frontend && npm test` passent avant toute modification
+- [X] T001 (remplacée : branche empilée sur #1293, suites vertes avant modification) Rebaser `feat/1291-training-groups` sur `origin/main` après fusion de #1290 et vérifier que `cd backend && uv run pytest -m "not integration"` et `cd frontend && npm test` passent avant toute modification
 
 ## Phase 2: Foundational (bloquant pour toutes les stories)
 
-- [ ] T002 Écrire les tests de modèle (contraintes d'unicité groupe/nom par organisation, membre unique par groupe, colonnes `recurrence_id`, `detached`, `added_manually` avec leurs défauts) dans backend/tests/test_repositories/test_training_group_repository.py
-- [ ] T003 Créer `TrainingGroup` et `TrainingGroupMember` dans backend/app/models/training_group.py, `TrainingRecurrence` et les tables d'association `training_recurrence_groups` et `training_session_groups` dans backend/app/models/training_recurrence.py, ajouter `recurrence_id`, `detached`, relation `groups` dans backend/app/models/training_session.py et `added_manually` (défaut vrai) dans backend/app/models/training_participant.py, enregistrer les modèles dans backend/app/models/__init__.py
-- [ ] T004 Générer et relire la migration Alembic `training_groups_and_recurrences` dans backend/alembic/versions/ (`server_default` vrai pour `added_manually`, faux pour `detached`), vérifier `uv run alembic upgrade head` puis `downgrade -1` sur SQLite
-- [ ] T005 [P] Écrire les tests de la catégorie FFTri (oracle research R1 : saison 2026 = Mini-poussins 2018-2019 … Juniors 2006-2007, bascule au 1er novembre, `None` sans date de naissance, « Moins de 6 ans », « Senior ») dans backend/tests/test_services/test_fftri_category.py
-- [ ] T006 [P] Implémenter `fftri_category(birth_date, on)` avec la constante de mois de bascule marquée `ponytail:` dans backend/app/services/fftri_category.py
-- [ ] T007 Écrire les tests de la purge de rétention qui retire aussi les appartenances de groupe du profil purgé dans backend/tests/test_services/test_retention_service.py
-- [ ] T008 Ajouter `delete_memberships_of_profile` dans backend/app/repositories/training_group_repository.py et l'appeler dans la purge dans backend/app/services/retention_service.py, à côté de `delete_participations_of_profile`
+- [X] T002 Écrire les tests de modèle (contraintes d'unicité groupe/nom par organisation, membre unique par groupe, colonnes `recurrence_id`, `detached`, `added_manually` avec leurs défauts) dans backend/tests/test_repositories/test_training_group_repository.py
+- [X] T003 Créer `TrainingGroup` et `TrainingGroupMember` dans backend/app/models/training_group.py, `TrainingRecurrence` et les tables d'association `training_recurrence_groups` et `training_session_groups` dans backend/app/models/training_recurrence.py, ajouter `recurrence_id`, `detached`, relation `groups` dans backend/app/models/training_session.py et `added_manually` (défaut vrai) dans backend/app/models/training_participant.py, enregistrer les modèles dans backend/app/models/__init__.py
+- [X] T004 Générer et relire la migration Alembic `training_groups_and_recurrences` dans backend/alembic/versions/ (`server_default` vrai pour `added_manually`, faux pour `detached`), vérifier `uv run alembic upgrade head` puis `downgrade -1` sur SQLite
+- [X] T005 [P] Écrire les tests de la catégorie FFTri (oracle research R1 : saison 2026 = Mini-poussins 2018-2019 … Juniors 2006-2007, bascule au 1er novembre, `None` sans date de naissance, « Moins de 6 ans », « Senior ») dans backend/tests/test_services/test_fftri_category.py
+- [X] T006 [P] Implémenter `fftri_category(birth_date, on)` avec la constante de mois de bascule marquée `ponytail:` dans backend/app/services/fftri_category.py
+- [X] T007 Écrire les tests de la purge de rétention qui retire aussi les appartenances de groupe du profil purgé dans backend/tests/test_services/test_retention_service.py
+- [X] T008 Ajouter `delete_memberships_of_profile` dans backend/app/repositories/training_group_repository.py et l'appeler dans la purge dans backend/app/services/retention_service.py, à côté de `delete_participations_of_profile`
 
 **Checkpoint**: schéma migré, catégorie calculable, purge propre.
 
@@ -28,8 +28,8 @@
 
 **Independent Test**: créer un groupe, y ajouter trois profils, en retirer un ; la fiche de chaque profil liste ses groupes.
 
-- [ ] T009 [P] [US1] Écrire les tests du dépôt (liste triée par nom avec nombre de membres, ajout idempotent, retrait, groupes d'un profil) dans backend/tests/test_repositories/test_training_group_repository.py
-- [ ] T010 [US1] Implémenter backend/app/repositories/training_group_repository.py
+- [X] T009 [P] [US1] Écrire les tests du dépôt (liste triée par nom avec nombre de membres, ajout idempotent, retrait, groupes d'un profil) dans backend/tests/test_repositories/test_training_group_repository.py
+- [X] T010 [US1] Implémenter backend/app/repositories/training_group_repository.py
 - [ ] T011 [P] [US1] Écrire les tests du service (nom vide ou déjà pris refusé en `DomainError` français, profil absent en 404, suppression qui laisse en place les inscriptions déjà produites) dans backend/tests/test_services/test_training_group_service.py
 - [ ] T012 [US1] Implémenter backend/app/services/training_group_service.py (sans la resynchronisation, ajoutée en US2)
 - [ ] T013 [P] [US1] Écrire les tests d'API (gardes 401/403 lecture et écriture, contrat de contracts/api.md section Groupes) dans backend/tests/test_api/test_admin_training_groups.py

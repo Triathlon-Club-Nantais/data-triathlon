@@ -27,7 +27,9 @@ from app.models.role import Role
 from app.models.role_permission import RolePermission
 from app.models.season_validation import SeasonValidation
 from app.models.site_access_config import SiteAccessConfig
+from app.models.training_group import TrainingGroup, TrainingGroupMember
 from app.models.training_participant import TrainingParticipant
+from app.models.training_recurrence import TrainingRecurrence
 from app.models.training_session import TrainingSession
 from app.models.user import User
 from app.models.user_feedback import UserFeedback
@@ -68,7 +70,10 @@ __all__ = [
     "RolePermission",
     "SeasonValidation",
     "SiteAccessConfig",
+    "TrainingGroup",
+    "TrainingGroupMember",
     "TrainingParticipant",
+    "TrainingRecurrence",
     "TrainingSession",
     "User",
     "UserFeedback",

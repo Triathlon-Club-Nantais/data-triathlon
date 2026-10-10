@@ -104,6 +104,7 @@ def list_membership_ended_before(db: Session, cutoff: date) -> list[PersonalProf
 
 def delete(db: Session, profile: PersonalProfile) -> None:
     """Supprime le profil ; son journal part par la cascade ORM. Les présences
-    aux séances, sans cascade, sont à retirer avant (`training_session_repository`)."""
+    aux séances et les appartenances de groupe, sans cascade, sont à retirer avant
+    (`training_session_repository`, `training_group_repository`)."""
     db.delete(profile)
     db.flush()
