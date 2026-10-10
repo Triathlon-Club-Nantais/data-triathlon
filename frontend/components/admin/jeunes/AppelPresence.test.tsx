@@ -198,6 +198,39 @@ describe("AppelPresence", () => {
     );
   });
 
+  it("compte les présents et les absents, sur les deux appels", async () => {
+    getTrainingSession.mockResolvedValue({
+      ...DETAIL_UN_PARTICIPANT,
+      participant_count: 3,
+      participants: [
+        { profile_id: 42, present: true, created_at: "2026-09-15T10:00:00Z" },
+        { profile_id: 43, present: false, created_at: "2026-09-15T10:00:00Z" },
+        { profile_id: 44, present: null, created_at: "2026-09-15T10:00:00Z" },
+      ],
+    });
+
+    afficher();
+
+    expect(await screen.findByText("1 présent sur 3, 1 absent, 1 à pointer")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: /appel de fin/i }));
+    expect(screen.getByText("1 présent sur 3, 1 absent, 1 à pointer")).toBeInTheDocument();
+  });
+
+  it("accorde le compteur au pluriel et tait les jeunes à pointer quand il n'y en a plus", async () => {
+    getTrainingSession.mockResolvedValue({
+      ...DETAIL_UN_PARTICIPANT,
+      participant_count: 2,
+      participants: [
+        { profile_id: 42, present: true, created_at: "2026-09-15T10:00:00Z" },
+        { profile_id: 43, present: true, created_at: "2026-09-15T10:00:00Z" },
+      ],
+    });
+
+    afficher();
+
+    expect(await screen.findByText("2 présents sur 2, 0 absent")).toBeInTheDocument();
+  });
+
   it("bascule vers l'appel de fin sans écrire aucune donnée", async () => {
     const detail: TrainingSessionDetail = {
       ...DETAIL_UN_PARTICIPANT,

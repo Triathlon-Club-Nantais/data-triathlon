@@ -54,6 +54,9 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
   const profilsParId = new Map((profils.data ?? []).map((profil) => [profil.id, profil]));
   const idsInscrits = new Set(participants.map((participant) => participant.profile_id));
   const ajoutables = (profils.data ?? []).filter((profil) => !idsInscrits.has(profil.id));
+  const presents = participants.filter((participant) => participant.present === true).length;
+  const absents = participants.filter((participant) => participant.present === false).length;
+  const aPointer = participants.length - presents - absents;
 
   async function pointer(profileId: number, present: boolean) {
     try {
@@ -85,6 +88,13 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
 
   return (
     <>
+      {/* Hors des onglets : le compteur reste sous les yeux pendant les deux appels. */}
+      <p aria-live="polite" className="mb-4 text-lg font-medium">
+        {participants.length > 0 &&
+          `${presents} présent${presents > 1 ? "s" : ""} sur ${participants.length}, ` +
+          `${absents} absent${absents > 1 ? "s" : ""}` +
+          (aPointer > 0 ? `, ${aPointer} à pointer` : "")}
+      </p>
       <Tabs defaultValue="debut">
         <TabsList className="w-full">
           <TabsTrigger value="debut">Appel de début</TabsTrigger>
