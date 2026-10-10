@@ -159,7 +159,10 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // `nav.config.ts` (`bottomBar`, #1300), visibles pour tous, donc identiques
   // avant et après la lecture de la session. Ils viennent des sections
   // publiques, quel que soit l'espace courant.
-  const barreItems = toutesSections.filter((s) => s.space === "public").flatMap((s) => s.items).filter((i) => i.bottomBar);
+  const barreItems = toutesSections
+    .filter((s) => s.space === "public")
+    .flatMap((s) => s.items)
+    .filter((i) => i.bottomBar);
   const dansLaBarre = new Set(barreItems.map((i) => i.id));
 
   // Le tiroir porte « le reste » de l'espace courant : tout ce que la barre ne
@@ -180,7 +183,8 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
     .flatMap((s) => s.items)
     .filter((i) => i.group === TO_HANDLE && i.count !== undefined);
   const countAdmin = compteurAdmin.length > 0 ? compteurAdmin.reduce((somme, i) => somme + (i.count ?? 0), 0) : undefined;
-  const espacesOuverts: { id: SpaceId; label: string; href: string; count?: number }[] = (["public", "encadrement", "admin"] as const)
+  type EspaceOuvert = { id: SpaceId; label: string; href: string; count?: number };
+  const espacesOuverts: EspaceOuvert[] = (["public", "encadrement", "admin"] as const)
     .filter((id) => toutesSections.some((s) => s.space === id) || (id === "admin" && session?.can_administer))
     .map((id) => ({
       id,
@@ -199,7 +203,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             space: "public",
             minRole: ROLE.CONNECTED,
             root: true,
-            items: [{ id: "backoffice", label: "Back-office", href: "/admin", icon: Briefcase, count: countAdmin }],
+            items: [{ id: "backoffice", label: "Back-office", href: "/admin", icon: Briefcase, badge: "backoffice", count: countAdmin }],
           },
         ]
       : [];

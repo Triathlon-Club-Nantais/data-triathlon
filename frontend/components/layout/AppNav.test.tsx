@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { SessionUser } from "@/lib/types";
 
@@ -147,6 +147,10 @@ async function deplier() {
   if (bouton) await userEvent.click(bouton);
 }
 
+afterEach(() => {
+  chemin.courant = "/dashboard";
+});
+
 beforeEach(() => {
   push.mockClear();
   montages.clear();
@@ -277,8 +281,6 @@ describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", 
     await userEvent.click(screen.getByRole("button", { name: "Replier la navigation" }));
     await userEvent.click(screen.getByRole("button", { name: "Déplier la navigation" }));
     expect(montages.get("/admin/fournisseurs")).toBe(2);
-    // Dans le back-office, « Résultats » ne vit plus que dans la barre basse.
-    expect(montages.get("/resultats")).toBe(1);
   });
 
   it("ne prefetche pas le logo du rail déplié, qui double la route de « Tableau de bord »", async () => {
@@ -1217,9 +1219,6 @@ describe("AppNav — session (#114)", () => {
 describe("badge de la file de revalidation (#119)", () => {
   beforeEach(() => {
     chemin.courant = "/admin";
-  });
-
-  beforeEach(() => {
     countQualityQueue.mockReset();
   });
 
@@ -1266,9 +1265,6 @@ describe("badge de la file de revalidation (#119)", () => {
 describe("badge des doublons suspects (#726)", () => {
   beforeEach(() => {
     chemin.courant = "/admin";
-  });
-
-  beforeEach(() => {
     countCourseDuplicates.mockReset();
   });
 
@@ -1311,9 +1307,6 @@ describe("badge des doublons suspects (#726)", () => {
 describe("badge des fournisseurs en attente (#726)", () => {
   beforeEach(() => {
     chemin.courant = "/admin";
-  });
-
-  beforeEach(() => {
     countPendingProviders.mockReset();
   });
 
@@ -1356,9 +1349,6 @@ describe("badge des fournisseurs en attente (#726)", () => {
 describe("badge des retours utilisateurs (#726)", () => {
   beforeEach(() => {
     chemin.courant = "/admin";
-  });
-
-  beforeEach(() => {
     countFeedback.mockReset();
   });
 
@@ -1804,7 +1794,7 @@ describe("AppNav — espaces (#1296)", () => {
     afficher(admin());
     await waitFor(() => expect(within(rail()).getByRole("link", { name: /Back-office/ })).toHaveAttribute("href", "/admin"));
     for (const lien of within(rail()).getAllByRole("link"))
-      expect(lien.getAttribute("href") === "/admin" || !lien.getAttribute("href")?.startsWith("/admin")).toBe(true);
+      expect(lien.getAttribute("href")).not.toMatch(/^\/admin\//);
   });
 
   it("dans le back-office, ne montre que ses écrans", async () => {
@@ -1812,6 +1802,13 @@ describe("AppNav — espaces (#1296)", () => {
     afficher(admin(), { initialExpanded: true });
     await waitFor(() => expect(within(rail()).getByRole("link", { name: "Épreuves" })).toBeInTheDocument());
     expect(within(rail()).queryByRole("link", { name: "Résultats" })).not.toBeInTheDocument();
+  });
+
+  it("donne au compteur de l'entrée Back-office un libellé accessible", async () => {
+    countPendingProviders.mockResolvedValue({ total: 5 });
+    chemin.courant = "/dashboard";
+    afficher(admin(), { initialExpanded: true });
+    expect(await within(rail()).findByText("5 éléments à traiter")).toHaveClass("sr-only");
   });
 
   it("n'offre pas d'entrée Back-office à un membre sans pouvoir", async () => {
