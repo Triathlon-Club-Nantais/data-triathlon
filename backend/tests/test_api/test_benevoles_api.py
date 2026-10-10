@@ -566,3 +566,42 @@ def test_queue_count_requires_the_cookie(client):
 
 def test_queue_count_counts_the_queue(benevole_connecte, resultat_pendant):
     assert benevole_connecte.get("/api/v1/benevoles/queue/count").json() == {"total": 1}
+
+
+# --- PATCH /benevoles/participations/{id} : règle jeunes (#1280) ------------
+
+
+@pytest.mark.parametrize(
+    ("avant", "correction"),
+    [
+        ({"club": "TCN", "category": "MIH"}, {"club": "ASPTT"}),
+        ({"club": "ASPTT", "category": "S1H"}, {"category": "MIH"}),
+    ],
+)
+def test_a_correction_that_makes_a_non_tcn_youth_row_is_refused(
+    benevole_connecte, resultat_pendant, compte_systeme, db_session, avant, correction
+):
+    """#1280 : la correction ne contourne pas le refus de la saisie manuelle."""
+    _, _, ligne = resultat_pendant
+    participation_repository.update(db_session, ligne, **avant)
+    db_session.commit()
+
+    reponse = benevole_connecte.patch(f"/api/v1/benevoles/participations/{ligne.id}", json=correction)
+
+    assert reponse.status_code == 422
+    assert "jeune" in reponse.json()["detail"]
+    db_session.expire_all()
+    rechargee = participation_repository.get(db_session, ligne.id)
+    assert (rechargee.club, rechargee.category) == (avant["club"], avant["category"])
+
+
+def test_a_neutral_correction_stays_accepted(benevole_connecte, resultat_pendant, compte_systeme, db_session):
+    _, _, ligne = resultat_pendant
+    participation_repository.update(db_session, ligne, club="ASPTT", category="S1H")
+    db_session.commit()
+
+    reponse = benevole_connecte.patch(
+        f"/api/v1/benevoles/participations/{ligne.id}", json={"category": "V1H"}
+    )
+
+    assert reponse.status_code == 200
