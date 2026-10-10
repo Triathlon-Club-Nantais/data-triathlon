@@ -9,7 +9,8 @@ export const metadata: Metadata = { title: ecran("/encadrement/jeunes").title };
 /**
  * Écran « Jeunes » (#867, epic #863) — référencement des profils, mobile-first.
  *
- * Sous `/encadrement`, couvert par `app/encadrement/layout.tsx` (garde partagée `space-guard.tsx`) sans rien y ajouter : la
+ * Sous `/encadrement`, couvert par `app/encadrement/layout.tsx` (garde
+ * partagée `space-guard.tsx`) sans rien y ajouter : la
  * garde effective est `jeunes:read`/`jeunes:write`, posée côté API sur chaque
  * route de `/admin/profiles` — cette page n'en est qu'un affichage.
  */

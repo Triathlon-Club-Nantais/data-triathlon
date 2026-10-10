@@ -1897,12 +1897,13 @@ describe("AppNav: supervision space (#1297)", () => {
   it("the Back-office count no longer includes volunteer declarations", async () => {
     chemin.courant = "/dashboard";
     countQualityQueue.mockResolvedValue({ total: 2 });
-    countBenevoleQueue.mockResolvedValue({ total: 5 });
+    countPendingVolunteerActions.mockResolvedValue({ total: 5 });
     afficher(
       { ...habilite("quality:override", "athletes:volunteer_validate", "pages:preview"), can_administer: true },
       { initialExpanded: true },
     );
 
     expect(await within(rail()).findByText("2 éléments à traiter")).toHaveClass("sr-only");
+    await waitFor(() => expect(countPendingVolunteerActions).toHaveBeenCalled());
   });
 });
