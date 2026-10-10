@@ -125,11 +125,32 @@ export type NavItem = {
 /** Les files de travail : le sommaire `/admin` les met en tête, compteur compris. */
 export const TO_HANDLE = "À traiter";
 
+export type SpaceId = "public" | "encadrement" | "admin";
+
+/**
+ * Les trois espaces de la navigation (#1295) : le rail et le tiroir ne
+ * montrent que celui de la page courante. `home` est la destination du
+ * sélecteur d'espace ; sans elle, la première destination visible en tient
+ * lieu.
+ */
+export const SPACES: Record<SpaceId, { label: string; home?: string }> = {
+  public: { label: "Résultats", home: "/dashboard" },
+  encadrement: { label: "Encadrement" },
+  admin: { label: "Back-office", home: "/admin" },
+};
+
+/** Par préfixe de segment : `/administration` n'est pas `/admin`. */
+export function spaceOf(pathname: string): SpaceId {
+  const segment = pathname.split("/")[1];
+  return segment === "admin" || segment === "encadrement" ? segment : "public";
+}
+
 export type NavSection = {
   id: string;
   label: string;
   icon: LucideIcon;
   minRole: number;
+  space: SpaceId;
   /**
    * Section racine : ses destinations vivent à plat (pas d'intitulé de
    * catégorie, et une tuile par destination en rail compact).
@@ -144,6 +165,7 @@ export const NAV: NavSection[] = [
     label: "Consulter",
     icon: LayoutGrid,
     minRole: ROLE.ANON,
+    space: "public",
     root: true,
     items: [
       { id: "dashboard", label: "Tableau de bord", labelCourt: "Accueil", href: "/dashboard", icon: LayoutGrid, bottomBar: true },
@@ -160,6 +182,7 @@ export const NAV: NavSection[] = [
     label: "Club",
     icon: Users,
     minRole: ROLE.ANON,
+    space: "public",
     items: [
       // `ClubDashboard.tsx` porte la synthèse **et** les podiums (#128) : une
       // entrée pour les deux, pas une par bloc. `Gauge` et non `Trophy` — ce
@@ -203,6 +226,7 @@ export const NAV: NavSection[] = [
     label: "Administration",
     icon: Briefcase,
     minRole: ROLE.CONNECTED,
+    space: "admin",
     items: [
       // Aucune entrée ne pointe `/admin` : la racine est le sommaire, avec les
       // files « À traiter » (#1246), et un `href` préfixe de tous les autres
@@ -434,6 +458,7 @@ export const NAV: NavSection[] = [
     label: "Gestion des utilisateurs",
     icon: UserCog,
     minRole: ROLE.CONNECTED,
+    space: "admin",
     items: [
       {
         id: "u-acces",
@@ -507,6 +532,7 @@ export const NAV: NavSection[] = [
     label: "Jeunes",
     icon: CalendarDays,
     minRole: ROLE.CONNECTED,
+    space: "admin",
     items: [
       {
         id: "j-profils",
