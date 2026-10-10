@@ -10,6 +10,6 @@ import { CSPProvider } from "@base-ui/react/csp-provider";
  * signé ensuite par ce nonce neuf était rapporté en violation, et serait bloqué.
  */
 export function StableCSPProvider({ nonce, children }: { nonce?: string; children: React.ReactNode }) {
-  const [nonceDuDocument] = useState(nonce);
-  return <CSPProvider nonce={nonceDuDocument}>{children}</CSPProvider>;
+  const [documentNonce] = useState(nonce);
+  return <CSPProvider nonce={documentNonce}>{children}</CSPProvider>;
 }

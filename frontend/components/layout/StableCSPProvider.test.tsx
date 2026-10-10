@@ -6,9 +6,6 @@ import { StableCSPProvider } from "./StableCSPProvider";
 
 describe("StableCSPProvider (#570)", () => {
   it("signe le style de Base UI avec le nonce du premier rendu, pas celui d'un router.refresh()", () => {
-    // `router.refresh()` rend à nouveau le layout racine avec le nonce d'une
-    // nouvelle requête, que la CSP du document ne connaît pas : un popup ouvert
-    // ensuite insérait son `<style>` signé par ce nonce, rapporté en violation.
     const { rerender } = render(<StableCSPProvider nonce="nonce-du-document">{null}</StableCSPProvider>);
 
     rerender(
