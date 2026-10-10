@@ -9,7 +9,7 @@ export const metadata: Metadata = { title: ecran("/encadrement/jeunes/calendrier
 /**
  * Le calendrier des entraînements jeunes (#868, epic #863).
  *
- * Sous `/admin`, donc couvert par `app/admin/layout.tsx` (SSO) sans rien y
+ * Sous `/encadrement`, donc couvert par `app/encadrement/layout.tsx` (SSO, garde partagée `space-guard.tsx`) sans rien y
  * ajouter — cette garde ne protège aucune donnée : les deux lectures exigent
  * `jeunes:read`, la création et la gestion des participants `jeunes:write`.
  */
