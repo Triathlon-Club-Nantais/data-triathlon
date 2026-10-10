@@ -107,12 +107,18 @@ def is_syncable(db: Session, training_session: TrainingSession) -> bool:
     )
 
 
-def sync_group_enrolment(db: Session, training_session: TrainingSession) -> None:
+def sync_group_enrolment(
+    db: Session, training_session: TrainingSession, *, profile_id: int | None = None
+) -> None:
     """La règle unique de l'inscription d'office (#1291, research R3).
 
     Sur une séance à venir dont l'appel n'a pas commencé : inscrit les membres
     actifs des groupes visés qui manquent, désinscrit les inscrits d'office
     qui n'en font plus partie. Une inscription manuelle n'est jamais retirée.
+
+    Elle n'est appelée que sur ce qui a changé (groupes ou date d'une séance,
+    un `profile_id` pour un changement de composition) : un jeune retiré à la
+    main d'une séance n'y revient pas à la modification suivante (US2.3).
     """
     if not is_syncable(db, training_session):
         return
@@ -120,6 +126,9 @@ def sync_group_enrolment(db: Session, training_session: TrainingSession) -> None
         db, [group.id for group in training_session.groups], on=training_session.date
     )
     enrolled = training_session_repository.list_participants(db, training_session.id)
+    if profile_id is not None:
+        wanted &= {profile_id}
+        enrolled = [participant for participant in enrolled if participant.profile_id == profile_id]
     for profile_id in wanted - {participant.profile_id for participant in enrolled}:
         training_session_repository.add_participant(
             db, training_session_id=training_session.id, profile_id=profile_id, added_manually=False
@@ -131,11 +140,12 @@ def sync_group_enrolment(db: Session, training_session: TrainingSession) -> None
             )
 
 
-def sync_upcoming_sessions_of_group(db: Session, group: TrainingGroup) -> None:
+def sync_member_of_group(db: Session, group: TrainingGroup, profile_id: int) -> None:
+    """Après un ajout ou un retrait de membre : ce seul jeune, sur les séances à venir du groupe."""
     for training_session in training_session_repository.list_upcoming_targeting_group(
         db, group.id, today=date_.today()
     ):
-        sync_group_enrolment(db, training_session)
+        sync_group_enrolment(db, training_session, profile_id=profile_id)
 
 
 def create_training_session(
@@ -176,15 +186,18 @@ def update_training_session(
 ) -> TrainingSession:
     """Corrige un entraînement. Seuls les champs fournis sont écrits ;
     `group_ids` absent laisse les groupes visés inchangés. Une séance issue
-    d'une récurrence modifiée seule (hors note) en devient détachée (FR-009)."""
-    if training_session.recurrence_id is not None and (
-        date is not None
-        or group_ids is not None
-        or any(value is not ... for value in (start_time, location, session_type))
-    ):
+    d'une récurrence réellement modifiée seule (hors note) en devient détachée (FR-009)."""
+    groups = groups_or_404(db, group_ids) if group_ids is not None else None
+    groups_changed = groups is not None and set(groups) != set(training_session.groups)
+    date_changed = date is not None and date != training_session.date
+    fields_changed = any(
+        value is not ... and value != getattr(training_session, name)
+        for name, value in (("start_time", start_time), ("location", location), ("session_type", session_type))
+    )
+    if training_session.recurrence_id is not None and (groups_changed or date_changed or fields_changed):
         training_session_repository.mark_detached(db, training_session)
-    if group_ids is not None:
-        training_session_repository.set_groups(db, training_session, groups_or_404(db, group_ids))
+    if groups_changed:
+        training_session_repository.set_groups(db, training_session, groups)
     training_session_repository.update(
         db,
         training_session,
@@ -194,7 +207,8 @@ def update_training_session(
         session_type=session_type,
         note=note,
     )
-    sync_group_enrolment(db, training_session)
+    if groups_changed or date_changed:
+        sync_group_enrolment(db, training_session)
     logger.info("Training session updated: actor=%s training_session=%s", actor.id, training_session.id)
     return training_session
 

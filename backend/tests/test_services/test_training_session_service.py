@@ -297,6 +297,20 @@ def test_changing_the_groups_of_a_session_resyncs_it(db_session, actor, organisa
     assert [group.id for group in training_session.groups] == [beta.id]
 
 
+def test_a_manual_removal_survives_unrelated_edits(db_session, actor, organisation):
+    excused = _young(db_session, organisation, "Excusé")
+    other = _young(db_session, organisation, "Autre")
+    group = _group(db_session, actor, "Benjamins", excused)
+    training_session = service.create_training_session(db_session, actor, date=UPCOMING, group_ids=[group.id])
+
+    service.remove_participant(db_session, actor, training_session, profile_id=excused.id)
+    service.update_training_session(db_session, actor, training_session, location="Piscine")
+    service.update_training_session(db_session, actor, training_session, group_ids=[group.id])
+    training_group_service.add_member(db_session, actor, group, profile_id=other.id)
+
+    assert _enrolled(db_session, training_session) == {other.id: False}
+
+
 def test_deleting_a_group_keeps_its_members_enrolled_for_good(db_session, actor, organisation):
     alix = _young(db_session, organisation, "Alix")
     zoe = _young(db_session, organisation, "Zoé")

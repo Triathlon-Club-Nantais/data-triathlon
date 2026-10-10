@@ -50,6 +50,13 @@ def test_an_empty_name_is_refused_in_french(db_session, actor, organisation, nam
     assert refusal.value.message == "Le nom du groupe est obligatoire."
 
 
+def test_a_too_long_name_is_refused(db_session, actor, organisation):
+    with pytest.raises(DomainError) as refusal:
+        service.create_group(db_session, actor, name="x" * 81)
+
+    assert refusal.value.message == "Le nom du groupe compte au plus 80 caractères."
+
+
 def test_a_taken_name_is_refused_on_create_and_rename(db_session, actor, organisation):
     service.create_group(db_session, actor, name="Benjamins")
     other = service.create_group(db_session, actor, name="Minimes")

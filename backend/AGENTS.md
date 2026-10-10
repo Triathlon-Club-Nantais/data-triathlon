@@ -54,8 +54,10 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
   `training_session_service.sync_group_enrolment`, **seule** règle d'inscription
   d'office : elle ne touche qu'une séance à venir sans appel commencé, ajoute les
   membres actifs des groupes visés et ne retire que les inscrits d'office
-  (`added_manually` faux). Appelée à chaque écriture de séance, d'appartenance ou
-  de récurrence, de façon synchrone.
+  (`added_manually` faux). Appelée, de façon synchrone, sur ce qui change
+  seulement (groupes ou date d'une séance, le seul membre ajouté ou retiré) :
+  une resynchronisation complète à chaque écriture réinscrivait un jeune retiré
+  à la main.
 - `app/cli/` — Typer, **couche mince** (zéro logique métier).
 - `app/api/` — `deps.py` + `v1/` (routers fins : validation + délégation au service),
   agrégés dans `v1/router.py`, montés sous `/api/v1`. Une future API v2 vivra dans `v1/`→`v2/`.

@@ -50,11 +50,10 @@ def get_recurrence_or_404(db: Session, recurrence_id: int) -> TrainingRecurrence
 def _governed_sessions(db: Session, recurrence: TrainingRecurrence):
     """Les séances que la récurrence gouverne encore : à venir, sans appel
     commencé, jamais modifiées seules."""
-    return [
-        training_session
-        for training_session in training_recurrence_repository.list_sessions(db, recurrence.id)
-        if not training_session.detached and training_session_service.is_syncable(db, training_session)
-    ]
+    sessions = training_recurrence_repository.list_sessions(db, recurrence.id)
+    started = training_session_repository.roll_call_started_among(db, [s.id for s in sessions])
+    today = date.today()
+    return [s for s in sessions if not s.detached and s.date >= today and s.id not in started]
 
 
 def recurrence_view(db: Session, recurrence: TrainingRecurrence) -> dict:
@@ -130,7 +129,8 @@ def update_recurrence(
     }
     new_dates = set(occurrence_dates(candidate["weekday"], candidate["starts_on"], candidate["ends_on"]))
     groups = training_session_service.groups_or_404(db, group_ids) if group_ids is not None else None
-    if groups is not None:
+    groups_changed = groups is not None and set(groups) != set(recurrence.groups)
+    if groups_changed:
         fields["groups"] = groups
     training_recurrence_repository.update(db, recurrence, **fields)
 
@@ -141,9 +141,12 @@ def update_recurrence(
         training_session_repository.update(
             db, training_session, **{name: getattr(recurrence, name) for name in _SESSION_FIELDS}
         )
-        training_session_repository.set_groups(db, training_session, list(recurrence.groups))
-        training_session_service.sync_group_enrolment(db, training_session)
-    for day in sorted(new_dates - old_dates):
+        # Resynchroniser sans changement de groupes réinscrirait un jeune retiré à la main.
+        if groups_changed:
+            training_session_repository.set_groups(db, training_session, list(recurrence.groups))
+            training_session_service.sync_group_enrolment(db, training_session)
+    existing = {s.date for s in training_recurrence_repository.list_sessions(db, recurrence.id)}
+    for day in sorted(new_dates - old_dates - existing):
         if day >= date.today():
             _create_session(db, recurrence, day)
     logger.info("Training recurrence updated: actor=%s recurrence=%s", actor.id, recurrence.id)
