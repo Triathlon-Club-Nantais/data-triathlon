@@ -137,6 +137,9 @@ function habilite(...pouvoirs: string[]): SessionUser {
   return { ...SESSION, permissions: pouvoirs };
 }
 
+/** Le rail desktop : la barre basse porte des liens et pastilles en doublon. */
+const rail = () => screen.getByRole("navigation", { name: "Navigation principale" });
+
 /**
  * Déplie le rail — c'est là que les libellés des entrées apparaissent.
  *
@@ -632,14 +635,14 @@ describe("AppNav: unreadable session (#954)", () => {
         <AppNav initialExpanded />
       </QueryClientProvider>,
     );
-    expect(await screen.findByRole("link", { name: "Épreuves" })).toBeInTheDocument();
+    await waitFor(() => expect(within(rail()).getByRole("link", { name: "Épreuves" })).toBeInTheDocument());
 
     getSession.mockRejectedValue(new ApiError(503, "indisponible"));
     await act(async () => {
       await client.refetchQueries({ queryKey: ["session"] });
     });
 
-    expect(screen.getByRole("link", { name: "Épreuves" })).toBeInTheDocument();
+    expect(within(rail()).getByRole("link", { name: "Épreuves" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Se connecter" })).not.toBeInTheDocument();
   });
 
@@ -1007,7 +1010,7 @@ describe("AppNav — arborescence", () => {
     );
     // Le libellé du rail est le titre de l'écran d'arrivée, pas un synonyme
     // (ADM-6) : « Gestion des courses » menait à une page intitulée « Épreuves ».
-    expect(screen.getByRole("link", { name: "Épreuves" })).toHaveAttribute(
+    expect(within(rail()).getByRole("link", { name: "Épreuves" })).toHaveAttribute(
       "href",
       "/admin/courses",
     );
@@ -1023,7 +1026,7 @@ describe("AppNav — arborescence", () => {
     // `isActive` teste `startsWith` : une entrée branchée sur `/admin` serait
     // allumée sur **tous** les écrans d'administration.
     await waitFor(() =>
-      expect(screen.getByRole("link", { name: "Épreuves" })).toHaveAttribute(
+      expect(within(rail()).getByRole("link", { name: "Épreuves" })).toHaveAttribute(
         "aria-current",
         "page",
       ),
@@ -1264,8 +1267,8 @@ describe("badge de la file de revalidation (#119)", () => {
     // ARIA 1.2 interdit de nommer un `<span>` (rôle `generic`) par
     // `aria-label` : le nom accessible passe par un texte `sr-only` dédié, la
     // pastille chiffrée restant purement décorative.
-    expect(await screen.findByText("4 épreuves à revalider")).toHaveClass("sr-only");
-    expect(screen.getByText("4")).toHaveAttribute("aria-hidden", "true");
+    expect(await within(rail()).findByText("4 épreuves à revalider")).toHaveClass("sr-only");
+    expect(within(rail()).getByText("4")).toHaveAttribute("aria-hidden", "true");
   });
 });
 
@@ -1497,6 +1500,40 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
     expect(within(barre()).getByRole("button", { name: "Plus" })).toBeInTheDocument();
   });
 
+  it("in the supervision space, the bar carries the supervision tabs", async () => {
+    chemin.courant = "/encadrement/jeunes";
+    afficher(habilite("jeunes:read", "athletes:volunteer_validate", "pages:preview"));
+    await waitFor(() =>
+      expect(liens()).toEqual(["/encadrement/jeunes", "/encadrement/jeunes/calendrier", "/encadrement/jeunes/appel", "/encadrement/benevolat"]),
+    );
+    expect(within(barre()).getByRole("link", { name: /Jeunes/ })).toHaveAttribute("aria-current", "page");
+    expect(within(barre()).getByRole("button", { name: "Plus" })).toBeInTheDocument();
+  });
+
+  it("in the back-office, the bar starts with Sommaire and its total", async () => {
+    chemin.courant = "/admin/courses";
+    countQualityQueue.mockResolvedValue({ total: 3 });
+    afficher(habilite("courses:write", "athletes:write", "quality:override"));
+    await waitFor(() => expect(liens()).toEqual(["/admin", "/admin/identites", "/admin/courses"]));
+    expect(within(barre()).getByRole("link", { name: /Épreuves/ })).toHaveAttribute("aria-current", "page");
+    await waitFor(() =>
+      expect(within(barre()).getByRole("link", { name: /Sommaire/ })).toHaveTextContent("3 éléments à traiter"),
+    );
+  });
+
+  it("tabs the account cannot open are not offered", async () => {
+    chemin.courant = "/admin";
+    afficher(habilite("quality:override"));
+    await waitFor(() => expect(liens()).toEqual(["/admin"]));
+    expect(within(barre()).getByRole("link", { name: /Sommaire/ })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("the public bar is unchanged outside the private spaces", async () => {
+    chemin.courant = "/club";
+    afficher(habilite("courses:write", "jeunes:read"));
+    await waitFor(() => expect(liens()).toEqual(["/dashboard", "/resultats", "/club", "/benevoles"]));
+  });
+
   it("garde les mêmes onglets avant et après la lecture de la session", async () => {
     let resoudre: (s: SessionUser) => void = () => {};
     getSession.mockReturnValue(new Promise<SessionUser>((r) => (resoudre = r)));
@@ -1699,9 +1736,9 @@ describe("badges of the other queues (#1232)", () => {
     afficher(habilite(permission));
     await deplier();
 
-    const entry = await screen.findByRole("link", { name: entryName });
+    const entry = await within(rail()).findByRole("link", { name: entryName });
     expect(await within(entry).findByText("4")).toBeInTheDocument();
-    expect(screen.getByText(name)).toHaveClass("sr-only");
+    expect(within(rail()).getByText(name)).toHaveClass("sr-only");
   });
 
   it("carries the volunteer validation count for an admin account", async () => {
@@ -1710,7 +1747,7 @@ describe("badges of the other queues (#1232)", () => {
     afficher({ ...habilite("feedback:read"), can_administer: true });
     await deplier();
 
-    expect(await screen.findByText("2 résultats à valider")).toHaveClass("sr-only");
+    expect(await within(rail()).findByText("2 résultats à valider")).toHaveClass("sr-only");
   });
 });
 
