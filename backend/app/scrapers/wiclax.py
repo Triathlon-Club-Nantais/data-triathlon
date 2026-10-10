@@ -742,10 +742,16 @@ def _attach_teammates(teams: list[ScrapedResult], members: list[ScrapedResult]) 
         )
         # Hors bornes ou sans nom et prénom, l'équipe reste entière, comme un
         # libellé indécoupable (#895).
-        if MIN_RELAY_TEAMMATES <= len(equipiers) <= MAX_RELAY_TEAMMATES and all(
-            m.athlete_name and m.athlete_firstname for m in equipiers
-        ):
-            team.teammates = tuple((m.athlete_name, m.athlete_firstname) for m in equipiers)
+        if not all(m.athlete_name and m.athlete_firstname for m in equipiers):
+            continue
+        # Un équipier de plusieurs relais figure une fois par relais dans le jumeau
+        # (#1283) : il ne compte qu'une fois, à sa première place.
+        distincts: dict[tuple[str, str], tuple[str, str]] = {}
+        for m in equipiers:
+            pair = (m.athlete_name, m.athlete_firstname)
+            distincts.setdefault(tuple(" ".join(strip_accents(p).lower().split()) for p in pair), pair)
+        if MIN_RELAY_TEAMMATES <= len(distincts) <= MAX_RELAY_TEAMMATES:
+            team.teammates = tuple(distincts.values())
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:

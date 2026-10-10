@@ -1481,3 +1481,34 @@ def test_teammates_without_a_first_name_are_not_attached():
     ])
 
     assert team.teammates is None
+
+
+def _members_by_id(team_id, names):
+    members = [_row(name, firstname) for name, firstname in names]
+    for rank, member in enumerate(members, start=1):
+        member.raw_data["d"] = f"{team_id}{rank}"
+    return members
+
+
+def test_a_teammate_running_two_legs_is_attached_once():
+    """#1283, Relais S 431 : l'équipier de deux relais figure deux fois dans le jumeau."""
+    from app.scrapers.wiclax import _attach_teammates
+
+    team = _row("LES MOUETTES", category="EQX", is_relay=True)
+    team.raw_data["d"] = "431"
+    _attach_teammates([team], _members_by_id("431", [
+        ("MARTIN", "Jean"), ("DURAND", "Anne"), ("Martin", "Jéan"),
+    ]))
+
+    assert team.teammates == (("MARTIN", "Jean"), ("DURAND", "Anne"))
+
+
+def test_a_team_of_one_person_running_every_leg_stays_whole():
+    """#1283, Relais XS 2401 : une seule personne pour les trois relais."""
+    from app.scrapers.wiclax import _attach_teammates
+
+    team = _row("SOLO", category="EQX", is_relay=True)
+    team.raw_data["d"] = "2401"
+    _attach_teammates([team], _members_by_id("2401", [("MARTIN", "Jean")] * 3))
+
+    assert team.teammates is None
