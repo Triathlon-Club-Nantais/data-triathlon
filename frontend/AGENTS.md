@@ -359,6 +359,13 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     comme le logo du rail corrigé ici. Hors périmètre de #428 également : sous
     `md` le rail est en `display:none`, le coût réel est celui de l'ouverture
     du tiroir, repayé à chaque ouverture.
+  - **Trois espaces** (#1295) : chaque section porte un `space` (`public`,
+    `encadrement`, `admin`) ; le rail et le tiroir ne rendent que l'espace de la
+    page, déduit du premier segment d'URL par `spaceOf`. La barre basse reste
+    celle de l'espace public. `SpaceSwitcher` mène d'un espace à l'autre et
+    disparaît pour qui n'en a qu'un ; dans l'espace public, une entrée
+    « Back-office » portant le total des files « À traiter » mène au sommaire.
+    La palette ⌘K garde les écrans de tous les espaces ouverts.
 - **Sélecteurs d'URL : `pushState` ou `router.push`, et la question qui tranche**
   — *un rendu serveur lit-il ce paramètre ?* `?rank=` ne l'est par aucun, donc
   `RankTypeToggle` écrit l'URL par `window.history.pushState` et les trois

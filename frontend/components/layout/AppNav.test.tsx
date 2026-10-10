@@ -1828,4 +1828,24 @@ describe("AppNav — espaces (#1296)", () => {
     const liste = await screen.findByRole("list", { name: "Écrans" });
     expect(within(liste).getAllByRole("link").map((l) => l.getAttribute("href"))).toContain("/admin/courses");
   });
+
+  it("offre le sélecteur d'espace à un administrateur", async () => {
+    chemin.courant = "/dashboard";
+    afficher(admin(), { initialExpanded: true });
+    expect(await within(rail()).findByRole("button", { name: /changer d'espace/ })).toBeInTheDocument();
+  });
+
+  it("n'offre pas de sélecteur à un membre sans pouvoir", async () => {
+    chemin.courant = "/dashboard";
+    afficher(SESSION);
+    await waitFor(() => expect(getSession).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: /changer d'espace/ })).not.toBeInTheDocument();
+  });
+
+  it("n'offre pas de sélecteur à un anonyme", async () => {
+    chemin.courant = "/dashboard";
+    afficher(null);
+    await waitFor(() => expect(getSession).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: /changer d'espace/ })).not.toBeInTheDocument();
+  });
 });

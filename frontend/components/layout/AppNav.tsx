@@ -9,6 +9,7 @@ import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/she
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/lib/queries/auth";
 import { libelleCompteur, useNavBadges } from "@/lib/queries/nav-badges";
+import { SpaceSwitcher } from "./SpaceSwitcher";
 import { AthletePicker, ATHLETE_CHANGED_EVENT, OPEN_PICKER_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete, type PickerMode } from "./AthletePicker";
 import { NAV, ROLE, SPACES, TO_HANDLE, byGroup, estVisible, spaceOf, type NavItem, type NavSection, type SpaceId } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
@@ -267,7 +268,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             alignItems: "center",
             justifyContent: expanded ? "flex-start" : "center",
             gap: expanded ? 10 : 4,
-            height: 68,
+            minHeight: 68,
             padding: expanded ? "0 14px" : "8px 0",
             borderBottom: "1px solid var(--tcn-border-faint)",
           }}
@@ -318,6 +319,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               {CLUB_NAME_SHORT}
             </Link>
           )}
+          <SpaceSwitcher current={espace} spaces={espacesOuverts} compact={!expanded} />
         </div>
 
         {contenu(expanded)}
@@ -451,6 +453,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-tcn.png" alt={CLUB_NAME} style={{ height: 24, display: "block" }} />
         </Link>
+        <SpaceSwitcher current={espace} spaces={espacesOuverts} />
         {rechercheDisponible && (
           <button type="button" aria-label="Rechercher un athlète" onClick={() => setPickerMode((m) => m ?? "search")} style={carreSecondaire}>
             <Search size={18} />
