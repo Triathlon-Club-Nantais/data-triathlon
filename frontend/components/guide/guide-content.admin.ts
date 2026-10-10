@@ -235,7 +235,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
     casUsage:
       "L'encadrement des jeunes triathlètes : leurs profils, le calendrier des entraînements et l'appel de présence. Données personnelles de mineurs : la lecture suffit pour consulter, les gestes d'écriture demandent un pouvoir de plus.",
     etapes: [
-      "« Profils » : saisir prénom, nom et date de naissance, puis « Créer le profil ». Ouvrir un profil, puis « Modifier le profil » pour le contact d'urgence, les notes et la fin d'adhésion. « Ajouter au journal » consigne une entrée datée. Le numéro du contact d'urgence s'y compose d'un geste.",
+      "« Profils » : saisir prénom, nom et date de naissance, puis « Créer le profil ». Ouvrir un profil, puis « Modifier le profil » pour le contact d'urgence, les notes et la fin d'adhésion. « Ajouter au journal » consigne une entrée datée. Le numéro du contact d'urgence s'y appelle d'un toucher.",
       "Fin d'adhésion : à renseigner quand le jeune quitte le club. Le profil, son journal et ses présences sont alors supprimés définitivement à la fin de la saison suivante, par la purge hebdomadaire.",
       "« Calendrier des entraînements » : renseigner date, heure, lieu et type, puis « Créer la séance ». Les séances à venir viennent en tête, celle du jour marquée « Aujourd'hui », les passées en dessous. Une séance ouverte se modifie, inscrit un jeune depuis la liste, et « Désinscrire » retire une inscription, qui se refait aussi simplement. « Ouvrir l'appel » mène à son appel ; « Supprimer la séance » l'efface avec ses inscriptions et ses présences, après confirmation.",
       "« Appel » ouvre la séance du jour, la crée par « Créer la séance du jour » s'il n'y en a pas, ou demande laquelle choisir s'il y en a plusieurs.",

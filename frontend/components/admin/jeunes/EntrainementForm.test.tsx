@@ -65,7 +65,7 @@ describe("EntrainementForm", () => {
     expect(screen.getByLabelText(/type de séance/i)).toHaveValue("Natation");
   });
 
-  it("donne au lieu toute la largeur du formulaire quand la place manque (#1290)", () => {
+  it("pose le lieu sur sa propre ligne de grille hors grande largeur (#1290)", () => {
     render(
       <EntrainementForm
         entrainement={SEANCE}

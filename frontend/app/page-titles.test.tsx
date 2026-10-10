@@ -83,13 +83,15 @@ describe("titres de document (#1040)", () => {
     for (const layout of fichiers.filter((f) => f.endsWith("/layout.tsx"))) {
       const dossier = layout.slice(0, -"layout.tsx".length);
       const source = readFileSync(join(racine, layout), "utf8");
-      if (!/export const metadata[\s\S]*?title:/.test(source)) continue;
+      if (!/export const metadata[\s\S]*?title:/.test(source) || source.includes("template:")) continue;
       const pagesTitrees = fichiers.filter(
         (f) =>
           f.startsWith(dossier) &&
           f !== `${dossier}page.tsx` &&
           f.endsWith("/page.tsx") &&
-          readFileSync(join(racine, f), "utf8").includes("export const metadata"),
+          /export (const metadata|async function generateMetadata)/.test(
+            readFileSync(join(racine, f), "utf8"),
+          ),
       );
       if (pagesTitrees.length > 0) fautifs.push(`${layout} coiffe ${pagesTitrees.join(", ")}`);
     }
