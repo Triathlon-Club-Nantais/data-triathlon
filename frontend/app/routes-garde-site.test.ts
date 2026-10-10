@@ -32,10 +32,10 @@ describe("Placement des routes vis-à-vis de la garde d'accès au site (#509)", 
 
   // `login` : sans lui, plus aucun administrateur ne peut se connecter sur un
   // déploiement neuf. `acces` : la cible de la garde. `benevoles` : population
-  // potentiellement non-adhérente (#271). `admin` : pose le premier mot de passe.
+  // potentiellement non-adhérente (#271). `admin` : pose le premier mot de passe. `encadrement` : même garde SSO/RBAC que `admin`.
   // Textes légaux (#333) : un non-adhérent n'a pas le code et doit pouvoir lire
   // ce que le club fait de ses résultats.
-  it.each(["login", "acces", "benevoles", "admin", "mentions-legales", "confidentialite", "cgu"])(
+  it.each(["login", "acces", "benevoles", "admin", "encadrement", "mentions-legales", "confidentialite", "cgu"])(
     "`%s` reste une route sœur, hors du groupe gardé",
     (route) => {
       expect(racine).toContain(route);

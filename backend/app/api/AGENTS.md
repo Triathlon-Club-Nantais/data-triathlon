@@ -424,8 +424,11 @@ plus pour `can_administer`. Un code inconnu ne compte pour aucun des deux
 (`permissions.administers`, `permissions.supervises`). Les gardes `/admin` et
 `/encadrement` lisent ces drapeaux ; un nouveau pouvoir se classe en posant
 `kind`, sans toucher au front. Le callback SSO mène au premier espace ouvert
-(`/admin`, sinon `/encadrement`, sinon `/dashboard`). Le front déployé les lit
-sans repli : le backend doit être déployé **avant** lui.
+(`/admin`, sinon `/encadrement`, sinon `/dashboard`). Le front les lit sans
+repli, et l'ancien front ne connaît pas `/encadrement` : backend et front sortent
+**ensemble** (#1297). Backend seul, un compte jeunes seul est refusé à l'ancien
+`/admin/jeunes` et le callback SSO l'envoie vers un `/encadrement` en 404 ; front
+seul, `can_supervise` est indéfini et `/encadrement` refuse tout le monde.
 
 **Les sept ressources de `/admin/groups` (#197) n'ajoutent aucun mécanisme.**
 Elles reprennent `require_permission` à l'identique, route par route, et se
