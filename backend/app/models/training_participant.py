@@ -2,7 +2,7 @@
 (#868, epic #863)."""
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, UniqueConstraint, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -55,6 +55,12 @@ class TrainingParticipant(Base):
     #: plutôt qu'une table de présence séparée (cf. research.md D1 de
     #: `specs/20260915-141516-appel-jeunes/`).
     present: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=None)
+    #: Vrai pour un ajout individuel, faux pour une inscription d'office par
+    #: groupe (#1291, research R2) : seule une inscription d'office peut être
+    #: retirée par la resynchronisation des groupes.
+    added_manually: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=true(), nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
 
     training_session: Mapped["TrainingSession"] = relationship(  # noqa: F821

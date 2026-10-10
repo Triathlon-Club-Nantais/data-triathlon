@@ -14,6 +14,7 @@ from app.models.club_member import LINK_AUTO, LINK_UNLINKED, SOURCE_FFTRI, ClubM
 from app.models.organisation import Organisation
 from app.models.personal_profile import PersonalProfile
 from app.models.profile_log_entry import ProfileLogEntry
+from app.models.training_group import TrainingGroup, TrainingGroupMember
 from app.models.training_participant import TrainingParticipant
 from app.models.user_feedback import UserFeedback
 from app.repositories import (
@@ -21,6 +22,7 @@ from app.repositories import (
     club_member_repository,
     feedback_repository,
     profile_repository,
+    training_group_repository,
     training_session_repository,
     user_repository,
 )
@@ -112,6 +114,17 @@ def test_purging_a_profile_takes_its_log_and_attendance_with_it(db_session, orga
 
     assert db_session.get(ProfileLogEntry, entry.id) is None
     assert db_session.get(TrainingParticipant, inscription.id) is None
+
+
+def test_purging_a_profile_removes_its_group_memberships(db_session, organisation):
+    profile = _profile(db_session, organisation, date(2025, 6, 30))
+    group = training_group_repository.create(db_session, organisation_id=organisation.id, name="Benjamins")
+    training_group_repository.add_member(db_session, training_group_id=group.id, profile_id=profile.id)
+
+    retention_service.purge_expired(db_session, now=NOW)
+
+    assert db_session.query(TrainingGroupMember).count() == 0
+    assert db_session.get(TrainingGroup, group.id) is not None
 
 
 def test_dry_run_counts_without_deleting(db_session, organisation):

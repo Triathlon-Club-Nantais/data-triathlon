@@ -9,7 +9,7 @@ aux adultes n'ait ni table à doubler ni colonne à renommer.
 from datetime import date as date_
 from datetime import datetime, time
 
-from sqlalchemy import Date, DateTime, String, Text, Time
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String, Text, Time, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -43,7 +43,21 @@ class TrainingSession(Base):
     #: `specs/20260915-141516-appel-jeunes/`.
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    #: Récurrence d'origine (#1291) ; remise à `NULL` quand la récurrence est
+    #: supprimée et que la séance est conservée (passée ou pointée).
+    recurrence_id: Mapped[int | None] = mapped_column(
+        ForeignKey("training_recurrences.id"), index=True, nullable=True
+    )
+    #: Vrai dès qu'une séance générée est modifiée seule : sa récurrence ne la
+    #: touche plus (FR-009).
+    detached: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=false(), nullable=False
+    )
 
     participants: Mapped[list["TrainingParticipant"]] = relationship(  # noqa: F821
         back_populates="training_session", cascade="all, delete-orphan"
+    )
+    #: Groupes visés (#1291) : leurs membres actifs sont inscrits d'office.
+    groups: Mapped[list["TrainingGroup"]] = relationship(  # noqa: F821
+        secondary="training_session_groups", back_populates="sessions", order_by="TrainingGroup.name"
     )
