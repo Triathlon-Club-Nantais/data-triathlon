@@ -43,8 +43,11 @@ export function ResultRow({
   // Un non-finisher n'a ni rang ni temps : deux tirets se liraient comme des
   // données perdues. Mêmes libellés que le classement (#1091).
   const abandonLabel = nonFinisherLabel(participation.status);
+  // Un rang déclaré n'est pas un rang tant qu'un bénévole ne l'a pas validé,
+  // comme en fin de classement de l'épreuve (#1273, #1281).
+  const pending = participation.is_pending_validation === true;
 
-  const secondaryRanks = [
+  const secondaryRanks = pending ? [] : [
     { label: "cat.", value: participation.rank_category },
     { label: "genre", value: participation.rank_gender },
   ].filter((rank): rank is { label: string; value: number } => rank.value != null);
@@ -61,7 +64,7 @@ export function ResultRow({
           margin: "12px 0 22px",
         }}
       >
-        {participation.rank_overall != null ? (
+        {participation.rank_overall != null && !pending ? (
           <PlaceBadge place={participation.rank_overall} style={{ fontSize: 22, minWidth: 44 }} />
         ) : abandonLabel ? (
           <Badge variant="ink">
