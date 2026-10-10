@@ -22,7 +22,7 @@ const REFUS = { sujet: "entraînements", action: "consulter le calendrier des en
  * téléphone, au bord d'un bassin ou d'un plateau d'entraînement.
  */
 export function CalendrierEntrainements() {
-  const { data, isLoading, error } = useTrainingSessions();
+  const { data, isPending, error } = useTrainingSessions();
   const session = useSession();
   const creer = useCreateTrainingSession();
   const [ouvert, setOuvert] = useState<TrainingSession | null>(null);
@@ -108,7 +108,7 @@ export function CalendrierEntrainements() {
         />
       )}
 
-      {isLoading ? (
+      {isPending ? (
         <Skeleton className="h-40 w-full" />
       ) : error ? (
         <EmptyState {...messageDeRefus(error, REFUS)} />

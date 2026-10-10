@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -93,6 +93,28 @@ describe("CalendrierEntrainements", () => {
     getSession.mockResolvedValue(AVEC_ECRITURE);
     getTrainingSession.mockResolvedValue(DETAIL);
     listProfiles.mockResolvedValue([]);
+  });
+
+  afterEach(() => focusManager.setFocused(undefined));
+
+  it("ne prend pas une relance suspendue pour une absence de données (#1290)", async () => {
+    // Backend endormi : le premier essai échoue, et React Query suspend la
+    // relance tant que l'onglet n'a pas le focus.
+    focusManager.setFocused(false);
+    listTrainingSessions.mockRejectedValue(new ApiError(503, "Service indisponible"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: 1, retryDelay: 0 } } });
+    render(
+      <QueryClientProvider client={client}>
+        <DangerConfirmProvider>
+          <CalendrierEntrainements />
+        </DangerConfirmProvider>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(client.getQueryCache().find({ queryKey: ["admin-training-sessions"] })?.state.fetchStatus).toBe("paused"),
+    );
+    expect(screen.queryByText(/aucun entraînement/i)).not.toBeInTheDocument();
   });
 
   it("liste les entraînements triés, avec leur nombre d'inscrits", async () => {

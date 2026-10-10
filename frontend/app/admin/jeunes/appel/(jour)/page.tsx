@@ -39,7 +39,7 @@ function libelleSeance(entrainement: TrainingSession): string {
  */
 export default function AdminJeuneAppelDuJourPage() {
   const router = useRouter();
-  const { data, isLoading, error } = useTrainingSessions();
+  const { data, isPending, error } = useTrainingSessions();
   const session = useSession();
   const creer = useCreateTrainingSession();
   const [creationLancee, setCreationLancee] = useState(false);
@@ -70,7 +70,7 @@ export default function AdminJeuneAppelDuJourPage() {
     <PageShell>
       <div className="space-y-10">
         <PageHeader {...ecran("/admin/jeunes/appel")} />
-        {isLoading || seanceUnique || creationLancee ? (
+        {isPending || seanceUnique || creationLancee ? (
           <Skeleton className="h-40 w-full" />
         ) : error ? (
           <EmptyState {...messageDeRefus(error, REFUS)} />

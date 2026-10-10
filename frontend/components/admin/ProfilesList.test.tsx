@@ -1,7 +1,7 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Profile, SessionUser } from "@/lib/types";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -20,6 +20,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   };
 });
 
+import { ApiError } from "@/lib/api/client";
 import { ProfilesList } from "./ProfilesList";
 
 const ALIX: Profile = {
@@ -57,6 +58,28 @@ describe("ProfilesList", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getSession.mockResolvedValue(AVEC_ECRITURE);
+  });
+
+  afterEach(() => focusManager.setFocused(undefined));
+
+  it("ne prend pas une relance suspendue pour une liste vide (#1290)", async () => {
+    // Backend endormi : le premier essai échoue, et React Query suspend la
+    // relance tant que l'onglet n'a pas le focus.
+    focusManager.setFocused(false);
+    listProfiles.mockRejectedValue(new ApiError(503, "Service indisponible"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: 1, retryDelay: 0 } } });
+    render(
+      <QueryClientProvider client={client}>
+        <ProfilesList />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(client.getQueryCache().find({ queryKey: ["admin-profiles"] })?.state.fetchStatus).toBe(
+        "paused",
+      ),
+    );
+    expect(screen.queryByText(/aucun jeune référencé/i)).not.toBeInTheDocument();
   });
 
   it("liste les profils existants", async () => {

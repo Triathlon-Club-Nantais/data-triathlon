@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { TrainingSession, SessionUser } from "@/lib/types";
@@ -22,6 +22,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   return { ...original, apiClient: { listTrainingSessions, createTrainingSession, getSession } };
 });
 
+import { ApiError } from "@/lib/api/client";
 import AdminJeuneAppelDuJourPage from "./page";
 
 const AUJOURDHUI = "2026-09-24";
@@ -69,8 +70,29 @@ describe("AdminJeuneAppelDuJourPage", () => {
     getSession.mockResolvedValue(session(["jeunes:read", "jeunes:write"]));
   });
 
+  it("ne propose pas de créer la séance du jour pendant une relance suspendue (#1290)", async () => {
+    // Backend endormi : le premier essai échoue, et React Query suspend la
+    // relance tant que l'onglet n'a pas le focus.
+    focusManager.setFocused(false);
+    listTrainingSessions.mockRejectedValue(new ApiError(503, "Service indisponible"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: 1, retryDelay: 0 } } });
+    render(
+      <QueryClientProvider client={client}>
+        <AdminJeuneAppelDuJourPage />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(
+        client.getQueryCache().find({ queryKey: ["admin-training-sessions"] })?.state.fetchStatus,
+      ).toBe("paused"),
+    );
+    expect(screen.queryByText("Aucune séance aujourd'hui")).not.toBeInTheDocument();
+  });
+
   afterEach(() => {
     vi.useRealTimers();
+    focusManager.setFocused(undefined);
   });
 
   it("ouvre directement l'appel de l'unique séance du jour", async () => {

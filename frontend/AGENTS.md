@@ -128,6 +128,13 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   (`_global-error.html`), qui reste son texte anglais sans `lang`, et un rendu
   serveur en échec dont le corps HTML part vide, les frontières étant rendues
   côté client.
+- **Un squelette sur `isPending`, pas sur `isLoading`** (#1290). Après un échec
+  (backend endormi), React Query suspend la relance tant que l'onglet n'a pas
+  le focus ou que le réseau manque : `fetchStatus` passe à `paused`,
+  `isLoading` retombe à `false` sans `error` ni `data`, et un écran qui teste
+  `isLoading` puis `!data` affirme « aucun jeune » ou offre de créer une séance
+  du jour qui existe. Les écrans jeunes testent `isPending` ; le reste du dépôt
+  porte encore `isLoading`.
 - **Composition des rôles** (`admin/droits`, #240) — l'écran **n'invente aucun
   regroupement** : `GET /admin/permissions` rend l'inventaire déjà rangé par
   fonctionnalité, dans son ordre d'affichage, et `PermissionGrid` le reproduit

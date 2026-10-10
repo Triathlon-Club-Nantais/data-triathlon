@@ -42,7 +42,7 @@ const REFUS = { sujet: "relevés de présence", action: "consulter l'appel" };
  * (FR-007, aucun état conservé côté serveur).
  */
 export function AppelPresence({ sessionId }: { sessionId: number }) {
-  const { data, isLoading, error } = useTrainingSession(sessionId);
+  const { data, isPending, error } = useTrainingSession(sessionId);
   const profils = useProfiles();
   const session = useSession();
   const setPresence = useSetPresence();
@@ -80,7 +80,7 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
   const heureEtLieu = [data?.start_time?.slice(0, 5), data?.location].filter(Boolean).join(", ");
 
   let corps: ReactNode;
-  if (isLoading) {
+  if (isPending) {
     corps = <Skeleton className="h-40 w-full" />;
   } else if (error) {
     corps = <EmptyState {...messageDeRefus(error, REFUS)} />;
