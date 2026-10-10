@@ -22,7 +22,9 @@ import { calculerAge } from "@/lib/utils/age";
 const REFUS = { sujet: "jeunes", action: "consulter les profils" };
 
 export function ProfilesList() {
-  const { data, isLoading, error } = useProfiles();
+  // `isPending`, pas `isLoading` : une relance suspendue (onglet sans focus,
+  // hors ligne) n'est pas « en cours » et tomberait sur l'état vide (#1290).
+  const { data, isPending, error } = useProfiles();
   const session = useSession();
   const creer = useCreateProfile();
   const [prenom, setPrenom] = useState("");
@@ -91,7 +93,7 @@ export function ProfilesList() {
         </form>
       )}
 
-      {isLoading ? (
+      {isPending ? (
         <Skeleton className="h-40 w-full" />
       ) : error ? (
         <EmptyState {...messageDeRefus(error, REFUS)} />

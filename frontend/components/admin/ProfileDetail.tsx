@@ -26,7 +26,7 @@ const REFUS = { sujet: "jeunes", action: "consulter ce profil" };
  * chaque écriture porte sa propre garde côté API).
  */
 export function ProfileDetail({ profileId }: { profileId: number }) {
-  const { data, isLoading, error } = useProfile(profileId);
+  const { data, isPending, error } = useProfile(profileId);
   const session = useSession();
   const modifier = useUpdateProfile();
   const ajouterEntree = useAddProfileLogEntry();
@@ -103,7 +103,7 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
     }
   }
 
-  if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (isPending) return <Skeleton className="h-64 w-full" />;
   if (error) return <EmptyState {...messageDeRefus(error, REFUS)} />;
   if (!data) {
     return (
