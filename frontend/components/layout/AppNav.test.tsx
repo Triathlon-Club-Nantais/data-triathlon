@@ -1835,6 +1835,12 @@ describe("AppNav — espaces (#1296)", () => {
     expect(await within(rail()).findByRole("button", { name: /changer d'espace/ })).toBeInTheDocument();
   });
 
+  it("offre le sélecteur d'espace dans la barre mobile du haut", async () => {
+    chemin.courant = "/dashboard";
+    afficher(admin());
+    expect(await within(screen.getByRole("banner")).findByRole("button", { name: /changer d'espace/ })).toBeInTheDocument();
+  });
+
   it("n'offre pas de sélecteur à un membre sans pouvoir", async () => {
     chemin.courant = "/dashboard";
     afficher(SESSION);
