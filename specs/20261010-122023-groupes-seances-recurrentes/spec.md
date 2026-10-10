@@ -130,7 +130,7 @@ La catégorie d'âge fédérale (Mini-poussin à Junior, puis Senior) est calcul
 - **Appartenance**: lien profil ↔ groupe ; un profil a zéro ou plusieurs groupes.
 - **Récurrence**: règle hebdomadaire (jour, heure, lieu, type, période, groupes visés) qui a engendré des séances.
 - **Séance** (existante): gagne les groupes qu'elle vise, sa récurrence d'origine éventuelle, et l'indication qu'elle a été modifiée seule.
-- **Inscription** (existante, participant d'une séance): gagne son origine (manuelle, ou le groupe qui l'a produite).
+- **Inscription** (existante, participant d'une séance): gagne l'indication qu'elle a été faite à la main ; une inscription d'office se reconnaît aux groupes visés par la séance.
 
 ## Success Criteria *(mandatory)*
 
