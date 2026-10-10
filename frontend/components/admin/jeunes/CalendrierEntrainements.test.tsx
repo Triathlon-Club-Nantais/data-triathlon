@@ -254,6 +254,7 @@ describe("CalendrierEntrainements", () => {
     await userEvent.click(within(confirmation).getByRole("button", { name: "Supprimer la séance" }));
 
     await waitFor(() => expect(deleteTrainingSession).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 
   it("ne propose pas de supprimer une séance sans jeunes:write", async () => {

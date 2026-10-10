@@ -95,7 +95,7 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
     corps = (
       <>
         {/* Hors des onglets : le compteur reste sous les yeux pendant les deux appels. */}
-        <p aria-live="polite" className="mb-4 text-lg font-medium">
+        <p aria-live="polite" className="mb-4 text-lg font-medium empty:hidden">
           {participants.length > 0 &&
             `${presents} présent${presents > 1 ? "s" : ""} sur ${participants.length}, ` +
             `${absents} absent${absents > 1 ? "s" : ""}` +
