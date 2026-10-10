@@ -88,8 +88,27 @@ describe("ProfileDetail", () => {
     afficher();
 
     expect(await screen.findByText("Alix Martin")).toBeInTheDocument();
-    expect(screen.getByText(/Mère — 06 00 00 00 00/)).toBeInTheDocument();
+    expect(screen.getByText(/Mère —/)).toBeInTheDocument();
     expect(screen.getByText(/Allergie aux fruits à coque/)).toBeInTheDocument();
+  });
+
+  it("rend le numéro du contact d'urgence cliquable pour appeler", async () => {
+    getProfile.mockResolvedValue({ ...PROFIL, emergency_contact: "Parent X 06 00 00 00 00" });
+
+    afficher();
+
+    const lien = await screen.findByRole("link", { name: "06 00 00 00 00" });
+    expect(lien).toHaveAttribute("href", "tel:0600000000");
+    expect(screen.getByText(/Parent X/)).toBeInTheDocument();
+  });
+
+  it("laisse en texte un contact d'urgence sans numéro reconnaissable", async () => {
+    getProfile.mockResolvedValue({ ...PROFIL, emergency_contact: "Voir avec le club" });
+
+    afficher();
+
+    expect(await screen.findByText("Voir avec le club")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("dit qu'un profil absent est introuvable", async () => {
