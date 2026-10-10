@@ -81,7 +81,7 @@ const BOUTONS = {
   fusionner: /fusionner avec une autre épreuve/i,
 };
 
-async function ouvrirMenu(user: ReturnType<typeof userEvent.setup>) {
+async function openMenu(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("button", { name: "Gérer l'épreuve" }, { timeout: 3000 }));
 }
 
@@ -115,7 +115,7 @@ describe("CourseAdminActions", () => {
       expect(panelLoaded).not.toHaveBeenCalled();
       return;
     }
-    await ouvrirMenu(user);
+    await openMenu(user);
     // Les présents d'abord : les absences ne se lisent qu'une fois le panneau chargé.
     const entrees = Object.entries(BOUTONS);
     for (const [cle, nom] of entrees) {
@@ -140,13 +140,33 @@ describe("CourseAdminActions", () => {
     }
   });
 
+  it.each([
+    ["corriger", ["courses:write"]],
+    ["supprimer", ["courses:delete"]],
+    ["fusionner", ["courses:delete", "courses:sources"]],
+  ] as const)("rend le focus au déclencheur du menu quand Échap ferme « %s »", async (cle, permissions) => {
+    api.getSession.mockResolvedValue(session([...permissions]));
+    api.getCourseDeletionImpact.mockResolvedValue({ course_id: 1047, name: BAYMAN.name, participations: 420, athletes: 3 });
+    const user = userEvent.setup();
+    afficher();
+
+    await openMenu(user);
+    const trigger = screen.getByRole("button", { name: "Gérer l'épreuve" });
+    await user.click(await screen.findByRole("menuitem", { name: BOUTONS[cle] }));
+    await screen.findByRole("dialog");
+    await user.keyboard("{Escape}");
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
+
   it("corriger rafraîchit la page une fois l'épreuve enregistrée", async () => {
     api.getSession.mockResolvedValue(session(["courses:write"]));
     api.updateCourse.mockResolvedValue(BAYMAN);
     const user = userEvent.setup();
     afficher();
 
-    await ouvrirMenu(user);
+    await openMenu(user);
     await user.click(await screen.findByRole("menuitem", { name: BOUTONS.corriger }));
     await user.click(await screen.findByRole("button", { name: /enregistrer/i }));
 
@@ -161,7 +181,7 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await ouvrirMenu(user);
+    await openMenu(user);
     await user.click(await screen.findByRole("menuitem", { name: BOUTONS.supprimer }));
     const confirmer = await screen.findByRole("button", { name: /supprimer définitivement/i });
     await waitFor(() => expect(confirmer).toBeEnabled());
@@ -208,7 +228,7 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await ouvrirMenu(user);
+    await openMenu(user);
     await user.click(await screen.findByRole("menuitem", { name: BOUTONS.fusionner }));
     await user.type(screen.getByRole("searchbox"), "Bayman");
 
@@ -237,7 +257,7 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await ouvrirMenu(user);
+    await openMenu(user);
     await user.click(await screen.findByRole("menuitem", { name: BOUTONS.fusionner }));
     await user.type(screen.getByRole("searchbox"), "1162");
 
@@ -251,7 +271,7 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await ouvrirMenu(user);
+    await openMenu(user);
     await user.click(await screen.findByRole("menuitem", { name: BOUTONS.fusionner }));
     await user.type(screen.getByRole("searchbox"), "Bayman");
 
@@ -268,7 +288,7 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await ouvrirMenu(user);
+    await openMenu(user);
     await user.click(await screen.findByRole("menuitem", { name: BOUTONS.fusionner }));
     await user.type(screen.getByRole("searchbox"), "1162");
     const candidat = await screen.findByRole("button", { name: /n° 1162/ }, { timeout: 3000 });

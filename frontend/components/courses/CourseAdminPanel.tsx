@@ -73,35 +73,35 @@ export function CourseAdminPanel({
 
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-      {(canEdit || canReview || canMerge || canDelete) && (
+      {(canEdit || canReview || canDelete) && (
         <DropdownMenu>
           <DropdownMenuTrigger className="tcn-btn tcn-btn--sm tcn-btn--secondary">
             Gérer l&apos;épreuve
           </DropdownMenuTrigger>
-          <DropdownMenuContent>
+          <DropdownMenuContent className="w-auto min-w-56">
             {canEdit && (
-              <DropdownMenuItem onClick={() => setEditOpen(true)}>Corriger l&apos;épreuve</DropdownMenuItem>
+              <DropdownMenuItem className="tcn-cible-tactile" onClick={() => setEditOpen(true)}>Corriger l&apos;épreuve</DropdownMenuItem>
             )}
             {canReview && (
               <DropdownMenuSub>
-                <DropdownMenuSubTrigger>Avis de fiabilité</DropdownMenuSubTrigger>
+                <DropdownMenuSubTrigger className="tcn-cible-tactile">Avis de fiabilité</DropdownMenuSubTrigger>
                 <DropdownMenuSubContent>
-                  <DropdownMenuItem onClick={() => setVerdict("fiable")}>Marquer fiable</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setVerdict("douteuse")}>Marquer douteuse</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setVerdict("calcule")}>
+                  <DropdownMenuItem className="tcn-cible-tactile" onClick={() => setVerdict("fiable")}>Marquer fiable</DropdownMenuItem>
+                  <DropdownMenuItem className="tcn-cible-tactile" onClick={() => setVerdict("douteuse")}>Marquer douteuse</DropdownMenuItem>
+                  <DropdownMenuItem className="tcn-cible-tactile" onClick={() => setVerdict("calcule")}>
                     Revenir à l&apos;avis calculé
                   </DropdownMenuItem>
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
             )}
-            {(canMerge || canDelete) && (canEdit || canReview) && <DropdownMenuSeparator />}
+            {canDelete && (canEdit || canReview) && <DropdownMenuSeparator />}
             {canMerge && (
-              <DropdownMenuItem variant="destructive" onClick={() => setSearchOpen(true)}>
+              <DropdownMenuItem className="tcn-cible-tactile" variant="destructive" onClick={() => setSearchOpen(true)}>
                 Fusionner avec une autre épreuve
               </DropdownMenuItem>
             )}
             {canDelete && (
-              <DropdownMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}>
+              <DropdownMenuItem className="tcn-cible-tactile" variant="destructive" onClick={() => setDeleteOpen(true)}>
                 Supprimer l&apos;épreuve
               </DropdownMenuItem>
             )}
