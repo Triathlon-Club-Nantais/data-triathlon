@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { TrainingSession, TrainingSessionDetail, SessionUser } from "@/lib/types";
 
@@ -128,6 +128,57 @@ describe("CalendrierEntrainements", () => {
     afficher();
 
     expect(await screen.findByText(libelle)).toBeInTheDocument();
+  });
+
+  describe("ordre du calendrier, vu le 10/10/2026", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(2026, 9, 10, 12));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    const seance = (id: number, date: string): TrainingSession => ({ ...SEANCE, id, date });
+
+    it("liste les séances à venir d'abord, puis les passées de la plus récente à la plus ancienne", async () => {
+      listTrainingSessions.mockResolvedValue([
+        seance(1, "2026-09-20"),
+        seance(2, "2026-10-01"),
+        seance(3, "2026-10-10"),
+        seance(4, "2026-10-20"),
+      ]);
+
+      afficher();
+
+      const aVenir = await screen.findByRole("region", { name: "Séances à venir" });
+      const passees = screen.getByRole("region", { name: "Séances passées" });
+      const dates = (zone: HTMLElement) =>
+        within(zone)
+          .getAllByText(/^\d{2}\/\d{2}\/\d{4}$/)
+          .map((n) => n.textContent);
+      expect(dates(aVenir)).toEqual(["10/10/2026", "20/10/2026"]);
+      expect(dates(passees)).toEqual(["01/10/2026", "20/09/2026"]);
+    });
+
+    it("signale la séance du jour", async () => {
+      listTrainingSessions.mockResolvedValue([seance(3, "2026-10-10"), seance(4, "2026-10-20")]);
+
+      afficher();
+
+      const aujourdhui = await screen.findByText("Aujourd'hui");
+      expect(aujourdhui.closest("[role=button]")).toHaveTextContent("10/10/2026");
+      expect(screen.getAllByText("Aujourd'hui")).toHaveLength(1);
+    });
+
+    it("dit qu'aucune séance n'est à venir quand toutes sont passées", async () => {
+      listTrainingSessions.mockResolvedValue([seance(1, "2026-09-20")]);
+
+      afficher();
+
+      expect(await screen.findByText("Aucune séance à venir.")).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Séances passées" })).toHaveTextContent(
+        "20/09/2026",
+      );
+    });
   });
 
   it("dit « aucun entraînement » sur une liste vide", async () => {
