@@ -240,6 +240,22 @@ def roll_call_started(db: Session, training_session_id: int) -> bool:
     )
 
 
+def roll_call_started_among(db: Session, training_session_ids: list[int]) -> set[int]:
+    """Parmi ces séances, celles dont l'appel a commencé, en une requête."""
+    if not training_session_ids:
+        return set()
+    return set(
+        db.scalars(
+            select(TrainingParticipant.training_session_id)
+            .where(
+                TrainingParticipant.training_session_id.in_(training_session_ids),
+                TrainingParticipant.present.is_not(None),
+            )
+            .distinct()
+        )
+    )
+
+
 def list_upcoming_targeting_group(db: Session, training_group_id: int, *, today: date_) -> list[TrainingSession]:
     return list(
         db.scalars(

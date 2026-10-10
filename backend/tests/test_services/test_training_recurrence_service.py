@@ -170,3 +170,81 @@ def test_deletion_keeps_started_or_detached_sessions(db_session, actor, organisa
     assert outcome == {"deleted_session_count": 2, "kept_session_count": 2}
     assert db_session.get(TrainingSession, plain.id) is None
     assert detached.recurrence_id is None and started.recurrence_id is None
+
+
+def test_saving_unchanged_values_does_not_detach(db_session, actor):
+    recurrence, _ = _create(db_session, actor)
+    first = _sessions(db_session, recurrence.id)[0]
+
+    training_session_service.update_training_session(
+        db_session, actor, first, date=first.date, start_time=time(14, 0), location="Piscine", group_ids=[]
+    )
+
+    assert first.detached is False
+
+
+def test_a_manual_removal_survives_a_recurrence_update(db_session, actor, organisation):
+    young = profile_repository.create(db_session, organisation_id=organisation.id, first_name="A", last_name="B")
+    group = training_group_service.create_group(db_session, actor, name="Benjamins")
+    training_group_service.add_member(db_session, actor, group, profile_id=young.id)
+    recurrence, _ = _create(db_session, actor, group_ids=[group.id])
+    first = _sessions(db_session, recurrence.id)[0]
+    training_session_service.remove_participant(db_session, actor, first, profile_id=young.id)
+
+    service.update_recurrence(db_session, actor, recurrence, location="Gymnase", group_ids=[group.id])
+
+    assert first.location == "Gymnase"
+    assert first.participants == []
+
+
+def test_a_date_added_to_the_period_is_not_doubled(db_session, actor):
+    recurrence, _ = _create(db_session, actor)
+    last = _sessions(db_session, recurrence.id)[-1]
+    training_session_service.update_training_session(
+        db_session, actor, last, date=last.date + timedelta(weeks=1)
+    )
+
+    service.update_recurrence(db_session, actor, recurrence, ends_on=recurrence.ends_on + timedelta(weeks=1))
+
+    dates = [s.date for s in _sessions(db_session, recurrence.id)]
+    assert len(dates) == len(set(dates))
+
+
+def test_deleting_a_group_then_its_recurrence_holds_with_enforced_foreign_keys(db_session_fk):
+    db = db_session_fk
+    club = Organisation(slug="tcn", name="Triathlon Club Nantais")
+    db.add(club)
+    db.flush()
+    actor = user_repository.create(db, email="encadrant@exemple.fr")
+    young = profile_repository.create(db, organisation_id=club.id, first_name="A", last_name="B")
+    group = training_group_service.create_group(db, actor, name="Benjamins")
+    training_group_service.add_member(db, actor, group, profile_id=young.id)
+    recurrence, _ = _create(db, actor, group_ids=[group.id])
+
+    training_group_service.delete_group(db, actor, group)
+    service.delete_recurrence(db, actor, recurrence)
+    db.flush()
+
+    assert db.query(TrainingSession).count() == 0
+
+
+def test_the_recurrence_list_query_count_does_not_grow_with_sessions(db_session, actor):
+    from sqlalchemy import event
+
+    def count_queries():
+        db_session.expire_all()
+        statements = []
+        engine = db_session.get_bind()
+        listener = lambda *args: statements.append(args[2])  # noqa: E731
+        event.listen(engine, "before_cursor_execute", listener)
+        try:
+            service.list_recurrence_views(db_session)
+        finally:
+            event.remove(engine, "before_cursor_execute", listener)
+        return len(statements)
+
+    recurrence, _ = _create(db_session, actor, weeks=2)
+    few = count_queries()
+    service.update_recurrence(db_session, actor, recurrence, ends_on=recurrence.ends_on + timedelta(weeks=10))
+
+    assert count_queries() == few

@@ -23,6 +23,14 @@ class InvalidGroupNameError(DomainError):
     message = "Le nom du groupe est obligatoire."
 
 
+MAX_NAME_LENGTH = 80
+
+
+class GroupNameTooLongError(DomainError):
+    status_code = 422
+    message = f"Le nom du groupe compte au plus {MAX_NAME_LENGTH} caractères."
+
+
 class GroupNameTakenError(DomainError):
     status_code = 422
     message = "Un groupe porte déjà ce nom."
@@ -57,6 +65,8 @@ def _valid_name(db: Session, organisation_id: int, name: str, group: TrainingGro
     name = name.strip()
     if not name:
         raise InvalidGroupNameError()
+    if len(name) > MAX_NAME_LENGTH:
+        raise GroupNameTooLongError()
     existing = training_group_repository.find_by_name(db, organisation_id=organisation_id, name=name)
     if existing is not None and existing is not group:
         raise GroupNameTakenError()
@@ -90,11 +100,11 @@ def add_member(db: Session, actor: User, group: TrainingGroup, *, profile_id: in
     if profile_repository.get(db, profile_id) is None:
         raise NotFoundError("Ce profil n'existe pas.")
     _, created = training_group_repository.add_member(db, training_group_id=group.id, profile_id=profile_id)
-    training_session_service.sync_upcoming_sessions_of_group(db, group)
+    training_session_service.sync_member_of_group(db, group, profile_id)
     logger.info("Group member added: actor=%s group=%s profile=%s new=%s", actor.id, group.id, profile_id, created)
 
 
 def remove_member(db: Session, actor: User, group: TrainingGroup, *, profile_id: int) -> None:
     training_group_repository.remove_member(db, training_group_id=group.id, profile_id=profile_id)
-    training_session_service.sync_upcoming_sessions_of_group(db, group)
+    training_session_service.sync_member_of_group(db, group, profile_id)
     logger.info("Group member removed: actor=%s group=%s profile=%s", actor.id, group.id, profile_id)
