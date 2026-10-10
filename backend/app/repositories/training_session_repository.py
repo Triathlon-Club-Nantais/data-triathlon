@@ -110,6 +110,13 @@ def update(
     return training_session
 
 
+def delete_training_session(db: Session, training_session: TrainingSession) -> None:
+    """Supprime la séance ; ses inscriptions partent avec elle par la cascade
+    ORM `delete-orphan` de `TrainingSession.participants`."""
+    db.delete(training_session)
+    db.flush()
+
+
 def find_participant(
     db: Session, *, training_session_id: int, profile_id: int
 ) -> TrainingParticipant | None:

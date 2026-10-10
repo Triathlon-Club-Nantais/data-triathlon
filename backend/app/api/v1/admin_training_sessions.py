@@ -1,7 +1,7 @@
 """Router du calendrier des entraînements jeunes (#868, epic #863) et de
 l'appel de présence (#869).
 
-Six ressources, deux pouvoirs : `jeunes:read` pour les deux lectures,
+Sept ressources, deux pouvoirs : `jeunes:read` pour les deux lectures,
 `jeunes:write` pour le cycle de vie d'un entraînement, sa liste de
 participants et leur statut de présence — même patron que `admin_groups.py`.
 Aucune route n'est protégée par son préfixe : chaque route porte sa garde
@@ -103,6 +103,18 @@ def update_training_session(
     view = training_session_service.training_session_detail_view(db, training_session)
     db.commit()
     return view
+
+
+@router.delete("/admin/training-sessions/{training_session_id}", status_code=204)
+def delete_training_session(
+    training_session_id: int,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+):
+    """Supprime une séance et ses inscriptions (#1290)."""
+    training_session = training_session_service.get_training_session_or_404(db, training_session_id)
+    training_session_service.delete_training_session(db, actor, training_session)
+    db.commit()
 
 
 @router.post(
