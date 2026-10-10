@@ -902,6 +902,8 @@ export interface SessionUser {
    * jamais dans une liste tenue ici.
    */
   can_administer: boolean;
+  /** Au moins un pouvoir d'encadrement (#1297), dérivé du catalogue backend comme `can_administer`. */
+  can_supervise: boolean;
 }
 
 /** Un groupe tel que son membre se le voit — sans membres ni pouvoirs (#197). */
