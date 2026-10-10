@@ -29,11 +29,12 @@ import type { CourseBrief } from "@/lib/types";
  * Les gestes d'administration d'une épreuve, depuis sa fiche publique (#1244).
  * Chargé à la demande par `CourseAdminActions`, une fois un pouvoir établi.
  *
- * Chaque entrée du menu « Gérer l'épreuve » teste **son** pouvoir, celui de la route qu'il appelle : la
- * fusion en exige deux (`courses:sources` et `courses:delete`, deux `Depends`
- * côté backend). Les fenêtres sont celles du back-office, réutilisées telles
- * quelles ; seul leur dénouement change, la page étant rendue côté serveur :
- * `refresh()` après une correction, redirection quand la fiche n'existe plus.
+ * Chaque entrée du menu « Gérer l'épreuve » teste **son** pouvoir, celui de la
+ * route qu'elle appelle : la fusion en exige deux (`courses:sources` et
+ * `courses:delete`, deux `Depends` côté backend). Les fenêtres sont celles du
+ * back-office, réutilisées telles quelles ; seul leur dénouement change, la
+ * page étant rendue côté serveur : `refresh()` après une correction,
+ * redirection quand la fiche n'existe plus.
  */
 export function CourseAdminPanel({
   course,
