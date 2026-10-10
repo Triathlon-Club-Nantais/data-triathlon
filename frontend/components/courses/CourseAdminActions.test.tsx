@@ -177,10 +177,14 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await ouvrirMenu(user);
-    (await screen.findByRole("menuitem", { name: BOUTONS.avis })).focus();
+    (await screen.findByRole("button", { name: "Gérer l'épreuve" }, { timeout: 3000 })).focus();
+    await user.keyboard("{Enter}");
+    const avis = await screen.findByRole("menuitem", { name: BOUTONS.avis });
+    for (let i = 0; i < 5 && document.activeElement !== avis; i++) await user.keyboard("{ArrowDown}");
+    expect(avis).toHaveFocus();
     await user.keyboard("{ArrowRight}");
-    await screen.findByRole("menuitem", { name: /marquer fiable/i });
+    const fiable = await screen.findByRole("menuitem", { name: /marquer fiable/i });
+    await waitFor(() => expect(fiable).toHaveFocus());
     await user.keyboard("{Enter}");
     await user.click(await screen.findByRole("button", { name: /^marquer fiable$/i }));
 
