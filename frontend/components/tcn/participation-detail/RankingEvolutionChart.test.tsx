@@ -343,7 +343,7 @@ describe("RankingEvolutionChart", () => {
   it("aligne le nom de l'étape à gauche, pour que l'ellipse se lise comme une troncature", () => {
     // Centré, un span écrêté par text-overflow: ellipsis est rogné des deux
     // côtés et ne reçoit l'ellipse qu'à droite : le début disparaît sans le
-    // moindre marqueur visuel — défaut déjà corrigé sur `DisciplineBar`.
+    // moindre marqueur visuel.
     const { container } = render(
       <RankingEvolutionChart
         steps={[{ segment: "COURSE A PIED", scratch_position: 12, segment_position: 9 }]}

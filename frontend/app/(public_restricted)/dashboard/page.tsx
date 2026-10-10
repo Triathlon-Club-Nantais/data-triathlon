@@ -16,10 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 
 export const metadata: Metadata = { title: "Tableau de bord" };
 
-/** Petit libellé visuel au-dessus d'un contrôle de filtrage (NAV-5, #483) —
- *  même style que les en-têtes de la table "Dernières épreuves" plus bas
- *  dans ce fichier, réutilisé ici pour la 3ᵉ fois plutôt qu'un nouveau
- *  token. */
+/** Petit libellé visuel au-dessus d'un contrôle de filtrage (NAV-5, #483). */
 function FieldLabel({ children }: { children: ReactNode }) {
   return (
     <div
@@ -152,7 +149,7 @@ export default async function DashboardPage({
               Podiums, compteurs, disciplines et athlètes du club.
             </p>
             <Link href={clubHref} className="tcn-cible-tactile inline-flex items-center text-sm font-semibold text-accent-ink hover:underline">
-              Voir l&apos;espace club →
+              Voir l&apos;espace club <span aria-hidden>→</span>
             </Link>
           </Card>
         </>
