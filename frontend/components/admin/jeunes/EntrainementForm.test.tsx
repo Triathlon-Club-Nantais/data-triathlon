@@ -65,6 +65,25 @@ describe("EntrainementForm", () => {
     expect(screen.getByLabelText(/type de séance/i)).toHaveValue("Natation");
   });
 
+  it("donne au lieu toute la largeur du formulaire quand la place manque (#1290)", () => {
+    render(
+      <EntrainementForm
+        entrainement={SEANCE}
+        soumettre={vi.fn()}
+        enCours={false}
+        libelleSoumission="Enregistrer"
+      />,
+    );
+
+    // La fenêtre de séance est étroite : partagé avec trois voisins, le champ
+    // tronquait la saisie. Il prend sa propre ligne, hormis en grande largeur.
+    const champ = screen.getByLabelText(/^lieu$/i).parentElement;
+    expect(champ).toHaveClass("col-span-2");
+    expect(screen.getByRole("textbox", { name: /^lieu$/i }).closest("form")).toHaveClass(
+      "@container",
+    );
+  });
+
   it("désactive la soumission sans date", () => {
     render(<EntrainementForm soumettre={vi.fn()} enCours={false} libelleSoumission="Créer" />);
 

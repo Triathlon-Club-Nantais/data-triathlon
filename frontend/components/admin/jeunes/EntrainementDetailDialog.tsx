@@ -69,7 +69,7 @@ export function EntrainementDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Entraînement du {formatDate(entrainement.date)}</DialogTitle>
           <DialogDescription>

@@ -48,49 +48,57 @@ export function EntrainementForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-2">
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-date`}>Date</Label>
-        <Input
-          id={`${idPrefix}-date`}
-          type="date"
-          required
-          className="w-40"
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-        />
+    // Requête de conteneur, pas d'écran : le même formulaire vit en pleine page
+    // et dans la fenêtre de séance, étroite, où le lieu se tronquait (#1290).
+    <form onSubmit={onSubmit} className="@container">
+      <div className="grid grid-cols-2 items-end gap-3 @2xl:grid-cols-[auto_auto_1fr_1fr_auto]">
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-date`}>Date</Label>
+          <Input
+            id={`${idPrefix}-date`}
+            type="date"
+            required
+            className="@2xl:w-40"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor={`${idPrefix}-heure`}>Heure</Label>
+          <Input
+            id={`${idPrefix}-heure`}
+            type="time"
+            className="@2xl:w-28"
+            value={heure}
+            onChange={(e) => setHeure(e.target.value)}
+          />
+        </div>
+        <div className="col-span-2 space-y-1.5 @2xl:col-span-1">
+          <Label htmlFor={`${idPrefix}-lieu`}>Lieu</Label>
+          <Input
+            id={`${idPrefix}-lieu`}
+            placeholder="Base nautique"
+            value={lieu}
+            onChange={(e) => setLieu(e.target.value)}
+          />
+        </div>
+        <div className="col-span-2 space-y-1.5 @2xl:col-span-1">
+          <Label htmlFor={`${idPrefix}-type`}>Type de séance</Label>
+          <Input
+            id={`${idPrefix}-type`}
+            placeholder="Natation"
+            value={typeSeance}
+            onChange={(e) => setTypeSeance(e.target.value)}
+          />
+        </div>
+        <Button
+          type="submit"
+          className="col-span-2 w-fit @2xl:col-span-1"
+          disabled={enCours || !date}
+        >
+          {libelleSoumission}
+        </Button>
       </div>
-      <div className="space-y-1.5">
-        <Label htmlFor={`${idPrefix}-heure`}>Heure</Label>
-        <Input
-          id={`${idPrefix}-heure`}
-          type="time"
-          className="w-28"
-          value={heure}
-          onChange={(e) => setHeure(e.target.value)}
-        />
-      </div>
-      <div className="flex-1 space-y-1.5">
-        <Label htmlFor={`${idPrefix}-lieu`}>Lieu</Label>
-        <Input
-          id={`${idPrefix}-lieu`}
-          placeholder="Base nautique"
-          value={lieu}
-          onChange={(e) => setLieu(e.target.value)}
-        />
-      </div>
-      <div className="flex-1 space-y-1.5">
-        <Label htmlFor={`${idPrefix}-type`}>Type de séance</Label>
-        <Input
-          id={`${idPrefix}-type`}
-          placeholder="Natation"
-          value={typeSeance}
-          onChange={(e) => setTypeSeance(e.target.value)}
-        />
-      </div>
-      <Button type="submit" disabled={enCours || !date}>
-        {libelleSoumission}
-      </Button>
     </form>
   );
 }
