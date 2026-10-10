@@ -21,7 +21,7 @@ export default async function AdminJeunePage({
   return (
     <PageShell>
       <div className="space-y-10">
-        <PageHeader title="Profil" backHref="/admin/jeunes" backLabel="Retour aux jeunes" />
+        <PageHeader title="Profil" backHref="/encadrement/jeunes" backLabel="Retour aux jeunes" />
         <ProfileDetail profileId={profileId} />
       </div>
     </PageShell>
