@@ -46,6 +46,7 @@ from app.scrapers.base import STATUS_FINISHER
 from app.scrapers.utils import MAX_RELAY_TEAMMATES, MIN_RELAY_TEAMMATES
 from app.services import (
     opposition_service,
+    scrape_service,
 )
 from app.services.course_locks import (
     lock_all_courses_or_409,
@@ -736,6 +737,12 @@ def update_participation_fields(
             raise DuplicateError(
                 "Ce dossard est déjà attribué à un autre participant de cette épreuve."
             )
+
+    effectifs = {"club": participation.club, "category": participation.category} | demande
+    scrape_service.ensure_not_youth(
+        participation.course.name, participation.course.event_date,
+        effectifs["category"], effectifs["club"],
+    )
 
     avant = instantane(participation, _CHAMPS_PARTICIPATION)
     participation_repository.update(db, participation, **demande)

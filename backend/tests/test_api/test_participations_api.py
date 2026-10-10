@@ -3,6 +3,7 @@ from datetime import date
 import pytest
 
 from app.models.admin_action_log import AdminActionLog
+from app.models.course import Course
 from app.models.participation import Participation
 from app.scrapers.base import ScrapedResult
 from app.services import scrape_service
@@ -484,6 +485,7 @@ def test_a_manual_youth_result_is_refused_like_the_import_drops_it(client, db_se
     assert resp.status_code == 422
     assert "jeune" in resp.json()["detail"]
     assert db_session.query(Participation).count() == 0
+    assert db_session.query(Course).count() == 0
 
 
 def test_a_manual_youth_result_of_a_tcn_member_is_accepted_like_the_import_keeps_it(client):

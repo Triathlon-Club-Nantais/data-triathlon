@@ -875,8 +875,8 @@ def _youth_pending_ids(db: Session) -> list[int]:
     `core.youth.is_youth` est une règle Python (mots, tranches d'âge, années de
     naissance) sans équivalent SQL : on l'applique ici à la file d'attente,
     petite par nature (celle que la page bénévoles charge en entier), pour en
-    tirer des identifiants à exclure en SQL. L'import écarte ces lignes ; une
-    saisie manuelle ne le fait pas encore.
+    tirer des identifiants à exclure en SQL. L'import et la saisie manuelle
+    (#1280) écartent désormais ces lignes : le filtre sert au stock déjà en base.
     """
     rows = (
         db.query(Participation.id, Participation.category, Course.name, Course.event_date)
