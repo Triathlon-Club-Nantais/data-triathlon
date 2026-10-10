@@ -81,6 +81,10 @@ const BOUTONS = {
   fusionner: /fusionner avec une autre épreuve/i,
 };
 
+async function ouvrirMenu(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(await screen.findByRole("button", { name: "Gérer l'épreuve" }, { timeout: 3000 }));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -102,20 +106,37 @@ describe("CourseAdminActions", () => {
     [["courses:delete", "courses:sources"], ["supprimer", "fusionner"]],
   ] as const)("avec %j, ne propose que %j", async (permissions, attendus) => {
     api.getSession.mockResolvedValue(session([...permissions]));
+    const user = userEvent.setup();
     afficher();
     await waitFor(() => expect(api.getSession).toHaveBeenCalled());
-    // Les présents d'abord : les absences ne se lisent qu'une fois le panneau
-    // chargé (import dynamique, lent sur une machine chargée).
+    if (attendus.length === 0) {
+      // Sans pouvoir d'action, le panneau n'est jamais importé : aucun signal de chargement à attendre.
+      expect(screen.queryByRole("button", { name: "Gérer l'épreuve" })).not.toBeInTheDocument();
+      expect(panelLoaded).not.toHaveBeenCalled();
+      return;
+    }
+    await ouvrirMenu(user);
+    // Les présents d'abord : les absences ne se lisent qu'une fois le panneau chargé.
     const entrees = Object.entries(BOUTONS);
     for (const [cle, nom] of entrees) {
       if ((attendus as readonly string[]).includes(cle)) {
-        expect(await screen.findByRole("button", { name: nom }, { timeout: 3000 })).toBeInTheDocument();
+        expect(await screen.findByRole("menuitem", { name: nom })).toBeInTheDocument();
       }
     }
     for (const [cle, nom] of entrees) {
       if (!(attendus as readonly string[]).includes(cle)) {
-        expect(screen.queryByRole("button", { name: nom })).not.toBeInTheDocument();
+        expect(screen.queryByRole("menuitem", { name: nom })).not.toBeInTheDocument();
       }
+    }
+  });
+
+  it("au repos, un seul déclencheur : aucun geste n'est affiché avant l'ouverture du menu", async () => {
+    api.getSession.mockResolvedValue(session(["courses:write", "courses:delete", "courses:sources", "quality:override"]));
+    afficher();
+    expect(await screen.findByRole("button", { name: "Gérer l'épreuve" }, { timeout: 3000 })).toBeInTheDocument();
+    for (const nom of Object.values(BOUTONS)) {
+      expect(screen.queryByRole("button", { name: nom })).not.toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: nom })).not.toBeInTheDocument();
     }
   });
 
@@ -125,7 +146,8 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await user.click(await screen.findByRole("button", { name: BOUTONS.corriger }, { timeout: 3000 }));
+    await ouvrirMenu(user);
+    await user.click(await screen.findByRole("menuitem", { name: BOUTONS.corriger }));
     await user.click(await screen.findByRole("button", { name: /enregistrer/i }));
 
     await waitFor(() => expect(refresh).toHaveBeenCalled());
@@ -139,7 +161,8 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await user.click(await screen.findByRole("button", { name: BOUTONS.supprimer }, { timeout: 3000 }));
+    await ouvrirMenu(user);
+    await user.click(await screen.findByRole("menuitem", { name: BOUTONS.supprimer }));
     const confirmer = await screen.findByRole("button", { name: /supprimer définitivement/i });
     await waitFor(() => expect(confirmer).toBeEnabled());
     await user.click(confirmer);
@@ -154,8 +177,11 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await user.click(await screen.findByRole("button", { name: BOUTONS.avis }, { timeout: 3000 }));
-    await user.click(await screen.findByRole("menuitem", { name: /marquer fiable/i }));
+    await ouvrirMenu(user);
+    (await screen.findByRole("menuitem", { name: BOUTONS.avis })).focus();
+    await user.keyboard("{ArrowRight}");
+    await screen.findByRole("menuitem", { name: /marquer fiable/i });
+    await user.keyboard("{Enter}");
     await user.click(await screen.findByRole("button", { name: /^marquer fiable$/i }));
 
     await waitFor(() => expect(refresh).toHaveBeenCalled());
@@ -178,7 +204,8 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await user.click(await screen.findByRole("button", { name: BOUTONS.fusionner }, { timeout: 3000 }));
+    await ouvrirMenu(user);
+    await user.click(await screen.findByRole("menuitem", { name: BOUTONS.fusionner }));
     await user.type(screen.getByRole("searchbox"), "Bayman");
 
     // L'épreuve consultée n'est pas proposée : on ne la fusionne pas avec elle-même.
@@ -206,7 +233,8 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await user.click(await screen.findByRole("button", { name: BOUTONS.fusionner }, { timeout: 3000 }));
+    await ouvrirMenu(user);
+    await user.click(await screen.findByRole("menuitem", { name: BOUTONS.fusionner }));
     await user.type(screen.getByRole("searchbox"), "1162");
 
     await screen.findByRole("button", { name: /n° 1162/ }, { timeout: 3000 });
@@ -219,7 +247,8 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await user.click(await screen.findByRole("button", { name: BOUTONS.fusionner }, { timeout: 3000 }));
+    await ouvrirMenu(user);
+    await user.click(await screen.findByRole("menuitem", { name: BOUTONS.fusionner }));
     await user.type(screen.getByRole("searchbox"), "Bayman");
 
     expect(
@@ -235,7 +264,8 @@ describe("CourseAdminActions", () => {
     const user = userEvent.setup();
     afficher();
 
-    await user.click(await screen.findByRole("button", { name: BOUTONS.fusionner }, { timeout: 3000 }));
+    await ouvrirMenu(user);
+    await user.click(await screen.findByRole("menuitem", { name: BOUTONS.fusionner }));
     await user.type(screen.getByRole("searchbox"), "1162");
     const candidat = await screen.findByRole("button", { name: /n° 1162/ }, { timeout: 3000 });
     await user.click(candidat);
