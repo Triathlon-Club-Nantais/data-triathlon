@@ -682,6 +682,8 @@ export const apiClient = {
       method: "PATCH",
       body: JSON.stringify(champs),
     }),
+  deleteTrainingSession: (id: number) =>
+    request<null>(`/admin/training-sessions/${id}`, { method: "DELETE" }),
   // `present` (#869) pointe le jeune au même geste que son inscription —
   // optionnel, patron de `body.present` côté backend (`ParticipantAdd`).
   addTrainingParticipant: (sessionId: number, profileId: number, present?: boolean) =>

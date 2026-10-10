@@ -127,6 +127,13 @@ def update_training_session(
     return training_session
 
 
+def delete_training_session(db: Session, actor: User, training_session: TrainingSession) -> None:
+    """Supprime une séance, inscriptions et présences comprises (#1290)."""
+    training_session_id = training_session.id
+    training_session_repository.delete_training_session(db, training_session)
+    logger.info("Training session deleted: actor=%s training_session=%s", actor.id, training_session_id)
+
+
 def add_participant(
     db: Session,
     actor: User,

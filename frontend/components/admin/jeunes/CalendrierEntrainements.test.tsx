@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
@@ -7,23 +7,38 @@ import type { TrainingSession, TrainingSessionDetail, SessionUser } from "@/lib/
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-const { listTrainingSessions, getTrainingSession, createTrainingSession, getSession } = vi.hoisted(
-  () => ({
-    listTrainingSessions: vi.fn(),
-    getTrainingSession: vi.fn(),
-    createTrainingSession: vi.fn(),
-    getSession: vi.fn(),
-  }),
-);
+const {
+  listTrainingSessions,
+  getTrainingSession,
+  createTrainingSession,
+  deleteTrainingSession,
+  listProfiles,
+  getSession,
+} = vi.hoisted(() => ({
+  listTrainingSessions: vi.fn(),
+  getTrainingSession: vi.fn(),
+  createTrainingSession: vi.fn(),
+  deleteTrainingSession: vi.fn(),
+  listProfiles: vi.fn(),
+  getSession: vi.fn(),
+}));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { listTrainingSessions, getTrainingSession, createTrainingSession, getSession },
+    apiClient: {
+      listTrainingSessions,
+      getTrainingSession,
+      createTrainingSession,
+      deleteTrainingSession,
+      listProfiles,
+      getSession,
+    },
   };
 });
 
+import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
 import { CalendrierEntrainements } from "./CalendrierEntrainements";
 
 const SEANCE: TrainingSession = {
@@ -65,7 +80,9 @@ function afficher() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <CalendrierEntrainements />
+      <DangerConfirmProvider>
+        <CalendrierEntrainements />
+      </DangerConfirmProvider>
     </QueryClientProvider>,
   );
 }
@@ -75,6 +92,7 @@ describe("CalendrierEntrainements", () => {
     vi.clearAllMocks();
     getSession.mockResolvedValue(AVEC_ECRITURE);
     getTrainingSession.mockResolvedValue(DETAIL);
+    listProfiles.mockResolvedValue([]);
   });
 
   it("liste les entraînements triés, avec leur nombre d'inscrits", async () => {
@@ -146,6 +164,34 @@ describe("CalendrierEntrainements", () => {
       location: null,
       session_type: null,
     });
+  });
+
+  it("supprime une séance après confirmation", async () => {
+    listTrainingSessions.mockResolvedValue([SEANCE]);
+    deleteTrainingSession.mockResolvedValue(null);
+
+    afficher();
+    await userEvent.click(await screen.findByText("20/09/2026"));
+    await userEvent.click(await screen.findByRole("button", { name: "Supprimer la séance" }));
+
+    expect(deleteTrainingSession).not.toHaveBeenCalled();
+    const confirmation = await screen.findByRole("dialog", {
+      name: "Supprimer la séance du 20/09/2026 ?",
+    });
+    await userEvent.click(within(confirmation).getByRole("button", { name: "Supprimer la séance" }));
+
+    await waitFor(() => expect(deleteTrainingSession).toHaveBeenCalledWith(1));
+  });
+
+  it("ne propose pas de supprimer une séance sans jeunes:write", async () => {
+    getSession.mockResolvedValue(LECTURE_SEULE);
+    listTrainingSessions.mockResolvedValue([SEANCE]);
+
+    afficher();
+    await userEvent.click(await screen.findByText("20/09/2026"));
+
+    await screen.findByRole("dialog");
+    expect(screen.queryByRole("button", { name: /supprimer/i })).not.toBeInTheDocument();
   });
 
   it("dit « accès refusé » sur un 403", async () => {

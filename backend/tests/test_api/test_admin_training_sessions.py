@@ -12,6 +12,7 @@ from app.core.config import get_settings
 from app.core.permissions import P
 from app.models.organisation import Organisation
 from app.models.role_permission import RolePermission
+from app.models.training_participant import TrainingParticipant
 from app.repositories import (
     profile_repository,
     role_repository,
@@ -262,12 +263,36 @@ def test_the_seance_note_can_be_read_and_updated(client):
     assert response.json()["note"] == "Bassin partagé."
 
 
+# --- Suppression (#1290) ---------------------------------------------------
+
+
+def test_deleting_a_session_removes_it_with_its_participants(client, db_session, profile_id):
+    created = client.post(BASE, json={"date": "2026-09-20"}).json()
+    kept = client.post(BASE, json={"date": "2026-09-27"}).json()
+    client.post(f"{BASE}/{created['id']}/participants", json={"profile_id": profile_id})
+    client.post(f"{BASE}/{kept['id']}/participants", json={"profile_id": profile_id})
+
+    response = client.delete(f"{BASE}/{created['id']}")
+
+    assert response.status_code == 204
+    assert client.get(f"{BASE}/{created['id']}").status_code == 404
+    assert [e["id"] for e in client.get(BASE).json()] == [kept["id"]]
+    assert client.get(f"{BASE}/{kept['id']}").json()["participant_count"] == 1
+    remaining = db_session.query(TrainingParticipant).filter_by(training_session_id=created["id"])
+    assert remaining.count() == 0
+
+
+def test_deleting_an_unknown_session_returns_404(client):
+    assert client.delete(f"{BASE}/9999").status_code == 404
+
+
 # --- Gardes ---------------------------------------------------------------
 
 READS = [("GET", BASE), ("GET", f"{BASE}/1")]
 WRITES = [
     ("POST", BASE, {"date": "2026-09-20"}),
     ("PATCH", f"{BASE}/1", {"location": "Gymnase"}),
+    ("DELETE", f"{BASE}/1", None),
     ("POST", f"{BASE}/1/participants", {"profile_id": 1}),
     ("DELETE", f"{BASE}/1/participants/1", None),
     ("PATCH", f"{BASE}/1/participants/1/presence", {"present": True}),

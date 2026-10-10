@@ -1133,6 +1133,17 @@ export function useUpdateTrainingSession() {
   });
 }
 
+export function useDeleteTrainingSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiClient.deleteTrainingSession(id),
+    onSuccess: (_donnees, id) => {
+      qc.invalidateQueries({ queryKey: queryKeys.trainingSessions() });
+      qc.removeQueries({ queryKey: queryKeys.trainingSession(id) });
+    },
+  });
+}
+
 export function useAddTrainingParticipant() {
   const qc = useQueryClient();
   return useMutation({
