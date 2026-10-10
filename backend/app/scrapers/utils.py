@@ -330,20 +330,30 @@ def split_relay_teammates(published: str) -> list[tuple[str, str]] | None:
 
 
 def _names_first_duo(tokens: list[str]) -> list[tuple[str, str]] | None:
-    """Klikego « NOM1 / NOM2 PRÉNOM1 / PRÉNOM2 . » (#1270), whose `_` stands for a space.
+    """Klikego « NOM1 / NOM2 Prénom1 / Prénom2 . » (#1270, #1282), whose `_` stands for a space.
 
-    Only this exact shape, final « . » included: one word per name and first name keeps
-    the split unambiguous, and the « . » keeps other providers' team names out.
+    Names are one upper-case word each. First names are either one upper-case word each
+    or one or more mixed-case words each: the case change marks the name/first name
+    boundary. The final « . » keeps other providers' team names out.
     """
-    if len(tokens) != 7 or tokens[1] != "/" or tokens[4] != "/" or tokens[6] != ".":
+    if len(tokens) < 7 or tokens[1] != "/" or tokens[-1] != ".":
         return None
-    words = [tokens[i] for i in (0, 2, 3, 5)]
-    if not all(word.isupper() and "/" not in word for word in words):
+    if sum("/" in token for token in tokens) != 2 or "/" not in tokens[4:-2]:
         return None
-    name1, name2, firstname1, firstname2 = (
-        " ".join(filter(None, word.split("_"))) for word in words
-    )
-    return [(name1, firstname1), (name2, firstname2)]
+    slash = tokens.index("/", 4)
+    name1, name2 = tokens[0], tokens[2]
+    firstname1, firstname2 = tokens[3:slash], tokens[slash + 1:-1]
+    if not (name1.isupper() and name2.isupper()):
+        return None
+    firstname_words = firstname1 + firstname2
+    all_caps = len(firstname1) == len(firstname2) == 1 and all(w.isupper() for w in firstname_words)
+    if not all_caps and any(word.isupper() for word in firstname_words):
+        return None
+
+    def spaced(words: list[str]) -> str:
+        return " ".join(part for word in words for part in word.split("_") if part)
+
+    return [(spaced([name1]), spaced(firstname1)), (spaced([name2]), spaced(firstname2))]
 
 
 def _relay_segment(segment: str) -> tuple[str, str] | None:
