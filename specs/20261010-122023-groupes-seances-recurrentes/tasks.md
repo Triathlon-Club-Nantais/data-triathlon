@@ -8,7 +8,7 @@
 
 ## Phase 1: Setup
 
-- [X] T001 (remplacée : branche empilée sur #1293, suites vertes avant modification) Rebaser `feat/1291-training-groups` sur `origin/main` après fusion de #1290 et vérifier que `cd backend && uv run pytest -m "not integration"` et `cd frontend && npm test` passent avant toute modification
+- [X] T001 (rebasé sur main après fusion de #1293) Rebaser `feat/1291-training-groups` sur `origin/main` après fusion de #1290 et vérifier que `cd backend && uv run pytest -m "not integration"` et `cd frontend && npm test` passent avant toute modification
 
 ## Phase 2: Foundational (bloquant pour toutes les stories)
 
