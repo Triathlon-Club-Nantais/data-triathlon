@@ -467,3 +467,28 @@ def test_a_manual_result_for_an_opposed_person_is_refused(client, db_session):
 
     assert resp.status_code == 422
     assert "opposée à la publication" in resp.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    ("event_name", "category"),
+    [("Triathlon de Nantes", "MIH"), ("Triathlon de Nantes", "BEF"), ("Triathlon Jeunes", "V1H")],
+)
+def test_a_manual_youth_result_is_refused_like_the_import_drops_it(client, db_session, event_name, category):
+    """#1280 : la saisie manuelle applique la règle jeunes de l'import (#881)."""
+    payload = _payload(club="ASPTT")
+    payload["event_name"] = event_name
+    payload["category"] = category
+
+    resp = client.post("/api/v1/participations", json=payload)
+
+    assert resp.status_code == 422
+    assert "jeune" in resp.json()["detail"]
+    assert db_session.query(Participation).count() == 0
+
+
+def test_a_manual_youth_result_of_a_tcn_member_is_accepted_like_the_import_keeps_it(client):
+    """#1280 : même exception que l'import, qui garde un heat jeune portant un TCN (#1221)."""
+    payload = _payload(club="TCN")
+    payload["category"] = "MIH"
+
+    assert client.post("/api/v1/participations", json=payload).status_code == 201
