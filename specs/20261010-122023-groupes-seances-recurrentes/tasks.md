@@ -75,9 +75,9 @@
 - [X] T035 [US3] Implémenter modification et suppression dans backend/app/services/training_recurrence_service.py, et le passage `detached=True` au PATCH d'une séance générée dans backend/app/services/training_session_service.py
 - [X] T036 [P] [US3] Écrire les tests d'API récurrences (gardes, aperçu, création, modification, suppression, contrat de contracts/api.md) dans backend/tests/test_api/test_admin_training_recurrences.py
 - [X] T037 [US3] Implémenter backend/app/api/v1/admin_training_recurrences.py et l'enregistrer dans backend/app/api/v1/router.py
-- [ ] T038 [P] [US3] Ajouter types et appels API des récurrences dans frontend/lib/types.ts et frontend/lib/api/client.ts
-- [ ] T039 [P] [US3] Écrire les tests du formulaire de récurrence (nombre de séances annoncé avant validation via l'aperçu, refus lisible, suppression confirmée avec le nombre de séances à venir) dans frontend/components/admin/jeunes/RecurrenceForm.test.tsx
-- [ ] T040 [US3] Implémenter frontend/components/admin/jeunes/RecurrenceForm.tsx et la liste des récurrences dans frontend/components/admin/jeunes/CalendrierEntrainements.tsx (utilisables à 375 px)
+- [X] T038 [P] [US3] Ajouter types et appels API des récurrences dans frontend/lib/types.ts et frontend/lib/api/client.ts
+- [X] T039 [P] [US3] Écrire les tests du formulaire de récurrence (nombre de séances annoncé avant validation via l'aperçu, refus lisible, suppression confirmée avec le nombre de séances à venir) dans frontend/components/admin/jeunes/RecurrenceForm.test.tsx
+- [X] T040 [US3] Implémenter frontend/components/admin/jeunes/RecurrenceForm.tsx et la liste des récurrences dans frontend/components/admin/jeunes/CalendrierEntrainements.tsx (utilisables à 375 px)
 
 **Checkpoint**: SC-002 vérifiable.
 

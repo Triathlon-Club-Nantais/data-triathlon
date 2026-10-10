@@ -16,8 +16,12 @@ const {
   deleteTrainingSession,
   listProfiles,
   getSession,
+  listTrainingRecurrences,
+  listTrainingGroups,
 } = vi.hoisted(() => ({
   updateTrainingSession: vi.fn(),
+  listTrainingRecurrences: vi.fn(),
+  listTrainingGroups: vi.fn(),
   listTrainingSessions: vi.fn(),
   getTrainingSession: vi.fn(),
   createTrainingSession: vi.fn(),
@@ -38,6 +42,8 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       deleteTrainingSession,
       listProfiles,
       getSession,
+      listTrainingRecurrences,
+      listTrainingGroups,
     },
   };
 });
@@ -103,6 +109,8 @@ describe("CalendrierEntrainements", () => {
     getSession.mockResolvedValue(AVEC_ECRITURE);
     getTrainingSession.mockResolvedValue(DETAIL);
     listProfiles.mockResolvedValue([]);
+    listTrainingRecurrences.mockResolvedValue([]);
+    listTrainingGroups.mockResolvedValue([]);
   });
 
   afterEach(() => focusManager.setFocused(undefined));
@@ -263,6 +271,7 @@ describe("CalendrierEntrainements", () => {
       start_time: null,
       location: null,
       session_type: null,
+      group_ids: [],
     });
   });
 

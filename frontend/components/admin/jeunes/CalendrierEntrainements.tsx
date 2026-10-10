@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EntrainementDetailDialog } from "@/components/admin/jeunes/EntrainementDetailDialog";
 import { EntrainementForm } from "@/components/admin/jeunes/EntrainementForm";
+import { RecurrencesSection } from "@/components/admin/jeunes/RecurrenceForm";
 import { useCreateTrainingSession, useTrainingGroups, useTrainingSessions } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
@@ -110,6 +111,8 @@ export function CalendrierEntrainements() {
           groupes={groupes.data}
         />
       )}
+
+      <RecurrencesSection groupes={groupes.data ?? []} peutEcrire={peutEcrire} />
 
       {isPending ? (
         <Skeleton className="h-40 w-full" />
