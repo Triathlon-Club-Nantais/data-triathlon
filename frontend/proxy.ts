@@ -13,7 +13,7 @@ const LOGGED_IN_COOKIE = "tcn_logged_in";
  *
  * - `sonner`, qui injecte sa feuille à l'import → les deux hashes ci-dessous ;
  * - Base UI, qui injecte `.base-ui-disable-scrollbar` au montage de ses popups
- *   → nonce transmis par `CSPProvider` (`app/layout.tsx`) ;
+ *   → nonce du document transmis par `StableCSPProvider` (`app/layout.tsx`) ;
  * - `zod`, qui sonde `new Function("")` pour son JIT → `jitless`
  *   (`lib/zod.ts`, seule porte d'entrée de zod dans le front).
  *
@@ -51,7 +51,7 @@ const REPORTING_GROUP = "csp-endpoint";
  *
  * **Deux hashes, et la liste est close** : `sonner` est la seule dépendance du
  * front à injecter un `<style>` hors de portée d'un nonce. Base UI, l'autre
- * injecteur, est signée par `CSPProvider` ; tout le reste du style est ou bien
+ * injecteur, est signée par `StableCSPProvider` ; tout le reste du style est ou bien
  * la feuille du build (`<link>` signé), ou bien un attribut (`style-src-attr`).
  * Ce n'est pas un raisonnement, c'est un relevé : sondage du 2026-08-26, refait
  * en mode bloquant sur les 25 routes de l'app.

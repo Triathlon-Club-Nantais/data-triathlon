@@ -55,11 +55,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   await connection();
 
   // Nonce relu pour Base UI (#570) : ses popups et zones de défilement
-  // injectent un `<style>` (`.base-ui-disable-scrollbar`) au montage, et
-  // `CSPProvider` est l'API prévue pour le signer, figé par `StableCSPProvider`
-  // sur le nonce du document. Sans lui, ce style est
-  // rapporté en violation `style-src-elem`, puis **bloqué** à la bascule : les
-  // barres de défilement réapparaîtraient sous chaque popup de sélection.
+  // injectent un `<style>` (`.base-ui-disable-scrollbar`) au montage, signé par
+  // `CSPProvider`, que `StableCSPProvider` fige sur le nonce du document. Sans
+  // ce nonce, le style est rapporté en violation `style-src-elem`, puis
+  // **bloqué** à la bascule : les barres de défilement réapparaîtraient sous
+  // chaque popup de sélection.
   //
   // Les deux noms d'en-tête sont lus : `proxy.ts` émet l'un ou l'autre selon
   // que la politique observe ou bloque, et ce layout ne doit pas changer avec
