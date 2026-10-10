@@ -12,7 +12,11 @@ import {
 import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { EntrainementForm } from "@/components/admin/jeunes/EntrainementForm";
 import { ParticipantsList } from "@/components/admin/jeunes/ParticipantsList";
-import { useDeleteTrainingSession, useUpdateTrainingSession } from "@/lib/queries/admin";
+import {
+  useDeleteTrainingSession,
+  useTrainingGroups,
+  useUpdateTrainingSession,
+} from "@/lib/queries/admin";
 import { formatDate } from "@/lib/utils/date";
 import type { TrainingSession } from "@/lib/types";
 
@@ -35,12 +39,14 @@ export function EntrainementDetailDialog({
   const modifier = useUpdateTrainingSession();
   const supprimer = useDeleteTrainingSession();
   const confirmer = useDangerConfirm();
+  const groupes = useTrainingGroups();
 
   async function enregistrer(champs: {
     date: string;
     start_time: string | null;
     location: string | null;
     session_type: string | null;
+    group_ids?: number[];
   }) {
     try {
       await modifier.mutateAsync({ id: entrainement.id, champs });
@@ -84,6 +90,7 @@ export function EntrainementDetailDialog({
             soumettre={enregistrer}
             enCours={modifier.isPending}
             libelleSoumission="Enregistrer"
+            groupes={groupes.data}
           />
         )}
 

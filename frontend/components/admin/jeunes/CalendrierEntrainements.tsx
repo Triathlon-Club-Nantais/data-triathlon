@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EntrainementDetailDialog } from "@/components/admin/jeunes/EntrainementDetailDialog";
 import { EntrainementForm } from "@/components/admin/jeunes/EntrainementForm";
-import { useCreateTrainingSession, useTrainingSessions } from "@/lib/queries/admin";
+import { useCreateTrainingSession, useTrainingGroups, useTrainingSessions } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
 import { cn } from "@/lib/utils";
@@ -25,6 +25,7 @@ export function CalendrierEntrainements() {
   const { data, isPending, error } = useTrainingSessions();
   const session = useSession();
   const creer = useCreateTrainingSession();
+  const groupes = useTrainingGroups();
   const [ouvert, setOuvert] = useState<TrainingSession | null>(null);
 
   // Confort d'affichage seul : chaque ressource porte sa garde côté API.
@@ -35,6 +36,7 @@ export function CalendrierEntrainements() {
     start_time: string | null;
     location: string | null;
     session_type: string | null;
+    group_ids?: number[];
   }) {
     try {
       await creer.mutateAsync(champs);
@@ -105,6 +107,7 @@ export function CalendrierEntrainements() {
           soumettre={creerEntrainement}
           enCours={creer.isPending}
           libelleSoumission="Créer la séance"
+          groupes={groupes.data}
         />
       )}
 
