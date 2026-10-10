@@ -4,20 +4,15 @@ import Link from "next/link";
 import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
-import { RankTypeToggle } from "@/components/layout/RankTypeToggle";
 import { InvitationAthlete } from "@/components/dashboard/InvitationAthlete";
 import { MaSaison } from "@/components/dashboard/MaSaison";
 import { RecentCourses } from "@/components/dashboard/RecentCourses";
 import { SeasonSelector, SeasonTags } from "@/components/dashboard/SeasonSelector";
-import { StatCardsRank } from "@/components/dashboard/StatCardsRank";
-import { ClubPerformanceChart } from "@/components/charts/ClubPerformanceChart";
 import { currentSeason, parseSeasonsParam, seasonAbsenceLabel, seasonSelectionLabel, serializeSeasons } from "@/lib/utils/season";
 import { sortEventsByDateDesc } from "@/lib/utils/event";
-import { StatCard, Card, Eyebrow } from "@/components/tcn";
+import { Card, Eyebrow } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { EmptyState } from "@/components/ui/empty-state";
-import { aggregateDisciplines, formatCount, pctFr } from "@/lib/utils/format";
-import { DisciplineBar } from "./DisciplineBar";
 
 export const metadata: Metadata = { title: "Tableau de bord" };
 
@@ -74,7 +69,6 @@ export default async function DashboardPage({
     apiServer.listSeasons({ scope: SCOPE_CLUB, federal_only }, revalidateOpts),
   ]);
 
-  const disciplines = aggregateDisciplines(stats.by_type);
   const recentEvents = sortEventsByDateDesc(eventsPage.items).slice(0, 6);
 
   const isEmptySeason = stats.total === 0;
@@ -87,6 +81,8 @@ export default async function DashboardPage({
     const qs = params.toString();
     return qs ? `/dashboard?${qs}` : "/dashboard";
   })();
+
+  const clubHref = sp.sports !== undefined ? `/club?sports=${encodeURIComponent(sp.sports)}` : "/club";
 
   return (
     <PageShell>
@@ -102,7 +98,7 @@ export default async function DashboardPage({
           <div>
             <Eyebrow>Participations aux épreuves</Eyebrow>
             <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(28px, 5vw, 40px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginTop: 6 }}>{seasonSelectionLabel(selected)}</h1>
-            <div style={{ fontSize: 15, color: "var(--tcn-text-muted)", marginTop: 8, fontWeight: 500 }}>Vue d&apos;ensemble des performances des athlètes du club</div>
+            <div style={{ fontSize: 15, color: "var(--tcn-text-muted)", marginTop: 8, fontWeight: 500 }}>Votre saison et les dernières épreuves du club</div>
           </div>
           <div data-testid="dashboard-toolbar" style={{ display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
             <div>
@@ -139,7 +135,7 @@ export default async function DashboardPage({
         />
       ) : (
         <>
-          {/* Au-dessus des compteurs club, à dessein (#502, NAV-9) : l'écran
+          {/* Le collectif vit sur `/club` (#1299). Au-dessus des dernières épreuves, à dessein (#502, NAV-9) : l'écran
               d'atterrissage ne parlait que du club en agrégat. La bande n'existe
               que pour qui a désigné son nom — elle se monte donc côté client et
               n'est pas dans le HTML initial (arbitrage #467, `frontend/AGENTS.md`).
@@ -148,53 +144,17 @@ export default async function DashboardPage({
           <MaSaison clubEvents={stats.events} seasons={serializeSeasons(selected)} federalOnly={federal_only} />
           <InvitationAthlete />
 
-          <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,3fr)]">
-            <StatCard variant="hero" label="Résultats" value={formatCount(stats.total)} delta={`${formatCount(stats.athletes)} athlètes · ${formatCount(stats.events)} épreuves`} />
-            <div>
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <FieldLabel>Type de rang</FieldLabel>
-                <RankTypeToggle />
-              </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <StatCardsRank rankCounters={stats.rank_counters} />
-              </div>
-              <Card className="mt-4">
-                <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 24, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 20 }}>Performance du club</h2>
-                <ClubPerformanceChart rankCounters={stats.rank_counters} />
-              </Card>
-            </div>
-          </div>
+          <RecentCourses events={recentEvents} />
 
-          <div className="grid gap-4 lg:grid-cols-2" style={{ gridTemplateColumns: undefined }}>
-            <Card>
-              <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 24, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 20 }}>Type d&apos;épreuves</h2>
-              {disciplines.length === 0 ? (
-                <EmptyState
-                  bare
-                  title="Aucune épreuve enregistrée"
-                  action={
-                    <Link href="/ajouter" className="text-sm font-semibold text-accent-ink hover:underline">
-                      Ajouter une épreuve →
-                    </Link>
-                  }
-                />
-              ) : (
-                <>
-                  <DisciplineBar disciplines={disciplines} />
-                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                    {disciplines.map((d) => (
-                      <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 15, color: "var(--tcn-text-body)" }}>
-                        <span style={{ width: 12, height: 12, borderRadius: 3, background: d.color }} />{d.name}
-                        <b style={{ marginLeft: "auto", fontFamily: "var(--tcn-font-display)", color: "var(--tcn-ink)" }}>{pctFr(d.pct)}%</b>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </Card>
-
-            <RecentCourses events={recentEvents} />
-          </div>
+          <Card className="mt-4">
+            <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 24, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 8 }}>Le club</h2>
+            <p style={{ fontSize: 15, color: "var(--tcn-text-muted)", margin: 0, marginBottom: 12 }}>
+              Podiums, compteurs, disciplines et athlètes du club.
+            </p>
+            <Link href={clubHref} className="tcn-cible-tactile inline-flex items-center text-sm font-semibold text-accent-ink hover:underline">
+              Voir l&apos;espace club →
+            </Link>
+          </Card>
         </>
       )}
     </PageShell>

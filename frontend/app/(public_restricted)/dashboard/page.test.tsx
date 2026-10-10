@@ -114,17 +114,6 @@ async function renderDashboard(searchParams: Record<string, string | undefined> 
 }
 
 describe("DashboardPage — états vides (ETAT-3)", () => {
-  it("propose d'ajouter une épreuve quand aucune discipline n'est enregistrée", async () => {
-    getStats.mockResolvedValue({ ...STATS, by_type: {} });
-    await renderDashboard({});
-
-    expect(screen.getByText("Aucune épreuve enregistrée")).toBeInTheDocument();
-    // `eventsPage` (mock par défaut) est vide elle aussi : les deux états vides
-    // du dashboard s'affichent ensemble, d'où `getAllBy` plutôt que `getBy`.
-    const liens = screen.getAllByRole("link", { name: /Ajouter une épreuve/ });
-    expect(liens.every((l) => l.getAttribute("href") === "/ajouter")).toBe(true);
-  });
-
   it("propose d'ajouter une épreuve quand la liste des dernières épreuves est vide", async () => {
     // `EVENTS_PAGE` par défaut a déjà `items: []` : l'état vide est le cas
     // par défaut de la fixture, pas un cas à construire.
@@ -205,9 +194,6 @@ describe("DashboardPage", () => {
   it("ne rend plus le sélecteur de portée (Tous / Membres TCN)", async () => {
     await renderDashboard({});
 
-    // Note : « Tous » existe désormais dans le RankTypeToggle (#104), on ne
-    // peut plus faire d'assertion sur ce mot seul. On cible le radiogroup de
-    // portée par son aria-label, qui est ce qui disparaît vraiment.
     expect(screen.queryByText("Membres TCN")).toBeNull();
     expect(screen.queryByRole("radiogroup", { name: "Portée" })).toBeNull();
   });
@@ -229,7 +215,7 @@ describe("DashboardPage", () => {
   it("rend les titres de carte comme des <h2> (A11Y-2)", async () => {
     await renderDashboard({});
 
-    expect(screen.getByRole("heading", { level: 2, name: "Type d'épreuves" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 2, name: "Le club" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Dernières épreuves" })).toBeInTheDocument();
   });
 
@@ -251,16 +237,13 @@ describe("DashboardPage", () => {
     expect(tags).toHaveTextContent("Saison 2025");
   });
 
-  it("nomme visiblement les 3 contrôles de filtrage, et sort le sélecteur de rang de la barre d'outils (NAV-5)", async () => {
+  it("nomme visiblement les 2 contrôles de filtrage, sans sélecteur de rang (NAV-5)", async () => {
     await renderDashboard({});
 
     const barre = screen.getByTestId("dashboard-toolbar");
     expect(screen.getByText("Disciplines")).toBeInTheDocument();
     expect(screen.getByText("Saisons")).toBeInTheDocument();
-    expect(screen.getByText("Type de rang")).toBeInTheDocument();
-
-    const rankGroup = screen.getByRole("group", { name: "Type de rang" });
-    expect(barre).not.toContainElement(rankGroup);
+    expect(screen.queryByText("Type de rang")).toBeNull();
     expect(barre).toContainElement(screen.getByLabelText("Inclure les autres disciplines"));
     expect(barre).toContainElement(screen.getByLabelText("Choisir les saisons"));
   });
@@ -295,18 +278,6 @@ describe("DashboardPage", () => {
   });
 });
 
-// Sélecteur de type de rang (#104) — le rendu détaillé des 3 cartes vit
-// désormais dans le composant client `StatCardsRank` (cf. issue #132) qui a
-// ses propres tests. Ici on vérifie que la page monte bien le composant, en
-// mode par défaut (les mocks `useSearchParams` renvoient une URL vide).
-describe("DashboardPage — sélecteur de type de rang", () => {
-  it("monte le StatCardsRank avec le mode par défaut (libellé « général »)", async () => {
-    await renderDashboard({});
-    expect(screen.getAllByText("général").length).toBeGreaterThanOrEqual(3);
-    expect(screen.queryByText("général, genre ou catégorie")).not.toBeInTheDocument();
-  });
-});
-
 describe("DashboardPage — état vide unifié (NAV-6)", () => {
   const STATS_VIDE = { ...STATS, total: 0, athletes: 0, events: 0, by_type: {} };
   const EVENTS_PAGE_VIDE = { items: [], total_events: 0, total_participations: 0 };
@@ -318,8 +289,7 @@ describe("DashboardPage — état vide unifié (NAV-6)", () => {
     await renderDashboard({ seasons: "2015" });
 
     expect(screen.getByText("Aucun résultat enregistré pour la saison 2015 — 2016")).toBeInTheDocument();
-    expect(screen.queryByText("Résultats")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: "Type d'épreuves" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2, name: "Le club" })).not.toBeInTheDocument();
   });
 
   it("propose « Voir la saison en cours » quand la sélection n'est pas la saison en cours", async () => {
@@ -373,15 +343,13 @@ describe("DashboardPage — bande « Ma saison » (#502, NAV-9)", () => {
     expect(screen.queryByTestId("ma-saison-stub")).not.toBeInTheDocument();
   });
 
-  it("place la bande au-dessus de la grille de compteurs club, dans l'ordre du document", async () => {
+  it("place la bande au-dessus des dernières épreuves, dans l'ordre du document", async () => {
     await renderDashboard({});
 
     const bande = screen.getByTestId("ma-saison-stub");
-    const compteurClub = screen.getByText("Résultats");
-    // #1080 : un seul nom pour ce total, celui de `/club` et `/resultats`.
-    expect(screen.queryByText("Dossards enregistrés")).not.toBeInTheDocument();
+    const dernieres = screen.getByRole("heading", { level: 2, name: "Dernières épreuves" });
 
-    expect(bande.compareDocumentPosition(compteurClub) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(bande.compareDocumentPosition(dernieres) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 
@@ -401,12 +369,45 @@ describe("DashboardPage — invitation à choisir un athlète (#588)", () => {
     expect(screen.queryByTestId("invitation-athlete-stub")).not.toBeInTheDocument();
   });
 
-  it("place l'invitation au-dessus de la grille de compteurs club, dans l'ordre du document", async () => {
+  it("place l'invitation au-dessus des dernières épreuves, dans l'ordre du document", async () => {
     await renderDashboard({});
 
     const invitation = screen.getByTestId("invitation-athlete-stub");
-    const compteurClub = screen.getByText("Résultats");
+    const dernieres = screen.getByRole("heading", { level: 2, name: "Dernières épreuves" });
 
-    expect(invitation.compareDocumentPosition(compteurClub) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(invitation.compareDocumentPosition(dernieres) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe("DashboardPage: personal home, collective on Club (#1299)", () => {
+  const clubLink = () => screen.getByRole("link", { name: /espace club/i });
+
+  it("no longer renders the club aggregates", async () => {
+    await renderDashboard({});
+
+    expect(screen.queryByRole("heading", { name: "Performance du club" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Type d'épreuves" })).toBeNull();
+    expect(screen.queryByText("Type de rang")).toBeNull();
+  });
+
+  it("links to Club for the collective view", async () => {
+    await renderDashboard({});
+
+    expect(clubLink()).toHaveAttribute("href", "/club");
+  });
+
+  it("keeps the sports filter on the Club link", async () => {
+    await renderDashboard({ sports: "all" });
+
+    expect(clubLink()).toHaveAttribute("href", expect.stringContaining("sports=all"));
+  });
+
+  it("does not render the Club link on the empty season state", async () => {
+    getStats.mockResolvedValue({ ...STATS, total: 0, athletes: 0, events: 0, by_type: {} });
+    listEvents.mockResolvedValue({ items: [], total_events: 0, total_participations: 0 });
+
+    await renderDashboard({ seasons: "2019" });
+
+    expect(screen.queryByRole("link", { name: /espace club/i })).toBeNull();
   });
 });
