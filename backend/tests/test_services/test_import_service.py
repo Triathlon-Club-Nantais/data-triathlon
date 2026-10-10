@@ -2361,6 +2361,29 @@ def test_import_attaches_teammates_published_by_the_source(db_session, patch_scr
     assert athlete_repository.get_by_identity_keys(db_session, "PEPIFOLIES SQUAD", "") is None
 
 
+def test_import_splits_a_wiclax_team_whose_twin_repeats_a_teammate(db_session, patch_scraper):
+    """#1283, Relais S 431 : l'équipier de deux relais, dédoublonné par le scraper,
+    ne fait plus refuser le découpage (FR-010)."""
+    from app.scrapers.wiclax import _attach_teammates
+
+    team = _relay("431", "LES MOUETTES", "")
+    team.raw_data["d"] = "431"
+    members = [
+        _result("", nom, prenom, raw_data={"d": f"431{rank}"})
+        for rank, (nom, prenom) in enumerate(
+            [("L'APPARTIEN", "Jean-Pierre"), ("DURAND", "Anne"), ("L APPARTIEN", "JEAN PIERRE")], start=1
+        )
+    ]
+    _attach_teammates([team], members)
+    patch_scraper([team])
+
+    import_service.import_event(db_session, URL, _settings())
+
+    row = _only_relay_row(db_session)
+    assert _names(row.teammates) == [("L'APPARTIEN", "Jean-Pierre"), ("DURAND", "Anne")]
+    assert row.team_name == "LES MOUETTES"
+
+
 def test_import_split_reuses_existing_athlete_without_touching_clubs(db_session, patch_scraper):
     existing = athlete_repository.get_or_create(
         db_session, nom="MASSONNEAU", prenom="Pierre", club="TRI CLUB"

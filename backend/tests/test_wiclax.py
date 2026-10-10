@@ -1503,6 +1503,19 @@ def test_a_teammate_running_two_legs_is_attached_once():
     assert team.teammates == (("MARTIN", "Jean"), ("DURAND", "Anne"))
 
 
+def test_a_repeated_teammate_is_matched_on_the_import_identity_key():
+    """#1283 : tiret et apostrophe ne distinguent pas deux personnes à l'import (FR-010)."""
+    from app.scrapers.wiclax import _attach_teammates
+
+    team = _row("LES MOUETTES", category="EQX", is_relay=True)
+    team.raw_data["d"] = "431"
+    _attach_teammates([team], _members_by_id("431", [
+        ("L'APPARTIEN", "Jean-Pierre"), ("DURAND", "Anne"), ("L APPARTIEN", "JEAN PIERRE"),
+    ]))
+
+    assert team.teammates == (("L'APPARTIEN", "Jean-Pierre"), ("DURAND", "Anne"))
+
+
 def test_a_team_of_one_person_running_every_leg_stays_whole():
     """#1283, Relais XS 2401 : une seule personne pour les trois relais."""
     from app.scrapers.wiclax import _attach_teammates
