@@ -79,7 +79,7 @@ export function GroupeDetail({
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{data?.name ?? "Groupe"}</DialogTitle>
           <DialogDescription>
@@ -112,7 +112,7 @@ export function GroupeDetail({
                 <Label htmlFor="groupe-ajouter">Ajouter un jeune</Label>
                 <select
                   id="groupe-ajouter"
-                  className="border-input h-9 w-full rounded-md border bg-transparent px-2 text-sm"
+                  className="border-input h-9 min-h-11 w-full rounded-md border bg-transparent px-2 text-sm md:min-h-0"
                   value=""
                   disabled={ajouter.isPending || ajoutables.length === 0}
                   onChange={(e) =>
@@ -148,12 +148,15 @@ export function GroupeDetail({
                       <span className="flex min-w-0 flex-wrap items-center gap-2">
                         <span>{nomMembre}</span>
                         {membre.category && <Badge variant="secondary">{membre.category}</Badge>}
-                        {adhesionTerminee && <Badge variant="outline">Adhésion terminée</Badge>}
+                        {adhesionTerminee && (
+                          <Badge variant="outline">Adhésion terminée, plus inscrit d&apos;office</Badge>
+                        )}
                       </span>
                       {peutEcrire && (
                         <Button
                           size="sm"
                           variant="ghost"
+                          className="tcn-cible-tactile"
                           aria-label={`Retirer ${nomMembre}`}
                           onClick={() =>
                             agir(

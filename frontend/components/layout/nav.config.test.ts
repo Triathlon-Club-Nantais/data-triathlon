@@ -161,6 +161,9 @@ describe("nav.config — section « Jeunes » unifiée (#869)", () => {
     const hrefs = jeunes.items.map((i) => i.href);
     expect(hrefs).toContain("/admin/jeunes");
     expect(hrefs).toContain("/admin/jeunes/groupes");
+    expect(jeunes.items.find((i) => i.href === "/admin/jeunes/groupes")?.label).toBe(
+      "Groupes d'entraînement",
+    );
     expect(hrefs).toContain("/admin/jeunes/calendrier");
     expect(hrefs).toContain("/admin/jeunes/appel");
   });

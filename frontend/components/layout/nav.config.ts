@@ -521,7 +521,7 @@ export const NAV: NavSection[] = [
       // inscrit les membres d'office.
       {
         id: "j-groupes",
-        label: "Groupes",
+        label: "Groupes d'entraînement",
         description:
           "Les groupes d'entraînement et leurs membres. Une séance qui vise un groupe y inscrit ses membres d'office.",
         href: "/admin/jeunes/groupes",

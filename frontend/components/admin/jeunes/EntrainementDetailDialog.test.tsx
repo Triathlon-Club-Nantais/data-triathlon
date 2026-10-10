@@ -85,6 +85,7 @@ describe("EntrainementDetailDialog, groupes visés (#1291)", () => {
     afficher();
 
     expect(await screen.findByRole("checkbox", { name: "Benjamins" })).toBeChecked();
+    expect(screen.getByRole("dialog")).toHaveClass("max-h-[85dvh]", "overflow-y-auto");
     await userEvent.click(screen.getByRole("checkbox", { name: "Minimes" }));
     getTrainingSession.mockResolvedValue(INSCRITE);
     await userEvent.click(screen.getByRole("button", { name: "Enregistrer" }));

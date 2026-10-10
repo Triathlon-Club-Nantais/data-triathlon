@@ -111,6 +111,22 @@ describe("RecurrencesSection", () => {
     await waitFor(() => expect(toast.success).toHaveBeenCalledWith("9 séances créées."));
   });
 
+  it("explique pourquoi la création attend, puis pendant le calcul", async () => {
+    previewTrainingRecurrence.mockReturnValue(new Promise(() => {}));
+    afficher();
+    await userEvent.click(await screen.findByRole("button", { name: "Nouvelle récurrence" }));
+    const dialog = await screen.findByRole("dialog");
+
+    expect(
+      within(dialog).getByText("Choisissez le jour et la période pour voir le nombre de séances."),
+    ).toBeInTheDocument();
+    await userEvent.selectOptions(within(dialog).getByLabelText("Jour"), "2");
+    await userEvent.type(within(dialog).getByLabelText("Du"), "2026-10-01");
+    await userEvent.type(within(dialog).getByLabelText("Au"), "2026-11-30");
+
+    expect(await within(dialog).findByText("Calcul du nombre de séances…")).toBeInTheDocument();
+  });
+
   it("affiche lisiblement le refus de l'aperçu et bloque la création", async () => {
     previewTrainingRecurrence.mockRejectedValue(
       new ApiError(422, "Une récurrence compte au plus 53 séances : raccourcissez la période."),
@@ -126,12 +142,17 @@ describe("RecurrencesSection", () => {
     deleteTrainingRecurrence.mockResolvedValue({ deleted_session_count: 6, kept_session_count: 2 });
     afficher();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Supprimer la récurrence" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Supprimer la récurrence du mercredi à 14:00" }),
+    );
     const confirmation = await screen.findByRole("dialog", { name: "Supprimer la récurrence ?" });
     expect(within(confirmation).getByText(/6 séances à venir seront supprimées/)).toBeInTheDocument();
     await userEvent.click(within(confirmation).getByRole("button", { name: "Supprimer la récurrence" }));
 
     await waitFor(() => expect(deleteTrainingRecurrence).toHaveBeenCalledWith(3));
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith("Récurrence supprimée, 6 séances supprimées."),
+    );
   });
 
   it("modifie l'heure d'une récurrence", async () => {
@@ -139,12 +160,15 @@ describe("RecurrencesSection", () => {
     updateTrainingRecurrence.mockResolvedValue(RECURRENCE);
     afficher();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Modifier la récurrence" }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Modifier la récurrence du mercredi à 14:00" }),
+    );
     const dialog = await screen.findByRole("dialog");
     const heure = within(dialog).getByLabelText("Heure");
     await userEvent.clear(heure);
     await userEvent.type(heure, "15:00");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Enregistrer" }));
+    expect(dialog).toHaveClass("max-h-[85dvh]", "overflow-y-auto");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Enregistrer les modifications" }));
 
     await waitFor(() =>
       expect(updateTrainingRecurrence).toHaveBeenCalledWith(3, expect.objectContaining({ start_time: "15:00:00" })),

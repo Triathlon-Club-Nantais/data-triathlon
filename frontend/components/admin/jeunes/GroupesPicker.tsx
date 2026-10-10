@@ -21,7 +21,7 @@ export function GroupesPicker({
       <legend className="text-sm font-medium">Groupes visés</legend>
       <div className="flex flex-wrap gap-x-4 gap-y-2">
         {groupes.map((groupe) => (
-          <label key={groupe.id} className="flex min-h-9 items-center gap-2 text-sm">
+          <label key={groupe.id} className="flex min-h-11 items-center gap-2 text-sm">
             <input
               type="checkbox"
               className="size-4 accent-[var(--tcn-orange)]"
