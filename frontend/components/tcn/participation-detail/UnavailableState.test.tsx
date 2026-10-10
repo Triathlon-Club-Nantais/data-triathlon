@@ -15,4 +15,17 @@ describe("UnavailableState", () => {
 
     expect(screen.getByText(/intégralité des résultats/i)).toBeInTheDocument();
   });
+
+  it("dit qu'un résultat en attente attend sa validation (#1281)", () => {
+    render(<UnavailableState isRelay={false} validation="pending" />);
+
+    expect(screen.getByText(/comparaison en attente de validation/i)).toBeTruthy();
+    expect(screen.queryByText(/intégralité des résultats/i)).not.toBeInTheDocument();
+  });
+
+  it("dit qu'un résultat non conforme n'entre pas au classement (#1281)", () => {
+    render(<UnavailableState isRelay={false} validation="rejected" />);
+
+    expect(screen.getByText(/signalé non conforme/i)).toBeInTheDocument();
+  });
 });

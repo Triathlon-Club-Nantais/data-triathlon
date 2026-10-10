@@ -16,10 +16,32 @@ import { Eyebrow } from "../Eyebrow";
  * Seul le relais a son message : ses statistiques sont exclues par choix (une
  * lecture individuelle d'un relais serait fausse), pas faute de données (#1091).
  *
+ * Un résultat en attente de validation, ou signalé non conforme, a lui aussi
+ * son message : un rang déclaré n'entre pas au classement tant qu'un bénévole
+ * ne l'a pas validé (#1281).
+ *
  * Même largeur que les blocs qu'elle remplace, plutôt que centrée en pleine
  * page : ce n'est plus l'état unique de l'écran.
  */
-export function UnavailableState({ isRelay }: { isRelay: boolean }) {
+const VALIDATION_COPY = {
+  pending: {
+    title: "Comparaison en attente de validation",
+    body: "Ce résultat a été saisi manuellement et n'a pas encore été vérifié par un bénévole. Son rang et sa comparaison au classement s'afficheront une fois le résultat validé.",
+  },
+  rejected: {
+    title: "Pas de comparaison pour ce résultat",
+    body: "Ce résultat a été signalé non conforme par un bénévole : il n'entre pas au classement de l'épreuve.",
+  },
+} as const;
+
+export function UnavailableState({
+  isRelay,
+  validation,
+}: {
+  isRelay: boolean;
+  validation?: keyof typeof VALIDATION_COPY;
+}) {
+  const copy = validation ? VALIDATION_COPY[validation] : null;
   return (
     <Card style={{ textAlign: "center", marginBottom: 24 }}>
       <Eyebrow tone="muted">Comparaison détaillée</Eyebrow>
@@ -32,10 +54,10 @@ export function UnavailableState({ isRelay }: { isRelay: boolean }) {
           margin: "10px 0 14px",
         }}
       >
-        {isRelay ? "Pas de comparaison individuelle pour un relais" : "Comparaison au classement indisponible"}
+        {copy?.title ?? (isRelay ? "Pas de comparaison individuelle pour un relais" : "Comparaison au classement indisponible")}
       </h2>
       <p style={{ fontSize: 15, lineHeight: 1.6, color: "var(--tcn-text-muted)" }}>
-        {isRelay ? (
+        {copy ? copy.body : isRelay ? (
           <>
             Les statistiques individuelles ne sont pas calculées pour une
             épreuve en relais : le temps d&apos;une équipe ne se compare pas à

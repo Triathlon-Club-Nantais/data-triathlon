@@ -69,6 +69,12 @@ export default async function ParticipationDetailPage({
   // une catégorie absente de cette liste n'affiche aucun dénominateur plutôt
   // qu'un chiffre faux.
   const categoryCount = summary?.categories?.find((c) => c.name === participation.category);
+  // Sans validation, ni rang ni comparaison : l'API rend `stats: null` (#1281).
+  const validation = !participation.is_pending_validation
+    ? undefined
+    : participation.is_rejected
+      ? "rejected"
+      : "pending";
 
   return (
     <PageShell>
@@ -102,7 +108,7 @@ export default async function ParticipationDetailPage({
             />
           </>
         ) : (
-          <UnavailableState isRelay={course.is_relay} />
+          <UnavailableState isRelay={course.is_relay} validation={validation} />
         )}
 
         {summary?.histogram && (
@@ -123,7 +129,7 @@ export default async function ParticipationDetailPage({
           <Card padding={28} style={{ marginTop: 18 }}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
               <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0 }}>Répartition par catégorie</h2>
-              {participation.rank_category != null && categoryCount && (
+              {participation.rank_category != null && !validation && categoryCount && (
                 <div style={{ fontFamily: "var(--tcn-font-cond)", fontWeight: 700, fontSize: 20, color: "var(--tcn-ink)" }}>
                   {ordinalFr(participation.rank_category)} / {categoryCount.count}
                 </div>

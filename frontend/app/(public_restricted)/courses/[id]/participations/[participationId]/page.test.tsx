@@ -216,6 +216,36 @@ describe("ParticipationDetailPage", () => {
   });
 });
 
+describe("ParticipationDetailPage — résultat en attente de validation (#1281)", () => {
+  it("dit que la comparaison attend la validation, pas qu'elle est indisponible", async () => {
+    await renderPage(participation({ stats: null, is_pending_validation: true }));
+
+    expect(screen.getByText(/comparaison en attente de validation/i)).toBeTruthy();
+    expect(screen.queryByText(/intégralité des résultats/i)).toBeNull();
+  });
+
+  it("n'affiche aucun rang, ni scratch ni catégorie", async () => {
+    getCourseSummary.mockResolvedValue({
+      categories: [{ name: "V1H", count: 12 }],
+      categories_total: 12,
+    });
+
+    await renderPage(participation({ stats: null, is_pending_validation: true }));
+
+    expect(screen.queryByText("56")).toBeNull();
+    expect(screen.queryByText(/4e/)).toBeNull();
+    expect(screen.getByText(/répartition par catégorie/i)).toBeTruthy();
+  });
+
+  it("dit d'un résultat non conforme qu'il n'entre pas au classement", async () => {
+    await renderPage(
+      participation({ stats: null, is_pending_validation: true, is_rejected: true }),
+    );
+
+    expect(screen.getByText(/signalé non conforme/i)).toBeTruthy();
+  });
+});
+
 describe("ParticipationDetailPage — panne du backend (#923)", () => {
   const rendre = () =>
     ParticipationDetailPage({ params: Promise.resolve({ id: "3", participationId: "42" }) });

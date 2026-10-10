@@ -184,6 +184,14 @@ describe("ResultRow", () => {
     expect(screen.queryByText("Non conforme")).toBeNull();
   });
 
+  it("n'affiche aucun rang pour un résultat en attente : un rang déclaré n'en est pas un (#1281)", () => {
+    renderRow({ row: participation({ is_pending_validation: true }) });
+
+    expect(screen.queryByText("56")).toBeNull();
+    expect(screen.queryByText("4e cat.")).toBeNull();
+    expect(screen.queryByText("41e genre")).toBeNull();
+  });
+
   it("ne mêle pas le badge au nom de l'athlète dans le lien", () => {
     renderRow({ row: participation({ is_pending_validation: true }) });
 
