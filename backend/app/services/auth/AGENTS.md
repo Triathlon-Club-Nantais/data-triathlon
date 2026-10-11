@@ -105,9 +105,10 @@ exactement son but, pas un accident à éviter. Les deux gardes sont
 orthogonales : un **pouvoir** ne dispense pas du code du site, et
 réciproquement. Une seule dispense existe, depuis #1322 : la session d'un
 compte **adhérent** (`membership.is_member`, statut dérivé à chaque requête de
-la liste des adresses d'adhérents) ouvre le site sans le cookie. Elle est
-vérifiée **avant** le cookie, comme le pouvoir de `require_benevole_access`,
-et la garde reste fail-closed pour tout le reste. Un cookie de site posé à la
+la liste des adresses d'adhérents) ouvre le site sans le cookie. Elle n'est
+vérifiée qu'**à défaut** de cookie valide (le cookie ne coûte que la lecture de
+la configuration, la session et le statut trois requêtes), y compris sans code
+configuré, et la garde reste fail-closed pour tout le reste. Un cookie de site posé à la
 connexion a été écarté : deux sources de vérité, et un retrait de la liste
 sans effet pendant les 90 jours du cookie. Rationale complète dans le commentaire de
 `app/api/v1/router.py` et dans

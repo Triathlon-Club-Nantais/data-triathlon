@@ -21,7 +21,7 @@ def _efface(reponse, nom: str) -> bool:
     return bool(entetes) and ("Max-Age=0" in entetes[0] or "1970" in entetes[0])
 
 
-def _cas_de_sortie(client, doublure):
+def _cas_de_sortie(client, doublure, db_session):
     """Un couple (intitulé, réponse) par chemin de sortie du callback."""
     valeur = _demarre(client)
     yield (
@@ -60,6 +60,20 @@ def _cas_de_sortie(client, doublure):
         ),
     )
 
+    # Le compte né au premier cas (« succès ») est désactivé : seul refus de
+    # provisionnement restant à côté de l'adresse non certifiée (#1322).
+    from app.models.user import User
+
+    db_session.query(User).update({User.is_active: False})
+    db_session.commit()
+    valeur = _demarre(client)
+    yield (
+        "compte désactivé",
+        client.get(
+            f"/api/v1/auth/doublure/callback?code=c&state={valeur}", follow_redirects=False
+        ),
+    )
+
     doublure.identite = ExternalIdentity(
         provider=doublure.slug, subject="9", email="contributeur@exemple.fr",
         email_verified=False, display_name="x",
@@ -73,11 +87,13 @@ def _cas_de_sortie(client, doublure):
     )
 
 
-def test_le_cookie_d_etat_est_efface_sur_tous_les_chemins(client, doublure):
+def test_le_cookie_d_etat_est_efface_sur_tous_les_chemins(client, doublure, db_session):
     nom = state_cookie_name(get_settings())
 
-    for intitule, reponse in _cas_de_sortie(client, doublure):
+    for intitule, reponse in _cas_de_sortie(client, doublure, db_session):
         assert _efface(reponse, nom), f"état non effacé : {intitule}"
+        if intitule == "compte désactivé":
+            assert "error=account_not_allowed" in reponse.headers["location"]
 
 
 def test_le_cookie_d_etat_ne_subsiste_pas_dans_le_navigateur(client, doublure):

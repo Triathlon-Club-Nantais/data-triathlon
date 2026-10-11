@@ -76,7 +76,7 @@ suivante, sans fermer de session. Ni un compte désactivé ni le compte système
 des bénévoles (`SYSTEM_USER_EMAIL`) ne le sont jamais.
 
 - **Ce qu'il donne** : la dispense du code d'accès au site
-  (`require_site_access` le vérifie avant le cookie), sur l'API comme sur
+  (`require_site_access` le vérifie à défaut de cookie valide, y compris sans code configuré), sur l'API comme sur
   l'interface, où `serverFetch` relaie pour cela la session SSO. Et rien
   d'autre : aucun pouvoir, une route gardée par un pouvoir répond 403.
 - **Adresse retenue** (FR-016, `membership.retained_email`) : parmi les

@@ -217,6 +217,48 @@ def test_une_session_non_adherente_reste_devant_la_porte(client, db_session, ouv
     assert client.get("/api/v1/site-access/session").status_code == 401
 
 
+def test_un_adherent_entre_meme_sans_code_configure(client, db_session, ouvrir_session):
+    """Décidé en revue de #1322 : sans code d'accès configuré, la garde reste
+    fermée pour tous (fail-closed), sauf pour un adhérent connecté, dont la
+    dispense ne dépend pas du code."""
+    from app.repositories import site_access_config_repository
+
+    assert site_access_config_repository.get_config(db_session, with_updated_by=False) is None
+    _adherent(db_session, "adherent@exemple.fr")
+    ouvrir_session(email="adherent@exemple.fr")
+
+    assert client.get("/api/v1/courses").status_code == 200
+
+
+def test_un_porteur_de_role_non_adherent_doit_saisir_le_code(client, db_session, ouvrir_session):
+    """Orthogonalité : un pouvoir, même superutilisateur, ne dispense pas du code."""
+    ouvrir_session(superutilisateur=True, email="admin@exemple.fr")
+
+    reponse = client.get("/api/v1/courses")
+    assert reponse.status_code == 401
+    assert reponse.json()["code"] == "site_access_required"
+
+
+def test_le_cookie_de_site_suffit_sans_lire_la_session(client, db_session, ouvrir_session, monkeypatch):
+    """Revue de #1322 : le cookie, peu coûteux, est éprouvé d'abord ; la
+    session et le statut adhérent ne sont lus qu'à défaut."""
+    from app.services import membership
+
+    admin = user_repository.create(db_session, email="admin-cookie@exemple.fr", display_name="Admin")
+    db_session.flush()
+    config, _ = site_access.replace_password(db_session, password="secret-du-club", admin_user_id=admin.id)
+    db_session.commit()
+    client.cookies.set(site_access.SITE_SESSION_COOKIE, shared_password.sign_cookie(config.session_secret))
+    ouvrir_session(email="visiteur@exemple.fr")
+
+    def _interdit(*args, **kwargs):
+        raise AssertionError("statut adhérent lu alors que le cookie suffit")
+
+    monkeypatch.setattr(membership, "is_member", _interdit)
+
+    assert client.get("/api/v1/courses").status_code == 200
+
+
 def test_un_compte_adherent_desactive_n_est_pas_dispense(client, db_session, ouvrir_session):
     _adherent(db_session, "adherent@exemple.fr")
     user = ouvrir_session(email="adherent@exemple.fr")

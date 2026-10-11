@@ -24,8 +24,8 @@ Complète le sondage `docs/superpowers/specs/2026-10-11-comptes-membres-sondage.
 
 ## R4. Dispense du code d'accès pour un adhérent
 
-- **Decision**: `require_site_access` reçoit `user: User | None = Depends(optional_user)` et rend la main si `membership.is_member(db, user, today)`. Côté frontend, `serverFetch` relaie, en plus de `tcn_site_session`, le cookie de session SSO (nom se terminant par `tcn_session`, préfixé `__Host-` en production). `checkSiteAccess` relaie déjà tout le pot de cookies.
-- **Rationale**: précédent `require_benevole_access` (pouvoir avant cookie). Le relais du cookie de session dans `serverFetch` ne dégrade pas le cache partagé : le cookie de site est déjà unique par visiteur (horodatage signé, cf. commentaire de `siteAccessCookieHeader`), donc aucun partage inter-visiteurs n'existe à perdre ; seuls ces deux cookies partent, pas le pot entier (#586).
+- **Decision**: `require_site_access` éprouve d'abord le cookie de site ; à défaut, il lit la session (`optional_user`, appelé directement et non en dépendance) et rend la main si `membership.is_member(db, user, today)`, y compris sans code configuré. Sinon 401. Côté frontend, `serverFetch` relaie, en plus de `tcn_site_session`, le cookie de session SSO (nom se terminant par `tcn_session`, préfixé `__Host-` en production). `checkSiteAccess` relaie déjà tout le pot de cookies.
+- **Rationale**: même sécurité dans les deux ordres ; le cookie d'abord évite la lecture de session et les deux requêtes du statut adhérent pour tout visiteur qui a le code (revue de #1322, qui a inversé l'ordre initial calqué sur `require_benevole_access`). Le relais du cookie de session dans `serverFetch` ne dégrade pas le cache partagé : le cookie de site est déjà unique par visiteur (horodatage signé, cf. commentaire de `siteAccessCookieHeader`), donc aucun partage inter-visiteurs n'existe à perdre ; seuls ces deux cookies partent, pas le pot entier (#586).
 - **Alternatives considered**: poser un cookie de site à la connexion d'un adhérent (deux sources de vérité, retrait de la liste sans effet avant expiration de 90 jours, contraire à SC-004).
 
 ## R5. Adresse retenue et statut adhérent
