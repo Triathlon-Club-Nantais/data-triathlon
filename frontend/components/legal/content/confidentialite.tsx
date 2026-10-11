@@ -10,7 +10,7 @@ export const PRIVACY_POLICY: LegalDocument = {
   title: "Politique de confidentialité",
   description:
     "Ce que le Triathlon Club Nantais fait des données de ce site, pourquoi, combien de temps, et comment faire valoir vos droits.",
-  updatedAt: "2026-10-07",
+  updatedAt: "2026-10-11",
   sections: [
     {
       id: "responsable",
@@ -65,6 +65,13 @@ export const PRIVACY_POLICY: LegalDocument = {
             Elle sert à reconnaître comme résultats du club ceux de ses licenciés, quand le chronométreur ne publie
             pas leur club, et à distinguer la fiche d&apos;un licencié de celle d&apos;un homonyme, à l&apos;import
             des résultats comme lors de la revue des fiches. Seuls les administrateurs habilités la consultent.
+          </p>
+          <p>
+            <strong>La liste des adresses d&apos;adhérents.</strong> L&apos;adresse électronique des adhérents,
+            saison par saison, importée par un administrateur depuis le fichier des adhérents du club (AssoConnect)
+            ou ajoutée à la main. Seule la colonne d&apos;adresses du fichier est lue : nom, téléphone et autres
+            colonnes ne sont jamais enregistrés. Elle sert uniquement à reconnaître un adhérent quand il se connecte
+            au site ; aucun e-mail ne lui est envoyé. Seuls les administrateurs habilités la consultent.
           </p>
           <p>
             <strong>Les comptes du back-office.</strong> Les bénévoles et administrateurs se connectent avec leur
@@ -130,7 +137,9 @@ export const PRIVACY_POLICY: LegalDocument = {
             Les données de l&apos;école de triathlon reposent, elles, sur l&apos;adhésion au club (article 6.1.b du
             RGPD : ce qui est nécessaire à l&apos;exécution du contrat d&apos;adhésion) et sur la sécurité des jeunes
             encadrés. Les comptes du back-office et les signalements reposent sur l&apos;intérêt légitime du club à
-            administrer son site.
+            administrer son site. La liste des adresses d&apos;adhérents repose sur l&apos;intérêt légitime du club à
+            réserver le site à ses adhérents, à partir d&apos;adresses qu&apos;ils lui ont déjà confiées pour leur
+            adhésion.
           </p>
         </>
       ),
@@ -148,6 +157,7 @@ export const PRIVACY_POLICY: LegalDocument = {
               "Liste des licenciés du club",
               "La saison en cours et la précédente ; ensuite, seuls sont gardés la saison et le rattachement à la fiche de résultats (le numéro de licence et le sexe sont effacés, le nom est celui de la fiche)",
             ],
+            ["Liste des adresses d'adhérents", "La saison en cours et la précédente"],
             ["Signalements, adresse IP comprise", "12 mois après leur envoi"],
             ["Journal des actions d'administration", "12 mois"],
             ["Compte du back-office", "Tant que son titulaire est autorisé à se connecter"],
@@ -166,8 +176,8 @@ export const PRIVACY_POLICY: LegalDocument = {
           <p>
             Les résultats sont consultables par les adhérents du club, qui disposent du code d&apos;accès. Les
             saisies en attente, les dates de naissance et les signalements ne sont visibles que des bénévoles
-            (adhérents ou non) et administrateurs habilités ; la liste des licenciés, que des administrateurs
-            habilités ; les données de l&apos;école de triathlon, que des
+            (adhérents ou non) et administrateurs habilités ; la liste des licenciés et celle des adresses
+            d&apos;adhérents, que des administrateurs habilités ; les données de l&apos;école de triathlon, que des
             encadrants.
           </p>
           <p>Le club s&apos;appuie sur des prestataires techniques, qui n&apos;agissent que pour son compte :</p>

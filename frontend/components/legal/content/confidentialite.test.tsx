@@ -146,7 +146,18 @@ describe("Politique de confidentialité (#333)", () => {
     expect(rendre()).toMatch(/retiré[^.]*de la liste des licenciés/i);
   });
 
+  it("announces the member e-mail list, its purpose, minimisation and retention (#1334)", () => {
+    const texte = rendre();
+    expect(texte).toMatch(/liste des adresses d.adhérents/i);
+    expect(texte).toMatch(/AssoConnect/);
+    expect(texte).toMatch(/reconnaître un adhérent quand il se connecte/i);
+    expect(texte).toMatch(/jamais enregistrés/i);
+    expect(screen.getByRole("row", { name: /adresses d.adhérents/i })).toHaveTextContent(
+      "La saison en cours et la précédente",
+    );
+  });
+
   it("date la politique du jour de sa dernière modification", () => {
-    expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-07");
+    expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-11");
   });
 });

@@ -122,6 +122,7 @@ appliquent dès #334.
 | Cookie du code d'accès | 90 jours | tenu (`site_access_session_ttl_days`) |
 | Profils jeunes | durée de l'adhésion, plus une saison | tenu dès qu'un encadrant saisit la fin d'adhésion (`purge-retention`, #1158) |
 | Liste des licenciés du club (#1202) | saison en cours et précédente ; ensuite, seuls la saison et le rattachement à une fiche, sans numéro de licence ni sexe | tenu (`purge-retention`) |
+| Adresses d'adhérents (#1334) | saison en cours et précédente | tenu (`purge-retention`) |
 
 `purge-retention` tourne chaque semaine avec le batch planifié
 (`.github/workflows/batch.yml`) ; un échec rougit le run et alerte. Un profil
@@ -236,6 +237,38 @@ ambiguë. Des autres, il ne garde que la saison et le rattachement à la fiche
 effacés, le nom, le prénom et les clés d'identité sont remplacés par ceux de
 la fiche, qui suit la durée de conservation des résultats. Sans ce fait, les compteurs des saisons
 passées changeraient à chaque purge.
+
+## Avenant du 2026-10-11 : liste des adresses d'adhérents (#1334)
+
+**Traitement.** Le club tient, saison par saison, la liste des adresses
+e-mail de ses adhérents. Elle est importée par un administrateur depuis
+l'export des contacts d'AssoConnect (CSV ou XLSX), ou complétée à la main.
+Elle sert à reconnaître un adhérent quand il se connecte au site : un compte
+dont l'adresse figure dans la liste de la saison qui compte est adhérent
+(epic #1312). Aucun autre usage : ni envoi d'e-mail, ni prospection, ni
+rapprochement avec la liste des licenciés.
+
+**Base légale.** Intérêt légitime (article 6.1.f) :
+
+- les adresses viennent du fichier des adhérents que le club tient déjà pour
+  gérer les adhésions, et servent un but voisin (ouvrir le site aux seuls
+  adhérents) ;
+- elles ne concernent que des adhérents, qui ont donné leur adresse au club ;
+- elles restent derrière le back-office : seuls les détenteurs de
+  `member_emails:manage` voient la liste, et y figurer ne donne aucun pouvoir
+  d'administration.
+
+**Minimisation.** Seules l'adresse e-mail (normalisée : minuscules, sans
+espaces) et la saison sont gardées, avec l'origine de l'entrée (import ou
+ajout manuel). L'import ne lit que la colonne d'adresses : nom, téléphone,
+adresse postale et toute autre colonne de l'export sont ignorés, jamais
+stockés. Le fichier n'est pas conservé.
+
+**Conservation.** La saison en cours et la précédente. Au-delà,
+`purge-retention` supprime les entrées. La saison précédente reste parce
+qu'elle compte tant que la saison en cours n'a reçu aucune adresse (entre la
+rentrée de septembre et le premier import). Un import retire aussitôt les
+adresses importées absentes du nouveau fichier.
 
 ## Hors de cette décision, signalé
 
