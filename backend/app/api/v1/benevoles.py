@@ -28,6 +28,7 @@ from app.models.user import User
 from app.repositories import (
     athlete_repository,
     benevole_config_repository,
+    course_repository,
     participation_repository,
 )
 from app.schemas.admin import ParticipationReassign
@@ -172,9 +173,9 @@ def rename_course(
     """
     if not participation_repository.has_pending_for_course(db, course_id):
         raise NotFoundError("Aucun résultat en attente n'est associé à cette épreuve.")
-    # #1287 : le nouveau nom peut rendre jeunes toutes les lignes de l'épreuve.
-    for row in participation_repository.list_for_course(db, course_id):
-        scrape_service.ensure_not_youth(body.name, row.course.event_date, row.category, row.club)
+    scrape_service.ensure_rename_keeps_rows_adult(
+        db, course_repository.get(db, course_id), body.name
+    )
     course = admin_actions.update_course(
         db,
         course_id=course_id,
