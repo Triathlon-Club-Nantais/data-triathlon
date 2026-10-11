@@ -48,7 +48,7 @@ def test_a_domain_error_exits_1_without_writing(brancher_session, db_session, tm
 
     assert result.exit_code == 1
     assert result.stdout == ""
-    assert "colonne" in result.stderr
+    assert "Colonne d'adresses e-mail" in result.stderr
     assert member_email_repository.list_season(db_session, 2026) == []
 
 
