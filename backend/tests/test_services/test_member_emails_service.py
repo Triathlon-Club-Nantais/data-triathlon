@@ -4,6 +4,7 @@ from datetime import date
 import pytest
 
 from app.core.exceptions import NotFoundError
+from app.core.season import SeasonOutOfRangeError
 from app.models.admin_action_log import AdminActionLog
 from app.models.member_email import SOURCE_IMPORT, SOURCE_MANUAL
 from app.repositories import member_email_repository, user_repository
@@ -11,9 +12,9 @@ from app.services import member_emails_service
 from app.services.auth.allowed_emails import InvalidEmailError
 from app.services.member_emails_service import (
     AlreadyListedError,
+    ConcurrentImportError,
     MissingEmailColumnError,
     NoValidEmailError,
-    SeasonOutOfRangeError,
 )
 
 
@@ -112,6 +113,7 @@ def test_import_is_audited(db_session, admin):
 
     log = _last_log(db_session)
     assert (log.action, log.entity_type, log.entity_id) == ("member_emails.import", "member_emails_season", 2026)
+    assert log.payload == {"added": 1, "removed": 0, "unchanged": 0, "ignored": 0}
 
 
 def test_add_normalises_and_promotes_an_imported_address(db_session, admin):
@@ -156,3 +158,36 @@ def test_list_season_reports_the_counting_season(db_session):
     listed = member_emails_service.list_season(db_session, 2026, date(2026, 10, 11))
 
     assert (listed.season, listed.counting_season, listed.seasons, listed.entries) == (2026, 2025, [2025], [])
+
+
+def test_the_season_error_is_shared_with_the_club_members_import():
+    from app.services import club_members_service
+
+    assert club_members_service.SeasonOutOfRangeError is SeasonOutOfRangeError
+
+
+@pytest.mark.parametrize("cell", ["Jeanne <jeanne@exemple.fr>", "jeanne@exemple.fr jeanne", "<jeanne@exemple.fr>"])
+def test_only_a_bare_address_is_imported(db_session, cell):
+    report = _import(db_session, f'email\n"{cell}"\npaul@exemple.fr\n'.encode())
+
+    assert report.ignored == 1
+    assert _emails(db_session) == {"paul@exemple.fr": SOURCE_IMPORT}
+
+
+def test_add_refuses_a_named_address(db_session):
+    with pytest.raises(InvalidEmailError) as refused:
+        member_emails_service.add(db_session, email="Jeanne <jeanne@exemple.fr>", season=2026, user_id=None)
+
+    assert refused.value.status_code == 422
+    assert "prenom.nom@exemple.fr" in refused.value.message
+
+
+def test_a_concurrent_change_during_import_is_a_french_409(db_session, monkeypatch):
+    member_emails_service.add(db_session, email="anne@exemple.fr", season=2026, user_id=None)
+    monkeypatch.setattr(member_email_repository, "list_season", lambda db, season: [])
+
+    with pytest.raises(ConcurrentImportError) as refused:
+        _import(db_session, b"email\nanne@exemple.fr\n")
+
+    assert refused.value.status_code == 409
+    assert refused.value.message == "La liste a été modifiée pendant l'import, réessayez."

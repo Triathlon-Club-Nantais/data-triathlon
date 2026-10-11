@@ -8,10 +8,11 @@ Ne commite pas : le routeur ou la commande porte la transaction.
 from dataclasses import dataclass
 from datetime import date
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import DomainError, NotFoundError
-from app.core.season import SEASON_MAX, SEASON_MIN
+from app.core.season import SEASON_MAX, SEASON_MIN, SeasonOutOfRangeError
 from app.models.member_email import MemberEmail
 from app.repositories import member_email_repository
 from app.services import audit, sheet_source
@@ -42,9 +43,9 @@ class NoValidEmailError(DomainError):
     message = "Aucune adresse e-mail valide dans ce fichier : la liste n'a pas été modifiée."
 
 
-class SeasonOutOfRangeError(DomainError):
-    status_code = 422
-    message = "Saison hors de la plage acceptée."
+class ConcurrentImportError(DomainError):
+    status_code = 409
+    message = "La liste a été modifiée pendant l'import, réessayez."
 
 
 class AlreadyListedError(DomainError):
@@ -74,9 +75,22 @@ def _check_season(season: int) -> None:
         raise SeasonOutOfRangeError
 
 
+def _validated(email: str) -> str:
+    """L'adresse normalisée, ou `InvalidEmailError`. Seule une adresse nue passe :
+    `validate_email` accepte la forme « Nom <adresse> », qui serait rangée telle quelle."""
+    normalized = member_email_repository.normalize(email)
+    validate_email(normalized)
+    if any(c.isspace() or c in "<>" for c in normalized):
+        raise InvalidEmailError(
+            f"« {email.strip()} » n'est pas une adresse électronique valide. "
+            "Forme attendue : prenom.nom@exemple.fr."
+        )
+    return normalized
+
+
 def _is_valid(email: str) -> bool:
     try:
-        validate_email(email)
+        _validated(email)
     except InvalidEmailError:
         return False
     return True
@@ -111,15 +125,21 @@ def import_file(
             ignored += 1
     if not emails:
         raise NoValidEmailError
-    added, removed, unchanged = member_email_repository.replace_imported(db, season, emails)
-    audit.record(db, user_id, action="member_emails.import", entity_type=_SEASON_ENTITY, entity_id=season)
-    return MemberEmailsImportReport(season, added, removed, unchanged, ignored)
+    try:
+        added, removed, unchanged = member_email_repository.replace_imported(db, season, emails)
+    except IntegrityError as error:
+        raise ConcurrentImportError from error
+    report = MemberEmailsImportReport(season, added, removed, unchanged, ignored)
+    audit.record(
+        db, user_id, action="member_emails.import", entity_type=_SEASON_ENTITY, entity_id=season,
+        payload={"added": added, "removed": removed, "unchanged": unchanged, "ignored": ignored},
+    )
+    return report
 
 
 def add(db: Session, *, email: str, season: int, user_id: int | None) -> MemberEmail:
     _check_season(season)
-    validate_email(email)
-    entry = member_email_repository.add_manual(db, member_email_repository.normalize(email), season)
+    entry = member_email_repository.add_manual(db, _validated(email), season)
     if entry is None:
         raise AlreadyListedError
     audit.record(

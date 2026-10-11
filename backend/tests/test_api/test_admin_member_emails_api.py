@@ -98,7 +98,17 @@ def test_the_permission_opens_every_route(client, db_session):
     _session_etroite(client, db_session, "member_emails:manage")
 
     assert client.get(URL).status_code == 200
-    assert client.post(URL, json={"email": "a@exemple.fr", "season": 2026}).status_code == 201
+    assert client.post(f"{URL}/import", data={"season": "2026"}, files=_csv()).status_code == 200
+    created = client.post(URL, json={"email": "a@exemple.fr", "season": 2026})
+    assert created.status_code == 201
+    assert client.delete(f"{URL}/{created.json()['id']}").status_code == 204
+
+
+def test_a_named_address_is_refused_in_french(client):
+    response = client.post(URL, json={"email": "Jeanne <jeanne@exemple.fr>", "season": 2026})
+
+    assert response.status_code == 422
+    assert "prenom.nom@exemple.fr" in response.json()["detail"]
 
 
 def test_every_route_requires_a_session(client):

@@ -15,7 +15,7 @@ from app.core.athlete_identity import athlete_identity_keys
 from app.core.exceptions import DomainError, NotFoundError
 from app.core.gender import normalize_gender
 from app.core.identity import identity_hash
-from app.core.season import SEASON_MAX, SEASON_MIN
+from app.core.season import SEASON_MAX, SEASON_MIN, SeasonOutOfRangeError
 from app.models.club_member import (
     LINK_AMBIGUOUS,
     LINK_AUTO,
@@ -56,11 +56,6 @@ class RosterUnavailableError(DomainError):
 class MissingMemberColumnsError(DomainError):
     status_code = 422
     message = "Colonnes « Nom » et « Prénom » introuvables dans ce fichier."
-
-
-class SeasonOutOfRangeError(DomainError):
-    status_code = 422
-    message = "Saison hors de la plage acceptée."
 
 
 @dataclass(frozen=True)
