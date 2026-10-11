@@ -2,7 +2,11 @@ import type { LucideIcon } from "lucide-react";
 import {
   Briefcase,
   CalendarDays,
+  ClipboardCheck,
+  Fingerprint,
+  Flag,
   Gauge,
+  HandHeart,
   HeartHandshake,
   LayoutGrid,
   List,
@@ -28,9 +32,10 @@ import {
 export const ROLE = { ANON: 0, CONNECTED: 1, ADMIN: 2 } as const;
 
 /**
- * Destinations au plus dans la barre basse mobile (#1012), avant l'onglet
- * « Plus » qui ouvre le tiroir sur le reste. Quatre plus « Plus » tiennent à
- * 375 px, libellés sur une ligne et cibles de 44 px au moins.
+ * Destinations au plus dans la barre basse mobile (#1012), **par espace**,
+ * avant l'onglet « Plus » qui ouvre le tiroir sur le reste. Quatre plus
+ * « Plus » tiennent à 375 px, libellés sur une ligne et cibles de 44 px au
+ * moins. Le back-office en garde une pour l'onglet « Sommaire » (#1298).
  */
 export const BOTTOM_BAR_MAX = 4;
 
@@ -102,9 +107,11 @@ export type NavItem = {
    */
   badge?: string;
   /**
-   * Onglet de la barre basse mobile (#1300). Déclaré, jamais calculé sur le
-   * profil : un onglet qui dépend des pouvoirs change de place quand la
-   * session arrive. Réservé à une destination visible pour tous.
+   * Onglet de la barre basse mobile. Déclaré, jamais calculé sur le profil.
+   * Dans l'espace public, réservé à une destination visible pour tous
+   * (#1300) : la barre ne bouge pas quand la session arrive. Ailleurs,
+   * l'espace n'est atteint qu'après sa garde, donc l'onglet peut porter un
+   * `permission` (#1298).
    */
   bottomBar?: boolean;
   /**
@@ -268,6 +275,9 @@ export const NAV: NavSection[] = [
       },
       {
         id: "a-identites",
+        icon: Fingerprint,
+        bottomBar: true,
+        labelCourt: "Identités",
         label: "Identités des athlètes",
         description:
           "Fiches qui mêlent deux personnes, ou paires de fiches qui désignent probablement la même : chaque cas dit quoi faire et offre ses gestes.",
@@ -311,6 +321,8 @@ export const NAV: NavSection[] = [
       // la navigation n'est pas une garde.
       {
         id: "a-courses",
+        icon: Flag,
+        bottomBar: true,
         label: "Épreuves",
         description:
           "Corriger ou retirer une épreuve du catalogue. Ces actions sont irréversibles et tracées.",
@@ -521,6 +533,9 @@ export const NAV: NavSection[] = [
     items: [
       {
         id: "j-profils",
+        icon: Users,
+        bottomBar: true,
+        labelCourt: "Jeunes",
         label: "Profils",
         description:
           "Profils des jeunes encadrés par le club — contact d'urgence, âge, notes et journal de bord. Données personnelles, fermées à qui ne porte pas ce pouvoir.",
@@ -529,6 +544,9 @@ export const NAV: NavSection[] = [
       },
       {
         id: "j-calendrier",
+        icon: CalendarDays,
+        bottomBar: true,
+        labelCourt: "Calendrier",
         label: "Calendrier des entraînements",
         description:
           "Les séances d'entraînement jeunes et leurs participants inscrits.",
@@ -541,6 +559,8 @@ export const NAV: NavSection[] = [
       // `jeunes:write`, gardé côté écran (patron #496) et côté API.
       {
         id: "j-appel",
+        icon: ClipboardCheck,
+        bottomBar: true,
         label: "Appel",
         description:
           "Pointer les jeunes présents ou absents à une séance, vérifier qu'aucun n'est manquant en fin de séance, et consigner une note.",
@@ -551,6 +571,9 @@ export const NAV: NavSection[] = [
       // du back-office à l'Encadrement (#1297).
       {
         id: "a-benevolat-validation",
+        icon: HandHeart,
+        bottomBar: true,
+        labelCourt: "Bénévolat",
         label: "Crédits bénévoles",
         description:
           "Déclarations de crédit d'athlète en attente, soumises par un membre depuis la page publique de bénévolat : accepter ou refuser.",

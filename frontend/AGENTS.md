@@ -361,8 +361,8 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     du tiroir, repayé à chaque ouverture.
 - **Trois espaces** (#1295) : chaque section porte un `space` (`public`,
   `encadrement`, `admin`) ; le rail et le tiroir ne rendent que l'espace de la
-  page, déduit du premier segment d'URL par `spaceOf`. La barre basse reste
-  celle de l'espace public. `SpaceSwitcher` mène d'un espace à l'autre et
+  page, déduit du premier segment d'URL par `spaceOf`. La barre basse suit
+  l'espace courant. `SpaceSwitcher` mène d'un espace à l'autre et
   disparaît pour qui n'en a qu'un ; dans l'espace public, une entrée
   « Back-office » portant le total des files « À traiter » mène au sommaire.
   La palette ⌘K garde les écrans de tous les espaces ouverts. L'espace
@@ -498,10 +498,12 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `localStorage` relu au montage — la seule exception documentée au refus de
   miroir cookie de #467, parce que le besoin serveur y est authentique et
   qu'aucun `fetch()` vers `/api/v1` n'est concerné. Sous `md`, une barre
-  basse fixe porte les destinations marquées `bottomBar` dans
-  `nav.config.ts` (#1300 : quatre, visibles pour tous, donc identiques avant
-  et après la lecture de la session ; `nav.config.test.ts` borne leur nombre à
-  `BOTTOM_BAR_MAX`), puis un onglet « Plus », toujours présent, qui ouvre le
+  basse fixe porte les onglets de l'espace courant, marqués `bottomBar` dans
+  `nav.config.ts` (#1300, #1298 : `BOTTOM_BAR_MAX` par espace, déclarés et non
+  calculés sur le profil ; le back-office ouvre sur « Sommaire », qui porte le
+  total « À traiter » ; seuls les onglets publics doivent être visibles sans
+  session, les autres espaces étant gardés ; `nav.config.test.ts` borne leur
+  nombre), puis un onglet « Plus », toujours présent, qui ouvre le
   tiroir (#1012 : sept onglets à
   375 px repliaient leurs libellés sur deux lignes ; cinq au plus tiennent sur
   une ligne, ~75 px chacun). Un `labelCourt` change le **texte visible**, et le

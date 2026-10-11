@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { BOTTOM_BAR_MAX, NAV, ROLE, SPACES, TO_HANDLE, ecran, estVisible, spaceOf } from "./nav.config";
+import { BOTTOM_BAR_MAX, NAV, ROLE, SPACES, TO_HANDLE, ecran, estVisible, spaceOf, type SpaceId } from "./nav.config";
 import { GUIDE_ADMIN } from "@/components/guide/guide-content.admin";
 
 /** Les destinations du back-office : celles que le sommaire `/admin` annonce. */
@@ -202,20 +202,42 @@ describe("permission en OU", () => {
   });
 });
 
-describe("barre basse mobile (#1300)", () => {
-  const onglets = NAV.flatMap((s) => s.items).filter((i) => i.bottomBar);
+describe("barre basse mobile (#1300, #1298)", () => {
+  const ongletsDe = (space: SpaceId) =>
+    NAV.filter((s) => s.space === space).flatMap((s) => s.items).filter((i) => i.bottomBar);
 
-  it("déclare au plus BOTTOM_BAR_MAX onglets", () => {
-    expect(onglets.length).toBeGreaterThan(0);
-    expect(onglets.length).toBeLessThanOrEqual(BOTTOM_BAR_MAX);
+  it.each(["public", "encadrement", "admin"] as const)("space %s declares at most BOTTOM_BAR_MAX tabs", (space) => {
+    expect(ongletsDe(space).length).toBeGreaterThan(0);
+    expect(ongletsDe(space).length).toBeLessThanOrEqual(BOTTOM_BAR_MAX);
   });
 
-  it("ne déclare que des destinations visibles pour tous, sans session", () => {
-    for (const section of NAV) {
+  it("the admin space leaves one place for the synthetic Sommaire tab", () => {
+    expect(ongletsDe("admin").length).toBeLessThanOrEqual(BOTTOM_BAR_MAX - 1);
+  });
+
+  it("public tabs stay visible to everyone, without a session", () => {
+    for (const section of NAV.filter((s) => s.space === "public")) {
       for (const item of section.items.filter((i) => i.bottomBar)) {
         expect(section.minRole).toBe(ROLE.ANON);
         expect(estVisible(item, new Set(), ROLE.ANON)).toBe(true);
       }
+    }
+  });
+
+  it.each([
+    ["encadrement", ["/encadrement/jeunes", "/encadrement/jeunes/calendrier", "/encadrement/jeunes/appel", "/encadrement/benevolat"]],
+    ["admin", ["/admin/identites", "/admin/courses"]],
+  ] as const)("space %s declares exactly its tabs", (space, hrefs) => {
+    expect(ongletsDe(space).map((i) => i.href)).toEqual(hrefs);
+  });
+
+  it("every tab has an icon", () => {
+    for (const item of NAV.flatMap((s) => s.items).filter((i) => i.bottomBar)) expect(item.icon).toBeDefined();
+  });
+
+  it("every tab label fits: labelCourt when the label is long", () => {
+    for (const item of NAV.flatMap((s) => s.items).filter((i) => i.bottomBar)) {
+      expect((item.labelCourt ?? item.label).length).toBeLessThanOrEqual(12);
     }
   });
 });
