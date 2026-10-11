@@ -242,6 +242,13 @@ describe("MaSaison — états dégradés", () => {
   describe("rank toggle only where it acts", () => {
     const toggle = () => screen.queryByRole("group", { name: "Type de rang" });
 
+    it("is present while loading", () => {
+      getAthlete.mockReturnValue(new Promise(() => {}));
+      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+      expect(screen.getByTestId("ma-saison-squelette")).toBeInTheDocument();
+      expect(toggle()).not.toBeNull();
+    });
+
     it("is absent when the athlete is lost", async () => {
       getAthlete.mockRejectedValue(new ApiError(404, "Not Found"));
       render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);

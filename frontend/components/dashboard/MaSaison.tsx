@@ -234,7 +234,7 @@ export function MaSaison({
 
   if (etat === "chargement") {
     return (
-      <Bande titre={titre}>
+      <Bande titre={titre} avecRang>
         <AnnonceStatut texte={texteAnnonce ?? ""} busy />
         <div
           data-testid="ma-saison-squelette"
@@ -320,7 +320,7 @@ export function MaSaison({
   );
 }
 
-// Le sélecteur de rang n'est monté que là où il agit : l'état nominal.
+// Le sélecteur de rang n'est monté là où il agit (nominal) et pendant le chargement, qui y mène le plus souvent : évite un décalage de mise en page.
 function Bande({
   titre,
   avecRang = false,
