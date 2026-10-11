@@ -4,6 +4,12 @@ import { readConsent } from "@/lib/analytics-consent";
 const token = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
 const host = process.env.NEXT_PUBLIC_POSTHOG_HOST;
 
+// Écrans jeunes (#1307) : un clic ou une copie y emporte le texte de l'élément, donc le nom d'un
+// mineur. Filtré ici, au seul point de sortie, pour couvrir tout écran futur sous ce chemin et les
+// dialogues rendus en portail hors de son conteneur, qu'un `ph-no-capture` ne couvrirait pas.
+const YOUTH_PATH = /^\/admin\/jeunes(\/|$)/;
+const ELEMENT_EVENTS = new Set(["$autocapture", "$rageclick", "$dead_click", "$copy_autocapture", "$$heatmap"]);
+
 // Analytics opt-in, et aucun avertissement quand les variables manquent : la
 // **preview n'envoie rien à PostHog**, par choix (un seul projet PostHog, on
 // n'y mélange pas le trafic de test — #426). L'absence de variable y est donc
@@ -30,6 +36,8 @@ if (token && host) {
     // clics ni clics morts ne partent.
     capture_heatmaps: granted,
     capture_dead_clicks: granted,
+    before_send: (event) =>
+      event && ELEMENT_EVENTS.has(event.event) && YOUTH_PATH.test(window.location.pathname) ? null : event,
     disable_session_recording: true,
     // Capture les exceptions non gérées (Error Tracking)
     capture_exceptions: true,

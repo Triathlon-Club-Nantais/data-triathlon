@@ -103,4 +103,38 @@ describe("instrumentation-client", () => {
       expect(optOut).toHaveBeenCalled();
     });
   });
+
+  describe("écrans jeunes exclus de l'autocapture (#1307)", () => {
+    type BeforeSend = (event: { event: string } | null) => { event: string } | null;
+
+    async function beforeSendAt(path: string): Promise<BeforeSend> {
+      vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
+      vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.posthog.com");
+      window.history.pushState({}, "", path);
+      await import("./instrumentation-client");
+      return init.mock.calls[0][1].before_send;
+    }
+
+    afterEach(() => window.history.pushState({}, "", "/"));
+
+    it.each(["/admin/jeunes", "/admin/jeunes/42", "/admin/jeunes/appel", "/admin/jeunes/groupes"])(
+      "écarte clics, copies et cartes de chaleur sous %s",
+      async (path) => {
+        const beforeSend = await beforeSendAt(path);
+        for (const name of ["$autocapture", "$rageclick", "$dead_click", "$copy_autocapture", "$$heatmap"]) {
+          expect(beforeSend({ event: name })).toBeNull();
+        }
+      },
+    );
+
+    it("laisse passer la mesure d'audience sur les écrans jeunes", async () => {
+      const beforeSend = await beforeSendAt("/admin/jeunes/42");
+      expect(beforeSend({ event: "$pageview" })).toEqual({ event: "$pageview" });
+    });
+
+    it.each(["/", "/admin/courses", "/admin/jeunesse"])("garde l'autocapture sous %s", async (path) => {
+      const beforeSend = await beforeSendAt(path);
+      expect(beforeSend({ event: "$autocapture" })).toEqual({ event: "$autocapture" });
+    });
+  });
 });
