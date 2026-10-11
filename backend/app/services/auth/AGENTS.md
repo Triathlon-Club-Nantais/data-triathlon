@@ -286,3 +286,8 @@ Deux epics indépendantes, chacune sa propre table (`allowed_emails` ;
 `groups`/`user_groups`), toutes deux hors de la décision d'accès de #115 —
 détail, invariants et pièges mesurés dans `docs/auth/liste-autorisation.md` et
 `docs/auth/groupes.md`.
+
+La liste des **adresses d'adhérents** (#1334, `member_emails`) est une troisième
+table, distincte d'`allowed_emails` : elle dit qui est adhérent, jamais qui
+entre au back-office. Règles d'import, saison qui compte et purge :
+`docs/auth/membres.md`.
