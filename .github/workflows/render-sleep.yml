@@ -63,6 +63,8 @@ run-name: "render-sleep · ${{ inputs.action || github.event.schedule }} · ${{ 
 # `workflow_dispatch` à 23 h 15 et 2 h 15 UTC, sans le retard du `schedule`. Les
 # crons de production ci-dessous restent en secours tant qu'elles ne sont pas
 # validées en production : ils passent plus tard et ne font alors plus rien.
+# `Render-sleep-preview` couche de même la preview à la minute 45 de chaque heure
+# (#1319) ; le cron horaire reste lui aussi en secours.
 #
 # **Le coucher ne passe jamais après le lever** : avec 3 h seulement entre les
 # deux crons, un coucher retardé au delà de 2 h (~2 h 10 mesuré sur #885, plus

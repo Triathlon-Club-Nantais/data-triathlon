@@ -1,8 +1,8 @@
 # Azure Functions
 
-Une seule Function App aujourd'hui, `coldstart/`, qui porte trois fonctions :
+Une seule Function App aujourd'hui, `coldstart/`, qui porte quatre fonctions :
 le keep-warm (`Coldstart-curl`) et la veille Render (`Render-sleep`,
-`Render-wake`). Son code vivait dans le dépôt séparé
+`Render-wake`, `Render-sleep-preview`). Son code vivait dans le dépôt séparé
 `Triathlon-Club-Nantais/ColdStart-function-curl` (dernier commit `861e116`),
 rapatrié ici par #1014 : ce dossier fait désormais foi.
 
@@ -48,6 +48,7 @@ déclenchent donc `render-sleep.yml` par `workflow_dispatch` (API GitHub,
 |---|---|---|
 | `Render-sleep` | `0 15 23 * * *` | `action: suspend`, `target: production`, `alert: true` |
 | `Render-wake` | `0 15 2 * * *` | `action: resume`, `target: production`, `alert: true` |
+| `Render-sleep-preview` | `0 45 * * * *` | `action: suspend`, `target: preview`, `alert: true` |
 
 `alert` fait ouvrir l'issue `ops` sur un échec (`notify-failure.yml`, #922) :
 personne ne suit ces runs, contrairement à un lancement manuel.
@@ -67,15 +68,21 @@ La logique reste **dans le workflow** (résolution du service par son nom,
 abstention pendant un déploiement, 400 « déjà éveillé ») : le module
 `Modules/RenderSleep/RenderSleep.psm1`, chargé d'office par le runtime
 PowerShell, ne fait que la demander. `RENDER_API_KEY` ne quitte donc pas GitHub.
-La preview garde son coucher horaire par le `schedule` d'Actions, où une heure
-de retard ne coûte qu'une heure d'instance.
+La preview est couchée chaque heure par `Render-sleep-preview` (#1319) : le cron
+horaire d'Actions sautait des heures entières (environ 7 passages sur 24 le
+10/10), laissant la preview éveillée 4 à 5 h après un déploiement. Ses gardes
+(déploiement en vol, délai de grâce) restent dans le workflow. Pas d'alerte
+Slack côté Azure pour elle : un jeton en panne alerte déjà par la veille de la
+production, et un échec du workflow passe par `notify-failure.yml`, limité à un
+message par 12 h.
 
 **Les crons de `render-sleep.yml` restent en secours** (décision du 26/09) tant
 que ces fonctions ne sont pas validées en production. Ils passent plus tard, et
 ne font alors plus rien. Leur retrait fera l'objet d'une issue de suivi.
 
-**FinOps.** Deux exécutions par jour de plus, dans l'octroi gratuit du plan
-Flex Consumption.
+**FinOps.** 26 exécutions par jour de plus (24 pour la preview, quelques
+secondes chacune), dans l'octroi gratuit du plan Flex Consumption. Côté GitHub,
+autant de runs courts, gratuits sur un dépôt public.
 
 ### App Settings attendues
 
@@ -108,7 +115,7 @@ Procédure réelle à ce jour, manuelle :
 3. Contrôler *Monitor → Invocations* au passage suivant, et les logs Vercel de
    `/api/cron/keep-warm` (200 attendus). Pour la veille : un run
    `workflow_dispatch` de `render-sleep.yml` doit apparaître à 23 h 15 et à
-   2 h 15 UTC, à la minute.
+   2 h 15 UTC, à la minute, et un `suspend · preview` à chaque minute 45.
 
 Changer une App Setting (portail : *Settings → Environment variables*) redémarre
 la Function ; aucun redéploiement du code n'est nécessaire.
