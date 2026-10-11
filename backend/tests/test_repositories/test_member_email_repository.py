@@ -119,6 +119,34 @@ def test_counts_looks_up_the_normalised_address_in_the_counting_season(db_sessio
     assert not member_email_repository.counts(db_session, "nobody@exemple.fr", today)
 
 
+def test_a_manual_entry_alone_does_not_switch_the_counting_season(db_session):
+    _entry(db_session, "old@exemple.fr", season=2025)
+    _entry(db_session, "hand@exemple.fr", season=2026, source=SOURCE_MANUAL)
+    today = date(2026, 10, 11)
+
+    assert member_email_repository.counting_season(db_session, today) == 2025
+    assert member_email_repository.counts(db_session, "old@exemple.fr", today)
+    assert member_email_repository.counts(db_session, "hand@exemple.fr", today)
+
+
+def test_add_manual_survives_a_concurrent_insert_of_the_same_address(db_session):
+    _entry(db_session, "anne@exemple.fr", source=SOURCE_MANUAL)
+
+    assert member_email_repository.add_manual(db_session, "anne@exemple.fr", 2026) is None
+    assert _emails(db_session) == {"anne@exemple.fr": SOURCE_MANUAL}
+
+
+def test_replace_imported_raises_on_a_concurrent_insert_and_keeps_the_session_usable(db_session, monkeypatch):
+    _entry(db_session, "anne@exemple.fr")
+    monkeypatch.setattr(member_email_repository, "list_season", lambda db, season: [])
+
+    with pytest.raises(IntegrityError):
+        member_email_repository.replace_imported(db_session, 2026, {"anne@exemple.fr", "new@exemple.fr"})
+
+    monkeypatch.undo()
+    assert _emails(db_session) == {"anne@exemple.fr": SOURCE_IMPORT}
+
+
 def test_purge_before_counts_in_dry_run_then_deletes(db_session):
     _entry(db_session, "a@exemple.fr", season=2023)
     _entry(db_session, "b@exemple.fr", season=2024)

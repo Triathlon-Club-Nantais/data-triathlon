@@ -2,6 +2,7 @@
 from datetime import date
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.season import season_of
@@ -27,28 +28,44 @@ def replace_imported(db: Session, season: int, emails: set[str]) -> tuple[int, i
 
     Les entrées manuelles restent ; une adresse du fichier déjà présente, quelle
     que soit son origine, est inchangée. Rend `(ajoutées, retirées, inchangées)`.
+
+    Sous point de reprise : une adresse ajoutée entre la lecture et l'écriture
+    fait céder `UNIQUE(email, season)`, l'`IntegrityError` remonte et la
+    transaction de l'appelant reste utilisable.
     """
     existing = {entry.email: entry.source for entry in list_season(db, season)}
     gone = [e for e, source in existing.items() if source == SOURCE_IMPORT and e not in emails]
     new = sorted(emails - existing.keys())
-    if gone:
-        db.execute(delete(MemberEmail).where(MemberEmail.season == season, MemberEmail.email.in_(gone)))
-    db.add_all(MemberEmail(email=e, season=season, source=SOURCE_IMPORT) for e in new)
-    db.flush()
+    with db.begin_nested():
+        if gone:
+            db.execute(delete(MemberEmail).where(MemberEmail.season == season, MemberEmail.email.in_(gone)))
+        db.add_all(MemberEmail(email=e, season=season, source=SOURCE_IMPORT) for e in new)
+        db.flush()
     return len(new), len(gone), len(emails & existing.keys())
 
 
 def add_manual(db: Session, email: str, season: int) -> MemberEmail | None:
-    """Ajoute à la main, ou promeut une entrée importée. `None` si déjà manuelle."""
-    entry = db.scalar(select(MemberEmail).where(MemberEmail.email == email, MemberEmail.season == season))
-    if entry is None:
-        entry = MemberEmail(email=email, season=season, source=SOURCE_MANUAL)
-        db.add(entry)
-    elif entry.source == SOURCE_MANUAL:
+    """Ajoute à la main, ou promeut une entrée importée. `None` si déjà manuelle.
+
+    L'insertion est tentée d'abord, sous point de reprise : une lecture préalable
+    serait franchie par deux ajouts simultanés, `UNIQUE(email, season)` jamais
+    (patron d'`allowed_email_repository.add`).
+    """
+    entry = MemberEmail(email=email, season=season, source=SOURCE_MANUAL)
+    try:
+        with db.begin_nested():
+            db.add(entry)
+            db.flush()
+        return entry
+    except IntegrityError:
+        existing = db.scalar(select(MemberEmail).where(MemberEmail.email == email, MemberEmail.season == season))
+        if existing is None:  # pragma: no cover, une autre contrainte a cédé
+            raise
+    if existing.source == SOURCE_MANUAL:
         return None
-    entry.source = SOURCE_MANUAL
+    existing.source = SOURCE_MANUAL
     db.flush()
-    return entry
+    return existing
 
 
 def remove(db: Session, entry_id: int) -> MemberEmail | None:
@@ -59,19 +76,29 @@ def remove(db: Session, entry_id: int) -> MemberEmail | None:
     return entry
 
 
+def _has_import(db: Session, season: int) -> bool:
+    return db.scalar(select(
+        select(MemberEmail.id).where(MemberEmail.season == season, MemberEmail.source == SOURCE_IMPORT).exists()
+    ))
+
+
 def counting_season(db: Session, today: date) -> int:
-    """La saison en cours si elle a une entrée, sinon la précédente : entre la
-    rentrée et le premier import, la liste de l'an passé continue de compter."""
+    """La saison en cours dès qu'elle a une entrée importée, sinon la précédente :
+    entre la rentrée et le premier import, la liste de l'an passé continue de
+    compter, et un ajout à la main ne la fait pas basculer."""
     current = season_of(today)
-    has_entry = db.scalar(select(select(MemberEmail.id).where(MemberEmail.season == current).exists()))
-    return current if has_entry else current - 1
+    return current if _has_import(db, current) else current - 1
 
 
 def counts(db: Session, email: str, today: date) -> bool:
+    """L'adresse figure dans la saison qui compte, ou dans la saison en cours.
+
+    Tant que la saison en cours n'a aucun import, elle ne porte que des entrées
+    manuelles : elles comptent en plus de la liste précédente.
+    """
+    seasons = {counting_season(db, today), season_of(today)}
     return db.scalar(
-        select(MemberEmail.id).where(
-            MemberEmail.email == normalize(email), MemberEmail.season == counting_season(db, today)
-        ).limit(1)
+        select(MemberEmail.id).where(MemberEmail.email == normalize(email), MemberEmail.season.in_(seasons)).limit(1)
     ) is not None
 
 
