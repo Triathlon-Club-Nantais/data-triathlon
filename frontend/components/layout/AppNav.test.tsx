@@ -1982,11 +1982,27 @@ describe("AppNav: UI/UX review of the spaces (#1295)", () => {
     expect(declencheur).toHaveTextContent("Consulter");
   });
 
+  const barre = () => screen.getByRole("navigation", { name: "Navigation" });
+
+  it("a refused Back-office falls back to the public navigation", async () => {
+    chemin.courant = "/admin/membres";
+    afficher(SESSION, { initialExpanded: true });
+    await waitFor(() => expect(within(rail()).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats"));
+    expect(within(barre()).queryByRole("link", { name: /Sommaire/ })).not.toBeInTheDocument();
+    expect(within(barre()).getByRole("link", { name: "Résultats" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).getAllByRole("link").length).toBeGreaterThan(0);
+  });
+
   it("a refused private space falls back to the public navigation", async () => {
     chemin.courant = "/encadrement/jeunes";
     afficher(SESSION, { initialExpanded: true });
     await waitFor(() => expect(within(rail()).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats"));
     expect(within(rail()).getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("href", "/dashboard");
+    expect(within(barre()).queryByRole("link", { name: /Sommaire/ })).not.toBeInTheDocument();
+    expect(within(barre()).getByRole("link", { name: "Résultats" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
     const tiroir = await screen.findByRole("dialog");
@@ -2001,5 +2017,16 @@ describe("AppNav: UI/UX review of the spaces (#1295)", () => {
 
     const entree = await screen.findByRole("menuitem", { name: /Encadrement/ });
     await waitFor(() => expect(within(entree).getByText("4 éléments à traiter")).toHaveClass("sr-only"));
+    expect(entree).toHaveAccessibleName("Encadrement 4 éléments à traiter");
+  });
+
+  it("the Encadrement switcher entry has no count when nothing is pending", async () => {
+    chemin.courant = "/dashboard";
+    afficher(habilite("jeunes:read", "athletes:volunteer_validate", "pages:preview"), { initialExpanded: true });
+    await userEvent.click(await within(rail()).findByRole("button", { name: /changer d'espace/ }));
+
+    const entree = await screen.findByRole("menuitem", { name: /Encadrement/ });
+    await waitFor(() => expect(countPendingVolunteerActions).toHaveBeenCalled());
+    expect(within(entree).queryByText(/éléments? à traiter/)).not.toBeInTheDocument();
   });
 });

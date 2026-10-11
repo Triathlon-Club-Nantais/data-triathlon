@@ -157,7 +157,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   const sectionsEspace = toutesSections.filter((s) => s.space === espace);
   // Un espace refusé n'a aucune section visible : la navigation retombe sur
   // l'espace public plutôt que de laisser l'écran de refus sans issue.
-  const espaceAffiche: SpaceId = sectionsEspace.length > 0 || espace === "admin" ? espace : "public";
+  const espaceAffiche: SpaceId = sectionsEspace.length > 0 || (espace === "admin" && session?.can_administer) ? espace : "public";
   const sections = sectionsEspace.length > 0 ? sectionsEspace : toutesSections.filter((s) => s.space === espaceAffiche);
 
   // Barre basse mobile (#482, NAV-4) : les onglets de l'espace courant,
