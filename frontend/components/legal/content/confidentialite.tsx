@@ -77,8 +77,10 @@ export const PRIVACY_POLICY: LegalDocument = {
             <strong>Les comptes.</strong> Les adhérents peuvent se connecter pour entrer sur le site sans le code
             d&apos;accès ; les bénévoles et administrateurs se connectent aussi pour le back-office. La connexion
             passe par GitHub, ou par Google ou par un code reçu par e-mail via Microsoft Entra External ID : le
-            site en reçoit l&apos;adresse électronique, le nom affiché et l&apos;identifiant chez ce fournisseur. Un
-            compte n&apos;a, par lui-même, aucun droit d&apos;administration. Un compte peut être
+            site en reçoit l&apos;adresse électronique, le nom affiché et l&apos;identifiant chez ce fournisseur. Par
+            Google ou par code, la première connexion inscrit aussi l&apos;adresse et le nom dans l&apos;annuaire
+            Microsoft du club, une inscription conservée comme le compte : jusqu&apos;à sa suppression, sur demande
+            adressée au club. Un compte n&apos;a, par lui-même, aucun droit d&apos;administration. Un compte peut être
             rattaché à la fiche athlète de son titulaire. Le site garde la trace des actions d&apos;administration.
           </p>
           <p>

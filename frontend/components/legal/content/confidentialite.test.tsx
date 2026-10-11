@@ -180,6 +180,12 @@ describe("Politique de confidentialité (#333)", () => {
     expect(screen.getByRole("row", { name: /^tcn_auth_state/ })).not.toHaveTextContent(/GitHub/);
   });
 
+  it("says the Entra directory entry is kept like the account, until deletion on request (#1323)", () => {
+    expect(rendre()).toMatch(
+      /annuaire Microsoft du club[^.]*conservée comme le compte : jusqu.à sa suppression, sur demande adressée au club/i,
+    );
+  });
+
   it("date la politique du jour de sa dernière modification", () => {
     expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-11");
   });

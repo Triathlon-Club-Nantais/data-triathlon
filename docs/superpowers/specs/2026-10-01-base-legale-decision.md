@@ -278,7 +278,11 @@ Ireland Operations Ltd), dans un tenant du club créé en Europe. Le site en
 reçoit l'identifiant stable de la personne chez Microsoft, son adresse
 électronique, le fait qu'elle est vérifiée, et son nom affiché. Mêmes tables
 et mêmes durées que la connexion GitHub ; aucune donnée nouvelle n'est gardée
-côté site.
+côté site. L'inscription en libre service crée en outre, dans l'annuaire du
+tenant, un utilisateur portant l'adresse et le nom affiché : il est conservé
+comme le compte, jusqu'à sa suppression sur demande adressée au club, et la
+suppression du compte emporte la sienne (procédure dans
+`infra/entra-external-id/AGENTS.md`).
 
 **Base légale.** Inchangée : celle des comptes (intérêt légitime à ouvrir le
 site aux adhérents et le back-office aux bénévoles). Microsoft agit comme
