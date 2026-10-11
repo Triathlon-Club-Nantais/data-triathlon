@@ -1,4 +1,5 @@
-"""Gestion de la liste d'autorisation — qui a le droit d'ouvrir une session (#170).
+"""Gestion de la liste d'autorisation (#170) : rôle du premier jour et adresse
+retenue. Elle ne conditionne plus l'ouverture d'une session depuis #1322.
 
 Distinct de `provisioning.py`, qui **lit** cette liste au passage d'une
 connexion : ici on l'**écrit**, depuis le back-office ou depuis la CLI

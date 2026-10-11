@@ -87,8 +87,8 @@ def test_une_liste_d_autorisation_vide_n_est_plus_un_garde_de_configuration(
 ):
     """#170 : la liste a quitté la configuration, elle ne ferme plus l'entrée.
 
-    Le parcours s'ouvre (302 vers le fournisseur) et c'est au **retour** qu'il
-    est refusé, en `account_not_allowed`. Ce qui reste gardé ici, ce sont les
+    Le parcours s'ouvre (302 vers le fournisseur) ; depuis #1322 le retour
+    ouvre un compte sans rôle, la liste ne refuse plus. Ce qui reste gardé ici, ce sont les
     deux réglages réellement transverses : la clé de signature et l'origine de
     retour, tous deux éprouvés par les tests ci-dessus.
     """

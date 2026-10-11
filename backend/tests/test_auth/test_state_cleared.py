@@ -61,18 +61,6 @@ def _cas_de_sortie(client, doublure):
     )
 
     doublure.identite = ExternalIdentity(
-        provider=doublure.slug, subject="9", email="intrus@exemple.fr",
-        email_verified=True, display_name="x",
-    )
-    valeur = _demarre(client)
-    yield (
-        "adresse hors liste",
-        client.get(
-            f"/api/v1/auth/doublure/callback?code=c&state={valeur}", follow_redirects=False
-        ),
-    )
-
-    doublure.identite = ExternalIdentity(
         provider=doublure.slug, subject="9", email="contributeur@exemple.fr",
         email_verified=False, display_name="x",
     )

@@ -46,7 +46,7 @@ def test_aucune_donnee_d_entree_n_atteint_le_parametre(client, doublure, charge)
 def test_tous_les_chemins_d_echec_rendent_un_code_du_contrat(client, doublure):
     doublure.identite = ExternalIdentity(
         provider=doublure.slug, subject="9", email="intrus@exemple.fr",
-        email_verified=True, display_name="x",
+        email_verified=False, display_name="x",
     )
     client.get("/api/v1/auth/doublure/authorize", follow_redirects=False)
     valeur = state.read(client.cookies[state_cookie_name(get_settings())]).state
@@ -55,7 +55,7 @@ def test_tous_les_chemins_d_echec_rendent_un_code_du_contrat(client, doublure):
         f"/api/v1/auth/doublure/callback?code=c&state={valeur}", follow_redirects=False
     )
 
-    assert _code_rendu(reponse) == "account_not_allowed"
+    assert _code_rendu(reponse) == "email_unverified"
 
 
 def test_un_code_interne_ne_franchit_jamais_la_frontiere():
