@@ -79,6 +79,7 @@ describe("BatchRunList", () => {
 
     await rendreAvecRelanceSuspendue(
       <BatchRunList />,
+      ["batch-runs"],
     );
 
     expect(screen.queryByText(/aucun lancement/i)).not.toBeInTheDocument();

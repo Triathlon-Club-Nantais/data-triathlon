@@ -49,6 +49,7 @@ describe("OppositionsScreen (#334)", () => {
       <DangerConfirmProvider>
         <OppositionsScreen />
       </DangerConfirmProvider>,
+      ["admin-oppositions"],
     );
 
     expect(screen.queryByText(/aucune opposition/i)).not.toBeInTheDocument();

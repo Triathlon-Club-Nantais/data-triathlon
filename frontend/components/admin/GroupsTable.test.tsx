@@ -76,6 +76,7 @@ describe("GroupsTable", () => {
       <DangerConfirmProvider>
         <GroupsTable />
       </DangerConfirmProvider>,
+      ["admin-groups"],
     );
 
     expect(screen.queryByText(/aucun groupe/i)).not.toBeInTheDocument();

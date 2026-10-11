@@ -122,7 +122,7 @@ describe("GroupDetailDialog", () => {
   it("ne prend pas une relance suspendue pour un groupe sans membre (#1294)", async () => {
     getGroup.mockRejectedValue(new Error("Service indisponible"));
 
-    await rendreAvecRelanceSuspendue(<GroupDetailDialog group={CODIR} open onOpenChange={() => {}} />);
+    await rendreAvecRelanceSuspendue(<GroupDetailDialog group={CODIR} open onOpenChange={() => {}} />, ["admin-group"]);
 
     expect(screen.queryByText(/aucun membre/i)).not.toBeInTheDocument();
   });

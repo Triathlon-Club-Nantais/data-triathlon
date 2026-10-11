@@ -111,6 +111,7 @@ describe("AthleteIdentityReviewTable", () => {
       <DangerConfirmProvider>
         <AthleteIdentityReviewTable />
       </DangerConfirmProvider>,
+      ["identity-review"],
     );
 
     expect(screen.queryByText(/aucun cas d'identité à trancher/i)).not.toBeInTheDocument();

@@ -62,6 +62,7 @@ describe("PendingProvidersTable", () => {
 
     await rendreAvecRelanceSuspendue(
       <PendingProvidersTable />,
+      ["pending-providers"],
     );
 
     expect(screen.queryByText(/aucun fournisseur signalé/i)).not.toBeInTheDocument();

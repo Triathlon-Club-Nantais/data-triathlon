@@ -136,9 +136,11 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   du jour qui existe. Tout écran à état vide teste `isPending` (#1294) ; son
   test le prouve avec `rendreAvecRelanceSuspendue` (`test/requete-suspendue.tsx`),
   ou hors ligne (`onlineManager`) pour une requête en `retry: false`, qui ne se
-  suspend que là. `isLoading` ne reste que là où aucun état vide n'en
-  dépend, et sur une requête soumise à `enabled`, où `isPending` vaudrait vrai
-  tant qu'elle est désactivée.
+  suspend que là. Une requête soumise à `enabled` reste `isPending` tant
+  qu'elle est désactivée : `isPending` n'y convient que si ce cas sort plus tôt
+  ou démonte l'écran (`useBatchRuns`, `useBatchReport`, `useGroup`), sinon le
+  squelette tourne à jamais. `isLoading` ne reste que là où aucun état vide
+  n'en dépend.
 - **Composition des rôles** (`admin/droits`, #240) — l'écran **n'invente aucun
   regroupement** : `GET /admin/permissions` rend l'inventaire déjà rangé par
   fonctionnalité, dans son ordre d'affichage, et `PermissionGrid` le reproduit

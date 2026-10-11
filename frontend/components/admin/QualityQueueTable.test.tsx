@@ -138,7 +138,7 @@ describe("QualityQueueTable", () => {
   it("ne prend pas une relance suspendue pour une file vide (#1294)", async () => {
     listCourses.mockRejectedValue(new Error("Service indisponible"));
 
-    await rendreAvecRelanceSuspendue(<QualityQueueTable />);
+    await rendreAvecRelanceSuspendue(<QualityQueueTable />, ["admin-courses"]);
 
     expect(screen.queryByText(/aucune épreuve à revalider/i)).not.toBeInTheDocument();
   });
@@ -470,6 +470,8 @@ describe("QualityQueueTable", () => {
     onTestFinished(() => focusManager.setFocused(undefined));
     getCourseSources.mockRejectedValue(new Error("Service indisponible"));
     const client = new QueryClient({ defaultOptions: { queries: { retry: 1, retryDelay: 0 } } });
+    // Exécuté avant le retour du focus : voir `rendreAvecRelanceSuspendue`.
+    onTestFinished(() => client.clear());
     const user = userEvent.setup();
     render(
       <QueryClientProvider client={client}>

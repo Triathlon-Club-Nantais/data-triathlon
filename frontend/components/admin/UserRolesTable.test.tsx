@@ -142,6 +142,7 @@ describe("UserRolesTable", () => {
   it("ne prend pas une requête suspendue hors ligne pour une liste vide (#1294)", async () => {
     // `retry: false` : sans relance, seule la perte du réseau suspend la liste.
     onlineManager.setOnline(false);
+    // Enregistré avant le `client.clear()` du helper, donc exécuté après lui.
     onTestFinished(() => onlineManager.setOnline(true));
     listAdminUsers.mockResolvedValue([]);
 
@@ -149,6 +150,7 @@ describe("UserRolesTable", () => {
       <DangerConfirmProvider>
         <UserRolesTable />
       </DangerConfirmProvider>,
+      ["admin-users"],
     );
 
     expect(screen.queryByText(/aucun utilisateur/i)).not.toBeInTheDocument();
