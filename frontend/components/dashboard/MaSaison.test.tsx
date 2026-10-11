@@ -239,6 +239,39 @@ describe("MaSaison — états dégradés", () => {
     ).toHaveAttribute("href", "/ajouter");
   });
 
+  describe("rank toggle only where it acts", () => {
+    const toggle = () => screen.queryByRole("group", { name: "Type de rang" });
+
+    it("is absent when the athlete is lost", async () => {
+      getAthlete.mockRejectedValue(new ApiError(404, "Not Found"));
+      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+      await screen.findByText(/votre fiche a changé/i);
+      expect(toggle()).toBeNull();
+      expect(screen.queryByText("Type de rang")).toBeNull();
+    });
+
+    it("is absent on failure", async () => {
+      getAthlete.mockRejectedValue(new TypeError("Failed to fetch"));
+      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+      await screen.findByText(/chiffres indisponibles/i);
+      expect(toggle()).toBeNull();
+    });
+
+    it("is absent when there is no event", async () => {
+      getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [] });
+      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+      await screen.findByText(/aucune épreuve/i);
+      expect(toggle()).toBeNull();
+    });
+
+    it("is present with at least one event", async () => {
+      getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [ligne(1)] });
+      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+      await screen.findByTestId("ma-saison-ligne");
+      expect(toggle()).not.toBeNull();
+    });
+  });
+
   describe("échec réseau (#502, item 5)", () => {
     it("garde le nom et le lien, et propose Réessayer", async () => {
       getAthlete.mockRejectedValue(new TypeError("Failed to fetch"));

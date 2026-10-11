@@ -380,7 +380,7 @@ describe("DashboardPage — invitation à choisir un athlète (#588)", () => {
 });
 
 describe("DashboardPage: personal home, collective on Club (#1299)", () => {
-  const clubLink = () => screen.getByRole("link", { name: /espace club/i });
+  const clubLink = () => screen.getByRole("link", { name: /Voir la page Club/ });
 
   it("no longer renders the club aggregates", async () => {
     await renderDashboard({});
@@ -395,6 +395,25 @@ describe("DashboardPage: personal home, collective on Club (#1299)", () => {
     expect(clubLink()).toHaveAttribute("href", "/club");
   });
 
+  it("names the Club link as a page, not a space", async () => {
+    await renderDashboard({});
+
+    expect(screen.queryByText(/espace club/i)).toBeNull();
+    expect(clubLink()).toHaveAttribute("href", "/club");
+  });
+
+  it("says the Club figures are for the current season when another season is selected", async () => {
+    await renderDashboard({ seasons: "2019" });
+
+    expect(screen.getByText(/saison en cours/)).toBeInTheDocument();
+  });
+
+  it("does not mention the season scope when the current season is selected", async () => {
+    await renderDashboard({});
+
+    expect(screen.queryByText(/saison en cours/)).toBeNull();
+  });
+
   it("keeps the sports filter on the Club link", async () => {
     await renderDashboard({ sports: "all" });
 
@@ -407,6 +426,6 @@ describe("DashboardPage: personal home, collective on Club (#1299)", () => {
 
     await renderDashboard({ seasons: "2019" });
 
-    expect(screen.queryByRole("link", { name: /espace club/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /Voir la page Club/ })).toBeNull();
   });
 });
