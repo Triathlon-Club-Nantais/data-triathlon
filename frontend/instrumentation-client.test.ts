@@ -105,7 +105,8 @@ describe("instrumentation-client", () => {
   });
 
   describe("écrans jeunes exclus de l'autocapture (#1307)", () => {
-    type BeforeSend = (event: { event: string } | null) => { event: string } | null;
+    type Event = { event: string; properties?: Record<string, unknown> };
+    type BeforeSend = (event: Event | null) => Event | null;
 
     async function beforeSendAt(path: string): Promise<BeforeSend> {
       vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
@@ -117,24 +118,41 @@ describe("instrumentation-client", () => {
 
     afterEach(() => window.history.pushState({}, "", "/"));
 
+    const elements = [{ tag_name: "a", $el_text: "Alix Martin", attr__href: "/admin/jeunes/42" }];
+    const carriesAName: Event[] = [
+      { event: "$autocapture", properties: { $elements: elements, $el_text: "Alix Martin" } },
+      { event: "$rageclick", properties: { $elements: elements } },
+      { event: "$dead_click", properties: { $elements: elements } },
+      { event: "$dead_swipe", properties: { $elements: elements } },
+      { event: "$future_element_event", properties: { $elements_chain: 'a:text="Alix Martin"' } },
+      { event: "$copy_autocapture", properties: { $selected_content: "Alix Martin" } },
+      { event: "$exception", properties: { $exception_list: [{ value: "Alix Martin introuvable" }] } },
+    ];
+
     it.each(["/admin/jeunes", "/admin/jeunes/42", "/admin/jeunes/appel", "/admin/jeunes/groupes"])(
-      "écarte clics, copies et cartes de chaleur sous %s",
+      "écarte tout événement porteur d'un élément, d'une copie ou d'une erreur sous %s",
       async (path) => {
         const beforeSend = await beforeSendAt(path);
-        for (const name of ["$autocapture", "$rageclick", "$dead_click", "$copy_autocapture", "$$heatmap"]) {
-          expect(beforeSend({ event: name })).toBeNull();
+        for (const event of carriesAName) {
+          expect(beforeSend(event), event.event).toBeNull();
         }
       },
     );
 
-    it("laisse passer la mesure d'audience sur les écrans jeunes", async () => {
+    it("laisse passer pages vues et événements métier sans élément sur les écrans jeunes", async () => {
       const beforeSend = await beforeSendAt("/admin/jeunes/42");
-      expect(beforeSend({ event: "$pageview" })).toEqual({ event: "$pageview" });
+      const pageview = { event: "$pageview", properties: { $current_url: "/admin/jeunes/42" } };
+      const custom = { event: "profile_created", properties: { source: "form" } };
+      expect(beforeSend(pageview)).toEqual(pageview);
+      expect(beforeSend(custom)).toEqual(custom);
+      expect(beforeSend(null)).toBeNull();
     });
 
-    it.each(["/", "/admin/courses", "/admin/jeunesse"])("garde l'autocapture sous %s", async (path) => {
+    it.each(["/", "/admin/courses", "/admin/jeunesse"])("ne jette rien sous %s", async (path) => {
       const beforeSend = await beforeSendAt(path);
-      expect(beforeSend({ event: "$autocapture" })).toEqual({ event: "$autocapture" });
+      for (const event of carriesAName) {
+        expect(beforeSend(event), event.event).toEqual(event);
+      }
     });
   });
 });
