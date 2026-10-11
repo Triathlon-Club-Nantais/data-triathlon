@@ -804,8 +804,9 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `server.ts` relaient un cookie d'accès entrant** (#526) ; ce qui les distingue
   est leur lecture du 401, et quels cookies elles envoient :
   - `serverFetch` — lève une `ApiError` sur tout non-OK, 401 compris. Relais
-    **minimal** depuis #586 : seul le cookie de session d'accès au site part,
-    le reste du jar (SSO, bénévoles, PostHog…) est ignoré — voir plus bas.
+    **minimal** depuis #586 : seuls le cookie de session d'accès au site et,
+    depuis #1322, la session SSO (`tcn_session` ou `__Host-tcn_session`)
+    partent ; le reste du jar (bénévoles, PostHog…) est ignoré — voir plus bas.
   - `serverFetchAuthed` — rend `null` sur 401 (anonyme est un état normal),
     lève sur le reste. Sert `/auth/me`, donc relaie le jar entier (hors
     `NAV_WIDTH_COOKIE`) : c'est la session SSO qu'elle a besoin de lire.
@@ -834,8 +835,12 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   Data Cache sur **chaque** cookie du navigateur, y compris ceux dont l'API ne
   fait jamais rien (session SSO, PostHog…) — cassant, pour un même visiteur
   rechargeant sa propre page, jusqu'au partage *intra-visiteur* que #526 avait
-  laissé intact. #586 réduit `serverFetch` au seul cookie que `require_site_access`
-  lit (`siteAccessCookieHeader` dans `server.ts`), ce qui restaure ce partage
+  laissé intact. #586 réduit `serverFetch` aux seuls cookies que `require_site_access`
+  lit (`siteAccessCookieHeader` dans `server.ts` ; la session SSO s'y est
+  ajoutée avec #1322, une session d'adhérent dispensant du code ; sans elle, un
+  adhérent connecté prenait un 401 au rendu serveur de chaque page). Le cookie
+  de site étant déjà unique par visiteur, cet ajout ne retire aucun partage
+  inter-visiteurs. Ce filtrage restaure le partage
   intra-visiteur mais **ne restaure pas** le partage inter-visiteurs des 30 s :
   le cookie de session d'accès au site porte lui-même l'horodatage de son
   émission (`shared_password.sign_cookie`), donc reste unique par visiteur quel

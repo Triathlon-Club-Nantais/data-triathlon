@@ -1,4 +1,4 @@
-"""Politique de provisionnement — certification, adresse retenue, résolution.
+"""Politique de provisionnement : certification, adresse retenue, résolution.
 
 Depuis #1322 la liste d'autorisation ne conditionne plus la connexion : elle
 porte le rôle du premier jour et départage l'adresse retenue (FR-016). Une

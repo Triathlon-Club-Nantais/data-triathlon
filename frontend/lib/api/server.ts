@@ -173,7 +173,7 @@ async function serverFetchAuthed<T>(path: string): Promise<T | null> {
  * (`require_permission`), en plus du mot de passe du site (#845).
  *
  * `serverFetch` ne relaie que le cookie d'accès au site et la session SSO
- * (#586, #1322) — suffisant pour les six routes ouvertes à tout adhérent du
+ * (#586, #1322), suffisant pour les six routes ouvertes à tout adhérent du
  * site. `GET
  * /athletes/season-activity` exige en plus `current_user` (pouvoir
  * `pages:preview`, #811/#825), jamais relayé par `serverFetch` : un admin qui

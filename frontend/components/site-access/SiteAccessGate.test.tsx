@@ -194,7 +194,7 @@ describe("SiteAccessGate — retour vers l'écran refusé (#877, revue UI/UX)", 
   });
 });
 
-describe("SiteAccessGate — connexion des adhérents (#1322)", () => {
+describe("SiteAccessGate, connexion des adhérents (#1322)", () => {
   it("propose de se connecter quand un moyen de connexion existe", () => {
     render(<SiteAccessGate connexion="proposee" />);
 

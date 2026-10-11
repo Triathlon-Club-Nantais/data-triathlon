@@ -74,14 +74,15 @@ export const PRIVACY_POLICY: LegalDocument = {
             au site ; aucun e-mail ne lui est envoyé. Seuls les administrateurs habilités la consultent.
           </p>
           <p>
-            <strong>Les comptes du back-office.</strong> Les bénévoles et administrateurs se connectent avec leur
-            compte GitHub : le site en reçoit l&apos;adresse électronique, le nom affiché et l&apos;identifiant
-            GitHub. Un compte peut être rattaché à la fiche athlète de son titulaire. Le site garde la trace des
-            actions d&apos;administration.
+            <strong>Les comptes.</strong> Les adhérents peuvent se connecter pour entrer sur le site sans le code
+            d&apos;accès ; les bénévoles et administrateurs se connectent aussi pour le back-office. La connexion
+            passe par GitHub : le site en reçoit l&apos;adresse électronique, le nom affiché et l&apos;identifiant
+            GitHub. Un compte n&apos;a, par lui-même, aucun droit d&apos;administration. Un compte peut être
+            rattaché à la fiche athlète de son titulaire. Le site garde la trace des actions d&apos;administration.
           </p>
           <p>
             <strong>Les signalements.</strong> Quand vous signalez un problème depuis le site : votre message, la
-            page concernée, votre navigateur, votre adresse IP et, si vous êtes connecté au back-office, votre
+            page concernée, votre navigateur, votre adresse IP et, si vous êtes connecté, votre
             compte. L&apos;adresse IP sert uniquement à limiter le nombre d&apos;envois ; elle n&apos;est jamais
             affichée.
           </p>
@@ -96,7 +97,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             <strong>sans cookie</strong> et sans vous suivre d&apos;un jour à l&apos;autre : le prestataire de
             mesure ne reçoit qu&apos;un identifiant calculé à partir de votre adresse IP et de votre navigateur,
             renouvelé chaque jour. Si vous acceptez la mesure détaillée, il reçoit aussi vos interactions avec les
-            pages (clics) et dépose des cookies ; pour un utilisateur connecté au back-office, la mesure est alors
+            pages (clics) et dépose des cookies ; pour un utilisateur connecté, la mesure est alors
             rattachée à son compte : son adresse électronique, son nom affiché et ses rôles lui sont transmis.
             Retirer ensuite votre accord arrête cette mesure détaillée, sans effacer ce qui a déjà été transmis :
             pour cela, exercez votre droit à l&apos;effacement (voir « Vos droits »). Les actions faites dans le
@@ -136,8 +137,8 @@ export const PRIVACY_POLICY: LegalDocument = {
           <p>
             Les données de l&apos;école de triathlon reposent, elles, sur l&apos;adhésion au club (article 6.1.b du
             RGPD : ce qui est nécessaire à l&apos;exécution du contrat d&apos;adhésion) et sur la sécurité des jeunes
-            encadrés. Les comptes du back-office et les signalements reposent sur l&apos;intérêt légitime du club à
-            administrer son site. La liste des adresses d&apos;adhérents repose sur l&apos;intérêt légitime du club à
+            encadrés. Les comptes et les signalements reposent sur l&apos;intérêt légitime du club à
+            administrer son site et à le réserver à ses adhérents. La liste des adresses d&apos;adhérents repose sur l&apos;intérêt légitime du club à
             réserver le site à ses adhérents, à partir d&apos;adresses qu&apos;ils lui ont déjà confiées pour leur
             adhésion.
           </p>
@@ -160,8 +161,8 @@ export const PRIVACY_POLICY: LegalDocument = {
             ["Liste des adresses d'adhérents", "La saison en cours et la précédente"],
             ["Signalements, adresse IP comprise", "12 mois après leur envoi"],
             ["Journal des actions d'administration", "12 mois"],
-            ["Compte du back-office", "Tant que son titulaire est autorisé à se connecter"],
-            ["Session de connexion au back-office", "7 jours"],
+            ["Compte", "Jusqu'à sa suppression, à la demande de son titulaire (voir « Vos droits »)"],
+            ["Session de connexion", "7 jours"],
             ["Mémorisation du code d'accès au site", "90 jours"],
             ["École de triathlon", "Durée de l'adhésion, plus une saison"],
           ]}
@@ -174,7 +175,8 @@ export const PRIVACY_POLICY: LegalDocument = {
       content: (
         <>
           <p>
-            Les résultats sont consultables par les adhérents du club, qui disposent du code d&apos;accès. Les
+            Les résultats sont consultables par les adhérents du club, qui disposent du code d&apos;accès ou se
+            connectent avec une adresse de la liste des adhérents. Les
             saisies en attente, les dates de naissance et les signalements ne sont visibles que des bénévoles
             (adhérents ou non) et administrateurs habilités ; la liste des licenciés et celle des adresses
             d&apos;adhérents, que des administrateurs habilités ; les données de l&apos;école de triathlon, que des
@@ -261,8 +263,8 @@ export const PRIVACY_POLICY: LegalDocument = {
             head={["Nom", "Type", "À quoi il sert", "Durée"]}
             rows={[
               ["tcn_site_session", "cookie", "Mémoriser que vous avez saisi le code d'accès", "90 jours"],
-              ["tcn_session", "cookie", "Maintenir votre connexion au back-office", "7 jours"],
-              ["tcn_logged_in", "cookie", "Savoir qu'une connexion au back-office est ouverte", "7 jours au plus"],
+              ["tcn_session", "cookie", "Maintenir votre connexion", "7 jours"],
+              ["tcn_logged_in", "cookie", "Savoir qu'une connexion est ouverte", "7 jours au plus"],
               ["tcn_auth_state", "cookie", "Sécuriser la connexion par GitHub", "10 minutes"],
               ["tcn_benevole_session", "cookie", "Mémoriser l'accès à l'espace bénévoles", "Jusqu'à la fermeture du navigateur"],
               [NAV_WIDTH_COOKIE, "cookie", "Retenir si le menu est déplié", "1 an"],
@@ -274,7 +276,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             ]}
           />
           <p>
-            Sur le site en ligne, les deux cookies de connexion au back-office portent le préfixe « __Host- »
+            Sur le site en ligne, les deux cookies de connexion portent le préfixe « __Host- »
             (par exemple « __Host-tcn_session »), qui interdit leur partage avec un autre site.
           </p>
           <p>
