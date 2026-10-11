@@ -2,15 +2,16 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
-import { Ellipsis, LogIn, Menu, PanelLeft, Plus, RotateCw, Search, X } from "lucide-react";
+import { Briefcase, Ellipsis, LogIn, Menu, PanelLeft, Plus, RotateCw, Search, X } from "lucide-react";
 import { Avatar, Button } from "@/components/tcn";
 import { SessionEnLecture, UserMenu } from "@/components/auth/UserMenu";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/lib/queries/auth";
 import { libelleCompteur, useNavBadges } from "@/lib/queries/nav-badges";
+import { SpaceSwitcher, type SwitcherSpace } from "./SpaceSwitcher";
 import { AthletePicker, ATHLETE_CHANGED_EVENT, OPEN_PICKER_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete, type PickerMode } from "./AthletePicker";
-import { NAV, ROLE, byGroup, estVisible, type NavItem, type NavSection } from "./nav.config";
+import { NAV, ROLE, SPACES, TO_HANDLE, byGroup, estVisible, spaceOf, type NavItem, type NavSection, type SpaceId } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 
@@ -134,7 +135,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   const rank: number = session ? ROLE.CONNECTED : ROLE.ANON;
   const pouvoirs = new Set(session?.permissions ?? []);
   const { counts: badges } = useNavBadges(pouvoirs, session?.can_administer ?? false);
-  const sections = NAV.filter((s) => rank >= s.minRole)
+  const toutesSections: SectionRendue[] = NAV.filter((s) => rank >= s.minRole)
     .map((s) => ({
       ...s,
       items: s.items
@@ -150,29 +151,69 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
     // pouvoirs de la session — « Club » l'illustrait jusqu'à #487.
     .filter((s) => s.items.length > 0);
 
+  // Le rail et le tiroir ne montrent que l'espace de la page courante ; la
+  // palette ⌘K, elle, garde `toutesSections`.
+  const espace = spaceOf(pathname);
+  const sections = toutesSections.filter((s) => s.space === espace);
+
   // Barre basse mobile (#482, NAV-4) : ses onglets sont déclarés dans
   // `nav.config.ts` (`bottomBar`, #1300), visibles pour tous, donc identiques
-  // avant et après la lecture de la session.
-  const barreItems = sections.flatMap((s) => s.items).filter((i) => i.bottomBar);
+  // avant et après la lecture de la session. Ils viennent des sections
+  // publiques, quel que soit l'espace courant.
+  const barreItems = toutesSections
+    .filter((s) => s.space === "public")
+    .flatMap((s) => s.items)
+    .filter((i) => i.bottomBar);
   const dansLaBarre = new Set(barreItems.map((i) => i.id));
 
-  // Le tiroir porte « le reste » : tout ce que la barre ne montre pas, sections
-  // publiques débordantes comprises. Il s'ouvre par « Plus ».
+  // Le tiroir porte « le reste » de l'espace courant : tout ce que la barre ne
+  // montre pas. Il s'ouvre par « Plus ».
   const sectionsReste = sections
     .map((s) => ({ ...s, items: s.items.filter((i) => !dansLaBarre.has(i.id)) }))
     .filter((s) => s.items.length > 0);
 
-  // Repli sur toutes les sections quand il ne reste rien (#621) : la barre
+  // Repli sur toutes les sections de l'espace quand il ne reste rien (#621) : la barre
   // basse est masquée pendant que le tiroir est ouvert (le `Sheet` passe
   // par-dessus), donc un visiteur dont la barre porte tout (anonyme, ou
   // adhérent sans pouvoir) se retrouvait sans aucune destination à l'écran une
   // fois le tiroir ouvert par le hamburger ou « Plus ». Seul cas de doublon avec la barre.
-  const sectionsTiroir = sectionsReste.length > 0 ? sectionsReste : sections;
+  const sectionsRepli = sectionsReste.length > 0 ? sectionsReste : sections;
+
+  // `/admin` existe pour tout compte qui administre, même sans entrée visible.
+  const compteurAdmin = toutesSections
+    .flatMap((s) => s.items)
+    .filter((i) => i.group === TO_HANDLE && i.count !== undefined);
+  const countAdmin = compteurAdmin.length > 0 ? compteurAdmin.reduce((somme, i) => somme + (i.count ?? 0), 0) : undefined;
+  const espacesOuverts: SwitcherSpace[] = (Object.keys(SPACES) as SpaceId[])
+    .filter((id) => id === "admin" ? Boolean(session?.can_administer) : toutesSections.some((s) => s.space === id))
+    .map((id) => ({
+      id,
+      label: SPACES[id].label,
+      href: SPACES[id].home ?? toutesSections.find((s) => s.space === id)!.items[0].href,
+      ...(id === "admin" && countAdmin !== undefined ? { count: countAdmin } : {}),
+    }));
+
+  const versAdmin: SectionRendue[] =
+    espace === "public" && espacesOuverts.some((e) => e.id === "admin")
+      ? [
+          {
+            id: "vers-admin",
+            label: "Back-office",
+            icon: Briefcase,
+            space: "public",
+            minRole: ROLE.CONNECTED,
+            root: true,
+            items: [{ id: "backoffice", label: "Back-office", href: "/admin", icon: Briefcase, badge: "backoffice", count: countAdmin }],
+          },
+        ]
+      : [];
+  const sectionsRail = [...sections, ...versAdmin];
+  const sectionsTiroir = [...sectionsRepli, ...versAdmin];
 
   /**
    * Un `href` de la nav désigne **un** écran, pas une famille : c'est pourquoi
    * la comparaison est une égalité et non un préfixe. `startsWith` allumait
-   * « Chronométreurs signalés » (`/admin`) en même temps que `/admin/acces`, et
+   * « Back-office » (`/admin`) en même temps que `/admin/acces`, et
    * l'aurait fait pour les trois écrans à venir, tous sous `/admin/`.
    *
    * `/dashboard` garde son cas propre : il répond aussi à la racine.
@@ -185,7 +226,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // lui, aucun onglet ne dirait où l'on est.
   const plusActif = sectionsReste.some((s) => s.items.some((i) => isActive(i.href)));
 
-  const contenu = (deplie: boolean, fermer?: () => void, listeSections: SectionRendue[] = sections) => (
+  const contenu = (deplie: boolean, fermer?: () => void, listeSections: SectionRendue[] = sectionsRail) => (
     <NavContent
       expanded={deplie}
       sections={listeSections}
@@ -226,7 +267,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             alignItems: "center",
             justifyContent: expanded ? "flex-start" : "center",
             gap: expanded ? 10 : 4,
-            height: 68,
+            minHeight: 68,
             padding: expanded ? "0 14px" : "8px 0",
             borderBottom: "1px solid var(--tcn-border-faint)",
           }}
@@ -277,6 +318,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               {CLUB_NAME_SHORT}
             </Link>
           )}
+          <SpaceSwitcher current={espace} spaces={espacesOuverts} compact={!expanded} />
         </div>
 
         {contenu(expanded)}
@@ -410,6 +452,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-tcn.png" alt={CLUB_NAME} style={{ height: 24, display: "block" }} />
         </Link>
+        <SpaceSwitcher current={espace} spaces={espacesOuverts} />
         {rechercheDisponible && (
           <button type="button" aria-label="Rechercher un athlète" onClick={() => setPickerMode((m) => m ?? "search")} style={carreSecondaire}>
             <Search size={18} />
@@ -498,7 +541,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
       {pickerMode && (
         <AthletePicker
           mode={pickerMode}
-          screens={sections
+          screens={toutesSections
             .flatMap((sec) =>
               sec.items.map((i) => ({
                 label: i.label,
