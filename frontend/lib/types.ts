@@ -933,6 +933,11 @@ export interface SessionUser {
    */
   roles: SessionRole[];
   /**
+   * Statut adhérent (#1322), dérivé à chaque requête de la liste des adresses
+   * d'adhérents : dispense du code d'accès au site. Ne donne aucun pouvoir.
+   */
+  is_member: boolean;
+  /**
    * Groupes dont on est membre (#197) — « membre du Codir ». Rendu à tout
    * connecté, **sans exiger `groups:read`** : la question ne porte que sur soi.
    * Ne dit rien des droits, qui se lisent dans `permissions` seul.
