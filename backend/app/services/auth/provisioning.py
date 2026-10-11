@@ -76,6 +76,13 @@ def resolve_user(db: Session, identity: ExternalIdentity) -> User:
             logger.info("Login refused: account is deactivated (%s)", identity.provider)
             raise LoginError("account_not_allowed")
 
+        if allowed_email_repository.exists(db, user.email) and not allowed_email_repository.exists(
+            db, identity.email
+        ):
+            # Une adresse inscrite n'est jamais remplacée par une adresse hors
+            # liste : retirer l'adresse inscrite doit encore désactiver ce
+            # compte, et `allowed_emails.remove` le retrouve par son adresse.
+            identity = replace(identity, email=user.email)
         user_repository.refresh_profile(
             db, user, email=identity.email, display_name=identity.display_name
         )

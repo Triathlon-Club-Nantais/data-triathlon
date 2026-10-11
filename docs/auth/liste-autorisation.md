@@ -134,7 +134,13 @@ Cinq points à ne pas défaire :
   `account_not_allowed` quelle que soit la liste, et l'exploitant verrait
   l'adresse au tableau pendant que la personne reste dehors. Corollaire de
   #1322 : retirer une adresse **ferme** les comptes qui la portent (désactivés),
-  alors que ne l'avoir jamais inscrite les laisse se connecter sans rôle. **Échéance tenue** (#169) : `is_active` reste le
+  alors que ne l'avoir jamais inscrite les laisse se connecter sans rôle.
+  **Une adresse inscrite n'est jamais remplacée par une adresse hors liste**
+  (revue de #1322) : `users.email` suit l'adresse retenue à chaque connexion,
+  sauf si l'adresse rangée est inscrite et la nouvelle ne l'est pas. Sans cela,
+  un fournisseur qui cesse de certifier A au profit de B faisait passer le
+  compte à B, et retirer A ne désactivait plus personne (`remove` retrouve les
+  comptes par leur adresse). **Échéance tenue** (#169) : `is_active` reste le
   seul producteur applicatif de ce chemin — la révocation d'urgence n'y touche
   **pas**, et c'est ainsi que « fermé parce que retiré » se distingue de « fermé
   parce que révoqué » : le premier ferme par la jointure et laisse les lignes, le

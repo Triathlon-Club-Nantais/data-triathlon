@@ -342,3 +342,44 @@ def test_le_role_du_premier_jour_reste_reserve_a_la_liste(
 
     assert hors_liste.roles == []
     assert [attribution.role_id for attribution in inscrit.roles] == [role.id]
+
+
+def test_une_adresse_autorisee_n_est_pas_remplacee_par_une_adresse_hors_liste(
+    db_session, vider_la_liste_autorisation, autoriser
+):
+    """Revue de #1322 : le retrait d'une adresse doit encore fermer le compte.
+
+    A certifiée et inscrite à la création, puis le fournisseur ne certifie plus
+    que B. Si `users.email` passait à B, retirer A ne désactiverait personne
+    (`allowed_emails.remove` cherche les comptes par leur adresse).
+    """
+    from app.services.auth import allowed_emails
+
+    vider_la_liste_autorisation()
+    autoriser("a@club.fr")
+    acteur = user_repository.create(db_session, email="admin@club.fr", display_name="")
+    user = provisioning.resolve_user(db_session, _identite(email="a@club.fr"))
+    db_session.commit()
+
+    provisioning.resolve_user(db_session, _identite(email="b@gmail.com"))
+    db_session.commit()
+    assert user.email == "a@club.fr"
+
+    from app.repositories import allowed_email_repository
+
+    allowed_emails.remove(db_session, acteur, allowed_email_repository.get_by_email(db_session, "a@club.fr"))
+    db_session.commit()
+    assert user.is_active is False
+
+    with pytest.raises(LoginError) as refus:
+        provisioning.resolve_user(db_session, _identite(email="b@gmail.com"))
+    assert refus.value.code == "account_not_allowed"
+
+
+def test_une_adresse_autorisee_peut_remplacer_une_autre_adresse_autorisee(db_session, autoriser):
+    """La règle ne fige que le passage d'une adresse inscrite à une adresse hors liste."""
+    autoriser("nouvelle@club.fr")
+    user = provisioning.resolve_user(db_session, _identite())
+    provisioning.resolve_user(db_session, _identite(email="nouvelle@club.fr"))
+
+    assert user.email == "nouvelle@club.fr"
