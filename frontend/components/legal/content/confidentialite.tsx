@@ -161,7 +161,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             ["Liste des adresses d'adhérents", "La saison en cours et la précédente"],
             ["Signalements, adresse IP comprise", "12 mois après leur envoi"],
             ["Journal des actions d'administration", "12 mois"],
-            ["Compte", "Jusqu'à sa suppression, à la demande de son titulaire (voir « Vos droits »)"],
+            ["Compte", "Jusqu'à sa suppression, sur demande adressée au club (voir « Vos droits »)"],
             ["Session de connexion", "7 jours"],
             ["Mémorisation du code d'accès au site", "90 jours"],
             ["École de triathlon", "Durée de l'adhésion, plus une saison"],
@@ -234,7 +234,8 @@ export const PRIVACY_POLICY: LegalDocument = {
             « Retrait de mes données »,
             écrivez à <ContactEmail />, ou par courrier à Triathlon Club Nantais, 2 boulevard René Coty,
             44100 Nantes. Indiquez votre nom et votre prénom tels qu&apos;ils figurent dans les classements, et
-            l&apos;épreuve concernée (nom et date) : cela suffit à retrouver vos résultats. Le club vous répond dans
+            l&apos;épreuve concernée (nom et date) : cela suffit à retrouver vos résultats. Pour un compte, indiquez
+            l&apos;adresse électronique avec laquelle vous vous connectez. Le club vous répond dans
             un délai d&apos;un mois.
           </p>
         </>
