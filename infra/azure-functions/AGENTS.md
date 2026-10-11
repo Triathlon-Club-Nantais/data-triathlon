@@ -56,6 +56,10 @@ Les deux fonctions pilotent aussi le **moniteur UptimeRobot du backend** (#922),
 dont la fenêtre de maintenance est payante : `Render-sleep` le met en pause
 avant de coucher la production, `Render-wake` le réactive dès que
 `/api/v1/health` répond, ou au bout de 10 min (un lever raté doit alors alerter).
+Un dispatch en échec (jeton expiré) réactive aussi le moniteur, dans les deux
+fonctions, et fait échouer l'invocation. Avant #1320, l'erreur HTTP n'arrêtait
+que l'appel : l'invocation finissait en *Succeeded* après avoir journalisé
+« déclenché », et la panne du jeton est passée inaperçue trois nuits.
 `host.json` porte donc un `functionTimeout` de 15 min. Sans les App Settings
 UptimeRobot, ce pilotage est simplement sauté.
 

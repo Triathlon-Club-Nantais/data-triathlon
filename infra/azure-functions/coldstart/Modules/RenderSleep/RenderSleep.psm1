@@ -24,8 +24,11 @@ function Invoke-RenderSleep {
     # `alert` : personne ne suit ce run, un échec doit ouvrir l'issue `ops` (#922).
     $body = @{ ref = 'main'; inputs = @{ action = $Action; target = $Target; alert = 'true' } } | ConvertTo-Json
 
-    # 204 sans corps en cas de succès. Une erreur (jeton expiré, 404) lève, et
-    # l'invocation apparaît en échec dans *Monitor → Invocations*.
+    # 204 sans corps en cas de succès. Une erreur HTTP (jeton expiré, 404) n'arrêtait
+    # que cette commande : le script continuait, journalisait « déclenché » et
+    # l'invocation finissait en Succeeded (#1320). `Stop` la rend fatale au script ;
+    # `-ErrorAction Stop` n'y suffirait pas, il ignore ce type d'erreur.
+    $ErrorActionPreference = 'Stop'
     Invoke-RestMethod -Method Post -Headers $headers -Body $body -ContentType 'application/json' `
         -MaximumRetryCount 3 -RetryIntervalSec 10 -ConnectionTimeoutSeconds 30 `
         -Uri 'https://api.github.com/repos/Triathlon-Club-Nantais/data-triathlon/actions/workflows/render-sleep.yml/dispatches'
