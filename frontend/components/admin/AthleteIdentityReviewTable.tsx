@@ -272,12 +272,12 @@ function CarteCas({
  * s'écarte aussi (#1252).
  */
 export function AthleteIdentityReviewTable() {
-  const { data, isLoading, error } = useIdentityReview();
+  const { data, isPending, error } = useIdentityReview();
   const session = useSession();
   const pouvoirs = session.data?.permissions ?? [];
   const peutFusionner = pouvoirs.includes("athletes:write") && pouvoirs.includes("athletes:read");
 
-  if (isLoading) return <Skeleton className="h-40 w-full" />;
+  if (isPending) return <Skeleton className="h-40 w-full" />;
   if (error) return <EmptyState {...messageDeRefus(error, REFUS)} />;
   if (!data || data.candidates.length === 0) {
     return (

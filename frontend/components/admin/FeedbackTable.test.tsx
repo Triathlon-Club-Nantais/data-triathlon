@@ -25,6 +25,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 });
 
 import { FeedbackTable } from "./FeedbackTable";
+import { rendreAvecRelanceSuspendue } from "@/test/requete-suspendue";
 
 const SIGNALEMENT: Feedback = {
   id: 1,
@@ -80,6 +81,14 @@ function filtre(nom: RegExp) {
 }
 
 describe("FeedbackTable", () => {
+  it("ne prend pas une relance suspendue pour une liste vide (#1294)", async () => {
+    listFeedback.mockRejectedValue(new Error("Service indisponible"));
+
+    await rendreAvecRelanceSuspendue(<FeedbackTable />, ["admin-feedback"]);
+
+    expect(screen.queryByText(/aucun retour utilisateur|aucun signalement sous ce filtre/i)).not.toBeInTheDocument();
+  });
+
   beforeEach(() => {
     listFeedback.mockReset();
     countFeedback.mockReset();

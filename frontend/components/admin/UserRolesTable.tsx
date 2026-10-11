@@ -28,7 +28,7 @@ import type { AdminUser, SessionRole } from "@/lib/types";
 const REFUS = { sujet: "utilisateurs", action: "consulter les utilisateurs" };
 
 export function UserRolesTable() {
-  const { data, isLoading, error } = useAdminUsers();
+  const { data, isPending, error } = useAdminUsers();
   // `users:read` ouvre la liste ; les deux écritures — `POST` et
   // `DELETE /admin/users/{id}/roles` — exigent `roles:assign`, attribuable
   // séparément. `useRolesAttribuables` répond déjà à la question, pour les deux
@@ -84,7 +84,7 @@ export function UserRolesTable() {
     }
   }
 
-  if (isLoading) return <Skeleton className="h-40 w-full" />;
+  if (isPending) return <Skeleton className="h-40 w-full" />;
   if (error) return <EmptyState {...messageDeRefus(error, REFUS)} />;
   if (!data || data.length === 0) {
     return (

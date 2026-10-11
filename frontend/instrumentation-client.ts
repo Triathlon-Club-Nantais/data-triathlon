@@ -1,8 +1,22 @@
-import posthog from "posthog-js";
+import posthog, { type CaptureResult } from "posthog-js";
 import { readConsent } from "@/lib/analytics-consent";
 
 const token = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
 const host = process.env.NEXT_PUBLIC_POSTHOG_HOST;
+
+// Écrans jeunes (#1307) : un événement lié à un élément ($autocapture, $rageclick, $dead_click,
+// $dead_swipe...) emporte son texte, donc le nom d'un mineur ; une copie ou une erreur aussi. Le
+// tri se fait sur la forme de l'événement, pas sur son nom, pour couvrir les événements qu'une
+// version future de posthog-js ajoutera. Filtré au seul point de sortie : tout écran futur sous ce
+// chemin est couvert, comme les dialogues en portail qu'un `ph-no-capture` ne couvrirait pas.
+const YOUTH_PATH = /^\/admin\/jeunes(\/|$)/;
+const ELEMENT_PROPERTIES = ["$elements", "$elements_chain", "$el_text"];
+const TEXT_EVENTS = new Set(["$copy_autocapture", "$exception"]);
+
+function leaksYouthData(event: CaptureResult): boolean {
+  if (!YOUTH_PATH.test(window.location.pathname)) return false;
+  return TEXT_EVENTS.has(event.event) || ELEMENT_PROPERTIES.some((key) => key in (event.properties ?? {}));
+}
 
 // Analytics opt-in, et aucun avertissement quand les variables manquent : la
 // **preview n'envoie rien à PostHog**, par choix (un seul projet PostHog, on
@@ -30,7 +44,11 @@ if (token && host) {
     // clics ni clics morts ne partent.
     capture_heatmaps: granted,
     capture_dead_clicks: granted,
+    before_send: (event) => (event && leaksYouthData(event) ? null : event),
     disable_session_recording: true,
+    // Core Web Vitals (LCP, INP, CLS) fixés ici plutôt que laissés aux réglages distants (#1318).
+    // Envoyés aussi en mode sans cookie, sans identifiant de session client.
+    capture_performance: { web_vitals: true },
     // Capture les exceptions non gérées (Error Tracking)
     capture_exceptions: true,
     // Debug activé en développement seulement

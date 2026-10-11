@@ -19,6 +19,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 });
 
 import { PendingProvidersTable } from "./PendingProvidersTable";
+import { rendreAvecRelanceSuspendue } from "@/test/requete-suspendue";
 
 /** Les deux pouvoirs des signalements sont distincts et attribuables séparément. */
 const MODERATEUR: SessionUser = {
@@ -57,6 +58,17 @@ function afficher() {
 }
 
 describe("PendingProvidersTable", () => {
+  it("ne prend pas une relance suspendue pour une liste vide (#1294)", async () => {
+    listPendingProviders.mockRejectedValue(new Error("Service indisponible"));
+
+    await rendreAvecRelanceSuspendue(
+      <PendingProvidersTable />,
+      ["pending-providers"],
+    );
+
+    expect(screen.queryByText(/aucun fournisseur signalé/i)).not.toBeInTheDocument();
+  });
+
   beforeEach(() => {
     listPendingProviders.mockReset();
     markProviderHandled.mockReset();

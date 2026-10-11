@@ -22,7 +22,7 @@ const REFUS = { sujet: "oppositions", action: "consulter les oppositions" };
  * d'une personne qui n'a encore aucune fiche. Aucun nom n'est affiché : la base n'en garde pas.
  */
 export function OppositionsScreen() {
-  const { data, isLoading, error } = useOppositions();
+  const { data, isPending, error } = useOppositions();
   const appliquer = useApplyOpposition();
   const confirmer = useDangerConfirm();
   const [nom, setNom] = useState("");
@@ -92,7 +92,7 @@ export function OppositionsScreen() {
         </form>
       </Card>
 
-      {isLoading ? (
+      {isPending ? (
         <Skeleton className="h-40 w-full" />
       ) : error ? (
         <EmptyState {...messageDeRefus(error, REFUS)} />

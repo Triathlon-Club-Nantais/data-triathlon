@@ -51,7 +51,7 @@ export function EventList({
   filters: ParticipationFilters;
   initial?: EventPage;
 }) {
-  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError, isLoading } =
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isFetchNextPageError, isPending } =
     useInfiniteEvents(filters, initial);
   const router = useRouter();
   const sp = useSearchParams();
@@ -139,7 +139,7 @@ export function EventList({
     />
   );
 
-  if (!isLoading && events.length === 0) {
+  if (!isPending && events.length === 0) {
     // Une recherche filtrée vide ne dit rien de la base : elle porte sa sortie
     // au lieu d'inviter à réimporter (#1038). `scope`, `sort` et `seasons`
     // restent, ce ne sont pas des filtres de recherche.
@@ -288,7 +288,7 @@ export function EventList({
         )}
       </div>
 
-      {isLoading && events.length === 0 && (
+      {isPending && events.length === 0 && (
         <p style={{ padding: 24, textAlign: "center", fontSize: 14, color: "var(--tcn-text-faint)" }}>
           Chargement…
         </p>

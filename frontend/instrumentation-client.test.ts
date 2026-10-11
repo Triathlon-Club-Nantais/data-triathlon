@@ -62,6 +62,18 @@ describe("instrumentation-client", () => {
     );
   });
 
+  it("capture les Core Web Vitals, sans dépendre du réglage distant du projet (#1318)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.posthog.com");
+
+    await import("./instrumentation-client");
+
+    expect(init).toHaveBeenCalledWith(
+      "test-token",
+      expect.objectContaining({ capture_performance: expect.objectContaining({ web_vitals: true }) }),
+    );
+  });
+
   describe("consentement (#1159)", () => {
     beforeEach(() => {
       vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
@@ -101,6 +113,58 @@ describe("instrumentation-client", () => {
 
       expect(reset).toHaveBeenCalled();
       expect(optOut).toHaveBeenCalled();
+    });
+  });
+
+  describe("écrans jeunes exclus de l'autocapture (#1307)", () => {
+    type Event = { event: string; properties?: Record<string, unknown> };
+    type BeforeSend = (event: Event | null) => Event | null;
+
+    async function beforeSendAt(path: string): Promise<BeforeSend> {
+      vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
+      vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.posthog.com");
+      window.history.pushState({}, "", path);
+      await import("./instrumentation-client");
+      return init.mock.calls[0][1].before_send;
+    }
+
+    afterEach(() => window.history.pushState({}, "", "/"));
+
+    const elements = [{ tag_name: "a", $el_text: "Alix Martin", attr__href: "/admin/jeunes/42" }];
+    const carriesAName: Event[] = [
+      { event: "$autocapture", properties: { $elements: elements, $el_text: "Alix Martin" } },
+      { event: "$rageclick", properties: { $elements: elements } },
+      { event: "$dead_click", properties: { $elements: elements } },
+      { event: "$dead_swipe", properties: { $elements: elements } },
+      { event: "$future_element_event", properties: { $elements_chain: 'a:text="Alix Martin"' } },
+      { event: "$copy_autocapture", properties: { $selected_content: "Alix Martin" } },
+      { event: "$exception", properties: { $exception_list: [{ value: "Alix Martin introuvable" }] } },
+    ];
+
+    it.each(["/admin/jeunes", "/admin/jeunes/42", "/admin/jeunes/appel", "/admin/jeunes/groupes"])(
+      "écarte tout événement porteur d'un élément, d'une copie ou d'une erreur sous %s",
+      async (path) => {
+        const beforeSend = await beforeSendAt(path);
+        for (const event of carriesAName) {
+          expect(beforeSend(event), event.event).toBeNull();
+        }
+      },
+    );
+
+    it("laisse passer pages vues et événements métier sans élément sur les écrans jeunes", async () => {
+      const beforeSend = await beforeSendAt("/admin/jeunes/42");
+      const pageview = { event: "$pageview", properties: { $current_url: "/admin/jeunes/42" } };
+      const custom = { event: "profile_created", properties: { source: "form" } };
+      expect(beforeSend(pageview)).toEqual(pageview);
+      expect(beforeSend(custom)).toEqual(custom);
+      expect(beforeSend(null)).toBeNull();
+    });
+
+    it.each(["/", "/admin/courses", "/admin/jeunesse"])("ne jette rien sous %s", async (path) => {
+      const beforeSend = await beforeSendAt(path);
+      for (const event of carriesAName) {
+        expect(beforeSend(event), event.event).toEqual(event);
+      }
     });
   });
 });

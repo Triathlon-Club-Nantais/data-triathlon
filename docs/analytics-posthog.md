@@ -34,6 +34,14 @@ qu'il compte une seule fois et hors de portée des bloqueurs (#1033).
   chargement suivant. **Prérequis** : le mode sans cookie doit être activé dans
   les réglages du projet PostHog, sinon les événements sans cookie sont
   ignorés.
+- **Écrans jeunes** (#1307) : sous `/admin/jeunes`, le `before_send` de
+  `instrumentation-client.ts` jette tout événement dont les propriétés portent
+  un élément (`$elements`, `$elements_chain` ou `$el_text` : clics, clics
+  morts, glissés morts, et ceux qu'une version future de posthog-js ajoutera),
+  ainsi que `$copy_autocapture` (texte copié) et `$exception` (un message
+  d'erreur peut citer un nom). Le tri suit la forme de l'événement, pas une
+  liste de noms. Pages vues, événements métier et cartes de chaleur (des
+  coordonnées, sans texte) restent mesurés.
 - **Identité de session** : `frontend/app/providers.tsx` (`PostHogSessionSync`).
   Un seul effet observe `useSession()` : `posthog.identify()` dès qu'une
   session existe **et que la mesure détaillée est acceptée**, `posthog.reset()` dès qu'elle repasse à `null` — quelle

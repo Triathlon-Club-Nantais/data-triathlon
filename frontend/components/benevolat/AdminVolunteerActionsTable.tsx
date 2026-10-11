@@ -47,14 +47,14 @@ const REFUS = {
  */
 export function AdminVolunteerActionsTable() {
   const qc = useQueryClient();
-  const { data, isLoading, error } = usePendingVolunteerActions();
+  const { data, isPending, error } = usePendingVolunteerActions();
   const accepter = useAcceptVolunteerAction();
   const refuser = useRejectVolunteerAction();
   const supprimer = useDeleteVolunteerAction();
   const confirmerLeDanger = useDangerConfirm();
   const [detail, setDetail] = useState<AdminVolunteerActionOut | null>(null);
 
-  if (isLoading) return <Skeleton data-testid="admin-volunteer-actions-skeleton" className="h-40 w-full" />;
+  if (isPending) return <Skeleton data-testid="admin-volunteer-actions-skeleton" className="h-40 w-full" />;
   if (error) return <EmptyState {...messageDeRefus(error, REFUS)} />;
   if (!data || data.length === 0) {
     return (

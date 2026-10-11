@@ -120,9 +120,9 @@ function duree(secondes: number | null): string {
 }
 
 function BilanDuLancement({ runId }: { runId: number }) {
-  const { data, isLoading, error } = useBatchReport(runId);
+  const { data, isPending, error } = useBatchReport(runId);
 
-  if (isLoading) return <Skeleton className="h-24 w-full" />;
+  if (isPending) return <Skeleton className="h-24 w-full" />;
   // Le message du serveur, tel quel : il distingue « pas encore de bilan »
   // (404) de « bilan expiré » (410), et cette nuance ne se redevine pas ici.
   // `text-destructive` est `--tcn-danger` brut : 3,68:1 sur le blanc de la
@@ -172,7 +172,7 @@ export function BatchRunList() {
   // pouvoir-là n'ouvre pas. Sans la garde, elle partait en 403 et s'affichait en
   // « Lancements indisponibles » avec le message serveur brut — un état d'erreur
   // comme rendu par défaut d'un visiteur légitime (ADM-2).
-  const { data, isLoading, error } = useBatchRuns(peutLire);
+  const { data, isPending, error } = useBatchRuns(peutLire);
   const [ouvert, setOuvert] = useState<number | null>(null);
   const maintenant = useMaintenant();
 
@@ -197,7 +197,7 @@ export function BatchRunList() {
         description="Demande le pouvoir « Consulter les batches »."
       />
     );
-  if (isLoading || session.isPending) return <Skeleton className="h-40 w-full" />;
+  if (isPending || session.isPending) return <Skeleton className="h-40 w-full" />;
   // Un refus n'est pas une liste vide : « aucun lancement » se lirait comme une
   // information, alors qu'elle est seulement indisponible.
   if (error)

@@ -24,6 +24,7 @@ from app.repositories import (
     user_repository,
 )
 from app.services import benevole_access, shared_password
+from app.services.scrape_service import YouthResultError
 
 MOT_DE_PASSE = "secret-du-club"
 
@@ -605,3 +606,80 @@ def test_a_neutral_correction_stays_accepted(benevole_connecte, resultat_pendant
     )
 
     assert reponse.status_code == 200
+
+
+# --- PATCH /benevoles/courses/{id} : règle jeunes (#1287) --------------------
+
+
+def _rename(client, course, name):
+    return client.patch(f"/api/v1/benevoles/courses/{course.id}", json={"name": name})
+
+
+def test_a_rename_that_makes_a_non_tcn_row_youth_is_refused(
+    benevole_connecte, resultat_pendant, compte_systeme, db_session
+):
+    """#1287 : le renommage ne contourne pas la règle de la saisie manuelle."""
+    course, _, ligne = resultat_pendant
+    participation_repository.update(db_session, ligne, club="ASPTT", category="S1H")
+    db_session.commit()
+
+    reponse = _rename(benevole_connecte, course, "Triathlon Jeunes")
+
+    assert reponse.status_code == 422
+    assert reponse.json()["detail"] == YouthResultError.message
+    db_session.expire_all()
+    assert course_repository.get(db_session, course.id).name == "Tri Bénévoles"
+
+
+@pytest.mark.parametrize(
+    "statut", [{"is_pending_validation": False}, {"is_rejected": True}], ids=["validated", "rejected"]
+)
+def test_a_non_tcn_row_out_of_the_queue_still_blocks_a_youth_rename(
+    benevole_connecte, resultat_pendant, compte_systeme, db_session, statut
+):
+    course, _, ligne = resultat_pendant
+    participation_repository.update(db_session, ligne, club="TCN", category="S1H")
+    autre = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul", club="ASPTT")
+    participation_repository.create(
+        db_session, athlete_id=autre.id, course_id=course.id, bib_number="2",
+        club="ASPTT", category="S1H", total_time="01:01:00", **statut,
+    )
+    db_session.commit()
+
+    reponse = _rename(benevole_connecte, course, "Triathlon Jeunes")
+
+    assert reponse.status_code == 422
+    assert reponse.json()["detail"] == YouthResultError.message
+
+
+def test_a_youth_rename_with_only_tcn_rows_stays_accepted(
+    benevole_connecte, resultat_pendant, compte_systeme, db_session
+):
+    course, _, ligne = resultat_pendant
+    participation_repository.update(db_session, ligne, club="TCN", category="MIH")
+    db_session.commit()
+
+    assert _rename(benevole_connecte, course, "Triathlon Jeunes").status_code == 200
+
+
+def test_a_neutral_rename_keeps_a_non_tcn_youth_row_kept_by_its_heat(
+    benevole_connecte, resultat_pendant, compte_systeme, db_session
+):
+    """#1221 garde tout un heat portant un jeune TCN : ses lignes non TCN déjà
+    jeunes par leur catégorie ne bloquent pas une simple correction de nom."""
+    course, _, ligne = resultat_pendant
+    participation_repository.update(db_session, ligne, club="ASPTT", category="MIH")
+    db_session.commit()
+
+    assert _rename(benevole_connecte, course, "Tri des Bénévoles").status_code == 200
+
+
+def test_renaming_an_already_youth_course_stays_accepted(
+    benevole_connecte, resultat_pendant, compte_systeme, db_session
+):
+    course, _, ligne = resultat_pendant
+    course.name = "Triathlon Jeunes"
+    participation_repository.update(db_session, ligne, club="ASPTT", category="S1H")
+    db_session.commit()
+
+    assert _rename(benevole_connecte, course, "Triathlon Jeunes de Nantes").status_code == 200

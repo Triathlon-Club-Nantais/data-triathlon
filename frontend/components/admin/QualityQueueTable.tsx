@@ -92,7 +92,7 @@ export function QualityQueueTable({
   const requete = includeJudged
     ? { ...filtres, unreliable: true as const }
     : { ...filtres, awaiting_review: true as const };
-  const { data, isLoading, error } = useAdminCourses(page, requete);
+  const { data, isPending, error } = useAdminCourses(page, requete);
   const { data: comptage } = useAdminCoursesCount(requete);
   const session = useSession();
   const rescrape = useRescrapeStream();
@@ -214,7 +214,7 @@ export function QualityQueueTable({
   // `CoursesAdminTable.filtresActifs`).
   const filtresActifs = Object.values(filtres).some(Boolean);
 
-  if (isLoading) {
+  if (isPending) {
     return (
       <div className="space-y-4">
         {barre}
@@ -516,12 +516,12 @@ export function QualityQueueTable({
  */
 function SourcesDepliees({ courseId }: { courseId: number }) {
   const qc = useQueryClient();
-  const { data, isLoading, error } = useQuery({
+  const { data, isPending, error } = useQuery({
     queryKey: ["course-sources", courseId],
     queryFn: () => apiClient.getCourseSources(courseId),
   });
 
-  if (isLoading) return <Skeleton className="h-8 w-48" />;
+  if (isPending) return <Skeleton className="h-8 w-48" />;
   if (error) {
     return (
       <p className="text-sm text-destructive">
