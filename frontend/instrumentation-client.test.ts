@@ -62,6 +62,18 @@ describe("instrumentation-client", () => {
     );
   });
 
+  it("capture les Core Web Vitals, sans dépendre du réglage distant du projet (#1318)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.posthog.com");
+
+    await import("./instrumentation-client");
+
+    expect(init).toHaveBeenCalledWith(
+      "test-token",
+      expect.objectContaining({ capture_performance: expect.objectContaining({ web_vitals: true }) }),
+    );
+  });
+
   describe("consentement (#1159)", () => {
     beforeEach(() => {
       vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");

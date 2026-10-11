@@ -46,6 +46,9 @@ if (token && host) {
     capture_dead_clicks: granted,
     before_send: (event) => (event && leaksYouthData(event) ? null : event),
     disable_session_recording: true,
+    // Core Web Vitals (LCP, INP, CLS) fixés ici plutôt que laissés aux réglages distants (#1318).
+    // Envoyés aussi en mode sans cookie, sans identifiant de session client.
+    capture_performance: { web_vitals: true },
     // Capture les exceptions non gérées (Error Tracking)
     capture_exceptions: true,
     // Debug activé en développement seulement
