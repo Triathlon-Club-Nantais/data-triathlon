@@ -16,6 +16,7 @@ from app.repositories import (
     club_member_repository,
     feedback_repository,
     profile_repository,
+    training_group_repository,
     training_session_repository,
 )
 
@@ -61,6 +62,7 @@ def purge_expired(db: Session, *, now: datetime, dry_run: bool = False) -> Reten
 
     for profile in profiles:
         training_session_repository.delete_participations_of_profile(db, profile.id)
+        training_group_repository.delete_memberships_of_profile(db, profile.id)
         profile_repository.delete(db, profile)
     outcome = RetentionOutcome(
         feedback=feedback_repository.delete_created_before(db, feedback_cutoff),

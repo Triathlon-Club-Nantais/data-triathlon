@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Metadata } from "next";
 import { describe, expect, it, vi } from "vitest";
@@ -52,7 +53,8 @@ const ECRANS: [string, () => Promise<{ metadata?: Metadata }>][] = [
   ["/admin/groupes", () => import("./admin/groupes/page")],
   ["/encadrement/jeunes", () => import("./encadrement/jeunes/page")],
   ["/encadrement/jeunes/calendrier", () => import("./encadrement/jeunes/calendrier/page")],
-  ["/encadrement/jeunes/appel", () => import("./encadrement/jeunes/appel/layout")],
+  ["/encadrement/jeunes/appel", () => import("./encadrement/jeunes/appel/(jour)/layout")],
+  ["/encadrement/jeunes/groupes", () => import("./encadrement/jeunes/groupes/page")],
   ["/admin/journal", () => import("./admin/journal/page")],
   ["/admin/oppositions", () => import("./admin/oppositions/page")],
   ["/admin/maintenance", () => import("./admin/maintenance/layout")],
@@ -71,6 +73,30 @@ describe("titres de document (#1040)", () => {
 
   it.each(ECRANS)("%s reprend le titre de son écran", async (route, charger) => {
     expect((await charger()).metadata?.title).toBe(ecran(route).title);
+  });
+
+  it("aucun layout titré ne coiffe une page qui pose son propre titre", async () => {
+    // Un titre en chaîne dans un layout efface le gabarit `%s · TCN` pour
+    // toutes les pages en dessous (résolution des métadonnées de Next).
+    const racine = dirname(fileURLToPath(import.meta.url));
+    const fichiers = readdirSync(racine, { recursive: true, encoding: "utf8" });
+    const fautifs: string[] = [];
+    for (const layout of fichiers.filter((f) => f.endsWith("/layout.tsx"))) {
+      const dossier = layout.slice(0, -"layout.tsx".length);
+      const source = readFileSync(join(racine, layout), "utf8");
+      if (!/export const metadata[\s\S]*?title:/.test(source) || source.includes("template:")) continue;
+      const pagesTitrees = fichiers.filter(
+        (f) =>
+          f.startsWith(dossier) &&
+          f !== `${dossier}page.tsx` &&
+          f.endsWith("/page.tsx") &&
+          /export (const metadata|async function generateMetadata)/.test(
+            readFileSync(join(racine, f), "utf8"),
+          ),
+      );
+      if (pagesTitrees.length > 0) fautifs.push(`${layout} coiffe ${pagesTitrees.join(", ")}`);
+    }
+    expect(fautifs).toEqual([]);
   });
 
   it.each([

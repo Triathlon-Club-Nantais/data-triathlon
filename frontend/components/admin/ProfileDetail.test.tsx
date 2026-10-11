@@ -1,23 +1,42 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ProfileDetail as ProfileDetailType, SessionUser } from "@/lib/types";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-const { getProfile, updateProfile, addProfileLogEntry, getSession } = vi.hoisted(() => ({
+const {
+  getProfile,
+  updateProfile,
+  addProfileLogEntry,
+  getSession,
+  listTrainingGroups,
+  addTrainingGroupMember,
+  removeTrainingGroupMember,
+} = vi.hoisted(() => ({
   getProfile: vi.fn(),
   updateProfile: vi.fn(),
   addProfileLogEntry: vi.fn(),
   getSession: vi.fn(),
+  listTrainingGroups: vi.fn(),
+  addTrainingGroupMember: vi.fn(),
+  removeTrainingGroupMember: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { getProfile, updateProfile, addProfileLogEntry, getSession },
+    apiClient: {
+      getProfile,
+      updateProfile,
+      addProfileLogEntry,
+      getSession,
+      listTrainingGroups,
+      addTrainingGroupMember,
+      removeTrainingGroupMember,
+    },
   };
 });
 
@@ -35,6 +54,8 @@ const PROFIL: ProfileDetailType = {
   emergency_contact: "Mère — 06 00 00 00 00",
   notes: "Allergie aux fruits à coque.",
   membership_ended_on: null,
+  category: null,
+  groups: [],
   log_entries: [
     {
       id: 2,
@@ -83,14 +104,58 @@ describe("ProfileDetail", () => {
     vi.clearAllMocks();
     getSession.mockResolvedValue(AVEC_ECRITURE);
     getProfile.mockResolvedValue(PROFIL);
+    listTrainingGroups.mockResolvedValue([]);
+  });
+
+  afterEach(() => focusManager.setFocused(undefined));
+
+  it("ne prend pas une relance suspendue pour une absence de données (#1290)", async () => {
+    // Backend endormi : le premier essai échoue, et React Query suspend la
+    // relance tant que l'onglet n'a pas le focus.
+    focusManager.setFocused(false);
+    getProfile.mockRejectedValue(new ApiError(503, "Service indisponible"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: 1, retryDelay: 0 } } });
+    render(
+      <QueryClientProvider client={client}>
+        <DangerConfirmProvider>
+          <ProfileDetail profileId={1} />
+        </DangerConfirmProvider>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(client.getQueryCache().find({ queryKey: ["admin-profile", 1] })?.state.fetchStatus).toBe("paused"),
+    );
+    expect(screen.queryByText("Profil introuvable")).not.toBeInTheDocument();
   });
 
   it("affiche les informations personnelles", async () => {
     afficher();
 
     expect(await screen.findByText("Alix Martin")).toBeInTheDocument();
-    expect(screen.getByText(/Mère — 06 00 00 00 00/)).toBeInTheDocument();
+    expect(screen.getByText(/Mère —/)).toBeInTheDocument();
     expect(screen.getByText(/Allergie aux fruits à coque/)).toBeInTheDocument();
+  });
+
+  it("rend le numéro du contact d'urgence cliquable pour appeler", async () => {
+    getProfile.mockResolvedValue({ ...PROFIL, emergency_contact: "Parent X 06 00 00 00 00" });
+
+    afficher();
+
+    const lien = await screen.findByRole("link", { name: "06 00 00 00 00" });
+    expect(lien).toHaveAttribute("href", "tel:0600000000");
+    // Numéro d'un parent de mineur : hors de l'autocapture PostHog (RGPD).
+    expect(lien).toHaveClass("ph-no-capture", "tcn-cible-tactile");
+    expect(screen.getByText(/Parent X/)).toBeInTheDocument();
+  });
+
+  it("laisse en texte un contact d'urgence sans numéro reconnaissable", async () => {
+    getProfile.mockResolvedValue({ ...PROFIL, emergency_contact: "Voir avec le club" });
+
+    afficher();
+
+    expect(await screen.findByText("Voir avec le club")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("dit qu'un profil absent est introuvable", async () => {
@@ -242,5 +307,56 @@ describe("ProfileDetail", () => {
     await waitFor(() =>
       expect(addProfileLogEntry).toHaveBeenCalledWith(1, "Bonne séance", expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/)),
     );
+  });
+
+  describe("groupes (#1291)", () => {
+    const AVEC_GROUPE = { ...PROFIL, category: "Pupille", groups: [{ id: 7, name: "Benjamins mercredi" }] };
+
+    it("liste les groupes du profil et sa catégorie", async () => {
+      getProfile.mockResolvedValue(AVEC_GROUPE);
+
+      afficher();
+
+      expect(await screen.findByText("Benjamins mercredi")).toBeInTheDocument();
+      expect(screen.getByText(/Pupille/)).toBeInTheDocument();
+    });
+
+    it("ajoute le profil à un groupe depuis la fiche", async () => {
+      listTrainingGroups.mockResolvedValue([
+        { id: 7, name: "Benjamins mercredi", member_count: 1 },
+        { id: 8, name: "Minimes", member_count: 0 },
+      ]);
+      getProfile.mockResolvedValue(AVEC_GROUPE);
+      addTrainingGroupMember.mockResolvedValue({ id: 8, name: "Minimes", members: [] });
+
+      afficher();
+      const choix = await screen.findByLabelText("Ajouter à un groupe");
+      await waitFor(() => expect(screen.getByRole("option", { name: "Minimes" })).toBeInTheDocument());
+      expect(screen.queryByRole("option", { name: "Benjamins mercredi" })).not.toBeInTheDocument();
+      await userEvent.selectOptions(choix, "8");
+
+      await waitFor(() => expect(addTrainingGroupMember).toHaveBeenCalledWith(8, 1));
+    });
+
+    it("retire le profil d'un groupe", async () => {
+      getProfile.mockResolvedValue(AVEC_GROUPE);
+      removeTrainingGroupMember.mockResolvedValue({ id: 7, name: "Benjamins mercredi", members: [] });
+
+      afficher();
+      await userEvent.click(await screen.findByRole("button", { name: "Retirer du groupe Benjamins mercredi" }));
+
+      await waitFor(() => expect(removeTrainingGroupMember).toHaveBeenCalledWith(7, 1));
+    });
+
+    it("ne propose aucun geste de groupe sans jeunes:write", async () => {
+      getSession.mockResolvedValue(LECTURE_SEULE);
+      getProfile.mockResolvedValue(AVEC_GROUPE);
+
+      afficher();
+
+      expect(await screen.findByText("Benjamins mercredi")).toBeInTheDocument();
+      expect(screen.queryByLabelText("Ajouter à un groupe")).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /retirer du groupe/i })).not.toBeInTheDocument();
+    });
   });
 });

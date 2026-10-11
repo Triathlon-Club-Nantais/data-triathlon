@@ -584,6 +584,11 @@ export interface TrainingSession {
   session_type: string | null;
   note: string;
   participant_count: number;
+  /** Groupes visés : leurs membres actifs sont inscrits d'office (#1291). */
+  group_ids: number[];
+  /** Récurrence d'origine ; `detached` = modifiée seule, plus suivie par sa récurrence. */
+  recurrence_id: number | null;
+  detached: boolean;
 }
 
 /**
@@ -596,6 +601,10 @@ export interface TrainingSession {
 export interface TrainingParticipant {
   profile_id: number;
   present: boolean | null;
+  /** Faux pour une inscription d'office par groupe (#1291). */
+  added_manually: boolean;
+  /** Catégorie FFTri du jeune, `null` sans date de naissance (#1291). */
+  category: string | null;
   created_at: string;
 }
 
@@ -617,8 +626,42 @@ export interface Profile {
   first_name: string;
   last_name: string;
   birth_date: string | null;
+  /** Catégorie FFTri de la saison en cours, `null` sans date de naissance (#1291). */
+  category: string | null;
+  /** Fin d'adhésion (#1158) : le profil est purgé à la fin de la saison suivante. */
+  membership_ended_on: string | null;
   created_at: string;
 }
+
+/** Un groupe d'entraînement (#1291), tel que listé. */
+export interface TrainingGroup {
+  id: number;
+  name: string;
+  member_count: number;
+}
+
+/** Un groupe et ses membres. */
+export interface TrainingGroupDetail {
+  id: number;
+  name: string;
+  members: Profile[];
+}
+
+/** Une récurrence hebdomadaire de séances (#1291). `weekday` : 0 = lundi. */
+export interface TrainingRecurrence {
+  id: number;
+  weekday: number;
+  start_time: string | null;
+  location: string | null;
+  session_type: string | null;
+  starts_on: string;
+  ends_on: string;
+  group_ids: number[];
+  /** Séances à venir que la suppression de la récurrence emporterait. */
+  upcoming_session_count: number;
+}
+
+export type TrainingRecurrenceInput = Omit<TrainingRecurrence, "id" | "upcoming_session_count">;
 
 /** Une entrée du journal de bord — un historique, jamais une valeur unique. */
 export interface ProfileLogEntry {
@@ -633,8 +676,7 @@ export interface ProfileLogEntry {
 export interface ProfileDetail extends Profile {
   emergency_contact: string;
   notes: string;
-  /** Fin d'adhésion (#1158) : le profil est purgé à la fin de la saison suivante. */
-  membership_ended_on: string | null;
+  groups: { id: number; name: string }[];
   log_entries: ProfileLogEntry[];
 }
 

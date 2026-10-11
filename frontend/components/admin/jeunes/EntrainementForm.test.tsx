@@ -12,6 +12,9 @@ const SEANCE: TrainingSession = {
   session_type: "Natation",
   note: "",
   participant_count: 0,
+  group_ids: [],
+  recurrence_id: null,
+  detached: false,
 };
 
 describe("EntrainementForm", () => {
@@ -63,6 +66,25 @@ describe("EntrainementForm", () => {
     expect(screen.getByLabelText(/^date$/i)).toHaveValue("2026-09-20");
     expect(screen.getByLabelText(/lieu/i)).toHaveValue("Base nautique");
     expect(screen.getByLabelText(/type de séance/i)).toHaveValue("Natation");
+  });
+
+  it("pose le lieu sur sa propre ligne de grille hors grande largeur (#1290)", () => {
+    render(
+      <EntrainementForm
+        entrainement={SEANCE}
+        soumettre={vi.fn()}
+        enCours={false}
+        libelleSoumission="Enregistrer"
+      />,
+    );
+
+    // La fenêtre de séance est étroite : partagé avec trois voisins, le champ
+    // tronquait la saisie. Il prend sa propre ligne, hormis en grande largeur.
+    const champ = screen.getByLabelText(/^lieu$/i).parentElement;
+    expect(champ).toHaveClass("col-span-2");
+    expect(screen.getByRole("textbox", { name: /^lieu$/i }).closest("form")).toHaveClass(
+      "@container",
+    );
   });
 
   it("désactive la soumission sans date", () => {

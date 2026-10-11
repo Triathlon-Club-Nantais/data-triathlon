@@ -58,6 +58,9 @@ export const queryKeys = {
   // le détail un `TrainingSessionDetail` (participants compris).
   trainingSessions: () => ["admin-training-sessions"] as const,
   trainingSession: (id: number) => ["admin-training-session", id] as const,
+  trainingGroups: () => ["admin-training-groups"] as const,
+  trainingGroup: (id: number) => ["admin-training-group", id] as const,
+  trainingRecurrences: () => ["admin-training-recurrences"] as const,
   // L'inventaire des pouvoirs est servi depuis le code Python : il ne change
   // qu'au déploiement, d'où le `staleTime: Infinity` de son hook.
   adminPermissions: () => ["admin-permissions"] as const,

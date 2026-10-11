@@ -1544,12 +1544,13 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
   });
 
   it("in the supervision space, « Plus » falls back to the space entries when the bar carries them all (#621)", async () => {
-    chemin.courant = "/encadrement/jeunes";
-    afficher(habilite("jeunes:read", "athletes:volunteer_validate", "pages:preview"));
-    await waitFor(() => expect(liens()).toContain("/encadrement/benevolat"));
+    // Sans `jeunes:read`, « Groupes d'entraînement », hors barre, ne remplit pas le tiroir.
+    chemin.courant = "/encadrement/benevolat";
+    afficher(habilite("athletes:volunteer_validate", "pages:preview"));
+    await waitFor(() => expect(liens()).toEqual(["/encadrement/benevolat"]));
     await userEvent.click(within(barre()).getByRole("button", { name: "Plus" }));
     const tiroir = await screen.findByRole("dialog");
-    expect(within(tiroir).getByRole("link", { name: /Profils/ })).toHaveAttribute("href", "/encadrement/jeunes");
+    expect(within(tiroir).getByRole("link", { name: /Crédits bénévoles/ })).toHaveAttribute("href", "/encadrement/benevolat");
   });
 
   it("garde les mêmes onglets avant et après la lecture de la session", async () => {
@@ -1942,6 +1943,7 @@ describe("AppNav: supervision space (#1297)", () => {
     const hrefs = within(rail()).getAllByRole("link").map((lien) => lien.getAttribute("href"));
     expect(hrefs.filter((href) => href?.startsWith("/encadrement"))).toEqual([
       "/encadrement/jeunes",
+      "/encadrement/jeunes/groupes",
       "/encadrement/jeunes/calendrier",
       "/encadrement/jeunes/appel",
     ]);

@@ -1,7 +1,7 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { TrainingSessionDetail, Profile, SessionUser } from "@/lib/types";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
@@ -43,6 +43,8 @@ const ALIX: Profile = {
   first_name: "Alix",
   last_name: "Martin",
   birth_date: null,
+  category: null,
+  membership_ended_on: null,
   created_at: "2026-01-01T00:00:00Z",
 };
 
@@ -52,6 +54,8 @@ const ZOE: Profile = {
   first_name: "Zoé",
   last_name: "Roux",
   birth_date: null,
+  category: null,
+  membership_ended_on: null,
   created_at: "2026-01-01T00:00:00Z",
 };
 
@@ -63,7 +67,10 @@ const DETAIL_UN_PARTICIPANT: TrainingSessionDetail = {
   session_type: null,
   note: "",
   participant_count: 1,
-  participants: [{ profile_id: 42, present: null, created_at: "2026-09-15T10:00:00Z" }],
+  group_ids: [],
+  recurrence_id: null,
+  detached: false,
+  participants: [{ profile_id: 42, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" }],
 };
 
 const DETAIL_VIDE: TrainingSessionDetail = { ...DETAIL_UN_PARTICIPANT, participant_count: 0, participants: [] };
@@ -98,12 +105,66 @@ describe("AppelPresence", () => {
     listProfiles.mockResolvedValue([ALIX, ZOE]);
   });
 
+  afterEach(() => focusManager.setFocused(undefined));
+
+  it("ne prend pas une relance suspendue pour une absence de données (#1290)", async () => {
+    // Backend endormi : le premier essai échoue, et React Query suspend la
+    // relance tant que l'onglet n'a pas le focus.
+    focusManager.setFocused(false);
+    getTrainingSession.mockRejectedValue(new ApiError(503, "Service indisponible"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: 1, retryDelay: 0 } } });
+    render(
+      <QueryClientProvider client={client}>
+        <AppelPresence sessionId={1} />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(client.getQueryCache().find({ queryKey: ["admin-training-session", 1] })?.state.fetchStatus).toBe("paused"),
+    );
+    expect(screen.queryByText("Séance introuvable")).not.toBeInTheDocument();
+  });
+
+  it("affiche la catégorie FFTri de chaque inscrit (#1291)", async () => {
+    getTrainingSession.mockResolvedValue({
+      ...DETAIL_UN_PARTICIPANT,
+      participants: [{ ...DETAIL_UN_PARTICIPANT.participants[0], category: "Benjamin" }],
+    });
+
+    afficher();
+
+    expect(await screen.findByText("Benjamin")).toBeInTheDocument();
+  });
+
   it("dit qu'une séance absente est introuvable", async () => {
     getTrainingSession.mockRejectedValue(new ApiError(404, "Cet entraînement n'existe pas."));
 
     afficher();
 
     expect(await screen.findByText("Séance introuvable")).toBeInTheDocument();
+  });
+
+  it("nomme la séance par sa date, son heure et son lieu", async () => {
+    getTrainingSession.mockResolvedValue({
+      ...DETAIL_UN_PARTICIPANT,
+      start_time: "18:00:00",
+      location: "Base nautique",
+    });
+
+    afficher();
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Appel du 20/09/2026" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("18:00, Base nautique")).toBeInTheDocument();
+  });
+
+  it("garde un titre d'appel tant que la séance n'est pas chargée", () => {
+    getTrainingSession.mockReturnValue(new Promise(() => {}));
+
+    afficher();
+
+    expect(screen.getByRole("heading", { level: 1, name: "Appel" })).toBeInTheDocument();
   });
 
   it("liste les jeunes inscrits avec leur nom", async () => {
@@ -199,10 +260,49 @@ describe("AppelPresence", () => {
     );
   });
 
+  it("compte les présents et les absents, sur les deux appels", async () => {
+    getTrainingSession.mockResolvedValue({
+      ...DETAIL_UN_PARTICIPANT,
+      participant_count: 3,
+      group_ids: [],
+      recurrence_id: null,
+      detached: false,
+      participants: [
+        { profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
+        { profile_id: 43, present: false, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
+        { profile_id: 44, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
+      ],
+    });
+
+    afficher();
+
+    expect(await screen.findByText("1 présent sur 3, 1 absent, 1 à pointer")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("tab", { name: /appel de fin/i }));
+    expect(screen.getByText("1 présent sur 3, 1 absent, 1 à pointer")).toBeInTheDocument();
+  });
+
+  it("accorde le compteur au pluriel et tait les jeunes à pointer quand il n'y en a plus", async () => {
+    getTrainingSession.mockResolvedValue({
+      ...DETAIL_UN_PARTICIPANT,
+      participant_count: 2,
+      group_ids: [],
+      recurrence_id: null,
+      detached: false,
+      participants: [
+        { profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
+        { profile_id: 43, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
+      ],
+    });
+
+    afficher();
+
+    expect(await screen.findByText("2 présents sur 2, 0 absent")).toBeInTheDocument();
+  });
+
   it("bascule vers l'appel de fin sans écrire aucune donnée", async () => {
     const detail: TrainingSessionDetail = {
       ...DETAIL_UN_PARTICIPANT,
-      participants: [{ profile_id: 42, present: true, created_at: "2026-09-15T10:00:00Z" }],
+      participants: [{ profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" }],
     };
     getTrainingSession.mockResolvedValue(detail);
 

@@ -155,10 +155,14 @@ describe("nav.config — section « Jeunes » unifiée (#869)", () => {
     expect(admin.items.find((i) => i.id === "a-jeunes")).toBeUndefined();
   });
 
-  it("propose les trois destinations profils, calendrier, appel", () => {
+  it("propose les destinations profils, groupes, calendrier, appel", () => {
     const jeunes = NAV.find((s) => s.id === "jeunes")!;
     const hrefs = jeunes.items.map((i) => i.href);
     expect(hrefs).toContain("/encadrement/jeunes");
+    expect(hrefs).toContain("/encadrement/jeunes/groupes");
+    expect(jeunes.items.find((i) => i.href === "/encadrement/jeunes/groupes")?.label).toBe(
+      "Groupes d'entraînement",
+    );
     expect(hrefs).toContain("/encadrement/jeunes/calendrier");
     expect(hrefs).toContain("/encadrement/jeunes/appel");
   });
@@ -167,6 +171,7 @@ describe("nav.config — section « Jeunes » unifiée (#869)", () => {
     const supervision = NAV.filter((s) => s.space === "encadrement").flatMap((s) => s.items.map((i) => i.href));
     expect(supervision).toEqual([
       "/encadrement/jeunes",
+      "/encadrement/jeunes/groupes",
       "/encadrement/jeunes/calendrier",
       "/encadrement/jeunes/appel",
       "/encadrement/benevolat",
@@ -178,7 +183,7 @@ describe("nav.config — section « Jeunes » unifiée (#869)", () => {
     }
   });
 
-  it("garde les trois destinations derrière jeunes:read", () => {
+  it("garde toutes ses destinations derrière jeunes:read", () => {
     const jeunes = NAV.find((s) => s.id === "jeunes")!;
     for (const item of jeunes.items.filter((i) => i.id.startsWith("j-"))) {
       expect(item.permission, item.href).toBe("jeunes:read");

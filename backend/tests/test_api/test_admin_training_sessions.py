@@ -5,6 +5,8 @@ chaque test de ce dossier : les gardes elles-mêmes sont éprouvées à part,
 `_session_avec` ci-dessous posant un rôle qui ne porte que les pouvoirs
 demandés — même patron que `test_admin_counter_scope.py`.
 """
+from datetime import date, timedelta
+
 import pytest
 
 from app.api.v1.auth import session_cookie_name
@@ -12,6 +14,7 @@ from app.core.config import get_settings
 from app.core.permissions import P
 from app.models.organisation import Organisation
 from app.models.role_permission import RolePermission
+from app.models.training_participant import TrainingParticipant
 from app.repositories import (
     profile_repository,
     role_repository,
@@ -262,12 +265,36 @@ def test_the_seance_note_can_be_read_and_updated(client):
     assert response.json()["note"] == "Bassin partagé."
 
 
+# --- Suppression (#1290) ---------------------------------------------------
+
+
+def test_deleting_a_session_removes_it_with_its_participants(client, db_session, profile_id):
+    created = client.post(BASE, json={"date": "2026-09-20"}).json()
+    kept = client.post(BASE, json={"date": "2026-09-27"}).json()
+    client.post(f"{BASE}/{created['id']}/participants", json={"profile_id": profile_id})
+    client.post(f"{BASE}/{kept['id']}/participants", json={"profile_id": profile_id})
+
+    response = client.delete(f"{BASE}/{created['id']}")
+
+    assert response.status_code == 204
+    assert client.get(f"{BASE}/{created['id']}").status_code == 404
+    assert [e["id"] for e in client.get(BASE).json()] == [kept["id"]]
+    assert client.get(f"{BASE}/{kept['id']}").json()["participant_count"] == 1
+    remaining = db_session.query(TrainingParticipant).filter_by(training_session_id=created["id"])
+    assert remaining.count() == 0
+
+
+def test_deleting_an_unknown_session_returns_404(client):
+    assert client.delete(f"{BASE}/9999").status_code == 404
+
+
 # --- Gardes ---------------------------------------------------------------
 
 READS = [("GET", BASE), ("GET", f"{BASE}/1")]
 WRITES = [
     ("POST", BASE, {"date": "2026-09-20"}),
     ("PATCH", f"{BASE}/1", {"location": "Gymnase"}),
+    ("DELETE", f"{BASE}/1", None),
     ("POST", f"{BASE}/1/participants", {"profile_id": 1}),
     ("DELETE", f"{BASE}/1/participants/1", None),
     ("PATCH", f"{BASE}/1/participants/1/presence", {"present": True}),
@@ -327,3 +354,51 @@ def test_jeunes_read_and_write_together_pass_the_full_flow(client, db_session, p
     assert enrolled.status_code == 201
     unenrolled = client.delete(f"{BASE}/{created['id']}/participants/{profile_id}")
     assert unenrolled.status_code == 204
+
+
+# --- Groupes visés (#1291, US2) -------------------------------------------------
+
+
+def _upcoming() -> str:
+    return (date.today() + timedelta(days=7)).isoformat()
+
+
+def test_a_session_created_for_a_group_enrols_its_members(client, profile_id):
+    group = client.post("/api/v1/admin/training-groups", json={"name": "Benjamins"}).json()
+    client.post(f"/api/v1/admin/training-groups/{group['id']}/members", json={"profile_id": profile_id})
+
+    created = client.post(BASE, json={"date": _upcoming(), "group_ids": [group["id"]]})
+
+    assert created.status_code == 201
+    body = created.json()
+    assert body["group_ids"] == [group["id"]]
+    assert body["recurrence_id"] is None
+    assert body["detached"] is False
+    (participant,) = body["participants"]
+    assert participant["profile_id"] == profile_id
+    assert participant["added_manually"] is False
+    assert participant["category"] is None
+    assert client.get(BASE).json()[0]["group_ids"] == [group["id"]]
+
+
+def test_patch_without_group_ids_keeps_the_groups(client, profile_id):
+    group = client.post("/api/v1/admin/training-groups", json={"name": "Benjamins"}).json()
+    created = client.post(BASE, json={"date": _upcoming(), "group_ids": [group["id"]]}).json()
+
+    kept = client.patch(f"{BASE}/{created['id']}", json={"location": "Piscine"}).json()
+    cleared = client.patch(f"{BASE}/{created['id']}", json={"group_ids": []}).json()
+
+    assert kept["group_ids"] == [group["id"]]
+    assert cleared["group_ids"] == []
+
+
+def test_a_manual_enrolment_is_flagged(client, profile_id):
+    created = client.post(BASE, json={"date": _upcoming()}).json()
+
+    body = client.post(f"{BASE}/{created['id']}/participants", json={"profile_id": profile_id}).json()
+
+    assert body["participants"][0]["added_manually"] is True
+
+
+def test_an_unknown_group_is_a_404(client):
+    assert client.post(BASE, json={"date": _upcoming(), "group_ids": [9999]}).status_code == 404

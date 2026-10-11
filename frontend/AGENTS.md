@@ -128,6 +128,13 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   (`_global-error.html`), qui reste son texte anglais sans `lang`, et un rendu
   serveur en échec dont le corps HTML part vide, les frontières étant rendues
   côté client.
+- **Un squelette sur `isPending`, pas sur `isLoading`** (#1290). Après un échec
+  (backend endormi), React Query suspend la relance tant que l'onglet n'a pas
+  le focus ou que le réseau manque : `fetchStatus` passe à `paused`,
+  `isLoading` retombe à `false` sans `error` ni `data`, et un écran qui teste
+  `isLoading` puis `!data` affirme « aucun jeune » ou offre de créer une séance
+  du jour qui existe. Les écrans jeunes testent `isPending` ; le reste du dépôt
+  porte encore `isLoading`.
 - **Composition des rôles** (`admin/droits`, #240) — l'écran **n'invente aucun
   regroupement** : `GET /admin/permissions` rend l'inventaire déjà rangé par
   fonctionnalité, dans son ordre d'affichage, et `PermissionGrid` le reproduit
@@ -215,6 +222,10 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `CourseAdminActions` n'est que la garde de pouvoir : le panneau
   (`CourseAdminPanel`) et ses quatre fenêtres se chargent en `next/dynamic`
   derrière elle, rien n'est téléchargé pour un visiteur sans pouvoir.
+  Les gestes se rangent sous un seul menu « Gérer l'épreuve » (#1301), chaque entrée
+  sous son pouvoir, la fusion et la suppression en `variant="destructive"` :
+  quatre boutons côte à côte repoussaient le classement sous la ligne de
+  flottaison sur mobile.
 - **Gardes d'écriture du back-office** (#496) — un contrôle qui écrit teste
   **son** code de pouvoir avant de se rendre, jamais celui qui a ouvert l'écran :
   `session.data?.permissions.includes("x:y") ?? false`, puis `{peutX && …}`. Six
@@ -887,6 +898,10 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
     réponse donne une politique correcte et un HTML sans nonce.
   - La CSP est le **tronc** de la fonction, le cookie un effet de bord : une
     sortie précoce la court-circuiterait pour la majorité des visiteurs.
+  - `router.refresh()` rejoue le layout racine avec le nonce d'une **nouvelle**
+    requête, que la CSP du document ignore : un nonce lu côté client se fige
+    sur le premier rendu (`StableCSPProvider`, #570), sans quoi le premier
+    `<style>` de Base UI inséré après un geste admin part en violation.
   - Les violations remontent au backend (#1168) : `report-to` (avec l'en-tête
     `Reporting-Endpoints`) et `report-uri` visent `POST /api/v1/csp-reports`,
     qui les écrit dans ses logs (`CSP violation directive=…`). La route est

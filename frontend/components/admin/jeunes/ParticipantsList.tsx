@@ -90,7 +90,7 @@ export function ParticipantsList({
         </div>
       )}
 
-      {detail.isLoading ? (
+      {detail.isPending ? (
         <Skeleton className="h-16 w-full" />
       ) : detail.error ? (
         <p className="text-destructive text-sm">

@@ -542,6 +542,16 @@ export const NAV: NavSection[] = [
         href: "/encadrement/jeunes",
         permission: "jeunes:read",
       },
+      // Groupes d'entraînement (#1291) : une séance qui vise un groupe en
+      // inscrit les membres d'office.
+      {
+        id: "j-groupes",
+        label: "Groupes d'entraînement",
+        description:
+          "Les groupes d'entraînement et leurs membres. Une séance qui vise un groupe y inscrit ses membres d'office.",
+        href: "/encadrement/jeunes/groupes",
+        permission: "jeunes:read",
+      },
       {
         id: "j-calendrier",
         icon: CalendarDays,

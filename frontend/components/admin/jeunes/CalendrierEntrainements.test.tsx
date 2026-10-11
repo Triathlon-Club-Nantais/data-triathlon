@@ -1,29 +1,54 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { TrainingSession, TrainingSessionDetail, SessionUser } from "@/lib/types";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
+import { toast } from "sonner";
 
-const { listTrainingSessions, getTrainingSession, createTrainingSession, getSession } = vi.hoisted(
-  () => ({
-    listTrainingSessions: vi.fn(),
-    getTrainingSession: vi.fn(),
-    createTrainingSession: vi.fn(),
-    getSession: vi.fn(),
-  }),
-);
+const {
+  listTrainingSessions,
+  getTrainingSession,
+  createTrainingSession,
+  updateTrainingSession,
+  deleteTrainingSession,
+  listProfiles,
+  getSession,
+  listTrainingRecurrences,
+  listTrainingGroups,
+} = vi.hoisted(() => ({
+  updateTrainingSession: vi.fn(),
+  listTrainingRecurrences: vi.fn(),
+  listTrainingGroups: vi.fn(),
+  listTrainingSessions: vi.fn(),
+  getTrainingSession: vi.fn(),
+  createTrainingSession: vi.fn(),
+  deleteTrainingSession: vi.fn(),
+  listProfiles: vi.fn(),
+  getSession: vi.fn(),
+}));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { listTrainingSessions, getTrainingSession, createTrainingSession, getSession },
+    apiClient: {
+      listTrainingSessions,
+      getTrainingSession,
+      createTrainingSession,
+      updateTrainingSession,
+      deleteTrainingSession,
+      listProfiles,
+      getSession,
+      listTrainingRecurrences,
+      listTrainingGroups,
+    },
   };
 });
 
+import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
 import { CalendrierEntrainements } from "./CalendrierEntrainements";
 
 const SEANCE: TrainingSession = {
@@ -34,6 +59,9 @@ const SEANCE: TrainingSession = {
   session_type: "Natation",
   note: "",
   participant_count: 2,
+  group_ids: [],
+  recurrence_id: null,
+  detached: false,
 };
 
 const SEANCE_SANS_CHAMPS: TrainingSession = {
@@ -44,6 +72,9 @@ const SEANCE_SANS_CHAMPS: TrainingSession = {
   session_type: null,
   note: "",
   participant_count: 0,
+  group_ids: [],
+  recurrence_id: null,
+  detached: false,
 };
 
 const DETAIL: TrainingSessionDetail = { ...SEANCE, participants: [] };
@@ -66,7 +97,9 @@ function afficher() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <CalendrierEntrainements />
+      <DangerConfirmProvider>
+        <CalendrierEntrainements />
+      </DangerConfirmProvider>
     </QueryClientProvider>,
   );
 }
@@ -76,6 +109,31 @@ describe("CalendrierEntrainements", () => {
     vi.clearAllMocks();
     getSession.mockResolvedValue(AVEC_ECRITURE);
     getTrainingSession.mockResolvedValue(DETAIL);
+    listProfiles.mockResolvedValue([]);
+    listTrainingRecurrences.mockResolvedValue([]);
+    listTrainingGroups.mockResolvedValue([]);
+  });
+
+  afterEach(() => focusManager.setFocused(undefined));
+
+  it("ne prend pas une relance suspendue pour une absence de données (#1290)", async () => {
+    // Backend endormi : le premier essai échoue, et React Query suspend la
+    // relance tant que l'onglet n'a pas le focus.
+    focusManager.setFocused(false);
+    listTrainingSessions.mockRejectedValue(new ApiError(503, "Service indisponible"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: 1, retryDelay: 0 } } });
+    render(
+      <QueryClientProvider client={client}>
+        <DangerConfirmProvider>
+          <CalendrierEntrainements />
+        </DangerConfirmProvider>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() =>
+      expect(client.getQueryCache().find({ queryKey: ["admin-training-sessions"] })?.state.fetchStatus).toBe("paused"),
+    );
+    expect(screen.queryByText(/aucun entraînement/i)).not.toBeInTheDocument();
   });
 
   it("liste les entraînements triés, avec leur nombre d'inscrits", async () => {
@@ -113,6 +171,74 @@ describe("CalendrierEntrainements", () => {
     expect(await screen.findByText(libelle)).toBeInTheDocument();
   });
 
+  describe("ordre du calendrier, vu le 10/10/2026", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(2026, 9, 10, 12));
+    });
+    afterEach(() => vi.useRealTimers());
+
+    const seance = (id: number, date: string): TrainingSession => ({ ...SEANCE, id, date });
+
+    it("liste les séances à venir d'abord, puis les passées de la plus récente à la plus ancienne", async () => {
+      listTrainingSessions.mockResolvedValue([
+        seance(1, "2026-09-20"),
+        seance(2, "2026-10-01"),
+        seance(3, "2026-10-10"),
+        seance(4, "2026-10-20"),
+      ]);
+
+      afficher();
+
+      const aVenir = await screen.findByRole("region", { name: "Séances à venir" });
+      const passees = screen.getByRole("region", { name: "Séances passées" });
+      const dates = (zone: HTMLElement) =>
+        within(zone)
+          .getAllByText(/^\d{2}\/\d{2}\/\d{4}$/)
+          .map((n) => n.textContent);
+      expect(dates(aVenir)).toEqual(["10/10/2026", "20/10/2026"]);
+      expect(dates(passees)).toEqual(["01/10/2026", "20/09/2026"]);
+    });
+
+    it("signale la séance du jour", async () => {
+      listTrainingSessions.mockResolvedValue([seance(3, "2026-10-10"), seance(4, "2026-10-20")]);
+
+      afficher();
+
+      const aujourdhui = await screen.findByText("Aujourd'hui");
+      expect(aujourdhui.closest("[role=button]")).toHaveTextContent("10/10/2026");
+      expect(screen.getAllByText("Aujourd'hui")).toHaveLength(1);
+      // Un liseré, pas un anneau : l'anneau est celui du focus clavier.
+      const carte = aujourdhui.closest("[role=button]");
+      expect(carte).toHaveClass("border-l-4");
+      expect(carte?.className).not.toMatch(/\bring-2\b/);
+    });
+
+    it("dit qu'aucune séance n'est à venir quand toutes sont passées", async () => {
+      listTrainingSessions.mockResolvedValue([seance(1, "2026-09-20")]);
+
+      afficher();
+
+      expect(
+        await screen.findByText(
+          "Aucune séance à venir : créez la prochaine avec le formulaire ci-dessus.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: "Séances passées" })).toHaveTextContent(
+        "20/09/2026",
+      );
+    });
+
+    it("sans jeunes:write, ne renvoie pas vers un formulaire absent", async () => {
+      getSession.mockResolvedValue(LECTURE_SEULE);
+      listTrainingSessions.mockResolvedValue([seance(1, "2026-09-20")]);
+
+      afficher();
+
+      expect(await screen.findByText("Aucune séance à venir.")).toBeInTheDocument();
+    });
+  });
+
   it("dit « aucun entraînement » sur une liste vide", async () => {
     listTrainingSessions.mockResolvedValue([]);
 
@@ -146,7 +272,86 @@ describe("CalendrierEntrainements", () => {
       start_time: null,
       location: null,
       session_type: null,
+      group_ids: [],
     });
+  });
+
+  it("nomme une séance « séance » dans son détail, qui défile sur petit écran", async () => {
+    listTrainingSessions.mockResolvedValue([SEANCE]);
+
+    afficher();
+    await userEvent.click(await screen.findByText("20/09/2026"));
+
+    const detail = await screen.findByRole("dialog", { name: "Séance du 20/09/2026" });
+    expect(detail).toHaveClass("max-h-[85dvh]", "overflow-y-auto");
+  });
+
+  it("annonce « Séance modifiée. » après correction", async () => {
+    listTrainingSessions.mockResolvedValue([SEANCE]);
+    updateTrainingSession.mockResolvedValue(DETAIL);
+
+    afficher();
+    await userEvent.click(await screen.findByText("20/09/2026"));
+    const detail = await screen.findByRole("dialog", { name: "Séance du 20/09/2026" });
+    await userEvent.click(within(detail).getByRole("button", { name: "Enregistrer" }));
+
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith("Séance modifiée."));
+  });
+
+  it("oublie le détail d'une séance supprimée", async () => {
+    listTrainingSessions.mockResolvedValue([SEANCE]);
+    deleteTrainingSession.mockResolvedValue(null);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <DangerConfirmProvider>
+          <CalendrierEntrainements />
+        </DangerConfirmProvider>
+      </QueryClientProvider>,
+    );
+    await userEvent.click(await screen.findByText("20/09/2026"));
+    await waitFor(() => expect(client.getQueryData(["admin-training-session", 1])).toBeDefined());
+    await userEvent.click(await screen.findByRole("button", { name: "Supprimer la séance" }));
+    const confirmation = await screen.findByRole("dialog", {
+      name: "Supprimer la séance du 20/09/2026 ?",
+    });
+    await userEvent.click(within(confirmation).getByRole("button", { name: "Supprimer la séance" }));
+
+    await waitFor(() => expect(deleteTrainingSession).toHaveBeenCalledWith(1));
+    await waitFor(() =>
+      expect(
+        client.getQueryCache().find({ queryKey: ["admin-training-session", 1] }),
+      ).toBeUndefined(),
+    );
+  });
+
+  it("supprime une séance après confirmation", async () => {
+    listTrainingSessions.mockResolvedValue([SEANCE]);
+    deleteTrainingSession.mockResolvedValue(null);
+
+    afficher();
+    await userEvent.click(await screen.findByText("20/09/2026"));
+    await userEvent.click(await screen.findByRole("button", { name: "Supprimer la séance" }));
+
+    expect(deleteTrainingSession).not.toHaveBeenCalled();
+    const confirmation = await screen.findByRole("dialog", {
+      name: "Supprimer la séance du 20/09/2026 ?",
+    });
+    await userEvent.click(within(confirmation).getByRole("button", { name: "Supprimer la séance" }));
+
+    await waitFor(() => expect(deleteTrainingSession).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("ne propose pas de supprimer une séance sans jeunes:write", async () => {
+    getSession.mockResolvedValue(LECTURE_SEULE);
+    listTrainingSessions.mockResolvedValue([SEANCE]);
+
+    afficher();
+    await userEvent.click(await screen.findByText("20/09/2026"));
+
+    await screen.findByRole("dialog");
+    expect(screen.queryByRole("button", { name: /supprimer/i })).not.toBeInTheDocument();
   });
 
   it("dit « accès refusé » sur un 403", async () => {

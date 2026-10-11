@@ -10,7 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ecran } from "@/components/layout/nav.config";
 import { PageShell } from "@/components/layout/PageShell";
-import { useCreateTrainingSession, useTrainingSessions } from "@/lib/queries/admin";
+import { GroupesPicker } from "@/components/admin/jeunes/GroupesPicker";
+import { useCreateTrainingSession, useTrainingGroups, useTrainingSessions } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
 import { localToday } from "@/lib/utils/date";
@@ -39,10 +40,13 @@ function libelleSeance(entrainement: TrainingSession): string {
  */
 export default function AdminJeuneAppelDuJourPage() {
   const router = useRouter();
-  const { data, isLoading, error } = useTrainingSessions();
+  const { data, isPending, error } = useTrainingSessions();
   const session = useSession();
   const creer = useCreateTrainingSession();
   const [creationLancee, setCreationLancee] = useState(false);
+  // Les membres des groupes choisis sont inscrits d'office (#1291, FR-019).
+  const groupes = useTrainingGroups();
+  const [groupIds, setGroupIds] = useState<number[]>([]);
 
   const peutEcrire = session.data?.permissions.includes("jeunes:write") ?? false;
   const aujourdhui = localToday();
@@ -58,7 +62,10 @@ export default function AdminJeuneAppelDuJourPage() {
   async function creerLaSeanceDuJour() {
     setCreationLancee(true);
     try {
-      const entrainement = await creer.mutateAsync({ date: localToday() });
+      const entrainement = await creer.mutateAsync({
+        date: localToday(),
+        ...(groupIds.length > 0 ? { group_ids: groupIds } : {}),
+      });
       router.replace(`/encadrement/jeunes/appel/${entrainement.id}`);
     } catch (e) {
       setCreationLancee(false);
@@ -70,7 +77,7 @@ export default function AdminJeuneAppelDuJourPage() {
     <PageShell>
       <div className="space-y-10">
         <PageHeader {...ecran("/encadrement/jeunes/appel")} />
-        {isLoading || seanceUnique || creationLancee ? (
+        {isPending || seanceUnique || creationLancee ? (
           <Skeleton className="h-40 w-full" />
         ) : error ? (
           <EmptyState {...messageDeRefus(error, REFUS)} />
@@ -93,9 +100,12 @@ export default function AdminJeuneAppelDuJourPage() {
             description="Le calendrier n'a pas encore de séance datée d'aujourd'hui."
             action={
               peutEcrire ? (
-                <Button onClick={creerLaSeanceDuJour} disabled={creer.isPending}>
-                  Créer la séance du jour
-                </Button>
+                <div className="flex flex-col items-center gap-4">
+                  <GroupesPicker groupes={groupes.data ?? []} value={groupIds} onChange={setGroupIds} />
+                  <Button onClick={creerLaSeanceDuJour} disabled={creer.isPending}>
+                    Créer la séance du jour
+                  </Button>
+                </div>
               ) : undefined
             }
           />

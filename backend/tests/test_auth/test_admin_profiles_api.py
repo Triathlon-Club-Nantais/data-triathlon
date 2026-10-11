@@ -3,9 +3,12 @@
 Trois volets : lecture (US1/US2), écriture (US3), journal de bord (US4), plus
 les gardes de chacun. Patron `test_admin_groups_api.py`.
 """
+from datetime import date
+
 import pytest
 
 from app.core.permissions import P
+from app.services.fftri_category import fftri_category
 
 BASE = "/api/v1/admin/profiles"
 
@@ -228,3 +231,29 @@ def test_timestamps_are_serialized_as_utc(client, ouvrir_session, profile):
     assert detail["created_at"].endswith("Z")
     assert detail["log_entries"][0]["created_at"].endswith("Z")
     assert liste[0]["created_at"].endswith("Z")
+
+
+# --- #1291 : catégorie FFTri et groupes ----------------------------------------
+
+
+def test_the_list_carries_the_fftri_category_and_membership_end(client, ouvrir_session):
+    ouvrir_session(P.JEUNES_READ, P.JEUNES_WRITE)
+    client.post(BASE, json={"first_name": "Alix", "last_name": "Martin", "birth_date": "2013-05-02"})
+    client.post(BASE, json={"first_name": "Zoé", "last_name": "Roux"})
+
+    alix, zoe = client.get(BASE).json()
+
+    assert alix["category"] == fftri_category(date(2013, 5, 2), date.today())
+    assert zoe["category"] is None
+    assert zoe["membership_ended_on"] is None
+
+
+def test_the_detail_lists_the_groups_of_the_profile(client, ouvrir_session, profile):
+    beta = client.post("/api/v1/admin/training-groups", json={"name": "Beta"}).json()
+    alpha = client.post("/api/v1/admin/training-groups", json={"name": "Alpha"}).json()
+    for group in (beta, alpha):
+        client.post(f"/api/v1/admin/training-groups/{group['id']}/members", json={"profile_id": profile["id"]})
+
+    body = client.get(f"{BASE}/{profile['id']}").json()
+
+    assert body["groups"] == [{"id": alpha["id"], "name": "Alpha"}, {"id": beta["id"], "name": "Beta"}]

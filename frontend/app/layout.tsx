@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
-import { CSPProvider } from "@base-ui/react/csp-provider";
 import { connection } from "next/server";
 import { Anton, Barlow, Barlow_Semi_Condensed } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { AppNav } from "@/components/layout/AppNav";
+import { StableCSPProvider } from "@/components/layout/StableCSPProvider";
 import { VersionFooter } from "@/components/layout/VersionFooter";
 import { Toaster } from "@/components/ui/sonner";
 import { FeedbackButton } from "@/components/tcn/FeedbackButton";
@@ -54,11 +54,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // requête et ne touche pas au Data Cache.
   await connection();
 
-  // Nonce relu pour Base UI (#570) : ses popups et zones de défilement
-  // injectent un `<style>` (`.base-ui-disable-scrollbar`) au montage, et
-  // `CSPProvider` est l'API prévue pour le signer. Sans lui, ce style est
-  // rapporté en violation `style-src-elem`, puis **bloqué** à la bascule : les
-  // barres de défilement réapparaîtraient sous chaque popup de sélection.
+  // Nonce relu pour Base UI (#570), voir `StableCSPProvider`.
   //
   // Les deux noms d'en-tête sont lus : `proxy.ts` émet l'un ou l'autre selon
   // que la politique observe ou bloque, et ce layout ne doit pas changer avec
@@ -93,7 +89,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         >
           Aller au contenu
         </a>
-        <CSPProvider nonce={nonce}>
+        <StableCSPProvider nonce={nonce}>
           <Providers>
             {/* Colonne sous md (barre + contenu), rangée au-dessus (rail +
                 contenu) : la nav prend la hauteur, le contenu prend le reste.
@@ -111,7 +107,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <Toaster richColors position="top-right" />
             <FeedbackButton />
           </Providers>
-        </CSPProvider>
+        </StableCSPProvider>
       </body>
     </html>
   );
