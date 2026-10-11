@@ -146,8 +146,9 @@ def test_me_tient_en_un_nombre_de_requetes_fixe_quel_que_soit_le_nombre_de_roles
     assert len(corps["permissions"]) == 4
     # Fixe, quel que soit le nombre de rôles/groupes portés (4 et 3 ici) — la
     # preuve tient dans la comparaison avec le total attendu avant #625 (1 par
-    # rôle en plus, 1 par groupe en plus), pas dans ce chiffre précis.
-    assert len(requetes) <= 8, requetes
+    # rôle en plus, 1 par groupe en plus), pas dans ce chiffre précis. Deux de
+    # plus depuis #1322 : la saison qui compte et la recherche de l'adresse.
+    assert len(requetes) <= 10, requetes
 
 
 def test_me_says_whether_the_session_can_administer(client, ouvrir_session):

@@ -20,6 +20,7 @@ from app.core.analytics import capture_event, set_person_properties
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import AuthUnavailableError, NotFoundError
+from app.core.time import utcnow
 from app.models.user import User
 from app.repositories import user_repository
 from app.schemas.auth import (
@@ -28,7 +29,7 @@ from app.schemas.auth import (
     SessionRoleRead,
     SessionUserRead,
 )
-from app.services import benevole_access
+from app.services import benevole_access, membership
 from app.services.auth import authorization, flow
 from app.services.auth import session as session_service
 from app.services.auth.errors import ERROR_CODES, LoginError
@@ -225,10 +226,12 @@ def callback(
         capture_event(
             "user_logged_in", distinct_id=str(user.id), properties={"provider": provider}
         )
-        # Le back-office, seul écran que la connexion ouvre aujourd'hui. La
+        # Le back-office pour qui l'administre, l'espace public sinon (#1322) :
+        # un compte sans rôle n'a rien à faire sur `NoAdminAccess`. La
         # destination reste **fixée par la configuration** (FR-026) : aucun
         # paramètre d'entrée n'y entre, la redirection ouverte reste fermée.
-        response = _redirect_to(f"{settings.auth_redirect_base_url}/admin")
+        administers = permissions.administers(authorization.effective_permissions(db, user))
+        response = _redirect_to(f"{settings.auth_redirect_base_url}{'/admin' if administers else '/'}")
         session_max_age = settings.auth_session_ttl_days * 24 * 60 * 60
         _set_auth_cookie(
             response,
@@ -324,6 +327,7 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
         created_at=charge.created_at,
         permissions=sorted(effectifs),
         can_administer=permissions.administers(effectifs),
+        is_member=membership.is_member(db, charge, utcnow().date()),
         roles=[
             SessionRoleRead(
                 id=attribution.role.id,
