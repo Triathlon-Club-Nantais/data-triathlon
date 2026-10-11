@@ -95,7 +95,7 @@ describe("CoursesAdminTable", () => {
   it("ne prend pas une relance suspendue pour un catalogue vide (#1294)", async () => {
     listCourses.mockRejectedValue(new Error("Service indisponible"));
 
-    await rendreAvecRelanceSuspendue(<CoursesAdminTable page={1} filtres={{}} />);
+    await rendreAvecRelanceSuspendue(<CoursesAdminTable page={1} filtres={{}} />, ["admin-courses"]);
 
     expect(screen.queryByText(/^aucune épreuve$/i)).not.toBeInTheDocument();
   });

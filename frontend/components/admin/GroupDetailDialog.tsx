@@ -44,7 +44,7 @@ export function GroupDetailDialog({
   open: boolean;
   onOpenChange: (ouvert: boolean) => void;
 }) {
-  const detail = useGroup(open ? group.id : null);
+  const detail = useGroup(group.id, open);
   const utilisateurs = useAdminUsers();
   const session = useSession();
   const modifier = useUpdateGroup();

@@ -83,7 +83,7 @@ describe("FeedbackTable", () => {
   it("ne prend pas une relance suspendue pour une liste vide (#1294)", async () => {
     listFeedback.mockRejectedValue(new Error("Service indisponible"));
 
-    await rendreAvecRelanceSuspendue(<FeedbackTable />);
+    await rendreAvecRelanceSuspendue(<FeedbackTable />, ["admin-feedback"]);
 
     expect(screen.queryByText(/aucun retour utilisateur|aucun signalement sous ce filtre/i)).not.toBeInTheDocument();
   });

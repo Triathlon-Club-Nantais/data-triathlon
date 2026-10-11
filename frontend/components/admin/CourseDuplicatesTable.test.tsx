@@ -105,6 +105,7 @@ describe("CourseDuplicatesTable", () => {
       <DangerConfirmProvider>
         <CourseDuplicatesTable />
       </DangerConfirmProvider>,
+      ["course-duplicates"],
     );
 
     expect(screen.queryByText(/aucun doublon suspect/i)).not.toBeInTheDocument();

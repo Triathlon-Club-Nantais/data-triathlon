@@ -100,6 +100,7 @@ describe("AllowedEmailsTable", () => {
       <DangerConfirmProvider>
         <AllowedEmailsTable />
       </DangerConfirmProvider>,
+      ["allowed-emails"],
     );
 
     expect(screen.queryByText(/aucune adresse autorisée/i)).not.toBeInTheDocument();

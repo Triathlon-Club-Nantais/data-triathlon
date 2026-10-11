@@ -48,6 +48,7 @@ describe("AdminActionLogTable", () => {
 
     await rendreAvecRelanceSuspendue(
       <AdminActionLogTable />,
+      ["admin-action-log"],
     );
 
     expect(screen.queryByText(/aucune entrée dans le journal/i)).not.toBeInTheDocument();

@@ -91,6 +91,7 @@ describe("AdminVolunteerActionsTable", () => {
       <DangerConfirmProvider>
         <AdminVolunteerActionsTable />
       </DangerConfirmProvider>,
+      ["pending-volunteer-actions"],
     );
 
     expect(screen.queryByText(/aucune déclaration en attente/i)).not.toBeInTheDocument();
