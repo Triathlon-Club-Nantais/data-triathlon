@@ -137,7 +137,13 @@ sans quoi elle n'est pas vérifiée, nonce, expiration) ; tout échec rend
 `provider_error`, un réseau injoignable `provider_unavailable`. **Règle
 `xms_edov`** : Entra n'émet pas `email_verified`, l'adresse n'est certifiée que
 si `email` est présent **et** `xms_edov` vaut exactement `true` ; sinon
-`email_unverified`, jamais accepté par défaut. Ce que le tenant réel émet reste
+`email_unverified`, jamais accepté par défaut. **Clé de résolution : `oid`**,
+jamais `sub` : `sub` est propre à l'inscription d'application, et la recréer
+rendrait orphelins tous les comptes sans recours (l'appariement par adresse est
+interdit). Un `oid` absent est un `provider_error`. La découverte elle-même est
+bornée au tenant : émetteur et `jwks_uri` en `https://*.ciamlogin.com` portant
+l'identifiant du tenant, par suffixe d'hôte et non par égalité, l'hôte exact de
+l'émetteur variant selon les tenants. Ce que le tenant réel émet reste
 à constater avant production (FR-021) : infrastructure et procédure dans
 `infra/entra-external-id/AGENTS.md`.
 

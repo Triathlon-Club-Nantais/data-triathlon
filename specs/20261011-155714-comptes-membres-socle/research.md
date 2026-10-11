@@ -18,7 +18,7 @@ Complète le sondage `docs/superpowers/specs/2026-10-11-comptes-membres-sondage.
 
 ## R3. Adresse vérifiée côté Entra
 
-- **Decision**: scopes `openid profile email` ; claims optionnels `email` et `xms_edov` sur l'`id_token` (déclarés par le script). `email_verified = bool(claims.get("email")) and claims.get("xms_edov") is True`. `verified_emails = (email,)` si vérifiée, sinon `()`. Identifiant : `sub`.
+- **Decision**: scopes `openid profile email` ; claims optionnels `email` et `xms_edov` sur l'`id_token` (déclarés par le script). `email_verified = bool(claims.get("email")) and claims.get("xms_edov") is True`. `verified_emails = (email,)` si vérifiée, sinon `()`. Identifiant : `oid`, exigé (absent → `provider_error`). `sub` est propre à chaque inscription d'application (pairwise) : recréer ou remplacer l'application rendrait orphelins tous les comptes, et l'appariement par adresse est interdit ; `oid` est stable dans tout le tenant (décision de revue de #1346).
 - **Rationale**: Entra n'émet pas d'`email_verified` ; `xms_edov` vaut vrai pour une adresse venue de Google ou du code e-mail, faux pour les sources non vérifiées. Le constat sur jeton réel reste exigé avant production (FR-021) ; si `xms_edov` manque, la connexion est refusée en `email_unverified`, jamais acceptée par défaut.
 - **Alternatives considered**: faire confiance à `email` seul (Microsoft le déclare non fiable pour l'autorisation) ; claim `idp` (non documenté pour le CIAM).
 

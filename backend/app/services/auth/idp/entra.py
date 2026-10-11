@@ -13,6 +13,7 @@ import logging
 import secrets
 import time
 from collections.abc import Callable, Mapping
+from urllib.parse import urlparse
 
 import httpx
 from authlib.integrations.httpx_client import OAuth2Client
@@ -106,7 +107,7 @@ class EntraIdentityProvider:
         verified = bool(email) and claims.get("xms_edov") is True
         return ExternalIdentity(
             provider=self.slug,
-            subject=str(claims["sub"]),
+            subject=claims["oid"],
             email=email,
             email_verified=verified,
             display_name=str(claims.get("name") or ""),
@@ -136,8 +137,10 @@ class EntraIdentityProvider:
         settings = get_settings()
         discovery = self._cached(client, f"{self._authority()}/v2.0/.well-known/openid-configuration")
         issuer, jwks_uri = discovery.get("issuer"), discovery.get("jwks_uri")
-        if not issuer or not jwks_uri:
-            logger.warning("Entra discovery document lacks issuer or jwks_uri")
+        if not (_in_tenant(issuer, settings.auth_entra_tenant_id) and _in_tenant(
+            jwks_uri, settings.auth_entra_tenant_id
+        )):
+            logger.warning("Entra discovery document points outside the tenant")
             raise LoginError("provider_error")
 
         try:
@@ -169,6 +172,11 @@ class EntraIdentityProvider:
         except (JoseError, ValueError) as invalid:
             logger.warning("Entra id_token rejected: %s", type(invalid).__name__)
             raise LoginError("provider_error") from invalid
+        # `sub` est propre à chaque inscription d'application : la recréer
+        # rendrait orphelins tous les comptes. `oid` est stable dans le tenant.
+        if not isinstance(decoded.claims.get("oid"), str) or not decoded.claims["oid"]:
+            logger.warning("Entra id_token carries no oid")
+            raise LoginError("provider_error")
         return decoded.claims
 
     def _keys(self, client: OAuth2Client, jwks_uri: str, *, refresh: bool = False) -> KeySet:
@@ -198,3 +206,18 @@ class EntraIdentityProvider:
             raise LoginError("provider_error")
         self._cache[url] = (time.monotonic() + CACHE_TTL_SECONDS, document)
         return document
+
+
+def _in_tenant(url: object, tenant_id: str) -> bool:
+    """Défense en profondeur sur la découverte : hôte `*.ciamlogin.com` et
+    identifiant du tenant dans l'URL. L'hôte exact de l'émetteur varie selon les
+    tenants (sous-domaine ou identifiant), d'où un suffixe plutôt qu'une égalité."""
+    if not isinstance(url, str) or not url:
+        return False
+    parsed = urlparse(url)
+    host = (parsed.hostname or "").lower()
+    return (
+        parsed.scheme == "https"
+        and host.endswith(".ciamlogin.com")
+        and tenant_id.lower() in url.lower()
+    )

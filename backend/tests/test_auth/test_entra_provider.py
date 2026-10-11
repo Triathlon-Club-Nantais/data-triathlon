@@ -9,7 +9,7 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 import pytest
 from joserfc import jwt
-from joserfc.jwk import RSAKey
+from joserfc.jwk import OctKey, RSAKey
 
 from app.core.config import get_settings
 from app.services.auth.errors import LoginError
@@ -46,7 +46,8 @@ def _claims(**overrides) -> dict:
     claims = {
         "iss": ISSUER,
         "aud": CLIENT_ID,
-        "sub": "entra-subject-1",
+        "sub": "pairwise-subject-1",
+        "oid": "entra-subject-1",
         "iat": now,
         "nbf": now,
         "exp": now + 3600,
@@ -64,12 +65,28 @@ def _id_token(key: RSAKey = SIGNING_KEY, **overrides) -> str:
     return jwt.encode(header, _claims(**overrides), key)
 
 
+def _unsigned_token(header: dict, claims: dict) -> str:
+    import base64
+    import json
+
+    def segment(part: dict) -> str:
+        return base64.urlsafe_b64encode(json.dumps(part).encode()).rstrip(b"=").decode()
+
+    return f"{segment(header)}.{segment(claims)}."
+
+
 class FakeEntra:
     """Serves discovery, JWKS and token endpoint, and counts the calls."""
 
-    def __init__(self, id_token: str | None = None, keys: list[RSAKey] | None = None):
+    def __init__(
+        self,
+        id_token: str | None = None,
+        keys: list[RSAKey] | None = None,
+        discovery: dict | None = None,
+    ):
         self.id_token = id_token or _id_token()
         self.keys = keys or [SIGNING_KEY]
+        self.discovery = discovery or {"issuer": ISSUER, "jwks_uri": JWKS_URI}
         self.calls: list[str] = []
         self.token_requests: list[httpx.Request] = []
 
@@ -77,7 +94,7 @@ class FakeEntra:
         url = str(request.url).split("?")[0]
         self.calls.append(url)
         if url == f"{AUTHORITY}/v2.0/.well-known/openid-configuration":
-            return httpx.Response(200, json={"issuer": ISSUER, "jwks_uri": JWKS_URI})
+            return httpx.Response(200, json=self.discovery)
         if url == JWKS_URI:
             return httpx.Response(
                 200, json={"keys": [key.as_dict(private=False) for key in self.keys]}
@@ -212,8 +229,10 @@ def test_a_kid_still_unknown_after_refresh_is_refused_without_looping():
         {"nonce": None},
         {"exp": int(time.time()) - 3600, "iat": int(time.time()) - 7200},
         {"sub": None},
+        {"oid": None},
+        {"nbf": int(time.time()) + 3600},
     ],
-    ids=["iss", "aud", "nonce", "nonce-missing", "exp", "sub-missing"],
+    ids=["iss", "aud", "nonce", "nonce-missing", "exp", "sub-missing", "oid-missing", "nbf-future"],
 )
 def test_an_invalid_claim_is_a_provider_error(overrides):
     assert _refused(_provider(FakeEntra(id_token=_id_token(**overrides)))) == "provider_error"
@@ -224,6 +243,44 @@ def test_a_forged_signature_is_a_provider_error():
     fake = FakeEntra(id_token=_id_token(impostor))
 
     assert _refused(_provider(fake)) == "provider_error"
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        jwt.encode(
+            {"alg": "HS256", "kid": "key-1"},
+            _claims(),
+            OctKey.import_key("s" * 32),
+            algorithms=["HS256"],
+        ),
+        _unsigned_token({"alg": "none", "kid": "key-1"}, _claims()),
+    ],
+    ids=["hs256", "alg-none"],
+)
+def test_a_token_not_signed_with_rs256_is_a_provider_error(token):
+    assert _refused(_provider(FakeEntra(id_token=token))) == "provider_error"
+
+
+def test_the_subject_is_the_tenant_wide_oid_not_the_pairwise_sub():
+    """`sub` changes with the app registration; `oid` is stable across the tenant."""
+    identity = _provider(FakeEntra()).fetch_identity(code="code-1", round_trip=ROUND_TRIP)
+
+    assert identity.subject == "entra-subject-1"
+
+
+@pytest.mark.parametrize(
+    "discovery",
+    [
+        {"issuer": "https://evil.example/" + TENANT_ID + "/v2.0", "jwks_uri": JWKS_URI},
+        {"issuer": "https://other.ciamlogin.com/other-tenant/v2.0", "jwks_uri": JWKS_URI},
+        {"issuer": ISSUER, "jwks_uri": f"https://evil.example/{TENANT_ID}/keys"},
+        {"issuer": ISSUER, "jwks_uri": "https://evil.ciamlogin.com/other-tenant/keys"},
+    ],
+    ids=["issuer-host", "issuer-tenant", "jwks-host", "jwks-tenant"],
+)
+def test_a_discovery_document_outside_the_tenant_is_refused(discovery):
+    assert _refused(_provider(FakeEntra(discovery=discovery))) == "provider_error"
 
 
 def test_a_round_trip_without_nonce_is_refused():
@@ -261,6 +318,17 @@ def test_an_address_not_established_as_verified_is_not_certified(overrides):
 def test_an_unreachable_provider_is_provider_unavailable():
     def handler(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("unreachable")
+
+    assert _refused(_provider(handler)) == "provider_unavailable"
+
+
+def test_a_token_endpoint_5xx_without_json_is_provider_unavailable():
+    fake = FakeEntra()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth2/v2.0/token"):
+            return httpx.Response(503, text="<html>Service Unavailable</html>")
+        return fake(request)
 
     assert _refused(_provider(handler)) == "provider_unavailable"
 
