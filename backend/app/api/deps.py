@@ -11,9 +11,10 @@ from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import DomainError, TooManyRequestsError
 from app.core.permissions import P, Permission
+from app.core.time import utcnow
 from app.models.user import User
 from app.repositories import benevole_config_repository, site_access_config_repository
-from app.services import benevole_access, shared_password, site_access
+from app.services import benevole_access, membership, shared_password, site_access
 from app.services.auth import authorization
 from app.services.auth import session as session_service
 
@@ -131,13 +132,23 @@ def require_benevole_access(
 
 
 def require_site_access(
-    request: Request, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)
+    request: Request,
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    user: User | None = Depends(optional_user),
 ) -> None:
     """Garde transverse du site entier (#509) — mot de passe partagé, pas de
     RBAC. Distincte de `require_benevole_access` : secret et cookie propres.
     Fail-closed : configuration absente, cookie absent/invalide/expiré
     rendent tous le même 401, distinct de celui de la garde SSO (#877).
+
+    Une session d'un compte **adhérent** en dispense (#1322), vérifiée avant le
+    cookie comme le pouvoir de `require_benevole_access`. Le statut est dérivé à
+    chaque requête : retirer l'adresse de la liste referme dès la suivante, ce
+    qu'un cookie de site posé à la connexion (90 jours) ne permettrait pas.
     """
+    if membership.is_member(db, user, utcnow().date()):
+        return
     config = site_access_config_repository.get_config(db, with_updated_by=False)
     cookie = request.cookies.get(site_access.SITE_SESSION_COOKIE)
     ttl_seconds = settings.site_access_session_ttl_days * 24 * 60 * 60
