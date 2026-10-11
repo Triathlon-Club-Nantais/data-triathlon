@@ -8,31 +8,33 @@ rapatrié ici par #1014 : ce dossier fait désormais foi.
 
 ## `coldstart/` : le keep-warm
 
-**Rôle.** Garder le front Vercel et le backend Render éveillés aux heures
-d'usage. La Function appelle `/api/cron/keep-warm` sur les deux fronts
-(production et preview) ; la route (`frontend/app/api/cron/keep-warm/route.ts`)
-ping à son tour `/api/v1/health` du backend. Elle est le seul appelant de cette
-route.
+**Rôle.** Garder le front Vercel et le backend Render de production éveillés aux
+heures d'usage. La Function appelle `/api/cron/keep-warm` sur le front de
+production ; la route (`frontend/app/api/cron/keep-warm/route.ts`) ping à son
+tour `/api/v1/health` du backend. Elle est le seul appelant de cette route.
 
-**Planning.** `Coldstart-curl/function.json`, timer `0 */10 7-23 * * *` : toutes
-les 10 minutes, de 7 h à 23 h **UTC** : une expression CRON de Function s'évalue
+**Planning.** `Coldstart-curl/function.json`, timer `0 */10 7-22 * * *` : toutes
+les 10 minutes, de 7 h à 22 h 50 **UTC**, avant le coucher de 23 h 15 (une
+heure 23 ne produisait que des 502). Une expression CRON de Function s'évalue
 en UTC tant que l'App Setting `WEBSITE_TIME_ZONE` n'est pas posée.
 
-**URLs appelées** (`Coldstart-curl/run.ps1`) :
+**URL appelée** (`Coldstart-curl/run.ps1`) :
+`https://data.triathlon-club-nantais.com/api/cron/keep-warm`. La preview ne
+l'est plus (#1333) : suspendue chaque heure, un ping ne la réveille pas, et
+98 % de ses appels échouaient (audit #1315).
 
-- `https://data.triathlon-club-nantais.com/api/cron/keep-warm` (production) ;
-- `https://data-triathlon-tcn-preview.vercel.app/api/cron/keep-warm` (preview).
-
-Requêtes `HEAD`, que Next.js sert par le `GET` de la route. Chaque appel porte
+Requête `HEAD`, que Next.js sert par le `GET` de la route, avec
 `Authorization: Bearer $env:CRON_SECRET` : sans lui, la route répond 401, et
-503 si le secret manque côté Vercel (#1021).
+503 si le secret manque côté Vercel (#1021). `-TimeoutSec 15` borne toute la
+requête au-dessus des 10 s que la route accorde au backend ; un échec fait
+échouer l'invocation (#1333).
 
 **Articulation avec la veille Render.** Le keep-warm ne réveille qu'un service
 **non suspendu** : il évite le sommeil d'inactivité du plan gratuit, pas la
 suspension volontaire. Celle-ci est l'affaire des deux fonctions ci-dessous.
 
 **FinOps.** Plan **Flex Consumption** (Linux, France Central, Function App
-`coldstart-curl`) : environ 100 exécutions par jour, très en dessous de l'octroi
+`coldstart-curl`) : 96 exécutions par jour, très en dessous de l'octroi
 gratuit mensuel. La facture doit rester proche de
 zéro (`docs/infra-azure.md`) ; un plan Premium ou un Always On n'est pas une
 option.
@@ -88,7 +90,7 @@ autant de runs courts, gratuits sur un dépôt public.
 
 | Nom | Rôle |
 |---|---|
-| `CRON_SECRET` | Même valeur que la variable `CRON_SECRET` des deux projets Vercel (`docs/ci-cd.md`). |
+| `CRON_SECRET` | Même valeur que la variable `CRON_SECRET` du projet Vercel de production (`docs/ci-cd.md`). |
 | `GITHUB_DISPATCH_TOKEN` | Jeton *fine-grained* limité au dépôt `data-triathlon`, permission **Actions : read and write** et rien d'autre. Distinct de `GITHUB_BATCH_TOKEN` (Render), pour révoquer l'un sans couper l'autre. Échéance à suivre : un jeton expiré fait échouer `Render-wake`, et seul le cron de secours rallume alors la production. |
 | `SLACK_OPS_WEBHOOK_URL` | Même valeur que le secret de dépôt `SLACK_OPS_WEBHOOK_URL` (`notify-failure.yml`). Poste dans le canal d'ops quand `Render-sleep` ou `Render-wake` ne parvient pas à déclencher le workflow (#1320). Absente : pas d'alerte, seulement un warning. |
 | `UPTIMEROBOT_API_KEY` | Clé d'API principale du compte UptimeRobot (`it.triathlonclubnantais@gmail.com`), pour la pause du moniteur backend. |
@@ -139,4 +141,4 @@ func start
 
 Le timer ne se déclenche qu'à l'heure prévue : pour un passage immédiat,
 `curl -X POST http://localhost:7071/admin/functions/Coldstart-curl -H "Content-Type: application/json" -d '{}'`.
-Attention, le script appelle les URLs **réelles** de production et de preview.
+Attention, le script appelle l'URL **réelle** de production.
