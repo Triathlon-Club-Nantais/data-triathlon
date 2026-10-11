@@ -175,7 +175,7 @@ export function FeedbackTable() {
   // appel : s'y fier réactiverait la ligne A dès qu'on touche la ligne B.
   const [enVol, setEnVol] = useState<number[]>([]);
   const filtreActif = useRef<HTMLButtonElement | null>(null);
-  const { data, isLoading, error } = useFeedbackList(sort, order, statut);
+  const { data, isPending, error } = useFeedbackList(sort, order, statut);
   const { data: comptes } = useFeedbackCounts();
   const session = useSession();
   const changerStatut = useUpdateFeedbackStatus();
@@ -233,7 +233,7 @@ export function FeedbackTable() {
     />
   );
 
-  if (isLoading) {
+  if (isPending) {
     return (
       <div className="space-y-4">
         {barre}

@@ -28,9 +28,9 @@ const REFUS = { sujet: "gestes d'administration", action: "consulter le journal"
  */
 export function AdminActionLogTable() {
   const [page, setPage] = useState(1);
-  const { data, isLoading, error } = useAdminActionLog(page);
+  const { data, isPending, error } = useAdminActionLog(page);
 
-  if (isLoading) {
+  if (isPending) {
     return <Skeleton className="h-40 w-full" />;
   }
   if (error) {

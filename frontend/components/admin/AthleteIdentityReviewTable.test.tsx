@@ -37,6 +37,7 @@ vi.mock("sonner", () => ({ toast: { error: toastError, success: toastSuccess } }
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn(), push }) }));
 
 import { AthleteIdentityReviewTable } from "./AthleteIdentityReviewTable";
+import { rendreAvecRelanceSuspendue } from "@/test/requete-suspendue";
 
 function session(permissions: string[]): SessionUser {
   return { id: 1, email: "admin@exemple.fr", permissions, roles: [], created_at: "2026-01-01T00:00:00Z" } as unknown as SessionUser;
@@ -102,6 +103,19 @@ beforeEach(() => {
 });
 
 describe("AthleteIdentityReviewTable", () => {
+  it("ne prend pas une relance suspendue pour une liste vide (#1294)", async () => {
+    getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
+    listIdentityReview.mockRejectedValue(new Error("Service indisponible"));
+
+    await rendreAvecRelanceSuspendue(
+      <DangerConfirmProvider>
+        <AthleteIdentityReviewTable />
+      </DangerConfirmProvider>,
+    );
+
+    expect(screen.queryByText(/aucun cas d'identité à trancher/i)).not.toBeInTheDocument();
+  });
+
   it("rend chaque cas avec son motif, ses fiches et ses épreuves en conflit", async () => {
     getSession.mockResolvedValue(session(["athletes:write", "athletes:read"]));
     listIdentityReview.mockResolvedValue(CAS);

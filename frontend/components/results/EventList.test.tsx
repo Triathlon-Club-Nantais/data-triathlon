@@ -224,6 +224,22 @@ describe("EventList", () => {
     expect(parseFloat(getComputedStyle(scrollBody).minWidth)).toBeGreaterThanOrEqual(required);
   });
 
+  it("ne prend pas une relance suspendue pour une liste vide (#1294)", () => {
+    // Relance en pause : ni données ni erreur, et `isLoading` à faux.
+    setEvents({
+      data: undefined,
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+      isPending: true,
+    });
+
+    renderList();
+    expect(screen.queryByText("Aucun résultat")).not.toBeInTheDocument();
+    expect(screen.getByText("Chargement…")).toBeInTheDocument();
+  });
+
   it("affiche un état vide quand aucune épreuve", () => {
     setEvents({
       data: { pages: [{ items: [], total_events: 0, total_participations: 0 }] },

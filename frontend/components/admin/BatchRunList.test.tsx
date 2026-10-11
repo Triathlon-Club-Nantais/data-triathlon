@@ -17,6 +17,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 });
 
 import { BatchRunList } from "./BatchRunList";
+import { rendreAvecRelanceSuspendue } from "@/test/requete-suspendue";
 
 const MAINTENANT = new Date("2026-08-08T20:00:00Z");
 
@@ -73,6 +74,16 @@ beforeEach(() => {
 });
 
 describe("BatchRunList", () => {
+  it("ne prend pas une relance suspendue pour une liste vide (#1294)", async () => {
+    listBatchRuns.mockRejectedValue(new Error("Service indisponible"));
+
+    await rendreAvecRelanceSuspendue(
+      <BatchRunList />,
+    );
+
+    expect(screen.queryByText(/aucun lancement/i)).not.toBeInTheDocument();
+  });
+
   it("traduit les trois états à l'affichage", async () => {
     listBatchRuns.mockResolvedValue([
       RUN({ id: 1, state: "pending", outcome: null }),

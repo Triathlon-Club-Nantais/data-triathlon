@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Opposition } from "@/lib/types";
 import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
 import { OppositionsScreen } from "./OppositionsScreen";
+import { rendreAvecRelanceSuspendue } from "@/test/requete-suspendue";
 
 const { listOppositions, previewOpposition, applyOpposition } = vi.hoisted(() => ({
   listOppositions: vi.fn(),
@@ -41,6 +42,18 @@ function afficher() {
 }
 
 describe("OppositionsScreen (#334)", () => {
+  it("ne prend pas une relance suspendue pour une liste vide (#1294)", async () => {
+    listOppositions.mockRejectedValue(new Error("Service indisponible"));
+
+    await rendreAvecRelanceSuspendue(
+      <DangerConfirmProvider>
+        <OppositionsScreen />
+      </DangerConfirmProvider>,
+    );
+
+    expect(screen.queryByText(/aucune opposition/i)).not.toBeInTheDocument();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     listOppositions.mockResolvedValue([DANS_LE_DELAI]);

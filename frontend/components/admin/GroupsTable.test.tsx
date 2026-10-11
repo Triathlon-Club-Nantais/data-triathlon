@@ -29,6 +29,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 });
 
 import { GroupsTable } from "./GroupsTable";
+import { rendreAvecRelanceSuspendue } from "@/test/requete-suspendue";
 
 const CODIR: Group = {
   id: 3,
@@ -68,6 +69,18 @@ function afficher() {
 const VIDE: Group = { ...CODIR, id: 4, slug: "officiels", name: "Officiels", member_count: 0 };
 
 describe("GroupsTable", () => {
+  it("ne prend pas une relance suspendue pour une liste vide (#1294)", async () => {
+    listGroups.mockRejectedValue(new Error("Service indisponible"));
+
+    await rendreAvecRelanceSuspendue(
+      <DangerConfirmProvider>
+        <GroupsTable />
+      </DangerConfirmProvider>,
+    );
+
+    expect(screen.queryByText(/aucun groupe/i)).not.toBeInTheDocument();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     getSession.mockResolvedValue(MOI);

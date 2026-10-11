@@ -26,7 +26,7 @@ import { formatDate } from "@/lib/utils/date";
 const REFUS = { sujet: "signalements", action: "consulter les chronométreurs signalés" };
 
 export function PendingProvidersTable() {
-  const { data, isLoading, error } = usePendingProviders();
+  const { data, isPending, error } = usePendingProviders();
   const mark = useMarkProviderHandled();
   const session = useSession();
   // `pending_providers:read` a ouvert cette liste ; le `DELETE` qui retire un
@@ -36,7 +36,7 @@ export function PendingProvidersTable() {
   const peutTraiter =
     session.data?.permissions.includes("pending_providers:handle") ?? false;
 
-  if (isLoading) return <Skeleton className="h-40 w-full" />;
+  if (isPending) return <Skeleton className="h-40 w-full" />;
   if (error) return <EmptyState {...messageDeRefus(error, REFUS)} />;
   if (!data || data.length === 0) {
     return (
