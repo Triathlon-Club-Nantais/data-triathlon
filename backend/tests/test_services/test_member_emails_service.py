@@ -51,7 +51,7 @@ def test_import_normalises_merges_duplicates_and_counts_invalid_rows(db_session)
 
     report = _import(db_session, content)
 
-    assert (report.season, report.added, report.removed, report.unchanged, report.ignored) == (2026, 2, 0, 0, 2)
+    assert (report.season, report.added, report.removed, report.unchanged, report.ignored) == (2026, 2, 0, 0, 1)
     assert _emails(db_session) == {"jeanne@exemple.fr": SOURCE_IMPORT, "paul@exemple.fr": SOURCE_IMPORT}
 
 

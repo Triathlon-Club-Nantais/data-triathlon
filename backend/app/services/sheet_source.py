@@ -5,6 +5,7 @@ l'import de masse.
 """
 import csv
 import io
+import unicodedata
 from dataclasses import dataclass
 from urllib.parse import urlparse, urlunparse
 
@@ -82,6 +83,17 @@ def read_table(content: bytes, filename: str) -> tuple[list[str], list[list[str]
         cellule or f"Colonne {rang}" for rang, cellule in enumerate(lignes[0], 1)
     ]
     return entetes, lignes[1:]
+
+
+def header_key(header: str) -> str:
+    """En-tête comparable : sans accents, ponctuation ni casse (« E-mail » → « email »)."""
+    decomposed = unicodedata.normalize("NFKD", header)
+    return "".join(c for c in decomposed if c.isalnum()).casefold()
+
+
+def column_index(headers: list[str], accepted: set[str]) -> int | None:
+    """Rang de la première colonne dont l'en-tête normalisé est accepté."""
+    return next((i for i, h in enumerate(headers) if header_key(h) in accepted), None)
 
 
 def _lignes_csv(content: bytes) -> list[list[str]]:
