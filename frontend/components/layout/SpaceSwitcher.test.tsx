@@ -12,7 +12,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-const PUBLIC = { id: "public", label: "Résultats", href: "/dashboard" } as const;
+const PUBLIC = { id: "public", label: "Consulter", href: "/dashboard" } as const;
 const ADMIN = { id: "admin", label: "Back-office", href: "/admin", count: 214 } as const;
 
 describe("SpaceSwitcher (#1296)", () => {
@@ -23,9 +23,9 @@ describe("SpaceSwitcher (#1296)", () => {
 
   it("annonce l'espace courant et liste les autres en liens", async () => {
     render(<SpaceSwitcher current="public" spaces={[PUBLIC, ADMIN]} />);
-    await userEvent.click(screen.getByRole("button", { name: "Espace : Résultats, changer d'espace" }));
+    await userEvent.click(screen.getByRole("button", { name: "Espace : Consulter, changer d'espace" }));
     expect(await screen.findByRole("menuitem", { name: /Back-office/ })).toHaveAttribute("href", "/admin");
-    expect(screen.getByRole("menuitem", { name: /Résultats/ })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("menuitem", { name: /Consulter/ })).toHaveAttribute("aria-current", "true");
   });
 
   it("porte le compteur du back-office avec son nom accessible", async () => {
@@ -37,8 +37,10 @@ describe("SpaceSwitcher (#1296)", () => {
 
   it("en mode compact, garde le nom accessible sans libellé visible", () => {
     render(<SpaceSwitcher current="public" spaces={[PUBLIC, ADMIN]} compact />);
-    const bouton = screen.getByRole("button", { name: "Espace : Résultats, changer d'espace" });
-    expect(bouton).not.toHaveTextContent("Résultats");
+    const bouton = screen.getByRole("button", { name: "Espace : Consulter, changer d'espace" });
+    expect(bouton).not.toHaveTextContent("Consulter");
+    expect(bouton.querySelector(".lucide-layout-grid")).toBeNull();
+    expect(bouton.querySelector(".lucide-arrow-left-right")).not.toBeNull();
   });
 
   it("en mode compact, montre une infobulle et ouvre le menu", async () => {

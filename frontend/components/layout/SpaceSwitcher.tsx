@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, LayoutGrid } from "lucide-react";
+import { ChevronDown, ArrowLeftRight } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,7 +34,7 @@ export function SpaceSwitcher({
       style={{ flex: "none" }}
     >
       {compact ? (
-        <LayoutGrid size={16} aria-hidden />
+        <ArrowLeftRight size={16} aria-hidden />
       ) : (
         <>
           {SPACES[current].label}

@@ -1962,3 +1962,44 @@ describe("AppNav: supervision space (#1297)", () => {
     await waitFor(() => expect(countPendingVolunteerActions).toHaveBeenCalled());
   });
 });
+
+describe("AppNav: UI/UX review of the spaces (#1295)", () => {
+  const twoSpaces = () => ({ ...habilite("courses:write", "jeunes:read"), can_administer: false, can_supervise: true });
+
+  it("the mobile header uses the compact switcher", async () => {
+    chemin.courant = "/dashboard";
+    afficher(twoSpaces());
+    const declencheur = await within(screen.getByRole("banner")).findByRole("button", { name: "Espace : Consulter, changer d'espace" });
+    expect(declencheur).not.toHaveTextContent("Consulter");
+  });
+
+  it("the expanded rail puts the switcher on its own row under the logo", async () => {
+    chemin.courant = "/dashboard";
+    afficher(twoSpaces(), { initialExpanded: true });
+    const declencheur = await within(rail()).findByRole("button", { name: /changer d'espace/ });
+    const logo = within(rail()).getByRole("link", { name: /Accueil/ });
+    expect(logo.parentElement).not.toContainElement(declencheur);
+    expect(declencheur).toHaveTextContent("Consulter");
+  });
+
+  it("a refused private space falls back to the public navigation", async () => {
+    chemin.courant = "/encadrement/jeunes";
+    afficher(SESSION, { initialExpanded: true });
+    await waitFor(() => expect(within(rail()).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats"));
+    expect(within(rail()).getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("href", "/dashboard");
+
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).getAllByRole("link").length).toBeGreaterThan(0);
+  });
+
+  it("the Encadrement switcher entry carries its pending count", async () => {
+    chemin.courant = "/dashboard";
+    countPendingVolunteerActions.mockResolvedValue({ total: 4 });
+    afficher(habilite("jeunes:read", "athletes:volunteer_validate", "pages:preview"), { initialExpanded: true });
+    await userEvent.click(await within(rail()).findByRole("button", { name: /changer d'espace/ }));
+
+    const entree = await screen.findByRole("menuitem", { name: /Encadrement/ });
+    await waitFor(() => expect(within(entree).getByText("4 éléments à traiter")).toHaveClass("sr-only"));
+  });
+});
