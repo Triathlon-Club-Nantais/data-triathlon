@@ -24,15 +24,26 @@ parcours, et Terraform imposerait un état distant à héberger.
 
 - Rôle **Tenant Creator** (ou Contributor) sur le groupe de ressources
   `TCN_Data_BDD` de la souscription du club.
-- `az` récent ; le script lit les réponses par `--query`, sans `jq`.
-- Le lancer depuis son propre poste : le secret Google passe en argument de
-  `az rest`, donc visible dans la liste des processus le temps de l'appel.
+- Fournisseur de ressources `Microsoft.AzureActiveDirectory` inscrit sur la
+  souscription, une fois : `az provider register --namespace Microsoft.AzureActiveDirectory`
+  (vérifier par `az provider show -n Microsoft.AzureActiveDirectory --query registrationState`).
+- `az` récent et `jq` (paquet courant, présent sur la plupart des postes qui
+  ont `az`) : les corps de requête sont construits par `jq -n --arg`, jamais
+  par interpolation. Ils passent par un fichier d'un dossier temporaire privé,
+  supprimé en sortie, jamais par la ligne de commande : le secret Google
+  n'apparaît pas dans la liste des processus.
 
 ## Ordre de déploiement
 
-1. **Tenant** (jusqu'à 30 minutes) :
-   `az deployment group create -g TCN_Data_BDD -f infra/entra-external-id/main.bicep -p infra/entra-external-id/main.bicepparam`.
-   Noter les sorties `tenantId` et `subdomain`.
+1. **Tenant** (jusqu'à 30 minutes). D'abord la simulation, puis le
+   déploiement réel une fois le résultat relu :
+   ```bash
+   az deployment group what-if -g TCN_Data_BDD -f infra/entra-external-id/main.bicep -p infra/entra-external-id/main.bicepparam
+   az deployment group create -g TCN_Data_BDD -f infra/entra-external-id/main.bicep -p infra/entra-external-id/main.bicepparam
+   ```
+   Noter les sorties `tenantId` et `subdomain`. Le nom du tenant (`tenantName`)
+   ne prend que lettres et chiffres, 26 au plus (référence ARM citée dans
+   `main.bicep`).
 2. **Client OAuth Google**, à la main (aucun outil gratuit) : console Google
    Cloud, *API et services → Identifiants → ID client OAuth*, type
    « Application Web ». Domaines autorisés de l'écran de consentement :
@@ -48,22 +59,44 @@ parcours, et Terraform imposerait un état distant à héberger.
 
    **Publier** l'écran de consentement en production : en mode test, seuls les
    comptes testeurs déclarés passent.
-3. **Objets du tenant** :
+3. **Objets du tenant, une application par environnement** (comme les
+   applications OAuth GitHub : un secret de preview qui fuit ne doit pas
+   ouvrir la production). Deux lancements, preview puis production :
    ```bash
    az login --tenant <tid> --allow-no-subscriptions
-   REDIRECT_URI="https://data.triathlon-club-nantais.com/api/v1/auth/entra/callback https://data-triathlon-tcn-preview.vercel.app/api/v1/auth/entra/callback" \
+   APP_NAME=data-triathlon-preview \
+   REDIRECT_URI=https://data-triathlon-tcn-preview.vercel.app/api/v1/auth/entra/callback \
    GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... \
    ./infra/entra-external-id/configure-tenant.sh <tid>
+
+   APP_NAME=data-triathlon-prod \
+   REDIRECT_URI=https://data.triathlon-club-nantais.com/api/v1/auth/entra/callback \
+   ./infra/entra-external-id/configure-tenant.sh <tid>
    ```
+   Le fournisseur Google et le parcours d'inscription sont communs au tenant :
+   le premier lancement les crée, le second y rattache sa propre application.
    Le retour vise l'**interface**, jamais le backend (même règle que GitHub,
    `backend/app/services/auth/AGENTS.md`). Relancé, le script ne crée rien de
    plus ; il remet seulement l'application à jour (URI de retour, claims
-   optionnels `email` et `xms_edov`, permissions `openid profile email
-   offline_access`). Le secret client n'est créé que s'il n'en existe aucun, ou
-   avec `--rotate-secret` ; il s'affiche **une seule fois** sur la sortie
-   standard et n'est écrit nulle part. Les anciens secrets restent valides
-   après une rotation : les retirer au portail une fois Render à jour.
-4. **Réglages backend**, preview d'abord : `AUTH_ENTRA_SUBDOMAIN`,
+   optionnels `email` et `xms_edov`, permissions `openid profile email`) et la
+   portée du consentement. Il **ne rafraîchit pas** un parcours existant : ses
+   moyens de connexion se modifient au portail. Le parcours est créé sans
+   `onAttributeCollection`, facultatif selon la documentation Graph : au
+   premier lancement, vérifier au portail qu'il ne demande que l'adresse. Le
+   secret client n'est créé que s'il n'en existe aucun, ou avec
+   `--rotate-secret` ; il s'affiche **une seule fois** sur la sortie standard
+   et n'est écrit nulle part. Les anciens secrets restent valides après une
+   rotation : les retirer au portail une fois Render à jour. Juste après une
+   création, Graph peut répondre 404 ou 400 quelques secondes : le script
+   réessaie six fois, à 5 s d'intervalle.
+
+   **Ne jamais supprimer ni renommer une application à la légère.** Le
+   backend résout les comptes par `oid`, stable dans le tenant, donc recréer
+   une application ne les rend pas orphelins ; mais le script retrouve
+   l'application par son nom (`APP_NAME`), et un renommage en créerait une
+   seconde, avec un nouvel identifiant client à reporter sur Render.
+4. **Réglages backend**, preview d'abord, chacun avec l'identifiant et le
+   secret de **son** application : `AUTH_ENTRA_SUBDOMAIN`,
    `AUTH_ENTRA_TENANT_ID`, `AUTH_ENTRA_CLIENT_ID`, `AUTH_ENTRA_CLIENT_SECRET`
    (`docs/ci-cd.md`). Les quatre ou aucun : le bouton n'apparaît qu'avec les
    quatre.
@@ -82,11 +115,25 @@ consigner le résultat dans la section « Résultat du test sur tenant » de
 En cas d'échec, ne pas poser `AUTH_ENTRA_*` en production : le **repli** est
 Google en direct (#1324), sans changer les règles de connexion.
 
+## Annuaire du tenant et suppression d'un compte
+
+L'inscription en libre service crée, dans l'annuaire du tenant, un objet
+utilisateur (adresse, nom affiché). Il est conservé comme le compte du site :
+jusqu'à sa suppression, sur demande adressée au club. **Une demande de
+suppression de compte supprime aussi cet utilisateur Entra**, à la main :
+portail du tenant (*Utilisateurs*), ou
+`az rest --method delete --url https://graph.microsoft.com/v1.0/users/<oid>`
+après `az login --tenant <tid> --allow-no-subscriptions`, où `<oid>` est le
+`subject` de l'identité `entra` du compte (table `identities`).
+
 ## Ce qui n'est pas automatisé
 
 - le client OAuth Google (étape 2) ;
 - la rotation du secret Google : le script ne remplace pas un fournisseur
   Google existant, la mettre à jour au portail du tenant ;
 - le retrait des anciens secrets client après rotation ;
-- la validation de `main.bicep` : `az bicep build -f main.bicep` avant le
-  premier déploiement (le Bicep CLI n'était pas installé à l'écriture).
+- les moyens de connexion d'un parcours déjà créé ;
+- la suppression de l'utilisateur Entra lors d'une demande de suppression ;
+- la validation de `main.bicep` (`az bicep build -f main.bicep`) et du script
+  (`shellcheck configure-tenant.sh`) avant le premier lancement : ni le Bicep
+  CLI ni shellcheck n'étaient installés à l'écriture, seul `bash -n` a tourné.

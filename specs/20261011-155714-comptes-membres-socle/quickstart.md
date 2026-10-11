@@ -33,8 +33,8 @@ Avec le fournisseur de test des suites (`DoublureProvider`), vérifié par les t
 Hors production, sans réseau : `tests/test_auth/test_entra_provider.py` (découverte, JWKS, jeton signé localement).
 
 Déploiement réel (exploitant, une fois) : suivre `infra/entra-external-id/AGENTS.md` :
-1. `az deployment group create -g TCN_Data_BDD -f infra/entra-external-id/main.bicep -p infra/entra-external-id/main.bicepparam`.
+1. `az provider register --namespace Microsoft.AzureActiveDirectory` (une fois), `az deployment group what-if …` puis `az deployment group create -g TCN_Data_BDD -f infra/entra-external-id/main.bicep -p infra/entra-external-id/main.bicepparam`.
 2. Créer le client OAuth Google (console Google Cloud, URI de redirection listées dans `AGENTS.md`).
-3. `GOOGLE_CLIENT_ID=… GOOGLE_CLIENT_SECRET=… REDIRECT_URI=… ./infra/entra-external-id/configure-tenant.sh <tenantId>` ; relancé, il ne crée rien de plus.
+3. Une application par environnement, deux lancements : `APP_NAME=data-triathlon-preview REDIRECT_URI=<retour preview> GOOGLE_CLIENT_ID=… GOOGLE_CLIENT_SECRET=… ./infra/entra-external-id/configure-tenant.sh <tenantId>`, puis `APP_NAME=data-triathlon-prod REDIRECT_URI=<retour production> ./infra/entra-external-id/configure-tenant.sh <tenantId>` ; relancé, il ne crée rien de plus.
 4. Poser `AUTH_ENTRA_*` sur Render (preview d'abord).
 5. **FR-021** : se connecter une fois par Google et une fois par code e-mail, décoder l'`id_token` reçu (journal de debug local), constater `email` et `xms_edov: true`, consigner le résultat dans le sondage. Échec : ne pas activer en production, rouvrir #1324.
