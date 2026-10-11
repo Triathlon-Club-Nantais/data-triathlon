@@ -234,7 +234,7 @@ export function MaSaison({
 
   if (etat === "chargement") {
     return (
-      <Bande titre={titre}>
+      <Bande titre={titre} avecRang>
         <AnnonceStatut texte={texteAnnonce ?? ""} busy />
         <div
           data-testid="ma-saison-squelette"
@@ -313,14 +313,23 @@ export function MaSaison({
   const secondaire = `${capitaliser(rang)} · podiums hors relais · le club a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`;
 
   return (
-    <Bande titre={titre}>
+    <Bande titre={titre} avecRang>
       <AnnonceStatut texte={texteAnnonce ?? ""} />
       <Ligne principale={principale} secondaire={secondaire} action={lienProfil} />
     </Bande>
   );
 }
 
-function Bande({ titre, children }: { titre: string; children: React.ReactNode }) {
+// Le sélecteur de rang n'est monté là où il agit (nominal) et pendant le chargement, qui y mène le plus souvent : évite un décalage de mise en page.
+function Bande({
+  titre,
+  avecRang = false,
+  children,
+}: {
+  titre: string;
+  avecRang?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <div className="mb-4">
       <Card>
@@ -336,12 +345,14 @@ function Bande({ titre, children }: { titre: string; children: React.ReactNode }
         <h2 className="sr-only">{titre}</h2>
         <div className="flex flex-wrap items-end justify-between gap-2">
           <Eyebrow>{titre}</Eyebrow>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", marginBottom: 6 }}>
-              Type de rang
+          {avecRang && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", marginBottom: 6 }}>
+                Type de rang
+              </div>
+              <RankTypeToggle />
             </div>
-            <RankTypeToggle />
-          </div>
+          )}
         </div>
         <div className="flex min-h-[84px] items-center sm:min-h-[68px]">
           {children}

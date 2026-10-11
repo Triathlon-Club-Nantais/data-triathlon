@@ -146,10 +146,10 @@ export default async function DashboardPage({
           <Card className="mt-4">
             <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 24, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 8 }}>Le club</h2>
             <p style={{ fontSize: 15, color: "var(--tcn-text-muted)", margin: 0, marginBottom: 12 }}>
-              Podiums, compteurs, disciplines et athlètes du club.
+              Podiums, compteurs, disciplines et athlètes du club.{!isCurrentSeasonSelected && " Sur la saison en cours."}
             </p>
             <Link href={clubHref} className="tcn-cible-tactile inline-flex items-center text-sm font-semibold text-accent-ink hover:underline">
-              Voir l&apos;espace club <span aria-hidden>→</span>
+              Voir la page Club <span aria-hidden>→</span>
             </Link>
           </Card>
         </>

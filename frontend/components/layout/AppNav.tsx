@@ -154,7 +154,11 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // Le rail et le tiroir ne montrent que l'espace de la page courante ; la
   // palette ⌘K, elle, garde `toutesSections`.
   const espace = spaceOf(pathname);
-  const sections = toutesSections.filter((s) => s.space === espace);
+  const sectionsEspace = toutesSections.filter((s) => s.space === espace);
+  // Un espace refusé n'a aucune section visible : la navigation retombe sur
+  // l'espace public plutôt que de laisser l'écran de refus sans issue.
+  const espaceAffiche: SpaceId = sectionsEspace.length > 0 || (espace === "admin" && session?.can_administer) ? espace : "public";
+  const sections = sectionsEspace.length > 0 ? sectionsEspace : toutesSections.filter((s) => s.space === espaceAffiche);
 
   // Barre basse mobile (#482, NAV-4) : les onglets de l'espace courant,
   // déclarés dans `nav.config.ts` (`bottomBar`). Ceux de l'espace public sont
@@ -167,7 +171,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   const countAdmin = compteurAdmin.length > 0 ? compteurAdmin.reduce((somme, i) => somme + (i.count ?? 0), 0) : undefined;
   const ongletsEspace = sections.flatMap((s) => s.items).filter((i) => i.bottomBar);
   const barreItems: Destination[] =
-    espace === "admin"
+    espaceAffiche === "admin"
       ? [{ id: "sommaire", label: "Sommaire", href: "/admin", icon: Briefcase, badge: "backoffice", count: countAdmin }, ...ongletsEspace]
       : ongletsEspace;
   const dansLaBarre = new Set(barreItems.map((i) => i.id));
@@ -185,6 +189,11 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // fois le tiroir ouvert par le hamburger ou « Plus ». Seul cas de doublon avec la barre.
   const sectionsRepli = sectionsReste.length > 0 ? sectionsReste : sections;
 
+  const countEncadrement = toutesSections
+    .filter((s) => s.space === "encadrement")
+    .flatMap((s) => s.items)
+    .reduce((somme, i) => somme + (i.count ?? 0), 0);
+
   const espacesOuverts: SwitcherSpace[] = (Object.keys(SPACES) as SpaceId[])
     .filter((id) => id === "admin" ? Boolean(session?.can_administer) : toutesSections.some((s) => s.space === id))
     .map((id) => ({
@@ -192,10 +201,11 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
       label: SPACES[id].label,
       href: SPACES[id].home ?? toutesSections.find((s) => s.space === id)!.items[0].href,
       ...(id === "admin" && countAdmin !== undefined ? { count: countAdmin } : {}),
+      ...(id === "encadrement" && countEncadrement > 0 ? { count: countEncadrement } : {}),
     }));
 
   const versAdmin: SectionRendue[] =
-    espace === "public" && espacesOuverts.some((e) => e.id === "admin")
+    espaceAffiche === "public" && espacesOuverts.some((e) => e.id === "admin")
       ? [
           {
             id: "vers-admin",
@@ -319,8 +329,13 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               {CLUB_NAME_SHORT}
             </Link>
           )}
-          <SpaceSwitcher current={espace} spaces={espacesOuverts} compact={!expanded} />
+          {!expanded && <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} compact />}
         </div>
+        {expanded && (
+          <div style={{ flex: "none", display: "flex", padding: "8px 14px 0" }}>
+            <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} />
+          </div>
+        )}
 
         {contenu(expanded)}
 
@@ -453,7 +468,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-tcn.png" alt={CLUB_NAME} style={{ height: 24, display: "block" }} />
         </Link>
-        <SpaceSwitcher current={espace} spaces={espacesOuverts} />
+        <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} compact />
         {rechercheDisponible && (
           <button type="button" aria-label="Rechercher un athlète" onClick={() => setPickerMode((m) => m ?? "search")} style={carreSecondaire}>
             <Search size={18} />
