@@ -19,6 +19,7 @@ const IDS_ATTENDUS = [
   "variantes-club",
   "portee-compteurs",
   "membres",
+  "adresses-adherents",
   "oppositions",
   "benevolat-validation",
   "validation-epreuves",
@@ -28,10 +29,10 @@ const IDS_ATTENDUS = [
 ];
 
 // Sections ajoutées par #1245, dont les captures restent à prendre sur le jeu de démo.
-const SANS_CAPTURE = new Set(["identites", "membres", "oppositions", "jeunes"]);
+const SANS_CAPTURE = new Set(["identites", "membres", "adresses-adherents", "oppositions", "jeunes"]);
 
 describe("GUIDE_ADMIN", () => {
-  it("expose exactement les 21 ids attendus, dans l'ordre", () => {
+  it("expose exactement les 22 ids attendus, dans l'ordre", () => {
     expect(GUIDE_ADMIN.map((section) => section.id)).toEqual(IDS_ATTENDUS);
   });
 

@@ -1592,3 +1592,28 @@ export interface ClubMembersSeason extends MembersSyncReport {
   seasons: number[];
   members: ClubMember[];
 }
+
+/** Adresses d'adhérents par saison (#1334). */
+export interface MemberEmail {
+  id: number;
+  email: string;
+  season: number;
+  source: "import" | "manual";
+  created_at: string;
+}
+
+export interface MemberEmailsSeason {
+  season: number;
+  /** Saison qui compte aujourd'hui : l'en cours si elle a une entrée, sinon la précédente. */
+  counting_season: number;
+  seasons: number[];
+  entries: MemberEmail[];
+}
+
+export interface MemberEmailsImportReport {
+  season: number;
+  added: number;
+  removed: number;
+  unchanged: number;
+  ignored: number;
+}
