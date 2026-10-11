@@ -44,16 +44,27 @@ un adhérent, et d'un adhérent un candidat au back-office. Y figurer ne donne
   `ignored`.
 - Ajout manuel : une adresse déjà importée passe en `manual` (elle survit alors
   aux imports) ; déjà manuelle, 409. Retrait : quelle que soit l'origine.
-- Chaque geste est journalisé (`member_emails.import`, `.add`, `.remove`) sans
-  l'adresse elle-même : le journal vit 12 mois, la liste moins longtemps.
+- Seule une adresse **nue** passe : `validate_email` accepte la forme
+  « Nom <adresse> », refusée ici (ligne `ignored`, ajout manuel en 422).
+- Écritures sous point de reprise : un ajout simultané de la même adresse rend
+  409 (ou promeut l'entrée importée), un ajout pendant un import fait échouer
+  l'import en 409 (« La liste a été modifiée pendant l'import, réessayez. »).
+- Chaque geste est journalisé (`member_emails.import` avec ses quatre compteurs,
+  `.add`, `.remove`) sans l'adresse elle-même : le journal vit 12 mois, la
+  liste moins longtemps.
 
 ## Saison qui compte
 
-À la date `d`, la saison `season_of(d)` si elle a au moins une entrée, sinon
-`season_of(d) - 1` (`member_email_repository.counting_season`). Entre la
-rentrée du 1ᵉʳ septembre et le premier import, la liste de l'an passé
-continue donc de compter. `counts(db, email, today)` répond pour une adresse ;
-c'est le point d'appui du statut adhérent de #1322.
+À la date `d`, la saison `season_of(d)` si elle a au moins une entrée
+**importée**, sinon `season_of(d) - 1` (`member_email_repository.counting_season`).
+Entre la rentrée du 1ᵉʳ septembre et le premier import, la liste de l'an passé
+continue donc de compter. Une adresse ajoutée à la main ne fait pas basculer la
+saison : sinon un seul ajout en septembre fermait tous les adhérents.
+
+`counts(db, email, today)` cherche l'adresse dans la saison qui compte **et**
+dans la saison en cours : avant le premier import, celle-ci ne porte que des
+ajouts manuels, qui comptent en plus de la liste précédente. C'est le point
+d'appui du statut adhérent de #1322.
 
 ## Purge
 

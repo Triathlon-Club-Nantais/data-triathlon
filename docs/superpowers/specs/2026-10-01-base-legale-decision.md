@@ -266,7 +266,7 @@ stockés. Le fichier n'est pas conservé.
 
 **Conservation.** La saison en cours et la précédente. Au-delà,
 `purge-retention` supprime les entrées. La saison précédente reste parce
-qu'elle compte tant que la saison en cours n'a reçu aucune adresse (entre la
+qu'elle compte tant que la saison en cours n'a reçu aucun import (entre la
 rentrée de septembre et le premier import). Un import retire aussitôt les
 adresses importées absentes du nouveau fichier.
 
