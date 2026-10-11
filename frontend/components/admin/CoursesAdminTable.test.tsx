@@ -28,6 +28,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 
 import { TAILLE_PAGE_ADMIN } from "@/lib/queries/admin";
 import { CoursesAdminTable } from "./CoursesAdminTable";
+import { rendreAvecRelanceSuspendue } from "@/test/requete-suspendue";
 
 const EPREUVE: CourseBrief = {
   id: 12,
@@ -89,6 +90,14 @@ describe("CoursesAdminTable", () => {
     countCourses.mockResolvedValue({ total: 1 });
     getSession.mockReset();
     getSession.mockResolvedValue(session([]));
+  });
+
+  it("ne prend pas une relance suspendue pour un catalogue vide (#1294)", async () => {
+    listCourses.mockRejectedValue(new Error("Service indisponible"));
+
+    await rendreAvecRelanceSuspendue(<CoursesAdminTable page={1} filtres={{}} />);
+
+    expect(screen.queryByText(/^aucune épreuve$/i)).not.toBeInTheDocument();
   });
 
   it("liste les épreuves", async () => {

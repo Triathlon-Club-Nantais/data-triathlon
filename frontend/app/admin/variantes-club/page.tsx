@@ -15,7 +15,7 @@ import { useClubAliases } from "@/lib/queries/admin";
  * compteurs, dont ce mécanisme reste pourtant indépendant.
  */
 export default function AdminVariantesClubPage() {
-  const { data, isLoading, error } = useClubAliases();
+  const { data, isPending, error } = useClubAliases();
 
   return (
     <PageShell>
@@ -29,7 +29,7 @@ export default function AdminVariantesClubPage() {
             })}
           />
         ) : (
-          <ClubAliasCard entrees={data?.entries} isLoading={isLoading} />
+          <ClubAliasCard entrees={data?.entries} isLoading={isPending} />
         )}
       </div>
     </PageShell>

@@ -80,7 +80,7 @@ export function CoursesAdminTable({
   // que de rendre une tranche vide sans rien dire.
   const page = Math.max(1, Math.trunc(pageDemandee) || 1);
 
-  const { data, isLoading, error } = useAdminCourses(page, filtres);
+  const { data, isPending, error } = useAdminCourses(page, filtres);
   const { data: comptage } = useAdminCoursesCount(filtres);
   const session = useSession();
   const [aSupprimer, setASupprimer] = useState<CourseBrief | null>(null);
@@ -114,7 +114,7 @@ export function CoursesAdminTable({
     <CatalogueFilters key={JSON.stringify(filtres)} valeurs={filtres} onFiltrer={filtrer} />
   );
 
-  if (isLoading) {
+  if (isPending) {
     return (
       <div className="space-y-4">
         {barre}

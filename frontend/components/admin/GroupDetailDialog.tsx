@@ -168,7 +168,7 @@ export function GroupDetailDialog({
           </div>
         )}
 
-        {detail.isLoading ? (
+        {detail.isPending ? (
           <Skeleton className="h-24 w-full" />
         ) : detail.error ? (
           <p className="text-destructive text-sm">

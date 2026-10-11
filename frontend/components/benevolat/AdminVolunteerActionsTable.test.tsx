@@ -8,6 +8,7 @@ import { confirmerDansLeDialog } from "@/components/admin/__tests__/dangerConfir
 import { AdminVolunteerActionsTable } from "./AdminVolunteerActionsTable";
 import { seasonLabel } from "@/lib/utils/season";
 import { formatDate } from "@/lib/utils/date";
+import { rendreAvecRelanceSuspendue } from "@/test/requete-suspendue";
 
 const {
   listPendingVolunteerActions,
@@ -83,6 +84,18 @@ beforeEach(() => {
 });
 
 describe("AdminVolunteerActionsTable", () => {
+  it("ne prend pas une relance suspendue pour une liste vide (#1294)", async () => {
+    listPendingVolunteerActions.mockRejectedValue(new Error("Service indisponible"));
+
+    await rendreAvecRelanceSuspendue(
+      <DangerConfirmProvider>
+        <AdminVolunteerActionsTable />
+      </DangerConfirmProvider>,
+    );
+
+    expect(screen.queryByText(/aucune déclaration en attente/i)).not.toBeInTheDocument();
+  });
+
   it("affiche un squelette pendant le chargement", () => {
     listPendingVolunteerActions.mockReturnValue(new Promise(() => {}));
 

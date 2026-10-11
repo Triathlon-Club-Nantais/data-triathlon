@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/api/client";
 import { DangerConfirmProvider } from "@/components/admin/DangerConfirm";
 import { confirmerDansLeDialog } from "@/components/admin/__tests__/dangerConfirm";
 import type { DuplicateCandidateList, SessionUser } from "@/lib/types";
+import { rendreAvecRelanceSuspendue } from "@/test/requete-suspendue";
 
 const { listCourseDuplicates, getSession, ignoreCourseDuplicate, toastError, toastSuccess } =
   vi.hoisted(() => ({
@@ -96,6 +97,19 @@ beforeEach(() => {
 });
 
 describe("CourseDuplicatesTable", () => {
+  it("ne prend pas une relance suspendue pour une liste vide (#1294)", async () => {
+    getSession.mockResolvedValue(AVEC_DROIT);
+    listCourseDuplicates.mockRejectedValue(new ApiError(503, "Service indisponible"));
+
+    await rendreAvecRelanceSuspendue(
+      <DangerConfirmProvider>
+        <CourseDuplicatesTable />
+      </DangerConfirmProvider>,
+    );
+
+    expect(screen.queryByText(/aucun doublon suspect/i)).not.toBeInTheDocument();
+  });
+
   it("dit qu'il n'y a aucun doublon suspect sur une liste vide", async () => {
     getSession.mockResolvedValue(AVEC_DROIT);
     listCourseDuplicates.mockResolvedValue({ candidates: [] });

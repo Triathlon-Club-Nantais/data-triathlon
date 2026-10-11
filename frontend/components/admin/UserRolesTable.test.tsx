@@ -1,7 +1,7 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, onlineManager } from "@tanstack/react-query";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, onTestFinished } from "vitest";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import { DangerConfirmProvider } from "./DangerConfirm";
@@ -42,6 +42,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 
 import { UserRolesTable } from "./UserRolesTable";
 import { confirmerDansLeDialog } from "./__tests__/dangerConfirm";
+import { rendreAvecRelanceSuspendue } from "@/test/requete-suspendue";
 
 const ADMINISTRATEUR: Role = {
   id: 1,
@@ -138,6 +139,21 @@ function afficher() {
 }
 
 describe("UserRolesTable", () => {
+  it("ne prend pas une requête suspendue hors ligne pour une liste vide (#1294)", async () => {
+    // `retry: false` : sans relance, seule la perte du réseau suspend la liste.
+    onlineManager.setOnline(false);
+    onTestFinished(() => onlineManager.setOnline(true));
+    listAdminUsers.mockResolvedValue([]);
+
+    await rendreAvecRelanceSuspendue(
+      <DangerConfirmProvider>
+        <UserRolesTable />
+      </DangerConfirmProvider>,
+    );
+
+    expect(screen.queryByText(/aucun utilisateur/i)).not.toBeInTheDocument();
+  });
+
   beforeEach(() => {
     listAdminUsers.mockReset();
     listRoles.mockReset();

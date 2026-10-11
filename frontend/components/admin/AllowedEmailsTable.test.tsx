@@ -44,6 +44,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 import { AllowedEmailsTable } from "./AllowedEmailsTable";
 import { DangerConfirmProvider } from "./DangerConfirm";
 import { confirmerDansLeDialog } from "./__tests__/dangerConfirm";
+import { rendreAvecRelanceSuspendue } from "@/test/requete-suspendue";
 
 const BENEVOLE: Role = {
   id: 2,
@@ -92,6 +93,18 @@ function afficher() {
 }
 
 describe("AllowedEmailsTable", () => {
+  it("ne prend pas une relance suspendue pour une liste vide (#1294)", async () => {
+    listAllowedEmails.mockRejectedValue(new Error("Service indisponible"));
+
+    await rendreAvecRelanceSuspendue(
+      <DangerConfirmProvider>
+        <AllowedEmailsTable />
+      </DangerConfirmProvider>,
+    );
+
+    expect(screen.queryByText(/aucune adresse autorisée/i)).not.toBeInTheDocument();
+  });
+
   beforeEach(() => {
     listAllowedEmails.mockReset();
     addAllowedEmail.mockReset();

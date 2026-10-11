@@ -1,7 +1,7 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, focusManager } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, onTestFinished } from "vitest";
 import type { CourseBrief, CourseSource, SessionUser } from "@/lib/types";
 
 const {
@@ -47,6 +47,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { QualityQueueTable } from "./QualityQueueTable";
+import { rendreAvecRelanceSuspendue } from "@/test/requete-suspendue";
 
 const AVEC_POUVOIR: SessionUser = {
   id: 1,
@@ -134,6 +135,14 @@ beforeEach(() => {
 });
 
 describe("QualityQueueTable", () => {
+  it("ne prend pas une relance suspendue pour une file vide (#1294)", async () => {
+    listCourses.mockRejectedValue(new Error("Service indisponible"));
+
+    await rendreAvecRelanceSuspendue(<QualityQueueTable />);
+
+    expect(screen.queryByText(/aucune épreuve à revalider/i)).not.toBeInTheDocument();
+  });
+
   it("lists by default only the courses its badge counts (#1232)", async () => {
     rendre();
 
@@ -454,6 +463,29 @@ describe("QualityQueueTable", () => {
 
     await waitFor(() => expect(getCourseSources).toHaveBeenCalledWith(7));
     expect(await screen.findByText("Breizh Chrono")).toBeInTheDocument();
+  });
+
+  it("ne prend pas une relance suspendue des sources pour une épreuve sans source (#1294)", async () => {
+    focusManager.setFocused(false);
+    onTestFinished(() => focusManager.setFocused(undefined));
+    getCourseSources.mockRejectedValue(new Error("Service indisponible"));
+    const client = new QueryClient({ defaultOptions: { queries: { retry: 1, retryDelay: 0 } } });
+    const user = userEvent.setup();
+    render(
+      <QueryClientProvider client={client}>
+        <QualityQueueTable />
+      </QueryClientProvider>,
+    );
+    await screen.findByText("Triathlon de Vertou");
+
+    await user.click(screen.getByRole("button", { name: /afficher les sources.*vertou/i }));
+
+    await waitFor(() =>
+      expect(client.getQueryCache().find({ queryKey: ["course-sources", 7] })?.state.fetchStatus).toBe(
+        "paused",
+      ),
+    );
+    expect(screen.queryByText(/aucune source enregistrée/i)).not.toBeInTheDocument();
   });
 
   it("replier masque à nouveau les sources", async () => {
