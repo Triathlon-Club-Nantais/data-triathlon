@@ -45,10 +45,11 @@ Une doublure de test ne s'enregistre **jamais** au niveau module — elle
 existerait en production, et `is_configured()` est un garde de configuration,
 pas un garde de sécurité.
 
-**Sept réglages `AUTH_*`** (`backend/README.md` pour le tableau,
+**Onze réglages `AUTH_*`** (`backend/README.md` pour le tableau,
 `docs/ci-cd.md` pour les valeurs par environnement) : `AUTH_SESSION_SECRET_KEY`
 (≥ 32 caractères ou le démarrage échoue ; **vide = non configuré**, état
-légitime), `AUTH_GITHUB_CLIENT_ID` / `_SECRET`, `AUTH_REDIRECT_BASE_URL`
+légitime), `AUTH_GITHUB_CLIENT_ID` / `_SECRET`, les quatre `AUTH_ENTRA_*`
+(`SUBDOMAIN`, `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`), `AUTH_REDIRECT_BASE_URL`
 (origine de l'**interface**, jamais celle de l'API, et **sans défaut**),
 `AUTH_COOKIE_SECURE` (dont le nom des cookies est **dérivé** : `__Host-` exige
 `Secure`), `AUTH_SESSION_TTL_DAYS`, `AUTH_STATE_TTL_SECONDS`. Ils étaient huit :
@@ -120,9 +121,25 @@ nativement. Le détecteur AST de `tests/test_core_http.py` a été **étendu** p
 le voir — il était aveugle aux liaisons d'`authlib.integrations.httpx_client` et
 à `httpx.HTTPTransport`, soit la première sortie HTTP qui aurait échappé au
 filet de #101, à l'endroit exact où circulent un `client_secret` et un code
-d'autorisation. `services/auth/idp/github.py` est, avec `core/http.py`, le seul
-fichier de son allowlist (`_FABRIQUES`), et l'exemption est doublée d'un test
-positif : nominative, jamais un motif de dossier.
+d'autorisation. `services/auth/idp/github.py` et `entra.py` sont, avec
+`core/http.py`, les seuls fichiers de son allowlist (`_FABRIQUES`), et chaque
+exemption est doublée d'un test positif : nominative, jamais un motif de dossier.
+
+**Second fournisseur : Entra External ID (#1323)**, slug `entra`, libellé
+« Google ou code par e-mail ». OIDC par code + PKCE, `nonce` rangé dans le
+`round_trip` comme le contrat l'avait prévu, sans toucher au flux ni à GitHub.
+`authorize()` construit ses points de terminaison depuis le sous-domaine et le
+tenant : la découverte n'est lue qu'au retour, puis gardée une heure avec le
+JWKS (un `kid` inconnu déclenche **un** rafraîchissement, jamais une boucle).
+L'`id_token` passe par `joserfc` (signature RS256) puis `CodeIDToken`
+d'Authlib (émetteur lu dans la découverte, audience **passée explicitement**,
+sans quoi elle n'est pas vérifiée, nonce, expiration) ; tout échec rend
+`provider_error`, un réseau injoignable `provider_unavailable`. **Règle
+`xms_edov`** : Entra n'émet pas `email_verified`, l'adresse n'est certifiée que
+si `email` est présent **et** `xms_edov` vaut exactement `true` ; sinon
+`email_unverified`, jamais accepté par défaut. Ce que le tenant réel émet reste
+à constater avant production (FR-021) : infrastructure et procédure dans
+`infra/entra-external-id/AGENTS.md`.
 
 **L'ordre du retour de parcours est contractuel**, pas stylistique : validation
 locale → effacement du cookie d'état → présence du `code` → réseau (FR-025). Le
