@@ -22,6 +22,7 @@ function session(permissions: string[]): SessionUser {
     roles: [],
     groups: [],
     can_administer: true,
+    can_supervise: false,
   };
 }
 

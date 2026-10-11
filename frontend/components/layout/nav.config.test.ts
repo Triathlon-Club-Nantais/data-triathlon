@@ -40,7 +40,6 @@ describe("nav.config", () => {
       "a-identites",
       "a-quality",
       "a-feedback",
-      "a-benevolat-validation",
     ]);
     for (const item of files) expect(item.badge, item.id).toBeTruthy();
   });
@@ -48,8 +47,8 @@ describe("nav.config", () => {
   it("links every /admin entry of every section to an existing guide section (#1245)", () => {
     const anchors = new Set(GUIDE_ADMIN.map((section) => section.id));
     const sections = new Set(ECRANS_ADMIN.map((i) => NAV.find((s) => s.items.includes(i))!.id));
-    // Jeunes and Gestion des utilisateurs live outside « Administration ».
-    expect(sections).toEqual(new Set(["admin", "utilisateurs", "jeunes"]));
+    // Gestion des utilisateurs lives outside « Administration ».
+    expect(sections).toEqual(new Set(["admin", "utilisateurs"]));
     for (const item of ECRANS_ADMIN) {
       expect(anchors, item.href).toContain(item.helpAnchor);
       expect(ecran(item.href as string).helpHref).toBe(`/admin/guide#${item.helpAnchor}`);
@@ -159,14 +158,29 @@ describe("nav.config — section « Jeunes » unifiée (#869)", () => {
   it("propose les trois destinations profils, calendrier, appel", () => {
     const jeunes = NAV.find((s) => s.id === "jeunes")!;
     const hrefs = jeunes.items.map((i) => i.href);
-    expect(hrefs).toContain("/admin/jeunes");
-    expect(hrefs).toContain("/admin/jeunes/calendrier");
-    expect(hrefs).toContain("/admin/jeunes/appel");
+    expect(hrefs).toContain("/encadrement/jeunes");
+    expect(hrefs).toContain("/encadrement/jeunes/calendrier");
+    expect(hrefs).toContain("/encadrement/jeunes/appel");
+  });
+
+  it("puts youth and volunteer validation in the supervision space, nowhere else", () => {
+    const supervision = NAV.filter((s) => s.space === "encadrement").flatMap((s) => s.items.map((i) => i.href));
+    expect(supervision).toEqual([
+      "/encadrement/jeunes",
+      "/encadrement/jeunes/calendrier",
+      "/encadrement/jeunes/appel",
+      "/encadrement/benevolat",
+    ]);
+    for (const section of NAV) {
+      for (const item of section.items) {
+        expect(item.href?.startsWith("/encadrement") ?? false).toBe(section.space === "encadrement");
+      }
+    }
   });
 
   it("garde les trois destinations derrière jeunes:read", () => {
     const jeunes = NAV.find((s) => s.id === "jeunes")!;
-    for (const item of jeunes.items) {
+    for (const item of jeunes.items.filter((i) => i.id.startsWith("j-"))) {
       expect(item.permission, item.href).toBe("jeunes:read");
     }
   });

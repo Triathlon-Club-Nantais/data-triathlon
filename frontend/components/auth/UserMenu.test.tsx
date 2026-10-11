@@ -36,6 +36,7 @@ const SESSION: SessionUser = {
   roles: [],
   groups: [],
   can_administer: false,
+  can_supervise: false,
 };
 
 function afficher(session: SessionUser | null, props: { pleineLargeur?: boolean; onNavigate?: () => void } = {}) {

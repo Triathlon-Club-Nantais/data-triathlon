@@ -129,6 +129,7 @@ const SESSION: SessionUser = {
   roles: [],
   groups: [],
   can_administer: false,
+  can_supervise: false,
 };
 
 /** La même session, habilitée. `permissions` est l'unique source (#115). */
@@ -1171,7 +1172,7 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
       screen.getByRole("link", { name: "Revalidation qualité" }),
     ).toHaveAttribute("href", "/admin/quality");
 
-    // « Bénévolat », public (`/benevolat`) comme admin (`/admin/benevolat`),
+    // « Bénévolat », public (`/benevolat`) comme encadrement (`/encadrement/benevolat`),
     // passe derrière `pages:preview` (#879), que cette session ne porte pas.
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
     expect(within(rail).queryByRole("link", { name: "Bénévolat" })).not.toBeInTheDocument();
@@ -1793,6 +1794,7 @@ describe("AppNav — espaces (#1296)", () => {
   const admin = () => ({
     ...habilite("pending_providers:read", "batch:run", "courses:write"),
     can_administer: true,
+    can_supervise: false,
   });
 
   it("dans l'espace public, ne montre aucun écran d'administration", async () => {
@@ -1859,5 +1861,49 @@ describe("AppNav — espaces (#1296)", () => {
     afficher(null);
     await waitFor(() => expect(getSession).toHaveBeenCalled());
     expect(screen.queryByRole("button", { name: /changer d'espace/ })).not.toBeInTheDocument();
+  });
+});
+
+describe("AppNav: supervision space (#1297)", () => {
+  const rail = () => screen.getByRole("navigation", { name: "Navigation principale" });
+  const supervisor = () => ({ ...habilite("jeunes:read"), can_administer: false, can_supervise: true });
+
+  it("a supervisor without admin power sees Encadrement in the switcher, not Back-office", async () => {
+    chemin.courant = "/dashboard";
+    afficher(supervisor(), { initialExpanded: true });
+    await userEvent.click(await within(rail()).findByRole("button", { name: /changer d'espace/ }));
+
+    expect(await screen.findByRole("menuitem", { name: /Encadrement/ })).toHaveAttribute("href", "/encadrement");
+    expect(screen.queryByRole("menuitem", { name: /Back-office/ })).not.toBeInTheDocument();
+  });
+
+  it("the supervision rail shows only its screens", async () => {
+    chemin.courant = "/encadrement/jeunes";
+    afficher(supervisor(), { initialExpanded: true });
+
+    await waitFor(() => expect(within(rail()).getByRole("link", { name: "Profils" })).toBeInTheDocument());
+    expect(within(rail()).getByRole("link", { name: "Calendrier des entraînements" })).toBeInTheDocument();
+    expect(within(rail()).getByRole("link", { name: "Appel" })).toBeInTheDocument();
+    const hrefs = within(rail()).getAllByRole("link").map((lien) => lien.getAttribute("href"));
+    expect(hrefs.filter((href) => href?.startsWith("/encadrement"))).toEqual([
+      "/encadrement/jeunes",
+      "/encadrement/jeunes/calendrier",
+      "/encadrement/jeunes/appel",
+    ]);
+    expect(hrefs.filter((href) => href?.startsWith("/admin"))).toEqual([]);
+    expect(hrefs).not.toContain("/resultats");
+  });
+
+  it("the Back-office count no longer includes volunteer declarations", async () => {
+    chemin.courant = "/dashboard";
+    countQualityQueue.mockResolvedValue({ total: 2 });
+    countPendingVolunteerActions.mockResolvedValue({ total: 5 });
+    afficher(
+      { ...habilite("quality:override", "athletes:volunteer_validate", "pages:preview"), can_administer: true },
+      { initialExpanded: true },
+    );
+
+    expect(await within(rail()).findByText("2 éléments à traiter")).toHaveClass("sr-only");
+    await waitFor(() => expect(countPendingVolunteerActions).toHaveBeenCalled());
   });
 });

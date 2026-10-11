@@ -29,10 +29,8 @@ import { NoAdminAccess } from "./NoAdminAccess";
  * sous-section.
  */
 
-/** Les écrans du back-office : ceux dont la destination vit sous `/admin`. */
-const SECTIONS = NAV.filter((s) =>
-  s.items.some((i) => i.href?.startsWith("/admin/")),
-);
+/** Les écrans du back-office : les sections de l'espace admin. */
+const SECTIONS = NAV.filter((s) => s.space === "admin");
 
 const FOCUS_RING =
   "block h-full rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tcn-orange)]";

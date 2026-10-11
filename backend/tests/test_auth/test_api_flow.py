@@ -1,5 +1,9 @@
 """`authorize` et `callback` — le parcours vu depuis HTTP."""
+import pytest
+
+from app.api.v1.auth import _landing_path
 from app.core.config import get_settings
+from app.core.permissions import P
 from app.models.user import User
 from app.services.auth import session, state
 
@@ -72,13 +76,41 @@ def test_le_callback_nominal_ouvre_une_session(client, doublure, db_session):
     )
 
     assert reponse.status_code == 302
-    assert reponse.headers["location"] == f"{get_settings().auth_redirect_base_url}/admin"
+    assert reponse.headers["location"] == f"{get_settings().auth_redirect_base_url}/dashboard"
 
     settings = get_settings()
     jeton = client.cookies[session_cookie_name(settings)]
     assert session.resolve(db_session, jeton) is not None
     # Le cookie d'état a été effacé : l'usage est unique.
     assert state_cookie_name(settings) not in client.cookies
+
+
+def test_le_callback_mene_un_encadrant_a_l_espace_encadrement(
+    client, doublure, db_session, ouvrir_session
+):
+    from app.repositories import identity_repository
+
+    user = ouvrir_session(P.JEUNES_READ, pose_le_cookie=False)
+    identite = doublure.identite
+    identity_repository.create(
+        db_session,
+        user_id=user.id,
+        provider=identite.provider,
+        subject=identite.subject,
+        email=identite.email,
+    )
+    db_session.commit()
+    _authorize(client)
+    charge = state.read(_state_cookie(client))
+
+    reponse = client.get(
+        f"/api/v1/auth/doublure/callback?code=code-1&state={charge.state}",
+        follow_redirects=False,
+    )
+
+    assert reponse.headers["location"] == (
+        f"{get_settings().auth_redirect_base_url}/encadrement"
+    )
 
 
 def test_le_callback_sans_cookie_d_etat_redirige_vers_login(client, doublure):
@@ -110,3 +142,16 @@ def test_un_callback_rejoue_est_refuse(client, doublure, db_session):
 
     assert rejeu.headers["location"].endswith("/login?error=state_mismatch")
     assert db_session.query(User).count() == 1
+
+
+@pytest.mark.parametrize(
+    ("codes", "expected"),
+    [
+        ({P.QUALITY_OVERRIDE.code, P.JEUNES_READ.code}, "/admin"),
+        ({P.JEUNES_READ.code}, "/encadrement"),
+        ({P.PAGES_PREVIEW.code}, "/dashboard"),
+        (set(), "/dashboard"),
+    ],
+)
+def test_landing_goes_to_the_first_open_space(codes, expected):
+    assert _landing_path(codes) == expected
