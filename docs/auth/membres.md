@@ -30,7 +30,7 @@ un adhérent, et d'un adhérent un candidat au back-office. Y figurer ne donne
   exactes de l'export AssoConnect n'ont pas été mesurées (pages d'aide en 403) :
   un en-tête inconnu se traite en ajoutant sa forme normalisée à
   `_EMAIL_HEADERS`.
-- Adresse normalisée `strip().casefold()`, validée par
+- Adresse normalisée par `core.email.normalize_email` (`strip().lower()`, la forme partagée avec la liste d'autorisation et `users.email`), validée par
   `allowed_emails.validate_email` (la seule définition d'une adresse valide du
   dépôt). Doublons fusionnés. Une ligne entièrement vide est sautée ; une ligne
   sans adresse valide est comptée `ignored`.

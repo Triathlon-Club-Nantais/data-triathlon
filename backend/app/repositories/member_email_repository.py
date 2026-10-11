@@ -5,12 +5,11 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.email import normalize_email
 from app.core.season import season_of
 from app.models.member_email import SOURCE_IMPORT, SOURCE_MANUAL, MemberEmail
 
-
-def normalize(email: str) -> str:
-    return email.strip().casefold()
+normalize = normalize_email
 
 
 def list_season(db: Session, season: int) -> list[MemberEmail]:

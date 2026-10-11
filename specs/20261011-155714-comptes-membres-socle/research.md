@@ -37,7 +37,7 @@ Complète le sondage `docs/superpowers/specs/2026-10-11-comptes-membres-sondage.
 
 ## R6. Import de la liste
 
-- **Decision**: reprise de `club_members_service` : `sheet_source.read_table`, `_header_key`, `_column`, erreurs `DomainError` en français, `audit.record`. En-têtes acceptés (après normalisation alphanumérique) : `email`, `mail`, `courriel`, `adressemail`, `adresseemail`, `adressee-mail` normalisé, `emailaddress`, `adresseelectronique`, `adressedecourriel`. Une adresse valide correspond à `^[^@\s]+@[^@\s]+\.[^@\s]+$` après `strip().casefold()`.
+- **Decision**: reprise de `club_members_service` : `sheet_source.read_table`, `_header_key`, `_column`, erreurs `DomainError` en français, `audit.record`. En-têtes acceptés (après normalisation alphanumérique) : `email`, `mail`, `courriel`, `adressemail`, `adresseemail`, `adressee-mail` normalisé, `emailaddress`, `adresseelectronique`, `adressedecourriel`. Une adresse valide correspond à `^[^@\s]+@[^@\s]+\.[^@\s]+$` après `core.email.normalize_email` (`strip().lower()`, revue de #1322).
 - **Remplacement** : supprime les entrées `source="import"` de la saison absentes du fichier, ajoute les nouvelles, laisse les entrées `manual` ; une adresse présente en manuel et dans le fichier reste manuelle.
 - **Rationale**: même geste que la liste des licenciés pour l'administrateur ; aucune autre colonne lue (minimisation).
 

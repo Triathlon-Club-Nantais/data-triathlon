@@ -404,7 +404,7 @@ fichier. Seul point de passage : `club_member_repository`.
 `member_emails` (`id`, `email`, `season`, `source`, `created_at`) liste les
 adresses qui reconnaissent un adhérent, importées de l'export AssoConnect
 (`import`) ou ajoutées à la main (`manual`). Seul point de passage :
-`member_email_repository`, qui range l'adresse normalisée (`strip().casefold()`).
+`member_email_repository`, qui range l'adresse normalisée (`core.email.normalize_email`).
 
 - **`UNIQUE(email, season)`** : une adresse au plus une fois par saison ; sert
   aussi d'index à la recherche du statut adhérent.

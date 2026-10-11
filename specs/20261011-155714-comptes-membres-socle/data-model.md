@@ -5,7 +5,7 @@
 | Colonne | Type | Contraintes | Note |
 |---|---|---|---|
 | `id` | Integer | PK | |
-| `email` | String(320) | non nul | normalisée : `strip().casefold()` |
+| `email` | String(320) | non nul | normalisée : `core.email.normalize_email` (`strip().lower()`) |
 | `season` | Integer | non nul, index | année de début de saison (`core.season.season_of`), bornée par `SEASON_MIN`/`SEASON_MAX` |
 | `source` | String(16) | non nul | `"import"` ou `"manual"` (constantes `SOURCE_IMPORT`, `SOURCE_MANUAL`) |
 | `created_at` | DateTime | non nul, défaut `utcnow` | |
