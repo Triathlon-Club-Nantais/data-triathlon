@@ -605,3 +605,38 @@ def test_a_neutral_correction_stays_accepted(benevole_connecte, resultat_pendant
     )
 
     assert reponse.status_code == 200
+
+
+# --- PATCH /benevoles/courses/{id} : règle jeunes (#1287) --------------------
+
+
+def test_a_rename_that_makes_a_non_tcn_row_youth_is_refused(
+    benevole_connecte, resultat_pendant, compte_systeme, db_session
+):
+    """#1287 : le renommage ne contourne pas la règle de la saisie manuelle."""
+    course, _, ligne = resultat_pendant
+    participation_repository.update(db_session, ligne, club="ASPTT", category="S1H")
+    db_session.commit()
+
+    reponse = benevole_connecte.patch(
+        f"/api/v1/benevoles/courses/{course.id}", json={"name": "Triathlon Jeunes"}
+    )
+
+    assert reponse.status_code == 422
+    assert "jeune" in reponse.json()["detail"]
+    db_session.expire_all()
+    assert course_repository.get(db_session, course.id).name == "Tri Bénévoles"
+
+
+def test_a_youth_rename_with_only_tcn_rows_stays_accepted(
+    benevole_connecte, resultat_pendant, compte_systeme, db_session
+):
+    course, _, ligne = resultat_pendant
+    participation_repository.update(db_session, ligne, club="TCN", category="MIH")
+    db_session.commit()
+
+    reponse = benevole_connecte.patch(
+        f"/api/v1/benevoles/courses/{course.id}", json={"name": "Triathlon Jeunes"}
+    )
+
+    assert reponse.status_code == 200
