@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.core.club import is_tcn
 from app.core.exceptions import DomainError, DuplicateError
 from app.core.youth import is_youth
+from app.models.course import Course
 from app.models.participation import Participation
 from app.repositories import participation_repository
 from app.scrapers.base import ScrapedResult
@@ -39,6 +40,24 @@ def ensure_not_youth(
     event_year = event_date.year if event_date else None
     if is_youth(event_name, category, event_year=event_year) and not is_tcn(club):
         raise YouthResultError()
+
+
+def ensure_rename_keeps_rows_adult(db: Session, course: Course, new_name: str) -> None:
+    """Refuse le renommage bénévole qui rend jeune une ligne non TCN (#1287).
+
+    Seul compte ce que le renommage change : une ligne non TCN déjà jeune sous
+    l'ancien nom (par sa catégorie, dans un heat gardé pour son jeune TCN,
+    #1221, ou parce que l'épreuve s'appelait déjà jeune) ne bloque pas une
+    correction de libellé. Toutes les lignes comptent, quel que soit leur statut.
+    """
+    event_year = course.event_date.year if course.event_date else None
+    for category, club in participation_repository.categories_and_clubs_for_course(db, course.id):
+        if (
+            not is_tcn(club)
+            and is_youth(new_name, category, event_year=event_year)
+            and not is_youth(course.name, category, event_year=event_year)
+        ):
+            raise YouthResultError()
 
 
 def save_one(db: Session, scraped: ScrapedResult, event_url: str = "") -> Participation:

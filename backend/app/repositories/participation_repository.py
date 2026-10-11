@@ -703,6 +703,16 @@ def has_pending_for_course(db: Session, course_id: int) -> bool:
     )
 
 
+def categories_and_clubs_for_course(db: Session, course_id: int) -> list[tuple[str | None, str | None]]:
+    """(catégorie, club) de chaque ligne de l'épreuve, tous statuts (#1287)."""
+    return [
+        tuple(row)
+        for row in db.query(Participation.category, Participation.club)
+        .filter(Participation.course_id == course_id)
+        .all()
+    ]
+
+
 def list_for_course(db: Session, course_id: int) -> list[Participation]:
     return (
         db.query(Participation)
