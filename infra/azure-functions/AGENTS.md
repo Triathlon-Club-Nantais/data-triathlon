@@ -57,7 +57,7 @@ dont la fenêtre de maintenance est payante : `Render-sleep` le met en pause
 avant de coucher la production, `Render-wake` le réactive dès que
 `/api/v1/health` répond, ou au bout de 10 min (un lever raté doit alors alerter).
 Un dispatch en échec (jeton expiré) réactive aussi le moniteur, dans les deux
-fonctions, et fait échouer l'invocation. Avant #1320, l'erreur HTTP n'arrêtait
+fonctions, poste une alerte Slack d'ops et fait échouer l'invocation. Avant #1320, l'erreur HTTP n'arrêtait
 que l'appel : l'invocation finissait en *Succeeded* après avoir journalisé
 « déclenché », et la panne du jeton est passée inaperçue trois nuits.
 `host.json` porte donc un `functionTimeout` de 15 min. Sans les App Settings
@@ -83,6 +83,7 @@ Flex Consumption.
 |---|---|
 | `CRON_SECRET` | Même valeur que la variable `CRON_SECRET` des deux projets Vercel (`docs/ci-cd.md`). |
 | `GITHUB_DISPATCH_TOKEN` | Jeton *fine-grained* limité au dépôt `data-triathlon`, permission **Actions : read and write** et rien d'autre. Distinct de `GITHUB_BATCH_TOKEN` (Render), pour révoquer l'un sans couper l'autre. Échéance à suivre : un jeton expiré fait échouer `Render-wake`, et seul le cron de secours rallume alors la production. |
+| `SLACK_OPS_WEBHOOK_URL` | Même valeur que le secret de dépôt `SLACK_OPS_WEBHOOK_URL` (`notify-failure.yml`). Poste dans le canal d'ops quand `Render-sleep` ou `Render-wake` ne parvient pas à déclencher le workflow (#1320). Absente : pas d'alerte, seulement un warning. |
 | `UPTIMEROBOT_API_KEY` | Clé d'API principale du compte UptimeRobot (`it.triathlonclubnantais@gmail.com`), pour la pause du moniteur backend. |
 | `UPTIMEROBOT_BACKEND_MONITOR_ID` | Identifiant du moniteur « Backend production (Render) » : `804143914`. |
 | `AzureWebJobsStorage` | Compte de stockage de la Function (posé à la création). |

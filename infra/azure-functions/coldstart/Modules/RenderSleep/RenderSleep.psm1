@@ -79,4 +79,24 @@ function Wait-BackendHealthy {
     return $false
 }
 
-Export-ModuleMember -Function Invoke-RenderSleep, Set-BackendMonitor, Wait-BackendHealthy
+# Alerte Slack d'ops, même webhook entrant que `notify-failure.yml` (#922). Un échec
+# côté Azure n'atteint jamais GitHub, et UptimeRobot n'alerte que par e-mail : sans
+# ce message, personne n'est prévenu (#1320). Webhook absent ou en panne : warning seul.
+function Send-OpsAlert {
+    param([Parameter(Mandatory)] [string] $Message)
+
+    if (-not $env:SLACK_OPS_WEBHOOK_URL) {
+        Write-Warning "SLACK_OPS_WEBHOOK_URL absent : alerte Slack non envoyée."
+        return
+    }
+    try {
+        Invoke-RestMethod -Method Post -ContentType 'application/json' `
+            -Body (@{ text = ":rotating_light: $Message" } | ConvertTo-Json) `
+            -TimeoutSec 20 -Uri $env:SLACK_OPS_WEBHOOK_URL | Out-Null
+    }
+    catch {
+        Write-Warning "Alerte Slack non envoyée : $_"
+    }
+}
+
+Export-ModuleMember -Function Invoke-RenderSleep, Set-BackendMonitor, Wait-BackendHealthy, Send-OpsAlert

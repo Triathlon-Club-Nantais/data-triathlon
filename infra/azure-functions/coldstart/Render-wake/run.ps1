@@ -9,6 +9,7 @@ catch {
     # Dispatch en échec : la production reste couchée jusqu'au cron de secours. Le
     # moniteur repart tout de suite pour alerter, et l'invocation échoue (#1320).
     Set-BackendMonitor -State start
+    Send-OpsAlert "*Render-wake* (Azure) : lever de la production non déclenché, elle reste couchée jusqu'au cron de secours. $_"
     throw
 }
 # Réactivé une fois le backend en ligne, ou au bout de 10 min quoi qu'il arrive :
