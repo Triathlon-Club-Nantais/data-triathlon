@@ -3,7 +3,7 @@
 // Gratuit jusqu'à 50 000 utilisateurs actifs par mois ; aucun module payant
 // (domaine personnalisé, SMS) n'est déclaré ici.
 
-@description('Nom du tenant, qui devient <nom>.onmicrosoft.com et le sous-domaine <nom>.ciamlogin.com.')
+@description('Nom du tenant, lettres et chiffres seuls : il devient <nom>.onmicrosoft.com et le sous-domaine <nom>.ciamlogin.com.')
 @minLength(1)
 @maxLength(26)
 param tenantName string
@@ -11,8 +11,13 @@ param tenantName string
 @description('Nom affiché du tenant.')
 param displayName string
 
+// Valeurs vérifiées contre la référence ARM (relevé du 2026-10-11) :
+// https://learn.microsoft.com/en-us/azure/templates/microsoft.azureactivedirectory/ciamdirectories
+// `name` suit ^[a-zA-Z0-9]{1,26} (sans « .onmicrosoft.com »), `location` parmi
+// 'United States', 'Europe', 'Asia Pacific', 'Australia', `sku.name` Standard
+// (PremiumP1 et P2 sont payants), `sku.tier` A0, seule valeur admise.
 resource tenant 'Microsoft.AzureActiveDirectory/ciamDirectories@2023-05-17-preview' = {
-  name: '${tenantName}.onmicrosoft.com'
+  name: tenantName
   location: 'Europe'
   sku: {
     name: 'Standard'
