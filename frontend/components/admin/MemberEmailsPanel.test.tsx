@@ -86,6 +86,34 @@ describe("MemberEmailsPanel", () => {
     ).toBeInTheDocument();
   });
 
+  it("forgets the import report and the chosen file when the season changes", async () => {
+    importMemberEmails.mockResolvedValue({ season: 2026, added: 1, removed: 0, unchanged: 0, ignored: 0 });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const panneau = (season: number) => (
+      <QueryClientProvider client={client}>
+        <DangerConfirmProvider>
+          <MemberEmailsPanel season={season} onSeasonChange={vi.fn()} data={SAISON} isLoading={false} />
+        </DangerConfirmProvider>
+      </QueryClientProvider>
+    );
+    const { rerender } = render(panneau(2026));
+    await userEvent.upload(screen.getByLabelText(/export assoconnect/i), new File(["x"], "x.csv"));
+    await userEvent.click(screen.getByRole("button", { name: "Importer" }));
+    expect(await screen.findByText(/1 ajoutée/)).toBeInTheDocument();
+    await userEvent.upload(screen.getByLabelText(/export assoconnect/i), new File(["y"], "y.csv"));
+
+    rerender(panneau(2025));
+
+    expect(screen.queryByText(/1 ajoutée/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Importer" })).toBeDisabled();
+  });
+
+  it("says that a manual address alone does not switch the counting season", () => {
+    afficher();
+
+    expect(screen.getByText(/dès qu.elle a une adresse importée/i)).toBeInTheDocument();
+  });
+
   it("shows the server's French message when the import is refused", async () => {
     importMemberEmails.mockRejectedValue(new Error("Colonne d'adresses e-mail introuvable dans ce fichier."));
     afficher();

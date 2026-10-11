@@ -182,7 +182,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Exporter les contacts depuis AssoConnect (.xlsx ou .csv), choisir le fichier puis « Importer ». Seule la colonne « Email » (ou « E-mail », « Courriel ») est lue. L'import remplace les adresses importées de la saison : une adresse absente du fichier est retirée, les adresses ajoutées à la main restent. Le compte rendu donne les adresses ajoutées, retirées, inchangées et les lignes ignorées.",
       "Un adhérent dont l'adresse de connexion diffère de celle d'AssoConnect : saisir son adresse dans « Adresse à ajouter », puis « Ajouter ». Elle survit aux imports suivants.",
       "« Retirer » ôte une adresse, après confirmation, quelle que soit son origine.",
-      "La saison qui compte est la saison en cours dès qu'elle a une adresse ; avant le premier import de septembre, celle de la saison précédente continue de compter. Les saisons plus anciennes sont supprimées par la purge hebdomadaire.",
+      "La saison qui compte est la saison en cours dès qu'elle a une adresse importée ; avant le premier import de septembre, celle de la saison précédente continue de compter, et les adresses ajoutées à la main pour la saison en cours comptent aussi. Les saisons plus anciennes sont supprimées par la purge hebdomadaire.",
     ],
     captures: [],
   },

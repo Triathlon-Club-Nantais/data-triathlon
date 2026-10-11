@@ -61,13 +61,15 @@ export function MemberEmailsPanel({
           <p className="text-sm">
             {`Saison qui compte aujourd'hui : ${seasonLabel(data.counting_season).toLowerCase()}.`}{" "}
             <span className="text-[var(--tcn-text-faint)]">
-              Tant que la saison en cours n&apos;a aucune adresse, la liste de la saison précédente continue de compter.
+              La saison en cours compte dès qu&apos;elle a une adresse importée ; avant le premier import, la liste
+              de la saison précédente continue de compter, et les adresses ajoutées à la main pour la saison en
+              cours comptent aussi.
             </span>
           </p>
         )}
       </Card>
 
-      <MemberEmailsImport season={season} />
+      <MemberEmailsImport key={season} season={season} />
 
       <Card className="space-y-4 p-6">
         <h2 className="font-semibold">Adresses de la {seasonLabel(season).toLowerCase()}</h2>
