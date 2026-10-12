@@ -91,6 +91,15 @@ export function useLogout() {
   });
 }
 
+/** Suppression du compte de la session, puis déconnexion (#1326). */
+export function useDeleteAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.deleteAccount(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.session() }),
+  });
+}
+
 const sansAbonnement = () => () => {};
 
 /** Faux au rendu serveur **et** au premier rendu client qui l'hydrate, vrai ensuite. */

@@ -350,6 +350,7 @@ export const apiClient = {
   listAuthMethods: () => request<AuthMethod[]>("/auth/methods"),
   getSession: () => request<SessionUser>("/auth/me"),
   logout: () => request<null>("/auth/logout", { method: "POST" }),
+  deleteAccount: () => request<null>("/auth/me", { method: "DELETE" }),
 
   // ── Administration des données (#117) ──────────────────────────────────────
   // Six ressources, six pouvoirs distincts côté serveur : l'écran ne fait que

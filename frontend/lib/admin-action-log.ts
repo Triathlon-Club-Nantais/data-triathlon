@@ -71,6 +71,7 @@ const ACTION_LABELS: Record<string, string> = {
   "allowed_email.add": "Ajout d'une adresse autorisée",
   "allowed_email.remove": "Retrait d'une adresse autorisée",
   "sessions.revoke": "Fermeture de sessions",
+  "account.delete": "Suppression d'un compte",
   "pending_provider.handle": "Traitement d'un chronométreur signalé",
 };
 
@@ -151,6 +152,7 @@ const PAYLOAD_KEY_LABELS: Record<string, string> = {
   scope: "Portée",
   sessions: "Sessions fermées",
   accounts: "Comptes touchés",
+  origin: "Origine",
 };
 
 /** Clés qui désignent un coureur ou une épreuve : rendues en lien vers sa page. */
@@ -192,6 +194,7 @@ export type LigneDetail = { label: string; value: string; href?: string };
 /** Valeurs codées traduites, par clé : le backend écrit `scope: "all"` (#935). */
 const PAYLOAD_VALUE_LABELS: Record<string, Record<string, string>> = {
   scope: { all: "tous les comptes" },
+  origin: { request: "à la demande de son titulaire", inactivity: "5 ans sans activité" },
   status: FEEDBACK_STATUS_LABELS,
 };
 

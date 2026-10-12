@@ -1,5 +1,7 @@
 "use client";
+import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { Avatar, Button } from "@/components/tcn";
 import {
   DropdownMenu,
@@ -9,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
-import { useLogout, useSession } from "@/lib/queries/auth";
+import { useDeleteAccount, useLogout, useSession } from "@/lib/queries/auth";
 import type { SessionUser } from "@/lib/types";
 
 /**
@@ -38,6 +40,8 @@ export function UserMenu({
 }) {
   const { data: session, isPending, errorUpdateCount, refetch, isFetching } = useSession();
   const logout = useLogout();
+  const suppression = useDeleteAccount();
+  const [suppressionOuverte, setSuppressionOuverte] = useState(false);
   const router = useRouter();
   const chemin = usePathname();
 
@@ -113,6 +117,37 @@ export function UserMenu({
     });
   };
 
+  const ouvrirLaSuppression = () => {
+    suppression.reset();
+    setSuppressionOuverte(true);
+  };
+  // `DangerConfirm` sous sa forme déclarative, qui ne dépend d'aucun provider :
+  // le menu se rend sur tout le site, hors des `DangerConfirmProvider` d'`/admin`.
+  const dialogDeSuppression = (
+    <DangerConfirm
+      open={suppressionOuverte}
+      onOpenChange={setSuppressionOuverte}
+      titre="Supprimer votre compte ?"
+      description={
+        <>
+          Votre compte, vos connexions, rôles et groupes sont effacés. Vos résultats et votre fiche athlète
+          restent publiés. Vous pourrez vous reconnecter plus tard : un compte neuf, sans rôle, sera créé.
+        </>
+      }
+      avertissement={suppression.error?.message}
+      enAttente={suppression.isPending}
+      onConfirm={() =>
+        suppression.mutate(undefined, {
+          onSuccess: () => {
+            setSuppressionOuverte(false);
+            router.push("/");
+            onNavigate?.();
+          },
+        })
+      }
+    />
+  );
+
   // Tiroir mobile : l'état connecté se déplie **à plat**. Un menu déroulant
   // dans un tiroir serait un menu dans un menu, et son popup sortirait du
   // piège de focus du tiroir. Le lien « Administration » a été retiré (revue
@@ -127,43 +162,53 @@ export function UserMenu({
         <Button variant="secondary" disabled={logout.isPending} onClick={seDeconnecter}>
           Se déconnecter
         </Button>
+        <Button variant="ghost" onClick={ouvrirLaSuppression}>
+          Supprimer mon compte
+        </Button>
+        {dialogDeSuppression}
       </div>
     );
   }
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        aria-label={`Compte — ${session.email}`}
-        style={{
-          display: "inline-flex",
-          padding: 0,
-          border: "none",
-          background: "transparent",
-          borderRadius: 999,
-          cursor: "pointer",
-        }}
-      >
-        <Avatar name={nom} size={34} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-auto min-w-60 p-1.5">
-        <div style={{ padding: "6px 8px 10px", minWidth: 0 }}>
-          <Identite session={session} />
-        </div>
-        <DropdownMenuSeparator />
-        {/* Entrée « Administration » retirée (revue humaine PR #214) : la
-            catégorie Administration de la nav la porte déjà, et un doublon
-            dans le menu compte alourdit l'interface sans rien apporter. */}
-        <DropdownMenuItem
-          variant="destructive"
-          disabled={logout.isPending}
-          onClick={seDeconnecter}
-          className="px-2 py-2 text-[14px] font-semibold"
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label={`Compte — ${session.email}`}
+          style={{
+            display: "inline-flex",
+            padding: 0,
+            border: "none",
+            background: "transparent",
+            borderRadius: 999,
+            cursor: "pointer",
+          }}
         >
-          Se déconnecter
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <Avatar name={nom} size={34} />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-auto min-w-60 p-1.5">
+          <div style={{ padding: "6px 8px 10px", minWidth: 0 }}>
+            <Identite session={session} />
+          </div>
+          <DropdownMenuSeparator />
+          {/* Entrée « Administration » retirée (revue humaine PR #214) : la
+              catégorie Administration de la nav la porte déjà, et un doublon
+              dans le menu compte alourdit l'interface sans rien apporter. */}
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={logout.isPending}
+            onClick={seDeconnecter}
+            className="px-2 py-2 text-[14px] font-semibold"
+          >
+            Se déconnecter
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={ouvrirLaSuppression} className="px-2 py-2 text-[14px]">
+            Supprimer mon compte
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {dialogDeSuppression}
+    </>
   );
 }
 

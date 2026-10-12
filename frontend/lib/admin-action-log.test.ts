@@ -115,6 +115,16 @@ describe("catalogue coverage (#1043)", () => {
     ]);
   });
 
+  it("translates an account deletion and its origin, never the raw code (#1326)", () => {
+    expect(actionLabel("account.delete")).toBe("Suppression d'un compte");
+    expect(formatPayload({ origin: "request" })).toEqual([
+      { label: "Origine", value: "à la demande de son titulaire" },
+    ]);
+    expect(formatPayload({ origin: "inactivity" })).toEqual([
+      { label: "Origine", value: "5 ans sans activité" },
+    ]);
+  });
+
   it("translates the season, volunteering and source payload keys", () => {
     const lignes = formatPayload({ season: 2026, action_id: 4, url: "https://x", provider: "klikego" });
 
