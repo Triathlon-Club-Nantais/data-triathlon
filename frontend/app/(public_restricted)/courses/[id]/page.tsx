@@ -124,7 +124,6 @@ export default async function CoursePage({
 
   const courseId = idDeRoute(id);
   const enSynthese = apiServer.getCourseSummary(courseId).catch(rendreNullSi404);
-  const enSources = apiServer.getCourseSources(courseId).catch(rendreNullSi404);
   // « Tout » dépend de la taille de l'épreuve (#1355) : la synthèse passe alors
   // devant le classement, ~100 ms de plus sur cette seule demande.
   const pageSize =
@@ -134,7 +133,9 @@ export default async function CoursePage({
       .getCourse(courseId, { page, page_size: pageSize, q, scope, club, category })
       .catch(rendreNullSi404),
     enSynthese,
-    enSources,
+    // Lancées ici seulement : partie plus tôt, une source en échec ne serait
+    // écoutée par personne si la synthèse lève avant ce `Promise.all`.
+    apiServer.getCourseSources(courseId).catch(rendreNullSi404),
   ]);
   if (!data || !summary) notFound();
   const { course, participations } = data;

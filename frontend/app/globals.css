@@ -543,7 +543,9 @@
   .tcn-classement-ligne--club {
     border-left-color: var(--tcn-orange);
   }
-  .tcn-classement-nom {
+  /* Préfixées par `.tcn-table` : le `font-weight: inherit` de `.tcn-table td`
+     (0,1,1) battrait sinon leur gras, que le style en ligne emportait. */
+  .tcn-table .tcn-classement-nom {
     font-size: 14px;
     font-weight: 700;
     color: var(--tcn-ink);
@@ -565,7 +567,7 @@
     font-size: 13px;
     color: var(--tcn-text-body);
   }
-  .tcn-classement-temps {
+  .tcn-table .tcn-classement-temps {
     font-family: var(--tcn-font-cond);
     font-weight: 700;
     font-size: 15px;
