@@ -119,6 +119,13 @@ Procédure réelle à ce jour, manuelle :
    `workflow_dispatch` de `render-sleep.yml` doit apparaître à 23 h 15 et à
    2 h 15 UTC, à la minute, et un `suspend · preview` à chaque minute 45.
 
+Sans VS Code, la CLI fait le même déploiement (utilisé le 11/10/2026) : zipper le
+contenu de ce dossier **à la racine de l'archive** (`host.json` en tête), sans ce
+qu'exclut `.funcignore`, puis
+`az functionapp deployment source config-zip -g TCN_data_Front -n coldstart-curl --src coldstart.zip`.
+`az functionapp function list -g TCN_data_Front -n coldstart-curl` confirme les
+fonctions chargées et leurs plannings.
+
 Changer une App Setting (portail : *Settings → Environment variables*) redémarre
 la Function ; aucun redéploiement du code n'est nécessaire.
 
