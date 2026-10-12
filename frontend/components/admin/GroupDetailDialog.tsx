@@ -44,7 +44,7 @@ export function GroupDetailDialog({
   open: boolean;
   onOpenChange: (ouvert: boolean) => void;
 }) {
-  const detail = useGroup(open ? group.id : null);
+  const detail = useGroup(group.id, open);
   const utilisateurs = useAdminUsers();
   const session = useSession();
   const modifier = useUpdateGroup();
@@ -168,7 +168,7 @@ export function GroupDetailDialog({
           </div>
         )}
 
-        {detail.isLoading ? (
+        {detail.isPending ? (
           <Skeleton className="h-24 w-full" />
         ) : detail.error ? (
           <p className="text-destructive text-sm">

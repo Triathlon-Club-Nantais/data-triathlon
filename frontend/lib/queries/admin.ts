@@ -995,11 +995,11 @@ export function useGroups() {
  * suppression : une liste de dix groupes ne doit pas demander dix compositions
  * que personne ne regardera.
  */
-export function useGroup(groupId: number | null) {
+export function useGroup(groupId: number, enabled: boolean) {
   return useQuery({
-    queryKey: queryKeys.group(groupId ?? 0),
-    queryFn: () => apiClient.getGroup(groupId as number),
-    enabled: groupId !== null,
+    queryKey: queryKeys.group(groupId),
+    queryFn: () => apiClient.getGroup(groupId),
+    enabled,
   });
 }
 

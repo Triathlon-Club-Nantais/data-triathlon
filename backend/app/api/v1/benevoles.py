@@ -28,6 +28,7 @@ from app.models.user import User
 from app.repositories import (
     athlete_repository,
     benevole_config_repository,
+    course_repository,
     participation_repository,
 )
 from app.schemas.admin import ParticipationReassign
@@ -37,7 +38,13 @@ from app.schemas.count import QueueCount
 from app.schemas.course import CourseBrief
 from app.schemas.participation import ParticipationOut
 from app.schemas.validation_queue import ValidationQueueHistory
-from app.services import admin_actions, benevole_access, shared_password, validation_queue_service
+from app.services import (
+    admin_actions,
+    benevole_access,
+    scrape_service,
+    shared_password,
+    validation_queue_service,
+)
 
 router = APIRouter(tags=["benevoles"])
 
@@ -166,6 +173,9 @@ def rename_course(
     """
     if not participation_repository.has_pending_for_course(db, course_id):
         raise NotFoundError("Aucun résultat en attente n'est associé à cette épreuve.")
+    scrape_service.ensure_rename_keeps_rows_adult(
+        db, course_repository.get(db, course_id), body.name
+    )
     course = admin_actions.update_course(
         db,
         course_id=course_id,

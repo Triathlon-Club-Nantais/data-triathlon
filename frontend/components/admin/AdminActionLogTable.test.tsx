@@ -13,6 +13,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 });
 
 import { AdminActionLogTable } from "./AdminActionLogTable";
+import { rendreAvecRelanceSuspendue } from "@/test/requete-suspendue";
 
 function page(overrides: Partial<AdminActionLogPage> = {}): AdminActionLogPage {
   return {
@@ -42,6 +43,17 @@ function afficher() {
 }
 
 describe("AdminActionLogTable", () => {
+  it("ne prend pas une relance suspendue pour une liste vide (#1294)", async () => {
+    getActionLog.mockRejectedValue(new Error("Service indisponible"));
+
+    await rendreAvecRelanceSuspendue(
+      <AdminActionLogTable />,
+      ["admin-action-log"],
+    );
+
+    expect(screen.queryByText(/aucune entrée dans le journal/i)).not.toBeInTheDocument();
+  });
+
   beforeEach(() => {
     getActionLog.mockReset();
   });

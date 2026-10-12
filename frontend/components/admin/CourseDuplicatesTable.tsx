@@ -176,12 +176,12 @@ function CandidatCard({
  * lecture change un jour sans que ce fichier soit relu.
  */
 export function CourseDuplicatesTable() {
-  const { data, isLoading, error } = useCourseDuplicates();
+  const { data, isPending, error } = useCourseDuplicates();
   const session = useSession();
   const peutFusionner = session.data?.permissions.includes("courses:delete") ?? false;
   const peutIgnorer = session.data?.permissions.includes("courses:sources") ?? false;
 
-  if (isLoading) return <Skeleton className="h-40 w-full" />;
+  if (isPending) return <Skeleton className="h-40 w-full" />;
   if (error) return <EmptyState {...messageDeRefus(error, REFUS)} />;
   if (!data || data.candidates.length === 0) {
     return (

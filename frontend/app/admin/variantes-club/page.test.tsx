@@ -36,6 +36,21 @@ describe("AdminVariantesClubPage", () => {
     expect(screen.queryByRole("button", { name: /ajouter/i })).not.toBeInTheDocument();
   });
 
+  it("ne prend pas une requête suspendue pour une liste vide (#1294)", () => {
+    // Hors ligne, la requête est suspendue avant tout appel : ni données ni
+    // erreur, et `isLoading` à faux.
+    useClubAliases.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isPending: true,
+      error: null,
+    });
+
+    afficher();
+
+    expect(screen.queryByText(/aucune variante déclarée/i)).not.toBeInTheDocument();
+  });
+
   it("monte la carte quand la lecture passe", () => {
     useClubAliases.mockReturnValue({
       data: { entries: [] },

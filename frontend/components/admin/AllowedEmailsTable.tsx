@@ -37,7 +37,7 @@ import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 const REFUS = { sujet: "accès", action: "gérer les accès au back-office" };
 
 export function AllowedEmailsTable() {
-  const { data, isLoading, error } = useAllowedEmails();
+  const { data, isPending, error } = useAllowedEmails();
   const ajouter = useAddAllowedEmail();
   const retirer = useRemoveAllowedEmail();
   const revoquer = useRevokeSessions();
@@ -166,7 +166,7 @@ export function AllowedEmailsTable() {
         </Button>
       </form>
 
-      {isLoading ? (
+      {isPending ? (
         <Skeleton className="h-40 w-full" />
       ) : error ? (
         <EmptyState {...messageDeRefus(error, REFUS)} />

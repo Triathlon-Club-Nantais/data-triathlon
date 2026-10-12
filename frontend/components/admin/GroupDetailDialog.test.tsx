@@ -39,6 +39,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 });
 
 import { GroupDetailDialog } from "./GroupDetailDialog";
+import { rendreAvecRelanceSuspendue } from "@/test/requete-suspendue";
 
 const CODIR: Group = {
   id: 3,
@@ -117,6 +118,14 @@ describe("GroupDetailDialog", () => {
     getSession.mockResolvedValue(MOI);
     getGroup.mockResolvedValue(DETAIL);
     listAdminUsers.mockResolvedValue([CAMILLE, ALIX]);
+  });
+
+  it("ne prend pas une relance suspendue pour un groupe sans membre (#1294)", async () => {
+    getGroup.mockRejectedValue(new Error("Service indisponible"));
+
+    await rendreAvecRelanceSuspendue(<GroupDetailDialog group={CODIR} open onOpenChange={() => {}} />, ["admin-group"]);
+
+    expect(screen.queryByText(/aucun membre/i)).not.toBeInTheDocument();
   });
 
   it("affiche les membres du groupe", async () => {

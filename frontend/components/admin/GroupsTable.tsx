@@ -32,7 +32,7 @@ import type { Group } from "@/lib/types";
 const REFUS = { sujet: "groupes", action: "consulter les groupes d'appartenance" };
 
 export function GroupsTable() {
-  const { data, isLoading, error } = useGroups();
+  const { data, isPending, error } = useGroups();
   const session = useSession();
   const creer = useCreateGroup();
   const supprimer = useDeleteGroup();
@@ -134,7 +134,7 @@ export function GroupsTable() {
         </form>
       )}
 
-      {isLoading ? (
+      {isPending ? (
         <Skeleton className="h-40 w-full" />
       ) : error ? (
         <EmptyState {...messageDeRefus(error, REFUS)} />
