@@ -329,13 +329,11 @@ Trois points qui coûtent cher s'ils sont découverts en production :
   fonctionne que sur cette URL fixe. Le site public, lui, reste entier partout ;
 - **la liste d'autorisation n'est plus une variable d'environnement** (#170) :
   elle vit dans la table `allowed_emails`, éditable depuis `/admin/acces` sans
-  redéploiement. Une liste vide interdit toujours toute connexion — le refus
-  tombe désormais au **retour** du parcours (`account_not_allowed`) et non plus à
-  son entrée, `/auth/methods` n'interrogeant aucune table. Un refus se
-  diagnostique **dans les journaux du backend**, où l'adresse soumise est tracée ;
-  le code rendu au visiteur, lui, reste muet sur la valeur (FR-030). L'amorçage
-  d'une installation neuve passe par
-  `uv run python -m app.cli allow-email --email <adresse>`.
+  redéploiement. Depuis #1322 elle ne conditionne plus la connexion : une
+  adresse certifiée hors liste ouvre un compte sans rôle, et seul un compte
+  désactivé est refusé (`account_not_allowed`). L'amorçage d'une installation
+  neuve passe par `uv run python -m app.cli allow-email --email <adresse>` puis
+  `grant-role`.
 
 ### Ajouter une adresse autorisée sans passer par `/admin` (#170)
 

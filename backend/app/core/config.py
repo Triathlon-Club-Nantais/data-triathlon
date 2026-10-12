@@ -141,9 +141,9 @@ class Settings(BaseSettings):
     # La liste des adresses autorisées **n'est plus ici** (#170) : elle vit dans
     # la table `allowed_emails`, éditable depuis le back-office. Elle était le
     # geste d'administration le plus fréquent du club, et le plus coûteux — ce
-    # cache `lru_cache` en faisait un redéploiement. Le fail-closed n'a pas
-    # bougé de place, il a changé d'étage : c'est `services/auth/provisioning`
-    # qui refuse en `account_not_allowed`, liste vide comprise.
+    # cache `lru_cache` en faisait un redéploiement. Depuis #1322 elle ne
+    # conditionne plus la connexion (rôle du premier jour seulement) : le
+    # fail-closed est porté par les gardes, pouvoir et code du site.
     #
     # Origine de l'**interface**, jamais celle de l'API : c'est elle qui proxifie
     # `/api/*`, donc elle seule à qui les cookies sont attribués. La destination
@@ -243,11 +243,9 @@ class Settings(BaseSettings):
         **Elles étaient trois** : la liste d'autorisation en faisait partie tant
         qu'elle était un réglage. Depuis #170 elle vit en base, et la peser ici
         transformerait ce garde — lu par `/auth/methods`, route **publique**
-        appelée par la page de connexion — en requête base. Le fail-closed n'est
-        pas perdu : `services/auth/provisioning` refuse en
-        `account_not_allowed`, liste vide comprise. Ce qu'on paie est un
-        aller-retour chez le fournisseur pour rien sur une installation neuve ;
-        ce qu'on évite est un levier de charge sur le site public.
+        appelée par la page de connexion — en requête base. Depuis #1322 elle ne
+        refuse d'ailleurs plus personne : un compte hors liste naît sans rôle,
+        et ce sont les gardes (pouvoir, code du site) qui ferment.
 
         Les secrets d'un fournisseur **ne sont pas ici** : chacun déclare sa
         propre configuration par `is_configured()`. Les exiger reviendrait à

@@ -92,8 +92,8 @@ def test_remove_ne_supprime_ni_utilisateur_ni_role(db_session):
 def test_reinscrire_rouvre_les_comptes(db_session):
     """La symétrie n'est pas optionnelle : sans elle, réinscrire n'ouvre rien.
 
-    Un compte désactivé est refusé en `account_not_allowed` **avant** que la
-    liste ne soit consultée — l'exploitant verrait l'adresse dans le tableau et
+    Un compte désactivé est refusé en `account_not_allowed` (compte désactivé)
+    quelle que soit la liste : l'exploitant verrait l'adresse dans le tableau et
     la personne resterait dehors, sans message qui l'explique.
     """
     acteur = _acteur(db_session)

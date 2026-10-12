@@ -53,6 +53,7 @@ const MOI: SessionUser = {
   roles: [],
   groups: [],
   can_administer: true,
+  is_member: false,
 };
 
 function afficher(signalement: Feedback) {

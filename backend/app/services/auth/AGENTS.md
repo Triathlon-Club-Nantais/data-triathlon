@@ -1,6 +1,7 @@
 # Authentification (#114)
-Socle SSO du back-office : ouvrir une session par délégation à GitHub, sans
+Socle SSO : ouvrir une session par délégation à un fournisseur d'identité, sans
 jamais détenir de mot de passe, **et laisser le site public strictement intact**.
+Né pour le back-office, ouvert aux adhérents depuis #1322.
 Spec, plan et tâches : `specs/20260801-145428-auth-socle-sso/` ; le sondage
 `docs/superpowers/specs/2026-08-01-auth-librairies-sondage.md` **prime** sur eux.
 
@@ -101,8 +102,15 @@ Le mot de passe d'accès au site (#509) pose bien un `dependencies=` global,
 sur l'inclusion de chaque sous-router (`app/api/v1/router.py`) — délibérément,
 pour la raison inverse : fermer le site public dans son ensemble est
 exactement son but, pas un accident à éviter. Les deux gardes sont
-orthogonales et compatibles : une session RBAC ne dispense pas du mot de
-passe site, et réciproquement. Rationale complète dans le commentaire de
+orthogonales : un **pouvoir** ne dispense pas du code du site, et
+réciproquement. Une seule dispense existe, depuis #1322 : la session d'un
+compte **adhérent** (`membership.is_member`, statut dérivé à chaque requête de
+la liste des adresses d'adhérents) ouvre le site sans le cookie. Elle n'est
+vérifiée qu'**à défaut** de cookie valide (le cookie ne coûte que la lecture de
+la configuration, la session et le statut trois requêtes), y compris sans code
+configuré, et la garde reste fail-closed pour tout le reste. Un cookie de site posé à la
+connexion a été écarté : deux sources de vérité, et un retrait de la liste
+sans effet pendant les 90 jours du cookie. Rationale complète dans le commentaire de
 `app/api/v1/router.py` et dans
 `docs/superpowers/specs/2026-08-20-mot-de-passe-site-design.md`.
 
@@ -167,18 +175,24 @@ Trois points que le code ne dit pas :
   suppose un porteur de confiance, ce qui est le modèle de menace du dépôt ;
   scinder le pouvoir n'y changerait rien, seule une garde de non-amplification
   sur la révocation le ferait, qu'aucun besoin exprimé ne réclame.
-- **L'adresse refusée est journalisée, la table des tentatives est écartée.**
-  Un refus `account_not_allowed` trace l'adresse soumise dans les journaux du
-  backend : sans elle, aucun refus n'est diagnosticable et l'exploitant ne sait
-  pas quelle adresse ajouter. Une adresse n'est pas un secret au sens de FR-038,
-  dont le filet porte sur les clés, les jetons et le code de retour. Le refus
-  pour **adresse non certifiée** ne la journalise pas — le fournisseur ne la
-  prouve pas. Consigner ces tentatives **en base** a été demandé en revue et
-  écarté (suivi en #170, avec le passage de la liste d'autorisation en base) : ce
-  serait la seule écriture pilotée par un visiteur non authentifié, sans plafond,
-  sur de la donnée personnelle de tiers. Raisonnement complet :
-  `specs/20260801-145428-auth-socle-sso/data-model.md`, §Ce qu'aucune table
-  n'enregistre.
+- **La connexion est ouverte à toute adresse certifiée (#1322).** La liste
+  d'autorisation ne refuse plus personne : une adresse certifiée hors liste
+  ouvre un compte **sans rôle**, que les gardes laissent dehors (403 sur toute
+  ressource à pouvoir, code du site exigé s'il n'est pas adhérent). Restent
+  refusés : l'adresse non certifiée (`email_unverified`) et le compte désactivé
+  (`account_not_allowed`, qui ne veut plus dire que cela). La création d'un
+  compte sans rôle est journalisée au niveau info, par son identifiant et sans
+  l'adresse. L'adresse retenue sur le compte suit FR-016
+  (`membership.retained_email`) : la première certifiée inscrite à la liste
+  d'autorisation, sinon la première qui compte dans la liste d'adhérents,
+  sinon la principale. Le retour de parcours mène à `/admin` pour qui
+  administre (`permissions.administers`), à `/` sinon. Le plafond de débit de
+  `/auth/{provider}/authorize` borne la création de comptes en masse, et un
+  compte sans rôle ni statut adhérent n'ouvre rien.
+  Consigner les tentatives **en base** reste écarté (#170) : ce serait la seule
+  écriture pilotée par un visiteur non authentifié, sans plafond, sur de la
+  donnée personnelle de tiers (`specs/20260801-145428-auth-socle-sso/data-model.md`,
+  §Ce qu'aucune table n'enregistre).
 - **Une rotation de `AUTH_SESSION_SECRET_KEY` ne ferme aucune session.** Le
   jeton de session est **opaque et vérifié en base**, il n'est pas signé : la clé
   ne signe que le jeton d'état, donc une rotation n'interrompt que les parcours
@@ -289,5 +303,6 @@ détail, invariants et pièges mesurés dans `docs/auth/liste-autorisation.md` e
 
 La liste des **adresses d'adhérents** (#1334, `member_emails`) est une troisième
 table, distincte d'`allowed_emails` : elle dit qui est adhérent, jamais qui
-entre au back-office. Règles d'import, saison qui compte et purge :
-`docs/auth/membres.md`.
+entre au back-office. Le statut adhérent qui en dérive (#1322,
+`services/membership.py`) dispense du code du site et n'accorde aucun pouvoir.
+Règles d'import, saison qui compte, statut et purge : `docs/auth/membres.md`.

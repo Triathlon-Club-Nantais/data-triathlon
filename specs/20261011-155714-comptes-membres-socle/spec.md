@@ -91,6 +91,8 @@ Sur la page de connexion, un bouton propose de se connecter via le service d'ide
 - Rentrée de septembre avant tout import : la liste de la saison précédente continue de compter.
 - Adhérent dont l'adresse AssoConnect diffère de celle de son compte : non reconnu ; l'administrateur ajoute l'adresse du compte à la main (en attendant #1325).
 - Compte GitHub existant d'un exploitant qui est aussi adhérent : cumule rôle et statut adhérent, l'un n'implique pas l'autre.
+- Adresse inscrite à la liste d'autorisation avec un rôle du premier jour alors qu'un compte porte déjà cette adresse (adhérent connecté avant) : l'inscription avec rôle est refusée (409) avec un message qui renvoie à l'écran « Rôles des utilisateurs » ; le rôle n'est jamais donné par l'adresse.
+- Adresse inscrite que le fournisseur cesse de certifier au profit d'une autre : le compte garde l'adresse inscrite, pour que son retrait le désactive encore.
 - Création massive de comptes sans droit par des inconnus : le plafond de débit des routes de connexion s'applique ; un compte sans rôle ni statut adhérent n'ouvre rien.
 - Fournisseur Entra indisponible ou clés de signature introuvables : refus avec le code « fournisseur indisponible », aucune session.
 - Rotation des clés de signature du fournisseur : un jeton signé par une clé nouvelle est accepté après rafraîchissement des clés publiques.

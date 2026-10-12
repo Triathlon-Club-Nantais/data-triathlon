@@ -421,6 +421,49 @@ def test_un_null_qui_ne_change_rien_n_exige_aucun_pouvoir_de_plus(
     assert reponse.status_code == 201
 
 
+def test_un_role_initial_sur_une_adresse_qui_a_deja_un_compte_rend_409(
+    client, ouvrir_session, db_session, benevole
+):
+    """Revue de #1322 : depuis la connexion ouverte, le compte peut exister
+    avant l'autorisation. Le rôle du premier jour ne s'y appliquerait jamais, et
+    le donner par l'adresse est l'appariement que #114 interdit : on refuse, en
+    disant où attribuer le rôle."""
+    from app.models.allowed_email import AllowedEmail
+    from app.repositories import user_repository
+
+    ouvrir_session(P.ALLOWED_EMAILS_MANAGE, P.ROLES_ASSIGN)
+    user_repository.create(db_session, email="Adherent@Exemple.fr", display_name="")
+    db_session.commit()
+
+    reponse = client.post(
+        "/api/v1/admin/allowed-emails",
+        json={"email": "adherent@exemple.fr", "role_id": benevole.id},
+    )
+
+    assert reponse.status_code == 409
+    assert reponse.json()["detail"] == (
+        "Un compte existe déjà pour cette adresse : attribuez-lui le rôle depuis "
+        "l'écran « Rôles des utilisateurs »."
+    )
+    assert db_session.query(AllowedEmail).filter_by(email="adherent@exemple.fr").count() == 0
+
+
+def test_sans_role_une_adresse_qui_a_deja_un_compte_s_inscrit(
+    client, ouvrir_session, db_session
+):
+    from app.repositories import user_repository
+
+    ouvrir_session(P.ALLOWED_EMAILS_MANAGE, P.ROLES_ASSIGN)
+    user_repository.create(db_session, email="adherent@exemple.fr", display_name="")
+    db_session.commit()
+
+    reponse = client.post(
+        "/api/v1/admin/allowed-emails", json={"email": "adherent@exemple.fr", "role_id": None}
+    )
+
+    assert reponse.status_code == 201
+
+
 def test_redonner_le_meme_role_ne_redemande_rien(
     client, ouvrir_session, db_session, autoriser, benevole
 ):

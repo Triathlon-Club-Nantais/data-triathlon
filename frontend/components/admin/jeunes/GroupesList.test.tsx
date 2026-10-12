@@ -78,6 +78,7 @@ const AVEC_ECRITURE: SessionUser = {
   roles: [],
   groups: [],
   can_administer: true,
+  is_member: false,
 };
 
 function afficher() {

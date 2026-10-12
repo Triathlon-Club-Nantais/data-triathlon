@@ -5,8 +5,8 @@ Renvoyé depuis `backend/app/services/auth/AGENTS.md`. Epic #1312, spec :
 `docs/superpowers/specs/2026-10-11-comptes-membres-sondage.md` prime.
 
 La liste dit **qui est adhérent**, saison par saison, par l'adresse e-mail.
-Elle est la source sur laquelle s'appuiera la connexion ouverte aux adhérents
-(#1322). Table `member_emails`, seul point de passage
+Elle est la source du statut adhérent de la connexion ouverte (#1322, plus
+bas). Table `member_emails`, seul point de passage
 `member_email_repository` ; logique dans `services/member_emails_service.py` ;
 écran `/admin/adresses-adherents` ; commande `import-member-emails` ; pouvoir
 `member_emails:manage`.
@@ -30,7 +30,7 @@ un adhérent, et d'un adhérent un candidat au back-office. Y figurer ne donne
   exactes de l'export AssoConnect n'ont pas été mesurées (pages d'aide en 403) :
   un en-tête inconnu se traite en ajoutant sa forme normalisée à
   `_EMAIL_HEADERS`.
-- Adresse normalisée `strip().casefold()`, validée par
+- Adresse normalisée par `core.email.normalize_email` (`strip().lower()`, la forme partagée avec la liste d'autorisation et `users.email`), validée par
   `allowed_emails.validate_email` (la seule définition d'une adresse valide du
   dépôt). Doublons fusionnés. Une ligne entièrement vide est sautée ; une ligne
   sans adresse valide est comptée `ignored`.
@@ -65,6 +65,31 @@ saison : sinon un seul ajout en septembre fermait tous les adhérents.
 dans la saison en cours : avant le premier import, celle-ci ne porte que des
 ajouts manuels, qui comptent en plus de la liste précédente. C'est le point
 d'appui du statut adhérent de #1322.
+
+## Statut adhérent (#1322)
+
+Un compte est **adhérent** si son adresse retenue (`users.email`) compte
+(`member_email_repository.counts`). `services/membership.is_member(db, user,
+today)` le dérive **à chaque requête** : jamais stocké sur `users` (invariant
+de #115), donc retirer l'adresse de la liste prend effet à la requête
+suivante, sans fermer de session. Ni un compte désactivé ni le compte système
+des bénévoles (`SYSTEM_USER_EMAIL`) ne le sont jamais.
+
+- **Ce qu'il donne** : la dispense du code d'accès au site
+  (`require_site_access` le vérifie à défaut de cookie valide, y compris sans code configuré), sur l'API comme sur
+  l'interface, où `serverFetch` relaie pour cela la session SSO. Et rien
+  d'autre : aucun pouvoir, une route gardée par un pouvoir répond 403.
+- **Adresse retenue** (FR-016, `membership.retained_email`) : parmi les
+  adresses certifiées par le fournisseur, la première inscrite à la liste
+  d'autorisation, sinon la première qui compte ici, sinon la principale.
+  Rafraîchie à chaque connexion.
+- **Exposé** par `GET /auth/me` (`is_member`). L'écran du code d'accès propose
+  « Adhérent du club ? Se connecter » quand un moyen de connexion existe, et
+  explique à un connecté non adhérent qu'il doit saisir le code ou faire
+  ajouter son adresse.
+- Un adhérent dont l'adresse AssoConnect diffère de celle de son compte n'est
+  pas reconnu : l'administrateur ajoute l'adresse du compte à la main (en
+  attendant le rattachement de fiche, #1325).
 
 ## Purge
 

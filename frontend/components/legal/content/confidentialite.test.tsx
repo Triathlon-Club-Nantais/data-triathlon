@@ -157,6 +157,22 @@ describe("Politique de confidentialité (#333)", () => {
     );
   });
 
+  it("annonce les comptes ouverts aux adhérents, plus seulement au back-office (#1322)", () => {
+    const texte = rendre();
+    expect(texte).toMatch(/les adhérents peuvent se connecter/i);
+    expect(texte).toMatch(/aucun droit d.administration/i);
+    expect(texte).not.toMatch(/Les comptes du back-office\./);
+    expect(screen.getByRole("row", { name: /^tcn_session/ })).not.toHaveTextContent(/back-office/);
+  });
+
+  it("dit comment faire supprimer un compte, la suppression n'étant pas en libre service (#1322)", () => {
+    const texte = rendre();
+    expect(screen.getByRole("row", { name: /^Compte / })).toHaveTextContent(
+      "Jusqu'à sa suppression, sur demande adressée au club (voir « Vos droits »)",
+    );
+    expect(texte).toMatch(/pour un compte, indiquez l.adresse électronique avec laquelle vous vous connectez/i);
+  });
+
   it("date la politique du jour de sa dernière modification", () => {
     expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-11");
   });

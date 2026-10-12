@@ -182,3 +182,100 @@ def test_une_route_gardee_repond_normalement_avec_le_cookie(client, db_session):
 
     assert client.get("/api/v1/health").status_code == 200  # santé, jamais gardée
     assert client.get("/api/v1/courses").status_code == 200
+
+
+# --- #1322 : un compte adhérent est dispensé du code d'accès -----------------
+
+
+def _adherent(db_session, email):
+    from app.core.season import season_of
+    from app.core.time import utcnow
+    from app.models.member_email import MemberEmail
+
+    entry = MemberEmail(email=email, season=season_of(utcnow().date()), source="import")
+    db_session.add(entry)
+    db_session.commit()
+    return entry
+
+
+def test_une_session_adherente_ouvre_le_site_sans_cookie(client, db_session, ouvrir_session):
+    _adherent(db_session, "adherent@exemple.fr")
+    ouvrir_session(email="adherent@exemple.fr")
+
+    assert site_access.SITE_SESSION_COOKIE not in client.cookies
+    assert client.get("/api/v1/courses").status_code == 200
+    assert client.get("/api/v1/site-access/session").status_code == 200
+
+
+def test_une_session_non_adherente_reste_devant_la_porte(client, db_session, ouvrir_session):
+    _adherent(db_session, "autre@exemple.fr")
+    ouvrir_session(email="visiteur@exemple.fr")
+
+    reponse = client.get("/api/v1/courses")
+    assert reponse.status_code == 401
+    assert reponse.json()["code"] == "site_access_required"
+    assert client.get("/api/v1/site-access/session").status_code == 401
+
+
+def test_un_adherent_entre_meme_sans_code_configure(client, db_session, ouvrir_session):
+    """Décidé en revue de #1322 : sans code d'accès configuré, la garde reste
+    fermée pour tous (fail-closed), sauf pour un adhérent connecté, dont la
+    dispense ne dépend pas du code."""
+    from app.repositories import site_access_config_repository
+
+    assert site_access_config_repository.get_config(db_session, with_updated_by=False) is None
+    _adherent(db_session, "adherent@exemple.fr")
+    ouvrir_session(email="adherent@exemple.fr")
+
+    assert client.get("/api/v1/courses").status_code == 200
+
+
+def test_un_porteur_de_role_non_adherent_doit_saisir_le_code(client, db_session, ouvrir_session):
+    """Orthogonalité : un pouvoir, même superutilisateur, ne dispense pas du code."""
+    ouvrir_session(superutilisateur=True, email="admin@exemple.fr")
+
+    reponse = client.get("/api/v1/courses")
+    assert reponse.status_code == 401
+    assert reponse.json()["code"] == "site_access_required"
+
+
+def test_le_cookie_de_site_suffit_sans_lire_la_session(client, db_session, ouvrir_session, monkeypatch):
+    """Revue de #1322 : le cookie, peu coûteux, est éprouvé d'abord ; la
+    session et le statut adhérent ne sont lus qu'à défaut."""
+    from app.services import membership
+
+    admin = user_repository.create(db_session, email="admin-cookie@exemple.fr", display_name="Admin")
+    db_session.flush()
+    config, _ = site_access.replace_password(db_session, password="secret-du-club", admin_user_id=admin.id)
+    db_session.commit()
+    client.cookies.set(site_access.SITE_SESSION_COOKIE, shared_password.sign_cookie(config.session_secret))
+    ouvrir_session(email="visiteur@exemple.fr")
+
+    def _interdit(*args, **kwargs):
+        raise AssertionError("statut adhérent lu alors que le cookie suffit")
+
+    monkeypatch.setattr(membership, "is_member", _interdit)
+
+    assert client.get("/api/v1/courses").status_code == 200
+
+
+def test_un_compte_adherent_desactive_n_est_pas_dispense(client, db_session, ouvrir_session):
+    _adherent(db_session, "adherent@exemple.fr")
+    user = ouvrir_session(email="adherent@exemple.fr")
+    user.is_active = False
+    db_session.commit()
+
+    assert client.get("/api/v1/courses").status_code == 401
+
+
+def test_le_retrait_de_l_adresse_ferme_a_la_requete_suivante(client, db_session, ouvrir_session):
+    from app.repositories import member_email_repository
+
+    entry = _adherent(db_session, "adherent@exemple.fr")
+    ouvrir_session(email="adherent@exemple.fr")
+    assert client.get("/api/v1/courses").status_code == 200
+
+    member_email_repository.remove(db_session, entry.id)
+    db_session.commit()
+
+    assert client.get("/api/v1/courses").status_code == 401

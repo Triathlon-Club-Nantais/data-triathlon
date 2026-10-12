@@ -21,4 +21,4 @@ Champ additif `is_member: boolean` (statut adhérent dérivé à la requête). L
 
 ## Garde du code d'accès (`require_site_access`)
 
-Ordre : session d'un compte adhérent → accès ; sinon cookie de site valide → accès ; sinon 401 `site_access_required` (inchangé). `GET /site-access/session` suit la même règle.
+Ordre : cookie de site valide → accès ; sinon session d'un compte adhérent → accès (même sans code configuré) ; sinon 401 `site_access_required` (inchangé). `GET /site-access/session` suit la même règle.

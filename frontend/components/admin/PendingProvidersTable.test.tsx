@@ -30,6 +30,7 @@ const MODERATEUR: SessionUser = {
   roles: [],
   groups: [],
   can_administer: true,
+  is_member: false,
 };
 
 const LECTEUR: SessionUser = {

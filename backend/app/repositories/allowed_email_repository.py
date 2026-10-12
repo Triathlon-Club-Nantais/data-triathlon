@@ -12,12 +12,10 @@ from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
+from app.core.email import normalize_email
 from app.models.allowed_email import AllowedEmail
 
-
-def normalize(email: str) -> str:
-    """Forme rangée d'une adresse : minuscules, espaces de bordure retirés."""
-    return email.strip().lower()
+normalize = normalize_email
 
 
 def exists(db: Session, email: str) -> bool:

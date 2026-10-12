@@ -14,7 +14,7 @@ l'interface, sur le modèle de `PROVIDER_LABELS`.
 ERROR_CODES = frozenset({
     "state_mismatch",        # preuve absente, altérée, expirée, rejouée, ou d'un autre fournisseur
     "email_unverified",      # le fournisseur ne certifie aucune adresse
-    "account_not_allowed",   # adresse hors de la liste des comptes autorisés
+    "account_not_allowed",   # compte désactivé (#1322 : la liste ne refuse plus une adresse)
     "provider_error",        # refus du fournisseur, ou réponse inexploitable
     "provider_unavailable",  # fournisseur injoignable
 })

@@ -83,7 +83,7 @@ export function UserMenu({
         variant="secondary"
         onClick={() => {
           // Mémorisé côté navigateur seulement (#494) : le backend redirige
-          // toujours vers /admin (FR-026), `PostLoginReturn` (providers.tsx)
+          // vers /admin ou / (FR-026, #1322), `PostLoginReturn` (providers.tsx)
           // lit cette clé à l'atterrissage pour ramener au point de départ.
           // `window.location.search` et non `useSearchParams()` : ce dernier
           // impose une frontière Suspense, inutile pour une simple lecture au

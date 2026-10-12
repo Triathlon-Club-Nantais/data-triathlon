@@ -46,7 +46,8 @@ def test_adresse_non_certifiee(db_session, doublure):
     assert _base_vide(db_session)
 
 
-def test_adresse_hors_liste(db_session, doublure):
+def test_adresse_hors_liste_ouvre_une_session_sans_role(db_session, doublure):
+    """#1322 : la liste d'autorisation ne conditionne plus la connexion."""
     doublure.identite = ExternalIdentity(
         provider=doublure.slug,
         subject="1",
@@ -55,33 +56,19 @@ def test_adresse_hors_liste(db_session, doublure):
         display_name="x",
     )
 
-    with pytest.raises(LoginError) as refus:
-        _parcours(db_session, doublure)
+    jeton, user = _parcours(db_session, doublure)
 
-    assert refus.value.code == "account_not_allowed"
-    assert _base_vide(db_session)
+    assert jeton and user.roles == []
 
 
-def test_liste_vide(db_session, doublure, vider_la_liste_autorisation):
-    """Fail-closed **au retour**, et non plus à l'entrée du parcours (#170).
-
-    C'est le changement de comportement assumé par le passage de la liste en
-    base : le garde de configuration ne la pèse plus, donc une liste vide
-    n'interdit plus d'ouvrir le parcours — elle refuse à l'arrivée, en
-    `account_not_allowed`. Le prix est un aller-retour chez le fournisseur pour
-    rien ; ce qu'on gagne est de ne pas faire porter une requête base à
-    `/auth/methods`, route **publique** appelée par la page de connexion.
-
-    Ce qui n'a pas bougé, et c'est l'essentiel : rien n'est enregistré, et une
-    liste vide n'a jamais valu « tout le monde ».
-    """
+def test_liste_vide_n_empeche_plus_la_connexion(db_session, doublure, vider_la_liste_autorisation):
+    """#1322 : une liste vide ne refuse plus au retour. Le fail-closed est
+    passé aux gardes : un compte sans rôle ni statut adhérent n'ouvre rien."""
     vider_la_liste_autorisation()
 
-    with pytest.raises(LoginError) as refus:
-        _parcours(db_session, doublure)
+    jeton, user = _parcours(db_session, doublure)
 
-    assert refus.value.code == "account_not_allowed"
-    assert _base_vide(db_session)
+    assert jeton and user.roles == []
 
 
 def test_le_refus_precede_la_liste_d_autorisation(db_session, doublure):
@@ -105,7 +92,7 @@ def test_un_refus_puis_un_parcours_legitime_aboutit(db_session, doublure):
     """Scénario 5 d'US3 : rien de l'échec précédent ne subsiste."""
     doublure.identite = ExternalIdentity(
         provider=doublure.slug, subject="1", email="intrus@exemple.fr",
-        email_verified=True, display_name="x",
+        email_verified=False, display_name="x",
     )
     with pytest.raises(LoginError):
         _parcours(db_session, doublure)

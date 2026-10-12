@@ -2,6 +2,13 @@
 
 Renvoyé depuis `backend/app/services/auth/AGENTS.md`.
 
+> **Depuis #1322, la liste ne conditionne plus la connexion.** Toute adresse
+> certifiée ouvre un compte ; hors liste, il naît **sans rôle**. La liste garde
+> trois rôles : porter le rôle du premier jour, départager l'adresse retenue
+> (elle passe en premier, FR-016) et désactiver par le retrait. Les passages
+> ci-dessous qui parlent de refuser une adresse hors liste décrivent l'état
+> d'avant #1322 ; le fail-closed est passé aux gardes (pouvoir, code du site).
+
 **Qui a le droit d'exister comme utilisateur est une donnée, plus un réglage.**
 La table `allowed_emails` remplace `AUTH_ALLOWED_EMAILS` : ajouter un
 contributeur était le geste d'administration le plus fréquent du club et le plus
@@ -9,9 +16,10 @@ coûteux — `get_settings` étant en `lru_cache`, il valait un redéploiement R
 Spec, plan et tâches : `specs/20260806-174652-auth-liste-autorisation-base/`.
 
 **Deux modules, deux responsabilités.** `provisioning.py` **lit** la liste au
-passage d'une connexion (`_is_allowed(db, email)` → `allowed_email_repository`,
-sans cache, à chaque tentative) ; `allowed_emails.py` l'**écrit**, depuis l'écran
-ou depuis la CLI. Les fondre ferait rentrer `authorization` dans le chemin de
+passage d'une connexion (`membership.retained_email` → `allowed_email_repository`,
+sans cache, à chaque tentative, pour choisir l'adresse retenue ; puis
+`_grant_initial_role` à la création) ; `allowed_emails.py` l'**écrit**, depuis
+l'écran ou depuis la CLI. Les fondre ferait rentrer `authorization` dans le chemin de
 connexion, qui n'a rien à en savoir.
 
 **Toute adresse vérifiée chez GitHub peut être inscrite, pas seulement la
@@ -30,7 +38,8 @@ Cinq points à ne pas défaire :
   une route **publique et non authentifiée**, appelée par la page de connexion,
   en requête base — le levier de charge que #114 a fermé sur le retour de
   parcours (limiteur AnyIO mesuré à 40, toutes les routes en `def`). Le
-  fail-closed n'est pas perdu : il tombe au **retour**, en `account_not_allowed`.
+  fail-closed tombait alors au **retour**, en `account_not_allowed` ; depuis
+  #1322 il est porté par les gardes, la liste ne refusant plus personne.
 - **Un seul pouvoir, `allowed_emails:manage`**, et non une paire `read`/`write` :
   la liste n'a aucun lecteur autre que l'écran qui la modifie, un porteur du seul
   `read` regarderait un écran où tous les gestes échouent. Le rôle `admin` étant
@@ -121,9 +130,17 @@ Cinq points à ne pas défaire :
   `is_active = False` sur les comptes qui la portent, ce qui fait tomber leurs
   sessions **immédiatement** (l'invariant de `session.resolve` est une jointure).
   La réactivation à l'ajout n'est pas un raffinement : sans elle, réinscrire
-  quelqu'un ne rouvrirait rien — un compte désactivé est refusé *avant* que la
-  liste ne soit consultée, et l'exploitant verrait l'adresse au tableau pendant
-  que la personne reste dehors. **Échéance tenue** (#169) : `is_active` reste le
+  quelqu'un ne rouvrirait rien — un compte désactivé est refusé en
+  `account_not_allowed` quelle que soit la liste, et l'exploitant verrait
+  l'adresse au tableau pendant que la personne reste dehors. Corollaire de
+  #1322 : retirer une adresse **ferme** les comptes qui la portent (désactivés),
+  alors que ne l'avoir jamais inscrite les laisse se connecter sans rôle.
+  **Une adresse inscrite n'est jamais remplacée par une adresse hors liste**
+  (revue de #1322) : `users.email` suit l'adresse retenue à chaque connexion,
+  sauf si l'adresse rangée est inscrite et la nouvelle ne l'est pas. Sans cela,
+  un fournisseur qui cesse de certifier A au profit de B faisait passer le
+  compte à B, et retirer A ne désactivait plus personne (`remove` retrouve les
+  comptes par leur adresse). **Échéance tenue** (#169) : `is_active` reste le
   seul producteur applicatif de ce chemin — la révocation d'urgence n'y touche
   **pas**, et c'est ainsi que « fermé parce que retiré » se distingue de « fermé
   parce que révoqué » : le premier ferme par la jointure et laisse les lignes, le
@@ -164,6 +181,6 @@ Cinq points à ne pas défaire :
   rester rejouable sur une base repartie de zéro ; elle ne trouve simplement plus
   rien, et n'insère alors aucune ligne.
 
-L'amorçage d'une base neuve passe par `python -m app.cli allow-email`
-(`app/cli/AGENTS.md`) : liste vide → personne ne se connecte → personne n'ouvre
-l'écran qui inscrirait la première adresse.
+L'amorçage d'une base neuve passe par `python -m app.cli allow-email` suivi de
+`grant-role` (`app/cli/AGENTS.md`) : depuis #1322 n'importe qui se connecte,
+mais sans rôle personne n'ouvre l'écran qui inscrirait la première adresse.

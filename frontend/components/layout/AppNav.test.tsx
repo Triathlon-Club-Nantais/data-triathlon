@@ -129,6 +129,7 @@ const SESSION: SessionUser = {
   roles: [],
   groups: [],
   can_administer: false,
+  is_member: false,
 };
 
 /** La même session, habilitée. `permissions` est l'unique source (#115). */
@@ -1065,6 +1066,17 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
     // pouvoir : c'était la seule entrée de la section à n'en porter aucun,
     // donc la seule proposée à qui n'y peut rien faire (ADM-6).
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
+  });
+
+  it("n'offre aucune entrée vers le back-office à un adhérent connecté sans rôle (#1322, FR-017)", async () => {
+    afficher({ ...SESSION, is_member: true });
+    await deplier();
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Compte/ })).toBeInTheDocument());
+
+    const versLeBackOffice = screen
+      .queryAllByRole("link")
+      .filter((lien) => lien.getAttribute("href")?.startsWith("/admin"));
+    expect(versLeBackOffice).toEqual([]);
   });
 
   it("ouvre « Accès et mots de passe » à qui porte allowed_emails:manage", async () => {

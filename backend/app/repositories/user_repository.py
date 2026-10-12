@@ -7,6 +7,7 @@ dans `import_service` et `scrape_service` : on `flush()` pour peupler l'id, on n
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, selectinload
 
+from app.core.email import normalize_email
 from app.models.role import Role
 from app.models.user import User
 from app.models.user_group import UserGroup
@@ -61,7 +62,7 @@ def find_by_email(db: Session, email: str) -> list[User]:
     return list(
         db.scalars(
             select(User)
-            .where(func.lower(User.email) == email.strip().lower())
+            .where(func.lower(User.email) == normalize_email(email))
             .order_by(User.id)
         )
     )
@@ -83,7 +84,7 @@ def emails_with_account(db: Session, emails: list[str]) -> set[str]:
     return set(
         db.scalars(
             select(func.lower(User.email)).where(
-                func.lower(User.email).in_({email.strip().lower() for email in emails})
+                func.lower(User.email).in_({normalize_email(email) for email in emails})
             )
         )
     )

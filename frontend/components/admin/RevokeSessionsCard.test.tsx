@@ -44,6 +44,7 @@ const RESPONSABLE: SessionUser = {
   roles: [],
   groups: [],
   can_administer: true,
+  is_member: false,
 };
 
 const SANS_REVOCATION: SessionUser = {
