@@ -80,6 +80,18 @@ export function actionLabel(action: string): string {
   return ACTION_LABELS[action] ?? action;
 }
 
+/**
+ * Gestes sans auteur humain, journalisés par le compte système faute d'acteur
+ * (#1326) : le nom de ce compte, « Bénévoles (accès partagé) », laisserait croire
+ * qu'un bénévole a supprimé le compte.
+ */
+const GESTES_SYSTEME = new Set(["account.delete"]);
+
+/** L'auteur affiché d'une entrée du journal. */
+export function actorLabel(entree: { action: string; user_name: string }): string {
+  return GESTES_SYSTEME.has(entree.action) ? "Système" : entree.user_name;
+}
+
 const PAYLOAD_KEY_LABELS: Record<string, string> = {
   nom: "Nom",
   requested_on: "Date de la demande",
@@ -153,6 +165,7 @@ const PAYLOAD_KEY_LABELS: Record<string, string> = {
   sessions: "Sessions fermées",
   accounts: "Comptes touchés",
   origin: "Origine",
+  entra_oids: "Identifiants Microsoft Entra à effacer",
 };
 
 /** Clés qui désignent un coureur ou une épreuve : rendues en lien vers sa page. */

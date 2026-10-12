@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { actionLabel, detailLines, formatPayload } from "./admin-action-log";
+import { actionLabel, actorLabel, detailLines, formatPayload } from "./admin-action-log";
 
 describe("actionLabel", () => {
   it("traduit un geste connu", () => {
@@ -123,6 +123,14 @@ describe("catalogue coverage (#1043)", () => {
     expect(formatPayload({ origin: "inactivity" })).toEqual([
       { label: "Origine", value: "5 ans sans activité" },
     ]);
+    expect(formatPayload({ entra_oids: ["oid-1"] })).toEqual([
+      { label: "Identifiants Microsoft Entra à effacer", value: "1 (oid-1)" },
+    ]);
+  });
+
+  it("names the system, not the volunteers' shared account, as author of an account deletion (#1326)", () => {
+    expect(actorLabel({ action: "account.delete", user_name: "Bénévoles (accès partagé)" })).toBe("Système");
+    expect(actorLabel({ action: "course.delete", user_name: "Jean Dupont" })).toBe("Jean Dupont");
   });
 
   it("translates the season, volunteering and source payload keys", () => {
