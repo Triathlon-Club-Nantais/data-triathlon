@@ -118,13 +118,29 @@ Google en direct (#1324), sans changer les règles de connexion.
 ## Annuaire du tenant et suppression d'un compte
 
 L'inscription en libre service crée, dans l'annuaire du tenant, un objet
-utilisateur (adresse, nom affiché). Il est conservé comme le compte du site :
-jusqu'à sa suppression, sur demande adressée au club. **Une demande de
-suppression de compte supprime aussi cet utilisateur Entra**, à la main :
-portail du tenant (*Utilisateurs*), ou
-`az rest --method delete --url https://graph.microsoft.com/v1.0/users/<oid>`
-après `az login --tenant <tid> --allow-no-subscriptions`, où `<oid>` est le
-`subject` de l'identité `entra` du compte (table `identities`).
+utilisateur (adresse, nom affiché). Le site ne le supprime pas (#1326) : le
+flux *client credentials* qui le permettrait est un module payant d'Entra
+External ID. **Le club l'efface à la main après la suppression du compte**,
+que celle-ci vienne du titulaire (« Supprimer mon compte ») ou de l'expiration
+après 5 ans sans connexion (`purge-retention`).
+
+Le compte supprimé emporte son identité, donc son `oid` : on ne retrouve pas
+l'utilisateur Entra à partir du site après coup. On compare les deux listes,
+une fois par mois et après chaque `purge-retention` qui annonce des comptes
+supprimés :
+
+1. `az login --tenant <tid> --allow-no-subscriptions` ;
+2. les `oid` de l'annuaire :
+   `az rest --method get --url 'https://graph.microsoft.com/v1.0/users?$select=id,mail,createdDateTime&$top=999'` ;
+3. les `oid` connus du site : `SELECT subject FROM identities WHERE provider = 'entra'` ;
+4. tout `oid` de l'annuaire absent du site, créé il y a plus d'une heure (un
+   parcours en cours n'a pas encore son identité), est un compte supprimé :
+   `az rest --method delete --url https://graph.microsoft.com/v1.0/users/<oid>`,
+   ou depuis le portail du tenant (*Utilisateurs*).
+
+Une demande d'effacement adressée au club pour un compte encore cité par une
+donnée du club (refus 409 de la suppression en libre service) se traite de la
+même façon une fois le compte supprimé par l'exploitant.
 
 ## Ce qui n'est pas automatisé
 
@@ -133,7 +149,8 @@ après `az login --tenant <tid> --allow-no-subscriptions`, où `<oid>` est le
   Google existant, la mettre à jour au portail du tenant ;
 - le retrait des anciens secrets client après rotation ;
 - les moyens de connexion d'un parcours déjà créé ;
-- la suppression de l'utilisateur Entra lors d'une demande de suppression ;
+- la suppression de l'utilisateur Entra après celle du compte (comparaison
+  mensuelle ci-dessus) ;
 - la validation de `main.bicep` (`az bicep build -f main.bicep`) et du script
   (`shellcheck configure-tenant.sh`) avant le premier lancement : ni le Bicep
   CLI ni shellcheck n'étaient installés à l'écriture, seul `bash -n` a tourné.

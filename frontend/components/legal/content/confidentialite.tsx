@@ -10,7 +10,7 @@ export const PRIVACY_POLICY: LegalDocument = {
   title: "Politique de confidentialité",
   description:
     "Ce que le Triathlon Club Nantais fait des données de ce site, pourquoi, combien de temps, et comment faire valoir vos droits.",
-  updatedAt: "2026-10-11",
+  updatedAt: "2026-10-12",
   sections: [
     {
       id: "responsable",
@@ -79,9 +79,11 @@ export const PRIVACY_POLICY: LegalDocument = {
             passe par GitHub, ou par Google ou par un code reçu par e-mail via Microsoft Entra External ID : le
             site en reçoit l&apos;adresse électronique, le nom affiché et l&apos;identifiant chez ce fournisseur. Par
             Google ou par code, la première connexion inscrit aussi l&apos;adresse et le nom dans l&apos;annuaire
-            Microsoft du club, une inscription conservée comme le compte : jusqu&apos;à sa suppression, sur demande
-            adressée au club. Un compte n&apos;a, par lui-même, aucun droit d&apos;administration. Un compte peut être
-            rattaché à la fiche athlète de son titulaire. Le site garde la trace des actions d&apos;administration.
+            Microsoft du club ; le club l&apos;efface après la suppression du compte. Un compte n&apos;a, par
+            lui-même, aucun droit d&apos;administration. Un compte peut être rattaché à la fiche athlète de son
+            titulaire. Le site garde la trace des actions d&apos;administration. Vous pouvez supprimer votre compte
+            vous-même, depuis le menu du compte (« Supprimer mon compte ») : vos résultats et votre fiche athlète
+            restent publiés, seul le compte disparaît.
           </p>
           <p>
             <strong>Les signalements.</strong> Quand vous signalez un problème depuis le site : votre message, la
@@ -164,7 +166,10 @@ export const PRIVACY_POLICY: LegalDocument = {
             ["Liste des adresses d'adhérents", "La saison en cours et la précédente"],
             ["Signalements, adresse IP comprise", "12 mois après leur envoi"],
             ["Journal des actions d'administration", "12 mois"],
-            ["Compte", "Jusqu'à sa suppression, sur demande adressée au club (voir « Vos droits »)"],
+            [
+              "Compte",
+              "Jusqu'à sa suppression depuis le menu du compte, ou 5 ans sans connexion ; le compte d'un bénévole ou d'un administrateur est gardé tant qu'il porte un rôle",
+            ],
             ["Session de connexion", "7 jours"],
             ["Mémorisation du code d'accès au site", "90 jours"],
             ["École de triathlon", "Durée de l'adhésion, plus une saison"],

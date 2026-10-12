@@ -165,12 +165,14 @@ describe("Politique de confidentialité (#333)", () => {
     expect(screen.getByRole("row", { name: /^tcn_session/ })).not.toHaveTextContent(/back-office/);
   });
 
-  it("dit comment faire supprimer un compte, la suppression n'étant pas en libre service (#1322)", () => {
+  it("announces account deletion from the menu and the 5-year inactivity limit (#1326)", () => {
     const texte = rendre();
     expect(screen.getByRole("row", { name: /^Compte / })).toHaveTextContent(
-      "Jusqu'à sa suppression, sur demande adressée au club (voir « Vos droits »)",
+      "Jusqu'à sa suppression depuis le menu du compte, ou 5 ans sans connexion",
     );
-    expect(texte).toMatch(/pour un compte, indiquez l.adresse électronique avec laquelle vous vous connectez/i);
+    expect(screen.getByRole("row", { name: /^Compte / })).toHaveTextContent(/tant qu.il porte un rôle/);
+    expect(texte).toMatch(/« Supprimer mon compte »/);
+    expect(texte).toMatch(/vos résultats et votre fiche athlète restent/i);
   });
 
   it("names Microsoft Entra External ID as the sign-in processor (#1323)", () => {
@@ -180,13 +182,11 @@ describe("Politique de confidentialité (#333)", () => {
     expect(screen.getByRole("row", { name: /^tcn_auth_state/ })).not.toHaveTextContent(/GitHub/);
   });
 
-  it("says the Entra directory entry is kept like the account, until deletion on request (#1323)", () => {
-    expect(rendre()).toMatch(
-      /annuaire Microsoft du club[^.]*conservée comme le compte : jusqu.à sa suppression, sur demande adressée au club/i,
-    );
+  it("says the Entra directory entry is erased by the club after the account (#1323, #1326)", () => {
+    expect(rendre()).toMatch(/annuaire Microsoft du club[^.]*le club l.efface après la suppression du compte/i);
   });
 
   it("date la politique du jour de sa dernière modification", () => {
-    expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-11");
+    expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-12");
   });
 });
