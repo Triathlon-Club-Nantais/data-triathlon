@@ -1085,7 +1085,7 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
     await deplier();
     await screen.findByRole("button", { name: /Compte/ });
     expect(screen.queryByText("Back-office")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /changer d'espace/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /espaces$/i })).not.toBeInTheDocument();
   });
 
   it("ouvre « Accès et mots de passe » à qui porte allowed_emails:manage", async () => {
@@ -1868,11 +1868,22 @@ describe("AppNav — espaces (#1296)", () => {
     expect(within(rail()).queryByRole("link", { name: "Résultats" })).not.toBeInTheDocument();
   });
 
-  it("donne au compteur de l'entrée Back-office un libellé accessible", async () => {
+  it("donne au compteur du bouton Back-office un libellé accessible", async () => {
     countPendingProviders.mockResolvedValue({ total: 5 });
     chemin.courant = "/dashboard";
     afficher(admin(), { initialExpanded: true });
-    expect(await within(rail()).findByText("5 éléments à traiter")).toHaveClass("sr-only");
+    expect(await within(rail()).findByRole("link", { name: "Back-office, 5 éléments à traiter" })).toHaveAttribute("href", "/admin");
+  });
+
+  it("ne double pas le bouton Back-office du sélecteur par une entrée du rail ni du tiroir", async () => {
+    chemin.courant = "/dashboard";
+    afficher(admin(), { initialExpanded: true });
+    expect(await within(rail()).findByRole("link", { name: /Back-office/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    const tiroir = await screen.findByRole("dialog");
+    const [seul] = within(tiroir).getAllByRole("link", { name: /Back-office/ });
+    expect(within(tiroir).getByRole("group", { name: "Espaces" })).toContainElement(seul);
+    expect(within(tiroir).getAllByRole("link", { name: /Back-office/ })).toHaveLength(1);
   });
 
   it("n'offre pas d'entrée Back-office à un membre sans pouvoir", async () => {
@@ -1896,27 +1907,30 @@ describe("AppNav — espaces (#1296)", () => {
   it("offre le sélecteur d'espace à un administrateur", async () => {
     chemin.courant = "/dashboard";
     afficher(admin(), { initialExpanded: true });
-    expect(await within(rail()).findByRole("button", { name: /changer d'espace/ })).toBeInTheDocument();
+    expect(await within(rail()).findByRole("group", { name: "Espaces" })).toBeInTheDocument();
   });
 
-  it("offre le sélecteur d'espace dans la barre mobile du haut", async () => {
+  it("offre le sélecteur d'espace en tête du tiroir mobile, pas dans la barre du haut", async () => {
     chemin.courant = "/dashboard";
-    afficher(admin());
-    expect(await within(screen.getByRole("banner")).findByRole("button", { name: /changer d'espace/ })).toBeInTheDocument();
+    afficher(admin(), { initialExpanded: true });
+    await within(rail()).findByRole("group", { name: "Espaces" });
+    expect(within(screen.getByRole("banner")).queryByRole("group", { name: "Espaces" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    expect(await within(await screen.findByRole("dialog")).findByRole("group", { name: "Espaces" })).toBeInTheDocument();
   });
 
   it("n'offre pas de sélecteur à un membre sans pouvoir", async () => {
     chemin.courant = "/dashboard";
     afficher(SESSION);
     await waitFor(() => expect(getSession).toHaveBeenCalled());
-    expect(screen.queryByRole("button", { name: /changer d'espace/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /espaces$/i })).not.toBeInTheDocument();
   });
 
   it("n'offre pas de sélecteur à un anonyme", async () => {
     chemin.courant = "/dashboard";
     afficher(null);
     await waitFor(() => expect(getSession).toHaveBeenCalled());
-    expect(screen.queryByRole("button", { name: /changer d'espace/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /espaces$/i })).not.toBeInTheDocument();
   });
 });
 
@@ -1927,10 +1941,10 @@ describe("AppNav: supervision space (#1297)", () => {
   it("a supervisor without admin power sees Encadrement in the switcher, not Back-office", async () => {
     chemin.courant = "/dashboard";
     afficher(supervisor(), { initialExpanded: true });
-    await userEvent.click(await within(rail()).findByRole("button", { name: /changer d'espace/ }));
+    const espaces = await within(rail()).findByRole("group", { name: "Espaces" });
 
-    expect(await screen.findByRole("menuitem", { name: /Encadrement/ })).toHaveAttribute("href", "/encadrement");
-    expect(screen.queryByRole("menuitem", { name: /Back-office/ })).not.toBeInTheDocument();
+    expect(within(espaces).getByRole("link", { name: "Encadrement" })).toHaveAttribute("href", "/encadrement");
+    expect(within(espaces).queryByRole("link", { name: /Back-office/ })).not.toBeInTheDocument();
   });
 
   it("the supervision rail shows only its screens", async () => {
@@ -1940,7 +1954,11 @@ describe("AppNav: supervision space (#1297)", () => {
     await waitFor(() => expect(within(rail()).getByRole("link", { name: "Profils" })).toBeInTheDocument());
     expect(within(rail()).getByRole("link", { name: "Calendrier des entraînements" })).toBeInTheDocument();
     expect(within(rail()).getByRole("link", { name: "Appel" })).toBeInTheDocument();
-    const hrefs = within(rail()).getAllByRole("link").map((lien) => lien.getAttribute("href"));
+    const espaces = within(rail()).getByRole("group", { name: "Espaces" });
+    const hrefs = within(rail())
+      .getAllByRole("link")
+      .filter((lien) => !espaces.contains(lien))
+      .map((lien) => lien.getAttribute("href"));
     expect(hrefs.filter((href) => href?.startsWith("/encadrement"))).toEqual([
       "/encadrement/jeunes",
       "/encadrement/jeunes/groupes",
@@ -1960,28 +1978,29 @@ describe("AppNav: supervision space (#1297)", () => {
       { initialExpanded: true },
     );
 
-    expect(await within(rail()).findByText("2 éléments à traiter")).toHaveClass("sr-only");
     await waitFor(() => expect(countPendingVolunteerActions).toHaveBeenCalled());
+    expect(await within(rail()).findByRole("link", { name: "Back-office, 2 éléments à traiter" })).toBeInTheDocument();
   });
 });
 
 describe("AppNav: UI/UX review of the spaces (#1295)", () => {
   const twoSpaces = () => ({ ...habilite("courses:write", "jeunes:read"), can_administer: false, can_supervise: true });
 
-  it("the mobile header uses the compact switcher", async () => {
+  it("the mobile drawer switcher shows labels", async () => {
     chemin.courant = "/dashboard";
     afficher(twoSpaces());
-    const declencheur = await within(screen.getByRole("banner")).findByRole("button", { name: "Espace : Consulter, changer d'espace" });
-    expect(declencheur).not.toHaveTextContent("Consulter");
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    const espaces = await within(await screen.findByRole("dialog")).findByRole("group", { name: "Espaces" });
+    expect(within(espaces).getByRole("link", { name: "Encadrement" })).toHaveTextContent("Encadrement");
   });
 
   it("the expanded rail puts the switcher on its own row under the logo", async () => {
     chemin.courant = "/dashboard";
     afficher(twoSpaces(), { initialExpanded: true });
-    const declencheur = await within(rail()).findByRole("button", { name: /changer d'espace/ });
+    const espaces = await within(rail()).findByRole("group", { name: "Espaces" });
     const logo = within(rail()).getByRole("link", { name: /Accueil/ });
-    expect(logo.parentElement).not.toContainElement(declencheur);
-    expect(declencheur).toHaveTextContent("Consulter");
+    expect(logo.parentElement).not.toContainElement(espaces);
+    expect(within(espaces).getByRole("link", { name: "Consulter" })).toHaveTextContent("Consulter");
   });
 
   const barre = () => screen.getByRole("navigation", { name: "Navigation" });
@@ -2015,20 +2034,17 @@ describe("AppNav: UI/UX review of the spaces (#1295)", () => {
     chemin.courant = "/dashboard";
     countPendingVolunteerActions.mockResolvedValue({ total: 4 });
     afficher(habilite("jeunes:read", "athletes:volunteer_validate", "pages:preview"), { initialExpanded: true });
-    await userEvent.click(await within(rail()).findByRole("button", { name: /changer d'espace/ }));
+    const espaces = await within(rail()).findByRole("group", { name: "Espaces" });
 
-    const entree = await screen.findByRole("menuitem", { name: /Encadrement/ });
-    await waitFor(() => expect(within(entree).getByText("4 éléments à traiter")).toHaveClass("sr-only"));
-    expect(entree).toHaveAccessibleName("Encadrement 4 éléments à traiter");
+    expect(await within(espaces).findByRole("link", { name: "Encadrement, 4 éléments à traiter" })).toHaveTextContent("4");
   });
 
   it("the Encadrement switcher entry has no count when nothing is pending", async () => {
     chemin.courant = "/dashboard";
     afficher(habilite("jeunes:read", "athletes:volunteer_validate", "pages:preview"), { initialExpanded: true });
-    await userEvent.click(await within(rail()).findByRole("button", { name: /changer d'espace/ }));
+    const espaces = await within(rail()).findByRole("group", { name: "Espaces" });
 
-    const entree = await screen.findByRole("menuitem", { name: /Encadrement/ });
     await waitFor(() => expect(countPendingVolunteerActions).toHaveBeenCalled());
-    expect(within(entree).queryByText(/éléments? à traiter/)).not.toBeInTheDocument();
+    expect(within(espaces).getByRole("link", { name: "Encadrement" })).toHaveAttribute("href", "/encadrement");
   });
 });

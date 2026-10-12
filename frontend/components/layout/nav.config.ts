@@ -140,10 +140,10 @@ export type SpaceId = "public" | "encadrement" | "admin";
  * sélecteur d'espace ; sans elle, la première destination visible en tient
  * lieu.
  */
-export const SPACES: Record<SpaceId, { label: string; home?: string }> = {
-  public: { label: "Consulter", home: "/dashboard" },
-  encadrement: { label: "Encadrement", home: "/encadrement" },
-  admin: { label: "Back-office", home: "/admin" },
+export const SPACES: Record<SpaceId, { label: string; icon: LucideIcon; home?: string }> = {
+  public: { label: "Consulter", icon: LayoutGrid, home: "/dashboard" },
+  encadrement: { label: "Encadrement", icon: CalendarDays, home: "/encadrement" },
+  admin: { label: "Back-office", icon: Briefcase, home: "/admin" },
 };
 
 /** Par préfixe de segment : `/administration` n'est pas `/admin`. */

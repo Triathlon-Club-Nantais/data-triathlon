@@ -204,22 +204,6 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
       ...(id === "encadrement" && countEncadrement > 0 ? { count: countEncadrement } : {}),
     }));
 
-  const versAdmin: SectionRendue[] =
-    espaceAffiche === "public" && espacesOuverts.some((e) => e.id === "admin")
-      ? [
-          {
-            id: "vers-admin",
-            label: "Back-office",
-            icon: Briefcase,
-            space: "public",
-            minRole: ROLE.CONNECTED,
-            root: true,
-            items: [{ id: "backoffice", label: "Back-office", href: "/admin", icon: Briefcase, badge: "backoffice", count: countAdmin }],
-          },
-        ]
-      : [];
-  const sectionsRail = [...sections, ...versAdmin];
-  const sectionsTiroir = [...sectionsRepli, ...versAdmin];
 
   /**
    * Un `href` de la nav désigne **un** écran, pas une famille : c'est pourquoi
@@ -237,7 +221,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // lui, aucun onglet ne dirait où l'on est.
   const plusActif = sectionsReste.some((s) => s.items.some((i) => isActive(i.href)));
 
-  const contenu = (deplie: boolean, fermer?: () => void, listeSections: SectionRendue[] = sectionsRail) => (
+  const contenu = (deplie: boolean, fermer?: () => void, listeSections: SectionRendue[] = sections) => (
     <NavContent
       expanded={deplie}
       sections={listeSections}
@@ -329,11 +313,11 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               {CLUB_NAME_SHORT}
             </Link>
           )}
-          {!expanded && <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} compact />}
+          {!expanded && <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} layout="column" />}
         </div>
         {expanded && (
           <div style={{ flex: "none", display: "flex", padding: "8px 14px 0" }}>
-            <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} />
+            <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} layout="row" />
           </div>
         )}
 
@@ -468,7 +452,6 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-tcn.png" alt={CLUB_NAME} style={{ height: 24, display: "block" }} />
         </Link>
-        <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} compact />
         {rechercheDisponible && (
           <button type="button" aria-label="Rechercher un athlète" onClick={() => setPickerMode((m) => m ?? "search")} style={carreSecondaire}>
             <Search size={18} />
@@ -547,7 +530,15 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             </SheetClose>
           </div>
 
-          {contenu(true, () => setDrawerOpen(false), sectionsTiroir)}
+          {/* Même place que dans le panneau déplié, libellés compris : l'en-tête
+              mobile n'a ni la largeur ni le survol qu'il leur faudrait. */}
+          {espacesOuverts.length > 1 && (
+            <div style={{ flex: "none", display: "flex", padding: "8px 14px 0" }}>
+              <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} layout="row" />
+            </div>
+          )}
+
+          {contenu(true, () => setDrawerOpen(false), sectionsRepli)}
 
           {/* `pleineLargeur` : dans un tiroir, l'état connecté se déplie à plat —
               un menu déroulant y sortirait du piège de focus. */}
