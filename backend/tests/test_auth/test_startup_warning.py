@@ -77,8 +77,14 @@ def test_un_fournisseur_non_configure_est_nomme_par_son_slug(caplog, monkeypatch
     assert "github" in _journal(caplog)
 
 
-def test_un_socle_complet_et_un_fournisseur_configure_ne_disent_rien(caplog):
-    """La configuration nominale de `conftest` : aucun avertissement."""
+def test_un_socle_complet_et_un_fournisseur_configure_ne_disent_rien(caplog, monkeypatch):
+    """La configuration nominale de `conftest`, Entra compris : aucun avertissement."""
+    from tests.test_auth.test_entra_provider import ENTRA_SETTINGS
+
+    for cle, valeur in ENTRA_SETTINGS.items():
+        monkeypatch.setenv(cle, valeur)
+    get_settings.cache_clear()
+
     with caplog.at_level(logging.WARNING):
         _warn_if_auth_unconfigured()
 

@@ -275,7 +275,7 @@ Tokens), commun aux deux projets.
 
 ### Authentification SSO (#114) — variables par environnement
 
-**Six** des huit réglages `AUTH_*` sont **documentés** dans `render.yaml` : en
+**Neuf** des onze réglages `AUTH_*` sont **documentés** dans `render.yaml` : en
 `sync: false`, à deux exceptions près — `AUTH_SESSION_SECRET_KEY` en
 `generateValue: true` et `AUTH_COOKIE_SECURE` en `value: "true"`. Les deux durées
 de vie (`AUTH_SESSION_TTL_DAYS`, `AUTH_STATE_TTL_SECONDS`) n'y figurent pas et
@@ -292,6 +292,7 @@ le frontend n'en porte aucun, il ne fait que proxifier `/api/*`.
 |---|---|---|---|
 | `AUTH_SESSION_SECRET_KEY` | **à saisir à la main** | **à saisir à la main** | `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
 | `AUTH_GITHUB_CLIENT_ID` / `_SECRET` | application OAuth « prod » | application OAuth « preview » | application OAuth « local » |
+| `AUTH_ENTRA_SUBDOMAIN` / `_TENANT_ID` / `_CLIENT_ID` / `_CLIENT_SECRET` (#1323) | tenant du club, application `data-triathlon-prod` (son propre secret), **après le constat FR-021 seulement** | même tenant, application `data-triathlon-preview` (son propre secret), à poser en premier | vides (l'URI de retour locale n'est pas enregistrée) |
 | `AUTH_REDIRECT_BASE_URL` | URL de production de `data-triathlon` | URL de production de `data-triathlon-preview` | `http://127.0.0.1:3000` |
 | `AUTH_COOKIE_SECURE` | `true` | `true` | `false` |
 | `AUTH_SESSION_TTL_DAYS` / `AUTH_STATE_TTL_SECONDS` | défauts (7 j / 600 s) | défauts | défauts |

@@ -29,7 +29,7 @@
 
 ## `identities` (existante, inchangée)
 
-- Nouvelle valeur de `provider` : `"entra"`, `subject` = claim `sub` du jeton Entra.
+- Nouvelle valeur de `provider` : `"entra"`, `subject` = claim `oid` du jeton Entra (stable dans le tenant ; `sub` dépend de l'inscription d'application, revue de #1346).
 
 ## `allowed_emails` (existante, inchangée en schéma)
 

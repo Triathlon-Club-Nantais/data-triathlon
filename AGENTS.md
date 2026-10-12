@@ -39,7 +39,7 @@ n'accueille que ce qu'on voudrait relire à chaque session.
 | Worktree par issue/PR : la règle, les ports, `.worktreeinclude` | `docs/dev-multi-worktree.md` |
 | CI/CD, déploiements, variables par environnement | `docs/ci-cd.md` |
 | Infrastructure Azure (base de production PostgreSQL, contrainte budget zéro) | `docs/infra-azure.md` |
-| Azure Function keep-warm : planning, App Settings, déploiement | `infra/azure-functions/AGENTS.md` |
+| Azure Function keep-warm ; tenant Entra External ID (#1323) : déploiement, procédures manuelles | `infra/azure-functions/AGENTS.md`, `infra/entra-external-id/AGENTS.md` |
 
 ## Workflow IA
 

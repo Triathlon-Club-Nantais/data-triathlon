@@ -76,8 +76,11 @@ export const PRIVACY_POLICY: LegalDocument = {
           <p>
             <strong>Les comptes.</strong> Les adhérents peuvent se connecter pour entrer sur le site sans le code
             d&apos;accès ; les bénévoles et administrateurs se connectent aussi pour le back-office. La connexion
-            passe par GitHub : le site en reçoit l&apos;adresse électronique, le nom affiché et l&apos;identifiant
-            GitHub. Un compte n&apos;a, par lui-même, aucun droit d&apos;administration. Un compte peut être
+            passe par GitHub, ou par Google ou par un code reçu par e-mail via Microsoft Entra External ID : le
+            site en reçoit l&apos;adresse électronique, le nom affiché et l&apos;identifiant chez ce fournisseur. Par
+            Google ou par code, la première connexion inscrit aussi l&apos;adresse et le nom dans l&apos;annuaire
+            Microsoft du club, une inscription conservée comme le compte : jusqu&apos;à sa suppression, sur demande
+            adressée au club. Un compte n&apos;a, par lui-même, aucun droit d&apos;administration. Un compte peut être
             rattaché à la fiche athlète de son titulaire. Le site garde la trace des actions d&apos;administration.
           </p>
           <p>
@@ -190,6 +193,7 @@ export const PRIVACY_POLICY: LegalDocument = {
               ["Vercel Inc.", "Hébergement du site", "États-Unis"],
               ["Render Services, Inc.", "Hébergement du serveur de données", "Francfort (Allemagne)"],
               ["Microsoft Ireland Operations Ltd (Azure)", "Base de données", "France"],
+              ["Microsoft Ireland Operations Ltd (Entra External ID)", "Connexion par Google ou par code reçu par e-mail", "Europe"],
               ["Supabase Inc.", "Base de données de test, avant mise en ligne", "Non précisé par le prestataire"],
               ["GitHub, Inc.", "Connexion au back-office, mises à jour des résultats et nettoyages planifiés de la base", "États-Unis"],
               ["PostHog Inc.", "Mesure d'audience", "Union européenne"],
@@ -266,7 +270,7 @@ export const PRIVACY_POLICY: LegalDocument = {
               ["tcn_site_session", "cookie", "Mémoriser que vous avez saisi le code d'accès", "90 jours"],
               ["tcn_session", "cookie", "Maintenir votre connexion", "7 jours"],
               ["tcn_logged_in", "cookie", "Savoir qu'une connexion est ouverte", "7 jours au plus"],
-              ["tcn_auth_state", "cookie", "Sécuriser la connexion par GitHub", "10 minutes"],
+              ["tcn_auth_state", "cookie", "Sécuriser la connexion", "10 minutes"],
               ["tcn_benevole_session", "cookie", "Mémoriser l'accès à l'espace bénévoles", "Jusqu'à la fermeture du navigateur"],
               [NAV_WIDTH_COOKIE, "cookie", "Retenir si le menu est déplié", "1 an"],
               ["tcn-athlete", "stockage local", "Retenir l'athlète que vous avez choisi comme « moi »", "Jusqu'à ce que vous le changiez"],

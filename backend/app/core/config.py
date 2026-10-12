@@ -129,7 +129,7 @@ class Settings(BaseSettings):
     scrape_rate_limit_window_seconds: int = 3600
 
     # ── Authentification (#114) ───────────────────────────────────────────────
-    # Huit réglages, tous absents par défaut : une installation sans secrets est
+    # Onze réglages, tous absents par défaut : une installation sans secrets est
     # un état légitime où le site public reste intact et où aucun moyen de
     # connexion n'est proposé (FR-036).
     #
@@ -138,6 +138,12 @@ class Settings(BaseSettings):
     auth_session_secret_key: SecretStr = SecretStr("")
     auth_github_client_id: str = ""
     auth_github_client_secret: SecretStr = SecretStr("")
+    # Entra External ID (#1323) : Google et code par e-mail. Les quatre sont
+    # exigés par `EntraIdentityProvider.is_configured()`, jamais par le socle.
+    auth_entra_subdomain: str = ""
+    auth_entra_tenant_id: str = ""
+    auth_entra_client_id: str = ""
+    auth_entra_client_secret: SecretStr = SecretStr("")
     # La liste des adresses autorisées **n'est plus ici** (#170) : elle vit dans
     # la table `allowed_emails`, éditable depuis le back-office. Elle était le
     # geste d'administration le plus fréquent du club, et le plus coûteux — ce

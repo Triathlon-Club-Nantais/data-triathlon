@@ -173,6 +173,19 @@ describe("Politique de confidentialité (#333)", () => {
     expect(texte).toMatch(/pour un compte, indiquez l.adresse électronique avec laquelle vous vous connectez/i);
   });
 
+  it("names Microsoft Entra External ID as the sign-in processor (#1323)", () => {
+    const texte = rendre();
+    expect(texte).toMatch(/Google ou par un code reçu par e-mail/);
+    expect(screen.getByRole("row", { name: /Entra External ID/ })).toHaveTextContent(/connexion/i);
+    expect(screen.getByRole("row", { name: /^tcn_auth_state/ })).not.toHaveTextContent(/GitHub/);
+  });
+
+  it("says the Entra directory entry is kept like the account, until deletion on request (#1323)", () => {
+    expect(rendre()).toMatch(
+      /annuaire Microsoft du club[^.]*conservée comme le compte : jusqu.à sa suppression, sur demande adressée au club/i,
+    );
+  });
+
   it("date la politique du jour de sa dernière modification", () => {
     expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-11");
   });

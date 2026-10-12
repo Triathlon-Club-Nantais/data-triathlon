@@ -13,7 +13,7 @@ Ajoute `{"slug": "entra", "label": "Google ou code par e-mail"}` dès que `AUTH_
 - Succès : 302 vers `{AUTH_REDIRECT_BASE_URL}/admin` si l'utilisateur administre, **sinon** `{AUTH_REDIRECT_BASE_URL}/` (changement #1322).
 - Échec : 302 vers `/login?error=<code>`, ensemble fermé inchangé (`state_mismatch`, `email_unverified`, `account_not_allowed`, `provider_error`, `provider_unavailable`).
   - `account_not_allowed` ne signifie plus « adresse hors liste » mais « compte désactivé » (libellé d'interface à mettre à jour).
-  - Entra : jeton invalide (signature, `iss`, `aud`, `nonce`, `exp`) → `provider_error` ; découverte, JWKS ou jeton injoignables → `provider_unavailable` ; e-mail absent ou `xms_edov` différent de `true` → `email_unverified`.
+  - Entra : jeton invalide (signature RS256, `iss`, `aud`, `nonce`, `exp`, `nbf`, `oid` absent) ou découverte hors du tenant (émetteur ou `jwks_uri` hors de `*.ciamlogin.com` ou sans l'identifiant du tenant) → `provider_error` ; le compte est résolu par `(entra, oid)`, jamais par `sub` ; découverte, JWKS ou jeton injoignables → `provider_unavailable` ; e-mail absent ou `xms_edov` différent de `true` → `email_unverified`.
 
 ## `GET /api/v1/auth/me` (ajout)
 

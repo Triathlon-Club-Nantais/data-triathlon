@@ -171,3 +171,20 @@ pour un compte adhérent. Sinon tout compte Google ouvrirait le site.
 - Colonnes exactes de l'export AssoConnect (pages d'aide en 403).
 - Prix d'Azure Front Door (seulement utile pour un domaine de connexion
   personnalisé, non retenu).
+
+## Résultat du test sur tenant
+
+**À faire par l'exploitant avant production** (FR-021 de
+`specs/20261011-155714-comptes-membres-socle/`). Le code de #1323 est livré et
+testé sans réseau, contre un fournisseur simulé ; aucun tenant réel n'a encore
+été interrogé. Procédure : `infra/entra-external-id/AGENTS.md`, § « Constat
+FR-021 et repli ».
+
+| Moyen | `email` présent | `xms_edov` | Date | Constaté par |
+|---|---|---|---|---|
+| Google | à constater | à constater | | |
+| Code par e-mail | à constater | à constater | | |
+
+Si l'un des deux ne porte pas `email` avec `xms_edov: true`, la connexion par
+ce moyen est refusée (`email_unverified`) : ne pas activer `AUTH_ENTRA_*` en
+production, et rouvrir #1324 (Google en direct).

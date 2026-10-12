@@ -74,6 +74,15 @@ services:
         sync: false
       - key: AUTH_GITHUB_CLIENT_SECRET
         sync: false
+      # Entra External ID (#1323) : les quatre ou aucun (infra/entra-external-id/).
+      - key: AUTH_ENTRA_SUBDOMAIN
+        sync: false
+      - key: AUTH_ENTRA_TENANT_ID
+        sync: false
+      - key: AUTH_ENTRA_CLIENT_ID
+        sync: false
+      - key: AUTH_ENTRA_CLIENT_SECRET
+        sync: false
       # `AUTH_ALLOWED_EMAILS` **a été retirée ici** (#259) : la liste vit dans la
       # table `allowed_emails` depuis #170, et la reprise qui la lisait encore
       # (migration `a107b77b53e8`, livrée en v0.2.0) a été constatée dans

@@ -270,6 +270,25 @@ qu'elle compte tant que la saison en cours n'a reçu aucun import (entre la
 rentrée de septembre et le premier import). Un import retire aussitôt les
 adresses importées absentes du nouveau fichier.
 
+## Avenant du 2026-10-11 : connexion par Entra External ID (#1323)
+
+**Traitement.** Un second moyen de connexion, à côté de GitHub : Google ou un
+code reçu par e-mail, servis par **Microsoft Entra External ID** (Microsoft
+Ireland Operations Ltd), dans un tenant du club créé en Europe. Le site en
+reçoit l'identifiant stable de la personne chez Microsoft, son adresse
+électronique, le fait qu'elle est vérifiée, et son nom affiché. Mêmes tables
+et mêmes durées que la connexion GitHub ; aucune donnée nouvelle n'est gardée
+côté site. L'inscription en libre service crée en outre, dans l'annuaire du
+tenant, un utilisateur portant l'adresse et le nom affiché : il est conservé
+comme le compte, jusqu'à sa suppression sur demande adressée au club, et la
+suppression du compte emporte la sienne (procédure dans
+`infra/entra-external-id/AGENTS.md`).
+
+**Base légale.** Inchangée : celle des comptes (intérêt légitime à ouvrir le
+site aux adhérents et le back-office aux bénévoles). Microsoft agit comme
+**sous-traitant** d'authentification ; Google, quand la personne le choisit,
+est le fournisseur de son propre compte et ne reçoit rien du site.
+
 ## Hors de cette décision, signalé
 
 - **Téléphone de l'éditeur** : la LCEN (article 6) l'exige d'un éditeur
