@@ -1511,3 +1511,28 @@ def test_downgrade_then_upgrade_of_athlete_known_clubs(sqlite_url, monkeypatch):
     assert "athlete_known_clubs" not in _tables(sqlite_url)
     command.upgrade(cfg, "head")
     assert "athlete_known_clubs" in _tables(sqlite_url)
+
+
+def test_last_seen_at_is_backfilled_from_created_at_and_not_null(sqlite_url):
+    """#1326: accounts created before the column start their inactivity clock at creation."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "cf8130e7fb21")
+    engine = sa.create_engine(sqlite_url)
+    try:
+        with engine.begin() as connexion:
+            connexion.execute(sa.text(
+                "INSERT INTO users (email, display_name, is_active, created_at) "
+                "VALUES ('ancien@exemple.fr', '', 1, '2021-03-04 05:06:07')"
+            ))
+    finally:
+        engine.dispose()
+
+    command.upgrade(cfg, "head")
+
+    assert _lignes(sqlite_url, "SELECT last_seen_at FROM users WHERE email = 'ancien@exemple.fr'") ==[("2021-03-04 05:06:07",)]
+    engine = sa.create_engine(sqlite_url)
+    try:
+        colonne = next(c for c in sa.inspect(engine).get_columns("users") if c["name"] == "last_seen_at")
+    finally:
+        engine.dispose()
+    assert colonne["nullable"] is False
