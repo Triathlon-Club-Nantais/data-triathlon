@@ -109,7 +109,7 @@ Chaque connexion et chaque usage d'une session repoussent la date de dernière a
 ### Measurable Outcomes
 
 - **SC-001**: Un utilisateur supprime son compte en moins de 30 secondes et 2 gestes depuis son menu.
-- **SC-002**: Après suppression, 0 donnée personnelle du compte (adresse, nom, identifiants de fournisseur) ne subsiste dans la base.
+- **SC-002**: Après suppression, 0 donnée personnelle du compte (adresse, nom, identifiants de fournisseur) ne subsiste dans les tables du compte (compte, identités, sessions, rôles, groupes) ni dans la ligne de journal de la suppression. Restent, par décision : l'adresse dans la liste d'autorisation ou d'adhérents (ce ne sont pas des comptes, cf. Edge Cases) et les lignes antérieures du journal d'administration, purgées à 12 mois.
 - **SC-003**: Aucun compte sans rôle n'a une dernière activité de plus de 5 ans après une passe de purge, hors comptes sautés et signalés.
 - **SC-004**: La tenue de l'activité ajoute au plus une écriture par compte et par jour.
 

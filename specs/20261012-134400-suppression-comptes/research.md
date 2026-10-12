@@ -56,3 +56,7 @@ Inventaire mesuré (`grep 'users.id' app/models/`) :
 ## D8. Interface
 
 **Décision**: entrée « Supprimer mon compte » dans le menu (déroulant et tiroir mobile), qui ouvre un `Dialog` shadcn déjà présent (`components/ui/dialog.tsx`) : titre, ce qui est effacé (compte, connexions, rôles, groupes), ce qui reste (résultats, fiche athlète), boutons « Annuler » et « Supprimer définitivement ». En cas de 409, le message du backend s'affiche dans la boîte. Succès : invalidation de la session, `router.push("/")`.
+
+## D9. Suppressions simultanées du même compte
+
+**Décision**: aucun verrou dédié. En PostgreSQL, la seconde transaction attend le verrou de ligne posé par le premier `DELETE`, puis ne trouve plus la ligne : SQLAlchemy émet un avertissement (`confirm_deleted_rows`) sans lever, les mises à vide n'affectent aucune ligne, et la seconde requête rend 204. Rien n'est cassé ; une seconde ligne `account.delete` peut apparaître au journal. Non reproductible sous SQLite (verrou de base entière), donc non testé.
