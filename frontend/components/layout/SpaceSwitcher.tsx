@@ -10,11 +10,11 @@ export type SwitcherSpace = { id: SpaceId; label: string; href: string; count?: 
 
 /**
  * Mène d'un espace à l'autre par des liens à icône (#1336), tous visibles :
- * - `row` : panneau déplié, icône sur libellé (288 px ne tiennent pas trois
- *   libellés côte à côte) ;
- * - `column` : rail replié, icônes empilées avec infobulle ;
- * - `header` : barre mobile, les **autres** espaces seuls, faute de largeur ;
- *   l'espace courant s'y lit déjà dans la barre basse.
+ * - `row` : panneau déplié et tiroir mobile, icône sur libellé (288 px ne
+ *   tiennent pas trois libellés côte à côte) ;
+ * - `column` : rail replié, icônes empilées avec infobulle.
+ * Pas d'icône seule dans l'en-tête mobile : sans libellé ni survol au doigt,
+ * elle s'y lisait comme une action (revue UI/UX de #1353).
  */
 export function SpaceSwitcher({
   current,
@@ -23,19 +23,18 @@ export function SpaceSwitcher({
 }: {
   current: SpaceId;
   spaces: SwitcherSpace[];
-  layout: "row" | "column" | "header";
+  layout: "row" | "column";
 }) {
   if (spaces.length < 2) return null;
-  const compact = layout !== "row";
-  const affiches = layout === "header" ? spaces.filter((e) => e.id !== current) : spaces;
+  const compact = layout === "column";
 
   return (
     <div
       role="group"
-      aria-label={layout === "header" ? "Autres espaces" : "Espaces"}
-      style={{ flex: layout === "row" ? 1 : "none", display: "flex", flexDirection: layout === "column" ? "column" : "row", gap: 4 }}
+      aria-label="Espaces"
+      style={{ flex: compact ? "none" : 1, display: "flex", flexDirection: compact ? "column" : "row", gap: 4 }}
     >
-      {affiches.map((espace) => {
+      {spaces.map((espace) => {
         const Icon = SPACES[espace.id].icon;
         const actif = espace.id === current;
         const annonce = espace.count ? libelleCompteur("backoffice", espace.count) : undefined;
@@ -45,6 +44,7 @@ export function SpaceSwitcher({
           prefetch: false,
           "aria-current": actif ? ("true" as const) : undefined,
           "aria-label": nom,
+          className: "tcn-space-tile",
           style: tuile(actif, compact),
         };
         const contenu = (
@@ -73,7 +73,12 @@ export function SpaceSwitcher({
   );
 }
 
-/** L'espace courant se dit par sa bordure autant que par sa teinte (WCAG 1.4.1). */
+/**
+ * L'espace courant se dit par sa bordure autant que par sa teinte (WCAG 1.4.1).
+ * Son texte prend `-deeper` : `-deep` ne tient que 4,13:1 sur le fond teinté.
+ * Le fond des autres tuiles n'est pas posé en ligne, sans quoi il battrait le
+ * `:hover` de `.tcn-space-tile`.
+ */
 function tuile(actif: boolean, compact: boolean): CSSProperties {
   return {
     position: "relative",
@@ -88,8 +93,7 @@ function tuile(actif: boolean, compact: boolean): CSSProperties {
     gap: 2,
     borderRadius: "var(--tcn-radius-lg)",
     border: `1.5px solid ${actif ? "var(--tcn-orange-deep)" : "transparent"}`,
-    background: actif ? "var(--tcn-orange-08)" : "transparent",
-    color: actif ? "var(--tcn-orange-deep)" : "var(--tcn-text-muted)",
+    ...(actif ? { background: "var(--tcn-orange-08)", color: "var(--tcn-orange-deeper)" } : { color: "var(--tcn-text-muted)" }),
     textDecoration: "none",
     whiteSpace: "nowrap",
     fontFamily: "var(--tcn-font-cond)",

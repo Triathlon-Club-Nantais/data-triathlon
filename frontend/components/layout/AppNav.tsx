@@ -452,7 +452,6 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-tcn.png" alt={CLUB_NAME} style={{ height: 24, display: "block" }} />
         </Link>
-        <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} layout="header" />
         {rechercheDisponible && (
           <button type="button" aria-label="Rechercher un athlète" onClick={() => setPickerMode((m) => m ?? "search")} style={carreSecondaire}>
             <Search size={18} />
@@ -530,6 +529,14 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               <X size={20} />
             </SheetClose>
           </div>
+
+          {/* Même place que dans le panneau déplié, libellés compris : l'en-tête
+              mobile n'a ni la largeur ni le survol qu'il leur faudrait. */}
+          {espacesOuverts.length > 1 && (
+            <div style={{ flex: "none", display: "flex", padding: "8px 14px 0" }}>
+              <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} layout="row" />
+            </div>
+          )}
 
           {contenu(true, () => setDrawerOpen(false), sectionsRepli)}
 

@@ -1880,7 +1880,10 @@ describe("AppNav — espaces (#1296)", () => {
     afficher(admin(), { initialExpanded: true });
     expect(await within(rail()).findByRole("link", { name: /Back-office/ })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
-    expect(within(await screen.findByRole("dialog")).queryByRole("link", { name: /Back-office/ })).not.toBeInTheDocument();
+    const tiroir = await screen.findByRole("dialog");
+    const [seul] = within(tiroir).getAllByRole("link", { name: /Back-office/ });
+    expect(within(tiroir).getByRole("group", { name: "Espaces" })).toContainElement(seul);
+    expect(within(tiroir).getAllByRole("link", { name: /Back-office/ })).toHaveLength(1);
   });
 
   it("n'offre pas d'entrée Back-office à un membre sans pouvoir", async () => {
@@ -1907,10 +1910,13 @@ describe("AppNav — espaces (#1296)", () => {
     expect(await within(rail()).findByRole("group", { name: "Espaces" })).toBeInTheDocument();
   });
 
-  it("offre le sélecteur d'espace dans la barre mobile du haut", async () => {
+  it("offre le sélecteur d'espace en tête du tiroir mobile, pas dans la barre du haut", async () => {
     chemin.courant = "/dashboard";
-    afficher(admin());
-    expect(await within(screen.getByRole("banner")).findByRole("group", { name: "Autres espaces" })).toBeInTheDocument();
+    afficher(admin(), { initialExpanded: true });
+    await within(rail()).findByRole("group", { name: "Espaces" });
+    expect(within(screen.getByRole("banner")).queryByRole("group", { name: "Espaces" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    expect(await within(await screen.findByRole("dialog")).findByRole("group", { name: "Espaces" })).toBeInTheDocument();
   });
 
   it("n'offre pas de sélecteur à un membre sans pouvoir", async () => {
@@ -1980,12 +1986,12 @@ describe("AppNav: supervision space (#1297)", () => {
 describe("AppNav: UI/UX review of the spaces (#1295)", () => {
   const twoSpaces = () => ({ ...habilite("courses:write", "jeunes:read"), can_administer: false, can_supervise: true });
 
-  it("the mobile header uses the compact switcher", async () => {
+  it("the mobile drawer switcher shows labels", async () => {
     chemin.courant = "/dashboard";
     afficher(twoSpaces());
-    const espaces = await within(screen.getByRole("banner")).findByRole("group", { name: "Autres espaces" });
-    expect(within(espaces).getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual(["/encadrement"]);
-    expect(within(espaces).getByRole("link", { name: "Encadrement" })).not.toHaveTextContent("Encadrement");
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    const espaces = await within(await screen.findByRole("dialog")).findByRole("group", { name: "Espaces" });
+    expect(within(espaces).getByRole("link", { name: "Encadrement" })).toHaveTextContent("Encadrement");
   });
 
   it("the expanded rail puts the switcher on its own row under the logo", async () => {

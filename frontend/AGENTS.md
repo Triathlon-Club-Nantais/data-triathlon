@@ -382,8 +382,9 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   l'espace courant. `SpaceSwitcher` mène d'un espace à l'autre par des liens
   à icône, tous visibles (#1336), et disparaît pour qui n'en a qu'un ; son
   bouton « Back-office » porte le total des files « À traiter », seule entrée
-  vers le sommaire depuis l'espace public. Dans l'en-tête mobile, faute de
-  largeur, il ne montre que les **autres** espaces.
+  vers le sommaire depuis l'espace public. Sous `md`, il vit en tête du tiroir,
+  libellés compris, et jamais dans l'en-tête : une icône seule y passait pour
+  une action, sans survol au doigt pour la nommer (revue UI/UX de #1353).
   La palette ⌘K garde les écrans de tous les espaces ouverts. L'espace
   Encadrement (Jeunes, Crédits bénévoles) vit sous `/encadrement`, gardé par
   `can_supervise` via `components/layout/space-guard.tsx`, partagé avec

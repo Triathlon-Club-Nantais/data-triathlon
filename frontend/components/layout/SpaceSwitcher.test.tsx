@@ -51,10 +51,12 @@ describe("SpaceSwitcher (#1336)", () => {
     expect(await screen.findByRole("tooltip")).toHaveTextContent("Consulter");
   });
 
-  it("dans l'en-tête mobile, ne propose que les autres espaces", () => {
-    render(<SpaceSwitcher current="public" spaces={[PUBLIC, ENCADREMENT, ADMIN]} layout="header" />);
-    const groupe = screen.getByRole("group", { name: "Autres espaces" });
-    expect(within(groupe).getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual(["/encadrement", "/admin"]);
-    expect(within(groupe).getByRole("link", { name: "Encadrement" })).not.toHaveTextContent("Encadrement");
+  it("laisse le survol aux tuiles inactives et tient 4,5:1 sur la tuile courante", () => {
+    render(<SpaceSwitcher current="public" spaces={[PUBLIC, ENCADREMENT]} layout="row" />);
+    const courant = screen.getByRole("link", { name: "Consulter" });
+    const autre = screen.getByRole("link", { name: "Encadrement" });
+    expect(courant).toHaveStyle({ color: "var(--tcn-orange-deeper)" });
+    expect(autre).toHaveClass("tcn-space-tile");
+    expect(autre.style.background).toBe("");
   });
 });
