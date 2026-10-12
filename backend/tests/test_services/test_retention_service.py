@@ -15,8 +15,11 @@ from app.models.member_email import SOURCE_IMPORT, MemberEmail
 from app.models.organisation import Organisation
 from app.models.personal_profile import PersonalProfile
 from app.models.profile_log_entry import ProfileLogEntry
+from app.models.role import Role
+from app.models.season_validation import SeasonValidation
 from app.models.training_group import TrainingGroup, TrainingGroupMember
 from app.models.training_participant import TrainingParticipant
+from app.models.user import SYSTEM_USER_EMAIL, User
 from app.models.user_feedback import UserFeedback
 from app.repositories import (
     admin_action_log_repository,
@@ -27,6 +30,7 @@ from app.repositories import (
     training_group_repository,
     training_session_repository,
     user_repository,
+    user_role_repository,
 )
 from app.services import retention_service
 
@@ -201,3 +205,88 @@ def test_member_emails_older_than_the_previous_season_are_purged(db_session):
     outcome = retention_service.purge_expired(db_session, now=datetime(2026, 10, 6))
     assert outcome.member_emails == 1
     assert member_email_repository.seasons(db_session) == [2026, 2025]
+
+
+# --- Accounts inactive for 5 years (#1326) ----------------------------------
+
+FIVE_YEARS = timedelta(days=5 * 365)
+
+
+def _account(db, email, last_seen_at):
+    user = user_repository.create(db, email=email)
+    user.last_seen_at = last_seen_at
+    db.flush()
+    return user
+
+
+@pytest.fixture
+def system_user(db_session):
+    return _account(db_session, SYSTEM_USER_EMAIL, NOW - FIVE_YEARS * 2)
+
+
+def test_an_account_without_role_inactive_for_five_years_is_deleted(db_session, system_user):
+    stale = _account(db_session, "ancien@exemple.fr", NOW - FIVE_YEARS - timedelta(days=1))
+    recent = _account(db_session, "recent@exemple.fr", NOW - FIVE_YEARS + timedelta(days=1))
+    stale_id = stale.id
+
+    outcome = retention_service.purge_expired(db_session, now=NOW)
+
+    assert (outcome.accounts_deleted, outcome.accounts_skipped) == (1, 0)
+    assert db_session.get(User, stale_id) is None
+    assert db_session.get(User, recent.id) is not None
+    line = db_session.query(AdminActionLog).filter_by(action="account.delete").one()
+    assert (line.entity_id, line.payload, line.user_id) == (stale_id, {"origin": "inactivity"}, system_user.id)
+
+
+def test_an_account_with_a_role_never_expires(db_session, system_user, organisation):
+    holder = _account(db_session, "benevole@exemple.fr", NOW - FIVE_YEARS * 2)
+    role = Role(slug="lecteur", name="Lecteur")
+    db_session.add(role)
+    db_session.flush()
+    user_role_repository.grant(db_session, user_id=holder.id, role_id=role.id, organisation_id=organisation.id)
+
+    outcome = retention_service.purge_expired(db_session, now=NOW)
+
+    assert outcome.accounts_deleted == 0
+    assert db_session.get(User, holder.id) is not None
+
+
+def test_the_system_account_never_expires(db_session, system_user):
+    retention_service.purge_expired(db_session, now=NOW)
+
+    assert db_session.get(User, system_user.id) is not None
+
+
+def test_an_eligible_account_cited_by_a_required_reference_is_skipped(db_session, system_user):
+    cited = _account(db_session, "valideur@exemple.fr", NOW - FIVE_YEARS * 2)
+    athlete = Athlete(nom="Martin", prenom="Alix")
+    db_session.add(athlete)
+    db_session.flush()
+    db_session.add(SeasonValidation(athlete_id=athlete.id, season=2020, validated_by_user_id=cited.id))
+    db_session.flush()
+
+    outcome = retention_service.purge_expired(db_session, now=NOW)
+
+    assert (outcome.accounts_deleted, outcome.accounts_skipped) == (0, 1)
+    assert db_session.get(User, cited.id) is not None
+
+
+def test_dry_run_counts_accounts_without_deleting(db_session, system_user):
+    stale = _account(db_session, "ancien@exemple.fr", NOW - FIVE_YEARS * 2)
+
+    outcome = retention_service.purge_expired(db_session, now=NOW, dry_run=True)
+
+    assert (outcome.accounts_deleted, outcome.accounts_skipped) == (1, 0)
+    assert db_session.get(User, stale.id) is not None
+
+
+def test_an_account_cited_only_by_expired_log_lines_is_deleted(db_session, system_user):
+    """The admin log is purged first, so 12-month-old lines no longer block."""
+    stale = _account(db_session, "ancien-admin@exemple.fr", NOW - FIVE_YEARS * 2)
+    _admin_log(db_session, stale, NOW - timedelta(days=400))
+    stale_id = stale.id
+
+    outcome = retention_service.purge_expired(db_session, now=NOW)
+
+    assert outcome.accounts_deleted == 1
+    assert db_session.get(User, stale_id) is None

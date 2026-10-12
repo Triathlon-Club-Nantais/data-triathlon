@@ -4,6 +4,8 @@ La transaction reste portée par le service appelant (`services/auth/`), comme
 dans `import_service` et `scrape_service` : on `flush()` pour peupler l'id, on ne
 `commit()` jamais ici.
 """
+from datetime import datetime
+
 from sqlalchemy import Column, func, select, update
 from sqlalchemy.orm import Session, selectinload
 
@@ -11,7 +13,7 @@ import app.models  # noqa: F401  registers every table on Base.metadata for the 
 from app.core.database import Base
 from app.core.email import normalize_email
 from app.models.role import Role
-from app.models.user import User
+from app.models.user import SYSTEM_USER_EMAIL, User
 from app.models.user_group import UserGroup
 from app.models.user_role import UserRole
 
@@ -175,6 +177,19 @@ def has_required_reference(db: Session, user_id: int) -> bool:
 def detach_optional_references(db: Session, user_id: int) -> None:
     for column in optional_references():
         db.execute(update(column.table).where(column == user_id).values({column.name: None}))
+
+
+def list_inactive_without_role(db: Session, cutoff: datetime) -> list[User]:
+    """Accounts with no role, last seen before `cutoff`, never the system account (#1326)."""
+    return list(db.scalars(
+        select(User)
+        .where(
+            User.last_seen_at < cutoff,
+            User.email != SYSTEM_USER_EMAIL,
+            ~select(UserRole.id).where(UserRole.user_id == User.id).exists(),
+        )
+        .order_by(User.id)
+    ))
 
 
 def delete(db: Session, user: User) -> None:
