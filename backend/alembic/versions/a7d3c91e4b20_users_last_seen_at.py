@@ -21,8 +21,12 @@ __all__ = ["revision", "down_revision", "branch_labels", "depends_on", "upgrade"
 
 def upgrade() -> None:
     op.add_column('users', sa.Column('last_seen_at', sa.DateTime(), nullable=True))
-    # Les comptes antérieurs démarrent leur horloge d'inactivité à leur création.
-    op.execute("UPDATE users SET last_seen_at = COALESCE(created_at, CURRENT_TIMESTAMP)")
+    # Meilleure activité connue : la dernière ouverture de session, sinon la création.
+    op.execute(
+        "UPDATE users SET last_seen_at = COALESCE("
+        "(SELECT MAX(user_sessions.created_at) FROM user_sessions WHERE user_sessions.user_id = users.id), "
+        "created_at, CURRENT_TIMESTAMP)"
+    )
     with op.batch_alter_table('users') as batch_op:
         batch_op.alter_column('last_seen_at', existing_type=sa.DateTime(), nullable=False)
 
