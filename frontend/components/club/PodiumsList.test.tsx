@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ClubPodiumEntry, ClubPodiums } from "@/lib/types";
 
@@ -202,5 +202,37 @@ describe("PodiumsList — aperçu servi seul, liste chargée au dépliage (#1354
 
     expect(await screen.findAllByRole("listitem")).toHaveLength(9);
     expect(getClubPodiums).toHaveBeenCalledWith({ federal_only: true });
+  });
+
+  it("oublie la liste chargée quand le filtre de disciplines change", async () => {
+    searchParams = new URLSearchParams();
+    getClubPodiums.mockResolvedValue({ ...EMPTY, scratch: NEUF });
+    const user = userEvent.setup();
+    const { rerender } = render(<PodiumsList podiums={APERCU} totals={TOTAUX} />);
+    await user.click(screen.getByRole("button", { name: "Voir les 3 autres podiums" }));
+    expect(await screen.findAllByRole("listitem")).toHaveLength(9);
+
+    searchParams = new URLSearchParams("sports=all");
+    const autres = { ...EMPTY, scratch: [entry({ participation_id: 50 })] };
+    rerender(<PodiumsList podiums={autres} totals={{ ...TOTAUX, scratch: 1 }} />);
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+  });
+
+  it("ne charge qu'une fois et reste déplié malgré un double clic", async () => {
+    searchParams = new URLSearchParams();
+    getClubPodiums.mockClear();
+    let resoudre: (v: ClubPodiums) => void = () => {};
+    getClubPodiums.mockReturnValue(new Promise<ClubPodiums>((r) => (resoudre = r)));
+    const user = userEvent.setup();
+    render(<PodiumsList podiums={APERCU} totals={TOTAUX} />);
+    const bouton = screen.getByRole("button", { name: "Voir les 3 autres podiums" });
+
+    await user.click(bouton);
+    await user.click(bouton);
+    resoudre({ ...EMPTY, scratch: NEUF });
+
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(9));
+    expect(getClubPodiums).toHaveBeenCalledTimes(1);
   });
 });

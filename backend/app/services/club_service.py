@@ -54,7 +54,10 @@ def _entree(row, scope: str, rang: int, equipes: dict[int, list[str]]) -> ClubPo
 def _trier(entries: list[ClubPodiumEntry]) -> list[ClubPodiumEntry]:
     # Stable : trier d'abord par date décroissante, puis par rang croissant —
     # à rang égal, l'ordre par date décroissante posé au premier passage survit.
-    par_date = sorted(entries, key=lambda e: e.event_date or "", reverse=True)
+    # Départage final par id : `club_podiums` n'a pas d'ORDER BY, et l'aperçu
+    # (`?podiums=preview`) doit être le début exact de la liste complète (#1354).
+    par_id = sorted(entries, key=lambda e: e.participation_id)
+    par_date = sorted(par_id, key=lambda e: e.event_date or "", reverse=True)
     return sorted(par_date, key=lambda e: e.rank)
 
 

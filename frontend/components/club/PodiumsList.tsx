@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Medal } from "@/components/ui/medal";
 import { AnnonceStatut } from "@/components/tcn";
@@ -28,32 +28,45 @@ export const APERCU_PODIUMS = 6;
  * participations).
  *
  * `/club` n'en reçoit que l'aperçu et les `totals` (#1354) : la liste complète
- * se charge au premier dépliage, une fois pour les quatre modes.
+ * se charge au premier dépliage, une fois pour les quatre modes. La clé sur
+ * `?sports=` remonte la liste quand le filtre change : `router.push` garde le
+ * composant monté, et la liste chargée sous l'autre filtre survivrait sinon.
  */
-export function PodiumsList({ podiums, totals }: { podiums: ClubPodiums; totals?: ClubPodiumTotals }) {
+export function PodiumsList(props: { podiums: ClubPodiums; totals?: ClubPodiumTotals }) {
+  const sp = useSearchParams();
+  return <Podiums key={sp.get(SPORTS_PARAM) ?? ""} {...props} />;
+}
+
+function Podiums({ podiums, totals }: { podiums: ClubPodiums; totals?: ClubPodiumTotals }) {
   const sp = useSearchParams();
   const rankType = rankTypeFromParam(sp.get(RANK_PARAM) ?? undefined);
   const [etendu, setEtendu] = useState(false);
   const [complet, setComplet] = useState<ClubPodiums | null>(null);
   const [chargement, setChargement] = useState(false);
   const [echec, setEchec] = useState(false);
+  // Un double clic arrive avant le rendu qui poserait `chargement`.
+  const enVol = useRef(false);
   const tous = (complet ?? podiums)[rankType];
   const total = complet ? tous.length : (totals?.[rankType] ?? tous.length);
   const affiches = etendu ? tous : tous.slice(0, APERCU_PODIUMS);
   const restants = total - affiches.length;
 
   async function basculer() {
+    if (enVol.current) return;
     if (!etendu && !complet && total > tous.length) {
+      enVol.current = true;
       setChargement(true);
       setEchec(false);
       try {
         setComplet(await apiClient.getClubPodiums({ federal_only: federalOnlyFromParam(sp.get(SPORTS_PARAM)) }));
+        setEtendu(true);
       } catch {
         setEchec(true);
-        return;
       } finally {
+        enVol.current = false;
         setChargement(false);
       }
+      return;
     }
     setEtendu((v) => !v);
   }
@@ -137,7 +150,9 @@ export function PodiumsList({ podiums, totals }: { podiums: ClubPodiums; totals?
           aria-busy={chargement}
           className="mt-3 text-sm font-medium text-accent-ink hover:underline"
         >
-          {etendu
+          {chargement
+            ? "Chargement des podiums…"
+            : etendu
             ? "Réduire la liste"
             : restants > 1
               ? `Voir les ${restants} autres podiums`
