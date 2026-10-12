@@ -31,7 +31,7 @@ Complète le sondage `docs/superpowers/specs/2026-10-11-comptes-membres-sondage.
 ## R5. Adresse retenue et statut adhérent
 
 - **Decision**: `provisioning` retient, parmi les adresses vérifiées, la première inscrite à `allowed_emails`, sinon la première qui compte dans `member_emails`, sinon la principale (FR-016) ; elle alimente `users.email`, rafraîchie à chaque connexion. `membership.is_member(db, user, today)` : faux pour le compte système des bénévoles ou un compte inactif ; sinon `member_email_repository.counts(db, user.email, season_of(today))`.
-- **Saison qui compte** : la saison en cours si elle a au moins une entrée, sinon la précédente (une requête `EXISTS` sur la saison en cours, puis la recherche indexée sur `(email, season)`).
+- **Saison qui compte** : la saison en cours si elle a au moins une entrée importée, sinon la précédente ; les entrées manuelles de la saison en cours comptent aussi (une requête `EXISTS` sur les imports de la saison en cours, puis la recherche indexée sur `(email, season)` dans ces deux saisons au plus).
 - **Rationale**: dérivé à chaque requête, donc un retrait prend effet immédiatement (SC-004) ; aucune colonne de rôle ni de statut sur `users` (invariant #115, discussion #209).
 - **Alternatives considered**: colonne `is_member` sur `users` (figée, contraire à l'invariant) ; table de statut matérialisée (YAGNI à ce volume).
 

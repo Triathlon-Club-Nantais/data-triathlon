@@ -16,7 +16,7 @@ Décisions prises avant la spec avec l'utilisateur (périmètre, voie Spec Kit, 
 
 - Q: Quelle liste fait foi pour reconnaître un adhérent ? → A: une liste d'e-mails d'adhérents dédiée, importée depuis l'export AssoConnect ou complétée à la main, **distincte** de la liste d'autorisation du back-office (sources, cycle de vie et conservation différents ; les fondre ferait d'un contributeur externe un adhérent).
 - Q: Dans ce lot, qu'est-ce qu'un compte adhérent ? → A: un compte dont l'adresse vérifiée retenue figure dans la liste d'adhérents qui compte. Le rattachement validé de fiche athlète (#1325) s'ajoutera comme seconde voie.
-- Q: Quelle liste compte à une date donnée ? → A: celle de la saison en cours (bascule au 1ᵉʳ septembre) ; tant que la saison en cours n'a reçu aucune adresse, celle de la saison précédente continue de compter, pour ne pas fermer tous les adhérents entre la rentrée et le premier import.
+- Q: Quelle liste compte à une date donnée ? → A: celle de la saison en cours (bascule au 1ᵉʳ septembre) ; tant que la saison en cours n'a reçu aucune adresse **importée**, celle de la saison précédente continue de compter, pour ne pas fermer tous les adhérents entre la rentrée et le premier import ; une adresse ajoutée à la main pour la saison en cours compte aussi, sans faire basculer la liste (revue de #1334 : un seul ajout manuel en septembre fermait sinon tous les adhérents).
 - Q: Un import efface-t-il les ajouts manuels ? → A: non. Un import remplace les adresses importées de sa saison ; les adresses ajoutées à la main restent jusqu'à leur retrait.
 - Q: Le statut adhérent est-il figé à la connexion ? → A: non, il est réévalué à chaque requête : retirer une adresse de la liste prend effet immédiatement, sans révoquer de session.
 - Q: Quel moyen de connexion ajouter ? → A: Entra External ID (Google et code par e-mail envoyé par Microsoft), gratuit jusqu'à 50 000 utilisateurs actifs par mois ; décrit en infrastructure as code ; sans domaine personnalisé ni SMS (facturés).
@@ -109,7 +109,7 @@ Sur la page de connexion, un bouton propose de se connecter via le service d'ide
 - **FR-005**: Un administrateur habilité DOIT pouvoir consulter la liste d'une saison, y ajouter une adresse et en retirer une.
 - **FR-006**: Le même import DOIT être disponible en ligne de commande, avec un compte rendu parsable et des codes de sortie conformes aux conventions de la CLI.
 - **FR-007**: La gestion de la liste DOIT être gardée par un pouvoir dédié ; le rôle superutilisateur le franchit sans migration.
-- **FR-008**: Une adresse « compte » à une date donnée si elle figure dans la liste de la saison en cours, ou dans celle de la saison précédente lorsque la saison en cours ne contient encore aucune entrée.
+- **FR-008**: La saison qui compte à une date donnée est la saison en cours dès qu'elle contient au moins une entrée importée, sinon la saison précédente. Une adresse « compte » si elle figure dans la saison qui compte ou dans la saison en cours (avant le premier import, la saison en cours ne porte que des ajouts manuels, qui comptent donc en plus de la liste précédente).
 - **FR-009**: La purge périodique DOIT supprimer les entrées des saisons antérieures à la saison précédente.
 - **FR-010**: La base légale et la politique de confidentialité DOIVENT décrire ce traitement (finalité : reconnaître un adhérent à la connexion ; données : adresse e-mail et saison ; conservation : saison en cours et précédente ; accès : administrateurs habilités).
 

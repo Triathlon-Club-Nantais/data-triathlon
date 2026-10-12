@@ -17,7 +17,7 @@ Toutes les routes : garde du code d'accès au site (inclusion dans le tuple gard
 }
 ```
 
-`counting_season` : saison qui compte aujourd'hui (règle de `data-model.md`). Entrées triées par adresse.
+`counting_season` : saison qui compte aujourd'hui, la saison en cours dès qu'elle a une entrée importée, sinon la précédente (règle de `data-model.md`). Entrées triées par adresse.
 
 ## `POST /admin/member-emails/import`
 
@@ -28,7 +28,7 @@ Toutes les routes : garde du code d'accès au site (inclusion dans le tuple gard
 {"season": 2026, "added": 280, "removed": 4, "unchanged": 12, "ignored": 3}
 ```
 
-422 (`DomainError`, message français) : format non pris en charge, fichier illisible, aucune colonne d'e-mail reconnue (`MissingEmailColumnError`), aucune adresse valide (`NoValidEmailError`), saison hors bornes. Aucune écriture dans ces cas. Journal : `member_emails.import`.
+422 (`DomainError`, message français) : format non pris en charge, fichier illisible, aucune colonne d'e-mail reconnue (`MissingEmailColumnError`), aucune adresse valide (`NoValidEmailError`), saison hors bornes. Aucune écriture dans ces cas. 409 si la liste change pendant l'import (`ConcurrentImportError`). Journal : `member_emails.import`, avec les quatre compteurs (aucune adresse).
 
 ## `POST /admin/member-emails`
 

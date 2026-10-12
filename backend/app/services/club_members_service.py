@@ -7,7 +7,6 @@ cette fiche sur la saison de sa licence (`tcn_count_repository`). Chaque
 Ne commite pas : le routeur ou la commande porte la transaction.
 """
 import logging
-import unicodedata
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
@@ -16,7 +15,7 @@ from app.core.athlete_identity import athlete_identity_keys
 from app.core.exceptions import DomainError, NotFoundError
 from app.core.gender import normalize_gender
 from app.core.identity import identity_hash
-from app.core.season import SEASON_MAX, SEASON_MIN
+from app.core.season import SEASON_MAX, SEASON_MIN, SeasonOutOfRangeError
 from app.models.club_member import (
     LINK_AMBIGUOUS,
     LINK_AUTO,
@@ -57,11 +56,6 @@ class RosterUnavailableError(DomainError):
 class MissingMemberColumnsError(DomainError):
     status_code = 422
     message = "Colonnes « Nom » et « Prénom » introuvables dans ce fichier."
-
-
-class SeasonOutOfRangeError(DomainError):
-    status_code = 422
-    message = "Saison hors de la plage acceptée."
 
 
 @dataclass(frozen=True)
@@ -166,25 +160,18 @@ def sync_from_fftri(db: Session, *, user_id: int | None) -> MembersSyncReport:
     return report_of(season, rows)
 
 
-def _header_key(header: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", header)
-    return "".join(c for c in decomposed if c.isalnum()).casefold()
-
-
-def _column(headers: list[str], accepted: set[str]) -> int | None:
-    return next((i for i, h in enumerate(headers) if _header_key(h) in accepted), None)
-
-
 def import_file(
     db: Session, *, season: int, content: bytes, filename: str, user_id: int | None
 ) -> MembersSyncReport:
     if not SEASON_MIN <= season <= SEASON_MAX:
         raise SeasonOutOfRangeError
     headers, lines = sheet_source.read_table(content, filename)
-    nom_at, prenom_at = _column(headers, _NOM_HEADERS), _column(headers, _PRENOM_HEADERS)
+    nom_at = sheet_source.column_index(headers, _NOM_HEADERS)
+    prenom_at = sheet_source.column_index(headers, _PRENOM_HEADERS)
     if nom_at is None or prenom_at is None:
         raise MissingMemberColumnsError
-    gender_at, licence_at = _column(headers, _GENDER_HEADERS), _column(headers, _LICENCE_HEADERS)
+    gender_at = sheet_source.column_index(headers, _GENDER_HEADERS)
+    licence_at = sheet_source.column_index(headers, _LICENCE_HEADERS)
 
     def cell(line: list[str], at: int | None) -> str:
         return line[at].strip() if at is not None and at < len(line) else ""

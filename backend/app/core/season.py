@@ -9,12 +9,18 @@ from datetime import MAXYEAR, MINYEAR, date
 from sqlalchemy import Integer, case, cast, extract
 from sqlalchemy.sql.elements import ColumnElement
 
+from app.core.exceptions import DomainError
 from app.core.time import utcnow
 
 #: Plage d'une saison saisie par un client (#1054) : au-delà, `season_bounds`
 #: lève une `ValueError` (500), ou une saison absurde se persiste.
 SEASON_MIN = 2000
 SEASON_MAX = 2100
+
+
+class SeasonOutOfRangeError(DomainError):
+    status_code = 422
+    message = "Saison hors de la plage acceptée."
 
 
 def season_of(d: date) -> int:

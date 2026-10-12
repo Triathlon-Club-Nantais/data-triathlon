@@ -32,6 +32,7 @@ uv run python -m app.cli geocode-courses --limit 300 --json   # coordonnées des
 uv run python -m app.cli geocode-courses --course 249 --course 250   # reprend une épreuve mal placée, même déjà géocodée (#1256)
 uv run python -m app.cli purge-retention --dry-run   # durées de conservation publiées (#1158) ; sans --dry-run, supprime
 uv run python -m app.cli sync-club-members --json   # licenciés FFTri de la saison en cours (#1202)
+uv run python -m app.cli import-member-emails --season 2026 --file export.xlsx --json   # adresses d'adhérents de l'export AssoConnect (#1334)
 uv run python -m app.cli purge-orphans               # athlètes sans résultat ni autre référence (#1271)
 uv run python -m app.cli allow-email --email <adresse>              # autorise une adresse à se connecter (#170)
 uv run python -m app.cli grant-role --email <adresse> --role admin   # amorce le 1er administrateur (#115)

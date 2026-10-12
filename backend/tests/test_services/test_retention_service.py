@@ -11,6 +11,7 @@ import pytest
 from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.club_member import LINK_AUTO, LINK_UNLINKED, SOURCE_FFTRI, ClubMember
+from app.models.member_email import SOURCE_IMPORT, MemberEmail
 from app.models.organisation import Organisation
 from app.models.personal_profile import PersonalProfile
 from app.models.profile_log_entry import ProfileLogEntry
@@ -21,6 +22,7 @@ from app.repositories import (
     admin_action_log_repository,
     club_member_repository,
     feedback_repository,
+    member_email_repository,
     profile_repository,
     training_group_repository,
     training_session_repository,
@@ -182,3 +184,20 @@ def test_purge_handles_old_member_seasons(db_session):
     assert outcome.club_members == 2
     (kept,) = club_member_repository.list_season(db_session, 2023)
     assert (kept.athlete_id, kept.licence_id) == (athlete.id, None)
+
+
+def test_member_emails_older_than_the_previous_season_are_purged(db_session):
+    db_session.add_all([
+        MemberEmail(email="old@exemple.fr", season=2024, source=SOURCE_IMPORT),
+        MemberEmail(email="prev@exemple.fr", season=2025, source=SOURCE_IMPORT),
+        MemberEmail(email="now@exemple.fr", season=2026, source=SOURCE_IMPORT),
+    ])
+    db_session.flush()
+
+    dry = retention_service.purge_expired(db_session, now=datetime(2026, 10, 6), dry_run=True)
+    assert dry.member_emails == 1
+    assert member_email_repository.seasons(db_session) == [2026, 2025, 2024]
+
+    outcome = retention_service.purge_expired(db_session, now=datetime(2026, 10, 6))
+    assert outcome.member_emails == 1
+    assert member_email_repository.seasons(db_session) == [2026, 2025]

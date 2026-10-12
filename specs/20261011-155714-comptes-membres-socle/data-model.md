@@ -19,7 +19,7 @@
 - **Import** d'une saison : `import` absentes du fichier → supprimées ; nouvelles → insérées en `import` ; présentes → inchangées ; `manual` → jamais touchées par un import. Fichier sans colonne reconnue ou sans adresse valide → refus 422, aucune écriture.
 - **Ajout manuel** : insère en `manual` ; si l'adresse existe déjà en `import` pour la saison, elle passe en `manual` (elle survit alors aux imports suivants). Déjà `manual` → 409.
 - **Retrait** : supprime l'entrée, quelle que soit son origine.
-- **Saison qui compte** à la date `d` : `season_of(d)` si elle a au moins une entrée, sinon `season_of(d) - 1`.
+- **Saison qui compte** à la date `d` : `season_of(d)` si elle a au moins une entrée `import`, sinon `season_of(d) - 1`. Une adresse compte si elle figure dans la saison qui compte **ou** dans `season_of(d)` : avant le premier import, la saison en cours ne porte que des entrées `manual`, qui comptent en plus de la liste précédente sans la faire basculer.
 - **Purge** (`purge-retention`) : supprime les entrées de `season < season_of(today) - 1`.
 
 ## `users` (existante, inchangée en schéma)

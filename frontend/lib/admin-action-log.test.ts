@@ -104,6 +104,17 @@ describe("catalogue coverage (#1043)", () => {
     expect(codes.filter((code) => actionLabel(code) === code)).toEqual([]);
   });
 
+  it("translates the member e-mail import counters (#1334)", () => {
+    const lignes = formatPayload({ added: 2, removed: 1, unchanged: 3, ignored: 4 });
+
+    expect(lignes).toEqual([
+      { label: "Adresses ajoutées", value: "2" },
+      { label: "Adresses retirées", value: "1" },
+      { label: "Adresses inchangées", value: "3" },
+      { label: "Lignes ignorées", value: "4" },
+    ]);
+  });
+
   it("translates the season, volunteering and source payload keys", () => {
     const lignes = formatPayload({ season: 2026, action_id: 4, url: "https://x", provider: "klikego" });
 
