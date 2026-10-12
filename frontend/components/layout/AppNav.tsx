@@ -329,11 +329,11 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               {CLUB_NAME_SHORT}
             </Link>
           )}
-          {!expanded && <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} compact />}
+          {!expanded && <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} layout="column" />}
         </div>
         {expanded && (
           <div style={{ flex: "none", display: "flex", padding: "8px 14px 0" }}>
-            <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} />
+            <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} layout="row" />
           </div>
         )}
 
@@ -468,7 +468,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-tcn.png" alt={CLUB_NAME} style={{ height: 24, display: "block" }} />
         </Link>
-        <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} compact />
+        <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} layout="header" />
         {rechercheDisponible && (
           <button type="button" aria-label="Rechercher un athlète" onClick={() => setPickerMode((m) => m ?? "search")} style={carreSecondaire}>
             <Search size={18} />

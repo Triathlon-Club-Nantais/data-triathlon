@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -13,42 +13,48 @@ vi.mock("next/link", () => ({
 }));
 
 const PUBLIC = { id: "public", label: "Consulter", href: "/dashboard" } as const;
+const ENCADREMENT = { id: "encadrement", label: "Encadrement", href: "/encadrement" } as const;
 const ADMIN = { id: "admin", label: "Back-office", href: "/admin", count: 214 } as const;
 
-describe("SpaceSwitcher (#1296)", () => {
+describe("SpaceSwitcher (#1336)", () => {
   it("ne rend rien avec un seul espace", () => {
-    const { container } = render(<SpaceSwitcher current="public" spaces={[PUBLIC]} />);
+    const { container } = render(<SpaceSwitcher current="public" spaces={[PUBLIC]} layout="row" />);
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("annonce l'espace courant et liste les autres en liens", async () => {
-    render(<SpaceSwitcher current="public" spaces={[PUBLIC, ADMIN]} />);
-    await userEvent.click(screen.getByRole("button", { name: "Espace : Consulter, changer d'espace" }));
-    expect(await screen.findByRole("menuitem", { name: /Back-office/ })).toHaveAttribute("href", "/admin");
-    expect(screen.getByRole("menuitem", { name: /Consulter/ })).toHaveAttribute("aria-current", "true");
+  it("en ligne, montre chaque espace en lien à icône et libellé, le courant marqué", () => {
+    render(<SpaceSwitcher current="public" spaces={[PUBLIC, ENCADREMENT, ADMIN]} layout="row" />);
+    const groupe = screen.getByRole("group", { name: "Espaces" });
+    const liens = within(groupe).getAllByRole("link");
+    expect(liens.map((l) => l.getAttribute("href"))).toEqual(["/dashboard", "/encadrement", "/admin"]);
+    expect(within(groupe).getByRole("link", { name: "Consulter" })).toHaveAttribute("aria-current", "true");
+    expect(within(groupe).getByRole("link", { name: "Encadrement" })).not.toHaveAttribute("aria-current");
+    expect(within(groupe).getByRole("link", { name: "Consulter" })).toHaveTextContent("Consulter");
+    expect(groupe.querySelector(".lucide-layout-grid")).not.toBeNull();
+    expect(groupe.querySelector(".lucide-calendar-days")).not.toBeNull();
+    expect(groupe.querySelector(".lucide-briefcase")).not.toBeNull();
   });
 
-  it("porte le compteur du back-office avec son nom accessible", async () => {
-    render(<SpaceSwitcher current="public" spaces={[PUBLIC, ADMIN]} />);
-    await userEvent.click(screen.getByRole("button", { name: /changer d'espace/ }));
-    expect(await screen.findByText("214")).toBeInTheDocument();
-    expect(screen.getByText("214 éléments à traiter")).toHaveClass("sr-only");
+  it("porte le compteur en pastille décorative et dans le nom accessible", () => {
+    render(<SpaceSwitcher current="public" spaces={[PUBLIC, ADMIN]} layout="row" />);
+    const lien = screen.getByRole("link", { name: "Back-office, 214 éléments à traiter" });
+    expect(within(lien).getByText("214")).toHaveAttribute("aria-hidden", "true");
   });
 
-  it("en mode compact, garde le nom accessible sans libellé visible", () => {
-    render(<SpaceSwitcher current="public" spaces={[PUBLIC, ADMIN]} compact />);
-    const bouton = screen.getByRole("button", { name: "Espace : Consulter, changer d'espace" });
-    expect(bouton).not.toHaveTextContent("Consulter");
-    expect(bouton.querySelector(".lucide-layout-grid")).toBeNull();
-    expect(bouton.querySelector(".lucide-arrow-left-right")).not.toBeNull();
+  it("en colonne, n'affiche que les icônes, nom accessible et infobulle compris", async () => {
+    render(<SpaceSwitcher current="public" spaces={[PUBLIC, ADMIN]} layout="column" />);
+    const lien = screen.getByRole("link", { name: "Consulter" });
+    expect(lien).not.toHaveTextContent("Consulter");
+    expect(lien).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("link", { name: "Back-office, 214 éléments à traiter" })).toHaveAttribute("href", "/admin");
+    await userEvent.hover(lien);
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Consulter");
   });
 
-  it("en mode compact, montre une infobulle et ouvre le menu", async () => {
-    render(<SpaceSwitcher current="public" spaces={[PUBLIC, ADMIN]} compact />);
-    const bouton = screen.getByRole("button", { name: /changer d'espace/ });
-    await userEvent.hover(bouton);
-    expect(await screen.findByRole("tooltip")).toBeInTheDocument();
-    await userEvent.click(bouton);
-    expect(await screen.findByRole("menuitem", { name: /Back-office/ })).toBeInTheDocument();
+  it("dans l'en-tête mobile, ne propose que les autres espaces", () => {
+    render(<SpaceSwitcher current="public" spaces={[PUBLIC, ENCADREMENT, ADMIN]} layout="header" />);
+    const groupe = screen.getByRole("group", { name: "Autres espaces" });
+    expect(within(groupe).getAllByRole("link").map((l) => l.getAttribute("href"))).toEqual(["/encadrement", "/admin"]);
+    expect(within(groupe).getByRole("link", { name: "Encadrement" })).not.toHaveTextContent("Encadrement");
   });
 });
