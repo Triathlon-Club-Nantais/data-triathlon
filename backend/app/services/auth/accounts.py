@@ -50,6 +50,9 @@ def delete_account(db: Session, user: User, *, origin: Origin) -> None:
         raise AccountStillReferencedError()
 
     user_id = user.id
+    # Identifiant pseudonyme chez Microsoft, gardé 12 mois avec le journal pour
+    # la seule fin de supprimer l'utilisateur de l'annuaire Entra (à la main).
+    entra_oids = [identity.subject for identity in user.identities if identity.provider == "entra"]
     # Point de reprise : un refus du dernier administrateur, levé après le flush,
     # ne laisse pas la suppression en attente dans la transaction de l'appelant.
     with db.begin_nested(), authorization.administrateurs_preserves(db):
@@ -58,7 +61,7 @@ def delete_account(db: Session, user: User, *, origin: Origin) -> None:
     logger.info("Account deleted: user=%s origin=%s", user_id, origin)
     audit.record(
         db, benevole_access.system_user_id(db), action="account.delete", entity_type="user", entity_id=user_id,
-        payload={"origin": origin},
+        payload={"origin": origin, "entra_oids": entra_oids},
     )
 
 

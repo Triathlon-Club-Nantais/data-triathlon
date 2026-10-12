@@ -107,7 +107,23 @@ def test_deletion_is_logged_by_the_system_account_without_personal_data(db, alix
     line = db.query(AdminActionLog).one()
     assert (line.action, line.entity_type, line.entity_id) == ("account.delete", "user", user_id)
     assert line.user_id == system_user.id
-    assert line.payload == {"origin": "request"}
+    assert line.payload == {"origin": "request", "entra_oids": []}
+
+
+def test_the_entra_oids_are_logged_to_finish_the_deletion_in_the_directory(db, alix):
+    db.add_all([
+        Identity(user_id=alix.id, provider="entra", subject="oid-1", email="alix@exemple.fr"),
+        Identity(user_id=alix.id, provider="entra", subject="oid-2", email="alix@exemple.fr"),
+    ])
+    db.flush()
+    db.refresh(alix)
+
+    accounts.delete_account(db, alix, origin="request")
+    db.commit()
+
+    line = db.query(AdminActionLog).one()
+    assert sorted(line.payload["entra_oids"]) == ["oid-1", "oid-2"]
+    assert "alix" not in str(line.payload)
 
 
 def test_an_account_cited_by_a_required_reference_is_refused_and_kept(db, alix):

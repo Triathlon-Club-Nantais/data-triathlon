@@ -235,7 +235,7 @@ def test_an_account_without_role_inactive_for_five_years_is_deleted(db_session, 
     assert db_session.get(User, stale_id) is None
     assert db_session.get(User, recent.id) is not None
     line = db_session.query(AdminActionLog).filter_by(action="account.delete").one()
-    assert (line.entity_id, line.payload, line.user_id) == (stale_id, {"origin": "inactivity"}, system_user.id)
+    assert (line.entity_id, line.payload, line.user_id) == (stale_id, {"origin": "inactivity", "entra_oids": []}, system_user.id)
 
 
 def test_an_account_with_a_role_never_expires(db_session, system_user, organisation):
