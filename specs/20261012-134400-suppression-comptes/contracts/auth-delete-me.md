@@ -12,4 +12,4 @@ Supprime le compte de la session courante (US1). Aucun corps de requête.
 
 En-têtes : `Cache-Control: no-store`, `Vary: Cookie` sur toutes les réponses du préfixe.
 
-Effets : voir `data-model.md` § Suppression d'un compte. Une ligne `account.delete` au journal, `payload = {"origin": "request"}`.
+Effets : voir `data-model.md` § Suppression d'un compte. Une ligne `account.delete` au journal, `payload = {"origin": "request", "entra_oids": [...]}`.

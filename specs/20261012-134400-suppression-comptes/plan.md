@@ -6,7 +6,7 @@
 
 ## Summary
 
-Une colonne `users.last_seen_at` (posée à l'ouverture de session, repoussée au plus une fois par jour par la résolution de session) et un service `services/auth/accounts.py` qui supprime physiquement un compte : refus si une donnée à référence obligatoire le cite, refus si l'opération fait perdre le dernier administrateur (`administrateurs_preserves`), jamais le compte système. Deux appelants : `DELETE /api/v1/auth/me` (suppression volontaire, efface les cookies, 204) et `retention_service.purge_expired` (comptes sans rôle inactifs depuis 5 × 365 jours, compteurs `accounts_deleted` / `accounts_skipped`). Côté interface, « Supprimer mon compte » dans le menu utilisateur avec une boîte de confirmation. Politique de confidentialité, avenant de base légale et procédure Entra mis à jour.
+Une colonne `users.last_seen_at` (posée à l'ouverture de session, repoussée au plus une fois par jour par la résolution de session) et un service `services/auth/accounts.py` qui supprime physiquement un compte : refus si une donnée à référence obligatoire le cite, refus si l'opération fait perdre le dernier administrateur (`administrateurs_preserves`), jamais le compte système. Deux appelants : `DELETE /api/v1/auth/me` (suppression volontaire, efface les cookies, 204) et `retention_service.purge_expired` (comptes sans rôle inactifs depuis 5 ans à la date près, compteurs `accounts_deleted` / `accounts_skipped`). Côté interface, « Supprimer mon compte » dans le menu utilisateur avec une boîte de confirmation. Politique de confidentialité, avenant de base légale et procédure Entra mis à jour.
 
 ## Technical Context
 
@@ -24,7 +24,7 @@ Une colonne `users.last_seen_at` (posée à l'ouverture de session, repoussée a
 
 **Performance Goals**: au plus une écriture par compte et par jour pour l'activité (SC-004) ; la purge parcourt les comptes sans rôle inactifs (≈ 1 000 comptes au plus), une requête d'existence par référence obligatoire et par candidat
 
-**Constraints**: routes `def` ; écritures protégées par `core/origin_guard` (comme `POST /auth/logout`) ; aucune donnée personnelle dans le journal (identifiant et origine seuls) ; FK sans `ondelete` (contrainte active en PostgreSQL seulement), donc mise à vide applicative
+**Constraints**: routes `def` ; écritures protégées par `core/origin_guard` (comme `POST /auth/logout`) ; aucune adresse ni nom dans le journal (identifiant, origine et `oid` Entra pseudonymes) ; FK sans `ondelete` (contrainte active en PostgreSQL seulement), donc mise à vide applicative
 
 **Scale/Scope**: ~1 000 comptes, une suppression volontaire occasionnelle, une passe hebdomadaire
 
@@ -78,7 +78,7 @@ backend/
 frontend/
 ├── components/auth/UserMenu.tsx, DeleteAccountDialog.tsx (nouveau)
 ├── lib/api/client.ts, lib/queries/auth.ts
-├── lib/admin-action-log.ts                   # account.delete, origin
+├── lib/admin-action-log.ts                   # account.delete, origin, entra_oids, auteur « Système »
 └── components/legal/content/confidentialite.tsx
 
 docs/

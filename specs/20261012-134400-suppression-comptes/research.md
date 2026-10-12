@@ -23,7 +23,7 @@ Inventaire mesuré (`grep 'users.id' app/models/`) :
 
 ## D2. Auteur de la ligne de journal `account.delete`
 
-**Décision**: le compte système (`SYSTEM_USER_EMAIL`, résolu par `benevole_access.system_user_id`), pour les deux origines. Payload `{"origin": "request" | "inactivity"}`, `entity_type="user"`, `entity_id` = l'identifiant supprimé.
+**Décision**: le compte système (`SYSTEM_USER_EMAIL`, résolu par `benevole_access.system_user_id`), pour les deux origines. Payload `{"origin": "request" | "inactivity", "entra_oids": [...]}`, `entity_type="user"`, `entity_id` = l'identifiant supprimé. Le journal affiche « Système » pour ce geste (le nom du compte système, « Bénévoles (accès partagé) », laisserait croire à un geste bénévole).
 
 **Rationale**: `admin_action_log.user_id` est obligatoire et porte une FK ; le compte supprimé ne peut pas en être l'auteur, et la purge n'a pas d'acteur. `audit.record` avec `actor_id=None` n'écrirait rien, alors que FR-009 exige la trace. Le compte système est semé par migration dans tous les environnements et n'est jamais supprimé (FR-006).
 
@@ -35,15 +35,15 @@ Inventaire mesuré (`grep 'users.id' app/models/`) :
 
 ## D4. Tenue de `last_seen_at`
 
-**Décision**: `session.open_with_token` pose `user.last_seen_at = utcnow()` (même transaction que l'ouverture, commitée par le retour de parcours). `session.resolve`, si `last_seen_at.date() < utcnow().date()`, appelle `user_repository.touch_last_seen(db, user_id, now)`, un `UPDATE users SET last_seen_at = :now WHERE id = :id AND last_seen_at < :debut_du_jour`, puis `db.commit()`.
+**Décision**: `session.open_with_token` pose `user.last_seen_at = utcnow()` (même transaction que l'ouverture, commitée par le retour de parcours). `session.resolve`, si `last_seen_at.date() < utcnow().date()`, appelle `user_repository.touch_last_seen(db, user_id, now)`, un `UPDATE users SET last_seen_at = :now WHERE id = :id AND last_seen_at < :debut_du_jour`, exécuté et commité par une session à part liée au même moteur (révisé en revue de PR #1357 : un `db.commit()` sur la session de la requête commitait aussi ce qu'elle portait).
 
-**Rationale**: `get_db` ne commite jamais ; une écriture non commitée serait perdue sur toute requête de lecture. `resolve` est appelé par les dépendances avant le corps de la route, la session SQLAlchemy est donc propre et le commit n'emporte que cette ligne. La condition dans le `WHERE` rend deux requêtes concurrentes inoffensives (une seule écrit). Coût : une écriture par compte et par jour (SC-004).
+**Rationale**: `get_db` ne commite jamais ; une écriture non commitée serait perdue sur toute requête de lecture. La session à part laisse la transaction de la requête intacte ; l'objet de la requête est aligné par `set_committed_value`. La condition dans le `WHERE` rend deux requêtes concurrentes inoffensives (une seule écrit). Coût : une écriture par compte et par jour (SC-004).
 
 **Alternatives**: session SQLAlchemy séparée (plus de code, une connexion de plus) ; mise à jour à chaque requête (contraire à SC-004).
 
 ## D5. Migration
 
-**Décision**: ajouter la colonne nullable, `UPDATE users SET last_seen_at = COALESCE(created_at, CURRENT_TIMESTAMP)`, puis la rendre `NOT NULL` dans un `batch_alter_table` (SQLite). Le modèle porte `default=utcnow`.
+**Décision**: ajouter la colonne nullable, `UPDATE users SET last_seen_at = COALESCE((SELECT MAX(created_at) FROM user_sessions WHERE user_id = users.id), created_at, CURRENT_TIMESTAMP)` (la dernière ouverture de session est la meilleure activité connue), puis la rendre `NOT NULL` dans un `batch_alter_table` (SQLite). Le modèle porte `default=utcnow`.
 
 ## D6. Route de suppression volontaire
 
@@ -51,7 +51,7 @@ Inventaire mesuré (`grep 'users.id' app/models/`) :
 
 ## D7. Purge par inactivité
 
-**Décision**: `accounts.purge_inactive(db, now, dry_run)` liste les candidats (`user_repository.list_inactive_without_role(db, cutoff)` : `last_seen_at < now - 5 × 365 j`, aucun `user_roles`, adresse différente de `SYSTEM_USER_EMAIL`), classe chacun en supprimable ou sauté (référence obligatoire), supprime les premiers hors passe à blanc. Appelée par `retention_service.purge_expired` **après** la purge du journal, pour que les lignes de plus de 12 mois ne bloquent plus. En passe à blanc, le journal n'est pas purgé : un compte cité seulement par des lignes de plus de 12 mois y est compté « sauté » alors que la passe réelle le supprimerait. Écart accepté et documenté.
+**Décision**: `accounts.purge_inactive(db, now, dry_run)` liste les candidats (`user_repository.list_inactive_without_role(db, cutoff)` : `last_seen_at < accounts.inactivity_cutoff(now)`, même date du calendrier 5 ans plus tôt, un 29 février devenant le 28 (révisé en revue : 5 × 365 jours retranchait un ou deux jours bissextiles), aucun `user_roles`, adresse différente de `SYSTEM_USER_EMAIL`), classe chacun en supprimable ou sauté (référence obligatoire), supprime les premiers hors passe à blanc. Appelée par `retention_service.purge_expired` **après** la purge du journal, pour que les lignes de plus de 12 mois ne bloquent plus. En passe à blanc, le journal n'est pas purgé : un compte cité seulement par des lignes de plus de 12 mois y est compté « sauté » alors que la passe réelle le supprimerait. Écart accepté et documenté.
 
 ## D8. Interface
 
@@ -60,3 +60,11 @@ Inventaire mesuré (`grep 'users.id' app/models/`) :
 ## D9. Suppressions simultanées du même compte
 
 **Décision**: aucun verrou dédié. En PostgreSQL, la seconde transaction attend le verrou de ligne posé par le premier `DELETE`, puis ne trouve plus la ligne : SQLAlchemy émet un avertissement (`confirm_deleted_rows`) sans lever, les mises à vide n'affectent aucune ligne, et la seconde requête rend 204. Rien n'est cassé ; une seconde ligne `account.delete` peut apparaître au journal. Non reproductible sous SQLite (verrou de base entière), donc non testé.
+
+## D10. Finir la suppression dans l'annuaire Entra (revue de PR #1357)
+
+**Décision**: la ligne `account.delete` porte `entra_oids`, les `subject` des identités `entra` du compte supprimé. L'exploitant relève chaque mois ces `oid` dans le journal de la base de **production**, nommée explicitement, vérifie à blanc puis supprime chaque utilisateur par Graph (`infra/entra-external-id/AGENTS.md`).
+
+**Rationale**: le tenant sert à la préproduction comme à la production ; comparer l'annuaire à une base, comme le proposait la première version, aurait supprimé les comptes vivants de l'autre environnement. L'`oid` est un identifiant pseudonyme, sans adresse ni nom, gardé 12 mois avec le journal et à cette seule fin.
+
+**Alternatives**: comparaison annuaire contre base (rejetée, voir ci-dessus) ; suppression automatique par Graph (flux *client credentials* payant).

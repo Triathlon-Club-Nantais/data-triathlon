@@ -100,3 +100,14 @@ T011 et T013 (frontend) en parallèle des tâches backend ; T012 après T011.
 ## Implementation Strategy
 
 MVP = Phases 1 à 3 (suppression volontaire). Puis US2 (expiration), US3 (activité), puis la documentation. Un commit Conventional par tâche ou groupe cohérent test + implémentation.
+
+## Phase 7: Corrections de revue (PR #1357)
+
+- [X] R01 [US1] `entra_oids` dans le payload `account.delete` (test puis service), libellé du journal côté front ; procédure Entra par relevé du journal de production, jamais par comparaison (`infra/entra-external-id/AGENTS.md`), FR-009, research D10, avenant, politique (« dans le mois qui suit »)
+- [X] R02 [US3] Écriture de `last_seen_at` par une session à part ; test prouvant qu'un état en attente de la requête n'est pas commité
+- [X] R03 [US2] Échéance à la date du calendrier, 5 ans plus tôt (29 février → 28), tests autour des années bissextiles
+- [X] R04 Migration : `last_seen_at` = dernière ouverture de session, à défaut la création ; upgrade/downgrade/upgrade et `alembic check` sur SQLite jetable
+- [X] R05 [US2] Compte désactivé sans rôle : expire aussi, test et `services/auth/AGENTS.md`
+- [X] R06 [US1] Auteur « Système » pour `account.delete` dans le journal (test)
+- [X] R07 [US1] Style destructif sur « Supprimer mon compte » (menu et tiroir), plus sur « Se déconnecter »
+- [X] R08 Politique : « un compte qui porte un rôle est gardé tant qu'il le porte »

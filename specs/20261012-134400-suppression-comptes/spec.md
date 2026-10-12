@@ -16,9 +16,10 @@ Décisions du mainteneur avant la spec, ou tranchées par l'option la plus sûre
 
 - Q: Que veut dire « supprimé » ? → A: suppression **physique** de la ligne du compte et de tout ce qui lui appartient (identités, sessions, rôles, groupes) ; les références facultatives d'autres données vers le compte sont mises à vide.
 - Q: Que faire d'un compte encore cité par une donnée qui exige son existence (validation de saison, paires ou cas ignorés, configuration d'accès, journal d'administration) ? → A: il n'est jamais supprimé en silence ni ces traces avec lui. L'expiration le saute et le compte dans son rapport ; la suppression volontaire refuse avec un message invitant à contacter le club.
-- Q: Qu'est-ce qu'une activité ? → A: l'ouverture d'une session ou son usage par une requête authentifiée ; la date de dernière activité est mise à jour au plus une fois par jour et par compte. Pour les comptes existants, la date de création sert de point de départ.
+- Q: Qu'est-ce qu'une activité ? → A: l'ouverture d'une session ou son usage par une requête authentifiée ; la date de dernière activité est mise à jour au plus une fois par jour et par compte. Pour les comptes existants, la dernière ouverture de session connue, à défaut la date de création, sert de point de départ.
 - Q: Les comptes porteurs d'un rôle expirent-ils ? → A: non, ils sont exclus de l'expiration ; ils restent supprimables sur demande, sauf le dernier administrateur.
-- Q: Durée ? → A: 5 ans sans activité (5 × 365 jours).
+- Q: Durée ? → A: 5 ans sans activité, à la date près du calendrier (un 29 février compte pour le 28).
+- Q (revue de PR #1357): Comment finir la suppression dans l'annuaire Entra ? → A: la ligne de journal garde les identifiants Microsoft (`oid`) du compte supprimé, 12 mois, à cette seule fin ; jamais de comparaison de l'annuaire avec une base.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -72,7 +73,7 @@ Chaque connexion et chaque usage d'une session repoussent la date de dernière a
 
 1. **Given** une connexion réussie, **When** la session s'ouvre, **Then** la date de dernière activité du compte vaut maintenant.
 2. **Given** une session utilisée plusieurs fois le même jour, **When** les requêtes s'enchaînent, **Then** la date n'est écrite qu'une fois ce jour-là.
-3. **Given** des comptes créés avant cette fonctionnalité, **When** elle est déployée, **Then** leur date de dernière activité vaut leur date de création.
+3. **Given** des comptes créés avant cette fonctionnalité, **When** elle est déployée, **Then** leur date de dernière activité vaut leur dernière ouverture de session connue, à défaut leur date de création.
 
 ### Edge Cases
 
@@ -87,7 +88,7 @@ Chaque connexion et chaque usage d'une session repoussent la date de dernière a
 
 ### Functional Requirements
 
-- **FR-001**: Le système DOIT conserver pour chaque compte une date de dernière activité, initialisée à la date de création pour les comptes existants.
+- **FR-001**: Le système DOIT conserver pour chaque compte une date de dernière activité, initialisée pour les comptes existants à leur dernière ouverture de session connue, à défaut à leur date de création.
 - **FR-002**: L'ouverture d'une session DOIT poser la date de dernière activité ; l'usage d'une session par une requête authentifiée DOIT la repousser au plus une fois par jour et par compte.
 - **FR-003**: Un utilisateur connecté DOIT pouvoir supprimer son compte après confirmation ; la suppression est physique et emporte ses identités, sessions, rôles et appartenances aux groupes, détache sa fiche athlète, et met à vide les références facultatives d'autres données vers lui.
 - **FR-004**: La suppression d'un compte encore cité par une donnée qui exige son existence DOIT être refusée sans rien supprimer (volontaire : conflit avec message français invitant à contacter le club ; expiration : compte sauté et compté).
@@ -95,7 +96,7 @@ Chaque connexion et chaque usage d'une session repoussent la date de dernière a
 - **FR-006**: Le compte système des bénévoles NE DOIT JAMAIS être supprimé.
 - **FR-007**: La purge périodique DOIT supprimer les comptes sans rôle dont la dernière activité est antérieure à maintenant moins 5 ans, avec passe à blanc, et compter supprimés et sautés dans son rapport.
 - **FR-008**: Après suppression volontaire, le cookie de session DOIT être effacé et l'utilisateur renvoyé vers l'espace public.
-- **FR-009**: Chaque suppression DOIT être tracée dans le journal d'administration sans y conserver l'adresse ni le nom du compte supprimé (identifiant seul, et origine : demande ou expiration).
+- **FR-009**: Chaque suppression DOIT être tracée dans le journal d'administration sans y conserver l'adresse ni le nom du compte supprimé (identifiant seul, origine : demande ou expiration, et identifiants Microsoft `entra_oids` des connexions Entra, conservés avec le journal à la seule fin de supprimer l'utilisateur de l'annuaire).
 - **FR-010**: La décision de base légale et la politique de confidentialité DOIVENT annoncer la conservation des comptes (5 ans sans activité, suppression sur demande depuis le menu) et la procédure d'exploitation DOIT rappeler la suppression manuelle de l'utilisateur dans l'annuaire Entra.
 
 ### Key Entities
