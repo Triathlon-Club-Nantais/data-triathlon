@@ -77,7 +77,13 @@ function Podiums({ podiums, totals }: { podiums: ClubPodiums; totals?: ClubPodiu
   // la région disparaît du DOM précisément quand un lecteur d'écran aurait le
   // plus besoin d'être prévenu.
   const annonce = (
-    <AnnonceStatut texte={`${affiches.length} podium${affiches.length > 1 ? "s" : ""} affiché${affiches.length > 1 ? "s" : ""}`} />
+    <AnnonceStatut
+      texte={
+        chargement
+          ? "Chargement des podiums…"
+          : `${affiches.length} podium${affiches.length > 1 ? "s" : ""} affiché${affiches.length > 1 ? "s" : ""}`
+      }
+    />
   );
 
   if (affiches.length === 0) {
@@ -138,8 +144,8 @@ function Podiums({ podiums, totals }: { podiums: ClubPodiums; totals?: ClubPodiu
           révéler, situés au-dessus (revue finale, #488). Le bouton reste
           monté tant qu'il y a quelque chose à réduire ou à étendre. */}
       {echec && (
-        <p role="alert" className="mt-3 text-sm text-[var(--tcn-text-muted)]">
-          La liste complète n&apos;a pas pu être chargée. Réessayez.
+        <p role="alert" className="mt-3 text-sm text-[var(--tcn-danger-text)]">
+          Les autres podiums n&apos;ont pas pu être chargés. Réessayez avec le bouton ci-dessous.
         </p>
       )}
       {total > APERCU_PODIUMS && (
@@ -148,7 +154,8 @@ function Podiums({ podiums, totals }: { podiums: ClubPodiums; totals?: ClubPodiu
           onClick={basculer}
           aria-expanded={etendu}
           aria-busy={chargement}
-          className="mt-3 text-sm font-medium text-accent-ink hover:underline"
+          // Seul moyen de relancer après un échec : 44 px au doigt (#1378).
+          className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-accent-ink hover:underline"
         >
           {chargement
             ? "Chargement des podiums…"
