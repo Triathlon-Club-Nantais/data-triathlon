@@ -360,6 +360,20 @@ describe("UserMenu: account deletion (#1326)", () => {
     expect(push).not.toHaveBeenCalled();
   });
 
+  it("styles the irreversible action as destructive, not the logout (#1326)", async () => {
+    afficher(SESSION);
+    await ouvrirLeMenu();
+
+    expect(screen.getByRole("menuitem", { name: "Supprimer mon compte" })).toHaveAttribute("data-variant", "destructive");
+    expect(screen.getByRole("menuitem", { name: "Se déconnecter" })).toHaveAttribute("data-variant", "default");
+  });
+
+  it("gives the mobile button the destructive emphasis too (#1326)", async () => {
+    afficher(SESSION, { pleineLargeur: true });
+
+    expect(await screen.findByRole("button", { name: "Supprimer mon compte" })).toHaveClass("tcn-btn--destructive");
+  });
+
   it("is offered in the mobile drawer too", async () => {
     afficher(SESSION, { pleineLargeur: true });
 

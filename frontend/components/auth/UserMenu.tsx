@@ -162,7 +162,7 @@ export function UserMenu({
         <Button variant="secondary" disabled={logout.isPending} onClick={seDeconnecter}>
           Se déconnecter
         </Button>
-        <Button variant="ghost" onClick={ouvrirLaSuppression}>
+        <Button variant="destructive" onClick={ouvrirLaSuppression}>
           Supprimer mon compte
         </Button>
         {dialogDeSuppression}
@@ -195,14 +195,19 @@ export function UserMenu({
               catégorie Administration de la nav la porte déjà, et un doublon
               dans le menu compte alourdit l'interface sans rien apporter. */}
           <DropdownMenuItem
-            variant="destructive"
             disabled={logout.isPending}
             onClick={seDeconnecter}
             className="px-2 py-2 text-[14px] font-semibold"
           >
             Se déconnecter
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={ouvrirLaSuppression} className="px-2 py-2 text-[14px]">
+          {/* La couleur destructive va au seul geste sans retour (#499) : se
+              déconnecter se refait d'un clic. */}
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={ouvrirLaSuppression}
+            className="px-2 py-2 text-[14px] font-semibold"
+          >
             Supprimer mon compte
           </DropdownMenuItem>
         </DropdownMenuContent>
