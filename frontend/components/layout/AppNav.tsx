@@ -204,22 +204,6 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
       ...(id === "encadrement" && countEncadrement > 0 ? { count: countEncadrement } : {}),
     }));
 
-  const versAdmin: SectionRendue[] =
-    espaceAffiche === "public" && espacesOuverts.some((e) => e.id === "admin")
-      ? [
-          {
-            id: "vers-admin",
-            label: "Back-office",
-            icon: Briefcase,
-            space: "public",
-            minRole: ROLE.CONNECTED,
-            root: true,
-            items: [{ id: "backoffice", label: "Back-office", href: "/admin", icon: Briefcase, badge: "backoffice", count: countAdmin }],
-          },
-        ]
-      : [];
-  const sectionsRail = [...sections, ...versAdmin];
-  const sectionsTiroir = [...sectionsRepli, ...versAdmin];
 
   /**
    * Un `href` de la nav désigne **un** écran, pas une famille : c'est pourquoi
@@ -237,7 +221,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // lui, aucun onglet ne dirait où l'on est.
   const plusActif = sectionsReste.some((s) => s.items.some((i) => isActive(i.href)));
 
-  const contenu = (deplie: boolean, fermer?: () => void, listeSections: SectionRendue[] = sectionsRail) => (
+  const contenu = (deplie: boolean, fermer?: () => void, listeSections: SectionRendue[] = sections) => (
     <NavContent
       expanded={deplie}
       sections={listeSections}
@@ -547,7 +531,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             </SheetClose>
           </div>
 
-          {contenu(true, () => setDrawerOpen(false), sectionsTiroir)}
+          {contenu(true, () => setDrawerOpen(false), sectionsRepli)}
 
           {/* `pleineLargeur` : dans un tiroir, l'état connecté se déplie à plat —
               un menu déroulant y sortirait du piège de focus. */}

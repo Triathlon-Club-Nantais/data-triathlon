@@ -1856,7 +1856,7 @@ describe("AppNav — espaces (#1296)", () => {
   it("dans l'espace public, ne montre aucun écran d'administration", async () => {
     chemin.courant = "/dashboard";
     afficher(admin());
-    await waitFor(() => expect(within(rail()).getAllByRole("link", { name: /Back-office/ })[0]).toHaveAttribute("href", "/admin"));
+    await waitFor(() => expect(within(rail()).getByRole("link", { name: /Back-office/ })).toHaveAttribute("href", "/admin"));
     for (const lien of within(rail()).getAllByRole("link"))
       expect(lien.getAttribute("href")).not.toMatch(/^\/admin\//);
   });
@@ -1868,11 +1868,19 @@ describe("AppNav — espaces (#1296)", () => {
     expect(within(rail()).queryByRole("link", { name: "Résultats" })).not.toBeInTheDocument();
   });
 
-  it("donne au compteur de l'entrée Back-office un libellé accessible", async () => {
+  it("donne au compteur du bouton Back-office un libellé accessible", async () => {
     countPendingProviders.mockResolvedValue({ total: 5 });
     chemin.courant = "/dashboard";
     afficher(admin(), { initialExpanded: true });
-    expect(await within(rail()).findByText("5 éléments à traiter")).toHaveClass("sr-only");
+    expect(await within(rail()).findByRole("link", { name: "Back-office, 5 éléments à traiter" })).toHaveAttribute("href", "/admin");
+  });
+
+  it("ne double pas le bouton Back-office du sélecteur par une entrée du rail ni du tiroir", async () => {
+    chemin.courant = "/dashboard";
+    afficher(admin(), { initialExpanded: true });
+    expect(await within(rail()).findByRole("link", { name: /Back-office/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    expect(within(await screen.findByRole("dialog")).queryByRole("link", { name: /Back-office/ })).not.toBeInTheDocument();
   });
 
   it("n'offre pas d'entrée Back-office à un membre sans pouvoir", async () => {
@@ -1885,7 +1893,7 @@ describe("AppNav — espaces (#1296)", () => {
   it("garde dans la palette les écrans de tous les espaces", async () => {
     chemin.courant = "/dashboard";
     afficher(admin());
-    await waitFor(() => expect(within(rail()).getAllByRole("link", { name: /Back-office/ }).length).toBeGreaterThan(0));
+    await waitFor(() => expect(within(rail()).getByRole("link", { name: /Back-office/ })).toBeInTheDocument());
     await userEvent.keyboard("{Control>}k{/Control}");
     await userEvent.type(await screen.findByRole("combobox", { name: /Rechercher/ }), "Épreuves");
 
@@ -1964,8 +1972,8 @@ describe("AppNav: supervision space (#1297)", () => {
       { initialExpanded: true },
     );
 
-    expect(await within(rail()).findByText("2 éléments à traiter")).toHaveClass("sr-only");
     await waitFor(() => expect(countPendingVolunteerActions).toHaveBeenCalled());
+    expect(await within(rail()).findByRole("link", { name: "Back-office, 2 éléments à traiter" })).toBeInTheDocument();
   });
 });
 
