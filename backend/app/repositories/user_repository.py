@@ -179,6 +179,16 @@ def detach_optional_references(db: Session, user_id: int) -> None:
         db.execute(update(column.table).where(column == user_id).values({column.name: None}))
 
 
+def touch_last_seen(db: Session, user_id: int, now: datetime) -> None:
+    """Sets `last_seen_at` to `now` unless it is already today: one write per day at most."""
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    db.execute(
+        update(User)
+        .where(User.id == user_id, User.last_seen_at < start_of_day)
+        .values(last_seen_at=now)
+    )
+
+
 def list_inactive_without_role(db: Session, cutoff: datetime) -> list[User]:
     """Accounts with no role, last seen before `cutoff`, never the system account (#1326)."""
     return list(db.scalars(
