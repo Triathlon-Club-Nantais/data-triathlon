@@ -14,7 +14,7 @@ from app.repositories import (
     user_repository,
 )
 from app.scrapers.base import ScrapedResult
-from app.scrapers.fftri_club_members import ClubRoster, RosterMember
+from app.scrapers.fftri_club_members import RosterMember
 from app.services import admin_actions, athlete_merge, club_members_service, import_service
 
 
@@ -239,9 +239,10 @@ def test_an_athlete_dropped_by_a_resync_stops_counting(db_session, admin, monkey
     course.event_date = date(2026, 10, 4)
     result = _result(db_session, member, course, "1", "Blain Tri")
     roster = [RosterMember("OUEST", "Lea", "F", "C1")]
+    monkeypatch.setattr(club_members_service, "current_season", lambda: 2026)
     monkeypatch.setattr(
         club_members_service.fftri_club_members, "fetch_club_roster",
-        lambda url: ClubRoster(licence_year=2027, members=list(roster)),
+        lambda url: list(roster),
     )
     club_members_service.sync_from_fftri(db_session, user_id=admin.id)
     assert _verdict(db_session, result.id) is True

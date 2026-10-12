@@ -4,7 +4,7 @@ import pytest
 from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.club_member import LINK_MANUAL
-from app.scrapers.fftri_club_members import ClubRoster, RosterMember
+from app.scrapers.fftri_club_members import RosterMember
 from app.services import club_members_service
 
 from .test_admin_data_api import _session_etroite
@@ -12,9 +12,10 @@ from .test_admin_data_api import _session_etroite
 
 @pytest.fixture
 def roster(monkeypatch):
+    monkeypatch.setattr(club_members_service, "current_season", lambda: 2026)
     monkeypatch.setattr(
         club_members_service.fftri_club_members, "fetch_club_roster",
-        lambda url: ClubRoster(licence_year=2027, members=[RosterMember("MARTIN", "Anne", "F", "C1")]),
+        lambda url: [RosterMember("MARTIN", "Anne", "F", "C1")],
     )
 
 
