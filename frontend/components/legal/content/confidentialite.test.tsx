@@ -170,7 +170,10 @@ describe("Politique de confidentialité (#333)", () => {
     expect(screen.getByRole("row", { name: /^Compte / })).toHaveTextContent(
       "Jusqu'à sa suppression depuis le menu du compte, ou 5 ans sans connexion",
     );
-    expect(screen.getByRole("row", { name: /^Compte / })).toHaveTextContent(/tant qu.il porte un rôle/);
+    expect(screen.getByRole("row", { name: /^Compte / })).toHaveTextContent(
+      /un compte qui porte un rôle est gardé tant qu.il le porte/,
+    );
+    expect(screen.getByRole("row", { name: /^Compte / })).not.toHaveTextContent(/bénévole/);
     expect(texte).toMatch(/« Supprimer mon compte »/);
     expect(texte).toMatch(/vos résultats et votre fiche athlète restent/i);
   });
@@ -183,7 +186,7 @@ describe("Politique de confidentialité (#333)", () => {
   });
 
   it("says the Entra directory entry is erased by the club after the account (#1323, #1326)", () => {
-    expect(rendre()).toMatch(/annuaire Microsoft du club[^.]*le club l.efface après la suppression du compte/i);
+    expect(rendre()).toMatch(/annuaire Microsoft du club[^.]*le club l.efface dans le mois qui suit la suppression du compte/i);
   });
 
   it("date la politique du jour de sa dernière modification", () => {

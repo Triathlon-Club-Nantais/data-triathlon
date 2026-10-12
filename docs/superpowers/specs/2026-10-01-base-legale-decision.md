@@ -299,13 +299,14 @@ personne qui se connecte laisse un compte. Sa durée de conservation devient :
   compte, ses identités de connexion, ses sessions, ses rôles et ses groupes.
   Les résultats et la fiche athlète restent : ce sont des données de l'archive
   sportive, régies par l'opposition (#334), pas par le compte ;
-- **5 ans sans connexion** (5 × 365 jours) pour un compte **sans rôle** :
-  `purge-retention` le supprime chaque semaine. Un compte porteur d'un rôle
-  (bénévole, administrateur) est gardé tant qu'il le porte : son retrait est un
-  geste d'administration, et l'invariant du dernier administrateur ne doit pas
-  dépendre d'une horloge. La dernière activité est l'ouverture d'une session ou
-  son usage, notée au plus une fois par jour ; pour les comptes antérieurs,
-  la date de création sert de point de départ.
+- **5 ans sans connexion** (même date du calendrier, 5 ans plus tôt ; un
+  29 février compte pour le 28) pour un compte **sans rôle**, désactivé ou non :
+  `purge-retention` le supprime chaque semaine. Un compte qui porte un rôle est
+  gardé tant qu'il le porte : son retrait est un geste d'administration, et
+  l'invariant du dernier administrateur ne doit pas dépendre d'une horloge. La
+  dernière activité est l'ouverture d'une session ou son usage, notée au plus
+  une fois par jour ; pour les comptes antérieurs, la dernière ouverture de
+  session connue, à défaut la date de création, sert de point de départ.
 
 Un compte encore cité par une donnée qui exige son auteur (validation de
 saison, cas ou paires écartés, configuration d'accès, journal
@@ -313,12 +314,20 @@ d'administration) n'est jamais supprimé en silence avec elle : la suppression
 volontaire est refusée et invite à contacter le club, l'expiration le saute et
 le compte dans son rapport. Le journal vivant 12 mois, un compte inactif depuis
 5 ans n'y est normalement plus cité. Chaque suppression est journalisée par
-l'identifiant du compte et son origine, sans adresse ni nom.
+l'identifiant du compte et son origine, sans adresse ni nom, et par les
+identifiants Microsoft (`oid`) de ses connexions Entra (`entra_oids`).
 
 **Annuaire Entra.** L'utilisateur créé dans l'annuaire du tenant n'est pas
 supprimé par le site (le flux qui le permettrait est un module payant) : le
-club l'efface à la main après la suppression du compte, procédure dans
-`infra/entra-external-id/AGENTS.md`.
+club l'efface à la main dans le mois qui suit la suppression du compte,
+procédure dans `infra/entra-external-id/AGENTS.md`. Pour le retrouver, la
+ligne `account.delete` du journal garde l'`oid` Entra du compte supprimé
+(`entra_oids`). C'est un identifiant pseudonyme chez Microsoft, sans adresse
+ni nom, conservé avec le journal (12 mois) et **à cette seule fin** : finir la
+suppression dans l'annuaire. Sans lui, l'utilisateur Entra ne se retrouverait
+qu'en comparant l'annuaire à une base, geste écarté : le tenant sert à la
+préproduction comme à la production, et une comparaison contre la mauvaise
+base supprimerait des comptes vivants.
 
 **Base légale.** Inchangée : intérêt légitime. La durée de 5 ans couvre
 largement une interruption d'adhésion de quelques saisons sans faire perdre

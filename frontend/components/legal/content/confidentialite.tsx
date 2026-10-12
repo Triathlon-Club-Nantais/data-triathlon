@@ -79,7 +79,8 @@ export const PRIVACY_POLICY: LegalDocument = {
             passe par GitHub, ou par Google ou par un code reçu par e-mail via Microsoft Entra External ID : le
             site en reçoit l&apos;adresse électronique, le nom affiché et l&apos;identifiant chez ce fournisseur. Par
             Google ou par code, la première connexion inscrit aussi l&apos;adresse et le nom dans l&apos;annuaire
-            Microsoft du club ; le club l&apos;efface après la suppression du compte. Un compte n&apos;a, par
+            Microsoft du club ; le club l&apos;efface dans le mois qui suit la suppression du compte, à l&apos;aide de
+            l&apos;identifiant Microsoft que le journal d&apos;administration garde 12 mois à cette seule fin. Un compte n&apos;a, par
             lui-même, aucun droit d&apos;administration. Un compte peut être rattaché à la fiche athlète de son
             titulaire. Le site garde la trace des actions d&apos;administration. Vous pouvez supprimer votre compte
             vous-même, depuis le menu du compte (« Supprimer mon compte ») : vos résultats et votre fiche athlète
@@ -168,7 +169,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             ["Journal des actions d'administration", "12 mois"],
             [
               "Compte",
-              "Jusqu'à sa suppression depuis le menu du compte, ou 5 ans sans connexion ; le compte d'un bénévole ou d'un administrateur est gardé tant qu'il porte un rôle",
+              "Jusqu'à sa suppression depuis le menu du compte, ou 5 ans sans connexion ; un compte qui porte un rôle est gardé tant qu'il le porte",
             ],
             ["Session de connexion", "7 jours"],
             ["Mémorisation du code d'accès au site", "90 jours"],
