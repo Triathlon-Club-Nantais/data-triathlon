@@ -298,6 +298,17 @@ describe("RaceFinishers", () => {
     ).toEqual(["20 lignes", "50 lignes", "200 lignes", "Tout"]);
   });
 
+  it("ne propose plus « Tout » au-delà de 500 résultats, et affiche les 200 servis (#1355)", () => {
+    searchParams = new URLSearchParams("page_size=all");
+    afficher({ summary: synthese({ total: 3003 }), total: 3003, pageSize: 200 });
+
+    const selecteur = screen.getByLabelText("Lignes par page");
+    expect(
+      Array.from(selecteur.querySelectorAll("option")).map((o) => o.textContent),
+    ).toEqual(["20 lignes", "50 lignes", "200 lignes"]);
+    expect(selecteur).toHaveValue("200");
+  });
+
   it("pousse la taille choisie dans l'URL et revient à la première page", async () => {
     searchParams = new URLSearchParams("page=7");
     afficher({ total: 900, pageSize: 20, page: 7 });

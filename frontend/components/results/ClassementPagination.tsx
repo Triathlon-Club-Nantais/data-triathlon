@@ -15,6 +15,7 @@ export function ClassementPagination({
   nbPages,
   lienVers,
   tailleCourante,
+  options = PAGE_SIZE_OPTIONS,
   onTaille,
   onAllerPage,
 }: {
@@ -22,6 +23,8 @@ export function ClassementPagination({
   nbPages: number;
   lienVers: (modifications: Record<string, string | null>) => string;
   tailleCourante: PageSize;
+  /** Tailles proposées : sans « Tout » au-delà de 500 résultats (#1355). */
+  options?: readonly PageSize[];
   onTaille: (taille: PageSize) => void;
   onAllerPage: (n: number) => void;
 }) {
@@ -137,7 +140,7 @@ export function ClassementPagination({
           // Plancher tactile WCAG 2.2 2.5.8 (#479).
           style={{ minHeight: 28, padding: "2px 8px", fontSize: 13, borderRadius: "var(--tcn-radius-md)", border: "1px solid var(--tcn-border-input)", background: "var(--tcn-surface)", color: "var(--tcn-ink)" }}
         >
-          {PAGE_SIZE_OPTIONS.map((o) => (
+          {options.map((o) => (
             <option key={String(o)} value={String(o)}>
               {pageSizeLabel(o)}
             </option>

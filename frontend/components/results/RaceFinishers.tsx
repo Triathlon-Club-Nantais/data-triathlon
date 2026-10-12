@@ -12,7 +12,7 @@ import { secondsFromHms } from "@/lib/utils/time";
 import { genderShort, ordinalFr } from "@/lib/utils/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClassementPagination } from "@/components/results/ClassementPagination";
-import { PAGE_SIZE_DEFAUT, PAGE_SIZE_PARAM, parsePageSize } from "@/lib/pageSize";
+import { PAGE_SIZE_DEFAUT, PAGE_SIZE_PARAM, boundPageSize, pageSizeOptions, parsePageSize } from "@/lib/pageSize";
 import { CATEGORY_PARAM, CLUB_PARAM, SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
 import { nomComplet, useSelectedAthlete } from "@/components/layout/AthletePicker";
@@ -358,7 +358,8 @@ export function RaceFinishers({
   const categorieChoisie = searchParams.get(CATEGORY_PARAM) ?? "";
   // La taille vient de l'URL, pas de la prop `pageSize` : sous `all`, le
   // backend renvoie `null` et le sélecteur n'aurait plus quoi afficher.
-  const tailleCourante = parsePageSize(searchParams.get(PAGE_SIZE_PARAM));
+  // Bornée comme la page l'a servie (#1355).
+  const tailleCourante = boundPageSize(parsePageSize(searchParams.get(PAGE_SIZE_PARAM)), summary.total);
 
   /** Construit une URL en repartant des paramètres courants. */
   function lienVers(modifications: Record<string, string | null>): string {
@@ -598,7 +599,7 @@ export function RaceFinishers({
             <th role="columnheader" scope="col">Club</th>
           </tr>
           </thead>
-          <tbody role="rowgroup">
+          <tbody role="rowgroup" style={{ "--tcn-classement-cols": fcols } as CSSProperties}>
           {rangees.map((p) => {
             const own = p.is_tcn;
             const { nf, name, splits } = donneesLigne(p);
@@ -608,15 +609,8 @@ export function RaceFinishers({
               <tr
                 key={p.id}
                 role="row"
-                className={moi ? "tcn-rowlink tcn-rowlink--moi" : "tcn-rowlink"}
+                className={`tcn-rowlink tcn-classement-ligne${own ? " tcn-classement-ligne--club" : ""}${moi ? " tcn-rowlink--moi" : ""}`}
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: fcols,
-                  gap: "0 12px",
-                  alignItems: "center",
-                  padding: "12px 22px",
-                  borderBottom: "1px solid var(--tcn-border-faint)",
-                  borderLeft: `3px solid ${own ? "var(--tcn-orange)" : "transparent"}`,
                   // Le fond de « ma ligne » vit en classe (`.tcn-rowlink--moi`,
                   // globals.css), pas ici : un style en ligne battrait toute
                   // couche CSS et couperait le survol de `.tcn-rowlink:hover`
@@ -641,15 +635,14 @@ export function RaceFinishers({
                     un `overflow` ici **rognerait** le voile de couverture du
                     lien et celui de l'attente, tous deux absolus et calés sur la
                     ligne : la ligne cesserait d'être cliquable hors du nom. */}
-                <td role="cell" style={{ fontSize: 14, fontWeight: 700, color: "var(--tcn-ink)", minWidth: 0 }}>
+                <td role="cell" className="tcn-classement-nom">
                   <Link
                     href={detailHref(p)}
                     prefetch={false}
                     aria-label={`Voir le détail du résultat de ${name}${attente ? ", en attente de validation" : ""}`}
-                    className="tcn-rowlink__cible"
-                    style={{ display: "flex", alignItems: "center", gap: 8, maxWidth: "100%" }}
+                    className="tcn-rowlink__cible tcn-classement-nom__lien"
                   >
-                    <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <span className="tcn-classement-nom__texte">
                       {name}
                     </span>
                     {/* Extrait en `VousChip` (#504) : même signifiant réutilisé
@@ -670,7 +663,8 @@ export function RaceFinishers({
                 <td
                   role="cell"
                   title={p.category ? categoryTitle(p.category) : undefined}
-                  style={{ fontSize: 13, color: "var(--tcn-text-body)", cursor: p.category ? "help" : undefined }}
+                  className="tcn-classement-texte"
+                  style={p.category ? { cursor: "help" } : undefined}
                 >
                   {p.category ?? "—"}
                   {/* Sous le code, pas dans une colonne de plus : la grille
@@ -685,8 +679,8 @@ export function RaceFinishers({
                     </div>
                   )}
                 </td>
-                <td role="cell" style={{ fontSize: 13, color: "var(--tcn-text-body)" }}>{genderShort(p.athlete.gender)}</td>
-                <td role="cell" style={{ fontFamily: "var(--tcn-font-cond)", fontWeight: 700, fontSize: 15, color: "var(--tcn-ink)" }}>
+                <td role="cell" className="tcn-classement-texte">{genderShort(p.athlete.gender)}</td>
+                <td role="cell" className="tcn-classement-temps">
                   {p.total_time ?? "—"}
                   {!attente && <MarqueurEcart
                     ratio={p.split_gap_ratio}
@@ -907,6 +901,7 @@ export function RaceFinishers({
         nbPages={nbPages}
         lienVers={lienVers}
         tailleCourante={tailleCourante}
+        options={pageSizeOptions(summary.total)}
         onTaille={(taille) =>
           naviguer({ [PAGE_SIZE_PARAM]: taille === PAGE_SIZE_DEFAUT ? null : String(taille) })
         }

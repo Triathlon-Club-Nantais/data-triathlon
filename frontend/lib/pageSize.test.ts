@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parsePageSize, pageSizeLabel, PAGE_SIZE_DEFAUT } from "./pageSize";
+import { boundPageSize, pageSizeOptions, parsePageSize, pageSizeLabel, PAGE_SIZE_DEFAUT } from "./pageSize";
 
 describe("parsePageSize", () => {
   it("accepte les quatre tailles proposées", () => {
@@ -30,5 +30,18 @@ describe("pageSizeLabel", () => {
   it("nomme les tailles chiffrées et l'échappatoire", () => {
     expect(pageSizeLabel(50)).toBe("50 lignes");
     expect(pageSizeLabel("all")).toBe("Tout");
+  });
+});
+
+describe("« Tout » borné aux épreuves de 500 résultats (#1355)", () => {
+  it("ne propose « Tout » que jusqu'à 500 résultats", () => {
+    expect(pageSizeOptions(500)).toEqual([20, 50, 200, "all"]);
+    expect(pageSizeOptions(501)).toEqual([20, 50, 200]);
+  });
+
+  it("ramène « Tout » à 200 lignes au-delà, et laisse les autres tailles", () => {
+    expect(boundPageSize("all", 500)).toBe("all");
+    expect(boundPageSize("all", 3003)).toBe(200);
+    expect(boundPageSize(50, 3003)).toBe(50);
   });
 });
