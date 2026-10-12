@@ -13,14 +13,17 @@ param displayName string
 
 // Valeurs vérifiées contre la référence ARM (relevé du 2026-10-11) :
 // https://learn.microsoft.com/en-us/azure/templates/microsoft.azureactivedirectory/ciamdirectories
-// `name` suit ^[a-zA-Z0-9]{1,26} (sans « .onmicrosoft.com »), `location` parmi
-// 'United States', 'Europe', 'Asia Pacific', 'Australia', `sku.name` Standard
-// (PremiumP1 et P2 sont payants), `sku.tier` A0, seule valeur admise.
+// `name` porte le suffixe « .onmicrosoft.com » (exigé par la validation
+// préalable d'Azure le 2026-10-12, contrairement au motif de la référence),
+// `location` parmi
+// 'United States', 'Europe', 'Asia Pacific', 'Australia', `sku.tier` A0, seule
+// valeur admise. `sku.name` Base : la référence liste Standard, mais la
+// validation préalable d'Azure le refuse et exige Base (mesuré le 2026-10-12).
 resource tenant 'Microsoft.AzureActiveDirectory/ciamDirectories@2023-05-17-preview' = {
-  name: tenantName
+  name: '${tenantName}.onmicrosoft.com'
   location: 'Europe'
   sku: {
-    name: 'Standard'
+    name: 'Base'
     tier: 'A0'
   }
   properties: {
