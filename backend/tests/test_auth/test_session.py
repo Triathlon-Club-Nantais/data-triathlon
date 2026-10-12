@@ -208,3 +208,21 @@ def test_resolving_the_next_day_bumps_last_seen_at_once_and_commits(db_session, 
 
     assert len(user_updates) == 1
     assert db_session.get(type(user), user.id).last_seen_at == next_day
+
+
+def test_the_bump_never_commits_the_request_session(db_session, monkeypatch):
+    """The once-a-day write goes through its own session: pending request state stays pending."""
+    from app.models.user_feedback import UserFeedback
+
+    _clock(monkeypatch, DAY_ONE)
+    user = _user(db_session)
+    token = session.open_for(db_session, user)
+    db_session.commit()
+    db_session.add(UserFeedback(type="bug", title="pending", body="b"))
+
+    _clock(monkeypatch, DAY_ONE + timedelta(days=1))
+    session.resolve(db_session, token)
+    db_session.rollback()
+
+    assert db_session.query(UserFeedback).count() == 0
+    assert db_session.get(type(user), user.id).last_seen_at == DAY_ONE + timedelta(days=1)
