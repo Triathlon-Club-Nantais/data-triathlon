@@ -329,3 +329,35 @@ table, distincte d'`allowed_emails` : elle dit qui est adhérent, jamais qui
 entre au back-office. Le statut adhérent qui en dérive (#1322,
 `services/membership.py`) dispense du code du site et n'accorde aucun pouvoir.
 Règles d'import, saison qui compte, statut et purge : `docs/auth/membres.md`.
+
+# Suppression des comptes (#1326)
+
+`services/auth/accounts.py`, spec `specs/20261012-134400-suppression-comptes/`.
+Deux appelants : `DELETE /auth/me` (le titulaire, menu « Supprimer mon compte »)
+et `purge-retention` (comptes **sans rôle** inactifs depuis 5 × 365 jours).
+Suppression **physique** : la ligne `users`, puis identités, sessions, rôles et
+groupes par la cascade ORM de `User`.
+
+- **L'inventaire des références est lu dans le schéma**
+  (`user_repository.required_references` / `optional_references`, toute FK vers
+  `users.id` hors des quatre tables possédées). Une colonne nullable est mise à
+  vide ; une colonne `NOT NULL` qui cite le compte **bloque** : 409 « Contactez
+  le club » en libre service, compte sauté et compté par la purge. Une FK
+  ajoutée demain est donc classée sans qu'on y pense ; un test fige la liste
+  des cinq obligatoires du jour pour qu'un changement de nullabilité se voie.
+- **Le journal est signé par le compte système** (`benevole_access.system_user_id`),
+  payload `{"origin": "request" | "inactivity"}` et l'identifiant seul : le
+  compte supprimé ne peut pas être l'auteur d'une ligne dont la FK l'exige.
+- **Le dernier administrateur** : `administrateurs_preserves`, sous un point de
+  reprise, pour qu'un refus levé après le flush ne laisse rien en attente.
+  Le compte système n'est jamais supprimé.
+- **`users.last_seen_at`** est posée à l'ouverture d'une session et repoussée
+  par `session.resolve` au plus une fois par jour : `UPDATE` conditionné sur le
+  début du jour, **commité dans `resolve`** (`get_db` ne commite jamais, une
+  requête de lecture la perdrait ; les dépendances passent avant le corps de
+  la route, la transaction ne porte rien d'autre).
+- **Passe à blanc** : le journal n'y est pas purgé, donc un compte cité
+  seulement par des lignes de plus de 12 mois y est compté sauté alors que la
+  passe réelle, qui purge le journal d'abord, le supprime.
+- **L'utilisateur de l'annuaire Entra reste** : comparaison mensuelle à la
+  main, `infra/entra-external-id/AGENTS.md`.
