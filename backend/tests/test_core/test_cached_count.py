@@ -20,9 +20,18 @@ def test_the_value_is_computed_once_within_its_lifetime(monkeypatch):
     assert counter.get(compute) == 2
 
 
-def test_set_and_clear(monkeypatch):
+def test_a_value_computed_before_a_clear_is_not_kept():
     counter = CachedCount(ttl_seconds=60)
-    counter.set(7)
-    assert counter.get(lambda: 0) == 7
-    counter.clear()
+    generation = counter.generation
+    counter.clear()  # un commit pendant le calcul
+    counter.set(7, generation)
+    assert counter.get(lambda: 3) == 3
+
+
+def test_any_commit_clears_every_count(db_session):
+    counter = CachedCount(ttl_seconds=60)
+    counter.set(7, counter.generation)
+
+    db_session.commit()
+
     assert counter.get(lambda: 3) == 3

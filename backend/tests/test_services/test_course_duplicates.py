@@ -984,6 +984,7 @@ def test_ecarter_une_paire_rafraichit_le_compte(db_session):
     course_duplicates.ignore_pair(
         db_session, course_id_a=gauche.id, course_id_b=droite.id, user_id=_auteur(db_session).id
     )
+    db_session.commit()
 
     assert course_duplicates.count(db_session) == 0
 
@@ -997,5 +998,6 @@ def test_fusionner_la_paire_rafraichit_le_compte(db_session):
     course_merge.merge_courses(
         db_session, course_id=gauche.id, absorbed_id=droite.id, user_id=_auteur(db_session).id
     )
+    db_session.commit()
 
     assert course_duplicates.count(db_session) == 0

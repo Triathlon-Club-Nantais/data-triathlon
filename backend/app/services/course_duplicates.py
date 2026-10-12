@@ -99,10 +99,8 @@ DATE_TOLERANCE = timedelta(days=3)
 SAME_FINISHERS_MIN = 3
 SAME_FINISHERS_SHARE = 0.5
 
-#: Taille de la liste pour la pastille du rail (#1352), même règle que
-#: `athlete_identity_review.count_cache` : rafraîchie par la liste, vidée par
-#: les arbitrages de l'écran, fausse au plus jusqu'à l'expiration après une
-#: fusion ou un import.
+#: Taille de la liste pour la pastille du rail (#1352) : rafraîchie par la liste,
+#: vidée par tout commit (`core/cached_count`).
 count_cache = CachedCount(ttl_seconds=300)
 
 #: Les deux plateformes dont l'URL porte un identifiant d'événement. Hors de ces
@@ -329,6 +327,7 @@ def find_candidates(db: Session) -> list[dict]:
     ce filtre, un faux positif vérifié une fois par un humain reviendrait à
     chaque rechargement de l'écran — c'est exactement ce que #754 corrige.
     """
+    generation = count_cache.generation
     courses = [
         {
             "id": ligne.id,
@@ -387,7 +386,7 @@ def find_candidates(db: Session) -> list[dict]:
             motif_par_paire.items(), key=lambda paire: (rangs[paire[0][0]], rangs[paire[0][1]])
         )
     ]
-    count_cache.set(len(candidates))
+    count_cache.set(len(candidates), generation)
     return candidates
 
 
@@ -415,7 +414,6 @@ def ignore_pair(db: Session, *, course_id_a: int, course_id_b: int, user_id: int
     l'appelant a soumis la paire — `course_id_a`/`course_id_b` ne sont associés
     à aucun rôle, contrairement à `target`/`absorbed` de la fusion (#287).
     """
-    count_cache.clear()
     if course_id_a == course_id_b:
         raise DomainError("Une épreuve ne peut pas être écartée avec elle-même.")
     if course_repository.get(db, course_id_a) is None:
@@ -462,7 +460,6 @@ def list_ignored(db: Session) -> list[dict]:
 
 def unignore_pair(db: Session, *, pair_id: int, user_id: int) -> None:
     """Annule une mise à l'écart : la paire revient dans la liste si un motif la retient encore."""
-    count_cache.clear()
     pair = ignored_course_duplicate_repository.get(db, pair_id)
     if pair is None:
         raise NotFoundError("Cette paire d'épreuves n'est pas écartée.")

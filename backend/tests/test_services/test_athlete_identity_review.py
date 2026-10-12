@@ -466,6 +466,7 @@ def test_an_arbitration_refreshes_the_count(db_session, admin):
     athlete_identity_review.ignore_pair(
         db_session, athlete_id_a=first.id, athlete_id_b=second.id, user_id=admin.id
     )
+    db_session.commit()
 
     assert athlete_identity_review.count(db_session) == 0
 
@@ -478,5 +479,6 @@ def test_merging_the_pair_refreshes_the_count(db_session, admin):
     assert athlete_identity_review.count(db_session) == 1
 
     athlete_merge.merge_athletes(db_session, kept_id=first.id, absorbed_id=second.id, user_id=admin.id)
+    db_session.commit()
 
     assert athlete_identity_review.count(db_session) == 0
