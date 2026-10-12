@@ -10,7 +10,7 @@ Le journal est signé par le compte système : le compte supprimé ne peut pas �
 l'auteur d'une ligne dont la FK l'exige, et la purge n'a pas d'acteur.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Literal
 
 from sqlalchemy.orm import Session
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 Origin = Literal["request", "inactivity"]
 
 #: Durée publiée par la politique de confidentialité : changer l'une sans l'autre la rend fausse.
-ACCOUNT_INACTIVITY = timedelta(days=5 * 365)
+INACTIVITY_YEARS = 5
 
 
 class AccountStillReferencedError(DomainError):
@@ -65,6 +65,14 @@ def delete_account(db: Session, user: User, *, origin: Origin) -> None:
     )
 
 
+def inactivity_cutoff(now: datetime) -> datetime:
+    """Même date du calendrier, 5 ans plus tôt ; un 29 février devient le 28."""
+    try:
+        return now.replace(year=now.year - INACTIVITY_YEARS)
+    except ValueError:
+        return now.replace(year=now.year - INACTIVITY_YEARS, day=28)
+
+
 def purge_inactive(db: Session, *, now: datetime, dry_run: bool) -> tuple[int, int]:
     """Supprime les comptes sans rôle inactifs depuis 5 ans. Rend (supprimés, sautés).
 
@@ -73,7 +81,7 @@ def purge_inactive(db: Session, *, now: datetime, dry_run: bool) -> tuple[int, i
     un rôle.
     """
     deleted = skipped = 0
-    for user in user_repository.list_inactive_without_role(db, now - ACCOUNT_INACTIVITY):
+    for user in user_repository.list_inactive_without_role(db, inactivity_cutoff(now)):
         if user_repository.has_required_reference(db, user.id):
             skipped += 1
             continue
