@@ -57,6 +57,7 @@ from urllib.parse import parse_qs, urlparse
 
 from sqlalchemy.orm import Session
 
+from app.core.cached_count import CachedCount
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.core.text import deaccent
 from app.repositories import (
@@ -97,6 +98,12 @@ DATE_TOLERANCE = timedelta(days=3)
 #: `docs/superpowers/specs/2026-09-29-doublons-republieurs-sondage.md`, #974).
 SAME_FINISHERS_MIN = 3
 SAME_FINISHERS_SHARE = 0.5
+
+#: Taille de la liste pour la pastille du rail (#1352), même règle que
+#: `athlete_identity_review.count_cache` : rafraîchie par la liste, vidée par
+#: les arbitrages de l'écran, fausse au plus jusqu'à l'expiration après une
+#: fusion ou un import.
+count_cache = CachedCount(ttl_seconds=300)
 
 #: Les deux plateformes dont l'URL porte un identifiant d'événement. Hors de ces
 #: deux-là, le motif « identifiant partagé » ne s'applique pas : la forme
@@ -370,7 +377,7 @@ def find_candidates(db: Session) -> list[dict]:
         if paire not in motif_par_paire and paire[::-1] not in motif_par_paire:
             motif_par_paire[paire] = "same_finishers"
 
-    return [
+    candidates = [
         {
             "reason": code,
             "reason_label": REASON_LABELS[code],
@@ -380,6 +387,13 @@ def find_candidates(db: Session) -> list[dict]:
             motif_par_paire.items(), key=lambda paire: (rangs[paire[0][0]], rangs[paire[0][1]])
         )
     ]
+    count_cache.set(len(candidates))
+    return candidates
+
+
+def count(db: Session) -> int:
+    """La taille de `find_candidates`, pour la pastille de la nav (#726)."""
+    return count_cache.get(lambda: len(find_candidates(db)))
 
 
 def ignore_pair(db: Session, *, course_id_a: int, course_id_b: int, user_id: int) -> dict:
@@ -401,6 +415,7 @@ def ignore_pair(db: Session, *, course_id_a: int, course_id_b: int, user_id: int
     l'appelant a soumis la paire — `course_id_a`/`course_id_b` ne sont associés
     à aucun rôle, contrairement à `target`/`absorbed` de la fusion (#287).
     """
+    count_cache.clear()
     if course_id_a == course_id_b:
         raise DomainError("Une épreuve ne peut pas être écartée avec elle-même.")
     if course_repository.get(db, course_id_a) is None:
@@ -447,6 +462,7 @@ def list_ignored(db: Session) -> list[dict]:
 
 def unignore_pair(db: Session, *, pair_id: int, user_id: int) -> None:
     """Annule une mise à l'écart : la paire revient dans la liste si un motif la retient encore."""
+    count_cache.clear()
     pair = ignored_course_duplicate_repository.get(db, pair_id)
     if pair is None:
         raise NotFoundError("Cette paire d'épreuves n'est pas écartée.")

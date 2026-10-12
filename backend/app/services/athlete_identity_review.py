@@ -27,6 +27,7 @@ from itertools import combinations
 
 from sqlalchemy.orm import Session
 
+from app.core.cached_count import CachedCount
 from app.core.club import (
     TCN_CANONICAL_NAME,
     canonical_club_key,
@@ -53,6 +54,11 @@ REASONS = {
     "concatenated": "Nom complet face à une fiche découpée",
     "alias_collision": "Fiche recréée sur une graphie fusionnée",
 }
+
+#: Taille de la liste pour la pastille du rail (#1352). Rafraîchie par la liste,
+#: vidée par les arbitrages de cet écran ; une fusion faite ailleurs la laisse
+#: fausse jusqu'à l'expiration, le `staleTime` de la pastille côté front.
+count_cache = CachedCount(ttl_seconds=300)
 
 
 def recovery_would_merge(first: Athlete, second: Athlete, *, shared_course: bool, blocked: bool) -> bool:
@@ -179,7 +185,7 @@ def _cases(db: Session) -> list[tuple[str, list[int], list[int], list[dict]]]:
 
 def count(db: Session) -> int:
     """La taille de la liste, sans charger le détail des fiches ni de leurs résultats."""
-    return len(_cases(db))
+    return count_cache.get(lambda: len(_cases(db)))
 
 
 def _brief(athlete: Athlete, results: list) -> dict:
@@ -198,6 +204,7 @@ def _brief(athlete: Athlete, results: list) -> dict:
 def find_candidates(db: Session) -> list[dict]:
     """Les cas à trancher, avec leurs fiches et les épreuves en conflit."""
     cases = _cases(db)
+    count_cache.set(len(cases))
     athletes, results = athlete_repository.review_details(db, [i for _, ids, _, _ in cases for i in ids])
     by_athlete: dict[int, list] = defaultdict(list)
     for row in results:
@@ -232,6 +239,7 @@ def find_candidates(db: Session) -> list[dict]:
 
 def ignore_pair(db: Session, *, athlete_id_a: int, athlete_id_b: int, user_id: int) -> dict:
     """Écarte une paire de la revue : l'admin les juge distinctes. `flush` sans commit."""
+    count_cache.clear()
     if athlete_id_a == athlete_id_b:
         raise DomainError("Une fiche ne forme pas une paire avec elle-même.")
     for athlete_id in (athlete_id_a, athlete_id_b):
@@ -256,6 +264,7 @@ def ignore_pair(db: Session, *, athlete_id_a: int, athlete_id_b: int, user_id: i
 def confirm_club(db: Session, *, athlete_id: int, club_key: str, user_id: int) -> dict:
     """Confirme qu'un club est bien celui de la personne de la fiche (#1209) : la
     revue ne le signale plus, et l'import y rattache ses résultats. `flush` sans commit."""
+    count_cache.clear()
     key = club_key.strip()
     if not key:
         raise DomainError("Le club à confirmer est vide.")
@@ -293,6 +302,7 @@ def unignore_pair(db: Session, *, pair_id: int, user_id: int) -> None:
     """Annule une mise à l'écart. La paire ne revient dans la revue que si un motif la
     retient sans que la reprise la fusionne : deux fiches de même clé, ou que
     `recovery_would_merge` accepte, seront fusionnées par la prochaine reprise."""
+    count_cache.clear()
     pair = ignored_athlete_pair_repository.get(db, pair_id)
     if pair is None:
         raise NotFoundError("Cette paire n'est pas écartée.")
@@ -342,6 +352,7 @@ def list_confirmed_clubs(db: Session) -> list[dict]:
 def unconfirm_club(db: Session, *, known_id: int, user_id: int) -> None:
     """Annule une confirmation de club : la fiche est de nouveau signalée pour lui.
     Les résultats que l'import a déjà rattachés sous ce club restent sur la fiche."""
+    count_cache.clear()
     known = athlete_known_club_repository.get(db, known_id)
     if known is None:
         raise NotFoundError("Ce club n'est pas confirmé.")
@@ -357,6 +368,7 @@ def dismiss_case(db: Session, *, athlete_id: int, reason: str, user_id: int) -> 
     """Écarte un cas à une seule fiche, jugé faux positif, sans toucher aux résultats
     (#1252). Seul `same_course_bibs` s'écarte ainsi : `multi_club` se règle par la
     confirmation du club. `flush` sans commit."""
+    count_cache.clear()
     if athlete_repository.get(db, athlete_id) is None:
         raise NotFoundError("Athlète introuvable.")
     courses = _two_bibs_courses(db).get(athlete_id)
@@ -389,6 +401,7 @@ def list_dismissed(db: Session) -> list[dict]:
 
 def undismiss_case(db: Session, *, case_id: int, user_id: int) -> None:
     """Annule une mise à l'écart : le cas revient dans la revue s'il tient toujours."""
+    count_cache.clear()
     case = ignored_identity_case_repository.get(db, case_id)
     if case is None:
         raise NotFoundError("Ce cas n'est pas écarté.")

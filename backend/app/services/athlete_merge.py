@@ -34,7 +34,7 @@ from app.repositories import (
     user_repository,
     volunteer_action_repository,
 )
-from app.services import audit
+from app.services import athlete_identity_review, audit
 from app.services.admin_actions import AthleteBusyError
 from app.services.course_locks import lock_courses_or_409
 
@@ -167,6 +167,7 @@ def _complete(kept: Athlete, absorbed: Athlete) -> None:
 def merge_athletes(db: Session, *, kept_id: int, absorbed_id: int, user_id: int) -> Athlete:
     """Absorbe `absorbed_id` dans `kept_id`. Tout ou rien : `flush` sans `commit`,
     la route clôt la transaction ; un refus n'écrit ni donnée ni journal."""
+    athlete_identity_review.count_cache.clear()
     if kept_id == absorbed_id:
         raise AthleteMergeRefusedError("same_athlete")
     kept, absorbed = _lock(db, kept_id, absorbed_id)

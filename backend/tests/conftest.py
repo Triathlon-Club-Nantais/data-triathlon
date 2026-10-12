@@ -58,6 +58,17 @@ def _compteurs_de_debit_vierges():
 
 
 @pytest.fixture(autouse=True)
+def _pastilles_sans_cache():
+    """Les comptes des pastilles vivent en mémoire du process (#1352) : un test
+    lirait sinon le compte laissé par le précédent."""
+    from app.services import athlete_identity_review, course_duplicates
+
+    athlete_identity_review.count_cache.clear()
+    course_duplicates.count_cache.clear()
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _portee_des_compteurs_par_defaut():
     """Le registre de `core/counter_scope` est un état de **processus** (#95).
 
