@@ -22,7 +22,8 @@ def purge_retention(
     """Supprime les signalements et le journal d'administration de plus de 12 mois,
     les profils jeunes dont l'adhésion a pris fin depuis plus d'une saison, et
     réduit les licenciés du club et supprime les adresses d'adhérents des saisons
-    échues (fin de saison plus une saison)."""
+    échues (fin de saison plus une saison), et supprime les comptes sans rôle
+    inactifs depuis 5 ans."""
     with session_scope() as db:
         outcome = purge_expired(db, now=utcnow(), dry_run=dry_run)
 

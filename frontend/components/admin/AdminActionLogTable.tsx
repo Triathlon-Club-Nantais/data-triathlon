@@ -16,7 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useAdminActionLog, TAILLE_PAGE_JOURNAL } from "@/lib/queries/admin";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDateTime } from "@/lib/utils/date";
-import { actionLabel, detailLines } from "@/lib/admin-action-log";
+import { actionLabel, actorLabel, detailLines } from "@/lib/admin-action-log";
 
 const REFUS = { sujet: "gestes d'administration", action: "consulter le journal" };
 
@@ -65,7 +65,7 @@ export function AdminActionLogTable() {
                 <TableCell className="whitespace-nowrap">
                   {formatDateTime(entree.created_at)}
                 </TableCell>
-                <TableCell>{entree.user_name}</TableCell>
+                <TableCell>{actorLabel(entree)}</TableCell>
                 <TableCell>{actionLabel(entree.action)}</TableCell>
                 <TableCell className="text-sm text-[var(--tcn-text-faint)]">
                   {detailLines(entree).map(({ label, value, href }, i) => (

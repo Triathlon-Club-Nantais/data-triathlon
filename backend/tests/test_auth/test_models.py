@@ -104,3 +104,11 @@ def test_users_ne_porte_aucun_attribut_de_role(db_session):
     """
     colonnes = {colonne.name for colonne in User.__table__.columns}
     assert not {nom for nom in colonnes if "role" in nom}
+
+
+def test_a_new_user_has_a_last_seen_at(db_session):
+    """#1326: the inactivity clock starts at creation."""
+    user = _user(db_session)
+    db_session.commit()
+
+    assert user.last_seen_at is not None

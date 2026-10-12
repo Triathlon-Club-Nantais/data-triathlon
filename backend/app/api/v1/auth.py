@@ -30,7 +30,7 @@ from app.schemas.auth import (
     SessionUserRead,
 )
 from app.services import benevole_access, membership
-from app.services.auth import authorization, flow
+from app.services.auth import accounts, authorization, flow
 from app.services.auth import session as session_service
 from app.services.auth.errors import ERROR_CODES, LoginError
 from app.services.auth.idp import registry
@@ -288,6 +288,10 @@ def logout(
     if logging_out_user is not None:
         capture_event("user_logged_out", distinct_id=str(logging_out_user.id))
 
+    return _signed_out_response(settings)
+
+
+def _signed_out_response(settings: Settings) -> Response:
     response = Response(status_code=204, headers=NO_STORE_HEADERS)
     _clear_auth_cookie(response, name=session_cookie_name(settings), settings=settings)
     _clear_auth_cookie(
@@ -298,6 +302,25 @@ def logout(
     # survivre à sa déconnexion. Mêmes attributs qu'à la pose.
     _clear_auth_cookie(response, name=benevole_access.BENEVOLE_SESSION_COOKIE, settings=settings)
     return response
+
+
+@router.delete("/auth/me", status_code=204)
+def delete_me(
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    """Supprime le compte de la session, puis déconnecte ce navigateur (#1326).
+
+    Protégée comme `logout` : `SameSite=Lax` écarte le cross-site, `core/origin_guard`
+    le same-site. Les refus (référence obligatoire, dernier administrateur) sortent
+    en 409 par le handler de `DomainError`, sans rien supprimer.
+    """
+    user_id = user.id
+    accounts.delete_account(db, user, origin="request")
+    db.commit()
+    capture_event("user_account_deleted", distinct_id=str(user_id))
+    return _signed_out_response(settings)
 
 
 @router.get("/auth/me", response_model=SessionUserRead)

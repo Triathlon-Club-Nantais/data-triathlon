@@ -329,3 +329,46 @@ table, distincte d'`allowed_emails` : elle dit qui est adhérent, jamais qui
 entre au back-office. Le statut adhérent qui en dérive (#1322,
 `services/membership.py`) dispense du code du site et n'accorde aucun pouvoir.
 Règles d'import, saison qui compte, statut et purge : `docs/auth/membres.md`.
+
+# Suppression des comptes (#1326)
+
+`services/auth/accounts.py`, spec `specs/20261012-134400-suppression-comptes/`.
+Deux appelants : `DELETE /auth/me` (le titulaire, menu « Supprimer mon compte »)
+et `purge-retention` (comptes **sans rôle** inactifs depuis 5 ans, même date
+du calendrier, `accounts.inactivity_cutoff`, un 29 février devenant le 28).
+Un compte **désactivé** sans rôle expire lui aussi : la désactivation (retrait
+de la liste d'autorisation) n'arrête pas l'horloge, et rien ne justifie de
+garder sans fin un compte que personne ne peut plus ouvrir. Un test le fige.
+Suppression **physique** : la ligne `users`, puis identités, sessions, rôles et
+groupes par la cascade ORM de `User`.
+
+- **L'inventaire des références est lu dans le schéma**
+  (`user_repository.required_references` / `optional_references`, toute FK vers
+  `users.id` hors des quatre tables possédées). Une colonne nullable est mise à
+  vide ; une colonne `NOT NULL` qui cite le compte **bloque** : 409 « Contactez
+  le club » en libre service, compte sauté et compté par la purge. Une FK
+  ajoutée demain est donc classée sans qu'on y pense ; un test fige la liste
+  des cinq obligatoires du jour pour qu'un changement de nullabilité se voie.
+- **Le journal est signé par le compte système** (`benevole_access.system_user_id`),
+  payload `{"origin": "request" | "inactivity", "entra_oids": [...]}` et
+  l'identifiant seul, sans adresse ni nom : le compte supprimé ne peut pas être
+  l'auteur d'une ligne dont la FK l'exige. Le journal l'affiche « Système »
+  (`actorLabel` du front), le nom du compte système désignant les bénévoles.
+  `entra_oids` (les `subject` des identités `entra`) sert à **une seule** fin :
+  finir la suppression dans l'annuaire Entra, à la main.
+- **Le dernier administrateur** : `administrateurs_preserves`, sous un point de
+  reprise, pour qu'un refus levé après le flush ne laisse rien en attente.
+  Le compte système n'est jamais supprimé.
+- **`users.last_seen_at`** est posée à l'ouverture d'une session et repoussée
+  par `session.resolve` au plus une fois par jour : `UPDATE` conditionné sur le
+  début du jour, écrit et commité par **une session à part** liée au même
+  moteur (`get_db` ne commite jamais, et la transaction de la requête ne doit
+  pas l'être par effet de bord). L'objet de la requête est aligné par
+  `set_committed_value`, sans être marqué modifié. La migration a rempli la
+  colonne avec la dernière ouverture de session connue, à défaut la création.
+- **Passe à blanc** : le journal n'y est pas purgé, donc un compte cité
+  seulement par des lignes de plus de 12 mois y est compté sauté alors que la
+  passe réelle, qui purge le journal d'abord, le supprime.
+- **L'utilisateur de l'annuaire Entra reste** : relevé mensuel des
+  `entra_oids` du journal de **production**, jamais une comparaison de
+  l'annuaire avec une base (`infra/entra-external-id/AGENTS.md`).

@@ -7,9 +7,10 @@ immédiate (FR-015) sans avoir à parcourir les sessions.
 """
 import hashlib
 import secrets
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import set_committed_value
 
 from app.core.config import get_settings
 from app.core.time import utcnow
@@ -50,12 +51,15 @@ def open_with_token(db: Session, user: User, *, token: str) -> str:
             f"session token must be at least {TOKEN_MIN_LENGTH} characters long"
         )
     settings = get_settings()
+    now = utcnow()
     session_repository.create(
         db,
         user_id=user.id,
         token_hash=hash_token(token),
-        expires_at=utcnow() + timedelta(days=settings.auth_session_ttl_days),
+        expires_at=now + timedelta(days=settings.auth_session_ttl_days),
     )
+    user.last_seen_at = now
+    db.flush()
     return token
 
 
@@ -64,12 +68,30 @@ def resolve(db: Session, token: str | None) -> User | None:
     if not token or len(token) < TOKEN_MIN_LENGTH:
         return None
 
+    now = utcnow()
     row = session_repository.get_by_token_hash(db, hash_token(token))
-    if row is None or row.expires_at <= utcnow():
+    if row is None or row.expires_at <= now:
         return None
     if not row.user or not row.user.is_active:
         return None
+    if row.user.last_seen_at.date() < now.date():
+        _bump_last_seen(db, row.user, now)
     return row.user
+
+
+def _bump_last_seen(db: Session, user: User, now: datetime) -> None:
+    """Repousse l'horloge d'inactivité (#1326), au plus une écriture par compte et par jour.
+
+    Par une session à part, commitée aussitôt : `get_db` ne commite jamais, et la
+    transaction de la requête ne doit pas l'être par effet de bord. Le `WHERE` du
+    repository rend deux requêtes concurrentes inoffensives.
+    """
+    with Session(bind=db.get_bind()) as isolated:
+        user_repository.touch_last_seen(isolated, user.id, now)
+        isolated.commit()
+    # Aligne l'objet de la requête sans le marquer modifié : sinon un second
+    # `resolve` dans la même session réécrirait, et un commit de la route aussi.
+    set_committed_value(user, "last_seen_at", now)
 
 
 def revoke_all(db: Session, actor: User | None = None) -> tuple[int, int]:

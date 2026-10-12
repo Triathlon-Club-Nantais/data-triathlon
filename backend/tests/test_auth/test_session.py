@@ -1,7 +1,8 @@
 """Sessions applicatives — jeton opaque, empreinte en base, invariant de validité."""
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
+from sqlalchemy import event
 
 from app.core.time import utcnow
 from app.models.user_session import UserSession
@@ -142,3 +143,86 @@ def test_l_ouverture_purge_les_sessions_expirees_de_l_utilisateur(db_session):
     empreintes = {ligne.token_hash for ligne in db_session.query(UserSession).all()}
     assert "0" * 64 not in empreintes
     assert len(empreintes) == 1
+
+
+# --- Last activity (#1326, US3) ---------------------------------------------
+
+DAY_ONE = datetime(2026, 10, 12, 9, 0)
+
+
+@pytest.fixture
+def user_updates(db_session):
+    """Counts `UPDATE users` statements sent to the database."""
+    statements = []
+
+    def _listen(_conn, _cursor, statement, *_args):
+        if statement.lstrip().upper().startswith("UPDATE USERS"):
+            statements.append(statement)
+
+    event.listen(db_session.bind, "before_cursor_execute", _listen)
+    yield statements
+    event.remove(db_session.bind, "before_cursor_execute", _listen)
+
+
+def _clock(monkeypatch, moment):
+    monkeypatch.setattr(session, "utcnow", lambda: moment)
+
+
+def test_opening_a_session_sets_last_seen_at(db_session, monkeypatch):
+    user = _user(db_session)
+    user.last_seen_at = DAY_ONE - timedelta(days=900)
+    db_session.flush()
+    _clock(monkeypatch, DAY_ONE)
+
+    session.open_for(db_session, user)
+
+    assert user.last_seen_at == DAY_ONE
+
+
+def test_resolving_twice_the_same_day_writes_nothing(db_session, monkeypatch, user_updates):
+    _clock(monkeypatch, DAY_ONE)
+    user = _user(db_session)
+    token = session.open_for(db_session, user)
+    db_session.commit()
+    user_updates.clear()
+
+    _clock(monkeypatch, DAY_ONE + timedelta(hours=3))
+    session.resolve(db_session, token)
+    session.resolve(db_session, token)
+
+    assert user_updates == []
+
+
+def test_resolving_the_next_day_bumps_last_seen_at_once_and_commits(db_session, monkeypatch, user_updates):
+    _clock(monkeypatch, DAY_ONE)
+    user = _user(db_session)
+    token = session.open_for(db_session, user)
+    db_session.commit()
+    user_updates.clear()
+
+    next_day = DAY_ONE + timedelta(days=1, hours=1)
+    _clock(monkeypatch, next_day)
+    session.resolve(db_session, token)
+    session.resolve(db_session, token)
+    db_session.rollback()
+
+    assert len(user_updates) == 1
+    assert db_session.get(type(user), user.id).last_seen_at == next_day
+
+
+def test_the_bump_never_commits_the_request_session(db_session, monkeypatch):
+    """The once-a-day write goes through its own session: pending request state stays pending."""
+    from app.models.user_feedback import UserFeedback
+
+    _clock(monkeypatch, DAY_ONE)
+    user = _user(db_session)
+    token = session.open_for(db_session, user)
+    db_session.commit()
+    db_session.add(UserFeedback(type="bug", title="pending", body="b"))
+
+    _clock(monkeypatch, DAY_ONE + timedelta(days=1))
+    session.resolve(db_session, token)
+    db_session.rollback()
+
+    assert db_session.query(UserFeedback).count() == 0
+    assert db_session.get(type(user), user.id).last_seen_at == DAY_ONE + timedelta(days=1)

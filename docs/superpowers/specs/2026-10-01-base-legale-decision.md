@@ -117,7 +117,7 @@ appliquent dès #334.
 | Résultats et athlètes | tant que le service existe (archive sportive du club), sauf opposition | tenu de fait |
 | Signalements, dont l'adresse IP | 12 mois après leur dépôt | tenu (`purge-retention`, #1158) |
 | Journal des actions d'administration | 12 mois | tenu (`purge-retention`, #1158) |
-| Compte du back-office | tant que l'adresse figure sur la liste d'autorisation | suppression de compte à implémenter |
+| Compte | jusqu'à sa suppression depuis le menu du compte, ou 5 ans sans connexion pour un compte sans rôle | tenu (#1326 : suppression en libre service, `purge-retention`) |
 | Session de connexion | 7 jours | tenu (`auth_session_ttl_days`) |
 | Cookie du code d'accès | 90 jours | tenu (`site_access_session_ttl_days`) |
 | Profils jeunes | durée de l'adhésion, plus une saison | tenu dès qu'un encadrant saisit la fin d'adhésion (`purge-retention`, #1158) |
@@ -127,8 +127,8 @@ appliquent dès #334.
 `purge-retention` tourne chaque semaine avec le batch planifié
 (`.github/workflows/batch.yml`) ; un échec rougit le run et alerte. Un profil
 jeune n'est purgé qu'une fois sa fin d'adhésion saisie : un départ que personne
-ne renseigne garde le profil, c'est la limite de ce choix. Reste non tenu : la
-suppression d'un compte du back-office retiré de la liste d'autorisation.
+ne renseigne garde le profil, c'est la limite de ce choix. La suppression des
+comptes est tenue depuis #1326 (avenant du 2026-10-12, plus bas).
 
 ## Scraping, fournisseur par fournisseur
 
@@ -288,6 +288,50 @@ suppression du compte emporte la sienne (procédure dans
 site aux adhérents et le back-office aux bénévoles). Microsoft agit comme
 **sous-traitant** d'authentification ; Google, quand la personne le choisit,
 est le fournisseur de son propre compte et ne reçoit rien du site.
+
+## Avenant du 2026-10-12 : suppression des comptes (#1326)
+
+**Traitement.** Depuis l'ouverture de la connexion aux adhérents (#1322), toute
+personne qui se connecte laisse un compte. Sa durée de conservation devient :
+
+- **jusqu'à sa suppression par son titulaire**, depuis le menu du compte
+  (« Supprimer mon compte ») ; la suppression est physique et emporte le
+  compte, ses identités de connexion, ses sessions, ses rôles et ses groupes.
+  Les résultats et la fiche athlète restent : ce sont des données de l'archive
+  sportive, régies par l'opposition (#334), pas par le compte ;
+- **5 ans sans connexion** (même date du calendrier, 5 ans plus tôt ; un
+  29 février compte pour le 28) pour un compte **sans rôle**, désactivé ou non :
+  `purge-retention` le supprime chaque semaine. Un compte qui porte un rôle est
+  gardé tant qu'il le porte : son retrait est un geste d'administration, et
+  l'invariant du dernier administrateur ne doit pas dépendre d'une horloge. La
+  dernière activité est l'ouverture d'une session ou son usage, notée au plus
+  une fois par jour ; pour les comptes antérieurs, la dernière ouverture de
+  session connue, à défaut la date de création, sert de point de départ.
+
+Un compte encore cité par une donnée qui exige son auteur (validation de
+saison, cas ou paires écartés, configuration d'accès, journal
+d'administration) n'est jamais supprimé en silence avec elle : la suppression
+volontaire est refusée et invite à contacter le club, l'expiration le saute et
+le compte dans son rapport. Le journal vivant 12 mois, un compte inactif depuis
+5 ans n'y est normalement plus cité. Chaque suppression est journalisée par
+l'identifiant du compte et son origine, sans adresse ni nom, et par les
+identifiants Microsoft (`oid`) de ses connexions Entra (`entra_oids`).
+
+**Annuaire Entra.** L'utilisateur créé dans l'annuaire du tenant n'est pas
+supprimé par le site (le flux qui le permettrait est un module payant) : le
+club l'efface à la main dans le mois qui suit la suppression du compte,
+procédure dans `infra/entra-external-id/AGENTS.md`. Pour le retrouver, la
+ligne `account.delete` du journal garde l'`oid` Entra du compte supprimé
+(`entra_oids`). C'est un identifiant pseudonyme chez Microsoft, sans adresse
+ni nom, conservé avec le journal (12 mois) et **à cette seule fin** : finir la
+suppression dans l'annuaire. Sans lui, l'utilisateur Entra ne se retrouverait
+qu'en comparant l'annuaire à une base, geste écarté : le tenant sert à la
+préproduction comme à la production, et une comparaison contre la mauvaise
+base supprimerait des comptes vivants.
+
+**Base légale.** Inchangée : intérêt légitime. La durée de 5 ans couvre
+largement une interruption d'adhésion de quelques saisons sans faire perdre
+son compte à un adhérent qui revient.
 
 ## Hors de cette décision, signalé
 
