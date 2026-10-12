@@ -247,7 +247,7 @@ export const apiServer = {
     fetchOpts: FetchOpts = {},
   ) => serverFetch<Stats>(`/stats${toQuery(opts)}`, fetchOpts),
   getClubSummary: (
-    opts: { federal_only?: boolean } = {},
+    opts: { federal_only?: boolean; podiums?: "preview" } = {},
     fetchOpts: FetchOpts = {},
   ) => serverFetch<ClubSummary>(`/club/summary${toQuery(opts)}`, fetchOpts),
   listSeasons: (opts: { scope?: string; federal_only?: boolean } = {}, fetchOpts: FetchOpts = {}) =>

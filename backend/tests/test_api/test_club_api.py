@@ -9,6 +9,7 @@ def test_club_summary_club_vide(client, db_session):
     assert resp.json() == {
         "roster": [],
         "podiums": {"scratch": [], "category": [], "gender": [], "all": []},
+        "podiums_totals": {"scratch": 0, "category": 0, "gender": 0, "all": 0},
         "podiums_by_discipline": {},
         "composition": {"gender": {}, "category": {}},
     }
@@ -112,3 +113,44 @@ def test_club_roster_rank_404_hors_roster(client, db_session):
     resp = client.get(f"/api/v1/club/roster/rank/{ath.id}")
 
     assert resp.status_code == 404
+
+
+def _huit_podiums_scratch(db_session):
+    ath = athlete_repository.get_or_create(db_session, nom="A", prenom="Alice", club="TCN")
+    for jour in range(1, 9):
+        course = course_repository.get_or_create(
+            db_session, name=f"C{jour}", event_date=date(2026, 5, jour), event_type="triathlon-m"
+        )
+        participation_repository.create(
+            db_session, athlete_id=ath.id, course_id=course.id, bib_number="1",
+            club="TCN", status="finisher", rank_overall=1,
+        )
+    db_session.commit()
+
+
+def test_club_summary_apercu_tronque_chaque_mode_et_garde_les_totaux(client, db_session):
+    """#1354 : la page /club n'embarque que l'aperçu, la liste suit au dépliage."""
+    _huit_podiums_scratch(db_session)
+
+    body = client.get("/api/v1/club/summary", params={"podiums": "preview"}).json()
+
+    assert len(body["podiums"]["scratch"]) == 6
+    assert len(body["podiums"]["all"]) == 6
+    assert body["podiums_totals"] == {"scratch": 8, "category": 0, "gender": 0, "all": 8}
+
+
+def test_club_summary_sans_apercu_rend_tout_comme_avant(client, db_session):
+    _huit_podiums_scratch(db_session)
+
+    body = client.get("/api/v1/club/summary").json()
+
+    assert len(body["podiums"]["scratch"]) == 8
+
+
+def test_club_podiums_rend_la_liste_complete(client, db_session):
+    _huit_podiums_scratch(db_session)
+
+    resp = client.get("/api/v1/club/podiums")
+
+    assert resp.status_code == 200
+    assert len(resp.json()["scratch"]) == 8

@@ -9,7 +9,9 @@ import { formatEventName } from "@/lib/utils/event";
 import { RANK_PARAM, rankTypeFromParam } from "@/lib/rank";
 import { podiumScopeLabel } from "@/lib/labels";
 import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
-import type { ClubPodiums } from "@/lib/types";
+import { SPORTS_PARAM, federalOnlyFromParam } from "@/lib/scope";
+import { apiClient } from "@/lib/api/client";
+import type { ClubPodiumTotals, ClubPodiums } from "@/lib/types";
 
 /**
  * Taille de l'aperçu de la liste (#488, PROF-3). Le KPI « Podiums » deux blocs
@@ -24,14 +26,37 @@ export const APERCU_PODIUMS = 6;
  * (latence toggle) : le mécanisme de bascule est inchangé, seul le payload a
  * changé de forme (un `ClubPodiums` pré-agrégé au lieu du tableau complet des
  * participations).
+ *
+ * `/club` n'en reçoit que l'aperçu et les `totals` (#1354) : la liste complète
+ * se charge au premier dépliage, une fois pour les quatre modes.
  */
-export function PodiumsList({ podiums }: { podiums: ClubPodiums }) {
+export function PodiumsList({ podiums, totals }: { podiums: ClubPodiums; totals?: ClubPodiumTotals }) {
   const sp = useSearchParams();
   const rankType = rankTypeFromParam(sp.get(RANK_PARAM) ?? undefined);
   const [etendu, setEtendu] = useState(false);
-  const tous = podiums[rankType];
+  const [complet, setComplet] = useState<ClubPodiums | null>(null);
+  const [chargement, setChargement] = useState(false);
+  const [echec, setEchec] = useState(false);
+  const tous = (complet ?? podiums)[rankType];
+  const total = complet ? tous.length : (totals?.[rankType] ?? tous.length);
   const affiches = etendu ? tous : tous.slice(0, APERCU_PODIUMS);
-  const restants = tous.length - affiches.length;
+  const restants = total - affiches.length;
+
+  async function basculer() {
+    if (!etendu && !complet && total > tous.length) {
+      setChargement(true);
+      setEchec(false);
+      try {
+        setComplet(await apiClient.getClubPodiums({ federal_only: federalOnlyFromParam(sp.get(SPORTS_PARAM)) }));
+      } catch {
+        setEchec(true);
+        return;
+      } finally {
+        setChargement(false);
+      }
+    }
+    setEtendu((v) => !v);
+  }
 
   // WCAG 4.1.3 (#477) : la bascule recalcule en mémoire (#132), sans
   // navigation — sans cette annonce, la liste se réordonne (ou se vide) en
@@ -99,11 +124,17 @@ export function PodiumsList({ podiums }: { podiums: ClubPodiums }) {
           début du document pour atteindre les podiums qu'il venait de
           révéler, situés au-dessus (revue finale, #488). Le bouton reste
           monté tant qu'il y a quelque chose à réduire ou à étendre. */}
-      {tous.length > APERCU_PODIUMS && (
+      {echec && (
+        <p role="alert" className="mt-3 text-sm text-[var(--tcn-text-muted)]">
+          La liste complète n&apos;a pas pu être chargée. Réessayez.
+        </p>
+      )}
+      {total > APERCU_PODIUMS && (
         <button
           type="button"
-          onClick={() => setEtendu((v) => !v)}
+          onClick={basculer}
           aria-expanded={etendu}
+          aria-busy={chargement}
           className="mt-3 text-sm font-medium text-accent-ink hover:underline"
         >
           {etendu

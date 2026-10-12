@@ -70,7 +70,7 @@ export function ClubDashboard({
             <CardTitle>Podiums & performances</CardTitle>
           </CardHeader>
           <CardContent>
-            <PodiumsList podiums={summary.podiums} />
+            <PodiumsList podiums={summary.podiums} totals={summary.podiums_totals} />
           </CardContent>
         </Card>
 

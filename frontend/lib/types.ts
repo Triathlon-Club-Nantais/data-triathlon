@@ -293,9 +293,14 @@ export interface ClubComposition {
   category: Record<string, number>;
 }
 
+/** Taille complète de chaque mode de `ClubPodiums` (#1354). */
+export type ClubPodiumTotals = Record<keyof ClubPodiums, number>;
+
 export interface ClubSummary {
   roster: ClubRosterEntry[];
+  /** Sous `podiums: "preview"`, les 6 premiers de chaque mode seulement. */
   podiums: ClubPodiums;
+  podiums_totals: ClubPodiumTotals;
   podiums_by_discipline: Record<string, DisciplinePodiumCounts>;
   composition: ClubComposition;
 }
