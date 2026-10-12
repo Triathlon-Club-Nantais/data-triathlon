@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { PAGE_SIZE_OPTIONS, pageSizeLabel, parsePageSize, type PageSize } from "@/lib/pageSize";
+import { PAGE_SIZE_ALL_MAX, PAGE_SIZE_OPTIONS, pageSizeLabel, parsePageSize, type PageSize } from "@/lib/pageSize";
 
 /**
  * Commandes de pagination du classement, en liens et non en boutons :
@@ -147,6 +147,13 @@ export function ClassementPagination({
           ))}
         </select>
       </div>
+      {/* Dit pourquoi « Tout » manque, surtout à qui arrive par un lien
+          `?page_size=all` servi en 200 lignes (revue UI/UX de #1376). */}
+      {!options.includes("all") && (
+        <p style={{ margin: 0, padding: "0 24px 10px", textAlign: "center", fontSize: 13, color: "var(--tcn-text-muted)" }}>
+          Au-delà de {PAGE_SIZE_ALL_MAX} résultats dans l&apos;épreuve, le classement s&apos;affiche par pages de 200 au plus.
+        </p>
+      )}
     </div>
   );
 }

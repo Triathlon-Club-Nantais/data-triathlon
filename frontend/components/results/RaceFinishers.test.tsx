@@ -307,6 +307,7 @@ describe("RaceFinishers", () => {
       Array.from(selecteur.querySelectorAll("option")).map((o) => o.textContent),
     ).toEqual(["20 lignes", "50 lignes", "200 lignes"]);
     expect(selecteur).toHaveValue("200");
+    expect(screen.getByText("Au-delà de 500 résultats dans l'épreuve, le classement s'affiche par pages de 200 au plus.")).toBeInTheDocument();
   });
 
   it("pousse la taille choisie dans l'URL et revient à la première page", async () => {
