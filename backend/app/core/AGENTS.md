@@ -117,19 +117,19 @@ La suite de tests, qui monte son schéma par `create_all` et n'a donc pas les
 lignes amorcées, s'exécute sur ces défauts.
 
 **Ce qui est configurable est l'ensemble des libellés, jamais la
-normalisation.** `_normalise_sql` est compilée dans l'index fonctionnel
+normalisation.** `_normalize_sql` est compilée dans l'index fonctionnel
 `ix_participations_club_normalized` : la toucher sans migration de
 reconstruction périme cet index en silence (cf. `club.py`). Ajouter un libellé
 ne change pas l'expression indexée ; changer la façon de comparer, si.
 
 La frontière est tenue par le code — aucune surface d'API n'atteint
-`_normalise_sql`, et `normalize_value` réutilise `normalize_club` — mais sa
+`_normalize_sql`, et `normalize_value` réutilise `normalize_club` — mais sa
 **garde de test** ne la couvre pas entièrement : la vérification de l'index
 (`tests/test_repositories/test_course_repository.py`) tourne sur un schéma monté
 par `create_all`, donc sur l'expression courante. Elle ne détecterait jamais un
 index devenu périmé dans une base déjà migrée. C'est antérieur à #95 (cf. #351),
 mais trois documents s'appuient désormais sur cette frontière : le jour où
-`_normalise_sql` change, la migration de reconstruction est à écrire à la main.
+`_normalize_sql` change, la migration de reconstruction est à écrire à la main.
 
 Conception : `specs/20260826-154613-portee-compteurs-configurable/`.
 

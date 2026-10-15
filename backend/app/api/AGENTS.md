@@ -171,7 +171,7 @@ Six champs et deux paramètres, tous **additifs**, tous à défaut neutre.
   visées, sauf TCN et alias déclarés, que la synthèse range ailleurs. Le lien
   d'une ligne de la carte rend donc exactement son effectif. Additif, sans
   migration : la clé large se résout en verbatims, l'index
-  `ix_participations_club_normalized` reste celui de `_normalise_sql`.
+  `ix_participations_club_normalized` reste celui de `_normalize_sql`.
   **`club` n'est pas `scope=club`** : le second porte la
   sémantique TCN arbitrée par `core/club.py` (dépositaire unique, #76), le premier un
   club quelconque. Leur croisement peut être vide par construction, et c'est l'écran
