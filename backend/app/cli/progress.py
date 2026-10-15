@@ -30,8 +30,8 @@ def truncate(label: str, limit: int = MAX_LABEL) -> str:
     return label[: limit - 1] + "…"
 
 
-def _stderr(ligne: str) -> None:
-    print(ligne, file=sys.stderr, flush=True)
+def _stderr(line: str) -> None:
+    print(line, file=sys.stderr, flush=True)
 
 
 def _stderr_is_tty() -> bool:
@@ -51,7 +51,7 @@ class PlainReporter:
     def __init__(self, write: Callable[[str], None] | None = None) -> None:
         self._write = write or _stderr
         self._total = 0
-        self._en_cours: dict[str, tuple[int, str, float]] = {}
+        self._in_progress: dict[str, tuple[int, str, float]] = {}
         self._lock = threading.Lock()
 
     def batch_start(self, total: int) -> None:
@@ -59,21 +59,21 @@ class PlainReporter:
         self._write(f"=== {total} épreuve(s) à traiter ===")
 
     def item_start(self, index: int, label: str, host: str) -> None:
-        libelle = truncate(label)
+        short_label = truncate(label)
         with self._lock:
-            self._en_cours[host] = (index, libelle, time.monotonic())
+            self._in_progress[host] = (index, short_label, time.monotonic())
         # Le scrape peut durer une minute : le log ne doit pas rester muet.
-        self._write(f"[{index + 1}/{self._total}] ({host}) {libelle} · scraping en cours…")
+        self._write(f"[{index + 1}/{self._total}] ({host}) {short_label} · scraping en cours…")
 
     def item_progress(self, done: int, total: int, host: str) -> None:
         pass  # le détail intra-épreuve est réservé au mode TTY : ici il inonderait le log
 
     def item_done(self, imported: int, skipped: int, error: str | None, host: str) -> None:
         with self._lock:
-            index, libelle, debut = self._en_cours.pop(host, (0, "", time.monotonic()))
-        duree = time.monotonic() - debut
+            index, short_label, started = self._in_progress.pop(host, (0, "", time.monotonic()))
+        elapsed = time.monotonic() - started
         issue = f"ERREUR : {error}" if error else f"{imported} importés, {skipped} ignorés"
-        self._write(f"[{index + 1}/{self._total}] ({host}) {libelle} → {issue} ({duree:.1f}s)")
+        self._write(f"[{index + 1}/{self._total}] ({host}) {short_label} → {issue} ({elapsed:.1f}s)")
 
     def batch_end(self) -> None:
         pass
@@ -108,38 +108,38 @@ class RichReporter:
         self._batch_task = self._progress.add_task("Épreuves", total=total)
 
     def item_start(self, index: int, label: str, host: str) -> None:
-        libelle = truncate(label)
+        short_label = truncate(label)
         with self._lock:
-            self._labels[host] = libelle
+            self._labels[host] = short_label
             # Une tâche par hôte : pas de risque d'hériter du total de
             # l'épreuve précédente, contrairement à une tâche unique réutilisée.
             self._item_tasks[host] = self._progress.add_task(
-                f"  ({host}) {libelle} · scraping…", total=None
+                f"  ({host}) {short_label} · scraping…", total=None
             )
 
     def item_progress(self, done: int, total: int, host: str) -> None:
         with self._lock:
             task_id = self._item_tasks.get(host)
-            libelle = self._labels.get(host, "")
+            short_label = self._labels.get(host, "")
         if task_id is None:
             return
         self._progress.update(
             task_id,
             completed=done,
             total=total,
-            description=f"  ({host}) {libelle} · enregistrement",
+            description=f"  ({host}) {short_label} · enregistrement",
         )
 
     def item_done(self, imported: int, skipped: int, error: str | None, host: str) -> None:
         self._progress.advance(self._batch_task)
         with self._lock:
             task_id = self._item_tasks.pop(host, None)
-            libelle = self._labels.pop(host, "")
+            short_label = self._labels.pop(host, "")
         if task_id is not None:
             self._progress.remove_task(task_id)
         if error:
             # Les erreurs survivent à l'effacement des barres : on veut les revoir.
-            self._progress.console.print(f"  [red]✗[/red] {libelle} → {error}")
+            self._progress.console.print(f"  [red]✗[/red] {short_label} → {error}")
 
     def batch_end(self) -> None:
         self._progress.stop()
