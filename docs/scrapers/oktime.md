@@ -37,7 +37,7 @@ dans les bilans plutôt que des liens ignorés. Vérité d'API (panel de 21
 
 **Fan-out par course** (#221) — comme Chronoweb, un seul GET rend l'événement
 entier ; le gain n'est pas la requête économisée, mais l'**intégrité du cache
-TTL**. Chaque course de la charge (`charge["data"]`, identifiée par
+TTL**. Chaque course de la charge (`payload["data"]`, identifiée par
 `epreuve_id`) reçoit sa propre `source_url` canonique
 `classement.ok-time.fr/<eventId>/race/<epreuveId>` — donc son propre TTL,
 au lieu d'un TTL commun à l'événement entier qui reconstruisait toutes les

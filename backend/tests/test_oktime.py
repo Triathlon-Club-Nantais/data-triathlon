@@ -283,7 +283,7 @@ def test_is_relay_course_sans_participant():
 
 def test_athlete_identity_convention_prenom_nom():
     nom, prenom = oktime._athlete_identity(
-        {"nom": "Valentin ROUVIER"}, is_relay=False, epreuve_id="59697"
+        {"nom": "Valentin ROUVIER"}, is_relay=False, race_id="59697"
     )
 
     assert (nom, prenom) == ("ROUVIER", "Valentin")
@@ -291,7 +291,7 @@ def test_athlete_identity_convention_prenom_nom():
 
 def test_athlete_identity_repare_le_mojibake_avant_de_scinder():
     nom, prenom = oktime._athlete_identity(
-        {"nom": "AnaÃ¯s MOUSQUET"}, is_relay=False, epreuve_id="59697"
+        {"nom": "AnaÃ¯s MOUSQUET"}, is_relay=False, race_id="59697"
     )
 
     assert (nom, prenom) == ("MOUSQUET", "Anaïs")
@@ -300,7 +300,7 @@ def test_athlete_identity_repare_le_mojibake_avant_de_scinder():
 def test_athlete_identity_nom_dequipe_non_mutile():
     """Précédent RaceResult (#63) : un nom d'équipe entre entier dans `nom`."""
     nom, prenom = oktime._athlete_identity(
-        {"nom": "GUILLON RÉMI / CHARPENTIER EMMANUEL"}, is_relay=True, epreuve_id="59698"
+        {"nom": "GUILLON RÉMI / CHARPENTIER EMMANUEL"}, is_relay=True, race_id="59698"
     )
 
     assert (nom, prenom) == ("GUILLON RÉMI / CHARPENTIER EMMANUEL", "")
@@ -309,7 +309,7 @@ def test_athlete_identity_nom_dequipe_non_mutile():
 def test_athlete_identity_binome_isole_en_course_individuelle():
     """Garde par valeur : « / » suffit, même hors course de relais."""
     nom, prenom = oktime._athlete_identity(
-        {"nom": "A DUPONT / B MARTIN"}, is_relay=False, epreuve_id="59697"
+        {"nom": "A DUPONT / B MARTIN"}, is_relay=False, race_id="59697"
     )
 
     assert (nom, prenom) == ("A DUPONT / B MARTIN", "")
@@ -317,7 +317,7 @@ def test_athlete_identity_binome_isole_en_course_individuelle():
 
 def test_athlete_identity_nom_dequipe_pur_en_course_relais():
     nom, prenom = oktime._athlete_identity(
-        {"nom": "TEAM TCC"}, is_relay=True, epreuve_id="59698"
+        {"nom": "TEAM TCC"}, is_relay=True, race_id="59698"
     )
 
     assert (nom, prenom) == ("TEAM TCC", "")
@@ -328,7 +328,7 @@ def test_athlete_identity_decode_les_entites_html():
     seuls titres : « D&#039;ANGELO » entré tel quel en base scinderait l'athlète
     d'avec la fiche créée par un autre fournisseur."""
     nom, prenom = oktime._athlete_identity(
-        {"nom": "Marie D&#039;ANGELO"}, is_relay=False, epreuve_id="59697"
+        {"nom": "Marie D&#039;ANGELO"}, is_relay=False, race_id="59697"
     )
 
     assert (nom, prenom) == ("D'ANGELO", "Marie")
@@ -339,7 +339,7 @@ def test_athlete_identity_rgpd_identite_synthetique():
     nom, prenom = oktime._athlete_identity(
         {"nom": "T... B...", "dossard": 927, "rgpd": "N"},
         is_relay=False,
-        epreuve_id="59697",
+        race_id="59697",
     )
 
     assert (nom, prenom) == ("Anonyme 59697-927", "")
@@ -357,7 +357,7 @@ def test_athlete_identity_rgpd_sans_dossard_garde_le_nom_ampute():
     nom, prenom = oktime._athlete_identity(
         {"nom": "T... B...", "dossard": None, "rgpd": "N"},
         is_relay=False,
-        epreuve_id="59697",
+        race_id="59697",
     )
 
     assert (nom, prenom) == ("T... B...", "")
@@ -366,10 +366,10 @@ def test_athlete_identity_rgpd_sans_dossard_garde_le_nom_ampute():
 def test_athlete_identity_rgpd_sans_dossard_ne_fusionne_pas_deux_personnes():
     """Deux anonymes sans dossard de la même épreuve restent deux athlètes."""
     a = oktime._athlete_identity(
-        {"nom": "T... B...", "dossard": None, "rgpd": "N"}, is_relay=False, epreuve_id="59697"
+        {"nom": "T... B...", "dossard": None, "rgpd": "N"}, is_relay=False, race_id="59697"
     )
     b = oktime._athlete_identity(
-        {"nom": "M... D...", "dossard": None, "rgpd": "N"}, is_relay=False, epreuve_id="59697"
+        {"nom": "M... D...", "dossard": None, "rgpd": "N"}, is_relay=False, race_id="59697"
     )
 
     assert a != b
@@ -381,8 +381,8 @@ def test_athlete_identity_rgpd_distincte_entre_deux_epreuves():
     athlète agrégeant deux personnes."""
     commun = {"nom": "T... B...", "dossard": 927, "rgpd": "N"}
 
-    a = oktime._athlete_identity(commun, is_relay=False, epreuve_id="59697")
-    b = oktime._athlete_identity(commun, is_relay=False, epreuve_id="60101")
+    a = oktime._athlete_identity(commun, is_relay=False, race_id="59697")
+    b = oktime._athlete_identity(commun, is_relay=False, race_id="60101")
 
     assert a != b
 
@@ -394,26 +394,26 @@ def test_athlete_identity_rgpd_distincte_entre_deux_epreuves():
 def test_status_non_partant():
     runner = {"pris_depart": "N", "abandon": "N", "disqualifie": "N"}
 
-    assert oktime._status(runner, course_non_chronometree=False) == "DNS"
+    assert oktime._status(runner, untimed_course=False) == "DNS"
 
 
 def test_status_abandon():
     runner = {"pris_depart": "O", "abandon": "O", "disqualifie": "N"}
 
-    assert oktime._status(runner, course_non_chronometree=False) == "DNF"
+    assert oktime._status(runner, untimed_course=False) == "DNF"
 
 
 def test_status_disqualifie():
     runner = {"pris_depart": "O", "abandon": "N", "disqualifie": "O"}
 
-    assert oktime._status(runner, course_non_chronometree=False) == "DSQ"
+    assert oktime._status(runner, untimed_course=False) == "DSQ"
 
 
 def test_status_dns_prioritaire_sur_dnf():
     """1 participation du panel cumule les deux : ne pas être parti prime."""
     runner = {"pris_depart": "N", "abandon": "O", "disqualifie": "N"}
 
-    assert oktime._status(runner, course_non_chronometree=False) == "DNS"
+    assert oktime._status(runner, untimed_course=False) == "DNS"
 
 
 def test_status_disqualification_prime_sur_labandon():
@@ -423,7 +423,7 @@ def test_status_disqualification_prime_sur_labandon():
     l'absence de classement."""
     runner = {"pris_depart": "O", "abandon": "O", "disqualifie": "O"}
 
-    assert oktime._status(runner, course_non_chronometree=False) == "DSQ"
+    assert oktime._status(runner, untimed_course=False) == "DSQ"
 
 
 def test_status_course_non_chronometree_est_finisher():
@@ -433,7 +433,7 @@ def test_status_course_non_chronometree_est_finisher():
     badge d'abandon sur une course entière d'enfants."""
     runner = {"pris_depart": "O", "abandon": "N", "disqualifie": "N"}
 
-    assert oktime._status(runner, course_non_chronometree=True) == "finisher"
+    assert oktime._status(runner, untimed_course=True) == "finisher"
 
 
 def test_status_par_defaut_delegue_a_lheuristique():
@@ -442,14 +442,14 @@ def test_status_par_defaut_delegue_a_lheuristique():
     saisi."""
     runner = {"pris_depart": "O", "abandon": "N", "disqualifie": "N"}
 
-    assert oktime._status(runner, course_non_chronometree=False) == ""
+    assert oktime._status(runner, untimed_course=False) == ""
 
 
 def test_status_abandon_prime_sur_course_non_chronometree():
     """Un statut explicite de la source n'est jamais écrasé par le repli."""
     runner = {"pris_depart": "O", "abandon": "O", "disqualifie": "N"}
 
-    assert oktime._status(runner, course_non_chronometree=True) == "DNF"
+    assert oktime._status(runner, untimed_course=True) == "DNF"
 
 
 def test_rank_zero_devient_none():
@@ -592,9 +592,9 @@ def _resultat(runner, **surcharges):
         "event_date": date(2026, 5, 2),
         "distance_km": 110.0,
         "is_relay": False,
-        "epreuve_id": "59697",
-        "course_non_chronometree": False,
-        "contexte": CONTEXTE,
+        "race_id": "59697",
+        "untimed_course": False,
+        "context": CONTEXTE,
     }
     kwargs.update(surcharges)
     return oktime._build_result(runner, **kwargs)
@@ -743,7 +743,7 @@ def test_build_result_rangs_zero_a_none():
 def test_build_result_course_non_chronometree_est_finisher():
     runner = {**RUNNER_NOMINAL, "temps_finish": "00:00:00", "points_de_passage": []}
 
-    r = _resultat(runner, course_non_chronometree=True)
+    r = _resultat(runner, untimed_course=True)
 
     assert r.status == "finisher"
     assert r.total_time == ""
@@ -764,7 +764,7 @@ def _courses(charge, index):
     return oktime._course_results(
         charge["data"][index],
         url=URL_48555,
-        evenement_title=html.unescape(charge["evenement_title"]),
+        event_title=html.unescape(charge["evenement_title"]),
     )
 
 
@@ -828,7 +828,7 @@ def test_course_results_classification_repli_sur_le_titre_devenement():
     resultats = oktime._course_results(
         _course_simple("Format M individuel", distance_course="20,000"),
         url=URL_48555,
-        evenement_title="SwimRun de la Côte de Beauté",
+        event_title="SwimRun de la Côte de Beauté",
     )
 
     assert resultats[0].event_type == "swimrun-m"
@@ -849,7 +849,7 @@ def test_course_results_epreuve_annexe_garde_sa_discipline(title_course, attendu
     """
     resultats = oktime._course_results(
         _course_simple(title_course), url=URL_48555,
-        evenement_title="Triathlon de Lacanau 2026",
+        event_title="Triathlon de Lacanau 2026",
     )
 
     assert resultats[0].event_type == attendu
@@ -860,7 +860,7 @@ def test_course_results_taille_de_lepreuve_prime_sur_celle_de_levenement():
     d'événement ne sert qu'à nommer le sport, jamais à dicter la taille."""
     resultats = oktime._course_results(
         _course_simple("Format S"), url=URL_48555,
-        evenement_title="Triathlon L de Mimizan",
+        event_title="Triathlon L de Mimizan",
     )
 
     assert resultats[0].event_type == "triathlon-s"
@@ -878,7 +878,7 @@ def test_course_results_concatenation_reste_correcte_si_les_titres_se_contredise
     }
 
     resultats = oktime._course_results(
-        course, url=URL_48555, evenement_title="Triathlon de Lacanau 2026"
+        course, url=URL_48555, event_title="Triathlon de Lacanau 2026"
     )
 
     assert resultats[0].event_type == "aquathlon"
@@ -972,7 +972,7 @@ def test_course_results_course_en_cours_avec_points_de_passage_nest_pas_ecartee(
     """
     with caplog.at_level(logging.INFO, logger="app.scrapers.oktime"):
         resultats = oktime._course_results(
-            COURSE_EN_COURS, url=URL_48555, evenement_title="Triathlon du Lac 2026"
+            COURSE_EN_COURS, url=URL_48555, event_title="Triathlon du Lac 2026"
         )
 
     assert len(resultats) == 1
@@ -985,7 +985,7 @@ def test_course_results_course_en_cours_ne_sort_pas_en_finisher():
     chronométrées (les courses d'enfants). Une course encore en cours n'en est
     pas une : ses partants ne sont pas arrivés, l'heuristique doit trancher."""
     resultats = oktime._course_results(
-        COURSE_EN_COURS, url=URL_48555, evenement_title="Triathlon du Lac 2026"
+        COURSE_EN_COURS, url=URL_48555, event_title="Triathlon du Lac 2026"
     )
 
     assert resultats[0].status == ""
@@ -1027,7 +1027,7 @@ def test_course_results_invariants_de_course_calcules_une_seule_fois(monkeypatch
     }
 
     resultats = oktime._course_results(
-        course, url=URL_48555, evenement_title="Triathlon de Mimizan"
+        course, url=URL_48555, event_title="Triathlon de Mimizan"
     )
 
     assert len(resultats) == 5
@@ -1048,7 +1048,7 @@ def test_course_results_un_temps_isole_ne_rend_pas_la_course_chronometree():
 
     resultats = oktime._course_results(
         _course_simple("Course des enfants UNICEF", runners=runners),
-        url=URL_48555, evenement_title="Triathlon de Lacanau 2026",
+        url=URL_48555, event_title="Triathlon de Lacanau 2026",
     )
 
     assert [r.status for r in resultats] == ["finisher"] * 52
@@ -1063,7 +1063,7 @@ def test_course_results_course_chronometree_ne_bascule_pas_en_finisher():
 
     resultats = oktime._course_results(
         _course_simple("Triathlon M", runners=runners),
-        url=URL_48555, evenement_title="Triathlon de Lacanau 2026",
+        url=URL_48555, event_title="Triathlon de Lacanau 2026",
     )
 
     assert all(r.status == "" for r in resultats)
@@ -1085,7 +1085,7 @@ def test_course_results_log_agrege_des_points_illisibles(caplog):
     ])
 
     with caplog.at_level(logging.WARNING, logger="app.scrapers.oktime"):
-        oktime._course_results(course, url=URL_48555, evenement_title="Triathlon de Mimizan")
+        oktime._course_results(course, url=URL_48555, event_title="Triathlon de Mimizan")
 
     messages = [r for r in caplog.records if "illisible" in r.getMessage()]
     assert len(messages) == 1
@@ -1115,7 +1115,7 @@ def test_course_results_log_agrege_des_cumuls_conserves(caplog):
     }
 
     with caplog.at_level(logging.WARNING, logger="app.scrapers.oktime"):
-        oktime._course_results(course, url=URL_48555, evenement_title="Triathlon de Mimizan")
+        oktime._course_results(course, url=URL_48555, event_title="Triathlon de Mimizan")
 
     messages = [r for r in caplog.records if "décroissants" in r.getMessage()]
     assert len(messages) == 1
@@ -1289,10 +1289,10 @@ def test_scrape_event_fanout_course_failure_isolated(monkeypatch, caplog):
 
     original = oktime._course_results
 
-    def flaky(course, *, url, evenement_title):
+    def flaky(course, *, url, event_title):
         if str(course.get("epreuve_id")) == "59697":
             raise RuntimeError("boom sur 59697")
-        return original(course, url=url, evenement_title=evenement_title)
+        return original(course, url=url, event_title=event_title)
 
     monkeypatch.setattr(oktime, "_course_results", flaky)
 
