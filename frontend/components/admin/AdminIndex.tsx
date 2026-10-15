@@ -132,7 +132,7 @@ export function AdminIndex() {
             Fiabilité par fournisseur
           </h2>
           <p className="text-sm text-[var(--tcn-text-faint)]">
-            Épreuves importées par chronométreur, et parmi les non fiables, combien portent chaque anomalie.
+            Épreuves importées par fournisseur, et parmi les non fiables, combien portent chaque anomalie.
           </p>
           <ProviderQualityTable />
         </section>

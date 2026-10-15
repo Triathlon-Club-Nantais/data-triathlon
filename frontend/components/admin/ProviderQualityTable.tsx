@@ -18,6 +18,8 @@ import { QUALITY_ISSUE_LABELS } from "@/lib/quality";
 const REFUS = { sujet: "chiffres de fiabilité", action: "consulter la fiabilité par fournisseur" };
 
 const NOMBRE = "text-right tabular-nums";
+// Le nom reste à l'écran quand les colonnes d'anomalie défilent à l'horizontale.
+const FIGEE = "sticky left-0 bg-card";
 
 /**
  * Fournisseur × anomalie (#1366) : ce que coûterait le retrait d'un fournisseur
@@ -27,13 +29,19 @@ const NOMBRE = "text-right tabular-nums";
 export function ProviderQualityTable() {
   const { data, isPending, error } = useProviderQuality();
 
-  if (isPending) return <Skeleton className="h-40 w-full" aria-label="Chargement du tableau" />;
+  if (isPending)
+    return (
+      <div role="status">
+        <Skeleton className="h-40 w-full" />
+        <span className="sr-only">Chargement du tableau</span>
+      </div>
+    );
   if (error) return <EmptyState {...messageDeRefus(error, REFUS)} />;
   if (data.length === 0)
     return (
       <EmptyState
-        title="Aucune épreuve importée"
-        description="Le tableau se remplit à mesure des imports depuis un chronométreur."
+        title="Aucune épreuve importée depuis un fournisseur"
+        description="Le tableau se remplit à mesure des imports depuis un fournisseur de chronométrage."
       />
     );
 
@@ -48,7 +56,7 @@ export function ProviderQualityTable() {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Fournisseur</TableHead>
+            <TableHead className={FIGEE}>Fournisseur</TableHead>
             <TableHead className={NOMBRE}>Épreuves</TableHead>
             <TableHead className={NOMBRE}>Non fiables</TableHead>
             {codes.map((code) => (
@@ -61,7 +69,9 @@ export function ProviderQualityTable() {
         <TableBody>
           {data.map((ligne) => (
             <TableRow key={ligne.provider}>
-              <TableCell className="font-medium">{providerLabel(ligne.provider)}</TableCell>
+              <TableHead scope="row" className={`${FIGEE} font-medium`}>
+                {providerLabel(ligne.provider)}
+              </TableHead>
               <TableCell className={NOMBRE}>{ligne.course_count}</TableCell>
               <TableCell className={NOMBRE}>{ligne.unreliable_count}</TableCell>
               {codes.map((code) => (

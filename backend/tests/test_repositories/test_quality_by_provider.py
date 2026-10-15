@@ -101,4 +101,4 @@ def test_the_query_count_does_not_grow_with_the_number_of_courses(db_session):
             event.remove(engine, "before_cursor_execute", record)
         return len(statements)
 
-    assert queries_for(2, "small") == queries_for(30, "large")
+    assert queries_for(2, "small") == queries_for(30, "large") == 2

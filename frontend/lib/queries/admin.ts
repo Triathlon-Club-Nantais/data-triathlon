@@ -52,6 +52,8 @@ export function useProviderQuality() {
   return useQuery({
     queryKey: queryKeys.providerQuality(),
     queryFn: () => apiClient.getProviderQuality(),
+    // Relu à chaque arrivée sur /admin : un verdict posé dans la file le change.
+    staleTime: 0,
   });
 }
 

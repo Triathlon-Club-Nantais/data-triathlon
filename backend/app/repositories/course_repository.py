@@ -679,7 +679,7 @@ def quality_by_provider(db: Session) -> list[ProviderQuality]:
     s'agrègent en Python faute d'agrégat JSON commun à SQLite et PostgreSQL.
     """
     unreliable = Course.is_reliable.is_(False)
-    active = (CourseSource.course_id == Course.id) & CourseSource.is_active.is_(True)
+    active = (CourseSource.course_id == Course.id) & CourseSource.is_active
     totals = db.execute(
         select(
             CourseSource.provider,

@@ -41,11 +41,13 @@ describe("ProviderQualityTable", () => {
       "Dossards en doublon",
     ]);
     const [, klikego, wiclax] = within(table).getAllByRole("row");
+    expect(within(klikego).getByRole("rowheader")).toHaveTextContent("Klikego");
     expect(within(klikego).getAllByRole("cell").map((td) => td.textContent)).toEqual([
-      "Klikego", "120", "7", "5", "2",
+      "120", "7", "5", "2",
     ]);
+    expect(within(wiclax).getByRole("rowheader")).toHaveTextContent("Wiclax");
     expect(within(wiclax).getAllByRole("cell").map((td) => td.textContent)).toEqual([
-      "Wiclax", "40", "0", "0", "0",
+      "40", "0", "0", "0",
     ]);
   });
 
@@ -53,7 +55,7 @@ describe("ProviderQualityTable", () => {
     getProviderQuality.mockResolvedValue([]);
     afficher();
 
-    expect(await screen.findByText("Aucune épreuve importée")).toBeInTheDocument();
+    expect(await screen.findByText("Aucune épreuve importée depuis un fournisseur")).toBeInTheDocument();
   });
 
   it("dit le refus plutôt qu'un tableau vide", async () => {
