@@ -5,7 +5,14 @@ vi.mock("posthog-js", () => ({
   default: { opt_in_capturing: optIn, opt_out_capturing: optOut, reset },
 }));
 
-import { ANALYTICS_CONSENT_KEY, CONSENT_VALIDITY_DAYS, readConsent, saveConsent } from "./analytics-consent";
+import {
+  ANALYTICS_CONSENT_COOKIE,
+  ANALYTICS_CONSENT_KEY,
+  CONSENT_VALIDITY_DAYS,
+  readConsent,
+  saveConsent,
+  syncConsentCookie,
+} from "./analytics-consent";
 
 describe("Consentement à la mesure d'audience détaillée (#1159)", () => {
   beforeEach(() => {
@@ -66,6 +73,38 @@ describe("Consentement à la mesure d'audience détaillée (#1159)", () => {
     }
     saveConsent("granted");
     expect(readConsent()).toBe("granted");
+  });
+
+  it("transmet l'accord au serveur par un cookie technique, retiré au refus (#1359)", () => {
+    saveConsent("granted");
+    expect(document.cookie).toContain(`${ANALYTICS_CONSENT_COOKIE}=granted`);
+    saveConsent("denied");
+    expect(document.cookie).not.toContain(ANALYTICS_CONSENT_COOKIE);
+  });
+
+  it("fait expirer le cookie avec l'accord, pas six mois après la dernière visite", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1));
+    saveConsent("granted");
+    vi.advanceTimersByTime((CONSENT_VALIDITY_DAYS - 1) * 24 * 60 * 60 * 1000);
+    const write = vi.spyOn(Document.prototype, "cookie", "set");
+    try {
+      syncConsentCookie();
+      expect(write).toHaveBeenCalledWith(expect.stringContaining(`Max-Age=${24 * 60 * 60};`));
+    } finally {
+      write.mockRestore();
+    }
+  });
+
+  it("aligne le cookie sur le choix mémorisé au chargement, expiration comprise", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1));
+    localStorage.setItem(ANALYTICS_CONSENT_KEY, JSON.stringify({ choice: "granted", at: Date.now() }));
+    syncConsentCookie();
+    expect(document.cookie).toContain(`${ANALYTICS_CONSENT_COOKIE}=granted`);
+    vi.setSystemTime(new Date(2026, 0, 1 + CONSENT_VALIDITY_DAYS + 1));
+    syncConsentCookie();
+    expect(document.cookie).not.toContain(ANALYTICS_CONSENT_COOKIE);
   });
 
   it("ne touche pas à PostHog quand il n'est pas configuré", () => {

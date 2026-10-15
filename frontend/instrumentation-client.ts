@@ -1,5 +1,5 @@
 import posthog, { type CaptureResult } from "posthog-js";
-import { readConsent } from "@/lib/analytics-consent";
+import { readConsent, syncConsentCookie } from "@/lib/analytics-consent";
 
 const token = process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN;
 const host = process.env.NEXT_PUBLIC_POSTHOG_HOST;
@@ -26,6 +26,8 @@ function leaksYouthData(event: CaptureResult): boolean {
 // sont vides par défaut (`.env.local.example`). Seule la production les porte :
 // une prod mal configurée se voit dans PostHog, où les événements cesseraient
 // d'arriver.
+syncConsentCookie();
+
 if (token && host) {
   const granted = readConsent() === "granted";
   posthog.init(token, {

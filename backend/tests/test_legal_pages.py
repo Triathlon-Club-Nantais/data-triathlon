@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from app.api.v1.auth import LOGGED_IN_COOKIE, SESSION_COOKIE, STATE_COOKIE
+from app.core.analytics import ANALYTICS_CONSENT_COOKIE
 from app.services.benevole_access import BENEVOLE_SESSION_COOKIE
 from app.services.site_access import SITE_SESSION_COOKIE
 
@@ -16,7 +17,14 @@ LEGAL = Path(__file__).resolve().parents[2] / "frontend" / "components" / "legal
 
 @pytest.mark.parametrize(
     "cookie",
-    [SESSION_COOKIE, STATE_COOKIE, LOGGED_IN_COOKIE, SITE_SESSION_COOKIE, BENEVOLE_SESSION_COOKIE],
+    [
+        SESSION_COOKIE,
+        STATE_COOKIE,
+        LOGGED_IN_COOKIE,
+        SITE_SESSION_COOKIE,
+        BENEVOLE_SESSION_COOKIE,
+        ANALYTICS_CONSENT_COOKIE,
+    ],
 )
 def test_privacy_policy_lists_every_api_cookie(cookie):
     assert f'"{cookie}"' in (LEGAL / "confidentialite.tsx").read_text(encoding="utf-8")

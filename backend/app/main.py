@@ -163,6 +163,10 @@ def create_app() -> FastAPI:
     )
     app.add_middleware(SecurityHeadersMiddleware)
 
+    from app.core.analytics import AnalyticsConsentMiddleware
+
+    app.add_middleware(AnalyticsConsentMiddleware)
+
     # Chaîne de confiance des en-têtes de proxy (#393, constat A04-1 de l'audit
     # OWASP). `request.client.host` est la clé du seul plafond de débit du
     # projet (`POST /feedback`) : il faut donc décider **ici** quelle entrée de
