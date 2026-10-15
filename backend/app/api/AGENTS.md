@@ -602,8 +602,11 @@ contributeur qui se déconnecte reste un adhérent qui consulte le site.
 
 `GET /athletes/{id}/participations.csv` rend les lignes de `GET /athletes/{id}`
 sans filtre (`list_for_athlete`), mise en forme par `services/athlete_csv.py` :
-UTF-8 avec BOM, `;`, virgule décimale (Excel en français), une colonne par clé
-de split. Les résultats en attente ou refusés y sont, comme sur la fiche, avec
+UTF-8 avec BOM, `;`, virgule décimale (Excel en français), une colonne
+« Segment … » par clé de split. Toute cellule texte qui ouvrirait une formule
+(`=`, `+`, `@`, `-` non numérique…) est préfixée d'une apostrophe :
+`POST /participations` est ouvert sans session, nom d'épreuve et d'équipe y
+sont libres. Les résultats en attente ou refusés y sont, comme sur la fiche, avec
 leur colonne « Validation » et sans rang. Même garde que la fiche : le mot de
 passe du site seul. Les oppositions (#334) s'appliquent à l'import, il n'y a
 rien à refiltrer ici. Construit en mémoire : une carrière tient en quelques

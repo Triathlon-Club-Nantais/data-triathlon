@@ -19,6 +19,24 @@ HEADER = [
 ]
 
 
+SPLIT_LABELS = {
+    "swim": "Natation", "bike": "Vélo", "run": "Course", "t1": "T1", "t2": "T2",
+    "course1": "Course 1", "course2": "Course 2",
+}
+#: Excel exécute une cellule qui commence par l'un de ces caractères comme une
+#: formule. `POST /participations` étant ouvert sans session, nom d'épreuve,
+#: d'équipe ou de segment sont libres.
+_FORMULA_START = ("=", "+", "@", "\t", "\r")
+_NUMERIC_TAIL = re.compile(r"[\d:.,\s-]*")
+
+
+def _text(value: str) -> str:
+    risky = value.startswith(_FORMULA_START) or (
+        value.startswith("-") and not _NUMERIC_TAIL.fullmatch(value)
+    )
+    return f"'{value}" if risky else value
+
+
 def filename(athlete: Athlete) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", deaccent(f"{athlete.prenom or ''} {athlete.nom}").lower()).strip("-")
     return f"resultats-{slug or 'athlete'}.csv"
@@ -35,6 +53,8 @@ def _cell(value) -> str:
         return ""
     if isinstance(value, float):
         return f"{value:g}".replace(".", ",")
+    if isinstance(value, str):
+        return _text(value)
     return str(value)
 
 
@@ -45,7 +65,8 @@ def render(participations: list[Participation], finishers: dict[tuple[int, bool]
     out = io.StringIO()
     out.write("﻿")
     writer = csv.writer(out, delimiter=";", lineterminator="\r\n")
-    writer.writerow(HEADER + split_keys)
+    # Préfixe « Segment » : un libellé libre (« Temps ») ne double pas une colonne fixe.
+    writer.writerow(HEADER + [f"Segment {SPLIT_LABELS.get(key, key)}" for key in split_keys])
     for p in rows:
         # Comme l'écran : un résultat non validé n'a pas encore de rang.
         ranked = not p.is_pending_validation

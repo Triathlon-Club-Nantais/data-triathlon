@@ -62,9 +62,10 @@ def test_csv_rows_sorted_by_date_with_splits_as_columns(client, athlete):
     assert validated["Rang sexe"] == "2"
     assert validated["Catégorie"] == "SEH"
     assert validated["Validation"] == "Validé"
-    assert validated["swim"] == "00:25:00"
-    assert validated["bike"] == "01:05:00"
-    assert validated["course1"] == ""
+    assert validated["Classés"] == "1"
+    assert validated["Segment Natation"] == "00:25:00"
+    assert validated["Segment Vélo"] == "01:05:00"
+    assert validated["Segment Course 1"] == ""
 
 
 def test_csv_pending_row_has_no_rank(client, athlete):
@@ -73,7 +74,7 @@ def test_csv_pending_row_has_no_rank(client, athlete):
     assert pending["Validation"] == "En attente"
     assert pending["Rang général"] == ""
     assert pending["Temps"] == "01:00:00"
-    assert pending["course1"] == "00:20:00"
+    assert pending["Segment Course 1"] == "00:20:00"
 
 
 def test_csv_rejected_row_is_flagged(client, db_session, athlete):
@@ -83,7 +84,48 @@ def test_csv_rejected_row_is_flagged(client, db_session, athlete):
 
     rows = _rows(client.get(f"/api/v1/athletes/{athlete.id}/participations.csv"))
 
+    assert rows[0]["Épreuve"] == "Duathlon de Rezé"
     assert rows[0]["Validation"] == "Refusé"
+
+
+def test_csv_undated_relay_row_comes_last(client, db_session, athlete):
+    relay = course_repository.get_or_create(
+        db_session, name="Relais sans date", event_date=None, event_type="triathlon-s", is_relay=True,
+        source_url="https://k/c", provider="klikego",
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=relay.id, bib_number="R1", club="TCN",
+        status="dnf", is_relay=True, team_name="Les Requins",
+    )
+    db_session.commit()
+
+    last = _rows(client.get(f"/api/v1/athletes/{athlete.id}/participations.csv"))[-1]
+
+    assert last["Épreuve"] == "Relais sans date"
+    assert last["Date"] == ""
+    assert last["Distance (km)"] == ""
+    assert last["Statut"] == "dnf"
+    assert last["Équipe"] == "Les Requins"
+
+
+def test_csv_neutralises_spreadsheet_formulas(client, db_session, athlete):
+    course = course_repository.get_or_create(
+        db_session, name='=HYPERLINK("https://x")', event_date=date(2026, 9, 1),
+        event_type="triathlon-s", source_url="https://k/d", provider="manuel",
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="9", club="TCN",
+        team_name="@SUM(1)", total_time="-01:00", splits={"=cmd": "+1"},
+        is_pending_validation=True,
+    )
+    db_session.commit()
+
+    row = _rows(client.get(f"/api/v1/athletes/{athlete.id}/participations.csv"))[0]
+
+    assert row["Épreuve"] == "'=HYPERLINK(\"https://x\")"
+    assert row["Équipe"] == "'@SUM(1)"
+    assert row["Temps"] == "-01:00"
+    assert row["Segment =cmd"] == "'+1"
 
 
 def test_csv_unknown_athlete_is_404(client):
