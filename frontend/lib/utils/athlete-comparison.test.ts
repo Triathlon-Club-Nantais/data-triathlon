@@ -120,3 +120,15 @@ describe("commonParticipations reads times like the finishers list (#1063)", () 
     expect(ligne.theirsSeconds).toBe(attendu);
   });
 });
+
+describe("commonParticipations and zero times (#1480)", () => {
+  it("treats 00:00:00 as an absent time, so the chart draws no 0 s bar", () => {
+    const mine = [participation(1, 10, "Tri", "2026-06-01", "00:00:00")];
+    const theirs = [participation(2, 10, "Tri", "2026-06-01", "01:00:00")];
+
+    const [ligne] = commonParticipations(mine, theirs);
+
+    expect(ligne.mineSeconds).toBeNull();
+    expect(ligne.theirsSeconds).toBe(3600);
+  });
+});

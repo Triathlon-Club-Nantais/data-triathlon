@@ -252,6 +252,18 @@ describe("ParticipationDetailPage — résultat en attente de validation (#1281)
     expect(screen.queryByText(/temps de l'athlète est repéré/i)).toBeNull();
   });
 
+  it("does not mark a 00:00:00 time in the time distribution (#1480)", async () => {
+    getCourseSummary.mockResolvedValue({
+      histogram: { bars: [2, 5, 3], start_sec: 0, bucket_sec: 1800 },
+    });
+
+    await renderPage(participation({ stats: null, total_time: "00:00:00" }));
+
+    const histogramme = screen.getByRole("img", { name: /distribution des temps/i });
+    expect(histogramme.getAttribute("aria-label")).not.toMatch(/temps de l'athlète/i);
+    expect(screen.queryByText(/temps de l'athlète est repéré/i)).toBeNull();
+  });
+
   it("dit d'un résultat non conforme qu'il n'entre pas au classement", async () => {
     await renderPage(
       participation({ stats: null, is_pending_validation: true, is_rejected: true }),

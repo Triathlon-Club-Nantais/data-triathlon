@@ -3,7 +3,7 @@ import type { Participation } from "@/lib/types";
 import { disciplineOf, formatToken } from "@/lib/utils/format";
 import { isNonFinisher } from "@/lib/utils/raceOrder";
 import { estRelais } from "@/lib/utils/relais";
-import { secondsFromHms } from "@/lib/utils/time";
+import { comparableSeconds } from "@/lib/utils/time";
 
 // Seuls une taille ou une distance nomment un format. Les replis de
 // `formatToken` (« CAP », « TR », « CYC »…) mêleraient un 5 km et un marathon.
@@ -27,11 +27,10 @@ export function bestTimes(participations: Participation[]): BestTime[] {
   for (const participation of participations) {
     if (participation.is_pending_validation || estRelais(participation)) continue;
     if (participation.course.is_reliable === false || isNonFinisher(participation.status)) continue;
-    const seconds = secondsFromHms(participation.total_time);
+    const seconds = comparableSeconds(participation.total_time);
     const format = formatToken(participation.course.event_type, participation.course.distance_km);
     const discipline = disciplineOf(participation.course.event_type);
-    // 0 s vaut temps absent, comme `_TEMPS_ABSENT` côté backend.
-    if (!seconds || !discipline || !COMPARABLE_FORMAT.test(format)) continue;
+    if (seconds == null || !discipline || !COMPARABLE_FORMAT.test(format)) continue;
     const key = `${discipline}|${format}`;
     const current = best.get(key);
     const faster =
