@@ -1,4 +1,21 @@
 <!--
+Sync Impact Report — Constitution v1.2.3
+========================================
+Version change    : 1.2.2 → 1.2.3
+Rationale         : PATCH, complétion du relevé de la table des lots du
+  Principe I. Le re-scan AST de `backend/app` (#1435) trouve des identifiants
+  français dans 86 fichiers qu'aucun lot A à I ne couvre : `prolivesport.py`,
+  les repositories, les services, l'auth, `api/v1/`, `schemas/` et
+  `cli/commands/`. Lots J à R ajoutés, colonne « État » ajoutée (A et B faits,
+  C en cours). La règle et son critère d'extinction ne changent pas.
+  Proposition : issue #1435. Approbation : mainteneur, revue de la PR.
+Modified principles : (aucun, table du Principe I complétée sans changer la règle)
+Modified sections : Principe I, table des lots (lots J à R, colonne État),
+  paragraphe « plan de découpage » (règles du re-scan).
+Added sections    : (aucune)
+Removed sections  : (aucune)
+Templates touchés : (aucun)
+
 Sync Impact Report — Constitution v1.2.2
 ========================================
 Version change    : 1.2.1 → 1.2.2
@@ -236,17 +253,26 @@ symboles renommés dans `AGENTS.md` suivent dans la même PR** — `specs/00*/`,
 lui, ne suit jamais : ce sont des artefacts historiques de features livrées,
 qu'on ne réécrit pas après coup.
 
-| Lot | Périmètre |
-| --- | --- |
-| A | transversal — **deux familles** : `echec_total` (`services/{batch,bulk_import_service,rescrape_service,geocode_service}.py` et les constantes homonymes de `cli/reports.py`) et l'identité réconciliée (`_CLES_APPARIEMENT` / `_identite` et les variables locales de la réconciliation dans `services/import_persistence.py`, plus les symboles homologues de `services/rescrape_service.py` et `cli/reports.py`) — **jamais** les champs `ancien` / `nouveau` / `fusion` / `participations` des dataclasses `Reassignment` et `IdentiteReconciliee`, gelés par la clause **Pas d'exception de vocabulaire métier** |
-| B | `app/cli/` — `reports`, `url_sources`, `progress`, `validators` |
-| C | `app/scrapers/raceresult.py` |
-| D | `app/scrapers/t2area.py` |
-| E | `app/scrapers/oktime.py` |
-| F | `app/scrapers/competitor.py` |
-| G | `app/scrapers/{chronoweb,chronoplace,sporthive}.py` |
-| H | `app/scrapers/{classify,wiclax,timepulse,klikego,klikego_platform}.py` |
-| I | `app/core/club.py`, `app/scrapers/utils.py`, `app/services/sheet_source.py` — angle mort du relevé initial, dont le lexique français ne couvrait ni « espace », ni « blanc », ni « normalise », ni « qualifiant », ni « sans_lien » (~7 symboles) |
+| Lot | Périmètre | État |
+| --- | --- | --- |
+| A | transversal — **deux familles** : `echec_total` (`services/{batch,bulk_import_service,rescrape_service,geocode_service}.py` et les constantes homonymes de `cli/reports.py`) et l'identité réconciliée (`_CLES_APPARIEMENT` / `_identite` et les variables locales de la réconciliation dans `services/import_persistence.py`, plus les symboles homologues de `services/rescrape_service.py` et `cli/reports.py`) — **jamais** les champs `ancien` / `nouveau` / `fusion` / `participations` des dataclasses `Reassignment` et `IdentiteReconciliee`, gelés par la clause **Pas d'exception de vocabulaire métier** | fait (#1414) |
+| B | `app/cli/` — `reports`, `url_sources`, `progress`, `validators` | fait (#1448) |
+| C | `app/scrapers/raceresult.py` | en cours (#1451) |
+| D | `app/scrapers/t2area.py` | à faire |
+| E | `app/scrapers/oktime.py` | à faire |
+| F | `app/scrapers/competitor.py` | à faire |
+| G | `app/scrapers/{chronoweb,chronoplace,sporthive}.py` | à faire |
+| H | `app/scrapers/{classify,wiclax,timepulse,klikego,klikego_platform}.py` | à faire |
+| I | `app/core/club.py`, `app/scrapers/utils.py`, `app/services/sheet_source.py` — angle mort du relevé initial, dont le lexique français ne couvrait ni « espace », ni « blanc », ni « normalise », ni « qualifiant », ni « sans_lien » (~7 symboles) | à faire |
+| J | `app/scrapers/prolivesport.py`, seul fournisseur absent des lots C à H (32 symboles) | à faire |
+| K | `app/repositories/` (60 symboles, dont 22 dans `athlete_repository.py`) | à faire |
+| L | services de lecture et de statistiques : `app/services/{stats_service,club_service,validation_queue_service,split_gap,quality,counter_scope,club_alias}.py` (45 symboles) | à faire |
+| M | services d'administration des données : `app/services/{admin_actions,course_duplicates,course_merge,course_rescrape_service,athlete_detach,feedback_service,training_session_service,profile_service,opposition_service,sse_relay}.py` (54 symboles) | à faire |
+| N | services d'import et de batch, **hors** des familles du lot A : `app/services/{batch,batch_runs,import_persistence,import_dispatch,import_service,rescrape_service,geocode_service}.py` (35 symboles) | à faire |
+| O | authentification et accès : `app/services/auth/`, `app/services/{benevole_access,shared_password,site_access}.py`, `app/core/{permissions,http}.py`, `app/api/deps.py`, `app/models/` (54 symboles) | à faire |
+| P | `app/api/v1/` (59 symboles) | à faire |
+| Q | `app/schemas/` (24 symboles) | à faire |
+| R | `app/cli/commands/`, hors du lot B (22 symboles) | à faire |
 
 Le lot **A passe avant B**, et ce n'est pas un détail d'ordonnancement :
 `echec_total` traverse quatre modules d'`app` et cinq fichiers de test, dont
@@ -258,7 +284,13 @@ hors de la clause **Pas d'exception de vocabulaire métier** — un critère
 **vérifiable par re-scan**, et non « quand ces lots sont faits », qui est
 cochable mais aveugle à un module oublié au relevé
 ou ajouté entre-temps. C'est cet angle mort du relevé initial qui a produit le
-lot I. Une fois éteinte, l'alinéa précédent reprend pleinement. Design et
+lot I, puis les lots J à R. Le re-scan du 2026-10-15 (#1435) relève les
+identifiants des `def`, `class`, paramètres et affectations (`ast.walk`) dont un
+token d'au moins trois lettres figure dans `/usr/share/dict/french` (accents
+repliés) sans figurer dans `american-english` ni `british-english`, hors familles
+gelées. Sur `origin/main` `0e1d1856`, il en compte 685 dans 99 fichiers, dont 385
+dans 86 fichiers qu'aucun lot A à I ne couvrait ; chacun est désormais rattaché à
+un lot. Le script et sa sortie sont joints à la PR qui ferme #1435. Une fois éteinte, l'alinéa précédent reprend pleinement. Design et
 relevé chiffré :
 `docs/superpowers/specs/2026-07-31-convention-nommage-identifiants-design.md`.
 
@@ -441,4 +473,4 @@ référence (architecture détaillée, commandes, conventions de scraping). En c
 de divergence entre `AGENTS.md` et cette constitution, la constitution prime
 et `AGENTS.md` doit être aligné.
 
-**Version**: 1.2.2 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-10-15
+**Version**: 1.2.3 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-10-15
