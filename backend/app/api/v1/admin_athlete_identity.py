@@ -39,7 +39,7 @@ def list_identity_cases(
     _: User = Depends(require_permission(P.ATHLETES_WRITE)),
 ) -> IdentityReviewList:
     """Les cas d'identité à trancher, sans pagination : cas du club et reliquat de la reprise."""
-    return IdentityReviewList(candidates=athlete_identity_review.find_candidates(db))
+    return IdentityReviewList(candidates=athlete_identity_review.cached_candidates(db))
 
 
 @router.get("/admin/identity-review/count", response_model=IdentityReviewCount)

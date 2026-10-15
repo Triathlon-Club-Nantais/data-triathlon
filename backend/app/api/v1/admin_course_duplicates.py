@@ -44,7 +44,7 @@ def list_duplicates(
     paginée serait le signe que le seuil est à revoir, pas que l'écran manque
     d'outillage.
     """
-    return DuplicateCandidateList(candidates=course_duplicates.find_candidates(db))
+    return DuplicateCandidateList(candidates=course_duplicates.cached_candidates(db))
 
 
 @router.get("/admin/courses/duplicates/count", response_model=DuplicateCandidateCount)
