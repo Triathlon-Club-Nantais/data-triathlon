@@ -42,6 +42,8 @@ export function useAdminBadgeCounts(actif = true) {
     queryFn: () => apiClient.getAdminBadgeCounts(),
     enabled: actif,
     staleTime: 5 * 60_000,
+    // Une panne tait toutes les pastilles d'un coup : ne pas laisser « … » ~7 s.
+    retry: 1,
   });
 }
 

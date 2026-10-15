@@ -107,7 +107,10 @@ export function Providers({ children }: { children: ReactNode }) {
       // Les pastilles du rail tiennent 5 min (#1385) : toute écriture réussie
       // peut changer une file, comme côté serveur où tout commit vide le cache.
       mutationCache: new MutationCache({
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.adminBadgeCounts() }),
+        // Sans attendre : la mutation elle-même n'a pas à patienter derrière ce recompte.
+        onSuccess: () => {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.adminBadgeCounts() });
+        },
       }),
     });
     queryClient.setQueryDefaults(queryKeys.session(), SESSION_QUERY_DEFAULTS);

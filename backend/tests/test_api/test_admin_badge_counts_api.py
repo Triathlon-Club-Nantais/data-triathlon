@@ -25,6 +25,21 @@ def test_a_partial_role_gets_only_its_badges(client, db_session):
     assert client.get(URL).json() == {"feedback": 0, "identities": 0}
 
 
+def test_the_volunteer_access_power_opens_the_validation_badge(client, db_session):
+    _session_etroite(client, db_session, "benevole_access:manage")
+
+    assert client.get(URL).json() == {"validation": 0}
+
+
+def test_a_hidden_badge_is_not_computed(client, db_session, monkeypatch):
+    from app.services import admin_badge_counts
+
+    monkeypatch.setitem(admin_badge_counts._BADGES, "identities", ("athletes:write", lambda db: 1 / 0))
+    _session_etroite(client, db_session, "feedback:read")
+
+    assert client.get(URL).json() == {"feedback": 0}
+
+
 def test_a_session_without_power_gets_nothing(client, db_session):
     _session_etroite(client, db_session)
 

@@ -3,7 +3,7 @@ import { act, render, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import { saveConsent } from "@/lib/analytics-consent";
-import { QueryClient, useQueryClient } from "@tanstack/react-query";
+import { QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SESSION_QUERY_DEFAULTS } from "@/lib/queries/auth";
 import type { SessionUser } from "@/lib/types";
 
@@ -76,6 +76,25 @@ describe("Providers: rail badges (#1385)", () => {
     await act(() => client!.getMutationCache().build(client!, { mutationFn: async () => null }).execute(undefined));
 
     expect(client!.getQueryState(["admin-badge-counts"])?.isInvalidated).toBe(true);
+  });
+
+  it("never makes a mutation wait for the badge refetch", async () => {
+    useSession.mockReturnValue({ data: null });
+    let client: QueryClient | undefined;
+    function Sonde() {
+      client = useQueryClient();
+      useQuery({ queryKey: ["admin-badge-counts"], queryFn: () => new Promise(() => {}) });
+      return null;
+    }
+    render(
+      <Providers>
+        <Sonde />
+      </Providers>,
+    );
+
+    const mutation = client!.getMutationCache().build(client!, { mutationFn: async () => "ok" });
+
+    await expect(mutation.execute(undefined)).resolves.toBe("ok");
   });
 });
 
