@@ -116,6 +116,13 @@ beforeEach(() => {
 });
 
 describe("RaceFinishers", () => {
+  it("titles the ranking with a level 2 heading that still names the desktop table (#1403)", () => {
+    afficher();
+    const titre = screen.getByRole("heading", { level: 2, name: "Classement" });
+    expect(titre).toHaveAttribute("id", "titre-classement");
+    expect(screen.getByRole("table", { name: "Classement" })).toBeInTheDocument();
+  });
+
   it("montre le rang catégorie quand la source le publie, en grille comme en cartes (#1207)", () => {
     const classee = { ...p({ id: 1, nom: "CLASSEE", rank_overall: 5, total_time: "01:00:00" }), rank_category: 1 };
     afficher({ participations: [classee, p({ id: 2, nom: "SANSRANG", rank_overall: 6 })] });

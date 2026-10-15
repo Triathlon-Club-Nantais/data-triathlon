@@ -468,7 +468,7 @@ export function RaceFinishers({
         {/* `id` : il nomme le tableau plus bas. `/courses/[id]` en porte deux,
             et sans nom un lecteur d'écran les annonce tous deux « tableau »
             sans dire lequel — « Top clubs » l'était déjà (#481). */}
-        <div id="titre-classement" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)" }}>Classement</div>
+        <h2 id="titre-classement" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0 }}>Classement</h2>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <form
             role="search"
