@@ -445,6 +445,26 @@ def test_median_omits_a_key_published_by_too_few_rows():
     assert set(median.percentages) == {"total"}
 
 
+def test_median_counts_no_zero_split():
+    """Un `00:00:00` n'est pas un temps : ni dans l'effectif, ni dans la médiane."""
+    ranking = _field(10)
+    ranking[-1].splits = {"swim": "00:00:00"}
+
+    median = _medians(ranking[0], ranking)["median"]
+
+    assert "swim" not in median.percentages
+    assert "total" in median.percentages
+
+
+def test_median_omits_a_key_the_athlete_did_not_publish():
+    ranking = _field(10)
+    ranking[0].splits = {}
+
+    median = _medians(ranking[0], ranking)["median"]
+
+    assert set(median.percentages) == {"total"}
+
+
 def test_category_median_needs_enough_rows_in_the_athlete_category():
     ranking = _field(10, category="V1H") + _field(9, category="S2F", start_rank=11)
 

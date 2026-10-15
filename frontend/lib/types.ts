@@ -90,7 +90,7 @@ export interface ComparisonRow {
 export interface MedianRow {
   kind: "median" | "category_median";
   label: string;
-  /** Effectif de la population sur laquelle porte la médiane. */
+  /** Classés de la population ; un segment peu publié porte sa médiane sur moins de valeurs. */
   sample_size: number;
   percentages: Record<string, number>;
   mine_seconds?: Record<string, number>;

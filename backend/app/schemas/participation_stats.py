@@ -44,7 +44,8 @@ class MedianRow(BaseModel):
     #: `median` (tous classés) ou `category_median` (classés de sa catégorie).
     kind: Literal["median", "category_median"]
     label: str
-    #: Effectif de la population sur laquelle porte la médiane.
+    #: Classés de la population (tous, ou ceux de la catégorie). Un segment peu publié
+    #: porte sa médiane sur moins de valeurs, jamais sous `MIN_EVALUATED_ROWS`.
     sample_size: int
     #: Mêmes clés et même sens que dans `ComparisonRow`, la référence étant la médiane.
     percentages: dict[str, float]

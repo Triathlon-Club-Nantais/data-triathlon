@@ -21,9 +21,9 @@ const classeColonne = (small?: boolean) => (small ? "hidden sm:table-cell" : und
 const TITRE_POSITION =
   "Position de référence au classement scratch, ou médiane des classés, à laquelle le temps de l'athlète est comparé.";
 const titreSegment = (label: string) =>
-  `Temps de l'athlète sur ${label.toLowerCase()}, en pourcentage du temps réalisé à cette position (100 % = temps identique, plus de 100 % = plus lent).`;
+  `Temps de l'athlète sur ${label.toLowerCase()}, en pourcentage du temps de référence de la ligne, position ou médiane (100 % = temps identique, plus de 100 % = plus lent).`;
 const TITRE_TOTAL =
-  "Temps de l'athlète sur l'ensemble de l'épreuve, en pourcentage du temps réalisé à cette position (100 % = temps identique, plus de 100 % = plus lent).";
+  "Temps de l'athlète sur l'ensemble de l'épreuve, en pourcentage du temps de référence de la ligne, position ou médiane (100 % = temps identique, plus de 100 % = plus lent).";
 
 /**
  * Comparaison de l'athlète aux positions de référence du classement scratch,
@@ -47,10 +47,26 @@ export function ComparisonTable({
 }) {
   const columns = splitColumnsFromKeys(eventType, segments);
   const shortSegmentLabels = columns.filter((column) => column.small).map((column) => column.label);
-  const lines: { key: string; label: string; row: ComparisonRow | MedianRow; sampleSize?: number }[] = [
+  const lines: {
+    key: string;
+    label: string;
+    row: ComparisonRow | MedianRow;
+    sampleSize?: number;
+    separator?: { borderTop: string };
+  }[] = [
     ...rows.map((row) => ({ key: `rang-${row.rank}`, label: row.position_label, row })),
-    ...medians.map((row) => ({ key: row.kind, label: row.label, row, sampleSize: row.sample_size })),
+    ...medians.map((row, index) => ({
+      key: row.kind,
+      label: row.label,
+      row,
+      sampleSize: row.sample_size,
+      // Un filet sous les positions : sans lui, la première médiane se lit comme un rang de plus.
+      separator: index === 0 && rows.length > 0 ? { borderTop: "1px solid var(--tcn-border)" } : undefined,
+    })),
   ];
+  const medianMissesAColumn = medians.some((row) =>
+    [...columns.map((column) => column.key), TOTAL_KEY].some((key) => row.percentages[key] == null),
+  );
 
   return (
     <Card style={{ marginBottom: 24, overflowX: "auto" }}>
@@ -58,10 +74,10 @@ export function ComparisonTable({
       <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 14, fontSize: 13 }}>
         <thead>
           <tr>
-            {/* Largeur fixe : sans elle, la colonne de position absorbe tout
+            {/* Largeur fixe : sans elle, la colonne de référence absorbe tout
                 l'espace que les colonnes de pourcentage n'occupent pas. */}
             <th style={{ ...headStyle, width: 72, textAlign: "left" }} title={TITRE_POSITION}>
-              Position
+              Référence
             </th>
             {columns.map((column) => (
               <th
@@ -79,9 +95,9 @@ export function ComparisonTable({
           </tr>
         </thead>
         <tbody>
-          {lines.map(({ key, label, row, sampleSize }) => (
+          {lines.map(({ key, label, row, sampleSize, separator }) => (
             <tr key={key}>
-              <th scope="row" style={{ ...cellStyle, textAlign: "left", fontWeight: 700 }}>
+              <th scope="row" style={{ ...cellStyle, ...separator, textAlign: "left", fontWeight: 700 }}>
                 {label}
                 {sampleSize != null && <div style={sampleSizeStyle}>{sampleSize} classés</div>}
               </th>
@@ -89,13 +105,20 @@ export function ComparisonTable({
                 <td
                   key={column.key}
                   className={classeColonne(column.small)}
-                  style={{ ...cellStyle, background: pctTint(row.percentages[column.key]) }}
+                  style={{ ...cellStyle, ...separator, background: pctTint(row.percentages[column.key]) }}
                 >
                   {formatPercentage(row.percentages[column.key])}
                   <DeltaSeconds mine={row.mine_seconds?.[column.key]} theirs={row.theirs_seconds?.[column.key]} />
                 </td>
               ))}
-              <td style={{ ...cellStyle, fontWeight: 700, background: pctTint(row.percentages[TOTAL_KEY]) }}>
+              <td
+                style={{
+                  ...cellStyle,
+                  ...separator,
+                  fontWeight: 700,
+                  background: pctTint(row.percentages[TOTAL_KEY]),
+                }}
+              >
                 {formatPercentage(row.percentages[TOTAL_KEY])}
                 <DeltaSeconds mine={row.mine_seconds?.[TOTAL_KEY]} theirs={row.theirs_seconds?.[TOTAL_KEY]} />
               </td>
@@ -105,13 +128,18 @@ export function ComparisonTable({
       </table>
       {shortSegmentLabels.length > 0 && (
         <p style={{ marginTop: 10, fontSize: 13, color: "var(--tcn-text-faint)" }}>
-          Les segments courts ({shortSegmentLabels.join(", ")}) sont indicatifs, sensibles au
-          bruit de chronométrage : leurs pourcentages peuvent ne pas décroître régulièrement
-          d&apos;un rang à l&apos;autre.{" "}
+          Les segments courts ({shortSegmentLabels.join(", ")}) sont indicatifs : sensibles au
+          bruit de chronométrage, leurs pourcentages peuvent varier fortement d&apos;une ligne
+          à l&apos;autre.{" "}
           {/* Seule cette phrase est fausse dès 640 px, où les colonnes sont déjà
               visibles : la phrase sur le bruit de chronométrage, elle, reste
               vraie à toute largeur. */}
           <span className="sm:hidden">Leurs colonnes s&apos;affichent sur un écran plus large.</span>
+        </p>
+      )}
+      {medianMissesAColumn && (
+        <p style={{ marginTop: 10, fontSize: 13, color: "var(--tcn-text-faint)" }}>
+          Un tiret sur une médiane : trop peu de classés ont publié ce segment pour la calculer.
         </p>
       )}
     </Card>
@@ -191,6 +219,7 @@ const sampleSizeStyle = {
   fontSize: 11,
   fontWeight: 400,
   color: "var(--tcn-text-faint)",
+  whiteSpace: "nowrap",
 } as const;
 
 const cellStyle = {

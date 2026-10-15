@@ -151,10 +151,10 @@ def _medians(
             values = [seconds for row in population if (seconds := _segment_seconds(row, key))]
             if mine is None or len(values) < split_gap.MIN_EVALUATED_ROWS:
                 continue
-            median = round(statistics.median(values))
+            median = statistics.median(values)
             percentages[key] = round(mine / median * 100, 1)
             mine_seconds[key] = mine
-            theirs_seconds[key] = median
+            theirs_seconds[key] = round(median)
         if percentages:
             rows.append(
                 MedianRow(
