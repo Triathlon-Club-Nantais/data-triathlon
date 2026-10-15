@@ -9,7 +9,15 @@ import type { SessionUser } from "@/lib/types";
 
 const { identify, reset } = vi.hoisted(() => ({ identify: vi.fn(), reset: vi.fn() }));
 vi.mock("posthog-js", () => ({
-  default: { identify, reset, capture: vi.fn(), opt_in_capturing: vi.fn(), opt_out_capturing: vi.fn() },
+  default: {
+    identify,
+    reset,
+    init: vi.fn(),
+    get_explicit_consent_status: vi.fn(),
+    capture: vi.fn(),
+    opt_in_capturing: vi.fn(),
+    opt_out_capturing: vi.fn(),
+  },
 }));
 
 const { useSession } = vi.hoisted(() => ({ useSession: vi.fn() }));
@@ -83,26 +91,26 @@ describe("PostHogSessionSync", () => {
 
     act(() => saveConsent("granted"));
 
-    expect(identify).toHaveBeenCalledWith("1", expect.objectContaining({ email: SESSION.email }));
+    await waitFor(() => expect(identify).toHaveBeenCalledWith("1", expect.objectContaining({ email: SESSION.email })));
   });
 
-  it("identifie l'utilisateur quand une session existe et qu'il a accepté la mesure détaillée", () => {
+  it("identifie l'utilisateur quand une session existe et qu'il a accepté la mesure détaillée", async () => {
     useSession.mockReturnValue({ data: SESSION });
     render(<Providers>{null}</Providers>);
 
-    expect(identify).toHaveBeenCalledWith("1", expect.objectContaining({ email: SESSION.email }));
+    await waitFor(() => expect(identify).toHaveBeenCalledWith("1", expect.objectContaining({ email: SESSION.email })));
     expect(reset).not.toHaveBeenCalled();
   });
 
-  it("réinitialise PostHog quand la session repasse à null, quelle qu'en soit la cause (logout, 401, révocation)", () => {
+  it("réinitialise PostHog quand la session repasse à null, quelle qu'en soit la cause (logout, 401, révocation)", async () => {
     useSession.mockReturnValue({ data: SESSION });
     const { rerender } = render(<Providers>{null}</Providers>);
-    expect(identify).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(identify).toHaveBeenCalledTimes(1));
 
     useSession.mockReturnValue({ data: null });
     rerender(<Providers>{null}</Providers>);
 
-    expect(reset).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(reset).toHaveBeenCalledTimes(1));
   });
 
   it("ne réinitialise pas au premier chargement anonyme, rien n'a jamais été identifié", () => {

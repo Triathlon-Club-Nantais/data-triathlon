@@ -8,9 +8,17 @@ qu'il compte une seule fois et hors de portée des bloqueurs (#1033).
 
 ## Câblage frontend
 
-- **Init** — `frontend/instrumentation-client.ts` (hook Next.js dédié, tourne
-  avant tout rendu client). Sans `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` /
-  `NEXT_PUBLIC_POSTHOG_HOST`, `posthog.init()` ne se lance pas : l'app tourne
+- **Init** — `frontend/lib/posthog.ts`, déclenché par
+  `frontend/instrumentation-client.ts` (hook Next.js dédié, tourne avant tout
+  rendu client) au repos du navigateur. **`posthog-js` n'est jamais importé
+  statiquement** (#1394) : ~100 Ko gzip partaient dans le JS initial de chaque
+  page, preview comprise. `withPostHog` le charge par `import()` et l'initialise
+  une fois ; un appel antérieur attend l'init, dans l'ordre d'émission, puis
+  tout appel devient synchrone. `lib/posthog.test.ts` échoue sur tout import
+  de valeur depuis `posthog-js` (`import type` reste permis). Le cookie
+  d'accord (`syncConsentCookie`), lui, se pose toujours au chargement, sans
+  attendre la bibliothèque. Sans `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` /
+  `NEXT_PUBLIC_POSTHOG_HOST`, `posthog-js` n'est pas téléchargé : l'app tourne
   normalement, juste sans analytics — et **sans rien logguer**, l'absence de
   variable étant un réglage attendu, pas une erreur (#426). Variables et valeurs :
   `docs/ci-cd.md`.
@@ -35,7 +43,7 @@ qu'il compte une seule fois et hors de portée des bloqueurs (#1033).
   les réglages du projet PostHog, sinon les événements sans cookie sont
   ignorés.
 - **Écrans jeunes** (#1307) : sous `/admin/jeunes`, le `before_send` de
-  `instrumentation-client.ts` jette tout événement dont les propriétés portent
+  `lib/posthog.ts` jette tout événement dont les propriétés portent
   un élément (`$elements`, `$elements_chain` ou `$el_text` : clics, clics
   morts, glissés morts, et ceux qu'une version future de posthog-js ajoutera),
   ainsi que `$copy_autocapture` (texte copié) et `$exception` (un message
@@ -48,8 +56,8 @@ qu'il compte une seule fois et hors de portée des bloqueurs (#1033).
   qu'en soit la cause (déconnexion explicite, 401, expiration, révocation
   admin). Centraliser ici plutôt que dans le bouton « Se déconnecter » est ce
   qui couvre les sorties de session qui ne passent pas par ce bouton.
-- **Capture** — `frontend/lib/posthog.ts` (`captureEvent`) enveloppe
-  `posthog.capture()` d'une garde sur le token, pour ne pas dupliquer ce `if`
+- **Capture** — `frontend/lib/posthog.ts` (`captureEvent`) passe
+  `posthog.capture()` par `withPostHog`, donc par la garde sur le token, pour ne pas dupliquer ce `if`
   à chaque site d'appel ni laisser `posthog-js` logguer un `console.error` par
   clic quand les variables d'env manquent.
 

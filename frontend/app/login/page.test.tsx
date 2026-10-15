@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => parametres,
 }));
 
-vi.mock("posthog-js", () => ({ default: { capture } }));
+vi.mock("posthog-js", () => ({ default: { capture, init: vi.fn(), get_explicit_consent_status: vi.fn() } }));
 
 import LoginPage from "./page";
 
@@ -81,10 +81,12 @@ describe("Page de connexion — méthodes", () => {
     const lien = await screen.findByRole("link", { name: /GitHub/ });
     await userEvent.click(lien);
 
-    expect(capture).toHaveBeenCalledWith(
-      "login_initiated",
-      { provider: "github" },
-      { transport: "sendBeacon", send_instantly: true },
+    await waitFor(() =>
+      expect(capture).toHaveBeenCalledWith(
+        "login_initiated",
+        { provider: "github" },
+        { transport: "sendBeacon", send_instantly: true },
+      ),
     );
   });
 

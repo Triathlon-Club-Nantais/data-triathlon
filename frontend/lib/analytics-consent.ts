@@ -1,8 +1,7 @@
 "use client";
-import posthog from "posthog-js";
 import { useSyncExternalStore } from "react";
 import { ANALYTICS_CONSENT_COOKIE, ANALYTICS_CONSENT_KEY } from "@/lib/constants";
-import { isPostHogEnabled } from "@/lib/posthog";
+import { withPostHog } from "@/lib/posthog";
 
 /**
  * Choix du visiteur sur la mesure d'audience détaillée (#1159).
@@ -66,7 +65,7 @@ export function saveConsent(choice: "granted" | "denied"): void {
     unsavedChoice = choice;
   }
   syncConsentCookie();
-  if (isPostHogEnabled()) {
+  withPostHog((posthog) => {
     if (choice === "granted") {
       posthog.opt_in_capturing({ captureEventName: false });
     } else {
@@ -74,7 +73,7 @@ export function saveConsent(choice: "granted" | "denied"): void {
       posthog.reset();
       posthog.opt_out_capturing();
     }
-  }
+  });
   window.dispatchEvent(new Event(CHANGED_EVENT));
 }
 
