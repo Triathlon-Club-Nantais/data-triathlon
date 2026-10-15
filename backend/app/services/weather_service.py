@@ -59,7 +59,8 @@ def fetch_daily_weather(latitude: float, longitude: float, day: date) -> DailyWe
             temperature, daily["wind_speed_10m_mean"][0], daily["precipitation_sum"][0]
         )
     except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError) as exc:
-        logger.warning("Open-Meteo archive failed for %s,%s on %s: %s", latitude, longitude, day, exc)
+        # Ni coordonnées ni message (il porte l'URL) : CodeQL les tient pour sensibles.
+        logger.warning("Open-Meteo archive failed on %s: %s", day, type(exc).__name__)
         return None
 
 
