@@ -340,3 +340,12 @@ describe("champs natifs sous md (#1093)", () => {
     expect(mobile?.[1]).toContain("font-size: max(16px, 1em) !important");
   });
 });
+
+describe("cellules en gras du classement (#1355)", () => {
+  it.each([".tcn-table .tcn-classement-nom", ".tcn-table .tcn-classement-temps"])(
+    "%s bat le `font-weight: inherit` de `.tcn-table td`",
+    (selecteur) => {
+      expect(rule(selecteur)).toContain("font-weight: 700");
+    },
+  );
+});

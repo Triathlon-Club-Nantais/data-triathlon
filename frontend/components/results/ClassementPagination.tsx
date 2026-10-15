@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { PAGE_SIZE_OPTIONS, pageSizeLabel, parsePageSize, type PageSize } from "@/lib/pageSize";
+import { PAGE_SIZE_ALL_MAX, PAGE_SIZE_OPTIONS, pageSizeLabel, parsePageSize, type PageSize } from "@/lib/pageSize";
 
 /**
  * Commandes de pagination du classement, en liens et non en boutons :
@@ -15,6 +15,7 @@ export function ClassementPagination({
   nbPages,
   lienVers,
   tailleCourante,
+  options = PAGE_SIZE_OPTIONS,
   onTaille,
   onAllerPage,
 }: {
@@ -22,6 +23,8 @@ export function ClassementPagination({
   nbPages: number;
   lienVers: (modifications: Record<string, string | null>) => string;
   tailleCourante: PageSize;
+  /** Tailles proposées : sans « Tout » au-delà de 500 résultats (#1355). */
+  options?: readonly PageSize[];
   onTaille: (taille: PageSize) => void;
   onAllerPage: (n: number) => void;
 }) {
@@ -137,13 +140,20 @@ export function ClassementPagination({
           // Plancher tactile WCAG 2.2 2.5.8 (#479).
           style={{ minHeight: 28, padding: "2px 8px", fontSize: 13, borderRadius: "var(--tcn-radius-md)", border: "1px solid var(--tcn-border-input)", background: "var(--tcn-surface)", color: "var(--tcn-ink)" }}
         >
-          {PAGE_SIZE_OPTIONS.map((o) => (
+          {options.map((o) => (
             <option key={String(o)} value={String(o)}>
               {pageSizeLabel(o)}
             </option>
           ))}
         </select>
       </div>
+      {/* Dit pourquoi « Tout » manque, surtout à qui arrive par un lien
+          `?page_size=all` servi en 200 lignes (revue UI/UX de #1376). */}
+      {!options.includes("all") && (
+        <p style={{ margin: 0, padding: "0 24px 10px", textAlign: "center", fontSize: 13, color: "var(--tcn-text-muted)" }}>
+          Au-delà de {PAGE_SIZE_ALL_MAX} résultats dans l&apos;épreuve, le classement s&apos;affiche par pages de 200 au plus.
+        </p>
+      )}
     </div>
   );
 }
