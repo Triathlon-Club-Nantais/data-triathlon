@@ -2,10 +2,9 @@
 import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import posthog from "posthog-js";
 import { toast } from "sonner";
 import { useAnalyticsConsent } from "@/lib/analytics-consent";
-import { isPostHogEnabled } from "@/lib/posthog";
+import { withPostHog } from "@/lib/posthog";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import { SESSION_QUERY_DEFAULTS, useSession } from "@/lib/queries/auth";
 import { queryKeys } from "@/lib/queries/keys";
@@ -37,17 +36,17 @@ function PostHogSessionSync() {
   const identifiedRef = useRef(false);
 
   useEffect(() => {
-    if (!isPostHogEnabled()) return;
     if (session && consent === "granted") {
       identifiedRef.current = true;
-      posthog.identify(String(session.id), {
+      const properties = {
         email: session.email,
         name: session.display_name,
         roles: session.roles.map((r) => r.slug),
-      });
+      };
+      withPostHog((posthog) => posthog.identify(String(session.id), properties));
     } else if (session === null && identifiedRef.current) {
       identifiedRef.current = false;
-      posthog.reset();
+      withPostHog((posthog) => posthog.reset());
     }
   }, [session, consent]);
 

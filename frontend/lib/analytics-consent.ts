@@ -1,14 +1,13 @@
 "use client";
-import posthog from "posthog-js";
 import { useSyncExternalStore } from "react";
 import { ANALYTICS_CONSENT_COOKIE, ANALYTICS_CONSENT_KEY } from "@/lib/constants";
-import { isPostHogEnabled } from "@/lib/posthog";
+import { withPostHog } from "@/lib/posthog";
 
 /**
  * Choix du visiteur sur la mesure d'audience détaillée (#1159).
  *
  * Sans accord, PostHog tourne en mode sans cookie (`cookieless_mode:
- * "on_reject"`, `instrumentation-client.ts`) : une mesure statistique exemptée
+ * "on_reject"`, `lib/posthog.ts`) : une mesure statistique exemptée
  * de consentement par la CNIL. L'accord ouvre les cookies, l'autocapture des
  * clics et le rattachement au compte (`identify`). Le choix vaut six mois, durée
  * recommandée par la CNIL avant de redemander.
@@ -66,7 +65,7 @@ export function saveConsent(choice: "granted" | "denied"): void {
     unsavedChoice = choice;
   }
   syncConsentCookie();
-  if (isPostHogEnabled()) {
+  withPostHog((posthog) => {
     if (choice === "granted") {
       posthog.opt_in_capturing({ captureEventName: false });
     } else {
@@ -74,7 +73,7 @@ export function saveConsent(choice: "granted" | "denied"): void {
       posthog.reset();
       posthog.opt_out_capturing();
     }
-  }
+  });
   window.dispatchEvent(new Event(CHANGED_EVENT));
 }
 
