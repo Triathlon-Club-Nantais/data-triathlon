@@ -1461,4 +1461,5 @@ def test_search_by_relevance_counts_only_the_matched_athletes_participations(db_
 
     (sql,) = [s for s in statements if "participation_teammates" in s]
     assert "participation_teammates.athlete_id = athletes.id" in sql, sql
+    assert "participations_1.athlete_id = athletes.id" in sql, sql
     assert "participation_teammates, athletes" not in sql, sql
