@@ -10,10 +10,11 @@ import {
   Card,
   ComparisonTable,
   ImprovementMatrix,
-  RankingEvolutionChart,
   ResultRow,
   UnavailableState,
 } from "@/components/tcn";
+// Direct import: the barrel feeds the root layout, d3 must stay out of every page's first load (#1432).
+import { RankingEvolutionChart } from "@/components/tcn/participation-detail/RankingEvolutionChart";
 import { PageShell } from "@/components/layout/PageShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { formatDate } from "@/lib/utils/date";
