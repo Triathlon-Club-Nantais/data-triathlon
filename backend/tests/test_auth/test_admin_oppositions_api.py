@@ -8,7 +8,11 @@ from app.repositories import athlete_repository
 from app.services.opposition_service import club_today
 
 BASE = "/api/v1/admin/oppositions"
-TODAY = club_today()
+
+
+def _day(offset: int = 0) -> str:
+    """Read at run time, not at collection: the suite may cross Paris midnight in between (#1479)."""
+    return (club_today() + timedelta(days=offset)).isoformat()
 
 
 @pytest.fixture
@@ -30,7 +34,7 @@ def test_preview_counts_without_writing(client, ouvrir_session, jean):
 
 def test_applying_creates_then_reuses_the_opposition(client, ouvrir_session, jean):
     ouvrir_session(P.OPPOSITIONS_MANAGE, nom="Admin")
-    demande = (TODAY - timedelta(days=3)).isoformat()
+    demande = _day(-3)
 
     premiere = client.post(BASE, json={"athlete_id": jean.id, "requested_on": demande})
     seconde = client.post(BASE, json={"nom": "Dupont", "prenom": "JEAN", "requested_on": demande})
@@ -47,23 +51,19 @@ def test_applying_creates_then_reuses_the_opposition(client, ouvrir_session, jea
 def test_an_unknown_athlete_is_404(client, ouvrir_session):
     ouvrir_session(P.OPPOSITIONS_MANAGE)
 
-    reponse = client.post(BASE, json={"athlete_id": 9999, "requested_on": TODAY.isoformat()})
+    reponse = client.post(BASE, json={"athlete_id": 9999, "requested_on": _day()})
 
     assert reponse.status_code == 404
 
 
 @pytest.mark.parametrize(
-    "corps",
-    [
-        {"requested_on": TODAY.isoformat()},
-        {"athlete_id": 1, "nom": "Dupont", "prenom": "Jean", "requested_on": TODAY.isoformat()},
-        {"nom": "Dupont", "prenom": "Jean", "requested_on": (TODAY + timedelta(days=1)).isoformat()},
-    ],
+    ("identity", "offset"),
+    [({}, 0), ({"athlete_id": 1, "nom": "Dupont", "prenom": "Jean"}, 0), ({"nom": "Dupont", "prenom": "Jean"}, 1)],
 )
-def test_an_identity_and_a_past_date_are_required(client, ouvrir_session, corps):
+def test_an_identity_and_a_past_date_are_required(client, ouvrir_session, identity, offset):
     ouvrir_session(P.OPPOSITIONS_MANAGE)
 
-    assert client.post(BASE, json=corps).status_code in (400, 422)
+    assert client.post(BASE, json={**identity, "requested_on": _day(offset)}).status_code in (400, 422)
 
 
 @pytest.mark.parametrize(
