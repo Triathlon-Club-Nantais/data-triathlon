@@ -467,14 +467,6 @@ def set_quality(
     course.quality_issues = quality_issues
 
 
-def set_counts(db: Session, course: Course, *, participation_count: int, tcn_count: int) -> None:
-    """Écrit les deux compteurs dénormalisés (#623) — recalcul complet, pour
-    l'import qui tient déjà en mémoire l'ensemble des participations de la
-    course (`_Persister.finalize`)."""
-    course.participation_count = participation_count
-    course.tcn_count = tcn_count
-
-
 def recount(db: Session, course: Course) -> None:
     """Recalcule `participation_count` en SQL, dans la transaction courante (#1099).
 
@@ -792,8 +784,3 @@ def list_named_with_source(db: Session, name: str, urls: Iterable[str]) -> list[
     # une colonne `json` (`quality_issues`), #1250.
     sourced = select(CourseSource.course_id).where(CourseSource.url.in_(list(urls)))
     return db.query(Course).filter(Course.name == clean_name(name), Course.id.in_(sourced)).all()
-
-
-def list_named_on(db: Session, name: str, event_date: date | None) -> list[Course]:
-    """Épreuves de ce nom à cette date, tous types et relais confondus."""
-    return db.query(Course).filter(Course.name == name, Course.event_date == event_date).all()

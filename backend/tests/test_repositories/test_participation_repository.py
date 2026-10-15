@@ -243,7 +243,7 @@ def test_event_name_filter_substring_sqlite(db_session):
         db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1", club="TCN"
     )
     # Compteur dénormalisé (#623) : posé directement, fixture hors import.
-    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
+    course.participation_count, course.tcn_count = 1, 1
     db_session.flush()
 
     page = participation_repository.events_page(db_session, event_name="tri")
@@ -269,8 +269,8 @@ def test_events_page_pagination_and_sort(db_session):
         db_session, athlete_id=athlete.id, course_id=c_new.id, bib_number="1", club="TCN"
     )
     # Compteurs dénormalisés (#623) : posés directement, fixture hors import.
-    course_repository.set_counts(db_session, c_old, participation_count=1, tcn_count=1)
-    course_repository.set_counts(db_session, c_new, participation_count=1, tcn_count=1)
+    c_old.participation_count, c_old.tcn_count = 1, 1
+    c_new.participation_count, c_new.tcn_count = 1, 1
     db_session.flush()
 
     first = participation_repository.events_page(db_session, page=1, page_size=1)
@@ -312,8 +312,8 @@ def test_events_page_sort_imported_desc_ordonne_par_date_import(db_session):
         db_session, athlete_id=athlete.id, course_id=futur.id, bib_number="1", club="TCN"
     )
     # Compteurs dénormalisés (#623) : posés directement, fixture hors import.
-    course_repository.set_counts(db_session, ancien, participation_count=1, tcn_count=1)
-    course_repository.set_counts(db_session, futur, participation_count=1, tcn_count=1)
+    ancien.participation_count, ancien.tcn_count = 1, 1
+    futur.participation_count, futur.tcn_count = 1, 1
     db_session.flush()
 
     by_import = participation_repository.events_page(db_session, sort="imported_desc")
@@ -375,8 +375,8 @@ def test_events_page_filtre_par_saison_exclut_sans_date(db_session):
         db_session, athlete_id=athlete.id, course_id=c_sans_date.id, bib_number="2", club="TCN"
     )
     # Compteurs dénormalisés (#623) : posés directement, fixture hors import.
-    course_repository.set_counts(db_session, course_2025, participation_count=1, tcn_count=1)
-    course_repository.set_counts(db_session, c_sans_date, participation_count=1, tcn_count=1)
+    course_2025.participation_count, course_2025.tcn_count = 1, 1
+    c_sans_date.participation_count, c_sans_date.tcn_count = 1, 1
     db_session.flush()
 
     page = participation_repository.events_page(db_session, seasons=[2025])
@@ -406,8 +406,8 @@ def test_events_page_meme_nom_meme_date_pagine_sans_doublon_ni_manque(db_session
         db_session, athlete_id=athlete.id, course_id=b.id, bib_number="1", club="TCN"
     )
     # Compteurs dénormalisés (#623) : posés directement, fixture hors import.
-    course_repository.set_counts(db_session, a, participation_count=1, tcn_count=1)
-    course_repository.set_counts(db_session, b, participation_count=1, tcn_count=1)
+    a.participation_count, a.tcn_count = 1, 1
+    b.participation_count, b.tcn_count = 1, 1
     db_session.flush()
 
     seen: list[int] = []
@@ -455,7 +455,7 @@ def test_events_page_par_defaut_ne_joint_jamais_participation(db_session):
         participation_repository.create(
             db_session, athlete_id=athlete.id, course_id=course.id, bib_number=str(i), club="TCN"
         )
-    course_repository.set_counts(db_session, course, participation_count=5, tcn_count=5)
+    course.participation_count, course.tcn_count = 5, 5
     db_session.commit()
 
     requetes = _requetes(db_session, lambda: participation_repository.events_page(db_session))
@@ -482,7 +482,7 @@ def test_events_page_avec_name_ou_club_only_rejoint_participation(db_session):
     participation_repository.create(
         db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1", club="TCN"
     )
-    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
+    course.participation_count, course.tcn_count = 1, 1
     db_session.commit()
 
     requetes_name = _requetes(
@@ -516,7 +516,7 @@ def test_events_page_chemin_rapide_et_lent_rendent_les_memes_compteurs(db_sessio
         db_session, athlete_id=athlete_tcn.id, course_id=course.id, bib_number="3",
         club="TCN", is_pending_validation=True,  # exclue des deux chemins
     )
-    course_repository.set_counts(db_session, course, participation_count=2, tcn_count=1)
+    course.participation_count, course.tcn_count = 2, 1
     db_session.commit()
 
     rapide = participation_repository.events_page(db_session)
@@ -1814,7 +1814,7 @@ def _event_named(db_session, name):
     participation_repository.create(
         db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1", club="TCN"
     )
-    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
+    course.participation_count, course.tcn_count = 1, 1
     db_session.flush()
     return course
 
