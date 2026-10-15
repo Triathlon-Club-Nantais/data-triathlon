@@ -6,8 +6,9 @@ Rationale         : PATCH, mise à jour de la colonne « État » de la table de
   lots du Principe I : lots C à I fusionnés (#1451, #1458, #1459, #1462,
   #1463, #1466, #1467) et passés à « fait ». `breizhchrono.py`, resté hors de
   tout lot, rejoint le lot J. Règle ajoutée au plan de découpage : la PR d'un
-  lot met à jour sa ligne « État ». Re-scan du 2026-10-16 consigné. La règle
-  et son critère d'extinction ne changent pas.
+  lot met à jour sa ligne « État ». Re-scan du 2026-10-16 consigné. PATCH
+  retenu : cette règle n'oblige qu'à éditer une cellule dans une PR déjà
+  ouverte, la règle de renommage et son critère d'extinction ne changent pas.
   Proposition : issue #1475. Approbation : mainteneur, revue de la PR.
 Modified principles : (aucun, table du Principe I mise à jour sans changer la règle)
 Modified sections : Principe I, table des lots (colonne État, lot J),
@@ -281,7 +282,7 @@ qu'on ne réécrit pas après coup.
 | G | `app/scrapers/{chronoweb,chronoplace,sporthive}.py` | fait (#1463) |
 | H | `app/scrapers/{classify,wiclax,timepulse,klikego,klikego_platform}.py` | fait (#1466) |
 | I | `app/core/club.py`, `app/scrapers/utils.py`, `app/services/sheet_source.py` — angle mort du relevé initial, dont le lexique français ne couvrait ni « espace », ni « blanc », ni « normalise », ni « qualifiant », ni « sans_lien » (~7 symboles au relevé initial, 26 au re-scan du 2026-10-15) | fait (#1467) |
-| J | `app/scrapers/prolivesport.py` (32 symboles) et `app/scrapers/breizhchrono.py` (`heats_a_scraper`, `total_a_scraper`, que le re-scan ne voit pas : « a » a moins de trois lettres), seuls fournisseurs absents des lots C à H | à faire |
+| J | `app/scrapers/prolivesport.py` (32 symboles) et `app/scrapers/breizhchrono.py` (`heats_a_scraper`, `total_a_scraper`, que le re-scan ne voit pas : « a » a moins de trois lettres), seuls fournisseurs hors des lots C à H qui portent encore des identifiants français | à faire |
 | K | `app/repositories/` (60 symboles, dont 22 dans `athlete_repository.py`) | à faire |
 | L | services de lecture et de statistiques : `app/services/{stats_service,club_service,validation_queue_service,split_gap,quality,counter_scope,club_alias}.py` (45 symboles) | à faire |
 | M | services d'administration des données : `app/services/{admin_actions,course_duplicates,course_merge,course_rescrape_service,athlete_detach,feedback_service,training_session_service,profile_service,opposition_service,sse_relay}.py` (54 symboles) | à faire |
@@ -315,10 +316,9 @@ la main). Sur `origin/main` `0e1d1856`, il en compte 685 dans 99 fichiers, dont
 rattaché à un lot. Le script et sa sortie sont joints à la PR qui ferme #1435
 (dictionnaires : paquets `wfrench`, `wamerican`, `wbritish`). Le même script,
 relancé le 2026-10-16 (#1475) sur `origin/main` `ad24fb3f`, une fois les lots A
-à I livrés, compte encore 385 identifiants dans les 86 fichiers des lots J à R,
-et dans les lots A à I quatre faux positifs anglais seulement (`exclusions`,
-`cumulatives`). Une fois la
-dérogation éteinte, l'alinéa précédent reprend pleinement. Design et relevé
+à I livrés, compte encore 385 identifiants dans les 86 fichiers relevés des lots J à R,
+et dans les lots A à I quatre faux positifs anglais seulement (tokens
+`exclusions` et `cumulatives`). Une fois la dérogation éteinte, l'alinéa précédent reprend pleinement. Design et relevé
 chiffré initial :
 `docs/superpowers/specs/2026-07-31-convention-nommage-identifiants-design.md`.
 
