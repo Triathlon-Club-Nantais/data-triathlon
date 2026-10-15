@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { act, render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -103,6 +103,12 @@ function renderForm() {
       ),
   };
 }
+
+// ManualResultForm loads lazily (#1395): warm its module graph outside any case
+// timeout (#1389).
+beforeAll(async () => {
+  await import("./ManualResultForm");
+}, 30_000);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -407,7 +413,7 @@ describe("TcnScrapeForm — un seul verdict avant d'essayer (#492, ACT-6)", () =
     await userEvent.click(await screen.findByRole("button", { name: "Saisir à la main" }));
 
     expect(
-      screen.getByRole("button", { name: "Enregistrer votre participation" }),
+      await screen.findByRole("button", { name: "Enregistrer votre participation" }),
     ).toBeInTheDocument();
   });
 });
@@ -537,7 +543,7 @@ describe("TcnScrapeForm — repli sur échec d'import", () => {
       expect(apiClient.reportPendingProvider).toHaveBeenCalledWith("http://x.test/ev"),
     );
     expect(
-      screen.getByRole("button", { name: "Enregistrer votre participation" }),
+      await screen.findByRole("button", { name: "Enregistrer votre participation" }),
     ).toBeInTheDocument();
   });
 });
@@ -795,6 +801,7 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
       "https://chronopuce.test/x",
     );
     await userEvent.click(await screen.findByRole("button", { name: "Saisir à la main" }));
+    await screen.findByRole("button", { name: "Enregistrer votre participation" });
   }
 
   async function saisirEtEnregistrer() {
@@ -866,7 +873,7 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
     );
 
     expect(
-      screen.getByRole("button", { name: "Enregistrer votre participation" }),
+      await screen.findByRole("button", { name: "Enregistrer votre participation" }),
     ).toBeInTheDocument();
   });
 

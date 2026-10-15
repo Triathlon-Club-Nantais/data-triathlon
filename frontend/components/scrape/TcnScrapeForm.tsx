@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -15,8 +16,26 @@ import { useSaveParticipation } from "@/lib/queries/participations";
 import { useImportStream, type ImportState } from "@/hooks/useImportStream";
 import { echecImport, estDoublon, estPartiel, motifEchec as motifEchecDe } from "@/lib/import-outcome";
 import { ProviderDetector, ID_VERDICT } from "./ProviderDetector";
-import { ManualResultForm } from "./ManualResultForm";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { ImportedCourse, Participation, ScrapedPreview } from "@/lib/types";
+
+// Le formulaire embarque zod : chargé à l'ouverture de la saisie manuelle, il ne
+// pèse rien sur qui colle simplement une adresse reconnue (#1395).
+const ManualResultForm = dynamic(
+  () => import("./ManualResultForm").then((module) => module.ManualResultForm),
+  { loading: ManualFormPlaceholder },
+);
+
+function ManualFormPlaceholder() {
+  return (
+    <div role="status">
+      <span className="sr-only">Chargement du formulaire…</span>
+      {/* Hauteur du formulaire par défaut, une colonne puis deux : l'arrivée du
+          chunk ne pousse pas le pied de page. */}
+      <Skeleton aria-hidden="true" className="h-[1080px] w-full sm:h-[740px]" />
+    </div>
+  );
+}
 
 export function TcnScrapeForm() {
   const importStream = useImportStream();

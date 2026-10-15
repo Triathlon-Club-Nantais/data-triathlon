@@ -637,7 +637,11 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   canonique par construction) et n'envoie que des valeurs nettoyées. Un 422
   qui passerait quand même arrive rangé par champ (`ApiError.fieldErrors`) et
   s'affiche sous le champ concerné, les types génériques de Pydantic traduits
-  (leur message est anglais), jamais en bloc brut.
+  (leur message est anglais), jamais en bloc brut. `TcnScrapeForm` le charge en
+  `next/dynamic` à l'ouverture de la saisie manuelle (#1395) : il porte zod, seul
+  module à l'importer, donc aucun import statique de `ManualResultForm.tsx`
+  (constante comprise) ne doit revenir dans `TcnScrapeForm`.
+  `TcnScrapeForm.lazy.test.tsx` le tient.
 - **Le champ URL et le verdict qui vit sous lui** (#492) — trois points à ne pas
   rouvrir séparément :
   - **La taille de police d'un champ TCN vit dans `.tcn-input`, jamais en

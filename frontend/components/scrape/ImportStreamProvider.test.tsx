@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ImportProgressEvent } from "@/lib/types";
@@ -103,6 +103,12 @@ const PARTIEL = {
 /** Dernier appel d'un toast : [titre, options]. */
 const dernier = (fn: ReturnType<typeof vi.fn>) => fn.mock.calls[fn.mock.calls.length - 1];
 
+// TcnScrapeForm loads ManualResultForm lazily (#1395): warm its module graph outside
+// any case timeout (#1389).
+beforeAll(async () => {
+  await import("./ManualResultForm");
+}, 30_000);
+
 beforeEach(() => {
   vi.clearAllMocks();
   reportPendingProvider.mockResolvedValue({});
@@ -189,7 +195,7 @@ describe("ImportStreamProvider — l'import survit à la navigation", () => {
     options.action.onClick();
     expect(push).toHaveBeenCalledWith("/ajouter");
     naviguer(true);
-    expect(screen.getByRole("button", { name: "Enregistrer votre participation" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Enregistrer votre participation" })).toBeInTheDocument();
     // Déjà signalé par le provider : le formulaire remonté ne le refait pas.
     expect(reportPendingProvider).toHaveBeenCalledTimes(1);
   });
