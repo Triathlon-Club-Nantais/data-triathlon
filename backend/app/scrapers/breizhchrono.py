@@ -238,7 +238,7 @@ def _import_one_heat(
         source_url = f"{base}/resultats-courses/{slug}-{event_id}/{heat_slug}"
     heat_page_html = plat.get_page(client, source_url).text
     if event_type is None:
-        event_type = classify_event_type(heat_slug, contexte=slug)
+        event_type = classify_event_type(heat_slug, context=slug)
 
     results = plat.build_heat_results(
         base=base,

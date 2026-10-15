@@ -764,7 +764,7 @@ def test_event_type_regression_lock_on_the_context_without_the_event_type():
     silent regression, `Senior Men` falling back on the classifier's default.
     """
     assert classify_event_type(
-        "Senior Men", contexte="UK CAU Inter Counties Cross Country Championships"
+        "Senior Men", context="UK CAU Inter Counties Cross Country Championships"
     ) == "triathlon"
 
 

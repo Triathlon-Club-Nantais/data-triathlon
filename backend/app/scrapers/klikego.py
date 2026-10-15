@@ -273,10 +273,10 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
         if is_cumulative and secs > 0:
             if field is not None:
                 # Duration = cumulative_now - cumulative_after_previous_mapped_stage
-                dur = secs - prev_secs
+                duration = secs - prev_secs
                 prev_secs = secs
                 last_mapped_secs = secs
-                h, rem = divmod(dur, 3600)
+                h, rem = divmod(duration, 3600)
                 m, s = divmod(rem, 60)
                 time_val = f"{h:02d}:{m:02d}:{s:02d}"
             else:
@@ -402,7 +402,7 @@ def _scrape_single_heat(
         heat_page_html=heat_page_html,
         event_name=event_name,
         slug=slug,
-        event_type=classify_event_type(heat, contexte=slug),
+        event_type=classify_event_type(heat, context=slug),
         source_url=source_url,
         event_date=event_date,
         client=client,
@@ -538,28 +538,28 @@ def scrape_event_fanout(
         trace.heats_enumerated = len(heats)
         dates_by_heat = _fetch_heat_dates(event_id, client) if heats else {}
 
-        # Pré-filtre les heats à scraper : `heats_a_scraper` fixe le total notifié
+        # Pré-filtre les heats à scraper : `heats_to_scrape` fixe le total notifié
         # à `on_heat_start`, sans quoi la progression sauterait des indices.
-        heats_a_scraper: list[tuple[str, str]] = []
+        heats_to_scrape: list[tuple[str, str]] = []
         for heat_slug, heat_label in heats:
             heat_url = _heat_source_url(event_id, slug, heat_slug)
             if cache_probe is not None and cache_probe(heat_url):
                 trace.heats_cached += 1
                 trace.cached_urls.append(heat_url)
                 continue
-            heats_a_scraper.append((heat_slug, heat_label))
+            heats_to_scrape.append((heat_slug, heat_label))
 
-        total_a_scraper = len(heats_a_scraper)
-        for index, (heat_slug, heat_label) in enumerate(heats_a_scraper, start=1):
+        total_to_scrape = len(heats_to_scrape)
+        for index, (heat_slug, heat_label) in enumerate(heats_to_scrape, start=1):
             if on_heat_start is not None:
-                on_heat_start(heat_slug, heat_label, index, total_a_scraper)
+                on_heat_start(heat_slug, heat_label, index, total_to_scrape)
             detail_progress = None
             if on_detail_progress is not None:
                 def detail_progress(
                     done, total,
                     _slug=heat_slug, _label=heat_label, _index=index,
                 ) -> None:
-                    on_detail_progress(_slug, _label, _index, total_a_scraper, done, total)
+                    on_detail_progress(_slug, _label, _index, total_to_scrape, done, total)
             try:
                 heat_date = dates_by_heat.get(norm_heat_label(heat_label))
                 heat_results = _scrape_single_heat(

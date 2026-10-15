@@ -606,7 +606,7 @@ def _course_results(course: dict, *, url: str, event_title: str) -> list[Scraped
     # Il n'est **que** cela : sur la concaténation des deux, le « Trail 12 km »
     # d'un « Triathlon de X » sortait en triathlon et survivait à `federal_only`.
     event_name = qualify_event_name(event_title, title_course)
-    event_type = classify_event_type(title_course, contexte=event_title)
+    event_type = classify_event_type(title_course, context=event_title)
     event_date = _parse_date(course.get("date_course"))
     distance_km = _parse_distance(course.get("distance_course"))
     is_relay = _is_relay_course(title_course, runners)
