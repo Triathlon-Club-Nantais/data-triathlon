@@ -473,6 +473,47 @@ def test_lister_les_roles_tient_en_un_nombre_de_requetes_fixe_quel_que_soit_le_n
     assert len(requetes) == 7, requetes
 
 
+def test_listing_users_issues_a_constant_number_of_queries(
+    client, ouvrir_session, db_session
+):
+    """#1393: `user_view` loaded each user's roles with its own query."""
+    from sqlalchemy import event
+
+    ouvrir_session(superutilisateur=True)
+
+    def _measure():
+        db_session.commit()
+        db_session.expire_all()
+        statements = []
+
+        def _record(conn, cursor, statement, *rest):
+            statements.append(statement)
+
+        engine = db_session.get_bind()
+        event.listen(engine, "before_cursor_execute", _record)
+        try:
+            response = client.get("/api/v1/admin/users")
+        finally:
+            event.remove(engine, "before_cursor_execute", _record)
+        assert response.status_code == 200
+        return response.json(), statements
+
+    ouvrir_session(P.QUALITY_OVERRIDE, pose_le_cookie=False)
+    rows, with_two_users = _measure()
+    assert len(rows) == 2
+
+    for _ in range(19):
+        ouvrir_session(P.QUALITY_OVERRIDE, pose_le_cookie=False)
+    rows, with_twenty_one_users = _measure()
+
+    assert len(rows) == 21
+    assert all(len(row["roles"]) == 1 for row in rows)
+    # Session (1) + guard (3) + `list_all` (1) + `list_by_user` (2: `UserRole`,
+    # `Role`). Before #1393: 11 queries with 2 users, 68 with 21.
+    assert len(with_two_users) == 7, with_two_users
+    assert len(with_twenty_one_users) == len(with_two_users), with_twenty_one_users
+
+
 
 # --- Organisation inconnue (#1096) --------------------------------------------
 

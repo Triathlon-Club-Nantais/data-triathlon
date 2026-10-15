@@ -632,6 +632,19 @@ def revoke_role(
 
 
 def user_view(db: Session, user: User) -> dict:
+    return _user_view(user, user_role_repository.list_for_user(db, user.id))
+
+
+def users_view(db: Session) -> list[dict]:
+    """Tous les comptes, en un nombre de requêtes fixe (#1393)."""
+    attributions = user_role_repository.list_by_user(db)
+    return [
+        _user_view(user, attributions.get(user.id, []))
+        for user in user_repository.list_all(db)
+    ]
+
+
+def _user_view(user: User, attributions: list[UserRole]) -> dict:
     return {
         "id": user.id,
         "email": user.email,
@@ -645,7 +658,7 @@ def user_view(db: Session, user: User) -> dict:
                 "name": attribution.role.name,
                 "organisation_id": attribution.organisation_id,
             }
-            for attribution in user_role_repository.list_for_user(db, user.id)
+            for attribution in attributions
         ],
         "created_at": user.created_at,
     }

@@ -24,6 +24,19 @@ def list_for_user(
     return list(db.scalars(requete.order_by(UserRole.id)))
 
 
+def list_by_user(db: Session) -> dict[int, list[UserRole]]:
+    """Toutes les attributions, groupées par utilisateur, `.role` déjà chargé :
+    la liste d'administration des utilisateurs en payait une requête par compte
+    (#1393). `.role.permissions` n'est pas chargé, cette liste ne le lit pas.
+    """
+    by_user: dict[int, list[UserRole]] = {}
+    for attribution in db.scalars(
+        select(UserRole).options(selectinload(UserRole.role)).order_by(UserRole.id)
+    ):
+        by_user.setdefault(attribution.user_id, []).append(attribution)
+    return by_user
+
+
 def find(
     db: Session, *, user_id: int, role_id: int, organisation_id: int
 ) -> UserRole | None:
