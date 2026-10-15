@@ -5,20 +5,20 @@ import { trouverTelephone } from "@/lib/utils/telephone";
  * (#1290). Partagé entre la fiche du jeune et la carte de l'appel (#1405) ;
  * un contact vide ne rend rien, chaque écran décide de son repli.
  */
-export function ContactUrgence({ texte }: { texte: string | null }) {
-  if (!texte) return null;
-  const telephone = trouverTelephone(texte);
-  if (!telephone) return <>{texte}</>;
+export function EmergencyContact({ text }: { text: string | null }) {
+  if (!text) return null;
+  const phone = trouverTelephone(text);
+  if (!phone) return <>{text}</>;
   return (
     <>
-      {texte.slice(0, telephone.debut)}
+      {text.slice(0, phone.debut)}
       <a
-        href={telephone.href}
+        href={phone.href}
         className="ph-no-capture tcn-cible-tactile inline-flex items-center font-semibold text-accent-ink underline underline-offset-2"
       >
-        {texte.slice(telephone.debut, telephone.fin)}
+        {text.slice(phone.debut, phone.fin)}
       </a>
-      {texte.slice(telephone.fin)}
+      {text.slice(phone.fin)}
     </>
   );
 }

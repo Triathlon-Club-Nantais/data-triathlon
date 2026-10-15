@@ -8,7 +8,7 @@ participant (profil déjà chargé en `selectinload`, aucune requête de plus).
 Donnée personnelle : seul un porteur de `jeunes:read` la reçoit. Le `GET` est
 déjà gardé par ce pouvoir ; les routes d'écriture (`jeunes:write`) rendent le
 même détail, donc elles posent `null` quand l'acteur ne porte pas `jeunes:read`.
-Côté front, `ContactUrgence` sort de `ProfileDetail.tsx` vers un composant
+Côté front, `EmergencyContact` sort de `ProfileDetail.tsx` vers un composant
 partagé, réutilisé par la carte.
 
 ## Task 1: backend, champ et garde
@@ -25,11 +25,11 @@ partagé, réutilisé par la carte.
 
 ## Task 2: frontend, composant partagé et carte
 
-- [ ] Test vitest de `ContactUrgence` : numéro en lien `tel:` classe
+- [ ] Test vitest de `EmergencyContact` : numéro en lien `tel:` classe
       `ph-no-capture`, vide non rendu.
 - [ ] Test vitest de `AppelPresence` : contact avec numéro en lien `tel:` sur
       la carte, contact vide ou `null` non rendu.
-- [ ] Extraire `ContactUrgence` vers `components/admin/jeunes/ContactUrgence.tsx`,
+- [ ] Extraire `EmergencyContact` vers `components/admin/jeunes/EmergencyContact.tsx`,
       vide rendu `null` ; la fiche garde son `—` à l'appel.
 - [ ] Type `TrainingParticipant.emergency_contact: string | null`, fixtures à jour.
 - [ ] `npm test`, `npm run lint`, `npm run build`

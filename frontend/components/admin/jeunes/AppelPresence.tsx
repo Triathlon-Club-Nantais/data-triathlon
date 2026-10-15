@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AjouterNoteJeuneDialog } from "@/components/admin/jeunes/AjouterNoteJeuneDialog";
 import { AppelFin } from "@/components/admin/jeunes/AppelFin";
-import { ContactUrgence } from "@/components/admin/jeunes/ContactUrgence";
+import { EmergencyContact } from "@/components/admin/jeunes/EmergencyContact";
 import { NoteSeanceForm } from "@/components/admin/jeunes/NoteSeanceForm";
 import {
   useAddTrainingParticipant,
@@ -171,7 +171,7 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
                               <span className="text-[var(--tcn-text-faint)]">
                                 Contact d&apos;urgence :{" "}
                               </span>
-                              <ContactUrgence texte={participant.emergency_contact} />
+                              <EmergencyContact text={participant.emergency_contact} />
                             </span>
                           )}
                         </span>

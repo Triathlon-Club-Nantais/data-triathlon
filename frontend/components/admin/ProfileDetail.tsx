@@ -22,7 +22,7 @@ import { formatDate, localToday } from "@/lib/utils/date";
 import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { calculerAge } from "@/lib/utils/age";
 import { profilePurgeDate } from "@/lib/utils/season";
-import { ContactUrgence } from "@/components/admin/jeunes/ContactUrgence";
+import { EmergencyContact } from "@/components/admin/jeunes/EmergencyContact";
 
 const REFUS = { sujet: "jeunes", action: "consulter ce profil" };
 
@@ -209,7 +209,7 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
           <>
             <div>
               <span className="font-medium">Contact d&apos;urgence : </span>
-              {data.emergency_contact ? <ContactUrgence texte={data.emergency_contact} /> : "—"}
+              {data.emergency_contact ? <EmergencyContact text={data.emergency_contact} /> : "—"}
             </div>
             <div>
               <span className="font-medium">Notes : </span>
