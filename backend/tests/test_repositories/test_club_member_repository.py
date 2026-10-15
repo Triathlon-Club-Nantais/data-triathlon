@@ -345,6 +345,7 @@ def test_licensee_activity_counts_a_relay_carrier_and_teammate(db_session):
         "athlete_id": carrier.id, "course_id": course.id, "bib_number": "7",
         "club": _TCN, "teammate_ids": [carrier.id, teammate.id],
     }])
+    _licensee(db_session, _athlete(db_session, "ABSENTE"))
     tcn_count_repository.recompute_counts_for_tcn(db_session)
 
-    assert club_member_repository.licensee_activity(db_session, 2026) == (2, 2)
+    assert club_member_repository.licensee_activity(db_session, 2026) == (3, 2)
