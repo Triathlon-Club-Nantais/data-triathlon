@@ -303,3 +303,31 @@ def test_listing_and_undoing_need_courses_sources(client, ouvrir_session, method
     assert getattr(client, method)(path).status_code == 401
     ouvrir_session(P.COURSES_WRITE)
     assert getattr(client, method)(path).status_code == 403
+
+
+def test_une_seconde_lecture_reprend_la_detection_en_memoire(client, ouvrir_session, mesquer, monkeypatch):
+    # #1384 : liste et pastille partagent une seule détection par génération.
+    from app.services import course_duplicates
+
+    ouvrir_session(P.COURSES_SOURCES)
+    appels = []
+    detecter = course_duplicates.find_candidates
+    monkeypatch.setattr(course_duplicates, "find_candidates", lambda db: appels.append(1) or detecter(db))
+
+    premiere = client.get(URL).json()
+    seconde = client.get(URL).json()
+    compte = client.get(f"{URL}/count").json()
+
+    assert premiere == seconde
+    assert compte == {"total": 1}
+    assert len(appels) == 1
+
+
+def test_une_ecriture_rafraichit_la_liste_en_memoire(client, ouvrir_session, mesquer):
+    ouvrir_session(P.COURSES_SOURCES)
+    (candidat,) = client.get(URL).json()["candidates"]
+    gauche, droite = (course["id"] for course in candidat["courses"])
+
+    client.post(f"{URL}/ignore", json={"course_id_a": gauche, "course_id_b": droite})
+
+    assert client.get(URL).json()["candidates"] == []

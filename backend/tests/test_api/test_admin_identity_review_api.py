@@ -80,6 +80,32 @@ def test_the_review_needs_a_session_then_the_athletes_write_power(client, db_ses
     assert call().status_code == 403
 
 
+def test_a_second_read_reuses_the_detection(client, swapped, monkeypatch):
+    # #1384 : liste et pastille partagent une seule détection par génération.
+    from app.services import athlete_identity_review
+
+    calls = []
+    detect = athlete_identity_review.find_candidates
+    monkeypatch.setattr(athlete_identity_review, "find_candidates", lambda db: calls.append(1) or detect(db))
+
+    first = client.get("/api/v1/admin/identity-review").json()
+    second = client.get("/api/v1/admin/identity-review").json()
+    counted = client.get("/api/v1/admin/identity-review/count").json()
+
+    assert first == second
+    assert counted == {"total": 1}
+    assert len(calls) == 1
+
+
+def test_a_write_refreshes_the_cached_list(client, swapped):
+    first, second = swapped
+    assert len(client.get("/api/v1/admin/identity-review").json()["candidates"]) == 1
+
+    client.post("/api/v1/admin/identity-review/ignore", json={"athlete_id_a": first.id, "athlete_id_b": second.id})
+
+    assert client.get("/api/v1/admin/identity-review").json()["candidates"] == []
+
+
 @pytest.fixture
 def multi_club(db_session):
     member = Athlete(nom="MARTIN", prenom="Thomas", club="Triathlon Club Nantais")

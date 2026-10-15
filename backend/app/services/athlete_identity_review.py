@@ -27,7 +27,7 @@ from itertools import combinations
 
 from sqlalchemy.orm import Session
 
-from app.core.cached_count import CachedCount
+from app.core.cached_value import CachedValue
 from app.core.club import (
     TCN_CANONICAL_NAME,
     canonical_club_key,
@@ -55,9 +55,9 @@ REASONS = {
     "alias_collision": "Fiche recréée sur une graphie fusionnée",
 }
 
-#: Taille de la liste pour la pastille du rail (#1352) : rafraîchie par la liste,
-#: vidée par tout commit (`core/cached_count`).
-count_cache = CachedCount(ttl_seconds=300)
+#: La liste, partagée par l'écran et sa pastille (#1352, #1384) : vidée par tout
+#: commit (`core/cached_value`).
+candidates_cache: CachedValue[list[dict]] = CachedValue(ttl_seconds=300)
 
 
 def recovery_would_merge(first: Athlete, second: Athlete, *, shared_course: bool, blocked: bool) -> bool:
@@ -182,9 +182,14 @@ def _cases(db: Session) -> list[tuple[str, list[int], list[int], list[dict]]]:
     ]
 
 
+def cached_candidates(db: Session) -> list[dict]:
+    """`find_candidates` gardé en mémoire : une détection par génération (#1384)."""
+    return candidates_cache.get(lambda: find_candidates(db))
+
+
 def count(db: Session) -> int:
-    """La taille de la liste, sans charger le détail des fiches ni de leurs résultats."""
-    return count_cache.get(lambda: len(_cases(db)))
+    """La taille de la liste, pour la pastille de la nav."""
+    return len(cached_candidates(db))
 
 
 def _brief(athlete: Athlete, results: list) -> dict:
@@ -202,9 +207,7 @@ def _brief(athlete: Athlete, results: list) -> dict:
 
 def find_candidates(db: Session) -> list[dict]:
     """Les cas à trancher, avec leurs fiches et les épreuves en conflit."""
-    generation = count_cache.generation
     cases = _cases(db)
-    count_cache.set(len(cases), generation)
     athletes, results = athlete_repository.review_details(db, [i for _, ids, _, _ in cases for i in ids])
     by_athlete: dict[int, list] = defaultdict(list)
     for row in results:
