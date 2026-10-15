@@ -256,9 +256,21 @@ def redate(db: Session, course: Course, event_date: date) -> Course:
         return course
     if get_by_identity(db, course.name, event_date, course.event_type, course.is_relay):
         return course
-    course.event_date = event_date
+    _set_event_date(course, event_date)
     db.flush()
     return course
+
+
+def _clear_weather(course: Course) -> None:
+    course.weather_temperature_c = course.weather_wind_kmh = None
+    course.weather_precipitation_mm = course.weather_fetched_at = None
+
+
+def _set_event_date(course: Course, event_date: date | None) -> None:
+    """Seul écrivain de `event_date` après création : la météo d'un autre jour est à redemander (#1468)."""
+    if event_date != course.event_date:
+        _clear_weather(course)
+    course.event_date = event_date
 
 
 def get_latest_by_source_url(db: Session, source_url: str) -> Course | None:
@@ -380,8 +392,7 @@ def save_geocode_attempt(db: Session, course: Course, coord: tuple[float, float]
     if coord is not None:
         if coord != (course.latitude, course.longitude):
             # Déplacée (#1256) : la météo de l'ancien lieu est fausse, à redemander (#1370).
-            course.weather_temperature_c = course.weather_wind_kmh = None
-            course.weather_precipitation_mm = course.weather_fetched_at = None
+            _clear_weather(course)
         course.latitude, course.longitude = coord
     course.geocoded_at = utcnow()
     db.commit()
@@ -837,6 +848,8 @@ def update_identity(db: Session, course: Course, **champs) -> Course:
     l'épreuve en conflit (#117, FR-021)."""
     if "name" in champs:
         champs["name"] = clean_name(champs["name"])
+    if "event_date" in champs:
+        _set_event_date(course, champs.pop("event_date"))
     for nom_champ, valeur in champs.items():
         setattr(course, nom_champ, valeur)
     db.flush()

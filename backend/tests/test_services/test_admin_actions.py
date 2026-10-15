@@ -617,6 +617,40 @@ def test_update_course_ecrit_les_champs_fournis(db_session, auteur):
     assert course_repository.get(db_session, course.id).name == "Triathlon de Nantes"
 
 
+def test_update_course_redating_clears_the_weather(db_session, auteur):
+    """#1468 : corriger la date redemande la météo du vrai jour."""
+    course = _epreuve(db_session, event_date=date(2025, 6, 1))
+    course.latitude, course.longitude = 47.2, -1.55
+    course_repository.save_weather(
+        db_session, course, temperature_c=21.0, wind_kmh=10.0, precipitation_mm=0.0
+    )
+
+    admin_actions.update_course(
+        db_session, course_id=course.id, champs={"event_date": date(2025, 9, 14)}, user_id=auteur.id
+    )
+
+    assert course.weather_temperature_c is None
+    assert course in course_repository.list_missing_weather(db_session, dated_before=date(2026, 1, 1))
+
+
+def test_update_course_without_date_change_keeps_the_weather(db_session, auteur):
+    course = _epreuve(db_session, event_date=date(2025, 6, 1))
+    course.latitude, course.longitude = 47.2, -1.55
+    course_repository.save_weather(
+        db_session, course, temperature_c=21.0, wind_kmh=10.0, precipitation_mm=0.0
+    )
+
+    admin_actions.update_course(
+        db_session,
+        course_id=course.id,
+        champs={"name": "Triathlon de Nantes 2", "event_date": date(2025, 6, 1)},
+        user_id=auteur.id,
+    )
+
+    assert course.weather_temperature_c == 21.0
+    assert course.weather_fetched_at is not None
+
+
 def test_update_course_ne_touche_aucun_resultat(db_session, auteur):
     """FR-023 — temps, rangs, statut et rattachements identiques avant/après."""
     course = _epreuve(db_session, "Tri de Nates")
