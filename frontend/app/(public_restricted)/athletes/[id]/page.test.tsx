@@ -364,10 +364,16 @@ describe("AthletePage", () => {
     expect(within(row as HTMLElement).queryByText("DNF")).not.toBeInTheDocument();
   });
 
-  it("affiche la carte Meilleurs temps quand un temps est comparable (#1361)", async () => {
-    await renderAthlete([part({ id: 1, total_time: "02:05:30" })]);
+  it("affiche la carte Meilleurs temps à partir de trois épreuves validées (#1361)", async () => {
+    await renderAthlete([part({ id: 1 }), part({ id: 2 }), part({ id: 3 })]);
 
     expect(screen.getByRole("heading", { name: "Meilleurs temps" })).toBeInTheDocument();
+  });
+
+  it("tait la carte Meilleurs temps sous trois épreuves : la tuile Temps dit déjà le temps", async () => {
+    await renderAthlete([part({ id: 1 })]);
+
+    expect(screen.queryByRole("heading", { name: "Meilleurs temps" })).not.toBeInTheDocument();
   });
 
   it("ouvre le détail de la participation, et non plus la page de la course", async () => {

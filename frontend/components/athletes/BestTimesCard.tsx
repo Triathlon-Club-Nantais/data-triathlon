@@ -32,7 +32,12 @@ export function BestTimesCard({ participations }: { participations: Participatio
         <LigneCarte
           key={`${discipline}|${format}`}
           href={`/courses/${participation.course.id}/participations/${participation.id}`}
-          marqueur={<FormatChip>{format}</FormatChip>}
+          // Le format est déjà dit par le préfixe masqué de la valeur.
+          marqueur={
+            <span aria-hidden="true">
+              <FormatChip>{format}</FormatChip>
+            </span>
+          }
           titre={eventTypeLabel(discipline)}
           meta={[participation.course.name, formatDate(participation.course.event_date)]
             .filter(Boolean)

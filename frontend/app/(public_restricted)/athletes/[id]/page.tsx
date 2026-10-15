@@ -199,7 +199,8 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
           </div>
         )}
 
-        <BestTimesCard participations={participations} />
+        {/* Sous trois épreuves, la tuile « Temps » montre déjà ce temps (#1361). */}
+        {resume.regime === "complet" && <BestTimesCard participations={participations} />}
 
         {validated.length > 0 && (
           <Card>
