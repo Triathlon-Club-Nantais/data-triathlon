@@ -6,12 +6,15 @@ d'identité (`backend/app/services/auth/idp/entra.py`, slug `entra`), à côté 
 GitHub. Spec : `specs/20261011-155714-comptes-membres-socle/` (US3,
 FR-018 à FR-024) ; choix d'outillage : `research.md` R1.
 
-Deux outils, parce qu'aucun ne couvre tout : **Bicep** crée le tenant
+Trois gestes, parce qu'aucun outil ne couvre tout : **Bicep** crée le tenant
 (`main.bicep`, ressource `ciamDirectories`), le **script Graph**
-`configure-tenant.sh` crée ce qui vit dans le tenant (application, principal de
-service, consentement, secret, fournisseur Google, parcours d'inscription). Le
-provider Graph de Bicep ne couvre ni les fournisseurs d'identité ni les
-parcours, et Terraform imposerait un état distant à héberger.
+`configure-tenant.sh` crée les applications (application, principal de service,
+consentement, secret), et le **portail** porte le fournisseur Google et le
+parcours d'inscription. Le provider Graph de Bicep ne couvre ni les fournisseurs
+d'identité ni les parcours, Terraform imposerait un état distant à héberger, et
+Azure CLI ne peut pas les créer : Graph refuse à cette application Microsoft
+les permissions `IdentityProvider.*` et `EventListener.*` (`AADSTS65002`, mesuré
+au premier déploiement le 2026-10-15), consentement ou pas.
 
 ## FinOps
 
@@ -30,8 +33,7 @@ parcours, et Terraform imposerait un état distant à héberger.
 - `az` récent et `jq` (paquet courant, présent sur la plupart des postes qui
   ont `az`) : les corps de requête sont construits par `jq -n --arg`, jamais
   par interpolation. Ils passent par un fichier d'un dossier temporaire privé,
-  supprimé en sortie, jamais par la ligne de commande : le secret Google
-  n'apparaît pas dans la liste des processus.
+  supprimé en sortie, jamais par la ligne de commande.
 
 ## Ordre de déploiement
 
@@ -66,26 +68,21 @@ parcours, et Terraform imposerait un état distant à héberger.
    az login --tenant <tid> --allow-no-subscriptions
    APP_NAME=data-triathlon-preview \
    REDIRECT_URI=https://data-triathlon-tcn-preview.vercel.app/api/v1/auth/entra/callback \
-   GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... \
    ./infra/entra-external-id/configure-tenant.sh <tid>
 
    APP_NAME=data-triathlon-prod \
    REDIRECT_URI=https://data.triathlon-club-nantais.com/api/v1/auth/entra/callback \
    ./infra/entra-external-id/configure-tenant.sh <tid>
    ```
-   Le fournisseur Google et le parcours d'inscription sont communs au tenant :
-   le premier lancement les crée, le second y rattache sa propre application.
    Le retour vise l'**interface**, jamais le backend (même règle que GitHub,
    `backend/app/services/auth/AGENTS.md`). Relancé, le script ne crée rien de
    plus ; il remet seulement l'application à jour (URI de retour, claims
    optionnels `email` et `xms_edov`, permissions `openid profile email`) et la
-   portée du consentement. Il **ne rafraîchit pas** un parcours existant : ses
-   moyens de connexion se modifient au portail. Le parcours est créé sans
-   `onAttributeCollection`, facultatif selon la documentation Graph : au
-   premier lancement, vérifier au portail qu'il ne demande que l'adresse. Le
-   secret client n'est créé que s'il n'en existe aucun, ou avec
-   `--rotate-secret` ; il s'affiche **une seule fois** sur la sortie standard
-   et n'est écrit nulle part. Les anciens secrets restent valides après une
+   portée du consentement. Le secret client n'est créé que s'il n'en existe
+   aucun, ou avec `--rotate-secret` ; il sort **une seule fois**, seul, sur la
+   sortie standard (les journaux vont sur la sortie d'erreur) : la rediriger
+   vers un fichier `chmod 600` hors du dépôt (`> ~/.tcn-entra-preview.secret`)
+   le temps de le poser sur Render. Les anciens secrets restent valides après une
    rotation : les retirer au portail une fois Render à jour. Juste après une
    création, Graph peut répondre 404 ou 400 quelques secondes : le script
    réessaie six fois, à 5 s d'intervalle.
@@ -95,12 +92,24 @@ parcours, et Terraform imposerait un état distant à héberger.
    une application ne les rend pas orphelins ; mais le script retrouve
    l'application par son nom (`APP_NAME`), et un renommage en créerait une
    seconde, avec un nouvel identifiant client à reporter sur Render.
-4. **Réglages backend**, preview d'abord, chacun avec l'identifiant et le
+4. **Au portail** (https://entra.microsoft.com, intitulés anglais), après
+   bascule sur le tenant externe (**Settings**, **Directories +
+   subscriptions**, **Switch**) :
+   - **Entra ID**, **External Identities**, **All identity providers**, onglet
+     **Built-in**, **Google**, **Configure** : identifiant et secret du client
+     OAuth de l'étape 2 ;
+   - **External Identities**, **User flows**, **New user flow** : nom
+     `tcn-signup-signin`, fournisseurs **Email one-time passcode** et
+     **Google** (jamais e-mail avec mot de passe), attribut **Email Address**
+     seul (plus **Display Name** au besoin), aucun téléphone ;
+   - dans le parcours, **Applications**, **Add application** : les deux
+     applications de l'étape 3.
+5. **Réglages backend**, preview d'abord, chacun avec l'identifiant et le
    secret de **son** application : `AUTH_ENTRA_SUBDOMAIN`,
    `AUTH_ENTRA_TENANT_ID`, `AUTH_ENTRA_CLIENT_ID`, `AUTH_ENTRA_CLIENT_SECRET`
    (`docs/ci-cd.md`). Les quatre ou aucun : le bouton n'apparaît qu'avec les
    quatre.
-5. **Constat FR-021**, avant toute mise en production (ci-dessous).
+6. **Constat FR-021**, avant toute mise en production (ci-dessous).
 
 ## Constat FR-021 et repli
 
@@ -158,12 +167,13 @@ même façon, une fois le compte supprimé par l'exploitant.
 ## Ce qui n'est pas automatisé
 
 - le client OAuth Google (étape 2) ;
-- la rotation du secret Google : le script ne remplace pas un fournisseur
-  Google existant, la mettre à jour au portail du tenant ;
+- le fournisseur Google, le parcours et le rattachement des applications
+  (étape 4), et la rotation du secret Google, au portail du tenant ;
 - le retrait des anciens secrets client après rotation ;
-- les moyens de connexion d'un parcours déjà créé ;
 - la suppression de l'utilisateur Entra après celle du compte (relevé mensuel
   du journal ci-dessus) ;
-- la validation de `main.bicep` (`az bicep build -f main.bicep`) et du script
-  (`shellcheck configure-tenant.sh`) avant le premier lancement : ni le Bicep
-  CLI ni shellcheck n'étaient installés à l'écriture, seul `bash -n` a tourné.
+- la validation avant modification : `az bicep build`, `what-if`, et
+  `uvx --from shellcheck-py shellcheck configure-tenant.sh`. Le premier
+  déploiement (2026-10-15) a révélé deux valeurs que la référence ARM donnait
+  fausses, corrigées dans `main.bicep` : SKU `Base`, nom suffixé
+  `.onmicrosoft.com`.

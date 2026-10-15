@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Configure le tenant externe Entra External ID du club (#1323) par Microsoft
-# Graph v1.0 : application, principal de service, consentement, secret client,
-# fournisseur Google, parcours d'inscription. Idempotent : chaque objet est lu
+# Graph v1.0 : application, principal de service, consentement, secret client.
+# Idempotent : chaque objet est lu
 # avant d'être créé, et une relance ne crée rien de plus.
 #
 # Une application par environnement : lancer le script une fois par
@@ -11,7 +11,6 @@
 #   az login --tenant <tenantId> --allow-no-subscriptions
 #   APP_NAME=data-triathlon-preview \
 #   REDIRECT_URI=https://.../api/v1/auth/entra/callback \
-#   GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... \
 #   ./configure-tenant.sh <tenantId> [--rotate-secret]
 #
 # Le secret client est affiché une seule fois sur la sortie standard et n'est
@@ -20,7 +19,6 @@ set -euo pipefail
 
 GRAPH="https://graph.microsoft.com/v1.0"
 GRAPH_APP_ID="00000003-0000-0000-c000-000000000000"
-FLOW_NAME="${FLOW_NAME:-data-triathlon connexion}"
 SCOPES="openid profile email"
 
 usage() {
@@ -42,7 +40,7 @@ command -v jq >/dev/null || { echo "jq est requis" >&2; exit 1; }
 log() { echo "$*" >&2; }
 
 # Les corps de requête passent par un fichier de ce dossier privé, jamais par la
-# ligne de commande : le secret Google n'apparaît pas dans la liste des processus.
+# ligne de commande.
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
 umask 077
@@ -157,64 +155,10 @@ else
   log "Secret client existant conservé (--rotate-secret pour en créer un nouveau)"
 fi
 
-# 5. Fournisseur Google (client OAuth créé à la main dans la console Google Cloud)
-providers_path="/identity/identityProviders"
-google_id="$(lookup "$providers_path" "value[?identityProviderType=='Google'].id | [0]")"
-if [[ -z "$google_id" ]]; then
-  : "${GOOGLE_CLIENT_ID:?GOOGLE_CLIENT_ID est requis pour créer le fournisseur Google}"
-  : "${GOOGLE_CLIENT_SECRET:?GOOGLE_CLIENT_SECRET est requis pour créer le fournisseur Google}"
-  google_id="$(send post "$providers_path" "$(jq -n --arg id "$GOOGLE_CLIENT_ID" --arg secret "$GOOGLE_CLIENT_SECRET" '{
-    "@odata.type": "microsoft.graph.socialIdentityProvider",
-    displayName: "Google",
-    identityProviderType: "Google",
-    clientId: $id,
-    clientSecret: $secret
-  }')" --query id -o tsv)"
-  rm -f "$WORKDIR/body.json"
-  log "Fournisseur Google créé"
-else
-  log "Fournisseur Google existant (non modifié)"
-fi
-# Lu plutôt que supposé : l'identifiant du code par e-mail n'est pas garanti stable.
-email_otp_id="$(lookup "$providers_path" "value[?identityProviderType=='EmailOTP'].id | [0]")"
-if [[ -z "$email_otp_id" ]]; then
-  log "Fournisseur de code par e-mail introuvable dans le tenant"
-  exit 1
-fi
-
-# 6. Parcours d'inscription et de connexion, commun aux applications du tenant.
-# `onAttributeCollection` est facultatif selon la documentation Graph : omis, le
-# parcours ne demande rien de plus que l'adresse (à confirmer au premier lancement).
-flows_path="/identity/authenticationEventsFlows"
-flow_id="$(lookup "$flows_path" "value[?displayName=='${FLOW_NAME}'].id | [0]")"
-if [[ -z "$flow_id" ]]; then
-  flow_id="$(retry send post "$flows_path" "$(jq -n --arg name "$FLOW_NAME" --arg otp "$email_otp_id" --arg google "$google_id" '{
-    "@odata.type": "#microsoft.graph.externalUsersSelfServiceSignUpEventsFlow",
-    displayName: $name,
-    onInteractiveAuthFlowStart: {
-      "@odata.type": "#microsoft.graph.onInteractiveAuthFlowStartExternalUsersSelfServiceSignUp",
-      isSignUpAllowed: true
-    },
-    onAuthenticationMethodLoadStart: {
-      "@odata.type": "#microsoft.graph.onAuthenticationMethodLoadStartExternalUsersSelfServiceSignUp",
-      identityProviders: [{id: $otp}, {id: $google}]
-    }
-  }')" --query id -o tsv)"
-  log "Parcours d'inscription créé : ${FLOW_NAME}"
-else
-  log "Parcours d'inscription existant, moyens de connexion non modifiés : ${FLOW_NAME}"
-fi
-
-# 7. Application rattachée au parcours (une application n'appartient qu'à un parcours)
-apps_path="${flows_path}/${flow_id}/conditions/applications/includeApplications"
-linked="$(retry lookup "$apps_path" "value[?appId=='${app_id}'].appId | [0]")"
-if [[ -z "$linked" ]]; then
-  retry send post "$apps_path" "$(jq -n --arg app "$app_id" \
-    '{"@odata.type": "#microsoft.graph.authenticationConditionApplication", appId: $app}')" >/dev/null
-  log "Application rattachée au parcours"
-else
-  log "Application déjà rattachée au parcours"
-fi
+# Le fournisseur Google, le parcours d'inscription et le rattachement des
+# applications au parcours se font au portail (AGENTS.md, étape 4) : Azure CLI
+# est une application Microsoft que Graph refuse pour IdentityProvider.* et
+# EventListener.* (AADSTS65002, mesuré le 2026-10-15), quel que soit le consentement.
 
 log ""
 log "Réglages Render de cet environnement :"
