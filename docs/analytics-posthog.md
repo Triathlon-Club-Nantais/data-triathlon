@@ -17,7 +17,13 @@ qu'il compte une seule fois et hors de portée des bloqueurs (#1033).
   tout appel devient synchrone. `lib/posthog.test.ts` échoue sur tout import
   de valeur depuis `posthog-js` (`import type` reste permis). Le cookie
   d'accord (`syncConsentCookie`), lui, se pose toujours au chargement, sans
-  attendre la bibliothèque. Sans `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` /
+  attendre la bibliothèque. Prix accepté de l'init différée (3 s au plus) :
+  une exception levée avant elle, hydratation comprise, échappe à Error
+  Tracking, et une visite partie avant elle ne compte pas de page vue. Les web
+  vitals, lus en `buffered`, ne perdent rien. Un accord donné avant l'init
+  ouvre l'autocapture tout de suite. `/login` charge la bibliothèque dès son
+  affichage : chargée au clic, `login_initiated` partirait après la navigation.
+  Sans `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` /
   `NEXT_PUBLIC_POSTHOG_HOST`, `posthog-js` n'est pas téléchargé : l'app tourne
   normalement, juste sans analytics — et **sans rien logguer**, l'absence de
   variable étant un réglage attendu, pas une erreur (#426). Variables et valeurs :

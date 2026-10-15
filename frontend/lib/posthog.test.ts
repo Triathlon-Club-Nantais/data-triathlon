@@ -100,7 +100,7 @@ describe("posthog-js hors du JS initial (#1394)", () => {
   }
 
   it("aucun fichier n'importe posthog-js statiquement, hors import de types", () => {
-    const staticImport = /^\s*import\s+(?!type\b)[^;]*from\s+["']posthog-js["']/m;
+    const staticImport = /^\s*(import|export)\s+(?!type\b)[^;]*from\s+["']posthog-js(\/[^"']*)?["']|require\(["']posthog-js/m;
     const offenders = sources(root)
       .filter((path) => staticImport.test(readFileSync(path, "utf8")))
       .map((path) => relative(root, path));

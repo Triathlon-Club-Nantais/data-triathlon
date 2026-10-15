@@ -13,7 +13,9 @@ syncConsentCookie();
 
 // posthog-js se charge au repos du navigateur, après l'hydratation, plutôt que dans le JS initial
 // de chaque page (#1394). Le délai borne l'attente sur une page qui ne se repose jamais. Un
-// `captureEvent` émis plus tôt déclenche le chargement lui-même.
+// `captureEvent` émis plus tôt déclenche le chargement lui-même. Prix accepté : une exception levée
+// avant l'init (hydratation comprise) échappe à Error Tracking, et une visite partie avant elle
+// ne compte pas de page vue. Les web vitals, lus en `buffered`, ne perdent rien.
 const start = () => withPostHog(() => {});
 if ("requestIdleCallback" in window) requestIdleCallback(start, { timeout: 3000 });
 else setTimeout(start, 0);
