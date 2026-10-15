@@ -324,15 +324,16 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   que ses liens gardent leur place dans l'arbre (#428). Le sommaire met les files « À
   traiter » en tête, avec le compteur de leur pastille (`useNavBadges`, même
   nom accessible via `libelleCompteur`, « … » discret au premier chargement),
-  et ne les répète pas en tuiles. Chaque
-  file a sa pastille et sa route de compte sous la garde de son écran ; celle
-  de « Validation des épreuves » est gardée par le cookie bénévoles, illisible
-  côté client, donc demandée pour un compte d'administration seulement (401
-  avalé) ; `useFileValidation` l'invalide quand la file change de taille, à la
-  connexion et à la déconnexion. La pastille de la revalidation compte les
+  et ne les répète pas en tuiles. Toutes les
+  pastilles viennent d'**un** appel, `GET /admin/badge-counts` (#1385), demandé
+  pour un compte d'administration seulement : le serveur ne rend que les clés
+  que la session voit, « Validation des épreuves » comprise (cookie bénévoles,
+  illisible côté client). Le compte tient 5 min (deux revues le rejouent en
+  entier) et **toute mutation réussie l'invalide** (`MutationCache` de
+  `app/providers.tsx`) ; `useFileValidation`, qui n'écrit pas par `useMutation`,
+  l'invalide lui-même. La pastille de la revalidation compte les
   épreuves sans avis humain, et sa file les montre par défaut
-  (`awaiting_review=true`). Celle des identités garde son compte 5 min : il
-  exécute toute la revue. La palette ⌘K mène aussi aux écrans : `AthletePicker`
+  (`awaiting_review=true`). La palette ⌘K mène aussi aux écrans : `AthletePicker`
   reçoit les destinations visibles du rail, plus `/admin` et `/admin/guide`
   pour un compte d'administration, les filtre sur place, en liens hors du
   combobox des athlètes, et compte les écrans trouvés dans son statut.

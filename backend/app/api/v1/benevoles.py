@@ -34,7 +34,6 @@ from app.repositories import (
 from app.schemas.admin import ParticipationReassign
 from app.schemas.athlete import AthleteBrief
 from app.schemas.benevole import BenevoleCourseRename, BenevoleLogin, ParticipationFieldsUpdate
-from app.schemas.count import QueueCount
 from app.schemas.course import CourseBrief
 from app.schemas.participation import ParticipationOut
 from app.schemas.validation_queue import ValidationQueueHistory
@@ -99,16 +98,6 @@ def close_session(response: Response, settings: Settings = Depends(get_settings)
 def queue(db: Session = Depends(get_db)):
     """Résultats en attente de validation, tous clubs confondus (research.md §D5)."""
     return participation_repository.list_pending(db)
-
-
-@router.get(
-    "/benevoles/queue/count",
-    response_model=QueueCount,
-    dependencies=[Depends(require_benevole_access)],
-)
-def queue_count(db: Session = Depends(get_db)):
-    """La pastille de la nav (#1232), sans charger la file."""
-    return QueueCount(total=participation_repository.count_pending(db))
 
 
 @router.get(

@@ -1514,6 +1514,17 @@ export interface Feedback {
 }
 
 /**
+ * `GET /admin/badge-counts` (#1385) : les pastilles du rail, par clé de
+ * `nav.config.ts`. Une pastille que la session ne voit pas est absente.
+ */
+export type AdminBadgeCounts = Partial<
+  Record<
+    "quality" | "duplicates" | "providers" | "feedback" | "identities" | "members" | "volunteer" | "validation",
+    number
+  >
+>;
+
+/**
  * `GET /admin/feedback/counts` — le nombre de signalements par statut (#500).
  * Les quatre statuts sont toujours présents, à zéro le cas échéant : la barre
  * de filtres affiche ses quatre entrées même sur une base vide.

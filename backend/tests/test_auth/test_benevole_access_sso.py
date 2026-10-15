@@ -29,7 +29,6 @@ BASE = "/api/v1/benevoles"
 
 READ_ROUTES = [
     "/queue",
-    "/queue/count",
     "/queue/history",
     "/rejected",
     "/athletes?name=dupont",

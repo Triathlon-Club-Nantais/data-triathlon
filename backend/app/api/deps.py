@@ -123,11 +123,16 @@ def require_benevole_access(
     """
     if user is not None and authorization.has_permission(db, user, P.BENEVOLE_ACCESS_MANAGE):
         return user
-    config = benevole_config_repository.get_config(db)
-    cookie = request.cookies.get(benevole_access.BENEVOLE_SESSION_COOKIE)
-    if config is None or not shared_password.verify_cookie(cookie, config.session_secret):
+    if not has_benevole_cookie(request, db):
         raise NotAuthenticatedError()
     return None
+
+
+def has_benevole_cookie(request: Request, db: Session) -> bool:
+    """Le cookie bénévoles de cette requête est-il valide ? Faux sans configuration."""
+    config = benevole_config_repository.get_config(db)
+    cookie = request.cookies.get(benevole_access.BENEVOLE_SESSION_COOKIE)
+    return config is not None and shared_password.verify_cookie(cookie, config.session_secret)
 
 
 def require_site_access(

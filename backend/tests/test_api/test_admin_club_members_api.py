@@ -154,10 +154,10 @@ def test_count_the_members_to_settle_in_the_current_season(client, db_session):
         )
         assert imported.json()["unlinked"] + imported.json()["ambiguous"] == 2
 
-    assert client.get("/api/v1/admin/club-members/count").json() == {"total": 2}
+    assert client.get("/api/v1/admin/badge-counts").json()["members"] == 2
 
 
 def test_counting_needs_the_members_power(client, db_session):
     _session_etroite(client, db_session, "athletes:read")
 
-    assert client.get("/api/v1/admin/club-members/count").status_code == 403
+    assert "members" not in client.get("/api/v1/admin/badge-counts").json()
