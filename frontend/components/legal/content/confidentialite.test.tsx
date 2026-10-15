@@ -132,7 +132,7 @@ describe("Politique de confidentialité (#333)", () => {
   });
 
   it("ne rattache les actions du back-office au compte qu'avec l'accord (#1359)", () => {
-    expect(rendre()).toMatch(/rattachées à l.identifiant du compte seulement si vous avez accepté la mesure détaillée/);
+    expect(rendre()).toMatch(/rattachées à l.identifiant du compte seulement si son titulaire a accepté la mesure détaillée/);
   });
 
   it("annonce la liste des licenciés, sa provenance et sa durée (#1202)", () => {

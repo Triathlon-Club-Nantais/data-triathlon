@@ -94,7 +94,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             Retirer ensuite votre accord arrête cette mesure détaillée, sans effacer ce qui a déjà été transmis :
             pour cela, exercez votre droit à l&apos;effacement (voir « Vos droits »). Les actions faites dans le
             back-office sont comptées par le serveur du site, rattachées à l&apos;identifiant du compte seulement si
-            vous avez accepté la mesure détaillée ; sinon elles restent anonymes (voir « Cookies et stockage du
+            son titulaire a accepté la mesure détaillée ; sinon elles restent anonymes (voir « Cookies et stockage du
             navigateur »).
           </p>
         </>
@@ -260,7 +260,7 @@ export const PRIVACY_POLICY: LegalDocument = {
               ["tcn-athlete", "stockage local", "Retenir l'athlète que vous avez choisi comme « moi »", "Jusqu'à ce que vous le changiez"],
               [RETOUR_CONNEXION_KEY, "stockage de session", "Vous ramener à la bonne page après la connexion", "Jusqu'à la fermeture de l'onglet"],
               [ANALYTICS_CONSENT_KEY, "stockage local", "Retenir votre choix sur la mesure d'audience détaillée", "Choix valable 6 mois"],
-              ["tcn_analytics_consent", "cookie", "Transmettre ce choix au serveur du site", "6 mois"],
+              ["tcn_analytics_consent", "cookie", "Signaler votre accord au serveur du site, seulement si vous acceptez", "6 mois au plus"],
               ["__ph_opt_in_out_…", "stockage local", "Retenir votre choix côté PostHog, dès que vous acceptez ou refusez", "1 an"],
               ["ph_…", "cookie et stockage local", "Mesure d'audience détaillée (PostHog), seulement si vous l'acceptez", "1 an"],
             ]}

@@ -65,7 +65,7 @@ qu'il compte une seule fois et hors de portée des bloqueurs (#1033).
   session.
 - **Consentement côté serveur** (#1359) : le backend ne lit pas `localStorage`.
   Le front recopie l'accord dans le cookie technique `tcn_analytics_consent`
-  (`granted`, six mois, `syncConsentCookie` de `lib/analytics-consent.ts`,
+  (`granted`, expire avec l'accord, `syncConsentCookie` de `lib/analytics-consent.ts`,
   appelé à chaque choix et au chargement), qui accompagne toute requête
   `/api/*` puisque le rewrite Next la sert sur la même origine, retour de
   connexion compris. `AnalyticsConsentMiddleware` le lit une fois par requête ;
