@@ -58,7 +58,7 @@ def test_parse_url_rejette_une_page_hors_classement():
 
 def test_epreuve_path_force_le_classement_complet():
     """`perPage=all` est ce qui fait passer de 50 lignes au classement entier."""
-    assert chronoplace._epreuve_path("spaycific-races-2025", "494") == (
+    assert chronoplace._race_path("spaycific-races-2025", "494") == (
         "/classement/spaycific-races-2025/epreuve/494?perPage=all"
     )
 
@@ -352,7 +352,7 @@ def test_event_name_repli_slug():
 
 
 def _ids_epreuves(html, slug):
-    return [epreuve_id for epreuve_id, _ in chronoplace._enumerate_epreuves(html, slug)]
+    return [epreuve_id for epreuve_id, _ in chronoplace._enumerate_races(html, slug)]
 
 
 def test_enumerate_epreuves_donne_les_onglets_de_levenement():
@@ -567,7 +567,7 @@ def test_fetch_event_date_annuaire_404_message_dedie(caplog):
 
 
 def _resultats(html: str, slug: str, event_date=None):
-    return chronoplace._epreuve_results(html, "https://exemple/url-demandee", slug, event_date)
+    return chronoplace._race_results(html, "https://exemple/url-demandee", slug, event_date)
 
 
 def test_epreuve_results_triathlon():
@@ -633,7 +633,7 @@ def test_epreuve_results_temps_format_inconnu_journalise_une_fois(caplog):
     </table>
     """
     with caplog.at_level(logging.WARNING):
-        resultats = chronoplace._epreuve_results(html, "https://exemple/url", "slug-x", None)
+        resultats = chronoplace._race_results(html, "https://exemple/url", "slug-x", None)
 
     assert [r.total_time for r in resultats] == ["", ""]  # DNF côté mapping, sans surprise
     assert len(caplog.records) == 1
@@ -653,7 +653,7 @@ def test_epreuve_results_aucun_warning_sur_les_fixtures_reelles(caplog, html, sl
     « -- » / « +5:16 », tous légitimes — aucun warning ne doit s'en dégager. Un
     warning qui se déclenche en fonctionnement normal apprend à ignorer les logs."""
     with caplog.at_level(logging.WARNING):
-        chronoplace._epreuve_results(html, "https://exemple/url", slug, None)
+        chronoplace._race_results(html, "https://exemple/url", slug, None)
 
     assert caplog.records == []
 
@@ -846,7 +846,7 @@ def test_resolve_epreuve_id_sans_composant(monkeypatch):
     client = FakeClient({"/classement/": "<html><body>vide</body></html>"})
 
     with pytest.raises(ValueError, match="Aucune épreuve"):
-        chronoplace._resolve_epreuve_id(client, "spaycific-races-2025")
+        chronoplace._resolve_race_id(client, "spaycific-races-2025")
 
 
 def test_registry_detecte_le_provider():
@@ -884,7 +884,7 @@ URL_566_CANONICAL = (
 
 def test_epreuve_source_url_est_absolue_et_porte_perpage_all():
     """La clé de cache TTL et le `source_url` du ScrapedResult doivent être identiques."""
-    assert chronoplace._epreuve_source_url("spaycific-races-2025", "494") == URL_494_CANONICAL
+    assert chronoplace._race_source_url("spaycific-races-2025", "494") == URL_494_CANONICAL
 
 
 def test_scrape_event_fanout_nominal_returns_trace(monkeypatch):
@@ -1061,7 +1061,7 @@ _MARKUP_2026 = (
 
 def test_event_name_qualifies_the_h1_with_the_analytics_epreuve_name():
     assert chronoplace._event_name(
-        _MARKUP_2026, "spaycific-races-2025", epreuve="Spay'cific Triathlon S"
+        _MARKUP_2026, "spaycific-races-2025", race="Spay'cific Triathlon S"
     ) == "Spay'cific Races 2025 - Spay'cific Triathlon S"
 
 
@@ -1074,7 +1074,7 @@ def test_event_name_falls_back_on_the_h2_without_its_prefix():
 def test_event_name_keeps_the_legacy_h1_unchanged():
     """L'ancien `<h1>` porte déjà l'épreuve : elle n'est pas ajoutée deux fois."""
     assert chronoplace._event_name(
-        EPREUVE_494, "spaycific-races-2025", epreuve="Spay'cific Triathlon S"
+        EPREUVE_494, "spaycific-races-2025", race="Spay'cific Triathlon S"
     ) == "Spay'cific Races 2025 - Spay'cific Triathlon S"
 
 
@@ -1085,7 +1085,7 @@ def test_sibling_epreuves_of_one_event_never_share_a_course_name():
         chronoplace._event_name(
             "<html><body><h1>SITRANS Bike &amp; Run de Lèves 2025</h1></body></html>",
             "sitrans-bike-run-de-leves-2025",
-            epreuve=epreuve,
+            race=epreuve,
         )
         for epreuve in ("Mini poussins", "Poussins", "Pupilles", "Benjamins/Minimes", "Cadets/Juniors/Adultes")
     }
@@ -1098,7 +1098,7 @@ def test_sibling_epreuves_of_one_event_never_share_a_course_name():
 
 
 def _colmont():
-    return chronoplace._epreuve_results(
+    return chronoplace._race_results(
         EPREUVE_551_2026,
         "https://www.chronoplace.fr/classement/vetathlon-de-la-colmont-2025/epreuve/551",
         "vetathlon-de-la-colmont-2025",
@@ -1107,7 +1107,7 @@ def _colmont():
 
 
 def _spaycific():
-    return chronoplace._epreuve_results(
+    return chronoplace._race_results(
         EPREUVE_566_2026,
         "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/566",
         "spaycific-races-2025",
@@ -1142,7 +1142,7 @@ def test_duree_fixe_marque_l_epreuve_au_tour_sans_abandon():
 
 
 def test_epreuve_sans_tours_reste_ordinaire():
-    resultats = chronoplace._epreuve_results(
+    resultats = chronoplace._race_results(
         EPREUVE_494,
         "https://www.chronoplace.fr/classement/spaycific-races-2025/epreuve/494",
         "spaycific-races-2025",
