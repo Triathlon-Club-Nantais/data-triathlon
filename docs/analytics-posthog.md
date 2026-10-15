@@ -63,6 +63,18 @@ qu'il compte une seule fois et hors de portée des bloqueurs (#1033).
   `distinct_id` est `str(user.id)`, le même identifiant que le
   `posthog.identify()` du front, ou `ANONYMOUS_DISTINCT_ID` (`"anonymous"`) sans
   session.
+- **Consentement côté serveur** (#1359) : le backend ne lit pas `localStorage`.
+  Le front recopie l'accord dans le cookie technique `tcn_analytics_consent`
+  (`granted`, six mois, `syncConsentCookie` de `lib/analytics-consent.ts`,
+  appelé à chaque choix et au chargement), qui accompagne toute requête
+  `/api/*` puisque le rewrite Next la sert sur la même origine, retour de
+  connexion compris. `AnalyticsConsentMiddleware` le lit une fois par requête ;
+  sans la valeur `granted`, `capture_event` remplace tout `distinct_id` par
+  `ANONYMOUS_DISTINCT_ID` et `set_person_properties` n'envoie rien. La garde
+  vit dans ces deux fonctions, pas aux sites d'appel : une route ajoutée plus
+  tard en hérite. Hors requête (tâche de fond, CLI), aucun accord n'est connu,
+  donc tout part anonyme. Un appel direct au backend Render, sans le cookie,
+  reste anonyme lui aussi.
 - **Autocapture d'exceptions** : `enable_exception_autocapture=True` (produit
   « Error Tracking ») : toute exception non gérée part avec sa trace complète
   vers le cloud EU. Les `DomainError`, gérées, n'y arrivent jamais. Le choix et

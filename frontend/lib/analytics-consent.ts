@@ -1,7 +1,7 @@
 "use client";
 import posthog from "posthog-js";
 import { useSyncExternalStore } from "react";
-import { ANALYTICS_CONSENT_KEY } from "@/lib/constants";
+import { ANALYTICS_CONSENT_COOKIE, ANALYTICS_CONSENT_KEY } from "@/lib/constants";
 import { isPostHogEnabled } from "@/lib/posthog";
 
 /**
@@ -15,7 +15,7 @@ import { isPostHogEnabled } from "@/lib/posthog";
  */
 export type AnalyticsConsent = "granted" | "denied" | "pending";
 
-export { ANALYTICS_CONSENT_KEY };
+export { ANALYTICS_CONSENT_COOKIE, ANALYTICS_CONSENT_KEY };
 export const CONSENT_VALIDITY_DAYS = 182;
 const CHANGED_EVENT = "tcn-analytics-consent-changed";
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -36,6 +36,18 @@ export function readConsent(): AnalyticsConsent {
   }
 }
 
+/**
+ * Recopie l'accord dans un cookie pour le serveur, qui ne lit pas `localStorage` (#1359).
+ * Appelé aussi au chargement : un choix expiré ou antérieur au cookie s'y aligne.
+ */
+export function syncConsentCookie(consent: AnalyticsConsent = readConsent()): void {
+  const attributes = `Path=/; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}`;
+  document.cookie =
+    consent === "granted"
+      ? `${ANALYTICS_CONSENT_COOKIE}=granted; Max-Age=${CONSENT_VALIDITY_DAYS * 24 * 60 * 60}; ${attributes}`
+      : `${ANALYTICS_CONSENT_COOKIE}=; Max-Age=0; ${attributes}`;
+}
+
 export function saveConsent(choice: "granted" | "denied"): void {
   try {
     localStorage.setItem(ANALYTICS_CONSENT_KEY, JSON.stringify({ choice, at: Date.now() }));
@@ -43,6 +55,7 @@ export function saveConsent(choice: "granted" | "denied"): void {
   } catch {
     unsavedChoice = choice;
   }
+  syncConsentCookie(choice);
   if (isPostHogEnabled()) {
     if (choice === "granted") {
       posthog.opt_in_capturing({ captureEventName: false });
