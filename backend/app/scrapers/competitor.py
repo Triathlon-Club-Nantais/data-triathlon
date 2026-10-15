@@ -9,11 +9,11 @@ données sont embarquées dans `__NEXT_DATA__`. Le provider est donc nommé
 Flux d'appels :
 
     scrape_event_all(url)
-      ├─ _uuid_depuis_url(url)              → uuid porté par une URL competitor.com
-      ├─ _resoudre_uuid(client, url)        → sinon, GET ironman.com + iframe
+      ├─ _uuid_from_url(url)                → uuid porté par une URL competitor.com
+      ├─ _resolve_uuid(client, url)         → sinon, GET ironman.com + iframe
       ├─ _fetch_next_data(client, uuid)     → GET labs-v2 → pageProps
-      ├─ _choisir_edition(props, uuid)      → l'édition (année) à importer
-      └─ _lignes(client, edition_id)        → proxy OData, pagination suivie
+      ├─ _choose_edition(props, uuid)       → l'édition (année) à importer
+      └─ _rows(client, edition_id)          → proxy OData, pagination suivie
 
 **Une URL désigne une série, pas une édition.** `…/results/event/{uuid}` rend les
 21 éditions d'IRONMAN France (2005→2025) dans `subevents`, mais ne publie que
@@ -105,8 +105,8 @@ _RE_NEXT_DATA = re.compile(
 
 # Sentinelles de la source, lues dans le bundle du front : le rang 99999 et le
 # temps « 0:00:00 » y sont rendus « - ». Ce sont des absences, pas des valeurs.
-_RANG_NON_CLASSE = 99999
-_TEMPS_ABSENT = "0:00:00"
+_UNRANKED_RANK = 99999
+_ABSENT_TIME = "0:00:00"
 
 # Les cinq slots positionnels de `ScrapedResult`. Noter l'asymétrie de la source :
 # T1 est `wtc_transition1timeformatted`, T2 est `wtc_transitiontime2formatted`.
@@ -123,17 +123,17 @@ _SPLIT_FIELDS = {
 _MAX_PAGES = 50
 
 
-def _uuid_depuis_url(url: str) -> str | None:
+def _uuid_from_url(url: str) -> str | None:
     """UUID porté par une URL competitor.com, ou None s'il faut le résoudre."""
     match = _RE_UUID_PATH.search(urlparse(url).path)
     return match.group(1).lower() if match else None
 
 
-def _resoudre_uuid(client: httpx.Client, url: str) -> str:
+def _resolve_uuid(client: httpx.Client, url: str) -> str:
     """UUID d'épreuve extrait de l'iframe Competitor d'une page ironman.com."""
-    reponse = client.get(url)
-    reponse.raise_for_status()
-    match = _RE_IFRAME.search(reponse.text)
+    response = client.get(url)
+    response.raise_for_status()
+    match = _RE_IFRAME.search(response.text)
     if not match:
         raise ValueError(
             "Aucune iframe de résultats Competitor dans la page : "
@@ -145,9 +145,9 @@ def _resoudre_uuid(client: httpx.Client, url: str) -> str:
 
 def _fetch_next_data(client: httpx.Client, uuid: str) -> dict:
     """`props.pageProps` de la page Next.js de la série."""
-    reponse = client.get(f"{LABS_BASE}/results/event/{uuid}")
-    reponse.raise_for_status()
-    match = _RE_NEXT_DATA.search(reponse.text)
+    response = client.get(f"{LABS_BASE}/results/event/{uuid}")
+    response.raise_for_status()
+    match = _RE_NEXT_DATA.search(response.text)
     if not match:
         raise ValueError(
             f"Page Competitor sans bloc __NEXT_DATA__ : {uuid} (markup modifié ?)."
@@ -166,35 +166,35 @@ def _fetch_next_data(client: httpx.Client, uuid: str) -> dict:
     return props
 
 
-def _choisir_edition(props: dict, uuid: str) -> dict:
+def _choose_edition(props: dict, uuid: str) -> dict:
     """L'édition à importer : celle que vise l'URL, sinon la plus récente publiée."""
     editions = props.get("subevents") or []
-    par_id = {
+    by_id = {
         (edition.get("wtc_eventid") or "").lower(): edition for edition in editions
     }
-    ciblee = par_id.get(uuid)
-    if ciblee is not None:
-        return ciblee
-    derniere = (props.get("latestResultSubeventId") or "").lower()
-    return par_id.get(derniere) or editions[0]
+    requested = by_id.get(uuid)
+    if requested is not None:
+        return requested
+    latest_id = (props.get("latestResultSubeventId") or "").lower()
+    return by_id.get(latest_id) or editions[0]
 
 
-def _date_edition(edition: dict) -> date | None:
-    brut = (edition.get("wtc_eventdate") or "").strip()
-    if brut:
+def _edition_date(edition: dict) -> date | None:
+    raw = (edition.get("wtc_eventdate") or "").strip()
+    if raw:
         try:
-            return datetime.fromisoformat(brut.replace("Z", "+00:00")).date()
+            return datetime.fromisoformat(raw.replace("Z", "+00:00")).date()
         except ValueError:
-            logger.warning("Date d'édition Competitor illisible : %r", brut)
+            logger.warning("Date d'édition Competitor illisible : %r", raw)
     # Repli sur la forme américaine `6/29/2025`.
-    formate = (edition.get("wtc_eventdate_formatted") or "").strip()
+    formatted = (edition.get("wtc_eventdate_formatted") or "").strip()
     try:
-        return datetime.strptime(formate, "%m/%d/%Y").date()
+        return datetime.strptime(formatted, "%m/%d/%Y").date()
     except ValueError:
         return None
 
 
-def _url_odata(edition_id: str) -> str:
+def _odata_url(edition_id: str) -> str:
     """Requête OData d'un classement complet, telle que la construit le front."""
     return (
         f"{API_RESULTS}?$filter=_wtc_eventid_value eq {edition_id}"
@@ -202,33 +202,33 @@ def _url_odata(edition_id: str) -> str:
     )
 
 
-def _fetch_proxy(client: httpx.Client, url_odata: str) -> dict:
+def _fetch_proxy(client: httpx.Client, odata_url: str) -> dict:
     """Une page de résultats, via le proxy de l'app (seule porte ouverte).
 
     Une erreur HTTP remonte volontairement : dégrader en silence figerait un
     import tronqué dans le cache 30 jours.
     """
-    cible = url_odata.replace("/web/wtc_results?", "/web/results?")
-    reponse = client.get(f"{LABS_BASE}/api/results-proxy?url={quote(cible, safe='')}")
-    reponse.raise_for_status()
-    return reponse.json()
+    target = odata_url.replace("/web/wtc_results?", "/web/results?")
+    response = client.get(f"{LABS_BASE}/api/results-proxy?url={quote(target, safe='')}")
+    response.raise_for_status()
+    return response.json()
 
 
-def _lignes(client: httpx.Client, edition_id: str) -> list[dict]:
+def _rows(client: httpx.Client, edition_id: str) -> list[dict]:
     """Toutes les lignes de résultat de l'édition, pagination suivie.
 
     On ne réutilise **jamais** `latestResults` de la page, même pour l'édition
     courante : il est amputé de l'Open Division (cf. piège 3 en tête de module).
     """
-    lignes: list[dict] = []
-    suivante = _url_odata(edition_id)
+    rows: list[dict] = []
+    next_url = _odata_url(edition_id)
     pages = 0
-    while suivante and pages < _MAX_PAGES:
-        payload = _fetch_proxy(client, suivante)
-        lignes.extend(payload.get("value") or [])
-        suivante = payload.get("@odata.nextLink")
+    while next_url and pages < _MAX_PAGES:
+        payload = _fetch_proxy(client, next_url)
+        rows.extend(payload.get("value") or [])
+        next_url = payload.get("@odata.nextLink")
         pages += 1
-    if suivante:
+    if next_url:
         # Même raison que dans `_fetch_proxy` : rendre les pages déjà lues
         # figerait un classement tronqué dans le cache 30 jours. Atteindre le
         # garde-fou n'est pas une épreuve trop grosse (100 000 participants),
@@ -240,71 +240,71 @@ def _lignes(client: httpx.Client, edition_id: str) -> list[dict]:
 
     # Le front dédoublonne par `wtc_resultid` en recollant les pages ; on fait de
     # même, une ligne pouvant réapparaître si le classement bouge entre deux appels.
-    vues: set[str] = set()
-    uniques = []
-    for ligne in lignes:
-        cle = ligne.get("wtc_resultid")
-        if cle and cle in vues:
+    seen: set[str] = set()
+    unique_rows = []
+    for row in rows:
+        key = row.get("wtc_resultid")
+        if key and key in seen:
             continue
-        if cle:
-            vues.add(cle)
-        uniques.append(ligne)
-    return uniques
+        if key:
+            seen.add(key)
+        unique_rows.append(row)
+    return unique_rows
 
 
-def _temps(valeur: str | None) -> str:
-    texte = (valeur or "").strip()
-    if not texte or texte == _TEMPS_ABSENT:
+def _time(value: str | None) -> str:
+    text = (value or "").strip()
+    if not text or text == _ABSENT_TIME:
         return ""
-    return normalize_time(texte)
+    return normalize_time(text)
 
 
-def _rang(valeur) -> int | None:
-    if valeur is None or str(valeur).strip() in ("", str(_RANG_NON_CLASSE)):
+def _rank(value) -> int | None:
+    if value is None or str(value).strip() in ("", str(_UNRANKED_RANK)):
         return None
-    return normalize_rank(valeur) or None
+    return normalize_rank(value) or None
 
 
-def _statut(ligne: dict) -> str:
+def _status(row: dict) -> str:
     """Statut sportif, ou "" si la source ne se prononce pas."""
-    if ligne.get("wtc_dq"):
+    if row.get("wtc_dq"):
         return STATUS_DSQ
-    if ligne.get("wtc_dns"):
+    if row.get("wtc_dns"):
         return STATUS_DNS
-    if ligne.get("wtc_dnf"):
+    if row.get("wtc_dnf"):
         return STATUS_DNF
-    if ligne.get("wtc_finisher"):
+    if row.get("wtc_finisher"):
         return STATUS_FINISHER
     # Mesuré : 3 lignes sur 1585 (Vichy 2024) n'ont aucun des quatre drapeaux.
     # On laisse l'infra trancher sur la présence d'un temps plutôt que de deviner.
     return ""
 
 
-def _genre(agegroup: dict) -> str:
+def _gender(agegroup: dict) -> str:
     """Genre lu sur la catégorie d'âge, **pas** sur la fiche de contact.
 
     `wtc_ContactId.gendercode` est faux sur 77 lignes / 1585 mesurées (Vichy
     2024) : le vainqueur masculin d'IRONMAN France y est « Female ». La
     catégorie (`M30-34`) porte l'information de façon fiable.
     """
-    libelle = (agegroup.get("wtc_gender_formatted") or "").strip().lower()
-    if libelle.startswith("m"):
+    label = (agegroup.get("wtc_gender_formatted") or "").strip().lower()
+    if label.startswith("m"):
         return "M"
-    if libelle.startswith("f"):
+    if label.startswith("f"):
         return "F"
     return ""
 
 
-def _dossard(ligne: dict) -> str:
-    for champ in ("wtc_bibnumber", "wtc_bibnumber_v2"):
-        valeur = ligne.get(champ)
-        if valeur not in (None, ""):
-            return str(valeur).strip()
+def _bib(row: dict) -> str:
+    for field in ("wtc_bibnumber", "wtc_bibnumber_v2"):
+        value = row.get(field)
+        if value not in (None, ""):
+            return str(value).strip()
     return ""
 
 
 def _build_result(
-    ligne: dict,
+    row: dict,
     *,
     url: str,
     event_name: str,
@@ -312,68 +312,68 @@ def _build_result(
     event_type: str,
     edition_id: str,
 ) -> ScrapedResult:
-    contact = ligne.get("wtc_ContactId") or {}
-    agegroup = ligne.get("wtc_AgeGroupId") or {}
+    contact = row.get("wtc_ContactId") or {}
+    agegroup = row.get("wtc_AgeGroupId") or {}
 
-    resultat = ScrapedResult(source_url=url, provider="competitor")
+    result = ScrapedResult(source_url=url, provider="competitor")
 
-    nom = (contact.get("lastname") or "").strip()
-    prenom = (contact.get("firstname") or "").strip()
-    if not nom and not prenom:
+    last_name = (contact.get("lastname") or "").strip()
+    first_name = (contact.get("firstname") or "").strip()
+    if not last_name and not first_name:
         # Repli : `fullname` est en « Prénom NOM », que sait découper utils.
-        nom, prenom = split_athlete_name(contact.get("fullname") or "")
-    resultat.bib_number = _dossard(ligne)
+        last_name, first_name = split_athlete_name(contact.get("fullname") or "")
+    result.bib_number = _bib(row)
     # « Anonymous » sur 70 dossards distincts de la course 305 : une seule fiche (#897).
-    resultat.athlete_name, resultat.athlete_firstname = anonymous_identity(
-        nom, prenom, bib=resultat.bib_number, scope=edition_id
+    result.athlete_name, result.athlete_firstname = anonymous_identity(
+        last_name, first_name, bib=result.bib_number, scope=edition_id
     )
 
     # La source ne publie **aucun club** — ni colonne, ni entité liée. Un import
     # Competitor ne peut donc pas être rattaché au TCN par ce champ (cf. design).
-    resultat.club = ""
-    resultat.category = (
-        ligne.get("_wtc_agegroupid_value_formatted")
+    result.club = ""
+    result.category = (
+        row.get("_wtc_agegroupid_value_formatted")
         or agegroup.get("wtc_agegroupname")
         or ""
     ).strip()
-    resultat.gender = _genre(agegroup)
+    result.gender = _gender(agegroup)
 
-    resultat.event_name = event_name
-    resultat.event_date = event_date
-    resultat.event_type = event_type
+    result.event_name = event_name
+    result.event_date = event_date
+    result.event_type = event_type
 
-    resultat.status = _statut(ligne)
-    resultat.total_time = _temps(ligne.get("wtc_finishtimeformatted"))
-    for champ, slot in _SPLIT_FIELDS.items():
-        setattr(resultat, slot, _temps(ligne.get(champ)))
+    result.status = _status(row)
+    result.total_time = _time(row.get("wtc_finishtimeformatted"))
+    for field, slot in _SPLIT_FIELDS.items():
+        setattr(result, slot, _time(row.get(field)))
 
-    resultat.rank_overall = _rang(ligne.get("wtc_finishrankoverall"))
-    resultat.rank_category = _rang(ligne.get("wtc_finishrankgroup"))
-    resultat.rank_gender = _rang(ligne.get("wtc_finishrankgender"))
+    result.rank_overall = _rank(row.get("wtc_finishrankoverall"))
+    result.rank_category = _rank(row.get("wtc_finishrankgroup"))
+    result.rank_gender = _rank(row.get("wtc_finishrankgender"))
 
-    resultat.is_relay = bool(ligne.get("_wtc_teamresult_value"))
-    resultat.raw_data = dict(ligne)
+    result.is_relay = bool(row.get("_wtc_teamresult_value"))
+    result.raw_data = dict(row)
 
     # Un non-finisher garde ses splits partiels (ils sont réels) mais ne peut
     # porter ni temps final ni rang : la source y laisse 99999 et des nulls.
-    if resultat.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
-        resultat.total_time = ""
-        resultat.rank_overall = None
-        resultat.rank_category = None
-        resultat.rank_gender = None
+    if result.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
+        result.total_time = ""
+        result.rank_overall = None
+        result.rank_category = None
+        result.rank_gender = None
 
-    return resultat
+    return result
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
     """Tous les participants de l'édition visée par l'URL."""
     with http.client(timeout=30, headers=HEADERS) as client:
-        uuid = _uuid_depuis_url(url)
+        uuid = _uuid_from_url(url)
         if uuid is None:
-            uuid = _resoudre_uuid(client, url)
+            uuid = _resolve_uuid(client, url)
 
         props = _fetch_next_data(client, uuid)
-        edition = _choisir_edition(props, uuid)
+        edition = _choose_edition(props, uuid)
         edition_id = (edition.get("wtc_eventid") or "").lower()
         if not edition_id:
             # Sans identifiant, le `$filter` OData part vide : le proxy répond
@@ -386,28 +386,28 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         event_name = (edition.get("wtc_name") or "").strip()
         if not event_name:
             raise ValueError(f"Édition Competitor sans nom : {edition_id}")
-        event_date = _date_edition(edition)
+        event_date = _edition_date(edition)
         event_type = classify_event_type(event_name)
 
-        lignes = _lignes(client, edition_id)
-        if not lignes:
+        rows = _rows(client, edition_id)
+        if not rows:
             raise ValueError(
                 f"Épreuve Competitor « {event_name} » : aucun résultat publié."
             )
         logger.info(
             "Competitor : %d résultats pour « %s » (%s)",
-            len(lignes),
+            len(rows),
             event_name,
             edition_id,
         )
         return [
             _build_result(
-                ligne,
+                row,
                 url=url,
                 event_name=event_name,
                 event_date=event_date,
                 event_type=event_type,
                 edition_id=edition_id,
             )
-            for ligne in lignes
+            for row in rows
         ]
