@@ -18,7 +18,7 @@ router = APIRouter(tags=["admin-volunteer-actions"])
 
 
 @router.get("/admin/volunteer-actions/pending", response_model=list[AdminVolunteerActionOut])
-def lister_les_declarations_en_attente(
+def list_pending_declarations(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)),
 ):
@@ -28,7 +28,7 @@ def lister_les_declarations_en_attente(
 @router.post(
     "/admin/volunteer-actions/{action_id}/accept", response_model=AdminVolunteerActionOut
 )
-def accepter(
+def accept_action(
     action_id: int,
     db: Session = Depends(get_db),
     admin: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)),
@@ -42,7 +42,7 @@ def accepter(
 @router.post(
     "/admin/volunteer-actions/{action_id}/reject", response_model=AdminVolunteerActionOut
 )
-def refuser(
+def reject_action(
     action_id: int,
     db: Session = Depends(get_db),
     admin: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)),
@@ -57,7 +57,7 @@ def refuser(
     "/admin/athletes/{athlete_id}/volunteer-actions/validated",
     response_model=list[AdminVolunteerActionOut],
 )
-def lister_les_actions_validees_dun_athlete(
+def list_validated_actions_for_athlete(
     athlete_id: int,
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)),
@@ -69,12 +69,12 @@ def lister_les_actions_validees_dun_athlete(
 
 
 @router.delete("/admin/volunteer-actions/{action_id}", status_code=204)
-def supprimer(
+def delete_action(
     action_id: int,
     db: Session = Depends(get_db),
     admin: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)),
 ):
     """Supprime une déclaration, quel que soit son statut (#818) — même
-    pouvoir que `accepter`/`refuser`, pas de garde dédiée (research.md D1)."""
+    pouvoir que `accept_action`/`reject_action`, pas de garde dédiée (research.md D1)."""
     volunteer_action_service.delete(db, admin_user_id=admin.id, action_id=action_id)
     db.commit()

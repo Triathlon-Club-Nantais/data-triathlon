@@ -181,9 +181,9 @@ def test_set_status_change_et_relit_le_statut(db_session):
     )
     db_session.flush()
 
-    mise_a_jour = volunteer_action_repository.set_status(db_session, action.id, "validee")
+    updated = volunteer_action_repository.set_status(db_session, action.id, "validee")
 
-    assert mise_a_jour.status == "validee"
+    assert updated.status == "validee"
     assert volunteer_action_repository.get(db_session, action.id).status == "validee"
 
 
