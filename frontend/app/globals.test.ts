@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { COULEURS_CARTE } from "@/components/map/carte";
-import { SURFACES, contrast, resolve, token } from "@/test/couleur";
+import { SURFACES, contrast, resolve, surSurface, token } from "@/test/couleur";
 
 const css = readFileSync(fileURLToPath(new URL("globals.css", import.meta.url)), "utf8");
 
@@ -348,4 +348,16 @@ describe("cellules en gras du classement (#1355)", () => {
       expect(rule(selecteur)).toContain("font-weight: 700");
     },
   );
+});
+
+describe("rang de catégorie dans « ma ligne » (#1381)", () => {
+  it("tient 4,5:1 au repos comme au survol", () => {
+    const encre = resolve(/var\((--[\w-]+)\)/.exec(rule(".tcn-rowlink--moi .tcn-classement-rang-categorie"))![1]);
+    for (const fond of ["--tcn-orange-08", "--tcn-orange-12"]) {
+      // `evalue` ne lit pas `rgba()` : la couche se reconstruit ici.
+      const [r, g, b, alpha] = token(fond).match(/[\d.]+/g)!.map(Number);
+      const hex = `#${[r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+      expect(contrast(encre, surSurface({ hex, alpha }, resolve("--tcn-surface")))).toBeGreaterThanOrEqual(4.5);
+    }
+  });
 });

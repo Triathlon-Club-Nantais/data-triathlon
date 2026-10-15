@@ -543,6 +543,21 @@
   .tcn-classement-ligne--club {
     border-left-color: var(--tcn-orange);
   }
+  /* Gris des non-finishers en classe, à spécificité simple : le survol de
+     `.tcn-rowlink:hover` (0,2,0) le bat, ce que le style en ligne empêchait
+     (#1382). Jamais posé sur « ma ligne », dont le fond prime. */
+  .tcn-classement-ligne--nf {
+    background: color-mix(in srgb, var(--tcn-grey-400) 15%, transparent);
+  }
+  .tcn-classement-rang-categorie {
+    font-size: 11px;
+    color: var(--tcn-text-faint);
+  }
+  /* Sur le fond survolé de « ma ligne » (`--tcn-orange-12`), le faint tombait à
+     4,46:1, sous WCAG 1.4.3 (#1381). */
+  .tcn-rowlink--moi .tcn-classement-rang-categorie {
+    color: var(--tcn-text-body);
+  }
   /* Préfixées par `.tcn-table` : le `font-weight: inherit` de `.tcn-table td`
      (0,1,1) battrait sinon leur gras, que le style en ligne emportait. */
   .tcn-table .tcn-classement-nom {

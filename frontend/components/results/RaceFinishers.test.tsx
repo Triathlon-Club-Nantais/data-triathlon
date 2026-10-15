@@ -1110,6 +1110,29 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     expect(ligne.style.background).toBe("");
   });
 
+  it("grise un non-finisher par une classe, que le survol peut battre (#1382)", () => {
+    afficher();
+
+    const ligne = within(screen.getByTestId("classement-grille")).getByText(/DNSGUY/).closest("tr") as HTMLElement;
+    expect(ligne.className).toMatch(/(^|\s)tcn-classement-ligne--nf(\s|$)/);
+    expect(ligne.style.background).toBe("");
+  });
+
+  it("aligne l'en-tête sur les lignes, liseré de 3 px compris (#1380)", () => {
+    afficher();
+
+    const entete = screen.getByText("Rang").parentElement as HTMLElement;
+    expect(entete.style.borderLeft).toBe("3px solid transparent");
+  });
+
+  it("pose le rang de catégorie dans une classe que « ma ligne » peut fonder (#1381)", () => {
+    const classee = { ...p({ id: 1, nom: "CLASSEE", rank_overall: 5, total_time: "01:00:00" }), rank_category: 1 };
+    afficher({ participations: [classee] });
+
+    const rang = within(screen.getByTestId("classement-grille")).getByTitle("1er de sa catégorie");
+    expect(rang.className).toContain("tcn-classement-rang-categorie");
+  });
+
   it("ne porte la classe modificatrice que sur ma ligne, pas sur les autres", () => {
     writeAthlete({ id: 3, prenom: "T", nom: "DNFGUY" });
     afficher();
