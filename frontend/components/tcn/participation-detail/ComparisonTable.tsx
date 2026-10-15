@@ -1,4 +1,4 @@
-import type { ComparisonRow } from "@/lib/types";
+import type { ComparisonRow, MedianRow } from "@/lib/types";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { pctFr } from "@/lib/utils/format";
 import { Card } from "../Card";
@@ -19,30 +19,38 @@ const classeColonne = (small?: boolean) => (small ? "hidden sm:table-cell" : und
 // comparaient. Un `title` natif suffit ici — ce sont des cellules de texte
 // inertes, pas des commandes qu'il faudrait rendre focalisables au clavier.
 const TITRE_POSITION =
-  "Position de référence au classement scratch, à laquelle le temps de l'athlète est comparé.";
+  "Position de référence au classement scratch, ou médiane des classés, à laquelle le temps de l'athlète est comparé.";
 const titreSegment = (label: string) =>
   `Temps de l'athlète sur ${label.toLowerCase()}, en pourcentage du temps réalisé à cette position (100 % = temps identique, plus de 100 % = plus lent).`;
 const TITRE_TOTAL =
   "Temps de l'athlète sur l'ensemble de l'épreuve, en pourcentage du temps réalisé à cette position (100 % = temps identique, plus de 100 % = plus lent).";
 
 /**
- * Comparaison de l'athlète aux positions de référence du classement scratch.
+ * Comparaison de l'athlète aux positions de référence du classement scratch,
+ * puis aux médianes des classés (#1362).
  *
  * Les lignes arrivent déjà filtrées par l'API : une position que l'épreuve
- * n'atteint pas est absente, pas vide. Ce composant ne comble donc rien — un
- * tiret ici signale un temps non publié, jamais un effectif insuffisant.
+ * n'atteint pas est absente, pas vide, et une médiane sous l'effectif minimal
+ * aussi. Sur une ligne de position, un tiret signale un temps non publié ; sur
+ * une médiane, un segment publié par trop peu de classés.
  */
 export function ComparisonTable({
   rows,
+  medians = [],
   segments,
   eventType,
 }: {
   rows: ComparisonRow[];
+  medians?: MedianRow[];
   segments: string[];
   eventType: string;
 }) {
   const columns = splitColumnsFromKeys(eventType, segments);
   const shortSegmentLabels = columns.filter((column) => column.small).map((column) => column.label);
+  const lines: { key: string; label: string; row: ComparisonRow | MedianRow; sampleSize?: number }[] = [
+    ...rows.map((row) => ({ key: `rang-${row.rank}`, label: row.position_label, row })),
+    ...medians.map((row) => ({ key: row.kind, label: row.label, row, sampleSize: row.sample_size })),
+  ];
 
   return (
     <Card style={{ marginBottom: 24, overflowX: "auto" }}>
@@ -71,10 +79,11 @@ export function ComparisonTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.rank}>
+          {lines.map(({ key, label, row, sampleSize }) => (
+            <tr key={key}>
               <th scope="row" style={{ ...cellStyle, textAlign: "left", fontWeight: 700 }}>
-                {row.position_label}
+                {label}
+                {sampleSize != null && <div style={sampleSizeStyle}>{sampleSize} classés</div>}
               </th>
               {columns.map((column) => (
                 <td
@@ -96,9 +105,9 @@ export function ComparisonTable({
       </table>
       {shortSegmentLabels.length > 0 && (
         <p style={{ marginTop: 10, fontSize: 13, color: "var(--tcn-text-faint)" }}>
-          Les segments courts ({shortSegmentLabels.join(", ")}) sont sensibles au bruit de
-          chronométrage : leurs pourcentages peuvent ne pas décroître régulièrement d&apos;un
-          rang à l&apos;autre.{" "}
+          Les segments courts ({shortSegmentLabels.join(", ")}) sont indicatifs, sensibles au
+          bruit de chronométrage : leurs pourcentages peuvent ne pas décroître régulièrement
+          d&apos;un rang à l&apos;autre.{" "}
           {/* Seule cette phrase est fausse dès 640 px, où les colonnes sont déjà
               visibles : la phrase sur le bruit de chronométrage, elle, reste
               vraie à toute largeur. */}
@@ -175,6 +184,13 @@ const headStyle = {
   letterSpacing: ".04em",
   color: "var(--tcn-text-faint)",
   borderBottom: "1px solid var(--tcn-border)",
+} as const;
+
+const sampleSizeStyle = {
+  marginTop: 3,
+  fontSize: 11,
+  fontWeight: 400,
+  color: "var(--tcn-text-faint)",
 } as const;
 
 const cellStyle = {

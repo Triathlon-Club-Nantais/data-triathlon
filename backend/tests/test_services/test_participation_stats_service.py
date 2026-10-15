@@ -404,8 +404,8 @@ def _field(size, *, category="V1H", start_rank=1, relay=False):
 
 
 def _medians(athlete, ranking):
-    rows = participation_stats_service.build_from_ranking(athlete, ranking).comparison
-    return {row.kind: row for row in rows if row.kind != "position"}
+    rows = participation_stats_service.build_from_ranking(athlete, ranking).medians
+    return {row.kind: row for row in rows}
 
 
 def test_median_row_compares_to_the_median_of_every_ranked_row():
@@ -414,21 +414,18 @@ def test_median_row_compares_to_the_median_of_every_ranked_row():
     rows = _medians(ranking[0], ranking)
 
     median = rows["median"]
-    assert median.position_label == "Médiane"
-    assert median.rank == 0
+    assert median.label == "Médiane"
     assert median.sample_size == 11
     assert median.theirs_seconds == {"swim": 360, "total": 720}
     assert median.percentages == {"swim": round(60 / 360 * 100, 1), "total": round(120 / 720 * 100, 1)}
 
 
-def test_position_rows_keep_their_kind_and_no_sample_size():
+def test_medians_leave_the_position_rows_untouched():
     ranking = _field(11)
 
     rows = participation_stats_service.build_from_ranking(ranking[0], ranking).comparison
 
-    first = next(row for row in rows if row.rank == 1)
-    assert first.kind == "position"
-    assert first.sample_size is None
+    assert [row.rank for row in rows] == [1, 10]
 
 
 def test_no_median_row_below_the_minimum_sample():
@@ -460,7 +457,7 @@ def test_category_median_reads_only_the_athlete_category():
 
     category = _medians(ranking[0], ranking)["category_median"]
 
-    assert category.position_label == "Médiane catégorie"
+    assert category.label == "Médiane catégorie"
     assert category.sample_size == 10
     # Médiane des 1..10 min de natation de V1H : 5 min 30 s.
     assert category.theirs_seconds["swim"] == 330
@@ -509,7 +506,7 @@ def test_build_serves_the_medians_from_the_database(db_session):
 
     stats = participation_stats_service.build(db_session, rows[0])
 
-    assert {row.kind for row in stats.comparison} >= {"median", "category_median"}
+    assert [row.kind for row in stats.medians] == ["median", "category_median"]
 
 
 def test_medians_add_no_query_whatever_the_field_size(db_session):

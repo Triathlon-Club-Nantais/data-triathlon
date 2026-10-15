@@ -18,6 +18,7 @@ from app.repositories import participation_repository
 from app.schemas.participation_stats import (
     ComparisonRow,
     ImprovementRow,
+    MedianRow,
     ParticipationStatsOut,
     RankingEvolutionStep,
 )
@@ -123,12 +124,12 @@ def _comparison(
             )
         )
 
-    return rows + _median_rows(participation, ranking, keys)
+    return rows
 
 
-def _median_rows(
-    participation: Participation, ranking: list[Participation], keys: list[str]
-) -> list[ComparisonRow]:
+def _medians(
+    participation: Participation, ranking: list[Participation], segments: list[str]
+) -> list[MedianRow]:
     """Médiane de tous les classés, puis de ceux de la catégorie de l'athlète (#1362).
 
     Un relais est hors population : ses segments sont ceux de plusieurs athlètes.
@@ -141,6 +142,7 @@ def _median_rows(
         same_category = [row for row in ranked if row.category == participation.category]
         populations.append(("category_median", "Médiane catégorie", same_category))
 
+    keys = [*segments, TOTAL_KEY]
     rows = []
     for kind, label, population in populations:
         percentages, mine_seconds, theirs_seconds = {}, {}, {}
@@ -155,14 +157,13 @@ def _median_rows(
             theirs_seconds[key] = median
         if percentages:
             rows.append(
-                ComparisonRow(
-                    position_label=label,
-                    rank=0,
+                MedianRow(
+                    kind=kind,
+                    label=label,
+                    sample_size=len(population),
                     percentages=percentages,
                     mine_seconds=mine_seconds,
                     theirs_seconds=theirs_seconds,
-                    kind=kind,
-                    sample_size=len(population),
                 )
             )
     return rows
@@ -272,11 +273,12 @@ def _improvement(
 def build_from_ranking(
     participation: Participation, ranking: list[Participation]
 ) -> ParticipationStatsOut:
-    """Assemble les trois blocs à partir du classement complet, sans toucher la base."""
+    """Assemble les blocs à partir du classement complet, sans toucher la base."""
     segments = published_segments(ranking)
     return ParticipationStatsOut(
         segments=segments,
         ranking_evolution=_ranking_evolution(participation, ranking, segments),
         comparison=_comparison(participation, ranking, segments),
+        medians=_medians(participation, ranking, segments),
         improvement=_improvement(participation, ranking, segments),
     )

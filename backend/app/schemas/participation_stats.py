@@ -22,7 +22,7 @@ class RankingEvolutionStep(BaseModel):
 
 
 class ComparisonRow(BaseModel):
-    """Comparaison de l'athlète à une référence : une position, ou une médiane (#1362)."""
+    """Comparaison de l'athlète au coureur occupant une position de référence."""
 
     position_label: str
     rank: int
@@ -32,11 +32,24 @@ class ComparisonRow(BaseModel):
     #: avant réduction en pourcentage (US4, #466).
     mine_seconds: dict[str, int] = Field(default_factory=dict)
     theirs_seconds: dict[str, int] = Field(default_factory=dict)
-    #: Ajouts #1362 : `position` (la ligne d'origine), `median` (tous classés) ou
-    #: `category_median`. Une médiane n'occupe aucune position : son `rank` vaut 0.
-    kind: Literal["position", "median", "category_median"] = "position"
-    #: Effectif sur lequel porte la médiane, `None` pour une position.
-    sample_size: int | None = None
+
+
+class MedianRow(BaseModel):
+    """Comparaison de l'athlète à la médiane des classés (#1362).
+
+    Bloc distinct de `ComparisonRow` : une médiane n'occupe aucune position, et
+    `ComparisonRow.rank` est un entier requis du contrat publié (Principe IV).
+    """
+
+    #: `median` (tous classés) ou `category_median` (classés de sa catégorie).
+    kind: Literal["median", "category_median"]
+    label: str
+    #: Effectif de la population sur laquelle porte la médiane.
+    sample_size: int
+    #: Mêmes clés et même sens que dans `ComparisonRow`, la référence étant la médiane.
+    percentages: dict[str, float]
+    mine_seconds: dict[str, int] = Field(default_factory=dict)
+    theirs_seconds: dict[str, int] = Field(default_factory=dict)
 
 
 class ImprovementRow(BaseModel):
@@ -60,4 +73,6 @@ class ParticipationStatsOut(BaseModel):
     segments: list[str] = Field(default_factory=list)
     ranking_evolution: list[RankingEvolutionStep] = Field(default_factory=list)
     comparison: list[ComparisonRow] = Field(default_factory=list)
+    #: Ajout #1362 : vide quand l'effectif ne permet aucune médiane.
+    medians: list[MedianRow] = Field(default_factory=list)
     improvement: list[ImprovementRow] = Field(default_factory=list)

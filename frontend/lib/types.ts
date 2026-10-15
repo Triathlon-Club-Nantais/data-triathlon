@@ -83,6 +83,20 @@ export interface ComparisonRow {
   theirs_seconds?: Record<string, number>;
 }
 
+/**
+ * Comparaison à la médiane des classés (#1362). Bloc à part de `ComparisonRow` :
+ * une médiane n'occupe aucune position, et `rank` y est un entier requis.
+ */
+export interface MedianRow {
+  kind: "median" | "category_median";
+  label: string;
+  /** Effectif de la population sur laquelle porte la médiane. */
+  sample_size: number;
+  percentages: Record<string, number>;
+  mine_seconds?: Record<string, number>;
+  theirs_seconds?: Record<string, number>;
+}
+
 /** Places scratch gagnées si un segment avait été amélioré d'un pourcentage donné. */
 export interface ImprovementRow {
   segment: string;
@@ -98,6 +112,8 @@ export interface ParticipationStats {
   segments: string[];
   ranking_evolution: RankingEvolutionStep[];
   comparison: ComparisonRow[];
+  /** Ajout #1362 : optionnel, une réponse antérieure n'en porte pas. */
+  medians?: MedianRow[];
   improvement: ImprovementRow[];
 }
 

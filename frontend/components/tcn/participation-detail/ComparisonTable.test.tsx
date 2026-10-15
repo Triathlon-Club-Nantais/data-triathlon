@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import type { ComparisonRow } from "@/lib/types";
+import type { ComparisonRow, MedianRow } from "@/lib/types";
 import { ComparisonTable, pctTint } from "./ComparisonTable";
 import { contrast, evalue, resolve, surSurface } from "@/test/couleur";
 
@@ -239,6 +239,62 @@ describe("ComparisonTable", () => {
 
     const celluleAbsente = within(ligne).getAllByText("—")[0].closest("td") as HTMLElement;
     expect(celluleAbsente.style.background).toBe("");
+  });
+});
+
+describe("#1362 : médianes", () => {
+  const MEDIANES: MedianRow[] = [
+    { kind: "median", label: "Médiane", sample_size: 58, percentages: { swim: 95.0, total: 97.5 } },
+    {
+      kind: "category_median",
+      label: "Médiane catégorie",
+      sample_size: 12,
+      percentages: { swim: 99.0, total: 101.2 },
+      mine_seconds: { total: 3640 },
+      theirs_seconds: { total: 3600 },
+    },
+  ];
+
+  function renderWithMedians(medians: MedianRow[] = MEDIANES) {
+    return render(
+      <ComparisonTable rows={ROWS} medians={medians} segments={SEGMENTS} eventType="triathlon-m" />,
+    );
+  }
+
+  it("rend les médianes après les positions de référence", () => {
+    renderWithMedians();
+
+    const lignes = screen.getAllByRole("row").map((ligne) => ligne.textContent ?? "");
+    expect(lignes.length).toBe(5);
+    expect(lignes[3]).toMatch(/^Médiane58 classés/);
+    expect(lignes[4]).toMatch(/^Médiane catégorie12 classés/);
+  });
+
+  it("compare chaque segment à la médiane, pourcentage et écart brut", () => {
+    renderWithMedians();
+
+    const categorie = screen.getByRole("row", { name: /Médiane catégorie/ });
+    expect(within(categorie).getByText("101,2 %")).toBeTruthy();
+    expect(within(categorie).getByText("+40 s")).toBeTruthy();
+  });
+
+  it("n'affiche aucune ligne de médiane quand l'effectif n'en permet aucune", () => {
+    renderWithMedians([]);
+
+    expect(screen.queryByText(/Médiane/)).toBeNull();
+    expect(screen.queryByText(/classés/)).toBeNull();
+  });
+
+  it("tolère une réponse sans bloc de médianes", () => {
+    renderTable();
+
+    expect(screen.getAllByRole("row").length).toBe(3);
+  });
+
+  it("marque les segments courts comme indicatifs", () => {
+    renderWithMedians();
+
+    expect(screen.getByText(/segments courts \(T1, T2\) sont indicatifs/)).toBeTruthy();
   });
 });
 

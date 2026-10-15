@@ -90,6 +90,11 @@ l'affichage a deux surfaces de plus que la fiche d'athlète, toutes deux sous
   existait déjà nullable, le contrat ne change pas de forme. Les champs bruts
   (`rank_overall`…) restent servis tels que déclarés ; l'écran ne les affiche
   pas.
+- `stats.medians` (#1362) est un bloc additif : la comparaison à la médiane
+  de tous les classés (`median`) et de la catégorie de l'athlète
+  (`category_median`), hors relais, chaque clé omise sous
+  `split_gap.MIN_EVALUATED_ROWS` valeurs. Pas de ligne dans `comparison` :
+  `ComparisonRow.rank` est requis, une médiane n'a pas de rang.
 
 Une ligne refusée n'apparaît nulle part, une ligne jeune non plus
 (`core.youth.is_youth`, #881, appliquée en Python à la file d'attente par
