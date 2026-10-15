@@ -287,9 +287,11 @@ def test_licensee_activity_counts_a_relay_teammate(db_session):
         "athlete_id": team.id, "course_id": course.id, "bib_number": "7",
         "club": "ASPTT", "teammate_ids": [teammate.id],
     }])
+    _licensee(db_session, _athlete(db_session, "ABSENTE"))
     tcn_count_repository.recompute_counts_for_tcn(db_session)
 
-    assert club_member_repository.licensee_activity(db_session, 2026) == (1, 1)
+    # Le relais ne compte que pour son équipière, pas pour toute la liste.
+    assert club_member_repository.licensee_activity(db_session, 2026) == (2, 1)
 
 
 def test_licensee_activity_is_one_query(db_session):

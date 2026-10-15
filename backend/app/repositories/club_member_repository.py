@@ -37,15 +37,23 @@ def licensee_activity(db: Session, season: int) -> tuple[int, int] | None:
     relais, un résultat validé qui compte pour le club sur une épreuve de la saison.
     """
     date_from, date_to = season_bounds(season)
-    teammate = select(ParticipationTeammate.participation_id).where(
-        ParticipationTeammate.athlete_id == ClubMember.athlete_id
+    # `correlate_except` : sans lui, la sous-requête à deux niveaux reprend
+    # `club_members` dans son FROM et tout relais compterait pour tous.
+    teammate = (
+        select(literal(1))
+        .where(
+            ParticipationTeammate.participation_id == Participation.id,
+            ParticipationTeammate.athlete_id == ClubMember.athlete_id,
+        )
+        .correlate_except(ParticipationTeammate)
+        .exists()
     )
     season_result = (
         select(literal(1))
         .select_from(Participation)
         .join(Course, Course.id == Participation.course_id)
         .where(
-            or_(Participation.athlete_id == ClubMember.athlete_id, Participation.id.in_(teammate)),
+            or_(Participation.athlete_id == ClubMember.athlete_id, teammate),
             Participation.counts_for_tcn.is_(True),
             validated_clause(Participation.is_pending_validation),
             Course.event_date.between(date_from, date_to),
