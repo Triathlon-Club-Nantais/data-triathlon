@@ -25,7 +25,7 @@ from sqlalchemy import and_, case, false, func, literal, or_, select, update
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.sql.elements import ColumnElement
 
-from app.core.club import ClubLabels, _normalise_sql
+from app.core.club import ClubLabels, _normalize_sql
 from app.core.season import season_of_sql
 from app.core.validation import validated_clause
 from app.models.club_member import LINKED, ClubMember
@@ -34,11 +34,11 @@ from app.models.participation import Participation, ParticipationTeammate
 
 
 def _clear_label(club, labels: ClubLabels) -> ColumnElement[bool]:
-    return _normalise_sql(club).in_(sorted(labels.clear))
+    return _normalize_sql(club).in_(sorted(labels.clear))
 
 
 def _ambiguous_label(club, labels: ClubLabels) -> ColumnElement[bool]:
-    return _normalise_sql(club).in_(sorted(labels.ambiguous))
+    return _normalize_sql(club).in_(sorted(labels.ambiguous))
 
 
 def linked_member(

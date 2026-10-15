@@ -9,9 +9,9 @@ from sqlalchemy.orm import Session, aliased, contains_eager, joinedload
 
 from app.core import counter_scope
 
-# `_normalise_sql` est module-privé (`core/club.py`) mais réutilisé tel quel —
+# `_normalize_sql` est module-privé (`core/club.py`) mais réutilisé tel quel —
 # même miroir SQL que `tcn_clause`, single source of truth (cf. plan #635).
-from app.core.club import _normalise_sql, broad_club_key, is_tcn, normalize_club
+from app.core.club import _normalize_sql, broad_club_key, is_tcn, normalize_club
 from app.core.discipline import federal_clause
 from app.core.season import season_bounds, season_of
 from app.core.validation import awaiting_validation_clause, validated_clause
@@ -957,7 +957,7 @@ def _course_rows(db: Session, course_id: int, *, q, club_only, club, category):
     if club_only:
         query = query.filter(Participation.counts_for_tcn.is_(True))
     if club:
-        query = query.filter(_normalise_sql(Participation.club).in_(_club_filter_targets(db, club, course_id)))
+        query = query.filter(_normalize_sql(Participation.club).in_(_club_filter_targets(db, club, course_id)))
     if category:
         query = query.filter(Participation.category == category)
     terme = (q or "").strip()

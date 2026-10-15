@@ -256,7 +256,7 @@ def course_summary(db: Session, course_id: int) -> dict:
     # depuis #635 (`_club_filter_targets` les matche déjà au filtre), et depuis
     # #1110 accents, ponctuation et espaces internes (« Côte d'Émeraude »,
     # « Cote dEmeraude »). `broad_club_key` ne remplace pas `normalize_club`,
-    # `_normalise_sql` étant compilée dans un index fonctionnel : le filtre la
+    # `_normalize_sql` étant compilée dans un index fonctionnel : le filtre la
     # résout en graphies présentes sur l'épreuve (#1127).
     variantes_par_cle: dict[str, Counter[str]] = {}
     split_keys: dict[str, None] = {}
