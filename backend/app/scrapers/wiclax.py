@@ -500,7 +500,7 @@ def _fill_er_splits(
         r.run_time  = normalize_time(result_elem.get("s10", ""))
 
 
-def _heat_slug(heat: str) -> str:
+def _heat_label_slug(heat: str) -> str:
     """Slug canonique d'un parcours Wiclax (fan-out #195).
 
     Contraintes : stable (mémoïsable), ASCII, URL-safe, distinct pour deux
@@ -568,7 +568,7 @@ def _sub_source_url(url: str, heat: str) -> str:
     for key, values in params:
         for value in values:
             flat.append((key, _fully_unquote(value)))
-    slug = _heat_slug(heat)
+    slug = _heat_label_slug(heat)
     if slug:
         # Écrase toute valeur `parcours=` préexistante — l'URL entrante ne doit pas
         # trancher à la place du fan-out.
@@ -839,7 +839,7 @@ def scrape_event_fanout(
 
     total_to_scrape = len(heats_to_scrape)
     for index, (heat, sub_url) in enumerate(heats_to_scrape, start=1):
-        slug = _heat_slug(heat)
+        slug = _heat_label_slug(heat)
         label = heat or slug
         if on_heat_start is not None:
             on_heat_start(slug, label, index, total_to_scrape)

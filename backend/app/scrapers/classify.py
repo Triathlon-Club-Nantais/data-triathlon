@@ -113,7 +113,7 @@ def _with_size(base: str, t: str) -> str:
     return f"{base}-{size}" if size in sizes else base
 
 
-def _running(t: str) -> str | None:
+def _running_slug(t: str) -> str | None:
     """Course à pied (route) avec format nommé, ou None si non reconnu."""
     is_running = (
         "marathon" in t or "semi" in t
@@ -136,7 +136,7 @@ def _running(t: str) -> str | None:
     return "course-a-pied"
 
 
-def _cycling(t: str) -> str | None:
+def _cycling_slug(t: str) -> str | None:
     """Cyclisme route / CLM, ou None si non reconnu."""
     is_cycling = (
         "cyclisme" in t or "cyclo" in t or "cyclosport" in t
@@ -190,7 +190,7 @@ def _sport_base(t: str) -> str | None:
     # 3. Mono-sports.
     if "trail" in t:
         return "trail"
-    return _cycling(t) or _running(t)
+    return _cycling_slug(t) or _running_slug(t)
 
 
 def classify_event_type(text: str, *, context: str = "") -> str:

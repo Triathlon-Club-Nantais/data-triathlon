@@ -271,7 +271,7 @@ def parse_data_row(fields: list[str], *, event_id: str, heat: str) -> dict:
     # #1211 — mais le classement publié suit `reel` : sur un départ par vagues
     # (Frenchman L 2025), `officiel` compte depuis le premier départ et s'en
     # écarte jusqu'à 40 min. Le réel prime donc, l'officiel n'étant qu'un repli.
-    total = net.strip() or official.strip()
+    raw_total_time = net.strip() or official.strip()
 
     return {
         "bib_number": bib.strip(),
@@ -282,7 +282,7 @@ def parse_data_row(fields: list[str], *, event_id: str, heat: str) -> dict:
         "club": club.strip(),
         "rank_overall": None if status else _parse_rank(rank),
         "rank_category": None if status else _parse_rank(category_rank),
-        "total_time": "" if status == STATUS_DNS else normalize_time(total),
+        "total_time": "" if status == STATUS_DNS else normalize_time(raw_total_time),
         "status": status,
         # Les deux temps publiés, pour pouvoir confronter depuis la base.
         "raw_times": {"officiel": official.strip(), "reel": net.strip()},

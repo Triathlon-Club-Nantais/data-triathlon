@@ -1029,12 +1029,12 @@ def _stub_fetch_clax(monkeypatch, root: ET.Element) -> None:
 
 def test_parcours_slug_ascii_urlsafe():
     """Le slug d'un parcours est stable, ASCII et URL-safe."""
-    from app.scrapers.wiclax import _heat_slug
+    from app.scrapers.wiclax import _heat_label_slug
 
-    assert _heat_slug("S-Open Femmes") == "s-open-femmes"
-    assert _heat_slug("6-9 Ans") == "6-9-ans"
-    assert _heat_slug("Triathlon M — Individuel") == "triathlon-m-individuel"
-    assert _heat_slug("") == ""
+    assert _heat_label_slug("S-Open Femmes") == "s-open-femmes"
+    assert _heat_label_slug("6-9 Ans") == "6-9-ans"
+    assert _heat_label_slug("Triathlon M — Individuel") == "triathlon-m-individuel"
+    assert _heat_label_slug("") == ""
 
 
 def test_sub_source_url_ajoute_parcours_et_strip_selecteur_dossard():
