@@ -303,9 +303,9 @@ export function ResultsFilters() {
             {active.map((chip) => (
               // `h-7` (28 px) : le badge grandit avec la croix — sans quoi
               // `overflow-hidden` (badge, `h-5` par défaut) la retaillerait à
-              // sa taille d'origine, 16 px (#479). Sous md, 44 px pour une
-              // croix au doigt (#1440).
-              <Badge key={chip.key} variant="secondary" className="h-7 gap-1 pr-1 max-md:h-11">
+              // sa taille d'origine, 16 px (#479). Sous md, 48 px : la croix de
+              // 44 px tient dans la boîte de rembourrage, bordure ôtée (#1440).
+              <Badge key={chip.key} variant="secondary" className="h-7 gap-1 pr-1 max-md:h-12">
                 {chip.label}
                 <Button
                   size="icon-xs"

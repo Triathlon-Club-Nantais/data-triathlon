@@ -425,7 +425,10 @@ describe("ResultsFilters, touch targets under md (#1440)", () => {
 
     const filtres = screen.getByRole("button", { name: "Filtres" });
     expect(filtres).toHaveClass("tcn-cible-tactile");
-    expect(screen.getByRole("button", { name: /^Retirer/ })).toHaveClass("max-md:size-11");
+    const retirer = screen.getByRole("button", { name: /^Retirer/ });
+    expect(retirer).toHaveClass("max-md:size-11");
+    // The badge clips its overflow at the padding box: 48px minus the border keeps 44px.
+    expect(retirer.parentElement).toHaveClass("max-md:h-12");
 
     await userEvent.click(filtres);
     const dialogue = await screen.findByRole("dialog");
