@@ -262,7 +262,7 @@ export function EventsTable({
               value={season == null ? ALL : String(season)}
               onValueChange={(value) => apply(SEASON_PARAM, value as string)}
             >
-              <SelectTrigger aria-label="Filtrer par saison" className="h-9">
+              <SelectTrigger aria-label="Filtrer par saison" className="tcn-cible-tactile h-9">
                 <SelectValue>
                   {(value) => (value === ALL ? "Toutes les saisons" : seasonLabel(Number(value)))}
                 </SelectValue>
@@ -282,7 +282,7 @@ export function EventsTable({
               value={discipline ?? ALL}
               onValueChange={(value) => apply(DISCIPLINE_PARAM, value as string)}
             >
-              <SelectTrigger aria-label="Filtrer par discipline" className="h-9">
+              <SelectTrigger aria-label="Filtrer par discipline" className="tcn-cible-tactile h-9">
                 <SelectValue>
                   {(value) =>
                     value === ALL ? "Toutes les disciplines" : eventTypeLabel(value as string)

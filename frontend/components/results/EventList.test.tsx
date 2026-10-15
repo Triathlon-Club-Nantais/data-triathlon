@@ -799,6 +799,13 @@ describe("EventList — entrée « Pertinence » pendant une recherche d'épreuv
     expect(tri).toHaveTextContent("Date (récent)");
   });
 
+  it("gives the sort select a 44px touch target under md (#1440)", () => {
+    setUnEvenement();
+    renderList();
+
+    expect(screen.getByRole("combobox", { name: "Trier par" })).toHaveClass("tcn-cible-tactile");
+  });
+
   it("keeps the sort select name while « Pertinence » is offered (#1439)", () => {
     searchParams = new URLSearchParams("event_name=nantes");
     setUnEvenement();

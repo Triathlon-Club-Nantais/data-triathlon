@@ -414,3 +414,26 @@ describe("ResultsFilters — pastille de l'athlète retenu (NAV-10, #503)", () =
     expect(screen.queryByRole("button", { name: /Mes résultats/ })).not.toBeInTheDocument();
   });
 });
+
+describe("ResultsFilters, touch targets under md (#1440)", () => {
+  beforeEach(() => {
+    searchParams = new URLSearchParams("name=marie");
+  });
+
+  it("gives the Filtres button, the chip cross, the sheet cross and the Discipline select a 44px target", async () => {
+    render(<ResultsFilters />);
+
+    const filtres = screen.getByRole("button", { name: "Filtres" });
+    expect(filtres).toHaveClass("tcn-cible-tactile");
+    expect(screen.getByRole("button", { name: /^Retirer/ })).toHaveClass("max-md:size-11");
+
+    await userEvent.click(filtres);
+    const dialogue = await screen.findByRole("dialog");
+    expect(within(dialogue).getByRole("button", { name: "Fermer les filtres" })).toHaveClass(
+      "tcn-cible-tactile",
+    );
+    for (const discipline of screen.getAllByRole("combobox", { name: "Discipline" })) {
+      expect(discipline).toHaveClass("tcn-cible-tactile");
+    }
+  });
+});
