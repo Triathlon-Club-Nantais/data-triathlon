@@ -2,7 +2,7 @@ import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { currentSeason, seasonAbsenceLabel } from "@/lib/utils/season";
 
-const LIEN = "tcn-cible-tactile inline-flex items-center gap-1 text-sm font-semibold text-accent-ink hover:underline";
+const LINK_CLASS = "tcn-cible-tactile inline-flex items-center text-sm font-semibold text-accent-ink hover:underline";
 
 /**
  * Sélection de saisons sans aucun résultat, partagée par le tableau de bord et
@@ -17,12 +17,14 @@ export function SeasonEmptyState({ seasons, currentSeasonHref }: { seasons: numb
       action={
         <div className="flex flex-wrap items-center justify-center gap-4">
           {!saisonEnCoursSeule && (
-            <Link href={currentSeasonHref} className={LIEN}>
+            <Link href={currentSeasonHref} className={LINK_CLASS}>
               Voir la saison en cours
             </Link>
           )}
-          <Link href="/ajouter" className={LIEN}>
-            Ajouter une épreuve<span aria-hidden="true">→</span>
+          <Link href="/ajouter" className={LINK_CLASS}>
+            <span>
+              Ajouter une épreuve <span aria-hidden="true">→</span>
+            </span>
           </Link>
         </div>
       }

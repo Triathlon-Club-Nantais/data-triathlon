@@ -254,8 +254,9 @@ describe("EventList", () => {
     expect(
       screen.getByText(`Aucun résultat enregistré pour la ${seasonLabel(currentSeason()).toLowerCase()}`),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Ajouter une épreuve" })).toHaveClass("tcn-cible-tactile");
-    expect(screen.getByRole("link", { name: "Ajouter une épreuve" })).toHaveAttribute("href", "/ajouter");
+    const ajouter = screen.getByRole("link", { name: "Ajouter une épreuve" });
+    expect(ajouter).toHaveAttribute("href", "/ajouter");
+    expect(ajouter).toHaveClass("tcn-cible-tactile");
     expect(screen.queryByRole("link", { name: "Voir la saison en cours" })).not.toBeInTheDocument();
   });
 
@@ -287,13 +288,12 @@ describe("EventList", () => {
     renderList({ seasons: [2019] });
     expect(screen.getByText("Aucun résultat enregistré pour la saison 2019 — 2020")).toBeInTheDocument();
     expect(screen.queryByText(/importez une épreuve/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Voir la saison en cours" })).toHaveAttribute(
-      "href",
-      "/resultats?scope=club&sort=name",
-    );
-    expect(screen.getByRole("link", { name: "Voir la saison en cours" })).toHaveClass("tcn-cible-tactile");
-    expect(screen.getByRole("link", { name: "Ajouter une épreuve" })).toHaveClass("tcn-cible-tactile");
-    expect(screen.getByRole("link", { name: "Ajouter une épreuve" })).toHaveAttribute("href", "/ajouter");
+    const voir = screen.getByRole("link", { name: "Voir la saison en cours" });
+    expect(voir).toHaveAttribute("href", "/resultats?scope=club&sort=name");
+    expect(voir).toHaveClass("tcn-cible-tactile");
+    const ajouter = screen.getByRole("link", { name: "Ajouter une épreuve" });
+    expect(ajouter).toHaveAttribute("href", "/ajouter");
+    expect(ajouter).toHaveClass("tcn-cible-tactile");
   });
 
   it("surfaces a failed next page and only retries on demand (#1039)", async () => {
