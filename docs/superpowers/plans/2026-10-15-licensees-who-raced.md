@@ -17,9 +17,9 @@
 - Champ additif `licensees: {season, total, raced} | null` sur
   `GET /club/summary` (Principe IV). `season` ajouté pour que la carte affiche
   la saison du serveur, sans recalcul côté front.
-- Carte KPI « Licenciés en course », valeur « X / Y », indication
-  « Saison Y — Y+1 », masquée sous `null`. La grille passe à 5 colonnes en
-  `lg` quand la carte est présente.
+- Carte KPI « Licenciés en course », valeur X, indication « sur Y licenciés ·
+  Saison Y — Y+1 » (« X / Y » à 68 px débordait la tuile, revue UI), masquée sous `null`. Grille 3 puis 5 colonnes en
+  `lg` puis `xl` quand la carte est présente.
 
 ## Tâches (TDD)
 

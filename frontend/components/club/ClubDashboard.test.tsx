@@ -245,7 +245,7 @@ describe("ClubDashboard — smoke", () => {
   });
 
   // #1441 : part des licenciés de la saison qui ont couru au moins une fois.
-  it("affiche le KPI Licenciés en course au format X / Y avec sa saison", () => {
+  it("affiche le KPI Licenciés en course : ceux qui ont couru, sur le total de la saison", () => {
     render(
       <ClubDashboard
         stats={STATS}
@@ -255,8 +255,8 @@ describe("ClubDashboard — smoke", () => {
       />,
     );
     const carte = screen.getByText("Licenciés en course").parentElement!.parentElement!;
-    expect(carte.querySelector(".tcn-stat-value")).toHaveTextContent("97 / 182");
-    expect(carte).toHaveTextContent(seasonLabel(2026));
+    expect(carte.querySelector(".tcn-stat-value")).toHaveTextContent(/^97$/);
+    expect(carte).toHaveTextContent(`sur 182 licenciés · ${seasonLabel(2026)}`);
   });
 
   it("masque le KPI Licenciés en course sans licencié pour la saison", () => {
