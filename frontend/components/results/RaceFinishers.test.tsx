@@ -638,19 +638,23 @@ describe("RaceFinishers", () => {
     expect(nomsAffiches()).toEqual(["RAPIDE T", "LENT T", "SANSNATATION T"]);
   });
 
-  it("sends a 00:00:00 total time last when sorting, like a missing time (#1480)", async () => {
+  it("sends a 00:00:00 total time last in both directions, like a missing time (#1480)", async () => {
     afficher({
       participations: [
         ...dataAvecSplits.slice(0, 2),
-        p({ id: 3, nom: "SANSNATATION", rank_overall: 3, total_time: "00:00:00", splits: {} }),
+        p({ id: 3, nom: "ZERO", rank_overall: 3, total_time: "00:00:00", splits: {} }),
       ],
       summary: synthese({ split_keys: ["swim"] }),
       eventType: "triathlon-m",
     });
+    const noms = () => screen.getAllByText(/^(LENT|RAPIDE|ZERO) T$/).map((el) => el.textContent);
 
-    await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/i }));
+    const bouton = screen.getByRole("button", { name: /Trier par temps total/i });
+    await userEvent.click(bouton);
+    expect(noms()).toEqual(["RAPIDE T", "LENT T", "ZERO T"]);
 
-    expect(nomsAffiches()).toEqual(["RAPIDE T", "LENT T", "SANSNATATION T"]);
+    await userEvent.click(bouton);
+    expect(noms()).toEqual(["LENT T", "RAPIDE T", "ZERO T"]);
   });
 
   it("recliquer sur l'en-tête « Temps total » inverse l'ordre en décroissant", async () => {
