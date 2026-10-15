@@ -13,9 +13,11 @@ d'API : docstring du module.
 - Une course retirée répond **404 avec une page HTML**, et non plus avec l'objet
   `{"error": …}` d'avant. Le scraper lève alors « Course Sportinnovation
   introuvable » au lieu d'un `JSONDecodeError`.
-- Conséquence pour le test d'intégration de la forme `/race/{slug}` : il pointe
-  sur l'édition la plus récente (Carnac 2026, `refl6a-triathlon-m`) et devra
-  être repointé si elle disparaît à son tour.
+- Conséquence pour le test d'intégration de la forme `/race/{slug}` et pour
+  l'entrée correspondante du seed démo (`backend/scripts/seed_demo.py`, #1431) :
+  tous deux pointent sur l'édition la plus récente (Carnac 2026,
+  `refl6a-triathlon-m`) et devront être repointés ensemble si elle disparaît à
+  son tour.
 
 ## Pare-feu après une rafale
 
