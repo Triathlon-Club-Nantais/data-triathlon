@@ -11,13 +11,14 @@ import { RecentCourses } from "@/components/dashboard/RecentCourses";
 import { SeasonSelector, SeasonTags } from "@/components/dashboard/SeasonSelector";
 import { StatCardsRank } from "@/components/dashboard/StatCardsRank";
 import { ClubPerformanceChart } from "@/components/charts/ClubPerformanceChart";
-import { currentSeason, parseSeasonsParam, seasonAbsenceLabel, seasonSelectionLabel, serializeSeasons } from "@/lib/utils/season";
+import { currentSeason, parseSeasonsParam, seasonSelectionLabel, serializeSeasons } from "@/lib/utils/season";
 import { sortEventsByDateDesc } from "@/lib/utils/event";
 import { StatCard, Card, Eyebrow } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { EmptyState } from "@/components/ui/empty-state";
 import { aggregateDisciplines, formatCount, pctFr } from "@/lib/utils/format";
 import { DisciplineBar } from "./DisciplineBar";
+import { SeasonEmptyState } from "@/components/dashboard/SeasonEmptyState";
 
 export const metadata: Metadata = { title: "Tableau de bord" };
 
@@ -78,7 +79,6 @@ export default async function DashboardPage({
   const recentEvents = sortEventsByDateDesc(eventsPage.items).slice(0, 6);
 
   const isEmptySeason = stats.total === 0;
-  const isCurrentSeasonSelected = selected.length === 1 && selected[0] === currentSeason();
   const voirSaisonEnCoursHref = (() => {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(sp)) {
@@ -121,22 +121,7 @@ export default async function DashboardPage({
       </div>
 
       {isEmptySeason ? (
-        <EmptyState
-          title={`Aucun résultat enregistré pour ${seasonAbsenceLabel(selected)}`}
-          description="Changez de saison ou ajoutez les premiers résultats du club."
-          action={
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              {!isCurrentSeasonSelected && (
-                <Link href={voirSaisonEnCoursHref} className="text-sm font-semibold text-accent-ink hover:underline">
-                  Voir la saison en cours
-                </Link>
-              )}
-              <Link href="/ajouter" className="text-sm font-semibold text-accent-ink hover:underline">
-                Ajouter une épreuve →
-              </Link>
-            </div>
-          }
-        />
+        <SeasonEmptyState seasons={selected} currentSeasonHref={voirSaisonEnCoursHref} />
       ) : (
         <>
           {/* Au-dessus des compteurs club, à dessein (#502, NAV-9) : l'écran
