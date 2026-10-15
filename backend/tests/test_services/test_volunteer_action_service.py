@@ -102,17 +102,17 @@ def test_list_pending_ne_rend_que_les_declarations_en_attente(db_session):
 def test_accept_fait_passer_en_attente_a_validee(db_session):
     admin, action = _declaration(db_session)
 
-    mise_a_jour = volunteer_action_service.accept(db_session, admin_user_id=admin.id, action_id=action.id)
+    updated = volunteer_action_service.accept(db_session, admin_user_id=admin.id, action_id=action.id)
 
-    assert mise_a_jour.status == "validee"
+    assert updated.status == "validee"
 
 
 def test_accept_est_idempotent_si_deja_validee(db_session):
     admin, action = _declaration(db_session, status="validee")
 
-    mise_a_jour = volunteer_action_service.accept(db_session, admin_user_id=admin.id, action_id=action.id)
+    updated = volunteer_action_service.accept(db_session, admin_user_id=admin.id, action_id=action.id)
 
-    assert mise_a_jour.status == "validee"
+    assert updated.status == "validee"
 
 
 def test_accept_est_un_noop_si_refusee(db_session):
@@ -120,9 +120,9 @@ def test_accept_est_un_noop_si_refusee(db_session):
     vers « validée » depuis « refusée »."""
     admin, action = _declaration(db_session, status="refusee")
 
-    mise_a_jour = volunteer_action_service.accept(db_session, admin_user_id=admin.id, action_id=action.id)
+    updated = volunteer_action_service.accept(db_session, admin_user_id=admin.id, action_id=action.id)
 
-    assert mise_a_jour.status == "refusee"
+    assert updated.status == "refusee"
 
 
 def test_accept_leve_notfounderror_si_id_inconnu(db_session):
@@ -135,25 +135,25 @@ def test_accept_leve_notfounderror_si_id_inconnu(db_session):
 def test_reject_fait_passer_en_attente_a_refusee(db_session):
     admin, action = _declaration(db_session)
 
-    mise_a_jour = volunteer_action_service.reject(db_session, admin_user_id=admin.id, action_id=action.id)
+    updated = volunteer_action_service.reject(db_session, admin_user_id=admin.id, action_id=action.id)
 
-    assert mise_a_jour.status == "refusee"
+    assert updated.status == "refusee"
 
 
 def test_reject_fait_passer_validee_a_refusee(db_session):
     admin, action = _declaration(db_session, status="validee")
 
-    mise_a_jour = volunteer_action_service.reject(db_session, admin_user_id=admin.id, action_id=action.id)
+    updated = volunteer_action_service.reject(db_session, admin_user_id=admin.id, action_id=action.id)
 
-    assert mise_a_jour.status == "refusee"
+    assert updated.status == "refusee"
 
 
 def test_reject_est_idempotent_si_deja_refusee(db_session):
     admin, action = _declaration(db_session, status="refusee")
 
-    mise_a_jour = volunteer_action_service.reject(db_session, admin_user_id=admin.id, action_id=action.id)
+    updated = volunteer_action_service.reject(db_session, admin_user_id=admin.id, action_id=action.id)
 
-    assert mise_a_jour.status == "refusee"
+    assert updated.status == "refusee"
 
 
 def test_list_validated_for_athlete_delegue_au_repository(db_session):

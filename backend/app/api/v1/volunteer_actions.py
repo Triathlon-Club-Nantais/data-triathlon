@@ -26,7 +26,7 @@ router = APIRouter(tags=["volunteer-actions"])
     response_model=VolunteerActionSelfOut,
     dependencies=[Depends(volunteer_action_rate_limit)],
 )
-def creer_pour_un_athlete(
+def create_for_athlete(
     body: VolunteerActionSelfCreate,
     db: Session = Depends(get_db),
     user: User | None = Depends(optional_user),
