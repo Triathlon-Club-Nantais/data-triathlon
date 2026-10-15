@@ -967,13 +967,15 @@ def _paire_vertou(db_session):
     return gauche, droite
 
 
-def test_le_compte_reste_en_memoire_jusqu_a_ce_que_la_liste_le_rafraichisse(db_session):
-    # #1352 : la pastille ne relance pas la détection entière à chaque page.
+def test_la_liste_et_son_compte_restent_en_memoire_jusqu_au_commit(db_session):
+    # #1352, #1384 : ni la liste ni la pastille ne relancent la détection entière à chaque page.
     assert course_duplicates.count(db_session) == 0
     _paire_vertou(db_session)
+    assert course_duplicates.cached_candidates(db_session) == []
     assert course_duplicates.count(db_session) == 0
 
-    assert len(course_duplicates.find_candidates(db_session)) == 1
+    db_session.commit()
+    assert len(course_duplicates.cached_candidates(db_session)) == 1
     assert course_duplicates.count(db_session) == 1
 
 

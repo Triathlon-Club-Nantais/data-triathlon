@@ -57,7 +57,7 @@ from urllib.parse import parse_qs, urlparse
 
 from sqlalchemy.orm import Session
 
-from app.core.cached_count import CachedCount
+from app.core.cached_value import CachedValue
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.core.text import deaccent
 from app.repositories import (
@@ -99,9 +99,9 @@ DATE_TOLERANCE = timedelta(days=3)
 SAME_FINISHERS_MIN = 3
 SAME_FINISHERS_SHARE = 0.5
 
-#: Taille de la liste pour la pastille du rail (#1352) : rafraîchie par la liste,
-#: vidée par tout commit (`core/cached_count`).
-count_cache = CachedCount(ttl_seconds=300)
+#: La liste, partagée par l'écran et sa pastille (#1352, #1384) : vidée par tout
+#: commit (`core/cached_value`).
+candidates_cache: CachedValue[list[dict]] = CachedValue(ttl_seconds=300)
 
 #: Les deux plateformes dont l'URL porte un identifiant d'événement. Hors de ces
 #: deux-là, le motif « identifiant partagé » ne s'applique pas : la forme
@@ -327,7 +327,6 @@ def find_candidates(db: Session) -> list[dict]:
     ce filtre, un faux positif vérifié une fois par un humain reviendrait à
     chaque rechargement de l'écran — c'est exactement ce que #754 corrige.
     """
-    generation = count_cache.generation
     courses = [
         {
             "id": ligne.id,
@@ -376,7 +375,7 @@ def find_candidates(db: Session) -> list[dict]:
         if paire not in motif_par_paire and paire[::-1] not in motif_par_paire:
             motif_par_paire[paire] = "same_finishers"
 
-    candidates = [
+    return [
         {
             "reason": code,
             "reason_label": REASON_LABELS[code],
@@ -386,13 +385,16 @@ def find_candidates(db: Session) -> list[dict]:
             motif_par_paire.items(), key=lambda paire: (rangs[paire[0][0]], rangs[paire[0][1]])
         )
     ]
-    count_cache.set(len(candidates), generation)
-    return candidates
+
+
+def cached_candidates(db: Session) -> list[dict]:
+    """`find_candidates` gardé en mémoire : une détection par génération (#1384)."""
+    return candidates_cache.get(lambda: find_candidates(db))
 
 
 def count(db: Session) -> int:
-    """La taille de `find_candidates`, pour la pastille de la nav (#726)."""
-    return count_cache.get(lambda: len(find_candidates(db)))
+    """La taille de la liste, pour la pastille de la nav (#726)."""
+    return len(cached_candidates(db))
 
 
 def ignore_pair(db: Session, *, course_id_a: int, course_id_b: int, user_id: int) -> dict:

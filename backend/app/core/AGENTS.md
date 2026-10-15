@@ -133,16 +133,24 @@ mais trois documents s'appuient désormais sur cette frontière : le jour où
 
 Conception : `specs/20260826-154613-portee-compteurs-configurable/`.
 
-# Les comptes des pastilles (`cached_count.py`, #1352)
+# Les listes des revues (`cached_value.py`, #1352, #1384)
 
 Second état de processus de `core/`, pour une raison plus simple que la portée
-des compteurs : les pastilles « doublons » et « identités » du rail rejouaient
-leur détection entière (1 à 2 s de SQL) à chaque page d'administration, sur un
-backend à un seul process. Chaque service garde son `count_cache` (5 min),
-rafraîchi par sa liste. **Tout commit du process les vide** (écouteur
-`after_commit` sur `Session`) : la liste des écritures qui changent ces comptes
-(correction d'une fiche, détachement, suppression, fusion, arbitrage…) ne se
-tiendrait pas à la main, et la première revue en avait oublié huit. Une
-génération empêche un calcul lent commencé avant un commit d'écrire sa valeur
-après lui. Seul angle mort : une écriture d'un autre process (CLI de batch),
-fausse jusqu'à l'expiration. `tests/conftest.py` les vide entre deux tests.
+des compteurs : les revues « doublons » et « identités » rejouaient leur
+détection entière (1 à 2 s de SQL) à chaque affichage de leur liste et de leur
+pastille, sur un backend à un seul process. Chaque service garde sa liste de
+candidats dans son `candidates_cache` (5 min) : `cached_candidates` la sert à
+l'écran, `count` en prend la longueur pour la pastille, une seule détection par
+génération pour les deux. `find_candidates` reste la détection brute, sans cache.
+**Tout commit du process vide ces listes** (écouteur `after_commit` sur
+`Session`) : la liste des écritures qui les changent (correction d'une fiche,
+détachement, suppression, fusion, arbitrage…) ne se tiendrait pas à la main, et
+la première revue de #1352 en avait oublié huit. Une génération empêche un
+calcul lent commencé avant un commit d'écrire sa valeur après lui, et un verrou
+fait attendre la pastille derrière la liste quand les deux arrivent ensemble
+après une écriture, sans jamais retenir le commit. Un import en cours dans le
+process committe sans cesse : chaque lecture d'une revue pendant ce temps
+relance la détection. La liste
+rendue est partagée entre les requêtes : on la lit, on ne la modifie pas. Seul
+angle mort : une écriture d'un autre process (CLI de batch), fausse jusqu'à
+l'expiration. `tests/conftest.py` les vide entre deux tests.

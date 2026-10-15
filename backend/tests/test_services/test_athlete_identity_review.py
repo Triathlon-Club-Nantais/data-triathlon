@@ -444,17 +444,19 @@ def test_a_confirmed_club_the_record_no_longer_carries_is_named_from_the_whole_b
     ]
 
 
-def test_the_count_is_kept_in_memory_until_the_list_refreshes_it(db_session):
-    # #1352 : la pastille ne relance pas la revue entière à chaque page.
+def test_the_list_and_its_count_are_kept_in_memory_until_a_commit(db_session):
+    # #1352, #1384 : ni la liste ni la pastille ne relancent la revue entière à chaque page.
     _athlete(db_session, "DUPONT", "Jean", club="A", gender="M")
     _athlete(db_session, "JEAN", "Dupont", club="B", gender="F")
     assert athlete_identity_review.count(db_session) == 1
 
     _athlete(db_session, "MARTIN", "Paul", club="A", gender="M")
     _athlete(db_session, "PAUL", "Martin", club="B", gender="F")
+    assert len(athlete_identity_review.cached_candidates(db_session)) == 1
     assert athlete_identity_review.count(db_session) == 1
 
-    assert len(athlete_identity_review.find_candidates(db_session)) == 2
+    db_session.commit()
+    assert len(athlete_identity_review.cached_candidates(db_session)) == 2
     assert athlete_identity_review.count(db_session) == 2
 
 
