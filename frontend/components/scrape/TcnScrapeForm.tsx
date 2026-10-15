@@ -30,7 +30,9 @@ function ManualFormPlaceholder() {
   return (
     <div role="status">
       <span className="sr-only">Chargement du formulaire…</span>
-      <Skeleton aria-hidden="true" className="h-96 w-full" />
+      {/* Hauteur du formulaire par défaut, une colonne puis deux : l'arrivée du
+          chunk ne pousse pas le pied de page. */}
+      <Skeleton aria-hidden="true" className="h-[1080px] w-full sm:h-[740px]" />
     </div>
   );
 }

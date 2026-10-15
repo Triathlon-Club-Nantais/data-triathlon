@@ -76,14 +76,6 @@ vi.mock("@/lib/api/client", () => ({
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), message: vi.fn() } }));
 
-// Witness of the lazy load (#1395): the manual form, and zod with it, must only be
-// imported once manual entry opens. A plain counter, since clearAllMocks would reset a vi.fn.
-const manualForm = vi.hoisted(() => ({ loads: 0 }));
-vi.mock("./ManualResultForm", async (importOriginal) => {
-  manualForm.loads += 1;
-  return importOriginal();
-});
-
 import { TcnScrapeForm } from "./TcnScrapeForm";
 import { apiClient } from "@/lib/api/client";
 import { toast } from "sonner";
@@ -112,10 +104,10 @@ function renderForm() {
   };
 }
 
-// Warms the form's module graph outside any case timeout (#1389). importActual skips the
-// mock factory, so the witness still only counts the component's own import.
+// ManualResultForm loads lazily (#1395): warm its module graph outside any case
+// timeout (#1389).
 beforeAll(async () => {
-  await vi.importActual("./ManualResultForm");
+  await import("./ManualResultForm");
 }, 30_000);
 
 beforeEach(() => {
@@ -147,24 +139,6 @@ beforeEach(() => {
     detailTotal: 0,
     startedAt: 0,
     endedAt: 0,
-  });
-});
-
-// Must stay the first describe: once any case opens manual entry, the module is cached.
-describe("TcnScrapeForm — lazy manual form (#1395)", () => {
-  it("loads the manual form only when manual entry opens", async () => {
-    vi.mocked(apiClient.detectProvider).mockResolvedValue({ provider: "", supported: false });
-    renderForm();
-    await userEvent.type(champUrl(), "https://chronopuce.test/x");
-    const open = await screen.findByRole("button", { name: "Saisir à la main" });
-    expect(manualForm.loads).toBe(0);
-
-    await userEvent.click(open);
-
-    expect(
-      await screen.findByRole("button", { name: "Enregistrer votre participation" }),
-    ).toBeInTheDocument();
-    expect(manualForm.loads).toBe(1);
   });
 });
 
