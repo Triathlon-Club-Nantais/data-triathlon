@@ -117,7 +117,9 @@
     toute la table `participations` à PostgreSQL (#1391). La palette ⌘K
     (`athlete_repository.search_by_relevance`) en reprend la forme, corrélée à
     chaque athlète trouvé, plutôt que de joindre `credits()`, que PostgreSQL
-    matérialise en entier (#1392).
+    matérialise en entier (#1392). Troisième lecteur sur cette forme :
+    `club_member_repository.licensee_activity`, corrélée à chaque licencié
+    (#1473).
   - **L'import ne touche jamais un relais attribué** : `_Persister` le met à
     jour en valeurs sans résoudre l'identité de l'équipe (avec dossard), et
     l'apparie par `team_name` normalisé (`_team_key`, sans dossard) — sinon le
