@@ -169,15 +169,15 @@ export function EventList({
     }
     // Sans filtre de recherche, seule la saison vide la liste (#1404) : même
     // état vide que le tableau de bord, qui nomme la saison et en offre la sortie.
-    const horsSaisons = new URLSearchParams(sp.toString());
-    horsSaisons.delete("seasons");
-    const qsSaisonEnCours = horsSaisons.toString();
+    const withoutSeasons = new URLSearchParams(sp.toString());
+    withoutSeasons.delete("seasons");
+    const currentSeasonQuery = withoutSeasons.toString();
     return (
       <>
         {annonce}
         <SeasonEmptyState
           seasons={filters.seasons ?? []}
-          currentSeasonHref={`/resultats${qsSaisonEnCours ? `?${qsSaisonEnCours}` : ""}`}
+          currentSeasonHref={`/resultats${currentSeasonQuery ? `?${currentSeasonQuery}` : ""}`}
         />
       </>
     );
