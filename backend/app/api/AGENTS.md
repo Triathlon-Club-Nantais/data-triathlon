@@ -512,10 +512,9 @@ déjà. Elle rend `AthleteBrief`, donc sans `birth_date`.
 de l'arriéré de la file par jour et du délai moyen de résolution, pour le
 graphique de la page bénévoles. Même garde, aucune écriture.
 
-**La onzième est `GET /benevoles/queue/count`** (#1232) : `{total}`, la taille
-de `GET /benevoles/queue` sans charger la file, pour la pastille « Validation
-des épreuves » de la nav. Même garde : le front ne la demande que pour un
-compte d'administration, et avale le 401 de qui n'a pas le cookie bénévoles.
+La pastille « Validation des épreuves » du rail ne passe plus par ce routeur :
+`GET /admin/badge-counts` (#1385) lit le même cookie par
+`deps.has_benevole_cookie`, sans 401.
 
 **Le renommage, la réattribution, la validation, le rejet et la correction de
 champs sont scopés au résultat en attente actionnable** (relevé en revue de

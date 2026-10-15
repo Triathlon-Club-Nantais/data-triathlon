@@ -11,8 +11,6 @@ from app.api.deps import require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
-from app.repositories import volunteer_action_repository
-from app.schemas.count import QueueCount
 from app.schemas.volunteer_action import AdminVolunteerActionOut
 from app.services import volunteer_action_service
 
@@ -25,15 +23,6 @@ def lister_les_declarations_en_attente(
     _: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)),
 ):
     return volunteer_action_service.list_pending(db)
-
-
-@router.get("/admin/volunteer-actions/pending/count", response_model=QueueCount)
-def count_pending_declarations(
-    db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)),
-):
-    """La pastille de la nav (#1232) : même garde que la liste."""
-    return QueueCount(total=volunteer_action_repository.count_pending(db))
 
 
 @router.post(

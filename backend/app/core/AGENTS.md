@@ -140,7 +140,7 @@ des compteurs : les revues « doublons » et « identités » rejouaient leur
 détection entière (1 à 2 s de SQL) à chaque affichage de leur liste et de leur
 pastille, sur un backend à un seul process. Chaque service garde sa liste de
 candidats dans son `candidates_cache` (5 min) : `cached_candidates` la sert à
-l'écran, `count` en prend la longueur pour la pastille, une seule détection par
+l'écran, `count` en prend la longueur pour la pastille (`GET /admin/badge-counts`, #1385), une seule détection par
 génération pour les deux. `find_candidates` reste la détection brute, sans cache.
 **Tout commit du process vide ces listes** (écouteur `after_commit` sur
 `Session`) : la liste des écritures qui les changent (correction d'une fiche,

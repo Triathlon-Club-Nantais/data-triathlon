@@ -27,7 +27,7 @@ from app.schemas.admin import (
     PendingProviderOut,
     PendingProviderReported,
 )
-from app.schemas.count import BadgeCounts, QueueCount
+from app.schemas.count import BadgeCounts
 from app.services import admin_badge_counts, course_review, pending_providers
 from app.services.auth import authorization
 
@@ -83,21 +83,6 @@ def list_pending_providers(
     return pending_provider_repository.list_unhandled(db)
 
 
-class PendingProviderCount(BaseModel):
-    """La taille de la liste ci-dessus — pour la pastille de la nav (#726)."""
-
-    total: int
-
-
-@router.get("/admin/pending-providers/count", response_model=PendingProviderCount)
-def count_pending_providers(
-    db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.PENDING_PROVIDERS_READ)),
-) -> PendingProviderCount:
-    """Même garde que la liste : compter n'échappe pas à `pending_providers:read`."""
-    return PendingProviderCount(total=pending_provider_repository.count_unhandled(db))
-
-
 @router.delete("/admin/pending-providers/{entry_id}", status_code=204)
 def mark_handled(
     entry_id: int,
@@ -106,17 +91,6 @@ def mark_handled(
 ):
     pending_providers.mark_handled(db, actor, entry_id)
     db.commit()
-
-
-@router.get("/admin/quality/count", response_model=QueueCount)
-def count_courses_awaiting_review(
-    db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.QUALITY_OVERRIDE)),
-) -> QueueCount:
-    """La pastille de la revalidation (#1232) : les épreuves calculées non
-    fiables **sans avis humain**. `GET /courses/count?unreliable=true` compte
-    aussi celles qu'un humain a déjà jugées douteuses, et ne redescend jamais."""
-    return QueueCount(total=course_repository.count_awaiting_review(db))
 
 
 @router.patch(

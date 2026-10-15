@@ -25,6 +25,7 @@ from app.repositories import (
 )
 from app.services import benevole_access, shared_password
 from app.services.scrape_service import YouthResultError
+from tests.test_api.test_admin_data_api import _session_etroite
 
 MOT_DE_PASSE = "secret-du-club"
 
@@ -558,15 +559,13 @@ def test_valider_rend_le_resultat_visible_sur_la_fiche_et_dans_les_agregats(
     assert stats["total"] >= 1
 
 
-# --- GET /benevoles/queue/count (#1232) --------------------------------------
+# --- La pastille « Validation » du rail admin (#1232, #1385) -----------------
 
 
-def test_queue_count_requires_the_cookie(client):
-    assert client.get("/api/v1/benevoles/queue/count").status_code == 401
+def test_the_volunteer_cookie_opens_the_validation_badge(benevole_connecte, resultat_pendant, db_session):
+    _session_etroite(benevole_connecte, db_session)
 
-
-def test_queue_count_counts_the_queue(benevole_connecte, resultat_pendant):
-    assert benevole_connecte.get("/api/v1/benevoles/queue/count").json() == {"total": 1}
+    assert benevole_connecte.get("/api/v1/admin/badge-counts").json() == {"validation": 1}
 
 
 # --- PATCH /benevoles/participations/{id} : règle jeunes (#1280) ------------

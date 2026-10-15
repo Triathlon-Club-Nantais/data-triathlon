@@ -21,7 +21,6 @@ from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
 from app.schemas.course_duplicates import (
-    DuplicateCandidateCount,
     DuplicateCandidateList,
     DuplicateIgnoreCreate,
     DuplicateIgnoreOut,
@@ -45,19 +44,6 @@ def list_duplicates(
     d'outillage.
     """
     return DuplicateCandidateList(candidates=course_duplicates.cached_candidates(db))
-
-
-@router.get("/admin/courses/duplicates/count", response_model=DuplicateCandidateCount)
-def count_duplicates(
-    db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.COURSES_SOURCES)),
-) -> DuplicateCandidateCount:
-    """La taille de la liste ci-dessus — pour la pastille de la nav (#726).
-
-    Même garde que la liste : quiconque ne peut pas voir les paires ne doit pas
-    non plus en connaître le nombre.
-    """
-    return DuplicateCandidateCount(total=course_duplicates.count(db))
 
 
 @router.post(

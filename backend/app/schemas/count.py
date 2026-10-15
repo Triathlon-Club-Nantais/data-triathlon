@@ -1,12 +1,6 @@
 from pydantic import BaseModel
 
 
-class QueueCount(BaseModel):
-    """The size of a work queue, for its nav badge (#1232)."""
-
-    total: int
-
-
 class BadgeCounts(BaseModel):
     """The admin rail badges (#1385). A badge the session cannot see is absent."""
 
