@@ -148,6 +148,21 @@ describe("EventsTable", () => {
     expect(screen.getByRole("combobox", { name: /discipline/i })).toHaveClass("tcn-cible-tactile");
   });
 
+  it("offers the athlete's results as a CSV download (#1375)", () => {
+    render(<EventsTable participations={threeSeasons()} athleteId={7} athleteName="Jean DUPONT" />);
+
+    const lien = screen.getByRole("link", { name: /télécharger en csv/i });
+    expect(lien).toHaveAttribute("href", "/api/v1/athletes/7/participations.csv");
+    expect(lien).toHaveAttribute("download");
+    expect(lien).toHaveClass("tcn-cible-tactile");
+  });
+
+  it("offers no CSV download for an athlete without results (#1375)", () => {
+    render(<EventsTable participations={[]} athleteId={7} athleteName="Jean DUPONT" />);
+
+    expect(screen.queryByRole("link", { name: /télécharger en csv/i })).not.toBeInTheDocument();
+  });
+
   it("propose une entrée par saison représentée, la plus récente d'abord", async () => {
     render(<EventsTable participations={threeSeasons()} athleteId={7} athleteName="Jean DUPONT" />);
 

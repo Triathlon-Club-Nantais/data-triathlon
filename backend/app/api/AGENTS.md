@@ -597,3 +597,15 @@ sans perdre l'URL. `POST /auth/logout` (SSO)
 secrets distincts, l'un personnel, l'autre commun à tous les adhérents, et un
 contributeur qui se déconnecte reste un adhérent qui consulte le site.
 
+
+## Export CSV d'une fiche athlète (#1375)
+
+`GET /athletes/{id}/participations.csv` rend les lignes de `GET /athletes/{id}`
+sans filtre (`list_for_athlete`), mise en forme par `services/athlete_csv.py` :
+UTF-8 avec BOM, `;`, virgule décimale (Excel en français), une colonne par clé
+de split. Les résultats en attente ou refusés y sont, comme sur la fiche, avec
+leur colonne « Validation » et sans rang. Même garde que la fiche : le mot de
+passe du site seul. Les oppositions (#334) s'appliquent à l'import, il n'y a
+rien à refiltrer ici. Construit en mémoire : une carrière tient en quelques
+centaines de lignes, et un 404 doit pouvoir partir avant le corps. Le front y
+pointe un simple `<a download>` (même origine par le rewrite `/api/*`).

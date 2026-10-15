@@ -1,5 +1,5 @@
 """Router Athletes : recherche et fiche athlète avec ses participations."""
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import MAX_PAGE, require_permission
@@ -16,7 +16,7 @@ from app.repositories import (
 )
 from app.schemas.athlete import AthleteBrief, AthleteSearchResult, AthleteSeasonActivity
 from app.schemas.participation import AthleteDetail, AthleteParticipationOut
-from app.services import challenge_service
+from app.services import athlete_csv, challenge_service
 
 router = APIRouter(tags=["athletes"])
 
@@ -140,3 +140,25 @@ def get_athlete(
         "participations": items,
         "challenges": challenge_service.for_athlete(db, athlete_id),
     }
+
+
+@router.get(
+    "/athletes/{athlete_id}/participations.csv",
+    response_class=Response,
+    responses={200: {"content": {"text/csv": {}}}},
+)
+def get_athlete_participations_csv(athlete_id: int, db: Session = Depends(get_db)):
+    """Les résultats de la fiche athlète en CSV pour Excel (#1375) : mêmes lignes
+    que `GET /athletes/{id}` sans filtre, en attente et refusées comprises."""
+    athlete = athlete_repository.get(db, athlete_id)
+    if not athlete:
+        raise NotFoundError("Athlète introuvable")
+    participations = participation_repository.list_for_athlete(db, athlete_id)
+    finishers = participation_repository.finishers_count_by_group(
+        db, [p.course_id for p in participations]
+    )
+    return Response(
+        athlete_csv.render(participations, finishers),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{athlete_csv.filename(athlete)}"'},
+    )
