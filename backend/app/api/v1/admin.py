@@ -6,11 +6,16 @@ consulter et l'instruire exigent chacun leur pouvoir. C'est ce contraste qui
 interdit toute garde par préfixe (FR-018, FR-022) : posée sur `/admin`, elle
 supprimerait la fonctionnalité de signalement sans que rien ne la nomme.
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, HttpUrl
 from sqlalchemy.orm import Session
 
-from app.api.deps import public_write_rate_limit, require_permission
+from app.api.deps import (
+    current_user,
+    has_benevole_cookie,
+    public_write_rate_limit,
+    require_permission,
+)
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.permissions import P
@@ -22,8 +27,9 @@ from app.schemas.admin import (
     PendingProviderOut,
     PendingProviderReported,
 )
-from app.schemas.count import QueueCount
-from app.services import course_review, pending_providers
+from app.schemas.count import BadgeCounts, QueueCount
+from app.services import admin_badge_counts, course_review, pending_providers
+from app.services.auth import authorization
 
 router = APIRouter(tags=["admin"])
 
@@ -53,6 +59,20 @@ def report_pending_provider(body: PendingProviderCreate, db: Session = Depends(g
     db.commit()
     db.refresh(entry)
     return {"id": entry.id, "url": entry.url, "provider_hint": entry.provider_hint}
+
+
+@router.get("/admin/badge-counts", response_model=BadgeCounts, response_model_exclude_none=True)
+def badge_counts(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> BadgeCounts:
+    """Les pastilles du rail en un appel (#1385) : chacune sous le pouvoir de
+    son écran, absente sinon. Aucun pouvoir exigé, comme `GET /auth/me` : la
+    réponse ne porte que ce que la session peut déjà voir."""
+    codes = authorization.effective_permissions(db, user)
+    validation = P.BENEVOLE_ACCESS_MANAGE.code in codes or has_benevole_cookie(request, db)
+    return BadgeCounts(**admin_badge_counts.counts(db, codes, validation=validation))
 
 
 @router.get("/admin/pending-providers", response_model=list[PendingProviderOut])
