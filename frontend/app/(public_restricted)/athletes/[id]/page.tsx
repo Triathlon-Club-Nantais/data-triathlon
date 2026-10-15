@@ -14,6 +14,7 @@ import { AthleteChallenges } from "@/components/challenges/AthleteChallenges";
 import { SeasonValidationPanel } from "@/components/athletes/SeasonValidationPanel";
 import { VolunteerActionsList } from "@/components/athletes/VolunteerActionsList";
 import { AthleteVariantsPanel } from "@/components/athletes/AthleteVariantsPanel";
+import { BestTimesCard } from "@/components/athletes/BestTimesCard";
 import { formatToken, disciplineBreakdownBySeason, genderShort, ordinalFr, formatCount } from "@/lib/utils/format";
 import { BarList } from "@/components/charts/BarList";
 import { CAT_COLORS } from "@/components/charts/CategoryBars";
@@ -197,6 +198,8 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
             <StatCard label="Format favori" value={favFormat} accent={false} />
           </div>
         )}
+
+        <BestTimesCard participations={participations} />
 
         {validated.length > 0 && (
           <Card>
