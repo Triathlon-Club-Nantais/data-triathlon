@@ -1786,7 +1786,7 @@ def test_prefer_un_temps_reel_prime_sur_la_seule_richesse():
 def test_prefer_un_non_finisher_arrivant_en_second_ecrase_une_ligne_muette():
     """M3 : les deux gardes non-finisher de `_prefer` sont **asymétriques**.
 
-    La seconde (`ancien.status …`) protège un DNF déjà retenu ; seule la
+    La seconde (`previous.status …`) protège un DNF déjà retenu ; seule la
     première protège un DNF qui arrive **après** une ligne muette. Sans elle,
     l'ordre des listes déciderait du statut : la ligne muette, plus riche en
     colonnes d'affichage, l'emporterait sur la seule liste qui sait que le
@@ -2121,7 +2121,7 @@ def test_scrape_event_all_resolves_the_i18n_contest_label(monkeypatch):
 
 def test_scrape_event_all_statut_de_niveau_0_conserve_le_statut(monkeypatch):
     """Issue #64 : sur une liste `Contest != "0"`, un groupe de niveau 0 qui est
-    un statut (`#2_Abandons`) fabriquait `contest="Abandons", statut=""`. Le
+    un statut (`#2_Abandons`) fabriquait `contest="Abandons", status=""`. Le
     contest « Abandons » était ensuite écrasé par le contest explicite, mais le
     statut vide faisait passer les abandons pour des finishers. Désormais le
     participant reste qualifié par son contest explicite ET garde son statut."""
@@ -2691,7 +2691,7 @@ def test_scrape_event_all_hidden_dossard_ambigu_est_ignore_et_loggue(monkeypatch
 
 def test_scrape_event_all_hidden_identite_divergente_refuse_l_enrichissement(monkeypatch):
     """#60 : un dossard réutilisé entre contests dont un seul est publié échappe
-    à la garde d'ambiguïté (`len(cles) == 1` côté publié) mais le `hidden` nomme
+    à la garde d'ambiguïté (`len(merge_keys) == 1` côté publié) mais le `hidden` nomme
     un **autre** athlète que le publié sous ce même dossard. Comme pour la garde
     #65, on refuse l'enrichissement plutôt que de rattacher un split étranger :
     le publié reste autorité et intact."""

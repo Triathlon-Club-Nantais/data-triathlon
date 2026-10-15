@@ -600,7 +600,7 @@ def _split_rank_category(cell: str) -> tuple[int | None, str]:
 
 
 def _strip_rank(value: str, pattern: re.Pattern[str]) -> str:
-    """Retire le rang parenthésé reconnu par `motif`, ou rend `valeur` intacte."""
+    """Retire le rang parenthésé reconnu par `pattern`, ou rend `value` intacte."""
     found = pattern.match(value)
     return found.group(1).strip() if found else value
 
@@ -967,7 +967,7 @@ def _iter_groups(
 
     Le niveau 0 nomme le **contest** (`#1_Distance M`, qui recoupe exactement
     `config["contests"]`) — **sauf** s'il est en réalité un statut. Un groupe de
-    niveau 0 `#2_Abandons` produisait `contest="Abandons", statut=""`, perdant le
+    niveau 0 `#2_Abandons` produisait `contest="Abandons", status=""`, perdant le
     statut des abandons (issue #64). Un libellé de niveau 0 n'est donc reclassé
     en statut que s'il est reconnu par la table **fermée** de
     `derive_status_from_label` **et** absent de `known_contests` : ce croisement
@@ -1489,7 +1489,7 @@ def _has_ranking(payload: dict) -> bool:
 
 
 def _prefer(candidate: ScrapedResult, previous: ScrapedResult) -> bool:
-    """Vrai si `nouveau` doit remplacer `ancien` dans la fusion par clé.
+    """Vrai si `candidate` doit remplacer `previous` dans la fusion par clé.
 
     Une même épreuve expose couramment plusieurs listes sur un même contest
     (6 listes sur le contest 1 de l'event 392745, 3 en `Contest="0"` sur 409130) :
@@ -1541,10 +1541,10 @@ _ENRICHABLE_SCALAR_FIELDS = ("total_time", "club", "category", "gender")
 
 
 def _enrich(existing: ScrapedResult, contribution: ScrapedResult) -> None:
-    """Complète `existant` (ligne publiée) avec une ligne `hidden` appariée par
-    dossard (#60). Mute `existant` en place ; comble les trous, n'écrase rien.
+    """Complète `existing` (ligne publiée) avec une ligne `hidden` appariée par
+    dossard (#60). Mute `existing` en place ; comble les trous, n'écrase rien.
 
-    - **Splits** : pris seulement si `existant` n'en avait **aucun**. On ne
+    - **Splits** : pris seulement si `existing` n'en avait **aucun**. On ne
       fusionne pas deux listes partielles de segments (cas non observé au panel ;
       inférence évitée) — cf. §7 du design.
     - **Scalaires** (`_ENRICHABLE_SCALAR_FIELDS`) : remplis s'ils sont
@@ -1783,7 +1783,7 @@ def _run_pipeline(
         name_by_key: dict[tuple[str, str], tuple[str, str, str]] = {}
 
         def _collect(merge_key: tuple[str, str], row: list, roles: dict[str, int]) -> bool:
-            """Range les cellules masquables de `ligne` ; vrai si l'une porte `_`."""
+            """Range les cellules masquables de `row` ; vrai si l'une porte `_`."""
             cells = {
                 "temps": _time_cell(row, roles),
                 "nom": _name_cell(row, roles)[1],
@@ -1824,7 +1824,7 @@ def _run_pipeline(
         total_to_scrape = len(contests_to_scrape)
 
         def _process_contest(contest: str) -> None:
-            """Fetch + enregistrement des payloads d'un contest, dans `recuperees`."""
+            """Fetch + enregistrement des payloads d'un contest, dans `fetched`."""
             for listname in listnames_by_contest.get(contest, []):
                 payload = _fetch_list(event_id, key, listname, contest, client)
                 if payload is None:
@@ -2096,13 +2096,13 @@ def _run_pipeline(
 
         for merge_key, cells in cells_by_key.items():
             r = merged[merge_key]
-            finish_time = cells["temps"]
+            time_cells = cells["temps"]
             if (
                 not r.total_time
                 and r.status == STATUS_FINISHER
-                and any("_" in t for t in finish_time)
+                and any("_" in t for t in time_cells)
             ):
-                finish_time = normalize_time(_merge_masked(finish_time))
+                finish_time = normalize_time(_merge_masked(time_cells))
                 if _RE_NORMALIZED_DURATION.match(finish_time):
                     r.total_time = finish_time
             # Un nom masqué irréductible est vidé : `_anonymise_identities` lui
