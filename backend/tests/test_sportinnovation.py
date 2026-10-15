@@ -436,8 +436,9 @@ def test_fetch_splits_parallel_schema_ffa_ne_fabrique_pas_de_reference():
 # ── _scrape_results_race — chemin API : même convention de nommage que le legacy
 
 class _FakeResponse:
-    def __init__(self, payload):
+    def __init__(self, payload, status_code=200):
         self._payload = payload
+        self.status_code = status_code
 
     def json(self):
         return self._payload
@@ -571,6 +572,14 @@ def test_race_results_api_keeps_published_ranks(monkeypatch):
     results = si._race_results_api("tri-s", "Triathlon S", "Défis", None, "http://x", client)
 
     assert [r.rank_overall for r in results] == [2, None]
+
+
+def test_scrape_results_race_removed_upstream_raises_not_found():
+    """A race deleted upstream answers 404 with an HTML page, not JSON (#1350)."""
+    client = _FakeClient({})
+    client.get = lambda url, **_kw: _FakeResponse(None, status_code=404)
+    with pytest.raises(ValueError, match="introuvable : gone-race"):
+        _si._scrape_results_race("gone-race", "http://x", client)
 
 
 def test_scrape_results_race_compose_le_nom_et_porte_la_date(monkeypatch):

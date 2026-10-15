@@ -106,7 +106,9 @@ def test_scrape_event_all_live(provider, url):
 @pytest.mark.integration
 def test_sportinnovation_2026_race_url():
     """Forme 2026 results.sportinnovation.fr/race/{slug} (niveau course, API JSON)."""
-    url = "https://results.sportinnovation.fr/race/zmhc-triathlon-m"
+    # Triathlon M de Carnac 2026. Celui de 2025 (`zmhc-triathlon-m`) a disparu
+    # en octobre 2026 : le fournisseur a vidé l'événement de ses courses (#1350).
+    url = "https://results.sportinnovation.fr/race/refl6a-triathlon-m"
     results, _trace = registry.scrape_event_all(url)
     assert results
     assert any(r.athlete_name and r.total_time for r in results)
