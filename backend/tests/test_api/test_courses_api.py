@@ -312,7 +312,7 @@ def test_awaiting_review_keeps_only_courses_without_a_human_verdict(client, db_s
 
     listed = client.get("/api/v1/courses", params={"awaiting_review": "true"}).json()
     counted = client.get("/api/v1/courses/count", params={"awaiting_review": "true"}).json()
-    badge = client.get("/api/v1/admin/quality/count").json()
+    badge = {"total": client.get("/api/v1/admin/badge-counts").json()["quality"]}
 
     assert [c["id"] for c in listed] == [waiting.id]
     assert counted == badge == {"total": 1}

@@ -297,11 +297,9 @@ def test_badge_count_ignores_courses_already_judged(client, db_session):
     ])
     db_session.commit()
 
-    assert client.get("/api/v1/admin/quality/count").json() == {"total": 1}
+    assert client.get("/api/v1/admin/badge-counts").json()["quality"] == 1
 
 
-def test_badge_count_requires_the_quality_power(client, db_session):
-    client.cookies.clear()
-    assert client.get("/api/v1/admin/quality/count").status_code == 401
+def test_the_quality_badge_needs_the_quality_power(client, db_session):
     _session_etroite(client, db_session, P.COURSES_WRITE)
-    assert client.get("/api/v1/admin/quality/count").status_code == 403
+    assert "quality" not in client.get("/api/v1/admin/badge-counts").json()

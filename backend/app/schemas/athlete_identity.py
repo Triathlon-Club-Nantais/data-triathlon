@@ -51,10 +51,6 @@ class IdentityReviewList(BaseModel):
     candidates: list[IdentityReviewCandidate]
 
 
-class IdentityReviewCount(BaseModel):
-    total: int
-
-
 class IdentityPairIgnoreCreate(BaseModel):
     athlete_id_a: StrictInt
     athlete_id_b: StrictInt

@@ -40,7 +40,7 @@ const FOCUS_RING =
 export function AdminIndex() {
   const session = useSession();
   const pouvoirs = new Set(session.data?.permissions ?? []);
-  const badges = useNavBadges(pouvoirs, session.data?.can_administer ?? false);
+  const badges = useNavBadges(session.data?.can_administer ?? false);
 
   if (session.isPending)
     return <Skeleton className="h-40 w-full" aria-label="Chargement des écrans" />;
@@ -85,7 +85,7 @@ export function AdminIndex() {
           <ul className="grid list-none gap-3 sm:grid-cols-2">
             {files.map((item) => {
               const n = item.badge ? badges.counts[item.badge] : undefined;
-              const loading = !!item.badge && badges.loading.has(item.badge);
+              const loading = !!item.badge && badges.loading;
               return (
                 <li key={item.id}>
                   <Link href={item.href} className={FOCUS_RING}>

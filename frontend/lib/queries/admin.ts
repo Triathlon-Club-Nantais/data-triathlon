@@ -1,10 +1,17 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { rendreNullSi404 } from "@/lib/api/null-si-404";
 import { queryKeys } from "./keys";
 import { localToday } from "@/lib/utils/date";
 import type {
   AdminAthleteUpdate,
+  AdminBadgeCounts,
   OppositionIdentity,
   AdminCourseUpdate,
   Feedback,
@@ -22,16 +29,29 @@ export function usePendingProviders() {
 }
 
 /**
- * Le nombre de signalements en attente — pour la pastille de la nav (#726),
- * même patron que `useAdminCoursesCount` : `actif` évite de le demander à un
- * visiteur qui n'a pas le pouvoir de voir la liste.
+ * Les pastilles du rail en un appel (#1385) : huit requêtes en rafale se
+ * disputaient le seul process du backend avec les données de la page.
+ *
+ * `staleTime` de 5 min, le plus long des huit d'avant : deux comptes rejouent
+ * une revue entière (#908, #1352). Une écriture la périme quand même : toute
+ * mutation réussie l'invalide (`app/providers.tsx`).
  */
-export function usePendingProvidersCount(actif = true) {
+export function useAdminBadgeCounts(actif = true) {
   return useQuery({
-    queryKey: queryKeys.pendingProvidersCount(),
-    queryFn: () => apiClient.countPendingProviders(),
+    queryKey: queryKeys.adminBadgeCounts(),
+    queryFn: () => apiClient.getAdminBadgeCounts(),
     enabled: actif,
+    staleTime: 5 * 60_000,
+    // Une panne tait toutes les pastilles d'un coup : ne pas laisser « … » ~7 s.
+    retry: 1,
   });
+}
+
+/** Reporte la taille d'une liste de revue sur sa pastille, sans la redemander (#1352). */
+function seedBadge(qc: QueryClient, key: "duplicates" | "identities", total: number) {
+  qc.setQueryData<AdminBadgeCounts>(queryKeys.adminBadgeCounts(), (old) =>
+    old && key in old ? { ...old, [key]: total } : old,
+  );
 }
 
 export function useMarkProviderHandled() {
@@ -108,60 +128,6 @@ export function useAdminCourses(page = 1, filtres: FiltresCourses = {}, enabled 
       apiClient.listCourses({ ...filtres, page, page_size: TAILLE_PAGE_ADMIN }),
     placeholderData: (precedent) => precedent,
     enabled,
-  });
-}
-
-/**
- * Les autres pastilles de la nav (#1232), même patron que
- * `usePendingProvidersCount`. La revalidation qualité ne compte que les
- * épreuves **sans avis humain** : `useAdminCoursesCount({ unreliable: true })`
- * compte aussi celles déjà jugées douteuses, et ne redescendait jamais à zéro.
- */
-export function useQualityQueueCount(actif = true) {
-  return useQuery({
-    queryKey: queryKeys.qualityQueueCount(),
-    queryFn: () => apiClient.countQualityQueue(),
-    enabled: actif,
-  });
-}
-
-/**
- * `staleTime` de 5 min : le compte exécute toute la revue (paires inversées et
- * concaténées sur toutes les fiches, #908), et la nav le demanderait sinon à
- * chaque écran. Un geste de la revue l'invalide quand même par son préfixe.
- */
-export function useIdentityReviewCount(actif = true) {
-  return useQuery({
-    queryKey: queryKeys.identityReviewCount(),
-    queryFn: () => apiClient.countIdentityReview(),
-    enabled: actif,
-    staleTime: 5 * 60_000,
-  });
-}
-
-export function useClubMembersToSettleCount(actif = true) {
-  return useQuery({
-    queryKey: queryKeys.clubMembersToSettleCount(),
-    queryFn: () => apiClient.countClubMembersToSettle(),
-    enabled: actif,
-  });
-}
-
-export function usePendingVolunteerActionsCount(actif = true) {
-  return useQuery({
-    queryKey: queryKeys.pendingVolunteerActionsCount(),
-    queryFn: () => apiClient.countPendingVolunteerActions(),
-    enabled: actif,
-  });
-}
-
-/** `retry: false` : sans cookie bénévoles, le 401 est la réponse attendue. */
-export function useBenevoleQueueCount(actif = true) {
-  return useQuery({
-    queryKey: queryKeys.benevoleQueueCount(),
-    queryFn: () => apiClient.countBenevoleQueue(),
-    enabled: actif,
-    retry: false,
   });
 }
 
@@ -302,24 +268,9 @@ export function useCourseDuplicates() {
     queryKey: queryKeys.courseDuplicates(),
     queryFn: async () => {
       const liste = await apiClient.listCourseDuplicates();
-      // La liste vaut le compte : la pastille n'a pas à le redemander (#1352).
-      qc.setQueryData(queryKeys.courseDuplicatesCount(), { total: liste.candidates.length });
+      seedBadge(qc, "duplicates", liste.candidates.length);
       return liste;
     },
-  });
-}
-
-/**
- * Le nombre de paires suspectes — pour la pastille de la nav (#726), même
- * patron que `useAdminCoursesCount`.
- */
-export function useCourseDuplicatesCount(actif = true) {
-  return useQuery({
-    queryKey: queryKeys.courseDuplicatesCount(),
-    queryFn: () => apiClient.countCourseDuplicates(),
-    enabled: actif,
-    // Même raison que `useIdentityReviewCount` : le compte rejoue la détection.
-    staleTime: 5 * 60_000,
   });
 }
 
@@ -601,7 +552,7 @@ export function useIdentityReview() {
     queryKey: queryKeys.identityReview(),
     queryFn: async () => {
       const liste = await apiClient.listIdentityReview();
-      qc.setQueryData(queryKeys.identityReviewCount(), { total: liste.candidates.length });
+      seedBadge(qc, "identities", liste.candidates.length);
       return liste;
     },
   });

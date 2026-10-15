@@ -169,6 +169,8 @@ describe("TcnScrapeForm — navigation vers les courses importées (#135)", () =
     // le reste du texte est en fragments donc pas testé littéralement).
     // « épreuve », jamais « course », dans un libellé (revue de code #478).
     expect(screen.getByText(/3 épreuves importées/)).toBeInTheDocument();
+    // #1402 : surtitre en orange profond (contraste AA), pas en orange de marque.
+    expect(screen.getByText(/3 épreuves importées/).style.color).toBe("var(--tcn-orange-deeper)");
     // Le bouton file vers la première course par défaut, sans interaction.
     const link = screen.getByRole("link", { name: /Voir les résultats/ });
     expect(link.getAttribute("href")).toBe("/courses/1");

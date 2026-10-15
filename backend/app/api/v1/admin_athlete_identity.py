@@ -24,7 +24,6 @@ from app.schemas.athlete_identity import (
     IdentityClubConfirmOut,
     IdentityPairIgnoreCreate,
     IdentityPairIgnoreOut,
-    IdentityReviewCount,
     IdentityReviewList,
     IgnoredIdentityPairList,
 )
@@ -40,15 +39,6 @@ def list_identity_cases(
 ) -> IdentityReviewList:
     """Les cas d'identité à trancher, sans pagination : cas du club et reliquat de la reprise."""
     return IdentityReviewList(candidates=athlete_identity_review.cached_candidates(db))
-
-
-@router.get("/admin/identity-review/count", response_model=IdentityReviewCount)
-def count_identity_cases(
-    db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.ATHLETES_WRITE)),
-) -> IdentityReviewCount:
-    """La taille de la liste, pour la pastille de la nav. Même garde que la liste."""
-    return IdentityReviewCount(total=athlete_identity_review.count(db))
 
 
 @router.post("/admin/identity-review/ignore", response_model=IdentityPairIgnoreOut, status_code=201)

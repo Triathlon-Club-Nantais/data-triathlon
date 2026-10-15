@@ -55,6 +55,7 @@ import type {
   EventPage,
   Feedback,
   FeedbackCounts,
+  AdminBadgeCounts,
   FeedbackCreate,
   FeedbackCreated,
   FeedbackUpdate,
@@ -436,9 +437,6 @@ export const apiClient = {
   // classique, le remplacement peut durer plusieurs dizaines de secondes sur
   // une épreuve fan-out.
   listCourseDuplicates: () => request<DuplicateCandidateList>("/admin/courses/duplicates"),
-  // Pastille de la nav (#726) : même donnée que la liste ci-dessus, en taille.
-  countCourseDuplicates: () =>
-    request<{ total: number }>("/admin/courses/duplicates/count"),
   getCourseMergeImpact: (courseId: number, absorbedId: number) =>
     request<CourseMergeImpact>(
       `/admin/courses/${courseId}/merge-impact${toQuery({ absorbed_id: absorbedId })}`,
@@ -558,17 +556,8 @@ export const apiClient = {
 
   listPendingProviders: () =>
     request<PendingProvider[]>("/admin/pending-providers"),
-  // Pastille de la nav (#726) : même donnée que la liste ci-dessus, en taille.
-  countPendingProviders: () =>
-    request<{ total: number }>("/admin/pending-providers/count"),
-  // Pastilles des autres files de la nav (#1232), chacune sous la garde de son écran.
-  countQualityQueue: () => request<{ total: number }>("/admin/quality/count"),
-  countIdentityReview: () => request<{ total: number }>("/admin/identity-review/count"),
-  countClubMembersToSettle: () => request<{ total: number }>("/admin/club-members/count"),
-  countPendingVolunteerActions: () =>
-    request<{ total: number }>("/admin/volunteer-actions/pending/count"),
-  // Garde du mot de passe bénévoles, pas du SSO : 401 sans son cookie.
-  countBenevoleQueue: () => request<{ total: number }>("/benevoles/queue/count"),
+  // Les pastilles du rail (#1385) : seules celles que la session voit.
+  getAdminBadgeCounts: () => request<AdminBadgeCounts>("/admin/badge-counts"),
   reportPendingProvider: (url: string) =>
     request<PendingProvider>("/admin/pending-providers", {
       method: "POST",

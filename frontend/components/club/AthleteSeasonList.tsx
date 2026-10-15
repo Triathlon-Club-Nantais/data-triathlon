@@ -192,7 +192,7 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
                       style={{
                         fontSize: 11,
                         fontWeight: 700,
-                        color: "var(--tcn-orange)",
+                        color: "var(--tcn-orange-deeper)",
                         border: "1px solid var(--tcn-orange)",
                         borderRadius: 6,
                         padding: "1px 6px",

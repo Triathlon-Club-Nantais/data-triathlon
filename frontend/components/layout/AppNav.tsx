@@ -133,7 +133,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // au-delà vient des **pouvoirs**, seuls réellement renseignés (#115).
   const rank: number = session ? ROLE.CONNECTED : ROLE.ANON;
   const pouvoirs = new Set(session?.permissions ?? []);
-  const { counts: badges } = useNavBadges(pouvoirs, session?.can_administer ?? false);
+  const { counts: badges } = useNavBadges(session?.can_administer ?? false);
   const sections = NAV.filter((s) => rank >= s.minRole)
     .map((s) => ({
       ...s,
