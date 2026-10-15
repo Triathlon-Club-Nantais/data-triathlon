@@ -1,5 +1,5 @@
 import type { Splits } from "@/lib/types";
-import { foldAccents } from "./text";
+import { foldAccents } from "@/lib/utils/text";
 
 export interface Segment {
   key: string;
