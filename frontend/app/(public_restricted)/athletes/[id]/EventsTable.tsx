@@ -247,6 +247,16 @@ export function EventsTable({
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <AthleteDetachAction athleteId={athleteId} athleteName={athleteName} participations={participations} />
           <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", fontWeight: 600 }}>Sélectionnez une épreuve pour voir le détail →</div>
+          {/* Le fichier porte toute la carrière, filtres de saison et de discipline ignorés (#1375). */}
+          {participations.length > 0 && (
+            <a
+              href={`/api/v1/athletes/${athleteId}/participations.csv`}
+              download
+              className="tcn-btn tcn-btn--sm tcn-btn--secondary tcn-cible-tactile"
+            >
+              Télécharger toute la carrière (CSV)
+            </a>
+          )}
         </div>
       </div>
 

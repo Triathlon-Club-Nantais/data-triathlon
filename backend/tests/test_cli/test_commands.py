@@ -775,12 +775,12 @@ def test_rescrape_db_urls_from_stdin_avec_provider_ne_lit_pas_stdin(monkeypatch)
     jetée : le rejet doit être immédiat, sans lire quoi que ce soit.
     """
 
-    def _charger_urls_espion(*args, **kwargs):
+    def _load_urls_spy(*args, **kwargs):
         raise AssertionError(
-            "charger_urls ne doit pas être appelé avant valider_ciblage_exclusif"
+            "load_urls ne doit pas être appelé avant validate_exclusive_targeting"
         )
 
-    monkeypatch.setattr(cmd_rescrape, "charger_urls", _charger_urls_espion)
+    monkeypatch.setattr(cmd_rescrape, "load_urls", _load_urls_spy)
     _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
 
     result = runner.invoke(

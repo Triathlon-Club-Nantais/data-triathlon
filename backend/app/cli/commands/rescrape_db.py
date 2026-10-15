@@ -3,8 +3,8 @@ import typer
 
 from app.cli.progress import select_reporter
 from app.cli.reports import emit_outcome, render_rescrape_report
-from app.cli.url_sources import charger_urls, valider_ciblage_exclusif, valider_single_heat
-from app.cli.validators import valider_max_concurrent_hosts, valider_provider
+from app.cli.url_sources import load_urls, validate_exclusive_targeting, validate_single_heat
+from app.cli.validators import validate_max_concurrent_hosts, validate_provider
 from app.core.config import get_settings
 from app.core.database import session_scope
 from app.services import rescrape_service
@@ -40,7 +40,7 @@ def rescrape_db(
         help="Ne re-scrape que les épreuves scrapées il y a plus de N jours.",
     ),
     provider: str | None = typer.Option(
-        None, "--provider", callback=valider_provider,
+        None, "--provider", callback=validate_provider,
         help="Restreint à un provider (défaut : tous).",
     ),
     url: list[str] = typer.Option(
@@ -56,7 +56,7 @@ def rescrape_db(
         1.0, "--delay", help="Pause de politesse entre scrapes (s)."
     ),
     max_concurrent_hosts: int = typer.Option(
-        4, "--max-concurrent-hosts", callback=valider_max_concurrent_hosts,
+        4, "--max-concurrent-hosts", callback=validate_max_concurrent_hosts,
         help="Plafond de chronométreurs traités en même temps.",
     ),
     json_output: bool = typer.Option(
@@ -94,12 +94,12 @@ def rescrape_db(
         … import-sheet --json | jq -r '.failures[].url' \\
           | … rescrape-db --urls-from -
     """
-    valider_ciblage_exclusif(url=url, urls_from=urls_from, provider=provider, older_than=older_than)
-    valider_single_heat(
+    validate_exclusive_targeting(url=url, urls_from=urls_from, provider=provider, older_than=older_than)
+    validate_single_heat(
         single_heat=single_heat, url=url, urls_from=urls_from,
         provider=provider, older_than=older_than,
     )
-    urls = charger_urls(url, urls_from)
+    urls = load_urls(url, urls_from)
 
     settings = get_settings()
     reporter = select_reporter(no_progress=no_progress or dry_run, plain=plain)

@@ -78,7 +78,7 @@ def test_le_nombre_de_requetes_ne_croit_pas_avec_les_participations(db_session):
     """Deux tailles, un seul compte : la configuration est lue en mémoire.
 
     Ce que ce test attrape, exactement : une lecture **par participation**,
-    donc une régression de `is_tcn` ou `is_federal` — un chargement paresseux
+    donc une régression de `is_tcn` — un chargement paresseux
     « au cas où » posé dans le prédicat Python. Il le ferait proportionnellement
     au volume, ce qu'un chronomètre ne sait pas montrer.
 
