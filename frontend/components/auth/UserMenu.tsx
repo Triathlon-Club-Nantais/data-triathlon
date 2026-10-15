@@ -197,7 +197,7 @@ export function UserMenu({
           <DropdownMenuItem
             disabled={logout.isPending}
             onClick={seDeconnecter}
-            className="px-2 py-2 text-[14px] font-semibold"
+            className="tcn-cible-tactile px-2 py-2 text-[14px] font-semibold"
           >
             Se déconnecter
           </DropdownMenuItem>
@@ -206,7 +206,7 @@ export function UserMenu({
           <DropdownMenuItem
             variant="destructive"
             onClick={ouvrirLaSuppression}
-            className="px-2 py-2 text-[14px] font-semibold"
+            className="tcn-cible-tactile px-2 py-2 text-[14px] font-semibold"
           >
             Supprimer mon compte
           </DropdownMenuItem>

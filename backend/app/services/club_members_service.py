@@ -15,7 +15,7 @@ from app.core.athlete_identity import athlete_identity_keys
 from app.core.exceptions import DomainError, NotFoundError
 from app.core.gender import normalize_gender
 from app.core.identity import identity_hash
-from app.core.season import SEASON_MAX, SEASON_MIN, SeasonOutOfRangeError
+from app.core.season import SEASON_MAX, SEASON_MIN, SeasonOutOfRangeError, current_season
 from app.models.club_member import (
     LINK_AMBIGUOUS,
     LINK_AUTO,
@@ -154,8 +154,8 @@ def sync_from_fftri(db: Session, *, user_id: int | None) -> MembersSyncReport:
     except Exception as error:
         logger.warning("FFTri roster unavailable", exc_info=True)
         raise RosterUnavailableError from error
-    season = roster.licence_year - 1
-    rows = _replace(db, season, _deduplicated(roster.members), SOURCE_FFTRI)
+    season = current_season()
+    rows = _replace(db, season, _deduplicated(roster), SOURCE_FFTRI)
     audit.record(db, user_id, action="club_members.sync", entity_type=_SEASON_ENTITY, entity_id=season)
     return report_of(season, rows)
 

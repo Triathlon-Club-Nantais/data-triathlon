@@ -525,6 +525,69 @@
     outline: 2px solid var(--tcn-orange);
     outline-offset: -2px;
   }
+
+  /* Ligne de la grille du classement (#1355) : ces déclarations se répétaient
+     en ligne sur chaque `<tr>` et chaque cellule, ~600 octets par ligne. Les
+     pistes, propres à l'épreuve (inters), arrivent par `--tcn-classement-cols`
+     posée une fois sur le `<tbody>`. Pas de `background` ici : il appartient à
+     `.tcn-rowlink` et à son survol. */
+  .tcn-classement-ligne {
+    display: grid;
+    grid-template-columns: var(--tcn-classement-cols);
+    gap: 0 12px;
+    align-items: center;
+    padding: 12px 22px;
+    border-bottom: 1px solid var(--tcn-border-faint);
+    border-left: 3px solid transparent;
+  }
+  .tcn-classement-ligne--club {
+    border-left-color: var(--tcn-orange);
+  }
+  /* Gris des non-finishers en classe, à spécificité simple : le survol de
+     `.tcn-rowlink:hover` (0,2,0) le bat, ce que le style en ligne empêchait
+     (#1382). Jamais posé sur « ma ligne », dont le fond prime. */
+  .tcn-classement-ligne--nf {
+    background: color-mix(in srgb, var(--tcn-grey-400) 15%, transparent);
+  }
+  .tcn-classement-rang-categorie {
+    font-size: 11px;
+    color: var(--tcn-text-faint);
+  }
+  /* Sur le fond survolé de « ma ligne » (`--tcn-orange-12`), le faint tombait à
+     4,46:1, sous WCAG 1.4.3 (#1381). */
+  .tcn-rowlink--moi .tcn-classement-rang-categorie {
+    color: var(--tcn-text-body);
+  }
+  /* Préfixées par `.tcn-table` : le `font-weight: inherit` de `.tcn-table td`
+     (0,1,1) battrait sinon leur gras, que le style en ligne emportait. */
+  .tcn-table .tcn-classement-nom {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--tcn-ink);
+    min-width: 0;
+  }
+  .tcn-classement-nom__lien {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 100%;
+  }
+  .tcn-classement-nom__texte {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tcn-classement-texte {
+    font-size: 13px;
+    color: var(--tcn-text-body);
+  }
+  .tcn-table .tcn-classement-temps {
+    font-family: var(--tcn-font-cond);
+    font-weight: 700;
+    font-size: 15px;
+    color: var(--tcn-ink);
+  }
   /* La cible réelle : un seul arrêt clavier par ligne, et les quatre gestes
      natifs (nouvel onglet, copie du lien, aperçu au survol, `Entrée`) que le
      `role="button"` + `router.push` d'avant #481 rendait impossibles. */

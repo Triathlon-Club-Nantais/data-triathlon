@@ -297,9 +297,15 @@ export function useWipeAllCourses() {
 
 /** Doublons suspects entre épreuves (#288), pour le panel d'administration (#292). */
 export function useCourseDuplicates() {
+  const qc = useQueryClient();
   return useQuery({
     queryKey: queryKeys.courseDuplicates(),
-    queryFn: () => apiClient.listCourseDuplicates(),
+    queryFn: async () => {
+      const liste = await apiClient.listCourseDuplicates();
+      // La liste vaut le compte : la pastille n'a pas à le redemander (#1352).
+      qc.setQueryData(queryKeys.courseDuplicatesCount(), { total: liste.candidates.length });
+      return liste;
+    },
   });
 }
 
@@ -312,6 +318,8 @@ export function useCourseDuplicatesCount(actif = true) {
     queryKey: queryKeys.courseDuplicatesCount(),
     queryFn: () => apiClient.countCourseDuplicates(),
     enabled: actif,
+    // Même raison que `useIdentityReviewCount` : le compte rejoue la détection.
+    staleTime: 5 * 60_000,
   });
 }
 
@@ -588,9 +596,14 @@ export function useMergeAthletes() {
 
 /** Les cas d'identité à trancher (#908). */
 export function useIdentityReview() {
+  const qc = useQueryClient();
   return useQuery({
     queryKey: queryKeys.identityReview(),
-    queryFn: () => apiClient.listIdentityReview(),
+    queryFn: async () => {
+      const liste = await apiClient.listIdentityReview();
+      qc.setQueryData(queryKeys.identityReviewCount(), { total: liste.candidates.length });
+      return liste;
+    },
   });
 }
 

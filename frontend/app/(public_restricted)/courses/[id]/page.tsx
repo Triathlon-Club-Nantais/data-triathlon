@@ -21,7 +21,7 @@ import { Histogram } from "@/components/charts/Histogram";
 import { GenderDonut } from "@/components/charts/GenderDonut";
 import { CategoryBars } from "@/components/charts/CategoryBars";
 import { CATEGORY_PARAM, CLUB_PARAM, SCOPE_CLUB, SCOPE_PARAM, scopeFromParam } from "@/lib/scope";
-import { PAGE_SIZE_PARAM, parsePageSize } from "@/lib/pageSize";
+import { PAGE_SIZE_PARAM, boundPageSize, parsePageSize } from "@/lib/pageSize";
 
 export const metadata: Metadata = { title: "Épreuve" };
 
@@ -71,7 +71,7 @@ export default async function CoursePage({
   const scope = scopeFromParam(sp[SCOPE_PARAM]);
   // Liste blanche : le sélecteur du classement ne sait représenter que quatre
   // tailles, une URL bricolée le désaccorderait (cf. `lib/pageSize.ts`).
-  const pageSize = parsePageSize(sp[PAGE_SIZE_PARAM]);
+  const pageSizeDemandee = parsePageSize(sp[PAGE_SIZE_PARAM]);
 
   // Trois appels distincts, et c'est structurant : la synthèse porte sur
   // l'épreuve entière, le classement sur la sélection courante. Chercher un nom
@@ -123,11 +123,18 @@ export default async function CoursePage({
   }
 
   const courseId = idDeRoute(id);
+  const enSynthese = apiServer.getCourseSummary(courseId).catch(rendreNullSi404);
+  // « Tout » dépend de la taille de l'épreuve (#1355) : la synthèse passe alors
+  // devant le classement, ~100 ms de plus sur cette seule demande.
+  const pageSize =
+    pageSizeDemandee === "all" ? boundPageSize("all", (await enSynthese)?.total ?? 0) : pageSizeDemandee;
   const [data, summary, sources] = await Promise.all([
     apiServer
       .getCourse(courseId, { page, page_size: pageSize, q, scope, club, category })
       .catch(rendreNullSi404),
-    apiServer.getCourseSummary(courseId).catch(rendreNullSi404),
+    enSynthese,
+    // Lancées ici seulement : partie plus tôt, une source en échec ne serait
+    // écoutée par personne si la synthèse lève avant ce `Promise.all`.
     apiServer.getCourseSources(courseId).catch(rendreNullSi404),
   ]);
   if (!data || !summary) notFound();

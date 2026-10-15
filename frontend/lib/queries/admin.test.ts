@@ -17,6 +17,8 @@ const {
   deleteRole,
   countCourses,
   setCourseReliability,
+  listIdentityReview,
+  listCourseDuplicates,
 } = vi.hoisted(() => ({
   updateAthlete: vi.fn(),
   reassignParticipation: vi.fn(),
@@ -30,6 +32,8 @@ const {
   deleteRole: vi.fn(),
   countCourses: vi.fn(),
   setCourseReliability: vi.fn(),
+  listIdentityReview: vi.fn(),
+  listCourseDuplicates: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -49,11 +53,14 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       deleteRole,
       countCourses,
       setCourseReliability,
+      listIdentityReview,
+      listCourseDuplicates,
     },
   };
 });
 
 import { ApiError } from "@/lib/api/client";
+import { queryKeys } from "./keys";
 import {
   useUpdateAthlete,
   useUpdateCourse,
@@ -67,6 +74,8 @@ import {
   useDeleteRole,
   useAdminCoursesCount,
   useSetCourseReliability,
+  useIdentityReview,
+  useCourseDuplicates,
 } from "./admin";
 
 /**
@@ -331,5 +340,28 @@ describe("file de revalidation qualité (#119)", () => {
     await result.current.mutateAsync({ courseId: 7, verdict: true });
 
     expect(invalider).toHaveBeenCalledWith({ queryKey: ["course-participations"] });
+  });
+});
+
+
+describe("review screens seed their nav badge (#1352)", () => {
+  beforeEach(() => {
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  });
+
+  it("sets the identity count from the list it just loaded", async () => {
+    listIdentityReview.mockResolvedValue({ candidates: [{}, {}] });
+    const { result } = renderHook(() => useIdentityReview(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(client.getQueryData(queryKeys.identityReviewCount())).toEqual({ total: 2 });
+  });
+
+  it("sets the duplicates count from the list it just loaded", async () => {
+    listCourseDuplicates.mockResolvedValue({ candidates: [{}] });
+    const { result } = renderHook(() => useCourseDuplicates(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(client.getQueryData(queryKeys.courseDuplicatesCount())).toEqual({ total: 1 });
   });
 });

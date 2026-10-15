@@ -16,6 +16,7 @@ from app.schemas.club import (
     ClubComposition,
     ClubPodiumEntry,
     ClubPodiums,
+    ClubPodiumTotals,
     ClubRosterEntry,
     ClubSummary,
     DisciplinePodiumCounts,
@@ -53,7 +54,10 @@ def _entree(row, scope: str, rang: int, equipes: dict[int, list[str]]) -> ClubPo
 def _trier(entries: list[ClubPodiumEntry]) -> list[ClubPodiumEntry]:
     # Stable : trier d'abord par date décroissante, puis par rang croissant —
     # à rang égal, l'ordre par date décroissante posé au premier passage survit.
-    par_date = sorted(entries, key=lambda e: e.event_date or "", reverse=True)
+    # Départage final par id : `club_podiums` n'a pas d'ORDER BY, et l'aperçu
+    # (`?podiums=preview`) doit être le début exact de la liste complète (#1354).
+    par_id = sorted(entries, key=lambda e: e.participation_id)
+    par_date = sorted(par_id, key=lambda e: e.event_date or "", reverse=True)
     return sorted(par_date, key=lambda e: e.rank)
 
 
@@ -117,9 +121,22 @@ def _bucket_composition(rows: list[tuple[str, str | None]]) -> ClubComposition:
     return ClubComposition(gender=gender_counts, category=category_counts)
 
 
-def get_club_summary(db: Session, *, federal_only: bool = False) -> ClubSummary:
+#: Taille de l'aperçu des podiums, celle que `PodiumsList` affiche replié (#1354).
+PODIUMS_PREVIEW = 6
+
+
+def get_club_podiums(db: Session, *, federal_only: bool = False) -> ClubPodiums:
+    """Les podiums complets des quatre modes, chargés au dépliage de la liste (#1354)."""
+    rows = participation_repository.club_podiums(db, federal_only=federal_only)
+    return _bucket_podiums(rows, participation_repository.teammate_names(db, (row[0] for row in rows)))
+
+
+def get_club_summary(db: Session, *, federal_only: bool = False, podiums_preview: bool = False) -> ClubSummary:
     """Roster (top 12), podiums (4 modes de rang), podiums par discipline et
-    composition (genre/catégorie) du club, agrégés côté serveur."""
+    composition (genre/catégorie) du club, agrégés côté serveur.
+
+    `podiums_preview` ne garde que les `PODIUMS_PREVIEW` premiers de chaque
+    mode : la liste complète pesait 215 ko de la charge de `/club` (#1354)."""
     roster_rows = athlete_repository.club_roster(db, federal_only=federal_only)
     podium_rows = participation_repository.club_podiums(db, federal_only=federal_only)
     composition_rows = athlete_repository.club_composition(db, federal_only=federal_only)
@@ -131,12 +148,19 @@ def get_club_summary(db: Session, *, federal_only: bool = False) -> ClubSummary:
         )
         for a, count, podiums, po, pg, pc in roster_rows
     ]
+    podiums = _bucket_podiums(
+        podium_rows,
+        participation_repository.teammate_names(db, (row[0] for row in podium_rows)),
+    )
+    totals = ClubPodiumTotals(**{mode: len(getattr(podiums, mode)) for mode in ClubPodiumTotals.model_fields})
+    if podiums_preview:
+        podiums = ClubPodiums(
+            **{mode: getattr(podiums, mode)[:PODIUMS_PREVIEW] for mode in ClubPodiumTotals.model_fields}
+        )
     return ClubSummary(
         roster=roster,
-        podiums=_bucket_podiums(
-            podium_rows,
-            participation_repository.teammate_names(db, (row[0] for row in podium_rows)),
-        ),
+        podiums=podiums,
+        podiums_totals=totals,
         podiums_by_discipline=_bucket_podiums_par_discipline(podium_rows),
         composition=_bucket_composition(composition_rows),
     )

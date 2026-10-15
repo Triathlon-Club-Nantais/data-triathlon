@@ -274,7 +274,13 @@ describe("CoursePage", () => {
     expect(getCourse).toHaveBeenCalledWith(1, { page: 1, page_size: 20, q: undefined, scope: undefined });
   });
 
+  it("ramène « Tout » à 200 lignes au-delà de 500 résultats (#1355)", async () => {
+    await afficher({ page_size: "all" });
+    expect(getCourse).toHaveBeenCalledWith(1, { page: 1, page_size: 200, q: undefined, scope: undefined });
+  });
+
   it("transmet une taille de tranche valide de l'URL telle quelle à l'API", async () => {
+    getCourseSummary.mockResolvedValue({ ...SUMMARY, total: 500 });
     await afficher({ page_size: "all" });
     expect(getCourse).toHaveBeenCalledWith(1, { page: 1, page_size: "all", q: undefined, scope: undefined });
   });

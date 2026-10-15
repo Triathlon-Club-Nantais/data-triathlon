@@ -48,7 +48,7 @@ trois repositories :
 | `search_by_relevance` | `athlete_repository.py` | `GET /athletes/search` — `participation_count` de la palette ⌘K (#484) |
 | `club_roster`/`club_rank` (même requête, partagée par `_club_roster_requete`) | `athlete_repository.py` | `GET /club/summary` → roster (#581) ; `GET /club/roster/rank/{id}` → rang exact hors aperçu (#641) |
 | `club_composition` | `athlete_repository.py` | `GET /club/summary` → composition genre/catégorie (#642) |
-| `club_podiums` | `participation_repository.py` | `GET /club/summary` → podiums et podiums par discipline (#581, #642) |
+| `club_podiums` | `participation_repository.py` | `GET /club/summary` → podiums et podiums par discipline (#581, #642) ; sous `?podiums=preview`, 6 par mode plus `podiums_totals` (ajout de #1354, défaut inchangé) ; `GET /club/podiums` → liste complète, chargée au dépliage |
 
 **`search_by_relevance` joint `Participation` en `outerjoin`** (un athlète à
 zéro résultat doit rester trouvable) : `validated_clause` y vit dans la

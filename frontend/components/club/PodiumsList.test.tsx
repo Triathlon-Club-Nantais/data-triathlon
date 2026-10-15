@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ClubPodiumEntry, ClubPodiums } from "@/lib/types";
 
@@ -8,6 +8,9 @@ let searchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParams,
 }));
+
+const { getClubPodiums } = vi.hoisted(() => ({ getClubPodiums: vi.fn() }));
+vi.mock("@/lib/api/client", () => ({ apiClient: { getClubPodiums } }));
 
 import { PodiumsList, APERCU_PODIUMS } from "./PodiumsList";
 
@@ -175,5 +178,61 @@ describe("PodiumsList — extension de la liste (PROF-3, #488)", () => {
       />,
     );
     expect(screen.getByRole("button", { name: "Voir l'autre podium" })).toBeInTheDocument();
+  });
+});
+
+describe("PodiumsList — aperçu servi seul, liste chargée au dépliage (#1354)", () => {
+  const NEUF = Array.from({ length: 9 }, (_, i) => entry({ participation_id: i + 1, scope: "overall", rank: 1 }));
+  const APERCU: ClubPodiums = { ...EMPTY, scratch: NEUF.slice(0, APERCU_PODIUMS) };
+  const TOTAUX = { scratch: 9, category: 0, gender: 0, all: 0 };
+
+  it("compte les podiums restants sur les totaux, pas sur l'aperçu", () => {
+    searchParams = new URLSearchParams();
+    render(<PodiumsList podiums={APERCU} totals={TOTAUX} />);
+    expect(screen.getByRole("button", { name: "Voir les 3 autres podiums" })).toBeInTheDocument();
+  });
+
+  it("charge la liste complète au dépliage, avec le filtre de disciplines de l'URL", async () => {
+    searchParams = new URLSearchParams("sports=federal");
+    getClubPodiums.mockResolvedValue({ ...EMPTY, scratch: NEUF });
+    const user = userEvent.setup();
+    render(<PodiumsList podiums={APERCU} totals={TOTAUX} />);
+
+    await user.click(screen.getByRole("button", { name: "Voir les 3 autres podiums" }));
+
+    expect(await screen.findAllByRole("listitem")).toHaveLength(9);
+    expect(getClubPodiums).toHaveBeenCalledWith({ federal_only: true });
+  });
+
+  it("oublie la liste chargée quand le filtre de disciplines change", async () => {
+    searchParams = new URLSearchParams();
+    getClubPodiums.mockResolvedValue({ ...EMPTY, scratch: NEUF });
+    const user = userEvent.setup();
+    const { rerender } = render(<PodiumsList podiums={APERCU} totals={TOTAUX} />);
+    await user.click(screen.getByRole("button", { name: "Voir les 3 autres podiums" }));
+    expect(await screen.findAllByRole("listitem")).toHaveLength(9);
+
+    searchParams = new URLSearchParams("sports=all");
+    const autres = { ...EMPTY, scratch: [entry({ participation_id: 50 })] };
+    rerender(<PodiumsList podiums={autres} totals={{ ...TOTAUX, scratch: 1 }} />);
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+  });
+
+  it("ne charge qu'une fois et reste déplié malgré un double clic", async () => {
+    searchParams = new URLSearchParams();
+    getClubPodiums.mockClear();
+    let resoudre: (v: ClubPodiums) => void = () => {};
+    getClubPodiums.mockReturnValue(new Promise<ClubPodiums>((r) => (resoudre = r)));
+    const user = userEvent.setup();
+    render(<PodiumsList podiums={APERCU} totals={TOTAUX} />);
+    const bouton = screen.getByRole("button", { name: "Voir les 3 autres podiums" });
+
+    await user.click(bouton);
+    await user.click(bouton);
+    resoudre({ ...EMPTY, scratch: NEUF });
+
+    await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(9));
+    expect(getClubPodiums).toHaveBeenCalledTimes(1);
   });
 });

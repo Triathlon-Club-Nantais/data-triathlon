@@ -29,6 +29,22 @@ export function parsePageSize(raw: string | null | undefined): PageSize {
   return connue ?? PAGE_SIZE_DEFAUT;
 }
 
+/**
+ * Au-delà, « Tout » n'est plus proposé (#1355) : les 3 003 lignes d'une grosse
+ * épreuve rendaient 17 Mo de HTML (grille, cartes et charge RSC) et 10 s de
+ * flux. Mesuré sur l'épreuve entière, pas sur la sélection filtrée.
+ */
+export const PAGE_SIZE_ALL_MAX = 500;
+
+export function pageSizeOptions(totalEpreuve: number): readonly PageSize[] {
+  return totalEpreuve > PAGE_SIZE_ALL_MAX ? PAGE_SIZE_OPTIONS.filter((o) => o !== "all") : PAGE_SIZE_OPTIONS;
+}
+
+/** La taille réellement servie : « Tout » retombe sur la plus grande tranche au-delà du seuil. */
+export function boundPageSize(taille: PageSize, totalEpreuve: number): PageSize {
+  return taille === "all" && totalEpreuve > PAGE_SIZE_ALL_MAX ? 200 : taille;
+}
+
 /** Libellé d'une option dans le sélecteur. */
 export function pageSizeLabel(taille: PageSize): string {
   return taille === "all" ? "Tout" : `${taille} lignes`;
