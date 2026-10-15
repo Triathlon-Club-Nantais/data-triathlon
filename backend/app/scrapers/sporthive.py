@@ -98,7 +98,7 @@ _PATH_RE = re.compile(
     rf"(?P<event_id>{_ID_RE})(?:/.*)?$"
 )
 
-_EXPECTED_FORM = (
+_UNREADABLE_URL_MESSAGE = (
     "URL Sporthive illisible : aucun identifiant d'événement dans le chemin. "
     "Forme attendue : https://results.sporthive.com/events/<id>[/races/<n>] "
     "(ou https://sporthive.com/events/s/<id>), où <id> est numérique "
@@ -122,10 +122,10 @@ def _parse_url(url: str) -> str:
     try:
         path = urlparse(url).path or ""
     except ValueError:
-        raise ValueError(_EXPECTED_FORM) from None
+        raise ValueError(_UNREADABLE_URL_MESSAGE) from None
     matched = _PATH_RE.match(path)
     if not matched:
-        raise ValueError(_EXPECTED_FORM)
+        raise ValueError(_UNREADABLE_URL_MESSAGE)
     return matched.group("event_id")
 
 
@@ -229,12 +229,12 @@ class _IncompleteRankingError(Exception):
     decision to drop the race belongs to the loop, so the wording does too.
     """
 
-    def __init__(self, race_name: str, active_race_id, read: int, announced: int):
-        super().__init__(f"{race_name}: read {read} of {announced}")
+    def __init__(self, race_name: str, active_race_id, read_count: int, announced_count: int):
+        super().__init__(f"{race_name}: read {read_count} of {announced_count}")
         self.race_name = race_name
         self.active_race_id = active_race_id
-        self.read = read
-        self.announced = announced
+        self.read_count = read_count
+        self.announced_count = announced_count
 
 
 # ── Scalars ──────────────────────────────────────────────────────────────────
@@ -535,17 +535,17 @@ def _scrape_race(
     its ranking.
     """
     race_id = str(race.get("id") or "")
-    announced = race.get("classificationsCount") or 0
+    announced_count = race.get("classificationsCount") or 0
     participants = list(_iter_participants(client, race_id))
-    if len(participants) < announced:
+    if len(participants) < announced_count:
         raise _IncompleteRankingError(
-            race.get("raceName") or "", race.get("activeRaceId"), len(participants), announced
+            race.get("raceName") or "", race.get("activeRaceId"), len(participants), announced_count
         )
-    if len(participants) > announced:
+    if len(participants) > announced_count:
         logger.info(
             "Sporthive race %r (ordinal %s): read %d participants for %d announced — "
             "surplus accepted, the race is likely live.",
-            race.get("raceName"), race.get("activeRaceId"), len(participants), announced,
+            race.get("raceName"), race.get("activeRaceId"), len(participants), announced_count,
         )
     ctx = _race_context(url, event, race)
     return [_to_result(participant, ctx) for participant in participants]
@@ -636,7 +636,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 logger.warning(
                     "Sporthive race %r (ordinal %s) dropped: %d participants read for "
                     "%d announced, ranking truncated at the source.",
-                    incomplete.race_name, incomplete.active_race_id, incomplete.read, incomplete.announced,
+                    incomplete.race_name, incomplete.active_race_id, incomplete.read_count, incomplete.announced_count,
                 )
     if not results:
         raise ValueError(
@@ -732,13 +732,13 @@ def scrape_event_fanout(
                 logger.warning(
                     "Sporthive race %r (ordinal %s) dropped: %d participants read for "
                     "%d announced, ranking truncated at the source.",
-                    incomplete.race_name, incomplete.active_race_id, incomplete.read, incomplete.announced,
+                    incomplete.race_name, incomplete.active_race_id, incomplete.read_count, incomplete.announced_count,
                 )
                 trace.failures.append({
                     "heat_slug": race_slug,
                     "reason": (
-                        f"classement tronqué à la source : {incomplete.read} lues sur "
-                        f"{incomplete.announced} annoncées"
+                        f"classement tronqué à la source : {incomplete.read_count} lues sur "
+                        f"{incomplete.announced_count} annoncées"
                     ),
                 })
             except Exception as exc:
