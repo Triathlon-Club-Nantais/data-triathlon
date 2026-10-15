@@ -10,7 +10,7 @@ d'API : docstring du module.
   (`gqjk02-triathlon-de-carnac-2025`) répond toujours sur `/api/events/{slug}`,
   mais `/api/events/{slug}/races` rend une liste vide : ses courses `zmhc-*`
   ont été retirées.
-- Une course retirée répond **404 avec une page HTML**, plus avec l'objet
+- Une course retirée répond **404 avec une page HTML**, et non plus avec l'objet
   `{"error": …}` d'avant. Le scraper lève alors « Course Sportinnovation
   introuvable » au lieu d'un `JSONDecodeError`.
 - Conséquence pour le test d'intégration de la forme `/race/{slug}` : il pointe
