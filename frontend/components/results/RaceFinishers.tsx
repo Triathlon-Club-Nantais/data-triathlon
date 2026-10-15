@@ -586,7 +586,9 @@ export function RaceFinishers({
         <div style={{ minWidth: 1080 }}>
           <table className="tcn-table" role="table" aria-labelledby="titre-classement">
           <thead role="rowgroup">
-          <tr role="row" style={{ display: "grid", gridTemplateColumns: fcols, gap: "0 12px", alignItems: "center", padding: "12px 22px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)" }}>
+          {/* Liseré transparent de 3 px : celui des lignes, sans quoi rang et nom
+              commencent 3 px plus loin que leurs en-têtes (#1380). */}
+          <tr role="row" style={{ display: "grid", gridTemplateColumns: fcols, gap: "0 12px", alignItems: "center", padding: "12px 22px", borderLeft: "3px solid transparent", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", borderBottom: "1px solid var(--tcn-border)" }}>
             <th role="columnheader" scope="col">Rang</th><th role="columnheader" scope="col">Athlète</th><th role="columnheader" scope="col">Catég.</th><th role="columnheader" scope="col">Sexe</th>
             <th role="columnheader" scope="col" aria-sort={ariaSort(CLE_TEMPS_TOTAL)}>
               <EnteteTriable cle={CLE_TEMPS_TOTAL} libelle="Temps total" ariaSujet="temps total" tri={tri} onTrier={trierSur} perimetre={perimetreTri} />
@@ -609,24 +611,14 @@ export function RaceFinishers({
               <tr
                 key={p.id}
                 role="row"
-                className={`tcn-rowlink tcn-classement-ligne${own ? " tcn-classement-ligne--club" : ""}${moi ? " tcn-rowlink--moi" : ""}`}
-                style={{
-                  // Le fond de « ma ligne » vit en classe (`.tcn-rowlink--moi`,
-                  // globals.css), pas ici : un style en ligne battrait toute
-                  // couche CSS et couperait le survol de `.tcn-rowlink:hover`
-                  // (#439). Le chip « Vous » porte seul la distinction — le
-                  // fond n'est qu'un appui de teinte (1,11:1 mesuré contre une
-                  // ligne blanche, nul en luminance contre le gris ci-dessous :
-                  // WCAG 1.4.1 tient sur le chip, pas sur ce fond). Il reste
-                  // posé même sur un non-finisher : un athlète qui a abandonné
-                  // reste l'athlète retenu. Le gris des non-finishers, lui,
-                  // reste en ligne — il ne concerne que les lignes qui ne sont
-                  // pas la mienne, `.tcn-rowlink--moi` primant les siennes par
-                  // la classe.
-                  background: !moi && nf
-                    ? "color-mix(in srgb, var(--tcn-grey-400) 15%, transparent)"
-                    : undefined,
-                }}
+                // Les fonds de « ma ligne » et des non-finishers vivent en classe
+                // (globals.css), jamais en ligne : un style en ligne battrait
+                // toute couche CSS et couperait le survol de `.tcn-rowlink:hover`
+                // (#439, #1382). Le chip « Vous » porte seul la distinction — le
+                // fond n'est qu'un appui de teinte (WCAG 1.4.1 tient sur le chip).
+                // Il reste posé sur un non-finisher : un athlète qui a abandonné
+                // reste l'athlète retenu, d'où le gris réservé aux autres lignes.
+                className={`tcn-rowlink tcn-classement-ligne${own ? " tcn-classement-ligne--club" : ""}${moi ? " tcn-rowlink--moi" : nf ? " tcn-classement-ligne--nf" : ""}`}
               >
                 <td role="cell">{marqueurRang(p, nf, attente, { minWidth: 28, fontSize: 16 })}</td>
                 {/* `minWidth: 0` remplace l'`overflow: hidden` que portait la
@@ -672,7 +664,7 @@ export function RaceFinishers({
                   {p.rank_category != null && !attente && (
                     <div
                       title={`${ordinalFr(p.rank_category)} de sa catégorie`}
-                      style={{ fontSize: 11, color: "var(--tcn-text-faint)" }}
+                      className="tcn-classement-rang-categorie"
                     >
                       {ordinalFr(p.rank_category)}
                       <span className="sr-only"> de sa catégorie</span>
