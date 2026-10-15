@@ -11,9 +11,11 @@ from collections import defaultdict
 from sqlalchemy.orm import Session
 
 from app.core.gender import is_gender_podium
-from app.repositories import athlete_repository, participation_repository
+from app.core.season import current_season
+from app.repositories import athlete_repository, club_member_repository, participation_repository
 from app.schemas.club import (
     ClubComposition,
+    ClubLicensees,
     ClubPodiumEntry,
     ClubPodiums,
     ClubPodiumTotals,
@@ -157,10 +159,13 @@ def get_club_summary(db: Session, *, federal_only: bool = False, podiums_preview
         podiums = ClubPodiums(
             **{mode: getattr(podiums, mode)[:PODIUMS_PREVIEW] for mode in ClubPodiumTotals.model_fields}
         )
+    season = current_season()
+    activity = club_member_repository.licensee_activity(db, season)
     return ClubSummary(
         roster=roster,
         podiums=podiums,
         podiums_totals=totals,
         podiums_by_discipline=_bucket_podiums_par_discipline(podium_rows),
         composition=_bucket_composition(composition_rows),
+        licensees=ClubLicensees(season=season, total=activity[0], raced=activity[1]) if activity else None,
     )

@@ -312,6 +312,13 @@ export interface ClubComposition {
 /** Taille complète de chaque mode de `ClubPodiums` (#1354). */
 export type ClubPodiumTotals = Record<keyof ClubPodiums, number>;
 
+/** Licenciés de la saison en cours, et ceux qui ont couru au moins une fois (#1441). */
+export interface ClubLicensees {
+  season: number;
+  total: number;
+  raced: number;
+}
+
 export interface ClubSummary {
   roster: ClubRosterEntry[];
   /** Sous `podiums: "preview"`, les 6 premiers de chaque mode seulement. */
@@ -319,6 +326,8 @@ export interface ClubSummary {
   podiums_totals: ClubPodiumTotals;
   podiums_by_discipline: Record<string, DisciplinePodiumCounts>;
   composition: ClubComposition;
+  /** `null` quand la saison en cours n'a aucun licencié. */
+  licensees: ClubLicensees | null;
 }
 
 export interface ClubRosterRank {
