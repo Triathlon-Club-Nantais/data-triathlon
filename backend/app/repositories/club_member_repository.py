@@ -1,6 +1,6 @@
 """Accès données des licenciés du club par saison (#1202)."""
-from sqlalchemy import and_, case, delete, func, literal, or_, select, update
-from sqlalchemy.orm import Session
+from sqlalchemy import and_, case, delete, func, literal, select, union_all, update
+from sqlalchemy.orm import Session, aliased
 
 from app.core.season import season_bounds
 from app.core.validation import validated_clause
@@ -37,23 +37,22 @@ def licensee_activity(db: Session, season: int) -> tuple[int, int] | None:
     relais, un résultat validé qui compte pour le club sur une épreuve de la saison.
     """
     date_from, date_to = season_bounds(season)
-    # `correlate_except` : sans lui, la sous-requête à deux niveaux reprend
-    # `club_members` dans son FROM et tout relais compterait pour tous.
-    teammate = (
-        select(literal(1))
-        .where(
-            ParticipationTeammate.participation_id == Participation.id,
-            ParticipationTeammate.athlete_id == ClubMember.athlete_id,
-        )
-        .correlate_except(ParticipationTeammate)
-        .exists()
+    # Forme de `carried_by` (#1391) : un `OR` entre porteur et équipier faisait
+    # parcourir tous les résultats du club à chaque licencié (#1473). Les membres
+    # d'une union ne se corrèlent pas d'eux-mêmes.
+    direct = aliased(Participation)
+    carried = union_all(
+        select(direct.id).where(direct.athlete_id == ClubMember.athlete_id).correlate(ClubMember),
+        select(ParticipationTeammate.participation_id)
+        .where(ParticipationTeammate.athlete_id == ClubMember.athlete_id)
+        .correlate(ClubMember),
     )
     season_result = (
         select(literal(1))
         .select_from(Participation)
         .join(Course, Course.id == Participation.course_id)
         .where(
-            or_(Participation.athlete_id == ClubMember.athlete_id, teammate),
+            Participation.id.in_(carried),
             Participation.counts_for_tcn.is_(True),
             validated_clause(Participation.is_pending_validation),
             Course.event_date.between(date_from, date_to),

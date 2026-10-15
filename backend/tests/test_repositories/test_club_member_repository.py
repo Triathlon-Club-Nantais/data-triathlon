@@ -306,3 +306,46 @@ def test_licensee_activity_is_one_query(db_session):
         assert stats.count == 1
     finally:
         sql_observability.reset_for_tests()
+
+
+def test_licensee_activity_reads_each_licensee_through_the_athlete_indexes(db_session):
+    """#1473: an `OR` between carrier and teammate made PostgreSQL scan every club
+    result once per licensee; each branch must be correlated to the licensee."""
+    from sqlalchemy import event
+
+    statements = []
+    engine = db_session.get_bind()
+
+    def capture(conn, cursor, statement, *args):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", capture)
+    try:
+        club_member_repository.licensee_activity(db_session, 2026)
+    finally:
+        event.remove(engine, "before_cursor_execute", capture)
+
+    (sql,) = [s for s in statements if "participation_teammates" in s]
+    assert " OR " not in sql, sql
+    assert "participations_1.athlete_id = club_members.athlete_id" in sql, sql
+    assert "participation_teammates.athlete_id = club_members.athlete_id" in sql, sql
+    assert "participation_teammates, club_members" not in sql, sql
+    assert "participations_1, club_members" not in sql, sql
+
+
+def test_licensee_activity_counts_a_relay_carrier_and_teammate(db_session):
+    carrier = _athlete(db_session, "PORTEUSE")
+    _licensee(db_session, carrier)
+    teammate = _athlete(db_session, "EQUIPIERE")
+    _licensee(db_session, teammate)
+    course = course_repository.get_or_create(
+        db_session, name="Relais", event_date=date(2026, 10, 10), event_type="triathlon-m", is_relay=True
+    )
+    participation_repository.create_batch(db_session, [{
+        "athlete_id": carrier.id, "course_id": course.id, "bib_number": "7",
+        "club": _TCN, "teammate_ids": [carrier.id, teammate.id],
+    }])
+    _licensee(db_session, _athlete(db_session, "ABSENTE"))
+    tcn_count_repository.recompute_counts_for_tcn(db_session)
+
+    assert club_member_repository.licensee_activity(db_session, 2026) == (3, 2)
