@@ -5,16 +5,17 @@ from typer.testing import CliRunner
 
 from app.cli import app
 from app.cli.commands import sync_club_members as cmd
-from app.scrapers.fftri_club_members import ClubRoster, RosterMember
+from app.scrapers.fftri_club_members import RosterMember
 from app.services import club_members_service
 
 runner = CliRunner()
 
 
 def _roster(monkeypatch):
+    monkeypatch.setattr(club_members_service, "current_season", lambda: 2026)
     monkeypatch.setattr(
         club_members_service.fftri_club_members, "fetch_club_roster",
-        lambda url: ClubRoster(licence_year=2027, members=[RosterMember("MARTIN", "Anne", "F", "C1")]),
+        lambda url: [RosterMember("MARTIN", "Anne", "F", "C1")],
     )
 
 

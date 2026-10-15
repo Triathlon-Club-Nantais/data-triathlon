@@ -381,7 +381,10 @@ révocation d'accès par effet de bord.
 fichier. Seul point de passage : `club_member_repository`.
 
 - **`season` suit `core/season`** (année de début) : la licence FFTri « 2027 »,
-  publiée dès septembre 2026, couvre la saison 2026.
+  publiée dès septembre 2026, couvre la saison 2026. La page FFTri ne donne
+  plus l'année (#1347) : la synchro écrit dans `current_season()`. Début
+  septembre, si la FFTri publie encore l'ancienne liste, la nouvelle saison la
+  reçoit jusqu'aux renouvellements, et chaque synchro la remplace.
 - **Deux unicités.** `(season, licence_id)` ; et, pour les lignes sans numéro
   (fichier) non rattachées ou ambiguës, `(season, last_name_key, first_name_key)`
   par un index partiel. Une ligne rattachée sans numéro est identifiée par sa
