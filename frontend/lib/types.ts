@@ -1552,6 +1552,17 @@ export type AdminBadgeCounts = Partial<
 >;
 
 /**
+ * Une ligne de `GET /admin/quality/providers` (#1366) : `anomalies` compte les
+ * épreuves **non fiables** qui portent chaque code.
+ */
+export interface ProviderQuality {
+  provider: string;
+  course_count: number;
+  unreliable_count: number;
+  anomalies: Record<string, number>;
+}
+
+/**
  * `GET /admin/feedback/counts` — le nombre de signalements par statut (#500).
  * Les quatre statuts sont toujours présents, à zéro le cas échéant : la barre
  * de filtres affiche ses quatre entrées même sur une base vide.

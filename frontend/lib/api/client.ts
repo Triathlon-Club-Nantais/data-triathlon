@@ -56,6 +56,7 @@ import type {
   Feedback,
   FeedbackCounts,
   AdminBadgeCounts,
+  ProviderQuality,
   FeedbackCreate,
   FeedbackCreated,
   FeedbackUpdate,
@@ -558,6 +559,7 @@ export const apiClient = {
     request<PendingProvider[]>("/admin/pending-providers"),
   // Les pastilles du rail (#1385) : seules celles que la session voit.
   getAdminBadgeCounts: () => request<AdminBadgeCounts>("/admin/badge-counts"),
+  getProviderQuality: () => request<ProviderQuality[]>("/admin/quality/providers"),
   reportPendingProvider: (url: string) =>
     request<PendingProvider>("/admin/pending-providers", {
       method: "POST",

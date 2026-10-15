@@ -1,5 +1,7 @@
 """Accès données pour Course."""
+from collections import Counter, defaultdict
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import case, func, or_, select
@@ -657,6 +659,50 @@ def count_awaiting_review(db: Session) -> int:
     fiable ou non.
     """
     return count_all(db, awaiting_review=True)
+
+
+@dataclass(frozen=True)
+class ProviderQuality:
+    provider: str
+    course_count: int
+    unreliable_count: int
+    #: {code: nombre d'épreuves non fiables qui portent ce code}.
+    anomalies: dict[str, int]
+
+
+def quality_by_provider(db: Session) -> list[ProviderQuality]:
+    """Fiabilité par fournisseur de la source active (#1366), en deux requêtes.
+
+    Non fiable = verdict effectif `is_reliable` faux, la règle de la file de
+    revalidation. Les anomalies ne comptent que les épreuves non fiables : une
+    épreuve qu'un humain a déclarée fiable ne gonfle aucune colonne. Elles
+    s'agrègent en Python faute d'agrégat JSON commun à SQLite et PostgreSQL.
+    """
+    unreliable = Course.is_reliable.is_(False)
+    active = (CourseSource.course_id == Course.id) & CourseSource.is_active
+    totals = db.execute(
+        select(
+            CourseSource.provider,
+            func.count(Course.id),
+            func.sum(case((unreliable, 1), else_=0)),
+        )
+        .select_from(Course)
+        .join(CourseSource, active)
+        .group_by(CourseSource.provider)
+    ).all()
+    anomalies: dict[str, Counter] = defaultdict(Counter)
+    for provider, issues in db.execute(
+        select(CourseSource.provider, Course.quality_issues)
+        .select_from(Course)
+        .join(CourseSource, active)
+        .where(unreliable)
+    ):
+        anomalies[provider].update((issues or {}).keys())
+    rows = [
+        ProviderQuality(provider, total, unreliable_total or 0, dict(anomalies[provider]))
+        for provider, total, unreliable_total in totals
+    ]
+    return sorted(rows, key=lambda r: (-r.unreliable_count, r.provider))
 
 
 def iter_all(

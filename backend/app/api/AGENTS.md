@@ -453,6 +453,12 @@ détail dans `docs/api/admin-donnees.md` ; retours utilisateurs (#267) et
 statistiques détaillées d'une participation (#272) —
 détail dans `docs/api/feedback-stats.md`.
 
+**`GET /admin/quality/providers`** (#1366), sous `quality:override` : par
+fournisseur de la source active, les épreuves, les non fiables (verdict effectif,
+avis humain d'abord) et, par code d'anomalie, le nombre d'épreuves **non
+fiables** qui le portent (pas la somme des occurrences). Deux requêtes, quel que
+soit le volume ; les saisies manuelles, sans source, n'y figurent pas.
+
 **Le journal s'écrit dans le service, jamais dans la route** (#935) : le service
 appelle `services/audit.record` dans la transaction de son effet, et un geste
 refusé lève avant d'y arriver. Une route ne touche donc jamais

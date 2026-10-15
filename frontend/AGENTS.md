@@ -333,7 +333,8 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   `app/providers.tsx`) ; `useFileValidation`, qui n'écrit pas par `useMutation`,
   l'invalide lui-même. La pastille de la revalidation compte les
   épreuves sans avis humain, et sa file les montre par défaut
-  (`awaiting_review=true`). La palette ⌘K mène aussi aux écrans : `AthletePicker`
+  (`awaiting_review=true`). Sous les files, le porteur de `quality:override`
+  voit le tableau fournisseur × anomalie (`ProviderQualityTable`, #1366). La palette ⌘K mène aussi aux écrans : `AthletePicker`
   reçoit les destinations visibles du rail, plus `/admin` et `/admin/guide`
   pour un compte d'administration, les filtre sur place, en liens hors du
   combobox des athlètes, et compte les écrans trouvés dans son statut.

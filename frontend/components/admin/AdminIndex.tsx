@@ -7,6 +7,7 @@ import { NAV, ROLE, TO_HANDLE, byGroup, estVisible } from "@/components/layout/n
 import { useSession } from "@/lib/queries/auth";
 import { libelleCompteur, useNavBadges } from "@/lib/queries/nav-badges";
 import { NoAdminAccess } from "./NoAdminAccess";
+import { ProviderQualityTable } from "./ProviderQualityTable";
 
 /**
  * Sommaire du back-office (ADM-6).
@@ -122,6 +123,18 @@ export function AdminIndex() {
               );
             })}
           </ul>
+        </section>
+      )}
+      {/* Sous le pouvoir de la revalidation, comme sa route (#1366). */}
+      {pouvoirs.has("quality:override") && (
+        <section aria-labelledby="admin-fiabilite" className="space-y-4">
+          <h2 id="admin-fiabilite" className="font-heading text-lg font-semibold">
+            Fiabilité par fournisseur
+          </h2>
+          <p className="text-sm text-[var(--tcn-text-faint)]">
+            Épreuves importées par fournisseur, et parmi les non fiables, combien portent chaque anomalie.
+          </p>
+          <ProviderQualityTable />
         </section>
       )}
       {sections.map((section) => (
