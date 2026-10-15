@@ -11,8 +11,9 @@ from app.services.club_members_service import MembersSyncReport
 from app.services.geocode_service import GeocodeOutcome
 from app.services.rescrape_service import RescrapeOutcome
 from app.services.retention_service import RetentionOutcome
+from app.services.weather_service import WeatherOutcome
 
-Outcome = SheetOutcome | RescrapeOutcome | GeocodeOutcome
+Outcome = SheetOutcome | RescrapeOutcome | GeocodeOutcome | WeatherOutcome
 
 #: Interruption clavier (convention shell : 128 + SIGINT).
 EXIT_INTERRUPTED = 130
@@ -178,6 +179,23 @@ def render_geocode_report(outcome: GeocodeOutcome, *, dry_run: bool) -> str:
     if outcome.interrupted:
         lines.append(_line("Épreuves traitées", outcome.processed))
     lines.append(_line("Épreuves géocodées", outcome.geocoded))
+    lines.append(_line("Épreuves en erreur", outcome.errors))
+    if outcome.is_total_failure:
+        lines.append(_TOTAL_FAILURE_LINE)
+    lines.extend(_failure_lines(outcome))
+    return "\n".join(lines)
+
+
+def render_weather_report(outcome: WeatherOutcome, *, dry_run: bool) -> str:
+    """Rapport texte pour `weather-courses` (#1370), sur le patron du géocodage."""
+    lines = [_title("MÉTÉO DES ÉPREUVES", dry_run=dry_run, interrupted=outcome.interrupted)]
+    lines.append(_line("Épreuves ciblées", outcome.total))
+    if dry_run:
+        lines.extend(f"  - {name}" for name in outcome.dry_run_names)
+        return "\n".join(lines)
+    if outcome.interrupted:
+        lines.append(_line("Épreuves traitées", outcome.processed))
+    lines.append(_line("Épreuves renseignées", outcome.fetched))
     lines.append(_line("Épreuves en erreur", outcome.errors))
     if outcome.is_total_failure:
         lines.append(_TOTAL_FAILURE_LINE)

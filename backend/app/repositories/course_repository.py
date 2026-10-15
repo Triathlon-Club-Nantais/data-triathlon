@@ -378,8 +378,38 @@ def save_geocode_attempt(db: Session, course: Course, coord: tuple[float, float]
     perd que la tentative en cours, jamais celles déjà persistées.
     """
     if coord is not None:
+        if coord != (course.latitude, course.longitude):
+            # Déplacée (#1256) : la météo de l'ancien lieu est fausse, à redemander (#1370).
+            course.weather_temperature_c = course.weather_wind_kmh = None
+            course.weather_precipitation_mm = course.weather_fetched_at = None
         course.latitude, course.longitude = coord
     course.geocoded_at = utcnow()
+    db.commit()
+
+
+def list_missing_weather(db: Session, *, dated_before: date, limit: int | None = None) -> list[Course]:
+    """Épreuves géocodées, datées avant `dated_before`, sans météo servie (#1370)."""
+    q = (
+        db.query(Course)
+        .filter(Course.latitude.isnot(None), Course.longitude.isnot(None))
+        .filter(Course.event_date.isnot(None), Course.event_date <= dated_before)
+        .filter(Course.weather_fetched_at.is_(None))
+        .order_by(Course.id)
+    )
+    if limit is not None:
+        q = q.limit(limit)
+    return q.all()
+
+
+def save_weather(
+    db: Session, course: Course, *, temperature_c: float, wind_kmh: float | None,
+    precipitation_mm: float | None,
+) -> None:
+    """Persiste la météo servie et commite, épreuve par épreuve (cf. `save_geocode_attempt`)."""
+    course.weather_temperature_c = temperature_c
+    course.weather_wind_kmh = wind_kmh
+    course.weather_precipitation_mm = precipitation_mm
+    course.weather_fetched_at = utcnow()
     db.commit()
 
 

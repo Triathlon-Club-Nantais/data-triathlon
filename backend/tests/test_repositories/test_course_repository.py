@@ -542,6 +542,23 @@ def test_save_geocode_attempt_persiste_un_succes(db_session):
     assert course.geocoded_at is not None
 
 
+def test_relocating_a_course_clears_its_weather(db_session):
+    """#1370 : une épreuve déplacée (#1256) redemande la météo de son vrai lieu."""
+    course = course_repository.get_or_create(
+        db_session, name="Tri Déplacé", event_date=date(2026, 5, 1), event_type="triathlon-m"
+    )
+    course.latitude, course.longitude = 16.0, -61.7
+    course.weather_temperature_c, course.weather_fetched_at = 28.0, utcnow()
+    db_session.flush()
+
+    course_repository.save_geocode_attempt(db_session, course, (16.0, -61.7))
+    assert course.weather_temperature_c == 28.0
+
+    course_repository.save_geocode_attempt(db_session, course, (47.8, -1.7))
+    assert course.weather_temperature_c is None
+    assert course.weather_fetched_at is None
+
+
 def test_save_geocode_attempt_persiste_un_echec_sans_coordonnees(db_session):
     course = course_repository.get_or_create(
         db_session, name="Tri Échec", event_date=date(2026, 5, 1), event_type="triathlon-m"

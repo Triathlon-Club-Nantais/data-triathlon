@@ -49,6 +49,10 @@ export interface CourseBrief {
   // Indice de fiabilité calculé à l'import ; null = course jamais évaluée.
   is_reliable?: boolean | null;
   quality_issues?: Record<string, number> | null;
+  // Météo du jour de course (#1370, Open-Meteo) ; null = pas encore servie.
+  weather_temperature_c?: number | null;
+  weather_wind_kmh?: number | null;
+  weather_precipitation_mm?: number | null;
 }
 
 /** Les trois verdicts d'une épreuve, rendus par `PATCH …/reliability` (#115). */
