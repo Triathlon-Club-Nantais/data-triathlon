@@ -6,10 +6,10 @@ patron de `counter_scope_repository.py`.
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-# `_normalise_sql` est module-privé (`core/club.py`) mais réutilisé tel quel
+# `_normalize_sql` est module-privé (`core/club.py`) mais réutilisé tel quel
 # ici plutôt que redoublé — même miroir SQL que `tcn_clause`, single source of
 # truth (cf. plan #635, Global Constraints).
-from app.core.club import _normalise_sql, normalize_club
+from app.core.club import _normalize_sql, normalize_club
 from app.models.club_alias import ClubAlias
 
 
@@ -66,6 +66,6 @@ def aliases_for_canonical(db: Session, canonical_name: str) -> set[str]:
     un espacement différent de celui saisi en admin.
     """
     query = select(ClubAlias.alias_normalized).where(
-        _normalise_sql(ClubAlias.canonical_name) == normalize_club(canonical_name)
+        _normalize_sql(ClubAlias.canonical_name) == normalize_club(canonical_name)
     )
     return set(db.scalars(query))

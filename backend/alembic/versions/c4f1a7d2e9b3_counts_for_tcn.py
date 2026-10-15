@@ -17,7 +17,7 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-from app.core.club import CLUB_NORMALIZED_INDEX_EXPRESSION, _normalise_sql
+from app.core.club import CLUB_NORMALIZED_INDEX_EXPRESSION, _normalize_sql
 
 revision: str = 'c4f1a7d2e9b3'
 down_revision: Union[str, None] = 'baef0d35bb4f'
@@ -70,13 +70,13 @@ def upgrade() -> None:
             other.c.athlete_id == p.c.athlete_id,
             other.c.id != p.c.id,
             other.c.is_pending_validation.is_(False),
-            _normalise_sql(other.c.club).in_(clear),
+            _normalize_sql(other.c.club).in_(clear),
         )
         .exists()
     )
     rule = sa.or_(
-        _normalise_sql(p.c.club).in_(clear),
-        sa.and_(_normalise_sql(p.c.club).in_(ambiguous), attached),
+        _normalize_sql(p.c.club).in_(clear),
+        sa.and_(_normalize_sql(p.c.club).in_(ambiguous), attached),
     )
     op.execute(p.update().values(counts_for_tcn=sa.case((rule, True), else_=False)))
 

@@ -27,7 +27,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.athlete_identity import athlete_identity_keys, is_team_label
-from app.core.club import _normalise_sql, tcn_clause
+from app.core.club import _normalize_sql, tcn_clause
 from app.core.discipline import federal_clause
 from app.core.gender import gender_podium_clause
 from app.core.text import deaccent
@@ -1295,7 +1295,7 @@ def club_labels_by_athlete(db: Session, athlete_ids: Collection[int] | None = No
             .join(Course, Course.id == Participation.course_id)
             .where(*individual)
             .group_by(Participation.athlete_id)
-            .having(func.count(func.distinct(_normalise_sql(Participation.club))) > 1)
+            .having(func.count(func.distinct(_normalize_sql(Participation.club))) > 1)
         )
         query = query.where(Participation.athlete_id.in_(several))
     labels: dict[int, dict[str, int]] = {}
