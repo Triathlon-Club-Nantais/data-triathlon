@@ -26,6 +26,7 @@ from app.schemas.admin import (
     CourseReliabilityUpdate,
     PendingProviderOut,
     PendingProviderReported,
+    ProviderQualityOut,
 )
 from app.schemas.count import BadgeCounts
 from app.services import admin_badge_counts, course_review, pending_providers
@@ -91,6 +92,19 @@ def mark_handled(
 ):
     pending_providers.mark_handled(db, actor, entry_id)
     db.commit()
+
+
+@router.get("/admin/quality/providers", response_model=list[ProviderQualityOut])
+def provider_quality(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.QUALITY_OVERRIDE)),
+):
+    """Épreuves, épreuves non fiables et anomalies par fournisseur (#1366).
+
+    Sous la garde de la revalidation qualité : c'est le même public, qui doit
+    trancher ce que coûterait le retrait d'un fournisseur (#1342).
+    """
+    return course_repository.quality_by_provider(db)
 
 
 @router.patch(

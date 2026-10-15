@@ -4,14 +4,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { SessionUser } from "@/lib/types";
 
-const { getSession, getAdminBadgeCounts } = vi.hoisted(() => ({
+const { getSession, getAdminBadgeCounts, getProviderQuality } = vi.hoisted(() => ({
   getSession: vi.fn(),
   getAdminBadgeCounts: vi.fn(),
+  getProviderQuality: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { getSession, getAdminBadgeCounts } };
+  return { ...original, apiClient: { getSession, getAdminBadgeCounts, getProviderQuality } };
 });
 
 import { AdminIndex } from "./AdminIndex";
@@ -39,9 +40,29 @@ function afficher() {
 beforeEach(() => {
   vi.clearAllMocks();
   getAdminBadgeCounts.mockResolvedValue({ feedback: 0, identities: 0 });
+  getProviderQuality.mockResolvedValue([]);
 });
 
 describe("AdminIndex", () => {
+  it("montre la fiabilité par fournisseur au porteur de `quality:override` (#1366)", async () => {
+    getSession.mockResolvedValue(SESSION(["quality:override"]));
+    afficher();
+
+    expect(
+      await screen.findByRole("heading", { name: "Fiabilité par fournisseur" }),
+    ).toBeInTheDocument();
+    expect(getProviderQuality).toHaveBeenCalled();
+  });
+
+  it("tait la fiabilité par fournisseur sans `quality:override`", async () => {
+    getSession.mockResolvedValue(SESSION(["feedback:read"]));
+    afficher();
+
+    await screen.findByRole("link", { name: /Retours utilisateurs/ });
+    expect(screen.queryByRole("heading", { name: "Fiabilité par fournisseur" })).toBeNull();
+    expect(getProviderQuality).not.toHaveBeenCalled();
+  });
+
   it("désambiguïse les écrans aux noms proches par leur phrase", async () => {
     // Le motif d'ADM-6 : « Groupes d'appartenance » et « Droits des rôles » ne
     // se distinguent pas par leur libellé pour un bénévole non formé.

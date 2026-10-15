@@ -47,6 +47,14 @@ export function useAdminBadgeCounts(actif = true) {
   });
 }
 
+/** Fiabilité par fournisseur (#1366), pour l'accueil admin. */
+export function useProviderQuality() {
+  return useQuery({
+    queryKey: queryKeys.providerQuality(),
+    queryFn: () => apiClient.getProviderQuality(),
+  });
+}
+
 /** Reporte la taille d'une liste de revue sur sa pastille, sans la redemander (#1352). */
 function seedBadge(qc: QueryClient, key: "duplicates" | "identities", total: number) {
   qc.setQueryData<AdminBadgeCounts>(queryKeys.adminBadgeCounts(), (old) =>

@@ -600,6 +600,18 @@ class CourseReliabilityRead(BaseModel):
     quality_issues: dict | None
 
 
+class ProviderQualityOut(BaseModel):
+    """Une ligne du tableau fournisseur × anomalie (#1366)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    provider: str
+    course_count: int
+    unreliable_count: int
+    #: {code: nombre d'épreuves non fiables qui portent ce code}.
+    anomalies: dict[str, int]
+
+
 class AllowedEmailRead(BaseModel):
     """Une adresse autorisée à ouvrir une session (#170).
 
