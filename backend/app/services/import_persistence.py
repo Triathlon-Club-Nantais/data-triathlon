@@ -82,7 +82,7 @@ class PassiveSource:
     message: str
 
 
-def _identite(athlete) -> str:
+def _identity(athlete) -> str:
     """Libellé d'identité pour le bilan : « NOM | Prénom »."""
     return f"{athlete.nom} | {athlete.prenom}"
 
@@ -91,7 +91,7 @@ def _identite(athlete) -> str:
 #: `athlete_id` en fait partie — la réconciliation d'identité (#66) est un axe
 #: séparé, traité par `_Persister._reconcile_resolved`, pas par ce rafraîchissement de
 #: valeurs : les deux s'appliquent à la suite sans jamais écrire les mêmes champs.
-_CLES_APPARIEMENT = frozenset({"athlete_id", "course_id", "bib_number"})
+_MATCH_KEYS = frozenset({"athlete_id", "course_id", "bib_number"})
 
 
 def _is_empty(value: object) -> bool:
@@ -114,7 +114,7 @@ def _merge_fields(existing, fields: dict) -> dict:
     """
     changes = {}
     for key, value in fields.items():
-        if key in _CLES_APPARIEMENT or key == "status":
+        if key in _MATCH_KEYS or key == "status":
             continue
         # `raw_data` est la ligne source du moment, pas une valeur à préserver :
         # vide, elle remplace quand même l'ancienne, sans quoi une colonne que la
@@ -778,7 +778,7 @@ class _Persister:
 
             if item.participation is not None:
                 self._reconcile_resolved(
-                    item.scraped, item.participation, athlete, cree=is_creator
+                    item.scraped, item.participation, athlete, created=is_creator
                 )
                 self._upsert(item.participation, item.scraped)
                 continue
@@ -1098,15 +1098,15 @@ class _Persister:
         (#66). Vérifié à l'enfilement (`add`), avant toute mise en attente de
         résolution — trancher après coup, une fois l'identité déjà mise en
         lot, serait trop tard pour éviter la création."""
-        ancien = participation.athlete
-        return not (scraped.athlete_firstname or "").strip() and (ancien.prenom or "").strip()
+        previous = participation.athlete
+        return not (scraped.athlete_firstname or "").strip() and (previous.prenom or "").strip()
 
     def _reconcile_resolved(
         self, scraped: ScrapedResult, participation: Participation, athlete: Athlete,
-        *, cree: bool,
+        *, created: bool,
     ) -> None:
         """Réassigne l'athlète d'une participation existante si sa clé source a
-        changé (le chronométreur a corrigé le nom, #896). `athlete`/`cree` sont déjà connus (résolus par lot dans
+        changé (le chronométreur a corrigé le nom, #896). `athlete`/`created` sont déjà connus (résolus par lot dans
         `_resolve_pending`, `_reconcile_blocked` déjà écarté à l'enfilement) —
         c'est la seule différence avec l'ancien `_reconcile`, qui résolvait
         lui-même l'athlète par une requête. Ne touche QUE `athlete_id` (via la
@@ -1124,7 +1124,7 @@ class _Persister:
         if _stored_source_key(participation) == _source_key(scraped):
             return
         reassignment = Reassignment(
-            ancien=_identite(participation.athlete), nouveau=_identite(athlete), fusion=not cree
+            ancien=_identity(participation.athlete), nouveau=_identity(athlete), fusion=not created
         )
         self._previous_athlete_ids.add(participation.athlete_id)
         participation.athlete = athlete
@@ -1590,11 +1590,11 @@ def _renumber_duplicate_ranks(results: list[ScrapedResult]) -> None:
         if not any(count > 1 for count in rangs.values()):
             continue  # aucun doublon dans ce lot : rang déjà fiable
 
-        def _cle_temps(r: ScrapedResult) -> tuple[bool, int]:
+        def _time_key(r: ScrapedResult) -> tuple[bool, int]:
             secondes = to_seconds(r.total_time, strict=True)
             return (secondes is None, secondes or 0)
 
-        ranked.sort(key=_cle_temps)
+        ranked.sort(key=_time_key)
         for local_rank, scraped in enumerate(ranked, start=1):
             scraped.rank_overall = local_rank
 

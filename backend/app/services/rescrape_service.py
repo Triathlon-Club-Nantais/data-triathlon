@@ -25,12 +25,11 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.models.course import Course
 from app.repositories import athlete_repository, course_repository, course_source_repository
-from app.services import sheet_source
+from app.services import batch, sheet_source
 from app.services.batch import (
     BatchFailure,
     BatchItem,
     copy_totals,
-    est_echec_total,
     run_batch,
 )
 from app.services.import_persistence import PassiveSource
@@ -197,7 +196,7 @@ class RescrapeOutcome:
     orphans_removed: int = 0
     #: La purge des orphelins a échoué (import concurrent) ; rattrapée au run suivant.
     orphan_purge_failed: bool = False
-    #: Dry-run : le batch a scrapé sans persister. Neutralise `echec_total`.
+    #: Dry-run : le batch a scrapé sans persister. Neutralise `is_total_failure`.
     dry_run: bool = False
     #: Détail des identités réconciliées (ancien -> nouveau, volume).
     reconciliations: list[IdentiteReconciliee] = field(default_factory=list)
@@ -207,8 +206,8 @@ class RescrapeOutcome:
     passive_sources: list[PassiveSource] = field(default_factory=list)
 
     @property
-    def echec_total(self) -> bool:
-        """Toutes les épreuves ciblées ont échoué (cf. `batch.est_echec_total`).
+    def is_total_failure(self) -> bool:
+        """Toutes les épreuves ciblées ont échoué (cf. `batch.is_total_failure`).
 
         `total` est le nombre d'épreuves soumises au batch (URLs uniques, après
         `--limit`) : c'est à lui qu'`errors` se compare.
@@ -221,7 +220,7 @@ class RescrapeOutcome:
         """
         if self.dry_run:
             return False
-        return est_echec_total(epreuves=self.total, errors=self.errors)
+        return batch.is_total_failure(events=self.total, errors=self.errors)
 
 
 def run_rescrape_db(
@@ -285,10 +284,10 @@ def run_rescrape_db(
 
     outcome.reconciled = totals.reconciled
     outcome.merged = len({r.ancien for r in totals.reassignments if r.fusion})
-    compteur = Counter((r.ancien, r.nouveau) for r in totals.reassignments)
+    counts = Counter((r.ancien, r.nouveau) for r in totals.reassignments)
     outcome.reconciliations = [
         IdentiteReconciliee(ancien=ancien, nouveau=nouveau, participations=n)
-        for (ancien, nouveau), n in compteur.items()
+        for (ancien, nouveau), n in counts.items()
     ]
 
     # Nettoyage des orphelins : une seule fois, après tout le batch, et jamais en

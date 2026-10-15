@@ -17,11 +17,11 @@ Outcome = SheetOutcome | RescrapeOutcome | GeocodeOutcome
 #: Interruption clavier (convention shell : 128 + SIGINT).
 EXIT_INTERROMPU = 130
 #: Échec applicatif : aucune des épreuves ciblées n'a abouti.
-EXIT_ECHEC_TOTAL = 1
+EXIT_TOTAL_FAILURE = 1
 
-_LIGNE_ECHEC_TOTAL = (
+_TOTAL_FAILURE_LINE = (
     "Échec total : aucune des épreuves ciblées n'a abouti (code de sortie "
-    f"{EXIT_ECHEC_TOTAL})."
+    f"{EXIT_TOTAL_FAILURE})."
 )
 
 
@@ -53,8 +53,8 @@ def _lignes_compteurs(outcome: Outcome) -> list[str]:
     lignes.append(_ligne("Participants ajoutés", outcome.imported))
     lignes.append(_ligne("Participants mis à jour", outcome.updated))
     lignes.append(_ligne("Participants déjà en base", outcome.skipped))
-    if outcome.echec_total:
-        lignes.append(_LIGNE_ECHEC_TOTAL)
+    if outcome.is_total_failure:
+        lignes.append(_TOTAL_FAILURE_LINE)
     return lignes
 
 
@@ -179,8 +179,8 @@ def render_geocode_report(outcome: GeocodeOutcome, *, dry_run: bool) -> str:
         lignes.append(_ligne("Épreuves traitées", outcome.processed))
     lignes.append(_ligne("Épreuves géocodées", outcome.geocoded))
     lignes.append(_ligne("Épreuves en erreur", outcome.errors))
-    if outcome.echec_total:
-        lignes.append(_LIGNE_ECHEC_TOTAL)
+    if outcome.is_total_failure:
+        lignes.append(_TOTAL_FAILURE_LINE)
     lignes.extend(_lignes_echecs(outcome))
     return "\n".join(lignes)
 
@@ -389,7 +389,7 @@ def emit_outcome(outcome: Outcome, rapport: str, *, json_output: bool) -> None:
       est pas établi. Un cron ne s'interrompt pas tout seul : ce code désigne un
       humain, pas un incident.
     - `1` — échec total : aucune épreuve n'a abouti alors qu'il y en avait à
-      traiter (cf. `batch.est_echec_total`). Sans lui, un cron dont les 53
+      traiter (cf. `batch.is_total_failure`). Sans lui, un cron dont les 53
       épreuves échouent sortait en 0 et n'alertait jamais. Un batch
       **partiellement** réussi reste un succès (code 0).
     """
@@ -400,8 +400,8 @@ def emit_outcome(outcome: Outcome, rapport: str, *, json_output: bool) -> None:
         _echo(rapport, err=True)  # stdout coupé : le bilan se replie sur stderr
     if outcome.interrupted:
         raise typer.Exit(code=EXIT_INTERROMPU)
-    if outcome.echec_total:
-        raise typer.Exit(code=EXIT_ECHEC_TOTAL)
+    if outcome.is_total_failure:
+        raise typer.Exit(code=EXIT_TOTAL_FAILURE)
 
 
 def emit_report(rapport: str, payload: dict, *, json_output: bool) -> None:

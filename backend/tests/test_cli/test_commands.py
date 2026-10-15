@@ -866,7 +866,7 @@ def test_tube_ferme_ne_masque_pas_le_ctrl_c(monkeypatch):
     assert result.exit_code != 0
 
 
-# --- dénominateur d'`echec_total` sous `--limit` -----------------------------
+# --- dénominateur d'`is_total_failure` sous `--limit` ------------------------
 #
 # Ces deux tests traversent la **vraie** chaîne commande → service → run_batch
 # (seuls le scrape et la Session sont doublés) : ce sont les seuls à épingler le
@@ -876,7 +876,7 @@ def test_tube_ferme_ne_masque_pas_le_ctrl_c(monkeypatch):
 def test_import_sheet_limit_toutes_les_epreuves_tentees_echouent_sort_en_1(monkeypatch):
     """`--limit 5` sur un Sheet de 300 liens, les 5 épreuves tentées échouent ⇒ exit 1.
 
-    Épingle le **dénominateur** d'`echec_total` : `unique_supported` doit compter
+    Épingle le **dénominateur** d'`is_total_failure` : `unique_supported` doit compter
     les épreuves réellement soumises au batch (donc **après** le slice `--limit`),
     et non les 300 liens uniques du Sheet. Le calculer avant le slice — la
     « correction » que suggère le Minor d'affichage ouvert sur ce compteur —
