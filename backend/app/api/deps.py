@@ -218,6 +218,15 @@ PUBLIC_WRITE_RATE_LIMIT_WINDOW_SECONDS = 3600
 SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW = 60
 SITE_ACCESS_RATE_LIMIT_WINDOW_SECONDS = 3600
 
+#: #1397, seau dédié : `POST /volunteer-actions` écrit une ligne en attente par
+#: appel, mais n'est dans le geste d'aucune écriture de `public_write` (import
+#: échoué, signalement, saisie manuelle). Partager ce seau couplerait la saisie
+#: d'une saison à la déclaration d'un bénévolat, l'erreur corrigée en revue de
+#: #513. Même largeur que `public_write` : un référent qui déclare les bénévoles
+#: d'une épreuve en une soirée reste sous 30, une boucle non.
+VOLUNTEER_ACTION_RATE_LIMIT_MAX_PER_WINDOW = 30
+VOLUNTEER_ACTION_RATE_LIMIT_WINDOW_SECONDS = 3600
+
 #: Borne haute des `page` : au-delà de l'entier SQLite, la requête lève une
 #: `OverflowError` (500) au lieu d'une 422 (#1054). Large à dessein : une page
 #: au-delà du total rend toujours une tranche vide, contrat publié.
@@ -351,6 +360,16 @@ def site_access_rate_limit(request: Request) -> None:
         "site_access",
         max_per_window=SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW,
         window_seconds=SITE_ACCESS_RATE_LIMIT_WINDOW_SECONDS,
+    )
+
+
+def volunteer_action_rate_limit(request: Request) -> None:
+    """Plafond de `POST /volunteer-actions` (#1397), **seau dédié**."""
+    _enforce_rate_limit(
+        request,
+        "volunteer_action",
+        max_per_window=VOLUNTEER_ACTION_RATE_LIMIT_MAX_PER_WINDOW,
+        window_seconds=VOLUNTEER_ACTION_RATE_LIMIT_WINDOW_SECONDS,
     )
 
 
