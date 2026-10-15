@@ -12,7 +12,7 @@ listes non-`hidden` sont des listes d'affichage et le seul vrai classement est
 participant ni contest, elles **enrichissent** par **dossard** les participants
 établis par les listes publiées (splits, scalaires vides). Coût : une requête
 `list` par liste `hidden`. Le verrou C (410891, rang `(2)` sans point) reste
-ouvert : `_RE_DUREE` rejette bien la cellule suffixée d'un finisher, mais un
+ouvert : `_RE_DURATION` rejette bien la cellule suffixée d'un finisher, mais un
 non-finisher (DNF/DNS/DSQ), à qui RaceResult n'appose pas le suffixe, peut laisser
 fuiter une durée intermédiaire nue comme split (élargissement renvoyé à un ticket
 dédié). Design : `2026-07-23-raceresult-listes-hidden-design.md`.
@@ -46,7 +46,7 @@ URL, comme sur une URL Breizh Chrono déjà ciblée.
 
 **Épreuve mixte (#977).** Quand une épreuve publie à la fois des listes à
 contest explicite et des listes `Contest="0"`, le repli « tout ou rien » de
-`_groupes_zero_fiables` ne vaut plus : le qualifiant vide y créait une `Course`
+`_zero_groups_reliable` ne vaut plus : le qualifiant vide y créait une `Course`
 au nom d'épreuve nu où chaque participant était importé une seconde fois
 (Supertri 363395 : 972 lignes en plus ; Côte de Jade 342814 : 205, soit la somme
 des trois contests), et chaque dossard devenu double rendait l'enrichissement
@@ -67,7 +67,7 @@ publiée entièrement en `Contest="0"` (409130, 380823) garde le repli.
 avant la règle `agegroup` qui en faisait la catégorie selon l'ordre des colonnes.
 Quand deux listes d'un même contest portent chacune un rang (404650 : rang
 général en « Scratch », rang de sexe en « MF »), la fusion comble les rangs
-vides de la ligne retenue avec ceux de l'autre (`_completer_rangs`), sauf pour
+vides de la ligne retenue avec ceux de l'autre (`_fill_missing_ranks`), sauf pour
 un non-finisher ou deux identités distinctes. Mesuré sur 404650 : `rank_gender`
 passe de 0 à 1 065 lignes sur 1 221.
 
@@ -102,9 +102,9 @@ seulement hors gabarit, donc sans écart inters/total calculable.
 **Hors délai et enrichissement des non-finishers (#970).** Embrunman 350635
 publie « OTL » (hors délai) dans ses cellules de rang et de temps. Le jeton
 n'étant pas reconnu, la ligne restait sans statut et la promotion #813 de
-`_enrichir` la classait `finisher` avec le temps du `hidden`, qui n'est que le
+`_enrich` la classait `finisher` avec le temps du `hidden`, qui n'est que le
 cumul au point d'élimination. `OTL`, `HD` et « Hors délai(s) » valent désormais
-DNF (`utils._STATUS_TOKENS`, tous fournisseurs), et `_enrichir` ne comble plus
+DNF (`utils._STATUS_TOKENS`, tous fournisseurs), et `_enrich` ne comble plus
 jamais le `total_time` d'un non-finisher : 123 DNF d'Embrunman en recevaient un.
 Mesuré sur 350635 : 0 finisher sans rang, 0 non-finisher avec temps. Courses
 818 et 819 à re-scraper.
@@ -119,7 +119,7 @@ relais, duo ou équipe, ni sur un nom d'équipe. Un libellé de sexe nu en
 catégorie (`Masculin`, `Hommes`, `Mixte`) n'est mesuré que sur des relais et des
 duos (400001, 401699, 403144, 383326, 363395) : il décrit l'équipe et n'est pas
 lu. Une ligne `hidden` ignore son contest, elle ne déduit rien elle-même ;
-quand elle apporte la catégorie, `_enrichir` en tire le genre, sauf pour une
+quand elle apporte la catégorie, `_enrich` en tire le genre, sauf pour une
 équipe (398810 : la catégorie d'un équipier sur la ligne du relais). Mesuré :
 398810 passe de 1 260 lignes sans genre à 62 (ses relais), 350635 de 1 526 à 0,
 405215 de 2 863 à 328 (ses relais), 404650 de 350 à 0 ; aucun désaccord avec la
@@ -152,14 +152,14 @@ ligne classée, sans statut, dont la cellule de temps porte un `_` est un
 `finisher` (et non plus un DNF classé) ; une cellule de temps **vide** garde le
 comportement antérieur. Le temps est reconstruit en croisant les cellules du
 même dossard dans toutes les listes, publiées et `hidden`, `_` valant inconnu
-(`_fusionner_masques` : `2:0_:5_` + `2:02:5_` + `2:0_:51` → `2:02:51`). Le
+(`_merge_masked` : `2:0_:5_` + `2:02:5_` + `2:0_:51` → `2:02:51`). Le
 résultat n'est retenu que si les cellules ont la même longueur, s'accordent sur
 chaque caractère connu et ne laissent aucun `_` ; sinon la ligne reste finisher
 sans temps (`finisher_without_time`). Côté `hidden`, une cellule n'est prise que
 pour un dossard déjà masqué au publié (un `_` dans son temps, son nom ou son
 club). La garde d'identité habituelle y est
 remplacée par une comparaison des cellules de nom brutes, `_` valant joker
-(`_noms_masques_compatibles` : même longueur, accord sur chaque caractère
+(`_masked_names_compatible` : même longueur, accord sur chaque caractère
 connu, casse et accents neutralisés), puisque le masque frappe aussi le nom ;
 une mise en forme de nom différente écarte la cellule. Une ligne `hidden`
 compatible enrichit donc le publié au lieu d'être refusée pour « identité
