@@ -28,7 +28,7 @@ def test_disciplines_hors_federation(event_type):
     assert event_type in non_federal_disciplines()
 
 
-@pytest.mark.parametrize("event_type", ["Trail L", "sport-inconnu"])
+@pytest.mark.parametrize("event_type", ["", "Trail L", "sport-inconnu"])
 def test_un_type_non_canonique_est_federal_par_defaut(event_type):
     """Liste d'exclusion : l'inconnu reste dans les compteurs plutôt que d'en sortir en silence."""
     with create_engine("sqlite://").connect() as conn:
