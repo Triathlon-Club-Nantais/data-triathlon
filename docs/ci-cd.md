@@ -123,9 +123,9 @@ Réglages restants à faire **dans le dashboard** (non supportés par le MCP) :
 
 **Service PROD `triathlon-backend-production`** :
 1. **Settings → Auto-Deploy = No** (en prod on ne déploie que sur tag via hook).
-   *État du dashboard non vérifiable depuis le dépôt (#951) : `render.yaml` porte
-   `autoDeploy: false`, mais cette checklist le disait encore en
-   `autoDeploy: yes / checksPass`. À contrôler dans le dashboard.*
+   *Relevé dans le dashboard le 11/10/2026 (#951) : Auto-Deploy « Off »,
+   conforme à `autoDeploy: false` de `render.yaml`. Les déploiements de prod
+   arrivent tous par « Deploy Hook ».*
 2. Vérifier que `DATABASE_URL` (Azure PG Flexible, prod) est bien présent.
 3. Copier l'URL du **Deploy Hook** (Settings → Deploy Hook) → secret `RENDER_DEPLOY_HOOK_PROD`.
 
