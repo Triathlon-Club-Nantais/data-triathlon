@@ -3,6 +3,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { dansLesCartes } from "@/test/cartes";
+import { currentSeason, seasonLabel } from "@/lib/utils/season";
 
 // jsdom ne fournit pas IntersectionObserver, requis par le défilement infini
 // dès que `hasNextPage` est vrai.
@@ -236,7 +237,7 @@ describe("EventList", () => {
     });
 
     renderList();
-    expect(screen.queryByText("Aucun résultat")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Aucun résultat/)).not.toBeInTheDocument();
     expect(screen.getByText("Chargement…")).toBeInTheDocument();
   });
 
@@ -249,9 +250,32 @@ describe("EventList", () => {
       isLoading: false,
     });
 
-    renderList();
-    expect(screen.getByText("Aucun résultat")).toBeInTheDocument();
-    expect(screen.getByText(/importez une épreuve/i)).toBeInTheDocument();
+    renderList({ seasons: [currentSeason()] });
+    expect(
+      screen.getByText(`Aucun résultat enregistré pour la ${seasonLabel(currentSeason()).toLowerCase()}`),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Ajouter une épreuve/ })).toHaveAttribute("href", "/ajouter");
+    expect(screen.queryByRole("link", { name: "Voir la saison en cours" })).not.toBeInTheDocument();
+  });
+
+  it("offre une sortie vers la saison en cours quand une autre saison est vide (#1404)", () => {
+    searchParams = new URLSearchParams("seasons=2019&scope=club&sort=name");
+    setEvents({
+      data: { pages: [{ items: [], total_events: 0, total_participations: 0 }] },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+
+    renderList({ seasons: [2019] });
+    expect(screen.getByText("Aucun résultat enregistré pour la saison 2019 — 2020")).toBeInTheDocument();
+    expect(screen.queryByText(/importez une épreuve/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Voir la saison en cours" })).toHaveAttribute(
+      "href",
+      "/resultats?scope=club&sort=name",
+    );
+    expect(screen.getByRole("link", { name: /Ajouter une épreuve/ })).toHaveAttribute("href", "/ajouter");
   });
 
   it("surfaces a failed next page and only retries on demand (#1039)", async () => {
@@ -656,7 +680,7 @@ describe("EventList — annonce du repliement (#463, WCAG 4.1.3)", () => {
     renderList();
 
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
-    expect(screen.getByText("Aucun résultat")).toBeInTheDocument();
+    expect(screen.getByText(/^Aucun résultat enregistré pour/)).toBeInTheDocument();
   });
 
   // ── Fiabilité en liste (#486, RES-10) ────────────────────────────────────
