@@ -5,8 +5,8 @@ Version change    : 1.2.2 → 1.2.3
 Rationale         : PATCH, complétion du relevé de la table des lots du
   Principe I. Le re-scan AST de `backend/app` (#1435) trouve des identifiants
   français dans 86 fichiers qu'aucun lot A à I ne couvre : `prolivesport.py`,
-  les repositories, les services, l'auth, `api/v1/`, `schemas/` et
-  `cli/commands/`. Lots J à R ajoutés, colonne « État » ajoutée (A et B faits,
+  les repositories, les services, l'auth, `models/`, `core/`, `api/deps.py`,
+  `api/v1/`, `schemas/` et `cli/commands/`. Lots J à R ajoutés, colonne « État » ajoutée (A et B faits,
   C en cours). La règle et son critère d'extinction ne changent pas.
   Proposition : issue #1435. Approbation : mainteneur, revue de la PR.
 Modified principles : (aucun, table du Principe I complétée sans changer la règle)
@@ -263,7 +263,7 @@ qu'on ne réécrit pas après coup.
 | F | `app/scrapers/competitor.py` | à faire |
 | G | `app/scrapers/{chronoweb,chronoplace,sporthive}.py` | à faire |
 | H | `app/scrapers/{classify,wiclax,timepulse,klikego,klikego_platform}.py` | à faire |
-| I | `app/core/club.py`, `app/scrapers/utils.py`, `app/services/sheet_source.py` — angle mort du relevé initial, dont le lexique français ne couvrait ni « espace », ni « blanc », ni « normalise », ni « qualifiant », ni « sans_lien » (~7 symboles) | à faire |
+| I | `app/core/club.py`, `app/scrapers/utils.py`, `app/services/sheet_source.py` — angle mort du relevé initial, dont le lexique français ne couvrait ni « espace », ni « blanc », ni « normalise », ni « qualifiant », ni « sans_lien » (~7 symboles au relevé initial, 26 au re-scan du 2026-10-15) | à faire |
 | J | `app/scrapers/prolivesport.py`, seul fournisseur absent des lots C à H (32 symboles) | à faire |
 | K | `app/repositories/` (60 symboles, dont 22 dans `athlete_repository.py`) | à faire |
 | L | services de lecture et de statistiques : `app/services/{stats_service,club_service,validation_queue_service,split_gap,quality,counter_scope,club_alias}.py` (45 symboles) | à faire |
@@ -271,7 +271,7 @@ qu'on ne réécrit pas après coup.
 | N | services d'import et de batch, **hors** des familles du lot A : `app/services/{batch,batch_runs,import_persistence,import_dispatch,import_service,rescrape_service,geocode_service}.py` (35 symboles) | à faire |
 | O | authentification et accès : `app/services/auth/`, `app/services/{benevole_access,shared_password,site_access}.py`, `app/core/{permissions,http}.py`, `app/api/deps.py`, `app/models/` (54 symboles) | à faire |
 | P | `app/api/v1/` (59 symboles) | à faire |
-| Q | `app/schemas/` (24 symboles) | à faire |
+| Q | `app/schemas/` (24 symboles), **jamais** les champs `en_cours` / `traite` de `FeedbackCounts` ni `epreuves` de `BatchLaunched`, clés JSON gelées par la clause **Pas d'exception de vocabulaire métier** | à faire |
 | R | `app/cli/commands/`, hors du lot B (22 symboles) | à faire |
 
 Le lot **A passe avant B**, et ce n'est pas un détail d'ordonnancement :
@@ -288,10 +288,13 @@ lot I, puis les lots J à R. Le re-scan du 2026-10-15 (#1435) relève les
 identifiants des `def`, `class`, paramètres et affectations (`ast.walk`) dont un
 token d'au moins trois lettres figure dans `/usr/share/dict/french` (accents
 repliés) sans figurer dans `american-english` ni `british-english`, hors familles
-gelées. Sur `origin/main` `0e1d1856`, il en compte 685 dans 99 fichiers, dont 385
-dans 86 fichiers qu'aucun lot A à I ne couvrait ; chacun est désormais rattaché à
-un lot. Le script et sa sortie sont joints à la PR qui ferme #1435. Une fois éteinte, l'alinéa précédent reprend pleinement. Design et
-relevé chiffré :
+gelées (il ne voit pas les autres champs de DTO gelés, que chaque lot écarte à
+la main). Sur `origin/main` `0e1d1856`, il en compte 685 dans 99 fichiers, dont
+385 dans 86 fichiers qu'aucun lot A à I ne couvrait ; chacun est désormais
+rattaché à un lot. Le script et sa sortie sont joints à la PR qui ferme #1435
+(dictionnaires : paquets `wfrench`, `wamerican`, `wbritish`). Une fois la
+dérogation éteinte, l'alinéa précédent reprend pleinement. Design et relevé
+chiffré initial :
 `docs/superpowers/specs/2026-07-31-convention-nommage-identifiants-design.md`.
 
 **Rationale** : le projet sert un club francophone (le métier est en
