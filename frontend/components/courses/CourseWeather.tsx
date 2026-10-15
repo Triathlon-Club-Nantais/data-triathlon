@@ -11,7 +11,8 @@ const tenth = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
 export function CourseWeather({ course }: { course: CourseBrief }) {
   const { weather_temperature_c: temperature, weather_wind_kmh: wind, weather_precipitation_mm: rain } = course;
   if (temperature == null) return null;
-  const parts = [`${whole.format(temperature)} °C`];
+  // `+ 0` efface le zéro négatif : `signDisplay` manque avant Firefox 116.
+  const parts = [`${whole.format(Math.round(temperature) + 0)} °C`];
   if (wind != null) parts.push(`vent ${whole.format(wind)} km/h`);
   if (rain != null) parts.push(`pluie ${tenth.format(rain)} mm`);
   const values = parts.join(" · ");

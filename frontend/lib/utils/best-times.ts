@@ -30,7 +30,8 @@ export function bestTimes(participations: Participation[]): BestTime[] {
     const seconds = secondsFromHms(participation.total_time);
     const format = formatToken(participation.course.event_type, participation.course.distance_km);
     const discipline = disciplineOf(participation.course.event_type);
-    if (seconds == null || !discipline || !COMPARABLE_FORMAT.test(format)) continue;
+    // 0 s vaut temps absent, comme `_TEMPS_ABSENT` côté backend.
+    if (!seconds || !discipline || !COMPARABLE_FORMAT.test(format)) continue;
     const key = `${discipline}|${format}`;
     const current = best.get(key);
     const faster =
