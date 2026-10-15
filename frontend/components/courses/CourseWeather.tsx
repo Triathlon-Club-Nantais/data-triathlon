@@ -1,7 +1,7 @@
 import { MetaPill } from "@/components/tcn";
 import type { CourseBrief } from "@/lib/types";
 
-const whole = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
+const whole = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0, signDisplay: "negative" });
 const tenth = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
 
 /**

@@ -123,6 +123,16 @@ describe("bestTimes", () => {
     ).toEqual([]);
   });
 
+  it("treats a zero time as absent, so it never hides the real best", () => {
+    expect(
+      ids([
+        part({ id: 1, total_time: "02:10:00" }),
+        part({ id: 2, total_time: "00:00:00", status: "" }),
+        part({ id: 3, total_time: "0:00", status: "" }),
+      ]),
+    ).toEqual([1]);
+  });
+
   it("excludes a non-finisher even with a time", () => {
     expect(ids([part({ id: 1, total_time: "01:00:00", status: "DSQ" })])).toEqual([]);
   });

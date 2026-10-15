@@ -36,6 +36,14 @@ describe("CourseWeather", () => {
     expect(screen.getByRole("link")).not.toHaveTextContent("vent");
   });
 
+  it("affiche 0 °C sans signe pour une moyenne arrondie à zéro par le bas", () => {
+    render(<CourseWeather course={{ ...COURSE, weather_temperature_c: -0.3 }} />);
+
+    const link = screen.getByRole("link");
+    expect(link).toHaveTextContent(/Météo0\s°C/);
+    expect(link).toHaveAccessibleName(/^Météo du jour de course : 0\s°C\./);
+  });
+
   it("ne rend rien sans météo", () => {
     const { container } = render(<CourseWeather course={COURSE} />);
 
