@@ -191,6 +191,8 @@ export function EventList({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 12,
           padding: "20px 26px 16px",
         }}
       >
@@ -199,20 +201,25 @@ export function EventList({
             Toutes les épreuves
           </div>
         </div>
-        <Select value={currentSort} onValueChange={(v) => setSort(v as string)}>
-          <SelectTrigger className="h-9 w-44">
-            <SelectValue>
-              {(v) => sortOptions.find((o) => o.value === v)?.label ?? "Trier"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {sortOptions.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+          <span id="libelle-tri-epreuves" style={{ fontSize: 13, fontWeight: 700, color: "var(--tcn-text-muted)" }}>
+            Trier par
+          </span>
+          <Select value={currentSort} onValueChange={(v) => setSort(v as string)}>
+            <SelectTrigger aria-labelledby="libelle-tri-epreuves" className="h-9 w-44">
+              <SelectValue>
+                {(v) => sortOptions.find((o) => o.value === v)?.label ?? "Trier"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {sortOptions.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div
