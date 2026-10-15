@@ -105,7 +105,7 @@ _RE_NEXT_DATA = re.compile(
 
 # Sentinelles de la source, lues dans le bundle du front : le rang 99999 et le
 # temps « 0:00:00 » y sont rendus « - ». Ce sont des absences, pas des valeurs.
-_UNRANKED_SENTINEL = 99999
+_UNRANKED_RANK = 99999
 _ABSENT_TIME = "0:00:00"
 
 # Les cinq slots positionnels de `ScrapedResult`. Noter l'asymétrie de la source :
@@ -172,9 +172,9 @@ def _choose_edition(props: dict, uuid: str) -> dict:
     by_id = {
         (edition.get("wtc_eventid") or "").lower(): edition for edition in editions
     }
-    targeted = by_id.get(uuid)
-    if targeted is not None:
-        return targeted
+    requested = by_id.get(uuid)
+    if requested is not None:
+        return requested
     latest_id = (props.get("latestResultSubeventId") or "").lower()
     return by_id.get(latest_id) or editions[0]
 
@@ -260,7 +260,7 @@ def _time(value: str | None) -> str:
 
 
 def _rank(value) -> int | None:
-    if value is None or str(value).strip() in ("", str(_UNRANKED_SENTINEL)):
+    if value is None or str(value).strip() in ("", str(_UNRANKED_RANK)):
         return None
     return normalize_rank(value) or None
 
