@@ -3,11 +3,13 @@ Statistiques détaillées d'une participation : comparaison au classement comple
 de sa course.
 
 Les trois agrégats — évolution du rang par étape, comparaison à des positions
-de référence, simulation de gains par amélioration — sont recalculés à chaque
+de référence et aux médianes, simulation de gains par amélioration — sont recalculés à chaque
 lecture depuis le classement déjà en base. Rien n'est persisté : un rang
 recalculé à la lecture ne peut pas diverger de celui qu'affichent les autres
 écrans de l'application.
 """
+import statistics
+
 from sqlalchemy.orm import Session
 
 from app.core.splits_reliability import is_stats_eligible
@@ -121,6 +123,48 @@ def _comparison(
             )
         )
 
+    return rows + _median_rows(participation, ranking, keys)
+
+
+def _median_rows(
+    participation: Participation, ranking: list[Participation], keys: list[str]
+) -> list[ComparisonRow]:
+    """Médiane de tous les classés, puis de ceux de la catégorie de l'athlète (#1362).
+
+    Un relais est hors population : ses segments sont ceux de plusieurs athlètes.
+    Sous `split_gap.MIN_EVALUATED_ROWS` valeurs, une clé est omise : sur neuf
+    coureurs, une médiane décrit des individus, pas une épreuve.
+    """
+    ranked = [row for row in ranking if row.rank_overall is not None and not row.is_relay]
+    populations = [("median", "Médiane", ranked)]
+    if participation.category:
+        same_category = [row for row in ranked if row.category == participation.category]
+        populations.append(("category_median", "Médiane catégorie", same_category))
+
+    rows = []
+    for kind, label, population in populations:
+        percentages, mine_seconds, theirs_seconds = {}, {}, {}
+        for key in keys:
+            mine = _segment_seconds(participation, key)
+            values = [seconds for row in population if (seconds := _segment_seconds(row, key))]
+            if mine is None or len(values) < split_gap.MIN_EVALUATED_ROWS:
+                continue
+            median = round(statistics.median(values))
+            percentages[key] = round(mine / median * 100, 1)
+            mine_seconds[key] = mine
+            theirs_seconds[key] = median
+        if percentages:
+            rows.append(
+                ComparisonRow(
+                    position_label=label,
+                    rank=0,
+                    percentages=percentages,
+                    mine_seconds=mine_seconds,
+                    theirs_seconds=theirs_seconds,
+                    kind=kind,
+                    sample_size=len(population),
+                )
+            )
     return rows
 
 

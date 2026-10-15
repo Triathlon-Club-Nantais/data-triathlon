@@ -4,6 +4,8 @@ Tous ces objets sont des agrégats **calculés à la lecture** à partir du
 classement complet de la course. Aucun n'est persisté : c'est ce qui garantit
 qu'un rang affiché ici ne peut pas diverger de celui des autres écrans.
 """
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -20,7 +22,7 @@ class RankingEvolutionStep(BaseModel):
 
 
 class ComparisonRow(BaseModel):
-    """Comparaison de l'athlète au coureur occupant une position de référence."""
+    """Comparaison de l'athlète à une référence : une position, ou une médiane (#1362)."""
 
     position_label: str
     rank: int
@@ -30,6 +32,11 @@ class ComparisonRow(BaseModel):
     #: avant réduction en pourcentage (US4, #466).
     mine_seconds: dict[str, int] = Field(default_factory=dict)
     theirs_seconds: dict[str, int] = Field(default_factory=dict)
+    #: Ajouts #1362 : `position` (la ligne d'origine), `median` (tous classés) ou
+    #: `category_median`. Une médiane n'occupe aucune position : son `rank` vaut 0.
+    kind: Literal["position", "median", "category_median"] = "position"
+    #: Effectif sur lequel porte la médiane, `None` pour une position.
+    sample_size: int | None = None
 
 
 class ImprovementRow(BaseModel):

@@ -266,9 +266,33 @@ def test_stats_comparison_rows_carry_raw_seconds_additively(client, db_session):
 
     assert stats["comparison"]
     row = stats["comparison"][0]
-    assert set(row) == {"position_label", "rank", "percentages", "mine_seconds", "theirs_seconds"}
+    assert set(row) == {
+        "position_label", "rank", "percentages", "mine_seconds", "theirs_seconds",
+        # #1362 : ajouts, aucun champ existant renommé ni retiré.
+        "kind", "sample_size",
+    }
+    assert row["kind"] == "position"
+    assert row["sample_size"] is None
     assert set(row["mine_seconds"]) == set(row["percentages"])
     assert set(row["theirs_seconds"]) == set(row["percentages"])
+
+
+def test_stats_comparison_appends_the_median_rows_after_the_positions(client, db_session):
+    """#1362 : les médianes s'ajoutent en fin de liste, les positions gardent leur forme."""
+    for index in range(11):
+        participation = scrape_service.save_one(
+            db_session, _scraped(bib=f"m{index}", nom=f"MEDIAN{index}", rank_overall=index + 1)
+        )
+
+    stats = client.get(f"/api/v1/participations/{participation.id}").json()["stats"]
+
+    kinds = [row["kind"] for row in stats["comparison"]]
+    assert kinds[-2:] == ["median", "category_median"]
+    assert set(kinds[:-2]) == {"position"}
+    median = stats["comparison"][-2]
+    assert median["rank"] == 0
+    assert median["sample_size"] == 11
+    assert median["percentages"]["total"] == 100.0
 
 
 def test_stats_ranking_evolution_steps_carry_cumulative_seconds(client, db_session):
