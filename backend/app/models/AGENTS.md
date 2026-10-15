@@ -112,7 +112,9 @@
     `participation_repository.carried_by` (fiche, `exists_for_athlete_on_course`,
     comptes) et `athlete_repository.credits` (roster, rang, composition, et
     `only_on_course`). Un équipier n'est référencé que par la liaison :
-    `delete_orphans_among` l'épargne explicitement.
+    `delete_orphans_among` l'épargne explicitement. `carried_by` reste un seul
+    `id IN (… UNION ALL …)` : un `OR` entre porteur et liaison fait parcourir
+    toute la table `participations` à PostgreSQL (#1391).
   - **L'import ne touche jamais un relais attribué** : `_Persister` le met à
     jour en valeurs sans résoudre l'identité de l'équipe (avec dossard), et
     l'apparie par `team_name` normalisé (`_team_key`, sans dossard) — sinon le

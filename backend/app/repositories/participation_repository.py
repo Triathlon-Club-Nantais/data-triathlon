@@ -3,7 +3,7 @@ from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from typing import NamedTuple
 
-from sqlalchemy import and_, case, exists, func, literal, or_, select
+from sqlalchemy import and_, case, exists, func, literal, or_, select, union_all
 from sqlalchemy import update as sql_update
 from sqlalchemy.orm import Session, aliased, contains_eager, joinedload
 
@@ -51,13 +51,16 @@ def exists_for_bib(db: Session, course_id: int, bib_number: str | None) -> bool:
 
 def carried_by(athlete_id: int):
     """Résultats de ce coureur : portés en direct, ou comme équipier d'un relais (#894)."""
-    return or_(
-        Participation.athlete_id == athlete_id,
-        Participation.id.in_(
+    # Un `OR` entre les deux branches fait parcourir toute la table à PostgreSQL ;
+    # une seule liste d'ids sert chaque branche par son index (#1391).
+    direct = aliased(Participation)
+    return Participation.id.in_(
+        union_all(
+            select(direct.id).where(direct.athlete_id == athlete_id),
             select(ParticipationTeammate.participation_id).where(
                 ParticipationTeammate.athlete_id == athlete_id
-            )
-        ),
+            ),
+        )
     )
 
 
