@@ -66,6 +66,14 @@ class ClubComposition(BaseModel):
     category: dict[str, int]
 
 
+class ClubLicensees(BaseModel):
+    """Licenciés de la saison en cours, et ceux qui ont couru au moins une fois (#1441)."""
+
+    season: int
+    total: int
+    raced: int
+
+
 class ClubSummary(BaseModel):
     roster: list[ClubRosterEntry]
     podiums: ClubPodiums
@@ -74,6 +82,8 @@ class ClubSummary(BaseModel):
     podiums_totals: ClubPodiumTotals
     podiums_by_discipline: dict[str, DisciplinePodiumCounts]
     composition: ClubComposition
+    # Additif (#1441) : `None` quand la saison en cours n'a aucun licencié.
+    licensees: ClubLicensees | None = None
 
 
 class ClubRosterRank(BaseModel):

@@ -1,9 +1,13 @@
 """Accès données des licenciés du club par saison (#1202)."""
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import and_, case, delete, func, literal, or_, select, update
 from sqlalchemy.orm import Session
 
+from app.core.season import season_bounds
+from app.core.validation import validated_clause
 from app.models.athlete import Athlete
 from app.models.club_member import LINK_AMBIGUOUS, LINK_UNLINKED, LINKED, ClubMember
+from app.models.course import Course
+from app.models.participation import Participation, ParticipationTeammate
 
 
 def list_season(db: Session, season: int) -> list[ClubMember]:
@@ -24,6 +28,38 @@ def count_to_settle(db: Session, season: int) -> int:
             ClubMember.link_status.in_((LINK_UNLINKED, LINK_AMBIGUOUS)),
         )
     )
+
+
+def licensee_activity(db: Session, season: int) -> tuple[int, int] | None:
+    """`(total, raced)` des licenciés de la saison (#1441), `None` sans licencié.
+
+    `raced` : lignes rattachées dont la fiche a, en titulaire ou en équipier de
+    relais, un résultat validé qui compte pour le club sur une épreuve de la saison.
+    """
+    date_from, date_to = season_bounds(season)
+    teammate = select(ParticipationTeammate.participation_id).where(
+        ParticipationTeammate.athlete_id == ClubMember.athlete_id
+    )
+    season_result = (
+        select(literal(1))
+        .select_from(Participation)
+        .join(Course, Course.id == Participation.course_id)
+        .where(
+            or_(Participation.athlete_id == ClubMember.athlete_id, Participation.id.in_(teammate)),
+            Participation.counts_for_tcn.is_(True),
+            validated_clause(Participation.is_pending_validation),
+            Course.event_date.between(date_from, date_to),
+        )
+        .correlate(ClubMember)
+        .exists()
+    )
+    raced = and_(ClubMember.link_status.in_(LINKED), season_result)
+    total, raced_count = db.execute(
+        select(func.count(), func.coalesce(func.sum(case((raced, 1), else_=0)), 0)).where(
+            ClubMember.season == season
+        )
+    ).one()
+    return (total, raced_count) if total else None
 
 
 def get(db: Session, member_id: int) -> ClubMember | None:

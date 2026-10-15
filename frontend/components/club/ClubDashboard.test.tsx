@@ -48,6 +48,7 @@ const EMPTY_SUMMARY: ClubSummary = {
   podiums_totals: { scratch: 0, category: 0, gender: 0, all: 0 },
   podiums_by_discipline: {},
   composition: { gender: {}, category: {} },
+  licensees: null,
 };
 
 function rosterEntry(i: number, podiums = 0) {
@@ -241,6 +242,26 @@ describe("ClubDashboard — smoke", () => {
     const recent = [part({ id: 5 }), part({ id: 9 })];
     render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={recent} resultsTotal={STATS.total} />);
     expect(screen.getAllByRole("link", { name: /Course \d/ })).toHaveLength(2);
+  });
+
+  // #1441 : part des licenciés de la saison qui ont couru au moins une fois.
+  it("affiche le KPI Licenciés en course au format X / Y avec sa saison", () => {
+    render(
+      <ClubDashboard
+        stats={STATS}
+        summary={{ ...EMPTY_SUMMARY, licensees: { season: 2026, total: 182, raced: 97 } }}
+        recent={[part({ id: 1 })]}
+        resultsTotal={STATS.total}
+      />,
+    );
+    const carte = screen.getByText("Licenciés en course").parentElement!.parentElement!;
+    expect(carte.querySelector(".tcn-stat-value")).toHaveTextContent("97 / 182");
+    expect(carte).toHaveTextContent(seasonLabel(2026));
+  });
+
+  it("masque le KPI Licenciés en course sans licencié pour la saison", () => {
+    render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={[part({ id: 1 })]} resultsTotal={STATS.total} />);
+    expect(screen.queryByText("Licenciés en course")).not.toBeInTheDocument();
   });
 
   // #581 : le bandeau de troncature disparaît — roster et podiums sont exacts,

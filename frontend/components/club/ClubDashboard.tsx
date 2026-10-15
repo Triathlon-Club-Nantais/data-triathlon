@@ -34,6 +34,7 @@ export function ClubDashboard({
   resultsTotal: number;
 }) {
   const roster = summary.roster;
+  const licensees = summary.licensees;
 
   if (stats.total === 0) {
     return (
@@ -56,11 +57,20 @@ export function ClubDashboard({
     <div className="space-y-8">
       {/* Synthèse — les 3 premiers KPI ne dépendent pas du rank et restent SSR.
           Le KPI Podiums, lui, suit `?rank=…` via un composant client (#132). */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={`grid gap-4 sm:grid-cols-2 ${licensees ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         <KpiCard label="Résultats" value={resultsTotal} hint={seasonLabel(currentSeason())} accent />
         <KpiCard label="Athlètes" value={stats.athletes} />
         <KpiCard label="Épreuves" value={stats.events} />
         <ClubPodiumKpi rankCounters={stats.rank_counters} />
+        {/* #1441 : saison servie par le backend, celle des licences. */}
+        {licensees && (
+          <StatCard
+            label="Licenciés en course"
+            value={`${formatCount(licensees.raced)} / ${formatCount(licensees.total)}`}
+            hint={seasonLabel(licensees.season)}
+            accent={false}
+          />
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
