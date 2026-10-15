@@ -182,6 +182,10 @@
   recherche de la palette ⌘K — détail dans `app/api/AGENTS.md`) et
   délibérément absente de `list_for_athlete`, qui doit montrer
   une participation pendante (FR-019) ; la page épreuve la lit à part (#1273).
+  Cette lecture passe par l'index partiel `ix_participations_awaiting_validation`
+  (#1390) : ses deux prédicats (`postgresql_where`, `sqlite_where`) recopient le
+  rendu SQL d'`awaiting_validation_clause` sur chaque moteur. Changer la clause
+  sans eux fait retomber chaque page épreuve sur un parcours complet de la table.
   **Piège mesuré** : `server_default="false"` (chaîne) sur SQLite se relit
   `True` via l'ORM — une chaîne non vide est vraie en Python. `is_relay`
   ci-dessous en porte le même défaut, non corrigé (hors périmètre de #270) ;
