@@ -20,14 +20,14 @@ export function AddEventLink() {
  * `/resultats` (#1404, #1409). Une sélection vide vaut la saison en cours.
  */
 export function SeasonEmptyState({ seasons, currentSeasonHref }: { seasons: number[]; currentSeasonHref: string }) {
-  const saisonEnCoursSeule = seasons.length <= 1 && (seasons[0] ?? currentSeason()) === currentSeason();
+  const onlyCurrentSeason = seasons.length <= 1 && (seasons[0] ?? currentSeason()) === currentSeason();
   return (
     <EmptyState
       title={`Aucun résultat enregistré pour ${seasonAbsenceLabel(seasons)}`}
       description="Changez de saison ou ajoutez les premiers résultats du club."
       action={
         <div className="flex flex-wrap items-center justify-center gap-4">
-          {!saisonEnCoursSeule && (
+          {!onlyCurrentSeason && (
             <Link href={currentSeasonHref} className={LINK_CLASS}>
               Voir la saison en cours
             </Link>
