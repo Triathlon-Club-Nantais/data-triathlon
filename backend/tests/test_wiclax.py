@@ -23,7 +23,7 @@ from app.scrapers.wiclax import (
     _find_wiclax_link,
     _get_competitor_bib,
     _get_competitor_fullname,
-    _parcours_split_map,
+    _heat_split_map,
     _parse_competitor,
     _resolve_to_wiclax_url,
     _segment_chain,
@@ -415,7 +415,7 @@ def test_parcours_split_map_triathlon():
         '<S trans="1" ptg1="2" ptg2="3" pcs="Tri M"/>'     # 3 T2
         '<S disc="6" ptg1="3" ptg2="999" pcs="Tri M"/>'    # 4 course à pied
     )
-    split_map, override = _parcours_split_map(segs, "Tri M")
+    split_map, override = _heat_split_map(segs, "Tri M")
     assert split_map == {"swim": 0, "t1": 1, "bike": 2, "t2": 3, "run": 4}
     assert override is None
 
@@ -428,7 +428,7 @@ def test_parcours_split_map_youth_is_duathlon():
         '<S disc="0" ptg1="1" ptg2="3" pcs="10-13 Ans"/>'     # 1 Velo
         '<S disc="6" ptg1="3" ptg2="999" pcs="10-13 Ans"/>'   # 2 CaP2
     )
-    split_map, override = _parcours_split_map(segs, "10-13 Ans")
+    split_map, override = _heat_split_map(segs, "10-13 Ans")
     assert split_map == {"swim": 0, "bike": 1, "run": 2}
     assert override == "duathlon"
 
@@ -1029,12 +1029,12 @@ def _stub_fetch_clax(monkeypatch, root: ET.Element) -> None:
 
 def test_parcours_slug_ascii_urlsafe():
     """Le slug d'un parcours est stable, ASCII et URL-safe."""
-    from app.scrapers.wiclax import _parcours_slug
+    from app.scrapers.wiclax import _heat_label_slug
 
-    assert _parcours_slug("S-Open Femmes") == "s-open-femmes"
-    assert _parcours_slug("6-9 Ans") == "6-9-ans"
-    assert _parcours_slug("Triathlon M — Individuel") == "triathlon-m-individuel"
-    assert _parcours_slug("") == ""
+    assert _heat_label_slug("S-Open Femmes") == "s-open-femmes"
+    assert _heat_label_slug("6-9 Ans") == "6-9-ans"
+    assert _heat_label_slug("Triathlon M — Individuel") == "triathlon-m-individuel"
+    assert _heat_label_slug("") == ""
 
 
 def test_sub_source_url_ajoute_parcours_et_strip_selecteur_dossard():
@@ -1175,14 +1175,14 @@ def test_scrape_event_fanout_parcours_failure_isolated(monkeypatch, caplog):
     from app.scrapers.wiclax import scrape_event_fanout
 
     _stub_fetch_clax(monkeypatch, _clax_multi_parcours())
-    original = wiclax_mod._finalize_parcours
+    original = wiclax_mod._finalize_heat
 
     def flaky(par_parcours, parcours, sub_url):
         if parcours == "Relais S":
             raise RuntimeError("boom on relais-s")
         return original(par_parcours, parcours, sub_url)
 
-    monkeypatch.setattr(wiclax_mod, "_finalize_parcours", flaky)
+    monkeypatch.setattr(wiclax_mod, "_finalize_heat", flaky)
 
     with caplog.at_level(_log.WARNING, logger="app.scrapers.wiclax"):
         results, trace = scrape_event_fanout("http://x")

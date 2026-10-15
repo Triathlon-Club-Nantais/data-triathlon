@@ -428,7 +428,7 @@ def _race_context(url: str, event: dict, race: dict) -> _RaceContext:
         event_name=qualify_event_name(event_name, race_name),
         event_date=_event_date(event.get("date")),
         event_type=classify_event_type(
-            race_name, contexte=f"{event_name} {event_type}".strip()
+            race_name, context=f"{event_name} {event_type}".strip()
         ),
         # `0` left as absent so `mapping.get_or_create_course` can still fall
         # back on extracting the distance from the name.

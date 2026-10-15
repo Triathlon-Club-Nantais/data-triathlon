@@ -120,7 +120,7 @@ def fresh_result() -> tuple[ScrapedResult, dict]:
     ("", "", "triathlon"),
 ])
 def test_event_type_detection(heat, slug, expected):
-    assert classify_event_type(heat, contexte=slug) == expected
+    assert classify_event_type(heat, context=slug) == expected
 
 
 # ── Redon Sprint : pas de splits, juste le temps total ───────────────────────
@@ -963,7 +963,7 @@ def test_fetch_heat_rows_raises_when_a_page_keeps_failing():
 
     with pytest.raises(ScraperError, match="503"):
         plat.fetch_heat_rows("https://x", "evt", "heat", client)
-    assert len(client.urls) == 1 + plat._ESSAIS_PAGE
+    assert len(client.urls) == 1 + plat._PAGE_ATTEMPTS
 
 
 def test_get_page_backs_off_between_5xx_retries_only(monkeypatch):
@@ -1007,7 +1007,7 @@ def test_scrape_single_heat_raises_when_heat_page_fails(monkeypatch):
     """#943 : plus de repli silencieux sur "" (aucun split inter, nom dérivé du slug)."""
     from app.core.exceptions import ScraperError
 
-    client = _ScriptedClient([_StatusResp("", 503)] * plat._ESSAIS_PAGE)
+    client = _ScriptedClient([_StatusResp("", 503)] * plat._PAGE_ATTEMPTS)
 
     with pytest.raises(ScraperError):
         klikego._scrape_single_heat(
