@@ -9,7 +9,7 @@ from datetime import date
 
 import pytest
 
-from app.repositories import course_repository, participation_repository, tcn_count_repository
+from app.repositories import participation_repository, tcn_count_repository
 from app.scrapers.base import ScrapedResult
 from app.services import scrape_service
 
@@ -41,9 +41,7 @@ def _scraped(bib, nom, *, club="TCN", rank=1, pending=False, event_name="Triathl
 def _recount(db_session, course):
     validated, _ = participation_repository.list_page_for_course(db_session, course.id, page_size=None)
     tcn_count_repository.recompute_counts_for_tcn(db_session)
-    course_repository.set_counts(
-        db_session, course, participation_count=len(validated), tcn_count=course.tcn_count
-    )
+    course.participation_count = len(validated)
     db_session.commit()
 
 

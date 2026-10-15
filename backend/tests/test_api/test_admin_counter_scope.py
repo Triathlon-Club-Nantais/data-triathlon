@@ -325,7 +325,7 @@ def _une_epreuve_au_club_inconnu(db_session) -> None:
         club="TRIATHLON CLUB NANTAIS 44",
         is_pending_validation=False,
     )
-    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=0)
+    course.participation_count, course.tcn_count = 1, 0
     db_session.commit()
 
 

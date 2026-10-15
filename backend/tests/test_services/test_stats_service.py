@@ -24,7 +24,7 @@ def _seed(db):
     participation_repository.create(db, athlete_id=a1.id, course_id=c.id, bib_number="1", club="TCN")
     participation_repository.create(db, athlete_id=a2.id, course_id=c.id, bib_number="2", club="ASPTT")
     # Compteur dénormalisé (#623) : posé directement, fixture hors import.
-    course_repository.set_counts(db, c, participation_count=2, tcn_count=1)
+    c.participation_count, c.tcn_count = 2, 1
     db.flush()
 
 
@@ -87,7 +87,7 @@ def test_list_events_item_carries_date_type_and_distance(db_session):
     )
     athlete = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean", club="TCN")
     participation_repository.create(db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1", club="TCN")
-    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
+    course.participation_count, course.tcn_count = 1, 1
     db_session.flush()
 
     (event,) = stats_service.list_events(db_session)["items"]

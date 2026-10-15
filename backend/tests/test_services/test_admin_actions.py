@@ -340,7 +340,7 @@ def test_delete_participation_decremente_les_compteurs_denormalises(db_session, 
     """#623 — la ligne comptait (club TCN, non pendante) : les deux
     compteurs de son épreuve doivent redescendre à zéro avec elle."""
     course, _athlete, ligne = _resultat_complet(db_session)
-    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
+    course.participation_count, course.tcn_count = 1, 1
 
     admin_actions.delete_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
 
@@ -1458,7 +1458,7 @@ def test_wipe_all_participations_remet_les_compteurs_a_zero(db_session, auteur):
     épreuve doivent donc retomber, même sur une épreuve qui n'a pas bougé
     depuis un import réel."""
     course, _ = _epreuve_avec_resultat(db_session, "Tri A", "1")
-    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
+    course.participation_count, course.tcn_count = 1, 1
     db_session.flush()
 
     admin_actions.wipe_all_participations(db_session, user_id=auteur.id)
