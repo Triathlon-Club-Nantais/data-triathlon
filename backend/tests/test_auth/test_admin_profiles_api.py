@@ -304,17 +304,26 @@ def test_writes_hide_personal_data_from_a_session_without_jeunes_read(
     contact d'urgence, notes et journal de bord (#1405)."""
     ouvrir_session(P.JEUNES_WRITE)
 
-    for response in _profile_writes(client, profile_with_personal_data["id"]):
-        assert response.status_code in (200, 201)
+    responses = _profile_writes(client, profile_with_personal_data["id"])
+
+    assert [response.status_code for response in responses] == [201, 200, 201]
+    for response in responses:
         body = response.json()
         for field in PERSONAL_FIELDS:
             assert body[field] is None, field
 
 
+@pytest.mark.parametrize(
+    "session",
+    [
+        pytest.param({"codes": (P.JEUNES_READ, P.JEUNES_WRITE)}, id="jeunes-read-write"),
+        pytest.param({"codes": (), "superutilisateur": True}, id="superuser"),
+    ],
+)
 def test_writes_show_personal_data_with_jeunes_read(
-    client, ouvrir_session, profile_with_personal_data
+    client, ouvrir_session, profile_with_personal_data, session
 ):
-    ouvrir_session(P.JEUNES_READ, P.JEUNES_WRITE)
+    ouvrir_session(*session["codes"], superutilisateur=session.get("superutilisateur", False))
 
     created, patched, logged = _profile_writes(client, profile_with_personal_data["id"])
 

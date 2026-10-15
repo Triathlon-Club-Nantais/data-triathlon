@@ -255,13 +255,13 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
           </form>
         )}
 
-        {data.log_entries.length === 0 ? (
+        {!data.log_entries?.length ? (
           <p className="text-[var(--tcn-text-faint)] text-sm">
             Aucune entrée pour l&apos;instant.
           </p>
         ) : (
           <ul className="space-y-3">
-            {data.log_entries.map((entree) => (
+            {(data.log_entries ?? []).map((entree) => (
               <li key={entree.id} className="border-t pt-3 first:border-t-0 first:pt-0">
                 <div className="text-[var(--tcn-text-faint)] text-xs">
                   {formatDate(entree.entry_date)}
