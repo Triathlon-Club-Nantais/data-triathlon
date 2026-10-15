@@ -58,6 +58,27 @@ describe("Providers: session query policy (#954)", () => {
   });
 });
 
+describe("Providers: rail badges (#1385)", () => {
+  it("marks the badge counts stale after any successful mutation", async () => {
+    useSession.mockReturnValue({ data: null });
+    let client: QueryClient | undefined;
+    function Sonde() {
+      client = useQueryClient();
+      return null;
+    }
+    render(
+      <Providers>
+        <Sonde />
+      </Providers>,
+    );
+    client!.setQueryData(["admin-badge-counts"], { feedback: 1 });
+
+    await act(() => client!.getMutationCache().build(client!, { mutationFn: async () => null }).execute(undefined));
+
+    expect(client!.getQueryState(["admin-badge-counts"])?.isInvalidated).toBe(true);
+  });
+});
+
 describe("PostHogSessionSync", () => {
   beforeEach(() => {
     identify.mockClear();

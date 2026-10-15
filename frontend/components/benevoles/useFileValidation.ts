@@ -36,7 +36,7 @@ export function useFileValidation() {
   // de changer de taille, ou le cookie qui la garde d'apparaître ou de partir.
   const queryClient = useQueryClient();
   const refreshBadge = useCallback(
-    () => queryClient.invalidateQueries({ queryKey: queryKeys.benevoleQueueCount() }),
+    () => queryClient.invalidateQueries({ queryKey: queryKeys.adminBadgeCounts() }),
     [queryClient],
   );
 
