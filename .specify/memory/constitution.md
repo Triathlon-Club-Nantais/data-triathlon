@@ -1,4 +1,18 @@
 <!--
+Sync Impact Report — Constitution v1.2.2
+========================================
+Version change    : 1.2.1 → 1.2.2
+Rationale         : PATCH — correction de la ligne A de la table des lots du
+  Principe I : le code de la réconciliation d'identité vit désormais dans
+  `services/import_persistence.py` (et non plus `services/import_service.py`),
+  et la famille `echec_total` couvre aussi `services/geocode_service.py`.
+  Proposition : issue #1398. Approbation : mainteneur, revue de la PR.
+Modified principles : (aucun, table du Principe I corrigée sans changer la règle)
+Modified sections : Principe I — table des lots, ligne A.
+Added sections    : (aucune)
+Removed sections  : (aucune)
+Templates touchés : (aucun)
+
 Sync Impact Report — Constitution v1.2.1
 ========================================
 Version change    : 1.2.0 → 1.2.1
@@ -224,7 +238,7 @@ qu'on ne réécrit pas après coup.
 
 | Lot | Périmètre |
 | --- | --- |
-| A | transversal — **deux familles** : `echec_total` (`services/{batch,bulk_import_service,rescrape_service}.py` et les constantes homonymes de `cli/reports.py`) et l'identité réconciliée (`_CLES_APPARIEMENT` / `_identite` et les variables locales de `_reconcile` dans `services/import_service.py`, plus les symboles homologues de `services/rescrape_service.py` et `cli/reports.py`) — **jamais** les champs `ancien` / `nouveau` / `fusion` / `participations` des dataclasses `Reassignment` et `IdentiteReconciliee`, gelés par la clause **Pas d'exception de vocabulaire métier** |
+| A | transversal — **deux familles** : `echec_total` (`services/{batch,bulk_import_service,rescrape_service,geocode_service}.py` et les constantes homonymes de `cli/reports.py`) et l'identité réconciliée (`_CLES_APPARIEMENT` / `_identite` et les variables locales de la réconciliation dans `services/import_persistence.py`, plus les symboles homologues de `services/rescrape_service.py` et `cli/reports.py`) — **jamais** les champs `ancien` / `nouveau` / `fusion` / `participations` des dataclasses `Reassignment` et `IdentiteReconciliee`, gelés par la clause **Pas d'exception de vocabulaire métier** |
 | B | `app/cli/` — `reports`, `url_sources`, `progress`, `validators` |
 | C | `app/scrapers/raceresult.py` |
 | D | `app/scrapers/t2area.py` |
@@ -427,4 +441,4 @@ référence (architecture détaillée, commandes, conventions de scraping). En c
 de divergence entre `AGENTS.md` et cette constitution, la constitution prime
 et `AGENTS.md` doit être aligné.
 
-**Version**: 1.2.1 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-10-01
+**Version**: 1.2.2 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-10-15

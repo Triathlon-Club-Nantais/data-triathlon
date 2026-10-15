@@ -816,17 +816,17 @@ def test_unite_de_travail_ouverte_meme_sur_une_epreuve_en_echec(db_session, monk
 
 
 def test_est_echec_total_quand_toutes_les_epreuves_echouent():
-    assert batch.est_echec_total(epreuves=53, errors=53) is True
+    assert batch.is_total_failure(events=53, errors=53) is True
 
 
 def test_est_echec_total_faux_sur_un_succes_partiel():
     """Quelques échecs sur 50 : le batch reste un succès."""
-    assert batch.est_echec_total(epreuves=50, errors=3) is False
+    assert batch.is_total_failure(events=50, errors=3) is False
 
 
 def test_est_echec_total_faux_quand_il_n_y_avait_rien_a_traiter():
     """Sheet vide, `--limit 0`, filtre sans résultat : rien à faire n'est pas un échec."""
-    assert batch.est_echec_total(epreuves=0, errors=0) is False
+    assert batch.is_total_failure(events=0, errors=0) is False
 
 
 def test_les_champs_communs_existent_des_deux_cotes():
@@ -882,9 +882,9 @@ def test_a_registered_passive_source_is_neither_an_error_nor_an_import(
 ):
     """« Ni succès d'import, ni échec » (AC5), pris au mot sur les deux compteurs.
 
-    Précédent : `ignored_by_host`, tenu hors d'`echec_total` parce que ces liens
+    Précédent : `ignored_by_host`, tenu hors d'`is_total_failure` parce que ces liens
     n'ont jamais été tentés. Ici l'épreuve *a* été traitée — elle n'a simplement
-    rien importé de neuf, ce qui reste un succès (`est_echec_total` compare des
+    rien importé de neuf, ce qui reste un succès (`is_total_failure` compare des
     épreuves, pas des participants).
     """
     from app.services.import_persistence import PassiveSource
@@ -903,4 +903,4 @@ def test_a_registered_passive_source_is_neither_an_error_nor_an_import(
     assert totals.errors == 0
     assert totals.imported == 0
     assert totals.failures == []
-    assert SheetOutcome(unique_supported=1, errors=0).echec_total is False
+    assert SheetOutcome(unique_supported=1, errors=0).is_total_failure is False

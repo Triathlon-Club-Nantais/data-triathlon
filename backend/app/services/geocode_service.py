@@ -22,7 +22,7 @@ from app.core import http
 from app.core.config import get_settings
 from app.core.time import utcnow
 from app.repositories import course_repository
-from app.services.batch import BatchFailure, est_echec_total
+from app.services.batch import BatchFailure, is_total_failure
 
 logger = logging.getLogger(__name__)
 
@@ -212,8 +212,8 @@ class GeocodeOutcome:
     failures: list[BatchFailure] = field(default_factory=list)
 
     @property
-    def echec_total(self) -> bool:
-        """Toutes les épreuves ciblées ont échoué (cf. `batch.est_echec_total`).
+    def is_total_failure(self) -> bool:
+        """Toutes les épreuves ciblées ont échoué (cf. `batch.is_total_failure`).
 
         Propriété, pas champ : `asdict()` ne sérialise que les champs, la
         charge `--json` reste inchangée. Un dry-run n'appelle jamais Nominatim,
@@ -221,7 +221,7 @@ class GeocodeOutcome:
         """
         if self.dry_run:
             return False
-        return est_echec_total(epreuves=self.total, errors=self.errors)
+        return is_total_failure(events=self.total, errors=self.errors)
 
 
 def run_geocode_courses(

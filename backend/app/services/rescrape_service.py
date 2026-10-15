@@ -30,7 +30,7 @@ from app.services.batch import (
     BatchFailure,
     BatchItem,
     copy_totals,
-    est_echec_total,
+    is_total_failure,
     run_batch,
 )
 from app.services.import_persistence import PassiveSource
@@ -197,7 +197,7 @@ class RescrapeOutcome:
     orphans_removed: int = 0
     #: La purge des orphelins a échoué (import concurrent) ; rattrapée au run suivant.
     orphan_purge_failed: bool = False
-    #: Dry-run : le batch a scrapé sans persister. Neutralise `echec_total`.
+    #: Dry-run : le batch a scrapé sans persister. Neutralise `is_total_failure`.
     dry_run: bool = False
     #: Détail des identités réconciliées (ancien -> nouveau, volume).
     reconciliations: list[IdentiteReconciliee] = field(default_factory=list)
@@ -207,8 +207,8 @@ class RescrapeOutcome:
     passive_sources: list[PassiveSource] = field(default_factory=list)
 
     @property
-    def echec_total(self) -> bool:
-        """Toutes les épreuves ciblées ont échoué (cf. `batch.est_echec_total`).
+    def is_total_failure(self) -> bool:
+        """Toutes les épreuves ciblées ont échoué (cf. `batch.is_total_failure`).
 
         `total` est le nombre d'épreuves soumises au batch (URLs uniques, après
         `--limit`) : c'est à lui qu'`errors` se compare.
@@ -221,7 +221,7 @@ class RescrapeOutcome:
         """
         if self.dry_run:
             return False
-        return est_echec_total(epreuves=self.total, errors=self.errors)
+        return is_total_failure(events=self.total, errors=self.errors)
 
 
 def run_rescrape_db(
