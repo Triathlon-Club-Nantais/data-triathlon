@@ -6,17 +6,10 @@ import type { AthleteSeasonActivity } from "@/lib/types";
 import { Card, Input, VousChip } from "@/components/tcn";
 import { useSelectedAthlete } from "@/components/layout/AthletePicker";
 import { trouverRang } from "@/lib/utils/rang";
+import { foldAccents } from "@/lib/utils/text";
 import { SEUIL_RAPPEL_POSITION } from "@/lib/club";
 import { AthleteSortToggle, SORT_DEFAULT, SORT_PARAM, sortTypeFromParam } from "./AthleteSortToggle";
 import { RappelPosition } from "./RappelPosition";
-
-/** Insensible casse/accents, comme la recherche serveur (`core/text.deaccent`, #357). */
-function normalise(texte: string): string {
-  return texte
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
 
 /**
  * Filtre en mémoire (#382) — même liste déjà chargée que le tri, pas d'aller-retour
@@ -24,10 +17,10 @@ function normalise(texte: string): string {
  * matcher nom+prénom, sans quoi « Jean Dupont » (ordre naturel) ne trouve rien.
  */
 function filterAthletes(athletes: AthleteSeasonActivity[], query: string): AthleteSeasonActivity[] {
-  const mots = normalise(query.trim()).split(/\s+/).filter(Boolean);
+  const mots = foldAccents(query.trim()).split(/\s+/).filter(Boolean);
   if (mots.length === 0) return athletes;
   return athletes.filter((a) => {
-    const cible = normalise(`${a.nom} ${a.prenom}`);
+    const cible = foldAccents(`${a.nom} ${a.prenom}`);
     return mots.every((mot) => cible.includes(mot));
   });
 }
