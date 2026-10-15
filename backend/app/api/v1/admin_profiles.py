@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_permission
 from app.core.database import get_db
 from app.core.permissions import P
+from app.models.personal_profile import PersonalProfile
 from app.models.user import User
 from app.schemas.profile import (
     ProfileCreate,
@@ -26,8 +27,20 @@ from app.schemas.profile import (
     ProfileUpdate,
 )
 from app.services import profile_service
+from app.services.auth import authorization
 
 router = APIRouter(tags=["admin"])
+
+
+def _detail_for(db: Session, actor: User, profile: PersonalProfile) -> dict:
+    """Le détail rendu par une écriture : `jeunes:write` seul n'ouvre ni le
+    contact d'urgence, ni les notes, ni le journal, que seul `jeunes:read`
+    laisse lire (#1405, #1472)."""
+    return profile_service.profile_detail_view(
+        db,
+        profile,
+        with_personal_data=authorization.has_permission(db, actor, P.JEUNES_READ),
+    )
 
 
 @router.get("/admin/profiles", response_model=list[ProfileRead])
@@ -45,7 +58,7 @@ def get_profile(
     _: User = Depends(require_permission(P.JEUNES_READ)),
 ):
     profile = profile_service.get_profile_or_404(db, profile_id)
-    return profile_service.profile_detail_view(db, profile)
+    return profile_service.profile_detail_view(db, profile, with_personal_data=True)
 
 
 @router.post("/admin/profiles", response_model=ProfileDetailRead, status_code=201)
@@ -63,7 +76,7 @@ def create_profile(
         emergency_contact=body.emergency_contact,
         notes=body.notes,
     )
-    view = profile_service.profile_detail_view(db, profile)
+    view = _detail_for(db, actor, profile)
     db.commit()
     return view
 
@@ -91,7 +104,7 @@ def update_profile(
             else profile_service.UNCHANGED
         ),
     )
-    view = profile_service.profile_detail_view(db, profile)
+    view = _detail_for(db, actor, profile)
     db.commit()
     return view
 
@@ -107,13 +120,13 @@ def add_log_entry(
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.JEUNES_WRITE)),
 ):
-    """Rend le détail complet, pas seulement l'entrée créée (patron
+    """Rend le détail (complet avec `jeunes:read`), pas seulement l'entrée créée (patron
     `add_member` de `admin_groups.py`) : le front n'a besoin que d'un seul
     appel après l'ajout."""
     profile = profile_service.get_profile_or_404(db, profile_id)
     profile_service.add_log_entry(
         db, actor, profile, text=body.text, entry_date=body.entry_date
     )
-    view = profile_service.profile_detail_view(db, profile)
+    view = _detail_for(db, actor, profile)
     db.commit()
     return view

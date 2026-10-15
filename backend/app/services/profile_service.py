@@ -74,15 +74,30 @@ def profile_view(profile: PersonalProfile) -> dict:
     }
 
 
-def profile_detail_view(db: Session, profile: PersonalProfile) -> dict:
-    """Le profil **et** son journal (FR-002 de spec.md)."""
+def profile_detail_view(
+    db: Session, profile: PersonalProfile, *, with_personal_data: bool = False
+) -> dict:
+    """Le profil **et** son journal (FR-002 de spec.md).
+
+    Contact d'urgence, notes et journal, données personnelles, ne sont rendus
+    qu'à la demande de l'appelant, qui s'est assuré du pouvoir `jeunes:read`
+    (#1405, #1472) ; sinon `None`.
+    """
+    groups = [
+        {"id": group.id, "name": group.name}
+        for group in training_group_repository.list_groups_of_profile(db, profile.id)
+    ]
+    if not with_personal_data:
+        return profile_view(profile) | {
+            "emergency_contact": None,
+            "notes": None,
+            "groups": groups,
+            "log_entries": None,
+        }
     return profile_view(profile) | {
         "emergency_contact": profile.emergency_contact,
         "notes": profile.notes,
-        "groups": [
-            {"id": group.id, "name": group.name}
-            for group in training_group_repository.list_groups_of_profile(db, profile.id)
-        ],
+        "groups": groups,
         "log_entries": [
             _log_entry_view(entry)
             for entry in profile_repository.list_log_entries(db, profile.id)

@@ -710,10 +710,11 @@ export interface ProfileLogEntry {
 
 /** Un profil **et** son journal — ce que rend le détail. */
 export interface ProfileDetail extends Profile {
-  emergency_contact: string;
-  notes: string;
+  /** Ces trois champs valent `null` sans le pouvoir `jeunes:read` (#1472). */
+  emergency_contact: string | null;
+  notes: string | null;
   groups: { id: number; name: string }[];
-  log_entries: ProfileLogEntry[];
+  log_entries: ProfileLogEntry[] | null;
 }
 
 /**
