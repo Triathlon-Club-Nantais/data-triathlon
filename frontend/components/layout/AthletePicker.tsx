@@ -7,6 +7,7 @@ import { AnnonceStatut, Avatar, Input, Modal } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ApiError, apiClient } from "@/lib/api/client";
 import { formatAttente } from "@/lib/utils/format";
+import { foldAccents } from "@/lib/utils/text";
 import type { AthleteSearchResult } from "@/lib/types";
 
 /**
@@ -202,10 +203,6 @@ function echecRecherche(erreur: unknown): { titre: string; detail: string; acces
 /** Un écran que la palette ⌘K peut ouvrir (#1246), déjà filtré par `estVisible`. */
 export type ScreenLink = { label: string; href: string; context: string };
 
-function fold(text: string): string {
-  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-}
-
 /**
  * Recherche d'un athlète du club. Interroge l'API à partir de **2 caractères**,
  * après 250 ms de silence, et plafonne à 12 résultats.
@@ -289,7 +286,7 @@ export function AthletePicker({
 
   const q = query.trim();
   const withScreens = !designation && screens.length > 0;
-  const matchedScreens = !withScreens || q.length < 2 ? [] : screens.filter((e) => fold(e.label).includes(fold(q)));
+  const matchedScreens = !withScreens || q.length < 2 ? [] : screens.filter((e) => foldAccents(e.label).includes(foldAccents(q)));
   const echec = q.length >= 2 && !loading && erreur !== null ? echecRecherche(erreur) : null;
   // Les écrans trouvés se comptent en tête : « Aucun athlète trouvé » seul
   // contredirait la liste d'écrans affichée juste dessous.

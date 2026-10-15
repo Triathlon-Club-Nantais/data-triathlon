@@ -1,4 +1,5 @@
 import type { Splits } from "@/lib/types";
+import { foldAccents } from "@/lib/utils/text";
 
 export interface Segment {
   key: string;
@@ -67,7 +68,7 @@ function splitSchema(eventType: string): SchemaEntry[] {
  * et le neutre couvre ce qu'on ne reconnaît pas plutôt que de mentir.
  */
 function sourceEntry(key: string): SchemaEntry {
-  const t = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const t = foldAccents(key);
   if (/^t\d+$/.test(t) || t.includes("transition")) return { key, label: key, color: TRANS, small: true };
   if (t.includes("nat") || t.includes("swim")) return { key, label: key, color: SWIM };
   if (t.includes("velo") || t.includes("bike") || t.includes("cycl")) return { key, label: key, color: BIKE };
