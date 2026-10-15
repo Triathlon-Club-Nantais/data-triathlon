@@ -110,7 +110,7 @@ class _ItemResult:
     passive_sources: list[PassiveSource] = field(default_factory=list)
 
 
-def est_echec_total(*, epreuves: int, errors: int) -> bool:
+def is_total_failure(*, events: int, errors: int) -> bool:
     """Vrai si **toutes** les épreuves ciblées ont échoué — et qu'il y en avait.
 
     Définition unique de l'« échec total », partagée par les deux bilans
@@ -123,11 +123,11 @@ def est_echec_total(*, epreuves: int, errors: int) -> bool:
     participants déjà en base, ou épreuve vide) reste donc un **succès** — d'où
     la comparaison `errors` vs nombre d'épreuves plutôt qu'un test sur `imported`.
 
-    Cas dégénérés couverts par `epreuves > 0` : batch de zéro épreuve (Sheet
+    Cas dégénérés couverts par `events > 0` : batch de zéro épreuve (Sheet
     vide, `--limit 0`, filtre sans résultat) → pas un échec. Un dry-run ne
     scrape rien : ses `errors` restent à 0, il ne peut donc jamais être un échec.
     """
-    return epreuves > 0 and errors >= epreuves
+    return events > 0 and errors >= events
 
 
 def _notify(action: Callable[[], None]) -> None:

@@ -87,7 +87,7 @@ avant** la sortie :
 | Code | Sens |
 | --- | --- |
 | `0` | Succès, y compris **partiel** (quelques épreuves en échec sur N) ou « rien à faire » (zéro épreuve ciblée). Un dry-run sort toujours en 0. |
-| `1` | **Échec total** : aucune des épreuves ciblées n'a abouti (`batch.est_echec_total` : `errors >= épreuves > 0`). Sinon un cron dont les 53 épreuves échouent n'alerterait jamais. |
+| `1` | **Échec total** : aucune des épreuves ciblées n'a abouti (`batch.is_total_failure` : `errors >= events > 0`, `events` comptant les épreuves). Sinon un cron dont les 53 épreuves échouent n'alerterait jamais. |
 | `2` | **Erreur d'usage** (convention Click) : option invalide — notamment `--provider` / `--only-provider` inconnu, rejeté avant tout travail par `cli/validators`. Une `--url` **passive** n'en fait plus partie : elle est redirigée, pas refusée (voir plus bas). |
 | `130` | Ctrl-C. **Prioritaire sur 1** : une interruption est une action de l'opérateur, pas une panne. |
 
