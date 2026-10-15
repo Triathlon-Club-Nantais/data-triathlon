@@ -790,6 +790,23 @@ describe("EventList — entrée « Pertinence » pendant une recherche d'épreuv
     });
   }
 
+  it("names the sort select with a visible « Trier par » label (#1439)", () => {
+    setUnEvenement();
+    renderList();
+
+    const tri = screen.getByRole("combobox", { name: "Trier par" });
+    expect(screen.getByText("Trier par")).toBeVisible();
+    expect(tri).toHaveTextContent("Date (récent)");
+  });
+
+  it("keeps the sort select name while « Pertinence » is offered (#1439)", () => {
+    searchParams = new URLSearchParams("event_name=nantes");
+    setUnEvenement();
+    renderList();
+
+    expect(screen.getByRole("combobox", { name: /trier/i })).toHaveTextContent("Pertinence");
+  });
+
   it("n'offre pas « Pertinence » hors recherche d'épreuve", async () => {
     setUnEvenement();
     renderList();

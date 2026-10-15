@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card, FormatChip } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
+import { AddEventLink } from "./SeasonEmptyState";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
 import { formatToken } from "@/lib/utils/format";
@@ -38,11 +39,7 @@ export function RecentCourses({ events }: { events: EventOut[] }) {
           bare
           className="py-6"
           title="Aucune épreuve récente à afficher"
-          action={
-            <Link href="/ajouter" className="text-sm font-semibold text-accent-ink hover:underline">
-              Ajouter une épreuve →
-            </Link>
-          }
+          action={<AddEventLink />}
         />
       ) : (
         <table className="tcn-table" role="table">

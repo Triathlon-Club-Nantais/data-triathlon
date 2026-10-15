@@ -142,7 +142,7 @@ describe("AthletePage — état vide (ETAT-3)", () => {
  * les autres cellules.
  */
 function ligneDe(container: HTMLElement, href: string): HTMLElement | null {
-  return container.querySelector<HTMLElement>(`a[href='${href}']`)?.closest("tr") ?? null;
+  return container.querySelector<HTMLElement>(`tr a[href='${href}']`)?.closest("tr") ?? null;
 }
 
 describe("AthletePage", () => {
@@ -362,6 +362,18 @@ describe("AthletePage", () => {
     expect(row).not.toBeNull();
     expect(within(row as HTMLElement).getByText("—")).toBeInTheDocument();
     expect(within(row as HTMLElement).queryByText("DNF")).not.toBeInTheDocument();
+  });
+
+  it("affiche la carte Meilleurs temps à partir de trois épreuves validées (#1361)", async () => {
+    await renderAthlete([part({ id: 1 }), part({ id: 2 }), part({ id: 3 })]);
+
+    expect(screen.getByRole("heading", { name: "Meilleurs temps" })).toBeInTheDocument();
+  });
+
+  it("tait la carte Meilleurs temps sous trois épreuves : la tuile Temps dit déjà le temps", async () => {
+    await renderAthlete([part({ id: 1 })]);
+
+    expect(screen.queryByRole("heading", { name: "Meilleurs temps" })).not.toBeInTheDocument();
   });
 
   it("ouvre le détail de la participation, et non plus la page de la course", async () => {
