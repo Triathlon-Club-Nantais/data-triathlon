@@ -1660,6 +1660,34 @@ def test_un_athlete_ne_figure_qu_une_fois_par_resultat(db_session):
         db_session.flush()
 
 
+def test_carried_by_is_one_indexable_in_clause_on_postgresql():
+    """#1391: `athlete_id = :id OR id IN (...)` defeats ix_participations_athlete_id
+    and full-scans participations on PostgreSQL."""
+    from sqlalchemy.dialects import postgresql
+
+    sql = str(participation_repository.carried_by(8000).compile(dialect=postgresql.dialect()))
+
+    assert " OR " not in sql.upper(), sql
+    assert "UNION ALL" in sql.upper(), sql
+
+
+def test_list_for_athlete_returns_a_relay_once_for_carrier_and_teammate(db_session):
+    from app.models.participation import ParticipationTeammate
+
+    course, _, _, jean, paul = _relais(db_session)
+    relay = participation_repository.create(
+        db_session, athlete_id=jean.id, course_id=course.id, bib_number="8", is_relay=True,
+    )
+    db_session.add_all([
+        ParticipationTeammate(participation_id=relay.id, athlete_id=jean.id, position=0),
+        ParticipationTeammate(participation_id=relay.id, athlete_id=paul.id, position=1),
+    ])
+    db_session.flush()
+
+    assert [p.id for p in participation_repository.list_for_athlete(db_session, jean.id)] == [relay.id]
+    assert [p.id for p in participation_repository.list_for_athlete(db_session, paul.id)] == [relay.id]
+
+
 def test_supprimer_la_participation_supprime_sa_composition(db_session):
     from app.models.participation import ParticipationTeammate
 
