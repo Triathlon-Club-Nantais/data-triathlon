@@ -1529,7 +1529,7 @@ def test_the_awaiting_validation_read_uses_its_partial_index(sqlite_url):
     plan = _lignes(sqlite_url, f"EXPLAIN QUERY PLAN SELECT id FROM participations WHERE {clause}")
     assert any("ix_participations_awaiting_validation" in str(row) for row in plan), plan
 
-    command.downgrade(cfg, "-1")
+    command.downgrade(cfg, "3c751af1cc83")
     assert "ix_participations_awaiting_validation" not in _index_names(sqlite_url, "participations")
     command.upgrade(cfg, "head")
     assert "ix_participations_awaiting_validation" in _index_names(sqlite_url, "participations")
