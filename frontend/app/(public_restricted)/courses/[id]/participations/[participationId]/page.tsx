@@ -97,6 +97,7 @@ export default async function ParticipationDetailPage({
           <>
             <ComparisonTable
               rows={stats.comparison}
+              medians={stats.medians}
               segments={stats.segments}
               eventType={course.event_type}
             />

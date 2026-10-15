@@ -3,11 +3,13 @@ Statistiques détaillées d'une participation : comparaison au classement comple
 de sa course.
 
 Les trois agrégats — évolution du rang par étape, comparaison à des positions
-de référence, simulation de gains par amélioration — sont recalculés à chaque
+de référence et aux médianes, simulation de gains par amélioration — sont recalculés à chaque
 lecture depuis le classement déjà en base. Rien n'est persisté : un rang
 recalculé à la lecture ne peut pas diverger de celui qu'affichent les autres
 écrans de l'application.
 """
+import statistics
+
 from sqlalchemy.orm import Session
 
 from app.core.splits_reliability import is_stats_eligible
@@ -16,6 +18,7 @@ from app.repositories import participation_repository
 from app.schemas.participation_stats import (
     ComparisonRow,
     ImprovementRow,
+    MedianRow,
     ParticipationStatsOut,
     RankingEvolutionStep,
 )
@@ -124,6 +127,48 @@ def _comparison(
     return rows
 
 
+def _medians(
+    participation: Participation, ranking: list[Participation], segments: list[str]
+) -> list[MedianRow]:
+    """Médiane de tous les classés, puis de ceux de la catégorie de l'athlète (#1362).
+
+    Un relais est hors population : ses segments sont ceux de plusieurs athlètes.
+    Sous `split_gap.MIN_EVALUATED_ROWS` valeurs, une clé est omise : sur neuf
+    coureurs, une médiane décrit des individus, pas une épreuve.
+    """
+    ranked = [row for row in ranking if row.rank_overall is not None and not row.is_relay]
+    populations = [("median", "Médiane", ranked)]
+    if participation.category:
+        same_category = [row for row in ranked if row.category == participation.category]
+        populations.append(("category_median", "Médiane catégorie", same_category))
+
+    keys = [*segments, TOTAL_KEY]
+    rows = []
+    for kind, label, population in populations:
+        percentages, mine_seconds, theirs_seconds = {}, {}, {}
+        for key in keys:
+            mine = _segment_seconds(participation, key)
+            values = [seconds for row in population if (seconds := _segment_seconds(row, key))]
+            if mine is None or len(values) < split_gap.MIN_EVALUATED_ROWS:
+                continue
+            median = statistics.median(values)
+            percentages[key] = round(mine / median * 100, 1)
+            mine_seconds[key] = mine
+            theirs_seconds[key] = round(median)
+        if percentages:
+            rows.append(
+                MedianRow(
+                    kind=kind,
+                    label=label,
+                    sample_size=len(population),
+                    percentages=percentages,
+                    mine_seconds=mine_seconds,
+                    theirs_seconds=theirs_seconds,
+                )
+            )
+    return rows
+
+
 def _cumulative_seconds(participation: Participation, segments: list[str]) -> int | None:
     """Temps cumulé jusqu'à la sortie d'une étape, ou `None` si un segment manque.
 
@@ -228,11 +273,12 @@ def _improvement(
 def build_from_ranking(
     participation: Participation, ranking: list[Participation]
 ) -> ParticipationStatsOut:
-    """Assemble les trois blocs à partir du classement complet, sans toucher la base."""
+    """Assemble les blocs à partir du classement complet, sans toucher la base."""
     segments = published_segments(ranking)
     return ParticipationStatsOut(
         segments=segments,
         ranking_evolution=_ranking_evolution(participation, ranking, segments),
         comparison=_comparison(participation, ranking, segments),
+        medians=_medians(participation, ranking, segments),
         improvement=_improvement(participation, ranking, segments),
     )

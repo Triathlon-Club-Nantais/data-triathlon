@@ -254,7 +254,8 @@ def test_stats_is_populated_for_an_eligible_course(client, db_session):
     stats = client.get(f"/api/v1/participations/{participation.id}").json()["stats"]
 
     assert stats is not None
-    assert set(stats) == {"segments", "ranking_evolution", "comparison", "improvement"}
+    # #1362 : `medians` s'ajoute, aucun bloc existant renommé ni retiré.
+    assert set(stats) == {"segments", "ranking_evolution", "comparison", "improvement", "medians"}
 
 
 def test_stats_comparison_rows_carry_raw_seconds_additively(client, db_session):
@@ -269,6 +270,23 @@ def test_stats_comparison_rows_carry_raw_seconds_additively(client, db_session):
     assert set(row) == {"position_label", "rank", "percentages", "mine_seconds", "theirs_seconds"}
     assert set(row["mine_seconds"]) == set(row["percentages"])
     assert set(row["theirs_seconds"]) == set(row["percentages"])
+
+
+def test_stats_serves_the_medians_in_their_own_block(client, db_session):
+    """#1362 : bloc additif, `comparison` garde sa forme et ses seules positions."""
+    for index in range(11):
+        participation = scrape_service.save_one(
+            db_session, _scraped(bib=f"m{index}", nom=f"MEDIAN{index}", rank_overall=index + 1)
+        )
+
+    stats = client.get(f"/api/v1/participations/{participation.id}").json()["stats"]
+
+    assert [row["kind"] for row in stats["medians"]] == ["median", "category_median"]
+    assert all(row["rank"] > 0 for row in stats["comparison"])
+    median = stats["medians"][0]
+    assert set(median) == {"kind", "label", "sample_size", "percentages", "mine_seconds", "theirs_seconds"}
+    assert median["sample_size"] == 11
+    assert median["percentages"]["total"] == 100.0
 
 
 def test_stats_ranking_evolution_steps_carry_cumulative_seconds(client, db_session):
