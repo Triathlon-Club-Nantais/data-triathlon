@@ -1,6 +1,7 @@
-import type { ComparisonRow, MedianRow } from "@/lib/types";
+import type { ComparisonRow, MedianRow, Participation } from "@/lib/types";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { pctFr } from "@/lib/utils/format";
+import { secondsFromHms } from "@/lib/utils/time";
 import { Card } from "../Card";
 import { Eyebrow } from "../Eyebrow";
 
@@ -31,19 +32,21 @@ const TITRE_TOTAL =
  *
  * Les lignes arrivent déjà filtrées par l'API : une position que l'épreuve
  * n'atteint pas est absente, pas vide, et une médiane sous l'effectif minimal
- * aussi. Sur une ligne de position, un tiret signale un temps non publié ; sur
- * une médiane, un segment publié par trop peu de classés.
+ * aussi. Un tiret signale un temps que l'athlète n'a pas publié, ou, sur une
+ * médiane seulement, un segment publié par trop peu de classés.
  */
 export function ComparisonTable({
   rows,
   medians = [],
   segments,
   eventType,
+  athlete,
 }: {
   rows: ComparisonRow[];
   medians?: MedianRow[];
   segments: string[];
   eventType: string;
+  athlete: Pick<Participation, "splits" | "total_time">;
 }) {
   const columns = splitColumnsFromKeys(eventType, segments);
   const shortSegmentLabels = columns.filter((column) => column.small).map((column) => column.label);
@@ -64,9 +67,15 @@ export function ComparisonTable({
       separator: index === 0 && rows.length > 0 ? { borderTop: "1px solid var(--tcn-border)" } : undefined,
     })),
   ];
-  const medianMissesAColumn = medians.some((row) =>
-    [...columns.map((column) => column.key), TOTAL_KEY].some((key) => row.percentages[key] == null),
-  );
+  // #1470 : l'API omet aussi une clé de médiane quand l'athlète n'a pas ce
+  // temps. Ce tiret-là ne dit rien de l'effectif. `secondsFromHms` rejette au
+  // moins tout ce que rejette `to_seconds(strict=True)` côté serveur : l'écart
+  // ne peut que taire la note, jamais la faire mentir.
+  const athleteHasTime = (key: string) =>
+    secondsFromHms(key === TOTAL_KEY ? athlete.total_time : athlete.splits?.[key]) != null;
+  const thinSampleLabels = [...columns, { key: TOTAL_KEY, label: "Total" }]
+    .filter(({ key }) => athleteHasTime(key) && medians.some((row) => row.percentages[key] == null))
+    .map(({ label }) => label);
 
   return (
     <Card style={{ marginBottom: 24, overflowX: "auto" }}>
@@ -137,9 +146,10 @@ export function ComparisonTable({
           <span className="sm:hidden">Leurs colonnes s&apos;affichent sur un écran plus large.</span>
         </p>
       )}
-      {medianMissesAColumn && (
+      {thinSampleLabels.length > 0 && (
         <p style={{ marginTop: 10, fontSize: 13, color: "var(--tcn-text-faint)" }}>
-          Un tiret sur une médiane : trop peu de classés ont publié ce segment pour la calculer.
+          Médiane non calculée pour {thinSampleLabels.join(", ")} : trop peu de classés ont publié{" "}
+          {thinSampleLabels.length > 1 ? "ces segments" : "ce segment"}.
         </p>
       )}
     </Card>

@@ -100,6 +100,7 @@ export default async function ParticipationDetailPage({
               medians={stats.medians}
               segments={stats.segments}
               eventType={course.event_type}
+              athlete={participation}
             />
             <RankingEvolutionChart
               steps={stats.ranking_evolution}

@@ -6,6 +6,12 @@ import { contrast, evalue, resolve, surSurface } from "@/test/couleur";
 
 const SEGMENTS = ["swim", "t1", "bike", "t2", "run"];
 
+// Athlète au chronométrage complet : un tiret sur une médiane n'y vient que de l'effectif.
+const ATHLETE = {
+  splits: { swim: "00:20:00", t1: "00:01:30", bike: "01:05:00", t2: "00:01:00", run: "00:40:00" },
+  total_time: "02:07:30",
+};
+
 const ROWS: ComparisonRow[] = [
   {
     position_label: "1er",
@@ -20,7 +26,7 @@ const ROWS: ComparisonRow[] = [
 ];
 
 function renderTable(rows = ROWS, segments = SEGMENTS, eventType = "triathlon-m") {
-  return render(<ComparisonTable rows={rows} segments={segments} eventType={eventType} />);
+  return render(<ComparisonTable rows={rows} segments={segments} eventType={eventType} athlete={ATHLETE} />);
 }
 
 describe("ComparisonTable", () => {
@@ -257,9 +263,15 @@ describe("#1362 : médianes", () => {
     },
   ];
 
-  function renderWithMedians(medians: MedianRow[] = MEDIANES) {
+  function renderWithMedians(medians: MedianRow[] = MEDIANES, athlete = ATHLETE) {
     return render(
-      <ComparisonTable rows={ROWS} medians={medians} segments={SEGMENTS} eventType="triathlon-m" />,
+      <ComparisonTable
+        rows={ROWS}
+        medians={medians}
+        segments={SEGMENTS}
+        eventType="triathlon-m"
+        athlete={athlete}
+      />,
     );
   }
 
@@ -306,7 +318,7 @@ describe("#1362 : médianes", () => {
   it("explique le tiret d'une médiane faute de classés suffisants", () => {
     renderWithMedians();
 
-    expect(screen.getByText(/trop peu de classés ont publié ce segment/)).toBeTruthy();
+    expect(screen.getByText(/trop peu de classés ont publié/)).toBeTruthy();
   });
 
   it("ne l'explique pas quand chaque médiane couvre toutes les colonnes", () => {
@@ -315,6 +327,59 @@ describe("#1362 : médianes", () => {
       percentages: Object.fromEntries([...SEGMENTS, "total"].map((key) => [key, 100.0])),
     }));
     renderWithMedians(completes);
+
+    expect(screen.queryByText(/trop peu de classés/)).toBeNull();
+  });
+
+  it("#1470 : ne blâme pas l'effectif quand c'est l'athlète qui n'a pas le segment", () => {
+    // 300 classés, natation publiée par la majorité : seul l'athlète n'a pas de temps de natation.
+    render(
+      <ComparisonTable
+        rows={[]}
+        medians={[{ kind: "median", label: "Médiane", sample_size: 300, percentages: { bike: 95, run: 101, total: 98 } }]}
+        segments={["swim", "bike", "run"]}
+        eventType="triathlon-m"
+        athlete={{ splits: { bike: "01:05:00", run: "00:40:00" }, total_time: "02:07:30" }}
+      />,
+    );
+
+    expect(within(screen.getByRole("row", { name: /Médiane/ })).getByText("—")).toBeTruthy();
+    expect(screen.queryByText(/trop peu de classés/)).toBeNull();
+  });
+
+  it("#1470 : ne nomme que les segments manquants faute d'effectif", () => {
+    render(
+      <ComparisonTable
+        rows={[]}
+        medians={[{ kind: "median", label: "Médiane", sample_size: 300, percentages: { run: 101, total: 98 } }]}
+        segments={["swim", "bike", "run"]}
+        eventType="triathlon-m"
+        athlete={{ splits: { bike: "01:05:00", run: "00:40:00" }, total_time: "02:07:30" }}
+      />,
+    );
+
+    expect(
+      screen.getByText("Médiane non calculée pour Vélo : trop peu de classés ont publié ce segment."),
+    ).toBeTruthy();
+  });
+
+  it("#1470 : accorde la note au pluriel", () => {
+    renderWithMedians();
+
+    expect(
+      screen.getByText(
+        "Médiane non calculée pour T1, Vélo, T2, Course : trop peu de classés ont publié ces segments.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("#1470 : un temps illisible chez l'athlète compte comme absent", () => {
+    const sansTotal = { ...ATHLETE, total_time: "02:07:30.4" };
+    const completes = MEDIANES.map((row) => ({
+      ...row,
+      percentages: Object.fromEntries(SEGMENTS.map((key) => [key, 100.0])),
+    }));
+    renderWithMedians(completes, sansTotal);
 
     expect(screen.queryByText(/trop peu de classés/)).toBeNull();
   });
