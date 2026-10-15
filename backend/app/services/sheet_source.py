@@ -79,7 +79,7 @@ def read_table(content: bytes, filename: str) -> tuple[list[str], list[list[str]
     # ne désigne rien pour lui. L'`index` du contrat, lui, reste à partir de 0 —
     # il ne s'affiche jamais.
     headers = [
-        cell or f"Colonne {number}" for number, cell in enumerate(rows[0], 1)
+        cell or f"Colonne {position}" for position, cell in enumerate(rows[0], 1)
     ]
     return headers, rows[1:]
 

@@ -147,7 +147,7 @@ def is_club_scope(scope: str | None) -> bool:
     return scope == SCOPE_CLUB
 
 
-_SQL_BLANKS = ("\t", "\n", "\r", "\xa0")
+_SQL_WHITESPACE = ("\t", "\n", "\r", "\xa0")
 
 
 def _normalize_sql(column):
@@ -165,7 +165,7 @@ def _normalize_sql(column):
     oubli, jamais un faux positif — et `club-labels` le rendra visible.
     """
     expr = column
-    for blank in _SQL_BLANKS:
+    for blank in _SQL_WHITESPACE:
         expr = func.replace(expr, blank, " ")
     expr = func.lower(func.trim(expr))
     for _ in range(3):
