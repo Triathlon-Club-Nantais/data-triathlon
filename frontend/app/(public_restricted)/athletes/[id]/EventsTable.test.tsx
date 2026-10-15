@@ -141,6 +141,13 @@ describe("EventsTable", () => {
     expect(screen.getByRole("status")).toHaveTextContent("1 épreuve");
   });
 
+  it("gives the season and discipline filters a 44px touch target under md (#1440)", () => {
+    render(<EventsTable participations={threeSeasons()} athleteId={7} athleteName="Jean DUPONT" />);
+
+    expect(screen.getByRole("combobox", { name: /saison/i })).toHaveClass("tcn-cible-tactile");
+    expect(screen.getByRole("combobox", { name: /discipline/i })).toHaveClass("tcn-cible-tactile");
+  });
+
   it("propose une entrée par saison représentée, la plus récente d'abord", async () => {
     render(<EventsTable participations={threeSeasons()} athleteId={7} athleteName="Jean DUPONT" />);
 

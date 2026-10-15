@@ -206,7 +206,7 @@ export function EventList({
             Trier par
           </span>
           <Select value={currentSort} onValueChange={(v) => setSort(v as string)}>
-            <SelectTrigger aria-labelledby="libelle-tri-epreuves" className="h-9 w-44">
+            <SelectTrigger aria-labelledby="libelle-tri-epreuves" className="tcn-cible-tactile h-9 w-44">
               <SelectValue>
                 {(v) => sortOptions.find((o) => o.value === v)?.label ?? "Trier"}
               </SelectValue>
