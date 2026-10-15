@@ -17,8 +17,8 @@ import { formatCount, formatToken } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName, pendingOnlyLabel } from "@/lib/utils/event";
 import { groupEventsByCompetition, eventSuffix, type EventGroup } from "@/lib/utils/eventGroups";
-import { currentSeason, seasonAbsenceLabel } from "@/lib/utils/season";
 import { ReliabilityMark } from "@/components/results/ReliabilityMark";
+import { SeasonEmptyState } from "@/components/dashboard/SeasonEmptyState";
 import { gridColumns, gridMinWidth, type Track } from "@/lib/utils/table";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 import type { EventOut, EventPage, ParticipationFilters } from "@/lib/types";
@@ -169,32 +169,15 @@ export function EventList({
     }
     // Sans filtre de recherche, seule la saison vide la liste (#1404) : même
     // état vide que le tableau de bord, qui nomme la saison et en offre la sortie.
-    const saisons = filters.seasons ?? [];
-    const saisonEnCoursSeule = saisons.length <= 1 && (saisons[0] ?? currentSeason()) === currentSeason();
     const horsSaisons = new URLSearchParams(sp.toString());
     horsSaisons.delete("seasons");
     const qsSaisonEnCours = horsSaisons.toString();
     return (
       <>
         {annonce}
-        <EmptyState
-          title={`Aucun résultat enregistré pour ${seasonAbsenceLabel(saisons)}`}
-          description="Changez de saison ou ajoutez les premiers résultats du club."
-          action={
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              {!saisonEnCoursSeule && (
-                <Link
-                  href={`/resultats${qsSaisonEnCours ? `?${qsSaisonEnCours}` : ""}`}
-                  className="text-sm font-semibold text-accent-ink hover:underline"
-                >
-                  Voir la saison en cours
-                </Link>
-              )}
-              <Link href="/ajouter" className="text-sm font-semibold text-accent-ink hover:underline">
-                Ajouter une épreuve →
-              </Link>
-            </div>
-          }
+        <SeasonEmptyState
+          seasons={filters.seasons ?? []}
+          currentSeasonHref={`/resultats${qsSaisonEnCours ? `?${qsSaisonEnCours}` : ""}`}
         />
       </>
     );

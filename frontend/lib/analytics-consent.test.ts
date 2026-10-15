@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { optIn, optOut, reset } = vi.hoisted(() => ({ optIn: vi.fn(), optOut: vi.fn(), reset: vi.fn() }));
 vi.mock("posthog-js", () => ({
-  default: { opt_in_capturing: optIn, opt_out_capturing: optOut, reset },
+  default: { init: vi.fn(), get_explicit_consent_status: vi.fn(), opt_in_capturing: optIn, opt_out_capturing: optOut, reset },
 }));
 
 import {
@@ -33,18 +33,18 @@ describe("Consentement à la mesure d'audience détaillée (#1159)", () => {
     expect(readConsent()).toBe("pending");
   });
 
-  it("mémorise l'accord et active le suivi détaillé", () => {
+  it("mémorise l'accord et active le suivi détaillé", async () => {
     saveConsent("granted");
     expect(readConsent()).toBe("granted");
-    expect(optIn).toHaveBeenCalledWith({ captureEventName: false });
+    await vi.waitFor(() => expect(optIn).toHaveBeenCalledWith({ captureEventName: false }));
   });
 
-  it("mémorise le refus et repasse en mesure sans cookie, traceurs effacés", () => {
+  it("mémorise le refus et repasse en mesure sans cookie, traceurs effacés", async () => {
     saveConsent("granted");
     saveConsent("denied");
     expect(readConsent()).toBe("denied");
+    await vi.waitFor(() => expect(optOut).toHaveBeenCalled());
     expect(reset).toHaveBeenCalled();
-    expect(optOut).toHaveBeenCalled();
   });
 
   it("redemande le choix au bout de six mois", () => {
@@ -60,14 +60,14 @@ describe("Consentement à la mesure d'audience détaillée (#1159)", () => {
     expect(readConsent()).toBe("pending");
   });
 
-  it("applique le choix pour la visite quand le navigateur refuse de l'enregistrer", () => {
+  it("applique le choix pour la visite quand le navigateur refuse de l'enregistrer", async () => {
     const setItem = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
       throw new DOMException("quota", "QuotaExceededError");
     });
     try {
       saveConsent("denied");
       expect(readConsent()).toBe("denied");
-      expect(optOut).toHaveBeenCalled();
+      await vi.waitFor(() => expect(optOut).toHaveBeenCalled());
     } finally {
       setItem.mockRestore();
     }
@@ -107,9 +107,10 @@ describe("Consentement à la mesure d'audience détaillée (#1159)", () => {
     expect(document.cookie).not.toContain(ANALYTICS_CONSENT_COOKIE);
   });
 
-  it("ne touche pas à PostHog quand il n'est pas configuré", () => {
+  it("ne touche pas à PostHog quand il n'est pas configuré", async () => {
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "");
     saveConsent("granted");
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(optIn).not.toHaveBeenCalled();
   });
 });

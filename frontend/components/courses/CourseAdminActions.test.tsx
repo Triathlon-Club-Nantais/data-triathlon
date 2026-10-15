@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import type { CourseBrief, SessionUser } from "@/lib/types";
 
 const api = vi.hoisted(() => ({
@@ -84,6 +84,12 @@ const BOUTONS = {
 async function openMenu(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("button", { name: "Gérer l'épreuve" }, { timeout: 3000 }));
 }
+
+// Warms the panel's module graph outside any case timeout (#1389). importActual skips the
+// mock factory, so panelLoaded still only fires when the component imports the panel.
+beforeAll(async () => {
+  await vi.importActual("./CourseAdminPanel");
+}, 30_000);
 
 beforeEach(() => {
   vi.clearAllMocks();
