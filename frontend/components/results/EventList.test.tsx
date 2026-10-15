@@ -254,7 +254,8 @@ describe("EventList", () => {
     expect(
       screen.getByText(`Aucun résultat enregistré pour la ${seasonLabel(currentSeason()).toLowerCase()}`),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Ajouter une épreuve/ })).toHaveAttribute("href", "/ajouter");
+    expect(screen.getByRole("link", { name: "Ajouter une épreuve" })).toHaveClass("tcn-cible-tactile");
+    expect(screen.getByRole("link", { name: "Ajouter une épreuve" })).toHaveAttribute("href", "/ajouter");
     expect(screen.queryByRole("link", { name: "Voir la saison en cours" })).not.toBeInTheDocument();
   });
 
@@ -290,7 +291,9 @@ describe("EventList", () => {
       "href",
       "/resultats?scope=club&sort=name",
     );
-    expect(screen.getByRole("link", { name: /Ajouter une épreuve/ })).toHaveAttribute("href", "/ajouter");
+    expect(screen.getByRole("link", { name: "Voir la saison en cours" })).toHaveClass("tcn-cible-tactile");
+    expect(screen.getByRole("link", { name: "Ajouter une épreuve" })).toHaveClass("tcn-cible-tactile");
+    expect(screen.getByRole("link", { name: "Ajouter une épreuve" })).toHaveAttribute("href", "/ajouter");
   });
 
   it("surfaces a failed next page and only retries on demand (#1039)", async () => {
