@@ -17,7 +17,7 @@ from app.core import permissions
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
-from app.repositories import role_repository, user_repository
+from app.repositories import role_repository
 from app.schemas.admin import (
     AdminUserRead,
     PermissionGroupRead,
@@ -153,7 +153,7 @@ def list_users(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.USERS_READ)),
 ):
-    return [authorization.user_view(db, user) for user in user_repository.list_all(db)]
+    return authorization.users_view(db)
 
 
 @router.post("/admin/users/{user_id}/roles", response_model=AdminUserRead, status_code=201)

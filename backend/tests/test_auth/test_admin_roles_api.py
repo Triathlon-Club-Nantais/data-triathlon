@@ -473,6 +473,77 @@ def test_lister_les_roles_tient_en_un_nombre_de_requetes_fixe_quel_que_soit_le_n
     assert len(requetes) == 7, requetes
 
 
+def test_listing_users_issues_a_constant_number_of_queries(
+    client, ouvrir_session, db_session
+):
+    """#1393: `user_view` loaded each user's roles with its own query."""
+    from sqlalchemy import event
+
+    ouvrir_session(superutilisateur=True)
+
+    def _measure():
+        db_session.commit()
+        db_session.expire_all()
+        statements = []
+
+        def _record(conn, cursor, statement, *rest):
+            statements.append(statement)
+
+        engine = db_session.get_bind()
+        event.listen(engine, "before_cursor_execute", _record)
+        try:
+            response = client.get("/api/v1/admin/users")
+        finally:
+            event.remove(engine, "before_cursor_execute", _record)
+        assert response.status_code == 200
+        return response.json(), statements
+
+    ouvrir_session(P.QUALITY_OVERRIDE, pose_le_cookie=False)
+    rows, with_two_users = _measure()
+    assert len(rows) == 2
+
+    for _ in range(19):
+        ouvrir_session(P.QUALITY_OVERRIDE, pose_le_cookie=False)
+    rows, with_twenty_one_users = _measure()
+
+    assert len(rows) == 21
+    assert all(len(row["roles"]) == 1 for row in rows)
+    # Session (1) + guard (3) + `list_all` (1) + `list_by_user` (2: `UserRole`,
+    # `Role`). Before #1393: 11 queries with 2 users, 68 with 21.
+    assert len(with_two_users) == 7, with_two_users
+    assert len(with_twenty_one_users) == len(with_two_users), with_twenty_one_users
+
+
+def test_listing_users_matches_the_single_user_view(
+    client, ouvrir_session, db_session, organisation
+):
+    """#1393: the grouped load renders each row exactly as `user_view` does."""
+    from app.repositories import role_repository, user_repository, user_role_repository
+    from app.schemas.admin import AdminUserRead
+    from app.services.auth import authorization
+
+    ouvrir_session(superutilisateur=True)
+    other = Organisation(slug="autre", name="Autre club")
+    db_session.add(other)
+    two_roles = ouvrir_session(P.QUALITY_OVERRIDE, pose_le_cookie=False)
+    extra = role_repository.create(db_session, slug="extra", name="Extra")
+    db_session.flush()
+    user_role_repository.grant(
+        db_session, user_id=two_roles.id, role_id=extra.id, organisation_id=other.id
+    )
+    ouvrir_session(pose_le_cookie=False)
+    db_session.commit()
+
+    rows = client.get("/api/v1/admin/users").json()
+
+    expected = [
+        AdminUserRead.model_validate(authorization.user_view(db_session, user))
+        .model_dump(mode="json")
+        for user in user_repository.list_all(db_session)
+    ]
+    assert rows == expected
+    assert sorted(len(row["roles"]) for row in rows) == [0, 1, 2]
+
 
 # --- Organisation inconnue (#1096) --------------------------------------------
 
