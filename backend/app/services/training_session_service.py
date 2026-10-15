@@ -63,8 +63,14 @@ def training_session_view(training_session: TrainingSession, participant_count: 
     }
 
 
-def training_session_detail_view(db: Session, training_session: TrainingSession) -> dict:
-    """La forme rendue par le détail : l'entraînement **et** ses inscrits."""
+def training_session_detail_view(
+    db: Session, training_session: TrainingSession, *, with_emergency_contact: bool = False
+) -> dict:
+    """La forme rendue par le détail : l'entraînement **et** ses inscrits.
+
+    Le contact d'urgence (#1405), donnée personnelle, n'est rendu qu'à la
+    demande de l'appelant, qui s'est assuré du pouvoir `jeunes:read` ; sinon `None`.
+    """
     participants = training_session_repository.list_participants(db, training_session.id)
     return training_session_view(training_session, len(participants)) | {
         "participants": [
@@ -74,6 +80,7 @@ def training_session_detail_view(db: Session, training_session: TrainingSession)
                 "added_manually": participant.added_manually,
                 "category": fftri_category(participant.profile.birth_date, date_.today()),
                 "created_at": participant.created_at,
+                "emergency_contact": participant.profile.emergency_contact if with_emergency_contact else None,
             }
             for participant in participants
         ]

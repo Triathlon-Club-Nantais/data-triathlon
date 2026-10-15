@@ -27,8 +27,8 @@ const ZOE: Profile = {
 };
 
 const PARTICIPANTS: TrainingParticipant[] = [
-  { profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
-  { profile_id: 43, present: false, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
+  { profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
+  { profile_id: 43, present: false, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
 ];
 
 describe("AppelFin", () => {
@@ -41,7 +41,7 @@ describe("AppelFin", () => {
 
   it("affiche un état vide explicite si personne n'a encore été pointé", () => {
     const participants: TrainingParticipant[] = [
-      { profile_id: 42, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
+      { profile_id: 42, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
     ];
 
     render(<AppelFin participants={participants} profils={[ALIX]} />);
@@ -71,8 +71,8 @@ describe("AppelFin", () => {
 
   it("ne compte pas comme retrouvé un jeune qui n'est plus présent", async () => {
     const deuxPresents: TrainingParticipant[] = [
-      { profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
-      { profile_id: 43, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
+      { profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
+      { profile_id: 43, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
     ];
     const { rerender } = render(<AppelFin participants={deuxPresents} profils={[ALIX, ZOE]} />);
     await userEvent.click(screen.getByRole("checkbox", { name: /alix martin/i }));
@@ -83,8 +83,8 @@ describe("AppelFin", () => {
     rerender(
       <AppelFin
         participants={[
-          { profile_id: 42, present: false, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
-          { profile_id: 43, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
+          { profile_id: 42, present: false, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
+          { profile_id: 43, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
         ]}
         profils={[ALIX, ZOE]}
       />,

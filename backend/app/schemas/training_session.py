@@ -9,9 +9,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_serializer
 class ParticipantRead(BaseModel):
     """Un participant inscrit à un entraînement.
 
-    `profile_id` seul — pas de nom ni de contact : le profil du jeune référencé
-    est porté par la sous-issue parallèle #867, hors du contrat de cette
-    ressource (cf. `research.md` §Dépendance sur le profil jeune).
+    `profile_id` seul, pas de nom : le profil du jeune référencé est porté par
+    la sous-issue parallèle #867 (cf. `research.md` §Dépendance sur le profil
+    jeune). Seul le contact d'urgence y est joint, pour l'appel (#1405).
 
     `present` (#869) est le statut de l'appel de **début** : `None` = pas
     encore pointé, `True`/`False` = le dernier statut enregistré.
@@ -24,6 +24,8 @@ class ParticipantRead(BaseModel):
     #: Catégorie FFTri du profil, `None` sans date de naissance (#1291).
     category: str | None
     created_at: datetime
+    #: Contact d'urgence du profil (#1405), `""` s'il est vide, `None` sans le pouvoir `jeunes:read`.
+    emergency_contact: str | None = None
 
     @field_serializer("created_at")
     def _serialize_utc(self, value: datetime) -> str:
