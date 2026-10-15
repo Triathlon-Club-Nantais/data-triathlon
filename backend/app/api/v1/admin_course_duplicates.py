@@ -57,7 +57,7 @@ def count_duplicates(
     Même garde que la liste : quiconque ne peut pas voir les paires ne doit pas
     non plus en connaître le nombre.
     """
-    return DuplicateCandidateCount(total=len(course_duplicates.find_candidates(db)))
+    return DuplicateCandidateCount(total=course_duplicates.count(db))
 
 
 @router.post(

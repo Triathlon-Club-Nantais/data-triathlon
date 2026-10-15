@@ -132,3 +132,17 @@ mais trois documents s'appuient désormais sur cette frontière : le jour où
 `_normalise_sql` change, la migration de reconstruction est à écrire à la main.
 
 Conception : `specs/20260826-154613-portee-compteurs-configurable/`.
+
+# Les comptes des pastilles (`cached_count.py`, #1352)
+
+Second état de processus de `core/`, pour une raison plus simple que la portée
+des compteurs : les pastilles « doublons » et « identités » du rail rejouaient
+leur détection entière (1 à 2 s de SQL) à chaque page d'administration, sur un
+backend à un seul process. Chaque service garde son `count_cache` (5 min),
+rafraîchi par sa liste. **Tout commit du process les vide** (écouteur
+`after_commit` sur `Session`) : la liste des écritures qui changent ces comptes
+(correction d'une fiche, détachement, suppression, fusion, arbitrage…) ne se
+tiendrait pas à la main, et la première revue en avait oublié huit. Une
+génération empêche un calcul lent commencé avant un commit d'écrire sa valeur
+après lui. Seul angle mort : une écriture d'un autre process (CLI de batch),
+fausse jusqu'à l'expiration. `tests/conftest.py` les vide entre deux tests.
