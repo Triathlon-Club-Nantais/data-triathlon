@@ -1,4 +1,22 @@
 <!--
+Sync Impact Report — Constitution v1.2.4
+========================================
+Version change    : 1.2.3 → 1.2.4
+Rationale         : PATCH, mise à jour de la colonne « État » de la table des
+  lots du Principe I : lots C à I fusionnés (#1451, #1458, #1459, #1462,
+  #1463, #1466, #1467) et passés à « fait ». `breizhchrono.py`, resté hors de
+  tout lot, rejoint le lot J. Règle ajoutée au plan de découpage : la PR d'un
+  lot met à jour sa ligne « État ». Re-scan du 2026-10-16 consigné. PATCH
+  retenu : cette règle n'oblige qu'à éditer une cellule dans une PR déjà
+  ouverte, la règle de renommage et son critère d'extinction ne changent pas.
+  Proposition : issue #1475. Approbation : mainteneur, revue de la PR.
+Modified principles : (aucun, table du Principe I mise à jour sans changer la règle)
+Modified sections : Principe I, table des lots (colonne État, lot J),
+  paragraphe sur la mise à jour de la table, paragraphe « plan de découpage ».
+Added sections    : (aucune)
+Removed sections  : (aucune)
+Templates touchés : (aucun)
+
 Sync Impact Report — Constitution v1.2.3
 ========================================
 Version change    : 1.2.2 → 1.2.3
@@ -257,14 +275,14 @@ qu'on ne réécrit pas après coup.
 | --- | --- | --- |
 | A | transversal — **deux familles** : `echec_total` (`services/{batch,bulk_import_service,rescrape_service,geocode_service}.py` et les constantes homonymes de `cli/reports.py`) et l'identité réconciliée (`_CLES_APPARIEMENT` / `_identite` et les variables locales de la réconciliation dans `services/import_persistence.py`, plus les symboles homologues de `services/rescrape_service.py` et `cli/reports.py`) — **jamais** les champs `ancien` / `nouveau` / `fusion` / `participations` des dataclasses `Reassignment` et `IdentiteReconciliee`, gelés par la clause **Pas d'exception de vocabulaire métier** | fait (#1414) |
 | B | `app/cli/` — `reports`, `url_sources`, `progress`, `validators` | fait (#1448) |
-| C | `app/scrapers/raceresult.py` | en cours (#1451) |
-| D | `app/scrapers/t2area.py` | à faire |
-| E | `app/scrapers/oktime.py` | à faire |
-| F | `app/scrapers/competitor.py` | à faire |
-| G | `app/scrapers/{chronoweb,chronoplace,sporthive}.py` | à faire |
-| H | `app/scrapers/{classify,wiclax,timepulse,klikego,klikego_platform}.py` | à faire |
-| I | `app/core/club.py`, `app/scrapers/utils.py`, `app/services/sheet_source.py` — angle mort du relevé initial, dont le lexique français ne couvrait ni « espace », ni « blanc », ni « normalise », ni « qualifiant », ni « sans_lien » (~7 symboles au relevé initial, 26 au re-scan du 2026-10-15) | à faire |
-| J | `app/scrapers/prolivesport.py`, seul fournisseur absent des lots C à H (32 symboles) | à faire |
+| C | `app/scrapers/raceresult.py` | fait (#1451) |
+| D | `app/scrapers/t2area.py` | fait (#1458) |
+| E | `app/scrapers/oktime.py` | fait (#1459) |
+| F | `app/scrapers/competitor.py` | fait (#1462) |
+| G | `app/scrapers/{chronoweb,chronoplace,sporthive}.py` | fait (#1463) |
+| H | `app/scrapers/{classify,wiclax,timepulse,klikego,klikego_platform}.py` | fait (#1466) |
+| I | `app/core/club.py`, `app/scrapers/utils.py`, `app/services/sheet_source.py` — angle mort du relevé initial, dont le lexique français ne couvrait ni « espace », ni « blanc », ni « normalise », ni « qualifiant », ni « sans_lien » (~7 symboles au relevé initial, 26 au re-scan du 2026-10-15) | fait (#1467) |
+| J | `app/scrapers/prolivesport.py` (32 symboles) et `app/scrapers/breizhchrono.py` (`heats_a_scraper`, `total_a_scraper`, que le re-scan ne voit pas : « a » a moins de trois lettres), seuls fournisseurs hors des lots C à H qui portent encore des identifiants français | à faire |
 | K | `app/repositories/` (60 symboles, dont 22 dans `athlete_repository.py`) | à faire |
 | L | services de lecture et de statistiques : `app/services/{stats_service,club_service,validation_queue_service,split_gap,quality,counter_scope,club_alias}.py` (45 symboles) | à faire |
 | M | services d'administration des données : `app/services/{admin_actions,course_duplicates,course_merge,course_rescrape_service,athlete_detach,feedback_service,training_session_service,profile_service,opposition_service,sse_relay}.py` (54 symboles) | à faire |
@@ -277,6 +295,10 @@ qu'on ne réécrit pas après coup.
 Le lot **A passe avant B**, et ce n'est pas un détail d'ordonnancement :
 `echec_total` traverse quatre modules d'`app` et cinq fichiers de test, dont
 `cli/reports.py`. Pris après B, deux PRs se marcheraient dessus sur ce fichier.
+
+La PR d'un lot passe sa ligne « État » à « fait » avec son numéro, dans la même
+PR : la table ne se périme plus, et un agent qui la lit ne refait pas un lot
+déjà livré.
 
 Cette table est un **plan de découpage**, pas la définition de la fin : la
 dérogation s'éteint quand `backend/app` ne porte plus d'identifiant français
@@ -292,8 +314,11 @@ gelées (il ne voit pas les autres champs de DTO gelés, que chaque lot écarte 
 la main). Sur `origin/main` `0e1d1856`, il en compte 685 dans 99 fichiers, dont
 385 dans 86 fichiers qu'aucun lot A à I ne couvrait ; chacun est désormais
 rattaché à un lot. Le script et sa sortie sont joints à la PR qui ferme #1435
-(dictionnaires : paquets `wfrench`, `wamerican`, `wbritish`). Une fois la
-dérogation éteinte, l'alinéa précédent reprend pleinement. Design et relevé
+(dictionnaires : paquets `wfrench`, `wamerican`, `wbritish`). Le même script,
+relancé le 2026-10-16 (#1475) sur `origin/main` `ad24fb3f`, une fois les lots A
+à I livrés, compte encore 385 identifiants dans les 86 fichiers relevés des lots J à R,
+et dans les lots A à I quatre faux positifs anglais seulement (tokens
+`exclusions` et `cumulatives`). Une fois la dérogation éteinte, l'alinéa précédent reprend pleinement. Design et relevé
 chiffré initial :
 `docs/superpowers/specs/2026-07-31-convention-nommage-identifiants-design.md`.
 
@@ -476,4 +501,4 @@ référence (architecture détaillée, commandes, conventions de scraping). En c
 de divergence entre `AGENTS.md` et cette constitution, la constitution prime
 et `AGENTS.md` doit être aligné.
 
-**Version**: 1.2.3 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-10-15
+**Version**: 1.2.4 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-10-16
