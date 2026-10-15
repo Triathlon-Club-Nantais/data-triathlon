@@ -59,7 +59,7 @@ def load_counter_scope() -> None:
     `configure_cli_logging` et pour la même raison : remplir un registre de
     processus est le rôle du process, pas d'une bibliothèque importée.
 
-    Sans ce chargement, `is_tcn` et `is_federal` se prononceraient sur les
+    Sans ce chargement, `is_tcn` se prononcerait sur les
     défauts du code plutôt que sur ce qui est configuré — `club-labels`
     signalerait comme manquant un libellé déclaré depuis le panel admin.
     """
