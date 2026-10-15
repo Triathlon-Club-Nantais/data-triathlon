@@ -50,12 +50,11 @@ trois repositories :
 | `club_composition` | `athlete_repository.py` | `GET /club/summary` → composition genre/catégorie (#642) |
 | `club_podiums` | `participation_repository.py` | `GET /club/summary` → podiums et podiums par discipline (#581, #642) ; sous `?podiums=preview`, 6 par mode plus `podiums_totals` (ajout de #1354, défaut inchangé) ; `GET /club/podiums` → liste complète, chargée au dépliage |
 
-**`search_by_relevance` joint `Participation` en `outerjoin`** (un athlète à
-zéro résultat doit rester trouvable) : `validated_clause` y vit dans la
-**condition du join**, jamais dans un `.filter()` après coup — un `.filter()`
-post-jointure dégraderait l'`outerjoin` en jointure interne de fait et ferait
-disparaître de la palette un athlète dont l'unique résultat est en attente,
-au lieu de l'y garder à 0 résultat validé (#562).
+**`search_by_relevance` compte par une sous-requête corrélée**, pas par une
+jointure : un athlète à zéro résultat validé reste trouvable (#562), et
+PostgreSQL ne lit que les participations des athlètes trouvés par le nom, par
+les index `athlete_id` (#1392). Joindre `credits()` lui faisait matérialiser
+toute la table à chaque frappe. `validated_clause` vit dans cette sous-requête.
 
 **Délibérément absente** de six autres fonctions de `participation_repository.py` :
 `list_for_athlete` (la surface voulue par FR-019 — la filtrer viderait la

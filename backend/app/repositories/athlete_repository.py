@@ -834,29 +834,37 @@ def search_by_relevance(
     pertinence, jamais entre deux paliers différents.
 
     `validated_clause` (#562) exclut les résultats en attente du **compte**,
-    sans faire disparaître l'athlète : elle vit dans la **condition du
-    outerjoin**, pas dans un `.filter()` après coup. Un `.filter()` post-jointure
-    dégraderait l'`outerjoin` en jointure interne de fait — la ligne pendante
-    serait écartée par le `WHERE`, et un athlète dont l'unique participation
-    est pendante n'aurait alors plus aucune ligne jointe du tout, donc
-    disparaîtrait de la palette au lieu d'y rester à 0 résultat validé.
+    sans faire disparaître l'athlète : un athlète dont l'unique participation
+    est pendante reste dans la palette à 0 résultat validé.
+
+    Le compte est une sous-requête corrélée à chaque athlète trouvé, pas une
+    jointure sur `credits()` : PostgreSQL ne restreint pas cette union aux
+    athlètes du nom et la matérialiserait en entier à chaque frappe (#1392).
+    Même forme que `participation_repository.carried_by` (non importable ici,
+    l'import serait circulaire) : le porteur d'un relais figure parmi ses
+    équipiers, l'`IN` ne le compte qu'une fois.
     """
-    compte = func.count(Participation.id)
-    rang = _relevance_rank(term)
-    lien = credits()
-    requete = (
-        db.query(Athlete, compte)
-        .outerjoin(lien, lien.c.athlete_id == Athlete.id)
-        .outerjoin(
-            Participation,
-            and_(
-                Participation.id == lien.c.participation_id,
-                validated_clause(Participation.is_pending_validation),
+    direct = aliased(Participation)
+    compte = (
+        select(func.count(Participation.id))
+        .where(
+            Participation.id.in_(
+                union_all(
+                    # Les membres d'une union ne se corrèlent pas d'eux-mêmes.
+                    select(direct.id)
+                    .where(direct.athlete_id == Athlete.id)
+                    .correlate(Athlete),
+                    select(ParticipationTeammate.participation_id)
+                    .where(ParticipationTeammate.athlete_id == Athlete.id)
+                    .correlate(Athlete),
+                )
             ),
+            validated_clause(Participation.is_pending_validation),
         )
-        .filter(name_filter(term))
-        .group_by(Athlete.id)
+        .scalar_subquery()
     )
+    rang = _relevance_rank(term)
+    requete = db.query(Athlete, compte).filter(name_filter(term))
     if club_only:
         requete = requete.filter(_club_record())
     return (
