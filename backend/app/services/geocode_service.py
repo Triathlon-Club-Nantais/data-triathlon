@@ -22,7 +22,8 @@ from app.core import http
 from app.core.config import get_settings
 from app.core.time import utcnow
 from app.repositories import course_repository
-from app.services.batch import BatchFailure, is_total_failure
+from app.services import batch
+from app.services.batch import BatchFailure
 
 logger = logging.getLogger(__name__)
 
@@ -221,7 +222,7 @@ class GeocodeOutcome:
         """
         if self.dry_run:
             return False
-        return is_total_failure(events=self.total, errors=self.errors)
+        return batch.is_total_failure(events=self.total, errors=self.errors)
 
 
 def run_geocode_courses(

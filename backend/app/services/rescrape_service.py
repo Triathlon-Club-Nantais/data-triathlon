@@ -25,12 +25,11 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.models.course import Course
 from app.repositories import athlete_repository, course_repository, course_source_repository
-from app.services import sheet_source
+from app.services import batch, sheet_source
 from app.services.batch import (
     BatchFailure,
     BatchItem,
     copy_totals,
-    is_total_failure,
     run_batch,
 )
 from app.services.import_persistence import PassiveSource
@@ -221,7 +220,7 @@ class RescrapeOutcome:
         """
         if self.dry_run:
             return False
-        return is_total_failure(events=self.total, errors=self.errors)
+        return batch.is_total_failure(events=self.total, errors=self.errors)
 
 
 def run_rescrape_db(
@@ -285,10 +284,10 @@ def run_rescrape_db(
 
     outcome.reconciled = totals.reconciled
     outcome.merged = len({r.ancien for r in totals.reassignments if r.fusion})
-    compteur = Counter((r.ancien, r.nouveau) for r in totals.reassignments)
+    counts = Counter((r.ancien, r.nouveau) for r in totals.reassignments)
     outcome.reconciliations = [
         IdentiteReconciliee(ancien=ancien, nouveau=nouveau, participations=n)
-        for (ancien, nouveau), n in compteur.items()
+        for (ancien, nouveau), n in counts.items()
     ]
 
     # Nettoyage des orphelins : une seule fois, après tout le batch, et jamais en

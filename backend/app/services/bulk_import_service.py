@@ -10,12 +10,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.scrapers import registry
-from app.services import sheet_source
+from app.services import batch, sheet_source
 from app.services.batch import (
     BatchFailure,
     BatchItem,
     copy_totals,
-    is_total_failure,
     run_batch,
 )
 from app.services.import_persistence import PassiveSource
@@ -61,7 +60,7 @@ class SheetOutcome:
         Propriété (et non champ) : `asdict()` ne sérialise que les champs, la
         charge utile `--json` reste inchangée.
         """
-        return is_total_failure(events=self.unique_supported, errors=self.errors)
+        return batch.is_total_failure(events=self.unique_supported, errors=self.errors)
 
 
 def run_import_sheet(

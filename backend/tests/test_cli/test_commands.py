@@ -866,7 +866,7 @@ def test_tube_ferme_ne_masque_pas_le_ctrl_c(monkeypatch):
     assert result.exit_code != 0
 
 
-# --- dénominateur d'`is_total_failure` sous `--limit` -----------------------------
+# --- dénominateur d'`is_total_failure` sous `--limit` ------------------------
 #
 # Ces deux tests traversent la **vraie** chaîne commande → service → run_batch
 # (seuls le scrape et la Session sont doublés) : ce sont les seuls à épingler le
