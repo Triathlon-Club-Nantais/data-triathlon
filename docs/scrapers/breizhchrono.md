@@ -150,7 +150,7 @@ accentué (« Côte d'Emeraude », que le slug aplatit en « Cote Demeraude ») 
 **une date par heat** — à Dinard 2025, le trail court le 12/09 et les triathlons
 les 13 et 14/09.
 
-Type d'épreuve : `classify_event_type(heat, contexte=slug)` côté classique,
+Type d'épreuve : `classify_event_type(heat, context=slug)` côté classique,
 **heat seul** côté live (le slug d'épreuve y nomme une discipline vedette qui
 fausserait le type des autres heats). Relais : `heat_is_relay` sur le libellé et
 le slug, plus un signal propre à Breizh Chrono — un slug relais dont le libellé

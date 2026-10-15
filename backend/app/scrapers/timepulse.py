@@ -127,17 +127,17 @@ _SERIES_SPLIT_MAP = [
 _RELAY_CATEGORIES = frozenset({"EQX", "EQM", "EQF"})
 
 
-def _is_relay(parcours: str, category: str) -> bool:
+def _is_relay(heat: str, category: str) -> bool:
     """Vrai si la participation est un relais d'équipe.
 
     Deux marqueurs concordants sur TimePulse : le parcours `p` contient
     « RELAIS » (vs « SOLO »), et/ou la catégorie `ca` est une catégorie d'équipe.
     """
-    return heat_is_relay(parcours) or (category or "").upper() in _RELAY_CATEGORIES
+    return heat_is_relay(heat) or (category or "").upper() in _RELAY_CATEGORIES
 
 
-def _series_field(nom: str) -> str | None:
-    n = nom.lower().strip()
+def _series_field(label: str) -> str | None:
+    n = label.lower().strip()
     for key, field in _SERIES_SPLIT_MAP:
         if key in n:
             return field
@@ -154,8 +154,8 @@ def _parse_series(xml: str) -> dict[str, str]:
     entries: list[tuple[str, str]] = []
     for s in root.iter("S"):
         idx = s.get("id", "")
-        nom = s.get("nom", s.get("lb", ""))
-        field = _series_field(nom)
+        label = s.get("nom", s.get("lb", ""))
+        field = _series_field(label)
         if idx and field:
             entries.append((idx, field))
 
@@ -225,11 +225,11 @@ def _compute_ranks(root) -> dict[tuple[str, str], tuple[int, int, int]]:
     bumped per athlete, so one pass yields every rank (#944).
     """
     e_by_bib: dict[str, dict] = {}
-    parcours_by_bib: dict[str, set[str]] = {}
+    heats_by_bib: dict[str, set[str]] = {}
     for e in root.iter("E"):
         b = e.get("d", "")
         e_by_bib[b] = e.attrib
-        parcours_by_bib.setdefault(b, set()).add(e.get("p", ""))
+        heats_by_bib.setdefault(b, set()).add(e.get("p", ""))
 
     timed: dict[str, list[tuple[int, str]]] = {}
     for r in root.iter("R"):
@@ -237,7 +237,7 @@ def _compute_ranks(root) -> dict[tuple[str, str], tuple[int, int, int]]:
         s = to_seconds(normalize_time(r.get("t", "")))
         if not s:
             continue
-        for p in parcours_by_bib.get(b, ()):
+        for p in heats_by_bib.get(b, ()):
             timed.setdefault(p, []).append((s, b))
 
     ranks: dict[tuple[str, str], tuple[int, int, int]] = {}
@@ -318,15 +318,15 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     # racine du document EST `<Epreuve>` (vérifié en direct sur l'épreuve
     # 3232), jamais un `<Triathlon>` l'enveloppant comme le supposaient les
     # fixtures de test. `root.iter()` inclut la racine, contrairement à `find`.
-    epreuve_elem = next(root.iter("Epreuve"), None)
-    if epreuve_elem is not None:
-        event_name = epreuve_elem.get("nom", "")
+    race_elem = next(root.iter("Epreuve"), None)
+    if race_elem is not None:
+        event_name = race_elem.get("nom", "")
         # `dates` (libellé libre) est parfois vide ; on replie alors sur les
         # dates ISO de début/fin `dt1`/`dt2` (cas réel 3232 « LE NORTH MAY »).
         date_str = (
-            epreuve_elem.get("dates", "")
-            or epreuve_elem.get("dt1", "")
-            or epreuve_elem.get("dt2", "")
+            race_elem.get("dates", "")
+            or race_elem.get("dt1", "")
+            or race_elem.get("dt2", "")
         )
         if date_str:
             event_date_val = _parse_event_date(date_str)
@@ -350,9 +350,9 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         if not bib:
             continue
 
-        parcours = ea.get("p", "")
+        heat = ea.get("p", "")
         full_name = ea.get("n", "")
-        if not parcours.strip() and not full_name.strip():
+        if not heat.strip() and not full_name.strip():
             # Entrée incomplète côté TimePulse (dossard technique/réutilisé,
             # pas un vrai participant) : sans parcours ni nom,
             # qualify_event_name(event_name, "") rend le nom non qualifié et
@@ -365,7 +365,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         # Le format (S/M/L) est porté par le parcours `p` de chaque <E>, pas par
         # le nom global de l'épreuve (ex. « LE NORTH MAY » → Triathlon S/M/L SOLO).
         result.event_type = (
-            classify_event_type(parcours, contexte=event_name) if parcours else event_type_fallback
+            classify_event_type(heat, context=event_name) if heat else event_type_fallback
         )
         # Qualifié par le parcours, comme Klikego/ProLiveSport (#674) : deux parcours
         # distincts peuvent partager un même event_type (« Trail 9 km »/« Trail 16 km »
@@ -375,7 +375,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         # sont calculés par `_compute_ranks` en aval **par parcours** : chaque rang 1..N
         # se retrouverait dupliqué autant de fois que de parcours fusionnés (mesuré,
         # épreuve 3201 « Trail + Run and Bike du Bignon »).
-        result.event_name = qualify_event_name(event_name, parcours)
+        result.event_name = qualify_event_name(event_name, heat)
 
         surname, firstname = split_athlete_name(full_name)
         result.athlete_name = surname
@@ -383,7 +383,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         result.club = ea.get("c", "")
         result.gender = ea.get("x", "")
         result.category = ea.get("ca", "")
-        result.is_relay = _is_relay(parcours, result.category)
+        result.is_relay = _is_relay(heat, result.category)
 
         ra = r_by_bib.get(bib, {})
 
@@ -416,14 +416,14 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
             if not result.run_time:
                 _derive_late_splits(result, ra)
 
-            if parcours:
+            if heat:
                 # rank_overall ne dépend que du parcours (tri des temps <R>) :
                 # gender/category ne servent qu'à rank_gender/rank_category en
                 # aval dans _compute_ranks. Les exiger tous les trois privait
                 # d'un rang_overall par ailleurs valide tout participant dont
                 # l'un des deux est vide côté source (#787, cas réel : 28/178
                 # finishers Bignon Trail 12 km sans `category`).
-                ro, rg, rc = ranks.get((parcours, bib), (None, None, None))
+                ro, rg, rc = ranks.get((heat, bib), (None, None, None))
                 result.rank_overall = ro
                 result.rank_gender = rg if result.gender else None
                 # rank_category filtre aussi par gender dans _compute_ranks

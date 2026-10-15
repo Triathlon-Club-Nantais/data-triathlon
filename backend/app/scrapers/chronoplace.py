@@ -346,7 +346,7 @@ def _event_type(analytics: dict, event_name: str) -> str:
     race = analytics.get("epreuve_name")
     if race:
         return classify_event_type(
-            race, contexte=event_name or analytics.get("event_type") or ""
+            race, context=event_name or analytics.get("event_type") or ""
         )
     return classify_event_type(analytics.get("event_type") or event_name)
 

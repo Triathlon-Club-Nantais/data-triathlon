@@ -129,7 +129,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 "url": url,
                 "event_name": qualify_event_name(event_name, race_name),
                 "event_date": _local_date(race.get("date") or edition.get("start_date")),
-                "event_type": classify_event_type(race_name, contexte=event_name),
+                "event_type": classify_event_type(race_name, context=event_name),
                 "is_relay": heat_is_relay(race_name),
                 "race_id": race["race_id"],
             }

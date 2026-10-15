@@ -154,7 +154,7 @@ def test_classify_mono_sport(text, expected):
     ("Duathlon", "Triathlon M de Pornic", "duathlon"),
 ])
 def test_classify_contexte(epreuve, evenement, expected):
-    assert classify_event_type(epreuve, contexte=evenement) == expected
+    assert classify_event_type(epreuve, context=evenement) == expected
 
 
 # --- Élision « l' » et toponymes « Longue… » ne valent pas taille L (#902) ---
@@ -173,7 +173,7 @@ def test_classify_contexte(epreuve, evenement, expected):
     ("Format L", "", "triathlon-l"),
 ])
 def test_classify_elision_et_longue(epreuve, contexte, expected):
-    assert classify_event_type(epreuve, contexte=contexte) == expected
+    assert classify_event_type(epreuve, context=contexte) == expected
 
 
 def test_normalize_elision_ne_vaut_pas_taille_l():
@@ -183,7 +183,7 @@ def test_normalize_elision_ne_vaut_pas_taille_l():
 def test_classify_contexte_absent_ne_change_rien():
     """Le paramètre est optionnel : sans lui, le classement d'hier est intact."""
     assert classify_event_type("Format M individuel") == "triathlon-m"
-    assert classify_event_type("Format M individuel", contexte="") == "triathlon-m"
+    assert classify_event_type("Format M individuel", context="") == "triathlon-m"
 
 
 # --- Normalisation (idempotence + reprise de l'existant) ---
