@@ -26,6 +26,8 @@ describe("CourseWeather", () => {
     expect(link).toHaveAttribute("title", expect.stringContaining("CC BY 4.0"));
     expect(link).toHaveTextContent("18 °C · vent 11 km/h · pluie 0,4 mm");
     expect(link).toHaveTextContent("Open-Meteo");
+    expect(link).toHaveAccessibleName(expect.stringContaining("Données Open-Meteo, nouvel onglet"));
+    expect(link).toHaveClass("tcn-cible-tactile");
   });
 
   it("omet le vent et la pluie inconnus", () => {

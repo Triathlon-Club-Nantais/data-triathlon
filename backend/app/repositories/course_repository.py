@@ -376,6 +376,10 @@ def save_geocode_attempt(db: Session, course: Course, coord: tuple[float, float]
     perd que la tentative en cours, jamais celles déjà persistées.
     """
     if coord is not None:
+        if coord != (course.latitude, course.longitude):
+            # Déplacée (#1256) : la météo de l'ancien lieu est fausse, à redemander (#1370).
+            course.weather_temperature_c = course.weather_wind_kmh = None
+            course.weather_precipitation_mm = course.weather_fetched_at = None
         course.latitude, course.longitude = coord
     course.geocoded_at = utcnow()
     db.commit()

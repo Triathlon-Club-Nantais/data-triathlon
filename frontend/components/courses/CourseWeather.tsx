@@ -14,14 +14,18 @@ export function CourseWeather({ course }: { course: CourseBrief }) {
   const parts = [`${whole.format(temperature)} °C`];
   if (wind != null) parts.push(`vent ${whole.format(wind)} km/h`);
   if (rain != null) parts.push(`pluie ${tenth.format(rain)} mm`);
+  const values = parts.join(" · ");
   return (
     <MetaPill
       label="Météo"
       href="https://open-meteo.com/"
-      title="Moyennes du jour de course. Données Open-Meteo.com, licence CC BY 4.0."
+      className="tcn-cible-tactile"
+      title="Température et vent moyens, pluie cumulée sur le jour de course. Données Open-Meteo.com, licence CC BY 4.0 (nouvel onglet)."
+      ariaLabel={`Météo du jour de course : ${values}. Données Open-Meteo, nouvel onglet`}
     >
-      {parts.join(" · ")}
+      {values}
       <span style={{ color: "var(--tcn-text-faint)", fontWeight: 400 }}>Open-Meteo</span>
+      <span aria-hidden="true">↗</span>
     </MetaPill>
   );
 }

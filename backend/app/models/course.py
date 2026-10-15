@@ -102,7 +102,8 @@ class Course(Base):
     # Météo du jour de course (#1370), moyennes journalières faute d'heure de
     # départ (la pluie est un cumul). Seul point d'écriture :
     # `weather_service.run_weather_courses`, hors ligne. `weather_fetched_at`
-    # NULL = jamais servie, l'épreuve reste ciblée.
+    # NULL = jamais servie, l'épreuve reste ciblée. Un déplacement par
+    # `save_geocode_attempt` les remet à NULL, pour redemander le vrai lieu.
     weather_temperature_c: Mapped[float | None] = mapped_column(Float, nullable=True)
     weather_wind_kmh: Mapped[float | None] = mapped_column(Float, nullable=True)
     weather_precipitation_mm: Mapped[float | None] = mapped_column(Float, nullable=True)

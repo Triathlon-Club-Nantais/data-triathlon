@@ -15,6 +15,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.core import http
+from app.models.course import Course
 from app.repositories import course_repository
 from app.services import batch
 from app.services.batch import BatchFailure
@@ -93,7 +94,9 @@ def run_weather_courses(
     """Pose la météo des épreuves géocodées et datées qui n'en ont pas (#1370).
 
     Idempotent : une épreuve servie n'est plus ciblée. Un échec ne persiste
-    rien, il est retenté au lancement suivant. Un appel par lieu et date,
+    rien, il est retenté au lancement suivant (un appel de quelques dizaines de
+    millisecondes, sans délai de reprise : un échec durable se lit dans le
+    détail du bilan). Un appel par lieu et date,
     propagé aux heats qui les partagent ; chaque épreuve est commitée seule,
     un Ctrl-C ne perd que la tentative en cours.
     """
@@ -105,7 +108,7 @@ def run_weather_courses(
         outcome.dry_run_names = [c.name for c in courses]
         return outcome
 
-    events: dict[tuple[float, float, date], list] = {}
+    events: dict[tuple[float, float, date], list[Course]] = {}
     for course in courses:
         events.setdefault((course.latitude, course.longitude, course.event_date), []).append(course)
 
