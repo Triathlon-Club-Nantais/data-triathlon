@@ -681,7 +681,9 @@ def _scrape_results_race(slug: str, url: str, client: httpx.Client) -> list[Scra
     GET /api/events/{eventSlug} → nom et date de l'événement
     GET /api/races/{slug}/results → liste des athlètes
     """
-    meta = client.get(f"{API_BASE}/races/{slug}", timeout=15).json()
+    resp = client.get(f"{API_BASE}/races/{slug}", timeout=15)
+    # Une course supprimée chez le fournisseur répond 404 avec une page HTML (#1350).
+    meta = {} if resp.status_code == 404 else resp.json()
     if "error" in meta or not meta.get("slug"):
         raise ValueError(f"Course Sportinnovation introuvable : {slug}")
     event_name = ""
