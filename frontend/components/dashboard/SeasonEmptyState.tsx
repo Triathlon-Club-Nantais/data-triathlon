@@ -4,6 +4,17 @@ import { currentSeason, seasonAbsenceLabel } from "@/lib/utils/season";
 
 const LINK_CLASS = "tcn-cible-tactile inline-flex items-center text-sm font-semibold text-accent-ink hover:underline";
 
+/** Sortie « Ajouter une épreuve » des états vides du tableau de bord (#1415, #1421). */
+export function AddEventLink() {
+  return (
+    <Link href="/ajouter" className={LINK_CLASS}>
+      <span>
+        Ajouter une épreuve <span aria-hidden="true">→</span>
+      </span>
+    </Link>
+  );
+}
+
 /**
  * Sélection de saisons sans aucun résultat, partagée par le tableau de bord et
  * `/resultats` (#1404, #1409). Une sélection vide vaut la saison en cours.
@@ -21,11 +32,7 @@ export function SeasonEmptyState({ seasons, currentSeasonHref }: { seasons: numb
               Voir la saison en cours
             </Link>
           )}
-          <Link href="/ajouter" className={LINK_CLASS}>
-            <span>
-              Ajouter une épreuve <span aria-hidden="true">→</span>
-            </span>
-          </Link>
+          <AddEventLink />
         </div>
       }
     />

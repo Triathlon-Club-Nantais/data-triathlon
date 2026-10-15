@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 
 const getStats = vi.fn();
 const listEvents = vi.fn();
@@ -123,6 +123,17 @@ describe("DashboardPage — états vides (ETAT-3)", () => {
     // du dashboard s'affichent ensemble, d'où `getAllBy` plutôt que `getBy`.
     const liens = screen.getAllByRole("link", { name: /Ajouter une épreuve/ });
     expect(liens.every((l) => l.getAttribute("href") === "/ajouter")).toBe(true);
+  });
+
+  it("gives the empty discipline card link a touch target and a hidden arrow (#1421)", async () => {
+    getStats.mockResolvedValue({ ...STATS, by_type: {} });
+    await renderDashboard({});
+
+    const carte = screen.getByRole("heading", { name: "Type d'épreuves" }).parentElement!;
+    const ajouter = within(carte).getByRole("link", { name: "Ajouter une épreuve" });
+    expect(ajouter).toHaveAttribute("href", "/ajouter");
+    expect(ajouter).toHaveClass("tcn-cible-tactile");
+    expect(ajouter.querySelector('[aria-hidden="true"]')).toHaveTextContent("→");
   });
 
   it("propose d'ajouter une épreuve quand la liste des dernières épreuves est vide", async () => {

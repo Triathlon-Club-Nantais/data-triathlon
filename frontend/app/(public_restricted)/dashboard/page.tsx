@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
@@ -18,7 +17,7 @@ import { PageShell } from "@/components/layout/PageShell";
 import { EmptyState } from "@/components/ui/empty-state";
 import { aggregateDisciplines, formatCount, pctFr } from "@/lib/utils/format";
 import { DisciplineBar } from "./DisciplineBar";
-import { SeasonEmptyState } from "@/components/dashboard/SeasonEmptyState";
+import { AddEventLink, SeasonEmptyState } from "@/components/dashboard/SeasonEmptyState";
 
 export const metadata: Metadata = { title: "Tableau de bord" };
 
@@ -157,11 +156,7 @@ export default async function DashboardPage({
                 <EmptyState
                   bare
                   title="Aucune épreuve enregistrée"
-                  action={
-                    <Link href="/ajouter" className="text-sm font-semibold text-accent-ink hover:underline">
-                      Ajouter une épreuve →
-                    </Link>
-                  }
+                  action={<AddEventLink />}
                 />
               ) : (
                 <>
