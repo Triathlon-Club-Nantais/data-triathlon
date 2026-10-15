@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { act, render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -76,6 +76,14 @@ vi.mock("@/lib/api/client", () => ({
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), message: vi.fn() } }));
 
+// Witness of the lazy load (#1395): the manual form, and zod with it, must only be
+// imported once manual entry opens. A plain counter, since clearAllMocks would reset a vi.fn.
+const manualForm = vi.hoisted(() => ({ loads: 0 }));
+vi.mock("./ManualResultForm", async (importOriginal) => {
+  manualForm.loads += 1;
+  return importOriginal();
+});
+
 import { TcnScrapeForm } from "./TcnScrapeForm";
 import { apiClient } from "@/lib/api/client";
 import { toast } from "sonner";
@@ -103,6 +111,12 @@ function renderForm() {
       ),
   };
 }
+
+// Warms the form's module graph outside any case timeout (#1389). importActual skips the
+// mock factory, so the witness still only counts the component's own import.
+beforeAll(async () => {
+  await vi.importActual("./ManualResultForm");
+}, 30_000);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -133,6 +147,24 @@ beforeEach(() => {
     detailTotal: 0,
     startedAt: 0,
     endedAt: 0,
+  });
+});
+
+// Must stay the first describe: once any case opens manual entry, the module is cached.
+describe("TcnScrapeForm — lazy manual form (#1395)", () => {
+  it("loads the manual form only when manual entry opens", async () => {
+    vi.mocked(apiClient.detectProvider).mockResolvedValue({ provider: "", supported: false });
+    renderForm();
+    await userEvent.type(champUrl(), "https://chronopuce.test/x");
+    const open = await screen.findByRole("button", { name: "Saisir à la main" });
+    expect(manualForm.loads).toBe(0);
+
+    await userEvent.click(open);
+
+    expect(
+      await screen.findByRole("button", { name: "Enregistrer votre participation" }),
+    ).toBeInTheDocument();
+    expect(manualForm.loads).toBe(1);
   });
 });
 
@@ -407,7 +439,7 @@ describe("TcnScrapeForm — un seul verdict avant d'essayer (#492, ACT-6)", () =
     await userEvent.click(await screen.findByRole("button", { name: "Saisir à la main" }));
 
     expect(
-      screen.getByRole("button", { name: "Enregistrer votre participation" }),
+      await screen.findByRole("button", { name: "Enregistrer votre participation" }),
     ).toBeInTheDocument();
   });
 });
@@ -537,7 +569,7 @@ describe("TcnScrapeForm — repli sur échec d'import", () => {
       expect(apiClient.reportPendingProvider).toHaveBeenCalledWith("http://x.test/ev"),
     );
     expect(
-      screen.getByRole("button", { name: "Enregistrer votre participation" }),
+      await screen.findByRole("button", { name: "Enregistrer votre participation" }),
     ).toBeInTheDocument();
   });
 });
@@ -795,6 +827,7 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
       "https://chronopuce.test/x",
     );
     await userEvent.click(await screen.findByRole("button", { name: "Saisir à la main" }));
+    await screen.findByRole("button", { name: "Enregistrer votre participation" });
   }
 
   async function saisirEtEnregistrer() {
@@ -866,7 +899,7 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
     );
 
     expect(
-      screen.getByRole("button", { name: "Enregistrer votre participation" }),
+      await screen.findByRole("button", { name: "Enregistrer votre participation" }),
     ).toBeInTheDocument();
   });
 
