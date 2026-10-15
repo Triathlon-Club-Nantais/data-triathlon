@@ -1533,3 +1533,15 @@ def test_the_awaiting_validation_read_uses_its_partial_index(sqlite_url):
     assert "ix_participations_awaiting_validation" not in _index_names(sqlite_url, "participations")
     command.upgrade(cfg, "head")
     assert "ix_participations_awaiting_validation" in _index_names(sqlite_url, "participations")
+
+
+def test_downgrade_puis_upgrade_de_la_meteo(sqlite_url):
+    """#1370 : les quatre colonnes météo de `courses`."""
+    weather = {"weather_temperature_c", "weather_wind_kmh",
+               "weather_precipitation_mm", "weather_fetched_at"}
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    assert weather <= _columns(sqlite_url, "courses")
+
+    command.downgrade(cfg, "f16822237c78")
+    assert not weather & _columns(sqlite_url, "courses")

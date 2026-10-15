@@ -11,6 +11,7 @@ import { ReliabilityMark, SplitCoverageNote } from "@/components/results/Reliabi
 import { CourseSourcesPanel } from "@/components/courses/CourseSourcesPanel";
 import { CourseAdminActions } from "@/components/courses/CourseAdminActions";
 import { ClubBreakdown } from "@/components/courses/ClubBreakdown";
+import { CourseWeather } from "@/components/courses/CourseWeather";
 import { CourseChallengesNote } from "@/components/challenges/CourseChallengesNote";
 import { eventTypeLabel } from "@/lib/constants";
 import { participationStatusLabel } from "@/lib/labels";
@@ -168,6 +169,7 @@ export default async function CoursePage({
           <MetaPill label="Type">{eventTypeLabel(course.event_type)}</MetaPill>
           <MetaPill label="Format">{formatToken(course.event_type, course.distance_km)}</MetaPill>
           {course.event_date && <MetaPill label="Date">{formatDate(course.event_date)}</MetaPill>}
+          <CourseWeather course={course} />
           <MetaPill label="Participants">{total}</MetaPill>
           {/* Hors du total, mais dit sur toutes les pages : les lignes en
               attente ne s'affichent qu'en fin de classement (#1273). */}

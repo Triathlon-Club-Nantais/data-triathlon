@@ -40,6 +40,19 @@ def epreuve(db_session):
 # ── GET /courses/{id} — classement paginé ────────────────────────────────────
 
 
+def test_course_brief_exposes_stored_weather(client, db_session, epreuve):
+    """#1370 : la météo stockée, lue sans aucun appel réseau."""
+    epreuve.weather_temperature_c = 18.0
+    epreuve.weather_wind_kmh = 11.3
+    epreuve.weather_precipitation_mm = 0.4
+    db_session.commit()
+
+    course = client.get(f"/api/v1/courses/{epreuve.id}").json()["course"]
+
+    assert (course["weather_temperature_c"], course["weather_wind_kmh"],
+            course["weather_precipitation_mm"]) == (18.0, 11.3, 0.4)
+
+
 def test_classement_pagine_par_defaut_a_20(client, epreuve):
     body = client.get(f"/api/v1/courses/{epreuve.id}").json()
 
