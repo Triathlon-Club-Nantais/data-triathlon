@@ -684,7 +684,7 @@ function CourseNavigator({ courses }: { courses: ImportedCourse[] }) {
 
   return (
     <div style={{ marginTop: 12 }}>
-      <Eyebrow style={{ fontSize: 12, letterSpacing: "var(--tcn-eyebrow-tracking)", marginBottom: 8 }}>
+      <Eyebrow style={{ fontSize: 12, marginBottom: 8 }}>
         {courses.length} épreuve{courses.length > 1 ? "s" : ""} importée{courses.length > 1 ? "s" : ""}
       </Eyebrow>
       <div
