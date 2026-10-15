@@ -258,6 +258,21 @@ describe("EventList", () => {
     expect(screen.queryByRole("link", { name: "Voir la saison en cours" })).not.toBeInTheDocument();
   });
 
+  it("offre la saison en cours quand plusieurs saisons, dont elle, sont vides (#1404)", () => {
+    searchParams = new URLSearchParams(`seasons=${currentSeason()},2019`);
+    setEvents({
+      data: { pages: [{ items: [], total_events: 0, total_participations: 0 }] },
+      fetchNextPage: vi.fn(),
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      isLoading: false,
+    });
+
+    renderList({ seasons: [currentSeason(), 2019] });
+    expect(screen.getByText("Aucun résultat enregistré pour les 2 saisons sélectionnées")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Voir la saison en cours" })).toHaveAttribute("href", "/resultats");
+  });
+
   it("offre une sortie vers la saison en cours quand une autre saison est vide (#1404)", () => {
     searchParams = new URLSearchParams("seasons=2019&scope=club&sort=name");
     setEvents({
