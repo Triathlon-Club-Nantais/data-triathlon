@@ -290,7 +290,7 @@ def _build(
     Les recalculer depuis l'ordre de la liste s'écarte d'une place au-delà de
     quelques centaines de lignes (mesuré, #898).
     """
-    name, first_name = split_athlete_name(row.get("nom", ""))
+    last_name, first_name = split_athlete_name(row.get("nom", ""))
     key = _detail_key(row.get("details_href", ""))
     category = row.get("cat", "")
     place = row.get("clt", "")
@@ -299,7 +299,7 @@ def _build(
     result.event_name = event_name
     result.event_type = event_type
     result.event_date = event_date
-    result.athlete_name = name
+    result.athlete_name = last_name
     result.athlete_firstname = first_name
     result.club = row.get("club", "")
     result.category = category
