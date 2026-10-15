@@ -59,12 +59,15 @@ class ProfileGroupRead(BaseModel):
 
 
 class ProfileDetailRead(ProfileRead):
-    """Un profil et son journal — la ressource qui justifie l'objet entier."""
+    """Un profil et son journal — la ressource qui justifie l'objet entier.
 
-    emergency_contact: str
-    notes: str
+    Contact d'urgence, notes et journal valent `None` sans le pouvoir
+    `jeunes:read`, qu'une écriture seule n'ouvre pas (#1472)."""
+
+    emergency_contact: str | None
+    notes: str | None
     groups: list[ProfileGroupRead]
-    log_entries: list[ProfileLogEntryRead]
+    log_entries: list[ProfileLogEntryRead] | None
 
 
 class ProfileCreate(BaseModel):

@@ -75,7 +75,7 @@ def test_jeunes_write_alone_does_not_pass_reading(client, ouvrir_session):
 
 
 def test_a_profile_is_created_with_minimal_fields(client, ouvrir_session):
-    ouvrir_session(P.JEUNES_WRITE)
+    ouvrir_session(P.JEUNES_READ, P.JEUNES_WRITE)
 
     response = client.post(BASE, json={"first_name": "Alix", "last_name": "Martin"})
 
@@ -95,7 +95,7 @@ def test_an_empty_first_name_is_refused(client, ouvrir_session):
 
 
 def test_updating_a_profile_changes_only_the_given_field(client, ouvrir_session, profile):
-    ouvrir_session(P.JEUNES_WRITE)
+    ouvrir_session(P.JEUNES_READ, P.JEUNES_WRITE)
 
     response = client.patch(
         f"{BASE}/{profile['id']}", json={"emergency_contact": "Mère — 06 00 00 00 00"}
@@ -168,7 +168,7 @@ def test_jeunes_read_alone_does_not_pass_any_write(client, ouvrir_session, metho
 
 
 def test_adding_a_log_entry_makes_it_appear_first(client, ouvrir_session, profile):
-    ouvrir_session(P.JEUNES_WRITE)
+    ouvrir_session(P.JEUNES_READ, P.JEUNES_WRITE)
 
     response = client.post(
         f"{BASE}/{profile['id']}/log-entries",
@@ -182,7 +182,7 @@ def test_adding_a_log_entry_makes_it_appear_first(client, ouvrir_session, profil
 
 def test_several_log_entries_all_remain_visible(client, ouvrir_session, profile):
     """FR-006 — aucune entrée n'écrase la précédente."""
-    ouvrir_session(P.JEUNES_WRITE)
+    ouvrir_session(P.JEUNES_READ, P.JEUNES_WRITE)
     path = f"{BASE}/{profile['id']}/log-entries"
 
     client.post(path, json={"text": "Première entrée"})
@@ -209,7 +209,7 @@ def test_a_log_entry_on_an_unknown_profile_returns_404(client, ouvrir_session):
 
 
 def test_the_log_entry_author_is_named(client, ouvrir_session, profile):
-    actor = ouvrir_session(P.JEUNES_WRITE, nom="Encadrant Un")
+    actor = ouvrir_session(P.JEUNES_READ, P.JEUNES_WRITE, nom="Encadrant Un")
 
     response = client.post(
         f"{BASE}/{profile['id']}/log-entries", json={"text": "Note de séance"}
@@ -257,3 +257,69 @@ def test_the_detail_lists_the_groups_of_the_profile(client, ouvrir_session, prof
     body = client.get(f"{BASE}/{profile['id']}").json()
 
     assert body["groups"] == [{"id": alpha["id"], "name": "Alpha"}, {"id": beta["id"], "name": "Beta"}]
+
+
+# --- #1472 : sans `jeunes:read`, les écritures taisent les données personnelles ---
+
+
+PERSONAL_FIELDS = ("emergency_contact", "notes", "log_entries")
+
+
+@pytest.fixture
+def profile_with_personal_data(client, ouvrir_session):
+    ouvrir_session(P.JEUNES_READ, P.JEUNES_WRITE)
+    created = client.post(
+        BASE,
+        json={
+            "first_name": "Zoé",
+            "last_name": "Roux",
+            "emergency_contact": "Mère 06 12 34 56 78",
+            "notes": "Asthme",
+        },
+    ).json()
+    client.post(f"{BASE}/{created['id']}/log-entries", json={"text": "Bonne séance"})
+    return created
+
+
+def _profile_writes(client, profile_id: int):
+    return [
+        client.post(
+            BASE,
+            json={
+                "first_name": "Alix",
+                "last_name": "Martin",
+                "emergency_contact": "Père 06 98 76 54 32",
+                "notes": "Allergie",
+            },
+        ),
+        client.patch(f"{BASE}/{profile_id}", json={}),
+        client.post(f"{BASE}/{profile_id}/log-entries", json={"text": "Autre séance"}),
+    ]
+
+
+def test_writes_hide_personal_data_from_a_session_without_jeunes_read(
+    client, ouvrir_session, profile_with_personal_data
+):
+    """Un `PATCH` vide ne doit pas lire ce que la garde de lecture refuse :
+    contact d'urgence, notes et journal de bord (#1405)."""
+    ouvrir_session(P.JEUNES_WRITE)
+
+    for response in _profile_writes(client, profile_with_personal_data["id"]):
+        assert response.status_code in (200, 201)
+        body = response.json()
+        for field in PERSONAL_FIELDS:
+            assert body[field] is None, field
+
+
+def test_writes_show_personal_data_with_jeunes_read(
+    client, ouvrir_session, profile_with_personal_data
+):
+    ouvrir_session(P.JEUNES_READ, P.JEUNES_WRITE)
+
+    created, patched, logged = _profile_writes(client, profile_with_personal_data["id"])
+
+    assert created.json()["emergency_contact"] == "Père 06 98 76 54 32"
+    assert created.json()["notes"] == "Allergie"
+    assert patched.json()["emergency_contact"] == "Mère 06 12 34 56 78"
+    assert patched.json()["notes"] == "Asthme"
+    assert [entry["text"] for entry in logged.json()["log_entries"]] == ["Autre séance", "Bonne séance"]
