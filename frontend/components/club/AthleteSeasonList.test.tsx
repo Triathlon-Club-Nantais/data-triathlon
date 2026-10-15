@@ -95,6 +95,17 @@ describe("AthleteSeasonList", () => {
     expect(screen.getByText(/saison validée/i)).toBeInTheDocument();
   });
 
+  it("#1402 : le badge « Saison validée » est écrit en orange profond (contraste AA), pas en orange de marque", () => {
+    render(
+      <AthleteSeasonList
+        athletes={[athlete({ id: 1, nom: "VALIDE", season_validated: true })]}
+      />,
+    );
+
+    const badge = screen.getByText(/saison validée/i);
+    expect(badge.style.color).toBe("var(--tcn-orange-deeper)");
+  });
+
   it("#709 : n'affiche aucun badge de validation quand plusieurs saisons sont sélectionnées (season_validated null)", () => {
     render(
       <AthleteSeasonList
