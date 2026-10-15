@@ -514,6 +514,36 @@ def test_listing_users_issues_a_constant_number_of_queries(
     assert len(with_twenty_one_users) == len(with_two_users), with_twenty_one_users
 
 
+def test_listing_users_matches_the_single_user_view(
+    client, ouvrir_session, db_session, organisation
+):
+    """#1393: the grouped load renders each row exactly as `user_view` does."""
+    from app.repositories import role_repository, user_repository, user_role_repository
+    from app.schemas.admin import AdminUserRead
+    from app.services.auth import authorization
+
+    ouvrir_session(superutilisateur=True)
+    other = Organisation(slug="autre", name="Autre club")
+    db_session.add(other)
+    two_roles = ouvrir_session(P.QUALITY_OVERRIDE, pose_le_cookie=False)
+    extra = role_repository.create(db_session, slug="extra", name="Extra")
+    db_session.flush()
+    user_role_repository.grant(
+        db_session, user_id=two_roles.id, role_id=extra.id, organisation_id=other.id
+    )
+    ouvrir_session(pose_le_cookie=False)
+    db_session.commit()
+
+    rows = client.get("/api/v1/admin/users").json()
+
+    expected = [
+        AdminUserRead.model_validate(authorization.user_view(db_session, user))
+        .model_dump(mode="json")
+        for user in user_repository.list_all(db_session)
+    ]
+    assert rows == expected
+    assert sorted(len(row["roles"]) for row in rows) == [0, 1, 2]
+
 
 # --- Organisation inconnue (#1096) --------------------------------------------
 
