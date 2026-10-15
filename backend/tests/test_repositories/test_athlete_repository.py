@@ -1430,3 +1430,36 @@ def test_club_roster_and_rank_list_a_licensed_member_whatever_the_record_club(db
     assert [a.nom for a, *_ in athlete_repository.club_roster(db_session)] == ["LICENCIE"]
     assert athlete_repository.club_rank(db_session, licensed.id) == (1, 1)
     assert athlete_repository.club_rank(db_session, outsider.id) is None
+
+
+def test_search_by_relevance_counts_a_relay_once_for_its_carrier(db_session):
+    _relais_attribue(db_session)
+    db_session.flush()
+
+    ((athlete, compte),) = athlete_repository.search_by_relevance(db_session, term="DUPONT")
+
+    assert (athlete.nom, compte) == ("DUPONT", 1)
+
+
+def test_search_by_relevance_counts_only_the_matched_athletes_participations(db_session):
+    """#1392: the count is correlated to each matched athlete, so PostgreSQL reads
+    their participations through the athlete_id indexes instead of materialising
+    every credit of the table."""
+    from sqlalchemy import event
+
+    statements = []
+    engine = db_session.get_bind()
+
+    def capture(conn, cursor, statement, *args):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", capture)
+    try:
+        athlete_repository.search_by_relevance(db_session, term="herr")
+    finally:
+        event.remove(engine, "before_cursor_execute", capture)
+
+    (sql,) = [s for s in statements if "participation_teammates" in s]
+    assert "participation_teammates.athlete_id = athletes.id" in sql, sql
+    assert "participations_1.athlete_id = athletes.id" in sql, sql
+    assert "participation_teammates, athletes" not in sql, sql

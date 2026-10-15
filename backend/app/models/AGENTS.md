@@ -114,7 +114,10 @@
     `only_on_course`). Un équipier n'est référencé que par la liaison :
     `delete_orphans_among` l'épargne explicitement. `carried_by` reste un seul
     `id IN (… UNION ALL …)` : un `OR` entre porteur et liaison fait parcourir
-    toute la table `participations` à PostgreSQL (#1391).
+    toute la table `participations` à PostgreSQL (#1391). La palette ⌘K
+    (`athlete_repository.search_by_relevance`) en reprend la forme, corrélée à
+    chaque athlète trouvé, plutôt que de joindre `credits()`, que PostgreSQL
+    matérialise en entier (#1392).
   - **L'import ne touche jamais un relais attribué** : `_Persister` le met à
     jour en valeurs sans résoudre l'identité de l'équipe (avec dossard), et
     l'apparie par `team_name` normalisé (`_team_key`, sans dossard) — sinon le
