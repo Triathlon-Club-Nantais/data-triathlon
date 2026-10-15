@@ -239,14 +239,15 @@ pièges mesurés et invariants dans
 
 ## Plafonds de débit par IP (#395, #398)
 
-Huit routes publiques sont plafonnées par IP, **route par route** comme les
+Neuf routes publiques sont plafonnées par IP, **route par route** comme les
 gardes de pouvoir — `api/deps.scrape_rate_limit` sur `POST /scrape/event` et
 `POST /scrape/event/stream`, `api/deps.authorize_rate_limit` sur
 `GET /auth/{provider}/authorize`, `api/deps.public_write_rate_limit` sur
 `POST /admin/pending-providers` et `POST /participations`,
 `api/deps.site_access_rate_limit` sur `POST /site-access/session` (#509),
-`api/deps.benevole_login_rate_limit` sur `POST /benevoles/session` (#917), et
-`api/deps.csp_report_rate_limit` sur `POST /csp-reports` (#1168).
+`api/deps.benevole_login_rate_limit` sur `POST /benevoles/session` (#917),
+`api/deps.csp_report_rate_limit` sur `POST /csp-reports` (#1168), et
+`api/deps.volunteer_action_rate_limit` sur `POST /volunteer-actions` (#1397).
 Quatre choses à ne pas défaire :
 
 - **Un seul seau par geste, pas par route.** Les deux routes de scraping
@@ -296,6 +297,13 @@ rapports sans cookies. Elle n'écrit que des logs, et son seau `csp_report`
 (120/h) ne suffit pas à les borner seul : un lot `report-to` de 64 Kio peut
 porter près de 2 000 éléments, d'où le plafond de lignes par requête de
 `services/csp_report.MAX_VIOLATIONS_PER_REQUEST`.
+
+La neuvième, `POST /volunteer-actions` (#1397), est derrière la garde du site
+et écrit une déclaration en attente par appel (description jusqu'à 10 000
+caractères). Son seau `volunteer_action` (30/h) est **dédié** par la règle
+réciproque ci-dessus : elle n'est dans le geste d'aucune écriture de
+`public_write`, et partager ce seau couplerait la saisie d'une saison à la
+déclaration d'un bénévolat.
 
 Le SSE prend `optional_user` et journalise son appelant : il ne le faisait pas,
 et un import lancé depuis là ne laissait aucune trace de qui l'avait demandé.
