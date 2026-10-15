@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_permission
 from app.core.database import get_db
 from app.core.permissions import P
+from app.models.training_session import TrainingSession
 from app.models.user import User
 from app.schemas.training_session import (
     ParticipantAdd,
@@ -23,8 +24,19 @@ from app.schemas.training_session import (
     TrainingSessionUpdate,
 )
 from app.services import training_session_service
+from app.services.auth import authorization
 
 router = APIRouter(tags=["admin"])
+
+
+def _detail_for(db: Session, actor: User, training_session: TrainingSession) -> dict:
+    """Le détail rendu par une écriture : `jeunes:write` seul n'ouvre pas le
+    contact d'urgence, que seul `jeunes:read` laisse lire (#1405)."""
+    return training_session_service.training_session_detail_view(
+        db,
+        training_session,
+        with_emergency_contact=authorization.has_permission(db, actor, P.JEUNES_READ),
+    )
 
 
 @router.get("/admin/training-sessions", response_model=list[TrainingSessionRead])
@@ -46,7 +58,9 @@ def get_training_session(
 ):
     """Un entraînement **et sa liste de participants inscrits**."""
     training_session = training_session_service.get_training_session_or_404(db, training_session_id)
-    return training_session_service.training_session_detail_view(db, training_session)
+    return training_session_service.training_session_detail_view(
+        db, training_session, with_emergency_contact=True
+    )
 
 
 @router.post(
@@ -67,7 +81,7 @@ def create_training_session(
         session_type=body.session_type,
         group_ids=body.group_ids,
     )
-    view = training_session_service.training_session_detail_view(db, training_session)
+    view = _detail_for(db, actor, training_session)
     db.commit()
     return view
 
@@ -102,7 +116,7 @@ def update_training_session(
         note=note_fournie,
         group_ids=champs_fournis.get("group_ids"),
     )
-    view = training_session_service.training_session_detail_view(db, training_session)
+    view = _detail_for(db, actor, training_session)
     db.commit()
     return view
 
@@ -137,7 +151,7 @@ def add_participant(
     training_session_service.add_participant(
         db, actor, training_session, profile_id=body.profile_id, present=body.present
     )
-    view = training_session_service.training_session_detail_view(db, training_session)
+    view = _detail_for(db, actor, training_session)
     db.commit()
     return view
 
@@ -177,6 +191,6 @@ def set_presence(
     training_session_service.set_presence(
         db, actor, training_session, profile_id=profile_id, present=body.present
     )
-    view = training_session_service.training_session_detail_view(db, training_session)
+    view = _detail_for(db, actor, training_session)
     db.commit()
     return view

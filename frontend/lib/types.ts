@@ -611,6 +611,8 @@ export interface TrainingParticipant {
   /** Catégorie FFTri du jeune, `null` sans date de naissance (#1291). */
   category: string | null;
   created_at: string;
+  /** Contact d'urgence du jeune (#1405), `""` s'il est vide, `null` sans le pouvoir `jeunes:read`. */
+  emergency_contact: string | null;
 }
 
 /** Un entraînement et sa liste de participants inscrits. */

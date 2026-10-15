@@ -91,6 +91,26 @@ def test_training_session_detail_view_lists_participants(db_session, actor, prof
     assert [p["profile_id"] for p in detail["participants"]] == [profile.id]
 
 
+def test_training_session_detail_view_carries_the_emergency_contact_on_request(
+    db_session, actor, organisation
+):
+    young = profile_repository.create(
+        db_session,
+        organisation_id=organisation.id,
+        first_name="Alix",
+        last_name="Martin",
+        emergency_contact="Parent 06 12 34 56 78",
+    )
+    training_session = service.create_training_session(db_session, actor, date=date(2026, 9, 20))
+    service.add_participant(db_session, actor, training_session, profile_id=young.id)
+
+    shown = service.training_session_detail_view(db_session, training_session, with_emergency_contact=True)
+    hidden = service.training_session_detail_view(db_session, training_session)
+
+    assert shown["participants"][0]["emergency_contact"] == "Parent 06 12 34 56 78"
+    assert hidden["participants"][0]["emergency_contact"] is None
+
+
 def test_update_entrainement_only_writes_provided_fields(db_session, actor):
     training_session = service.create_training_session(
         db_session, actor, date=date(2026, 9, 20), location="Base nautique"

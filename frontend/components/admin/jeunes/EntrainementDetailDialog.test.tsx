@@ -54,7 +54,7 @@ const INSCRITE: TrainingSessionDetail = {
   group_ids: [7, 8],
   participant_count: 1,
   participants: [
-    { profile_id: 42, present: null, added_manually: false, category: null, created_at: "2026-10-10T10:00:00Z" },
+    { profile_id: 42, present: null, added_manually: false, category: null, created_at: "2026-10-10T10:00:00Z", emergency_contact: null },
   ],
 };
 
