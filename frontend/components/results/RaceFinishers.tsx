@@ -8,7 +8,7 @@ import { StatusBadge } from "@/components/results/StatusBadge";
 import { EquipeRelais, nomEquipe } from "@/components/results/EquipeRelais";
 import { isNonFinisher } from "@/lib/utils/raceOrder";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
-import { secondsFromHms } from "@/lib/utils/time";
+import { comparableSeconds, secondsFromHms } from "@/lib/utils/time";
 import { genderShort, ordinalFr } from "@/lib/utils/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClassementPagination } from "@/components/results/ClassementPagination";
@@ -408,7 +408,7 @@ export function RaceFinishers({
 
   /** Temps (en secondes) du participant pour la colonne de tri active. */
   function temps(p: Participation, cle: string): number | null {
-    return secondsFromHms(cle === CLE_TEMPS_TOTAL ? p.total_time : p.splits?.[cle]);
+    return comparableSeconds(cle === CLE_TEMPS_TOTAL ? p.total_time : p.splits?.[cle]);
   }
 
   // Valeurs non temporelles (DNF/DNS/DSQ, segment non publié) envoyées en fin

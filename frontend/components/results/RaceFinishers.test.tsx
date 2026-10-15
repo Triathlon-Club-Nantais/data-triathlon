@@ -638,6 +638,21 @@ describe("RaceFinishers", () => {
     expect(nomsAffiches()).toEqual(["RAPIDE T", "LENT T", "SANSNATATION T"]);
   });
 
+  it("sends a 00:00:00 total time last when sorting, like a missing time (#1480)", async () => {
+    afficher({
+      participations: [
+        ...dataAvecSplits.slice(0, 2),
+        p({ id: 3, nom: "SANSNATATION", rank_overall: 3, total_time: "00:00:00", splits: {} }),
+      ],
+      summary: synthese({ split_keys: ["swim"] }),
+      eventType: "triathlon-m",
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /Trier par temps total/i }));
+
+    expect(nomsAffiches()).toEqual(["RAPIDE T", "LENT T", "SANSNATATION T"]);
+  });
+
   it("recliquer sur l'en-tête « Temps total » inverse l'ordre en décroissant", async () => {
     afficher({
       participations: dataAvecSplits,

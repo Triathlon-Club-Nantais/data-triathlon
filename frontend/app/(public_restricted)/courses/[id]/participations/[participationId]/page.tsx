@@ -21,7 +21,7 @@ import { formatDate } from "@/lib/utils/date";
 import { ordinalFr } from "@/lib/utils/format";
 import { Histogram } from "@/components/charts/Histogram";
 import { CategoryBars } from "@/components/charts/CategoryBars";
-import { secondsFromHms } from "@/lib/utils/time";
+import { comparableSeconds } from "@/lib/utils/time";
 
 export const metadata: Metadata = { title: "Résultat individuel" };
 
@@ -76,7 +76,7 @@ export default async function ParticipationDetailPage({
       ? "rejected"
       : "pending";
   // Repérer le temps déclaré dans la distribution le comparerait aux autres.
-  const markerSec = validation ? null : secondsFromHms(participation.total_time);
+  const markerSec = validation ? null : comparableSeconds(participation.total_time);
 
   return (
     <PageShell>
