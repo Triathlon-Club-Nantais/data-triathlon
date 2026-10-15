@@ -327,10 +327,10 @@ def test_la_purge_des_seaux_n_efface_pas_le_quota_d_une_autre_fenetre(monkeypatc
     assert long_seau in deps._hits
 
 
-_DECLARATION_BENEVOLAT = "/api/v1/volunteer-actions"
+_VOLUNTEER_ACTION = "/api/v1/volunteer-actions"
 
 
-def _declaration(db_session) -> dict:
+def _volunteer_action_body(db_session) -> dict:
     from app.repositories import athlete_repository
 
     athlete = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean", club="TCN")
@@ -338,32 +338,32 @@ def _declaration(db_session) -> dict:
     return {"athlete_id": athlete.id, "title": "Ravitaillement", "description": "Poste eau km 15."}
 
 
-def test_la_declaration_de_benevolat_est_plafonnee(client, db_session, monkeypatch):
+def test_volunteer_action_is_rate_limited(client, db_session, monkeypatch):
     """#1397 : chaque appel écrit une déclaration en attente, avec pour seule
     garde en amont le mot de passe partagé du site. Sans plafond, quiconque le
     détient remplit la file d'attente admin en boucle."""
     monkeypatch.setattr(deps, "VOLUNTEER_ACTION_RATE_LIMIT_MAX_PER_WINDOW", 2)
-    corps = _declaration(db_session)
+    body = _volunteer_action_body(db_session)
 
-    assert client.post(_DECLARATION_BENEVOLAT, json=corps).status_code == 201
-    assert client.post(_DECLARATION_BENEVOLAT, json=corps).status_code == 201
+    assert client.post(_VOLUNTEER_ACTION, json=body).status_code == 201
+    assert client.post(_VOLUNTEER_ACTION, json=body).status_code == 201
 
-    refus = client.post(_DECLARATION_BENEVOLAT, json=corps)
-    assert refus.status_code == 429
-    assert int(refus.headers["Retry-After"]) > 0
-    assert "réessayez plus tard" in refus.text
+    refusal = client.post(_VOLUNTEER_ACTION, json=body)
+    assert refusal.status_code == 429
+    assert int(refusal.headers["Retry-After"]) > 0
+    assert "réessayez plus tard" in refusal.text
 
 
-def test_la_declaration_de_benevolat_a_son_propre_seau(client, db_session, monkeypatch):
+def test_volunteer_action_has_its_own_bucket(client, db_session, monkeypatch):
     """Elle n'est dans le geste d'aucune écriture publique (import échoué,
     signalement, saisie manuelle) : partager `public_write` couplerait la
     saisie d'une saison à la déclaration d'un bénévolat, l'erreur de #513."""
     monkeypatch.setattr(deps, "PUBLIC_WRITE_RATE_LIMIT_MAX_PER_WINDOW", 1)
     monkeypatch.setattr(deps, "VOLUNTEER_ACTION_RATE_LIMIT_MAX_PER_WINDOW", 1)
-    corps = _declaration(db_session)
+    body = _volunteer_action_body(db_session)
 
     assert client.post(_PARTICIPATIONS, json=_RESULTAT).status_code == 201
     assert client.post(_PARTICIPATIONS, json=_RESULTAT).status_code == 429
 
-    assert client.post(_DECLARATION_BENEVOLAT, json=corps).status_code == 201
-    assert client.post(_DECLARATION_BENEVOLAT, json=corps).status_code == 429
+    assert client.post(_VOLUNTEER_ACTION, json=body).status_code == 201
+    assert client.post(_VOLUNTEER_ACTION, json=body).status_code == 429
