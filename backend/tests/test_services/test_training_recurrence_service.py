@@ -228,28 +228,6 @@ def test_deleting_a_group_then_its_recurrence_holds_with_enforced_foreign_keys(d
     assert db.query(TrainingSession).count() == 0
 
 
-def test_the_recurrence_list_query_count_does_not_grow_with_sessions(db_session, actor):
-    from sqlalchemy import event
-
-    def count_queries():
-        db_session.expire_all()
-        statements = []
-        engine = db_session.get_bind()
-        listener = lambda *args: statements.append(args[2])  # noqa: E731
-        event.listen(engine, "before_cursor_execute", listener)
-        try:
-            service.list_recurrence_views(db_session)
-        finally:
-            event.remove(engine, "before_cursor_execute", listener)
-        return len(statements)
-
-    recurrence, _ = _create(db_session, actor, weeks=2)
-    few = count_queries()
-    service.update_recurrence(db_session, actor, recurrence, ends_on=recurrence.ends_on + timedelta(weeks=10))
-
-    assert count_queries() == few
-
-
 def _count_list_queries(db_session):
     from sqlalchemy import event
 
@@ -263,6 +241,14 @@ def _count_list_queries(db_session):
     finally:
         event.remove(engine, "before_cursor_execute", listener)
     return len(statements)
+
+
+def test_the_recurrence_list_query_count_does_not_grow_with_sessions(db_session, actor):
+    recurrence, _ = _create(db_session, actor, weeks=2)
+    few = _count_list_queries(db_session)
+    service.update_recurrence(db_session, actor, recurrence, ends_on=recurrence.ends_on + timedelta(weeks=10))
+
+    assert _count_list_queries(db_session) == few
 
 
 def test_the_recurrence_list_query_count_does_not_grow_with_recurrences(db_session, actor):
