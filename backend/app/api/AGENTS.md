@@ -295,7 +295,7 @@ site comme le reste de l'API (`require_site_access`, posé à l'inclusion dans
 `v1/router.py`) : un visiteur qui ne l'a jamais entré ne les atteint plus du
 tout, plafond ou pas. La sixième, `POST /site-access/session`, est par
 construction hors de cette garde — c'est elle qui la satisfait. La septième,
-`POST /benevoles/session`, en est exemptée par choix (`benevoles` figure dans
+`POST /benevoles/session`, en est exemptée par choix (`volunteers` figure dans
 `_EXEMPT_FROM_SITE_GUARD`). Ces deux plafonds sont donc les seuls qui
 bornent encore un vrai anonyme, sans garde en amont. Celui des bénévoles a son
 seau `benevole_login` (30/h), plus serré que `site_access` : même scrypt par
@@ -497,18 +497,18 @@ CLI d'amorçage, sans acteur, n'écrivent rien.
 
 ## Page bénévoles : une seconde garde, hors du socle SSO (#271)
 
-`benevoles.py` porte dix ressources gardées par `require_volunteer_access`
+`volunteers.py` porte dix ressources gardées par `require_volunteer_access`
 (`api/deps.py`) — **pas** `require_permission`. Mot de passe partagé (5-6
 bénévoles). Décision produit et alternatives rejetées : `specs/20260815-
 114258-page-validation-benevoles/research.md` §D1.
 
 **Exception par pouvoir (#1272)** : un connecté qui détient
 `benevole_access:manage` (superutilisateur compris) passe sans le cookie, ses
-écritures journalisées à **son** `user_id` (`benevole_access.actor_user_id`).
+écritures journalisées à **son** `user_id` (`volunteer_access.actor_user_id`).
 Tout autre appelant garde le même 401, jamais un 403. La garde rend donc
 `User | None` ; les écritures la prennent en paramètre, les lectures en
 `dependencies=`. Le client des tests `tests/test_api/` porte une session
-superutilisateur : `test_benevoles_api.py` la retire pour éprouver le bénévole.
+superutilisateur : `test_volunteers_api.py` la retire pour éprouver le bénévole.
 Le front masque à cet admin « Se déconnecter » de la page ; en
 contrepartie `POST /auth/logout` efface aussi le cookie bénévoles, qui sinon
 survivrait à sa déconnexion sur un poste partagé.
@@ -516,7 +516,7 @@ survivrait à sa déconnexion sur un poste partagé.
 
 **Le mot de passe est géré depuis le back-office, plus une variable
 d'environnement** (`specs/20260815-173645-admin-mdp-benevoles/`) : trois
-routes sous `admin_benevole_access.py`, gardées par le pouvoir dédié
+routes sous `admin_volunteer_access.py`, gardées par le pouvoir dédié
 `benevole_access:manage` (`GET`/`PUT /admin/benevoles/access`,
 `POST /admin/benevoles/access/generate`), lisent et écrivent la table
 `benevole_access_config` — une seule ligne à tout instant, absence = accès
@@ -527,10 +527,10 @@ même qui signe le cookie (research.md §D2 de cette dernière feature), ce qui
 permet de préserver la propriété d'#271 — changer le mot de passe invalide
 tous les cookies d'un coup (seule révocation retenue, aucune identité
 individuelle à révoquer) — sans jamais avoir besoin de relire le mot de passe
-en clair. `services/benevole_access.replace_password` est le seul point
+en clair. `services/volunteer_access.replace_password` est le seul point
 d'écriture des trois champs secrets, toujours ensemble.
 Le cookie expire aussi **côté serveur** 30 jours après la connexion, sans renouvellement
-(`benevole_access.VOLUNTEER_SESSION_TTL_SECONDS`, #1534), lus sur son
+(`volunteer_access.VOLUNTEER_SESSION_TTL_SECONDS`, #1534), lus sur son
 horodatage signé : posé sans `max_age`, il survivait sinon à toute
 restauration de session du navigateur.
 
@@ -594,7 +594,7 @@ se lit comme une régression d'ouverture, pas comme une absence de couverture.
 `site_access.py` (`POST`/`DELETE /site-access/session`, `GET` pour la
 vérification) et `admin_site_access.py` (`GET`/`PUT /admin/site-access`,
 `POST /admin/site-access/generate`) reprennent, secret par secret, le même
-duo que `benevoles.py`/`admin_benevole_access.py` — même patron de mot de
+duo que `volunteers.py`/`admin_volunteer_access.py` — même patron de mot de
 passe haché+salé (`hashlib.scrypt`) et de cookie signé HMAC, gardé par le
 pouvoir dédié `site_access:manage`. Deux différences assumées, pas un
 doublon à fusionner : ce mot de passe ferme **tout** le site (posé en
@@ -612,7 +612,7 @@ devenu **dédié** en revue de #513, cf. § « Plafonds de débit par IP »).
 `health` (sonde Render ; **503** quand la base ne répond pas, #1070, car le
 keep-warm et la supervision ne lisent que le statut), `site_access` (elle pose la garde), `auth` +
 `admin_site_access` (le chemin qui installe le tout premier mot de passe sur un
-déploiement neuf), `benevoles` (le bénévole n'a que **son** mot de passe, cf. la
+déploiement neuf), `volunteers` (le bénévole n'a que **son** mot de passe, cf. la
 section ci-dessus) et `feedback` (revue de #513 — `FeedbackButton` vit dans le
 layout racine du front, donc il se rend aussi sur `/acces` et `/benevoles`, où
 aucun cookie de site n'existe ; son unique route est déjà bornée par honeypot et
