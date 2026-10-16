@@ -312,7 +312,7 @@ qu'on ne réécrit pas après coup.
 | P | `app/api/v1/` (59 symboles) | fait (#1502) |
 | Q | `app/schemas/` (24 symboles), **jamais** les champs `en_cours` / `traite` de `FeedbackCounts` ni `epreuves` de `BatchLaunched`, clés JSON gelées par la clause **Pas d'exception de vocabulaire métier** | fait (#1526) |
 | R | `app/cli/commands/`, hors du lot B (22 symboles) | fait (#1500) |
-| S | `app/services/club_members_service.py` (`_NOM_HEADERS`, `_PRENOM_HEADERS`, `nom_at`, `prenom_at`), fichier qu'aucun lot ne listait, relevé par le re-scan de clôture (#1538) | fait (PR_S) |
+| S | `app/services/club_members_service.py` (`_NOM_HEADERS`, `_PRENOM_HEADERS`, `nom_at`, `prenom_at`), fichier qu'aucun lot ne listait, relevé par le re-scan de clôture (#1538) | fait (#1614) |
 
 Le lot **A passe avant B**, et ce n'est pas un détail d'ordonnancement :
 `echec_total` traverse quatre modules d'`app` et cinq fichiers de test, dont
