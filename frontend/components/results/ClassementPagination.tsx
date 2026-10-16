@@ -40,8 +40,8 @@ export function ClassementPagination({
     alignItems: "center",
     justifyContent: "center",
   } as const;
-  // 44 px sous md, plancher de 28 px au delà : la densité de bureau ne bouge pas.
-  const cible = "tcn-cible-tactile";
+  // 44 px sous md, plancher de 28 px au delà, sous la hauteur naturelle (31 px) : le bureau ne bouge pas.
+  const touchTarget = "tcn-cible-tactile";
   // `--tcn-text-faint` seul tient 5,21:1 sur blanc (revue UI/UX #485) : une
   // opacité en plus n'ajoutait qu'une redondance illisible (2,03:1).
   const inactif = { ...style, color: "var(--tcn-text-faint)" };
@@ -80,21 +80,21 @@ export function ClassementPagination({
           style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "14px 24px", flexWrap: "wrap" }}
         >
           {page > 1 ? (
-            <Link href={lienVers({ page: null })} className={cible} style={style}>‹‹ Première</Link>
+            <Link href={lienVers({ page: null })} className={touchTarget} style={style}>‹‹ Première</Link>
           ) : (
-            <span className={cible} style={inactif} aria-disabled="true">‹‹ Première</span>
+            <span className={touchTarget} style={inactif} aria-disabled="true">‹‹ Première</span>
           )}
           {page > 1 ? (
             <Link
               href={lienVers({ page: precedente === 1 ? null : String(precedente) })}
-              className={cible}
+              className={touchTarget}
               style={style}
               rel="prev"
             >
               ‹ Précédent
             </Link>
           ) : (
-            <span className={cible} style={inactif} aria-disabled="true">‹ Précédent</span>
+            <span className={touchTarget} style={inactif} aria-disabled="true">‹ Précédent</span>
           )}
           <form method="get" onSubmit={surSoumission} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--tcn-text-muted)" }}>
             {autresParametres.map(([cle, valeur]) => (
@@ -113,7 +113,7 @@ export function ClassementPagination({
               value={saisie}
               onChange={(e) => setSaisie(e.target.value)}
               aria-describedby="classement-page-total"
-              className={cible}
+              className={touchTarget}
               style={{ width: 68, padding: "2px 8px", fontSize: 13, borderRadius: "var(--tcn-radius-md)", border: "1px solid var(--tcn-border-input)", background: "var(--tcn-surface)", color: "var(--tcn-ink)" }}
             />
             <span id="classement-page-total">sur {nbPages}</span>
@@ -121,19 +121,19 @@ export function ClassementPagination({
                 implicite par Entrée dépend du nombre de champs du formulaire et
                 n'existe pas du tout au doigt. Il porte aussi le saut sans
                 JavaScript. */}
-            <button type="submit" className={cible} style={{ ...style, background: "var(--tcn-fill)", cursor: "pointer" }}>
+            <button type="submit" className={touchTarget} style={{ ...style, background: "var(--tcn-fill)", cursor: "pointer" }}>
               Aller
             </button>
           </form>
           {page < nbPages ? (
-            <Link href={lienVers({ page: String(page + 1) })} className={cible} style={style} rel="next">Suivant ›</Link>
+            <Link href={lienVers({ page: String(page + 1) })} className={touchTarget} style={style} rel="next">Suivant ›</Link>
           ) : (
-            <span className={cible} style={inactif} aria-disabled="true">Suivant ›</span>
+            <span className={touchTarget} style={inactif} aria-disabled="true">Suivant ›</span>
           )}
           {page < nbPages ? (
-            <Link href={lienVers({ page: String(nbPages) })} className={cible} style={style}>Dernière ››</Link>
+            <Link href={lienVers({ page: String(nbPages) })} className={touchTarget} style={style}>Dernière ››</Link>
           ) : (
-            <span className={cible} style={inactif} aria-disabled="true">Dernière ››</span>
+            <span className={touchTarget} style={inactif} aria-disabled="true">Dernière ››</span>
           )}
         </nav>
       )}
@@ -143,7 +143,7 @@ export function ClassementPagination({
           id="classement-taille"
           value={String(tailleCourante)}
           onChange={(e) => onTaille(parsePageSize(e.target.value))}
-          className={cible}
+          className={touchTarget}
           style={{ padding: "2px 8px", fontSize: 13, borderRadius: "var(--tcn-radius-md)", border: "1px solid var(--tcn-border-input)", background: "var(--tcn-surface)", color: "var(--tcn-ink)" }}
         >
           {options.map((o) => (

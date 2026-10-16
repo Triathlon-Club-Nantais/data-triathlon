@@ -1177,7 +1177,7 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     writeAthlete({ id: 3, prenom: "Thomas", nom: "DNFGUY" });
     afficher({ total: 100, pageSize: 20, page: 3 });
 
-    const commandes = [
+    const controls = [
       screen.getByLabelText("Rechercher un athlète"),
       screen.getByRole("button", { name: "Chercher" }),
       screen.getByRole("button", { name: /Aller à ma ligne/ }),
@@ -1189,9 +1189,9 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
       screen.getByLabelText("Aller à la page"),
       screen.getByLabelText("Lignes par page"),
     ];
-    for (const commande of commandes) {
-      expect(commande).toHaveClass("tcn-cible-tactile");
-      expect(commande.style.minHeight).toBe("");
+    for (const control of controls) {
+      expect(control).toHaveClass("tcn-cible-tactile");
+      expect(control.style.minHeight).toBe("");
     }
   });
 

@@ -20,16 +20,18 @@ const Top10Icon = () => (
 // Rendu dédoublé F / H pour le mode gender (#104 US3). L'espacement passe par
 // des marges plutôt que le `gap` du flex : le `gap` fait partie de la plage
 // sélectionnable et peignait une bande orange dans le vide entre les libellés
-// et leurs chiffres, une marge reste hors de la sélection (#375).
+// et leurs chiffres, une marge reste hors de la sélection (#375). Libellés et
+// marges en `em` (20, 6 et 18 px à 68 px) : quand `StatCard` réduit la valeur
+// pour la faire tenir (#1540), ils suivent les chiffres au lieu de les dominer.
 function GenderPair({ women, men }: { women: number; men: number }): ReactNode {
   return (
     <span style={{ display: "inline-flex", alignItems: "baseline", fontFamily: "var(--tcn-font-display)" }}>
       <span style={{ display: "inline-flex", alignItems: "baseline" }}>
-        <span style={{ fontSize: 20, fontWeight: 700, color: "var(--tcn-text-muted)", marginRight: 6 }}>F</span>
+        <span style={{ fontSize: "0.294em", fontWeight: 700, color: "var(--tcn-text-muted)", marginRight: "0.3em" }}>F</span>
         <span>{women}</span>
       </span>
-      <span style={{ display: "inline-flex", alignItems: "baseline", marginLeft: 18 }}>
-        <span style={{ fontSize: 20, fontWeight: 700, color: "var(--tcn-text-muted)", marginRight: 6 }}>H</span>
+      <span style={{ display: "inline-flex", alignItems: "baseline", marginLeft: "0.265em" }}>
+        <span style={{ fontSize: "0.294em", fontWeight: 700, color: "var(--tcn-text-muted)", marginRight: "0.3em" }}>H</span>
         <span>{men}</span>
       </span>
     </span>
