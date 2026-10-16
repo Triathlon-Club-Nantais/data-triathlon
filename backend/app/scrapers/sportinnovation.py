@@ -422,9 +422,9 @@ def _parse_api_athlete(
     """Construit un ScrapedResult depuis un athlète de l'API JSON sportinnovation.
 
     L'API sert deux schémas de résultats selon la course : l'historique
-    (`generalRanking`, `officialTime`) et un schéma « FFA » (`generalRank`,
-    `officialTimeFfa`), sans référence athlète. On lit les deux, l'historique
-    primant quand les deux coexistent.
+    (`generalRanking`, `officialTime`) et un schéma « FFA » (`generalRank`, ou
+    `officialGeneralRank` depuis #1575, et `officialTimeFfa`), sans référence
+    athlète. On lit les deux, l'historique primant quand les deux coexistent.
     """
     res = ScrapedResult(source_url=url, provider="sportinnovation")
     res.event_name = event_name
@@ -482,6 +482,7 @@ def _location_to_slot(location: str) -> str | None:
     Triathlon (labels français, ex. BayMan) :
       "Temps Natation" → swim, "Transition 1" → t1, "Temps Vélo" → bike,
       "Transition 2" → t2, "Temps CaP" → run
+      Schéma FFA inline (#1575) : "Tps Nat" → swim, "Tps Velo" → bike
 
     Duathlon (labels checkpoints) :
       IN1 → swim (course1), OUT1 → t1, VELO1 → bike, OUT2 → t2, IN2 → run (course2)
@@ -535,16 +536,16 @@ def _inline_intermediates_to_splits(intermediates: list[dict]) -> dict[str, str]
     """Splits from the cumulative passes carried inline by the FFA schema (#1575).
 
     A segment is the gap with the previous slot's pass, so it stays empty when
-    that pass is missing. The first pass of a repeated point wins; FINISH closes
-    the run.
+    that pass is missing. The earliest pass of a repeated point wins; FINISH
+    closes the run. Measured on a triathlon only.
     """
     passes: dict[str, int] = {}
     for inter in intermediates:
         label = inter.get("controlPointLabel") or ""
         slot = "run" if label.strip().upper() == "FINISH" else _location_to_slot(label)
         seconds = to_seconds(normalize_time(inter.get("realTimeFfa") or ""), strict=True)
-        if slot and seconds and slot not in passes:
-            passes[slot] = seconds
+        if slot and seconds:
+            passes[slot] = min(passes.get(slot, seconds), seconds)
     splits: dict[str, str] = {}
     previous = 0
     for slot in _SLOT_ORDER:

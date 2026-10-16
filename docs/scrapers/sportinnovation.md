@@ -33,12 +33,14 @@ laissait les splits vides. Ils sont pourtant dans la liste elle-même :
 - Un segment est l'écart avec le passage du segment précédent ; il reste vide si
   ce passage manque (13 lignes s'arrêtent après le vélo, 5 sautent vélo et T2).
   Un point répété (5 « Transition 2 » doublées, une seconde d'écart au plus)
-  garde son premier passage. Liste vide sur les DNS.
+  garde son passage le plus tôt. Liste vide sur les DNS.
+- Mesuré sur un triathlon seulement : un duathlon de ce schéma (libellés
+  `IN1`/`OUT1`…, cumulés ou non) est à re-sonder avant de s'y fier.
 - Rangs : `officialGeneralRank`, `officialSexRank`, `officialCategoryRank`
   (et leurs `real*`), et non `generalRank`/`sexRank`/`categoryRank`.
-- Le `realTimeFfa` de `FINISH` peut différer de `officialTimeFfa` (une
-  minute sur le dossard 844) : le total reste l'officiel, la course à pied se
-  calcule sur le temps réel.
+- Le `realTimeFfa` de `FINISH` peut différer de `officialTimeFfa` de
+  plusieurs minutes (6 min 43 s sur le dossard 761) : le total reste
+  l'officiel, la somme des splits suit le temps réel.
 - Source fautive connue : le dossard 338 n'a pas de passage vélo et un
   « Transition 1 » à 04:47:11, d'où une T1 de 4 h importée telle quelle.
 

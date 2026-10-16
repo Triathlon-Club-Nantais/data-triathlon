@@ -962,6 +962,34 @@ def test_inline_intermediates_keep_the_first_pass_of_a_repeated_point(monkeypatc
     assert _splits(by_bib["761"]) == ("00:40:12", "00:07:05", "03:12:42", "00:06:10", "01:45:01")
 
 
+def test_inline_intermediates_take_the_earliest_pass_whatever_the_order():
+    def p(label, t):
+        return {"controlPointLabel": label, "realTimeFfa": t}
+
+    splits = _si._inline_intermediates_to_splits([
+        p("FINISH", "05:51:10"),
+        p("Transition 2", "04:06:10"),
+        p("Tps Nat", "00:40:12"),
+        p("Transition 2", "04:06:09"),
+        p("Transition 1", "00:00:00"),
+        p("Tps Velo", "03:59:59"),
+    ])
+
+    # T1 at zero carries no pass, so the bike has no previous pass either.
+    assert splits == {"swim": "00:40:12", "t2": "00:06:10", "run": "01:45:01"}
+
+
+def test_inline_intermediates_skip_a_non_increasing_segment_and_chain_on():
+    def p(label, t):
+        return {"controlPointLabel": label, "realTimeFfa": t}
+
+    splits = _si._inline_intermediates_to_splits([
+        p("Tps Nat", "00:30:00"), p("Transition 1", "00:29:00"), p("Tps Velo", "02:00:00"),
+    ])
+
+    assert splits == {"swim": "00:30:00", "bike": "01:31:00"}
+
+
 def test_inline_intermediates_leave_a_segment_without_its_previous_point_empty(monkeypatch):
     """Bike and T2 missing: the run cannot be derived from the T1 pass alone."""
     by_bib = _bayman_7690_results(monkeypatch)
