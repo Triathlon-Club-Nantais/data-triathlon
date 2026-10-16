@@ -56,6 +56,25 @@ qu'il compte une seule fois et hors de portée des bloqueurs (#1033).
   d'erreur peut citer un nom). Le tri suit la forme de l'événement, pas une
   liste de noms. Pages vues, événements métier et cartes de chaleur (des
   coordonnées, sans texte) restent mesurés.
+- **URL sans query string ni fragment** (#1530) : le même `before_send` coupe
+  `?…` et `#…` de toute propriété dont la clé finit par `url` ou `referrer`, à
+  toute profondeur : `$current_url`, `$referrer`, leurs copies `$initial_*`
+  (`$set_once`) et `$session_entry_*`, `$external_click_url`, et dans les web
+  vitals `$current_url`, `navigationURL` et `attribution.url`. Il en va de
+  même des clés finissant par `href` (`attr__href` d'un lien cliqué, relatif
+  compris), `filename` et `abs_path` (trace d'exception), des `href="…"` de
+  `$elements_chain`, et des clés de `$heatmap_data` (une URL par page), dont
+  les points sont fusionnés. Raison : `ResultsFilters` met `name=<athlète>` dans l'URL de
+  `/resultats`, `RaceFinishers` la recherche `q=`. **Aucun paramètre n'est
+  gardé**, même non identifiant (`seasons`, `scope`, `rank`) : une liste
+  blanche se tient à la main et un paramètre ajouté plus tard fuirait par
+  défaut ; le choix de saisons a déjà son événement (`season_changed`).
+  `$pathname` reste entier : ses identifiants (`/athletes/123`,
+  `/admin/jeunes/7`) sont des clés numériques opaques, sans nom, que seul un
+  accès à l'application relie à une personne, et l'analyse par écran en a
+  besoin. Les paramètres de campagne (`utm_*`, `gclid`…) que posthog-js lit
+  dans l'URL restent : le club n'en émet pas. Le replay est coupé
+  (`disable_session_recording`), rien à y filtrer.
 - **Identité de session** : `frontend/app/providers.tsx` (`PostHogSessionSync`).
   Un seul effet observe `useSession()` : `posthog.identify()` dès qu'une
   session existe **et que la mesure détaillée est acceptée**, `posthog.reset()` dès qu'elle repasse à `null` — quelle

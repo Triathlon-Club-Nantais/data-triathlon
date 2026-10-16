@@ -86,6 +86,86 @@ describe("isPostHogEnabled (#1159)", () => {
   });
 });
 
+describe("before_send (#1307, #1530)", () => {
+  async function beforeSend() {
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.posthog.com");
+    init.mockClear();
+    const { withPostHog } = await freshModule();
+    withPostHog(() => {});
+    await vi.waitFor(() => expect(init).toHaveBeenCalled());
+    return init.mock.calls[0][1].before_send as (event: unknown) => Record<string, unknown> | null;
+  }
+
+  beforeEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("retire query string et fragment de toute URL, à toute profondeur", async () => {
+    vi.stubGlobal("window", { location: { pathname: "/resultats" } });
+    const send = await beforeSend();
+    const page = "https://tcn.test/resultats?name=Jean%20Dupont&seasons=2025#haut";
+    const timestamp = new Date();
+
+    const out = send({
+      event: "$web_vitals",
+      timestamp,
+      properties: {
+        $current_url: page,
+        $referrer: "https://ext.test/p?who=Bob",
+        $session_entry_url: page,
+        $pathname: "/resultats",
+        $web_vitals_LCP_event: { $current_url: page, navigationURL: page, attribution: { url: page } },
+        $heatmap_data: { [page]: [{ x: 1 }], "https://tcn.test/resultats?name=Autre": [{ x: 2 }] },
+      },
+      $set_once: { $initial_current_url: page, $initial_referrer: "$direct", $initial_referring_domain: undefined },
+    });
+
+    expect(JSON.stringify(out)).not.toMatch(/Jean|Bob|Autre|seasons|#haut|\?/);
+    expect(out?.timestamp).toBe(timestamp);
+    const properties = out?.properties as Record<string, unknown>;
+    expect(properties.$current_url).toBe("https://tcn.test/resultats");
+    expect(properties.$pathname).toBe("/resultats");
+    expect(properties.$heatmap_data).toEqual({ "https://tcn.test/resultats": [{ x: 1 }, { x: 2 }] });
+    expect(out?.$set_once).toEqual({
+      $initial_current_url: "https://tcn.test/resultats",
+      $initial_referrer: "$direct",
+      $initial_referring_domain: undefined,
+    });
+  });
+
+  it("retire la query string des liens cliqués (autocapture)", async () => {
+    vi.stubGlobal("window", { location: { pathname: "/" } });
+    const send = await beforeSend();
+
+    const out = send({
+      event: "$autocapture",
+      properties: {
+        $elements: [{ tag_name: "a", attr__href: "/resultats?name=Jean%20Dupont", $el_text: "Mes résultats" }],
+        $elements_chain: 'a:attr__href="/resultats?name=Jean%20Dupont"href="/resultats?name=Jean%20Dupont#x"nth-child="1"',
+        $exception_list: [{ stacktrace: { frames: [{ filename: "https://tcn.test/resultats?name=Jean", abs_path: "/p?q=Jean" }] } }],
+      },
+    });
+
+    expect(JSON.stringify(out)).not.toMatch(/Jean/);
+    const properties = out?.properties as Record<string, unknown>;
+    expect(properties.$elements).toEqual([{ tag_name: "a", attr__href: "/resultats", $el_text: "Mes résultats" }]);
+    expect(properties.$elements_chain).toBe('a:attr__href="/resultats"href="/resultats"nth-child="1"');
+  });
+
+  it("jette encore un clic sous /admin/jeunes, garde la page vue", async () => {
+    vi.stubGlobal("window", { location: { pathname: "/admin/jeunes/7" } });
+    const send = await beforeSend();
+
+    expect(send({ event: "$autocapture", properties: { $el_text: "Léa" } })).toBeNull();
+    expect(send({ event: "$pageview", properties: { $current_url: "https://tcn.test/admin/jeunes/7?q=L" } })).toEqual({
+      event: "$pageview",
+      properties: { $current_url: "https://tcn.test/admin/jeunes/7" },
+    });
+  });
+});
+
 describe("posthog-js hors du JS initial (#1394)", () => {
   const root = join(__dirname, "..");
   const SKIP = new Set(["node_modules", ".next", "coverage"]);
