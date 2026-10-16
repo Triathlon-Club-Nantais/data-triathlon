@@ -29,7 +29,7 @@ import { captureEvent } from "@/lib/posthog";
  * La sortie est un `<a>`, pas un `next/link`, et elle ne pointe pas sur
  * `/dashboard`. Deux raisons qui se tiennent ensemble : la frontière ne se vide
  * que si le **chemin change** (`client/components/error-boundary.js`), or
- * `/dashboard` est la page d'accueil (`app/page.tsx` y redirige) et la plus
+ * `/dashboard` est la page d'accueil (`redirects()` de `next.config.ts` y renvoie `/`) et la plus
  * exposée au réveil à froid — un `Link` vers elle depuis sa propre panne ne
  * changerait rien à l'écran. Un chargement complet du document sort de la
  * frontière quelle que soit la page en cause.
