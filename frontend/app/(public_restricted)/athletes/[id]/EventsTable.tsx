@@ -5,8 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Eye } from "lucide-react";
 import { Button, Card, FormatChip, PlaceBadge, PendingBadge, LigneCarte } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ParticipationAdminActions } from "@/components/athletes/ParticipationAdminActions";
-import { AthleteDetachAction } from "@/components/athletes/AthleteDetachAction";
+import { ParticipationAdminActions, AthleteDetachAction } from "@/components/athletes/AdminGates";
 import {
   Select,
   SelectContent,

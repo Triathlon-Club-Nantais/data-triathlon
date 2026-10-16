@@ -1,8 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useHydratedSession } from "@/lib/queries/auth";
-import { AthleteAdminPanel, type CoureurACorriger } from "@/components/athletes/AthleteAdminPanel";
-import { AthleteOppositionAction } from "@/components/athletes/AthleteOppositionAction";
+import type { AthleteAdminPanel as Panel, CoureurACorriger } from "@/components/athletes/AthleteAdminPanel";
+import { AthleteOppositionAction } from "@/components/athletes/AdminGates";
 import { AthleteSelection } from "./AthleteSelection";
 
 /**
@@ -16,12 +17,25 @@ import { AthleteSelection } from "./AthleteSelection";
  * passe en tête ; la sélection, hors sujet pour lui, redescend en secondaire
  * sans perdre son bénéfice affiché (arbitrage de l'issue : le texte reste,
  * seuls le poids et l'ordre changent).
+ *
+ * Le panneau se charge à la demande (#1582), et la bascule attend qu'il soit
+ * là : sinon la sélection redescendait seule en secondaire, puis se faisait
+ * pousser par le bouton primaire arrivé un aller-retour plus tard. Sans
+ * `athletes:write`, `AthleteAdminPanel` ne rend rien : il n'est pas monté.
  */
 export function AthleteHeaderActions({ athlete }: { athlete: CoureurACorriger }) {
   const session = useHydratedSession();
   const peutCorriger = session.data?.permissions.includes("athletes:write") ?? false;
+  const [AthleteAdminPanel, setPanel] = useState<typeof Panel | null>(null);
 
-  if (peutCorriger) {
+  useEffect(() => {
+    if (!peutCorriger) return;
+    import("@/components/athletes/AthleteAdminPanel").then((module) =>
+      setPanel(() => module.AthleteAdminPanel),
+    );
+  }, [peutCorriger]);
+
+  if (peutCorriger && AthleteAdminPanel) {
     return (
       <>
         <AthleteAdminPanel athlete={athlete} primary />
@@ -34,7 +48,6 @@ export function AthleteHeaderActions({ athlete }: { athlete: CoureurACorriger })
   return (
     <>
       <AthleteSelection athlete={athlete} />
-      <AthleteAdminPanel athlete={athlete} />
       <AthleteOppositionAction athlete={athlete} />
     </>
   );
