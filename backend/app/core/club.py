@@ -23,13 +23,13 @@ index en silence. Ajouter un libellé ne change pas l'expression indexée ;
 changer la façon de comparer, si.
 """
 import re
-import unicodedata
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 from sqlalchemy import column, func
 
 from app.core import counter_scope
+from app.core.text import strip_accents
 
 #: Libellé canonique affiché quand on parle du club — utilisé côté serveur pour
 #: fusionner les variantes scrapées dans « Top clubs » (issue #200). Le front
@@ -59,9 +59,7 @@ def broad_club_key(club: str | None) -> str:
     Jamais en SQL : elle n'est pas indexée. Le filtre `club=` la résout en liste
     des graphies présentes sur l'épreuve (#1127).
     """
-    decomposed = unicodedata.normalize("NFKD", club or "")
-    # Les diacritiques décomposés ne sont pas alphanumériques : le filtre les ôte.
-    return "".join(c for c in decomposed.lower() if c.isalnum())
+    return "".join(c for c in strip_accents(club).lower() if c.isalnum())
 
 
 def is_tcn(club: str | None) -> bool:

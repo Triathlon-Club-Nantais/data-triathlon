@@ -27,6 +27,7 @@ from defusedxml.ElementTree import fromstring as parse_xml
 
 from app.core import http
 from app.core.athlete_identity import athlete_identity_keys
+from app.core.text import strip_accents
 from app.core.youth import is_youth
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, FanoutTrace, ScrapedResult
@@ -42,7 +43,6 @@ from .utils import (
     parse_fr_date,
     qualify_event_name,
     split_athlete_name,
-    strip_accents,
     to_seconds,
 )
 

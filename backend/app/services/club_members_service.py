@@ -7,7 +7,6 @@ cette fiche sur la saison de sa licence (`tcn_count_repository`). Chaque
 Ne commite pas : le routeur ou la commande porte la transaction.
 """
 import logging
-import unicodedata
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
@@ -17,6 +16,7 @@ from app.core.exceptions import DomainError, NotFoundError
 from app.core.gender import normalize_gender
 from app.core.identity import identity_hash
 from app.core.season import SEASON_MAX, SEASON_MIN, current_season
+from app.core.text import strip_accents
 from app.models.club_member import (
     LINK_AMBIGUOUS,
     LINK_AUTO,
@@ -167,8 +167,7 @@ def sync_from_fftri(db: Session, *, user_id: int | None) -> MembersSyncReport:
 
 
 def _header_key(header: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", header)
-    return "".join(c for c in decomposed if c.isalnum()).casefold()
+    return "".join(c for c in strip_accents(header) if c.isalnum()).casefold()
 
 
 def _column(headers: list[str], accepted: set[str]) -> int | None:
