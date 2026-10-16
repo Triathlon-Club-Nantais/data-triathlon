@@ -155,8 +155,8 @@ def _event_id(url: str, provider: str) -> str:
     """
     if provider not in PLATFORMS_WITH_EVENT_ID:
         return ""
-    match = _EVENT_ID.search(url)
-    return match.group(0) if match else ""
+    found = _EVENT_ID.search(url)
+    return found.group(0) if found else ""
 
 
 def _comparable_name(name: str) -> str:

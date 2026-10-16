@@ -414,12 +414,12 @@ def _stream_rescrape(
                     })
                     # Les rattrapages de lot (#294, #672, #757) passent avec la boucle :
                     # le re-scrape les sautait et défaisait les rangs renumérotés (#914).
-                    for done, progress in import_persistence.persist_steps(db, source_url, results):
+                    for done, persisted in import_persistence.persist_steps(db, source_url, results):
                         if done and (done % 20 == 0 or done == total):
                             emit({
                                 "phase": "saving", "total": total,
-                                "imported": progress.imported, "updated": progress.updated,
-                                "skipped": progress.skipped, "progress": done,
+                                "imported": persisted.imported, "updated": persisted.updated,
+                                "skipped": persisted.skipped, "progress": done,
                             })
                     purges = athlete_repository.delete_orphans_among(db, candidates)
 
@@ -432,25 +432,25 @@ def _stream_rescrape(
                         payload={
                             "name": course_name,
                             "source_url": source_url,
-                            "imported": progress.imported,
-                            "updated": progress.updated,
-                            "skipped": progress.skipped,
-                            "reconciled": progress.reconciled,
+                            "imported": persisted.imported,
+                            "updated": persisted.updated,
+                            "skipped": persisted.skipped,
+                            "reconciled": persisted.reconciled,
                             "athletes_purged": len(purges),
                         },
                     )
                     db.commit()
             final = {"phase": "done",
-                "imported": progress.imported,
-                "updated": progress.updated,
-                "skipped": progress.skipped,
-                "reconciled": progress.reconciled,
+                "imported": persisted.imported,
+                "updated": persisted.updated,
+                "skipped": persisted.skipped,
+                "reconciled": persisted.reconciled,
                 "total": total,
                 "orphans_removed": len(purges),
             }
             logger.info(
                 "Admin %s rescraped course %s (%s imported, %s updated, %s purged)",
-                user_id, course_id, progress.imported, progress.updated, len(purges),
+                user_id, course_id, persisted.imported, persisted.updated, len(purges),
             )
         except DomainError as exc:
             db.rollback()
