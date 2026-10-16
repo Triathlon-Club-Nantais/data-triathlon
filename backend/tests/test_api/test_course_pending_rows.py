@@ -11,7 +11,7 @@ import pytest
 
 from app.repositories import participation_repository, tcn_count_repository
 from app.scrapers.base import ScrapedResult
-from app.services import scrape_service
+from tests.conftest import save_entry
 
 URL = "https://raceresult.example/alpe"
 
@@ -74,16 +74,16 @@ def _counts(client, course_id, validee_id):
 
 @pytest.fixture
 def epreuve(db_session):
-    validee = scrape_service.save_one(db_session, _scraped("1", "DUPONT", rank=1))
-    scrape_service.save_one(db_session, _scraped("2", "MARTIN", club="ASPTT", rank=2))
+    validee = save_entry(db_session, _scraped("1", "DUPONT", rank=1))
+    save_entry(db_session, _scraped("2", "MARTIN", club="ASPTT", rank=2))
     course = validee.course
     _recount(db_session, course)
     return course, validee
 
 
 def _ajoute_en_attente(db_session, course):
-    en_attente = scrape_service.save_one(db_session, _scraped("3", "ATTENTE", rank=1, pending=True))
-    refusee = scrape_service.save_one(db_session, _scraped("4", "REFUS", rank=1, pending=True))
+    en_attente = save_entry(db_session, _scraped("3", "ATTENTE", rank=1, pending=True))
+    refusee = save_entry(db_session, _scraped("4", "REFUS", rank=1, pending=True))
     participation_repository.update(db_session, refusee, is_rejected=True)
     tcn_count_repository.recompute_counts_for_tcn(db_session)
     db_session.commit()
@@ -131,7 +131,7 @@ def test_page_epreuve_filtre_les_lignes_en_attente_comme_le_classement(client, d
 def test_liste_des_epreuves_rend_l_epreuve_en_attente_seule_avec_pending_count(client, db_session, epreuve):
     course, _ = epreuve
     _ajoute_en_attente(db_session, course)
-    seule = scrape_service.save_one(
+    seule = save_entry(
         db_session, _scraped("1", "SOLO", pending=True, event_name="Alpe solo")
     ).course
 

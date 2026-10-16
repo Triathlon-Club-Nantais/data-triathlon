@@ -73,7 +73,7 @@ def open_session(
         samesite="lax",
         path="/",
         # Pas de `max_age` : cookie de session, effacé à la fermeture du
-        # navigateur (spec § Assumptions — aucune durée exigée par l'issue).
+        # navigateur. La borne réelle est serveur (#1534, `has_volunteer_cookie`).
     )
 
 

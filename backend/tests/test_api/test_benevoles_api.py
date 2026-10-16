@@ -110,6 +110,48 @@ def test_passe_avec_un_cookie_valide(visiteur, db_session):
     assert reponse.json() == {"ok": True}
 
 
+def _cookie_signe_il_y_a(monkeypatch, secret: str, secondes: int) -> str:
+    """Cookie bien signé mais émis il y a `secondes` (#1534)."""
+    import time
+
+    maintenant = time.time()
+    monkeypatch.setattr(shared_password.time, "time", lambda: maintenant - secondes)
+    valeur = shared_password.sign_cookie(secret)
+    monkeypatch.setattr(shared_password.time, "time", lambda: maintenant)
+    return valeur
+
+
+def test_refuse_un_cookie_plus_vieux_que_la_duree_serveur(visiteur, db_session, monkeypatch):
+    """Le navigateur peut restaurer un cookie de session sans fin : seule
+    l'horloge serveur borne sa durée (#1534)."""
+    config = db_session.query(VolunteerAccessConfig).one()
+    valeur = _cookie_signe_il_y_a(
+        monkeypatch, config.session_secret, benevole_access.VOLUNTEER_SESSION_TTL_SECONDS + 1
+    )
+    visiteur.cookies.set(benevole_access.VOLUNTEER_SESSION_COOKIE, valeur)
+    assert visiteur.get("/protege").status_code == 401
+
+
+def test_passe_avec_un_cookie_encore_dans_la_duree_serveur(visiteur, db_session, monkeypatch):
+    config = db_session.query(VolunteerAccessConfig).one()
+    valeur = _cookie_signe_il_y_a(
+        monkeypatch, config.session_secret, benevole_access.VOLUNTEER_SESSION_TTL_SECONDS - 60
+    )
+    visiteur.cookies.set(benevole_access.VOLUNTEER_SESSION_COOKIE, valeur)
+    assert visiteur.get("/protege").status_code == 200
+
+
+def test_refuse_un_cookie_emis_avant_le_remplacement_du_mot_de_passe(
+    visiteur, db_session, administrateur
+):
+    config = db_session.query(VolunteerAccessConfig).one()
+    valeur = shared_password.sign_cookie(config.session_secret)
+    benevole_access.replace_password(db_session, password="autre-secret", admin_user_id=administrateur.id)
+    db_session.commit()
+    visiteur.cookies.set(benevole_access.VOLUNTEER_SESSION_COOKIE, valeur)
+    assert visiteur.get("/protege").status_code == 401
+
+
 def test_refuse_si_le_mot_de_passe_n_est_pas_configure(visiteur, sans_configuration, db_session):
     config = db_session.query(VolunteerAccessConfig).one()
     valeur = shared_password.sign_cookie(config.session_secret)

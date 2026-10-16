@@ -139,7 +139,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
         {resume.regime === "reduit" && (
           <div className="space-y-4">
             {/* Une seule colonne sous 640px : `.tcn-stat-value` rend 68px display
-                sans clamp, et la tuile Temps ("01:02:03") force une piste à
+                (réduite après hydratation seulement, #1540), et la tuile Temps ("01:02:03") force une piste à
                 ~225px — en deux colonnes sous 640px la piste s'élargit au
                 contenu et provoque un scroll horizontal (#488, revue finale). */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

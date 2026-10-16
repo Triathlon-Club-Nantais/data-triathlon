@@ -1,7 +1,7 @@
 """
 Service de persistance d'un résultat saisi à la main.
 
-`save_one` ne sert qu'à la saisie manuelle (`POST /participations`) : l'import
+`save_public_entry` sert la saisie manuelle (`POST /participations`) : l'import
 d'épreuve complète persiste par `import_service`, sans passer par lui.
 """
 import logging
@@ -70,7 +70,7 @@ def save_public_entry(db: Session, scraped: ScrapedResult) -> ParticipationOut:
     opposed = opposition_service.names_opposed(
         db, scraped.athlete_name, scraped.athlete_firstname, scraped.team_name
     )
-    participation = _persist(db, scraped, "")
+    participation = _persist(db, scraped)
     answer = ParticipationOut.model_validate(participation_repository.get(db, participation.id))
     if opposed:
         db.rollback()
@@ -79,20 +79,9 @@ def save_public_entry(db: Session, scraped: ScrapedResult) -> ParticipationOut:
     return answer
 
 
-def save_one(db: Session, scraped: ScrapedResult, event_url: str = "") -> Participation:
-    """Persiste un résultat scrapé/édité (athlète + course + participation)."""
-    opposition_service.ensure_not_opposed(
-        db, scraped.athlete_name, scraped.athlete_firstname, scraped.team_name
-    )
-    participation = _persist(db, scraped, event_url)
-    db.commit()
-    db.refresh(participation)
-    return participation
-
-
-def _persist(db: Session, scraped: ScrapedResult, event_url: str) -> Participation:
+def _persist(db: Session, scraped: ScrapedResult) -> Participation:
     ensure_not_youth(scraped.event_name, scraped.event_date, scraped.category, scraped.club)
-    course = mapping.get_or_create_course(db, scraped, event_url).course
+    course = mapping.get_or_create_course(db, scraped, "").course
     if scraped.bib_number and participation_repository.exists_for_bib(
         db, course.id, scraped.bib_number
     ):

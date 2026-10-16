@@ -6,7 +6,7 @@ from app.models.admin_action_log import AdminActionLog
 from app.models.course import Course
 from app.models.participation import Participation
 from app.scrapers.base import ScrapedResult
-from app.services import scrape_service
+from tests.conftest import save_entry
 from tests.test_api.conftest import valider_toutes_les_participations
 
 
@@ -242,14 +242,14 @@ def _scraped(bib, nom="DUPONT", club="TCN", **kw) -> ScrapedResult:
 
 
 def test_stats_is_null_for_a_relay(client, db_session):
-    participation = scrape_service.save_one(db_session, _scraped(bib="9", is_relay=True))
+    participation = save_entry(db_session, _scraped(bib="9", is_relay=True))
     body = client.get(f"/api/v1/participations/{participation.id}").json()
     assert body["stats"] is None
 
 
 def test_stats_is_populated_for_an_eligible_course(client, db_session):
-    scrape_service.save_one(db_session, _scraped(bib="1", nom="DUPONT"))
-    participation = scrape_service.save_one(db_session, _scraped(bib="2", nom="MARTIN"))
+    save_entry(db_session, _scraped(bib="1", nom="DUPONT"))
+    participation = save_entry(db_session, _scraped(bib="2", nom="MARTIN"))
 
     stats = client.get(f"/api/v1/participations/{participation.id}").json()["stats"]
 
@@ -260,8 +260,8 @@ def test_stats_is_populated_for_an_eligible_course(client, db_session):
 
 def test_stats_comparison_rows_carry_raw_seconds_additively(client, db_session):
     """US4 (#466) : extension additive de ComparisonRow, ne casse pas la forme existante."""
-    scrape_service.save_one(db_session, _scraped(bib="4", nom="DUPONT"))
-    participation = scrape_service.save_one(db_session, _scraped(bib="5", nom="MARTIN"))
+    save_entry(db_session, _scraped(bib="4", nom="DUPONT"))
+    participation = save_entry(db_session, _scraped(bib="5", nom="MARTIN"))
 
     stats = client.get(f"/api/v1/participations/{participation.id}").json()["stats"]
 
@@ -275,7 +275,7 @@ def test_stats_comparison_rows_carry_raw_seconds_additively(client, db_session):
 def test_stats_serves_the_medians_in_their_own_block(client, db_session):
     """#1362 : bloc additif, `comparison` garde sa forme et ses seules positions."""
     for index in range(11):
-        participation = scrape_service.save_one(
+        participation = save_entry(
             db_session, _scraped(bib=f"m{index}", nom=f"MEDIAN{index}", rank_overall=index + 1)
         )
 
@@ -291,8 +291,8 @@ def test_stats_serves_the_medians_in_their_own_block(client, db_session):
 
 def test_stats_ranking_evolution_steps_carry_cumulative_seconds(client, db_session):
     """US5 (#466) : extension additive de RankingEvolutionStep."""
-    scrape_service.save_one(db_session, _scraped(bib="6", nom="DUPONT"))
-    participation = scrape_service.save_one(db_session, _scraped(bib="7", nom="MARTIN"))
+    save_entry(db_session, _scraped(bib="6", nom="DUPONT"))
+    participation = save_entry(db_session, _scraped(bib="7", nom="MARTIN"))
 
     stats = client.get(f"/api/v1/participations/{participation.id}").json()["stats"]
 
@@ -304,7 +304,7 @@ def test_stats_ranking_evolution_steps_carry_cumulative_seconds(client, db_sessi
 
 def test_stats_ignores_club_membership(client, db_session):
     """FR-004 : les splits sont déjà publics ailleurs, la page n'ajoute aucune confidentialité."""
-    participation = scrape_service.save_one(
+    participation = save_entry(
         db_session, _scraped(bib="3", nom="MARTIN", club="ASPTT")
     )
 
@@ -316,7 +316,7 @@ def test_stats_ignores_club_membership(client, db_session):
 
 def test_course_listing_carries_the_field_without_computing_it(client, db_session):
     """Le champ est additif partout où `ParticipationOut` est sérialisé ; le calcul, lui, ne l'est pas."""
-    participation = scrape_service.save_one(db_session, _scraped(bib="4"))
+    participation = save_entry(db_session, _scraped(bib="4"))
 
     rows = client.get(f"/api/v1/courses/{participation.course_id}").json()["participations"]
 

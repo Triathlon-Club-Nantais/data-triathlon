@@ -24,6 +24,34 @@ function leaksYouthData(event: CaptureResult): boolean {
   return TEXT_EVENTS.has(event.event) || ELEMENT_PROPERTIES.some((key) => key in (event.properties ?? {}));
 }
 
+// Query string et fragment (#1530) : `ResultsFilters` y pousse `name=`, `RaceFinishers` `q=`. Tri
+// sur le nom de la clé, à toute profondeur, pour couvrir `$current_url`, `$referrer`, leurs copies
+// `$initial_*` et `$session_entry_*`, `$external_click_url`, et les `navigationURL` et
+// `attribution.url` des web vitals, le `attr__href` d'un lien cliqué et les fichiers d'une trace
+// d'exception. `$elements_chain` et les cartes de chaleur portent l'URL ailleurs que dans une valeur.
+const URL_KEY = /(url|referrer|href|filename|abs_path)$/i;
+
+// Coupe aussi les liens relatifs (`/resultats?name=…`) ; laisse "$direct" intact.
+const withoutQuery = (value: string) => value.split(/[?#]/, 1)[0];
+
+function stripUrls(value: unknown, key = ""): unknown {
+  if (key === "$elements_chain" && typeof value === "string") {
+    return value.replace(/href="([^"?#]*)[^"]*"/g, 'href="$1"');
+  }
+  if (typeof value === "string") return URL_KEY.test(key) ? withoutQuery(value) : value;
+  if (Array.isArray(value)) return value.map((item) => stripUrls(item, key));
+  // Objets simples seuls : un `Date` (timestamp) ne se parcourt pas, `undefined` non plus.
+  if (value === null || typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype) return value;
+  if (key === "$heatmap_data") {
+    const byUrl: Record<string, unknown[]> = {};
+    for (const [url, points] of Object.entries(value as Record<string, unknown[]>)) {
+      (byUrl[withoutQuery(url)] ??= []).push(...points);
+    }
+    return byUrl;
+  }
+  return Object.fromEntries(Object.entries(value as object).map(([k, v]) => [k, stripUrls(v, k)]));
+}
+
 function init(posthog: PostHog): void {
   const granted = readConsent() === "granted";
   posthog.init(process.env.NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN!, {
@@ -42,7 +70,7 @@ function init(posthog: PostHog): void {
     // clics ni clics morts ne partent.
     capture_heatmaps: granted,
     capture_dead_clicks: granted,
-    before_send: (event) => (event && leaksYouthData(event) ? null : event),
+    before_send: (event) => (!event || leaksYouthData(event) ? null : (stripUrls(event) as CaptureResult)),
     disable_session_recording: true,
     // Core Web Vitals (LCP, INP, CLS) fixés ici plutôt que laissés aux réglages distants (#1318).
     // Envoyés aussi en mode sans cookie, sans identifiant de session client.

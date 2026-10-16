@@ -42,6 +42,20 @@ def load_klikego_fixture(name: str) -> str:
     return (_FIXTURES_DIR / "klikego" / name).read_text(encoding="utf-8")
 
 
+def save_entry(db, scraped):
+    """Arrange a row through the public manual entry path and return the ORM row.
+
+    Imports are local: `app.services` must not load before the settings isolation above.
+    """
+    from app.repositories import participation_repository
+    from app.services import scrape_service
+
+    answer = scrape_service.save_public_entry(db, scraped)
+    row = participation_repository.get(db, answer.id)
+    assert row is not None, "identity opposed: save_public_entry rolled the row back"
+    return row
+
+
 @pytest.fixture(autouse=True)
 def _compteurs_de_debit_vierges():
     """Les plafonds de débit (#395) comptent en mémoire du process.
