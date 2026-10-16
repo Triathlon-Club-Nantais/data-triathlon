@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_rethrow } from "next/navigation";
 import type { ReactNode } from "react";
 import { BookOpen } from "lucide-react";
 import { SiteAccessGate } from "@/components/site-access/SiteAccessGate";
@@ -32,6 +33,8 @@ const INDISPONIBLE = Symbol("accès site indisponible");
  * se dégraderait en silence.
  */
 function panne(erreur: unknown): typeof INDISPONIBLE {
+  // Les signaux internes de Next (rendu dynamique au prérendu) repartent (#1532).
+  unstable_rethrow(erreur);
   const statut = erreur instanceof ApiError ? erreur.status : "sans réponse";
   console.error(`[site-access] session indisponible (${statut}) : ${erreur}`);
   return INDISPONIBLE;
