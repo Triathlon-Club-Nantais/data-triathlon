@@ -193,8 +193,8 @@ def list_events(db: Session, **filters) -> dict:
 #
 # Ces agrégats étaient calculés dans le navigateur, sur le classement entier.
 # Les déplacer ici est ce qui permet à la page de n'en recevoir que vingt lignes.
-# Les valeurs, les limites d'affichage et le découpage de l'histogramme sont
-# repris tels quels : la feature déplace ces calculs, elle ne les rejuge pas.
+# Les valeurs et les limites d'affichage sont reprises telles quelles ; seul le
+# découpage de l'histogramme a été rejugé depuis (#1586).
 
 #: Largeurs de tranche possibles, de la plus fine à la plus large, et plafond
 #: du nombre de tranches. La plus fine qui tient sous le plafond l'emporte :

@@ -30,10 +30,10 @@ const TICK_STEPS: readonly { maxRangeSec: number; stepSec: number }[] = [
   { maxRangeSec: 180 * 60, stepSec: 30 * 60 },  // M : ≤ 3 h → 30 min
   { maxRangeSec: 6 * 3600, stepSec: 60 * 60 },  // L : ≤ 6 h → 1 h
   { maxRangeSec: 15 * 3600, stepSec: 120 * 60 }, // XL / ironman : ≤ 15 h → 2 h
+  { maxRangeSec: 30 * 3600, stepSec: 4 * 3600 }, // ultra : ≤ 30 h → 4 h
 ];
-/** Fallback pour les courses au-delà de la dernière bande (théorique — le
- *  finisher le plus lent d'un ultra fait rarement > 30 h). */
-const FALLBACK_STEP = 4 * 60 * 60;
+/** Au delà : depuis #1586 l'histogramme couvre jusqu'à 60 h, 12 h garde ≤ 6 ticks. */
+const FALLBACK_STEP = 12 * 60 * 60;
 
 /** Choisit un pas rond en fonction de la durée totale de la fenêtre. Voir
  *  `TICK_STEPS` pour les seuils. */

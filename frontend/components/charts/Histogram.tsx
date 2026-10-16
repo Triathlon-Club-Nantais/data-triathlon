@@ -80,7 +80,7 @@ export function Histogram({
     bars.length === 0
       ? "Distribution des temps d'arrivée : aucune donnée."
       : `Distribution des temps d'arrivée, de ${formatTickLabel(startSec)} à ` +
-        `${formatTickLabel(endSec)}, maximum ${max} arrivants sur une tranche.` +
+        `${formatTickLabel(endSec)}, maximum ${max} arrivants sur une tranche de ${bucketSec / 60} minutes.` +
         (hasMarker ? ` Le temps de l'athlète se situe à ${formatTickLabel(markerSec!)}.` : "");
 
   return (

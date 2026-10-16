@@ -654,13 +654,29 @@ def test_course_summary_histogram_widens_buckets_to_cover_a_full_distance(db_ses
     histogramme = stats_service.course_summary(db_session, course.id)["histogram"]
 
     bucket, start, bars = histogramme["bucket_sec"], histogramme["start_sec"], histogramme["bars"]
-    assert bucket > 300
+    assert bucket == 600
     assert len(bars) <= 60
     assert start <= 8 * 3600 + 30 * 60
     assert start + len(bars) * bucket > 16 * 3600 + 20 * 60
     assert sum(bars) == len(times)
     # La dernière barre ne compte que le dernier arrivant (16:20), seul dans sa tranche.
     assert bars[-1] == 1
+
+
+@pytest.mark.parametrize(
+    ("high", "bucket", "count"), [(17999, 300, 60), (18000, 600, 31)]
+)
+def test_histogram_keeps_five_minutes_up_to_sixty_bars(high, bucket, count):
+    histogramme = stats_service._histogram([0, high])
+
+    assert (histogramme["bucket_sec"], len(histogramme["bars"])) == (bucket, count)
+
+
+def test_histogram_clamps_an_aberrant_spread_into_the_last_bar():
+    histogramme = stats_service._histogram([0, 61 * 3600])
+
+    assert len(histogramme["bars"]) == 60
+    assert sum(histogramme["bars"]) == 2
 
 
 def test_course_summary_epreuve_vide(db_session):
