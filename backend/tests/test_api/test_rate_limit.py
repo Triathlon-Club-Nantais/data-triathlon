@@ -86,6 +86,18 @@ def test_le_plafond_est_par_ip(client, monkeypatch, scraper_muet):
     assert envoi("203.0.113.7").status_code == 429
 
 
+def test_une_rotation_dans_un_meme_64_ne_contourne_pas_le_plafond(client, monkeypatch, scraper_muet):
+    """#1552 : un /64 change d'adresse source à chaque requête, il compte pour un."""
+    monkeypatch.setattr(get_settings(), "scrape_rate_limit_max_per_window", 1)
+
+    def envoi(ip: str):
+        return client.post(_SCRAPE, json=_URL, headers=_via_platform(ip))
+
+    assert envoi("2001:db8:1:2::1").status_code == 200
+    assert envoi("2001:db8:1:3::1").status_code == 200
+    assert envoi("2001:db8:1:2::2").status_code == 429
+
+
 def test_l_ip_usurpee_ne_contourne_pas_le_plafond(client, monkeypatch, scraper_muet):
     """#1533 : ce que l'appelant écrit en tête de l'en-tête ne compte pas."""
     monkeypatch.setattr(get_settings(), "scrape_rate_limit_max_per_window", 1)

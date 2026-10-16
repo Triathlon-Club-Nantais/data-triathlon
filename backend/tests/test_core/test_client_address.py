@@ -11,7 +11,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 from starlette.testclient import TestClient
 
-from app.core.client_address import ClientAddressMiddleware
+from app.core.client_address import ClientAddressMiddleware, rate_limit_key
 
 REAL = "90.49.125.30"
 VERCEL_EGRESS = "13.38.74.191"
@@ -160,3 +160,31 @@ def test_a_missing_secret_is_logged_at_startup(caplog):
         with _client(frontend_proxy_secret=SECRET):
             pass
         assert not caplog.records
+
+
+def test_two_ipv6_addresses_in_one_64_share_a_rate_limit_key():
+    """#1552: a /64 can rotate its source address on every request."""
+    assert rate_limit_key("2001:db8:1:2::1") == rate_limit_key("2001:db8:1:2:ffff:ffff:ffff:fffe")
+    assert rate_limit_key("2001:db8:1:2::1") == "2001:db8:1:2::/64"
+
+
+def test_different_ipv6_64_prefixes_get_different_keys():
+    assert rate_limit_key("2001:db8:1:2::1") != rate_limit_key("2001:db8:1:3::1")
+
+
+def test_ipv4_keys_on_the_full_address():
+    assert rate_limit_key("90.49.125.30") == "90.49.125.30"
+
+
+def test_ipv4_mapped_ipv6_keys_as_its_ipv4():
+    assert rate_limit_key("::ffff:90.49.125.30") == "90.49.125.30"
+
+
+def test_a_non_ip_host_is_kept_as_is():
+    assert rate_limit_key("testclient") == "testclient"
+    assert rate_limit_key("2001:db8::zz") == "2001:db8::zz"
+
+
+def test_a_6to4_address_keys_as_its_ipv4():
+    """One IPv4 owns the whole 2002:<v4>::/48, i.e. 65,536 /64 prefixes."""
+    assert rate_limit_key("2002:102:304:1::1") == rate_limit_key("2002:102:304:2::1") == "1.2.3.4"
