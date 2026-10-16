@@ -125,10 +125,10 @@ export function disciplineBreakdownBySeason(participations: Participation[]): Se
     }));
 }
 
-/** Formate la valeur numérique d'un pourcentage à la française (« 71,2 »),
- *  sans le symbole « % » (les appelants l'ajoutent eux-mêmes). */
+/** Formate un pourcentage à la française, signe compris : « 71,2 % », avec
+ *  l'espace fine insécable (U+202F) que `Intl` emploie en `fr-FR` (#1587). */
 export function pctFr(pct: number, decimals = 1): string {
-  return pct.toFixed(decimals).replace(".", ",");
+  return `${pct.toFixed(decimals).replace(".", ",")}\u202f%`;
 }
 
 const COMPTE_FR = new Intl.NumberFormat("fr-FR");

@@ -165,7 +165,7 @@ export default async function DashboardPage({
                     {disciplines.map((d) => (
                       <div key={d.name} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 15, color: "var(--tcn-text-body)" }}>
                         <span style={{ width: 12, height: 12, borderRadius: 3, background: d.color }} />{d.name}
-                        <b style={{ marginLeft: "auto", fontFamily: "var(--tcn-font-display)", color: "var(--tcn-ink)" }}>{pctFr(d.pct)}%</b>
+                        <b style={{ marginLeft: "auto", fontFamily: "var(--tcn-font-display)", color: "var(--tcn-ink)" }}>{pctFr(d.pct)}</b>
                       </div>
                     ))}
                   </div>

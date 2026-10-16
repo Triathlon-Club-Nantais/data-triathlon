@@ -57,7 +57,7 @@ export function CategoryBars({
     reste > 0 ? [...categories, { name: `Autres (${reste})`, count: reste }] : categories;
 
   const summary = barres
-    .map((c) => `${nomCourt(c.name)} ${pctFr(scale(c.count))} %${c.name === highlight ? " (catégorie de l'athlète)" : ""}`)
+    .map((c) => `${nomCourt(c.name)} ${pctFr(scale(c.count))}${c.name === highlight ? " (catégorie de l'athlète)" : ""}`)
     .join(", ");
 
   // Sans lien, la carte est une image et se lit d'un bloc. Avec, elle devient une
@@ -128,7 +128,7 @@ export function CategoryBars({
               />
             </div>
             <span aria-hidden style={{ flex: "none", width: 48, textAlign: "right", fontSize: 13, fontWeight: 700, color: "var(--tcn-text-body)" }}>
-              {pctFr(pct)}%
+              {pctFr(pct)}
             </span>
           </>
         );
@@ -153,7 +153,7 @@ export function CategoryBars({
           // sans quoi elle serait un élément de liste muet.
           const contenu = (
             <div
-              aria-label={hrefFor ? `${nomCourt(c.name)}, ${pctFr(pct)} %` : undefined}
+              aria-label={hrefFor ? `${nomCourt(c.name)}, ${pctFr(pct)}` : undefined}
               data-highlighted={isHighlighted ? "true" : undefined}
               style={ligne}
             >
@@ -177,7 +177,7 @@ export function CategoryBars({
           <Link
             href={href}
             title={titre}
-            aria-label={`${titre} — ${pctFr(pct)} %. Voir ces participants dans le classement.`}
+            aria-label={`${titre} — ${pctFr(pct)}. Voir ces participants dans le classement.`}
             className="tcn-rowlink"
             data-highlighted={isHighlighted ? "true" : undefined}
             style={{ ...ligne, color: "inherit", textDecoration: "none" }}
