@@ -339,7 +339,7 @@ data-triathlon/
 
 Deux projets, chacun avec son domaine de production stable :
 `data-triathlon` (prod, déployé sur tag `v*`) et `data-triathlon-preview`
-(preview, déployé sur merge dans `main`).
+(preview, déployé à la main : Actions → *Deploy* → **Run workflow**).
 
 1. Importer le repo sur [vercel.com](https://vercel.com)
 2. **Root Directory** : `frontend`

@@ -4,7 +4,7 @@ Pipeline gratuit où **rien ne se déploie sans CI verte**, avec deux flux :
 
 | Déclencheur | Environnement | Backend (Render) | Frontend (Vercel) |
 |---|---|---|---|
-| **Merge dans `main`** (ou `workflow_dispatch`) | preview / test | service Render preview (deploy hook) | `--prod` sur le projet `data-triathlon-preview` |
+| **`workflow_dispatch`** (Actions → *Deploy* → **Run workflow**, sans tag) | preview / test | service Render preview (deploy hook) | `--prod` sur le projet `data-triathlon-preview` |
 | **Tag `v*` sur `main`** | production | service Render prod (deploy hook) | `--prod` sur le projet `data-triathlon` |
 
 **Les deux flux déploient en production — de deux projets Vercel différents.**
@@ -16,7 +16,9 @@ tient (#172). Le ciblage ne passe par aucune variable dédiée : les deux jobs
 déclarent déjà un *environment* GitHub, et le `VERCEL_PROJECT_ID` défini sur
 l'environment `preview` surcharge celui du dépôt.
 
-Toute PR déclenche la CI seule (aucun déploiement).
+Toute PR déclenche la CI seule (aucun déploiement), et un merge dans `main`
+aussi (#1572) : la preview se déploie à la main, comme la production, mais sans
+tag.
 
 ## Workflows GitHub Actions
 
@@ -42,9 +44,12 @@ Toute PR déclenche la CI seule (aucun déploiement).
     (typecheck TS strict + build Next/RSC).
   - `ci-ok` : agrégateur, en échec dès qu'un job amont (hors audit) n'est pas
     `success`. **C'est le seul check requis** (voir « Merge queue » plus bas).
-- **`.github/workflows/deploy.yml`** — déclenché sur `push` (branche `main` et
-  tags `v*`). Appelle `ci.yml` puis, **seulement si la CI passe** (`needs: ci`),
-  lance `deploy-preview` (sur `main`) ou `deploy-production` (sur tag `v*`).
+- **`.github/workflows/deploy.yml`** : déclenché sur `push` de tags `v*` et sur
+  `workflow_dispatch` (plus sur `main` depuis #1572). Appelle `ci.yml` puis,
+  **seulement si la CI passe** (`needs: ci`), lance `deploy-preview` (sur
+  `workflow_dispatch`, quelle que soit la branche choisie) ou
+  `deploy-production` (sur `push` d'un tag `v*`, jamais sur un dispatch, même
+  lancé depuis un tag).
 - **`.github/workflows/render-sleep.yml`** — suspend et reprend les deux
   services Render pour tenir les 750 h/mois du plan free (#528, décision #530).
   `schedule` à chaque heure pour coucher la preview (#560), plus deux crons
@@ -1104,7 +1109,7 @@ publique de Render ne répond à aucun de ces points :
 2. Ce que voit un visiteur pendant la fenêtre coupée : Render ne sert pas de page
    de maintenance, l'appel échoue en erreur de connexion. Vérifier que le front
    Vercel rend une erreur lisible et non une page blanche.
-3. **Un cycle complet du régime horaire** (#560) : après un merge sur `main`,
+3. **Un cycle complet du régime horaire** (#560) : après un déploiement de la preview,
    voir sur le dashboard Render la preview réveillée par `deploy.yml`, le
    déploiement aller au bout sans être interrompu, puis le passage horaire
    suivant — celui d'après la grâce de 15 min — la recoucher. Et vérifier que les
@@ -1126,7 +1131,8 @@ production sur un plan payant.
 ## Publier une version
 
 ```bash
-# Preview : il suffit de merger dans main (PR mergée)
+# Preview : Actions → Deploy → Run workflow, branche main (ou celle d'une PR)
+gh workflow run deploy.yml --ref main
 
 # Production : taguer un commit de main
 git checkout main && git pull
@@ -1137,7 +1143,7 @@ git push origin v0.1.0
 ## Vérification
 
 1. Ouvrir une PR → les jobs `backend` et `frontend` passent, puis `ci-ok`.
-2. Merger dans `main` (ou lancer un `workflow_dispatch`) → `deploy.yml` enchaîne
+2. Lancer un `workflow_dispatch` de *Deploy* sur `main` → `deploy.yml` enchaîne
    `ci` puis `deploy-preview` : hook Render preview, attente de `live` et de la
    version (#921), puis déploiement sur l'URL fixe de `data-triathlon-preview`.
    Relancer une fois : **la même URL**.
