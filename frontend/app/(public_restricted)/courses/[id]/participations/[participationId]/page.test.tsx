@@ -189,6 +189,18 @@ describe("ParticipationDetailPage", () => {
     expect(
       screen.getByRole("img", { name: /distribution des temps.*le temps de l'athlète/is }),
     ).toBeTruthy();
+    expect(screen.getByText(/par tranche de 30 minutes.*temps de l'athlète est repéré/)).toBeTruthy();
+  });
+
+  it("ne dit pas le temps repéré quand il tombe hors des tranches (#1586)", async () => {
+    getCourseSummary.mockResolvedValue({
+      histogram: { bars: [2, 5, 3], start_sec: 0, bucket_sec: 1800 },
+    });
+
+    await renderPage(participation({ stats: null, total_time: "05:00:00" }));
+
+    expect(screen.getByText(/par tranche de 30 minutes/)).toBeTruthy();
+    expect(screen.queryByText(/temps de l'athlète est repéré/)).toBeNull();
   });
 
   it("n'affiche pas de bloc histogramme quand la synthèse d'épreuve est indisponible", async () => {

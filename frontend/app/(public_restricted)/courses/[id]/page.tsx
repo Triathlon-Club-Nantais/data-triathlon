@@ -218,7 +218,7 @@ export default async function CoursePage({
       {summary.histogram && (
         <Card padding={28} style={{ marginBottom: 18 }}>
           <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 4 }}>Distribution des temps des arrivants</h2>
-          <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de 5 minutes</div>
+          <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de {summary.histogram.bucket_sec / 60} minutes</div>
           <Histogram
             bars={summary.histogram.bars}
             max={Math.max(...summary.histogram.bars)}

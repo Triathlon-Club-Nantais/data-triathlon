@@ -193,11 +193,13 @@ def list_events(db: Session, **filters) -> dict:
 #
 # Ces agrégats étaient calculés dans le navigateur, sur le classement entier.
 # Les déplacer ici est ce qui permet à la page de n'en recevoir que vingt lignes.
-# Les valeurs, les limites d'affichage et le découpage de l'histogramme sont
-# repris tels quels : la feature déplace ces calculs, elle ne les rejuge pas.
+# Les valeurs et les limites d'affichage sont reprises telles quelles ; seul le
+# découpage de l'histogramme a été rejugé depuis (#1586).
 
-#: Tranche de l'histogramme des temps, et plafond du nombre de tranches.
-_HISTOGRAM_BUCKET_SEC = 300
+#: Largeurs de tranche possibles, de la plus fine à la plus large, et plafond
+#: du nombre de tranches. La plus fine qui tient sous le plafond l'emporte :
+#: 5 min pour une épreuve courte, plus large pour une longue distance (#1586).
+_HISTOGRAM_BUCKET_SECS = (300, 600, 900, 1800, 3600)
 _HISTOGRAM_MAX_BARS = 60
 
 #: Limites d'affichage de la page, historiques.
@@ -222,20 +224,24 @@ def _most_frequent(counter: Counter[str], limit: int) -> list[tuple[str, int]]:
 def _histogram(seconds: list[int]) -> dict | None:
     if not seconds:
         return None
-    first_bucket = min(seconds) // _HISTOGRAM_BUCKET_SEC
-    last_bucket = max(seconds) // _HISTOGRAM_BUCKET_SEC
-    bucket_count = min(last_bucket - first_bucket + 1, _HISTOGRAM_MAX_BARS)
+    low, high = min(seconds), max(seconds)
+    bucket_sec = next(
+        (b for b in _HISTOGRAM_BUCKET_SECS if high // b - low // b < _HISTOGRAM_MAX_BARS),
+        _HISTOGRAM_BUCKET_SECS[-1],
+    )
+    first_bucket = low // bucket_sec
+    bucket_count = min(high // bucket_sec - first_bucket + 1, _HISTOGRAM_MAX_BARS)
     bars = [0] * bucket_count
     for value in seconds:
-        # Le plafond fait retomber les temps extrêmes dans la dernière tranche
-        # plutôt que de les perdre.
-        bars[min(value // _HISTOGRAM_BUCKET_SEC - first_bucket, bucket_count - 1)] += 1
+        # Le plafond ne mord plus qu'au delà de 60 h d'écart : un temps aberrant
+        # retombe alors dans la dernière tranche plutôt que d'être perdu.
+        bars[min(value // bucket_sec - first_bucket, bucket_count - 1)] += 1
     return {
         "bars": bars,
         # Bord gauche de la première tranche : ancre l'axe des abscisses sur des
         # heures rondes côté affichage (#129).
-        "start_sec": first_bucket * _HISTOGRAM_BUCKET_SEC,
-        "bucket_sec": _HISTOGRAM_BUCKET_SEC,
+        "start_sec": first_bucket * bucket_sec,
+        "bucket_sec": bucket_sec,
     }
 
 
