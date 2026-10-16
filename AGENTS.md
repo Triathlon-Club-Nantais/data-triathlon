@@ -167,11 +167,10 @@ Guidelines d'écriture de code, valables dans les trois voies du workflow IA.
   ce qu'il porte : les noms d'une ou deux lettres sont réservés aux
   liaisons dont la portée tient sous les yeux (compréhension, boucle,
   lambda, `db`). Règle de transition : on ne réécrit pas l'existant, la
-  règle s'applique aux nouveaux ajouts — **à une dérogation près**, la
-  campagne de renommage de l'issue #88, bornée aux lots énumérés dans le
-  Principe I (plan de découpage, pas définition de la fin : la dérogation
-  s'éteint quand `backend/app` ne porte plus d'identifiant français hors de
-  la clause « Pas d'exception de vocabulaire métier » du Principe I).
+  règle s'applique aux nouveaux ajouts. La campagne de renommage de
+  l'issue #88 est close (re-scan de clôture du 2026-10-16, #1538) :
+  `backend/app` ne porte plus d'identifiant français hors de la clause
+  « Pas d'exception de vocabulaire métier » du Principe I.
 - Commits : Conventional Commits (`feat:`, `fix:`…), déjà en place dans l'historique.
 - **Lier une PR à son issue avec un mot-clé GitHub anglais** : `Closes #123`,
   `Fixes #123` ou `Resolves #123`. C'est un **jeton machine**, au même titre que

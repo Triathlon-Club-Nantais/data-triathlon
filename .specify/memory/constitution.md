@@ -1,4 +1,25 @@
 <!--
+Sync Impact Report — Constitution v1.2.5
+========================================
+Version change    : 1.2.4 → 1.2.5
+Rationale         : PATCH, clôture de la campagne #88. Lots J à R fusionnés
+  (#1489, #1490, #1493, #1494, #1497, #1499, #1502, #1526, #1500) et passés à
+  « fait ». Lot S ajouté et livré dans la même PR : les quatre derniers
+  identifiants français de `club_members_service.py`. Chemin du lot O annoté
+  après le renommage de #1571. Re-scan de clôture consigné (52 identifiants,
+  tous des faux positifs, sur `d3a4fd8e`) et extinction de la dérogation
+  constatée, comme le prévoyait déjà son critère : la règle ne change pas,
+  elle s'applique. Mention de la dérogation retirée de la section
+  « Conventions générales » de `AGENTS.md`.
+  Proposition : issue #1538. Approbation : mainteneur (autorisation donnée en
+  session le 2026-10-16), revue de la PR.
+Modified principles : (aucun, Principe I appliqué sans changer la règle)
+Modified sections : Principe I, table des lots (colonne État, lot S, chemin du
+  lot O), paragraphe « plan de découpage » (re-scan de clôture, extinction).
+Added sections    : (aucune)
+Removed sections  : (aucune)
+Templates touchés : `AGENTS.md` (Conventions générales)
+
 Sync Impact Report — Constitution v1.2.4
 ========================================
 Version change    : 1.2.3 → 1.2.4
@@ -258,7 +279,7 @@ rien**. La règle s'applique aux **nouveaux** ajouts et à toute réécriture
 substantielle d'un fichier. Un fichier français touché pour un fix ciblé
 reste français dans le patch.
 
-**Dérogation bornée — campagne #88** : par dérogation à l'alinéa précédent, le
+**Dérogation bornée — campagne #88 (éteinte le 2026-10-16, voir le re-scan de clôture ci-dessous)** : par dérogation à l'alinéa précédent, le
 renommage des identifiants français de `backend/app` est autorisé sur les lots
 ci-dessous, sous cinq critères **cumulatifs** : **tout symbole interne au
 backend**, à l'exclusion de ceux gelés par un contrat public au sens de la
@@ -282,15 +303,16 @@ qu'on ne réécrit pas après coup.
 | G | `app/scrapers/{chronoweb,chronoplace,sporthive}.py` | fait (#1463) |
 | H | `app/scrapers/{classify,wiclax,timepulse,klikego,klikego_platform}.py` | fait (#1466) |
 | I | `app/core/club.py`, `app/scrapers/utils.py`, `app/services/sheet_source.py` — angle mort du relevé initial, dont le lexique français ne couvrait ni « espace », ni « blanc », ni « normalise », ni « qualifiant », ni « sans_lien » (~7 symboles au relevé initial, 26 au re-scan du 2026-10-15) | fait (#1467) |
-| J | `app/scrapers/prolivesport.py` (32 symboles) et `app/scrapers/breizhchrono.py` (`heats_a_scraper`, `total_a_scraper`, que le re-scan ne voit pas : « a » a moins de trois lettres), seuls fournisseurs hors des lots C à H qui portent encore des identifiants français | à faire |
-| K | `app/repositories/` (60 symboles, dont 22 dans `athlete_repository.py`) | à faire |
-| L | services de lecture et de statistiques : `app/services/{stats_service,club_service,validation_queue_service,split_gap,quality,counter_scope,club_alias}.py` (45 symboles) | à faire |
-| M | services d'administration des données : `app/services/{admin_actions,course_duplicates,course_merge,course_rescrape_service,athlete_detach,feedback_service,training_session_service,profile_service,opposition_service,sse_relay}.py` (54 symboles) | à faire |
-| N | services d'import et de batch, **hors** des familles du lot A : `app/services/{batch,batch_runs,import_persistence,import_dispatch,import_service,rescrape_service,geocode_service}.py` (35 symboles) | à faire |
-| O | authentification et accès : `app/services/auth/`, `app/services/{benevole_access,shared_password,site_access}.py`, `app/core/{permissions,http}.py`, `app/api/deps.py`, `app/models/` (54 symboles) | à faire |
-| P | `app/api/v1/` (59 symboles) | à faire |
-| Q | `app/schemas/` (24 symboles), **jamais** les champs `en_cours` / `traite` de `FeedbackCounts` ni `epreuves` de `BatchLaunched`, clés JSON gelées par la clause **Pas d'exception de vocabulaire métier** | à faire |
-| R | `app/cli/commands/`, hors du lot B (22 symboles) | à faire |
+| J | `app/scrapers/prolivesport.py` (32 symboles) et `app/scrapers/breizhchrono.py` (`heats_a_scraper`, `total_a_scraper`, que le re-scan ne voit pas : « a » a moins de trois lettres), seuls fournisseurs hors des lots C à H qui portent encore des identifiants français | fait (#1489) |
+| K | `app/repositories/` (60 symboles, dont 22 dans `athlete_repository.py`) | fait (#1490) |
+| L | services de lecture et de statistiques : `app/services/{stats_service,club_service,validation_queue_service,split_gap,quality,counter_scope,club_alias}.py` (45 symboles) | fait (#1493) |
+| M | services d'administration des données : `app/services/{admin_actions,course_duplicates,course_merge,course_rescrape_service,athlete_detach,feedback_service,training_session_service,profile_service,opposition_service,sse_relay}.py` (54 symboles) | fait (#1494) |
+| N | services d'import et de batch, **hors** des familles du lot A : `app/services/{batch,batch_runs,import_persistence,import_dispatch,import_service,rescrape_service,geocode_service}.py` (35 symboles) | fait (#1497) |
+| O | authentification et accès : `app/services/auth/`, `app/services/{benevole_access,shared_password,site_access}.py` (`benevole_access` renommé `volunteer_access` par #1571), `app/core/{permissions,http}.py`, `app/api/deps.py`, `app/models/` (54 symboles) | fait (#1499) |
+| P | `app/api/v1/` (59 symboles) | fait (#1502) |
+| Q | `app/schemas/` (24 symboles), **jamais** les champs `en_cours` / `traite` de `FeedbackCounts` ni `epreuves` de `BatchLaunched`, clés JSON gelées par la clause **Pas d'exception de vocabulaire métier** | fait (#1526) |
+| R | `app/cli/commands/`, hors du lot B (22 symboles) | fait (#1500) |
+| S | `app/services/club_members_service.py` (`_NOM_HEADERS`, `_PRENOM_HEADERS`, `nom_at`, `prenom_at`), fichier qu'aucun lot ne listait, relevé par le re-scan de clôture (#1538) | fait (#1614) |
 
 Le lot **A passe avant B**, et ce n'est pas un détail d'ordonnancement :
 `echec_total` traverse quatre modules d'`app` et cinq fichiers de test, dont
@@ -318,7 +340,17 @@ rattaché à un lot. Le script et sa sortie sont joints à la PR qui ferme #1435
 relancé le 2026-10-16 (#1475) sur `origin/main` `ad24fb3f`, une fois les lots A
 à I livrés, compte encore 385 identifiants dans les 86 fichiers relevés des lots J à R,
 et dans les lots A à I quatre faux positifs anglais seulement (tokens
-`exclusions` et `cumulatives`). Une fois la dérogation éteinte, l'alinéa précédent reprend pleinement. Design et relevé
+`exclusions` et `cumulatives`).
+Le re-scan de clôture (#1538), relancé sur `origin/main` `d3a4fd8e` avec le lot
+S appliqué, relève 52 identifiants dans 29 fichiers, **tous des faux
+positifs** : mots anglais absents des dictionnaires (`participations`,
+`oppositions`, `exclusions`, `cumulatives`, `importable`, `persister`, le
+`verifier` du PKCE, `schemas`), abréviations (`cors`, `res`, `sel`) et noms de
+fournisseurs (`Chrono` de BreizhChrono et ChronoWeb). Les noms de modules, que
+le re-scan AST ne voit pas, sont gardés par `backend/tests/test_module_names.py`
+depuis le renommage des modules `benevole*` (#1571). **La dérogation est
+éteinte depuis le 2026-10-16** : la **Règle de transition** reprend pleinement, et un
+identifiant français ajouté à `backend/app` ne relève plus d'aucun lot. Design et relevé
 chiffré initial :
 `docs/superpowers/specs/2026-07-31-convention-nommage-identifiants-design.md`.
 
@@ -501,4 +533,4 @@ référence (architecture détaillée, commandes, conventions de scraping). En c
 de divergence entre `AGENTS.md` et cette constitution, la constitution prime
 et `AGENTS.md` doit être aligné.
 
-**Version**: 1.2.4 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-10-16
+**Version**: 1.2.5 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-10-16

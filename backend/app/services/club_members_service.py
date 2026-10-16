@@ -43,8 +43,8 @@ logger = logging.getLogger(__name__)
 _SEASON_ENTITY = "club_members_season"
 _MEMBER_ENTITY = "club_member"
 
-_NOM_HEADERS = {"nom", "nomdefamille", "lastname"}
-_PRENOM_HEADERS = {"prenom", "firstname"}
+_LAST_NAME_HEADERS = {"nom", "nomdefamille", "lastname"}
+_FIRST_NAME_HEADERS = {"prenom", "firstname"}
 _GENDER_HEADERS = {"sexe", "genre", "gender"}
 _LICENCE_HEADERS = {"licence", "numerodelicence", "nlicence", "license"}
 
@@ -180,8 +180,9 @@ def import_file(
     if not SEASON_MIN <= season <= SEASON_MAX:
         raise SeasonOutOfRangeError
     headers, lines = sheet_source.read_table(content, filename)
-    nom_at, prenom_at = _column(headers, _NOM_HEADERS), _column(headers, _PRENOM_HEADERS)
-    if nom_at is None or prenom_at is None:
+    last_name_at = _column(headers, _LAST_NAME_HEADERS)
+    first_name_at = _column(headers, _FIRST_NAME_HEADERS)
+    if last_name_at is None or first_name_at is None:
         raise MissingMemberColumnsError
     gender_at, licence_at = _column(headers, _GENDER_HEADERS), _column(headers, _LICENCE_HEADERS)
 
@@ -190,13 +191,13 @@ def import_file(
 
     members = [
         RosterMember(
-            nom=cell(line, nom_at),
-            prenom=cell(line, prenom_at),
+            nom=cell(line, last_name_at),
+            prenom=cell(line, first_name_at),
             gender=normalize_gender(cell(line, gender_at)),
             licence_id=cell(line, licence_at) or None,
         )
         for line in lines
-        if cell(line, nom_at)
+        if cell(line, last_name_at)
     ]
     rows = _replace(db, season, _deduplicated(members), SOURCE_FILE)
     audit.record(db, user_id, action="club_members.import", entity_type=_SEASON_ENTITY, entity_id=season)
