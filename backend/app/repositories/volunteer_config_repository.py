@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.benevole_access_config import VolunteerAccessConfig
+from app.models.volunteer_access_config import VolunteerAccessConfig
 
 #: Id fixe de la ligne unique — nommée `SINGLETON_ID` jusqu'à la revue de #513,
 #: qui a jugé le mot illisible : il dit la forme de la table, pas ce que la

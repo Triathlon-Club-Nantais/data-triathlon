@@ -28,22 +28,22 @@ from app.core.validation import is_actionable_pending
 from app.models.user import User
 from app.repositories import (
     athlete_repository,
-    benevole_config_repository,
     course_repository,
     participation_repository,
+    volunteer_config_repository,
 )
 from app.schemas.admin import ParticipationReassign
 from app.schemas.athlete import AthleteBrief
-from app.schemas.benevole import ParticipationFieldsUpdate, VolunteerCourseRename, VolunteerLogin
 from app.schemas.course import CourseBrief
 from app.schemas.participation import ParticipationOut
 from app.schemas.validation_queue import ValidationQueueHistory
+from app.schemas.volunteer import ParticipationFieldsUpdate, VolunteerCourseRename, VolunteerLogin
 from app.services import (
     admin_actions,
-    benevole_access,
     scrape_service,
     shared_password,
     validation_queue_service,
+    volunteer_access,
 )
 
 router = APIRouter(tags=["benevoles"])
@@ -60,14 +60,14 @@ def open_session(
 ):
     """Connexion par mot de passe partagé. **Non gardée** — c'est elle qui pose
     la garde des autres routes de ce routeur."""
-    config = benevole_config_repository.get_config(db)
+    config = volunteer_config_repository.get_config(db)
     if config is None or not shared_password.verify_password(
         body.password, password_hash=config.password_hash, password_salt=config.password_salt
     ):
         raise NotAuthenticatedError("Mot de passe incorrect.")
 
     response.set_cookie(
-        key=benevole_access.VOLUNTEER_SESSION_COOKIE,
+        key=volunteer_access.VOLUNTEER_SESSION_COOKIE,
         value=shared_password.sign_cookie(config.session_secret),
         httponly=True,
         secure=settings.auth_cookie_secure,
@@ -83,7 +83,7 @@ def close_session(response: Response, settings: Settings = Depends(get_settings)
     """Déconnexion explicite. Sans garde : sortir d'un cookie invalide doit
     toujours être possible, et le geste n'a aucun effet de bord sensible."""
     response.delete_cookie(
-        key=benevole_access.VOLUNTEER_SESSION_COOKIE,
+        key=volunteer_access.VOLUNTEER_SESSION_COOKIE,
         path="/",
         httponly=True,
         secure=settings.auth_cookie_secure,
@@ -170,7 +170,7 @@ def rename_course(
         db,
         course_id=course_id,
         fields={"name": body.name},
-        user_id=benevole_access.actor_user_id(db, admin),
+        user_id=volunteer_access.actor_user_id(db, admin),
     )
     db.commit()
     return course
@@ -199,7 +199,7 @@ def reassign(
         db,
         participation_id=participation_id,
         athlete_id=body.athlete_id,
-        user_id=benevole_access.actor_user_id(db, admin),
+        user_id=volunteer_access.actor_user_id(db, admin),
     )
     db.commit()
     return participation
@@ -219,7 +219,7 @@ def validate(
     if target is None or not is_actionable_pending(target):
         raise NotFoundError("Ce résultat n'est pas ou plus en attente de validation.")
     participation = admin_actions.validate_participation(
-        db, participation_id=participation_id, user_id=benevole_access.actor_user_id(db, admin)
+        db, participation_id=participation_id, user_id=volunteer_access.actor_user_id(db, admin)
     )
     db.commit()
     return participation
@@ -249,7 +249,7 @@ def reject(
     if target is None or not is_actionable_pending(target):
         raise NotFoundError("Ce résultat n'est pas ou plus en attente de validation.")
     participation = admin_actions.reject_participation(
-        db, participation_id=participation_id, user_id=benevole_access.actor_user_id(db, admin)
+        db, participation_id=participation_id, user_id=volunteer_access.actor_user_id(db, admin)
     )
     db.commit()
     return participation
@@ -269,7 +269,7 @@ def unreject(
     if target is None or not target.is_pending_validation or not target.is_rejected:
         raise NotFoundError("Ce résultat n'est pas ou plus signalé non conforme.")
     participation = admin_actions.unreject_participation(
-        db, participation_id=participation_id, user_id=benevole_access.actor_user_id(db, admin)
+        db, participation_id=participation_id, user_id=volunteer_access.actor_user_id(db, admin)
     )
     db.commit()
     return participation
@@ -293,7 +293,7 @@ def update_fields(
         db,
         participation_id=participation_id,
         fields=body.model_dump(exclude_unset=True),
-        user_id=benevole_access.actor_user_id(db, admin),
+        user_id=volunteer_access.actor_user_id(db, admin),
     )
     db.commit()
     return participation

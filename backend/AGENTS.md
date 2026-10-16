@@ -59,7 +59,7 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
   source, #118, #285), `stats_service`, `geocode_service`, `weather_service` (#1370), plus les batches CLI
   (`sheet_source`, `batch`, `bulk_import_service`, `rescrape_service`,
   `progress`), `sse_relay` (le thread de travail et le battement des trois flux
-  SSE, dont `app/api/sse.py` fait la mise en forme, #1017), `auth/` (socle SSO), `benevole_access` (#271 — mot de passe
+  SSE, dont `app/api/sse.py` fait la mise en forme, #1017), `auth/` (socle SSO), `volunteer_access` (#271 — mot de passe
   partagé, cookie signé HMAC ; distinct du socle SSO) et `site_access` (#509 —
   mot de passe partagé du site entier, même patron, secret et table propres),
   tous deux au-dessus du socle neutre `shared_password`

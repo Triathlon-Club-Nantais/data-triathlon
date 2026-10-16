@@ -23,7 +23,7 @@ class VolunteerAccessConfig(Base):
     `session_secret` signe le cookie de session bénévole (research.md §D2 de
     cette feature) — distinct du mot de passe, pour que la vérification n'ait
     jamais besoin de le relire en clair. Les trois champs sont toujours
-    réécrits **ensemble** par `services/benevole_access.replace_password` :
+    réécrits **ensemble** par `services/volunteer_access.replace_password` :
     jamais l'un sans les autres, sous peine de casser soit la vérification du
     mot de passe soit l'invalidation des sessions (FR-006).
     """
