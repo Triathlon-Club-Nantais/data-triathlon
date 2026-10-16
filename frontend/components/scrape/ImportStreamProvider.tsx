@@ -108,8 +108,9 @@ function annoncer(
   const persistant = { id: TOAST_ID, duration: Infinity, closeButton: true, onDismiss: fermer, onAutoClose: fermer };
 
   if (state.phase === "error") {
-    captureEvent("results_import_failed", { error_message: state.error ?? "Import impossible" });
     const motif = motifEchec(state);
+    // Une cause fermée, jamais le message : il peut citer une URL ou un nom (#1528).
+    captureEvent("results_import_failed", { reason: motif });
     const attente = Math.max(0, (state.retryAfter ?? 0) - Math.floor((Date.now() - state.endedAt) / 1000));
     const echec = echecImport(state, attente)!;
     if (motif === "plafond") {
