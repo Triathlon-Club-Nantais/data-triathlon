@@ -81,10 +81,11 @@ class ClientAddressMiddleware:
         # Cloudflare : un écart signale un saut ajouté ou retiré par la plateforme.
         cloudflare = _header(scope, b"cf-connecting-ip")
         if len(cloudflare) == 1 and _ip(cloudflare[0]) != host:
+            # Sans valeur de `settings` dans le message : CodeQL tient tout
+            # l'objet pour secret, à cause de `frontend_proxy_secret`.
             logger.warning(
-                "X-Forwarded-For[-%d]=%s differs from CF-Connecting-IP=%s: "
+                "X-Forwarded-For entry %s differs from CF-Connecting-IP %s: "
                 "re-measure TRUSTED_PROXY_COUNT (#1533)",
-                count,
                 host,
                 cloudflare[0],
             )
