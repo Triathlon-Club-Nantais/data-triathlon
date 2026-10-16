@@ -180,12 +180,25 @@ function forwardToBackend(request: NextRequest): NextResponse {
 }
 
 /**
+ * `/ingest/*` part chez PostHog par le rewrite de `next.config.ts`, avec
+ * l'en-tête `Cookie` du visiteur : jeton de session SSO, accès au site et
+ * bénévoles compris (#1604). Next applique ces en-têtes surchargés à la requête
+ * avant le rewrite, qui ne les voit donc plus.
+ */
+function forwardToPosthog(request: NextRequest): NextResponse {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("cookie");
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
+/**
  * La CSP est le **tronc** de ce proxy, le marquage de présence un effet de bord
  * sur la réponse : les sorties précoces de #427 court-circuitaient sinon la
  * politique pour la majorité des visiteurs.
  */
 export function proxy(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/api/")) return forwardToBackend(request);
+  if (request.nextUrl.pathname.startsWith("/ingest/")) return forwardToPosthog(request);
 
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const policy = buildCspPolicy(nonce, {
