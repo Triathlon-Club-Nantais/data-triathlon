@@ -1,4 +1,40 @@
-import type { CSSProperties, ReactNode } from "react";
+"use client";
+import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
+
+const TAILLE_MINIMALE = 24;
+
+/**
+ * Réduit la police de la valeur tant qu'elle déborde de la tuile (#1540) :
+ * « F 123 H 145 » (227 px en Anton 68) dans une colonne de 131 px utiles. Les
+ * grilles figent leurs colonnes, et aucune règle CSS ne sait comparer la
+ * largeur d'un texte à celle de sa boîte. Plusieurs passes, car les libellés
+ * F / H de `GenderPair` et leurs marges ne suivent pas la police.
+ */
+function useValeurAjustee(base: number, value: ReactNode) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const valeur = ref.current;
+    const carte = valeur?.parentElement;
+    if (!valeur || !carte) return;
+    const ajuster = () => {
+      const { paddingLeft, paddingRight } = getComputedStyle(carte);
+      const utile = carte.clientWidth - parseFloat(paddingLeft) - parseFloat(paddingRight);
+      let taille = base;
+      valeur.style.fontSize = `${taille}px`;
+      for (let passe = 0; passe < 4 && valeur.scrollWidth > utile && taille > TAILLE_MINIMALE; passe++) {
+        taille = Math.max(TAILLE_MINIMALE, Math.floor((taille * utile) / valeur.scrollWidth));
+        valeur.style.fontSize = `${taille}px`;
+      }
+    };
+    ajuster();
+    const observateur = new ResizeObserver(ajuster);
+    observateur.observe(carte);
+    // Anton arrive après le premier rendu : la largeur mesurée en police de repli est fausse.
+    document.fonts?.ready.then(ajuster);
+    return () => observateur.disconnect();
+  }, [base, value]);
+  return ref;
+}
 
 /** Tuile KPI TCN. `hero` utilise le dégradé orange ; `hint` ajoute une sous-ligne, variant `default` uniquement (silencieusement ignoré en `hero`). */
 export function StatCard({
@@ -25,6 +61,8 @@ export function StatCard({
   /** Override ciblé de la taille du `value` en variant `default` (voir `TuileResume.valueFontSize`). */
   valueFontSize?: number;
 }) {
+  const taille = valueFontSize ?? 68;
+  const refValeur = useValeurAjustee(taille, value);
   if (variant === "hero") {
     return (
       <div
@@ -113,7 +151,7 @@ export function StatCard({
           </div>
         ) : null}
       </div>
-      <div className="tcn-stat-value" style={{ fontFamily: "var(--tcn-font-display)", fontSize: valueFontSize ?? 68, lineHeight: 1, color: valueColor, marginTop: 10 }}>
+      <div ref={refValeur} className="tcn-stat-value" style={{ fontFamily: "var(--tcn-font-display)", fontSize: taille, lineHeight: 1, color: valueColor, marginTop: 10 }}>
         {value}
       </div>
       {accent ? (
