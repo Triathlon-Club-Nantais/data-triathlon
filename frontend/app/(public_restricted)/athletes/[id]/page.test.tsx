@@ -627,7 +627,7 @@ describe("AthletePage: season validation panel stays out of the header (#927)", 
     quotaCourant.data = { validated_count: 2, has_volunteer_action: false, season_validated: false };
     await renderAthlete([part({ id: 1, rank_overall: 12 })]);
 
-    const bouton = screen.getByRole("button", { name: "Valider la saison" });
+    const bouton = await screen.findByRole("button", { name: "Valider la saison" });
     const titre = screen.getByRole("heading", { level: 1, name: "Jean DUPONT" });
     const entete = titre.closest(".mb-7");
     expect(entete).not.toBeNull();

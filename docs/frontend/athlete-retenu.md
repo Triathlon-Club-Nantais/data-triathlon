@@ -107,6 +107,15 @@ self-service hors sujet pour ce visiteur. Le bénéfice affiché sous le
 bouton de sélection **reste visible** malgré la relégation (arbitrage de
 l'issue) : seul `primary` change son variant, jamais le paragraphe.
 
+Les sept gestes d'administration de la fiche (`AthleteAdminPanel`,
+`AthleteOppositionAction`, `ParticipationAdminActions`, `AthleteDetachAction`,
+`SeasonValidationPanel`, `VolunteerActionsList`, `AthleteVariantsPanel`) ne
+s'importent sur la route que par `components/athletes/AdminGates.tsx` (#1582) :
+chacun y passe en `next/dynamic` derrière un premier tri de pouvoir, sur le
+motif de `CourseAdminActions`, et garde sa propre garde exacte. Un visiteur
+sans pouvoir n'en télécharge rien ; `AdminGates.test.tsx` refuse leur import
+statique depuis la route.
+
 ## Gestes d'administration sur la fiche épreuve (#1244)
 
 **Gestes d'administration sur la fiche épreuve** (#1244) :

@@ -11,9 +11,11 @@ import { AthleteAvatar } from "./AthleteAvatar";
 import { AthleteHeaderActions } from "./AthleteHeaderActions";
 import { EventsTable } from "./EventsTable";
 import { AthleteChallenges } from "@/components/challenges/AthleteChallenges";
-import { SeasonValidationPanel } from "@/components/athletes/SeasonValidationPanel";
-import { VolunteerActionsList } from "@/components/athletes/VolunteerActionsList";
-import { AthleteVariantsPanel } from "@/components/athletes/AthleteVariantsPanel";
+import {
+  SeasonValidationPanel,
+  VolunteerActionsList,
+  AthleteVariantsPanel,
+} from "@/components/athletes/AdminGates";
 import { BestTimesCard } from "@/components/athletes/BestTimesCard";
 import { formatToken, disciplineBreakdownBySeason, genderShort, ordinalFr, formatCount } from "@/lib/utils/format";
 import { BarList } from "@/components/charts/BarList";

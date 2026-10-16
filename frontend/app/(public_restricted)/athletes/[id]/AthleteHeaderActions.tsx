@@ -1,8 +1,8 @@
 "use client";
 
 import { useHydratedSession } from "@/lib/queries/auth";
-import { AthleteAdminPanel, type CoureurACorriger } from "@/components/athletes/AthleteAdminPanel";
-import { AthleteOppositionAction } from "@/components/athletes/AthleteOppositionAction";
+import type { CoureurACorriger } from "@/components/athletes/AthleteAdminPanel";
+import { AthleteAdminPanel, AthleteOppositionAction } from "@/components/athletes/AdminGates";
 import { AthleteSelection } from "./AthleteSelection";
 
 /**
