@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AthleteComparisonChart, AthleteComparisonResult } from "./AthleteComparisonChart";
 
@@ -111,6 +111,35 @@ describe("AthleteComparisonResult head-to-head line (#1543)", () => {
 
     expect(screen.getByText(/sur 1 épreuve comparable : devant 1 fois\./)).toBeInTheDocument();
     expect(screen.getByText(/^1 épreuve hors bilan/)).toBeInTheDocument();
+  });
+
+  it("marks each row the tally leaves out with its reason (#1563)", () => {
+    const mine = [
+      { ...participation(1, 10, "2026-03-01", "01:00:00"), is_relay: true },
+      { ...participation(2, 20, "2026-04-01", "01:00:00"), status: "DNF" },
+      participation(3, 30, "2026-05-01", "01:00:00"),
+    ];
+    const theirs = [
+      participation(11, 10, "2026-03-01", "01:05:00"),
+      participation(12, 20, "2026-04-01", "01:05:00"),
+      participation(13, 30, "2026-05-01", "01:05:00"),
+    ];
+
+    render(<AthleteComparisonResult mine={mine} theirs={theirs} theirsName="Camarade" />);
+
+    expect(screen.getByText(/sur 1 épreuve comparable : devant 1 fois\./)).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: /Épreuve 10/ })).getByText("Hors bilan : relais")).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: /Épreuve 20/ })).getByText("Hors bilan : non classé")).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: /Épreuve 30/ })).queryByText(/hors bilan/i)).not.toBeInTheDocument();
+  });
+
+  it("names the teammate when only their result is left out (#1563)", () => {
+    const mine = [participation(1, 10, "2026-03-01", "01:00:00")];
+    const theirs = [{ ...participation(11, 10, "2026-03-01", "01:05:00"), status: "DSQ" }];
+
+    render(<AthleteComparisonResult mine={mine} theirs={theirs} theirsName="Camarade" />);
+
+    expect(screen.getByText("Hors bilan : non classé (Camarade)")).toBeInTheDocument();
   });
 
   it("shows only the exclusion note when every shared time is excluded", () => {
