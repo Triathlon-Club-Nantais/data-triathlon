@@ -358,8 +358,10 @@ Une saisie qui nomme une identité opposée (nom, nom d'équipe, équipier d'un
 relais) suit les mêmes contrôles, reçoit le même `201` et le même corps qu'une
 saisie mise en quarantaine, puis la transaction est annulée
 (`scrape_service.save_public_entry`) : un refus distinct servait d'oracle.
-Limite connue : relire l'`id` rendu donne un 404. Les gestes des bénévoles
-gardent le refus explicite (`ensure_not_opposed`).
+Limite connue, suivie par #1519 : une saisie en attente étant publique,
+une seconde requête (relire l'`id`, renvoyer le dossard, lire l'épreuve)
+constate encore l'absence de la ligne. Les gestes des bénévoles gardent le
+refus explicite (`ensure_not_opposed`).
 
 **Le contrat d'entrée de `POST /participations` a été resserré par #1019**,
 changement explicite accepté au titre du Principe IV. Ce qui passait en `201`

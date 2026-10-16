@@ -336,10 +336,13 @@ def test_apply_removes_the_club_member_rows_of_the_person(db, admin):
         "DUPONT, Jean + MARTIN, Paul",
         "DUPONT + MARTIN Jean + Paul",
         "Jean Dupont,Paul Martin&Luc Roux",
+        "Jean Dupont et Paul Martin",
+        "DUPONT Jean - MARTIN Paul",
+        "DUPONT Jean ; MARTIN Paul",
     ],
 )
 def test_named_hashes_split_teammates_joined_by_plus_comma_or_ampersand(label):
-    """#1514 : chaque équipier d'un libellé joint par `+`, `,` ou `&` est reconnu."""
+    """#1514 : chaque équipier d'un libellé joint par `+`, `,`, `&`, `;`, « et » ou « - » est reconnu."""
     hashes = opposition_service.named_hashes(label)
 
     assert identity_hash("DUPONT", "Jean") in hashes
@@ -359,5 +362,13 @@ def test_named_hashes_keep_a_single_name_whole(label, person):
     assert identity_hash(*person) in opposition_service.named_hashes(label)
 
 
-def test_named_hashes_never_name_someone_from_a_fragment_of_a_compound_first_name():
-    assert identity_hash("DUPONT", "Marie") not in opposition_service.named_hashes("Anne-Marie DUPONT")
+@pytest.mark.parametrize(
+    ("label", "someone_else"),
+    [
+        ("Anne-Marie DUPONT", ("DUPONT", "Marie")),
+        ("DUPONT, Jean Martin", ("MARTIN", "Jean")),
+    ],
+)
+def test_named_hashes_never_name_someone_from_a_fragment_of_one_name(label, someone_else):
+    """#1514 : à l'import, une empreinte en trop anonymiserait la ligne d'une autre personne."""
+    assert identity_hash(*someone_else) not in opposition_service.named_hashes(label)

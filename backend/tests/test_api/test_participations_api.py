@@ -487,6 +487,13 @@ def _stored_rows(db_session):
     return tuple(db_session.query(model).count() for model in (Participation, Athlete, Course))
 
 
+def _without_ids(body):
+    return {
+        **body, "id": None, "created_at": None,
+        "athlete": {**body["athlete"], "id": None}, "course": {**body["course"], "id": None},
+    }
+
+
 def test_a_manual_result_for_an_opposed_person_answers_like_a_quarantined_entry(client, db_session):
     """#1514 : la réponse publique ne dit plus qu'une personne s'est opposée, et rien n'est gardé."""
     opposition = _oppose_jean_dupont(db_session)
@@ -501,7 +508,8 @@ def test_a_manual_result_for_an_opposed_person_answers_like_a_quarantined_entry(
     accepted = client.post("/api/v1/participations", json=_payload())
 
     assert accepted.status_code == 201
-    assert {**opposed.json(), "created_at": None} == {**accepted.json(), "created_at": None}
+    # Les identifiants viennent de séquences, que PostgreSQL ne rembobine pas au rollback.
+    assert _without_ids(opposed.json()) == _without_ids(accepted.json())
     assert opposed.json()["is_pending_validation"] is True
 
 

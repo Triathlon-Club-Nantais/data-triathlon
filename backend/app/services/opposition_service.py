@@ -37,7 +37,7 @@ from app.repositories import (
 from app.scrapers.utils import split_relay_teammates
 from app.services import audit
 
-_TEAMMATE_SEPARATOR = re.compile(r"\s*[/+&]\s*")
+_TEAMMATE_SEPARATOR = re.compile(r"\s*[/+&;]\s*|\s+(?:et|-)\s+", re.IGNORECASE)
 OVERDUE_AFTER_DAYS = 30
 PARIS = ZoneInfo("Europe/Paris")
 REDACTED = "[anonymisé]"
@@ -75,9 +75,10 @@ def named_hashes(*labels: str | None) -> set[str]:
     """Empreinte de chaque personne qu'un libellé nomme : lui entier, ou chaque équipier
     d'un libellé de relais. Règle commune à l'import et à la saisie (#1506).
 
-    `+`, `&` et `,` séparent des équipiers comme `/` (#1514). Une virgule peut aussi
-    séparer « NOM, Prénom » : chaque segment compte entier et coupé à ses virgules.
-    Une empreinte en trop ne coûte qu'un refus, une en moins publie la personne.
+    `+`, `&`, `;`, « et » et un tiret entouré d'espaces séparent des équipiers comme `/`
+    (#1514). La virgule aussi, mais elle sépare encore « NOM, Prénom » : elle ne coupe
+    que si chaque côté porte au moins deux mots. Une empreinte en trop anonymise à
+    l'import la ligne d'une autre personne : un fragment de nom n'en produit pas.
     """
     hashes = set()
     for label in filter(None, labels):
@@ -86,7 +87,9 @@ def named_hashes(*labels: str | None) -> set[str]:
             hashes.update(identity_hash(*pair) for pair in split_relay_teammates(relay) or ())
         for segment in _TEAMMATE_SEPARATOR.split(label):
             hashes.add(identity_hash(segment, ""))
-            hashes.update(identity_hash(part, "") for part in segment.split(","))
+            parts = segment.split(",")
+            if all(len(part.split()) >= 2 for part in parts):
+                hashes.update(identity_hash(part, "") for part in parts)
     return hashes
 
 
