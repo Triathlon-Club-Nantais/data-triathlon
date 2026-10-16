@@ -32,7 +32,8 @@ export function AccessGate({ onSuccess }: { onSuccess: () => void }) {
   }
 
   return (
-    <div style={{ maxWidth: 380, margin: "80px auto" }}>
+    // 412 = carte de 380 px + 2 × 16 px de gouttière mobile (#1564).
+    <div style={{ maxWidth: 412, margin: "80px auto", padding: "0 16px" }}>
       <Card padding={32}>
         <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)", fontWeight: 400, margin: 0, marginBottom: 8 }}>
           Vérification des résultats
