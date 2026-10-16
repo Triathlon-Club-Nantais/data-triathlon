@@ -10,7 +10,7 @@ from app.core.database import session_scope
 from app.services import rescrape_service
 
 
-def _redirection_source_passive(cible: rescrape_service.PassiveTarget) -> str:
+def _passive_source_redirect(target: rescrape_service.PassiveTarget) -> str:
     """La substitution d'une URL passive, dite pour être corrigeable à la source.
 
     Le batch continue : ce message n'est pas une erreur, mais la trace de ce qui
@@ -18,16 +18,16 @@ def _redirection_source_passive(cible: rescrape_service.PassiveTarget) -> str:
     la CLI ne peut pas réécrire — sans elle, la liste resterait fausse pour
     toujours.
     """
-    if not cible.active_url:
+    if not target.active_url:
         return (
-            f"« {cible.url} » est une source passive de l'épreuve "
-            f"« {cible.course_name} », qui n'a aucune source active : elle est "
+            f"« {target.url} » est une source passive de l'épreuve "
+            f"« {target.course_name} », qui n'a aucune source active : elle est "
             "re-scrapée telle quelle."
         )
     return (
-        f"« {cible.url} » est une source passive de l'épreuve "
-        f"« {cible.course_name} » : re-scrape de sa source active "
-        f"« {cible.active_url} »."
+        f"« {target.url} » est une source passive de l'épreuve "
+        f"« {target.course_name} » : re-scrape de sa source active "
+        f"« {target.active_url} »."
     )
 
 
@@ -118,17 +118,17 @@ def rescrape_db(
         # Sans active — épreuve saisie à la main (#283) —, la passive part telle
         # quelle : elle est la seule publication connue, aucun doublon n'est
         # possible, et refuser ne scraperait rien du tout.
-        cibles = urls or []
-        passives = rescrape_service.find_passive_targets(db, cibles)
+        targets = urls or []
+        passives = rescrape_service.find_passive_targets(db, targets)
         if passives:
-            for cible in passives:
+            for target in passives:
                 # stderr : stdout est le canal `--json`, une phrase française
                 # l'invaliderait.
-                typer.echo(_redirection_source_passive(cible), err=True)
+                typer.echo(_passive_source_redirect(target), err=True)
             # Les doublons que la substitution peut créer (l'active déjà dans le
             # lot) sont absorbés en aval par `_items_from_urls`, qui dédoublonne.
             actives = {c.url: c.active_url for c in passives if c.active_url}
-            urls = [actives.get(soumise, soumise) for soumise in cibles]
+            urls = [actives.get(submitted, submitted) for submitted in targets]
 
         outcome = rescrape_service.run_rescrape_db(
             db, settings,

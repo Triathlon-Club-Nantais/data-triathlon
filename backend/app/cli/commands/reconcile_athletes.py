@@ -64,17 +64,17 @@ def reconcile_athletes(
     code = 0
     try:
         with session_scope() as db:
-            comptes = []
+            accounts = []
             if yes:
-                comptes = user_repository.find_by_email(db, by_email) if by_email else []
-                if not comptes:
+                accounts = user_repository.find_by_email(db, by_email) if by_email else []
+                if not accounts:
                     raise _usage("--yes exige --by-email, l'adresse d'un compte existant.")
             if planned is None:
                 planned = athlete_reconciliation.plan(db, progress=progress)
             if not yes:
                 report = planned
             else:
-                athlete_reconciliation.apply(db, planned, user_id=comptes[0].id, report=report, progress=progress)
+                athlete_reconciliation.apply(db, planned, user_id=accounts[0].id, report=report, progress=progress)
                 total = len(planned["operations"])
                 if total and len(report["errors"]) == total:
                     code = 1
