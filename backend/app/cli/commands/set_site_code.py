@@ -34,11 +34,11 @@ def set_site_code(
         raise typer.Exit(USAGE)
 
     with session_scope() as db:
-        _, mot_de_passe = site_access.replace_password(db, password=code, admin_user_id=None)
+        _, password = site_access.replace_password(db, password=code, admin_user_id=None)
         db.commit()
 
     if code is None:
         typer.echo("Code d'accès généré (il ne sera plus affiché) :")
-        typer.echo(mot_de_passe)
+        typer.echo(password)
     else:
         typer.echo("Code d'accès posé.")
