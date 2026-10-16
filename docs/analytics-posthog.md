@@ -60,9 +60,11 @@ qu'il compte une seule fois et hors de portée des bloqueurs (#1033).
   `?…` et `#…` de toute propriété dont la clé finit par `url` ou `referrer`, à
   toute profondeur : `$current_url`, `$referrer`, leurs copies `$initial_*`
   (`$set_once`) et `$session_entry_*`, `$external_click_url`, et dans les web
-  vitals `$current_url`, `navigationURL` et `attribution.url`. Les clés de
-  `$heatmap_data` (une URL par page) sont réduites de même, leurs points
-  fusionnés. Raison : `ResultsFilters` met `name=<athlète>` dans l'URL de
+  vitals `$current_url`, `navigationURL` et `attribution.url`. Il en va de
+  même des clés finissant par `href` (`attr__href` d'un lien cliqué, relatif
+  compris), `filename` et `abs_path` (trace d'exception), des `href="…"` de
+  `$elements_chain`, et des clés de `$heatmap_data` (une URL par page), dont
+  les points sont fusionnés. Raison : `ResultsFilters` met `name=<athlète>` dans l'URL de
   `/resultats`, `RaceFinishers` la recherche `q=`. **Aucun paramètre n'est
   gardé**, même non identifiant (`seasons`, `scope`, `rank`) : une liste
   blanche se tient à la main et un paramètre ajouté plus tard fuirait par

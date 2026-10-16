@@ -119,7 +119,7 @@ describe("before_send (#1307, #1530)", () => {
         $web_vitals_LCP_event: { $current_url: page, navigationURL: page, attribution: { url: page } },
         $heatmap_data: { [page]: [{ x: 1 }], "https://tcn.test/resultats?name=Autre": [{ x: 2 }] },
       },
-      $set_once: { $initial_current_url: page, $initial_referrer: "$direct" },
+      $set_once: { $initial_current_url: page, $initial_referrer: "$direct", $initial_referring_domain: undefined },
     });
 
     expect(JSON.stringify(out)).not.toMatch(/Jean|Bob|Autre|seasons|#haut|\?/);
@@ -128,7 +128,30 @@ describe("before_send (#1307, #1530)", () => {
     expect(properties.$current_url).toBe("https://tcn.test/resultats");
     expect(properties.$pathname).toBe("/resultats");
     expect(properties.$heatmap_data).toEqual({ "https://tcn.test/resultats": [{ x: 1 }, { x: 2 }] });
-    expect(out?.$set_once).toEqual({ $initial_current_url: "https://tcn.test/resultats", $initial_referrer: "$direct" });
+    expect(out?.$set_once).toEqual({
+      $initial_current_url: "https://tcn.test/resultats",
+      $initial_referrer: "$direct",
+      $initial_referring_domain: undefined,
+    });
+  });
+
+  it("retire la query string des liens cliqués (autocapture)", async () => {
+    vi.stubGlobal("window", { location: { pathname: "/" } });
+    const send = await beforeSend();
+
+    const out = send({
+      event: "$autocapture",
+      properties: {
+        $elements: [{ tag_name: "a", attr__href: "/resultats?name=Jean%20Dupont", $el_text: "Mes résultats" }],
+        $elements_chain: 'a:attr__href="/resultats?name=Jean%20Dupont"href="/resultats?name=Jean%20Dupont#x"nth-child="1"',
+        $exception_list: [{ stacktrace: { frames: [{ filename: "https://tcn.test/resultats?name=Jean", abs_path: "/p?q=Jean" }] } }],
+      },
+    });
+
+    expect(JSON.stringify(out)).not.toMatch(/Jean/);
+    const properties = out?.properties as Record<string, unknown>;
+    expect(properties.$elements).toEqual([{ tag_name: "a", attr__href: "/resultats", $el_text: "Mes résultats" }]);
+    expect(properties.$elements_chain).toBe('a:attr__href="/resultats"href="/resultats"nth-child="1"');
   });
 
   it("jette encore un clic sous /admin/jeunes, garde la page vue", async () => {

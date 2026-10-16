@@ -27,25 +27,21 @@ function leaksYouthData(event: CaptureResult): boolean {
 // Query string et fragment (#1530) : `ResultsFilters` y pousse `name=`, `RaceFinishers` `q=`. Tri
 // sur le nom de la clé, à toute profondeur, pour couvrir `$current_url`, `$referrer`, leurs copies
 // `$initial_*` et `$session_entry_*`, `$external_click_url`, et les `navigationURL` et
-// `attribution.url` des web vitals. Les cartes de chaleur, elles, indexent leurs points par URL.
-const URL_KEY = /(url|referrer)$/i;
+// `attribution.url` des web vitals, le `attr__href` d'un lien cliqué et les fichiers d'une trace
+// d'exception. `$elements_chain` et les cartes de chaleur portent l'URL ailleurs que dans une valeur.
+const URL_KEY = /(url|referrer|href|filename|abs_path)$/i;
 
-function withoutQuery(value: string): string {
-  try {
-    const url = new URL(value);
-    url.search = "";
-    url.hash = "";
-    return url.href;
-  } catch {
-    return value; // "$direct", pas une URL.
-  }
-}
+// Coupe aussi les liens relatifs (`/resultats?name=…`) ; laisse "$direct" intact.
+const withoutQuery = (value: string) => value.split(/[?#]/, 1)[0];
 
 function stripUrls(value: unknown, key = ""): unknown {
+  if (key === "$elements_chain" && typeof value === "string") {
+    return value.replace(/href="([^"?#]*)[^"]*"/g, 'href="$1"');
+  }
   if (typeof value === "string") return URL_KEY.test(key) ? withoutQuery(value) : value;
-  if (Array.isArray(value)) return value.map((item) => stripUrls(item));
-  // Objets simples seuls : un `Date` (timestamp) ne se parcourt pas.
-  if (value === null || Object.getPrototypeOf(value) !== Object.prototype) return value;
+  if (Array.isArray(value)) return value.map((item) => stripUrls(item, key));
+  // Objets simples seuls : un `Date` (timestamp) ne se parcourt pas, `undefined` non plus.
+  if (value === null || typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype) return value;
   if (key === "$heatmap_data") {
     const byUrl: Record<string, unknown[]> = {};
     for (const [url, points] of Object.entries(value as Record<string, unknown[]>)) {
