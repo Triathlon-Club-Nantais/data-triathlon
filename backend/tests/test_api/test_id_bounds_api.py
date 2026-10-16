@@ -35,8 +35,13 @@ def test_largest_integer_id_still_reaches_the_route(client):
     assert response.status_code == 404
 
 
-def _is_id(name: str) -> bool:
-    return name == "id" or name.endswith("_id")
+#: Ids that are not our primary keys: a GitHub Actions run id is already
+#: beyond the int4 range, bounding it would reject every real run.
+EXTERNAL_IDS = {("/api/v1/admin/batches/{run_id}/report", "run_id")}
+
+
+def _is_id(path: str, name: str) -> bool:
+    return (name == "id" or name.endswith("_id")) and (path, name) not in EXTERNAL_IDS
 
 
 def _integer_schemas(schema: dict) -> list[dict]:
@@ -48,10 +53,17 @@ def test_every_integer_id_parameter_carries_the_bound():
     for path, operations in app.openapi()["paths"].items():
         for method, operation in operations.items():
             for parameter in operation.get("parameters", []):
-                if not _is_id(parameter["name"]):
+                if not _is_id(path, parameter["name"]):
                     continue
                 for schema in _integer_schemas(parameter["schema"]):
                     if schema.get("minimum") != 1 or schema.get("maximum") != DB_ID_MAX:
                         unbounded.append(f"{method.upper()} {path} {parameter['name']}")
 
     assert unbounded == []
+
+
+def test_external_ids_are_not_bounded():
+    for path, name in EXTERNAL_IDS:
+        parameters = app.openapi()["paths"][path]["get"]["parameters"]
+        schema = next(p["schema"] for p in parameters if p["name"] == name)
+        assert "maximum" not in schema

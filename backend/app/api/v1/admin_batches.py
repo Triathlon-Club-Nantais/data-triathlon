@@ -10,7 +10,7 @@ service web ne porte jamais le batch (FR-013).
 """
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 
-from app.api.deps import DbId, require_permission
+from app.api.deps import require_permission
 from app.api.uploads import read_bounded_upload
 from app.core.analytics import capture_event
 from app.core.config import get_settings
@@ -208,7 +208,7 @@ def list_batches(
 
 @router.get("/admin/batches/{run_id}/report")
 def get_batch_report(
-    run_id: DbId,
+    run_id: int,
     _: User = Depends(require_permission(P.BATCH_READ)),
 ) -> dict:
     """Le bilan, **tel quel**.

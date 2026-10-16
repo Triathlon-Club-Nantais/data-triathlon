@@ -411,8 +411,10 @@ Tout identifiant entier en chemin ou en requête se type `deps.DbId` (1 à
 c'est une 422 de validation. Obligatoire en requête, il s'écrit
 `Annotated[DbId, Query()]` (`DbId = Query(...)` perd la borne).
 `tests/test_api/test_id_bounds_api.py` parcourt l'OpenAPI et refuse tout
-paramètre `id` ou `*_id` entier sans la borne. Les identifiants des corps JSON
-ne sont pas couverts.
+paramètre `id` ou `*_id` entier sans la borne, hors `EXTERNAL_IDS` : le
+`run_id` de `/admin/batches/{run_id}/report` est un identifiant de run GitHub
+Actions, déjà au delà de l'int4, qui reste un `int` nu. Les identifiants des
+corps JSON ne sont pas couverts.
 
 ## Protéger une ressource (#115)
 
