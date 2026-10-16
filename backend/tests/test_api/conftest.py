@@ -108,7 +108,7 @@ def administrateur(db_session):
 
     Ces tests ne s'intéressent pas à *qui* administre, seulement au fait qu'une
     configuration existe — la garde RBAC des écrans d'administration est éprouvée
-    à part (`tests/test_auth/test_admin_benevole_access_api.py`,
+    à part (`tests/test_auth/test_admin_volunteer_access_api.py`,
     `test_admin_site_access_api.py`).
 
     Recopiée à l'identique dans trois modules jusqu'à #590.

@@ -1,5 +1,5 @@
 """HMAC de cookie et hachage de mot de passe — socle partagé par les deux
-mots de passe communs du dépôt (`benevole_access`, #271 ; `site_access`,
+mots de passe communs du dépôt (`volunteer_access`, #271 ; `site_access`,
 #509). Les deux diffèrent par leur cookie, leur table et leur politique
 d'expiration — jamais par ce calcul.
 

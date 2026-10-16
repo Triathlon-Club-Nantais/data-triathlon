@@ -15,8 +15,8 @@ from app.core.database import get_db
 from app.core.exceptions import DomainError, TooManyRequestsError
 from app.core.permissions import P, Permission
 from app.models.user import User
-from app.repositories import benevole_config_repository, site_access_config_repository
-from app.services import benevole_access, shared_password, site_access
+from app.repositories import site_access_config_repository, volunteer_config_repository
+from app.services import shared_password, site_access, volunteer_access
 from app.services.auth import authorization
 from app.services.auth import session as session_service
 
@@ -134,12 +134,12 @@ def require_volunteer_access(
 def has_volunteer_cookie(request: Request, db: Session) -> bool:
     """Le cookie bénévoles de cette requête est-il valide et non expiré (#1534) ?
     Faux sans configuration."""
-    config = benevole_config_repository.get_config(db)
-    cookie = request.cookies.get(benevole_access.VOLUNTEER_SESSION_COOKIE)
+    config = volunteer_config_repository.get_config(db)
+    cookie = request.cookies.get(volunteer_access.VOLUNTEER_SESSION_COOKIE)
     return config is not None and shared_password.verify_cookie(
         cookie,
         config.session_secret,
-        max_age_seconds=benevole_access.VOLUNTEER_SESSION_TTL_SECONDS,
+        max_age_seconds=volunteer_access.VOLUNTEER_SESSION_TTL_SECONDS,
     )
 
 

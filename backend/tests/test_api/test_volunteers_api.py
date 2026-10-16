@@ -14,8 +14,8 @@ from fastapi.testclient import TestClient
 from app.api.deps import require_volunteer_access
 from app.core.database import get_db
 from app.core.exceptions import register_exception_handlers
-from app.models.benevole_access_config import VolunteerAccessConfig
 from app.models.user import SYSTEM_USER_EMAIL
+from app.models.volunteer_access_config import VolunteerAccessConfig
 from app.repositories import (
     admin_action_log_repository,
     athlete_repository,
@@ -23,7 +23,7 @@ from app.repositories import (
     participation_repository,
     user_repository,
 )
-from app.services import benevole_access, shared_password
+from app.services import shared_password, volunteer_access
 from app.services.scrape_service import YouthResultError
 from tests.test_api.test_admin_data_api import _session_etroite
 
@@ -35,7 +35,7 @@ def benevole_sans_session_sso(session_de_saisie, client):
     """Retire la session superutilisateur que `tests/test_api/conftest.py` pose
     sur le client : depuis #1272 elle ouvrirait la page par le pouvoir, et ces
     tests éprouvent le bénévole, qui n'a que le mot de passe partagé. L'accès
-    par pouvoir est éprouvé dans `tests/test_auth/test_benevole_access_sso.py`."""
+    par pouvoir est éprouvé dans `tests/test_auth/test_volunteer_access_sso.py`."""
     from app.api.v1.auth import session_cookie_name
     from app.core.config import get_settings
 
@@ -44,7 +44,7 @@ def benevole_sans_session_sso(session_de_saisie, client):
 
 @pytest.fixture(autouse=True)
 def mot_de_passe_configure(db_session, administrateur):
-    benevole_access.replace_password(
+    volunteer_access.replace_password(
         db_session, password=MOT_DE_PASSE, admin_user_id=administrateur.id
     )
     db_session.commit()
@@ -91,20 +91,20 @@ def test_refuse_sans_cookie(visiteur):
 
 
 def test_refuse_avec_un_cookie_invalide(visiteur):
-    visiteur.cookies.set(benevole_access.VOLUNTEER_SESSION_COOKIE, "n-importe-quoi")
+    visiteur.cookies.set(volunteer_access.VOLUNTEER_SESSION_COOKIE, "n-importe-quoi")
     assert visiteur.get("/protege").status_code == 401
 
 
 def test_refuse_meme_avec_un_cookie_signe_par_un_autre_secret(visiteur):
     valeur = shared_password.sign_cookie("autre-secret-de-session")
-    visiteur.cookies.set(benevole_access.VOLUNTEER_SESSION_COOKIE, valeur)
+    visiteur.cookies.set(volunteer_access.VOLUNTEER_SESSION_COOKIE, valeur)
     assert visiteur.get("/protege").status_code == 401
 
 
 def test_passe_avec_un_cookie_valide(visiteur, db_session):
     config = db_session.query(VolunteerAccessConfig).one()
     valeur = shared_password.sign_cookie(config.session_secret)
-    visiteur.cookies.set(benevole_access.VOLUNTEER_SESSION_COOKIE, valeur)
+    visiteur.cookies.set(volunteer_access.VOLUNTEER_SESSION_COOKIE, valeur)
     reponse = visiteur.get("/protege")
     assert reponse.status_code == 200
     assert reponse.json() == {"ok": True}
@@ -126,18 +126,18 @@ def test_refuse_un_cookie_plus_vieux_que_la_duree_serveur(visiteur, db_session, 
     l'horloge serveur borne sa durée (#1534)."""
     config = db_session.query(VolunteerAccessConfig).one()
     valeur = _cookie_signe_il_y_a(
-        monkeypatch, config.session_secret, benevole_access.VOLUNTEER_SESSION_TTL_SECONDS + 1
+        monkeypatch, config.session_secret, volunteer_access.VOLUNTEER_SESSION_TTL_SECONDS + 1
     )
-    visiteur.cookies.set(benevole_access.VOLUNTEER_SESSION_COOKIE, valeur)
+    visiteur.cookies.set(volunteer_access.VOLUNTEER_SESSION_COOKIE, valeur)
     assert visiteur.get("/protege").status_code == 401
 
 
 def test_passe_avec_un_cookie_encore_dans_la_duree_serveur(visiteur, db_session, monkeypatch):
     config = db_session.query(VolunteerAccessConfig).one()
     valeur = _cookie_signe_il_y_a(
-        monkeypatch, config.session_secret, benevole_access.VOLUNTEER_SESSION_TTL_SECONDS - 60
+        monkeypatch, config.session_secret, volunteer_access.VOLUNTEER_SESSION_TTL_SECONDS - 60
     )
-    visiteur.cookies.set(benevole_access.VOLUNTEER_SESSION_COOKIE, valeur)
+    visiteur.cookies.set(volunteer_access.VOLUNTEER_SESSION_COOKIE, valeur)
     assert visiteur.get("/protege").status_code == 200
 
 
@@ -146,9 +146,9 @@ def test_refuse_un_cookie_emis_avant_le_remplacement_du_mot_de_passe(
 ):
     config = db_session.query(VolunteerAccessConfig).one()
     valeur = shared_password.sign_cookie(config.session_secret)
-    benevole_access.replace_password(db_session, password="autre-secret", admin_user_id=administrateur.id)
+    volunteer_access.replace_password(db_session, password="autre-secret", admin_user_id=administrateur.id)
     db_session.commit()
-    visiteur.cookies.set(benevole_access.VOLUNTEER_SESSION_COOKIE, valeur)
+    visiteur.cookies.set(volunteer_access.VOLUNTEER_SESSION_COOKIE, valeur)
     assert visiteur.get("/protege").status_code == 401
 
 
@@ -156,7 +156,7 @@ def test_refuse_si_le_mot_de_passe_n_est_pas_configure(visiteur, sans_configurat
     config = db_session.query(VolunteerAccessConfig).one()
     valeur = shared_password.sign_cookie(config.session_secret)
     sans_configuration()
-    visiteur.cookies.set(benevole_access.VOLUNTEER_SESSION_COOKIE, valeur)
+    visiteur.cookies.set(volunteer_access.VOLUNTEER_SESSION_COOKIE, valeur)
     assert visiteur.get("/protege").status_code == 401
 
 
@@ -214,7 +214,7 @@ def test_connexion_refuse_si_non_configure(client, sans_configuration):
 def test_connexion_pose_le_cookie_et_ouvre_la_file(client, compte_systeme):
     reponse = client.post("/api/v1/benevoles/session", json={"password": MOT_DE_PASSE})
     assert reponse.status_code == 204
-    assert benevole_access.VOLUNTEER_SESSION_COOKIE in reponse.cookies
+    assert volunteer_access.VOLUNTEER_SESSION_COOKIE in reponse.cookies
 
     file_attente = client.get("/api/v1/benevoles/queue")
     assert file_attente.status_code == 200
@@ -225,7 +225,7 @@ def test_deconnexion_efface_le_cookie(benevole_connecte, compte_systeme):
 
     reponse = benevole_connecte.delete("/api/v1/benevoles/session")
     assert reponse.status_code == 204
-    assert benevole_access.VOLUNTEER_SESSION_COOKIE not in benevole_connecte.cookies
+    assert volunteer_access.VOLUNTEER_SESSION_COOKIE not in benevole_connecte.cookies
 
     assert benevole_connecte.get("/api/v1/benevoles/queue").status_code == 401
 

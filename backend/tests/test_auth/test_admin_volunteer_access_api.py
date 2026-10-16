@@ -5,7 +5,7 @@ Trois ressources, un seul pouvoir dédié (`benevole_access:manage`), gardé
 route par route. L'ordre **401 avant 403** est vérifié, jamais supposé.
 """
 from app.core.permissions import P
-from app.repositories import admin_action_log_repository, benevole_config_repository
+from app.repositories import admin_action_log_repository, volunteer_config_repository
 
 URL = "/api/v1/admin/benevoles/access"
 URL_GENERATE = f"{URL}/generate"
@@ -116,7 +116,7 @@ def test_remplacement_consigne_l_acteur_sans_secret_dans_le_payload(
 
     client.put(URL, json={"password": "un-secret-assez-long"})
 
-    config = benevole_config_repository.get_config(db_session)
+    config = volunteer_config_repository.get_config(db_session)
     entrees = admin_action_log_repository.list_for_entity(
         db_session, entity_type="benevole_access_config", entity_id=config.id
     )

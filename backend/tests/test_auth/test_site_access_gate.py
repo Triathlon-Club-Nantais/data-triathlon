@@ -9,7 +9,7 @@ import pytest
 from app.api.deps import require_site_access
 from app.main import app
 from app.repositories import athlete_repository, user_repository
-from app.services import benevole_access, shared_password, site_access
+from app.services import shared_password, site_access, volunteer_access
 from tests.test_auth.conftest import chemin_concret, toutes_les_routes
 
 #: Les sept exceptions nommées (design, § Garde backend) : `health`/`version`
@@ -108,7 +108,7 @@ def test_benevoles_reste_joignable_sans_jamais_poser_de_cookie_site(client, db_s
     ressource protégée par `require_volunteer_access` répond quand même."""
     admin = user_repository.create(db_session, email="admin-benevoles@exemple.fr", display_name="Admin")
     db_session.flush()
-    benevole_access.replace_password(db_session, password="secret-benevoles", admin_user_id=admin.id)
+    volunteer_access.replace_password(db_session, password="secret-benevoles", admin_user_id=admin.id)
     db_session.commit()
 
     ouverture = client.post("/api/v1/benevoles/session", json={"password": "secret-benevoles"})
@@ -124,12 +124,12 @@ def test_la_recherche_d_athletes_des_benevoles_reste_joignable_sans_cookie_site(
     `GET /athletes`, resté sous la garde site — un bénévole non-adhérent
     recevait donc un 401 avalé par le `catch` du panneau : « aucun athlète
     trouvé », et réattribution impossible sans le moindre message (relevé en
-    revue de #513). La recherche vit désormais dans `benevoles`, sous la seule
+    revue de #513). La recherche vit désormais dans `volunteers`, sous la seule
     garde qui vaut pour cette population.
     """
     admin = user_repository.create(db_session, email="admin-recherche@exemple.fr", display_name="Admin")
     db_session.flush()
-    benevole_access.replace_password(db_session, password="secret-benevoles", admin_user_id=admin.id)
+    volunteer_access.replace_password(db_session, password="secret-benevoles", admin_user_id=admin.id)
     athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean", club="TCN")
     db_session.commit()
 

@@ -1,16 +1,16 @@
 """VolunteerAccessConfig — une seule ligne existe à tout instant (data-model.md)."""
-from app.repositories import benevole_config_repository, user_repository
+from app.repositories import user_repository, volunteer_config_repository
 
 
 def test_get_config_rend_none_en_l_absence_de_configuration(db_session):
-    assert benevole_config_repository.get_config(db_session) is None
+    assert volunteer_config_repository.get_config(db_session) is None
 
 
 def test_save_config_cree_la_ligne_absente(db_session):
     admin = user_repository.create(db_session, email="admin@exemple.fr", display_name="Admin")
     db_session.flush()
 
-    config = benevole_config_repository.save_config(
+    config = volunteer_config_repository.save_config(
         db_session,
         password_hash="hash",
         password_salt="salt",
@@ -19,7 +19,7 @@ def test_save_config_cree_la_ligne_absente(db_session):
     )
 
     assert config.id is not None
-    releve = benevole_config_repository.get_config(db_session)
+    releve = volunteer_config_repository.get_config(db_session)
     assert releve.id == config.id
     assert releve.updated_by.id == admin.id
 
@@ -28,14 +28,14 @@ def test_save_config_met_a_jour_la_ligne_existante_sans_en_creer_une_seconde(db_
     admin = user_repository.create(db_session, email="admin@exemple.fr", display_name="Admin")
     db_session.flush()
 
-    premiere = benevole_config_repository.save_config(
+    premiere = volunteer_config_repository.save_config(
         db_session,
         password_hash="hash-1",
         password_salt="salt-1",
         session_secret="secret-1",
         updated_by_user_id=admin.id,
     )
-    seconde = benevole_config_repository.save_config(
+    seconde = volunteer_config_repository.save_config(
         db_session,
         password_hash="hash-2",
         password_salt="salt-2",
@@ -44,7 +44,7 @@ def test_save_config_met_a_jour_la_ligne_existante_sans_en_creer_une_seconde(db_
     )
 
     assert seconde.id == premiere.id
-    releve = benevole_config_repository.get_config(db_session)
+    releve = volunteer_config_repository.get_config(db_session)
     assert releve.password_hash == "hash-2"
     assert releve.session_secret == "secret-2"
 
@@ -66,13 +66,13 @@ def test_save_config_ne_cree_pas_une_seconde_ligne_face_a_une_ecriture_concurren
     charge réelle tient à la contrainte de clé primaire (id fixe), pas à une
     lecture préalable que deux exploitants simultanés franchiraient
     pareillement — patron `allowed_email_repository.add`."""
-    from app.models.benevole_access_config import VolunteerAccessConfig
+    from app.models.volunteer_access_config import VolunteerAccessConfig
 
     admin = user_repository.create(db_session, email="admin@exemple.fr", display_name="Admin")
     db_session.flush()
     db_session.add(
         VolunteerAccessConfig(
-            id=benevole_config_repository.CONFIG_ROW_ID,
+            id=volunteer_config_repository.CONFIG_ROW_ID,
             password_hash="hash-concurrent",
             password_salt="salt-concurrent",
             session_secret="secret-concurrent",
@@ -81,7 +81,7 @@ def test_save_config_ne_cree_pas_une_seconde_ligne_face_a_une_ecriture_concurren
     )
     db_session.flush()
 
-    config = benevole_config_repository.save_config(
+    config = volunteer_config_repository.save_config(
         db_session,
         password_hash="hash-apres",
         password_salt="salt-apres",
@@ -89,6 +89,6 @@ def test_save_config_ne_cree_pas_une_seconde_ligne_face_a_une_ecriture_concurren
         updated_by_user_id=admin.id,
     )
 
-    assert config.id == benevole_config_repository.CONFIG_ROW_ID
+    assert config.id == volunteer_config_repository.CONFIG_ROW_ID
     assert db_session.query(VolunteerAccessConfig).count() == 1
     assert config.password_hash == "hash-apres"

@@ -1,6 +1,6 @@
 """DTO de la gestion admin du mot de passe partagé du site (#509).
 
-Patron identique à `schemas/benevole_access.py` (#271) : un seul secret
+Patron identique à `schemas/volunteer_access.py` (#271) : un seul secret
 partagé, jamais rendu en dehors de `SiteAccessGeneratedOut`.
 """
 from datetime import datetime

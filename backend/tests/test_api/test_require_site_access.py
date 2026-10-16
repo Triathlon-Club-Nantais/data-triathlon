@@ -1,5 +1,5 @@
 """Garde `require_site_access` (#509), isolée sur une application jetable —
-patron `test_benevoles_api.py::application`/`visiteur`."""
+patron `test_volunteers_api.py::application`/`visiteur`."""
 import time
 
 import pytest

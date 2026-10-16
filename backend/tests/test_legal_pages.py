@@ -9,8 +9,8 @@ import pytest
 
 from app.api.v1.auth import LOGGED_IN_COOKIE, SESSION_COOKIE, STATE_COOKIE
 from app.core.analytics import ANALYTICS_CONSENT_COOKIE
-from app.services.benevole_access import VOLUNTEER_SESSION_COOKIE
 from app.services.site_access import SITE_SESSION_COOKIE
+from app.services.volunteer_access import VOLUNTEER_SESSION_COOKIE
 
 LEGAL = Path(__file__).resolve().parents[2] / "frontend" / "components" / "legal" / "content"
 

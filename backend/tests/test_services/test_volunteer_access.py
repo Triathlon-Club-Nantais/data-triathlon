@@ -10,8 +10,8 @@ délégations d'une ligne, en revue de #513.
 import pytest
 
 from app.models.user import SYSTEM_USER_EMAIL
-from app.repositories import benevole_config_repository, user_repository
-from app.services import benevole_access, shared_password
+from app.repositories import user_repository, volunteer_config_repository
+from app.services import shared_password, volunteer_access
 
 
 def test_system_user_id_trouve_le_compte_seme_par_la_migration(db_session):
@@ -20,19 +20,19 @@ def test_system_user_id_trouve_le_compte_seme_par_la_migration(db_session):
     )
     db_session.flush()
 
-    assert benevole_access.system_user_id(db_session) == compte.id
+    assert volunteer_access.system_user_id(db_session) == compte.id
 
 
 def test_system_user_id_leve_si_le_compte_n_a_jamais_ete_seme(db_session):
     with pytest.raises(RuntimeError):
-        benevole_access.system_user_id(db_session)
+        volunteer_access.system_user_id(db_session)
 
 
 def test_actor_user_id_is_the_admin_when_admitted_by_power(db_session):
     admin = user_repository.create(db_session, email="admin@exemple.fr", display_name="Admin")
     db_session.flush()
 
-    assert benevole_access.actor_user_id(db_session, admin) == admin.id
+    assert volunteer_access.actor_user_id(db_session, admin) == admin.id
 
 
 def test_actor_user_id_falls_back_to_the_system_account(db_session):
@@ -41,22 +41,22 @@ def test_actor_user_id_falls_back_to_the_system_account(db_session):
     )
     db_session.flush()
 
-    assert benevole_access.actor_user_id(db_session, None) == compte.id
+    assert volunteer_access.actor_user_id(db_session, None) == compte.id
 
 
 # --- Secret de session (research.md §D2) -------------------------------------
 
 
 def test_new_session_secret_rend_une_valeur_differente_a_chaque_appel():
-    assert benevole_access.new_session_secret() != benevole_access.new_session_secret()
+    assert volunteer_access.new_session_secret() != volunteer_access.new_session_secret()
 
 
 # --- Génération sécurisée (research.md §D5) ----------------------------------
 
 
 def test_generate_password_rend_une_valeur_suffisamment_longue_et_variable():
-    premier = benevole_access.generate_password()
-    second = benevole_access.generate_password()
+    premier = volunteer_access.generate_password()
+    second = volunteer_access.generate_password()
 
     assert premier != second
     assert len(premier) >= 20
@@ -69,7 +69,7 @@ def test_replace_password_avec_saisie_stocke_le_hash_et_pas_le_mot_de_passe(db_s
     admin = user_repository.create(db_session, email="admin@exemple.fr", display_name="Admin")
     db_session.flush()
 
-    config, mot_de_passe = benevole_access.replace_password(
+    config, mot_de_passe = volunteer_access.replace_password(
         db_session, password="mon-nouveau-secret", admin_user_id=admin.id
     )
 
@@ -86,7 +86,7 @@ def test_replace_password_sans_saisie_genere_un_mot_de_passe(db_session):
     admin = user_repository.create(db_session, email="admin@exemple.fr", display_name="Admin")
     db_session.flush()
 
-    config, mot_de_passe = benevole_access.replace_password(
+    config, mot_de_passe = volunteer_access.replace_password(
         db_session, password=None, admin_user_id=admin.id
     )
 
@@ -103,12 +103,12 @@ def test_replace_password_rotationne_le_secret_de_session(db_session):
     admin = user_repository.create(db_session, email="admin@exemple.fr", display_name="Admin")
     db_session.flush()
 
-    premiere_config, _ = benevole_access.replace_password(
+    premiere_config, _ = volunteer_access.replace_password(
         db_session, password="premier-secret", admin_user_id=admin.id
     )
     ancien_secret = premiere_config.session_secret
 
-    seconde_config, _ = benevole_access.replace_password(
+    seconde_config, _ = volunteer_access.replace_password(
         db_session, password="second-secret", admin_user_id=admin.id
     )
 
@@ -119,11 +119,11 @@ def test_replace_password_n_ecrit_qu_une_seule_ligne(db_session):
     admin = user_repository.create(db_session, email="admin@exemple.fr", display_name="Admin")
     db_session.flush()
 
-    benevole_access.replace_password(db_session, password="premier", admin_user_id=admin.id)
-    benevole_access.replace_password(db_session, password="second", admin_user_id=admin.id)
+    volunteer_access.replace_password(db_session, password="premier", admin_user_id=admin.id)
+    volunteer_access.replace_password(db_session, password="second", admin_user_id=admin.id)
     db_session.commit()
 
-    config = benevole_config_repository.get_config(db_session)
+    config = volunteer_config_repository.get_config(db_session)
     assert config is not None
     assert shared_password.verify_password(
         "second", password_hash=config.password_hash, password_salt=config.password_salt
