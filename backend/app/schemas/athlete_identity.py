@@ -2,7 +2,9 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, StrictInt
+from pydantic import BaseModel
+
+from app.schemas.ids import StrictDbId
 
 
 class IdentityReviewAthlete(BaseModel):
@@ -52,8 +54,8 @@ class IdentityReviewList(BaseModel):
 
 
 class IdentityPairIgnoreCreate(BaseModel):
-    athlete_id_a: StrictInt
-    athlete_id_b: StrictInt
+    athlete_id_a: StrictDbId
+    athlete_id_b: StrictDbId
 
 
 class IdentityPairIgnoreOut(BaseModel):
@@ -63,7 +65,7 @@ class IdentityPairIgnoreOut(BaseModel):
 
 
 class IdentityClubConfirmCreate(BaseModel):
-    athlete_id: StrictInt
+    athlete_id: StrictDbId
     club_key: str
 
 
@@ -107,7 +109,7 @@ class ConfirmedIdentityClubList(BaseModel):
 
 
 class IdentityCaseDismissCreate(BaseModel):
-    athlete_id: StrictInt
+    athlete_id: StrictDbId
     # Les cas à deux fiches s'écartent par paire (`IdentityPairIgnoreCreate`).
     reason: Literal["same_course_bibs"]
 

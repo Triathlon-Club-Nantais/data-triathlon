@@ -2,8 +2,9 @@
 from datetime import date as date_
 from datetime import time as time_
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
+from app.schemas.ids import DbId
 from app.schemas.utc_datetime import UtcDatetime
 
 
@@ -65,7 +66,7 @@ class TrainingSessionCreate(BaseModel):
     start_time: time_ | None = None
     location: str | None = None
     session_type: str | None = None
-    group_ids: list[int] = []
+    group_ids: list[DbId] = []
 
 
 class TrainingSessionUpdate(BaseModel):
@@ -85,7 +86,7 @@ class TrainingSessionUpdate(BaseModel):
     session_type: str | None = None
     note: str | None = None
     #: Absent = groupes inchangés ; `[]` retire tous les groupes visés (#1291).
-    group_ids: list[int] | None = None
+    group_ids: list[DbId] | None = None
 
 
 class ParticipantAdd(BaseModel):
@@ -97,7 +98,7 @@ class ParticipantAdd(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    profile_id: int = Field(gt=0)
+    profile_id: DbId
     present: bool | None = None
 
 

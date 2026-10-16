@@ -6,13 +6,13 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    StrictInt,
     field_validator,
     model_validator,
 )
 
 from app.core.season import SEASON_MAX, SEASON_MIN
 from app.schemas.course import CourseSourceOut
+from app.schemas.ids import DbId, StrictDbId
 from app.schemas.utc_datetime import UtcDatetime
 
 
@@ -75,7 +75,7 @@ class RoleCreate(BaseModel):
     slug: str = Field(min_length=1, pattern=r"^[a-z][a-z0-9-]*$")
     name: str = Field(min_length=1)
     description: str = ""
-    organisation_id: int | None = None
+    organisation_id: DbId | None = None
     permissions: list[str] = Field(default_factory=list)
     is_superuser: bool = False
 
@@ -102,8 +102,8 @@ class RoleAssign(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    role_id: int
-    organisation_id: int | None = None
+    role_id: DbId
+    organisation_id: DbId | None = None
 
 
 class AdminUserRead(BaseModel):
@@ -183,7 +183,7 @@ class GroupCreate(BaseModel):
     slug: str = Field(min_length=1, pattern=r"^[a-z][a-z0-9-]*$")
     name: str = Field(min_length=1)
     description: str = ""
-    organisation_id: int | None = None
+    organisation_id: DbId | None = None
 
 
 class GroupUpdate(BaseModel):
@@ -205,7 +205,7 @@ class GroupMemberAdd(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    user_id: int
+    user_id: DbId
 
 
 class AdminAthleteRead(BaseModel):
@@ -231,13 +231,13 @@ class AdminAthleteRead(BaseModel):
 class ParticipationReassign(BaseModel):
     """Le coureur vers qui déplacer un résultat."""
 
-    athlete_id: int
+    athlete_id: DbId
 
 
 class AthleteDetachRequest(BaseModel):
     """Les résultats d'une fiche à séparer vers une nouvelle fiche d'homonyme (#1209)."""
 
-    participation_ids: list[StrictInt] = Field(min_length=1, max_length=500)
+    participation_ids: list[StrictDbId] = Field(min_length=1, max_length=500)
 
 
 class AthleteAliasOut(BaseModel):
@@ -261,7 +261,7 @@ class TeammateRef(BaseModel):
     Champs d'entrée nommés comme ceux de `ParticipationCreate` (Principe I).
     """
 
-    athlete_id: int | None = None
+    athlete_id: DbId | None = None
     athlete_name: str | None = None
     athlete_firstname: str | None = None
 
@@ -529,7 +529,7 @@ class CourseMergeRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    absorbed_id: StrictInt
+    absorbed_id: StrictDbId
 
 
 class CourseMergeResult(BaseModel):
@@ -645,10 +645,10 @@ class AllowedEmailCreate(BaseModel):
     #: rien donner reste le cas ordinaire. **`null` lève le rôle posé, le champ
     #: absent n'y touche pas** — le service distingue les deux.
     #:
-    #: `StrictInt` : en mode permissif, Pydantic coerce `true` en `1`, et le rôle
+    #: `StrictDbId` : en mode permissif, Pydantic coerce `true` en `1`, et le rôle
     #: `1` est celui que le semis pose — l'administrateur. Une case à cocher mal
     #: sérialisée garerait l'administration sur une adresse.
-    role_id: StrictInt | None = None
+    role_id: StrictDbId | None = None
 
 
 class SessionRevocation(BaseModel):
@@ -740,7 +740,7 @@ class SeasonQuota(BaseModel):
 class AthleteMergeRequest(BaseModel):
     """Fusion d'une fiche dans celle de l'URL (#908)."""
 
-    absorbed_id: StrictInt
+    absorbed_id: StrictDbId
 
 
 class AthleteMergeSide(BaseModel):

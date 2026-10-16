@@ -4,6 +4,8 @@ SQLite only overflows from 2**63, so these tests cannot reproduce the 500 seen
 on PostgreSQL: they pin the 422 that now replaces it, and the OpenAPI guard
 keeps every future id parameter under the same bound.
 """
+import re
+
 import pytest
 
 from app.main import app
@@ -25,6 +27,27 @@ OUT_OF_RANGE = DB_ID_MAX + 1
 )
 def test_out_of_range_id_is_a_422(client, path, params):
     response = client.get(path, params=params)
+
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("/api/v1/volunteer-actions", {"athlete_id": OUT_OF_RANGE, "title": "t", "description": "d"}),
+        ("/api/v1/admin/training-sessions", {"date": "2026-10-20", "group_ids": [OUT_OF_RANGE]}),
+        ("/api/v1/admin/athletes/1/merge", {"absorbed_id": OUT_OF_RANGE}),
+        ("/api/v1/admin/athletes/1/detach", {"participation_ids": [0]}),
+    ],
+)
+def test_out_of_range_body_id_is_a_422(client, path, body):
+    response = client.post(path, json=body)
+
+    assert response.status_code == 422
+
+
+def test_bounded_body_ids_stay_strict(client):
+    response = client.post("/api/v1/admin/athletes/1/merge", json={"absorbed_id": True})
 
     assert response.status_code == 422
 
@@ -93,10 +116,11 @@ def _request_body_schemas() -> dict[str, dict]:
 
 
 def _id_field_integers(field: str, schema: dict) -> list[dict]:
-    if field.endswith("_ids"):
+    # `athlete_id_a`, `course_id_b` (pairs) count as ids too.
+    if re.search(r"(^|_)ids(_|$)", field):
         arrays = [s for s in [schema, *schema.get("anyOf", [])] if s.get("type") == "array"]
         return [i for s in arrays for i in _integer_schemas(s["items"])]
-    if field == "id" or field.endswith("_id"):
+    if re.search(r"(^|_)id(_|$)", field):
         return _integer_schemas(schema)
     return []
 

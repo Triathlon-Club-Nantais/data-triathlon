@@ -1,7 +1,9 @@
 """DTO de la liste des doublons suspects (#288) et de leur mise à l'écart (#754)."""
 from datetime import date, datetime
 
-from pydantic import BaseModel, StrictInt
+from pydantic import BaseModel
+
+from app.schemas.ids import StrictDbId
 
 
 class DuplicateCourse(BaseModel):
@@ -61,8 +63,8 @@ class DuplicateIgnoreCreate(BaseModel):
     l'épreuve `1` d'une paire qu'elle ne visait pas.
     """
 
-    course_id_a: StrictInt
-    course_id_b: StrictInt
+    course_id_a: StrictDbId
+    course_id_b: StrictDbId
 
 
 class DuplicateIgnoreOut(BaseModel):

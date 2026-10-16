@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from annotated_types import Ge, Le
+from pydantic import Strict
 
 #: Borne haute des identifiants : les clés primaires sont des `integer`
 #: PostgreSQL, et au delà la requête lève une `DataError` (500) au lieu d'une
@@ -11,3 +12,7 @@ from annotated_types import Ge, Le
 #: (garde : `tests/test_api/test_id_bounds_api.py`).
 DB_ID_MAX = 2_147_483_647
 DbId = Annotated[int, Ge(1), Le(DB_ID_MAX)]
+
+#: `DbId` sans coercition : en mode permissif, Pydantic lit `true` comme `1`,
+#: et l'enregistrement `1` serait visé (fusion, suppression, rôle administrateur).
+StrictDbId = Annotated[DbId, Strict()]

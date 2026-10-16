@@ -403,18 +403,23 @@ qu'une écriture coûte une ligne. Le seul appelant connu, `ManualResultForm.tsx
 envoie déjà des valeurs conformes, sauf un temps mal tapé dans un champ libre :
 il rend maintenant un 422 au lieu d'un temps illisible en base.
 
-## Identifiants : toujours `DbId` (#1557)
+## Identifiants : toujours `DbId` (#1557, #1567)
 
-Tout identifiant entier en chemin ou en requête se type `deps.DbId` (1 à
-2 147 483 647, l'`integer` PostgreSQL) : au delà, la requête levait une
-`DataError` en 500, invisible en SQLite qui ne déborde qu'à 2^63. Hors plage,
-c'est une 422 de validation. Obligatoire en requête, il s'écrit
-`Annotated[DbId, Query()]` (`DbId = Query(...)` perd la borne).
+Tout identifiant entier en chemin, en requête ou dans un corps JSON se type
+`DbId` (`app/schemas/ids.py`, 1 à 2 147 483 647, l'`integer` PostgreSQL) : au
+delà, la requête levait une `DataError` en 500, invisible en SQLite qui ne
+déborde qu'à 2^63. Hors plage, c'est une 422 de validation. Obligatoire en
+requête, il s'écrit `Annotated[DbId, Query()]` (`DbId = Query(...)` perd la
+borne). Une liste s'écrit `list[DbId]` ; un champ qui était `StrictInt` devient
+`StrictDbId`, pour ne pas lire `true` comme l'enregistrement `1`. Le type vit
+sous `schemas/` pour que les DTO l'importent sans remonter vers `api/`.
 `tests/test_api/test_id_bounds_api.py` parcourt l'OpenAPI et refuse tout
 paramètre `id` ou `*_id` entier sans la borne, hors `EXTERNAL_IDS` : le
 `run_id` de `/admin/batches/{run_id}/report` est un identifiant de run GitHub
-Actions, déjà au delà de l'int4, qui reste un `int` nu. Les identifiants des
-corps JSON ne sont pas couverts.
+Actions, déjà au delà de l'int4, qui reste un `int` nu. Il refuse de même tout
+champ `id`, `*_id`, `*_id_a`, `*_ids` des schémas atteints par un
+`requestBody`, objets imbriqués compris ; aucun identifiant externe entier n'y
+figure aujourd'hui.
 
 ## Protéger une ressource (#115)
 
