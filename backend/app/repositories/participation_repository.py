@@ -91,16 +91,16 @@ def teammate_names(db: Session, participation_ids: Iterable[int]) -> dict[int, l
     ids = list(participation_ids)
     if not ids:
         return {}
-    noms: dict[int, list[str]] = {}
-    lignes = (
+    names: dict[int, list[str]] = {}
+    rows = (
         db.query(ParticipationTeammate.participation_id, Athlete.prenom, Athlete.nom)
         .join(Athlete, Athlete.id == ParticipationTeammate.athlete_id)
         .filter(ParticipationTeammate.participation_id.in_(ids))
         .order_by(ParticipationTeammate.participation_id, ParticipationTeammate.position)
     )
-    for participation_id, prenom, nom in lignes:
-        noms.setdefault(participation_id, []).append(f"{prenom} {nom}".strip())
-    return noms
+    for participation_id, first_name, last_name in rows:
+        names.setdefault(participation_id, []).append(f"{first_name} {last_name}".strip())
+    return names
 
 
 def replace_teammates(
@@ -207,9 +207,9 @@ def delete_all(db: Session) -> int:
     strictement intacts, seule `participations` se vide.
     """
     delete_teammates(db)
-    efface = db.query(Participation).delete(synchronize_session=False)
+    deleted = db.query(Participation).delete(synchronize_session=False)
     db.flush()
-    return efface
+    return deleted
 
 
 def delete_for_course(db: Session, course: Course) -> int:
@@ -226,14 +226,14 @@ def delete_for_course(db: Session, course: Course) -> int:
     les lignes qu'on vient d'effacer, et les compterait comme déjà en base.
     """
     delete_teammates(db, course_id=course.id)
-    efface = (
+    deleted = (
         db.query(Participation)
         .filter(Participation.course_id == course.id)
         .delete(synchronize_session=False)
     )
     db.expire(course, ["participations"])
     db.flush()
-    return efface
+    return deleted
 
 
 def shared_finisher_counts(db: Session, *, minimum: int) -> list[tuple[int, int, int]]:
@@ -243,27 +243,27 @@ def shared_finisher_counts(db: Session, *, minimum: int) -> list[tuple[int, int,
     indépendant du nom, du provider et de `is_relay`. `course_a < course_b`, et
     seules les paires d'au moins `minimum` lignes partagées sortent.
     """
-    autre = aliased(Participation)
+    other = aliased(Participation)
     return [
         tuple(row)
         for row in (
-            db.query(Participation.course_id, autre.course_id, func.count())
+            db.query(Participation.course_id, other.course_id, func.count())
             .join(
-                autre,
+                other,
                 and_(
-                    autre.athlete_id == Participation.athlete_id,
-                    autre.course_id > Participation.course_id,
-                    autre.total_time == Participation.total_time,
+                    other.athlete_id == Participation.athlete_id,
+                    other.course_id > Participation.course_id,
+                    other.total_time == Participation.total_time,
                 ),
             )
             .filter(
                 Participation.status == STATUS_FINISHER,
-                autre.status == STATUS_FINISHER,
+                other.status == STATUS_FINISHER,
                 Participation.total_time.isnot(None),
                 validated_clause(Participation.is_pending_validation),
-                validated_clause(autre.is_pending_validation),
+                validated_clause(other.is_pending_validation),
             )
-            .group_by(Participation.course_id, autre.course_id)
+            .group_by(Participation.course_id, other.course_id)
             .having(func.count() >= minimum)
             .all()
         )
@@ -743,7 +743,7 @@ def list_ranking_for_course(db: Session, course_id: int) -> list[Participation]:
 
 # Groupes d'affichage : finishers, puis DNF, DSQ, DNS. Un statut vide ou inconnu
 # est un finisher potentiel et reste dans le groupe 0 (cf. `raceOrder.groupRank`).
-_GROUPE_AFFICHAGE = case(
+_DISPLAY_GROUP = case(
     (func.upper(func.coalesce(Participation.status, "")) == "DNF", 1),
     (func.upper(func.coalesce(Participation.status, "")) == "DSQ", 2),
     (func.upper(func.coalesce(Participation.status, "")) == "DNS", 3),
@@ -751,14 +751,14 @@ _GROUPE_AFFICHAGE = case(
 )
 
 # Un temps vide ou `00:00:00` vaut temps absent — sémantique partagée avec le front.
-_TEMPS_ABSENT = or_(
+_MISSING_TIME = or_(
     Participation.total_time.is_(None),
     Participation.total_time == "",
     Participation.total_time == "00:00:00",
 )
 
 
-def _ordre_affichage():
+def _display_order():
     """Ordre du classement d'une épreuve, **seule** définition du projet.
 
     Il vivait en JavaScript (`orderParticipations`) tant que le classement
@@ -773,14 +773,14 @@ def _ordre_affichage():
     sont normalisés en `HH:MM:SS` à deux chiffres d'heures à l'import.
     """
     return (
-        _GROUPE_AFFICHAGE,
+        _DISPLAY_GROUP,
         # Finishers : rang croissant, les non classés en fin.
-        case((and_(_GROUPE_AFFICHAGE == 0, Participation.rank_overall.is_(None)), 1), else_=0),
-        case((_GROUPE_AFFICHAGE == 0, Participation.rank_overall), else_=None),
+        case((and_(_DISPLAY_GROUP == 0, Participation.rank_overall.is_(None)), 1), else_=0),
+        case((_DISPLAY_GROUP == 0, Participation.rank_overall), else_=None),
         # Non-finishers : temps croissant, les temps absents en fin.
-        case((and_(_GROUPE_AFFICHAGE != 0, _TEMPS_ABSENT), 1), else_=0),
+        case((and_(_DISPLAY_GROUP != 0, _MISSING_TIME), 1), else_=0),
         case(
-            (and_(_GROUPE_AFFICHAGE != 0, ~_TEMPS_ABSENT), Participation.total_time),
+            (and_(_DISPLAY_GROUP != 0, ~_MISSING_TIME), Participation.total_time),
             else_="",
         ),
         func.lower(Athlete.nom),
@@ -868,7 +868,7 @@ def list_page_for_course(
         db, course_id, q=q, club_only=club_only, club=club, category=category
     ).filter(validated_clause(Participation.is_pending_validation))
     total = query.count()
-    query = query.order_by(*_ordre_affichage())
+    query = query.order_by(*_display_order())
     if page_size is not None:
         query = query.offset((page - 1) * page_size).limit(page_size)
     return query.all(), total
@@ -921,7 +921,7 @@ def list_pending_for_course(
 
     Mêmes filtres que `list_page_for_course` : une recherche trouve ou masque
     une ligne en attente comme une ligne validée. Triés par nom et non par
-    `_ordre_affichage` : un rang déclaré n'est ni affiché ni comparé tant que
+    `_display_order` : un rang déclaré n'est ni affiché ni comparé tant que
     la ligne n'est pas validée. Ni paginés ni comptés : ces lignes n'entrent
     dans aucun total (FR-006), elles s'ajoutent en fin de classement.
     Plafonnés à `PENDING_ROWS_CAP`, catégories et épreuves jeunes exclues.
@@ -960,22 +960,22 @@ def _course_rows(db: Session, course_id: int, *, q, club_only, club, category):
         query = query.filter(_normalize_sql(Participation.club).in_(_club_filter_targets(db, club, course_id)))
     if category:
         query = query.filter(Participation.category == category)
-    terme = (q or "").strip()
-    if terme:
-        query = query.filter(name_filter(terme, also=_relay_name_matches))
+    term = (q or "").strip()
+    if term:
+        query = query.filter(name_filter(term, also=_relay_name_matches))
     return query
 
 
 def _relay_name_matches(pattern: str) -> list:
     """Un relais attribué se trouve par ce que sa ligne affiche (#894) : le nom
     d'équipe et chacun de ses équipiers, pas seulement le porteur."""
-    equipier = aliased(Athlete)
+    teammate = aliased(Athlete)
     return [
         unaccent_like(Participation.team_name, pattern),
         exists().where(
             ParticipationTeammate.participation_id == Participation.id,
-            ParticipationTeammate.athlete_id == equipier.id,
-            or_(unaccent_like(equipier.nom, pattern), unaccent_like(equipier.prenom, pattern)),
+            ParticipationTeammate.athlete_id == teammate.id,
+            or_(unaccent_like(teammate.nom, pattern), unaccent_like(teammate.prenom, pattern)),
         ),
     ]
 
@@ -1060,14 +1060,14 @@ def stats_totals(
     attribué (#894) en est un. D'où les `DISTINCT` sur les deux autres
     comptes, la jointure dupliquant la ligne d'un relais par équipier.
     """
-    lien = credits()
+    credit_rows = credits()
     q = (
         db.query(
             func.count(func.distinct(Participation.id)),
-            func.count(func.distinct(lien.c.athlete_id)),
+            func.count(func.distinct(credit_rows.c.athlete_id)),
             func.count(func.distinct(Participation.course_id)),
         )
-        .join(lien, lien.c.participation_id == Participation.id)
+        .join(credit_rows, credit_rows.c.participation_id == Participation.id)
         .filter(validated_clause(Participation.is_pending_validation))
     )
     if seasons or federal_only:
@@ -1627,7 +1627,7 @@ def has_untimed(
     Un temps de `placeholder_times` vaut temps absent. `finishers_only` borne la
     recherche aux finishers : un non-finisher n'a jamais de temps final.
     """
-    requete = db.query(Participation.id).filter(
+    query = db.query(Participation.id).filter(
         Participation.course_id == course_id,
         or_(
             Participation.total_time.is_(None),
@@ -1635,8 +1635,8 @@ def has_untimed(
         ),
     )
     if finishers_only:
-        requete = requete.filter(Participation.status == STATUS_FINISHER)
-    return requete.first() is not None
+        query = query.filter(Participation.status == STATUS_FINISHER)
+    return query.first() is not None
 
 
 # ── Fusion de deux fiches (#908) ─────────────────────────────────────────────

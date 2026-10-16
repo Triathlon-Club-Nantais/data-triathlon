@@ -86,17 +86,17 @@ def claim_initial_role(db: Session, entry: AllowedEmail) -> int | None:
     deux moteurs, là où un verrou explicite serait inerte en SQLite et actif en
     PostgreSQL.
     """
-    reclame = entry.role_id
-    if reclame is None:
+    claimed_role_id = entry.role_id
+    if claimed_role_id is None:
         return None
     change = db.execute(
         update(AllowedEmail)
-        .where(AllowedEmail.id == entry.id, AllowedEmail.role_id == reclame)
+        .where(AllowedEmail.id == entry.id, AllowedEmail.role_id == claimed_role_id)
         .values(role_id=None)
     ).rowcount
     db.flush()
     db.refresh(entry)
-    return reclame if change else None
+    return claimed_role_id if change else None
 
 
 def count_by_role(db: Session, role_id: int) -> int:
@@ -122,19 +122,19 @@ def add(
     Réinscrire ne réécrit **pas** l'auteur : c'est la première inscription qui a
     accordé l'accès, et l'écraser effacerait la seule trace de qui l'a fait.
     """
-    entree = AllowedEmail(email=normalize(email), created_by_user_id=created_by_user_id)
+    entry = AllowedEmail(email=normalize(email), created_by_user_id=created_by_user_id)
     try:
         with db.begin_nested():
-            db.add(entree)
+            db.add(entry)
             db.flush()
     except IntegrityError:
-        existante = db.scalar(
+        existing = db.scalar(
             select(AllowedEmail).where(AllowedEmail.email == normalize(email))
         )
-        if existante is None:  # pragma: no cover — une autre contrainte a cédé
+        if existing is None:  # pragma: no cover — une autre contrainte a cédé
             raise
-        return existante, False
-    return entree, True
+        return existing, False
+    return entry, True
 
 
 def delete(db: Session, entry: AllowedEmail) -> None:

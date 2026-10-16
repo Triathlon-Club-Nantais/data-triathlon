@@ -46,7 +46,7 @@ trois repositories :
 | `_filtered` (branche `club_only`) | `course_repository.py` | `GET /courses?scope=club` et `GET /courses/count?scope=club` |
 | `list_with_season_participation_count` | `athlete_repository.py` | `GET /athletes/season-activity` — page coureurs (#274, #382) |
 | `search_by_relevance` | `athlete_repository.py` | `GET /athletes/search` — `participation_count` de la palette ⌘K (#484) |
-| `club_roster`/`club_rank` (même requête, partagée par `_club_roster_requete`) | `athlete_repository.py` | `GET /club/summary` → roster (#581) ; `GET /club/roster/rank/{id}` → rang exact hors aperçu (#641) |
+| `club_roster`/`club_rank` (même requête, partagée par `_club_roster_query`) | `athlete_repository.py` | `GET /club/summary` → roster (#581) ; `GET /club/roster/rank/{id}` → rang exact hors aperçu (#641) |
 | `club_composition` | `athlete_repository.py` | `GET /club/summary` → composition genre/catégorie (#642) |
 | `licensee_activity` | `club_member_repository.py` | `GET /club/summary` → `licensees` : licenciés de la saison en cours (`core/season`, bascule au 1er septembre) et ceux qui ont couru, relais compris (#1441, additif, `null` sans licencié) |
 | `club_podiums` | `participation_repository.py` | `GET /club/summary` → podiums et podiums par discipline (#581, #642) ; sous `?podiums=preview`, 6 par mode plus `podiums_totals` (ajout de #1354, défaut inchangé) ; `GET /club/podiums` → liste complète, chargée au dépliage |
@@ -124,7 +124,7 @@ Trois choses à ne pas défaire :
 - **L'ordre d'affichage est une propriété de la requête**, plus du navigateur.
   Il vivait dans `raceOrder.orderParticipations` pendant que le SQL triait sur
   `rank_overall` seul : invisible tant que tout arrivait d'un coup, faux dès
-  qu'on découpe. `participation_repository._ordre_affichage` en est la **seule**
+  qu'on découpe. `participation_repository._display_order` en est la **seule**
   définition — finishers par rang (non classés en fin), puis DNF, DSQ, DNS par
   temps (temps absents en fin), départage par nom. `orderParticipations` et
   `countOutcomes` ont été **supprimées**, pas seulement débranchées : appelées

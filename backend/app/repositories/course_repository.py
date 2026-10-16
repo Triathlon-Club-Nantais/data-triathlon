@@ -333,9 +333,9 @@ def reset_scraped_at_all(db: Session) -> int:
     le geste back-office (aucun filtre d'ancienneté ici) ; à garder en tête si
     un usage CLI de cette purge apparaît un jour.
     """
-    touchees = db.query(Course).update({Course.scraped_at: None}, synchronize_session=False)
+    touched = db.query(Course).update({Course.scraped_at: None}, synchronize_session=False)
     db.flush()
-    return touchees
+    return touched
 
 
 def coordinates_by_id(db: Session, course_ids: list[int]) -> dict[int, tuple[float, float]]:
@@ -488,9 +488,9 @@ def delete_all(db: Session) -> int:
     # Sans `ondelete` vers `courses.id` non plus (#983).
     db.query(AbsorbedCourse).delete(synchronize_session=False)
     ignored_course_duplicate_repository.delete_all(db)
-    efface = db.query(Course).delete(synchronize_session=False)
+    deleted = db.query(Course).delete(synchronize_session=False)
     db.flush()
-    return efface
+    return deleted
 
 
 def set_quality(
@@ -564,11 +564,11 @@ def zero_counts_all(db: Session) -> int:
     côté par `wipe_all_participations` (#384) : `Course` reste intacte, seuls
     ses agrégats retombent avec les participations qu'ils comptaient.
     """
-    touchees = db.query(Course).update(
+    touched = db.query(Course).update(
         {Course.participation_count: 0, Course.tcn_count: 0}, synchronize_session=False
     )
     db.flush()
-    return touchees
+    return touched
 
 
 def _filtered(
@@ -842,16 +842,16 @@ def list_identities_with_counts(db: Session) -> list:
     )
 
 
-def update_identity(db: Session, course: Course, **champs) -> Course:
+def update_identity(db: Session, course: Course, **fields) -> Course:
     """Écrit les champs d'identité fournis. **Ne vérifie pas l'unicité** — c'est
     le service qui la contrôle par lecture préalable, pour pouvoir nommer
     l'épreuve en conflit (#117, FR-021)."""
-    if "name" in champs:
-        champs["name"] = clean_name(champs["name"])
-    if "event_date" in champs:
-        _set_event_date(course, champs.pop("event_date"))
-    for nom_champ, valeur in champs.items():
-        setattr(course, nom_champ, valeur)
+    if "name" in fields:
+        fields["name"] = clean_name(fields["name"])
+    if "event_date" in fields:
+        _set_event_date(course, fields.pop("event_date"))
+    for field_name, value in fields.items():
+        setattr(course, field_name, value)
     db.flush()
     return course
 

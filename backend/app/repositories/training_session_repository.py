@@ -28,7 +28,7 @@ def list_all(db: Session) -> list[TrainingSession]:
     Une séance sans heure renseignée sort en **fin** de sa date : l'ordre
     `TrainingSession.start_time.is_(None)` place d'abord les séances à heure
     connue (`False` < `True`), sur le même patron que l'ordre de finisseurs de
-    `participation_repository._ordre_affichage`.
+    `participation_repository._display_order`.
     """
     return list(
         db.scalars(
@@ -51,12 +51,12 @@ def count_participants_by_training_session(
     séance absente du résultat n'a aucun inscrit."""
     if not training_session_ids:
         return {}
-    lignes = db.execute(
+    rows = db.execute(
         select(TrainingParticipant.training_session_id, func.count())
         .where(TrainingParticipant.training_session_id.in_(training_session_ids))
         .group_by(TrainingParticipant.training_session_id)
     ).all()
-    return dict(lignes)
+    return dict(rows)
 
 
 def list_participants(db: Session, training_session_id: int) -> list[TrainingParticipant]:
@@ -165,7 +165,7 @@ def add_participant(
     `added_manually` (#1291) : un ajout manuel d'un jeune déjà inscrit d'office
     rend l'inscription manuelle ; l'inverse ne la rétrograde jamais.
     """
-    inscription = TrainingParticipant(
+    enrolment = TrainingParticipant(
         training_session_id=training_session_id,
         profile_id=profile_id,
         present=present,
@@ -173,19 +173,19 @@ def add_participant(
     )
     try:
         with db.begin_nested():
-            db.add(inscription)
+            db.add(enrolment)
             db.flush()
     except IntegrityError:
-        existante = find_participant(db, training_session_id=training_session_id, profile_id=profile_id)
-        if existante is None:  # pragma: no cover — une autre contrainte a cédé
+        existing = find_participant(db, training_session_id=training_session_id, profile_id=profile_id)
+        if existing is None:  # pragma: no cover — une autre contrainte a cédé
             raise
         if present is not None:
-            existante.present = present
+            existing.present = present
         if added_manually:
-            existante.added_manually = True
+            existing.added_manually = True
         db.flush()
-        return existante, False
-    return inscription, True
+        return existing, False
+    return enrolment, True
 
 
 def set_presence(
@@ -198,20 +198,20 @@ def set_presence(
     modifie qu'une ligne déjà existante. Seul le dernier statut écrit fait
     foi (FR-005) : aucun historique des changements.
     """
-    inscription = find_participant(db, training_session_id=training_session_id, profile_id=profile_id)
-    if inscription is None:
+    enrolment = find_participant(db, training_session_id=training_session_id, profile_id=profile_id)
+    if enrolment is None:
         return None
-    inscription.present = present
+    enrolment.present = present
     db.flush()
-    return inscription
+    return enrolment
 
 
 def remove_participant(db: Session, *, training_session_id: int, profile_id: int) -> bool:
     """Désinscrit le jeune. Rend `False` s'il ne l'était pas — jamais d'erreur."""
-    inscription = find_participant(db, training_session_id=training_session_id, profile_id=profile_id)
-    if inscription is None:
+    enrolment = find_participant(db, training_session_id=training_session_id, profile_id=profile_id)
+    if enrolment is None:
         return False
-    db.delete(inscription)
+    db.delete(enrolment)
     db.flush()
     return True
 

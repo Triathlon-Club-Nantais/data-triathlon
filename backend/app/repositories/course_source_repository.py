@@ -172,9 +172,9 @@ def attach(db: Session, *, course: Course, url: str, provider: str = "") -> Cour
     déjà chargée (la propriété dérivée `Course.source_url` la lit), et une requête
     par ligne scrapée coûterait 250 allers-retours sur un classement ordinaire.
     """
-    for existante in course.sources:
-        if existante.url == url:
-            return existante
+    for existing in course.sources:
+        if existing.url == url:
+            return existing
     return add(
         db, course=course, url=url, provider=provider,
         is_active=not any(source.is_active for source in course.sources),
@@ -243,11 +243,11 @@ def set_active(db: Session, source: CourseSource) -> CourseSource:
     Ne re-scrape rien : le remplacement total des participations (D2) est le
     travail de #285, sur ce point de bascule.
     """
-    sortante = get_active(db, source.course_id)
-    if sortante is not None and sortante.id == source.id:
+    outgoing = get_active(db, source.course_id)
+    if outgoing is not None and outgoing.id == source.id:
         return source
-    if sortante is not None:
-        sortante.is_active = False
+    if outgoing is not None:
+        outgoing.is_active = False
         db.flush()
     source.is_active = True
     db.flush()

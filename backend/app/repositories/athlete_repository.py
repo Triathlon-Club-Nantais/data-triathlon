@@ -51,8 +51,8 @@ def escape_like(word: str) -> str:
     Extrait de `name_filter` (#484) pour être réutilisé par le classement de
     pertinence de `search_by_relevance` sans dupliquer l'échappement.
     """
-    for joker in ("\\", "%", "_"):
-        word = word.replace(joker, f"\\{joker}")
+    for wildcard in ("\\", "%", "_"):
+        word = word.replace(wildcard, f"\\{wildcard}")
     return word
 
 
@@ -529,20 +529,20 @@ def search_admin(
     appelant, une route gardée par `athletes:read` (FR-025). La lecture publique
     (`search`) ne l'expose pas et ne doit pas l'exposer.
     """
-    lien = credits()
-    compte = func.count(lien.c.participation_id)
-    requete = (
-        db.query(Athlete, compte)
-        .outerjoin(lien, lien.c.athlete_id == Athlete.id)
+    credit_rows = credits()
+    result_count = func.count(credit_rows.c.participation_id)
+    query = (
+        db.query(Athlete, result_count)
+        .outerjoin(credit_rows, credit_rows.c.athlete_id == Athlete.id)
         .group_by(Athlete.id)
     )
     if search:
-        requete = requete.filter(name_filter(search))
+        query = query.filter(name_filter(search))
     offset = (page - 1) * page_size
-    lignes = (
-        requete.order_by(Athlete.nom, Athlete.prenom).offset(offset).limit(page_size).all()
+    rows = (
+        query.order_by(Athlete.nom, Athlete.prenom).offset(offset).limit(page_size).all()
     )
-    return [(athlete, nombre) for athlete, nombre in lignes]
+    return [(athlete, participation_count) for athlete, participation_count in rows]
 
 
 def credits():
@@ -552,17 +552,17 @@ def credits():
     chacun des équipiers d'un relais attribué (#894), porteur compris : aucun
     couple n'est donc compté deux fois.
     """
-    sans_equipiers = select(
+    without_teammates = select(
         Participation.id.label("participation_id"),
         Participation.athlete_id.label("athlete_id"),
     ).where(
         ~exists().where(ParticipationTeammate.participation_id == Participation.id)
     )
-    equipiers = select(
+    teammates = select(
         ParticipationTeammate.participation_id.label("participation_id"),
         ParticipationTeammate.athlete_id.label("athlete_id"),
     )
-    return union_all(sans_equipiers, equipiers).subquery("credits")
+    return union_all(without_teammates, teammates).subquery("credits")
 
 
 def referenced_outside_results(athlete_id):
@@ -599,19 +599,19 @@ def only_on_course(db: Session, course_id: int) -> list[int]:
     quelques fois par an. Si le volume change de nature, la sortie est un
     `NOT EXISTS` corrélé, qui garde le résultat en base.
     """
-    lien = credits()
-    inscrits = (
-        db.query(lien.c.athlete_id)
-        .join(Participation, Participation.id == lien.c.participation_id)
+    credit_rows = credits()
+    entrants = (
+        db.query(credit_rows.c.athlete_id)
+        .join(Participation, Participation.id == credit_rows.c.participation_id)
         .filter(Participation.course_id == course_id)
-        .filter(~referenced_outside_results(lien.c.athlete_id))
+        .filter(~referenced_outside_results(credit_rows.c.athlete_id))
     )
-    ailleurs = (
-        db.query(lien.c.athlete_id)
-        .join(Participation, Participation.id == lien.c.participation_id)
+    elsewhere = (
+        db.query(credit_rows.c.athlete_id)
+        .join(Participation, Participation.id == credit_rows.c.participation_id)
         .filter(Participation.course_id != course_id)
     )
-    return sorted({identifiant for (identifiant,) in inscrits} - {identifiant for (identifiant,) in ailleurs})
+    return sorted({athlete_id for (athlete_id,) in entrants} - {athlete_id for (athlete_id,) in elsewhere})
 
 
 def delete_orphans_among(db: Session, athlete_ids: list[int] | None = None) -> list[int]:
@@ -632,7 +632,7 @@ def delete_orphans_among(db: Session, athlete_ids: list[int] | None = None) -> l
         return []
     # Un équipier de relais (#894) n'est référencé que par la liaison : il n'est
     # pas orphelin pour autant.
-    requete = (
+    query = (
         db.query(Athlete.id)
         .outerjoin(Participation, Participation.athlete_id == Athlete.id)
         .filter(Participation.id.is_(None))
@@ -640,29 +640,29 @@ def delete_orphans_among(db: Session, athlete_ids: list[int] | None = None) -> l
         .filter(~referenced_outside_results(Athlete.id))
     )
     if athlete_ids is not None:
-        requete = requete.filter(Athlete.id.in_(athlete_ids))
-    orphan_ids = [identifiant for (identifiant,) in requete.all()]
+        query = query.filter(Athlete.id.in_(athlete_ids))
+    orphan_ids = [athlete_id for (athlete_id,) in query.all()]
     if not orphan_ids:
         return []
     # Le DELETE revérifie l'absence de participation : un import concurrent a
     # pu en insérer une entre les deux requêtes (#1100). "fetch" purge
     # l'identity map pour que get() retombe à None après suppression.
-    supprimes = [
-        identifiant
-        for (identifiant,) in db.query(Athlete.id)
+    deleted_ids = [
+        athlete_id
+        for (athlete_id,) in db.query(Athlete.id)
         .filter(Athlete.id.in_(orphan_ids))
         .filter(~exists().where(Participation.athlete_id == Athlete.id))
         .filter(~exists().where(ParticipationTeammate.athlete_id == Athlete.id))
         .all()
     ]
-    if not supprimes:
+    if not deleted_ids:
         return []
     db.query(Athlete).filter(
-        Athlete.id.in_(supprimes),
+        Athlete.id.in_(deleted_ids),
         ~exists().where(Participation.athlete_id == Athlete.id),
         ~exists().where(ParticipationTeammate.athlete_id == Athlete.id),
     ).delete(synchronize_session="fetch")
-    return supprimes
+    return deleted_ids
 
 
 def delete_orphans(db: Session) -> int:
@@ -757,45 +757,45 @@ def list_with_season_participation_count(
     # #357, un import en tête de module créerait un cycle.
     from app.repositories.participation_repository import season_clause
 
-    est_valide = and_(
+    is_validated = and_(
         validated_clause(Participation.is_pending_validation),
         func.lower(Participation.status) == STATUS_FINISHER,
     )
     total = func.count(Participation.id)
-    validees = func.sum(case((est_valide, 1), else_=0))
-    affiliees_club = func.sum(
-        case((and_(est_valide, Participation.counts_for_tcn.is_(True)), 1), else_=0)
+    validated = func.sum(case((is_validated, 1), else_=0))
+    club_affiliated = func.sum(
+        case((and_(is_validated, Participation.counts_for_tcn.is_(True)), 1), else_=0)
     )
-    lien = credits()
-    requete = (
-        db.query(Athlete, total, validees, affiliees_club)
-        .join(lien, lien.c.athlete_id == Athlete.id)
-        .join(Participation, Participation.id == lien.c.participation_id)
+    credit_rows = credits()
+    query = (
+        db.query(Athlete, total, validated, club_affiliated)
+        .join(credit_rows, credit_rows.c.athlete_id == Athlete.id)
+        .join(Participation, Participation.id == credit_rows.c.participation_id)
         .join(Course, Participation.course_id == Course.id)
         .group_by(Athlete.id)
     )
     if club_only:
-        requete = requete.filter(_club_record(seasons))
+        query = query.filter(_club_record(seasons))
     if seasons:
-        requete = requete.filter(season_clause(seasons))
+        query = query.filter(season_clause(seasons))
     if federal_only:
-        requete = requete.filter(federal_clause(Course.event_type))
+        query = query.filter(federal_clause(Course.event_type))
     # Nom vide (import mal renseigné) en fin de tri, pas en tête (Edge Cases du spec) :
     # sans ce `case`, une chaîne vide précède tout nom non vide en tri lexicographique.
-    nom_vide_en_fin = case((Athlete.nom == "", 1), else_=0)
-    lignes = requete.order_by(nom_vide_en_fin, Athlete.nom, Athlete.prenom).all()
+    empty_name_last = case((Athlete.nom == "", 1), else_=0)
+    rows = query.order_by(empty_name_last, Athlete.nom, Athlete.prenom).all()
     return [
-        (athlete, int(total_n), int(validees_n), int(affiliees_n))
-        for athlete, total_n, validees_n, affiliees_n in lignes
+        (athlete, int(total_n), int(validated_n), int(affiliated_n))
+        for athlete, total_n, validated_n, affiliated_n in rows
     ]
 
 
-def update_identity(db: Session, athlete: Athlete, **champs) -> Athlete:
+def update_identity(db: Session, athlete: Athlete, **fields) -> Athlete:
     """Écrit les champs d'identité fournis. **Ne vérifie pas l'unicité** — c'est
     le service qui la contrôle par lecture préalable, pour pouvoir nommer la
     fiche en conflit (#117, FR-005)."""
-    for nom_champ, valeur in champs.items():
-        setattr(athlete, nom_champ, valeur)
+    for field_name, value in fields.items():
+        setattr(athlete, field_name, value)
     db.flush()
     return athlete
 
@@ -811,16 +811,16 @@ def _relevance_rank(term: str):
     est atteint si l'une des deux conditions du palier l'est ».
     """
     t = escape_like(deaccent(term).lower())
-    nom = func.unaccent(func.lower(Athlete.nom))
-    prenom = func.unaccent(func.lower(Athlete.prenom))
-    prefixe = or_(nom.like(f"{t}%", escape="\\"), prenom.like(f"{t}%", escape="\\"))
-    debut_mot = or_(
-        nom.like(f"% {t}%", escape="\\"),
-        nom.like(f"%-{t}%", escape="\\"),
-        prenom.like(f"% {t}%", escape="\\"),
-        prenom.like(f"%-{t}%", escape="\\"),
+    last_name = func.unaccent(func.lower(Athlete.nom))
+    first_name = func.unaccent(func.lower(Athlete.prenom))
+    prefix = or_(last_name.like(f"{t}%", escape="\\"), first_name.like(f"{t}%", escape="\\"))
+    word_start = or_(
+        last_name.like(f"% {t}%", escape="\\"),
+        last_name.like(f"%-{t}%", escape="\\"),
+        first_name.like(f"% {t}%", escape="\\"),
+        first_name.like(f"%-{t}%", escape="\\"),
     )
-    return case((prefixe, 0), (debut_mot, 1), else_=2)
+    return case((prefix, 0), (word_start, 1), else_=2)
 
 
 def search_by_relevance(
@@ -845,7 +845,7 @@ def search_by_relevance(
     équipiers, l'`IN` ne le compte qu'une fois.
     """
     direct = aliased(Participation)
-    compte = (
+    result_count = (
         select(func.count(Participation.id))
         .where(
             Participation.id.in_(
@@ -863,18 +863,18 @@ def search_by_relevance(
         )
         .scalar_subquery()
     )
-    rang = _relevance_rank(term)
-    requete = db.query(Athlete, compte).filter(name_filter(term))
+    relevance = _relevance_rank(term)
+    query = db.query(Athlete, result_count).filter(name_filter(term))
     if club_only:
-        requete = requete.filter(_club_record())
+        query = query.filter(_club_record())
     return (
-        requete.order_by(rang, compte.desc(), Athlete.nom, Athlete.prenom)
+        query.order_by(relevance, result_count.desc(), Athlete.nom, Athlete.prenom)
         .limit(limit)
         .all()
     )
 
 
-def _club_roster_requete(db: Session, *, federal_only: bool):
+def _club_roster_query(db: Session, *, federal_only: bool):
     """Bâtit la requête d'agrégation partagée par `club_roster` et `club_rank`
     (#641) : même tri, même filtrage, pour que le rang calculé au-delà de
     l'aperçu de 12 corresponde exactement à l'ordre affiché.
@@ -883,11 +883,11 @@ def _club_roster_requete(db: Session, *, federal_only: bool):
     # relais compte dans le volume `total`, jamais dans les podiums.
     # Relais aussi quand seule l'épreuve est marquée (édition admin) : même
     # critère que `set_teammates`.
-    individuel = and_(Participation.is_relay.is_(False), Course.is_relay.is_(False))
-    cond_overall = and_(individuel, Participation.rank_overall.between(1, 3))
+    individual = and_(Participation.is_relay.is_(False), Course.is_relay.is_(False))
+    cond_overall = and_(individual, Participation.rank_overall.between(1, 3))
     # Même règle que le KPI et la liste des podiums (`core.gender`, #936).
-    cond_gender = and_(individuel, gender_podium_clause(Participation.rank_gender, Athlete.gender))
-    cond_category = and_(individuel, Participation.rank_category.between(1, 3))
+    cond_gender = and_(individual, gender_podium_clause(Participation.rank_gender, Athlete.gender))
+    cond_category = and_(individual, Participation.rank_category.between(1, 3))
 
     total = func.count(Participation.id)
     podiums = func.sum(case((or_(cond_overall, cond_gender, cond_category), 1), else_=0))
@@ -895,19 +895,19 @@ def _club_roster_requete(db: Session, *, federal_only: bool):
     podiums_gender = func.sum(case((cond_gender, 1), else_=0))
     podiums_category = func.sum(case((cond_category, 1), else_=0))
 
-    lien = credits()
-    requete = (
+    credit_rows = credits()
+    query = (
         db.query(Athlete, total, podiums, podiums_overall, podiums_gender, podiums_category)
-        .join(lien, lien.c.athlete_id == Athlete.id)
-        .join(Participation, Participation.id == lien.c.participation_id)
+        .join(credit_rows, credit_rows.c.athlete_id == Athlete.id)
+        .join(Participation, Participation.id == credit_rows.c.participation_id)
         .join(Course, Participation.course_id == Course.id)
         .filter(validated_clause(Participation.is_pending_validation))
         .filter(Participation.counts_for_tcn.is_(True))
         .group_by(Athlete.id)
     )
     if federal_only:
-        requete = requete.filter(federal_clause(Course.event_type))
-    return requete.order_by(total.desc(), podiums.desc(), Athlete.nom, Athlete.prenom), total, podiums
+        query = query.filter(federal_clause(Course.event_type))
+    return query.order_by(total.desc(), podiums.desc(), Athlete.nom, Athlete.prenom), total, podiums
 
 
 def club_roster(
@@ -921,8 +921,8 @@ def club_roster(
     indépendants, une même participation pouvant incrémenter les trois à la
     fois (cf. #488 côté front, comportement repris à l'identique).
     """
-    requete, _total, _podiums = _club_roster_requete(db, federal_only=federal_only)
-    return requete.limit(limit).all()
+    query, _total, _podiums = _club_roster_query(db, federal_only=federal_only)
+    return query.limit(limit).all()
 
 
 def club_rank(
@@ -935,8 +935,8 @@ def club_rank(
     individuelle — `None` si l'athlète n'a aucune participation validée au
     club (absent du roster).
     """
-    requete, _total, _podiums = _club_roster_requete(db, federal_only=federal_only)
-    ids = [a.id for a, *_ in requete.all()]
+    query, _total, _podiums = _club_roster_query(db, federal_only=federal_only)
+    ids = [a.id for a, *_ in query.all()]
     if athlete_id not in ids:
         return None
     return ids.index(athlete_id) + 1, len(ids)
@@ -955,7 +955,7 @@ def club_composition(
     l'historique complet pour ne garder que son maximum côté Python — même
     sémantique que `buildRoster` (front, `lib/utils/club-aggregate.ts`).
     """
-    rang_recence = (
+    recency_rank = (
         func.row_number()
         # `nullslast` : PostgreSQL range sinon une épreuve sans date en tête de
         # `DESC` ; `Participation.id` départage deux épreuves du même jour (#1051).
@@ -965,25 +965,25 @@ def club_composition(
         )
         .label("rang_recence")
     )
-    lien = credits()
-    sous_requete = (
+    credit_rows = credits()
+    ranked = (
         db.query(
             Athlete.gender.label("gender"),
             Participation.category.label("category"),
-            rang_recence,
+            recency_rank,
         )
-        .join(lien, lien.c.athlete_id == Athlete.id)
-        .join(Participation, Participation.id == lien.c.participation_id)
+        .join(credit_rows, credit_rows.c.athlete_id == Athlete.id)
+        .join(Participation, Participation.id == credit_rows.c.participation_id)
         .join(Course, Participation.course_id == Course.id)
         .filter(validated_clause(Participation.is_pending_validation))
         .filter(Participation.counts_for_tcn.is_(True))
     )
     if federal_only:
-        sous_requete = sous_requete.filter(federal_clause(Course.event_type))
-    sous_requete = sous_requete.subquery()
+        ranked = ranked.filter(federal_clause(Course.event_type))
+    ranked = ranked.subquery()
     return (
-        db.query(sous_requete.c.gender, sous_requete.c.category)
-        .filter(sous_requete.c.rang_recence == 1)
+        db.query(ranked.c.gender, ranked.c.category)
+        .filter(ranked.c.rang_recence == 1)
         .all()
     )
 
