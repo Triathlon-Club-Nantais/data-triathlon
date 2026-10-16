@@ -7,6 +7,7 @@ import type {
   ChallengeDetail,
   AthleteSeasonActivity,
   AuthMethod,
+  ClubBestTime,
   ClubSummary,
   CourseDetail,
   CourseQuery,
@@ -250,6 +251,11 @@ export const apiServer = {
     opts: { federal_only?: boolean; podiums?: "preview" } = {},
     fetchOpts: FetchOpts = {},
   ) => serverFetch<ClubSummary>(`/club/summary${toQuery(opts)}`, fetchOpts),
+  /** Meilleur temps du club par format calibré et genre (#1588) ; sans `season`, toutes saisons. */
+  getClubBestTimes: (
+    opts: { season?: number; federal_only?: boolean } = {},
+    fetchOpts: FetchOpts = {},
+  ) => serverFetch<ClubBestTime[]>(`/club/best-times${toQuery(opts)}`, fetchOpts),
   listSeasons: (opts: { scope?: string; federal_only?: boolean } = {}, fetchOpts: FetchOpts = {}) =>
     serverFetch<Season[]>(`/stats/seasons${toQuery(opts)}`, fetchOpts),
   /** Session du visiteur, ou `null` s'il est anonyme (#114). */
