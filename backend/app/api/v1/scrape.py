@@ -41,6 +41,7 @@ def scrape_event(
             "imported": result["imported"],
             "updated": result["updated"],
             "skipped": result["skipped"],
+            "cached": bool(result.get("cached")),
         },
     )
     return result
@@ -76,11 +77,14 @@ def scrape_event_stream(
     # dans son propre `finally`, quoi qu'il arrive côté client.
     def produce(emit) -> None:
         db = SessionLocal()
+        outcome = None
         try:
             for event in import_service.iter_import_event(
                 db, str(body.url), settings, single_heat=body.single_heat,
             ):
                 emit(event)
+                if event.get("phase") in ("done", "error"):
+                    outcome = event
         except Exception:
             # `iter_import_event` encapsule déjà ses échecs attendus en
             # `{phase: error}` — ce filet ne couvre que l'imprévu (ex. le
@@ -91,11 +95,40 @@ def scrape_event_stream(
             # la connexion, remontant comme une panne réseau côté client).
             db.rollback()
             logger.exception("Échec inattendu du flux d'import SSE pour %s", body.url)
-            emit({"phase": "error", "message": "Erreur lors de l'import."})
+            outcome = {"phase": "error", "message": "Erreur lors de l'import.", "error_kind": "unexpected"}
+            emit(outcome)
         finally:
             db.close()
+        _capture_stream_outcome(str(body.url), outcome)
 
     return sse.event_stream(sse_relay.relay(produce))
+
+
+def _capture_stream_outcome(url: str, outcome: dict | None) -> None:
+    """Issue de l'import SSE vers PostHog (#1367) : le slug du fournisseur et des
+    compteurs, jamais l'URL ni le message, qui peuvent porter un nom.
+
+    Toujours anonyme : le travail tourne dans le thread de `sse_relay`, hors du
+    contexte où `AnalyticsConsentMiddleware` a lu l'accord, et un taux d'échec
+    par fournisseur n'a pas besoin de savoir qui a importé."""
+    if outcome is None:
+        return
+    provider = detect_provider(url)
+    if outcome["phase"] == "done":
+        capture_event("event_scraped", distinct_id=ANONYMOUS_DISTINCT_ID, properties={
+            "provider": provider,
+            "imported": outcome["imported"],
+            "updated": outcome["updated"],
+            "skipped": outcome["skipped"],
+            # Un court-circuit du cache TTL n'a rien scrapé : le taux de succès
+            # par fournisseur doit pouvoir l'écarter.
+            "cached": bool(outcome.get("cached")),
+        })
+    else:
+        capture_event("event_scrape_failed", distinct_id=ANONYMOUS_DISTINCT_ID, properties={
+            "provider": provider,
+            "error_kind": outcome.get("error_kind", "unexpected"),
+        })
 
 
 @router.get("/scrape/detect", response_model=ProviderDetection)

@@ -784,7 +784,9 @@ def test_streaming_fanout_scrape_failure_ends_on_an_error_frame(db_session, monk
 
     phases = list(import_service.iter_import_event(db_session, URL, _settings()))
 
-    assert phases[-1] == {"phase": "error", "message": "Erreur lors de l'import : boom"}
+    assert phases[-1] == {
+        "phase": "error", "message": "Erreur lors de l'import : boom", "error_kind": "scraper",
+    }
     assert db_session.query(Course).count() == 0
     assert db_session.query(Participation).count() == 0
 
@@ -796,7 +798,29 @@ def test_streaming_fanout_value_error_maps_to_unsupported_provider(db_session, m
 
     phases = list(import_service.iter_import_event(db_session, URL, _settings()))
 
-    assert phases[-1] == {"phase": "error", "message": "Import non supporté"}
+    assert phases[-1] == {
+        "phase": "error", "message": "Import non supporté", "error_kind": "unsupported_provider",
+    }
+
+
+def test_streaming_invalid_url_is_tagged_invalid_url(db_session):
+    phases = list(import_service.iter_import_event(db_session, "ftp://example.org/x", _settings()))
+
+    assert phases[-1]["error_kind"] == "invalid_url"
+
+
+def test_streaming_persistence_failure_is_tagged_persistence(db_session, patch_scraper, monkeypatch):
+    patch_scraper([_result("1", "DUPONT")])
+
+    def _lever_a_l_enregistrement(db, url, results):
+        raise RuntimeError("disque plein")
+        yield
+
+    monkeypatch.setattr(import_persistence, "persist_steps", _lever_a_l_enregistrement)
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    assert phases[-1]["error_kind"] == "persistence"
 
 
 def test_non_fanout_scraper_failure_is_wrapped_in_scraper_error(db_session, monkeypatch):

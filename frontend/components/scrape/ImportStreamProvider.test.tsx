@@ -3,7 +3,8 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ImportProgressEvent } from "@/lib/types";
 
-const { importEventStream, push, refresh, toast, reportPendingProvider } = vi.hoisted(() => ({
+const { importEventStream, push, refresh, toast, reportPendingProvider, captureEvent } = vi.hoisted(() => ({
+  captureEvent: vi.fn(),
   importEventStream: vi.fn(),
   push: vi.fn(),
   refresh: vi.fn(),
@@ -14,6 +15,7 @@ const { importEventStream, push, refresh, toast, reportPendingProvider } = vi.ho
 vi.mock("@/lib/api/sse", () => ({ importEventStream }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh }) }));
 vi.mock("sonner", () => ({ toast }));
+vi.mock("@/lib/posthog", () => ({ captureEvent }));
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
@@ -290,5 +292,49 @@ describe("ImportStreamProvider — l'import survit à la navigation", () => {
 
     expect(signal?.aborted).toBe(false);
     await act(async () => terminer(FIN));
+  });
+});
+
+// #1367 : un import qui échoue se compte une fois, que l'écran soit monté ou non.
+describe("ImportStreamProvider — télémétrie d'échec", () => {
+  const echecs = () => captureEvent.mock.calls.filter(([nom]) => nom === "results_import_failed");
+
+  it.each([
+    ["page illisible", (p: ReturnType<typeof fluxPilote>) => p.terminer({ phase: "error", message: "x" } as ImportProgressEvent)],
+    ["service muet", (p: ReturnType<typeof fluxPilote>) => p.echouer(new TypeError("Failed to fetch"))],
+    ["plafond", (p: ReturnType<typeof fluxPilote>) => p.echouer(new ApiError(429, "Trop de demandes", 180))],
+  ])("écran monté, %s : un seul results_import_failed", async (_cas, finir) => {
+    const pilote = fluxPilote();
+    importEventStream.mockReturnValue(pilote.flux());
+    monter();
+    await lancer();
+
+    await act(async () => finir(pilote));
+
+    await waitFor(() => expect(echecs()).toHaveLength(1));
+    await act(async () => {});
+    expect(echecs()).toHaveLength(1);
+  });
+
+  it("écran quitté puis rouvert : un seul results_import_failed", async () => {
+    const pilote = await lancerPuisQuitter();
+    await act(async () => pilote.echouer(new TypeError("Failed to fetch")));
+    await waitFor(() => expect(echecs()).toHaveLength(1));
+
+    pilote.naviguer(true);
+    await act(async () => {});
+
+    expect(echecs()).toHaveLength(1);
+  });
+
+  it("écran quitté pendant l'import puis rouvert avant l'échec : un seul results_import_failed", async () => {
+    const pilote = await lancerPuisQuitter();
+    pilote.naviguer(true);
+
+    await act(async () => pilote.echouer(new TypeError("Failed to fetch")));
+
+    await waitFor(() => expect(echecs()).toHaveLength(1));
+    await act(async () => {});
+    expect(echecs()).toHaveLength(1);
   });
 });

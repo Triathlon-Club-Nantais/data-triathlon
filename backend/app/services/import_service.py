@@ -128,7 +128,11 @@ def iter_import_event(
     """
     Générateur de progression pour le SSE. Émet des dicts de phase :
       {phase: scraping} → {phase: saving, progress, total, imported, updated, skipped}
-      → {phase: done, …}   (ou {phase: error, message})
+      → {phase: done, …}   (ou {phase: error, message, error_kind})
+
+    `error_kind` (#1367) range l'échec pour l'analytics, sans le texte du
+    message, qui peut citer une URL ou un nom : `invalid_url`,
+    `unsupported_provider`, `scraper` ou `persistence`.
 
     La phase `done` porte un contrat stable — `imported`, `updated`, `skipped`,
     `reconciled`, `reassignments`, `passive_sources`, `total`, `courses` — sur
@@ -147,7 +151,7 @@ def iter_import_event(
     try:
         url = import_dispatch.validate_url(url)
     except InvalidUrlError as exc:
-        yield {"phase": "error", "message": exc.message}
+        yield {"phase": "error", "message": exc.message, "error_kind": "invalid_url"}
         return
 
     if not force:
@@ -172,7 +176,8 @@ def iter_import_event(
             url, db, settings, single_heat=single_heat, use_cache_probe=not force,
         )
     except (ProviderNotSupportedError, ScraperError) as exc:
-        yield {"phase": "error", "message": exc.message}
+        kind = "unsupported_provider" if isinstance(exc, ProviderNotSupportedError) else "scraper"
+        yield {"phase": "error", "message": exc.message, "error_kind": kind}
         return
 
     total = len(results)
@@ -237,7 +242,10 @@ def iter_import_event(
                 logger.exception("Échec de la re-vérification post-commit pour %s", url)
         if not confirmed:
             logger.error("Rollback de l'import streaming %s", url, exc_info=exc)
-            yield {"phase": "error", "message": "Erreur lors de l'enregistrement des résultats."}
+            yield {
+                "phase": "error", "message": "Erreur lors de l'enregistrement des résultats.",
+                "error_kind": "persistence",
+            }
             return
         logger.warning(
             "Accusé de commit perdu mais écriture confirmée en base pour %s", url, exc_info=exc
