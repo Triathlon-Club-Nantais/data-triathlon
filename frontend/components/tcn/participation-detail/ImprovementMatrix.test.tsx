@@ -24,7 +24,7 @@ describe("ImprovementMatrix", () => {
   it("affiche les six colonnes de pourcentage", () => {
     renderMatrix();
 
-    for (const pct of ["0,5 %", "1 %", "2 %", "5 %", "10 %", "25 %"]) {
+    for (const pct of ["0,5\u202f%", "1\u202f%", "2\u202f%", "5\u202f%", "10\u202f%", "25\u202f%"]) {
       expect(screen.getByRole("columnheader", { name: pct })).toBeTruthy();
     }
   });
@@ -71,12 +71,12 @@ describe("ImprovementMatrix", () => {
   it("ne garde que trois paliers sous sm", () => {
     renderMatrix();
 
-    for (const masque of ["0,5 %", "2 %", "10 %"]) {
+    for (const masque of ["0,5\u202f%", "2\u202f%", "10\u202f%"]) {
       expect(screen.getByRole("columnheader", { name: masque }).className).toContain(
         "hidden sm:table-cell",
       );
     }
-    for (const garde of ["1 %", "5 %", "25 %"]) {
+    for (const garde of ["1\u202f%", "5\u202f%", "25\u202f%"]) {
       expect(screen.getByRole("columnheader", { name: garde }).className ?? "").not.toContain(
         "hidden",
       );
@@ -95,9 +95,18 @@ describe("ImprovementMatrix", () => {
   it("#657 : explique au survol ce que représente un palier de pourcentage", () => {
     renderMatrix();
 
-    const palier = screen.getByRole("columnheader", { name: "5 %" });
-    expect(palier.title).toMatch(/5 % plus vite/i);
+    const palier = screen.getByRole("columnheader", { name: "5\u202f%" });
+    expect(palier.title).toMatch(/5\u202f% plus vite/i);
     expect(palier.title).toMatch(/places gagnées/i);
+  });
+
+  it("lie chaque « % » à son nombre par une espace fine insécable (#1600)", () => {
+    renderMatrix();
+
+    const palier = screen.getByRole("columnheader", { name: "0,5\u202f%" });
+    expect(palier.textContent).toBe("0,5\u202f%");
+    expect(palier.title).toContain("0,5\u202f% plus vite");
+    expect(screen.getByText(/aucune place gagnée/).textContent).toContain("25\u202f% plus vite");
   });
 
   it("#657 : explique au survol pourquoi une cellule affiche un point plutôt qu'un chiffre", () => {

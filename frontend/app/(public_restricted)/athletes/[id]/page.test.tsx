@@ -169,7 +169,7 @@ describe("AthletePage", () => {
     // Le meilleur centile est 42e sur 300 (14 %), pas la meilleure place brute (20e sur 80, 25 %).
     const tile = screen.getByText("Meilleur classement").parentElement?.parentElement as HTMLElement;
     expect(within(tile).getByText("42e")).toBeInTheDocument();
-    expect(within(tile).getByText("sur 300 · Top 14 %")).toBeInTheDocument();
+    expect(within(tile).getByText("sur 300 · Top 14 %").textContent).toBe("sur 300 · Top 14\u202f%");
     expect(screen.queryByText("Meilleure place")).not.toBeInTheDocument();
     expect(screen.queryByText("Meilleur ratio")).not.toBeInTheDocument();
   });

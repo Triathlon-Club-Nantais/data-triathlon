@@ -220,6 +220,16 @@ describe("ComparisonTable", () => {
     }
   });
 
+  it("lie chaque « % » des info-bulles à son nombre par une espace fine insécable (#1600)", () => {
+    renderTable();
+
+    for (const name of ["Natation", "Total"]) {
+      const title = screen.getByRole("columnheader", { name }).title;
+      expect(title).toContain("100\u202f% = temps identique");
+      expect(title).not.toMatch(/ %/);
+    }
+  });
+
   // #853 : la barre de taille par cellule a été retirée au profit d'un léger
   // dégradé de fond (orange = plus lent, vert = plus rapide que la référence).
   it("#853 : teinte en orange une cellule au-dessus de 100 % (plus lent que la référence)", () => {
