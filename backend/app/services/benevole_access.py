@@ -20,14 +20,14 @@ import secrets
 
 from sqlalchemy.orm import Session
 
-from app.models.benevole_access_config import BenevoleAccessConfig
+from app.models.benevole_access_config import VolunteerAccessConfig
 from app.models.user import SYSTEM_USER_EMAIL, User
 from app.repositories import benevole_config_repository, user_repository
 from app.services import audit, shared_password
 
 #: Nom du cookie de session bénévoles — distinct du cookie SSO (`tcn_session`,
 #: `api/v1/auth.py`), sur un mécanisme entièrement séparé.
-BENEVOLE_SESSION_COOKIE = "tcn_benevole_session"
+VOLUNTEER_SESSION_COOKIE = "tcn_benevole_session"
 
 #: Taille du mot de passe généré (research.md §D5), en octets.
 _GENERATED_PASSWORD_SIZE = 18
@@ -42,13 +42,13 @@ def system_user_id(db: Session) -> int:
     peut pas être figé en constante Python — seule l'adresse ci-dessus,
     choisie par cette feature, est stable d'un environnement à l'autre.
     """
-    comptes = user_repository.find_by_email(db, SYSTEM_USER_EMAIL)
-    if not comptes:
+    accounts = user_repository.find_by_email(db, SYSTEM_USER_EMAIL)
+    if not accounts:
         raise RuntimeError(
             f"Compte système bénévoles introuvable ({SYSTEM_USER_EMAIL}) — "
             "la migration de seed a-t-elle été appliquée ?"
         )
-    return comptes[0].id
+    return accounts[0].id
 
 
 def actor_user_id(db: Session, admin: User | None) -> int:
@@ -74,7 +74,7 @@ def generate_password() -> str:
 
 def replace_password(
     db: Session, *, password: str | None, admin_user_id: int
-) -> tuple[BenevoleAccessConfig, str]:
+) -> tuple[VolunteerAccessConfig, str]:
     """Remplace le mot de passe bénévoles — saisi (`password` fourni) ou
     généré (`password` absent, Story 2). Rend `(config, mot_de_passe_en_clair)`.
 
@@ -84,8 +84,8 @@ def replace_password(
     **dans le même appel** à `save_config` — jamais l'un sans les autres
     (data-model.md, invariant d'atomicité, FR-006).
     """
-    mot_de_passe = password if password is not None else generate_password()
-    password_hash, password_salt = shared_password.hash_password(mot_de_passe)
+    plain_password = password if password is not None else generate_password()
+    password_hash, password_salt = shared_password.hash_password(plain_password)
     config = benevole_config_repository.save_config(
         db,
         password_hash=password_hash,
@@ -97,4 +97,4 @@ def replace_password(
         db, admin_user_id, action="benevole_access.password_replace",
         entity_type="benevole_access_config", entity_id=config.id,
     )
-    return config, mot_de_passe
+    return config, plain_password

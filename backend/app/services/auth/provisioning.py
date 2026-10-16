@@ -132,12 +132,12 @@ def _grant_initial_role(db: Session, user: User, email: str) -> None:
     rôle devenu hors portée laisseraient un visiteur légitime dehors, avec un
     code d'erreur qui n'expliquerait rien.
     """
-    entree = allowed_email_repository.get_by_email(db, email)
-    if entree is None or entree.role_id is None:
+    entry = allowed_email_repository.get_by_email(db, email)
+    if entry is None or entry.role_id is None:
         return
 
     organisation = role_repository.default_organisation(db)
-    role = role_repository.get(db, entree.role_id)
+    role = role_repository.get(db, entry.role_id)
     #: Les trois sorties ci-dessous **précèdent** la réclamation : rien ne doit
     #: lever le choix d'un administrateur sans que le compte l'ait reçu.
     # `role_assignable_in` et non une relecture de la règle : c'est le
@@ -150,7 +150,7 @@ def _grant_initial_role(db: Session, user: User, email: str) -> None:
     ):
         logger.warning(
             "Initial role skipped: role=%s organisation=%s (user %s)",
-            entree.role_id,
+            entry.role_id,
             organisation.id if organisation else None,
             user.id,
         )
@@ -158,7 +158,7 @@ def _grant_initial_role(db: Session, user: User, email: str) -> None:
 
     # Réclamer **avant** de donner : le perdant d'une course ne donne rien, et
     # celui qui donne est celui qui a levé.
-    if allowed_email_repository.claim_initial_role(db, entree) is None:
+    if allowed_email_repository.claim_initial_role(db, entry) is None:
         return
 
     user_role_repository.grant(

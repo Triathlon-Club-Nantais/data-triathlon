@@ -63,7 +63,7 @@ ADMIN_PUBLIQUES = {
 #: à la place d'une session, ce qui permet de rouvrir la saisie manuelle à un
 #: membre sans compte, l'usage que le formulaire vise.
 #: Les ressources de la page bénévoles (#271, #437), fermées par un mot de
-#: passe partagé (`require_benevole_access`) plutôt que par une session SSO —
+#: passe partagé (`require_volunteer_access`) plutôt que par une session SSO —
 #: mécanisme distinct, mais même exigence : anonyme n'obtient rien. `POST` et
 #: `DELETE /benevoles/session` restent hors de cet ensemble : la première pose
 #: la garde des autres, la seconde n'a aucun effet de bord sensible.

@@ -105,7 +105,7 @@ def test_benevoles_session_repond_sans_cookie_site(client):
 def test_benevoles_reste_joignable_sans_jamais_poser_de_cookie_site(client, db_session):
     """Le test qui échouerait vraiment si `benevoles` glissait dans la boucle
     gardée : session bénévoles ouverte, aucun cookie site jamais posé, la
-    ressource protégée par `require_benevole_access` répond quand même."""
+    ressource protégée par `require_volunteer_access` répond quand même."""
     admin = user_repository.create(db_session, email="admin-benevoles@exemple.fr", display_name="Admin")
     db_session.flush()
     benevole_access.replace_password(db_session, password="secret-benevoles", admin_user_id=admin.id)

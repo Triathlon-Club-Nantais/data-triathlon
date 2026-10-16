@@ -102,7 +102,7 @@ def optional_user(
     return session_service.resolve(db, token)
 
 
-def require_benevole_access(
+def require_volunteer_access(
     request: Request,
     db: Session = Depends(get_db),
     user: User | None = Depends(optional_user),
@@ -121,17 +121,17 @@ def require_benevole_access(
     est `session_secret`, pas le mot de passe lui-même (research.md §D2 de
     `specs/20260815-173645-admin-mdp-benevoles/`).
     """
-    if user is not None and authorization.has_permission(db, user, P.BENEVOLE_ACCESS_MANAGE):
+    if user is not None and authorization.has_permission(db, user, P.VOLUNTEER_ACCESS_MANAGE):
         return user
-    if not has_benevole_cookie(request, db):
+    if not has_volunteer_cookie(request, db):
         raise NotAuthenticatedError()
     return None
 
 
-def has_benevole_cookie(request: Request, db: Session) -> bool:
+def has_volunteer_cookie(request: Request, db: Session) -> bool:
     """Le cookie bénévoles de cette requête est-il valide ? Faux sans configuration."""
     config = benevole_config_repository.get_config(db)
-    cookie = request.cookies.get(benevole_access.BENEVOLE_SESSION_COOKIE)
+    cookie = request.cookies.get(benevole_access.VOLUNTEER_SESSION_COOKIE)
     return config is not None and shared_password.verify_cookie(cookie, config.session_secret)
 
 
@@ -139,7 +139,7 @@ def require_site_access(
     request: Request, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)
 ) -> None:
     """Garde transverse du site entier (#509) — mot de passe partagé, pas de
-    RBAC. Distincte de `require_benevole_access` : secret et cookie propres.
+    RBAC. Distincte de `require_volunteer_access` : secret et cookie propres.
     Fail-closed : configuration absente, cookie absent/invalide/expiré
     rendent tous le même 401, distinct de celui de la garde SSO (#877).
     """
@@ -180,12 +180,12 @@ _hits: dict[tuple[str, str], deque[float]] = {}
 
 #: Fenêtre en secondes de chaque seau, retenue au passage : la purge en a besoin
 #: pour ne pas juger un seau à l'aune de la fenêtre d'un autre.
-_fenetres: dict[str, int] = {}
+_windows: dict[str, int] = {}
 
 #: Au-delà, on purge les seaux dont la fenêtre est entièrement écoulée — un
 #: attaquant qui fait tourner ses adresses ne fait pas croître la mémoire sans
 #: fin. La purge n'efface aucun quota en cours.
-_MAX_SEAUX = 10_000
+_MAX_BUCKETS = 10_000
 
 #: A07-1, faible : l'ouverture de parcours ne fait qu'une signature JWS, sans
 #: écriture ni réseau. Le levier est mince, le plafond est donc large — et il
@@ -237,8 +237,8 @@ MAX_PAGE = 1_000_000
 #: force brute compte : l'admin peut poser un mot de passe humain de 8
 #: caractères. Plus serré que la connexion au site : seule une poignée de
 #: bénévoles se connecte, pas chaque visiteur.
-BENEVOLE_LOGIN_RATE_LIMIT_MAX_PER_WINDOW = 30
-BENEVOLE_LOGIN_RATE_LIMIT_WINDOW_SECONDS = 3600
+VOLUNTEER_LOGIN_RATE_LIMIT_MAX_PER_WINDOW = 30
+VOLUNTEER_LOGIN_RATE_LIMIT_WINDOW_SECONDS = 3600
 
 #: #1168, rapports CSP : route anonyme qui n'écrit que des logs. Large, parce
 #: que Firefox envoie un rapport par violation et qu'un club partage une IP ;
@@ -250,7 +250,7 @@ CSP_REPORT_RATE_LIMIT_WINDOW_SECONDS = 3600
 def reset_rate_limits() -> None:
     """Vide les compteurs. Réservé aux tests (fixture autouse de `conftest`)."""
     _hits.clear()
-    _fenetres.clear()
+    _windows.clear()
 
 
 def _enforce_rate_limit(
@@ -261,14 +261,14 @@ def _enforce_rate_limit(
         return
 
     now = time.monotonic()
-    _fenetres[bucket] = window_seconds
-    if len(_hits) > _MAX_SEAUX:
+    _windows[bucket] = window_seconds
+    if len(_hits) > _MAX_BUCKETS:
         # La fenêtre du seau purgé, jamais celle de l'appel en cours : un appel
         # sur un seau à fenêtre courte effacerait sinon le quota d'un seau à
-        # fenêtre longue, ce que `_MAX_SEAUX` promet précisément de ne pas faire.
+        # fenêtre longue, ce que `_MAX_BUCKETS` promet précisément de ne pas faire.
         for key, seen in list(_hits.items()):
-            fenetre = _fenetres.get(key[0], window_seconds)
-            if not seen or now - seen[-1] >= fenetre:
+            window = _windows.get(key[0], window_seconds)
+            if not seen or now - seen[-1] >= window:
                 del _hits[key]
 
     seen = _hits.setdefault((bucket, ip), deque())
@@ -383,13 +383,13 @@ def csp_report_rate_limit(request: Request) -> None:
     )
 
 
-def benevole_login_rate_limit(request: Request) -> None:
+def volunteer_login_rate_limit(request: Request) -> None:
     """Plafond de `POST /benevoles/session` (#917), **seau dédié**."""
     _enforce_rate_limit(
         request,
         "benevole_login",
-        max_per_window=BENEVOLE_LOGIN_RATE_LIMIT_MAX_PER_WINDOW,
-        window_seconds=BENEVOLE_LOGIN_RATE_LIMIT_WINDOW_SECONDS,
+        max_per_window=VOLUNTEER_LOGIN_RATE_LIMIT_MAX_PER_WINDOW,
+        window_seconds=VOLUNTEER_LOGIN_RATE_LIMIT_WINDOW_SECONDS,
     )
 
 
@@ -411,7 +411,7 @@ def require_permission(code: Permission | str) -> Callable[..., User]:
     silence. `tests/test_permissions_catalogue.py` tient les deux bouts par AST.
     """
 
-    def garde(
+    def guard(
         request: Request,
         user: User = Depends(current_user),
         db: Session = Depends(get_db),
@@ -430,4 +430,4 @@ def require_permission(code: Permission | str) -> Callable[..., User]:
         )
         raise InsufficientPermissionError()
 
-    return garde
+    return guard

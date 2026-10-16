@@ -256,7 +256,7 @@ _SESSION_BENEVOLES = "/api/v1/benevoles/session"
 def test_la_connexion_benevoles_est_plafonnee(client, monkeypatch):
     """#917 : même coût scrypt que la connexion au site, route joignable sans
     le cookie du site, et mot de passe possiblement humain (8 caractères)."""
-    monkeypatch.setattr(deps, "BENEVOLE_LOGIN_RATE_LIMIT_MAX_PER_WINDOW", 2)
+    monkeypatch.setattr(deps, "VOLUNTEER_LOGIN_RATE_LIMIT_MAX_PER_WINDOW", 2)
 
     assert client.post(_SESSION_BENEVOLES, json={"password": "faux-1"}).status_code == 401
     assert client.post(_SESSION_BENEVOLES, json={"password": "faux-2"}).status_code == 401
@@ -268,7 +268,7 @@ def test_la_connexion_benevoles_est_plafonnee(client, monkeypatch):
 
 def test_la_connexion_benevoles_a_son_propre_seau(client, monkeypatch):
     monkeypatch.setattr(deps, "SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW", 1)
-    monkeypatch.setattr(deps, "BENEVOLE_LOGIN_RATE_LIMIT_MAX_PER_WINDOW", 1)
+    monkeypatch.setattr(deps, "VOLUNTEER_LOGIN_RATE_LIMIT_MAX_PER_WINDOW", 1)
 
     assert client.post(_SESSION_SITE, json={"password": "faux"}).status_code == 401
     assert client.post(_SESSION_SITE, json={"password": "faux"}).status_code == 429
@@ -278,7 +278,7 @@ def test_la_connexion_benevoles_a_son_propre_seau(client, monkeypatch):
 
 def test_la_remise_a_zero_des_compteurs_couvre_le_seau_benevoles(client, monkeypatch):
     """La fixture autouse `_compteurs_de_debit_vierges` passe par `reset_rate_limits`."""
-    monkeypatch.setattr(deps, "BENEVOLE_LOGIN_RATE_LIMIT_MAX_PER_WINDOW", 1)
+    monkeypatch.setattr(deps, "VOLUNTEER_LOGIN_RATE_LIMIT_MAX_PER_WINDOW", 1)
     assert client.post(_SESSION_BENEVOLES, json={"password": "faux"}).status_code == 401
     assert client.post(_SESSION_BENEVOLES, json={"password": "faux"}).status_code == 429
 
@@ -299,7 +299,7 @@ def test_la_purge_des_seaux_n_efface_pas_le_quota_d_une_autre_fenetre(monkeypatc
 
     Un appel sur un seau à fenêtre courte balayait donc les seaux à fenêtre
     longue dont le dernier passage était plus vieux que *sa* fenêtre à lui —
-    ce que le commentaire d'en-tête de `_MAX_SEAUX` promet de ne pas faire.
+    ce que le commentaire d'en-tête de `_MAX_BUCKETS` promet de ne pas faire.
     Inoffensif tant que les quatre fenêtres valent 3600 s, silencieux le jour
     où l'une d'elles change.
     """
@@ -308,7 +308,7 @@ def test_la_purge_des_seaux_n_efface_pas_le_quota_d_une_autre_fenetre(monkeypatc
     from types import SimpleNamespace
 
     deps.reset_rate_limits()
-    monkeypatch.setattr(deps, "_MAX_SEAUX", 1)
+    monkeypatch.setattr(deps, "_MAX_BUCKETS", 1)
 
     long_seau = ("long", "203.0.113.7")
     deps._enforce_rate_limit(

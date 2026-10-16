@@ -156,7 +156,7 @@ Trois points que le code ne dit pas :
   l'autorisation est indifférente.
   **`sessions:revoke` n'a aucun plafond, et c'est le seul pouvoir du dépôt dans
   ce cas.** `allowed_emails:manage` vaut « fermer n'importe quel compte » mais
-  bute sur `administrateurs_preserves` ; ici rien n'est retiré, aucun code ne
+  bute sur `preserving_admins` ; ici rien n'est retiré, aucun code ne
   change de mains, donc ni la non-amplification, ni l'invariant du dernier
   administrateur, ni `assert_may_distribute_superuser` ne sont sur le chemin. Un
   porteur non superutilisateur qui répète le geste tient tout le monde dehors, y
@@ -240,7 +240,7 @@ Cinq choses à ne pas défaire :
   `stale_permissions` ; la purge est l'effet d'un `PATCH`, il n'existe aucune
   ressource dédiée.
 - **L'invariant du dernier administrateur garde l'état, pas les chemins** — et il
-  garde la **perte** du dernier, pas l'absence. `administrateurs_preserves()`
+  garde la **perte** du dernier, pas l'absence. `preserving_admins()`
   compare avant et après : sur une installation neuve personne n'est encore
   administrateur, et un invariant jugeant le seul état d'arrivée y refuserait
   *toute* opération, y compris sans rapport avec les superutilisateurs.

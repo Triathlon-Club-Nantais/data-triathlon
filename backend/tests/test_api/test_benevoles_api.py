@@ -1,6 +1,6 @@
 """Page de vérification des résultats par les bénévoles (#271).
 
-La garde (`require_benevole_access`) est **distincte** de `require_permission`
+La garde (`require_volunteer_access`) est **distincte** de `require_permission`
 (SSO/RBAC) : mot de passe partagé, cookie signé par HMAC — la clé est
 désormais `session_secret`, en base (`specs/20260815-173645-admin-mdp-
 benevoles/`), plus le mot de passe en clair (#271, `research.md` §D2).
@@ -11,10 +11,10 @@ import pytest
 from fastapi import Depends, FastAPI
 from fastapi.testclient import TestClient
 
-from app.api.deps import require_benevole_access
+from app.api.deps import require_volunteer_access
 from app.core.database import get_db
 from app.core.exceptions import register_exception_handlers
-from app.models.benevole_access_config import BenevoleAccessConfig
+from app.models.benevole_access_config import VolunteerAccessConfig
 from app.models.user import SYSTEM_USER_EMAIL
 from app.repositories import (
     admin_action_log_repository,
@@ -55,13 +55,13 @@ def sans_configuration(db_session):
     """Ramène à l'état « jamais configuré » (fail-closed, FR-007)."""
 
     def _vider() -> None:
-        db_session.query(BenevoleAccessConfig).delete()
+        db_session.query(VolunteerAccessConfig).delete()
         db_session.commit()
 
     return _vider
 
 
-# --- Garde `require_benevole_access`, seule, sur une application jetable ----
+# --- Garde `require_volunteer_access`, seule, sur une application jetable ----
 
 
 @pytest.fixture
@@ -69,7 +69,7 @@ def application(db_session) -> FastAPI:
     api = FastAPI()
     register_exception_handlers(api)
 
-    @api.get("/protege", dependencies=[Depends(require_benevole_access)])
+    @api.get("/protege", dependencies=[Depends(require_volunteer_access)])
     def protege():
         return {"ok": True}
 
@@ -91,30 +91,30 @@ def test_refuse_sans_cookie(visiteur):
 
 
 def test_refuse_avec_un_cookie_invalide(visiteur):
-    visiteur.cookies.set(benevole_access.BENEVOLE_SESSION_COOKIE, "n-importe-quoi")
+    visiteur.cookies.set(benevole_access.VOLUNTEER_SESSION_COOKIE, "n-importe-quoi")
     assert visiteur.get("/protege").status_code == 401
 
 
 def test_refuse_meme_avec_un_cookie_signe_par_un_autre_secret(visiteur):
     valeur = shared_password.sign_cookie("autre-secret-de-session")
-    visiteur.cookies.set(benevole_access.BENEVOLE_SESSION_COOKIE, valeur)
+    visiteur.cookies.set(benevole_access.VOLUNTEER_SESSION_COOKIE, valeur)
     assert visiteur.get("/protege").status_code == 401
 
 
 def test_passe_avec_un_cookie_valide(visiteur, db_session):
-    config = db_session.query(BenevoleAccessConfig).one()
+    config = db_session.query(VolunteerAccessConfig).one()
     valeur = shared_password.sign_cookie(config.session_secret)
-    visiteur.cookies.set(benevole_access.BENEVOLE_SESSION_COOKIE, valeur)
+    visiteur.cookies.set(benevole_access.VOLUNTEER_SESSION_COOKIE, valeur)
     reponse = visiteur.get("/protege")
     assert reponse.status_code == 200
     assert reponse.json() == {"ok": True}
 
 
 def test_refuse_si_le_mot_de_passe_n_est_pas_configure(visiteur, sans_configuration, db_session):
-    config = db_session.query(BenevoleAccessConfig).one()
+    config = db_session.query(VolunteerAccessConfig).one()
     valeur = shared_password.sign_cookie(config.session_secret)
     sans_configuration()
-    visiteur.cookies.set(benevole_access.BENEVOLE_SESSION_COOKIE, valeur)
+    visiteur.cookies.set(benevole_access.VOLUNTEER_SESSION_COOKIE, valeur)
     assert visiteur.get("/protege").status_code == 401
 
 
@@ -172,7 +172,7 @@ def test_connexion_refuse_si_non_configure(client, sans_configuration):
 def test_connexion_pose_le_cookie_et_ouvre_la_file(client, compte_systeme):
     reponse = client.post("/api/v1/benevoles/session", json={"password": MOT_DE_PASSE})
     assert reponse.status_code == 204
-    assert benevole_access.BENEVOLE_SESSION_COOKIE in reponse.cookies
+    assert benevole_access.VOLUNTEER_SESSION_COOKIE in reponse.cookies
 
     file_attente = client.get("/api/v1/benevoles/queue")
     assert file_attente.status_code == 200
@@ -183,7 +183,7 @@ def test_deconnexion_efface_le_cookie(benevole_connecte, compte_systeme):
 
     reponse = benevole_connecte.delete("/api/v1/benevoles/session")
     assert reponse.status_code == 204
-    assert benevole_access.BENEVOLE_SESSION_COOKIE not in benevole_connecte.cookies
+    assert benevole_access.VOLUNTEER_SESSION_COOKIE not in benevole_connecte.cookies
 
     assert benevole_connecte.get("/api/v1/benevoles/queue").status_code == 401
 

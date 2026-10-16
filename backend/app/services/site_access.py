@@ -45,8 +45,8 @@ def replace_password(
     des sessions ouvertes. `admin_user_id=None` : posé hors ligne par la CLI
     (#929), sans auteur.
     """
-    mot_de_passe = password if password is not None else generate_password()
-    password_hash, password_salt = shared_password.hash_password(mot_de_passe)
+    plain_password = password if password is not None else generate_password()
+    password_hash, password_salt = shared_password.hash_password(plain_password)
     config = site_access_config_repository.save_config(
         db,
         password_hash=password_hash,
@@ -58,4 +58,4 @@ def replace_password(
         db, admin_user_id, action="site_access.password_replace",
         entity_type="site_access_config", entity_id=config.id,
     )
-    return config, mot_de_passe
+    return config, plain_password

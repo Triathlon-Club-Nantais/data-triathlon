@@ -24,14 +24,14 @@ BASE = "/admin/training-recurrences"
 
 @router.get(BASE, response_model=list[TrainingRecurrenceRead])
 def list_training_recurrences(
-    db: Session = Depends(get_db), _: User = Depends(require_permission(P.JEUNES_READ))
+    db: Session = Depends(get_db), _: User = Depends(require_permission(P.YOUTH_READ))
 ):
     return training_recurrence_service.list_recurrence_views(db)
 
 
 @router.post(BASE + "/preview", response_model=TrainingRecurrencePreview)
 def preview_training_recurrence(
-    body: TrainingRecurrenceCreate, _: User = Depends(require_permission(P.JEUNES_WRITE))
+    body: TrainingRecurrenceCreate, _: User = Depends(require_permission(P.YOUTH_WRITE))
 ):
     dates = training_recurrence_service.occurrence_dates(body.weekday, body.starts_on, body.ends_on)
     return {"occurrence_count": len(dates), "dates": dates}
@@ -41,7 +41,7 @@ def preview_training_recurrence(
 def create_training_recurrence(
     body: TrainingRecurrenceCreate,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     recurrence, created = training_recurrence_service.create_recurrence(db, actor, **body.model_dump())
     view = training_recurrence_service.recurrence_view(db, recurrence) | {"created_session_count": created}
@@ -54,7 +54,7 @@ def update_training_recurrence(
     recurrence_id: int,
     body: TrainingRecurrenceUpdate,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     recurrence = training_recurrence_service.get_recurrence_or_404(db, recurrence_id)
     fields = body.model_dump(exclude_unset=True)
@@ -72,7 +72,7 @@ def update_training_recurrence(
 def delete_training_recurrence(
     recurrence_id: int,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     recurrence = training_recurrence_service.get_recurrence_or_404(db, recurrence_id)
     outcome = training_recurrence_service.delete_recurrence(db, actor, recurrence)

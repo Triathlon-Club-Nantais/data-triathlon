@@ -64,7 +64,7 @@ api_router = APIRouter()
 # `admin_site_access` par `require_permission(P.SITE_ACCESS_MANAGE)` (RBAC),
 # `auth` par ses propres contrôles (liste d'autorisation, #170) — le même
 # patron que `admin_benevole_access`, jamais doublement gardé par
-# `require_benevole_access`.
+# `require_volunteer_access`.
 #
 # La sixième, `feedback`, est venue de la revue de #513 : `FeedbackButton` vit
 # dans le layout **racine** du front, donc il s'affiche aussi sur `/acces` et

@@ -35,14 +35,14 @@ def _detail_for(db: Session, actor: User, training_session: TrainingSession) -> 
     return training_session_service.training_session_detail_view(
         db,
         training_session,
-        with_emergency_contact=authorization.has_permission(db, actor, P.JEUNES_READ),
+        with_emergency_contact=authorization.has_permission(db, actor, P.YOUTH_READ),
     )
 
 
 @router.get("/admin/training-sessions", response_model=list[TrainingSessionRead])
 def list_training_sessions(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.JEUNES_READ)),
+    _: User = Depends(require_permission(P.YOUTH_READ)),
 ):
     """Les entraînements, triés par date puis heure de début."""
     return training_session_service.list_training_session_views(db)
@@ -54,7 +54,7 @@ def list_training_sessions(
 def get_training_session(
     training_session_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.JEUNES_READ)),
+    _: User = Depends(require_permission(P.YOUTH_READ)),
 ):
     """Un entraînement **et sa liste de participants inscrits**."""
     training_session = training_session_service.get_training_session_or_404(db, training_session_id)
@@ -69,7 +69,7 @@ def get_training_session(
 def create_training_session(
     body: TrainingSessionCreate,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     """Crée un entraînement ; les membres des groupes visés y sont inscrits d'office."""
     training_session = training_session_service.create_training_session(
@@ -93,7 +93,7 @@ def update_training_session(
     training_session_id: int,
     body: TrainingSessionUpdate,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     """Corrige la date, l'heure, le lieu, le type ou la note. Seuls les
     champs fournis sont écrits."""
@@ -125,7 +125,7 @@ def update_training_session(
 def delete_training_session(
     training_session_id: int,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     """Supprime une séance et ses inscriptions (#1290)."""
     training_session = training_session_service.get_training_session_or_404(db, training_session_id)
@@ -142,7 +142,7 @@ def add_participant(
     training_session_id: int,
     body: ParticipantAdd,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     """Inscrit un jeune. **Idempotent** — réinscrire est un succès.
 
@@ -164,7 +164,7 @@ def remove_participant(
     training_session_id: int,
     profile_id: int,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     """Désinscrit un jeune. Idempotent — sans effet s'il n'était pas inscrit."""
     training_session = training_session_service.get_training_session_or_404(db, training_session_id)
@@ -181,7 +181,7 @@ def set_presence(
     profile_id: int,
     body: PresenceUpdate,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     """Pointe un jeune déjà inscrit présent ou absent (#869, appel de début).
 

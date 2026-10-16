@@ -37,7 +37,7 @@ def _vue(config) -> BenevoleAccessConfigOut:
 @router.get("/admin/benevoles/access", response_model=BenevoleAccessConfigOut)
 def get_access_config(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.BENEVOLE_ACCESS_MANAGE)),
+    _: User = Depends(require_permission(P.VOLUNTEER_ACCESS_MANAGE)),
 ):
     """État courant — 200 dans tous les cas, y compris jamais configuré."""
     return _vue(benevole_config_repository.get_config(db))
@@ -47,7 +47,7 @@ def get_access_config(
 def replace_access_password(
     body: BenevoleAccessReplaceIn,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.BENEVOLE_ACCESS_MANAGE)),
+    actor: User = Depends(require_permission(P.VOLUNTEER_ACCESS_MANAGE)),
 ):
     """Remplace le mot de passe par une saisie (Story 1, FR-001).
 
@@ -64,7 +64,7 @@ def replace_access_password(
 @router.post("/admin/benevoles/access/generate", response_model=BenevoleAccessGeneratedOut)
 def generate_access_password(
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.BENEVOLE_ACCESS_MANAGE)),
+    actor: User = Depends(require_permission(P.VOLUNTEER_ACCESS_MANAGE)),
 ):
     """Génère un mot de passe sécurisé (Story 2, FR-002/FR-003).
 

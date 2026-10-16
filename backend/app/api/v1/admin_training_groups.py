@@ -22,7 +22,7 @@ BASE = "/admin/training-groups"
 
 @router.get(BASE, response_model=list[TrainingGroupRead])
 def list_training_groups(
-    db: Session = Depends(get_db), _: User = Depends(require_permission(P.JEUNES_READ))
+    db: Session = Depends(get_db), _: User = Depends(require_permission(P.YOUTH_READ))
 ):
     return training_group_service.list_group_views(db)
 
@@ -31,7 +31,7 @@ def list_training_groups(
 def get_training_group(
     training_group_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.JEUNES_READ)),
+    _: User = Depends(require_permission(P.YOUTH_READ)),
 ):
     group = training_group_service.get_group_or_404(db, training_group_id)
     return training_group_service.group_detail_view(db, group)
@@ -41,7 +41,7 @@ def get_training_group(
 def create_training_group(
     body: TrainingGroupWrite,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     group = training_group_service.create_group(db, actor, name=body.name)
     view = training_group_service.group_detail_view(db, group)
@@ -54,7 +54,7 @@ def rename_training_group(
     training_group_id: int,
     body: TrainingGroupWrite,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     group = training_group_service.get_group_or_404(db, training_group_id)
     training_group_service.rename_group(db, actor, group, name=body.name)
@@ -67,7 +67,7 @@ def rename_training_group(
 def delete_training_group(
     training_group_id: int,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     group = training_group_service.get_group_or_404(db, training_group_id)
     training_group_service.delete_group(db, actor, group)
@@ -79,7 +79,7 @@ def add_training_group_member(
     training_group_id: int,
     body: TrainingGroupMemberAdd,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     group = training_group_service.get_group_or_404(db, training_group_id)
     training_group_service.add_member(db, actor, group, profile_id=body.profile_id)
@@ -93,7 +93,7 @@ def remove_training_group_member(
     training_group_id: int,
     profile_id: int,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     group = training_group_service.get_group_or_404(db, training_group_id)
     training_group_service.remove_member(db, actor, group, profile_id=profile_id)

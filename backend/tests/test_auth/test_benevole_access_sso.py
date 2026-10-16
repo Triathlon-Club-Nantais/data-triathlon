@@ -12,7 +12,7 @@ import pytest
 from app.core.permissions import P
 from app.core.time import utcnow
 from app.models.admin_action_log import AdminActionLog
-from app.models.benevole_access_config import BenevoleAccessConfig
+from app.models.benevole_access_config import VolunteerAccessConfig
 from app.models.user import SYSTEM_USER_EMAIL
 from app.models.user_role import UserRole
 from app.models.user_session import UserSession
@@ -85,7 +85,7 @@ def last_log_user_id(db_session) -> int:
 
 @pytest.mark.parametrize("route", READ_ROUTES)
 def test_power_holder_reads_without_cookie(client, ouvrir_session, route):
-    ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE)
 
     assert client.get(f"{BASE}{route}").status_code == 200
 
@@ -94,7 +94,7 @@ def test_power_holder_validates_without_cookie(
     client, ouvrir_session, pending_result, system_account
 ):
     _, _, row = pending_result
-    ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE)
 
     response = client.post(f"{BASE}/participations/{row.id}/validate")
 
@@ -157,7 +157,7 @@ def test_unusable_session_of_a_power_holder_is_401(
     client, ouvrir_session, db_session, break_session
 ):
     anonymous = client.get(f"{BASE}/queue")
-    admin = ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    admin = ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE)
     break_session(db_session, admin)
     db_session.commit()
 
@@ -172,14 +172,14 @@ def test_missing_configuration_still_refuses_an_old_cookie(
 ):
     ouvrir_session(P.SITE_ACCESS_MANAGE)
     volunteer_cookie()
-    db_session.query(BenevoleAccessConfig).delete()
+    db_session.query(VolunteerAccessConfig).delete()
     db_session.commit()
 
     assert client.get(f"{BASE}/queue").status_code == 401
 
 
 def test_losing_the_power_closes_access_on_the_next_call(client, ouvrir_session, db_session):
-    admin = ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    admin = ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE)
     assert client.get(f"{BASE}/queue").status_code == 200
 
     db_session.query(UserRole).filter_by(user_id=admin.id).delete()
@@ -226,7 +226,7 @@ WRITES = [_validate, _reject, _unreject, _update_fields, _rename_course, _reassi
 def test_power_holder_write_is_logged_under_the_admin(
     client, ouvrir_session, pending_result, system_account, db_session, write
 ):
-    admin = ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    admin = ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE)
 
     response = write(client, *pending_result, db_session)
 
@@ -237,7 +237,7 @@ def test_power_holder_write_is_logged_under_the_admin(
 def test_sso_identity_wins_over_the_cookie(
     client, ouvrir_session, volunteer_cookie, pending_result, system_account, db_session
 ):
-    admin = ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    admin = ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE)
     volunteer_cookie()
 
     assert _validate(client, *pending_result, db_session).status_code == 200
@@ -260,11 +260,11 @@ def test_cookie_without_power_is_logged_under_the_system_account(
 def test_sso_logout_clears_the_volunteer_cookie(client, ouvrir_session, volunteer_cookie):
     """Admitted by power, the admin no longer sees the volunteer logout button:
     a volunteer cookie left on the browser must not outlive the SSO logout."""
-    ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE)
     volunteer_cookie()
 
     response = client.post("/api/v1/auth/logout")
 
     assert response.status_code == 204
-    assert benevole_access.BENEVOLE_SESSION_COOKIE not in client.cookies
+    assert benevole_access.VOLUNTEER_SESSION_COOKIE not in client.cookies
     assert client.get(f"{BASE}/queue").status_code == 401
