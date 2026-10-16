@@ -487,10 +487,13 @@ export function RaceFinishers({
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
               placeholder="Rechercher un athlète"
+              // `height: 34` reste la densité de bureau : la classe la relève à 44 px sous md (#1539).
+              className="tcn-cible-tactile"
               style={{ height: 34, minWidth: 190, padding: "0 10px", fontSize: 13, borderRadius: 8, border: "1px solid var(--tcn-border)", background: "var(--tcn-surface)", color: "var(--tcn-ink)" }}
             />
             <button
               type="submit"
+              className="tcn-cible-tactile"
               style={{ height: 34, padding: "0 12px", fontSize: 13, fontWeight: 700, borderRadius: 8, border: "1px solid var(--tcn-border)", background: "var(--tcn-fill)", color: "var(--tcn-ink)", cursor: "pointer" }}
             >
               Chercher
@@ -509,7 +512,7 @@ export function RaceFinishers({
               // pas. Stylé en ligne, il ne peut pas déclarer son propre
               // `:focus-visible` — d'où `.tcn-cta-classement`, qui ne porte
               // que l'anneau (globals.css).
-              className="tcn-cta-classement"
+              className="tcn-cta-classement tcn-cible-tactile"
               style={{ height: 34, padding: "0 12px", fontSize: 13, fontWeight: 700, borderRadius: 8, border: "1.5px solid var(--tcn-orange-deep)", background: "var(--tcn-surface)", color: "var(--tcn-orange-deep)", cursor: "pointer" }}
             >
               Aller à ma ligne

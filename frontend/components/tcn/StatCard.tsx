@@ -1,4 +1,55 @@
-import type { CSSProperties, ReactNode } from "react";
+"use client";
+import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
+
+const MIN_VALUE_FONT_SIZE = 24;
+
+/**
+ * Réduit la police de la valeur tant qu'elle déborde de la tuile (#1540) :
+ * « F 123 H 145 » (227 px en Anton 68) dans une colonne de 131 px utiles. Les
+ * grilles figent leurs colonnes, et aucune règle CSS ne sait comparer la
+ * largeur d'un texte à celle de sa boîte. Une estimation proportionnelle, puis
+ * pixel par pixel : les libellés F / H de `GenderPair` et leurs marges ne
+ * suivent pas la police, l'estimation reste donc un peu trop grande.
+ */
+function useFittedValue(base: number, value: ReactNode) {
+  const ref = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const valueEl = ref.current;
+    const card = valueEl?.parentElement;
+    if (!valueEl || !card) return;
+    let cancelled = false;
+    let lastWidth = -1;
+    const fit = () => {
+      if (cancelled) return;
+      lastWidth = card.clientWidth;
+      const { paddingLeft, paddingRight } = getComputedStyle(card);
+      const available = lastWidth - parseFloat(paddingLeft) - parseFloat(paddingRight);
+      valueEl.style.fontSize = `${base}px`;
+      // Carte masquée (pas encore mise en page) : l'observateur reprendra à son affichage.
+      if (available <= 0 || valueEl.scrollWidth <= available) return;
+      let size = Math.max(MIN_VALUE_FONT_SIZE, Math.floor((base * available) / valueEl.scrollWidth));
+      valueEl.style.fontSize = `${size}px`;
+      while (valueEl.scrollWidth > available && size > MIN_VALUE_FONT_SIZE) {
+        size -= 1;
+        valueEl.style.fontSize = `${size}px`;
+      }
+    };
+    fit();
+    // Seule la largeur compte : la hauteur change à chaque ajustement. Et l'ajustement
+    // sort du rappel, sinon le navigateur lève « ResizeObserver loop completed ».
+    const observer = new ResizeObserver(() => {
+      if (card.clientWidth !== lastWidth) requestAnimationFrame(fit);
+    });
+    observer.observe(card);
+    // Anton arrive après le premier rendu : la largeur mesurée en police de repli est fausse.
+    document.fonts?.ready.then(fit);
+    return () => {
+      cancelled = true;
+      observer.disconnect();
+    };
+  }, [base, value]);
+  return ref;
+}
 
 /** Tuile KPI TCN. `hero` utilise le dégradé orange ; `hint` ajoute une sous-ligne, variant `default` uniquement (silencieusement ignoré en `hero`). */
 export function StatCard({
@@ -25,6 +76,8 @@ export function StatCard({
   /** Override ciblé de la taille du `value` en variant `default` (voir `TuileResume.valueFontSize`). */
   valueFontSize?: number;
 }) {
+  const baseFontSize = valueFontSize ?? 68;
+  const valueRef = useFittedValue(baseFontSize, value);
   if (variant === "hero") {
     return (
       <div
@@ -113,7 +166,7 @@ export function StatCard({
           </div>
         ) : null}
       </div>
-      <div className="tcn-stat-value" style={{ fontFamily: "var(--tcn-font-display)", fontSize: valueFontSize ?? 68, lineHeight: 1, color: valueColor, marginTop: 10 }}>
+      <div ref={valueRef} className="tcn-stat-value" style={{ fontFamily: "var(--tcn-font-display)", fontSize: baseFontSize, lineHeight: 1, color: valueColor, marginTop: 10 }}>
         {value}
       </div>
       {accent ? (

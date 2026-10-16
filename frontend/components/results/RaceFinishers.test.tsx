@@ -1173,6 +1173,28 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     }
   });
 
+  it("gives every ranking control a 44px touch target on mobile, with no inline min height to beat it (#1539)", () => {
+    writeAthlete({ id: 3, prenom: "Thomas", nom: "DNFGUY" });
+    afficher({ total: 100, pageSize: 20, page: 3 });
+
+    const controls = [
+      screen.getByLabelText("Rechercher un athlète"),
+      screen.getByRole("button", { name: "Chercher" }),
+      screen.getByRole("button", { name: /Aller à ma ligne/ }),
+      screen.getByRole("link", { name: /Première/ }),
+      screen.getByRole("link", { name: /Précédent/ }),
+      screen.getByRole("link", { name: /Suivant/ }),
+      screen.getByRole("link", { name: /Dernière/ }),
+      screen.getByRole("button", { name: "Aller" }),
+      screen.getByLabelText("Aller à la page"),
+      screen.getByLabelText("Lignes par page"),
+    ];
+    for (const control of controls) {
+      expect(control).toHaveClass("tcn-cible-tactile");
+      expect(control.style.minHeight).toBe("");
+    }
+  });
+
   it("n'offre pas le saut quand aucun athlète n'est retenu", () => {
     afficher();
     expect(screen.queryByRole("button", { name: /Aller à ma ligne/ })).not.toBeInTheDocument();
