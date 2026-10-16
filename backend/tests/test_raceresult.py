@@ -141,6 +141,29 @@ def test_event_id_depuis_la_facade_chronoconsult():
     assert raceresult._resolve_event_id(url, client) == "399938"
 
 
+def test_facade_redirigee_vers_la_liste_du_chronometreur():
+    """#1579 : chronoconsult.fr a renvoyé un temps toutes ses pages en 302 vers
+    `my.raceresult.com/timers/946/`, la liste des épreuves du chronométreur. Le
+    946 du path est l'id du chronométreur, pas celui d'une épreuve : il ne doit
+    surtout pas être lu comme eventId."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "chronoconsult.fr":
+            return httpx.Response(
+                302, headers={"location": "https://my.raceresult.com/timers/946/"}
+            )
+        return httpx.Response(200, text="<title>Chrono Consult : : my.raceresult</title>")
+
+    url = "https://chronoconsult.fr/result/2026-24h-roller-le-mans/"
+    with httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True) as client:
+        with pytest.raises(ValueError) as excinfo:
+            raceresult._resolve_event_id(url, client)
+
+    message = str(excinfo.value)
+    assert "renvoie désormais vers RaceResult" in message
+    assert "my.raceresult.com/<id>/" in message
+    assert url in message
+
+
 def test_event_id_depuis_la_facade_espace_competition():
     """C-D, second volet : espace-competition.com sert l'identifiant NU, quand
     chronoconsult.fr le sert entre guillemets. Les deux fixtures sont des

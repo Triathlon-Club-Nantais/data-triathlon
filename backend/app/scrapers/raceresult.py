@@ -99,6 +99,13 @@ def _resolve_event_id(url: str, client: httpx.Client) -> str:
 
     resp = client.get(url, headers=HEADERS)
     resp.raise_for_status()
+    # La façade renvoie vers la liste des épreuves de son chronométreur (#1579) :
+    # le nombre de ce path est l'id du chronométreur, pas celui d'une épreuve.
+    if resp.url.path.startswith("/timers/"):
+        raise ValueError(
+            "Le site du chronométreur renvoie désormais vers RaceResult : collez "
+            f"l'URL my.raceresult.com/<id>/ de l'épreuve plutôt que {url}"
+        )
     for pattern in (_RE_RRPUBLISH, _RE_LOGO):
         found = pattern.search(resp.text)
         if found:

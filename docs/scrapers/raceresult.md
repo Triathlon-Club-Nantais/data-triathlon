@@ -32,6 +32,15 @@ hérité, 404 sur les épreuves récentes) ni au filtre `Live` (qui vide certain
 épreuves) : les deux ont des tests de non-régression dédiés.
 Design : `docs/superpowers/specs/2026-07-19-raceresult-scraper-design.md`.
 
+**Façade redirigée vers la liste du chronométreur (#1579).** Le 16/10/2026,
+`chronoconsult.fr` a un temps renvoyé toutes ses pages en `302` vers
+`my.raceresult.com/timers/946/`, la liste des épreuves du chronométreur, sans
+`RRPublish(` ni logo. Re-mesuré le même jour : la façade sert de nouveau ses
+pages en `200`, et le cas `chronoconsult` du test d'intégration repasse. Une
+façade qui aboutit sur un path `/timers/…` lève désormais un message qui
+demande l'URL `my.raceresult.com/<id>/` de l'épreuve. Le nombre de ce path est
+l'id du chronométreur : il n'est jamais lu comme eventId.
+
 **Sous-URL de contest (#989).** Chaque course est stockée sous
 `https://my.raceresult.com/<event>/results?contest=N` (`_sub_source_url`), en
 fan-out comme en `--single-heat` : l'URL soumise (façade comprise) n'est jamais
