@@ -50,3 +50,15 @@ describe("headers()", () => {
     }
   });
 });
+
+describe("redirects()", () => {
+  it("renvoie / vers /dashboard au routage, sans rendre de page (#1505)", async () => {
+    // Temporaire (307) : une 308 resterait en cache navigateur si l'accueil
+    // changeait un jour de cible.
+    expect(await nextConfig.redirects!()).toContainEqual({
+      source: "/",
+      destination: "/dashboard",
+      permanent: false,
+    });
+  });
+});
