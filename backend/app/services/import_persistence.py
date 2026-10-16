@@ -164,7 +164,7 @@ def _non_finisher_overrides(existing, scraped: ScrapedResult, fields: dict) -> d
 #: d'accumuler une file sans borne. Ordre de grandeur repris de l'audit
 #: source (`research.md` de la feature #706) — un détail d'implémentation,
 #: pas un critère d'acceptation.
-_TRANCHE_SIZE = 500
+_CHUNK_SIZE = 500
 
 
 def _team_key(team_name: str | None) -> str:
@@ -390,8 +390,8 @@ class _Persister:
         # correspond à une ligne publiée, chacune consomme une place sans rien
         # mettre à jour (même règle que le multiset sans dossard).
         self._teams_without_bib[course_id] = {
-            key: equipes if len(equipes) == 1 else [None] * len(equipes)
-            for key, equipes in teams.items()
+            key: team_rows if len(team_rows) == 1 else [None] * len(team_rows)
+            for key, team_rows in teams.items()
         }
         self._present_ids[course_id] = {row.athlete_id for row in rows} | {
             link.athlete_id for row in rows for link in row.teammate_links
@@ -570,11 +570,11 @@ class _Persister:
         elif scraped.is_relay or course.is_relay:
             # `course.is_relay` : l'épreuve peut avoir été marquée relais à la
             # main, et `set_teammates` compose alors ses résultats.
-            equipes = self._teams_without_bib[course.id].get(_team_key(_published_name(scraped)))
-            if equipes:
-                equipe = equipes.pop()
-                if equipe is not None:
-                    self._upsert(equipe, scraped)
+            team_rows = self._teams_without_bib[course.id].get(_team_key(_published_name(scraped)))
+            if team_rows:
+                team_row = team_rows.pop()
+                if team_row is not None:
+                    self._upsert(team_row, scraped)
                 else:
                     self.skipped += 1
                 return
@@ -616,7 +616,7 @@ class _Persister:
             return
         pending = self._pending.setdefault(course_id, [])
         pending.append(item)
-        if len(pending) >= _TRANCHE_SIZE:
+        if len(pending) >= _CHUNK_SIZE:
             self._resolve_pending(course_id)
 
     def _resolve_pending(self, course_id: int) -> None:
@@ -1338,8 +1338,8 @@ def _reclassify_heats(db: Session, event_url: str, results: list[ScrapedResult])
         url = scraped.source_url or event_url
         if not url:
             continue
-        cle = (url, scraped.event_name, scraped.event_date, bool(scraped.is_relay))
-        classifications.setdefault(cle, set()).add(scraped.event_type)
+        identity_key = (url, scraped.event_name, scraped.event_date, bool(scraped.is_relay))
+        classifications.setdefault(identity_key, set()).add(scraped.event_type)
 
     for (url, name, event_date, is_relay), types in classifications.items():
         if len(types) != 1:
@@ -1586,13 +1586,13 @@ def _renumber_duplicate_ranks(results: list[ScrapedResult]) -> None:
             and registry.ranks_per_group(r.provider)
             and mapping.derive_status(r).strip().lower() == STATUS_FINISHER
         ]
-        rangs = Counter(r.rank_overall for r in ranked)
-        if not any(count > 1 for count in rangs.values()):
+        rank_counts = Counter(r.rank_overall for r in ranked)
+        if not any(count > 1 for count in rank_counts.values()):
             continue  # aucun doublon dans ce lot : rang déjà fiable
 
         def _time_key(r: ScrapedResult) -> tuple[bool, int]:
-            secondes = to_seconds(r.total_time, strict=True)
-            return (secondes is None, secondes or 0)
+            seconds = to_seconds(r.total_time, strict=True)
+            return (seconds is None, seconds or 0)
 
         ranked.sort(key=_time_key)
         for local_rank, scraped in enumerate(ranked, start=1):
@@ -1600,7 +1600,7 @@ def _renumber_duplicate_ranks(results: list[ScrapedResult]) -> None:
 
 
 def _persist_challenges(
-    db: Session, url: str, held: list[ScrapedResult], persister: "_Persister"
+    db: Session, url: str, held: list[ScrapedResult], persisted: "_Persister"
 ) -> list[ScrapedResult]:
     """Enregistre les heats Challenge appariés (#1008) ; rend les lignes des autres.
 
@@ -1621,7 +1621,7 @@ def _persist_challenges(
             db, name=name, event_date=event_date,
             source_url=rows[0].source_url or url, rows=challenge_rows, found=found,
         )
-        persister.challenges += 1
+        persisted.challenges += 1
         _drop_course_twin(db, name, event_date, {r.source_url or url for r in rows})
     return leftovers
 
@@ -1687,18 +1687,18 @@ def persist_steps(
     held = [r for r in results if heat_is_challenge(r.event_name)]
     results = [r for r in results if not heat_is_challenge(r.event_name)]
     _prepare_batch(db, url, results)
-    persister = _Persister(db, url)
-    yield 0, persister
+    persisted = _Persister(db, url)
+    yield 0, persisted
     for done, scraped in enumerate(results, start=1):
-        persister.add(scraped)
-        yield done, persister
-    persister.finalize()
-    leftovers = _persist_challenges(db, url, held, persister)
+        persisted.add(scraped)
+        yield done, persisted
+    persisted.finalize()
+    leftovers = _persist_challenges(db, url, held, persisted)
     if leftovers:
         _prepare_batch(db, url, leftovers)
         for scraped in leftovers:
-            persister.add(scraped)
-        persister.finalize()
+            persisted.add(scraped)
+        persisted.finalize()
 
 
 def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict:
@@ -1714,15 +1714,15 @@ def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict
     cachés (`import_dispatch.merge_cached_courses`) appartient au compte rendu d'import, pas à
     l'écriture.
     """
-    *_, (_done, persister) = persist_steps(db, url, results)
+    *_, (_done, persisted) = persist_steps(db, url, results)
     return {
-        "imported": persister.imported,
-        "updated": persister.updated,
-        "skipped": persister.skipped,
-        "reconciled": persister.reconciled,
-        "challenges": persister.challenges,
-        "passive_sources": persister.passive_sources,
-        "ambiguous_identities": persister.ambiguous_identities,
-        "homonyms_created": persister.homonyms_created,
-        "courses": persister.courses_summary(),
+        "imported": persisted.imported,
+        "updated": persisted.updated,
+        "skipped": persisted.skipped,
+        "reconciled": persisted.reconciled,
+        "challenges": persisted.challenges,
+        "passive_sources": persisted.passive_sources,
+        "ambiguous_identities": persisted.ambiguous_identities,
+        "homonyms_created": persisted.homonyms_created,
+        "courses": persisted.courses_summary(),
     }

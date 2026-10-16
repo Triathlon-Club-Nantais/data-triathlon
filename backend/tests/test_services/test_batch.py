@@ -7,7 +7,7 @@ from datetime import date
 from app.core.config import Settings
 from app.models.athlete import Athlete
 from app.services import batch, import_service
-from app.services.batch import CHAMPS_COMMUNS, BatchItem, BatchTotals
+from app.services.batch import SHARED_FIELDS, BatchItem, BatchTotals
 from app.services.bulk_import_service import SheetOutcome
 from app.services.rescrape_service import RescrapeOutcome
 
@@ -148,7 +148,7 @@ def test_run_batch_bilan_identique_sous_concurrence_ou_non(
         db_session_concurrent, items, _settings(), force=False, delay=0.0,
     )
 
-    for champ in CHAMPS_COMMUNS:
+    for champ in SHARED_FIELDS:
         valeur_sequentielle = getattr(sequentiel, champ)
         valeur_parallele = getattr(parallele, champ)
         if champ in ("failures", "passive_sources", "reassignments"):
@@ -842,7 +842,7 @@ def test_les_champs_communs_existent_des_deux_cotes():
     """
     for classe in (BatchTotals, SheetOutcome, RescrapeOutcome):
         champs = {f.name for f in fields(classe)}
-        assert set(CHAMPS_COMMUNS) <= champs, f"{classe.__name__} : {set(CHAMPS_COMMUNS) - champs}"
+        assert set(SHARED_FIELDS) <= champs, f"{classe.__name__} : {set(SHARED_FIELDS) - champs}"
 
 
 def test_a_registered_passive_source_travels_from_the_done_phase_to_the_totals(
@@ -850,7 +850,7 @@ def test_a_registered_passive_source_travels_from_the_done_phase_to_the_totals(
 ):
     """#283, AC5 — le signalement traverse `_ItemResult` puis `BatchTotals`.
 
-    Le contrat de recopie est `CHAMPS_COMMUNS` : un champ qui n'y figure pas
+    Le contrat de recopie est `SHARED_FIELDS` : un champ qui n'y figure pas
     n'atteint jamais l'`Outcome` de la commande, donc ni le rapport texte ni la
     charge `--json`. C'est le patron de `failures`, épinglé pour la même raison.
     """
@@ -874,7 +874,7 @@ def test_a_registered_passive_source_travels_from_the_done_phase_to_the_totals(
     )
 
     assert totals.passive_sources == [signalee]
-    assert "passive_sources" in CHAMPS_COMMUNS
+    assert "passive_sources" in SHARED_FIELDS
 
 
 def test_a_registered_passive_source_is_neither_an_error_nor_an_import(

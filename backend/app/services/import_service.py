@@ -193,11 +193,11 @@ def iter_import_event(
         return
 
     attempt_started_at = utcnow()
-    persister = None
+    persisted = None
     try:
         for attempt in deadlock_retries(db, label=url):
             with attempt:
-                persister = None
+                persisted = None
                 yield {"phase": "saving", "total": total, "imported": 0, "updated": 0, "skipped": 0, "progress": 0}
                 cached = _lock_url_and_recheck_cache(db, url, settings, force=force)
                 if cached is not None:
@@ -207,14 +207,14 @@ def iter_import_event(
                         **cached, **import_dispatch.fanout_counters(trace),
                     }
                     return
-                for done, persister in import_persistence.persist_steps(db, url, results):
+                for done, persisted in import_persistence.persist_steps(db, url, results):
                     if done and (done % 20 == 0 or done == total):
                         yield {
                             "phase": "saving",
                             "total": total,
-                            "imported": persister.imported,
-                            "updated": persister.updated,
-                            "skipped": persister.skipped,
+                            "imported": persisted.imported,
+                            "updated": persisted.updated,
+                            "skipped": persisted.skipped,
                             "progress": done,
                         }
                 if persist:
@@ -226,8 +226,8 @@ def iter_import_event(
         confirmed = False
         if persist:
             try:
-                confirmed = persister is not None and _confirm_committed(
-                    db, persister.courses_summary(), attempt_started_at
+                confirmed = persisted is not None and _confirm_committed(
+                    db, persisted.courses_summary(), attempt_started_at
                 )
             except Exception:
                 # La re-vérification elle-même peut échouer (connexion vraiment
@@ -245,16 +245,16 @@ def iter_import_event(
 
     yield {
         "phase": "done",
-        "imported": persister.imported,
-        "updated": persister.updated,
-        "skipped": persister.skipped,
-        "reconciled": persister.reconciled,
-        "challenges": persister.challenges,
-        "reassignments": persister.reassignments,
-        "passive_sources": persister.passive_sources,
-        "ambiguous_identities": persister.ambiguous_identities,
-        "homonyms_created": persister.homonyms_created,
+        "imported": persisted.imported,
+        "updated": persisted.updated,
+        "skipped": persisted.skipped,
+        "reconciled": persisted.reconciled,
+        "challenges": persisted.challenges,
+        "reassignments": persisted.reassignments,
+        "passive_sources": persisted.passive_sources,
+        "ambiguous_identities": persisted.ambiguous_identities,
+        "homonyms_created": persisted.homonyms_created,
         "total": total,
-        "courses": import_dispatch.merge_cached_courses(db, persister.courses_summary(), trace),
+        "courses": import_dispatch.merge_cached_courses(db, persisted.courses_summary(), trace),
         **import_dispatch.fanout_counters(trace),
     }

@@ -239,7 +239,7 @@ def test_rescrape_reconcilie_et_supprime_les_orphelins(db_session, monkeypatch):
     assert out.orphans_removed == 1  # l'ancienne fiche, vidée
     assert out.merged == 0           # cible créée : renommage, pas fusion
     assert out.reconciliations == [
-        rescrape_service.IdentiteReconciliee(
+        rescrape_service.ReconciledIdentity(
             ancien="BERRE | Audrey LE", nouveau="LE BERRE | Audrey", participations=1
         )
     ]

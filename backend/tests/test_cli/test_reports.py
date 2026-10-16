@@ -111,13 +111,13 @@ def test_rescrape_report_sans_echec_n_affiche_pas_le_bloc():
 
 
 def test_rapport_rescrape_affiche_le_bloc_de_reconciliation():
-    from app.services.rescrape_service import IdentiteReconciliee
+    from app.services.rescrape_service import ReconciledIdentity
 
     out = RescrapeOutcome(
         total=1, imported=0, skipped=3, processed=1,
         reconciled=12, merged=1, orphans_removed=5,
         reconciliations=[
-            IdentiteReconciliee(
+            ReconciledIdentity(
                 ancien="BERRE | Audrey LE", nouveau="LE BERRE | Audrey", participations=12
             )
         ],
