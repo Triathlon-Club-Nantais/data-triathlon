@@ -790,55 +790,47 @@ export function useRevokeSessions() {
   });
 }
 
-// ── Mot de passe partagé bénévoles (#271 → cette feature) ───────────────────
+// ── Mots de passe partagés : bénévoles (#271) et accès au site (#509) ──────
+// Deux ressources de même forme, qui ne diffèrent que par leurs routes et leur
+// clé de cache (#1583, pendant front de `shared_password`, #1561).
 
-export function useBenevoleAccessConfig() {
-  return useQuery({
-    queryKey: queryKeys.benevoleAccessConfig(),
-    queryFn: () => apiClient.getBenevoleAccessConfig(),
-    retry: false,
-  });
+export type SharedPasswordKind = "site" | "benevole";
+
+const SHARED_PASSWORD = {
+  site: {
+    queryKey: queryKeys.siteAccessConfig,
+    get: () => apiClient.getSiteAccessConfig(),
+    replace: (password: string) => apiClient.replaceSiteAccessPassword(password),
+    generate: () => apiClient.generateSiteAccessPassword(),
+  },
+  benevole: {
+    queryKey: queryKeys.benevoleAccessConfig,
+    get: () => apiClient.getBenevoleAccessConfig(),
+    replace: (password: string) => apiClient.replaceBenevoleAccessPassword(password),
+    generate: () => apiClient.generateBenevoleAccessPassword(),
+  },
+} satisfies Record<SharedPasswordKind, unknown>;
+
+export function useSharedPasswordConfig(kind: SharedPasswordKind) {
+  const resource = SHARED_PASSWORD[kind];
+  return useQuery({ queryKey: resource.queryKey(), queryFn: resource.get, retry: false });
 }
 
-export function useReplaceBenevoleAccessPassword() {
+export function useReplaceSharedPassword(kind: SharedPasswordKind) {
   const qc = useQueryClient();
+  const resource = SHARED_PASSWORD[kind];
   return useMutation({
-    mutationFn: (password: string) => apiClient.replaceBenevoleAccessPassword(password),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.benevoleAccessConfig() }),
+    mutationFn: resource.replace,
+    onSuccess: () => qc.invalidateQueries({ queryKey: resource.queryKey() }),
   });
 }
 
-export function useGenerateBenevoleAccessPassword() {
+export function useGenerateSharedPassword(kind: SharedPasswordKind) {
   const qc = useQueryClient();
+  const resource = SHARED_PASSWORD[kind];
   return useMutation({
-    mutationFn: () => apiClient.generateBenevoleAccessPassword(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.benevoleAccessConfig() }),
-  });
-}
-
-// ── Mot de passe d'accès au site (#509) ──────────────────────────────────────
-
-export function useSiteAccessConfig() {
-  return useQuery({
-    queryKey: queryKeys.siteAccessConfig(),
-    queryFn: () => apiClient.getSiteAccessConfig(),
-    retry: false,
-  });
-}
-
-export function useReplaceSiteAccessPassword() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (password: string) => apiClient.replaceSiteAccessPassword(password),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.siteAccessConfig() }),
-  });
-}
-
-export function useGenerateSiteAccessPassword() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => apiClient.generateSiteAccessPassword(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.siteAccessConfig() }),
+    mutationFn: resource.generate,
+    onSuccess: () => qc.invalidateQueries({ queryKey: resource.queryKey() }),
   });
 }
 
