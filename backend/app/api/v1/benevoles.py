@@ -107,14 +107,14 @@ def queue(db: Session = Depends(get_db)):
 )
 def queue_history(db: Session = Depends(get_db)):
     """Arriéré de la file par jour et délai moyen de résolution (US13, #466)."""
-    donnees = participation_repository.validation_queue_timestamps(db)
-    return validation_queue_service.build_history(donnees, today=utcnow().date())
+    timestamps = participation_repository.validation_queue_timestamps(db)
+    return validation_queue_service.build_history(timestamps, today=utcnow().date())
 
 
 #: Taille de la liste rendue au sélecteur de réattribution. Fixée ici plutôt
 #: qu'ouverte en paramètre : cette route n'a qu'un appelant, et une liste
 #: déroulante de vingt lignes est déjà plus longue que ce qu'on parcourt.
-_TAILLE_RECHERCHE = 20
+_SEARCH_PAGE_SIZE = 20
 
 
 @router.get(
@@ -140,7 +140,7 @@ def search_athletes(
     naissance** — celle-ci reste réservée à `search_admin` et à son pouvoir
     RBAC (`athletes:read`, cf. `athlete_repository.search_admin`).
     """
-    return athlete_repository.search(db, name=name, page_size=_TAILLE_RECHERCHE)
+    return athlete_repository.search(db, name=name, page_size=_SEARCH_PAGE_SIZE)
 
 
 @router.patch(
@@ -191,8 +191,8 @@ def reassign(
     validé, un résultat sort du périmètre que le mot de passe partagé est
     censé ouvrir.
     """
-    cible = participation_repository.get(db, participation_id)
-    if cible is None or not is_actionable_pending(cible):
+    target = participation_repository.get(db, participation_id)
+    if target is None or not is_actionable_pending(target):
         raise NotFoundError("Ce résultat n'est pas ou plus en attente de validation.")
     participation = admin_actions.reassign_participation(
         db,
@@ -214,8 +214,8 @@ def validate(
     admin: User | None = Depends(require_volunteer_access),
 ):
     """Valide un résultat en attente (US1) — le fait passer visible partout."""
-    cible = participation_repository.get(db, participation_id)
-    if cible is None or not is_actionable_pending(cible):
+    target = participation_repository.get(db, participation_id)
+    if target is None or not is_actionable_pending(target):
         raise NotFoundError("Ce résultat n'est pas ou plus en attente de validation.")
     participation = admin_actions.validate_participation(
         db, participation_id=participation_id, user_id=benevole_access.actor_user_id(db, admin)
@@ -244,8 +244,8 @@ def reject(
     admin: User | None = Depends(require_volunteer_access),
 ):
     """Signale un résultat en attente comme non conforme (#437)."""
-    cible = participation_repository.get(db, participation_id)
-    if cible is None or not is_actionable_pending(cible):
+    target = participation_repository.get(db, participation_id)
+    if target is None or not is_actionable_pending(target):
         raise NotFoundError("Ce résultat n'est pas ou plus en attente de validation.")
     participation = admin_actions.reject_participation(
         db, participation_id=participation_id, user_id=benevole_access.actor_user_id(db, admin)
@@ -264,8 +264,8 @@ def unreject(
     admin: User | None = Depends(require_volunteer_access),
 ):
     """Annule le signalement d'un résultat non conforme (#437)."""
-    cible = participation_repository.get(db, participation_id)
-    if cible is None or not cible.is_pending_validation or not cible.is_rejected:
+    target = participation_repository.get(db, participation_id)
+    if target is None or not target.is_pending_validation or not target.is_rejected:
         raise NotFoundError("Ce résultat n'est pas ou plus signalé non conforme.")
     participation = admin_actions.unreject_participation(
         db, participation_id=participation_id, user_id=benevole_access.actor_user_id(db, admin)
@@ -285,8 +285,8 @@ def update_fields(
     admin: User | None = Depends(require_volunteer_access),
 ):
     """Corrige dossard, place au général, club et catégorie (#437)."""
-    cible = participation_repository.get(db, participation_id)
-    if cible is None or not is_actionable_pending(cible):
+    target = participation_repository.get(db, participation_id)
+    if target is None or not is_actionable_pending(target):
         raise NotFoundError("Ce résultat n'est pas ou plus en attente de validation.")
     participation = admin_actions.update_participation_fields(
         db,

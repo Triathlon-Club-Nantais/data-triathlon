@@ -52,8 +52,8 @@ def get_club_roster_rank(
     db: Session = Depends(get_db),
 ):
     """Rang exact de l'athlète dans le roster club, au-delà de l'aperçu de 12 (#504, #641)."""
-    resultat = athlete_repository.club_rank(db, athlete_id, federal_only=federal_only)
-    if resultat is None:
+    result = athlete_repository.club_rank(db, athlete_id, federal_only=federal_only)
+    if result is None:
         raise NotFoundError("Athlète hors du roster club")
-    rank, total = resultat
+    rank, total = result
     return ClubRosterRank(rank=rank, total=total)

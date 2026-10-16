@@ -45,10 +45,10 @@ def list_athletes_season_activity(
     _: User = Depends(require_permission(P.PAGES_PREVIEW)),
 ):
     """Athlètes ayant ≥1 participation sur `seasons`, avec leurs compteurs (#274, #382, #709)."""
-    saisons = parse_seasons(seasons)
-    lignes = athlete_repository.list_with_season_participation_count(
+    parsed_seasons = parse_seasons(seasons)
+    rows = athlete_repository.list_with_season_participation_count(
         db,
-        seasons=saisons,
+        seasons=parsed_seasons,
         club_only=is_club_scope(scope),
         federal_only=federal_only,
     )
@@ -56,9 +56,9 @@ def list_athletes_season_activity(
     # `seasons` n'en désigne pas exactement une, sinon la carte des validés.
     validations = (
         season_validation_repository.map_by_athlete(
-            db, athlete_ids=[a.id for a, *_ in lignes], season=saisons[0]
+            db, athlete_ids=[a.id for a, *_ in rows], season=parsed_seasons[0]
         )
-        if len(saisons) == 1
+        if len(parsed_seasons) == 1
         else {}
     )
     return [
@@ -66,13 +66,13 @@ def list_athletes_season_activity(
             id=a.id,
             nom=a.nom,
             prenom=a.prenom,
-            participation_count=affiliees_club,
+            participation_count=club_affiliated,
             total_count=total,
-            validated_count=validees,
-            club_affiliated_count=affiliees_club,
-            season_validated=validations.get(a.id, False) if len(saisons) == 1 else None,
+            validated_count=validated,
+            club_affiliated_count=club_affiliated,
+            season_validated=validations.get(a.id, False) if len(parsed_seasons) == 1 else None,
         )
-        for a, total, validees, affiliees_club in lignes
+        for a, total, validated, club_affiliated in rows
     ]
 
 
@@ -92,14 +92,14 @@ def search_athletes(
     participations — deux choses que `GET /athletes` ne fait pas et n'a pas à
     faire pour ses propres appelants.
     """
-    lignes = athlete_repository.search_by_relevance(
+    rows = athlete_repository.search_by_relevance(
         db, term=q, club_only=is_club_scope(scope), limit=limit
     )
     return [
         AthleteSearchResult(
-            **AthleteBrief.model_validate(athlete).model_dump(), participation_count=nombre
+            **AthleteBrief.model_validate(athlete).model_dump(), participation_count=count
         )
-        for athlete, nombre in lignes
+        for athlete, count in rows
     ]
 
 

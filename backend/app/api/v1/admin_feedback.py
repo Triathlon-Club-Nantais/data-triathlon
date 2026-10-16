@@ -28,10 +28,10 @@ router = APIRouter(tags=["admin"])
 #: `FeedbackCounts`, lui, **énumère** ses champs et ne suivrait pas tout seul —
 #: un kwarg de trop y serait ignoré en silence. C'est un test qui tient les deux
 #: bouts (`test_le_comptage_porte_exactement_les_statuts_de_la_nomenclature`).
-StatutFeedback = Literal[*FEEDBACK_STATUSES]
+FeedbackStatus = Literal[*FEEDBACK_STATUSES]
 
 
-def _vue(entry: UserFeedback) -> FeedbackRead:
+def _view(entry: UserFeedback) -> FeedbackRead:
     return FeedbackRead(
         id=entry.id,
         type=entry.type,
@@ -50,12 +50,12 @@ def _vue(entry: UserFeedback) -> FeedbackRead:
 def list_feedback(
     sort: Literal["created_at", "type", "status"] = "created_at",
     order: Literal["asc", "desc"] = "desc",
-    status: StatutFeedback | None = None,
+    status: FeedbackStatus | None = None,
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.FEEDBACK_READ)),
 ):
     entries = feedback_repository.list_sorted(db, sort=sort, order=order, status=status)
-    return [_vue(entry) for entry in entries]
+    return [_view(entry) for entry in entries]
 
 
 @router.get("/admin/feedback/counts", response_model=FeedbackCounts)
@@ -70,10 +70,10 @@ def count_feedback(
     ferait lire « counts » comme un identifiant entier — 422 sur une route qui
     existe.
     """
-    comptes = feedback_repository.count_by_status(db)
+    counts = feedback_repository.count_by_status(db)
     return FeedbackCounts(
-        **{statut: comptes.get(statut, 0) for statut in FEEDBACK_STATUSES},
-        total=sum(comptes.values()),
+        **{feedback_status: counts.get(feedback_status, 0) for feedback_status in FEEDBACK_STATUSES},
+        total=sum(counts.values()),
     )
 
 
@@ -86,7 +86,7 @@ def get_feedback(
     entry = feedback_repository.get(db, feedback_id)
     if entry is None:
         raise NotFoundError("Signalement introuvable")
-    return _vue(entry)
+    return _view(entry)
 
 
 @router.patch("/admin/feedback/{feedback_id}", response_model=FeedbackRead)
@@ -104,4 +104,4 @@ def update_feedback(
     entry = feedback_service.update(db, feedback_id=feedback_id, changes=changes, user_id=user.id)
     db.commit()
     db.refresh(entry)
-    return _vue(entry)
+    return _view(entry)
