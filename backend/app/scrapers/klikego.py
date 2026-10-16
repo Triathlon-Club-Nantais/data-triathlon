@@ -17,10 +17,11 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.core import http
+from app.core.exceptions import ScraperError
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, FanoutTrace, ScrapedResult
 from .classify import classify_event_type, refine_from_splits
-from .klikego_platform import norm_heat_label, parse_live_index
+from .klikego_platform import get_page, norm_heat_label, parse_live_index
 from .utils import (
     DEFAULT_HEADERS,
     normalize_time,
@@ -51,21 +52,30 @@ _DETAIL_PROGRESS_INTERVAL = 10
 
 
 def _fetch_event_page(event_id: str, slug: str, client: httpx.Client) -> str:
-    """HTML de la page d'événement, chaîne vide sur un statut autre que 200.
+    """HTML de la page d'événement ; lève si elle ne répond pas ou si l'événement est inconnu.
 
-    Une panne réseau remonte : le fan-out en tire ses heats, et la taire les
-    réduirait à zéro, soit une épreuve vide en apparence. Le chemin mono-heat,
-    qui n'y lit que la date, la tolère lui-même.
+    Le fan-out en tire ses heats : taire une panne ou un identifiant inconnu
+    rendrait une épreuve vide en apparence (#1522). Un non-200 lève
+    `ScraperError` (5xx rejoués, `get_page`). Un identifiant inconnu répond 200
+    avec une page générique sans titre d'événement (`h1.event-header-title`,
+    présent même sur un événement sans résultat publié, sondé le 16/10/2026).
+    Le chemin mono-heat, qui n'y lit que la date, tolère les deux.
     """
-    r = client.get(f"{BASE}/resultats/{slug}/{event_id}" if slug else f"{BASE}/resultats/{event_id}")
-    return r.text if r.status_code == 200 else ""
+    url = f"{BASE}/resultats/{slug}/{event_id}" if slug else f"{BASE}/resultats/{event_id}"
+    html = get_page(client, url).text
+    if not BeautifulSoup(html, "lxml").select_one("h1.event-header-title"):
+        raise ValueError(
+            f"Événement Klikego introuvable : {event_id}. La page de l'événement "
+            "n'existe pas ou plus sur Klikego, vérifier le lien."
+        )
+    return html
 
 
 def _fetch_event_date(event_id: str, slug: str, client: httpx.Client):
     """Date d'événement, `None` si la page ne répond pas (repli mono-heat)."""
     try:
         return _parse_event_date(_fetch_event_page(event_id, slug, client))
-    except httpx.HTTPError:
+    except (httpx.HTTPError, ScraperError, ValueError):
         return None
 
 
