@@ -353,6 +353,14 @@ prévu pour le lien de vérification d'une saisie manuelle — il n'a jamais
 créé de `CourseSource` (#279, testé par
 `test_evidence_url_ne_cree_aucune_source_de_scraping`).
 
+**`POST /participations` ne dit jamais qu'une personne s'est opposée (#1514).**
+Une saisie qui nomme une identité opposée (nom, nom d'équipe, équipier d'un
+relais) suit les mêmes contrôles, reçoit le même `201` et le même corps qu'une
+saisie mise en quarantaine, puis la transaction est annulée
+(`scrape_service.save_public_entry`) : un refus distinct servait d'oracle.
+Limite connue : relire l'`id` rendu donne un 404. Les gestes des bénévoles
+gardent le refus explicite (`ensure_not_opposed`).
+
 **Le contrat d'entrée de `POST /participations` a été resserré par #1019**,
 changement explicite accepté au titre du Principe IV. Ce qui passait en `201`
 et rend désormais un `422` :

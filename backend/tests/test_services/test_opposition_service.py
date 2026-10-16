@@ -325,3 +325,39 @@ def test_apply_removes_the_club_member_rows_of_the_person(db, admin):
 
     remaining = club_member_repository.list_season(db, 2025) + club_member_repository.list_season(db, 2024)
     assert [(m.nom, m.prenom) for m in remaining] == [("MARTIN", "Paul")]
+
+
+@pytest.mark.parametrize(
+    "label",
+    [
+        "DUPONT Jean + MARTIN Paul",
+        "Paul Martin, Jean Dupont",
+        "Jean DUPONT & Paul MARTIN",
+        "DUPONT, Jean + MARTIN, Paul",
+        "DUPONT + MARTIN Jean + Paul",
+        "Jean Dupont,Paul Martin&Luc Roux",
+    ],
+)
+def test_named_hashes_split_teammates_joined_by_plus_comma_or_ampersand(label):
+    """#1514 : chaque équipier d'un libellé joint par `+`, `,` ou `&` est reconnu."""
+    hashes = opposition_service.named_hashes(label)
+
+    assert identity_hash("DUPONT", "Jean") in hashes
+    assert identity_hash("MARTIN", "Paul") in hashes
+
+
+@pytest.mark.parametrize(
+    ("label", "person"),
+    [
+        ("DUPONT, Jean", ("DUPONT", "Jean")),
+        ("Anne-Marie DUPONT", ("DUPONT", "Anne-Marie")),
+        ("LE GALL, Anne", ("LE GALL", "Anne")),
+    ],
+)
+def test_named_hashes_keep_a_single_name_whole(label, person):
+    """#1514 : une virgule « NOM, Prénom » ou un trait d'union ne coupe pas une personne en deux."""
+    assert identity_hash(*person) in opposition_service.named_hashes(label)
+
+
+def test_named_hashes_never_name_someone_from_a_fragment_of_a_compound_first_name():
+    assert identity_hash("DUPONT", "Marie") not in opposition_service.named_hashes("Anne-Marie DUPONT")

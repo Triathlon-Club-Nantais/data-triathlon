@@ -85,7 +85,7 @@ def create_participation(
     agrégat public jusqu'à la validation d'un bénévole (#271). `DELETE`,
     destructif, reste gardé.
     """
-    participation = scrape_service.save_one(db, _to_scraped(body))
+    participation = scrape_service.save_public_entry(db, _to_scraped(body))
     capture_event(
         "participation_created",
         distinct_id=str(user.id) if user else ANONYMOUS_DISTINCT_ID,
@@ -94,7 +94,7 @@ def create_participation(
             "is_relay": body.is_relay,
         },
     )
-    return participation_repository.get(db, participation.id)
+    return participation
 
 
 @router.get("/participations", response_model=list[ParticipationOut])
