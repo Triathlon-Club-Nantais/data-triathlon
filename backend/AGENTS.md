@@ -63,10 +63,10 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
   partagé, cookie signé HMAC ; distinct du socle SSO) et `site_access` (#509 —
   mot de passe partagé du site entier, même patron, secret et table propres),
   tous deux au-dessus du socle neutre `shared_password`
-  (hachage/signature HMAC communs). **Les appelants s'adressent directement à
-  `shared_password`** pour ces deux calculs : les deux modules de domaine ne
-  gardent que ce qui leur est propre — nom du cookie, TTL, secret de session,
-  `replace_password` — leurs délégations d'une ligne ayant été supprimées en
+  (hachage/signature HMAC et génération des secrets, communs, #1561). **Les
+  appelants s'adressent directement à `shared_password`** pour ces calculs : les
+  deux modules de domaine ne gardent que ce qui leur est propre — nom du cookie,
+  TTL, `replace_password` — leurs délégations d'une ligne ayant été supprimées en
   revue de #513.
   Côté jeunes (#1291) : `training_group_service` (groupes et appartenances),
   `training_recurrence_service` (séances récurrentes hebdomadaires) et

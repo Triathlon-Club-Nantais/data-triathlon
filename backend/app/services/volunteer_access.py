@@ -10,14 +10,13 @@ ce qui préserve la révocation collective des sessions ouvertes sans jamais
 avoir besoin de relire le mot de passe en clair.
 
 Ne porte que ce qui est propre à cette feature : le nom du cookie, le compte
-système, la génération du secret et le remplacement du mot de passe. La
-signature HMAC et le hachage scrypt s'appellent **directement** sur
-`shared_password` depuis les routeurs et la garde — les délégations d'une ligne
-qui les renommaient ici ont été supprimées en revue de #513, en même temps que
-leurs jumelles de `site_access.py`.
+système et le remplacement du mot de passe. La signature HMAC et le hachage
+scrypt s'appellent **directement** sur `shared_password` depuis les routeurs et
+la garde — les délégations d'une ligne qui les renommaient ici ont été
+supprimées en revue de #513, en même temps que leurs jumelles de
+`site_access.py`. La génération des secrets y vit aussi, définie une seule fois
+pour les deux features (#1561).
 """
-import secrets
-
 from sqlalchemy.orm import Session
 
 from app.models.user import SYSTEM_USER_EMAIL, User
@@ -34,9 +33,6 @@ VOLUNTEER_SESSION_COOKIE = "tcn_benevole_session"
 #: de session du navigateur le ferait vivre sans fin. Il ouvre des écritures,
 #: d'où une borne plus courte que les 90 jours du cookie du site.
 VOLUNTEER_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
-
-#: Taille du mot de passe généré (research.md §D5), en octets.
-_GENERATED_PASSWORD_SIZE = 18
 
 
 def system_user_id(db: Session) -> int:
@@ -63,21 +59,6 @@ def actor_user_id(db: Session, admin: User | None) -> int:
     return admin.id if admin is not None else system_user_id(db)
 
 
-def new_session_secret() -> str:
-    """Un secret de session neuf — jamais le même deux fois (research.md §D2)."""
-    return secrets.token_urlsafe(32)
-
-
-def generate_password() -> str:
-    """Un mot de passe robuste, généré côté serveur (research.md §D5).
-
-    144 bits d'entropie uniforme (`secrets.token_urlsafe(18)` → 24
-    caractères) — trop pour un humain à retenir, ce qui est le but (Story 2
-    vise un secret robuste, pas mémorisable).
-    """
-    return secrets.token_urlsafe(_GENERATED_PASSWORD_SIZE)
-
-
 def replace_password(
     db: Session, *, password: str | None, admin_user_id: int
 ) -> tuple[VolunteerAccessConfig, str]:
@@ -90,13 +71,13 @@ def replace_password(
     **dans le même appel** à `save_config` — jamais l'un sans les autres
     (data-model.md, invariant d'atomicité, FR-006).
     """
-    plain_password = password if password is not None else generate_password()
+    plain_password = password if password is not None else shared_password.generate_password()
     password_hash, password_salt = shared_password.hash_password(plain_password)
     config = volunteer_config_repository.save_config(
         db,
         password_hash=password_hash,
         password_salt=password_salt,
-        session_secret=new_session_secret(),
+        session_secret=shared_password.new_session_secret(),
         updated_by_user_id=admin_user_id,
     )
     audit.record(

@@ -114,7 +114,7 @@ def require_volunteer_access(
 
     Rend l'utilisateur SSO admis par le pouvoir `benevole_access:manage` (#1272),
     sinon `None` quand l'accès vient du cookie : les écritures en tirent leur
-    acteur (`benevole_access.actor_user_id`). Lui faire saisir un secret qu'il
+    acteur (`volunteer_access.actor_user_id`). Lui faire saisir un secret qu'il
     peut lire et remplacer ne protégerait rien. Un pouvoir, jamais un rôle.
 
     Pour tout autre appelant, garde inchangée et **sans 403** : ne compose pas
