@@ -71,8 +71,8 @@ def merge_courses(
     Le `commit` est ici, jamais dans le service : c'est ce qui rend le geste et son
     entrée de journal indissociables — un refus lève avant et n'écrit rien.
     """
-    resultat = course_merge.merge_courses(
+    result = course_merge.merge_courses(
         db, course_id=course_id, absorbed_id=body.absorbed_id, user_id=user.id
     )
     db.commit()
-    return resultat
+    return result

@@ -27,7 +27,7 @@ router = APIRouter(tags=["feedback"])
 #: Signalement rejeté en silence (honeypot) : même réponse qu'un succès réel,
 #: sans qu'aucune ligne n'existe — `id=0` n'est jamais une clé réelle
 #: (research.md §D2).
-_REPONSE_HONEYPOT = FeedbackCreated(id=0, status="nouveau")
+_HONEYPOT_RESPONSE = FeedbackCreated(id=0, status="nouveau")
 
 
 @router.post("/feedback", status_code=201, response_model=FeedbackCreated)
@@ -49,7 +49,7 @@ def submit_feedback(
         honeypot=body.honeypot,
     )
     if entry is None:
-        return _REPONSE_HONEYPOT
+        return _HONEYPOT_RESPONSE
     db.commit()
     db.refresh(entry)
     capture_event(

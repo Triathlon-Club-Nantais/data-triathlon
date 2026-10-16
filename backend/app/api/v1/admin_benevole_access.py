@@ -26,7 +26,7 @@ from app.services import benevole_access
 router = APIRouter(tags=["admin"])
 
 
-def _vue(config) -> BenevoleAccessConfigOut:
+def _view(config) -> BenevoleAccessConfigOut:
     return BenevoleAccessConfigOut(
         configured=config is not None,
         updated_at=config.updated_at if config else None,
@@ -40,7 +40,7 @@ def get_access_config(
     _: User = Depends(require_permission(P.VOLUNTEER_ACCESS_MANAGE)),
 ):
     """État courant — 200 dans tous les cas, y compris jamais configuré."""
-    return _vue(benevole_config_repository.get_config(db))
+    return _view(benevole_config_repository.get_config(db))
 
 
 @router.put("/admin/benevoles/access", response_model=BenevoleAccessConfigOut)
@@ -54,11 +54,11 @@ def replace_access_password(
     Invalide immédiatement toute session bénévole ouverte : `replace_password`
     régénère `session_secret` dans le même geste (FR-006).
     """
-    config, _mot_de_passe = benevole_access.replace_password(
+    config, _password = benevole_access.replace_password(
         db, password=body.password, admin_user_id=actor.id
     )
     db.commit()
-    return _vue(config)
+    return _view(config)
 
 
 @router.post("/admin/benevoles/access/generate", response_model=BenevoleAccessGeneratedOut)
@@ -71,12 +71,12 @@ def generate_access_password(
     Le mot de passe généré n'est renvoyé **qu'ici**, une seule fois — rien
     côté serveur ne le conserve après le hachage (research.md §D5).
     """
-    config, mot_de_passe = benevole_access.replace_password(
+    config, password = benevole_access.replace_password(
         db, password=None, admin_user_id=actor.id
     )
     db.commit()
     return BenevoleAccessGeneratedOut(
-        password=mot_de_passe,
+        password=password,
         updated_at=config.updated_at,
         updated_by=config.updated_by.display_name,
     )

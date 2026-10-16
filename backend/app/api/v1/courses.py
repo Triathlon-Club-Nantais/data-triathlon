@@ -265,10 +265,10 @@ def get_course(
     course = course_repository.get(db, course_id)
     if not course:
         raise NotFoundError("Course introuvable")
-    taille = _resolve_page_size(page_size)
+    resolved_page_size = _resolve_page_size(page_size)
     filters = {"q": q, "club_only": is_club_scope(scope), "club": club, "category": category}
     participations, total = participation_repository.list_page_for_course(
-        db, course_id, page=page, page_size=taille, **filters
+        db, course_id, page=page, page_size=resolved_page_size, **filters
     )
     pending = participation_repository.list_pending_for_course(db, course_id, **filters)
     return {
@@ -276,6 +276,6 @@ def get_course(
         "participations": [ParticipationOut.model_validate(p) for p in participations],
         "total": total,
         "page": page,
-        "page_size": taille,
+        "page_size": resolved_page_size,
         "pending_participations": [ParticipationOut.model_validate(p) for p in pending],
     }

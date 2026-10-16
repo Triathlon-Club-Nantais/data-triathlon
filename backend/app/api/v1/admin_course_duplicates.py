@@ -61,11 +61,11 @@ def ignore_duplicate(
     qu'enregistrer un arbitrage humain — la même famille de décision que la
     bascule de source (#285), pas une suppression d'épreuve (#287).
     """
-    resultat = course_duplicates.ignore_pair(
+    result = course_duplicates.ignore_pair(
         db, course_id_a=body.course_id_a, course_id_b=body.course_id_b, user_id=user.id
     )
     db.commit()
-    return resultat
+    return result
 
 
 @router.get("/admin/courses/duplicates/ignored", response_model=IgnoredDuplicateList)
