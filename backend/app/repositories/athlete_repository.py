@@ -556,9 +556,7 @@ def credits():
     without_teammates = select(
         Participation.id.label("participation_id"),
         Participation.athlete_id.label("athlete_id"),
-    ).where(
-        ~exists().where(ParticipationTeammate.participation_id == Participation.id)
-    )
+    ).where(~_has_teammates(Participation.id))
     teammates = select(
         ParticipationTeammate.participation_id.label("participation_id"),
         ParticipationTeammate.athlete_id.label("athlete_id"),
@@ -615,9 +613,11 @@ def only_on_course(db: Session, course_id: int) -> list[int]:
             elsewhere,
             ~_has_teammates(Participation.id),
         ),
-        exists()
-        .where(ParticipationTeammate.athlete_id == athlete_id)
-        .where(Participation.id == ParticipationTeammate.participation_id, elsewhere),
+        exists().where(
+            ParticipationTeammate.athlete_id == athlete_id,
+            Participation.id == ParticipationTeammate.participation_id,
+            elsewhere,
+        ),
     )
     query = (
         select(athlete_id)

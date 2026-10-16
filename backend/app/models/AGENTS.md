@@ -112,8 +112,8 @@
     `participation_repository.carried_by` (fiche, `exists_for_athlete_on_course`,
     comptes) et `athlete_repository.credits` (roster, rang, composition) ;
     `only_on_course` en réécrit la définition par épreuve, en `NOT EXISTS` sur
-    les index `athlete_id`, plutôt que de joindre toute l'union (#1581). Un équipier n'est référencé que par la liaison :
-    `delete_orphans_among` l'épargne explicitement. `carried_by` reste un seul
+    les index `athlete_id`, plutôt que de joindre toute l'union (#1581). Un
+    équipier n'est référencé que par la liaison : `delete_orphans_among` l'épargne explicitement. `carried_by` reste un seul
     `id IN (… UNION ALL …)` : un `OR` entre porteur et liaison fait parcourir
     toute la table `participations` à PostgreSQL (#1391). La palette ⌘K
     (`athlete_repository.search_by_relevance`) en reprend la forme, corrélée à
