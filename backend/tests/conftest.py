@@ -51,7 +51,9 @@ def save_entry(db, scraped):
     from app.services import scrape_service
 
     answer = scrape_service.save_public_entry(db, scraped)
-    return participation_repository.get(db, answer.id)
+    row = participation_repository.get(db, answer.id)
+    assert row is not None, "identity opposed: save_public_entry rolled the row back"
+    return row
 
 
 @pytest.fixture(autouse=True)
