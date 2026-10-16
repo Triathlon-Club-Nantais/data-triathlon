@@ -1,6 +1,7 @@
 """DTO de la page de vérification des résultats par les bénévoles (#271)."""
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.ids import Rank
 from app.schemas.site_access import MAX_PASSWORD_LENGTH
 
 
@@ -34,7 +35,7 @@ class ParticipationFieldsUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
     bib_number: str | None = None
-    rank_overall: int | None = None
+    rank_overall: Rank | None = None
     club: str | None = None
     category: str | None = None
 

@@ -135,3 +135,29 @@ def test_every_integer_id_in_a_request_body_carries_the_bound():
     ]
 
     assert unbounded == []
+
+
+@pytest.mark.parametrize("field", ["rank_overall", "rank_category", "rank_gender"])
+def test_out_of_range_rank_is_a_422(client, field):
+    body = {"athlete_name": "A", "event_name": "E", "event_type": "course-a-pied-10k", field: OUT_OF_RANGE}
+
+    response = client.post("/api/v1/participations", json=body)
+
+    assert response.status_code == 422
+
+
+def test_every_integer_rank_in_a_request_body_carries_the_bound():
+    """Ranks land in `integer` columns too (#1574)."""
+    ranks = [
+        (f"{name}.{field}", integer)
+        for name, component in sorted(_request_body_schemas().items())
+        for field, schema in component.get("properties", {}).items()
+        if field.startswith("rank_")
+        for integer in _integer_schemas(schema)
+    ]
+    unbounded = [
+        name for name, integer in ranks if integer.get("minimum") != 1 or integer.get("maximum") != DB_ID_MAX
+    ]
+
+    assert ranks
+    assert unbounded == []

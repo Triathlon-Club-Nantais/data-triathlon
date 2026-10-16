@@ -419,7 +419,9 @@ paramètre `id` ou `*_id` entier sans la borne, hors `EXTERNAL_IDS` : le
 Actions, déjà au delà de l'int4, qui reste un `int` nu. Il refuse de même tout
 champ `id`, `*_id`, `*_id_a`, `*_ids` des schémas atteints par un
 `requestBody`, objets imbriqués compris ; aucun identifiant externe entier n'y
-figure aujourd'hui.
+figure aujourd'hui. Les rangs (`rank_*`) d'un corps se typent `Rank`, même
+plage, sous la même garde (#1574) ; aucun autre entier de corps n'atteint
+aujourd'hui une colonne `integer` (temps en `H:MM:SS`, distances en `float`).
 
 ## Protéger une ressource (#115)
 
