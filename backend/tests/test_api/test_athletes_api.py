@@ -62,13 +62,13 @@ def test_fiche_athlete_rend_une_participation_pendante_mais_pas_son_rang_dans_le
 # ── GET /athletes/season-activity (issue #274) ───────────────────────────────
 
 
-def _epreuve(db_session, nom, event_date=None):
+def _epreuve(db_session, nom, event_date=None, event_type="triathlon-m"):
     from app.repositories import course_repository
 
     if event_date is None:
         event_date = date(2025, 10, 1)
     course = course_repository.get_or_create(
-        db_session, name=nom, event_date=event_date, event_type="triathlon-m",
+        db_session, name=nom, event_date=event_date, event_type=event_type,
         source_url=f"https://k/{nom}", provider="klikego",
     )
     db_session.flush()
@@ -143,13 +143,18 @@ def test_season_activity_saison_sans_activite_rend_une_liste_vide(client, db_ses
     assert resp.json() == []
 
 
-def _quota_athlete(db_session, nom, *, events=3, volunteer_status="validee", season_start=date(2025, 9, 15)):
+def _quota_athlete(
+    db_session, nom, *, events=3, trails=0, volunteer_status="validee", season_start=date(2025, 9, 15)
+):
     from app.repositories import athlete_repository, volunteer_action_repository
 
     athlete = athlete_repository.get_or_create(db_session, nom=nom, prenom="Q", club="Triathlon Club Nantais")
     db_session.flush()
     for i in range(events):
         _inscrit(db_session, athlete, _epreuve(db_session, f"{nom} {i}", season_start.replace(day=15 + i)), str(i))
+    for i in range(trails):
+        trail = _epreuve(db_session, f"{nom} trail {i}", date(2025, 11, 1 + i), event_type="trail")
+        _inscrit(db_session, athlete, trail, f"t{i}")
     if volunteer_status:
         action = volunteer_action_repository.create_pending(
             db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=None,
@@ -174,9 +179,9 @@ def test_season_activity_quota_met_needs_three_events_and_a_validated_volunteer_
     _quota_athlete(db_session, "ATTEINT")
     _quota_athlete(db_session, "SANSBENEVOLAT", volunteer_status=None)
     _quota_athlete(db_session, "BENEVOLATATTENTE", volunteer_status="en_attente")
-    _quota_athlete(db_session, "DEUXEPREUVES", events=2)
+    _quota_athlete(db_session, "DEUXPLUSTRAIL", events=2, trails=1)
 
-    expected = {"ATTEINT": True, "SANSBENEVOLAT": False, "BENEVOLATATTENTE": False, "DEUXEPREUVES": False}
+    expected = {"ATTEINT": True, "SANSBENEVOLAT": False, "BENEVOLATATTENTE": False, "DEUXPLUSTRAIL": False}
     assert _quota_met_by_name(client) == expected
     assert _quota_met_by_name(client, federal_only="true") == expected
 

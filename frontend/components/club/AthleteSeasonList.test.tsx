@@ -163,6 +163,21 @@ describe("AthleteSeasonList", () => {
     expect(screen.getAllByText(/^quota atteint$/i)).toHaveLength(1);
   });
 
+  it("#1542 : un filtre de statut vide le dit, et « Afficher tous » rend la liste", async () => {
+    render(
+      <AthleteSeasonList
+        athletes={[athlete({ id: 1, nom: "DEJAVALIDE", season_validated: true, quota_met: true })]}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("radio", { name: /quota atteint, à valider/i }));
+
+    expect(screen.getByText(/aucun athlète ne correspond à ce statut/i)).toBeInTheDocument();
+    expect(screen.queryByText(/essayez un autre nom/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /afficher tous/i }));
+    expect(rowNames()).toEqual(["DEJAVALIDE"]);
+  });
+
   it("#1542 : ni option de quota ni pastille sur plusieurs saisons (quota_met null)", () => {
     render(<AthleteSeasonList athletes={[athlete({ id: 1, nom: "MULTI" })]} />);
 

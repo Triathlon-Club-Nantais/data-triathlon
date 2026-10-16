@@ -601,15 +601,15 @@ def test_saison_federal_validated_count_ignores_federal_only_and_counts_like_the
     )
     db_session.flush()
 
-    (_, total, validees, _, federales), = athlete_repository.list_with_season_participation_count(
+    (_, total, validated, _, federal), = athlete_repository.list_with_season_participation_count(
         db_session, seasons=[2025]
     )
-    (_, _, validees_federales, _, federales_filtrees), = athlete_repository.list_with_season_participation_count(
+    (_, _, validated_filtered, _, federal_filtered), = athlete_repository.list_with_season_participation_count(
         db_session, seasons=[2025], federal_only=True
     )
 
-    assert (total, validees, federales) == (5, 3, 2)
-    assert (validees_federales, federales_filtrees) == (2, 2)
+    assert (total, validated, federal) == (5, 3, 2)
+    assert (validated_filtered, federal_filtered) == (2, 2)
 
 
 def test_saison_trie_par_nom_puis_prenom(db_session):
