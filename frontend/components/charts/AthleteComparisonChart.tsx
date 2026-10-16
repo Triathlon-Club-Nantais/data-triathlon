@@ -5,7 +5,7 @@ import { AnnonceStatut, Card, Eyebrow, Input } from "@/components/tcn";
 import { useDebounce } from "@/hooks/useDebounce";
 import { apiClient } from "@/lib/api/client";
 import type { AthleteSearchResult, Participation } from "@/lib/types";
-import { commonParticipations, formatDelta } from "@/lib/utils/athlete-comparison";
+import { commonParticipations, formatDelta, headToHead } from "@/lib/utils/athlete-comparison";
 import { formatDate } from "@/lib/utils/date";
 
 // Chaque barre n'est qu'un simple rectangle de largeur proportionnelle : pas
@@ -110,9 +110,17 @@ export function AthleteComparisonResult({
   }
 
   const maxSeconds = Math.max(...rows.flatMap((r) => [r.mineSeconds ?? 0, r.theirsSeconds ?? 0]));
+  const { wins, losses, ties } = headToHead(common);
+  const counted = wins + losses + ties;
 
   return (
     <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 20 }}>
+      {counted > 0 && (
+        <p style={{ fontSize: 14, fontWeight: 600, color: "var(--tcn-ink)" }}>
+          Sur {counted} épreuve{counted > 1 ? "s" : ""} comparable{counted > 1 ? "s" : ""} : devant {wins} fois,
+          derrière {losses} fois{ties > 0 ? `, à égalité ${ties} fois` : ""}.
+        </p>
+      )}
       {/* Repère min/max de l'échelle commune à toutes les paires (#689, point 4). */}
       <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, gap: 8 }}>
         <span />

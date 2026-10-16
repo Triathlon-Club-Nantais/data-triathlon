@@ -2,6 +2,8 @@
 // testable — la donnée (participations des deux athlètes) est déjà en mémoire
 // côté client (US6, #466), aucun nouvel appel API n'est nécessaire ici.
 import type { Participation } from "@/lib/types";
+import { isNonFinisher } from "@/lib/utils/raceOrder";
+import { estRelais } from "@/lib/utils/relais";
 import { comparableSeconds } from "@/lib/utils/time";
 
 export interface CommonParticipation {
@@ -40,6 +42,38 @@ export function commonParticipations(mine: Participation[], theirs: Participatio
   }
 
   return result.sort((a, b) => (a.eventDate ?? "9999").localeCompare(b.eventDate ?? "9999"));
+}
+
+export interface HeadToHead {
+  wins: number;
+  losses: number;
+  ties: number;
+}
+
+function countsInTally(participation: Participation): boolean {
+  return (
+    !participation.is_pending_validation &&
+    !estRelais(participation) &&
+    participation.course.is_reliable !== false &&
+    !isNonFinisher(participation.status)
+  );
+}
+
+/**
+ * Bilan des duels (#1543) sur les paires à deux temps exploitables, avec les
+ * exclusions des meilleurs temps (#1430) : un relais, une saisie en attente ou
+ * une épreuve douteuse ne départagent personne.
+ */
+export function headToHead(common: CommonParticipation[]): HeadToHead {
+  const tally: HeadToHead = { wins: 0, losses: 0, ties: 0 };
+  for (const pair of common) {
+    if (pair.mineSeconds == null || pair.theirsSeconds == null) continue;
+    if (!countsInTally(pair.mine) || !countsInTally(pair.theirs)) continue;
+    if (pair.mineSeconds < pair.theirsSeconds) tally.wins += 1;
+    else if (pair.mineSeconds > pair.theirsSeconds) tally.losses += 1;
+    else tally.ties += 1;
+  }
+  return tally;
 }
 
 /** Durée compacte et lisible : « 1 h 05 min », « 3 min 25 s », « 45 s ». */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { commonParticipations, formatDelta } from "./athlete-comparison";
+import { commonParticipations, formatDelta, headToHead } from "./athlete-comparison";
 import type { Participation, CourseBrief, AthleteBrief } from "@/lib/types";
 
 const athlete = (id: number): AthleteBrief => ({ id, nom: "Nom", prenom: "Prenom", gender: "F", club: "TCN" });
@@ -130,5 +130,56 @@ describe("commonParticipations and zero times (#1480)", () => {
 
     expect(ligne.mineSeconds).toBeNull();
     expect(ligne.theirsSeconds).toBe(3600);
+  });
+});
+
+describe("headToHead (#1543)", () => {
+  const pair = (courseId: number, mineTime: string | null, theirsTime: string | null) => ({
+    mine: participation(courseId * 10, courseId, `Tri ${courseId}`, "2026-06-01", mineTime),
+    theirs: participation(courseId * 10 + 1, courseId, `Tri ${courseId}`, "2026-06-01", theirsTime),
+  });
+  const tally = (pairs: { mine: Participation; theirs: Participation }[]) =>
+    headToHead(
+      commonParticipations(
+        pairs.map((p) => p.mine),
+        pairs.map((p) => p.theirs),
+      ),
+    );
+
+  it("counts wins, losses and ties on shared races", () => {
+    const pairs = [
+      pair(1, "01:00:00", "01:05:00"),
+      pair(2, "01:00:00", "01:05:00"),
+      pair(3, "01:10:00", "01:05:00"),
+      pair(4, "01:05:00", "01:05:00"),
+    ];
+
+    expect(tally(pairs)).toEqual({ wins: 2, losses: 1, ties: 1 });
+  });
+
+  it("ignores races where either time is missing or zero", () => {
+    const pairs = [pair(1, null, "01:05:00"), pair(2, "01:00:00", "00:00:00"), pair(3, "01:00:00", "01:05:00")];
+
+    expect(tally(pairs)).toEqual({ wins: 1, losses: 0, ties: 0 });
+  });
+
+  it("applies the best times exclusions: relay, pending, unreliable course, non finisher", () => {
+    const relay = pair(1, "01:00:00", "01:05:00");
+    relay.theirs = { ...relay.theirs, is_relay: true };
+    const relayCourse = pair(2, "01:00:00", "01:05:00");
+    relayCourse.mine = { ...relayCourse.mine, course: { ...relayCourse.mine.course, is_relay: true } };
+    const pending = pair(3, "01:00:00", "01:05:00");
+    pending.theirs = { ...pending.theirs, is_pending_validation: true };
+    const unreliable = pair(4, "01:00:00", "01:05:00");
+    unreliable.mine = { ...unreliable.mine, course: { ...unreliable.mine.course, is_reliable: false } };
+    const dnf = pair(5, "01:00:00", "01:05:00");
+    dnf.theirs = { ...dnf.theirs, status: "DNF" };
+    const kept = pair(6, "01:10:00", "01:05:00");
+
+    expect(tally([relay, relayCourse, pending, unreliable, dnf, kept])).toEqual({ wins: 0, losses: 1, ties: 0 });
+  });
+
+  it("returns an empty tally without shared races", () => {
+    expect(headToHead([])).toEqual({ wins: 0, losses: 0, ties: 0 });
   });
 });
