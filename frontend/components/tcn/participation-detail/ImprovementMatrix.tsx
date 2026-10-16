@@ -1,4 +1,5 @@
 import type { ImprovementRow } from "@/lib/types";
+import { pctFr } from "@/lib/utils/format";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { Card } from "../Card";
 import { Eyebrow } from "../Eyebrow";
@@ -9,6 +10,10 @@ const PERCENTAGES = ["0.5", "1", "2", "5", "10", "25"];
 // à lire la courbe — les autres s'interpolent à l'œil entre eux — et le
 // tableau tient alors dans ~300 px. Comme pour `ComparisonTable` : lisibilité,
 // pas conformité.
+// "0.5" → « 0,5 % », "25" → « 25 % » : autant de décimales que la clé du palier.
+const palierFr = (percentage: string) =>
+  pctFr(Number(percentage), percentage.includes(".") ? 1 : 0);
+
 const PALIERS_ETROITS = new Set(["1", "5", "25"]);
 const classePalier = (percentage: string) =>
   PALIERS_ETROITS.has(percentage) ? undefined : "hidden sm:table-cell";
@@ -16,7 +21,7 @@ const classePalier = (percentage: string) =>
 // #657 : un palier de pourcentage n'indiquait pas à quoi il s'appliquait, et
 // le point médian d'un gain nul ne se lisait pas comme une absence de gain.
 const titrePalier = (percentage: string) =>
-  `Nombre de places gagnées au classement scratch si ce segment avait été couru ${percentage.replace(".", ",")} % plus vite.`;
+  `Nombre de places gagnées au classement scratch si ce segment avait été couru ${palierFr(percentage)} plus vite.`;
 const TITRE_GAIN_NUL = "Aucune place gagnée à ce palier.";
 
 /** Énumération française « Natation, T1 et T2 », sans dépendance ajoutée. */
@@ -71,7 +76,7 @@ export function ImprovementMatrix({
                   style={headStyle}
                   title={titrePalier(percentage)}
                 >
-                  {percentage.replace(".", ",")} %
+                  {palierFr(percentage)}
                 </th>
               ))}
             </tr>
@@ -104,7 +109,7 @@ export function ImprovementMatrix({
       {steriles.length > 0 && (
         <p style={{ marginTop: 14, fontSize: 13, color: "var(--tcn-text-faint)" }}>
           {LIST_FR.format(steriles.map((row) => label(row.segment)))} : aucune place
-          gagnée, même 25 % plus vite.
+          gagnée, même {pctFr(25, 0)} plus vite.
         </p>
       )}
     </Card>
