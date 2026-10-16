@@ -1,7 +1,9 @@
 """DTO des licenciés du club (#1202)."""
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, StrictInt
+from pydantic import BaseModel, ConfigDict
+
+from app.schemas.ids import StrictDbId
 
 
 class ClubMemberOut(BaseModel):
@@ -39,4 +41,4 @@ class MembersSyncReportOut(BaseModel):
 
 
 class ClubMemberLinkIn(BaseModel):
-    athlete_id: StrictInt
+    athlete_id: StrictDbId

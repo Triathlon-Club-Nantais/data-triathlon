@@ -12,7 +12,7 @@ l'invariant qui se perd à la route suivante et ne se rattrape pas après coup.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import DbId, require_permission
+from app.api.deps import require_permission
 from app.core import permissions
 from app.core.database import get_db
 from app.core.permissions import P
@@ -27,6 +27,7 @@ from app.schemas.admin import (
     RoleRead,
     RoleUpdate,
 )
+from app.schemas.ids import DbId
 from app.services.auth import authorization
 
 router = APIRouter(tags=["admin"])

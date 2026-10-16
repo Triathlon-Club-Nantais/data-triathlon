@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api import sse
-from app.api.deps import DbId, require_permission
+from app.api.deps import require_permission
 from app.core.analytics import capture_event
 from app.core.config import Settings, get_settings
 from app.core.database import SessionLocal, get_db
@@ -24,6 +24,7 @@ from app.core.exceptions import DomainError
 from app.core.permissions import P
 from app.models.user import User
 from app.schemas.course import CourseSourceSwitch
+from app.schemas.ids import DbId
 from app.services import course_rescrape_service
 
 router = APIRouter(tags=["admin"])

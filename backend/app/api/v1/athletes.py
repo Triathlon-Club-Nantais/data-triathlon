@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
-from app.api.deps import MAX_PAGE, DbId, require_permission
+from app.api.deps import MAX_PAGE, require_permission
 from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
@@ -16,6 +16,7 @@ from app.repositories import (
     volunteer_action_repository,
 )
 from app.schemas.athlete import AthleteBrief, AthleteSearchResult, AthleteSeasonActivity
+from app.schemas.ids import DbId
 from app.schemas.participation import AthleteDetail, AthleteParticipationOut
 from app.services import athlete_csv, challenge_service
 

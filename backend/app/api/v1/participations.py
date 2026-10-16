@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import MAX_PAGE, DbId, optional_user, public_write_rate_limit, require_permission
+from app.api.deps import MAX_PAGE, optional_user, public_write_rate_limit, require_permission
 from app.core.analytics import ANONYMOUS_DISTINCT_ID, capture_event
 from app.core.club import is_club_scope
 from app.core.database import get_db
@@ -12,6 +12,7 @@ from app.core.season import parse_date as _parse_date
 from app.core.season import parse_seasons
 from app.models.user import User
 from app.repositories import participation_repository
+from app.schemas.ids import DbId
 from app.schemas.participation import ParticipationCreate, ParticipationOut
 from app.scrapers.base import ScrapedResult
 from app.services import admin_actions, participation_stats_service, scrape_service

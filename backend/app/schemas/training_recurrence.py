@@ -4,6 +4,8 @@ from datetime import time as time_
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.ids import DbId
+
 
 class TrainingRecurrenceCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -15,7 +17,7 @@ class TrainingRecurrenceCreate(BaseModel):
     session_type: str | None = None
     starts_on: date
     ends_on: date
-    group_ids: list[int] = []
+    group_ids: list[DbId] = []
 
 
 class TrainingRecurrenceUpdate(BaseModel):
@@ -29,7 +31,7 @@ class TrainingRecurrenceUpdate(BaseModel):
     session_type: str | None = None
     starts_on: date | None = None
     ends_on: date | None = None
-    group_ids: list[int] | None = None
+    group_ids: list[DbId] | None = None
 
 
 class TrainingRecurrenceRead(BaseModel):

@@ -9,7 +9,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import DbId, require_permission
+from app.api.deps import require_permission
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.permissions import P
@@ -17,6 +17,7 @@ from app.models.user import User
 from app.models.user_feedback import FEEDBACK_STATUSES, UserFeedback
 from app.repositories import feedback_repository
 from app.schemas.feedback import FeedbackCounts, FeedbackRead, FeedbackUpdate
+from app.schemas.ids import DbId
 from app.services import feedback_service
 
 router = APIRouter(tags=["admin"])

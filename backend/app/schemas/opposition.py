@@ -3,6 +3,7 @@ from datetime import date
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from app.schemas.ids import DbId
 from app.schemas.utc_datetime import UtcDatetime
 
 
@@ -11,7 +12,7 @@ class OppositionIdentity(BaseModel):
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    athlete_id: int | None = None
+    athlete_id: DbId | None = None
     nom: str | None = None
     prenom: str | None = None
 

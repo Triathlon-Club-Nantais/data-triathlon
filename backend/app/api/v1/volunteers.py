@@ -15,7 +15,6 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
-    DbId,
     NotAuthenticatedError,
     require_volunteer_access,
     volunteer_login_rate_limit,
@@ -35,6 +34,7 @@ from app.repositories import (
 from app.schemas.admin import ParticipationReassign
 from app.schemas.athlete import AthleteBrief
 from app.schemas.course import CourseBrief
+from app.schemas.ids import DbId
 from app.schemas.participation import ParticipationOut
 from app.schemas.validation_queue import ValidationQueueHistory
 from app.schemas.volunteer import ParticipationFieldsUpdate, VolunteerCourseRename, VolunteerLogin

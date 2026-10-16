@@ -2,10 +2,10 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import DbId
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.schemas.challenge import ChallengeDetail
+from app.schemas.ids import DbId
 from app.services import challenge_service
 
 router = APIRouter(tags=["challenges"])

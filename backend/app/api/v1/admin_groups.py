@@ -15,7 +15,7 @@ n'accordent rien — c'est la borne de la v1, vérifiée par
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import DbId, require_permission
+from app.api.deps import require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
@@ -26,6 +26,7 @@ from app.schemas.admin import (
     GroupRead,
     GroupUpdate,
 )
+from app.schemas.ids import DbId
 from app.services.auth import groups as group_service
 
 router = APIRouter(tags=["admin"])

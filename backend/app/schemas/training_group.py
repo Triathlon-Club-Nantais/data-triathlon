@@ -1,6 +1,7 @@
 """DTO des groupes d'entraînement (#1291), contracts/api.md section Groupes."""
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
+from app.schemas.ids import DbId
 from app.schemas.profile import ProfileRead
 
 
@@ -27,4 +28,4 @@ class TrainingGroupWrite(BaseModel):
 class TrainingGroupMemberAdd(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    profile_id: int = Field(gt=0)
+    profile_id: DbId

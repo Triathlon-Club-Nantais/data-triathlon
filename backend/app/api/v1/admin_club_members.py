@@ -6,7 +6,7 @@ compteurs ; le routeur commite. Chaque route porte sa garde.
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlalchemy.orm import Session
 
-from app.api.deps import DbId, require_permission
+from app.api.deps import require_permission
 from app.api.uploads import read_bounded_upload
 from app.core.database import get_db
 from app.core.permissions import P
@@ -18,6 +18,7 @@ from app.schemas.club_member import (
     ClubMembersSeasonOut,
     MembersSyncReportOut,
 )
+from app.schemas.ids import DbId
 from app.services import club_members_service
 
 router = APIRouter(tags=["admin"])

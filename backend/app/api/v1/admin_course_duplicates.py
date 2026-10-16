@@ -16,7 +16,7 @@ même préfixe `/admin/` porte le signalement anonyme du site public.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import DbId, require_permission
+from app.api.deps import require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
@@ -26,6 +26,7 @@ from app.schemas.course_duplicates import (
     DuplicateIgnoreOut,
     IgnoredDuplicateList,
 )
+from app.schemas.ids import DbId
 from app.services import course_duplicates
 
 router = APIRouter(tags=["admin"])
