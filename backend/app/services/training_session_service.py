@@ -91,11 +91,11 @@ def list_training_session_views(db: Session) -> list[dict]:
     """Toute la liste du calendrier en trois requêtes, quel que soit le nombre
     de séances : les séances et leurs groupes, puis leurs comptes d'inscrits agrégés."""
     training_sessions = training_session_repository.list_all(db)
-    comptes = training_session_repository.count_participants_by_training_session(
+    counts = training_session_repository.count_participants_by_training_session(
         db, [training_session.id for training_session in training_sessions]
     )
     return [
-        training_session_view(training_session, comptes.get(training_session.id, 0))
+        training_session_view(training_session, counts.get(training_session.id, 0))
         for training_session in training_sessions
     ]
 
@@ -264,10 +264,10 @@ def set_presence(
     d'`add_participant` sur un profil inexistant : cette route ne crée jamais
     d'inscription.
     """
-    resultat = training_session_repository.set_presence(
+    result = training_session_repository.set_presence(
         db, training_session_id=training_session.id, profile_id=profile_id, present=present
     )
-    if resultat is None:
+    if result is None:
         raise NotFoundError("Ce profil n'est pas inscrit à cette séance.")
     logger.info(
         "Presence set: actor=%s training_session=%s profile=%s present=%s",

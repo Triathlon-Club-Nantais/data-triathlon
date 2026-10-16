@@ -274,7 +274,7 @@ def update_athlete(
     athlete = admin_actions.update_athlete(
         db,
         athlete_id=athlete_id,
-        champs=champs,
+        fields=champs,
         user_id=user.id,
     )
     db.commit()
@@ -413,7 +413,7 @@ def update_course(
     course = admin_actions.update_course(
         db,
         course_id=course_id,
-        champs=body.model_dump(exclude_unset=True),
+        fields=body.model_dump(exclude_unset=True),
         user_id=user.id,
     )
     db.commit()

@@ -34,7 +34,7 @@ def relay(work: Callable[[Emit], dict | None]) -> Iterator[dict | object]:
     `HEARTBEAT` est rendu après `HEARTBEAT_INTERVAL_SECONDS` sans event.
     """
     events: queue.Queue[dict | object] = queue.Queue()
-    fin = object()
+    end = object()
 
     def run() -> None:
         try:
@@ -42,22 +42,22 @@ def relay(work: Callable[[Emit], dict | None]) -> Iterator[dict | object]:
             if final is not None:
                 events.put(final)
         finally:
-            events.put(fin)
+            events.put(end)
 
     threading.Thread(target=run, daemon=True).start()
 
     silence = 0.0
     while True:
-        attente = min(_POLL_SECONDS, HEARTBEAT_INTERVAL_SECONDS)
+        timeout = min(_POLL_SECONDS, HEARTBEAT_INTERVAL_SECONDS)
         try:
-            item = events.get(timeout=attente)
+            item = events.get(timeout=timeout)
         except queue.Empty:
-            silence += attente
+            silence += timeout
             if silence >= HEARTBEAT_INTERVAL_SECONDS:
                 silence = 0.0
                 yield HEARTBEAT
             continue
         silence = 0.0
-        if item is fin:
+        if item is end:
             return
         yield item
