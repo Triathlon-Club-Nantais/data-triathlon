@@ -85,7 +85,7 @@ def test_la_recherche_est_bornee_a_la_metropole(monkeypatch):
 
     params = vues[0].url.params
     assert params["bounded"] == "1"
-    assert params["viewbox"] == geocode_service.VIEWBOX_METROPOLE
+    assert params["viewbox"] == geocode_service.VIEWBOX_MAINLAND
 
 
 def test_un_resultat_hors_metropole_est_refuse(monkeypatch):

@@ -20,7 +20,7 @@ def test_persistence_lives_in_import_persistence():
     assert import_persistence.Reassignment.__name__ == "Reassignment"
     for name in (
         "persist_steps", "persist_results", "PassiveSource", "Reassignment",
-        "_Persister", "_TRANCHE_SIZE", "split_relay_teammates", "mapping",
+        "_Persister", "_CHUNK_SIZE", "split_relay_teammates", "mapping",
     ):
         assert not hasattr(import_service, name), name
 

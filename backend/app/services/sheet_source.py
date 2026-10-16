@@ -35,7 +35,7 @@ def dedupe_links(links: list[str]) -> list[str]:
 
     `setdefault` garde la **première** forme rencontrée, pas la dernière : c'est
     ce qui interdit un simple `dict.fromkeys`, qui garderait la clé normalisée.
-    Même motif que `rescrape_service._dedupe_par_url`.
+    Même motif que `rescrape_service._dedupe_by_url`.
     """
     unique: dict[str, str] = {}
     for url in links:

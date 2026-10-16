@@ -14,7 +14,7 @@ import typer
 
 from app.cli.reports import emit_outcome, render_geocode_report
 from app.core.database import session_scope
-from app.services.geocode_service import RETRY_APRES, run_geocode_courses
+from app.services.geocode_service import RETRY_AFTER, run_geocode_courses
 
 
 def _progression(actif: bool):
@@ -34,7 +34,7 @@ def geocode_courses(
         None, "--limit", help="Borne le nombre d'épreuves géocodées."
     ),
     retry_after_days: int = typer.Option(
-        RETRY_APRES.days, "--retry-after-days",
+        RETRY_AFTER.days, "--retry-after-days",
         help="Ne retente un échec qu'après ce délai (jours).",
     ),
     dry_run: bool = typer.Option(

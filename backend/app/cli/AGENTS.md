@@ -147,7 +147,7 @@ corriger le **fichier**, que la CLI ne réécrit pas.
 
 Deux propriétés à ne pas casser en y touchant : la substitution peut faire
 **doublon** avec une active déjà présente dans le lot — c'est
-`_items_depuis_urls` qui l'absorbe en dédoublonnant, la CLI ne s'en occupe pas ;
+`_items_from_urls` qui l'absorbe en dédoublonnant, la CLI ne s'en occupe pas ;
 et une passive dont l'épreuve n'a **aucune** active (saisie manuelle, #283) part
 **telle quelle**, sans redirection possible : elle est la seule publication
 connue, aucun doublon n'est possible, et la refuser ne scraperait rien du tout.
@@ -182,7 +182,7 @@ les compteurs ne bougent donc pas d'un iota. Les deux commandes listent ces URLs
 sous « Sources enregistrées, non principales (détail) : », avec le message qui
 **nomme l'épreuve** — sans lui, l'opérateur d'un import Sheet de 300 lignes ne
 peut pas distinguer une URL absorbée d'un import ordinaire à zéro nouveauté. Le
-champ `passive_sources` est dans la charge `--json`, et dans `CHAMPS_COMMUNS` :
+champ `passive_sources` est dans la charge `--json`, et dans `SHARED_FIELDS` :
 `run_batch` les collecte pour les deux commandes, deux rendus divergeraient sans
 raison. À ne pas confondre avec la redirection de #282, qui porte sur une URL
 **déjà** passive passée à `--url` : celle-là est corrigée avant le batch, en

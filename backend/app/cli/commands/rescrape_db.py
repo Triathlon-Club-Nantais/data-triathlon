@@ -126,7 +126,7 @@ def rescrape_db(
                 # l'invaliderait.
                 typer.echo(_redirection_source_passive(cible), err=True)
             # Les doublons que la substitution peut créer (l'active déjà dans le
-            # lot) sont absorbés en aval par `_items_depuis_urls`, qui dédoublonne.
+            # lot) sont absorbés en aval par `_items_from_urls`, qui dédoublonne.
             actives = {c.url: c.active_url for c in passives if c.active_url}
             urls = [actives.get(soumise, soumise) for soumise in cibles]
 

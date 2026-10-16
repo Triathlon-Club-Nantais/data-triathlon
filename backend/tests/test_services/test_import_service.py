@@ -2443,7 +2443,7 @@ def test_import_split_finds_an_existing_athlete_published_firstname_first(
 
 @pytest.mark.parametrize("tranche", [500, 1], ids=["un-lot", "tranche-unitaire"])
 def test_import_splits_several_relays_in_one_batch(db_session, patch_scraper, monkeypatch, tranche):
-    monkeypatch.setattr(import_persistence, "_TRANCHE_SIZE", tranche)
+    monkeypatch.setattr(import_persistence, "_CHUNK_SIZE", tranche)
     patch_scraper([
         _relay("7", "CANNIOU/OLIVIER", "Cedric/Leclerc"),
         _relay("", "MASSONNEAU PIERRE", "/ BESANCON FABIEN ."),
@@ -2751,7 +2751,7 @@ def test_split_fallback_keeps_the_reconcile_guard(db_session, patch_scraper, mon
 def test_guard_holds_when_the_individual_line_comes_in_a_later_tranche(
     db_session, patch_scraper, monkeypatch
 ):
-    monkeypatch.setattr(import_persistence, "_TRANCHE_SIZE", 1)
+    monkeypatch.setattr(import_persistence, "_CHUNK_SIZE", 1)
     patch_scraper([_relay("1", "DUPONT Jean / MARTIN Paul", ""), _relay("2", "DUPONT", "Jean")])
 
     import_service.import_event(db_session, URL, _settings())
