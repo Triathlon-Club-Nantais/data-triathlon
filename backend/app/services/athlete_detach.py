@@ -17,6 +17,7 @@ from app.repositories import (
     participation_repository,
 )
 from app.services import admin_actions, audit
+from app.services.not_found import athlete_or_404
 
 
 def detach_participations(
@@ -27,9 +28,7 @@ def detach_participations(
     ids = list(dict.fromkeys(participation_ids))
     if not ids:
         raise DomainError("Choisissez au moins un résultat à séparer.")
-    source = athlete_repository.get(db, athlete_id)
-    if source is None:
-        raise NotFoundError("Athlète introuvable.")
+    source = athlete_or_404(db, athlete_id)
     participations = []
     for participation_id in ids:
         participation = participation_repository.get(db, participation_id)

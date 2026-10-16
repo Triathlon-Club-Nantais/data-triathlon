@@ -17,7 +17,6 @@ from app.api.deps import (
     require_permission,
 )
 from app.core.database import get_db
-from app.core.exceptions import NotFoundError
 from app.core.permissions import P
 from app.models.user import User
 from app.repositories import course_repository, pending_provider_repository
@@ -30,7 +29,7 @@ from app.schemas.admin import (
 )
 from app.schemas.count import BadgeCounts
 from app.schemas.ids import DbId
-from app.services import admin_badge_counts, course_review, pending_providers
+from app.services import admin_badge_counts, course_review, not_found, pending_providers
 from app.services.auth import authorization
 
 router = APIRouter(tags=["admin"])
@@ -125,9 +124,7 @@ def set_course_reliability(
     Rend les **trois** valeurs, et c'est délibéré : elles ne se déduisent pas
     l'une de l'autre, et c'est ce qu'une interface de revue doit montrer.
     """
-    course = course_repository.get(db, course_id)
-    if course is None:
-        raise NotFoundError("Épreuve introuvable")
+    course = not_found.course_or_404(db, course_id, message="Épreuve introuvable")
     course_review.set_override(
         db,
         course,

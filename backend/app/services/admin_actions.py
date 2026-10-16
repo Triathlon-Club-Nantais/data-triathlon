@@ -53,22 +53,9 @@ from app.services.course_locks import (
     lock_all_courses_or_409,
     lock_courses_or_409,
 )
+from app.services.not_found import athlete_or_404, course_or_404
 
 logger = logging.getLogger(__name__)
-
-
-def course_or_404(db: Session, course_id: int) -> Course:
-    course = course_repository.get(db, course_id)
-    if course is None:
-        raise NotFoundError("Épreuve introuvable.")
-    return course
-
-
-def _athlete_or_404(db: Session, athlete_id: int) -> Athlete:
-    athlete = athlete_repository.get(db, athlete_id)
-    if athlete is None:
-        raise NotFoundError("Athlète introuvable.")
-    return athlete
 
 
 def _participation_or_404(db: Session, participation_id: int) -> Participation:
@@ -80,7 +67,7 @@ def _participation_or_404(db: Session, participation_id: int) -> Participation:
 
 def get_athlete(db: Session, *, athlete_id: int) -> Athlete:
     """La fiche complète d'un coureur, ou 404. Lecture pure."""
-    return _athlete_or_404(db, athlete_id)
+    return athlete_or_404(db, athlete_id)
 
 
 def course_deletion_impact(db: Session, *, course_id: int) -> dict:
@@ -297,7 +284,7 @@ def reassign_participation(
     """
     participation = _participation_or_404(db, participation_id)
     lock_courses_or_409(db, participation.course_id)
-    target = _athlete_or_404(db, athlete_id)
+    target = athlete_or_404(db, athlete_id)
     source_id = participation.athlete_id
     # Un relais attribué (#894) redevient un résultat à un seul coureur, même
     # vers l'un de ses équipiers (FR-008) : ses anciens équipiers sont
@@ -383,7 +370,7 @@ def set_teammates(
         if isinstance(ref, NewTeammate):
             opposition_service.ensure_not_opposed(db, ref.athlete_name, ref.athlete_firstname)
     team: list[Athlete | NewTeammate] = [
-        _athlete_or_404(db, ref)
+        athlete_or_404(db, ref)
         if isinstance(ref, int)
         else athlete_repository.get_by_identity_keys(db, ref.athlete_name, ref.athlete_firstname)
         or ref
@@ -557,7 +544,7 @@ def update_athlete(db: Session, *, athlete_id: int, fields: dict, user_id: int) 
     clubs portés par les **résultats** ne bougent pas — chacun garde celui de
     l'époque de sa course (FR-013).
     """
-    athlete = _athlete_or_404(db, athlete_id)
+    athlete = athlete_or_404(db, athlete_id)
     before = snapshot(athlete, _ATHLETE_FIELDS)
     requested = {field: fields[field] for field in _ATHLETE_FIELDS if field in fields}
 
@@ -815,7 +802,7 @@ def validate_season(db: Session, *, athlete_id: int, season: int, user_id: int):
     **L'unicité se vérifie par lecture préalable** (même règle que
     `update_athlete`), pas par l'`IntegrityError` de `uq_season_validation_athlete_season`.
     """
-    _athlete_or_404(db, athlete_id)
+    athlete_or_404(db, athlete_id)
     if season_validation_repository.get_for_athlete_season(db, athlete_id=athlete_id, season=season):
         raise DuplicateError("La saison de cet athlète est déjà validée.")
 
@@ -836,7 +823,7 @@ def validate_season(db: Session, *, athlete_id: int, season: int, user_id: int):
 
 def unvalidate_season(db: Session, *, athlete_id: int, season: int, user_id: int) -> None:
     """Dévalide la saison d'un athlète (#709, FR-013) — geste symétrique de `validate_season`."""
-    _athlete_or_404(db, athlete_id)
+    athlete_or_404(db, athlete_id)
     validation = season_validation_repository.get_for_athlete_season(
         db, athlete_id=athlete_id, season=season
     )
@@ -867,7 +854,7 @@ def season_quota(db: Session, *, athlete_id: int, season: int) -> dict:
     FFTRI ne doit pas compter dans les 3 épreuves requises).
     """
     # Comme `validate_season` : un quota « vide » masquait un identifiant faux (#1054).
-    _athlete_or_404(db, athlete_id)
+    athlete_or_404(db, athlete_id)
     participations = participation_repository.list_for_athlete(
         db, athlete_id, seasons=[season], federal_only=True
     )

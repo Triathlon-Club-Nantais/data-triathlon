@@ -27,6 +27,7 @@ from app.schemas.admin import (
     GroupUpdate,
 )
 from app.schemas.ids import DbId
+from app.services import not_found
 from app.services.auth import groups as group_service
 
 router = APIRouter(tags=["admin"])
@@ -131,7 +132,7 @@ def add_member(
 ):
     """Ajoute un membre. **Idempotent** — réajouter est un succès (FR-008)."""
     group = group_service.get_group_or_404(db, group_id)
-    target = group_service.get_user_or_404(db, body.user_id)
+    target = not_found.user_or_404(db, body.user_id)
     group_service.add_member(db, actor, group=group, user=target)
     view = group_service.group_detail_view(db, group)
     db.commit()
@@ -150,6 +151,6 @@ def remove_member(
     Aucun invariant du dernier membre : un groupe peut être vidé entièrement.
     """
     group = group_service.get_group_or_404(db, group_id)
-    target = group_service.get_user_or_404(db, user_id)
+    target = not_found.user_or_404(db, user_id)
     group_service.remove_member(db, actor, group=group, user=target)
     db.commit()

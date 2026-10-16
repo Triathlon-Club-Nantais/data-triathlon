@@ -37,6 +37,7 @@ from app.repositories import (
 from app.services import audit
 from app.services.admin_actions import AthleteBusyError
 from app.services.course_locks import lock_courses_or_409
+from app.services.not_found import athlete_or_404
 
 logger = logging.getLogger(__name__)
 
@@ -58,13 +59,6 @@ class AthleteMergeRefusedError(DomainError):
     def __init__(self, reason: str):
         super().__init__(_REFUSALS[reason])
         self.code = reason
-
-
-def _athlete_or_404(db: Session, athlete_id: int) -> Athlete:
-    athlete = athlete_repository.get(db, athlete_id)
-    if athlete is None:
-        raise NotFoundError("Athlète introuvable.")
-    return athlete
 
 
 def blocking_reason(db: Session, kept: Athlete, absorbed: Athlete) -> str | None:
@@ -107,7 +101,7 @@ def _adds_alias(kept: Athlete, absorbed: Athlete) -> bool:
 
 def merge_impact(db: Session, *, kept_id: int, absorbed_id: int) -> dict:
     """Ce que la fusion ferait, sans rien écrire."""
-    kept, absorbed = _athlete_or_404(db, kept_id), _athlete_or_404(db, absorbed_id)
+    kept, absorbed = athlete_or_404(db, kept_id), athlete_or_404(db, absorbed_id)
     reason = blocking_reason(db, kept, absorbed)
     return {
         "kept": _brief(db, kept),
@@ -221,8 +215,7 @@ def merge_athletes(db: Session, *, kept_id: int, absorbed_id: int, user_id: int)
 
 def list_aliases(db: Session, *, athlete_id: int) -> list[AthleteAlias]:
     """Les variantes de graphie d'une fiche (#1242), ou 404."""
-    if athlete_repository.get(db, athlete_id) is None:
-        raise NotFoundError("Athlète introuvable.")
+    athlete_or_404(db, athlete_id)
     return athlete_alias_repository.list_for_athlete(db, athlete_id)
 
 

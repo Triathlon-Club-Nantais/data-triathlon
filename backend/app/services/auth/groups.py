@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import DomainError, NotFoundError
 from app.models.group import Group
 from app.models.user import User
-from app.repositories import group_repository, user_repository
+from app.repositories import group_repository
 from app.services import audit
 from app.services.auth.authorization import existing_organisation
 
@@ -54,13 +54,6 @@ def get_group_or_404(db: Session, group_id: int) -> Group:
     if group is None:
         raise NotFoundError("Ce groupe n'existe pas.")
     return group
-
-
-def get_user_or_404(db: Session, user_id: int) -> User:
-    user = user_repository.get(db, user_id)
-    if user is None:
-        raise NotFoundError("Cet utilisateur n'existe pas.")
-    return user
 
 
 def group_view(db: Session, group: Group) -> dict:
