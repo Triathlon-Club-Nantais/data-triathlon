@@ -516,7 +516,7 @@ def test_saison_compte_les_participations_de_l_athlete_sur_la_saison(db_session)
         db_session, seasons=[2025], club_only=False
     )
 
-    assert resultats == [(athlete, 2, 2, 2)]
+    assert resultats == [(athlete, 2, 2, 2, 2)]
 
 
 def test_saison_club_only_filtre_sur_le_club_de_lathlete_pas_de_la_participation(db_session):
@@ -571,8 +571,45 @@ def test_saison_trois_compteurs_distincts(db_session):
     )
 
     assert len(resultats) == 1
-    _, total, validees, affiliees_club = resultats[0]
+    _, total, validees, affiliees_club, _federales = resultats[0]
     assert (total, validees, affiliees_club) == (3, 2, 1)
+
+
+def test_saison_federal_validated_count_ignores_federal_only_and_counts_like_the_quota(db_session):
+    """#1542: the quota counter counts validated finishers in federal disciplines
+    only, whatever `federal_only` says. A trail, a validated DNS and a pending
+    result do not count."""
+    from app.repositories import course_repository, participation_repository
+
+    athlete = athlete_repository.get_or_create(db_session, nom="QUOTA", prenom="Q", club="TCN")
+    db_session.flush()
+    _inscrit_club(db_session, athlete, _epreuve_datee(db_session, "Tri A", date(2025, 9, 15)), "1")
+    _inscrit_club(db_session, athlete, _epreuve_datee(db_session, "Tri B", date(2025, 10, 15)), "2")
+    trail = course_repository.get_or_create(
+        db_session, name="Trail", event_date=date(2025, 11, 1), event_type="trail",
+        source_url="https://k/trail", provider="klikego",
+    )
+    db_session.flush()
+    _inscrit_club(db_session, athlete, trail, "3")
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, bib_number="4", status="DNS",
+        course_id=_epreuve_datee(db_session, "Tri DNS", date(2025, 12, 1)).id,
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, bib_number="5", is_pending_validation=True,
+        course_id=_epreuve_datee(db_session, "Tri pending", date(2026, 1, 1)).id,
+    )
+    db_session.flush()
+
+    (_, total, validated, _, federal), = athlete_repository.list_with_season_participation_count(
+        db_session, seasons=[2025]
+    )
+    (_, _, validated_filtered, _, federal_filtered), = athlete_repository.list_with_season_participation_count(
+        db_session, seasons=[2025], federal_only=True
+    )
+
+    assert (total, validated, federal) == (5, 3, 2)
+    assert (validated_filtered, federal_filtered) == (2, 2)
 
 
 def test_saison_trie_par_nom_puis_prenom(db_session):
@@ -653,7 +690,7 @@ def test_saison_dns_valide_ne_compte_pas_dans_validees_ni_affiliees_club(db_sess
     )
 
     assert len(resultats) == 1
-    _, total, validees, affiliees_club = resultats[0]
+    _, total, validees, affiliees_club, _federales = resultats[0]
     assert (total, validees, affiliees_club) == (1, 0, 0)
 
 

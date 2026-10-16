@@ -722,8 +722,8 @@ def list_with_season_participation_count(
     seasons: list[int],
     club_only: bool = False,
     federal_only: bool = False,
-) -> list[tuple[Athlete, int, int, int]]:
-    """Athlètes avec ≥1 participation sur `seasons`, et trois compteurs distincts (#274, #709).
+) -> list[tuple[Athlete, int, int, int, int]]:
+    """Athlètes avec ≥1 participation sur `seasons`, et quatre compteurs distincts (#274, #709, #1542).
 
     Jointure **interne** (à la différence de `search_admin`, qui veut voir les
     athlètes à 0) : c'est elle qui exclut les athlètes sans participation sur le
@@ -752,6 +752,11 @@ def list_with_season_participation_count(
     par un bénévole compte comme participation active — même règle que
     `admin_actions.season_quota`, à garder synchronisées si l'une des deux
     change.
+
+    `federal_validated_count` (#1542) compte comme `validated_count`, restreint
+    aux disciplines fédérales **quel que soit `federal_only`** : c'est l'assiette
+    du barème (`admin_actions.season_quota`), que le toggle de disciplines de
+    la page ne doit pas déplacer.
     """
     # Import local : participation_repository importe name_filter d'ici depuis
     # #357, un import en tête de module créerait un cycle.
@@ -766,9 +771,12 @@ def list_with_season_participation_count(
     club_affiliated_count = func.sum(
         case((and_(is_validated, Participation.counts_for_tcn.is_(True)), 1), else_=0)
     )
+    federal_validated_count = func.sum(
+        case((and_(is_validated, federal_clause(Course.event_type)), 1), else_=0)
+    )
     credit_rows = credits()
     query = (
-        db.query(Athlete, total, validated_count, club_affiliated_count)
+        db.query(Athlete, total, validated_count, club_affiliated_count, federal_validated_count)
         .join(credit_rows, credit_rows.c.athlete_id == Athlete.id)
         .join(Participation, Participation.id == credit_rows.c.participation_id)
         .join(Course, Participation.course_id == Course.id)
@@ -785,8 +793,8 @@ def list_with_season_participation_count(
     empty_name_last = case((Athlete.nom == "", 1), else_=0)
     rows = query.order_by(empty_name_last, Athlete.nom, Athlete.prenom).all()
     return [
-        (athlete, int(total_n), int(validated_n), int(affiliated_n))
-        for athlete, total_n, validated_n, affiliated_n in rows
+        (athlete, int(total_n), int(validated_n), int(affiliated_n), int(federal_n))
+        for athlete, total_n, validated_n, affiliated_n, federal_n in rows
     ]
 
 

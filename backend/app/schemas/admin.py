@@ -759,6 +759,8 @@ class SeasonQuota(BaseModel):
     has_volunteer_action: bool
     has_pending_volunteer_action: bool
     season_validated: bool
+    # Additif (#1542) : le barème lui-même, `core.season.season_quota_met`.
+    quota_met: bool
 
 
 class AthleteMergeRequest(BaseModel):

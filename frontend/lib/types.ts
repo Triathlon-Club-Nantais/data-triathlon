@@ -11,7 +11,8 @@ export interface AthleteBrief {
 // Miroir de AthleteSeasonActivity backend (#274, #709) — athlète + ses
 // compteurs d'épreuves sur la saison filtrée. Pas de `club` : la route qui
 // l'expose est déjà scopée club côté appelant. `participation_count` reste
-// égal à `club_affiliated_count` (compat, additif seulement).
+// égal à `club_affiliated_count` (compat, additif seulement). `quota_met`
+// (#1542) : barème de `season_quota`, `null` hors saison unique.
 export interface AthleteSeasonActivity {
   id: number;
   nom: string;
@@ -21,6 +22,7 @@ export interface AthleteSeasonActivity {
   validated_count: number;
   club_affiliated_count: number;
   season_validated: boolean | null;
+  quota_met: boolean | null;
 }
 
 // Miroir de AthleteSearchResult backend (#484) — recherche classée par

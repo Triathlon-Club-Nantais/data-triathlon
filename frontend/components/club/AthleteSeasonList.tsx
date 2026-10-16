@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { AthleteSeasonActivity } from "@/lib/types";
-import { Card, Input, VousChip } from "@/components/tcn";
+import { Button, Card, Input, VousChip } from "@/components/tcn";
 import { useSelectedAthlete } from "@/components/layout/AthletePicker";
 import { trouverRang } from "@/lib/utils/rang";
 import { foldAccents } from "@/lib/utils/text";
@@ -26,7 +26,12 @@ function filterAthletes(athletes: AthleteSeasonActivity[], query: string): Athle
 }
 
 /** Statut de validation (#709, FR-014) — filtre client, comme le tri (research.md). */
-type FiltreValidation = "tous" | "valides" | "non_valides";
+type FiltreValidation = "tous" | "valides" | "non_valides" | "quota_met_unvalidated";
+
+/** Quota atteint (#1542, barème calculé par le serveur) mais saison pas encore validée. */
+function isAwaitingValidation(a: AthleteSeasonActivity): boolean {
+  return a.quota_met === true && a.season_validated === false;
+}
 
 function filterByValidation(
   athletes: AthleteSeasonActivity[],
@@ -34,6 +39,7 @@ function filterByValidation(
 ): AthleteSeasonActivity[] {
   if (filtre === "valides") return athletes.filter((a) => a.season_validated === true);
   if (filtre === "non_valides") return athletes.filter((a) => a.season_validated === false);
+  if (filtre === "quota_met_unvalidated") return athletes.filter(isAwaitingValidation);
   return athletes;
 }
 
@@ -116,15 +122,20 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
         />
         <AthleteSortToggle />
         {singleSeason && (
-          <div role="radiogroup" aria-label="Statut de validation" style={{ display: "inline-flex", gap: 8 }}>
+          <div role="radiogroup" aria-label="Statut de validation" style={{ display: "inline-flex", flexWrap: "wrap", gap: 8 }}>
             {(
               [
                 ["tous", "Tous"],
                 ["valides", "Validées"],
                 ["non_valides", "Non validées"],
+                ["quota_met_unvalidated", "Quota atteint, à valider"],
               ] as [FiltreValidation, string][]
             ).map(([valeur, libelle]) => (
-              <label key={valeur} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13 }}>
+              <label
+                key={valeur}
+                className="tcn-cible-tactile"
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13 }}
+              >
                 <input
                   type="radio"
                   name="filtre-validation"
@@ -153,7 +164,18 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
       {sorted.length === 0 ? (
         <Card padding={0} style={{ overflow: "hidden" }}>
           <div style={{ padding: 40, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>
-            Aucun athlète ne correspond à « {query.trim()} ». Essayez un autre nom.
+            {query.trim() ? (
+              <>Aucun athlète ne correspond à « {query.trim()} ». Essayez un autre nom.</>
+            ) : (
+              // #1542 : seul le filtre de statut a vidé la liste (« Quota atteint,
+              // à valider » une fois tous les quotas validés, par exemple).
+              <>
+                <p>Aucun athlète ne correspond à ce statut sur cette saison.</p>
+                <Button variant="secondary" size="sm" onClick={() => setFiltreValidation("tous")} style={{ marginTop: 12 }}>
+                  Afficher tous
+                </Button>
+              </>
+            )}
           </div>
         </Card>
       ) : (
@@ -189,9 +211,25 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
                         border: "1px solid var(--tcn-orange)",
                         borderRadius: 6,
                         padding: "1px 6px",
+                        whiteSpace: "nowrap",
                       }}
                     >
                       Saison validée
+                    </span>
+                  )}
+                  {isAwaitingValidation(a) && (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "var(--tcn-success-text)",
+                        border: "1px solid var(--tcn-success-border)",
+                        borderRadius: 6,
+                        padding: "1px 6px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Quota atteint
                     </span>
                   )}
                 </div>

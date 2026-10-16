@@ -62,13 +62,13 @@ def test_fiche_athlete_rend_une_participation_pendante_mais_pas_son_rang_dans_le
 # ── GET /athletes/season-activity (issue #274) ───────────────────────────────
 
 
-def _epreuve(db_session, nom, event_date=None):
+def _epreuve(db_session, nom, event_date=None, event_type="triathlon-m"):
     from app.repositories import course_repository
 
     if event_date is None:
         event_date = date(2025, 10, 1)
     course = course_repository.get_or_create(
-        db_session, name=nom, event_date=event_date, event_type="triathlon-m",
+        db_session, name=nom, event_date=event_date, event_type=event_type,
         source_url=f"https://k/{nom}", provider="klikego",
     )
     db_session.flush()
@@ -141,6 +141,79 @@ def test_season_activity_saison_sans_activite_rend_une_liste_vide(client, db_ses
 
     assert resp.status_code == 200
     assert resp.json() == []
+
+
+def _quota_athlete(
+    db_session, nom, *, events=3, trails=0, volunteer_status="validee", season_start=date(2025, 9, 15)
+):
+    from app.repositories import athlete_repository, volunteer_action_repository
+
+    athlete = athlete_repository.get_or_create(db_session, nom=nom, prenom="Q", club="Triathlon Club Nantais")
+    db_session.flush()
+    for i in range(events):
+        _inscrit(db_session, athlete, _epreuve(db_session, f"{nom} {i}", season_start.replace(day=15 + i)), str(i))
+    for i in range(trails):
+        trail = _epreuve(db_session, f"{nom} trail {i}", date(2025, 11, 1 + i), event_type="trail")
+        _inscrit(db_session, athlete, trail, f"t{i}")
+    if volunteer_status:
+        action = volunteer_action_repository.create_pending(
+            db_session, athlete_id=athlete.id, season=2025, declared_by_user_id=None,
+            title="Ravitaillement", description="Poste 2.",
+        )
+        if volunteer_status == "validee":
+            volunteer_action_repository.set_status(db_session, action.id, "validee")
+    db_session.commit()
+    return athlete
+
+
+def _quota_met_by_name(client, seasons="2025", **params):
+    resp = client.get(
+        "/api/v1/athletes/season-activity", params={"scope": "club", "seasons": seasons, **params}
+    )
+    assert resp.status_code == 200
+    return {a["nom"]: a["quota_met"] for a in resp.json()}
+
+
+def test_season_activity_quota_met_needs_three_events_and_a_validated_volunteer_action(client, db_session):
+    """#1542: same rule as `season_quota`, whatever the page's `federal_only`."""
+    _quota_athlete(db_session, "ATTEINT")
+    _quota_athlete(db_session, "SANSBENEVOLAT", volunteer_status=None)
+    _quota_athlete(db_session, "BENEVOLATATTENTE", volunteer_status="en_attente")
+    _quota_athlete(db_session, "DEUXPLUSTRAIL", events=2, trails=1)
+
+    expected = {"ATTEINT": True, "SANSBENEVOLAT": False, "BENEVOLATATTENTE": False, "DEUXPLUSTRAIL": False}
+    assert _quota_met_by_name(client) == expected
+    assert _quota_met_by_name(client, federal_only="true") == expected
+
+
+def test_season_activity_quota_met_is_null_across_several_seasons(client, db_session):
+    _quota_athlete(db_session, "ATTEINT")
+
+    assert _quota_met_by_name(client, seasons="2025,2024") == {"ATTEINT": None}
+
+
+def test_season_activity_query_count_does_not_grow_with_athletes(client, db_session):
+    """#1542: the quota flag is read in bulk, never one query per athlete."""
+    from sqlalchemy import event
+
+    def count_queries():
+        statements = []
+        engine = db_session.get_bind()
+        listener = lambda *args: statements.append(args[2])  # noqa: E731
+        event.listen(engine, "before_cursor_execute", listener)
+        try:
+            _quota_met_by_name(client)
+        finally:
+            event.remove(engine, "before_cursor_execute", listener)
+        return len(statements)
+
+    _quota_athlete(db_session, "PREMIER")
+    one = count_queries()
+    _quota_athlete(db_session, "DEUXIEME")
+    _quota_athlete(db_session, "TROISIEME", volunteer_status=None)
+
+    assert one > 0
+    assert count_queries() == one
 
 
 def test_season_activity_refuse_l_anonyme(client, db_session):

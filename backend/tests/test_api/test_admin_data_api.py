@@ -1015,6 +1015,7 @@ def test_lire_le_quota_de_saison_reflete_les_trois_signaux(client, db_session, c
         "has_volunteer_action": False,
         "has_pending_volunteer_action": False,
         "season_validated": False,
+        "quota_met": False,
     }
 
 
