@@ -24,9 +24,10 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.core.exceptions import ScraperError
+from app.core.text import strip_accents
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
-from .utils import heat_is_relay, is_masked_name, normalize_time, strip_accents
+from .utils import heat_is_relay, is_masked_name, normalize_time
 
 logger = logging.getLogger(__name__)
 
