@@ -7,6 +7,7 @@ from collections.abc import Callable
 from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
+from app.core.client_address import rate_limit_key
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import DomainError, TooManyRequestsError
@@ -261,9 +262,9 @@ def reset_rate_limits() -> None:
 def _enforce_rate_limit(
     request: Request, bucket: str, *, max_per_window: int, window_seconds: int
 ) -> None:
-    ip = request.client.host if request.client else None
-    if ip is None:
+    if request.client is None:
         return
+    ip = rate_limit_key(request.client.host)
 
     now = time.monotonic()
     _windows[bucket] = window_seconds

@@ -13,7 +13,8 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
   `SecurityHeadersMiddleware` l'est à dessein, pour voir le schéma déjà réécrit
   par `ClientAddressMiddleware` (#396).
 - **Adresse du client** (`core/client_address.py`, #1533), clé de tous les
-  plafonds par IP. Mesuré sur la preview le 16/10/2026 : `X-Forwarded-For`
+  plafonds par IP, à travers `rate_limit_key` (le /64 d'une IPv6, #1552 ;
+  `scope["client"]` garde l'adresse exacte pour les journaux). Mesuré sur la preview le 16/10/2026 : `X-Forwarded-For`
   arrive en `<écrit par l'appelant>, <IP vue par Cloudflare>, <bord
   Cloudflare>, <saut Render>`, chaque proxy ajoutant à droite, et le rewrite
   Vercel transmet l'en-tête du visiteur sans le réécrire. Deux réglages :

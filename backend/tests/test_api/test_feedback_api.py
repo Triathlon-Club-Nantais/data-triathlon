@@ -113,6 +113,22 @@ def test_the_stored_ip_is_the_one_cloudflare_saw(client, db_session):
     assert entry.ip_address == "90.49.125.30"
 
 
+def test_an_ipv6_64_counts_as_one_sender(client, monkeypatch, db_session):
+    """#1552: the count and the stored value both key on the /64."""
+    client.cookies.clear()
+    monkeypatch.setattr(get_settings(), "feedback_rate_limit_max_per_window", 1)
+
+    def send(ip: str):
+        chain = f"{ip}, 172.71.119.62, 10.28.198.73"
+        return client.post(_URL, json=_payload(), headers={"X-Forwarded-For": chain})
+
+    first = send("2001:db8:1:2::1")
+    assert first.status_code == 201
+    assert send("2001:db8:1:2::2").status_code == 429
+    entry = feedback_repository.get(db_session, first.json()["id"])
+    assert entry.ip_address == "2001:db8:1:2::/64"
+
+
 def test_la_soumission_ne_vit_pas_sous_admin(client):
     """La revue de #315 : un verbe public sous `/admin` se lit comme une garde
     oubliée. Plus aucun POST n'y répond.

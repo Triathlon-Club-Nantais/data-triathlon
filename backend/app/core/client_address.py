@@ -43,6 +43,25 @@ def _ip(value: str) -> str | None:
         return None
 
 
+def rate_limit_key(host: str) -> str:
+    """Clé des plafonds par IP (#1552) : le /64 pour une adresse IPv6.
+
+    Un hébergement ou une box dispose d'un /64 entier et peut changer d'adresse
+    source à chaque requête. `scope["client"]` garde l'adresse exacte pour les
+    journaux ; seuls les compteurs regroupent. Une IPv4 mappée compte comme
+    l'IPv4, et un hôte qui n'est pas une IP (`testclient`) reste tel quel.
+    """
+    try:
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return host
+    if address.version == 4:
+        return str(address)
+    if address.ipv4_mapped:
+        return str(address.ipv4_mapped)
+    return str(ipaddress.IPv6Network((address, 64), strict=False))
+
+
 class ClientAddressMiddleware:
     def __init__(self, app: ASGIApp, *, settings) -> None:
         # L'objet et non ses valeurs : lu à chaque requête, comme les plafonds.

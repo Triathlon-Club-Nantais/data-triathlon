@@ -281,7 +281,10 @@ Quatre choses à ne pas défaire :
   (`TRUSTED_PROXY_COUNT`), ou `X-Vercel-Forwarded-For` quand le front prouve
   son passage par `FRONTEND_PROXY_SECRET`. Jamais la première entrée, que
   l'appelant écrit depuis que Cloudflare précède Render. Détail :
-  `backend/AGENTS.md`.
+  `backend/AGENTS.md`. Les compteurs ne la lisent qu'à travers
+  `client_address.rate_limit_key` (#1552) : une IPv6 compte pour son /64, qu'un
+  hébergement fait tourner à chaque requête ; une IPv4, mappée ou non, pour
+  elle-même. `POST /feedback` stocke cette clé, pas l'adresse exacte.
 - **Le compteur survit d'un test à l'autre** : la fixture autouse
   `_compteurs_de_debit_vierges` de `tests/conftest.py` le remet à zéro, sinon
   l'ordre d'exécution déciderait quel test prend un 429.

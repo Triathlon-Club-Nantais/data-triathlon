@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import optional_user
 from app.core.analytics import ANONYMOUS_DISTINCT_ID, capture_event
+from app.core.client_address import rate_limit_key
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.feedback import FeedbackCreate, FeedbackCreated
@@ -44,7 +45,9 @@ def submit_feedback(
         body=body.body,
         page_url=body.page_url,
         user_agent=body.user_agent,
-        ip_address=request.client.host if request.client else None,
+        # La clé de débit et non l'adresse exacte (#1552) : la colonne ne sert
+        # qu'au comptage, qui doit regrouper un /64 IPv6.
+        ip_address=rate_limit_key(request.client.host) if request.client else None,
         user_id=user.id if user else None,
         honeypot=body.honeypot,
     )
