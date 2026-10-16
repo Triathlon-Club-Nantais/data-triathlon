@@ -643,18 +643,24 @@ def test_course_summary_histogramme_ignore_les_temps_absents(db_session):
     assert stats_service.course_summary(db_session, course.id)["histogram"] is None
 
 
-def test_course_summary_histogramme_plafonne_a_60_tranches(db_session):
+def test_course_summary_histogram_widens_buckets_to_cover_a_full_distance(db_session):
+    """#1586: past 60 bars of 5 min, the bucket widens instead of lumping the tail."""
+    times = ["08:30:00", "10:00:00", "12:00:00", "14:00:00", "15:50:00", "16:20:00"]
     lignes = [
-        ("A", "Un", "M", "ASPTT", None, "finisher", "00:05:00", None),
-        ("B", "Deux", "M", "ASPTT", None, "finisher", "12:00:00", None),
+        (f"A{i}", "Un", "M", "ASPTT", None, "finisher", t, None) for i, t in enumerate(times)
     ]
     course = _epreuve(db_session, lignes)
 
     histogramme = stats_service.course_summary(db_session, course.id)["histogram"]
 
-    assert len(histogramme["bars"]) == 60
-    # Le dernier temps retombe dans la dernière tranche, il n'est pas perdu.
-    assert sum(histogramme["bars"]) == 2
+    bucket, start, bars = histogramme["bucket_sec"], histogramme["start_sec"], histogramme["bars"]
+    assert bucket > 300
+    assert len(bars) <= 60
+    assert start <= 8 * 3600 + 30 * 60
+    assert start + len(bars) * bucket > 16 * 3600 + 20 * 60
+    assert sum(bars) == len(times)
+    # La dernière barre ne compte que le dernier arrivant (16:20), seul dans sa tranche.
+    assert bars[-1] == 1
 
 
 def test_course_summary_epreuve_vide(db_session):

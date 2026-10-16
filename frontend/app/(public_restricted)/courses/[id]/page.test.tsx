@@ -390,6 +390,15 @@ describe("CoursePage", () => {
     expect(screen.getByText("Clubs non renseignés")).toBeInTheDocument();
   });
 
+  it("annonce la largeur de tranche que l'API a choisie (#1586)", async () => {
+    getCourseSummary.mockResolvedValue({
+      ...SUMMARY,
+      histogram: { bars: [3, 18, 47], start_sec: 30600, bucket_sec: 900 },
+    });
+    await afficher();
+    expect(screen.getByText(/par tranche de 15 minutes/)).toBeInTheDocument();
+  });
+
   it("demande les sources en même temps que la synthèse", async () => {
     await afficher();
     expect(getCourseSources).toHaveBeenCalledWith(1);
