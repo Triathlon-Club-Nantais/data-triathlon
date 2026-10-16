@@ -182,3 +182,9 @@ def test_ipv4_mapped_ipv6_keys_as_its_ipv4():
 
 def test_a_non_ip_host_is_kept_as_is():
     assert rate_limit_key("testclient") == "testclient"
+    assert rate_limit_key("2001:db8::zz") == "2001:db8::zz"
+
+
+def test_a_6to4_address_keys_as_its_ipv4():
+    """One IPv4 owns the whole 2002:<v4>::/48, i.e. 65,536 /64 prefixes."""
+    assert rate_limit_key("2002:102:304:1::1") == rate_limit_key("2002:102:304:2::1") == "1.2.3.4"

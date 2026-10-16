@@ -283,8 +283,9 @@ def _enforce_rate_limit(
 
     if len(seen) >= max_per_window:
         logger.warning(
-            "Rate limit reached on bucket %s for %s (%s %s)",
+            "Rate limit reached on bucket %s for %s, key %s (%s %s)",
             bucket,
+            request.client.host,
             ip,
             request.method,
             request.url.path,

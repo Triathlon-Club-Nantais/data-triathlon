@@ -59,6 +59,12 @@ def rate_limit_key(host: str) -> str:
         return str(address)
     if address.ipv4_mapped:
         return str(address.ipv4_mapped)
+    # Une IPv4 donne tout `2002:<v4>::/48` en 6to4 : 65 536 /64 pour un seul hôte.
+    if address.sixtofour:
+        return str(address.sixtofour)
+    # ponytail: /64, la plus petite allocation IPv6 courante. Un client doté
+    # d'un /56 ou d'un /48 dispose encore de 256 ou 65 536 seaux : élargir le
+    # préfixe si un abus de ce genre est observé.
     return str(ipaddress.IPv6Network((address, 64), strict=False))
 
 
