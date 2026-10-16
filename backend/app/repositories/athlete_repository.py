@@ -688,13 +688,13 @@ def delete_unreferenced(db: Session) -> int:
     65535 paramètres liés que franchirait `delete_orphans_among` sur une base de
     cette taille.
     """
-    efface = (
+    deleted = (
         db.query(Athlete)
         .filter(~referenced_outside_results(Athlete.id))
         .delete(synchronize_session=False)
     )
     db.flush()
-    return efface
+    return deleted
 
 
 def count_all(db: Session) -> int:
@@ -762,13 +762,13 @@ def list_with_season_participation_count(
         func.lower(Participation.status) == STATUS_FINISHER,
     )
     total = func.count(Participation.id)
-    validated = func.sum(case((is_validated, 1), else_=0))
-    club_affiliated = func.sum(
+    validated_count = func.sum(case((is_validated, 1), else_=0))
+    club_affiliated_count = func.sum(
         case((and_(is_validated, Participation.counts_for_tcn.is_(True)), 1), else_=0)
     )
     credit_rows = credits()
     query = (
-        db.query(Athlete, total, validated, club_affiliated)
+        db.query(Athlete, total, validated_count, club_affiliated_count)
         .join(credit_rows, credit_rows.c.athlete_id == Athlete.id)
         .join(Participation, Participation.id == credit_rows.c.participation_id)
         .join(Course, Participation.course_id == Course.id)
