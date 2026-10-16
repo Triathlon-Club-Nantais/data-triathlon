@@ -599,7 +599,10 @@ class _Persister:
         qu'un libellé de relais nomme."""
         if not self._opposed:
             return False
-        labels = [_published_name(scraped), scraped.team_name, *(" ".join(pair) for pair in scraped.teammates or ())]
+        labels = [
+            _published_name(scraped), scraped.team_name,
+            *(" ".join(pair) for pair in scraped.teammates or ()),
+        ]
         return not self._opposed.isdisjoint(opposition_service.named_hashes(*labels))
 
     def _enqueue(

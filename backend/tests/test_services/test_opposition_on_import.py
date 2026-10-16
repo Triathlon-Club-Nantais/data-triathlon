@@ -110,3 +110,11 @@ def test_a_relay_whose_team_name_names_an_opposed_member_arrives_anonymous(db_se
     assert relais.athlete.nom.startswith("Anonyme ")
     assert not relais.team_name
     assert _sans_dupont(db_session)
+
+
+def test_a_label_naming_an_opposed_person_arrives_anonymous_even_off_relay(db_session, opposition):
+    """#1506 : la règle porte sur ce que le libellé publie, que la ligne soit typée relais ou non."""
+    import_persistence.persist_results(db_session, URL, [_ligne("53", "DUPONT Jean-Pierre / MARTIN Alix", "")])
+
+    assert db_session.query(Participation).one().athlete.nom.startswith("Anonyme ")
+    assert _sans_dupont(db_session)
