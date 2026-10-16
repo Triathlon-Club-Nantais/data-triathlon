@@ -7,10 +7,11 @@ qui peut appeler ».
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import DbId, require_permission
+from app.api.deps import require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
+from app.schemas.ids import DbId
 from app.schemas.volunteer_action import AdminVolunteerActionOut
 from app.services import volunteer_action_service
 

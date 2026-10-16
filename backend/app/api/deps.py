@@ -3,9 +3,7 @@ import logging
 import time
 from collections import deque
 from collections.abc import Callable
-from typing import Annotated
 
-from annotated_types import Ge, Le
 from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
@@ -239,15 +237,6 @@ VOLUNTEER_ACTION_RATE_LIMIT_WINDOW_SECONDS = 3600
 #: `OverflowError` (500) au lieu d'une 422 (#1054). Large à dessein : une page
 #: au-delà du total rend toujours une tranche vide, contrat publié.
 MAX_PAGE = 1_000_000
-
-#: Borne haute des identifiants : les clés primaires sont des `integer`
-#: PostgreSQL, et au delà la requête lève une `DataError` (500) au lieu d'une
-#: 422 (#1557). `DbId` s'emploie en chemin comme en requête
-#: (`DbId | None = Query(None)`, ou `Annotated[DbId, Query()]` si obligatoire :
-#: `DbId = Query(...)` perd la borne). Tout identifiant de clé primaire doit le porter
-#: (garde : `tests/test_api/test_id_bounds_api.py`).
-DB_ID_MAX = 2_147_483_647
-DbId = Annotated[int, Ge(1), Le(DB_ID_MAX)]
 
 #: #917, seau dédié pour la raison du seau `site_access`. Même scrypt par
 #: tentative, route joignable sans le cookie du site (vrai anonyme), et ici la

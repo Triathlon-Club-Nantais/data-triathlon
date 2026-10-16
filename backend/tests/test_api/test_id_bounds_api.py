@@ -6,8 +6,8 @@ keeps every future id parameter under the same bound.
 """
 import pytest
 
-from app.api.deps import DB_ID_MAX
 from app.main import app
+from app.schemas.ids import DB_ID_MAX
 
 OUT_OF_RANGE = DB_ID_MAX + 1
 
@@ -67,3 +67,47 @@ def test_external_ids_are_not_bounded():
         parameters = app.openapi()["paths"][path]["get"]["parameters"]
         schema = next(p["schema"] for p in parameters if p["name"] == name)
         assert "maximum" not in schema
+
+
+def _collect_refs(node, components: dict, seen: set[str]) -> None:
+    if isinstance(node, dict):
+        name = node.get("$ref", "").rsplit("/", 1)[-1]
+        if name and name not in seen:
+            seen.add(name)
+            _collect_refs(components[name], components, seen)
+        for value in node.values():
+            _collect_refs(value, components, seen)
+    elif isinstance(node, list):
+        for value in node:
+            _collect_refs(value, components, seen)
+
+
+def _request_body_schemas() -> dict[str, dict]:
+    spec = app.openapi()
+    components = spec["components"]["schemas"]
+    seen: set[str] = set()
+    for operations in spec["paths"].values():
+        for operation in operations.values():
+            _collect_refs(operation.get("requestBody", {}), components, seen)
+    return {name: components[name] for name in seen}
+
+
+def _id_field_integers(field: str, schema: dict) -> list[dict]:
+    if field.endswith("_ids"):
+        arrays = [s for s in [schema, *schema.get("anyOf", [])] if s.get("type") == "array"]
+        return [i for s in arrays for i in _integer_schemas(s["items"])]
+    if field == "id" or field.endswith("_id"):
+        return _integer_schemas(schema)
+    return []
+
+
+def test_every_integer_id_in_a_request_body_carries_the_bound():
+    unbounded = [
+        f"{name}.{field}"
+        for name, component in sorted(_request_body_schemas().items())
+        for field, schema in component.get("properties", {}).items()
+        for integer in _id_field_integers(field, schema)
+        if integer.get("minimum") != 1 or integer.get("maximum") != DB_ID_MAX
+    ]
+
+    assert unbounded == []

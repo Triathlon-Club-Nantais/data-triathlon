@@ -6,13 +6,14 @@ service, jamais un appel direct au repository pour une écriture.
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import DbId, require_permission
+from app.api.deps import require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.club_alias import ClubAlias
 from app.models.user import User
 from app.repositories import club_alias_repository
 from app.schemas.club_alias import ClubAliasIn, ClubAliasList, ClubAliasOut
+from app.schemas.ids import DbId
 from app.services import club_alias as club_alias_service
 
 router = APIRouter(tags=["admin"])

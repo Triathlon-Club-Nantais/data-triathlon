@@ -11,7 +11,6 @@ from pydantic import BaseModel, HttpUrl
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
-    DbId,
     current_user,
     has_volunteer_cookie,
     public_write_rate_limit,
@@ -30,6 +29,7 @@ from app.schemas.admin import (
     ProviderQualityOut,
 )
 from app.schemas.count import BadgeCounts
+from app.schemas.ids import DbId
 from app.services import admin_badge_counts, course_review, pending_providers
 from app.services.auth import authorization
 

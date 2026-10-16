@@ -11,7 +11,7 @@ d'entrée. La garde est posée sur la route, jamais sur le router (#115).
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import DbId, require_permission
+from app.api.deps import require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
@@ -27,6 +27,7 @@ from app.schemas.athlete_identity import (
     IdentityReviewList,
     IgnoredIdentityPairList,
 )
+from app.schemas.ids import DbId
 from app.services import athlete_identity_review
 
 router = APIRouter(tags=["admin"])

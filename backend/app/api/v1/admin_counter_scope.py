@@ -14,7 +14,7 @@ import logging
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import DbId, require_permission
+from app.api.deps import require_permission
 from app.core.database import get_db
 from app.core.exceptions import DomainError
 from app.core.permissions import P
@@ -28,6 +28,7 @@ from app.schemas.counter_scope import (
     CounterScopeOut,
     ScopeKind,
 )
+from app.schemas.ids import DbId
 from app.services import counter_scope
 
 router = APIRouter(tags=["admin"])

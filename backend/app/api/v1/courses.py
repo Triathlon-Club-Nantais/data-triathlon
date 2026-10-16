@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.orm import Session
 
-from app.api.deps import MAX_PAGE, DbId
+from app.api.deps import MAX_PAGE
 from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
@@ -23,6 +23,7 @@ from app.schemas.course import (
     CourseSummary,
     EventPage,
 )
+from app.schemas.ids import DbId
 from app.schemas.participation import CourseParticipationPage, ParticipationOut
 from app.services import challenge_service, stats_service
 

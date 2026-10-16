@@ -4,11 +4,11 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import DbId
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.repositories import athlete_repository
 from app.schemas.club import ClubPodiums, ClubRosterRank, ClubSummary
+from app.schemas.ids import DbId
 from app.services import club_service
 
 router = APIRouter(tags=["club"])

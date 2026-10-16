@@ -17,7 +17,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import MAX_PAGE, DbId, require_permission
+from app.api.deps import MAX_PAGE, require_permission
 from app.core.analytics import capture_event
 from app.core.database import get_db
 from app.core.permissions import P
@@ -44,6 +44,7 @@ from app.schemas.admin import (
     TeammatesUpdate,
 )
 from app.schemas.course import CourseBrief
+from app.schemas.ids import DbId
 from app.schemas.participation import ParticipationOut
 from app.services import admin_actions, athlete_detach, athlete_merge
 
