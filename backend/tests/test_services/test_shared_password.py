@@ -75,3 +75,22 @@ def test_hash_password_produit_un_sel_different_a_chaque_appel():
     second_hash, second_sel = shared_password.hash_password("secret-du-club")
     assert premier_sel != second_sel
     assert premier_hash != second_hash
+
+
+_URLSAFE_ALPHABET = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
+
+
+def test_new_session_secret_is_a_fresh_32_byte_urlsafe_token():
+    premier = shared_password.new_session_secret()
+
+    assert premier != shared_password.new_session_secret()
+    assert len(premier) == 43
+    assert set(premier) <= _URLSAFE_ALPHABET
+
+
+def test_generate_password_is_a_fresh_18_byte_urlsafe_token():
+    premier = shared_password.generate_password()
+
+    assert premier != shared_password.generate_password()
+    assert len(premier) == 24
+    assert set(premier) <= _URLSAFE_ALPHABET

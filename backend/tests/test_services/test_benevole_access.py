@@ -44,24 +44,6 @@ def test_actor_user_id_falls_back_to_the_system_account(db_session):
     assert benevole_access.actor_user_id(db_session, None) == compte.id
 
 
-# --- Secret de session (research.md §D2) -------------------------------------
-
-
-def test_new_session_secret_rend_une_valeur_differente_a_chaque_appel():
-    assert benevole_access.new_session_secret() != benevole_access.new_session_secret()
-
-
-# --- Génération sécurisée (research.md §D5) ----------------------------------
-
-
-def test_generate_password_rend_une_valeur_suffisamment_longue_et_variable():
-    premier = benevole_access.generate_password()
-    second = benevole_access.generate_password()
-
-    assert premier != second
-    assert len(premier) >= 20
-
-
 # --- Remplacement, orchestration de service (data-model.md, invariant d'atomicité) --
 
 
