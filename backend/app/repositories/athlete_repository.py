@@ -14,6 +14,7 @@ from sqlalchemy import (
     select,
     true,
     tuple_,
+    union,
     union_all,
     update,
 )
@@ -555,9 +556,7 @@ def credits():
     without_teammates = select(
         Participation.id.label("participation_id"),
         Participation.athlete_id.label("athlete_id"),
-    ).where(
-        ~exists().where(ParticipationTeammate.participation_id == Participation.id)
-    )
+    ).where(~_has_teammates(Participation.id))
     teammates = select(
         ParticipationTeammate.participation_id.label("participation_id"),
         ParticipationTeammate.athlete_id.label("athlete_id"),
@@ -594,24 +593,43 @@ def only_on_course(db: Session, course_id: int) -> list[int]:
 
     **Lecture pure** : elle chiffre l'impact avant le geste, elle ne prépare rien.
 
-    ponytail: deux ensembles d'ids remontés en mémoire Python puis soustraits —
-    ~40 000 tuples sur la plus grosse base envisagée, pour une modale ouverte
-    quelques fois par an. Si le volume change de nature, la sortie est un
-    `NOT EXISTS` corrélé, qui garde le résultat en base.
+    Même définition du crédit que `credits()`, mais écrite par épreuve : les
+    crédits des autres épreuves ne sont sondés que par `NOT EXISTS`, sur les
+    index `athlete_id`, sans jamais quitter la base (#1581).
     """
-    credit_rows = credits()
-    entrants = (
-        db.query(credit_rows.c.athlete_id)
-        .join(Participation, Participation.id == credit_rows.c.participation_id)
-        .filter(Participation.course_id == course_id)
-        .filter(~referenced_outside_results(credit_rows.c.athlete_id))
+    entrants = union(
+        select(Participation.athlete_id.label("athlete_id")).where(
+            Participation.course_id == course_id, ~_has_teammates(Participation.id)
+        ),
+        select(ParticipationTeammate.athlete_id)
+        .join(Participation, Participation.id == ParticipationTeammate.participation_id)
+        .where(Participation.course_id == course_id),
+    ).subquery("entrants")
+    athlete_id = entrants.c.athlete_id
+    elsewhere = Participation.course_id != course_id
+    credited_elsewhere = or_(
+        exists().where(
+            Participation.athlete_id == athlete_id,
+            elsewhere,
+            ~_has_teammates(Participation.id),
+        ),
+        exists().where(
+            ParticipationTeammate.athlete_id == athlete_id,
+            Participation.id == ParticipationTeammate.participation_id,
+            elsewhere,
+        ),
     )
-    elsewhere = (
-        db.query(credit_rows.c.athlete_id)
-        .join(Participation, Participation.id == credit_rows.c.participation_id)
-        .filter(Participation.course_id != course_id)
+    query = (
+        select(athlete_id)
+        .where(~credited_elsewhere, ~referenced_outside_results(athlete_id))
+        .order_by(athlete_id)
     )
-    return sorted({athlete_id for (athlete_id,) in entrants} - {athlete_id for (athlete_id,) in elsewhere})
+    return list(db.scalars(query))
+
+
+def _has_teammates(participation_id):
+    teammate = aliased(ParticipationTeammate)
+    return exists().where(teammate.participation_id == participation_id)
 
 
 def delete_orphans_among(db: Session, athlete_ids: list[int] | None = None) -> list[int]:

@@ -1126,6 +1126,83 @@ def test_only_on_course_compte_un_equipier_de_relais(db_session):
     assert athlete_repository.only_on_course(db_session, course.id) == sorted([jean.id, paul.id])
 
 
+def _only_on_course_fixture(db_session):
+    """Every shape `only_on_course` must tell apart, keyed by the expected verdict."""
+    from app.models.volunteer_action import VolunteerAction
+
+    target = _course(db_session, "Target")
+    other = _course(db_session, "Other")
+    people = {
+        name: athlete_repository.get_or_create(db_session, nom=name, prenom="X")
+        for name in (
+            "SOLO", "TWICE", "SHARED", "LEADER", "MATE_SOLO_ELSEWHERE",
+            "SOLO_MATE_ELSEWHERE", "HOLDER_ONLY_ELSEWHERE", "HOLDER_ONLY_HERE",
+            "MATE_OF_UNCREDITED", "ONLY_ELSEWHERE", "VOLUNTEER", "STRANGER",
+        )
+    }
+    db_session.flush()
+    _part(db_session, people["SOLO"], target, "1")
+    _part(db_session, people["TWICE"], target, "2")
+    _part(db_session, people["TWICE"], target, "3")
+    _part(db_session, people["SHARED"], target, "4")
+    _part(db_session, people["SHARED"], other, "4")
+    relay_here = _part(db_session, people["LEADER"], target, "5", is_relay=True)
+    participation_repository.replace_teammates(
+        db_session, relay_here, [people["LEADER"].id, people["MATE_SOLO_ELSEWHERE"].id]
+    )
+    _part(db_session, people["MATE_SOLO_ELSEWHERE"], other, "5")
+    _part(db_session, people["SOLO_MATE_ELSEWHERE"], target, "6")
+    relay_elsewhere = _part(db_session, people["ONLY_ELSEWHERE"], other, "6", is_relay=True)
+    participation_repository.replace_teammates(
+        db_session, relay_elsewhere, [people["ONLY_ELSEWHERE"].id, people["SOLO_MATE_ELSEWHERE"].id]
+    )
+    # The holder of a composed relay is credited only if listed among the teammates.
+    _part(db_session, people["HOLDER_ONLY_ELSEWHERE"], target, "7")
+    uncredited_elsewhere = _part(
+        db_session, people["HOLDER_ONLY_ELSEWHERE"], other, "7b", is_relay=True
+    )
+    participation_repository.replace_teammates(
+        db_session, uncredited_elsewhere, [people["ONLY_ELSEWHERE"].id]
+    )
+    uncredited_here = _part(db_session, people["HOLDER_ONLY_HERE"], target, "8", is_relay=True)
+    participation_repository.replace_teammates(
+        db_session, uncredited_here, [people["MATE_OF_UNCREDITED"].id]
+    )
+    _part(db_session, people["VOLUNTEER"], target, "9")
+    db_session.add(VolunteerAction(athlete_id=people["VOLUNTEER"].id, season=2026))
+    db_session.flush()
+    return target, people
+
+
+def test_only_on_course_tells_every_credit_shape_apart(db_session):
+    target, people = _only_on_course_fixture(db_session)
+
+    expected = ["SOLO", "TWICE", "LEADER", "HOLDER_ONLY_ELSEWHERE", "MATE_OF_UNCREDITED"]
+    assert athlete_repository.only_on_course(db_session, target.id) == sorted(
+        people[name].id for name in expected
+    )
+
+
+def test_only_on_course_runs_a_single_query(db_session):
+    """#1581: the other courses' credits stay in the database."""
+    from sqlalchemy import event
+
+    target, _ = _only_on_course_fixture(db_session)
+    statements = []
+
+    def capture(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    engine = db_session.get_bind()
+    event.listen(engine, "after_cursor_execute", capture)
+    try:
+        athlete_repository.only_on_course(db_session, target.id)
+    finally:
+        event.remove(engine, "after_cursor_execute", capture)
+
+    assert len(statements) == 1, statements
+
+
 def test_club_roster_credite_chaque_equipier_d_un_relais(db_session):
     _relais_attribue(db_session)
     db_session.flush()
