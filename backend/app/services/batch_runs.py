@@ -151,7 +151,7 @@ def _to_batch_run(run: dict, with_report: set[int]) -> BatchRun:
             if completed else None
         ),
         # Sur le nom **brut** : c'est le `·` final resté sans rien derrière qui
-        # dit « lancement manuel », et `nom` vient justement de l'avoir perdu.
+        # dit « lancement manuel », et `label` vient justement de l'avoir perdu.
         triggered_by=_trigger_origin(run),
         report_available=run["id"] in with_report,
         external_url=run["html_url"],

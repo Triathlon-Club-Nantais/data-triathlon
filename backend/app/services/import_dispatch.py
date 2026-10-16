@@ -61,7 +61,7 @@ def validate_url(url: str) -> str:
 
 
 def merge_cached_courses(
-    db: Session, persister_courses: list[dict], trace,
+    db: Session, persisted_courses: list[dict], trace,
 ) -> list[dict]:
     """Étoffe le `courses` du SSE `done` avec les heats sautés par cache_probe.
 
@@ -79,10 +79,10 @@ def merge_cached_courses(
     desc).
     """
     if trace is None or not getattr(trace, "cached_urls", None):
-        return persister_courses
+        return persisted_courses
     cached = course_repository.list_by_source_urls(db, trace.cached_urls)
-    seen: set[int] = {c["id"] for c in persister_courses}
-    merged = list(persister_courses)
+    seen: set[int] = {c["id"] for c in persisted_courses}
+    merged = list(persisted_courses)
     for course in cached:
         if course.id in seen:
             continue

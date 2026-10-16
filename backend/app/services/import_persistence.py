@@ -1600,7 +1600,7 @@ def _renumber_duplicate_ranks(results: list[ScrapedResult]) -> None:
 
 
 def _persist_challenges(
-    db: Session, url: str, held: list[ScrapedResult], persister: "_Persister"
+    db: Session, url: str, held: list[ScrapedResult], persisted: "_Persister"
 ) -> list[ScrapedResult]:
     """Enregistre les heats Challenge appariés (#1008) ; rend les lignes des autres.
 
@@ -1621,7 +1621,7 @@ def _persist_challenges(
             db, name=name, event_date=event_date,
             source_url=rows[0].source_url or url, rows=challenge_rows, found=found,
         )
-        persister.challenges += 1
+        persisted.challenges += 1
         _drop_course_twin(db, name, event_date, {r.source_url or url for r in rows})
     return leftovers
 
@@ -1687,18 +1687,18 @@ def persist_steps(
     held = [r for r in results if heat_is_challenge(r.event_name)]
     results = [r for r in results if not heat_is_challenge(r.event_name)]
     _prepare_batch(db, url, results)
-    persister = _Persister(db, url)
-    yield 0, persister
+    persisted = _Persister(db, url)
+    yield 0, persisted
     for done, scraped in enumerate(results, start=1):
-        persister.add(scraped)
-        yield done, persister
-    persister.finalize()
-    leftovers = _persist_challenges(db, url, held, persister)
+        persisted.add(scraped)
+        yield done, persisted
+    persisted.finalize()
+    leftovers = _persist_challenges(db, url, held, persisted)
     if leftovers:
         _prepare_batch(db, url, leftovers)
         for scraped in leftovers:
-            persister.add(scraped)
-        persister.finalize()
+            persisted.add(scraped)
+        persisted.finalize()
 
 
 def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict:
@@ -1714,15 +1714,15 @@ def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict
     cachés (`import_dispatch.merge_cached_courses`) appartient au compte rendu d'import, pas à
     l'écriture.
     """
-    *_, (_done, persister) = persist_steps(db, url, results)
+    *_, (_done, persisted) = persist_steps(db, url, results)
     return {
-        "imported": persister.imported,
-        "updated": persister.updated,
-        "skipped": persister.skipped,
-        "reconciled": persister.reconciled,
-        "challenges": persister.challenges,
-        "passive_sources": persister.passive_sources,
-        "ambiguous_identities": persister.ambiguous_identities,
-        "homonyms_created": persister.homonyms_created,
-        "courses": persister.courses_summary(),
+        "imported": persisted.imported,
+        "updated": persisted.updated,
+        "skipped": persisted.skipped,
+        "reconciled": persisted.reconciled,
+        "challenges": persisted.challenges,
+        "passive_sources": persisted.passive_sources,
+        "ambiguous_identities": persisted.ambiguous_identities,
+        "homonyms_created": persisted.homonyms_created,
+        "courses": persisted.courses_summary(),
     }
