@@ -270,18 +270,18 @@ def update_athlete(
     `exclude_unset` et non `exclude_none` : `birth_date: null` est une mise à
     `NULL` légitime, et seule la présence du champ la distingue d'une absence.
     """
-    champs = body.model_dump(exclude_unset=True)
+    changed_fields = body.model_dump(exclude_unset=True)
     athlete = admin_actions.update_athlete(
         db,
         athlete_id=athlete_id,
-        fields=champs,
+        fields=changed_fields,
         user_id=user.id,
     )
     db.commit()
     capture_event(
         "athlete_updated",
         distinct_id=str(user.id),
-        properties={"fields_changed": list(champs.keys())},
+        properties={"fields_changed": list(changed_fields.keys())},
     )
     return _athlete_record(athlete, participation_repository.count_for_athlete(db, athlete_id))
 

@@ -315,13 +315,13 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
     `effective_permissions` fait déjà pour les mêmes attributions — jusqu'à
     huit ou dix aller-retours DB pour un GET censé être trivial.
     """
-    charge = user_repository.get_with_roles_and_groups(db, user.id) or user
-    effective = authorization.effective_permissions(db, charge, attributions=charge.roles)
+    loaded_user = user_repository.get_with_roles_and_groups(db, user.id) or user
+    effective = authorization.effective_permissions(db, loaded_user, attributions=loaded_user.roles)
     return SessionUserRead(
-        id=charge.id,
-        email=charge.email,
-        display_name=charge.display_name,
-        created_at=charge.created_at,
+        id=loaded_user.id,
+        email=loaded_user.email,
+        display_name=loaded_user.display_name,
+        created_at=loaded_user.created_at,
         permissions=sorted(effective),
         can_administer=permissions.administers(effective),
         roles=[
@@ -331,7 +331,7 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
                 name=attribution.role.name,
                 organisation_id=attribution.organisation_id,
             )
-            for attribution in charge.roles
+            for attribution in loaded_user.roles
         ],
         groups=[
             SessionGroupRead(
@@ -340,6 +340,6 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
                 name=membership.group.name,
                 organisation_id=membership.group.organisation_id,
             )
-            for membership in charge.groups
+            for membership in loaded_user.groups
         ],
     )
