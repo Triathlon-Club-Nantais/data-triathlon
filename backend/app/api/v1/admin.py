@@ -11,6 +11,7 @@ from pydantic import BaseModel, HttpUrl
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
+    DbId,
     current_user,
     has_volunteer_cookie,
     public_write_rate_limit,
@@ -86,7 +87,7 @@ def list_pending_providers(
 
 @router.delete("/admin/pending-providers/{entry_id}", status_code=204)
 def mark_handled(
-    entry_id: int,
+    entry_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.PENDING_PROVIDERS_HANDLE)),
 ):
@@ -111,7 +112,7 @@ def provider_quality(
     "/admin/courses/{course_id}/reliability", response_model=CourseReliabilityRead
 )
 def set_course_reliability(
-    course_id: int,
+    course_id: DbId,
     body: CourseReliabilityUpdate,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.QUALITY_OVERRIDE)),

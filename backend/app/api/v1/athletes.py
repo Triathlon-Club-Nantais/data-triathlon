@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
-from app.api.deps import MAX_PAGE, require_permission
+from app.api.deps import MAX_PAGE, DbId, require_permission
 from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
@@ -112,7 +112,7 @@ def search_athletes(
 
 @router.get("/athletes/{athlete_id}", response_model=AthleteDetail)
 def get_athlete(
-    athlete_id: int,
+    athlete_id: DbId,
     seasons: str | None = Query(None),
     federal_only: bool = Query(
         False,
@@ -154,7 +154,7 @@ def get_athlete(
     response_class=Response,
     responses={200: {"content": {"text/csv": {}}}},
 )
-def get_athlete_participations_csv(athlete_id: int, db: Session = Depends(get_db)):
+def get_athlete_participations_csv(athlete_id: DbId, db: Session = Depends(get_db)):
     """Les résultats de la fiche athlète en CSV pour Excel (#1375) : mêmes lignes
     que `GET /athletes/{id}` sans filtre, en attente et refusées comprises."""
     athlete = athlete_repository.get(db, athlete_id)

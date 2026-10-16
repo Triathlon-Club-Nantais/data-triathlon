@@ -12,7 +12,7 @@ router, et c'est ce qui la rend impossible à oublier au prochain appelant.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import DbId, require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.allowed_email import AllowedEmail
@@ -91,7 +91,7 @@ def add_allowed_email(
 
 @router.delete("/admin/allowed-emails/{entry_id}", status_code=204)
 def remove_allowed_email(
-    entry_id: int,
+    entry_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.ALLOWED_EMAILS_MANAGE)),
 ):

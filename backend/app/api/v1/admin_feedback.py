@@ -9,7 +9,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import DbId, require_permission
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.permissions import P
@@ -79,7 +79,7 @@ def count_feedback(
 
 @router.get("/admin/feedback/{feedback_id}", response_model=FeedbackRead)
 def get_feedback(
-    feedback_id: int,
+    feedback_id: DbId,
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.FEEDBACK_READ)),
 ):
@@ -91,7 +91,7 @@ def get_feedback(
 
 @router.patch("/admin/feedback/{feedback_id}", response_model=FeedbackRead)
 def update_feedback(
-    feedback_id: int,
+    feedback_id: DbId,
     body: FeedbackUpdate,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.FEEDBACK_MANAGE)),

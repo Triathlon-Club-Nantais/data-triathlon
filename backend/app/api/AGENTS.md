@@ -403,6 +403,19 @@ qu'une écriture coûte une ligne. Le seul appelant connu, `ManualResultForm.tsx
 envoie déjà des valeurs conformes, sauf un temps mal tapé dans un champ libre :
 il rend maintenant un 422 au lieu d'un temps illisible en base.
 
+## Identifiants : toujours `DbId` (#1557)
+
+Tout identifiant entier en chemin ou en requête se type `deps.DbId` (1 à
+2 147 483 647, l'`integer` PostgreSQL) : au delà, la requête levait une
+`DataError` en 500, invisible en SQLite qui ne déborde qu'à 2^63. Hors plage,
+c'est une 422 de validation. Obligatoire en requête, il s'écrit
+`Annotated[DbId, Query()]` (`DbId = Query(...)` perd la borne).
+`tests/test_api/test_id_bounds_api.py` parcourt l'OpenAPI et refuse tout
+paramètre `id` ou `*_id` entier sans la borne, hors `EXTERNAL_IDS` : le
+`run_id` de `/admin/batches/{run_id}/report` est un identifiant de run GitHub
+Actions, déjà au delà de l'int4, qui reste un `int` nu. Les identifiants des
+corps JSON ne sont pas couverts.
+
 ## Protéger une ressource (#115)
 
 `api/deps.require_permission(P.X)` fabrique la garde d'**une** route. Elle nomme

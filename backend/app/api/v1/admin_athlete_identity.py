@@ -11,7 +11,7 @@ d'entrée. La garde est posée sur la route, jamais sur le router (#115).
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import DbId, require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
@@ -81,7 +81,7 @@ def list_ignored_identity_pairs(
 
 @router.delete("/admin/identity-review/ignored/{pair_id}", status_code=204)
 def unignore_identity_pair(
-    pair_id: int,
+    pair_id: DbId,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_WRITE)),
 ) -> None:
@@ -101,7 +101,7 @@ def list_confirmed_identity_clubs(
 
 @router.delete("/admin/identity-review/confirmed-clubs/{known_id}", status_code=204)
 def unconfirm_identity_club(
-    known_id: int,
+    known_id: DbId,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_WRITE)),
 ) -> None:
@@ -133,7 +133,7 @@ def list_dismissed_identity_cases(
 
 @router.delete("/admin/identity-review/dismissed/{case_id}", status_code=204)
 def undismiss_identity_case(
-    case_id: int,
+    case_id: DbId,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_WRITE)),
 ) -> None:

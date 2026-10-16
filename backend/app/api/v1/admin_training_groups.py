@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import DbId, require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
@@ -29,7 +29,7 @@ def list_training_groups(
 
 @router.get(BASE + "/{training_group_id}", response_model=TrainingGroupDetailRead)
 def get_training_group(
-    training_group_id: int,
+    training_group_id: DbId,
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.YOUTH_READ)),
 ):
@@ -51,7 +51,7 @@ def create_training_group(
 
 @router.patch(BASE + "/{training_group_id}", response_model=TrainingGroupDetailRead)
 def rename_training_group(
-    training_group_id: int,
+    training_group_id: DbId,
     body: TrainingGroupWrite,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.YOUTH_WRITE)),
@@ -65,7 +65,7 @@ def rename_training_group(
 
 @router.delete(BASE + "/{training_group_id}", status_code=204)
 def delete_training_group(
-    training_group_id: int,
+    training_group_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
@@ -76,7 +76,7 @@ def delete_training_group(
 
 @router.post(BASE + "/{training_group_id}/members", response_model=TrainingGroupDetailRead)
 def add_training_group_member(
-    training_group_id: int,
+    training_group_id: DbId,
     body: TrainingGroupMemberAdd,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.YOUTH_WRITE)),
@@ -90,8 +90,8 @@ def add_training_group_member(
 
 @router.delete(BASE + "/{training_group_id}/members/{profile_id}", response_model=TrainingGroupDetailRead)
 def remove_training_group_member(
-    training_group_id: int,
-    profile_id: int,
+    training_group_id: DbId,
+    profile_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):

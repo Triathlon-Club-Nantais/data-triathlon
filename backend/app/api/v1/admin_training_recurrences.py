@@ -3,7 +3,7 @@ l'aperçu est une écriture au sens des pouvoirs : il ne sert qu'à créer."""
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import DbId, require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
@@ -51,7 +51,7 @@ def create_training_recurrence(
 
 @router.patch(BASE + "/{recurrence_id}", response_model=TrainingRecurrenceRead)
 def update_training_recurrence(
-    recurrence_id: int,
+    recurrence_id: DbId,
     body: TrainingRecurrenceUpdate,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.YOUTH_WRITE)),
@@ -70,7 +70,7 @@ def update_training_recurrence(
 
 @router.delete(BASE + "/{recurrence_id}", response_model=TrainingRecurrenceDeleted)
 def delete_training_recurrence(
-    recurrence_id: int,
+    recurrence_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):

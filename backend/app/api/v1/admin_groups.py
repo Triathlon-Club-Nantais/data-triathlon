@@ -15,7 +15,7 @@ n'accordent rien — c'est la borne de la v1, vérifiée par
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import DbId, require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
@@ -46,7 +46,7 @@ def list_groups(
 
 @router.get("/admin/groups/{group_id}", response_model=GroupDetailRead)
 def get_group(
-    group_id: int,
+    group_id: DbId,
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.GROUPS_READ)),
 ):
@@ -88,7 +88,7 @@ def create_group(
 
 @router.patch("/admin/groups/{group_id}", response_model=GroupDetailRead)
 def update_group(
-    group_id: int,
+    group_id: DbId,
     body: GroupUpdate,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.GROUPS_WRITE)),
@@ -106,7 +106,7 @@ def update_group(
 
 @router.delete("/admin/groups/{group_id}", status_code=204)
 def delete_group(
-    group_id: int,
+    group_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.GROUPS_WRITE)),
 ):
@@ -123,7 +123,7 @@ def delete_group(
     "/admin/groups/{group_id}/members", response_model=GroupDetailRead, status_code=201
 )
 def add_member(
-    group_id: int,
+    group_id: DbId,
     body: GroupMemberAdd,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.GROUPS_ASSIGN)),
@@ -139,8 +139,8 @@ def add_member(
 
 @router.delete("/admin/groups/{group_id}/members/{user_id}", status_code=204)
 def remove_member(
-    group_id: int,
-    user_id: int,
+    group_id: DbId,
+    user_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.GROUPS_ASSIGN)),
 ):

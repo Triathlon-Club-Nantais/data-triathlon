@@ -14,7 +14,7 @@ import logging
 from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import DbId, require_permission
 from app.core.database import get_db
 from app.core.exceptions import DomainError
 from app.core.permissions import P
@@ -101,7 +101,7 @@ def add_counter_scope_entry(
 @router.delete("/admin/counter-scope/{kind}/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_counter_scope_entry(
     kind: ScopeKind,
-    entry_id: int,
+    entry_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.COUNTER_SCOPE_MANAGE)),
 ):
@@ -120,7 +120,7 @@ def remove_counter_scope_entry(
 @router.patch("/admin/counter-scope/{kind}/{entry_id}", response_model=CounterScopeEntryOut)
 def set_counter_scope_entry_ambiguity(
     kind: ScopeKind,
-    entry_id: int,
+    entry_id: DbId,
     body: CounterScopeAmbiguityIn,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.COUNTER_SCOPE_MANAGE)),

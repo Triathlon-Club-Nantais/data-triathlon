@@ -7,7 +7,7 @@ qui peut appeler ».
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import DbId, require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
@@ -29,7 +29,7 @@ def list_pending_declarations(
     "/admin/volunteer-actions/{action_id}/accept", response_model=AdminVolunteerActionOut
 )
 def accept_action(
-    action_id: int,
+    action_id: DbId,
     db: Session = Depends(get_db),
     admin: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)),
 ):
@@ -43,7 +43,7 @@ def accept_action(
     "/admin/volunteer-actions/{action_id}/reject", response_model=AdminVolunteerActionOut
 )
 def reject_action(
-    action_id: int,
+    action_id: DbId,
     db: Session = Depends(get_db),
     admin: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)),
 ):
@@ -58,7 +58,7 @@ def reject_action(
     response_model=list[AdminVolunteerActionOut],
 )
 def list_validated_actions_for_athlete(
-    athlete_id: int,
+    athlete_id: DbId,
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)),
 ):
@@ -70,7 +70,7 @@ def list_validated_actions_for_athlete(
 
 @router.delete("/admin/volunteer-actions/{action_id}", status_code=204)
 def delete_action(
-    action_id: int,
+    action_id: DbId,
     db: Session = Depends(get_db),
     admin: User = Depends(require_permission(P.ATHLETES_VOLUNTEER_VALIDATE)),
 ):

@@ -10,7 +10,7 @@ individuellement.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import DbId, require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.training_session import TrainingSession
@@ -52,7 +52,7 @@ def list_training_sessions(
     "/admin/training-sessions/{training_session_id}", response_model=TrainingSessionDetailRead
 )
 def get_training_session(
-    training_session_id: int,
+    training_session_id: DbId,
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.YOUTH_READ)),
 ):
@@ -90,7 +90,7 @@ def create_training_session(
     "/admin/training-sessions/{training_session_id}", response_model=TrainingSessionDetailRead
 )
 def update_training_session(
-    training_session_id: int,
+    training_session_id: DbId,
     body: TrainingSessionUpdate,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.YOUTH_WRITE)),
@@ -123,7 +123,7 @@ def update_training_session(
 
 @router.delete("/admin/training-sessions/{training_session_id}", status_code=204)
 def delete_training_session(
-    training_session_id: int,
+    training_session_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
@@ -139,7 +139,7 @@ def delete_training_session(
     status_code=201,
 )
 def add_participant(
-    training_session_id: int,
+    training_session_id: DbId,
     body: ParticipantAdd,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.YOUTH_WRITE)),
@@ -161,8 +161,8 @@ def add_participant(
     status_code=204,
 )
 def remove_participant(
-    training_session_id: int,
-    profile_id: int,
+    training_session_id: DbId,
+    profile_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
@@ -177,8 +177,8 @@ def remove_participant(
     response_model=TrainingSessionDetailRead,
 )
 def set_presence(
-    training_session_id: int,
-    profile_id: int,
+    training_session_id: DbId,
+    profile_id: DbId,
     body: PresenceUpdate,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.YOUTH_WRITE)),

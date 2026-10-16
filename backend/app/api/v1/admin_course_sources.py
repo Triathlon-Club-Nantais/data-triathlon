@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.api import sse
-from app.api.deps import require_permission
+from app.api.deps import DbId, require_permission
 from app.core.analytics import capture_event
 from app.core.config import Settings, get_settings
 from app.core.database import SessionLocal, get_db
@@ -31,8 +31,8 @@ router = APIRouter(tags=["admin"])
 
 @router.patch("/admin/courses/{course_id}/sources/{source_id}")
 def switch_course_source(
-    course_id: int,
-    source_id: int,
+    course_id: DbId,
+    source_id: DbId,
     body: CourseSourceSwitch,
     settings: Settings = Depends(get_settings),
     user: User = Depends(require_permission(P.COURSES_SOURCES)),
@@ -94,8 +94,8 @@ def switch_course_source(
 
 @router.delete("/admin/courses/{course_id}/sources/{source_id}", status_code=204)
 def delete_course_source(
-    course_id: int,
-    source_id: int,
+    course_id: DbId,
+    source_id: DbId,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.COURSES_SOURCES)),
 ):

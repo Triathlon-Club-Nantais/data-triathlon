@@ -16,7 +16,7 @@ d'un générateur déjà en `StreamingResponse` ne peut plus jamais devenir un
 from fastapi import APIRouter, Depends
 
 from app.api import sse
-from app.api.deps import require_permission
+from app.api.deps import DbId, require_permission
 from app.core.config import Settings, get_settings
 from app.core.database import SessionLocal
 from app.core.permissions import P
@@ -28,7 +28,7 @@ router = APIRouter(tags=["admin"])
 
 @router.post("/admin/courses/{course_id}/rescrape")
 def rescrape_course(
-    course_id: int,
+    course_id: DbId,
     settings: Settings = Depends(get_settings),
     user: User = Depends(require_permission(P.COURSES_SOURCES)),
 ):

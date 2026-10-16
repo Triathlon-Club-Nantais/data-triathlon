@@ -6,7 +6,7 @@ compteurs ; le routeur commite. Chaque route porte sa garde.
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import DbId, require_permission
 from app.api.uploads import read_bounded_upload
 from app.core.database import get_db
 from app.core.permissions import P
@@ -65,7 +65,7 @@ async def import_club_members(
 
 @router.post("/admin/club-members/{member_id}/link", response_model=ClubMemberOut)
 def link_club_member(
-    member_id: int,
+    member_id: DbId,
     body: ClubMemberLinkIn,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.CLUB_MEMBERS_MANAGE)),
@@ -79,7 +79,7 @@ def link_club_member(
 
 @router.delete("/admin/club-members/{member_id}/link", response_model=ClubMemberOut)
 def unlink_club_member(
-    member_id: int,
+    member_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.CLUB_MEMBERS_MANAGE)),
 ):

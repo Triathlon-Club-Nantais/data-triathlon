@@ -10,10 +10,12 @@ HTTP. L'aperçu ne modifie rien ; la fusion est la seule des deux à `commit`.
 La garde est posée **sur la route**, jamais sur le préfixe (#115, FR-018) :
 `admin.py` monte sous le même `/admin/` le signalement anonyme du site public.
 """
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import DbId, require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
@@ -25,8 +27,8 @@ router = APIRouter(tags=["admin"])
 
 @router.get("/admin/courses/{course_id}/merge-impact", response_model=CourseMergeImpact)
 def course_merge_impact(
-    course_id: int,
-    absorbed_id: int = Query(description="L'épreuve à absorber, celle qui disparaîtra."),
+    course_id: DbId,
+    absorbed_id: Annotated[DbId, Query(description="L'épreuve à absorber, celle qui disparaîtra.")],
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.COURSES_SOURCES)),
 ):
@@ -45,7 +47,7 @@ def course_merge_impact(
 
 @router.post("/admin/courses/{course_id}/merge", response_model=CourseMergeResult)
 def merge_courses(
-    course_id: int,
+    course_id: DbId,
     body: CourseMergeRequest,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.COURSES_SOURCES)),
