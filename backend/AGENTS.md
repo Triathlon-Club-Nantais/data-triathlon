@@ -11,7 +11,25 @@ l'arborescence, et chaque dossier qui a ses propres pièges porte son
   routers. **L'ordre des `add_middleware` y porte du sens** : la pile s'empile à
   l'envers, donc le premier monté est le plus proche du routeur.
   `SecurityHeadersMiddleware` l'est à dessein, pour voir le schéma déjà réécrit
-  par `ProxyHeadersMiddleware` (#396).
+  par `ClientAddressMiddleware` (#396).
+- **Adresse du client** (`core/client_address.py`, #1533), clé de tous les
+  plafonds par IP. Mesuré sur la preview le 16/10/2026 : `X-Forwarded-For`
+  arrive en `<écrit par l'appelant>, <IP vue par Cloudflare>, <bord
+  Cloudflare>, <saut Render>`, chaque proxy ajoutant à droite, et le rewrite
+  Vercel transmet l'en-tête du visiteur sans le réécrire. Deux réglages :
+  `TRUSTED_PROXY_COUNT` (défaut `3`, l'entrée retenue est la troisième en
+  partant de la droite ; une chaîne plus courte garde l'adresse de la socket,
+  `0` ignore l'en-tête) et `FRONTEND_PROXY_SECRET` (vide par défaut). Ce
+  secret, joint par `frontend/proxy.ts` sous `X-Frontend-Proxy-Secret` aux
+  seuls appels `/api/*`, autorise `X-Vercel-Forwarded-For`, que Vercel écrase
+  avec l'IP du visiteur. **Sans lui, les plafonds ne tiennent pas par le
+  front** : chaque appel y compte sous une IP de sortie de Vercel tirée d'un
+  pool AWS (mesuré : 31 appels, aucun 429), et le backend le dit par un
+  WARNING au démarrage. **Le même secret sur le projet Vercel et le service
+  Render**, sinon le front ne l'envoie pas ou le backend l'ignore. Un écart
+  entre l'entrée retenue et `CF-Connecting-IP` sort aussi en WARNING : la
+  plateforme a changé de nombre de sauts, re-mesurer avant de toucher
+  `TRUSTED_PROXY_COUNT`.
 - `app/core/` — `config.py` (pydantic-settings), `logging.py`, `database.py`,
   `exceptions.py`, `time.py`, `club.py` (appartenance au TCN : match à
   l'**égalité** sur une liste de libellés — cf. #76), `discipline.py`

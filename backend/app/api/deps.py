@@ -167,9 +167,9 @@ def require_site_access(
 # écrites — et sur l'offre gratuite Render (un process, limiteur de threads AnyIO
 # à 40, routes toutes `def`), quelques appels concurrents saturent le site.
 #
-# La clé est `request.client.host`, donc la première entrée de `X-Forwarded-For`
-# depuis #393 (`ProxyHeadersMiddleware`, `app/main.py`) : sans ce préalable, tout
-# plafond par IP se contournerait avec un en-tête forgé.
+# La clé est `request.client.host`, posée par `core/client_address.py` (#1533) à
+# partir des seules entrées de `X-Forwarded-For` que la plateforme ajoute : sans
+# ce préalable, tout plafond par IP se contournerait avec un en-tête forgé.
 #
 # Compteur **en mémoire du process**, à la différence du plafond de `/feedback`
 # qui compte des lignes en base : il n'y a ici aucune table où compter, et en

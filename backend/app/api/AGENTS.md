@@ -276,9 +276,12 @@ Quatre choses à ne pas défaire :
   `POST /feedback` qui compte des lignes en base : il n'y a ici aucune table où
   compter, et en créer une ferait écrire la requête que le plafond empêche.
   Exact tant que l'API tourne en un seul process — le cas sur Render.
-- **La clé est `request.client.host`**, donc la première entrée de
-  `X-Forwarded-For` depuis #393. Sans ce préalable, tout plafond par IP se
-  contourne avec un en-tête forgé — c'est pourquoi #395 en dépendait.
+- **La clé est `request.client.host`**, posée par `core/client_address.py`
+  (#1533) : la Nième entrée de `X-Forwarded-For` en partant de la droite
+  (`TRUSTED_PROXY_COUNT`), ou `X-Vercel-Forwarded-For` quand le front prouve
+  son passage par `FRONTEND_PROXY_SECRET`. Jamais la première entrée, que
+  l'appelant écrit depuis que Cloudflare précède Render. Détail :
+  `backend/AGENTS.md`.
 - **Le compteur survit d'un test à l'autre** : la fixture autouse
   `_compteurs_de_debit_vierges` de `tests/conftest.py` le remet à zéro, sinon
   l'ordre d'exécution déciderait quel test prend un 429.
