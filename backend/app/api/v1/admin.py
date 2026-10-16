@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import (
     current_user,
-    has_benevole_cookie,
+    has_volunteer_cookie,
     public_write_rate_limit,
     require_permission,
 )
@@ -72,7 +72,7 @@ def badge_counts(
     son écran, absente sinon. Aucun pouvoir exigé, comme `GET /auth/me` : la
     réponse ne porte que ce que la session peut déjà voir."""
     codes = authorization.effective_permissions(db, user)
-    validation = P.BENEVOLE_ACCESS_MANAGE.code in codes or has_benevole_cookie(request, db)
+    validation = P.VOLUNTEER_ACCESS_MANAGE.code in codes or has_volunteer_cookie(request, db)
     return BadgeCounts(**admin_badge_counts.counts(db, codes, validation=validation))
 
 

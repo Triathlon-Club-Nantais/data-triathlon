@@ -1,4 +1,4 @@
-"""Modèle BenevoleAccessConfig — le mot de passe partagé bénévoles, géré depuis
+"""Modèle VolunteerAccessConfig — le mot de passe partagé bénévoles, géré depuis
 le back-office plutôt que par la variable d'environnement `BENEVOLE_SHARED_PASSWORD`
 (#271, cette feature).
 
@@ -15,7 +15,7 @@ from app.core.database import Base
 from app.core.time import utcnow
 
 
-class BenevoleAccessConfig(Base):
+class VolunteerAccessConfig(Base):
     """État courant du mot de passe partagé bénévoles.
 
     `password_hash`/`password_salt` ne permettent que de **vérifier** une

@@ -25,7 +25,7 @@ def sans_session_sso(client) -> None:
 
 
 def test_etat_non_configure_avant_tout_reglage(client, ouvrir_session):
-    ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE)
 
     reponse = client.get(URL)
 
@@ -34,7 +34,7 @@ def test_etat_non_configure_avant_tout_reglage(client, ouvrir_session):
 
 
 def test_etat_configure_apres_un_remplacement(client, ouvrir_session):
-    ouvrir_session(P.BENEVOLE_ACCESS_MANAGE, nom="Iris Admin")
+    ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE, nom="Iris Admin")
 
     client.put(URL, json={"password": "un-secret-assez-long"})
     reponse = client.get(URL)
@@ -52,7 +52,7 @@ def test_etat_configure_apres_un_remplacement(client, ouvrir_session):
 
 
 def test_remplacement_manuel_permet_une_connexion_benevole(client, ouvrir_session):
-    ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE)
 
     reponse = client.put(URL, json={"password": "un-secret-assez-long"})
     assert reponse.status_code == 200
@@ -70,7 +70,7 @@ def test_put_refuse_un_mot_de_passe_plus_long_que_ce_que_la_connexion_accepte(
     l'admin serait refusé en 422 à la connexion (piège relevé en revue de #513)."""
     from app.schemas.site_access import MAX_PASSWORD_LENGTH
 
-    ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE)
 
     reponse = client.put(URL, json={"password": "x" * (MAX_PASSWORD_LENGTH + 1)})
 
@@ -81,7 +81,7 @@ def test_put_refuse_un_mot_de_passe_plus_long_que_ce_que_la_connexion_accepte(
 def test_put_accepte_la_longueur_maximale_de_la_connexion(client, ouvrir_session):
     from app.schemas.site_access import MAX_PASSWORD_LENGTH
 
-    ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE)
     mot_de_passe = "x" * MAX_PASSWORD_LENGTH
 
     assert client.put(URL, json={"password": mot_de_passe}).status_code == 200
@@ -91,7 +91,7 @@ def test_put_accepte_la_longueur_maximale_de_la_connexion(client, ouvrir_session
 
 def test_remplacement_invalide_les_sessions_deja_ouvertes(client, ouvrir_session):
     """FR-006, SC-002 (quickstart.md scénario 2)."""
-    ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE)
     client.put(URL, json={"password": "premier-secret-assez-long"})
 
     session_benevole = client.post(
@@ -112,7 +112,7 @@ def test_remplacement_invalide_les_sessions_deja_ouvertes(client, ouvrir_session
 def test_remplacement_consigne_l_acteur_sans_secret_dans_le_payload(
     client, ouvrir_session, db_session
 ):
-    acteur = ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    acteur = ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE)
 
     client.put(URL, json={"password": "un-secret-assez-long"})
 
@@ -130,7 +130,7 @@ def test_remplacement_consigne_l_acteur_sans_secret_dans_le_payload(
 
 
 def test_generation_rend_un_mot_de_passe_qui_fonctionne(client, ouvrir_session):
-    ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE)
 
     reponse = client.post(URL_GENERATE)
     assert reponse.status_code == 200
@@ -145,7 +145,7 @@ def test_generation_rend_un_mot_de_passe_qui_fonctionne(client, ouvrir_session):
 
 def test_le_mot_de_passe_genere_n_est_plus_jamais_retrouvable(client, ouvrir_session):
     """FR-004, SC-003 — même après génération, `GET` ne le rend jamais."""
-    ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE)
 
     client.post(URL_GENERATE)
     etat = client.get(URL).json()
@@ -154,7 +154,7 @@ def test_le_mot_de_passe_genere_n_est_plus_jamais_retrouvable(client, ouvrir_ses
 
 
 def test_generation_invalide_aussi_les_sessions_ouvertes(client, ouvrir_session):
-    ouvrir_session(P.BENEVOLE_ACCESS_MANAGE)
+    ouvrir_session(P.VOLUNTEER_ACCESS_MANAGE)
     client.put(URL, json={"password": "premier-secret-assez-long"})
     session_benevole = client.post(
         "/api/v1/benevoles/session", json={"password": "premier-secret-assez-long"}

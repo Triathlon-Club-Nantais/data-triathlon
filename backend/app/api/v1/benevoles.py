@@ -1,6 +1,6 @@
 """Page de vérification des résultats par les bénévoles (#271).
 
-Couche mince : garde dédiée (`require_benevole_access`, cf. `api/deps.py`),
+Couche mince : garde dédiée (`require_volunteer_access`, cf. `api/deps.py`),
 **distincte** de `require_permission` (SSO/RBAC) — mot de passe partagé, pas
 de rôle. Deux des huit routes gardées délèguent à des fonctions déjà livrées
 de `services/admin_actions.py` (réutilisées, pas dupliquées) sous le
@@ -16,8 +16,8 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import (
     NotAuthenticatedError,
-    benevole_login_rate_limit,
-    require_benevole_access,
+    require_volunteer_access,
+    volunteer_login_rate_limit,
 )
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
@@ -49,7 +49,7 @@ router = APIRouter(tags=["benevoles"])
 
 
 @router.post(
-    "/benevoles/session", status_code=204, dependencies=[Depends(benevole_login_rate_limit)]
+    "/benevoles/session", status_code=204, dependencies=[Depends(volunteer_login_rate_limit)]
 )
 def open_session(
     body: BenevoleLogin,
@@ -66,7 +66,7 @@ def open_session(
         raise NotAuthenticatedError("Mot de passe incorrect.")
 
     response.set_cookie(
-        key=benevole_access.BENEVOLE_SESSION_COOKIE,
+        key=benevole_access.VOLUNTEER_SESSION_COOKIE,
         value=shared_password.sign_cookie(config.session_secret),
         httponly=True,
         secure=settings.auth_cookie_secure,
@@ -82,7 +82,7 @@ def close_session(response: Response, settings: Settings = Depends(get_settings)
     """Déconnexion explicite. Sans garde : sortir d'un cookie invalide doit
     toujours être possible, et le geste n'a aucun effet de bord sensible."""
     response.delete_cookie(
-        key=benevole_access.BENEVOLE_SESSION_COOKIE,
+        key=benevole_access.VOLUNTEER_SESSION_COOKIE,
         path="/",
         httponly=True,
         secure=settings.auth_cookie_secure,
@@ -93,7 +93,7 @@ def close_session(response: Response, settings: Settings = Depends(get_settings)
 @router.get(
     "/benevoles/queue",
     response_model=list[ParticipationOut],
-    dependencies=[Depends(require_benevole_access)],
+    dependencies=[Depends(require_volunteer_access)],
 )
 def queue(db: Session = Depends(get_db)):
     """Résultats en attente de validation, tous clubs confondus (research.md §D5)."""
@@ -103,7 +103,7 @@ def queue(db: Session = Depends(get_db)):
 @router.get(
     "/benevoles/queue/history",
     response_model=ValidationQueueHistory,
-    dependencies=[Depends(require_benevole_access)],
+    dependencies=[Depends(require_volunteer_access)],
 )
 def queue_history(db: Session = Depends(get_db)):
     """Arriéré de la file par jour et délai moyen de résolution (US13, #466)."""
@@ -120,7 +120,7 @@ _TAILLE_RECHERCHE = 20
 @router.get(
     "/benevoles/athletes",
     response_model=list[AthleteBrief],
-    dependencies=[Depends(require_benevole_access)],
+    dependencies=[Depends(require_volunteer_access)],
 )
 def search_athletes(
     name: str = Query(min_length=2, description="Nom ou prénom, mot à mot, sans casse ni accents."),
@@ -151,7 +151,7 @@ def rename_course(
     course_id: int,
     body: BenevoleCourseRename,
     db: Session = Depends(get_db),
-    admin: User | None = Depends(require_benevole_access),
+    admin: User | None = Depends(require_volunteer_access),
 ):
     """Uniformise le nom d'une épreuve associée à un résultat en attente (US2).
 
@@ -183,7 +183,7 @@ def reassign(
     participation_id: int,
     body: ParticipationReassign,
     db: Session = Depends(get_db),
-    admin: User | None = Depends(require_benevole_access),
+    admin: User | None = Depends(require_volunteer_access),
 ):
     """Réattribue un résultat en attente à un autre athlète existant (US3).
 
@@ -211,7 +211,7 @@ def reassign(
 def validate(
     participation_id: int,
     db: Session = Depends(get_db),
-    admin: User | None = Depends(require_benevole_access),
+    admin: User | None = Depends(require_volunteer_access),
 ):
     """Valide un résultat en attente (US1) — le fait passer visible partout."""
     cible = participation_repository.get(db, participation_id)
@@ -227,7 +227,7 @@ def validate(
 @router.get(
     "/benevoles/rejected",
     response_model=list[ParticipationOut],
-    dependencies=[Depends(require_benevole_access)],
+    dependencies=[Depends(require_volunteer_access)],
 )
 def rejected(db: Session = Depends(get_db)):
     """Résultats signalés non conformes, tous clubs confondus (#437)."""
@@ -241,7 +241,7 @@ def rejected(db: Session = Depends(get_db)):
 def reject(
     participation_id: int,
     db: Session = Depends(get_db),
-    admin: User | None = Depends(require_benevole_access),
+    admin: User | None = Depends(require_volunteer_access),
 ):
     """Signale un résultat en attente comme non conforme (#437)."""
     cible = participation_repository.get(db, participation_id)
@@ -261,7 +261,7 @@ def reject(
 def unreject(
     participation_id: int,
     db: Session = Depends(get_db),
-    admin: User | None = Depends(require_benevole_access),
+    admin: User | None = Depends(require_volunteer_access),
 ):
     """Annule le signalement d'un résultat non conforme (#437)."""
     cible = participation_repository.get(db, participation_id)
@@ -282,7 +282,7 @@ def update_fields(
     participation_id: int,
     body: ParticipationFieldsUpdate,
     db: Session = Depends(get_db),
-    admin: User | None = Depends(require_benevole_access),
+    admin: User | None = Depends(require_volunteer_access),
 ):
     """Corrige dossard, place au général, club et catégorie (#437)."""
     cible = participation_repository.get(db, participation_id)

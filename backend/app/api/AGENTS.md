@@ -250,7 +250,7 @@ gardes de pouvoir — `api/deps.scrape_rate_limit` sur `POST /scrape/event` et
 `GET /auth/{provider}/authorize`, `api/deps.public_write_rate_limit` sur
 `POST /admin/pending-providers` et `POST /participations`,
 `api/deps.site_access_rate_limit` sur `POST /site-access/session` (#509),
-`api/deps.benevole_login_rate_limit` sur `POST /benevoles/session` (#917),
+`api/deps.volunteer_login_rate_limit` sur `POST /benevoles/session` (#917),
 `api/deps.csp_report_rate_limit` sur `POST /csp-reports` (#1168), et
 `api/deps.volunteer_action_rate_limit` sur `POST /volunteer-actions` (#1397).
 Quatre choses à ne pas défaire :
@@ -468,7 +468,7 @@ CLI d'amorçage, sans acteur, n'écrivent rien.
 
 ## Page bénévoles : une seconde garde, hors du socle SSO (#271)
 
-`benevoles.py` porte dix ressources gardées par `require_benevole_access`
+`benevoles.py` porte dix ressources gardées par `require_volunteer_access`
 (`api/deps.py`) — **pas** `require_permission`. Mot de passe partagé (5-6
 bénévoles). Décision produit et alternatives rejetées : `specs/20260815-
 114258-page-validation-benevoles/research.md` §D1.
@@ -533,7 +533,7 @@ graphique de la page bénévoles. Même garde, aucune écriture.
 
 La pastille « Validation des épreuves » du rail ne passe plus par ce routeur :
 `GET /admin/badge-counts` (#1385) lit le même cookie par
-`deps.has_benevole_cookie`, sans 401.
+`deps.has_volunteer_cookie`, sans 401.
 
 **Le renommage, la réattribution, la validation, le rejet et la correction de
 champs sont scopés au résultat en attente actionnable** (relevé en revue de

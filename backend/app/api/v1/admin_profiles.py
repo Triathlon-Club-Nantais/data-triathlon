@@ -39,14 +39,14 @@ def _detail_for(db: Session, actor: User, profile: PersonalProfile) -> dict:
     return profile_service.profile_detail_view(
         db,
         profile,
-        with_personal_data=authorization.has_permission(db, actor, P.JEUNES_READ),
+        with_personal_data=authorization.has_permission(db, actor, P.YOUTH_READ),
     )
 
 
 @router.get("/admin/profiles", response_model=list[ProfileRead])
 def list_profiles(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.JEUNES_READ)),
+    _: User = Depends(require_permission(P.YOUTH_READ)),
 ):
     return [profile_service.profile_view(p) for p in profile_service.list_profiles(db)]
 
@@ -55,7 +55,7 @@ def list_profiles(
 def get_profile(
     profile_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.JEUNES_READ)),
+    _: User = Depends(require_permission(P.YOUTH_READ)),
 ):
     profile = profile_service.get_profile_or_404(db, profile_id)
     return profile_service.profile_detail_view(db, profile, with_personal_data=True)
@@ -65,7 +65,7 @@ def get_profile(
 def create_profile(
     body: ProfileCreate,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     profile = profile_service.create_profile(
         db,
@@ -86,7 +86,7 @@ def update_profile(
     profile_id: int,
     body: ProfileUpdate,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     profile = profile_service.get_profile_or_404(db, profile_id)
     profile_service.update_profile(
@@ -118,7 +118,7 @@ def add_log_entry(
     profile_id: int,
     body: ProfileLogEntryCreate,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     """Rend le détail (complet avec `jeunes:read`), pas seulement l'entrée créée (patron
     `add_member` de `admin_groups.py`) : le front n'a besoin que d'un seul

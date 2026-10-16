@@ -26,7 +26,7 @@ from app.services.auth import authorization
 
 logger = logging.getLogger(__name__)
 
-class _Sentinelle(Enum):
+class _Sentinel(Enum):
     """Porteuse d'`UNCHANGED`. `Enum` et non `object()` pour que le typage
     resserre bien `role_id` après un `is not UNCHANGED`."""
 
@@ -40,14 +40,14 @@ class _Sentinelle(Enum):
 #:
 #: C'est aussi ce qui distingue la CLI de l'écran : `allow-email` réautorise une
 #: adresse sans se prononcer sur son rôle, là où le formulaire l'énonce toujours.
-UNCHANGED = _Sentinelle.UNCHANGED
+UNCHANGED = _Sentinel.UNCHANGED
 
 #: `EmailStr` s'appuie sur `email-validator`, déjà installé par
 #: `fastapi[standard]`. Employé ici plutôt que sur le DTO : posé sur le champ, il
 #: fait rendre à FastAPI un 422 dont le `detail` est une liste et le message
 #: anglais — deux contrats rompus d'un coup (FR-010, et la forme
 #: `{"detail": "<chaîne>"}` que le front réaffiche).
-_ADRESSE = TypeAdapter(EmailStr)
+_EMAIL_ADAPTER = TypeAdapter(EmailStr)
 
 
 class InvalidEmailError(DomainError):
@@ -68,12 +68,12 @@ def validate_email(email: str) -> str:
     oblige à retrouver ce qu'on a tapé, dans un formulaire qui vient de se vider.
     """
     try:
-        _ADRESSE.validate_python(email.strip())
-    except ValidationError as invalide:
+        _EMAIL_ADAPTER.validate_python(email.strip())
+    except ValidationError as invalid:
         raise InvalidEmailError(
             f"« {email.strip()} » n'est pas une adresse électronique valide. "
             "Forme attendue : prenom.nom@exemple.fr."
-        ) from invalide
+        ) from invalid
     return email
 
 
@@ -86,7 +86,7 @@ def add(
     actor: User | None,
     *,
     email: str,
-    role_id: int | None | _Sentinelle = UNCHANGED,
+    role_id: int | None | _Sentinel = UNCHANGED,
 ) -> tuple[AllowedEmail, bool, int]:
     """Inscrit l'adresse et **rouvre** les comptes qui la portent.
 
@@ -106,39 +106,39 @@ def add(
     geste par lequel on corrige un choix, et le seul — la ligne n'a pas d'autre
     éditeur. Omettre le paramètre (`UNCHANGED`) ne se prononce pas.
     """
-    adresse = validate_email(email)
+    address = validate_email(email)
     if role_id is not UNCHANGED:
         if actor is None:
             # Une garde qui s'annule pour qui ne passe pas d'acteur n'est pas une
             # garde — et c'est la forme exacte qui a produit le défaut d'origine.
             raise ValueError("Nommer un rôle initial exige un acteur.")
-        _assert_may_choose(db, actor, adresse, role_id)
+        _assert_may_choose(db, actor, address, role_id)
 
-    entree, creee = allowed_email_repository.add(
-        db, email=adresse, created_by_user_id=actor.id if actor else None
+    entry, created = allowed_email_repository.add(
+        db, email=address, created_by_user_id=actor.id if actor else None
     )
     if role_id is not UNCHANGED:
-        allowed_email_repository.set_initial_role(db, entree, role_id=role_id)
-    reactives = user_repository.set_active(
-        db, user_repository.find_by_email(db, entree.email), active=True
+        allowed_email_repository.set_initial_role(db, entry, role_id=role_id)
+    reactivated = user_repository.set_active(
+        db, user_repository.find_by_email(db, entry.email), active=True
     )
-    if creee or reactives:
+    if created or reactivated:
         logger.info(
             "Allow-list: address added (actor=%s, created=%s, reactivated=%s)",
             actor.id if actor else "cli",
-            creee,
-            reactives,
+            created,
+            reactivated,
         )
     audit.record(
-        db, actor.id if actor else None, action="allowed_email.add", entity_type="allowed_email", entity_id=entree.id,
+        db, actor.id if actor else None, action="allowed_email.add", entity_type="allowed_email", entity_id=entry.id,
         payload={
-            "email": entree.email,
-            "created": creee,
-            "accounts_reactivated": reactives,
-            "initial_role_id": entree.role_id,
+            "email": entry.email,
+            "created": created,
+            "accounts_reactivated": reactivated,
+            "initial_role_id": entry.role_id,
         },
     )
-    return entree, creee, reactives
+    return entry, created, reactivated
 
 
 def _assert_may_choose(
@@ -173,14 +173,14 @@ def _assert_may_choose(
     résolu, sinon un identifiant inconnu rend 404 à qui n'attribue pas et le
     catalogue se balaie par le couple 404/201.
     """
-    existante = allowed_email_repository.get_by_email(db, email)
-    ancien = existante.role if existante else None
-    if (ancien.id if ancien else None) == role_id:
+    existing = allowed_email_repository.get_by_email(db, email)
+    previous = existing.role if existing else None
+    if (previous.id if previous else None) == role_id:
         return  # rien ne change de mains
 
     authorization.assert_may_assign_roles(db, actor)
-    if ancien is not None:
-        authorization.assert_may_hand_over(db, actor, ancien)
+    if previous is not None:
+        authorization.assert_may_hand_over(db, actor, previous)
     if role_id is None:
         return
 
@@ -212,17 +212,17 @@ def remove(db: Session, actor: User, entry: AllowedEmail) -> int:
     verrouille tout autant). Ce qui se garde est la **perte** du dernier
     administrateur, jamais l'identité du demandeur.
     """
-    entry_id, adresse = entry.id, entry.email
-    with authorization.administrateurs_preserves(db):
-        comptes = user_repository.find_by_email(db, entry.email)
-        fermes = user_repository.set_active(db, comptes, active=False)
+    entry_id, address = entry.id, entry.email
+    with authorization.preserving_admins(db):
+        accounts = user_repository.find_by_email(db, entry.email)
+        deactivated = user_repository.set_active(db, accounts, active=False)
         allowed_email_repository.delete(db, entry)
 
     logger.info(
-        "Allow-list: address removed (actor=%s, deactivated=%s)", actor.id, fermes
+        "Allow-list: address removed (actor=%s, deactivated=%s)", actor.id, deactivated
     )
     audit.record(
         db, actor.id if actor else None, action="allowed_email.remove", entity_type="allowed_email", entity_id=entry_id,
-        payload={"email": adresse, "accounts_deactivated": fermes},
+        payload={"email": address, "accounts_deactivated": deactivated},
     )
-    return fermes
+    return deactivated

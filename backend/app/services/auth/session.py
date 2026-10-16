@@ -90,12 +90,12 @@ def revoke_all(db: Session, actor: User | None = None) -> tuple[int, int]:
     partant avec les autres : sans cette ligne, « qui a coupé tout le monde »
     n'aurait plus de réponse durable.
     """
-    sessions, comptes = session_repository.delete_all(db)
+    sessions, accounts = session_repository.delete_all(db)
     audit.record(
         db, actor.id if actor else None, action="sessions.revoke", entity_type="sessions", entity_id=0,
-        payload={"scope": "all", "sessions": sessions, "accounts": comptes},
+        payload={"scope": "all", "sessions": sessions, "accounts": accounts},
     )
-    return sessions, comptes
+    return sessions, accounts
 
 
 def revoke_for_email(db: Session, email: str, actor: User | None = None) -> tuple[int, int]:
@@ -111,14 +111,14 @@ def revoke_for_email(db: Session, email: str, actor: User | None = None) -> tupl
     ce qui distingue ce geste du retrait d'adresse (#170), lequel ferme par la
     jointure sans effacer une ligne, donc réversiblement.
     """
-    sessions, comptes = session_repository.delete_for_users(
+    sessions, accounts = session_repository.delete_for_users(
         db, [user.id for user in user_repository.find_by_email(db, email)]
     )
     audit.record(
         db, actor.id if actor else None, action="sessions.revoke", entity_type="sessions", entity_id=0,
-        payload={"scope": email, "sessions": sessions, "accounts": comptes},
+        payload={"scope": email, "sessions": sessions, "accounts": accounts},
     )
-    return sessions, comptes
+    return sessions, accounts
 
 
 def close(db: Session, token: str | None) -> None:

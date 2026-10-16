@@ -85,7 +85,7 @@ def test_a_session_without_privilege_is_refused(client, db_session):
 
 
 def test_jeunes_read_alone_reads_but_does_not_write(client, db_session):
-    _session_avec(client, db_session, str(P.JEUNES_READ))
+    _session_avec(client, db_session, str(P.YOUTH_READ))
     for method, path in READS:
         assert client.request(method, path).status_code in (200, 404)
     for method, path, body in WRITES:

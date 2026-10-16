@@ -1,4 +1,4 @@
-"""Accès données pour BenevoleAccessConfig — seule couche qui touche la Session.
+"""Accès données pour VolunteerAccessConfig — seule couche qui touche la Session.
 
 Une seule ligne existe à tout instant (data-model.md) : `save_config` écrit
 la ligne existante si elle existe, la crée sinon. **Ne commite jamais** — la
@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
-from app.models.benevole_access_config import BenevoleAccessConfig
+from app.models.benevole_access_config import VolunteerAccessConfig
 
 #: Id fixe de la ligne unique — nommée `SINGLETON_ID` jusqu'à la revue de #513,
 #: qui a jugé le mot illisible : il dit la forme de la table, pas ce que la
@@ -24,13 +24,13 @@ from app.models.benevole_access_config import BenevoleAccessConfig
 CONFIG_ROW_ID = 1
 
 
-def get_config(db: Session) -> BenevoleAccessConfig | None:
+def get_config(db: Session) -> VolunteerAccessConfig | None:
     """La configuration courante, ou `None` si aucun mot de passe n'a jamais
     été défini (fail-closed, FR-007). `updated_by` est chargé dans la même
     requête — l'écran l'affiche à chaque consultation."""
     return db.scalar(
-        select(BenevoleAccessConfig).options(
-            joinedload(BenevoleAccessConfig.updated_by)
+        select(VolunteerAccessConfig).options(
+            joinedload(VolunteerAccessConfig.updated_by)
         )
     )
 
@@ -42,7 +42,7 @@ def save_config(
     password_salt: str,
     session_secret: str,
     updated_by_user_id: int,
-) -> BenevoleAccessConfig:
+) -> VolunteerAccessConfig:
     """Écrit les trois champs secrets **ensemble** — jamais l'un sans les
     autres (data-model.md, invariant d'atomicité).
 
@@ -53,7 +53,7 @@ def save_config(
     alors la contrainte de clé primaire — jamais une seconde lecture, que
     les deux franchiraient pareillement — qui tranche.
     """
-    config = db.get(BenevoleAccessConfig, CONFIG_ROW_ID)
+    config = db.get(VolunteerAccessConfig, CONFIG_ROW_ID)
     if config is not None:
         config.password_hash = password_hash
         config.password_salt = password_salt
@@ -63,7 +63,7 @@ def save_config(
         db.refresh(config)
         return config
 
-    config = BenevoleAccessConfig(
+    config = VolunteerAccessConfig(
         id=CONFIG_ROW_ID,
         password_hash=password_hash,
         password_salt=password_salt,
@@ -75,7 +75,7 @@ def save_config(
             db.add(config)
             db.flush()
     except IntegrityError:
-        config = db.get(BenevoleAccessConfig, CONFIG_ROW_ID)
+        config = db.get(VolunteerAccessConfig, CONFIG_ROW_ID)
         if config is None:  # pragma: no cover — une autre contrainte a cédé
             raise
         config.password_hash = password_hash

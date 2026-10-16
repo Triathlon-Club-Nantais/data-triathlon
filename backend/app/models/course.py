@@ -26,10 +26,10 @@ from app.models.course_source import CourseSource
 #: légitime : sans ce repli, le SQL rendrait `NULL` là où le contrat public
 #: (`CourseBrief.source_url: str`) promet une chaîne, et un `WHERE
 #: source_url = ''` ne ramènerait plus ces épreuves.
-_SANS_SOURCE = ""
+_NO_SOURCE = ""
 
 
-def _from_active_source(course: "Course", champ: str) -> str:
+def _from_active_source(course: "Course", field: str) -> str:
     """Lit un champ de la source active **dans la collection déjà en mémoire**.
 
     Pas de requête : la relation `sources` est la même que celle que traverse la
@@ -39,8 +39,8 @@ def _from_active_source(course: "Course", champ: str) -> str:
     """
     for source in course.sources:
         if source.is_active:
-            return getattr(source, champ)
-    return _SANS_SOURCE
+            return getattr(source, field)
+    return _NO_SOURCE
 
 
 class Course(Base):

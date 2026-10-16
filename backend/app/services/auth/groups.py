@@ -150,7 +150,7 @@ def update_group(
     """Renomme et redécrit. **Le slug ne bouge pas** — il est l'identité du groupe,
     et le changer serait un changement d'identité déguisé en modification de
     libellé. Aucune appartenance n'est touchée (FR-006)."""
-    avant = {"name": group.name, "description": group.description}
+    before = {"name": group.name, "description": group.description}
     if name is not None:
         group.name = name
     if description is not None:
@@ -162,7 +162,7 @@ def update_group(
         db, actor.id, action="group.update", entity_type="group", entity_id=group.id,
         payload={
             "slug": group.slug,
-            "before": avant,
+            "before": before,
             "after": {"name": group.name, "description": group.description},
         },
     )
