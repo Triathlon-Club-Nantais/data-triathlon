@@ -3,20 +3,15 @@ import type { CSSProperties } from "react";
 /** Avatar TCN : initiales sur dégradé orange. */
 export function Avatar({
   name = "",
-  initials,
   size = 40,
   style,
 }: {
   name?: string;
-  initials?: string;
   size?: number;
   style?: CSSProperties;
 }) {
-  let derived = initials;
-  if (!derived && name) {
-    const parts = name.trim().split(/\s+/);
-    derived = ((parts[0]?.[0] || "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
-  }
+  const parts = name.trim().split(/\s+/);
+  const derived = ((parts[0]?.[0] || "") + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase();
   const large = size >= 64;
   return (
     // `aria-hidden` : l'avatar est décoratif partout où il sert, le nom est

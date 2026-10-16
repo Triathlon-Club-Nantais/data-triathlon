@@ -4,13 +4,11 @@ import type { CSSProperties, ReactNode } from "react";
 export function Badge({
   variant = "neutral",
   count = false,
-  dot = false,
   children,
   style,
 }: {
   variant?: "neutral" | "orange" | "ink";
   count?: boolean;
-  dot?: boolean;
   children?: ReactNode;
   style?: CSSProperties;
 }) {
@@ -63,7 +61,6 @@ export function Badge({
         ...style,
       }}
     >
-      {dot ? <span style={{ width: 7, height: 7, borderRadius: 999, background: "currentColor" }} /> : null}
       {children}
     </span>
   );
