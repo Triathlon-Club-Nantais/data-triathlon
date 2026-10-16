@@ -7,6 +7,7 @@ import {
   OPEN_PICKER_EVENT,
   useSelectedAthlete,
 } from "@/components/layout/AthletePicker";
+import { useHydrated } from "@/hooks/useHydrated";
 
 /**
  * Invitation discrète à choisir son athlète, pour qui atterrit sur
@@ -42,13 +43,10 @@ import {
  */
 export function InvitationAthlete() {
   const athlete = useSelectedAthlete();
-  const [hydrated, setHydrated] = useState(false);
+  const hydrated = useHydrated();
   const [ficheADisparu, setFicheADisparu] = useState(false);
 
   useEffect(() => {
-    // Signale la fin d'hydratation, patron déjà en place dans `MaSaison.tsx`.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setHydrated(true);
     const surPerte = () => setFicheADisparu(true);
     // Un nouveau choix (y compris depuis la palette rouverte par `MaSaison`
     // en état « perdu ») lève la mise en veille — l'ancienne fiche disparue
