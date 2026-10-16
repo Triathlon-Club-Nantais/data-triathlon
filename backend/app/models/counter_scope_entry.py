@@ -28,8 +28,6 @@ from app.core.time import utcnow
 NON_FEDERAL_DISCIPLINE = "non_federal_discipline"
 CLUB_LABEL = "tcn_club_label"
 
-KINDS: frozenset[str] = frozenset({NON_FEDERAL_DISCIPLINE, CLUB_LABEL})
-
 
 class CounterScopeEntry(Base):
     """Une chaîne dans l'un des deux ensembles, avec sa provenance."""
