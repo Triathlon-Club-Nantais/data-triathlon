@@ -27,7 +27,7 @@ from app.scrapers.prolivesport import (
 
 #: Plan de split vide (aucun rôle résolu, sans ambiguïté) — pour les tests qui
 #: ne portent pas sur les splits eux-mêmes.
-_PLAN_VIDE = _SplitPlan(resolved={}, ambigu=False, tous_les_champs=[])
+_PLAN_VIDE = _SplitPlan(resolved={}, ambiguous=False, all_fields=[])
 
 # Liste de courses telle que renvoyée par result/raceList/{eventId}/
 RACES = [
@@ -49,7 +49,7 @@ def test_build_split_map_un_seul_candidat_par_role():
     assert plan.resolved == {
         "swim": "Nat", "t1": "Tr1", "bike": "Velo", "t2": "Tr2", "run": "Cap",
     }
-    assert plan.ambigu is False
+    assert plan.ambiguous is False
 
 
 def test_build_split_map_resout_bike_run_malgre_champs_cumules_carte_979():
@@ -73,8 +73,8 @@ def test_build_split_map_resout_bike_run_malgre_champs_cumules_carte_979():
     assert plan.resolved == {
         "swim": "T1", "t1": "T2", "bike": "T3", "t2": "T4", "run": "T5",
     }
-    assert plan.ambigu is False
-    assert plan.tous_les_champs == [
+    assert plan.ambiguous is False
+    assert plan.all_fields == [
         ("T1", "Swim"), ("T2", "#1"), ("T3", "Bike"), ("T4", "#2"),
         ("T5", "Run"), ("T6", "BikeStart"), ("T7", "BikeEnd"), ("T8", "RunStart"),
     ]
@@ -88,13 +88,13 @@ def test_build_split_map_ambiguite_reelle_deux_champs_non_cumules():
         {"race": "M", "field": "T2", "label": "Velo"},
     ]
     plan = _build_split_map(splits, race="M")
-    assert plan.ambigu is True
+    assert plan.ambiguous is True
     assert plan.resolved == {}
 
 
 def test_build_split_map_libelle_non_reconnu_reste_dans_tous_les_champs():
     """`Split1` (event 1082/1079) ne matche aucun rôle : absent de `resolved`,
-    présent dans `tous_les_champs` — nécessaire pour ne rien perdre si la
+    présent dans `all_fields` — nécessaire pour ne rien perdre si la
     course bascule en `segments` pour une autre raison."""
     splits = [
         {"race": "M", "field": "T1", "label": "Bike"},
@@ -102,12 +102,12 @@ def test_build_split_map_libelle_non_reconnu_reste_dans_tous_les_champs():
     ]
     plan = _build_split_map(splits, race="M")
     assert plan.resolved == {"bike": "T1"}
-    assert plan.ambigu is False
-    assert plan.tous_les_champs == [("T1", "Bike"), ("T9", "Split1")]
+    assert plan.ambiguous is False
+    assert plan.all_fields == [("T1", "Bike"), ("T9", "Split1")]
 
 
 def test_build_split_map_tri_par_suffixe_numerique_du_champ():
-    """L'ordre de la réponse API est mélangé (mesuré) : `tous_les_champs` est
+    """L'ordre de la réponse API est mélangé (mesuré) : `all_fields` est
     trié sur le suffixe numérique, pas sur l'ordre d'arrivée."""
     splits = [
         {"race": "M", "field": "T9", "label": "Split1"},
@@ -115,7 +115,7 @@ def test_build_split_map_tri_par_suffixe_numerique_du_champ():
         {"race": "M", "field": "T1", "label": "Swim"},
     ]
     plan = _build_split_map(splits, race="M")
-    assert [f for f, _ in plan.tous_les_champs] == ["T1", "T3", "T9"]
+    assert [f for f, _ in plan.all_fields] == ["T1", "T3", "T9"]
 
 
 def test_parse_athlete_fields_and_splits():
@@ -138,8 +138,8 @@ def test_parse_athlete_fields_and_splits():
     }
     plan = _SplitPlan(
         resolved={"swim": "Nat", "t1": "Tr1", "bike": "Velo", "t2": "Tr2", "run": "Cap"},
-        ambigu=False,
-        tous_les_champs=[],  # non utilisé hors ambiguïté
+        ambiguous=False,
+        all_fields=[],  # non utilisé hors ambiguïté
     )
     r = _parse_athlete(athlete, plan, "http://x", "Triathlon Test", "triathlon-s", None)
 
@@ -171,8 +171,8 @@ def test_parse_athlete_ambiguite_route_tout_vers_segments():
     }
     plan = _SplitPlan(
         resolved={"swim": "T1", "t1": "T2", "t2": "T4"},  # bike/run ambigus → absents
-        ambigu=True,
-        tous_les_champs=[
+        ambiguous=True,
+        all_fields=[
             ("T1", "Swim"), ("T2", "#1"), ("T3", "Bike"), ("T4", "#2"),
             ("T5", "Run"), ("T6", "BikeStart"), ("T7", "BikeEnd"), ("T8", "RunStart"),
         ],
@@ -196,7 +196,7 @@ def test_parse_athlete_ambiguite_ignore_les_champs_vides_dans_segments():
         "lastname": "Test", "number": "1", "time": "01:00:00",
         "timeT3": "00:30:00", "timeT6": "",
     }
-    plan = _SplitPlan(resolved={}, ambigu=True, tous_les_champs=[("T3", "Bike"), ("T6", "BikeStart")])
+    plan = _SplitPlan(resolved={}, ambiguous=True, all_fields=[("T3", "Bike"), ("T6", "BikeStart")])
 
     r = _parse_athlete(athlete, plan, "http://x", "E", "triathlon-m", None)
 
@@ -206,7 +206,7 @@ def test_parse_athlete_ambiguite_ignore_les_champs_vides_dans_segments():
 def test_parse_athlete_skips_zero_splits():
     """Un split à 00:00:00 ne doit pas être enregistré."""
     athlete = {"lastname": "Test", "number": "1", "time": "01:00:00", "timeNat": "00:00:00"}
-    plan = _SplitPlan(resolved={"swim": "Nat"}, ambigu=False, tous_les_champs=[])
+    plan = _SplitPlan(resolved={"swim": "Nat"}, ambiguous=False, all_fields=[])
     r = _parse_athlete(athlete, plan, "http://x", "E", "triathlon-s", None)
     assert r.swim_time == ""
 
@@ -892,7 +892,7 @@ def test_fetch_indiv_abandonne_apres_les_essais(monkeypatch):
     with pytest.raises(httpx.HTTPError):
         prolivesport._fetch_indiv("979", "Triathlon M", api)
 
-    assert len(api.appels_indiv) == prolivesport._ESSAIS_INDIV
+    assert len(api.appels_indiv) == prolivesport._INDIV_ATTEMPTS
 
 
 # --- confirmation d'une réponse en débordement (#757, #764) -----------------
@@ -946,14 +946,14 @@ def test_fetch_indiv_stable_retient_le_plus_complet_si_ca_ne_converge_jamais(mon
 
     lignes, _vues = prolivesport._fetch_indiv_stable("979", "Triathlon M", api)
 
-    # 1 appel initial + _ESSAIS_STABILITE_DEBORDEMENT confirmations, budget épuisé.
-    assert len(api.appels_indiv) == 1 + prolivesport._ESSAIS_STABILITE_DEBORDEMENT
+    # 1 appel initial + _OVERFLOW_STABILITY_ATTEMPTS confirmations, budget épuisé.
+    assert len(api.appels_indiv) == 1 + prolivesport._OVERFLOW_STABILITY_ATTEMPTS
     assert len(lignes) == 5  # le plus complet observé, pas le dernier (3)
 
 
 def test_fetch_indiv_stable_garde_la_reponse_en_main_si_la_confirmation_echoue(monkeypatch):
     """Revue de #764 : une confirmation qui échoue (500 persistants, budget
-    `_ESSAIS_INDIV` épuisé) ne doit pas faire perdre la réponse en débordement
+    `_INDIV_ATTEMPTS` épuisé) ne doit pas faire perdre la réponse en débordement
     déjà obtenue — sans quoi une course qui aurait réussi sans le fix (un seul
     appel, non confirmé) devient un échec pur à cause de la seule tentative de
     confirmation."""
@@ -972,7 +972,7 @@ def test_fetch_indiv_stable_garde_la_reponse_en_main_si_la_confirmation_echoue(m
     assert len(lignes) == 5  # la réponse initiale, pas une exception
     assert vues == {"Triathlon XS", "Triathlon S", "Triathlon M"}
     # 1 appel initial + le budget des 500 épuisé sur la seule confirmation tentée.
-    assert len(api.appels_indiv) == 1 + prolivesport._ESSAIS_INDIV
+    assert len(api.appels_indiv) == 1 + prolivesport._INDIV_ATTEMPTS
 
 
 # --- le chemin mono-course (échappatoire `--single-heat`) -------------------
