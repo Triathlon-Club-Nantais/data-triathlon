@@ -1,4 +1,4 @@
-"""HMAC de cookie et hachage de mot de passe — socle partagé par les deux
+"""HMAC de cookie, hachage et génération de secrets — socle partagé par les deux
 mots de passe communs du dépôt (`benevole_access`, #271 ; `site_access`,
 #509). Les deux diffèrent par leur cookie, leur table et leur politique
 d'expiration — jamais par ce calcul.
@@ -17,6 +17,23 @@ import secrets
 import time
 
 _SALT_SIZE = 16
+
+#: Taille du mot de passe généré (research.md §D5), en octets.
+_GENERATED_PASSWORD_SIZE = 18
+
+
+def new_session_secret() -> str:
+    """Un secret de session neuf, jamais le même deux fois (research.md §D2)."""
+    return secrets.token_urlsafe(32)
+
+
+def generate_password() -> str:
+    """Un mot de passe robuste, généré côté serveur (research.md §D5).
+
+    144 bits d'entropie uniforme (`secrets.token_urlsafe(18)`, 24 caractères) :
+    trop pour un humain à retenir, ce qui est le but d'une génération serveur.
+    """
+    return secrets.token_urlsafe(_GENERATED_PASSWORD_SIZE)
 
 
 def sign_cookie(key: str) -> str:
