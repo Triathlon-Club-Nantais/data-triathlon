@@ -119,7 +119,7 @@ Premier jet d'instrumentation — la liste des événements métier à suivre re
 | `user_logged_in` | `auth.py` | `provider` |
 | `user_logged_out` | `auth.py` | — |
 | `feedback_submitted` | `feedback.py` | `feedback_type`, `has_page_url`, `is_authenticated` |
-| `event_scraped` | `scrape.py` | `provider`, `imported`, `updated`, `skipped` |
+| `event_scraped` | `scrape.py` | `provider`, `imported`, `updated`, `skipped`, `cached` |
 | `event_scrape_failed` | `scrape.py` (SSE) | `provider`, `error_kind` |
 | `participation_created` | `participations.py` | `event_type`, `is_relay` |
 | `participation_deleted` | `participations.py` | `participation_id` |
@@ -137,7 +137,9 @@ flux SSE seul, une fois par import, d'où un taux d'échec par chronométreur.
 `provider` est le slug du registre (vide si aucun ne reconnaît l'URL), jamais
 l'URL. `error_kind` vaut `invalid_url`, `unsupported_provider`, `scraper`,
 `persistence` ou `unexpected`, jamais le message, qui peut citer une URL ou un
-nom. Les deux événements du flux SSE partent toujours sous
+nom. `cached` signale un court-circuit du cache TTL, qui n'a rien scrapé et
+ne compte donc pas dans un taux de succès. Les deux événements du flux SSE
+partent toujours sous
 `ANONYMOUS_DISTINCT_ID`, accord donné ou non : le travail tourne dans le thread
 de `sse_relay`, hors du contexte de la requête où l'accord a été lu. Côté front,
 `results_import_failed` part une seule fois par import, écran monté ou non
@@ -149,7 +151,9 @@ envoi et chaque déconnexion comptaient double. Seul l'émetteur serveur reste
 
 `url` et `error_message` (import) sont déjà visibles ailleurs — l'URL part au
 backend via `reportPendingProvider`, l'erreur est déjà affichée à l'écran
-(toast + Alert). Aucune PII athlète dans ces 22 événements : le scraping
+(toast + Alert). Ce message peut toutefois citer une URL ou un nom, et l'URL
+porter une query string : les remplacer par le fournisseur et une cause fermée
+est suivi par #1528. Aucune PII athlète dans ces 22 événements : le scraping
 mono-athlète a été retiré, seul l'import d'épreuve complète existe, et
 `athlete_updated` ne porte que les **noms** des champs modifiés.
 

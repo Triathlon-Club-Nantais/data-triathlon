@@ -41,6 +41,7 @@ def scrape_event(
             "imported": result["imported"],
             "updated": result["updated"],
             "skipped": result["skipped"],
+            "cached": bool(result.get("cached")),
         },
     )
     return result
@@ -119,6 +120,9 @@ def _capture_stream_outcome(url: str, outcome: dict | None) -> None:
             "imported": outcome["imported"],
             "updated": outcome["updated"],
             "skipped": outcome["skipped"],
+            # Un court-circuit du cache TTL n'a rien scrapé : le taux de succès
+            # par fournisseur doit pouvoir l'écarter.
+            "cached": bool(outcome.get("cached")),
         })
     else:
         capture_event("event_scrape_failed", distinct_id=ANONYMOUS_DISTINCT_ID, properties={

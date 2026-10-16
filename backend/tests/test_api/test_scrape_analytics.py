@@ -45,8 +45,26 @@ def test_successful_import_emits_event_scraped_once(client, monkeypatch, posthog
     assert _captures(posthog) == [{
         "distinct_id": ANONYMOUS_DISTINCT_ID,
         "event": "event_scraped",
-        "properties": {"provider": "klikego", "imported": 3, "updated": 1, "skipped": 2},
+        "properties": {
+            "provider": "klikego", "imported": 3, "updated": 1, "skipped": 2, "cached": False,
+        },
     }]
+
+
+def test_cache_hit_is_flagged_as_cached(client, monkeypatch, posthog):
+    _stream(client, monkeypatch, {**DONE, "imported": 0, "updated": 0, "skipped": 6, "cached": True})
+
+    assert _captures(posthog)[0]["properties"]["cached"] is True
+
+
+def test_blocking_route_flags_cache_hits_too(client, monkeypatch, posthog):
+    monkeypatch.setattr(import_service, "import_event", lambda *a, **k: {
+        "imported": 0, "updated": 0, "skipped": 6, "cached": True, "total": 6, "courses": [],
+    })
+
+    client.post("/api/v1/scrape/event", json={"url": URL})
+
+    assert _captures(posthog)[0]["properties"]["cached"] is True
 
 
 def test_failed_import_emits_event_scrape_failed_with_its_kind(client, monkeypatch, posthog):
