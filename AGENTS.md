@@ -79,18 +79,12 @@ route. Détail complet : `docs/WORKFLOW-IA.md`.
   rien lancer. Compter ~20-40 % de tokens en plus par feature dès qu'on ouvre un
   cycle complet, quelle que soit la voie.
 
-`docs/superpowers/specs/` mêle deux natures : des **designs de features livrées**
-(valeur historique) et des **rapports de terrain encore normatifs** — sondages et
-audits, cités là où ils s'appliquent.
-
 ## Stack
 
 - **Backend** (`backend/`) : Python 3.13, **uv** (`pyproject.toml` + `uv.lock`), FastAPI,
   SQLAlchemy 2.0 (sync), Pydantic v2 + pydantic-settings, **Alembic** (migrations), PostgreSQL
-  (Azure Flexible Server en prod, Supabase en preview, cf. `docs/infra-azure.md`) / SQLite en dev. Scraping httpx + BeautifulSoup/lxml — **aucun
-  navigateur** : le fallback Playwright a été supprimé avec sa dépendance (#102),
-  et sa sentinelle attrape-tout avec lui — une URL non reconnue ne matche aucun
-  provider. Tests pytest, ruff. API versionnée sous `/api/v1`.
+  (Azure Flexible Server en prod, Supabase en preview, cf. `docs/infra-azure.md`) / SQLite en dev. Scraping httpx + BeautifulSoup/lxml, **aucun
+  navigateur** (#102, cf. `backend/app/scrapers/AGENTS.md`). Tests pytest, ruff. API versionnée sous `/api/v1`.
 - **Frontend** (`frontend/`) : Next.js 16 (App Router) + TypeScript + Tailwind + shadcn/ui.
 - **Déploiement** : backend → Render (`render.yaml`), front → Vercel, DB → Azure PostgreSQL (prod), Supabase (preview).
 
@@ -134,10 +128,6 @@ port éphémère et le publie, son frontend le lit. `docs/dev-multi-worktree.md`
 Deux applications, une archi en couches côté backend dont le flux ne traverse
 qu'une direction : `api → services → repositories → DB`, les repositories étant
 la **seule** couche qui construit des requêtes sur la Session SQLAlchemy.
-L'inventaire module par
-module et le cache TTL sont dans `backend/AGENTS.md`, le front dans
-`frontend/AGENTS.md` — les deux se chargent d'eux-mêmes dès qu'un fichier du
-dossier est lu.
 
 ## Principes de conception
 

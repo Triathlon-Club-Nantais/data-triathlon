@@ -18,6 +18,9 @@ constantes `STATUS_*`) ; `utils.py` = helpers de normalisation (dont
   dispatcher lève : il n'y a **pas** de sentinelle attrape-tout, et un futur
   fallback générique se valide en amont sur une liste blanche de hosts, sans
   quoi il rouvrirait le SSRF de #49.
+- **Aucun navigateur** : le fallback Playwright a été supprimé avec sa dépendance (#102),
+  et sa sentinelle attrape-tout avec lui — une URL non reconnue ne matche aucun
+  provider.
 - **Détection par host, jamais par sous-chaîne d'URL.** Un provider déclare ses
   `_HOSTS` et hérite de `HostMatchedProvider` : il n'a pas de `matches` à
   écrire. La règle « host exact ou vrai sous-domaine » a une seule définition,
