@@ -41,12 +41,20 @@ export function ClubBestTimesCard({
         </p>
       </div>
       <Tabs defaultValue={seasonLines.length > 0 ? "season" : "all"}>
-        <TabsList className="mx-[26px]">
+        <TabsList className="mx-[26px] h-11">
           <TabsTrigger value="season">Saison en cours</TabsTrigger>
-          <TabsTrigger value="all">Toutes saisons</TabsTrigger>
+          <TabsTrigger value="all">Toutes les saisons</TabsTrigger>
         </TabsList>
         <TabsContent value="season">
-          <Lines lines={seasonLines} />
+          {seasonLines.length > 0 ? (
+            <Lines lines={seasonLines} />
+          ) : (
+            // Seul cet onglet peut être vide : la saison est incluse dans toutes les saisons.
+            <p style={{ margin: 0, padding: "12px 26px 20px", fontSize: 14, color: "var(--tcn-text-faint)" }}>
+              Aucun temps comparable cette saison pour l&apos;instant. Les meilleurs temps des saisons
+              précédentes sont sous « Toutes les saisons ».
+            </p>
+          )}
         </TabsContent>
         <TabsContent value="all">
           <Lines lines={allLines} />
@@ -57,13 +65,6 @@ export function ClubBestTimesCard({
 }
 
 function Lines({ lines }: { lines: ClubBestTime[] }) {
-  if (lines.length === 0) {
-    return (
-      <p style={{ margin: 0, padding: "12px 26px 20px", fontSize: 14, color: "var(--tcn-text-faint)" }}>
-        Aucun temps comparable cette saison pour l&apos;instant.
-      </p>
-    );
-  }
   return lines.map((line) => {
     const format = formatToken(line.event_type);
     return (

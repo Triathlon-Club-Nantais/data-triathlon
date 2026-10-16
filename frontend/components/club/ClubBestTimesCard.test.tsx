@@ -52,11 +52,11 @@ describe("ClubBestTimesCard", () => {
   it("opens on all seasons when the current season has no time yet, and says so in its tab", async () => {
     render(<ClubBestTimesCard seasonLines={[]} allLines={[line(1)]} />);
 
-    expect(screen.getByRole("tab", { name: "Toutes saisons" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Toutes les saisons" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("link", { name: /meilleur temps sur M/ })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("tab", { name: "Saison en cours" }));
 
-    expect(screen.getByText("Aucun temps comparable cette saison pour l'instant.")).toBeInTheDocument();
+    expect(screen.getByText(/Aucun temps comparable cette saison/)).toBeInTheDocument();
   });
 });

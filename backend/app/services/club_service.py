@@ -27,7 +27,7 @@ from app.schemas.club import (
 )
 from app.scrapers.utils import to_seconds
 
-_SCOPES =("overall", "gender", "category")
+_SCOPES = ("overall", "gender", "category")
 
 
 def _best(ranks: dict[str, int | None]) -> tuple[str, int] | None:
