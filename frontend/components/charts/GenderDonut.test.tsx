@@ -33,7 +33,7 @@ describe("GenderDonut", () => {
     const { getByText } = render(
       <GenderDonut malePct={63.7} femalePct={36.3} hasGender />,
     );
-    expect(getByText("64%")).toBeInTheDocument();
+    expect(getByText("64 %")).toBeInTheDocument();
   });
 
   it("légende les deux tranches avec leur pourcentage exact", () => {
@@ -41,8 +41,8 @@ describe("GenderDonut", () => {
       <GenderDonut malePct={63.7} femalePct={36.3} hasGender />,
     );
     expect(getByText("Homme")).toBeInTheDocument();
-    expect(getByText("63,7%")).toBeInTheDocument();
+    expect(getByText("63,7 %")).toBeInTheDocument();
     expect(getByText("Femme")).toBeInTheDocument();
-    expect(getByText("36,3%")).toBeInTheDocument();
+    expect(getByText("36,3 %")).toBeInTheDocument();
   });
 });

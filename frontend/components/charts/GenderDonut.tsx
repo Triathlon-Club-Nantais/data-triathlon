@@ -58,7 +58,7 @@ export function GenderDonut({
                   d={arcGenerator(slice) ?? undefined}
                   fill={SLICE_COLOR[slice.data.label]}
                   role="img"
-                  aria-label={`${slice.data.label} : ${pctFr(slice.data.value)}%`}
+                  aria-label={`${slice.data.label} : ${pctFr(slice.data.value)}`}
                 />
               ))
             ) : (
@@ -79,7 +79,7 @@ export function GenderDonut({
           }}
         >
           <div style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)", lineHeight: 1 }}>
-            {Math.round(malePct)}%
+            {pctFr(malePct, 0)}
           </div>
           <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "var(--tcn-text-faint)", letterSpacing: ".05em" }}>
             Hommes
@@ -87,8 +87,8 @@ export function GenderDonut({
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%" }}>
-        <Legend color="var(--tcn-orange)" label="Homme" value={`${pctFr(malePct)}%`} />
-        <Legend color="var(--tcn-ink)" label="Femme" value={`${pctFr(femalePct)}%`} />
+        <Legend color="var(--tcn-orange)" label="Homme" value={pctFr(malePct)} />
+        <Legend color="var(--tcn-ink)" label="Femme" value={pctFr(femalePct)} />
       </div>
     </>
   );

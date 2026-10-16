@@ -157,7 +157,7 @@ export function ComparisonTable({
 }
 
 function formatPercentage(value: number | undefined): string {
-  return value == null ? "—" : `${pctFr(value)} %`;
+  return value == null ? "—" : pctFr(value);
 }
 
 // #853 : une barre de taille par cellule d'écart, cumulée sur tout le

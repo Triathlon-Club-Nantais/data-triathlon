@@ -19,7 +19,7 @@ describe("CategoryBars", () => {
   it("rapporte chaque barre au total fourni, pas à la somme des catégories affichées", () => {
     // 284/1000 = 28,4 % ; les rapporter aux 500 affichés donnerait 56,8 %.
     render(<CategoryBars categories={[{ name: "S1", count: 284 }]} total={1000} />);
-    expect(screen.getByText("28,4%")).toBeInTheDocument();
+    expect(screen.getByText("28,4 %")).toBeInTheDocument();
   });
 
   it("affiche un état vide quand aucune catégorie n'est renseignée", () => {
@@ -32,7 +32,7 @@ describe("CategoryBars", () => {
       <CategoryBars categories={[{ name: "S1", count: 0 }]} total={0} />,
     );
     expect(container.textContent).not.toContain("NaN");
-    expect(screen.getByText("0,0%")).toBeInTheDocument();
+    expect(screen.getByText("0,0 %")).toBeInTheDocument();
   });
 
   it("donne une couleur distincte à chaque catégorie", () => {
@@ -62,7 +62,7 @@ describe("CategoryBars", () => {
       />,
     );
     expect(screen.getByRole("img")).toHaveAccessibleName(
-      "Répartition par catégorie : V1 30,0 %, S 20,0 %, Autres 50,0 %.",
+      "Répartition par catégorie : V1 30,0\u202f%, S 20,0\u202f%, Autres 50,0\u202f%.",
     );
   });
 
@@ -84,7 +84,7 @@ describe("CategoryBars", () => {
     );
 
     expect(screen.getByText("Autres (500)")).toBeInTheDocument();
-    expect(screen.getByText("50,0%")).toBeInTheDocument();
+    expect(screen.getByText("50,0 %")).toBeInTheDocument();
   });
 
   it("fait sommer les barres à 100 % du dénominateur publié", () => {
@@ -99,8 +99,8 @@ describe("CategoryBars", () => {
     );
 
     const parts = screen
-      .getAllByText(/^\d+,\d%$/)
-      .map((el) => Number(el.textContent!.replace(",", ".").replaceAll("%", "")));
+      .getAllByText(/^\d+,\d %$/)
+      .map((el) => parseFloat(el.textContent!.replace(",", ".")));
     expect(parts.reduce((a, b) => a + b, 0)).toBeCloseTo(100, 1);
   });
 
@@ -217,7 +217,7 @@ describe("CategoryBars", () => {
       />,
     );
     expect(screen.getByRole("img")).toHaveAccessibleName(
-      "Répartition par catégorie : V1 60,0 %, S 40,0 % (catégorie de l'athlète).",
+      "Répartition par catégorie : V1 60,0\u202f%, S 40,0\u202f% (catégorie de l'athlète).",
     );
   });
 

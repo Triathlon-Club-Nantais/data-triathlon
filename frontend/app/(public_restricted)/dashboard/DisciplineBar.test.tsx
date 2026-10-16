@@ -19,7 +19,7 @@ describe("DisciplineBar", () => {
     render(<DisciplineBar disciplines={TROIS} />);
     const barre = screen.getByRole("img");
     expect(barre).toHaveAccessibleName(
-      "Répartition des dossards par type d'épreuve : Triathlon 75,0 %, Duathlon 24,0 %, Aquathlon 1,0 %.",
+      "Répartition des dossards par type d'épreuve : Triathlon 75,0\u202f%, Duathlon 24,0\u202f%, Aquathlon 1,0\u202f%.",
     );
   });
 

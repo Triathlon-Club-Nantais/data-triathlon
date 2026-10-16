@@ -37,7 +37,7 @@ const LABEL_THRESHOLD = 12;
 export function DisciplineBar({ disciplines }: { disciplines: Part[] }) {
   if (disciplines.length === 0) return null;
 
-  const summary = disciplines.map((d) => `${d.name} ${pctFr(d.pct)} %`).join(", ");
+  const summary = disciplines.map((d) => `${d.name} ${pctFr(d.pct)}`).join(", ");
 
   return (
     <div
