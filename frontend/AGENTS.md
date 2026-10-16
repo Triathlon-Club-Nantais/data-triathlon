@@ -176,7 +176,7 @@ de la ligne concernée **avant** de toucher à ce qu'elle nomme.
   raisons sont dans `docs/frontend/acces-et-routes.md`.
 - `components/` — `scrape/` (TcnScrapeForm, ProviderDetector),
   `results/` (ResultCard, ResultsList), `club/` (ClubDashboard, PodiumsList),
-  `map/` (MapView), `dashboard/` (StatCardsRank, RecentCourses),
+  `map/` (MapView), `dashboard/` (MaSaison, RecentCourses),
   `athletes/` (AthleteAdminPanel, ParticipationAdminActions — les gestes
   d'administration posés sur la page publique d'un athlète, #439 : ils prennent
   `tcn/` parce que c'est un écran public, et décident leur visibilité **dans le

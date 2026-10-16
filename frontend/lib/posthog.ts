@@ -15,7 +15,7 @@ export function isPostHogEnabled(): boolean {
 // tri se fait sur la forme de l'événement, pas sur son nom, pour couvrir les événements qu'une
 // version future de posthog-js ajoutera. Filtré au seul point de sortie : tout écran futur sous ce
 // chemin est couvert, comme les dialogues en portail qu'un `ph-no-capture` ne couvrirait pas.
-const YOUTH_PATH = /^\/admin\/jeunes(\/|$)/;
+const YOUTH_PATH = /^\/encadrement\/jeunes(\/|$)/;
 const ELEMENT_PROPERTIES = ["$elements", "$elements_chain", "$el_text"];
 const TEXT_EVENTS = new Set(["$copy_autocapture", "$exception"]);
 

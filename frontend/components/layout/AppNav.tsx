@@ -2,15 +2,16 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
-import { Ellipsis, LogIn, Menu, PanelLeft, Plus, RotateCw, Search, X } from "lucide-react";
+import { Briefcase, Ellipsis, LogIn, Menu, PanelLeft, Plus, RotateCw, Search, X } from "lucide-react";
 import { Avatar, Button } from "@/components/tcn";
 import { SessionEnLecture, UserMenu } from "@/components/auth/UserMenu";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/lib/queries/auth";
 import { libelleCompteur, useNavBadges } from "@/lib/queries/nav-badges";
+import { SpaceSwitcher, type SwitcherSpace } from "./SpaceSwitcher";
 import { AthletePicker, ATHLETE_CHANGED_EVENT, OPEN_PICKER_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete, type PickerMode } from "./AthletePicker";
-import { NAV, ROLE, byGroup, estVisible, type NavItem, type NavSection } from "./nav.config";
+import { NAV, ROLE, SPACES, TO_HANDLE, byGroup, estVisible, spaceOf, type NavItem, type NavSection, type SpaceId } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 
@@ -133,8 +134,9 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // au-delà vient des **pouvoirs**, seuls réellement renseignés (#115).
   const rank: number = session ? ROLE.CONNECTED : ROLE.ANON;
   const pouvoirs = new Set(session?.permissions ?? []);
-  const { counts: badges } = useNavBadges(session?.can_administer ?? false);
-  const sections = NAV.filter((s) => rank >= s.minRole)
+  // Encadrement compris : sa file de crédits bénévoles porte une pastille.
+  const { counts: badges } = useNavBadges(Boolean(session?.can_administer || session?.can_supervise));
+  const toutesSections: SectionRendue[] = NAV.filter((s) => rank >= s.minRole)
     .map((s) => ({
       ...s,
       items: s.items
@@ -150,29 +152,64 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
     // pouvoirs de la session — « Club » l'illustrait jusqu'à #487.
     .filter((s) => s.items.length > 0);
 
-  // Barre basse mobile (#482, NAV-4) : ses onglets sont déclarés dans
-  // `nav.config.ts` (`bottomBar`, #1300), visibles pour tous, donc identiques
-  // avant et après la lecture de la session.
-  const barreItems = sections.flatMap((s) => s.items).filter((i) => i.bottomBar);
+  // Le rail et le tiroir ne montrent que l'espace de la page courante ; la
+  // palette ⌘K, elle, garde `toutesSections`.
+  const espace = spaceOf(pathname);
+  const sectionsEspace = toutesSections.filter((s) => s.space === espace);
+  // Un espace refusé n'a aucune section visible : la navigation retombe sur
+  // l'espace public plutôt que de laisser l'écran de refus sans issue.
+  const espaceAffiche: SpaceId = sectionsEspace.length > 0 || (espace === "admin" && session?.can_administer) ? espace : "public";
+  const sections = sectionsEspace.length > 0 ? sectionsEspace : toutesSections.filter((s) => s.space === espaceAffiche);
+
+  // Barre basse mobile (#482, NAV-4) : les onglets de l'espace courant,
+  // déclarés dans `nav.config.ts` (`bottomBar`). Ceux de l'espace public sont
+  // visibles pour tous, donc identiques avant et après la session (#1300).
+  // Le back-office ouvre sur son sommaire, qui porte le total « À traiter ».
+  // `/admin` existe pour tout compte qui administre, même sans entrée visible.
+  const compteurAdmin = toutesSections
+    .flatMap((s) => s.items)
+    .filter((i) => i.group === TO_HANDLE && i.count !== undefined);
+  const countAdmin = compteurAdmin.length > 0 ? compteurAdmin.reduce((somme, i) => somme + (i.count ?? 0), 0) : undefined;
+  const ongletsEspace = sections.flatMap((s) => s.items).filter((i) => i.bottomBar);
+  const barreItems: Destination[] =
+    espaceAffiche === "admin"
+      ? [{ id: "sommaire", label: "Sommaire", href: "/admin", icon: Briefcase, badge: "backoffice", count: countAdmin }, ...ongletsEspace]
+      : ongletsEspace;
   const dansLaBarre = new Set(barreItems.map((i) => i.id));
 
-  // Le tiroir porte « le reste » : tout ce que la barre ne montre pas, sections
-  // publiques débordantes comprises. Il s'ouvre par « Plus ».
+  // Le tiroir porte « le reste » de l'espace courant : tout ce que la barre ne
+  // montre pas. Il s'ouvre par « Plus ».
   const sectionsReste = sections
     .map((s) => ({ ...s, items: s.items.filter((i) => !dansLaBarre.has(i.id)) }))
     .filter((s) => s.items.length > 0);
 
-  // Repli sur toutes les sections quand il ne reste rien (#621) : la barre
+  // Repli sur toutes les sections de l'espace quand il ne reste rien (#621) : la barre
   // basse est masquée pendant que le tiroir est ouvert (le `Sheet` passe
   // par-dessus), donc un visiteur dont la barre porte tout (anonyme, ou
   // adhérent sans pouvoir) se retrouvait sans aucune destination à l'écran une
   // fois le tiroir ouvert par le hamburger ou « Plus ». Seul cas de doublon avec la barre.
-  const sectionsTiroir = sectionsReste.length > 0 ? sectionsReste : sections;
+  const sectionsRepli = sectionsReste.length > 0 ? sectionsReste : sections;
+
+  const countEncadrement = toutesSections
+    .filter((s) => s.space === "encadrement")
+    .flatMap((s) => s.items)
+    .reduce((somme, i) => somme + (i.count ?? 0), 0);
+
+  const espacesOuverts: SwitcherSpace[] = (Object.keys(SPACES) as SpaceId[])
+    .filter((id) => id === "admin" ? Boolean(session?.can_administer) : toutesSections.some((s) => s.space === id))
+    .map((id) => ({
+      id,
+      label: SPACES[id].label,
+      href: SPACES[id].home ?? toutesSections.find((s) => s.space === id)!.items[0].href,
+      ...(id === "admin" && countAdmin !== undefined ? { count: countAdmin } : {}),
+      ...(id === "encadrement" && countEncadrement > 0 ? { count: countEncadrement } : {}),
+    }));
+
 
   /**
    * Un `href` de la nav désigne **un** écran, pas une famille : c'est pourquoi
    * la comparaison est une égalité et non un préfixe. `startsWith` allumait
-   * « Chronométreurs signalés » (`/admin`) en même temps que `/admin/acces`, et
+   * « Back-office » (`/admin`) en même temps que `/admin/acces`, et
    * l'aurait fait pour les trois écrans à venir, tous sous `/admin/`.
    *
    * `/dashboard` garde son cas propre : il répond aussi à la racine.
@@ -226,7 +263,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             alignItems: "center",
             justifyContent: expanded ? "flex-start" : "center",
             gap: expanded ? 10 : 4,
-            height: 68,
+            minHeight: 68,
             padding: expanded ? "0 14px" : "8px 0",
             borderBottom: "1px solid var(--tcn-border-faint)",
           }}
@@ -277,7 +314,13 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               {CLUB_NAME_SHORT}
             </Link>
           )}
+          {!expanded && <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} layout="column" />}
         </div>
+        {expanded && (
+          <div style={{ flex: "none", display: "flex", padding: "8px 14px 0" }}>
+            <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} layout="row" />
+          </div>
+        )}
 
         {contenu(expanded)}
 
@@ -420,7 +463,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
         </Link>
       </header>
 
-      {/* ── Barre basse mobile — les destinations publiques (#482, NAV-4) ── */}
+      {/* ── Barre basse mobile — les onglets de l'espace courant (#482, NAV-4) ── */}
       <nav
         aria-label="Navigation"
         className="fixed inset-x-0 bottom-0 z-30 flex md:hidden"
@@ -444,6 +487,9 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
               {actif && <span data-trait-actif style={traitOnglet} />}
               {Icon && <Icon size={20} />}
               <span>{it.labelCourt ?? it.label}</span>
+              {!!it.count && it.badge && (
+                <PastilleOnglet count={it.count} annonce={it.labelCourt ? undefined : libelleCompteur(it.badge, it.count)} />
+              )}
             </Link>
           );
         })}
@@ -485,7 +531,15 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             </SheetClose>
           </div>
 
-          {contenu(true, () => setDrawerOpen(false), sectionsTiroir)}
+          {/* Même place que dans le panneau déplié, libellés compris : l'en-tête
+              mobile n'a ni la largeur ni le survol qu'il leur faudrait. */}
+          {espacesOuverts.length > 1 && (
+            <div style={{ flex: "none", display: "flex", padding: "8px 14px 0" }}>
+              <SpaceSwitcher current={espaceAffiche} spaces={espacesOuverts} layout="row" />
+            </div>
+          )}
+
+          {contenu(true, () => setDrawerOpen(false), sectionsRepli)}
 
           {/* `pleineLargeur` : dans un tiroir, l'état connecté se déplie à plat —
               un menu déroulant y sortirait du piège de focus. */}
@@ -498,7 +552,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
       {pickerMode && (
         <AthletePicker
           mode={pickerMode}
-          screens={sections
+          screens={toutesSections
             .flatMap((sec) =>
               sec.items.map((i) => ({
                 label: i.label,
@@ -1042,11 +1096,13 @@ const carrePrimaire: CSSProperties = {
  * visible (WCAG 2.5.3), sans quoi la commande vocale « Accueil » ne trouve rien.
  * Le libellé complet suffit quand il commence déjà par le court.
  */
-function nomAccessibleOnglet(item: Pick<NavItem, "label" | "labelCourt">): string | undefined {
-  const { label, labelCourt } = item;
+function nomAccessibleOnglet(item: Pick<NavItem, "label" | "labelCourt" | "badge"> & { count?: number }): string | undefined {
+  const { label, labelCourt, badge, count } = item;
   if (!labelCourt) return undefined;
-  if (label.toLocaleLowerCase("fr").startsWith(labelCourt.toLocaleLowerCase("fr"))) return label;
-  return `${labelCourt}, ${label.charAt(0).toLocaleLowerCase("fr")}${label.slice(1)}`;
+  const nom = label.toLocaleLowerCase("fr").startsWith(labelCourt.toLocaleLowerCase("fr"))
+    ? label
+    : `${labelCourt}, ${label.charAt(0).toLocaleLowerCase("fr")}${label.slice(1)}`;
+  return count && badge ? `${nom}, ${libelleCompteur(badge, count)}` : nom;
 }
 
 /** Trait de l'onglet courant, pendant horizontal de `barreActive` du rail :
@@ -1060,6 +1116,34 @@ const traitOnglet: CSSProperties = {
   borderRadius: "0 0 3px 3px",
   background: "var(--tcn-orange)",
 };
+
+/** Pastille de compteur d'un onglet : décorative, le nom accessible est le texte `sr-only`. */
+function PastilleOnglet({ count, annonce }: { count: number; annonce?: string }) {
+  return (
+    <>
+      <span
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          top: 4,
+          left: "calc(50% + 6px)",
+          minWidth: 16,
+          padding: "0 4px",
+          borderRadius: "var(--tcn-radius-pill)",
+          background: "var(--tcn-orange-deep)",
+          color: "#fff",
+          fontSize: 11,
+          fontWeight: 700,
+          lineHeight: "16px",
+          textAlign: "center",
+        }}
+      >
+        {count}
+      </span>
+      {annonce && <span className="sr-only">{annonce}</span>}
+    </>
+  );
+}
 
 /** Onglet de la barre basse mobile, lien ou bouton « Plus » (#1012). */
 function ongletBarre(actif: boolean): CSSProperties {

@@ -2,7 +2,11 @@ import type { LucideIcon } from "lucide-react";
 import {
   Briefcase,
   CalendarDays,
+  ClipboardCheck,
+  Fingerprint,
+  Flag,
   Gauge,
+  HandHeart,
   HeartHandshake,
   LayoutGrid,
   List,
@@ -28,9 +32,10 @@ import {
 export const ROLE = { ANON: 0, CONNECTED: 1, ADMIN: 2 } as const;
 
 /**
- * Destinations au plus dans la barre basse mobile (#1012), avant l'onglet
- * « Plus » qui ouvre le tiroir sur le reste. Quatre plus « Plus » tiennent à
- * 375 px, libellés sur une ligne et cibles de 44 px au moins.
+ * Destinations au plus dans la barre basse mobile (#1012), **par espace**,
+ * avant l'onglet « Plus » qui ouvre le tiroir sur le reste. Quatre plus
+ * « Plus » tiennent à 375 px, libellés sur une ligne et cibles de 44 px au
+ * moins. Le back-office en garde une pour l'onglet « Sommaire » (#1298).
  */
 export const BOTTOM_BAR_MAX = 4;
 
@@ -102,9 +107,11 @@ export type NavItem = {
    */
   badge?: string;
   /**
-   * Onglet de la barre basse mobile (#1300). Déclaré, jamais calculé sur le
-   * profil : un onglet qui dépend des pouvoirs change de place quand la
-   * session arrive. Réservé à une destination visible pour tous.
+   * Onglet de la barre basse mobile. Déclaré, jamais calculé sur le profil.
+   * Dans l'espace public, réservé à une destination visible pour tous
+   * (#1300) : la barre ne bouge pas quand la session arrive. Ailleurs,
+   * l'espace n'est atteint qu'après sa garde, donc l'onglet peut porter un
+   * `permission` (#1298).
    */
   bottomBar?: boolean;
   /**
@@ -125,11 +132,32 @@ export type NavItem = {
 /** Les files de travail : le sommaire `/admin` les met en tête, compteur compris. */
 export const TO_HANDLE = "À traiter";
 
+export type SpaceId = "public" | "encadrement" | "admin";
+
+/**
+ * Les trois espaces de la navigation (#1295) : le rail et le tiroir ne
+ * montrent que celui de la page courante. `home` est la destination du
+ * sélecteur d'espace ; sans elle, la première destination visible en tient
+ * lieu.
+ */
+export const SPACES: Record<SpaceId, { label: string; icon: LucideIcon; home?: string }> = {
+  public: { label: "Consulter", icon: LayoutGrid, home: "/dashboard" },
+  encadrement: { label: "Encadrement", icon: CalendarDays, home: "/encadrement" },
+  admin: { label: "Back-office", icon: Briefcase, home: "/admin" },
+};
+
+/** Par préfixe de segment : `/administration` n'est pas `/admin`. */
+export function spaceOf(pathname: string): SpaceId {
+  const segment = pathname.split("/")[1];
+  return segment === "admin" || segment === "encadrement" ? segment : "public";
+}
+
 export type NavSection = {
   id: string;
   label: string;
   icon: LucideIcon;
   minRole: number;
+  space: SpaceId;
   /**
    * Section racine : ses destinations vivent à plat (pas d'intitulé de
    * catégorie, et une tuile par destination en rail compact).
@@ -144,6 +172,7 @@ export const NAV: NavSection[] = [
     label: "Consulter",
     icon: LayoutGrid,
     minRole: ROLE.ANON,
+    space: "public",
     root: true,
     items: [
       { id: "dashboard", label: "Tableau de bord", labelCourt: "Accueil", href: "/dashboard", icon: LayoutGrid, bottomBar: true },
@@ -160,6 +189,7 @@ export const NAV: NavSection[] = [
     label: "Club",
     icon: Users,
     minRole: ROLE.ANON,
+    space: "public",
     items: [
       // `ClubDashboard.tsx` porte la synthèse **et** les podiums (#128) : une
       // entrée pour les deux, pas une par bloc. `Gauge` et non `Trophy` — ce
@@ -203,6 +233,7 @@ export const NAV: NavSection[] = [
     label: "Administration",
     icon: Briefcase,
     minRole: ROLE.CONNECTED,
+    space: "admin",
     items: [
       // Aucune entrée ne pointe `/admin` : la racine est le sommaire, avec les
       // files « À traiter » (#1246), et un `href` préfixe de tous les autres
@@ -244,6 +275,9 @@ export const NAV: NavSection[] = [
       },
       {
         id: "a-identites",
+        icon: Fingerprint,
+        bottomBar: true,
+        labelCourt: "Identités",
         label: "Identités des athlètes",
         description:
           "Fiches qui mêlent deux personnes, ou paires de fiches qui désignent probablement la même : chaque cas dit quoi faire et offre ses gestes.",
@@ -278,22 +312,6 @@ export const NAV: NavSection[] = [
         badge: "feedback",
         group: TO_HANDLE,
       },
-      // Validation des déclarations de crédit d'athlète (#779, #817) —
-      // l'API existait déjà, l'écran non. Id distinct de l'ancien
-      // `a-benevolat` (auto-déclaration, #751, retiré par #816) : pas de
-      // réutilisation, ressource neuve.
-      {
-        id: "a-benevolat-validation",
-        label: "Bénévolat",
-        description:
-          "Déclarations de crédit d'athlète en attente, soumises par un membre depuis la page publique de bénévolat : accepter ou refuser.",
-        href: "/admin/benevolat",
-        helpAnchor: "benevolat-validation",
-        permission: "athletes:volunteer_validate",
-        preview: true,
-        badge: "volunteer",
-        group: TO_HANDLE,
-      },
       // ── Données ──
       // `courses:write` : la correction est le geste courant de l'écran, et
       // c'était la seule entrée de la section sans aucun `permission` — donc la
@@ -303,6 +321,8 @@ export const NAV: NavSection[] = [
       // la navigation n'est pas une garde.
       {
         id: "a-courses",
+        icon: Flag,
+        bottomBar: true,
         label: "Épreuves",
         description:
           "Corriger ou retirer une épreuve du catalogue. Ces actions sont irréversibles et tracées.",
@@ -434,6 +454,7 @@ export const NAV: NavSection[] = [
     label: "Gestion des utilisateurs",
     icon: UserCog,
     minRole: ROLE.CONNECTED,
+    space: "admin",
     items: [
       {
         id: "u-acces",
@@ -489,7 +510,8 @@ export const NAV: NavSection[] = [
     // personnelles et sensibles (mineurs), fermées par pouvoir RBAC quel que
     // soit le rôle par ailleurs (`FEATURE_YOUTH`, `core/permissions.py`).
     // Section à part, jamais fondue dans « Administration » : ce n'est pas de
-    // l'administration du site, c'est de l'encadrement sportif.
+    // l'administration du site, c'est de l'encadrement sportif. Elle forme
+    // l'espace Encadrement (#1297).
     //
     // Trois destinations, fusionnées en une seule section par #869 : #867
     // (profils) et #868 (calendrier) avaient chacune ajouté leur propre
@@ -504,17 +526,20 @@ export const NAV: NavSection[] = [
     // `jeunes:write` n'ouvrant que les formulaires d'édition (patron
     // `u-groupes` ci-dessus).
     id: "jeunes",
-    label: "Jeunes",
+    label: "Encadrement",
     icon: CalendarDays,
     minRole: ROLE.CONNECTED,
+    space: "encadrement",
     items: [
       {
         id: "j-profils",
+        icon: Users,
+        bottomBar: true,
+        labelCourt: "Jeunes",
         label: "Profils",
         description:
           "Profils des jeunes encadrés par le club — contact d'urgence, âge, notes et journal de bord. Données personnelles, fermées à qui ne porte pas ce pouvoir.",
-        href: "/admin/jeunes",
-        helpAnchor: "jeunes",
+        href: "/encadrement/jeunes",
         permission: "jeunes:read",
       },
       // Groupes d'entraînement (#1291) : une séance qui vise un groupe en
@@ -524,17 +549,18 @@ export const NAV: NavSection[] = [
         label: "Groupes d'entraînement",
         description:
           "Les groupes d'entraînement et leurs membres. Une séance qui vise un groupe y inscrit ses membres d'office.",
-        href: "/admin/jeunes/groupes",
-        helpAnchor: "jeunes",
+        href: "/encadrement/jeunes/groupes",
         permission: "jeunes:read",
       },
       {
         id: "j-calendrier",
+        icon: CalendarDays,
+        bottomBar: true,
+        labelCourt: "Calendrier",
         label: "Calendrier des entraînements",
         description:
           "Les séances d'entraînement jeunes et leurs participants inscrits.",
-        href: "/admin/jeunes/calendrier",
-        helpAnchor: "jeunes",
+        href: "/encadrement/jeunes/calendrier",
         permission: "jeunes:read",
       },
       // Appel de présence (#869) — pointage présent/absent d'une séance,
@@ -543,12 +569,28 @@ export const NAV: NavSection[] = [
       // `jeunes:write`, gardé côté écran (patron #496) et côté API.
       {
         id: "j-appel",
+        icon: ClipboardCheck,
+        bottomBar: true,
         label: "Appel",
         description:
           "Pointer les jeunes présents ou absents à une séance, vérifier qu'aucun n'est manquant en fin de séance, et consigner une note.",
-        href: "/admin/jeunes/appel",
-        helpAnchor: "jeunes",
+        href: "/encadrement/jeunes/appel",
         permission: "jeunes:read",
+      },
+      // Validation des déclarations de crédit d'athlète (#779, #817), passée
+      // du back-office à l'Encadrement (#1297).
+      {
+        id: "a-benevolat-validation",
+        icon: HandHeart,
+        bottomBar: true,
+        labelCourt: "Bénévolat",
+        label: "Crédits bénévoles",
+        description:
+          "Déclarations de crédit d'athlète en attente, soumises par un membre depuis la page publique de bénévolat : accepter ou refuser.",
+        href: "/encadrement/benevolat",
+        permission: "athletes:volunteer_validate",
+        preview: true,
+        badge: "volunteer",
       },
     ],
   },

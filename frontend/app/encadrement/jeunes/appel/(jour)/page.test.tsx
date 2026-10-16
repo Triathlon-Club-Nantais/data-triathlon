@@ -17,7 +17,7 @@ const { replace, listTrainingSessions, createTrainingSession, getSession, listTr
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
-  usePathname: () => "/admin/jeunes/appel",
+  usePathname: () => "/encadrement/jeunes/appel",
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -58,7 +58,8 @@ function session(permissions: string[]): SessionUser {
     permissions,
     roles: [],
     groups: [],
-    can_administer: true,
+    can_administer: false,
+    can_supervise: true,
   };
 }
 
@@ -110,7 +111,7 @@ describe("AdminJeuneAppelDuJourPage", () => {
 
     afficher();
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/admin/jeunes/appel/7"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/encadrement/jeunes/appel/7"));
   });
 
   it("fait choisir la séance quand il y en a plusieurs le même jour", async () => {
@@ -123,8 +124,8 @@ describe("AdminJeuneAppelDuJourPage", () => {
 
     const natation = await screen.findByRole("link", { name: /10:00.*natation/i });
     const course = screen.getByRole("link", { name: /17:00.*course/i });
-    expect(natation).toHaveAttribute("href", "/admin/jeunes/appel/7");
-    expect(course).toHaveAttribute("href", "/admin/jeunes/appel/8");
+    expect(natation).toHaveAttribute("href", "/encadrement/jeunes/appel/7");
+    expect(course).toHaveAttribute("href", "/encadrement/jeunes/appel/8");
     expect(replace).not.toHaveBeenCalled();
   });
 
@@ -165,6 +166,6 @@ describe("AdminJeuneAppelDuJourPage", () => {
     await waitFor(() =>
       expect(createTrainingSession).toHaveBeenCalledWith({ date: AUJOURDHUI, group_ids: [7] }),
     );
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/admin/jeunes/appel/12"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/encadrement/jeunes/appel/12"));
   });
 });

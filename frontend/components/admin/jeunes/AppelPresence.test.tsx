@@ -83,7 +83,8 @@ const AVEC_ECRITURE: SessionUser = {
   permissions: ["jeunes:read", "jeunes:write"],
   roles: [],
   groups: [],
-  can_administer: true,
+  can_administer: false,
+  can_supervise: true,
 };
 
 const LECTURE_SEULE: SessionUser = { ...AVEC_ECRITURE, permissions: ["jeunes:read"] };
@@ -284,7 +285,7 @@ describe("AppelPresence", () => {
 
     expect(screen.getByRole("link", { name: /voir le profil/i })).toHaveAttribute(
       "href",
-      "/admin/jeunes/42",
+      "/encadrement/jeunes/42",
     );
   });
 

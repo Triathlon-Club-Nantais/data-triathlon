@@ -4,7 +4,7 @@ import type { Feedback } from "@/lib/types";
 
 /**
  * Libellés utilisateur du vocabulaire de rang. Une seule source pour les trois
- * sites d'affichage — toggle (RankTypeToggle), delta des StatCard (StatCardsRank),
+ * sites d'affichage — toggle (RankTypeToggle), bande « Ma saison » (MaSaison),
  * badge de podium (PodiumsList) — cf. #133. Un renommage (« Genre » → « Sexe »)
  * ne touche plus qu'ici.
  *

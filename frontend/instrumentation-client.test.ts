@@ -149,7 +149,7 @@ describe("instrumentation-client", () => {
 
     afterEach(() => window.history.pushState({}, "", "/"));
 
-    const elements = [{ tag_name: "a", $el_text: "Alix Martin", attr__href: "/admin/jeunes/42" }];
+    const elements = [{ tag_name: "a", $el_text: "Alix Martin", attr__href: "/encadrement/jeunes/42" }];
     const carriesAName: Event[] = [
       { event: "$autocapture", properties: { $elements: elements, $el_text: "Alix Martin" } },
       { event: "$rageclick", properties: { $elements: elements } },
@@ -160,7 +160,7 @@ describe("instrumentation-client", () => {
       { event: "$exception", properties: { $exception_list: [{ value: "Alix Martin introuvable" }] } },
     ];
 
-    it.each(["/admin/jeunes", "/admin/jeunes/42", "/admin/jeunes/appel", "/admin/jeunes/groupes"])(
+    it.each(["/encadrement/jeunes", "/encadrement/jeunes/42", "/encadrement/jeunes/appel", "/encadrement/jeunes/groupes"])(
       "écarte tout événement porteur d'un élément, d'une copie ou d'une erreur sous %s",
       async (path) => {
         const beforeSend = await beforeSendAt(path);
@@ -171,15 +171,15 @@ describe("instrumentation-client", () => {
     );
 
     it("laisse passer pages vues et événements métier sans élément sur les écrans jeunes", async () => {
-      const beforeSend = await beforeSendAt("/admin/jeunes/42");
-      const pageview = { event: "$pageview", properties: { $current_url: "/admin/jeunes/42" } };
+      const beforeSend = await beforeSendAt("/encadrement/jeunes/42");
+      const pageview = { event: "$pageview", properties: { $current_url: "/encadrement/jeunes/42" } };
       const custom = { event: "profile_created", properties: { source: "form" } };
       expect(beforeSend(pageview)).toEqual(pageview);
       expect(beforeSend(custom)).toEqual(custom);
       expect(beforeSend(null)).toBeNull();
     });
 
-    it.each(["/", "/admin/courses", "/admin/jeunesse"])("ne jette rien sous %s", async (path) => {
+    it.each(["/", "/admin/courses", "/encadrement/jeunesse"])("ne jette rien sous %s", async (path) => {
       const beforeSend = await beforeSendAt(path);
       for (const event of carriesAName) {
         expect(beforeSend(event), event.event).toEqual(event);

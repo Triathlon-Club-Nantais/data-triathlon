@@ -12,7 +12,7 @@ donc une entrée à cet échelon est invisible pour tout le monde. La finesse
 au-delà passe par `permission`, un code de `core/permissions.py` confronté à
 `session.permissions` (#115). Un écran livré mais retiré du grand public porte
 `preview: true` (#879, les déclarations de crédit bénévole : `/benevolat`
-et `/admin/benevolat`) : il exige `pages:preview` **en plus** de son
+et `/encadrement/benevolat`) : il exige `pages:preview` **en plus** de son
 `permission`, une liste de `permission` se lisant en OU, et sa route rend
 `PreviewRefusal` à qui ne le porte pas (même idiome que `/club/athletes`,
 jamais de redirection). Masque d'interface seulement : les routes de l'API
@@ -45,6 +45,21 @@ attribut du DOM. Deux bornes à connaître avant de s'y fier :
   `md` le rail est en `display:none`, le coût réel est celui de l'ouverture
   du tiroir, repayé à chaque ouverture.
 
+## Trois espaces (#1295)
+
+Chaque section porte un `space` (`public`, `encadrement`, `admin`) ; le rail
+et le tiroir ne rendent que l'espace de la page, déduit du premier segment
+d'URL par `spaceOf`. La barre basse suit l'espace courant. `SpaceSwitcher`
+mène d'un espace à l'autre par des liens à icône, tous visibles (#1336), et
+disparaît pour qui n'en a qu'un ; son bouton « Back-office » porte le total des
+files « À traiter », seule entrée vers le sommaire depuis l'espace public. Sous
+`md`, il vit en tête du tiroir, libellés compris, et jamais dans l'en-tête : une
+icône seule y passait pour une action, sans survol au doigt pour la nommer
+(revue UI/UX de #1353). La palette ⌘K garde les écrans de tous les espaces ouverts.
+L'espace Encadrement (Jeunes, Crédits bénévoles) vit sous `/encadrement`, gardé
+par `can_supervise` via `components/layout/space-guard.tsx`, partagé avec
+`/admin` ; `/encadrement` mène au premier écran ouvert.
+
 ## Rail replié, cookie de largeur, nav mobile (#482)
 
 **Rail replié, cookie de largeur, nav mobile** (#482) — le rail replié
@@ -62,10 +77,12 @@ porte qu'un). La largeur du rail (`tcn-nav-expanded`) est désormais un
 `localStorage` relu au montage — la seule exception documentée au refus de
 miroir cookie de #467 (`athlete-retenu.md`), parce que le besoin serveur y est authentique et
 qu'aucun `fetch()` vers `/api/v1` n'est concerné. Sous `md`, une barre
-basse fixe porte les destinations marquées `bottomBar` dans
-`nav.config.ts` (#1300 : quatre, visibles pour tous, donc identiques avant
-et après la lecture de la session ; `nav.config.test.ts` borne leur nombre à
-`BOTTOM_BAR_MAX`), puis un onglet « Plus », toujours présent, qui ouvre le
+basse fixe porte les onglets de l'espace courant, marqués `bottomBar` dans
+`nav.config.ts` (#1300, #1298 : `BOTTOM_BAR_MAX` par espace, déclarés et non
+calculés sur le profil ; le back-office ouvre sur « Sommaire », qui porte le
+total « À traiter » ; seuls les onglets publics doivent être visibles sans
+session, les autres espaces étant gardés ; `nav.config.test.ts` borne leur
+nombre), puis un onglet « Plus », toujours présent, qui ouvre le
 tiroir (#1012 : sept onglets à
 375 px repliaient leurs libellés sur deux lignes ; cinq au plus tiennent sur
 une ligne, ~75 px chacun). Un `labelCourt` change le **texte visible**, et le
@@ -74,14 +91,13 @@ seul s'il commence déjà par le court (« Validation des épreuves »), sinon
 les deux (« Accueil, tableau de bord »). L'onglet courant porte, en plus de
 sa couleur, un trait `--tcn-orange` de 3 px (pendant de `barreActive` du
 rail, WCAG 1.4.1), et « Plus » s'allume quand la page courante vit dans le
-tiroir. Le tiroir porte « le reste » : toutes les destinations que
-la barre ne montre pas, sections publiques débordantes comprises, et les
-deux actions primaires, **sauf** repli (#621) : la barre basse est masquée
+tiroir. Le tiroir porte « le reste » : ce que la barre laisse de l'espace
+courant, sections débordantes comprises, et les deux actions primaires, **sauf** repli (#621) : la barre basse est masquée
 pendant que le tiroir est ouvert (le `Sheet` passe par-dessus), donc un
 visiteur dont la barre porte tout (anonyme, ou adhérent sans pouvoir) se
 retrouvait sans aucune destination à l'écran une fois le tiroir ouvert par
-le hamburger. `sectionsTiroir` (`AppNav.tsx`) retombe alors sur l'ensemble
-des sections ; c'est le seul cas de doublon avec la barre. Le
+le hamburger. `sectionsRepli` (`AppNav.tsx`) retombe alors sur les sections
+de l'espace courant (`sections`) ; c'est le seul cas de doublon avec la barre. Le
 pied du tiroir ne ferme plus au clic : `UserMenu` ferme lui-même via
 `onNavigate`, au moment où la navigation a réellement lieu (immédiat pour la
 connexion, après le succès de la mutation pour la déconnexion) — jamais au

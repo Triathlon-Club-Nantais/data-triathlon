@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { SessionUser } from "@/lib/types";
 
@@ -108,6 +108,7 @@ const SESSION: SessionUser = {
   roles: [],
   groups: [],
   can_administer: false,
+  can_supervise: false,
 };
 
 /** La même session, habilitée. `permissions` est l'unique source (#115). */
@@ -115,9 +116,15 @@ function habilite(...pouvoirs: string[]): SessionUser {
   return { ...SESSION, permissions: pouvoirs };
 }
 
+/** Le rail desktop : la barre basse porte des liens et pastilles en doublon. */
+const rail = () => screen.getByRole("navigation", { name: "Navigation principale" });
 /** Un compte d'administration : `can_administer` vient du serveur (#1109). */
 function admin(...pouvoirs: string[]): SessionUser {
   return { ...habilite(...pouvoirs), can_administer: true };
+}
+/** Un compte d'encadrement seul : `can_supervise` vient du serveur (#1297). */
+function encadrant(...pouvoirs: string[]): SessionUser {
+  return { ...habilite(...pouvoirs), can_supervise: true };
 }
 
 /**
@@ -130,6 +137,10 @@ async function deplier() {
   const bouton = screen.queryByRole("button", { name: "Déplier la navigation" });
   if (bouton) await userEvent.click(bouton);
 }
+
+afterEach(() => {
+  chemin.courant = "/dashboard";
+});
 
 beforeEach(() => {
   push.mockClear();
@@ -233,6 +244,7 @@ describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", 
   });
 
   it("remonte l'entrée d'une catégorie à plusieurs destinations à chaque dépliage — limite assumée du correctif", async () => {
+    chemin.courant = "/admin";
     // Caractérisation, pas un objectif : l'unification ne vaut que pour la
     // section **racine** et, depuis #482 (NAV-2), pour une catégorie réduite à
     // une seule destination livrée (« Club », qui rend désormais son `Link`
@@ -253,9 +265,6 @@ describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", 
     await userEvent.click(screen.getByRole("button", { name: "Replier la navigation" }));
     await userEvent.click(screen.getByRole("button", { name: "Déplier la navigation" }));
     expect(montages.get("/admin/fournisseurs")).toBe(2);
-    // La racine, elle, tient : c'est ce que le correctif garantit. 2, pas 1 :
-    // la barre basse mobile (#482, NAV-4) porte, elle aussi, « Résultats ».
-    expect(montages.get("/resultats")).toBe(2);
   });
 
   it("ne prefetche pas le logo du rail déplié, qui double la route de « Tableau de bord »", async () => {
@@ -598,6 +607,7 @@ describe("AppNav: unreadable session (#954)", () => {
   });
 
   it("keeps the last known sections when a later session refetch fails", async () => {
+    chemin.courant = "/admin";
     getSession.mockResolvedValue(habilite("courses:write"));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
@@ -605,14 +615,14 @@ describe("AppNav: unreadable session (#954)", () => {
         <AppNav initialExpanded />
       </QueryClientProvider>,
     );
-    expect(await screen.findByRole("link", { name: "Épreuves" })).toBeInTheDocument();
+    await waitFor(() => expect(within(rail()).getByRole("link", { name: "Épreuves" })).toBeInTheDocument());
 
     getSession.mockRejectedValue(new ApiError(503, "indisponible"));
     await act(async () => {
       await client.refetchQueries({ queryKey: ["session"] });
     });
 
-    expect(screen.getByRole("link", { name: "Épreuves" })).toBeInTheDocument();
+    expect(within(rail()).getByRole("link", { name: "Épreuves" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Se connecter" })).not.toBeInTheDocument();
   });
 
@@ -888,6 +898,7 @@ describe("AppNav — arborescence", () => {
   });
 
   it("rend un lien direct sur le rail replié pour une section à une seule destination livrée (#482, NAV-2)", async () => {
+    chemin.courant = "/admin";
     // « Club » tenait ce rôle jusqu'à #487, qui lui a livré sa seconde
     // destination. La branche reste vivante : elle dépend des pouvoirs, et
     // « Administration » se réduit à une destination pour qui n'en porte qu'un.
@@ -929,6 +940,7 @@ describe("AppNav — arborescence", () => {
   });
 
   it("garde le bouton dépliant pour une section à plusieurs destinations livrées (#482, NAV-2)", async () => {
+    chemin.courant = "/admin";
     afficher(habilite("pending_providers:read", "batch:run"));
 
     await waitFor(() =>
@@ -963,6 +975,7 @@ describe("AppNav — arborescence", () => {
   });
 
   it("cache Administration à un anonyme et la montre à un connecté", async () => {
+    chemin.courant = "/admin";
     const { unmount } = afficher(null);
     await deplier();
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
@@ -977,7 +990,7 @@ describe("AppNav — arborescence", () => {
     );
     // Le libellé du rail est le titre de l'écran d'arrivée, pas un synonyme
     // (ADM-6) : « Gestion des courses » menait à une page intitulée « Épreuves ».
-    expect(screen.getByRole("link", { name: "Épreuves" })).toHaveAttribute(
+    expect(within(rail()).getByRole("link", { name: "Épreuves" })).toHaveAttribute(
       "href",
       "/admin/courses",
     );
@@ -993,7 +1006,7 @@ describe("AppNav — arborescence", () => {
     // `isActive` teste `startsWith` : une entrée branchée sur `/admin` serait
     // allumée sur **tous** les écrans d'administration.
     await waitFor(() =>
-      expect(screen.getByRole("link", { name: "Épreuves" })).toHaveAttribute(
+      expect(within(rail()).getByRole("link", { name: "Épreuves" })).toHaveAttribute(
         "aria-current",
         "page",
       ),
@@ -1019,6 +1032,10 @@ describe("AppNav — arborescence", () => {
 });
 
 describe("AppNav — Gestion des utilisateurs (#170)", () => {
+  beforeEach(() => {
+    chemin.courant = "/admin";
+  });
+
   /**
    * La section se règle sur les **pouvoirs**, pas sur `ROLE.ADMIN`.
    *
@@ -1031,17 +1048,24 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
    * elle-même sans `allowed_emails:manage`.
    */
   it("cache la section à un connecté sans pouvoir", async () => {
+    chemin.courant = "/admin";
     afficher(SESSION);
     await deplier();
-    // Scopé au rail : la barre basse mobile (#482, NAV-4) porte, elle aussi,
-    // un « Résultats ».
-    const rail = screen.getByRole("navigation", { name: "Navigation principale" });
-    await waitFor(() => expect(within(rail).getByText("Résultats")).toBeInTheDocument());
+    await screen.findByRole("button", { name: /Compte/ });
     expect(screen.queryByText("Gestion des utilisateurs")).not.toBeInTheDocument();
     // « Administration » disparaît de même depuis qu'« Épreuves » porte un
     // pouvoir : c'était la seule entrée de la section à n'en porter aucun,
     // donc la seule proposée à qui n'y peut rien faire (ADM-6).
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
+  });
+
+  it("n'ouvre pas l'espace admin à qui porte un pouvoir sans can_administer", async () => {
+    chemin.courant = "/dashboard";
+    afficher(habilite("allowed_emails:manage"));
+    await deplier();
+    await screen.findByRole("button", { name: /Compte/ });
+    expect(screen.queryByText("Back-office")).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: /espaces$/i })).not.toBeInTheDocument();
   });
 
   it("ouvre « Accès et mots de passe » à qui porte allowed_emails:manage", async () => {
@@ -1131,7 +1155,7 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
       screen.getByRole("link", { name: "Revalidation qualité" }),
     ).toHaveAttribute("href", "/admin/quality");
 
-    // « Bénévolat », public (`/benevolat`) comme admin (`/admin/benevolat`),
+    // « Bénévolat », public (`/benevolat`) comme encadrement (`/encadrement/benevolat`),
     // passe derrière `pages:preview` (#879), que cette session ne porte pas.
     const rail = screen.getByRole("navigation", { name: "Navigation principale" });
     expect(within(rail).queryByRole("link", { name: "Bénévolat" })).not.toBeInTheDocument();
@@ -1183,6 +1207,10 @@ describe("AppNav — session (#114)", () => {
 });
 
 describe("rail badges (#119, #726, #1232, #1385)", () => {
+  beforeEach(() => {
+    chemin.courant = "/admin";
+  });
+
   it.each([
     ["quality:override", "quality", /revalidation qualité/i, "4 épreuves à revalider"],
     ["courses:sources", "duplicates", /doublons suspects/i, "4 doublons suspects"],
@@ -1195,14 +1223,15 @@ describe("rail badges (#119, #726, #1232, #1385)", () => {
     afficher(admin(permission));
     await deplier();
 
-    const entry = await screen.findByRole("link", { name: entryName });
+    const entry = await within(rail()).findByRole("link", { name: entryName });
     expect(await within(entry).findByText("4")).toHaveAttribute("aria-hidden", "true");
     // ARIA 1.2 interdit de nommer un `<span>` par `aria-label` : le nom passe
     // par un texte `sr-only`, la pastille chiffrée restant décorative.
-    expect(screen.getByText(name)).toHaveClass("sr-only");
+    expect(within(rail()).getByText(name)).toHaveClass("sr-only");
   });
 
   it("carries the volunteer validation count for an admin account", async () => {
+    chemin.courant = "/dashboard";
     getAdminBadgeCounts.mockResolvedValue({ validation: 2 });
     afficher(admin("feedback:read"));
     await deplier();
@@ -1302,6 +1331,7 @@ describe("AppNav — infobulles du rail replié remplacent les title (#482, NAV-
   });
 
   it("porte une infobulle sur la tuile de catégorie repliée (« Administration »)", async () => {
+    chemin.courant = "/admin";
     afficher(habilite("pending_providers:read", "batch:run"));
     const bouton = await screen.findByRole("button", { name: "Administration" });
 
@@ -1335,6 +1365,59 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
     await waitFor(() => expect(getSession).toHaveBeenCalled());
     await waitFor(() => expect(liens()).toEqual(["/dashboard", "/resultats", "/club", "/benevoles"]));
     expect(within(barre()).getByRole("button", { name: "Plus" })).toBeInTheDocument();
+  });
+
+  it("in the supervision space, the bar carries the supervision tabs", async () => {
+    chemin.courant = "/encadrement/jeunes";
+    afficher(habilite("jeunes:read", "athletes:volunteer_validate", "pages:preview"));
+    await waitFor(() =>
+      expect(liens()).toEqual(["/encadrement/jeunes", "/encadrement/jeunes/calendrier", "/encadrement/jeunes/appel", "/encadrement/benevolat"]),
+    );
+    expect(within(barre()).getByRole("link", { name: /Jeunes/ })).toHaveAttribute("aria-current", "page");
+    expect(within(barre()).getByRole("button", { name: "Plus" })).toBeInTheDocument();
+  });
+
+  it("in the back-office, the bar starts with Sommaire and its total", async () => {
+    chemin.courant = "/admin/courses";
+    getAdminBadgeCounts.mockResolvedValue({ quality: 3 });
+    afficher(admin("courses:write", "athletes:write", "quality:override"));
+    await waitFor(() => expect(liens()).toEqual(["/admin", "/admin/identites", "/admin/courses"]));
+    expect(within(barre()).getByRole("link", { name: /Épreuves/ })).toHaveAttribute("aria-current", "page");
+    await waitFor(() =>
+      expect(within(barre()).getByRole("link", { name: /Sommaire.*3 éléments à traiter/ })).toBeInTheDocument(),
+    );
+  });
+
+  it("tabs the account cannot open are not offered", async () => {
+    chemin.courant = "/admin";
+    afficher(habilite("quality:override"));
+    await waitFor(() => expect(liens()).toEqual(["/admin"]));
+    expect(within(barre()).getByRole("link", { name: /Sommaire/ })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("the public bar is unchanged outside the private spaces", async () => {
+    chemin.courant = "/club";
+    afficher(habilite("courses:write", "jeunes:read"));
+    await waitFor(() => expect(liens()).toEqual(["/dashboard", "/resultats", "/club", "/benevoles"]));
+  });
+
+  it("a short-labelled tab keeps its count in its accessible name, announced once", async () => {
+    chemin.courant = "/dashboard";
+    getAdminBadgeCounts.mockResolvedValue({ validation: 2 });
+    afficher(admin("feedback:read"));
+    const lien = await waitFor(() => within(barre()).getByRole("link", { name: /Validation.*2 résultats à valider/ }));
+    expect(lien).toHaveAttribute("aria-label", expect.stringContaining("2 résultats à valider"));
+    expect(lien.querySelector(".sr-only")).toBeNull();
+  });
+
+  it("in the supervision space, « Plus » falls back to the space entries when the bar carries them all (#621)", async () => {
+    // Sans `jeunes:read`, « Groupes d'entraînement », hors barre, ne remplit pas le tiroir.
+    chemin.courant = "/encadrement/benevolat";
+    afficher(habilite("athletes:volunteer_validate", "pages:preview"));
+    await waitFor(() => expect(liens()).toEqual(["/encadrement/benevolat"]));
+    await userEvent.click(within(barre()).getByRole("button", { name: "Plus" }));
+    const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).getByRole("link", { name: /Crédits bénévoles/ })).toHaveAttribute("href", "/encadrement/benevolat");
   });
 
   it("garde les mêmes onglets avant et après la lecture de la session", async () => {
@@ -1429,6 +1512,7 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
   });
 
   it("ne porte aucune destination privée, connecté ou non", async () => {
+    chemin.courant = "/admin";
     // Deux pouvoirs, pas un seul : une seule destination livrée ferait rendre
     // « Administration » en lien direct plutôt qu'en tuile de catégorie
     // (#482, NAV-2). Attend la tuile par son nom accessible, pas par un texte
@@ -1444,6 +1528,7 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
 
 describe("AppNav — tiroir mobile réduit à l'administration et au compte (#482, NAV-4)", () => {
   it("garde les sections privées dans le tiroir pour un connecté habilité, sans y dupliquer les sections publiques", async () => {
+    chemin.courant = "/admin";
     afficher(habilite("pending_providers:read"));
     await userEvent.click(await screen.findByRole("button", { name: "Ouvrir le menu" }));
 
@@ -1525,6 +1610,10 @@ describe("AppNav — le tiroir ne se ferme plus au clic du pied (#482, NAV-4)", 
 });
 
 describe("Administration subsections (#1246)", () => {
+  beforeEach(() => {
+    chemin.courant = "/admin";
+  });
+
   it("titles the subsections the session opens, and only those", async () => {
     afficher(habilite("feedback:read", "admin_log:read"), { initialExpanded: true });
 
@@ -1544,6 +1633,10 @@ describe("Administration subsections (#1246)", () => {
 });
 
 describe("⌘K search to screens (#1246)", () => {
+  beforeEach(() => {
+    chemin.courant = "/admin";
+  });
+
   const TOUS_LES_POUVOIRS = NAV.flatMap((s) => s.items)
     .flatMap((i) => (Array.isArray(i.permission) ? i.permission : i.permission ? [i.permission] : []))
     .concat("pages:preview");
@@ -1588,5 +1681,208 @@ describe("⌘K search to screens (#1246)", () => {
     await userEvent.click(within(await screen.findByRole("list", { name: "Écrans" })).getByRole("link"));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("AppNav — espaces (#1296)", () => {
+  const rail = () => screen.getByRole("navigation", { name: "Navigation principale" });
+  const admin = () => ({
+    ...habilite("pending_providers:read", "batch:run", "courses:write"),
+    can_administer: true,
+    can_supervise: false,
+  });
+
+  it("dans l'espace public, ne montre aucun écran d'administration", async () => {
+    chemin.courant = "/dashboard";
+    afficher(admin());
+    await waitFor(() => expect(within(rail()).getByRole("link", { name: /Back-office/ })).toHaveAttribute("href", "/admin"));
+    for (const lien of within(rail()).getAllByRole("link"))
+      expect(lien.getAttribute("href")).not.toMatch(/^\/admin\//);
+  });
+
+  it("dans le back-office, ne montre que ses écrans", async () => {
+    chemin.courant = "/admin/courses";
+    afficher(admin(), { initialExpanded: true });
+    await waitFor(() => expect(within(rail()).getByRole("link", { name: "Épreuves" })).toBeInTheDocument());
+    expect(within(rail()).queryByRole("link", { name: "Résultats" })).not.toBeInTheDocument();
+  });
+
+  it("donne au compteur du bouton Back-office un libellé accessible", async () => {
+    getAdminBadgeCounts.mockResolvedValue({ providers: 5 });
+    chemin.courant = "/dashboard";
+    afficher(admin(), { initialExpanded: true });
+    expect(await within(rail()).findByRole("link", { name: "Back-office, 5 éléments à traiter" })).toHaveAttribute("href", "/admin");
+  });
+
+  it("ne double pas le bouton Back-office du sélecteur par une entrée du rail ni du tiroir", async () => {
+    chemin.courant = "/dashboard";
+    afficher(admin(), { initialExpanded: true });
+    expect(await within(rail()).findByRole("link", { name: /Back-office/ })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    const tiroir = await screen.findByRole("dialog");
+    const [seul] = within(tiroir).getAllByRole("link", { name: /Back-office/ });
+    expect(within(tiroir).getByRole("group", { name: "Espaces" })).toContainElement(seul);
+    expect(within(tiroir).getAllByRole("link", { name: /Back-office/ })).toHaveLength(1);
+  });
+
+  it("n'offre pas d'entrée Back-office à un membre sans pouvoir", async () => {
+    chemin.courant = "/dashboard";
+    afficher(SESSION);
+    await waitFor(() => expect(getSession).toHaveBeenCalled());
+    expect(within(rail()).queryByRole("link", { name: /Back-office/ })).not.toBeInTheDocument();
+  });
+
+  it("garde dans la palette les écrans de tous les espaces", async () => {
+    chemin.courant = "/dashboard";
+    afficher(admin());
+    await waitFor(() => expect(within(rail()).getByRole("link", { name: /Back-office/ })).toBeInTheDocument());
+    await userEvent.keyboard("{Control>}k{/Control}");
+    await userEvent.type(await screen.findByRole("combobox", { name: /Rechercher/ }), "Épreuves");
+
+    const liste = await screen.findByRole("list", { name: "Écrans" });
+    expect(within(liste).getAllByRole("link").map((l) => l.getAttribute("href"))).toContain("/admin/courses");
+  });
+
+  it("offre le sélecteur d'espace à un administrateur", async () => {
+    chemin.courant = "/dashboard";
+    afficher(admin(), { initialExpanded: true });
+    expect(await within(rail()).findByRole("group", { name: "Espaces" })).toBeInTheDocument();
+  });
+
+  it("offre le sélecteur d'espace en tête du tiroir mobile, pas dans la barre du haut", async () => {
+    chemin.courant = "/dashboard";
+    afficher(admin(), { initialExpanded: true });
+    await within(rail()).findByRole("group", { name: "Espaces" });
+    expect(within(screen.getByRole("banner")).queryByRole("group", { name: "Espaces" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    expect(await within(await screen.findByRole("dialog")).findByRole("group", { name: "Espaces" })).toBeInTheDocument();
+  });
+
+  it("n'offre pas de sélecteur à un membre sans pouvoir", async () => {
+    chemin.courant = "/dashboard";
+    afficher(SESSION);
+    await waitFor(() => expect(getSession).toHaveBeenCalled());
+    expect(screen.queryByRole("group", { name: /espaces$/i })).not.toBeInTheDocument();
+  });
+
+  it("n'offre pas de sélecteur à un anonyme", async () => {
+    chemin.courant = "/dashboard";
+    afficher(null);
+    await waitFor(() => expect(getSession).toHaveBeenCalled());
+    expect(screen.queryByRole("group", { name: /espaces$/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("AppNav: supervision space (#1297)", () => {
+  const rail = () => screen.getByRole("navigation", { name: "Navigation principale" });
+  const supervisor = () => ({ ...habilite("jeunes:read"), can_administer: false, can_supervise: true });
+
+  it("a supervisor without admin power sees Encadrement in the switcher, not Back-office", async () => {
+    chemin.courant = "/dashboard";
+    afficher(supervisor(), { initialExpanded: true });
+    const espaces = await within(rail()).findByRole("group", { name: "Espaces" });
+
+    expect(within(espaces).getByRole("link", { name: "Encadrement" })).toHaveAttribute("href", "/encadrement");
+    expect(within(espaces).queryByRole("link", { name: /Back-office/ })).not.toBeInTheDocument();
+  });
+
+  it("the supervision rail shows only its screens", async () => {
+    chemin.courant = "/encadrement/jeunes";
+    afficher(supervisor(), { initialExpanded: true });
+
+    await waitFor(() => expect(within(rail()).getByRole("link", { name: "Profils" })).toBeInTheDocument());
+    expect(within(rail()).getByRole("link", { name: "Calendrier des entraînements" })).toBeInTheDocument();
+    expect(within(rail()).getByRole("link", { name: "Appel" })).toBeInTheDocument();
+    const espaces = within(rail()).getByRole("group", { name: "Espaces" });
+    const hrefs = within(rail())
+      .getAllByRole("link")
+      .filter((lien) => !espaces.contains(lien))
+      .map((lien) => lien.getAttribute("href"));
+    expect(hrefs.filter((href) => href?.startsWith("/encadrement"))).toEqual([
+      "/encadrement/jeunes",
+      "/encadrement/jeunes/groupes",
+      "/encadrement/jeunes/calendrier",
+      "/encadrement/jeunes/appel",
+    ]);
+    expect(hrefs.filter((href) => href?.startsWith("/admin"))).toEqual([]);
+    expect(hrefs).not.toContain("/resultats");
+  });
+
+  it("the Back-office count no longer includes volunteer declarations", async () => {
+    chemin.courant = "/dashboard";
+    getAdminBadgeCounts.mockResolvedValue({ quality: 2, volunteer: 5 });
+    afficher(
+      { ...admin("quality:override", "athletes:volunteer_validate", "pages:preview"), can_supervise: true },
+      { initialExpanded: true },
+    );
+
+    await waitFor(() => expect(getAdminBadgeCounts).toHaveBeenCalled());
+    expect(await within(rail()).findByRole("link", { name: "Back-office, 2 éléments à traiter" })).toBeInTheDocument();
+  });
+});
+
+describe("AppNav: UI/UX review of the spaces (#1295)", () => {
+  const twoSpaces = () => ({ ...habilite("courses:write", "jeunes:read"), can_administer: false, can_supervise: true });
+
+  it("the mobile drawer switcher shows labels", async () => {
+    chemin.courant = "/dashboard";
+    afficher(twoSpaces());
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    const espaces = await within(await screen.findByRole("dialog")).findByRole("group", { name: "Espaces" });
+    expect(within(espaces).getByRole("link", { name: "Encadrement" })).toHaveTextContent("Encadrement");
+  });
+
+  it("the expanded rail puts the switcher on its own row under the logo", async () => {
+    chemin.courant = "/dashboard";
+    afficher(twoSpaces(), { initialExpanded: true });
+    const espaces = await within(rail()).findByRole("group", { name: "Espaces" });
+    const logo = within(rail()).getByRole("link", { name: /Accueil/ });
+    expect(logo.parentElement).not.toContainElement(espaces);
+    expect(within(espaces).getByRole("link", { name: "Consulter" })).toHaveTextContent("Consulter");
+  });
+
+  const barre = () => screen.getByRole("navigation", { name: "Navigation" });
+
+  it("a refused Back-office falls back to the public navigation", async () => {
+    chemin.courant = "/admin/membres";
+    afficher(SESSION, { initialExpanded: true });
+    await waitFor(() => expect(within(rail()).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats"));
+    expect(within(barre()).queryByRole("link", { name: /Sommaire/ })).not.toBeInTheDocument();
+    expect(within(barre()).getByRole("link", { name: "Résultats" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).getAllByRole("link").length).toBeGreaterThan(0);
+  });
+
+  it("a refused private space falls back to the public navigation", async () => {
+    chemin.courant = "/encadrement/jeunes";
+    afficher(SESSION, { initialExpanded: true });
+    await waitFor(() => expect(within(rail()).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats"));
+    expect(within(rail()).getByRole("link", { name: "Tableau de bord" })).toHaveAttribute("href", "/dashboard");
+    expect(within(barre()).queryByRole("link", { name: /Sommaire/ })).not.toBeInTheDocument();
+    expect(within(barre()).getByRole("link", { name: "Résultats" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
+    const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).getAllByRole("link").length).toBeGreaterThan(0);
+  });
+
+  it("the Encadrement switcher entry carries its pending count", async () => {
+    chemin.courant = "/dashboard";
+    getAdminBadgeCounts.mockResolvedValue({ volunteer: 4 });
+    afficher(encadrant("jeunes:read", "athletes:volunteer_validate", "pages:preview"), { initialExpanded: true });
+    const espaces = await within(rail()).findByRole("group", { name: "Espaces" });
+
+    expect(await within(espaces).findByRole("link", { name: "Encadrement, 4 éléments à traiter" })).toHaveTextContent("4");
+  });
+
+  it("the Encadrement switcher entry has no count when nothing is pending", async () => {
+    chemin.courant = "/dashboard";
+    afficher(encadrant("jeunes:read", "athletes:volunteer_validate", "pages:preview"), { initialExpanded: true });
+    const espaces = await within(rail()).findByRole("group", { name: "Espaces" });
+
+    await waitFor(() => expect(getAdminBadgeCounts).toHaveBeenCalled());
+    expect(within(espaces).getByRole("link", { name: "Encadrement" })).toHaveAttribute("href", "/encadrement");
   });
 });

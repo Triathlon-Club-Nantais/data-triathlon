@@ -154,14 +154,14 @@ describe("before_send (#1307, #1530)", () => {
     expect(properties.$elements_chain).toBe('a:attr__href="/resultats"href="/resultats"nth-child="1"');
   });
 
-  it("jette encore un clic sous /admin/jeunes, garde la page vue", async () => {
-    vi.stubGlobal("window", { location: { pathname: "/admin/jeunes/7" } });
+  it("jette encore un clic sous /encadrement/jeunes, garde la page vue", async () => {
+    vi.stubGlobal("window", { location: { pathname: "/encadrement/jeunes/7" } });
     const send = await beforeSend();
 
     expect(send({ event: "$autocapture", properties: { $el_text: "Léa" } })).toBeNull();
-    expect(send({ event: "$pageview", properties: { $current_url: "https://tcn.test/admin/jeunes/7?q=L" } })).toEqual({
+    expect(send({ event: "$pageview", properties: { $current_url: "https://tcn.test/encadrement/jeunes/7?q=L" } })).toEqual({
       event: "$pageview",
-      properties: { $current_url: "https://tcn.test/admin/jeunes/7" },
+      properties: { $current_url: "https://tcn.test/encadrement/jeunes/7" },
     });
   });
 });

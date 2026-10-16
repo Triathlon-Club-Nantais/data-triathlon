@@ -211,7 +211,7 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
                             écriture — un porteur de `jeunes:read` seul y a
                             droit comme au reste de l'appel. */}
                         <Link
-                          href={`/admin/jeunes/${participant.profile_id}`}
+                          href={`/encadrement/jeunes/${participant.profile_id}`}
                           className={buttonVariants({ variant: "ghost", size: "sm" })}
                         >
                           Voir le profil
@@ -255,7 +255,7 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
       <PageHeader
         title={data ? `Appel du ${formatDate(data.date)}` : "Appel"}
         description={heureEtLieu || undefined}
-        backHref="/admin/jeunes/calendrier"
+        backHref="/encadrement/jeunes/calendrier"
         backLabel="Retour au calendrier"
       />
       <div>{corps}</div>

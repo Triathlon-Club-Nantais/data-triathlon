@@ -32,7 +32,7 @@ function useAdminBadgeCounts(actif = true) {
  * `GET /admin/badge-counts` est indexée par ces mêmes clés, et n'en porte que
  * ce que la session peut voir : le filtrage par pouvoir est au serveur. La nav
  * est montée sur toutes les pages, donc la requête ne part que pour un compte
- * d'administration (`canAdminister`), jamais pour un visiteur.
+ * d'administration ou d'encadrement (`enabled`), jamais pour un visiteur.
  *
  * `feedback` compte les retours `nouveau`, la file d'attente et non
  * l'historique (ADM-10). `quality` ne compte que les épreuves sans avis humain
@@ -40,11 +40,11 @@ function useAdminBadgeCounts(actif = true) {
  * le serveur la rend au porteur de `benevole_access:manage` ou du cookie
  * bénévoles, illisible côté client.
  */
-export function useNavBadges(canAdminister: boolean): {
+export function useNavBadges(enabled: boolean): {
   counts: Record<string, number | undefined>;
   loading: boolean;
 } {
-  const badges = useAdminBadgeCounts(canAdminister);
+  const badges = useAdminBadgeCounts(enabled);
   return {
     counts: badges.data ?? {},
     // Le premier chargement seul : un compte déjà connu se garde à l'écran
@@ -77,6 +77,8 @@ export function libelleCompteur(badge: string | undefined, n: number): string {
       return `${n} déclaration${n > 1 ? "s" : ""} de bénévolat en attente`;
     case "validation":
       return `${n} résultat${n > 1 ? "s" : ""} à valider`;
+    case "backoffice":
+      return `${n} élément${n > 1 ? "s" : ""} à traiter`;
     default:
       return String(n);
   }

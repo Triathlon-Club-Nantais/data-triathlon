@@ -48,7 +48,7 @@ qu'il compte une seule fois et hors de portée des bloqueurs (#1033).
   chargement suivant. **Prérequis** : le mode sans cookie doit être activé dans
   les réglages du projet PostHog, sinon les événements sans cookie sont
   ignorés.
-- **Écrans jeunes** (#1307) : sous `/admin/jeunes`, le `before_send` de
+- **Écrans jeunes** (#1307) : sous `/encadrement/jeunes`, le `before_send` de
   `lib/posthog.ts` jette tout événement dont les propriétés portent
   un élément (`$elements`, `$elements_chain` ou `$el_text` : clics, clics
   morts, glissés morts, et ceux qu'une version future de posthog-js ajoutera),
@@ -70,7 +70,7 @@ qu'il compte une seule fois et hors de portée des bloqueurs (#1033).
   blanche se tient à la main et un paramètre ajouté plus tard fuirait par
   défaut ; le choix de saisons a déjà son événement (`season_changed`).
   `$pathname` reste entier : ses identifiants (`/athletes/123`,
-  `/admin/jeunes/7`) sont des clés numériques opaques, sans nom, que seul un
+  `/encadrement/jeunes/7`) sont des clés numériques opaques, sans nom, que seul un
   accès à l'application relie à une personne, et l'analyse par écran en a
   besoin. Les paramètres de campagne (`utm_*`, `gclid`…) que posthog-js lit
   dans l'URL restent : le club n'en émet pas. Le replay est coupé

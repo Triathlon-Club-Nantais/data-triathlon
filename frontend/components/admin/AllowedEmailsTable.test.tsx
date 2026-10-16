@@ -68,6 +68,7 @@ const MOI: SessionUser = {
   roles: [],
   groups: [],
   can_administer: true,
+  can_supervise: false,
 };
 
 const ADRESSE: AllowedEmail = {

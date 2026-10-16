@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, act, within } from "@testing-library/react";
+import { render, screen, waitFor, act, within, fireEvent } from "@testing-library/react";
 import type { Participation } from "@/lib/types";
 
 let searchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParams,
+  usePathname: () => "/dashboard",
 }));
 
 const getAthlete = vi.fn();
@@ -80,7 +81,7 @@ describe("MaSaison — état rempli", () => {
 
     // Portée sur la ligne visible : la région d'annonce (#477) reprend le
     // même texte en sr-only dès qu'elle s'affiche, ce qui recoupe une requête
-    // non scopée (patron de `StatCardsRank.test.tsx`).
+    // non scopée (patron de `PodiumsList.test.tsx`).
     const ligneVisible = await screen.findByTestId("ma-saison-ligne");
     expect(within(ligneVisible).getByText(/4 épreuves/)).toBeInTheDocument();
     expect(within(ligneVisible).getByText(/1 podium/)).toBeInTheDocument();
@@ -144,6 +145,25 @@ describe("MaSaison — état rempli", () => {
 
     expect(await within(ligneVisible).findByText(/1 podium/)).toBeInTheDocument();
     expect(getAthlete).toHaveBeenCalledTimes(1);
+  });
+
+  it("monte le sélecteur de type de rang dans la bande, qui écrit ?rank= dans l'URL", async () => {
+    getAthlete.mockResolvedValue({
+      athlete: ATHLETE,
+      participations: [ligne(1, { rank_overall: 40, rank_category: 2 })],
+    });
+    render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+    await screen.findByTestId("ma-saison-ligne");
+
+    const groupe = screen.getByRole("group", { name: "Type de rang" });
+    expect(screen.getByText("Type de rang")).toBeVisible();
+    const boutons = within(groupe).getAllByRole("button");
+    const parCategorie = boutons.find((b) => /cat/i.test(b.textContent ?? ""));
+    expect(parCategorie).toBeDefined();
+    fireEvent.click(parCategorie!);
+
+    expect(new URLSearchParams(window.location.search).get("rank")).toBe("category");
+    window.history.pushState(null, "", "/");
   });
 
   // #502, revue UI/UX item 1 : le rang a quitté la ligne principale (471px en
@@ -217,6 +237,46 @@ describe("MaSaison — états dégradés", () => {
     const ajouter = within(ligneVisible).getByRole("link", { name: "Ajouter une épreuve" });
     expect(ajouter).toHaveAttribute("href", "/ajouter");
     expect(ajouter).toHaveClass("tcn-cible-tactile");
+  });
+
+  describe("rank toggle only where it acts", () => {
+    const toggle = () => screen.queryByRole("group", { name: "Type de rang" });
+
+    it("is present while loading", () => {
+      getAthlete.mockReturnValue(new Promise(() => {}));
+      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+      expect(screen.getByTestId("ma-saison-squelette")).toBeInTheDocument();
+      expect(toggle()).not.toBeNull();
+    });
+
+    it("is absent when the athlete is lost", async () => {
+      getAthlete.mockRejectedValue(new ApiError(404, "Not Found"));
+      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+      await screen.findByText(/votre fiche a changé/i);
+      expect(toggle()).toBeNull();
+      expect(screen.queryByText("Type de rang")).toBeNull();
+    });
+
+    it("is absent on failure", async () => {
+      getAthlete.mockRejectedValue(new TypeError("Failed to fetch"));
+      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+      await screen.findByText(/chiffres indisponibles/i);
+      expect(toggle()).toBeNull();
+    });
+
+    it("is absent when there is no event", async () => {
+      getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [] });
+      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+      await screen.findByText(/aucune épreuve/i);
+      expect(toggle()).toBeNull();
+    });
+
+    it("is present with at least one event", async () => {
+      getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [ligne(1)] });
+      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+      await screen.findByTestId("ma-saison-ligne");
+      expect(toggle()).not.toBeNull();
+    });
   });
 
   describe("échec réseau (#502, item 5)", () => {
@@ -351,7 +411,7 @@ describe("MaSaison — titre au pluriel sur sélection multi-saisons (#502, item
 // donc rien n'annonce la bascule à un lecteur d'écran sans cette région. Muette
 // à la première apparition, pour ne pas transformer chaque chargement de page
 // en bruit — patron vérifié séparément de la ligne visible, comme
-// `StatCardsRank.test.tsx` (`getByRole("status")`, pas une requête de texte
+// `PodiumsList.test.tsx` (`getByRole("status")`, pas une requête de texte
 // partagée avec le contenu visible).
 describe("MaSaison — annonce (#477)", () => {
   beforeEach(() => {

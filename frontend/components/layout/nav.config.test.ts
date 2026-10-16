@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { BOTTOM_BAR_MAX, NAV, ROLE, TO_HANDLE, ecran, estVisible } from "./nav.config";
+import { BOTTOM_BAR_MAX, NAV, ROLE, SPACES, TO_HANDLE, ecran, estVisible, spaceOf, type SpaceId } from "./nav.config";
 import { GUIDE_ADMIN } from "@/components/guide/guide-content.admin";
 
 /** Les destinations du back-office : celles que le sommaire `/admin` annonce. */
@@ -40,7 +40,6 @@ describe("nav.config", () => {
       "a-identites",
       "a-quality",
       "a-feedback",
-      "a-benevolat-validation",
     ]);
     for (const item of files) expect(item.badge, item.id).toBeTruthy();
   });
@@ -48,8 +47,8 @@ describe("nav.config", () => {
   it("links every /admin entry of every section to an existing guide section (#1245)", () => {
     const anchors = new Set(GUIDE_ADMIN.map((section) => section.id));
     const sections = new Set(ECRANS_ADMIN.map((i) => NAV.find((s) => s.items.includes(i))!.id));
-    // Jeunes and Gestion des utilisateurs live outside « Administration ».
-    expect(sections).toEqual(new Set(["admin", "utilisateurs", "jeunes"]));
+    // Gestion des utilisateurs lives outside « Administration ».
+    expect(sections).toEqual(new Set(["admin", "utilisateurs"]));
     for (const item of ECRANS_ADMIN) {
       expect(anchors, item.href).toContain(item.helpAnchor);
       expect(ecran(item.href as string).helpHref).toBe(`/admin/guide#${item.helpAnchor}`);
@@ -159,18 +158,34 @@ describe("nav.config — section « Jeunes » unifiée (#869)", () => {
   it("propose les destinations profils, groupes, calendrier, appel", () => {
     const jeunes = NAV.find((s) => s.id === "jeunes")!;
     const hrefs = jeunes.items.map((i) => i.href);
-    expect(hrefs).toContain("/admin/jeunes");
-    expect(hrefs).toContain("/admin/jeunes/groupes");
-    expect(jeunes.items.find((i) => i.href === "/admin/jeunes/groupes")?.label).toBe(
+    expect(hrefs).toContain("/encadrement/jeunes");
+    expect(hrefs).toContain("/encadrement/jeunes/groupes");
+    expect(jeunes.items.find((i) => i.href === "/encadrement/jeunes/groupes")?.label).toBe(
       "Groupes d'entraînement",
     );
-    expect(hrefs).toContain("/admin/jeunes/calendrier");
-    expect(hrefs).toContain("/admin/jeunes/appel");
+    expect(hrefs).toContain("/encadrement/jeunes/calendrier");
+    expect(hrefs).toContain("/encadrement/jeunes/appel");
+  });
+
+  it("puts youth and volunteer validation in the supervision space, nowhere else", () => {
+    const supervision = NAV.filter((s) => s.space === "encadrement").flatMap((s) => s.items.map((i) => i.href));
+    expect(supervision).toEqual([
+      "/encadrement/jeunes",
+      "/encadrement/jeunes/groupes",
+      "/encadrement/jeunes/calendrier",
+      "/encadrement/jeunes/appel",
+      "/encadrement/benevolat",
+    ]);
+    for (const section of NAV) {
+      for (const item of section.items) {
+        expect(item.href?.startsWith("/encadrement") ?? false).toBe(section.space === "encadrement");
+      }
+    }
   });
 
   it("garde toutes ses destinations derrière jeunes:read", () => {
     const jeunes = NAV.find((s) => s.id === "jeunes")!;
-    for (const item of jeunes.items) {
+    for (const item of jeunes.items.filter((i) => i.id.startsWith("j-"))) {
       expect(item.permission, item.href).toBe("jeunes:read");
     }
   });
@@ -192,20 +207,69 @@ describe("permission en OU", () => {
   });
 });
 
-describe("barre basse mobile (#1300)", () => {
-  const onglets = NAV.flatMap((s) => s.items).filter((i) => i.bottomBar);
+describe("barre basse mobile (#1300, #1298)", () => {
+  const ongletsDe = (space: SpaceId) =>
+    NAV.filter((s) => s.space === space).flatMap((s) => s.items).filter((i) => i.bottomBar);
 
-  it("déclare au plus BOTTOM_BAR_MAX onglets", () => {
-    expect(onglets.length).toBeGreaterThan(0);
-    expect(onglets.length).toBeLessThanOrEqual(BOTTOM_BAR_MAX);
+  it.each(["public", "encadrement", "admin"] as const)("space %s declares at most BOTTOM_BAR_MAX tabs", (space) => {
+    expect(ongletsDe(space).length).toBeGreaterThan(0);
+    expect(ongletsDe(space).length).toBeLessThanOrEqual(BOTTOM_BAR_MAX);
   });
 
-  it("ne déclare que des destinations visibles pour tous, sans session", () => {
-    for (const section of NAV) {
+  it("the admin space leaves one place for the synthetic Sommaire tab", () => {
+    expect(ongletsDe("admin").length).toBeLessThanOrEqual(BOTTOM_BAR_MAX - 1);
+  });
+
+  it("public tabs stay visible to everyone, without a session", () => {
+    for (const section of NAV.filter((s) => s.space === "public")) {
       for (const item of section.items.filter((i) => i.bottomBar)) {
         expect(section.minRole).toBe(ROLE.ANON);
         expect(estVisible(item, new Set(), ROLE.ANON)).toBe(true);
       }
     }
+  });
+
+  it.each([
+    ["encadrement", ["/encadrement/jeunes", "/encadrement/jeunes/calendrier", "/encadrement/jeunes/appel", "/encadrement/benevolat"]],
+    ["admin", ["/admin/identites", "/admin/courses"]],
+  ] as const)("space %s declares exactly its tabs", (space, hrefs) => {
+    expect(ongletsDe(space).map((i) => i.href)).toEqual(hrefs);
+  });
+
+  it("every tab has an icon", () => {
+    for (const item of NAV.flatMap((s) => s.items).filter((i) => i.bottomBar)) expect(item.icon).toBeDefined();
+  });
+
+  it("every tab label fits: labelCourt when the label is long", () => {
+    for (const item of NAV.flatMap((s) => s.items).filter((i) => i.bottomBar)) {
+      expect((item.labelCourt ?? item.label).length).toBeLessThanOrEqual(12);
+    }
+  });
+});
+
+describe("espaces de navigation (#1296)", () => {
+  it("range chaque section dans un espace connu", () => {
+    for (const section of NAV) expect(Object.keys(SPACES)).toContain(section.space);
+  });
+
+  it("met dans l'espace public les seules sections ouvertes aux anonymes", () => {
+    for (const section of NAV) expect(section.space === "public").toBe(section.minRole === ROLE.ANON);
+  });
+
+  it("met toute destination /admin hors de l'espace public", () => {
+    for (const section of NAV.filter((s) => s.space === "public"))
+      for (const item of section.items) expect(item.href?.startsWith("/admin") ?? false).toBe(false);
+  });
+
+  it.each([
+    ["/admin", "admin"],
+    ["/admin/courses", "admin"],
+    ["/administration", "public"],
+    ["/encadrement", "encadrement"],
+    ["/encadrement/jeunes/12", "encadrement"],
+    ["/dashboard", "public"],
+    ["/", "public"],
+  ] as const)("spaceOf(%s) vaut %s", (pathname, attendu) => {
+    expect(spaceOf(pathname)).toBe(attendu);
   });
 });
