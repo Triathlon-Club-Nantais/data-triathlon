@@ -255,6 +255,9 @@ secret, elle répond 503 sur Vercel (`VERCEL_ENV` défini) plutôt que de s'ouvr
    100 par jour ; chaque fusion en brûlait deux (un par projet), jusqu'au
    « Deployment rate limited » du 16/10/2026. Le fichier ne porte que la clé
    `git` : toute clé de build ou de routage changerait aussi `vercel build`.
+   L'ancien *Ignored Build Step* du dashboard (Settings → Git) n'a plus
+   d'effet ; le vider sur les deux projets évite de le prendre pour le
+   mécanisme en place.
 3. Relever `VERCEL_ORG_ID` et `VERCEL_PROJECT_ID` (non committés, dépôt public) :
    - via la CLI : `vercel link` puis lire `.vercel/project.json`
      (`orgId` → `VERCEL_ORG_ID`, `projectId` → `VERCEL_PROJECT_ID`) ;
