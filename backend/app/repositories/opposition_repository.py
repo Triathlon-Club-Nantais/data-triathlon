@@ -11,6 +11,12 @@ def get_by_hash(db: Session, identity_hash: str) -> AthleteOpposition | None:
     return db.scalar(select(AthleteOpposition).where(AthleteOpposition.identity_hash == identity_hash))
 
 
+def any_hash(db: Session, identity_hashes: set[str]) -> bool:
+    return db.scalar(
+        select(AthleteOpposition.id).where(AthleteOpposition.identity_hash.in_(identity_hashes)).limit(1)
+    ) is not None
+
+
 def all_hashes(db: Session) -> set[str]:
     """Chargées une fois par import : le filtre teste ensuite chaque ligne en mémoire."""
     return set(db.scalars(select(AthleteOpposition.identity_hash)))

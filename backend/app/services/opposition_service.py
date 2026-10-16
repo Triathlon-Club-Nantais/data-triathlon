@@ -69,8 +69,19 @@ def is_opposed(db: Session, nom: str, prenom: str) -> bool:
     return opposition_repository.get_by_hash(db, identity_hash(nom, prenom)) is not None
 
 
-def ensure_not_opposed(db: Session, nom: str, prenom: str) -> None:
-    if is_opposed(db, nom, prenom):
+def named_hashes(*labels: str | None) -> set[str]:
+    """Empreinte de chaque personne qu'un libellé nomme : lui entier, ou chaque équipier
+    d'un libellé de relais. Règle commune à l'import et à la saisie (#1506)."""
+    hashes = set()
+    for label in filter(None, labels):
+        hashes.add(identity_hash(label, ""))
+        hashes.update(identity_hash(*pair) for pair in split_relay_teammates(label) or ())
+    return hashes
+
+
+def ensure_not_opposed(db: Session, nom: str, prenom: str, *labels: str | None) -> None:
+    """`labels` : autres libellés publiés avec l'identité, comme le nom d'une équipe de relais."""
+    if opposition_repository.any_hash(db, named_hashes(f"{nom} {prenom}", *labels)):
         raise OpposedIdentityError()
 
 
@@ -89,9 +100,8 @@ def _identity(db: Session, athlete_id: int | None, nom: str | None, prenom: str 
 
 def _names_person(key: str, label: str) -> bool:
     """`label` désigne la personne : son identité même, ou un libellé de relais non découpé qui la nomme."""
-    return opposition_key(label, "") == key or any(
-        opposition_key(*pair) == key for pair in split_relay_teammates(label) or ()
-    )
+    # `key` est déjà normalisée : `identity_hash(key, "")` est l'empreinte de la personne.
+    return identity_hash(key, "") in named_hashes(label)
 
 
 def _matching_athletes(db: Session, nom: str, prenom: str) -> list[Athlete]:
