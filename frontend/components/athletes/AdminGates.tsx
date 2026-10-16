@@ -3,9 +3,10 @@ import dynamic from "next/dynamic";
 import type { ComponentType } from "react";
 import { useHydratedSession } from "@/lib/queries/auth";
 
-// Les sept gestes d'administration de la fiche athlète, chargés seulement une
-// fois un pouvoir établi (#1582, motif de `CourseAdminActions`) : un visiteur
-// sans pouvoir ne télécharge ni eux ni `lib/queries/admin.ts`. La garde n'est
+// Gestes d'administration de la fiche athlète, chargés seulement une fois un
+// pouvoir établi (#1582, motif de `CourseAdminActions`) : un visiteur sans
+// pouvoir ne télécharge ni eux ni `lib/queries/admin.ts`. Le septième,
+// `AthleteAdminPanel`, se charge dans `AthleteHeaderActions`. La garde n'est
 // qu'un premier tri, chaque composant gardant la sienne, exacte.
 function gate<P extends object>(powers: string[], Lazy: ComponentType<P>) {
   return function Gate(props: P) {
@@ -14,13 +15,6 @@ function gate<P extends object>(powers: string[], Lazy: ComponentType<P>) {
     return <Lazy {...props} />;
   };
 }
-
-export const AthleteAdminPanel = gate(
-  ["athletes:write"],
-  dynamic(() =>
-    import("./AthleteAdminPanel").then((module) => module.AthleteAdminPanel),
-  ),
-);
 
 export const AthleteOppositionAction = gate(
   ["oppositions:manage"],

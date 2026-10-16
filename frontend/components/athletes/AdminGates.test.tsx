@@ -14,16 +14,15 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
 
 // Each factory runs only when the module is actually imported: `loaded` tells
 // which panels a visitor's browser would have downloaded.
-vi.mock("./AthleteAdminPanel", () => {
-  loaded.add("AthleteAdminPanel");
-  return { AthleteAdminPanel: () => <p>panneau fiche</p> };
+vi.mock("./AthleteOppositionAction", () => {
+  loaded.add("AthleteOppositionAction");
+  return { AthleteOppositionAction: () => <p>opposition</p> };
 });
 vi.mock("./ParticipationAdminActions", () => {
   loaded.add("ParticipationAdminActions");
   return { ParticipationAdminActions: () => <p>gestes résultat</p> };
 });
 
-import { AthleteAdminPanel, ParticipationAdminActions } from "./AdminGates";
 
 const ATHLETE = { id: 12, prenom: "Jean", nom: "Dupont", club: null };
 const RESULT = { id: 3, athleteId: 12, coureur: "Jean Dupont", epreuve: "Tri de Nantes" } as never;
@@ -32,11 +31,15 @@ function session(permissions: string[]): SessionUser {
   return { id: 1, email: "a@exemple.fr", display_name: "a", permissions, roles: [] } as unknown as SessionUser;
 }
 
-function afficher() {
+// Modules remis à zéro à chaque test : sans quoi une fabrique déjà exécutée ne
+// signalerait plus son chargement et le test négatif passerait à vide.
+async function afficher() {
+  vi.resetModules();
+  const { AthleteOppositionAction, ParticipationAdminActions } = await import("./AdminGates");
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <AthleteAdminPanel athlete={ATHLETE} />
+      <AthleteOppositionAction athlete={ATHLETE} />
       <ParticipationAdminActions resultat={RESULT} />
     </QueryClientProvider>,
   );
@@ -50,17 +53,17 @@ beforeEach(() => {
 describe("athlete admin gates (#1582)", () => {
   it("never loads the admin panels for a visitor without power", async () => {
     getSession.mockResolvedValue(session([]));
-    afficher();
+    await afficher();
     await waitFor(() => expect(getSession).toHaveBeenCalled());
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(loaded.size).toBe(0);
-    expect(screen.queryByText("panneau fiche")).toBeNull();
+    expect(screen.queryByText("opposition")).toBeNull();
   });
 
   it("loads and renders each panel once the session carries its power", async () => {
-    getSession.mockResolvedValue(session(["athletes:write", "participations:delete"]));
-    afficher();
-    expect(await screen.findByText("panneau fiche")).toBeInTheDocument();
+    getSession.mockResolvedValue(session(["oppositions:manage", "participations:delete"]));
+    await afficher();
+    expect(await screen.findByText("opposition")).toBeInTheDocument();
     expect(await screen.findByText("gestes résultat")).toBeInTheDocument();
   });
 
