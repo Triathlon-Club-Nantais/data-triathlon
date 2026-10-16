@@ -43,15 +43,9 @@ exigent chacun leur pouvoir, donc elles vivent sous `/admin/feedback`
 - **`ip_address` ne sort jamais** d'un schéma de lecture (`FeedbackRead`) : elle
   ne sert qu'à `count_recent_by_ip`, la limitation de débit par IP (#267,
   research.md §D1). D'où vient cette IP est une **décision**, prise dans
-  `app/main.py` (#393) : uvicorn lit `X-Forwarded-For` par défaut et en retient
-  la dernière entrée non fiable, or Render **préfixe** l'en-tête de l'IP réelle
-  et laisse derrière elle ce que l'appelant a écrit — la valeur retenue était
-  donc celle de l'appelant, et le plafond se contournait en faisant varier
-  l'en-tête (mesuré sur preview : 7 envois, 7 × 201 pour une limite de 5). Un
-  `ProxyHeadersMiddleware` monté avec `trusted_hosts="*"` retient la
-  **première** entrée, la seule que la plateforme pose. Le réglage vit dans
-  l'application et non dans le `startCommand` : `render.yaml` n'est appliqué
-  par personne (cf. son propre en-tête).
+  `app/core/client_address.py` (#1533, après #393) : l'entrée de
+  `X-Forwarded-For` posée par Cloudflare, comptée depuis la droite, jamais la
+  première, que l'appelant écrit. Règle et mesure : `backend/AGENTS.md`.
 - **`email` est résolu par jointure** (`UserFeedback.user`), jamais par une
   seconde requête : `feedback_repository.get` et `list_sorted` chargent la
   relation en `joinedload`, même patron que `allowed_email_repository`.

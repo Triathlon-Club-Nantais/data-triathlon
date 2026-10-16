@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { NextRequest } from "next/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildCspPolicy, proxy } from "./proxy";
 
 function requeteAvec(cookies: Record<string, string>) {
@@ -244,5 +244,42 @@ describe("CSP violation reports (#1168)", () => {
     expect(reponse.headers.get("reporting-endpoints")).toBe(
       'csp-endpoint="/api/v1/csp-reports"',
     );
+  });
+});
+
+describe("proxy, appels /api/* du rewrite (#1533)", () => {
+  const SECRET_TRANSMIS = "x-middleware-request-x-frontend-proxy-secret";
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("joint le secret du proxy à un appel de l'API", () => {
+    vi.stubEnv("FRONTEND_PROXY_SECRET", "s3cret");
+
+    const reponse = proxy(new NextRequest("https://exemple.fr/api/v1/feedback"));
+
+    expect(reponse.headers.get(SECRET_TRANSMIS)).toBe("s3cret");
+    expect(reponse.headers.get(CSP)).toBeNull();
+  });
+
+  it("ne transmet jamais un secret envoyé par le visiteur", () => {
+    vi.stubEnv("FRONTEND_PROXY_SECRET", "");
+    const requete = new NextRequest("https://exemple.fr/api/v1/feedback", {
+      headers: { "x-frontend-proxy-secret": "devine" },
+    });
+
+    const reponse = proxy(requete);
+
+    expect(reponse.headers.get(SECRET_TRANSMIS)).toBeNull();
+    expect(reponse.headers.get("x-middleware-override-headers")).not.toContain(
+      "x-frontend-proxy-secret",
+    );
+  });
+
+  it("ne le joint pas aux pages, ni au proxy PostHog", () => {
+    vi.stubEnv("FRONTEND_PROXY_SECRET", "s3cret");
+
+    for (const url of ["https://exemple.fr/dashboard", "https://exemple.fr/ingest/e"]) {
+      expect(proxy(new NextRequest(url)).headers.get(SECRET_TRANSMIS)).toBeNull();
+    }
   });
 });

@@ -46,7 +46,7 @@ class SecurityHeadersMiddleware:
 
     **À monter en premier** dans `create_app()`, donc au plus près du routeur :
     `add_middleware` empile à l'envers, et HSTS se décide sur `scope["scheme"]`,
-    que `ProxyHeadersMiddleware` ne réécrit depuis `X-Forwarded-Proto` qu'en
+    que `ClientAddressMiddleware` ne réécrit depuis `X-Forwarded-Proto` qu'en
     amont. Monté en dernier, le middleware verrait `http` en production et
     n'émettrait jamais HSTS.
 
