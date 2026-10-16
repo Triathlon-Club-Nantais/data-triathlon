@@ -23,27 +23,25 @@ job CI `backend-postgres`).
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.repositories.dialect import is_postgres
+
 _COURSE = 1
 _ALL_COURSES = 2
 _IMPORT_URL = 3
-
-
-def _on_postgres(db: Session) -> bool:
-    return db.get_bind().dialect.name == "postgresql"
 
 
 def bound_lock_waits(db: Session, timeout: str) -> None:
     """Borne, pour le reste de la transaction, l'attente d'un verrou de ligne
     (PostgreSQL ; sans effet ailleurs). Au-delà, l'instruction lève
     `LockNotAvailable` au lieu de suspendre la requête HTTP."""
-    if _on_postgres(db):
+    if is_postgres(db):
         # `SET LOCAL` n'accepte pas de paramètre lié ; `set_config(..., true)` est son équivalent.
         db.execute(select(func.set_config("lock_timeout", timeout, True)))
 
 
 def try_lock_course(db: Session, course_id: int) -> bool:
     """Verrouille une épreuve sans attendre. `False` si un autre la tient."""
-    if not _on_postgres(db):
+    if not is_postgres(db):
         return True
     return bool(
         db.scalar(select(func.pg_try_advisory_xact_lock_shared(_ALL_COURSES, 0)))
@@ -53,7 +51,7 @@ def try_lock_course(db: Session, course_id: int) -> bool:
 
 def lock_course(db: Session, course_id: int) -> None:
     """Verrouille une épreuve, en attendant qu'elle se libère."""
-    if not _on_postgres(db):
+    if not is_postgres(db):
         return
     db.execute(select(func.pg_advisory_xact_lock_shared(_ALL_COURSES, 0)))
     db.execute(select(func.pg_advisory_xact_lock(_COURSE, course_id)))
@@ -61,13 +59,13 @@ def lock_course(db: Session, course_id: int) -> None:
 
 def try_lock_all_courses(db: Session) -> bool:
     """Verrouille toutes les épreuves sans attendre (purges `wipe_*`)."""
-    if not _on_postgres(db):
+    if not is_postgres(db):
         return True
     return bool(db.scalar(select(func.pg_try_advisory_xact_lock(_ALL_COURSES, 0))))
 
 
 def lock_import_url(db: Session, url: str) -> None:
     """Sérialise les imports d'une même URL, entre processus (#1024)."""
-    if not _on_postgres(db):
+    if not is_postgres(db):
         return
     db.execute(select(func.pg_advisory_xact_lock(_IMPORT_URL, func.hashtext(url))))
