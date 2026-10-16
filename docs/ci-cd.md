@@ -235,7 +235,7 @@ App Setting `CRON_SECRET`, cf. `infra/azure-functions/AGENTS.md`). La route
 `GET /api/cron/keep-warm` exige `Authorization: Bearer $CRON_SECRET`. Sans
 secret, elle répond 503 sur Vercel (`VERCEL_ENV` défini) plutôt que de s'ouvrir
 à tous ; l'auth n'est ignorée qu'en développement local. La cadence (10 min,
-7 h-23 h UTC) se règle côté Azure, il n'y a pas de `vercel.json`.
+7 h-23 h UTC) se règle côté Azure, pas dans `vercel.json`.
 
 | Rôle | Projet Vercel | Ciblé par |
 |---|---|---|
@@ -245,10 +245,19 @@ secret, elle répond 503 sur Vercel (`VERCEL_ENV` défini) plutôt que de s'ouvr
 À faire **sur chacun des deux projets**, team « Triathlon Club Nantais » :
 
 1. **Root Directory = `frontend`**.
-2. **Désactiver le déploiement Git automatique** pour que seul le pipeline
-   déclenche les déploiements : Settings → Git → désactiver la connexion
-   d'auto-deploy, ou définir un *Ignored Build Step* renvoyant `exit 0` sur les
-   pushs Git.
+2. **Aucun déploiement par l'intégration Git** : rien à régler, c'est
+   `frontend/vercel.json` qui le porte (`"git": { "deploymentEnabled": false }`,
+   #1589), lu dans le Root Directory par les deux projets. La CLI de
+   `deploy.yml` reste le **seul** chemin de déploiement, et ce réglage ne la
+   touche pas : il ne coupe que les déploiements déclenchés par un commit.
+   Raison : l'*Ignored Build Step* utilisé avant annulait chaque déploiement
+   Git, mais un déploiement annulé compte quand même dans le quota gratuit de
+   100 par jour ; chaque fusion en brûlait deux (un par projet), jusqu'au
+   « Deployment rate limited » du 16/10/2026. Le fichier ne porte que la clé
+   `git` : toute clé de build ou de routage changerait aussi `vercel build`.
+   L'ancien *Ignored Build Step* du dashboard (Settings → Git) n'a plus
+   d'effet ; le vider sur les deux projets évite de le prendre pour le
+   mécanisme en place.
 3. Relever `VERCEL_ORG_ID` et `VERCEL_PROJECT_ID` (non committés, dépôt public) :
    - via la CLI : `vercel link` puis lire `.vercel/project.json`
      (`orgId` → `VERCEL_ORG_ID`, `projectId` → `VERCEL_PROJECT_ID`) ;
