@@ -39,7 +39,8 @@ en fin de rapport, hors des findings, et tu passes.
 
 1. Lis `frontend/AGENTS.md` — c'est la **source unique** de l'architecture front
    et de la frontière `tcn/` vs `ui/`. Ne recopie pas ses règles dans ton
-   rapport, cite-les.
+   rapport, cite-les. Sa table « Où lire quoi » renvoie aux pages
+   `docs/frontend/` : lis celles des écrans que la branche touche.
 2. Lis `frontend/app/globals.css` — l'inventaire des tokens et leurs valeurs.
    Tout jugement de couleur part de là.
 3. Établis le périmètre : `git diff --stat origin/main...HEAD -- frontend/`.
