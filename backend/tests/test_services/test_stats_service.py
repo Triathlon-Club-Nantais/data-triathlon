@@ -12,7 +12,7 @@ from app.models.participation import Participation
 from app.repositories import athlete_repository, course_repository, participation_repository
 from app.repositories.participation_repository import season_clause
 from app.services import stats_service
-from app.services.stats_service import _accumule, _bucket, _meilleur_rang
+from app.services.stats_service import _accumulate, _best_rank, _bucket
 
 
 def _seed(db):
@@ -753,14 +753,14 @@ def _legacy_rank_counters(parts):
     scratch, category, tous = _bucket(), _bucket(), _bucket()
     genre = {"women": _bucket(), "men": _bucket()}
     for p in parts:
-        _accumule(scratch, p.rank_overall)
-        _accumule(category, p.rank_category)
-        _accumule(tous, _meilleur_rang([p.rank_overall, p.rank_gender, p.rank_category]))
+        _accumulate(scratch, p.rank_overall)
+        _accumulate(category, p.rank_category)
+        _accumulate(tous, _best_rank([p.rank_overall, p.rank_gender, p.rank_category]))
         g = (p.athlete.gender or "").upper() if p.athlete else ""
         if g == "F":
-            _accumule(genre["women"], p.rank_gender)
+            _accumulate(genre["women"], p.rank_gender)
         elif g == "M":
-            _accumule(genre["men"], p.rank_gender)
+            _accumulate(genre["men"], p.rank_gender)
     return {"scratch": scratch, "category": category, "all": tous, "gender": genre}
 
 
