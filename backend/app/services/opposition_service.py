@@ -98,8 +98,8 @@ def _matching_athletes(db: Session, nom: str, prenom: str) -> list[Athlete]:
     key = opposition_key(nom, prenom)
     return [
         athlete_repository.get(db, athlete_id)
-        for athlete_id, other_nom, other_prenom in athlete_repository.list_identities(db)
-        if _names_person(key, f"{other_nom} {other_prenom}")
+        for athlete_id, other_last_name, other_first_name in athlete_repository.list_identities(db)
+        if _names_person(key, f"{other_last_name} {other_first_name}")
     ]
 
 
@@ -215,8 +215,8 @@ def _remove_club_members(db: Session, nom: str, prenom: str, athlete_ids: set[in
     key = opposition_key(nom, prenom)
     removed = [
         (member_id, member_athlete_id)
-        for member_id, member_nom, member_prenom, member_athlete_id in club_member_repository.list_identities(db)
-        if member_athlete_id in athlete_ids or opposition_key(member_nom, member_prenom) == key
+        for member_id, member_last_name, member_first_name, member_athlete_id in club_member_repository.list_identities(db)
+        if member_athlete_id in athlete_ids or opposition_key(member_last_name, member_first_name) == key
     ]
     club_member_repository.delete_ids(db, [member_id for member_id, _ in removed])
     # Une ligne rattachée par une variante d'écriture désigne une autre fiche, dont le compte se relit.
@@ -248,12 +248,12 @@ def apply(
     anonymised = sum(_anonymise(db, athlete) for athlete in athletes)
     _redact_log(db, nom, prenom)
 
-    empreinte = identity_hash(nom, prenom)
-    opposition = opposition_repository.get_by_hash(db, empreinte)
+    digest = identity_hash(nom, prenom)
+    opposition = opposition_repository.get_by_hash(db, digest)
     created = opposition is None
     if created:
         opposition = opposition_repository.create(
-            db, identity_hash=empreinte, requested_on=requested_on, applied_by_user_id=actor.id
+            db, identity_hash=digest, requested_on=requested_on, applied_by_user_id=actor.id
         )
     opposition.anonymised_count += anonymised
     audit.record(

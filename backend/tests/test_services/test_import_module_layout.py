@@ -86,5 +86,5 @@ def test_admin_rescrape_lives_in_course_rescrape_service():
         assert callable(getattr(course_rescrape_service, name)), name
         assert not hasattr(admin_actions, name), name
     assert callable(admin_actions.course_or_404)
-    assert callable(admin_actions.instantane)
-    assert admin_actions.CHAMPS_COURSE == ("name", "event_date", "event_type", "is_relay")
+    assert callable(admin_actions.snapshot)
+    assert admin_actions.COURSE_FIELDS == ("name", "event_date", "event_type", "is_relay")

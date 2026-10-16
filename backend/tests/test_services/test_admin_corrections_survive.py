@@ -42,7 +42,7 @@ def test_an_admin_set_birth_date_does_not_split_the_record(db_session, patch_scr
     _import(db_session, patch_scraper, [_result("1", "DUPONT", "Jean")])
     dupont = athlete_repository.get_by_identity_keys(db_session, "DUPONT", "Jean")
     admin_actions.update_athlete(
-        db_session, athlete_id=dupont.id, champs={"birth_date": date(1990, 1, 1)}, user_id=_admin(db_session)
+        db_session, athlete_id=dupont.id, fields={"birth_date": date(1990, 1, 1)}, user_id=_admin(db_session)
     )
     db_session.commit()
     _expire_cache(db_session)
@@ -109,7 +109,7 @@ def test_an_admin_rename_is_not_undone_by_the_next_rescrape(db_session, patch_sc
     _import(db_session, patch_scraper, [_result("1", "DUPOMT", "Jean")])
     fiche = athlete_repository.get_by_identity_keys(db_session, "DUPOMT", "Jean")
     admin_actions.update_athlete(
-        db_session, athlete_id=fiche.id, champs={"nom": "DUPONT"}, user_id=_admin(db_session)
+        db_session, athlete_id=fiche.id, fields={"nom": "DUPONT"}, user_id=_admin(db_session)
     )
     db_session.commit()
     _expire_cache(db_session)
@@ -196,5 +196,5 @@ def test_renaming_onto_an_equivalent_spelling_of_another_record_is_refused(db_se
 
     with pytest.raises(DuplicateError):
         admin_actions.update_athlete(
-            db_session, athlete_id=letord.id, champs={"nom": "LETORT"}, user_id=_admin(db_session)
+            db_session, athlete_id=letord.id, fields={"nom": "LETORT"}, user_id=_admin(db_session)
         )

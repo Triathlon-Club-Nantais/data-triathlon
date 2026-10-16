@@ -113,20 +113,20 @@ def delete_course(db: Session, *, course_id: int, user_id: int) -> dict:
     """
     course = course_or_404(db, course_id)
     lock_courses_or_409(db, course_id)
-    resume = {
+    summary = {
         "name": course.name,
         "event_date": course.event_date.isoformat() if course.event_date else None,
         "event_type": course.event_type,
         "is_relay": course.is_relay,
         "participations_deleted": participation_repository.count_for_course(db, course.id),
     }
-    candidats = athlete_repository.only_on_course(db, course.id)
+    candidates = athlete_repository.only_on_course(db, course.id)
     athlete_ids = participation_repository.athlete_ids_on_course(db, course.id)
 
     course_repository.delete(db, course)
     db.flush()
     tcn_count_repository.recompute_counts_for_tcn(db, athlete_ids=athlete_ids)
-    resume["athletes_purged"] = athlete_repository.delete_orphans_among(db, candidats)
+    summary["athletes_purged"] = athlete_repository.delete_orphans_among(db, candidates)
 
     admin_action_log_repository.create(
         db,
@@ -134,16 +134,16 @@ def delete_course(db: Session, *, course_id: int, user_id: int) -> dict:
         action="course.delete",
         entity_type="course",
         entity_id=course_id,
-        payload=resume,
+        payload=summary,
     )
     logger.info(
         "Admin %s deleted course %s (%s participations, %s athletes purged)",
         user_id,
         course_id,
-        resume["participations_deleted"],
-        len(resume["athletes_purged"]),
+        summary["participations_deleted"],
+        len(summary["athletes_purged"]),
     )
-    return resume
+    return summary
 
 
 def wipe_impact(db: Session) -> dict:
@@ -186,11 +186,11 @@ def wipe_all_participations(db: Session, *, user_id: int) -> dict:
     purge a-t-elle emporté »).
     """
     lock_all_courses_or_409(db)
-    resume = {"participations_deleted": participation_repository.delete_all(db)}
+    summary = {"participations_deleted": participation_repository.delete_all(db)}
     # Les cumuls Challenge dérivent des résultats purgés (#1008).
     challenge_repository.delete_all(db)
-    resume["athletes_purged"] = athlete_repository.delete_unreferenced(db)
-    resume["courses_reset"] = course_repository.reset_scraped_at_all(db)
+    summary["athletes_purged"] = athlete_repository.delete_unreferenced(db)
+    summary["courses_reset"] = course_repository.reset_scraped_at_all(db)
     # Compteurs dénormalisés (#623) : toutes les participations disparaissent,
     # même patron bulk que la ligne au-dessus.
     course_repository.zero_counts_all(db)
@@ -203,21 +203,21 @@ def wipe_all_participations(db: Session, *, user_id: int) -> dict:
         entity_id=0,  # sentinelle « base entière » — aucune entité unique à désigner
         # Les deux compteurs annoncés par `wipe_impact` (#384) — pas
         # `courses_reset` : la spec de l'issue borne le payload à ce que la
-        # confirmation a chiffré, et `resume` (la valeur de retour) le garde
+        # confirmation a chiffré, et `summary` (la valeur de retour) le garde
         # pour l'appelant qui en aurait besoin.
         payload={
-            "participations_deleted": resume["participations_deleted"],
-            "athletes_purged": resume["athletes_purged"],
+            "participations_deleted": summary["participations_deleted"],
+            "athletes_purged": summary["athletes_purged"],
         },
     )
     logger.info(
         "Admin %s wiped all participations (%s deleted, %s athletes purged, %s courses reset)",
         user_id,
-        resume["participations_deleted"],
-        resume["athletes_purged"],
-        resume["courses_reset"],
+        summary["participations_deleted"],
+        summary["athletes_purged"],
+        summary["courses_reset"],
     )
-    return resume
+    return summary
 
 
 def courses_wipe_impact(db: Session) -> dict:
@@ -256,10 +256,10 @@ def wipe_all_courses(db: Session, *, user_id: int) -> dict:
     qui exclut `participations` du payload, donc rien ne justifie de le taire.
     """
     lock_all_courses_or_409(db)
-    resume = {"courses_deleted": course_repository.delete_all(db)}
+    summary = {"courses_deleted": course_repository.delete_all(db)}
     # Les cumuls Challenge dérivent des résultats purgés (#1008).
     challenge_repository.delete_all(db)
-    resume["athletes_purged"] = athlete_repository.delete_unreferenced(db)
+    summary["athletes_purged"] = athlete_repository.delete_unreferenced(db)
 
     admin_action_log_repository.create(
         db,
@@ -267,21 +267,21 @@ def wipe_all_courses(db: Session, *, user_id: int) -> dict:
         action="courses.wipe_all",
         entity_type="courses",
         entity_id=0,  # sentinelle « base entière », même patron que participations.wipe_all
-        # Littéral et non `resume` : garder le payload journalisé visiblement
+        # Littéral et non `summary` : garder le payload journalisé visiblement
         # distinct de la valeur de retour, même s'ils coïncident aujourd'hui —
         # patron de `wipe_all_participations`, où les deux divergent déjà.
         payload={
-            "courses_deleted": resume["courses_deleted"],
-            "athletes_purged": resume["athletes_purged"],
+            "courses_deleted": summary["courses_deleted"],
+            "athletes_purged": summary["athletes_purged"],
         },
     )
     logger.info(
         "Admin %s wiped all courses (%s deleted, %s athletes purged)",
         user_id,
-        resume["courses_deleted"],
-        resume["athletes_purged"],
+        summary["courses_deleted"],
+        summary["athletes_purged"],
     )
-    return resume
+    return summary
 
 
 def reassign_participation(
@@ -296,19 +296,19 @@ def reassign_participation(
     """
     participation = _participation_or_404(db, participation_id)
     lock_courses_or_409(db, participation.course_id)
-    cible = _athlete_or_404(db, athlete_id)
+    target = _athlete_or_404(db, athlete_id)
     source_id = participation.athlete_id
     # Un relais attribué (#894) redevient un résultat à un seul coureur, même
     # vers l'un de ses équipiers (FR-008) : ses anciens équipiers sont
     # candidats à la purge au même titre que la source.
-    anciens_equipiers = participation_repository.teammate_athlete_ids(db, participation.id)
+    former_teammates = participation_repository.teammate_athlete_ids(db, participation.id)
 
-    if source_id == cible.id and not anciens_equipiers:
+    if source_id == target.id and not former_teammates:
         return participation
 
     if participation_repository.exists_for_athlete_on_course(
         db,
-        athlete_id=cible.id,
+        athlete_id=target.id,
         course_id=participation.course_id,
         exclude_participation_id=participation.id,
     ):
@@ -316,12 +316,12 @@ def reassign_participation(
 
     course_id = participation.course_id
     participation_repository.replace_teammates(db, participation, [])
-    participation_repository.reassign(db, participation, athlete_id=cible.id, lock=True)
+    participation_repository.reassign(db, participation, athlete_id=target.id, lock=True)
     purges = athlete_repository.delete_orphans_among(
-        db, [i for i in dict.fromkeys([source_id, *anciens_equipiers]) if i != cible.id]
+        db, [i for i in dict.fromkeys([source_id, *former_teammates]) if i != target.id]
     )
     tcn_count_repository.recompute_counts_for_tcn(
-        db, athlete_ids=[source_id, cible.id, *anciens_equipiers], course_ids=[course_id]
+        db, athlete_ids=[source_id, target.id, *former_teammates], course_ids=[course_id]
     )
 
     admin_action_log_repository.create(
@@ -333,7 +333,7 @@ def reassign_participation(
         payload={
             "course_id": course_id,
             "from_athlete_id": source_id,
-            "to_athlete_id": cible.id,
+            "to_athlete_id": target.id,
             "athletes_purged": purges,
         },
     )
@@ -342,7 +342,7 @@ def reassign_participation(
         user_id,
         participation_id,
         source_id,
-        cible.id,
+        target.id,
     )
     return participation
 
@@ -381,62 +381,62 @@ def set_teammates(
     for ref in teammates:
         if isinstance(ref, NewTeammate):
             opposition_service.ensure_not_opposed(db, ref.athlete_name, ref.athlete_firstname)
-    equipiers: list[Athlete | NewTeammate] = [
+    team: list[Athlete | NewTeammate] = [
         _athlete_or_404(db, ref)
         if isinstance(ref, int)
         else athlete_repository.get_by_identity_keys(db, ref.athlete_name, ref.athlete_firstname)
         or ref
         for ref in teammates
     ]
-    connus = [e.id for e in equipiers if isinstance(e, Athlete)]
+    known_ids = [e.id for e in team if isinstance(e, Athlete)]
     # Deux graphies d'une même identité (#907) désignent une seule personne, et
     # `get_or_create` les résoudrait vers la même fiche.
-    inconnus = [
+    unknown_keys = [
         athlete_identity_keys(e.athlete_name, e.athlete_firstname)
-        for e in equipiers
+        for e in team
         if isinstance(e, NewTeammate)
     ]
-    if len(set(connus)) != len(connus) or len(set(inconnus)) != len(inconnus):
+    if len(set(known_ids)) != len(known_ids) or len(set(unknown_keys)) != len(unknown_keys):
         raise DomainError("Un même athlète figure deux fois dans l'équipe.")
 
-    actuels = participation_repository.teammate_athlete_ids(db, participation.id)
-    if len(connus) == len(equipiers) and actuels == connus:
+    current_ids = participation_repository.teammate_athlete_ids(db, participation.id)
+    if len(known_ids) == len(team) and current_ids == known_ids:
         return participation
 
     course_id = participation.course_id
-    for equipier in equipiers:
-        if not isinstance(equipier, Athlete):
+    for member in team:
+        if not isinstance(member, Athlete):
             continue
-        if equipier.id in actuels or equipier.id == participation.athlete_id:
+        if member.id in current_ids or member.id == participation.athlete_id:
             continue
         if participation_repository.exists_for_athlete_on_course(
-            db, athlete_id=equipier.id, course_id=course_id
+            db, athlete_id=member.id, course_id=course_id
         ):
-            nom = " ".join(filter(None, [equipier.nom, equipier.prenom]))
-            raise DuplicateError(f"{nom} a déjà un résultat sur cette épreuve.")
+            full_name = " ".join(filter(None, [member.nom, member.prenom]))
+            raise DuplicateError(f"{full_name} a déjà un résultat sur cette épreuve.")
 
-    crees: list[int] = []
+    created_ids: list[int] = []
     ids: list[int] = []
-    for equipier in equipiers:
-        if isinstance(equipier, NewTeammate):
-            equipier = athlete_repository.get_or_create(
-                db, nom=equipier.athlete_name, prenom=equipier.athlete_firstname
+    for member in team:
+        if isinstance(member, NewTeammate):
+            member = athlete_repository.get_or_create(
+                db, nom=member.athlete_name, prenom=member.athlete_firstname
             )
-            crees.append(equipier.id)
-        ids.append(equipier.id)
+            created_ids.append(member.id)
+        ids.append(member.id)
 
     source = participation.athlete
     source_id = source.id
-    if not participation.team_name and not actuels:
+    if not participation.team_name and not current_ids:
         participation.team_name = " ".join(filter(None, [source.nom, source.prenom]))
     participation_repository.replace_teammates(db, participation, ids)
     participation_repository.reassign(db, participation, athlete_id=ids[0])
-    candidats = [source_id, *actuels]
+    candidates = [source_id, *current_ids]
     purges = athlete_repository.delete_orphans_among(
-        db, [i for i in dict.fromkeys(candidats) if i not in ids]
+        db, [i for i in dict.fromkeys(candidates) if i not in ids]
     )
     tcn_count_repository.recompute_counts_for_tcn(
-        db, athlete_ids=[source_id, *actuels, *ids], course_ids=[course_id]
+        db, athlete_ids=[source_id, *current_ids, *ids], course_ids=[course_id]
     )
 
     admin_action_log_repository.create(
@@ -449,7 +449,7 @@ def set_teammates(
             "course_id": course_id,
             "from_athlete_id": source_id,
             "teammate_ids": ids,
-            "athletes_created": crees,
+            "athletes_created": created_ids,
             "athletes_purged": purges,
         },
     )
@@ -473,7 +473,7 @@ def delete_participation(db: Session, *, participation_id: int, user_id: int) ->
     """
     participation = _participation_or_404(db, participation_id)
     lock_courses_or_409(db, participation.course_id)
-    resume = {
+    summary = {
         "athlete_id": participation.athlete_id,
         "athlete_name": f"{participation.athlete.prenom} {participation.athlete.nom}".strip(),
         "course_id": participation.course_id,
@@ -496,7 +496,7 @@ def delete_participation(db: Session, *, participation_id: int, user_id: int) ->
         action="participation.delete",
         entity_type="participation",
         entity_id=participation_id,
-        payload=resume,
+        payload=summary,
     )
     athlete_id = participation.athlete_id
     course_id = participation.course_id
@@ -514,28 +514,28 @@ def delete_participation(db: Session, *, participation_id: int, user_id: int) ->
         db, athlete_ids=[athlete_id], course_ids=[course_id]
     )
     logger.info("Admin %s deleted participation %s", user_id, participation_id)
-    return resume
+    return summary
 
 
 #: Les champs éditables d'un coureur : le triplet d'identité, plus le club actuel
 #: (#439). Le club **n'entre pas** dans la clé d'unicité — deux homonymes de clubs
 #: différents restent la même personne pour `uq_athlete_identity`.
-_CHAMPS_ATHLETE = ("nom", "prenom", "birth_date", "club")
+_ATHLETE_FIELDS = ("nom", "prenom", "birth_date", "club")
 
 #: Ceux d'une épreuve — exactement la clé `uq_course_identity`.
-CHAMPS_COURSE = ("name", "event_date", "event_type", "is_relay")
+COURSE_FIELDS = ("name", "event_date", "event_type", "is_relay")
 
 #: Les quatre champs qu'un bénévole peut corriger sur un résultat en attente (#437).
-_CHAMPS_PARTICIPATION = ("bib_number", "rank_overall", "club", "category")
+_PARTICIPATION_FIELDS = ("bib_number", "rank_overall", "club", "category")
 
 
-def instantane(entite, champs: tuple[str, ...]) -> dict:
+def snapshot(entity, fields: tuple[str, ...]) -> dict:
     """Les champs surveillés, sérialisables pour le journal."""
-    valeurs = {}
-    for champ in champs:
-        valeur = getattr(entite, champ)
-        valeurs[champ] = valeur.isoformat() if hasattr(valeur, "isoformat") else valeur
-    return valeurs
+    values = {}
+    for field in fields:
+        value = getattr(entity, field)
+        values[field] = value.isoformat() if hasattr(value, "isoformat") else value
+    return values
 
 
 class AthleteBusyError(DomainError):
@@ -545,7 +545,7 @@ class AthleteBusyError(DomainError):
     message = "Cette fiche est en cours d'import. Réessayez dans un instant."
 
 
-def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) -> Athlete:
+def update_athlete(db: Session, *, athlete_id: int, fields: dict, user_id: int) -> Athlete:
     """Corrige la fiche d'un coureur — nom, prénom, date de naissance, club (FR-004).
 
     **Le doublon se détecte par lecture préalable**, jamais par l'`IntegrityError`
@@ -557,49 +557,49 @@ def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) 
     l'époque de sa course (FR-013).
     """
     athlete = _athlete_or_404(db, athlete_id)
-    avant = instantane(athlete, _CHAMPS_ATHLETE)
-    demande = {champ: champs[champ] for champ in _CHAMPS_ATHLETE if champ in champs}
+    before = snapshot(athlete, _ATHLETE_FIELDS)
+    requested = {field: fields[field] for field in _ATHLETE_FIELDS if field in fields}
 
-    vise = {**{champ: getattr(athlete, champ) for champ in _CHAMPS_ATHLETE}, **demande}
-    if "nom" in demande or "prenom" in demande:
-        opposition_service.ensure_not_opposed(db, vise["nom"], vise["prenom"])
+    wanted = {**{field: getattr(athlete, field) for field in _ATHLETE_FIELDS}, **requested}
+    if "nom" in requested or "prenom" in requested:
+        opposition_service.ensure_not_opposed(db, wanted["nom"], wanted["prenom"])
     # L'identité est la clé normalisée du nom et du prénom ; la date de naissance
     # n'y entre plus (#900). Une fiche renommée vers une clé neuve en devient la
     # fiche principale.
-    if athlete_identity_keys(vise["nom"], vise["prenom"]) != (athlete.last_name_key, athlete.first_name_key):
+    if athlete_identity_keys(wanted["nom"], wanted["prenom"]) != (athlete.last_name_key, athlete.first_name_key):
         # Une variante mémorisée par une fusion vaut l'identité de sa fiche (#908).
-        cle = athlete_identity_keys(vise["nom"], vise["prenom"])
-        conflit = athlete_repository.get_by_identity_keys(
-            db, vise["nom"], vise["prenom"]
-        ) or athlete_alias_repository.get_by_keys_batch(db, [cle]).get(cle)
-        if conflit is not None and conflit.id != athlete.id:
+        key = athlete_identity_keys(wanted["nom"], wanted["prenom"])
+        conflict = athlete_repository.get_by_identity_keys(
+            db, wanted["nom"], wanted["prenom"]
+        ) or athlete_alias_repository.get_by_keys_batch(db, [key]).get(key)
+        if conflict is not None and conflict.id != athlete.id:
             raise DuplicateError(
-                f"Un athlète porte déjà cette identité (fiche n° {conflit.id}).",
-                extra={"conflicting_athlete_id": conflit.id},
+                f"Un athlète porte déjà cette identité (fiche n° {conflict.id}).",
+                extra={"conflicting_athlete_id": conflict.id},
             )
         # Renommée vers l'une de ses propres variantes : la graphie redevient son
         # identité, la variante n'a plus d'objet.
-        athlete_alias_repository.delete_key(db, cle)
-        demande["homonym_rank"] = 0
+        athlete_alias_repository.delete_key(db, key)
+        requested["homonym_rank"] = 0
 
     # Le verrou se pose sur le **geste**, pas sur la présence du champ : le
     # formulaire renvoie le club prérempli à chaque enregistrement, et verrouiller
     # là gèlerait contre tous les imports à venir un libellé que personne n'a
     # corrigé.
-    if "club" in demande and demande["club"] != athlete.club:
-        demande["club_locked"] = True
+    if "club" in requested and requested["club"] != athlete.club:
+        requested["club_locked"] = True
 
     # Un import qui vient de résoudre la fiche la tient en `FOR KEY SHARE`, que
     # changer ses clés d'identité attendrait jusqu'à la fin du rescrape.
     lock_repository.bound_lock_waits(db, "5s")
     try:
-        athlete_repository.update_identity(db, athlete, **demande)
+        athlete_repository.update_identity(db, athlete, **requested)
     except OperationalError as exc:
         if isinstance(exc.orig, psycopg.errors.LockNotAvailable):
             raise AthleteBusyError() from exc
         raise
-    apres = instantane(athlete, _CHAMPS_ATHLETE)
-    if apres == avant:
+    after = snapshot(athlete, _ATHLETE_FIELDS)
+    if after == before:
         return athlete
 
     admin_action_log_repository.create(
@@ -608,7 +608,7 @@ def update_athlete(db: Session, *, athlete_id: int, champs: dict, user_id: int) 
         action="athlete.update",
         entity_type="athlete",
         entity_id=athlete_id,
-        payload={"before": avant, "after": apres},
+        payload={"before": before, "after": after},
     )
     logger.info("Admin %s updated athlete %s", user_id, athlete_id)
     return athlete
@@ -707,7 +707,7 @@ def unreject_participation(db: Session, *, participation_id: int, user_id: int) 
 
 
 def update_participation_fields(
-    db: Session, *, participation_id: int, champs: dict, user_id: int
+    db: Session, *, participation_id: int, fields: dict, user_id: int
 ) -> Participation:
     """Corrige dossard, place au général, club et catégorie d'un résultat en
     attente (#437).
@@ -719,7 +719,7 @@ def update_participation_fields(
     ligne elle-même et rendrait un faux conflit.
 
     **Un dossard vide ou blanc est normalisé en `None` avant toute autre
-    étape** (revue finale, #437) : sinon `if nouveau_dossard and ...` — faux
+    étape** (revue finale, #437) : sinon `if new_bib and ...` — faux
     sur une chaîne vide — laisserait passer `""` sans contrôle de conflit, et
     deux résultats corrigés vers `""` collisionneraient sur
     `uq_participation_bib`, exactement l'`IntegrityError` non maîtrisée que ce
@@ -727,29 +727,29 @@ def update_participation_fields(
     comporter comme « pas de dossard », au même titre que `None`.
     """
     participation = _participation_or_404(db, participation_id)
-    demande = {champ: champs[champ] for champ in _CHAMPS_PARTICIPATION if champ in champs}
-    if "bib_number" in demande and isinstance(demande["bib_number"], str) and not demande["bib_number"].strip():
-        demande["bib_number"] = None
+    requested = {field: fields[field] for field in _PARTICIPATION_FIELDS if field in fields}
+    if "bib_number" in requested and isinstance(requested["bib_number"], str) and not requested["bib_number"].strip():
+        requested["bib_number"] = None
 
-    nouveau_dossard = demande.get("bib_number")
-    if nouveau_dossard and nouveau_dossard != participation.bib_number:
-        if participation_repository.exists_for_bib(db, participation.course_id, nouveau_dossard):
+    new_bib = requested.get("bib_number")
+    if new_bib and new_bib != participation.bib_number:
+        if participation_repository.exists_for_bib(db, participation.course_id, new_bib):
             raise DuplicateError(
                 "Ce dossard est déjà attribué à un autre participant de cette épreuve."
             )
 
-    effectifs = {"club": participation.club, "category": participation.category} | demande
+    effective = {"club": participation.club, "category": participation.category} | requested
     scrape_service.ensure_not_youth(
         participation.course.name, participation.course.event_date,
-        effectifs["category"], effectifs["club"],
+        effective["category"], effective["club"],
     )
 
-    avant = instantane(participation, _CHAMPS_PARTICIPATION)
-    participation_repository.update(db, participation, **demande)
-    apres = instantane(participation, _CHAMPS_PARTICIPATION)
-    if apres == avant:
+    before = snapshot(participation, _PARTICIPATION_FIELDS)
+    participation_repository.update(db, participation, **requested)
+    after = snapshot(participation, _PARTICIPATION_FIELDS)
+    if after == before:
         return participation
-    if avant["club"] != apres["club"]:
+    if before["club"] != after["club"]:
         tcn_count_repository.recompute_counts_for_tcn(db, athlete_ids=[participation.athlete_id])
 
     admin_action_log_repository.create(
@@ -758,13 +758,13 @@ def update_participation_fields(
         action="participation.correct_fields",
         entity_type="participation",
         entity_id=participation_id,
-        payload={"before": avant, "after": apres},
+        payload={"before": before, "after": after},
     )
     logger.info("Admin %s corrected fields of participation %s", user_id, participation_id)
     return participation
 
 
-def update_course(db: Session, *, course_id: int, champs: dict, user_id: int) -> Course:
+def update_course(db: Session, *, course_id: int, fields: dict, user_id: int) -> Course:
     """Corrige le libellé d'une épreuve — nom, date, type, relais (FR-020).
 
     **Aucun résultat n'est touché** (FR-023) : ces quatre colonnes vivent sur
@@ -772,27 +772,27 @@ def update_course(db: Session, *, course_id: int, champs: dict, user_id: int) ->
     """
     course = course_or_404(db, course_id)
     lock_courses_or_409(db, course_id)
-    avant = instantane(course, CHAMPS_COURSE)
-    demande = {champ: champs[champ] for champ in CHAMPS_COURSE if champ in champs}
+    before = snapshot(course, COURSE_FIELDS)
+    requested = {field: fields[field] for field in COURSE_FIELDS if field in fields}
 
-    vise = {**{champ: getattr(course, champ) for champ in CHAMPS_COURSE}, **demande}
-    conflit = course_repository.get_by_identity(
+    wanted = {**{field: getattr(course, field) for field in COURSE_FIELDS}, **requested}
+    conflict = course_repository.get_by_identity(
         db,
-        name=vise["name"],
-        event_date=vise["event_date"],
-        event_type=vise["event_type"],
-        is_relay=vise["is_relay"],
+        name=wanted["name"],
+        event_date=wanted["event_date"],
+        event_type=wanted["event_type"],
+        is_relay=wanted["is_relay"],
     )
-    if conflit is not None and conflit.id != course.id:
+    if conflict is not None and conflict.id != course.id:
         raise DuplicateError(
-            f"Une épreuve porte déjà ce nom à cette date (fiche #{conflit.id})."
+            f"Une épreuve porte déjà ce nom à cette date (fiche #{conflict.id})."
         )
 
-    course_repository.update_identity(db, course, **demande)
-    apres = instantane(course, CHAMPS_COURSE)
-    if apres == avant:
+    course_repository.update_identity(db, course, **requested)
+    after = snapshot(course, COURSE_FIELDS)
+    if after == before:
         return course
-    if apres["event_date"] != avant["event_date"]:
+    if after["event_date"] != before["event_date"]:
         # La date fixe la saison de licence (condition 2 de la règle du club).
         tcn_count_repository.recompute_counts_for_tcn(db, course_ids=[course_id])
 
@@ -802,7 +802,7 @@ def update_course(db: Session, *, course_id: int, champs: dict, user_id: int) ->
         action="course.update",
         entity_type="course",
         entity_id=course_id,
-        payload={"before": avant, "after": apres},
+        payload={"before": before, "after": after},
     )
     logger.info("Admin %s updated course %s", user_id, course_id)
     return course

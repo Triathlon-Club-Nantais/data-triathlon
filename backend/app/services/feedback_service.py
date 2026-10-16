@@ -57,14 +57,14 @@ def update(db: Session, *, feedback_id: int, changes: dict, user_id: int) -> Use
     entry = feedback_repository.get(db, feedback_id)
     if entry is None:
         raise NotFoundError("Signalement introuvable")
-    avant = {champ: getattr(entry, champ) for champ in changes}
+    before = {field: getattr(entry, field) for field in changes}
     if "status" in changes:
         feedback_repository.update_status(db, feedback_id, changes["status"])
     if "github_url" in changes:
         feedback_repository.set_github_url(db, feedback_id, changes["github_url"])
-    apres = {champ: getattr(entry, champ) for champ in changes}
-    modifies = [champ for champ in changes if avant[champ] != apres[champ]]
-    if modifies:
+    after = {field: getattr(entry, field) for field in changes}
+    changed = [field for field in changes if before[field] != after[field]]
+    if changed:
         admin_action_log_repository.create(
             db,
             user_id=user_id,
@@ -72,8 +72,8 @@ def update(db: Session, *, feedback_id: int, changes: dict, user_id: int) -> Use
             entity_type="feedback",
             entity_id=feedback_id,
             payload={
-                "before": {champ: avant[champ] for champ in modifies},
-                "after": {champ: apres[champ] for champ in modifies},
+                "before": {field: before[field] for field in changed},
+                "after": {field: after[field] for field in changed},
             },
         )
     return entry
