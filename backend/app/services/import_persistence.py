@@ -436,7 +436,8 @@ class _Persister:
         if source_key is not None:
             changes["source_identity_key"] = source_key
         if changes:
-            participation_repository.update(self.db, existing, **changes)
+            # Parti au flush de fin de tranche ou de `finalize` (#1503).
+            participation_repository.update(self.db, existing, flush=False, **changes)
 
     def _note_passive(self, course: Course, source: CourseSource) -> None:
         """Retient une source passive **une fois**, et rédige le message qui la nomme.
@@ -642,6 +643,10 @@ class _Persister:
         pending = self._pending.pop(course_id, [])
         if not pending:
             return
+        # `autoflush` est coupé : les mises à jour en attente (tranche précédente,
+        # `_upsert` faits dès `add`) partent ici en un `executemany` (#1503), avant
+        # que `latest_club_dates` et `_club_routing` ne relisent les clubs.
+        self.db.flush()
 
         # Une ligne source inchangée garde sa fiche : ni recherche ni repli pour elle.
         kept = [self._kept_record(course_id, item) if item.teammates is None else None for item in pending]
@@ -1212,6 +1217,8 @@ class _Persister:
         # Un second passage (lignes Challenge rendues au flux normal, #1008) ne
         # doit pas résoudre deux fois les mêmes découpages.
         self._pending_splits.clear()
+        # Mises à jour posées par `add` hors de toute tranche, lues par le recalcul.
+        self.db.flush()
         if self._athlete_updates:
             athlete_repository.apply_updates(
                 self.db, [self._athlete_updates[aid] for aid in sorted(self._athlete_updates)]
