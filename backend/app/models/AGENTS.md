@@ -188,8 +188,9 @@
   stats, classement, synthèse, saisons distinctes ; `course_repository.py` :
   catalogue en portée club ; `athlete_repository.py` : activité par saison,
   recherche de la palette ⌘K — détail dans `app/api/AGENTS.md`) et
-  délibérément absente de `list_for_athlete`, qui doit montrer
-  une participation pendante (FR-019) ; la page épreuve la lit à part (#1273).
+  levée par `list_for_athlete(include_pending=True)` pour un bénévole seul,
+  qui doit voir une participation pendante (FR-019, #1519) ; la page épreuve
+  la lit à part (#1273).
   Cette lecture passe par l'index partiel `ix_participations_awaiting_validation`
   (#1390) : ses deux prédicats (`postgresql_where`, `sqlite_where`) recopient le
   rendu SQL d'`awaiting_validation_clause` sur chaque moteur. Changer la clause

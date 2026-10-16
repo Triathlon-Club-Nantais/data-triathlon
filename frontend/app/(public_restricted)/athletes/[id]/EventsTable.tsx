@@ -324,6 +324,7 @@ export function EventsTable({
         <EmptyState
           bare
           title="Aucun résultat pour cet athlète"
+          description="Un résultat que vous venez de saisir apparaîtra ici une fois validé par un bénévole."
           action={
             <Link href="/ajouter" className="text-sm font-semibold text-accent-ink hover:underline">
               Ajouter un résultat →

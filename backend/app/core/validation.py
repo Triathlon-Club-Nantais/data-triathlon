@@ -6,10 +6,11 @@ Python `is_pending`, que seuls les tests appelaient, a été supprimé (#1048).
 
 Un résultat en attente de validation n'entre dans **aucun** compte ni agrégat
 public (statistiques, podiums, classements, page résultats, page épreuves,
-carte) : `validated_clause` reste le filtre de tout comptage. Il s'**affiche**
-sur la fiche de son athlète (FR-019, FR-021) et, depuis #1273, en fin de
-classement de son épreuve et dans les listes d'épreuves, par une lecture
-distincte (`awaiting_validation_clause`) qui ne sert jamais à compter.
+carte) : `validated_clause` reste le filtre de tout comptage. Il s'**affiche**,
+à un bénévole seul depuis #1519, sur la fiche de son athlète (FR-019, FR-021)
+et, depuis #1273, en fin de classement de son épreuve et dans les listes
+d'épreuves, par une lecture distincte (`awaiting_validation_clause`) qui ne
+sert jamais à compter.
 """
 
 from sqlalchemy import and_

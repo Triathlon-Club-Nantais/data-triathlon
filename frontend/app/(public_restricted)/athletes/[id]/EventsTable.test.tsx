@@ -269,6 +269,11 @@ describe("EventsTable", () => {
     render(<EventsTable participations={[]} athleteId={7} athleteName="Jean DUPONT" />);
 
     expect(screen.getByText("Aucun résultat pour cet athlète")).toBeInTheDocument();
+    // Une saisie en attente n'est montrée qu'aux bénévoles (#1519) : sans ce mot,
+    // qui vient de saisir croirait sa saisie perdue et la referait.
+    expect(
+      screen.getByText("Un résultat que vous venez de saisir apparaîtra ici une fois validé par un bénévole."),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });

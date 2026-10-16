@@ -23,7 +23,9 @@ Deux paramètres traversent l'API de lecture, sur le même patron que `seasons` 
 Un résultat créé par `POST /participations` porte `is_pending_validation=True`
 (forcé par la route, jamais par le client) et reste invisible de tout agrégat
 public jusqu'à ce qu'un bénévole le valide. Il s'affiche sur
-la fiche de son athlète (FR-019) et, depuis #1273, sur son épreuve (voir plus bas). **Aucun paramètre pour lever l'exclusion** :
+la fiche de son athlète (FR-019) et, depuis #1273, sur son épreuve (voir plus
+bas), **à un bénévole seul depuis #1519** (voir « Une saisie en attente n'est
+lisible que des bénévoles »). **Aucun paramètre pour lever l'exclusion** :
 contrairement à `scope`/`federal_only`, ce n'est pas une préférence
 d'affichage mais un invariant d'intégrité, et le Principe V est en violation
 assumée sur ce point (justifiée dans `plan.md` §Complexity Tracking de la
@@ -58,9 +60,11 @@ PostgreSQL ne lit que les participations des athlètes trouvés par le nom, par
 les index `athlete_id` (#1392). Joindre `credits()` lui faisait matérialiser
 toute la table à chaque frappe. `validated_clause` vit dans cette sous-requête.
 
-**Délibérément absente** de six autres fonctions de `participation_repository.py` :
-`list_for_athlete` (la surface voulue par FR-019 — la filtrer viderait la
-feature de son objet), `list_for_course` (chemin d'import, pas d'affichage : les statistiques détaillées
+`list_for_athlete` la pose par défaut ; `include_pending=True`, passé pour un
+bénévole seul (#1519), rend la surface voulue par FR-019.
+
+**Délibérément absente** de cinq autres fonctions de `participation_repository.py` :
+`list_for_course` (chemin d'import, pas d'affichage : les statistiques détaillées
 lisent `list_ranking_for_course`, #938),
 `count_for_athlete` (purge des fiches orphelines, #117),
 `count_for_course`/`delete_for_course` (gestes d'administration),
@@ -71,17 +75,19 @@ participation pendante + une validée, assertion par fonction publique) dans
 lecteur d'appels statique attribuerait mal, et la règle traverse trois
 fichiers différents.
 
-**Affichées, jamais comptées (#1273).** L'exclusion vaut pour les **comptes** ;
-l'affichage a deux surfaces de plus que la fiche d'athlète, toutes deux sous
+**Affichées aux bénévoles, jamais comptées (#1273, #1519).** L'exclusion vaut
+pour les **comptes** ; l'affichage, réservé aux bénévoles depuis #1519, a deux
+surfaces de plus que la fiche d'athlète, toutes deux sous
 `core/validation.awaiting_validation_clause` (en attente **et** non refusé) :
 
-- `GET /courses/{id}` rend `pending_participations`, lu par
+- `GET /courses/{id}` rend `pending_participations` (vide pour le public), lu par
   `participation_repository.list_pending_for_course` : mêmes filtres que le
   classement (`_course_rows`), triés par nom, hors de `participations` et de
   `total`, rendus en entier à chaque page. L'écran les place en fin de
   dernière page, sans rang ni écart.
-- `events_page` (`GET /courses/events`) liste aussi une épreuve qui n'a que
-  des résultats en attente, avec `pending_count`. Ses comptes passent en
+- `events_page` (`GET /courses/events`) liste aussi, sous `include_pending`
+  (un bénévole), une épreuve qui n'a que des résultats en attente, avec
+  `pending_count` (`0` pour le public). Ses comptes passent en
   `SUM(CASE validated_clause)` sur le chemin groupé ; le chemin rapide (#623)
   lit `pending_count` en sous-requête corrélée à l'épreuve, sans jointure.
   `total_events` compte les épreuves listées. `events_with_counts` (carte,
@@ -106,6 +112,45 @@ de passe du site. Preuve : un test par compte, avant et
 après l'ajout d'une ligne en attente, dans
 `tests/test_api/test_course_pending_rows.py`. Spec :
 `specs/20261009-162149-pending-results-on-course/`.
+
+## Une saisie en attente n'est lisible que des bénévoles (#1519)
+
+**Changement de contrat assumé (Principe IV).** Publique depuis FR-019 et
+#1273, une saisie en attente laissait un visiteur constater par une seconde
+requête qu'une saisie nommant une personne opposée n'avait rien gardé (#1514).
+Un **bénévole** est l'appelant qu'admet `require_volunteer_access` : cookie
+bénévoles valide ou pouvoir `benevole_access:manage`, lu sans lever par
+`api/deps.is_volunteer`. Pour tout autre appelant :
+
+| Surface | Public | Bénévole |
+| --- | --- | --- |
+| `GET /participations/{id}` d'une ligne en attente ou refusée | `404` « Résultat introuvable. », celui d'un identifiant absent | `200` |
+| `pending_participations` de `GET /courses/{id}` | `[]` | les lignes |
+| `GET /courses/events` | épreuve à résultats en attente seuls absente, `pending_count` à `0` | inchangé (#1273) |
+| `GET /athletes/{id}` et son CSV | lignes validées seules | en attente et refusées comprises |
+
+Aucune forme de réponse ne change, seul le contenu rendu au public. Le front
+relaie le cookie bénévoles depuis son rendu serveur (`serverFetch`) ; une
+session SSO seule n'y suffit pas, elle n'est pas relayée (#586).
+
+**Le dossard.** Renvoyer la même saisie rendait `409` si elle avait été
+gardée, `201` sinon. `scrape_service.save_public_entry` ne rend plus `409`
+que pour un dossard pris par un résultat **publié** ; pris par une saisie en
+attente ou refusée, la seconde saisie reçoit la réponse d'une saisie acceptée
+et rien n'est gardé, comme pour une identité opposée. Deux saisies simultanées
+franchissent la lecture du dossard : l'insertion passe sous point de reprise
+(`participation_repository.create_unless_bib_taken`), et la seconde reçoit le
+même `201` au lieu d'un `500` que n'aurait pas une personne opposée. Coût assumé : une
+seconde saisie qui heurte par erreur le dossard d'une saisie en attente est
+perdue sans message.
+
+**Ce qui reste, suivi par #1615** : les identifiants `athlete.id` et
+`course.id` rendus par `POST /participations` (réutilisés pour une personne
+non opposée, neufs sinon), et l'existence même de la fiche et de l'épreuve
+qu'une saisie en attente crée (`GET /athletes/{id}`, `GET /courses/{id}`,
+`GET /athletes/search`). Les fermer demande de ne plus rendre d'identifiants
+au public ou de masquer ces fiches, deux arbitrages de contrat.
+Preuve : `tests/test_api/test_private_pending_entries.py`.
 
 ## Classement d'une épreuve : paginé, et l'ordre est en base (#163)
 
@@ -365,9 +410,8 @@ Une saisie qui nomme une identité opposée (nom, nom d'équipe, équipier d'un
 relais) suit les mêmes contrôles, reçoit le même `201` et le même corps qu'une
 saisie mise en quarantaine, puis la transaction est annulée
 (`scrape_service.save_public_entry`) : un refus distinct servait d'oracle.
-Limite connue, suivie par #1519 : une saisie en attente étant publique,
-une seconde requête (relire l'`id`, renvoyer le dossard, lire l'épreuve)
-constate encore l'absence de la ligne. Les gestes des bénévoles gardent le
+Une seconde requête ne le constate plus non plus (#1519, section suivante).
+Les gestes des bénévoles gardent le
 refus explicite (`ensure_not_opposed`).
 
 **Le contrat d'entrée de `POST /participations` a été resserré par #1019**,
@@ -662,8 +706,8 @@ UTF-8 avec BOM, `;`, virgule décimale (Excel en français), une colonne
 « Segment … » par clé de split. Toute cellule texte qui ouvrirait une formule
 (`=`, `+`, `@`, `-` non numérique…) est préfixée d'une apostrophe :
 `POST /participations` est ouvert sans session, nom d'épreuve et d'équipe y
-sont libres. Les résultats en attente ou refusés y sont, comme sur la fiche, avec
-leur colonne « Validation » et sans rang. Même garde que la fiche : le mot de
+sont libres. Les résultats en attente ou refusés y sont pour un bénévole seul
+(#1519), comme sur la fiche, avec leur colonne « Validation » et sans rang. Même garde que la fiche : le mot de
 passe du site seul. Les oppositions (#334) s'appliquent à l'import, il n'y a
 rien à refiltrer ici. Construit en mémoire : une carrière tient en quelques
 centaines de lignes, et un 404 doit pouvoir partir avant le corps. Le front y

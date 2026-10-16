@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.orm import Session
 
-from app.api.deps import MAX_PAGE
+from app.api.deps import MAX_PAGE, is_volunteer
 from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
@@ -47,8 +47,12 @@ def list_events(
     page: int = Query(1, ge=1, le=MAX_PAGE),
     page_size: int = Query(30, ge=1, le=200),
     db: Session = Depends(get_db),
+    volunteer: bool = Depends(is_volunteer),
 ):
-    """Page d'épreuves distinctes (scroll infini) avec compteurs participants + TCN."""
+    """Page d'épreuves distinctes (scroll infini) avec compteurs participants + TCN.
+
+    Une épreuve qui n'a que des résultats en attente, et `pending_count`, ne
+    sont rendus qu'aux bénévoles (#1519)."""
     return stats_service.list_events(
         db,
         name=name,
@@ -62,6 +66,7 @@ def list_events(
         sort=sort,
         page=page,
         page_size=page_size,
+        include_pending=volunteer,
     )
 
 
@@ -245,6 +250,7 @@ def get_course(
         description="Code **exact** de catégorie, tel que rendu par `/summary`.",
     ),
     db: Session = Depends(get_db),
+    volunteer: bool = Depends(is_volunteer),
 ):
     """Classement d'une épreuve, **paginé par défaut**.
 
@@ -260,8 +266,8 @@ def get_course(
     une sélection vide, **jamais** un 404 : l'épreuve existe.
 
     `pending_participations` (#1273) : les résultats en attente de validation,
-    aux mêmes filtres, hors de `participations` et de `total`. Lisibles de
-    tous, comme sur la fiche d'athlète ; comptés nulle part.
+    aux mêmes filtres, hors de `participations` et de `total`. Lisibles des
+    seuls bénévoles (#1519), vides pour le public ; comptés nulle part.
     """
     course = course_repository.get(db, course_id)
     if not course:
@@ -271,7 +277,9 @@ def get_course(
     participations, total = participation_repository.list_page_for_course(
         db, course_id, page=page, page_size=resolved_page_size, **filters
     )
-    pending = participation_repository.list_pending_for_course(db, course_id, **filters)
+    pending = (
+        participation_repository.list_pending_for_course(db, course_id, **filters) if volunteer else []
+    )
     return {
         "course": CourseBrief.model_validate(course),
         "participations": [ParticipationOut.model_validate(p) for p in participations],

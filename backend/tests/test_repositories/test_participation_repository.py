@@ -1041,7 +1041,7 @@ def test_exists_for_athlete_on_course_voit_un_deja_classe(db_session):
 
 
 def test_list_for_athlete_inclut_une_participation_pendante(db_session):
-    """FR-019 — la fiche athlète est la seule surface qui montre les pendantes."""
+    """FR-019 — la fiche athlète montre les pendantes, à un bénévole seul (#1519)."""
     athlete, course = _setup(db_session)
     participation_repository.create(
         db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1",
@@ -1049,7 +1049,9 @@ def test_list_for_athlete_inclut_une_participation_pendante(db_session):
     )
     db_session.flush()
 
-    rows = participation_repository.list_for_athlete(db_session, athlete.id)
+    assert participation_repository.list_for_athlete(db_session, athlete.id) == []
+
+    rows = participation_repository.list_for_athlete(db_session, athlete.id, include_pending=True)
     assert len(rows) == 1
     assert rows[0].is_pending_validation is True
 
