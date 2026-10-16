@@ -38,7 +38,8 @@ def create_pending(
 
 def exists_for_athlete_season(db: Session, *, athlete_id: int, season: int) -> bool:
     """Le quota de saison (#779, FR-008) ne compte que les lignes validées —
-    seul point de lecture, un seul appelant (`admin_actions.season_quota`)."""
+    lu ici pour un athlète (`admin_actions.season_quota`), en masse par
+    `athlete_ids_with_validated_action`."""
     return (
         db.query(VolunteerAction.id)
         .filter(
@@ -48,6 +49,24 @@ def exists_for_athlete_season(db: Session, *, athlete_id: int, season: int) -> b
         )
         .first()
         is not None
+    )
+
+
+def athlete_ids_with_validated_action(db: Session, *, athlete_ids: list[int], season: int) -> set[int]:
+    """Lecture en masse d'`exists_for_athlete_season` pour la liste de saison
+    (#1542) : une requête pour tous les athlètes, même statut `validee`."""
+    if not athlete_ids:
+        return set()
+    return set(
+        db.scalars(
+            select(VolunteerAction.athlete_id)
+            .where(
+                VolunteerAction.athlete_id.in_(athlete_ids),
+                VolunteerAction.season == season,
+                VolunteerAction.status == "validee",
+            )
+            .distinct()
+        )
     )
 
 

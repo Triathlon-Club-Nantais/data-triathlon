@@ -26,7 +26,12 @@ function filterAthletes(athletes: AthleteSeasonActivity[], query: string): Athle
 }
 
 /** Statut de validation (#709, FR-014) — filtre client, comme le tri (research.md). */
-type FiltreValidation = "tous" | "valides" | "non_valides";
+type FiltreValidation = "tous" | "valides" | "non_valides" | "a_valider";
+
+/** Quota atteint (#1542, barème calculé par le serveur) mais saison pas encore validée. */
+function aValider(a: AthleteSeasonActivity): boolean {
+  return a.quota_met === true && a.season_validated === false;
+}
 
 function filterByValidation(
   athletes: AthleteSeasonActivity[],
@@ -34,6 +39,7 @@ function filterByValidation(
 ): AthleteSeasonActivity[] {
   if (filtre === "valides") return athletes.filter((a) => a.season_validated === true);
   if (filtre === "non_valides") return athletes.filter((a) => a.season_validated === false);
+  if (filtre === "a_valider") return athletes.filter(aValider);
   return athletes;
 }
 
@@ -116,12 +122,13 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
         />
         <AthleteSortToggle />
         {singleSeason && (
-          <div role="radiogroup" aria-label="Statut de validation" style={{ display: "inline-flex", gap: 8 }}>
+          <div role="radiogroup" aria-label="Statut de validation" style={{ display: "inline-flex", flexWrap: "wrap", gap: 8 }}>
             {(
               [
                 ["tous", "Tous"],
                 ["valides", "Validées"],
                 ["non_valides", "Non validées"],
+                ["a_valider", "Quota atteint, à valider"],
               ] as [FiltreValidation, string][]
             ).map(([valeur, libelle]) => (
               <label key={valeur} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13 }}>
@@ -192,6 +199,20 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
                       }}
                     >
                       Saison validée
+                    </span>
+                  )}
+                  {aValider(a) && (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "var(--tcn-success-text)",
+                        border: "1px solid var(--tcn-success-border)",
+                        borderRadius: 6,
+                        padding: "1px 6px",
+                      }}
+                    >
+                      Quota atteint
                     </span>
                   )}
                 </div>

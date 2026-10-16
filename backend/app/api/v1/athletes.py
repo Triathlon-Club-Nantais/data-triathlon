@@ -7,12 +7,13 @@ from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.permissions import P
-from app.core.season import parse_seasons
+from app.core.season import parse_seasons, season_quota_met
 from app.models.user import User
 from app.repositories import (
     athlete_repository,
     participation_repository,
     season_validation_repository,
+    volunteer_action_repository,
 )
 from app.schemas.athlete import AthleteBrief, AthleteSearchResult, AthleteSeasonActivity
 from app.schemas.participation import AthleteDetail, AthleteParticipationOut
@@ -54,13 +55,18 @@ def list_athletes_season_activity(
     )
     # Le statut de validation est mono-saison (research.md D9) : `null` dès que
     # `seasons` n'en désigne pas exactement une, sinon la carte des validés.
-    validations = (
-        season_validation_repository.map_by_athlete(
-            db, athlete_ids=[a.id for a, *_ in rows], season=parsed_seasons[0]
+    # Le quota (#1542) suit la même règle.
+    single_season = len(parsed_seasons) == 1
+    validations: dict[int, bool] = {}
+    volunteers: set[int] = set()
+    if single_season:
+        athlete_ids = [a.id for a, *_ in rows]
+        validations = season_validation_repository.map_by_athlete(
+            db, athlete_ids=athlete_ids, season=parsed_seasons[0]
         )
-        if len(parsed_seasons) == 1
-        else {}
-    )
+        volunteers = volunteer_action_repository.athlete_ids_with_validated_action(
+            db, athlete_ids=athlete_ids, season=parsed_seasons[0]
+        )
     return [
         AthleteSeasonActivity(
             id=a.id,
@@ -70,9 +76,10 @@ def list_athletes_season_activity(
             total_count=total,
             validated_count=validated,
             club_affiliated_count=club_affiliated,
-            season_validated=validations.get(a.id, False) if len(parsed_seasons) == 1 else None,
+            season_validated=validations.get(a.id, False) if single_season else None,
+            quota_met=season_quota_met(federal_validated, a.id in volunteers) if single_season else None,
         )
-        for a, total, validated, club_affiliated in rows
+        for a, total, validated, club_affiliated, federal_validated in rows
     ]
 
 

@@ -2088,6 +2088,7 @@ def test_season_quota_reflete_les_trois_signaux(db_session, auteur):
         "has_volunteer_action": True,
         "has_pending_volunteer_action": False,
         "season_validated": True,
+        "quota_met": True,
     }
 
 
@@ -2101,6 +2102,7 @@ def test_season_quota_sur_athlete_sans_activite(db_session, auteur):
         "has_volunteer_action": False,
         "has_pending_volunteer_action": False,
         "season_validated": False,
+        "quota_met": False,
     }
 
 

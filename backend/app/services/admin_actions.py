@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from app.core.athlete_identity import athlete_identity_keys
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError
+from app.core.season import season_quota_met
 from app.core.time import utcnow
 from app.models.athlete import Athlete
 from app.models.course import Course
@@ -858,7 +859,8 @@ def season_quota(db: Session, *, athlete_id: int, season: int) -> dict:
     """Les trois signaux du barème de validation (#709, FR-012) — ne modifie rien.
 
     `validated_count` recompte en Python plutôt que de réutiliser l'agrégat SQL
-    d'`athlete_repository.list_with_season_participation_count` : un seul
+    d'`athlete_repository.list_with_season_participation_count`
+    (`federal_validated_count`) : un seul
     athlète, un coût négligeable à l'échelle du club. Même sémantique que là-bas
     (`not is_pending_validation`, `federal_only`, statut `finisher`) — à garder
     synchronisée si l'une des deux change (#845 : un DNS ou une discipline hors
@@ -874,11 +876,12 @@ def season_quota(db: Session, *, athlete_id: int, season: int) -> dict:
         for p in participations
         if not p.is_pending_validation and p.status.lower() == STATUS_FINISHER
     )
+    has_volunteer_action = volunteer_action_repository.exists_for_athlete_season(
+        db, athlete_id=athlete_id, season=season
+    )
     return {
         "validated_count": validated_count,
-        "has_volunteer_action": volunteer_action_repository.exists_for_athlete_season(
-            db, athlete_id=athlete_id, season=season
-        ),
+        "has_volunteer_action": has_volunteer_action,
         # Champ ajouté plutôt que `has_volunteer_action` modifié (Principe IV) :
         # une déclaration en attente n'est pas « aucune déclaration » (#1044).
         "has_pending_volunteer_action": volunteer_action_repository.pending_exists_for_athlete_season(
@@ -888,4 +891,5 @@ def season_quota(db: Session, *, athlete_id: int, season: int) -> dict:
             db, athlete_id=athlete_id, season=season
         )
         is not None,
+        "quota_met": season_quota_met(validated_count, has_volunteer_action),
     }
