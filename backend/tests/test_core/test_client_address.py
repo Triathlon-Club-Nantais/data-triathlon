@@ -129,3 +129,34 @@ def test_forwarded_proto_still_sets_the_scheme():
 
     assert client.get("/", headers={"X-Forwarded-Proto": "https"}).json()["scheme"] == "https"
     assert client.get("/", headers={"X-Forwarded-Proto": "gopher"}).json()["scheme"] == "http"
+
+
+def test_forwarded_proto_keeps_the_last_value():
+    client = _client()
+
+    assert client.get("/", headers={"X-Forwarded-Proto": "http, https"}).json()["scheme"] == "https"
+
+
+def test_a_hop_count_drift_is_logged(caplog):
+    """On both measured paths Cloudflare's peer sits at the chosen position: a
+    mismatch means the platform changed its number of hops."""
+    client = _client(frontend_proxy_secret=SECRET)
+
+    with caplog.at_level("WARNING", logger="app.core.client_address"):
+        _seen(client, **{"X-Forwarded-For": f"{REAL}{TAIL}", "CF-Connecting-IP": REAL})
+        assert not caplog.records
+        drifted = f"203.0.113.9,{REAL}, 10.28.198.73"
+        _seen(client, **{"X-Forwarded-For": drifted, "CF-Connecting-IP": REAL})
+
+    assert "TRUSTED_PROXY_COUNT" in caplog.text
+
+
+def test_a_missing_secret_is_logged_at_startup(caplog):
+    with caplog.at_level("WARNING", logger="app.core.client_address"):
+        with _client():
+            pass
+        assert "FRONTEND_PROXY_SECRET" in caplog.text
+        caplog.clear()
+        with _client(frontend_proxy_secret=SECRET):
+            pass
+        assert not caplog.records

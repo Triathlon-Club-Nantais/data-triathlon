@@ -126,8 +126,8 @@ class Settings(BaseSettings):
     # l'en-tête ; une chaîne plus courte garde l'adresse de la socket.
     trusted_proxy_count: int = 3
     # Secret que `frontend/proxy.ts` joint aux appels `/api/*` du rewrite
-    # Vercel : sa présence seule autorise `X-Vercel-Forwarded-For`. Vide, une
-    # visite par le front compte sous l'IP de sortie de Vercel.
+    # Vercel : sa présence seule autorise `X-Vercel-Forwarded-For`. Vide, les
+    # plafonds par IP ne tiennent pas par le front (IP de sortie Vercel tournante).
     frontend_proxy_secret: str | None = None
 
     # ── Import d'épreuve (#395) ───────────────────────────────────────────────
