@@ -112,14 +112,32 @@ export function AthleteComparisonResult({
   const maxSeconds = Math.max(...rows.flatMap((r) => [r.mineSeconds ?? 0, r.theirsSeconds ?? 0]));
   const { wins, losses, ties } = headToHead(common);
   const counted = wins + losses + ties;
+  const excluded = rows.length - counted;
+  const plural = (n: number) => (n > 1 ? "s" : "");
+  const tally = [
+    wins > 0 && `devant ${wins} fois`,
+    losses > 0 && `derrière ${losses} fois`,
+    ties > 0 && `à égalité ${ties} fois`,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
   return (
     <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 20 }}>
-      {counted > 0 && (
-        <p style={{ fontSize: 14, fontWeight: 600, color: "var(--tcn-ink)" }}>
-          Sur {counted} épreuve{counted > 1 ? "s" : ""} comparable{counted > 1 ? "s" : ""} : devant {wins} fois,
-          derrière {losses} fois{ties > 0 ? `, à égalité ${ties} fois` : ""}.
-        </p>
+      {(counted > 0 || excluded > 0) && (
+        <div>
+          {counted > 0 && (
+            <p style={{ fontSize: 14, color: "var(--tcn-ink)" }}>
+              Face à {theirsName}, sur {counted} épreuve{plural(counted)} comparable{plural(counted)} : {tally}.
+            </p>
+          )}
+          {excluded > 0 && (
+            <p style={{ marginTop: 2, fontSize: 12, color: "var(--tcn-text-faint)" }}>
+              {excluded} épreuve{plural(excluded)} hors bilan : relais, saisie en attente, épreuve douteuse ou
+              abandon.
+            </p>
+          )}
+        </div>
       )}
       {/* Repère min/max de l'échelle commune à toutes les paires (#689, point 4). */}
       <div style={{ display: "grid", gridTemplateColumns: GRID_COLS, gap: 8 }}>
