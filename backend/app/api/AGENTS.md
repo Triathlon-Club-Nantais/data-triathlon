@@ -420,8 +420,9 @@ Actions, déjà au delà de l'int4, qui reste un `int` nu. Il refuse de même to
 champ `id`, `*_id`, `*_id_a`, `*_ids` des schémas atteints par un
 `requestBody`, objets imbriqués compris ; aucun identifiant externe entier n'y
 figure aujourd'hui. Les rangs (`rank_*`) d'un corps se typent `Rank`, même
-plage, sous la même garde (#1574) ; aucun autre entier de corps n'atteint
-aujourd'hui une colonne `integer` (temps en `H:MM:SS`, distances en `float`).
+plage, sous la même garde (#1574) ; aucun autre entier de corps non borné
+n'atteint aujourd'hui une colonne `integer` (saison et jour de semaine déjà
+bornés, temps en `H:MM:SS`, distances en `float`).
 
 ## Protéger une ressource (#115)
 

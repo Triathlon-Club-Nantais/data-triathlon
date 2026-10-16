@@ -144,6 +144,7 @@ def test_out_of_range_rank_is_a_422(client, field):
     response = client.post("/api/v1/participations", json=body)
 
     assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"][-1] == field
 
 
 def test_every_integer_rank_in_a_request_body_carries_the_bound():
