@@ -24,14 +24,14 @@ de la ligne concernée **avant** de toucher à ce qu'elle nomme.
 | --- | --- |
 | `app/(public_restricted)/`, `acces`, `login`, `admin/acces`, textes légaux (`components/legal/`) | `docs/frontend/acces-et-routes.md` |
 | `not-found.tsx`, `error.tsx`, `global-error.tsx`, `ErrorScreen`, un `loading.tsx` de fiche | `docs/frontend/ecrans-erreur.md` |
-| `admin/droits`, `FeedbackTable`, `AdminIndex`, sous-sections et pastilles du sommaire | `docs/frontend/back-office.md` |
-| `nav.config.ts`, `AppNav`, rail, barre basse mobile, tiroir | `docs/frontend/navigation.md` |
-| Stock `tcn-athlete`, `useSelectedAthlete`, « Vous », « Ma saison », en-tête de fiche athlète, gestes de la fiche épreuve | `docs/frontend/athlete-retenu.md` |
+| `admin/droits`, `FeedbackTable`, `AdminIndex`, sous-sections et pastilles du sommaire, `MutationCache` d'`app/providers.tsx`, palette ⌘K (`AthletePicker`) | `docs/frontend/back-office.md` |
+| `nav.config.ts`, `AppNav`, rail, barre basse mobile, tiroir, cookie `tcn-nav-expanded` (`app/layout.tsx`) | `docs/frontend/navigation.md` |
+| Stock `tcn-athlete`, `useSelectedAthlete`, « Vous », « Ma saison » (`MaSaison`, `RappelPosition`), `AthleteHeaderActions`, `CourseAdminActions`/`CourseAdminPanel` | `docs/frontend/athlete-retenu.md` |
 | Un paramètre d'URL (`?rank=`, `?scope`…), `/club`, `lib/api/server.ts` et ses cookies | `docs/frontend/donnees-serveur.md` |
 | `TcnScrapeForm`, `useImportStream`, `ImportStreamProvider`, `ManualResultForm`, `ProviderDetector` | `docs/frontend/import.md` |
-| Une des six listes publiques (`.tcn-table`, `.tcn-rowlink`), une bascule grille/cartes (`LigneCarte`) | `docs/frontend/tableaux.md` |
+| Une des six listes publiques (`.tcn-table`, `.tcn-rowlink`), une bascule grille/cartes (`LigneCarte`), `test/setup.ts` (`defaultIgnore`), `test/cartes.ts` | `docs/frontend/tableaux.md` |
 | Un graphique SVG (`Histogram`, `RankingEvolutionChart`), `lib/sport-colors.ts` | `docs/frontend/graphiques.md` |
-| `next.config.ts` (`headers()`), `proxy.ts`, la CSP | `docs/frontend/securite-entetes.md` |
+| `next.config.ts` (`headers()`), `proxy.ts`, la CSP, `await connection()` d'`app/layout.tsx` | `docs/frontend/securite-entetes.md` |
 
 ## Règles transverses
 
@@ -69,6 +69,24 @@ de la ligne concernée **avant** de toucher à ce qu'elle nomme.
   page streamée (fiches athlète et épreuve), les gestes réservés apparaissaient
   à l'hydratation et levaient l'erreur #418. Le rail, `UserMenu` et les écrans
   `/admin` (rendus client) gardent `useSession`.
+- **Session et pouvoirs** (#240, #954). Le caractère superutilisateur de l'utilisateur connecté se déduit du
+  croisement `session.roles` × liste des rôles, jamais de « il porte tous les
+  codes », qui est faux. Et une session **illisible** n'est pas une session sans
+  pouvoirs : l'erreur de `useSession` entre dans la garde de l'écran plutôt que
+  de figer les cases en affirmant qu'on ne porte rien. Même règle pour le rail
+  et `UserMenu` (#954) : ni « Se connecter » ni sections retirées sur une panne,
+  le dernier état connu restant affiché. La query session ne réessaie que les
+  pannes passagères (5xx, 429 court, réseau), trois fois au plus, par
+  `SESSION_QUERY_DEFAULTS` que `Providers` pose via `setQueryDefaults` : les
+  clients de test, en `retry: false`, n'en héritent pas.
+- **Accessibilité et rendu, pièges déjà payés** (rappel ; le détail reste sur la
+  page citée). Un anneau de focus est un trait opaque `--tcn-orange`, jamais le
+  halo `ring-ring/50` seul (1,86:1). `bg-muted` et `--tcn-fill` valent
+  exactement `--background` : ni squelette (`Skeleton` porte `--tcn-grey-300`)
+  ni survol (prendre `--tcn-orange-08`) ne s'y voient (`back-office.md`). Une
+  région `AnnonceStatut` se monte inconditionnellement, texte `""` au repos
+  (`athlete-retenu.md`). La taille de police d'un champ TCN vit dans
+  `.tcn-input`, jamais en ligne, sous peine de zoom iOS (`import.md`).
 - **Gardes d'écriture du back-office** (#496) — un contrôle qui écrit teste
   **son** code de pouvoir avant de se rendre, jamais celui qui a ouvert l'écran :
   `session.data?.permissions.includes("x:y") ?? false`, puis `{peutX && …}`. Six
@@ -83,7 +101,6 @@ de la ligne concernée **avant** de toucher à ce qu'elle nomme.
   une carte qui n'existe **que** pour un geste ne se rend pas du tout
   (`RevokeSessionsCard`, comme son bouton frère par adresse), l'écran restant
   agissant par ailleurs.
-
 - **Gestes destructifs** (#499) — la couleur destructive **et** confirmation
   dès qu'un geste ferme un accès ou détruit une donnée. Neutre et sans
   confirmation pour tout ce qui se refait. La confirmation passe par
@@ -103,18 +120,9 @@ de la ligne concernée **avant** de toucher à ce qu'elle nomme.
   front une règle métier serveur qu'on ne fait que deviner : dans ce cas,
   laisser le message du refus faire le travail.
 
-  Deux exceptions à la couleur portée par le `variant` plein, chacune
-  commentée sur place : la croix de retrait de rôle d'`UserRolesTable`, `ghost`
-  au repos et `destructive` au survol et au focus — une croix par badge,
-  plusieurs badges par ligne ; un bouton-icône dans un tableau dense qui pose
-  la couleur destructive par une teinte posée à la main plutôt que par le
-  variant plein, pour ne pas écraser ses voisins (`CoursesAdminTable`, la
-  corbeille et son crayon jumeau). Un critère à part, de rayon d'action et non
-  de rendu : un geste réparable mais dont la portée est l'ensemble des comptes
-  se signale en destructif malgré tout, variant plein compris
-  (`RevokeSessionsCard`, « Fermer toutes les sessions », qui déconnecte tout le
-  monde, vous compris — face à « Fermer les sessions » d'une seule adresse, qui
-  reste neutre).
+  Deux exceptions à la couleur du `variant` plein (`UserRolesTable`,
+  `CoursesAdminTable`) et le critère de rayon d'action (`RevokeSessionsCard`) :
+  `docs/frontend/back-office.md`.
 
   Les gestes sans retour dont la portée est la base entière vivent sur
   `/admin/maintenance`, jamais au pied d'un écran d'édition.

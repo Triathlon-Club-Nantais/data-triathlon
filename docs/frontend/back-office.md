@@ -27,16 +27,26 @@ rouvrir :
   ouvert, et se fier à la prop renvoie l'ensemble figé à l'ouverture, effaçant
   la recomposition d'un autre administrateur.
 
-Le caractère superutilisateur de l'utilisateur connecté se déduit du
-croisement `session.roles` × liste des rôles, jamais de « il porte tous les
-codes », qui est faux. Et une session **illisible** n'est pas une session sans
-pouvoirs : l'erreur de `useSession` entre dans la garde de l'écran plutôt que
-de figer les cases en affirmant qu'on ne porte rien. Même règle pour le rail
-et `UserMenu` (#954) : ni « Se connecter » ni sections retirées sur une panne,
-le dernier état connu restant affiché. La query session ne réessaie que les
-pannes passagères (5xx, 429 court, réseau), trois fois au plus, par
-`SESSION_QUERY_DEFAULTS` que `Providers` pose via `setQueryDefaults` : les
-clients de test, en `retry: false`, n'en héritent pas.
+Superutilisateur et session illisible : règle transverse « Session et
+pouvoirs », restée dans `frontend/AGENTS.md`.
+
+## Gestes destructifs : exceptions de rendu (#499)
+
+La règle générale (couleur destructive et `DangerConfirm`) reste dans
+`frontend/AGENTS.md`, « Gestes destructifs ».
+
+Deux exceptions à la couleur portée par le `variant` plein, chacune
+commentée sur place : la croix de retrait de rôle d'`UserRolesTable`, `ghost`
+au repos et `destructive` au survol et au focus — une croix par badge,
+plusieurs badges par ligne ; un bouton-icône dans un tableau dense qui pose
+la couleur destructive par une teinte posée à la main plutôt que par le
+variant plein, pour ne pas écraser ses voisins (`CoursesAdminTable`, la
+corbeille et son crayon jumeau). Un critère à part, de rayon d'action et non
+de rendu : un geste réparable mais dont la portée est l'ensemble des comptes
+se signale en destructif malgré tout, variant plein compris
+(`RevokeSessionsCard`, « Fermer toutes les sessions », qui déconnecte tout le
+monde, vous compris — face à « Fermer les sessions » d'une seule adresse, qui
+reste neutre).
 
 ## Retours utilisateurs (#500)
 
@@ -117,8 +127,7 @@ invisibles.
 
 ## Sous-sections et files en tête du sommaire (#1246, #1232)
 
-**Administration en sous-sections, files en tête du sommaire** (#1246,
-#1232) : chaque entrée d'« Administration » porte un `group` (À traiter,
+**Administration en sous-sections, files en tête du sommaire** (#1246, #1232) : chaque entrée d'« Administration » porte un `group` (À traiter,
 Données, Paramétrage, Conformité, Gestes sans retour), rendu en intertitre
 par le rail déplié et par `AdminIndex` ; les entrées d'un groupe se suivent
 dans la table (`byGroup`), `nav.config.test.ts` le tient. Au rail, chaque

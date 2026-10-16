@@ -77,7 +77,7 @@ qui laisse `/ajouter` en Server Component. Cinq points qui se re-cassent :
   replié + gouttières `PageShell`) — sans ce chrome, la grille s'affichait
   avant d'avoir la place de tenir et redéfilait à l'horizontale sur une bande
   réelle (1024–1237 px sur le classement, mesuré en revue UI/UX), le défaut
-  même que #461 corrige. Le rail **déplié** (288 px, cookie #482) n'est pas
+  même que #461 corrige. Le rail **déplié** (288 px, cookie #482, `navigation.md`) n'est pas
   couvert par ce chrome ; le résiduel est documenté sur la constante, et
   atténué par `role="region"`/`tabIndex` sur chaque grille scrollable, pour
   qu'elle reste au moins atteignable au clavier si la bande réapparaît. Le

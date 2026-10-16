@@ -4,7 +4,7 @@ Renvoyé depuis `frontend/AGENTS.md`, table « Où lire quoi ».
 
 ## Mot de passe d'accès au site (#509)
 
-`app/` — App Router. **Mot de passe d'accès au site (#509)** : `app/(public_restricted)/`
+**Mot de passe d'accès au site (#509)** : `app/(public_restricted)/`
 (groupe de routes, invisible dans l'URL — nommé en revue de #513 : ces pages
 restent **publiques côté RBAC**, seule leur porte d'entrée est restreinte, et
 un nom de dossier jamais rendu dans une URL relève de la couche technique)
