@@ -193,3 +193,12 @@ describe("SiteAccessGate — retour vers l'écran refusé (#877, revue UI/UX)", 
   });
 });
 
+describe("SiteAccessGate, mobile gutter (#1564)", () => {
+  it("pads the container 16px on each side, within a 412px max width", () => {
+    const { container } = render(<SiteAccessGate />);
+
+    // 412 px moins 2 × 16 px de gouttière (border-box) : la carte garde 380 px.
+    expect(container.firstChild).toHaveStyle({ maxWidth: "412px", paddingLeft: "16px", paddingRight: "16px" });
+  });
+});
+

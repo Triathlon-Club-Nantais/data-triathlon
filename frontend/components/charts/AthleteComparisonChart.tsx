@@ -6,6 +6,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { apiClient } from "@/lib/api/client";
 import type { AthleteSearchResult, Participation } from "@/lib/types";
 import { commonParticipations, formatDelta, headToHead } from "@/lib/utils/athlete-comparison";
+import { performanceExclusion } from "@/lib/utils/best-times";
 import { formatDate } from "@/lib/utils/date";
 
 // Chaque barre n'est qu'un simple rectangle de largeur proportionnelle : pas
@@ -134,7 +135,7 @@ export function AthleteComparisonResult({
           {excluded > 0 && (
             <p style={{ marginTop: 2, fontSize: 12, color: "var(--tcn-text-faint)" }}>
               {excluded} épreuve{plural(excluded)} hors bilan : relais, saisie en attente, épreuve douteuse ou
-              abandon.
+              non classé.
             </p>
           )}
         </div>
@@ -152,17 +153,29 @@ export function AthleteComparisonResult({
       {rows.map((r) => {
         const mineSeconds = r.mineSeconds ?? 0;
         const theirsSeconds = r.theirsSeconds ?? 0;
+        // #1563 : même règle que `headToHead`, dite sur la ligne qu'elle écarte.
+        // Le résultat du coéquipier seul écarté est nommé, sinon la raison se lit comme la vôtre.
+        const mineExclusion = performanceExclusion(r.mine);
+        const theirsExclusion = performanceExclusion(r.theirs);
+        const exclusion = mineExclusion ?? (theirsExclusion && `${theirsExclusion} (${theirsName})`);
         return (
           // `role="group"` + `aria-label` restitue le regroupement que portait
           // implicitement le `<li>` de la liste `sr-only` retirée avec le SVG :
           // sans lui, un lecteur d'écran perd le repère « une épreuve = un
           // groupe » entre deux paires de barres (revue UI/UX de #689).
           <div key={r.courseId} role="group" aria-label={r.courseName}>
-            <div style={{ marginBottom: 6 }}>
+            {/* `columnGap` plutôt qu'un `marginLeft` : passée à la ligne sur mobile,
+                la mention ne garde pas de retrait (revue UI/UX de #1563). */}
+            <div style={{ marginBottom: 6, display: "flex", flexWrap: "wrap", alignItems: "baseline", columnGap: 8 }}>
               <span style={{ fontSize: 14, fontWeight: 600, color: "var(--tcn-ink)" }}>{r.courseName}</span>
               {r.eventDate && (
-                <span style={{ marginLeft: 8, fontSize: 12, color: "var(--tcn-text-faint)" }}>
+                <span style={{ fontSize: 12, color: "var(--tcn-text-faint)" }}>
                   {formatDate(r.eventDate)}
+                </span>
+              )}
+              {exclusion && (
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--tcn-text-muted)" }}>
+                  Hors bilan : {exclusion}
                 </span>
               )}
             </div>

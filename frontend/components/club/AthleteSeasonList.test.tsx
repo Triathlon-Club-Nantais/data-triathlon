@@ -178,6 +178,38 @@ describe("AthleteSeasonList", () => {
     expect(rowNames()).toEqual(["DEJAVALIDE"]);
   });
 
+  it("#1562 : une recherche qui trouve mais un statut qui vide accuse le statut, et « Afficher tous » garde la recherche", async () => {
+    render(
+      <AthleteSeasonList
+        athletes={[
+          athlete({ id: 1, nom: "DUPONT", season_validated: true, quota_met: true }),
+          athlete({ id: 2, nom: "MARTIN", season_validated: false, quota_met: false }),
+        ]}
+      />,
+    );
+
+    await userEvent.type(screen.getByRole("searchbox", { name: /rechercher un athlète/i }), "Dupont");
+    await userEvent.click(screen.getByRole("radio", { name: /^non validées$/i }));
+
+    expect(screen.getByText(/aucun athlète ne correspond à ce statut/i)).toBeInTheDocument();
+    expect(screen.queryByText(/essayez un autre nom/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /afficher tous/i }));
+    expect(rowNames()).toEqual(["DUPONT"]);
+    expect(screen.getByRole("searchbox", { name: /rechercher un athlète/i })).toHaveValue("Dupont");
+  });
+
+  it("#1562 : une recherche qui ne trouve personne garde « Essayez un autre nom », même sous un statut", async () => {
+    render(
+      <AthleteSeasonList athletes={[athlete({ id: 1, nom: "DUPONT", season_validated: true, quota_met: true })]} />,
+    );
+
+    await userEvent.click(screen.getByRole("radio", { name: /^non validées$/i }));
+    await userEvent.type(screen.getByRole("searchbox", { name: /rechercher un athlète/i }), "Zorro");
+
+    expect(screen.getByText(/essayez un autre nom/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /afficher tous/i })).not.toBeInTheDocument();
+  });
+
   it("#1542 : ni option de quota ni pastille sur plusieurs saisons (quota_met null)", () => {
     render(<AthleteSeasonList athletes={[athlete({ id: 1, nom: "MULTI" })]} />);
 

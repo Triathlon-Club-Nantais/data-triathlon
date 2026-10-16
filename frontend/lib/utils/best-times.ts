@@ -16,14 +16,18 @@ export interface BestTime {
   participation: Participation;
 }
 
+/** Raison pour laquelle un résultat ne vaut pas performance, `null` s'il compte. */
+export function performanceExclusion(participation: Participation): string | null {
+  if (participation.is_pending_validation) return "saisie en attente";
+  if (estRelais(participation)) return "relais";
+  if (participation.course.is_reliable === false) return "épreuve douteuse";
+  if (isNonFinisher(participation.status)) return "non classé";
+  return null;
+}
+
 /** Résultat qui vaut performance : ni en attente, ni relais, ni épreuve douteuse, ni abandon. */
 export function countsAsPerformance(participation: Participation): boolean {
-  return (
-    !participation.is_pending_validation &&
-    !estRelais(participation) &&
-    participation.course.is_reliable !== false &&
-    !isNonFinisher(participation.status)
-  );
+  return performanceExclusion(participation) === null;
 }
 
 /**
