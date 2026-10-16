@@ -21,7 +21,7 @@ Nulle part ailleurs la règle ne s'écrit.
 """
 from collections.abc import Collection, Iterable
 
-from sqlalchemy import and_, case, false, func, literal, or_, select, update
+from sqlalchemy import and_, case, false, func, literal, or_, select, union_all, update
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.sql.elements import ColumnElement
 
@@ -107,26 +107,30 @@ def _scope(course_ids: list[int] | None, athlete_ids: list[int] | None) -> Colum
     """`None` : toutes les lignes. Sinon l'union décrite par `recompute_counts_for_tcn`."""
     if course_ids is None and athlete_ids is None:
         return None
-    conditions = []
+    # Une union d'identifiants, pas un `OR` : celui ci, mêlé de sous requêtes,
+    # faisait parcourir toute la table à PostgreSQL à chaque import (#1580, forme
+    # de #1391). Chaque branche a son alias, sans quoi elle se corrélerait à l'UPDATE.
+    branches = []
     if course_ids:
-        on_courses = aliased(Participation)
-        conditions += [
-            Participation.course_id.in_(course_ids),
-            Participation.athlete_id.in_(
-                select(on_courses.athlete_id).where(on_courses.course_id.in_(course_ids))
-            ),
-        ]
-    if athlete_ids:
-        conditions += [
-            Participation.athlete_id.in_(athlete_ids),
-            # Condition 2 : la licence d'un équipier fait compter le relais.
-            Participation.id.in_(
-                select(ParticipationTeammate.participation_id).where(
-                    ParticipationTeammate.athlete_id.in_(athlete_ids)
+        on_course, of_athlete, on_courses = (aliased(Participation) for _ in range(3))
+        branches += [
+            select(on_course.id).where(on_course.course_id.in_(course_ids)),
+            select(of_athlete.id).where(
+                of_athlete.athlete_id.in_(
+                    select(on_courses.athlete_id).where(on_courses.course_id.in_(course_ids))
                 )
             ),
         ]
-    return or_(*conditions) if conditions else false()
+    if athlete_ids:
+        listed = aliased(Participation)
+        branches += [
+            select(listed.id).where(listed.athlete_id.in_(athlete_ids)),
+            # Condition 2 : la licence d'un équipier fait compter le relais.
+            select(ParticipationTeammate.participation_id).where(
+                ParticipationTeammate.athlete_id.in_(athlete_ids)
+            ),
+        ]
+    return Participation.id.in_(union_all(*branches)) if branches else false()
 
 
 def recompute_counts_for_tcn(
