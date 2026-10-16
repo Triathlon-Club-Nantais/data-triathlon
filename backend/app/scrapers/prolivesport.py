@@ -71,7 +71,7 @@ HEADERS = {
 #: autre, puis succès. Sans reprise, les plus gros événements échoueraient
 #: régulièrement en entier. Pas de temporisation entre les essais : les 500
 #: arrivent immédiatement, ils ne signalent pas une surcharge à laisser passer.
-_ESSAIS_INDIV = 5
+_INDIV_ATTEMPTS = 5
 
 #: Délai d'un `result/indiv` — large, à la mesure des charges de 14,7 Mo.
 _TIMEOUT_INDIV = 60
@@ -84,7 +84,7 @@ _T2_LABELS   = {"#2", "t2", "trans2", "transition2"}
 _RUN_LABELS  = {"run", "cap", "course", "courseapied", "c.a.p"}
 
 
-def _est_cumule(label: str) -> bool:
+def _is_cumulative(label: str) -> bool:
     """Un libellé qui finit par `start`/`end` est un point cumulé depuis le
     départ, pas une durée de section (mesuré, sondage #280 constat n°3 sur
     l'événement 979 : `BikeStart` == `Swim`+`T1`, `BikeEnd` == `Swim`+`T1`+
@@ -98,21 +98,21 @@ class _SplitPlan(NamedTuple):
     """Résolution des rôles de split pour une course (#280).
 
     `resolved` ne porte que les rôles à candidat **unique** une fois les
-    points cumulés (`_est_cumule`) écartés — un rôle où subsistent malgré
+    points cumulés (`_is_cumulative`) écartés — un rôle où subsistent malgré
     tout ≥ 2 candidats (aucun mesuré à ce jour) ne peut pas être tranché sans
-    deviner lequel est la vraie durée de section : il est exclu, et `ambigu`
-    le signale à l'appelant. `tous_les_champs` porte l'intégralité des champs
+    deviner lequel est la vraie durée de section : il est exclu, et `ambiguous`
+    le signale à l'appelant. `all_fields` porte l'intégralité des champs
     de la course, triés par suffixe numérique (`T3` → 3) : nécessaire pour
-    reconstruire `segments` sans rien perdre quand `ambigu` est vrai (cf.
+    reconstruire `segments` sans rien perdre quand `ambiguous` est vrai (cf.
     design, "tout ou rien").
     """
 
     resolved: dict[str, str]
-    ambigu: bool
-    tous_les_champs: list[tuple[str, str]]
+    ambiguous: bool
+    all_fields: list[tuple[str, str]]
 
 
-def _numero_champ(field: str) -> int:
+def _field_number(field: str) -> int:
     """Suffixe numérique d'un champ (`"T3"` → `3`), 0 si illisible."""
     m = re.search(r"\d+", field)
     return int(m.group()) if m else 0
@@ -121,37 +121,37 @@ def _numero_champ(field: str) -> int:
 def _build_split_map(splits: list, race: str) -> _SplitPlan:
     """Construit la résolution des rôles de split pour une course (#280).
 
-    Un champ cumulé (`_est_cumule`) n'entre jamais en candidature : il porte
+    Un champ cumulé (`_is_cumulative`) n'entre jamais en candidature : il porte
     la même information qu'une durée directe déjà présente, sous une autre
     forme (sondage constat n°3). Un rôle avec un seul candidat restant est
     résolu ; à partir de deux, aucun des deux ne l'est (rien ne permet alors
     de trancher lequel est la durée de section).
     """
-    candidats: dict[str, list[str]] = {}
-    champs_de_la_course: list[tuple[str, str]] = []
+    candidates: dict[str, list[str]] = {}
+    race_fields: list[tuple[str, str]] = []
     for s in splits:
         if s.get("race", "").lower() != race.lower():
             continue
         field = s.get("field", "")
-        label_brut = s.get("label") or s.get("displayTitle") or ""
-        champs_de_la_course.append((field, label_brut))
-        label = re.sub(r"\s+", "", label_brut).lower()
-        cumule = _est_cumule(label)
-        if not cumule and any(lbl in label for lbl in _SWIM_LABELS):
-            candidats.setdefault("swim", []).append(field)
+        raw_label = s.get("label") or s.get("displayTitle") or ""
+        race_fields.append((field, raw_label))
+        label = re.sub(r"\s+", "", raw_label).lower()
+        cumulative = _is_cumulative(label)
+        if not cumulative and any(lbl in label for lbl in _SWIM_LABELS):
+            candidates.setdefault("swim", []).append(field)
         elif any(lbl == label for lbl in _T1_LABELS):
-            candidats.setdefault("t1", []).append(field)
-        elif not cumule and any(lbl in label for lbl in _BIKE_LABELS):
-            candidats.setdefault("bike", []).append(field)
+            candidates.setdefault("t1", []).append(field)
+        elif not cumulative and any(lbl in label for lbl in _BIKE_LABELS):
+            candidates.setdefault("bike", []).append(field)
         elif any(lbl == label for lbl in _T2_LABELS):
-            candidats.setdefault("t2", []).append(field)
-        elif not cumule and any(lbl in label for lbl in _RUN_LABELS):
-            candidats.setdefault("run", []).append(field)
+            candidates.setdefault("t2", []).append(field)
+        elif not cumulative and any(lbl in label for lbl in _RUN_LABELS):
+            candidates.setdefault("run", []).append(field)
 
-    resolved = {role: fields[0] for role, fields in candidats.items() if len(fields) == 1}
-    ambigu = any(len(fields) > 1 for fields in candidats.values())
-    champs_de_la_course.sort(key=lambda fc: _numero_champ(fc[0]))
-    return _SplitPlan(resolved=resolved, ambigu=ambigu, tous_les_champs=champs_de_la_course)
+    resolved = {role: fields[0] for role, fields in candidates.items() if len(fields) == 1}
+    ambiguous = any(len(fields) > 1 for fields in candidates.values())
+    race_fields.sort(key=lambda fc: _field_number(fc[0]))
+    return _SplitPlan(resolved=resolved, ambiguous=ambiguous, all_fields=race_fields)
 
 
 def _is_relay(athlete: dict) -> bool:
@@ -177,8 +177,8 @@ def _race_is_relay(race: str, athletes: list[dict]) -> bool:
     """
     if heat_is_relay(race):
         return True
-    equipes = sum(1 for athlete in athletes if _is_relay(athlete))
-    return equipes * 2 > len(athletes)
+    team_count = sum(1 for athlete in athletes if _is_relay(athlete))
+    return team_count * 2 > len(athletes)
 
 
 def _parse_athlete(
@@ -207,7 +207,7 @@ def _parse_athlete(
     # Non-finisher : on laisse total_time="" et les rangs à None (défauts de la
     # dataclass) — l'API renvoie des sentinelles (99991/99992) pour les non-classés.
 
-    if plan.ambigu:
+    if plan.ambiguous:
         # Au moins un rôle a ≥ 2 candidats (#280) : impossible de trancher lequel
         # est la durée de section plutôt qu'un point cumulé redondant. Toute la
         # course part dans `segments` — y compris les rôles non ambigus, car
@@ -216,7 +216,7 @@ def _parse_athlete(
         # disparaître silencieusement de `Participation.splits`.
         result.segments = [
             (label, t)
-            for field, label in plan.tous_les_champs
+            for field, label in plan.all_fields
             if (t := normalize_time(athlete.get(f"time{field}", ""))) and t != "00:00:00"
         ]
     else:
@@ -240,16 +240,16 @@ def _fetch_indiv(event_id: str, race: str, client: httpx.Client) -> list[dict]:
     Seuls les 5xx sont rejoués : un 4xx ou un `success: false` disent quelque
     chose de la requête, les rejouer ne ferait que répéter l'erreur.
     """
-    statut = 0
-    for essai in range(1, _ESSAIS_INDIV + 1):
+    last_status = 0
+    for attempt in range(1, _INDIV_ATTEMPTS + 1):
         r = client.get(
             f"{API_BASE}/result/indiv/{event_id}/{race}/", timeout=_TIMEOUT_INDIV
         )
         if r.status_code >= 500:
-            statut = r.status_code
+            last_status = r.status_code
             logger.warning(
                 "Prolivesport indiv %s/%s : HTTP %s à l'essai %s/%s",
-                event_id, race, statut, essai, _ESSAIS_INDIV,
+                event_id, race, last_status, attempt, _INDIV_ATTEMPTS,
             )
             continue
         r.raise_for_status()
@@ -262,8 +262,8 @@ def _fetch_indiv(event_id: str, race: str, client: httpx.Client) -> list[dict]:
         return data.get("result", [])
 
     raise httpx.HTTPError(
-        f"Prolivesport indiv {event_id}/{race} : {_ESSAIS_INDIV} essais, "
-        f"dernier statut HTTP {statut}."
+        f"Prolivesport indiv {event_id}/{race} : {_INDIV_ATTEMPTS} essais, "
+        f"dernier statut HTTP {last_status}."
     )
 
 
@@ -271,27 +271,27 @@ def _fetch_indiv(event_id: str, race: str, client: httpx.Client) -> list[dict]:
 #: jamais sur une réponse qui honore son filtre (constat n° 4 du sondage :
 #: un seul GET par course, chacun jusqu'à 14,7 Mo, en refaire un par course
 #: serait absurde). Pire cas : chaque confirmation peut elle-même épuiser
-#: `_ESSAIS_INDIV` sur des 500 intermittents avant d'échouer, soit jusqu'à
-#: `(1 + _ESSAIS_STABILITE_DEBORDEMENT) * _ESSAIS_INDIV` requêtes de 14,7 Mo
+#: `_INDIV_ATTEMPTS` sur des 500 intermittents avant d'échouer, soit jusqu'à
+#: `(1 + _OVERFLOW_STABILITY_ATTEMPTS) * _INDIV_ATTEMPTS` requêtes de 14,7 Mo
 #: dans le pire cas — accepté : l'objectif est d'éviter le coût systématique
 #: sur le chemin courant, pas de borner le pire cas. Depuis #1264, une
-#: réponse tronquée à `_PLAFOND_INDIV` ne couvre plus les autres courses :
+#: réponse tronquée à `_INDIV_ROW_CAP` ne couvre plus les autres courses :
 #: chacune redemandée qui déborde encore paie ce pire cas, qui se multiplie
 #: donc par le nombre de courses en débordement tronqué.
-_ESSAIS_STABILITE_DEBORDEMENT = 2
+_OVERFLOW_STABILITY_ATTEMPTS = 2
 
 #: Mesuré (#1264, eventId=1082) : la source tronque une réponse `result/indiv`
 #: à 4000 lignes pile. Une réponse de cette taille n'est plus l'événement
 #: entier et ne couvre que la course demandée. Limite connue : une réponse
 #: qui honore son filtre et fait 4000 lignes pile (course unique énorme)
 #: n'est pas détectée comme tronquée.
-_PLAFOND_INDIV = 4000
+_INDIV_ROW_CAP = 4000
 
 
-def _empreinte(lignes: list[dict]) -> frozenset:
+def _fingerprint(rows: list[dict]) -> frozenset:
     """Identité d'un jeu de lignes, insensible à l'ordre : (course, dossard)."""
     return frozenset(
-        ((ligne.get("race") or "").strip(), ligne.get("number")) for ligne in lignes
+        ((row.get("race") or "").strip(), row.get("number")) for row in rows
     )
 
 
@@ -301,7 +301,7 @@ def _fetch_indiv_stable(
     """`_fetch_indiv`, confirmé quand la réponse déborde de la course demandée.
 
     Mesuré (#757, #764) : une réponse `result/indiv` en débordement — celle
-    que `_lignes_par_course` réutilise pour l'événement entier — peut rendre
+    que `_rows_by_race` réutilise pour l'événement entier — peut rendre
     un jeu de lignes différent d'un appel à l'autre sans jamais renvoyer de
     5xx (un dossard présent à un appel a disparu au suivant, quelques minutes
     plus tard, même URL). L'incomplétude se propage alors à **toutes** les
@@ -311,16 +311,16 @@ def _fetch_indiv_stable(
     après le seul appel de `_fetch_indiv` — aucun coût réseau ajouté sur ce
     chemin, qui n'a jamais montré l'instabilité mesurée.
     """
-    reponse = _fetch_indiv(event_id, race, client)
-    vues = {(ligne.get("race") or "").strip() for ligne in reponse}
-    if not (vues - {race}):
-        return reponse, vues
+    response = _fetch_indiv(event_id, race, client)
+    seen_races = {(row.get("race") or "").strip() for row in response}
+    if not (seen_races - {race}):
+        return response, seen_races
 
-    meilleure = reponse
-    empreinte_precedente = _empreinte(reponse)
-    for _essai in range(_ESSAIS_STABILITE_DEBORDEMENT):
+    best = response
+    previous_fingerprint = _fingerprint(response)
+    for _attempt in range(_OVERFLOW_STABILITY_ATTEMPTS):
         try:
-            suivante = _fetch_indiv(event_id, race, client)
+            next_response = _fetch_indiv(event_id, race, client)
         except Exception as exc:
             # Une confirmation qui échoue (budget des 500 épuisé, `success:
             # false`…) ne doit pas faire perdre une réponse déjà en main :
@@ -329,24 +329,24 @@ def _fetch_indiv_stable(
             logger.warning(
                 "Prolivesport indiv %s/%s : confirmation échouée (%s), "
                 "on garde la réponse en main (%d lignes)",
-                event_id, race, exc, len(meilleure),
+                event_id, race, exc, len(best),
             )
             break
-        empreinte = _empreinte(suivante)
-        if empreinte == empreinte_precedente:
-            meilleure = suivante
+        fingerprint = _fingerprint(next_response)
+        if fingerprint == previous_fingerprint:
+            best = next_response
             break
         logger.warning(
             "Prolivesport indiv %s/%s : jeu de lignes instable en débordement "
             "(%d puis %d lignes)",
-            event_id, race, len(meilleure), len(suivante),
+            event_id, race, len(best), len(next_response),
         )
-        if len(suivante) > len(meilleure):
-            meilleure = suivante
-        empreinte_precedente = empreinte
+        if len(next_response) > len(best):
+            best = next_response
+        previous_fingerprint = fingerprint
 
-    vues_finales = {(ligne.get("race") or "").strip() for ligne in meilleure}
-    return meilleure, vues_finales
+    final_seen_races = {(row.get("race") or "").strip() for row in best}
+    return best, final_seen_races
 
 
 def _fetch_splits(event_id: str, client: httpx.Client) -> list[dict]:
@@ -491,11 +491,11 @@ def _is_unmatched_bib(athlete: dict) -> bool:
 _SENTINEL_DISTANCE_KM = 998
 
 
-def _race_distance_km(entree: dict) -> float | None:
+def _race_distance_km(entry: dict) -> float | None:
     """Distance publiée par `raceList` (somme des segments, en km), `None` si absente
     ou sentinelle (#1052)."""
     try:
-        km = float(str(entree.get("distance") or "").replace(",", "."))
+        km = float(str(entry.get("distance") or "").replace(",", "."))
     except ValueError:
         return None
     return km if 0 < km < _SENTINEL_DISTANCE_KM else None
@@ -507,17 +507,17 @@ def _fetch_races(event_id: str, client: httpx.Client) -> dict[str, float | None]
     r = client.get(f"{API_BASE}/result/raceList/{event_id}/", timeout=15)
     r.raise_for_status()
     return {
-        code: _race_distance_km(entree)
-        for entree in r.json().get("result", [])
-        if (code := (entree.get("race") or "").strip())
+        code: _race_distance_km(entry)
+        for entry in r.json().get("result", [])
+        if (code := (entry.get("race") or "").strip())
         and not _TECHNICAL_RACE.fullmatch(code)
     }
 
 
-def _lignes_par_course(
+def _rows_by_race(
     event_id: str,
-    a_scraper: list[tuple[str, str]],
-    courses: list[str],
+    to_scrape: list[tuple[str, str]],
+    race_codes: list[str],
     client: httpx.Client,
     trace: FanoutTrace,
     on_heat_start: Callable[[str, str, int, int], None] | None,
@@ -531,7 +531,7 @@ def _lignes_par_course(
     - **Une réponse qui déborde de la course demandée est l'événement entier**
       (comportement mesuré de la source) : elle est réutilisée pour toutes les
       autres courses, plutôt que de redemander N fois 14,7 Mo. **Sauf si elle
-      atteint `_PLAFOND_INDIV`** : tronquée, elle ne sert que la course
+      atteint `_INDIV_ROW_CAP`** : tronquée, elle ne sert que la course
       demandée, les autres sont redemandées directement (#1264).
 
     Une course déjà **couverte par sa propre requête directe** ignore les
@@ -543,18 +543,18 @@ def _lignes_par_course(
     servies par une réponse déjà en main : la progression compte les courses
     importées, pas les requêtes émises. Un échec est isolé sur sa course.
     """
-    attendues = {race for race, _ in a_scraper}
-    lignes: dict[str, list[dict]] = {}
-    couvertes: set[str] = set()
-    total = len(a_scraper)
+    expected = {race for race, _ in to_scrape}
+    rows: dict[str, list[dict]] = {}
+    covered: set[str] = set()
+    total = len(to_scrape)
 
-    for index, (race, _sub_url) in enumerate(a_scraper, start=1):
+    for index, (race, _sub_url) in enumerate(to_scrape, start=1):
         if on_heat_start is not None:
             on_heat_start(race, race, index, total)
-        if race in couvertes:
+        if race in covered:
             continue
         try:
-            reponse, vues = _fetch_indiv_stable(event_id, race, client)
+            response, seen_races = _fetch_indiv_stable(event_id, race, client)
         except Exception as exc:
             logger.warning(
                 "Course prolivesport %s de l'événement %s en échec : %s",
@@ -563,27 +563,27 @@ def _lignes_par_course(
             trace.failures.append({"heat_slug": race, "reason": str(exc)})
             continue
 
-        evenement_entier = bool(vues - {race}) and len(reponse) < _PLAFOND_INDIV
-        if vues - {race} and not evenement_entier:
+        whole_event = bool(seen_races - {race}) and len(response) < _INDIV_ROW_CAP
+        if seen_races - {race} and not whole_event:
             logger.warning(
                 "Prolivesport indiv %s/%s : débordement tronqué (%d lignes), "
                 "les autres courses sont redemandées",
-                event_id, race, len(reponse),
+                event_id, race, len(response),
             )
-            if race not in vues:
+            if race not in seen_races:
                 trace.failures.append({
                     "heat_slug": race,
-                    "reason": f"Débordement tronqué à {len(reponse)} lignes "
+                    "reason": f"Débordement tronqué à {len(response)} lignes "
                     "sans aucune ligne de la course demandée.",
                 })
                 continue
-        for ligne in reponse:
-            code = (ligne.get("race") or "").strip()
-            if code in attendues and code not in couvertes and (
-                evenement_entier or code == race
+        for row in response:
+            code = (row.get("race") or "").strip()
+            if code in expected and code not in covered and (
+                whole_event or code == race
             ):
-                lignes.setdefault(code, []).append(ligne)
-        couvertes.update(courses if evenement_entier else {race})
+                rows.setdefault(code, []).append(row)
+        covered.update(race_codes if whole_event else {race})
 
     # Une course peut avoir échoué puis avoir été rattrapée par une réponse
     # « événement entier » plus tardive : la laisser dans `failures` alors que ses
@@ -591,9 +591,9 @@ def _lignes_par_course(
     # `enumerated = imported + cached + len(failures)` dont `import_service`
     # déduit `heats_imported`.
     trace.failures = [
-        echec for echec in trace.failures if echec["heat_slug"] not in lignes
+        failure for failure in trace.failures if failure["heat_slug"] not in rows
     ]
-    return lignes
+    return rows
 
 
 def scrape_event_fanout(
@@ -628,42 +628,42 @@ def scrape_event_fanout(
     with http.client(timeout=_TIMEOUT_INDIV, headers=HEADERS) as client:
         event_name, event_date = _fetch_event_meta(event_id, client)
         distances = _fetch_races(event_id, client)
-        courses = list(distances)
-        trace.heats_enumerated = len(courses)
-        if not courses:
+        race_codes = list(distances)
+        trace.heats_enumerated = len(race_codes)
+        if not race_codes:
             return [], trace
 
-        a_scraper: list[tuple[str, str]] = []
-        for race in courses:
+        to_scrape: list[tuple[str, str]] = []
+        for race in race_codes:
             sub_url = _sub_source_url(event_id, race)
             if cache_probe is not None and cache_probe(sub_url):
                 trace.heats_cached += 1
                 trace.cached_urls.append(sub_url)
                 continue
-            a_scraper.append((race, sub_url))
+            to_scrape.append((race, sub_url))
 
-        if not a_scraper:
+        if not to_scrape:
             return [], trace
 
-        lignes = _lignes_par_course(
-            event_id, a_scraper, courses, client, trace, on_heat_start
+        rows = _rows_by_race(
+            event_id, to_scrape, race_codes, client, trace, on_heat_start
         )
         splits = _fetch_splits(event_id, client)
 
-    resultats: list[ScrapedResult] = []
-    for race, sub_url in a_scraper:
+    results: list[ScrapedResult] = []
+    for race, sub_url in to_scrape:
         plan = _build_split_map(splits, race)
         event_type = classify_event_type(race)
-        nom = qualify_event_name(event_name, race)
-        lignes_du_heat = [ligne for ligne in lignes.get(race, []) if not _is_unmatched_bib(ligne)]
-        relais = _race_is_relay(race, lignes_du_heat)
-        resultats.extend(
+        qualified_name = qualify_event_name(event_name, race)
+        heat_rows = [row for row in rows.get(race, []) if not _is_unmatched_bib(row)]
+        is_relay = _race_is_relay(race, heat_rows)
+        results.extend(
             _parse_athlete(
-                ligne, plan, sub_url, nom, event_type, event_date, distances[race], is_relay=relais
+                row, plan, sub_url, qualified_name, event_type, event_date, distances[race], is_relay=is_relay
             )
-            for ligne in lignes_du_heat
+            for row in heat_rows
         )
-    return resultats, trace
+    return results, trace
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
@@ -689,15 +689,15 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         plan = _build_split_map(_fetch_splits(event_id, client), race)
 
     event_type = classify_event_type(race)
-    nom = qualify_event_name(event_name, race)
+    qualified_name = qualify_event_name(event_name, race)
     distance_km = next(
         (_race_distance_km(e) for e in races if (e.get("race") or "").strip() == race), None
     )
-    lignes_du_heat = [
+    heat_rows = [
         a for a in athletes if (a.get("race") or "").strip() == race and not _is_unmatched_bib(a)
     ]
-    relais = _race_is_relay(race, lignes_du_heat)
+    is_relay = _race_is_relay(race, heat_rows)
     return [
-        _parse_athlete(a, plan, url, nom, event_type, event_date, distance_km, is_relay=relais)
-        for a in lignes_du_heat
+        _parse_athlete(a, plan, url, qualified_name, event_type, event_date, distance_km, is_relay=is_relay)
+        for a in heat_rows
     ]
