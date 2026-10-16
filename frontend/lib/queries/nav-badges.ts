@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { queryKeys } from "./keys";
 
-
 /**
  * Les pastilles du rail en un appel (#1385) : huit requêtes en rafale se
  * disputaient le seul process du backend avec les données de la page.
