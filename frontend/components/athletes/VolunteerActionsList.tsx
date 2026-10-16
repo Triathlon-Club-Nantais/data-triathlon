@@ -31,7 +31,7 @@ const REFUS = {
  * d'`EventsTable`, donc pas de duplication grille/cartes (#461, research.md
  * D5 de la feature) — et pas non plus `.tcn-table` (qui exige
  * `display: grid` + `gridTemplateColumns` sur chaque `<tr>` pour aligner
- * les colonnes, `frontend/AGENTS.md` #481) : un `<table>` natif aligne déjà
+ * les colonnes, `docs/frontend/tableaux.md` #481) : un `<table>` natif aligne déjà
  * correctement ces colonnes sans geste supplémentaire, et porte sa propre
  * sémantique de tableau sans le moindre rôle ARIA à redéclarer.
  */
