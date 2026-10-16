@@ -47,8 +47,6 @@ describe("DisciplineToggle", () => {
   });
 
   it("gives the whole control a 44px touch target under md, 28px above (#479, #1510)", () => {
-    // Un des trois contrôles de la barre d'outils du dashboard mesurés entre
-    // 26 et 34 px selon l'audit UI/UX — un plancher explicite lève le doute.
     render(<DisciplineToggle />);
     expect(screen.getByRole("checkbox").closest("label")).toHaveClass("tcn-cible-tactile");
   });
