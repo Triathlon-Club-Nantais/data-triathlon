@@ -133,6 +133,15 @@ describe("AthleteComparisonResult head-to-head line (#1543)", () => {
     expect(within(screen.getByRole("group", { name: /Épreuve 30/ })).queryByText(/hors bilan/i)).not.toBeInTheDocument();
   });
 
+  it("names the teammate when only their result is left out (#1563)", () => {
+    const mine = [participation(1, 10, "2026-03-01", "01:00:00")];
+    const theirs = [{ ...participation(11, 10, "2026-03-01", "01:05:00"), status: "DSQ" }];
+
+    render(<AthleteComparisonResult mine={mine} theirs={theirs} theirsName="Camarade" />);
+
+    expect(screen.getByText("Hors bilan : non classé (Camarade)")).toBeInTheDocument();
+  });
+
   it("shows only the exclusion note when every shared time is excluded", () => {
     const mine = [{ ...participation(1, 10, "2026-03-01", "01:00:00"), is_relay: true }];
     const theirs = [participation(11, 10, "2026-03-01", "01:05:00")];
