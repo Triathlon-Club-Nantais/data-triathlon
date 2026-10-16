@@ -10,7 +10,7 @@ import { apiClient, type DetectedProvider, type FieldError } from "@/lib/api/cli
 import { eventTypeLabel } from "@/lib/constants";
 import { eventTypeColor } from "@/lib/sport-colors";
 import { formatEventName } from "@/lib/utils/event";
-import { formatAttente } from "@/lib/utils/format";
+import { formatAttente, motCompte, plural } from "@/lib/utils/format";
 import { isHttpUrl } from "@/lib/utils/url";
 import { useSaveParticipation } from "@/lib/queries/participations";
 import { useImportStream, type ImportState } from "@/hooks/useImportStream";
@@ -424,7 +424,7 @@ export function TcnScrapeForm() {
               status={partiel ? "warning" : "success"}
               title={
                 partiel
-                  ? `Import partiel : ${failures.length} série${failures.length > 1 ? "s" : ""} sur ${heatsEnumerated} manque${failures.length > 1 ? "nt" : ""}`
+                  ? `Import partiel : ${motCompte(failures.length, "série")} sur ${heatsEnumerated} ${plural(failures.length, "manque", "manquent")}`
                   : "Résultats enregistrés avec succès !"
               }
               action={
@@ -638,16 +638,16 @@ function BilanChiffres({
   return (
     <>
       <div>
-        <span>{imported} résultat{imported > 1 ? "s" : ""} ajouté{imported > 1 ? "s" : ""}</span>
+        <span>{motCompte(imported, "résultat")} {plural(imported, "ajouté")}</span>
         {" · "}
         <span>{updated} mis à jour</span>
         {" · "}
-        <span>{skipped} déjà présent{skipped > 1 ? "s" : ""}</span>
+        <span>{skipped} déjà {plural(skipped, "présent")}</span>
       </div>
       {heatsEnumerated > 0 && (
         <div style={{ marginTop: 4 }}>
           <span>
-            {heatsImported} série{heatsImported > 1 ? "s" : ""} importée{heatsImported > 1 ? "s" : ""} sur {heatsEnumerated}
+            {motCompte(heatsImported, "série")} {plural(heatsImported, "importée")} sur {heatsEnumerated}
           </span>
           {heatsCached > 0 ? <span>{` · ${heatsCached} déjà à jour`}</span> : null}
           {heatsFailed > 0 ? <span>{` · ${heatsFailed} en échec`}</span> : null}
@@ -712,7 +712,7 @@ function CourseNavigator({ courses }: { courses: ImportedCourse[] }) {
   return (
     <div style={{ marginTop: 12 }}>
       <Eyebrow style={{ fontSize: 12, marginBottom: 8 }}>
-        {courses.length} épreuve{courses.length > 1 ? "s" : ""} importée{courses.length > 1 ? "s" : ""}
+        {motCompte(courses.length, "épreuve")} {plural(courses.length, "importée")}
       </Eyebrow>
       <div
         style={{
@@ -761,11 +761,12 @@ function CourseSelectField({
         display: "inline-flex",
         alignItems: "center",
         gap: 10,
-        minWidth: 320,
+        // La place utile tombe à 189 px dans le bandeau à 360 px (#1608) : le nom se tronque.
+        minWidth: 0,
         flex: "1 1 320px",
         padding: "12px 42px 12px 16px",
         background: "var(--tcn-fill)",
-        border: `1.5px solid ${focused ? "var(--tcn-orange)" : "var(--tcn-border)"}`,
+        border: `1.5px solid ${focused ? "var(--tcn-orange)" : "var(--tcn-text-faint)"}`,
         borderRadius: "var(--tcn-radius-xl)",
         transition: "border-color var(--tcn-dur-fast)",
         cursor: "pointer",
