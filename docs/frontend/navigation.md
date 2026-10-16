@@ -50,9 +50,12 @@ attribut du DOM. Deux bornes à connaître avant de s'y fier :
 Chaque section porte un `space` (`public`, `encadrement`, `admin`) ; le rail
 et le tiroir ne rendent que l'espace de la page, déduit du premier segment
 d'URL par `spaceOf`. La barre basse suit l'espace courant. `SpaceSwitcher`
-mène d'un espace à l'autre et disparaît pour qui n'en a qu'un ; dans l'espace
-public, une entrée « Back-office » portant le total des files « À traiter »
-mène au sommaire. La palette ⌘K garde les écrans de tous les espaces ouverts.
+mène d'un espace à l'autre par des liens à icône, tous visibles (#1336), et
+disparaît pour qui n'en a qu'un ; son bouton « Back-office » porte le total des
+files « À traiter », seule entrée vers le sommaire depuis l'espace public. Sous
+`md`, il vit en tête du tiroir, libellés compris, et jamais dans l'en-tête : une
+icône seule y passait pour une action, sans survol au doigt pour la nommer
+(revue UI/UX de #1353). La palette ⌘K garde les écrans de tous les espaces ouverts.
 L'espace Encadrement (Jeunes, Crédits bénévoles) vit sous `/encadrement`, gardé
 par `can_supervise` via `components/layout/space-guard.tsx`, partagé avec
 `/admin` ; `/encadrement` mène au premier écran ouvert.
@@ -89,8 +92,7 @@ les deux (« Accueil, tableau de bord »). L'onglet courant porte, en plus de
 sa couleur, un trait `--tcn-orange` de 3 px (pendant de `barreActive` du
 rail, WCAG 1.4.1), et « Plus » s'allume quand la page courante vit dans le
 tiroir. Le tiroir porte « le reste » : ce que la barre laisse de l'espace
-courant, sections débordantes comprises, l'entrée « Back-office » dans
-l'espace public, et les deux actions primaires, **sauf** repli (#621) : la barre basse est masquée
+courant, sections débordantes comprises, et les deux actions primaires, **sauf** repli (#621) : la barre basse est masquée
 pendant que le tiroir est ouvert (le `Sheet` passe par-dessus), donc un
 visiteur dont la barre porte tout (anonyme, ou adhérent sans pouvoir) se
 retrouvait sans aucune destination à l'écran une fois le tiroir ouvert par
