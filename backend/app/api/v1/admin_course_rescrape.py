@@ -21,6 +21,7 @@ from app.core.config import Settings, get_settings
 from app.core.database import SessionLocal
 from app.core.permissions import P
 from app.models.user import User
+from app.schemas.ids import DbId
 from app.services import course_rescrape_service
 
 router = APIRouter(tags=["admin"])
@@ -28,7 +29,7 @@ router = APIRouter(tags=["admin"])
 
 @router.post("/admin/courses/{course_id}/rescrape")
 def rescrape_course(
-    course_id: int,
+    course_id: DbId,
     settings: Settings = Depends(get_settings),
     user: User = Depends(require_permission(P.COURSES_SOURCES)),
 ):

@@ -12,6 +12,21 @@ const TOP = 12;
 const BOTTOM = 188;
 const Y_TICKS = 5;
 
+/** Le repère de l'athlète n'est tracé que si son temps tombe dans les tranches. */
+export function isMarkerInRange(
+  markerSec: number | null | undefined,
+  barCount: number,
+  startSec: number,
+  bucketSec: number,
+): markerSec is number {
+  return (
+    markerSec != null &&
+    barCount > 0 &&
+    markerSec >= startSec &&
+    markerSec <= startSec + barCount * bucketSec
+  );
+}
+
 /**
  * Distribution des temps d'arrivée d'une épreuve.
  *
@@ -58,15 +73,14 @@ export function Histogram({
     y: BOTTOM - (i / Y_TICKS) * (BOTTOM - TOP),
   }));
 
-  const hasMarker =
-    markerSec != null && bars.length > 0 && markerSec >= startSec && markerSec <= endSec;
+  const hasMarker = isMarkerInRange(markerSec, bars.length, startSec, bucketSec);
   const markerX = hasMarker ? (secToPct(markerSec!) * W) / 100 : 0;
 
   const summary =
     bars.length === 0
       ? "Distribution des temps d'arrivée : aucune donnée."
       : `Distribution des temps d'arrivée, de ${formatTickLabel(startSec)} à ` +
-        `${formatTickLabel(endSec)}, maximum ${max} arrivants sur une tranche.` +
+        `${formatTickLabel(endSec)}, maximum ${max} arrivants sur une tranche de ${bucketSec / 60} minutes.` +
         (hasMarker ? ` Le temps de l'athlète se situe à ${formatTickLabel(markerSec!)}.` : "");
 
   return (

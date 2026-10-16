@@ -2,7 +2,7 @@
 
 Ferme l'accès public au site entier, distinct du mot de passe bénévoles
 (#271) : secret propre, table propre, gardé par le pouvoir dédié
-`site_access:manage`. Patron exact de `admin_benevole_access.py` : `GET`
+`site_access:manage`. Patron exact de `admin_volunteer_access.py` : `GET`
 délègue à la lecture du repository (simple consultation), `PUT`/
 `POST .../generate` délèguent à `services/site_access.replace_password` —
 jamais un appel direct au repository pour ces deux gestes, qui combinent
@@ -29,7 +29,7 @@ from app.services import site_access
 router = APIRouter(tags=["admin"])
 
 
-def _vue(config) -> SiteAccessConfigOut:
+def _view(config) -> SiteAccessConfigOut:
     return SiteAccessConfigOut(
         configured=config is not None,
         updated_at=config.updated_at if config else None,
@@ -43,7 +43,7 @@ def get_access_config(
     _: User = Depends(require_permission(P.SITE_ACCESS_MANAGE)),
 ):
     """État courant — 200 dans tous les cas, y compris jamais configuré."""
-    return _vue(site_access_config_repository.get_config(db))
+    return _view(site_access_config_repository.get_config(db))
 
 
 @router.put("/admin/site-access", response_model=SiteAccessConfigOut)
@@ -60,12 +60,12 @@ def replace_access_password(
     régénère `session_secret` dans le même geste. Sauf celle de l'appelant,
     reposée ici : sinon chaque écran admin lui répondait 401 (#877).
     """
-    config, _mot_de_passe = site_access.replace_password(
+    config, _password = site_access.replace_password(
         db, password=body.password, admin_user_id=actor.id
     )
     db.commit()
     set_site_cookie(response, config.session_secret, settings)
-    return _vue(config)
+    return _view(config)
 
 
 @router.post("/admin/site-access/generate", response_model=SiteAccessGeneratedOut)
@@ -80,13 +80,13 @@ def generate_access_password(
     Le mot de passe généré n'est renvoyé **qu'ici**, une seule fois — rien
     côté serveur ne le conserve après le hachage.
     """
-    config, mot_de_passe = site_access.replace_password(
+    config, password = site_access.replace_password(
         db, password=None, admin_user_id=actor.id
     )
     db.commit()
     set_site_cookie(response, config.session_secret, settings)
     return SiteAccessGeneratedOut(
-        password=mot_de_passe,
+        password=password,
         updated_at=config.updated_at,
         updated_by=config.updated_by.display_name,
     )

@@ -64,7 +64,7 @@ _ID_PATH_RE = re.compile(r"^/(?P<id>\d+)(?:/race/\d+)?/?$")
 # Forme éditoriale actuelle du site.
 _SLUG_PATH_RE = re.compile(r"^/evenement/(?P<slug>[^/]+)/?$")
 # Formes retirées du site : les 3 URLs mortes du Sheet (§2.1 du design).
-_PREFIXES_OBSOLETES = ("/course/", "/competition/")
+_OBSOLETE_PREFIXES = ("/course/", "/competition/")
 
 
 def _parse_url(url: str) -> tuple[str, str]:
@@ -82,7 +82,7 @@ def _parse_url(url: str) -> tuple[str, str]:
     m = _SLUG_PATH_RE.match(path)
     if m:
         return "", m.group("slug")
-    if any(path.startswith(prefixe) for prefixe in _PREFIXES_OBSOLETES):
+    if any(path.startswith(prefix) for prefix in _OBSOLETE_PREFIXES):
         raise ValueError(
             f"URL ok-time.fr obsolète : {url} — les préfixes /course/ et "
             "/competition/ ont été retirés du site, qui publie sous "
@@ -94,7 +94,7 @@ def _parse_url(url: str) -> tuple[str, str]:
 # Le lien de classement d'une page `/evenement/<slug>/`. Cherché à la regex sur
 # le HTML brut plutôt qu'au parseur : le lien peut vivre dans un attribut, un
 # bloc de script ou une iframe selon le thème, et un seul motif les couvre tous.
-_CLASSEMENT_ID_RE = re.compile(r"classement\.ok-time\.fr/(\d+)")
+_RANKING_ID_RE = re.compile(r"classement\.ok-time\.fr/(\d+)")
 
 
 def _resolve_event_id(client: httpx.Client, slug: str) -> str:
@@ -115,15 +115,15 @@ def _resolve_event_id(client: httpx.Client, slug: str) -> str:
     url = f"{BASE_URL}/evenement/{slug}/"
     response = client.get(url)
     response.raise_for_status()
-    atterrissage = _SLUG_PATH_RE.match(urlparse(str(response.url)).path or "/")
-    if not atterrissage:
+    landing = _SLUG_PATH_RE.match(urlparse(str(response.url)).path or "/")
+    if not landing:
         raise ValueError(
             f"Page ok-time.fr « {slug} » redirigée hors de /evenement/ "
             f"(vers {response.url}) : slug retiré du site, aucun id de classement "
             "à en tirer sans risquer celui d'un autre événement. Utiliser l'URL "
             "de classement directe."
         )
-    ids = list(dict.fromkeys(_CLASSEMENT_ID_RE.findall(response.text)))
+    ids = list(dict.fromkeys(_RANKING_ID_RE.findall(response.text)))
     if not ids:
         raise ValueError(
             f"Page ok-time.fr « {slug} » sans aucun lien de classement : "
@@ -133,7 +133,7 @@ def _resolve_event_id(client: httpx.Client, slug: str) -> str:
         logger.warning(
             "Page ok-time « %s » : %d ids de classement distincts (%s) — le "
             "premier est retenu. Vérifier qu'il s'agit bien de cet événement.",
-            atterrissage.group("slug"), len(ids), ", ".join(ids),
+            landing.group("slug"), len(ids), ", ".join(ids),
         )
     return ids[0]
 
@@ -159,20 +159,20 @@ def _fetch_results(client: httpx.Client, event_id: str) -> dict:
             f"Événement ok-time {event_id} : aucun résultat publié à ce jour."
         )
     response.raise_for_status()
-    charge = response.json()
-    if not isinstance(charge, dict) or "data" not in charge:
+    payload = response.json()
+    if not isinstance(payload, dict) or "data" not in payload:
         raise ValueError(
             f"Charge ok-time inattendue pour l'événement {event_id} : "
             "clé « data » absente."
         )
-    return charge
+    return payload
 
 
 # --------------------------------------------------------------------------- #
 # Identité de l'athlète
 # --------------------------------------------------------------------------- #
 
-def _texte(runner: dict, champ: str) -> str:
+def _text(runner: dict, field: str) -> str:
     """Un champ texte du participant : entités WordPress décodées, bords ôtés.
 
     Les entités (`&#039;`, `&amp;`) sont une propriété de la sérialisation
@@ -181,7 +181,7 @@ def _texte(runner: dict, champ: str) -> str:
     fiche créée par un autre fournisseur, et un club « ASPTT &amp; CO » ne se
     rapprocherait d'aucun autre.
     """
-    return html.unescape(str(runner.get(champ) or "")).strip()
+    return html.unescape(str(runner.get(field) or "")).strip()
 
 
 def _repair_mojibake(s: str) -> str:
@@ -205,7 +205,7 @@ def _repair_mojibake(s: str) -> str:
 
 # Séparateur de coéquipiers dans un nom (« GUILLON RÉMI / CHARPENTIER EMMANUEL »).
 # Testé sans les espaces qui l'entourent : une graphie collée resterait un binôme.
-_SEPARATEUR_EQUIPE = "/"
+_TEAM_SEPARATOR = "/"
 
 
 def _is_relay_course(title: str, runners: list[dict]) -> bool:
@@ -222,14 +222,14 @@ def _is_relay_course(title: str, runners: list[dict]) -> bool:
     """
     if heat_is_relay(title):
         return True
-    noms = [str(runner.get("nom") or "") for runner in runners]
-    if not noms:
+    names = [str(runner.get("nom") or "") for runner in runners]
+    if not names:
         return False
-    binomes = sum(1 for nom in noms if _SEPARATEUR_EQUIPE in nom)
-    return binomes * 2 > len(noms)
+    pairs = sum(1 for name in names if _TEAM_SEPARATOR in name)
+    return pairs * 2 > len(names)
 
 
-def _athlete_identity(runner: dict, *, is_relay: bool, epreuve_id: str) -> tuple[str, str]:
+def _athlete_identity(runner: dict, *, is_relay: bool, race_id: str) -> tuple[str, str]:
     """(nom, prénom) — un nom d'équipe n'est jamais découpé (précédent #63).
 
     Trois régimes :
@@ -257,25 +257,25 @@ def _athlete_identity(runner: dict, *, is_relay: bool, epreuve_id: str) -> tuple
        c'est l'ambiguïté de la source, pas une que le scraper introduit (les
        participants sans dossard restent hors périmètre, §7 du design).
     """
-    dossard = "" if runner.get("dossard") is None else str(runner.get("dossard")).strip()
-    if str(runner.get("rgpd") or "").strip().upper() == "N" and dossard:
-        return f"Anonyme {epreuve_id}-{dossard}", ""
-    nom = _repair_mojibake(_texte(runner, "nom"))
-    if is_relay or _SEPARATEUR_EQUIPE in nom:
-        return nom, ""
-    return split_athlete_name(nom)
+    bib = "" if runner.get("dossard") is None else str(runner.get("dossard")).strip()
+    if str(runner.get("rgpd") or "").strip().upper() == "N" and bib:
+        return f"Anonyme {race_id}-{bib}", ""
+    name = _repair_mojibake(_text(runner, "nom"))
+    if is_relay or _TEAM_SEPARATOR in name:
+        return name, ""
+    return split_athlete_name(name)
 
 
 # --------------------------------------------------------------------------- #
 # Scalaires du participant
 # --------------------------------------------------------------------------- #
 
-def _drapeau(runner: dict, champ: str) -> str:
+def _flag(runner: dict, field: str) -> str:
     """Un drapeau O/N de la source, normalisé en majuscule."""
-    return str(runner.get(champ) or "").strip().upper()
+    return str(runner.get(field) or "").strip().upper()
 
 
-def _status(runner: dict, *, course_non_chronometree: bool) -> str:
+def _status(runner: dict, *, untimed_course: bool) -> str:
     """Statut sportif, ou "" pour laisser l'heuristique du projet trancher.
 
     Ordre de priorité : **DNS, puis DSQ, puis DNF**. La source cumule des
@@ -285,17 +285,17 @@ def _status(runner: dict, *, course_non_chronometree: bool) -> str:
     plus forte (et la seule qui explique l'absence de classement).
 
     Le repli `finisher` est borné à une course non chronométrée et **déclarée
-    terminée** (cf. `_course_non_chronometree`) : dans une course par ailleurs
+    terminée** (cf. `_is_untimed_course`) : dans une course par ailleurs
     chronométrée, un participant sans temps reste traité par l'heuristique, faute
     de savoir le distinguer d'un abandon non saisi.
     """
-    if _drapeau(runner, "pris_depart") == "N":
+    if _flag(runner, "pris_depart") == "N":
         return STATUS_DNS
-    if _drapeau(runner, "disqualifie") == "O":
+    if _flag(runner, "disqualifie") == "O":
         return STATUS_DSQ
-    if _drapeau(runner, "abandon") == "O":
+    if _flag(runner, "abandon") == "O":
         return STATUS_DNF
-    if course_non_chronometree:
+    if untimed_course:
         return STATUS_FINISHER
     return ""
 
@@ -315,21 +315,21 @@ def _gender(raw) -> str:
     `X` (relais mixtes, 323 participations) n'est pas rendu par le front : mieux
     vaut vide qu'une valeur qu'il ne sait pas afficher.
     """
-    genre = str(raw or "").strip().upper()
-    return genre if genre in ("M", "F") else ""
+    code = str(raw or "").strip().upper()
+    return code if code in ("M", "F") else ""
 
 
 def _total_time(runner: dict) -> str:
     """`temps_finish` normalisé, vide si `"00:00:00"` — la façon dont la source
     dit « pas de temps » (`temps_finish` est toujours renseigné, 12 644/12 644)."""
-    brut = normalize_time(str(runner.get("temps_finish") or "").strip())
-    return "" if brut == "00:00:00" else brut
+    raw = normalize_time(str(runner.get("temps_finish") or "").strip())
+    return "" if raw == "00:00:00" else raw
 
 
 # --------------------------------------------------------------------------- #
 # Splits
 # --------------------------------------------------------------------------- #
-def _points_lus(points: list[dict] | None) -> tuple[list[tuple[str, str, int]], list[str]]:
+def _read_points(points: list[dict] | None) -> tuple[list[tuple[str, str, int]], list[str]]:
     """Points de passage en deux tas, en un seul passage de lecture.
 
     1. les **porteurs d'une durée** — (libellé, temps cumulé, secondes), dans
@@ -338,33 +338,33 @@ def _points_lus(points: list[dict] | None) -> tuple[list[tuple[str, str, int]], 
     2. les **libellés des points illisibles** — un temps présent mais hors format.
        Les écarter est la seule issue, mais leur perte doit remonter.
     """
-    porteurs: list[tuple[str, str, int]] = []
-    illisibles: list[str] = []
+    timed_points: list[tuple[str, str, int]] = []
+    unreadable: list[str] = []
     for point in points or []:
         label = str(point.get("nom") or "").strip()
-        brut = str(point.get("time") or "").strip()
-        secondes = to_seconds(normalize_time(brut), strict=True)
-        if secondes is None:
-            if brut:
-                illisibles.append(label)
-        elif secondes > 0:
-            porteurs.append((label, normalize_time(brut), secondes))
-    return porteurs, illisibles
+        raw = str(point.get("time") or "").strip()
+        seconds = to_seconds(normalize_time(raw), strict=True)
+        if seconds is None:
+            if raw:
+                unreadable.append(label)
+        elif seconds > 0:
+            timed_points.append((label, normalize_time(raw), seconds))
+    return timed_points, unreadable
 
 
-def _points_cumules(points: list[dict] | None) -> list[tuple[str, str]]:
+def _cumulative_points(points: list[dict] | None) -> list[tuple[str, str]]:
     """(libellé, temps cumulé) des points porteurs d'une durée, dans l'ordre.
 
     Sert aussi à `_course_results`, qui doit savoir si une course détient des
     données chronométriques **de quelque nature que ce soit** avant de l'écarter
     comme liste d'engagés.
     """
-    return [(label, temps) for label, temps, _ in _points_lus(points)[0]]
+    return [(label, elapsed) for label, elapsed, _ in _read_points(points)[0]]
 
 
-def _points_illisibles(points: list[dict] | None) -> list[str]:
+def _unreadable_points(points: list[dict] | None) -> list[str]:
     """Libellés des points dont le temps n'a pas pu être lu — donc perdus."""
-    return _points_lus(points)[1]
+    return _read_points(points)[1]
 
 
 def _segments(points: list[dict] | None) -> tuple[list[tuple[str, str]], bool]:
@@ -389,18 +389,18 @@ def _segments(points: list[dict] | None) -> tuple[list[tuple[str, str]], bool]:
     un dernier point différent de `temps_finish` (épreuves finissant sur
     « Départ CAP2 »). `temps_finish` fait seul foi.
     """
-    porteurs, _ = _points_lus(points)
-    if not porteurs:
+    timed_points, _ = _read_points(points)
+    if not timed_points:
         return [], False
 
-    durees: list[tuple[str, str]] = []
-    precedent = 0
-    for label, _temps, courant in porteurs:
-        if courant < precedent:
-            return [(lib, tps) for lib, tps, _ in porteurs], True
-        durees.append((label, fmt_seconds(courant - precedent)))
-        precedent = courant
-    return durees, False
+    durations: list[tuple[str, str]] = []
+    previous = 0
+    for label, _elapsed, current in timed_points:
+        if current < previous:
+            return [(point_label, point_time) for point_label, point_time, _ in timed_points], True
+        durations.append((label, fmt_seconds(current - previous)))
+        previous = current
+    return durations, False
 
 
 # --------------------------------------------------------------------------- #
@@ -416,9 +416,9 @@ def _build_result(
     event_date: date | None,
     distance_km: float | None,
     is_relay: bool,
-    epreuve_id: str,
-    course_non_chronometree: bool,
-    contexte: dict,
+    race_id: str,
+    untimed_course: bool,
+    context: dict,
 ) -> ScrapedResult:
     """Un participant de la charge API → un `ScrapedResult`.
 
@@ -427,9 +427,9 @@ def _build_result(
     champs typés, de sorte qu'une erreur de différenciation reste diagnosticable
     sans re-scraper.
     """
-    nom, prenom = _athlete_identity(runner, is_relay=is_relay, epreuve_id=epreuve_id)
+    name, first_name = _athlete_identity(runner, is_relay=is_relay, race_id=race_id)
     points = runner.get("points_de_passage")
-    segments, cumuls_conserves = _segments(points)
+    segments, cumulatives_kept = _segments(points)
 
     result = ScrapedResult(source_url=url, provider="oktime")
     result.event_name = event_name
@@ -437,24 +437,24 @@ def _build_result(
     result.event_date = event_date
     result.distance_km = distance_km
     result.is_relay = is_relay
-    result.athlete_name = nom
-    result.athlete_firstname = prenom
-    result.club = _texte(runner, "club")
-    result.category = _texte(runner, "categorie")
+    result.athlete_name = name
+    result.athlete_firstname = first_name
+    result.club = _text(runner, "club")
+    result.category = _text(runner, "categorie")
     result.gender = _gender(runner.get("sexe"))
-    dossard = runner.get("dossard")
-    result.bib_number = "" if dossard is None else str(dossard).strip()
+    bib = runner.get("dossard")
+    result.bib_number = "" if bib is None else str(bib).strip()
     result.rank_overall = _rank(runner.get("classement_general"))
     result.rank_category = _rank(runner.get("classement_categorie"))
     result.rank_gender = _rank(runner.get("classement_sexe"))
     result.total_time = _total_time(runner)
     result.segments = segments
-    result.status = _status(runner, course_non_chronometree=course_non_chronometree)
+    result.status = _status(runner, untimed_course=untimed_course)
     result.raw_data = {
         **runner,
-        **contexte,
-        "splits_cumules_conserves": cumuls_conserves,
-        "splits_illisibles": _points_illisibles(points),
+        **context,
+        "splits_cumules_conserves": cumulatives_kept,
+        "splits_illisibles": _unreadable_points(points),
     }
     return result
 
@@ -478,20 +478,20 @@ def _parse_distance(raw) -> float | None:
     `mapping.get_or_create_course` sur l'extraction depuis le nom, qui lit
     « Course chronométrée 9,5 km » comme un 5 km. Une distance nulle vaut absence.
     """
-    valeur = str(raw or "").strip().replace(",", ".")
-    if not valeur:
+    value = str(raw or "").strip().replace(",", ".")
+    if not value:
         return None
     try:
-        km = float(valeur)
+        km = float(value)
     except ValueError:
         return None
     return km or None
 
 
-def _log_cumuls_conserves(resultats: list[ScrapedResult], title_course: str) -> None:
+def _log_kept_cumulatives(results: list[ScrapedResult], title_course: str) -> None:
     """Signal **agrégé** (une ligne par épreuve, pas une par participation) du
     repli sur cumulés bruts. Pas d'état global : tout vit dans cet appel."""
-    n = sum(1 for r in resultats if r.raw_data.get("splits_cumules_conserves"))
+    n = sum(1 for r in results if r.raw_data.get("splits_cumules_conserves"))
     if n:
         logger.warning(
             "Épreuve ok-time « %s » : %d participation(s) aux points de passage "
@@ -500,24 +500,24 @@ def _log_cumuls_conserves(resultats: list[ScrapedResult], title_course: str) -> 
         )
 
 
-def _log_points_illisibles(resultats: list[ScrapedResult], title_course: str) -> None:
+def _log_unreadable_points(results: list[ScrapedResult], title_course: str) -> None:
     """Signal **agrégé** des points de passage perdus faute d'être lisibles.
 
     Pendant du log ci-dessus, qui manquait au cas symétrique : un point écarté par
     `to_seconds(strict=True)` faisait disparaître un segment — voire tous les splits d'une
     participation — sans laisser de trace.
     """
-    concernes = [r for r in resultats if r.raw_data.get("splits_illisibles")]
-    if not concernes:
+    affected = [r for r in results if r.raw_data.get("splits_illisibles")]
+    if not affected:
         return
-    libelles = sorted({
-        libelle or "(sans libellé)"
-        for r in concernes for libelle in r.raw_data["splits_illisibles"]
+    labels = sorted({
+        label or "(sans libellé)"
+        for r in affected for label in r.raw_data["splits_illisibles"]
     })
     logger.warning(
         "Épreuve ok-time « %s » : %d participation(s) à point(s) de passage "
         "illisible(s) — segment(s) écarté(s), libellés concernés : %s.",
-        title_course, len(concernes), ", ".join(libelles),
+        title_course, len(affected), ", ".join(labels),
     )
 
 
@@ -527,10 +527,10 @@ def _log_points_illisibles(resultats: list[ScrapedResult], title_course: str) ->
 # abandon déclaré, un partant a son temps. Un chronométrage couvre donc
 # l'essentiel de son peloton, et une poignée de temps isolés est une saisie
 # manuelle, pas un chronométrage.
-_SEUIL_CHRONOMETRAGE = 0.1
+_TIMING_THRESHOLD = 0.1
 
 
-def _course_non_chronometree(runners: list[dict], *, terminee: bool) -> bool:
+def _is_untimed_course(runners: list[dict], *, finished: bool) -> bool:
     """Course **déclarée terminée** dont le chronométrage est quasi absent.
 
     Seuil plutôt qu'égalité stricte à zéro : sur l'égalité, un seul `temps_finish`
@@ -543,16 +543,16 @@ def _course_non_chronometree(runners: list[dict], *, terminee: bool) -> bool:
     Reste borné aux courses déclarées terminées : c'est ce qui empêche des
     coureurs **encore en course** de sortir en `finisher`.
     """
-    if not terminee or not runners:
+    if not finished or not runners:
         return False
-    chronometres = sum(1 for runner in runners if _total_time(runner))
-    return chronometres <= max(1, int(_SEUIL_CHRONOMETRAGE * len(runners)))
+    timed = sum(1 for runner in runners if _total_time(runner))
+    return timed <= max(1, int(_TIMING_THRESHOLD * len(runners)))
 
 
-def _course_results(course: dict, *, url: str, evenement_title: str) -> list[ScrapedResult]:
+def _course_results(course: dict, *, url: str, event_title: str) -> list[ScrapedResult]:
     """Une épreuve de la charge → ses participants. Pure : aucune requête.
 
-    `evenement_title` est reçu **déjà** décodé (`html.unescape`) par l'appelant :
+    `event_title` est reçu **déjà** décodé (`html.unescape`) par l'appelant :
     la charge porte des entités brutes (`&#8211;`, `&#038;`) dans tous les titres
     concernés, qui partiraient en base telles quelles.
 
@@ -572,7 +572,7 @@ def _course_results(course: dict, *, url: str, evenement_title: str) -> list[Scr
       `Participation` n'étant créée, le TTL de cache « course en cours » (10 min)
       ne pourrait jamais s'armer et la course resterait absente jusqu'au passage
       de `status` à « finish » par l'organisateur.
-    - **repli `finisher`** (`_course_non_chronometree`) — `status == "finish"`
+    - **repli `finisher`** (`_is_untimed_course`) — `status == "finish"`
       **et** un chronométrage quasi absent : une course déclarée terminée mais non
       chronométrée, c'est-à-dire les 3 courses d'enfants du panel. La condition
       sur `status` est ce qui empêche des coureurs **encore en course** de sortir
@@ -581,21 +581,21 @@ def _course_results(course: dict, *, url: str, evenement_title: str) -> list[Scr
     """
     title_course = html.unescape(str(course.get("title_course") or "").strip())
     runners = course.get("runners") or []
-    statut_course = str(course.get("status") or "").strip()
-    terminee = statut_course == "finish"
-    aucun_temps_final = not any(_total_time(runner) for runner in runners)
+    course_status = str(course.get("status") or "").strip()
+    finished = course_status == "finish"
+    no_final_time = not any(_total_time(runner) for runner in runners)
 
-    if not terminee and aucun_temps_final and not any(
-        _points_cumules(runner.get("points_de_passage")) for runner in runners
+    if not finished and no_final_time and not any(
+        _cumulative_points(runner.get("points_de_passage")) for runner in runners
     ):
         logger.info(
             "Épreuve ok-time « %s » écartée : liste d'engagés (status=%r, "
             "%d participant(s), aucun temps ni point de passage).",
-            title_course, statut_course, len(runners),
+            title_course, course_status, len(runners),
         )
         return []
 
-    epreuve_id = str(course.get("epreuve_id") or "")
+    race_id = str(course.get("epreuve_id") or "")
     # Invariants de la course, calculés **une fois** : les remonter dans la
     # compréhension rendait `_course_results` quadratique, `_is_relay_course`
     # parcourant tous les `runners` à chaque participant.
@@ -605,20 +605,20 @@ def _course_results(course: dict, *, url: str, evenement_title: str) -> list[Scr
     # d'événement lui sert alors d'appoint, et corrige 5 des 99 courses du panel.
     # Il n'est **que** cela : sur la concaténation des deux, le « Trail 12 km »
     # d'un « Triathlon de X » sortait en triathlon et survivait à `federal_only`.
-    event_name = qualify_event_name(evenement_title, title_course)
-    event_type = classify_event_type(title_course, contexte=evenement_title)
+    event_name = qualify_event_name(event_title, title_course)
+    event_type = classify_event_type(title_course, context=event_title)
     event_date = _parse_date(course.get("date_course"))
     distance_km = _parse_distance(course.get("distance_course"))
     is_relay = _is_relay_course(title_course, runners)
-    non_chronometree = _course_non_chronometree(runners, terminee=terminee)
-    contexte = {
-        "epreuve_id": epreuve_id,
+    untimed = _is_untimed_course(runners, finished=finished)
+    context = {
+        "epreuve_id": race_id,
         "heuredebut_course": course.get("heuredebut_course"),
         "reference_epreuve": course.get("reference_epreuve"),
-        "status_course": statut_course,
+        "status_course": course_status,
     }
 
-    resultats = [
+    results = [
         _build_result(
             runner,
             url=url,
@@ -627,22 +627,22 @@ def _course_results(course: dict, *, url: str, evenement_title: str) -> list[Scr
             event_date=event_date,
             distance_km=distance_km,
             is_relay=is_relay,
-            epreuve_id=epreuve_id,
-            course_non_chronometree=non_chronometree,
-            contexte=contexte,
+            race_id=race_id,
+            untimed_course=untimed,
+            context=context,
         )
         for runner in runners
     ]
-    _log_cumuls_conserves(resultats, title_course)
-    _log_points_illisibles(resultats, title_course)
-    return resultats
+    _log_kept_cumulatives(results, title_course)
+    _log_unreadable_points(results, title_course)
+    return results
 
 
 # --------------------------------------------------------------------------- #
 # Point d'entrée
 # --------------------------------------------------------------------------- #
 
-def _sub_source_url(event_id: str, epreuve_id: str) -> str:
+def _sub_source_url(event_id: str, race_id: str) -> str:
     """URL canonique d'une sous-unité ok-time — clé de cache TTL par course.
 
     Forme `classement.ok-time.fr/<event_id>/race/<epreuve_id>` **déjà** acceptée
@@ -656,7 +656,7 @@ def _sub_source_url(event_id: str, epreuve_id: str) -> str:
     les courses de l'événement à chaque scrape, quelle que soit leur fraîcheur
     individuelle : le TTL raisonnait par événement entier, l'inverse du besoin.
     """
-    return f"https://classement.ok-time.fr/{event_id}/race/{epreuve_id}"
+    return f"https://classement.ok-time.fr/{event_id}/race/{race_id}"
 
 
 def scrape_event_fanout(
@@ -669,7 +669,7 @@ def scrape_event_fanout(
 
     Comme Chronoweb, un seul GET rend l'événement entier : le gain n'est pas la
     requête économisée, mais l'**intégrité du cache TTL**. Chaque course de la
-    charge (`charge["data"]`, identifiée par `epreuve_id`) reçoit une
+    charge (`payload["data"]`, identifiée par `epreuve_id`) reçoit une
     `source_url` distincte (`_sub_source_url`), donc son propre TTL — plutôt
     qu'un TTL commun à l'événement entier, qui reconstruisait toutes les courses
     à chaque re-scrape.
@@ -696,40 +696,40 @@ def scrape_event_fanout(
     with http.client(timeout=30, headers=HEADERS) as client:
         if not event_id:
             event_id = _resolve_event_id(client, slug)
-        charge = _fetch_results(client, event_id)
+        payload = _fetch_results(client, event_id)
 
-    evenement_title = html.unescape(str(charge.get("evenement_title") or "").strip())
-    courses = charge.get("data") or []
+    event_title = html.unescape(str(payload.get("evenement_title") or "").strip())
+    courses = payload.get("data") or []
     trace.heats_enumerated = len(courses)
 
     # Pré-filtre : fixer le total notifié à `on_heat_start` à celui **à scraper**,
     # sinon la progression sauterait des indices sur un ré-import majoritairement
     # caché (« épreuve 6/8 » alors qu'on scrape la 3e).
-    a_scraper: list[tuple[str, str, dict]] = []
+    to_scrape: list[tuple[str, str, dict]] = []
     for course in courses:
-        epreuve_id = str(course.get("epreuve_id") or "")
-        sub_url = _sub_source_url(event_id, epreuve_id)
+        race_id = str(course.get("epreuve_id") or "")
+        sub_url = _sub_source_url(event_id, race_id)
         if cache_probe is not None and cache_probe(sub_url):
             trace.heats_cached += 1
             trace.cached_urls.append(sub_url)
             continue
-        a_scraper.append((epreuve_id, sub_url, course))
+        to_scrape.append((race_id, sub_url, course))
 
-    total_a_scraper = len(a_scraper)
-    for index, (epreuve_id, sub_url, course) in enumerate(a_scraper, start=1):
+    total_to_scrape = len(to_scrape)
+    for index, (race_id, sub_url, course) in enumerate(to_scrape, start=1):
         title_course = html.unescape(str(course.get("title_course") or "").strip())
         if on_heat_start is not None:
-            on_heat_start(epreuve_id, title_course, index, total_a_scraper)
+            on_heat_start(race_id, title_course, index, total_to_scrape)
         try:
             all_results.extend(
-                _course_results(course, url=sub_url, evenement_title=evenement_title)
+                _course_results(course, url=sub_url, event_title=event_title)
             )
         except Exception as exc:
             logger.warning(
                 "Course ok-time %s de l'événement %s en échec : %s",
-                epreuve_id, event_id, exc,
+                race_id, event_id, exc,
             )
-            trace.failures.append({"heat_slug": epreuve_id, "reason": str(exc)})
+            trace.failures.append({"heat_slug": race_id, "reason": str(exc)})
 
     return all_results, trace
 
@@ -749,12 +749,12 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     with http.client(timeout=30, headers=HEADERS) as client:
         if not event_id:
             event_id = _resolve_event_id(client, slug)
-        charge = _fetch_results(client, event_id)
+        payload = _fetch_results(client, event_id)
 
-    evenement_title = html.unescape(str(charge.get("evenement_title") or "").strip())
-    resultats: list[ScrapedResult] = []
-    for course in charge.get("data") or []:
-        resultats.extend(
-            _course_results(course, url=url, evenement_title=evenement_title)
+    event_title = html.unescape(str(payload.get("evenement_title") or "").strip())
+    results: list[ScrapedResult] = []
+    for course in payload.get("data") or []:
+        results.extend(
+            _course_results(course, url=url, event_title=event_title)
         )
-    return resultats
+    return results

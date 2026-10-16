@@ -1,5 +1,7 @@
-from datetime import date
+from datetime import date, datetime
 
+from app.core import season
+from app.models.club_member import LINK_AUTO, LINK_UNLINKED, SOURCE_FFTRI, ClubMember
 from app.repositories import athlete_repository, course_repository, participation_repository
 
 
@@ -9,8 +11,10 @@ def test_club_summary_club_vide(client, db_session):
     assert resp.json() == {
         "roster": [],
         "podiums": {"scratch": [], "category": [], "gender": [], "all": []},
+        "podiums_totals": {"scratch": 0, "category": 0, "gender": 0, "all": 0},
         "podiums_by_discipline": {},
         "composition": {"gender": {}, "category": {}},
+        "licensees": None,
     }
 
 
@@ -112,3 +116,71 @@ def test_club_roster_rank_404_hors_roster(client, db_session):
     resp = client.get(f"/api/v1/club/roster/rank/{ath.id}")
 
     assert resp.status_code == 404
+
+
+def _huit_podiums_scratch(db_session):
+    ath = athlete_repository.get_or_create(db_session, nom="A", prenom="Alice", club="TCN")
+    for jour in range(1, 9):
+        course = course_repository.get_or_create(
+            db_session, name=f"C{jour}", event_date=date(2026, 5, jour), event_type="triathlon-m"
+        )
+        participation_repository.create(
+            db_session, athlete_id=ath.id, course_id=course.id, bib_number="1",
+            club="TCN", status="finisher", rank_overall=1,
+        )
+    db_session.commit()
+
+
+def test_club_summary_apercu_tronque_chaque_mode_et_garde_les_totaux(client, db_session):
+    """#1354 : la page /club n'embarque que l'aperçu, la liste suit au dépliage."""
+    _huit_podiums_scratch(db_session)
+
+    body = client.get("/api/v1/club/summary", params={"podiums": "preview"}).json()
+
+    assert len(body["podiums"]["scratch"]) == 6
+    assert len(body["podiums"]["all"]) == 6
+    assert body["podiums_totals"] == {"scratch": 8, "category": 0, "gender": 0, "all": 8}
+
+
+def test_club_summary_sans_apercu_rend_tout_comme_avant(client, db_session):
+    _huit_podiums_scratch(db_session)
+
+    body = client.get("/api/v1/club/summary").json()
+
+    assert len(body["podiums"]["scratch"]) == 8
+
+
+def test_club_podiums_rend_la_liste_complete(client, db_session):
+    _huit_podiums_scratch(db_session)
+
+    resp = client.get("/api/v1/club/podiums")
+
+    assert resp.status_code == 200
+    assert len(resp.json()["scratch"]) == 8
+
+
+def test_club_summary_counts_the_current_season_licensees_who_raced(client, db_session, monkeypatch):
+    monkeypatch.setattr(season, "utcnow", lambda: datetime(2026, 10, 15, 12, 0, 0))
+    raced = athlete_repository.get_or_create(db_session, nom="A", prenom="Alice")
+    idle = athlete_repository.get_or_create(db_session, nom="B", prenom="Bea")
+    course = course_repository.get_or_create(
+        db_session, name="C", event_date=date(2026, 10, 4), event_type="triathlon-m"
+    )
+    participation_repository.create(
+        db_session, athlete_id=raced.id, course_id=course.id, bib_number="1", club="Triathlon Club Nantais",
+    )
+    db_session.add_all([
+        ClubMember(season=2026, nom="A", prenom="Alice", licence_id="L1", athlete_id=raced.id,
+                   link_status=LINK_AUTO, source=SOURCE_FFTRI),
+        ClubMember(season=2026, nom="B", prenom="Bea", licence_id="L2", athlete_id=idle.id,
+                   link_status=LINK_AUTO, source=SOURCE_FFTRI),
+        ClubMember(season=2026, nom="X", prenom="Xavier", licence_id="L3", link_status=LINK_UNLINKED,
+                   source=SOURCE_FFTRI),
+        ClubMember(season=2025, nom="A", prenom="Alice", licence_id="L4", athlete_id=raced.id,
+                   link_status=LINK_AUTO, source=SOURCE_FFTRI),
+    ])
+    db_session.commit()
+
+    resp = client.get("/api/v1/club/summary")
+
+    assert resp.json()["licensees"] == {"season": 2026, "total": 3, "raced": 1}

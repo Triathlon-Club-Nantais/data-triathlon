@@ -24,9 +24,10 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.core.exceptions import ScraperError
+from app.core.text import strip_accents
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
-from .utils import heat_is_relay, is_masked_name, normalize_time, strip_accents
+from .utils import heat_is_relay, is_masked_name, normalize_time
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +217,7 @@ def _split_name(full: str) -> tuple[str, str]:
     return " ".join(parts[:i]), " ".join(parts[i:])
 
 
-def _athlete_identity(nom: str, dossard: str, *, event_id: str, heat: str) -> tuple[str, str]:
+def _athlete_identity(name: str, bib: str, *, event_id: str, heat: str) -> tuple[str, str]:
     """(nom, prénom) — anonymise les identités masquées par la source (#710).
 
     Klikego/Breizh Chrono masquent parfois un nom en pur bruit (« XXX XXX »,
@@ -231,14 +232,14 @@ def _athlete_identity(nom: str, dossard: str, *, event_id: str, heat: str) -> tu
     `event_id` évite qu'un même dossard de deux épreuves différentes
     fusionne, `heat` évite qu'un dossard réutilisé d'un heat à l'autre du
     même événement (poussins/pupilles — cf. `course_name`, #308) fusionne
-    deux masqués distincts, `dossard` évite que tous les masqués d'un même
+    deux masqués distincts, `bib` évite que tous les masqués d'un même
     heat fusionnent entre eux. Sans dossard, rien de stable à accrocher : on
     laisse passer par `_split_name`, pas pire qu'un nom masqué constant
     (même raisonnement que le régime 3 d'oktime).
     """
-    if dossard and is_masked_name(nom):
-        return f"Anonyme {event_id}-{heat}-{dossard}", ""
-    return _split_name(nom)
+    if bib and is_masked_name(name):
+        return f"Anonyme {event_id}-{heat}-{bib}", ""
+    return _split_name(name)
 
 
 def _parse_rank(value: str) -> int | None:
@@ -251,10 +252,10 @@ def parse_data_row(fields: list[str], *, event_id: str, heat: str) -> dict:
     f = (fields + [""] * 12)[:12]
     # `gender_raw` = champ `sexe` du data block (cf. docstring du module) ; on
     # le normalise en `gender` ("M"/"F"), le nom utilisé côté modèle.
-    dossard, _diploma, clt, cltcat, nom, cat, gender_raw, club, _inter, officiel, reel, _end = f
+    bib, _diploma, rank, category_rank, name, cat, gender_raw, club, _inter, official, net, _end = f
 
-    status = _STATUS_BY_TOKEN.get(clt.strip().upper(), "")
-    nom_fam, prenom = _athlete_identity(nom.strip(), dossard.strip(), event_id=event_id, heat=heat)
+    status = _STATUS_BY_TOKEN.get(rank.strip().upper(), "")
+    surname, firstname = _athlete_identity(name.strip(), bib.strip(), event_id=event_id, heat=heat)
     gender = gender_raw.strip().upper()
     if gender == "H":  # alias utilisé par certains systèmes
         gender = "M"
@@ -262,7 +263,7 @@ def parse_data_row(fields: list[str], *, event_id: str, heat: str) -> dict:
     # #757 — `officiel` (temps canon, décalé par la vague de départ) est le
     # référentiel nominal, mais certaines épreuves (constaté : Dinard 2024,
     # Audencia 2024) le publient vide et ne renseignent que `reel` (chrono
-    # net) : sans repli, un finisher bel et bien classé (`clt` numérique)
+    # net) : sans repli, un finisher bel et bien classé (`rank` numérique)
     # ressortait sans `total_time`, et `services/mapping.derive_status`
     # (`STATUS_FINISHER if total_time else STATUS_DNF`) le reclassait en DNF
     # — d'où le `rank_overall` peuplé sur des participations DNF observé en
@@ -271,21 +272,21 @@ def parse_data_row(fields: list[str], *, event_id: str, heat: str) -> dict:
     # #1211 — mais le classement publié suit `reel` : sur un départ par vagues
     # (Frenchman L 2025), `officiel` compte depuis le premier départ et s'en
     # écarte jusqu'à 40 min. Le réel prime donc, l'officiel n'étant qu'un repli.
-    temps = reel.strip() or officiel.strip()
+    raw_total_time = net.strip() or official.strip()
 
     return {
-        "bib_number": dossard.strip(),
-        "athlete_name": nom_fam,
-        "athlete_firstname": prenom,
+        "bib_number": bib.strip(),
+        "athlete_name": surname,
+        "athlete_firstname": firstname,
         "category": cat.strip(),
         "gender": gender if gender in ("M", "F") else "",
         "club": club.strip(),
-        "rank_overall": None if status else _parse_rank(clt),
-        "rank_category": None if status else _parse_rank(cltcat),
-        "total_time": "" if status == STATUS_DNS else normalize_time(temps),
+        "rank_overall": None if status else _parse_rank(rank),
+        "rank_category": None if status else _parse_rank(category_rank),
+        "total_time": "" if status == STATUS_DNS else normalize_time(raw_total_time),
         "status": status,
         # Les deux temps publiés, pour pouvoir confronter depuis la base.
-        "raw_times": {"officiel": officiel.strip(), "reel": reel.strip()},
+        "raw_times": {"officiel": official.strip(), "reel": net.strip()},
     }
 
 
@@ -306,8 +307,8 @@ def _course_result_url(base: str, event_id: str, heat: str, inter: str, page: in
 
 #: Essais d'une page sur 5xx, et l'attente avant chaque rejeu : rejouée sur
 #: le champ, une panne passagère renvoyait le même 503.
-_ESSAIS_PAGE = 3
-_ATTENTES_PAGE = (0.5, 1.0)
+_PAGE_ATTEMPTS = 3
+_PAGE_RETRY_DELAYS = (0.5, 1.0)
 #: Point d'injection des tests, pour que la suite unitaire n'attende pas.
 _sleep = time.sleep
 
@@ -321,16 +322,16 @@ def get_page(client: httpx.Client, url: str) -> httpx.Response:
     Seuls les 5xx sont rejoués, un 4xx dit quelque chose de la requête.
     """
     status = 0
-    for essai in range(1, _ESSAIS_PAGE + 1):
+    for attempt in range(1, _PAGE_ATTEMPTS + 1):
         resp = client.get(url)
         if resp.status_code == 200:
             return resp
         status = resp.status_code
-        logger.warning("Page %s : HTTP %s à l'essai %s/%s", url, status, essai, _ESSAIS_PAGE)
+        logger.warning("Page %s : HTTP %s à l'essai %s/%s", url, status, attempt, _PAGE_ATTEMPTS)
         if status < 500:
             break
-        if essai < _ESSAIS_PAGE:
-            _sleep(_ATTENTES_PAGE[essai - 1])
+        if attempt < _PAGE_ATTEMPTS:
+            _sleep(_PAGE_RETRY_DELAYS[attempt - 1])
     raise ScraperError(f"Page de résultats inaccessible (HTTP {status}) : {url}")
 
 
@@ -362,11 +363,11 @@ def fetch_heat_rows(
 
 def discover_inter_options(heat_page_html: str) -> list[tuple[str, str]]:
     """Retourne les checkpoints (value, label) du <select name="inter">, sauf 'Arrivée'."""
-    sel = BeautifulSoup(heat_page_html, "lxml").find("select", {"name": "inter"})
-    if not sel:
+    inter_select = BeautifulSoup(heat_page_html, "lxml").find("select", {"name": "inter"})
+    if not inter_select:
         return []
     out = []
-    for opt in sel.find_all("option"):
+    for opt in inter_select.find_all("option"):
         value = (opt.get("value") or "").strip()
         if value:
             out.append((value, opt.get_text(strip=True)))

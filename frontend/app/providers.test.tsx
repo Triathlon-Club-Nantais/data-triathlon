@@ -3,13 +3,21 @@ import { act, render, waitFor } from "@testing-library/react";
 import { toast } from "sonner";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import { saveConsent } from "@/lib/analytics-consent";
-import { QueryClient, useQueryClient } from "@tanstack/react-query";
+import { QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SESSION_QUERY_DEFAULTS } from "@/lib/queries/auth";
 import type { SessionUser } from "@/lib/types";
 
 const { identify, reset } = vi.hoisted(() => ({ identify: vi.fn(), reset: vi.fn() }));
 vi.mock("posthog-js", () => ({
-  default: { identify, reset, capture: vi.fn(), opt_in_capturing: vi.fn(), opt_out_capturing: vi.fn() },
+  default: {
+    identify,
+    reset,
+    init: vi.fn(),
+    get_explicit_consent_status: vi.fn(),
+    capture: vi.fn(),
+    opt_in_capturing: vi.fn(),
+    opt_out_capturing: vi.fn(),
+  },
 }));
 
 const { useSession } = vi.hoisted(() => ({ useSession: vi.fn() }));
@@ -59,6 +67,46 @@ describe("Providers: session query policy (#954)", () => {
   });
 });
 
+describe("Providers: rail badges (#1385)", () => {
+  it("marks the badge counts stale after any successful mutation", async () => {
+    useSession.mockReturnValue({ data: null });
+    let client: QueryClient | undefined;
+    function Sonde() {
+      client = useQueryClient();
+      return null;
+    }
+    render(
+      <Providers>
+        <Sonde />
+      </Providers>,
+    );
+    client!.setQueryData(["admin-badge-counts"], { feedback: 1 });
+
+    await act(() => client!.getMutationCache().build(client!, { mutationFn: async () => null }).execute(undefined));
+
+    expect(client!.getQueryState(["admin-badge-counts"])?.isInvalidated).toBe(true);
+  });
+
+  it("never makes a mutation wait for the badge refetch", async () => {
+    useSession.mockReturnValue({ data: null });
+    let client: QueryClient | undefined;
+    function Sonde() {
+      client = useQueryClient();
+      useQuery({ queryKey: ["admin-badge-counts"], queryFn: () => new Promise(() => {}) });
+      return null;
+    }
+    render(
+      <Providers>
+        <Sonde />
+      </Providers>,
+    );
+
+    const mutation = client!.getMutationCache().build(client!, { mutationFn: async () => "ok" });
+
+    await expect(mutation.execute(undefined)).resolves.toBe("ok");
+  });
+});
+
 describe("PostHogSessionSync", () => {
   beforeEach(() => {
     identify.mockClear();
@@ -84,26 +132,26 @@ describe("PostHogSessionSync", () => {
 
     act(() => saveConsent("granted"));
 
-    expect(identify).toHaveBeenCalledWith("1", expect.objectContaining({ email: SESSION.email }));
+    await waitFor(() => expect(identify).toHaveBeenCalledWith("1", expect.objectContaining({ email: SESSION.email })));
   });
 
-  it("identifie l'utilisateur quand une session existe et qu'il a accepté la mesure détaillée", () => {
+  it("identifie l'utilisateur quand une session existe et qu'il a accepté la mesure détaillée", async () => {
     useSession.mockReturnValue({ data: SESSION });
     render(<Providers>{null}</Providers>);
 
-    expect(identify).toHaveBeenCalledWith("1", expect.objectContaining({ email: SESSION.email }));
+    await waitFor(() => expect(identify).toHaveBeenCalledWith("1", expect.objectContaining({ email: SESSION.email })));
     expect(reset).not.toHaveBeenCalled();
   });
 
-  it("réinitialise PostHog quand la session repasse à null, quelle qu'en soit la cause (logout, 401, révocation)", () => {
+  it("réinitialise PostHog quand la session repasse à null, quelle qu'en soit la cause (logout, 401, révocation)", async () => {
     useSession.mockReturnValue({ data: SESSION });
     const { rerender } = render(<Providers>{null}</Providers>);
-    expect(identify).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(identify).toHaveBeenCalledTimes(1));
 
     useSession.mockReturnValue({ data: null });
     rerender(<Providers>{null}</Providers>);
 
-    expect(reset).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(reset).toHaveBeenCalledTimes(1));
   });
 
   it("ne réinitialise pas au premier chargement anonyme, rien n'a jamais été identifié", () => {

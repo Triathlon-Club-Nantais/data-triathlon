@@ -10,16 +10,15 @@ from app.api.deps import require_permission
 from app.api.uploads import read_bounded_upload
 from app.core.database import get_db
 from app.core.permissions import P
-from app.core.season import SEASON_MAX, SEASON_MIN, current_season
+from app.core.season import SEASON_MAX, SEASON_MIN
 from app.models.user import User
-from app.repositories import club_member_repository
 from app.schemas.club_member import (
     ClubMemberLinkIn,
     ClubMemberOut,
     ClubMembersSeasonOut,
     MembersSyncReportOut,
 )
-from app.schemas.count import QueueCount
+from app.schemas.ids import DbId
 from app.services import club_members_service
 
 router = APIRouter(tags=["admin"])
@@ -38,16 +37,6 @@ def list_club_members(
         seasons=club_members_service.seasons(db),
         members=[ClubMemberOut.model_validate(m) for m in members],
     )
-
-
-@router.get("/admin/club-members/count", response_model=QueueCount)
-def count_club_members_to_settle(
-    db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.CLUB_MEMBERS_MANAGE)),
-):
-    """La pastille de la nav (#1232) : licenciés à arbitrer de la saison en
-    cours, celle que l'écran ouvre par défaut."""
-    return QueueCount(total=club_member_repository.count_to_settle(db, current_season()))
 
 
 @router.post("/admin/club-members/sync", response_model=MembersSyncReportOut)
@@ -77,7 +66,7 @@ async def import_club_members(
 
 @router.post("/admin/club-members/{member_id}/link", response_model=ClubMemberOut)
 def link_club_member(
-    member_id: int,
+    member_id: DbId,
     body: ClubMemberLinkIn,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.CLUB_MEMBERS_MANAGE)),
@@ -91,7 +80,7 @@ def link_club_member(
 
 @router.delete("/admin/club-members/{member_id}/link", response_model=ClubMemberOut)
 def unlink_club_member(
-    member_id: int,
+    member_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.CLUB_MEMBERS_MANAGE)),
 ):

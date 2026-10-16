@@ -43,6 +43,7 @@ import type {
   CourseQuery,
   CourseReliability,
   CourseSource,
+  ClubPodiums,
   ClubRosterRank,
   CourseSummary,
   CoursesWipeImpact,
@@ -54,6 +55,8 @@ import type {
   EventPage,
   Feedback,
   FeedbackCounts,
+  AdminBadgeCounts,
+  ProviderQuality,
   FeedbackCreate,
   FeedbackCreated,
   FeedbackUpdate,
@@ -284,6 +287,10 @@ export const apiClient = {
   listParticipations: (filters: ParticipationFilters = {}) =>
     request<Participation[]>(`/participations${toQuery(filters as Record<string, unknown>)}`),
 
+  // Liste complète des podiums, chargée au dépliage de `PodiumsList` : `/club`
+  // n'en transporte que l'aperçu (#1354).
+  getClubPodiums: (opts: { federal_only?: boolean } = {}) =>
+    request<ClubPodiums>(`/club/podiums${toQuery(opts as Record<string, unknown>)}`),
   // Rang exact d'un athlète dans le roster club, au-delà de l'aperçu de 12
   // (#504, #641) — appelé côté client, jamais transporté dans la page
   // (`RosterApercu`, seul appelant, ne le demande que si l'athlète retenu en
@@ -431,9 +438,6 @@ export const apiClient = {
   // classique, le remplacement peut durer plusieurs dizaines de secondes sur
   // une épreuve fan-out.
   listCourseDuplicates: () => request<DuplicateCandidateList>("/admin/courses/duplicates"),
-  // Pastille de la nav (#726) : même donnée que la liste ci-dessus, en taille.
-  countCourseDuplicates: () =>
-    request<{ total: number }>("/admin/courses/duplicates/count"),
   getCourseMergeImpact: (courseId: number, absorbedId: number) =>
     request<CourseMergeImpact>(
       `/admin/courses/${courseId}/merge-impact${toQuery({ absorbed_id: absorbedId })}`,
@@ -553,17 +557,9 @@ export const apiClient = {
 
   listPendingProviders: () =>
     request<PendingProvider[]>("/admin/pending-providers"),
-  // Pastille de la nav (#726) : même donnée que la liste ci-dessus, en taille.
-  countPendingProviders: () =>
-    request<{ total: number }>("/admin/pending-providers/count"),
-  // Pastilles des autres files de la nav (#1232), chacune sous la garde de son écran.
-  countQualityQueue: () => request<{ total: number }>("/admin/quality/count"),
-  countIdentityReview: () => request<{ total: number }>("/admin/identity-review/count"),
-  countClubMembersToSettle: () => request<{ total: number }>("/admin/club-members/count"),
-  countPendingVolunteerActions: () =>
-    request<{ total: number }>("/admin/volunteer-actions/pending/count"),
-  // Garde du mot de passe bénévoles, pas du SSO : 401 sans son cookie.
-  countBenevoleQueue: () => request<{ total: number }>("/benevoles/queue/count"),
+  // Les pastilles du rail (#1385) : seules celles que la session voit.
+  getAdminBadgeCounts: () => request<AdminBadgeCounts>("/admin/badge-counts"),
+  getProviderQuality: () => request<ProviderQuality[]>("/admin/quality/providers"),
   reportPendingProvider: (url: string) =>
     request<PendingProvider>("/admin/pending-providers", {
       method: "POST",
@@ -934,7 +930,7 @@ export const apiClient = {
     }),
 
   // ── Page de vérification des résultats par les bénévoles (#271) ────────────
-  // Garde par mot de passe partagé (`require_benevole_access`), **pas** par
+  // Garde par mot de passe partagé (`require_volunteer_access`), **pas** par
   // pouvoir SSO/RBAC — research.md §D1 de la feature, sauf pour qui détient
   // `benevole_access:manage`, admis sans cookie (#1272). `benevoleLogin` répond
   // 401 sur un mot de passe incorrect ou non configuré ; les quatre autres

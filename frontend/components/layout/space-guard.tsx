@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import type { ReactNode } from "react";
 import { PageShell } from "@/components/layout/PageShell";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -56,6 +56,8 @@ const INDISPONIBLE = Symbol("session indisponible");
 // `symbol`, et `!== INDISPONIBLE` ne restreint plus rien.
 function panne(quoi: string): (erreur: unknown) => typeof INDISPONIBLE {
   return (erreur: unknown) => {
+    // Les signaux internes de Next (rendu dynamique au prérendu) repartent (#1532).
+    unstable_rethrow(erreur);
     const statut = erreur instanceof ApiError ? erreur.status : "sans réponse";
     console.error(`[garde] ${quoi} indisponible (${statut}) : ${erreur}`);
     return INDISPONIBLE;

@@ -18,6 +18,8 @@ export function MetaPill({
   href,
   title,
   style,
+  className,
+  ariaLabel,
 }: {
   label?: ReactNode;
   children?: ReactNode;
@@ -26,16 +28,19 @@ export function MetaPill({
   href?: string;
   title?: string;
   style?: CSSProperties;
+  className?: string;
+  ariaLabel?: string;
 }) {
   const isLink = isHttpUrl(href);
   const Tag = isLink ? "a" : "span";
   const linkProps = isLink
-    ? { href, target: "_blank", rel: "noopener noreferrer", className: "hover:underline" }
-    : {};
+    ? { href, target: "_blank", rel: "noopener noreferrer", className: ["hover:underline", className].filter(Boolean).join(" ") }
+    : { className };
   return (
     <Tag
       {...linkProps}
       title={title}
+      aria-label={ariaLabel}
       style={{
         display: "inline-flex",
         alignItems: "center",

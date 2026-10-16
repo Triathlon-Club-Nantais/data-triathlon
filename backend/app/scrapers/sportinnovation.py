@@ -15,6 +15,8 @@ Two URL formats:
    - JSON API : GET /api/races/{slug} → meta, /api/races/{slug}/results → athlètes
    - Splits via GET /api/results/{id_or_slug}?intermediates=1 par athlète
    - Récupérés en parallèle (ThreadPoolExecutor, max 20 workers)
+   - Schéma FFA (sans id ni slug) : passages cumulés inline dans `intermediates`
+     de /results, convertis en segments sans requête par athlète (#1575)
 
 3. results.sportinnovation.fr/detail/{id}  (lien individuel)
    - Résout le raceSlug via GET /api/results/{id}, puis même pipeline que /race/{slug}
@@ -37,6 +39,7 @@ from .classify import classify_event_type
 from .utils import (
     DEFAULT_HEADERS,
     derive_status_from_label,
+    fmt_seconds,
     normalize_rank,
     normalize_time,
     to_seconds,
@@ -419,9 +422,9 @@ def _parse_api_athlete(
     """Construit un ScrapedResult depuis un athlète de l'API JSON sportinnovation.
 
     L'API sert deux schémas de résultats selon la course : l'historique
-    (`generalRanking`, `officialTime`) et un schéma « FFA » (`generalRank`,
-    `officialTimeFfa`), sans référence athlète. On lit les deux, l'historique
-    primant quand les deux coexistent.
+    (`generalRanking`, `officialTime`) et un schéma « FFA » (`generalRank`, ou
+    `officialGeneralRank` depuis #1575, et `officialTimeFfa`), sans référence
+    athlète. On lit les deux, l'historique primant quand les deux coexistent.
     """
     res = ScrapedResult(source_url=url, provider="sportinnovation")
     res.event_name = event_name
@@ -433,9 +436,13 @@ def _parse_api_athlete(
     res.club = (a.get("clubName") or "").strip()
     res.gender = a.get("sex") or ""
     res.category = a.get("category") or ""
-    res.rank_overall = normalize_rank(str(_first(a, "generalRanking", "generalRank") or ""))
-    res.rank_gender = normalize_rank(str(_first(a, "sexRanking", "sexRank") or ""))
-    res.rank_category = normalize_rank(str(_first(a, "categoryRanking", "categoryRank") or ""))
+    res.rank_overall = normalize_rank(
+        str(_first(a, "generalRanking", "generalRank", "officialGeneralRank") or "")
+    )
+    res.rank_gender = normalize_rank(str(_first(a, "sexRanking", "sexRank", "officialSexRank") or ""))
+    res.rank_category = normalize_rank(
+        str(_first(a, "categoryRanking", "categoryRank", "officialCategoryRank") or "")
+    )
     res.status = derive_status_from_label(str(a.get("status") or a.get("state") or ""))
     if res.status in (STATUS_DNF, STATUS_DNS, STATUS_DSQ):
         res.total_time = ""
@@ -475,6 +482,7 @@ def _location_to_slot(location: str) -> str | None:
     Triathlon (labels français, ex. BayMan) :
       "Temps Natation" → swim, "Transition 1" → t1, "Temps Vélo" → bike,
       "Transition 2" → t2, "Temps CaP" → run
+      Schéma FFA inline (#1575) : "Tps Nat" → swim, "Tps Velo" → bike
 
     Duathlon (labels checkpoints) :
       IN1 → swim (course1), OUT1 → t1, VELO1 → bike, OUT2 → t2, IN2 → run (course2)
@@ -483,7 +491,7 @@ def _location_to_slot(location: str) -> str | None:
     """
     loc = location.lower().strip()
     # Triathlon — labels français (Temps Natation, Transition 1, Temps Vélo…)
-    if any(k in loc for k in ("natation", "swim", "nage")):
+    if any(k in loc for k in ("natation", "swim", "nage", "tps nat")):
         return "swim"
     if "transition 1" in loc or loc == "t1":
         return "t1"
@@ -518,6 +526,33 @@ def _intermediates_to_splits(intermediates: list[dict]) -> dict[str, str]:
         t = normalize_time(inter.get("officialTime") or "")
         if t and slot not in splits:
             splits[slot] = t
+    return splits
+
+
+_SLOT_ORDER = ("swim", "t1", "bike", "t2", "run")
+
+
+def _inline_intermediates_to_splits(intermediates: list[dict]) -> dict[str, str]:
+    """Splits from the cumulative passes carried inline by the FFA schema (#1575).
+
+    A segment is the gap with the previous slot's pass, so it stays empty when
+    that pass is missing. The earliest pass of a repeated point wins; FINISH
+    closes the run. Measured on a triathlon only.
+    """
+    passes: dict[str, int] = {}
+    for inter in intermediates:
+        label = inter.get("controlPointLabel") or ""
+        slot = "run" if label.strip().upper() == "FINISH" else _location_to_slot(label)
+        seconds = to_seconds(normalize_time(inter.get("realTimeFfa") or ""), strict=True)
+        if slot and seconds:
+            passes[slot] = min(passes.get(slot, seconds), seconds)
+    splits: dict[str, str] = {}
+    previous = 0
+    for slot in _SLOT_ORDER:
+        current = passes.get(slot)
+        if current and previous is not None and current > previous:
+            splits[slot] = fmt_seconds(current - previous)
+        previous = current
     return splits
 
 
@@ -597,7 +632,8 @@ def _race_results_api(
     results = [
         _parse_api_athlete(
             a, url, course_name, event_type, event_date,
-            splits_by_bib.get(a.get("bib", ""), {}),
+            splits_by_bib.get(a.get("bib", ""))
+            or _inline_intermediates_to_splits(a.get("intermediates") or []),
         )
         for a in athletes
     ]
@@ -681,7 +717,9 @@ def _scrape_results_race(slug: str, url: str, client: httpx.Client) -> list[Scra
     GET /api/events/{eventSlug} → nom et date de l'événement
     GET /api/races/{slug}/results → liste des athlètes
     """
-    meta = client.get(f"{API_BASE}/races/{slug}", timeout=15).json()
+    resp = client.get(f"{API_BASE}/races/{slug}", timeout=15)
+    # Une course supprimée chez le fournisseur répond 404 avec une page HTML (#1350).
+    meta = {} if resp.status_code == 404 else resp.json()
     if "error" in meta or not meta.get("slug"):
         raise ValueError(f"Course Sportinnovation introuvable : {slug}")
     event_name = ""

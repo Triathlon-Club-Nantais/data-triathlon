@@ -4,7 +4,7 @@ Pipeline gratuit où **rien ne se déploie sans CI verte**, avec deux flux :
 
 | Déclencheur | Environnement | Backend (Render) | Frontend (Vercel) |
 |---|---|---|---|
-| **Merge dans `main`** (ou `workflow_dispatch`) | preview / test | service Render preview (deploy hook) | `--prod` sur le projet `data-triathlon-preview` |
+| **`workflow_dispatch`** (Actions → *Deploy* → **Run workflow**, sur `main` ou une branche de PR) | preview / test | service Render preview (deploy hook) | `--prod` sur le projet `data-triathlon-preview` |
 | **Tag `v*` sur `main`** | production | service Render prod (deploy hook) | `--prod` sur le projet `data-triathlon` |
 
 **Les deux flux déploient en production — de deux projets Vercel différents.**
@@ -16,7 +16,9 @@ tient (#172). Le ciblage ne passe par aucune variable dédiée : les deux jobs
 déclarent déjà un *environment* GitHub, et le `VERCEL_PROJECT_ID` défini sur
 l'environment `preview` surcharge celui du dépôt.
 
-Toute PR déclenche la CI seule (aucun déploiement).
+Toute PR déclenche la CI seule (aucun déploiement), et un merge dans `main`
+aussi (#1572) : la preview se déploie à la main, comme la production, mais sans
+tag.
 
 ## Workflows GitHub Actions
 
@@ -42,9 +44,15 @@ Toute PR déclenche la CI seule (aucun déploiement).
     (typecheck TS strict + build Next/RSC).
   - `ci-ok` : agrégateur, en échec dès qu'un job amont (hors audit) n'est pas
     `success`. **C'est le seul check requis** (voir « Merge queue » plus bas).
-- **`.github/workflows/deploy.yml`** — déclenché sur `push` (branche `main` et
-  tags `v*`). Appelle `ci.yml` puis, **seulement si la CI passe** (`needs: ci`),
-  lance `deploy-preview` (sur `main`) ou `deploy-production` (sur tag `v*`).
+- **`.github/workflows/deploy.yml`** : déclenché sur `push` de tags `v*` et sur
+  `workflow_dispatch` (plus sur `main` depuis #1572). Appelle `ci.yml` puis,
+  **seulement si la CI passe** (`needs: ci`), lance `deploy-preview` (sur
+  `workflow_dispatch`, quelle que soit la ref choisie, tag compris) ou
+  `deploy-production` (sur `push` d'un tag `v*` seulement). Un dispatch exécute
+  le `deploy.yml` de la ref choisie : sur un tag posé avant #1572 (`v0.8.8` et
+  antérieurs), l'ancienne version du fichier lancerait encore la production, et
+  seule l'approbation requise de l'environment `production` l'arrête. Ne pas
+  lancer *Deploy* depuis un ancien tag.
 - **`.github/workflows/render-sleep.yml`** — suspend et reprend les deux
   services Render pour tenir les 750 h/mois du plan free (#528, décision #530).
   `schedule` à chaque heure pour coucher la preview (#560), plus deux crons
@@ -123,9 +131,9 @@ Réglages restants à faire **dans le dashboard** (non supportés par le MCP) :
 
 **Service PROD `triathlon-backend-production`** :
 1. **Settings → Auto-Deploy = No** (en prod on ne déploie que sur tag via hook).
-   *État du dashboard non vérifiable depuis le dépôt (#951) : `render.yaml` porte
-   `autoDeploy: false`, mais cette checklist le disait encore en
-   `autoDeploy: yes / checksPass`. À contrôler dans le dashboard.*
+   *Relevé dans le dashboard le 11/10/2026 (#951) : Auto-Deploy « Off »,
+   conforme à `autoDeploy: false` de `render.yaml`. Les déploiements de prod
+   arrivent tous par « Deploy Hook ».*
 2. Vérifier que `DATABASE_URL` (Azure PG Flexible, prod) est bien présent.
 3. Copier l'URL du **Deploy Hook** (Settings → Deploy Hook) → secret `RENDER_DEPLOY_HOOK_PROD`.
 
@@ -227,7 +235,7 @@ App Setting `CRON_SECRET`, cf. `infra/azure-functions/AGENTS.md`). La route
 `GET /api/cron/keep-warm` exige `Authorization: Bearer $CRON_SECRET`. Sans
 secret, elle répond 503 sur Vercel (`VERCEL_ENV` défini) plutôt que de s'ouvrir
 à tous ; l'auth n'est ignorée qu'en développement local. La cadence (10 min,
-7 h-23 h UTC) se règle côté Azure, il n'y a pas de `vercel.json`.
+7 h-23 h UTC) se règle côté Azure, pas dans `vercel.json`.
 
 | Rôle | Projet Vercel | Ciblé par |
 |---|---|---|
@@ -237,10 +245,19 @@ secret, elle répond 503 sur Vercel (`VERCEL_ENV` défini) plutôt que de s'ouvr
 À faire **sur chacun des deux projets**, team « Triathlon Club Nantais » :
 
 1. **Root Directory = `frontend`**.
-2. **Désactiver le déploiement Git automatique** pour que seul le pipeline
-   déclenche les déploiements : Settings → Git → désactiver la connexion
-   d'auto-deploy, ou définir un *Ignored Build Step* renvoyant `exit 0` sur les
-   pushs Git.
+2. **Aucun déploiement par l'intégration Git** : rien à régler, c'est
+   `frontend/vercel.json` qui le porte (`"git": { "deploymentEnabled": false }`,
+   #1589), lu dans le Root Directory par les deux projets. La CLI de
+   `deploy.yml` reste le **seul** chemin de déploiement, et ce réglage ne la
+   touche pas : il ne coupe que les déploiements déclenchés par un commit.
+   Raison : l'*Ignored Build Step* utilisé avant annulait chaque déploiement
+   Git, mais un déploiement annulé compte quand même dans le quota gratuit de
+   100 par jour ; chaque fusion en brûlait deux (un par projet), jusqu'au
+   « Deployment rate limited » du 16/10/2026. Le fichier ne porte que la clé
+   `git` : toute clé de build ou de routage changerait aussi `vercel build`.
+   L'ancien *Ignored Build Step* du dashboard (Settings → Git) n'a plus
+   d'effet ; le vider sur les deux projets évite de le prendre pour le
+   mécanisme en place.
 3. Relever `VERCEL_ORG_ID` et `VERCEL_PROJECT_ID` (non committés, dépôt public) :
    - via la CLI : `vercel link` puis lire `.vercel/project.json`
      (`orgId` → `VERCEL_ORG_ID`, `projectId` → `VERCEL_PROJECT_ID`) ;
@@ -257,6 +274,16 @@ secret, elle répond 503 sur Vercel (`VERCEL_ENV` défini) plutôt que de s'ouvr
      de test n'a rien à faire dans les mêmes statistiques que celui du club
      (#426). Absentes, l'app tourne normalement, juste sans analytics et sans un
      mot en console (garde dans `instrumentation-client.ts`).
+   - les deux projets : `FRONTEND_PROXY_SECRET` (#1533), **la même valeur
+     que sur le service Render qu'il appelle**, un secret propre à chaque
+     paire (`python -c "import secrets; print(secrets.token_urlsafe(32))"`).
+     `frontend/proxy.ts` le joint aux seuls appels `/api/*`, et le backend
+     n'accepte qu'alors `X-Vercel-Forwarded-For`, l'IP du visiteur. **Absent
+     d'un côté ou de l'autre, les plafonds par IP ne tiennent plus par le
+     front** : chaque appel y compte sous une IP de sortie de Vercel tirée
+     d'un pool (mesuré sur la preview : 31 appels, aucun 429). Le site marche,
+     la protection non ; le backend l'annonce par un WARNING au démarrage
+     (`backend/AGENTS.md`, « Adresse du client ») ;
    - `data-triathlon-preview` **seul** : `FAVICON_VARIANT=preview` (#665).
      `VERCEL_ENV` vaut `production` sur les deux projets — inutilisable pour
      distinguer prod et preview côté favicon — d'où cette variable dédiée,
@@ -1094,7 +1121,7 @@ publique de Render ne répond à aucun de ces points :
 2. Ce que voit un visiteur pendant la fenêtre coupée : Render ne sert pas de page
    de maintenance, l'appel échoue en erreur de connexion. Vérifier que le front
    Vercel rend une erreur lisible et non une page blanche.
-3. **Un cycle complet du régime horaire** (#560) : après un merge sur `main`,
+3. **Un cycle complet du régime horaire** (#560) : après un déploiement de la preview,
    voir sur le dashboard Render la preview réveillée par `deploy.yml`, le
    déploiement aller au bout sans être interrompu, puis le passage horaire
    suivant — celui d'après la grâce de 15 min — la recoucher. Et vérifier que les
@@ -1116,7 +1143,8 @@ production sur un plan payant.
 ## Publier une version
 
 ```bash
-# Preview : il suffit de merger dans main (PR mergée)
+# Preview : Actions → Deploy → Run workflow, branche main (ou celle d'une PR)
+gh workflow run deploy.yml --ref main
 
 # Production : taguer un commit de main
 git checkout main && git pull
@@ -1127,7 +1155,7 @@ git push origin v0.1.0
 ## Vérification
 
 1. Ouvrir une PR → les jobs `backend` et `frontend` passent, puis `ci-ok`.
-2. Merger dans `main` (ou lancer un `workflow_dispatch`) → `deploy.yml` enchaîne
+2. Lancer un `workflow_dispatch` de *Deploy* sur `main` → `deploy.yml` enchaîne
    `ci` puis `deploy-preview` : hook Render preview, attente de `live` et de la
    version (#921), puis déploiement sur l'URL fixe de `data-triathlon-preview`.
    Relancer une fois : **la même URL**.

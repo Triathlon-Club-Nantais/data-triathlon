@@ -42,12 +42,12 @@ def map_by_athlete(db: Session, *, athlete_ids: list[int], season: int) -> dict[
     """
     if not athlete_ids:
         return {}
-    lignes = (
+    rows = (
         db.query(SeasonValidation.athlete_id)
         .filter(SeasonValidation.athlete_id.in_(athlete_ids), SeasonValidation.season == season)
         .all()
     )
-    return {athlete_id: True for (athlete_id,) in lignes}
+    return {athlete_id: True for (athlete_id,) in rows}
 
 
 def repoint_deduplicated(db: Session, *, from_athlete_id: int, to_athlete_id: int) -> int:

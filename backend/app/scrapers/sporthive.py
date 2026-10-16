@@ -98,7 +98,7 @@ _PATH_RE = re.compile(
     rf"(?P<event_id>{_ID_RE})(?:/.*)?$"
 )
 
-_FORME_ATTENDUE = (
+_UNREADABLE_URL_MESSAGE = (
     "URL Sporthive illisible : aucun identifiant d'événement dans le chemin. "
     "Forme attendue : https://results.sporthive.com/events/<id>[/races/<n>] "
     "(ou https://sporthive.com/events/s/<id>), où <id> est numérique "
@@ -122,29 +122,29 @@ def _parse_url(url: str) -> str:
     try:
         path = urlparse(url).path or ""
     except ValueError:
-        raise ValueError(_FORME_ATTENDUE) from None
-    lu = _PATH_RE.match(path)
-    if not lu:
-        raise ValueError(_FORME_ATTENDUE)
-    return lu.group("event_id")
+        raise ValueError(_UNREADABLE_URL_MESSAGE) from None
+    matched = _PATH_RE.match(path)
+    if not matched:
+        raise ValueError(_UNREADABLE_URL_MESSAGE)
+    return matched.group("event_id")
 
 
 def _fetch_json(
-    client: httpx.Client, path: str, params: dict | None = None, *, introuvable: str = ""
+    client: httpx.Client, path: str, params: dict | None = None, *, not_found: str = ""
 ):
     """A `GET` on the API. Only a 404 is translated, and only where asked.
 
     A 5xx is not a link problem: turning it into `ValueError` would make it read
     as one in the CLI failure detail, so it goes through untouched.
 
-    `introuvable` is opt-in per route on purpose. A 404 does not mean the same
+    `not_found` is opt-in per route on purpose. A 404 does not mean the same
     thing everywhere: on `/events/{id}` it says "this link points at nothing",
     which the operator can act on; on a ranking page it would be an anomaly of
     the source, not of the link.
     """
     response = client.get(f"{_API_BASE}{path}", params=params)
-    if introuvable and response.status_code == 404:
-        raise ValueError(introuvable)
+    if not_found and response.status_code == 404:
+        raise ValueError(not_found)
     response.raise_for_status()
     return response.json()
 
@@ -158,7 +158,7 @@ def _fetch_event(client: httpx.Client, event_id: str) -> dict:
     return _fetch_json(
         client,
         f"/events/{event_id}",
-        introuvable=(
+        not_found=(
             f"Événement Sporthive introuvable (id {event_id}) : la source ne "
             "connaît pas cet identifiant. Vérifier le lien — un identifiant "
             "d'événement est attendu, pas un identifiant de course."
@@ -173,8 +173,8 @@ def _fetch_races(client: httpx.Client, event_id: str) -> list[dict]:
     `activeRaceId` alongside it is the ordinal the browser URL shows. Reading
     the list is the only way to go from one to the other.
     """
-    charge = _fetch_json(client, f"/events/{event_id}/races")
-    return charge if isinstance(charge, list) else []
+    payload = _fetch_json(client, f"/events/{event_id}/races")
+    return payload if isinstance(payload, list) else []
 
 
 def _iter_participants(client: httpx.Client, race_id: str) -> Iterator[dict]:
@@ -199,16 +199,16 @@ def _iter_participants(client: httpx.Client, race_id: str) -> Iterator[dict]:
     silently ignored, so paginating with them re-reads the same ten rows.
     """
     for page in range(_MAX_PAGES):
-        charge = _fetch_json(
+        payload = _fetch_json(
             client,
             f"/races/{race_id}/participants",
             params={"page": page, "size": _PAGE_SIZE},
         )
-        lignes = charge.get("content") or []
-        if not lignes:
+        rows = payload.get("content") or []
+        if not rows:
             return
-        yield from lignes
-        if charge.get("last"):
+        yield from rows
+        if payload.get("last"):
             return
     raise ValueError(
         f"Épreuve Sporthive {race_id} : la pagination n'a pas terminé en "
@@ -229,12 +229,12 @@ class _IncompleteRankingError(Exception):
     decision to drop the race belongs to the loop, so the wording does too.
     """
 
-    def __init__(self, race_name: str, active_race_id, lus: int, annonces: int):
-        super().__init__(f"{race_name}: read {lus} of {annonces}")
+    def __init__(self, race_name: str, active_race_id, read_count: int, announced_count: int):
+        super().__init__(f"{race_name}: read {read_count} of {announced_count}")
         self.race_name = race_name
         self.active_race_id = active_race_id
-        self.lus = lus
-        self.annonces = annonces
+        self.read_count = read_count
+        self.announced_count = announced_count
 
 
 # ── Scalars ──────────────────────────────────────────────────────────────────
@@ -253,8 +253,8 @@ def _time(raw) -> str:
     """
     if not raw:
         return ""
-    normalise = normalize_time(str(raw))
-    return "" if normalise == "00:00:00" else normalise
+    normalized = normalize_time(str(raw))
+    return "" if normalized == "00:00:00" else normalized
 
 
 def _rank(raw) -> int | None:
@@ -320,7 +320,7 @@ _LEG_LABELS = {
 #: `type` values that answer nothing. `Other` is published on **all five** legs
 #: of ACCURO Jersey Triathlon's « Standard » race (177 entrants), swim included,
 #: and on both transitions at Izvorani 2026 — cases the 29/07 panel did not hold.
-_TYPES_MUETS = {"", "other", "unknown", "none"}
+_SILENT_TYPES = {"", "other", "unknown", "none"}
 
 
 def _leg_label(leg: dict) -> str:
@@ -334,12 +334,12 @@ def _leg_label(leg: dict) -> str:
     does, the published label wins; where neither does, the raw `type` is kept
     rather than the time dropped.
     """
-    brut = (leg.get("type") or "").strip()
-    if brut.lower() in _TYPES_MUETS:
-        repli = (leg.get("sportName") or "").strip()
-        if repli:
-            return _LEG_LABELS.get(repli.lower(), repli)
-    return _LEG_LABELS.get(brut.lower(), brut)
+    raw = (leg.get("type") or "").strip()
+    if raw.lower() in _SILENT_TYPES:
+        fallback = (leg.get("sportName") or "").strip()
+        if fallback:
+            return _LEG_LABELS.get(fallback.lower(), fallback)
+    return _LEG_LABELS.get(raw.lower(), raw)
 
 
 def _segments(legs) -> list[tuple[str, str]]:
@@ -356,10 +356,10 @@ def _segments(legs) -> list[tuple[str, str]]:
     """
     segments: list[tuple[str, str]] = []
     for leg in legs or []:
-        duree = _time(leg.get("legDuration"))
-        if not duree:
+        duration = _time(leg.get("legDuration"))
+        if not duration:
             continue
-        segments.append((_leg_label(leg), duree))
+        segments.append((_leg_label(leg), duration))
     return segments
 
 
@@ -428,7 +428,7 @@ def _race_context(url: str, event: dict, race: dict) -> _RaceContext:
         event_name=qualify_event_name(event_name, race_name),
         event_date=_event_date(event.get("date")),
         event_type=classify_event_type(
-            race_name, contexte=f"{event_name} {event_type}".strip()
+            race_name, context=f"{event_name} {event_type}".strip()
         ),
         # `0` left as absent so `mapping.get_or_create_course` can still fall
         # back on extracting the distance from the name.
@@ -456,8 +456,8 @@ def _to_result(participant: dict, ctx: _RaceContext) -> ScrapedResult:
     TCN membership (#76). Unlike t2area, this scraper has no reason to know the
     club at all.
     """
-    nom = (participant.get("name") or "").strip()
-    athlete_name, athlete_firstname = (nom, "") if ctx.is_relay else split_athlete_name(nom)
+    name = (participant.get("name") or "").strip()
+    athlete_name, athlete_firstname = (name, "") if ctx.is_relay else split_athlete_name(name)
     # Chip first, gun as fallback: the athlete's real time (D6). Reversing the
     # priority changes 7 435 rows of the panel, and neither column is usable
     # alone — 2 925 rows have no chip, 2 092 no gun.
@@ -465,7 +465,7 @@ def _to_result(participant: dict, ctx: _RaceContext) -> ScrapedResult:
         participant.get("gunTimeOfParticipant")
     )
     rank_overall = _rank(participant.get("overallPosition"))
-    genre = (participant.get("gender") or "").strip().upper()
+    gender = (participant.get("gender") or "").strip().upper()
     return ScrapedResult(
         source_url=ctx.source_url,
         provider=_PROVIDER,
@@ -475,7 +475,7 @@ def _to_result(participant: dict, ctx: _RaceContext) -> ScrapedResult:
         category=participant.get("raceCategory") or "",
         # `U` covers 4 243 rows (41 %) and the front doesn't render it: better
         # empty than a value it cannot display (D12).
-        gender=genre if genre in ("M", "F") else "",
+        gender=gender if gender in ("M", "F") else "",
         bib_number=str(participant.get("bib") or "").strip(),
         event_name=ctx.event_name,
         event_date=ctx.event_date,
@@ -509,10 +509,10 @@ def _raw_data(participant: dict, ctx: _RaceContext) -> dict:
     3 639 rows of the panel — which the event's would overwrite. It is moved to
     `athlete_country` rather than lost: two different facts, two keys.
     """
-    brut = dict(participant)
-    athlete_country = brut.pop("country", None)
+    raw = dict(participant)
+    athlete_country = raw.pop("country", None)
     return {
-        **brut,
+        **raw,
         "athlete_country": athlete_country,
         "city": ctx.city,
         "country": ctx.country,
@@ -535,17 +535,17 @@ def _scrape_race(
     its ranking.
     """
     race_id = str(race.get("id") or "")
-    annonces = race.get("classificationsCount") or 0
+    announced_count = race.get("classificationsCount") or 0
     participants = list(_iter_participants(client, race_id))
-    if len(participants) < annonces:
+    if len(participants) < announced_count:
         raise _IncompleteRankingError(
-            race.get("raceName") or "", race.get("activeRaceId"), len(participants), annonces
+            race.get("raceName") or "", race.get("activeRaceId"), len(participants), announced_count
         )
-    if len(participants) > annonces:
+    if len(participants) > announced_count:
         logger.info(
             "Sporthive race %r (ordinal %s): read %d participants for %d announced — "
             "surplus accepted, the race is likely live.",
-            race.get("raceName"), race.get("activeRaceId"), len(participants), annonces,
+            race.get("raceName"), race.get("activeRaceId"), len(participants), announced_count,
         )
     ctx = _race_context(url, event, race)
     return [_to_result(participant, ctx) for participant in participants]
@@ -609,12 +609,12 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     canonique par-race. La clé de cache par-race vit dans `scrape_event_fanout`.
     """
     event_id = _parse_url(url)
-    resultats: list[ScrapedResult] = []
-    courses = 0
+    results: list[ScrapedResult] = []
+    race_count = 0
     with http.client(timeout=20, headers=_HEADERS) as client:
         event = _fetch_event(client, event_id)
         for race in _fetch_races(client, event_id):
-            courses += 1
+            race_count += 1
             # Skipped **before** any request (FR-008b, D14). Not cosmetic: an
             # empty `Course` has no participation without `total_time`, so
             # `cache.is_in_progress` calls it finished and — the six races of an
@@ -628,25 +628,25 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
                 )
                 continue
             try:
-                resultats.extend(_scrape_race(client, url, event, race))
-            except _IncompleteRankingError as ecart:
+                results.extend(_scrape_race(client, url, event, race))
+            except _IncompleteRankingError as incomplete:
                 # The only trace of this race: the CLI report counts events, so
                 # the event comes back a success with 5 races out of 6. Hence
                 # the line must be usable on its own (FR-008a).
                 logger.warning(
                     "Sporthive race %r (ordinal %s) dropped: %d participants read for "
                     "%d announced, ranking truncated at the source.",
-                    ecart.race_name, ecart.active_race_id, ecart.lus, ecart.annonces,
+                    incomplete.race_name, incomplete.active_race_id, incomplete.read_count, incomplete.announced_count,
                 )
-    if not resultats:
+    if not results:
         raise ValueError(
             f"Événement Sporthive {event_id} : aucune course importable. "
-            f"{courses} course(s) publiée(s), aucune n'a rendu de classement "
+            f"{race_count} course(s) publiée(s), aucune n'a rendu de classement "
             "exploitable — classement absent ou tronqué à la source. L'import "
             "est refusé plutôt que compté comme un succès à zéro participant ; "
             "il est rejouable dès que la source publie."
         )
-    return resultats
+    return results
 
 
 def scrape_event_fanout(
@@ -688,7 +688,7 @@ def scrape_event_fanout(
     """
     event_id = _parse_url(url)
     trace = FanoutTrace()
-    resultats: list[ScrapedResult] = []
+    results: list[ScrapedResult] = []
 
     with http.client(timeout=20, headers=_HEADERS) as client:
         event = _fetch_event(client, event_id)
@@ -708,37 +708,37 @@ def scrape_event_fanout(
 
         # Pré-filtre : les races cachées ne sont ni notifiées à `on_heat_start`
         # ni comptées dans `total`, sinon la progression sauterait des indices.
-        a_scraper: list[dict] = []
+        to_scrape: list[dict] = []
         for race in races:
             race_url = _race_source_url(event_id, race)
             if cache_probe is not None and cache_probe(race_url):
                 trace.heats_cached += 1
                 trace.cached_urls.append(race_url)
                 continue
-            a_scraper.append(race)
+            to_scrape.append(race)
 
-        total_a_scraper = len(a_scraper)
-        for index, race in enumerate(a_scraper, start=1):
+        total_to_scrape = len(to_scrape)
+        for index, race in enumerate(to_scrape, start=1):
             race_slug = _race_slug(race)
             race_label = _race_label(race)
             race_url = _race_source_url(event_id, race)
             if on_heat_start is not None:
-                on_heat_start(race_slug, race_label, index, total_a_scraper)
+                on_heat_start(race_slug, race_label, index, total_to_scrape)
             try:
                 # `race_url` (pas `url`) : la source_url par-race est la clé de
                 # cache TTL, et c'est ce que le fan-out apporte au cache.
-                resultats.extend(_scrape_race(client, race_url, event, race))
-            except _IncompleteRankingError as ecart:
+                results.extend(_scrape_race(client, race_url, event, race))
+            except _IncompleteRankingError as incomplete:
                 logger.warning(
                     "Sporthive race %r (ordinal %s) dropped: %d participants read for "
                     "%d announced, ranking truncated at the source.",
-                    ecart.race_name, ecart.active_race_id, ecart.lus, ecart.annonces,
+                    incomplete.race_name, incomplete.active_race_id, incomplete.read_count, incomplete.announced_count,
                 )
                 trace.failures.append({
                     "heat_slug": race_slug,
                     "reason": (
-                        f"classement tronqué à la source : {ecart.lus} lues sur "
-                        f"{ecart.annonces} annoncées"
+                        f"classement tronqué à la source : {incomplete.read_count} lues sur "
+                        f"{incomplete.announced_count} annoncées"
                     ),
                 })
             except Exception as exc:
@@ -748,7 +748,7 @@ def scrape_event_fanout(
                 )
                 trace.failures.append({"heat_slug": race_slug, "reason": str(exc)})
 
-    if not resultats and not trace.heats_cached and trace.failures:
+    if not results and not trace.heats_cached and trace.failures:
         raise ValueError(
             f"Événement Sporthive {event_id} : aucune course importable. "
             f"{len(trace.failures)} course(s) en échec, aucune n'a rendu de "
@@ -756,4 +756,4 @@ def scrape_event_fanout(
             "L'import est refusé plutôt que compté comme un succès à zéro "
             "participant ; il est rejouable dès que la source publie."
         )
-    return resultats, trace
+    return results, trace

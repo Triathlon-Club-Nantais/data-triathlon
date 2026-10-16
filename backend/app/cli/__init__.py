@@ -31,6 +31,7 @@ from app.cli.commands.rescrape_db import rescrape_db
 from app.cli.commands.revoke_sessions import revoke_sessions
 from app.cli.commands.set_site_code import set_site_code
 from app.cli.commands.sync_club_members import sync_club_members
+from app.cli.commands.weather_courses import weather_courses
 from app.core.logging import setup_logging
 
 app = typer.Typer(help="Outillage d'import de masse et de rescrape.")
@@ -50,6 +51,7 @@ app.command("rescrape-db")(rescrape_db)
 app.command("revoke-sessions")(revoke_sessions)
 app.command("set-site-code")(set_site_code)
 app.command("sync-club-members")(sync_club_members)
+app.command("weather-courses")(weather_courses)
 
 
 def load_counter_scope() -> None:
@@ -59,7 +61,7 @@ def load_counter_scope() -> None:
     `configure_cli_logging` et pour la même raison : remplir un registre de
     processus est le rôle du process, pas d'une bibliothèque importée.
 
-    Sans ce chargement, `is_tcn` et `is_federal` se prononceraient sur les
+    Sans ce chargement, `is_tcn` se prononcerait sur les
     défauts du code plutôt que sur ce qui est configuré — `club-labels`
     signalerait comme manquant un libellé déclaré depuis le panel admin.
     """

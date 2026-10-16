@@ -24,6 +24,7 @@ function athlete(over: Partial<AthleteSeasonActivity> & { id: number }): Athlete
     validated_count: participation_count,
     club_affiliated_count: participation_count,
     season_validated: null,
+    quota_met: null,
     ...over,
   };
 }
@@ -95,6 +96,17 @@ describe("AthleteSeasonList", () => {
     expect(screen.getByText(/saison validée/i)).toBeInTheDocument();
   });
 
+  it("#1402 : le badge « Saison validée » est écrit en orange profond (contraste AA), pas en orange de marque", () => {
+    render(
+      <AthleteSeasonList
+        athletes={[athlete({ id: 1, nom: "VALIDE", season_validated: true })]}
+      />,
+    );
+
+    const badge = screen.getByText(/saison validée/i);
+    expect(badge.style.color).toBe("var(--tcn-orange-deeper)");
+  });
+
   it("#709 : n'affiche aucun badge de validation quand plusieurs saisons sont sélectionnées (season_validated null)", () => {
     render(
       <AthleteSeasonList
@@ -119,6 +131,90 @@ describe("AthleteSeasonList", () => {
     await userEvent.click(screen.getByRole("radio", { name: /^validées$/i }));
 
     expect(rowNames()).toEqual(["VALIDE"]);
+  });
+
+  it("#1542 : « Quota atteint, à valider » ne garde que les quotas atteints non validés", async () => {
+    render(
+      <AthleteSeasonList
+        athletes={[
+          athlete({ id: 1, nom: "AVALIDER", season_validated: false, quota_met: true }),
+          athlete({ id: 2, nom: "DEJAVALIDE", season_validated: true, quota_met: true }),
+          athlete({ id: 3, nom: "INCOMPLET", season_validated: false, quota_met: false }),
+        ]}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("radio", { name: /quota atteint, à valider/i }));
+
+    expect(rowNames()).toEqual(["AVALIDER"]);
+  });
+
+  it("#1542 : pastille « Quota atteint » sur un athlète à valider, pas sur un validé ni un incomplet", () => {
+    render(
+      <AthleteSeasonList
+        athletes={[
+          athlete({ id: 1, nom: "AVALIDER", season_validated: false, quota_met: true }),
+          athlete({ id: 2, nom: "DEJAVALIDE", season_validated: true, quota_met: true }),
+          athlete({ id: 3, nom: "INCOMPLET", season_validated: false, quota_met: false }),
+        ]}
+      />,
+    );
+
+    expect(screen.getAllByText(/^quota atteint$/i)).toHaveLength(1);
+  });
+
+  it("#1542 : un filtre de statut vide le dit, et « Afficher tous » rend la liste", async () => {
+    render(
+      <AthleteSeasonList
+        athletes={[athlete({ id: 1, nom: "DEJAVALIDE", season_validated: true, quota_met: true })]}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("radio", { name: /quota atteint, à valider/i }));
+
+    expect(screen.getByText(/aucun athlète ne correspond à ce statut/i)).toBeInTheDocument();
+    expect(screen.queryByText(/essayez un autre nom/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /afficher tous/i }));
+    expect(rowNames()).toEqual(["DEJAVALIDE"]);
+  });
+
+  it("#1562 : une recherche qui trouve mais un statut qui vide accuse le statut, et « Afficher tous » garde la recherche", async () => {
+    render(
+      <AthleteSeasonList
+        athletes={[
+          athlete({ id: 1, nom: "DUPONT", season_validated: true, quota_met: true }),
+          athlete({ id: 2, nom: "MARTIN", season_validated: false, quota_met: false }),
+        ]}
+      />,
+    );
+
+    await userEvent.type(screen.getByRole("searchbox", { name: /rechercher un athlète/i }), "Dupont");
+    await userEvent.click(screen.getByRole("radio", { name: /^non validées$/i }));
+
+    expect(screen.getByText(/aucun athlète ne correspond à ce statut/i)).toBeInTheDocument();
+    expect(screen.queryByText(/essayez un autre nom/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /afficher tous/i }));
+    expect(rowNames()).toEqual(["DUPONT"]);
+    expect(screen.getByRole("searchbox", { name: /rechercher un athlète/i })).toHaveValue("Dupont");
+  });
+
+  it("#1562 : une recherche qui ne trouve personne garde « Essayez un autre nom », même sous un statut", async () => {
+    render(
+      <AthleteSeasonList athletes={[athlete({ id: 1, nom: "DUPONT", season_validated: true, quota_met: true })]} />,
+    );
+
+    await userEvent.click(screen.getByRole("radio", { name: /^non validées$/i }));
+    await userEvent.type(screen.getByRole("searchbox", { name: /rechercher un athlète/i }), "Zorro");
+
+    expect(screen.getByText(/essayez un autre nom/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /afficher tous/i })).not.toBeInTheDocument();
+  });
+
+  it("#1542 : ni option de quota ni pastille sur plusieurs saisons (quota_met null)", () => {
+    render(<AthleteSeasonList athletes={[athlete({ id: 1, nom: "MULTI" })]} />);
+
+    expect(screen.queryByRole("radio", { name: /quota atteint/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^quota atteint$/i)).not.toBeInTheDocument();
   });
 
   it("liste vide (FR-007) : affiche un état vide explicite qui invite à changer de saison", () => {

@@ -6,13 +6,17 @@ consulter et l'instruire exigent chacun leur pouvoir. C'est ce contraste qui
 interdit toute garde par préfixe (FR-018, FR-022) : posée sur `/admin`, elle
 supprimerait la fonctionnalité de signalement sans que rien ne la nomme.
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, HttpUrl
 from sqlalchemy.orm import Session
 
-from app.api.deps import public_write_rate_limit, require_permission
+from app.api.deps import (
+    current_user,
+    has_volunteer_cookie,
+    public_write_rate_limit,
+    require_permission,
+)
 from app.core.database import get_db
-from app.core.exceptions import NotFoundError
 from app.core.permissions import P
 from app.models.user import User
 from app.repositories import course_repository, pending_provider_repository
@@ -21,9 +25,12 @@ from app.schemas.admin import (
     CourseReliabilityUpdate,
     PendingProviderOut,
     PendingProviderReported,
+    ProviderQualityOut,
 )
-from app.schemas.count import QueueCount
-from app.services import course_review, pending_providers
+from app.schemas.count import BadgeCounts
+from app.schemas.ids import DbId
+from app.services import admin_badge_counts, course_review, not_found, pending_providers
+from app.services.auth import authorization
 
 router = APIRouter(tags=["admin"])
 
@@ -55,6 +62,20 @@ def report_pending_provider(body: PendingProviderCreate, db: Session = Depends(g
     return {"id": entry.id, "url": entry.url, "provider_hint": entry.provider_hint}
 
 
+@router.get("/admin/badge-counts", response_model=BadgeCounts, response_model_exclude_none=True)
+def badge_counts(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> BadgeCounts:
+    """Les pastilles du rail en un appel (#1385) : chacune sous le pouvoir de
+    son écran, absente sinon. Aucun pouvoir exigé, comme `GET /auth/me` : la
+    réponse ne porte que ce que la session peut déjà voir."""
+    codes = authorization.effective_permissions(db, user)
+    validation = P.VOLUNTEER_ACCESS_MANAGE.code in codes or has_volunteer_cookie(request, db)
+    return BadgeCounts(**admin_badge_counts.counts(db, codes, validation=validation))
+
+
 @router.get("/admin/pending-providers", response_model=list[PendingProviderOut])
 def list_pending_providers(
     db: Session = Depends(get_db),
@@ -63,24 +84,9 @@ def list_pending_providers(
     return pending_provider_repository.list_unhandled(db)
 
 
-class PendingProviderCount(BaseModel):
-    """La taille de la liste ci-dessus — pour la pastille de la nav (#726)."""
-
-    total: int
-
-
-@router.get("/admin/pending-providers/count", response_model=PendingProviderCount)
-def count_pending_providers(
-    db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.PENDING_PROVIDERS_READ)),
-) -> PendingProviderCount:
-    """Même garde que la liste : compter n'échappe pas à `pending_providers:read`."""
-    return PendingProviderCount(total=pending_provider_repository.count_unhandled(db))
-
-
 @router.delete("/admin/pending-providers/{entry_id}", status_code=204)
 def mark_handled(
-    entry_id: int,
+    entry_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.PENDING_PROVIDERS_HANDLE)),
 ):
@@ -88,22 +94,24 @@ def mark_handled(
     db.commit()
 
 
-@router.get("/admin/quality/count", response_model=QueueCount)
-def count_courses_awaiting_review(
+@router.get("/admin/quality/providers", response_model=list[ProviderQualityOut])
+def provider_quality(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.QUALITY_OVERRIDE)),
-) -> QueueCount:
-    """La pastille de la revalidation (#1232) : les épreuves calculées non
-    fiables **sans avis humain**. `GET /courses/count?unreliable=true` compte
-    aussi celles qu'un humain a déjà jugées douteuses, et ne redescend jamais."""
-    return QueueCount(total=course_repository.count_awaiting_review(db))
+):
+    """Épreuves, épreuves non fiables et anomalies par fournisseur (#1366).
+
+    Sous la garde de la revalidation qualité : c'est le même public, qui doit
+    trancher ce que coûterait le retrait d'un fournisseur (#1342).
+    """
+    return course_repository.quality_by_provider(db)
 
 
 @router.patch(
     "/admin/courses/{course_id}/reliability", response_model=CourseReliabilityRead
 )
 def set_course_reliability(
-    course_id: int,
+    course_id: DbId,
     body: CourseReliabilityUpdate,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.QUALITY_OVERRIDE)),
@@ -116,9 +124,7 @@ def set_course_reliability(
     Rend les **trois** valeurs, et c'est délibéré : elles ne se déduisent pas
     l'une de l'autre, et c'est ce qu'une interface de revue doit montrer.
     """
-    course = course_repository.get(db, course_id)
-    if course is None:
-        raise NotFoundError("Épreuve introuvable")
+    course = not_found.course_or_404(db, course_id, message="Épreuve introuvable")
     course_review.set_override(
         db,
         course,

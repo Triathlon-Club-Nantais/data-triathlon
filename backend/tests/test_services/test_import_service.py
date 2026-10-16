@@ -17,6 +17,7 @@ from app.repositories import (
     course_repository,
     course_source_repository,
     participation_repository,
+    tcn_count_repository,
     user_repository,
 )
 from app.scrapers.base import FanoutTrace, ScrapedResult
@@ -28,6 +29,7 @@ from app.services import (
     import_service,
     quality,
 )
+from tests.conftest import save_entry
 
 
 def _settings() -> Settings:
@@ -164,7 +166,7 @@ def test_reimport_respecte_un_club_corrige_a_la_main(db_session, patch_scraper):
     admin_actions.update_athlete(
         db_session,
         athlete_id=verrouille.id,
-        champs={"club": "TRI CLUB NANTAIS"},
+        fields={"club": "TRI CLUB NANTAIS"},
         user_id=auteur.id,
     )
 
@@ -235,8 +237,6 @@ def test_manual_entry_compares_the_course_date_like_the_import(db_session, patch
     """#965, review: both paths compare the date of the course the result lands
     on, not the date the source claims. Here the manual entry is reconciled by
     rule R onto an older course while claiming a newer date."""
-    from app.services import scrape_service
-
     patch_scraper([_result("1", "MEME", prenom="Mia", club="TRIATHLON CLUB NANTAIS")])
     import_service.import_event(db_session, URL, _settings())
     bc_url = "https://resultats.breizhchrono.com/resultats-courses/tri-ancien-1488071608761-5/tri-m"
@@ -246,7 +246,7 @@ def test_manual_entry_compares_the_course_date_like_the_import(db_session, patch
     )
     db_session.flush()
 
-    scrape_service.save_one(db_session, ScrapedResult(
+    save_entry(db_session, ScrapedResult(
         source_url=bc_url, provider="breizhchrono", athlete_name="MEME", athlete_firstname="Mia",
         bib_number="42", event_name="Autre nom", event_date=date(2026, 10, 1),
         event_type="triathlon-m", total_time="01:59:00", club="TRIATHLON ATLANTIQUE CARQUEFOU",
@@ -783,7 +783,9 @@ def test_streaming_fanout_scrape_failure_ends_on_an_error_frame(db_session, monk
 
     phases = list(import_service.iter_import_event(db_session, URL, _settings()))
 
-    assert phases[-1] == {"phase": "error", "message": "Erreur lors de l'import : boom"}
+    assert phases[-1] == {
+        "phase": "error", "message": "Erreur lors de l'import : boom", "error_kind": "scraper",
+    }
     assert db_session.query(Course).count() == 0
     assert db_session.query(Participation).count() == 0
 
@@ -795,7 +797,29 @@ def test_streaming_fanout_value_error_maps_to_unsupported_provider(db_session, m
 
     phases = list(import_service.iter_import_event(db_session, URL, _settings()))
 
-    assert phases[-1] == {"phase": "error", "message": "Import non supporté"}
+    assert phases[-1] == {
+        "phase": "error", "message": "Import non supporté", "error_kind": "unsupported_provider",
+    }
+
+
+def test_streaming_invalid_url_is_tagged_invalid_url(db_session):
+    phases = list(import_service.iter_import_event(db_session, "ftp://example.org/x", _settings()))
+
+    assert phases[-1]["error_kind"] == "invalid_url"
+
+
+def test_streaming_persistence_failure_is_tagged_persistence(db_session, patch_scraper, monkeypatch):
+    patch_scraper([_result("1", "DUPONT")])
+
+    def _lever_a_l_enregistrement(db, url, results):
+        raise RuntimeError("disque plein")
+        yield
+
+    monkeypatch.setattr(import_persistence, "persist_steps", _lever_a_l_enregistrement)
+
+    phases = list(import_service.iter_import_event(db_session, URL, _settings()))
+
+    assert phases[-1]["error_kind"] == "persistence"
 
 
 def test_non_fanout_scraper_failure_is_wrapped_in_scraper_error(db_session, monkeypatch):
@@ -2095,6 +2119,69 @@ def test_resolve_pending_appelle_les_fonctions_de_lot_par_tranche_pas_par_ligne(
     assert calls["participation_create_batch"] <= 5
 
 
+def _reimport_with_changed_times(db_session, *, n: int, marker: str, locked: bool = False) -> list[str]:
+    """Importe `n` lignes, puis les réimporte toutes avec un temps changé ;
+    rend le texte des requêtes du seul réimport. `locked` : fiches choisies par
+    un admin, mises à jour dès `add`, hors de toute tranche."""
+    url = f"https://www.klikego.com/{marker}"
+
+    def _rows(total_time: str) -> list[ScrapedResult]:
+        return [
+            _result(
+                str(i), f"NOM{marker}{i}", event_name=f"Triathlon {marker}",
+                source_url=url, total_time=total_time,
+            )
+            for i in range(n)
+        ]
+
+    import_persistence.persist_results(db_session, url, _rows("01:59:00"))
+    if locked:
+        for row in db_session.query(Participation).join(Course).filter(Course.name == f"Triathlon {marker}"):
+            participation_repository.update(db_session, row, athlete_locked=True)
+    queries: list[str] = []
+
+    def _record(conn, cursor, statement, *rest):
+        queries.append(statement)
+
+    engine = db_session.get_bind()
+    event.listen(engine, "before_cursor_execute", _record)
+    try:
+        outcome = import_persistence.persist_results(db_session, url, _rows("02:01:00"))
+    finally:
+        event.remove(engine, "before_cursor_execute", _record)
+    assert outcome["updated"] == n
+    return queries
+
+
+@pytest.mark.parametrize("locked", [False, True])
+def test_reimport_updates_are_batched_not_one_statement_per_row(db_session, monkeypatch, locked):
+    """#1503 : un réimport dont toutes les lignes changent n'émet pas un
+    UPDATE par participation, et les valeurs arrivent bien en base, flushées
+    avant que le recalcul du verdict du club ne les relise."""
+    original_recompute = tcn_count_repository.recompute_counts_for_tcn
+
+    def _recompute_on_flushed_rows(db, **kwargs):
+        assert not [o for o in db.dirty if isinstance(o, Participation)]
+        return original_recompute(db, **kwargs)
+
+    monkeypatch.setattr(tcn_count_repository, "recompute_counts_for_tcn", _recompute_on_flushed_rows)
+
+    def _updates(queries: list[str]) -> int:
+        return sum(q.strip().upper().startswith("UPDATE PARTICIPATIONS") for q in queries)
+
+    small = _reimport_with_changed_times(db_session, n=50, marker="maj1503a", locked=locked)
+    big = _reimport_with_changed_times(db_session, n=200, marker="maj1503b", locked=locked)
+
+    assert _updates(big) == _updates(small), (
+        f"{_updates(small)} UPDATE pour 50 lignes, {_updates(big)} pour 200"
+    )
+    db_session.expire_all()
+    stored = db_session.query(Participation.total_time).join(Course).filter(
+        Course.name == "Triathlon maj1503b"
+    ).all()
+    assert [t for (t,) in stored] == ["02:01:00"] * 200
+
+
 def test_finalize_ne_recharge_plus_les_participations_d_une_deuxieme_fois(db_session):
     """FR-003 — `_index_course` charge déjà les participations de la course ;
     `finalize()` ne doit plus émettre un second `SELECT ... FROM participations`
@@ -2443,7 +2530,7 @@ def test_import_split_finds_an_existing_athlete_published_firstname_first(
 
 @pytest.mark.parametrize("tranche", [500, 1], ids=["un-lot", "tranche-unitaire"])
 def test_import_splits_several_relays_in_one_batch(db_session, patch_scraper, monkeypatch, tranche):
-    monkeypatch.setattr(import_persistence, "_TRANCHE_SIZE", tranche)
+    monkeypatch.setattr(import_persistence, "_CHUNK_SIZE", tranche)
     patch_scraper([
         _relay("7", "CANNIOU/OLIVIER", "Cedric/Leclerc"),
         _relay("", "MASSONNEAU PIERRE", "/ BESANCON FABIEN ."),
@@ -2751,7 +2838,7 @@ def test_split_fallback_keeps_the_reconcile_guard(db_session, patch_scraper, mon
 def test_guard_holds_when_the_individual_line_comes_in_a_later_tranche(
     db_session, patch_scraper, monkeypatch
 ):
-    monkeypatch.setattr(import_persistence, "_TRANCHE_SIZE", 1)
+    monkeypatch.setattr(import_persistence, "_CHUNK_SIZE", 1)
     patch_scraper([_relay("1", "DUPONT Jean / MARTIN Paul", ""), _relay("2", "DUPONT", "Jean")])
 
     import_service.import_event(db_session, URL, _settings())

@@ -1,5 +1,5 @@
-"""HMAC de cookie et hachage de mot de passe — socle partagé par les deux
-mots de passe communs du dépôt (`benevole_access`, #271 ; `site_access`,
+"""HMAC de cookie, hachage et génération de secrets — socle partagé par les deux
+mots de passe communs du dépôt (`volunteer_access`, #271 ; `site_access`,
 #509). Les deux diffèrent par leur cookie, leur table et leur politique
 d'expiration — jamais par ce calcul.
 
@@ -18,11 +18,28 @@ import time
 
 _SALT_SIZE = 16
 
+#: Taille du mot de passe généré (research.md §D5), en octets.
+_GENERATED_PASSWORD_SIZE = 18
+
+
+def new_session_secret() -> str:
+    """Un secret de session neuf, jamais le même deux fois (research.md §D2)."""
+    return secrets.token_urlsafe(32)
+
+
+def generate_password() -> str:
+    """Un mot de passe robuste, généré côté serveur (research.md §D5).
+
+    144 bits d'entropie uniforme (`secrets.token_urlsafe(18)`, 24 caractères) :
+    trop pour un humain à retenir, ce qui est le but d'une génération serveur.
+    """
+    return secrets.token_urlsafe(_GENERATED_PASSWORD_SIZE)
+
 
 def sign_cookie(key: str) -> str:
     """`{horodatage}.{HMAC(key, horodatage)}` — sans état serveur à la vérification."""
-    horodatage = str(int(time.time()))
-    return f"{horodatage}.{_hmac(key, horodatage)}"
+    timestamp = str(int(time.time()))
+    return f"{timestamp}.{_hmac(key, timestamp)}"
 
 
 def verify_cookie(value: str | None, key: str, *, max_age_seconds: int | None = None) -> bool:
@@ -33,18 +50,18 @@ def verify_cookie(value: str | None, key: str, *, max_age_seconds: int | None = 
     """
     if not value or not key:
         return False
-    horodatage, separateur, signature = value.partition(".")
-    if not separateur or not horodatage or not signature:
+    timestamp, separator, signature = value.partition(".")
+    if not separator or not timestamp or not signature:
         return False
-    if not hmac.compare_digest(signature, _hmac(key, horodatage)):
+    if not hmac.compare_digest(signature, _hmac(key, timestamp)):
         return False
     if max_age_seconds is None:
         return True
     try:
-        emis = int(horodatage)
+        issued_at = int(timestamp)
     except ValueError:
         return False
-    return time.time() - emis <= max_age_seconds
+    return time.time() - issued_at <= max_age_seconds
 
 
 def _hmac(key: str, message: str) -> str:
@@ -58,13 +75,13 @@ def hash_password(password: str) -> tuple[str, str]:
     octets, régénéré à chaque appel.
     """
     salt = secrets.token_bytes(_SALT_SIZE)
-    empreinte = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2**14, r=8, p=1)
-    return empreinte.hex(), salt.hex()
+    digest = hashlib.scrypt(password.encode("utf-8"), salt=salt, n=2**14, r=8, p=1)
+    return digest.hex(), salt.hex()
 
 
 def verify_password(password: str, *, password_hash: str, password_salt: str) -> bool:
     """Comparaison en temps constant, même patron que `verify_cookie`."""
-    empreinte = hashlib.scrypt(
+    digest = hashlib.scrypt(
         password.encode("utf-8"), salt=bytes.fromhex(password_salt), n=2**14, r=8, p=1
     )
-    return hmac.compare_digest(empreinte.hex(), password_hash)
+    return hmac.compare_digest(digest.hex(), password_hash)

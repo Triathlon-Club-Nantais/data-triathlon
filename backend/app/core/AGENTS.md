@@ -117,18 +117,40 @@ La suite de tests, qui monte son schéma par `create_all` et n'a donc pas les
 lignes amorcées, s'exécute sur ces défauts.
 
 **Ce qui est configurable est l'ensemble des libellés, jamais la
-normalisation.** `_normalise_sql` est compilée dans l'index fonctionnel
+normalisation.** `_normalize_sql` est compilée dans l'index fonctionnel
 `ix_participations_club_normalized` : la toucher sans migration de
 reconstruction périme cet index en silence (cf. `club.py`). Ajouter un libellé
 ne change pas l'expression indexée ; changer la façon de comparer, si.
 
 La frontière est tenue par le code — aucune surface d'API n'atteint
-`_normalise_sql`, et `normalize_value` réutilise `normalize_club` — mais sa
+`_normalize_sql`, et `normalize_value` réutilise `normalize_club` — mais sa
 **garde de test** ne la couvre pas entièrement : la vérification de l'index
 (`tests/test_repositories/test_course_repository.py`) tourne sur un schéma monté
 par `create_all`, donc sur l'expression courante. Elle ne détecterait jamais un
 index devenu périmé dans une base déjà migrée. C'est antérieur à #95 (cf. #351),
 mais trois documents s'appuient désormais sur cette frontière : le jour où
-`_normalise_sql` change, la migration de reconstruction est à écrire à la main.
+`_normalize_sql` change, la migration de reconstruction est à écrire à la main.
 
 Conception : `specs/20260826-154613-portee-compteurs-configurable/`.
+
+# Les listes des revues (`cached_value.py`, #1352, #1384)
+
+Second état de processus de `core/`, pour une raison plus simple que la portée
+des compteurs : les revues « doublons » et « identités » rejouaient leur
+détection entière (1 à 2 s de SQL) à chaque affichage de leur liste et de leur
+pastille, sur un backend à un seul process. Chaque service garde sa liste de
+candidats dans son `candidates_cache` (5 min) : `cached_candidates` la sert à
+l'écran, `count` en prend la longueur pour la pastille (`GET /admin/badge-counts`, #1385), une seule détection par
+génération pour les deux. `find_candidates` reste la détection brute, sans cache.
+**Tout commit du process vide ces listes** (écouteur `after_commit` sur
+`Session`) : la liste des écritures qui les changent (correction d'une fiche,
+détachement, suppression, fusion, arbitrage…) ne se tiendrait pas à la main, et
+la première revue de #1352 en avait oublié huit. Une génération empêche un
+calcul lent commencé avant un commit d'écrire sa valeur après lui, et un verrou
+fait attendre la pastille derrière la liste quand les deux arrivent ensemble
+après une écriture, sans jamais retenir le commit. Un import en cours dans le
+process committe sans cesse : chaque lecture d'une revue pendant ce temps
+relance la détection. La liste
+rendue est partagée entre les requêtes : on la lit, on ne la modifie pas. Seul
+angle mort : une écriture d'un autre process (CLI de batch), fausse jusqu'à
+l'expiration. `tests/conftest.py` les vide entre deux tests.

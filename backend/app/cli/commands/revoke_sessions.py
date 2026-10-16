@@ -60,9 +60,9 @@ def revoke_sessions(
         # premier ajustement. Sans elle, `--email ""` était une cible recevable.
         try:
             allowed_emails.validate_email(email)
-        except allowed_emails.InvalidEmailError as invalide:
-            typer.echo(invalide.message)
-            raise typer.Exit(USAGE) from invalide
+        except allowed_emails.InvalidEmailError as error:
+            typer.echo(error.message)
+            raise typer.Exit(USAGE) from error
 
     # `--yes` ne garde que `--all` : fermer les sessions d'une personne se répare
     # par une reconnexion, fermer celles de tout le club non — et c'est le seul
@@ -76,7 +76,7 @@ def revoke_sessions(
     with session_scope() as db:
         # `email is None` équivaut à `--all` : l'exclusivité ci-dessus l'a établi.
         if email is None:
-            sessions, comptes = session_service.revoke_all(db)
+            sessions, accounts = session_service.revoke_all(db)
         else:
             # Diagnostic préalable, pas une seconde règle : le service reste seul
             # à décider *ce que* la révocation ferme. « 0 session fermée » est un
@@ -91,13 +91,13 @@ def revoke_sessions(
                     "--all."
                 )
                 raise typer.Exit(USAGE)
-            sessions, comptes = session_service.revoke_for_email(db, email)
+            sessions, accounts = session_service.revoke_for_email(db, email)
         db.commit()
 
     logger.info(
         "Sessions revoked by cli: actor=cli target=%s sessions=%s accounts=%s",
         "all" if all_sessions else email,
         sessions,
-        comptes,
+        accounts,
     )
-    typer.echo(f"{sessions} session(s) fermée(s) sur {comptes} compte(s).")
+    typer.echo(f"{sessions} session(s) fermée(s) sur {accounts} compte(s).")

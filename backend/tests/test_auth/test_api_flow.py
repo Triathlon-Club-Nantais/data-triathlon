@@ -90,7 +90,7 @@ def test_le_callback_mene_un_encadrant_a_l_espace_encadrement(
 ):
     from app.repositories import identity_repository
 
-    user = ouvrir_session(P.JEUNES_READ, pose_le_cookie=False)
+    user = ouvrir_session(P.YOUTH_READ, pose_le_cookie=False)
     identite = doublure.identite
     identity_repository.create(
         db_session,
@@ -147,8 +147,8 @@ def test_un_callback_rejoue_est_refuse(client, doublure, db_session):
 @pytest.mark.parametrize(
     ("codes", "expected"),
     [
-        ({P.QUALITY_OVERRIDE.code, P.JEUNES_READ.code}, "/admin"),
-        ({P.JEUNES_READ.code}, "/encadrement"),
+        ({P.QUALITY_OVERRIDE.code, P.YOUTH_READ.code}, "/admin"),
+        ({P.YOUTH_READ.code}, "/encadrement"),
         ({P.PAGES_PREVIEW.code}, "/dashboard"),
         (set(), "/dashboard"),
     ],

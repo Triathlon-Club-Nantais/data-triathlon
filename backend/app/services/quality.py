@@ -71,8 +71,8 @@ def _has_invalid_time(participation) -> bool:
     """
     if _has_no_time(participation):
         return False
-    secondes = parse_duration(normalize_time(participation.total_time))
-    return secondes is None or secondes <= 0
+    seconds = parse_duration(normalize_time(participation.total_time))
+    return seconds is None or seconds <= 0
 
 
 def _rank_anomalies(finishers: list, excluded_ranks: Set[int]) -> dict[str, int]:

@@ -23,7 +23,7 @@ from app.repositories import (
     participation_repository,
     user_repository,
 )
-from app.scrapers.fftri_club_members import ClubRoster, RosterMember, RosterUnreadableError
+from app.scrapers.fftri_club_members import RosterMember, RosterUnreadableError
 from app.services import club_members_service
 
 
@@ -48,9 +48,10 @@ def roster(monkeypatch):
         RosterMember("DURAND", "Paul", "M", "C2"),
         RosterMember("INCONNU", "Zoé", "F", "C3"),
     ]
+    monkeypatch.setattr(club_members_service, "current_season", lambda: 2026)
     monkeypatch.setattr(
         club_members_service.fftri_club_members, "fetch_club_roster",
-        lambda url: ClubRoster(licence_year=2027, members=members),
+        lambda url: members,
     )
     return members
 
@@ -208,9 +209,10 @@ def test_a_manual_link_survives_a_file_import(db_session, admin):
 
 def test_sync_tolerates_a_duplicated_licence_in_the_roster(db_session, admin, monkeypatch):
     members = [RosterMember("MARTIN", "Anne", "F", "C1"), RosterMember("MARTIN", "Anne", "F", "C1")]
+    monkeypatch.setattr(club_members_service, "current_season", lambda: 2026)
     monkeypatch.setattr(
         club_members_service.fftri_club_members, "fetch_club_roster",
-        lambda url: ClubRoster(licence_year=2027, members=members),
+        lambda url: members,
     )
 
     report = club_members_service.sync_from_fftri(db_session, user_id=admin.id)

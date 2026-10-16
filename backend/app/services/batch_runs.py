@@ -48,9 +48,9 @@ def dispatch_batch(
     `204` sans corps. Le `correlation_id` produit ici est donc le seul lien
     entre la demande et l'exécution qu'elle crée ; il voyage dans le `run-name`.
     """
-    _garde_configuration(settings)
+    _require_configured(settings)
     correlation_id = uuid4().hex[:8]
-    corps = {
+    payload = {
         "ref": REF,
         # Les huit entrées du contrat, toujours toutes présentes : une entrée
         # omise prend le défaut du workflow, qui n'est pas la valeur neutre
@@ -68,7 +68,7 @@ def dispatch_batch(
     }
 
     # Contrôle ici, pas dans la route : il protège tout appelant du dispatch.
-    if sum(len(valeur) for valeur in corps["inputs"].values()) > INPUTS_MAX_CARACTERES:
+    if sum(len(value) for value in payload["inputs"].values()) > INPUTS_MAX_CHARS:
         raise BatchInputTooLargeError()
 
     url = (
@@ -76,8 +76,8 @@ def dispatch_batch(
         f"/actions/workflows/{settings.github_workflow_file}/dispatches"
     )
     with http.client(transport=transport) as client:
-        _verifier(
-            _appel(lambda: client.post(url, json=corps, headers=_headers(settings)))
+        _check_response(
+            _call_platform(lambda: client.post(url, json=payload, headers=_headers(settings)))
         )
 
     return correlation_id
@@ -105,7 +105,7 @@ class BatchRun:
 
 def list_runs(settings: Settings, *, limit: int = 20, transport=None) -> list[BatchRun]:
     """Les derniers lancements, du plus récent au plus ancien."""
-    _garde_configuration(settings)
+    _require_configured(settings)
     with http.client(transport=transport) as client:
         runs = _get(
             client, settings,
@@ -115,45 +115,45 @@ def list_runs(settings: Settings, *, limit: int = 20, transport=None) -> list[Ba
         )["workflow_runs"]
         # **Un** appel pour toutes les exécutions, et non un par exécution :
         # l'artefact porte l'identifiant de l'exécution qui l'a produit.
-        artefacts = _get(
+        artifacts = _get(
             client, settings,
             f"{API_ROOT}/repos/{settings.github_repository}/actions/artifacts",
             params={"per_page": 100},
         )["artifacts"]
 
-    avec_bilan = {
+    with_report = {
         a["workflow_run"]["id"]
-        for a in artefacts
+        for a in artifacts
         if a["name"].startswith("bilan-") and not a["expired"]
     }
     # Le tri est refait ici : l'ordre de la plateforme n'est pas contractuel.
     return sorted(
-        (_to_batch_run(run, avec_bilan) for run in runs),
+        (_to_batch_run(run, with_report) for run in runs),
         key=lambda r: r.started_at,
         reverse=True,
     )
 
 
-def _to_batch_run(run: dict, avec_bilan: set[int]) -> BatchRun:
-    debut = _horodatage(run["run_started_at"])
-    termine = run["status"] == "completed"
-    nom = run["name"].strip(" ·")
+def _to_batch_run(run: dict, with_report: set[int]) -> BatchRun:
+    started = _parse_timestamp(run["run_started_at"])
+    completed = run["status"] == "completed"
+    label = run["name"].strip(" ·")
     return BatchRun(
         id=run["id"],
         # Le `correlation_id` reste dans le libellé : c'est par lui que
         # l'interface retrouve le lancement qu'elle vient de demander.
-        label=nom,
+        label=label,
         state=_STATES.get(run["status"], "pending"),
-        outcome=_OUTCOMES.get(run["conclusion"], "failure") if termine else None,
-        started_at=debut,
+        outcome=_OUTCOMES.get(run["conclusion"], "failure") if completed else None,
+        started_at=started,
         duration_s=(
-            int((_horodatage(run["updated_at"]) - debut).total_seconds())
-            if termine else None
+            int((_parse_timestamp(run["updated_at"]) - started).total_seconds())
+            if completed else None
         ),
         # Sur le nom **brut** : c'est le `·` final resté sans rien derrière qui
-        # dit « lancement manuel », et `nom` vient justement de l'avoir perdu.
-        triggered_by=_origine(run),
-        report_available=run["id"] in avec_bilan,
+        # dit « lancement manuel », et `label` vient justement de l'avoir perdu.
+        triggered_by=_trigger_origin(run),
+        report_available=run["id"] in with_report,
         external_url=run["html_url"],
     )
 
@@ -166,7 +166,7 @@ _STATES = {"completed": "completed", "in_progress": "running"}
 _OUTCOMES = {"success": "success", "cancelled": "cancelled"}
 
 
-def _origine(run: dict) -> str:
+def _trigger_origin(run: dict) -> str:
     """`ui`, `schedule` ou `manual`.
 
     Un lancement venu de l'interface porte un `correlation_id` ; un lancement
@@ -178,8 +178,8 @@ def _origine(run: dict) -> str:
     return "ui" if run["name"].rsplit("·", 1)[-1].strip() else "manual"
 
 
-def _horodatage(valeur: str) -> datetime:
-    return datetime.fromisoformat(valeur)
+def _parse_timestamp(value: str) -> datetime:
+    return datetime.fromisoformat(value)
 
 
 def ensure_idle(settings: Settings, *, transport=None) -> None:
@@ -190,14 +190,14 @@ def ensure_idle(settings: Settings, *, transport=None) -> None:
     même temps — y compris quand le second vient de l'onglet Actions ou de la
     planification, que l'API ne voit pas passer.
     """
-    en_cours = [
+    active_runs = [
         run
         for run in list_runs(settings, limit=10, transport=transport)
         if run.state in ("pending", "running")
     ]
-    if en_cours:
+    if active_runs:
         raise BatchAlreadyRunningError(
-            f"Un batch est déjà en cours : « {en_cours[0].label} ». "
+            f"Un batch est déjà en cours : « {active_runs[0].label} ». "
             "Attendre sa fin, ou l'annuler depuis sa page d'exécution."
         )
 
@@ -208,9 +208,9 @@ def fetch_report(settings: Settings, run_id: int, *, transport=None) -> dict:
     Elle est déjà un contrat stable (Principe IV) : la remodeler créerait une
     seconde définition à tenir alignée.
     """
-    _garde_configuration(settings)
+    _require_configured(settings)
     with http.client(transport=transport) as client:
-        artefacts = _get(
+        artifacts = _get(
             client, settings,
             f"{API_ROOT}/repos/{settings.github_repository}"
             f"/actions/runs/{run_id}/artifacts",
@@ -218,27 +218,27 @@ def fetch_report(settings: Settings, run_id: int, *, transport=None) -> dict:
         )["artifacts"]
         # Deux artefacts cohabitent depuis que le rapport texte a le sien ; seul
         # celui du bilan est du JSON.
-        bilans = [a for a in artefacts if a["name"].startswith("bilan-")]
-        if not bilans:
+        reports = [a for a in artifacts if a["name"].startswith("bilan-")]
+        if not reports:
             raise BatchReportNotFoundError
-        if bilans[0]["expired"]:
+        if reports[0]["expired"]:
             raise BatchReportExpiredError
 
-        reponse = _appel(
+        response = _call_platform(
             lambda: client.get(
                 f"{API_ROOT}/repos/{settings.github_repository}"
-                f"/actions/artifacts/{bilans[0]['id']}/zip",
+                f"/actions/artifacts/{reports[0]['id']}/zip",
                 headers=_headers(settings),
             )
         )
-        if reponse.status_code == 410:
+        if response.status_code == 410:
             raise BatchReportExpiredError
-        _verifier(reponse)
-        octets = reponse.content
+        _check_response(response)
+        content = response.content
 
     # Aucune écriture disque : le zip ne pèse que quelques kilo-octets.
     try:
-        with zipfile.ZipFile(io.BytesIO(octets)) as archive:
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
             return json.loads(archive.read(archive.namelist()[0]))
     except (zipfile.BadZipFile, IndexError, ValueError) as exc:
         # Un batch coupé par le timeout publie un bilan de 0 octet (#1005).
@@ -246,12 +246,12 @@ def fetch_report(settings: Settings, run_id: int, *, transport=None) -> dict:
 
 
 def _get(client, settings: Settings, url: str, *, params: dict) -> dict:
-    reponse = _appel(lambda: client.get(url, params=params, headers=_headers(settings)))
-    _verifier(reponse)
-    return reponse.json()
+    response = _call_platform(lambda: client.get(url, params=params, headers=_headers(settings)))
+    _check_response(response)
+    return response.json()
 
 
-def _appel(action):
+def _call_platform(action):
     """Traduit une plateforme injoignable en erreur nommée.
 
     Jamais une liste vide en repli : elle se lirait « aucun lancement » alors
@@ -259,24 +259,24 @@ def _appel(action):
     """
     try:
         return action()
-    except httpx.HTTPError as erreur:
+    except httpx.HTTPError as exc:
         raise BatchPlatformError(
-            f"La plateforme d'exécution est injoignable ({erreur.__class__.__name__})."
-        ) from erreur
+            f"La plateforme d'exécution est injoignable ({exc.__class__.__name__})."
+        ) from exc
 
 
-def _verifier(reponse) -> None:
+def _check_response(response) -> None:
     """Sépare le jeton refusé du reste — c'est ce qui rend le diagnostic
     possible sans accès aux journaux de la plateforme."""
-    if reponse.status_code in (401, 403):
+    if response.status_code in (401, 403):
         raise BatchTokenRejectedError
-    if reponse.status_code >= 400:
+    if response.status_code >= 400:
         raise BatchPlatformError(
-            f"La plateforme d'exécution a refusé la demande (HTTP {reponse.status_code})."
+            f"La plateforme d'exécution a refusé la demande (HTTP {response.status_code})."
         )
 
 
-def _garde_configuration(settings: Settings) -> None:
+def _require_configured(settings: Settings) -> None:
     if not settings.github_batch_token:
         raise BatchNotConfiguredError
 
@@ -305,9 +305,9 @@ class BatchTokenRejectedError(DomainError):
 
 
 #: La plateforme plafonne les inputs d'un dispatch à 65 535 caractères ; au-delà
-#: elle répond 422, que `_verifier` présenterait en panne (503). Marge gardée
+#: elle répond 422, que `_check_response` présenterait en panne (503). Marge gardée
 #: pour les noms d'entrées et la sérialisation (#1097).
-INPUTS_MAX_CARACTERES = 60_000
+INPUTS_MAX_CHARS = 60_000
 
 
 class BatchInputTooLargeError(DomainError):

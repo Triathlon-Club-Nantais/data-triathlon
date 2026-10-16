@@ -10,15 +10,15 @@ stored value is identical on SQLite and PostgreSQL.
 rule; `tests/test_migrations.py` keeps the two in step.
 """
 import re
-import unicodedata
+
+from app.core.text import strip_accents
 
 # NFKD leaves these letters whole; `casefold` already turns `ß` into `ss`.
 _LIGATURES = str.maketrans({"œ": "oe", "æ": "ae", "ø": "o", "ł": "l", "đ": "d"})
 
 
 def identity_key(text: str | None) -> str:
-    decomposed = unicodedata.normalize("NFKD", text or "")
-    folded = "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
+    folded = strip_accents(text).casefold()
     return "".join(c for c in folded.translate(_LIGATURES) if c.isalnum())
 
 

@@ -6,14 +6,14 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    StrictInt,
-    field_serializer,
     field_validator,
     model_validator,
 )
 
 from app.core.season import SEASON_MAX, SEASON_MIN
 from app.schemas.course import CourseSourceOut
+from app.schemas.ids import DbId, StrictDbId
+from app.schemas.utc_datetime import UtcDatetime
 
 
 class PermissionRead(BaseModel):
@@ -75,7 +75,7 @@ class RoleCreate(BaseModel):
     slug: str = Field(min_length=1, pattern=r"^[a-z][a-z0-9-]*$")
     name: str = Field(min_length=1)
     description: str = ""
-    organisation_id: int | None = None
+    organisation_id: DbId | None = None
     permissions: list[str] = Field(default_factory=list)
     is_superuser: bool = False
 
@@ -102,8 +102,8 @@ class RoleAssign(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    role_id: int
-    organisation_id: int | None = None
+    role_id: DbId
+    organisation_id: DbId | None = None
 
 
 class AdminUserRead(BaseModel):
@@ -121,14 +121,7 @@ class AdminUserRead(BaseModel):
     # Le compte système des bénévoles ne porte aucun rôle (#1112).
     is_system_account: bool
     roles: list[RoleBrief]
-    created_at: datetime
-
-    @field_serializer("created_at")
-    def _serialize_utc(self, value: datetime) -> str:
-        """Suffixe `Z`, comme `SessionUserRead` : les colonnes sont des datetimes
-        **naïfs en UTC**, et un naïf sérialisé tel quel serait lu comme une heure
-        locale par le client."""
-        return f"{value.isoformat()}Z"
+    created_at: UtcDatetime
 
 
 class GroupRead(BaseModel):
@@ -148,11 +141,7 @@ class GroupRead(BaseModel):
     name: str
     description: str
     member_count: int
-    created_at: datetime
-
-    @field_serializer("created_at")
-    def _serialize_utc(self, value: datetime) -> str:
-        return f"{value.isoformat()}Z"
+    created_at: UtcDatetime
 
 
 class GroupMemberRead(BaseModel):
@@ -167,11 +156,7 @@ class GroupMemberRead(BaseModel):
     email: str
     display_name: str
     is_active: bool
-    joined_at: datetime
-
-    @field_serializer("joined_at")
-    def _serialize_utc(self, value: datetime) -> str:
-        return f"{value.isoformat()}Z"
+    joined_at: UtcDatetime
 
 
 class GroupDetailRead(GroupRead):
@@ -198,7 +183,7 @@ class GroupCreate(BaseModel):
     slug: str = Field(min_length=1, pattern=r"^[a-z][a-z0-9-]*$")
     name: str = Field(min_length=1)
     description: str = ""
-    organisation_id: int | None = None
+    organisation_id: DbId | None = None
 
 
 class GroupUpdate(BaseModel):
@@ -220,7 +205,7 @@ class GroupMemberAdd(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    user_id: int
+    user_id: DbId
 
 
 class AdminAthleteRead(BaseModel):
@@ -246,13 +231,13 @@ class AdminAthleteRead(BaseModel):
 class ParticipationReassign(BaseModel):
     """Le coureur vers qui déplacer un résultat."""
 
-    athlete_id: int
+    athlete_id: DbId
 
 
 class AthleteDetachRequest(BaseModel):
     """Les résultats d'une fiche à séparer vers une nouvelle fiche d'homonyme (#1209)."""
 
-    participation_ids: list[StrictInt] = Field(min_length=1, max_length=500)
+    participation_ids: list[StrictDbId] = Field(min_length=1, max_length=500)
 
 
 class AthleteAliasOut(BaseModel):
@@ -276,18 +261,18 @@ class TeammateRef(BaseModel):
     Champs d'entrée nommés comme ceux de `ParticipationCreate` (Principe I).
     """
 
-    athlete_id: int | None = None
+    athlete_id: DbId | None = None
     athlete_name: str | None = None
     athlete_firstname: str | None = None
 
     @model_validator(mode="after")
-    def _fiche_ou_nom(self) -> "TeammateRef":
-        nom = (self.athlete_name or "").strip()
-        prenom = (self.athlete_firstname or "").strip()
+    def _record_or_name(self) -> "TeammateRef":
+        name = (self.athlete_name or "").strip()
+        firstname = (self.athlete_firstname or "").strip()
         if self.athlete_id is not None:
-            if nom or prenom:
+            if name or firstname:
                 raise ValueError("Désignez un équipier par sa fiche ou par son nom, pas les deux.")
-        elif not (nom and prenom):
+        elif not (name and firstname):
             raise ValueError("Un équipier sans fiche demande un nom et un prénom.")
         return self
 
@@ -298,7 +283,7 @@ class TeammatesUpdate(BaseModel):
     teammates: list[TeammateRef] = Field(min_length=2, max_length=8)
 
     @model_validator(mode="after")
-    def _sans_doublon(self) -> "TeammatesUpdate":
+    def _no_duplicate(self) -> "TeammatesUpdate":
         ids = [ref.athlete_id for ref in self.teammates if ref.athlete_id is not None]
         if len(set(ids)) != len(ids):
             raise ValueError("Un même athlète figure deux fois dans l'équipe.")
@@ -320,7 +305,7 @@ class SeasonValidationOut(BaseModel):
     validated_at: datetime
 
 
-class _PatchNonVide(BaseModel):
+class _NonEmptyPatch(BaseModel):
     """Socle des corrections partielles : un corps sans aucun champ est un 422.
 
     Sans ce contrôle, `PATCH {}` répondrait 200 sans rien faire — une réussite
@@ -343,20 +328,20 @@ class _PatchNonVide(BaseModel):
     _NULLABLES: ClassVar[frozenset[str]] = frozenset()
 
     @model_validator(mode="after")
-    def _au_moins_un_champ(self):
+    def _at_least_one_field(self):
         if not self.model_fields_set:
             raise ValueError("Aucune modification demandée.")
         return self
 
     @model_validator(mode="after")
-    def _pas_de_null_sur_un_champ_obligatoire(self):
-        for champ in self.model_fields_set:
-            if champ not in self._NULLABLES and getattr(self, champ) is None:
-                raise ValueError(f"« {champ} » ne peut pas être vidé.")
+    def _no_null_on_required_field(self):
+        for field_name in self.model_fields_set:
+            if field_name not in self._NULLABLES and getattr(self, field_name) is None:
+                raise ValueError(f"« {field_name} » ne peut pas être vidé.")
         return self
 
 
-class AdminAthleteUpdate(_PatchNonVide):
+class AdminAthleteUpdate(_NonEmptyPatch):
     """Correction de la fiche d'un coureur — identité et club actuel (#117, #439).
 
     `nom`, `prenom` et `club` restent en français : gelés par un contrat public
@@ -378,7 +363,7 @@ class AdminAthleteUpdate(_PatchNonVide):
     club: str | None = Field(default=None, min_length=1)
 
 
-class AdminCourseUpdate(_PatchNonVide):
+class AdminCourseUpdate(_NonEmptyPatch):
     """Correction du libellé d'une épreuve (#117, FR-020).
 
     Exactement les quatre colonnes de `uq_course_identity` — les toucher, c'est
@@ -402,15 +387,15 @@ class AdminCourseUpdate(_PatchNonVide):
 
     @field_validator("event_type")
     @classmethod
-    def _slug_connu(cls, valeur: str | None) -> str | None:
+    def _known_slug(cls, value: str | None) -> str | None:
         from app.scrapers.classify import CANONICAL_TYPES
 
-        if valeur is not None and valeur not in CANONICAL_TYPES:
+        if value is not None and value not in CANONICAL_TYPES:
             raise ValueError(
                 f"Type d'épreuve inconnu. Valeurs acceptées : "
                 f"{', '.join(sorted(CANONICAL_TYPES))}."
             )
-        return valeur
+        return value
 
 
 class CourseDeletionImpact(BaseModel):
@@ -544,7 +529,7 @@ class CourseMergeRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    absorbed_id: StrictInt
+    absorbed_id: StrictDbId
 
 
 class CourseMergeResult(BaseModel):
@@ -600,6 +585,18 @@ class CourseReliabilityRead(BaseModel):
     quality_issues: dict | None
 
 
+class ProviderQualityOut(BaseModel):
+    """Une ligne du tableau fournisseur × anomalie (#1366)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    provider: str
+    course_count: int
+    unreliable_count: int
+    #: {code: nombre d'épreuves non fiables qui portent ce code}.
+    anomalies: dict[str, int]
+
+
 class AllowedEmailRead(BaseModel):
     """Une adresse autorisée à ouvrir une session (#170).
 
@@ -611,7 +608,7 @@ class AllowedEmailRead(BaseModel):
 
     id: int
     email: str
-    created_at: datetime
+    created_at: UtcDatetime
     created_by_name: str | None = None
     #: Le rôle que portera le compte **à sa création** (#239). `null` = aucun,
     #: qui reste le cas ordinaire. Objet et non identifiant : l'écran affiche un
@@ -625,10 +622,6 @@ class AllowedEmailRead(BaseModel):
     #: (FR-003), une adresse peut en porter plusieurs, et l'entrée ne désigne
     #: aucun titulaire — elle autorise, elle n'identifie pas.
     has_account: bool = False
-
-    @field_serializer("created_at")
-    def _serialize_utc(self, value: datetime) -> str:
-        return f"{value.isoformat()}Z"
 
 
 class AllowedEmailCreate(BaseModel):
@@ -652,10 +645,10 @@ class AllowedEmailCreate(BaseModel):
     #: rien donner reste le cas ordinaire. **`null` lève le rôle posé, le champ
     #: absent n'y touche pas** — le service distingue les deux.
     #:
-    #: `StrictInt` : en mode permissif, Pydantic coerce `true` en `1`, et le rôle
+    #: `StrictDbId` : en mode permissif, Pydantic coerce `true` en `1`, et le rôle
     #: `1` est celui que le semis pose — l'administrateur. Une case à cocher mal
     #: sérialisée garerait l'administration sur une adresse.
-    role_id: StrictInt | None = None
+    role_id: StrictDbId | None = None
 
 
 class SessionRevocation(BaseModel):
@@ -702,19 +695,12 @@ class AdminActionLogEntry(BaseModel):
     """
 
     id: int
-    created_at: datetime
+    created_at: UtcDatetime
     user_name: str
     action: str
     entity_type: str
     entity_id: int
     payload: dict | None = None
-
-    @field_serializer("created_at")
-    def _serialize_utc(self, value: datetime) -> str:
-        """Suffixe `Z`, comme `SessionUserRead` : les colonnes sont des datetimes
-        **naïfs en UTC**, et un naïf sérialisé tel quel serait lu comme une heure
-        locale par le client."""
-        return f"{value.isoformat()}Z"
 
 
 class AdminActionLogPage(BaseModel):
@@ -747,12 +733,14 @@ class SeasonQuota(BaseModel):
     has_volunteer_action: bool
     has_pending_volunteer_action: bool
     season_validated: bool
+    # Additif (#1542) : le barème lui-même, `core.season.season_quota_met`.
+    quota_met: bool
 
 
 class AthleteMergeRequest(BaseModel):
     """Fusion d'une fiche dans celle de l'URL (#908)."""
 
-    absorbed_id: StrictInt
+    absorbed_id: StrictDbId
 
 
 class AthleteMergeSide(BaseModel):

@@ -54,15 +54,15 @@ def create(
     return profile
 
 
-def update(db: Session, profile: PersonalProfile, **champs) -> PersonalProfile:
+def update(db: Session, profile: PersonalProfile, **fields) -> PersonalProfile:
     """Modifie uniquement les champs fournis — `None` n'efface rien ici.
 
     C'est au service de décider ce qui est « fourni » (patron `PATCH` partiel
     de `services/auth/groups.update_group`) ; ce repository applique tel quel
     ce qu'on lui passe.
     """
-    for champ, valeur in champs.items():
-        setattr(profile, champ, valeur)
+    for field, value in fields.items():
+        setattr(profile, field, value)
     db.flush()
     return profile
 

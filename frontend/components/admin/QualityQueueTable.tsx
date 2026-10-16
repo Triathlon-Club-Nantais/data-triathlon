@@ -45,6 +45,7 @@ import {
   type FiltresCourses,
 } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
+import { queryKeys } from "@/lib/queries/keys";
 import { formatDate } from "@/lib/utils/date";
 import { useRescrapeStream } from "@/hooks/useRescrapeStream";
 import type { CourseBrief } from "@/lib/types";
@@ -175,6 +176,8 @@ export function QualityQueueTable({
       // `quality_issues` : sans cette invalidation, la ligne reste dans la
       // file avec ses anciennes anomalies malgré le message.
       qc.invalidateQueries({ queryKey: ["admin-courses"] });
+      // Flux SSE, hors `useMutation` : la pastille du rail aussi (#1385).
+      qc.invalidateQueries({ queryKey: queryKeys.adminBadgeCounts() });
     } else if (rescrape.state.phase === "error" && rescrape.state.error) {
       toast.error(rescrape.state.error);
     }
@@ -541,6 +544,7 @@ function SourcesDepliees({ courseId }: { courseId: number }) {
       onUpdated={() => {
         qc.invalidateQueries({ queryKey: ["admin-courses"] });
         qc.invalidateQueries({ queryKey: ["course-sources", courseId] });
+        qc.invalidateQueries({ queryKey: queryKeys.adminBadgeCounts() });
       }}
     />
   );

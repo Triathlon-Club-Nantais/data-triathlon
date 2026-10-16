@@ -65,3 +65,11 @@ describe("AccessGate", () => {
     await waitFor(() => expect(bouton).not.toBeDisabled());
   });
 });
+
+describe("AccessGate, mobile gutter (#1564)", () => {
+  it("pads the container 16px on each side, within a 412px max width", () => {
+    const { container } = render(<AccessGate onSuccess={vi.fn()} />);
+
+    expect(container.firstChild).toHaveStyle({ maxWidth: "412px", paddingLeft: "16px", paddingRight: "16px" });
+  });
+});

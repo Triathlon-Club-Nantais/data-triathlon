@@ -636,7 +636,7 @@ def _parse_races(soup: BeautifulSoup, meta: EventMeta) -> list[RaceMeta]:
         races.append(RaceMeta(
             race_id=option["value"],
             label=label,
-            event_type=classify_event_type(label, contexte=meta.name),
+            event_type=classify_event_type(label, context=meta.name),
             is_relay=_is_relay(label),
         ))
     return races

@@ -516,7 +516,7 @@ def test_saison_compte_les_participations_de_l_athlete_sur_la_saison(db_session)
         db_session, seasons=[2025], club_only=False
     )
 
-    assert resultats == [(athlete, 2, 2, 2)]
+    assert resultats == [(athlete, 2, 2, 2, 2)]
 
 
 def test_saison_club_only_filtre_sur_le_club_de_lathlete_pas_de_la_participation(db_session):
@@ -571,8 +571,45 @@ def test_saison_trois_compteurs_distincts(db_session):
     )
 
     assert len(resultats) == 1
-    _, total, validees, affiliees_club = resultats[0]
+    _, total, validees, affiliees_club, _federales = resultats[0]
     assert (total, validees, affiliees_club) == (3, 2, 1)
+
+
+def test_saison_federal_validated_count_ignores_federal_only_and_counts_like_the_quota(db_session):
+    """#1542: the quota counter counts validated finishers in federal disciplines
+    only, whatever `federal_only` says. A trail, a validated DNS and a pending
+    result do not count."""
+    from app.repositories import course_repository, participation_repository
+
+    athlete = athlete_repository.get_or_create(db_session, nom="QUOTA", prenom="Q", club="TCN")
+    db_session.flush()
+    _inscrit_club(db_session, athlete, _epreuve_datee(db_session, "Tri A", date(2025, 9, 15)), "1")
+    _inscrit_club(db_session, athlete, _epreuve_datee(db_session, "Tri B", date(2025, 10, 15)), "2")
+    trail = course_repository.get_or_create(
+        db_session, name="Trail", event_date=date(2025, 11, 1), event_type="trail",
+        source_url="https://k/trail", provider="klikego",
+    )
+    db_session.flush()
+    _inscrit_club(db_session, athlete, trail, "3")
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, bib_number="4", status="DNS",
+        course_id=_epreuve_datee(db_session, "Tri DNS", date(2025, 12, 1)).id,
+    )
+    participation_repository.create(
+        db_session, athlete_id=athlete.id, bib_number="5", is_pending_validation=True,
+        course_id=_epreuve_datee(db_session, "Tri pending", date(2026, 1, 1)).id,
+    )
+    db_session.flush()
+
+    (_, total, validated, _, federal), = athlete_repository.list_with_season_participation_count(
+        db_session, seasons=[2025]
+    )
+    (_, _, validated_filtered, _, federal_filtered), = athlete_repository.list_with_season_participation_count(
+        db_session, seasons=[2025], federal_only=True
+    )
+
+    assert (total, validated, federal) == (5, 3, 2)
+    assert (validated_filtered, federal_filtered) == (2, 2)
 
 
 def test_saison_trie_par_nom_puis_prenom(db_session):
@@ -653,7 +690,7 @@ def test_saison_dns_valide_ne_compte_pas_dans_validees_ni_affiliees_club(db_sess
     )
 
     assert len(resultats) == 1
-    _, total, validees, affiliees_club = resultats[0]
+    _, total, validees, affiliees_club, _federales = resultats[0]
     assert (total, validees, affiliees_club) == (1, 0, 0)
 
 
@@ -1089,6 +1126,83 @@ def test_only_on_course_compte_un_equipier_de_relais(db_session):
     assert athlete_repository.only_on_course(db_session, course.id) == sorted([jean.id, paul.id])
 
 
+def _only_on_course_fixture(db_session):
+    """Every shape `only_on_course` must tell apart, keyed by the expected verdict."""
+    from app.models.volunteer_action import VolunteerAction
+
+    target = _course(db_session, "Target")
+    other = _course(db_session, "Other")
+    people = {
+        name: athlete_repository.get_or_create(db_session, nom=name, prenom="X")
+        for name in (
+            "SOLO", "TWICE", "SHARED", "LEADER", "MATE_SOLO_ELSEWHERE",
+            "SOLO_MATE_ELSEWHERE", "HOLDER_ONLY_ELSEWHERE", "HOLDER_ONLY_HERE",
+            "MATE_OF_UNCREDITED", "ONLY_ELSEWHERE", "VOLUNTEER", "STRANGER",
+        )
+    }
+    db_session.flush()
+    _part(db_session, people["SOLO"], target, "1")
+    _part(db_session, people["TWICE"], target, "2")
+    _part(db_session, people["TWICE"], target, "3")
+    _part(db_session, people["SHARED"], target, "4")
+    _part(db_session, people["SHARED"], other, "4")
+    relay_here = _part(db_session, people["LEADER"], target, "5", is_relay=True)
+    participation_repository.replace_teammates(
+        db_session, relay_here, [people["LEADER"].id, people["MATE_SOLO_ELSEWHERE"].id]
+    )
+    _part(db_session, people["MATE_SOLO_ELSEWHERE"], other, "5")
+    _part(db_session, people["SOLO_MATE_ELSEWHERE"], target, "6")
+    relay_elsewhere = _part(db_session, people["ONLY_ELSEWHERE"], other, "6", is_relay=True)
+    participation_repository.replace_teammates(
+        db_session, relay_elsewhere, [people["ONLY_ELSEWHERE"].id, people["SOLO_MATE_ELSEWHERE"].id]
+    )
+    # The holder of a composed relay is credited only if listed among the teammates.
+    _part(db_session, people["HOLDER_ONLY_ELSEWHERE"], target, "7")
+    uncredited_elsewhere = _part(
+        db_session, people["HOLDER_ONLY_ELSEWHERE"], other, "7b", is_relay=True
+    )
+    participation_repository.replace_teammates(
+        db_session, uncredited_elsewhere, [people["ONLY_ELSEWHERE"].id]
+    )
+    uncredited_here = _part(db_session, people["HOLDER_ONLY_HERE"], target, "8", is_relay=True)
+    participation_repository.replace_teammates(
+        db_session, uncredited_here, [people["MATE_OF_UNCREDITED"].id]
+    )
+    _part(db_session, people["VOLUNTEER"], target, "9")
+    db_session.add(VolunteerAction(athlete_id=people["VOLUNTEER"].id, season=2026))
+    db_session.flush()
+    return target, people
+
+
+def test_only_on_course_tells_every_credit_shape_apart(db_session):
+    target, people = _only_on_course_fixture(db_session)
+
+    expected = ["SOLO", "TWICE", "LEADER", "HOLDER_ONLY_ELSEWHERE", "MATE_OF_UNCREDITED"]
+    assert athlete_repository.only_on_course(db_session, target.id) == sorted(
+        people[name].id for name in expected
+    )
+
+
+def test_only_on_course_runs_a_single_query(db_session):
+    """#1581: the other courses' credits stay in the database."""
+    from sqlalchemy import event
+
+    target, _ = _only_on_course_fixture(db_session)
+    statements = []
+
+    def capture(conn, cursor, statement, parameters, context, executemany):
+        statements.append(statement)
+
+    engine = db_session.get_bind()
+    event.listen(engine, "after_cursor_execute", capture)
+    try:
+        athlete_repository.only_on_course(db_session, target.id)
+    finally:
+        event.remove(engine, "after_cursor_execute", capture)
+
+    assert len(statements) == 1, statements
+
+
 def test_club_roster_credite_chaque_equipier_d_un_relais(db_session):
     _relais_attribue(db_session)
     db_session.flush()
@@ -1430,3 +1544,36 @@ def test_club_roster_and_rank_list_a_licensed_member_whatever_the_record_club(db
     assert [a.nom for a, *_ in athlete_repository.club_roster(db_session)] == ["LICENCIE"]
     assert athlete_repository.club_rank(db_session, licensed.id) == (1, 1)
     assert athlete_repository.club_rank(db_session, outsider.id) is None
+
+
+def test_search_by_relevance_counts_a_relay_once_for_its_carrier(db_session):
+    _relais_attribue(db_session)
+    db_session.flush()
+
+    ((athlete, compte),) = athlete_repository.search_by_relevance(db_session, term="DUPONT")
+
+    assert (athlete.nom, compte) == ("DUPONT", 1)
+
+
+def test_search_by_relevance_counts_only_the_matched_athletes_participations(db_session):
+    """#1392: the count is correlated to each matched athlete, so PostgreSQL reads
+    their participations through the athlete_id indexes instead of materialising
+    every credit of the table."""
+    from sqlalchemy import event
+
+    statements = []
+    engine = db_session.get_bind()
+
+    def capture(conn, cursor, statement, *args):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", capture)
+    try:
+        athlete_repository.search_by_relevance(db_session, term="herr")
+    finally:
+        event.remove(engine, "before_cursor_execute", capture)
+
+    (sql,) = [s for s in statements if "participation_teammates" in s]
+    assert "participation_teammates.athlete_id = athletes.id" in sql, sql
+    assert "participations_1.athlete_id = athletes.id" in sql, sql
+    assert "participation_teammates, athletes" not in sql, sql

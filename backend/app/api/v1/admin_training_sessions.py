@@ -13,7 +13,9 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_permission
 from app.core.database import get_db
 from app.core.permissions import P
+from app.models.training_session import TrainingSession
 from app.models.user import User
+from app.schemas.ids import DbId
 from app.schemas.training_session import (
     ParticipantAdd,
     PresenceUpdate,
@@ -23,14 +25,25 @@ from app.schemas.training_session import (
     TrainingSessionUpdate,
 )
 from app.services import training_session_service
+from app.services.auth import authorization
 
 router = APIRouter(tags=["admin"])
+
+
+def _detail_for(db: Session, actor: User, training_session: TrainingSession) -> dict:
+    """Le détail rendu par une écriture : `jeunes:write` seul n'ouvre pas le
+    contact d'urgence, que seul `jeunes:read` laisse lire (#1405)."""
+    return training_session_service.training_session_detail_view(
+        db,
+        training_session,
+        with_emergency_contact=authorization.has_permission(db, actor, P.YOUTH_READ),
+    )
 
 
 @router.get("/admin/training-sessions", response_model=list[TrainingSessionRead])
 def list_training_sessions(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.JEUNES_READ)),
+    _: User = Depends(require_permission(P.YOUTH_READ)),
 ):
     """Les entraînements, triés par date puis heure de début."""
     return training_session_service.list_training_session_views(db)
@@ -40,13 +53,15 @@ def list_training_sessions(
     "/admin/training-sessions/{training_session_id}", response_model=TrainingSessionDetailRead
 )
 def get_training_session(
-    training_session_id: int,
+    training_session_id: DbId,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.JEUNES_READ)),
+    _: User = Depends(require_permission(P.YOUTH_READ)),
 ):
     """Un entraînement **et sa liste de participants inscrits**."""
     training_session = training_session_service.get_training_session_or_404(db, training_session_id)
-    return training_session_service.training_session_detail_view(db, training_session)
+    return training_session_service.training_session_detail_view(
+        db, training_session, with_emergency_contact=True
+    )
 
 
 @router.post(
@@ -55,7 +70,7 @@ def get_training_session(
 def create_training_session(
     body: TrainingSessionCreate,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     """Crée un entraînement ; les membres des groupes visés y sont inscrits d'office."""
     training_session = training_session_service.create_training_session(
@@ -67,7 +82,7 @@ def create_training_session(
         session_type=body.session_type,
         group_ids=body.group_ids,
     )
-    view = training_session_service.training_session_detail_view(db, training_session)
+    view = _detail_for(db, actor, training_session)
     db.commit()
     return view
 
@@ -76,42 +91,42 @@ def create_training_session(
     "/admin/training-sessions/{training_session_id}", response_model=TrainingSessionDetailRead
 )
 def update_training_session(
-    training_session_id: int,
+    training_session_id: DbId,
     body: TrainingSessionUpdate,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     """Corrige la date, l'heure, le lieu, le type ou la note. Seuls les
     champs fournis sont écrits."""
     training_session = training_session_service.get_training_session_or_404(db, training_session_id)
-    champs_fournis = body.model_dump(exclude_unset=True)
+    provided_fields = body.model_dump(exclude_unset=True)
     # `note` n'est pas nullable côté modèle : un `null` explicite (sans
     # objet réel — « pas de note » se dit `""`) est traité comme « champ
     # absent », jamais comme une tentative d'écrire `NULL` en base.
-    note_fournie = champs_fournis.get("note", ...)
-    if note_fournie is None:
-        note_fournie = ...
+    provided_note = provided_fields.get("note", ...)
+    if provided_note is None:
+        provided_note = ...
     training_session_service.update_training_session(
         db,
         actor,
         training_session,
-        date=champs_fournis.get("date"),
-        start_time=champs_fournis.get("start_time", ...),
-        location=champs_fournis.get("location", ...),
-        session_type=champs_fournis.get("session_type", ...),
-        note=note_fournie,
-        group_ids=champs_fournis.get("group_ids"),
+        date=provided_fields.get("date"),
+        start_time=provided_fields.get("start_time", ...),
+        location=provided_fields.get("location", ...),
+        session_type=provided_fields.get("session_type", ...),
+        note=provided_note,
+        group_ids=provided_fields.get("group_ids"),
     )
-    view = training_session_service.training_session_detail_view(db, training_session)
+    view = _detail_for(db, actor, training_session)
     db.commit()
     return view
 
 
 @router.delete("/admin/training-sessions/{training_session_id}", status_code=204)
 def delete_training_session(
-    training_session_id: int,
+    training_session_id: DbId,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     """Supprime une séance et ses inscriptions (#1290)."""
     training_session = training_session_service.get_training_session_or_404(db, training_session_id)
@@ -125,10 +140,10 @@ def delete_training_session(
     status_code=201,
 )
 def add_participant(
-    training_session_id: int,
+    training_session_id: DbId,
     body: ParticipantAdd,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     """Inscrit un jeune. **Idempotent** — réinscrire est un succès.
 
@@ -137,7 +152,7 @@ def add_participant(
     training_session_service.add_participant(
         db, actor, training_session, profile_id=body.profile_id, present=body.present
     )
-    view = training_session_service.training_session_detail_view(db, training_session)
+    view = _detail_for(db, actor, training_session)
     db.commit()
     return view
 
@@ -147,10 +162,10 @@ def add_participant(
     status_code=204,
 )
 def remove_participant(
-    training_session_id: int,
-    profile_id: int,
+    training_session_id: DbId,
+    profile_id: DbId,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     """Désinscrit un jeune. Idempotent — sans effet s'il n'était pas inscrit."""
     training_session = training_session_service.get_training_session_or_404(db, training_session_id)
@@ -163,11 +178,11 @@ def remove_participant(
     response_model=TrainingSessionDetailRead,
 )
 def set_presence(
-    training_session_id: int,
-    profile_id: int,
+    training_session_id: DbId,
+    profile_id: DbId,
     body: PresenceUpdate,
     db: Session = Depends(get_db),
-    actor: User = Depends(require_permission(P.JEUNES_WRITE)),
+    actor: User = Depends(require_permission(P.YOUTH_WRITE)),
 ):
     """Pointe un jeune déjà inscrit présent ou absent (#869, appel de début).
 
@@ -177,6 +192,6 @@ def set_presence(
     training_session_service.set_presence(
         db, actor, training_session, profile_id=profile_id, present=body.present
     )
-    view = training_session_service.training_session_detail_view(db, training_session)
+    view = _detail_for(db, actor, training_session)
     db.commit()
     return view

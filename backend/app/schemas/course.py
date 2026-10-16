@@ -61,6 +61,11 @@ class CourseBrief(BaseModel):
     # Indice de fiabilité calculé à l'import. `None` = course jamais évaluée.
     is_reliable: bool | None = None
     quality_issues: dict[str, int] | None = None
+    #: Météo du jour (#1370), Open-Meteo, écrite hors ligne par
+    #: `weather-courses`. `None` = pas encore servie.
+    weather_temperature_c: float | None = None
+    weather_wind_kmh: float | None = None
+    weather_precipitation_mm: float | None = None
 
 
 class EventOut(BaseModel):

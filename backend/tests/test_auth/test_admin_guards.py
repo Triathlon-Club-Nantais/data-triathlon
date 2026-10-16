@@ -91,32 +91,6 @@ def test_lister_les_signalements_avec_le_pouvoir_rend_la_liste(
     assert [ligne["url"] for ligne in reponse.json()] == [signalement.url]
 
 
-# --- GET /admin/pending-providers/count -------------------------------------
-
-
-def test_compter_les_signalements_sans_session_rend_401(client, signalement):
-    assert client.get("/api/v1/admin/pending-providers/count").status_code == 401
-
-
-def test_compter_les_signalements_sans_le_pouvoir_rend_403(
-    client, db_session, organisation, signalement
-):
-    connecte(client, db_session, organisation)
-
-    assert client.get("/api/v1/admin/pending-providers/count").status_code == 403
-
-
-def test_compter_les_signalements_avec_le_pouvoir_rend_le_total(
-    client, db_session, organisation, signalement
-):
-    connecte(client, db_session, organisation, P.PENDING_PROVIDERS_READ.code)
-
-    reponse = client.get("/api/v1/admin/pending-providers/count")
-
-    assert reponse.status_code == 200
-    assert reponse.json() == {"total": 1}
-
-
 # --- DELETE /admin/pending-providers/{id} ----------------------------------
 
 
@@ -286,3 +260,53 @@ def test_les_six_pages_publiques_ne_reclament_rien(client):
         "/api/v1/version",
     ):
         assert client.get(chemin).status_code not in (401, 403), chemin
+
+
+# --- GET /admin/quality/providers (#1366) ----------------------------------
+
+
+@pytest.fixture
+def epreuve_douteuse(db_session) -> Course:
+    from app.models.course_source import CourseSource
+
+    course = Course(
+        name="Épreuve douteuse", event_type="triathlon-m",
+        is_reliable_computed=False, quality_issues={"rank_gap": 2},
+    )
+    db_session.add(course)
+    db_session.flush()
+    db_session.add(
+        CourseSource(course_id=course.id, url="https://k/1", provider="klikego", is_active=True)
+    )
+    db_session.commit()
+    return course
+
+
+def test_provider_quality_without_session_returns_401(client, epreuve_douteuse):
+    assert client.get("/api/v1/admin/quality/providers").status_code == 401
+
+
+def test_provider_quality_without_the_permission_returns_403(
+    client, db_session, organisation, epreuve_douteuse
+):
+    connecte(client, db_session, organisation, P.ROLES_READ.code)
+
+    assert client.get("/api/v1/admin/quality/providers").status_code == 403
+
+
+def test_provider_quality_with_the_permission_returns_the_table(
+    client, db_session, organisation, epreuve_douteuse
+):
+    connecte(client, db_session, organisation, P.QUALITY_OVERRIDE.code)
+
+    reponse = client.get("/api/v1/admin/quality/providers")
+
+    assert reponse.status_code == 200
+    assert reponse.json() == [
+        {
+            "provider": "klikego",
+            "course_count": 1,
+            "unreliable_count": 1,
+            "anomalies": {"rank_gap": 1},
+        }
+    ]

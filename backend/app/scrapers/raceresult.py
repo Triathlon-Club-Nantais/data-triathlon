@@ -42,6 +42,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.core import http
+from app.core.text import strip_accents
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER, ScrapedResult
 from .classify import classify_event_type
@@ -55,7 +56,6 @@ from .utils import (
     normalize_time,
     qualify_event_name,
     split_athlete_name,
-    strip_accents,
 )
 
 logger = logging.getLogger(__name__)
@@ -99,10 +99,21 @@ def _resolve_event_id(url: str, client: httpx.Client) -> str:
 
     resp = client.get(url, headers=HEADERS)
     resp.raise_for_status()
-    for motif in (_RE_RRPUBLISH, _RE_LOGO):
-        trouve = motif.search(resp.text)
-        if trouve:
-            return trouve.group(1)
+    # La façade renvoie vers la liste des épreuves de son chronométreur (#1579) :
+    # le nombre de ce path est l'id du chronométreur, pas celui d'une épreuve.
+    final_host = resp.url.host.lower()
+    if (
+        final_host == "raceresult.com" or final_host.endswith(".raceresult.com")
+    ) and resp.url.path.startswith("/timers/"):
+        raise ValueError(
+            f"Le site du chronométreur renvoie vers RaceResult ({resp.url}) : "
+            "collez l'URL my.raceresult.com/<id>/ de l'épreuve plutôt que "
+            f"{url}"
+        )
+    for pattern in (_RE_RRPUBLISH, _RE_LOGO):
+        found = pattern.search(resp.text)
+        if found:
+            return found.group(1)
     raise ValueError(
         f"Identifiant d'épreuve RaceResult introuvable dans la page : {url}"
     )
@@ -121,7 +132,7 @@ def target_contest(url: str) -> str:
     if not (host == "raceresult.com" or host.endswith(".raceresult.com")):
         return ""
     contest = (parse_qs(parsed.query).get("contest") or [""])[0].strip()
-    return "" if _est_contest_zero(contest) else contest
+    return "" if _is_contest_zero(contest) else contest
 
 
 def _json_ld_event(html: str) -> dict:
@@ -131,17 +142,17 @@ def _json_ld_event(html: str) -> dict:
     balaie les trois formes plutôt que de parier sur une seule.
     """
     soup = BeautifulSoup(html, "lxml")
-    for balise in soup.find_all("script", type="application/ld+json"):
+    for tag in soup.find_all("script", type="application/ld+json"):
         try:
-            charge = json.loads(balise.string or "")
+            ld_data = json.loads(tag.string or "")
         except (ValueError, TypeError):
             continue
-        candidats = charge if isinstance(charge, list) else [charge]
-        if isinstance(charge, dict) and isinstance(charge.get("@graph"), list):
-            candidats = charge["@graph"]
-        for noeud in candidats:
-            if isinstance(noeud, dict) and noeud.get("@type") == "Event":
-                return noeud
+        candidates = ld_data if isinstance(ld_data, list) else [ld_data]
+        if isinstance(ld_data, dict) and isinstance(ld_data.get("@graph"), list):
+            candidates = ld_data["@graph"]
+        for node in candidates:
+            if isinstance(node, dict) and node.get("@type") == "Event":
+                return node
     return {}
 
 
@@ -162,21 +173,21 @@ def _fetch_meta(
         logger.warning("RaceResult %s : page /results illisible (%s)", event_id, exc)
         return "", None, ""
 
-    noeud = _json_ld_event(resp.text)
-    if not noeud:
+    node = _json_ld_event(resp.text)
+    if not node:
         return "", None, ""
 
-    jour = None
-    brut = str(noeud.get("startDate") or "")
-    if brut:
+    day = None
+    raw = str(node.get("startDate") or "")
+    if raw:
         try:
-            jour = date_t.fromisoformat(brut[:10])
+            day = date_t.fromisoformat(raw[:10])
         except ValueError:
-            logger.warning("RaceResult %s : startDate illisible (%r)", event_id, brut)
+            logger.warning("RaceResult %s : startDate illisible (%r)", event_id, raw)
 
-    adresse = (noeud.get("location") or {}).get("address") or {}
-    ville = str(adresse.get("addressLocality") or "")
-    return str(noeud.get("name") or ""), jour, ville
+    address = (node.get("location") or {}).get("address") or {}
+    city = str(address.get("addressLocality") or "")
+    return str(node.get("name") or ""), day, city
 
 
 def _fetch_config(event_id: str, client: httpx.Client) -> dict:
@@ -206,7 +217,7 @@ def _lists_or_raise(config: dict) -> list[dict]:
     return [item for item in lists if isinstance(item, dict) and item.get("Name")]
 
 
-def _dedup_ordonnee(specs: list[tuple[str, str]]) -> list[tuple[str, str]]:
+def _ordered_dedup(specs: list[tuple[str, str]]) -> list[tuple[str, str]]:
     """Retire les couples (listname, contest) répétés, en gardant le premier.
 
     `TabConfig.Lists` répète des couples identiques sur les données réelles —
@@ -219,13 +230,13 @@ def _dedup_ordonnee(specs: list[tuple[str, str]]) -> list[tuple[str, str]]:
     listes publiées n'en portent aucun sur le panel ; la garde y est défensive
     et symétrique.
     """
-    vus: set[tuple[str, str]] = set()
-    ordonnee: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    ordered: list[tuple[str, str]] = []
     for spec in specs:
-        if spec not in vus:
-            vus.add(spec)
-            ordonnee.append(spec)
-    return ordonnee
+        if spec not in seen:
+            seen.add(spec)
+            ordered.append(spec)
+    return ordered
 
 
 def _iter_list_specs(config: dict) -> list[tuple[str, str]]:
@@ -258,7 +269,7 @@ def _iter_list_specs(config: dict) -> list[tuple[str, str]]:
     Ce chiffre établit un **préalable** (réconcilier les libellés de contest),
     pas une impossibilité. La sélection n'a pas eu à bouger ici, le trou de
     temps de 406211 se réglant en amont dans `_role` (cf.
-    `_RE_TEMPS_RESULTAT_TEXTE`) ; une épreuve qui exigerait vraiment les listes
+    `_RE_FINISH_RESULT_TEXT`) ; une épreuve qui exigerait vraiment les listes
     `hidden` reste à instruire.
 
     Ne PAS revenir au critère `Live` : il avait été calibré sur une seule
@@ -266,9 +277,9 @@ def _iter_list_specs(config: dict) -> list[tuple[str, str]]:
     y compris les 3 vrais classements — le filtre y vide l'épreuve entière.
     `Format` ne discrimine pas davantage.
 
-    Les couples (Name, Contest) répétés sont dédupliqués (cf. `_dedup_ordonnee`).
+    Les couples (Name, Contest) répétés sont dédupliqués (cf. `_ordered_dedup`).
     """
-    return _dedup_ordonnee([
+    return _ordered_dedup([
         (str(item.get("Name")), str(item.get("Contest") or "0"))
         for item in _lists_or_raise(config)
         if item.get("Mode") != "hidden"
@@ -286,11 +297,11 @@ def _iter_hidden_list_specs(config: dict) -> list[tuple[str, str]]:
     redondant) se fait à l'exécution, par la valeur des cellules. Une liste sans
     apport reste inerte.
 
-    Les couples (Name, Contest) répétés sont dédupliqués (cf. `_dedup_ordonnee`) :
+    Les couples (Name, Contest) répétés sont dédupliqués (cf. `_ordered_dedup`) :
     RaceResult les répète (411749 : 4× le classement général) et chacun
     déclencherait un fetch redondant du même payload.
     """
-    return _dedup_ordonnee([
+    return _ordered_dedup([
         (str(item.get("Name")), str(item.get("Contest") or "0"))
         for item in _lists_or_raise(config)
         if item.get("Mode") == "hidden"
@@ -299,66 +310,66 @@ def _iter_hidden_list_specs(config: dict) -> list[tuple[str, str]]:
 
 # Enrobages d'affichage posés par RaceResult autour de l'expression réelle.
 # `OrStatus` est le nom anglais de `OuStatut` (#1094).
-_RE_ENROBAGE = re.compile(
+_RE_WRAPPER = re.compile(
     r"^(ucase|lcase|trim|format|OuStatut|OrStatus|Statut|iif|if|switch)\s*\(", re.IGNORECASE
 )
 # `choose(index;v1;v2;…)` : le premier terme sélectionne, il n'est pas la valeur
 # (`choose([STATUS]+1;[RANK1p];"a.k.";"DNF")`, #968).
 _RE_CHOOSE = re.compile(r"^choose\s*\(", re.IGNORECASE)
 # Terme purement littéral (`"#"` dans `"#"&[BIB]`) : décoration, pas la valeur.
-_RE_LITTERAL = re.compile(r'^"[^"]*"$')
+_RE_LITERAL = re.compile(r'^"[^"]*"$')
 # Expression réduite à un token simple : `Natation`, `[Vélo]`, `Transition1`.
 # Un point, une parenthèse ou un espace signalent une expression qualifiée
 # (`Natation.OVERALL.p`) ou calculée, jamais un segment de course.
-_RE_TOKEN_SIMPLE = re.compile(r"^[a-z0-9_]+$")
+_RE_SIMPLE_TOKEN = re.compile(r"^[a-z0-9_]+$")
 # Une durée : `19:46`, `1:05:07`, `20:27:34.12`. Sert à qualifier les **valeurs**
 # d'une colonne candidate au rôle de segment. `normalize_time` est permissif et
 # laisse passer `107` (un nombre de tours) ou `447.795` (des kilomètres) : sans
 # ce filtre, une colonne « Tours » ou « Distance » atterrissait dans `splits`.
-_RE_DUREE = re.compile(r"^\d{1,3}:\d{2}(:\d{2})?([.,]\d+)?$")
+_RE_DURATION = re.compile(r"^\d{1,3}:\d{2}(:\d{2})?([.,]\d+)?$")
 # Forme canonique rendue par `normalize_time` quand elle **reconnaît** une durée
 # (`HH:MM:SS`, heures sur 2 chiffres ou plus) ; elle rend son entrée inchangée
 # sinon. Tester la sortie contre ce motif est donc « `normalize_time` a reconnu
-# la valeur » — garde plus large que `_RE_DUREE`, qui rejette `1h23'45` alors
+# la valeur » — garde plus large que `_RE_DURATION`, qui rejette `1h23'45` alors
 # que `normalize_time` le lit. C'est la garde du rôle `temps` (issue #62), dont
 # une cellule peut porter un statut (`OuStatut([Temps])`) et non une durée.
-_RE_DUREE_NORMALISEE = re.compile(r"^\d{2,}:\d{2}:\d{2}$")
+_RE_NORMALIZED_DURATION = re.compile(r"^\d{2,}:\d{2}:\d{2}$")
 # `TIMEn` est un résultat quelconque (`TIME2` « Natation », `TIME19` « Tours ») :
 # il n'est le temps d'arrivée que si son libellé le dit (`TIME1` « Temps », 363395).
 _RE_TIME_N = re.compile(r"^time\d+$")
-_LIBELLES_TEMPS_ARRIVEE = frozenset({"temps", "temps total", "temps final", "time"})
+_FINISH_TIME_LABELS = frozenset({"temps", "temps total", "temps final", "time"})
 # Catégorie d'équipe des listes relais, portée par un champ générique `ATFn` que
 # seule son étiquette nomme (386706, sondé le 2026-09-28, #1117).
-_LIBELLES_CATEGORIE_EQUIPE = frozenset({"cat equipe", "cat équipe", "catégorie équipe"})
+_TEAM_CATEGORY_LABELS = frozenset({"cat equipe", "cat équipe", "catégorie équipe"})
 # Décorations de cellule : `[img:https://…]` en préfixe, `#` de `"#" & [BIB]`.
 _RE_IMG = re.compile(r"\[img:[^\]]*\]")
 # Un terme qui compare n'est pas la valeur affichée mais la condition qui la
 # choisit : `[STATUS]<>2`, `[SEX]="f"`, `[Relais]=1`.
-_RE_COMPARAISON = re.compile(r"(<>|>=|<=|=|<|>)")
+_RE_COMPARISON = re.compile(r"(<>|>=|<=|=|<|>)")
 
 
-def _split_profondeur(s: str, sep: str) -> list[str]:
+def _split_top_level(s: str, sep: str) -> list[str]:
     """Découpe `s` sur `sep`, en ignorant les séparateurs entre parenthèses.
 
     `if([Relais]=1;switch(a;b);[AfficherNom])` doit se couper en trois termes,
     pas en cinq : le `;` interne au `switch(...)` appartient à ce dernier. Une
     découpe naïve tronquait l'expression et faisait perdre la colonne.
     """
-    parties: list[str] = []
-    courant: list[str] = []
-    profondeur = 0
-    for car in s:
-        if car == "(":
-            profondeur += 1
-        elif car == ")":
-            profondeur -= 1
-        if car == sep and profondeur == 0:
-            parties.append("".join(courant))
-            courant = []
+    parts: list[str] = []
+    current: list[str] = []
+    depth = 0
+    for char in s:
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+        if char == sep and depth == 0:
+            parts.append("".join(current))
+            current = []
         else:
-            courant.append(car)
-    parties.append("".join(courant))
-    return parties
+            current.append(char)
+    parts.append("".join(current))
+    return parts
 
 
 # Borne de sécurité pour la boucle de point fixe de `_peel` : sur les formules
@@ -402,38 +413,38 @@ def _peel(expr: str) -> str:
     s = (expr or "").strip()
 
     for _ in range(_PEEL_MAX_ITERATIONS):
-        avant = s
+        before = s
 
         # 1. Concaténation : la valeur est portée par le premier terme non
         # littéral. `"#"&[BIB]` commence par une décoration ; retenir `"#"`
         # produisait une expression vide qui finissait classée en segment sous
         # son étiquette « N° ».
-        termes = [t.strip() for t in _split_profondeur(s, "&")]
-        if len(termes) > 1:
-            utiles = [t for t in termes if t and not _RE_LITTERAL.match(t)]
-            s = (utiles or termes)[0].strip()
+        terms = [t.strip() for t in _split_top_level(s, "&")]
+        if len(terms) > 1:
+            useful = [t for t in terms if t and not _RE_LITERAL.match(t)]
+            s = (useful or terms)[0].strip()
 
         # 2. Enrobages d'affichage, en pelures successives.
         while True:
-            trouve = _RE_ENROBAGE.match(s)
-            if not trouve or not s.endswith(")"):
+            found = _RE_WRAPPER.match(s)
+            if not found or not s.endswith(")"):
                 break
-            s = s[trouve.end():-1].strip()
+            s = s[found.end():-1].strip()
 
-        trouve = _RE_CHOOSE.match(s)
-        if trouve and s.endswith(")"):
-            choix = [t.strip() for t in _split_profondeur(s[trouve.end():-1], ";")[1:]]
-            utiles = [t for t in choix if t and not _RE_LITTERAL.match(t)]
-            if utiles:
-                s = utiles[0]
+        found = _RE_CHOOSE.match(s)
+        if found and s.endswith(")"):
+            choices = [t.strip() for t in _split_top_level(s[found.end():-1], ";")[1:]]
+            useful = [t for t in choices if t and not _RE_LITERAL.match(t)]
+            if useful:
+                s = useful[0]
 
         # 3. Conditionnelle : on écarte les termes qui comparent.
-        termes = [t.strip() for t in _split_profondeur(s, ";") if t.strip()]
-        if len(termes) > 1:
-            valeurs = [t for t in termes if not _RE_COMPARAISON.search(t)] or termes
-            s = max(valeurs, key=len).strip()
+        terms = [t.strip() for t in _split_top_level(s, ";") if t.strip()]
+        if len(terms) > 1:
+            values = [t for t in terms if not _RE_COMPARISON.search(t)] or terms
+            s = max(values, key=len).strip()
 
-        if s == avant:
+        if s == before:
             break
     else:
         # Point fixe non atteint en `_PEEL_MAX_ITERATIONS` tours : jamais vu en
@@ -481,7 +492,7 @@ _RE_LABEL_I18N = re.compile(r"^\{([^{}]*)\}$")
 # résiduel — une clé de langue à 3 lettres (ISO 639-2, `"{GER:…}"`) qui ne
 # serait pas dépelée — est une erreur **bruyante et réversible** (valeur brute
 # visible en UI), pas une amputation muette.
-_RE_VARIANTE_I18N = re.compile(r"^([A-Za-z]{2}):(.*)$", re.DOTALL)
+_RE_I18N_VARIANT = re.compile(r"^([A-Za-z]{2}):(.*)$", re.DOTALL)
 
 
 def _label_i18n(label: str) -> str:
@@ -510,24 +521,24 @@ def _label_i18n(label: str) -> str:
        intacte plutôt que réduite à `""` : vider une cellule en silence est le
        plus coûteux des résultats, puisque rien en aval ne peut le rattraper.
     """
-    trouve = _RE_LABEL_I18N.match(label)
-    if not trouve:
+    found = _RE_LABEL_I18N.match(label)
+    if not found:
         return label
 
-    variantes: dict[str, str] = {}
-    for partie in trouve.group(1).split("|"):
-        forme = _RE_VARIANTE_I18N.match(partie)
-        if not forme:
+    variants: dict[str, str] = {}
+    for part in found.group(1).split("|"):
+        variant = _RE_I18N_VARIANT.match(part)
+        if not variant:
             return label
-        variantes[forme.group(1).upper()] = forme.group(2)
+        variants[variant.group(1).upper()] = variant.group(2)
 
-    for cle in ("FR", "EN"):
-        if variantes.get(cle):
-            return variantes[cle]
-    return next((v for v in variantes.values() if v), label)
+    for lang in ("FR", "EN"):
+        if variants.get(lang):
+            return variants[lang]
+    return next((v for v in variants.values() if v), label)
 
 
-def _clean_cell(brut) -> str:
+def _clean_cell(raw) -> str:
     """Cellule débarrassée de ses décorations d'affichage.
 
     L'enrobage i18n `{EN:…|FR:…}` ne décore pas que les libellés de colonne : il
@@ -552,28 +563,28 @@ def _clean_cell(brut) -> str:
     panel : il ne protège que des formes non observées, ce qui est précisément
     son objet.
     """
-    if brut is None:
+    if raw is None:
         return ""
-    return _label_i18n(_RE_IMG.sub("", str(brut)).strip().lstrip("#").strip())
+    return _label_i18n(_RE_IMG.sub("", str(raw)).strip().lstrip("#").strip())
 
 
 # `"1.S4M"` — le rang colle le libellé, forme `#[Classement.p][AGEGROUP…]`.
-_RE_RANG_PREFIXE = re.compile(r"^(\d+)\.\s*(.*)$")
+_RE_RANK_PREFIX = re.compile(r"^(\d+)\.\s*(.*)$")
 # `"M0M (1.)"` — le rang suit entre parenthèses, forme `X & iif(…)`. Le point
 # final est facultatif ici : `sexe`/`categorie` sont des vocabulaires fermés
 # (`"M"`, `"S4M"`) où un suffixe `(44)` sans point ne peut pas survenir.
-_RE_RANG_SUFFIXE = re.compile(r"^(.*?)\s*\(\s*(\d+)\.?\s*\)$")
+_RE_RANK_SUFFIX = re.compile(r"^(.*?)\s*\(\s*(\d+)\.?\s*\)$")
 # Même forme, mais point final EXIGÉ : `nom`/`club`/`temps` sont du texte
 # libre saisi par les organisateurs, où une parenthèse finale sans point est
 # un contenu légitime (code départemental `"TRIATHLON CLUB NANTAIS (44)"`,
 # numéro d'équipe de relais `"TCN (1)"`) et non un rang collé. Seul le point,
 # marqueur de rang effectif de RaceResult (présent dans toutes les captures
 # réelles : `(1.)`, `(10.)`, `(5.)`), distingue les deux sans ambiguïté.
-_RE_RANG_SUFFIXE_STRICT = re.compile(r"^(.*?)\s*\(\s*(\d+)\.\s*\)$")
+_RE_STRICT_RANK_SUFFIX = re.compile(r"^(.*?)\s*\(\s*(\d+)\.\s*\)$")
 
 # Variante des catégories : un non-finisher y publie un rang vide ou négatif
 # (`"SEM ()"`, `"M4M (-1)"`, #991), décollé comme les autres.
-_RE_RANG_SUFFIXE_CATEGORIE = re.compile(r"^(.*?)\s*\(\s*(-?\d*)\.?\s*\)$")
+_RE_CATEGORY_RANK_SUFFIX = re.compile(r"^(.*?)\s*\(\s*(-?\d*)\.?\s*\)$")
 
 
 def _split_rank_category(cell: str) -> tuple[int | None, str]:
@@ -589,23 +600,23 @@ def _split_rank_category(cell: str) -> tuple[int | None, str]:
     # des listes relais vaut `1`, sans point (#1117).
     if cell.isdigit():
         return int(cell) or None, ""
-    trouve = _RE_RANG_PREFIXE.match(cell)
-    if trouve:
-        return int(trouve.group(1)), trouve.group(2).strip()
-    trouve = _RE_RANG_SUFFIXE_CATEGORIE.match(cell)
-    if trouve:
-        rang = int(trouve.group(2)) if trouve.group(2).isdigit() else None
-        return rang or None, trouve.group(1).strip()
+    found = _RE_RANK_PREFIX.match(cell)
+    if found:
+        return int(found.group(1)), found.group(2).strip()
+    found = _RE_CATEGORY_RANK_SUFFIX.match(cell)
+    if found:
+        rank = int(found.group(2)) if found.group(2).isdigit() else None
+        return rank or None, found.group(1).strip()
     return None, cell
 
 
-def _decoller_rang(valeur: str, motif: re.Pattern[str]) -> str:
-    """Retire le rang parenthésé reconnu par `motif`, ou rend `valeur` intacte."""
-    trouve = motif.match(valeur)
-    return trouve.group(1).strip() if trouve else valeur
+def _strip_rank(value: str, pattern: re.Pattern[str]) -> str:
+    """Retire le rang parenthésé reconnu par `pattern`, ou rend `value` intacte."""
+    found = pattern.match(value)
+    return found.group(1).strip() if found else value
 
 
-def _strip_rank_suffix(valeur: str) -> str:
+def _strip_rank_suffix(value: str) -> str:
     """Décolle un rang suffixé (`"2:08:00 (1.)"` → `"2:08:00"`) d'une cellule.
 
     Toute colonne issue d'une concaténation `[X] & " (" & [X.OVERALL.P] & ")"`
@@ -614,39 +625,39 @@ def _strip_rank_suffix(valeur: str) -> str:
     désormais converger vers ces rôles des expressions composées qui
     restaient opaques avant, sans garantie que leur valeur soit épargnée par
     le même motif de concaténation que les segments. Pour un segment,
-    `_RE_DUREE` rejette la cellule polluée et le split est perdu ; pour
+    `_RE_DURATION` rejette la cellule polluée et le split est perdu ; pour
     `total_time`, `normalize_time` est permissif et laisserait passer
     `"3:18:21 (5.)"` tel quel — d'où ce décollage systématique plutôt qu'un
-    relâchement de `normalize_time` ou de `_RE_DUREE`, tous deux proscrits.
+    relâchement de `normalize_time` ou de `_RE_DURATION`, tous deux proscrits.
 
-    Utilise `_RE_RANG_SUFFIXE_STRICT` (point final exigé), pas
-    `_RE_RANG_SUFFIXE` : `nom` et `club` sont du texte libre où une parenthèse
+    Utilise `_RE_STRICT_RANK_SUFFIX` (point final exigé), pas
+    `_RE_RANK_SUFFIX` : `nom` et `club` sont du texte libre où une parenthèse
     finale sans point est un contenu légitime (code départemental, numéro
     d'équipe de relais), à la différence de `sexe`/`categorie` (vocabulaire
     fermé, traités par `_split_rank_category`) où l'ambiguïté n'existe pas.
     Les cellules de segment relèvent, elles, de `_strip_rank_suffix_segment`.
     """
-    return _decoller_rang(valeur, _RE_RANG_SUFFIXE_STRICT)
+    return _strip_rank(value, _RE_STRICT_RANK_SUFFIX)
 
 
-def _strip_rank_suffix_segment(valeur: str) -> str:
+def _strip_rank_suffix_segment(value: str) -> str:
     """Variante permissive (point facultatif) pour les cellules de SEGMENT.
 
     RaceResult suffixe le rang intermédiaire aux seuls finishers et **sans
     point** (`iif([STATUS]=0 …;" (" & [InterSemi.OVERALL] & ")")`). La variante
-    stricte laisse alors passer `"2:05:29 (2)"`, que `_RE_DUREE` rejette
+    stricte laisse alors passer `"2:05:29 (2)"`, que `_RE_DURATION` rejette
     ensuite : le split du finisher est perdu, tandis qu'un non-finisher (durée
     nue) fuit — incohérence documentée en verrou C (issue #84, §4.2 du sondage).
 
     Le permissif est sûr *ici seulement* parce que le pipeline segment garde la
-    valeur décollée par `_RE_DUREE`. L'ambiguïté qui interdit le permissif sur
+    valeur décollée par `_RE_DURATION`. L'ambiguïté qui interdit le permissif sur
     `nom`/`club`/`temps` (§12.2 : `"TCN (1)"` fusionnerait deux équipes)
     n'existe pas pour une durée — `"TCN (1)"` décollé donne `"TCN"`, que
-    `_RE_DUREE` rejette. Aucune durée légitime ne finit par une parenthèse qui
+    `_RE_DURATION` rejette. Aucune durée légitime ne finit par une parenthèse qui
     ne soit pas un rang : stricte pour le texte libre, permissive pour les
     durées gardées.
     """
-    return _decoller_rang(valeur, _RE_RANG_SUFFIXE)
+    return _strip_rank(value, _RE_RANK_SUFFIX)
 
 
 # Vocabulaire temps franco-anglais (C4) : un préfixe d'arrivée
@@ -666,7 +677,7 @@ def _strip_rank_suffix_segment(valeur: str) -> str:
 # jamais été sous ces trois racines. Le rôle distinct `temps_texte` existe pour
 # qu'un `.TEXT` énuméré **avant** un `.CHIP` dans `Fields` ne squatte pas la
 # place du chip (`_map_columns` retient le premier champ qui revendique un rôle).
-_RE_TEMPS_SUFFIXE = re.compile(r"^(temps|arrivee|finish)\.(gun|chip|text)$")
+_RE_TIME_SUFFIX = re.compile(r"^(temps|arrivee|finish)\.(gun|chip|text)$")
 
 # `FinishResult.TEXT` (C1) — racine distincte, appariée à son **seul** suffixe.
 #
@@ -685,10 +696,10 @@ _RE_TEMPS_SUFFIXE = re.compile(r"^(temps|arrivee|finish)\.(gun|chip|text)$")
 # `finishresult` ne peut obtenir que `temps_texte`, le rôle le plus faible. Une
 # épreuve qui publierait un jour `FinishResult.GUN` verrait sa valeur partir en
 # `raw_data` : visible et récupérable, plutôt que promue en silence.
-_RE_TEMPS_RESULTAT_TEXTE = re.compile(r"^finishresult\.text$")
+_RE_FINISH_RESULT_TEXT = re.compile(r"^finishresult\.text$")
 
 # `<split>.AGEGROUP.P` / `.OVERALL.P` / `.GENDER.P` : rang d'un segment (#984).
-_RE_RANG_DE_SPLIT_QUALIFIE = re.compile(r"^[a-z0-9_]+\.(agegroup|overall|gender)\.p$")
+_RE_QUALIFIED_SPLIT_RANK = re.compile(r"^[a-z0-9_]+\.(agegroup|overall|gender)\.p$")
 
 
 def _role(peeled: str) -> str:
@@ -716,7 +727,7 @@ def _role(peeled: str) -> str:
     # `[Natation.AGEGROUP.P]` est le rang de catégorie d'un split : testé avant
     # la règle `agegroup`, qui en faisait la catégorie si la colonne précédait
     # la vraie (`_map_columns` retient le premier champ, #984).
-    if _RE_RANG_DE_SPLIT_QUALIFIE.match(peeled):
+    if _RE_QUALIFIED_SPLIT_RANK.match(peeled):
         return "rang_de_split"
     # `RANK1` seul, pas `RANKn` : sur 342814 et 386706, `RANK2`/`RANK3` sont
     # les rangs de sexe et de catégorie collés à leur cellule. Mesuré sur
@@ -743,8 +754,8 @@ def _role(peeled: str) -> str:
     if peeled.endswith(".p"):
         return "rang_de_split"  # colonne à écarter
     if any(
-        motif in peeled
-        for motif in ("affichernom", "nomrelais", "nomequipe", "lfname", "displayname")
+        pattern in peeled
+        for pattern in ("affichernom", "nomrelais", "nomequipe", "lfname", "displayname")
     ):
         return "nom"
     # Champs natifs du participant (342814, #897). Égalité stricte : `NomFamille2`
@@ -762,17 +773,17 @@ def _role(peeled: str) -> str:
         "tempscorrige", "tempsoustatut", "finish", "arrivee",
     ):
         return "temps"
-    # Priorité chip > gun > texte : cf. le commentaire de `_RE_TEMPS_SUFFIXE`.
+    # Priorité chip > gun > texte : cf. le commentaire de `_RE_TIME_SUFFIX`.
     # `_map_columns` résout le repli pistolet, `_build_result` le repli texte.
-    trouve = _RE_TEMPS_SUFFIXE.match(peeled)
-    if trouve:
-        suffixe = trouve.group(2)
-        if suffixe == "gun":
+    found = _RE_TIME_SUFFIX.match(peeled)
+    if found:
+        suffix = found.group(2)
+        if suffix == "gun":
             return "temps_pistolet"
-        if suffixe == "text":
+        if suffix == "text":
             return "temps_texte"
         return "temps"
-    if _RE_TEMPS_RESULTAT_TEXTE.match(peeled):
+    if _RE_FINISH_RESULT_TEXT.match(peeled):
         return "temps_texte"
     return ""
 
@@ -797,29 +808,29 @@ def _role(peeled: str) -> str:
 #     n'apparaît que dans `DataFields`, jamais dans `list.Fields` : elle n'est
 #     aujourd'hui candidate à rien. Entrée **défensive**.
 #   - `nation.iocname`, `icone("photos")` et `gaptimetop(…)` sont déjà écartées
-#     par la forme (`_RE_TOKEN_SIMPLE` refuse le point et la parenthèse).
+#     par la forme (`_RE_SIMPLE_TOKEN` refuse le point et la parenthèse).
 #     Entrées **défensives** elles aussi : elles nomment l'intention plutôt que
-#     de dépendre d'une propriété de `_RE_TOKEN_SIMPLE` qui pourrait bouger.
+#     de dépendre d'une propriété de `_RE_SIMPLE_TOKEN` qui pourrait bouger.
 #
 # Deux colonnes de même nature observées hors de cette liste —
 # `ChampionOrTeamJersey` et `TeamJersey`, des maillots en `[img:…]` sur 392745 —
 # restent candidates et neutralisées par leur seule valeur. Elles ne figurent
 # pas au §6 ; les ajouter ici serait un élargissement non instruit.
-_EXCLUSIONS_EXACTES = frozenset({"customflag", "lienphotos", "nation.iocname"})
-_EXCLUSIONS_PREFIXES = ("icone(", "gaptimetop(")
+_EXACT_EXCLUSIONS = frozenset({"customflag", "lienphotos", "nation.iocname"})
+_PREFIX_EXCLUSIONS = ("icone(", "gaptimetop(")
 
 
 # Une pénalité a la forme d'une durée mais n'est pas une portion du parcours :
 # stockée en split, elle devenait le seul « découpage » d'un athlète (Embrunman
 # 350635, `{EN:Pen.|…}`, #1118). Reconnue sur l'expression **ou** le libellé.
-_RE_PENALITE = re.compile(r"penal|^pen\.?$")
+_RE_PENALTY = re.compile(r"penal|^pen\.?$")
 
 
-def _est_penalite(peeled: str, label: str) -> bool:
-    return any(_RE_PENALITE.search(strip_accents(texte).lower()) for texte in (peeled, label))
+def _is_penalty(peeled: str, label: str) -> bool:
+    return any(_RE_PENALTY.search(strip_accents(text).lower()) for text in (peeled, label))
 
 
-def _colonne_exclue(peeled: str) -> bool:
+def _is_excluded_column(peeled: str) -> bool:
     """Vrai si l'expression pelée désigne une colonne d'agrément, jamais un segment.
 
     **Portée exacte** : cette garde n'est consultée que sur la branche « segment
@@ -836,7 +847,7 @@ def _colonne_exclue(peeled: str) -> bool:
     `Icone("photos")`), et `_peel` ne normalise pas les espaces — à traiter si
     une épreuve la produit un jour, plutôt qu'à deviner ici.
     """
-    return peeled in _EXCLUSIONS_EXACTES or peeled.startswith(_EXCLUSIONS_PREFIXES)
+    return peeled in _EXACT_EXCLUSIONS or peeled.startswith(_PREFIX_EXCLUSIONS)
 
 
 def _map_columns(
@@ -857,42 +868,42 @@ def _map_columns(
     entre crochets (`[Natation]`) et sans suffixe de rang est un **segment**,
     étiqueté par son `Label` (passé par `_label_i18n`), sauf si son expression
     figure dans la liste d'exclusion des colonnes d'agrément
-    (cf. `_colonne_exclue`). Tout le reste part en extras → `raw_data`, sous son
+    (cf. `_is_excluded_column`). Tout le reste part en extras → `raw_data`, sous son
     expression. Un segment candidat dont la cellule n'est pas une durée y rejoint
     aussi `raw_data`, mais sous son libellé (`_build_result`, #978).
 
     `Fields` vit sous `payload["list"]`.
     """
     data_fields = [str(e) for e in payload.get("DataFields") or []]
-    index_par_expr = {expr: i for i, expr in enumerate(data_fields)}
+    index_by_expr = {expr: i for i, expr in enumerate(data_fields)}
 
     roles: dict[str, int] = {}
     segments: list[tuple[str, int]] = []
     extras: dict[str, int] = {}
 
-    if "BIB" in index_par_expr:
-        roles["bib"] = index_par_expr["BIB"]
+    if "BIB" in index_by_expr:
+        roles["bib"] = index_by_expr["BIB"]
 
-    champs_liste = (payload.get("list") or {}).get("Fields")
-    for champ in champs_liste or []:
-        expr = str(champ.get("Expression") or "")
-        col = index_par_expr.get(expr)
+    list_fields = (payload.get("list") or {}).get("Fields")
+    for field in list_fields or []:
+        expr = str(field.get("Expression") or "")
+        col = index_by_expr.get(expr)
         if col is None:
             logger.debug("RaceResult : champ sans colonne de données (%r)", expr)
             continue
         peeled = _peel(expr)
-        label = _label_i18n(str(champ.get("Label") or "").strip())
+        label = _label_i18n(str(field.get("Label") or "").strip())
         role = _role(peeled)
-        if not role and label.lower() in _LIBELLES_CATEGORIE_EQUIPE:
+        if not role and label.lower() in _TEAM_CATEGORY_LABELS:
             role = "categorie"
         # Nom d'équipe porté par un attribut libre (`ATF5` « Nom Equipe »,
         # 342814) : l'expression ne dit rien, seul le libellé le nomme (#897).
-        if not role and label.lower() in _LIBELLES_NOM_EQUIPE:
+        if not role and label.lower() in _TEAM_NAME_LABELS:
             role = "nom_equipe"
         if (
             not role
             and _RE_TIME_N.match(peeled)
-            and label.lower() in _LIBELLES_TEMPS_ARRIVEE
+            and label.lower() in _FINISH_TIME_LABELS
         ):
             role = "temps"
         if role in ("rang_de_split", "dossard_affiche"):
@@ -904,13 +915,13 @@ def _map_columns(
         # Les crochets ne sont PAS exigés — certaines épreuves écrivent
         # `Natation` là où d'autres écrivent `[Natation]`, et l'exigence les
         # privait de tous leurs splits. La qualification finale se fait sur la
-        # forme des valeurs, ligne à ligne (cf. `_RE_DUREE`).
+        # forme des valeurs, ligne à ligne (cf. `_RE_DURATION`).
         if (
             not role
             and label
-            and not _colonne_exclue(peeled)
-            and not _est_penalite(peeled, label)
-            and _RE_TOKEN_SIMPLE.match(peeled)
+            and not _is_excluded_column(peeled)
+            and not _is_penalty(peeled, label)
+            and _RE_SIMPLE_TOKEN.match(peeled)
         ):
             segments.append((label, col))
         else:
@@ -937,27 +948,27 @@ def _map_columns(
     return roles, segments, extras
 
 
-_RE_PREFIXE_GROUPE = re.compile(r"^#\d+_")
+_RE_GROUP_PREFIX = re.compile(r"^#\d+_")
 
 
-def _strip_group_prefix(cle: str) -> str:
+def _strip_group_prefix(group_key: str) -> str:
     """Retire le préfixe d'ordonnancement d'une clé de groupe (`#1_Distance M`).
 
     Le numéro n'est qu'un rang d'affichage : il ne code ni le contest ni le
     statut. `#2_Abandons` et `#3_Non Partants` sur une épreuve, `#2_Non Partants`
     sur une autre — s'y fier ferait passer des non-partants pour des abandons.
     """
-    return _RE_PREFIXE_GROUPE.sub("", str(cle)).strip()
+    return _RE_GROUP_PREFIX.sub("", str(group_key)).strip()
 
 
 def _iter_groups(
     data,
     *,
     contest: str = "",
-    statut: str = "",
-    sexe: str = "",
-    profondeur: int = 0,
-    contests_connus: frozenset[str] = frozenset(),
+    status: str = "",
+    gender: str = "",
+    depth: int = 0,
+    known_contests: frozenset[str] = frozenset(),
 ) -> list[tuple[str, str, str, list]]:
     """[(libellé contest, libellé statut, libellé sexe, lignes), …] depuis `data`.
 
@@ -967,10 +978,10 @@ def _iter_groups(
 
     Le niveau 0 nomme le **contest** (`#1_Distance M`, qui recoupe exactement
     `config["contests"]`) — **sauf** s'il est en réalité un statut. Un groupe de
-    niveau 0 `#2_Abandons` produisait `contest="Abandons", statut=""`, perdant le
+    niveau 0 `#2_Abandons` produisait `contest="Abandons", status=""`, perdant le
     statut des abandons (issue #64). Un libellé de niveau 0 n'est donc reclassé
     en statut que s'il est reconnu par la table **fermée** de
-    `derive_status_from_label` **et** absent de `contests_connus` : ce croisement
+    `derive_status_from_label` **et** absent de `known_contests` : ce croisement
     lève le risque symétrique — un contest légitimement nommé d'après un jeton de
     statut figure dans `contests`, il reste un contest.
 
@@ -979,11 +990,11 @@ def _iter_groups(
     Le libellé n'est donc retenu comme statut que s'il est reconnu par la même
     table ; tout libellé inconnu est un groupement neutre qui laisse le statut
     hérité intact. Traiter l'inconnu comme un abandon marquerait DNF les 175
-    finishers de ce contest. Un libellé de sexe (`_sexe_du_groupe`) est, lui,
+    finishers de ce contest. Un libellé de sexe (`_group_gender`) est, lui,
     transmis à part : sans colonne sexe, c'est la seule trace du genre (#990).
     """
     if isinstance(data, list):
-        return [(contest, statut, sexe, data)] if data else []
+        return [(contest, status, gender, data)] if data else []
     if not isinstance(data, dict):
         if data is not None:
             logger.warning(
@@ -991,52 +1002,52 @@ def _iter_groups(
             )
         return []
 
-    groupes: list[tuple[str, str, str, list]] = []
-    for cle, contenu in data.items():
-        libelle = _strip_group_prefix(cle)
-        statut_reconnu = derive_status_from_label(libelle)
-        if profondeur == 0:
+    groups: list[tuple[str, str, str, list]] = []
+    for group_key, content in data.items():
+        label = _strip_group_prefix(group_key)
+        recognized_status = derive_status_from_label(label)
+        if depth == 0:
             # À la racine, un libellé reconnu comme statut et absent des contests
             # est un groupe de statut (`Abandons`), pas un contest : il porte le
             # statut et laisse le contest hérité (vide) intact.
-            if statut_reconnu and libelle.strip().lower() not in contests_connus:
+            if recognized_status and label.strip().lower() not in known_contests:
                 # On propage le libellé **brut** (comme à la profondeur ≥ 1) :
                 # `_build_result` re-dérive la constante STATUS_* en aval.
-                groupes += _iter_groups(
-                    contenu, contest=contest, statut=libelle, sexe=sexe,
-                    profondeur=1, contests_connus=contests_connus,
+                groups += _iter_groups(
+                    content, contest=contest, status=label, gender=gender,
+                    depth=1, known_contests=known_contests,
                 )
             else:
-                groupes += _iter_groups(
-                    contenu, contest=libelle, statut=statut, sexe=sexe,
-                    profondeur=1, contests_connus=contests_connus,
+                groups += _iter_groups(
+                    content, contest=label, status=status, gender=gender,
+                    depth=1, known_contests=known_contests,
                 )
         else:
-            reconnu = libelle if statut_reconnu else statut
-            sexe_reconnu = libelle if not statut_reconnu and _sexe_du_groupe(libelle) else sexe
-            groupes += _iter_groups(
-                contenu, contest=contest, statut=reconnu, sexe=sexe_reconnu,
-                profondeur=profondeur + 1, contests_connus=contests_connus,
+            inherited_status = label if recognized_status else status
+            inherited_gender = label if not recognized_status and _group_gender(label) else gender
+            groups += _iter_groups(
+                content, contest=contest, status=inherited_status, gender=inherited_gender,
+                depth=depth + 1, known_contests=known_contests,
             )
-    return groupes
+    return groups
 
 
 _NON_FINISHERS = (STATUS_DNF, STATUS_DNS, STATUS_DSQ)
 
-_GROUPES_MASCULINS = frozenset({"masculin", "masculins", "homme", "hommes", "men"})
-_GROUPES_FEMININS = frozenset({"feminin", "feminins", "femme", "femmes", "women", "dames"})
+_MALE_GROUPS = frozenset({"masculin", "masculins", "homme", "hommes", "men"})
+_FEMALE_GROUPS = frozenset({"feminin", "feminins", "femme", "femmes", "women", "dames"})
 # Relais, duo, équipe : un sexe de groupe ou de catégorie y décrit l'équipe.
-_RE_EPREUVE_EQUIPE = re.compile(r"\b(relais?|relay|[eé]quipes?|duo|team)\b", re.IGNORECASE)
+_RE_TEAM_EVENT = re.compile(r"\b(relais?|relay|[eé]quipes?|duo|team)\b", re.IGNORECASE)
 
 
-def _sexe_du_groupe(libelle: str) -> str:
+def _group_gender(label: str) -> str:
     """`"M"`, `"F"` ou `""` pour un libellé de groupe (`Féminin`, `Hommes`, `Cadets H`)."""
-    plie = strip_accents(libelle.strip().lower())
-    if plie in _GROUPES_MASCULINS:
+    folded = strip_accents(label.strip().lower())
+    if folded in _MALE_GROUPS:
         return "M"
-    if plie in _GROUPES_FEMININS:
+    if folded in _FEMALE_GROUPS:
         return "F"
-    return gender_from_category(libelle)
+    return gender_from_category(label)
 
 
 # ── Noms d'équipe : ne pas les découper en (nom, prénom) (issue #63) ─────────
@@ -1046,12 +1057,12 @@ def _sexe_du_groupe(libelle: str) -> str:
 # Associés »), il mutile l'identité. On ne le corrige pas là — d'autres scrapers
 # en dépendent, et des noms de personne portent `/` ou `-` — mais on garde son
 # appel dans `_build_result`, à partir de deux signaux propres à RaceResult.
-_CHAMPS_NOM_EQUIPE = ("nomrelais", "nomequipe", "affichernoms")
+_TEAM_NAME_FIELDS = ("nomrelais", "nomequipe", "affichernoms")
 #: Libellés d'une colonne d'attribut libre qui porte le nom d'équipe (#897).
-_LIBELLES_NOM_EQUIPE = frozenset({"nom equipe", "nom équipe"})
+_TEAM_NAME_LABELS = frozenset({"nom equipe", "nom équipe"})
 
 
-def _est_nom_equipe(nom_col_expr: str, valeur: str) -> bool:
+def _is_team_name(name_col_expr: str, value: str) -> bool:
     """Vrai si la cellule « nom » porte un nom d'équipe, à ne pas découper.
 
     Deux gardes :
@@ -1068,29 +1079,29 @@ def _est_nom_equipe(nom_col_expr: str, valeur: str) -> bool:
        `nomrelais` — traiter alors toute la colonne en équipe cesserait de
        découper ses individus. Ses lignes d'équipe retombent sur la garde 1.
     """
-    if "&" in valeur:
+    if "&" in value:
         return True
-    if ";" in nom_col_expr or _RE_COMPARAISON.search(nom_col_expr):
+    if ";" in name_col_expr or _RE_COMPARISON.search(name_col_expr):
         return False
-    return _peel(nom_col_expr) in _CHAMPS_NOM_EQUIPE
+    return _peel(name_col_expr) in _TEAM_NAME_FIELDS
 
 
-def _colonne_nom_conditionnelle_equipe(nom_col_expr: str) -> bool:
+def _is_conditional_team_name_column(name_col_expr: str) -> bool:
     """Colonne « nom » conditionnelle capable de rendre une équipe (angle mort #63).
 
     Une conditionnelle `if([Relais]=1;ucase([NomRelais]);[AfficherNom])` mêle
     équipes et individus : un nom d'équipe **sans `&`** y échappe aux deux gardes
-    de `_est_nom_equipe`. On ne peut pas le détecter ligne à ligne (le champ
+    de `_is_team_name`. On ne peut pas le détecter ligne à ligne (le champ
     `[Relais]` par ligne n'est pas exposé de façon fiable), mais on repère la
     colonne — conditionnelle **et** pelant vers un champ d'équipe — pour la
     signaler. `if([STATUS]<>2;[AfficherNom])` pèle vers `affichernom` → False.
     """
-    if ";" not in nom_col_expr and not _RE_COMPARAISON.search(nom_col_expr):
+    if ";" not in name_col_expr and not _RE_COMPARISON.search(name_col_expr):
         return False
-    return _peel(nom_col_expr) in _CHAMPS_NOM_EQUIPE
+    return _peel(name_col_expr) in _TEAM_NAME_FIELDS
 
 
-def _nom_expression(payload: dict, roles: dict[str, int]) -> str:
+def _name_expression(payload: dict, roles: dict[str, int]) -> str:
     """Expression source de la colonne ayant gagné le rôle « nom » (issue #63).
 
     `_map_columns` ne retient que l'index de colonne ; on re-dérive l'expression
@@ -1105,7 +1116,7 @@ def _nom_expression(payload: dict, roles: dict[str, int]) -> str:
 
 
 def _build_result(
-    ligne: list,
+    row: list,
     roles: dict[str, int],
     segments: list[tuple[str, int]],
     extras: dict[str, int],
@@ -1115,29 +1126,29 @@ def _build_result(
     event_date,
     contest_label: str,
     status_label: str,
-    nom_col_expr: str = "",
-    sexe_label: str = "",
-    deduire_genre: bool = True,
+    name_col_expr: str = "",
+    gender_label: str = "",
+    infer_gender: bool = True,
 ) -> ScrapedResult:
     """Construit un `ScrapedResult` depuis une ligne de données RaceResult."""
 
-    def cellule(role: str) -> str:
+    def cell(role: str) -> str:
         col = roles.get(role)
-        if col is None or col >= len(ligne):
+        if col is None or col >= len(row):
             return ""
-        return _clean_cell(ligne[col])
+        return _clean_cell(row[col])
 
     # Le libellé de contest porte le même enrobage i18n que les colonnes
     # (`{EN:Quart|FR:Quart}`, #1088).
     contest_label = _label_i18n(contest_label)
-    nom_qualifie = qualify_event_name(event_name, contest_label)
+    qualified_name = qualify_event_name(event_name, contest_label)
     r = ScrapedResult(
         source_url=source_url,
         provider="raceresult",
-        bib_number=cellule("bib"),
-        event_name=nom_qualifie,
+        bib_number=cell("bib"),
+        event_name=qualified_name,
         event_date=event_date,
-        event_type=classify_event_type(contest_label, contexte=event_name),
+        event_type=classify_event_type(contest_label, context=event_name),
     )
 
     # `nom`/`club`/`temps` peuvent désormais provenir d'une expression composée
@@ -1150,47 +1161,47 @@ def _build_result(
     # avec la regex permissive (vocabulaire fermé, pas d'ambiguïté possible).
     # Nom d'équipe (issue #63) : `split_athlete_name` le mutilerait
     # (« GUILLAUME & ANTHONY » → nom='GUILLAUME', prenom='& ANTHONY'). On garde
-    # alors la cellule entière comme `nom`, `prenom` vide. Cf. `_est_nom_equipe`.
-    nom_cell = _strip_rank_suffix(cellule("nom"))
-    equipe_cell = _strip_rank_suffix(cellule("nom_equipe"))
-    equipe = _est_nom_equipe(nom_col_expr, nom_cell)
-    if equipe:
-        nom, prenom = nom_cell, ""
-    elif nom_cell:
-        nom, prenom = split_athlete_name(nom_cell)
-    elif equipe_cell:
+    # alors la cellule entière comme `nom`, `prenom` vide. Cf. `_is_team_name`.
+    name_cell = _strip_rank_suffix(cell("nom"))
+    team_cell = _strip_rank_suffix(cell("nom_equipe"))
+    is_team = _is_team_name(name_col_expr, name_cell)
+    if is_team:
+        name, firstname = name_cell, ""
+    elif name_cell:
+        name, firstname = split_athlete_name(name_cell)
+    elif team_cell:
         # Sans colonne « nom » d'affichage (#897) : l'équipe d'un duo est son
         # identité, comme `NomEquipe` ; `LASTNAME`/`FIRSTNAME` n'y nomment que
         # le premier équipier.
-        nom, prenom = equipe_cell, ""
+        name, firstname = team_cell, ""
     else:
-        nom, prenom = cellule("nom_famille"), cellule("prenom")
-    r.athlete_name, r.athlete_firstname = nom, prenom
-    r.club = _strip_rank_suffix(cellule("club"))
+        name, firstname = cell("nom_famille"), cell("prenom")
+    r.athlete_name, r.athlete_firstname = name, firstname
+    r.club = _strip_rank_suffix(cell("club"))
     # `ucase([SEX]) & iif(…)` sérialise « M (1.) » : le rang de sexe voyage dans
     # la même cellule que le sexe et doit en être détaché.
-    r.rank_gender, r.gender = _split_rank_category(cellule("sexe"))
-    cellule_rang_sexe = cellule("rang_sexe")
-    r.rank_gender = r.rank_gender or normalize_rank(cellule_rang_sexe)
-    r.rank_category, r.category = _split_rank_category(cellule("categorie"))
+    r.rank_gender, r.gender = _split_rank_category(cell("sexe"))
+    gender_rank_cell = cell("rang_sexe")
+    r.rank_gender = r.rank_gender or normalize_rank(gender_rank_cell)
+    r.rank_category, r.category = _split_rank_category(cell("categorie"))
     if roles.get("rang_categorie") != roles.get("categorie"):
-        r.rank_category = r.rank_category or _split_rank_category(cellule("rang_categorie"))[0]
+        r.rank_category = r.rank_category or _split_rank_category(cell("rang_categorie"))[0]
     # Sans colonne sexe, la catégorie (`S1M`) puis le groupe (`#1_Féminin`)
     # portent le genre (#990) ; jamais pour une équipe. Une ligne `hidden` ne
     # connaît pas son contest (relais ou non) : elle ne déduit rien.
     if (
-        deduire_genre
+        infer_gender
         and not r.gender
-        and not equipe
-        and not _RE_EPREUVE_EQUIPE.search(contest_label)
+        and not is_team
+        and not _RE_TEAM_EVENT.search(contest_label)
     ):
-        r.gender = gender_from_category(r.category) or _sexe_du_groupe(sexe_label)
+        r.gender = gender_from_category(r.category) or _group_gender(gender_label)
     # `total_time` n'a aucun garde-fou de forme en aval : `normalize_time`
     # renvoie son entrée **telle quelle** quand elle ne la reconnaît pas, si
     # bien qu'un libellé partirait en base comme chrono.
     #
     # La colonne du rôle `temps` est **gardée par la reconnaissance de
-    # `normalize_time`**, non par `_RE_DUREE` : ce dernier est plus étroit (il
+    # `normalize_time`**, non par `_RE_DURATION` : ce dernier est plus étroit (il
     # rejette `1h23'45`, que `normalize_time` sait lire), donc l'employer ici
     # perdrait des formats légitimes rendus par une horloge `.chip`/`.gun`. Le
     # rôle `temps` est en effet plus large que ces horloges : la table
@@ -1204,7 +1215,7 @@ def _build_result(
     # La colonne `.text`, elle, rend le *texte affiché* : le chrono sur une
     # ligne terminée, mais `"DNF"`/`"DSQ"` sur un non-finisher. Elle n'est donc
     # retenue en repli que si sa valeur **est** une durée — même qualification
-    # `_RE_DUREE` que les segments plus bas, et pour la même raison : un
+    # `_RE_DURATION` que les segments plus bas, et pour la même raison : un
     # segment non reconnu et un temps d'arrivée non reconnu sont le même
     # signal. Sans cette garde, un `"DNF"` deviendrait un `total_time` et la
     # ligne serait ensuite marquée `finisher` par la clôture ci-dessous.
@@ -1214,111 +1225,111 @@ def _build_result(
     # colonne d'horloge existe et rend une cellule vide — que la résolution en
     # amont, dans `_map_columns`, abandonnait définitivement au profit d'une
     # colonne muette — et, depuis #62, la ligne dont la colonne `temps` rend un
-    # statut plutôt qu'une durée. Le repli restant borné par `_RE_DUREE`, il ne
+    # statut plutôt qu'une durée. Le repli restant borné par `_RE_DURATION`, il ne
     # peut injecter qu'une vraie durée, jamais un statut. Élargissement latéral
     # assumé, et inerte sur le panel : aucune épreuve n'y gagne ni n'y perd de temps.
-    temps = _strip_rank_suffix(cellule("temps"))
-    temps_masque = "_" in temps
-    if not _RE_DUREE_NORMALISEE.match(normalize_time(temps)):
-        temps = ""
-    if not temps:
-        candidat = _strip_rank_suffix(cellule("temps_texte"))
-        if _RE_DUREE.match(candidat):
-            temps = candidat
-    r.total_time = normalize_time(temps)
+    finish_time = _strip_rank_suffix(cell("temps"))
+    time_masked = "_" in finish_time
+    if not _RE_NORMALIZED_DURATION.match(normalize_time(finish_time)):
+        finish_time = ""
+    if not finish_time:
+        candidate = _strip_rank_suffix(cell("temps_texte"))
+        if _RE_DURATION.match(candidate):
+            finish_time = candidate
+    r.total_time = normalize_time(finish_time)
     r.is_relay = heat_is_relay(contest_label)
 
     # La cellule de rang porte le rang **ou** le statut (`OuStatut(…)`).
-    cellule_rang = cellule("rang")
-    r.rank_overall = normalize_rank(cellule_rang)
+    rank_cell = cell("rang")
+    r.rank_overall = normalize_rank(rank_cell)
 
     # Deux signaux concordants, le groupe primant sur la cellule : un groupe
     # « Abandons » qualifie toute la tranche, la cellule ne renseigne que les
     # payloads sans sous-groupe de statut.
     r.status = (
         derive_status_from_label(status_label)
-        or derive_status_from_label(cellule_rang)
-        or derive_status_from_label(cellule_rang_sexe)
+        or derive_status_from_label(rank_cell)
+        or derive_status_from_label(gender_rank_cell)
         or ""
     )
 
     # Une colonne candidate ne devient un segment que si sa valeur est bien une
     # durée : c'est ce qui écarte les colonnes « Tours » ou « Distance », dont
     # l'expression est un token simple indiscernable de celle d'un split. Le
-    # rang suffixé est décollé AVANT cette qualification (`_RE_DUREE` le
+    # rang suffixé est décollé AVANT cette qualification (`_RE_DURATION` le
     # rejetterait tel quel et ferait perdre le split entier), avec la variante
     # PERMISSIVE (`_strip_rank_suffix_segment`, point facultatif) : RaceResult
     # suffixe l'intermédiaire des finishers sans point (`"2:05:29 (2)"`) et
     # laisse la durée nue aux non-finishers — sans le permissif, seul le
     # non-finisher fuyait (verrou C, #84). Le permissif est sûr ici, car
-    # `_RE_DUREE` en aval rejette tout ce qui n'est pas une durée.
+    # `_RE_DURATION` en aval rejette tout ce qui n'est pas une durée.
     r.segments = [
-        (label, normalize_time(valeur))
+        (label, normalize_time(value))
         for label, col in segments
-        if col < len(ligne)
-        and (cellule_brute := _clean_cell(ligne[col]))
-        and (valeur := _strip_rank_suffix_segment(cellule_brute))
-        and _RE_DUREE.match(valeur)
+        if col < len(row)
+        and (raw_cell := _clean_cell(row[col]))
+        and (value := _strip_rank_suffix_segment(raw_cell))
+        and _RE_DURATION.match(value)
     ] or None
 
     r.raw_data = {
-        expr: _clean_cell(ligne[col]) for expr, col in extras.items() if col < len(ligne)
+        expr: _clean_cell(row[col]) for expr, col in extras.items() if col < len(row)
     }
     # Un segment candidat dont la cellule n'est pas une durée n'est pas un split :
     # sa valeur se garde sous son libellé, faute de quoi elle disparaissait sans
     # trace (#978).
     for label, col in segments:
-        cellule_brute = _clean_cell(ligne[col]) if col < len(ligne) else ""
-        if cellule_brute and not _RE_DUREE.match(_strip_rank_suffix_segment(cellule_brute)):
-            r.raw_data.setdefault(label, cellule_brute)
+        raw_cell = _clean_cell(row[col]) if col < len(row) else ""
+        if raw_cell and not _RE_DURATION.match(_strip_rank_suffix_segment(raw_cell)):
+            r.raw_data.setdefault(label, raw_cell)
 
     # Nettoyage systématique de la maison (cf. wiclax.py) : un non-finisher n'a
     # ni temps total ni rang, quoi qu'annonce le payload.
     if r.status in _NON_FINISHERS:
         r.total_time = ""
         r.rank_overall = r.rank_category = r.rank_gender = None
-    elif r.total_time or (r.rank_overall and temps_masque):
+    elif r.total_time or (r.rank_overall and time_masked):
         # Un rang sans statut est un classé quand son temps est masqué par `_`
         # (`'_2:30:14'`) : l'import en faisait un DNF classé (#1238). Le temps
-        # est reconstruit en fin de pipeline (`_fusionner_temps_masques`).
+        # est reconstruit en fin de pipeline (`_merge_masked`).
         r.status = r.status or "finisher"
 
     return r
 
 
-def _cellule_temps(ligne: list, roles: dict[str, int]) -> str:
+def _time_cell(row: list, roles: dict[str, int]) -> str:
     """Cellule brute du temps d'arrivée, rang suffixé décollé."""
     col = roles.get("temps")
-    if col is None or col >= len(ligne):
+    if col is None or col >= len(row):
         return ""
-    return _strip_rank_suffix(_clean_cell(ligne[col]))
+    return _strip_rank_suffix(_clean_cell(row[col]))
 
 
-def _cellule_nom(ligne: list, roles: dict[str, int]) -> tuple[str, str]:
+def _name_cell(row: list, roles: dict[str, int]) -> tuple[str, str]:
     """(rôle, cellule brute) du nom ou, à défaut, de l'équipe."""
     for role in ("nom", "nom_equipe"):
         col = roles.get(role)
-        if col is not None and col < len(ligne):
-            if valeur := _strip_rank_suffix(_clean_cell(ligne[col])):
-                return role, valeur
+        if col is not None and col < len(row):
+            if value := _strip_rank_suffix(_clean_cell(row[col])):
+                return role, value
     return "", ""
 
 
-def _cellule_club(ligne: list, roles: dict[str, int]) -> str:
+def _club_cell(row: list, roles: dict[str, int]) -> str:
     col = roles.get("club")
-    if col is None or col >= len(ligne):
+    if col is None or col >= len(row):
         return ""
-    return _strip_rank_suffix(_clean_cell(ligne[col]))
+    return _strip_rank_suffix(_clean_cell(row[col]))
 
 
-def _identite_de_cellule(cellule: str, role: str, nom_col_expr: str) -> tuple[str, str]:
+def _identity_from_cell(cell: str, role: str, name_col_expr: str) -> tuple[str, str]:
     """(nom, prénom) d'une cellule de nom, découpée comme dans `_build_result`."""
-    if role == "nom_equipe" or _est_nom_equipe(nom_col_expr, cellule):
-        return cellule, ""
-    return split_athlete_name(cellule)
+    if role == "nom_equipe" or _is_team_name(name_col_expr, cell):
+        return cell, ""
+    return split_athlete_name(cell)
 
 
-def _noms_masques_compatibles(a: str, b: str) -> bool:
+def _masked_names_compatible(a: str, b: str) -> bool:
     """Deux cellules de nom masquées par `_` désignent la même personne (#1238) :
     même longueur, et accord sur chaque caractère connu des deux côtés, casse et
     accents neutralisés. Une mise en forme différente (« NOM, Prénom » contre
@@ -1329,31 +1340,31 @@ def _noms_masques_compatibles(a: str, b: str) -> bool:
     )
 
 
-def _fusionner_masques(candidats: list[str]) -> str:
+def _merge_masked(candidates: list[str]) -> str:
     """Cellule reconstruite en croisant celles d'un même enregistrement (temps,
     nom ou club), `_` valant inconnu (#1238, #1239) ; `""` si un caractère reste
     inconnu, si deux cellules se contredisent ou n'ont pas la même longueur.
     L'accord se juge casse et accents neutralisés, comme
-    `_noms_masques_compatibles` ; le caractère retenu est celui de la première
+    `_masked_names_compatible` ; le caractère retenu est celui de la première
     cellule qui le connaît, la publiée passant en tête, et prend la casse du
     reste de son mot dans la publiée (`DU_ONT` + `Dupont` → `DUPONT`)."""
-    if len({len(c) for c in candidats}) != 1:
+    if len({len(c) for c in candidates}) != 1:
         return ""
-    fusion = []
-    for caracteres in zip(*candidats, strict=True):
-        connus = [c for c in caracteres if c != "_"]
-        if not connus or len({strip_accents(c).lower() for c in connus}) != 1:
+    merged = []
+    for chars in zip(*candidates, strict=True):
+        known = [c for c in chars if c != "_"]
+        if not known or len({strip_accents(c).lower() for c in known}) != 1:
             return ""
-        fusion.append(connus[0])
-    publie = candidats[0]
-    for mot in re.finditer(r"[^\s,]+", publie):
-        suite = [c for c in mot.group()[1:] if c.isalpha()]
-        for i in range(mot.start() + 1, mot.end()):
-            if publie[i] == "_" and suite and all(c.isupper() for c in suite):
-                fusion[i] = fusion[i].upper()
-            elif publie[i] == "_" and suite and all(c.islower() for c in suite):
-                fusion[i] = fusion[i].lower()
-    return "".join(fusion)
+        merged.append(known[0])
+    published = candidates[0]
+    for word in re.finditer(r"[^\s,]+", published):
+        rest = [c for c in word.group()[1:] if c.isalpha()]
+        for i in range(word.start() + 1, word.end()):
+            if published[i] == "_" and rest and all(c.isupper() for c in rest):
+                merged[i] = merged[i].upper()
+            elif published[i] == "_" and rest and all(c.islower() for c in rest):
+                merged[i] = merged[i].lower()
+    return "".join(merged)
 
 
 def _fetch_list(
@@ -1406,21 +1417,21 @@ def _richness(r: ScrapedResult) -> int:
     l'emporter sur une liste étroite et renseignée, sous peine d'effacer le club,
     qui est le critère d'attribution au club (TCN).
     """
-    champs = (
+    fields = (
         r.athlete_name, r.athlete_firstname, r.club, r.category, r.gender, r.total_time
     )
     return (
-        sum(1 for c in champs if c)
+        sum(1 for c in fields if c)
         + len(r.segments or [])
         + sum(1 for v in r.raw_data.values() if v)
     )
 
 
-def _contests_normalises(contests: dict) -> frozenset[str]:
+def _normalized_contests(contests: dict) -> frozenset[str]:
     """Valeurs de `contests` normalisées (`strip().lower()`) pour comparaison.
 
     Une seule normalisation partagée entre le croisement de niveau 0 de
-    `_iter_groups` (issue #64) et `_groupes_zero_fiables`, qui comparent tous
+    `_iter_groups` (issue #64) et `_zero_groups_reliable`, qui comparent tous
     deux un libellé de groupe aux contests déclarés.
     """
     return frozenset(
@@ -1428,7 +1439,7 @@ def _contests_normalises(contests: dict) -> frozenset[str]:
     )
 
 
-def _groupes_zero_fiables(labels: set[str], contests: dict) -> bool:
+def _zero_groups_reliable(labels: set[str], contests: dict) -> bool:
     """Les libellés de groupe des listes `Contest="0"` recoupent-ils `contests` ?
 
     `Contest="0"` signifie « toutes catégories » : la liste ne dit pas à quel
@@ -1465,11 +1476,11 @@ def _groupes_zero_fiables(labels: set[str], contests: dict) -> bool:
     """
     if not labels:
         return False
-    connus = _contests_normalises(contests)
-    return bool(connus) and all(lab.strip().lower() in connus for lab in labels)
+    known = _normalized_contests(contests)
+    return bool(known) and all(lab.strip().lower() in known for lab in labels)
 
 
-def _colonne_contest(payload: dict) -> int | None:
+def _contest_column(payload: dict) -> int | None:
     """Index de la colonne `CONTEST.NAME` dans `DataFields`, `None` si absente (#977)."""
     for i, expr in enumerate(payload.get("DataFields") or []):
         if _peel(str(expr)) == "contest.name":
@@ -1477,7 +1488,7 @@ def _colonne_contest(payload: dict) -> int | None:
     return None
 
 
-def _porte_un_classement(payload: dict) -> bool:
+def _has_ranking(payload: dict) -> bool:
     """Vrai si la liste expose un temps d'arrivée ou un rang général (#977).
 
     Écarte d'une épreuve mixte les listes `Contest="0"` d'un autre ordre, comme
@@ -1488,8 +1499,8 @@ def _porte_un_classement(payload: dict) -> bool:
     return bool({"temps", "temps_texte", "rang"} & roles.keys())
 
 
-def _prefer(nouveau: ScrapedResult, ancien: ScrapedResult) -> bool:
-    """Vrai si `nouveau` doit remplacer `ancien` dans la fusion par clé.
+def _prefer(candidate: ScrapedResult, previous: ScrapedResult) -> bool:
+    """Vrai si `candidate` doit remplacer `previous` dans la fusion par clé.
 
     Une même épreuve expose couramment plusieurs listes sur un même contest
     (6 listes sur le contest 1 de l'event 392745, 3 en `Contest="0"` sur 409130) :
@@ -1506,16 +1517,16 @@ def _prefer(nouveau: ScrapedResult, ancien: ScrapedResult) -> bool:
     richesse : une liste peut être plus large que le vrai classement (drapeau,
     écart au leader, colonnes non reconnues) tout en étant muette sur le temps.
     """
-    if nouveau.status in _NON_FINISHERS and not ancien.total_time:
+    if candidate.status in _NON_FINISHERS and not previous.total_time:
         return True
-    if ancien.status in _NON_FINISHERS and not nouveau.total_time:
+    if previous.status in _NON_FINISHERS and not candidate.total_time:
         return False
-    if bool(nouveau.total_time) != bool(ancien.total_time):
-        return bool(nouveau.total_time)
-    return _richness(nouveau) > _richness(ancien)
+    if bool(candidate.total_time) != bool(previous.total_time):
+        return bool(candidate.total_time)
+    return _richness(candidate) > _richness(previous)
 
 
-def _completer_rangs(garde: ScrapedResult, autre: ScrapedResult) -> None:
+def _fill_missing_ranks(kept: ScrapedResult, other: ScrapedResult) -> None:
     """Comble les rangs vides de la ligne retenue par la fusion avec ceux de
     l'autre liste du même contest (#984).
 
@@ -1524,30 +1535,30 @@ def _completer_rangs(garde: ScrapedResult, autre: ScrapedResult) -> None:
     était perdu. Rien n'est comblé pour un non-finisher, ni entre deux
     identités distinctes.
     """
-    if garde.status in _NON_FINISHERS or autre.status in _NON_FINISHERS:
+    if kept.status in _NON_FINISHERS or other.status in _NON_FINISHERS:
         return
-    if _identites_incompatibles(garde, autre):
+    if _identities_conflict(kept, other):
         return
-    for champ in ("rank_overall", "rank_gender", "rank_category"):
-        if getattr(garde, champ) is None and getattr(autre, champ) is not None:
-            setattr(garde, champ, getattr(autre, champ))
+    for field in ("rank_overall", "rank_gender", "rank_category"):
+        if getattr(kept, field) is None and getattr(other, field) is not None:
+            setattr(kept, field, getattr(other, field))
 
 
 # Champs scalaires qu'une ligne `hidden` peut combler côté publié (#60). Le
 # publié fait autorité : l'enrichissement ne remplit qu'un trou, jamais n'écrase.
 # Volontairement restreint — nom/prénom, rangs, statut et dossard n'y figurent
 # pas : ils sont l'identité et le classement établis par le publié.
-_CHAMPS_SCALAIRES_ENRICHISSABLES = ("total_time", "club", "category", "gender")
+_ENRICHABLE_SCALAR_FIELDS = ("total_time", "club", "category", "gender")
 
 
-def _enrichir(existant: ScrapedResult, apport: ScrapedResult) -> None:
-    """Complète `existant` (ligne publiée) avec une ligne `hidden` appariée par
-    dossard (#60). Mute `existant` en place ; comble les trous, n'écrase rien.
+def _enrich(existing: ScrapedResult, contribution: ScrapedResult) -> None:
+    """Complète `existing` (ligne publiée) avec une ligne `hidden` appariée par
+    dossard (#60). Mute `existing` en place ; comble les trous, n'écrase rien.
 
-    - **Splits** : pris seulement si `existant` n'en avait **aucun**. On ne
+    - **Splits** : pris seulement si `existing` n'en avait **aucun**. On ne
       fusionne pas deux listes partielles de segments (cas non observé au panel ;
       inférence évitée) — cf. §7 du design.
-    - **Scalaires** (`_CHAMPS_SCALAIRES_ENRICHISSABLES`) : remplis s'ils sont
+    - **Scalaires** (`_ENRICHABLE_SCALAR_FIELDS`) : remplis s'ils sont
       vides côté publié.
     - **Rien d'autre** : identité, rangs, dossard et event_* restent ceux du
       publié. Un enrichissement ne peut pas dégrader ce qui est déjà établi.
@@ -1563,38 +1574,38 @@ def _enrichir(existant: ScrapedResult, apport: ScrapedResult) -> None:
     - **Pas de `total_time` pour un non-finisher** (#970) : le `hidden` porte
       alors le cumul au point d'abandon, pas un temps d'arrivée.
     """
-    if not existant.segments and apport.segments:
-        existant.segments = apport.segments
-    for champ in _CHAMPS_SCALAIRES_ENRICHISSABLES:
-        if champ == "total_time" and existant.status in _NON_FINISHERS:
+    if not existing.segments and contribution.segments:
+        existing.segments = contribution.segments
+    for field in _ENRICHABLE_SCALAR_FIELDS:
+        if field == "total_time" and existing.status in _NON_FINISHERS:
             continue
-        if not getattr(existant, champ) and getattr(apport, champ):
-            setattr(existant, champ, getattr(apport, champ))
-    if not existant.status and existant.total_time:
-        existant.status = STATUS_FINISHER
+        if not getattr(existing, field) and getattr(contribution, field):
+            setattr(existing, field, getattr(contribution, field))
+    if not existing.status and existing.total_time:
+        existing.status = STATUS_FINISHER
     # La catégorie apportée par le `hidden` porte le genre (405215, #990) : la
     # déduction se fait ici, où l'on sait si la ligne publiée est une équipe.
     if (
-        not existant.gender
-        and not existant.is_relay
-        and not _RE_EPREUVE_EQUIPE.search(existant.event_name)
+        not existing.gender
+        and not existing.is_relay
+        and not _RE_TEAM_EVENT.search(existing.event_name)
     ):
-        existant.gender = gender_from_category(existant.category)
+        existing.gender = gender_from_category(existing.category)
 
 
-def _identite_pliee(r: ScrapedResult) -> tuple[str, str]:
+def _folded_identity(r: ScrapedResult) -> tuple[str, str]:
     """(nom, prénom) plié en minuscules et accents neutralisés, pour comparaison.
 
     Réutilise `strip_accents` afin qu'une divergence de seule casse ou de seul
     accent (« José » / « JOSE ») ne compte pas comme deux identités.
     """
-    def plie(s: str) -> str:
+    def fold(s: str) -> str:
         return strip_accents(s or "").strip().lower()
 
-    return plie(r.athlete_name), plie(r.athlete_firstname)
+    return fold(r.athlete_name), fold(r.athlete_firstname)
 
 
-def _identites_incompatibles(a: ScrapedResult, b: ScrapedResult) -> bool:
+def _identities_conflict(a: ScrapedResult, b: ScrapedResult) -> bool:
     """Vrai si `a` et `b` nomment deux athlètes **distincts**.
 
     Sert de garde à l'instrumentation de la collision de dossard du repli
@@ -1608,7 +1619,7 @@ def _identites_incompatibles(a: ScrapedResult, b: ScrapedResult) -> bool:
     Rend **False** dès qu'un côté est anonyme (nom et prénom vides) : c'est le cas
     nominal d'une fusion d'enrichissement, où une liste sans patronyme complète
     une liste qui en porte un. Alerter là serait du bruit. La comparaison est
-    tolérante à la casse et aux accents (cf. `_identite_pliee`).
+    tolérante à la casse et aux accents (cf. `_folded_identity`).
 
     Au-delà de la casse et des accents, une divergence de **tokenisation** entre
     deux listes (« Jean-Pierre » vs « Jean Pierre », ordre nom/prénom permuté par
@@ -1617,7 +1628,7 @@ def _identites_incompatibles(a: ScrapedResult, b: ScrapedResult) -> bool:
     `split_athlete_name` — et sans conséquence (on ne fait que loguer), une telle
     divergence mérite d'ailleurs d'être signalée. Garde volontairement stricte.
     """
-    ida, idb = _identite_pliee(a), _identite_pliee(b)
+    ida, idb = _folded_identity(a), _folded_identity(b)
     if not any(ida) or not any(idb):
         return False
     return ida != idb
@@ -1651,7 +1662,7 @@ def _sub_source_url(event_id: str, contest_id: str) -> str:
     return f"{_API_BASE}/{event_id}/results?contest={contest_id}"
 
 
-def _est_contest_zero(contest_id: str) -> bool:
+def _is_contest_zero(contest_id: str) -> bool:
     """`Contest="0"` désigne « toutes catégories » — pas une sous-unité cache-able.
 
     Réservé : jamais énuméré comme heat, jamais soumis à `cache_probe`. Toute
@@ -1698,7 +1709,7 @@ def scrape_event_fanout(
     `Contest="0"` (« toutes catégories ») est **exclu** du fan-out : ses listes
     sont scrapées sans clé de cache dédiée. Elles restent conservées dans la
     même fusion que les listes explicites (comportement historique de la voie
-    de repli `_groupes_zero_fiables`).
+    de repli `_zero_groups_reliable`).
 
     Retour : `(results, trace)`. `trace.heats_imported` reste à 0 —
     `import_dispatch.fanout_counters` le dérive.
@@ -1725,9 +1736,9 @@ def _run_pipeline(
         config = _fetch_config(event_id, client)
         key = str(config.get("key") or "")
         contests = config.get("contests") or {}
-        contests_connus = _contests_normalises(contests)
-        nom_meta, jour, _ville = _fetch_meta(event_id, client)
-        event_name = nom_meta or str(config.get("eventname") or "")
+        known_contests = _normalized_contests(contests)
+        meta_name, day, _city = _fetch_meta(event_id, client)
+        event_name = meta_name or str(config.get("eventname") or "")
 
         specs = _iter_list_specs(config)
 
@@ -1739,65 +1750,65 @@ def _run_pipeline(
             contests_specs.setdefault(contest, []).append((listname, contest))
 
         # Contests cache-ables (hors "0"), dans l'ordre d'apparition dans specs.
-        contests_ordonnes: list[str] = []
-        vus_c: set[str] = set()
+        ordered_contests: list[str] = []
+        seen_contests: set[str] = set()
         for _n, c in specs:
-            if not _est_contest_zero(c) and c not in vus_c:
-                vus_c.add(c)
-                contests_ordonnes.append(c)
+            if not _is_contest_zero(c) and c not in seen_contests:
+                seen_contests.add(c)
+                ordered_contests.append(c)
 
-        contests_explicites = set(contests_ordonnes)
-        cible = target_contest(url)
-        if cible:
-            if cible not in contests_explicites:
+        explicit_contests = set(ordered_contests)
+        target = target_contest(url)
+        if target:
+            if target not in explicit_contests:
                 raise ValueError(
-                    f"Épreuve RaceResult {event_id} : contest {cible} absent des "
+                    f"Épreuve RaceResult {event_id} : contest {target} absent des "
                     "listes publiées."
                 )
-            contests_ordonnes = [cible]
+            ordered_contests = [target]
 
-        trace.heats_enumerated = len(contests_ordonnes)
+        trace.heats_enumerated = len(ordered_contests)
 
         # Pré-filtre par cache_probe pour figer `total` à la seule liste des
         # contests réellement à scraper (miroir de klikego : la progression
         # notifiée ne saute pas d'indice sur un ré-import majoritairement caché).
-        contests_a_scraper: list[str] = []
-        contests_caches: set[str] = set()
-        for contest in contests_ordonnes:
+        contests_to_scrape: list[str] = []
+        cached_contests: set[str] = set()
+        for contest in ordered_contests:
             sub_url = _sub_source_url(event_id, contest)
             if cache_probe is not None and cache_probe(sub_url):
                 trace.heats_cached += 1
                 trace.cached_urls.append(sub_url)
-                contests_caches.add(contest)
+                cached_contests.add(contest)
                 continue
-            contests_a_scraper.append(contest)
+            contests_to_scrape.append(contest)
 
         # Clé de fusion (libellé de contest, dossard) : deux contests peuvent
         # porter le même dossard — c'est précisément le cas que la qualification
         # par contest règle (issue #21).
-        fusion: dict[tuple[str, str], ScrapedResult] = {}
+        merged: dict[tuple[str, str], ScrapedResult] = {}
         # Cellules brutes (temps, nom, club) par clé, matière de
-        # `_fusionner_masques` ; `nom_par_cle` retient la cellule de nom (rôle,
+        # `_merge_masked` ; `name_by_key` retient la cellule de nom (rôle,
         # expression) d'une ligne publiée masquée par `_` (#1238, #1239).
-        cellules_par_cle: dict[tuple[str, str], dict[str, list[str]]] = {}
-        nom_par_cle: dict[tuple[str, str], tuple[str, str, str]] = {}
+        cells_by_key: dict[tuple[str, str], dict[str, list[str]]] = {}
+        name_by_key: dict[tuple[str, str], tuple[str, str, str]] = {}
 
-        def _collecte(cle: tuple[str, str], ligne: list, roles: dict[str, int]) -> bool:
-            """Range les cellules masquables de `ligne` ; vrai si l'une porte `_`."""
-            cellules = {
-                "temps": _cellule_temps(ligne, roles),
-                "nom": _cellule_nom(ligne, roles)[1],
-                "club": _cellule_club(ligne, roles),
+        def _collect(merge_key: tuple[str, str], row: list, roles: dict[str, int]) -> bool:
+            """Range les cellules masquables de `row` ; vrai si l'une porte `_`."""
+            cells = {
+                "temps": _time_cell(row, roles),
+                "nom": _name_cell(row, roles)[1],
+                "club": _club_cell(row, roles),
             }
-            par_champ = cellules_par_cle.setdefault(cle, {c: [] for c in cellules})
-            for champ, valeur in cellules.items():
-                if valeur:
-                    par_champ[champ].append(valeur)
-            return any("_" in v for v in cellules.values())
+            by_field = cells_by_key.setdefault(merge_key, {c: [] for c in cells})
+            for field, value in cells.items():
+                if value:
+                    by_field[field].append(value)
+            return any("_" in v for v in cells.values())
 
         # Phase 1 : tout récupérer (mêmes requêtes, même ordre qu'avant) avant de
         # décider des libellés. La fiabilité du groupement `Contest="0"` est une
-        # propriété de l'épreuve entière (cf. `_groupes_zero_fiables`) : elle ne
+        # propriété de l'épreuve entière (cf. `_zero_groups_reliable`) : elle ne
         # peut pas être tranchée liste par liste.
         #
         # Fan-out (#217) — les listes d'un contest jugé frais par `cache_probe`
@@ -1810,29 +1821,29 @@ def _run_pipeline(
         # n'emporte pas les autres. Contest="0" reste hors du filet — c'est le
         # cas historique, à ne pas rendre isolé pour ne pas transformer une perte
         # d'événement entier en fan-out silencieux.
-        recuperees: list[tuple[str, dict, list]] = []
-        labels_zero: set[str] = set()
+        fetched: list[tuple[str, dict, list]] = []
+        zero_labels: set[str] = set()
 
         # Regroupe les listes publiées par contest, ordre d'apparition préservé.
-        specs_par_contest: dict[str, list[str]] = {}
+        listnames_by_contest: dict[str, list[str]] = {}
         for listname, contest in specs:
-            specs_par_contest.setdefault(contest, []).append(listname)
+            listnames_by_contest.setdefault(contest, []).append(listname)
 
         # Notification `on_heat_start` : total = nombre de sous-unités à scraper
         # (pas d'énumérées). Sur un ré-import majoritairement caché, la
         # progression ne saute pas d'indice.
-        total_a_scraper = len(contests_a_scraper)
+        total_to_scrape = len(contests_to_scrape)
 
-        def _traite_contest(contest: str) -> None:
-            """Fetch + enregistrement des payloads d'un contest, dans `recuperees`."""
-            for listname in specs_par_contest.get(contest, []):
+        def _process_contest(contest: str) -> None:
+            """Fetch + enregistrement des payloads d'un contest, dans `fetched`."""
+            for listname in listnames_by_contest.get(contest, []):
                 payload = _fetch_list(event_id, key, listname, contest, client)
                 if payload is None:
                     continue
                 if (
-                    _est_contest_zero(contest)
-                    and contests_explicites
-                    and not _porte_un_classement(payload)
+                    _is_contest_zero(contest)
+                    and explicit_contests
+                    and not _has_ranking(payload)
                 ):
                     logger.info(
                         "RaceResult %s : liste Contest=0 %r écartée, ni temps "
@@ -1840,20 +1851,20 @@ def _run_pipeline(
                         event_id, listname,
                     )
                     continue
-                groupes = _iter_groups(
-                    payload.get("data"), contests_connus=contests_connus
+                groups = _iter_groups(
+                    payload.get("data"), known_contests=known_contests
                 )
-                recuperees.append((contest, payload, groupes))
+                fetched.append((contest, payload, groups))
                 if contest == "0":
-                    labels_zero.update(cl for cl, _st, _sx, _lg in groupes)
+                    zero_labels.update(cl for cl, _st, _sx, _lg in groups)
 
         # 1a — Contests explicites à scraper, sous-unité par sous-unité.
-        for index, contest in enumerate(contests_a_scraper, start=1):
+        for index, contest in enumerate(contests_to_scrape, start=1):
             if on_heat_start is not None:
-                libelle_notif = str(contests.get(contest) or "") or f"Contest {contest}"
-                on_heat_start(contest, libelle_notif, index, total_a_scraper)
+                notify_label = str(contests.get(contest) or "") or f"Contest {contest}"
+                on_heat_start(contest, notify_label, index, total_to_scrape)
             try:
-                _traite_contest(contest)
+                _process_contest(contest)
             except Exception as exc:  # noqa: BLE001 — isolation par sous-unité
                 logger.warning(
                     "RaceResult %s : contest %s en échec — %s",
@@ -1862,28 +1873,28 @@ def _run_pipeline(
                 trace.failures.append({"heat_slug": contest, "reason": str(exc)})
 
         # 1b — Contest="0" : hors fan-out, traversé sans isolation ni cache_probe.
-        if "0" in specs_par_contest:
-            _traite_contest("0")
+        if "0" in listnames_by_contest:
+            _process_contest("0")
 
-        fiable_zero = _groupes_zero_fiables(labels_zero, contests)
-        id_par_libelle: dict[str, str] = {}
-        for cid, lib in contests.items():
-            id_par_libelle.setdefault(str(lib).strip().lower(), str(cid))
+        zero_reliable = _zero_groups_reliable(zero_labels, contests)
+        id_by_label: dict[str, str] = {}
+        for cid, contest_name in contests.items():
+            id_by_label.setdefault(str(contest_name).strip().lower(), str(cid))
 
         # Phase 2 : qualifier et fusionner.
-        for contest, payload, groupes in recuperees:
+        for contest, payload, groups in fetched:
             roles, segments, extras = _map_columns(payload)
-            nom_col_expr = _nom_expression(payload, roles)
-            if _colonne_nom_conditionnelle_equipe(nom_col_expr):
+            name_col_expr = _name_expression(payload, roles)
+            if _is_conditional_team_name_column(name_col_expr):
                 logger.warning(
                     "RaceResult %s : colonne nom conditionnelle (%r) mêlant "
                     "équipes et individus — un nom d'équipe sans '&' peut être "
                     "découpé sans trace (angle mort #63)",
-                    event_id, nom_col_expr,
+                    event_id, name_col_expr,
                 )
-            col_contest = _colonne_contest(payload)
-            lignes_sans_contest = 0
-            for contest_label, status_label, sexe_label, lignes in groupes:
+            col_contest = _contest_column(payload)
+            rows_without_contest = 0
+            for contest_label, status_label, gender_label, rows in groups:
                 # Le contest est **explicite** dans `TabConfig.Lists` (§3 du
                 # sondage) : quand il est renseigné, il fait autorité et le
                 # libellé de groupe n'est pas consulté. Ce libellé n'est en effet
@@ -1909,61 +1920,61 @@ def _run_pipeline(
                 # créait une `Course` au nom d'épreuve nu où chaque participant
                 # d'un contest explicite était importé une seconde fois.
                 if contest != "0":
-                    contest_groupe: str | None = contest
-                elif fiable_zero:
-                    contest_groupe = id_par_libelle.get(contest_label.strip().lower(), "")
-                elif contests_explicites:
-                    contest_groupe = None
+                    group_contest: str | None = contest
+                elif zero_reliable:
+                    group_contest = id_by_label.get(contest_label.strip().lower(), "")
+                elif explicit_contests:
+                    group_contest = None
                 else:
-                    contest_groupe = ""
-                for ligne in lignes:
-                    contest_ligne = contest_groupe
-                    if contest_ligne is None:
-                        valeur = (
-                            _clean_cell(ligne[col_contest])
-                            if col_contest is not None and col_contest < len(ligne)
+                    group_contest = ""
+                for row in rows:
+                    row_contest = group_contest
+                    if row_contest is None:
+                        value = (
+                            _clean_cell(row[col_contest])
+                            if col_contest is not None and col_contest < len(row)
                             else ""
                         )
-                        contest_ligne = id_par_libelle.get(valeur.strip().lower(), "")
-                        if not contest_ligne:
-                            lignes_sans_contest += 1
+                        row_contest = id_by_label.get(value.strip().lower(), "")
+                        if not row_contest:
+                            rows_without_contest += 1
                             continue
                     # Une ligne `Contest="0"` rattachée à un contest ciblé
                     # ailleurs ou jugé frais n'a rien à faire ici (#989).
-                    if cible and contest_ligne != cible:
+                    if target and row_contest != target:
                         continue
-                    if contest_ligne in contests_caches:
+                    if row_contest in cached_contests:
                         continue
-                    libelle = (
-                        str(contests.get(contest_ligne) or "") or f"Contest {contest_ligne}"
-                        if contest_ligne else ""
+                    label = (
+                        str(contests.get(row_contest) or "") or f"Contest {row_contest}"
+                        if row_contest else ""
                     )
                     # Sous-URL du contest de la ligne, fan-out ou non : clé de
                     # cache TTL (#217) et `Course.source_url`. L'URL soumise,
                     # posée sur tous les contests, devenait la source passive de
                     # chacun (#989). Un contest sans liste explicite reste sur
                     # l'URL d'événement : il n'a pas de sous-unité propre.
-                    if contest_ligne in contests_explicites:
-                        source_url_ligne = _sub_source_url(event_id, contest_ligne)
+                    if row_contest in explicit_contests:
+                        row_source_url = _sub_source_url(event_id, row_contest)
                     else:
-                        source_url_ligne = url
+                        row_source_url = url
                     r = _build_result(
-                        ligne, roles, segments, extras,
-                        source_url=source_url_ligne,
+                        row, roles, segments, extras,
+                        source_url=row_source_url,
                         event_name=event_name,
-                        event_date=jour,
-                        contest_label=libelle,
+                        event_date=day,
+                        contest_label=label,
                         status_label=status_label,
-                        nom_col_expr=nom_col_expr,
-                        sexe_label=sexe_label,
+                        name_col_expr=name_col_expr,
+                        gender_label=gender_label,
                     )
                     if not r.bib_number:
                         continue
-                    cle = (libelle, r.bib_number)
-                    if _collecte(cle, ligne, roles):
-                        role, nom_brut = _cellule_nom(ligne, roles)
-                        nom_par_cle[cle] = (nom_brut, role, nom_col_expr)
-                    ancien = fusion.get(cle)
+                    merge_key = (label, r.bib_number)
+                    if _collect(merge_key, row, roles):
+                        role, raw_name = _name_cell(row, roles)
+                        name_by_key[merge_key] = (raw_name, role, name_col_expr)
+                    previous = merged.get(merge_key)
                     # §13.19 (issue #65) : sur le repli `Contest="0"` non
                     # corroboré, toutes les lignes partagent le qualifiant vide.
                     # Deux personnes distinctes au même dossard s'y écrasent alors
@@ -1971,27 +1982,27 @@ def _run_pipeline(
                     # sondage établit que le compromis est le bon — mais on rend
                     # la collision **bruyante** : muette sur tout le panel réel,
                     # elle ne se déclenche que sur une forme non observée.
-                    if ancien is not None and _identites_incompatibles(r, ancien):
+                    if previous is not None and _identities_conflict(r, previous):
                         logger.warning(
                             "RaceResult %s : dossard %s en collision sous le "
                             "qualifiant %r — deux identités distinctes "
                             "(%s %s / %s %s), une sera écrasée sans trace "
                             "(cf. #65 §13.19)",
-                            event_id, r.bib_number, libelle or "(aucun)",
-                            ancien.athlete_name, ancien.athlete_firstname,
+                            event_id, r.bib_number, label or "(aucun)",
+                            previous.athlete_name, previous.athlete_firstname,
                             r.athlete_name, r.athlete_firstname,
                         )
-                    if ancien is None:
-                        fusion[cle] = r
+                    if previous is None:
+                        merged[merge_key] = r
                     else:
-                        garde, autre = (r, ancien) if _prefer(r, ancien) else (ancien, r)
-                        _completer_rangs(garde, autre)
-                        fusion[cle] = garde
-            if lignes_sans_contest:
+                        kept, other = (r, previous) if _prefer(r, previous) else (previous, r)
+                        _fill_missing_ranks(kept, other)
+                        merged[merge_key] = kept
+            if rows_without_contest:
                 logger.warning(
                     "RaceResult %s : %d ligne(s) Contest=0 sans contest connu "
                     "ignorée(s), épreuve à contests explicites (#977)",
-                    event_id, lignes_sans_contest,
+                    event_id, rows_without_contest,
                 )
 
         # Phase 3 : enrichissement par les listes `hidden` (#60).
@@ -2003,11 +2014,11 @@ def _run_pipeline(
         # transmis (§4.2 du design) : il qualifie la ligne dans `_build_result`,
         # ce qui vide le `total_time` d'un non-finisher. Sans cela, une durée
         # intermédiaire nue (verrou C : RaceResult n'appose son suffixe de rang
-        # qu'aux finishers) serait promue `finisher` puis propagée à `_enrichir`
+        # qu'aux finishers) serait promue `finisher` puis propagée à `_enrich`
         # comme un faux temps d'arrivée sur le publié.
-        cles_par_dossard: dict[str, list[tuple[str, str]]] = {}
-        for cle in fusion:
-            cles_par_dossard.setdefault(cle[1], []).append(cle)
+        keys_by_bib: dict[str, list[tuple[str, str]]] = {}
+        for merge_key in merged:
+            keys_by_bib.setdefault(merge_key[1], []).append(merge_key)
 
         for listname, contest in _iter_hidden_list_specs(config):
             # Fan-out (#217) — les listes `hidden` restent liées à leur contest
@@ -2015,14 +2026,14 @@ def _run_pipeline(
             # ses listes `hidden` sautées aussi. Cette symétrie est indispensable
             # à la cohérence de l'enrichissement : les `hidden` n'apportent que
             # si les publiées ont peuplé la fusion pour le même contest.
-            if contest in contests_caches:
+            if contest in cached_contests:
                 continue
-            if cible and contest != cible and not _est_contest_zero(contest):
+            if target and contest != target and not _is_contest_zero(contest):
                 continue
             try:
                 payload = _fetch_list(event_id, key, listname, contest, client)
             except Exception as exc:  # noqa: BLE001 — même filet fan-out
-                if not _est_contest_zero(contest):
+                if not _is_contest_zero(contest):
                     logger.warning(
                         "RaceResult %s : liste hidden %r (contest %s) en échec — %s",
                         event_id, listname, contest, exc,
@@ -2035,51 +2046,51 @@ def _run_pipeline(
             if payload is None:
                 continue
             roles, segments, extras = _map_columns(payload)
-            nom_col_expr = _nom_expression(payload, roles)
-            for _contest_label, status_label, _sexe_label, lignes in _iter_groups(
-                payload.get("data"), contests_connus=contests_connus
+            name_col_expr = _name_expression(payload, roles)
+            for _contest_label, status_label, _gender_label, rows in _iter_groups(
+                payload.get("data"), known_contests=known_contests
             ):
-                for ligne in lignes:
-                    # `source_url` d'un apport n'est jamais recopiée (`_enrichir`).
-                    apport = _build_result(
-                        ligne, roles, segments, extras,
+                for row in rows:
+                    # `source_url` d'un apport n'est jamais recopiée (`_enrich`).
+                    contribution = _build_result(
+                        row, roles, segments, extras,
                         source_url=url,
                         event_name=event_name,
-                        event_date=jour,
+                        event_date=day,
                         contest_label="",
                         status_label=status_label,
-                        nom_col_expr=nom_col_expr,
-                        deduire_genre=False,
+                        name_col_expr=name_col_expr,
+                        infer_gender=False,
                     )
-                    if not apport.bib_number:
+                    if not contribution.bib_number:
                         continue
-                    cles = cles_par_dossard.get(apport.bib_number)
-                    if not cles:
+                    merge_keys = keys_by_bib.get(contribution.bib_number)
+                    if not merge_keys:
                         logger.debug(
                             "RaceResult %s : dossard hidden %s absent des listes "
                             "publiées, ignoré (jamais de participant fantôme, #60)",
-                            event_id, apport.bib_number,
+                            event_id, contribution.bib_number,
                         )
                         continue
-                    if len(cles) > 1:
+                    if len(merge_keys) > 1:
                         logger.warning(
                             "RaceResult %s : dossard %s ambigu (contests %s) — "
                             "enrichissement hidden ignoré, jointure non résoluble "
                             "(verrou #21, #60)",
-                            event_id, apport.bib_number, [c[0] for c in cles],
+                            event_id, contribution.bib_number, [c[0] for c in merge_keys],
                         )
                         continue
-                    publie = fusion[cles[0]]
+                    published = merged[merge_keys[0]]
                     # Le masque frappe aussi le nom, que la garde d'identité
                     # rejetterait : pour un enregistrement déjà masqué au publié,
                     # elle cède à une comparaison des noms bruts, `_` valant
                     # joker, et la ligne alimente le croisement des cellules.
-                    masque_compatible = cles[0] in nom_par_cle and _noms_masques_compatibles(
-                        nom_par_cle[cles[0]][0], _cellule_nom(ligne, roles)[1]
+                    mask_compatible = merge_keys[0] in name_by_key and _masked_names_compatible(
+                        name_by_key[merge_keys[0]][0], _name_cell(row, roles)[1]
                     )
-                    if masque_compatible:
-                        _collecte(cles[0], ligne, roles)
-                    elif _identites_incompatibles(apport, publie):
+                    if mask_compatible:
+                        _collect(merge_keys[0], row, roles)
+                    elif _identities_conflict(contribution, published):
                         logger.warning(
                             "RaceResult %s : dossard %s — identité divergente "
                             "entre le hidden (%s %s) et le publié (%s %s) : "
@@ -2087,50 +2098,50 @@ def _run_pipeline(
                             "publié, la garde d'ambiguïté ne le voit pas — "
                             "enrichissement refusé faute de jointure fiable "
                             "(cf. #60, symétrie avec la garde #65)",
-                            event_id, apport.bib_number,
-                            apport.athlete_name, apport.athlete_firstname,
-                            publie.athlete_name, publie.athlete_firstname,
+                            event_id, contribution.bib_number,
+                            contribution.athlete_name, contribution.athlete_firstname,
+                            published.athlete_name, published.athlete_firstname,
                         )
                         continue
-                    _enrichir(publie, apport)
+                    _enrich(published, contribution)
 
-        for cle, cellules in cellules_par_cle.items():
-            r = fusion[cle]
-            temps = cellules["temps"]
+        for merge_key, cells in cells_by_key.items():
+            r = merged[merge_key]
+            time_cells = cells["temps"]
             if (
                 not r.total_time
                 and r.status == STATUS_FINISHER
-                and any("_" in t for t in temps)
+                and any("_" in t for t in time_cells)
             ):
-                temps = normalize_time(_fusionner_masques(temps))
-                if _RE_DUREE_NORMALISEE.match(temps):
-                    r.total_time = temps
+                finish_time = normalize_time(_merge_masked(time_cells))
+                if _RE_NORMALIZED_DURATION.match(finish_time):
+                    r.total_time = finish_time
             # Un nom masqué irréductible est vidé : `_anonymise_identities` lui
             # pose une identité synthétique plutôt qu'une fausse fiche (#1239).
             if "_" in r.athlete_name + r.athlete_firstname:
-                nom = _fusionner_masques(cellules["nom"])
-                _brut, role, nom_col_expr = nom_par_cle.get(cle, ("", "", ""))
+                name = _merge_masked(cells["nom"])
+                _raw_name, role, name_col_expr = name_by_key.get(merge_key, ("", "", ""))
                 r.athlete_name, r.athlete_firstname = (
-                    _identite_de_cellule(nom, role, nom_col_expr)
-                    if nom and role else ("", "")
+                    _identity_from_cell(name, role, name_col_expr)
+                    if name and role else ("", "")
                 )
             # Un club identique dans plusieurs listes porte un vrai `_` : le
             # masque change de positions d'une liste à l'autre.
-            clubs = cellules["club"]
+            clubs = cells["club"]
             if "_" in r.club and not (len(clubs) > 1 and len(set(clubs)) == 1):
-                r.club = _fusionner_masques(clubs)
+                r.club = _merge_masked(clubs)
 
     # Fan-out : un événement dont **tous** les contests sont cachés (ou dont le
     # seul contenu à scraper l'est) renvoie légitimement une fusion vide — la
     # trace y témoigne du travail sauté. On n'échoue que si **rien** n'a été ni
     # scrapé ni caché : c'est l'ancien contrat de `scrape_event_all`.
-    if not fusion and not trace.cached_urls and not trace.failures:
-        essayees = ", ".join(nom for nom, _ in specs) or "aucune liste publiée"
+    if not merged and not trace.cached_urls and not trace.failures:
+        tried = ", ".join(name for name, _ in specs) or "aucune liste publiée"
         raise ValueError(
             f"Épreuve RaceResult {event_id} : aucune liste exploitable "
-            f"(listes essayées : {essayees})."
+            f"(listes essayées : {tried})."
         )
-    results = list(fusion.values())
+    results = list(merged.values())
     _anonymise_identities(results, event_id=event_id)
     return results, trace
 

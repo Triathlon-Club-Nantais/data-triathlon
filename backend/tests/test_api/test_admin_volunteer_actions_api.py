@@ -278,10 +278,10 @@ def test_count_pending_declarations(client, db_session):
     _declaration(db_session)
     _declaration(db_session, status="validee")
 
-    assert client.get(f"{_URL}/pending/count").json() == {"total": 1}
+    assert client.get("/api/v1/admin/badge-counts").json()["volunteer"] == 1
 
 
-def test_counting_without_the_power_returns_403(client, db_session):
+def test_the_badge_needs_the_power(client, db_session):
     _session_etroite(client, db_session)
 
-    assert client.get(f"{_URL}/pending/count").status_code == 403
+    assert "volunteer" not in client.get("/api/v1/admin/badge-counts").json()

@@ -57,7 +57,7 @@ const DETAIL_AVEC_PARTICIPANT: TrainingSessionDetail = {
   group_ids: [],
   recurrence_id: null,
   detached: false,
-  participants: [{ profile_id: 42, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" }],
+  participants: [{ profile_id: 42, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null }],
 };
 
 const DETAIL_VIDE: TrainingSessionDetail = { ...DETAIL_AVEC_PARTICIPANT, participant_count: 0, participants: [] };

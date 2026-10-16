@@ -15,3 +15,8 @@ export function secondsFromHms(value: string | null | undefined): number | null 
 
   return hh * 3600 + mm * 60 + ss;
 }
+
+/** Secondes d'un temps à comparer : 0 s vaut temps absent, comme `_MISSING_TIME` côté backend. */
+export function comparableSeconds(value: string | null | undefined): number | null {
+  return secondsFromHms(value) || null;
+}

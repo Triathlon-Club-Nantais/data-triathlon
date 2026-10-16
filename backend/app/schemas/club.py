@@ -41,6 +41,15 @@ class ClubPodiums(BaseModel):
     all: list[ClubPodiumEntry]
 
 
+class ClubPodiumTotals(BaseModel):
+    """Taille de chaque mode de `ClubPodiums`, aperçu ou non (#1354)."""
+
+    scratch: int
+    category: int
+    gender: int
+    all: int
+
+
 class DisciplinePodiumCounts(BaseModel):
     """Décompte de podiums d'une discipline, ventilé par mode de rang (#642)."""
 
@@ -57,11 +66,25 @@ class ClubComposition(BaseModel):
     category: dict[str, int]
 
 
+class ClubLicensees(BaseModel):
+    """Licenciés de la saison en cours, et ceux qui ont couru au moins une fois (#1441)."""
+
+    season: int
+    total: int
+    raced: int
+
+
 class ClubSummary(BaseModel):
     roster: list[ClubRosterEntry]
     podiums: ClubPodiums
+    # Additif (#1354) : sous `?podiums=preview`, `podiums` est tronqué et ces
+    # totaux disent ce que la liste complète (`GET /club/podiums`) contient.
+    podiums_totals: ClubPodiumTotals
     podiums_by_discipline: dict[str, DisciplinePodiumCounts]
     composition: ClubComposition
+    # Additif (#1441) : `None` quand la saison en cours n'a aucun licencié.
+    # Insensible à `federal_only` : une licence n'a pas de discipline.
+    licensees: ClubLicensees | None = None
 
 
 class ClubRosterRank(BaseModel):

@@ -97,3 +97,40 @@ def test_a_rescraped_relay_with_an_opposed_member_stays_anonymous(db_session, op
     relais = db_session.query(Participation).filter_by(bib_number="51").one()
     assert relais.athlete.nom.startswith("Anonyme ") and not relais.raw_data
     assert _sans_dupont(db_session)
+
+
+def test_a_relay_whose_team_name_names_an_opposed_member_arrives_anonymous(db_session, opposition):
+    """#1506 : le nom d'équipe est un libellé publié, la même règle que le nom de la ligne s'y applique."""
+    import_persistence.persist_results(
+        db_session, URL,
+        [_ligne("52", "MARTIN", "Alix", is_relay=True, team_name="DUPONT Jean-Pierre / MARTIN Alix")],
+    )
+
+    relais = db_session.query(Participation).one()
+    assert relais.athlete.nom.startswith("Anonyme ")
+    assert not relais.team_name
+    assert _sans_dupont(db_session)
+
+
+def test_a_label_naming_an_opposed_person_arrives_anonymous_even_off_relay(db_session, opposition):
+    """#1506 : la règle porte sur ce que le libellé publie, que la ligne soit typée relais ou non."""
+    import_persistence.persist_results(db_session, URL, [_ligne("53", "DUPONT Jean-Pierre / MARTIN Alix", "")])
+
+    assert db_session.query(Participation).one().athlete.nom.startswith("Anonyme ")
+    assert _sans_dupont(db_session)
+
+
+@pytest.mark.parametrize(
+    "team_name",
+    ["DUPONT Jean-Pierre + MARTIN Alix", "Alix Martin, Jean-Pierre Dupont", "Jean-Pierre DUPONT & Alix MARTIN"],
+)
+def test_a_team_name_joined_by_another_separator_still_names_the_opposed_member(
+    db_session, opposition, team_name
+):
+    """#1514 : `+`, `,` et `&` séparent des équipiers comme `/`."""
+    import_persistence.persist_results(
+        db_session, URL, [_ligne("54", "MARTIN", "Alix", is_relay=True, team_name=team_name)],
+    )
+
+    assert db_session.query(Participation).one().athlete.nom.startswith("Anonyme ")
+    assert _sans_dupont(db_session)

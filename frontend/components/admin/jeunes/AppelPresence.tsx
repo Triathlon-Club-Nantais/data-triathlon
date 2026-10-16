@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AjouterNoteJeuneDialog } from "@/components/admin/jeunes/AjouterNoteJeuneDialog";
 import { AppelFin } from "@/components/admin/jeunes/AppelFin";
+import { EmergencyContact } from "@/components/admin/jeunes/EmergencyContact";
 import { NoteSeanceForm } from "@/components/admin/jeunes/NoteSeanceForm";
 import {
   useAddTrainingParticipant,
@@ -158,13 +159,21 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
                     ? `${profil.first_name} ${profil.last_name}`
                     : `Jeune n° ${participant.profile_id}`;
                   return (
-                    <Card key={participant.profile_id} className="space-y-2 p-4">
+                    <Card key={participant.profile_id} className="space-y-3 p-4">
                       <div className="flex items-center justify-between gap-2">
                         <span className="min-w-0">
                           <span className="font-medium">{nom}</span>
                           <span className="block text-[var(--tcn-text-faint)] text-xs">
                             {participant.category ?? "Catégorie inconnue"}
                           </span>
+                          {participant.emergency_contact && (
+                            <span className="block break-words text-sm">
+                              <span className="text-[var(--tcn-text-faint)]">
+                                Contact d&apos;urgence :{" "}
+                              </span>
+                              <EmergencyContact text={participant.emergency_contact} />
+                            </span>
+                          )}
                         </span>
                         {participant.present === true && <Badge>Présent</Badge>}
                         {participant.present === false && (

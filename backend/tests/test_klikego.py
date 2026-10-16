@@ -120,7 +120,7 @@ def fresh_result() -> tuple[ScrapedResult, dict]:
     ("", "", "triathlon"),
 ])
 def test_event_type_detection(heat, slug, expected):
-    assert classify_event_type(heat, contexte=slug) == expected
+    assert classify_event_type(heat, context=slug) == expected
 
 
 # ── Redon Sprint : pas de splits, juste le temps total ───────────────────────
@@ -963,7 +963,7 @@ def test_fetch_heat_rows_raises_when_a_page_keeps_failing():
 
     with pytest.raises(ScraperError, match="503"):
         plat.fetch_heat_rows("https://x", "evt", "heat", client)
-    assert len(client.urls) == 1 + plat._ESSAIS_PAGE
+    assert len(client.urls) == 1 + plat._PAGE_ATTEMPTS
 
 
 def test_get_page_backs_off_between_5xx_retries_only(monkeypatch):
@@ -1007,7 +1007,7 @@ def test_scrape_single_heat_raises_when_heat_page_fails(monkeypatch):
     """#943 : plus de repli silencieux sur "" (aucun split inter, nom dérivé du slug)."""
     from app.core.exceptions import ScraperError
 
-    client = _ScriptedClient([_StatusResp("", 503)] * plat._ESSAIS_PAGE)
+    client = _ScriptedClient([_StatusResp("", 503)] * plat._PAGE_ATTEMPTS)
 
     with pytest.raises(ScraperError):
         klikego._scrape_single_heat(
@@ -2299,16 +2299,61 @@ def test_scrape_event_fanout_falls_back_on_event_date_without_live_index(monkeyp
     assert len(dates) == 8
 
 
-def test_scrape_event_fanout_no_heats_returns_empty(monkeypatch):
-    """Page sans <el-select> — retour ([], trace vide)."""
-    html = load_klikego_fixture("no-select.html")
+def test_scrape_event_fanout_real_event_without_published_heat_returns_empty(monkeypatch):
+    """#1522: a real event whose results are not out yet is an empty import, not a failure."""
+    html = load_klikego_fixture("no-results-yet-event.html")
     _make_fanout_fake_client(monkeypatch, html)
 
-    results, trace = klikego.scrape_event_fanout("bogus-1", "Bogus", "bogus")
+    results, trace = klikego.scrape_event_fanout(
+        "1624160890633-7", "Course de Noël", "course-de-noel-by-apiruntour-2026",
+    )
 
     assert results == []
     assert trace.heats_enumerated == 0
     assert trace.failures == []
+
+
+def test_scrape_event_fanout_unknown_event_raises_not_found(monkeypatch):
+    """#1522: Klikego answers an unknown event id with a generic 200 page."""
+    _make_fanout_fake_client(monkeypatch, load_klikego_fixture("unknown-event.html"))
+
+    with pytest.raises(ValueError, match="Événement Klikego introuvable.*9999999999999-9"):
+        klikego.scrape_event_fanout("9999999999999-9", "Inconnu", "triathlon-de-vierzon-2026")
+
+
+def test_fetch_event_page_without_title_nor_404_marker_is_a_layout_change():
+    """A redesign must not read as a wrong link: no `introuvable` without Klikego's own 404 tag."""
+    from app.core.exceptions import ScraperError
+
+    client = _ScriptedClient([_StatusResp("<html><body><h1>Autre</h1></body></html>")])
+
+    with pytest.raises(ScraperError, match="structure inattendue"):
+        klikego._fetch_event_page("1674523163798-4", "triathlon-de-vierzon-2026", client)
+
+
+@pytest.mark.parametrize("status", [404, 500])
+def test_fetch_event_page_raises_on_non_200(monkeypatch, status):
+    """#1522: a failing event page is not an event without heats."""
+    from app.core.exceptions import ScraperError
+
+    monkeypatch.setattr(plat, "_sleep", lambda _s: None)
+    client = _ScriptedClient([_StatusResp("", status)] * plat._PAGE_ATTEMPTS)
+
+    with pytest.raises(ScraperError, match=str(status)):
+        klikego._fetch_event_page("1674523163798-4", "triathlon-de-vierzon-2026", client)
+
+
+@pytest.mark.parametrize(
+    "response",
+    [_StatusResp("", 500), _StatusResp(load_klikego_fixture("unknown-event.html"))],
+    ids=["non-200", "unknown-event"],
+)
+def test_fetch_event_date_tolerates_an_unreadable_event_page(monkeypatch, response):
+    """The single-heat path only reads the date there: no page, no date."""
+    monkeypatch.setattr(plat, "_sleep", lambda _s: None)
+    client = _ScriptedClient([response] * plat._PAGE_ATTEMPTS)
+
+    assert klikego._fetch_event_date("1674523163798-4", "triathlon-de-vierzon-2026", client) is None
 
 
 def test_scrape_event_fanout_on_heat_start_notifie_par_heat_non_cache(monkeypatch):

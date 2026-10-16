@@ -20,42 +20,42 @@ def add_entry(
     """Rattache un alias à un nom canonique. Crée le groupe s'il n'existe pas
     encore : un « club canonique » n'est que le regroupement des lignes qui
     partagent le même `canonical_name` (cf. modèle)."""
-    nom = canonical_name.strip()
-    if not nom:
+    name = canonical_name.strip()
+    if not name:
         raise DomainError("Le nom canonique ne peut pas être vide.")
 
-    alias_normalise = normalize_club(alias)
-    if not alias_normalise:
+    normalized_alias = normalize_club(alias)
+    if not normalized_alias:
         raise DomainError("L'alias ne peut pas être vide.")
 
     if is_tcn(alias):
         raise DomainError(
-            f"« {alias_normalise} » est déjà un libellé reconnu du TCN — "
+            f"« {normalized_alias} » est déjà un libellé reconnu du TCN — "
             "il est géré par la portée des compteurs, pas par ce registre."
         )
 
-    if club_alias_repository.find_by_alias(db, alias_normalized=alias_normalise) is not None:
-        raise DuplicateError(f"« {alias_normalise} » est déjà rattaché à un club.")
+    if club_alias_repository.find_by_alias(db, alias_normalized=normalized_alias) is not None:
+        raise DuplicateError(f"« {normalized_alias} » est déjà rattaché à un club.")
 
     # La résolution ne fait qu'un saut (« Top clubs », filtre `club=`) : une
     # chaîne A → B → C ou un cycle fausseraient les deux en silence. Le registre
     # reste donc à un seul niveau (#1122).
-    carte = club_alias_repository.canonical_map(db)
-    for autre in set(carte.values()) - {nom}:
-        if normalize_club(autre) == alias_normalise:
+    alias_map = club_alias_repository.canonical_map(db)
+    for other in set(alias_map.values()) - {name}:
+        if normalize_club(other) == normalized_alias:
             raise DomainError(
-                f"« {alias_normalise} » est le nom canonique de « {autre} » : "
+                f"« {normalized_alias} » est le nom canonique de « {other} » : "
                 "il ne peut pas être aussi la variante d'un autre club."
             )
-    parent = carte.get(normalize_club(nom))
-    if parent is not None and parent != nom:
+    parent = alias_map.get(normalize_club(name))
+    if parent is not None and parent != name:
         raise DomainError(
-            f"« {nom} » est déjà une variante de « {parent} » : "
+            f"« {name} » est déjà une variante de « {parent} » : "
             f"rattachez plutôt cet alias à « {parent} »."
         )
 
     entry = club_alias_repository.create_entry(
-        db, canonical_name=nom, alias_normalized=alias_normalise, created_by_user_id=admin_user_id
+        db, canonical_name=name, alias_normalized=normalized_alias, created_by_user_id=admin_user_id
     )
     db.flush()
     audit.record(db, admin_user_id, action="club_alias.add", entity_type="club_alias", entity_id=entry.id)

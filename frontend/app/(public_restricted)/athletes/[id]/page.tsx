@@ -1,19 +1,22 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
 import { rendreNullSi404 } from "@/lib/api/null-si-404";
 import { idDeRoute } from "@/lib/utils/id-de-route";
 import { StatCard, MetaPill, Card, Eyebrow } from "@/components/tcn";
+import { AddEventLink } from "@/components/dashboard/SeasonEmptyState";
 import { PageShell } from "@/components/layout/PageShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AthleteAvatar } from "./AthleteAvatar";
 import { AthleteHeaderActions } from "./AthleteHeaderActions";
 import { EventsTable } from "./EventsTable";
 import { AthleteChallenges } from "@/components/challenges/AthleteChallenges";
-import { SeasonValidationPanel } from "@/components/athletes/SeasonValidationPanel";
-import { VolunteerActionsList } from "@/components/athletes/VolunteerActionsList";
-import { AthleteVariantsPanel } from "@/components/athletes/AthleteVariantsPanel";
+import {
+  SeasonValidationPanel,
+  VolunteerActionsList,
+  AthleteVariantsPanel,
+} from "@/components/athletes/AdminGates";
+import { BestTimesCard } from "@/components/athletes/BestTimesCard";
 import { formatToken, disciplineBreakdownBySeason, genderShort, ordinalFr, formatCount } from "@/lib/utils/format";
 import { BarList } from "@/components/charts/BarList";
 import { CAT_COLORS } from "@/components/charts/CategoryBars";
@@ -138,7 +141,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
         {resume.regime === "reduit" && (
           <div className="space-y-4">
             {/* Une seule colonne sous 640px : `.tcn-stat-value` rend 68px display
-                sans clamp, et la tuile Temps ("01:02:03") force une piste à
+                (réduite après hydratation seulement, #1540), et la tuile Temps ("01:02:03") force une piste à
                 ~225px — en deux colonnes sous 640px la piste s'élargit au
                 contenu et provoque un scroll horizontal (#488, revue finale). */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -153,9 +156,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                 />
               ))}
             </div>
-            <Link href="/ajouter" className="text-sm font-semibold text-accent-ink hover:underline">
-              Ajouter une épreuve →
-            </Link>
+            <AddEventLink />
           </div>
         )}
 
@@ -197,6 +198,9 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
             <StatCard label="Format favori" value={favFormat} accent={false} />
           </div>
         )}
+
+        {/* Sous trois épreuves, la tuile « Temps » montre déjà ce temps (#1361). */}
+        {resume.regime === "complet" && <BestTimesCard participations={participations} />}
 
         {validated.length > 0 && (
           <Card>

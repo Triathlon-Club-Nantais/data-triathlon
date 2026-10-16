@@ -11,7 +11,6 @@ from app.api.v1 import (
     admin_allowed_emails,
     admin_athlete_identity,
     admin_batches,
-    admin_benevole_access,
     admin_club_alias,
     admin_club_members,
     admin_counter_scope,
@@ -30,10 +29,10 @@ from app.api.v1 import (
     admin_training_groups,
     admin_training_recurrences,
     admin_training_sessions,
+    admin_volunteer_access,
     admin_volunteer_actions,
     athletes,
     auth,
-    benevoles,
     challenges,
     club,
     courses,
@@ -45,6 +44,7 @@ from app.api.v1 import (
     site_access,
     stats,
     volunteer_actions,
+    volunteers,
 )
 
 api_router = APIRouter()
@@ -53,7 +53,7 @@ api_router = APIRouter()
 # le router lui-même (`module.router.dependencies` reste `[]`, cf.
 # `test_aucune_dependance_globale_sur_les_routers_existants`). Six
 # exceptions nommées (design § Garde backend) : `health` (infra), `site_access`
-# (pose le cookie, ne peut pas exiger sa propre présence), `benevoles` (#271 —
+# (pose le cookie, ne peut pas exiger sa propre présence), `volunteers` (#271 —
 # population potentiellement non-adhérente), et `auth`/`admin_site_access` —
 # ajoutés après un verrou de démarrage détecté en revue : gater `auth`
 # interdisait toute connexion SSO sans cookie site, et gater
@@ -63,8 +63,8 @@ api_router = APIRouter()
 # base ni en CLI. Les deux restent protégées par ce qui les protégeait déjà :
 # `admin_site_access` par `require_permission(P.SITE_ACCESS_MANAGE)` (RBAC),
 # `auth` par ses propres contrôles (liste d'autorisation, #170) — le même
-# patron que `admin_benevole_access`, jamais doublement gardé par
-# `require_benevole_access`.
+# patron que `admin_volunteer_access`, jamais doublement gardé par
+# `require_volunteer_access`.
 #
 # La sixième, `feedback`, est venue de la revue de #513 : `FeedbackButton` vit
 # dans le layout **racine** du front, donc il s'affiche aussi sur `/acces` et
@@ -78,17 +78,17 @@ api_router = APIRouter()
 # La septième, `csp_reports` (#1168) : l'API Reporting du navigateur envoie les
 # rapports **sans cookies**, donc une route gardée ne recevrait que des 401.
 # Elle n'écrit que des logs, bornés par sa taille et son propre plafond.
-_EXEMPTES_DE_LA_GARDE_SITE = (
+_EXEMPT_FROM_SITE_GUARD = (
     health,
     site_access,
     auth,
     admin_site_access,
-    benevoles,
+    volunteers,
     feedback,
     csp_reports,
 )
 
-for module in _EXEMPTES_DE_LA_GARDE_SITE:
+for module in _EXEMPT_FROM_SITE_GUARD:
     api_router.include_router(module.router)
 
 for module in (
@@ -104,7 +104,7 @@ for module in (
     admin_allowed_emails,
     admin_athlete_identity,
     admin_batches,
-    admin_benevole_access,
+    admin_volunteer_access,
     admin_club_alias,
     admin_club_members,
     admin_counter_scope,

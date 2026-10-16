@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { act, render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -76,6 +76,9 @@ vi.mock("@/lib/api/client", () => ({
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn(), message: vi.fn() } }));
 
+const { captureEvent } = vi.hoisted(() => ({ captureEvent: vi.fn() }));
+vi.mock("@/lib/posthog", () => ({ captureEvent }));
+
 import { TcnScrapeForm } from "./TcnScrapeForm";
 import { apiClient } from "@/lib/api/client";
 import { toast } from "sonner";
@@ -103,6 +106,12 @@ function renderForm() {
       ),
   };
 }
+
+// ManualResultForm loads lazily (#1395): warm its module graph outside any case
+// timeout (#1389).
+beforeAll(async () => {
+  await import("./ManualResultForm");
+}, 30_000);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -169,6 +178,8 @@ describe("TcnScrapeForm — navigation vers les courses importées (#135)", () =
     // le reste du texte est en fragments donc pas testé littéralement).
     // « épreuve », jamais « course », dans un libellé (revue de code #478).
     expect(screen.getByText(/3 épreuves importées/)).toBeInTheDocument();
+    // #1402 : surtitre en orange profond (contraste AA), pas en orange de marque.
+    expect(screen.getByText(/3 épreuves importées/).style.color).toBe("var(--tcn-orange-deeper)");
     // Le bouton file vers la première course par défaut, sans interaction.
     const link = screen.getByRole("link", { name: /Voir les résultats/ });
     expect(link.getAttribute("href")).toBe("/courses/1");
@@ -405,7 +416,7 @@ describe("TcnScrapeForm — un seul verdict avant d'essayer (#492, ACT-6)", () =
     await userEvent.click(await screen.findByRole("button", { name: "Saisir à la main" }));
 
     expect(
-      screen.getByRole("button", { name: "Enregistrer votre participation" }),
+      await screen.findByRole("button", { name: "Enregistrer votre participation" }),
     ).toBeInTheDocument();
   });
 });
@@ -535,7 +546,7 @@ describe("TcnScrapeForm — repli sur échec d'import", () => {
       expect(apiClient.reportPendingProvider).toHaveBeenCalledWith("http://x.test/ev"),
     );
     expect(
-      screen.getByRole("button", { name: "Enregistrer votre participation" }),
+      await screen.findByRole("button", { name: "Enregistrer votre participation" }),
     ).toBeInTheDocument();
   });
 });
@@ -793,6 +804,7 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
       "https://chronopuce.test/x",
     );
     await userEvent.click(await screen.findByRole("button", { name: "Saisir à la main" }));
+    await screen.findByRole("button", { name: "Enregistrer votre participation" });
   }
 
   async function saisirEtEnregistrer() {
@@ -864,7 +876,7 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
     );
 
     expect(
-      screen.getByRole("button", { name: "Enregistrer votre participation" }),
+      await screen.findByRole("button", { name: "Enregistrer votre participation" }),
     ).toBeInTheDocument();
   });
 
@@ -943,5 +955,47 @@ describe("TcnScrapeForm — progression phase C Klikego (#583)", () => {
     renderForm();
 
     expect(screen.queryByText(/participants$/)).not.toBeInTheDocument();
+  });
+});
+
+// #1528 : jamais d'URL brute ni de message libre dans une propriété analytics.
+describe("TcnScrapeForm — télémétrie sans URL ni message (#1528)", () => {
+  const URL_SOUMISE = "https://www.klikego.com/resultats/x?token=secret";
+  const appels = () => JSON.stringify(captureEvent.mock.calls);
+
+  it("results_import_started porte le slug du fournisseur, pas l'URL", async () => {
+    renderForm();
+    await userEvent.type(champUrl(), URL_SOUMISE);
+    await screen.findByText("Chronométreur reconnu : Klikego");
+    await userEvent.click(screen.getByRole("button", { name: /Enregistrer les résultats/ }));
+
+    expect(captureEvent).toHaveBeenCalledWith("results_import_started", { provider: "klikego" });
+    expect(appels()).not.toMatch(/klikego\.com|secret/);
+  });
+
+  it("results_import_started n'envoie pas le fournisseur d'une adresse précédente", async () => {
+    renderForm();
+    await userEvent.type(champUrl(), URL_SOUMISE);
+    await screen.findByText("Chronométreur reconnu : Klikego");
+    // Nouvelle adresse validée avant que la détection (débouncée) ne réponde.
+    fireEvent.change(champUrl(), { target: { value: "https://autre.test/ev" } });
+    await userEvent.click(screen.getByRole("button", { name: /Enregistrer les résultats/ }));
+
+    expect(captureEvent).toHaveBeenCalledWith("results_import_started", { provider: null });
+  });
+
+  it.each([
+    ["lecture", { error: "Page illisible : https://x.test/ev?nom=Jean Dupont", errorStatus: null }],
+    ["plafond", { error: "Trop de demandes", errorStatus: 429, retryAfter: 180 }],
+    ["service", { error: "Failed to fetch", errorStatus: 0 }],
+  ] as const)("results_import_failed porte la cause %s, pas le message", async (reason, echec) => {
+    const { rerenderForm } = renderForm();
+    await userEvent.type(champUrl(), URL_SOUMISE);
+    await userEvent.click(screen.getByRole("button", { name: /Enregistrer les résultats/ }));
+    importMock.set({ phase: "error", ...echec });
+    rerenderForm();
+
+    await waitFor(() => expect(captureEvent).toHaveBeenCalledWith("results_import_failed", { reason }));
+    expect(appels()).not.toContain(echec.error);
   });
 });

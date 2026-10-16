@@ -508,7 +508,7 @@ export const NAV: NavSection[] = [
   {
     // Encadrement et suivi des jeunes triathlètes (epic #863) — données
     // personnelles et sensibles (mineurs), fermées par pouvoir RBAC quel que
-    // soit le rôle par ailleurs (`FEATURE_JEUNES`, `core/permissions.py`).
+    // soit le rôle par ailleurs (`FEATURE_YOUTH`, `core/permissions.py`).
     // Section à part, jamais fondue dans « Administration » : ce n'est pas de
     // l'administration du site, c'est de l'encadrement sportif. Elle forme
     // l'espace Encadrement (#1297).

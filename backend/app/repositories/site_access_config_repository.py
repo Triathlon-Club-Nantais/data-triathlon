@@ -1,6 +1,6 @@
 """Accès données pour SiteAccessConfig — seule couche qui touche la Session.
 
-Patron identique à `benevole_config_repository.py` : une seule ligne existe
+Patron identique à `volunteer_config_repository.py` : une seule ligne existe
 à tout instant, `save_config` écrit la ligne existante ou la crée. Ne
 commite jamais — la transaction reste portée par le service appelant.
 """
@@ -23,7 +23,7 @@ from app.models.site_access_config import SiteAccessConfig
 #: Nommée `SINGLETON_ID` jusqu'à la revue de #513, où le nom s'est révélé
 #: illisible : « singleton » dit la forme de la table, pas ce que la constante
 #: porte — un identifiant de ligne en base. Renommée des deux côtés du jumelage,
-#: `benevole_config_repository.CONFIG_ROW_ID` (#271) compris.
+#: `volunteer_config_repository.CONFIG_ROW_ID` (#271) compris.
 CONFIG_ROW_ID = 1
 
 

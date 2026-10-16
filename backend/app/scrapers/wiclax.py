@@ -27,6 +27,7 @@ from defusedxml.ElementTree import fromstring as parse_xml
 
 from app.core import http
 from app.core.athlete_identity import athlete_identity_keys
+from app.core.text import strip_accents
 from app.core.youth import is_youth
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, FanoutTrace, ScrapedResult
@@ -42,7 +43,6 @@ from .utils import (
     parse_fr_date,
     qualify_event_name,
     split_athlete_name,
-    strip_accents,
     to_seconds,
 )
 
@@ -94,7 +94,7 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
         # Le parcours seul est classé, l'épreuve servant de contexte : « S Duo »
         # d'un swimrun reprend le sport de l'épreuve, un « Trail 12 km » d'un
         # triathlon reste un trail (#941).
-        event_type = classify_event_type(p_attr, contexte=event_name)
+        event_type = classify_event_type(p_attr, context=event_name)
         event_name = qualify_event_name(event_name, p_attr)
 
     result.event_name = event_name
@@ -162,7 +162,7 @@ def _parse_competitor(comp, url: str, event_name: str, event_type: str) -> Scrap
 # Sauts max dans la chaîne « page épreuve → coquille → iframe G-Live ».
 # Garde anti-boucle : une page qui se pointe elle-même s'arrête sur ValueError.
 _MAX_RESOLVE_HOPS = 3
-_HOST_RESULTATS = "wiclax-results.com"
+_RESULTS_HOST = "wiclax-results.com"
 
 
 def _find_glive_url(html: str, page_url: str) -> str | None:
@@ -195,19 +195,19 @@ def _find_wiclax_link(html: str, page_url: str) -> str | None:
     soup = BeautifulSoup(html, "lxml")
     host = urlparse(page_url).netloc.lower()
     for a in soup.find_all("a", href=True):
-        cible = urljoin(page_url, a["href"])
-        parsed = urlparse(cible)
-        cible_host = parsed.netloc.lower()
+        target = urljoin(page_url, a["href"])
+        parsed = urlparse(target)
+        target_host = parsed.netloc.lower()
         # Domaine exact ou vrai sous-domaine : un suffixe brut suivrait aussi un
         # host sosie du type `evilwiclax-results.com`.
-        if cible_host == _HOST_RESULTATS or cible_host.endswith(f".{_HOST_RESULTATS}"):
+        if target_host == _RESULTS_HOST or target_host.endswith(f".{_RESULTS_HOST}"):
             # Les espaces du nom d'épreuve vivent tels quels dans le href.
-            chemin = quote(parsed.path, safe="/%+").rstrip("/") + "/"
-            return parsed._replace(path=chemin).geturl()
+            quoted_path = quote(parsed.path, safe="/%+").rstrip("/") + "/"
+            return parsed._replace(path=quoted_path).geturl()
         if parsed.netloc.lower() == host and re.fullmatch(
             r"/resultats/[^/]+/?", parsed.path
         ):
-            return cible
+            return target
     return None
 
 
@@ -229,9 +229,9 @@ def _resolve_to_wiclax_url(url: str, client: httpx.Client, _hops: int = 0) -> st
     if glive_url:
         return glive_url
 
-    lien = _find_wiclax_link(resp.text, url)
-    if lien:
-        return _resolve_to_wiclax_url(lien, client, _hops + 1)
+    link = _find_wiclax_link(resp.text, url)
+    if link:
+        return _resolve_to_wiclax_url(link, client, _hops + 1)
 
     raise ValueError(f"Impossible de trouver le lien G-Live dans la page Wiclax : {url}")
 
@@ -353,7 +353,7 @@ def _compute_er_ranks(
     """
     from collections import defaultdict
 
-    by_parcours: dict[str, list[tuple[int, str, str, str]]] = defaultdict(list)
+    by_heat: dict[str, list[tuple[int, str, str, str]]] = defaultdict(list)
     for comp in root.iter("E"):
         d = comp.get("d") or comp.get("D")
         if not d:
@@ -369,11 +369,11 @@ def _compute_er_ranks(
         secs = to_seconds(normalize_time(raw_t))
         if not secs:
             continue
-        parcours = comp.get("p") or comp.get("P") or ""
-        by_parcours[parcours].append((secs, d, comp.get("x") or "", comp.get("ca") or ""))
+        heat = comp.get("p") or comp.get("P") or ""
+        by_heat[heat].append((secs, d, comp.get("x") or "", comp.get("ca") or ""))
 
     ranks: dict[str, tuple[int, int, int]] = {}
-    for entries in by_parcours.values():
+    for entries in by_heat.values():
         entries.sort(key=lambda e: e[0])
         overall = 0
         gender_pos: dict[str, int] = defaultdict(int)
@@ -398,7 +398,7 @@ def _segment_kind(s: ET.Element) -> str:
     return _DISC_KIND.get(s.get("disc") or "", "other")
 
 
-def _segment_chain(segments: list[ET.Element], parcours: str) -> list[tuple[int, str]]:
+def _segment_chain(segments: list[ET.Element], heat: str) -> list[tuple[int, str]]:
     """Splits « totaux » d'un parcours, ordonnés du départ à l'arrivée.
 
     Le `.clax` partage UN bloc <Segments> entre tous les parcours, chaque <S>
@@ -416,7 +416,7 @@ def _segment_chain(segments: list[ET.Element], parcours: str) -> list[tuple[int,
         pcs = s.get("pcs") or ""
         names = {n.strip() for n in pcs.split(",") if n.strip()}
         # pcs vide → segment commun à tous les parcours (pas de filtrage).
-        if names and parcours and parcours not in names:
+        if names and heat and heat not in names:
             continue
         adj[s.get("ptg1")].append((s.get("ptg2"), idx, s))
 
@@ -434,8 +434,8 @@ def _segment_chain(segments: list[ET.Element], parcours: str) -> list[tuple[int,
     return []
 
 
-def _parcours_split_map(
-    segments: list[ET.Element], parcours: str
+def _heat_split_map(
+    segments: list[ET.Element], heat: str
 ) -> tuple[dict[str, int], str | None]:
     """(mapping {slot ScrapedResult → index sN}, surcharge event_type | None).
 
@@ -447,7 +447,7 @@ def _parcours_split_map(
         event_type="duathlon" pour que build_splits étiquette course1/bike/course2.
       - tout autre motif → rattachement par nature (best effort), sans surcharge.
     """
-    chain = _segment_chain(segments, parcours)
+    chain = _segment_chain(segments, heat)
     if not chain:
         return {}, None
 
@@ -500,7 +500,7 @@ def _fill_er_splits(
         r.run_time  = normalize_time(result_elem.get("s10", ""))
 
 
-def _parcours_slug(parcours: str) -> str:
+def _heat_label_slug(heat: str) -> str:
     """Slug canonique d'un parcours Wiclax (fan-out #195).
 
     Contraintes : stable (mémoïsable), ASCII, URL-safe, distinct pour deux
@@ -509,7 +509,7 @@ def _parcours_slug(parcours: str) -> str:
     """
     # NFKD + drop combining marks : « S-Open Femmes » → « S-Open Femmes »,
     # « 6-9 Ans » → « 6-9-ans » (compatible avec ASCII de sortie).
-    stripped = strip_accents(parcours or "")
+    stripped = strip_accents(heat or "")
     # Tout ce qui n'est pas [a-z0-9-] → tiret. Lower ensuite. On collapse les tirets.
     lowered = stripped.lower()
     slug = re.sub(r"[^a-z0-9]+", "-", lowered).strip("-")
@@ -547,7 +547,7 @@ def _normalize_wiclax_host(netloc: str) -> str:
     return netloc.removeprefix("www.")
 
 
-def _sub_source_url(url: str, parcours: str) -> str:
+def _sub_source_url(url: str, heat: str) -> str:
     """URL canonique d'un parcours Wiclax — clé de cache TTL et de dédup source_url.
 
     Convention : URL débarrassée de `B=` (dossard sélecteur), avec un paramètre
@@ -568,7 +568,7 @@ def _sub_source_url(url: str, parcours: str) -> str:
     for key, values in params:
         for value in values:
             flat.append((key, _fully_unquote(value)))
-    slug = _parcours_slug(parcours)
+    slug = _heat_label_slug(heat)
     if slug:
         # Écrase toute valeur `parcours=` préexistante — l'URL entrante ne doit pas
         # trancher à la place du fan-out.
@@ -579,8 +579,8 @@ def _sub_source_url(url: str, parcours: str) -> str:
     return urlunparse(parsed._replace(netloc=netloc, path=path, query=urlencode(flat)))
 
 
-def _drop_orphelins(
-    par_parcours: dict[str, list[ScrapedResult]], ordre: list[str], url: str,
+def _drop_orphans(
+    by_heat: dict[str, list[ScrapedResult]], order: list[str], url: str,
 ) -> None:
     """Écarte les résultats sans attribut `p=` d'un événement multi-parcours.
 
@@ -594,35 +594,35 @@ def _drop_orphelins(
     Journalisation en WARNING : le cas reste rare et l'exploitant doit pouvoir
     remonter les orphelins à la source.
     """
-    if len(par_parcours) <= 1 or "" not in par_parcours:
+    if len(by_heat) <= 1 or "" not in by_heat:
         return
-    orphelins = par_parcours.pop("")
-    ordre.remove("")
+    orphans = by_heat.pop("")
+    order.remove("")
     logger.warning(
         "Wiclax %s : %d participant(s) orphelin(s) sans parcours écartés",
-        url, len(orphelins),
+        url, len(orphans),
     )
 
 
-def _iter_parcours_results(
+def _iter_heat_results(
     root: ET.Element, base_url: str, event_name: str, event_type: str,
     event_date: object, segments: list[ET.Element],
 ) -> tuple[dict[str, list[ScrapedResult]], list[str]]:
     """Construit les `ScrapedResult` groupés par parcours.
 
-    Retour : `(par_parcours, ordre)` où `par_parcours[parcours]` liste les
-    résultats du parcours et `ordre` préserve l'ordre d'apparition des parcours
+    Retour : `(by_heat, order)` où `by_heat[heat]` liste les
+    résultats du parcours et `order` préserve l'ordre d'apparition des parcours
     dans le `.clax` — critique pour reproduire fidèlement le rendu source dans
     le fan-out (index de progression, ordre des `Course` remontées).
     """
-    par_parcours: dict[str, list[ScrapedResult]] = {}
-    ordre: list[str] = []
+    by_heat: dict[str, list[ScrapedResult]] = {}
+    order: list[str] = []
 
-    def _ajouter(parcours: str, r: ScrapedResult) -> None:
-        if parcours not in par_parcours:
-            par_parcours[parcours] = []
-            ordre.append(parcours)
-        par_parcours[parcours].append(r)
+    def _add(heat: str, r: ScrapedResult) -> None:
+        if heat not in by_heat:
+            by_heat[heat] = []
+            order.append(heat)
+        by_heat[heat].append(r)
 
     # Format 1: Competitor / Runner / Participant elements
     for tag in ("Competitor", "COMPETITOR", "Runner", "RUNNER", "Participant"):
@@ -634,9 +634,9 @@ def _iter_parcours_results(
                     continue
                 r = _parse_competitor(comp, base_url, event_name, event_type)
                 r.event_date = event_date
-                parcours = comp.get("p") or comp.get("P") or ""
-                _ajouter(parcours, r)
-            return par_parcours, ordre
+                heat = comp.get("p") or comp.get("P") or ""
+                _add(heat, r)
+            return by_heat, order
 
     # Format 2: ChronoSmetron E/R elements (E = competitor, R = timing keyed by d=bib)
     split_cache: dict[str, tuple[dict[str, int], str | None]] = {}
@@ -653,10 +653,10 @@ def _iter_parcours_results(
         r = _parse_competitor(comp, base_url, event_name, event_type)
         # Seul `d` relie une équipe à ses équipiers du jumeau Indiv (#1269).
         r.raw_data["d"] = join_key
-        parcours = comp.get("p") or comp.get("P") or ""
-        if parcours not in split_cache:
-            split_cache[parcours] = _parcours_split_map(segments, parcours)
-        split_map, event_type_override = split_cache[parcours]
+        heat = comp.get("p") or comp.get("P") or ""
+        if heat not in split_cache:
+            split_cache[heat] = _heat_split_map(segments, heat)
+        split_map, event_type_override = split_cache[heat]
         if event_type_override:
             r.event_type = event_type_override
         result_elem = r_by_bib.get(join_key)
@@ -676,10 +676,10 @@ def _iter_parcours_results(
             if rg is not None:
                 r.rank_overall, r.rank_gender, r.rank_category = rg
         r.event_date = event_date
-        _ajouter(parcours, r)
+        _add(heat, r)
 
-    _mark_team_parcours(par_parcours, ordre)
-    return par_parcours, ordre
+    _mark_team_heats(by_heat, order)
+    return by_heat, order
 
 
 #: Catégories d'équipe, les mêmes que chez TimePulse : mixte, hommes, femmes.
@@ -687,7 +687,7 @@ _TEAM_CATEGORIES = frozenset({"EQX", "EQM", "EQF"})
 _INDIV_SUFFIX = re.compile(r"\s*-\s*indiv$")
 
 
-def _mark_team_parcours(par_parcours: dict[str, list[ScrapedResult]], ordre: list[str]) -> None:
+def _mark_team_heats(by_heat: dict[str, list[ScrapedResult]], order: list[str]) -> None:
     """Type relais un parcours d'équipes que son nom ne désigne pas (#1213).
 
     Deux marqueurs mesurés, aucun mot d'équipe dans le parcours :
@@ -697,20 +697,20 @@ def _mark_team_parcours(par_parcours: dict[str, list[ScrapedResult]], ordre: lis
       altichrono, « SWIMRUN S » tout en EQX, EQF, EQM).
     """
     # « Relais S-Indiv » (Sud Vendée 2026) comme « Tri-Kayak - Indiv » (#1253).
-    jumeaux = {_INDIV_SUFFIX.sub(" - indiv", p.lower()): p for p in par_parcours}
-    for parcours, results in list(par_parcours.items()):
-        if not parcours or parcours not in par_parcours:
+    twins = {_INDIV_SUFFIX.sub(" - indiv", p.lower()): p for p in by_heat}
+    for heat, results in list(by_heat.items()):
+        if not heat or heat not in by_heat:
             continue
-        equipes = sum(1 for r in results if (r.category or "").upper() in _TEAM_CATEGORIES)
-        jumeau = jumeaux.get(f"{parcours.lower()} - indiv")
-        if jumeau is not None or equipes * 2 > len(results):
+        team_count = sum(1 for r in results if (r.category or "").upper() in _TEAM_CATEGORIES)
+        twin = twins.get(f"{heat.lower()} - indiv")
+        if twin is not None or team_count * 2 > len(results):
             for r in results:
                 r.is_relay = True
-        if jumeau is not None:
+        if twin is not None:
             # #1220 : le jumeau n'est pas une épreuve (chaque équipier y figure DNF,
             # sans temps), il nomme les équipiers de chaque équipe.
-            _attach_teammates(results, par_parcours.pop(jumeau))
-            ordre.remove(jumeau)
+            _attach_teammates(results, by_heat.pop(twin))
+            order.remove(twin)
 
 
 def _team_key(name: str) -> str:
@@ -725,37 +725,37 @@ def _attach_teammates(teams: list[ScrapedResult], members: list[ScrapedResult]) 
     équipe 431, équipiers 4311 à 4313, club vide ou sans rapport, #1262). Pas le
     dossard affiché : au Relais M, équipe d=5431 v=431, équipiers d=54311
     v=51311 (#1269)."""
-    par_club: dict[str, list[ScrapedResult]] = {}
-    par_ident: dict[str, list[ScrapedResult]] = {}
+    by_club: dict[str, list[ScrapedResult]] = {}
+    by_ident: dict[str, list[ScrapedResult]] = {}
     for m in members:
         if m.club:
-            par_club.setdefault(_team_key(m.club), []).append(m)
+            by_club.setdefault(_team_key(m.club), []).append(m)
         ident = m.raw_data.get("d", "")
         if ident.isdigit() and len(ident) > 1:
-            par_ident.setdefault(ident[:-1], []).append(m)
+            by_ident.setdefault(ident[:-1], []).append(m)
     for team in teams:
-        nom = " ".join(filter(None, [team.athlete_name, team.athlete_firstname]))
-        equipiers = par_club.get(_team_key(nom)) or par_ident.get(team.raw_data.get("d", ""), [])
+        name = " ".join(filter(None, [team.athlete_name, team.athlete_firstname]))
+        teammates = by_club.get(_team_key(name)) or by_ident.get(team.raw_data.get("d", ""), [])
         # Un équipier jeune laisse sa catégorie à l'équipe : le filtre de l'import
         # (#881) ne juge que la catégorie de la ligne.
         team.category = next(
-            (m.category for m in equipiers if is_youth("", m.category)), team.category
+            (m.category for m in teammates if is_youth("", m.category)), team.category
         )
         # Hors bornes ou sans nom et prénom, l'équipe reste entière, comme un
         # libellé indécoupable (#895).
-        if not all(m.athlete_name and m.athlete_firstname for m in equipiers):
+        if not all(m.athlete_name and m.athlete_firstname for m in teammates):
             continue
         # Un équipier de plusieurs relais figure une fois par relais dans le jumeau
         # (#1283) : il ne compte qu'une fois, à sa première place, sous la clé
         # d'identité de l'import (FR-010).
-        distincts: dict[tuple[str | None, str | None], tuple[str, str]] = {}
-        for m in equipiers:
-            distincts.setdefault(
+        distinct: dict[tuple[str | None, str | None], tuple[str, str]] = {}
+        for m in teammates:
+            distinct.setdefault(
                 athlete_identity_keys(m.athlete_name, m.athlete_firstname),
                 (m.athlete_name, m.athlete_firstname),
             )
-        if MIN_RELAY_TEAMMATES <= len(distincts) <= MAX_RELAY_TEAMMATES:
-            team.teammates = tuple(distincts.values())
+        if MIN_RELAY_TEAMMATES <= len(distinct) <= MAX_RELAY_TEAMMATES:
+            team.teammates = tuple(distinct.values())
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
@@ -772,12 +772,12 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     segs_elem = root.find(".//Segments")
     segments = list(segs_elem) if segs_elem is not None else []
     base_url = _strip_athlete_param(url)
-    par_parcours, ordre = _iter_parcours_results(
+    by_heat, order = _iter_heat_results(
         root, base_url, event_name, event_type, event_date, segments,
     )
     results: list[ScrapedResult] = []
-    for parcours in ordre:
-        results.extend(par_parcours[parcours])
+    for heat in order:
+        results.extend(by_heat[heat])
     return results
 
 
@@ -820,42 +820,42 @@ def scrape_event_fanout(
     segments = list(segs_elem) if segs_elem is not None else []
     base_url = _strip_athlete_param(url)
 
-    par_parcours, ordre = _iter_parcours_results(
+    by_heat, order = _iter_heat_results(
         root, base_url, event_name, event_type, event_date, segments,
     )
-    _drop_orphelins(par_parcours, ordre, url)
-    trace.heats_enumerated = len(ordre)
+    _drop_orphans(by_heat, order, url)
+    trace.heats_enumerated = len(order)
 
-    # Pré-filtre les parcours à traiter — `heats_a_scraper` fixe le total notifié
+    # Pré-filtre les parcours à traiter — `heats_to_scrape` fixe le total notifié
     # à `on_heat_start`, sans quoi la progression sauterait des indices.
-    heats_a_scraper: list[tuple[str, str]] = []
-    for parcours in ordre:
-        sub_url = _sub_source_url(url, parcours)
+    heats_to_scrape: list[tuple[str, str]] = []
+    for heat in order:
+        sub_url = _sub_source_url(url, heat)
         if cache_probe is not None and cache_probe(sub_url):
             trace.heats_cached += 1
             trace.cached_urls.append(sub_url)
             continue
-        heats_a_scraper.append((parcours, sub_url))
+        heats_to_scrape.append((heat, sub_url))
 
-    total_a_scraper = len(heats_a_scraper)
-    for index, (parcours, sub_url) in enumerate(heats_a_scraper, start=1):
-        slug = _parcours_slug(parcours)
-        label = parcours or slug
+    total_to_scrape = len(heats_to_scrape)
+    for index, (heat, sub_url) in enumerate(heats_to_scrape, start=1):
+        slug = _heat_label_slug(heat)
+        label = heat or slug
         if on_heat_start is not None:
-            on_heat_start(slug, label, index, total_a_scraper)
+            on_heat_start(slug, label, index, total_to_scrape)
         try:
-            all_results.extend(_finalize_parcours(par_parcours, parcours, sub_url))
+            all_results.extend(_finalize_heat(by_heat, heat, sub_url))
         except Exception as exc:
             logger.warning(
-                "Parcours %s de %s en échec : %s", parcours or "(sans nom)", url, exc,
+                "Parcours %s de %s en échec : %s", heat or "(sans nom)", url, exc,
             )
             trace.failures.append({"heat_slug": slug, "reason": str(exc)})
 
     return all_results, trace
 
 
-def _finalize_parcours(
-    par_parcours: dict[str, list[ScrapedResult]], parcours: str, sub_url: str,
+def _finalize_heat(
+    by_heat: dict[str, list[ScrapedResult]], heat: str, sub_url: str,
 ) -> list[ScrapedResult]:
     """Finalise les résultats d'un parcours pour le fan-out.
 
@@ -866,10 +866,10 @@ def _finalize_parcours(
     Isolé en helper pour rendre les échecs par parcours testables sans
     fabriquer un `.clax` corrompu (les tests monkeypatchent ce helper).
     """
-    resultats = par_parcours[parcours]
-    for r in resultats:
+    results = by_heat[heat]
+    for r in results:
         r.source_url = sub_url
-    return resultats
+    return results
 
 
 def _strip_athlete_param(url: str) -> str:

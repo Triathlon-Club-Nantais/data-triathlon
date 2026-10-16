@@ -17,7 +17,7 @@ from app.services.auth.errors import LoginError
 from app.services.auth.idp.base import ExternalIdentity
 
 
-def _identite(**surcharges) -> ExternalIdentity:
+def _identity(**surcharges) -> ExternalIdentity:
     valeurs = {
         "provider": "github",
         "subject": "583231",
@@ -30,7 +30,7 @@ def _identite(**surcharges) -> ExternalIdentity:
 
 
 def test_une_premiere_connexion_cree_utilisateur_et_identite(db_session):
-    user = provisioning.resolve_user(db_session, _identite())
+    user = provisioning.resolve_user(db_session, _identity())
     db_session.commit()
 
     assert user.email == "contributeur@exemple.fr"
@@ -42,10 +42,10 @@ def test_une_premiere_connexion_cree_utilisateur_et_identite(db_session):
 
 
 def test_une_identite_connue_ne_cree_rien(db_session):
-    premier = provisioning.resolve_user(db_session, _identite())
+    premier = provisioning.resolve_user(db_session, _identity())
     db_session.commit()
 
-    second = provisioning.resolve_user(db_session, _identite())
+    second = provisioning.resolve_user(db_session, _identity())
     db_session.commit()
 
     assert second.id == premier.id
@@ -61,11 +61,11 @@ def test_la_resolution_se_fait_par_le_couple_seul(db_session, autoriser):
     """
     autoriser("autre@exemple.fr")
 
-    premier = provisioning.resolve_user(db_session, _identite())
+    premier = provisioning.resolve_user(db_session, _identity())
     db_session.commit()
 
     revenu = provisioning.resolve_user(
-        db_session, _identite(email="autre@exemple.fr", display_name="renomme")
+        db_session, _identity(email="autre@exemple.fr", display_name="renomme")
     )
     db_session.commit()
 
@@ -78,11 +78,11 @@ def test_une_adresse_deja_connue_donne_un_nouvel_utilisateur(db_session):
     Un attaquant ouvrant chez un fournisseur laxiste un compte portant l'adresse
     d'un contributeur ne doit jamais se retrouver rattaché à son compte.
     """
-    premier = provisioning.resolve_user(db_session, _identite())
+    premier = provisioning.resolve_user(db_session, _identity())
     db_session.commit()
 
     second = provisioning.resolve_user(
-        db_session, _identite(provider="ailleurs", subject="autre-subject")
+        db_session, _identity(provider="ailleurs", subject="autre-subject")
     )
     db_session.commit()
 
@@ -95,11 +95,11 @@ def test_l_adresse_est_rafraichie_a_la_reconnexion(db_session, autoriser):
     """FR-008 : les attributs mutables suivent le fournisseur, sans doublon."""
     autoriser("nouvelle@exemple.fr")
 
-    user = provisioning.resolve_user(db_session, _identite())
+    user = provisioning.resolve_user(db_session, _identity())
     db_session.commit()
 
     provisioning.resolve_user(
-        db_session, _identite(email="nouvelle@exemple.fr", display_name="nouveau nom")
+        db_session, _identity(email="nouvelle@exemple.fr", display_name="nouveau nom")
     )
     db_session.commit()
 
@@ -112,7 +112,7 @@ def test_l_adresse_est_rafraichie_a_la_reconnexion(db_session, autoriser):
 def test_une_adresse_non_certifiee_est_refusee(db_session):
     """FR-005 : le refus intervient **avant** l'examen de la liste."""
     with pytest.raises(LoginError) as refus:
-        provisioning.resolve_user(db_session, _identite(email_verified=False))
+        provisioning.resolve_user(db_session, _identity(email_verified=False))
 
     assert refus.value.code == "email_unverified"
 
@@ -125,20 +125,20 @@ def test_la_certification_est_examinee_avant_la_liste(
     qui est rendu dit lequel des deux a tranché.
 
     Le test précédent ne le prouve pas : la fixture autouse `liste_autorisation`
-    autorise l'adresse de `_identite()`, donc la seconde porte y est ouverte et
+    autorise l'adresse de `_identity()`, donc la seconde porte y est ouverte et
     ne peut rien refuser.
     """
     vider_la_liste_autorisation()
 
     with pytest.raises(LoginError) as refus:
-        provisioning.resolve_user(db_session, _identite(email_verified=False))
+        provisioning.resolve_user(db_session, _identity(email_verified=False))
 
     assert refus.value.code == "email_unverified"
 
 
 def test_une_adresse_hors_liste_est_refusee(db_session):
     with pytest.raises(LoginError) as refus:
-        provisioning.resolve_user(db_session, _identite(email="inconnu@exemple.fr"))
+        provisioning.resolve_user(db_session, _identity(email="inconnu@exemple.fr"))
 
     assert refus.value.code == "account_not_allowed"
 
@@ -154,7 +154,7 @@ def test_un_refus_hors_liste_journalise_l_adresse(db_session, caplog):
     """
     with caplog.at_level(logging.INFO):
         with pytest.raises(LoginError):
-            provisioning.resolve_user(db_session, _identite(email="inconnu@exemple.fr"))
+            provisioning.resolve_user(db_session, _identity(email="inconnu@exemple.fr"))
 
     assert "inconnu@exemple.fr" in caplog.text
 
@@ -169,7 +169,7 @@ def test_une_adresse_non_certifiee_n_est_pas_journalisee(db_session, caplog):
     with caplog.at_level(logging.INFO):
         with pytest.raises(LoginError):
             provisioning.resolve_user(
-                db_session, _identite(email="usurpee@exemple.fr", email_verified=False)
+                db_session, _identity(email="usurpee@exemple.fr", email_verified=False)
             )
 
     assert "usurpee@exemple.fr" not in caplog.text
@@ -184,7 +184,7 @@ def test_une_liste_vide_interdit_toute_connexion(db_session, vider_la_liste_auto
     vider_la_liste_autorisation()
 
     with pytest.raises(LoginError) as refus:
-        provisioning.resolve_user(db_session, _identite())
+        provisioning.resolve_user(db_session, _identity())
 
     assert refus.value.code == "account_not_allowed"
 
@@ -200,7 +200,7 @@ def test_la_liste_ignore_la_casse_et_les_espaces(
     vider_la_liste_autorisation()
     autoriser(" Contributeur@Exemple.FR ")
 
-    user = provisioning.resolve_user(db_session, _identite())
+    user = provisioning.resolve_user(db_session, _identity())
     db_session.commit()
 
     assert user.email == "contributeur@exemple.fr"
@@ -208,7 +208,7 @@ def test_la_liste_ignore_la_casse_et_les_espaces(
 
 def test_un_refus_ne_laisse_ni_utilisateur_ni_identite(db_session):
     """FR-006 / SC-003 : un échec n'enregistre **jamais** personne."""
-    for identite in (_identite(email_verified=False), _identite(email="inconnu@exemple.fr")):
+    for identite in (_identity(email_verified=False), _identity(email="inconnu@exemple.fr")):
         with pytest.raises(LoginError):
             provisioning.resolve_user(db_session, identite)
 
@@ -228,7 +228,7 @@ def test_aucune_liaison_implicite_entre_deux_identites(db_session):
     )
     db_session.commit()
 
-    nouveau = provisioning.resolve_user(db_session, _identite())
+    nouveau = provisioning.resolve_user(db_session, _identity())
     db_session.commit()
 
     assert nouveau.id != user.id
@@ -248,12 +248,12 @@ def test_une_adresse_ajoutee_est_effective_sans_redemarrage(
     """
     vider_la_liste_autorisation()
     with pytest.raises(LoginError) as refus:
-        provisioning.resolve_user(db_session, _identite())
+        provisioning.resolve_user(db_session, _identity())
     assert refus.value.code == "account_not_allowed"
 
     autoriser("contributeur@exemple.fr")
 
-    user = provisioning.resolve_user(db_session, _identite())
+    user = provisioning.resolve_user(db_session, _identity())
     db_session.commit()
     assert user.email == "contributeur@exemple.fr"
 
@@ -262,13 +262,13 @@ def test_un_retrait_est_effectif_a_la_tentative_suivante(
     db_session, vider_la_liste_autorisation
 ):
     """Le pendant du précédent : retirer ferme la connexion suivante."""
-    provisioning.resolve_user(db_session, _identite())
+    provisioning.resolve_user(db_session, _identity())
     db_session.commit()
 
     vider_la_liste_autorisation()
 
     with pytest.raises(LoginError) as refus:
-        provisioning.resolve_user(db_session, _identite())
+        provisioning.resolve_user(db_session, _identity())
     assert refus.value.code == "account_not_allowed"
 
 
@@ -282,7 +282,7 @@ def test_une_secondaire_verifiee_autorisee_ouvre_la_connexion(
 
     user = provisioning.resolve_user(
         db_session,
-        _identite(
+        _identity(
             email="perso@gmail.com",
             verified_emails=("perso@gmail.com", "prenom.nom@club.fr"),
         ),
@@ -298,7 +298,7 @@ def test_la_primaire_l_emporte_quand_plusieurs_adresses_sont_autorisees(db_sessi
 
     user = provisioning.resolve_user(
         db_session,
-        _identite(
+        _identity(
             email="perso@gmail.com",
             verified_emails=("perso@gmail.com", "prenom.nom@club.fr"),
         ),
@@ -316,7 +316,7 @@ def test_aucune_adresse_verifiee_autorisee_reste_refusee(
     with pytest.raises(LoginError) as refus:
         provisioning.resolve_user(
             db_session,
-            _identite(email="perso@gmail.com", verified_emails=("perso@gmail.com", "b@exemple.fr")),
+            _identity(email="perso@gmail.com", verified_emails=("perso@gmail.com", "b@exemple.fr")),
         )
 
     assert refus.value.code == "account_not_allowed"

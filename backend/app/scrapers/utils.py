@@ -2,10 +2,9 @@
 Shared utilities for all scrapers.
 """
 import re
-import unicodedata
 from datetime import date as date_t
 
-from app.core.text import deaccent
+from app.core.text import deaccent, strip_accents
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
 
@@ -20,15 +19,6 @@ DEFAULT_HEADERS = {
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     ),
 }
-
-
-def strip_accents(text: str) -> str:
-    """Aplatit les accents : 'Été' → 'Ete'. Sept providers en portaient chacun
-    une copie (table `str.maketrans` minuscules-only, ou ce même NFKD) ; une
-    seule définition, casse préservée pour rester composable avec `.lower()`.
-    """
-    decomposed = unicodedata.normalize("NFKD", text or "")
-    return "".join(c for c in decomposed if not unicodedata.combining(c))
 
 
 # Un mot d'équipe se compare **mot entier** : « arduo » n'est pas un duo. Seul
@@ -212,20 +202,20 @@ _MASK_TOKEN_RE = re.compile(r"^[X?]+$", re.IGNORECASE)
 _ANONYMOUS_TOKENS = frozenset({"anonymous", "anonyme", "anonym"})
 
 
-def is_masked_name(nom: str) -> bool:
+def is_masked_name(name: str) -> bool:
     """Nom masqué par la source, constant d'un participant à l'autre (#710, #897).
 
     Deux formes constatées : du pur bruit (« XXX XXX », « ??? », Klikego) et un
     mot d'anonymat (« Anonymous », Competitor). Chaque mot doit être masqué : un
     vrai nom porte toujours autre chose (« XAVIER », « Anonymous Jean »).
     """
-    tokens = (nom or "").split()
+    tokens = (name or "").split()
     return bool(tokens) and all(
         _MASK_TOKEN_RE.match(t) or t.lower() in _ANONYMOUS_TOKENS for t in tokens
     )
 
 
-def anonymous_identity(nom: str, prenom: str, *, bib: str, scope: str) -> tuple[str, str]:
+def anonymous_identity(name: str, firstname: str, *, bib: str, scope: str) -> tuple[str, str]:
     """(nom, prénom), remplacés par « Anonyme <scope>-<dossard> » quand la
     source ne publie aucun nom ou un nom masqué constant (#710, #725, #897).
 
@@ -235,10 +225,10 @@ def anonymous_identity(nom: str, prenom: str, *, bib: str, scope: str) -> tuple[
     où le dossard est unique. Sans dossard, rien de stable à accrocher : la
     paire est rendue telle quelle, et l'import écarte une ligne vide.
     """
-    publie = " ".join(filter(None, [nom, prenom]))
-    if bib and (not publie or is_masked_name(publie)):
+    published = " ".join(filter(None, [name, firstname]))
+    if bib and (not published or is_masked_name(published)):
         return f"Anonyme {scope}-{bib}", ""
-    return nom, prenom
+    return name, firstname
 
 
 def split_athlete_name(full: str) -> tuple[str, str]:
@@ -263,13 +253,13 @@ def split_athlete_name(full: str) -> tuple[str, str]:
     cette règle, « JUMEAUX, ADRIEN » restait nom entier sans prénom et
     « Courjon, Rose » sortait inversé, chacun doublonnant la fiche existante.
     """
-    ligne = full.strip().split("\n")[0]
-    if "," in ligne:
-        gauche, droite = (" ".join(cote.split()) for cote in ligne.split(",", 1))
-        if gauche and droite:
-            return gauche, droite
-        ligne = gauche or droite
-    parts = ligne.strip().split()
+    line = full.strip().split("\n")[0]
+    if "," in line:
+        left, right = (" ".join(side.split()) for side in line.split(",", 1))
+        if left and right:
+            return left, right
+        line = left or right
+    parts = line.strip().split()
     if not parts:
         return "", ""
     if parts[0].isupper():
@@ -489,13 +479,13 @@ def derive_status_from_label(label: str) -> str:
 # tranche d'âge préfixée (`M18-34`, `F65+`) et libellé « <classe> H|F »
 # (`Seniors F`, `Master 4+ Homme`). Un libellé de sexe nu (`Masculin`, `Hommes`)
 # n'est mesuré que sur des relais et des duos : il décrit l'équipe, on l'ignore.
-_RE_CODE_SUFFIXE_SEXE = re.compile(r"^(?:[A-Z]{2}|[A-Z]\d{1,2}(?:[-+]\d?)?)([MFH])$")
-_RE_TRANCHE_PREFIXE_SEXE = re.compile(r"^([MF])(?:\d{1,2}-\d{1,2}|\d{2}\+)$")
-_RE_CATEGORIE_EQUIPE = re.compile(
+_RE_CODE_GENDER_SUFFIX = re.compile(r"^(?:[A-Z]{2}|[A-Z]\d{1,2}(?:[-+]\d?)?)([MFH])$")
+_RE_AGE_BAND_GENDER_PREFIX = re.compile(r"^([MF])(?:\d{1,2}-\d{1,2}|\d{2}\+)$")
+_RE_TEAM_CATEGORY = re.compile(
     r"\b(?:MIXTE|MIXED|RELAIS?|RELAY|DUO|EQUIPE|TEAM)\b|[MFH]\s*\+\s*[MFH]|&"
 )
-_MOTS_SEXE_MASCULIN = frozenset({"H", "M", "HOMME", "HOMMES", "MASCULIN"})
-_MOTS_SEXE_FEMININ = frozenset({"F", "FEMME", "FEMMES", "FEMININ"})
+_MALE_WORDS = frozenset({"H", "M", "HOMME", "HOMMES", "MASCULIN"})
+_FEMALE_WORDS = frozenset({"F", "FEMME", "FEMMES", "FEMININ"})
 
 
 def gender_from_category(category: str) -> str:
@@ -504,24 +494,24 @@ def gender_from_category(category: str) -> str:
     if (
         not code
         or code == "FEM"  # « féminin » abrégé, libellé nu malgré sa forme de code
-        or _RE_CATEGORIE_EQUIPE.search(code)
+        or _RE_TEAM_CATEGORY.search(code)
         or derive_status_from_label(code)
     ):
         return ""
-    mots = re.findall(r"[A-Z0-9+\-]+", code)
-    if len(mots) >= 2:
-        if mots[-1] in _MOTS_SEXE_MASCULIN:
+    words = re.findall(r"[A-Z0-9+\-]+", code)
+    if len(words) >= 2:
+        if words[-1] in _MALE_WORDS:
             return "M"
-        if mots[-1] in _MOTS_SEXE_FEMININ:
+        if words[-1] in _FEMALE_WORDS:
             return "F"
         return ""
-    trouve = _RE_CODE_SUFFIXE_SEXE.match(code) or _RE_TRANCHE_PREFIXE_SEXE.match(code)
-    if not trouve:
+    matched = _RE_CODE_GENDER_SUFFIX.match(code) or _RE_AGE_BAND_GENDER_PREFIX.match(code)
+    if not matched:
         return ""
-    return "F" if trouve.group(1) == "F" else "M"
+    return "F" if matched.group(1) == "F" else "M"
 
 
-def qualify_event_name(event_name: str, qualifiant: str) -> str:
+def qualify_event_name(event_name: str, qualifier: str) -> str:
     """Qualifie un nom d'épreuve par son parcours / contest.
 
     « Triathlon de Rumilly » + « Distance M » → « Triathlon de Rumilly - Distance M ».
@@ -534,10 +524,10 @@ def qualify_event_name(event_name: str, qualifiant: str) -> str:
     # Espaces réduits des deux côtés : un nom d'événement à espace final
     # doublait l'espace devant ` - ` (#1088).
     event_name = collapse_spaces(event_name)
-    qualifiant = collapse_spaces(qualifiant)
-    if not qualifiant or qualifiant.lower() in event_name.lower():
+    qualifier = collapse_spaces(qualifier)
+    if not qualifier or qualifier.lower() in event_name.lower():
         return event_name
-    return f"{event_name} - {qualifiant}"
+    return f"{event_name} - {qualifier}"
 
 
 def collapse_spaces(value: str | None) -> str:

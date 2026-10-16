@@ -23,6 +23,7 @@ from app.schemas.course import (
     CourseSummary,
     EventPage,
 )
+from app.schemas.ids import DbId
 from app.schemas.participation import CourseParticipationPage, ParticipationOut
 from app.services import challenge_service, stats_service
 
@@ -66,7 +67,7 @@ def list_events(
 
 @router.get("/courses", response_model=list[CourseBrief])
 def list_courses(
-    course_id: int | None = Query(
+    course_id: DbId | None = Query(
         None, alias="id", description="Filtre exact par identifiant d'épreuve."
     ),
     name: str | None = Query(None, description="Recherche partielle sur le nom de l'épreuve."),
@@ -117,7 +118,7 @@ def list_courses(
 
 @router.get("/courses/count", response_model=CourseCount)
 def count_courses(
-    course_id: int | None = Query(
+    course_id: DbId | None = Query(
         None, alias="id", description="Filtre exact par identifiant d'épreuve."
     ),
     name: str | None = Query(None, description="Recherche partielle sur le nom de l'épreuve."),
@@ -191,7 +192,7 @@ def _resolve_page_size(page_size: int | Literal["all"]) -> int | None:
 
 
 @router.get("/courses/{course_id}/summary", response_model=CourseSummary)
-def get_course_summary(course_id: int, db: Session = Depends(get_db)):
+def get_course_summary(course_id: DbId, db: Session = Depends(get_db)):
     """Synthèse d'une épreuve **entière** (#163).
 
     N'accepte aucun paramètre, et c'est structurant : les agrégats ne dépendent
@@ -206,7 +207,7 @@ def get_course_summary(course_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/courses/{course_id}/sources", response_model=list[CourseSourceOut])
-def list_course_sources(course_id: int, db: Session = Depends(get_db)):
+def list_course_sources(course_id: DbId, db: Session = Depends(get_db)):
     """Les sources de chronométrage de l'épreuve, **non authentifié** (#284, D4).
 
     Ouverte comme le reste de l'API de lecture : savoir qu'une épreuve a deux
@@ -228,7 +229,7 @@ def list_course_sources(course_id: int, db: Session = Depends(get_db)):
 
 @router.get("/courses/{course_id}", response_model=CourseParticipationPage)
 def get_course(
-    course_id: int,
+    course_id: DbId,
     page: int = Query(1, ge=1, le=MAX_PAGE),
     page_size: int | Literal["all"] = Query(
         20, description="Taille de tranche, ou « all » pour le classement entier."
@@ -265,10 +266,10 @@ def get_course(
     course = course_repository.get(db, course_id)
     if not course:
         raise NotFoundError("Course introuvable")
-    taille = _resolve_page_size(page_size)
+    resolved_page_size = _resolve_page_size(page_size)
     filters = {"q": q, "club_only": is_club_scope(scope), "club": club, "category": category}
     participations, total = participation_repository.list_page_for_course(
-        db, course_id, page=page, page_size=taille, **filters
+        db, course_id, page=page, page_size=resolved_page_size, **filters
     )
     pending = participation_repository.list_pending_for_course(db, course_id, **filters)
     return {
@@ -276,6 +277,6 @@ def get_course(
         "participations": [ParticipationOut.model_validate(p) for p in participations],
         "total": total,
         "page": page,
-        "page_size": taille,
+        "page_size": resolved_page_size,
         "pending_participations": [ParticipationOut.model_validate(p) for p in pending],
     }

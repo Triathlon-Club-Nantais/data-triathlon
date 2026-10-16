@@ -11,7 +11,7 @@ création restant depuis le retrait de l'ancien geste admin (#780).
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import optional_user
+from app.api.deps import optional_user, volunteer_action_rate_limit
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.volunteer_action import VolunteerActionSelfCreate, VolunteerActionSelfOut
@@ -20,8 +20,13 @@ from app.services import volunteer_action_service
 router = APIRouter(tags=["volunteer-actions"])
 
 
-@router.post("/volunteer-actions", status_code=201, response_model=VolunteerActionSelfOut)
-def creer_pour_un_athlete(
+@router.post(
+    "/volunteer-actions",
+    status_code=201,
+    response_model=VolunteerActionSelfOut,
+    dependencies=[Depends(volunteer_action_rate_limit)],
+)
+def create_for_athlete(
     body: VolunteerActionSelfCreate,
     db: Session = Depends(get_db),
     user: User | None = Depends(optional_user),

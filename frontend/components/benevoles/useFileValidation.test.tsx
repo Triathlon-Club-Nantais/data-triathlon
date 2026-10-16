@@ -31,7 +31,7 @@ function badgeRefreshes() {
   return vi
     .mocked(queryClient.invalidateQueries)
     .mock.calls.filter(([filtre]) =>
-      JSON.stringify(filtre?.queryKey) === JSON.stringify(queryKeys.benevoleQueueCount()),
+      JSON.stringify(filtre?.queryKey) === JSON.stringify(queryKeys.adminBadgeCounts()),
     ).length;
 }
 

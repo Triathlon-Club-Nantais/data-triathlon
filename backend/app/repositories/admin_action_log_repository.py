@@ -25,16 +25,16 @@ def create(
 ) -> AdminActionLog:
     """Consigne un geste. **Ne commite pas** : la trace et l'action partagent la
     transaction du router, c'est ce qui les rend indissociables (FR-015)."""
-    entree = AdminActionLog(
+    entry = AdminActionLog(
         user_id=user_id,
         action=action,
         entity_type=entity_type,
         entity_id=entity_id,
         payload=payload,
     )
-    db.add(entree)
+    db.add(entry)
     db.flush()
-    return entree
+    return entry
 
 
 def entity_ids_with_action(db: Session, *, action: str, entity_ids: list[int]) -> set[int]:

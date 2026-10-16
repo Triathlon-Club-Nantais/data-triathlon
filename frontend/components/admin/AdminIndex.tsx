@@ -7,6 +7,7 @@ import { NAV, ROLE, TO_HANDLE, byGroup, estVisible } from "@/components/layout/n
 import { useSession } from "@/lib/queries/auth";
 import { libelleCompteur, useNavBadges } from "@/lib/queries/nav-badges";
 import { NoAdminAccess } from "./NoAdminAccess";
+import { ProviderQualityTable } from "./ProviderQualityTable";
 
 /**
  * Sommaire du back-office (ADM-6).
@@ -38,7 +39,7 @@ const FOCUS_RING =
 export function AdminIndex() {
   const session = useSession();
   const pouvoirs = new Set(session.data?.permissions ?? []);
-  const badges = useNavBadges(pouvoirs, session.data?.can_administer ?? false);
+  const badges = useNavBadges(session.data?.can_administer ?? false);
 
   if (session.isPending)
     return <Skeleton className="h-40 w-full" aria-label="Chargement des écrans" />;
@@ -83,7 +84,7 @@ export function AdminIndex() {
           <ul className="grid list-none gap-3 sm:grid-cols-2">
             {files.map((item) => {
               const n = item.badge ? badges.counts[item.badge] : undefined;
-              const loading = !!item.badge && badges.loading.has(item.badge);
+              const loading = !!item.badge && badges.loading;
               return (
                 <li key={item.id}>
                   <Link href={item.href} className={FOCUS_RING}>
@@ -120,6 +121,18 @@ export function AdminIndex() {
               );
             })}
           </ul>
+        </section>
+      )}
+      {/* Sous le pouvoir de la revalidation, comme sa route (#1366). */}
+      {pouvoirs.has("quality:override") && (
+        <section aria-labelledby="admin-fiabilite" className="space-y-4">
+          <h2 id="admin-fiabilite" className="font-heading text-lg font-semibold">
+            Fiabilité par fournisseur
+          </h2>
+          <p className="text-sm text-[var(--tcn-text-faint)]">
+            Épreuves importées par fournisseur, et parmi les non fiables, combien portent chaque anomalie.
+          </p>
+          <ProviderQualityTable />
         </section>
       )}
       {sections.map((section) => (

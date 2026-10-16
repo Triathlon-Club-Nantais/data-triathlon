@@ -246,7 +246,7 @@ export function ResultsFilters() {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              className="sm:hidden"
+              className="tcn-cible-tactile sm:hidden"
               aria-expanded={volet}
               aria-haspopup="dialog"
               onClick={() => setVolet(true)}
@@ -303,13 +303,14 @@ export function ResultsFilters() {
             {active.map((chip) => (
               // `h-7` (28 px) : le badge grandit avec la croix — sans quoi
               // `overflow-hidden` (badge, `h-5` par défaut) la retaillerait à
-              // sa taille d'origine, 16 px (#479).
-              <Badge key={chip.key} variant="secondary" className="h-7 gap-1 pr-1">
+              // sa taille d'origine, 16 px (#479). Sous md, 48 px : la croix de
+              // 44 px tient dans la boîte de rembourrage, bordure ôtée (#1440).
+              <Badge key={chip.key} variant="secondary" className="h-7 gap-1 pr-1 max-md:h-12">
                 {chip.label}
                 <Button
                   size="icon-xs"
                   variant="ghost"
-                  className="rounded-full p-0"
+                  className="rounded-full p-0 max-md:size-11"
                   onClick={() => removeChip(chip.key)}
                   aria-label={`Retirer ${chip.label}`}
                 >
@@ -332,7 +333,7 @@ export function ResultsFilters() {
               <SheetTitle>Filtres</SheetTitle>
               <SheetClose
                 aria-label="Fermer les filtres"
-                className="rounded-full p-1 text-[var(--tcn-text-faint)] hover:text-[var(--tcn-ink)]"
+                className="tcn-cible-tactile inline-flex items-center justify-center rounded-full p-1 text-[var(--tcn-text-faint)] hover:text-[var(--tcn-ink)]"
               >
                 <X className="size-4" />
               </SheetClose>
@@ -438,7 +439,7 @@ function ChampsReplies({
           <SelectTrigger
             id={`filtre-discipline-${suffixe}`}
             aria-labelledby={`filtre-discipline-${suffixe}-label`}
-            className="h-9 w-full sm:w-48"
+            className="tcn-cible-tactile h-9 w-full sm:w-48"
           >
             <SelectValue placeholder="Toutes les disciplines">
               {(v) => (!v || v === ALL ? "Toutes les disciplines" : eventTypeLabel(v as string))}

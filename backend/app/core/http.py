@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 #: y arrive réécrit en `file://<host>/etc/passwd`, jusqu'à `TooManyRedirects`.
 _SCHEMES = ("http", "https")
 
-_PORTS_PAR_DEFAUT = {"http": 80, "https": 443}
+_DEFAULT_PORTS = {"http": 80, "https": 443}
 
 
 def _is_internal(addr: str) -> bool:
@@ -75,12 +75,12 @@ def _resolve(host: str, port: int) -> list[str]:
     Point de monkeypatch des tests : c'est ici que le réseau s'arrête.
     """
     try:
-        infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+        addr_infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except (OSError, UnicodeError):
         return []
     # `str()` : le stub typeshed type `info[4][0]` en `str | int` à cause d'une
     # variante AF_PACKET inatteignable ici (SOCK_STREAM, AF_INET/AF_INET6).
-    return [str(info[4][0]) for info in infos]
+    return [str(info[4][0]) for info in addr_infos]
 
 
 def _check_target(url: httpx.URL, memo: dict[tuple[str, int], list[str]]) -> None:
@@ -101,7 +101,7 @@ def _check_target(url: httpx.URL, memo: dict[tuple[str, int], list[str]]) -> Non
         raise BlockedTargetError(f"Schéma d'URL refusé : {url.scheme}")
 
     host = url.raw_host.decode("ascii")
-    port = url.port or _PORTS_PAR_DEFAUT[url.scheme]
+    port = url.port or _DEFAULT_PORTS[url.scheme]
 
     if not host:
         # Même politique que `_is_internal` : ce qu'on n'a pas su lire, on le
@@ -112,20 +112,20 @@ def _check_target(url: httpx.URL, memo: dict[tuple[str, int], list[str]]) -> Non
     try:
         ipaddress.ip_address(host)
     except ValueError:
-        cle = (host, port)
-        if cle not in memo:
-            memo[cle] = _resolve(host, port)
-        adresses = memo[cle]
+        key = (host, port)
+        if key not in memo:
+            memo[key] = _resolve(host, port)
+        addresses = memo[key]
     else:
-        adresses = [host]  # littéral d'IP : aucune résolution nécessaire
+        addresses = [host]  # littéral d'IP : aucune résolution nécessaire
 
-    internes = [a for a in adresses if _is_internal(a)]
-    if internes:
+    internal_addresses = [a for a in addresses if _is_internal(a)]
+    if internal_addresses:
         # Le détail (les adresses résolues) est journalisé ; le message rendu à
         # l'appelant garde le host — l'opérateur en a besoin dans les bilans
         # CLI — mais pas les adresses, qui décriraient le réseau interne.
         logger.warning(
-            "Destination interne refusée (#101) : %s:%s → %s", host, port, ", ".join(internes)
+            "Destination interne refusée (#101) : %s:%s → %s", host, port, ", ".join(internal_addresses)
         )
         raise BlockedTargetError(f"Destination interne refusée : {host}")
 

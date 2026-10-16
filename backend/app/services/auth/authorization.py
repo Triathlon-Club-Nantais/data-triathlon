@@ -174,10 +174,10 @@ def effective_permissions(
     if any(attribution.role.is_superuser for attribution in attributions):
         return permissions.CODES
     return frozenset(
-        lien.permission_code
+        link.permission_code
         for attribution in attributions
-        for lien in attribution.role.permissions
-        if permissions.is_known(lien.permission_code)
+        for link in attribution.role.permissions
+        if permissions.is_known(link.permission_code)
     )
 
 
@@ -231,10 +231,10 @@ def is_superuser(db: Session, user: User, *, organisation_id: int | None = None)
 
 def _codes(role: Role) -> tuple[list[str], list[str]]:
     """Les codes du rôle, séparés en `(de l'inventaire, périmés)`."""
-    portes = sorted(lien.permission_code for lien in role.permissions)
-    connus = [code for code in portes if permissions.is_known(code)]
-    perimes = [code for code in portes if not permissions.is_known(code)]
-    return connus, perimes
+    held = sorted(link.permission_code for link in role.permissions)
+    known = [code for code in held if permissions.is_known(code)]
+    stale = [code for code in held if not permissions.is_known(code)]
+    return known, stale
 
 
 def role_view(db: Session, role: Role, *, holders: int | None = None) -> dict:
@@ -245,7 +245,7 @@ def role_view(db: Session, role: Role, *, holders: int | None = None) -> dict:
     (`role_repository.count_holders_by_role`) plutôt que de laisser cette
     fonction interroger une fois par rôle.
     """
-    connus, perimes = _codes(role)
+    known, stale = _codes(role)
     return {
         "id": role.id,
         "organisation_id": role.organisation_id,
@@ -254,22 +254,22 @@ def role_view(db: Session, role: Role, *, holders: int | None = None) -> dict:
         "description": role.description,
         "is_system": role.is_system,
         "is_superuser": role.is_superuser,
-        "permissions": connus,
-        "stale_permissions": perimes,
+        "permissions": known,
+        "stale_permissions": stale,
         "holders": holders if holders is not None else role_repository.count_holders(db, role.id),
     }
 
 
-def _valider_les_codes_soumis(codes: list[str]) -> None:
+def _validate_submitted_codes(codes: list[str]) -> None:
     """Tout code **soumis** doit être de l'inventaire — 422 sinon.
 
     C'est le seul écrivain, et c'est pourquoi une clé étrangère ne protégerait
     rien : il valide déjà contre le catalogue.
     """
-    inconnus = sorted({code for code in codes if not permissions.is_known(code)})
-    if inconnus:
+    unknown = sorted({code for code in codes if not permissions.is_known(code)})
+    if unknown:
         raise UnknownPermissionError(
-            f"Pouvoir inconnu : {', '.join(inconnus)}."
+            f"Pouvoir inconnu : {', '.join(unknown)}."
         )
 
 
@@ -285,15 +285,15 @@ def assert_may_grant(
     deviendrait immodifiable, et `is_system` ou attribué, indélébile. Un
     nettoyage de code ordinaire suffirait à geler un rôle définitivement.
     """
-    vises = codes & permissions.CODES
-    manquants = vises - effective_permissions(
+    requested = codes & permissions.CODES
+    missing = requested - effective_permissions(
         db, actor, organisation_id=organisation_id
     )
-    if manquants:
+    if missing:
         logger.warning(
             "Privilege escalation refused: user %s lacks %s",
             actor.id,
-            ",".join(sorted(manquants)),
+            ",".join(sorted(missing)),
         )
         raise PrivilegeEscalationError()
 
@@ -334,8 +334,8 @@ def assert_may_hand_over(db: Session, actor: User, role: Role) -> None:
     perdent. La prochaine façon de faire changer un rôle de mains appellera
     ceci, ou n'appellera rien du tout de visible.
     """
-    connus, _ = _codes(role)
-    assert_may_grant(db, actor, set(connus))
+    known, _ = _codes(role)
+    assert_may_grant(db, actor, set(known))
     assert_may_distribute_superuser(db, actor, role)
 
 
@@ -388,14 +388,14 @@ def assert_organisation_keeps_an_admin(db: Session, organisation_id: int) -> Non
     cinquième chemin ajouté demain est couvert sans qu'on y pense (FR-032).
 
     À n'appeler **que** sur une organisation qui en avait un avant l'opération :
-    voir `administrateurs_preserves`.
+    voir `preserving_admins`.
     """
     if count_active_superusers(db, organisation_id) == 0:
         raise LastAdministratorError()
 
 
 @contextmanager
-def administrateurs_preserves(db: Session, organisation_id: int | None = None):
+def preserving_admins(db: Session, organisation_id: int | None = None):
     """Encadre une opération et refuse qu'elle **fasse perdre** le dernier admin.
 
     La nuance « faire perdre » n'est pas cosmétique : sur une installation neuve,
@@ -408,17 +408,17 @@ def administrateurs_preserves(db: Session, organisation_id: int | None = None):
     global est superutilisateur partout, le décocher ou le supprimer peut
     verrouiller un club autre que celui d'où l'on agit.
     """
-    cibles = (
+    targets = (
         [organisation_id]
         if organisation_id is not None
-        else [ligne.id for ligne in role_repository.list_organisations(db)]
+        else [organisation.id for organisation in role_repository.list_organisations(db)]
     )
-    avant = {cible: count_active_superusers(db, cible) for cible in cibles}
+    before = {target: count_active_superusers(db, target) for target in targets}
     yield
     db.flush()
-    for cible, compte in avant.items():
-        if compte > 0:
-            assert_organisation_keeps_an_admin(db, cible)
+    for target, count in before.items():
+        if count > 0:
+            assert_organisation_keeps_an_admin(db, target)
 
 
 def create_role(
@@ -432,7 +432,7 @@ def create_role(
     codes: list[str],
     superuser: bool = False,
 ) -> Role:
-    _valider_les_codes_soumis(codes)
+    _validate_submitted_codes(codes)
     assert_may_grant(db, actor, set(codes))
     if superuser:
         assert_may_set_superuser(db, actor)
@@ -506,16 +506,16 @@ def update_role(
     Un rôle `is_system` est parfaitement modifiable : livré ne veut pas dire figé
     (FR-006). Seule sa suppression est refusée.
     """
-    avant_vue = _role_audit_view(role)
+    before_view = _role_audit_view(role)
     if codes is not None:
-        _valider_les_codes_soumis(codes)
-        avant = {lien.permission_code for lien in role.permissions}
+        _validate_submitted_codes(codes)
+        before = {link.permission_code for link in role.permissions}
         # La différence **symétrique** : ajouter et retirer relèvent de la même
         # règle. Un éditeur qui pourrait désarmer un rôle sans en porter les
         # pouvoirs contournerait la non-amplification par la sortie.
-        assert_may_grant(db, actor, avant ^ set(codes))
+        assert_may_grant(db, actor, before ^ set(codes))
 
-    with administrateurs_preserves(db, role.organisation_id):
+    with preserving_admins(db, role.organisation_id):
         if superuser is not None and superuser != role.is_superuser:
             assert_may_set_superuser(db, actor)
             role.is_superuser = superuser
@@ -539,7 +539,7 @@ def update_role(
     )
     audit.record(
         db, actor.id, action="role.update", entity_type="role", entity_id=role.id,
-        payload={"slug": role.slug, "before": avant_vue, "after": _role_audit_view(role)},
+        payload={"slug": role.slug, "before": before_view, "after": _role_audit_view(role)},
     )
     return role
 
@@ -549,7 +549,7 @@ def _role_audit_view(role: Role) -> dict:
     return {
         "name": role.name,
         "description": role.description,
-        "permissions": sorted(lien.permission_code for lien in role.permissions),
+        "permissions": sorted(link.permission_code for link in role.permissions),
         "superuser": role.is_superuser,
     }
 
@@ -557,28 +557,28 @@ def _role_audit_view(role: Role) -> dict:
 def delete_role(db: Session, actor: User, role: Role) -> None:
     if role.is_system:
         raise SystemRoleError()
-    porteurs = role_repository.count_holders(db, role.id)
-    if porteurs:
+    holder_count = role_repository.count_holders(db, role.id)
+    if holder_count:
         # Le nombre est **dans le message** : « conflit » ne se corrige pas.
         raise RoleInUseError(
-            f"Ce rôle est porté par {porteurs} utilisateur"
-            f"{'s' if porteurs > 1 else ''}. Retirez-le d'abord."
+            f"Ce rôle est porté par {holder_count} utilisateur"
+            f"{'s' if holder_count > 1 else ''}. Retirez-le d'abord."
         )
     # Même refus pour les adresses qui le posent à l'inscription (#239) : sans
     # lui, la clé étrangère céderait en PostgreSQL et serait **inerte** en
     # SQLite — un même geste, deux comportements.
-    adresses = allowed_email_repository.count_by_role(db, role.id)
-    if adresses:
+    address_count = allowed_email_repository.count_by_role(db, role.id)
+    if address_count:
         raise RoleInUseError(
-            f"Ce rôle est donné à l'inscription de {adresses} adresse"
-            f"{'s' if adresses > 1 else ''} autorisée"
-            f"{'s' if adresses > 1 else ''}. Retirez-le d'abord de ces adresses."
+            f"Ce rôle est donné à l'inscription de {address_count} adresse"
+            f"{'s' if address_count > 1 else ''} autorisée"
+            f"{'s' if address_count > 1 else ''}. Retirez-le d'abord de ces adresses."
         )
-    role_id, vue = role.id, {"slug": role.slug, **_role_audit_view(role)}
-    with administrateurs_preserves(db, role.organisation_id):
+    role_id, view = role.id, {"slug": role.slug, **_role_audit_view(role)}
+    with preserving_admins(db, role.organisation_id):
         logger.info("Role deleted: actor=%s role=%s", actor.id, role.slug)
         role_repository.delete(db, role)
-    audit.record(db, actor.id, action="role.delete", entity_type="role", entity_id=role_id, payload=vue)
+    audit.record(db, actor.id, action="role.delete", entity_type="role", entity_id=role_id, payload=view)
 
 
 def grant_role(
@@ -591,7 +591,7 @@ def grant_role(
     assert_role_assignable_in(db, role, organisation_id)
     assert_may_hand_over(db, actor, role)
 
-    _, cree = user_role_repository.grant(
+    _, created = user_role_repository.grant(
         db, user_id=user.id, role_id=role.id, organisation_id=organisation_id
     )
     db.flush()
@@ -600,13 +600,13 @@ def grant_role(
         actor.id,
         user.id,
         role.slug,
-        cree,
+        created,
     )
     audit.record(
         db, actor.id, action="role.grant", entity_type="user", entity_id=user.id,
         payload={
             "role": role.slug, "email": user.email,
-            "organisation_id": organisation_id, "created": cree,
+            "organisation_id": organisation_id, "created": created,
         },
     )
 
@@ -618,7 +618,7 @@ def revoke_role(
     existing_organisation(db, organisation_id)
     assert_may_hand_over(db, actor, role)
 
-    with administrateurs_preserves(db, organisation_id):
+    with preserving_admins(db, organisation_id):
         user_role_repository.revoke(
             db, user_id=user.id, role_id=role.id, organisation_id=organisation_id
         )
@@ -632,6 +632,19 @@ def revoke_role(
 
 
 def user_view(db: Session, user: User) -> dict:
+    return _user_view(user, user_role_repository.list_for_user(db, user.id))
+
+
+def users_view(db: Session) -> list[dict]:
+    """Tous les comptes, en un nombre de requêtes fixe (#1393)."""
+    attributions = user_role_repository.list_by_user(db)
+    return [
+        _user_view(user, attributions.get(user.id, []))
+        for user in user_repository.list_all(db)
+    ]
+
+
+def _user_view(user: User, attributions: list[UserRole]) -> dict:
     return {
         "id": user.id,
         "email": user.email,
@@ -645,7 +658,7 @@ def user_view(db: Session, user: User) -> dict:
                 "name": attribution.role.name,
                 "organisation_id": attribution.organisation_id,
             }
-            for attribution in user_role_repository.list_for_user(db, user.id)
+            for attribution in attributions
         ],
         "created_at": user.created_at,
     }
@@ -656,10 +669,3 @@ def get_role_or_404(db: Session, role_id: int) -> Role:
     if role is None:
         raise NotFoundError("Ce rôle n'existe pas.")
     return role
-
-
-def get_user_or_404(db: Session, user_id: int) -> User:
-    user = user_repository.get(db, user_id)
-    if user is None:
-        raise NotFoundError("Cet utilisateur n'existe pas.")
-    return user

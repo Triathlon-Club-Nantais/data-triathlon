@@ -61,7 +61,7 @@ def validate_url(url: str) -> str:
 
 
 def merge_cached_courses(
-    db: Session, persister_courses: list[dict], trace,
+    db: Session, persisted_courses: list[dict], trace,
 ) -> list[dict]:
     """Étoffe le `courses` du SSE `done` avec les heats sautés par cache_probe.
 
@@ -79,10 +79,10 @@ def merge_cached_courses(
     desc).
     """
     if trace is None or not getattr(trace, "cached_urls", None):
-        return persister_courses
+        return persisted_courses
     cached = course_repository.list_by_source_urls(db, trace.cached_urls)
-    seen: set[int] = {c["id"] for c in persister_courses}
-    merged = list(persister_courses)
+    seen: set[int] = {c["id"] for c in persisted_courses}
+    merged = list(persisted_courses)
     for course in cached:
         if course.id in seen:
             continue
@@ -379,23 +379,23 @@ def _importable(url: str, results: list[ScrapedResult]) -> list[ScrapedResult]:
         for r in results
         if _row_is_youth(r) and is_tcn(r.club)
     }
-    retenus: list[ScrapedResult] = []
+    kept: list[ScrapedResult] = []
     excluded_ranks: dict[tuple, set[int]] = defaultdict(set)
     for r in results:
         heat = _heat(r)
         if not _row_is_youth(r) or heat in heats_with_tcn_youth:
-            retenus.append(r)
+            kept.append(r)
         elif r.rank_overall:
             excluded_ranks[heat].add(r.rank_overall)
     if excluded_ranks:
-        retenus = [
+        kept = [
             replace(r, excluded_ranks=frozenset(excluded_ranks[_heat(r)]))
             if _heat(r) in excluded_ranks else r
-            for r in retenus
+            for r in kept
         ]
-    if len(retenus) < len(results):
-        logger.info("Import %s : %d ligne(s) d'épreuve jeune écartée(s)", url, len(results) - len(retenus))
-    return retenus
+    if len(kept) < len(results):
+        logger.info("Import %s : %d ligne(s) d'épreuve jeune écartée(s)", url, len(results) - len(kept))
+    return kept
 
 
 def _heat(result: ScrapedResult) -> tuple:

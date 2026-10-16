@@ -29,10 +29,10 @@ def _redacted_payload(payload: dict | None) -> dict | None:
     if payload is None:
         return None
     redacted = dict(payload)
-    for cle in ("before", "after"):
-        valeur = redacted.get(cle)
-        if isinstance(valeur, dict) and "birth_date" in valeur:
-            redacted[cle] = {k: v for k, v in valeur.items() if k != "birth_date"}
+    for key in ("before", "after"):
+        value = redacted.get(key)
+        if isinstance(value, dict) and "birth_date" in value:
+            redacted[key] = {k: v for k, v in value.items() if k != "birth_date"}
     return redacted
 
 

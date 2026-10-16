@@ -42,8 +42,10 @@ const STATS: Stats = {
 const SUMMARY: ClubSummary = {
   roster: [],
   podiums: { scratch: [], category: [], gender: [], all: [] },
+  podiums_totals: { scratch: 0, category: 0, gender: 0, all: 0 },
   podiums_by_discipline: {},
   composition: { gender: {}, category: {} },
+  licensees: null,
 };
 
 function part(over: Partial<Participation> & { id: number }): Participation {

@@ -125,14 +125,14 @@ def test_edition_url():
 
 
 def test_epreuve_url():
-    assert t2area._epreuve_url("triathlon-de-la-baule", "triathlon-m") == URL_EPREUVE
+    assert t2area._race_url("triathlon-de-la-baule", "triathlon-m") == URL_EPREUVE
 
 
 def test_resolve_annee_prend_la_plus_recente():
     """La page d'épreuve liste toutes ses éditions ; la dernière est la plus récente."""
     client = FakeClient({"/triathlon-m.html": EPREUVE_LABAULE})
 
-    assert t2area._resolve_annee(client, "triathlon-de-la-baule", "triathlon-m") == "2022"
+    assert t2area._resolve_year(client, "triathlon-de-la-baule", "triathlon-m") == "2022"
     assert client.calls == [URL_EPREUVE]
 
 
@@ -141,7 +141,7 @@ def test_resolve_annee_sans_edition_leve():
     client = FakeClient({"/triathlon-m.html": "<html><body>rien</body></html>"})
 
     with pytest.raises(ValueError, match="Aucune édition publiée"):
-        t2area._resolve_annee(client, "triathlon-de-la-baule", "triathlon-m")
+        t2area._resolve_year(client, "triathlon-de-la-baule", "triathlon-m")
 
 
 def test_fetch_erreur_serveur_remonte():
@@ -341,7 +341,7 @@ def test_fetch_edition_repere_la_redirection_vers_le_calendrier():
         "<html><body>calendrier</body></html>", url="https://fftri.t2area.com/calendrier.html"
     ))
 
-    with pytest.raises(t2area.EditionIntrouvableError, match="Édition inexistante"):
+    with pytest.raises(t2area.EditionNotFoundError, match="Édition inexistante"):
         t2area._fetch_edition(client, URL_EDITION)
 
 
@@ -349,7 +349,7 @@ def test_libelle_de_split_inconnu_bascule_sur_segments():
     """Un seul libellé hors table suffit : rien n'est perdu silencieusement."""
     r = ScrapedResult(source_url=URL_EDITION, provider="t2area")
 
-    t2area._appliquer_splits(r, [("Natation 1", "00:10:00"), ("Trail 1", "00:20:00")])
+    t2area._apply_splits(r, [("Natation 1", "00:10:00"), ("Trail 1", "00:20:00")])
 
     assert r.segments == [("Natation 1", "00:10:00"), ("Trail 1", "00:20:00")]
     assert r.swim_time == ""
@@ -364,14 +364,14 @@ def test_libelle_de_split_inconnu_bascule_sur_segments():
     ("   ", ""),
 ])
 def test_temps_ou_vide(brut, attendu):
-    assert t2area._temps_ou_vide(brut) == attendu
+    assert t2area._time_or_empty(brut) == attendu
 
 
 @pytest.mark.parametrize("categorie,attendu", [
     ("MS2", "M"), ("FV1", "F"), ("MHAN", "M"), ("MT1", "M"), ("", ""), ("S3", ""),
 ])
 def test_genre(categorie, attendu):
-    assert t2area._genre(categorie) == attendu
+    assert t2area._gender(categorie) == attendu
 
 
 @pytest.mark.parametrize("cle,attendu", [
@@ -381,7 +381,7 @@ def test_genre(categorie, attendu):
     ("", ""),
 ])
 def test_dossard(cle, attendu):
-    assert t2area._dossard(cle) == attendu
+    assert t2area._bib(cle) == attendu
 
 
 @pytest.mark.parametrize("epreuve,attendu", [
@@ -397,7 +397,7 @@ def test_dossard(cle, attendu):
 ])
 def test_est_relais(epreuve, attendu):
     """Déduit du slug — non vérifié sur données réelles (§8.3 du design)."""
-    assert t2area._est_relais(epreuve) is attendu
+    assert t2area._is_relay(epreuve) is attendu
 
 
 def test_entete_titre_illisible_garde_la_date():
@@ -407,7 +407,7 @@ def test_entete_titre_illisible_garde_la_date():
     soup = BeautifulSoup(
         "<html><head><title>Résultats — édition du 18-09-2022</title></head></html>", "lxml"
     )
-    nom, event_date = t2area._entete(soup, "triathlon-de-la-baule", "triathlon-m")
+    nom, event_date = t2area._header(soup, "triathlon-de-la-baule", "triathlon-m")
 
     assert event_date == date(2022, 9, 18)
     assert nom == "Triathlon De La Baule Triathlon M"
@@ -422,7 +422,7 @@ def test_chronometreur_lit_la_mention():
 
     soup = BeautifulSoup(EDITION_LABAULE, "lxml")
 
-    assert t2area._chronometreur(soup) == ("IPITOS", "http://www.ipitos.com/")
+    assert t2area._timekeeper(soup) == ("IPITOS", "http://www.ipitos.com/")
 
 
 def test_chronometreur_absent():
@@ -430,7 +430,7 @@ def test_chronometreur_absent():
 
     soup = BeautifulSoup("<html><body><p>rien</p></body></html>", "lxml")
 
-    assert t2area._chronometreur(soup) == ("", "")
+    assert t2area._timekeeper(soup) == ("", "")
 
 
 def test_chronometreur_dans_raw_data():
@@ -463,19 +463,19 @@ def test_pas_davertissement_sans_mention(caplog):
     from bs4 import BeautifulSoup
 
     with caplog.at_level(logging.WARNING, logger="app.scrapers.t2area"):
-        t2area._avertir_source_amont(*t2area._chronometreur(BeautifulSoup("", "lxml")), URL_EDITION)
+        t2area._warn_upstream_source(*t2area._timekeeper(BeautifulSoup("", "lxml")), URL_EDITION)
 
     assert caplog.text == ""
 
 
 def test_parse_fiche_lit_les_rangs_sexe_et_categorie():
     """Bandeau réel d'ACCENT Baptiste : « 453 Global », « 419 Sexe », « 89 Catégorie »."""
-    assert t2area._parse_fiche(FICHE_TRIATHLON) == {"rank_gender": 419, "rank_category": 89}
-    assert t2area._parse_fiche(FICHE_DUATHLON) == {"rank_gender": 1, "rank_category": 1}
+    assert t2area._parse_detail(FICHE_TRIATHLON) == {"rank_gender": 419, "rank_category": 89}
+    assert t2area._parse_detail(FICHE_DUATHLON) == {"rank_gender": 1, "rank_category": 1}
 
 
 def test_parse_fiche_sans_bandeau():
-    assert t2area._parse_fiche("<html><body></body></html>") == {}
+    assert t2area._parse_detail("<html><body></body></html>") == {}
 
 
 PAGES_LABAULE: dict[str, str | FakeResponse] = {

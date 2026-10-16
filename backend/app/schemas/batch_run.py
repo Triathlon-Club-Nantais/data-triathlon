@@ -31,7 +31,7 @@ class RescrapeLaunch(BaseModel):
 
     @field_validator("provider")
     @classmethod
-    def _provider_connu(cls, v: str | None) -> str | None:
+    def _known_provider(cls, v: str | None) -> str | None:
         """Validé contre le registre — la seule source de vérité des noms.
 
         Une faute de frappe passerait sinon jusqu'au runner, où elle ne
@@ -39,8 +39,8 @@ class RescrapeLaunch(BaseModel):
         dire pourquoi.
         """
         if v is not None and v not in registry.provider_names():
-            connus = ", ".join(registry.provider_names())
-            raise ValueError(f"Fournisseur inconnu : « {v} ». Connus : {connus}.")
+            known = ", ".join(registry.provider_names())
+            raise ValueError(f"Fournisseur inconnu : « {v} ». Connus : {known}.")
         return v
 
 

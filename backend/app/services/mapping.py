@@ -210,8 +210,8 @@ def get_or_create_course(db: Session, scraped: ScrapedResult, event_url: str) ->
     d'événement scrape N heats et chacun garde sa propre URL `…?heat=X`,
     donc sa propre entrée de cache TTL. Les autres providers publient
     `scraped.source_url = url` (l'URL passée au scraper), le comportement
-    est donc inchangé pour eux. `event_url` reste la voie de secours quand
-    la source ne fournit pas d'URL (chemin manuel `save_one`).
+    est donc inchangé pour eux. `event_url` reste la voie de secours de
+    l'import quand la source ne fournit pas d'URL (la saisie manuelle passe `""`).
 
     **Le rattachement est inconditionnel** (#283) : `get_or_create` ne pose la
     source que sur l'épreuve qu'il *crée*, celle qu'il apparie garde les siennes

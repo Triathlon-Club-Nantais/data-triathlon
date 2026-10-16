@@ -15,10 +15,10 @@ La profondeur du chemin dit à quel niveau on est :
 Flux (cf. docs/scrapers/t2area.md, re-sondé le 30/09/2026 pour #898) :
   1. `_parse_url`      → (événement, épreuve, année) ; une fiche est tronquée
                          vers son édition (le cas réel du Sheet)
-  2. `_resolve_annee`  → année absente : 1 GET sur l'épreuve, on prend la plus récente
+  2. `_resolve_year`   → année absente : 1 GET sur l'épreuve, on prend la plus récente
   3. `_fetch_edition`  → GET du classement, en repérant la redirection vers l'accueil
   4. `_parse_edition`  → un `article.edition-result` par participant, splits compris
-  5. `_parse_fiche`    → pour les **seules** lignes `is_tcn` : GET de la fiche,
+  5. `_parse_detail`   → pour les **seules** lignes `is_tcn` : GET de la fiche,
                          rangs « Sexe » et « Catégorie » (25 requêtes sur La Baule, pas 901)
 """
 import logging
@@ -31,6 +31,7 @@ from bs4 import BeautifulSoup
 
 from app.core import http
 from app.core.club import is_tcn
+from app.core.text import strip_accents
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, ScrapedResult
 from .classify import classify_event_type
@@ -41,7 +42,6 @@ from .utils import (
     normalize_rank,
     normalize_time,
     split_athlete_name,
-    strip_accents,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,13 +50,13 @@ BASE_URL = "https://fftri.t2area.com"
 HOST = "fftri.t2area.com"
 HEADERS = {**DEFAULT_HEADERS}
 
-_PREFIXE = "/calendrier/"
-_ANNEE_RE = re.compile(r"^\d{4}$")
+_PREFIX = "/calendrier/"
+_YEAR_RE = re.compile(r"^\d{4}$")
 
 def _norm(text: str) -> str:
     """Minuscule, sans accents, espaces aplatis. « Détails » → « details »."""
-    sans_accents = strip_accents((text or "").strip().lower())
-    return re.sub(r"\s+", " ", sans_accents)
+    unaccented = strip_accents((text or "").strip().lower())
+    return re.sub(r"\s+", " ", unaccented)
 
 
 def _parse_url(url: str) -> tuple[str, str, str]:
@@ -71,10 +71,10 @@ def _parse_url(url: str) -> tuple[str, str, str]:
     parsed = urlparse(url)
     if (parsed.hostname or "").lower() != HOST:
         raise ValueError(f"URL hors fftri.t2area.com : {url}")
-    chemin = parsed.path
-    if not chemin.startswith(_PREFIXE) or not chemin.endswith(".html"):
+    path = parsed.path
+    if not path.startswith(_PREFIX) or not path.endswith(".html"):
         raise ValueError(f"URL fftri.t2area.com non reconnue : {url}")
-    parts = chemin[len(_PREFIXE):-len(".html")].split("/")
+    parts = path[len(_PREFIX):-len(".html")].split("/")
     if not all(parts):
         raise ValueError(f"URL fftri.t2area.com non reconnue : {url}")
     if len(parts) == 1:
@@ -84,21 +84,21 @@ def _parse_url(url: str) -> tuple[str, str, str]:
         )
     if len(parts) > 4:
         raise ValueError(f"URL fftri.t2area.com non reconnue : {url}")
-    evenement, epreuve = parts[0], parts[1]
+    event, race = parts[0], parts[1]
     if len(parts) == 2:
-        return evenement, epreuve, ""
-    annee = parts[2]
-    if not _ANNEE_RE.match(annee):
+        return event, race, ""
+    year = parts[2]
+    if not _YEAR_RE.match(year):
         raise ValueError(f"Année illisible dans l'URL fftri.t2area.com : {url}")
-    return evenement, epreuve, annee
+    return event, race, year
 
 
-def _epreuve_url(evenement: str, epreuve: str) -> str:
-    return f"{BASE_URL}{_PREFIXE}{evenement}/{epreuve}.html"
+def _race_url(event: str, race: str) -> str:
+    return f"{BASE_URL}{_PREFIX}{event}/{race}.html"
 
 
-def _edition_url(evenement: str, epreuve: str, annee: str) -> str:
-    return f"{BASE_URL}{_PREFIXE}{evenement}/{epreuve}/{annee}.html"
+def _edition_url(event: str, race: str, year: str) -> str:
+    return f"{BASE_URL}{_PREFIX}{event}/{race}/{year}.html"
 
 
 def _fetch(client: httpx.Client, url: str) -> str:
@@ -107,7 +107,7 @@ def _fetch(client: httpx.Client, url: str) -> str:
     return response.text
 
 
-class EditionIntrouvableError(ValueError):
+class EditionNotFoundError(ValueError):
     """L'édition n'existe pas : le site répond **303 vers son calendrier**."""
 
 
@@ -117,30 +117,30 @@ def _fetch_edition(client: httpx.Client, url: str) -> str:
     démasque, distincte d'un markup inconnu (#898)."""
     response = client.get(url)
     response.raise_for_status()
-    finale = str(getattr(response, "url", "") or url)
-    if urlparse(finale).path != urlparse(url).path:
-        raise EditionIntrouvableError(
-            f"Édition inexistante sur fftri.t2area.com : {url} redirige vers {finale}."
+    final_url = str(getattr(response, "url", "") or url)
+    if urlparse(final_url).path != urlparse(url).path:
+        raise EditionNotFoundError(
+            f"Édition inexistante sur fftri.t2area.com : {url} redirige vers {final_url}."
         )
     return response.text
 
 
-def _resolve_annee(client: httpx.Client, evenement: str, epreuve: str) -> str:
+def _resolve_year(client: httpx.Client, event: str, race: str) -> str:
     """Année de la dernière édition publiée, lue sur la page d'épreuve.
 
     Regex sur les `href` bruts plutôt que sur une classe CSS : les liens portent
     `class="btn-fx-1"`, un décor qui peut changer, alors que la forme de l'URL
     est structurelle.
     """
-    url = _epreuve_url(evenement, epreuve)
+    url = _race_url(event, race)
     html = _fetch(client, url)
-    motif = re.compile(
-        rf"{re.escape(_PREFIXE)}{re.escape(evenement)}/{re.escape(epreuve)}/(\d{{4}})\.html"
+    pattern = re.compile(
+        rf"{re.escape(_PREFIX)}{re.escape(event)}/{re.escape(race)}/(\d{{4}})\.html"
     )
-    annees = set(motif.findall(html))
-    if not annees:
+    years = set(pattern.findall(html))
+    if not years:
         raise ValueError(f"Aucune édition publiée pour l'épreuve fftri.t2area.com : {url}")
-    return max(annees)
+    return max(years)
 
 
 _BIB_RE = re.compile(r"^bib-(\d+)$", re.I)
@@ -148,62 +148,62 @@ _BIB_RE = re.compile(r"^bib-(\d+)$", re.I)
 # Abréviation d'équipe propre aux slugs FFTRI (`swim-run-m-eq`), en jeton isolé :
 # le « eq » de « equipe » ne doit pas être capté par accident. Les autres mots
 # d'équipe viennent du détecteur commun (#963).
-_EQUIPE_RE = re.compile(r"(?<![a-z0-9])eq(?![a-z0-9])")
+_TEAM_RE = re.compile(r"(?<![a-z0-9])eq(?![a-z0-9])")
 
 # Le `<title>` porte l'en-tête (le `<h1>` ne dit plus que « Édition 2022 ») :
 #   « Résultats du Triathlon de La Baule - M - 2022 - édition du 18-09-2022 »
 # Deux regex **indépendantes** : un libellé inattendu ne doit pas faire perdre la
 # date, qui entre dans l'identité de la Course (UNIQUE(name, event_date, event_type)).
-_RE_NOM = re.compile(r"r[ée]sultats\s+d[eu]s?\s+(.+?)\s+-\s+\d{4}\s+-\s+[ée]dition\b", re.I)
+_RE_NAME = re.compile(r"r[ée]sultats\s+d[eu]s?\s+(.+?)\s+-\s+\d{4}\s+-\s+[ée]dition\b", re.I)
 _RE_DATE = re.compile(r"[ée]dition\s+du\s+(\d{2})-(\d{2})-(\d{4})", re.I)
 
 #: Lien de la fiche individuelle, le seul `edition-details-link` qui reste sous
 #: `/calendrier/` (les autres mènent à l'athlète et au club).
-_LIEN_FICHE = "a.edition-details-link[href*='/calendrier/']"
+_DETAIL_LINK = "a.edition-details-link[href*='/calendrier/']"
 
 
-def _texte(carte, selecteur: str) -> str:
-    element = carte.select_one(selecteur)
+def _text(card, selector: str) -> str:
+    element = card.select_one(selector)
     return element.get_text(" ", strip=True) if element else ""
 
 
-def _ligne(carte) -> dict:
+def _row(card) -> dict:
     """Une carte `article.edition-result` → ses champs bruts.
 
     Le club se lit sans son badge de catégorie ni le « · » qui les sépare ; un
     badge sans lettre ni chiffre (« --- », ligne anonyme) vaut catégorie absente.
     """
-    club_element = carte.select_one(".edition-club")
-    badge = _texte(carte, ".edition-cat-badge")
+    club_element = card.select_one(".edition-club")
+    badge = _text(card, ".edition-cat-badge")
     club = ""
     if club_element is not None:
-        for enfant in club_element.select(".edition-cat-badge"):
-            enfant.extract()
+        for child in club_element.select(".edition-cat-badge"):
+            child.extract()
         club = club_element.get_text(" ", strip=True).rstrip("·").strip()
-    lien = carte.select_one(_LIEN_FICHE)
+    link = card.select_one(_DETAIL_LINK)
     return {
-        "clt": _texte(carte, ".edition-rank"),
-        "nom": _texte(carte, ".edition-name"),
+        "clt": _text(card, ".edition-rank"),
+        "nom": _text(card, ".edition-name"),
         "club": club,
         "cat": badge if any(c.isalnum() for c in badge) else "",
-        "genre": (carte.get("data-gender") or "").strip().upper(),
-        "league": (carte.get("data-league") or "").strip(),
-        "temps": _texte(carte, ".edition-time"),
-        "details_href": lien["href"].strip() if lien else "",
+        "genre": (card.get("data-gender") or "").strip().upper(),
+        "league": (card.get("data-league") or "").strip(),
+        "temps": _text(card, ".edition-time"),
+        "details_href": link["href"].strip() if link else "",
         "splits": [
-            (_texte(split, "small"), _texte(split, "b"))
-            for split in carte.select(".edition-split")
+            (_text(split, "small"), _text(split, "b"))
+            for split in card.select(".edition-split")
         ],
     }
 
 
-def _cle_fiche(href: str) -> str:
+def _detail_key(href: str) -> str:
     """Dernier segment du href de la colonne Détails, sans son « .html »."""
-    dernier = urlparse(href).path.rsplit("/", 1)[-1]
-    return dernier[:-len(".html")] if dernier.endswith(".html") else dernier
+    last_segment = urlparse(href).path.rsplit("/", 1)[-1]
+    return last_segment[:-len(".html")] if last_segment.endswith(".html") else last_segment
 
 
-def _dossard(cle: str) -> str:
+def _bib(key: str) -> str:
     """Dossard **seulement** si la clé de fiche en est un (`bib-566` → « 566 »).
 
     La source n'affiche jamais de dossard ; la clé de fiche est tantôt un dossard,
@@ -212,76 +212,76 @@ def _dossard(cle: str) -> str:
     champ — le front afficherait « #A44719 ». Les éditions sans dossard retombent
     sur l'appariement par athlète (`import_persistence`).
     """
-    trouve = _BIB_RE.match(cle)
-    return trouve.group(1) if trouve else ""
+    found = _BIB_RE.match(key)
+    return found.group(1) if found else ""
 
 
-def _temps_ou_vide(brut: str) -> str:
+def _time_or_empty(raw: str) -> str:
     """Temps normalisé. **`00:00:00` vaut temps absent** — un DNF sort avec cette
     valeur (La Baule 2022, EPP Arnaud) et la laisser ferait basculer
     `mapping.derive_status` sur « finisher »."""
-    brut = (brut or "").strip()
-    if brut in ("—", "-", "--"):
+    raw = (raw or "").strip()
+    if raw in ("—", "-", "--"):
         return ""
-    normalise = normalize_time(brut)
-    return "" if normalise in ("", "00:00:00") else normalise
+    normalized = normalize_time(raw)
+    return "" if normalized in ("", "00:00:00") else normalized
 
 
-def _genre(categorie: str) -> str:
+def _gender(category: str) -> str:
     """Préfixe M/F de la catégorie fédérale (`MS2`, `FV1`, `MHAN`, `MT1`)."""
-    initiale = (categorie or "").strip()[:1].upper()
-    return initiale if initiale in ("M", "F") else ""
+    initial = (category or "").strip()[:1].upper()
+    return initial if initial in ("M", "F") else ""
 
 
-def _est_relais(epreuve: str) -> bool:
+def _is_relay(race: str) -> bool:
     """Déduit du slug d'épreuve. Non vérifié sur données réelles (§8.3 du design) :
     aucune épreuve équipe sondée n'a de classement publié."""
-    return heat_is_relay(epreuve) or _EQUIPE_RE.search(epreuve.lower()) is not None
+    return heat_is_relay(race) or _TEAM_RE.search(race.lower()) is not None
 
 
-def _titre(soup) -> str:
+def _title(soup) -> str:
     """L'en-tête de résultats : le `<title>`, à défaut un `<h1>` qui le porte."""
-    candidats = [soup.title.get_text(" ", strip=True)] if soup.title else []
-    candidats += [h1.get_text(" ", strip=True) for h1 in soup.find_all("h1")]
-    return next((texte for texte in candidats if _norm(texte).startswith("resultats")), "")
+    candidates = [soup.title.get_text(" ", strip=True)] if soup.title else []
+    candidates += [h1.get_text(" ", strip=True) for h1 in soup.find_all("h1")]
+    return next((text for text in candidates if _norm(text).startswith("resultats")), "")
 
 
-def _entete(soup, evenement: str, epreuve: str) -> tuple[str, date | None]:
-    """(nom d'épreuve, date), lus indépendamment dans l'en-tête (`_titre`).
+def _header(soup, event: str, race: str) -> tuple[str, date | None]:
+    """(nom d'épreuve, date), lus indépendamment dans l'en-tête (`_title`).
 
     Le nom est déjà qualifié par l'épreuve (« - M ») : pas de `qualify_event_name`.
     """
-    titre = _titre(soup)
-    trouve = _RE_NOM.search(titre)
-    if trouve:
-        nom = trouve.group(1)
+    title = _title(soup)
+    found = _RE_NAME.search(title)
+    if found:
+        name = found.group(1)
     else:
-        nom = f"{evenement} {epreuve}".replace("-", " ").title()
+        name = f"{event} {race}".replace("-", " ").title()
         logger.warning(
-            "Titre fftri illisible (%r) : nom d'épreuve replié sur les slugs (%s)", titre, nom
+            "Titre fftri illisible (%r) : nom d'épreuve replié sur les slugs (%s)", title, name
         )
     event_date = None
-    jour = _RE_DATE.search(titre)
-    if jour:
+    day = _RE_DATE.search(title)
+    if day:
         try:
-            event_date = date(int(jour.group(3)), int(jour.group(2)), int(jour.group(1)))
+            event_date = date(int(day.group(3)), int(day.group(2)), int(day.group(1)))
         except ValueError:
-            logger.warning("Date d'édition fftri illisible : %r", jour.group(0))
+            logger.warning("Date d'édition fftri illisible : %r", day.group(0))
     else:
-        logger.warning("Date d'édition absente du titre fftri : %r", titre)
-    return nom, event_date
+        logger.warning("Date d'édition absente du titre fftri : %r", title)
+    return name, event_date
 
 
-def _construire(
-    ligne: dict,
+def _build(
+    row: dict,
     *,
     source_url: str,
-    evenement: str,
-    epreuve: str,
+    event: str,
+    race: str,
     event_name: str,
     event_type: str,
     event_date: date | None,
-    chrono: tuple[str, str],
+    timekeeper: tuple[str, str],
 ) -> ScrapedResult:
     """Une carte de classement → un participant.
 
@@ -290,39 +290,39 @@ def _construire(
     Les recalculer depuis l'ordre de la liste s'écarte d'une place au-delà de
     quelques centaines de lignes (mesuré, #898).
     """
-    nom, prenom = split_athlete_name(ligne.get("nom", ""))
-    cle = _cle_fiche(ligne.get("details_href", ""))
-    categorie = ligne.get("cat", "")
-    clt = ligne.get("clt", "")
+    last_name, first_name = split_athlete_name(row.get("nom", ""))
+    key = _detail_key(row.get("details_href", ""))
+    category = row.get("cat", "")
+    place = row.get("clt", "")
 
     result = ScrapedResult(source_url=source_url, provider="t2area")
     result.event_name = event_name
     result.event_type = event_type
     result.event_date = event_date
-    result.athlete_name = nom
-    result.athlete_firstname = prenom
-    result.club = ligne.get("club", "")
-    result.category = categorie
-    genre = ligne.get("genre", "")
-    result.gender = genre if genre in ("M", "F") else _genre(categorie)
-    result.bib_number = _dossard(cle)
-    result.rank_overall = normalize_rank(clt)
-    result.total_time = _temps_ou_vide(ligne.get("temps", ""))
+    result.athlete_name = last_name
+    result.athlete_firstname = first_name
+    result.club = row.get("club", "")
+    result.category = category
+    gender = row.get("genre", "")
+    result.gender = gender if gender in ("M", "F") else _gender(category)
+    result.bib_number = _bib(key)
+    result.rank_overall = normalize_rank(place)
+    result.total_time = _time_or_empty(row.get("temps", ""))
     # La place porte le statut quand elle ne porte pas de rang (DNF, DSQ).
-    result.status = derive_status_from_label(clt)
-    result.is_relay = _est_relais(epreuve)
-    _appliquer_splits(result, [(libelle, _temps_ou_vide(temps)) for libelle, temps in ligne.get("splits", [])])
+    result.status = derive_status_from_label(place)
+    result.is_relay = _is_relay(race)
+    _apply_splits(result, [(label, _time_or_empty(time)) for label, time in row.get("splits", [])])
     # De quoi diagnostiquer sans re-scraper : clé brute, ligue, chronométreur.
     result.raw_data = {
-        "cle_fiche": cle,
-        "fiche_url": ligne.get("details_href", ""),
-        "clt": clt,
-        "temps": ligne.get("temps", ""),
-        "league": ligne.get("league", ""),
-        "chronometreur": chrono[0],
-        "chronometreur_url": chrono[1],
-        "evenement": evenement,
-        "epreuve": epreuve,
+        "cle_fiche": key,
+        "fiche_url": row.get("details_href", ""),
+        "clt": place,
+        "temps": row.get("temps", ""),
+        "league": row.get("league", ""),
+        "chronometreur": timekeeper[0],
+        "chronometreur_url": timekeeper[1],
+        "evenement": event,
+        "epreuve": race,
     }
     # La FFTRI publie parfois un temps sur ses disqualifiés (ALLARD Pierre,
     # `42:23:00` sur La Baule 2022 — une aberration de saisie côté source).
@@ -336,23 +336,23 @@ def _construire(
     return result
 
 
-_RE_CHRONO = re.compile(r"r[ée]sultats\s+produits\s+par", re.I)
+_RE_TIMEKEEPER = re.compile(r"r[ée]sultats\s+produits\s+par", re.I)
 
 
-def _chronometreur(soup) -> tuple[str, str]:
+def _timekeeper(soup) -> tuple[str, str]:
     """(nom, lien) du chronométreur amont : « Résultats produits par X »."""
     for p in soup.find_all("p"):
-        texte = p.get_text(" ", strip=True)
-        if not _RE_CHRONO.search(texte):
+        text = p.get_text(" ", strip=True)
+        if not _RE_TIMEKEEPER.search(text):
             continue
-        lien = p.find("a", href=True)
-        if lien:
-            return lien.get_text(" ", strip=True), lien["href"].strip()
-        return _RE_CHRONO.sub("", texte).strip(), ""
+        link = p.find("a", href=True)
+        if link:
+            return link.get_text(" ", strip=True), link["href"].strip()
+        return _RE_TIMEKEEPER.sub("", text).strip(), ""
     return "", ""
 
 
-def _avertir_source_amont(nom: str, lien: str, url: str) -> None:
+def _warn_upstream_source(name: str, link: str, url: str) -> None:
     """Journalise quand le chronométreur amont est un provider **supporté**.
 
     La FFTRI ne chronomètre pas, elle republie : à la source, on aurait les
@@ -366,23 +366,23 @@ def _avertir_source_amont(nom: str, lien: str, url: str) -> None:
     l'inverse au niveau module créerait un cycle (même procédé que les helpers
     Klikego appelés depuis `registry`).
     """
-    if not lien:
+    if not link:
         return
     from app.scrapers.registry import detect_provider
 
-    provider = detect_provider(lien)
+    provider = detect_provider(link)
     if not provider:
         return
     logger.warning(
         "%s : résultats produits par %s (%s) — le provider « %s » est supporté et "
         "sa source est plus riche (dossards et splits de tous les participants). "
         "L'URL d'épreuve n'est pas déductible de cette page : à fournir à la main.",
-        url, nom or provider, lien, provider,
+        url, name or provider, link, provider,
     )
 
 
 def _parse_edition(
-    html: str, source_url: str, evenement: str, epreuve: str
+    html: str, source_url: str, event: str, race: str
 ) -> list[ScrapedResult]:
     """HTML d'une édition → participants. **Pur** : aucune requête.
 
@@ -391,31 +391,31 @@ def _parse_edition(
     classement vide importé en silence.
     """
     soup = BeautifulSoup(html, "lxml")
-    cartes = soup.select("article.edition-result")
-    if not cartes:
+    cards = soup.select("article.edition-result")
+    if not cards:
         raise ValueError(
             f"Aucun classement (article.edition-result) sur {source_url} : "
             "markup fftri modifié."
         )
-    event_name, event_date = _entete(soup, evenement, epreuve)
+    event_name, event_date = _header(soup, event, race)
     # Le type vient du **slug d'épreuve**, vérifié sur les slugs réels :
     # `swim-run-m` → swimrun-m, `triathlon-xs-jeunes` → triathlon-xs,
     # `bike-run-s-open-eq` → bike-run.
-    event_type = classify_event_type(epreuve)
-    chrono = _chronometreur(soup)
-    _avertir_source_amont(chrono[0], chrono[1], source_url)
+    event_type = classify_event_type(race)
+    timekeeper = _timekeeper(soup)
+    _warn_upstream_source(timekeeper[0], timekeeper[1], source_url)
     return [
-        _construire(
-            _ligne(carte),
+        _build(
+            _row(card),
             source_url=source_url,
-            evenement=evenement,
-            epreuve=epreuve,
+            event=event,
+            race=race,
             event_name=event_name,
             event_type=event_type,
             event_date=event_date,
-            chrono=chrono,
+            timekeeper=timekeeper,
         )
-        for carte in cartes
+        for card in cards
     ]
 
 
@@ -436,29 +436,29 @@ _SLOTS = {
     "cap 2": "run_time",
 }
 
-_RANGS_FICHE = {"sexe": "rank_gender", "categorie": "rank_category"}
+_DETAIL_RANKS = {"sexe": "rank_gender", "categorie": "rank_category"}
 
 
-def _parse_fiche(html: str) -> dict[str, int]:
+def _parse_detail(html: str) -> dict[str, int]:
     """Rangs officiels d'une fiche individuelle : `{"rank_gender": …, "rank_category": …}`.
 
     Le bandeau porte « 453 Global », « 419 Sexe », « 89 Catégorie » : la liste
     ne publie plus que le rang global.
     """
     soup = BeautifulSoup(html, "lxml")
-    rangs: dict[str, int] = {}
-    for bloc in soup.select(".rd-rank"):
-        mots = bloc.get_text(" ", strip=True).split()
-        if len(mots) < 2:
+    ranks: dict[str, int] = {}
+    for block in soup.select(".rd-rank"):
+        words = block.get_text(" ", strip=True).split()
+        if len(words) < 2:
             continue
-        champ = _RANGS_FICHE.get(_norm(mots[-1]))
-        rang = normalize_rank(mots[0])
-        if champ and rang is not None:
-            rangs[champ] = rang
-    return rangs
+        field = _DETAIL_RANKS.get(_norm(words[-1]))
+        rank = normalize_rank(words[0])
+        if field and rank is not None:
+            ranks[field] = rank
+    return ranks
 
 
-def _appliquer_splits(result: ScrapedResult, segments: list[tuple[str, str]]) -> None:
+def _apply_splits(result: ScrapedResult, segments: list[tuple[str, str]]) -> None:
     """Range les segments dans les 5 slots, ou bascule **tout** sur `segments`.
 
     Filet : un seul libellé hors table suffit à basculer sur la liste ordonnée
@@ -466,16 +466,16 @@ def _appliquer_splits(result: ScrapedResult, segments: list[tuple[str, str]]) ->
     perdu silencieusement sur un sport au découpage inattendu, et le cas nominal
     garde les clés canoniques que le front sait afficher.
     """
-    ranges: dict[str, str] = {}
-    for libelle, temps in segments:
-        slot = _SLOTS.get(_norm(libelle))
+    slotted: dict[str, str] = {}
+    for label, time in segments:
+        slot = _SLOTS.get(_norm(label))
         if slot is None:
-            result.segments = [(lib, tps) for lib, tps in segments if tps]
+            result.segments = [(seg_label, seg_time) for seg_label, seg_time in segments if seg_time]
             return
-        if temps:
-            ranges[slot] = temps
-    for slot, temps in ranges.items():
-        setattr(result, slot, temps)
+        if time:
+            slotted[slot] = time
+    for slot, time in slotted.items():
+        setattr(result, slot, time)
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
@@ -495,43 +495,43 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     donne une URL de fiche, l'idempotence tient à cette troncature répétée
     par ce scraper, pas à une réécriture de la clé stockée.
     """
-    evenement, epreuve, annee = _parse_url(url)
+    event, race, year = _parse_url(url)
     with http.client(timeout=30, headers=HEADERS) as client:
-        if not annee:
-            annee = _resolve_annee(client, evenement, epreuve)
-        edition_url = _edition_url(evenement, epreuve, annee)
-        resultats = _parse_edition(
-            _fetch_edition(client, edition_url), edition_url, evenement, epreuve
+        if not year:
+            year = _resolve_year(client, event, race)
+        edition_url = _edition_url(event, race, year)
+        results = _parse_edition(
+            _fetch_edition(client, edition_url), edition_url, event, race
         )
-        for resultat in resultats:
-            resultat.source_url = url
-        membres_tcn = 0
-        fiches = 0
-        for resultat in resultats:
-            if not is_tcn(resultat.club) or resultat.status:
+        for result in results:
+            result.source_url = url
+        tcn_members = 0
+        detail_pages = 0
+        for result in results:
+            if not is_tcn(result.club) or result.status:
                 continue
-            membres_tcn += 1
-            brut = resultat.raw_data.get("fiche_url") or ""
-            if not brut:
+            tcn_members += 1
+            raw = result.raw_data.get("fiche_url") or ""
+            if not raw:
                 continue
             # `urljoin` + contrôle de host : un lien de fiche relatif ne doit ni
             # suivre un chemin résolu contre le mauvais host, ni lever une
             # exception masquée par l'`except` ci-dessous.
-            fiche_url = urljoin(BASE_URL, brut)
-            if (urlparse(fiche_url).hostname or "").lower() != HOST:
+            detail_url = urljoin(BASE_URL, raw)
+            if (urlparse(detail_url).hostname or "").lower() != HOST:
                 continue
             try:
-                html = _fetch(client, fiche_url)
+                html = _fetch(client, detail_url)
             except httpx.HTTPError as exc:
                 # Une fiche qui tombe ne doit pas emporter l'épreuve entière.
-                logger.warning("Fiche fftri %s ignorée : %s", fiche_url, exc)
+                logger.warning("Fiche fftri %s ignorée : %s", detail_url, exc)
                 continue
-            for champ, rang in _parse_fiche(html).items():
-                setattr(resultat, champ, rang)
-            fiches += 1
+            for field, rank in _parse_detail(html).items():
+                setattr(result, field, rank)
+            detail_pages += 1
     logger.info(
         "fftri.t2area.com : %d participants sur %s (%d membre(s) TCN classé(s), "
         "%d fiche(s) chargée(s))",
-        len(resultats), edition_url, membres_tcn, fiches,
+        len(results), edition_url, tcn_members, detail_pages,
     )
-    return resultats
+    return results

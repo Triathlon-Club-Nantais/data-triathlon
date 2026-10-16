@@ -45,8 +45,10 @@ const STATS: Stats = {
 const EMPTY_SUMMARY: ClubSummary = {
   roster: [],
   podiums: { scratch: [], category: [], gender: [], all: [] },
+  podiums_totals: { scratch: 0, category: 0, gender: 0, all: 0 },
   podiums_by_discipline: {},
   composition: { gender: {}, category: {} },
+  licensees: null,
 };
 
 function rosterEntry(i: number, podiums = 0) {
@@ -124,6 +126,9 @@ describe("ClubDashboard — smoke", () => {
       />,
     );
     expect(screen.getByText("Aucun résultat de club")).toBeInTheDocument();
+    const ajouter = screen.getByRole("link", { name: "Ajouter une épreuve" });
+    expect(ajouter).toHaveAttribute("href", "/ajouter");
+    expect(ajouter).toHaveClass("tcn-cible-tactile");
   });
 
   it("roster : décompose les podiums d'un athlète par scope, avec tooltip", () => {
@@ -240,6 +245,26 @@ describe("ClubDashboard — smoke", () => {
     const recent = [part({ id: 5 }), part({ id: 9 })];
     render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={recent} resultsTotal={STATS.total} />);
     expect(screen.getAllByRole("link", { name: /Course \d/ })).toHaveLength(2);
+  });
+
+  // #1441 : part des licenciés de la saison qui ont couru au moins une fois.
+  it("affiche le KPI Licenciés en course : ceux qui ont couru, sur le total de la saison", () => {
+    render(
+      <ClubDashboard
+        stats={STATS}
+        summary={{ ...EMPTY_SUMMARY, licensees: { season: 2026, total: 182, raced: 97 } }}
+        recent={[part({ id: 1 })]}
+        resultsTotal={STATS.total}
+      />,
+    );
+    const carte = screen.getByText("Licenciés en course").parentElement!.parentElement!;
+    expect(carte.querySelector(".tcn-stat-value")).toHaveTextContent(/^97$/);
+    expect(carte).toHaveTextContent(`sur 182 licenciés · ${seasonLabel(2026)}`);
+  });
+
+  it("masque le KPI Licenciés en course sans licencié pour la saison", () => {
+    render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={[part({ id: 1 })]} resultsTotal={STATS.total} />);
+    expect(screen.queryByText("Licenciés en course")).not.toBeInTheDocument();
   });
 
   // #581 : le bandeau de troncature disparaît — roster et podiums sont exacts,

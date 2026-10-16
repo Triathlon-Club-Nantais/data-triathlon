@@ -953,3 +953,53 @@ def test_a_republication_without_twin_is_not_paired_with_an_unrelated_event(db_s
     _jumelles(db_session, a, b, 4)
 
     assert course_duplicates.find_candidates(db_session) == []
+
+
+def _paire_vertou(db_session):
+    gauche = _epreuve(
+        db_session, name="Triathlon de Vertou - S-Open", event_date=date(2026, 5, 3),
+        event_type="triathlon-s", url=VERTOU_WICLAX, provider="wiclax",
+    )
+    droite = _epreuve(
+        db_session, name="Triathlon de Vertou 2026 - S-Open", event_date=date(2026, 5, 3),
+        event_type="triathlon-s", url=VERTOU_CHRONOSMETRON, provider="wiclax",
+    )
+    return gauche, droite
+
+
+def test_la_liste_et_son_compte_restent_en_memoire_jusqu_au_commit(db_session):
+    # #1352, #1384 : ni la liste ni la pastille ne relancent la détection entière à chaque page.
+    assert course_duplicates.count(db_session) == 0
+    _paire_vertou(db_session)
+    assert course_duplicates.cached_candidates(db_session) == []
+    assert course_duplicates.count(db_session) == 0
+
+    db_session.commit()
+    assert len(course_duplicates.cached_candidates(db_session)) == 1
+    assert course_duplicates.count(db_session) == 1
+
+
+def test_ecarter_une_paire_rafraichit_le_compte(db_session):
+    gauche, droite = _paire_vertou(db_session)
+    assert course_duplicates.count(db_session) == 1
+
+    course_duplicates.ignore_pair(
+        db_session, course_id_a=gauche.id, course_id_b=droite.id, user_id=_auteur(db_session).id
+    )
+    db_session.commit()
+
+    assert course_duplicates.count(db_session) == 0
+
+
+def test_fusionner_la_paire_rafraichit_le_compte(db_session):
+    from app.services import course_merge
+
+    gauche, droite = _paire_vertou(db_session)
+    assert course_duplicates.count(db_session) == 1
+
+    course_merge.merge_courses(
+        db_session, course_id=gauche.id, absorbed_id=droite.id, user_id=_auteur(db_session).id
+    )
+    db_session.commit()
+
+    assert course_duplicates.count(db_session) == 0

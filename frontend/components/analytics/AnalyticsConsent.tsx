@@ -1,16 +1,9 @@
 "use client";
 import Link from "next/link";
-import { useSyncExternalStore } from "react";
 import { Button } from "@/components/tcn/Button";
+import { useHydrated } from "@/hooks/useHydrated";
 import { saveConsent, useAnalyticsConsent } from "@/lib/analytics-consent";
 import { isPostHogEnabled } from "@/lib/posthog";
-
-const noopSubscribe = () => () => {};
-
-/** Faux au rendu serveur et à l'hydratation : le choix ne se lit qu'au navigateur, sans bandeau fantôme. */
-function useHydrated() {
-  return useSyncExternalStore(noopSubscribe, () => true, () => false);
-}
 
 /**
  * Demande d'accord à la mesure d'audience détaillée (#1159). Refuser et accepter

@@ -35,12 +35,12 @@ def dedupe_links(links: list[str]) -> list[str]:
 
     `setdefault` garde la **première** forme rencontrée, pas la dernière : c'est
     ce qui interdit un simple `dict.fromkeys`, qui garderait la clé normalisée.
-    Même motif que `rescrape_service._dedupe_par_url`.
+    Même motif que `rescrape_service._dedupe_by_url`.
     """
-    uniques: dict[str, str] = {}
+    unique: dict[str, str] = {}
     for url in links:
-        uniques.setdefault(normalize_url(url), url)
-    return list(uniques.values())
+        unique.setdefault(normalize_url(url), url)
+    return list(unique.values())
 
 
 class UnsupportedFileError(DomainError):
@@ -65,45 +65,45 @@ def read_table(content: bytes, filename: str) -> tuple[list[str], list[list[str]
     aval. Un en-tête vide devient « Colonne N » — une colonne qu'on ne peut pas
     nommer est une colonne qu'on ne peut pas désigner.
     """
-    suffixe = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
-    if suffixe == "csv":
-        lignes = _lignes_csv(content)
-    elif suffixe == "xlsx":
-        lignes = _lignes_xlsx(content)
+    extension = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+    if extension == "csv":
+        rows = _csv_rows(content)
+    elif extension == "xlsx":
+        rows = _xlsx_rows(content)
     else:
         raise UnsupportedFileError
 
-    if not lignes:
+    if not rows:
         return [], []
     # Rang **à partir de 1** : c'est un libellé lu par un humain, et « Colonne 0 »
     # ne désigne rien pour lui. L'`index` du contrat, lui, reste à partir de 0 —
     # il ne s'affiche jamais.
-    entetes = [
-        cellule or f"Colonne {rang}" for rang, cellule in enumerate(lignes[0], 1)
+    headers = [
+        cell or f"Colonne {position}" for position, cell in enumerate(rows[0], 1)
     ]
-    return entetes, lignes[1:]
+    return headers, rows[1:]
 
 
-def _lignes_csv(content: bytes) -> list[list[str]]:
+def _csv_rows(content: bytes) -> list[list[str]]:
     # Les exports d'un tableur français arrivent souvent en cp1252 ; échouer sur
     # un accent rendrait l'écran inutilisable un jour sur deux. `cp1252` accepte
     # tout octet, donc ce repli ne lève jamais.
     try:
-        texte = content.decode("utf-8-sig")
+        text = content.decode("utf-8-sig")
     except UnicodeDecodeError:
-        texte = content.decode("cp1252")
+        text = content.decode("cp1252")
     # Une cellule au-delà de `csv.field_size_limit` (131 072 caractères) n'est
     # pas un lien d'épreuve : refusée comme illisible plutôt qu'en 500 (#1098).
     try:
         return [
-            [(cellule or "").strip() for cellule in ligne]
-            for ligne in csv.reader(io.StringIO(texte))
+            [(cell or "").strip() for cell in row]
+            for row in csv.reader(io.StringIO(text))
         ]
-    except csv.Error as erreur:
-        raise UnreadableFileError from erreur
+    except csv.Error as error:
+        raise UnreadableFileError from error
 
 
-def _lignes_xlsx(content: bytes) -> list[list[str]]:
+def _xlsx_rows(content: bytes) -> list[list[str]]:
     from openpyxl import load_workbook
 
     try:
@@ -111,20 +111,20 @@ def _lignes_xlsx(content: bytes) -> list[list[str]]:
         # rend la valeur calculée d'une formule plutôt que la formule elle-même
         # — un lien produit par `=CONCATENER(...)` sortirait sinon en texte de
         # formule, et ne compterait pour aucun lien.
-        classeur = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
-    except Exception as erreur:
-        raise UnreadableFileError from erreur
+        workbook = load_workbook(io.BytesIO(content), read_only=True, data_only=True)
+    except Exception as error:
+        raise UnreadableFileError from error
     # En `read_only`, la feuille n'est parsée qu'ici : une feuille corrompue
     # lève pendant `iter_rows`, hors du `try` de `load_workbook` (#1098).
     try:
         return [
-            ["" if cellule is None else str(cellule).strip() for cellule in ligne]
-            for ligne in classeur.active.iter_rows(values_only=True)
+            ["" if cell is None else str(cell).strip() for cell in row]
+            for row in workbook.active.iter_rows(values_only=True)
         ]
-    except Exception as erreur:
-        raise UnreadableFileError from erreur
+    except Exception as error:
+        raise UnreadableFileError from error
     finally:
-        classeur.close()
+        workbook.close()
 
 
 @dataclass(frozen=True)
@@ -149,26 +149,26 @@ def links_in_column(rows: list[list[str]], index: int) -> ColumnLinks:
     d'annoncer ce qui ne sera jamais soumis. Un lien ignoré n'est ni un succès
     ni un échec ; le confondre avec l'un des deux fausse tous les compteurs.
     """
-    bruts: list[str] = []
-    sans_lien = 0
+    raw_links: list[str] = []
+    without_link = 0
     for row in rows:
-        valeur = row[index].strip() if index < len(row) else ""
-        if valeur.startswith("http"):
-            bruts.append(valeur)
-        elif valeur:
-            sans_lien += 1
+        value = row[index].strip() if index < len(row) else ""
+        if value.startswith("http"):
+            raw_links.append(value)
+        elif value:
+            without_link += 1
 
-    links = dedupe_links(bruts)
+    links = dedupe_links(raw_links)
     supported = [url for url in links if registry.is_supported(url)]
-    ignores: dict[str, int] = {}
+    ignored: dict[str, int] = {}
     for url in links:
         if url not in supported:
-            ignores[host_of(url)] = ignores.get(host_of(url), 0) + 1
+            ignored[host_of(url)] = ignored.get(host_of(url), 0) + 1
     return ColumnLinks(
         links=links,
         supported=supported,
-        ignored_by_host=ignores,
-        rows_without_link=sans_lien,
+        ignored_by_host=ignored,
+        rows_without_link=without_link,
     )
 
 
@@ -184,23 +184,23 @@ def parse_sheet_csv(csv_text: str) -> tuple[list[str], int]:
     Ne dédoublonne pas : `bulk_import_service` le fait plus loin, et le compte
     brut de liens fait partie de son bilan.
     """
-    entetes, lignes = read_table(csv_text.encode("utf-8"), "sheet.csv")
-    if not entetes:
+    headers, rows = read_table(csv_text.encode("utf-8"), "sheet.csv")
+    if not headers:
         return [], 0
     try:
-        col = entetes.index(LINK_HEADER)
+        col = headers.index(LINK_HEADER)
     except ValueError:
         col = LINK_COLUMN_FALLBACK_INDEX
 
     links: list[str] = []
-    sans_lien = 0
-    for row in lignes:
+    without_link = 0
+    for row in rows:
         value = row[col].strip() if col < len(row) else ""
         if value.startswith("http"):
             links.append(value)
         elif any(cell.strip() for cell in row):
-            sans_lien += 1
-    return links, sans_lien
+            without_link += 1
+    return links, without_link
 
 
 def host_of(url: str) -> str:

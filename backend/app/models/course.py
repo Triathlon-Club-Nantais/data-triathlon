@@ -26,10 +26,10 @@ from app.models.course_source import CourseSource
 #: légitime : sans ce repli, le SQL rendrait `NULL` là où le contrat public
 #: (`CourseBrief.source_url: str`) promet une chaîne, et un `WHERE
 #: source_url = ''` ne ramènerait plus ces épreuves.
-_SANS_SOURCE = ""
+_NO_SOURCE = ""
 
 
-def _from_active_source(course: "Course", champ: str) -> str:
+def _from_active_source(course: "Course", field: str) -> str:
     """Lit un champ de la source active **dans la collection déjà en mémoire**.
 
     Pas de requête : la relation `sources` est la même que celle que traverse la
@@ -39,8 +39,8 @@ def _from_active_source(course: "Course", champ: str) -> str:
     """
     for source in course.sources:
         if source.is_active:
-            return getattr(source, champ)
-    return _SANS_SOURCE
+            return getattr(source, field)
+    return _NO_SOURCE
 
 
 class Course(Base):
@@ -99,6 +99,15 @@ class Course(Base):
     # pas géocoder. NULL = jamais tentée. `geocode_service.run_geocode_courses`
     # est le seul point d'écriture des trois colonnes.
     geocoded_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Météo du jour de course (#1370), moyennes journalières faute d'heure de
+    # départ (la pluie est un cumul). Seul point d'écriture :
+    # `weather_service.run_weather_courses`, hors ligne. `weather_fetched_at`
+    # NULL = jamais servie, l'épreuve reste ciblée. Un déplacement par
+    # `save_geocode_attempt` les remet à NULL, pour redemander le vrai lieu.
+    weather_temperature_c: Mapped[float | None] = mapped_column(Float, nullable=True)
+    weather_wind_kmh: Mapped[float | None] = mapped_column(Float, nullable=True)
+    weather_precipitation_mm: Mapped[float | None] = mapped_column(Float, nullable=True)
+    weather_fetched_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Dénormalisés (#623) : le nombre de participations validées (#270, jamais
     # en attente) et son sous-ensemble TCN, réécrits par l'import au même
     # endroit que `is_reliable_computed`/`quality_issues` ci-dessus

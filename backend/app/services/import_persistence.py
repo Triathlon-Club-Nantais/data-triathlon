@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 from app.core.athlete_identity import athlete_identity_keys
 from app.core.club import canonical_club_key, is_significant_club
 from app.core.gender import normalize_gender
-from app.core.identity import identity_hash
 from app.core.text import deaccent
 from app.models.athlete import Athlete
 from app.models.course import Course
@@ -46,7 +45,13 @@ from app.scrapers.base import (
     ScrapedResult,
 )
 from app.scrapers.utils import heat_is_challenge, is_masked_name, split_relay_teammates, to_seconds
-from app.services import challenge_service, course_reconciliation, mapping, quality
+from app.services import (
+    challenge_service,
+    course_reconciliation,
+    mapping,
+    opposition_service,
+    quality,
+)
 from app.services.challenge_service import ChallengeRow
 
 logger = logging.getLogger(__name__)
@@ -82,7 +87,7 @@ class PassiveSource:
     message: str
 
 
-def _identite(athlete) -> str:
+def _identity(athlete) -> str:
     """Libellé d'identité pour le bilan : « NOM | Prénom »."""
     return f"{athlete.nom} | {athlete.prenom}"
 
@@ -91,7 +96,7 @@ def _identite(athlete) -> str:
 #: `athlete_id` en fait partie — la réconciliation d'identité (#66) est un axe
 #: séparé, traité par `_Persister._reconcile_resolved`, pas par ce rafraîchissement de
 #: valeurs : les deux s'appliquent à la suite sans jamais écrire les mêmes champs.
-_CLES_APPARIEMENT = frozenset({"athlete_id", "course_id", "bib_number"})
+_MATCH_KEYS = frozenset({"athlete_id", "course_id", "bib_number"})
 
 
 def _is_empty(value: object) -> bool:
@@ -114,7 +119,7 @@ def _merge_fields(existing, fields: dict) -> dict:
     """
     changes = {}
     for key, value in fields.items():
-        if key in _CLES_APPARIEMENT or key == "status":
+        if key in _MATCH_KEYS or key == "status":
             continue
         # `raw_data` est la ligne source du moment, pas une valeur à préserver :
         # vide, elle remplace quand même l'ancienne, sans quoi une colonne que la
@@ -164,7 +169,7 @@ def _non_finisher_overrides(existing, scraped: ScrapedResult, fields: dict) -> d
 #: d'accumuler une file sans borne. Ordre de grandeur repris de l'audit
 #: source (`research.md` de la feature #706) — un détail d'implémentation,
 #: pas un critère d'acceptation.
-_TRANCHE_SIZE = 500
+_CHUNK_SIZE = 500
 
 
 def _team_key(team_name: str | None) -> str:
@@ -390,8 +395,8 @@ class _Persister:
         # correspond à une ligne publiée, chacune consomme une place sans rien
         # mettre à jour (même règle que le multiset sans dossard).
         self._teams_without_bib[course_id] = {
-            key: equipes if len(equipes) == 1 else [None] * len(equipes)
-            for key, equipes in teams.items()
+            key: team_rows if len(team_rows) == 1 else [None] * len(team_rows)
+            for key, team_rows in teams.items()
         }
         self._present_ids[course_id] = {row.athlete_id for row in rows} | {
             link.athlete_id for row in rows for link in row.teammate_links
@@ -431,7 +436,8 @@ class _Persister:
         if source_key is not None:
             changes["source_identity_key"] = source_key
         if changes:
-            participation_repository.update(self.db, existing, **changes)
+            # Parti au flush de fin de tranche ou de `finalize` (#1503).
+            participation_repository.update(self.db, existing, flush=False, **changes)
 
     def _note_passive(self, course: Course, source: CourseSource) -> None:
         """Retient une source passive **une fois**, et rédige le message qui la nomme.
@@ -570,11 +576,11 @@ class _Persister:
         elif scraped.is_relay or course.is_relay:
             # `course.is_relay` : l'épreuve peut avoir été marquée relais à la
             # main, et `set_teammates` compose alors ses résultats.
-            equipes = self._teams_without_bib[course.id].get(_team_key(_published_name(scraped)))
-            if equipes:
-                equipe = equipes.pop()
-                if equipe is not None:
-                    self._upsert(equipe, scraped)
+            team_rows = self._teams_without_bib[course.id].get(_team_key(_published_name(scraped)))
+            if team_rows:
+                team_row = team_rows.pop()
+                if team_row is not None:
+                    self._upsert(team_row, scraped)
                 else:
                     self.skipped += 1
                 return
@@ -594,9 +600,11 @@ class _Persister:
         qu'un libellé de relais nomme."""
         if not self._opposed:
             return False
-        if identity_hash(scraped.athlete_name, scraped.athlete_firstname) in self._opposed:
-            return True
-        return any(identity_hash(*pair) in self._opposed for pair in _proposed_teammates(scraped) or ())
+        labels = [
+            _published_name(scraped), scraped.team_name,
+            *(" ".join(pair) for pair in scraped.teammates or ()),
+        ]
+        return not self._opposed.isdisjoint(opposition_service.named_hashes(*labels))
 
     def _enqueue(
         self, course_id: int, scraped: ScrapedResult, *, bib: str | None,
@@ -616,7 +624,7 @@ class _Persister:
             return
         pending = self._pending.setdefault(course_id, [])
         pending.append(item)
-        if len(pending) >= _TRANCHE_SIZE:
+        if len(pending) >= _CHUNK_SIZE:
             self._resolve_pending(course_id)
 
     def _resolve_pending(self, course_id: int) -> None:
@@ -635,6 +643,10 @@ class _Persister:
         pending = self._pending.pop(course_id, [])
         if not pending:
             return
+        # `autoflush` est coupé : les mises à jour en attente (tranche précédente,
+        # `_upsert` faits dès `add`) partent ici en un `executemany` (#1503), avant
+        # que `latest_club_dates` et `_club_routing` ne relisent les clubs.
+        self.db.flush()
 
         # Une ligne source inchangée garde sa fiche : ni recherche ni repli pour elle.
         kept = [self._kept_record(course_id, item) if item.teammates is None else None for item in pending]
@@ -778,7 +790,7 @@ class _Persister:
 
             if item.participation is not None:
                 self._reconcile_resolved(
-                    item.scraped, item.participation, athlete, cree=is_creator
+                    item.scraped, item.participation, athlete, created=is_creator
                 )
                 self._upsert(item.participation, item.scraped)
                 continue
@@ -1098,15 +1110,15 @@ class _Persister:
         (#66). Vérifié à l'enfilement (`add`), avant toute mise en attente de
         résolution — trancher après coup, une fois l'identité déjà mise en
         lot, serait trop tard pour éviter la création."""
-        ancien = participation.athlete
-        return not (scraped.athlete_firstname or "").strip() and (ancien.prenom or "").strip()
+        previous = participation.athlete
+        return not (scraped.athlete_firstname or "").strip() and (previous.prenom or "").strip()
 
     def _reconcile_resolved(
         self, scraped: ScrapedResult, participation: Participation, athlete: Athlete,
-        *, cree: bool,
+        *, created: bool,
     ) -> None:
         """Réassigne l'athlète d'une participation existante si sa clé source a
-        changé (le chronométreur a corrigé le nom, #896). `athlete`/`cree` sont déjà connus (résolus par lot dans
+        changé (le chronométreur a corrigé le nom, #896). `athlete`/`created` sont déjà connus (résolus par lot dans
         `_resolve_pending`, `_reconcile_blocked` déjà écarté à l'enfilement) —
         c'est la seule différence avec l'ancien `_reconcile`, qui résolvait
         lui-même l'athlète par une requête. Ne touche QUE `athlete_id` (via la
@@ -1124,7 +1136,7 @@ class _Persister:
         if _stored_source_key(participation) == _source_key(scraped):
             return
         reassignment = Reassignment(
-            ancien=_identite(participation.athlete), nouveau=_identite(athlete), fusion=not cree
+            ancien=_identity(participation.athlete), nouveau=_identity(athlete), fusion=not created
         )
         self._previous_athlete_ids.add(participation.athlete_id)
         participation.athlete = athlete
@@ -1205,6 +1217,8 @@ class _Persister:
         # Un second passage (lignes Challenge rendues au flux normal, #1008) ne
         # doit pas résoudre deux fois les mêmes découpages.
         self._pending_splits.clear()
+        # Mises à jour posées par `add` hors de toute tranche, lues par le recalcul.
+        self.db.flush()
         if self._athlete_updates:
             athlete_repository.apply_updates(
                 self.db, [self._athlete_updates[aid] for aid in sorted(self._athlete_updates)]
@@ -1338,8 +1352,8 @@ def _reclassify_heats(db: Session, event_url: str, results: list[ScrapedResult])
         url = scraped.source_url or event_url
         if not url:
             continue
-        cle = (url, scraped.event_name, scraped.event_date, bool(scraped.is_relay))
-        classifications.setdefault(cle, set()).add(scraped.event_type)
+        identity_key = (url, scraped.event_name, scraped.event_date, bool(scraped.is_relay))
+        classifications.setdefault(identity_key, set()).add(scraped.event_type)
 
     for (url, name, event_date, is_relay), types in classifications.items():
         if len(types) != 1:
@@ -1586,21 +1600,21 @@ def _renumber_duplicate_ranks(results: list[ScrapedResult]) -> None:
             and registry.ranks_per_group(r.provider)
             and mapping.derive_status(r).strip().lower() == STATUS_FINISHER
         ]
-        rangs = Counter(r.rank_overall for r in ranked)
-        if not any(count > 1 for count in rangs.values()):
+        rank_counts = Counter(r.rank_overall for r in ranked)
+        if not any(count > 1 for count in rank_counts.values()):
             continue  # aucun doublon dans ce lot : rang déjà fiable
 
-        def _cle_temps(r: ScrapedResult) -> tuple[bool, int]:
-            secondes = to_seconds(r.total_time, strict=True)
-            return (secondes is None, secondes or 0)
+        def _time_key(r: ScrapedResult) -> tuple[bool, int]:
+            seconds = to_seconds(r.total_time, strict=True)
+            return (seconds is None, seconds or 0)
 
-        ranked.sort(key=_cle_temps)
+        ranked.sort(key=_time_key)
         for local_rank, scraped in enumerate(ranked, start=1):
             scraped.rank_overall = local_rank
 
 
 def _persist_challenges(
-    db: Session, url: str, held: list[ScrapedResult], persister: "_Persister"
+    db: Session, url: str, held: list[ScrapedResult], persisted: "_Persister"
 ) -> list[ScrapedResult]:
     """Enregistre les heats Challenge appariés (#1008) ; rend les lignes des autres.
 
@@ -1621,7 +1635,7 @@ def _persist_challenges(
             db, name=name, event_date=event_date,
             source_url=rows[0].source_url or url, rows=challenge_rows, found=found,
         )
-        persister.challenges += 1
+        persisted.challenges += 1
         _drop_course_twin(db, name, event_date, {r.source_url or url for r in rows})
     return leftovers
 
@@ -1687,18 +1701,18 @@ def persist_steps(
     held = [r for r in results if heat_is_challenge(r.event_name)]
     results = [r for r in results if not heat_is_challenge(r.event_name)]
     _prepare_batch(db, url, results)
-    persister = _Persister(db, url)
-    yield 0, persister
+    persisted = _Persister(db, url)
+    yield 0, persisted
     for done, scraped in enumerate(results, start=1):
-        persister.add(scraped)
-        yield done, persister
-    persister.finalize()
-    leftovers = _persist_challenges(db, url, held, persister)
+        persisted.add(scraped)
+        yield done, persisted
+    persisted.finalize()
+    leftovers = _persist_challenges(db, url, held, persisted)
     if leftovers:
         _prepare_batch(db, url, leftovers)
         for scraped in leftovers:
-            persister.add(scraped)
-        persister.finalize()
+            persisted.add(scraped)
+        persisted.finalize()
 
 
 def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict:
@@ -1714,15 +1728,15 @@ def persist_results(db: Session, url: str, results: list[ScrapedResult]) -> dict
     cachés (`import_dispatch.merge_cached_courses`) appartient au compte rendu d'import, pas à
     l'écriture.
     """
-    *_, (_done, persister) = persist_steps(db, url, results)
+    *_, (_done, persisted) = persist_steps(db, url, results)
     return {
-        "imported": persister.imported,
-        "updated": persister.updated,
-        "skipped": persister.skipped,
-        "reconciled": persister.reconciled,
-        "challenges": persister.challenges,
-        "passive_sources": persister.passive_sources,
-        "ambiguous_identities": persister.ambiguous_identities,
-        "homonyms_created": persister.homonyms_created,
-        "courses": persister.courses_summary(),
+        "imported": persisted.imported,
+        "updated": persisted.updated,
+        "skipped": persisted.skipped,
+        "reconciled": persisted.reconciled,
+        "challenges": persisted.challenges,
+        "passive_sources": persisted.passive_sources,
+        "ambiguous_identities": persisted.ambiguous_identities,
+        "homonyms_created": persisted.homonyms_created,
+        "courses": persisted.courses_summary(),
     }

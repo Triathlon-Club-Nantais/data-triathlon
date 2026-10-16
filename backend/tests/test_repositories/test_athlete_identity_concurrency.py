@@ -155,7 +155,7 @@ def test_an_admin_rename_of_a_record_held_by_an_import_is_refused_quickly(db_ses
     started = time.monotonic()
     with pytest.raises(DomainError) as refused:
         admin_actions.update_athlete(
-            other_session, athlete_id=athlete.id, champs={"nom": "TENUE"}, user_id=admin.id
+            other_session, athlete_id=athlete.id, fields={"nom": "TENUE"}, user_id=admin.id
         )
     assert refused.value.status_code == 409
     assert time.monotonic() - started < 9

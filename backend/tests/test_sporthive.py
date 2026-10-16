@@ -764,7 +764,7 @@ def test_event_type_regression_lock_on_the_context_without_the_event_type():
     silent regression, `Senior Men` falling back on the classifier's default.
     """
     assert classify_event_type(
-        "Senior Men", contexte="UK CAU Inter Counties Cross Country Championships"
+        "Senior Men", context="UK CAU Inter Counties Cross Country Championships"
     ) == "triathlon"
 
 
@@ -1030,7 +1030,7 @@ def test_an_event_yielding_no_race_is_refused_in_french(monkeypatch, courses, pa
     on an empty list (`any()` of an empty list is false) and `batch` counts "no
     result" as a legitimate short-circuit. Without it, a wholly truncated event
     would be indistinguishable from a successful import in the report — the
-    exact opposite of what `est_echec_total` guarantees at the batch level.
+    exact opposite of what `is_total_failure` guarantees at the batch level.
 
     The message is in **French**: it travels through `ScraperError`, which
     `register_exception_handlers` serialises to `{"detail": …}` and the front

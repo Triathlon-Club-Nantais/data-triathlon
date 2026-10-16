@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 USAGE = 2
 
 
-def _echouer(message: str) -> typer.Exit:
+def _fail(message: str) -> typer.Exit:
     typer.echo(message)
     return typer.Exit(USAGE)
 
@@ -54,59 +54,59 @@ def grant_role(
             else role_repository.default_organisation(db)
         )
         if club is None:
-            raise _echouer(
+            raise _fail(
                 f"Organisation « {organisation} » introuvable."
                 if organisation
                 else "Aucune organisation en base : appliquez les migrations "
                 "(uv run alembic upgrade head)."
             )
 
-        candidats = user_repository.find_by_email(db, email)
-        if not candidats:
-            raise _echouer(
+        candidates = user_repository.find_by_email(db, email)
+        if not candidates:
+            raise _fail(
                 f"Aucun utilisateur ne porte l'adresse « {email} ».\n"
                 "Un utilisateur naît d'une **connexion** réussie, jamais d'une "
                 "commande : demandez à la personne de se connecter une première "
                 "fois. Si son adresse n'est pas encore autorisée : "
                 f"« allow-email --email {email} »."
             )
-        if len(candidats) > 1:
+        if len(candidates) > 1:
             # `users.email` n'est pas unique, délibérément (#114, FR-003) :
             # deux identités externes portant la même adresse donnent deux
             # utilisateurs. Trancher au hasard rouvrirait ce que ce choix ferme.
-            lignes = "\n".join(
+            lines = "\n".join(
                 f"  id={user.id}  {user.display_name or '(sans nom)'}"
                 f"  créé le {user.created_at:%Y-%m-%d}"
-                for user in candidats
+                for user in candidates
             )
-            raise _echouer(
-                f"Plusieurs utilisateurs portent l'adresse « {email} » :\n{lignes}\n"
+            raise _fail(
+                f"Plusieurs utilisateurs portent l'adresse « {email} » :\n{lines}\n"
                 "Départagez-les par identifiant, via l'API, une fois un premier "
                 "administrateur en place."
             )
-        user = candidats[0]
+        user = candidates[0]
 
-        cible = role_repository.find_in_scope(db, slug=role, organisation_id=club.id)
-        if cible is None:
-            ailleurs = role_repository.list_by_slug(db, role)
-            if ailleurs:
-                proprietaire = role_repository.get_organisation(
-                    db, ailleurs[0].organisation_id
+        target = role_repository.find_in_scope(db, slug=role, organisation_id=club.id)
+        if target is None:
+            elsewhere = role_repository.list_by_slug(db, role)
+            if elsewhere:
+                owner = role_repository.get_organisation(
+                    db, elsewhere[0].organisation_id
                 )
-                raise _echouer(
+                raise _fail(
                     f"Le rôle « {role} » est propre à l'organisation "
-                    f"« {proprietaire.name} » et n'est pas attribuable dans "
+                    f"« {owner.name} » et n'est pas attribuable dans "
                     f"« {club.name} »."
                 )
-            connus = ", ".join(r.slug for r in role_repository.list_all(db)) or "aucun"
-            raise _echouer(
-                f"Le rôle « {role} » n'existe pas. Rôles existants : {connus}."
+            known = ", ".join(r.slug for r in role_repository.list_all(db)) or "aucun"
+            raise _fail(
+                f"Le rôle « {role} » n'existe pas. Rôles existants : {known}."
             )
 
-        _, cree = user_role_repository.grant(
-            db, user_id=user.id, role_id=cible.id, organisation_id=club.id
+        _, created = user_role_repository.grant(
+            db, user_id=user.id, role_id=target.id, organisation_id=club.id
         )
-        if not cree:
+        if not created:
             typer.echo(
                 f"Rien à faire : {user.display_name or user.email} (id={user.id}) "
                 "porte déjà ce rôle."
@@ -116,11 +116,11 @@ def grant_role(
         logger.info(
             "Role grant by cli: actor=cli target_user=%s role=%s organisation=%s",
             user.id,
-            cible.slug,
+            target.slug,
             club.slug,
         )
         typer.echo(
-            f"Rôle « {cible.name} » attribué à "
+            f"Rôle « {target.name} » attribué à "
             f"{user.display_name or '(sans nom)'} (id={user.id}, {user.email}) "
             f"dans « {club.name} »."
         )

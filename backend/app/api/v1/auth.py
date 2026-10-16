@@ -29,7 +29,7 @@ from app.schemas.auth import (
     SessionRoleRead,
     SessionUserRead,
 )
-from app.services import benevole_access
+from app.services import volunteer_access
 from app.services.auth import authorization, flow
 from app.services.auth import session as session_service
 from app.services.auth.errors import ERROR_CODES, LoginError
@@ -163,8 +163,8 @@ def list_methods():
     if not settings.auth_is_configured:
         return []
     return [
-        AuthMethodRead(slug=methode.slug, label=methode.label)
-        for methode in registry.enabled_methods()
+        AuthMethodRead(slug=method.slug, label=method.label)
+        for method in registry.enabled_methods()
     ]
 
 
@@ -237,8 +237,8 @@ def callback(
         )
         # La destination reste **fixée par le code** (FR-026) : aucun paramètre
         # d'entrée n'y entre, la redirection ouverte reste fermée.
-        effectifs = authorization.effective_permissions(db, user)
-        response = _redirect_to(f"{settings.auth_redirect_base_url}{_landing_path(effectifs)}")
+        effective = authorization.effective_permissions(db, user)
+        response = _redirect_to(f"{settings.auth_redirect_base_url}{_landing_path(effective)}")
         session_max_age = settings.auth_session_ttl_days * 24 * 60 * 60
         _set_auth_cookie(
             response,
@@ -303,7 +303,7 @@ def logout(
     # #1272 : admis par son pouvoir, l'admin ne voit plus « Se déconnecter » de
     # `/benevoles`. Un cookie bénévoles resté sur ce navigateur ne doit pas
     # survivre à sa déconnexion. Mêmes attributs qu'à la pose.
-    _clear_auth_cookie(response, name=benevole_access.BENEVOLE_SESSION_COOKIE, settings=settings)
+    _clear_auth_cookie(response, name=volunteer_access.VOLUNTEER_SESSION_COOKIE, settings=settings)
     return response
 
 
@@ -325,16 +325,16 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
     `effective_permissions` fait déjà pour les mêmes attributions — jusqu'à
     huit ou dix aller-retours DB pour un GET censé être trivial.
     """
-    charge = user_repository.get_with_roles_and_groups(db, user.id) or user
-    effectifs = authorization.effective_permissions(db, charge, attributions=charge.roles)
+    loaded_user = user_repository.get_with_roles_and_groups(db, user.id) or user
+    effective = authorization.effective_permissions(db, loaded_user, attributions=loaded_user.roles)
     return SessionUserRead(
-        id=charge.id,
-        email=charge.email,
-        display_name=charge.display_name,
-        created_at=charge.created_at,
-        permissions=sorted(effectifs),
-        can_administer=permissions.administers(effectifs),
-        can_supervise=permissions.supervises(effectifs),
+        id=loaded_user.id,
+        email=loaded_user.email,
+        display_name=loaded_user.display_name,
+        created_at=loaded_user.created_at,
+        permissions=sorted(effective),
+        can_administer=permissions.administers(effective),
+        can_supervise=permissions.supervises(effective),
         roles=[
             SessionRoleRead(
                 id=attribution.role.id,
@@ -342,15 +342,15 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
                 name=attribution.role.name,
                 organisation_id=attribution.organisation_id,
             )
-            for attribution in charge.roles
+            for attribution in loaded_user.roles
         ],
         groups=[
             SessionGroupRead(
-                id=appartenance.group.id,
-                slug=appartenance.group.slug,
-                name=appartenance.group.name,
-                organisation_id=appartenance.group.organisation_id,
+                id=membership.group.id,
+                slug=membership.group.slug,
+                name=membership.group.name,
+                organisation_id=membership.group.organisation_id,
             )
-            for appartenance in charge.groups
+            for membership in loaded_user.groups
         ],
     )

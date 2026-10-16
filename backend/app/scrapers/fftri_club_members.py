@@ -3,13 +3,13 @@
 La page club porte un bloc JSON-LD `SportsTeam` dont `member[]` liste les
 licenciés de la saison en cours : `name` « NOM Prénom », `gender`
 (`Female`/`Male`), `identifier` (numéro de licence). L'année de licence n'y
-figure pas : elle se lit sur chaque carte, « Membre · 2027 ».
+figure pas, et les cartes ne l'affichent plus depuis le 2026-10-12 (#1347) :
+la synchro range la liste dans la saison en cours.
 
 Ce n'est pas un fournisseur de résultats : le module n'est pas inscrit au
 registre et n'expose pas `scrape_event_all`.
 """
 import json
-import re
 from dataclasses import dataclass
 
 from bs4 import BeautifulSoup
@@ -21,8 +21,6 @@ from .utils import DEFAULT_HEADERS
 
 CLUB_URL = "https://fftri.t2area.com/clubs/triathlon-club-nantais.html"
 
-_LICENCE_YEAR = re.compile(r"Membre\s*·\s*(\d{4})")
-
 
 @dataclass(frozen=True)
 class RosterMember:
@@ -32,14 +30,8 @@ class RosterMember:
     licence_id: str | None
 
 
-@dataclass(frozen=True)
-class ClubRoster:
-    licence_year: int
-    members: list[RosterMember]
-
-
 class RosterUnreadableError(Exception):
-    """La page ne se lit plus comme mesuré le 2026-10-06."""
+    """La page ne se lit plus comme mesuré le 2026-10-12."""
 
 
 def split_name(full: str) -> tuple[str, str]:
@@ -69,12 +61,8 @@ def _team(soup: BeautifulSoup) -> dict:
     raise RosterUnreadableError("bloc JSON-LD SportsTeam introuvable")
 
 
-def parse_club_roster(html: str) -> ClubRoster:
-    soup = BeautifulSoup(html, "lxml")
-    team = _team(soup)
-    years = {int(year) for year in _LICENCE_YEAR.findall(soup.get_text(" "))}
-    if len(years) != 1:
-        raise RosterUnreadableError(f"année de licence illisible : {sorted(years)}")
+def parse_club_roster(html: str) -> list[RosterMember]:
+    team = _team(BeautifulSoup(html, "lxml"))
     members = []
     for person in team.get("member") or []:
         nom, prenom = split_name(person.get("name") or "")
@@ -89,10 +77,10 @@ def parse_club_roster(html: str) -> ClubRoster:
     # Une liste vide viderait la saison à la synchro : refusée comme illisible.
     if not members:
         raise RosterUnreadableError("aucun licencié lu")
-    return ClubRoster(licence_year=years.pop(), members=members)
+    return members
 
 
-def fetch_club_roster(url: str) -> ClubRoster:
+def fetch_club_roster(url: str) -> list[RosterMember]:
     with http.client(timeout=30, headers=DEFAULT_HEADERS) as client:
         response = client.get(url)
         response.raise_for_status()

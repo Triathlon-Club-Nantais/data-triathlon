@@ -234,9 +234,9 @@ describe("MaSaison — états dégradés", () => {
 
     const ligneVisible = await screen.findByTestId("ma-saison-ligne");
     expect(within(ligneVisible).getByText(/aucune épreuve/i)).toBeInTheDocument();
-    expect(
-      within(ligneVisible).getByRole("link", { name: /ajouter une épreuve/i }),
-    ).toHaveAttribute("href", "/ajouter");
+    const ajouter = within(ligneVisible).getByRole("link", { name: "Ajouter une épreuve" });
+    expect(ajouter).toHaveAttribute("href", "/ajouter");
+    expect(ajouter).toHaveClass("tcn-cible-tactile");
   });
 
   describe("rank toggle only where it acts", () => {

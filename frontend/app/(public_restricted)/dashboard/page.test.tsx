@@ -298,7 +298,9 @@ describe("DashboardPage — état vide unifié (NAV-6)", () => {
 
     await renderDashboard({ seasons: "2015" });
 
-    expect(screen.getByRole("link", { name: "Voir la saison en cours" })).toHaveAttribute("href", "/dashboard");
+    const voir = screen.getByRole("link", { name: "Voir la saison en cours" });
+    expect(voir).toHaveAttribute("href", "/dashboard");
+    expect(voir).toHaveClass("tcn-cible-tactile");
   });
 
   it("n'affiche pas « Voir la saison en cours » quand la saison en cours est déjà sélectionnée", async () => {
@@ -316,7 +318,9 @@ describe("DashboardPage — état vide unifié (NAV-6)", () => {
 
     await renderDashboard({});
 
-    expect(screen.getByRole("link", { name: /Ajouter une épreuve/ })).toHaveAttribute("href", "/ajouter");
+    const ajouter = screen.getByRole("link", { name: "Ajouter une épreuve" });
+    expect(ajouter).toHaveAttribute("href", "/ajouter");
+    expect(ajouter).toHaveClass("tcn-cible-tactile");
   });
 });
 

@@ -3,7 +3,7 @@ import typer
 
 from app.cli.progress import select_reporter
 from app.cli.reports import emit_outcome, render_sheet_report
-from app.cli.validators import valider_max_concurrent_hosts, valider_provider
+from app.cli.validators import validate_max_concurrent_hosts, validate_provider
 from app.core.config import get_settings
 from app.core.database import session_scope
 from app.services import bulk_import_service, sheet_source
@@ -15,7 +15,7 @@ def import_sheet(
     ),
     limit: int | None = typer.Option(None, "--limit", help="Borne le nombre d'épreuves."),
     only_provider: str | None = typer.Option(
-        None, "--only-provider", callback=valider_provider,
+        None, "--only-provider", callback=validate_provider,
         help="Restreint à un provider, ex. klikego (défaut : tous).",
     ),
     sheet_url: str = typer.Option(
@@ -26,7 +26,7 @@ def import_sheet(
         1.0, "--delay", help="Pause de politesse entre scrapes réels (s)."
     ),
     max_concurrent_hosts: int = typer.Option(
-        4, "--max-concurrent-hosts", callback=valider_max_concurrent_hosts,
+        4, "--max-concurrent-hosts", callback=validate_max_concurrent_hosts,
         help="Plafond de chronométreurs traités en même temps.",
     ),
     json_output: bool = typer.Option(

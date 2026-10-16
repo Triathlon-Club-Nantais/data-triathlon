@@ -3,8 +3,6 @@ import type { ParticipationFilters } from "@/lib/types";
 export const queryKeys = {
   events: (filters: ParticipationFilters = {}) => ["events", filters] as const,
   pendingProviders: () => ["pending-providers"] as const,
-  // Sous le même préfixe que la liste, à dessein : voir `adminCoursesCount`.
-  pendingProvidersCount: () => ["pending-providers", "count"] as const,
   allowedEmails: () => ["allowed-emails"] as const,
   benevoleAccessConfig: () => ["benevole-access-config"] as const,
   siteAccessConfig: () => ["site-access-config"] as const,
@@ -24,12 +22,10 @@ export const queryKeys = {
   ignoredIdentityPairs: () => ["identity-review", "ignored"] as const,
   confirmedIdentityClubs: () => ["identity-review", "confirmed-clubs"] as const,
   dismissedIdentityCases: () => ["identity-review", "dismissed"] as const,
-  // Préfixes de leurs listes, à dessein : voir `adminCoursesCount` (#1232).
-  identityReviewCount: () => ["identity-review", "count"] as const,
-  qualityQueueCount: () => ["admin-courses", "quality-queue-count"] as const,
-  clubMembersToSettleCount: () => ["club-members", "count"] as const,
-  pendingVolunteerActionsCount: () => ["pending-volunteer-actions", "count"] as const,
-  benevoleQueueCount: () => ["benevole-queue", "count"] as const,
+  // Les pastilles du rail en une requête (#1385), invalidée par toute
+  // mutation réussie (`app/providers.tsx`) : une clé hors des préfixes des listes.
+  adminBadgeCounts: () => ["admin-badge-counts"] as const,
+  providerQuality: () => ["provider-quality"] as const,
   // Clé distincte de `courseParticipations` : celle-ci stocke un `CourseDetail`,
   // l'autre un `Participation[]`. Même clé, deux formes = un écran qui plante.
   adminCourseDetail: (courseId: number, q: string) =>
@@ -39,8 +35,6 @@ export const queryKeys = {
   participationsWipeImpact: () => ["participations-wipe-impact"] as const,
   coursesWipeImpact: () => ["courses-wipe-impact"] as const,
   courseDuplicates: () => ["course-duplicates"] as const,
-  // Sous le même préfixe que la liste, à dessein : voir `adminCoursesCount`.
-  courseDuplicatesCount: () => ["course-duplicates", "count"] as const,
   ignoredCourseDuplicates: () => ["course-duplicates", "ignored"] as const,
   courseMergeImpact: (courseId: number, absorbedId: number) =>
     ["course-merge-impact", courseId, absorbedId] as const,

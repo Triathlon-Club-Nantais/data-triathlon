@@ -15,20 +15,20 @@ def _bucket() -> dict:
     return {"victories": 0, "podiums": 0, "top10": 0}
 
 
-def _accumule(bucket: dict, rang: int | None) -> None:
-    if rang is None or rang < 1:
+def _accumulate(bucket: dict, rank: int | None) -> None:
+    if rank is None or rank < 1:
         return
-    if rang <= 1:
+    if rank <= 1:
         bucket["victories"] += 1
-    if rang <= 3:
+    if rank <= 3:
         bucket["podiums"] += 1
-    if rang <= 10:
+    if rank <= 10:
         bucket["top10"] += 1
 
 
-def _meilleur_rang(rangs: list[int | None]) -> int | None:
-    valides = [r for r in rangs if r is not None and r >= 1]
-    return min(valides) if valides else None
+def _best_rank(ranks: list[int | None]) -> int | None:
+    valid = [r for r in ranks if r is not None and r >= 1]
+    return min(valid) if valid else None
 
 
 def _rank_counters(rows) -> dict:
@@ -46,20 +46,20 @@ def _rank_counters(rows) -> dict:
     le podium club (KPI `?rank=`) et, depuis #502, celui de la bande « Ma
     saison » — à tenir en phase avec ce qui suit.
     """
-    scratch, category, tous = _bucket(), _bucket(), _bucket()
-    genre = {"women": _bucket(), "men": _bucket()}
+    scratch, category, all_modes = _bucket(), _bucket(), _bucket()
+    by_gender = {"women": _bucket(), "men": _bucket()}
 
     for rank_overall, rank_category_, rank_gender, gender in rows:
-        _accumule(scratch, rank_overall)
-        _accumule(category, rank_category_)
-        _accumule(tous, _meilleur_rang([rank_overall, rank_gender, rank_category_]))
+        _accumulate(scratch, rank_overall)
+        _accumulate(category, rank_category_)
+        _accumulate(all_modes, _best_rank([rank_overall, rank_gender, rank_category_]))
 
         if gender == "F":
-            _accumule(genre["women"], rank_gender)
+            _accumulate(by_gender["women"], rank_gender)
         elif gender == "M":
-            _accumule(genre["men"], rank_gender)
+            _accumulate(by_gender["men"], rank_gender)
 
-    return {"scratch": scratch, "category": category, "all": tous, "gender": genre}
+    return {"scratch": scratch, "category": category, "all": all_modes, "gender": by_gender}
 
 
 def get_stats(
@@ -114,8 +114,8 @@ def get_stats(
         "recent": [
             {
                 "id": id_,
-                "athlete_name": nom or "",
-                "athlete_firstname": prenom or "",
+                "athlete_name": last_name or "",
+                "athlete_firstname": first_name or "",
                 "club": club or "",
                 "event_name": event_name or "",
                 "event_type": event_type or "",
@@ -123,7 +123,7 @@ def get_stats(
                 "total_time": total_time or "",
                 "scraped_at": created_at.isoformat() if created_at else None,
             }
-            for id_, nom, prenom, club, event_name, event_type, event_date, total_time, created_at
+            for id_, last_name, first_name, club, event_name, event_type, event_date, total_time, created_at
             in recent_rows
         ],
         "rank_counters": _rank_counters(rank_rows),
@@ -193,11 +193,13 @@ def list_events(db: Session, **filters) -> dict:
 #
 # Ces agrégats étaient calculés dans le navigateur, sur le classement entier.
 # Les déplacer ici est ce qui permet à la page de n'en recevoir que vingt lignes.
-# Les valeurs, les limites d'affichage et le découpage de l'histogramme sont
-# repris tels quels : la feature déplace ces calculs, elle ne les rejuge pas.
+# Les valeurs et les limites d'affichage sont reprises telles quelles ; seul le
+# découpage de l'histogramme a été rejugé depuis (#1586).
 
-#: Tranche de l'histogramme des temps, et plafond du nombre de tranches.
-_HISTOGRAM_BUCKET_SEC = 300
+#: Largeurs de tranche possibles, de la plus fine à la plus large, et plafond
+#: du nombre de tranches. La plus fine qui tient sous le plafond l'emporte :
+#: 5 min pour une épreuve courte, plus large pour une longue distance (#1586).
+_HISTOGRAM_BUCKET_SECS = (300, 600, 900, 1800, 3600)
 _HISTOGRAM_MAX_BARS = 60
 
 #: Limites d'affichage de la page, historiques.
@@ -206,36 +208,40 @@ _MAX_CLUBS = 9
 
 #: Statut brut (majuscule) → clé de compteur dédiée (#331). `non_finishers`
 #: reste leur somme, jamais recalculée séparément.
-_STATUTS_NON_FINISHERS = {"DNF": "dnf", "DNS": "dns", "DSQ": "dsq"}
+_NON_FINISHER_STATUSES = {"DNF": "dnf", "DNS": "dns", "DSQ": "dsq"}
 
 
-def _plus_frequents(compteur: Counter[str], limite: int) -> list[tuple[str, int]]:
-    """Les `limite` plus fréquents, à égalité départagés par le libellé.
+def _most_frequent(counter: Counter[str], limit: int) -> list[tuple[str, int]]:
+    """Les `limit` plus fréquents, à égalité départagés par le libellé.
 
     `Counter.most_common` départage par ordre d'insertion, donc par ordre de
     lecture en base : deux clubs à 23 participants pouvaient changer de place
     d'une consultation à l'autre. Le libellé rend ce classement déterministe.
     """
-    return sorted(compteur.items(), key=lambda item: (-item[1], item[0]))[:limite]
+    return sorted(counter.items(), key=lambda item: (-item[1], item[0]))[:limit]
 
 
-def _histogram(secondes: list[int]) -> dict | None:
-    if not secondes:
+def _histogram(seconds: list[int]) -> dict | None:
+    if not seconds:
         return None
-    premiere = min(secondes) // _HISTOGRAM_BUCKET_SEC
-    derniere = max(secondes) // _HISTOGRAM_BUCKET_SEC
-    tranches = min(derniere - premiere + 1, _HISTOGRAM_MAX_BARS)
-    bars = [0] * tranches
-    for valeur in secondes:
-        # Le plafond fait retomber les temps extrêmes dans la dernière tranche
-        # plutôt que de les perdre.
-        bars[min(valeur // _HISTOGRAM_BUCKET_SEC - premiere, tranches - 1)] += 1
+    low, high = min(seconds), max(seconds)
+    bucket_sec = next(
+        (b for b in _HISTOGRAM_BUCKET_SECS if high // b - low // b < _HISTOGRAM_MAX_BARS),
+        _HISTOGRAM_BUCKET_SECS[-1],
+    )
+    first_bucket = low // bucket_sec
+    bucket_count = min(high // bucket_sec - first_bucket + 1, _HISTOGRAM_MAX_BARS)
+    bars = [0] * bucket_count
+    for value in seconds:
+        # Le plafond ne mord plus qu'au delà de 60 h d'écart : un temps aberrant
+        # retombe alors dans la dernière tranche plutôt que d'être perdu.
+        bars[min(value // bucket_sec - first_bucket, bucket_count - 1)] += 1
     return {
         "bars": bars,
         # Bord gauche de la première tranche : ancre l'axe des abscisses sur des
         # heures rondes côté affichage (#129).
-        "start_sec": premiere * _HISTOGRAM_BUCKET_SEC,
-        "bucket_sec": _HISTOGRAM_BUCKET_SEC,
+        "start_sec": first_bucket * bucket_sec,
+        "bucket_sec": bucket_sec,
     }
 
 
@@ -256,12 +262,12 @@ def course_summary(db: Session, course_id: int) -> dict:
     # depuis #635 (`_club_filter_targets` les matche déjà au filtre), et depuis
     # #1110 accents, ponctuation et espaces internes (« Côte d'Émeraude »,
     # « Cote dEmeraude »). `broad_club_key` ne remplace pas `normalize_club`,
-    # `_normalise_sql` étant compilée dans un index fonctionnel : le filtre la
+    # `_normalize_sql` étant compilée dans un index fonctionnel : le filtre la
     # résout en graphies présentes sur l'épreuve (#1127).
-    variantes_par_cle: dict[str, Counter[str]] = {}
+    variants_by_key: dict[str, Counter[str]] = {}
     split_keys: dict[str, None] = {}
-    secondes: list[int] = []
-    ecarts: list[float | None] = []
+    seconds: list[int] = []
+    gaps: list[float | None] = []
 
     # L'épreuve, lue une fois : le sport et le caractère de relais commandent le
     # schéma de segments de l'écart, et ne varient pas d'une ligne à l'autre.
@@ -269,17 +275,17 @@ def course_summary(db: Session, course_id: int) -> dict:
     # Alias de club déclarés (#635) — chargés une fois, jamais par ligne : une
     # épreuve porte jusqu'à ~1800 participations (#163).
     alias_map = club_alias_repository.canonical_map(db)
-    lignes = participation_repository.summary_rows_for_course(db, course_id)
-    for status, club, category, total_time, splits, gender, counts_for_tcn in lignes:
-        statut = (status or "").strip()
-        cle_non_finisher = _STATUTS_NON_FINISHERS.get(statut.upper())
-        if cle_non_finisher == "dnf":
+    rows = participation_repository.summary_rows_for_course(db, course_id)
+    for status, club, category, total_time, splits, gender, counts_for_tcn in rows:
+        stripped_status = (status or "").strip()
+        non_finisher_key = _NON_FINISHER_STATUSES.get(stripped_status.upper())
+        if non_finisher_key == "dnf":
             dnf += 1
-        elif cle_non_finisher == "dns":
+        elif non_finisher_key == "dns":
             dns += 1
-        elif cle_non_finisher == "dsq":
+        elif non_finisher_key == "dsq":
             dsq += 1
-        elif statut.lower() == STATUS_FINISHER:
+        elif stripped_status.lower() == STATUS_FINISHER:
             finishers += 1
         else:
             # Statut vide ou non reconnu : ni finisher ni abandon (#23).
@@ -303,31 +309,31 @@ def course_summary(db: Session, course_id: int) -> dict:
             # est la ligne qui compte pour le club (`counts_for_tcn`, #1206) : un
             # « TCN » de Narbonne reste sur sa propre ligne ; tout autre
             # club par `alias_map`, chargé une fois plus haut, avec repli sur
-            # la forme normalisée (`libelles_par_forme`) pour rester
+            # la forme normalisée (`variants_by_key`) pour rester
             # cohérent avec ce que `_club_filter_targets` matche déjà sans
             # alias déclaré. La base garde le verbatim — seul l'agrégat
             # d'affichage bascule.
             if counts_for_tcn:
                 clubs[TCN_CANONICAL_NAME] += 1
-            elif canonique := alias_map.get(normalize_club(club)):
-                clubs[canonique] += 1
-            elif cle := broad_club_key(club):
+            elif canonical := alias_map.get(normalize_club(club)):
+                clubs[canonical] += 1
+            elif key := broad_club_key(club):
                 # Clé vide : « - » ou « -- », remplissage d'un club inconnu.
-                variantes_par_cle.setdefault(cle, Counter())[club.strip()] += 1
+                variants_by_key.setdefault(key, Counter())[club.strip()] += 1
         if counts_for_tcn:
             tcn_count += 1
 
-        for cle, valeur in (splits or {}).items():
+        for key, value in (splits or {}).items():
             # Un `dict` plutôt qu'un `set` : l'ordre d'apparition départage les
             # clés hors gabarit (#880), et un `set` le rendrait arbitraire.
-            if valeur:
-                split_keys.setdefault(cle, None)
+            if value:
+                split_keys.setdefault(key, None)
 
-        seconde = to_seconds(total_time, strict=True)
-        if seconde is not None and total_time != "00:00:00":
-            secondes.append(seconde)
+        total_sec = to_seconds(total_time, strict=True)
+        if total_sec is not None and total_time != "00:00:00":
+            seconds.append(total_sec)
 
-        ecarts.append(
+        gaps.append(
             split_gap.gap(
                 total_time,
                 splits,
@@ -338,12 +344,12 @@ def course_summary(db: Session, course_id: int) -> dict:
 
     # Le libellé affiché d'un groupe fusionné est sa variante la plus fréquente,
     # la première vue à égalité (#1110).
-    for variantes in variantes_par_cle.values():
-        libelle = max(variantes.items(), key=lambda item: item[1])[0]
-        clubs[libelle] += sum(variantes.values())
+    for variants in variants_by_key.values():
+        label = max(variants.items(), key=lambda item: item[1])[0]
+        clubs[label] += sum(variants.values())
 
     return {
-        "total": len(lignes),
+        "total": len(rows),
         "finishers": finishers,
         "non_finishers": dnf + dns + dsq,
         "dnf": dnf,
@@ -354,8 +360,8 @@ def course_summary(db: Session, course_id: int) -> dict:
         "male": male,
         "female": female,
         "categories": [
-            {"name": nom, "count": nombre}
-            for nom, nombre in _plus_frequents(categories, _MAX_CATEGORIES)
+            {"name": name, "count": count}
+            for name, count in _most_frequent(categories, _MAX_CATEGORIES)
         ],
         # Dénominateur des pourcentages affichés : **toutes** les catégories
         # renseignées, pas seulement les 8 rendues. Les rapporter à la somme du
@@ -364,8 +370,8 @@ def course_summary(db: Session, course_id: int) -> dict:
         # sommer à 100 %, ce qu'elles ne font pas.
         "categories_total": sum(categories.values()),
         "clubs": [
-            {"name": nom, "count": nombre, "is_tcn": nom == TCN_CANONICAL_NAME}
-            for nom, nombre in _plus_frequents(clubs, _MAX_CLUBS)
+            {"name": name, "count": count, "is_tcn": name == TCN_CANONICAL_NAME}
+            for name, count in _most_frequent(clubs, _MAX_CLUBS)
         ],
         # Dénominateur du « et N autres clubs » (#486). **Pas homogène** à
         # `categories_total` juste au-dessus, qui compte des participants : ici
@@ -373,11 +379,11 @@ def course_summary(db: Session, course_id: int) -> dict:
         # unités différentes.
         "clubs_total": len(clubs),
         # Une épreuve à durée fixe classe aux tours : ses temps ne se comparent pas (#993).
-        "histogram": None if course is not None and course.ranked_by_laps else _histogram(secondes),
+        "histogram": None if course is not None and course.ranked_by_laps else _histogram(seconds),
         "split_keys": split_gap.chronological(split_keys),
         # Une **mesure**, pas un verdict : la médiane sert de référence à l'écran,
         # qui applique ses propres seuils. Les régler après re-sondage ne touche
         # donc pas au contrat (#486).
-        "split_gap_median": split_gap.median(ecarts),
-        "split_gap_rows": sum(1 for ecart in ecarts if ecart is not None),
+        "split_gap_median": split_gap.median(gaps),
+        "split_gap_rows": sum(1 for gap in gaps if gap is not None),
     }

@@ -56,7 +56,7 @@ FEATURE_CLUB_MEMBERS = "Licenciés du club"
 #: des entraînements, appel de présence. Distincte des autres fonctionnalités :
 #: ces données sont personnelles et sensibles (mineurs), fermées à quiconque
 #: ne porte pas ce pouvoir, quel que soit son rôle par ailleurs.
-FEATURE_JEUNES = "Jeunes"
+FEATURE_YOUTH = "Jeunes"
 
 
 PermissionKind = Literal["administration", "supervision", "consultation"]
@@ -131,7 +131,7 @@ class P:
         "sienne comprise. Le geste d'incident, après une fuite de jetons.",
         FEATURE_ROLES,
     )
-    BENEVOLE_ACCESS_MANAGE = Permission(
+    VOLUNTEER_ACCESS_MANAGE = Permission(
         "benevole_access:manage",
         "Gérer l'accès bénévoles",
         "Consulter l'état du mot de passe partagé de la page bénévoles, le "
@@ -350,21 +350,21 @@ class P:
     # Deux pouvoirs et non un : un accompagnant peut avoir besoin de consulter
     # un profil ou le calendrier sans pour autant écrire dans le journal de
     # bord d'un jeune, donnée personnelle et sensible.
-    JEUNES_READ = Permission(
+    YOUTH_READ = Permission(
         "jeunes:read",
         "Consulter les jeunes",
         "Voir la liste des jeunes, leur profil (contact d'urgence, âge, "
         "notes, journal de bord) et le calendrier des entraînements.",
-        FEATURE_JEUNES,
+        FEATURE_YOUTH,
         kind="supervision",
     )
-    JEUNES_WRITE = Permission(
+    YOUTH_WRITE = Permission(
         "jeunes:write",
         "Encadrer les jeunes",
         "Créer et modifier un profil jeune, tenir le calendrier des "
         "entraînements, faire l'appel de présence et ajouter une entrée au "
         "journal de bord.",
-        FEATURE_JEUNES,
+        FEATURE_YOUTH,
         kind="supervision",
     )
 
@@ -378,7 +378,7 @@ ALL: tuple[Permission, ...] = (
     P.USERS_READ,
     P.ALLOWED_EMAILS_MANAGE,
     P.SESSIONS_REVOKE,
-    P.BENEVOLE_ACCESS_MANAGE,
+    P.VOLUNTEER_ACCESS_MANAGE,
     P.SITE_ACCESS_MANAGE,
     P.GROUPS_READ,
     P.GROUPS_WRITE,
@@ -407,11 +407,11 @@ ALL: tuple[Permission, ...] = (
     P.CLUB_MEMBERS_MANAGE,
     P.ADMIN_LOG_READ,
     P.PAGES_PREVIEW,
-    P.JEUNES_READ,
-    P.JEUNES_WRITE,
+    P.YOUTH_READ,
+    P.YOUTH_WRITE,
 )
 
-_BY_CODE: dict[str, Permission] = {pouvoir.code: pouvoir for pouvoir in ALL}
+_BY_CODE: dict[str, Permission] = {permission.code: permission for permission in ALL}
 
 #: Les codes seuls — c'est cet ensemble que la non-amplification intersecte
 #: (FR-011), et c'est ce qui rend un code périmé retirable par tout le monde.
@@ -444,7 +444,7 @@ def supervises(codes: Iterable[str]) -> bool:
 
 def _any_of_kind(codes: Iterable[str], kind: PermissionKind) -> bool:
     return any(
-        (pouvoir := _BY_CODE.get(code)) is not None and pouvoir.kind == kind
+        (permission := _BY_CODE.get(code)) is not None and permission.kind == kind
         for code in codes
     )
 
@@ -464,11 +464,11 @@ def grouped_by_feature() -> list[FeatureGroup]:
     est le geste qu'on veut éviter — c'est ce regroupement qui rend l'écran
     lisible, et il n'a pas d'autre lecteur.
     """
-    ordre: list[str] = []
-    par_feature: dict[str, list[Permission]] = {}
-    for pouvoir in ALL:
-        if pouvoir.feature not in par_feature:
-            ordre.append(pouvoir.feature)
-            par_feature[pouvoir.feature] = []
-        par_feature[pouvoir.feature].append(pouvoir)
-    return [FeatureGroup(feature, tuple(par_feature[feature])) for feature in ordre]
+    order: list[str] = []
+    by_feature: dict[str, list[Permission]] = {}
+    for permission in ALL:
+        if permission.feature not in by_feature:
+            order.append(permission.feature)
+            by_feature[permission.feature] = []
+        by_feature[permission.feature].append(permission)
+    return [FeatureGroup(feature, tuple(by_feature[feature])) for feature in order]

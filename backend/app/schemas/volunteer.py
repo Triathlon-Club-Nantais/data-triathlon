@@ -1,0 +1,46 @@
+"""DTO de la page de vérification des résultats par les bénévoles (#271)."""
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from app.schemas.ids import Rank
+from app.schemas.site_access import MAX_PASSWORD_LENGTH
+
+
+class VolunteerLogin(BaseModel):
+    """Corps de `POST /benevoles/session`."""
+
+    password: str = Field(max_length=MAX_PASSWORD_LENGTH)
+
+
+class VolunteerCourseRename(BaseModel):
+    """Corps de `PATCH /benevoles/courses/{course_id}`.
+
+    **Restreint au seul nom** (contracts/api.md) : contrairement à
+    `AdminCourseUpdate`, les trois autres champs de l'identité d'une épreuve
+    (`event_date`, `event_type`, `is_relay`) ne sont pas éditables depuis cette
+    page.
+    """
+
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    name: str = Field(min_length=1)
+
+
+class ParticipationFieldsUpdate(BaseModel):
+    """Corps de `PATCH /benevoles/participations/{id}` (#437).
+
+    Les quatre champs sont facultatifs et tous nullables en base — un
+    bénévole peut aussi bien renseigner un dossard que l'effacer.
+    """
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    bib_number: str | None = None
+    rank_overall: Rank | None = None
+    club: str | None = None
+    category: str | None = None
+
+    @model_validator(mode="after")
+    def _at_least_one_field(self):
+        if not self.model_fields_set:
+            raise ValueError("Aucune modification demandée.")
+        return self

@@ -11,11 +11,14 @@ from collections import defaultdict
 from sqlalchemy.orm import Session
 
 from app.core.gender import is_gender_podium
-from app.repositories import athlete_repository, participation_repository
+from app.core.season import current_season
+from app.repositories import athlete_repository, club_member_repository, participation_repository
 from app.schemas.club import (
     ClubComposition,
+    ClubLicensees,
     ClubPodiumEntry,
     ClubPodiums,
+    ClubPodiumTotals,
     ClubRosterEntry,
     ClubSummary,
     DisciplinePodiumCounts,
@@ -24,84 +27,87 @@ from app.schemas.club import (
 _SCOPES = ("overall", "gender", "category")
 
 
-def _meilleur(rangs: dict[str, int | None]) -> tuple[str, int] | None:
-    valides = [(s, r) for s, r in rangs.items() if r is not None and 1 <= r <= 3]
-    if not valides:
+def _best(ranks: dict[str, int | None]) -> tuple[str, int] | None:
+    valid = [(s, r) for s, r in ranks.items() if r is not None and 1 <= r <= 3]
+    if not valid:
         return None
-    return min(valides, key=lambda item: (item[1], _SCOPES.index(item[0])))
+    return min(valid, key=lambda item: (item[1], _SCOPES.index(item[0])))
 
 
-def _entree(row, scope: str, rang: int, equipes: dict[int, list[str]]) -> ClubPodiumEntry:
+def _entry(row, scope: str, rank: int, teammates: dict[int, list[str]]) -> ClubPodiumEntry:
     (pid, _rank_overall, _rank_gender, _rank_category, total_time,
-     athlete_id, prenom, nom, event_name, event_type, is_relay, event_date,
+     athlete_id, first_name, last_name, event_name, event_type, is_relay, event_date,
      _gender) = row
     return ClubPodiumEntry(
         participation_id=pid,
         athlete_id=athlete_id,
-        athlete_name=f"{prenom} {nom}".strip(),
+        athlete_name=f"{first_name} {last_name}".strip(),
         event_name=event_name or "",
         event_type=event_type or "",
         is_relay=bool(is_relay),
         event_date=event_date.isoformat() if event_date else None,
-        rank=rang,
+        rank=rank,
         scope=scope,
         total_time=total_time,
-        teammate_names=equipes.get(pid, []),
+        teammate_names=teammates.get(pid, []),
     )
 
 
-def _trier(entries: list[ClubPodiumEntry]) -> list[ClubPodiumEntry]:
+def _sort_entries(entries: list[ClubPodiumEntry]) -> list[ClubPodiumEntry]:
     # Stable : trier d'abord par date décroissante, puis par rang croissant —
     # à rang égal, l'ordre par date décroissante posé au premier passage survit.
-    par_date = sorted(entries, key=lambda e: e.event_date or "", reverse=True)
-    return sorted(par_date, key=lambda e: e.rank)
+    # Départage final par id : `club_podiums` n'a pas d'ORDER BY, et l'aperçu
+    # (`?podiums=preview`) doit être le début exact de la liste complète (#1354).
+    by_id = sorted(entries, key=lambda e: e.participation_id)
+    by_date = sorted(by_id, key=lambda e: e.event_date or "", reverse=True)
+    return sorted(by_date, key=lambda e: e.rank)
 
 
-def _bucket_podiums(rows, equipes: dict[int, list[str]]) -> ClubPodiums:
+def _bucket_podiums(rows, teammates: dict[int, list[str]]) -> ClubPodiums:
     buckets: dict[str, list[ClubPodiumEntry]] = {
         "scratch": [], "category": [], "gender": [], "all": [],
     }
     for row in rows:
         _, rank_overall, rank_gender, rank_category, *_, gender = row
         if rank_overall is not None and 1 <= rank_overall <= 3:
-            buckets["scratch"].append(_entree(row, "overall", rank_overall, equipes))
+            buckets["scratch"].append(_entry(row, "overall", rank_overall, teammates))
         if rank_category is not None and 1 <= rank_category <= 3:
-            buckets["category"].append(_entree(row, "category", rank_category, equipes))
+            buckets["category"].append(_entry(row, "category", rank_category, teammates))
         # Même règle que le KPI et le roster (`core.gender`, #581, #936).
         if is_gender_podium(rank_gender, gender):
-            buckets["gender"].append(_entree(row, "gender", rank_gender, equipes))
-        meilleur = _meilleur(
+            buckets["gender"].append(_entry(row, "gender", rank_gender, teammates))
+        best = _best(
             {"overall": rank_overall, "gender": rank_gender, "category": rank_category}
         )
-        if meilleur:
-            scope, rang = meilleur
-            buckets["all"].append(_entree(row, scope, rang, equipes))
-    return ClubPodiums(**{k: _trier(v) for k, v in buckets.items()})
+        if best:
+            scope, rank = best
+            buckets["all"].append(_entry(row, scope, rank, teammates))
+    return ClubPodiums(**{k: _sort_entries(v) for k, v in buckets.items()})
 
 
-def _bucket_podiums_par_discipline(rows) -> dict[str, DisciplinePodiumCounts]:
+def _bucket_podiums_by_discipline(rows) -> dict[str, DisciplinePodiumCounts]:
     """Décompte de podiums par discipline (#642, US10) — mêmes conditions que
     `_bucket_podiums`, mais on ne garde que les compteurs, tally par
     `event_type` plutôt qu'une liste d'entrées : `DisciplinePerformance`
     (front) n'a besoin que des totaux, jamais du détail participation par
     participation.
     """
-    compteurs: dict[str, dict[str, int]] = defaultdict(
+    counters: dict[str, dict[str, int]] = defaultdict(
         lambda: {"overall": 0, "gender": 0, "category": 0, "all": 0}
     )
     for row in rows:
         (_, rank_overall, rank_gender, rank_category, *_, event_type, _is_relay,
          _event_date, gender) = row
-        c = compteurs[event_type or ""]
+        c = counters[event_type or ""]
         if rank_overall is not None and 1 <= rank_overall <= 3:
             c["overall"] += 1
         if rank_category is not None and 1 <= rank_category <= 3:
             c["category"] += 1
         if is_gender_podium(rank_gender, gender):
             c["gender"] += 1
-        if _meilleur({"overall": rank_overall, "gender": rank_gender, "category": rank_category}):
+        if _best({"overall": rank_overall, "gender": rank_gender, "category": rank_category}):
             c["all"] += 1
-    return {discipline: DisciplinePodiumCounts(**c) for discipline, c in compteurs.items()}
+    return {discipline: DisciplinePodiumCounts(**c) for discipline, c in counters.items()}
 
 
 def _bucket_composition(rows: list[tuple[str, str | None]]) -> ClubComposition:
@@ -117,9 +123,22 @@ def _bucket_composition(rows: list[tuple[str, str | None]]) -> ClubComposition:
     return ClubComposition(gender=gender_counts, category=category_counts)
 
 
-def get_club_summary(db: Session, *, federal_only: bool = False) -> ClubSummary:
+#: Taille de l'aperçu des podiums, celle que `PodiumsList` affiche replié (#1354).
+PODIUMS_PREVIEW = 6
+
+
+def get_club_podiums(db: Session, *, federal_only: bool = False) -> ClubPodiums:
+    """Les podiums complets des quatre modes, chargés au dépliage de la liste (#1354)."""
+    rows = participation_repository.club_podiums(db, federal_only=federal_only)
+    return _bucket_podiums(rows, participation_repository.teammate_names(db, (row[0] for row in rows)))
+
+
+def get_club_summary(db: Session, *, federal_only: bool = False, podiums_preview: bool = False) -> ClubSummary:
     """Roster (top 12), podiums (4 modes de rang), podiums par discipline et
-    composition (genre/catégorie) du club, agrégés côté serveur."""
+    composition (genre/catégorie) du club, agrégés côté serveur.
+
+    `podiums_preview` ne garde que les `PODIUMS_PREVIEW` premiers de chaque
+    mode : la liste complète pesait 215 ko de la charge de `/club` (#1354)."""
     roster_rows = athlete_repository.club_roster(db, federal_only=federal_only)
     podium_rows = participation_repository.club_podiums(db, federal_only=federal_only)
     composition_rows = athlete_repository.club_composition(db, federal_only=federal_only)
@@ -131,12 +150,22 @@ def get_club_summary(db: Session, *, federal_only: bool = False) -> ClubSummary:
         )
         for a, count, podiums, po, pg, pc in roster_rows
     ]
+    podiums = _bucket_podiums(
+        podium_rows,
+        participation_repository.teammate_names(db, (row[0] for row in podium_rows)),
+    )
+    totals = ClubPodiumTotals(**{mode: len(getattr(podiums, mode)) for mode in ClubPodiumTotals.model_fields})
+    if podiums_preview:
+        podiums = ClubPodiums(
+            **{mode: getattr(podiums, mode)[:PODIUMS_PREVIEW] for mode in ClubPodiumTotals.model_fields}
+        )
+    season = current_season()
+    activity = club_member_repository.licensee_activity(db, season)
     return ClubSummary(
         roster=roster,
-        podiums=_bucket_podiums(
-            podium_rows,
-            participation_repository.teammate_names(db, (row[0] for row in podium_rows)),
-        ),
-        podiums_by_discipline=_bucket_podiums_par_discipline(podium_rows),
+        podiums=podiums,
+        podiums_totals=totals,
+        podiums_by_discipline=_bucket_podiums_by_discipline(podium_rows),
         composition=_bucket_composition(composition_rows),
+        licensees=ClubLicensees(season=season, total=activity[0], raced=activity[1]) if activity else None,
     )

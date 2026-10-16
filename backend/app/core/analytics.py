@@ -14,8 +14,11 @@ Toutes les fonctions ci-dessous vérifient cette condition avant d'agir.
 """
 import atexit
 import logging
+from contextvars import ContextVar
 
 from posthog import Posthog
+from starlette.requests import Request
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +32,32 @@ posthog_client: Posthog | None = None
 #: plus tard sur le même utilisateur. Un seul littéral évite qu'un futur site
 #: d'appel en invente un second et fragmente les métriques agrégées.
 ANONYMOUS_DISTINCT_ID = "anonymous"
+
+#: Cookie technique posé par le front (`frontend/lib/analytics-consent.ts`) : le
+#: choix du navigateur sur la mesure détaillée (#1359). Seul `granted` vaut accord.
+ANALYTICS_CONSENT_COOKIE = "tcn_analytics_consent"
+
+# Faux hors requête (tâche de fond, CLI) : aucun accord n'y est connu.
+_consent_granted: ContextVar[bool] = ContextVar("analytics_consent_granted", default=False)
+
+
+class AnalyticsConsentMiddleware:
+    """Lit le choix du navigateur une fois par requête, pour que `capture_event`
+    et `set_person_properties` le respectent sans que chaque route s'en charge."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        granted = Request(scope).cookies.get(ANALYTICS_CONSENT_COOKIE) == "granted"
+        token = _consent_granted.set(granted)
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            _consent_granted.reset(token)
 
 
 def init_posthog(token: str, host: str, debug: bool = False) -> None:
@@ -84,10 +113,14 @@ def capture_event(
 ) -> None:
     """Capture un événement si le client est initialisé.
 
+    Sans accord du navigateur, l'événement part sous `ANONYMOUS_DISTINCT_ID`,
+    quel que soit le `distinct_id` demandé (#1359).
     Ne lève jamais : un échec PostHog ne doit pas casser la réponse HTTP.
     """
     if posthog_client is None:
         return
+    if not _consent_granted.get():
+        distinct_id = ANONYMOUS_DISTINCT_ID
     try:
         posthog_client.capture(
             distinct_id=distinct_id,
@@ -101,9 +134,10 @@ def capture_event(
 def set_person_properties(distinct_id: str, properties: dict) -> None:
     """Envoie des propriétés de personne (sans PII dans les événements).
 
-    Utiliser pour associer des métadonnées non-PII à un utilisateur.
+    Utiliser pour associer des métadonnées non-PII à un utilisateur. Sans
+    accord du navigateur, rien ne part : pas de fiche personne (#1359).
     """
-    if posthog_client is None:
+    if posthog_client is None or not _consent_granted.get():
         return
     try:
         posthog_client.set(distinct_id=distinct_id, properties=properties)

@@ -189,7 +189,7 @@ def test_run_import_sheet_echec_total_quand_tout_echoue(db_session, monkeypatch)
     out = bulk_import_service.run_import_sheet(db_session, csv_text, _settings(), delay=0.0)
 
     assert out.errors == 2
-    assert out.echec_total is True
+    assert out.is_total_failure is True
 
 
 def test_run_import_sheet_rien_de_neuf_n_est_pas_un_echec(db_session, monkeypatch):
@@ -211,7 +211,7 @@ def test_run_import_sheet_rien_de_neuf_n_est_pas_un_echec(db_session, monkeypatc
 
     assert out.imported == 0
     assert out.skipped == 42
-    assert out.echec_total is False
+    assert out.is_total_failure is False
 
 
 def test_sheet_outcome_porte_updated(db_session, monkeypatch):
@@ -240,7 +240,7 @@ def test_run_import_sheet_liens_non_supportes_ne_font_pas_un_echec(db_session, m
 
     assert out.unique_supported == 0
     assert out.ignored_by_host == {"inconnu.example": 1}
-    assert out.echec_total is False
+    assert out.is_total_failure is False
 
 
 def test_sheet_outcome_carries_the_registered_passive_sources(db_session, monkeypatch):
@@ -264,4 +264,4 @@ def test_sheet_outcome_carries_the_registered_passive_sources(db_session, monkey
     out = bulk_import_service.run_import_sheet(db_session, csv_text, _settings(), delay=0)
 
     assert out.passive_sources == [signalee]
-    assert out.echec_total is False
+    assert out.is_total_failure is False

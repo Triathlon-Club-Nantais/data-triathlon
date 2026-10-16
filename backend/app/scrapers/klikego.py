@@ -17,10 +17,11 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.core import http
+from app.core.exceptions import ScraperError
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, FanoutTrace, ScrapedResult
 from .classify import classify_event_type, refine_from_splits
-from .klikego_platform import norm_heat_label, parse_live_index
+from .klikego_platform import get_page, norm_heat_label, parse_live_index
 from .utils import (
     DEFAULT_HEADERS,
     normalize_time,
@@ -51,21 +52,34 @@ _DETAIL_PROGRESS_INTERVAL = 10
 
 
 def _fetch_event_page(event_id: str, slug: str, client: httpx.Client) -> str:
-    """HTML de la page d'événement, chaîne vide sur un statut autre que 200.
+    """HTML de la page d'événement ; lève si elle ne répond pas ou si l'événement est inconnu.
 
-    Une panne réseau remonte : le fan-out en tire ses heats, et la taire les
-    réduirait à zéro, soit une épreuve vide en apparence. Le chemin mono-heat,
-    qui n'y lit que la date, la tolère lui-même.
+    Le fan-out en tire ses heats : taire une panne ou un identifiant inconnu
+    rendrait une épreuve vide en apparence (#1522). Un non-200 lève
+    `ScraperError` (5xx rejoués, `get_page`). Un identifiant inconnu répond 200
+    avec une page générique sans titre d'événement (`h1.event-header-title`,
+    présent même sur un événement sans résultat publié, sondé le 16/10/2026).
+    Le chemin mono-heat, qui n'y lit que la date, tolère les deux.
     """
-    r = client.get(f"{BASE}/resultats/{slug}/{event_id}" if slug else f"{BASE}/resultats/{event_id}")
-    return r.text if r.status_code == 200 else ""
+    url = f"{BASE}/resultats/{slug}/{event_id}" if slug else f"{BASE}/resultats/{event_id}"
+    html = get_page(client, url).text
+    if BeautifulSoup(html, "lxml").select_one("h1.event-header-title"):
+        return html
+    # La page générique se déclare elle-même en 404 auprès de gtag ; sans ce
+    # marqueur, c'est la page qui a changé, pas le lien qui est faux.
+    if "'page_404'" in html:
+        raise ValueError(
+            f"Événement Klikego introuvable : {event_id}. La page de l'événement "
+            "n'existe pas ou plus sur Klikego, vérifier le lien."
+        )
+    raise ScraperError(f"Page d'événement Klikego illisible (structure inattendue) : {url}")
 
 
 def _fetch_event_date(event_id: str, slug: str, client: httpx.Client):
     """Date d'événement, `None` si la page ne répond pas (repli mono-heat)."""
     try:
         return _parse_event_date(_fetch_event_page(event_id, slug, client))
-    except httpx.HTTPError:
+    except (httpx.HTTPError, ScraperError, ValueError):
         return None
 
 
@@ -273,10 +287,10 @@ def _parse_detail(html: str, result: ScrapedResult, raw: dict):
         if is_cumulative and secs > 0:
             if field is not None:
                 # Duration = cumulative_now - cumulative_after_previous_mapped_stage
-                dur = secs - prev_secs
+                duration = secs - prev_secs
                 prev_secs = secs
                 last_mapped_secs = secs
-                h, rem = divmod(dur, 3600)
+                h, rem = divmod(duration, 3600)
                 m, s = divmod(rem, 60)
                 time_val = f"{h:02d}:{m:02d}:{s:02d}"
             else:
@@ -402,7 +416,7 @@ def _scrape_single_heat(
         heat_page_html=heat_page_html,
         event_name=event_name,
         slug=slug,
-        event_type=classify_event_type(heat, contexte=slug),
+        event_type=classify_event_type(heat, context=slug),
         source_url=source_url,
         event_date=event_date,
         client=client,
@@ -538,28 +552,28 @@ def scrape_event_fanout(
         trace.heats_enumerated = len(heats)
         dates_by_heat = _fetch_heat_dates(event_id, client) if heats else {}
 
-        # Pré-filtre les heats à scraper : `heats_a_scraper` fixe le total notifié
+        # Pré-filtre les heats à scraper : `heats_to_scrape` fixe le total notifié
         # à `on_heat_start`, sans quoi la progression sauterait des indices.
-        heats_a_scraper: list[tuple[str, str]] = []
+        heats_to_scrape: list[tuple[str, str]] = []
         for heat_slug, heat_label in heats:
             heat_url = _heat_source_url(event_id, slug, heat_slug)
             if cache_probe is not None and cache_probe(heat_url):
                 trace.heats_cached += 1
                 trace.cached_urls.append(heat_url)
                 continue
-            heats_a_scraper.append((heat_slug, heat_label))
+            heats_to_scrape.append((heat_slug, heat_label))
 
-        total_a_scraper = len(heats_a_scraper)
-        for index, (heat_slug, heat_label) in enumerate(heats_a_scraper, start=1):
+        total_to_scrape = len(heats_to_scrape)
+        for index, (heat_slug, heat_label) in enumerate(heats_to_scrape, start=1):
             if on_heat_start is not None:
-                on_heat_start(heat_slug, heat_label, index, total_a_scraper)
+                on_heat_start(heat_slug, heat_label, index, total_to_scrape)
             detail_progress = None
             if on_detail_progress is not None:
                 def detail_progress(
                     done, total,
                     _slug=heat_slug, _label=heat_label, _index=index,
                 ) -> None:
-                    on_detail_progress(_slug, _label, _index, total_a_scraper, done, total)
+                    on_detail_progress(_slug, _label, _index, total_to_scrape, done, total)
             try:
                 heat_date = dates_by_heat.get(norm_heat_label(heat_label))
                 heat_results = _scrape_single_heat(

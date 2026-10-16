@@ -1,6 +1,7 @@
-import type { ComparisonRow } from "@/lib/types";
+import type { ComparisonRow, MedianRow, Participation } from "@/lib/types";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
 import { pctFr } from "@/lib/utils/format";
+import { secondsFromHms } from "@/lib/utils/time";
 import { Card } from "../Card";
 import { Eyebrow } from "../Eyebrow";
 
@@ -19,30 +20,62 @@ const classeColonne = (small?: boolean) => (small ? "hidden sm:table-cell" : und
 // comparaient. Un `title` natif suffit ici — ce sont des cellules de texte
 // inertes, pas des commandes qu'il faudrait rendre focalisables au clavier.
 const TITRE_POSITION =
-  "Position de référence au classement scratch, à laquelle le temps de l'athlète est comparé.";
+  "Position de référence au classement scratch, ou médiane des classés, à laquelle le temps de l'athlète est comparé.";
 const titreSegment = (label: string) =>
-  `Temps de l'athlète sur ${label.toLowerCase()}, en pourcentage du temps réalisé à cette position (100 % = temps identique, plus de 100 % = plus lent).`;
+  `Temps de l'athlète sur ${label.toLowerCase()}, en pourcentage du temps de référence de la ligne, position ou médiane (100 % = temps identique, plus de 100 % = plus lent).`;
 const TITRE_TOTAL =
-  "Temps de l'athlète sur l'ensemble de l'épreuve, en pourcentage du temps réalisé à cette position (100 % = temps identique, plus de 100 % = plus lent).";
+  "Temps de l'athlète sur l'ensemble de l'épreuve, en pourcentage du temps de référence de la ligne, position ou médiane (100 % = temps identique, plus de 100 % = plus lent).";
 
 /**
- * Comparaison de l'athlète aux positions de référence du classement scratch.
+ * Comparaison de l'athlète aux positions de référence du classement scratch,
+ * puis aux médianes des classés (#1362).
  *
  * Les lignes arrivent déjà filtrées par l'API : une position que l'épreuve
- * n'atteint pas est absente, pas vide. Ce composant ne comble donc rien — un
- * tiret ici signale un temps non publié, jamais un effectif insuffisant.
+ * n'atteint pas est absente, pas vide, et une médiane sous l'effectif minimal
+ * aussi. Un tiret signale un temps que l'athlète n'a pas publié, ou, sur une
+ * médiane seulement, un segment publié par trop peu de classés.
  */
 export function ComparisonTable({
   rows,
+  medians = [],
   segments,
   eventType,
+  athlete,
 }: {
   rows: ComparisonRow[];
+  medians?: MedianRow[];
   segments: string[];
   eventType: string;
+  athlete: Pick<Participation, "splits" | "total_time">;
 }) {
   const columns = splitColumnsFromKeys(eventType, segments);
   const shortSegmentLabels = columns.filter((column) => column.small).map((column) => column.label);
+  const lines: {
+    key: string;
+    label: string;
+    row: ComparisonRow | MedianRow;
+    sampleSize?: number;
+    separator?: { borderTop: string };
+  }[] = [
+    ...rows.map((row) => ({ key: `rang-${row.rank}`, label: row.position_label, row })),
+    ...medians.map((row, index) => ({
+      key: row.kind,
+      label: row.label,
+      row,
+      sampleSize: row.sample_size,
+      // Un filet sous les positions : sans lui, la première médiane se lit comme un rang de plus.
+      separator: index === 0 && rows.length > 0 ? { borderTop: "1px solid var(--tcn-border)" } : undefined,
+    })),
+  ];
+  // #1470 : l'API omet aussi une clé de médiane quand l'athlète n'a pas ce
+  // temps. Ce tiret-là ne dit rien de l'effectif. `secondsFromHms` rejette au
+  // moins tout ce que rejette `to_seconds(strict=True)` côté serveur : l'écart
+  // ne peut que taire la note, jamais la faire mentir.
+  const athleteHasTime = (key: string) =>
+    secondsFromHms(key === TOTAL_KEY ? athlete.total_time : athlete.splits?.[key]) != null;
+  const thinSampleLabels = [...columns, { key: TOTAL_KEY, label: "Total" }]
+    .filter(({ key }) => athleteHasTime(key) && medians.some((row) => row.percentages[key] == null))
+    .map(({ label }) => label);
 
   return (
     <Card style={{ marginBottom: 24, overflowX: "auto" }}>
@@ -50,10 +83,10 @@ export function ComparisonTable({
       <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 14, fontSize: 13 }}>
         <thead>
           <tr>
-            {/* Largeur fixe : sans elle, la colonne de position absorbe tout
+            {/* Largeur fixe : sans elle, la colonne de référence absorbe tout
                 l'espace que les colonnes de pourcentage n'occupent pas. */}
             <th style={{ ...headStyle, width: 72, textAlign: "left" }} title={TITRE_POSITION}>
-              Position
+              Référence
             </th>
             {columns.map((column) => (
               <th
@@ -71,22 +104,30 @@ export function ComparisonTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.rank}>
-              <th scope="row" style={{ ...cellStyle, textAlign: "left", fontWeight: 700 }}>
-                {row.position_label}
+          {lines.map(({ key, label, row, sampleSize, separator }) => (
+            <tr key={key}>
+              <th scope="row" style={{ ...cellStyle, ...separator, textAlign: "left", fontWeight: 700 }}>
+                {label}
+                {sampleSize != null && <div style={sampleSizeStyle}>{sampleSize} classés</div>}
               </th>
               {columns.map((column) => (
                 <td
                   key={column.key}
                   className={classeColonne(column.small)}
-                  style={{ ...cellStyle, background: pctTint(row.percentages[column.key]) }}
+                  style={{ ...cellStyle, ...separator, background: pctTint(row.percentages[column.key]) }}
                 >
                   {formatPercentage(row.percentages[column.key])}
                   <DeltaSeconds mine={row.mine_seconds?.[column.key]} theirs={row.theirs_seconds?.[column.key]} />
                 </td>
               ))}
-              <td style={{ ...cellStyle, fontWeight: 700, background: pctTint(row.percentages[TOTAL_KEY]) }}>
+              <td
+                style={{
+                  ...cellStyle,
+                  ...separator,
+                  fontWeight: 700,
+                  background: pctTint(row.percentages[TOTAL_KEY]),
+                }}
+              >
                 {formatPercentage(row.percentages[TOTAL_KEY])}
                 <DeltaSeconds mine={row.mine_seconds?.[TOTAL_KEY]} theirs={row.theirs_seconds?.[TOTAL_KEY]} />
               </td>
@@ -96,13 +137,19 @@ export function ComparisonTable({
       </table>
       {shortSegmentLabels.length > 0 && (
         <p style={{ marginTop: 10, fontSize: 13, color: "var(--tcn-text-faint)" }}>
-          Les segments courts ({shortSegmentLabels.join(", ")}) sont sensibles au bruit de
-          chronométrage : leurs pourcentages peuvent ne pas décroître régulièrement d&apos;un
-          rang à l&apos;autre.{" "}
+          Les segments courts ({shortSegmentLabels.join(", ")}) sont indicatifs : sensibles au
+          bruit de chronométrage, leurs pourcentages peuvent varier fortement d&apos;une ligne
+          à l&apos;autre.{" "}
           {/* Seule cette phrase est fausse dès 640 px, où les colonnes sont déjà
               visibles : la phrase sur le bruit de chronométrage, elle, reste
               vraie à toute largeur. */}
           <span className="sm:hidden">Leurs colonnes s&apos;affichent sur un écran plus large.</span>
+        </p>
+      )}
+      {thinSampleLabels.length > 0 && (
+        <p style={{ marginTop: 10, fontSize: 13, color: "var(--tcn-text-faint)" }}>
+          Médiane non calculée pour {thinSampleLabels.join(", ")} : trop peu de classés ont publié{" "}
+          {thinSampleLabels.length > 1 ? "ces segments" : "ce segment"}.
         </p>
       )}
     </Card>
@@ -175,6 +222,14 @@ const headStyle = {
   letterSpacing: ".04em",
   color: "var(--tcn-text-faint)",
   borderBottom: "1px solid var(--tcn-border)",
+} as const;
+
+const sampleSizeStyle = {
+  marginTop: 3,
+  fontSize: 11,
+  fontWeight: 400,
+  color: "var(--tcn-text-faint)",
+  whiteSpace: "nowrap",
 } as const;
 
 const cellStyle = {

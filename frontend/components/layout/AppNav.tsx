@@ -134,7 +134,8 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // au-delà vient des **pouvoirs**, seuls réellement renseignés (#115).
   const rank: number = session ? ROLE.CONNECTED : ROLE.ANON;
   const pouvoirs = new Set(session?.permissions ?? []);
-  const { counts: badges } = useNavBadges(pouvoirs, session?.can_administer ?? false);
+  // Encadrement compris : sa file de crédits bénévoles porte une pastille.
+  const { counts: badges } = useNavBadges(Boolean(session?.can_administer || session?.can_supervise));
   const toutesSections: SectionRendue[] = NAV.filter((s) => rank >= s.minRole)
     .map((s) => ({
       ...s,
@@ -293,7 +294,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             // Monogramme du rail replié (#482, NAV-2) : jusqu'ici seule la
             // barre mobile portait une marque dans le HTML servi. Texte plutôt
             // qu'un second asset graphique — `logo-tcn.png` est un wordmark
-            // 2000×638, illisible à 76 px de large, et calquer un mark carré
+            // en largeur (rapport 3,1:1), illisible à 76 px de large, et calquer un mark carré
             // dessus aurait rouvert l'identité visuelle (#325), hors mandat de
             // ce lot. Même `aria-label` et même destination que le logo
             // déplié : un seul lien « accueil », deux habillages.

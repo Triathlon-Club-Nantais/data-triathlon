@@ -40,6 +40,19 @@ def epreuve(db_session):
 # ── GET /courses/{id} — classement paginé ────────────────────────────────────
 
 
+def test_course_brief_exposes_stored_weather(client, db_session, epreuve):
+    """#1370 : la météo stockée, lue sans aucun appel réseau."""
+    epreuve.weather_temperature_c = 18.0
+    epreuve.weather_wind_kmh = 11.3
+    epreuve.weather_precipitation_mm = 0.4
+    db_session.commit()
+
+    course = client.get(f"/api/v1/courses/{epreuve.id}").json()["course"]
+
+    assert (course["weather_temperature_c"], course["weather_wind_kmh"],
+            course["weather_precipitation_mm"]) == (18.0, 11.3, 0.4)
+
+
 def test_classement_pagine_par_defaut_a_20(client, epreuve):
     body = client.get(f"/api/v1/courses/{epreuve.id}").json()
 
@@ -312,7 +325,7 @@ def test_awaiting_review_keeps_only_courses_without_a_human_verdict(client, db_s
 
     listed = client.get("/api/v1/courses", params={"awaiting_review": "true"}).json()
     counted = client.get("/api/v1/courses/count", params={"awaiting_review": "true"}).json()
-    badge = client.get("/api/v1/admin/quality/count").json()
+    badge = {"total": client.get("/api/v1/admin/badge-counts").json()["quality"]}
 
     assert [c["id"] for c in listed] == [waiting.id]
     assert counted == badge == {"total": 1}
@@ -405,7 +418,7 @@ def test_la_liste_des_epreuves_porte_la_fiabilite(client, db_session):
         total_time="01:00:00",
     )
     # Compteur dénormalisé (#623) : posé directement, fixture hors import.
-    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=0)
+    course.participation_count, course.tcn_count = 1, 0
     db_session.commit()
 
     items = client.get("/api/v1/courses/events").json()["items"]
@@ -431,7 +444,7 @@ def test_une_epreuve_jamais_evaluee_porte_des_champs_nuls(client, db_session):
         total_time="01:00:00",
     )
     # Compteur dénormalisé (#623) : posé directement, fixture hors import.
-    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=0)
+    course.participation_count, course.tcn_count = 1, 0
     db_session.commit()
 
     items = client.get("/api/v1/courses/events").json()["items"]

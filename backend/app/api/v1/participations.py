@@ -12,6 +12,7 @@ from app.core.season import parse_date as _parse_date
 from app.core.season import parse_seasons
 from app.models.user import User
 from app.repositories import participation_repository
+from app.schemas.ids import DbId
 from app.schemas.participation import ParticipationCreate, ParticipationOut
 from app.scrapers.base import ScrapedResult
 from app.services import admin_actions, participation_stats_service, scrape_service
@@ -85,7 +86,7 @@ def create_participation(
     agrégat public jusqu'à la validation d'un bénévole (#271). `DELETE`,
     destructif, reste gardé.
     """
-    participation = scrape_service.save_one(db, _to_scraped(body))
+    participation = scrape_service.save_public_entry(db, _to_scraped(body))
     capture_event(
         "participation_created",
         distinct_id=str(user.id) if user else ANONYMOUS_DISTINCT_ID,
@@ -94,7 +95,7 @@ def create_participation(
             "is_relay": body.is_relay,
         },
     )
-    return participation_repository.get(db, participation.id)
+    return participation
 
 
 @router.get("/participations", response_model=list[ParticipationOut])
@@ -106,7 +107,7 @@ def list_participations(
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
     seasons: str | None = Query(None),
-    course_id: int | None = Query(None),
+    course_id: DbId | None = Query(None),
     federal_only: bool = Query(
         False,
         description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
@@ -132,7 +133,7 @@ def list_participations(
 
 
 @router.get("/participations/{participation_id}", response_model=ParticipationOut)
-def get_participation(participation_id: int, db: Session = Depends(get_db)):
+def get_participation(participation_id: DbId, db: Session = Depends(get_db)):
     row = participation_repository.get(db, participation_id)
     if not row:
         # Ponctué comme la famille de `admin_actions` (#439), à laquelle la
@@ -146,7 +147,7 @@ def get_participation(participation_id: int, db: Session = Depends(get_db)):
 
 @router.delete("/participations/{participation_id}", status_code=204)
 def delete_participation(
-    participation_id: int,
+    participation_id: DbId,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.PARTICIPATIONS_DELETE)),
 ):

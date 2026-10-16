@@ -26,12 +26,12 @@ def test_the_review_lists_the_cases_and_counts_them(client, swapped):
     first, second = swapped
 
     listed = client.get("/api/v1/admin/identity-review")
-    counted = client.get("/api/v1/admin/identity-review/count")
+    counted = client.get("/api/v1/admin/badge-counts")
 
     assert listed.status_code == 200
     [candidate] = listed.json()["candidates"]
     assert (candidate["reason"], [a["id"] for a in candidate["athletes"]]) == ("swapped", [first.id, second.id])
-    assert counted.json() == {"total": 1}
+    assert counted.json()["identities"] == 1
 
 
 def test_an_ignored_pair_leaves_the_review(client, swapped):
@@ -43,7 +43,7 @@ def test_an_ignored_pair_leaves_the_review(client, swapped):
 
     assert ignored.status_code == 201
     assert (ignored.json()["athlete_id_a"], ignored.json()["athlete_id_b"]) == (first.id, second.id)
-    assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 0}
+    assert client.get("/api/v1/admin/badge-counts").json()["identities"] == 0
     again = client.post(
         "/api/v1/admin/identity-review/ignore", json={"athlete_id_a": first.id, "athlete_id_b": second.id}
     )
@@ -61,8 +61,7 @@ def test_ignoring_refuses_a_single_record_and_an_unknown_one(client, swapped):
 
 @pytest.mark.parametrize(
     ("method", "path"),
-    [("get", "/api/v1/admin/identity-review"), ("get", "/api/v1/admin/identity-review/count"),
-     ("post", "/api/v1/admin/identity-review/ignore"), ("post", "/api/v1/admin/identity-review/confirm-club")],
+    [("get", "/api/v1/admin/identity-review"), ("post", "/api/v1/admin/identity-review/ignore"), ("post", "/api/v1/admin/identity-review/confirm-club")],
 )
 def test_the_review_needs_a_session_then_the_athletes_write_power(client, db_session, swapped, method, path):
     first, second = swapped
@@ -78,6 +77,32 @@ def test_the_review_needs_a_session_then_the_athletes_write_power(client, db_ses
     assert call().status_code == 401
     _session_etroite(client, db_session, "athletes:read")
     assert call().status_code == 403
+
+
+def test_a_second_read_reuses_the_detection(client, swapped, monkeypatch):
+    # #1384 : liste et pastille partagent une seule détection par génération.
+    from app.services import athlete_identity_review
+
+    calls = []
+    detect = athlete_identity_review.find_candidates
+    monkeypatch.setattr(athlete_identity_review, "find_candidates", lambda db: calls.append(1) or detect(db))
+
+    first = client.get("/api/v1/admin/identity-review").json()
+    second = client.get("/api/v1/admin/identity-review").json()
+    counted = client.get("/api/v1/admin/badge-counts").json()["identities"]
+
+    assert first == second
+    assert counted == 1
+    assert len(calls) == 1
+
+
+def test_a_write_refreshes_the_cached_list(client, swapped):
+    first, second = swapped
+    assert len(client.get("/api/v1/admin/identity-review").json()["candidates"]) == 1
+
+    client.post("/api/v1/admin/identity-review/ignore", json={"athlete_id_a": first.id, "athlete_id_b": second.id})
+
+    assert client.get("/api/v1/admin/identity-review").json()["candidates"] == []
 
 
 @pytest.fixture
@@ -108,7 +133,7 @@ def test_a_multi_club_case_lists_its_clubs_and_a_confirmation_closes_it(client, 
 
     assert confirmed.status_code == 201
     assert confirmed.json()["club_key"] == "vendometriathlon"
-    assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 0}
+    assert client.get("/api/v1/admin/badge-counts").json()["identities"] == 0
     again = client.post(
         "/api/v1/admin/identity-review/confirm-club",
         json={"athlete_id": multi_club.id, "club_key": "vendometriathlon"},
@@ -144,7 +169,7 @@ def test_an_ignored_pair_is_listed_then_its_undo_returns_it_to_the_review(client
 
     assert undone.status_code == 204
     assert client.get("/api/v1/admin/identity-review/ignored").json() == {"pairs": []}
-    assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 1}
+    assert client.get("/api/v1/admin/badge-counts").json()["identities"] == 1
     assert _last_action(db_session) == "athlete_identity.unignore"
     assert client.delete(f"/api/v1/admin/identity-review/ignored/{pair['id']}").status_code == 404
 
@@ -174,7 +199,7 @@ def test_a_confirmed_club_is_listed_then_its_undo_returns_the_case(client, db_se
 
     assert undone.status_code == 204
     assert client.get("/api/v1/admin/identity-review/confirmed-clubs").json() == {"clubs": []}
-    assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 1}
+    assert client.get("/api/v1/admin/badge-counts").json()["identities"] == 1
     assert _last_action(db_session) == "athlete_identity.unconfirm_club"
     assert client.delete(f"/api/v1/admin/identity-review/confirmed-clubs/{club['id']}").status_code == 404
 
@@ -221,7 +246,7 @@ def test_a_single_record_case_is_dismissed_listed_then_undone(client, db_session
     dismissed = client.post(url, json={"athlete_id": two_bibs.id, "reason": "same_course_bibs"})
 
     assert dismissed.status_code == 201
-    assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 0}
+    assert client.get("/api/v1/admin/badge-counts").json()["identities"] == 0
     assert _bibs(db_session, two_bibs) == ["1", "2"]
     assert _last_action(db_session) == "athlete_identity.dismiss"
     again = client.post(url, json={"athlete_id": two_bibs.id, "reason": "same_course_bibs"})
@@ -235,7 +260,7 @@ def test_a_single_record_case_is_dismissed_listed_then_undone(client, db_session
     undone = client.delete(f"/api/v1/admin/identity-review/dismissed/{case['id']}")
 
     assert undone.status_code == 204
-    assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 1}
+    assert client.get("/api/v1/admin/badge-counts").json()["identities"] == 1
     assert _last_action(db_session) == "athlete_identity.undismiss"
     undone_again = client.delete(f"/api/v1/admin/identity-review/dismissed/{case['id']}")
     assert undone_again.status_code == 404
@@ -252,13 +277,13 @@ def test_a_dismissed_case_comes_back_when_another_race_conflicts(client, db_sess
         )
     db_session.commit()
 
-    assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 1}
+    assert client.get("/api/v1/admin/badge-counts").json()["identities"] == 1
     # Écarté de nouveau, le cas porte ses deux épreuves.
     again = client.post(
         "/api/v1/admin/identity-review/dismiss", json={"athlete_id": two_bibs.id, "reason": "same_course_bibs"}
     )
     assert again.status_code == 201
-    assert client.get("/api/v1/admin/identity-review/count").json() == {"total": 0}
+    assert client.get("/api/v1/admin/badge-counts").json()["identities"] == 0
     assert len(client.get("/api/v1/admin/identity-review/dismissed").json()["cases"]) == 1
 
 

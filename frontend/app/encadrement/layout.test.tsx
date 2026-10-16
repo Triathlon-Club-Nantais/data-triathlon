@@ -13,7 +13,10 @@ const { getSession, listAuthMethods, redirect } = vi.hoisted(() => ({
 vi.mock("@/lib/api/server", () => ({
   apiServer: { getSession, listAuthMethods },
 }));
-vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  redirect,
+}));
 
 import SupervisionLayout from "./layout";
 

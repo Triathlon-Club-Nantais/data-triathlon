@@ -7,7 +7,7 @@ from datetime import date
 from app.core.config import Settings
 from app.models.athlete import Athlete
 from app.services import batch, import_service
-from app.services.batch import CHAMPS_COMMUNS, BatchItem, BatchTotals
+from app.services.batch import SHARED_FIELDS, BatchItem, BatchTotals
 from app.services.bulk_import_service import SheetOutcome
 from app.services.rescrape_service import RescrapeOutcome
 
@@ -148,7 +148,7 @@ def test_run_batch_bilan_identique_sous_concurrence_ou_non(
         db_session_concurrent, items, _settings(), force=False, delay=0.0,
     )
 
-    for champ in CHAMPS_COMMUNS:
+    for champ in SHARED_FIELDS:
         valeur_sequentielle = getattr(sequentiel, champ)
         valeur_parallele = getattr(parallele, champ)
         if champ in ("failures", "passive_sources", "reassignments"):
@@ -816,17 +816,17 @@ def test_unite_de_travail_ouverte_meme_sur_une_epreuve_en_echec(db_session, monk
 
 
 def test_est_echec_total_quand_toutes_les_epreuves_echouent():
-    assert batch.est_echec_total(epreuves=53, errors=53) is True
+    assert batch.is_total_failure(events=53, errors=53) is True
 
 
 def test_est_echec_total_faux_sur_un_succes_partiel():
     """Quelques échecs sur 50 : le batch reste un succès."""
-    assert batch.est_echec_total(epreuves=50, errors=3) is False
+    assert batch.is_total_failure(events=50, errors=3) is False
 
 
 def test_est_echec_total_faux_quand_il_n_y_avait_rien_a_traiter():
     """Sheet vide, `--limit 0`, filtre sans résultat : rien à faire n'est pas un échec."""
-    assert batch.est_echec_total(epreuves=0, errors=0) is False
+    assert batch.is_total_failure(events=0, errors=0) is False
 
 
 def test_les_champs_communs_existent_des_deux_cotes():
@@ -842,7 +842,7 @@ def test_les_champs_communs_existent_des_deux_cotes():
     """
     for classe in (BatchTotals, SheetOutcome, RescrapeOutcome):
         champs = {f.name for f in fields(classe)}
-        assert set(CHAMPS_COMMUNS) <= champs, f"{classe.__name__} : {set(CHAMPS_COMMUNS) - champs}"
+        assert set(SHARED_FIELDS) <= champs, f"{classe.__name__} : {set(SHARED_FIELDS) - champs}"
 
 
 def test_a_registered_passive_source_travels_from_the_done_phase_to_the_totals(
@@ -850,7 +850,7 @@ def test_a_registered_passive_source_travels_from_the_done_phase_to_the_totals(
 ):
     """#283, AC5 — le signalement traverse `_ItemResult` puis `BatchTotals`.
 
-    Le contrat de recopie est `CHAMPS_COMMUNS` : un champ qui n'y figure pas
+    Le contrat de recopie est `SHARED_FIELDS` : un champ qui n'y figure pas
     n'atteint jamais l'`Outcome` de la commande, donc ni le rapport texte ni la
     charge `--json`. C'est le patron de `failures`, épinglé pour la même raison.
     """
@@ -874,7 +874,7 @@ def test_a_registered_passive_source_travels_from_the_done_phase_to_the_totals(
     )
 
     assert totals.passive_sources == [signalee]
-    assert "passive_sources" in CHAMPS_COMMUNS
+    assert "passive_sources" in SHARED_FIELDS
 
 
 def test_a_registered_passive_source_is_neither_an_error_nor_an_import(
@@ -882,9 +882,9 @@ def test_a_registered_passive_source_is_neither_an_error_nor_an_import(
 ):
     """« Ni succès d'import, ni échec » (AC5), pris au mot sur les deux compteurs.
 
-    Précédent : `ignored_by_host`, tenu hors d'`echec_total` parce que ces liens
+    Précédent : `ignored_by_host`, tenu hors d'`is_total_failure` parce que ces liens
     n'ont jamais été tentés. Ici l'épreuve *a* été traitée — elle n'a simplement
-    rien importé de neuf, ce qui reste un succès (`est_echec_total` compare des
+    rien importé de neuf, ce qui reste un succès (`is_total_failure` compare des
     épreuves, pas des participants).
     """
     from app.services.import_persistence import PassiveSource
@@ -903,4 +903,4 @@ def test_a_registered_passive_source_is_neither_an_error_nor_an_import(
     assert totals.errors == 0
     assert totals.imported == 0
     assert totals.failures == []
-    assert SheetOutcome(unique_supported=1, errors=0).echec_total is False
+    assert SheetOutcome(unique_supported=1, errors=0).is_total_failure is False

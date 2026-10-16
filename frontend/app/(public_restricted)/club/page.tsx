@@ -31,7 +31,8 @@ export default async function ClubPage({
       { scope: SCOPE_CLUB, seasons: [currentSeason()], federal_only },
       revalidateOpts,
     ),
-    apiServer.getClubSummary({ federal_only }, revalidateOpts),
+    // Aperçu seul : la liste complète pesait 215 ko de la page (#1354).
+    apiServer.getClubSummary({ federal_only, podiums: "preview" }, revalidateOpts),
     apiServer.listParticipations(
       { scope: SCOPE_CLUB, federal_only, page_size: 6 },
       revalidateOpts,

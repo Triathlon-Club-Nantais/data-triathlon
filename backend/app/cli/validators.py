@@ -9,7 +9,7 @@ import typer
 from app.scrapers import registry
 
 
-def valider_provider(value: str | None) -> str | None:
+def validate_provider(value: str | None) -> str | None:
     """Callback Typer : refuse un nom de provider inconnu.
 
     `--provider kliego` (faute de frappe) était comparé tel quel aux providers
@@ -29,16 +29,16 @@ def valider_provider(value: str | None) -> str | None:
     """
     if value is None:
         return None
-    connus = registry.provider_names()
-    if value not in connus:
+    known = registry.provider_names()
+    if value not in known:
         raise typer.BadParameter(
             f"provider inconnu : « {value} ». "
-            f"Valeurs acceptées : {', '.join(connus)}."
+            f"Valeurs acceptées : {', '.join(known)}."
         )
     return value
 
 
-def valider_max_concurrent_hosts(value: int) -> int:
+def validate_max_concurrent_hosts(value: int) -> int:
     """Callback Typer : refuse un plafond de concurrence non strictement positif.
 
     `0` ou une valeur négative ne correspondent à aucun degré de parallélisme

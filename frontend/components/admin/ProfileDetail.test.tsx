@@ -158,6 +158,15 @@ describe("ProfileDetail", () => {
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
   });
 
+  it("marque d'un tiret un contact d'urgence vide", async () => {
+    getProfile.mockResolvedValue({ ...PROFIL, emergency_contact: "" });
+
+    afficher();
+
+    expect(await screen.findByText("Contact d'urgence :")).toBeInTheDocument();
+    expect(screen.getByText("Contact d'urgence :").parentElement).toHaveTextContent("Contact d'urgence : —");
+  });
+
   it("dit qu'un profil absent est introuvable", async () => {
     getProfile.mockRejectedValue(new ApiError(404, "Ce profil n'existe pas."));
 

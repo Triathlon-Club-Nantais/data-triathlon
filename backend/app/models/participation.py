@@ -41,6 +41,18 @@ class Participation(Base):
             "ix_participations_club_normalized",
             text(CLUB_NORMALIZED_INDEX_EXPRESSION),
         ),
+        # Index partiel sur la file d'attente (#1390) : chaque page d'épreuve la
+        # lit (`_youth_pending_ids`), sans lui toute la table était parcourue.
+        # Les prédicats reprennent mot pour mot le rendu SQL de
+        # `awaiting_validation_clause` sur chaque dialecte, sans quoi le
+        # planificateur ne reconnaît pas l'index. Sur `course_id` : sert aussi
+        # `list_pending_for_course`.
+        Index(
+            "ix_participations_awaiting_validation",
+            "course_id",
+            postgresql_where=text("is_pending_validation IS true AND is_rejected IS false"),
+            sqlite_where=text("is_pending_validation IS 1 AND is_rejected IS 0"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

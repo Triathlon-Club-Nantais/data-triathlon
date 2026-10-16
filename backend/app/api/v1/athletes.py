@@ -1,22 +1,23 @@
 """Router Athletes : recherche et fiche athlète avec ses participations."""
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import MAX_PAGE, require_permission
 from app.core.club import is_club_scope
 from app.core.database import get_db
-from app.core.exceptions import NotFoundError
 from app.core.permissions import P
-from app.core.season import parse_seasons
+from app.core.season import parse_seasons, season_quota_met
 from app.models.user import User
 from app.repositories import (
     athlete_repository,
     participation_repository,
     season_validation_repository,
+    volunteer_action_repository,
 )
 from app.schemas.athlete import AthleteBrief, AthleteSearchResult, AthleteSeasonActivity
+from app.schemas.ids import DbId
 from app.schemas.participation import AthleteDetail, AthleteParticipationOut
-from app.services import challenge_service
+from app.services import athlete_csv, challenge_service, not_found
 
 router = APIRouter(tags=["athletes"])
 
@@ -45,34 +46,40 @@ def list_athletes_season_activity(
     _: User = Depends(require_permission(P.PAGES_PREVIEW)),
 ):
     """Athlètes ayant ≥1 participation sur `seasons`, avec leurs compteurs (#274, #382, #709)."""
-    saisons = parse_seasons(seasons)
-    lignes = athlete_repository.list_with_season_participation_count(
+    parsed_seasons = parse_seasons(seasons)
+    rows = athlete_repository.list_with_season_participation_count(
         db,
-        seasons=saisons,
+        seasons=parsed_seasons,
         club_only=is_club_scope(scope),
         federal_only=federal_only,
     )
     # Le statut de validation est mono-saison (research.md D9) : `null` dès que
     # `seasons` n'en désigne pas exactement une, sinon la carte des validés.
-    validations = (
-        season_validation_repository.map_by_athlete(
-            db, athlete_ids=[a.id for a, *_ in lignes], season=saisons[0]
+    # Le quota (#1542) suit la même règle.
+    single_season = len(parsed_seasons) == 1
+    validations: dict[int, bool] = {}
+    volunteers: set[int] = set()
+    if single_season:
+        athlete_ids = [a.id for a, *_ in rows]
+        validations = season_validation_repository.map_by_athlete(
+            db, athlete_ids=athlete_ids, season=parsed_seasons[0]
         )
-        if len(saisons) == 1
-        else {}
-    )
+        volunteers = volunteer_action_repository.athlete_ids_with_validated_action(
+            db, athlete_ids=athlete_ids, season=parsed_seasons[0]
+        )
     return [
         AthleteSeasonActivity(
             id=a.id,
             nom=a.nom,
             prenom=a.prenom,
-            participation_count=affiliees_club,
+            participation_count=club_affiliated,
             total_count=total,
-            validated_count=validees,
-            club_affiliated_count=affiliees_club,
-            season_validated=validations.get(a.id, False) if len(saisons) == 1 else None,
+            validated_count=validated,
+            club_affiliated_count=club_affiliated,
+            season_validated=validations.get(a.id, False) if single_season else None,
+            quota_met=season_quota_met(federal_validated, a.id in volunteers) if single_season else None,
         )
-        for a, total, validees, affiliees_club in lignes
+        for a, total, validated, club_affiliated, federal_validated in rows
     ]
 
 
@@ -92,20 +99,20 @@ def search_athletes(
     participations — deux choses que `GET /athletes` ne fait pas et n'a pas à
     faire pour ses propres appelants.
     """
-    lignes = athlete_repository.search_by_relevance(
+    rows = athlete_repository.search_by_relevance(
         db, term=q, club_only=is_club_scope(scope), limit=limit
     )
     return [
         AthleteSearchResult(
-            **AthleteBrief.model_validate(athlete).model_dump(), participation_count=nombre
+            **AthleteBrief.model_validate(athlete).model_dump(), participation_count=count
         )
-        for athlete, nombre in lignes
+        for athlete, count in rows
     ]
 
 
 @router.get("/athletes/{athlete_id}", response_model=AthleteDetail)
 def get_athlete(
-    athlete_id: int,
+    athlete_id: DbId,
     seasons: str | None = Query(None),
     federal_only: bool = Query(
         False,
@@ -121,9 +128,7 @@ def get_athlete(
     base que les compteurs club affichés juste dessous — mêmes noms et mêmes
     sémantiques que sur `/stats` et `/athletes/season-activity`.
     """
-    athlete = athlete_repository.get(db, athlete_id)
-    if not athlete:
-        raise NotFoundError("Athlète introuvable")
+    athlete = not_found.athlete_or_404(db, athlete_id, message="Athlète introuvable")
     participations = participation_repository.list_for_athlete(
         db, athlete_id, seasons=parse_seasons(seasons), federal_only=federal_only
     )
@@ -140,3 +145,23 @@ def get_athlete(
         "participations": items,
         "challenges": challenge_service.for_athlete(db, athlete_id),
     }
+
+
+@router.get(
+    "/athletes/{athlete_id}/participations.csv",
+    response_class=Response,
+    responses={200: {"content": {"text/csv": {}}}},
+)
+def get_athlete_participations_csv(athlete_id: DbId, db: Session = Depends(get_db)):
+    """Les résultats de la fiche athlète en CSV pour Excel (#1375) : mêmes lignes
+    que `GET /athletes/{id}` sans filtre, en attente et refusées comprises."""
+    athlete = not_found.athlete_or_404(db, athlete_id, message="Athlète introuvable")
+    participations = participation_repository.list_for_athlete(db, athlete_id)
+    finishers = participation_repository.finishers_count_by_group(
+        db, [p.course_id for p in participations]
+    )
+    return Response(
+        athlete_csv.render(participations, finishers),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{athlete_csv.filename(athlete)}"'},
+    )

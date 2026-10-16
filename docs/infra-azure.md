@@ -39,15 +39,40 @@ adoptée. Une issue qui touche à l'infra ou à Azure rappelle cette contrainte.
 Une seule base applicative sur ce serveur (`postgres`) — les trois autres
 (`azure_maintenance`, `azure_sys`) sont gérées par la plateforme.
 
-**Une Azure Function** (plan Flex Consumption) porte le cron « keep-warm » : toutes
-les 10 minutes de 7 h à 23 h UTC, elle appelle `GET /api/cron/keep-warm` sur les
-fronts Vercel de production et de preview, qui pingent à leur tour
-`/api/v1/health` du backend Render. Son code vit dans
-`infra/azure-functions/coldstart/` (rapatrié de l'ancien dépôt
-`ColdStart-function-curl` par #1014) : rôle, App Settings, déploiement et test
-local dans `infra/azure-functions/AGENTS.md`. Elle envoie
-`Authorization: Bearer $CRON_SECRET` : la route se ferme sur Vercel quand le
-secret manque (#1021).
+**Une Function App** `coldstart-curl` (plan Flex Consumption, resource group
+`TCN_data_Front`) porte quatre timers :
+
+- le keep-warm (`Coldstart-curl`), toutes les 10 minutes de 7 h à 22 h 50 UTC :
+  il appelle `GET /api/cron/keep-warm` sur le front Vercel de **production**
+  seul, qui ping à son tour `/api/v1/health` du backend Render, avec
+  `Authorization: Bearer $CRON_SECRET` (la route se ferme sur Vercel quand le
+  secret manque, #1021). La preview n'est plus appelée depuis #1333 : suspendue
+  chaque heure, un ping ne la réveille pas ;
+- la veille Render, par `workflow_dispatch` de `render-sleep.yml` : coucher
+  (23 h 15) et lever (2 h 15) de la production (#1010), coucher de la preview à
+  la minute 45 de chaque heure (#1319).
+
+Son code vit dans `infra/azure-functions/coldstart/` (rapatrié de l'ancien
+dépôt `ColdStart-function-curl` par #1014) : rôle, App Settings, déploiement et
+test local dans `infra/azure-functions/AGENTS.md`.
+
+### Coût mesuré
+
+Azure Cost Management, relevé du 12/10/2026 :
+
+| Poste | Septembre | 1er au 12 octobre |
+|---|---|---|
+| PostgreSQL `tcndatabdd` (B1ms + 32 GiB) | 15,40 € | 5,81 € |
+| Functions (temps d'exécution) | 0 € | 0 € (4 107 Go·s, dans l'octroi gratuit mensuel) |
+| Stockage de la Function App | 0,24 € | 0,15 € |
+| Log Analytics / App Insights | 0 € | 0 € (0,11 Go ingérés) |
+
+La base est le seul poste notable, et il n'a pas de levier technique : B1ms est
+la plus petite taille Burstable, 32 GiB le stockage minimal (Azure ne le réduit
+pas), et l'arrêter pendant les 3 h de veille de la production ne rendrait
+qu'environ 1,50 € par mois, au prix d'un redémarrage à ordonner avant le lever
+du backend. Une offre Azure pour associations, si le club y est éligible,
+serait le seul moyen de ramener la facture à zéro.
 
 ## Ce que le réseau public change
 

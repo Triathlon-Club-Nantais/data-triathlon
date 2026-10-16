@@ -31,7 +31,7 @@ feature).
 
 `app/core/validation.py` (`validated_clause`) est le point
 **unique** de la règle, sur le patron de `core/club.tcn_clause` et
-`core/discipline.federal_clause`. Appliqué à douze fonctions, réparties sur
+`core/discipline.federal_clause`. Appliqué à treize fonctions, réparties sur
 trois repositories :
 
 | Fonction | Fichier | Alimente |
@@ -46,16 +46,16 @@ trois repositories :
 | `_filtered` (branche `club_only`) | `course_repository.py` | `GET /courses?scope=club` et `GET /courses/count?scope=club` |
 | `list_with_season_participation_count` | `athlete_repository.py` | `GET /athletes/season-activity` — page coureurs (#274, #382) |
 | `search_by_relevance` | `athlete_repository.py` | `GET /athletes/search` — `participation_count` de la palette ⌘K (#484) |
-| `club_roster`/`club_rank` (même requête, partagée par `_club_roster_requete`) | `athlete_repository.py` | `GET /club/summary` → roster (#581) ; `GET /club/roster/rank/{id}` → rang exact hors aperçu (#641) |
+| `club_roster`/`club_rank` (même requête, partagée par `_club_roster_query`) | `athlete_repository.py` | `GET /club/summary` → roster (#581) ; `GET /club/roster/rank/{id}` → rang exact hors aperçu (#641) |
 | `club_composition` | `athlete_repository.py` | `GET /club/summary` → composition genre/catégorie (#642) |
-| `club_podiums` | `participation_repository.py` | `GET /club/summary` → podiums et podiums par discipline (#581, #642) |
+| `licensee_activity` | `club_member_repository.py` | `GET /club/summary` → `licensees` : licenciés de la saison en cours (`core/season`, bascule au 1er septembre) et ceux qui ont couru, relais compris (#1441, additif, `null` sans licencié) |
+| `club_podiums` | `participation_repository.py` | `GET /club/summary` → podiums et podiums par discipline (#581, #642) ; sous `?podiums=preview`, 6 par mode plus `podiums_totals` (ajout de #1354, défaut inchangé) ; `GET /club/podiums` → liste complète, chargée au dépliage |
 
-**`search_by_relevance` joint `Participation` en `outerjoin`** (un athlète à
-zéro résultat doit rester trouvable) : `validated_clause` y vit dans la
-**condition du join**, jamais dans un `.filter()` après coup — un `.filter()`
-post-jointure dégraderait l'`outerjoin` en jointure interne de fait et ferait
-disparaître de la palette un athlète dont l'unique résultat est en attente,
-au lieu de l'y garder à 0 résultat validé (#562).
+**`search_by_relevance` compte par une sous-requête corrélée**, pas par une
+jointure : un athlète à zéro résultat validé reste trouvable (#562), et
+PostgreSQL ne lit que les participations des athlètes trouvés par le nom, par
+les index `athlete_id` (#1392). Joindre `credits()` lui faisait matérialiser
+toute la table à chaque frappe. `validated_clause` vit dans cette sous-requête.
 
 **Délibérément absente** de six autres fonctions de `participation_repository.py` :
 `list_for_athlete` (la surface voulue par FR-019 — la filtrer viderait la
@@ -91,6 +91,11 @@ l'affichage a deux surfaces de plus que la fiche d'athlète, toutes deux sous
   existait déjà nullable, le contrat ne change pas de forme. Les champs bruts
   (`rank_overall`…) restent servis tels que déclarés ; l'écran ne les affiche
   pas.
+- `stats.medians` (#1362) est un bloc additif : la comparaison à la médiane
+  de tous les classés (`median`) et de la catégorie de l'athlète
+  (`category_median`), hors relais, chaque clé omise sous
+  `split_gap.MIN_EVALUATED_ROWS` valeurs. Pas de ligne dans `comparison` :
+  `ComparisonRow.rank` est requis, une médiane n'a pas de rang.
 
 Une ligne refusée n'apparaît nulle part, une ligne jeune non plus
 (`core.youth.is_youth`, #881, appliquée en Python à la file d'attente par
@@ -119,7 +124,7 @@ Trois choses à ne pas défaire :
 - **L'ordre d'affichage est une propriété de la requête**, plus du navigateur.
   Il vivait dans `raceOrder.orderParticipations` pendant que le SQL triait sur
   `rank_overall` seul : invisible tant que tout arrivait d'un coup, faux dès
-  qu'on découpe. `participation_repository._ordre_affichage` en est la **seule**
+  qu'on découpe. `participation_repository._display_order` en est la **seule**
   définition — finishers par rang (non classés en fin), puis DNF, DSQ, DNS par
   temps (temps absents en fin), départage par nom. `orderParticipations` et
   `countOutcomes` ont été **supprimées**, pas seulement débranchées : appelées
@@ -166,7 +171,7 @@ Six champs et deux paramètres, tous **additifs**, tous à défaut neutre.
   visées, sauf TCN et alias déclarés, que la synthèse range ailleurs. Le lien
   d'une ligne de la carte rend donc exactement son effectif. Additif, sans
   migration : la clé large se résout en verbatims, l'index
-  `ix_participations_club_normalized` reste celui de `_normalise_sql`.
+  `ix_participations_club_normalized` reste celui de `_normalize_sql`.
   **`club` n'est pas `scope=club`** : le second porte la
   sémantique TCN arbitrée par `core/club.py` (dépositaire unique, #76), le premier un
   club quelconque. Leur croisement peut être vide par construction, et c'est l'écran
@@ -239,14 +244,15 @@ pièges mesurés et invariants dans
 
 ## Plafonds de débit par IP (#395, #398)
 
-Huit routes publiques sont plafonnées par IP, **route par route** comme les
+Neuf routes publiques sont plafonnées par IP, **route par route** comme les
 gardes de pouvoir — `api/deps.scrape_rate_limit` sur `POST /scrape/event` et
 `POST /scrape/event/stream`, `api/deps.authorize_rate_limit` sur
 `GET /auth/{provider}/authorize`, `api/deps.public_write_rate_limit` sur
 `POST /admin/pending-providers` et `POST /participations`,
 `api/deps.site_access_rate_limit` sur `POST /site-access/session` (#509),
-`api/deps.benevole_login_rate_limit` sur `POST /benevoles/session` (#917), et
-`api/deps.csp_report_rate_limit` sur `POST /csp-reports` (#1168).
+`api/deps.volunteer_login_rate_limit` sur `POST /benevoles/session` (#917),
+`api/deps.csp_report_rate_limit` sur `POST /csp-reports` (#1168), et
+`api/deps.volunteer_action_rate_limit` sur `POST /volunteer-actions` (#1397).
 Quatre choses à ne pas défaire :
 
 - **Un seul seau par geste, pas par route.** Les deux routes de scraping
@@ -270,9 +276,15 @@ Quatre choses à ne pas défaire :
   `POST /feedback` qui compte des lignes en base : il n'y a ici aucune table où
   compter, et en créer une ferait écrire la requête que le plafond empêche.
   Exact tant que l'API tourne en un seul process — le cas sur Render.
-- **La clé est `request.client.host`**, donc la première entrée de
-  `X-Forwarded-For` depuis #393. Sans ce préalable, tout plafond par IP se
-  contourne avec un en-tête forgé — c'est pourquoi #395 en dépendait.
+- **La clé est `request.client.host`**, posée par `core/client_address.py`
+  (#1533) : la Nième entrée de `X-Forwarded-For` en partant de la droite
+  (`TRUSTED_PROXY_COUNT`), ou `X-Vercel-Forwarded-For` quand le front prouve
+  son passage par `FRONTEND_PROXY_SECRET`. Jamais la première entrée, que
+  l'appelant écrit depuis que Cloudflare précède Render. Détail :
+  `backend/AGENTS.md`. Les compteurs ne la lisent qu'à travers
+  `client_address.rate_limit_key` (#1552) : une IPv6 compte pour son /64, qu'un
+  hébergement fait tourner à chaque requête ; une IPv4, mappée ou non, pour
+  elle-même. `POST /feedback` stocke cette clé, pas l'adresse exacte.
 - **Le compteur survit d'un test à l'autre** : la fixture autouse
   `_compteurs_de_debit_vierges` de `tests/conftest.py` le remet à zéro, sinon
   l'ordre d'exécution déciderait quel test prend un 429.
@@ -283,8 +295,8 @@ site comme le reste de l'API (`require_site_access`, posé à l'inclusion dans
 `v1/router.py`) : un visiteur qui ne l'a jamais entré ne les atteint plus du
 tout, plafond ou pas. La sixième, `POST /site-access/session`, est par
 construction hors de cette garde — c'est elle qui la satisfait. La septième,
-`POST /benevoles/session`, en est exemptée par choix (`benevoles` figure dans
-`_EXEMPTES_DE_LA_GARDE_SITE`). Ces deux plafonds sont donc les seuls qui
+`POST /benevoles/session`, en est exemptée par choix (`volunteers` figure dans
+`_EXEMPT_FROM_SITE_GUARD`). Ces deux plafonds sont donc les seuls qui
 bornent encore un vrai anonyme, sans garde en amont. Celui des bénévoles a son
 seau `benevole_login` (30/h), plus serré que `site_access` : même scrypt par
 tentative, mais une poignée de bénévoles seulement, et ici la force brute
@@ -296,6 +308,13 @@ rapports sans cookies. Elle n'écrit que des logs, et son seau `csp_report`
 (120/h) ne suffit pas à les borner seul : un lot `report-to` de 64 Kio peut
 porter près de 2 000 éléments, d'où le plafond de lignes par requête de
 `services/csp_report.MAX_VIOLATIONS_PER_REQUEST`.
+
+La neuvième, `POST /volunteer-actions` (#1397), est derrière la garde du site
+et écrit une déclaration en attente par appel (description jusqu'à 10 000
+caractères). Son seau `volunteer_action` (30/h) est **dédié** par la règle
+réciproque ci-dessus : elle n'est dans le geste d'aucune écriture de
+`public_write`, et partager ce seau couplerait la saisie d'une saison à la
+déclaration d'un bénévolat.
 
 Le SSE prend `optional_user` et journalise son appelant : il ne le faisait pas,
 et un import lancé depuis là ne laissait aucune trace de qui l'avait demandé.
@@ -340,6 +359,16 @@ prévu pour le lien de vérification d'une saisie manuelle — il n'a jamais
 créé de `CourseSource` (#279, testé par
 `test_evidence_url_ne_cree_aucune_source_de_scraping`).
 
+**`POST /participations` ne dit jamais qu'une personne s'est opposée (#1514).**
+Une saisie qui nomme une identité opposée (nom, nom d'équipe, équipier d'un
+relais) suit les mêmes contrôles, reçoit le même `201` et le même corps qu'une
+saisie mise en quarantaine, puis la transaction est annulée
+(`scrape_service.save_public_entry`) : un refus distinct servait d'oracle.
+Limite connue, suivie par #1519 : une saisie en attente étant publique,
+une seconde requête (relire l'`id`, renvoyer le dossard, lire l'épreuve)
+constate encore l'absence de la ligne. Les gestes des bénévoles gardent le
+refus explicite (`ensure_not_opposed`).
+
 **Le contrat d'entrée de `POST /participations` a été resserré par #1019**,
 changement explicite accepté au titre du Principe IV. Ce qui passait en `201`
 et rend désormais un `422` :
@@ -373,6 +402,27 @@ et sa taille n'était pas bornée alors que `public_write_rate_limit` suppose
 qu'une écriture coûte une ligne. Le seul appelant connu, `ManualResultForm.tsx`,
 envoie déjà des valeurs conformes, sauf un temps mal tapé dans un champ libre :
 il rend maintenant un 422 au lieu d'un temps illisible en base.
+
+## Identifiants : toujours `DbId` (#1557, #1567)
+
+Tout identifiant entier en chemin, en requête ou dans un corps JSON se type
+`DbId` (`app/schemas/ids.py`, 1 à 2 147 483 647, l'`integer` PostgreSQL) : au
+delà, la requête levait une `DataError` en 500, invisible en SQLite qui ne
+déborde qu'à 2^63. Hors plage, c'est une 422 de validation. Obligatoire en
+requête, il s'écrit `Annotated[DbId, Query()]` (`DbId = Query(...)` perd la
+borne). Une liste s'écrit `list[DbId]` ; un champ qui était `StrictInt` devient
+`StrictDbId`, pour ne pas lire `true` comme l'enregistrement `1`. Le type vit
+sous `schemas/` pour que les DTO l'importent sans remonter vers `api/`.
+`tests/test_api/test_id_bounds_api.py` parcourt l'OpenAPI et refuse tout
+paramètre `id` ou `*_id` entier sans la borne, hors `EXTERNAL_IDS` : le
+`run_id` de `/admin/batches/{run_id}/report` est un identifiant de run GitHub
+Actions, déjà au delà de l'int4, qui reste un `int` nu. Il refuse de même tout
+champ `id`, `*_id`, `*_id_a`, `*_ids` des schémas atteints par un
+`requestBody`, objets imbriqués compris ; aucun identifiant externe entier n'y
+figure aujourd'hui. Les rangs (`rank_*`) d'un corps se typent `Rank`, même
+plage, sous la même garde (#1574) ; aucun autre entier de corps non borné
+n'atteint aujourd'hui une colonne `integer` (saison et jour de semaine déjà
+bornés, temps en `H:MM:SS`, distances en `float`).
 
 ## Protéger une ressource (#115)
 
@@ -447,6 +497,12 @@ détail dans `docs/api/admin-donnees.md` ; retours utilisateurs (#267) et
 statistiques détaillées d'une participation (#272) —
 détail dans `docs/api/feedback-stats.md`.
 
+**`GET /admin/quality/providers`** (#1366), sous `quality:override` : par
+fournisseur de la source active, les épreuves, les non fiables (verdict effectif,
+avis humain d'abord) et, par code d'anomalie, le nombre d'épreuves **non
+fiables** qui le portent (pas la somme des occurrences). Deux requêtes, quel que
+soit le volume ; les saisies manuelles, sans source, n'y figurent pas.
+
 **Le journal s'écrit dans le service, jamais dans la route** (#935) : le service
 appelle `services/audit.record` dans la transaction de son effet, et un geste
 refusé lève avant d'y arriver. Une route ne touche donc jamais
@@ -456,18 +512,18 @@ CLI d'amorçage, sans acteur, n'écrivent rien.
 
 ## Page bénévoles : une seconde garde, hors du socle SSO (#271)
 
-`benevoles.py` porte dix ressources gardées par `require_benevole_access`
+`volunteers.py` porte dix ressources gardées par `require_volunteer_access`
 (`api/deps.py`) — **pas** `require_permission`. Mot de passe partagé (5-6
 bénévoles). Décision produit et alternatives rejetées : `specs/20260815-
 114258-page-validation-benevoles/research.md` §D1.
 
 **Exception par pouvoir (#1272)** : un connecté qui détient
 `benevole_access:manage` (superutilisateur compris) passe sans le cookie, ses
-écritures journalisées à **son** `user_id` (`benevole_access.actor_user_id`).
+écritures journalisées à **son** `user_id` (`volunteer_access.actor_user_id`).
 Tout autre appelant garde le même 401, jamais un 403. La garde rend donc
 `User | None` ; les écritures la prennent en paramètre, les lectures en
 `dependencies=`. Le client des tests `tests/test_api/` porte une session
-superutilisateur : `test_benevoles_api.py` la retire pour éprouver le bénévole.
+superutilisateur : `test_volunteers_api.py` la retire pour éprouver le bénévole.
 Le front masque à cet admin « Se déconnecter » de la page ; en
 contrepartie `POST /auth/logout` efface aussi le cookie bénévoles, qui sinon
 survivrait à sa déconnexion sur un poste partagé.
@@ -475,7 +531,7 @@ survivrait à sa déconnexion sur un poste partagé.
 
 **Le mot de passe est géré depuis le back-office, plus une variable
 d'environnement** (`specs/20260815-173645-admin-mdp-benevoles/`) : trois
-routes sous `admin_benevole_access.py`, gardées par le pouvoir dédié
+routes sous `admin_volunteer_access.py`, gardées par le pouvoir dédié
 `benevole_access:manage` (`GET`/`PUT /admin/benevoles/access`,
 `POST /admin/benevoles/access/generate`), lisent et écrivent la table
 `benevole_access_config` — une seule ligne à tout instant, absence = accès
@@ -486,8 +542,12 @@ même qui signe le cookie (research.md §D2 de cette dernière feature), ce qui
 permet de préserver la propriété d'#271 — changer le mot de passe invalide
 tous les cookies d'un coup (seule révocation retenue, aucune identité
 individuelle à révoquer) — sans jamais avoir besoin de relire le mot de passe
-en clair. `services/benevole_access.replace_password` est le seul point
+en clair. `services/volunteer_access.replace_password` est le seul point
 d'écriture des trois champs secrets, toujours ensemble.
+Le cookie expire aussi **côté serveur** 30 jours après la connexion, sans renouvellement
+(`volunteer_access.VOLUNTEER_SESSION_TTL_SECONDS`, #1534), lus sur son
+horodatage signé : posé sans `max_age`, il survivait sinon à toute
+restauration de session du navigateur.
 
 Deux d'entre elles délèguent à `admin_actions.update_course`/
 `.reassign_participation` (déjà livrées pour `/admin/*`) sous le `user_id`
@@ -519,10 +579,9 @@ déjà. Elle rend `AthleteBrief`, donc sans `birth_date`.
 de l'arriéré de la file par jour et du délai moyen de résolution, pour le
 graphique de la page bénévoles. Même garde, aucune écriture.
 
-**La onzième est `GET /benevoles/queue/count`** (#1232) : `{total}`, la taille
-de `GET /benevoles/queue` sans charger la file, pour la pastille « Validation
-des épreuves » de la nav. Même garde : le front ne la demande que pour un
-compte d'administration, et avale le 401 de qui n'a pas le cookie bénévoles.
+La pastille « Validation des épreuves » du rail ne passe plus par ce routeur :
+`GET /admin/badge-counts` (#1385) lit le même cookie par
+`deps.has_volunteer_cookie`, sans 401.
 
 **Le renommage, la réattribution, la validation, le rejet et la correction de
 champs sont scopés au résultat en attente actionnable** (relevé en revue de
@@ -550,7 +609,7 @@ se lit comme une régression d'ouverture, pas comme une absence de couverture.
 `site_access.py` (`POST`/`DELETE /site-access/session`, `GET` pour la
 vérification) et `admin_site_access.py` (`GET`/`PUT /admin/site-access`,
 `POST /admin/site-access/generate`) reprennent, secret par secret, le même
-duo que `benevoles.py`/`admin_benevole_access.py` — même patron de mot de
+duo que `volunteers.py`/`admin_volunteer_access.py` — même patron de mot de
 passe haché+salé (`hashlib.scrypt`) et de cookie signé HMAC, gardé par le
 pouvoir dédié `site_access:manage`. Deux différences assumées, pas un
 doublon à fusionner : ce mot de passe ferme **tout** le site (posé en
@@ -564,11 +623,11 @@ ce plafond (revue finale, § « Plafond de débit » de
 devenu **dédié** en revue de #513, cf. § « Plafonds de débit par IP »).
 
 **Sept routers sont exemptés de la garde**, et la liste
-`_EXEMPTES_DE_LA_GARDE_SITE` de `v1/router.py` en est la description unique :
+`_EXEMPT_FROM_SITE_GUARD` de `v1/router.py` en est la description unique :
 `health` (sonde Render ; **503** quand la base ne répond pas, #1070, car le
 keep-warm et la supervision ne lisent que le statut), `site_access` (elle pose la garde), `auth` +
 `admin_site_access` (le chemin qui installe le tout premier mot de passe sur un
-déploiement neuf), `benevoles` (le bénévole n'a que **son** mot de passe, cf. la
+déploiement neuf), `volunteers` (le bénévole n'a que **son** mot de passe, cf. la
 section ci-dessus) et `feedback` (revue de #513 — `FeedbackButton` vit dans le
 layout racine du front, donc il se rend aussi sur `/acces` et `/benevoles`, où
 aucun cookie de site n'existe ; son unique route est déjà bornée par honeypot et
@@ -593,3 +652,18 @@ sans perdre l'URL. `POST /auth/logout` (SSO)
 secrets distincts, l'un personnel, l'autre commun à tous les adhérents, et un
 contributeur qui se déconnecte reste un adhérent qui consulte le site.
 
+
+## Export CSV d'une fiche athlète (#1375)
+
+`GET /athletes/{id}/participations.csv` rend les lignes de `GET /athletes/{id}`
+sans filtre (`list_for_athlete`), mise en forme par `services/athlete_csv.py` :
+UTF-8 avec BOM, `;`, virgule décimale (Excel en français), une colonne
+« Segment … » par clé de split. Toute cellule texte qui ouvrirait une formule
+(`=`, `+`, `@`, `-` non numérique…) est préfixée d'une apostrophe :
+`POST /participations` est ouvert sans session, nom d'épreuve et d'équipe y
+sont libres. Les résultats en attente ou refusés y sont, comme sur la fiche, avec
+leur colonne « Validation » et sans rang. Même garde que la fiche : le mot de
+passe du site seul. Les oppositions (#334) s'appliquent à l'import, il n'y a
+rien à refiltrer ici. Construit en mémoire : une carrière tient en quelques
+centaines de lignes, et un 404 doit pouvoir partir avant le corps. Le front y
+pointe un simple `<a download>` (même origine par le rewrite `/api/*`).

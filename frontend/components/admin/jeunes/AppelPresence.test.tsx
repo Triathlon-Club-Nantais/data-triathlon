@@ -70,7 +70,7 @@ const DETAIL_UN_PARTICIPANT: TrainingSessionDetail = {
   group_ids: [],
   recurrence_id: null,
   detached: false,
-  participants: [{ profile_id: 42, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" }],
+  participants: [{ profile_id: 42, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null }],
 };
 
 const DETAIL_VIDE: TrainingSessionDetail = { ...DETAIL_UN_PARTICIPANT, participant_count: 0, participants: [] };
@@ -134,6 +134,35 @@ describe("AppelPresence", () => {
     afficher();
 
     expect(await screen.findByText("Benjamin")).toBeInTheDocument();
+  });
+
+  it("affiche sur la carte le contact d'urgence, numéro composable (#1405)", async () => {
+    getTrainingSession.mockResolvedValue({
+      ...DETAIL_UN_PARTICIPANT,
+      participants: [{ ...DETAIL_UN_PARTICIPANT.participants[0], emergency_contact: "Mère 06 12 34 56 78" }],
+    });
+
+    afficher();
+
+    const lien = await screen.findByRole("link", { name: "06 12 34 56 78" });
+    expect(lien).toHaveAttribute("href", "tel:0612345678");
+    // Numéro d'un parent de mineur : hors de l'autocapture PostHog (RGPD).
+    expect(lien).toHaveClass("ph-no-capture");
+    expect(screen.getByText(/Mère/)).toBeInTheDocument();
+  });
+
+  it.each(["", null])("n'affiche rien pour un contact d'urgence absent (%j)", async (contact) => {
+    getTrainingSession.mockResolvedValue({
+      ...DETAIL_UN_PARTICIPANT,
+      participants: [{ ...DETAIL_UN_PARTICIPANT.participants[0], emergency_contact: contact }],
+    });
+
+    afficher();
+
+    expect(await screen.findByText("Alix Martin")).toBeInTheDocument();
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Contact d'urgence/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^0/ })).not.toBeInTheDocument();
   });
 
   it("dit qu'une séance absente est introuvable", async () => {
@@ -268,9 +297,9 @@ describe("AppelPresence", () => {
       recurrence_id: null,
       detached: false,
       participants: [
-        { profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
-        { profile_id: 43, present: false, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
-        { profile_id: 44, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
+        { profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
+        { profile_id: 43, present: false, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
+        { profile_id: 44, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
       ],
     });
 
@@ -289,8 +318,8 @@ describe("AppelPresence", () => {
       recurrence_id: null,
       detached: false,
       participants: [
-        { profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
-        { profile_id: 43, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
+        { profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
+        { profile_id: 43, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
       ],
     });
 
@@ -302,7 +331,7 @@ describe("AppelPresence", () => {
   it("bascule vers l'appel de fin sans écrire aucune donnée", async () => {
     const detail: TrainingSessionDetail = {
       ...DETAIL_UN_PARTICIPANT,
-      participants: [{ profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" }],
+      participants: [{ profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null }],
     };
     getTrainingSession.mockResolvedValue(detail);
 

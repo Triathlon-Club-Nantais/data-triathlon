@@ -16,19 +16,20 @@ from pydantic import (
 from app.schemas.athlete import AthleteBrief
 from app.schemas.challenge import AthleteChallengeOut
 from app.schemas.course import CourseBrief
+from app.schemas.ids import Rank
 from app.schemas.participation_stats import ParticipationStatsOut
 from app.scrapers.base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
 from app.scrapers.classify import CANONICAL_TYPES
 from app.services import split_gap
 
-_DUREE = r"^(\d{1,3}:[0-5]\d:[0-5]\d)?$"
+_DURATION_PATTERN = r"^(\d{1,3}:[0-5]\d:[0-5]\d)?$"
 
 #: Une durée `H:MM:SS`, ou vide (#1019).
-Duree = Annotated[str, Field(pattern=_DUREE)]
+Duration = Annotated[str, Field(pattern=_DURATION_PATTERN)]
 
 
-def _segment_duree(segment: tuple[str, str]) -> tuple[str, str]:
-    if not re.fullmatch(_DUREE, segment[1]):
+def _check_segment_duration(segment: tuple[str, str]) -> tuple[str, str]:
+    if not re.fullmatch(_DURATION_PATTERN, segment[1]):
         raise ValueError("Temps attendu au format H:MM:SS.")
     return segment
 
@@ -179,10 +180,10 @@ class ParticipationCreate(BaseModel):
     # Participation
     bib_number: str = ""
     category: str = ""
-    rank_overall: int | None = Field(default=None, ge=1)
-    rank_category: int | None = Field(default=None, ge=1)
-    rank_gender: int | None = Field(default=None, ge=1)
-    total_time: Duree = ""
+    rank_overall: Rank | None = None
+    rank_category: Rank | None = None
+    rank_gender: Rank | None = None
+    total_time: Duration = ""
     status: Literal["", STATUS_FINISHER, STATUS_DNF, STATUS_DNS, STATUS_DSQ] = ""
     # Nom de l'équipe si `is_relay` est vrai, lien vers les résultats publiés
     # comme pièce de vérification — jamais une source de scraping (#270).
@@ -190,21 +191,21 @@ class ParticipationCreate(BaseModel):
     evidence_url: str = ""
     # Segments — commodité de saisie triathlon (mappés vers splits, ré-étiquetés
     # par sport). Pour les autres sports, préférer `segments` (chemin générique).
-    swim_time: Duree = ""
-    t1_time: Duree = ""
-    bike_time: Duree = ""
-    t2_time: Duree = ""
-    run_time: Duree = ""
+    swim_time: Duration = ""
+    t1_time: Duration = ""
+    bike_time: Duration = ""
+    t2_time: Duration = ""
+    run_time: Duration = ""
     # Chemin générique optionnel : liste ordonnée de (label, temps). Si renseigné,
     # prime sur les champs ci-dessus (déplafonné, étiquettes libres).
-    segments: list[Annotated[tuple[str, str], AfterValidator(_segment_duree)]] | None = None
+    segments: list[Annotated[tuple[str, str], AfterValidator(_check_segment_duration)]] | None = None
 
     @field_validator("event_type")
     @classmethod
-    def _slug_connu(cls, valeur: str) -> str:
-        if valeur not in CANONICAL_TYPES:
+    def _known_slug(cls, value: str) -> str:
+        if value not in CANONICAL_TYPES:
             raise ValueError(
                 f"Type d'épreuve inconnu. Valeurs acceptées : "
                 f"{', '.join(sorted(CANONICAL_TYPES))}."
             )
-        return valeur
+        return value

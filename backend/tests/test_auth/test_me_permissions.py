@@ -170,7 +170,7 @@ def test_me_a_roleless_session_cannot_administer(client, ouvrir_session):
 
 def test_me_exposes_can_supervise_apart_from_can_administer(client, ouvrir_session):
     """#1297 : un encadrant n'est pas un administrateur."""
-    ouvrir_session(P.JEUNES_READ)
+    ouvrir_session(P.YOUTH_READ)
 
     corps = client.get("/api/v1/auth/me").json()
 

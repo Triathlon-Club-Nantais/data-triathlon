@@ -40,16 +40,16 @@ def allow_email(
             # l'API, la CLI rattrapait à part, et seule l'une des deux parlait
             # français. `add` valide **avant** d'écrire, donc un refus ne laisse
             # rien derrière lui, sans avoir à valider une seconde fois ici.
-            entree, creee, reactives = allowed_emails.add(db, None, email=email)
-            adresse = entree.email
+            entry, created, reactivated = allowed_emails.add(db, None, email=email)
+            address = entry.email
             db.commit()
-    except allowed_emails.InvalidEmailError as invalide:
-        typer.echo(invalide.message)
-        raise typer.Exit(USAGE) from invalide
+    except allowed_emails.InvalidEmailError as error:
+        typer.echo(error.message)
+        raise typer.Exit(USAGE) from error
 
-    if creee:
-        typer.echo(f"Adresse « {adresse} » autorisée à ouvrir une session.")
+    if created:
+        typer.echo(f"Adresse « {address} » autorisée à ouvrir une session.")
     else:
-        typer.echo(f"Rien à faire : « {adresse} » est déjà autorisée.")
-    if reactives:
-        typer.echo(f"{reactives} compte(s) réactivé(s).")
+        typer.echo(f"Rien à faire : « {address} » est déjà autorisée.")
+    if reactivated:
+        typer.echo(f"{reactivated} compte(s) réactivé(s).")

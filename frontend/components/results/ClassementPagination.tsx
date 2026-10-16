@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { PAGE_SIZE_OPTIONS, pageSizeLabel, parsePageSize, type PageSize } from "@/lib/pageSize";
+import { PAGE_SIZE_ALL_MAX, PAGE_SIZE_OPTIONS, pageSizeLabel, parsePageSize, type PageSize } from "@/lib/pageSize";
 
 /**
  * Commandes de pagination du classement, en liens et non en boutons :
@@ -15,6 +15,7 @@ export function ClassementPagination({
   nbPages,
   lienVers,
   tailleCourante,
+  options = PAGE_SIZE_OPTIONS,
   onTaille,
   onAllerPage,
 }: {
@@ -22,6 +23,8 @@ export function ClassementPagination({
   nbPages: number;
   lienVers: (modifications: Record<string, string | null>) => string;
   tailleCourante: PageSize;
+  /** Tailles proposées : sans « Tout » au-delà de 500 résultats (#1355). */
+  options?: readonly PageSize[];
   onTaille: (taille: PageSize) => void;
   onAllerPage: (n: number) => void;
 }) {
@@ -32,9 +35,13 @@ export function ClassementPagination({
     borderRadius: "var(--tcn-radius-md)",
     border: "1px solid var(--tcn-border-input)",
     color: "var(--tcn-ink)",
-    // Plancher tactile WCAG 2.2 2.5.8, comme le champ numérique et le sélecteur voisins.
-    minHeight: 24,
+    // Centre le libellé dans les 44 px que `.tcn-cible-tactile` impose sous md (#1539).
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
   } as const;
+  // 44 px sous md, plancher de 28 px au delà, sous la hauteur naturelle (31 px) : le bureau ne bouge pas.
+  const touchTarget = "tcn-cible-tactile";
   // `--tcn-text-faint` seul tient 5,21:1 sur blanc (revue UI/UX #485) : une
   // opacité en plus n'ajoutait qu'une redondance illisible (2,03:1).
   const inactif = { ...style, color: "var(--tcn-text-faint)" };
@@ -73,20 +80,21 @@ export function ClassementPagination({
           style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "14px 24px", flexWrap: "wrap" }}
         >
           {page > 1 ? (
-            <Link href={lienVers({ page: null })} style={style}>‹‹ Première</Link>
+            <Link href={lienVers({ page: null })} className={touchTarget} style={style}>‹‹ Première</Link>
           ) : (
-            <span style={inactif} aria-disabled="true">‹‹ Première</span>
+            <span className={touchTarget} style={inactif} aria-disabled="true">‹‹ Première</span>
           )}
           {page > 1 ? (
             <Link
               href={lienVers({ page: precedente === 1 ? null : String(precedente) })}
+              className={touchTarget}
               style={style}
               rel="prev"
             >
               ‹ Précédent
             </Link>
           ) : (
-            <span style={inactif} aria-disabled="true">‹ Précédent</span>
+            <span className={touchTarget} style={inactif} aria-disabled="true">‹ Précédent</span>
           )}
           <form method="get" onSubmit={surSoumission} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--tcn-text-muted)" }}>
             {autresParametres.map(([cle, valeur]) => (
@@ -105,26 +113,27 @@ export function ClassementPagination({
               value={saisie}
               onChange={(e) => setSaisie(e.target.value)}
               aria-describedby="classement-page-total"
-              style={{ width: 68, minHeight: 28, padding: "2px 8px", fontSize: 13, borderRadius: "var(--tcn-radius-md)", border: "1px solid var(--tcn-border-input)", background: "var(--tcn-surface)", color: "var(--tcn-ink)" }}
+              className={touchTarget}
+              style={{ width: 68, padding: "2px 8px", fontSize: 13, borderRadius: "var(--tcn-radius-md)", border: "1px solid var(--tcn-border-input)", background: "var(--tcn-surface)", color: "var(--tcn-ink)" }}
             />
             <span id="classement-page-total">sur {nbPages}</span>
             {/* Bouton de soumission explicite : sans lui, la soumission
                 implicite par Entrée dépend du nombre de champs du formulaire et
                 n'existe pas du tout au doigt. Il porte aussi le saut sans
                 JavaScript. */}
-            <button type="submit" style={{ ...style, background: "var(--tcn-fill)", cursor: "pointer" }}>
+            <button type="submit" className={touchTarget} style={{ ...style, background: "var(--tcn-fill)", cursor: "pointer" }}>
               Aller
             </button>
           </form>
           {page < nbPages ? (
-            <Link href={lienVers({ page: String(page + 1) })} style={style} rel="next">Suivant ›</Link>
+            <Link href={lienVers({ page: String(page + 1) })} className={touchTarget} style={style} rel="next">Suivant ›</Link>
           ) : (
-            <span style={inactif} aria-disabled="true">Suivant ›</span>
+            <span className={touchTarget} style={inactif} aria-disabled="true">Suivant ›</span>
           )}
           {page < nbPages ? (
-            <Link href={lienVers({ page: String(nbPages) })} style={style}>Dernière ››</Link>
+            <Link href={lienVers({ page: String(nbPages) })} className={touchTarget} style={style}>Dernière ››</Link>
           ) : (
-            <span style={inactif} aria-disabled="true">Dernière ››</span>
+            <span className={touchTarget} style={inactif} aria-disabled="true">Dernière ››</span>
           )}
         </nav>
       )}
@@ -134,16 +143,23 @@ export function ClassementPagination({
           id="classement-taille"
           value={String(tailleCourante)}
           onChange={(e) => onTaille(parsePageSize(e.target.value))}
-          // Plancher tactile WCAG 2.2 2.5.8 (#479).
-          style={{ minHeight: 28, padding: "2px 8px", fontSize: 13, borderRadius: "var(--tcn-radius-md)", border: "1px solid var(--tcn-border-input)", background: "var(--tcn-surface)", color: "var(--tcn-ink)" }}
+          className={touchTarget}
+          style={{ padding: "2px 8px", fontSize: 13, borderRadius: "var(--tcn-radius-md)", border: "1px solid var(--tcn-border-input)", background: "var(--tcn-surface)", color: "var(--tcn-ink)" }}
         >
-          {PAGE_SIZE_OPTIONS.map((o) => (
+          {options.map((o) => (
             <option key={String(o)} value={String(o)}>
               {pageSizeLabel(o)}
             </option>
           ))}
         </select>
       </div>
+      {/* Dit pourquoi « Tout » manque, surtout à qui arrive par un lien
+          `?page_size=all` servi en 200 lignes (revue UI/UX de #1376). */}
+      {!options.includes("all") && (
+        <p style={{ margin: 0, padding: "0 24px 10px", textAlign: "center", fontSize: 13, color: "var(--tcn-text-muted)" }}>
+          Au-delà de {PAGE_SIZE_ALL_MAX} résultats dans l&apos;épreuve, le classement s&apos;affiche par pages de 200 au plus.
+        </p>
+      )}
     </div>
   );
 }

@@ -18,7 +18,19 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => parametres,
 }));
 
-vi.mock("posthog-js", () => ({ default: { capture } }));
+vi.mock("posthog-js", () => ({ default: { capture, init: vi.fn(), get_explicit_consent_status: vi.fn() } }));
+
+const { preload } = vi.hoisted(() => ({ preload: vi.fn() }));
+vi.mock("@/lib/posthog", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/posthog")>();
+  return {
+    ...original,
+    withPostHog: (call: Parameters<typeof original.withPostHog>[0]) => {
+      preload();
+      original.withPostHog(call);
+    },
+  };
+});
 
 import LoginPage from "./page";
 
@@ -73,6 +85,13 @@ describe("Page de connexion — méthodes", () => {
     expect(lien).toHaveAttribute("href", "/api/v1/auth/github/authorize");
   });
 
+  it("charge posthog-js dès l'affichage, pour que login_initiated parte avant la navigation (#1394)", () => {
+    preload.mockClear();
+    afficher([{ slug: "github", label: "GitHub" }]);
+
+    expect(preload).toHaveBeenCalled();
+  });
+
   it("capture login_initiated via sendBeacon avant que la navigation ne parte (#339)", async () => {
     // capture() doit survivre au unload : send_instantly + sendBeacon, pas la
     // file batchée par défaut qu'une navigation immédiate peut couper court.
@@ -81,10 +100,12 @@ describe("Page de connexion — méthodes", () => {
     const lien = await screen.findByRole("link", { name: /GitHub/ });
     await userEvent.click(lien);
 
-    expect(capture).toHaveBeenCalledWith(
-      "login_initiated",
-      { provider: "github" },
-      { transport: "sendBeacon", send_instantly: true },
+    await waitFor(() =>
+      expect(capture).toHaveBeenCalledWith(
+        "login_initiated",
+        { provider: "github" },
+        { transport: "sendBeacon", send_instantly: true },
+      ),
     );
   });
 

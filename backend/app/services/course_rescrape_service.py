@@ -26,6 +26,7 @@ from app.services import (
     admin_actions,
     import_dispatch,
     import_persistence,
+    not_found,
     sse_relay,
 )
 from app.services.course_locks import lock_courses_or_409
@@ -92,7 +93,7 @@ def iter_switch_course_source(
     de participation pour les désigner ; après, les coureurs republiés par le
     nouveau chronométreur en portent une et survivent d'eux-mêmes.
     """
-    course = admin_actions.course_or_404(db, course_id)
+    course = not_found.course_or_404(db, course_id)
     source = course_source_repository.find_on_course(
         db, course_id=course_id, source_id=source_id
     )
@@ -109,17 +110,17 @@ def iter_switch_course_source(
             }
         ])
 
-    sortante = course_source_repository.get_active(db, course_id)
+    outgoing = course_source_repository.get_active(db, course_id)
 
     lock_courses_or_409(db, course_id)
     return _stream_switch_course_source(
         db,
         course_id=course_id,
         course_name=course.name,
-        attendue=admin_actions.instantane(course, admin_actions.CHAMPS_COURSE),
+        expected=admin_actions.snapshot(course, admin_actions.COURSE_FIELDS),
         source_id=source_id,
         source_url=source.url,
-        sortante_url=sortante.url if sortante is not None else None,
+        outgoing_url=outgoing.url if outgoing is not None else None,
         user_id=user_id,
         settings=settings,
     )
@@ -136,7 +137,7 @@ def delete_course_source(
     à `false` : l'index partiel autorise zéro active, mais une épreuve sans
     active n'est plus scrapée (#282) ni affichée avec sa source (#279).
     """
-    admin_actions.course_or_404(db, course_id)
+    not_found.course_or_404(db, course_id)
     # Une bascule en cours vers cette source la relirait disparue (#982).
     lock_courses_or_409(db, course_id)
     source = course_source_repository.find_on_course(
@@ -171,10 +172,10 @@ def _stream_switch_course_source(
     *,
     course_id: int,
     course_name: str,
-    attendue: dict,
+    expected: dict,
     source_id: int,
     source_url: str,
-    sortante_url: str | None,
+    outgoing_url: str | None,
     user_id: int,
     settings: Settings,
 ) -> Iterator[dict]:
@@ -184,7 +185,7 @@ def _stream_switch_course_source(
     n'est ni close ici ni ailleurs)."""
     def worker(emit: sse_relay.Emit) -> dict:
         try:
-            candidats = athlete_repository.only_on_course(db, course_id)
+            candidates = athlete_repository.only_on_course(db, course_id)
             emit({"phase": "scraping", "message": "Récupération des participants…"})
 
             results, _trace = _drain_scrape(
@@ -193,15 +194,15 @@ def _stream_switch_course_source(
                 ),
                 emit,
             )
-            _require_same_event(results, attendue)
+            _require_same_event(results, expected)
             for attempt in deadlock_retries(db, label=f"bascule de source de l'épreuve {course_id}"):
                 with attempt:
                     if attempt.number > 1:
                         # Le rollback du rejeu a relâché le verrou d'épreuve (#980).
                         lock_courses_or_409(db, course_id)
-                    _require_course_unchanged(db, course_id, attendue)
+                    _require_course_unchanged(db, course_id, expected)
 
-                    course = admin_actions.course_or_404(db, course_id)
+                    course = not_found.course_or_404(db, course_id)
                     source = course_source_repository.find_on_course(
                         db, course_id=course_id, source_id=source_id
                     )
@@ -209,13 +210,13 @@ def _stream_switch_course_source(
                         raise NotFoundError("Source introuvable pour cette épreuve.")
 
                     previous_athlete_ids = participation_repository.athlete_ids_on_course(db, course_id)
-                    supprimees = participation_repository.delete_for_course(db, course)
+                    deleted_count = participation_repository.delete_for_course(db, course)
                     course_source_repository.set_active(db, source)
 
                     emit({"phase": "saving", "total": len(results)})
                     outcome = import_persistence.persist_results(db, source_url, results)
                     tcn_count_repository.recompute_counts_for_tcn(db, athlete_ids=previous_athlete_ids)
-                    purges = athlete_repository.delete_orphans_among(db, candidats)
+                    purges = athlete_repository.delete_orphans_among(db, candidates)
 
                     admin_action_log_repository.create(
                         db,
@@ -228,16 +229,16 @@ def _stream_switch_course_source(
                             # Les deux URLs, sans quoi l'entrée dirait « la source a
                             # changé » sans dire depuis quoi — donc sans permettre de
                             # défaire le geste de tête.
-                            "previous_url": sortante_url,
+                            "previous_url": outgoing_url,
                             "new_url": source_url,
-                            "participations_deleted": supprimees,
+                            "participations_deleted": deleted_count,
                             "participations_imported": outcome["imported"],
                             "athletes_purged": len(purges),
                         },
                     )
                     db.commit()
             final = {"phase": "done",
-                "participations_deleted": supprimees,
+                "participations_deleted": deleted_count,
                 "participations_imported": outcome["imported"],
                 "athletes_purged": len(purges),
                 "sources": _source_dicts(db, course_id),
@@ -247,7 +248,7 @@ def _stream_switch_course_source(
                 user_id,
                 course_id,
                 source_url,
-                supprimees,
+                deleted_count,
                 outcome["imported"],
             )
         except DomainError as exc:
@@ -263,7 +264,7 @@ def _stream_switch_course_source(
     return sse_relay.relay(worker)
 
 
-def _require_course_unchanged(db: Session, course_id: int, attendue: dict) -> None:
+def _require_course_unchanged(db: Session, course_id: int, expected: dict) -> None:
     """Relit l'épreuve après un scrape de 30 à 40 s (#982).
 
     Sous PostgreSQL, le verrou d'épreuve empêche déjà toute écriture concurrente ;
@@ -273,17 +274,17 @@ def _require_course_unchanged(db: Session, course_id: int, attendue: dict) -> No
     course = course_repository.get_fresh(db, course_id)
     if course is None:
         raise DomainError("Cette épreuve n'existe plus : rien n'a été enregistré.")
-    if admin_actions.instantane(course, admin_actions.CHAMPS_COURSE) != attendue:
+    if admin_actions.snapshot(course, admin_actions.COURSE_FIELDS) != expected:
         raise DomainError(
             "Cette épreuve a été modifiée pendant la récupération des résultats : "
             "rien n'a été enregistré. Relancez l'opération."
         )
 
 
-def _require_same_event(results: list, attendue: dict) -> None:
+def _require_same_event(results: list, expected: dict) -> None:
     """Refuse un scrape qui n'alimenterait pas **cette** épreuve.
 
-    Lit l'identité sur les résultats en mémoire, avec `admin_actions.CHAMPS_COURSE` — la même
+    Lit l'identité sur les résultats en mémoire, avec `admin_actions.COURSE_FIELDS` — la même
     définition que celle de la correction d'identité, et la même que celle sur
     laquelle `course_repository.get_by_identity` apparie. Un seul résultat à la
     bonne identité suffit : une URL fan-out publie légitimement plusieurs
@@ -295,7 +296,7 @@ def _require_same_event(results: list, attendue: dict) -> None:
             "Les résultats affichés n'ont pas été touchés."
         )
     for scraped in results:
-        identite = {
+        identity = {
             "name": scraped.event_name,
             "event_date": (
                 scraped.event_date.isoformat() if scraped.event_date else None
@@ -303,12 +304,12 @@ def _require_same_event(results: list, attendue: dict) -> None:
             "event_type": scraped.event_type,
             "is_relay": scraped.is_relay,
         }
-        if identite == attendue:
+        if identity == expected:
             return
-    publiee = results[0]
+    published = results[0]
     raise ScraperError(
-        f"Cette adresse publie une autre épreuve (« {publiee.event_name} »), "
-        f"pas « {attendue['name']} ». Rapprochez d'abord les deux épreuves : "
+        f"Cette adresse publie une autre épreuve (« {published.event_name} »), "
+        f"pas « {expected['name']} ». Rapprochez d'abord les deux épreuves : "
         "une bascule laisserait celle-ci sans aucun résultat."
     )
 
@@ -344,7 +345,7 @@ def iter_rescrape_course(
     connexion, Starlette cesse d'appeler `next()` sur ce générateur, mais le
     thread, lui, continue jusqu'à son terme et commite normalement.
     """
-    course = admin_actions.course_or_404(db, course_id)
+    course = not_found.course_or_404(db, course_id)
     source = course_source_repository.get_active(db, course_id)
     if source is None:
         raise NotFoundError("Cette épreuve n'a aucune source active à re-scraper.")
@@ -354,7 +355,7 @@ def iter_rescrape_course(
         db,
         course_id=course_id,
         course_name=course.name,
-        attendue=admin_actions.instantane(course, admin_actions.CHAMPS_COURSE),
+        expected=admin_actions.snapshot(course, admin_actions.COURSE_FIELDS),
         source_url=source.url,
         user_id=user_id,
         settings=settings,
@@ -366,7 +367,7 @@ def _stream_rescrape(
     *,
     course_id: int,
     course_name: str,
-    attendue: dict,
+    expected: dict,
     source_url: str,
     user_id: int,
     settings: Settings,
@@ -387,7 +388,7 @@ def _stream_rescrape(
     """
     def worker(emit: sse_relay.Emit) -> dict:
         try:
-            candidats = athlete_repository.only_on_course(db, course_id)
+            candidates = athlete_repository.only_on_course(db, course_id)
             emit({"phase": "scraping", "message": "Récupération des participants…"})
 
             # `scrape_all_streaming` yield déjà ses propres events `scraping`
@@ -399,13 +400,13 @@ def _stream_rescrape(
                 ),
                 emit,
             )
-            _require_same_event(results, attendue)
+            _require_same_event(results, expected)
             for attempt in deadlock_retries(db, label=f"re-scrape de l'épreuve {course_id}"):
                 with attempt:
                     if attempt.number > 1:
                         # Le rollback du rejeu a relâché le verrou d'épreuve (#980).
                         lock_courses_or_409(db, course_id)
-                    _require_course_unchanged(db, course_id, attendue)
+                    _require_course_unchanged(db, course_id, expected)
 
                     total = len(results)
                     emit({
@@ -414,14 +415,14 @@ def _stream_rescrape(
                     })
                     # Les rattrapages de lot (#294, #672, #757) passent avec la boucle :
                     # le re-scrape les sautait et défaisait les rangs renumérotés (#914).
-                    for done, persister in import_persistence.persist_steps(db, source_url, results):
+                    for done, persisted in import_persistence.persist_steps(db, source_url, results):
                         if done and (done % 20 == 0 or done == total):
                             emit({
                                 "phase": "saving", "total": total,
-                                "imported": persister.imported, "updated": persister.updated,
-                                "skipped": persister.skipped, "progress": done,
+                                "imported": persisted.imported, "updated": persisted.updated,
+                                "skipped": persisted.skipped, "progress": done,
                             })
-                    purges = athlete_repository.delete_orphans_among(db, candidats)
+                    purges = athlete_repository.delete_orphans_among(db, candidates)
 
                     admin_action_log_repository.create(
                         db,
@@ -432,25 +433,25 @@ def _stream_rescrape(
                         payload={
                             "name": course_name,
                             "source_url": source_url,
-                            "imported": persister.imported,
-                            "updated": persister.updated,
-                            "skipped": persister.skipped,
-                            "reconciled": persister.reconciled,
+                            "imported": persisted.imported,
+                            "updated": persisted.updated,
+                            "skipped": persisted.skipped,
+                            "reconciled": persisted.reconciled,
                             "athletes_purged": len(purges),
                         },
                     )
                     db.commit()
             final = {"phase": "done",
-                "imported": persister.imported,
-                "updated": persister.updated,
-                "skipped": persister.skipped,
-                "reconciled": persister.reconciled,
+                "imported": persisted.imported,
+                "updated": persisted.updated,
+                "skipped": persisted.skipped,
+                "reconciled": persisted.reconciled,
                 "total": total,
                 "orphans_removed": len(purges),
             }
             logger.info(
                 "Admin %s rescraped course %s (%s imported, %s updated, %s purged)",
-                user_id, course_id, persister.imported, persister.updated, len(purges),
+                user_id, course_id, persisted.imported, persisted.updated, len(purges),
             )
         except DomainError as exc:
             db.rollback()

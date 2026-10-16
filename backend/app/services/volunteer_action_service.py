@@ -7,9 +7,9 @@ from app.core.exceptions import NotFoundError
 from app.models.volunteer_action import VolunteerAction
 from app.repositories import (
     admin_action_log_repository,
-    athlete_repository,
     volunteer_action_repository,
 )
+from app.services.not_found import athlete_or_404
 
 
 def create_pending(
@@ -17,8 +17,7 @@ def create_pending(
 ) -> VolunteerAction:
     """Un adhérent connecté crédite l'athlète de son choix pour la saison en
     cours, toujours à l'état « en attente » (FR-001 à FR-004, FR-009)."""
-    if athlete_repository.get(db, athlete_id) is None:
-        raise NotFoundError("Athlète introuvable.")
+    athlete_or_404(db, athlete_id)
 
     return volunteer_action_repository.create_pending(
         db,
@@ -40,7 +39,7 @@ def list_validated_for_athlete(db: Session, *, athlete_id: int) -> list[Voluntee
     return volunteer_action_repository.list_validated_for_athlete(db, athlete_id=athlete_id)
 
 
-def _action_ou_404(db: Session, action_id: int) -> VolunteerAction:
+def _get_action_or_404(db: Session, action_id: int) -> VolunteerAction:
     action = volunteer_action_repository.get(db, action_id)
     if action is None:
         raise NotFoundError("Déclaration introuvable.")
@@ -53,11 +52,11 @@ def accept(db: Session, *, admin_user_id: int, action_id: int) -> VolunteerActio
     No-op pour tout autre statut de départ — déjà « validée » (FR-004) ou
     « refusée » (#779, research.md D6/`/speckit-analyze` finding U1) —,
     jamais d'erreur ni de transition."""
-    action = _action_ou_404(db, action_id)
+    action = _get_action_or_404(db, action_id)
     if action.status != "en_attente":
         return action
 
-    mise_a_jour = volunteer_action_repository.set_status(db, action_id, "validee")
+    updated = volunteer_action_repository.set_status(db, action_id, "validee")
     admin_action_log_repository.create(
         db,
         user_id=admin_user_id,
@@ -66,18 +65,18 @@ def accept(db: Session, *, admin_user_id: int, action_id: int) -> VolunteerActio
         entity_id=action.athlete_id,
         payload={"season": action.season, "action_id": action_id},
     )
-    return mise_a_jour
+    return updated
 
 
 def reject(db: Session, *, admin_user_id: int, action_id: int) -> VolunteerAction:
     """Fait passer une déclaration « en attente » ou « validée » à
     « refusée » (FR-005, research.md D6) ; idempotent si déjà « refusée »
     (FR-006)."""
-    action = _action_ou_404(db, action_id)
+    action = _get_action_or_404(db, action_id)
     if action.status == "refusee":
         return action
 
-    mise_a_jour = volunteer_action_repository.set_status(db, action_id, "refusee")
+    updated = volunteer_action_repository.set_status(db, action_id, "refusee")
     admin_action_log_repository.create(
         db,
         user_id=admin_user_id,
@@ -86,12 +85,12 @@ def reject(db: Session, *, admin_user_id: int, action_id: int) -> VolunteerActio
         entity_id=action.athlete_id,
         payload={"season": action.season, "action_id": action_id},
     )
-    return mise_a_jour
+    return updated
 
 
 def delete(db: Session, *, admin_user_id: int, action_id: int) -> None:
     """Supprime une déclaration, quel que soit son statut (#818 FR-001)."""
-    action = _action_ou_404(db, action_id)
+    action = _get_action_or_404(db, action_id)
     payload = {"season": action.season, "action_id": action_id, "status": action.status}
     athlete_id = action.athlete_id
 

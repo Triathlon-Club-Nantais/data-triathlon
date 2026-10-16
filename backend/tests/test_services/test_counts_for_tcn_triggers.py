@@ -14,7 +14,7 @@ from app.repositories import (
     user_repository,
 )
 from app.scrapers.base import ScrapedResult
-from app.scrapers.fftri_club_members import ClubRoster, RosterMember
+from app.scrapers.fftri_club_members import RosterMember
 from app.services import admin_actions, athlete_merge, club_members_service, import_service
 
 
@@ -112,7 +112,7 @@ def test_correcting_the_club_of_a_pending_result_recomputes_its_athlete(db_sessi
     _result(db_session, member, _course(db_session, "B", 2), "1", "Triathlon Club Nantais")
 
     admin_actions.update_participation_fields(
-        db_session, participation_id=bare.id, champs={"club": "tcn "}, user_id=admin.id
+        db_session, participation_id=bare.id, fields={"club": "tcn "}, user_id=admin.id
     )
 
     assert _verdict(db_session, bare.id) is True
@@ -226,7 +226,7 @@ def test_moving_a_course_across_the_first_of_september_changes_its_licence_seaso
     assert _verdict(db_session, result.id) is False
 
     admin_actions.update_course(
-        db_session, course_id=course.id, champs={"event_date": date(2026, 9, 6)}, user_id=admin.id
+        db_session, course_id=course.id, fields={"event_date": date(2026, 9, 6)}, user_id=admin.id
     )
 
     assert _verdict(db_session, result.id) is True
@@ -239,9 +239,10 @@ def test_an_athlete_dropped_by_a_resync_stops_counting(db_session, admin, monkey
     course.event_date = date(2026, 10, 4)
     result = _result(db_session, member, course, "1", "Blain Tri")
     roster = [RosterMember("OUEST", "Lea", "F", "C1")]
+    monkeypatch.setattr(club_members_service, "current_season", lambda: 2026)
     monkeypatch.setattr(
         club_members_service.fftri_club_members, "fetch_club_roster",
-        lambda url: ClubRoster(licence_year=2027, members=list(roster)),
+        lambda url: list(roster),
     )
     club_members_service.sync_from_fftri(db_session, user_id=admin.id)
     assert _verdict(db_session, result.id) is True

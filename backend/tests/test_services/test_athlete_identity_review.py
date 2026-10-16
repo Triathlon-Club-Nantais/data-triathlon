@@ -442,3 +442,45 @@ def test_a_confirmed_club_the_record_no_longer_carries_is_named_from_the_whole_b
         ("unknownclub", "unknownclub"),
         ("vendometriathlon", "Vendôme Triathlon"),
     ]
+
+
+def test_the_list_and_its_count_are_kept_in_memory_until_a_commit(db_session):
+    # #1352, #1384 : ni la liste ni la pastille ne relancent la revue entière à chaque page.
+    _athlete(db_session, "DUPONT", "Jean", club="A", gender="M")
+    _athlete(db_session, "JEAN", "Dupont", club="B", gender="F")
+    assert athlete_identity_review.count(db_session) == 1
+
+    _athlete(db_session, "MARTIN", "Paul", club="A", gender="M")
+    _athlete(db_session, "PAUL", "Martin", club="B", gender="F")
+    assert len(athlete_identity_review.cached_candidates(db_session)) == 1
+    assert athlete_identity_review.count(db_session) == 1
+
+    db_session.commit()
+    assert len(athlete_identity_review.cached_candidates(db_session)) == 2
+    assert athlete_identity_review.count(db_session) == 2
+
+
+def test_an_arbitration_refreshes_the_count(db_session, admin):
+    first = _athlete(db_session, "DUPONT", "Jean", club="A", gender="M")
+    second = _athlete(db_session, "JEAN", "Dupont", club="B", gender="F")
+    assert athlete_identity_review.count(db_session) == 1
+
+    athlete_identity_review.ignore_pair(
+        db_session, athlete_id_a=first.id, athlete_id_b=second.id, user_id=admin.id
+    )
+    db_session.commit()
+
+    assert athlete_identity_review.count(db_session) == 0
+
+
+def test_merging_the_pair_refreshes_the_count(db_session, admin):
+    from app.services import athlete_merge
+
+    first = _athlete(db_session, "DUPONT", "Jean", club="A", gender="M")
+    second = _athlete(db_session, "JEAN", "Dupont", club="B", gender="F")
+    assert athlete_identity_review.count(db_session) == 1
+
+    athlete_merge.merge_athletes(db_session, kept_id=first.id, absorbed_id=second.id, user_id=admin.id)
+    db_session.commit()
+
+    assert athlete_identity_review.count(db_session) == 0

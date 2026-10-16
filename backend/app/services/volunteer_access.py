@@ -1,0 +1,87 @@
+"""Accès partagé à la page de vérification des résultats bénévoles (#271).
+
+Le mot de passe partagé est géré depuis le back-office et stocké **haché et
+salé** (`hashlib.scrypt`, stdlib — research.md §D1 de
+`specs/20260815-173645-admin-mdp-benevoles/`), jamais en clair. Le cookie de
+session reste un HMAC signé sans état serveur, mais la clé n'est plus le mot
+de passe lui-même : c'est `session_secret`, un secret distinct stocké aux
+côtés du hachage et **régénéré à chaque remplacement** (research.md §D2) —
+ce qui préserve la révocation collective des sessions ouvertes sans jamais
+avoir besoin de relire le mot de passe en clair.
+
+Ne porte que ce qui est propre à cette feature : le nom du cookie, le compte
+système et le remplacement du mot de passe. La signature HMAC et le hachage
+scrypt s'appellent **directement** sur `shared_password` depuis les routeurs et
+la garde — les délégations d'une ligne qui les renommaient ici ont été
+supprimées en revue de #513, en même temps que leurs jumelles de
+`site_access.py`. La génération des secrets y vit aussi, définie une seule fois
+pour les deux features (#1561).
+"""
+from sqlalchemy.orm import Session
+
+from app.models.user import SYSTEM_USER_EMAIL, User
+from app.models.volunteer_access_config import VolunteerAccessConfig
+from app.repositories import user_repository, volunteer_config_repository
+from app.services import audit, shared_password
+
+#: Nom du cookie de session bénévoles — distinct du cookie SSO (`tcn_session`,
+#: `api/v1/auth.py`), sur un mécanisme entièrement séparé.
+VOLUNTEER_SESSION_COOKIE = "tcn_benevole_session"
+
+#: Durée de validité **serveur** du cookie bénévoles (#1534), contrôlée sur
+#: l'horodatage signé : le cookie est posé sans `max_age`, et la restauration
+#: de session du navigateur le ferait vivre sans fin. Il ouvre des écritures,
+#: d'où une borne plus courte que les 90 jours du cookie du site.
+VOLUNTEER_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
+
+
+def system_user_id(db: Session) -> int:
+    """L'id du compte système bénévoles, semé une fois par migration Alembic.
+
+    Une seule requête nommée ici plutôt que dupliquée dans chaque route :
+    l'id qu'attribue l'autoincrément diffère d'un environnement à l'autre
+    (dev, preview, production n'ont pas la même table `users`), donc il ne
+    peut pas être figé en constante Python — seule l'adresse ci-dessus,
+    choisie par cette feature, est stable d'un environnement à l'autre.
+    """
+    accounts = user_repository.find_by_email(db, SYSTEM_USER_EMAIL)
+    if not accounts:
+        raise RuntimeError(
+            f"Compte système bénévoles introuvable ({SYSTEM_USER_EMAIL}) — "
+            "la migration de seed a-t-elle été appliquée ?"
+        )
+    return accounts[0].id
+
+
+def actor_user_id(db: Session, admin: User | None) -> int:
+    """Acteur du journal d'un geste bénévole (#1272) : l'administrateur admis
+    par pouvoir, sinon le compte système de l'accès partagé."""
+    return admin.id if admin is not None else system_user_id(db)
+
+
+def replace_password(
+    db: Session, *, password: str | None, admin_user_id: int
+) -> tuple[VolunteerAccessConfig, str]:
+    """Remplace le mot de passe bénévoles — saisi (`password` fourni) ou
+    généré (`password` absent, Story 2). Rend `(config, mot_de_passe_en_clair)`.
+
+    Orchestration de service, jamais un appel direct au repository depuis un
+    routeur (AGENTS.md, « routers fins : délégation au service ») : hache le
+    mot de passe, régénère `session_secret`, et écrit les trois champs
+    **dans le même appel** à `save_config` — jamais l'un sans les autres
+    (data-model.md, invariant d'atomicité, FR-006).
+    """
+    plain_password = password if password is not None else shared_password.generate_password()
+    password_hash, password_salt = shared_password.hash_password(plain_password)
+    config = volunteer_config_repository.save_config(
+        db,
+        password_hash=password_hash,
+        password_salt=password_salt,
+        session_secret=shared_password.new_session_secret(),
+        updated_by_user_id=admin_user_id,
+    )
+    audit.record(
+        db, admin_user_id, action="benevole_access.password_replace",
+        entity_type="benevole_access_config", entity_id=config.id,
+    )
+    return config, plain_password

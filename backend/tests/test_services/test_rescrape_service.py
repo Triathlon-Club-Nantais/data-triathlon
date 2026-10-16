@@ -239,7 +239,7 @@ def test_rescrape_reconcilie_et_supprime_les_orphelins(db_session, monkeypatch):
     assert out.orphans_removed == 1  # l'ancienne fiche, vidée
     assert out.merged == 0           # cible créée : renommage, pas fusion
     assert out.reconciliations == [
-        rescrape_service.IdentiteReconciliee(
+        rescrape_service.ReconciledIdentity(
             ancien="BERRE | Audrey LE", nouveau="LE BERRE | Audrey", participations=1
         )
     ]
@@ -263,7 +263,7 @@ def test_rescrape_dry_run_scrape_mais_ne_persiste_rien(db_session, monkeypatch):
     assert out.reconciled == 1          # calculé
     assert out.reconciliations          # détail non vide
     assert out.orphans_removed == 0     # rien créé, rien à nettoyer
-    assert out.echec_total is False     # un dry-run ne peut jamais échouer
+    assert out.is_total_failure is False     # un dry-run ne peut jamais échouer
     # Rien persisté : la participation pointe toujours sur l'ancienne identité.
     db_session.expire_all()
     parts = participation_repository.list_participations(db_session, page_size=100)
@@ -326,7 +326,7 @@ def test_run_rescrape_echec_total_quand_toutes_les_epreuves_echouent(db_session,
     out = rescrape_service.run_rescrape_db(db_session, _settings(), delay=0.0)
 
     assert out.errors == 2
-    assert out.echec_total is True
+    assert out.is_total_failure is True
 
 
 def test_run_rescrape_dry_run_n_est_jamais_un_echec_total(db_session, monkeypatch):
@@ -338,7 +338,7 @@ def test_run_rescrape_dry_run_n_est_jamais_un_echec_total(db_session, monkeypatc
     monkeypatch.setattr(import_service, "iter_import_event", _iter)
 
     out = rescrape_service.run_rescrape_db(db_session, _settings(), dry_run=True, delay=0.0)
-    assert out.echec_total is False
+    assert out.is_total_failure is False
 
 
 def test_mode_urls_n_interroge_pas_iter_all(db_session, monkeypatch):
@@ -450,7 +450,7 @@ def test_mode_urls_vide_cible_zero_epreuve(db_session, monkeypatch):
     out = rescrape_service.run_rescrape_db(db_session, _settings(), delay=0.0, urls=[])
 
     assert out.total == 0
-    assert out.echec_total is False
+    assert out.is_total_failure is False
 
 
 def test_rescrape_outcome_porte_updated(db_session, monkeypatch):

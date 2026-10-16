@@ -1,10 +1,11 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { captureEvent } from "@/lib/posthog";
-import { Card, Input, Button, Alert, PendingBadge, AnnonceStatut } from "@/components/tcn";
+import { Card, Input, Button, Alert, PendingBadge, AnnonceStatut, Eyebrow } from "@/components/tcn";
 import { apiClient, type DetectedProvider, type FieldError } from "@/lib/api/client";
 import { eventTypeLabel } from "@/lib/constants";
 import { eventTypeColor } from "@/lib/sport-colors";
@@ -15,8 +16,26 @@ import { useSaveParticipation } from "@/lib/queries/participations";
 import { useImportStream, type ImportState } from "@/hooks/useImportStream";
 import { echecImport, estDoublon, estPartiel, motifEchec as motifEchecDe } from "@/lib/import-outcome";
 import { ProviderDetector, ID_VERDICT } from "./ProviderDetector";
-import { ManualResultForm } from "./ManualResultForm";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { ImportedCourse, Participation, ScrapedPreview } from "@/lib/types";
+
+// Le formulaire embarque zod : chargé à l'ouverture de la saisie manuelle, il ne
+// pèse rien sur qui colle simplement une adresse reconnue (#1395).
+const ManualResultForm = dynamic(
+  () => import("./ManualResultForm").then((module) => module.ManualResultForm),
+  { loading: ManualFormPlaceholder },
+);
+
+function ManualFormPlaceholder() {
+  return (
+    <div role="status">
+      <span className="sr-only">Chargement du formulaire…</span>
+      {/* Hauteur du formulaire par défaut, une colonne puis deux : l'arrivée du
+          chunk ne pousse pas le pied de page. */}
+      <Skeleton aria-hidden="true" className="h-[1080px] w-full sm:h-[740px]" />
+    </div>
+  );
+}
 
 export function TcnScrapeForm() {
   const importStream = useImportStream();
@@ -52,8 +71,14 @@ export function TcnScrapeForm() {
   // même principe que `providerUnsupported`.
   const [fanout, setFanout] = useState(false);
   const [singleHeat, setSingleHeat] = useState(true);
+  // Slug du fournisseur détecté, seule trace de l'URL envoyée à l'analytics :
+  // l'URL brute peut porter une query string (#1528). Remis à `null` à chaque
+  // saisie, sinon celui de l'adresse d'avant survit jusqu'à la détection
+  // suivante, débouncée.
+  const [providerSlug, setProviderSlug] = useState<string | null>(null);
   const handleProviderDetected = useCallback(
     (detected: DetectedProvider | null) => {
+      setProviderSlug(detected?.provider || null);
       setProviderUnsupported(detected !== null && !detected.supported);
       setFanout(detected?.fanout ?? false);
       setSingleHeat(detected?.default_single_heat ?? true);
@@ -104,6 +129,7 @@ export function TcnScrapeForm() {
   // seconde fois au doigt pour recoller (ACT-5).
   const effacer = useCallback(() => {
     setUrl("");
+    setProviderSlug(null);
     setSaved(null);
     champRef.current?.focus();
   }, []);
@@ -116,6 +142,7 @@ export function TcnScrapeForm() {
       const texte = (await navigator.clipboard.readText()).trim();
       if (!texte) return;
       setUrl(texte);
+      setProviderSlug(null);
       setSaved(null);
       champRef.current?.focus();
     } catch {
@@ -137,9 +164,9 @@ export function TcnScrapeForm() {
     soumiseRef.current = v;
     setManual(false);
     setSaved(null);
-    captureEvent("results_import_started", { url: v });
+    captureEvent("results_import_started", { provider: providerSlug });
     importStream.start(v, singleHeat);
-  }, [url, running, providerUnsupported, singleHeat, importStream]);
+  }, [url, running, providerUnsupported, singleHeat, importStream, providerSlug]);
 
   // Sur échec de lecture **avéré** : signaler le fournisseur + proposer la
   // saisie manuelle. Un plafond de débit ou un service muet ne disent rien de
@@ -151,8 +178,8 @@ export function TcnScrapeForm() {
     toastEchec(importStream.state);
     apiClient.reportPendingProvider(soumise).catch(() => {});
     setManual(true);
-    captureEvent("results_import_failed", { error_message: error ?? "Import impossible" });
-  }, [motifEchec, error, importStream.state]);
+    captureEvent("results_import_failed", { reason: motifEchec });
+  }, [motifEchec, importStream.state]);
 
   // Les deux autres causes ne se taisent pas pour autant : le toast reste, la
   // télémétrie aussi, seuls le signalement et la saisie manuelle sautent.
@@ -161,8 +188,8 @@ export function TcnScrapeForm() {
     if (motifEchec === null || motifEchec === "lecture" || reportedRef.current === soumise) return;
     reportedRef.current = soumise;
     toastEchec(importStream.state);
-    captureEvent("results_import_failed", { error_message: error ?? "Import impossible" });
-  }, [motifEchec, error, importStream.state]);
+    captureEvent("results_import_failed", { reason: motifEchec });
+  }, [motifEchec, importStream.state]);
 
   // Après un import réel, invalider le cache RSC de la page pour que la carte
   // « Derniers résultats enregistrés » (rendue côté serveur dans /ajouter) reflète
@@ -276,7 +303,7 @@ export function TcnScrapeForm() {
               // de réception de la saisie précédente s'efface, sans quoi il
               // masquerait le préavis « fournisseur non reconnu » de la
               // nouvelle et refermerait la porte de la saisie manuelle.
-              onChange={(e) => { setUrl(e.target.value); setSaved(null); }}
+              onChange={(e) => { setUrl(e.target.value); setProviderSlug(null); setSaved(null); }}
               onKeyDown={(e) => e.key === "Enter" && submit()}
               placeholder="https://www.klikego.com/…"
               type="url"
@@ -684,19 +711,9 @@ function CourseNavigator({ courses }: { courses: ImportedCourse[] }) {
 
   return (
     <div style={{ marginTop: 12 }}>
-      <div
-        style={{
-          fontFamily: "var(--tcn-font-cond)",
-          fontSize: 12,
-          fontWeight: 700,
-          letterSpacing: "var(--tcn-eyebrow-tracking)",
-          textTransform: "uppercase",
-          color: "var(--tcn-orange)",
-          marginBottom: 8,
-        }}
-      >
+      <Eyebrow style={{ fontSize: 12, marginBottom: 8 }}>
         {courses.length} épreuve{courses.length > 1 ? "s" : ""} importée{courses.length > 1 ? "s" : ""}
-      </div>
+      </Eyebrow>
       <div
         style={{
           display: "flex",

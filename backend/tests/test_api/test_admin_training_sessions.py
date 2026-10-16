@@ -314,7 +314,7 @@ def test_a_read_resource_refuses_a_session_without_privilege(client, db_session)
 
 
 def test_jeunes_read_alone_passes_reads_but_not_writes(client, db_session):
-    _session_avec(client, db_session, str(P.JEUNES_READ))
+    _session_avec(client, db_session, str(P.YOUTH_READ))
 
     for method, path in READS:
         assert client.request(method, path).status_code in (200, 404)
@@ -337,14 +337,14 @@ def test_a_write_resource_refuses_a_session_without_privilege(client, db_session
 def test_jeunes_write_alone_does_not_pass_reads(client, db_session):
     """`jeunes:read` et `jeunes:write` sont deux pouvoirs réellement distincts,
     sur le même patron que `groups:write`/`groups:read` (#197)."""
-    _session_avec(client, db_session, str(P.JEUNES_WRITE))
+    _session_avec(client, db_session, str(P.YOUTH_WRITE))
 
     assert client.get(BASE).status_code == 403
 
 
 def test_jeunes_read_and_write_together_pass_the_full_flow(client, db_session, profile_id):
     created = client.post(BASE, json={"date": "2026-09-20"}).json()
-    _session_avec(client, db_session, str(P.JEUNES_READ), str(P.JEUNES_WRITE))
+    _session_avec(client, db_session, str(P.YOUTH_READ), str(P.YOUTH_WRITE))
 
     assert client.get(BASE).status_code == 200
     assert client.get(f"{BASE}/{created['id']}").status_code == 200
@@ -354,6 +354,71 @@ def test_jeunes_read_and_write_together_pass_the_full_flow(client, db_session, p
     assert enrolled.status_code == 201
     unenrolled = client.delete(f"{BASE}/{created['id']}/participants/{profile_id}")
     assert unenrolled.status_code == 204
+
+
+# --- Contact d'urgence sur l'appel (#1405) -------------------------------------
+
+
+@pytest.fixture
+def young_with_contact(db_session) -> int:
+    organisation = db_session.query(Organisation).filter_by(slug="tcn").one()
+    young = profile_repository.create(
+        db_session,
+        organisation_id=organisation.id,
+        first_name="Zoé",
+        last_name="Roux",
+        emergency_contact="Mère 06 12 34 56 78",
+    )
+    db_session.commit()
+    return young.id
+
+
+def test_the_detail_carries_each_participant_emergency_contact(client, young_with_contact):
+    created = client.post(BASE, json={"date": "2026-09-20"}).json()
+    client.post(f"{BASE}/{created['id']}/participants", json={"profile_id": young_with_contact})
+
+    body = client.get(f"{BASE}/{created['id']}").json()
+
+    assert body["participants"][0]["emergency_contact"] == "Mère 06 12 34 56 78"
+
+
+def test_jeunes_read_alone_sees_the_emergency_contact(client, db_session, young_with_contact):
+    created = client.post(BASE, json={"date": "2026-09-20"}).json()
+    client.post(f"{BASE}/{created['id']}/participants", json={"profile_id": young_with_contact})
+    _session_avec(client, db_session, str(P.YOUTH_READ))
+
+    body = client.get(f"{BASE}/{created['id']}").json()
+
+    assert body["participants"][0]["emergency_contact"] == "Mère 06 12 34 56 78"
+
+
+def test_writes_hide_the_emergency_contact_from_a_session_without_jeunes_read(
+    client, db_session, young_with_contact
+):
+    """Les écritures rendent le détail de séance : sans `jeunes:read`, le contact
+    d'urgence, donnée personnelle, n'y figure pas."""
+    created = client.post(BASE, json={"date": "2026-09-20"}).json()
+    _session_avec(client, db_session, str(P.YOUTH_WRITE))
+    url = f"{BASE}/{created['id']}"
+
+    responses = [
+        client.post(f"{url}/participants", json={"profile_id": young_with_contact}),
+        client.patch(f"{url}/participants/{young_with_contact}/presence", json={"present": True}),
+        client.patch(url, json={"location": "Piscine"}),
+    ]
+
+    for response in responses:
+        assert response.status_code in (200, 201)
+        assert response.json()["participants"][0]["emergency_contact"] is None
+
+
+def test_writes_show_the_emergency_contact_with_jeunes_read(client, db_session, young_with_contact):
+    created = client.post(BASE, json={"date": "2026-09-20"}).json()
+    _session_avec(client, db_session, str(P.YOUTH_READ), str(P.YOUTH_WRITE))
+
+    response = client.post(f"{BASE}/{created['id']}/participants", json={"profile_id": young_with_contact})
+
+    assert response.json()["participants"][0]["emergency_contact"] == "Mère 06 12 34 56 78"
 
 
 # --- Groupes visés (#1291, US2) -------------------------------------------------

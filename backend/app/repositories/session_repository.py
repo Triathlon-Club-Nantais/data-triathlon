@@ -38,7 +38,7 @@ def delete(db: Session, session: UserSession) -> None:
     db.flush()
 
 
-def _revoke(db: Session, requete: Query[UserSession]) -> tuple[int, int]:
+def _revoke(db: Session, query: Query[UserSession]) -> tuple[int, int]:
     """Supprime les sessions de cette requête. Rend (sessions, comptes) **vivants**.
 
     **On supprime tout, on ne compte que ce qui était ouvert**, et l'écart entre
@@ -57,15 +57,15 @@ def _revoke(db: Session, requete: Query[UserSession]) -> tuple[int, int]:
     visés : dire « 3 comptes » quand deux dormaient donnerait à un geste dans le
     vide l'air d'un geste utile.
     """
-    vivantes = requete.join(User).filter(
+    live = query.join(User).filter(
         UserSession.expires_at > utcnow(), User.is_active.is_(True)
     )
-    sessions, comptes = vivantes.with_entities(
+    sessions, accounts = live.with_entities(
         func.count(UserSession.id), func.count(distinct(UserSession.user_id))
     ).one()
-    requete.delete(synchronize_session="fetch")
+    query.delete(synchronize_session="fetch")
     db.flush()
-    return sessions, comptes
+    return sessions, accounts
 
 
 def delete_all(db: Session) -> tuple[int, int]:

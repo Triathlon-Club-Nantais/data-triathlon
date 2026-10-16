@@ -23,12 +23,12 @@ def list_all(db: Session, *, organisation_id: int | None = None) -> list[Role]:
     systématiquement, et sans `selectinload` chaque rôle paierait sa propre
     requête pour l'obtenir.
     """
-    requete = select(Role).options(selectinload(Role.permissions)).order_by(Role.slug)
+    query = select(Role).options(selectinload(Role.permissions)).order_by(Role.slug)
     if organisation_id is not None:
-        requete = requete.where(
+        query = query.where(
             (Role.organisation_id == organisation_id) | (Role.organisation_id.is_(None))
         )
-    return list(db.scalars(requete))
+    return list(db.scalars(query))
 
 
 def count_holders_by_role(db: Session, role_ids: list[int]) -> dict[int, int]:
@@ -37,12 +37,12 @@ def count_holders_by_role(db: Session, role_ids: list[int]) -> dict[int, int]:
     par rôle. Un `role_id` absent du résultat n'a aucun porteur."""
     if not role_ids:
         return {}
-    lignes = db.execute(
+    rows = db.execute(
         select(UserRole.role_id, func.count())
         .where(UserRole.role_id.in_(role_ids))
         .group_by(UserRole.role_id)
     ).all()
-    return dict(lignes)
+    return dict(rows)
 
 
 def list_by_slug(db: Session, slug: str) -> list[Role]:
@@ -63,12 +63,12 @@ def find_in_scope(
     Le plus spécifique gagne : sans cela, créer un `validator` propre au club
     serait sans effet, le global l'ayant toujours devancé.
     """
-    candidats = list_by_slug(db, slug)
-    propres = [role for role in candidats if role.organisation_id == organisation_id]
-    if propres:
-        return propres[0]
-    globaux = [role for role in candidats if role.organisation_id is None]
-    return globaux[0] if globaux else None
+    candidates = list_by_slug(db, slug)
+    own = [role for role in candidates if role.organisation_id == organisation_id]
+    if own:
+        return own[0]
+    global_roles = [role for role in candidates if role.organisation_id is None]
+    return global_roles[0] if global_roles else None
 
 
 def create(

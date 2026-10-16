@@ -7,7 +7,6 @@ cette fiche sur la saison de sa licence (`tcn_count_repository`). Chaque
 Ne commite pas : le routeur ou la commande porte la transaction.
 """
 import logging
-import unicodedata
 from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
@@ -16,7 +15,8 @@ from app.core.athlete_identity import athlete_identity_keys
 from app.core.exceptions import DomainError, NotFoundError
 from app.core.gender import normalize_gender
 from app.core.identity import identity_hash
-from app.core.season import SEASON_MAX, SEASON_MIN
+from app.core.season import SEASON_MAX, SEASON_MIN, current_season
+from app.core.text import strip_accents
 from app.models.club_member import (
     LINK_AMBIGUOUS,
     LINK_AUTO,
@@ -160,15 +160,14 @@ def sync_from_fftri(db: Session, *, user_id: int | None) -> MembersSyncReport:
     except Exception as error:
         logger.warning("FFTri roster unavailable", exc_info=True)
         raise RosterUnavailableError from error
-    season = roster.licence_year - 1
-    rows = _replace(db, season, _deduplicated(roster.members), SOURCE_FFTRI)
+    season = current_season()
+    rows = _replace(db, season, _deduplicated(roster), SOURCE_FFTRI)
     audit.record(db, user_id, action="club_members.sync", entity_type=_SEASON_ENTITY, entity_id=season)
     return report_of(season, rows)
 
 
 def _header_key(header: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", header)
-    return "".join(c for c in decomposed if c.isalnum()).casefold()
+    return "".join(c for c in strip_accents(header) if c.isalnum()).casefold()
 
 
 def _column(headers: list[str], accepted: set[str]) -> int | None:

@@ -213,6 +213,13 @@ describe("UserMenu — connecté (AC1, AC2, AC3, AC4, AC6)", () => {
     expect(captureEvent).not.toHaveBeenCalledWith("user_logged_out");
   });
 
+  it("donne à « Se déconnecter » une cible tactile de 44 px (#1332)", async () => {
+    afficher(SESSION);
+    await ouvrirLeMenu();
+
+    expect(screen.getByRole("menuitem", { name: "Se déconnecter" })).toHaveClass("tcn-cible-tactile");
+  });
+
   it("montre ses propres appartenances, sans exiger le moindre pouvoir (#197)", async () => {
     // `GET /auth/me` rend `groups` à tout connecté : chacun voit à quoi il
     // appartient sans `groups:read`, qui ne sert qu'à voir celles des autres.

@@ -24,6 +24,7 @@ from app.core.exceptions import DomainError
 from app.core.permissions import P
 from app.models.user import User
 from app.schemas.course import CourseSourceSwitch
+from app.schemas.ids import DbId
 from app.services import course_rescrape_service
 
 router = APIRouter(tags=["admin"])
@@ -31,8 +32,8 @@ router = APIRouter(tags=["admin"])
 
 @router.patch("/admin/courses/{course_id}/sources/{source_id}")
 def switch_course_source(
-    course_id: int,
-    source_id: int,
+    course_id: DbId,
+    source_id: DbId,
     body: CourseSourceSwitch,
     settings: Settings = Depends(get_settings),
     user: User = Depends(require_permission(P.COURSES_SOURCES)),
@@ -94,8 +95,8 @@ def switch_course_source(
 
 @router.delete("/admin/courses/{course_id}/sources/{source_id}", status_code=204)
 def delete_course_source(
-    course_id: int,
-    source_id: int,
+    course_id: DbId,
+    source_id: DbId,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.COURSES_SOURCES)),
 ):

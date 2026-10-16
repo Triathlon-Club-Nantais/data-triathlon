@@ -11,17 +11,18 @@ from app.services.club_members_service import MembersSyncReport
 from app.services.geocode_service import GeocodeOutcome
 from app.services.rescrape_service import RescrapeOutcome
 from app.services.retention_service import RetentionOutcome
+from app.services.weather_service import WeatherOutcome
 
-Outcome = SheetOutcome | RescrapeOutcome | GeocodeOutcome
+Outcome = SheetOutcome | RescrapeOutcome | GeocodeOutcome | WeatherOutcome
 
 #: Interruption clavier (convention shell : 128 + SIGINT).
-EXIT_INTERROMPU = 130
+EXIT_INTERRUPTED = 130
 #: Échec applicatif : aucune des épreuves ciblées n'a abouti.
-EXIT_ECHEC_TOTAL = 1
+EXIT_TOTAL_FAILURE = 1
 
-_LIGNE_ECHEC_TOTAL = (
+_TOTAL_FAILURE_LINE = (
     "Échec total : aucune des épreuves ciblées n'a abouti (code de sortie "
-    f"{EXIT_ECHEC_TOTAL})."
+    f"{EXIT_TOTAL_FAILURE})."
 )
 
 
@@ -29,11 +30,11 @@ _LIGNE_ECHEC_TOTAL = (
 _COL = 25
 
 
-def _ligne(libelle: str, valeur: object) -> str:
-    return f"{libelle:<{_COL}} : {valeur}"
+def _line(label: str, value: object) -> str:
+    return f"{label:<{_COL}} : {value}"
 
 
-def _lignes_compteurs(outcome: Outcome) -> list[str]:
+def _counter_lines(outcome: Outcome) -> list[str]:
     """Les compteurs du batch, **unité nommée dans chaque libellé**.
 
     Un bilan croise deux unités : des **épreuves** (ciblées, traitées, en
@@ -46,19 +47,19 @@ def _lignes_compteurs(outcome: Outcome) -> list[str]:
     « Épreuves traitées » n'apparaît que si le batch a été interrompu : mené à
     son terme, `processed` égale le nombre d'épreuves ciblées, déjà affiché.
     """
-    lignes = []
+    lines = []
     if outcome.interrupted:
-        lignes.append(_ligne("Épreuves traitées", outcome.processed))
-    lignes.append(_ligne("Épreuves en erreur", outcome.errors))
-    lignes.append(_ligne("Participants ajoutés", outcome.imported))
-    lignes.append(_ligne("Participants mis à jour", outcome.updated))
-    lignes.append(_ligne("Participants déjà en base", outcome.skipped))
-    if outcome.echec_total:
-        lignes.append(_LIGNE_ECHEC_TOTAL)
-    return lignes
+        lines.append(_line("Épreuves traitées", outcome.processed))
+    lines.append(_line("Épreuves en erreur", outcome.errors))
+    lines.append(_line("Participants ajoutés", outcome.imported))
+    lines.append(_line("Participants mis à jour", outcome.updated))
+    lines.append(_line("Participants déjà en base", outcome.skipped))
+    if outcome.is_total_failure:
+        lines.append(_TOTAL_FAILURE_LINE)
+    return lines
 
 
-def _titre(base: str, *, dry_run: bool, interrupted: bool) -> str:
+def _title(base: str, *, dry_run: bool, interrupted: bool) -> str:
     if dry_run:
         return f"=== {base} (dry-run) ==="
     if interrupted:
@@ -66,7 +67,7 @@ def _titre(base: str, *, dry_run: bool, interrupted: bool) -> str:
     return f"=== {base} ==="
 
 
-def _lignes_echecs(outcome: Outcome) -> list[str]:
+def _failure_lines(outcome: Outcome) -> list[str]:
     """Le détail des épreuves fautives, commun aux deux commandes.
 
     Le compteur « Épreuves en erreur : N » dit *combien* ; ce bloc dit
@@ -76,12 +77,12 @@ def _lignes_echecs(outcome: Outcome) -> list[str]:
     """
     if not outcome.failures:
         return []
-    lignes = ["Épreuves en erreur (détail) :"]
-    lignes.extend(f"  - {f.url} : {f.message}" for f in outcome.failures)
-    return lignes
+    lines = ["Épreuves en erreur (détail) :"]
+    lines.extend(f"  - {f.url} : {f.message}" for f in outcome.failures)
+    return lines
 
 
-def _lignes_sources_passives(outcome: Outcome) -> list[str]:
+def _passive_source_lines(outcome: Outcome) -> list[str]:
     """Les URLs enregistrées en sources secondaires, communes aux deux commandes (#283).
 
     Elles ne laissent **aucune trace dans les compteurs** : ni erreur, ni
@@ -92,15 +93,15 @@ def _lignes_sources_passives(outcome: Outcome) -> list[str]:
     """
     if not outcome.passive_sources:
         return []
-    lignes = [
-        _ligne("Sources enregistrées", len(outcome.passive_sources)),
+    lines = [
+        _line("Sources enregistrées", len(outcome.passive_sources)),
         "Sources enregistrées, non principales (détail) :",
     ]
-    lignes.extend(f"  - {s.url} : {s.message}" for s in outcome.passive_sources)
-    return lignes
+    lines.extend(f"  - {s.url} : {s.message}" for s in outcome.passive_sources)
+    return lines
 
 
-def _lignes_reconciliation(outcome: RescrapeOutcome) -> list[str]:
+def _reconciliation_lines(outcome: RescrapeOutcome) -> list[str]:
     """Le bilan de réconciliation d'identité (issue #66), borné aux réassignations.
 
     Unités nommées : on compte des **participations** et des **athlètes**, jamais
@@ -108,33 +109,33 @@ def _lignes_reconciliation(outcome: RescrapeOutcome) -> list[str]:
     """
     if not outcome.reconciled:
         return []
-    lignes = [
-        _ligne("Participations réconciliées", outcome.reconciled),
-        _ligne("Athlètes fusionnés", outcome.merged),
-        _ligne("Athlètes orphelins supprimés", outcome.orphans_removed),
+    lines = [
+        _line("Participations réconciliées", outcome.reconciled),
+        _line("Athlètes fusionnés", outcome.merged),
+        _line("Athlètes orphelins supprimés", outcome.orphans_removed),
         "Identités réconciliées (détail) :",
     ]
-    lignes.extend(
+    lines.extend(
         f"  - {r.ancien}  ->  {r.nouveau}   ({r.participations} participations)"
         for r in outcome.reconciliations
     )
-    return lignes
+    return lines
 
 
 def render_sheet_report(outcome: SheetOutcome, *, dry_run: bool) -> str:
     """Rapport texte lisible : compteurs + table des ignorés groupés par host."""
-    lignes = [_titre("IMPORT SHEET", dry_run=dry_run, interrupted=outcome.interrupted)]
-    lignes.append(_ligne("Liens supportés uniques", outcome.unique_supported))
-    lignes.append(_ligne("Lignes sans lien", outcome.rows_without_link))
+    lines = [_title("IMPORT SHEET", dry_run=dry_run, interrupted=outcome.interrupted)]
+    lines.append(_line("Liens supportés uniques", outcome.unique_supported))
+    lines.append(_line("Lignes sans lien", outcome.rows_without_link))
     if not dry_run:
-        lignes.extend(_lignes_compteurs(outcome))
-        lignes.extend(_lignes_echecs(outcome))
-        lignes.extend(_lignes_sources_passives(outcome))
+        lines.extend(_counter_lines(outcome))
+        lines.extend(_failure_lines(outcome))
+        lines.extend(_passive_source_lines(outcome))
     if outcome.ignored_by_host:
-        lignes.append("Liens non supportés (suivis dans #33) :")
+        lines.append("Liens non supportés (suivis dans #33) :")
         for host, count in sorted(outcome.ignored_by_host.items()):
-            lignes.append(f"  - {host} : {count}")
-    return "\n".join(lignes)
+            lines.append(f"  - {host} : {count}")
+    return "\n".join(lines)
 
 
 def render_rescrape_report(outcome: RescrapeOutcome, *, dry_run: bool) -> str:
@@ -146,21 +147,21 @@ def render_rescrape_report(outcome: RescrapeOutcome, *, dry_run: bool) -> str:
     croire à une perte de données à qui compare au `SELECT count(*) FROM course`
     (base de dev : 53 courses pour 12 épreuves).
     """
-    lignes = [_titre("RESCRAPE DB", dry_run=dry_run, interrupted=outcome.interrupted)]
-    lignes.append(_ligne("Épreuves ciblées", outcome.total))
+    lines = [_title("RESCRAPE DB", dry_run=dry_run, interrupted=outcome.interrupted)]
+    lines.append(_line("Épreuves ciblées", outcome.total))
     if dry_run:
         for url in outcome.dry_run_urls:
-            lignes.append(f"  - {url}")
+            lines.append(f"  - {url}")
     else:
-        lignes.extend(_lignes_compteurs(outcome))
-        lignes.extend(_lignes_echecs(outcome))
-        lignes.extend(_lignes_sources_passives(outcome))
-    lignes.extend(_lignes_reconciliation(outcome))
+        lines.extend(_counter_lines(outcome))
+        lines.extend(_failure_lines(outcome))
+        lines.extend(_passive_source_lines(outcome))
+    lines.extend(_reconciliation_lines(outcome))
     if outcome.orphan_purge_failed:
-        lignes.append(
+        lines.append(
             "Purge des athlètes orphelins : échec (import concurrent), rattrapée au prochain run."
         )
-    return "\n".join(lignes)
+    return "\n".join(lines)
 
 
 def render_geocode_report(outcome: GeocodeOutcome, *, dry_run: bool) -> str:
@@ -169,121 +170,138 @@ def render_geocode_report(outcome: GeocodeOutcome, *, dry_run: bool) -> str:
     En dry-run, seule la liste des épreuves ciblées est rendue — aucun appel
     Nominatim n'a eu lieu, il n'y a donc ni géocodées ni en erreur à compter.
     """
-    lignes = [_titre("GÉOCODAGE DES ÉPREUVES", dry_run=dry_run, interrupted=outcome.interrupted)]
-    lignes.append(_ligne("Épreuves ciblées", outcome.total))
+    lines = [_title("GÉOCODAGE DES ÉPREUVES", dry_run=dry_run, interrupted=outcome.interrupted)]
+    lines.append(_line("Épreuves ciblées", outcome.total))
     if dry_run:
-        for nom in outcome.dry_run_names:
-            lignes.append(f"  - {nom}")
-        return "\n".join(lignes)
+        for name in outcome.dry_run_names:
+            lines.append(f"  - {name}")
+        return "\n".join(lines)
     if outcome.interrupted:
-        lignes.append(_ligne("Épreuves traitées", outcome.processed))
-    lignes.append(_ligne("Épreuves géocodées", outcome.geocoded))
-    lignes.append(_ligne("Épreuves en erreur", outcome.errors))
-    if outcome.echec_total:
-        lignes.append(_LIGNE_ECHEC_TOTAL)
-    lignes.extend(_lignes_echecs(outcome))
-    return "\n".join(lignes)
+        lines.append(_line("Épreuves traitées", outcome.processed))
+    lines.append(_line("Épreuves géocodées", outcome.geocoded))
+    lines.append(_line("Épreuves en erreur", outcome.errors))
+    if outcome.is_total_failure:
+        lines.append(_TOTAL_FAILURE_LINE)
+    lines.extend(_failure_lines(outcome))
+    return "\n".join(lines)
+
+
+def render_weather_report(outcome: WeatherOutcome, *, dry_run: bool) -> str:
+    """Rapport texte pour `weather-courses` (#1370), sur le patron du géocodage."""
+    lines = [_title("MÉTÉO DES ÉPREUVES", dry_run=dry_run, interrupted=outcome.interrupted)]
+    lines.append(_line("Épreuves ciblées", outcome.total))
+    if dry_run:
+        lines.extend(f"  - {name}" for name in outcome.dry_run_names)
+        return "\n".join(lines)
+    if outcome.interrupted:
+        lines.append(_line("Épreuves traitées", outcome.processed))
+    lines.append(_line("Épreuves renseignées", outcome.fetched))
+    lines.append(_line("Épreuves en erreur", outcome.errors))
+    if outcome.is_total_failure:
+        lines.append(_TOTAL_FAILURE_LINE)
+    lines.extend(_failure_lines(outcome))
+    return "\n".join(lines)
 
 
 def render_retention_report(outcome: RetentionOutcome) -> str:
     """Purge de rétention (#1158) : ce qui a été supprimé, ou le serait en dry-run."""
     verb = "à supprimer" if outcome.dry_run else "supprimés"
     return "\n".join([
-        _titre("PURGE DE RÉTENTION", dry_run=outcome.dry_run, interrupted=False),
-        _ligne(f"Signalements {verb}", outcome.feedback),
-        _ligne(f"Entrées du journal {verb}", outcome.admin_log),
-        _ligne(f"Profils jeunes {verb}", outcome.profiles),
-        _ligne(f"Licenciés de saisons anciennes {verb}", outcome.club_members),
+        _title("PURGE DE RÉTENTION", dry_run=outcome.dry_run, interrupted=False),
+        _line(f"Signalements {verb}", outcome.feedback),
+        _line(f"Entrées du journal {verb}", outcome.admin_log),
+        _line(f"Profils jeunes {verb}", outcome.profiles),
+        _line(f"Licenciés de saisons anciennes {verb}", outcome.club_members),
     ])
 
 
 def render_orphans_report(removed: int) -> str:
     """Balayage des athlètes orphelins (#1271)."""
     return "\n".join([
-        _titre("ATHLÈTES ORPHELINS", dry_run=False, interrupted=False),
-        _ligne("Athlètes orphelins supprimés", removed),
+        _title("ATHLÈTES ORPHELINS", dry_run=False, interrupted=False),
+        _line("Athlètes orphelins supprimés", removed),
     ])
 
 
 def render_timepulse_duplicates_report(rows: list[dict], *, deleted: bool) -> str:
     """Épreuves timepulse remplacées par leurs parcours qualifiés (#1004)."""
-    lignes = ["=== ÉPREUVES TIMEPULSE REMPLACÉES ==="]
+    lines = ["=== ÉPREUVES TIMEPULSE REMPLACÉES ==="]
     if not rows:
-        lignes.append("Aucune épreuve à supprimer.")
-        return "\n".join(lignes)
+        lines.append("Aucune épreuve à supprimer.")
+        return "\n".join(lines)
     for row in rows:
-        remplacantes = ", ".join(str(i) for i in row["covered_by"])
-        lignes.append(f"{row['course_id']}  {row['name']}  →  {remplacantes}")
-    lignes.append(
+        replacements = ", ".join(str(i) for i in row["covered_by"])
+        lines.append(f"{row['course_id']}  {row['name']}  →  {replacements}")
+    lines.append(
         f"{len(rows)} épreuve(s) supprimée(s)." if deleted
         else f"{len(rows)} épreuve(s) à supprimer : relancer avec --yes --by-email <adresse>."
     )
-    return "\n".join(lignes)
+    return "\n".join(lines)
 
 
 def render_gender_backfill_report(rows: list[dict], *, applied: bool) -> str:
     """Fiches dont le sexe vide est rattrapé (#1201)."""
-    femmes = sum(1 for row in rows if row["gender"] == "F")
-    lignes = ["=== SEXE DES FICHES ATHLÈTES ===" + ("" if applied else " (simulation)")]
-    lignes.append(f"{len(rows)} fiche(s) {'remplie(s)' if applied else 'à remplir'} : {len(rows) - femmes} M, {femmes} F.")
+    women = sum(1 for row in rows if row["gender"] == "F")
+    lines = ["=== SEXE DES FICHES ATHLÈTES ===" + ("" if applied else " (simulation)")]
+    lines.append(f"{len(rows)} fiche(s) {'remplie(s)' if applied else 'à remplir'} : {len(rows) - women} M, {women} F.")
     if not applied and rows:
-        lignes.append("Relancer avec --yes pour écrire.")
-    return "\n".join(lignes)
+        lines.append("Relancer avec --yes pour écrire.")
+    return "\n".join(lines)
 
 
 def render_relay_twins_report(rows: list[dict], *, deleted: bool) -> str:
     """Épreuves solo remplacées par leur jumelle relais (#1195, #1197)."""
-    lignes = ["=== ÉPREUVES SOLO DOUBLÉES PAR LEUR RELAIS ==="]
+    lines = ["=== ÉPREUVES SOLO DOUBLÉES PAR LEUR RELAIS ==="]
     if not rows:
-        lignes.append("Aucune épreuve à supprimer.")
-        return "\n".join(lignes)
+        lines.append("Aucune épreuve à supprimer.")
+        return "\n".join(lines)
     for row in rows:
-        lignes.append(f"{row['course_id']}  {row['name']}  →  {row['covered_by']}")
-    lignes.append(
+        lines.append(f"{row['course_id']}  {row['name']}  →  {row['covered_by']}")
+    lines.append(
         f"{len(rows)} épreuve(s) supprimée(s)." if deleted
         else f"{len(rows)} épreuve(s) à supprimer : relancer avec --yes --by-email <adresse>."
     )
-    return "\n".join(lignes)
+    return "\n".join(lines)
 
 
 def render_reconciliation_report(report: dict) -> str:
     """Bilan de la reprise des doublons d'athlètes (#906), simulée ou appliquée."""
-    applique = report.get("applied", False)
-    lignes = ["=== REPRISE DES FICHES D'ATHLÈTES ===" + ("" if applique else " (simulation)")]
-    for famille, compte in report.get("families", {}).items():
-        details = ", ".join(f"{cle} {valeur}" for cle, valeur in compte.items())
-        lignes.append(f"{famille} : {details}")
+    applied = report.get("applied", False)
+    lines = ["=== REPRISE DES FICHES D'ATHLÈTES ===" + ("" if applied else " (simulation)")]
+    for family, counts in report.get("families", {}).items():
+        details = ", ".join(f"{key} {value}" for key, value in counts.items())
+        lines.append(f"{family} : {details}")
     operations = report.get("operations", [])
-    if applique:
-        lignes.append(f"{report.get('done', 0)} opération(s) appliquée(s) sur {len(operations)}.")
-        for erreur in report.get("errors", []):
-            lignes.append(f"ÉCHEC {erreur['operation']} : {erreur['error']}")
+    if applied:
+        lines.append(f"{report.get('done', 0)} opération(s) appliquée(s) sur {len(operations)}.")
+        for error in report.get("errors", []):
+            lines.append(f"ÉCHEC {error['operation']} : {error['error']}")
         if report.get("interrupted"):
-            lignes.append("Interrompue : relancer pour reprendre, rien de fait ne sera refait.")
+            lines.append("Interrompue : relancer pour reprendre, rien de fait ne sera refait.")
     else:
-        lignes.append(
+        lines.append(
             f"{len(operations)} opération(s) prévue(s) : appliquer ce plan avec "
             "--yes --by-email <adresse> --plan-from <cette simulation en --json>."
             if operations else "Rien à faire."
         )
-    lignes.append(f"{len(report.get('review', []))} cas laissé(s) en revue (/admin/identites).")
-    return "\n".join(lignes)
+    lines.append(f"{len(report.get('review', []))} cas laissé(s) en revue (/admin/identites).")
+    return "\n".join(lines)
 
 
 def render_challenge_requalification_report(rows: list[dict], *, converted: bool) -> str:
     """Épreuves requalifiées en classements Challenge (#1008)."""
-    lignes = ["=== CLASSEMENTS CHALLENGE ==="]
+    lines = ["=== CLASSEMENTS CHALLENGE ==="]
     if not rows:
-        lignes.append("Aucune épreuve à requalifier.")
-        return "\n".join(lignes)
+        lines.append("Aucune épreuve à requalifier.")
+        return "\n".join(lines)
     for row in rows:
-        liees = ", ".join(str(i) for i in row["linked_course_ids"])
-        lignes.append(f"{row['course_id']}  {row['name']}  ({row['rows']} lignes)  →  {liees}")
-    lignes.append(
+        linked = ", ".join(str(i) for i in row["linked_course_ids"])
+        lines.append(f"{row['course_id']}  {row['name']}  ({row['rows']} lignes)  →  {linked}")
+    lines.append(
         f"{len(rows)} épreuve(s) requalifiée(s)." if converted
         else f"{len(rows)} épreuve(s) à requalifier : relancer avec --yes --by-email <adresse>."
     )
-    return "\n".join(lignes)
+    return "\n".join(lines)
 
 
 def render_club_labels_report(labels: list[dict]) -> str:
@@ -293,29 +311,29 @@ def render_club_labels_report(labels: list[dict]) -> str:
     répertoriée sort des compteurs **sans aucun signal**. Ce rapport est le
     filet — il rend visible ce que le filtre ne voit pas.
     """
-    lignes = ["=== LIBELLÉS CLUB ==="]
+    lines = ["=== LIBELLÉS CLUB ==="]
     if not labels:
-        lignes.append("Aucun libellé de club en base.")
-        return "\n".join(lignes)
+        lines.append("Aucun libellé de club en base.")
+        return "\n".join(lines)
 
-    largeur = max(len(str(row["participations"])) for row in labels)
+    width = max(len(str(row["participations"])) for row in labels)
     for row in labels:
-        marque = "✓" if row["is_tcn"] else "✗"
-        lignes.append(f"  {row['participations']:>{largeur}}  {marque}  {row['club']}")
+        mark = "✓" if row["is_tcn"] else "✗"
+        lines.append(f"  {row['participations']:>{width}}  {mark}  {row['club']}")
 
-    lignes.append("")
-    lignes.append(_ligne("Libellés distincts", len(labels)))
-    lignes.append(_ligne("Libellés du club", sum(1 for row in labels if row["is_tcn"])))
-    lignes.append(
-        _ligne(
+    lines.append("")
+    lines.append(_line("Libellés distincts", len(labels)))
+    lines.append(_line("Libellés du club", sum(1 for row in labels if row["is_tcn"])))
+    lines.append(
+        _line(
             "Participations du club",
             sum(row["participations"] for row in labels if row["is_tcn"]),
         )
     )
-    return "\n".join(lignes)
+    return "\n".join(lines)
 
 
-def _museler_le_flux(*, err: bool) -> None:
+def _silence_stream(*, err: bool) -> None:
     """Redirige vers /dev/null le **descripteur** du flux dont le tube est fermé.
 
     Rattraper `BrokenPipeError` ne suffit pas : le tampon de `sys.stdout` garde
@@ -329,11 +347,11 @@ def _museler_le_flux(*, err: bool) -> None:
     descripteur : `fileno()` lève, on ignore — il n'y a alors ni tube ni arrêt
     d'interpréteur à protéger.
     """
-    flux = sys.stderr if err else sys.stdout
+    stream = sys.stderr if err else sys.stdout
     try:
         fd = os.open(os.devnull, os.O_WRONLY)
         try:
-            os.dup2(fd, flux.fileno())
+            os.dup2(fd, stream.fileno())
         finally:
             os.close(fd)
     except (OSError, ValueError, AttributeError):
@@ -360,11 +378,11 @@ def _echo(message: str, *, err: bool = False) -> bool:
         typer.echo(message, err=err)
         return True
     except BrokenPipeError:
-        _museler_le_flux(err=err)
+        _silence_stream(err=err)
         return False
 
 
-def emit_outcome(outcome: Outcome, rapport: str, *, json_output: bool) -> None:
+def emit_outcome(outcome: Outcome, report: str, *, json_output: bool) -> None:
     """Émet le bilan, puis sort en code non nul si le batch a mal fini.
 
     `--json` est **exclusif** : stdout ne contient alors QUE la ligne JSON, pour
@@ -389,33 +407,33 @@ def emit_outcome(outcome: Outcome, rapport: str, *, json_output: bool) -> None:
       est pas établi. Un cron ne s'interrompt pas tout seul : ce code désigne un
       humain, pas un incident.
     - `1` — échec total : aucune épreuve n'a abouti alors qu'il y en avait à
-      traiter (cf. `batch.est_echec_total`). Sans lui, un cron dont les 53
+      traiter (cf. `batch.is_total_failure`). Sans lui, un cron dont les 53
       épreuves échouent sortait en 0 et n'alertait jamais. Un batch
       **partiellement** réussi reste un succès (code 0).
     """
-    emis = _echo(rapport, err=json_output)
+    emitted = _echo(report, err=json_output)
     if json_output:
         _echo(json.dumps(asdict(outcome), ensure_ascii=False))
-    elif not emis:
-        _echo(rapport, err=True)  # stdout coupé : le bilan se replie sur stderr
+    elif not emitted:
+        _echo(report, err=True)  # stdout coupé : le bilan se replie sur stderr
     if outcome.interrupted:
-        raise typer.Exit(code=EXIT_INTERROMPU)
-    if outcome.echec_total:
-        raise typer.Exit(code=EXIT_ECHEC_TOTAL)
+        raise typer.Exit(code=EXIT_INTERRUPTED)
+    if outcome.is_total_failure:
+        raise typer.Exit(code=EXIT_TOTAL_FAILURE)
 
 
-def emit_report(rapport: str, payload: dict, *, json_output: bool) -> None:
+def emit_report(report: str, payload: dict, *, json_output: bool) -> None:
     """Émet un rapport d'inventaire, sans code de sortie à porter.
 
     Pendant de `emit_outcome` pour les commandes qui ne pilotent pas de batch :
     même règle sur stdout (`--json` le garde pur), mais rien à signaler par le
     code de retour — un inventaire ne peut pas « échouer partiellement ».
     """
-    emis = _echo(rapport, err=json_output)
+    emitted = _echo(report, err=json_output)
     if json_output:
         _echo(json.dumps(payload, ensure_ascii=False))
-    elif not emis:
-        _echo(rapport, err=True)  # stdout coupé : le rapport se replie sur stderr
+    elif not emitted:
+        _echo(report, err=True)  # stdout coupé : le rapport se replie sur stderr
 
 
 def render_members_sync_report(report: MembersSyncReport) -> str:
@@ -423,8 +441,8 @@ def render_members_sync_report(report: MembersSyncReport) -> str:
     return "\n".join([
         "=== LICENCIÉS DU CLUB ===",
         f"Saison {report.season}",
-        _ligne("Licenciés lus", report.total),
-        _ligne("Rattachés à une fiche", report.linked),
-        _ligne("Sans fiche", report.unlinked),
-        _ligne("Plusieurs fiches possibles", report.ambiguous),
+        _line("Licenciés lus", report.total),
+        _line("Rattachés à une fiche", report.linked),
+        _line("Sans fiche", report.unlinked),
+        _line("Plusieurs fiches possibles", report.ambiguous),
     ])

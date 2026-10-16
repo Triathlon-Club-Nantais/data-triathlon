@@ -70,6 +70,27 @@ describe("dropdown menu items focus (#1305, #1308)", () => {
   });
 });
 
+describe("select trigger focus (#1332)", () => {
+  it("draws an opaque outset outline, not the 1.93:1 ring alone", () => {
+    render(
+      <Select defaultValue="a">
+        <SelectTrigger>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="a">Toutes</SelectItem>
+        </SelectContent>
+      </Select>,
+    );
+
+    const classes = screen.getByRole("combobox").className.split(" ");
+    expect(classes).not.toContain("outline-none");
+    expect(classes).toContain("focus-visible:outline-2");
+    expect(classes).toContain("focus-visible:outline-offset-2");
+    expect(classes).toContain("focus-visible:outline-[var(--tcn-orange)]");
+  });
+});
+
 describe("select items focus (#1308)", () => {
   it("draw an opaque inset outline and keep the ink text", () => {
     render(

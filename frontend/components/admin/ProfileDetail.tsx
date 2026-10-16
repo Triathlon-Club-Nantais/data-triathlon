@@ -22,7 +22,7 @@ import { formatDate, localToday } from "@/lib/utils/date";
 import { useDangerConfirm } from "@/components/admin/DangerConfirm";
 import { calculerAge } from "@/lib/utils/age";
 import { profilePurgeDate } from "@/lib/utils/season";
-import { trouverTelephone } from "@/lib/utils/telephone";
+import { EmergencyContact } from "@/components/admin/jeunes/EmergencyContact";
 
 const REFUS = { sujet: "jeunes", action: "consulter ce profil" };
 
@@ -209,7 +209,7 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
           <>
             <div>
               <span className="font-medium">Contact d&apos;urgence : </span>
-              <ContactUrgence texte={data.emergency_contact} />
+              {data.emergency_contact ? <EmergencyContact text={data.emergency_contact} /> : "—"}
             </div>
             <div>
               <span className="font-medium">Notes : </span>
@@ -255,13 +255,13 @@ export function ProfileDetail({ profileId }: { profileId: number }) {
           </form>
         )}
 
-        {data.log_entries.length === 0 ? (
+        {!data.log_entries?.length ? (
           <p className="text-[var(--tcn-text-faint)] text-sm">
             Aucune entrée pour l&apos;instant.
           </p>
         ) : (
           <ul className="space-y-3">
-            {data.log_entries.map((entree) => (
+            {(data.log_entries ?? []).map((entree) => (
               <li key={entree.id} className="border-t pt-3 first:border-t-0 first:pt-0">
                 <div className="text-[var(--tcn-text-faint)] text-xs">
                   {formatDate(entree.entry_date)}
@@ -357,24 +357,5 @@ function GroupesDuProfil({
         </div>
       )}
     </Card>
-  );
-}
-
-/** Au bord du bassin, un numéro se compose d'un geste plutôt que de se recopier (#1290). */
-function ContactUrgence({ texte }: { texte: string }) {
-  if (!texte) return <>—</>;
-  const telephone = trouverTelephone(texte);
-  if (!telephone) return <>{texte}</>;
-  return (
-    <>
-      {texte.slice(0, telephone.debut)}
-      <a
-        href={telephone.href}
-        className="ph-no-capture tcn-cible-tactile inline-flex items-center font-semibold text-accent-ink underline underline-offset-2"
-      >
-        {texte.slice(telephone.debut, telephone.fin)}
-      </a>
-      {texte.slice(telephone.fin)}
-    </>
   );
 }

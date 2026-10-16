@@ -11,6 +11,7 @@ import { ReliabilityMark, SplitCoverageNote } from "@/components/results/Reliabi
 import { CourseSourcesPanel } from "@/components/courses/CourseSourcesPanel";
 import { CourseAdminActions } from "@/components/courses/CourseAdminActions";
 import { ClubBreakdown } from "@/components/courses/ClubBreakdown";
+import { CourseWeather } from "@/components/courses/CourseWeather";
 import { CourseChallengesNote } from "@/components/challenges/CourseChallengesNote";
 import { eventTypeLabel } from "@/lib/constants";
 import { participationStatusLabel } from "@/lib/labels";
@@ -21,7 +22,7 @@ import { Histogram } from "@/components/charts/Histogram";
 import { GenderDonut } from "@/components/charts/GenderDonut";
 import { CategoryBars } from "@/components/charts/CategoryBars";
 import { CATEGORY_PARAM, CLUB_PARAM, SCOPE_CLUB, SCOPE_PARAM, scopeFromParam } from "@/lib/scope";
-import { PAGE_SIZE_PARAM, parsePageSize } from "@/lib/pageSize";
+import { PAGE_SIZE_PARAM, boundPageSize, parsePageSize } from "@/lib/pageSize";
 
 export const metadata: Metadata = { title: "Épreuve" };
 
@@ -71,7 +72,7 @@ export default async function CoursePage({
   const scope = scopeFromParam(sp[SCOPE_PARAM]);
   // Liste blanche : le sélecteur du classement ne sait représenter que quatre
   // tailles, une URL bricolée le désaccorderait (cf. `lib/pageSize.ts`).
-  const pageSize = parsePageSize(sp[PAGE_SIZE_PARAM]);
+  const pageSizeDemandee = parsePageSize(sp[PAGE_SIZE_PARAM]);
 
   // Trois appels distincts, et c'est structurant : la synthèse porte sur
   // l'épreuve entière, le classement sur la sélection courante. Chercher un nom
@@ -123,11 +124,18 @@ export default async function CoursePage({
   }
 
   const courseId = idDeRoute(id);
+  const enSynthese = apiServer.getCourseSummary(courseId).catch(rendreNullSi404);
+  // « Tout » dépend de la taille de l'épreuve (#1355) : la synthèse passe alors
+  // devant le classement, ~100 ms de plus sur cette seule demande.
+  const pageSize =
+    pageSizeDemandee === "all" ? boundPageSize("all", (await enSynthese)?.total ?? 0) : pageSizeDemandee;
   const [data, summary, sources] = await Promise.all([
     apiServer
       .getCourse(courseId, { page, page_size: pageSize, q, scope, club, category })
       .catch(rendreNullSi404),
-    apiServer.getCourseSummary(courseId).catch(rendreNullSi404),
+    enSynthese,
+    // Lancées ici seulement : partie plus tôt, une source en échec ne serait
+    // écoutée par personne si la synthèse lève avant ce `Promise.all`.
     apiServer.getCourseSources(courseId).catch(rendreNullSi404),
   ]);
   if (!data || !summary) notFound();
@@ -161,6 +169,7 @@ export default async function CoursePage({
           <MetaPill label="Type">{eventTypeLabel(course.event_type)}</MetaPill>
           <MetaPill label="Format">{formatToken(course.event_type, course.distance_km)}</MetaPill>
           {course.event_date && <MetaPill label="Date">{formatDate(course.event_date)}</MetaPill>}
+          <CourseWeather course={course} />
           <MetaPill label="Participants">{total}</MetaPill>
           {/* Hors du total, mais dit sur toutes les pages : les lignes en
               attente ne s'affichent qu'en fin de classement (#1273). */}
@@ -209,7 +218,7 @@ export default async function CoursePage({
       {summary.histogram && (
         <Card padding={28} style={{ marginBottom: 18 }}>
           <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 4 }}>Distribution des temps des arrivants</h2>
-          <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de 5 minutes</div>
+          <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de {summary.histogram.bucket_sec / 60} minutes</div>
           <Histogram
             bars={summary.histogram.bars}
             max={Math.max(...summary.histogram.bars)}

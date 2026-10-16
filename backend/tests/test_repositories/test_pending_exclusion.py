@@ -51,7 +51,7 @@ def _duo(db_session, event_type="triathlon-m"):
     # (`_Persister.finalize`) — même patron que `is_reliable_computed`/
     # `quality_issues` (#486), posés directement par les fixtures qui en ont
     # besoin plutôt que rejoués par un import complet. Seule `validee` compte.
-    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
+    course.participation_count, course.tcn_count = 1, 1
     db_session.flush()
     return course, pendante, validee
 
@@ -205,7 +205,7 @@ def test_list_with_season_participation_count_exclut_une_pendante(db_session):
     resultats = athlete_repository.list_with_season_participation_count(
         db_session, seasons=[2025], club_only=True
     )
-    assert resultats == [(athlete, 2, 1, 1)]
+    assert resultats == [(athlete, 2, 1, 1, 1)]
 
 
 def test_list_with_season_participation_count_garde_un_athlete_100pourcent_pendant(db_session):
@@ -225,7 +225,7 @@ def test_list_with_season_participation_count_garde_un_athlete_100pourcent_penda
     resultats = athlete_repository.list_with_season_participation_count(
         db_session, seasons=[2025], club_only=True
     )
-    assert resultats == [(athlete, 1, 0, 0)]
+    assert resultats == [(athlete, 1, 0, 0, 0)]
 
 
 def test_search_by_relevance_ne_compte_pas_la_pendante(db_session):

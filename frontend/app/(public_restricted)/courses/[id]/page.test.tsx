@@ -274,7 +274,13 @@ describe("CoursePage", () => {
     expect(getCourse).toHaveBeenCalledWith(1, { page: 1, page_size: 20, q: undefined, scope: undefined });
   });
 
+  it("ramène « Tout » à 200 lignes au-delà de 500 résultats (#1355)", async () => {
+    await afficher({ page_size: "all" });
+    expect(getCourse).toHaveBeenCalledWith(1, { page: 1, page_size: 200, q: undefined, scope: undefined });
+  });
+
   it("transmet une taille de tranche valide de l'URL telle quelle à l'API", async () => {
+    getCourseSummary.mockResolvedValue({ ...SUMMARY, total: 500 });
     await afficher({ page_size: "all" });
     expect(getCourse).toHaveBeenCalledWith(1, { page: 1, page_size: "all", q: undefined, scope: undefined });
   });
@@ -382,6 +388,15 @@ describe("CoursePage", () => {
     expect(screen.queryByText(/Distribution des temps/)).not.toBeInTheDocument();
     expect(screen.getByText("Catégories non renseignées")).toBeInTheDocument();
     expect(screen.getByText("Clubs non renseignés")).toBeInTheDocument();
+  });
+
+  it("annonce la largeur de tranche que l'API a choisie (#1586)", async () => {
+    getCourseSummary.mockResolvedValue({
+      ...SUMMARY,
+      histogram: { bars: [3, 18, 47], start_sec: 30600, bucket_sec: 900 },
+    });
+    await afficher();
+    expect(screen.getByText(/par tranche de 15 minutes/)).toBeInTheDocument();
   });
 
   it("demande les sources en même temps que la synthèse", async () => {

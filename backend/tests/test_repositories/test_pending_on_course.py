@@ -145,7 +145,7 @@ def _trois_epreuves(db):
     _participation(db, mixte, "MIXTEBIS", "2", pending=True, club="TCN")
     for p in (attente, validee):
         p.counts_for_tcn = True
-    course_repository.set_counts(db, mixte, participation_count=1, tcn_count=1)
+    mixte.participation_count, mixte.tcn_count = 1, 1
     db.flush()
     return seule, refusee, mixte
 

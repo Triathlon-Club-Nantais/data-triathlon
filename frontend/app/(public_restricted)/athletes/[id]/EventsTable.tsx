@@ -5,8 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { Eye } from "lucide-react";
 import { Button, Card, FormatChip, PlaceBadge, PendingBadge, LigneCarte } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
-import { ParticipationAdminActions } from "@/components/athletes/ParticipationAdminActions";
-import { AthleteDetachAction } from "@/components/athletes/AthleteDetachAction";
+import { ParticipationAdminActions, AthleteDetachAction } from "@/components/athletes/AdminGates";
 import {
   Select,
   SelectContent,
@@ -247,6 +246,16 @@ export function EventsTable({
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <AthleteDetachAction athleteId={athleteId} athleteName={athleteName} participations={participations} />
           <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", fontWeight: 600 }}>Sélectionnez une épreuve pour voir le détail →</div>
+          {/* Le fichier porte toute la carrière, filtres de saison et de discipline ignorés (#1375). */}
+          {participations.length > 0 && (
+            <a
+              href={`/api/v1/athletes/${athleteId}/participations.csv`}
+              download
+              className="tcn-btn tcn-btn--sm tcn-btn--secondary tcn-cible-tactile"
+            >
+              Télécharger toute la carrière (CSV)
+            </a>
+          )}
         </div>
       </div>
 
@@ -262,7 +271,7 @@ export function EventsTable({
               value={season == null ? ALL : String(season)}
               onValueChange={(value) => apply(SEASON_PARAM, value as string)}
             >
-              <SelectTrigger aria-label="Filtrer par saison" className="h-9">
+              <SelectTrigger aria-label="Filtrer par saison" className="tcn-cible-tactile h-9">
                 <SelectValue>
                   {(value) => (value === ALL ? "Toutes les saisons" : seasonLabel(Number(value)))}
                 </SelectValue>
@@ -282,7 +291,7 @@ export function EventsTable({
               value={discipline ?? ALL}
               onValueChange={(value) => apply(DISCIPLINE_PARAM, value as string)}
             >
-              <SelectTrigger aria-label="Filtrer par discipline" className="h-9">
+              <SelectTrigger aria-label="Filtrer par discipline" className="tcn-cible-tactile h-9">
                 <SelectValue>
                   {(value) =>
                     value === ALL ? "Toutes les disciplines" : eventTypeLabel(value as string)

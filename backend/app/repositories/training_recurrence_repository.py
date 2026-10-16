@@ -41,10 +41,17 @@ def delete(db: Session, recurrence: TrainingRecurrence) -> None:
 
 
 def list_sessions(db: Session, recurrence_id: int) -> list[TrainingSession]:
+    return list_sessions_of(db, [recurrence_id])
+
+
+def list_sessions_of(db: Session, recurrence_ids: list[int]) -> list[TrainingSession]:
+    """Les séances de ces récurrences, en une requête."""
+    if not recurrence_ids:
+        return []
     return list(
         db.scalars(
             select(TrainingSession)
-            .where(TrainingSession.recurrence_id == recurrence_id)
+            .where(TrainingSession.recurrence_id.in_(recurrence_ids))
             .order_by(TrainingSession.date)
         )
     )

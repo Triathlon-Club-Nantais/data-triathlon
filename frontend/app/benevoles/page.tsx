@@ -227,7 +227,7 @@ export default function BenevolesPage() {
       <>
         {sessionRegion}
         {sessionSsoExpiree && (
-          <div style={{ maxWidth: 380, margin: "40px auto -56px" }}>
+          <div style={{ maxWidth: 412, margin: "40px auto -56px", padding: "0 16px" }}>
             <Alert
               status="warning"
               action={

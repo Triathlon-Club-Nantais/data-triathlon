@@ -17,6 +17,8 @@ const {
   deleteRole,
   countCourses,
   setCourseReliability,
+  listIdentityReview,
+  listCourseDuplicates,
 } = vi.hoisted(() => ({
   updateAthlete: vi.fn(),
   reassignParticipation: vi.fn(),
@@ -30,6 +32,8 @@ const {
   deleteRole: vi.fn(),
   countCourses: vi.fn(),
   setCourseReliability: vi.fn(),
+  listIdentityReview: vi.fn(),
+  listCourseDuplicates: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
@@ -49,11 +53,14 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
       deleteRole,
       countCourses,
       setCourseReliability,
+      listIdentityReview,
+      listCourseDuplicates,
     },
   };
 });
 
 import { ApiError } from "@/lib/api/client";
+import { queryKeys } from "./keys";
 import {
   useUpdateAthlete,
   useUpdateCourse,
@@ -67,6 +74,8 @@ import {
   useDeleteRole,
   useAdminCoursesCount,
   useSetCourseReliability,
+  useIdentityReview,
+  useCourseDuplicates,
 } from "./admin";
 
 /**
@@ -331,5 +340,39 @@ describe("file de revalidation qualité (#119)", () => {
     await result.current.mutateAsync({ courseId: 7, verdict: true });
 
     expect(invalider).toHaveBeenCalledWith({ queryKey: ["course-participations"] });
+  });
+});
+
+
+describe("review screens seed their nav badge (#1352)", () => {
+  beforeEach(() => {
+    client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  });
+
+  it("sets the identity count from the list it just loaded", async () => {
+    client.setQueryData(queryKeys.adminBadgeCounts(), { identities: 9, feedback: 1 });
+    listIdentityReview.mockResolvedValue({ candidates: [{}, {}] });
+    const { result } = renderHook(() => useIdentityReview(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(client.getQueryData(queryKeys.adminBadgeCounts())).toEqual({ identities: 2, feedback: 1 });
+  });
+
+  it("sets the duplicates count from the list it just loaded", async () => {
+    client.setQueryData(queryKeys.adminBadgeCounts(), { duplicates: 4 });
+    listCourseDuplicates.mockResolvedValue({ candidates: [{}] });
+    const { result } = renderHook(() => useCourseDuplicates(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(client.getQueryData(queryKeys.adminBadgeCounts())).toEqual({ duplicates: 1 });
+  });
+
+  it("never adds a badge the server did not grant", async () => {
+    client.setQueryData(queryKeys.adminBadgeCounts(), { feedback: 1 });
+    listCourseDuplicates.mockResolvedValue({ candidates: [{}] });
+    const { result } = renderHook(() => useCourseDuplicates(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(client.getQueryData(queryKeys.adminBadgeCounts())).toEqual({ feedback: 1 });
   });
 });

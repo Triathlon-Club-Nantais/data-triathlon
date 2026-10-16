@@ -16,6 +16,7 @@ const POSEES_A_L_EXECUTION = new Set([
   "--font-barlow",
   "--font-barlow-cond",
   "--segments-count",
+  "--tcn-classement-cols",
 ]);
 
 function sources(dossier: string): string[] {

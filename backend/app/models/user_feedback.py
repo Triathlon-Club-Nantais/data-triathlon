@@ -24,7 +24,9 @@ class UserFeedback(Base):
     n'a pas besoin de disparaître avec son auteur.
 
     `ip_address` **ne traverse jamais** un schéma de lecture exposé à l'API
-    (data-model.md §D4) : il ne sert qu'à `count_recent_by_ip`.
+    (data-model.md §D4) : il ne sert qu'à `count_recent_by_ip`, et porte donc la
+    clé de débit (`core/client_address.rate_limit_key`, le /64 d'une IPv6, #1552)
+    plutôt que l'adresse exacte.
     """
 
     __tablename__ = "user_feedback"

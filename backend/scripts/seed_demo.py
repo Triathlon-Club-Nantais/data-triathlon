@@ -61,8 +61,8 @@ CATALOG: list[dict] = [
         "url": "https://www.chronosmetron.wiclax-results.com/Triathlon%20de%20Vertou%202026/",
     },
     {
-        "desc": "Bayman - Triathlon M du Mont Saint-Michel (Sport Innovation)",
-        "url": "https://results.sportinnovation.fr/race/zmhc-triathlon-m",
+        "desc": "Triathlon M de Carnac 2026 (Sport Innovation)",
+        "url": "https://results.sportinnovation.fr/race/refl6a-triathlon-m",
     },
     # ── Autres disciplines (Klikego, URL d'épreuve = /resultats/{slug}/{id}) ──
     {
