@@ -7,6 +7,7 @@ retient le meilleur des trois rangs, départagé overall > gender > category
 à égalité.
 """
 from collections import defaultdict
+from datetime import date
 
 from sqlalchemy.orm import Session
 
@@ -14,6 +15,7 @@ from app.core.gender import is_gender_podium
 from app.core.season import current_season
 from app.repositories import athlete_repository, club_member_repository, participation_repository
 from app.schemas.club import (
+    ClubBestTime,
     ClubComposition,
     ClubLicensees,
     ClubPodiumEntry,
@@ -23,8 +25,9 @@ from app.schemas.club import (
     ClubSummary,
     DisciplinePodiumCounts,
 )
+from app.scrapers.utils import to_seconds
 
-_SCOPES = ("overall", "gender", "category")
+_SCOPES =("overall", "gender", "category")
 
 
 def _best(ranks: dict[str, int | None]) -> tuple[str, int] | None:
@@ -169,3 +172,41 @@ def get_club_summary(db: Session, *, federal_only: bool = False, podiums_preview
         composition=_bucket_composition(composition_rows),
         licensees=ClubLicensees(season=season, total=activity[0], raced=activity[1]) if activity else None,
     )
+
+
+_GENDER_ORDER = ("F", "M")
+
+
+def get_club_best_times(
+    db: Session, *, season: int | None = None, federal_only: bool = False
+) -> list[ClubBestTime]:
+    """Meilleur temps du club par format calibré et par genre (#1588), toutes
+    saisons sans `season`. À temps égal, la première épreuve courue garde la ligne."""
+    best = {}
+    for row in participation_repository.club_best_time_rows(db, season=season, federal_only=federal_only):
+        seconds = to_seconds(row.total_time, strict=True)
+        if not seconds:
+            continue
+        key = (row.event_type, row.gender)
+        order = (seconds, row.event_date or date.max, row.participation_id)
+        if key not in best or order < best[key][0]:
+            best[key] = (order, row)
+
+    def position(row):
+        discipline, size = row.event_type.rsplit("-", 1)
+        return discipline, participation_repository.SIZES.index(size), _GENDER_ORDER.index(row.gender)
+
+    return [
+        ClubBestTime(
+            participation_id=row.participation_id,
+            course_id=row.course_id,
+            athlete_id=row.athlete_id,
+            athlete_name=f"{row.prenom} {row.nom}".strip(),
+            event_name=row.event_name or "",
+            event_type=row.event_type,
+            event_date=row.event_date.isoformat() if row.event_date else None,
+            gender=row.gender,
+            total_time=row.total_time,
+        )
+        for row in sorted((row for _, row in best.values()), key=position)
+    ]

@@ -13,6 +13,7 @@ from app.core import counter_scope
 # même miroir SQL que `tcn_clause`, single source of truth (cf. plan #635).
 from app.core.club import _normalize_sql, broad_club_key, is_tcn, normalize_club
 from app.core.discipline import federal_clause
+from app.core.gender import GENDERS
 from app.core.season import season_bounds, season_of
 from app.core.validation import awaiting_validation_clause, validated_clause
 from app.core.youth import is_youth
@@ -21,7 +22,8 @@ from app.models.course import Course
 from app.models.participation import Participation, ParticipationTeammate
 from app.repositories import club_alias_repository, course_repository
 from app.repositories.athlete_repository import credits, name_filter, unaccent_like
-from app.scrapers.base import STATUS_FINISHER
+from app.scrapers.base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
+from app.scrapers.classify import CANONICAL_TYPES
 
 
 def _is_postgres(db: Session) -> bool:
@@ -1243,6 +1245,53 @@ def club_podiums(db: Session, *, federal_only: bool = False):
             )
         )
     )
+    if federal_only:
+        q = q.filter(federal_clause(Course.event_type))
+    return q.all()
+
+
+#: Tailles normalisées d'un format, de la plus courte à la plus longue (#1588).
+SIZES = ("xs", "s", "m", "l", "xl")
+#: Les seuls formats où deux temps se comparent : une taille normalisée.
+SIZED_EVENT_TYPES = sorted(t for t in CANONICAL_TYPES if t.rsplit("-", 1)[-1] in SIZES)
+
+
+def club_best_time_rows(db: Session, *, season: int | None = None, federal_only: bool = False):
+    """Candidats au meilleur temps du club (#1588), colonnes seules.
+
+    Mêmes exclusions que `performanceExclusion` (front, #1361) : en attente,
+    relais, épreuve non fiable (inconnue compte), non classé. Le choix du plus
+    rapide se fait côté service : `total_time` est une chaîne.
+    """
+    q = (
+        db.query(
+            Participation.id.label("participation_id"),
+            Participation.total_time,
+            Athlete.id.label("athlete_id"),
+            Athlete.prenom,
+            Athlete.nom,
+            Athlete.gender,
+            Course.id.label("course_id"),
+            Course.name.label("event_name"),
+            Course.event_type,
+            Course.event_date,
+        )
+        .join(Athlete, Participation.athlete_id == Athlete.id)
+        .join(Course, Participation.course_id == Course.id)
+        .filter(validated_clause(Participation.is_pending_validation))
+        .filter(Participation.counts_for_tcn.is_(True))
+        .filter(Participation.is_relay.is_(False), func.coalesce(Course.is_relay, False).is_(False))
+        .filter(func.coalesce(Course.is_reliable, True).is_(True))
+        .filter(
+            func.upper(func.coalesce(Participation.status, "")).notin_(
+                (STATUS_DNF, STATUS_DNS, STATUS_DSQ)
+            )
+        )
+        .filter(Course.event_type.in_(SIZED_EVENT_TYPES))
+        .filter(Athlete.gender.in_(GENDERS))
+    )
+    if season is not None:
+        q = q.filter(Course.event_date.between(*season_bounds(season)))
     if federal_only:
         q = q.filter(federal_clause(Course.event_type))
     return q.all()

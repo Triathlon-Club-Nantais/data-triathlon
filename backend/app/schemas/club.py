@@ -92,3 +92,19 @@ class ClubRosterRank(BaseModel):
 
     rank: int
     total: int
+
+
+class ClubBestTime(BaseModel):
+    """Meilleur temps du club sur un format calibré, pour un genre (#1588).
+
+    Un meilleur temps, jamais un record : deux M n'ont pas le même parcours."""
+
+    participation_id: int
+    course_id: int
+    athlete_id: int
+    athlete_name: str
+    event_name: str
+    event_type: str
+    event_date: str | None = None
+    gender: str
+    total_time: str
