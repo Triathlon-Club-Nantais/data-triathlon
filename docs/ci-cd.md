@@ -257,6 +257,14 @@ secret, elle répond 503 sur Vercel (`VERCEL_ENV` défini) plutôt que de s'ouvr
      de test n'a rien à faire dans les mêmes statistiques que celui du club
      (#426). Absentes, l'app tourne normalement, juste sans analytics et sans un
      mot en console (garde dans `instrumentation-client.ts`).
+   - les deux projets : `FRONTEND_PROXY_SECRET` (#1533), **la même valeur
+     que sur le service Render qu'il appelle**, un secret propre à chaque
+     paire (`python -c "import secrets; print(secrets.token_urlsafe(32))"`).
+     `frontend/proxy.ts` le joint aux seuls appels `/api/*`, et le backend
+     n'accepte qu'alors `X-Vercel-Forwarded-For`, l'IP du visiteur. Absent
+     d'un côté ou de l'autre, rien ne casse : chaque visiteur passé par le
+     front compte sous l'IP de sortie de Vercel, et les plafonds par IP
+     deviennent grossiers (`backend/AGENTS.md`, « Adresse du client ») ;
    - `data-triathlon-preview` **seul** : `FAVICON_VARIANT=preview` (#665).
      `VERCEL_ENV` vaut `production` sur les deux projets — inutilisable pour
      distinguer prod et preview côté favicon — d'où cette variable dédiée,
