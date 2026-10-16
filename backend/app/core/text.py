@@ -1,6 +1,7 @@
-"""Normalisation de texte pour la recherche.
+"""Pliage des accents : recherche SQL (`deaccent`) et comparaisons Python
+(`strip_accents`).
 
-Vit dans son propre module parce qu'il est appelé des deux côtés de la barrière :
+`deaccent` vit dans ce module parce qu'elle est appelée des deux côtés de la barrière :
 `core/database.py` l'enregistre comme fonction SQLite, et le repository s'en sert
 pour déaccentuer le terme cherché avant de le passer à la requête. L'inscrire
 dans l'un des deux créerait une dépendance en travers des couches.
@@ -8,7 +9,8 @@ dans l'un des deux créerait une dépendance en travers des couches.
 Deux pliages, deux contrats (#1508) : `deaccent` décompose en **NFD** parce
 qu'elle double la fonction SQL `unaccent` et ne doit rien plier de plus ;
 `strip_accents` décompose en **NFKD** (espace insécable vers espace, ligature
-`ﬁ` vers `fi`) et sert aux clés calculées en Python, jamais rejouées en SQL.
+`ﬁ` vers `fi`) et sert aux comparaisons et clés calculées en Python, jamais
+rejouées en SQL.
 """
 import unicodedata
 
@@ -39,8 +41,8 @@ def deaccent(value: str | None) -> str | None:
 
 def strip_accents(text: str | None) -> str:
     """Aplatit les accents : 'Été' → 'Ete', casse préservée pour rester
-    composable avec `.lower()` ou `.casefold()`. Seule définition NFKD du
-    backend : scrapers, clé d'identité, clé de club et en-têtes d'import.
+    composable avec `.lower()` ou `.casefold()`. Seule définition NFKD de
+    `app/` (les migrations gardent leurs copies figées) : scrapers, clé d'identité, clé de club et en-têtes d'import.
     """
     decomposed = unicodedata.normalize("NFKD", text or "")
     return "".join(c for c in decomposed if not unicodedata.combining(c))
