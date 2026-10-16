@@ -184,3 +184,47 @@ def test_club_summary_counts_the_current_season_licensees_who_raced(client, db_s
     resp = client.get("/api/v1/club/summary")
 
     assert resp.json()["licensees"] == {"season": 2026, "total": 3, "raced": 1}
+
+
+def _best_time_result(db_session, event_date):
+    athlete = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Alice", club="TCN")
+    athlete.gender = "F"
+    course = course_repository.get_or_create(
+        db_session, name=f"M {event_date}", event_date=event_date, event_type="triathlon-m"
+    )
+    participation = participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1",
+        club="TCN", status="finisher", total_time="02:05:30",
+    )
+    db_session.commit()
+    return participation
+
+
+def test_club_best_times_response_shape(client, db_session):
+    participation = _best_time_result(db_session, date(2026, 5, 16))
+
+    resp = client.get("/api/v1/club/best-times")
+
+    assert resp.status_code == 200
+    assert resp.json() == [{
+        "participation_id": participation.id,
+        "course_id": participation.course_id,
+        "athlete_id": participation.athlete_id,
+        "athlete_name": "Alice DUPONT",
+        "event_name": "M 2026-05-16",
+        "event_type": "triathlon-m",
+        "event_date": "2026-05-16",
+        "gender": "F",
+        "total_time": "02:05:30",
+    }]
+
+
+def test_club_best_times_filters_by_season(client, db_session):
+    _best_time_result(db_session, date(2026, 5, 16))
+
+    assert len(client.get("/api/v1/club/best-times?season=2025").json()) == 1
+    assert client.get("/api/v1/club/best-times?season=2026").json() == []
+
+
+def test_club_best_times_rejects_an_absurd_season(client, db_session):
+    assert client.get("/api/v1/club/best-times?season=1").status_code == 422

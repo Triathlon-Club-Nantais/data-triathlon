@@ -31,7 +31,7 @@ feature).
 
 `app/core/validation.py` (`validated_clause`) est le point
 **unique** de la règle, sur le patron de `core/club.tcn_clause` et
-`core/discipline.federal_clause`. Appliqué à treize fonctions, réparties sur
+`core/discipline.federal_clause`. Appliqué à quatorze fonctions, réparties sur
 trois repositories :
 
 | Fonction | Fichier | Alimente |
@@ -50,6 +50,7 @@ trois repositories :
 | `club_composition` | `athlete_repository.py` | `GET /club/summary` → composition genre/catégorie (#642) |
 | `licensee_activity` | `club_member_repository.py` | `GET /club/summary` → `licensees` : licenciés de la saison en cours (`core/season`, bascule au 1er septembre) et ceux qui ont couru, relais compris (#1441, additif, `null` sans licencié) |
 | `club_podiums` | `participation_repository.py` | `GET /club/summary` → podiums et podiums par discipline (#581, #642) ; sous `?podiums=preview`, 6 par mode plus `podiums_totals` (ajout de #1354, défaut inchangé) ; `GET /club/podiums` → liste complète, chargée au dépliage |
+| `club_best_time_rows` | `participation_repository.py` | `GET /club/best-times?season=` (#1588, additif) : meilleur temps du club par format calibré (`-xs` à `-xl`) et par genre, mêmes exclusions que `best-times.ts` (relais, épreuve non fiable, non classé), le plus rapide choisi par `club_service.get_club_best_times` (`total_time` est une chaîne) ; `season` absent, toutes saisons |
 
 **`search_by_relevance` compte par une sous-requête corrélée**, pas par une
 jointure : un athlète à zéro résultat validé reste trouvable (#562), et

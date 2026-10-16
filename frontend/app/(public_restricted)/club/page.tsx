@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { PageShell } from "@/components/layout/PageShell";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
 import { RankTypeToggle } from "@/components/layout/RankTypeToggle";
+import { ClubBestTimesCard } from "@/components/club/ClubBestTimesCard";
 import { ClubDashboard } from "@/components/club/ClubDashboard";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
@@ -22,7 +23,7 @@ export default async function ClubPage({
 
   // Fenêtre de revalidation courte (#352) — même raison qu'en page d'accueil.
   const revalidateOpts = { revalidateSeconds: SHORT_REVALIDATE_SECONDS };
-  const [stats, seasonStats, summary, recent] = await Promise.all([
+  const [stats, seasonStats, summary, recent, seasonBestTimes, allBestTimes] = await Promise.all([
     apiServer.getStats({ scope: SCOPE_CLUB, federal_only }, revalidateOpts),
     // #649 : le KPI « Résultats » doit refléter le même total que le compteur
     // « Résultats » du dashboard (#1080), scopé à la saison en cours, jamais le
@@ -37,6 +38,9 @@ export default async function ClubPage({
       { scope: SCOPE_CLUB, federal_only, page_size: 6 },
       revalidateOpts,
     ),
+    // Quelques dizaines de lignes au plus : les deux onglets partent avec la page (#1588).
+    apiServer.getClubBestTimes({ season: currentSeason(), federal_only }, revalidateOpts),
+    apiServer.getClubBestTimes({ federal_only }, revalidateOpts),
   ]);
 
   return (
@@ -59,6 +63,7 @@ export default async function ClubPage({
           recent={recent}
           resultsTotal={seasonStats.total}
         />
+        <ClubBestTimesCard seasonLines={seasonBestTimes} allLines={allBestTimes} />
       </div>
     </PageShell>
   );

@@ -336,6 +336,19 @@ export interface ClubSummary {
   licensees: ClubLicensees | null;
 }
 
+/** Meilleur temps du club sur un format calibré, pour un genre (#1588). */
+export interface ClubBestTime {
+  participation_id: number;
+  course_id: number;
+  athlete_id: number;
+  athlete_name: string;
+  event_name: string;
+  event_type: string;
+  event_date: string | null;
+  gender: string;
+  total_time: string;
+}
+
 export interface ClubRosterRank {
   rank: number;
   total: number;

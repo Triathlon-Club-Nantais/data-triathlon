@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
+from app.core.season import SEASON_MAX, SEASON_MIN
 from app.repositories import athlete_repository
-from app.schemas.club import ClubPodiums, ClubRosterRank, ClubSummary
+from app.schemas.club import ClubBestTime, ClubPodiums, ClubRosterRank, ClubSummary
 from app.schemas.ids import DbId
 from app.services import club_service
 
@@ -41,6 +42,24 @@ def get_club_podiums(
 ):
     """Tous les podiums du club, par mode de rang : la liste dépliée de /club (#1354)."""
     return club_service.get_club_podiums(db, federal_only=federal_only)
+
+
+@router.get("/club/best-times", response_model=list[ClubBestTime])
+def get_club_best_times(
+    season: int | None = Query(
+        None,
+        ge=SEASON_MIN,
+        le=SEASON_MAX,
+        description="Année de début de la saison (bascule au 1er septembre) ; absente, toutes saisons.",
+    ),
+    federal_only: bool = Query(
+        False,
+        description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
+    ),
+    db: Session = Depends(get_db),
+):
+    """Meilleur temps du club par format calibré (XS à XL) et par genre (#1588)."""
+    return club_service.get_club_best_times(db, season=season, federal_only=federal_only)
 
 
 @router.get("/club/roster/rank/{athlete_id}", response_model=ClubRosterRank)

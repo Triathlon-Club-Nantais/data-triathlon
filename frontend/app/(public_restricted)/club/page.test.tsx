@@ -8,12 +8,14 @@ import { currentSeason } from "@/lib/utils/season";
 const getStats = vi.fn();
 const getClubSummary = vi.fn();
 const listParticipations = vi.fn();
+const getClubBestTimes = vi.fn();
 
 vi.mock("@/lib/api/server", () => ({
   apiServer: {
     getStats: (opts: unknown, fetchOpts?: unknown) => getStats(opts, fetchOpts),
     getClubSummary: (opts: unknown, fetchOpts?: unknown) => getClubSummary(opts, fetchOpts),
     listParticipations: (filters: unknown, fetchOpts?: unknown) => listParticipations(filters, fetchOpts),
+    getClubBestTimes: (opts: unknown, fetchOpts?: unknown) => getClubBestTimes(opts, fetchOpts),
   },
   SHORT_REVALIDATE_SECONDS: 30,
 }));
@@ -68,6 +70,7 @@ beforeEach(() => {
   getStats.mockResolvedValue(STATS);
   getClubSummary.mockResolvedValue(SUMMARY);
   listParticipations.mockResolvedValue([part({ id: 1 })]);
+  getClubBestTimes.mockResolvedValue([]);
 });
 
 // `RosterApercu` appelle `useClubRosterRank` (#641) : un `QueryClientProvider`
@@ -118,5 +121,29 @@ describe("ClubPage", () => {
     );
     const carte = screen.getByText("Résultats").parentElement!.parentElement!;
     expect(carte.querySelector(".tcn-stat-value")).toHaveTextContent("7");
+  });
+
+  it("asks the club best times for the current season and for all seasons (#1588)", async () => {
+    await renderClub({ sports: "federal" });
+
+    expect(getClubBestTimes).toHaveBeenCalledWith(
+      { season: currentSeason(), federal_only: true },
+      { revalidateSeconds: 30 },
+    );
+    expect(getClubBestTimes).toHaveBeenCalledWith({ federal_only: true }, { revalidateSeconds: 30 });
+  });
+
+  it("shows the club best times card", async () => {
+    getClubBestTimes.mockResolvedValue([
+      {
+        participation_id: 1, course_id: 2, athlete_id: 3, athlete_name: "Alice DUPONT",
+        event_name: "Tri", event_type: "triathlon-m", event_date: "2026-05-16",
+        gender: "F", total_time: "02:05:30",
+      },
+    ]);
+
+    await renderClub({});
+
+    expect(screen.getByRole("heading", { name: "Meilleurs temps du club" })).toBeInTheDocument();
   });
 });

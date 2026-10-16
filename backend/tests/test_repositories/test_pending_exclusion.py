@@ -271,6 +271,15 @@ def test_club_podiums_exclut_une_pendante(db_session):
     assert [r[0] for r in rows] == [validee.id]
 
 
+def test_club_best_time_rows_excludes_a_pending_result(db_session):
+    course, pendante, validee = _duo(db_session)
+    validee.athlete.gender = "F"
+    db_session.flush()
+
+    rows = participation_repository.club_best_time_rows(db_session)
+    assert [r.participation_id for r in rows] == [validee.id]
+
+
 # --- #938 : classement de référence des statistiques détaillées ---
 
 

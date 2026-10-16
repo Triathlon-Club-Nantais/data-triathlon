@@ -5,7 +5,9 @@ Miroir du découpage des routers : la soumission est publique et vit sous
 (`test_admin_feedback_api.py`).
 """
 from app.core.config import get_settings
+from app.models.user_feedback import FEEDBACK_TYPES
 from app.repositories import feedback_repository
+from app.schemas.feedback import FeedbackCreate
 
 _URL = "/api/v1/feedback"
 
@@ -148,3 +150,10 @@ def test_une_demande_de_retrait_de_donnees_est_un_type_a_part(client, db_session
 
     assert reponse.status_code == 201
     assert feedback_repository.list_sorted(db_session)[0].type == "retrait"
+
+
+def test_the_accepted_types_are_exactly_the_model_nomenclature():
+    """#1585 : `FEEDBACK_TYPES` est la seule source des types acceptés."""
+    accepted = FeedbackCreate.model_json_schema()["properties"]["type"]["enum"]
+
+    assert tuple(accepted) == FEEDBACK_TYPES

@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
-from app.models.user_feedback import FEEDBACK_STATUSES
+from app.models.user_feedback import FEEDBACK_STATUSES, FEEDBACK_TYPES
 from app.schemas.admin import _NonEmptyPatch
 
 
@@ -17,7 +17,7 @@ class FeedbackCreate(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    type: Literal["bug", "feedback", "retrait"]
+    type: Literal[*FEEDBACK_TYPES]
     title: str = Field(min_length=1, max_length=200)
     body: str = Field(min_length=1, max_length=10_000)
     #: Auto-joints par le client (research.md) — bornés comme `title`/`body`,
