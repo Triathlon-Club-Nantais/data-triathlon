@@ -104,8 +104,8 @@ Premier jet d'instrumentation — la liste des événements métier à suivre re
 | Événement | Où | Props |
 |---|---|---|
 | `login_initiated` | `app/login/page.tsx` | `provider` |
-| `results_import_started` | `components/scrape/TcnScrapeForm.tsx` | `url` |
-| `results_import_failed` | idem | `error_message` |
+| `results_import_started` | `components/scrape/TcnScrapeForm.tsx` | `provider` |
+| `results_import_failed` | idem, et `ImportStreamProvider.tsx` écran démonté | `reason` |
 | `results_import_completed` | idem | `imported_count`, `skipped_count`, `course_count` |
 | `manual_result_submitted` | `components/scrape/ManualResultForm.tsx` | `event_type` |
 | `season_changed` | `components/dashboard/SeasonSelector.tsx` | `season_count`, `seasons` |
@@ -149,11 +149,14 @@ de `sse_relay`, hors du contexte de la requête où l'accord a été lu. Côté 
 envoi et chaque déconnexion comptaient double. Seul l'émetteur serveur reste
 (#1033).
 
-`url` et `error_message` (import) sont déjà visibles ailleurs — l'URL part au
-backend via `reportPendingProvider`, l'erreur est déjà affichée à l'écran
-(toast + Alert). Ce message peut toutefois citer une URL ou un nom, et l'URL
-porter une query string : les remplacer par le fournisseur et une cause fermée
-est suivi par #1528. Aucune PII athlète dans ces 22 événements : le scraping
+**Ni URL brute ni message libre dans une propriété** (#1528) : l'URL peut
+porter une query string, le message d'erreur citer une URL ou un nom.
+`results_import_started` porte le slug du fournisseur détecté par
+`/scrape/detect` (`null` si la détection n'a pas encore répondu ou ne reconnaît
+rien), `results_import_failed` une cause fermée, `reason`, qui vaut `lecture`,
+`plafond` ou `service` (`motifEchec` de `lib/import-outcome.ts`, la cause qui
+choisit déjà le toast). Le détail par type d'erreur serveur vit dans
+`event_scrape_failed.error_kind`. Aucune PII athlète dans ces 22 événements : le scraping
 mono-athlète a été retiré, seul l'import d'épreuve complète existe, et
 `athlete_updated` ne porte que les **noms** des champs modifiés.
 

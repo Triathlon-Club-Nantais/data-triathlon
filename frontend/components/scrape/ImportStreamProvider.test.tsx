@@ -300,10 +300,10 @@ describe("ImportStreamProvider — télémétrie d'échec", () => {
   const echecs = () => captureEvent.mock.calls.filter(([nom]) => nom === "results_import_failed");
 
   it.each([
-    ["page illisible", (p: ReturnType<typeof fluxPilote>) => p.terminer({ phase: "error", message: "x" } as ImportProgressEvent)],
-    ["service muet", (p: ReturnType<typeof fluxPilote>) => p.echouer(new TypeError("Failed to fetch"))],
-    ["plafond", (p: ReturnType<typeof fluxPilote>) => p.echouer(new ApiError(429, "Trop de demandes", 180))],
-  ])("écran monté, %s : un seul results_import_failed", async (_cas, finir) => {
+    ["page illisible", "lecture", (p: ReturnType<typeof fluxPilote>) => p.terminer({ phase: "error", message: "x" } as ImportProgressEvent)],
+    ["service muet", "service", (p: ReturnType<typeof fluxPilote>) => p.echouer(new TypeError("Failed to fetch"))],
+    ["plafond", "plafond", (p: ReturnType<typeof fluxPilote>) => p.echouer(new ApiError(429, "Trop de demandes", 180))],
+  ])("écran monté, %s : un seul results_import_failed", async (_cas, reason, finir) => {
     const pilote = fluxPilote();
     importEventStream.mockReturnValue(pilote.flux());
     monter();
@@ -314,6 +314,8 @@ describe("ImportStreamProvider — télémétrie d'échec", () => {
     await waitFor(() => expect(echecs()).toHaveLength(1));
     await act(async () => {});
     expect(echecs()).toHaveLength(1);
+    // #1528 : une cause fermée, jamais le message (qui peut citer une URL ou un nom).
+    expect(echecs()[0][1]).toEqual({ reason });
   });
 
   it("écran quitté puis rouvert : un seul results_import_failed", async () => {

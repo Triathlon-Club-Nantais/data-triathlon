@@ -71,8 +71,14 @@ export function TcnScrapeForm() {
   // même principe que `providerUnsupported`.
   const [fanout, setFanout] = useState(false);
   const [singleHeat, setSingleHeat] = useState(true);
+  // Slug du fournisseur détecté, seule trace de l'URL envoyée à l'analytics :
+  // l'URL brute peut porter une query string (#1528). Remis à `null` à chaque
+  // saisie, sinon celui de l'adresse d'avant survit jusqu'à la détection
+  // suivante, débouncée.
+  const [providerSlug, setProviderSlug] = useState<string | null>(null);
   const handleProviderDetected = useCallback(
     (detected: DetectedProvider | null) => {
+      setProviderSlug(detected?.provider || null);
       setProviderUnsupported(detected !== null && !detected.supported);
       setFanout(detected?.fanout ?? false);
       setSingleHeat(detected?.default_single_heat ?? true);
@@ -123,6 +129,7 @@ export function TcnScrapeForm() {
   // seconde fois au doigt pour recoller (ACT-5).
   const effacer = useCallback(() => {
     setUrl("");
+    setProviderSlug(null);
     setSaved(null);
     champRef.current?.focus();
   }, []);
@@ -135,6 +142,7 @@ export function TcnScrapeForm() {
       const texte = (await navigator.clipboard.readText()).trim();
       if (!texte) return;
       setUrl(texte);
+      setProviderSlug(null);
       setSaved(null);
       champRef.current?.focus();
     } catch {
@@ -156,9 +164,9 @@ export function TcnScrapeForm() {
     soumiseRef.current = v;
     setManual(false);
     setSaved(null);
-    captureEvent("results_import_started", { url: v });
+    captureEvent("results_import_started", { provider: providerSlug });
     importStream.start(v, singleHeat);
-  }, [url, running, providerUnsupported, singleHeat, importStream]);
+  }, [url, running, providerUnsupported, singleHeat, importStream, providerSlug]);
 
   // Sur échec de lecture **avéré** : signaler le fournisseur + proposer la
   // saisie manuelle. Un plafond de débit ou un service muet ne disent rien de
@@ -170,8 +178,8 @@ export function TcnScrapeForm() {
     toastEchec(importStream.state);
     apiClient.reportPendingProvider(soumise).catch(() => {});
     setManual(true);
-    captureEvent("results_import_failed", { error_message: error ?? "Import impossible" });
-  }, [motifEchec, error, importStream.state]);
+    captureEvent("results_import_failed", { reason: motifEchec });
+  }, [motifEchec, importStream.state]);
 
   // Les deux autres causes ne se taisent pas pour autant : le toast reste, la
   // télémétrie aussi, seuls le signalement et la saisie manuelle sautent.
@@ -180,8 +188,8 @@ export function TcnScrapeForm() {
     if (motifEchec === null || motifEchec === "lecture" || reportedRef.current === soumise) return;
     reportedRef.current = soumise;
     toastEchec(importStream.state);
-    captureEvent("results_import_failed", { error_message: error ?? "Import impossible" });
-  }, [motifEchec, error, importStream.state]);
+    captureEvent("results_import_failed", { reason: motifEchec });
+  }, [motifEchec, importStream.state]);
 
   // Après un import réel, invalider le cache RSC de la page pour que la carte
   // « Derniers résultats enregistrés » (rendue côté serveur dans /ajouter) reflète
@@ -295,7 +303,7 @@ export function TcnScrapeForm() {
               // de réception de la saisie précédente s'efface, sans quoi il
               // masquerait le préavis « fournisseur non reconnu » de la
               // nouvelle et refermerait la porte de la saisie manuelle.
-              onChange={(e) => { setUrl(e.target.value); setSaved(null); }}
+              onChange={(e) => { setUrl(e.target.value); setProviderSlug(null); setSaved(null); }}
               onKeyDown={(e) => e.key === "Enter" && submit()}
               placeholder="https://www.klikego.com/…"
               type="url"
