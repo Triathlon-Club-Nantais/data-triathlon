@@ -93,11 +93,14 @@ describe("InvitationAthlete — hydratation", () => {
     document.body.appendChild(conteneur);
     const ecartHydratation = vi.fn();
 
+    let racine: ReturnType<typeof hydrateRoot> | undefined;
     await act(async () => {
-      hydrateRoot(conteneur, <InvitationAthlete />, { onRecoverableError: ecartHydratation });
+      racine = hydrateRoot(conteneur, <InvitationAthlete />, { onRecoverableError: ecartHydratation });
     });
 
     expect(ecartHydratation).not.toHaveBeenCalled();
     expect(conteneur.textContent).toMatch(/retrouvez vos épreuves et vos podiums/i);
+    act(() => racine?.unmount());
+    conteneur.remove();
   });
 });

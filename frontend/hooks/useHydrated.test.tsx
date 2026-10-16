@@ -21,12 +21,15 @@ describe("useHydrated", () => {
     document.body.appendChild(container);
     const seen: boolean[] = [];
 
+    let root: ReturnType<typeof hydrateRoot> | undefined;
     await act(async () => {
-      hydrateRoot(container, <Probe seen={seen} />);
+      root = hydrateRoot(container, <Probe seen={seen} />);
     });
 
     expect(seen[0]).toBe(false);
     expect(seen.at(-1)).toBe(true);
     expect(container.textContent).toBe("client");
+    act(() => root?.unmount());
+    container.remove();
   });
 });
