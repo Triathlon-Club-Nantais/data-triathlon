@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -313,5 +314,13 @@ describe("UserMenu — onNavigate ferme le tiroir au bon moment (#482, NAV-4)", 
     await userEvent.click(screen.getByRole("menuitem", { name: "Se déconnecter" }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith("/"));
+  });
+});
+
+describe("UserMenu, premier chargement (#1603)", () => {
+  it("ne tire le menu Base UI ni par UserMenu ni par select.tsx, chargés sur toutes les pages", () => {
+    for (const fichier of ["components/auth/UserMenu.tsx", "components/ui/select.tsx"]) {
+      expect(readFileSync(fichier, "utf8")).not.toMatch(/from "@\/components\/ui\/dropdown-menu"/);
+    }
   });
 });
