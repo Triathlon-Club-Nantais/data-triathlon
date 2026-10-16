@@ -159,7 +159,8 @@ def test_facade_redirigee_vers_la_liste_du_chronometreur():
             raceresult._resolve_event_id(url, client)
 
     message = str(excinfo.value)
-    assert "renvoie désormais vers RaceResult" in message
+    assert "renvoie vers RaceResult" in message
+    assert "my.raceresult.com/timers/946/" in message
     assert "my.raceresult.com/<id>/" in message
     assert url in message
 
