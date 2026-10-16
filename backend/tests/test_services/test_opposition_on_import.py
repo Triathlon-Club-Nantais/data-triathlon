@@ -97,3 +97,16 @@ def test_a_rescraped_relay_with_an_opposed_member_stays_anonymous(db_session, op
     relais = db_session.query(Participation).filter_by(bib_number="51").one()
     assert relais.athlete.nom.startswith("Anonyme ") and not relais.raw_data
     assert _sans_dupont(db_session)
+
+
+def test_a_relay_whose_team_name_names_an_opposed_member_arrives_anonymous(db_session, opposition):
+    """#1506 : le nom d'équipe est un libellé publié, la même règle que le nom de la ligne s'y applique."""
+    import_persistence.persist_results(
+        db_session, URL,
+        [_ligne("52", "MARTIN", "Alix", is_relay=True, team_name="DUPONT Jean-Pierre / MARTIN Alix")],
+    )
+
+    relais = db_session.query(Participation).one()
+    assert relais.athlete.nom.startswith("Anonyme ")
+    assert not relais.team_name
+    assert _sans_dupont(db_session)

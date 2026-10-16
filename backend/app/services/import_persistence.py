@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 from app.core.athlete_identity import athlete_identity_keys
 from app.core.club import canonical_club_key, is_significant_club
 from app.core.gender import normalize_gender
-from app.core.identity import identity_hash
 from app.core.text import deaccent
 from app.models.athlete import Athlete
 from app.models.course import Course
@@ -46,7 +45,13 @@ from app.scrapers.base import (
     ScrapedResult,
 )
 from app.scrapers.utils import heat_is_challenge, is_masked_name, split_relay_teammates, to_seconds
-from app.services import challenge_service, course_reconciliation, mapping, quality
+from app.services import (
+    challenge_service,
+    course_reconciliation,
+    mapping,
+    opposition_service,
+    quality,
+)
 from app.services.challenge_service import ChallengeRow
 
 logger = logging.getLogger(__name__)
@@ -594,9 +599,8 @@ class _Persister:
         qu'un libellé de relais nomme."""
         if not self._opposed:
             return False
-        if identity_hash(scraped.athlete_name, scraped.athlete_firstname) in self._opposed:
-            return True
-        return any(identity_hash(*pair) in self._opposed for pair in _proposed_teammates(scraped) or ())
+        labels = [_published_name(scraped), scraped.team_name, *(" ".join(pair) for pair in scraped.teammates or ())]
+        return not self._opposed.isdisjoint(opposition_service.named_hashes(*labels))
 
     def _enqueue(
         self, course_id: int, scraped: ScrapedResult, *, bib: str | None,

@@ -62,7 +62,9 @@ def ensure_rename_keeps_rows_adult(db: Session, course: Course, new_name: str) -
 
 def save_one(db: Session, scraped: ScrapedResult, event_url: str = "") -> Participation:
     """Persiste un résultat scrapé/édité (athlète + course + participation)."""
-    opposition_service.ensure_not_opposed(db, scraped.athlete_name, scraped.athlete_firstname)
+    opposition_service.ensure_not_opposed(
+        db, scraped.athlete_name, scraped.athlete_firstname, scraped.team_name
+    )
     ensure_not_youth(scraped.event_name, scraped.event_date, scraped.category, scraped.club)
     course = mapping.get_or_create_course(db, scraped, event_url).course
     if scraped.bib_number and participation_repository.exists_for_bib(

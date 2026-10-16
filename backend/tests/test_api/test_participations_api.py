@@ -489,6 +489,36 @@ def test_a_manual_result_for_an_opposed_person_is_refused(client, db_session):
 
 
 @pytest.mark.parametrize(
+    "identity",
+    [
+        {"athlete_name": "DUPONT Jean / MARTIN Paul", "athlete_firstname": ""},
+        {"athlete_name": "MARTIN", "athlete_firstname": "Paul", "team_name": "DUPONT Jean / MARTIN Paul"},
+        {"athlete_name": "MARTIN", "athlete_firstname": "Paul", "team_name": "Jean Dupont"},
+    ],
+)
+def test_a_manual_relay_naming_an_opposed_person_is_refused(client, db_session, identity):
+    """#1506 : un libellé de relais (nom saisi ou nom d'équipe) qui nomme une personne opposée."""
+    from datetime import date
+
+    from app.core.identity import identity_hash
+    from app.models.athlete import Athlete
+    from app.repositories import opposition_repository
+
+    opposition_repository.create(
+        db_session, identity_hash=identity_hash("DUPONT", "Jean"), requested_on=date(2026, 9, 1),
+        applied_by_user_id=None,
+    )
+    db_session.commit()
+
+    resp = client.post("/api/v1/participations", json={**_payload(), "is_relay": True, **identity})
+
+    assert resp.status_code == 422
+    assert "opposée à la publication" in resp.json()["detail"]
+    assert db_session.query(Participation).count() == 0
+    assert db_session.query(Athlete).count() == 0
+
+
+@pytest.mark.parametrize(
     ("event_name", "category"),
     [("Triathlon de Nantes", "MIH"), ("Triathlon de Nantes", "BEF"), ("Triathlon Jeunes", "V1H")],
 )

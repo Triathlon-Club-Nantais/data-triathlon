@@ -69,8 +69,20 @@ def is_opposed(db: Session, nom: str, prenom: str) -> bool:
     return opposition_repository.get_by_hash(db, identity_hash(nom, prenom)) is not None
 
 
-def ensure_not_opposed(db: Session, nom: str, prenom: str) -> None:
-    if is_opposed(db, nom, prenom):
+def named_hashes(*labels: str | None) -> set[str]:
+    """Empreinte de chaque personne qu'un libellé nomme : lui entier, ou chaque équipier
+    d'un libellé de relais. Règle commune à l'import et à la saisie (#1506)."""
+    return {
+        identity_hash(*pair)
+        for label in labels
+        if label
+        for pair in [(label, ""), *(split_relay_teammates(label) or ())]
+    }
+
+
+def ensure_not_opposed(db: Session, nom: str, prenom: str, *labels: str | None) -> None:
+    """`labels` : autres libellés publiés avec l'identité, comme le nom d'une équipe de relais."""
+    if opposition_repository.any_hash(db, named_hashes(f"{nom} {prenom}", *labels)):
         raise OpposedIdentityError()
 
 
