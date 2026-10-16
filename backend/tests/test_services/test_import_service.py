@@ -17,6 +17,7 @@ from app.repositories import (
     course_repository,
     course_source_repository,
     participation_repository,
+    tcn_count_repository,
     user_repository,
 )
 from app.scrapers.base import FanoutTrace, ScrapedResult
@@ -2093,6 +2094,69 @@ def test_resolve_pending_appelle_les_fonctions_de_lot_par_tranche_pas_par_ligne(
     assert calls["get_by_identity_keys_batch"] <= 5
     assert calls["athlete_create_batch"] <= 5
     assert calls["participation_create_batch"] <= 5
+
+
+def _reimport_with_changed_times(db_session, *, n: int, marker: str, locked: bool = False) -> list[str]:
+    """Importe `n` lignes, puis les réimporte toutes avec un temps changé ;
+    rend le texte des requêtes du seul réimport. `locked` : fiches choisies par
+    un admin, mises à jour dès `add`, hors de toute tranche."""
+    url = f"https://www.klikego.com/{marker}"
+
+    def _rows(total_time: str) -> list[ScrapedResult]:
+        return [
+            _result(
+                str(i), f"NOM{marker}{i}", event_name=f"Triathlon {marker}",
+                source_url=url, total_time=total_time,
+            )
+            for i in range(n)
+        ]
+
+    import_persistence.persist_results(db_session, url, _rows("01:59:00"))
+    if locked:
+        for row in db_session.query(Participation).join(Course).filter(Course.name == f"Triathlon {marker}"):
+            participation_repository.update(db_session, row, athlete_locked=True)
+    queries: list[str] = []
+
+    def _record(conn, cursor, statement, *rest):
+        queries.append(statement)
+
+    engine = db_session.get_bind()
+    event.listen(engine, "before_cursor_execute", _record)
+    try:
+        outcome = import_persistence.persist_results(db_session, url, _rows("02:01:00"))
+    finally:
+        event.remove(engine, "before_cursor_execute", _record)
+    assert outcome["updated"] == n
+    return queries
+
+
+@pytest.mark.parametrize("locked", [False, True])
+def test_reimport_updates_are_batched_not_one_statement_per_row(db_session, monkeypatch, locked):
+    """#1503 : un réimport dont toutes les lignes changent n'émet pas un
+    UPDATE par participation, et les valeurs arrivent bien en base, flushées
+    avant que le recalcul du verdict du club ne les relise."""
+    original_recompute = tcn_count_repository.recompute_counts_for_tcn
+
+    def _recompute_on_flushed_rows(db, **kwargs):
+        assert not [o for o in db.dirty if isinstance(o, Participation)]
+        return original_recompute(db, **kwargs)
+
+    monkeypatch.setattr(tcn_count_repository, "recompute_counts_for_tcn", _recompute_on_flushed_rows)
+
+    def _updates(queries: list[str]) -> int:
+        return sum(q.strip().upper().startswith("UPDATE PARTICIPATIONS") for q in queries)
+
+    small = _reimport_with_changed_times(db_session, n=50, marker="maj1503a", locked=locked)
+    big = _reimport_with_changed_times(db_session, n=200, marker="maj1503b", locked=locked)
+
+    assert _updates(big) == _updates(small), (
+        f"{_updates(small)} UPDATE pour 50 lignes, {_updates(big)} pour 200"
+    )
+    db_session.expire_all()
+    stored = db_session.query(Participation.total_time).join(Course).filter(
+        Course.name == "Triathlon maj1503b"
+    ).all()
+    assert [t for (t,) in stored] == ["02:01:00"] * 200
 
 
 def test_finalize_ne_recharge_plus_les_participations_d_une_deuxieme_fois(db_session):

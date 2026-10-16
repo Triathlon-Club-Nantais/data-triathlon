@@ -111,7 +111,7 @@ function subscribeAthlete(onChange: () => void): () => void {
  * Le stock vit en `localStorage` : **aucun rendu serveur ne le connaît**.
  * L'arbitrage du cluster #467 est de le lire là où il vit plutôt que d'en
  * miroiter une copie en cookie — le détail du raisonnement est dans
- * `frontend/AGENTS.md`. `useSyncExternalStore` porte exactement les deux
+ * `docs/frontend/athlete-retenu.md`. `useSyncExternalStore` porte exactement les deux
  * instantanés que cela demande : `false` au rendu serveur, la lecture réelle
  * dès l'hydratation, et une resynchronisation sur l'événement du stock sans
  * `useEffect` ni état local.
@@ -161,7 +161,7 @@ function snapshotAthlete(): PickedAthlete | null {
  * vers sa ligne dans un classement (#503) et la bande « Ma saison » du
  * tableau de bord (#502). Même arbitrage qu'en #467 : le stock se lit là où
  * il vit, jamais par un cookie miroir — `null` au rendu serveur, la lecture
- * réelle dès l'hydratation (`frontend/AGENTS.md:218-277`).
+ * réelle dès l'hydratation (`docs/frontend/athlete-retenu.md`).
  */
 export function useSelectedAthlete(): PickedAthlete | null {
   return useSyncExternalStore(subscribeAthlete, snapshotAthlete, () => null);

@@ -24,6 +24,16 @@ stocke, et importe tous les participants de l'épreuve.
   parallèle : découverte de port, `.worktreeinclude`, codes de sortie.
 - [RTK](rtk.md) — compresser la sortie des commandes pour les sessions d'agent :
   ce que ça rapporte vraiment, et les cas où c'est interdit.
+- Frontend (`frontend/`) : une page par sujet, renvoyée depuis
+  `frontend/AGENTS.md` : [accès et routes](frontend/acces-et-routes.md),
+  [écrans de panne](frontend/ecrans-erreur.md),
+  [back-office](frontend/back-office.md),
+  [navigation](frontend/navigation.md),
+  [athlète retenu](frontend/athlete-retenu.md),
+  [données et cache](frontend/donnees-serveur.md),
+  [import](frontend/import.md), [tableaux](frontend/tableaux.md),
+  [graphiques](frontend/graphiques.md),
+  [en-têtes et CSP](frontend/securite-entetes.md).
 - Fournisseurs de chronométrage (`scrapers/`) — un fichier par chronométreur :
   formes d'URL acceptées, pièges mesurés et vérités d'API.
 

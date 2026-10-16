@@ -216,7 +216,7 @@ describe("AppNav — doublon de prefetch après resynchro localStorage (#428)", 
     expect(within(rail).getByRole("link", { name: "Résultats" })).toBeInTheDocument();
     // 2, pas 1 : la barre basse mobile (#482, NAV-4) monte son propre `Link`
     // vers la même route, en plus de celui du rail — même limite assumée que
-    // le logo/bouton d'ajout du pied mobile (frontend/AGENTS.md, « #428 »).
+    // le logo/bouton d'ajout du pied mobile (docs/frontend/navigation.md, « #428 »).
     expect(montages.get("/resultats")).toBe(2);
   });
 

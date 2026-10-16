@@ -126,7 +126,7 @@ export default async function DashboardPage({
           {/* Au-dessus des compteurs club, à dessein (#502, NAV-9) : l'écran
               d'atterrissage ne parlait que du club en agrégat. La bande n'existe
               que pour qui a désigné son nom — elle se monte donc côté client et
-              n'est pas dans le HTML initial (arbitrage #467, `frontend/AGENTS.md`).
+              n'est pas dans le HTML initial (arbitrage #467, `docs/frontend/athlete-retenu.md`).
               `InvitationAthlete` (#588) prend le relais, à la même place, pour
               qui n'a encore rien choisi — les deux sont mutuellement exclusifs. */}
           <MaSaison clubEvents={stats.events} seasons={serializeSeasons(selected)} federalOnly={federal_only} />

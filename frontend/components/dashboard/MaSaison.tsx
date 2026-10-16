@@ -51,7 +51,7 @@ function capitaliser(s: string): string {
 /** Hauteur intérieure minimale de la bande, dans ses trois états visibles.
  *
  *  La bande n'est **pas** dans le HTML initial — l'athlète retenu vit en
- *  `localStorage` et n'atteint aucun rendu serveur (`frontend/AGENTS.md:218`).
+ *  `localStorage` et n'atteint aucun rendu serveur (`docs/frontend/athlete-retenu.md`).
  *  Elle apparaît donc à l'hydratation, ce qui décale les compteurs club vers le
  *  bas : coût déjà assumé par #467. Ce qu'on refuse, c'est un **second**
  *  décalage au retour du fetch — d'où un plancher de hauteur posé dès le

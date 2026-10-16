@@ -5,7 +5,7 @@ import Link from "next/link";
  * ligne/fiche est hors de l'aperçu visible du roster (`/club`,
  * `/club/athletes`). Toujours monté, hauteur réservée par le conteneur : le
  * signifiant n'existe qu'après hydratation (`useSelectedAthlete`, jamais dans
- * le HTML initial, `frontend/AGENTS.md`), et sans réservation son apparition
+ * le HTML initial, `docs/frontend/athlete-retenu.md`), et sans réservation son apparition
  * déplacerait la section sous lui.
  */
 export function RappelPosition({
