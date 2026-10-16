@@ -257,7 +257,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             // Monogramme du rail replié (#482, NAV-2) : jusqu'ici seule la
             // barre mobile portait une marque dans le HTML servi. Texte plutôt
             // qu'un second asset graphique — `logo-tcn.png` est un wordmark
-            // 2000×638, illisible à 76 px de large, et calquer un mark carré
+            // en largeur (rapport 3,1:1), illisible à 76 px de large, et calquer un mark carré
             // dessus aurait rouvert l'identité visuelle (#325), hors mandat de
             // ce lot. Même `aria-label` et même destination que le logo
             // déplié : un seul lien « accueil », deux habillages.
