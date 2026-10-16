@@ -91,7 +91,8 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
     );
   }
 
-  const filtered = filterByValidation(filterAthletes(athletes, query), singleSeason ? filtreValidation : "tous");
+  const parNom = filterAthletes(athletes, query);
+  const filtered = filterByValidation(parNom, singleSeason ? filtreValidation : "tous");
   const sorted = sortAthletes(filtered, sort);
 
   // Rang calculé sur la liste **complète**, triée par volume et non filtrée
@@ -164,11 +165,11 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
       {sorted.length === 0 ? (
         <Card padding={0} style={{ overflow: "hidden" }}>
           <div style={{ padding: 40, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>
-            {query.trim() ? (
+            {parNom.length === 0 ? (
               <>Aucun athlète ne correspond à « {query.trim()} ». Essayez un autre nom.</>
             ) : (
-              // #1542 : seul le filtre de statut a vidé la liste (« Quota atteint,
-              // à valider » une fois tous les quotas validés, par exemple).
+              // #1542, #1562 : le nom trouve, c'est le filtre de statut qui a vidé
+              // la liste. « Afficher tous » garde la recherche.
               <>
                 <p>Aucun athlète ne correspond à ce statut sur cette saison.</p>
                 <Button variant="secondary" size="sm" onClick={() => setFiltreValidation("tous")} style={{ marginTop: 12 }}>
