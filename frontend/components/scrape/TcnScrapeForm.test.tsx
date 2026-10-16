@@ -830,7 +830,7 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
     ).toBeInTheDocument();
   });
 
-  it("après enregistrement, une alerte persistante dit la mise en attente et mène au résultat", async () => {
+  it("après enregistrement, une alerte persistante dit la mise en attente, sans lien vers le résultat", async () => {
     participationCreee();
     await ouvrirSaisieManuelle();
     await saisirEtEnregistrer();
@@ -840,9 +840,9 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
     ).toBeInTheDocument();
     expect(screen.getByText("En attente de validation")).toBeInTheDocument();
     expect(screen.getByText(/sous quelques jours/i)).toBeInTheDocument();
-    expect(
-      screen.getByRole("link", { name: /Voir ma participation/i }).getAttribute("href"),
-    ).toBe("/courses/42/participations/77");
+    // Une saisie en attente n'est lisible que des bénévoles (#1519) : le lien
+    // mènerait le public à une page introuvable.
+    expect(screen.queryByRole("link", { name: /Voir ma participation/i })).not.toBeInTheDocument();
     // Le formulaire se referme : l'accusé de réception le remplace, et
     // l'invitation à saisir à la main ne contredit plus le succès affiché.
     expect(

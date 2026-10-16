@@ -546,10 +546,9 @@ export function TcnScrapeForm() {
             </div>
             Un bénévole du club la vérifie, en général sous quelques jours. Elle apparaîtra dans
             les résultats et les statistiques du club dès qu&apos;elle sera validée.
+            {/* Pas de lien vers la saisie : en attente, elle n'est lisible que
+                des bénévoles (#1519), le public tomberait sur une page introuvable. */}
             <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <PrimaryLink href={`/courses/${saved.course.id}/participations/${saved.id}`}>
-                Voir ma participation <span aria-hidden="true">→</span>
-              </PrimaryLink>
               <Button
                 variant="secondary"
                 onClick={() => { setSaved(null); setManual(true); }}

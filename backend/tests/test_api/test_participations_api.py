@@ -67,12 +67,6 @@ def test_create_participation_with_segments(client):
     }
 
 
-def test_duplicate_participation_409(client):
-    client.post("/api/v1/participations", json=_payload())
-    dup = client.post("/api/v1/participations", json=_payload())
-    assert dup.status_code == 409
-
-
 def test_list_filters(client, db_session):
     client.post("/api/v1/participations", json=_payload(bib="1", nom="DUPONT", club="TCN"))
     client.post("/api/v1/participations", json=_payload(bib="2", nom="MARTIN", club="ASPTT"))

@@ -70,10 +70,18 @@ function cookieHeader(jar: Awaited<ReturnType<typeof cookies>>): string {
 const SITE_SESSION_COOKIE = "tcn_site_session";
 
 /**
+ * Cookie de l'espace bénévoles, miroir de `volunteer_access.VOLUNTEER_SESSION_COOKIE`.
+ * Les saisies en attente ne sont rendues qu'à son porteur (#1519) : sans lui, un
+ * bénévole ne les verrait plus sur la fiche ni sur l'épreuve.
+ */
+const VOLUNTEER_SESSION_COOKIE = "tcn_benevole_session";
+
+/**
  * En-tête `cookie` **minimal** relayé par `serverFetch` (#586) : seul
  * `SITE_SESSION_COOKIE` conditionne l'accès aux routes qu'elle sert
  * (`require_site_access`, backend — `athletes`, `courses`, `participations`,
- * `stats`) ; aucune ne lit `tcn_session` (SSO), `tcn_benevole_session`, un
+ * `stats`), et `VOLUNTEER_SESSION_COOKIE` ce qu'elles rendent des saisies en
+ * attente (#1519) ; aucune ne lit `tcn_session` (SSO), un
  * cookie PostHog ni `NAV_WIDTH_COOKIE`. Un allowlist plutôt que l'exclusion de
  * `cookieHeader` : la liste de ce qu'une route *ignore* grandit à chaque
  * cookie ajouté au front (SSO, consentement, analytics…), celle de ce dont
@@ -95,8 +103,12 @@ const SITE_SESSION_COOKIE = "tcn_site_session";
  * production.
  */
 function siteAccessCookieHeader(jar: Awaited<ReturnType<typeof cookies>>): string {
-  const cookie = jar.get(SITE_SESSION_COOKIE);
-  return cookie ? `${SITE_SESSION_COOKIE}=${cookie.value}` : "";
+  return [SITE_SESSION_COOKIE, VOLUNTEER_SESSION_COOKIE]
+    .flatMap((name) => {
+      const cookie = jar.get(name);
+      return cookie ? [`${name}=${cookie.value}`] : [];
+    })
+    .join("; ");
 }
 
 /**

@@ -125,7 +125,7 @@ def test_events_page_ne_compte_ni_ne_liste_les_lignes_jeunes_en_attente(db_sessi
     db_session.flush()
 
     for filtres in [{}, {"club_only": False, "name": "e"}]:
-        page = participation_repository.events_page(db_session, **filtres)
+        page = participation_repository.events_page(db_session, **filtres, include_pending=True)
         lignes = {r.course_id: r.pending_count for r in page["items"]}
         assert lignes == {course.id: 1}, filtres
         assert page["total_events"] == 1, filtres
@@ -160,7 +160,7 @@ def test_events_page_liste_l_epreuve_en_attente_seule_sans_la_compter(db_session
     seule, refusee, mixte = _trois_epreuves(db_session)
 
     for filtres in [{}, {"club_only": True}]:
-        page = participation_repository.events_page(db_session, **filtres)
+        page = participation_repository.events_page(db_session, **filtres, include_pending=True)
         lignes = _lignes(page)
 
         assert lignes[seule.id] == (0, 0, 1), filtres
@@ -173,9 +173,9 @@ def test_events_page_liste_l_epreuve_en_attente_seule_sans_la_compter(db_session
 def test_events_page_par_nom_suit_les_lignes_en_attente(db_session):
     seule, _, mixte = _trois_epreuves(db_session)
 
-    assert _lignes(participation_repository.events_page(db_session, name="seul")) == {seule.id: (0, 0, 1)}
-    assert _lignes(participation_repository.events_page(db_session, name="mixtebis")) == {mixte.id: (0, 0, 1)}
-    page = participation_repository.events_page(db_session, name="mixte")
+    assert _lignes(participation_repository.events_page(db_session, name="seul", include_pending=True)) == {seule.id: (0, 0, 1)}
+    assert _lignes(participation_repository.events_page(db_session, name="mixtebis", include_pending=True)) == {mixte.id: (0, 0, 1)}
+    page = participation_repository.events_page(db_session, name="mixte", include_pending=True)
     assert _lignes(page)[mixte.id] == (1, 1, 1)
     assert page["total_participations"] == 1
 

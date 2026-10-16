@@ -308,8 +308,15 @@ L'identité est une fiche (`athlete_id`) **ou** un nom et un prénom, jamais les
 deux (`422`). Contrat : `specs/20261001-181344-athlete-opposition/contracts/`.
 
 Ce que l'application fait, et où : `services/opposition_service.py`. Le filtre
-des imports vit dans `import_persistence._Persister` ; la saisie manuelle et la
-composition d'équipe refusent l'identité (`OpposedIdentityError`, `422`).
+des imports vit dans `import_persistence._Persister` ; les gestes des bénévoles
+(composition d'équipe…) refusent l'identité (`OpposedIdentityError`, `422`).
+
+La saisie publique (`POST /participations`), elle, ne trahit jamais une
+opposition : même `201` et même corps, rien n'est gardé (#1514). Pour qu'une
+seconde requête ne le trahisse pas davantage, une saisie en attente n'est
+lisible que des bénévoles et un dossard pris par une saisie en attente ne rend
+plus `409` (#1519, changement de contrat détaillé dans `backend/app/api/AGENTS.md`).
+Restent les identifiants de la réponse et les fiches qu'une saisie crée (#1615).
 
 ## Doublons suspects (#288)
 

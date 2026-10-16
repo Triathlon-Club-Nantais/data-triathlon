@@ -78,7 +78,7 @@ def test_csv_pending_row_has_no_rank(client, athlete):
 
 
 def test_csv_rejected_row_is_flagged(client, db_session, athlete):
-    for participation in participation_repository.list_for_athlete(db_session, athlete.id):
+    for participation in participation_repository.list_for_athlete(db_session, athlete.id, include_pending=True):
         participation.is_rejected = participation.is_pending_validation
     db_session.commit()
 

@@ -5,6 +5,7 @@ from typing import NamedTuple
 
 from sqlalchemy import and_, case, exists, func, literal, or_, select, union_all
 from sqlalchemy import update as sql_update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, aliased, contains_eager, joinedload
 
 from app.core import counter_scope
@@ -48,6 +49,14 @@ def exists_for_bib(db: Session, course_id: int, bib_number: str | None) -> bool:
         .filter(Participation.course_id == course_id, Participation.bib_number == bib_number)
         .first()
         is not None
+    )
+
+
+def get_by_bib(db: Session, course_id: int, bib_number: str) -> Participation | None:
+    return (
+        db.query(Participation)
+        .filter(Participation.course_id == course_id, Participation.bib_number == bib_number)
+        .first()
     )
 
 
@@ -399,6 +408,18 @@ def finishers_count_by_group(
     return {(course_id, bool(is_relay)): count for course_id, is_relay, count in rows}
 
 
+def create_unless_bib_taken(db: Session, **fields) -> Participation | None:
+    """`create` sous point de reprise : `None` si `uq_participation_bib` cède, la
+    transaction en cours restant utilisable. Une lecture préalable (`get_by_bib`)
+    est franchie par deux saisies simultanées, la contrainte jamais (#1519)."""
+    try:
+        with db.begin_nested():
+            participation = create(db, **fields)
+    except IntegrityError:
+        return None
+    return participation
+
+
 def create(db: Session, **fields) -> Participation:
     participation = Participation(**fields)
     db.add(participation)
@@ -584,8 +605,12 @@ def list_for_athlete(
     *,
     seasons: list[int] | None = None,
     federal_only: bool = False,
+    include_pending: bool = False,
 ) -> list[Participation]:
     """Participations d'un athlète, filtrables comme les agrégats du club (#502).
+
+    `include_pending` y fait entrer les lignes en attente et refusées : la fiche
+    ne les montre qu'à un bénévole (#1519, FR-019).
 
     Les deux filtres sont **neutres par défaut** : la fiche athlète
     (`GET /athletes/{id}` sans paramètre) continue de rendre une carrière
@@ -598,6 +623,8 @@ def list_for_athlete(
         .options(joinedload(Participation.course).selectinload(Course.sources))
         .filter(carried_by(athlete_id))
     )
+    if not include_pending:
+        q = q.filter(validated_clause(Participation.is_pending_validation))
     if seasons or federal_only:
         q = q.join(Course, Participation.course_id == Course.id)
     if seasons:
@@ -1512,6 +1539,7 @@ def events_page(
     sort: str = "date_desc",
     page: int = 1,
     page_size: int = 30,
+    include_pending: bool = False,
 ) -> dict:
     """Page d'épreuves (scroll infini) + total épreuves et total participations.
 
@@ -1528,8 +1556,9 @@ def events_page(
     ils filtrent au niveau de la participation, avant l'agrégat par épreuve,
     ce qu'un compteur déjà agrégé ne peut pas reproduire.
 
-    Les deux chemins listent aussi une épreuve qui n'a que des résultats en
-    attente non refusés (#1273), avec `pending_count` ; `total`, `tcn_count`
+    Sous `include_pending` (un bénévole, #1519), les deux chemins listent aussi
+    une épreuve qui n'a que des résultats en attente non refusés (#1273), avec
+    `pending_count` ; `total`, `tcn_count`
     et `total_participations` ne comptent toujours que des résultats validés.
     `total_events` compte les épreuves listées, c'est sur lui que s'arrête le
     défilement infini.
@@ -1544,7 +1573,7 @@ def events_page(
             date_to=date_to,
             seasons=seasons,
             federal_only=federal_only,
-            include_pending=True,
+            include_pending=include_pending,
         )
         totals = q.with_entities(
             func.count(Course.id).label("total_events"),
@@ -1574,7 +1603,7 @@ def events_page(
         date_to=date_to,
         seasons=seasons,
         federal_only=federal_only,
-        include_pending=True,
+        include_pending=include_pending,
     )
 
     # `total_events` : COUNT(DISTINCT course_id) sur la requête filtrée plutôt
@@ -1600,7 +1629,7 @@ def events_page(
         date_to=date_to,
         seasons=seasons,
         federal_only=federal_only,
-        include_pending=True,
+        include_pending=include_pending,
     ).one()
     total_events = counts.total_events or 0
     total_participations = counts.total_participations or 0

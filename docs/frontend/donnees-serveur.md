@@ -71,8 +71,9 @@ ne rouvre `/club` au transport intégral.
 est leur lecture du 401, et quels cookies elles envoient :
 
 - `serverFetch` — lève une `ApiError` sur tout non-OK, 401 compris. Relais
-  **minimal** depuis #586 : seul le cookie de session d'accès au site part,
-  le reste du jar (SSO, bénévoles, PostHog…) est ignoré — voir plus bas.
+  **minimal** depuis #586 : le cookie de session d'accès au site part, et
+  depuis #1519 le cookie bénévoles (une saisie en attente n'est rendue qu'à
+  lui) ; le reste du jar (SSO, PostHog…) est ignoré, voir plus bas.
 - `serverFetchAuthed` — rend `null` sur 401 (anonyme est un état normal),
   lève sur le reste. Sert `/auth/me`, donc relaie le jar entier (hors
   `NAV_WIDTH_COOKIE`) : c'est la session SSO qu'elle a besoin de lire.

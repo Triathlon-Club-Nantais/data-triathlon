@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
-from app.api.deps import MAX_PAGE, require_permission
+from app.api.deps import MAX_PAGE, is_volunteer, require_permission
 from app.core.club import is_club_scope
 from app.core.database import get_db
 from app.core.permissions import P
@@ -119,8 +119,9 @@ def get_athlete(
         description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
     ),
     db: Session = Depends(get_db),
+    volunteer: bool = Depends(is_volunteer),
 ):
-    """Fiche athlète et ses participations.
+    """Fiche athlète et ses participations, en attente comprises pour un bénévole seul (#1519).
 
     Les deux filtres sont **optionnels et neutres par défaut** (#502) : sans
     eux, la route rend la carrière entière, comme depuis toujours. Ils servent
@@ -130,7 +131,11 @@ def get_athlete(
     """
     athlete = not_found.athlete_or_404(db, athlete_id, message="Athlète introuvable")
     participations = participation_repository.list_for_athlete(
-        db, athlete_id, seasons=parse_seasons(seasons), federal_only=federal_only
+        db,
+        athlete_id,
+        seasons=parse_seasons(seasons),
+        federal_only=federal_only,
+        include_pending=volunteer,
     )
     counts = participation_repository.finishers_count_by_group(
         db, [p.course_id for p in participations]
@@ -152,11 +157,18 @@ def get_athlete(
     response_class=Response,
     responses={200: {"content": {"text/csv": {}}}},
 )
-def get_athlete_participations_csv(athlete_id: DbId, db: Session = Depends(get_db)):
+def get_athlete_participations_csv(
+    athlete_id: DbId,
+    db: Session = Depends(get_db),
+    volunteer: bool = Depends(is_volunteer),
+):
     """Les résultats de la fiche athlète en CSV pour Excel (#1375) : mêmes lignes
-    que `GET /athletes/{id}` sans filtre, en attente et refusées comprises."""
+    que `GET /athletes/{id}` sans filtre, en attente et refusées comprises pour
+    un bénévole seul (#1519)."""
     athlete = not_found.athlete_or_404(db, athlete_id, message="Athlète introuvable")
-    participations = participation_repository.list_for_athlete(db, athlete_id)
+    participations = participation_repository.list_for_athlete(
+        db, athlete_id, include_pending=volunteer
+    )
     finishers = participation_repository.finishers_count_by_group(
         db, [p.course_id for p in participations]
     )

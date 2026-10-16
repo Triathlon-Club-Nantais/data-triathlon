@@ -2,7 +2,13 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import MAX_PAGE, optional_user, public_write_rate_limit, require_permission
+from app.api.deps import (
+    MAX_PAGE,
+    is_volunteer,
+    optional_user,
+    public_write_rate_limit,
+    require_permission,
+)
 from app.core.analytics import ANONYMOUS_DISTINCT_ID, capture_event
 from app.core.club import is_club_scope
 from app.core.database import get_db
@@ -133,9 +139,14 @@ def list_participations(
 
 
 @router.get("/participations/{participation_id}", response_model=ParticipationOut)
-def get_participation(participation_id: DbId, db: Session = Depends(get_db)):
+def get_participation(
+    participation_id: DbId,
+    db: Session = Depends(get_db),
+    volunteer: bool = Depends(is_volunteer),
+):
     row = participation_repository.get(db, participation_id)
-    if not row:
+    # Une saisie en attente ou refusée répond au public comme une absente (#1519).
+    if not row or (row.is_pending_validation and not volunteer):
         # Ponctué comme la famille de `admin_actions` (#439), à laquelle la
         # suppression du même résultat délègue désormais : sans ça, la même
         # ressource répondrait deux chaînes selon le verbe.

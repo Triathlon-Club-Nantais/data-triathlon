@@ -129,11 +129,27 @@ def require_volunteer_access(
     return None
 
 
+def is_volunteer(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(optional_user),
+) -> bool:
+    """L'appelant ouvrirait-il la page bénévoles ? Mêmes deux voies que
+    `require_volunteer_access`, sans lever : une saisie en attente n'est lisible
+    que de lui (#1519), sinon une seconde requête trahit une opposition (#1514)."""
+    return (
+        user is not None and authorization.has_permission(db, user, P.VOLUNTEER_ACCESS_MANAGE)
+    ) or has_volunteer_cookie(request, db)
+
+
 def has_volunteer_cookie(request: Request, db: Session) -> bool:
     """Le cookie bénévoles de cette requête est-il valide et non expiré (#1534) ?
-    Faux sans configuration."""
-    config = volunteer_config_repository.get_config(db)
+    Faux sans configuration. Sans cookie, aucune lecture : `is_volunteer` garde
+    les lectures publiques (#1519)."""
     cookie = request.cookies.get(volunteer_access.VOLUNTEER_SESSION_COOKIE)
+    if not cookie:
+        return False
+    config = volunteer_config_repository.get_config(db)
     return config is not None and shared_password.verify_cookie(
         cookie,
         config.session_secret,
