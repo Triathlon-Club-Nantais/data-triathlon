@@ -429,15 +429,18 @@ def _new_participation(fields: dict) -> Participation:
     return participation
 
 
-def update(db: Session, participation: Participation, **fields) -> Participation:
+def update(db: Session, participation: Participation, *, flush: bool = True, **fields) -> Participation:
     """Écrit les `fields` fournis sur une participation existante.
 
     Ne touche que les colonnes passées : le persister a déjà décidé, champ par
     champ, lesquelles la source a le droit de réécrire (fusion prudente).
+    `flush=False` laisse l'UPDATE au prochain flush de l'appelant : le persister
+    regroupe ainsi les lignes d'une tranche en un seul `executemany` (#1503).
     """
     for key, value in fields.items():
         setattr(participation, key, value)
-    db.flush()
+    if flush:
+        db.flush()
     return participation
 
 

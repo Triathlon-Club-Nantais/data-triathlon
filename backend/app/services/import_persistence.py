@@ -431,7 +431,8 @@ class _Persister:
         if source_key is not None:
             changes["source_identity_key"] = source_key
         if changes:
-            participation_repository.update(self.db, existing, **changes)
+            # Parti au flush de fin de tranche ou de `finalize` (#1503).
+            participation_repository.update(self.db, existing, flush=False, **changes)
 
     def _note_passive(self, course: Course, source: CourseSource) -> None:
         """Retient une source passive **une fois**, et rédige le message qui la nomme.
@@ -813,10 +814,11 @@ class _Persister:
                 if item.bib is not None:
                     self._by_bib[course_id][item.bib] = participation
                 self.imported += 1
+        # `autoflush` est coupé : les mises à jour de la tranche partent ici, en
+        # un `executemany` (#1503), avant que la tranche suivante ou la purge
+        # (ancien porteur d'un résultat repris) ne relise la base.
+        self.db.flush()
         if team_athletes:
-            # `autoflush` est coupé : sans ce flush, la purge lirait encore
-            # l'ancien porteur d'un résultat repris sans autre changement.
-            self.db.flush()
             athlete_repository.delete_orphans_among(self.db, team_athletes)
 
     def _athlete_for_bib(self, course_id: int, item: _PendingResolution, athlete: Athlete) -> Athlete:
@@ -1205,6 +1207,8 @@ class _Persister:
         # Un second passage (lignes Challenge rendues au flux normal, #1008) ne
         # doit pas résoudre deux fois les mêmes découpages.
         self._pending_splits.clear()
+        # Mises à jour posées par `add` hors de toute tranche, lues par le recalcul.
+        self.db.flush()
         if self._athlete_updates:
             athlete_repository.apply_updates(
                 self.db, [self._athlete_updates[aid] for aid in sorted(self._athlete_updates)]
