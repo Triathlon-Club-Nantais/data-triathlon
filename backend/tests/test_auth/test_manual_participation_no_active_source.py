@@ -10,7 +10,7 @@ from datetime import date
 
 from app.repositories import course_repository
 from app.scrapers.base import ScrapedResult
-from app.services import scrape_service
+from tests.conftest import save_entry
 
 
 def test_source_url_et_provider_hostiles_ne_creent_aucune_source_active(client, db_session):
@@ -66,7 +66,7 @@ def test_ne_detourne_pas_une_epreuve_existante_via_la_regle_r(client, db_session
     s'applique jamais à `"manuel"`.
     """
     url_legitime = "https://www.klikego.com/resultats/nantes-2026/duathlon-m?heat=serie-1"
-    participation_legitime = scrape_service.save_one(
+    participation_legitime = save_entry(
         db_session,
         ScrapedResult(
             source_url=url_legitime,
