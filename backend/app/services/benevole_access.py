@@ -29,6 +29,12 @@ from app.services import audit, shared_password
 #: `api/v1/auth.py`), sur un mécanisme entièrement séparé.
 VOLUNTEER_SESSION_COOKIE = "tcn_benevole_session"
 
+#: Durée de validité **serveur** du cookie bénévoles (#1534), contrôlée sur
+#: l'horodatage signé : le cookie est posé sans `max_age`, et la restauration
+#: de session du navigateur le ferait vivre sans fin. Il ouvre des écritures,
+#: d'où une borne plus courte que les 90 jours du cookie du site.
+VOLUNTEER_SESSION_TTL_SECONDS = 30 * 24 * 60 * 60
+
 #: Taille du mot de passe généré (research.md §D5), en octets.
 _GENERATED_PASSWORD_SIZE = 18
 
