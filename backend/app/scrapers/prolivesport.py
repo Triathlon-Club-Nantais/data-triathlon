@@ -654,12 +654,12 @@ def scrape_event_fanout(
     for race, sub_url in to_scrape:
         plan = _build_split_map(splits, race)
         event_type = classify_event_type(race)
-        heat_name = qualify_event_name(event_name, race)
+        qualified_name = qualify_event_name(event_name, race)
         heat_rows = [row for row in rows.get(race, []) if not _is_unmatched_bib(row)]
         is_relay = _race_is_relay(race, heat_rows)
         results.extend(
             _parse_athlete(
-                row, plan, sub_url, heat_name, event_type, event_date, distances[race], is_relay=is_relay
+                row, plan, sub_url, qualified_name, event_type, event_date, distances[race], is_relay=is_relay
             )
             for row in heat_rows
         )
@@ -689,7 +689,7 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
         plan = _build_split_map(_fetch_splits(event_id, client), race)
 
     event_type = classify_event_type(race)
-    heat_name = qualify_event_name(event_name, race)
+    qualified_name = qualify_event_name(event_name, race)
     distance_km = next(
         (_race_distance_km(e) for e in races if (e.get("race") or "").strip() == race), None
     )
@@ -698,6 +698,6 @@ def scrape_event_all(url: str) -> list[ScrapedResult]:
     ]
     is_relay = _race_is_relay(race, heat_rows)
     return [
-        _parse_athlete(a, plan, url, heat_name, event_type, event_date, distance_km, is_relay=is_relay)
+        _parse_athlete(a, plan, url, qualified_name, event_type, event_date, distance_km, is_relay=is_relay)
         for a in heat_rows
     ]
