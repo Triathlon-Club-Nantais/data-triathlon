@@ -29,6 +29,7 @@ from app.services import (
     import_service,
     quality,
 )
+from tests.conftest import save_entry
 
 
 def _settings() -> Settings:
@@ -236,8 +237,6 @@ def test_manual_entry_compares_the_course_date_like_the_import(db_session, patch
     """#965, review: both paths compare the date of the course the result lands
     on, not the date the source claims. Here the manual entry is reconciled by
     rule R onto an older course while claiming a newer date."""
-    from app.services import scrape_service
-
     patch_scraper([_result("1", "MEME", prenom="Mia", club="TRIATHLON CLUB NANTAIS")])
     import_service.import_event(db_session, URL, _settings())
     bc_url = "https://resultats.breizhchrono.com/resultats-courses/tri-ancien-1488071608761-5/tri-m"
@@ -247,7 +246,7 @@ def test_manual_entry_compares_the_course_date_like_the_import(db_session, patch
     )
     db_session.flush()
 
-    scrape_service.save_one(db_session, ScrapedResult(
+    save_entry(db_session, ScrapedResult(
         source_url=bc_url, provider="breizhchrono", athlete_name="MEME", athlete_firstname="Mia",
         bib_number="42", event_name="Autre nom", event_date=date(2026, 10, 1),
         event_type="triathlon-m", total_time="01:59:00", club="TRIATHLON ATLANTIQUE CARQUEFOU",
