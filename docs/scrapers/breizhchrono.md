@@ -131,7 +131,7 @@ Sondage du 25/09/2026, Klikego et Breizh Chrono : la fin de pagination de
 `course-result.jsp` est un **200 sans ligne** (page 40 d'un heat de 50 lignes),
 un heat inconnu répond **302** vers un autre heat, un événement inconnu **500**.
 Un non-200 n'est donc jamais une fin de données. `klikego_platform.get_page`
-rejoue un 5xx (3 essais, sans temporisation) puis lève `ScraperError`, sur la
+rejoue un 5xx (3 essais, espacés de 0,5 puis 1 s) puis lève `ScraperError`, sur la
 pagination d'un heat, ses checkpoints `inter` et la page heat des deux
 fournisseurs : le heat part dans `trace.failures` au lieu d'être importé
 tronqué, sans splits inter, puis figé 30 jours par le cache TTL. Les pages
@@ -175,12 +175,14 @@ Sondé le 16/10/2026 sur `www.klikego.com/resultats/{slug}/{id}` :
   compris sans résultat publié (Course de Noël 2026, `1624160890633-7` : « Les
   résultats seront bientôt disponibles », aucun heat).
 
-`klikego._fetch_event_page` passe donc par `klikego_platform.get_page` (un 5xx
-rejoué, puis `ScraperError` comme tout non-200) et lève « Événement Klikego
-introuvable » (`ValueError`, même famille que Sportinnovation, #1387) quand la
-page n'a pas ce titre. Un événement réel sans heat publié reste un import vide
-sans échec. Le chemin mono-heat, qui n'y lit que la date, tolère les deux
-erreurs et importe sans date. Fixtures : `backend/tests/fixtures/klikego/`
+`klikego._fetch_event_page` passe donc par `klikego_platform.get_page` (les 5xx
+rejoués, 3 essais, puis `ScraperError` comme tout non-200) et lève « Événement
+Klikego introuvable » (`ValueError`, même famille que Sportinnovation, #1387)
+quand la page n'a pas ce titre mais porte le marqueur `'page_404'`. Sans titre
+ni marqueur, c'est la page qui a changé : `ScraperError` « structure
+inattendue », pour ne pas envoyer l'utilisateur vérifier un lien juste. Un
+événement réel sans heat publié reste un import vide sans échec. Le chemin
+mono-heat, qui n'y lit que la date, tolère ces erreurs et importe sans date. Fixtures : `backend/tests/fixtures/klikego/`
 (`unknown-event.html`, `no-results-yet-event.html`).
 
 Breizh Chrono n'est pas concerné : son fan-out n'a pas de page d'événement à

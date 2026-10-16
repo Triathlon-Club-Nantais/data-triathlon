@@ -63,12 +63,16 @@ def _fetch_event_page(event_id: str, slug: str, client: httpx.Client) -> str:
     """
     url = f"{BASE}/resultats/{slug}/{event_id}" if slug else f"{BASE}/resultats/{event_id}"
     html = get_page(client, url).text
-    if not BeautifulSoup(html, "lxml").select_one("h1.event-header-title"):
+    if BeautifulSoup(html, "lxml").select_one("h1.event-header-title"):
+        return html
+    # La page générique se déclare elle-même en 404 auprès de gtag ; sans ce
+    # marqueur, c'est la page qui a changé, pas le lien qui est faux.
+    if "'page_404'" in html:
         raise ValueError(
             f"Événement Klikego introuvable : {event_id}. La page de l'événement "
             "n'existe pas ou plus sur Klikego, vérifier le lien."
         )
-    return html
+    raise ScraperError(f"Page d'événement Klikego illisible (structure inattendue) : {url}")
 
 
 def _fetch_event_date(event_id: str, slug: str, client: httpx.Client):

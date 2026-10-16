@@ -2321,6 +2321,16 @@ def test_scrape_event_fanout_unknown_event_raises_not_found(monkeypatch):
         klikego.scrape_event_fanout("9999999999999-9", "Inconnu", "triathlon-de-vierzon-2026")
 
 
+def test_fetch_event_page_without_title_nor_404_marker_is_a_layout_change():
+    """A redesign must not read as a wrong link: no `introuvable` without Klikego's own 404 tag."""
+    from app.core.exceptions import ScraperError
+
+    client = _ScriptedClient([_StatusResp("<html><body><h1>Autre</h1></body></html>")])
+
+    with pytest.raises(ScraperError, match="structure inattendue"):
+        klikego._fetch_event_page("1674523163798-4", "triathlon-de-vierzon-2026", client)
+
+
 @pytest.mark.parametrize("status", [404, 500])
 def test_fetch_event_page_raises_on_non_200(monkeypatch, status):
     """#1522: a failing event page is not an event without heats."""
