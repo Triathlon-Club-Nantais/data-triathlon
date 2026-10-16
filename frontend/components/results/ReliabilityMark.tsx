@@ -1,4 +1,5 @@
 import { describeQualityIssues } from "@/lib/quality";
+import { pctFr } from "@/lib/utils/format";
 
 /**
  * Marque « données douteuses » d'une épreuve (#486, RES-10).
@@ -110,8 +111,6 @@ export function SplitCoverageNote({
   // dirait exactement l'inverse de la vérité. Ce cas se tait, faute de savoir le dire.
   if (median <= SEUIL_ECART_EPREUVE) return null;
 
-  const part = Math.round(median * 100);
-
   return (
     <p
       style={{
@@ -121,7 +120,7 @@ export function SplitCoverageNote({
       }}
     >
       Sur cette épreuve, les temps intermédiaires ne couvrent pas l&apos;intégralité du
-      parcours — il en manque environ {part} % du temps total. Les temps affichés sont ceux
+      parcours — il en manque environ {pctFr(median * 100, 0)} du temps total. Les temps affichés sont ceux
       publiés par le chronométreur.
     </p>
   );

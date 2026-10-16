@@ -17,7 +17,7 @@ import {
   AthleteVariantsPanel,
 } from "@/components/athletes/AdminGates";
 import { BestTimesCard } from "@/components/athletes/BestTimesCard";
-import { formatToken, disciplineBreakdownBySeason, genderShort, ordinalFr, formatCount } from "@/lib/utils/format";
+import { formatToken, disciplineBreakdownBySeason, genderShort, ordinalFr, formatCount, pctFr } from "@/lib/utils/format";
 import { BarList } from "@/components/charts/BarList";
 import { CAT_COLORS } from "@/components/charts/CategoryBars";
 import { bestRanking, progressionSeries, recurringWeakSegment } from "@/lib/utils/ranking";
@@ -187,8 +187,8 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
               value={best ? ordinalFr(best.rank) : "—"}
               // Rapporté au champ (#1212) : un 29e sur 30 n'est pas un 29e sur 2 000.
               hint={
-                best?.total != null
-                  ? `sur ${formatCount(best.total)} · Top ${best.percent} %${horsRelais ? ", hors relais" : ""}`
+                best?.total != null && best.percent != null
+                  ? `sur ${formatCount(best.total)} · Top ${pctFr(best.percent, 0)}${horsRelais ? ", hors relais" : ""}`
                   : horsRelais
               }
               valueColor="var(--tcn-orange)"
