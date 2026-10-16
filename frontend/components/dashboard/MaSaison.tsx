@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AnnonceStatut, Button, Card, Eyebrow } from "@/components/tcn";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AddEventLink } from "./SeasonEmptyState";
 import {
   ATHLETE_LOST_EVENT,
   clearAthlete,
@@ -295,14 +296,7 @@ export function MaSaison({
         <Ligne
           principale={texte}
           secondaire={`Le club en a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`}
-          action={
-            <Link
-              href="/ajouter"
-              className="-my-1 inline-block py-1 text-sm font-semibold text-accent-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tcn-orange)]"
-            >
-              Ajouter une épreuve →
-            </Link>
-          }
+          action={<AddEventLink />}
         />
       </Bande>
     );
