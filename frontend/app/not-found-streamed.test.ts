@@ -19,6 +19,7 @@ const ROUTES = [
   { page: "athletes/[id]", loading: "athletes/[id]" },
   { page: "courses/[id]", loading: "courses/[id]" },
   { page: "courses/[id]/participations/[participationId]", loading: "courses/[id]/participations/[participationId]" },
+  { page: "challenges/[id]", loading: "challenges/[id]" },
 ];
 
 describe("fiches dynamiques absentes : 200 streamé et noindex (#1064)", () => {

@@ -34,7 +34,8 @@ points qui se re-cassent facilement :
   affirmée. Ses sorties évitent `/carte`, masquée du rail (#10, #28) — à
   rouvrir quand ces deux-là lèvent le masque.
 - **Une fiche absente répond 200, pas 404, et c'est assumé** (#1064).
-  `athletes/[id]`, `courses/[id]` et `courses/[id]/participations/[participationId]`
+  `athletes/[id]`, `courses/[id]`,
+  `courses/[id]/participations/[participationId]` et `challenges/[id]` (#1541)
   portent chacune un `loading.tsx` : le 200 part avec le squelette, avant que
   la page n'appelle `notFound()`, et Next ne peut plus le changer (guide
   `streaming.md`, § « The HTTP contract »). Il injecte à la place

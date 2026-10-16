@@ -24,7 +24,7 @@ export default async function ChallengePage({ params }: { params: Promise<{ id: 
 
   return (
     <PageShell>
-      <PageHeader eyebrow="Classement Challenge" title={challenge.name} />
+      <PageHeader eyebrow="Classement Challenge" title={challenge.name} className="mb-6" />
       <div className="space-y-6">
         <Card>
           <p style={{ margin: 0 }}>
