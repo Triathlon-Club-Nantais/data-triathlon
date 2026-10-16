@@ -6,6 +6,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { apiClient } from "@/lib/api/client";
 import type { AthleteSearchResult, Participation } from "@/lib/types";
 import { commonParticipations, formatDelta, headToHead } from "@/lib/utils/athlete-comparison";
+import { performanceExclusion } from "@/lib/utils/best-times";
 import { formatDate } from "@/lib/utils/date";
 
 // Chaque barre n'est qu'un simple rectangle de largeur proportionnelle : pas
@@ -152,6 +153,8 @@ export function AthleteComparisonResult({
       {rows.map((r) => {
         const mineSeconds = r.mineSeconds ?? 0;
         const theirsSeconds = r.theirsSeconds ?? 0;
+        // #1563 : même règle que `headToHead`, dite sur la ligne qu'elle écarte.
+        const exclusion = performanceExclusion(r.mine) ?? performanceExclusion(r.theirs);
         return (
           // `role="group"` + `aria-label` restitue le regroupement que portait
           // implicitement le `<li>` de la liste `sr-only` retirée avec le SVG :
@@ -163,6 +166,11 @@ export function AthleteComparisonResult({
               {r.eventDate && (
                 <span style={{ marginLeft: 8, fontSize: 12, color: "var(--tcn-text-faint)" }}>
                   {formatDate(r.eventDate)}
+                </span>
+              )}
+              {exclusion && (
+                <span style={{ marginLeft: 8, fontSize: 12, fontWeight: 600, color: "var(--tcn-text-muted)" }}>
+                  Hors bilan : {exclusion}
                 </span>
               )}
             </div>
