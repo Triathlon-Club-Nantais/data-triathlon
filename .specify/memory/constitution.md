@@ -279,7 +279,7 @@ rien**. La règle s'applique aux **nouveaux** ajouts et à toute réécriture
 substantielle d'un fichier. Un fichier français touché pour un fix ciblé
 reste français dans le patch.
 
-**Dérogation bornée — campagne #88** : par dérogation à l'alinéa précédent, le
+**Dérogation bornée — campagne #88 (éteinte le 2026-10-16, voir le re-scan de clôture ci-dessous)** : par dérogation à l'alinéa précédent, le
 renommage des identifiants français de `backend/app` est autorisé sur les lots
 ci-dessous, sous cinq critères **cumulatifs** : **tout symbole interne au
 backend**, à l'exclusion de ceux gelés par un contrat public au sens de la
@@ -340,7 +340,7 @@ rattaché à un lot. Le script et sa sortie sont joints à la PR qui ferme #1435
 relancé le 2026-10-16 (#1475) sur `origin/main` `ad24fb3f`, une fois les lots A
 à I livrés, compte encore 385 identifiants dans les 86 fichiers relevés des lots J à R,
 et dans les lots A à I quatre faux positifs anglais seulement (tokens
-`exclusions` et `cumulatives`). Une fois la dérogation éteinte, l'alinéa précédent reprend pleinement.
+`exclusions` et `cumulatives`).
 Le re-scan de clôture (#1538), relancé sur `origin/main` `d3a4fd8e` avec le lot
 S appliqué, relève 52 identifiants dans 29 fichiers, **tous des faux
 positifs** : mots anglais absents des dictionnaires (`participations`,
@@ -349,7 +349,7 @@ positifs** : mots anglais absents des dictionnaires (`participations`,
 fournisseurs (`Chrono` de BreizhChrono et ChronoWeb). Les noms de modules, que
 le re-scan AST ne voit pas, sont gardés par `backend/tests/test_module_names.py`
 depuis le renommage des modules `benevole*` (#1571). **La dérogation est
-éteinte depuis le 2026-10-16** : l'alinéa précédent reprend pleinement, et un
+éteinte depuis le 2026-10-16** : la **Règle de transition** reprend pleinement, et un
 identifiant français ajouté à `backend/app` ne relève plus d'aucun lot. Design et relevé
 chiffré initial :
 `docs/superpowers/specs/2026-07-31-convention-nommage-identifiants-design.md`.
