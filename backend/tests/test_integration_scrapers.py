@@ -95,8 +95,10 @@ def test_detection(provider, url):
 @pytest.mark.parametrize("provider, url", sorted(LIVE_URLS.items()))
 def test_scrape_event_all_live(provider, url):
     """L'import d'épreuve renvoie des participants exploitables."""
-    results, _trace = registry.scrape_event_all(url)
-    assert results, f"{provider} : aucun participant renvoyé"
+    results, trace = registry.scrape_event_all(url)
+    # Trace : heats en échec (page heat non 200) ou aucun heat énuméré (épreuve
+    # retirée, ou page d'événement non 200 chez Klikego).
+    assert results, f"{provider} : aucun participant renvoyé ({trace})"
     assert any(r.athlete_name for r in results), f"{provider} : aucun nom d'athlète"
     assert any(r.total_time for r in results), f"{provider} : aucun temps total"
     # Type d'épreuve détecté sur au moins un résultat

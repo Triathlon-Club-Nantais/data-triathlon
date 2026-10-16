@@ -137,6 +137,33 @@ fournisseurs : le heat part dans `trace.failures` au lieu d'être importé
 tronqué, sans splits inter, puis figé 30 jours par le cache TTL. Les pages
 détail par participant et la page événement gardent leur repli.
 
+## Un échec simultané des trois tests du moteur n'est pas une dérive (#1517)
+
+Le 16/10/2026, deux passes d'intégration consécutives ont fait échouer ensemble
+Klikego Vierzon (`test_scrape_event_all_live[klikego]`), Breizh Chrono Mesquer
+(`test_bc_mesquer_racine_302_fanoute_tous_les_heats`) et Dinard en live
+(`test_bc_live_dinard_swimrun`). Re-sondé le même jour quelques heures plus
+tard : les trois épreuves répondent 200 avec leurs heats (6 à Vierzon, 8 à
+Mesquer), et la suite complète puis trois passes ciblées sont vertes. Ni course
+retirée, ni format changé. Les trois passent par le même moteur JSP :
+l'explication la plus plausible est une indisponibilité passagère de la
+plateforme, que rien de capturé le 16/10 (ni trace, ni statut HTTP) ne permet
+de confirmer.
+
+- Avant de repointer un test Klikego ou Breizh Chrono, re-sonder plus tard :
+  un échec qui touche **toutes** les épreuves du moteur à la fois vient de la
+  plateforme, pas d'une épreuve.
+- Une page d'événement Klikego inconnue répond **200** avec une page générique
+  sans `<el-select name="heat">`. Le fan-out n'énumère alors aucun heat et rend
+  une liste vide **sans** échec dans la trace. Il en va de même d'une page
+  d'événement non 200 (`klikego._fetch_event_page` rend `""` sans rejeu) : une
+  panne de cette seule page ressemble à une épreuve retirée. Seul un heat dont
+  la page ne répond pas apparaît dans `trace.failures`.
+- Seul `test_scrape_event_all_live` porte la trace dans son message d'échec.
+  Les tests Breizh Chrono n'en ont pas d'utile : à Mesquer, une racine non 200
+  replie sur un heat unique, et une panne de heat y lève, comme sur Dinard en
+  live (chemin mono-heat).
+
 ## Dates, types, relais
 
 `klikego_platform.parse_page_date` cherche une date dans le **HTML entier**, pas dans un élément
