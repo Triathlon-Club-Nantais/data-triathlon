@@ -70,6 +70,71 @@ describe("AthleteComparisonResult", () => {
   });
 });
 
+describe("AthleteComparisonResult head-to-head line (#1543)", () => {
+  it("sums up wins and losses above the races, without ties when there are none", () => {
+    const mine = [
+      participation(1, 10, "2026-03-01", "01:00:00"),
+      participation(2, 20, "2026-04-01", "01:00:00"),
+      participation(3, 30, "2026-05-01", "01:10:00"),
+    ];
+    const theirs = [
+      participation(11, 10, "2026-03-01", "01:05:00"),
+      participation(12, 20, "2026-04-01", "01:05:00"),
+      participation(13, 30, "2026-05-01", "01:05:00"),
+    ];
+
+    render(<AthleteComparisonResult mine={mine} theirs={theirs} theirsName="Camarade" />);
+
+    expect(
+      screen.getByText("Face à Camarade, sur 3 épreuves comparables : devant 2 fois, derrière 1 fois."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/hors bilan/)).not.toBeInTheDocument();
+  });
+
+  it("mentions ties, drops zero counts and uses the singular for one race", () => {
+    const mine = [participation(1, 10, "2026-03-01", "01:05:00")];
+    const theirs = [participation(11, 10, "2026-03-01", "01:05:00")];
+
+    render(<AthleteComparisonResult mine={mine} theirs={theirs} theirsName="Camarade" />);
+
+    expect(screen.getByText("Face à Camarade, sur 1 épreuve comparable : à égalité 1 fois.")).toBeInTheDocument();
+  });
+
+  it("says how many displayed races are left out of the tally", () => {
+    const mine = [
+      { ...participation(1, 10, "2026-03-01", "01:00:00"), is_relay: true },
+      participation(2, 20, "2026-04-01", "01:00:00"),
+    ];
+    const theirs = [participation(11, 10, "2026-03-01", "01:05:00"), participation(12, 20, "2026-04-01", "01:05:00")];
+
+    render(<AthleteComparisonResult mine={mine} theirs={theirs} theirsName="Camarade" />);
+
+    expect(screen.getByText(/sur 1 épreuve comparable : devant 1 fois\./)).toBeInTheDocument();
+    expect(screen.getByText(/^1 épreuve hors bilan/)).toBeInTheDocument();
+  });
+
+  it("shows only the exclusion note when every shared time is excluded", () => {
+    const mine = [{ ...participation(1, 10, "2026-03-01", "01:00:00"), is_relay: true }];
+    const theirs = [participation(11, 10, "2026-03-01", "01:05:00")];
+
+    render(<AthleteComparisonResult mine={mine} theirs={theirs} theirsName="Camarade" />);
+
+    expect(screen.getByText("Épreuve 10")).toBeInTheDocument();
+    expect(screen.queryByText(/épreuves? comparables?/)).not.toBeInTheDocument();
+    expect(screen.getByText(/^1 épreuve hors bilan/)).toBeInTheDocument();
+  });
+
+  it("shows no line and keeps the current message without any usable time", () => {
+    const mine = [participation(1, 10, "2026-03-01", null)];
+    const theirs = [participation(11, 10, "2026-03-01", "01:05:00")];
+
+    render(<AthleteComparisonResult mine={mine} theirs={theirs} theirsName="Camarade" />);
+
+    expect(screen.getByText(/aucun temps\s+exploitable/)).toBeInTheDocument();
+    expect(screen.queryByText(/épreuves? comparables?/)).not.toBeInTheDocument();
+  });
+});
+
 describe("AthleteComparisonChart, teammate load failure (#1028)", () => {
   const camarade = { id: 7, nom: "Martin", prenom: "Lea", club: "TCN" };
 

@@ -16,6 +16,16 @@ export interface BestTime {
   participation: Participation;
 }
 
+/** Résultat qui vaut performance : ni en attente, ni relais, ni épreuve douteuse, ni abandon. */
+export function countsAsPerformance(participation: Participation): boolean {
+  return (
+    !participation.is_pending_validation &&
+    !estRelais(participation) &&
+    participation.course.is_reliable !== false &&
+    !isNonFinisher(participation.status)
+  );
+}
+
 /**
  * Meilleur temps par couple (discipline, format) : la discipline fait partie de
  * la clé, `formatToken` rendant « M » pour un triathlon comme pour un duathlon.
@@ -25,8 +35,7 @@ export interface BestTime {
 export function bestTimes(participations: Participation[]): BestTime[] {
   const best = new Map<string, BestTime>();
   for (const participation of participations) {
-    if (participation.is_pending_validation || estRelais(participation)) continue;
-    if (participation.course.is_reliable === false || isNonFinisher(participation.status)) continue;
+    if (!countsAsPerformance(participation)) continue;
     const seconds = comparableSeconds(participation.total_time);
     const format = formatToken(participation.course.event_type, participation.course.distance_km);
     const discipline = disciplineOf(participation.course.event_type);
