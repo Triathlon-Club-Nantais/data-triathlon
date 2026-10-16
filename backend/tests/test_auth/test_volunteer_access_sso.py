@@ -12,17 +12,17 @@ import pytest
 from app.core.permissions import P
 from app.core.time import utcnow
 from app.models.admin_action_log import AdminActionLog
-from app.models.benevole_access_config import VolunteerAccessConfig
 from app.models.user import SYSTEM_USER_EMAIL
 from app.models.user_role import UserRole
 from app.models.user_session import UserSession
+from app.models.volunteer_access_config import VolunteerAccessConfig
 from app.repositories import (
     athlete_repository,
     course_repository,
     participation_repository,
     user_repository,
 )
-from app.services import benevole_access
+from app.services import volunteer_access
 
 PASSWORD = "secret-du-club"
 BASE = "/api/v1/benevoles"
@@ -39,7 +39,7 @@ READ_ROUTES = [
 def configured_password(db_session):
     owner = user_repository.create(db_session, email="owner@exemple.fr", display_name="Owner")
     db_session.flush()
-    benevole_access.replace_password(db_session, password=PASSWORD, admin_user_id=owner.id)
+    volunteer_access.replace_password(db_session, password=PASSWORD, admin_user_id=owner.id)
     db_session.commit()
 
 
@@ -266,5 +266,5 @@ def test_sso_logout_clears_the_volunteer_cookie(client, ouvrir_session, voluntee
     response = client.post("/api/v1/auth/logout")
 
     assert response.status_code == 204
-    assert benevole_access.VOLUNTEER_SESSION_COOKIE not in client.cookies
+    assert volunteer_access.VOLUNTEER_SESSION_COOKIE not in client.cookies
     assert client.get(f"{BASE}/queue").status_code == 401

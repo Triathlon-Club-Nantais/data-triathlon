@@ -4,7 +4,7 @@ Remplace `BENEVOLE_SHARED_PASSWORD` par une configuration en base, gérée par
 un administrateur habilité (`benevole_access:manage`). Couche mince : `GET`
 délègue à la lecture du repository (simple consultation, patron
 `admin_allowed_emails.py`), `PUT`/`POST .../generate` délèguent à
-`services/benevole_access.replace_password` — jamais un appel direct au
+`services/volunteer_access.replace_password` — jamais un appel direct au
 repository pour ces deux gestes, qui combinent hachage et rotation du secret
 de session (AGENTS.md, « routers fins : délégation au service »).
 """
@@ -15,13 +15,13 @@ from app.api.deps import require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
-from app.repositories import benevole_config_repository
-from app.schemas.benevole_access import (
+from app.repositories import volunteer_config_repository
+from app.schemas.volunteer_access import (
     VolunteerAccessConfigOut,
     VolunteerAccessGeneratedOut,
     VolunteerAccessReplaceIn,
 )
-from app.services import benevole_access
+from app.services import volunteer_access
 
 router = APIRouter(tags=["admin"])
 
@@ -40,7 +40,7 @@ def get_access_config(
     _: User = Depends(require_permission(P.VOLUNTEER_ACCESS_MANAGE)),
 ):
     """État courant — 200 dans tous les cas, y compris jamais configuré."""
-    return _view(benevole_config_repository.get_config(db))
+    return _view(volunteer_config_repository.get_config(db))
 
 
 @router.put("/admin/benevoles/access", response_model=VolunteerAccessConfigOut)
@@ -54,7 +54,7 @@ def replace_access_password(
     Invalide immédiatement toute session bénévole ouverte : `replace_password`
     régénère `session_secret` dans le même geste (FR-006).
     """
-    config, _password = benevole_access.replace_password(
+    config, _password = volunteer_access.replace_password(
         db, password=body.password, admin_user_id=actor.id
     )
     db.commit()
@@ -71,7 +71,7 @@ def generate_access_password(
     Le mot de passe généré n'est renvoyé **qu'ici**, une seule fois — rien
     côté serveur ne le conserve après le hachage (research.md §D5).
     """
-    config, password = benevole_access.replace_password(
+    config, password = volunteer_access.replace_password(
         db, password=None, admin_user_id=actor.id
     )
     db.commit()

@@ -2,7 +2,7 @@
 
 Ferme l'accès public au site entier, distinct du mot de passe bénévoles
 (#271) : secret propre, table propre, gardé par le pouvoir dédié
-`site_access:manage`. Patron exact de `admin_benevole_access.py` : `GET`
+`site_access:manage`. Patron exact de `admin_volunteer_access.py` : `GET`
 délègue à la lecture du repository (simple consultation), `PUT`/
 `POST .../generate` délèguent à `services/site_access.replace_password` —
 jamais un appel direct au repository pour ces deux gestes, qui combinent
