@@ -7,6 +7,7 @@ import { Button, Card, Input, VousChip } from "@/components/tcn";
 import { useSelectedAthlete } from "@/components/layout/AthletePicker";
 import { trouverRang } from "@/lib/utils/rang";
 import { foldAccents } from "@/lib/utils/text";
+import { motCompte, plural } from "@/lib/utils/format";
 import { SEUIL_RAPPEL_POSITION } from "@/lib/club";
 import { AthleteSortToggle, SORT_DEFAULT, SORT_PARAM, sortTypeFromParam } from "./AthleteSortToggle";
 import { RappelPosition } from "./RappelPosition";
@@ -160,7 +161,7 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
           le focus : sans cette annonce, un lecteur d'écran ne signale ni le
           nombre de résultats ni le basculement vers l'état vide (revue #382). */}
       <p className="sr-only" role="status">
-        {sorted.length} athlète{sorted.length > 1 ? "s" : ""} trouvé{sorted.length > 1 ? "s" : ""}
+        {motCompte(sorted.length, "athlète")} {plural(sorted.length, "trouvé")}
       </p>
       {sorted.length === 0 ? (
         <Card padding={0} style={{ overflow: "hidden" }}>
@@ -240,7 +241,7 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
                     style={{ fontSize: 14, color: "var(--tcn-text-faint)", fontWeight: 600 }}
                   >
                     <span>{a.total_count}</span>{" "}
-                    <span>épreuve{a.total_count > 1 ? "s" : ""}</span>
+                    <span>{plural(a.total_count, "épreuve")}</span>
                   </div>
                   {(a.validated_count !== a.total_count ||
                     a.club_affiliated_count !== a.total_count) && (
@@ -251,8 +252,8 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
                       data-testid="athlete-row-detail"
                       style={{ fontSize: 12, color: "var(--tcn-text-faint)" }}
                     >
-                      dont {a.validated_count} validée{a.validated_count > 1 ? "s" : ""} ·{" "}
-                      {a.club_affiliated_count} affiliée{a.club_affiliated_count > 1 ? "s" : ""} club
+                      dont {motCompte(a.validated_count, "validée")} ·{" "}
+                      {motCompte(a.club_affiliated_count, "affiliée")} club
                     </div>
                   )}
                 </div>

@@ -5,6 +5,7 @@ import { Card } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { Participation } from "@/lib/types";
 import { formatEventName } from "@/lib/utils/event";
+import { motCompte } from "@/lib/utils/format";
 
 /** File des résultats en attente de validation (#271, US1), avec un second
  *  onglet pour les entrées signalées non conformes (#437) — tous clubs
@@ -50,7 +51,7 @@ export function ValidationQueue({
         </button>
         {traitees > 0 && (
           <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 13, color: "var(--tcn-text-faint)" }}>
-            {traitees} traité{traitees > 1 ? "s" : ""}
+            {motCompte(traitees, "traité")}
           </span>
         )}
       </div>

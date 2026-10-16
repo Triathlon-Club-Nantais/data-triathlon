@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { motCompte } from "@/lib/utils/format";
 
 /**
  * Rappel épinglé de la position de l'athlète retenu (#504) — affiché quand sa
@@ -31,7 +32,7 @@ export function RappelPosition({
             color: "var(--tcn-orange-deeper)",
           }}
         >
-          Vous : {epreuves} épreuve{epreuves > 1 ? "s" : ""} — {rang}ᵉ du club
+          Vous : {motCompte(epreuves, "épreuve")} — {rang}ᵉ du club
         </Link>
       )}
     </div>

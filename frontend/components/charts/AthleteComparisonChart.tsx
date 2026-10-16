@@ -8,6 +8,7 @@ import type { AthleteSearchResult, Participation } from "@/lib/types";
 import { commonParticipations, formatDelta, headToHead } from "@/lib/utils/athlete-comparison";
 import { performanceExclusion } from "@/lib/utils/best-times";
 import { formatDate } from "@/lib/utils/date";
+import { motCompte, plural } from "@/lib/utils/format";
 
 // Chaque barre n'est qu'un simple rectangle de largeur proportionnelle : pas
 // besoin du patron SVG « géométrie dans le SVG, texte en HTML » (#480,
@@ -104,7 +105,7 @@ export function AthleteComparisonResult({
   if (rows.length === 0) {
     return (
       <p className="py-4 text-sm text-[var(--tcn-text-faint)]">
-        {common.length} épreuve{common.length > 1 ? "s" : ""} en commun avec {theirsName}, mais aucun temps
+        {motCompte(common.length, "épreuve")} en commun avec {theirsName}, mais aucun temps
         exploitable pour comparer.
       </p>
     );
@@ -114,7 +115,6 @@ export function AthleteComparisonResult({
   const { wins, losses, ties } = headToHead(common);
   const counted = wins + losses + ties;
   const excluded = rows.length - counted;
-  const plural = (n: number) => (n > 1 ? "s" : "");
   const tally = [
     wins > 0 && `devant ${wins} fois`,
     losses > 0 && `derrière ${losses} fois`,
@@ -129,12 +129,12 @@ export function AthleteComparisonResult({
         <div>
           {counted > 0 && (
             <p style={{ fontSize: 14, color: "var(--tcn-ink)" }}>
-              Face à {theirsName}, sur {counted} épreuve{plural(counted)} comparable{plural(counted)} : {tally}.
+              Face à {theirsName}, sur {motCompte(counted, "épreuve")} {plural(counted, "comparable")} : {tally}.
             </p>
           )}
           {excluded > 0 && (
             <p style={{ marginTop: 2, fontSize: 12, color: "var(--tcn-text-faint)" }}>
-              {excluded} épreuve{plural(excluded)} hors bilan : relais, saisie en attente, épreuve douteuse ou
+              {motCompte(excluded, "épreuve")} hors bilan : relais, saisie en attente, épreuve douteuse ou
               non classé.
             </p>
           )}

@@ -14,6 +14,7 @@ import { messageDeRefus } from "@/lib/api/refus";
 import { useApplyOpposition, useOppositions } from "@/lib/queries/admin";
 import { messageApplique } from "@/lib/opposition";
 import { formatDate, localToday } from "@/lib/utils/date";
+import { motCompte, plural } from "@/lib/utils/format";
 
 const REFUS = { sujet: "oppositions", action: "consulter les oppositions" };
 
@@ -39,7 +40,7 @@ export function OppositionsScreen() {
         apercu.athletes > 1 ? ` ${apercu.athletes} fiches portent ce nom, elles seront toutes anonymisées.` : "";
       const accord = await confirmer({
         titre: `Anonymiser ${identite.prenom} ${identite.nom} ?`,
-        description: `${apercu.results} résultat${apercu.results > 1 ? "s" : ""} concerné${apercu.results > 1 ? "s" : ""}.${homonymes} Ce geste est définitif, et tout résultat importé ensuite à ce nom arrivera anonyme.`,
+        description: `${motCompte(apercu.results, "résultat")} ${plural(apercu.results, "concerné")}.${homonymes} Ce geste est définitif, et tout résultat importé ensuite à ce nom arrivera anonyme.`,
         libelleAction: "Anonymiser définitivement",
       });
       if (!accord) return;
@@ -126,7 +127,7 @@ export function OppositionsScreen() {
                   </TableCell>
                   <TableCell>{formatDate(opposition.applied_at)}</TableCell>
                   <TableCell>
-                    {opposition.delay_days} jour{opposition.delay_days > 1 ? "s" : ""}
+                    {motCompte(opposition.delay_days, "jour")}
                   </TableCell>
                   <TableCell>{opposition.applied_by_name ?? "—"}</TableCell>
                   <TableCell>{opposition.anonymised_count}</TableCell>

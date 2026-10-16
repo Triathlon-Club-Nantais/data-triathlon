@@ -14,6 +14,7 @@ import {
 import { useHydratedSession } from "@/lib/queries/auth";
 import type { AdminAthlete, AthleteBrief } from "@/lib/types";
 import { formatDate } from "@/lib/utils/date";
+import { motCompte } from "@/lib/utils/format";
 import { TeammatesDialog } from "./TeammatesDialog";
 
 export type ResultatACorriger = {
@@ -406,7 +407,7 @@ export function ParticipationAdminActions({
                           ? `Né(e) le ${formatDate(candidat.birth_date)}`
                           : "Date de naissance inconnue"}
                         {candidat.club ? ` · ${candidat.club}` : ""}
-                        {` · ${candidat.participations} résultat${candidat.participations > 1 ? "s" : ""}`}
+                        {` · ${motCompte(candidat.participations, "résultat")}`}
                       </span>
                     </button>
                   </li>

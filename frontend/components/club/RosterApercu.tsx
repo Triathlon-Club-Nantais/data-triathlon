@@ -9,6 +9,7 @@ import { SPORTS_PARAM, federalOnlyFromParam } from "@/lib/scope";
 import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
 import type { PodiumScope } from "@/lib/podium-scope";
 import type { ClubRosterEntry } from "@/lib/types";
+import { motCompte } from "@/lib/utils/format";
 
 /**
  * Aperçu du roster (#487) et sa mise en avant (#504) : bloc client monté
@@ -91,8 +92,8 @@ export function RosterApercu({ roster }: { roster: ClubRosterEntry[] }) {
                   {moi && <VousChip />}
                 </div>
                 <div className="text-xs text-[var(--tcn-text-faint)]">
-                  {r.count} épreuve{r.count > 1 ? "s" : ""}
-                  {r.podiums > 0 && ` · ${r.podiums} podium${r.podiums > 1 ? "s" : ""}`}
+                  {motCompte(r.count, "épreuve")}
+                  {r.podiums > 0 && ` · ${motCompte(r.podiums, "podium")}`}
                 </div>
               </div>
               {r.podiums > 0 && (

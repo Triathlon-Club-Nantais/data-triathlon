@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { captureEvent } from "@/lib/posthog";
 import { apiClient } from "@/lib/api/client";
 import { formatEventName } from "@/lib/utils/event";
+import { motCompte, plural } from "@/lib/utils/format";
 import {
   ImportStreamContext,
   useImportStreamController,
@@ -152,7 +153,7 @@ function annoncer(
     const series = state.heatsEnumerated || perdues;
     toast.warning(nom ? `Import partiel : ${nom}` : "Import partiel", {
       ...persistant,
-      description: `${perdues} série${perdues > 1 ? "s" : ""} sur ${series} manque${perdues > 1 ? "nt" : ""}. ${bilan}`,
+      description: `${motCompte(perdues, "série")} sur ${series} ${plural(perdues, "manque", "manquent")}. ${bilan}`,
       action: { label: "Voir le bilan", onClick: () => aller("/ajouter") },
     });
     return;

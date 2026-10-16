@@ -16,6 +16,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useAdminActionLog, TAILLE_PAGE_JOURNAL } from "@/lib/queries/admin";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDateTime } from "@/lib/utils/date";
+import { motCompte } from "@/lib/utils/format";
 import { actionLabel, detailLines } from "@/lib/admin-action-log";
 
 const REFUS = { sujet: "gestes d'administration", action: "consulter le journal" };
@@ -93,7 +94,7 @@ export function AdminActionLogTable() {
           className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm"
         >
           <span aria-current="page">
-            Page {page} sur {pages} — {data.total} entrée{data.total > 1 ? "s" : ""}
+            Page {page} sur {pages} — {motCompte(data.total, "entrée")}
           </span>
           <div className="flex gap-2">
             <Button

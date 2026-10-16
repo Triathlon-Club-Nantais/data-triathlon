@@ -18,7 +18,7 @@ import { describeQualityIssues } from "@/lib/quality";
 import type { Participation } from "@/lib/types";
 import { recentParticipations } from "@/lib/utils/club-aggregate";
 import { formatDate } from "@/lib/utils/date";
-import { disciplineOf, formatToken } from "@/lib/utils/format";
+import { disciplineOf, formatToken, plural } from "@/lib/utils/format";
 import { isNonFinisher } from "@/lib/utils/raceOrder";
 import { rankRatio } from "@/lib/utils/ranking";
 import { seasonLabel, seasonOf } from "@/lib/utils/season";
@@ -51,7 +51,7 @@ function unreliableTooltip(issues: Record<string, number> | null | undefined): s
 
 /** « 3 épreuves », ou « 1 épreuve sur 3 » dès qu'un filtre retire des lignes. */
 function countLabel(shown: number, total: number): string {
-  const noun = shown > 1 ? "épreuves" : "épreuve";
+  const noun = plural(shown, "épreuve");
   return shown === total ? `${total} ${noun}` : `${shown} ${noun} sur ${total}`;
 }
 

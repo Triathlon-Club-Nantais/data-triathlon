@@ -6,7 +6,7 @@ import { useCallback, useEffect, useId, useState, useSyncExternalStore } from "r
 import { AnnonceStatut, Avatar, Input, Modal } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ApiError, apiClient } from "@/lib/api/client";
-import { formatAttente } from "@/lib/utils/format";
+import { formatAttente, motCompte, plural } from "@/lib/utils/format";
 import { foldAccents } from "@/lib/utils/text";
 import type { AthleteSearchResult } from "@/lib/types";
 
@@ -291,7 +291,7 @@ export function AthletePicker({
   // Les écrans trouvés se comptent en tête : « Aucun athlète trouvé » seul
   // contredirait la liste d'écrans affichée juste dessous.
   const screensFound =
-    matchedScreens.length > 0 ? `${matchedScreens.length} écran${matchedScreens.length > 1 ? "s" : ""}, ` : "";
+    matchedScreens.length > 0 ? `${motCompte(matchedScreens.length, "écran")}, ` : "";
   const statut =
     q.length < 2
       ? "Saisissez au moins 2 lettres"
@@ -303,7 +303,7 @@ export function AthletePicker({
           ? screensFound ? `${screensFound}aucun athlète` : "Aucun athlète trouvé"
           : screensFound + (rows.length > PAGE_SIZE
             ? `${screensFound ? "plus" : "Plus"} de ${PAGE_SIZE} athlètes trouvés, précisez la recherche`
-            : `${visibles.length} athlète${visibles.length > 1 ? "s" : ""} trouvé${visibles.length > 1 ? "s" : ""}`);
+            : `${motCompte(visibles.length, "athlète")} ${plural(visibles.length, "trouvé")}`);
 
   return (
     <Modal
@@ -380,7 +380,7 @@ export function AthletePicker({
             {visibles.map((a, i) => {
               const fullName = nomComplet(a);
               const club = a.club ?? "Sans club";
-              const epreuves = `${a.participation_count} épreuve${a.participation_count > 1 ? "s" : ""}`;
+              const epreuves = motCompte(a.participation_count, "épreuve");
               return (
                 <div
                   key={a.id}

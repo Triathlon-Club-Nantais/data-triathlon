@@ -12,6 +12,7 @@ import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
 import { SPORTS_PARAM, federalOnlyFromParam } from "@/lib/scope";
 import { apiClient } from "@/lib/api/client";
 import type { ClubPodiumTotals, ClubPodiums } from "@/lib/types";
+import { motCompte, plural } from "@/lib/utils/format";
 
 /**
  * Taille de l'aperçu de la liste (#488, PROF-3). Le KPI « Podiums » deux blocs
@@ -81,7 +82,7 @@ function Podiums({ podiums, totals }: { podiums: ClubPodiums; totals?: ClubPodiu
       texte={
         chargement
           ? "Chargement des podiums…"
-          : `${affiches.length} podium${affiches.length > 1 ? "s" : ""} affiché${affiches.length > 1 ? "s" : ""}`
+          : `${motCompte(affiches.length, "podium")} ${plural(affiches.length, "affiché")}`
       }
     />
   );

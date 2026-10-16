@@ -1,6 +1,7 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
+import { motCompte, plural } from "@/lib/utils/format";
 import { queryKeys } from "./keys";
 
 /**
@@ -62,23 +63,23 @@ export function useNavBadges(enabled: boolean): {
 export function libelleCompteur(badge: string | undefined, n: number): string {
   switch (badge) {
     case "quality":
-      return `${n} épreuve${n > 1 ? "s" : ""} à revalider`;
+      return `${motCompte(n, "épreuve")} à revalider`;
     case "duplicates":
-      return `${n} doublon${n > 1 ? "s" : ""} suspect${n > 1 ? "s" : ""}`;
+      return `${motCompte(n, "doublon")} ${plural(n, "suspect")}`;
     case "providers":
-      return `${n} fournisseur${n > 1 ? "s" : ""} en attente`;
+      return `${motCompte(n, "fournisseur")} en attente`;
     case "feedback":
-      return `${n} nouveau${n > 1 ? "x" : ""} retour${n > 1 ? "s" : ""} utilisateur${n > 1 ? "s" : ""}`;
+      return `${n} ${plural(n, "nouveau", "nouveaux")} ${plural(n, "retour")} ${plural(n, "utilisateur")}`;
     case "identities":
       return `${n} cas d'identité à trancher`;
     case "members":
-      return `${n} licencié${n > 1 ? "s" : ""} à rattacher`;
+      return `${motCompte(n, "licencié")} à rattacher`;
     case "volunteer":
-      return `${n} déclaration${n > 1 ? "s" : ""} de bénévolat en attente`;
+      return `${motCompte(n, "déclaration")} de bénévolat en attente`;
     case "validation":
-      return `${n} résultat${n > 1 ? "s" : ""} à valider`;
+      return `${motCompte(n, "résultat")} à valider`;
     case "backoffice":
-      return `${n} élément${n > 1 ? "s" : ""} à traiter`;
+      return `${motCompte(n, "élément")} à traiter`;
     default:
       return String(n);
   }

@@ -1,5 +1,5 @@
 import type { ImportState } from "@/hooks/useImportStream";
-import { formatAttente } from "@/lib/utils/format";
+import { formatAttente, motCompte, plural } from "@/lib/utils/format";
 
 /**
  * Lecture de l'issue d'un import, partagée par l'écran d'import et le toast
@@ -39,8 +39,7 @@ export function estDoublon(
 
 /** « N résultats ajoutés · M mis à jour · K déjà présents », les libellés du bilan à l'écran. */
 export function bilanResultats(imported: number, updated: number, skipped: number): string {
-  const pluriel = (n: number) => (n > 1 ? "s" : "");
-  return `${imported} résultat${pluriel(imported)} ajouté${pluriel(imported)} · ${updated} mis à jour · ${skipped} déjà présent${pluriel(skipped)}`;
+  return `${motCompte(imported, "résultat")} ${plural(imported, "ajouté")} · ${updated} mis à jour · ${skipped} déjà ${plural(skipped, "présent")}`;
 }
 
 /** Titre et phrase d'un échec, construits sur sa **cause**, jamais sur le

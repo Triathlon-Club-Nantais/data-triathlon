@@ -34,6 +34,7 @@ import {
 import { useSession } from "@/lib/queries/auth";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/lib/utils/date";
+import { motCompte, plural } from "@/lib/utils/format";
 import type { CourseBrief } from "@/lib/types";
 import { Champ } from "./AdminFilterField";
 import { DeleteCourseDialog } from "./DeleteCourseDialog";
@@ -337,9 +338,8 @@ export function CoursesAdminTable({
 
 /** « 211 épreuves au catalogue », « 1 épreuve correspond aux filtres ». */
 function resume(total: number, filtre: boolean): string {
-  const pluriel = total > 1 ? "s" : "";
-  if (!filtre) return `${total} épreuve${pluriel} au catalogue`;
-  return `${total} épreuve${pluriel} ${total > 1 ? "correspondent" : "correspond"} aux filtres`;
+  if (!filtre) return `${motCompte(total, "épreuve")} au catalogue`;
+  return `${motCompte(total, "épreuve")} ${plural(total, "correspond", "correspondent")} aux filtres`;
 }
 
 const TOUTES = "all";

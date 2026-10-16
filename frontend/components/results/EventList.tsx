@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { useInfiniteEvents } from "@/lib/queries/events";
 import { eventTypeLabel } from "@/lib/constants";
-import { formatCount, formatToken } from "@/lib/utils/format";
+import { formatCount, formatToken, motCompte, plural } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName, pendingOnlyLabel } from "@/lib/utils/event";
 import { groupEventsByCompetition, eventSuffix, type EventGroup } from "@/lib/utils/eventGroups";
@@ -130,10 +130,10 @@ export function EventList({
   const annonce = (
     <AnnonceStatut
       texte={
-        `${formatCount(totalEvents)} épreuve${totalEvents > 1 ? "s" : ""}, ${formatCount(totalParticipations)} résultat${totalParticipations > 1 ? "s" : ""}` +
-        (events.length > 0 ? `, ${events.length} affichée${events.length > 1 ? "s" : ""}` : "") +
+        `${formatCount(totalEvents)} ${plural(totalEvents, "épreuve")}, ${formatCount(totalParticipations)} ${plural(totalParticipations, "résultat")}` +
+        (events.length > 0 ? `, ${motCompte(events.length, "affichée")}` : "") +
         (repliees > 0
-          ? ` dans ${repliees} compétition${repliees > 1 ? "s" : ""} repliée${repliees > 1 ? "s" : ""}`
+          ? ` dans ${motCompte(repliees, "compétition")} ${plural(repliees, "repliée")}`
           : "") +
         (isFetchNextPageError ? ". Impossible de charger la suite des épreuves." : "")
       }
@@ -376,7 +376,7 @@ function eventDerived(ev: EventOut, label?: string) {
 
 /** Une épreuve qui n'a que des résultats en attente le dit, au lieu de « 0 résultat » (#1273). */
 function libelleResultats(total: number, pendingCount: number | undefined): string {
-  return pendingOnlyLabel(total, pendingCount) ?? `${total} résultat${total > 1 ? "s" : ""}`;
+  return pendingOnlyLabel(total, pendingCount) ?? motCompte(total, "résultat");
 }
 
 /** Même dérivation pour une ligne de compétition parente. */
