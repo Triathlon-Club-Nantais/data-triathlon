@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DynamicServerError } from "next/dist/client/components/hooks-server-context";
 import { ApiError } from "@/lib/api/client";
 
 const { checkSiteAccess } = vi.hoisted(() => ({ checkSiteAccess: vi.fn() }));
@@ -120,5 +121,16 @@ describe("Garde d'accès au site (#509)", () => {
     expect(screen.getByText("contenu réservé")).toBeInTheDocument();
     expect(screen.queryByText("formulaire de mot de passe")).not.toBeInTheDocument();
     expect(journal).toHaveBeenCalledWith(expect.stringContaining("session indisponible (502)"));
+  });
+
+  // #1532 : au prérendu, `cookies()` lève le signal de rendu dynamique de Next.
+  // L'avaler le journalisait comme une panne du backend, à chaque build.
+  it("relance le signal de rendu dynamique de Next, sans le journaliser", async () => {
+    checkSiteAccess.mockRejectedValue(new DynamicServerError("cookies"));
+
+    await expect(ProtegeLayout({ children: <p>contenu réservé</p> })).rejects.toBeInstanceOf(
+      DynamicServerError,
+    );
+    expect(journal).not.toHaveBeenCalled();
   });
 });
