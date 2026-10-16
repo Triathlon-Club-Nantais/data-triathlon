@@ -8,15 +8,15 @@ import { describe, expect, it } from "vitest";
  * 2000 x 638 de 37 Ko qui concurrençait les ressources critiques.
  */
 const LOGO = readFileSync(join(__dirname, "../../public/logo-tcn.png"));
-const HAUTEUR_AFFICHEE_MAX = 26;
+const MAX_DISPLAY_HEIGHT = 26;
 
 describe("public/logo-tcn.png", () => {
-  it("pèse moins de 10 Ko", () => {
+  it("weighs under 10 KB", () => {
     expect(LOGO.byteLength).toBeLessThan(10 * 1024);
   });
 
-  it("garde au moins trois fois sa définition affichée", () => {
+  it("keeps at least three times its displayed height", () => {
     // IHDR : largeur puis hauteur, entiers 32 bits big-endian aux octets 16 et 20.
-    expect(LOGO.readUInt32BE(20)).toBeGreaterThanOrEqual(3 * HAUTEUR_AFFICHEE_MAX);
+    expect(LOGO.readUInt32BE(20)).toBeGreaterThanOrEqual(3 * MAX_DISPLAY_HEIGHT);
   });
 });

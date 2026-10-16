@@ -26,7 +26,7 @@ points qui se re-cassent facilement :
   jamais atteinte), donc le dernier filet du site s'afficherait en serif.
 - **La sortie de l'écran de panne est un `<a>`, et pas vers `/dashboard`.** La
   frontière ne se vide que si le **chemin change** ; `/dashboard` est l'accueil
-  (`app/page.tsx` y redirige) et la page la plus sujette au réveil à froid, donc
+  (`redirects()` de `next.config.ts` y renvoie `/`) et la page la plus sujette au réveil à froid, donc
   un `next/link` vers elle depuis sa propre panne serait un clic sans effet.
 - **`not-found.tsx` sert deux cas** : les `notFound()` des trois routes
   dynamiques *et* toute URL non matchée. Sa copie doit rester vraie des deux,
