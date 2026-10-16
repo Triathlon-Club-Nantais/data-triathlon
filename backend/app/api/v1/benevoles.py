@@ -108,7 +108,7 @@ def queue(db: Session = Depends(get_db)):
 def queue_history(db: Session = Depends(get_db)):
     """Arriéré de la file par jour et délai moyen de résolution (US13, #466)."""
     donnees = participation_repository.validation_queue_timestamps(db)
-    return validation_queue_service.build_history(donnees, aujourdhui=utcnow().date())
+    return validation_queue_service.build_history(donnees, today=utcnow().date())
 
 
 #: Taille de la liste rendue au sélecteur de réattribution. Fixée ici plutôt

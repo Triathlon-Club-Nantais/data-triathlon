@@ -79,15 +79,15 @@ def add_entry(
     Ne commite pas : le routeur porte la transaction, et recharge le registre
     **après** le commit.
     """
-    normalisee = normalize_value(kind, value)
-    if not normalisee:
+    normalized = normalize_value(kind, value)
+    if not normalized:
         raise DomainError("Le libellé ne peut pas être vide.")
 
-    if counter_scope_repository.find_by_value(db, kind=kind, value=normalisee) is not None:
-        raise DuplicateError(f"« {normalisee} » figure déjà dans la liste.")
+    if counter_scope_repository.find_by_value(db, kind=kind, value=normalized) is not None:
+        raise DuplicateError(f"« {normalized} » figure déjà dans la liste.")
 
     entry = counter_scope_repository.create_entry(
-        db, kind=kind, value=normalisee, created_by_user_id=admin_user_id
+        db, kind=kind, value=normalized, created_by_user_id=admin_user_id
     )
     db.flush()
     if kind == CLUB_LABEL:
