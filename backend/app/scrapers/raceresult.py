@@ -42,6 +42,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.core import http
+from app.core.text import strip_accents
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER, ScrapedResult
 from .classify import classify_event_type
@@ -55,7 +56,6 @@ from .utils import (
     normalize_time,
     qualify_event_name,
     split_athlete_name,
-    strip_accents,
 )
 
 logger = logging.getLogger(__name__)

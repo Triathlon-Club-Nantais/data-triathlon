@@ -72,6 +72,15 @@ describe("Garde d'accès au site (#509)", () => {
     expect(screen.getByRole("link", { name: /guide/i })).toHaveAttribute("href", "/guide");
   });
 
+  it("gives the Guide link a 44px touch target under md only (#1510)", async () => {
+    checkSiteAccess.mockResolvedValue(true);
+
+    render(await ProtegeLayout({ children: <p>contenu réservé</p> }));
+
+    // `max-md:` rather than `.tcn-cible-tactile`, whose 28px floor would grow the 20px link on desktop.
+    expect(screen.getByRole("link", { name: "Guide" })).toHaveClass("max-md:min-h-11");
+  });
+
   it("rend le formulaire **à la place** des enfants sur un 401 avéré", async () => {
     // Et non une redirection vers `/acces` : un layout serveur ne connaît pas
     // le chemin demandé (Next n'expose ni `pathname` ni `searchParams` à un

@@ -2,10 +2,9 @@
 Shared utilities for all scrapers.
 """
 import re
-import unicodedata
 from datetime import date as date_t
 
-from app.core.text import deaccent
+from app.core.text import deaccent, strip_accents
 
 from .base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
 
@@ -20,15 +19,6 @@ DEFAULT_HEADERS = {
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     ),
 }
-
-
-def strip_accents(text: str) -> str:
-    """Aplatit les accents : 'Été' → 'Ete'. Sept providers en portaient chacun
-    une copie (table `str.maketrans` minuscules-only, ou ce même NFKD) ; une
-    seule définition, casse préservée pour rester composable avec `.lower()`.
-    """
-    decomposed = unicodedata.normalize("NFKD", text or "")
-    return "".join(c for c in decomposed if not unicodedata.combining(c))
 
 
 # Un mot d'équipe se compare **mot entier** : « arduo » n'est pas un duo. Seul

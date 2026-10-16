@@ -6,7 +6,7 @@ moitié SQLite du dispositif ; l'autre est l'extension `unaccent` de PostgreSQL.
 """
 import pytest
 
-from app.core.text import deaccent
+from app.core.text import deaccent, strip_accents
 
 
 @pytest.mark.parametrize(
@@ -45,3 +45,22 @@ def test_deaccent_s_applique_uniformement_hors_alphabet_latin():
     écriture serait une liste à maintenir sans fin.
     """
     assert deaccent("Ολυμπία") == "Ολυμπια"
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("Été", "Ete"),
+        ("LEMÉE", "LEMEE"),
+        ("10\xa0km", "10 km"),
+        ("ﬁnale", "finale"),
+        ("Ολυμπία", "Ολυμπια"),
+        ("東京", "東京"),
+        ("", ""),
+        (None, ""),
+    ],
+)
+def test_strip_accents(raw, expected):
+    """NFKD, casse préservée : contrairement à `deaccent`, l'espace insécable
+    devient une espace et la ligature `ﬁ` se développe (#1508)."""
+    assert strip_accents(raw) == expected

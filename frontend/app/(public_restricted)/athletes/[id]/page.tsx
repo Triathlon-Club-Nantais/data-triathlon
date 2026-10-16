@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { apiServer } from "@/lib/api/server";
 import { rendreNullSi404 } from "@/lib/api/null-si-404";
 import { idDeRoute } from "@/lib/utils/id-de-route";
 import { StatCard, MetaPill, Card, Eyebrow } from "@/components/tcn";
+import { AddEventLink } from "@/components/dashboard/SeasonEmptyState";
 import { PageShell } from "@/components/layout/PageShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AthleteAvatar } from "./AthleteAvatar";
@@ -154,9 +154,7 @@ export default async function AthletePage({ params }: { params: Promise<{ id: st
                 />
               ))}
             </div>
-            <Link href="/ajouter" className="text-sm font-semibold text-accent-ink hover:underline">
-              Ajouter une épreuve →
-            </Link>
+            <AddEventLink />
           </div>
         )}
 

@@ -4,7 +4,7 @@ import { currentSeason, seasonAbsenceLabel } from "@/lib/utils/season";
 
 const LINK_CLASS = "tcn-cible-tactile inline-flex items-center text-sm font-semibold text-accent-ink hover:underline";
 
-/** Sortie « Ajouter une épreuve » des états vides du tableau de bord (#1415, #1421). */
+/** Sortie « Ajouter une épreuve » des états vides publics (#1415, #1421, #1511). */
 export function AddEventLink() {
   return (
     <Link href="/ajouter" className={LINK_CLASS}>
