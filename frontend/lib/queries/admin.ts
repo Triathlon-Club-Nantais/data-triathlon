@@ -28,25 +28,6 @@ export function usePendingProviders() {
   });
 }
 
-/**
- * Les pastilles du rail en un appel (#1385) : huit requêtes en rafale se
- * disputaient le seul process du backend avec les données de la page.
- *
- * `staleTime` de 5 min, le plus long des huit d'avant : deux comptes rejouent
- * une revue entière (#908, #1352). Une écriture la périme quand même : toute
- * mutation réussie l'invalide (`app/providers.tsx`).
- */
-export function useAdminBadgeCounts(actif = true) {
-  return useQuery({
-    queryKey: queryKeys.adminBadgeCounts(),
-    queryFn: () => apiClient.getAdminBadgeCounts(),
-    enabled: actif,
-    staleTime: 5 * 60_000,
-    // Une panne tait toutes les pastilles d'un coup : ne pas laisser « … » ~7 s.
-    retry: 1,
-  });
-}
-
 /** Fiabilité par fournisseur (#1366), pour l'accueil admin. */
 export function useProviderQuality() {
   return useQuery({

@@ -1,5 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -60,5 +62,11 @@ describe("useNavBadges (#1385)", () => {
     await waitFor(() => expect(second.result.current.loading).toBe(false));
 
     expect(api.getAdminBadgeCounts).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not import the admin hooks: the root layout would ship all of them (#1559)", () => {
+    const source = readFileSync(join(__dirname, "nav-badges.ts"), "utf8");
+
+    expect(source).not.toMatch(/from\s+["'](\.\/admin|@\/lib\/queries\/admin)["']/);
   });
 });
