@@ -210,7 +210,7 @@ _NON_FINISHER_STATUSES = {"DNF": "dnf", "DNS": "dns", "DSQ": "dsq"}
 
 
 def _most_frequent(counter: Counter[str], limit: int) -> list[tuple[str, int]]:
-    """Les `limite` plus fréquents, à égalité départagés par le libellé.
+    """Les `limit` plus fréquents, à égalité départagés par le libellé.
 
     `Counter.most_common` départage par ordre d'insertion, donc par ordre de
     lecture en base : deux clubs à 23 participants pouvaient changer de place

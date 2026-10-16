@@ -559,7 +559,7 @@ Next.js 16 (App Router), TypeScript strict, Tailwind CSS, shadcn/ui, consommant
   club_rank`, chargé à la demande, seulement quand l'athlète retenu est hors
   de l'aperçu de 12 — `null` sur 404, un état normal). Les seconds par deux
   champs supplémentaires de `ClubSummary`, agrégés en SQL/Python côté
-  service (`club_service._bucket_podiums_par_discipline`/
+  service (`club_service._bucket_podiums_by_discipline`/
   `_bucket_composition`, `athlete_repository.club_composition`) :
   `podiums_by_discipline` (par `event_type` **brut** — la famille normalisée,
   `disciplineOf`, se recalcule côté client sur ce dictionnaire à quelques
