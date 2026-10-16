@@ -17,24 +17,24 @@ from app.core.permissions import P
 from app.models.user import User
 from app.repositories import benevole_config_repository
 from app.schemas.benevole_access import (
-    BenevoleAccessConfigOut,
-    BenevoleAccessGeneratedOut,
-    BenevoleAccessReplaceIn,
+    VolunteerAccessConfigOut,
+    VolunteerAccessGeneratedOut,
+    VolunteerAccessReplaceIn,
 )
 from app.services import benevole_access
 
 router = APIRouter(tags=["admin"])
 
 
-def _view(config) -> BenevoleAccessConfigOut:
-    return BenevoleAccessConfigOut(
+def _view(config) -> VolunteerAccessConfigOut:
+    return VolunteerAccessConfigOut(
         configured=config is not None,
         updated_at=config.updated_at if config else None,
         updated_by=config.updated_by.display_name if config else None,
     )
 
 
-@router.get("/admin/benevoles/access", response_model=BenevoleAccessConfigOut)
+@router.get("/admin/benevoles/access", response_model=VolunteerAccessConfigOut)
 def get_access_config(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.VOLUNTEER_ACCESS_MANAGE)),
@@ -43,9 +43,9 @@ def get_access_config(
     return _view(benevole_config_repository.get_config(db))
 
 
-@router.put("/admin/benevoles/access", response_model=BenevoleAccessConfigOut)
+@router.put("/admin/benevoles/access", response_model=VolunteerAccessConfigOut)
 def replace_access_password(
-    body: BenevoleAccessReplaceIn,
+    body: VolunteerAccessReplaceIn,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.VOLUNTEER_ACCESS_MANAGE)),
 ):
@@ -61,7 +61,7 @@ def replace_access_password(
     return _view(config)
 
 
-@router.post("/admin/benevoles/access/generate", response_model=BenevoleAccessGeneratedOut)
+@router.post("/admin/benevoles/access/generate", response_model=VolunteerAccessGeneratedOut)
 def generate_access_password(
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.VOLUNTEER_ACCESS_MANAGE)),
@@ -75,7 +75,7 @@ def generate_access_password(
         db, password=None, admin_user_id=actor.id
     )
     db.commit()
-    return BenevoleAccessGeneratedOut(
+    return VolunteerAccessGeneratedOut(
         password=password,
         updated_at=config.updated_at,
         updated_by=config.updated_by.display_name,

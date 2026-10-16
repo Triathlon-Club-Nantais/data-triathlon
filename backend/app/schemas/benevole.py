@@ -4,13 +4,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from app.schemas.site_access import MAX_PASSWORD_LENGTH
 
 
-class BenevoleLogin(BaseModel):
+class VolunteerLogin(BaseModel):
     """Corps de `POST /benevoles/session`."""
 
     password: str = Field(max_length=MAX_PASSWORD_LENGTH)
 
 
-class BenevoleCourseRename(BaseModel):
+class VolunteerCourseRename(BaseModel):
     """Corps de `PATCH /benevoles/courses/{course_id}`.
 
     **Restreint au seul nom** (contracts/api.md) : contrairement à
@@ -39,7 +39,7 @@ class ParticipationFieldsUpdate(BaseModel):
     category: str | None = None
 
     @model_validator(mode="after")
-    def _au_moins_un_champ(self):
+    def _at_least_one_field(self):
         if not self.model_fields_set:
             raise ValueError("Aucune modification demandée.")
         return self
