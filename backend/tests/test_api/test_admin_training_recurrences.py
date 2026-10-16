@@ -60,6 +60,30 @@ def test_full_cycle(client):
     assert client.get(SESSIONS).json() == []
 
 
+def test_the_list_query_count_does_not_grow_with_recurrences(client, db_session):
+    """#1558: never two queries per recurrence."""
+    from sqlalchemy import event
+
+    def count_queries():
+        statements = []
+        engine = db_session.get_bind()
+        listener = lambda *args: statements.append(args[2])  # noqa: E731
+        event.listen(engine, "before_cursor_execute", listener)
+        try:
+            assert client.get(BASE).status_code == 200
+        finally:
+            event.remove(engine, "before_cursor_execute", listener)
+        return len(statements)
+
+    client.post(BASE, json=_body())
+    one = count_queries()
+    for _ in range(4):
+        client.post(BASE, json=_body())
+
+    assert len(client.get(BASE).json()) == 5
+    assert count_queries() == one
+
+
 def test_a_weekday_out_of_range_is_refused(client):
     assert client.post(BASE, json=_body(weekday=7)).status_code == 422
 
