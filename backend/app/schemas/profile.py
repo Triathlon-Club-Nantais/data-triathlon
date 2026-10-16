@@ -2,9 +2,11 @@
 
 Patron `app/schemas/admin.py` (`GroupRead`/`GroupCreate`/`GroupUpdate`).
 """
-from datetime import date, datetime
+from datetime import date
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.utc_datetime import UtcDatetime
 
 
 class ProfileLogEntryRead(BaseModel):
@@ -14,11 +16,7 @@ class ProfileLogEntryRead(BaseModel):
     entry_date: date
     text: str
     created_by_name: str | None
-    created_at: datetime
-
-    @field_serializer("created_at")
-    def _serialize_utc(self, value: datetime) -> str:
-        return f"{value.isoformat()}Z"
+    created_at: UtcDatetime
 
 
 class ProfileLogEntryCreate(BaseModel):
@@ -46,11 +44,7 @@ class ProfileRead(BaseModel):
     #: Catégorie d'âge FFTri de la saison en cours (#1291) ; `None` sans date de naissance.
     category: str | None
     membership_ended_on: date | None
-    created_at: datetime
-
-    @field_serializer("created_at")
-    def _serialize_utc(self, value: datetime) -> str:
-        return f"{value.isoformat()}Z"
+    created_at: UtcDatetime
 
 
 class ProfileGroupRead(BaseModel):
