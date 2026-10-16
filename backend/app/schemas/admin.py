@@ -281,13 +281,13 @@ class TeammateRef(BaseModel):
     athlete_firstname: str | None = None
 
     @model_validator(mode="after")
-    def _fiche_ou_nom(self) -> "TeammateRef":
-        nom = (self.athlete_name or "").strip()
-        prenom = (self.athlete_firstname or "").strip()
+    def _record_or_name(self) -> "TeammateRef":
+        name = (self.athlete_name or "").strip()
+        firstname = (self.athlete_firstname or "").strip()
         if self.athlete_id is not None:
-            if nom or prenom:
+            if name or firstname:
                 raise ValueError("Désignez un équipier par sa fiche ou par son nom, pas les deux.")
-        elif not (nom and prenom):
+        elif not (name and firstname):
             raise ValueError("Un équipier sans fiche demande un nom et un prénom.")
         return self
 
@@ -298,7 +298,7 @@ class TeammatesUpdate(BaseModel):
     teammates: list[TeammateRef] = Field(min_length=2, max_length=8)
 
     @model_validator(mode="after")
-    def _sans_doublon(self) -> "TeammatesUpdate":
+    def _no_duplicate(self) -> "TeammatesUpdate":
         ids = [ref.athlete_id for ref in self.teammates if ref.athlete_id is not None]
         if len(set(ids)) != len(ids):
             raise ValueError("Un même athlète figure deux fois dans l'équipe.")
@@ -320,7 +320,7 @@ class SeasonValidationOut(BaseModel):
     validated_at: datetime
 
 
-class _PatchNonVide(BaseModel):
+class _NonEmptyPatch(BaseModel):
     """Socle des corrections partielles : un corps sans aucun champ est un 422.
 
     Sans ce contrôle, `PATCH {}` répondrait 200 sans rien faire — une réussite
@@ -343,20 +343,20 @@ class _PatchNonVide(BaseModel):
     _NULLABLES: ClassVar[frozenset[str]] = frozenset()
 
     @model_validator(mode="after")
-    def _au_moins_un_champ(self):
+    def _at_least_one_field(self):
         if not self.model_fields_set:
             raise ValueError("Aucune modification demandée.")
         return self
 
     @model_validator(mode="after")
-    def _pas_de_null_sur_un_champ_obligatoire(self):
-        for champ in self.model_fields_set:
-            if champ not in self._NULLABLES and getattr(self, champ) is None:
-                raise ValueError(f"« {champ} » ne peut pas être vidé.")
+    def _no_null_on_required_field(self):
+        for field_name in self.model_fields_set:
+            if field_name not in self._NULLABLES and getattr(self, field_name) is None:
+                raise ValueError(f"« {field_name} » ne peut pas être vidé.")
         return self
 
 
-class AdminAthleteUpdate(_PatchNonVide):
+class AdminAthleteUpdate(_NonEmptyPatch):
     """Correction de la fiche d'un coureur — identité et club actuel (#117, #439).
 
     `nom`, `prenom` et `club` restent en français : gelés par un contrat public
@@ -378,7 +378,7 @@ class AdminAthleteUpdate(_PatchNonVide):
     club: str | None = Field(default=None, min_length=1)
 
 
-class AdminCourseUpdate(_PatchNonVide):
+class AdminCourseUpdate(_NonEmptyPatch):
     """Correction du libellé d'une épreuve (#117, FR-020).
 
     Exactement les quatre colonnes de `uq_course_identity` — les toucher, c'est
@@ -402,15 +402,15 @@ class AdminCourseUpdate(_PatchNonVide):
 
     @field_validator("event_type")
     @classmethod
-    def _slug_connu(cls, valeur: str | None) -> str | None:
+    def _known_slug(cls, value: str | None) -> str | None:
         from app.scrapers.classify import CANONICAL_TYPES
 
-        if valeur is not None and valeur not in CANONICAL_TYPES:
+        if value is not None and value not in CANONICAL_TYPES:
             raise ValueError(
                 f"Type d'épreuve inconnu. Valeurs acceptées : "
                 f"{', '.join(sorted(CANONICAL_TYPES))}."
             )
-        return valeur
+        return value
 
 
 class CourseDeletionImpact(BaseModel):

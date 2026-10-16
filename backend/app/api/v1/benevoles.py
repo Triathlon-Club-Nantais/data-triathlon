@@ -33,7 +33,7 @@ from app.repositories import (
 )
 from app.schemas.admin import ParticipationReassign
 from app.schemas.athlete import AthleteBrief
-from app.schemas.benevole import BenevoleCourseRename, BenevoleLogin, ParticipationFieldsUpdate
+from app.schemas.benevole import ParticipationFieldsUpdate, VolunteerCourseRename, VolunteerLogin
 from app.schemas.course import CourseBrief
 from app.schemas.participation import ParticipationOut
 from app.schemas.validation_queue import ValidationQueueHistory
@@ -52,7 +52,7 @@ router = APIRouter(tags=["benevoles"])
     "/benevoles/session", status_code=204, dependencies=[Depends(volunteer_login_rate_limit)]
 )
 def open_session(
-    body: BenevoleLogin,
+    body: VolunteerLogin,
     response: Response,
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
@@ -149,7 +149,7 @@ def search_athletes(
 )
 def rename_course(
     course_id: int,
-    body: BenevoleCourseRename,
+    body: VolunteerCourseRename,
     db: Session = Depends(get_db),
     admin: User | None = Depends(require_volunteer_access),
 ):
