@@ -283,7 +283,7 @@ qu'on ne réécrit pas après coup.
 | H | `app/scrapers/{classify,wiclax,timepulse,klikego,klikego_platform}.py` | fait (#1466) |
 | I | `app/core/club.py`, `app/scrapers/utils.py`, `app/services/sheet_source.py` — angle mort du relevé initial, dont le lexique français ne couvrait ni « espace », ni « blanc », ni « normalise », ni « qualifiant », ni « sans_lien » (~7 symboles au relevé initial, 26 au re-scan du 2026-10-15) | fait (#1467) |
 | J | `app/scrapers/prolivesport.py` (32 symboles) et `app/scrapers/breizhchrono.py` (`heats_a_scraper`, `total_a_scraper`, que le re-scan ne voit pas : « a » a moins de trois lettres), seuls fournisseurs hors des lots C à H qui portent encore des identifiants français | à faire |
-| K | `app/repositories/` (60 symboles, dont 22 dans `athlete_repository.py`) | à faire |
+| K | `app/repositories/` (60 symboles, dont 22 dans `athlete_repository.py`) | fait (#1490) |
 | L | services de lecture et de statistiques : `app/services/{stats_service,club_service,validation_queue_service,split_gap,quality,counter_scope,club_alias}.py` (45 symboles) | à faire |
 | M | services d'administration des données : `app/services/{admin_actions,course_duplicates,course_merge,course_rescrape_service,athlete_detach,feedback_service,training_session_service,profile_service,opposition_service,sse_relay}.py` (54 symboles) | à faire |
 | N | services d'import et de batch, **hors** des familles du lot A : `app/services/{batch,batch_runs,import_persistence,import_dispatch,import_service,rescrape_service,geocode_service}.py` (35 symboles) | à faire |
