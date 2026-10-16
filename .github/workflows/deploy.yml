@@ -30,6 +30,11 @@ jobs:
   deploy-preview:
     needs: ci
     if: github.event_name == 'workflow_dispatch'
+    # Un seul service Render et un seul projet Vercel pour toutes les refs :
+    # deux dispatchs (`main` et une PR) passent l'un après l'autre.
+    concurrency:
+      group: deploy-preview
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: preview
@@ -188,7 +193,8 @@ jobs:
 
   # ---- PRODUCTION : push d'un tag v* ----
   # `push` exigé en plus du préfixe : un « Run workflow » lancé sur un tag `v*`
-  # porte lui aussi `refs/tags/v…`, et ne doit déployer que la preview.
+  # porte lui aussi `refs/tags/v…`, et ne doit déployer que la preview. Vaut
+  # pour les tags posés après #1572 : un dispatch lit le fichier de la ref.
   deploy-production:
     needs: ci
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')

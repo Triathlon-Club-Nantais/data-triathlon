@@ -4,7 +4,7 @@ Pipeline gratuit où **rien ne se déploie sans CI verte**, avec deux flux :
 
 | Déclencheur | Environnement | Backend (Render) | Frontend (Vercel) |
 |---|---|---|---|
-| **`workflow_dispatch`** (Actions → *Deploy* → **Run workflow**, sans tag) | preview / test | service Render preview (deploy hook) | `--prod` sur le projet `data-triathlon-preview` |
+| **`workflow_dispatch`** (Actions → *Deploy* → **Run workflow**, sur `main` ou une branche de PR) | preview / test | service Render preview (deploy hook) | `--prod` sur le projet `data-triathlon-preview` |
 | **Tag `v*` sur `main`** | production | service Render prod (deploy hook) | `--prod` sur le projet `data-triathlon` |
 
 **Les deux flux déploient en production — de deux projets Vercel différents.**
@@ -47,9 +47,12 @@ tag.
 - **`.github/workflows/deploy.yml`** : déclenché sur `push` de tags `v*` et sur
   `workflow_dispatch` (plus sur `main` depuis #1572). Appelle `ci.yml` puis,
   **seulement si la CI passe** (`needs: ci`), lance `deploy-preview` (sur
-  `workflow_dispatch`, quelle que soit la branche choisie) ou
-  `deploy-production` (sur `push` d'un tag `v*`, jamais sur un dispatch, même
-  lancé depuis un tag).
+  `workflow_dispatch`, quelle que soit la ref choisie, tag compris) ou
+  `deploy-production` (sur `push` d'un tag `v*` seulement). Un dispatch exécute
+  le `deploy.yml` de la ref choisie : sur un tag posé avant #1572 (`v0.8.8` et
+  antérieurs), l'ancienne version du fichier lancerait encore la production, et
+  seule l'approbation requise de l'environment `production` l'arrête. Ne pas
+  lancer *Deploy* depuis un ancien tag.
 - **`.github/workflows/render-sleep.yml`** — suspend et reprend les deux
   services Render pour tenir les 750 h/mois du plan free (#528, décision #530).
   `schedule` à chaque heure pour coucher la preview (#560), plus deux crons
