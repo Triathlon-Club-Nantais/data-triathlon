@@ -1,9 +1,10 @@
 """DTO Pydantic pour le calendrier des entraînements jeunes (#868, epic #863)."""
 from datetime import date as date_
-from datetime import datetime
 from datetime import time as time_
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.utc_datetime import UtcDatetime
 
 
 class ParticipantRead(BaseModel):
@@ -23,13 +24,9 @@ class ParticipantRead(BaseModel):
     added_manually: bool
     #: Catégorie FFTri du profil, `None` sans date de naissance (#1291).
     category: str | None
-    created_at: datetime
+    created_at: UtcDatetime
     #: Contact d'urgence du profil (#1405), `""` s'il est vide, `None` sans le pouvoir `jeunes:read`.
     emergency_contact: str | None = None
-
-    @field_serializer("created_at")
-    def _serialize_utc(self, value: datetime) -> str:
-        return f"{value.isoformat()}Z"
 
 
 class TrainingSessionRead(BaseModel):

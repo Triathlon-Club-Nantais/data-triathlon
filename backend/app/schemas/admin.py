@@ -7,13 +7,13 @@ from pydantic import (
     ConfigDict,
     Field,
     StrictInt,
-    field_serializer,
     field_validator,
     model_validator,
 )
 
 from app.core.season import SEASON_MAX, SEASON_MIN
 from app.schemas.course import CourseSourceOut
+from app.schemas.utc_datetime import UtcDatetime
 
 
 class PermissionRead(BaseModel):
@@ -121,14 +121,7 @@ class AdminUserRead(BaseModel):
     # Le compte système des bénévoles ne porte aucun rôle (#1112).
     is_system_account: bool
     roles: list[RoleBrief]
-    created_at: datetime
-
-    @field_serializer("created_at")
-    def _serialize_utc(self, value: datetime) -> str:
-        """Suffixe `Z`, comme `SessionUserRead` : les colonnes sont des datetimes
-        **naïfs en UTC**, et un naïf sérialisé tel quel serait lu comme une heure
-        locale par le client."""
-        return f"{value.isoformat()}Z"
+    created_at: UtcDatetime
 
 
 class GroupRead(BaseModel):
@@ -148,11 +141,7 @@ class GroupRead(BaseModel):
     name: str
     description: str
     member_count: int
-    created_at: datetime
-
-    @field_serializer("created_at")
-    def _serialize_utc(self, value: datetime) -> str:
-        return f"{value.isoformat()}Z"
+    created_at: UtcDatetime
 
 
 class GroupMemberRead(BaseModel):
@@ -167,11 +156,7 @@ class GroupMemberRead(BaseModel):
     email: str
     display_name: str
     is_active: bool
-    joined_at: datetime
-
-    @field_serializer("joined_at")
-    def _serialize_utc(self, value: datetime) -> str:
-        return f"{value.isoformat()}Z"
+    joined_at: UtcDatetime
 
 
 class GroupDetailRead(GroupRead):
@@ -623,7 +608,7 @@ class AllowedEmailRead(BaseModel):
 
     id: int
     email: str
-    created_at: datetime
+    created_at: UtcDatetime
     created_by_name: str | None = None
     #: Le rôle que portera le compte **à sa création** (#239). `null` = aucun,
     #: qui reste le cas ordinaire. Objet et non identifiant : l'écran affiche un
@@ -637,10 +622,6 @@ class AllowedEmailRead(BaseModel):
     #: (FR-003), une adresse peut en porter plusieurs, et l'entrée ne désigne
     #: aucun titulaire — elle autorise, elle n'identifie pas.
     has_account: bool = False
-
-    @field_serializer("created_at")
-    def _serialize_utc(self, value: datetime) -> str:
-        return f"{value.isoformat()}Z"
 
 
 class AllowedEmailCreate(BaseModel):
@@ -714,19 +695,12 @@ class AdminActionLogEntry(BaseModel):
     """
 
     id: int
-    created_at: datetime
+    created_at: UtcDatetime
     user_name: str
     action: str
     entity_type: str
     entity_id: int
     payload: dict | None = None
-
-    @field_serializer("created_at")
-    def _serialize_utc(self, value: datetime) -> str:
-        """Suffixe `Z`, comme `SessionUserRead` : les colonnes sont des datetimes
-        **naïfs en UTC**, et un naïf sérialisé tel quel serait lu comme une heure
-        locale par le client."""
-        return f"{value.isoformat()}Z"
 
 
 class AdminActionLogPage(BaseModel):
