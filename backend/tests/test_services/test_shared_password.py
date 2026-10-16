@@ -1,4 +1,5 @@
-"""Socle HMAC, scrypt et génération de secrets partagé par benevole_access (#271) et site_access (#509)."""
+"""Socle HMAC, scrypt et génération de secrets partagé par benevole_access (#271)
+et site_access (#509)."""
 import time
 
 from app.services import shared_password
