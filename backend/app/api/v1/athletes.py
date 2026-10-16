@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 from app.api.deps import MAX_PAGE, require_permission
 from app.core.club import is_club_scope
 from app.core.database import get_db
-from app.core.exceptions import NotFoundError
 from app.core.permissions import P
 from app.core.season import parse_seasons, season_quota_met
 from app.models.user import User
@@ -18,7 +17,7 @@ from app.repositories import (
 from app.schemas.athlete import AthleteBrief, AthleteSearchResult, AthleteSeasonActivity
 from app.schemas.ids import DbId
 from app.schemas.participation import AthleteDetail, AthleteParticipationOut
-from app.services import athlete_csv, challenge_service
+from app.services import athlete_csv, challenge_service, not_found
 
 router = APIRouter(tags=["athletes"])
 
@@ -129,9 +128,7 @@ def get_athlete(
     base que les compteurs club affichés juste dessous — mêmes noms et mêmes
     sémantiques que sur `/stats` et `/athletes/season-activity`.
     """
-    athlete = athlete_repository.get(db, athlete_id)
-    if not athlete:
-        raise NotFoundError("Athlète introuvable")
+    athlete = not_found.athlete_or_404(db, athlete_id, message="Athlète introuvable")
     participations = participation_repository.list_for_athlete(
         db, athlete_id, seasons=parse_seasons(seasons), federal_only=federal_only
     )
@@ -158,9 +155,7 @@ def get_athlete(
 def get_athlete_participations_csv(athlete_id: DbId, db: Session = Depends(get_db)):
     """Les résultats de la fiche athlète en CSV pour Excel (#1375) : mêmes lignes
     que `GET /athletes/{id}` sans filtre, en attente et refusées comprises."""
-    athlete = athlete_repository.get(db, athlete_id)
-    if not athlete:
-        raise NotFoundError("Athlète introuvable")
+    athlete = not_found.athlete_or_404(db, athlete_id, message="Athlète introuvable")
     participations = participation_repository.list_for_athlete(db, athlete_id)
     finishers = participation_repository.finishers_count_by_group(
         db, [p.course_id for p in participations]

@@ -669,10 +669,3 @@ def get_role_or_404(db: Session, role_id: int) -> Role:
     if role is None:
         raise NotFoundError("Ce rôle n'existe pas.")
     return role
-
-
-def get_user_or_404(db: Session, user_id: int) -> User:
-    user = user_repository.get(db, user_id)
-    if user is None:
-        raise NotFoundError("Cet utilisateur n'existe pas.")
-    return user

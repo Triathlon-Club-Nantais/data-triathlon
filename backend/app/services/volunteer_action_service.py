@@ -7,9 +7,9 @@ from app.core.exceptions import NotFoundError
 from app.models.volunteer_action import VolunteerAction
 from app.repositories import (
     admin_action_log_repository,
-    athlete_repository,
     volunteer_action_repository,
 )
+from app.services.not_found import athlete_or_404
 
 
 def create_pending(
@@ -17,8 +17,7 @@ def create_pending(
 ) -> VolunteerAction:
     """Un adhérent connecté crédite l'athlète de son choix pour la saison en
     cours, toujours à l'état « en attente » (FR-001 à FR-004, FR-009)."""
-    if athlete_repository.get(db, athlete_id) is None:
-        raise NotFoundError("Athlète introuvable.")
+    athlete_or_404(db, athlete_id)
 
     return volunteer_action_repository.create_pending(
         db,

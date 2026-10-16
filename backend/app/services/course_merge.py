@@ -16,7 +16,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import DomainError, NotFoundError
+from app.core.exceptions import DomainError
 from app.models.course import Course
 from app.repositories import (
     absorbed_course_repository,
@@ -28,15 +28,9 @@ from app.repositories import (
     tcn_count_repository,
 )
 from app.services.course_locks import lock_courses_or_409
+from app.services.not_found import course_or_404
 
 logger = logging.getLogger(__name__)
-
-
-def _course_or_404(db: Session, course_id: int) -> Course:
-    course = course_repository.get(db, course_id)
-    if course is None:
-        raise NotFoundError("Épreuve introuvable.")
-    return course
 
 
 def _url_already_known(db: Session, *, target: Course, absorbed: Course) -> bool:
@@ -75,7 +69,7 @@ def _pair_or_400(db: Session, *, course_id: int, absorbed_id: int) -> tuple[Cour
     if course_id == absorbed_id:
         # Rien à absorber, et la fusion supprimerait la cible qu'on croit garder.
         raise DomainError("Une épreuve ne peut pas être fusionnée avec elle-même.")
-    return _course_or_404(db, course_id), _course_or_404(db, absorbed_id)
+    return course_or_404(db, course_id), course_or_404(db, absorbed_id)
 
 
 def _identity(db: Session, course: Course) -> dict:

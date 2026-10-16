@@ -28,6 +28,7 @@ from app.schemas.admin import (
     RoleUpdate,
 )
 from app.schemas.ids import DbId
+from app.services import not_found
 from app.services.auth import authorization
 
 router = APIRouter(tags=["admin"])
@@ -165,7 +166,7 @@ def grant_role(
     actor: User = Depends(require_permission(P.ROLES_ASSIGN)),
 ):
     """Attribue un rôle. **Idempotent** — réattribuer est un succès (FR-012)."""
-    target = authorization.get_user_or_404(db, user_id)
+    target = not_found.user_or_404(db, user_id)
     role = authorization.get_role_or_404(db, body.role_id)
     organisation_id = body.organisation_id or _default_organisation_id(db)
     authorization.grant_role(
@@ -187,7 +188,7 @@ def revoke_role(
     """Retire un rôle. Idempotent, et refusé si l'organisation y perdrait son
     dernier administrateur actif — **409**, l'appelant étant bien administrateur
     et sa requête bien formée : c'est le résultat qui est interdit."""
-    target = authorization.get_user_or_404(db, user_id)
+    target = not_found.user_or_404(db, user_id)
     role = authorization.get_role_or_404(db, role_id)
     authorization.revoke_role(
         db,

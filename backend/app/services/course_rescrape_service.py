@@ -26,6 +26,7 @@ from app.services import (
     admin_actions,
     import_dispatch,
     import_persistence,
+    not_found,
     sse_relay,
 )
 from app.services.course_locks import lock_courses_or_409
@@ -92,7 +93,7 @@ def iter_switch_course_source(
     de participation pour les désigner ; après, les coureurs republiés par le
     nouveau chronométreur en portent une et survivent d'eux-mêmes.
     """
-    course = admin_actions.course_or_404(db, course_id)
+    course = not_found.course_or_404(db, course_id)
     source = course_source_repository.find_on_course(
         db, course_id=course_id, source_id=source_id
     )
@@ -136,7 +137,7 @@ def delete_course_source(
     à `false` : l'index partiel autorise zéro active, mais une épreuve sans
     active n'est plus scrapée (#282) ni affichée avec sa source (#279).
     """
-    admin_actions.course_or_404(db, course_id)
+    not_found.course_or_404(db, course_id)
     # Une bascule en cours vers cette source la relirait disparue (#982).
     lock_courses_or_409(db, course_id)
     source = course_source_repository.find_on_course(
@@ -201,7 +202,7 @@ def _stream_switch_course_source(
                         lock_courses_or_409(db, course_id)
                     _require_course_unchanged(db, course_id, expected)
 
-                    course = admin_actions.course_or_404(db, course_id)
+                    course = not_found.course_or_404(db, course_id)
                     source = course_source_repository.find_on_course(
                         db, course_id=course_id, source_id=source_id
                     )
@@ -344,7 +345,7 @@ def iter_rescrape_course(
     connexion, Starlette cesse d'appeler `next()` sur ce générateur, mais le
     thread, lui, continue jusqu'à son terme et commite normalement.
     """
-    course = admin_actions.course_or_404(db, course_id)
+    course = not_found.course_or_404(db, course_id)
     source = course_source_repository.get_active(db, course_id)
     if source is None:
         raise NotFoundError("Cette épreuve n'a aucune source active à re-scraper.")
