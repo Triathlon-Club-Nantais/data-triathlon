@@ -198,7 +198,8 @@ function forwardToPosthog(request: NextRequest): NextResponse {
  */
 export function proxy(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/api/")) return forwardToBackend(request);
-  if (request.nextUrl.pathname.startsWith("/ingest/")) return forwardToPosthog(request);
+  const { pathname } = request.nextUrl;
+  if (pathname === "/ingest" || pathname.startsWith("/ingest/")) return forwardToPosthog(request);
 
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const policy = buildCspPolicy(nonce, {

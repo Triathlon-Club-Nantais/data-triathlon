@@ -10,7 +10,8 @@ import type { SessionUser } from "@/lib/types";
 // chargement de chaque page, où il pesait ~17 Ko gzip (#1603).
 const UserMenuDropdown = dynamic(
   () => import("./UserMenuDropdown").then((module) => module.UserMenuDropdown),
-  { loading: () => <SessionEnLecture /> },
+  // Repère muet à la taille de l'avatar : ni décalage du rail, ni annonce.
+  { loading: () => <div aria-hidden style={{ width: 34, height: 34, flex: "none" }} /> },
 );
 
 /**

@@ -2,6 +2,7 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { AnnonceStatut } from "@/components/tcn";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -180,6 +181,9 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
                     onChange={(e) => setRecherche(e.target.value)}
                   />
                 </div>
+                <AnnonceStatut
+                  texte={terme ? `${motCompte(lignes.length, "jeune")} sur ${participants.length}` : ""}
+                />
                 {lignes.length === 0 ? (
                   <p className="text-[var(--tcn-text-faint)] text-sm">
                     Aucun inscrit ne correspond à « {recherche.trim()} ».
