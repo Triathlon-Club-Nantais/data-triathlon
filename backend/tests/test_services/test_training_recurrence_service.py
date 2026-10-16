@@ -228,23 +228,52 @@ def test_deleting_a_group_then_its_recurrence_holds_with_enforced_foreign_keys(d
     assert db.query(TrainingSession).count() == 0
 
 
-def test_the_recurrence_list_query_count_does_not_grow_with_sessions(db_session, actor):
+def _count_list_queries(db_session):
     from sqlalchemy import event
 
-    def count_queries():
-        db_session.expire_all()
-        statements = []
-        engine = db_session.get_bind()
-        listener = lambda *args: statements.append(args[2])  # noqa: E731
-        event.listen(engine, "before_cursor_execute", listener)
-        try:
-            service.list_recurrence_views(db_session)
-        finally:
-            event.remove(engine, "before_cursor_execute", listener)
-        return len(statements)
+    db_session.expire_all()
+    statements = []
+    engine = db_session.get_bind()
+    listener = lambda *args: statements.append(args[2])  # noqa: E731
+    event.listen(engine, "before_cursor_execute", listener)
+    try:
+        service.list_recurrence_views(db_session)
+    finally:
+        event.remove(engine, "before_cursor_execute", listener)
+    return len(statements)
 
+
+def test_the_recurrence_list_query_count_does_not_grow_with_sessions(db_session, actor):
     recurrence, _ = _create(db_session, actor, weeks=2)
-    few = count_queries()
+    few = _count_list_queries(db_session)
     service.update_recurrence(db_session, actor, recurrence, ends_on=recurrence.ends_on + timedelta(weeks=10))
 
-    assert count_queries() == few
+    assert _count_list_queries(db_session) == few
+
+
+def test_the_recurrence_list_query_count_does_not_grow_with_recurrences(db_session, actor):
+    """#1558: never two queries per recurrence."""
+    for _ in range(2):
+        _create(db_session, actor, weeks=2)
+    few = _count_list_queries(db_session)
+    for _ in range(13):
+        _create(db_session, actor, weeks=2)
+
+    assert _count_list_queries(db_session) == few
+
+
+def test_the_recurrence_list_counts_only_governed_sessions(db_session, actor, organisation):
+    young = profile_repository.create(db_session, organisation_id=organisation.id, first_name="A", last_name="B")
+    mixed, _ = _create(db_session, actor, weeks=5)
+    plain, _ = _create(db_session, actor, weeks=2)
+    single, _ = _create(db_session, actor, weeks=1)
+    detached, started, past, _kept, _other = _sessions(db_session, mixed.id)
+    training_session_service.update_training_session(db_session, actor, detached, location="Lac")
+    training_session_service.add_participant(db_session, actor, started, profile_id=young.id, present=True)
+    past.date = date.today() - timedelta(days=1)
+    db_session.flush()
+
+    counts = {view["id"]: view["upcoming_session_count"] for view in service.list_recurrence_views(db_session)}
+
+    assert counts == {mixed.id: 2, plain.id: 2, single.id: 1}
+    assert service.recurrence_view(db_session, mixed)["upcoming_session_count"] == 2

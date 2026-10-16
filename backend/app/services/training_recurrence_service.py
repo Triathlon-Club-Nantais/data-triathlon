@@ -4,6 +4,7 @@ Une récurrence engendre une séance par occurrence de sa période. Ses
 modifications et sa suppression ne touchent que les séances qu'elle peut encore
 gouverner : à venir, sans appel commencé, jamais modifiées seules (FR-010)."""
 import logging
+from collections import Counter
 from datetime import date, timedelta
 
 from sqlalchemy.orm import Session
@@ -47,16 +48,24 @@ def get_recurrence_or_404(db: Session, recurrence_id: int) -> TrainingRecurrence
     return recurrence
 
 
-def _governed_sessions(db: Session, recurrence: TrainingRecurrence):
-    """Les séances que la récurrence gouverne encore : à venir, sans appel
-    commencé, jamais modifiées seules."""
-    sessions = training_recurrence_repository.list_sessions(db, recurrence.id)
+def _governed_among(db: Session, recurrence_ids: list[int]):
+    """Les séances que ces récurrences gouvernent encore : à venir, sans appel
+    commencé, jamais modifiées seules. Deux requêtes, quel que soit leur nombre."""
+    sessions = training_recurrence_repository.list_sessions_of(db, recurrence_ids)
     started = training_session_repository.roll_call_started_among(db, [s.id for s in sessions])
     today = date.today()
     return [s for s in sessions if not s.detached and s.date >= today and s.id not in started]
 
 
+def _governed_sessions(db: Session, recurrence: TrainingRecurrence):
+    return _governed_among(db, [recurrence.id])
+
+
 def recurrence_view(db: Session, recurrence: TrainingRecurrence) -> dict:
+    return _view(recurrence, len(_governed_sessions(db, recurrence)))
+
+
+def _view(recurrence: TrainingRecurrence, upcoming_session_count: int) -> dict:
     return {
         "id": recurrence.id,
         "weekday": recurrence.weekday,
@@ -67,12 +76,14 @@ def recurrence_view(db: Session, recurrence: TrainingRecurrence) -> dict:
         "ends_on": recurrence.ends_on,
         "group_ids": [group.id for group in recurrence.groups],
         # Ce que supprimerait la suppression de la récurrence (FR-020).
-        "upcoming_session_count": len(_governed_sessions(db, recurrence)),
+        "upcoming_session_count": upcoming_session_count,
     }
 
 
 def list_recurrence_views(db: Session) -> list[dict]:
-    return [recurrence_view(db, recurrence) for recurrence in training_recurrence_repository.list_all(db)]
+    recurrences = training_recurrence_repository.list_all(db)
+    counts = Counter(s.recurrence_id for s in _governed_among(db, [r.id for r in recurrences]))
+    return [_view(recurrence, counts[recurrence.id]) for recurrence in recurrences]
 
 
 def _create_session(db: Session, recurrence: TrainingRecurrence, day: date) -> None:
