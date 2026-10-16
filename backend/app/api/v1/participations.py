@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.api.deps import MAX_PAGE, optional_user, public_write_rate_limit, require_permission
+from app.api.deps import MAX_PAGE, DbId, optional_user, public_write_rate_limit, require_permission
 from app.core.analytics import ANONYMOUS_DISTINCT_ID, capture_event
 from app.core.club import is_club_scope
 from app.core.database import get_db
@@ -106,7 +106,7 @@ def list_participations(
     date_from: str | None = Query(None),
     date_to: str | None = Query(None),
     seasons: str | None = Query(None),
-    course_id: int | None = Query(None),
+    course_id: DbId | None = Query(None),
     federal_only: bool = Query(
         False,
         description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
@@ -132,7 +132,7 @@ def list_participations(
 
 
 @router.get("/participations/{participation_id}", response_model=ParticipationOut)
-def get_participation(participation_id: int, db: Session = Depends(get_db)):
+def get_participation(participation_id: DbId, db: Session = Depends(get_db)):
     row = participation_repository.get(db, participation_id)
     if not row:
         # Ponctué comme la famille de `admin_actions` (#439), à laquelle la
@@ -146,7 +146,7 @@ def get_participation(participation_id: int, db: Session = Depends(get_db)):
 
 @router.delete("/participations/{participation_id}", status_code=204)
 def delete_participation(
-    participation_id: int,
+    participation_id: DbId,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.PARTICIPATIONS_DELETE)),
 ):

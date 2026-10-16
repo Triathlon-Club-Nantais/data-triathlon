@@ -6,7 +6,7 @@ service, jamais un appel direct au repository pour une écriture.
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import DbId, require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.club_alias import ClubAlias
@@ -52,7 +52,7 @@ def add_club_alias(
 
 @router.delete("/admin/club-aliases/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_club_alias(
-    entry_id: int,
+    entry_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.CLUB_ALIASES_MANAGE)),
 ) -> None:

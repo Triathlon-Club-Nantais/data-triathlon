@@ -4,6 +4,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.api.deps import DbId
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.repositories import athlete_repository
@@ -44,7 +45,7 @@ def get_club_podiums(
 
 @router.get("/club/roster/rank/{athlete_id}", response_model=ClubRosterRank)
 def get_club_roster_rank(
-    athlete_id: int,
+    athlete_id: DbId,
     federal_only: bool = Query(
         False,
         description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",

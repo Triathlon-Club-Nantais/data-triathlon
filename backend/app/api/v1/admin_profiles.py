@@ -14,7 +14,7 @@ jour (research.md, assumptions de spec.md).
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import DbId, require_permission
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.personal_profile import PersonalProfile
@@ -53,7 +53,7 @@ def list_profiles(
 
 @router.get("/admin/profiles/{profile_id}", response_model=ProfileDetailRead)
 def get_profile(
-    profile_id: int,
+    profile_id: DbId,
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.YOUTH_READ)),
 ):
@@ -83,7 +83,7 @@ def create_profile(
 
 @router.patch("/admin/profiles/{profile_id}", response_model=ProfileDetailRead)
 def update_profile(
-    profile_id: int,
+    profile_id: DbId,
     body: ProfileUpdate,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.YOUTH_WRITE)),
@@ -115,7 +115,7 @@ def update_profile(
     status_code=201,
 )
 def add_log_entry(
-    profile_id: int,
+    profile_id: DbId,
     body: ProfileLogEntryCreate,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.YOUTH_WRITE)),

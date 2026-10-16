@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
+    DbId,
     NotAuthenticatedError,
     require_volunteer_access,
     volunteer_login_rate_limit,
@@ -148,7 +149,7 @@ def search_athletes(
     response_model=CourseBrief,
 )
 def rename_course(
-    course_id: int,
+    course_id: DbId,
     body: VolunteerCourseRename,
     db: Session = Depends(get_db),
     admin: User | None = Depends(require_volunteer_access),
@@ -180,7 +181,7 @@ def rename_course(
     response_model=ParticipationOut,
 )
 def reassign(
-    participation_id: int,
+    participation_id: DbId,
     body: ParticipationReassign,
     db: Session = Depends(get_db),
     admin: User | None = Depends(require_volunteer_access),
@@ -209,7 +210,7 @@ def reassign(
     response_model=ParticipationOut,
 )
 def validate(
-    participation_id: int,
+    participation_id: DbId,
     db: Session = Depends(get_db),
     admin: User | None = Depends(require_volunteer_access),
 ):
@@ -239,7 +240,7 @@ def rejected(db: Session = Depends(get_db)):
     response_model=ParticipationOut,
 )
 def reject(
-    participation_id: int,
+    participation_id: DbId,
     db: Session = Depends(get_db),
     admin: User | None = Depends(require_volunteer_access),
 ):
@@ -259,7 +260,7 @@ def reject(
     response_model=ParticipationOut,
 )
 def unreject(
-    participation_id: int,
+    participation_id: DbId,
     db: Session = Depends(get_db),
     admin: User | None = Depends(require_volunteer_access),
 ):
@@ -279,7 +280,7 @@ def unreject(
     response_model=ParticipationOut,
 )
 def update_fields(
-    participation_id: int,
+    participation_id: DbId,
     body: ParticipationFieldsUpdate,
     db: Session = Depends(get_db),
     admin: User | None = Depends(require_volunteer_access),

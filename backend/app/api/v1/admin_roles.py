@@ -12,7 +12,7 @@ l'invariant qui se perd à la route suivante et ne se rattrape pas après coup.
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_permission
+from app.api.deps import DbId, require_permission
 from app.core import permissions
 from app.core.database import get_db
 from app.core.permissions import P
@@ -75,7 +75,7 @@ def list_roles(
 
 @router.get("/admin/roles/{role_id}", response_model=RoleRead)
 def get_role(
-    role_id: int,
+    role_id: DbId,
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.ROLES_READ)),
 ):
@@ -110,7 +110,7 @@ def create_role(
 
 @router.patch("/admin/roles/{role_id}", response_model=RoleRead)
 def update_role(
-    role_id: int,
+    role_id: DbId,
     body: RoleUpdate,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.ROLES_WRITE)),
@@ -138,7 +138,7 @@ def update_role(
 
 @router.delete("/admin/roles/{role_id}", status_code=204)
 def delete_role(
-    role_id: int,
+    role_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.ROLES_WRITE)),
 ):
@@ -158,7 +158,7 @@ def list_users(
 
 @router.post("/admin/users/{user_id}/roles", response_model=AdminUserRead, status_code=201)
 def grant_role(
-    user_id: int,
+    user_id: DbId,
     body: RoleAssign,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.ROLES_ASSIGN)),
@@ -177,9 +177,9 @@ def grant_role(
 
 @router.delete("/admin/users/{user_id}/roles/{role_id}", status_code=204)
 def revoke_role(
-    user_id: int,
-    role_id: int,
-    organisation_id: int | None = None,
+    user_id: DbId,
+    role_id: DbId,
+    organisation_id: DbId | None = None,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.ROLES_ASSIGN)),
 ):
