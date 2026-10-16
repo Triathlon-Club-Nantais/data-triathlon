@@ -285,8 +285,8 @@ def assert_may_grant(
     deviendrait immodifiable, et `is_system` ou attribué, indélébile. Un
     nettoyage de code ordinaire suffirait à geler un rôle définitivement.
     """
-    wanted = codes & permissions.CODES
-    missing = wanted - effective_permissions(
+    requested = codes & permissions.CODES
+    missing = requested - effective_permissions(
         db, actor, organisation_id=organisation_id
     )
     if missing:
@@ -557,22 +557,22 @@ def _role_audit_view(role: Role) -> dict:
 def delete_role(db: Session, actor: User, role: Role) -> None:
     if role.is_system:
         raise SystemRoleError()
-    holders = role_repository.count_holders(db, role.id)
-    if holders:
+    holder_count = role_repository.count_holders(db, role.id)
+    if holder_count:
         # Le nombre est **dans le message** : « conflit » ne se corrige pas.
         raise RoleInUseError(
-            f"Ce rôle est porté par {holders} utilisateur"
-            f"{'s' if holders > 1 else ''}. Retirez-le d'abord."
+            f"Ce rôle est porté par {holder_count} utilisateur"
+            f"{'s' if holder_count > 1 else ''}. Retirez-le d'abord."
         )
     # Même refus pour les adresses qui le posent à l'inscription (#239) : sans
     # lui, la clé étrangère céderait en PostgreSQL et serait **inerte** en
     # SQLite — un même geste, deux comportements.
-    addresses = allowed_email_repository.count_by_role(db, role.id)
-    if addresses:
+    address_count = allowed_email_repository.count_by_role(db, role.id)
+    if address_count:
         raise RoleInUseError(
-            f"Ce rôle est donné à l'inscription de {addresses} adresse"
-            f"{'s' if addresses > 1 else ''} autorisée"
-            f"{'s' if addresses > 1 else ''}. Retirez-le d'abord de ces adresses."
+            f"Ce rôle est donné à l'inscription de {address_count} adresse"
+            f"{'s' if address_count > 1 else ''} autorisée"
+            f"{'s' if address_count > 1 else ''}. Retirez-le d'abord de ces adresses."
         )
     role_id, view = role.id, {"slug": role.slug, **_role_audit_view(role)}
     with preserving_admins(db, role.organisation_id):

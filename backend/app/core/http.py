@@ -119,13 +119,13 @@ def _check_target(url: httpx.URL, memo: dict[tuple[str, int], list[str]]) -> Non
     else:
         addresses = [host]  # littéral d'IP : aucune résolution nécessaire
 
-    internal = [a for a in addresses if _is_internal(a)]
-    if internal:
+    internal_addresses = [a for a in addresses if _is_internal(a)]
+    if internal_addresses:
         # Le détail (les adresses résolues) est journalisé ; le message rendu à
         # l'appelant garde le host — l'opérateur en a besoin dans les bilans
         # CLI — mais pas les adresses, qui décriraient le réseau interne.
         logger.warning(
-            "Destination interne refusée (#101) : %s:%s → %s", host, port, ", ".join(internal)
+            "Destination interne refusée (#101) : %s:%s → %s", host, port, ", ".join(internal_addresses)
         )
         raise BlockedTargetError(f"Destination interne refusée : {host}")
 
