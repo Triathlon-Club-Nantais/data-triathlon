@@ -55,7 +55,7 @@ def revoke_sessions(
     des jetons, on ne met personne dehors.
     """
     email = body.email if body else None
-    sessions, comptes = (
+    sessions, accounts = (
         session_service.revoke_all(db, actor)
         if email is None
         else session_service.revoke_for_email(db, email, actor)
@@ -67,7 +67,7 @@ def revoke_sessions(
         actor.id,
         email or "all",
         sessions,
-        comptes,
+        accounts,
     )
     db.commit()
-    return SessionRevocation(sessions=sessions, accounts=comptes)
+    return SessionRevocation(sessions=sessions, accounts=accounts)

@@ -290,7 +290,7 @@ site comme le reste de l'API (`require_site_access`, posé à l'inclusion dans
 tout, plafond ou pas. La sixième, `POST /site-access/session`, est par
 construction hors de cette garde — c'est elle qui la satisfait. La septième,
 `POST /benevoles/session`, en est exemptée par choix (`benevoles` figure dans
-`_EXEMPTES_DE_LA_GARDE_SITE`). Ces deux plafonds sont donc les seuls qui
+`_EXEMPT_FROM_SITE_GUARD`). Ces deux plafonds sont donc les seuls qui
 bornent encore un vrai anonyme, sans garde en amont. Celui des bénévoles a son
 seau `benevole_login` (30/h), plus serré que `site_access` : même scrypt par
 tentative, mais une poignée de bénévoles seulement, et ici la force brute
@@ -575,7 +575,7 @@ ce plafond (revue finale, § « Plafond de débit » de
 devenu **dédié** en revue de #513, cf. § « Plafonds de débit par IP »).
 
 **Sept routers sont exemptés de la garde**, et la liste
-`_EXEMPTES_DE_LA_GARDE_SITE` de `v1/router.py` en est la description unique :
+`_EXEMPT_FROM_SITE_GUARD` de `v1/router.py` en est la description unique :
 `health` (sonde Render ; **503** quand la base ne répond pas, #1070, car le
 keep-warm et la supervision ne lisent que le statut), `site_access` (elle pose la garde), `auth` +
 `admin_site_access` (le chemin qui installe le tout premier mot de passe sur un

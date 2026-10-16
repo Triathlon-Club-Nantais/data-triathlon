@@ -98,23 +98,23 @@ def update_training_session(
     """Corrige la date, l'heure, le lieu, le type ou la note. Seuls les
     champs fournis sont écrits."""
     training_session = training_session_service.get_training_session_or_404(db, training_session_id)
-    champs_fournis = body.model_dump(exclude_unset=True)
+    provided_fields = body.model_dump(exclude_unset=True)
     # `note` n'est pas nullable côté modèle : un `null` explicite (sans
     # objet réel — « pas de note » se dit `""`) est traité comme « champ
     # absent », jamais comme une tentative d'écrire `NULL` en base.
-    note_fournie = champs_fournis.get("note", ...)
-    if note_fournie is None:
-        note_fournie = ...
+    provided_note = provided_fields.get("note", ...)
+    if provided_note is None:
+        provided_note = ...
     training_session_service.update_training_session(
         db,
         actor,
         training_session,
-        date=champs_fournis.get("date"),
-        start_time=champs_fournis.get("start_time", ...),
-        location=champs_fournis.get("location", ...),
-        session_type=champs_fournis.get("session_type", ...),
-        note=note_fournie,
-        group_ids=champs_fournis.get("group_ids"),
+        date=provided_fields.get("date"),
+        start_time=provided_fields.get("start_time", ...),
+        location=provided_fields.get("location", ...),
+        session_type=provided_fields.get("session_type", ...),
+        note=provided_note,
+        group_ids=provided_fields.get("group_ids"),
     )
     view = _detail_for(db, actor, training_session)
     db.commit()

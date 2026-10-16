@@ -78,7 +78,7 @@ api_router = APIRouter()
 # La septième, `csp_reports` (#1168) : l'API Reporting du navigateur envoie les
 # rapports **sans cookies**, donc une route gardée ne recevrait que des 401.
 # Elle n'écrit que des logs, bornés par sa taille et son propre plafond.
-_EXEMPTES_DE_LA_GARDE_SITE = (
+_EXEMPT_FROM_SITE_GUARD = (
     health,
     site_access,
     auth,
@@ -88,7 +88,7 @@ _EXEMPTES_DE_LA_GARDE_SITE = (
     csp_reports,
 )
 
-for module in _EXEMPTES_DE_LA_GARDE_SITE:
+for module in _EXEMPT_FROM_SITE_GUARD:
     api_router.include_router(module.router)
 
 for module in (

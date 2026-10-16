@@ -18,7 +18,7 @@ from app.services import club_alias as club_alias_service
 router = APIRouter(tags=["admin"])
 
 
-def _vue(entry: ClubAlias) -> ClubAliasOut:
+def _view(entry: ClubAlias) -> ClubAliasOut:
     return ClubAliasOut(
         id=entry.id,
         canonical_name=entry.canonical_name,
@@ -34,7 +34,7 @@ def list_club_aliases(
     _: User = Depends(require_permission(P.CLUB_ALIASES_MANAGE)),
 ) -> ClubAliasList:
     entries = club_alias_repository.list_entries(db, with_created_by=True)
-    return ClubAliasList(entries=[_vue(e) for e in entries])
+    return ClubAliasList(entries=[_view(e) for e in entries])
 
 
 @router.post("/admin/club-aliases", response_model=ClubAliasOut, status_code=status.HTTP_201_CREATED)
@@ -47,7 +47,7 @@ def add_club_alias(
         db, canonical_name=body.canonical_name, alias=body.alias, admin_user_id=actor.id
     )
     db.commit()
-    return _vue(entry)
+    return _view(entry)
 
 
 @router.delete("/admin/club-aliases/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)

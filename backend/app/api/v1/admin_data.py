@@ -48,7 +48,7 @@ from app.services import admin_actions, athlete_detach, athlete_merge
 router = APIRouter(tags=["admin"])
 
 
-def _fiche(athlete, participations: int) -> AdminAthleteRead:
+def _athlete_record(athlete, participations: int) -> AdminAthleteRead:
     """Une fiche coureur prête à servir. Trois routes la construisent.
 
     Le compte est **fourni**, jamais déduit d'`athlete.participations` : lire la
@@ -81,8 +81,8 @@ def search_athletes(
     l'expose pas — l'y ajouter viderait cette garde de son objet.
     """
     return [
-        _fiche(athlete, nombre)
-        for athlete, nombre in athlete_repository.search_admin(
+        _athlete_record(athlete, count)
+        for athlete, count in athlete_repository.search_admin(
             db, search=search, page=page, page_size=page_size
         )
     ]
@@ -101,7 +101,7 @@ def get_athlete(
     l'enregistrement effacerait une date de naissance qu'il n'a jamais lue.
     """
     athlete = admin_actions.get_athlete(db, athlete_id=athlete_id)
-    return _fiche(athlete, participation_repository.count_for_athlete(db, athlete_id))
+    return _athlete_record(athlete, participation_repository.count_for_athlete(db, athlete_id))
 
 
 @router.post(
@@ -270,20 +270,20 @@ def update_athlete(
     `exclude_unset` et non `exclude_none` : `birth_date: null` est une mise à
     `NULL` légitime, et seule la présence du champ la distingue d'une absence.
     """
-    champs = body.model_dump(exclude_unset=True)
+    changed_fields = body.model_dump(exclude_unset=True)
     athlete = admin_actions.update_athlete(
         db,
         athlete_id=athlete_id,
-        fields=champs,
+        fields=changed_fields,
         user_id=user.id,
     )
     db.commit()
     capture_event(
         "athlete_updated",
         distinct_id=str(user.id),
-        properties={"fields_changed": list(champs.keys())},
+        properties={"fields_changed": list(changed_fields.keys())},
     )
-    return _fiche(athlete, participation_repository.count_for_athlete(db, athlete_id))
+    return _athlete_record(athlete, participation_repository.count_for_athlete(db, athlete_id))
 
 
 @router.get("/admin/athletes/{athlete_id}/merge-impact", response_model=AthleteMergeImpact)
@@ -312,7 +312,7 @@ def merge_athlete(
     athlete = athlete_merge.merge_athletes(db, kept_id=athlete_id, absorbed_id=body.absorbed_id, user_id=user.id)
     db.commit()
     capture_event("athletes_merged", distinct_id=str(user.id), properties={})
-    return _fiche(athlete, participation_repository.count_for_athlete(db, athlete_id))
+    return _athlete_record(athlete, participation_repository.count_for_athlete(db, athlete_id))
 
 
 @router.post("/admin/athletes/{athlete_id}/detach", response_model=AdminAthleteRead, status_code=201)
@@ -321,7 +321,7 @@ def detach_athlete_results(
     body: AthleteDetachRequest,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_WRITE)),
-    _rattachement: User = Depends(require_permission(P.PARTICIPATIONS_REASSIGN)),
+    _reassign_actor: User = Depends(require_permission(P.PARTICIPATIONS_REASSIGN)),
 ):
     """Sépare des résultats vers une nouvelle fiche d'homonyme (#1209) et la rend.
 
@@ -332,7 +332,7 @@ def detach_athlete_results(
     )
     db.commit()
     capture_event("athlete_detached", distinct_id=str(user.id), properties={"results": len(body.participation_ids)})
-    return _fiche(created, participation_repository.count_for_athlete(db, created.id))
+    return _athlete_record(created, participation_repository.count_for_athlete(db, created.id))
 
 
 @router.get("/admin/athletes/{athlete_id}/aliases", response_model=AthleteAliasList)
