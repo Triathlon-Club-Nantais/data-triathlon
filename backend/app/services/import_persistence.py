@@ -636,6 +636,10 @@ class _Persister:
         pending = self._pending.pop(course_id, [])
         if not pending:
             return
+        # `autoflush` est coupé : les mises à jour en attente (tranche précédente,
+        # `_upsert` faits dès `add`) partent ici en un `executemany` (#1503), avant
+        # que `latest_club_dates` et `_club_routing` ne relisent les clubs.
+        self.db.flush()
 
         # Une ligne source inchangée garde sa fiche : ni recherche ni repli pour elle.
         kept = [self._kept_record(course_id, item) if item.teammates is None else None for item in pending]
@@ -814,11 +818,10 @@ class _Persister:
                 if item.bib is not None:
                     self._by_bib[course_id][item.bib] = participation
                 self.imported += 1
-        # `autoflush` est coupé : les mises à jour de la tranche partent ici, en
-        # un `executemany` (#1503), avant que la tranche suivante ou la purge
-        # (ancien porteur d'un résultat repris) ne relise la base.
-        self.db.flush()
         if team_athletes:
+            # `autoflush` est coupé : sans ce flush, la purge lirait encore
+            # l'ancien porteur d'un résultat repris sans autre changement.
+            self.db.flush()
             athlete_repository.delete_orphans_among(self.db, team_athletes)
 
     def _athlete_for_bib(self, course_id: int, item: _PendingResolution, athlete: Athlete) -> Athlete:
