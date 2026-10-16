@@ -168,7 +168,7 @@ def rename_course(
     course = admin_actions.update_course(
         db,
         course_id=course_id,
-        champs={"name": body.name},
+        fields={"name": body.name},
         user_id=benevole_access.actor_user_id(db, admin),
     )
     db.commit()
@@ -291,7 +291,7 @@ def update_fields(
     participation = admin_actions.update_participation_fields(
         db,
         participation_id=participation_id,
-        champs=body.model_dump(exclude_unset=True),
+        fields=body.model_dump(exclude_unset=True),
         user_id=benevole_access.actor_user_id(db, admin),
     )
     db.commit()

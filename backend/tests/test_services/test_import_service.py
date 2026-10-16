@@ -164,7 +164,7 @@ def test_reimport_respecte_un_club_corrige_a_la_main(db_session, patch_scraper):
     admin_actions.update_athlete(
         db_session,
         athlete_id=verrouille.id,
-        champs={"club": "TRI CLUB NANTAIS"},
+        fields={"club": "TRI CLUB NANTAIS"},
         user_id=auteur.id,
     )
 
