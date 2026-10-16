@@ -768,7 +768,7 @@ def test_ordre_affichage_non_classes_apres_les_classes_parmi_les_finishers(db_se
 
 def test_feuilletage_page_size_1_stable_avec_deux_homonymes_exacts(db_session):
     """Deux athlètes distincts, mêmes nom/prénom, même groupe/rang/temps : rien
-    ne les distingue avant la clé finale de `_ordre_affichage`. Sur cette
+    ne les distingue avant la clé finale de `_display_order`. Sur cette
     épreuve figée (aucune écriture concurrente entre les pages), SQLite rend un
     plan stable même sans clé finale — ce test ne peut donc pas, à lui seul,
     reproduire le doublon/l'oubli en feuilletant (le défaut est un plan de
@@ -822,10 +822,10 @@ def test_ordre_affichage_departage_sur_l_id_en_dernier_recours(db_session):
     """La garantie réelle derrière le test de feuilletage ci-dessus : la requête
     SQL elle-même porte une clé de départage unique. `Participation.id` est
     l'unique clé qui ne peut jamais être à égalité entre deux lignes — c'est
-    elle qui doit fermer `_ordre_affichage`, comme `summary_rows_for_course`
+    elle qui doit fermer `_display_order`, comme `summary_rows_for_course`
     le fait déjà via `.order_by(Participation.id)`.
     """
-    derniere_cle = participation_repository._ordre_affichage()[-1]
+    derniere_cle = participation_repository._display_order()[-1]
     compiled = derniere_cle.compile(db_session.bind, compile_kwargs={"literal_binds": True})
 
     assert str(compiled) == "participations.id"

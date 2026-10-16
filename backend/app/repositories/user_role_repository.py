@@ -16,12 +16,12 @@ def list_for_user(
     trancher le superutilisateur et les codes portés, et sans `selectinload`
     chaque attribution paierait sa propre requête pour l'un et l'autre (#625).
     """
-    requete = select(UserRole).where(UserRole.user_id == user_id).options(
+    query = select(UserRole).where(UserRole.user_id == user_id).options(
         selectinload(UserRole.role).selectinload(Role.permissions)
     )
     if organisation_id is not None:
-        requete = requete.where(UserRole.organisation_id == organisation_id)
-    return list(db.scalars(requete.order_by(UserRole.id)))
+        query = query.where(UserRole.organisation_id == organisation_id)
+    return list(db.scalars(query.order_by(UserRole.id)))
 
 
 def list_by_user(db: Session) -> dict[int, list[UserRole]]:
@@ -68,12 +68,12 @@ def grant(
             db.add(attribution)
             db.flush()
     except IntegrityError:
-        existante = find(
+        existing = find(
             db, user_id=user_id, role_id=role_id, organisation_id=organisation_id
         )
-        if existante is None:  # pragma: no cover — une autre contrainte a cédé
+        if existing is None:  # pragma: no cover — une autre contrainte a cédé
             raise
-        return existante, False
+        return existing, False
     return attribution, True
 
 
