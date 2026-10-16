@@ -510,7 +510,7 @@ tous les cookies d'un coup (seule révocation retenue, aucune identité
 individuelle à révoquer) — sans jamais avoir besoin de relire le mot de passe
 en clair. `services/benevole_access.replace_password` est le seul point
 d'écriture des trois champs secrets, toujours ensemble.
-Le cookie expire aussi **côté serveur** au bout de 30 jours
+Le cookie expire aussi **côté serveur** 30 jours après la connexion, sans renouvellement
 (`benevole_access.VOLUNTEER_SESSION_TTL_SECONDS`, #1534), lus sur son
 horodatage signé : posé sans `max_age`, il survivait sinon à toute
 restauration de session du navigateur.
