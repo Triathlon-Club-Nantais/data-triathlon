@@ -927,3 +927,52 @@ def test_duo_team_carries_its_teammates_as_published(monkeypatch):
     ], title="Swimrun DUO")
 
     assert team.teammates == (("DE LA TOUR", "Jean Marc"), ("MARTIN", "Paul"))
+
+
+# ── Schéma FFA à points de passage inline (BayMan 2026, #1575) ───────────────
+
+
+def _bayman_7690_results(monkeypatch):
+    import json
+
+    data = json.loads((FIXTURES / "sportinnovation_ffa_inline_7690.json").read_text(encoding="utf-8"))
+    monkeypatch.setattr(_si, "_fetch_athlete_splits", lambda ref: pytest.fail(f"unexpected splits call: {ref}"))
+    client = _FakeClient({
+        f"/races/{data['race']['slug']}": data["race"],
+        f"/events/{data['race']['eventSlug']}": data["event"],
+        f"/races/{data['race']['slug']}/results": data["results"],
+    })
+    return {r.bib_number: r for r in _si._scrape_results_race(data["race"]["slug"], "http://x", client)}
+
+
+def _splits(r):
+    return (r.swim_time, r.t1_time, r.bike_time, r.t2_time, r.run_time)
+
+
+def test_inline_cumulative_intermediates_become_segment_splits(monkeypatch):
+    by_bib = _bayman_7690_results(monkeypatch)
+
+    assert _splits(by_bib["20"]) == ("00:27:20", "00:01:20", "02:10:01", "00:02:00", "01:15:56")
+    assert by_bib["20"].total_time == "03:56:37"
+
+
+def test_inline_intermediates_keep_the_first_pass_of_a_repeated_point(monkeypatch):
+    by_bib = _bayman_7690_results(monkeypatch)
+
+    assert _splits(by_bib["761"]) == ("00:40:12", "00:07:05", "03:12:42", "00:06:10", "01:45:01")
+
+
+def test_inline_intermediates_leave_a_segment_without_its_previous_point_empty(monkeypatch):
+    """Bike and T2 missing: the run cannot be derived from the T1 pass alone."""
+    by_bib = _bayman_7690_results(monkeypatch)
+
+    assert _splits(by_bib["466"]) == ("00:46:58", "00:06:29", "", "", "")
+    assert _splits(by_bib["31"]) == ("00:38:59", "00:05:08", "03:38:30", "", "")
+    assert by_bib["31"].status == "DNF"
+    assert _splits(by_bib["42"]) == ("", "", "", "", "")
+
+
+def test_ffa_schema_reads_the_official_ranks(monkeypatch):
+    r = _bayman_7690_results(monkeypatch)["761"]
+
+    assert (r.rank_overall, r.rank_gender, r.rank_category) == (409, 388, 67)

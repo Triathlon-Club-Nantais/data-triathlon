@@ -1,0 +1,290 @@
+{
+ "_comment": "Triathlon L, BayMan Triathlon du Mont-Saint-Michel 2026 (course sportinnovation 7690, #1575). Schéma FFA de /api/races/{slug}/results mesuré le 16/10/2026 : rangs official*Rank, points de passage cumulés inline dans `intermediates`. Noms pseudonymisés, licence et ville retirées, 5 lignes sur 971.",
+ "race": {
+  "slug": "xu94e7-triathlon-l",
+  "title": "Triathlon L",
+  "eventSlug": "nkfsrk-bayman-triathlon-du-mont-saint-michel-2026",
+  "date": "2026-10-10",
+  "rankingType": "multi_stage",
+  "intermediatePointNames": {
+   "Transition 1": "T1",
+   "Transition 2": "T2",
+   "FINISH": "Tps CAP"
+  }
+ },
+ "event": {
+  "title": "BAYMAN",
+  "eventDate": "2026-10-10"
+ },
+ "results": [
+  {
+   "raceSlug": "xu94e7-triathlon-l",
+   "bib": 20,
+   "controlPointLabel": "FINISH",
+   "realTimeFfa": "03:56:37",
+   "realTimeFfaSec": 14197,
+   "officialTimeFfa": "03:56:37",
+   "officialTimeFfaSec": 14197,
+   "rankingSeconds": 14197,
+   "firstName": "Paul",
+   "lastName": "MARTIN",
+   "teamName": null,
+   "groupName": null,
+   "clubName": "ASPTT STRASBOURG TRI",
+   "city": null,
+   "licenceNumber": null,
+   "photoLink": null,
+   "videoLink": null,
+   "sex": "H",
+   "category": "S2H",
+   "nationality": "FR",
+   "customField1": null,
+   "customField2": null,
+   "customField3": null,
+   "isAnonymous": 0,
+   "runnerAdditionalDistance": "0.000",
+   "runnerSlug": "anon-20",
+   "realGeneralRank": 1,
+   "realSexRank": 1,
+   "realCategoryRank": 1,
+   "officialGeneralRank": 1,
+   "officialSexRank": 1,
+   "officialCategoryRank": 1,
+   "status": null,
+   "intermediates": [
+    {
+     "controlPointLabel": "Tps Nat",
+     "distanceFromStart": "1.900",
+     "realTimeFfa": "00:27:20"
+    },
+    {
+     "controlPointLabel": "Transition 1",
+     "distanceFromStart": "2.000",
+     "realTimeFfa": "00:28:40"
+    },
+    {
+     "controlPointLabel": "Tps Velo",
+     "distanceFromStart": "93.500",
+     "realTimeFfa": "02:38:41"
+    },
+    {
+     "controlPointLabel": "Transition 2",
+     "distanceFromStart": "93.600",
+     "realTimeFfa": "02:40:41"
+    },
+    {
+     "controlPointLabel": "FINISH",
+     "distanceFromStart": "114.830",
+     "realTimeFfa": "03:56:37"
+    }
+   ]
+  },
+  {
+   "raceSlug": "xu94e7-triathlon-l",
+   "bib": 761,
+   "controlPointLabel": "FINISH",
+   "realTimeFfa": "05:51:10",
+   "realTimeFfaSec": 21070,
+   "officialTimeFfa": "05:57:53",
+   "officialTimeFfaSec": 21473,
+   "rankingSeconds": 21473,
+   "firstName": "Luc",
+   "lastName": "BERNARD",
+   "teamName": null,
+   "groupName": null,
+   "clubName": null,
+   "city": null,
+   "licenceNumber": null,
+   "photoLink": null,
+   "videoLink": null,
+   "sex": "H",
+   "category": "S3H",
+   "nationality": "FR",
+   "customField1": null,
+   "customField2": null,
+   "customField3": null,
+   "isAnonymous": 0,
+   "runnerAdditionalDistance": "0.000",
+   "runnerSlug": "anon-761",
+   "realGeneralRank": 386,
+   "realSexRank": 365,
+   "realCategoryRank": 64,
+   "officialGeneralRank": 409,
+   "officialSexRank": 388,
+   "officialCategoryRank": 67,
+   "status": null,
+   "intermediates": [
+    {
+     "controlPointLabel": "Tps Nat",
+     "distanceFromStart": "1.900",
+     "realTimeFfa": "00:40:12"
+    },
+    {
+     "controlPointLabel": "Transition 1",
+     "distanceFromStart": "2.000",
+     "realTimeFfa": "00:47:17"
+    },
+    {
+     "controlPointLabel": "Tps Velo",
+     "distanceFromStart": "93.500",
+     "realTimeFfa": "03:59:59"
+    },
+    {
+     "controlPointLabel": "Transition 2",
+     "distanceFromStart": "93.600",
+     "realTimeFfa": "04:06:09"
+    },
+    {
+     "controlPointLabel": "Transition 2",
+     "distanceFromStart": "93.600",
+     "realTimeFfa": "04:06:09"
+    },
+    {
+     "controlPointLabel": "FINISH",
+     "distanceFromStart": "114.830",
+     "realTimeFfa": "05:51:10"
+    }
+   ]
+  },
+  {
+   "raceSlug": "xu94e7-triathlon-l",
+   "bib": 466,
+   "controlPointLabel": "FINISH",
+   "realTimeFfa": "06:38:13",
+   "realTimeFfaSec": 23893,
+   "officialTimeFfa": "06:40:04",
+   "officialTimeFfaSec": 24004,
+   "rankingSeconds": 24004,
+   "firstName": "Anne",
+   "lastName": "PETIT",
+   "teamName": null,
+   "groupName": null,
+   "clubName": null,
+   "city": null,
+   "licenceNumber": null,
+   "photoLink": null,
+   "videoLink": null,
+   "sex": "F",
+   "category": "S4F",
+   "nationality": "FR",
+   "customField1": null,
+   "customField2": null,
+   "customField3": null,
+   "isAnonymous": 0,
+   "runnerAdditionalDistance": "0.000",
+   "runnerSlug": "anon-466",
+   "realGeneralRank": 702,
+   "realSexRank": 49,
+   "realCategoryRank": 11,
+   "officialGeneralRank": 682,
+   "officialSexRank": 47,
+   "officialCategoryRank": 11,
+   "status": null,
+   "intermediates": [
+    {
+     "controlPointLabel": "Tps Nat",
+     "distanceFromStart": "1.900",
+     "realTimeFfa": "00:46:58"
+    },
+    {
+     "controlPointLabel": "Transition 1",
+     "distanceFromStart": "2.000",
+     "realTimeFfa": "00:53:27"
+    },
+    {
+     "controlPointLabel": "FINISH",
+     "distanceFromStart": "114.830",
+     "realTimeFfa": "06:38:13"
+    }
+   ]
+  },
+  {
+   "raceSlug": "xu94e7-triathlon-l",
+   "bib": 31,
+   "controlPointLabel": "FINISH",
+   "realTimeFfa": null,
+   "realTimeFfaSec": null,
+   "officialTimeFfa": null,
+   "officialTimeFfaSec": null,
+   "rankingSeconds": null,
+   "firstName": "Marc",
+   "lastName": "DURAND",
+   "teamName": null,
+   "groupName": null,
+   "clubName": "BREST TRIATHLON",
+   "city": null,
+   "licenceNumber": null,
+   "photoLink": null,
+   "videoLink": null,
+   "sex": "H",
+   "category": "S4H",
+   "nationality": "FR",
+   "customField1": null,
+   "customField2": null,
+   "customField3": null,
+   "isAnonymous": 0,
+   "runnerAdditionalDistance": "0.000",
+   "runnerSlug": "anon-31",
+   "realGeneralRank": null,
+   "realSexRank": null,
+   "realCategoryRank": null,
+   "officialGeneralRank": null,
+   "officialSexRank": null,
+   "officialCategoryRank": null,
+   "status": "DNF",
+   "intermediates": [
+    {
+     "controlPointLabel": "Tps Nat",
+     "distanceFromStart": "1.900",
+     "realTimeFfa": "00:38:59"
+    },
+    {
+     "controlPointLabel": "Transition 1",
+     "distanceFromStart": "2.000",
+     "realTimeFfa": "00:44:07"
+    },
+    {
+     "controlPointLabel": "Tps Velo",
+     "distanceFromStart": "93.500",
+     "realTimeFfa": "04:22:37"
+    }
+   ]
+  },
+  {
+   "raceSlug": "xu94e7-triathlon-l",
+   "bib": 42,
+   "controlPointLabel": "FINISH",
+   "realTimeFfa": null,
+   "realTimeFfaSec": null,
+   "officialTimeFfa": null,
+   "officialTimeFfaSec": null,
+   "rankingSeconds": null,
+   "firstName": "Julie",
+   "lastName": "LEROY",
+   "teamName": null,
+   "groupName": null,
+   "clubName": null,
+   "city": null,
+   "licenceNumber": null,
+   "photoLink": null,
+   "videoLink": null,
+   "sex": "H",
+   "category": null,
+   "nationality": "FR",
+   "customField1": null,
+   "customField2": null,
+   "customField3": null,
+   "isAnonymous": 0,
+   "runnerAdditionalDistance": "0.000",
+   "runnerSlug": "anon-42",
+   "realGeneralRank": null,
+   "realSexRank": null,
+   "realCategoryRank": null,
+   "officialGeneralRank": null,
+   "officialSexRank": null,
+   "officialCategoryRank": null,
+   "status": "DNS",
+   "intermediates": []
+  }
+ ]
+}
