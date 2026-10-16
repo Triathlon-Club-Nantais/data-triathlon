@@ -17,16 +17,16 @@ from app.core.database import session_scope
 from app.services.geocode_service import RETRY_AFTER, run_geocode_courses
 
 
-def _progression(actif: bool):
+def _progress(enabled: bool):
     """`None` si la progression est coupée : `run_geocode_courses` n'appelle rien."""
-    if not actif:
+    if not enabled:
         return None
 
-    def _sur_tentative(index: int, total: int, nom: str, coord) -> None:
-        issue = "géocodée" if coord is not None else "échec (ville introuvable)"
-        typer.echo(f"[{index + 1}/{total}] {nom} → {issue}", err=True)
+    def _on_item(index: int, total: int, name: str, coord) -> None:
+        verdict = "géocodée" if coord is not None else "échec (ville introuvable)"
+        typer.echo(f"[{index + 1}/{total}] {name} → {verdict}", err=True)
 
-    return _sur_tentative
+    return _on_item
 
 
 def geocode_courses(
@@ -72,7 +72,7 @@ def geocode_courses(
             retry_after=timedelta(days=retry_after_days),
             dry_run=dry_run,
             course_ids=course_ids,
-            on_item=_progression(not no_progress and not dry_run),
+            on_item=_progress(not no_progress and not dry_run),
         )
 
     emit_outcome(

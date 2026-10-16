@@ -30,11 +30,11 @@ def requalify_challenges(
         if not yes:
             found = challenge_requalification.requalify(db, user_id=None)
         else:
-            comptes = user_repository.find_by_email(db, by_email) if by_email else []
-            if not comptes:
+            accounts = user_repository.find_by_email(db, by_email) if by_email else []
+            if not accounts:
                 typer.echo("--yes exige --by-email, l'adresse d'un compte existant.", err=True)
                 raise typer.Exit(USAGE)
-            found = challenge_requalification.requalify(db, user_id=comptes[0].id)
+            found = challenge_requalification.requalify(db, user_id=accounts[0].id)
 
     rows = [
         {"course_id": r.course_id, "name": r.name, "linked_course_ids": r.linked_course_ids,
