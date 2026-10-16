@@ -469,23 +469,48 @@ def test_le_format_de_temps_accepte_est_exactement_celui_documente(client, temps
     assert statut == (201 if accepte else 422)
 
 
-def test_a_manual_result_for_an_opposed_person_is_refused(client, db_session):
-    """#334 : la saisie manuelle n'a ni source ni dossard fiable, elle est refusée."""
-    from datetime import date
-
+def _oppose_jean_dupont(db_session):
     from app.core.identity import identity_hash
     from app.repositories import opposition_repository
 
-    opposition_repository.create(
+    opposition = opposition_repository.create(
         db_session, identity_hash=identity_hash("DUPONT", "Jean"), requested_on=date(2026, 9, 1),
         applied_by_user_id=None,
     )
     db_session.commit()
+    return opposition
 
-    resp = client.post("/api/v1/participations", json=_payload())
 
-    assert resp.status_code == 422
-    assert "opposée à la publication" in resp.json()["detail"]
+def _stored_rows(db_session):
+    from app.models.athlete import Athlete
+
+    return tuple(db_session.query(model).count() for model in (Participation, Athlete, Course))
+
+
+def _without_ids(body):
+    return {
+        **body, "id": None, "created_at": None,
+        "athlete": {**body["athlete"], "id": None}, "course": {**body["course"], "id": None},
+    }
+
+
+def test_a_manual_result_for_an_opposed_person_answers_like_a_quarantined_entry(client, db_session):
+    """#1514 : la réponse publique ne dit plus qu'une personne s'est opposée, et rien n'est gardé."""
+    opposition = _oppose_jean_dupont(db_session)
+
+    opposed = client.post("/api/v1/participations", json=_payload())
+
+    assert opposed.status_code == 201
+    assert _stored_rows(db_session) == (0, 0, 0)
+
+    db_session.delete(opposition)
+    db_session.commit()
+    accepted = client.post("/api/v1/participations", json=_payload())
+
+    assert accepted.status_code == 201
+    # Les identifiants viennent de séquences, que PostgreSQL ne rembobine pas au rollback.
+    assert _without_ids(opposed.json()) == _without_ids(accepted.json())
+    assert opposed.json()["is_pending_validation"] is True
 
 
 @pytest.mark.parametrize(
@@ -494,28 +519,32 @@ def test_a_manual_result_for_an_opposed_person_is_refused(client, db_session):
         {"athlete_name": "DUPONT Jean / MARTIN Paul", "athlete_firstname": ""},
         {"athlete_name": "MARTIN", "athlete_firstname": "Paul", "team_name": "DUPONT Jean / MARTIN Paul"},
         {"athlete_name": "MARTIN", "athlete_firstname": "Paul", "team_name": "Jean Dupont"},
+        {"athlete_name": "MARTIN", "athlete_firstname": "Paul", "team_name": "DUPONT Jean + MARTIN Paul"},
+        {"athlete_name": "MARTIN", "athlete_firstname": "Paul", "team_name": "Paul Martin, Jean Dupont"},
+        {"athlete_name": "Jean DUPONT & Paul MARTIN", "athlete_firstname": ""},
     ],
 )
-def test_a_manual_relay_naming_an_opposed_person_is_refused(client, db_session, identity):
-    """#1506 : un libellé de relais (nom saisi ou nom d'équipe) qui nomme une personne opposée."""
-    from datetime import date
-
-    from app.core.identity import identity_hash
-    from app.models.athlete import Athlete
-    from app.repositories import opposition_repository
-
-    opposition_repository.create(
-        db_session, identity_hash=identity_hash("DUPONT", "Jean"), requested_on=date(2026, 9, 1),
-        applied_by_user_id=None,
-    )
-    db_session.commit()
+def test_a_manual_relay_naming_an_opposed_person_is_silently_dropped(client, db_session, identity):
+    """#1506, #1514 : un libellé de relais (nom saisi ou nom d'équipe) qui nomme une personne opposée."""
+    _oppose_jean_dupont(db_session)
 
     resp = client.post("/api/v1/participations", json={**_payload(), "is_relay": True, **identity})
 
-    assert resp.status_code == 422
-    assert "opposée à la publication" in resp.json()["detail"]
-    assert db_session.query(Participation).count() == 0
-    assert db_session.query(Athlete).count() == 0
+    assert resp.status_code == 201
+    assert "oppos" not in resp.text
+    assert _stored_rows(db_session) == (0, 0, 0)
+
+
+def test_an_opposed_manual_entry_meets_the_other_refusals_like_anyone(client, db_session):
+    """#1514 : une saisie jeune est refusée pareil, qu'elle nomme ou non une personne opposée."""
+    _oppose_jean_dupont(db_session)
+    payload = {**_payload(club="ASPTT"), "category": "MIH"}
+
+    opposed = client.post("/api/v1/participations", json=payload)
+    other = client.post("/api/v1/participations", json={**payload, "athlete_name": "MARTIN"})
+
+    assert opposed.status_code == 422
+    assert (opposed.status_code, opposed.json()) == (other.status_code, other.json())
 
 
 @pytest.mark.parametrize(

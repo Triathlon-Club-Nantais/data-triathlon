@@ -9,6 +9,7 @@ arriver anonymes les résultats importés ensuite (`import_service`).
 Les homonymes sont couverts : la clé est le nom et le prénom normalisés
 (`core/identity`), seule identité que les imports connaissent.
 """
+import re
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
@@ -36,6 +37,7 @@ from app.repositories import (
 from app.scrapers.utils import split_relay_teammates
 from app.services import audit
 
+_TEAMMATE_SEPARATOR = re.compile(r"\s*[/+&;]\s*|\s+(?:et|-)\s+", re.IGNORECASE)
 OVERDUE_AFTER_DAYS = 30
 PARIS = ZoneInfo("Europe/Paris")
 REDACTED = "[anonymisé]"
@@ -71,17 +73,34 @@ def is_opposed(db: Session, nom: str, prenom: str) -> bool:
 
 def named_hashes(*labels: str | None) -> set[str]:
     """Empreinte de chaque personne qu'un libellé nomme : lui entier, ou chaque équipier
-    d'un libellé de relais. Règle commune à l'import et à la saisie (#1506)."""
+    d'un libellé de relais. Règle commune à l'import et à la saisie (#1506).
+
+    `+`, `&`, `;`, « et » et un tiret entouré d'espaces séparent des équipiers comme `/`
+    (#1514). La virgule aussi, mais elle sépare encore « NOM, Prénom » : elle ne coupe
+    que si chaque côté porte au moins deux mots. Une empreinte en trop anonymise à
+    l'import la ligne d'une autre personne : un fragment de nom n'en produit pas.
+    """
     hashes = set()
     for label in filter(None, labels):
         hashes.add(identity_hash(label, ""))
-        hashes.update(identity_hash(*pair) for pair in split_relay_teammates(label) or ())
+        for relay in (label, _TEAMMATE_SEPARATOR.sub("/", label)):
+            hashes.update(identity_hash(*pair) for pair in split_relay_teammates(relay) or ())
+        for segment in _TEAMMATE_SEPARATOR.split(label):
+            hashes.add(identity_hash(segment, ""))
+            parts = segment.split(",")
+            if all(len(part.split()) >= 2 for part in parts):
+                hashes.update(identity_hash(part, "") for part in parts)
     return hashes
 
 
-def ensure_not_opposed(db: Session, nom: str, prenom: str, *labels: str | None) -> None:
+def names_opposed(db: Session, nom: str, prenom: str, *labels: str | None) -> bool:
     """`labels` : autres libellés publiés avec l'identité, comme le nom d'une équipe de relais."""
-    if opposition_repository.any_hash(db, named_hashes(f"{nom} {prenom}", *labels)):
+    return opposition_repository.any_hash(db, named_hashes(f"{nom} {prenom}", *labels))
+
+
+def ensure_not_opposed(db: Session, nom: str, prenom: str, *labels: str | None) -> None:
+    """Refus explicite, réservé aux gestes des bénévoles : la saisie publique se tait (#1514)."""
+    if names_opposed(db, nom, prenom, *labels):
         raise OpposedIdentityError()
 
 

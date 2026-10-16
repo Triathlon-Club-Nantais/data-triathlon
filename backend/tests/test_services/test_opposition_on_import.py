@@ -118,3 +118,19 @@ def test_a_label_naming_an_opposed_person_arrives_anonymous_even_off_relay(db_se
 
     assert db_session.query(Participation).one().athlete.nom.startswith("Anonyme ")
     assert _sans_dupont(db_session)
+
+
+@pytest.mark.parametrize(
+    "team_name",
+    ["DUPONT Jean-Pierre + MARTIN Alix", "Alix Martin, Jean-Pierre Dupont", "Jean-Pierre DUPONT & Alix MARTIN"],
+)
+def test_a_team_name_joined_by_another_separator_still_names_the_opposed_member(
+    db_session, opposition, team_name
+):
+    """#1514 : `+`, `,` et `&` séparent des équipiers comme `/`."""
+    import_persistence.persist_results(
+        db_session, URL, [_ligne("54", "MARTIN", "Alix", is_relay=True, team_name=team_name)],
+    )
+
+    assert db_session.query(Participation).one().athlete.nom.startswith("Anonyme ")
+    assert _sans_dupont(db_session)
