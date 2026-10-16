@@ -1,5 +1,5 @@
-import { useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useHydrated } from "@/hooks/useHydrated";
 import { ApiError, apiClient } from "@/lib/api/client";
 import type { AuthMethod, SessionUser } from "@/lib/types";
 import { queryKeys } from "./keys";
@@ -89,13 +89,6 @@ export function useLogout() {
     mutationFn: () => apiClient.logout(),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.session() }),
   });
-}
-
-const sansAbonnement = () => () => {};
-
-/** Faux au rendu serveur **et** au premier rendu client qui l'hydrate, vrai ensuite. */
-export function useHydrated(): boolean {
-  return useSyncExternalStore(sansAbonnement, () => true, () => false);
 }
 
 /**

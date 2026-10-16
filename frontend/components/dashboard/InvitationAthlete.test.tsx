@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { ATHLETE_CHANGED_EVENT, ATHLETE_LOST_EVENT } from "@/components/layout/AthletePicker";
 import { InvitationAthlete } from "./InvitationAthlete";
 
@@ -78,5 +80,24 @@ describe("InvitationAthlete — fiche disparue (état « perdu » de MaSaison)",
     expect(
       screen.getByRole("button", { name: /retrouvez vos épreuves et vos podiums/i }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("InvitationAthlete — hydratation", () => {
+  it("ne rend rien au serveur, puis invite après hydratation sans écart", async () => {
+    const html = renderToString(<InvitationAthlete />);
+    expect(html).toBe("");
+
+    const conteneur = document.createElement("div");
+    conteneur.innerHTML = html;
+    document.body.appendChild(conteneur);
+    const ecartHydratation = vi.fn();
+
+    await act(async () => {
+      hydrateRoot(conteneur, <InvitationAthlete />, { onRecoverableError: ecartHydratation });
+    });
+
+    expect(ecartHydratation).not.toHaveBeenCalled();
+    expect(conteneur.textContent).toMatch(/retrouvez vos épreuves et vos podiums/i);
   });
 });
