@@ -16,3 +16,7 @@ DbId = Annotated[int, Ge(1), Le(DB_ID_MAX)]
 #: `DbId` sans coercition : en mode permissif, Pydantic lit `true` comme `1`,
 #: et l'enregistrement `1` serait visé (fusion, suppression, rôle administrateur).
 StrictDbId = Annotated[DbId, Strict()]
+
+#: Un rang de classement s'écrit lui aussi dans une colonne `integer` : même
+#: plage, sinon la même `DataError` en 500 (#1574).
+Rank = Annotated[int, Ge(1), Le(DB_ID_MAX)]

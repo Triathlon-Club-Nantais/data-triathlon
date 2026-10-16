@@ -16,6 +16,7 @@ from pydantic import (
 from app.schemas.athlete import AthleteBrief
 from app.schemas.challenge import AthleteChallengeOut
 from app.schemas.course import CourseBrief
+from app.schemas.ids import Rank
 from app.schemas.participation_stats import ParticipationStatsOut
 from app.scrapers.base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
 from app.scrapers.classify import CANONICAL_TYPES
@@ -179,9 +180,9 @@ class ParticipationCreate(BaseModel):
     # Participation
     bib_number: str = ""
     category: str = ""
-    rank_overall: int | None = Field(default=None, ge=1)
-    rank_category: int | None = Field(default=None, ge=1)
-    rank_gender: int | None = Field(default=None, ge=1)
+    rank_overall: Rank | None = None
+    rank_category: Rank | None = None
+    rank_gender: Rank | None = None
     total_time: Duration = ""
     status: Literal["", STATUS_FINISHER, STATUS_DNF, STATUS_DNS, STATUS_DSQ] = ""
     # Nom de l'équipe si `is_relay` est vrai, lien vers les résultats publiés

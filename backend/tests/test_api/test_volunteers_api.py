@@ -563,6 +563,17 @@ def test_update_fields_refuse_un_corps_vide(benevole_connecte, resultat_pendant,
     assert reponse.status_code == 422
 
 
+def test_update_fields_rejects_a_rank_beyond_the_integer_column(
+    benevole_connecte, resultat_pendant, compte_systeme
+):
+    course, athlete, ligne = resultat_pendant
+    reponse = benevole_connecte.patch(
+        f"/api/v1/benevoles/participations/{ligne.id}", json={"rank_overall": 2_147_483_648}
+    )
+    assert reponse.status_code == 422
+    assert reponse.json()["detail"][0]["loc"][-1] == "rank_overall"
+
+
 def test_update_fields_refuse_sur_resultat_rejete(benevole_connecte, resultat_pendant, compte_systeme):
     course, athlete, ligne = resultat_pendant
     benevole_connecte.post(f"/api/v1/benevoles/participations/{ligne.id}/reject")
