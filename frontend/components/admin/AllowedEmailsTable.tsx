@@ -117,7 +117,7 @@ export function AllowedEmailsTable() {
     <div className="space-y-4">
       {/* `flex-col`/`sm:flex-row` : sur 375 px, le champ e-mail était écrasé
           contre un `<select>` en `w-48` fixe (#479, ADM-11) — même schéma que
-          `BenevoleAccessConfig.tsx`. */}
+          `SharedPasswordCard.tsx`. */}
       <form onSubmit={soumettre} className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="flex-1 space-y-1.5">
           <Label htmlFor="adresse-autorisee">Adresse à autoriser</Label>
