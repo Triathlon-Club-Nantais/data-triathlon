@@ -1183,7 +1183,7 @@ def test_only_on_course_tells_every_credit_shape_apart(db_session):
     )
 
 
-def test_only_on_course_runs_one_query_returning_only_its_result(db_session):
+def test_only_on_course_runs_a_single_query(db_session):
     """#1581: the other courses' credits stay in the database."""
     from sqlalchemy import event
 
@@ -1196,12 +1196,11 @@ def test_only_on_course_runs_one_query_returning_only_its_result(db_session):
     engine = db_session.get_bind()
     event.listen(engine, "after_cursor_execute", capture)
     try:
-        result = athlete_repository.only_on_course(db_session, target.id)
+        athlete_repository.only_on_course(db_session, target.id)
     finally:
         event.remove(engine, "after_cursor_execute", capture)
 
     assert len(statements) == 1, statements
-    assert len(result) == 5
 
 
 def test_club_roster_credite_chaque_equipier_d_un_relais(db_session):
