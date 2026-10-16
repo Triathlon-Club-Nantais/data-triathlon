@@ -594,7 +594,9 @@ describe("AthletePage — tuiles proportionnées au volume (PROF-4, #488)", () =
   it("sous le seuil, propose d'ajouter une épreuve", async () => {
     await renderAthlete([part({ id: 1, rank_overall: 12 })]);
 
-    expect(screen.getByRole("link", { name: /Ajouter une épreuve/ })).toHaveAttribute("href", "/ajouter");
+    const ajouter = screen.getByRole("link", { name: "Ajouter une épreuve" });
+    expect(ajouter).toHaveAttribute("href", "/ajouter");
+    expect(ajouter).toHaveClass("tcn-cible-tactile");
   });
 
   it("sans aucune participation, ne rend ni tuile ni second appel à l'action", async () => {

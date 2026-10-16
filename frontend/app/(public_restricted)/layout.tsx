@@ -72,7 +72,8 @@ export default async function ProtegeLayout({ children }: { children: ReactNode 
       >
         <Link
           href="/guide"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--tcn-text-faint)] transition-colors hover:text-foreground"
+          // 44 px sous md (#1510) ; `.tcn-cible-tactile` porterait le lien de 20 à 28 px sur bureau.
+          className="inline-flex items-center gap-1.5 text-sm max-md:min-h-11 font-medium text-[var(--tcn-text-faint)] transition-colors hover:text-foreground"
         >
           <BookOpen className="size-4" aria-hidden />
           Guide

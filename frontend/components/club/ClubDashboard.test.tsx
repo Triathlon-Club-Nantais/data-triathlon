@@ -126,6 +126,9 @@ describe("ClubDashboard — smoke", () => {
       />,
     );
     expect(screen.getByText("Aucun résultat de club")).toBeInTheDocument();
+    const ajouter = screen.getByRole("link", { name: "Ajouter une épreuve" });
+    expect(ajouter).toHaveAttribute("href", "/ajouter");
+    expect(ajouter).toHaveClass("tcn-cible-tactile");
   });
 
   it("roster : décompose les podiums d'un athlète par scope, avec tooltip", () => {
