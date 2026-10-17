@@ -11,7 +11,7 @@ import { useHydrated } from "@/hooks/useHydrated";
 
 /**
  * Invitation discrète à choisir son athlète, pour qui atterrit sur
- * `/dashboard` sans l'avoir encore fait (#588 — suite de #467/#502, dont la
+ * `/mon-espace` sans l'avoir encore fait (#588 — suite de #467/#502, dont la
  * récompense — la bande « Ma saison » — restait invisible à qui n'avait pas
  * fait le geste).
  *

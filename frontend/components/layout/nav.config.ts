@@ -14,6 +14,7 @@ import {
   UserCheck,
   UserCog,
   Users,
+  UserRound,
 } from "lucide-react";
 
 /**
@@ -141,7 +142,7 @@ export type SpaceId = "public" | "encadrement" | "admin";
  * lieu.
  */
 export const SPACES: Record<SpaceId, { label: string; icon: LucideIcon; home?: string }> = {
-  public: { label: "Consulter", icon: LayoutGrid, home: "/dashboard" },
+  public: { label: "Consulter", icon: LayoutGrid, home: "/" },
   encadrement: { label: "Encadrement", icon: CalendarDays, home: "/encadrement" },
   admin: { label: "Back-office", icon: Briefcase, home: "/admin" },
 };
@@ -175,7 +176,8 @@ export const NAV: NavSection[] = [
     space: "public",
     root: true,
     items: [
-      { id: "dashboard", label: "Tableau de bord", labelCourt: "Accueil", href: "/dashboard", icon: LayoutGrid, bottomBar: true },
+      { id: "accueil", label: "Accueil", href: "/", icon: LayoutGrid, bottomBar: true },
+      { id: "monespace", label: "Mon espace", href: "/mon-espace", icon: UserRound },
       { id: "resultats", label: "Résultats", href: "/resultats", icon: List, bottomBar: true },
       // `MapView.tsx` existe déjà, et la route `/carte` répond déjà en
       // direct : `soon` ne masque que l'entrée du rail (#10, #28), pas la

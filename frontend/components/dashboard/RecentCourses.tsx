@@ -87,7 +87,7 @@ export function RecentCourses({ events }: { events: EventOut[] }) {
                 <td role="cell" style={{ color: "var(--tcn-ink)", fontWeight: 600 }}>
                   {/* prefetch={false} (#425) : jusqu'à 6 liens au-dessus de la
                       ligne de flottaison, next/link les prefetch tous par défaut
-                      dès l'atterrissage sur /dashboard — un coût réseau pour des
+                      dès l'atterrissage sur /mon-espace — un coût réseau pour des
                       épreuves au hasard, rarement celle que le visiteur ouvrira. */}
                   <Link href={`/courses/${e.id}`} prefetch={false} className="tcn-rowlink__cible">
                     {formatEventName(e.event_name, e.is_relay)}

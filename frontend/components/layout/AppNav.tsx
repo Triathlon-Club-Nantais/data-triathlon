@@ -211,11 +211,9 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
    * la comparaison est une égalité et non un préfixe. `startsWith` allumait
    * « Back-office » (`/admin`) en même temps que `/admin/acces`, et
    * l'aurait fait pour les trois écrans à venir, tous sous `/admin/`.
-   *
-   * `/dashboard` garde son cas propre : il répond aussi à la racine.
    */
   function isActive(href: string) {
-    return pathname === href || (href === "/dashboard" && pathname === "/");
+    return pathname === href;
   }
 
   // « Plus » porte la position quand la page courante vit dans le tiroir : sans
@@ -279,10 +277,10 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           </button>
           {expanded ? (
             /* prefetch={false} (#428) : rendu au seul état déplié, ce lien
-               monte un second observateur vers `/dashboard` alors que l'entrée
-               « Tableau de bord » du rail prefetche déjà la route. */
+               monte un second observateur vers `/` alors que l'entrée
+               « Accueil » du rail prefetche déjà la route. */
             <Link
-              href="/dashboard"
+              href="/"
               prefetch={false}
               aria-label={`${CLUB_NAME_SHORT} — Accueil`}
               style={{ display: "inline-flex" }}
@@ -299,7 +297,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             // ce lot. Même `aria-label` et même destination que le logo
             // déplié : un seul lien « accueil », deux habillages.
             <Link
-              href="/dashboard"
+              href="/"
               prefetch={false}
               aria-label={`${CLUB_NAME_SHORT} — Accueil`}
               style={{
@@ -449,7 +447,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
         >
           <Menu size={21} />
         </button>
-        <Link href="/dashboard" aria-label={`${CLUB_NAME_SHORT} — Accueil`} style={{ display: "inline-flex", marginRight: "auto" }}>
+        <Link href="/" aria-label={`${CLUB_NAME_SHORT} — Accueil`} style={{ display: "inline-flex", marginRight: "auto" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-tcn.png" alt={CLUB_NAME} style={{ height: 24, display: "block" }} />
         </Link>

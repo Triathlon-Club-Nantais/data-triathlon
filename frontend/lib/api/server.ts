@@ -28,7 +28,7 @@ const BASE = `${API_URL}/api/v1`;
 export type FetchOpts = { revalidateSeconds?: number };
 
 /**
- * Fenêtre courte pour `/dashboard` et `/club` (#352) — les deux pages dont le
+ * Fenêtre courte pour `/mon-espace` et `/club` (#352) — les deux pages dont le
  * coût mesuré (sondage du 2026-08-14) justifie un `revalidate`, une fois
  * #350/#351 corrigés. `/ajouter` (#376) partage la même fenêtre pour une
  * raison différente : ce n'est pas son coût par appel qui pose problème, mais

@@ -5,7 +5,7 @@ import type { Participation } from "@/lib/types";
 let searchParams = new URLSearchParams();
 vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParams,
-  usePathname: () => "/dashboard",
+  usePathname: () => "/mon-espace",
 }));
 
 const getAthlete = vi.fn();

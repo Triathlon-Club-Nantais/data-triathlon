@@ -4,7 +4,7 @@ Renvoyé depuis `frontend/AGENTS.md`, table « Où lire quoi ».
 
 ## `next.config.ts` : en-têtes de sécurité (#396)
 
-`next.config.ts` — rewrites (`/api/*`, proxy PostHog), la redirection temporaire `/` → `/dashboard` (#1505, au routage, sans page `app/page.tsx`) **et** `headers()` : les
+`next.config.ts` — rewrites (`/api/*`, proxy PostHog), la redirection temporaire `/` → `/mon-espace` (#1505, au routage, sans page `app/page.tsx`) **et** `headers()` : les
 en-têtes de sécurité posés sur `/:path*`, rewrites comprises (#396). Ils ne
 couvrent que ce qui passe par Next : les backends Render étant joignables en
 direct, `backend/app/core/security_headers.py` en est le jumeau. La CSP n'y est

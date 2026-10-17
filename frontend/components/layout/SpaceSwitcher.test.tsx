@@ -12,7 +12,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-const PUBLIC = { id: "public", label: "Consulter", href: "/dashboard" } as const;
+const PUBLIC = { id: "public", label: "Consulter", href: "/" } as const;
 const ENCADREMENT = { id: "encadrement", label: "Encadrement", href: "/encadrement" } as const;
 const ADMIN = { id: "admin", label: "Back-office", href: "/admin", count: 214 } as const;
 
@@ -26,7 +26,7 @@ describe("SpaceSwitcher (#1336)", () => {
     render(<SpaceSwitcher current="public" spaces={[PUBLIC, ENCADREMENT, ADMIN]} layout="row" />);
     const groupe = screen.getByRole("group", { name: "Espaces" });
     const liens = within(groupe).getAllByRole("link");
-    expect(liens.map((l) => l.getAttribute("href"))).toEqual(["/dashboard", "/encadrement", "/admin"]);
+    expect(liens.map((l) => l.getAttribute("href"))).toEqual(["/", "/encadrement", "/admin"]);
     expect(within(groupe).getByRole("link", { name: "Consulter" })).toHaveAttribute("aria-current", "true");
     expect(within(groupe).getByRole("link", { name: "Encadrement" })).not.toHaveAttribute("aria-current");
     expect(within(groupe).getByRole("link", { name: "Consulter" })).toHaveTextContent("Consulter");

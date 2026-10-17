@@ -52,12 +52,12 @@ describe("headers()", () => {
 });
 
 describe("redirects()", () => {
-  it("redirects / to /dashboard at routing time, temporarily (#1505)", async () => {
+  it("redirects / to /mon-espace at routing time, temporarily (#1505, #1620)", async () => {
     // Temporaire (307) : une 308 resterait en cache navigateur si l'accueil
     // changeait un jour de cible.
     expect(await nextConfig.redirects!()).toContainEqual({
       source: "/",
-      destination: "/dashboard",
+      destination: "/mon-espace",
       permanent: false,
     });
   });
