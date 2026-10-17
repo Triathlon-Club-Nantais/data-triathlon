@@ -346,6 +346,18 @@ export const NAV: NavSection[] = [
         badge: "members",
         group: "Données",
       },
+      // Liste distincte des licenciés (#1334) : des adresses e-mail tirées
+      // d'AssoConnect, qui reconnaissent un adhérent à la connexion.
+      {
+        id: "a-adresses-adherents",
+        label: "Adresses d'adhérents",
+        description:
+          "Les adresses e-mail des adhérents, saison par saison, importées de l'export AssoConnect ou ajoutées à la main. Elles reconnaissent un adhérent à la connexion.",
+        href: "/admin/adresses-adherents",
+        helpAnchor: "adresses-adherents",
+        permission: "member_emails:manage",
+        group: "Données",
+      },
       // L'écran promis par cette entrée existe depuis #47. `batch:run` et non
       // `batch:read` : `permission` ne porte qu'un code, et c'est le lancement
       // qui donne son nom à l'écran — même arbitrage que `u-roles`.

@@ -17,6 +17,7 @@ from app.models.identity import Identity
 from app.models.ignored_athlete_pair import IgnoredAthletePair
 from app.models.ignored_course_duplicate import IgnoredCourseDuplicate
 from app.models.ignored_identity_case import IgnoredIdentityCase
+from app.models.member_email import MemberEmail
 from app.models.organisation import Organisation
 from app.models.participation import Participation, ParticipationTeammate
 from app.models.pending_provider import PendingProvider
@@ -60,6 +61,7 @@ __all__ = [
     "IgnoredAthletePair",
     "IgnoredIdentityCase",
     "IgnoredCourseDuplicate",
+    "MemberEmail",
     "Organisation",
     "Participation",
     "ParticipationTeammate",

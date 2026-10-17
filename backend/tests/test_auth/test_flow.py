@@ -3,6 +3,7 @@
 Le flux ne construit aucune requête : il enchaîne registre, état, provisionnement
 et session. Ce fichier l'éprouve sur la doublure, donc sans réseau ni GitHub.
 """
+from dataclasses import replace
 from datetime import timedelta
 
 import pytest
@@ -126,14 +127,25 @@ def test_une_reconnexion_ne_cree_pas_de_second_utilisateur(db_session, doublure)
     assert second.id == premier.id
 
 
-def test_un_refus_de_provisionnement_ne_laisse_aucune_session(
-    db_session, doublure, vider_la_liste_autorisation, autoriser
-):
-    vider_la_liste_autorisation()
-    autoriser("quelquun-dautre@exemple.fr")
+def test_un_refus_de_provisionnement_ne_laisse_aucune_session(db_session, doublure):
+    doublure.identite = replace(doublure.identite, email_verified=False)
 
     with pytest.raises(LoginError) as refus:
         _parcours(db_session, doublure)
 
-    assert refus.value.code == "account_not_allowed"
+    assert refus.value.code == "email_unverified"
     assert db_session.query(UserSession).count() == 0
+
+
+def test_une_adresse_hors_liste_ouvre_une_session(
+    db_session, doublure, vider_la_liste_autorisation, autoriser
+):
+    """#1322 : connexion acceptée sans rôle, adresse absente de la liste."""
+    vider_la_liste_autorisation()
+    autoriser("quelquun-dautre@exemple.fr")
+
+    jeton, user = _parcours(db_session, doublure)
+    db_session.commit()
+
+    assert jeton and user.roles == []
+    assert db_session.query(UserSession).count() == 1

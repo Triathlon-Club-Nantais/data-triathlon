@@ -63,6 +63,7 @@ CODES_ATTENDUS = {
     "counter_scope:manage",
     "club_aliases:manage",
     "club_members:manage",
+    "member_emails:manage",
     "admin_log:read",
     "pages:preview",
     "jeunes:read",

@@ -414,3 +414,18 @@ fichier. Seul point de passage : `club_member_repository`.
   fiche et saison ; celles dont la fiche a disparu sont supprimées), numéro de
   licence effacé, nom et prénom remplacés par ceux de la fiche. Les résultats
   passés continuent ainsi de compter sans second exemplaire de la donnée.
+
+## Adresses d'adhérents par saison (#1334)
+
+`member_emails` (`id`, `email`, `season`, `source`, `created_at`) liste les
+adresses qui reconnaissent un adhérent, importées de l'export AssoConnect
+(`import`) ou ajoutées à la main (`manual`). Seul point de passage :
+`member_email_repository`, qui range l'adresse normalisée (`core.email.normalize_email`).
+
+- **`UNIQUE(email, season)`** : une adresse au plus une fois par saison ; sert
+  aussi d'index à la recherche du statut adhérent.
+- **Aucune clé étrangère** : la liste ne connaît ni `users` ni `club_members`, et
+  ne porte aucune autre donnée de l'export (minimisation).
+- **Distincte d'`allowed_emails`** : autre source, autre cycle de vie, autre
+  conservation (saison en cours et précédente, `purge_before`). Détail :
+  `docs/auth/membres.md`.

@@ -98,6 +98,7 @@ const MOI: SessionUser = {
   created_at: "2026-01-01T00:00:00Z",
   permissions: ["groups:read", "groups:write", "groups:assign", "users:read"],
   can_administer: true,
+  is_member: false,
   can_supervise: false,
   roles: [],
   groups: [],

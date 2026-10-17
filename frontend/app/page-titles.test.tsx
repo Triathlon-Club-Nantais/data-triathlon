@@ -45,6 +45,7 @@ const TITRES: [string, () => Promise<{ metadata?: Metadata }>, string][] = [
 /** Écrans d'administration : le titre vient de `nav.config.ts`, source unique (#497). */
 const ECRANS: [string, () => Promise<{ metadata?: Metadata }>][] = [
   ["/admin/acces", () => import("./admin/acces/page")],
+  ["/admin/adresses-adherents", () => import("./admin/adresses-adherents/layout")],
   ["/admin/batches", () => import("./admin/batches/page")],
   ["/encadrement/benevolat", () => import("./encadrement/benevolat/page")],
   ["/admin/courses", () => import("./admin/courses/page")],

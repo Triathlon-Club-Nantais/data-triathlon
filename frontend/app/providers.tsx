@@ -56,9 +56,9 @@ function PostHogSessionSync() {
 /**
  * Ramène au point de départ après connexion (#494).
  *
- * Le backend redirige toujours vers `/admin` (FR-026 : destination fixée par
- * la configuration, aucun `next` ne circule côté serveur) ; `/admin` peut à son
- * tour renvoyer vers `/` pour une session sans pouvoir. `UserMenu`
+ * Le backend redirige vers le premier espace ouvert, l'accueil `/` pour un
+ * compte sans pouvoir (FR-026 : destination fixée par le code, aucun `next` ne
+ * circule côté serveur ; #1297, #1322). `UserMenu`
  * mémorise le chemin d'origine dans `sessionStorage` avant de router vers
  * `/login` ; ce composant le relit dès qu'une session existe et, s'il diffère
  * de l'atterrissage, y ramène côté client — sans jamais toucher au serveur ni

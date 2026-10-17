@@ -21,6 +21,7 @@ from app.core.analytics import capture_event, set_person_properties
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import AuthUnavailableError, NotFoundError
+from app.core.time import utcnow
 from app.models.user import User
 from app.repositories import user_repository
 from app.schemas.auth import (
@@ -29,8 +30,8 @@ from app.schemas.auth import (
     SessionRoleRead,
     SessionUserRead,
 )
-from app.services import volunteer_access
-from app.services.auth import authorization, flow
+from app.services import membership, volunteer_access
+from app.services.auth import accounts, authorization, flow
 from app.services.auth import session as session_service
 from app.services.auth.errors import ERROR_CODES, LoginError
 from app.services.auth.idp import registry
@@ -236,7 +237,8 @@ def callback(
             "user_logged_in", distinct_id=str(user.id), properties={"provider": provider}
         )
         # La destination reste **fixée par le code** (FR-026) : aucun paramètre
-        # d'entrée n'y entre, la redirection ouverte reste fermée.
+        # d'entrée n'y entre, la redirection ouverte reste fermée. Un compte sans
+        # rôle (adhérent, #1322) arrive sur l'accueil.
         effective = authorization.effective_permissions(db, user)
         response = _redirect_to(f"{settings.auth_redirect_base_url}{_landing_path(effective)}")
         session_max_age = settings.auth_session_ttl_days * 24 * 60 * 60
@@ -295,6 +297,10 @@ def logout(
     if logging_out_user is not None:
         capture_event("user_logged_out", distinct_id=str(logging_out_user.id))
 
+    return _signed_out_response(settings)
+
+
+def _signed_out_response(settings: Settings) -> Response:
     response = Response(status_code=204, headers=NO_STORE_HEADERS)
     _clear_auth_cookie(response, name=session_cookie_name(settings), settings=settings)
     _clear_auth_cookie(
@@ -305,6 +311,25 @@ def logout(
     # survivre à sa déconnexion. Mêmes attributs qu'à la pose.
     _clear_auth_cookie(response, name=volunteer_access.VOLUNTEER_SESSION_COOKIE, settings=settings)
     return response
+
+
+@router.delete("/auth/me", status_code=204)
+def delete_me(
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    """Supprime le compte de la session, puis déconnecte ce navigateur (#1326).
+
+    Protégée comme `logout` : `SameSite=Lax` écarte le cross-site, `core/origin_guard`
+    le same-site. Les refus (référence obligatoire, dernier administrateur) sortent
+    en 409 par le handler de `DomainError`, sans rien supprimer.
+    """
+    user_id = user.id
+    accounts.delete_account(db, user, origin="request")
+    db.commit()
+    capture_event("user_account_deleted", distinct_id=str(user_id))
+    return _signed_out_response(settings)
 
 
 @router.get("/auth/me", response_model=SessionUserRead)
@@ -335,6 +360,7 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
         permissions=sorted(effective),
         can_administer=permissions.administers(effective),
         can_supervise=permissions.supervises(effective),
+        is_member=membership.is_member(db, loaded_user, utcnow().date()),
         roles=[
             SessionRoleRead(
                 id=attribution.role.id,

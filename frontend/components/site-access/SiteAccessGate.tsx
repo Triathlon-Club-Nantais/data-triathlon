@@ -1,9 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AnnonceStatut, Button, Card, Input } from "@/components/tcn";
 import { apiClient, ApiError } from "@/lib/api/client";
+import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
+import type { ConnexionAdherent } from "@/lib/site-access-login";
 
 /**
  * Formulaire du mot de passe partagé au site (#509) — patron `AccessGate` (#271).
@@ -31,10 +34,13 @@ const TEXTE_INDICE_REVEIL = "Le service peut être en veille et se réveiller : 
 export function SiteAccessGate({
   apres = "rafraichir",
   retour = null,
+  connexion = null,
 }: {
   apres?: "rafraichir" | "accueil";
   /** Écran à rouvrir après la saisie (`/acces?retour=…`, #877), déjà validé. */
   retour?: string | null;
+  /** Connexion des adhérents (#1322), lue côté serveur par `connexionAdherent`. */
+  connexion?: ConnexionAdherent;
 }) {
   const router = useRouter();
   const [password, setPassword] = useState("");
@@ -86,6 +92,12 @@ export function SiteAccessGate({
         <div style={{ fontSize: 14, color: "var(--tcn-text-faint)", marginBottom: 20 }}>
           Le code d&apos;accès vous a été communiqué par le club.
         </div>
+        {connexion === "non-adherent" && (
+          <p style={{ fontSize: 14, color: "var(--tcn-text-body)", margin: 0, marginBottom: 20 }}>
+            Votre compte n&apos;est pas reconnu comme adhérent : saisissez le code d&apos;accès ou
+            demandez l&apos;ajout de votre adresse à un administrateur du club.
+          </p>
+        )}
         <form onSubmit={soumettre}>
           <label
             htmlFor="site-password"
@@ -149,6 +161,22 @@ export function SiteAccessGate({
             </div>
           )}
         </form>
+        {connexion === "proposee" && (
+          <div style={{ marginTop: 20, textAlign: "center" }}>
+            <Link
+              href="/login"
+              // Le retour de parcours mène à `/` ; `PostLoginReturn` (#494)
+              // ramène ensuite à la page demandée, comme « Se connecter » du rail.
+              onClick={() => {
+                const cible = apres === "accueil" ? retour : window.location.pathname + window.location.search;
+                if (cible) sessionStorage.setItem(RETOUR_CONNEXION_KEY, cible);
+              }}
+              className="text-sm font-semibold text-accent-ink hover:underline"
+            >
+              Adhérent du club ? Se connecter
+            </Link>
+          </div>
+        )}
       </Card>
     </div>
   );

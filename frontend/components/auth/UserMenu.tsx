@@ -1,9 +1,11 @@
 "use client";
+import { useState } from "react";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
+import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { Avatar, Button } from "@/components/tcn";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
-import { useLogout, useSession } from "@/lib/queries/auth";
+import { useDeleteAccount, useLogout, useSession } from "@/lib/queries/auth";
 import type { SessionUser } from "@/lib/types";
 
 // Le menu Base UI ne sert qu'à un connecté sur le rail : hors du premier
@@ -40,6 +42,8 @@ export function UserMenu({
 }) {
   const { data: session, isPending, errorUpdateCount, refetch, isFetching } = useSession();
   const logout = useLogout();
+  const suppression = useDeleteAccount();
+  const [suppressionOuverte, setSuppressionOuverte] = useState(false);
   const router = useRouter();
   const chemin = usePathname();
 
@@ -85,7 +89,7 @@ export function UserMenu({
         variant="secondary"
         onClick={() => {
           // Mémorisé côté navigateur seulement (#494) : le backend redirige
-          // toujours vers /admin (FR-026), `PostLoginReturn` (providers.tsx)
+          // vers le premier espace ouvert (FR-026, #1297, #1322), `PostLoginReturn` (providers.tsx)
           // lit cette clé à l'atterrissage pour ramener au point de départ.
           // `window.location.search` et non `useSearchParams()` : ce dernier
           // impose une frontière Suspense, inutile pour une simple lecture au
@@ -115,6 +119,37 @@ export function UserMenu({
     });
   };
 
+  const ouvrirLaSuppression = () => {
+    suppression.reset();
+    setSuppressionOuverte(true);
+  };
+  // `DangerConfirm` sous sa forme déclarative, qui ne dépend d'aucun provider :
+  // le menu se rend sur tout le site, hors des `DangerConfirmProvider` d'`/admin`.
+  const dialogDeSuppression = (
+    <DangerConfirm
+      open={suppressionOuverte}
+      onOpenChange={setSuppressionOuverte}
+      titre="Supprimer votre compte ?"
+      description={
+        <>
+          Votre compte, vos connexions, rôles et groupes sont effacés. Vos résultats et votre fiche athlète
+          restent publiés. Vous pourrez vous reconnecter plus tard : un compte neuf, sans rôle, sera créé.
+        </>
+      }
+      avertissement={suppression.error?.message}
+      enAttente={suppression.isPending}
+      onConfirm={() =>
+        suppression.mutate(undefined, {
+          onSuccess: () => {
+            setSuppressionOuverte(false);
+            router.push("/");
+            onNavigate?.();
+          },
+        })
+      }
+    />
+  );
+
   // Tiroir mobile : l'état connecté se déplie **à plat**. Un menu déroulant
   // dans un tiroir serait un menu dans un menu, et son popup sortirait du
   // piège de focus du tiroir. Le lien « Administration » a été retiré (revue
@@ -129,19 +164,27 @@ export function UserMenu({
         <Button variant="secondary" disabled={logout.isPending} onClick={seDeconnecter}>
           Se déconnecter
         </Button>
+        <Button variant="destructive" onClick={ouvrirLaSuppression}>
+          Supprimer mon compte
+        </Button>
+        {dialogDeSuppression}
       </div>
     );
   }
 
   return (
-    <UserMenuDropdown
-      email={session.email}
-      nom={nom}
-      deconnexionEnCours={logout.isPending}
-      onDeconnexion={seDeconnecter}
-    >
-      <Identite session={session} />
-    </UserMenuDropdown>
+    <>
+      <UserMenuDropdown
+        email={session.email}
+        nom={nom}
+        deconnexionEnCours={logout.isPending}
+        onDeconnexion={seDeconnecter}
+        onSuppression={ouvrirLaSuppression}
+      >
+        <Identite session={session} />
+      </UserMenuDropdown>
+      {dialogDeSuppression}
+    </>
   );
 }
 

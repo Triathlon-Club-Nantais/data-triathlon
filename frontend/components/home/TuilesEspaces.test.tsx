@@ -18,7 +18,7 @@ import { TuilesEspaces } from "./TuilesEspaces";
 
 const BASE: SessionUser = {
   id: 1, email: "moi@exemple.fr", display_name: "Moi", created_at: "2026-01-01T00:00:00Z",
-  permissions: [], roles: [], groups: [], can_administer: false, can_supervise: false,
+  permissions: [], roles: [], groups: [], can_administer: false, can_supervise: false, is_member: false,
 };
 
 function afficher() {

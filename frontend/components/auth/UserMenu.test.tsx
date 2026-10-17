@@ -7,10 +7,11 @@ import { ApiError } from "@/lib/api/client";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import type { SessionUser } from "@/lib/types";
 
-const { push, getSession, logout, captureEvent } = vi.hoisted(() => ({
+const { push, getSession, logout, deleteAccount, captureEvent } = vi.hoisted(() => ({
   push: vi.fn(),
   getSession: vi.fn(),
   logout: vi.fn(),
+  deleteAccount: vi.fn(),
   captureEvent: vi.fn(),
 }));
 
@@ -23,7 +24,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { getSession, logout } };
+  return { ...original, apiClient: { getSession, logout, deleteAccount } };
 });
 
 import { UserMenu } from "./UserMenu";
@@ -37,6 +38,7 @@ const SESSION: SessionUser = {
   roles: [],
   groups: [],
   can_administer: false,
+  is_member: false,
   can_supervise: false,
 };
 
@@ -46,6 +48,8 @@ function afficher(session: SessionUser | null, props: { pleineLargeur?: boolean;
   sessionStorage.clear();
   window.history.pushState({}, "", "/");
   logout.mockResolvedValue(undefined);
+  deleteAccount.mockReset();
+  deleteAccount.mockResolvedValue(null);
   if (session) getSession.mockResolvedValue(session);
   else getSession.mockRejectedValue(new ApiError(401, "anonyme"));
 
@@ -314,6 +318,77 @@ describe("UserMenu — onNavigate ferme le tiroir au bon moment (#482, NAV-4)", 
     await userEvent.click(screen.getByRole("menuitem", { name: "Se déconnecter" }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith("/"));
+  });
+});
+
+describe("UserMenu: account deletion (#1326)", () => {
+  async function ouvrirLaSuppression() {
+    await ouvrirLeMenu();
+    await userEvent.click(screen.getByRole("menuitem", { name: "Supprimer mon compte" }));
+    return screen.findByRole("dialog");
+  }
+
+  it("opens an accessible dialog saying what is erased and what stays", async () => {
+    afficher(SESSION);
+    const dialog = await ouvrirLaSuppression();
+
+    expect(dialog).toHaveAccessibleName("Supprimer votre compte ?");
+    expect(dialog).toHaveTextContent(/connexions, rôles et groupes/);
+    expect(dialog).toHaveTextContent(/résultats et votre fiche athlète restent/);
+    expect(deleteAccount).not.toHaveBeenCalled();
+  });
+
+  it("closes without any request when the user backs out", async () => {
+    afficher(SESSION);
+    await ouvrirLaSuppression();
+
+    await userEvent.click(screen.getByRole("button", { name: "Renoncer" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(deleteAccount).not.toHaveBeenCalled();
+  });
+
+  it("deletes the account then goes back to the home page", async () => {
+    afficher(SESSION);
+    await ouvrirLaSuppression();
+
+    await userEvent.click(screen.getByRole("button", { name: "Supprimer définitivement" }));
+
+    await waitFor(() => expect(deleteAccount).toHaveBeenCalled());
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/"));
+  });
+
+  it("shows the server refusal inside the dialog and stays put", async () => {
+    afficher(SESSION);
+    deleteAccount.mockRejectedValue(new ApiError(409, "Contactez le club pour le faire supprimer."));
+    const dialog = await ouvrirLaSuppression();
+
+    await userEvent.click(screen.getByRole("button", { name: "Supprimer définitivement" }));
+
+    await waitFor(() => expect(dialog).toHaveTextContent("Contactez le club pour le faire supprimer."));
+    expect(push).not.toHaveBeenCalled();
+  });
+
+  it("styles the irreversible action as destructive, not the logout (#1326)", async () => {
+    afficher(SESSION);
+    await ouvrirLeMenu();
+
+    expect(screen.getByRole("menuitem", { name: "Supprimer mon compte" })).toHaveAttribute("data-variant", "destructive");
+    expect(screen.getByRole("menuitem", { name: "Se déconnecter" })).toHaveAttribute("data-variant", "default");
+  });
+
+  it("gives the mobile button the destructive emphasis too (#1326)", async () => {
+    afficher(SESSION, { pleineLargeur: true });
+
+    expect(await screen.findByRole("button", { name: "Supprimer mon compte" })).toHaveClass("tcn-btn--destructive");
+  });
+
+  it("is offered in the mobile drawer too", async () => {
+    afficher(SESSION, { pleineLargeur: true });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Supprimer mon compte" }));
+
+    expect(await screen.findByRole("dialog")).toHaveAccessibleName("Supprimer votre compte ?");
   });
 });
 

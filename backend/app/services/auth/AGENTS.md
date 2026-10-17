@@ -1,6 +1,7 @@
 # Authentification (#114)
-Socle SSO du back-office : ouvrir une session par délégation à GitHub, sans
+Socle SSO : ouvrir une session par délégation à un fournisseur d'identité, sans
 jamais détenir de mot de passe, **et laisser le site public strictement intact**.
+Né pour le back-office, ouvert aux adhérents depuis #1322.
 Spec, plan et tâches : `specs/20260801-145428-auth-socle-sso/` ; le sondage
 `docs/superpowers/specs/2026-08-01-auth-librairies-sondage.md` **prime** sur eux.
 
@@ -44,10 +45,11 @@ Une doublure de test ne s'enregistre **jamais** au niveau module — elle
 existerait en production, et `is_configured()` est un garde de configuration,
 pas un garde de sécurité.
 
-**Sept réglages `AUTH_*`** (`backend/README.md` pour le tableau,
+**Onze réglages `AUTH_*`** (`backend/README.md` pour le tableau,
 `docs/ci-cd.md` pour les valeurs par environnement) : `AUTH_SESSION_SECRET_KEY`
 (≥ 32 caractères ou le démarrage échoue ; **vide = non configuré**, état
-légitime), `AUTH_GITHUB_CLIENT_ID` / `_SECRET`, `AUTH_REDIRECT_BASE_URL`
+légitime), `AUTH_GITHUB_CLIENT_ID` / `_SECRET`, les quatre `AUTH_ENTRA_*`
+(`SUBDOMAIN`, `TENANT_ID`, `CLIENT_ID`, `CLIENT_SECRET`), `AUTH_REDIRECT_BASE_URL`
 (origine de l'**interface**, jamais celle de l'API, et **sans défaut**),
 `AUTH_COOKIE_SECURE` (dont le nom des cookies est **dérivé** : `__Host-` exige
 `Secure`), `AUTH_SESSION_TTL_DAYS`, `AUTH_STATE_TTL_SECONDS`. Ils étaient huit :
@@ -101,8 +103,15 @@ Le mot de passe d'accès au site (#509) pose bien un `dependencies=` global,
 sur l'inclusion de chaque sous-router (`app/api/v1/router.py`) — délibérément,
 pour la raison inverse : fermer le site public dans son ensemble est
 exactement son but, pas un accident à éviter. Les deux gardes sont
-orthogonales et compatibles : une session RBAC ne dispense pas du mot de
-passe site, et réciproquement. Rationale complète dans le commentaire de
+orthogonales : un **pouvoir** ne dispense pas du code du site, et
+réciproquement. Une seule dispense existe, depuis #1322 : la session d'un
+compte **adhérent** (`membership.is_member`, statut dérivé à chaque requête de
+la liste des adresses d'adhérents) ouvre le site sans le cookie. Elle n'est
+vérifiée qu'**à défaut** de cookie valide (le cookie ne coûte que la lecture de
+la configuration, la session et le statut trois requêtes), y compris sans code
+configuré, et la garde reste fail-closed pour tout le reste. Un cookie de site posé à la
+connexion a été écarté : deux sources de vérité, et un retrait de la liste
+sans effet pendant les 90 jours du cookie. Rationale complète dans le commentaire de
 `app/api/v1/router.py` et dans
 `docs/superpowers/specs/2026-08-20-mot-de-passe-site-design.md`.
 
@@ -112,9 +121,31 @@ nativement. Le détecteur AST de `tests/test_core_http.py` a été **étendu** p
 le voir — il était aveugle aux liaisons d'`authlib.integrations.httpx_client` et
 à `httpx.HTTPTransport`, soit la première sortie HTTP qui aurait échappé au
 filet de #101, à l'endroit exact où circulent un `client_secret` et un code
-d'autorisation. `services/auth/idp/github.py` est, avec `core/http.py`, le seul
-fichier de son allowlist (`_FABRIQUES`), et l'exemption est doublée d'un test
-positif : nominative, jamais un motif de dossier.
+d'autorisation. `services/auth/idp/github.py` et `entra.py` sont, avec
+`core/http.py`, les seuls fichiers de son allowlist (`_FABRIQUES`), et chaque
+exemption est doublée d'un test positif : nominative, jamais un motif de dossier.
+
+**Second fournisseur : Entra External ID (#1323)**, slug `entra`, libellé
+« Google ou code par e-mail ». OIDC par code + PKCE, `nonce` rangé dans le
+`round_trip` comme le contrat l'avait prévu, sans toucher au flux ni à GitHub.
+`authorize()` construit ses points de terminaison depuis le sous-domaine et le
+tenant : la découverte n'est lue qu'au retour, puis gardée une heure avec le
+JWKS (un `kid` inconnu déclenche **un** rafraîchissement, jamais une boucle).
+L'`id_token` passe par `joserfc` (signature RS256) puis `CodeIDToken`
+d'Authlib (émetteur lu dans la découverte, audience **passée explicitement**,
+sans quoi elle n'est pas vérifiée, nonce, expiration) ; tout échec rend
+`provider_error`, un réseau injoignable `provider_unavailable`. **Règle
+`xms_edov`** : Entra n'émet pas `email_verified`, l'adresse n'est certifiée que
+si `email` est présent **et** `xms_edov` vaut exactement `true` ; sinon
+`email_unverified`, jamais accepté par défaut. **Clé de résolution : `oid`**,
+jamais `sub` : `sub` est propre à l'inscription d'application, et la recréer
+rendrait orphelins tous les comptes sans recours (l'appariement par adresse est
+interdit). Un `oid` absent est un `provider_error`. La découverte elle-même est
+bornée au tenant : émetteur et `jwks_uri` en `https://*.ciamlogin.com` portant
+l'identifiant du tenant, par suffixe d'hôte et non par égalité, l'hôte exact de
+l'émetteur variant selon les tenants. Ce que le tenant réel émet reste
+à constater avant production (FR-021) : infrastructure et procédure dans
+`infra/entra-external-id/AGENTS.md`.
 
 **L'ordre du retour de parcours est contractuel**, pas stylistique : validation
 locale → effacement du cookie d'état → présence du `code` → réseau (FR-025). Le
@@ -167,18 +198,24 @@ Trois points que le code ne dit pas :
   suppose un porteur de confiance, ce qui est le modèle de menace du dépôt ;
   scinder le pouvoir n'y changerait rien, seule une garde de non-amplification
   sur la révocation le ferait, qu'aucun besoin exprimé ne réclame.
-- **L'adresse refusée est journalisée, la table des tentatives est écartée.**
-  Un refus `account_not_allowed` trace l'adresse soumise dans les journaux du
-  backend : sans elle, aucun refus n'est diagnosticable et l'exploitant ne sait
-  pas quelle adresse ajouter. Une adresse n'est pas un secret au sens de FR-038,
-  dont le filet porte sur les clés, les jetons et le code de retour. Le refus
-  pour **adresse non certifiée** ne la journalise pas — le fournisseur ne la
-  prouve pas. Consigner ces tentatives **en base** a été demandé en revue et
-  écarté (suivi en #170, avec le passage de la liste d'autorisation en base) : ce
-  serait la seule écriture pilotée par un visiteur non authentifié, sans plafond,
-  sur de la donnée personnelle de tiers. Raisonnement complet :
-  `specs/20260801-145428-auth-socle-sso/data-model.md`, §Ce qu'aucune table
-  n'enregistre.
+- **La connexion est ouverte à toute adresse certifiée (#1322).** La liste
+  d'autorisation ne refuse plus personne : une adresse certifiée hors liste
+  ouvre un compte **sans rôle**, que les gardes laissent dehors (403 sur toute
+  ressource à pouvoir, code du site exigé s'il n'est pas adhérent). Restent
+  refusés : l'adresse non certifiée (`email_unverified`) et le compte désactivé
+  (`account_not_allowed`, qui ne veut plus dire que cela). La création d'un
+  compte sans rôle est journalisée au niveau info, par son identifiant et sans
+  l'adresse. L'adresse retenue sur le compte suit FR-016
+  (`membership.retained_email`) : la première certifiée inscrite à la liste
+  d'autorisation, sinon la première qui compte dans la liste d'adhérents,
+  sinon la principale. Le retour de parcours mène à `/admin` pour qui
+  administre (`permissions.administers`), à `/` sinon. Le plafond de débit de
+  `/auth/{provider}/authorize` borne la création de comptes en masse, et un
+  compte sans rôle ni statut adhérent n'ouvre rien.
+  Consigner les tentatives **en base** reste écarté (#170) : ce serait la seule
+  écriture pilotée par un visiteur non authentifié, sans plafond, sur de la
+  donnée personnelle de tiers (`specs/20260801-145428-auth-socle-sso/data-model.md`,
+  §Ce qu'aucune table n'enregistre).
 - **Une rotation de `AUTH_SESSION_SECRET_KEY` ne ferme aucune session.** Le
   jeton de session est **opaque et vérifié en base**, il n'est pas signé : la clé
   ne signe que le jeton d'état, donc une rotation n'interrompt que les parcours
@@ -286,3 +323,52 @@ Deux epics indépendantes, chacune sa propre table (`allowed_emails` ;
 `groups`/`user_groups`), toutes deux hors de la décision d'accès de #115 —
 détail, invariants et pièges mesurés dans `docs/auth/liste-autorisation.md` et
 `docs/auth/groupes.md`.
+
+La liste des **adresses d'adhérents** (#1334, `member_emails`) est une troisième
+table, distincte d'`allowed_emails` : elle dit qui est adhérent, jamais qui
+entre au back-office. Le statut adhérent qui en dérive (#1322,
+`services/membership.py`) dispense du code du site et n'accorde aucun pouvoir.
+Règles d'import, saison qui compte, statut et purge : `docs/auth/membres.md`.
+
+# Suppression des comptes (#1326)
+
+`services/auth/accounts.py`, spec `specs/20261012-134400-suppression-comptes/`.
+Deux appelants : `DELETE /auth/me` (le titulaire, menu « Supprimer mon compte »)
+et `purge-retention` (comptes **sans rôle** inactifs depuis 5 ans, même date
+du calendrier, `accounts.inactivity_cutoff`, un 29 février devenant le 28).
+Un compte **désactivé** sans rôle expire lui aussi : la désactivation (retrait
+de la liste d'autorisation) n'arrête pas l'horloge, et rien ne justifie de
+garder sans fin un compte que personne ne peut plus ouvrir. Un test le fige.
+Suppression **physique** : la ligne `users`, puis identités, sessions, rôles et
+groupes par la cascade ORM de `User`.
+
+- **L'inventaire des références est lu dans le schéma**
+  (`user_repository.required_references` / `optional_references`, toute FK vers
+  `users.id` hors des quatre tables possédées). Une colonne nullable est mise à
+  vide ; une colonne `NOT NULL` qui cite le compte **bloque** : 409 « Contactez
+  le club » en libre service, compte sauté et compté par la purge. Une FK
+  ajoutée demain est donc classée sans qu'on y pense ; un test fige la liste
+  des cinq obligatoires du jour pour qu'un changement de nullabilité se voie.
+- **Le journal est signé par le compte système** (`volunteer_access.system_user_id`),
+  payload `{"origin": "request" | "inactivity", "entra_oids": [...]}` et
+  l'identifiant seul, sans adresse ni nom : le compte supprimé ne peut pas être
+  l'auteur d'une ligne dont la FK l'exige. Le journal l'affiche « Système »
+  (`actorLabel` du front), le nom du compte système désignant les bénévoles.
+  `entra_oids` (les `subject` des identités `entra`) sert à **une seule** fin :
+  finir la suppression dans l'annuaire Entra, à la main.
+- **Le dernier administrateur** : `preserving_admins`, sous un point de
+  reprise, pour qu'un refus levé après le flush ne laisse rien en attente.
+  Le compte système n'est jamais supprimé.
+- **`users.last_seen_at`** est posée à l'ouverture d'une session et repoussée
+  par `session.resolve` au plus une fois par jour : `UPDATE` conditionné sur le
+  début du jour, écrit et commité par **une session à part** liée au même
+  moteur (`get_db` ne commite jamais, et la transaction de la requête ne doit
+  pas l'être par effet de bord). L'objet de la requête est aligné par
+  `set_committed_value`, sans être marqué modifié. La migration a rempli la
+  colonne avec la dernière ouverture de session connue, à défaut la création.
+- **Passe à blanc** : le journal n'y est pas purgé, donc un compte cité
+  seulement par des lignes de plus de 12 mois y est compté sauté alors que la
+  passe réelle, qui purge le journal d'abord, le supprime.
+- **L'utilisateur de l'annuaire Entra reste** : relevé mensuel des
+  `entra_oids` du journal de **production**, jamais une comparaison de
+  l'annuaire avec une base (`infra/entra-external-id/AGENTS.md`).

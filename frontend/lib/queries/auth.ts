@@ -91,6 +91,15 @@ export function useLogout() {
   });
 }
 
+/** Suppression du compte de la session, puis déconnexion (#1326). */
+export function useDeleteAccount() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.deleteAccount(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.session() }),
+  });
+}
+
 /**
  * `useSession`, sans session tant que le composant n'est pas hydraté (#1090).
  *

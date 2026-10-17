@@ -1513,6 +1513,44 @@ def test_downgrade_then_upgrade_of_athlete_known_clubs(sqlite_url, monkeypatch):
     assert "athlete_known_clubs" in _tables(sqlite_url)
 
 
+def test_last_seen_at_is_backfilled_from_sessions_then_created_at_and_not_null(sqlite_url):
+    """#1326: last activity starts at the latest session opening, else at account creation."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "cf8130e7fb21")
+    engine = sa.create_engine(sqlite_url)
+    try:
+        with engine.begin() as connexion:
+            connexion.execute(sa.text(
+                "INSERT INTO users (email, display_name, is_active, created_at) "
+                "VALUES ('ancien@exemple.fr', '', 1, '2021-03-04 05:06:07'), "
+                "('connecte@exemple.fr', '', 1, '2021-03-04 05:06:07')"
+            ))
+            connexion.execute(sa.text(
+                "INSERT INTO user_sessions (user_id, token_hash, expires_at, created_at) "
+                "SELECT users.id, opened.h, '2026-01-01 00:00:00', opened.c FROM users, "
+                "(SELECT 'a' AS h, '2025-06-01 10:00:00' AS c UNION SELECT 'b', '2025-07-02 11:00:00') AS opened "
+                "WHERE users.email = 'connecte@exemple.fr'"
+            ))
+    finally:
+        engine.dispose()
+
+    command.upgrade(cfg, "head")
+
+    assert _lignes(sqlite_url, "SELECT last_seen_at FROM users WHERE email = 'ancien@exemple.fr'") == [
+        ("2021-03-04 05:06:07",)
+    ]
+    # The latest session opening is the best known activity.
+    assert _lignes(sqlite_url, "SELECT last_seen_at FROM users WHERE email = 'connecte@exemple.fr'") == [
+        ("2025-07-02 11:00:00",)
+    ]
+    engine = sa.create_engine(sqlite_url)
+    try:
+        colonne = next(c for c in sa.inspect(engine).get_columns("users") if c["name"] == "last_seen_at")
+    finally:
+        engine.dispose()
+    assert colonne["nullable"] is False
+
+
 def test_the_awaiting_validation_read_uses_its_partial_index(sqlite_url):
     """Every course page reads the pending queue: no full scan of participations (#1390)."""
     from sqlalchemy.dialects import sqlite

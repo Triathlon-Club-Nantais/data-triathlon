@@ -87,6 +87,7 @@ const AVEC_ECRITURE: SessionUser = {
   permissions: ["jeunes:read", "jeunes:write"],
   roles: [],
   groups: [],
+  is_member: false,
   can_administer: false,
   can_supervise: true,
 };

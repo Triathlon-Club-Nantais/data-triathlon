@@ -108,6 +108,7 @@ const SESSION: SessionUser = {
   roles: [],
   groups: [],
   can_administer: false,
+  is_member: false,
   can_supervise: false,
 };
 
@@ -1057,6 +1058,17 @@ describe("AppNav — Gestion des utilisateurs (#170)", () => {
     // pouvoir : c'était la seule entrée de la section à n'en porter aucun,
     // donc la seule proposée à qui n'y peut rien faire (ADM-6).
     expect(screen.queryByText("Administration")).not.toBeInTheDocument();
+  });
+
+  it("n'offre aucune entrée vers le back-office à un adhérent connecté sans rôle (#1322, FR-017)", async () => {
+    afficher({ ...SESSION, is_member: true });
+    await deplier();
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Compte/ })).toBeInTheDocument());
+
+    const versLeBackOffice = screen
+      .queryAllByRole("link")
+      .filter((lien) => lien.getAttribute("href")?.startsWith("/admin"));
+    expect(versLeBackOffice).toEqual([]);
   });
 
   it("n'ouvre pas l'espace admin à qui porte un pouvoir sans can_administer", async () => {

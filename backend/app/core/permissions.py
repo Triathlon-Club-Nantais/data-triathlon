@@ -52,6 +52,10 @@ FEATURE_CLUB_ALIASES = "Variantes de club"
 #: Licenciés du club par saison (#1202) : une liste nominative, distincte de la
 #: portée des compteurs dont elle change pourtant le résultat.
 FEATURE_CLUB_MEMBERS = "Licenciés du club"
+#: Adresses e-mail des adhérents (#1334), importées d'AssoConnect : elles
+#: reconnaissent un adhérent à la connexion. Distincte des licenciés (une
+#: liste nominative FFTri) comme des accès au back-office.
+FEATURE_MEMBER_EMAILS = "Adresses d'adhérents"
 #: Encadrement et suivi des jeunes triathlètes (#863) — profils, calendrier
 #: des entraînements, appel de présence. Distincte des autres fonctionnalités :
 #: ces données sont personnelles et sensibles (mineurs), fermées à quiconque
@@ -331,6 +335,13 @@ class P:
         "rattaché fait compter ses résultats de la saison comme résultats du club.",
         FEATURE_CLUB_MEMBERS,
     )
+    MEMBER_EMAILS_MANAGE = Permission(
+        "member_emails:manage",
+        "Gérer les adresses d'adhérents",
+        "Consulter la liste des adresses e-mail des adhérents par saison, "
+        "l'importer depuis l'export AssoConnect, y ajouter ou en retirer une adresse.",
+        FEATURE_MEMBER_EMAILS,
+    )
     ADMIN_LOG_READ = Permission(
         "admin_log:read",
         "Consulter le journal d'administration",
@@ -405,6 +416,7 @@ ALL: tuple[Permission, ...] = (
     P.COUNTER_SCOPE_MANAGE,
     P.CLUB_ALIASES_MANAGE,
     P.CLUB_MEMBERS_MANAGE,
+    P.MEMBER_EMAILS_MANAGE,
     P.ADMIN_LOG_READ,
     P.PAGES_PREVIEW,
     P.YOUTH_READ,

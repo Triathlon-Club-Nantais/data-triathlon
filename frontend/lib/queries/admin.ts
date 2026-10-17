@@ -1596,3 +1596,43 @@ export function useUnlinkClubMember() {
     onSuccess: () => qc.invalidateQueries(),
   });
 }
+
+// ── Adresses d'adhérents (#1334) ─────────────────────────────────────────────
+// Aucun compteur n'en dépend : une écriture ne périme que la liste, toutes
+// saisons confondues (`counting_season` et `seasons` bougent avec elle).
+
+const MEMBER_EMAILS = ["member-emails"] as const;
+
+export function useMemberEmails(season: number) {
+  return useQuery({
+    queryKey: queryKeys.memberEmails(season),
+    queryFn: () => apiClient.getMemberEmails(season),
+    retry: false,
+  });
+}
+
+export function useImportMemberEmails() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ season, file }: { season: number; file: File }) =>
+      apiClient.importMemberEmails(season, file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: MEMBER_EMAILS }),
+  });
+}
+
+export function useAddMemberEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ email, season }: { email: string; season: number }) =>
+      apiClient.addMemberEmail(email, season),
+    onSuccess: () => qc.invalidateQueries({ queryKey: MEMBER_EMAILS }),
+  });
+}
+
+export function useRemoveMemberEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiClient.removeMemberEmail(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: MEMBER_EMAILS }),
+  });
+}

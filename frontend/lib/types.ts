@@ -993,6 +993,11 @@ export interface SessionUser {
    */
   roles: SessionRole[];
   /**
+   * Statut adhérent (#1322), dérivé à chaque requête de la liste des adresses
+   * d'adhérents : dispense du code d'accès au site. Ne donne aucun pouvoir.
+   */
+  is_member: boolean;
+  /**
    * Groupes dont on est membre (#197) — « membre du Codir ». Rendu à tout
    * connecté, **sans exiger `groups:read`** : la question ne porte que sur soi.
    * Ne dit rien des droits, qui se lisent dans `permissions` seul.
@@ -1675,4 +1680,29 @@ export interface MembersSyncReport {
 export interface ClubMembersSeason extends MembersSyncReport {
   seasons: number[];
   members: ClubMember[];
+}
+
+/** Adresses d'adhérents par saison (#1334). */
+export interface MemberEmail {
+  id: number;
+  email: string;
+  season: number;
+  source: "import" | "manual";
+  created_at: string;
+}
+
+export interface MemberEmailsSeason {
+  season: number;
+  /** Saison qui compte aujourd'hui : l'en cours si elle a une entrée, sinon la précédente. */
+  counting_season: number;
+  seasons: number[];
+  entries: MemberEmail[];
+}
+
+export interface MemberEmailsImportReport {
+  season: number;
+  added: number;
+  removed: number;
+  unchanged: number;
+  ignored: number;
 }

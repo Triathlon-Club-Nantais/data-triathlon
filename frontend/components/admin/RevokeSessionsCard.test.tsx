@@ -44,6 +44,7 @@ const RESPONSABLE: SessionUser = {
   roles: [],
   groups: [],
   can_administer: true,
+  is_member: false,
   can_supervise: false,
 };
 

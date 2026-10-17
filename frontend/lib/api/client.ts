@@ -33,6 +33,9 @@ import type {
   ClubMember,
   ClubMembersSeason,
   MembersSyncReport,
+  MemberEmail,
+  MemberEmailsImportReport,
+  MemberEmailsSeason,
   CounterScope,
   CounterScopeEntry,
   CourseBrief,
@@ -354,6 +357,7 @@ export const apiClient = {
   listAuthMethods: () => request<AuthMethod[]>("/auth/methods"),
   getSession: () => request<SessionUser>("/auth/me"),
   logout: () => request<null>("/auth/logout", { method: "POST" }),
+  deleteAccount: () => request<null>("/auth/me", { method: "DELETE" }),
 
   // ── Administration des données (#117) ──────────────────────────────────────
   // Six ressources, six pouvoirs distincts côté serveur : l'écran ne fait que
@@ -893,6 +897,23 @@ export const apiClient = {
     }),
   unlinkClubMember: (memberId: number) =>
     request<ClubMember>(`/admin/club-members/${memberId}/link`, { method: "DELETE" }),
+
+  // ── Adresses d'adhérents (#1334) ───────────────────────────────────────────
+  getMemberEmails: (season: number) =>
+    request<MemberEmailsSeason>(`/admin/member-emails?season=${season}`),
+  importMemberEmails: (season: number, file: File) => {
+    const form = new FormData();
+    form.append("season", String(season));
+    form.append("file", file);
+    return upload<MemberEmailsImportReport>("/admin/member-emails/import", form);
+  },
+  addMemberEmail: (email: string, season: number) =>
+    request<MemberEmail>("/admin/member-emails", {
+      method: "POST",
+      body: JSON.stringify({ email, season }),
+    }),
+  removeMemberEmail: (id: number) =>
+    request<null>(`/admin/member-emails/${id}`, { method: "DELETE" }),
 
   // ── Retours utilisateurs (#267) ────────────────────────────────────────────
   // Route publique, et son chemin le dit : `/feedback`, hors de `/admin` où

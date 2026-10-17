@@ -28,7 +28,7 @@ def test_dry_run_reports_counts_and_deletes_nothing(brancher_session, db_session
     result = runner.invoke(app, ["purge-retention", "--dry-run", "--json"])
 
     assert result.exit_code == 0
-    assert json.loads(result.stdout) == {"dry_run": True, "feedback": 1, "admin_log": 0, "profiles": 0, "club_members": 0}
+    assert json.loads(result.stdout) == {"dry_run": True, "feedback": 1, "admin_log": 0, "profiles": 0, "club_members": 0, "member_emails": 0, "accounts_deleted": 0, "accounts_skipped": 0}
     assert db_session.get(UserFeedback, entry.id) is not None
 
 
@@ -41,3 +41,14 @@ def test_purge_deletes_and_prints_a_french_report(brancher_session, db_session):
     assert result.exit_code == 0
     assert re.search(r"Signalements supprimés\s+: 1", result.stdout)
     assert db_session.get(UserFeedback, entry.id) is None
+    assert re.search(r"Adresses d'adhérents de saisons anciennes supprimées\s+: 0", result.stdout)
+
+
+def test_report_counts_deleted_and_skipped_accounts(brancher_session, db_session):
+    """#1326, contracts/cli-purge-retention.md."""
+    brancher_session(cmd)
+
+    result = runner.invoke(app, ["purge-retention", "--dry-run"])
+
+    assert re.search(r"Comptes inactifs depuis 5 ans à supprimer\s+: 0", result.stdout)
+    assert re.search(r"Comptes inactifs conservés \(cités par le club\)\s+: 0", result.stdout)

@@ -20,6 +20,7 @@ from app.cli.commands.backfill_genders import backfill_genders
 from app.cli.commands.club_labels import club_labels
 from app.cli.commands.geocode_courses import geocode_courses
 from app.cli.commands.grant_role import grant_role
+from app.cli.commands.import_member_emails import import_member_emails
 from app.cli.commands.import_sheet import import_sheet
 from app.cli.commands.purge_orphans import purge_orphans
 from app.cli.commands.purge_relay_twins import purge_relay_twins
@@ -40,6 +41,7 @@ app.command("backfill-genders")(backfill_genders)
 app.command("club-labels")(club_labels)
 app.command("geocode-courses")(geocode_courses)
 app.command("grant-role")(grant_role)
+app.command("import-member-emails")(import_member_emails)
 app.command("import-sheet")(import_sheet)
 app.command("purge-orphans")(purge_orphans)
 app.command("purge-retention")(purge_retention)

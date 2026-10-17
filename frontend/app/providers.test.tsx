@@ -45,6 +45,7 @@ const SESSION: SessionUser = {
   roles: [],
   groups: [],
   can_administer: false,
+  is_member: false,
   can_supervise: false,
 };
 

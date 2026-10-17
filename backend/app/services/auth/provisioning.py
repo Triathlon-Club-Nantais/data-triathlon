@@ -4,14 +4,18 @@ Extraite du flux délibérément : c'est **elle** qui grossira avec les rôles,
 l'invitation et la restriction de domaine. La laisser dans l'orchestration du
 parcours ferait de `flow.py` un objet-dieu à la première évolution.
 
-L'ordre des trois étapes est contractuel (FR-005) : certification de l'adresse,
-**puis** liste des comptes autorisés, **puis** résolution de l'identité.
+L'ordre est contractuel (FR-005) : certification de l'adresse, **puis** choix de
+l'adresse retenue, **puis** résolution de l'identité. Depuis #1322 la liste
+d'autorisation ne refuse plus personne : une adresse certifiée hors liste ouvre
+un compte **sans rôle**, que les gardes (pouvoir, code du site) laissent dehors
+tant qu'il n'est pas adhérent ou qu'on ne lui donne pas de rôle.
 """
 import logging
 from dataclasses import replace
 
 from sqlalchemy.orm import Session
 
+from app.core.time import utcnow
 from app.models.user import User
 from app.repositories import (
     allowed_email_repository,
@@ -20,6 +24,7 @@ from app.repositories import (
     user_repository,
     user_role_repository,
 )
+from app.services import membership
 from app.services.auth import authorization
 from app.services.auth.errors import LoginError
 from app.services.auth.idp.base import ExternalIdentity
@@ -30,31 +35,16 @@ logger = logging.getLogger(__name__)
 def resolve_user(db: Session, identity: ExternalIdentity) -> User:
     """Utilisateur derrière cette identité externe, créé au besoin.
 
-    Un refus ne laisse **jamais** d'utilisateur enregistré (FR-006) : les deux
-    portes sont franchies avant la moindre écriture.
+    Un refus ne laisse **jamais** d'utilisateur enregistré (FR-006) : la
+    certification est éprouvée avant la moindre écriture.
     """
     if not identity.email_verified or not identity.email:
         logger.info("Login refused: provider certifies no address (%s)", identity.provider)
         raise LoginError("email_unverified")
 
-    allowed_email = _first_allowed_email(db, identity)
-    if allowed_email is None:
-        # L'adresse **est** journalisée ici, et nulle part ailleurs dans le
-        # parcours. Le code rendu au visiteur est muet sur la valeur soumise
-        # (FR-030) ; sans cette trace, un refus n'est pas diagnosticable et
-        # l'exploitant ne sait pas quelle adresse ajouter à la liste. Une
-        # adresse n'est pas un secret au sens de FR-038, dont le filet
-        # (`test_no_secret_logged`) porte sur les jetons, les clés et le code de
-        # retour. Elle n'est pas journalisée sur le refus de certification, où
-        # le fournisseur ne la prouve pas et où l'exploitant n'a rien à faire.
-        logger.info(
-            "Login refused: address not in the allow-list (%s, %s)",
-            identity.provider,
-            identity.email,
-        )
-        raise LoginError("account_not_allowed")
-    # L'adresse retenue alimente `users.email` et `identities.email` (#1059).
-    identity = replace(identity, email=allowed_email)
+    # L'adresse retenue alimente `users.email` et `identities.email` (#1059,
+    # FR-016 de #1322) : c'est sur elle que le statut adhérent se dérive.
+    identity = replace(identity, email=membership.retained_email(db, identity, utcnow().date()))
 
     known = identity_repository.get_by_subject(
         db, provider=identity.provider, subject=identity.subject
@@ -86,6 +76,13 @@ def resolve_user(db: Session, identity: ExternalIdentity) -> User:
             logger.info("Login refused: account is deactivated (%s)", identity.provider)
             raise LoginError("account_not_allowed")
 
+        if allowed_email_repository.exists(db, user.email) and not allowed_email_repository.exists(
+            db, identity.email
+        ):
+            # Une adresse inscrite n'est jamais remplacée par une adresse hors
+            # liste : retirer l'adresse inscrite doit encore désactiver ce
+            # compte, et `allowed_emails.remove` le retrouve par son adresse.
+            identity = replace(identity, email=user.email)
         user_repository.refresh_profile(
             db, user, email=identity.email, display_name=identity.display_name
         )
@@ -106,11 +103,14 @@ def resolve_user(db: Session, identity: ExternalIdentity) -> User:
         subject=identity.subject,
         email=identity.email,
     )
-    _grant_initial_role(db, user, identity.email)
+    if not _grant_initial_role(db, user, identity.email):
+        # Sans l'adresse : l'identifiant suffit à retrouver le compte, et rien
+        # n'est à corriger côté exploitant, un compte sans rôle est légitime.
+        logger.info("Account created without role: user=%s provider=%s", user.id, identity.provider)
     return user
 
 
-def _grant_initial_role(db: Session, user: User, email: str) -> None:
+def _grant_initial_role(db: Session, user: User, email: str) -> bool:
     """Le rôle que l'autorisation portait, donné **une fois**, à la naissance (#239).
 
     **Une fois, et le rôle est consommé** — c'est ce qui rend la promesse vraie.
@@ -134,7 +134,7 @@ def _grant_initial_role(db: Session, user: User, email: str) -> None:
     """
     entry = allowed_email_repository.get_by_email(db, email)
     if entry is None or entry.role_id is None:
-        return
+        return False
 
     organisation = role_repository.default_organisation(db)
     role = role_repository.get(db, entry.role_id)
@@ -154,12 +154,12 @@ def _grant_initial_role(db: Session, user: User, email: str) -> None:
             organisation.id if organisation else None,
             user.id,
         )
-        return
+        return False
 
     # Réclamer **avant** de donner : le perdant d'une course ne donne rien, et
     # celui qui donne est celui qui a levé.
     if allowed_email_repository.claim_initial_role(db, entry) is None:
-        return
+        return False
 
     user_role_repository.grant(
         db, user_id=user.id, role_id=role.id, organisation_id=organisation.id
@@ -170,34 +170,4 @@ def _grant_initial_role(db: Session, user: User, email: str) -> None:
         role.slug,
         organisation.slug,
     )
-
-
-def _first_allowed_email(db: Session, identity: ExternalIdentity) -> str | None:
-    """Première adresse certifiée inscrite dans la liste, l'adresse principale
-    du fournisseur en tête (#1059). Toutes sont certifiées : l'ordre FR-005
-    (certification, puis liste) tient."""
-    for email in dict.fromkeys((identity.email, *identity.verified_emails)):
-        if email and _is_allowed(db, email):
-            return email
-    return None
-
-
-def _is_allowed(db: Session, email: str) -> bool:
-    """Liste d'autorisation, **fail-closed** et réévaluée à chaque connexion.
-
-    Vide = aucune connexion (FR-004 de #170) : une base neuve est un état
-    ordinaire, et « liste vide = tout le monde » la transformerait en ouverture
-    de l'administration à n'importe quel compte GitHub. C'est **ici**, et nulle
-    part ailleurs, que le fail-closed se joue : depuis #170 le garde de
-    configuration ne pèse plus la liste, et `/auth/methods` n'interroge aucune
-    table.
-
-    **En base, et sans cache.** La liste vivait dans un réglage lu par un
-    `Settings` en `lru_cache` — c'est ce cache qui faisait de l'ajout d'un
-    contributeur un redéploiement. Un ajout est désormais effectif à la
-    tentative suivante, un retrait aussi.
-
-    La comparaison ignore la casse et les espaces ; la normalisation est portée
-    par le repository, seul point de passage de cette table.
-    """
-    return allowed_email_repository.exists(db, email)
+    return True

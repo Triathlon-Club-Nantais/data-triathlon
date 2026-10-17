@@ -75,6 +75,7 @@ export const queryKeys = {
   counterScope: () => ["counter-scope"] as const,
   clubAliases: () => ["club-aliases"] as const,
   clubMembers: (season: number) => ["club-members", season] as const,
+  memberEmails: (season: number) => ["member-emails", season] as const,
   adminActionLog: (page: number) => ["admin-action-log", page] as const,
   // Chargé à la demande, seulement quand l'athlète retenu est hors de
   // l'aperçu de 12 du roster club (#504, #641) — `RosterApercu`, seul

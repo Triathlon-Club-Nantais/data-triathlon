@@ -68,6 +68,7 @@ const MOI: SessionUser = {
   roles: [],
   groups: [],
   can_administer: true,
+  is_member: false,
   can_supervise: false,
 };
 
@@ -226,6 +227,24 @@ describe("AllowedEmailsTable", () => {
     );
   });
 
+  it("dit d'attribuer le rôle ailleurs quand un compte existe déjà (#1322)", async () => {
+    const message =
+      "Un compte existe déjà pour cette adresse : attribuez-lui le rôle depuis l'écran « Rôles des utilisateurs ».";
+    listAllowedEmails.mockResolvedValue([]);
+    addAllowedEmail.mockRejectedValue(new ApiError(409, message));
+
+    afficher();
+    await screen.findByText(/aucune adresse autorisée/i);
+    await userEvent.type(screen.getByLabelText(/adresse/i), "adherent@exemple.fr");
+    await userEvent.selectOptions(
+      await screen.findByLabelText(/rôle à l'inscription/i),
+      String(BENEVOLE.id),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /ajouter/i }));
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(message));
+  });
+
   it("n'offre pas de rôle à l'inscription à qui ne peut pas en attribuer", async () => {
     // Donner un rôle est `roles:assign`, quel que soit le guichet — le backend
     // le refuse désormais ici aussi. Un sélecteur qui rendrait 403 à chaque
@@ -307,6 +326,8 @@ describe("AllowedEmailsTable", () => {
     await screen.findByText(ADRESSE.email);
     await userEvent.click(screen.getByRole("button", { name: /retirer/i }));
     expect(screen.getByText(new RegExp(`Retirer « ${ADRESSE.email} » \\?`))).toBeTruthy();
+    // #1322 : le compte est désactivé, ce qui ferme aussi sa connexion d'adhérent.
+    expect(screen.getByText(/ferme aussi sa connexion d'adhérent/i)).toBeTruthy();
     await confirmerDansLeDialog(/retirer/i);
 
     await waitFor(() => expect(removeAllowedEmail).toHaveBeenCalledWith(ADRESSE.id));

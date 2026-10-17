@@ -69,3 +69,5 @@ class SessionUserRead(BaseModel):
     #: #1297 : au moins un pouvoir d'encadrement (jeunes, validation des
     #: crédits bénévoles). Même dérivation que `can_administer`.
     can_supervise: bool = False
+    #: #1322 : statut adhérent dérivé à la requête, jamais stocké sur le compte.
+    is_member: bool = False
