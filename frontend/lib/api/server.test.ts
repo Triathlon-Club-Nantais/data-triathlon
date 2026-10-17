@@ -68,7 +68,7 @@ describe("serverFetch — relais du cookie d'accès au site (#526)", () => {
 
     // Sans quoi la clé du Data Cache (#526) varierait avec un cookie que
     // l'API n'utilise pas, cassant le partage inter-visiteurs de la fenêtre
-    // de revalidation de #352 sur `/dashboard`, `/club` et `/ajouter`.
+    // de revalidation de #352 sur `/mon-espace`, `/club` et `/ajouter`.
     const [, options] = fetchMock.mock.calls[0];
     expect(options.headers).toEqual({ cookie: "tcn_site_session=jeton-de-test" });
   });

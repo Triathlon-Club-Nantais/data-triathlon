@@ -12,7 +12,7 @@ const push = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push }),
-  usePathname: () => "/dashboard",
+  usePathname: () => "/mon-espace",
   useSearchParams: () => new URLSearchParams(url.qs),
 }));
 
@@ -30,21 +30,21 @@ const SEASONS: Season[] = [
 describe("buildSeasonsHref", () => {
   it("omet le paramètre quand seule la saison en cours est sélectionnée", () => {
     // saison en cours par défaut → pas de ?seasons
-    const href = buildSeasonsHref([currentSeason()], "", "/dashboard");
-    expect(href === "/dashboard" || href === "/dashboard?").toBe(true);
+    const href = buildSeasonsHref([currentSeason()], "", "/mon-espace");
+    expect(href === "/mon-espace" || href === "/mon-espace?").toBe(true);
     expect(href).not.toContain("seasons=");
   });
   it("sérialise plusieurs saisons et préserve le scope", () => {
-    const href = buildSeasonsHref([2025, 2023], "scope=club", "/dashboard");
+    const href = buildSeasonsHref([2025, 2023], "scope=club", "/mon-espace");
     expect(href).toContain("seasons=2025%2C2023");
     expect(href).toContain("scope=club");
   });
-  it("respecte le pathname fourni (#274 — réutilisé hors /dashboard)", () => {
+  it("respecte le pathname fourni (#274 — réutilisé hors /mon-espace)", () => {
     const href = buildSeasonsHref([2023], "", "/club/athletes");
     expect(href).toBe("/club/athletes?seasons=2023");
   });
   it("conserve sports et les autres paramètres, retire rank (#987)", () => {
-    const href = buildSeasonsHref([2023], "sports=all&rank=category&name=dupont", "/dashboard");
+    const href = buildSeasonsHref([2023], "sports=all&rank=category&name=dupont", "/mon-espace");
     const params = new URL(href, "http://x").searchParams;
     expect(params.get("sports")).toBe("all");
     expect(params.get("name")).toBe("dupont");
@@ -52,8 +52,8 @@ describe("buildSeasonsHref", () => {
     expect(params.has("rank")).toBe(false);
   });
   it("retire seasons au retour à la saison en cours, sans perdre sports (#987)", () => {
-    const href = buildSeasonsHref([currentSeason()], "sports=all&seasons=2023", "/dashboard");
-    expect(href).toBe("/dashboard?sports=all");
+    const href = buildSeasonsHref([currentSeason()], "sports=all&seasons=2023", "/mon-espace");
+    expect(href).toBe("/mon-espace?sports=all");
   });
 });
 
@@ -64,7 +64,7 @@ describe("SeasonSelector", () => {
   });
 
   it("porte la variante Tailwind data-pending:opacity-70 dès le rendu initial", () => {
-    // Le trajet vers /dashboard traverse le serveur (issue #345) : l'élément
+    // Le trajet vers /mon-espace traverse le serveur (issue #345) : l'élément
     // qui recevra `data-pending` pendant la transition doit déjà porter la
     // classe qui l'exploite, sans quoi l'attribut ne sert à rien (piège
     // relevé sur RankTypeToggle, qui ne portait qu'un `style` en ligne).
@@ -106,7 +106,7 @@ describe("SeasonSelector — sélection exclusive par défaut (#694)", () => {
     fireEvent.click(screen.getByLabelText("Choisir les saisons"));
     fireEvent.click(screen.getByLabelText("Saison 2023 — 2024", { exact: false }));
 
-    expect(push).toHaveBeenCalledWith("/dashboard?seasons=2023");
+    expect(push).toHaveBeenCalledWith("/mon-espace?seasons=2023");
   });
 
   it("garde « Inclure les autres disciplines » en changeant de saison (#987)", () => {
@@ -115,7 +115,7 @@ describe("SeasonSelector — sélection exclusive par défaut (#694)", () => {
     fireEvent.click(screen.getByLabelText("Choisir les saisons"));
     fireEvent.click(screen.getByLabelText("Saison 2023 — 2024", { exact: false }));
 
-    expect(push).toHaveBeenCalledWith("/dashboard?sports=all&seasons=2023");
+    expect(push).toHaveBeenCalledWith("/mon-espace?sports=all&seasons=2023");
   });
 
   it("les saisons sont des boutons radio hors mode comparaison — un seul choix possible", () => {
@@ -144,7 +144,7 @@ describe("SeasonSelector — sélection exclusive par défaut (#694)", () => {
     }
 
     fireEvent.click(screen.getByLabelText("Saison 2023 — 2024", { exact: false }));
-    expect(push).toHaveBeenCalledWith(`/dashboard?seasons=${CS}%2C2023`);
+    expect(push).toHaveBeenCalledWith(`/mon-espace?seasons=${CS}%2C2023`);
   });
 
   it("le mode comparaison s'active automatiquement si l'URL porte déjà plusieurs saisons", () => {
@@ -167,7 +167,7 @@ describe("SeasonSelector — sélection exclusive par défaut (#694)", () => {
 
     // Première saison retenue = la saison en cours (URL `seasons=${CS},2023`) :
     // c'est aussi le défaut, donc `buildSeasonsHref` omet `?seasons=`.
-    expect(push).toHaveBeenCalledWith("/dashboard");
+    expect(push).toHaveBeenCalledWith("/mon-espace");
   });
 
   it("décocher la dernière saison en mode comparaison retombe sur la saison en cours (comportement assumé, hors #694)", () => {
@@ -177,7 +177,7 @@ describe("SeasonSelector — sélection exclusive par défaut (#694)", () => {
     // Seule saison cochée par défaut : la saison en cours.
     fireEvent.click(screen.getByLabelText(SEASONS[0].label, { exact: false }));
 
-    expect(push).toHaveBeenCalledWith("/dashboard");
+    expect(push).toHaveBeenCalledWith("/mon-espace");
   });
 
   it("le mode comparaison se resynchronise sur l'URL lors d'une navigation sans démontage (retour navigateur)", () => {

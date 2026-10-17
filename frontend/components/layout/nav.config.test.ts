@@ -267,9 +267,17 @@ describe("espaces de navigation (#1296)", () => {
     ["/administration", "public"],
     ["/encadrement", "encadrement"],
     ["/encadrement/jeunes/12", "encadrement"],
-    ["/dashboard", "public"],
+    ["/mon-espace", "public"],
     ["/", "public"],
   ] as const)("spaceOf(%s) vaut %s", (pathname, attendu) => {
     expect(spaceOf(pathname)).toBe(attendu);
+  });
+
+  it("leads home to / and adds Mon espace to the public space (#1620)", () => {
+    const items = NAV.flatMap((s) => s.items);
+    expect(items.find((i) => i.id === "accueil")).toMatchObject({ label: "Accueil", href: "/", bottomBar: true });
+    expect(items.find((i) => i.id === "monespace")).toMatchObject({ label: "Mon espace", href: "/mon-espace" });
+    expect(items.some((i) => i.href === "/dashboard")).toBe(false);
+    expect(SPACES.public.home).toBe("/");
   });
 });

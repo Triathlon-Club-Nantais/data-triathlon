@@ -8,10 +8,10 @@ import { SessionEnLecture, UserMenu } from "@/components/auth/UserMenu";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/lib/queries/auth";
-import { libelleCompteur, useNavBadges } from "@/lib/queries/nav-badges";
+import { libelleCompteur, totalATraiter, useNavBadges } from "@/lib/queries/nav-badges";
 import { SpaceSwitcher, type SwitcherSpace } from "./SpaceSwitcher";
 import { AthletePicker, ATHLETE_CHANGED_EVENT, OPEN_PICKER_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete, type PickerMode } from "./AthletePicker";
-import { NAV, ROLE, SPACES, TO_HANDLE, byGroup, estVisible, spaceOf, type NavItem, type NavSection, type SpaceId } from "./nav.config";
+import { NAV, ROLE, SPACES, byGroup, estVisible, spaceOf, type NavItem, type NavSection, type SpaceId } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 
@@ -166,10 +166,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // visibles pour tous, donc identiques avant et après la session (#1300).
   // Le back-office ouvre sur son sommaire, qui porte le total « À traiter ».
   // `/admin` existe pour tout compte qui administre, même sans entrée visible.
-  const compteurAdmin = toutesSections
-    .flatMap((s) => s.items)
-    .filter((i) => i.group === TO_HANDLE && i.count !== undefined);
-  const countAdmin = compteurAdmin.length > 0 ? compteurAdmin.reduce((somme, i) => somme + (i.count ?? 0), 0) : undefined;
+  const countAdmin = totalATraiter(toutesSections.flatMap((s) => s.items));
   const ongletsEspace = sections.flatMap((s) => s.items).filter((i) => i.bottomBar);
   const barreItems: Destination[] =
     espaceAffiche === "admin"
@@ -188,7 +185,8 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // par-dessus), donc un visiteur dont la barre porte tout (anonyme, ou
   // adhérent sans pouvoir) se retrouvait sans aucune destination à l'écran une
   // fois le tiroir ouvert par le hamburger ou « Plus ». Seul cas de doublon avec la barre.
-  const sectionsRepli = sectionsReste.length > 0 ? sectionsReste : sections;
+  // Espace public : toujours l'arbre complet, la barre étant masquée tiroir ouvert.
+  const sectionsRepli = espaceAffiche === "public" || sectionsReste.length === 0 ? sections : sectionsReste;
 
   const countEncadrement = toutesSections
     .filter((s) => s.space === "encadrement")
@@ -211,11 +209,9 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
    * la comparaison est une égalité et non un préfixe. `startsWith` allumait
    * « Back-office » (`/admin`) en même temps que `/admin/acces`, et
    * l'aurait fait pour les trois écrans à venir, tous sous `/admin/`.
-   *
-   * `/dashboard` garde son cas propre : il répond aussi à la racine.
    */
   function isActive(href: string) {
-    return pathname === href || (href === "/dashboard" && pathname === "/");
+    return pathname === href;
   }
 
   // « Plus » porte la position quand la page courante vit dans le tiroir : sans
@@ -279,10 +275,10 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
           </button>
           {expanded ? (
             /* prefetch={false} (#428) : rendu au seul état déplié, ce lien
-               monte un second observateur vers `/dashboard` alors que l'entrée
-               « Tableau de bord » du rail prefetche déjà la route. */
+               monte un second observateur vers `/` alors que l'entrée
+               « Accueil » du rail prefetche déjà la route. */
             <Link
-              href="/dashboard"
+              href="/"
               prefetch={false}
               aria-label={`${CLUB_NAME_SHORT} — Accueil`}
               style={{ display: "inline-flex" }}
@@ -299,7 +295,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
             // ce lot. Même `aria-label` et même destination que le logo
             // déplié : un seul lien « accueil », deux habillages.
             <Link
-              href="/dashboard"
+              href="/"
               prefetch={false}
               aria-label={`${CLUB_NAME_SHORT} — Accueil`}
               style={{
@@ -449,7 +445,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
         >
           <Menu size={21} />
         </button>
-        <Link href="/dashboard" aria-label={`${CLUB_NAME_SHORT} — Accueil`} style={{ display: "inline-flex", marginRight: "auto" }}>
+        <Link href="/" aria-label={`${CLUB_NAME_SHORT} — Accueil`} style={{ display: "inline-flex", marginRight: "auto" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-tcn.png" alt={CLUB_NAME} style={{ height: 24, display: "block" }} />
         </Link>

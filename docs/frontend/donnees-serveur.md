@@ -9,7 +9,7 @@ Renvoyé depuis `frontend/AGENTS.md`, table « Où lire quoi ».
 `RankTypeToggle` écrit l'URL par `window.history.pushState` et les trois
 consommateurs (`MaSaison`, `ClubPodiumKpi`, `PodiumsList`) recalculent en
 mémoire : zéro requête (#328). `?scope`, `?sports` et `?seasons` **le sont**
-(`app/club/page.tsx`, `app/dashboard/page.tsx`), donc `ScopeToggle` et
+(`app/club/page.tsx`, `app/(public_restricted)/mon-espace/page.tsx`), donc `ScopeToggle` et
 `DisciplineToggle` gardent `router.push` — les basculer serait un bug
 silencieux, la page continuant de lire l'ancienne valeur sans erreur visible.
 L'asymétrie est voulue ; elle se re-tranche paramètre par paramètre, jamais

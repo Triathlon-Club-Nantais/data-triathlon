@@ -89,7 +89,7 @@ function capitaliser(s: string): string {
  *  peut la rouvrir plus encore ; ce cas-là n'est pas couvert ici. */
 
 /**
- * Bande « Ma saison » en tête du tableau de bord (#502, NAV-9).
+ * Bande « Ma saison » en tête de Mon espace (#502, NAV-9).
  *
  * L'écran d'atterrissage ne parlait que du club en agrégat : le membre qui
  * avait désigné son nom n'y trouvait rien de lui, et le geste de choix restait
