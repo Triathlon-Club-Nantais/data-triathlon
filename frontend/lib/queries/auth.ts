@@ -91,6 +91,30 @@ export function useLogout() {
   });
 }
 
+/**
+ * Rattachement à sa fiche (#1325) : chaque geste ne change que la session,
+ * qui porte la fiche rattachée et la demande en cours.
+ */
+function useSessionMutation<T>(mutationFn: (arg: T) => Promise<unknown>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.session() }),
+  });
+}
+
+export function useRequestAthleteClaim() {
+  return useSessionMutation((athleteId: number) => apiClient.requestAthleteClaim(athleteId));
+}
+
+export function useCancelAthleteClaim() {
+  return useSessionMutation(() => apiClient.cancelAthleteClaim());
+}
+
+export function useDetachAthlete() {
+  return useSessionMutation(() => apiClient.detachAthlete());
+}
+
 /** Suppression du compte de la session, puis déconnexion (#1326). */
 export function useDeleteAccount() {
   const qc = useQueryClient();

@@ -131,6 +131,11 @@ describe("Politique de confidentialité (#333)", () => {
     expect(screen.getByRole("row", { name: /^ph_/ })).toHaveTextContent("1 an");
   });
 
+  it("dit comment un compte se rattache à sa fiche et s'en détache (#1325)", () => {
+    expect(rendre()).toMatch(/à la demande de son titulaire, après vérification par le club/);
+    expect(rendre()).toMatch(/Me détacher de ma fiche/);
+  });
+
   it("ne rattache les actions du back-office au compte qu'avec l'accord (#1359)", () => {
     expect(rendre()).toMatch(/rattachées à l.identifiant du compte seulement si son titulaire a accepté la mesure détaillée/);
   });
@@ -195,6 +200,6 @@ describe("Politique de confidentialité (#333)", () => {
   });
 
   it("date la politique du jour de sa dernière modification", () => {
-    expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-15");
+    expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-17");
   });
 });

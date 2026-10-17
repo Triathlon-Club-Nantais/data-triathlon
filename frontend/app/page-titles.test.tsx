@@ -46,6 +46,7 @@ const TITRES: [string, () => Promise<{ metadata?: Metadata }>, string][] = [
 const ECRANS: [string, () => Promise<{ metadata?: Metadata }>][] = [
   ["/admin/acces", () => import("./admin/acces/page")],
   ["/admin/adresses-adherents", () => import("./admin/adresses-adherents/layout")],
+  ["/admin/rattachements", () => import("./admin/rattachements/layout")],
   ["/admin/batches", () => import("./admin/batches/page")],
   ["/encadrement/benevolat", () => import("./encadrement/benevolat/page")],
   ["/admin/courses", () => import("./admin/courses/page")],

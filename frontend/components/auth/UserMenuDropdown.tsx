@@ -16,6 +16,7 @@ export function UserMenuDropdown({
   deconnexionEnCours,
   onDeconnexion,
   onSuppression,
+  actions = [],
   children,
 }: {
   email: string;
@@ -23,6 +24,8 @@ export function UserMenuDropdown({
   deconnexionEnCours: boolean;
   onDeconnexion: () => void;
   onSuppression: () => void;
+  /** Gestes propres à l'état du compte (#1325), après « Se déconnecter ». */
+  actions?: { label: string; onClick: () => void }[];
   children: ReactNode;
 }) {
   return (
@@ -53,6 +56,15 @@ export function UserMenuDropdown({
         >
           Se déconnecter
         </DropdownMenuItem>
+        {actions.map((action) => (
+          <DropdownMenuItem
+            key={action.label}
+            onClick={action.onClick}
+            className="tcn-cible-tactile px-2 py-2 text-[14px] font-semibold"
+          >
+            {action.label}
+          </DropdownMenuItem>
+        ))}
         {/* La couleur destructive va au seul geste sans retour (#499, #1326) :
             se déconnecter se refait d'un clic. */}
         <DropdownMenuItem

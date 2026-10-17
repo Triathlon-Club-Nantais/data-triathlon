@@ -69,7 +69,10 @@ d'appui du statut adhérent de #1322.
 ## Statut adhérent (#1322)
 
 Un compte est **adhérent** si son adresse retenue (`users.email`) compte
-(`member_email_repository.counts`). `services/membership.is_member(db, user,
+(`member_email_repository.counts`), **ou** s'il est rattaché à une fiche
+(`users.athlete_id`, rattachement validé par le club, #1325). La liste ne
+valide jamais un rattachement d'office : elle ne porte que des adresses, sans
+nom ; la file `/admin/rattachements` l'affiche comme indice. `services/membership.is_member(db, user,
 today)` le dérive **à chaque requête** : jamais stocké sur `users` (invariant
 de #115), donc retirer l'adresse de la liste prend effet à la requête
 suivante, sans fermer de session. Ni un compte désactivé ni le compte système

@@ -34,6 +34,8 @@ import type {
   ClubMembersSeason,
   MembersSyncReport,
   MemberEmail,
+  AthleteClaim,
+  AthleteClaimReview,
   MemberEmailsImportReport,
   MemberEmailsSeason,
   CounterScope,
@@ -914,6 +916,20 @@ export const apiClient = {
     }),
   removeMemberEmail: (id: number) =>
     request<null>(`/admin/member-emails/${id}`, { method: "DELETE" }),
+
+  // ── Rattachement à une fiche athlète (#1325) ─────────────────────────────────
+  requestAthleteClaim: (athleteId: number) =>
+    request<AthleteClaim>("/auth/me/athlete-claim", {
+      method: "POST",
+      body: JSON.stringify({ athlete_id: athleteId }),
+    }),
+  cancelAthleteClaim: () => request<null>("/auth/me/athlete-claim", { method: "DELETE" }),
+  detachAthlete: () => request<null>("/auth/me/athlete", { method: "DELETE" }),
+  getAthleteClaims: () => request<AthleteClaimReview[]>("/admin/athlete-claims"),
+  approveAthleteClaim: (id: number) =>
+    request<null>(`/admin/athlete-claims/${id}/approve`, { method: "POST" }),
+  rejectAthleteClaim: (id: number) =>
+    request<null>(`/admin/athlete-claims/${id}/reject`, { method: "POST" }),
 
   // ── Retours utilisateurs (#267) ────────────────────────────────────────────
   // Route publique, et son chemin le dit : `/feedback`, hors de `/admin` où

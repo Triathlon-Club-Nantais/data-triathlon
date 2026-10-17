@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import authorize_rate_limit, current_user
+from app.api.deps import authorize_rate_limit, current_user, require_site_access
 from app.core import permissions
 from app.core.analytics import capture_event, set_person_properties
 from app.core.config import Settings, get_settings
@@ -24,13 +24,14 @@ from app.core.exceptions import AuthUnavailableError, NotFoundError
 from app.core.time import utcnow
 from app.models.user import User
 from app.repositories import user_repository
+from app.schemas.athlete_claim import AthleteClaimCreate, AthleteClaimRead, ClaimedAthleteRead
 from app.schemas.auth import (
     AuthMethodRead,
     SessionGroupRead,
     SessionRoleRead,
     SessionUserRead,
 )
-from app.services import membership, volunteer_access
+from app.services import athlete_claims, membership, volunteer_access
 from app.services.auth import accounts, authorization, flow
 from app.services.auth import session as session_service
 from app.services.auth.errors import ERROR_CODES, LoginError
@@ -332,6 +333,40 @@ def delete_me(
     return _signed_out_response(settings)
 
 
+@router.post(
+    "/auth/me/athlete-claim",
+    response_model=AthleteClaimRead,
+    status_code=201,
+    # Le routeur `auth` est exempté de la garde du site, mais la réponse nomme la
+    # fiche : sans elle, un compte quelconque énumérerait les athlètes (revue de #1624).
+    dependencies=[Depends(require_site_access)],
+)
+def request_athlete_claim(
+    body: AthleteClaimCreate,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    """Demande le rattachement de sa fiche (#1325), toujours soumis à la file du club."""
+    claim = athlete_claims.request_claim(db, user, body.athlete_id)
+    db.commit()
+    return AthleteClaimRead.model_validate(claim)
+
+
+@router.delete("/auth/me/athlete-claim", status_code=204)
+def cancel_athlete_claim(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    athlete_claims.cancel_claim(db, user)
+    db.commit()
+    return Response(status_code=204, headers=NO_STORE_HEADERS)
+
+
+@router.delete("/auth/me/athlete", status_code=204)
+def detach_athlete(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Se détache de sa fiche ; la fiche et ses résultats restent (#1325)."""
+    athlete_claims.detach(db, user)
+    db.commit()
+    return Response(status_code=204, headers=NO_STORE_HEADERS)
+
+
 @router.get("/auth/me", response_model=SessionUserRead)
 def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Identité de la session, ses pouvoirs et ses rôles.
@@ -352,7 +387,10 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
     """
     loaded_user = user_repository.get_with_roles_and_groups(db, user.id) or user
     effective = authorization.effective_permissions(db, loaded_user, attributions=loaded_user.roles)
+    athlete, claim = athlete_claims.session_view(db, loaded_user)
     return SessionUserRead(
+        athlete=ClaimedAthleteRead.model_validate(athlete) if athlete else None,
+        athlete_claim=AthleteClaimRead.model_validate(claim) if claim else None,
         id=loaded_user.id,
         email=loaded_user.email,
         display_name=loaded_user.display_name,

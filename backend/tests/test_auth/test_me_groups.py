@@ -78,7 +78,7 @@ def test_the_new_field_is_strictly_additive(client, ouvrir_session):
     keys = set(client.get(ME).json())
 
     assert KEYS_BEFORE_197 < keys
-    assert keys - KEYS_BEFORE_197 == {"groups", "can_administer", "can_supervise", "is_member"}  # #1109, #1297, #1322
+    assert keys - KEYS_BEFORE_197 == {"groups", "can_administer", "can_supervise", "is_member", "athlete", "athlete_claim"}  # #1109, #1297, #1322, #1325
 
 
 def test_a_removal_shows_on_the_next_request_without_reconnecting(

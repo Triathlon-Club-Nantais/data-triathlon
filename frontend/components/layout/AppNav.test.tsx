@@ -109,6 +109,8 @@ const SESSION: SessionUser = {
   groups: [],
   can_administer: false,
   is_member: false,
+  athlete: null,
+  athlete_claim: null,
   can_supervise: false,
 };
 
@@ -457,6 +459,20 @@ describe("AppNav: searching is not choosing (#952)", () => {
     expect(within(modale).queryByText(/Votre saison s'affichera/)).not.toBeInTheDocument();
   });
 
+  it("never lets a linked account designate another athlete (#1325)", async () => {
+    const JEAN = { id: 12, prenom: "Jean", nom: "Dupont" };
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
+    searchAthletes.mockResolvedValue([COEQUIPIER]);
+    afficher({ ...SESSION, athlete: JEAN });
+    await screen.findByRole("button", { name: /^Compte/ });
+    act(() => {
+      window.dispatchEvent(new Event("tcn-athlete-open-picker"));
+    });
+
+    expect(await screen.findByRole("dialog", { name: "Rechercher un athlète" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Sélectionnez votre nom" })).not.toBeInTheDocument();
+  });
+
   it("writes the remembered athlete when opened through OPEN_PICKER_EVENT", async () => {
     searchAthletes.mockResolvedValue([COEQUIPIER]);
     afficher(null);
@@ -486,6 +502,15 @@ describe("AppNav — ne plus suivre l'athlète retenu (#442)", () => {
 
     expect(readAthlete()).toBeNull();
     expect(screen.queryByRole("link", { name: "Mon athlète — Jean Dupont" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ne plus choisir Jean Dupont" })).not.toBeInTheDocument();
+  });
+
+  it("n'offre pas la croix à un compte rattaché, sa fiche n'est pas un choix (#1325)", async () => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
+    afficher({ ...SESSION, athlete: JEAN });
+    await deplier();
+
+    expect(await screen.findByRole("link", { name: "Mon athlète — Jean Dupont" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ne plus choisir Jean Dupont" })).not.toBeInTheDocument();
   });
 

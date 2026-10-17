@@ -88,6 +88,8 @@ const AVEC_ECRITURE: SessionUser = {
   roles: [],
   groups: [],
   is_member: false,
+  athlete: null,
+  athlete_claim: null,
   can_administer: false,
   can_supervise: true,
 };
