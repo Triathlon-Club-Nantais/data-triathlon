@@ -8,10 +8,10 @@ import { SessionEnLecture, UserMenu } from "@/components/auth/UserMenu";
 import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useSession } from "@/lib/queries/auth";
-import { libelleCompteur, useNavBadges } from "@/lib/queries/nav-badges";
+import { libelleCompteur, totalATraiter, useNavBadges } from "@/lib/queries/nav-badges";
 import { SpaceSwitcher, type SwitcherSpace } from "./SpaceSwitcher";
 import { AthletePicker, ATHLETE_CHANGED_EVENT, OPEN_PICKER_EVENT, clearAthlete, nomComplet, readAthlete, writeAthlete, type PickedAthlete, type PickerMode } from "./AthletePicker";
-import { NAV, ROLE, SPACES, TO_HANDLE, byGroup, estVisible, spaceOf, type NavItem, type NavSection, type SpaceId } from "./nav.config";
+import { NAV, ROLE, SPACES, byGroup, estVisible, spaceOf, type NavItem, type NavSection, type SpaceId } from "./nav.config";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 
@@ -166,10 +166,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // visibles pour tous, donc identiques avant et après la session (#1300).
   // Le back-office ouvre sur son sommaire, qui porte le total « À traiter ».
   // `/admin` existe pour tout compte qui administre, même sans entrée visible.
-  const compteurAdmin = toutesSections
-    .flatMap((s) => s.items)
-    .filter((i) => i.group === TO_HANDLE && i.count !== undefined);
-  const countAdmin = compteurAdmin.length > 0 ? compteurAdmin.reduce((somme, i) => somme + (i.count ?? 0), 0) : undefined;
+  const countAdmin = totalATraiter(toutesSections.flatMap((s) => s.items));
   const ongletsEspace = sections.flatMap((s) => s.items).filter((i) => i.bottomBar);
   const barreItems: Destination[] =
     espaceAffiche === "admin"

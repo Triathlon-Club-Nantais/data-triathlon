@@ -8,6 +8,7 @@ import type {
   AthleteSeasonActivity,
   AuthMethod,
   ClubBestTime,
+  ClubLastOuting,
   ClubSummary,
   CourseDetail,
   CourseQuery,
@@ -268,6 +269,9 @@ export const apiServer = {
     opts: { season?: number; federal_only?: boolean } = {},
     fetchOpts: FetchOpts = {},
   ) => serverFetch<ClubBestTime[]>(`/club/best-times${toQuery(opts)}`, fetchOpts),
+  /** Dernière sortie du club dans la saison en cours (#1619), `null` sans course TCN. */
+  getClubLastOuting: (opts: { federal_only?: boolean } = {}, fetchOpts: FetchOpts = {}) =>
+    serverFetch<ClubLastOuting | null>(`/club/last-outing${toQuery(opts)}`, fetchOpts),
   listSeasons: (opts: { scope?: string; federal_only?: boolean } = {}, fetchOpts: FetchOpts = {}) =>
     serverFetch<Season[]>(`/stats/seasons${toQuery(opts)}`, fetchOpts),
   /** Session du visiteur, ou `null` s'il est anonyme (#114). */

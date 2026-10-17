@@ -1,5 +1,6 @@
 "use client";
 import { useQuery } from "@tanstack/react-query";
+import { TO_HANDLE } from "@/components/layout/nav.config";
 import { apiClient } from "@/lib/api/client";
 import { motCompte, plural } from "@/lib/utils/format";
 import { queryKeys } from "./keys";
@@ -83,4 +84,10 @@ export function libelleCompteur(badge: string | undefined, n: number): string {
     default:
       return String(n);
   }
+}
+
+/** Total « À traiter » du back-office : la pastille du sommaire et de sa tuile d'accueil. */
+export function totalATraiter(items: { group?: string; count?: number }[]): number | undefined {
+  const connus = items.filter((i) => i.group === TO_HANDLE && i.count !== undefined);
+  return connus.length > 0 ? connus.reduce((somme, i) => somme + (i.count ?? 0), 0) : undefined;
 }
