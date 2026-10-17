@@ -57,7 +57,7 @@ export function SeasonGoals() {
                   aria-label={`Modifier l'objectif « ${libelle(goal)} »`}>
                   Modifier
                 </Button>
-                <Button variant="secondary" size="sm" onClick={() => setASupprimer(goal)}
+                <Button variant="secondary" size="sm" onClick={() => { supprimer.reset(); setASupprimer(goal); }}
                   aria-label={`Supprimer l'objectif « ${libelle(goal)} »`}>
                   Supprimer
                 </Button>

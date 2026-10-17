@@ -1834,13 +1834,16 @@ def athlete_season_times(db: Session, athlete_id: int, season: int, event_type: 
 
 
 def athlete_season_count(db: Session, athlete_id: int, season: int, event_type: str | None) -> int:
-    """Résultats validés d'une fiche sur une saison, relais compris (`carried_by`, #1373)."""
+    """Épreuves courues par une fiche sur une saison, relais compris (`carried_by`,
+    #1373) : résultats validés, hors non-partants (un abandon ou une
+    disqualification a bien été couru)."""
     query = (
         select(func.count(Participation.id))
         .join(Course, Participation.course_id == Course.id)
         .where(
             carried_by(athlete_id),
             validated_clause(Participation.is_pending_validation),
+            func.upper(func.coalesce(Participation.status, "")) != STATUS_DNS,
             Course.event_date.between(*season_bounds(season)),
         )
     )
