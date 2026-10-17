@@ -105,10 +105,12 @@ vers `/mon-espace`.
 Paramètre : `federal_only` (même sens que sur `/stats`). Réponse :
 
 ```json
-{ "start": "2026-09-05", "end": "2026-09-06", "events": 3, "athletes": 48, "podiums": 9 }
+{ "end_date": "2026-09-06", "events": 3, "athletes": 48, "podiums": 9 }
 ```
 
 ou `null` quand la saison en cours n'a aucune course TCN validée.
+
+`end_date` est la date de la dernière course ; la fenêtre n'est pas renvoyée (un samedi seul ferait mentir une date de début).
 
 - **Sortie** : soit `d` la date d'épreuve la plus récente portant au moins une
   participation TCN validée, dans la saison en cours. La fenêtre est

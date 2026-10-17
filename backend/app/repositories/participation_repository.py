@@ -1059,7 +1059,14 @@ def summary_rows_for_course(db: Session, course_id: int) -> list[tuple]:
 # `for_stats` n'a plus d'appelant et a été supprimée.
 
 
-def _stats_filters(q, *, club_only: bool, seasons: list[int] | None, federal_only: bool):
+def _stats_filters(
+    q,
+    *,
+    club_only: bool,
+    seasons: list[int] | None,
+    federal_only: bool,
+    dates: tuple[date, date] | None = None,
+):
     """Filtres communs à toutes les stats agrégées, `Course` déjà joint.
 
     Toujours après `validated_clause` (#270, FR-021) et `Course` déjà présent
@@ -1072,6 +1079,8 @@ def _stats_filters(q, *, club_only: bool, seasons: list[int] | None, federal_onl
         q = q.filter(season_clause(seasons))
     if federal_only:
         q = q.filter(federal_clause(Course.event_type))
+    if dates:
+        q = q.filter(Course.event_date >= dates[0], Course.event_date <= dates[1])
     return q
 
 
@@ -1081,6 +1090,7 @@ def stats_totals(
     club_only: bool = False,
     seasons: list[int] | None = None,
     federal_only: bool = False,
+    dates: tuple[date, date] | None = None,
 ) -> tuple[int, int, int]:
     """`(total, athlètes distincts, épreuves distinctes)` en une requête agrégée.
 
@@ -1098,9 +1108,11 @@ def stats_totals(
         .join(credit_rows, credit_rows.c.participation_id == Participation.id)
         .filter(validated_clause(Participation.is_pending_validation))
     )
-    if seasons or federal_only:
+    if seasons or federal_only or dates:
         q = q.join(Course, Participation.course_id == Course.id)
-    q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only)
+    q = _stats_filters(
+        q, club_only=club_only, seasons=seasons, federal_only=federal_only, dates=dates
+    )
     total, athletes, events = q.one()
     return int(total or 0), int(athletes or 0), int(events or 0)
 
@@ -1204,6 +1216,7 @@ def stats_rank_rows(
     club_only: bool = False,
     seasons: list[int] | None = None,
     federal_only: bool = False,
+    dates: tuple[date, date] | None = None,
 ) -> list[tuple]:
     """`(rank_overall, rank_category, rank_gender, gender)` — un balayage réduit.
 
@@ -1222,10 +1235,24 @@ def stats_rank_rows(
         .join(Athlete, Participation.athlete_id == Athlete.id)
         .filter(validated_clause(Participation.is_pending_validation))
     )
-    if seasons or federal_only:
+    if seasons or federal_only or dates:
         q = q.join(Course, Participation.course_id == Course.id)
-    q = _stats_filters(q, club_only=club_only, seasons=seasons, federal_only=federal_only)
+    q = _stats_filters(
+        q, club_only=club_only, seasons=seasons, federal_only=federal_only, dates=dates
+    )
     return q.all()
+
+
+def latest_club_event_date(db: Session, *, season: int, federal_only: bool = False) -> date | None:
+    """Date de la dernière épreuve de `season` portant un résultat TCN validé (#1619)."""
+    q = (
+        db.query(func.max(Course.event_date))
+        .select_from(Participation)
+        .join(Course, Participation.course_id == Course.id)
+        .filter(validated_clause(Participation.is_pending_validation))
+    )
+    q = _stats_filters(q, club_only=True, seasons=[season], federal_only=federal_only)
+    return q.scalar()
 
 
 def club_podiums(db: Session, *, federal_only: bool = False):
