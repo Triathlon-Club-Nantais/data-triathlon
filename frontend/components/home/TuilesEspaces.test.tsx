@@ -66,5 +66,6 @@ describe("TuilesEspaces", () => {
     const backOffice = await screen.findByRole("link", { name: /Back-office/ });
     expect(backOffice).toHaveAttribute("href", "/admin");
     expect(await within(backOffice).findByText("4")).toBeInTheDocument();
+    expect(backOffice).toHaveAccessibleName(/4 éléments à traiter/);
   });
 });

@@ -11,8 +11,8 @@ import { motCompte } from "@/lib/utils/format";
 
 function Tuile({ href, titre, ligne, badge }: { href: string; titre: string; ligne?: ReactNode; badge?: ReactNode }) {
   return (
-    <Link href={href} className="tcn-tuile-espace block rounded-[var(--tcn-radius-xl)]">
-      <Card style={{ height: "100%" }}>
+    <Link href={href} className="tcn-tuile-espace block rounded-[var(--tcn-radius-3xl)]">
+      <Card style={{ height: "100%", background: "var(--tuile-fond, var(--tcn-surface))" }}>
         <div className="flex items-center justify-between gap-2">
           <span style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)" }}>{titre}</span>
           <span aria-hidden="true" className="text-accent-ink" style={{ fontWeight: 800 }}>→</span>
@@ -56,7 +56,7 @@ export function TuilesEspaces({ derniereEpreuve, podiumsSaison }: { derniereEpre
         <Tuile
           href="/admin"
           titre="Back-office"
-          badge={aTraiter ? <span aria-label={libelleCompteur("backoffice", aTraiter)} className="rounded-full px-2 text-xs font-extrabold text-white" style={{ background: "var(--tcn-orange-deeper)" }}>{aTraiter}</span> : undefined}
+          badge={aTraiter ? <span className="rounded-full px-2 text-xs font-extrabold text-white" style={{ background: "var(--tcn-orange-deeper)" }}><span aria-hidden="true">{aTraiter}</span><span className="sr-only">{libelleCompteur("backoffice", aTraiter)}</span></span> : undefined}
           ligne="À traiter, données, paramétrage"
         />
       )}
