@@ -107,23 +107,37 @@ function PostLoginReturn() {
  */
 function SessionAthleteSync() {
   const { data: session } = useSession();
-  const rattacheRef = useRef(false);
 
   useEffect(() => {
     const athlete = session?.athlete;
     if (athlete) {
-      rattacheRef.current = true;
       const retenu = readAthlete();
       if (retenu?.id !== athlete.id || retenu.nom !== athlete.nom || retenu.prenom !== athlete.prenom) {
         writeAthlete({ id: athlete.id, prenom: athlete.prenom, nom: athlete.nom });
       }
-    } else if (session && rattacheRef.current) {
-      rattacheRef.current = false;
+      marquer(true);
+    } else if (session && marquer()) {
+      // Le marqueur vit à côté du stock, pas dans un `ref` : un détachement fait
+      // depuis un autre appareil se constate au chargement suivant.
+      marquer(false);
       clearAthlete();
     }
   }, [session]);
 
   return null;
+}
+
+const STOCK_DE_SESSION = "tcn-athlete-from-session";
+
+/** Lit, pose ou retire le marqueur « stock écrit par la session ». */
+function marquer(valeur?: boolean): boolean {
+  try {
+    if (valeur === true) window.localStorage.setItem(STOCK_DE_SESSION, "1");
+    else if (valeur === false) window.localStorage.removeItem(STOCK_DE_SESSION);
+    return window.localStorage.getItem(STOCK_DE_SESSION) === "1";
+  } catch {
+    return false;
+  }
 }
 
 // TCN Design System : thème clair uniquement (le mode sombre a été retiré).

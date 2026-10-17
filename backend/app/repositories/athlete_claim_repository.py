@@ -5,7 +5,9 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.time import utcnow
+from app.models.athlete import Athlete
 from app.models.athlete_claim import STATUS_PENDING, STATUS_REJECTED, AthleteClaim
+from app.repositories.dialect import dialect_insert
 
 
 def get_for_user(db: Session, user_id: int) -> AthleteClaim | None:
@@ -13,21 +15,34 @@ def get_for_user(db: Session, user_id: int) -> AthleteClaim | None:
 
 
 def get_pending(db: Session, claim_id: int) -> AthleteClaim | None:
+    """Verrouillée (`FOR UPDATE`, sans effet en SQLite) : deux responsables qui
+    valident et refusent ensemble ne décident qu'une fois, le second relit une
+    demande qui n'est plus en attente."""
     return db.scalar(
-        select(AthleteClaim).where(AthleteClaim.id == claim_id, AthleteClaim.status == STATUS_PENDING)
+        select(AthleteClaim)
+        .where(AthleteClaim.id == claim_id, AthleteClaim.status == STATUS_PENDING)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
 
 
 def replace_pending(db: Session, *, user_id: int, athlete_id: int) -> AthleteClaim:
-    """La demande en attente du compte, qui remplace la précédente quelle qu'elle soit."""
-    claim = get_for_user(db, user_id) or AthleteClaim(user_id=user_id)
-    claim.athlete_id = athlete_id
-    claim.status = STATUS_PENDING
-    claim.created_at = utcnow()
-    claim.decided_at = None
-    db.add(claim)
+    """La demande en attente du compte, qui remplace la précédente quelle qu'elle soit.
+
+    Un seul `INSERT ... ON CONFLICT (user_id) DO UPDATE` : une lecture préalable
+    serait franchie par deux demandes simultanées (double clic), et la seconde
+    insertion ferait céder `uq_athlete_claim_user` en 500.
+    """
+    values = {"athlete_id": athlete_id, "status": STATUS_PENDING, "created_at": utcnow(), "decided_at": None}
     db.flush()
-    return claim
+    db.execute(
+        dialect_insert(db)(AthleteClaim)
+        .values(user_id=user_id, **values)
+        .on_conflict_do_update(index_elements=[AthleteClaim.user_id], set_=values)
+    )
+    return db.scalars(
+        select(AthleteClaim).where(AthleteClaim.user_id == user_id).execution_options(populate_existing=True)
+    ).one()
 
 
 def reject(db: Session, claim: AthleteClaim, *, now: datetime) -> None:
@@ -48,6 +63,8 @@ def delete_for_user(db: Session, user_id: int) -> None:
 def list_pending(db: Session) -> list[AthleteClaim]:
     return list(db.scalars(
         select(AthleteClaim)
+        # Jointure : une demande dont la fiche a disparu sans cascade (SQLite) n'est pas rendue.
+        .join(Athlete, Athlete.id == AthleteClaim.athlete_id)
         .options(selectinload(AthleteClaim.user), selectinload(AthleteClaim.athlete))
         .where(AthleteClaim.status == STATUS_PENDING)
         .order_by(AthleteClaim.created_at, AthleteClaim.id)

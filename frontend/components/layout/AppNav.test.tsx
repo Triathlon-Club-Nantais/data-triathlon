@@ -459,6 +459,20 @@ describe("AppNav: searching is not choosing (#952)", () => {
     expect(within(modale).queryByText(/Votre saison s'affichera/)).not.toBeInTheDocument();
   });
 
+  it("never lets a linked account designate another athlete (#1325)", async () => {
+    const JEAN = { id: 12, prenom: "Jean", nom: "Dupont" };
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
+    searchAthletes.mockResolvedValue([COEQUIPIER]);
+    afficher({ ...SESSION, athlete: JEAN });
+    await screen.findByRole("button", { name: /^Compte/ });
+    act(() => {
+      window.dispatchEvent(new Event("tcn-athlete-open-picker"));
+    });
+
+    expect(await screen.findByRole("dialog", { name: "Rechercher un athlète" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Sélectionnez votre nom" })).not.toBeInTheDocument();
+  });
+
   it("writes the remembered athlete when opened through OPEN_PICKER_EVENT", async () => {
     searchAthletes.mockResolvedValue([COEQUIPIER]);
     afficher(null);

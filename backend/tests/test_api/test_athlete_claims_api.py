@@ -1,6 +1,8 @@
 """Athlete claims over HTTP (#1325): contracts/auth-me-athlete-claim.md and admin-athlete-claims.md."""
 import pytest
 
+from app.api.deps import require_site_access
+from app.main import app
 from app.models.admin_action_log import AdminActionLog
 from app.models.athlete import Athlete
 from app.models.athlete_claim import STATUS_REJECTED, AthleteClaim
@@ -114,6 +116,23 @@ def test_the_queue_requires_the_permission(client, db_session):
     assert client.post(f"{QUEUE}/1/approve").status_code == 403
     assert client.post(f"{QUEUE}/1/reject").status_code == 403
     assert "claims" not in client.get("/api/v1/admin/badge-counts").json()
+
+
+@pytest.fixture
+def real_site_gate(client):
+    app.dependency_overrides.pop(require_site_access, None)
+    yield
+
+
+def test_a_claim_needs_site_access_or_the_names_would_leak(client, db_session, athlete, real_site_gate):
+    """Review of #1624: the `auth` router skips the site guard, and a 201 names the athlete."""
+    _member(client, db_session)
+
+    response = client.post(MY_CLAIM, json={"athlete_id": athlete.id})
+
+    assert response.status_code == 401
+    assert response.json()["code"] == "site_access_required"
+    assert db_session.query(AthleteClaim).count() == 0
 
 
 def test_the_queue_requires_a_session(client):

@@ -76,6 +76,28 @@ def test_get_pending_ignores_a_rejected_claim(db_session):
     assert athlete_claim_repository.get_pending(db_session, claim.id) is None
 
 
+def test_a_first_claim_survives_a_concurrent_insert(db_session):
+    """Review of #1624: a double click on a first claim must not be a 500."""
+    user, first, second = _user(db_session), _athlete(db_session), _athlete(db_session, "Durand")
+    db_session.add(AthleteClaim(user_id=user.id, athlete_id=first.id, status=STATUS_REJECTED))
+    db_session.flush()
+    db_session.expunge_all()  # the concurrent row is invisible to the ORM, as in another transaction
+
+    claim = athlete_claim_repository.replace_pending(db_session, user_id=user.id, athlete_id=second.id)
+
+    assert (claim.athlete_id, claim.status) == (second.id, STATUS_PENDING)
+    assert db_session.query(AthleteClaim).count() == 1
+
+
+def test_list_pending_skips_a_claim_whose_athlete_is_gone(db_session):
+    """SQLite applies no `ON DELETE CASCADE`: a dangling claim must not break the queue."""
+    user = _user(db_session)
+    db_session.add(AthleteClaim(user_id=user.id, athlete_id=999_999, status=STATUS_PENDING))
+    db_session.flush()
+
+    assert athlete_claim_repository.list_pending(db_session) == []
+
+
 def test_repoint_and_delete_for_athlete(db_session):
     user, absorbed, kept = _user(db_session), _athlete(db_session), _athlete(db_session, "Durand")
     athlete_claim_repository.replace_pending(db_session, user_id=user.id, athlete_id=absorbed.id)

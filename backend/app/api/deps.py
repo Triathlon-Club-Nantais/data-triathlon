@@ -171,7 +171,8 @@ def require_site_access(
     ne coûte que la lecture de la configuration, quand la session et le statut
     adhérent coûtent trois requêtes (revue de #1322). Le statut est dérivé à
     chaque requête : retirer l'adresse de la liste referme dès la suivante, ce
-    qu'un cookie de site posé à la connexion (90 jours) ne permettrait pas.
+    qu'un cookie de site posé à la connexion (90 jours) ne permettrait pas. Un
+    compte rattaché à sa fiche (#1325) reste adhérent tant qu'il n'est pas détaché.
     """
     config = site_access_config_repository.get_config(db, with_updated_by=False)
     cookie = request.cookies.get(site_access.SITE_SESSION_COOKIE)

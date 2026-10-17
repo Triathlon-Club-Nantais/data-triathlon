@@ -98,11 +98,14 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // `AppNav` reste l'unique porteur de `pickerMode` ; l'événement ne fait que
   // le lui demander, comme `onOpenPicker` le fait déjà pour le rail et la
   // barre mobile.
+  // Un compte rattaché (#1325) ne désigne personne : sa fiche tient lieu de
+  // choix, la palette s'ouvre en simple recherche.
+  const compteRattache = Boolean(session?.athlete);
   useEffect(() => {
-    const onOpen = () => setPickerMode((m) => m ?? "select");
+    const onOpen = () => setPickerMode((m) => m ?? (compteRattache ? "search" : "select"));
     window.addEventListener(OPEN_PICKER_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_PICKER_EVENT, onOpen);
-  }, []);
+  }, [compteRattache]);
 
   // Le bouton « Réessayer » du rail disparaît avec la panne : sans relais, le
   // focus tomberait sur `body` au retour de la session.

@@ -169,7 +169,10 @@ describe("SessionAthleteSync (#1325)", () => {
   const JEAN = { id: 12, prenom: "Jean", nom: "Dupont" };
   const stock = () => JSON.parse(localStorage.getItem("tcn-athlete") ?? "null");
 
-  beforeEach(() => localStorage.removeItem("tcn-athlete"));
+  beforeEach(() => {
+    localStorage.removeItem("tcn-athlete");
+    localStorage.removeItem("tcn-athlete-from-session");
+  });
 
   it("puts the account's record in the local selection, over a previous one", async () => {
     localStorage.setItem("tcn-athlete", JSON.stringify({ id: 7, prenom: "Autre", nom: "Fiche" }));
@@ -186,6 +189,18 @@ describe("SessionAthleteSync (#1325)", () => {
 
     useSession.mockReturnValue({ data: SESSION });
     rerender(<Providers>{null}</Providers>);
+
+    await waitFor(() => expect(stock()).toBeNull());
+  });
+
+  it("empties the selection on the next load after a detach made elsewhere", async () => {
+    useSession.mockReturnValue({ data: { ...SESSION, athlete: JEAN } });
+    const { unmount } = render(<Providers>{null}</Providers>);
+    await waitFor(() => expect(stock()).toEqual(JEAN));
+    unmount();
+
+    useSession.mockReturnValue({ data: SESSION });
+    render(<Providers>{null}</Providers>);
 
     await waitFor(() => expect(stock()).toBeNull());
   });

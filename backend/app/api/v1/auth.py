@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import authorize_rate_limit, current_user
+from app.api.deps import authorize_rate_limit, current_user, require_site_access
 from app.core import permissions
 from app.core.analytics import capture_event, set_person_properties
 from app.core.config import Settings, get_settings
@@ -333,7 +333,14 @@ def delete_me(
     return _signed_out_response(settings)
 
 
-@router.post("/auth/me/athlete-claim", response_model=AthleteClaimRead, status_code=201)
+@router.post(
+    "/auth/me/athlete-claim",
+    response_model=AthleteClaimRead,
+    status_code=201,
+    # Le routeur `auth` est exempté de la garde du site, mais la réponse nomme la
+    # fiche : sans elle, un compte quelconque énumérerait les athlètes (revue de #1624).
+    dependencies=[Depends(require_site_access)],
+)
 def request_athlete_claim(
     body: AthleteClaimCreate,
     user: User = Depends(current_user),
