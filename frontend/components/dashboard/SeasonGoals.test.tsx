@@ -113,7 +113,7 @@ describe("SeasonGoals (#1373)", () => {
   it("links to the recap of the last closed season (#1372)", async () => {
     afficher();
 
-    expect(await screen.findByRole("link", { name: "Récap de la saison passée" })).toHaveAttribute("href", "/dashboard/recap");
+    expect(await screen.findByRole("link", { name: "Récap de la saison passée" })).toHaveAttribute("href", "/mon-espace/recap");
   });
 
   it("shows nothing without a claimed athlete", async () => {

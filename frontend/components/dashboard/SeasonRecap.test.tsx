@@ -81,7 +81,7 @@ describe("SeasonRecap (#1372)", () => {
     getAthlete.mockResolvedValue(detail([resultat()]));
     afficher(2025);
 
-    expect(await screen.findByRole("link", { name: /Saison précédente/ })).toHaveAttribute("href", "/dashboard/recap?saison=2024");
+    expect(await screen.findByRole("link", { name: /Saison précédente/ })).toHaveAttribute("href", "/mon-espace/recap?saison=2024");
     expect(screen.queryByRole("link", { name: /Saison suivante/ })).not.toBeInTheDocument();
   });
 

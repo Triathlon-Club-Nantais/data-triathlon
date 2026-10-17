@@ -14,7 +14,7 @@ const DUREE = /^\d{1,3}:[0-5]\d:[0-5]\d$/;
 const MESSAGE_DUREE = "Format attendu H:MM:SS (par exemple 2:30:00).";
 
 /**
- * « Mes objectifs » de l'Accueil (#1373) : privés, pour le seul compte rattaché
+ * « Mes objectifs » de Mon espace (#1373) : privés, pour le seul compte rattaché
  * à sa fiche (#1325). La progression vient du serveur, sur les résultats validés
  * de la saison en cours.
  */
@@ -32,7 +32,7 @@ export function SeasonGoals() {
     <Card style={{ marginTop: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <Eyebrow>Mes objectifs</Eyebrow>
-        <Link href="/dashboard/recap" className="underline underline-offset-2" style={{ fontSize: 14 }}>
+        <Link href="/mon-espace/recap" className="underline underline-offset-2" style={{ fontSize: 14 }}>
           Récap de la saison passée
         </Link>
       </div>

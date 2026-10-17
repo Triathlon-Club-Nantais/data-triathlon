@@ -40,11 +40,11 @@ export function SeasonRecap({ season, lastClosed }: { season: number; lastClosed
 
   const navigation = (
     <nav aria-label="Changer de saison" style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-      <Link href={`/dashboard/recap?saison=${season - 1}`} className="underline underline-offset-2">
+      <Link href={`/mon-espace/recap?saison=${season - 1}`} className="underline underline-offset-2">
         ← Saison précédente
       </Link>
       {season < lastClosed && (
-        <Link href={`/dashboard/recap?saison=${season + 1}`} className="underline underline-offset-2">
+        <Link href={`/mon-espace/recap?saison=${season + 1}`} className="underline underline-offset-2">
           Saison suivante →
         </Link>
       )}

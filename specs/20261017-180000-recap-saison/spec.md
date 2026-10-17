@@ -23,7 +23,7 @@ Tranchées en autonomie, par l'option la plus simple.
 
 ### User Story 1 - L'adhérent relit sa saison (Priority: P1)
 
-Depuis l'Accueil, un adhérent rattaché ouvre « Récap de la saison 2025-2026 » et voit le nombre d'épreuves, ses podiums, ses meilleurs temps, ses challenges et la liste de ses épreuves.
+Depuis Mon espace, un adhérent rattaché ouvre « Récap de la saison 2025-2026 » et voit le nombre d'épreuves, ses podiums, ses meilleurs temps, ses challenges et la liste de ses épreuves.
 
 **Independent Test**: compte rattaché, fiche avec trois résultats validés dans la saison 2025 dont un podium et un en attente : la page dit 2 épreuves, 1 podium, liste les deux épreuves, ignore la ligne en attente.
 
@@ -39,7 +39,7 @@ Depuis l'Accueil, un adhérent rattaché ouvre « Récap de la saison 2025-2026 
 - **FR-001**: La page MUST montrer, pour une saison close de la fiche rattachée : nombre d'épreuves, nombre de podiums (top 3 au scratch, au genre ou en catégorie, règle de « Ma saison »), meilleurs temps (règle #1361), challenges de la saison, liste des épreuves avec temps et rang.
 - **FR-002**: Seuls les résultats validés MUST compter.
 - **FR-003**: La page MUST NOT citer d'autre athlète.
-- **FR-004**: L'Accueil MUST offrir le lien vers la page au compte rattaché.
+- **FR-004**: Mon espace MUST offrir le lien vers la page au compte rattaché.
 - **FR-005**: Aucune route serveur nouvelle.
 
 ## Success Criteria *(mandatory)*

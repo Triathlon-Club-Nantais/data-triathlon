@@ -4,7 +4,7 @@
 
 ## Summary
 
-Page `app/(public_restricted)/dashboard/recap/page.tsx` (serveur : titre, lecture de `?saison=`) qui rend `components/dashboard/SeasonRecap.tsx` (client) : session hydratée, `apiClient.getAthlete(fiche, { seasons })`, chiffres calculés par les règles existantes (`isPodium`, `BestTimesCard`/`bestTimes`), challenges filtrés sur la saison. Lien depuis la carte « Mes objectifs » de l'Accueil.
+Page `app/(public_restricted)/mon-espace/recap/page.tsx` (serveur : titre, lecture de `?saison=`) qui rend `components/dashboard/SeasonRecap.tsx` (client) : session hydratée, `apiClient.getAthlete(fiche, { seasons })`, chiffres calculés par les règles existantes (`isPodium`, `BestTimesCard`/`bestTimes`), challenges filtrés sur la saison. Lien depuis la carte « Mes objectifs » de Mon espace.
 
 ## Technical Context
 
