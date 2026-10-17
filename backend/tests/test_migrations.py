@@ -1595,3 +1595,15 @@ def test_athlete_claims_table_up_and_down(sqlite_url):
 
     command.downgrade(cfg, "a7d3c91e4b20")
     assert "athlete_claims" not in _tables(sqlite_url)
+
+
+def test_season_goals_table_up_and_down(sqlite_url):
+    """#1373: private goals owned by the account."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    assert _columns(sqlite_url, "season_goals") == {
+        "id", "user_id", "season", "kind", "event_type", "target", "created_at",
+    }
+
+    command.downgrade(cfg, "cd0a7061e41f")
+    assert "season_goals" not in _tables(sqlite_url)

@@ -85,3 +85,7 @@ class User(Base):
     athlete_claim: Mapped["AthleteClaim | None"] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan", uselist=False
     )
+    # Ses objectifs de saison, privés, partent avec lui (#1373).
+    season_goals: Mapped[list["SeasonGoal"]] = relationship(  # noqa: F821
+        cascade="all, delete-orphan"
+    )

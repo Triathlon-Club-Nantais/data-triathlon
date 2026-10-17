@@ -26,6 +26,7 @@ from app.models.personal_profile import PersonalProfile
 from app.models.profile_log_entry import ProfileLogEntry
 from app.models.role import Role
 from app.models.role_permission import RolePermission
+from app.models.season_goal import SeasonGoal
 from app.models.season_validation import SeasonValidation
 from app.models.site_access_config import SiteAccessConfig
 from app.models.training_group import TrainingGroup, TrainingGroupMember
@@ -70,6 +71,7 @@ __all__ = [
     "PendingProvider",
     "PersonalProfile",
     "ProfileLogEntry",
+    "SeasonGoal",
     "Role",
     "RolePermission",
     "SeasonValidation",
