@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useState } from "react";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { Button, Card, Eyebrow, MetaPill } from "@/components/tcn";
@@ -29,7 +30,12 @@ export function SeasonGoals() {
 
   return (
     <Card style={{ marginTop: 24 }}>
-      <Eyebrow>Mes objectifs</Eyebrow>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <Eyebrow>Mes objectifs</Eyebrow>
+        <Link href="/dashboard/recap" className="underline underline-offset-2" style={{ fontSize: 14 }}>
+          Récap de la saison passée
+        </Link>
+      </div>
       {goals.isPending ? null : goals.error ? (
         <p role="alert" style={{ marginTop: 12 }}>{goals.error.message}</p>
       ) : (

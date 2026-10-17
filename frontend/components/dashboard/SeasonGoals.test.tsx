@@ -110,6 +110,12 @@ describe("SeasonGoals (#1373)", () => {
     await waitFor(() => expect(deleteSeasonGoal).toHaveBeenCalledWith(2));
   });
 
+  it("links to the recap of the last closed season (#1372)", async () => {
+    afficher();
+
+    expect(await screen.findByRole("link", { name: "Récap de la saison passée" })).toHaveAttribute("href", "/dashboard/recap");
+  });
+
   it("shows nothing without a claimed athlete", async () => {
     getSession.mockResolvedValue(session(null));
     afficher();
