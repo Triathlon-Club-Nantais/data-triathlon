@@ -67,6 +67,7 @@ def test_count_includes_relays_and_filters_by_format_when_asked(db_session, lea)
     _result(db_session, athlete, is_relay=True)
     _result(db_session, athlete, event_type="triathlon-s")
     _result(db_session, athlete, is_pending_validation=True)
+    _result(db_session, athlete, status="DNS", time=None)  # registered, never started: not a race run
 
     assert participation_repository.athlete_season_count(db_session, athlete.id, SEASON, None) == 3
     assert participation_repository.athlete_season_count(db_session, athlete.id, SEASON, "triathlon-m") == 2

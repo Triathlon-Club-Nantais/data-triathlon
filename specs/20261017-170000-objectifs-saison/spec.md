@@ -16,7 +16,7 @@ Tranchées par l'option la plus simple et la plus sûre (autonomie accordée par
 
 - Q: Qui peut poser un objectif ? → A: un compte **rattaché** à sa fiche (#1325) : la progression se lit sur ses résultats. Un compte sans fiche reçoit un refus explicite.
 - Q: Deux sortes ? → A: **temps cible** sur une discipline et un format (`event_type`, ex. « Triathlon M ») : atteint quand le meilleur temps validé de la saison est inférieur ou égal ; **nombre d'épreuves** sur une discipline et un format, ou toutes disciplines : atteint quand le nombre de résultats validés de la saison l'atteint.
-- Q: Quels résultats comptent ? → A: ceux de la fiche rattachée, validés, de la saison de l'objectif (1er septembre au 31 août). Pour le temps, mêmes exclusions que la carte des meilleurs temps (#1361) : ni relais, ni épreuve non fiable, ni non classé. Pour le nombre, tous les résultats validés, relais compris (un relais couru compte une épreuve).
+- Q: Quels résultats comptent ? → A: ceux de la fiche rattachée, validés, de la saison de l'objectif (1er septembre au 31 août). Pour le temps, mêmes exclusions que la carte des meilleurs temps (#1361) : ni relais, ni épreuve non fiable, ni non classé. Pour le nombre, les épreuves courues : résultats validés hors non-partants (un abandon ou une disqualification comptent), relais compris.
 - Q: Combien ? → A: 10 objectifs au plus par compte et par saison.
 - Q: Visibilité ? → A: privée : seul le propriétaire les lit, par sa session ; un objectif d'un autre compte répond 404, jamais 403 (ne pas confirmer son existence).
 
