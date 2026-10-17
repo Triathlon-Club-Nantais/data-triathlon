@@ -42,7 +42,7 @@ describe("ErrorScreen", () => {
 
     const sortie = screen.getByRole("link", { name: /résultats/i });
     expect(sortie).toHaveAttribute("href", "/resultats");
-    // `/` est la page d'accueil (`redirects()` de `next.config.ts` la renvoie vers `/mon-espace`) et la plus
+    // `/` est la page d'accueil et la plus
     // sujette à la panne : y renvoyer par `next/link` ne change pas le chemin,
     // donc la frontière garderait son état d'erreur et le clic ne ferait rien.
     expect(sortie).not.toHaveAttribute("href", "/");

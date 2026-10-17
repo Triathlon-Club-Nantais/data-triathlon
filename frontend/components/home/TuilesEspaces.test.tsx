@@ -3,10 +3,10 @@ import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/lib/types";
 
-const { getSession, getAdminBadgeCounts } = vi.hoisted(() => ({ getSession: vi.fn(), getAdminBadgeCounts: vi.fn() }));
+const { getSession, getAdminBadgeCounts, getAthlete } = vi.hoisted(() => ({ getSession: vi.fn(), getAdminBadgeCounts: vi.fn(), getAthlete: vi.fn() }));
 vi.mock("@/lib/api/client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/client")>()),
-  apiClient: { getSession, getAdminBadgeCounts },
+  apiClient: { getSession, getAdminBadgeCounts, getAthlete },
 }));
 const athlete = vi.hoisted(() => ({ current: null as null | { id: number; prenom: string; nom: string } }));
 vi.mock("@/components/layout/AthletePicker", async (importOriginal) => ({
@@ -48,8 +48,18 @@ describe("TuilesEspaces", () => {
   it("names the selected athlete on the Mon espace tile", () => {
     getSession.mockResolvedValue(null);
     athlete.current = { id: 7, prenom: "Léa", nom: "Écuyer" };
+    getAthlete.mockReturnValue(new Promise(() => {}));
     afficher();
-    expect(screen.getByRole("link", { name: /Mon espace.*Léa Écuyer/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Mon espace Léa Écuyer" })).toBeInTheDocument();
+  });
+
+  it("adds the season's épreuves count once loaded", async () => {
+    getSession.mockResolvedValue(null);
+    athlete.current = { id: 7, prenom: "Léa", nom: "Écuyer" };
+    const part = (id: number) => ({ course: { id }, is_pending_validation: false });
+    getAthlete.mockResolvedValue({ participations: [part(1), part(2), part(2)] });
+    afficher();
+    expect(await screen.findByRole("link", { name: /Mon espace.*Léa Écuyer · 2 épreuves cette saison/ })).toBeInTheDocument();
   });
 
   it("shows no reserved tile without power, nor while the session is read", async () => {

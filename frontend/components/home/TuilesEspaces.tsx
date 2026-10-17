@@ -4,7 +4,8 @@ import type { ReactNode } from "react";
 import { Card } from "@/components/tcn";
 import { nomComplet, useSelectedAthlete } from "@/components/layout/AthletePicker";
 import { NAV, ROLE, estVisible } from "@/components/layout/nav.config";
-import { useSession } from "@/lib/queries/auth";
+import { useHydratedSession } from "@/lib/queries/auth";
+import { useEpreuvesSaison } from "@/lib/queries/ma-saison";
 import { libelleCompteur, totalATraiter, useNavBadges } from "@/lib/queries/nav-badges";
 import { formatDate } from "@/lib/utils/date";
 import { motCompte } from "@/lib/utils/format";
@@ -30,8 +31,9 @@ function Tuile({ href, titre, ligne, badge }: { href: string; titre: string; lig
 
 /** Les portes de l'accueil (#1621) ; les espaces réservés n'apparaissent qu'une fois la session lue. */
 export function TuilesEspaces({ derniereEpreuve, podiumsSaison }: { derniereEpreuve: { nom: string; date: string | null } | null; podiumsSaison: number }) {
-  const { data: session } = useSession();
+  const { data: session } = useHydratedSession();
   const athlete = useSelectedAthlete();
+  const epreuves = useEpreuvesSaison(athlete?.id);
   const { counts } = useNavBadges(Boolean(session?.can_administer));
   const pouvoirs = new Set(session?.permissions ?? []);
   const aTraiter = session?.can_administer
@@ -50,7 +52,7 @@ export function TuilesEspaces({ derniereEpreuve, podiumsSaison }: { derniereEpre
         ligne={derniereEpreuve ? `${derniereEpreuve.nom}${derniereEpreuve.date ? ` · ${formatDate(derniereEpreuve.date)}` : ""}` : "Toutes les épreuves du club"}
       />
       <Tuile href="/club" titre="Club" ligne={`${motCompte(podiumsSaison, "podium")} cette saison`} />
-      <Tuile href="/mon-espace" titre="Mon espace" ligne={athlete ? nomComplet(athlete) : "Choisissez votre nom"} />
+      <Tuile href="/mon-espace" titre="Mon espace" ligne={athlete ? (epreuves === undefined ? nomComplet(athlete) : `${nomComplet(athlete)} · ${motCompte(epreuves, "épreuve")} cette saison`) : "Choisissez votre nom"} />
       {session?.can_supervise && <Tuile href="/encadrement" titre="Encadrement" ligne="Jeunes, appel, bénévolat" />}
       {session?.can_administer && (
         <Tuile

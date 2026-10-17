@@ -125,6 +125,12 @@ describe("MonEspacePage — états vides (ETAT-3)", () => {
 });
 
 describe("MonEspacePage", () => {
+  it("porte l'eyebrow « Mon espace »", async () => {
+    await renderDashboard({});
+
+    expect(screen.getByText("Mon espace")).toBeInTheDocument();
+  });
+
   it("force la portée club sur tous les appels API, même sans ?scope=club", async () => {
     await renderDashboard({});
 

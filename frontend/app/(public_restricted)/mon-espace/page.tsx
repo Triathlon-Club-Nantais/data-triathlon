@@ -38,7 +38,7 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  // Page d'accueil = vitrine du club : portée TCN forcée, pas de choix « Tous »
+  // Mon espace = vitrine du club : portée TCN forcée, pas de choix « Tous »
   // (validé par Vincent, issue #6). Le paramètre `?scope` est volontairement
   // ignoré, mais on lit `?seasons` pour le sélecteur de saison (issue #7) et
   // `?sports` pour le filtre fédéral/hors-fédération (issue #76).
@@ -89,7 +89,7 @@ export default async function DashboardPage({
       <div className="space-y-3" style={{ marginBottom: 26 }}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <Eyebrow>Participations aux épreuves</Eyebrow>
+            <Eyebrow>Mon espace</Eyebrow>
             <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(28px, 5vw, 40px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginTop: 6 }}>{seasonSelectionLabel(selected)}</h1>
             <div style={{ fontSize: 15, color: "var(--tcn-text-muted)", marginTop: 8, fontWeight: 500 }}>Votre saison et les dernières épreuves du club</div>
           </div>

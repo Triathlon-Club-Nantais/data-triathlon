@@ -41,6 +41,7 @@ describe("HomePage", () => {
     expect(screen.getByRole("heading", { level: 1, name: /Triathlon Club Nantais/ })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Espaces" })).toBeInTheDocument();
     expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ scope: "club", federal_only: true }), { revalidateSeconds: 30 });
+    expect(listEvents).toHaveBeenCalledWith(expect.objectContaining({ page_size: 1 }), { revalidateSeconds: 30 });
     expect(getClubLastOuting).toHaveBeenCalledWith({ federal_only: true }, { revalidateSeconds: 30 });
   });
 
