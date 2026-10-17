@@ -57,11 +57,16 @@ describe("resultCardModel (#1371)", () => {
 describe("drawResultCard (#1371)", () => {
   it("draws the model's texts, and only them, on a 1080×1350 card", () => {
     const texts: string[] = [];
+    const fonts: string[] = [];
+    const state = { font: "" };
     const ctx = new Proxy(
-      { fillText: (text: string) => void texts.push(text), measureText: () => ({ width: 100 }) },
+      { fillText: (text: string) => void (texts.push(text), fonts.push(state.font)), measureText: () => ({ width: 100 }) },
       {
         get: (target, key) => (key in target ? target[key as keyof typeof target] : () => ({ addColorStop: () => {} })),
-        set: () => true,
+        set: (_, key, value) => {
+          if (key === "font") state.font = value;
+          return true;
+        },
       },
     ) as unknown as CanvasRenderingContext2D;
     const model = resultCardModel(participation());
@@ -78,5 +83,8 @@ describe("drawResultCard (#1371)", () => {
       "12e au scratch",
       "2e en catégorie SEF",
     ]);
+    // CSS font shorthand: optional weight, then size, then family (review of #1628).
+    for (const font of fonts) expect(font).toMatch(/^(\d{3} )?\d+px (Anton|Barlow)$/);
+    expect(fonts[0]).toBe("600 40px Barlow");
   });
 });
