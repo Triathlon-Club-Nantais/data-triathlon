@@ -1,4 +1,6 @@
 """Schémas Pydantic pour la synthèse club (#581)."""
+from datetime import date
+
 from pydantic import BaseModel
 
 
@@ -85,6 +87,15 @@ class ClubSummary(BaseModel):
     # Additif (#1441) : `None` quand la saison en cours n'a aucun licencié.
     # Insensible à `federal_only` : une licence n'a pas de discipline.
     licensees: ClubLicensees | None = None
+
+
+class ClubLastOuting(BaseModel):
+    """Dernière sortie du club : la course la plus récente et sa veille (#1619)."""
+
+    end_date: date
+    events: int
+    athletes: int
+    podiums: int
 
 
 class ClubRosterRank(BaseModel):

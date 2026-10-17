@@ -349,6 +349,14 @@ export interface ClubBestTime {
   total_time: string;
 }
 
+/** Dernière sortie du club (#1619) : `null` côté API quand la saison n'a aucune course TCN. */
+export interface ClubLastOuting {
+  end_date: string;
+  events: number;
+  athletes: number;
+  podiums: number;
+}
+
 export interface ClubRosterRank {
   rank: number;
   total: number;

@@ -86,7 +86,7 @@ describe("Garde des écrans d'administration (FR-040)", () => {
   });
 
   // #1109 : le callback SSO mène toujours à `/admin`. Une redirection muette
-  // vers `/dashboard` faisait croire à une connexion ratée.
+  // vers `/` faisait croire à une connexion ratée.
   it.each([
     ["sans le moindre pouvoir", SANS_POUVOIR],
     ["qui ne porte que `pages:preview`", CONSULTATION_SEULE],
@@ -100,7 +100,7 @@ describe("Garde des écrans d'administration (FR-040)", () => {
     expect(screen.queryByText("secret")).not.toBeInTheDocument();
     expect(screen.getByText(/vous êtes connecté/i)).toBeInTheDocument();
     expect(screen.getByText(/demandez un rôle à un administrateur du club/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Retour au site" })).toHaveAttribute("href", "/dashboard");
+    expect(screen.getByRole("link", { name: "Retour au site" })).toHaveAttribute("href", "/");
     expect(screen.queryByRole("link", { name: /guide/i })).not.toBeInTheDocument();
     // Une page d'arrivée a un titre (revue UI/UX de #1109), et sa sortie une
     // cible tactile de 44 px sous md (patron #953).

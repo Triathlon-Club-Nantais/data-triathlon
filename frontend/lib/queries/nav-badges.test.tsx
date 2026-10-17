@@ -12,7 +12,8 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   return { ...original, apiClient: api };
 });
 
-import { useNavBadges } from "./nav-badges";
+import { TO_HANDLE } from "@/components/layout/nav.config";
+import { totalATraiter, useNavBadges } from "./nav-badges";
 
 function wrapperFor(qc: QueryClient) {
   return function Wrapper({ children }: { children: ReactNode }) {
@@ -68,5 +69,12 @@ describe("useNavBadges (#1385)", () => {
     const source = readFileSync(join(__dirname, "nav-badges.ts"), "utf8");
 
     expect(source).not.toMatch(/from\s+["'](\.\/admin|@\/lib\/queries\/admin)["']/);
+  });
+});
+
+describe("totalATraiter", () => {
+  it("sums the « À traiter » counts, undefined when none is known", () => {
+    expect(totalATraiter([{ group: TO_HANDLE, count: 3 }, { group: TO_HANDLE, count: 4 }, { group: "Autre", count: 9 }])).toBe(7);
+    expect(totalATraiter([{ group: TO_HANDLE }])).toBeUndefined();
   });
 });

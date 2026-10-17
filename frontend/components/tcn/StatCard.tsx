@@ -88,7 +88,7 @@ export function StatCard({
           background: "var(--tcn-orange-grad)",
           borderRadius: "var(--tcn-radius-3xl)",
           boxShadow: "var(--tcn-shadow-orange-xl)",
-          // La grille du tableau de bord (`app/(public_restricted)/dashboard/page.tsx`)
+          // La grille du tableau de bord (`app/(public_restricted)/mon-espace/page.tsx`)
           // peut faire de cette carte le voisin de colonnes plus hautes : sans
           // `flex`, le contenu restait empilé en haut du `block` et laissait un
           // vide en bas dès que la carte dépassait sa hauteur naturelle (#688).

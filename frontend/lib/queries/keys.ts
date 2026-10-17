@@ -86,6 +86,8 @@ export const queryKeys = {
   // incohérent avec la liste sous les yeux.
   clubRosterRank: (athleteId: number, federalOnly: boolean) =>
     ["club-roster-rank", athleteId, federalOnly] as const,
+  epreuvesSaison: (athleteId: number, seasons: string, federalOnly: boolean) =>
+    ["epreuves-saison", athleteId, seasons, federalOnly] as const,
   pendingVolunteerActions: () => ["pending-volunteer-actions"] as const,
   // Clé distincte de la liste : celle-ci stocke un `ProfileDetail` (journal
   // compris), l'autre un `Profile[]`. Même patron que `group`/`groups`.
