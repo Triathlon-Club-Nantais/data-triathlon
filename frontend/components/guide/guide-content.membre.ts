@@ -3,11 +3,11 @@ import type { GuideSection } from "./types";
 export const GUIDE_MEMBRE: GuideSection[] = [
   {
     id: "dashboard",
-    titre: "Tableau de bord",
-    casUsage: "Voir d'un coup d'œil la saison du club : résultats récents, classement et répartition par discipline.",
+    titre: "Accueil et Mon espace",
+    casUsage: "Prendre le pouls du club sur l'accueil, puis retrouver sa propre saison dans « Mon espace ».",
     etapes: [
-      "Ouvrir « Tableau de bord » depuis la navigation principale.",
-      "Choisir la ou les saisons à afficher avec le sélecteur de saison.",
+      "Ouvrir « Accueil » depuis la navigation principale : la dernière sortie du club, puis un raccourci vers chaque espace.",
+      "Ouvrir « Mon espace » pour votre saison et les dernières épreuves du club, puis choisir la ou les saisons à afficher avec le sélecteur de saison.",
       "Basculer entre classement scratch et par catégorie, ou filtrer par discipline, si besoin.",
     ],
     captures: [{ src: "/guide/membre/dashboard.jpg", alt: "Tableau de bord du club avec classement et épreuves récentes" }],
@@ -37,11 +37,11 @@ export const GUIDE_MEMBRE: GuideSection[] = [
     id: "fiche-athlete",
     titre: "Fiche athlète",
     casUsage:
-      "Retrouver un athlète, voir son historique et sa progression, et le choisir pour personnaliser son tableau de bord.",
+      "Retrouver un athlète, voir son historique et sa progression, et le choisir pour personnaliser « Mon espace ».",
     etapes: [
       "Ouvrir la recherche d'athlète avec la loupe de la navigation, ou le raccourci ⌘K (Mac) ou Ctrl K.",
       "Taper quelques lettres du nom, puis ouvrir la fiche.",
-      "Cliquer sur « Choisir cet athlète » : un raccourci « Mes résultats » apparaît dans la navigation et dans les filtres de « Résultats », et sa saison s'affiche en tête du tableau de bord.",
+      "Cliquer sur « Choisir cet athlète » : un raccourci « Mes résultats » apparaît dans la navigation et dans les filtres de « Résultats », et sa saison s'affiche en tête de « Mon espace ».",
     ],
     captures: [{ src: "/guide/membre/fiche-athlete.jpg", alt: "Fiche d'un athlète avec le bouton « Choisir cet athlète »" }],
   },

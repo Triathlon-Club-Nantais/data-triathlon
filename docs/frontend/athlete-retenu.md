@@ -18,7 +18,7 @@ en cookie relue en rendu serveur. Trois raisons, dans cet ordre.
 - **Le coût de cache est réel dès qu'on sort du profil.** Ce n'est pas
   `/athletes/[id]` qui le paierait — le build le donne `ƒ`, `serverFetch`
   l'appelant en `no-store` —, c'est le cookie **en tant que transport** :
-  `/dashboard`, `/club` et `/ajouter` tournent sur la fenêtre de revalidation
+  `/mon-espace`, `/club` et `/ajouter` tournent sur la fenêtre de revalidation
   de 30 s mesurée par #352, et un rendu qui dépend d'un cookie par visiteur
   n'est plus partageable. C'est le même raisonnement qui a déjà valu à
   `serverFetch` de ne pas relayer les cookies (voir son commentaire dans
@@ -68,7 +68,7 @@ filtres y ont été ajoutés **optionnels et neutres par défaut**, pour que
 « mes » chiffres se comptent sur exactement la même base que ceux du club
 rendus au-dessus. Le besoin serveur qui aurait rouvert l'arbitrage n'est
 donc pas apparu : le filtrage est passé dans la requête, pas dans le rendu,
-et `/dashboard` garde sa fenêtre de revalidation de 30 s partagée entre tous
+et `/mon-espace` garde sa fenêtre de revalidation de 30 s partagée entre tous
 les visiteurs. Une dimension n'est **pas** partagée, elle : le club se
 compte sur `for_stats(club_only=True)` (`tcn_clause`), quand
 `list_for_athlete` n'a délibérément aucune clause de club (FR-019,

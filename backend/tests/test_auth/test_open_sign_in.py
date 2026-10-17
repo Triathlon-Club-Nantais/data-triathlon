@@ -30,7 +30,7 @@ def _sign_in(client, email=ADRESSE_AUTORISEE, doublure=None):
 def test_an_account_without_role_lands_on_the_public_site(client, doublure):
     reponse = _sign_in(client)
 
-    assert reponse.headers["location"] == f"{get_settings().auth_redirect_base_url}/dashboard"
+    assert reponse.headers["location"] == f"{get_settings().auth_redirect_base_url}/"
 
 
 def test_an_administrator_lands_on_the_back_office(client, doublure, db_session, organisation):

@@ -8,6 +8,7 @@ import type {
   AthleteSeasonActivity,
   AuthMethod,
   ClubBestTime,
+  ClubLastOuting,
   ClubSummary,
   CourseDetail,
   CourseQuery,
@@ -28,7 +29,7 @@ const BASE = `${API_URL}/api/v1`;
 export type FetchOpts = { revalidateSeconds?: number };
 
 /**
- * Fenêtre courte pour `/dashboard` et `/club` (#352) — les deux pages dont le
+ * Fenêtre courte pour `/mon-espace` et `/club` (#352) — les deux pages dont le
  * coût mesuré (sondage du 2026-08-14) justifie un `revalidate`, une fois
  * #350/#351 corrigés. `/ajouter` (#376) partage la même fenêtre pour une
  * raison différente : ce n'est pas son coût par appel qui pose problème, mais
@@ -279,6 +280,9 @@ export const apiServer = {
     opts: { season?: number; federal_only?: boolean } = {},
     fetchOpts: FetchOpts = {},
   ) => serverFetch<ClubBestTime[]>(`/club/best-times${toQuery(opts)}`, fetchOpts),
+  /** Dernière sortie du club dans la saison en cours (#1619), `null` sans course TCN. */
+  getClubLastOuting: (opts: { federal_only?: boolean } = {}, fetchOpts: FetchOpts = {}) =>
+    serverFetch<ClubLastOuting | null>(`/club/last-outing${toQuery(opts)}`, fetchOpts),
   listSeasons: (opts: { scope?: string; federal_only?: boolean } = {}, fetchOpts: FetchOpts = {}) =>
     serverFetch<Season[]>(`/stats/seasons${toQuery(opts)}`, fetchOpts),
   /** Session du visiteur, ou `null` s'il est anonyme (#114). */
