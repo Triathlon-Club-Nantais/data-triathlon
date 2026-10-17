@@ -149,3 +149,14 @@ fiche » ou le lien vers la sienne), ni la croix de la tuile du rail, et la
 palette demandée par `OPEN_PICKER_EVENT` s'ouvre en simple recherche. Un
 connecté sans rattachement garde la sélection locale et se voit proposer
 « C'est moi » (`components/athletes/AthleteClaimAction.tsx`).
+
+## Carte résultat à télécharger (#1371)
+
+« Télécharger l'image » sur la page détail d'un résultat, pour le seul compte
+rattaché à la fiche du résultat, validé et individuel (un relais nomme des
+équipiers). PNG 1080×1350 rendu **dans le navigateur** : `lib/result-card.ts`
+sépare le modèle (`resultCardModel`, la seule ligne de l'adhérent), le dessin
+(`drawResultCard`, un contexte 2D quelconque) et le téléchargement. Cette
+séparation permet de passer le dessin côté serveur (`next/og`) si les appareils
+des adhérents s'avèrent trop lents. Aucune URL publique ni balise OG : le site
+reste derrière le code d'accès.
