@@ -11,6 +11,8 @@
 // couvre pas — d'où les trois règles de dérivation ci-dessous, qui portent l'essentiel.
 // Relevé complet : `specs/20260825-114345-page-epreuve-syntheses/releve-donnees.md`.
 
+import { foldAccents } from "@/lib/utils/text";
+
 /** Codes de base de la nomenclature fédérale. */
 const BASE: Record<string, string> = {
   PO: "Poussin",
@@ -83,10 +85,6 @@ const MOTS: Record<string, string> = {
   MASTER: "Master",
 };
 
-function sansAccent(valeur: string): string {
-  return valeur.normalize("NFD").replace(/[̀-ͯ]/g, "");
-}
-
 /**
  * Libellé complet d'un code de catégorie, ou `null` si la table ne le connaît pas.
  *
@@ -99,7 +97,7 @@ export function categoryLabel(code: string | null | undefined): string | null {
   const brut = (code ?? "").trim();
   if (!brut || brut === "-") return null;
 
-  const majuscules = sansAccent(brut).toUpperCase();
+  const majuscules = foldAccents(brut).toUpperCase();
 
   const direct = BASE[majuscules] ?? MASTERS[majuscules] ?? EQUIPES[majuscules];
   if (direct) return direct;

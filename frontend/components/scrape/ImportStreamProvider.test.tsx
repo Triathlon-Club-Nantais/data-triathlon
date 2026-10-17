@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ImportProgressEvent } from "@/lib/types";
 
-const { importEventStream, push, refresh, toast, reportPendingProvider } = vi.hoisted(() => ({
+const { importEventStream, push, refresh, toast, reportPendingProvider, captureEvent } = vi.hoisted(() => ({
+  captureEvent: vi.fn(),
   importEventStream: vi.fn(),
   push: vi.fn(),
   refresh: vi.fn(),
@@ -14,6 +15,7 @@ const { importEventStream, push, refresh, toast, reportPendingProvider } = vi.ho
 vi.mock("@/lib/api/sse", () => ({ importEventStream }));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push, refresh }) }));
 vi.mock("sonner", () => ({ toast }));
+vi.mock("@/lib/posthog", () => ({ captureEvent }));
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
@@ -103,6 +105,12 @@ const PARTIEL = {
 /** Dernier appel d'un toast : [titre, options]. */
 const dernier = (fn: ReturnType<typeof vi.fn>) => fn.mock.calls[fn.mock.calls.length - 1];
 
+// TcnScrapeForm loads ManualResultForm lazily (#1395): warm its module graph outside
+// any case timeout (#1389).
+beforeAll(async () => {
+  await import("./ManualResultForm");
+}, 30_000);
+
 beforeEach(() => {
   vi.clearAllMocks();
   reportPendingProvider.mockResolvedValue({});
@@ -189,7 +197,7 @@ describe("ImportStreamProvider — l'import survit à la navigation", () => {
     options.action.onClick();
     expect(push).toHaveBeenCalledWith("/ajouter");
     naviguer(true);
-    expect(screen.getByRole("button", { name: "Enregistrer votre participation" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Enregistrer votre participation" })).toBeInTheDocument();
     // Déjà signalé par le provider : le formulaire remonté ne le refait pas.
     expect(reportPendingProvider).toHaveBeenCalledTimes(1);
   });
@@ -284,5 +292,51 @@ describe("ImportStreamProvider — l'import survit à la navigation", () => {
 
     expect(signal?.aborted).toBe(false);
     await act(async () => terminer(FIN));
+  });
+});
+
+// #1367 : un import qui échoue se compte une fois, que l'écran soit monté ou non.
+describe("ImportStreamProvider — télémétrie d'échec", () => {
+  const echecs = () => captureEvent.mock.calls.filter(([nom]) => nom === "results_import_failed");
+
+  it.each([
+    ["page illisible", "lecture", (p: ReturnType<typeof fluxPilote>) => p.terminer({ phase: "error", message: "x" } as ImportProgressEvent)],
+    ["service muet", "service", (p: ReturnType<typeof fluxPilote>) => p.echouer(new TypeError("Failed to fetch"))],
+    ["plafond", "plafond", (p: ReturnType<typeof fluxPilote>) => p.echouer(new ApiError(429, "Trop de demandes", 180))],
+  ])("écran monté, %s : un seul results_import_failed", async (_cas, reason, finir) => {
+    const pilote = fluxPilote();
+    importEventStream.mockReturnValue(pilote.flux());
+    monter();
+    await lancer();
+
+    await act(async () => finir(pilote));
+
+    await waitFor(() => expect(echecs()).toHaveLength(1));
+    await act(async () => {});
+    expect(echecs()).toHaveLength(1);
+    // #1528 : une cause fermée, jamais le message (qui peut citer une URL ou un nom).
+    expect(echecs()[0][1]).toEqual({ reason });
+  });
+
+  it("écran quitté puis rouvert : un seul results_import_failed", async () => {
+    const pilote = await lancerPuisQuitter();
+    await act(async () => pilote.echouer(new TypeError("Failed to fetch")));
+    await waitFor(() => expect(echecs()).toHaveLength(1));
+
+    pilote.naviguer(true);
+    await act(async () => {});
+
+    expect(echecs()).toHaveLength(1);
+  });
+
+  it("écran quitté pendant l'import puis rouvert avant l'échec : un seul results_import_failed", async () => {
+    const pilote = await lancerPuisQuitter();
+    pilote.naviguer(true);
+
+    await act(async () => pilote.echouer(new TypeError("Failed to fetch")));
+
+    await waitFor(() => expect(echecs()).toHaveLength(1));
+    await act(async () => {});
+    expect(echecs()).toHaveLength(1);
   });
 });

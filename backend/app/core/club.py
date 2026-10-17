@@ -16,20 +16,20 @@ la seule source que `is_tcn` et `tcn_clause` lisent — ce qui étend leur accor
 toute configuration, pas seulement à celle livrée.
 
 **Ce qui devient configurable est l'ensemble des libellés, jamais la
-normalisation.** La distinction n'est pas théorique : `_normalise_sql` est
+normalisation.** La distinction n'est pas théorique : `_normalize_sql` est
 compilée dans un index fonctionnel (cf. `CLUB_NORMALIZED_INDEX_EXPRESSION` en
 bas de ce fichier), et la toucher sans migration de reconstruction périme cet
 index en silence. Ajouter un libellé ne change pas l'expression indexée ;
 changer la façon de comparer, si.
 """
 import re
-import unicodedata
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 from sqlalchemy import column, func
 
 from app.core import counter_scope
+from app.core.text import strip_accents
 
 #: Libellé canonique affiché quand on parle du club — utilisé côté serveur pour
 #: fusionner les variantes scrapées dans « Top clubs » (issue #200). Le front
@@ -40,16 +40,16 @@ TCN_CANONICAL_NAME = "Triathlon Club Nantais"
 #: Valeur du paramètre d'API `scope` restreignant une réponse aux membres du club.
 SCOPE_CLUB = "club"
 
-_ESPACES = re.compile(r"\s+")
+_WHITESPACE_RE = re.compile(r"\s+")
 
 
 def normalize_club(club: str | None) -> str:
     """Forme comparable d'un libellé : minuscules, bords et espaces internes aplatis.
 
-    Miroir Python de `_normalise_sql`. Les deux doivent rendre le même verdict —
+    Miroir Python de `_normalize_sql`. Les deux doivent rendre le même verdict —
     c'est ce que verrouille `tests/test_repositories/test_club_filter.py`.
     """
-    return _ESPACES.sub(" ", (club or "").strip()).lower()
+    return _WHITESPACE_RE.sub(" ", (club or "").strip()).lower()
 
 
 def broad_club_key(club: str | None) -> str:
@@ -59,9 +59,7 @@ def broad_club_key(club: str | None) -> str:
     Jamais en SQL : elle n'est pas indexée. Le filtre `club=` la résout en liste
     des graphies présentes sur l'épreuve (#1127).
     """
-    decomposed = unicodedata.normalize("NFKD", club or "")
-    # Les diacritiques décomposés ne sont pas alphanumériques : le filtre les ôte.
-    return "".join(c for c in decomposed.lower() if c.isalnum())
+    return "".join(c for c in strip_accents(club).lower() if c.isalnum())
 
 
 def is_tcn(club: str | None) -> bool:
@@ -147,10 +145,10 @@ def is_club_scope(scope: str | None) -> bool:
     return scope == SCOPE_CLUB
 
 
-_BLANCS_SQL = ("\t", "\n", "\r", "\xa0")
+_SQL_WHITESPACE = ("\t", "\n", "\r", "\xa0")
 
 
-def _normalise_sql(column):
+def _normalize_sql(column):
     """Miroir SQL de `normalize_club`, portable SQLite (dev) et Postgres (prod).
 
     `\\s` et `str.strip()` couvrent, côté Python, la tabulation, les sauts de
@@ -165,8 +163,8 @@ def _normalise_sql(column):
     oubli, jamais un faux positif — et `club-labels` le rendra visible.
     """
     expr = column
-    for blanc in _BLANCS_SQL:
-        expr = func.replace(expr, blanc, " ")
+    for blank in _SQL_WHITESPACE:
+        expr = func.replace(expr, blank, " ")
     expr = func.lower(func.trim(expr))
     for _ in range(3):
         expr = func.replace(expr, "  ", " ")
@@ -183,32 +181,32 @@ def tcn_clause(column, labels: Iterable[str] | None = None):
     """
     if labels is None:
         labels = counter_scope.tcn_club_labels()
-    return _normalise_sql(column).in_(sorted(labels))
+    return _normalize_sql(column).in_(sorted(labels))
 
 
-#: Expression SQL de `_normalise_sql`, compilée en littéral DDL portable
+#: Expression SQL de `_normalize_sql`, compilée en littéral DDL portable
 #: SQLite/Postgres (issue #351) — `replace`/`lower`/`trim` compilent à
 #: l'identique sur les deux moteurs, aucune branche `dialect.name` n'est donc
 #: nécessaire ici, à la différence des extensions Postgres (`pg_trgm`,
 #: `unaccent`). Source unique consommée par `Participation.__table_args__`
 #: **et** par la migration qui pose l'index fonctionnel : un seul texte, pas
-#: deux copies qui pourraient diverger silencieusement de `_normalise_sql`.
+#: deux copies qui pourraient diverger silencieusement de `_normalize_sql`.
 #: Le nom de colonne générique `"club"` convient à `Participation.club`, seule
 #: colonne indexée par ce ticket (cf. issue #351, hors périmètre : `Athlete.club`).
 #:
-#: **Modifier `_normalise_sql` sans migration de reconstruction périme
+#: **Modifier `_normalize_sql` sans migration de reconstruction périme
 #: silencieusement l'index existant.** L'index fonctionnel `ix_participations_
 #: club_normalized` (migration `e9cdbf3a4866`) fige, à la construction, le texte
 #: SQL compilé *au moment où cette migration a tourné* — dans le catalogue de la
-#: base, pas dans ce fichier. Un environnement déjà migré qui voit `_normalise_sql`
+#: base, pas dans ce fichier. Un environnement déjà migré qui voit `_normalize_sql`
 #: changer garde l'**ancienne** expression indexée : les lectures via
 #: `tcn_clause` restent correctes (elles recompilent la nouvelle expression à
 #: chaque requête), mais l'index ne les sert plus — retour silencieux au
 #: balayage complet que #351 corrigeait, sans erreur ni avertissement. Seul un
 #: environnement reconstruit de zéro (`create_all`, ou `alembic upgrade head`
 #: depuis une base vierge) obtient la nouvelle expression. Toute évolution de
-#: `_normalise_sql` doit donc s'accompagner d'une nouvelle migration qui
+#: `_normalize_sql` doit donc s'accompagner d'une nouvelle migration qui
 #: `drop_index` puis `create_index` avec le texte à jour.
 CLUB_NORMALIZED_INDEX_EXPRESSION: str = str(
-    _normalise_sql(column("club")).compile(compile_kwargs={"literal_binds": True})
+    _normalize_sql(column("club")).compile(compile_kwargs={"literal_binds": True})
 )

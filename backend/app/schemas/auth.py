@@ -1,7 +1,8 @@
 """DTO du socle d'authentification (#114)."""
-from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, field_serializer
+from pydantic import BaseModel, ConfigDict
+
+from app.schemas.utc_datetime import UtcDatetime
 
 
 class AuthMethodRead(BaseModel):
@@ -56,7 +57,7 @@ class SessionUserRead(BaseModel):
     id: int
     email: str
     display_name: str = ""
-    created_at: datetime
+    created_at: UtcDatetime
     permissions: list[str] = []
     roles: list[SessionRoleRead] = []
     #: #197, ajouté exactement comme les deux précédents et pour la même raison :
@@ -65,11 +66,8 @@ class SessionUserRead(BaseModel):
     #: #1109 : au moins un pouvoir d'administration, `pages:preview` exclu. Dérivé
     #: du catalogue pour que le front n'en tienne pas une seconde liste.
     can_administer: bool = False
+    #: #1297 : au moins un pouvoir d'encadrement (jeunes, validation des
+    #: crédits bénévoles). Même dérivation que `can_administer`.
+    can_supervise: bool = False
     #: #1322 : statut adhérent dérivé à la requête, jamais stocké sur le compte.
     is_member: bool = False
-
-    @field_serializer("created_at")
-    def _serialize_utc(self, value: datetime) -> str:
-        """Suffixe `Z` : les colonnes sont des datetimes **naïfs en UTC**, et un
-        naïf sérialisé tel quel serait lu comme une heure locale par le client."""
-        return f"{value.isoformat()}Z"

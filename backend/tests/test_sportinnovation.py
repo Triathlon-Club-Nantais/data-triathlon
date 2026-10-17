@@ -436,8 +436,9 @@ def test_fetch_splits_parallel_schema_ffa_ne_fabrique_pas_de_reference():
 # ── _scrape_results_race — chemin API : même convention de nommage que le legacy
 
 class _FakeResponse:
-    def __init__(self, payload):
+    def __init__(self, payload, status_code=200):
         self._payload = payload
+        self.status_code = status_code
 
     def json(self):
         return self._payload
@@ -571,6 +572,14 @@ def test_race_results_api_keeps_published_ranks(monkeypatch):
     results = si._race_results_api("tri-s", "Triathlon S", "Défis", None, "http://x", client)
 
     assert [r.rank_overall for r in results] == [2, None]
+
+
+def test_scrape_results_race_removed_upstream_raises_not_found():
+    """A race deleted upstream answers 404 with an HTML page, not JSON (#1350)."""
+    client = _FakeClient({})
+    client.get = lambda url, **_kw: _FakeResponse(None, status_code=404)
+    with pytest.raises(ValueError, match="introuvable : gone-race"):
+        _si._scrape_results_race("gone-race", "http://x", client)
 
 
 def test_scrape_results_race_compose_le_nom_et_porte_la_date(monkeypatch):
@@ -918,3 +927,80 @@ def test_duo_team_carries_its_teammates_as_published(monkeypatch):
     ], title="Swimrun DUO")
 
     assert team.teammates == (("DE LA TOUR", "Jean Marc"), ("MARTIN", "Paul"))
+
+
+# ── Schéma FFA à points de passage inline (BayMan 2026, #1575) ───────────────
+
+
+def _bayman_7690_results(monkeypatch):
+    import json
+
+    data = json.loads((FIXTURES / "sportinnovation_ffa_inline_7690.json").read_text(encoding="utf-8"))
+    monkeypatch.setattr(_si, "_fetch_athlete_splits", lambda ref: pytest.fail(f"unexpected splits call: {ref}"))
+    client = _FakeClient({
+        f"/races/{data['race']['slug']}": data["race"],
+        f"/events/{data['race']['eventSlug']}": data["event"],
+        f"/races/{data['race']['slug']}/results": data["results"],
+    })
+    return {r.bib_number: r for r in _si._scrape_results_race(data["race"]["slug"], "http://x", client)}
+
+
+def _splits(r):
+    return (r.swim_time, r.t1_time, r.bike_time, r.t2_time, r.run_time)
+
+
+def test_inline_cumulative_intermediates_become_segment_splits(monkeypatch):
+    by_bib = _bayman_7690_results(monkeypatch)
+
+    assert _splits(by_bib["20"]) == ("00:27:20", "00:01:20", "02:10:01", "00:02:00", "01:15:56")
+    assert by_bib["20"].total_time == "03:56:37"
+
+
+def test_inline_intermediates_keep_the_first_pass_of_a_repeated_point(monkeypatch):
+    by_bib = _bayman_7690_results(monkeypatch)
+
+    assert _splits(by_bib["761"]) == ("00:40:12", "00:07:05", "03:12:42", "00:06:10", "01:45:01")
+
+
+def test_inline_intermediates_take_the_earliest_pass_whatever_the_order():
+    def p(label, t):
+        return {"controlPointLabel": label, "realTimeFfa": t}
+
+    splits = _si._inline_intermediates_to_splits([
+        p("FINISH", "05:51:10"),
+        p("Transition 2", "04:06:10"),
+        p("Tps Nat", "00:40:12"),
+        p("Transition 2", "04:06:09"),
+        p("Transition 1", "00:00:00"),
+        p("Tps Velo", "03:59:59"),
+    ])
+
+    # T1 at zero carries no pass, so the bike has no previous pass either.
+    assert splits == {"swim": "00:40:12", "t2": "00:06:10", "run": "01:45:01"}
+
+
+def test_inline_intermediates_skip_a_non_increasing_segment_and_chain_on():
+    def p(label, t):
+        return {"controlPointLabel": label, "realTimeFfa": t}
+
+    splits = _si._inline_intermediates_to_splits([
+        p("Tps Nat", "00:30:00"), p("Transition 1", "00:29:00"), p("Tps Velo", "02:00:00"),
+    ])
+
+    assert splits == {"swim": "00:30:00", "bike": "01:31:00"}
+
+
+def test_inline_intermediates_leave_a_segment_without_its_previous_point_empty(monkeypatch):
+    """Bike and T2 missing: the run cannot be derived from the T1 pass alone."""
+    by_bib = _bayman_7690_results(monkeypatch)
+
+    assert _splits(by_bib["466"]) == ("00:46:58", "00:06:29", "", "", "")
+    assert _splits(by_bib["31"]) == ("00:38:59", "00:05:08", "03:38:30", "", "")
+    assert by_bib["31"].status == "DNF"
+    assert _splits(by_bib["42"]) == ("", "", "", "", "")
+
+
+def test_ffa_schema_reads_the_official_ranks(monkeypatch):
+    r = _bayman_7690_results(monkeypatch)["761"]
+
+    assert (r.rank_overall, r.rank_gender, r.rank_category) == (409, 388, 67)

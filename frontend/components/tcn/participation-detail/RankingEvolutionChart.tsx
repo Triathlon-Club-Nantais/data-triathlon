@@ -90,7 +90,7 @@ export function RankingEvolutionChart({
   );
 
   // Récapitulatif chiffré pour `role="img"` (#480, fix D) : patron « X : liste. »
-  // partagé avec DisciplineBar/BarList/CategoryBars. Les noms sont mis en
+  // partagé avec BarList/CategoryBars. Les noms sont mis en
   // minuscule — ce sont des noms communs dans une phrase, pas des titres.
   const summary = steps
     .map((step) => `${(labels.get(step.segment) ?? step.segment).toLowerCase()} ${ordinalFr(step.scratch_position)}`)

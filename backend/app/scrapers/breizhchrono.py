@@ -238,7 +238,7 @@ def _import_one_heat(
         source_url = f"{base}/resultats-courses/{slug}-{event_id}/{heat_slug}"
     heat_page_html = plat.get_page(client, source_url).text
     if event_type is None:
-        event_type = classify_event_type(heat_slug, contexte=slug)
+        event_type = classify_event_type(heat_slug, context=slug)
 
     results = plat.build_heat_results(
         base=base,
@@ -381,19 +381,19 @@ def scrape_event_fanout(
         heats = _fetch_all_heats(slug_id, client) or [("", "")]
         trace.heats_enumerated = len(heats)
 
-        heats_a_scraper: list[tuple[str, str]] = []
+        heats_to_scrape: list[tuple[str, str]] = []
         for heat_slug, heat_label in heats:
             heat_url = f"{BASE}/resultats-courses/{slug_id}/{heat_slug}"
             if cache_probe is not None and cache_probe(heat_url):
                 trace.heats_cached += 1
                 trace.cached_urls.append(heat_url)
                 continue
-            heats_a_scraper.append((heat_slug, heat_label))
+            heats_to_scrape.append((heat_slug, heat_label))
 
-        total_a_scraper = len(heats_a_scraper)
-        for index, (heat_slug, heat_label) in enumerate(heats_a_scraper, start=1):
+        total_to_scrape = len(heats_to_scrape)
+        for index, (heat_slug, heat_label) in enumerate(heats_to_scrape, start=1):
             if on_heat_start is not None:
-                on_heat_start(heat_slug, heat_label, index, total_a_scraper)
+                on_heat_start(heat_slug, heat_label, index, total_to_scrape)
             try:
                 all_results.extend(_import_one_heat(
                     event_id, heat_slug, heat_label, event_name, slug, event_date, client,
@@ -592,7 +592,7 @@ def scrape_live_event_fanout(
         heats = all_heats or [("", "")]
         trace.heats_enumerated = len(heats)
 
-        heats_a_scraper: list[tuple[str, str]] = []
+        heats_to_scrape: list[tuple[str, str]] = []
         for heat_slug, heat_label in heats:
             heat_url = (
                 f"{LIVE_BASE}/external/live5/classements.jsp"
@@ -602,12 +602,12 @@ def scrape_live_event_fanout(
                 trace.heats_cached += 1
                 trace.cached_urls.append(heat_url)
                 continue
-            heats_a_scraper.append((heat_slug, heat_label))
+            heats_to_scrape.append((heat_slug, heat_label))
 
-        total_a_scraper = len(heats_a_scraper)
-        for index, (heat_slug, heat_label) in enumerate(heats_a_scraper, start=1):
+        total_to_scrape = len(heats_to_scrape)
+        for index, (heat_slug, heat_label) in enumerate(heats_to_scrape, start=1):
             if on_heat_start is not None:
-                on_heat_start(heat_slug, heat_label, index, total_a_scraper)
+                on_heat_start(heat_slug, heat_label, index, total_to_scrape)
             try:
                 all_results.extend(_import_one_live_heat(
                     reference, heat_slug, heat_label, event_name, slug,

@@ -81,7 +81,7 @@ class BatchTotals:
 #: la CLI, dont la forme est un contrat (le pipeline `import-sheet --json |
 #: jq -r '.failures[].url' | rescrape-db --urls-from -`). Une imbrication
 #: `totals: {…}` la casserait.
-CHAMPS_COMMUNS = (
+SHARED_FIELDS = (
     "imported", "updated", "skipped", "errors", "processed", "interrupted", "failures",
     "passive_sources",
 )
@@ -91,11 +91,11 @@ def copy_totals(outcome, totals: BatchTotals) -> None:
     """Reporte les compteurs communs du batch sur le bilan de la commande.
 
     `outcome` est un `SheetOutcome` ou un `RescrapeOutcome` — pas de `Protocol`
-    à inventer pour deux dataclasses, `CHAMPS_COMMUNS` est le contrat, et
+    à inventer pour deux dataclasses, `SHARED_FIELDS` est le contrat, et
     `test_batch` épingle les deux.
     """
-    for champ in CHAMPS_COMMUNS:
-        setattr(outcome, champ, getattr(totals, champ))
+    for field_name in SHARED_FIELDS:
+        setattr(outcome, field_name, getattr(totals, field_name))
 
 
 @dataclass
@@ -110,7 +110,7 @@ class _ItemResult:
     passive_sources: list[PassiveSource] = field(default_factory=list)
 
 
-def est_echec_total(*, epreuves: int, errors: int) -> bool:
+def is_total_failure(*, events: int, errors: int) -> bool:
     """Vrai si **toutes** les épreuves ciblées ont échoué — et qu'il y en avait.
 
     Définition unique de l'« échec total », partagée par les deux bilans
@@ -123,11 +123,11 @@ def est_echec_total(*, epreuves: int, errors: int) -> bool:
     participants déjà en base, ou épreuve vide) reste donc un **succès** — d'où
     la comparaison `errors` vs nombre d'épreuves plutôt qu'un test sur `imported`.
 
-    Cas dégénérés couverts par `epreuves > 0` : batch de zéro épreuve (Sheet
+    Cas dégénérés couverts par `events > 0` : batch de zéro épreuve (Sheet
     vide, `--limit 0`, filtre sans résultat) → pas un échec. Un dry-run ne
     scrape rien : ses `errors` restent à 0, il ne peut donc jamais être un échec.
     """
-    return epreuves > 0 and errors >= epreuves
+    return events > 0 and errors >= events
 
 
 def _notify(action: Callable[[], None]) -> None:
@@ -148,7 +148,7 @@ def _notify(action: Callable[[], None]) -> None:
         logger.warning("Reporter en échec (%s) — batch poursuivi", exc)
 
 
-def _liberer_session(db: Session) -> None:
+def _release_session(db: Session) -> None:
     """Referme la transaction laissée ouverte par l'épreuve qui vient d'être traitée.
 
     Deux raisons, une seule instruction :
@@ -192,7 +192,7 @@ def _group_by_host(items: list[BatchItem]) -> list[tuple[str, list[BatchItem]]]:
 
 
 @dataclass(frozen=True)
-class _ReporterPourGroupe:
+class _HostReporter:
     """Lie un `ProgressReporter` à un chronométreur : `_import_one` continue
     d'appeler `item_start`/`item_progress`/`item_done` sans connaître le
     regroupement — cet adaptateur ajoute `host` à chaque appel, seul endroit
@@ -232,8 +232,8 @@ def _import_one(
     for phase in import_service.iter_import_event(
         db, url, settings, force=force, persist=persist, single_heat=single_heat,
     ):
-        nom = phase.get("phase")
-        if nom == "saving":
+        phase_name = phase.get("phase")
+        if phase_name == "saving":
             _notify(
                 partial(
                     reporter.item_progress,
@@ -241,14 +241,14 @@ def _import_one(
                     phase.get("total", 0),
                 )
             )
-        elif nom == "done":
+        elif phase_name == "done":
             result.imported = phase.get("imported", 0)
             result.updated = phase.get("updated", 0)
             result.skipped = phase.get("skipped", 0)
             result.reconciled = phase.get("reconciled", 0)
             result.reassignments = phase.get("reassignments", [])
             result.passive_sources = phase.get("passive_sources", [])
-        elif nom == "error":
+        elif phase_name == "error":
             result.error = phase.get("message", "erreur inconnue")
 
     return result
@@ -282,11 +282,11 @@ def run_batch(
     totals = BatchTotals()
     lock = threading.Lock()
     stop_event = threading.Event()
-    compteur = itertools.count()
+    counter = itertools.count()
     session_factory = sessionmaker(autocommit=False, autoflush=False, bind=db.get_bind())
 
-    def _traiter_epreuve(group_db: Session, item: BatchItem, group_reporter: ProgressReporter) -> None:
-        index = next(compteur)
+    def _process_item(group_db: Session, item: BatchItem, group_reporter: ProgressReporter) -> None:
+        index = next(counter)
         _notify(partial(group_reporter.item_start, index, item.label))
         with measure_queries(item.label):
             try:
@@ -313,12 +313,12 @@ def run_batch(
                 totals.passive_sources.extend(result.passive_sources)
             totals.processed += 1  # tentée et allée au bout, réussie ou non
         _notify(partial(group_reporter.item_done, result.imported, result.skipped, result.error))
-        _liberer_session(group_db)
+        _release_session(group_db)
 
-    def _traiter_groupe(host: str, host_items: list[BatchItem]) -> None:
+    def _process_group(host: str, host_items: list[BatchItem]) -> None:
         if stop_event.is_set():
             return
-        group_reporter = _ReporterPourGroupe(reporter, host)
+        group_reporter = _HostReporter(reporter, host)
         try:
             group_db = session_factory()
         except Exception as exc:  # filet : l'échec d'un groupe ne doit pas perdre le bilan du batch
@@ -337,7 +337,7 @@ def run_batch(
                 if stop_event.is_set():
                     return
                 try:
-                    _traiter_epreuve(group_db, item, group_reporter)
+                    _process_item(group_db, item, group_reporter)
                 except KeyboardInterrupt:
                     # Un appelant synchrone de ce thread (ex. un reporter) a levé
                     # KeyboardInterrupt — un vrai Ctrl-C (SIGINT) n'arrive, lui,
@@ -346,19 +346,19 @@ def run_batch(
                     # groupe ne démarre d'épreuve neuve.
                     stop_event.set()
                     logger.warning("Interruption clavier — arrêt du batch")
-                    _liberer_session(group_db)
+                    _release_session(group_db)
                     return
                 if delay and position < len(host_items) - 1 and not stop_event.is_set():
                     time.sleep(delay)
         finally:
             group_db.close()
 
-    groupes = _group_by_host(items)
+    groups = _group_by_host(items)
 
     _notify(partial(reporter.batch_start, len(items)))
     executor = ThreadPoolExecutor(max_workers=max(1, max_concurrent_hosts))
     try:
-        futures = [executor.submit(_traiter_groupe, host, host_items) for host, host_items in groupes]
+        futures = [executor.submit(_process_group, host, host_items) for host, host_items in groups]
         try:
             for future in as_completed(futures):
                 future.result()

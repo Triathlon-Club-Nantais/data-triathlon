@@ -116,6 +116,13 @@ beforeEach(() => {
 });
 
 describe("RaceFinishers", () => {
+  it("titles the ranking with a level 2 heading that still names the desktop table (#1403)", () => {
+    afficher();
+    const titre = screen.getByRole("heading", { level: 2, name: "Classement" });
+    expect(titre).toHaveAttribute("id", "titre-classement");
+    expect(screen.getByRole("table", { name: "Classement" })).toBeInTheDocument();
+  });
+
   it("montre le rang catégorie quand la source le publie, en grille comme en cartes (#1207)", () => {
     const classee = { ...p({ id: 1, nom: "CLASSEE", rank_overall: 5, total_time: "01:00:00" }), rank_category: 1 };
     afficher({ participations: [classee, p({ id: 2, nom: "SANSRANG", rank_overall: 6 })] });
@@ -631,6 +638,25 @@ describe("RaceFinishers", () => {
     expect(nomsAffiches()).toEqual(["RAPIDE T", "LENT T", "SANSNATATION T"]);
   });
 
+  it("sends a 00:00:00 total time last in both directions, like a missing time (#1480)", async () => {
+    afficher({
+      participations: [
+        ...dataAvecSplits.slice(0, 2),
+        p({ id: 3, nom: "ZERO", rank_overall: 3, total_time: "00:00:00", splits: {} }),
+      ],
+      summary: synthese({ split_keys: ["swim"] }),
+      eventType: "triathlon-m",
+    });
+    const noms = () => screen.getAllByText(/^(LENT|RAPIDE|ZERO) T$/).map((el) => el.textContent);
+
+    const bouton = screen.getByRole("button", { name: /Trier par temps total/i });
+    await userEvent.click(bouton);
+    expect(noms()).toEqual(["RAPIDE T", "LENT T", "ZERO T"]);
+
+    await userEvent.click(bouton);
+    expect(noms()).toEqual(["LENT T", "RAPIDE T", "ZERO T"]);
+  });
+
   it("recliquer sur l'en-tête « Temps total » inverse l'ordre en décroissant", async () => {
     afficher({
       participations: dataAvecSplits,
@@ -1144,6 +1170,28 @@ describe("RaceFinishers — ma ligne dans le classement (NAV-10, #503)", () => {
     expect(autres.length).toBeGreaterThan(0);
     for (const ligne of autres) {
       expect(ligne.className).not.toMatch(/(^|\s)tcn-rowlink--moi(\s|$)/);
+    }
+  });
+
+  it("gives every ranking control a 44px touch target on mobile, with no inline min height to beat it (#1539)", () => {
+    writeAthlete({ id: 3, prenom: "Thomas", nom: "DNFGUY" });
+    afficher({ total: 100, pageSize: 20, page: 3 });
+
+    const controls = [
+      screen.getByLabelText("Rechercher un athlète"),
+      screen.getByRole("button", { name: "Chercher" }),
+      screen.getByRole("button", { name: /Aller à ma ligne/ }),
+      screen.getByRole("link", { name: /Première/ }),
+      screen.getByRole("link", { name: /Précédent/ }),
+      screen.getByRole("link", { name: /Suivant/ }),
+      screen.getByRole("link", { name: /Dernière/ }),
+      screen.getByRole("button", { name: "Aller" }),
+      screen.getByLabelText("Aller à la page"),
+      screen.getByLabelText("Lignes par page"),
+    ];
+    for (const control of controls) {
+      expect(control).toHaveClass("tcn-cible-tactile");
+      expect(control.style.minHeight).toBe("");
     }
   });
 

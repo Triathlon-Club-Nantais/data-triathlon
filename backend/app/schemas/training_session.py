@@ -1,17 +1,19 @@
 """DTO Pydantic pour le calendrier des entraînements jeunes (#868, epic #863)."""
 from datetime import date as date_
-from datetime import datetime
 from datetime import time as time_
 
-from pydantic import BaseModel, ConfigDict, Field, field_serializer
+from pydantic import BaseModel, ConfigDict
+
+from app.schemas.ids import DbId
+from app.schemas.utc_datetime import UtcDatetime
 
 
 class ParticipantRead(BaseModel):
     """Un participant inscrit à un entraînement.
 
-    `profile_id` seul — pas de nom ni de contact : le profil du jeune référencé
-    est porté par la sous-issue parallèle #867, hors du contrat de cette
-    ressource (cf. `research.md` §Dépendance sur le profil jeune).
+    `profile_id` seul, pas de nom : le profil du jeune référencé est porté par
+    la sous-issue parallèle #867 (cf. `research.md` §Dépendance sur le profil
+    jeune). Seul le contact d'urgence y est joint, pour l'appel (#1405).
 
     `present` (#869) est le statut de l'appel de **début** : `None` = pas
     encore pointé, `True`/`False` = le dernier statut enregistré.
@@ -23,11 +25,9 @@ class ParticipantRead(BaseModel):
     added_manually: bool
     #: Catégorie FFTri du profil, `None` sans date de naissance (#1291).
     category: str | None
-    created_at: datetime
-
-    @field_serializer("created_at")
-    def _serialize_utc(self, value: datetime) -> str:
-        return f"{value.isoformat()}Z"
+    created_at: UtcDatetime
+    #: Contact d'urgence du profil (#1405), `""` s'il est vide, `None` sans le pouvoir `jeunes:read`.
+    emergency_contact: str | None = None
 
 
 class TrainingSessionRead(BaseModel):
@@ -66,7 +66,7 @@ class TrainingSessionCreate(BaseModel):
     start_time: time_ | None = None
     location: str | None = None
     session_type: str | None = None
-    group_ids: list[int] = []
+    group_ids: list[DbId] = []
 
 
 class TrainingSessionUpdate(BaseModel):
@@ -86,7 +86,7 @@ class TrainingSessionUpdate(BaseModel):
     session_type: str | None = None
     note: str | None = None
     #: Absent = groupes inchangés ; `[]` retire tous les groupes visés (#1291).
-    group_ids: list[int] | None = None
+    group_ids: list[DbId] | None = None
 
 
 class ParticipantAdd(BaseModel):
@@ -98,7 +98,7 @@ class ParticipantAdd(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    profile_id: int = Field(gt=0)
+    profile_id: DbId
     present: bool | None = None
 
 

@@ -110,9 +110,17 @@
   pièges :
   - **Toute lecture « par athlète » passe par la liaison** :
     `participation_repository.carried_by` (fiche, `exists_for_athlete_on_course`,
-    comptes) et `athlete_repository.credits` (roster, rang, composition, et
-    `only_on_course`). Un équipier n'est référencé que par la liaison :
-    `delete_orphans_among` l'épargne explicitement.
+    comptes) et `athlete_repository.credits` (roster, rang, composition) ;
+    `only_on_course` en réécrit la définition par épreuve, en `NOT EXISTS` sur
+    les index `athlete_id`, plutôt que de joindre toute l'union (#1581). Un
+    équipier n'est référencé que par la liaison : `delete_orphans_among` l'épargne explicitement. `carried_by` reste un seul
+    `id IN (… UNION ALL …)` : un `OR` entre porteur et liaison fait parcourir
+    toute la table `participations` à PostgreSQL (#1391). La palette ⌘K
+    (`athlete_repository.search_by_relevance`) en reprend la forme, corrélée à
+    chaque athlète trouvé, plutôt que de joindre `credits()`, que PostgreSQL
+    matérialise en entier (#1392). Troisième lecteur sur cette forme :
+    `club_member_repository.licensee_activity`, corrélée à chaque licencié
+    (#1473).
   - **L'import ne touche jamais un relais attribué** : `_Persister` le met à
     jour en valeurs sans résoudre l'identité de l'équipe (avec dossard), et
     l'apparie par `team_name` normalisé (`_team_key`, sans dossard) — sinon le
@@ -180,8 +188,13 @@
   stats, classement, synthèse, saisons distinctes ; `course_repository.py` :
   catalogue en portée club ; `athlete_repository.py` : activité par saison,
   recherche de la palette ⌘K — détail dans `app/api/AGENTS.md`) et
-  délibérément absente de `list_for_athlete`, qui doit montrer
-  une participation pendante (FR-019) ; la page épreuve la lit à part (#1273).
+  levée par `list_for_athlete(include_pending=True)` pour un bénévole seul,
+  qui doit voir une participation pendante (FR-019, #1519) ; la page épreuve
+  la lit à part (#1273).
+  Cette lecture passe par l'index partiel `ix_participations_awaiting_validation`
+  (#1390) : ses deux prédicats (`postgresql_where`, `sqlite_where`) recopient le
+  rendu SQL d'`awaiting_validation_clause` sur chaque moteur. Changer la clause
+  sans eux fait retomber chaque page épreuve sur un parcours complet de la table.
   **Piège mesuré** : `server_default="false"` (chaîne) sur SQLite se relit
   `True` via l'ORM — une chaîne non vide est vraie en Python. `is_relay`
   ci-dessous en porte le même défaut, non corrigé (hors périmètre de #270) ;

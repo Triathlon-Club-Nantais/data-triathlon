@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useAdminAthleteSearch } from "@/lib/queries/admin";
 import { formatDate } from "@/lib/utils/date";
+import { motCompte } from "@/lib/utils/format";
 import type { AdminAthlete } from "@/lib/types";
 
 /**
@@ -75,7 +76,7 @@ export function AthleteSearchPicker({
                   {athlete.birth_date ? `Né(e) le ${formatDate(athlete.birth_date)}` : "Date de naissance inconnue"}
                   {athlete.club ? ` · ${athlete.club}` : ""}
                   {" · "}
-                  {athlete.participations} résultat{athlete.participations > 1 ? "s" : ""}
+                  {motCompte(athlete.participations, "résultat")}
                 </span>
               </button>
             </li>

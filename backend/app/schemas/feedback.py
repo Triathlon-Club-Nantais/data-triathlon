@@ -4,8 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
-from app.models.user_feedback import FEEDBACK_STATUSES
-from app.schemas.admin import _PatchNonVide
+from app.models.user_feedback import FEEDBACK_STATUSES, FEEDBACK_TYPES
+from app.schemas.admin import _NonEmptyPatch
 
 
 class FeedbackCreate(BaseModel):
@@ -17,7 +17,7 @@ class FeedbackCreate(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    type: Literal["bug", "feedback", "retrait"]
+    type: Literal[*FEEDBACK_TYPES]
     title: str = Field(min_length=1, max_length=200)
     body: str = Field(min_length=1, max_length=10_000)
     #: Auto-joints par le client (research.md) — bornés comme `title`/`body`,
@@ -73,7 +73,7 @@ class FeedbackRead(BaseModel):
     email: str | None
 
 
-class FeedbackUpdate(_PatchNonVide):
+class FeedbackUpdate(_NonEmptyPatch):
     """Corps de `PATCH /admin/feedback/{id}` — `status` et/ou `github_url`,
     séparément ou ensemble (contracts/feedback-api.md). Aucun des deux champs
     n'admet `null` : ni l'un ni l'autre ne se « vide » dans cette v1."""
@@ -86,9 +86,9 @@ class FeedbackUpdate(_PatchNonVide):
 
     @field_validator("status")
     @classmethod
-    def _statut_connu(cls, valeur: str | None) -> str | None:
-        if valeur is not None and valeur not in FEEDBACK_STATUSES:
+    def _known_status(cls, value: str | None) -> str | None:
+        if value is not None and value not in FEEDBACK_STATUSES:
             raise ValueError(
                 f"Statut inconnu. Valeurs acceptées : {', '.join(FEEDBACK_STATUSES)}."
             )
-        return valeur
+        return value

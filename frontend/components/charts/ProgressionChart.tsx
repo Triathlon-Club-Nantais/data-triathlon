@@ -2,6 +2,7 @@ import { scaleLinear } from "d3-scale";
 import { line as d3Line, curveLinear } from "d3-shape";
 import type { ProgressionPoint } from "@/lib/utils/ranking";
 import { formatDate } from "@/lib/utils/date";
+import { pctFr } from "@/lib/utils/format";
 import { EmptyState } from "@/components/ui/empty-state";
 
 // Système de coordonnées horizontal seulement : le SVG s'étire à la largeur
@@ -129,7 +130,7 @@ export function ProgressionChart({ points }: { points: ProgressionPoint[] }) {
               color: "var(--tcn-text-faint)",
             }}
           >
-            {percent} %
+            {pctFr(percent, 0)}
           </span>
         ))}
 
@@ -225,7 +226,7 @@ export function ProgressionChart({ points }: { points: ProgressionPoint[] }) {
                   color: "var(--tcn-ink)",
                 }}
               >
-                Top {p.percent} %
+                Top {pctFr(p.percent, 0)}
               </b>
             </span>
           ))}

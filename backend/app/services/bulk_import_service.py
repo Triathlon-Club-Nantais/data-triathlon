@@ -10,12 +10,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import Settings
 from app.scrapers import registry
-from app.services import sheet_source
+from app.services import batch, sheet_source
 from app.services.batch import (
     BatchFailure,
     BatchItem,
     copy_totals,
-    est_echec_total,
     run_batch,
 )
 from app.services.import_persistence import PassiveSource
@@ -50,8 +49,8 @@ class SheetOutcome:
     passive_sources: list[PassiveSource] = field(default_factory=list)
 
     @property
-    def echec_total(self) -> bool:
-        """Toutes les épreuves ciblées ont échoué (cf. `batch.est_echec_total`).
+    def is_total_failure(self) -> bool:
+        """Toutes les épreuves ciblées ont échoué (cf. `batch.is_total_failure`).
 
         `unique_supported` est le nombre d'épreuves **réellement soumises au
         batch** (liens supportés, dédoublonnés, après `--limit`) : c'est bien à
@@ -61,7 +60,7 @@ class SheetOutcome:
         Propriété (et non champ) : `asdict()` ne sérialise que les champs, la
         charge utile `--json` reste inchangée.
         """
-        return est_echec_total(epreuves=self.unique_supported, errors=self.errors)
+        return batch.is_total_failure(events=self.unique_supported, errors=self.errors)
 
 
 def run_import_sheet(

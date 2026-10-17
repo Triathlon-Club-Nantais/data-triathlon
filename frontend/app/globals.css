@@ -221,7 +221,7 @@
   --tcn-content-form: 1120px;
   --tcn-nav-rail:  76px;   /* navigation repliée — icônes seules */
   --tcn-nav-panel: 288px;  /* navigation dépliée — libellés */
-  --tcn-nav-bottom: 64px;  /* barre basse mobile — les destinations publiques */
+  --tcn-nav-bottom: 64px;  /* barre basse mobile — les onglets de l'espace courant */
 
   /* ── Rayons ───────────────────────────────────────────────────── */
   --tcn-radius-sm:   6px;
@@ -803,6 +803,12 @@
   .tcn-rail-compte:focus-visible {
     outline: 2px solid var(--tcn-orange);
     outline-offset: 2px;
+  }
+  /* Tuiles du sélecteur d'espace (#1336) : le fond de l'espace courant est
+     posé en ligne et l'emporte, seules les autres tuiles réagissent. */
+  .tcn-space-tile:hover {
+    background: var(--tcn-paper);
+    color: var(--tcn-text);
   }
   /* « Ma ligne » du classement (`RaceFinishers`, #503) : le fond ne peut pas
      être un style en ligne, il battrait `.tcn-rowlink:hover` et couperait le

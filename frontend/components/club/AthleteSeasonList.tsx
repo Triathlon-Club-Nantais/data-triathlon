@@ -3,20 +3,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import type { AthleteSeasonActivity } from "@/lib/types";
-import { Card, Input, VousChip } from "@/components/tcn";
+import { Button, Card, Input, VousChip } from "@/components/tcn";
 import { useSelectedAthlete } from "@/components/layout/AthletePicker";
 import { trouverRang } from "@/lib/utils/rang";
+import { foldAccents } from "@/lib/utils/text";
+import { motCompte, plural } from "@/lib/utils/format";
 import { SEUIL_RAPPEL_POSITION } from "@/lib/club";
 import { AthleteSortToggle, SORT_DEFAULT, SORT_PARAM, sortTypeFromParam } from "./AthleteSortToggle";
 import { RappelPosition } from "./RappelPosition";
-
-/** Insensible casse/accents, comme la recherche serveur (`core/text.deaccent`, #357). */
-function normalise(texte: string): string {
-  return texte
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
 
 /**
  * Filtre en mémoire (#382) — même liste déjà chargée que le tri, pas d'aller-retour
@@ -24,16 +18,21 @@ function normalise(texte: string): string {
  * matcher nom+prénom, sans quoi « Jean Dupont » (ordre naturel) ne trouve rien.
  */
 function filterAthletes(athletes: AthleteSeasonActivity[], query: string): AthleteSeasonActivity[] {
-  const mots = normalise(query.trim()).split(/\s+/).filter(Boolean);
+  const mots = foldAccents(query.trim()).split(/\s+/).filter(Boolean);
   if (mots.length === 0) return athletes;
   return athletes.filter((a) => {
-    const cible = normalise(`${a.nom} ${a.prenom}`);
+    const cible = foldAccents(`${a.nom} ${a.prenom}`);
     return mots.every((mot) => cible.includes(mot));
   });
 }
 
 /** Statut de validation (#709, FR-014) — filtre client, comme le tri (research.md). */
-type FiltreValidation = "tous" | "valides" | "non_valides";
+type FiltreValidation = "tous" | "valides" | "non_valides" | "quota_met_unvalidated";
+
+/** Quota atteint (#1542, barème calculé par le serveur) mais saison pas encore validée. */
+function isAwaitingValidation(a: AthleteSeasonActivity): boolean {
+  return a.quota_met === true && a.season_validated === false;
+}
 
 function filterByValidation(
   athletes: AthleteSeasonActivity[],
@@ -41,6 +40,7 @@ function filterByValidation(
 ): AthleteSeasonActivity[] {
   if (filtre === "valides") return athletes.filter((a) => a.season_validated === true);
   if (filtre === "non_valides") return athletes.filter((a) => a.season_validated === false);
+  if (filtre === "quota_met_unvalidated") return athletes.filter(isAwaitingValidation);
   return athletes;
 }
 
@@ -92,7 +92,8 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
     );
   }
 
-  const filtered = filterByValidation(filterAthletes(athletes, query), singleSeason ? filtreValidation : "tous");
+  const parNom = filterAthletes(athletes, query);
+  const filtered = filterByValidation(parNom, singleSeason ? filtreValidation : "tous");
   const sorted = sortAthletes(filtered, sort);
 
   // Rang calculé sur la liste **complète**, triée par volume et non filtrée
@@ -123,15 +124,20 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
         />
         <AthleteSortToggle />
         {singleSeason && (
-          <div role="radiogroup" aria-label="Statut de validation" style={{ display: "inline-flex", gap: 8 }}>
+          <div role="radiogroup" aria-label="Statut de validation" style={{ display: "inline-flex", flexWrap: "wrap", gap: 8 }}>
             {(
               [
                 ["tous", "Tous"],
                 ["valides", "Validées"],
                 ["non_valides", "Non validées"],
+                ["quota_met_unvalidated", "Quota atteint, à valider"],
               ] as [FiltreValidation, string][]
             ).map(([valeur, libelle]) => (
-              <label key={valeur} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13 }}>
+              <label
+                key={valeur}
+                className="tcn-cible-tactile"
+                style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13 }}
+              >
                 <input
                   type="radio"
                   name="filtre-validation"
@@ -155,12 +161,23 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
           le focus : sans cette annonce, un lecteur d'écran ne signale ni le
           nombre de résultats ni le basculement vers l'état vide (revue #382). */}
       <p className="sr-only" role="status">
-        {sorted.length} athlète{sorted.length > 1 ? "s" : ""} trouvé{sorted.length > 1 ? "s" : ""}
+        {motCompte(sorted.length, "athlète")} {plural(sorted.length, "trouvé")}
       </p>
       {sorted.length === 0 ? (
         <Card padding={0} style={{ overflow: "hidden" }}>
           <div style={{ padding: 40, textAlign: "center", color: "var(--tcn-text-faint)", fontSize: 14 }}>
-            Aucun athlète ne correspond à « {query.trim()} ». Essayez un autre nom.
+            {parNom.length === 0 ? (
+              <>Aucun athlète ne correspond à « {query.trim()} ». Essayez un autre nom.</>
+            ) : (
+              // #1542, #1562 : le nom trouve, c'est le filtre de statut qui a vidé
+              // la liste. « Afficher tous » garde la recherche.
+              <>
+                <p>Aucun athlète ne correspond à ce statut sur cette saison.</p>
+                <Button variant="secondary" size="sm" onClick={() => setFiltreValidation("tous")} style={{ marginTop: 12 }}>
+                  Afficher tous
+                </Button>
+              </>
+            )}
           </div>
         </Card>
       ) : (
@@ -192,13 +209,29 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
                       style={{
                         fontSize: 11,
                         fontWeight: 700,
-                        color: "var(--tcn-orange)",
+                        color: "var(--tcn-orange-deeper)",
                         border: "1px solid var(--tcn-orange)",
                         borderRadius: 6,
                         padding: "1px 6px",
+                        whiteSpace: "nowrap",
                       }}
                     >
                       Saison validée
+                    </span>
+                  )}
+                  {isAwaitingValidation(a) && (
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        color: "var(--tcn-success-text)",
+                        border: "1px solid var(--tcn-success-border)",
+                        borderRadius: 6,
+                        padding: "1px 6px",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      Quota atteint
                     </span>
                   )}
                 </div>
@@ -208,7 +241,7 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
                     style={{ fontSize: 14, color: "var(--tcn-text-faint)", fontWeight: 600 }}
                   >
                     <span>{a.total_count}</span>{" "}
-                    <span>épreuve{a.total_count > 1 ? "s" : ""}</span>
+                    <span>{plural(a.total_count, "épreuve")}</span>
                   </div>
                   {(a.validated_count !== a.total_count ||
                     a.club_affiliated_count !== a.total_count) && (
@@ -219,8 +252,8 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
                       data-testid="athlete-row-detail"
                       style={{ fontSize: 12, color: "var(--tcn-text-faint)" }}
                     >
-                      dont {a.validated_count} validée{a.validated_count > 1 ? "s" : ""} ·{" "}
-                      {a.club_affiliated_count} affiliée{a.club_affiliated_count > 1 ? "s" : ""} club
+                      dont {motCompte(a.validated_count, "validée")} ·{" "}
+                      {motCompte(a.club_affiliated_count, "affiliée")} club
                     </div>
                   )}
                 </div>

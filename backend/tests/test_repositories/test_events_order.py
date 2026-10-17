@@ -1,7 +1,7 @@
 """ORDER BY compilé de `_events_order`, épinglé sur les deux dialectes (#567).
 
 La branche PostgreSQL (similarité `pg_trgm`) n'est exercée par AUCUN autre
-test de la suite : celle-ci tourne sur SQLite, où `_is_postgres(db)` est faux.
+test de la suite : celle-ci tourne sur SQLite, où `is_postgres(db)` est faux.
 C'est précisément pourquoi le bug — la similarité court-circuitait `sort`, et
 aucun tri n'avait de clé de départage unique — a vécu sans être vu.
 

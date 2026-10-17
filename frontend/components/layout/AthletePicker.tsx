@@ -6,7 +6,8 @@ import { useCallback, useEffect, useId, useState, useSyncExternalStore } from "r
 import { AnnonceStatut, Avatar, Input, Modal } from "@/components/tcn";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ApiError, apiClient } from "@/lib/api/client";
-import { formatAttente } from "@/lib/utils/format";
+import { formatAttente, motCompte, plural } from "@/lib/utils/format";
+import { foldAccents } from "@/lib/utils/text";
 import type { AthleteSearchResult } from "@/lib/types";
 
 /**
@@ -110,7 +111,7 @@ function subscribeAthlete(onChange: () => void): () => void {
  * Le stock vit en `localStorage` : **aucun rendu serveur ne le connaît**.
  * L'arbitrage du cluster #467 est de le lire là où il vit plutôt que d'en
  * miroiter une copie en cookie — le détail du raisonnement est dans
- * `frontend/AGENTS.md`. `useSyncExternalStore` porte exactement les deux
+ * `docs/frontend/athlete-retenu.md`. `useSyncExternalStore` porte exactement les deux
  * instantanés que cela demande : `false` au rendu serveur, la lecture réelle
  * dès l'hydratation, et une resynchronisation sur l'événement du stock sans
  * `useEffect` ni état local.
@@ -160,7 +161,7 @@ function snapshotAthlete(): PickedAthlete | null {
  * vers sa ligne dans un classement (#503) et la bande « Ma saison » du
  * tableau de bord (#502). Même arbitrage qu'en #467 : le stock se lit là où
  * il vit, jamais par un cookie miroir — `null` au rendu serveur, la lecture
- * réelle dès l'hydratation (`frontend/AGENTS.md:218-277`).
+ * réelle dès l'hydratation (`docs/frontend/athlete-retenu.md`).
  */
 export function useSelectedAthlete(): PickedAthlete | null {
   return useSyncExternalStore(subscribeAthlete, snapshotAthlete, () => null);
@@ -201,10 +202,6 @@ function echecRecherche(erreur: unknown): { titre: string; detail: string; acces
 
 /** Un écran que la palette ⌘K peut ouvrir (#1246), déjà filtré par `estVisible`. */
 export type ScreenLink = { label: string; href: string; context: string };
-
-function fold(text: string): string {
-  return text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-}
 
 /**
  * Recherche d'un athlète du club. Interroge l'API à partir de **2 caractères**,
@@ -289,12 +286,12 @@ export function AthletePicker({
 
   const q = query.trim();
   const withScreens = !designation && screens.length > 0;
-  const matchedScreens = !withScreens || q.length < 2 ? [] : screens.filter((e) => fold(e.label).includes(fold(q)));
+  const matchedScreens = !withScreens || q.length < 2 ? [] : screens.filter((e) => foldAccents(e.label).includes(foldAccents(q)));
   const echec = q.length >= 2 && !loading && erreur !== null ? echecRecherche(erreur) : null;
   // Les écrans trouvés se comptent en tête : « Aucun athlète trouvé » seul
   // contredirait la liste d'écrans affichée juste dessous.
   const screensFound =
-    matchedScreens.length > 0 ? `${matchedScreens.length} écran${matchedScreens.length > 1 ? "s" : ""}, ` : "";
+    matchedScreens.length > 0 ? `${motCompte(matchedScreens.length, "écran")}, ` : "";
   const statut =
     q.length < 2
       ? "Saisissez au moins 2 lettres"
@@ -306,7 +303,7 @@ export function AthletePicker({
           ? screensFound ? `${screensFound}aucun athlète` : "Aucun athlète trouvé"
           : screensFound + (rows.length > PAGE_SIZE
             ? `${screensFound ? "plus" : "Plus"} de ${PAGE_SIZE} athlètes trouvés, précisez la recherche`
-            : `${visibles.length} athlète${visibles.length > 1 ? "s" : ""} trouvé${visibles.length > 1 ? "s" : ""}`);
+            : `${motCompte(visibles.length, "athlète")} ${plural(visibles.length, "trouvé")}`);
 
   return (
     <Modal
@@ -383,7 +380,7 @@ export function AthletePicker({
             {visibles.map((a, i) => {
               const fullName = nomComplet(a);
               const club = a.club ?? "Sans club";
-              const epreuves = `${a.participation_count} épreuve${a.participation_count > 1 ? "s" : ""}`;
+              const epreuves = motCompte(a.participation_count, "épreuve");
               return (
                 <div
                   key={a.id}

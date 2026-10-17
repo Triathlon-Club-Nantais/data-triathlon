@@ -1,7 +1,7 @@
 "use client";
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
-import { captureEvent } from "@/lib/posthog";
+import { Suspense, useEffect } from "react";
+import { captureEvent, withPostHog } from "@/lib/posthog";
 import { Alert, Button, Card, Eyebrow } from "@/components/tcn";
 import { messageDeRefus } from "@/lib/api/refus";
 import { authErrorLabel } from "@/lib/constants";
@@ -23,6 +23,9 @@ export default function LoginPage() {
 function Connexion() {
   const { data: methodes, isPending, isError, error, refetch } = useAuthMethods();
   const erreur = useSearchParams().get("error");
+  // posthog-js chargé dès l'affichage (#1394) : chargé au clic, `login_initiated` partirait après
+  // la navigation du lien, donc jamais.
+  useEffect(() => withPostHog(() => {}), []);
 
   return (
     <div style={{ maxWidth: 460, margin: "64px auto", padding: "0 16px" }}>

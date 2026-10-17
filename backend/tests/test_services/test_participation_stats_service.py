@@ -5,9 +5,12 @@ from app.repositories import athlete_repository, course_repository, participatio
 from app.services import participation_stats_service
 
 
-def _participation(*, provider="raceresult", is_relay=False, splits=None, rank=1, total="01:00:00"):
+def _participation(
+    *, provider="raceresult", is_relay=False, splits=None, rank=1, total="01:00:00", category=None
+):
     return SimpleNamespace(
         id=rank,
+        category=category,
         course_id=1,
         course=SimpleNamespace(id=1, provider=provider),
         is_relay=is_relay,
@@ -381,3 +384,167 @@ def test_build_returns_none_for_a_pending_participation(db_session):
     pending = _add_pending_declaration(db_session, course, rank=4, total="01:50:00")
 
     assert participation_stats_service.build(db_session, pending) is None
+
+
+# ── Médiane globale et de catégorie (#1362) ───────────────────────────────────
+
+
+def _field(size, *, category="V1H", start_rank=1, relay=False):
+    """`size` classés dont le n-ième met n minutes en natation et 2n au total."""
+    return [
+        _participation(
+            rank=start_rank + index,
+            category=category,
+            is_relay=relay,
+            total=f"00:{2 * (index + 1):02d}:00",
+            splits={"swim": f"00:{index + 1:02d}:00"},
+        )
+        for index in range(size)
+    ]
+
+
+def _medians(athlete, ranking):
+    rows = participation_stats_service.build_from_ranking(athlete, ranking).medians
+    return {row.kind: row for row in rows}
+
+
+def test_median_row_compares_to_the_median_of_every_ranked_row():
+    ranking = _field(11)
+
+    rows = _medians(ranking[0], ranking)
+
+    median = rows["median"]
+    assert median.label == "Médiane"
+    assert median.sample_size == 11
+    assert median.theirs_seconds == {"swim": 360, "total": 720}
+    assert median.percentages == {"swim": round(60 / 360 * 100, 1), "total": round(120 / 720 * 100, 1)}
+
+
+def test_medians_leave_the_position_rows_untouched():
+    ranking = _field(11)
+
+    rows = participation_stats_service.build_from_ranking(ranking[0], ranking).comparison
+
+    assert [row.rank for row in rows] == [1, 10]
+
+
+def test_no_median_row_below_the_minimum_sample():
+    ranking = _field(9)
+
+    assert _medians(ranking[0], ranking) == {}
+
+
+def test_median_omits_a_key_published_by_too_few_rows():
+    ranking = _field(10)
+    for row in ranking[1:]:
+        row.splits = {}
+
+    median = _medians(ranking[0], ranking)["median"]
+
+    assert "swim" not in median.percentages
+    assert set(median.percentages) == {"total"}
+
+
+def test_median_counts_no_zero_split():
+    """Un `00:00:00` n'est pas un temps : ni dans l'effectif, ni dans la médiane."""
+    ranking = _field(10)
+    ranking[-1].splits = {"swim": "00:00:00"}
+
+    median = _medians(ranking[0], ranking)["median"]
+
+    assert "swim" not in median.percentages
+    assert "total" in median.percentages
+
+
+def test_median_omits_a_key_the_athlete_did_not_publish():
+    ranking = _field(10)
+    ranking[0].splits = {}
+
+    median = _medians(ranking[0], ranking)["median"]
+
+    assert set(median.percentages) == {"total"}
+
+
+def test_category_median_needs_enough_rows_in_the_athlete_category():
+    ranking = _field(10, category="V1H") + _field(9, category="S2F", start_rank=11)
+
+    assert set(_medians(ranking[0], ranking)) == {"median", "category_median"}
+    assert set(_medians(ranking[-1], ranking)) == {"median"}
+
+
+def test_category_median_reads_only_the_athlete_category():
+    ranking = _field(10, category="V1H") + _field(10, category="S2F", start_rank=11)
+
+    category = _medians(ranking[0], ranking)["category_median"]
+
+    assert category.label == "Médiane catégorie"
+    assert category.sample_size == 10
+    # Médiane des 1..10 min de natation de V1H : 5 min 30 s.
+    assert category.theirs_seconds["swim"] == 330
+
+
+def test_no_category_median_without_a_category():
+    ranking = _field(10, category=None)
+
+    assert set(_medians(ranking[0], ranking)) == {"median"}
+
+
+def test_median_ignores_relays_and_unranked_rows():
+    ranking = _field(9) + _field(5, start_rank=10, relay=True)
+    unranked = _participation(rank=1, total="00:01:00", splits={"swim": "00:01:00"})
+    unranked.rank_overall = None
+    ranking.append(unranked)
+
+    assert _medians(ranking[0], ranking) == {}
+
+
+def _seed_large_course(db, size, marker):
+    course = course_repository.get_or_create(
+        db,
+        name=f"Tri {marker}",
+        event_date=date(2026, 6, 1),
+        event_type="triathlon-m",
+        provider="raceresult",
+        source_url=f"https://example.test/raceresult/{marker}",
+    )
+    rows = []
+    for index in range(size):
+        athlete = athlete_repository.get_or_create(db, nom=f"{marker}{index}", prenom="Jean", club="TCN")
+        rows.append(
+            participation_repository.create(
+                db, athlete_id=athlete.id, course_id=course.id, bib_number=str(index), club="TCN",
+                category="V1H", rank_overall=index + 1, total_time=f"01:{index:02d}:00",
+                splits={"swim": f"00:{20 + index:02d}:00"},
+            )
+        )
+    db.flush()
+    return rows
+
+
+def test_build_serves_the_medians_from_the_database(db_session):
+    rows = _seed_large_course(db_session, 12, "median")
+
+    stats = participation_stats_service.build(db_session, rows[0])
+
+    assert [row.kind for row in stats.medians] == ["median", "category_median"]
+
+
+def test_medians_add_no_query_whatever_the_field_size(db_session):
+    from sqlalchemy import event
+
+    def count(rows):
+        queries = []
+        engine = db_session.get_bind()
+        listener = lambda *args: queries.append(args[2])  # noqa: E731
+        event.listen(engine, "before_cursor_execute", listener)
+        try:
+            participation_stats_service.build(db_session, rows[0])
+        finally:
+            event.remove(engine, "before_cursor_execute", listener)
+        return len(queries)
+
+    small = _seed_large_course(db_session, 3, "small")
+    large = _seed_large_course(db_session, 30, "large")
+    db_session.expire_all()
+
+    assert count(small) == count(large)

@@ -26,7 +26,7 @@ def test_une_reponse_d_erreur_les_porte_aussi(client):
 
 def test_hsts_pose_sur_une_requete_https(client):
     # Render termine TLS et annonce le schéma d'origine par `X-Forwarded-Proto` ;
-    # `ProxyHeadersMiddleware` le recopie dans `scope["scheme"]`.
+    # `ClientAddressMiddleware` le recopie dans `scope["scheme"]`.
     resp = client.get("/api/v1/health", headers={"X-Forwarded-Proto": "https"})
 
     assert resp.headers["strict-transport-security"] == "max-age=63072000; includeSubDomains"

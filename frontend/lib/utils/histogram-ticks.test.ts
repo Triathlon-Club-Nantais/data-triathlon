@@ -64,6 +64,12 @@ describe("buildTicks — alignement sur des heures rondes (#129 AC3)", () => {
     // Une course de 15 h ne doit pas rendre 45 labels serrés.
     expect(buildTicks(0, h(15)).length).toBeLessThanOrEqual(8);
   });
+
+  it("tient la même borne sur les fenêtres longues que #1586 rend atteignables", () => {
+    for (const range of [h(30), h(51), h(60)]) {
+      expect(buildTicks(0, range).length).toBeLessThanOrEqual(8);
+    }
+  });
 });
 
 describe("formatTickLabel — format court H:MM (#129 AC1)", () => {

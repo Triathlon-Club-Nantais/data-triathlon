@@ -26,6 +26,7 @@ import {
 } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import type { PermissionGroup, Role, RoleUpdate, SessionUser } from "@/lib/types";
+import { motCompte } from "@/lib/utils/format";
 import { CreateRoleDialog } from "./CreateRoleDialog";
 import { PermissionGrid } from "./PermissionGrid";
 
@@ -64,10 +65,6 @@ function messageDErreur(erreur: Error): { title: string; description: string; ac
     title: "Rôles indisponibles",
     description: "Les rôles n'ont pas pu être chargés. Réessayez plus tard.",
   };
-}
-
-function porteurs(nombre: number): string {
-  return `${nombre} porteur${nombre > 1 ? "s" : ""}`;
 }
 
 function memesCodes(gauche: ReadonlySet<string>, droite: readonly string[]): boolean {
@@ -245,7 +242,7 @@ function PanneauRole({
   const raisonDeNonSuppression = role.is_system
     ? "Rôle livré avec l'application."
     : role.holders > 0
-      ? `Porté par ${porteurs(role.holders)}. Retirez-le d'abord.`
+      ? `Porté par ${motCompte(role.holders, "porteur")}. Retirez-le d'abord.`
       : null;
 
   return (
@@ -468,7 +465,7 @@ export function RolePermissionsEditor() {
                 </span>
                 {role.is_system && <Badge variant="outline">livré</Badge>}
                 {role.is_superuser && <Badge>superutilisateur</Badge>}
-                <span className="text-[var(--tcn-text-faint)]">{porteurs(role.holders)}</span>
+                <span className="text-[var(--tcn-text-faint)]">{motCompte(role.holders, "porteur")}</span>
               </span>
             </AccordionTrigger>
             <AccordionContent>

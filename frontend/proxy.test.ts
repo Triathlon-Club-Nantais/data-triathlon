@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { NextRequest } from "next/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildCspPolicy, proxy } from "./proxy";
 
 function requeteAvec(cookies: Record<string, string>) {
@@ -244,5 +244,61 @@ describe("CSP violation reports (#1168)", () => {
     expect(reponse.headers.get("reporting-endpoints")).toBe(
       'csp-endpoint="/api/v1/csp-reports"',
     );
+  });
+});
+
+describe("proxy, appels /api/* du rewrite (#1533)", () => {
+  const SECRET_TRANSMIS = "x-middleware-request-x-frontend-proxy-secret";
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("joint le secret du proxy à un appel de l'API", () => {
+    vi.stubEnv("FRONTEND_PROXY_SECRET", "s3cret");
+
+    const reponse = proxy(new NextRequest("https://exemple.fr/api/v1/feedback"));
+
+    expect(reponse.headers.get(SECRET_TRANSMIS)).toBe("s3cret");
+    expect(reponse.headers.get(CSP)).toBeNull();
+  });
+
+  it("ne transmet jamais un secret envoyé par le visiteur", () => {
+    vi.stubEnv("FRONTEND_PROXY_SECRET", "");
+    const requete = new NextRequest("https://exemple.fr/api/v1/feedback", {
+      headers: { "x-frontend-proxy-secret": "devine" },
+    });
+
+    const reponse = proxy(requete);
+
+    expect(reponse.headers.get(SECRET_TRANSMIS)).toBeNull();
+    expect(reponse.headers.get("x-middleware-override-headers")).not.toContain(
+      "x-frontend-proxy-secret",
+    );
+  });
+
+  it("ne le joint pas aux pages, ni au proxy PostHog", () => {
+    vi.stubEnv("FRONTEND_PROXY_SECRET", "s3cret");
+
+    for (const url of ["https://exemple.fr/dashboard", "https://exemple.fr/ingest/e"]) {
+      expect(proxy(new NextRequest(url)).headers.get(SECRET_TRANSMIS)).toBeNull();
+    }
+  });
+});
+
+describe("proxy, relais PostHog /ingest/* (#1604)", () => {
+  const COOKIES = "__Host-tcn_session=JETON; tcn_site_access=SITE; tcn_volunteer_access=BENEVOLE";
+
+  it("ne transmet aucun cookie à PostHog, ingestion comme assets", () => {
+    for (const url of ["https://exemple.fr/ingest", "https://exemple.fr/ingest/e/", "https://exemple.fr/ingest/static/array.js"]) {
+      const reponse = proxy(new NextRequest(url, { headers: { cookie: COOKIES } }));
+
+      expect(reponse.headers.get("x-middleware-override-headers")?.split(",")).not.toContain("cookie");
+      expect(reponse.headers.get("x-middleware-request-cookie")).toBeNull();
+    }
+  });
+
+  it("transmet toujours les cookies au backend sur /api/*", () => {
+    const reponse = proxy(new NextRequest("https://exemple.fr/api/v1/auth/me", { headers: { cookie: COOKIES } }));
+
+    expect(reponse.headers.get("x-middleware-request-cookie")).toBe(COOKIES);
   });
 });

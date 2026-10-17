@@ -1,5 +1,7 @@
-from datetime import date
+from datetime import date, datetime
 
+from app.core import season
+from app.models.club_member import LINK_AUTO, LINK_UNLINKED, SOURCE_FFTRI, ClubMember
 from app.repositories import athlete_repository, course_repository, participation_repository
 
 
@@ -12,6 +14,7 @@ def test_club_summary_club_vide(client, db_session):
         "podiums_totals": {"scratch": 0, "category": 0, "gender": 0, "all": 0},
         "podiums_by_discipline": {},
         "composition": {"gender": {}, "category": {}},
+        "licensees": None,
     }
 
 
@@ -154,3 +157,74 @@ def test_club_podiums_rend_la_liste_complete(client, db_session):
 
     assert resp.status_code == 200
     assert len(resp.json()["scratch"]) == 8
+
+
+def test_club_summary_counts_the_current_season_licensees_who_raced(client, db_session, monkeypatch):
+    monkeypatch.setattr(season, "utcnow", lambda: datetime(2026, 10, 15, 12, 0, 0))
+    raced = athlete_repository.get_or_create(db_session, nom="A", prenom="Alice")
+    idle = athlete_repository.get_or_create(db_session, nom="B", prenom="Bea")
+    course = course_repository.get_or_create(
+        db_session, name="C", event_date=date(2026, 10, 4), event_type="triathlon-m"
+    )
+    participation_repository.create(
+        db_session, athlete_id=raced.id, course_id=course.id, bib_number="1", club="Triathlon Club Nantais",
+    )
+    db_session.add_all([
+        ClubMember(season=2026, nom="A", prenom="Alice", licence_id="L1", athlete_id=raced.id,
+                   link_status=LINK_AUTO, source=SOURCE_FFTRI),
+        ClubMember(season=2026, nom="B", prenom="Bea", licence_id="L2", athlete_id=idle.id,
+                   link_status=LINK_AUTO, source=SOURCE_FFTRI),
+        ClubMember(season=2026, nom="X", prenom="Xavier", licence_id="L3", link_status=LINK_UNLINKED,
+                   source=SOURCE_FFTRI),
+        ClubMember(season=2025, nom="A", prenom="Alice", licence_id="L4", athlete_id=raced.id,
+                   link_status=LINK_AUTO, source=SOURCE_FFTRI),
+    ])
+    db_session.commit()
+
+    resp = client.get("/api/v1/club/summary")
+
+    assert resp.json()["licensees"] == {"season": 2026, "total": 3, "raced": 1}
+
+
+def _best_time_result(db_session, event_date):
+    athlete = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Alice", club="TCN")
+    athlete.gender = "F"
+    course = course_repository.get_or_create(
+        db_session, name=f"M {event_date}", event_date=event_date, event_type="triathlon-m"
+    )
+    participation = participation_repository.create(
+        db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1",
+        club="TCN", status="finisher", total_time="02:05:30",
+    )
+    db_session.commit()
+    return participation
+
+
+def test_club_best_times_response_shape(client, db_session):
+    participation = _best_time_result(db_session, date(2026, 5, 16))
+
+    resp = client.get("/api/v1/club/best-times")
+
+    assert resp.status_code == 200
+    assert resp.json() == [{
+        "participation_id": participation.id,
+        "course_id": participation.course_id,
+        "athlete_id": participation.athlete_id,
+        "athlete_name": "Alice DUPONT",
+        "event_name": "M 2026-05-16",
+        "event_type": "triathlon-m",
+        "event_date": "2026-05-16",
+        "gender": "F",
+        "total_time": "02:05:30",
+    }]
+
+
+def test_club_best_times_filters_by_season(client, db_session):
+    _best_time_result(db_session, date(2026, 5, 16))
+
+    assert len(client.get("/api/v1/club/best-times?season=2025").json()) == 1
+    assert client.get("/api/v1/club/best-times?season=2026").json() == []
+
+
+def test_club_best_times_rejects_an_absurd_season(client, db_session):
+    assert client.get("/api/v1/club/best-times?season=1").status_code == 422

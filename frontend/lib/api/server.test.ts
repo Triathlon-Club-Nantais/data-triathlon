@@ -73,7 +73,7 @@ describe("serverFetch — relais du cookie d'accès au site (#526)", () => {
     expect(options.headers).toEqual({ cookie: "tcn_site_session=jeton-de-test" });
   });
 
-  it("n'envoie que le cookie d'accès au site et la session SSO, ni un cookie bénévoles ou PostHog (#586, #1322)", async () => {
+  it("n'envoie que les cookies d'accès au site, des bénévoles et la session SSO, ni PostHog (#586, #1322, #1519)", async () => {
     getAll.mockReturnValue([
       { name: "tcn_site_session", value: "jeton-de-test" },
       { name: "tcn_session", value: "session-sso" },
@@ -89,11 +89,14 @@ describe("serverFetch — relais du cookie d'accès au site (#526)", () => {
 
     // Avant #586, `serverFetch` relayait le jar entier (hors NAV_WIDTH_COOKIE) :
     // un cookie que `require_site_access` ne lit jamais faisait quand même
-    // varier la clé du Data Cache. Depuis #1322 la garde lit aussi la session
-    // SSO (un adhérent connecté est dispensé du code) : elle part, rien d'autre.
+    // varier la clé du Data Cache, jusqu'à casser le partage *intra-visiteur*
+    // qu'un simple rechargement de page devrait garder, un cookie PostHog qui
+    // tourne suffisait. Le cookie bénévoles part depuis #1519 : une saisie en
+    // attente n'est plus rendue qu'à un bénévole. La session SSO depuis #1322 :
+    // la garde la lit, un adhérent connecté est dispensé du code.
     const [, options] = fetchMock.mock.calls[0];
     expect(options.headers).toEqual({
-      cookie: "tcn_site_session=jeton-de-test; tcn_session=session-sso",
+      cookie: "tcn_site_session=jeton-de-test; tcn_benevole_session=session-benevoles; tcn_session=session-sso",
     });
   });
 

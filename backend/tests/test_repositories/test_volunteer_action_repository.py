@@ -181,9 +181,9 @@ def test_set_status_change_et_relit_le_statut(db_session):
     )
     db_session.flush()
 
-    mise_a_jour = volunteer_action_repository.set_status(db_session, action.id, "validee")
+    updated = volunteer_action_repository.set_status(db_session, action.id, "validee")
 
-    assert mise_a_jour.status == "validee"
+    assert updated.status == "validee"
     assert volunteer_action_repository.get(db_session, action.id).status == "validee"
 
 
@@ -272,3 +272,31 @@ def test_delete_retire_la_ligne(db_session):
     volunteer_action_repository.delete(db_session, action)
 
     assert volunteer_action_repository.get(db_session, action_id) is None
+
+
+def test_athlete_ids_with_validated_action_keeps_only_validated_rows_of_the_season(db_session):
+    """#1542: bulk read for the season list, one query for every athlete."""
+    auteur = _auteur(db_session)
+    valide = _athlete(db_session, "VALIDE")
+    en_attente = _athlete(db_session, "ATTENTE")
+    autre_saison = _athlete(db_session, "AUTRE")
+    hors_liste = _athlete(db_session, "HORS")
+    for athlete, season, status in (
+        (valide, 2025, "validee"),
+        (en_attente, 2025, None),
+        (autre_saison, 2024, "validee"),
+        (hors_liste, 2025, "validee"),
+    ):
+        action = volunteer_action_repository.create_pending(
+            db_session, athlete_id=athlete.id, season=season, declared_by_user_id=auteur.id,
+            title="A", description="B",
+        )
+        if status:
+            volunteer_action_repository.set_status(db_session, action.id, status)
+    db_session.flush()
+
+    ids = volunteer_action_repository.athlete_ids_with_validated_action(
+        db_session, athlete_ids=[valide.id, en_attente.id, autre_saison.id], season=2025
+    )
+
+    assert ids == {valide.id}

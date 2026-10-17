@@ -22,7 +22,8 @@ from app.core import http
 from app.core.config import get_settings
 from app.core.time import utcnow
 from app.repositories import course_repository
-from app.services.batch import BatchFailure, est_echec_total
+from app.services import batch
+from app.services.batch import BatchFailure
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 #: semaine borne le nombre de tentatives sans figer un échec pour toujours —
 #: une correction du nom d'épreuve ou de l'extraction de ville finit par être
 #: retentée.
-RETRY_APRES = timedelta(days=7)
+RETRY_AFTER = timedelta(days=7)
 
 # Cache mémoire (réinitialisé au redémarrage du serveur)
 _geo_cache: dict[str, tuple[float, float] | None] = {}
@@ -40,8 +41,8 @@ _geo_cache: dict[str, tuple[float, float] | None] = {}
 
 #: Rectangle de la France métropolitaine, Corse comprise (`ouest,nord,est,sud`) :
 #: `countrycodes=fr` couvre l'outre-mer, et « AT BAIN » tombait en Guadeloupe (#1203).
-_OUEST, _NORD, _EST, _SUD = -5.3, 51.2, 9.7, 41.2
-VIEWBOX_METROPOLE = f"{_OUEST},{_NORD},{_EST},{_SUD}"
+_WEST, _NORTH, _EAST, _SOUTH = -5.3, 51.2, 9.7, 41.2
+VIEWBOX_MAINLAND = f"{_WEST},{_NORTH},{_EAST},{_SOUTH}"
 
 #: Sponsors collés à la ville dans des noms réels (#1203).
 _SPONSORS = re.compile(r"\b(audencia)\s+", re.I)
@@ -141,7 +142,7 @@ def _nominatim_search(query: str, *, places_only: bool = False) -> tuple[float, 
                 "https://nominatim.openstreetmap.org/search",
                 params={
                     "q": query, "format": "json", "limit": 5, "countrycodes": "fr",
-                    "viewbox": VIEWBOX_METROPOLE, "bounded": 1,
+                    "viewbox": VIEWBOX_MAINLAND, "bounded": 1,
                 },
                 headers={"User-Agent": settings.geocode_user_agent},
             )
@@ -150,7 +151,7 @@ def _nominatim_search(query: str, *, places_only: bool = False) -> tuple[float, 
         # Filet derrière `bounded=1` : un résultat d'outre-mer n'est jamais retenu (#1203).
         results = [
             x for x in results
-            if _SUD <= float(x["lat"]) <= _NORD and _OUEST <= float(x["lon"]) <= _EST
+            if _SOUTH <= float(x["lat"]) <= _NORTH and _WEST <= float(x["lon"]) <= _EAST
         ]
         places = [
             x for x in results if x.get("class") in ("place", "boundary", "administrative")
@@ -212,8 +213,8 @@ class GeocodeOutcome:
     failures: list[BatchFailure] = field(default_factory=list)
 
     @property
-    def echec_total(self) -> bool:
-        """Toutes les épreuves ciblées ont échoué (cf. `batch.est_echec_total`).
+    def is_total_failure(self) -> bool:
+        """Toutes les épreuves ciblées ont échoué (cf. `batch.is_total_failure`).
 
         Propriété, pas champ : `asdict()` ne sérialise que les champs, la
         charge `--json` reste inchangée. Un dry-run n'appelle jamais Nominatim,
@@ -221,14 +222,14 @@ class GeocodeOutcome:
         """
         if self.dry_run:
             return False
-        return est_echec_total(epreuves=self.total, errors=self.errors)
+        return batch.is_total_failure(events=self.total, errors=self.errors)
 
 
 def run_geocode_courses(
     db: Session,
     *,
     limit: int | None = None,
-    retry_after: timedelta = RETRY_APRES,
+    retry_after: timedelta = RETRY_AFTER,
     dry_run: bool = False,
     course_ids: list[int] | None = None,
     on_item: Callable[[int, int, str, tuple[float, float] | None], None] | None = None,

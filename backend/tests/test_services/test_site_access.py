@@ -1,24 +1,13 @@
 """Mot de passe partagé fermant l'accès public au site (#509).
 
-Ce qui est propre à cette feature : la génération du secret, celle du mot de
-passe, et `replace_password`. La signature du cookie et le hachage scrypt sont
+Ce qui est propre à cette feature : `replace_password`. La signature du
+cookie, le hachage scrypt et la génération des secrets sont
 éprouvés une fois pour toutes dans `test_shared_password.py` — les tests qui les
 rejouaient ici sont partis avec les délégations, en revue de #513. Le TTL du
 cookie, lui, s'éprouve là où il est appliqué : `test_require_site_access.py`.
 """
 from app.repositories import user_repository
 from app.services import shared_password, site_access
-
-
-def test_new_session_secret_rend_une_valeur_differente_a_chaque_appel():
-    assert site_access.new_session_secret() != site_access.new_session_secret()
-
-
-def test_generate_password_rend_une_valeur_suffisamment_longue_et_variable():
-    premier = site_access.generate_password()
-    second = site_access.generate_password()
-    assert premier != second
-    assert len(premier) >= 20
 
 
 def test_replace_password_avec_saisie_stocke_le_hash_et_pas_le_mot_de_passe(db_session):

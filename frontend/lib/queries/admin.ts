@@ -1,10 +1,17 @@
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type QueryClient,
+} from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { rendreNullSi404 } from "@/lib/api/null-si-404";
 import { queryKeys } from "./keys";
 import { localToday } from "@/lib/utils/date";
 import type {
   AdminAthleteUpdate,
+  AdminBadgeCounts,
   OppositionIdentity,
   AdminCourseUpdate,
   Feedback,
@@ -21,17 +28,21 @@ export function usePendingProviders() {
   });
 }
 
-/**
- * Le nombre de signalements en attente — pour la pastille de la nav (#726),
- * même patron que `useAdminCoursesCount` : `actif` évite de le demander à un
- * visiteur qui n'a pas le pouvoir de voir la liste.
- */
-export function usePendingProvidersCount(actif = true) {
+/** Fiabilité par fournisseur (#1366), pour l'accueil admin. */
+export function useProviderQuality() {
   return useQuery({
-    queryKey: queryKeys.pendingProvidersCount(),
-    queryFn: () => apiClient.countPendingProviders(),
-    enabled: actif,
+    queryKey: queryKeys.providerQuality(),
+    queryFn: () => apiClient.getProviderQuality(),
+    // Relu à chaque arrivée sur /admin : un verdict posé dans la file le change.
+    staleTime: 0,
   });
+}
+
+/** Reporte la taille d'une liste de revue sur sa pastille, sans la redemander (#1352). */
+function seedBadge(qc: QueryClient, key: "duplicates" | "identities", total: number) {
+  qc.setQueryData<AdminBadgeCounts>(queryKeys.adminBadgeCounts(), (old) =>
+    old && key in old ? { ...old, [key]: total } : old,
+  );
 }
 
 export function useMarkProviderHandled() {
@@ -108,60 +119,6 @@ export function useAdminCourses(page = 1, filtres: FiltresCourses = {}, enabled 
       apiClient.listCourses({ ...filtres, page, page_size: TAILLE_PAGE_ADMIN }),
     placeholderData: (precedent) => precedent,
     enabled,
-  });
-}
-
-/**
- * Les autres pastilles de la nav (#1232), même patron que
- * `usePendingProvidersCount`. La revalidation qualité ne compte que les
- * épreuves **sans avis humain** : `useAdminCoursesCount({ unreliable: true })`
- * compte aussi celles déjà jugées douteuses, et ne redescendait jamais à zéro.
- */
-export function useQualityQueueCount(actif = true) {
-  return useQuery({
-    queryKey: queryKeys.qualityQueueCount(),
-    queryFn: () => apiClient.countQualityQueue(),
-    enabled: actif,
-  });
-}
-
-/**
- * `staleTime` de 5 min : le compte exécute toute la revue (paires inversées et
- * concaténées sur toutes les fiches, #908), et la nav le demanderait sinon à
- * chaque écran. Un geste de la revue l'invalide quand même par son préfixe.
- */
-export function useIdentityReviewCount(actif = true) {
-  return useQuery({
-    queryKey: queryKeys.identityReviewCount(),
-    queryFn: () => apiClient.countIdentityReview(),
-    enabled: actif,
-    staleTime: 5 * 60_000,
-  });
-}
-
-export function useClubMembersToSettleCount(actif = true) {
-  return useQuery({
-    queryKey: queryKeys.clubMembersToSettleCount(),
-    queryFn: () => apiClient.countClubMembersToSettle(),
-    enabled: actif,
-  });
-}
-
-export function usePendingVolunteerActionsCount(actif = true) {
-  return useQuery({
-    queryKey: queryKeys.pendingVolunteerActionsCount(),
-    queryFn: () => apiClient.countPendingVolunteerActions(),
-    enabled: actif,
-  });
-}
-
-/** `retry: false` : sans cookie bénévoles, le 401 est la réponse attendue. */
-export function useBenevoleQueueCount(actif = true) {
-  return useQuery({
-    queryKey: queryKeys.benevoleQueueCount(),
-    queryFn: () => apiClient.countBenevoleQueue(),
-    enabled: actif,
-    retry: false,
   });
 }
 
@@ -302,24 +259,9 @@ export function useCourseDuplicates() {
     queryKey: queryKeys.courseDuplicates(),
     queryFn: async () => {
       const liste = await apiClient.listCourseDuplicates();
-      // La liste vaut le compte : la pastille n'a pas à le redemander (#1352).
-      qc.setQueryData(queryKeys.courseDuplicatesCount(), { total: liste.candidates.length });
+      seedBadge(qc, "duplicates", liste.candidates.length);
       return liste;
     },
-  });
-}
-
-/**
- * Le nombre de paires suspectes — pour la pastille de la nav (#726), même
- * patron que `useAdminCoursesCount`.
- */
-export function useCourseDuplicatesCount(actif = true) {
-  return useQuery({
-    queryKey: queryKeys.courseDuplicatesCount(),
-    queryFn: () => apiClient.countCourseDuplicates(),
-    enabled: actif,
-    // Même raison que `useIdentityReviewCount` : le compte rejoue la détection.
-    staleTime: 5 * 60_000,
   });
 }
 
@@ -601,7 +543,7 @@ export function useIdentityReview() {
     queryKey: queryKeys.identityReview(),
     queryFn: async () => {
       const liste = await apiClient.listIdentityReview();
-      qc.setQueryData(queryKeys.identityReviewCount(), { total: liste.candidates.length });
+      seedBadge(qc, "identities", liste.candidates.length);
       return liste;
     },
   });
@@ -848,55 +790,47 @@ export function useRevokeSessions() {
   });
 }
 
-// ── Mot de passe partagé bénévoles (#271 → cette feature) ───────────────────
+// ── Mots de passe partagés : bénévoles (#271) et accès au site (#509) ──────
+// Deux ressources de même forme, qui ne diffèrent que par leurs routes et leur
+// clé de cache (#1583, pendant front de `shared_password`, #1561).
 
-export function useBenevoleAccessConfig() {
-  return useQuery({
-    queryKey: queryKeys.benevoleAccessConfig(),
-    queryFn: () => apiClient.getBenevoleAccessConfig(),
-    retry: false,
-  });
+export type SharedPasswordKind = "site" | "benevole";
+
+const SHARED_PASSWORD = {
+  site: {
+    queryKey: queryKeys.siteAccessConfig,
+    get: () => apiClient.getSiteAccessConfig(),
+    replace: (password: string) => apiClient.replaceSiteAccessPassword(password),
+    generate: () => apiClient.generateSiteAccessPassword(),
+  },
+  benevole: {
+    queryKey: queryKeys.benevoleAccessConfig,
+    get: () => apiClient.getBenevoleAccessConfig(),
+    replace: (password: string) => apiClient.replaceBenevoleAccessPassword(password),
+    generate: () => apiClient.generateBenevoleAccessPassword(),
+  },
+} satisfies Record<SharedPasswordKind, unknown>;
+
+export function useSharedPasswordConfig(kind: SharedPasswordKind) {
+  const resource = SHARED_PASSWORD[kind];
+  return useQuery({ queryKey: resource.queryKey(), queryFn: resource.get, retry: false });
 }
 
-export function useReplaceBenevoleAccessPassword() {
+export function useReplaceSharedPassword(kind: SharedPasswordKind) {
   const qc = useQueryClient();
+  const resource = SHARED_PASSWORD[kind];
   return useMutation({
-    mutationFn: (password: string) => apiClient.replaceBenevoleAccessPassword(password),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.benevoleAccessConfig() }),
+    mutationFn: resource.replace,
+    onSuccess: () => qc.invalidateQueries({ queryKey: resource.queryKey() }),
   });
 }
 
-export function useGenerateBenevoleAccessPassword() {
+export function useGenerateSharedPassword(kind: SharedPasswordKind) {
   const qc = useQueryClient();
+  const resource = SHARED_PASSWORD[kind];
   return useMutation({
-    mutationFn: () => apiClient.generateBenevoleAccessPassword(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.benevoleAccessConfig() }),
-  });
-}
-
-// ── Mot de passe d'accès au site (#509) ──────────────────────────────────────
-
-export function useSiteAccessConfig() {
-  return useQuery({
-    queryKey: queryKeys.siteAccessConfig(),
-    queryFn: () => apiClient.getSiteAccessConfig(),
-    retry: false,
-  });
-}
-
-export function useReplaceSiteAccessPassword() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (password: string) => apiClient.replaceSiteAccessPassword(password),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.siteAccessConfig() }),
-  });
-}
-
-export function useGenerateSiteAccessPassword() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: () => apiClient.generateSiteAccessPassword(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.siteAccessConfig() }),
+    mutationFn: resource.generate,
+    onSuccess: () => qc.invalidateQueries({ queryKey: resource.queryKey() }),
   });
 }
 

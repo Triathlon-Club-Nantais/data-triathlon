@@ -96,7 +96,7 @@ def test_chronoplace_scission_solo_relais_sur_rang_scratch_global(db_session, pa
     les rangs solo (20 participants) et relais (21 participants) sont
     exactement complémentaires sur 1..41 — signature d'une seule colonne de
     rang partagée, donc d'un unique tableau HTML mêlant les deux catégories
-    (confirmé par lecture de `chronoplace._epreuve_results`/`_build_result` :
+    (confirmé par lecture de `chronoplace._race_results`/`_build_result` :
     une position par ligne, `is_relay` dérivé par ligne, `event_name` commun
     à tout le tableau). Pas de fixture HTML dédiée ici — la scission a lieu
     en amont, au niveau `Course`, donc rien à corriger dans le scraper

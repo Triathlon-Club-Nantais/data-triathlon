@@ -74,15 +74,30 @@ def profile_view(profile: PersonalProfile) -> dict:
     }
 
 
-def profile_detail_view(db: Session, profile: PersonalProfile) -> dict:
-    """Le profil **et** son journal (FR-002 de spec.md)."""
+def profile_detail_view(
+    db: Session, profile: PersonalProfile, *, with_personal_data: bool = False
+) -> dict:
+    """Le profil **et** son journal (FR-002 de spec.md).
+
+    Contact d'urgence, notes et journal, données personnelles, ne sont rendus
+    qu'à la demande de l'appelant, qui s'est assuré du pouvoir `jeunes:read`
+    (#1405, #1472) ; sinon `None`.
+    """
+    groups = [
+        {"id": group.id, "name": group.name}
+        for group in training_group_repository.list_groups_of_profile(db, profile.id)
+    ]
+    if not with_personal_data:
+        return profile_view(profile) | {
+            "emergency_contact": None,
+            "notes": None,
+            "groups": groups,
+            "log_entries": None,
+        }
     return profile_view(profile) | {
         "emergency_contact": profile.emergency_contact,
         "notes": profile.notes,
-        "groups": [
-            {"id": group.id, "name": group.name}
-            for group in training_group_repository.list_groups_of_profile(db, profile.id)
-        ],
+        "groups": groups,
         "log_entries": [
             _log_entry_view(entry)
             for entry in profile_repository.list_log_entries(db, profile.id)
@@ -136,20 +151,20 @@ def update_profile(
     un champ nullable (`birth_date`) omis à `None` ne peut pas être **effacé**
     par cette route — hors périmètre de #867, qui ne le demande pas. Seule
     exception, `membership_ended_on` (#1158) : `None` l'efface, `UNCHANGED` le garde."""
-    champs = {
-        champ: valeur
-        for champ, valeur in {
+    fields = {
+        field: value
+        for field, value in {
             "first_name": first_name,
             "last_name": last_name,
             "birth_date": birth_date,
             "emergency_contact": emergency_contact,
             "notes": notes,
         }.items()
-        if valeur is not None
+        if value is not None
     }
     if membership_ended_on is not UNCHANGED:
-        champs["membership_ended_on"] = membership_ended_on
-    profile_repository.update(db, profile, **champs)
+        fields["membership_ended_on"] = membership_ended_on
+    profile_repository.update(db, profile, **fields)
     logger.info("PersonalProfile updated: actor=%s profile=%s", actor.id, profile.id)
     return profile
 

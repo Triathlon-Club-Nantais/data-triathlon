@@ -26,6 +26,8 @@ from app.schemas.admin import (
     GroupRead,
     GroupUpdate,
 )
+from app.schemas.ids import DbId
+from app.services import not_found
 from app.services.auth import groups as group_service
 
 router = APIRouter(tags=["admin"])
@@ -46,7 +48,7 @@ def list_groups(
 
 @router.get("/admin/groups/{group_id}", response_model=GroupDetailRead)
 def get_group(
-    group_id: int,
+    group_id: DbId,
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.GROUPS_READ)),
 ):
@@ -88,7 +90,7 @@ def create_group(
 
 @router.patch("/admin/groups/{group_id}", response_model=GroupDetailRead)
 def update_group(
-    group_id: int,
+    group_id: DbId,
     body: GroupUpdate,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.GROUPS_WRITE)),
@@ -106,7 +108,7 @@ def update_group(
 
 @router.delete("/admin/groups/{group_id}", status_code=204)
 def delete_group(
-    group_id: int,
+    group_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.GROUPS_WRITE)),
 ):
@@ -123,14 +125,14 @@ def delete_group(
     "/admin/groups/{group_id}/members", response_model=GroupDetailRead, status_code=201
 )
 def add_member(
-    group_id: int,
+    group_id: DbId,
     body: GroupMemberAdd,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.GROUPS_ASSIGN)),
 ):
     """Ajoute un membre. **Idempotent** — réajouter est un succès (FR-008)."""
     group = group_service.get_group_or_404(db, group_id)
-    target = group_service.get_user_or_404(db, body.user_id)
+    target = not_found.user_or_404(db, body.user_id)
     group_service.add_member(db, actor, group=group, user=target)
     view = group_service.group_detail_view(db, group)
     db.commit()
@@ -139,8 +141,8 @@ def add_member(
 
 @router.delete("/admin/groups/{group_id}/members/{user_id}", status_code=204)
 def remove_member(
-    group_id: int,
-    user_id: int,
+    group_id: DbId,
+    user_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.GROUPS_ASSIGN)),
 ):
@@ -149,6 +151,6 @@ def remove_member(
     Aucun invariant du dernier membre : un groupe peut être vidé entièrement.
     """
     group = group_service.get_group_or_404(db, group_id)
-    target = group_service.get_user_or_404(db, user_id)
+    target = not_found.user_or_404(db, user_id)
     group_service.remove_member(db, actor, group=group, user=target)
     db.commit()

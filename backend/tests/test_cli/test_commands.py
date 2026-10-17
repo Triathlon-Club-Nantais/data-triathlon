@@ -775,12 +775,12 @@ def test_rescrape_db_urls_from_stdin_avec_provider_ne_lit_pas_stdin(monkeypatch)
     jetée : le rejet doit être immédiat, sans lire quoi que ce soit.
     """
 
-    def _charger_urls_espion(*args, **kwargs):
+    def _load_urls_spy(*args, **kwargs):
         raise AssertionError(
-            "charger_urls ne doit pas être appelé avant valider_ciblage_exclusif"
+            "load_urls ne doit pas être appelé avant validate_exclusive_targeting"
         )
 
-    monkeypatch.setattr(cmd_rescrape, "charger_urls", _charger_urls_espion)
+    monkeypatch.setattr(cmd_rescrape, "load_urls", _load_urls_spy)
     _brancher_rescrape(monkeypatch, RescrapeOutcome(total=1))
 
     result = runner.invoke(
@@ -866,7 +866,7 @@ def test_tube_ferme_ne_masque_pas_le_ctrl_c(monkeypatch):
     assert result.exit_code != 0
 
 
-# --- dénominateur d'`echec_total` sous `--limit` -----------------------------
+# --- dénominateur d'`is_total_failure` sous `--limit` ------------------------
 #
 # Ces deux tests traversent la **vraie** chaîne commande → service → run_batch
 # (seuls le scrape et la Session sont doublés) : ce sont les seuls à épingler le
@@ -876,7 +876,7 @@ def test_tube_ferme_ne_masque_pas_le_ctrl_c(monkeypatch):
 def test_import_sheet_limit_toutes_les_epreuves_tentees_echouent_sort_en_1(monkeypatch):
     """`--limit 5` sur un Sheet de 300 liens, les 5 épreuves tentées échouent ⇒ exit 1.
 
-    Épingle le **dénominateur** d'`echec_total` : `unique_supported` doit compter
+    Épingle le **dénominateur** d'`is_total_failure` : `unique_supported` doit compter
     les épreuves réellement soumises au batch (donc **après** le slice `--limit`),
     et non les 300 liens uniques du Sheet. Le calculer avant le slice — la
     « correction » que suggère le Minor d'affichage ouvert sur ce compteur —

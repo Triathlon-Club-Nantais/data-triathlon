@@ -39,7 +39,7 @@ from app.services.mapping import (
 #: `course-a-pied`) portent un tiret qui n'est pas un séparateur de taille, et
 #: `event_type.split("-")` ferait tomber `bike-run-s` sur le gabarit triathlon.
 SCHEMAS: dict[str, list[str]] = {
-    sport: list(gabarit.values()) for sport, gabarit in SPLIT_KEYS_BY_SPORT.items()
+    sport: list(template.values()) for sport, template in SPLIT_KEYS_BY_SPORT.items()
 }
 
 #: Le triathlon est le gabarit par défaut, comme dans `mapping.build_splits`.
@@ -53,8 +53,8 @@ _DEFAULT_SCHEMA: list[str] = list(DEFAULT_SPLIT_KEYS.values())
 _SLOTS: list[str] = list(DEFAULT_SPLIT_KEYS)
 _SEGMENT_RANK: dict[str, int] = {
     key: _SLOTS.index(field)
-    for gabarit in (DEFAULT_SPLIT_KEYS, *SPLIT_KEYS_BY_SPORT.values())
-    for field, key in gabarit.items()
+    for template in (DEFAULT_SPLIT_KEYS, *SPLIT_KEYS_BY_SPORT.values())
+    for field, key in template.items()
 }
 
 #: Libellés bruts usuels d'une source (RaceResult publie `Natation`, `Vélo`, `CAP`),
@@ -194,7 +194,7 @@ def is_outlier(
     """
     if value is None or median is None or evaluated_rows < MIN_EVALUATED_ROWS:
         return False
-    ecart = abs(value - median)
-    if ecart <= OUTLIER_RATIO:
+    deviation = abs(value - median)
+    if deviation <= OUTLIER_RATIO:
         return False
-    return total_seconds is not None and ecart * total_seconds > MIN_GAP_SECONDS
+    return total_seconds is not None and deviation * total_seconds > MIN_GAP_SECONDS

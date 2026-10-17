@@ -17,6 +17,12 @@ vi.mock("posthog-js", () => ({
   },
 }));
 
+// posthog-js se charge après coup (#1394) : on attend son init.
+async function loadInstrumentation() {
+  await import("./instrumentation-client");
+  await vi.waitFor(() => expect(init).toHaveBeenCalled());
+}
+
 describe("instrumentation-client", () => {
   beforeEach(() => {
     init.mockClear();
@@ -41,17 +47,30 @@ describe("instrumentation-client", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await import("./instrumentation-client");
+    await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(init).not.toHaveBeenCalled();
     expect(error).not.toHaveBeenCalled();
     expect(warn).not.toHaveBeenCalled();
   });
 
+  it("pose le cookie d'accord avant tout chargement de posthog-js (#1394)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
+    vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.posthog.com");
+    localStorage.setItem("tcn-analytics-consent", JSON.stringify({ choice: "granted", at: Date.now() }));
+
+    await import("./instrumentation-client");
+
+    expect(document.cookie).toContain("tcn_analytics_consent=granted");
+    expect(init).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(init).toHaveBeenCalled());
+  });
+
   it("initialise PostHog quand token et host sont présents", async () => {
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.posthog.com");
 
-    await import("./instrumentation-client");
+    await loadInstrumentation();
 
     expect(init).toHaveBeenCalledWith(
       "test-token",
@@ -66,7 +85,7 @@ describe("instrumentation-client", () => {
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
     vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.posthog.com");
 
-    await import("./instrumentation-client");
+    await loadInstrumentation();
 
     expect(init).toHaveBeenCalledWith(
       "test-token",
@@ -81,7 +100,7 @@ describe("instrumentation-client", () => {
     });
 
     it("mesure sans cookie ni autocapture tant que le visiteur n'a pas accepté", async () => {
-      await import("./instrumentation-client");
+      await loadInstrumentation();
 
       expect(init).toHaveBeenCalledWith(
         "test-token",
@@ -100,7 +119,7 @@ describe("instrumentation-client", () => {
     it("ouvre l'autocapture et confirme l'accord quand le visiteur a accepté", async () => {
       localStorage.setItem("tcn-analytics-consent", JSON.stringify({ choice: "granted", at: Date.now() }));
 
-      await import("./instrumentation-client");
+      await loadInstrumentation();
 
       expect(init).toHaveBeenCalledWith("test-token", expect.objectContaining({ autocapture: true }));
       expect(optIn).toHaveBeenCalledWith({ captureEventName: false });
@@ -109,7 +128,7 @@ describe("instrumentation-client", () => {
     it("retire un accord PostHog que le choix du site ne couvre plus (expiré ou effacé)", async () => {
       consentStatus.mockReturnValue("granted");
 
-      await import("./instrumentation-client");
+      await loadInstrumentation();
 
       expect(reset).toHaveBeenCalled();
       expect(optOut).toHaveBeenCalled();
@@ -124,13 +143,13 @@ describe("instrumentation-client", () => {
       vi.stubEnv("NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN", "test-token");
       vi.stubEnv("NEXT_PUBLIC_POSTHOG_HOST", "https://eu.posthog.com");
       window.history.pushState({}, "", path);
-      await import("./instrumentation-client");
+      await loadInstrumentation();
       return init.mock.calls[0][1].before_send;
     }
 
     afterEach(() => window.history.pushState({}, "", "/"));
 
-    const elements = [{ tag_name: "a", $el_text: "Alix Martin", attr__href: "/admin/jeunes/42" }];
+    const elements = [{ tag_name: "a", $el_text: "Alix Martin", attr__href: "/encadrement/jeunes/42" }];
     const carriesAName: Event[] = [
       { event: "$autocapture", properties: { $elements: elements, $el_text: "Alix Martin" } },
       { event: "$rageclick", properties: { $elements: elements } },
@@ -141,7 +160,7 @@ describe("instrumentation-client", () => {
       { event: "$exception", properties: { $exception_list: [{ value: "Alix Martin introuvable" }] } },
     ];
 
-    it.each(["/admin/jeunes", "/admin/jeunes/42", "/admin/jeunes/appel", "/admin/jeunes/groupes"])(
+    it.each(["/encadrement/jeunes", "/encadrement/jeunes/42", "/encadrement/jeunes/appel", "/encadrement/jeunes/groupes"])(
       "écarte tout événement porteur d'un élément, d'une copie ou d'une erreur sous %s",
       async (path) => {
         const beforeSend = await beforeSendAt(path);
@@ -152,15 +171,15 @@ describe("instrumentation-client", () => {
     );
 
     it("laisse passer pages vues et événements métier sans élément sur les écrans jeunes", async () => {
-      const beforeSend = await beforeSendAt("/admin/jeunes/42");
-      const pageview = { event: "$pageview", properties: { $current_url: "/admin/jeunes/42" } };
+      const beforeSend = await beforeSendAt("/encadrement/jeunes/42");
+      const pageview = { event: "$pageview", properties: { $current_url: "/encadrement/jeunes/42" } };
       const custom = { event: "profile_created", properties: { source: "form" } };
       expect(beforeSend(pageview)).toEqual(pageview);
       expect(beforeSend(custom)).toEqual(custom);
       expect(beforeSend(null)).toBeNull();
     });
 
-    it.each(["/", "/admin/courses", "/admin/jeunesse"])("ne jette rien sous %s", async (path) => {
+    it.each(["/", "/admin/courses", "/encadrement/jeunesse"])("ne jette rien sous %s", async (path) => {
       const beforeSend = await beforeSendAt(path);
       for (const event of carriesAName) {
         expect(beforeSend(event), event.event).toEqual(event);

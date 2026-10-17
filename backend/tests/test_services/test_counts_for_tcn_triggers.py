@@ -112,7 +112,7 @@ def test_correcting_the_club_of_a_pending_result_recomputes_its_athlete(db_sessi
     _result(db_session, member, _course(db_session, "B", 2), "1", "Triathlon Club Nantais")
 
     admin_actions.update_participation_fields(
-        db_session, participation_id=bare.id, champs={"club": "tcn "}, user_id=admin.id
+        db_session, participation_id=bare.id, fields={"club": "tcn "}, user_id=admin.id
     )
 
     assert _verdict(db_session, bare.id) is True
@@ -226,7 +226,7 @@ def test_moving_a_course_across_the_first_of_september_changes_its_licence_seaso
     assert _verdict(db_session, result.id) is False
 
     admin_actions.update_course(
-        db_session, course_id=course.id, champs={"event_date": date(2026, 9, 6)}, user_id=admin.id
+        db_session, course_id=course.id, fields={"event_date": date(2026, 9, 6)}, user_id=admin.id
     )
 
     assert _verdict(db_session, result.id) is True

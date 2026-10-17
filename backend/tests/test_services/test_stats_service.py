@@ -12,7 +12,7 @@ from app.models.participation import Participation
 from app.repositories import athlete_repository, course_repository, participation_repository
 from app.repositories.participation_repository import season_clause
 from app.services import stats_service
-from app.services.stats_service import _accumule, _bucket, _meilleur_rang
+from app.services.stats_service import _accumulate, _best_rank, _bucket
 
 
 def _seed(db):
@@ -24,7 +24,7 @@ def _seed(db):
     participation_repository.create(db, athlete_id=a1.id, course_id=c.id, bib_number="1", club="TCN")
     participation_repository.create(db, athlete_id=a2.id, course_id=c.id, bib_number="2", club="ASPTT")
     # Compteur dénormalisé (#623) : posé directement, fixture hors import.
-    course_repository.set_counts(db, c, participation_count=2, tcn_count=1)
+    c.participation_count, c.tcn_count = 2, 1
     db.flush()
 
 
@@ -87,7 +87,7 @@ def test_list_events_item_carries_date_type_and_distance(db_session):
     )
     athlete = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean", club="TCN")
     participation_repository.create(db_session, athlete_id=athlete.id, course_id=course.id, bib_number="1", club="TCN")
-    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
+    course.participation_count, course.tcn_count = 1, 1
     db_session.flush()
 
     (event,) = stats_service.list_events(db_session)["items"]
@@ -643,17 +643,39 @@ def test_course_summary_histogramme_ignore_les_temps_absents(db_session):
     assert stats_service.course_summary(db_session, course.id)["histogram"] is None
 
 
-def test_course_summary_histogramme_plafonne_a_60_tranches(db_session):
+def test_course_summary_histogram_widens_buckets_to_cover_a_full_distance(db_session):
+    """#1586: past 60 bars of 5 min, the bucket widens instead of lumping the tail."""
+    times = ["08:30:00", "10:00:00", "12:00:00", "14:00:00", "15:50:00", "16:20:00"]
     lignes = [
-        ("A", "Un", "M", "ASPTT", None, "finisher", "00:05:00", None),
-        ("B", "Deux", "M", "ASPTT", None, "finisher", "12:00:00", None),
+        (f"A{i}", "Un", "M", "ASPTT", None, "finisher", t, None) for i, t in enumerate(times)
     ]
     course = _epreuve(db_session, lignes)
 
     histogramme = stats_service.course_summary(db_session, course.id)["histogram"]
 
+    bucket, start, bars = histogramme["bucket_sec"], histogramme["start_sec"], histogramme["bars"]
+    assert bucket == 600
+    assert len(bars) <= 60
+    assert start <= 8 * 3600 + 30 * 60
+    assert start + len(bars) * bucket > 16 * 3600 + 20 * 60
+    assert sum(bars) == len(times)
+    # La dernière barre ne compte que le dernier arrivant (16:20), seul dans sa tranche.
+    assert bars[-1] == 1
+
+
+@pytest.mark.parametrize(
+    ("high", "bucket", "count"), [(17999, 300, 60), (18000, 600, 31)]
+)
+def test_histogram_keeps_five_minutes_up_to_sixty_bars(high, bucket, count):
+    histogramme = stats_service._histogram([0, high])
+
+    assert (histogramme["bucket_sec"], len(histogramme["bars"])) == (bucket, count)
+
+
+def test_histogram_clamps_an_aberrant_spread_into_the_last_bar():
+    histogramme = stats_service._histogram([0, 61 * 3600])
+
     assert len(histogramme["bars"]) == 60
-    # Le dernier temps retombe dans la dernière tranche, il n'est pas perdu.
     assert sum(histogramme["bars"]) == 2
 
 
@@ -753,14 +775,14 @@ def _legacy_rank_counters(parts):
     scratch, category, tous = _bucket(), _bucket(), _bucket()
     genre = {"women": _bucket(), "men": _bucket()}
     for p in parts:
-        _accumule(scratch, p.rank_overall)
-        _accumule(category, p.rank_category)
-        _accumule(tous, _meilleur_rang([p.rank_overall, p.rank_gender, p.rank_category]))
+        _accumulate(scratch, p.rank_overall)
+        _accumulate(category, p.rank_category)
+        _accumulate(tous, _best_rank([p.rank_overall, p.rank_gender, p.rank_category]))
         g = (p.athlete.gender or "").upper() if p.athlete else ""
         if g == "F":
-            _accumule(genre["women"], p.rank_gender)
+            _accumulate(genre["women"], p.rank_gender)
         elif g == "M":
-            _accumule(genre["men"], p.rank_gender)
+            _accumulate(genre["men"], p.rank_gender)
     return {"scratch": scratch, "category": category, "all": tous, "gender": genre}
 
 

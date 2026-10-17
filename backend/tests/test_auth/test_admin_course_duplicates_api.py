@@ -136,49 +136,6 @@ def test_une_base_sans_doublon_rend_une_liste_vide(client, ouvrir_session, db_se
     assert reponse.json() == {"candidates": []}
 
 
-# --- GET /admin/courses/duplicates/count ------------------------------------
-
-COUNT_URL = "/api/v1/admin/courses/duplicates/count"
-
-
-def test_sans_session_le_compte_est_refuse(client):
-    assert client.get(COUNT_URL).status_code == 401
-
-
-def test_un_autre_pouvoir_ne_donne_pas_acces_au_compte(client, ouvrir_session):
-    ouvrir_session(P.COURSES_WRITE)
-
-    assert client.get(COUNT_URL).status_code == 403
-
-
-def test_avec_le_pouvoir_le_compte_est_rendu(client, ouvrir_session, mesquer):
-    """Même garde et même donnée que la liste : le compte est sa taille."""
-    ouvrir_session(P.COURSES_SOURCES)
-
-    reponse = client.get(COUNT_URL)
-
-    assert reponse.status_code == 200
-    assert reponse.json() == {"total": 1}
-
-
-def test_une_base_sans_doublon_rend_un_compte_a_zero(client, ouvrir_session, db_session):
-    course_repository.get_or_create(
-        db_session,
-        name="Triathlon de Vertou - S-Open",
-        event_date=date(2026, 5, 3),
-        event_type="triathlon-s",
-        source_url="https://www.chronosmetron.com/754-triathlon-de-vertou-2026",
-        provider="wiclax",
-    )
-    db_session.commit()
-    ouvrir_session(P.COURSES_SOURCES)
-
-    reponse = client.get(COUNT_URL)
-
-    assert reponse.status_code == 200
-    assert reponse.json() == {"total": 0}
-
-
 # --- POST /admin/courses/duplicates/ignore (#754) ---------------------------
 
 IGNORE_URL = "/api/v1/admin/courses/duplicates/ignore"
@@ -303,3 +260,31 @@ def test_listing_and_undoing_need_courses_sources(client, ouvrir_session, method
     assert getattr(client, method)(path).status_code == 401
     ouvrir_session(P.COURSES_WRITE)
     assert getattr(client, method)(path).status_code == 403
+
+
+def test_une_seconde_lecture_reprend_la_detection_en_memoire(client, ouvrir_session, mesquer, monkeypatch):
+    # #1384 : liste et pastille partagent une seule détection par génération.
+    from app.services import course_duplicates
+
+    ouvrir_session(P.COURSES_SOURCES)
+    appels = []
+    detecter = course_duplicates.find_candidates
+    monkeypatch.setattr(course_duplicates, "find_candidates", lambda db: appels.append(1) or detecter(db))
+
+    premiere = client.get(URL).json()
+    seconde = client.get(URL).json()
+    compte = client.get("/api/v1/admin/badge-counts").json()["duplicates"]
+
+    assert premiere == seconde
+    assert compte == 1
+    assert len(appels) == 1
+
+
+def test_une_ecriture_rafraichit_la_liste_en_memoire(client, ouvrir_session, mesquer):
+    ouvrir_session(P.COURSES_SOURCES)
+    (candidat,) = client.get(URL).json()["candidates"]
+    gauche, droite = (course["id"] for course in candidat["courses"])
+
+    client.post(f"{URL}/ignore", json={"course_id_a": gauche, "course_id_b": droite})
+
+    assert client.get(URL).json()["candidates"] == []

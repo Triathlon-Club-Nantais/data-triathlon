@@ -1,5 +1,7 @@
 """Accès données pour Course."""
+from collections import Counter, defaultdict
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import case, func, or_, select
@@ -14,6 +16,7 @@ from app.models.course_source import CourseSource
 from app.models.participation import Participation
 from app.repositories import ignored_course_duplicate_repository
 from app.repositories.athlete_repository import escape_like, unaccent_like
+from app.repositories.dialect import is_postgres
 
 
 def get(db: Session, course_id: int) -> Course | None:
@@ -26,10 +29,6 @@ def get_fresh(db: Session, course_id: int) -> Course | None:
     return db.get(Course, course_id, populate_existing=True)
 
 
-def _is_postgres(db: Session) -> bool:
-    return db.bind is not None and db.bind.dialect.name == "postgresql"
-
-
 def name_filter(db: Session, term: str):
     """Nom d'épreuve contenant `term`, sans casse ni accents, jokers LIKE littéraux.
 
@@ -39,7 +38,7 @@ def name_filter(db: Session, term: str):
     """
     plain = deaccent(term).lower()
     contains = unaccent_like(Course.name, f"%{escape_like(plain)}%")
-    if _is_postgres(db):
+    if is_postgres(db):
         return or_(contains, func.unaccent(func.lower(Course.name)).op("%")(plain))
     return contains
 
@@ -254,9 +253,21 @@ def redate(db: Session, course: Course, event_date: date) -> Course:
         return course
     if get_by_identity(db, course.name, event_date, course.event_type, course.is_relay):
         return course
-    course.event_date = event_date
+    _set_event_date(course, event_date)
     db.flush()
     return course
+
+
+def _clear_weather(course: Course) -> None:
+    course.weather_temperature_c = course.weather_wind_kmh = None
+    course.weather_precipitation_mm = course.weather_fetched_at = None
+
+
+def _set_event_date(course: Course, event_date: date | None) -> None:
+    """Seul écrivain de `event_date` après création : la météo d'un autre jour est à redemander (#1468)."""
+    if event_date != course.event_date:
+        _clear_weather(course)
+    course.event_date = event_date
 
 
 def get_latest_by_source_url(db: Session, source_url: str) -> Course | None:
@@ -319,9 +330,9 @@ def reset_scraped_at_all(db: Session) -> int:
     le geste back-office (aucun filtre d'ancienneté ici) ; à garder en tête si
     un usage CLI de cette purge apparaît un jour.
     """
-    touchees = db.query(Course).update({Course.scraped_at: None}, synchronize_session=False)
+    touched = db.query(Course).update({Course.scraped_at: None}, synchronize_session=False)
     db.flush()
-    return touchees
+    return touched
 
 
 def coordinates_by_id(db: Session, course_ids: list[int]) -> dict[int, tuple[float, float]]:
@@ -376,8 +387,37 @@ def save_geocode_attempt(db: Session, course: Course, coord: tuple[float, float]
     perd que la tentative en cours, jamais celles déjà persistées.
     """
     if coord is not None:
+        if coord != (course.latitude, course.longitude):
+            # Déplacée (#1256) : la météo de l'ancien lieu est fausse, à redemander (#1370).
+            _clear_weather(course)
         course.latitude, course.longitude = coord
     course.geocoded_at = utcnow()
+    db.commit()
+
+
+def list_missing_weather(db: Session, *, dated_before: date, limit: int | None = None) -> list[Course]:
+    """Épreuves géocodées, datées avant `dated_before`, sans météo servie (#1370)."""
+    q = (
+        db.query(Course)
+        .filter(Course.latitude.isnot(None), Course.longitude.isnot(None))
+        .filter(Course.event_date.isnot(None), Course.event_date <= dated_before)
+        .filter(Course.weather_fetched_at.is_(None))
+        .order_by(Course.id)
+    )
+    if limit is not None:
+        q = q.limit(limit)
+    return q.all()
+
+
+def save_weather(
+    db: Session, course: Course, *, temperature_c: float, wind_kmh: float | None,
+    precipitation_mm: float | None,
+) -> None:
+    """Persiste la météo servie et commite, épreuve par épreuve (cf. `save_geocode_attempt`)."""
+    course.weather_temperature_c = temperature_c
+    course.weather_wind_kmh = wind_kmh
+    course.weather_precipitation_mm = precipitation_mm
+    course.weather_fetched_at = utcnow()
     db.commit()
 
 
@@ -445,9 +485,9 @@ def delete_all(db: Session) -> int:
     # Sans `ondelete` vers `courses.id` non plus (#983).
     db.query(AbsorbedCourse).delete(synchronize_session=False)
     ignored_course_duplicate_repository.delete_all(db)
-    efface = db.query(Course).delete(synchronize_session=False)
+    deleted = db.query(Course).delete(synchronize_session=False)
     db.flush()
-    return efface
+    return deleted
 
 
 def set_quality(
@@ -465,14 +505,6 @@ def set_quality(
     """
     course.is_reliable_computed = is_reliable_computed
     course.quality_issues = quality_issues
-
-
-def set_counts(db: Session, course: Course, *, participation_count: int, tcn_count: int) -> None:
-    """Écrit les deux compteurs dénormalisés (#623) — recalcul complet, pour
-    l'import qui tient déjà en mémoire l'ensemble des participations de la
-    course (`_Persister.finalize`)."""
-    course.participation_count = participation_count
-    course.tcn_count = tcn_count
 
 
 def recount(db: Session, course: Course) -> None:
@@ -529,11 +561,11 @@ def zero_counts_all(db: Session) -> int:
     côté par `wipe_all_participations` (#384) : `Course` reste intacte, seuls
     ses agrégats retombent avec les participations qu'ils comptaient.
     """
-    touchees = db.query(Course).update(
+    touched = db.query(Course).update(
         {Course.participation_count: 0, Course.tcn_count: 0}, synchronize_session=False
     )
     db.flush()
-    return touchees
+    return touched
 
 
 def _filtered(
@@ -667,6 +699,50 @@ def count_awaiting_review(db: Session) -> int:
     return count_all(db, awaiting_review=True)
 
 
+@dataclass(frozen=True)
+class ProviderQuality:
+    provider: str
+    course_count: int
+    unreliable_count: int
+    #: {code: nombre d'épreuves non fiables qui portent ce code}.
+    anomalies: dict[str, int]
+
+
+def quality_by_provider(db: Session) -> list[ProviderQuality]:
+    """Fiabilité par fournisseur de la source active (#1366), en deux requêtes.
+
+    Non fiable = verdict effectif `is_reliable` faux, la règle de la file de
+    revalidation. Les anomalies ne comptent que les épreuves non fiables : une
+    épreuve qu'un humain a déclarée fiable ne gonfle aucune colonne. Elles
+    s'agrègent en Python faute d'agrégat JSON commun à SQLite et PostgreSQL.
+    """
+    unreliable = Course.is_reliable.is_(False)
+    active = (CourseSource.course_id == Course.id) & CourseSource.is_active
+    totals = db.execute(
+        select(
+            CourseSource.provider,
+            func.count(Course.id),
+            func.sum(case((unreliable, 1), else_=0)),
+        )
+        .select_from(Course)
+        .join(CourseSource, active)
+        .group_by(CourseSource.provider)
+    ).all()
+    anomalies: dict[str, Counter] = defaultdict(Counter)
+    for provider, issues in db.execute(
+        select(CourseSource.provider, Course.quality_issues)
+        .select_from(Course)
+        .join(CourseSource, active)
+        .where(unreliable)
+    ):
+        anomalies[provider].update((issues or {}).keys())
+    rows = [
+        ProviderQuality(provider, total, unreliable_total or 0, dict(anomalies[provider]))
+        for provider, total, unreliable_total in totals
+    ]
+    return sorted(rows, key=lambda r: (-r.unreliable_count, r.provider))
+
+
 def iter_all(
     db: Session,
     *,
@@ -763,14 +839,16 @@ def list_identities_with_counts(db: Session) -> list:
     )
 
 
-def update_identity(db: Session, course: Course, **champs) -> Course:
+def update_identity(db: Session, course: Course, **fields) -> Course:
     """Écrit les champs d'identité fournis. **Ne vérifie pas l'unicité** — c'est
     le service qui la contrôle par lecture préalable, pour pouvoir nommer
     l'épreuve en conflit (#117, FR-021)."""
-    if "name" in champs:
-        champs["name"] = clean_name(champs["name"])
-    for nom_champ, valeur in champs.items():
-        setattr(course, nom_champ, valeur)
+    if "name" in fields:
+        fields["name"] = clean_name(fields["name"])
+    if "event_date" in fields:
+        _set_event_date(course, fields.pop("event_date"))
+    for field_name, value in fields.items():
+        setattr(course, field_name, value)
     db.flush()
     return course
 
@@ -792,8 +870,3 @@ def list_named_with_source(db: Session, name: str, urls: Iterable[str]) -> list[
     # une colonne `json` (`quality_issues`), #1250.
     sourced = select(CourseSource.course_id).where(CourseSource.url.in_(list(urls)))
     return db.query(Course).filter(Course.name == clean_name(name), Course.id.in_(sourced)).all()
-
-
-def list_named_on(db: Session, name: str, event_date: date | None) -> list[Course]:
-    """Épreuves de ce nom à cette date, tous types et relais confondus."""
-    return db.query(Course).filter(Course.name == name, Course.event_date == event_date).all()

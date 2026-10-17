@@ -75,17 +75,24 @@ et `{participations_deleted, athletes_purged, courses_reset}` respectivement),
 plus `204` vide — la purge annonçait son ampleur avant le geste mais rendait un
 succès muet, sans confirmer ce qu'elle avait détruit.
 
-## Pastilles des files de travail (#1232)
+## Pastilles du rail admin (#1232, #1385)
 
-Chaque file d'administration a une route de compte, `{total}` (schéma
-`QueueCount`), sous la garde de son écran. Les comptes qui ne figurent pas ici
-sont documentés avec leur écran (revue d'identité, licenciés du club) ou
-préexistaient (`/admin/pending-providers/count`, doublons, retours).
+`GET /admin/badge-counts` rend toutes les pastilles du rail en une réponse
+(`admin.py`, service `admin_badge_counts`). Session exigée (401 sinon), aucun
+pouvoir : chaque clé n'est calculée et rendue que si la session porte le pouvoir
+de son écran, absente sinon. Les sept routes de compte qu'elle remplace ont été
+supprimées (#1385) : le rail en était le seul consommateur.
 
-| Route | Pouvoir | Compte |
+| Clé | Pouvoir | Compte |
 | --- | --- | --- |
-| `GET /admin/quality/count` | `quality:override` | Épreuves calculées non fiables **sans avis humain** (`reliability_override` nul). Un avis posé, fiable ou douteux, sort l'épreuve de la file. `GET /courses/count?unreliable=true` compte aussi les épreuves déjà jugées douteuses, et ne redescend jamais à zéro. |
-| `GET /admin/volunteer-actions/pending/count` | `athletes:volunteer_validate` | Déclarations de bénévolat `en_attente`, la taille de `GET /admin/volunteer-actions/pending`. |
+| `quality` | `quality:override` | Épreuves calculées non fiables **sans avis humain** (`reliability_override` nul). Un avis posé, fiable ou douteux, sort l'épreuve de la file. `GET /courses/count?unreliable=true` compte aussi les épreuves déjà jugées douteuses, et ne redescend jamais à zéro. |
+| `duplicates` | `courses:sources` | Paires d'épreuves suspectes, la longueur de la liste en mémoire (`cached_candidates`, #1384). |
+| `providers` | `pending_providers:read` | Signalements de fournisseurs non traités. |
+| `feedback` | `feedback:read` | Retours au statut `nouveau` (le détail par statut reste `GET /admin/feedback/counts`). |
+| `identities` | `athletes:write` | Cas d'identité à trancher, même cache que la revue. |
+| `members` | `club_members:manage` | Licenciés à arbitrer de la saison en cours. |
+| `volunteer` | `athletes:volunteer_validate` | Déclarations de bénévolat `en_attente`. |
+| `validation` | `benevole_access:manage` ou cookie bénévoles valide | Résultats en attente de validation (`GET /benevoles/queue`). |
 
 La file `/admin/quality` lit `GET /courses?awaiting_review=true` (et le
 `/courses/count` du même filtre) : elle montre ce que compte sa pastille, avec le
@@ -157,7 +164,6 @@ non entier (422), deux résultats d'une même épreuve (409). Journal : `athlete
 | Route | Pouvoir | Effet |
 | --- | --- | --- |
 | `GET /admin/identity-review` | `athletes:write` | Les cas à trancher, sans pagination, dans un ordre stable (motif, puis plus petit id). |
-| `GET /admin/identity-review/count` | `athletes:write` | `{total}`, la pastille de la nav (#1232). |
 | `POST /admin/identity-review/ignore` `{athlete_id_a, athlete_id_b}` | `athletes:write` | Écarte une paire jugée distincte (201) ; 400 même fiche, 404 fiche inconnue, 409 déjà écartée. Journal `athlete_identity.ignore`. |
 | `POST /admin/identity-review/confirm-club` `{athlete_id, club_key}` | `athletes:write` | Confirme un club pour une fiche (201, `{athlete_id, club_key, confirmed_at}`) : elle n'est plus signalée pour lui et l'import y rattache les résultats publiés sous ce club. 400 clé vide ou club que la fiche ne porte pas, 404 fiche inconnue, 409 déjà confirmé. Journal `athlete_identity.confirm_club`. |
 | `GET /admin/identity-review/ignored` | `athletes:write` | `{pairs: [{id, ignored_at, automatic, athletes: [{id, nom, prenom}×2]}]}`, la plus récente d'abord (#1243). `automatic` : paire posée par l'import, sans auteur. Une paire posée par la séparation porte l'admin qui l'a faite et ne s'en distingue pas. |
@@ -302,14 +308,21 @@ L'identité est une fiche (`athlete_id`) **ou** un nom et un prénom, jamais les
 deux (`422`). Contrat : `specs/20261001-181344-athlete-opposition/contracts/`.
 
 Ce que l'application fait, et où : `services/opposition_service.py`. Le filtre
-des imports vit dans `import_persistence._Persister` ; la saisie manuelle et la
-composition d'équipe refusent l'identité (`OpposedIdentityError`, `422`).
+des imports vit dans `import_persistence._Persister` ; les gestes des bénévoles
+(composition d'équipe…) refusent l'identité (`OpposedIdentityError`, `422`).
+
+La saisie publique (`POST /participations`), elle, ne trahit jamais une
+opposition : même `201` et même corps, rien n'est gardé (#1514). Pour qu'une
+seconde requête ne le trahisse pas davantage, une saisie en attente n'est
+lisible que des bénévoles et un dossard pris par une saisie en attente ne rend
+plus `409` (#1519, changement de contrat détaillé dans `backend/app/api/AGENTS.md`).
+Restent les identifiants de la réponse et les fiches qu'une saisie crée (#1615).
 
 ## Doublons suspects (#288)
 
-`admin_course_duplicates.py` — cinq routes, toutes gardées par
+`admin_course_duplicates.py` — quatre routes, toutes gardées par
 `courses:sources` : `GET /admin/courses/duplicates` (la liste, ni pagination
-ni filtre), `GET .../count` (#726, la pastille de nav),
+ni filtre),
 `POST .../ignore` (#754, écarte une paire — un faux positif vérifié une fois
 par un humain ne doit plus revenir), et pour revenir sur une erreur (#1243)
 `GET .../ignored` (`{pairs: [{id, ignored_at, courses: [{id, name, event_date}×2]}]}`)
@@ -402,7 +415,6 @@ Cinq routes sous `/admin/club-members`, toutes gardées par la permission
 | Route | Rôle | Réponse |
 | --- | --- | --- |
 | `GET /admin/club-members?season=` | Licenciés d'une saison (début de saison, 2000 à 2100), avec les saisons connues | `ClubMembersSeasonOut` : `season`, `seasons`, compteurs (`total`, `linked`, `unlinked`, `ambiguous`), `members` |
-| `GET /admin/club-members/count` | Licenciés à arbitrer de la saison en cours, sans fiche ou à plusieurs fiches possibles : la pastille de la nav (#1232) | `{total}` |
 | `POST /admin/club-members/sync` | Relit la liste publiée par la FFTri et remplace la saison qu'elle couvre, en gardant les rattachements manuels | `MembersSyncReportOut` |
 | `POST /admin/club-members/import` | Multipart `season` + `file` (CSV ou XLSX, colonnes « Nom » et « Prénom » requises) : remplace une saison passée | `MembersSyncReportOut` |
 | `POST /admin/club-members/{member_id}/link` | Corps `{"athlete_id": int}` : rattache à la main un licencié à une fiche | `ClubMemberOut` (`link_status: "manual"`) |

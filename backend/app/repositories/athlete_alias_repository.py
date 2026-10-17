@@ -3,13 +3,12 @@ from collections.abc import Sequence
 
 from sqlalchemy import delete as sql_delete
 from sqlalchemy import func, select, tuple_, update
-from sqlalchemy.dialects.postgresql import insert as postgresql_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from app.models.athlete import Athlete
 from app.models.athlete_alias import AthleteAlias
 from app.repositories.athlete_repository import IdentityKey
+from app.repositories.dialect import dialect_insert
 
 
 def get_by_keys_batch(db: Session, keys: Sequence[IdentityKey]) -> dict[IdentityKey, Athlete]:
@@ -32,7 +31,7 @@ def get_by_keys_batch(db: Session, keys: Sequence[IdentityKey]) -> dict[Identity
 
 def add(db: Session, key: IdentityKey, athlete_id: int) -> bool:
     """Inscrit `key` comme variante de la fiche ; faux si elle appartient déjà à une fiche."""
-    insert = postgresql_insert if db.get_bind().dialect.name == "postgresql" else sqlite_insert
+    insert = dialect_insert(db)
     inserted = db.scalar(
         insert(AthleteAlias)
         .values(last_name_key=key[0], first_name_key=key[1], athlete_id=athlete_id)

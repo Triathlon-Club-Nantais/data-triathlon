@@ -27,7 +27,7 @@ from itertools import combinations
 
 from sqlalchemy.orm import Session
 
-from app.core.cached_count import CachedCount
+from app.core.cached_value import CachedValue
 from app.core.club import (
     TCN_CANONICAL_NAME,
     canonical_club_key,
@@ -45,6 +45,7 @@ from app.repositories import (
     participation_repository,
 )
 from app.services import audit
+from app.services.not_found import athlete_or_404
 
 REASONS = {
     "same_course_bibs": "Deux dossards sur une même épreuve",
@@ -55,9 +56,9 @@ REASONS = {
     "alias_collision": "Fiche recréée sur une graphie fusionnée",
 }
 
-#: Taille de la liste pour la pastille du rail (#1352) : rafraîchie par la liste,
-#: vidée par tout commit (`core/cached_count`).
-count_cache = CachedCount(ttl_seconds=300)
+#: La liste, partagée par l'écran et sa pastille (#1352, #1384) : vidée par tout
+#: commit (`core/cached_value`).
+candidates_cache: CachedValue[list[dict]] = CachedValue(ttl_seconds=300)
 
 
 def recovery_would_merge(first: Athlete, second: Athlete, *, shared_course: bool, blocked: bool) -> bool:
@@ -182,9 +183,14 @@ def _cases(db: Session) -> list[tuple[str, list[int], list[int], list[dict]]]:
     ]
 
 
+def cached_candidates(db: Session) -> list[dict]:
+    """`find_candidates` gardé en mémoire : une détection par génération (#1384)."""
+    return candidates_cache.get(lambda: find_candidates(db))
+
+
 def count(db: Session) -> int:
-    """La taille de la liste, sans charger le détail des fiches ni de leurs résultats."""
-    return count_cache.get(lambda: len(_cases(db)))
+    """La taille de la liste, pour la pastille de la nav."""
+    return len(cached_candidates(db))
 
 
 def _brief(athlete: Athlete, results: list) -> dict:
@@ -202,9 +208,7 @@ def _brief(athlete: Athlete, results: list) -> dict:
 
 def find_candidates(db: Session) -> list[dict]:
     """Les cas à trancher, avec leurs fiches et les épreuves en conflit."""
-    generation = count_cache.generation
     cases = _cases(db)
-    count_cache.set(len(cases), generation)
     athletes, results = athlete_repository.review_details(db, [i for _, ids, _, _ in cases for i in ids])
     by_athlete: dict[int, list] = defaultdict(list)
     for row in results:
@@ -242,8 +246,7 @@ def ignore_pair(db: Session, *, athlete_id_a: int, athlete_id_b: int, user_id: i
     if athlete_id_a == athlete_id_b:
         raise DomainError("Une fiche ne forme pas une paire avec elle-même.")
     for athlete_id in (athlete_id_a, athlete_id_b):
-        if athlete_repository.get(db, athlete_id) is None:
-            raise NotFoundError("Athlète introuvable.")
+        athlete_or_404(db, athlete_id)
     if ignored_athlete_pair_repository.exists(db, athlete_id_a=athlete_id_a, athlete_id_b=athlete_id_b):
         raise DuplicateError("Cette paire est déjà écartée.")
     ignored = ignored_athlete_pair_repository.create(
@@ -266,8 +269,7 @@ def confirm_club(db: Session, *, athlete_id: int, club_key: str, user_id: int) -
     key = club_key.strip()
     if not key:
         raise DomainError("Le club à confirmer est vide.")
-    if athlete_repository.get(db, athlete_id) is None:
-        raise NotFoundError("Athlète introuvable.")
+    athlete_or_404(db, athlete_id)
     labels = athlete_repository.club_labels_by_athlete(db, [athlete_id]).get(athlete_id, {})
     if key not in _significant_clubs(labels, club_alias_repository.canonical_map(db)):
         raise DomainError("Ce club ne figure pas parmi les clubs des résultats de cette fiche.")
@@ -364,8 +366,7 @@ def dismiss_case(db: Session, *, athlete_id: int, reason: str, user_id: int) -> 
     """Écarte un cas à une seule fiche, jugé faux positif, sans toucher aux résultats
     (#1252). Seul `same_course_bibs` s'écarte ainsi : `multi_club` se règle par la
     confirmation du club. `flush` sans commit."""
-    if athlete_repository.get(db, athlete_id) is None:
-        raise NotFoundError("Athlète introuvable.")
+    athlete_or_404(db, athlete_id)
     courses = _two_bibs_courses(db).get(athlete_id)
     if courses is None:
         raise DomainError("Cette fiche n'a pas de cas à écarter dans la revue.")

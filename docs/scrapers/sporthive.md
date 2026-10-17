@@ -95,7 +95,7 @@ Détails de lecture : temps en `HH:MM:SS`, `HH:MM:SS.fffffff` ou `HH:MM:SS.fff`
 selon la course, fraction tronquée par `normalize_time` (#969) ;
 `00:00:00` vaut temps absent ; `overallPosition: 0` vaut rang absent ;
 `gender: "U"` (41 % des lignes) sort vide. `eventType` de la source sert
-d'**appoint** au classifieur (`classify_event_type(raceName, contexte=…)`) : sans
+d'**appoint** au classifieur (`classify_event_type(raceName, context=…)`) : sans
 lui, `Senior Men` ne nommant aucun sport, les 2 852 lignes du cross UK entraient
 en `triathlon` et **survivaient** à `federal_only=true`. Les relais publient
 **une ligne par équipe** (l'inverse de runnerbreizh) au nom libre

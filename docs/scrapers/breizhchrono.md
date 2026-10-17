@@ -131,11 +131,65 @@ Sondage du 25/09/2026, Klikego et Breizh Chrono : la fin de pagination de
 `course-result.jsp` est un **200 sans ligne** (page 40 d'un heat de 50 lignes),
 un heat inconnu répond **302** vers un autre heat, un événement inconnu **500**.
 Un non-200 n'est donc jamais une fin de données. `klikego_platform.get_page`
-rejoue un 5xx (3 essais, sans temporisation) puis lève `ScraperError`, sur la
+rejoue un 5xx (3 essais, espacés de 0,5 puis 1 s) puis lève `ScraperError`, sur la
 pagination d'un heat, ses checkpoints `inter` et la page heat des deux
 fournisseurs : le heat part dans `trace.failures` au lieu d'être importé
 tronqué, sans splits inter, puis figé 30 jours par le cache TTL. Les pages
-détail par participant et la page événement gardent leur repli.
+détail par participant gardent leur repli ; la page événement Klikego lève
+depuis #1522 (voir plus bas).
+
+## Un échec simultané des trois tests du moteur n'est pas une dérive (#1517)
+
+Le 16/10/2026, deux passes d'intégration consécutives ont fait échouer ensemble
+Klikego Vierzon (`test_scrape_event_all_live[klikego]`), Breizh Chrono Mesquer
+(`test_bc_mesquer_racine_302_fanoute_tous_les_heats`) et Dinard en live
+(`test_bc_live_dinard_swimrun`). Re-sondé le même jour quelques heures plus
+tard : les trois épreuves répondent 200 avec leurs heats (6 à Vierzon, 8 à
+Mesquer), et la suite complète puis trois passes ciblées sont vertes. Ni course
+retirée, ni format changé. Les trois passent par le même moteur JSP :
+l'explication la plus plausible est une indisponibilité passagère de la
+plateforme, que rien de capturé le 16/10 (ni trace, ni statut HTTP) ne permet
+de confirmer.
+
+- Avant de repointer un test Klikego ou Breizh Chrono, re-sonder plus tard :
+  un échec qui touche **toutes** les épreuves du moteur à la fois vient de la
+  plateforme, pas d'une épreuve.
+- Une page d'événement Klikego inconnue répond **200** avec une page générique
+  sans `<el-select name="heat">`. Le fan-out n'énumérait alors aucun heat et
+  rendait une liste vide **sans** échec dans la trace, comme sur une page
+  d'événement non 200. Corrigé par #1522 (section suivante).
+- Seul `test_scrape_event_all_live` porte la trace dans son message d'échec.
+  Les tests Breizh Chrono n'en ont pas d'utile : à Mesquer, une racine non 200
+  replie sur un heat unique, et une panne de heat y lève, comme sur Dinard en
+  live (chemin mono-heat).
+
+## Événement Klikego inconnu ou en panne : une erreur, pas un import vide (#1522)
+
+Sondé le 16/10/2026 sur `www.klikego.com/resultats/{slug}/{id}` :
+
+- un identifiant inconnu (`9999999999999-9`, ou `abc`, slug juste ou non)
+  répond **200** avec la même page générique : titre « Inscriptions en ligne aux
+  courses… », bandeau « Cette page n'est plus disponible sur Klikego », balise
+  `gtag('event', 'page_404')`, et **aucun** `h1` ;
+- un événement réel porte toujours son titre dans `h1.event-header-title`, y
+  compris sans résultat publié (Course de Noël 2026, `1624160890633-7` : « Les
+  résultats seront bientôt disponibles », aucun heat).
+
+`klikego._fetch_event_page` passe donc par `klikego_platform.get_page` (les 5xx
+rejoués, 3 essais, puis `ScraperError` comme tout non-200) et lève « Événement
+Klikego introuvable » (`ValueError`, même famille que Sportinnovation, #1387)
+quand la page n'a pas ce titre mais porte le marqueur `'page_404'`. Sans titre
+ni marqueur, c'est la page qui a changé : `ScraperError` « structure
+inattendue », pour ne pas envoyer l'utilisateur vérifier un lien juste. Un
+événement réel sans heat publié reste un import vide sans échec. Le chemin
+mono-heat, qui n'y lit que la date, tolère ces erreurs et importe sans date. Fixtures : `backend/tests/fixtures/klikego/`
+(`unknown-event.html`, `no-results-yet-event.html`).
+
+Breizh Chrono n'est pas concerné : son fan-out n'a pas de page d'événement à
+lire. Une racine inconnue (`/resultats-courses/foo-99999`, 200 générique) n'y
+liste aucun heat, le repli sur le heat vide interroge alors `course-result.jsp`,
+qui répond 500, et l'échec arrive dans `trace.failures` ; idem côté live
+(`classements.jsp` en 500). Mesuré le même jour.
 
 ## Dates, types, relais
 
@@ -150,7 +204,7 @@ accentué (« Côte d'Emeraude », que le slug aplatit en « Cote Demeraude ») 
 **une date par heat** — à Dinard 2025, le trail court le 12/09 et les triathlons
 les 13 et 14/09.
 
-Type d'épreuve : `classify_event_type(heat, contexte=slug)` côté classique,
+Type d'épreuve : `classify_event_type(heat, context=slug)` côté classique,
 **heat seul** côté live (le slug d'épreuve y nomme une discipline vedette qui
 fausserait le type des autres heats). Relais : `heat_is_relay` sur le libellé et
 le slug, plus un signal propre à Breizh Chrono — un slug relais dont le libellé

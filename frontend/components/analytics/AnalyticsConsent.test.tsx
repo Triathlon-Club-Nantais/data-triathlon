@@ -3,7 +3,13 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("posthog-js", () => ({
-  default: { opt_in_capturing: vi.fn(), opt_out_capturing: vi.fn(), reset: vi.fn() },
+  default: {
+    init: vi.fn(),
+    get_explicit_consent_status: vi.fn(),
+    opt_in_capturing: vi.fn(),
+    opt_out_capturing: vi.fn(),
+    reset: vi.fn(),
+  },
 }));
 
 import { AnalyticsConsentBanner, AnalyticsConsentSettings } from "./AnalyticsConsent";

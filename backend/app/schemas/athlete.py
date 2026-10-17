@@ -33,6 +33,10 @@ class AthleteSeasonActivity(BaseModel):
     distincts demandés par #709 (FR-001 à FR-003). `season_validated` est
     posé par la User Story 3 (`null` tant qu'elle n'est pas implémentée ou
     que `seasons` désigne plusieurs saisons, research.md D9).
+
+    `quota_met` (#1542, additif) suit la même règle de nullité, et le barème de
+    `admin_actions.season_quota` : disciplines fédérales quel que soit
+    `federal_only`, plus une action de bénévolat validée.
     """
 
     id: int
@@ -43,3 +47,4 @@ class AthleteSeasonActivity(BaseModel):
     validated_count: int
     club_affiliated_count: int
     season_validated: bool | None = None
+    quota_met: bool | None = None

@@ -161,12 +161,46 @@ function markSessionPresence(request: NextRequest, response: NextResponse): void
   });
 }
 
+const PROXY_SECRET_HEADER = "x-frontend-proxy-secret";
+
+/**
+ * Les appels `/api/*` partent vers le backend par le rewrite de
+ * `next.config.ts`. Vercel y écrase `X-Vercel-Forwarded-For` avec l'IP du
+ * visiteur, mais un appel direct au backend peut poser le même en-tête : le
+ * secret prouve au backend que la requête vient d'ici (#1533,
+ * `backend/app/core/client_address.py`). Jamais posé hors `/api/*`, pour ne pas
+ * partir vers PostHog avec `/ingest/*`.
+ */
+function forwardToBackend(request: NextRequest): NextResponse {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete(PROXY_SECRET_HEADER);
+  const secret = process.env.FRONTEND_PROXY_SECRET;
+  if (secret) requestHeaders.set(PROXY_SECRET_HEADER, secret);
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
+/**
+ * `/ingest/*` part chez PostHog par le rewrite de `next.config.ts`, avec
+ * l'en-tête `Cookie` du visiteur : jeton de session SSO, accès au site et
+ * bénévoles compris (#1604). Next applique ces en-têtes surchargés à la requête
+ * avant le rewrite, qui ne les voit donc plus.
+ */
+function forwardToPosthog(request: NextRequest): NextResponse {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.delete("cookie");
+  return NextResponse.next({ request: { headers: requestHeaders } });
+}
+
 /**
  * La CSP est le **tronc** de ce proxy, le marquage de présence un effet de bord
  * sur la réponse : les sorties précoces de #427 court-circuitaient sinon la
  * politique pour la majorité des visiteurs.
  */
 export function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname.startsWith("/api/")) return forwardToBackend(request);
+  const { pathname } = request.nextUrl;
+  if (pathname === "/ingest" || pathname.startsWith("/ingest/")) return forwardToPosthog(request);
+
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const policy = buildCspPolicy(nonce, {
     dev: process.env.NODE_ENV === "development",
@@ -192,5 +226,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/api/:path*", "/((?!api|_next/static|_next/image|favicon.ico).*)"],
 };

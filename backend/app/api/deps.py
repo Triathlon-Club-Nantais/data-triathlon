@@ -7,14 +7,15 @@ from collections.abc import Callable
 from fastapi import Depends, Request
 from sqlalchemy.orm import Session
 
+from app.core.client_address import rate_limit_key
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import DomainError, TooManyRequestsError
 from app.core.permissions import P, Permission
 from app.core.time import utcnow
 from app.models.user import User
-from app.repositories import benevole_config_repository, site_access_config_repository
-from app.services import benevole_access, membership, shared_password, site_access
+from app.repositories import site_access_config_repository, volunteer_config_repository
+from app.services import membership, shared_password, site_access, volunteer_access
 from app.services.auth import authorization
 from app.services.auth import session as session_service
 
@@ -103,7 +104,7 @@ def optional_user(
     return session_service.resolve(db, token)
 
 
-def require_benevole_access(
+def require_volunteer_access(
     request: Request,
     db: Session = Depends(get_db),
     user: User | None = Depends(optional_user),
@@ -112,7 +113,7 @@ def require_benevole_access(
 
     Rend l'utilisateur SSO admis par le pouvoir `benevole_access:manage` (#1272),
     sinon `None` quand l'accès vient du cookie : les écritures en tirent leur
-    acteur (`benevole_access.actor_user_id`). Lui faire saisir un secret qu'il
+    acteur (`volunteer_access.actor_user_id`). Lui faire saisir un secret qu'il
     peut lire et remplacer ne protégerait rien. Un pouvoir, jamais un rôle.
 
     Pour tout autre appelant, garde inchangée et **sans 403** : ne compose pas
@@ -122,20 +123,46 @@ def require_benevole_access(
     est `session_secret`, pas le mot de passe lui-même (research.md §D2 de
     `specs/20260815-173645-admin-mdp-benevoles/`).
     """
-    if user is not None and authorization.has_permission(db, user, P.BENEVOLE_ACCESS_MANAGE):
+    if user is not None and authorization.has_permission(db, user, P.VOLUNTEER_ACCESS_MANAGE):
         return user
-    config = benevole_config_repository.get_config(db)
-    cookie = request.cookies.get(benevole_access.BENEVOLE_SESSION_COOKIE)
-    if config is None or not shared_password.verify_cookie(cookie, config.session_secret):
+    if not has_volunteer_cookie(request, db):
         raise NotAuthenticatedError()
     return None
+
+
+def is_volunteer(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User | None = Depends(optional_user),
+) -> bool:
+    """L'appelant ouvrirait-il la page bénévoles ? Mêmes deux voies que
+    `require_volunteer_access`, sans lever : une saisie en attente n'est lisible
+    que de lui (#1519), sinon une seconde requête trahit une opposition (#1514)."""
+    return (
+        user is not None and authorization.has_permission(db, user, P.VOLUNTEER_ACCESS_MANAGE)
+    ) or has_volunteer_cookie(request, db)
+
+
+def has_volunteer_cookie(request: Request, db: Session) -> bool:
+    """Le cookie bénévoles de cette requête est-il valide et non expiré (#1534) ?
+    Faux sans configuration. Sans cookie, aucune lecture : `is_volunteer` garde
+    les lectures publiques (#1519)."""
+    cookie = request.cookies.get(volunteer_access.VOLUNTEER_SESSION_COOKIE)
+    if not cookie:
+        return False
+    config = volunteer_config_repository.get_config(db)
+    return config is not None and shared_password.verify_cookie(
+        cookie,
+        config.session_secret,
+        max_age_seconds=volunteer_access.VOLUNTEER_SESSION_TTL_SECONDS,
+    )
 
 
 def require_site_access(
     request: Request, db: Session = Depends(get_db), settings: Settings = Depends(get_settings)
 ) -> None:
     """Garde transverse du site entier (#509) — mot de passe partagé, pas de
-    RBAC. Distincte de `require_benevole_access` : secret et cookie propres.
+    RBAC. Distincte de `require_volunteer_access` : secret et cookie propres.
     Fail-closed : configuration absente, cookie absent/invalide/expiré
     rendent tous le même 401, distinct de celui de la garde SSO (#877).
 
@@ -169,9 +196,9 @@ def require_site_access(
 # écrites — et sur l'offre gratuite Render (un process, limiteur de threads AnyIO
 # à 40, routes toutes `def`), quelques appels concurrents saturent le site.
 #
-# La clé est `request.client.host`, donc la première entrée de `X-Forwarded-For`
-# depuis #393 (`ProxyHeadersMiddleware`, `app/main.py`) : sans ce préalable, tout
-# plafond par IP se contournerait avec un en-tête forgé.
+# La clé est `request.client.host`, posée par `core/client_address.py` (#1533) à
+# partir des seules entrées de `X-Forwarded-For` que la plateforme ajoute : sans
+# ce préalable, tout plafond par IP se contournerait avec un en-tête forgé.
 #
 # Compteur **en mémoire du process**, à la différence du plafond de `/feedback`
 # qui compte des lignes en base : il n'y a ici aucune table où compter, et en
@@ -187,12 +214,12 @@ _hits: dict[tuple[str, str], deque[float]] = {}
 
 #: Fenêtre en secondes de chaque seau, retenue au passage : la purge en a besoin
 #: pour ne pas juger un seau à l'aune de la fenêtre d'un autre.
-_fenetres: dict[str, int] = {}
+_windows: dict[str, int] = {}
 
 #: Au-delà, on purge les seaux dont la fenêtre est entièrement écoulée — un
 #: attaquant qui fait tourner ses adresses ne fait pas croître la mémoire sans
 #: fin. La purge n'efface aucun quota en cours.
-_MAX_SEAUX = 10_000
+_MAX_BUCKETS = 10_000
 
 #: A07-1, faible : l'ouverture de parcours ne fait qu'une signature JWS, sans
 #: écriture ni réseau. Le levier est mince, le plafond est donc large — et il
@@ -225,6 +252,15 @@ PUBLIC_WRITE_RATE_LIMIT_WINDOW_SECONDS = 3600
 SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW = 60
 SITE_ACCESS_RATE_LIMIT_WINDOW_SECONDS = 3600
 
+#: #1397, seau dédié : `POST /volunteer-actions` écrit une ligne en attente par
+#: appel, mais n'est dans le geste d'aucune écriture de `public_write` (import
+#: échoué, signalement, saisie manuelle). Partager ce seau couplerait la saisie
+#: d'une saison à la déclaration d'un bénévolat, l'erreur corrigée en revue de
+#: #513. Même largeur que `public_write` : un référent qui déclare les bénévoles
+#: d'une épreuve en une soirée reste sous 30, une boucle non.
+VOLUNTEER_ACTION_RATE_LIMIT_MAX_PER_WINDOW = 30
+VOLUNTEER_ACTION_RATE_LIMIT_WINDOW_SECONDS = 3600
+
 #: Borne haute des `page` : au-delà de l'entier SQLite, la requête lève une
 #: `OverflowError` (500) au lieu d'une 422 (#1054). Large à dessein : une page
 #: au-delà du total rend toujours une tranche vide, contrat publié.
@@ -235,8 +271,8 @@ MAX_PAGE = 1_000_000
 #: force brute compte : l'admin peut poser un mot de passe humain de 8
 #: caractères. Plus serré que la connexion au site : seule une poignée de
 #: bénévoles se connecte, pas chaque visiteur.
-BENEVOLE_LOGIN_RATE_LIMIT_MAX_PER_WINDOW = 30
-BENEVOLE_LOGIN_RATE_LIMIT_WINDOW_SECONDS = 3600
+VOLUNTEER_LOGIN_RATE_LIMIT_MAX_PER_WINDOW = 30
+VOLUNTEER_LOGIN_RATE_LIMIT_WINDOW_SECONDS = 3600
 
 #: #1168, rapports CSP : route anonyme qui n'écrit que des logs. Large, parce
 #: que Firefox envoie un rapport par violation et qu'un club partage une IP ;
@@ -248,25 +284,25 @@ CSP_REPORT_RATE_LIMIT_WINDOW_SECONDS = 3600
 def reset_rate_limits() -> None:
     """Vide les compteurs. Réservé aux tests (fixture autouse de `conftest`)."""
     _hits.clear()
-    _fenetres.clear()
+    _windows.clear()
 
 
 def _enforce_rate_limit(
     request: Request, bucket: str, *, max_per_window: int, window_seconds: int
 ) -> None:
-    ip = request.client.host if request.client else None
-    if ip is None:
+    if request.client is None:
         return
+    ip = rate_limit_key(request.client.host)
 
     now = time.monotonic()
-    _fenetres[bucket] = window_seconds
-    if len(_hits) > _MAX_SEAUX:
+    _windows[bucket] = window_seconds
+    if len(_hits) > _MAX_BUCKETS:
         # La fenêtre du seau purgé, jamais celle de l'appel en cours : un appel
         # sur un seau à fenêtre courte effacerait sinon le quota d'un seau à
-        # fenêtre longue, ce que `_MAX_SEAUX` promet précisément de ne pas faire.
+        # fenêtre longue, ce que `_MAX_BUCKETS` promet précisément de ne pas faire.
         for key, seen in list(_hits.items()):
-            fenetre = _fenetres.get(key[0], window_seconds)
-            if not seen or now - seen[-1] >= fenetre:
+            window = _windows.get(key[0], window_seconds)
+            if not seen or now - seen[-1] >= window:
                 del _hits[key]
 
     seen = _hits.setdefault((bucket, ip), deque())
@@ -275,8 +311,9 @@ def _enforce_rate_limit(
 
     if len(seen) >= max_per_window:
         logger.warning(
-            "Rate limit reached on bucket %s for %s (%s %s)",
+            "Rate limit reached on bucket %s for %s, key %s (%s %s)",
             bucket,
+            request.client.host,
             ip,
             request.method,
             request.url.path,
@@ -361,6 +398,16 @@ def site_access_rate_limit(request: Request) -> None:
     )
 
 
+def volunteer_action_rate_limit(request: Request) -> None:
+    """Plafond de `POST /volunteer-actions` (#1397), **seau dédié**."""
+    _enforce_rate_limit(
+        request,
+        "volunteer_action",
+        max_per_window=VOLUNTEER_ACTION_RATE_LIMIT_MAX_PER_WINDOW,
+        window_seconds=VOLUNTEER_ACTION_RATE_LIMIT_WINDOW_SECONDS,
+    )
+
+
 def csp_report_rate_limit(request: Request) -> None:
     """Plafond de `POST /csp-reports` (#1168), **seau dédié**."""
     _enforce_rate_limit(
@@ -371,13 +418,13 @@ def csp_report_rate_limit(request: Request) -> None:
     )
 
 
-def benevole_login_rate_limit(request: Request) -> None:
+def volunteer_login_rate_limit(request: Request) -> None:
     """Plafond de `POST /benevoles/session` (#917), **seau dédié**."""
     _enforce_rate_limit(
         request,
         "benevole_login",
-        max_per_window=BENEVOLE_LOGIN_RATE_LIMIT_MAX_PER_WINDOW,
-        window_seconds=BENEVOLE_LOGIN_RATE_LIMIT_WINDOW_SECONDS,
+        max_per_window=VOLUNTEER_LOGIN_RATE_LIMIT_MAX_PER_WINDOW,
+        window_seconds=VOLUNTEER_LOGIN_RATE_LIMIT_WINDOW_SECONDS,
     )
 
 
@@ -399,7 +446,7 @@ def require_permission(code: Permission | str) -> Callable[..., User]:
     silence. `tests/test_permissions_catalogue.py` tient les deux bouts par AST.
     """
 
-    def garde(
+    def guard(
         request: Request,
         user: User = Depends(current_user),
         db: Session = Depends(get_db),
@@ -418,4 +465,4 @@ def require_permission(code: Permission | str) -> Callable[..., User]:
         )
         raise InsufficientPermissionError()
 
-    return garde
+    return guard

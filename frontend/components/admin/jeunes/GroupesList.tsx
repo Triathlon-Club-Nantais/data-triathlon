@@ -11,6 +11,7 @@ import { GroupeDetail } from "@/components/admin/jeunes/GroupeDetail";
 import { useCreateTrainingGroup, useTrainingGroups } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
+import { motCompte } from "@/lib/utils/format";
 
 const REFUS = { sujet: "groupes", action: "consulter les groupes" };
 
@@ -83,7 +84,7 @@ export function GroupesList() {
             >
               <div className="font-medium">{groupe.name}</div>
               <div className="text-[var(--tcn-text-faint)] text-sm">
-                {groupe.member_count} membre{groupe.member_count > 1 ? "s" : ""}
+                {motCompte(groupe.member_count, "membre")}
               </div>
             </Card>
           ))}

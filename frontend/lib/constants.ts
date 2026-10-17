@@ -185,3 +185,6 @@ export const RETOUR_CONNEXION_KEY = "tcn_retour_connexion";
 
 /** Clé `localStorage` du choix sur la mesure d'audience détaillée (#1159, `lib/analytics-consent.ts`). */
 export const ANALYTICS_CONSENT_KEY = "tcn-analytics-consent";
+
+/** Cookie qui transmet ce choix au serveur (#1359) : sans lui, ses événements restent anonymes. */
+export const ANALYTICS_CONSENT_COOKIE = "tcn_analytics_consent";

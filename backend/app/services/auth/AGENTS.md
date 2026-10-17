@@ -187,7 +187,7 @@ Trois points que le code ne dit pas :
   l'autorisation est indifférente.
   **`sessions:revoke` n'a aucun plafond, et c'est le seul pouvoir du dépôt dans
   ce cas.** `allowed_emails:manage` vaut « fermer n'importe quel compte » mais
-  bute sur `administrateurs_preserves` ; ici rien n'est retiré, aucun code ne
+  bute sur `preserving_admins` ; ici rien n'est retiré, aucun code ne
   change de mains, donc ni la non-amplification, ni l'invariant du dernier
   administrateur, ni `assert_may_distribute_superuser` ne sont sur le chemin. Un
   porteur non superutilisateur qui répète le geste tient tout le monde dehors, y
@@ -277,7 +277,7 @@ Cinq choses à ne pas défaire :
   `stale_permissions` ; la purge est l'effet d'un `PATCH`, il n'existe aucune
   ressource dédiée.
 - **L'invariant du dernier administrateur garde l'état, pas les chemins** — et il
-  garde la **perte** du dernier, pas l'absence. `administrateurs_preserves()`
+  garde la **perte** du dernier, pas l'absence. `preserving_admins()`
   compare avant et après : sur une installation neuve personne n'est encore
   administrateur, et un invariant jugeant le seul état d'arrivée y refuserait
   *toute* opération, y compris sans rapport avec les superutilisateurs.
@@ -349,14 +349,14 @@ groupes par la cascade ORM de `User`.
   le club » en libre service, compte sauté et compté par la purge. Une FK
   ajoutée demain est donc classée sans qu'on y pense ; un test fige la liste
   des cinq obligatoires du jour pour qu'un changement de nullabilité se voie.
-- **Le journal est signé par le compte système** (`benevole_access.system_user_id`),
+- **Le journal est signé par le compte système** (`volunteer_access.system_user_id`),
   payload `{"origin": "request" | "inactivity", "entra_oids": [...]}` et
   l'identifiant seul, sans adresse ni nom : le compte supprimé ne peut pas être
   l'auteur d'une ligne dont la FK l'exige. Le journal l'affiche « Système »
   (`actorLabel` du front), le nom du compte système désignant les bénévoles.
   `entra_oids` (les `subject` des identités `entra`) sert à **une seule** fin :
   finir la suppression dans l'annuaire Entra, à la main.
-- **Le dernier administrateur** : `administrateurs_preserves`, sous un point de
+- **Le dernier administrateur** : `preserving_admins`, sous un point de
   reprise, pour qu'un refus levé après le flush ne laisse rien en attente.
   Le compte système n'est jamais supprimé.
 - **`users.last_seen_at`** est posée à l'ouverture d'une session et repoussée

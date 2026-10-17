@@ -107,16 +107,14 @@ export function SeasonSelector({ seasons }: { seasons: Season[] }) {
       <PopoverTrigger
         aria-label="Choisir les saisons"
         data-pending={pending || undefined}
-        className="data-pending:opacity-70"
+        // 44 px sous md, 28 px au-delà (#479, #1510) : en classe, un `minHeight`
+        // en ligne l'emporterait sur la media query.
+        className="tcn-cible-tactile data-pending:opacity-70"
         style={{
           display: "inline-flex",
           alignItems: "center",
           gap: 8,
           padding: "8px 14px",
-          // Plancher tactile WCAG 2.2 2.5.8 (#479) : un des trois contrôles
-          // de la barre d'outils du dashboard mesurés entre 26 et 34 px par
-          // l'audit UI/UX.
-          minHeight: 28,
           borderRadius: 10,
           border: "1px solid var(--tcn-border)",
           background: "var(--tcn-surface, #fff)",

@@ -7,7 +7,7 @@ dur dans `core/discipline.py` et `core/club.py` ; elles vivent désormais en
 base, éditables depuis le panel admin.
 
 **Les prédicats gardent la règle, ce module porte les données.** `is_tcn`,
-`is_federal` et leurs miroirs SQL lisent ici. Personne d'autre.
+son miroir SQL et `federal_clause` lisent ici. Personne d'autre.
 
 **Aucune Session, aucun import d'une couche supérieure** — c'est ce qui autorise
 ce module dans `core/` (Principe II). Le registre est **rempli depuis le

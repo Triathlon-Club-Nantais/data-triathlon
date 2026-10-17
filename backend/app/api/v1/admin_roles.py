@@ -17,7 +17,7 @@ from app.core import permissions
 from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
-from app.repositories import role_repository, user_repository
+from app.repositories import role_repository
 from app.schemas.admin import (
     AdminUserRead,
     PermissionGroupRead,
@@ -27,6 +27,8 @@ from app.schemas.admin import (
     RoleRead,
     RoleUpdate,
 )
+from app.schemas.ids import DbId
+from app.services import not_found
 from app.services.auth import authorization
 
 router = APIRouter(tags=["admin"])
@@ -46,17 +48,17 @@ def list_permissions(_: User = Depends(require_permission(P.ROLES_READ))):
     """
     return [
         PermissionGroupRead(
-            feature=groupe.feature,
+            feature=group.feature,
             permissions=[
                 PermissionRead(
-                    code=pouvoir.code,
-                    label=pouvoir.label,
-                    description=pouvoir.description,
+                    code=permission.code,
+                    label=permission.label,
+                    description=permission.description,
                 )
-                for pouvoir in groupe.permissions
+                for permission in group.permissions
             ],
         )
-        for groupe in permissions.grouped_by_feature()
+        for group in permissions.grouped_by_feature()
     ]
 
 
@@ -66,16 +68,16 @@ def list_roles(
     _: User = Depends(require_permission(P.ROLES_READ)),
 ):
     roles = role_repository.list_all(db)
-    porteurs = role_repository.count_holders_by_role(db, [role.id for role in roles])
+    holders = role_repository.count_holders_by_role(db, [role.id for role in roles])
     return [
-        authorization.role_view(db, role, holders=porteurs.get(role.id, 0))
+        authorization.role_view(db, role, holders=holders.get(role.id, 0))
         for role in roles
     ]
 
 
 @router.get("/admin/roles/{role_id}", response_model=RoleRead)
 def get_role(
-    role_id: int,
+    role_id: DbId,
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.ROLES_READ)),
 ):
@@ -103,14 +105,14 @@ def create_role(
         codes=body.permissions,
         superuser=body.is_superuser,
     )
-    vue = authorization.role_view(db, role)
+    view = authorization.role_view(db, role)
     db.commit()
-    return vue
+    return view
 
 
 @router.patch("/admin/roles/{role_id}", response_model=RoleRead)
 def update_role(
-    role_id: int,
+    role_id: DbId,
     body: RoleUpdate,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.ROLES_WRITE)),
@@ -131,14 +133,14 @@ def update_role(
         codes=body.permissions,
         superuser=body.is_superuser,
     )
-    vue = authorization.role_view(db, role)
+    view = authorization.role_view(db, role)
     db.commit()
-    return vue
+    return view
 
 
 @router.delete("/admin/roles/{role_id}", status_code=204)
 def delete_role(
-    role_id: int,
+    role_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.ROLES_WRITE)),
 ):
@@ -153,52 +155,52 @@ def list_users(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.USERS_READ)),
 ):
-    return [authorization.user_view(db, user) for user in user_repository.list_all(db)]
+    return authorization.users_view(db)
 
 
 @router.post("/admin/users/{user_id}/roles", response_model=AdminUserRead, status_code=201)
 def grant_role(
-    user_id: int,
+    user_id: DbId,
     body: RoleAssign,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.ROLES_ASSIGN)),
 ):
     """Attribue un rôle. **Idempotent** — réattribuer est un succès (FR-012)."""
-    cible = authorization.get_user_or_404(db, user_id)
+    target = not_found.user_or_404(db, user_id)
     role = authorization.get_role_or_404(db, body.role_id)
-    organisation_id = body.organisation_id or _organisation_par_defaut(db)
+    organisation_id = body.organisation_id or _default_organisation_id(db)
     authorization.grant_role(
-        db, actor, user=cible, role=role, organisation_id=organisation_id
+        db, actor, user=target, role=role, organisation_id=organisation_id
     )
-    vue = authorization.user_view(db, cible)
+    view = authorization.user_view(db, target)
     db.commit()
-    return vue
+    return view
 
 
 @router.delete("/admin/users/{user_id}/roles/{role_id}", status_code=204)
 def revoke_role(
-    user_id: int,
-    role_id: int,
-    organisation_id: int | None = None,
+    user_id: DbId,
+    role_id: DbId,
+    organisation_id: DbId | None = None,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.ROLES_ASSIGN)),
 ):
     """Retire un rôle. Idempotent, et refusé si l'organisation y perdrait son
     dernier administrateur actif — **409**, l'appelant étant bien administrateur
     et sa requête bien formée : c'est le résultat qui est interdit."""
-    cible = authorization.get_user_or_404(db, user_id)
+    target = not_found.user_or_404(db, user_id)
     role = authorization.get_role_or_404(db, role_id)
     authorization.revoke_role(
         db,
         actor,
-        user=cible,
+        user=target,
         role=role,
-        organisation_id=organisation_id or _organisation_par_defaut(db),
+        organisation_id=organisation_id or _default_organisation_id(db),
     )
     db.commit()
 
 
-def _organisation_par_defaut(db: Session) -> int:
+def _default_organisation_id(db: Session) -> int:
     """Le seul club en base. L'option existe parce que le modèle porte
     l'organisation ; elle n'a qu'une valeur possible tant qu'un second club
     n'est pas créé."""

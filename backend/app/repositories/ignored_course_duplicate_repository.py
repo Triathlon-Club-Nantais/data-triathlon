@@ -10,7 +10,7 @@ from app.models.course import Course
 from app.models.ignored_course_duplicate import IgnoredCourseDuplicate
 
 
-def _paire(course_id_a: int, course_id_b: int) -> tuple[int, int]:
+def _pair(course_id_a: int, course_id_b: int) -> tuple[int, int]:
     """La paire normalisée, le plus petit id en premier.
 
     Rien ne garantit que l'appelant envoie toujours le même côté de la paire
@@ -23,17 +23,17 @@ def _paire(course_id_a: int, course_id_b: int) -> tuple[int, int]:
 def create(
     db: Session, *, course_id_a: int, course_id_b: int, user_id: int
 ) -> IgnoredCourseDuplicate:
-    low, high = _paire(course_id_a, course_id_b)
-    ignoree = IgnoredCourseDuplicate(
+    low, high = _pair(course_id_a, course_id_b)
+    ignored = IgnoredCourseDuplicate(
         course_id_low=low, course_id_high=high, ignored_by_user_id=user_id
     )
-    db.add(ignoree)
+    db.add(ignored)
     db.flush()
-    return ignoree
+    return ignored
 
 
 def exists(db: Session, *, course_id_a: int, course_id_b: int) -> bool:
-    low, high = _paire(course_id_a, course_id_b)
+    low, high = _pair(course_id_a, course_id_b)
     return (
         db.query(IgnoredCourseDuplicate.id)
         .filter(
@@ -75,10 +75,10 @@ def all_pairs(db: Session) -> set[tuple[int, int]]:
     ouvrir une requête par paire candidate (même exigence de constance que
     `list_identities_with_counts`, cf. AC5 de #288).
     """
-    lignes = db.query(
+    rows = db.query(
         IgnoredCourseDuplicate.course_id_low, IgnoredCourseDuplicate.course_id_high
     ).all()
-    return {(low, high) for low, high in lignes}
+    return {(low, high) for low, high in rows}
 
 
 def delete_for_course(db: Session, course_id: int) -> None:

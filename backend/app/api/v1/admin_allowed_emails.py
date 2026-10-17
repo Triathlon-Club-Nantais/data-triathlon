@@ -19,19 +19,20 @@ from app.models.allowed_email import AllowedEmail
 from app.models.user import User
 from app.repositories import allowed_email_repository, user_repository
 from app.schemas.admin import AllowedEmailCreate, AllowedEmailRead, RoleBrief
+from app.schemas.ids import DbId
 from app.services.auth import allowed_emails
 
 router = APIRouter(tags=["admin"])
 
 
-def _vue(entree: AllowedEmail, *, has_account: bool) -> AllowedEmailRead:
+def _view(entry: AllowedEmail, *, has_account: bool) -> AllowedEmailRead:
     return AllowedEmailRead(
-        id=entree.id,
-        email=entree.email,
-        created_at=entree.created_at,
-        created_by_name=entree.created_by.display_name if entree.created_by else None,
-        role=RoleBrief.model_validate(entree.role, from_attributes=True)
-        if entree.role
+        id=entry.id,
+        email=entry.email,
+        created_at=entry.created_at,
+        created_by_name=entry.created_by.display_name if entry.created_by else None,
+        role=RoleBrief.model_validate(entry.role, from_attributes=True)
+        if entry.role
         else None,
         has_account=has_account,
     )
@@ -51,11 +52,11 @@ def list_allowed_emails(
     `has_account` est résolu en **une** requête pour toute la liste, jamais une
     par ligne.
     """
-    entrees = allowed_emails.list_all(db)
-    avec_compte = user_repository.emails_with_account(
-        db, [entree.email for entree in entrees]
+    entries = allowed_emails.list_all(db)
+    with_account = user_repository.emails_with_account(
+        db, [entry.email for entry in entries]
     )
-    return [_vue(entree, has_account=entree.email in avec_compte) for entree in entrees]
+    return [_view(entry, has_account=entry.email in with_account) for entry in entries]
 
 
 @router.post("/admin/allowed-emails", response_model=AllowedEmailRead, status_code=201)
@@ -74,7 +75,7 @@ def add_allowed_email(
     la même valeur aux deux cas — et sans la distinction, « Aucun » serait
     indicible : un rôle posé le resterait pour toujours.
     """
-    entree, _, _ = allowed_emails.add(
+    entry, _, _ = allowed_emails.add(
         db,
         actor,
         email=body.email,
@@ -84,14 +85,14 @@ def add_allowed_email(
             else allowed_emails.UNCHANGED
         ),
     )
-    vue = _vue(entree, has_account=bool(user_repository.find_by_email(db, entree.email)))
+    view = _view(entry, has_account=bool(user_repository.find_by_email(db, entry.email)))
     db.commit()
-    return vue
+    return view
 
 
 @router.delete("/admin/allowed-emails/{entry_id}", status_code=204)
 def remove_allowed_email(
-    entry_id: int,
+    entry_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.ALLOWED_EMAILS_MANAGE)),
 ):
@@ -105,8 +106,8 @@ def remove_allowed_email(
     l'appelant est bien administrateur et sa requête est bien formée, c'est le
     résultat qui est interdit.
     """
-    entree = allowed_email_repository.get(db, entry_id)
-    if entree is None:
+    entry = allowed_email_repository.get(db, entry_id)
+    if entry is None:
         return
-    allowed_emails.remove(db, actor, entree)
+    allowed_emails.remove(db, actor, entry)
     db.commit()

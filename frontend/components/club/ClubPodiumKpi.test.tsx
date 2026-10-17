@@ -20,7 +20,7 @@ const RANK_COUNTERS: DashboardRankCounters = {
   },
 };
 
-describe("ClubPodiumKpi — lit rank_counters (#581, miroir de StatCardsRank)", () => {
+describe("ClubPodiumKpi — lit rank_counters (#581)", () => {
   it("sans ?rank= (défaut scratch) : lit rankCounters.scratch.podiums", () => {
     searchParams = new URLSearchParams();
     render(<ClubPodiumKpi rankCounters={RANK_COUNTERS} />);

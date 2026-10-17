@@ -12,7 +12,7 @@ checksum seraient à re-signer à chaque déploiement du site — ni parsing du 
 de classement.
 
 Flux (cf. docs/superpowers/specs/2026-07-25-chronoplace-scraper-design.md) :
-  1. `_parse_url`        → (slug, epreuve_id)
+  1. `_parse_url`        → (slug, race_id)
   2. `_fetch`            → GET de l'épreuve avec `?perPage=all`
   3. `_parse_snapshot`   → isTeam + analyticsContext (année, type, nom d'épreuve)
   4. `_parse_table`      → une ligne = {clé de colonne → cellule}, lues **par clé**
@@ -58,7 +58,7 @@ HEADERS = {**DEFAULT_HEADERS}
 _URL_RE = re.compile(r"^/classement/(?P<slug>[^/]+)(?:/epreuve/(?P<id>\d+))?/?$")
 _SORT_RE = re.compile(r"sortBy\('([^']+)'\)")
 # Utilisé par `_parse_event_date` pour compter les liens /classement/ d'un ancêtre.
-_CLASSEMENT_HREF_RE = re.compile(r"/classement/")
+_RANKING_HREF_RE = re.compile(r"/classement/")
 # Ce à quoi doit ressembler une valeur pour être prise pour un temps. Le site
 # rend « — » sur un split vide et « -- » / « +5:16 » dans la colonne d'écart :
 # `normalize_time` les laisse passer tels quels, il faut donc filtrer ici.
@@ -95,19 +95,19 @@ def _parse_url(url: str) -> tuple[str, str]:
     return m.group("slug"), m.group("id") or ""
 
 
-def _epreuve_path(slug: str, epreuve_id: str) -> str:
+def _race_path(slug: str, race_id: str) -> str:
     """Chemin du classement **complet** d'une épreuve."""
-    return f"/classement/{slug}/epreuve/{epreuve_id}?perPage=all"
+    return f"/classement/{slug}/epreuve/{race_id}?perPage=all"
 
 
-def _epreuve_source_url(slug: str, epreuve_id: str) -> str:
+def _race_source_url(slug: str, race_id: str) -> str:
     """URL canonique d'une épreuve — clé de cache TTL et `source_url` du résultat.
 
     Une seule fonction pour les deux rôles : sans quoi le `cache_probe` recevrait
     une graphie et la `Course` en persisterait une autre, le cache ne pourrait
     pas raccrocher au ré-import (patron fan-out #195).
     """
-    return f"{BASE_URL}{_epreuve_path(slug, epreuve_id)}"
+    return f"{BASE_URL}{_race_path(slug, race_id)}"
 
 
 def _unwrap(value):
@@ -154,8 +154,8 @@ def _column_keys(table) -> list[str]:
     """
     keys = []
     for th in table.select("thead th"):
-        porteur = th if th.get("wire:click") else th.find(attrs={"wire:click": True})
-        m = _SORT_RE.search((porteur.get("wire:click") if porteur else "") or "")
+        holder = th if th.get("wire:click") else th.find(attrs={"wire:click": True})
+        m = _SORT_RE.search((holder.get("wire:click") if holder else "") or "")
         keys.append(m.group(1) if m else "")
     return keys
 
@@ -252,45 +252,45 @@ def _log_unknown_time_rejections(rows: list[dict[str, str]], slug: str) -> None:
     sur `temps` prive la participation de temps total, donc la fait classer DNF
     par `mapping.derive_status` ; un split rejeté laisse juste ce segment vide.
     """
-    inconnues = [
+    unknown = [
         f"{column}={row[column]!r}"
         for row in rows
         for column in _TIME_COLUMNS
         if column in row and _is_unknown_time_rejection(row[column])
     ]
-    if inconnues:
+    if unknown:
         logger.warning(
             "Épreuve %s : %d cellule(s) de temps au format inattendu — un rejet "
             "sur « temps » fait classer la participation DNF, un rejet sur un "
             "split laisse le segment vide (échantillon : %s)",
-            slug, len(inconnues), inconnues[:5],
+            slug, len(unknown), unknown[:5],
         )
 
 
 #: Préfixe du `<h2>` qui porte l'épreuve depuis le markup de 2026 (#979).
-_H2_EPREUVE = re.compile(r"^Classement\s*[–-]\s*")
+_H2_RACE = re.compile(r"^Classement\s*[–-]\s*")
 
 
-def _event_name(html: str, slug: str, epreuve: str = "") -> str:
+def _event_name(html: str, slug: str, race: str = "") -> str:
     """Nom de la Course : « <événement> - <épreuve> ».
 
     Le nom de l'épreuve **doit** y figurer, sinon deux épreuves d'un même
     événement partageant date et type fusionneraient (`uq_course_identity`).
     Depuis 2026, le `<h1>` ne porte plus que l'événement (#979) : l'épreuve vient
-    de `analyticsContext.epreuve_name` (`epreuve`), à défaut du `<h2>`
+    de `analyticsContext.epreuve_name` (`race`), à défaut du `<h2>`
     « Classement – <épreuve> ». L'ancien `<h1>` la portait déjà :
     `qualify_event_name` ne l'ajoute pas deux fois.
     Replis de l'événement : meta `description` privée de son préfixe
     « Résultats », puis slug.
     """
     soup = BeautifulSoup(html, "lxml")
-    if not epreuve:
+    if not race:
         for h2 in soup.find_all("h2"):
-            texte = collapse_spaces(h2.get_text(" ", strip=True))
-            if _H2_EPREUVE.match(texte):
-                epreuve = _H2_EPREUVE.sub("", texte)
+            text = collapse_spaces(h2.get_text(" ", strip=True))
+            if _H2_RACE.match(text):
+                race = _H2_RACE.sub("", text)
                 break
-    return qualify_event_name(_event_title(soup, slug), epreuve)
+    return qualify_event_name(_event_title(soup, slug), race)
 
 
 def _event_title(soup: BeautifulSoup, slug: str) -> str:
@@ -305,7 +305,7 @@ def _event_title(soup: BeautifulSoup, slug: str) -> str:
     return slug.replace("-", " ").title()
 
 
-def _enumerate_epreuves(html: str, slug: str) -> list[tuple[str, str]]:
+def _enumerate_races(html: str, slug: str) -> list[tuple[str, str]]:
     """Tabs d'épreuves : `(id, label)` dans l'ordre du document, dédupliqués.
 
     Le libellé est le texte du lien (« Spay'cific Triathlon S »), servi tel quel
@@ -322,12 +322,12 @@ def _enumerate_epreuves(html: str, slug: str) -> list[tuple[str, str]]:
         m = pattern.match(urlparse(a["href"].strip()).path)
         if not m:
             continue
-        epreuve_id = m.group(1)
-        if epreuve_id in seen:
+        race_id = m.group(1)
+        if race_id in seen:
             continue
-        seen.add(epreuve_id)
+        seen.add(race_id)
         label = re.sub(r"\s+", " ", a.get_text(" ", strip=True)).strip()
-        out.append((epreuve_id, label))
+        out.append((race_id, label))
     return out
 
 
@@ -343,10 +343,10 @@ def _event_type(analytics: dict, event_name: str) -> str:
     (« Mini poussins ») prend le sport du titre, un « Trail 12 km » garde le
     sien (#1095).
     """
-    epreuve = analytics.get("epreuve_name")
-    if epreuve:
+    race = analytics.get("epreuve_name")
+    if race:
         return classify_event_type(
-            epreuve, contexte=event_name or analytics.get("event_type") or ""
+            race, context=event_name or analytics.get("event_type") or ""
         )
     return classify_event_type(analytics.get("event_type") or event_name)
 
@@ -397,7 +397,7 @@ def _parse_event_date(html: str, slug: str) -> date | None:
             time_el = node.find("time")
             if not time_el:
                 continue
-            if len(node.find_all("a", href=_CLASSEMENT_HREF_RE)) > 1:
+            if len(node.find_all("a", href=_RANKING_HREF_RE)) > 1:
                 continue  # ancêtre trop large : plusieurs événements dedans
             try:
                 return date.fromisoformat((time_el.get("datetime") or "")[:10])
@@ -521,7 +521,7 @@ def _apply_lap_format(results: list[ScrapedResult], slug: str) -> None:
             slug,
         )
         return
-    abandons = 0
+    dnf_count = 0
     for result in results:
         count = laps[id(result)]
         if count is None or count >= maximum or result.status:
@@ -530,10 +530,10 @@ def _apply_lap_format(results: list[ScrapedResult], slug: str) -> None:
         result.status = STATUS_DNF
         result.total_time = ""
         result.rank_overall = result.rank_gender = result.rank_category = None
-        abandons += 1
-    if abandons:
+        dnf_count += 1
+    if dnf_count:
         logger.info(
-            "Épreuve chronoplace %s : %d abandon(s) sous les %d tours.", slug, abandons, maximum
+            "Épreuve chronoplace %s : %d abandon(s) sous les %d tours.", slug, dnf_count, maximum
         )
 
 
@@ -542,7 +542,7 @@ def _lap_count(result: ScrapedResult) -> int | None:
     return int(raw) if raw.isdigit() else None
 
 
-def _epreuve_results(
+def _race_results(
     html: str, url: str, slug: str, event_date: date | None
 ) -> list[ScrapedResult]:
     """HTML d'une page de classement → participants. Pur : aucune requête."""
@@ -574,7 +574,7 @@ def _epreuve_results(
     return results
 
 
-def _resolve_epreuve_id(client: httpx.Client, slug: str) -> str:
+def _resolve_race_id(client: httpx.Client, slug: str) -> str:
     """Id de la première épreuve d'un événement, pour une URL sans `/epreuve/<id>`.
 
     Le site redirige bien `/classement/<slug>` vers cette épreuve, mais la
@@ -582,10 +582,10 @@ def _resolve_epreuve_id(client: httpx.Client, slug: str) -> str:
     rendrait les 50 premières lignes seulement. On résout donc l'id d'abord.
     """
     html = _fetch(client, f"/classement/{slug}")
-    epreuve_id = str(_parse_snapshot(html).get("epreuveId") or "")
-    if not epreuve_id:
+    race_id = str(_parse_snapshot(html).get("epreuveId") or "")
+    if not race_id:
         raise ValueError(f"Aucune épreuve trouvée pour l'événement chronoplace « {slug} ».")
-    return epreuve_id
+    return race_id
 
 
 def scrape_event_all(url: str) -> list[ScrapedResult]:
@@ -608,7 +608,7 @@ def scrape_event_fanout(
     """Fan-out par épreuve — patron cache TTL par sous-unité (épique #195).
 
     La page pointée par l'URL liste les épreuves sœurs (onglets) : chacune est
-    une sous-unité, avec sa propre `source_url` (`_epreuve_source_url`), et
+    une sous-unité, avec sa propre `source_url` (`_race_source_url`), et
     donc son propre horizon de cache TTL. `cache_probe(sub_url)` permet de
     sauter une épreuve fraîche **avant** sa requête. `on_heat_start` est
     notifié une fois par épreuve **effectivement scrapée**, avec `total = len(à
@@ -621,12 +621,12 @@ def scrape_event_fanout(
     """
     trace = FanoutTrace()
     all_results: list[ScrapedResult] = []
-    slug, epreuve_id = _parse_url(url)
+    slug, race_id = _parse_url(url)
 
     with http.client(timeout=30, headers=HEADERS) as client:
-        if not epreuve_id:
-            epreuve_id = _resolve_epreuve_id(client, slug)
-        html = _fetch(client, _epreuve_path(slug, epreuve_id))
+        if not race_id:
+            race_id = _resolve_race_id(client, slug)
+        html = _fetch(client, _race_path(slug, race_id))
 
         analytics = _parse_snapshot(html).get("analyticsContext") or {}
         event_date = _fetch_event_date(
@@ -636,38 +636,38 @@ def scrape_event_fanout(
         # Énumération : ordre des onglets. L'épreuve demandée y figure en
         # règle générale — on la préfixe sinon (redirection vers une épreuve
         # non listée), avec le libellé du `<h1>` comme repli.
-        enumerated = _enumerate_epreuves(html, slug)
-        if not any(eid == epreuve_id for eid, _ in enumerated):
-            enumerated = [(epreuve_id, _event_name(html, slug))] + enumerated
+        enumerated = _enumerate_races(html, slug)
+        if not any(eid == race_id for eid, _ in enumerated):
+            enumerated = [(race_id, _event_name(html, slug))] + enumerated
 
         trace.heats_enumerated = len(enumerated)
 
         # Pré-filtre : le total notifié à `on_heat_start` doit être le nombre
         # d'épreuves effectivement scrapées, pas le nombre énuméré, sinon un
         # ré-import majoritairement caché paraîtrait sauter des indices.
-        a_scraper: list[tuple[str, str, str]] = []
+        to_scrape: list[tuple[str, str, str]] = []
         for sub_id, sub_label in enumerated:
-            sub_url = _epreuve_source_url(slug, sub_id)
+            sub_url = _race_source_url(slug, sub_id)
             if cache_probe is not None and cache_probe(sub_url):
                 trace.heats_cached += 1
                 trace.cached_urls.append(sub_url)
                 continue
-            a_scraper.append((sub_id, sub_label, sub_url))
+            to_scrape.append((sub_id, sub_label, sub_url))
 
         # L'épreuve en tête a déjà été GETée pour lire les onglets et
         # l'analyticsContext. Si elle est à scraper, on réutilise ce HTML —
         # sinon (cache_probe True dessus), elle est sautée comme les autres.
-        total = len(a_scraper)
-        for index, (sub_id, sub_label, sub_url) in enumerate(a_scraper, start=1):
+        total = len(to_scrape)
+        for index, (sub_id, sub_label, sub_url) in enumerate(to_scrape, start=1):
             if on_heat_start is not None:
                 on_heat_start(sub_id, sub_label, index, total)
             try:
-                if sub_id == epreuve_id:
+                if sub_id == race_id:
                     page = html
                 else:
-                    page = _fetch(client, _epreuve_path(slug, sub_id))
+                    page = _fetch(client, _race_path(slug, sub_id))
                 all_results.extend(
-                    _epreuve_results(page, sub_url, slug, event_date)
+                    _race_results(page, sub_url, slug, event_date)
                 )
             except Exception as exc:
                 # Isolation d'échec par épreuve : les autres continuent.

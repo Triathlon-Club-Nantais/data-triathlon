@@ -1,0 +1,116 @@
+"use client";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { ecran } from "@/components/layout/nav.config";
+import { PageShell } from "@/components/layout/PageShell";
+import { GroupesPicker } from "@/components/admin/jeunes/GroupesPicker";
+import { useCreateTrainingSession, useTrainingGroups, useTrainingSessions } from "@/lib/queries/admin";
+import { useSession } from "@/lib/queries/auth";
+import { messageDeRefus } from "@/lib/api/refus";
+import { localToday } from "@/lib/utils/date";
+import type { TrainingSession } from "@/lib/types";
+
+const REFUS = { sujet: "entraînements", action: "ouvrir l'appel" };
+
+function libelleSeance(entrainement: TrainingSession): string {
+  const parties = [
+    entrainement.start_time ? entrainement.start_time.slice(0, 5) : "Heure non renseignée",
+    entrainement.session_type,
+    entrainement.location,
+  ];
+  return parties.filter(Boolean).join(" · ");
+}
+
+/**
+ * Résout la séance du jour et ouvre son appel (#869, epic #863) — L'appel
+ * peut **peupler le calendrier** : une séance datée d'aujourd'hui absente du
+ * calendrier se crée ici, en un geste, plutôt que d'obliger l'encadrant à
+ * détourner par `/encadrement/jeunes/calendrier` avant de pouvoir faire l'appel.
+ *
+ * Plusieurs séances le même jour (natation le matin, course le soir) ne se
+ * départagent pas à la place de l'encadrant : il choisit, sans quoi l'appel
+ * serait pointé sur la mauvaise séance sans aucun signal.
+ */
+export default function AdminJeuneAppelDuJourPage() {
+  const router = useRouter();
+  const { data, isPending, error } = useTrainingSessions();
+  const session = useSession();
+  const creer = useCreateTrainingSession();
+  const [creationLancee, setCreationLancee] = useState(false);
+  // Les membres des groupes choisis sont inscrits d'office (#1291, FR-019).
+  const groupes = useTrainingGroups();
+  const [groupIds, setGroupIds] = useState<number[]>([]);
+
+  const peutEcrire = session.data?.permissions.includes("jeunes:write") ?? false;
+  const aujourdhui = localToday();
+  const seancesDuJour = (data ?? []).filter((entrainement) => entrainement.date === aujourdhui);
+  const seanceUnique = seancesDuJour.length === 1 ? seancesDuJour[0] : null;
+
+  useEffect(() => {
+    if (seanceUnique) {
+      router.replace(`/encadrement/jeunes/appel/${seanceUnique.id}`);
+    }
+  }, [seanceUnique, router]);
+
+  async function creerLaSeanceDuJour() {
+    setCreationLancee(true);
+    try {
+      const entrainement = await creer.mutateAsync({
+        date: localToday(),
+        ...(groupIds.length > 0 ? { group_ids: groupIds } : {}),
+      });
+      router.replace(`/encadrement/jeunes/appel/${entrainement.id}`);
+    } catch (e) {
+      setCreationLancee(false);
+      toast.error((e as Error).message);
+    }
+  }
+
+  return (
+    <PageShell>
+      <div className="space-y-10">
+        <PageHeader {...ecran("/encadrement/jeunes/appel")} />
+        {isPending || seanceUnique || creationLancee ? (
+          <Skeleton className="h-40 w-full" />
+        ) : error ? (
+          <EmptyState {...messageDeRefus(error, REFUS)} />
+        ) : seancesDuJour.length > 1 ? (
+          <div className="space-y-3">
+            <p className="text-sm">Plusieurs séances aujourd&apos;hui : choisissez celle de l&apos;appel.</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {seancesDuJour.map((entrainement) => (
+                <Link key={entrainement.id} href={`/encadrement/jeunes/appel/${entrainement.id}`}>
+                  <Card className="p-4 font-medium transition-colors hover:bg-[var(--tcn-orange-08)]">
+                    {libelleSeance(entrainement)}
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <EmptyState
+            title="Aucune séance aujourd'hui"
+            description="Le calendrier n'a pas encore de séance datée d'aujourd'hui."
+            action={
+              peutEcrire ? (
+                <div className="flex flex-col items-center gap-4">
+                  <GroupesPicker groupes={groupes.data ?? []} value={groupIds} onChange={setGroupIds} />
+                  <Button onClick={creerLaSeanceDuJour} disabled={creer.isPending}>
+                    Créer la séance du jour
+                  </Button>
+                </div>
+              ) : undefined
+            }
+          />
+        )}
+      </div>
+    </PageShell>
+  );
+}

@@ -3,6 +3,7 @@ import { StatCard } from "@/components/tcn";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/ui/empty-state";
+import { AddEventLink } from "@/components/dashboard/SeasonEmptyState";
 import { ResultCard } from "@/components/results/ResultCard";
 import { BarList } from "@/components/charts/BarList";
 import { MonthlyTrend } from "@/components/charts/MonthlyTrend";
@@ -34,20 +35,14 @@ export function ClubDashboard({
   resultsTotal: number;
 }) {
   const roster = summary.roster;
+  const licensees = summary.licensees;
 
   if (stats.total === 0) {
     return (
       <EmptyState
         title="Aucun résultat de club"
         description="Importez une épreuve : les membres du club apparaîtront automatiquement ici."
-        action={
-          <Link
-            href="/ajouter"
-            className="text-sm font-semibold text-accent-ink hover:underline"
-          >
-            Ajouter une épreuve →
-          </Link>
-        }
+        action={<AddEventLink />}
       />
     );
   }
@@ -56,11 +51,21 @@ export function ClubDashboard({
     <div className="space-y-8">
       {/* Synthèse — les 3 premiers KPI ne dépendent pas du rank et restent SSR.
           Le KPI Podiums, lui, suit `?rank=…` via un composant client (#132). */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Cinq tuiles à 68 px ne tiennent qu'en `xl` : en `lg`, trois puis deux. */}
+      <div className={`grid gap-4 sm:grid-cols-2 ${licensees ? "lg:grid-cols-3 xl:grid-cols-5" : "lg:grid-cols-4"}`}>
         <KpiCard label="Résultats" value={resultsTotal} hint={seasonLabel(currentSeason())} accent />
         <KpiCard label="Athlètes" value={stats.athletes} />
         <KpiCard label="Épreuves" value={stats.events} />
         <ClubPodiumKpi rankCounters={stats.rank_counters} />
+        {/* #1441 : le total passe en sous-ligne, « X / Y » à 68 px débordait
+            la tuile. Saison servie par le backend, celle des licences. */}
+        {licensees && (
+          <KpiCard
+            label="Licenciés en course"
+            value={licensees.raced}
+            hint={`sur ${formatCount(licensees.total)} licenciés · ${seasonLabel(licensees.season)}`}
+          />
+        )}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

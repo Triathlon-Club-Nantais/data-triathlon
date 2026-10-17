@@ -57,7 +57,7 @@ from urllib.parse import parse_qs, urlparse
 
 from sqlalchemy.orm import Session
 
-from app.core.cached_count import CachedCount
+from app.core.cached_value import CachedValue
 from app.core.exceptions import DomainError, DuplicateError, NotFoundError
 from app.core.text import deaccent
 from app.repositories import (
@@ -99,9 +99,9 @@ DATE_TOLERANCE = timedelta(days=3)
 SAME_FINISHERS_MIN = 3
 SAME_FINISHERS_SHARE = 0.5
 
-#: Taille de la liste pour la pastille du rail (#1352) : rafraîchie par la liste,
-#: vidée par tout commit (`core/cached_count`).
-count_cache = CachedCount(ttl_seconds=300)
+#: La liste, partagée par l'écran et sa pastille (#1352, #1384) : vidée par tout
+#: commit (`core/cached_value`).
+candidates_cache: CachedValue[list[dict]] = CachedValue(ttl_seconds=300)
 
 #: Les deux plateformes dont l'URL porte un identifiant d'événement. Hors de ces
 #: deux-là, le motif « identifiant partagé » ne s'applique pas : la forme
@@ -131,11 +131,11 @@ def _heat_slug(url: str) -> str:
     `/epreuves/resultats/live/3232` (TimePulse, une URL pour six heats) pour une
     URL de heat, et c'est exactement ce que ce garde doit exclure.
     """
-    adresse = urlparse(url)
-    heat = parse_qs(adresse.query).get("heat", [""])[0]
+    parsed = urlparse(url)
+    heat = parse_qs(parsed.query).get("heat", [""])[0]
     if heat:
         return heat.lower()
-    segments = [segment for segment in adresse.path.split("/") if segment]
+    segments = [segment for segment in parsed.path.split("/") if segment]
     if len(segments) == 3 and segments[0] == "resultats-courses":
         return segments[2].lower()
     return ""
@@ -155,8 +155,8 @@ def _event_id(url: str, provider: str) -> str:
     """
     if provider not in PLATFORMS_WITH_EVENT_ID:
         return ""
-    trouve = _EVENT_ID.search(url)
-    return trouve.group(0) if trouve else ""
+    found = _EVENT_ID.search(url)
+    return found.group(0) if found else ""
 
 
 def _comparable_name(name: str) -> str:
@@ -169,10 +169,10 @@ def _comparable_name(name: str) -> str:
     `Triathlon de Vertou 2026 - S-Open` ce que l'autre nomme
     `Triathlon de Vertou - S-Open`.
     """
-    texte = (deaccent(name) or "").lower()
-    texte = _EDITION_ORDINAL.sub(" ", texte)
-    texte = _YEAR.sub(" ", texte)
-    return " ".join(re.sub(r"[^a-z0-9]+", " ", texte).split())
+    text = (deaccent(name) or "").lower()
+    text = _EDITION_ORDINAL.sub(" ", text)
+    text = _YEAR.sub(" ", text)
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
 
 
 def _same_source_url(course: dict) -> tuple | None:
@@ -207,10 +207,10 @@ def _shared_event_id(course: dict) -> tuple | None:
     distincts d'Audencia La Baule, partagés sous deux façades Breizh Chrono,
     sortaient en 2 paires fausses (#756, cas 2).
     """
-    identifiant = _event_id(course["source_url"], course["provider"])
-    if not identifiant:
+    event_id = _event_id(course["source_url"], course["provider"])
+    if not event_id:
         return None
-    return (identifiant, course["event_type"], course["is_relay"])
+    return (event_id, course["event_type"], course["is_relay"])
 
 
 def _close_names(course: dict) -> tuple | None:
@@ -231,13 +231,13 @@ def _close_names(course: dict) -> tuple | None:
     """
     if course["event_date"] is None:
         return None
-    nom = _comparable_name(course["name"])
-    if not nom:
+    name = _comparable_name(course["name"])
+    if not name:
         return None
-    return (nom, course["event_type"], course["is_relay"])
+    return (name, course["event_type"], course["is_relay"])
 
 
-def _facades_differ(gauche: dict, droite: dict) -> bool:
+def _facades_differ(left: dict, right: dict) -> bool:
     """Les deux URLs viennent-elles de deux publications distinctes ?
 
     Le host, et non l'URL entière : deux lignes issues de la **même** façade sont
@@ -246,16 +246,16 @@ def _facades_differ(gauche: dict, droite: dict) -> bool:
     publications, ce sont deux hosts, et c'est là seulement que le nom et le
     nombre de participants ont le droit de diverger.
     """
-    return urlparse(gauche["source_url"]).netloc != urlparse(droite["source_url"]).netloc
+    return urlparse(left["source_url"]).netloc != urlparse(right["source_url"]).netloc
 
 
-def _dates_are_close(gauche: dict, droite: dict) -> bool:
-    if gauche["event_date"] is None or droite["event_date"] is None:
+def _dates_are_close(left: dict, right: dict) -> bool:
+    if left["event_date"] is None or right["event_date"] is None:
         return False
-    return abs(gauche["event_date"] - droite["event_date"]) <= DATE_TOLERANCE
+    return abs(left["event_date"] - right["event_date"]) <= DATE_TOLERANCE
 
 
-def _heat_slugs_conflict(gauche: dict, droite: dict) -> bool:
+def _heat_slugs_conflict(left: dict, right: dict) -> bool:
     """Les deux heat slugs sont-ils non vides et différents ? (#756, cas 1)
 
     Le cas Frenchkid Aquathlon : deux catégories du même événement, distinguées
@@ -265,12 +265,12 @@ def _heat_slugs_conflict(gauche: dict, droite: dict) -> bool:
     réellement : deux slugs non vides et différents signent deux catégories,
     jamais un doublon, quand bien même le nom et la date coïncident.
     """
-    gauche_heat = _heat_slug(gauche["source_url"])
-    droite_heat = _heat_slug(droite["source_url"])
-    return bool(gauche_heat) and bool(droite_heat) and gauche_heat != droite_heat
+    left_heat = _heat_slug(left["source_url"])
+    right_heat = _heat_slug(right["source_url"])
+    return bool(left_heat) and bool(right_heat) and left_heat != right_heat
 
 
-def _shared_event_id_guard(gauche: dict, droite: dict) -> bool:
+def _shared_event_id_guard(left: dict, right: dict) -> bool:
     """Deux façades distinctes, et le même heat. (#756, cas 2)
 
     Le host seul ne suffit pas : Audencia La Baule 2024 publie trois heats de
@@ -280,19 +280,19 @@ def _shared_event_id_guard(gauche: dict, droite: dict) -> bool:
     différente mais heat différent aussi. Le heat slug tranche : Nozéen, lui,
     porte le même heat (`duathlon-s---open`) des deux côtés.
     """
-    if not _facades_differ(gauche, droite):
+    if not _facades_differ(left, right):
         return False
-    return _heat_slug(gauche["source_url"]) == _heat_slug(droite["source_url"])
+    return _heat_slug(left["source_url"]) == _heat_slug(right["source_url"])
 
 
-def _close_names_guard(gauche: dict, droite: dict) -> bool:
+def _close_names_guard(left: dict, right: dict) -> bool:
     """La date rapproche, et le heat slug ne les distingue pas. (#756, cas 1)"""
-    if not _dates_are_close(gauche, droite):
+    if not _dates_are_close(left, right):
         return False
-    return not _heat_slugs_conflict(gauche, droite)
+    return not _heat_slugs_conflict(left, right)
 
 
-#: Les trois motifs à clé, du plus spécifique au plus lâche : `(code, clé, garde)`.
+#: Les trois motifs à clé, du plus spécifique au plus lâche : `(code, key_of, guard)`.
 #: L'ordre porte la priorité — une paire reconnue par deux motifs sort sous le
 #: premier. Ensemble **fermé** : trois formes observées, pas un moteur de règles.
 #: Le quatrième, « mêmes participants » (#910), passe en dernier, hors de cette
@@ -327,72 +327,74 @@ def find_candidates(db: Session) -> list[dict]:
     ce filtre, un faux positif vérifié une fois par un humain reviendrait à
     chaque rechargement de l'écran — c'est exactement ce que #754 corrige.
     """
-    generation = count_cache.generation
     courses = [
         {
-            "id": ligne.id,
-            "name": ligne.name,
-            "event_date": ligne.event_date,
-            "event_type": ligne.event_type,
-            "is_relay": ligne.is_relay,
-            "provider": ligne.provider,
-            "source_url": ligne.source_url,
-            "total": ligne.total,
-            "tcn_count": ligne.tcn_count,
-            "created_at": ligne.created_at,
+            "id": row.id,
+            "name": row.name,
+            "event_date": row.event_date,
+            "event_type": row.event_type,
+            "is_relay": row.is_relay,
+            "provider": row.provider,
+            "source_url": row.source_url,
+            "total": row.total,
+            "tcn_count": row.tcn_count,
+            "created_at": row.created_at,
         }
-        for ligne in course_repository.list_identities_with_counts(db)
+        for row in course_repository.list_identities_with_counts(db)
     ]
-    rangs = {course["id"]: rang for rang, course in enumerate(courses)}
-    ecartees = ignored_course_duplicate_repository.all_pairs(db)
+    ranks = {course["id"]: rank for rank, course in enumerate(courses)}
+    ignored_pairs = ignored_course_duplicate_repository.all_pairs(db)
 
-    motif_par_paire: dict[tuple[int, int], str] = {}
-    for code, cle, garde in _REASONS:
-        groupes: dict[tuple, list[dict]] = {}
+    reason_by_pair: dict[tuple[int, int], str] = {}
+    for code, key_of, guard in _REASONS:
+        groups: dict[tuple, list[dict]] = {}
         for course in courses:
-            if (valeur := cle(course)) is not None:
-                groupes.setdefault(valeur, []).append(course)
-        for groupe in groupes.values():
-            for gauche, droite in combinations(groupe, 2):
-                if garde is not None and not garde(gauche, droite):
+            if (key := key_of(course)) is not None:
+                groups.setdefault(key, []).append(course)
+        for group in groups.values():
+            for left, right in combinations(group, 2):
+                if guard is not None and not guard(left, right):
                     continue
-                paire = (gauche["id"], droite["id"])
-                if (min(paire), max(paire)) in ecartees:
+                pair = (left["id"], right["id"])
+                if (min(pair), max(pair)) in ignored_pairs:
                     continue
-                motif_par_paire.setdefault(paire, code)
+                reason_by_pair.setdefault(pair, code)
 
-    par_id = {course["id"]: course for course in courses}
-    for gauche_id, droite_id, partages in participation_repository.shared_finisher_counts(
+    by_id = {course["id"]: course for course in courses}
+    for left_id, right_id, shared in participation_repository.shared_finisher_counts(
         db, minimum=SAME_FINISHERS_MIN
     ):
-        gauche, droite = par_id.get(gauche_id), par_id.get(droite_id)
-        if gauche is None or droite is None or not _dates_are_close(gauche, droite):
+        left, right = by_id.get(left_id), by_id.get(right_id)
+        if left is None or right is None or not _dates_are_close(left, right):
             continue
-        if partages < SAME_FINISHERS_SHARE * min(gauche["total"], droite["total"]):
+        if shared < SAME_FINISHERS_SHARE * min(left["total"], right["total"]):
             continue
-        if (gauche_id, droite_id) in ecartees:
+        if (left_id, right_id) in ignored_pairs:
             continue
-        paire = tuple(sorted((gauche_id, droite_id), key=rangs.__getitem__))
-        if paire not in motif_par_paire and paire[::-1] not in motif_par_paire:
-            motif_par_paire[paire] = "same_finishers"
+        pair = tuple(sorted((left_id, right_id), key=ranks.__getitem__))
+        if pair not in reason_by_pair and pair[::-1] not in reason_by_pair:
+            reason_by_pair[pair] = "same_finishers"
 
-    candidates = [
+    return [
         {
             "reason": code,
             "reason_label": REASON_LABELS[code],
-            "courses": [par_id[gauche], par_id[droite]],
+            "courses": [by_id[left], by_id[right]],
         }
-        for (gauche, droite), code in sorted(
-            motif_par_paire.items(), key=lambda paire: (rangs[paire[0][0]], rangs[paire[0][1]])
+        for (left, right), code in sorted(
+            reason_by_pair.items(), key=lambda pair: (ranks[pair[0][0]], ranks[pair[0][1]])
         )
     ]
-    count_cache.set(len(candidates), generation)
-    return candidates
+
+
+def cached_candidates(db: Session) -> list[dict]:
+    """`find_candidates` gardé en mémoire : une détection par génération (#1384)."""
+    return candidates_cache.get(lambda: find_candidates(db))
 
 
 def count(db: Session) -> int:
-    """La taille de `find_candidates`, pour la pastille de la nav (#726)."""
-    return count_cache.get(lambda: len(find_candidates(db)))
+    """La taille de la liste, pour la pastille de la nav (#726)."""
+    return len(cached_candidates(db))
 
 
 def ignore_pair(db: Session, *, course_id_a: int, course_id_b: int, user_id: int) -> dict:
@@ -425,7 +427,7 @@ def ignore_pair(db: Session, *, course_id_a: int, course_id_b: int, user_id: int
     ):
         raise DuplicateError("Cette paire d'épreuves est déjà écartée.")
 
-    ignoree = ignored_course_duplicate_repository.create(
+    ignored = ignored_course_duplicate_repository.create(
         db, course_id_a=course_id_a, course_id_b=course_id_b, user_id=user_id
     )
     admin_action_log_repository.create(
@@ -442,7 +444,7 @@ def ignore_pair(db: Session, *, course_id_a: int, course_id_b: int, user_id: int
     return {
         "course_id_a": course_id_a,
         "course_id_b": course_id_b,
-        "ignored_at": ignoree.ignored_at,
+        "ignored_at": ignored.ignored_at,
     }
 
 

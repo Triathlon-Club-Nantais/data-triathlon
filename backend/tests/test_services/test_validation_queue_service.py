@@ -8,7 +8,7 @@ from app.services import validation_queue_service
 def test_build_history_vide_sans_aucune_donnee():
     donnees = ValidationQueueTimestamps(actionable_since=[], validated=[], rejected=[])
 
-    historique = validation_queue_service.build_history(donnees, aujourdhui=date(2026, 8, 26))
+    historique = validation_queue_service.build_history(donnees, today=date(2026, 8, 26))
 
     assert historique.backlog_by_day == []
     assert historique.average_resolution_seconds is None
@@ -19,7 +19,7 @@ def test_build_history_compte_une_entree_encore_actionnable_jusqu_a_aujourd_hui(
         actionable_since=[datetime(2026, 8, 24)], validated=[], rejected=[]
     )
 
-    historique = validation_queue_service.build_history(donnees, aujourdhui=date(2026, 8, 26))
+    historique = validation_queue_service.build_history(donnees, today=date(2026, 8, 26))
 
     jours = {p.date: p.pending_count for p in historique.backlog_by_day}
     assert jours == {date(2026, 8, 24): 1, date(2026, 8, 25): 1, date(2026, 8, 26): 1}
@@ -32,7 +32,7 @@ def test_build_history_une_entree_validee_ne_compte_plus_le_jour_de_sa_validatio
         rejected=[],
     )
 
-    historique = validation_queue_service.build_history(donnees, aujourdhui=date(2026, 8, 26))
+    historique = validation_queue_service.build_history(donnees, today=date(2026, 8, 26))
 
     jours = {p.date: p.pending_count for p in historique.backlog_by_day}
     assert jours[date(2026, 8, 20)] == 1
@@ -47,7 +47,7 @@ def test_build_history_validee_le_jour_meme_ne_contribue_aucun_jour():
         rejected=[],
     )
 
-    historique = validation_queue_service.build_history(donnees, aujourdhui=date(2026, 8, 26))
+    historique = validation_queue_service.build_history(donnees, today=date(2026, 8, 26))
 
     assert all(p.pending_count == 0 for p in historique.backlog_by_day)
 
@@ -59,7 +59,7 @@ def test_build_history_calcule_le_delai_moyen_sur_validees_et_rejetees():
         rejected=[(datetime(2026, 8, 21, 0, 0, 0), datetime(2026, 8, 21, 3, 0, 0))],  # 3h
     )
 
-    historique = validation_queue_service.build_history(donnees, aujourdhui=date(2026, 8, 26))
+    historique = validation_queue_service.build_history(donnees, today=date(2026, 8, 26))
 
     assert historique.average_resolution_seconds == 2 * 3600
 
@@ -68,7 +68,7 @@ def test_build_history_ignore_les_entrees_sans_timestamp_de_resolution():
     """Résolutions antérieures au déploiement de la colonne — pas d'antériorité reconstructible."""
     donnees = ValidationQueueTimestamps(actionable_since=[], validated=[], rejected=[])
 
-    historique = validation_queue_service.build_history(donnees, aujourdhui=date(2026, 8, 26))
+    historique = validation_queue_service.build_history(donnees, today=date(2026, 8, 26))
 
     assert historique.average_resolution_seconds is None
     assert historique.backlog_by_day == []

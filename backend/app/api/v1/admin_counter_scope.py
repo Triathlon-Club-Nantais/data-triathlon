@@ -28,6 +28,7 @@ from app.schemas.counter_scope import (
     CounterScopeOut,
     ScopeKind,
 )
+from app.schemas.ids import DbId
 from app.services import counter_scope
 
 router = APIRouter(tags=["admin"])
@@ -35,7 +36,7 @@ router = APIRouter(tags=["admin"])
 logger = logging.getLogger(__name__)
 
 
-def _recharger(db: Session) -> None:
+def _reload(db: Session) -> None:
     """Recharge le registre, **après** le commit, sans jamais faire échouer l'appel.
 
     L'écriture est déjà persistée quand on arrive ici : rendre 500 dirait à
@@ -49,7 +50,7 @@ def _recharger(db: Session) -> None:
         logger.warning("counter scope reload failed after write", exc_info=True)
 
 
-def _vue(entry: CounterScopeEntry) -> CounterScopeEntryOut:
+def _view(entry: CounterScopeEntry) -> CounterScopeEntryOut:
     return CounterScopeEntryOut(
         id=entry.id,
         value=entry.value,
@@ -73,8 +74,8 @@ def get_counter_scope(
     allers-retours pour une page."""
     entries = counter_scope_repository.list_entries(db, with_created_by=True)
     return CounterScopeOut(
-        disciplines=[_vue(e) for e in entries if e.kind == NON_FEDERAL_DISCIPLINE],
-        club_labels=[_vue(e) for e in entries if e.kind == CLUB_LABEL],
+        disciplines=[_view(e) for e in entries if e.kind == NON_FEDERAL_DISCIPLINE],
+        club_labels=[_view(e) for e in entries if e.kind == CLUB_LABEL],
     )
 
 
@@ -94,14 +95,14 @@ def add_counter_scope_entry(
         db, kind=kind.stored, value=body.value, admin_user_id=actor.id
     )
     db.commit()
-    _recharger(db)
-    return _vue(entry)
+    _reload(db)
+    return _view(entry)
 
 
 @router.delete("/admin/counter-scope/{kind}/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_counter_scope_entry(
     kind: ScopeKind,
-    entry_id: int,
+    entry_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.COUNTER_SCOPE_MANAGE)),
 ):
@@ -113,14 +114,14 @@ def remove_counter_scope_entry(
     """
     counter_scope.remove_entry(db, kind=kind.stored, entry_id=entry_id, admin_user_id=actor.id)
     db.commit()
-    _recharger(db)
+    _reload(db)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.patch("/admin/counter-scope/{kind}/{entry_id}", response_model=CounterScopeEntryOut)
 def set_counter_scope_entry_ambiguity(
     kind: ScopeKind,
-    entry_id: int,
+    entry_id: DbId,
     body: CounterScopeAmbiguityIn,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.COUNTER_SCOPE_MANAGE)),
@@ -132,6 +133,6 @@ def set_counter_scope_entry_ambiguity(
         db, entry_id=entry_id, ambiguous=body.ambiguous, user_id=actor.id
     )
     db.commit()
-    _recharger(db)
+    _reload(db)
     db.refresh(entry)
-    return _vue(entry)
+    return _view(entry)

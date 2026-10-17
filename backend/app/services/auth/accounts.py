@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import DomainError
 from app.models.user import SYSTEM_USER_EMAIL, User
 from app.repositories import user_repository
-from app.services import audit, benevole_access
+from app.services import audit, volunteer_access
 from app.services.auth import authorization
 
 logger = logging.getLogger(__name__)
@@ -55,12 +55,12 @@ def delete_account(db: Session, user: User, *, origin: Origin) -> None:
     entra_oids = [identity.subject for identity in user.identities if identity.provider == "entra"]
     # Point de reprise : un refus du dernier administrateur, levé après le flush,
     # ne laisse pas la suppression en attente dans la transaction de l'appelant.
-    with db.begin_nested(), authorization.administrateurs_preserves(db):
+    with db.begin_nested(), authorization.preserving_admins(db):
         user_repository.detach_optional_references(db, user_id)
         user_repository.delete(db, user)
     logger.info("Account deleted: user=%s origin=%s", user_id, origin)
     audit.record(
-        db, benevole_access.system_user_id(db), action="account.delete", entity_type="user", entity_id=user_id,
+        db, volunteer_access.system_user_id(db), action="account.delete", entity_type="user", entity_id=user_id,
         payload={"origin": origin, "entra_oids": entra_oids},
     )
 

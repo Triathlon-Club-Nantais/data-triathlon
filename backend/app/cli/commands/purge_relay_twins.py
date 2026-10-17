@@ -32,11 +32,11 @@ def purge_relay_twins(
         if not yes:
             courses = relay_twin_cleanup.find_superseded(db)
         else:
-            comptes = user_repository.find_by_email(db, by_email) if by_email else []
-            if not comptes:
+            accounts = user_repository.find_by_email(db, by_email) if by_email else []
+            if not accounts:
                 typer.echo("--yes exige --by-email, l'adresse d'un compte existant.", err=True)
                 raise typer.Exit(USAGE)
-            courses = relay_twin_cleanup.purge_superseded(db, user_id=comptes[0].id)
+            courses = relay_twin_cleanup.purge_superseded(db, user_id=accounts[0].id)
 
     rows = [
         {"course_id": c.course_id, "name": c.name, "source_url": c.source_url,

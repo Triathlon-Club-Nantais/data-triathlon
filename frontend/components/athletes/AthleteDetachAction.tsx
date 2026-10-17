@@ -8,6 +8,7 @@ import { useAthleteResults, useDetachParticipations } from "@/lib/queries/admin"
 import { useHydratedSession } from "@/lib/queries/auth";
 import type { Participation } from "@/lib/types";
 import { formatDate } from "@/lib/utils/date";
+import { motCompte, plural } from "@/lib/utils/format";
 
 /**
  * « Séparer des résultats » : plusieurs personnes du même nom partagent la fiche
@@ -60,7 +61,7 @@ export function AthleteDetachAction({
   // Avant la lecture différée, aucune liste : ni refus affiché, ni envoi possible.
   const ficheVidee = portes.length > 0 && nombre === portes.length;
   const envoiPossible = portes.length > 0 && nombre > 0 && !ficheVidee;
-  const libelle = `${nombre} résultat${nombre > 1 ? "s" : ""}`;
+  const libelle = motCompte(nombre, "résultat");
 
   function basculer(id: number) {
     setCoches((avant) => {
@@ -79,7 +80,7 @@ export function AthleteDetachAction({
   async function separer() {
     try {
       const nouvelle = await separation.mutateAsync({ athleteId, participationIds: [...coches] });
-      toast.success(`${libelle} séparé${nombre > 1 ? "s" : ""} vers une nouvelle fiche.`);
+      toast.success(`${libelle} ${plural(nombre, "séparé")} vers une nouvelle fiche.`);
       setConfirmation(false);
       fermer();
       router.refresh();

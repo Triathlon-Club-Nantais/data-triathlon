@@ -1,7 +1,7 @@
 """member emails (#1334)
 
 Revision ID: cf8130e7fb21
-Revises: 3c751af1cc83
+Revises: 38cb33b39849
 Create Date: 2026-10-11 16:15:52.797515
 """
 from typing import Sequence, Union
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 
 revision: str = 'cf8130e7fb21'
-down_revision: Union[str, None] = '3c751af1cc83'
+down_revision: Union[str, None] = '38cb33b39849'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

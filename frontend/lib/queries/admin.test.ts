@@ -350,18 +350,29 @@ describe("review screens seed their nav badge (#1352)", () => {
   });
 
   it("sets the identity count from the list it just loaded", async () => {
+    client.setQueryData(queryKeys.adminBadgeCounts(), { identities: 9, feedback: 1 });
     listIdentityReview.mockResolvedValue({ candidates: [{}, {}] });
     const { result } = renderHook(() => useIdentityReview(), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(client.getQueryData(queryKeys.identityReviewCount())).toEqual({ total: 2 });
+    expect(client.getQueryData(queryKeys.adminBadgeCounts())).toEqual({ identities: 2, feedback: 1 });
   });
 
   it("sets the duplicates count from the list it just loaded", async () => {
+    client.setQueryData(queryKeys.adminBadgeCounts(), { duplicates: 4 });
     listCourseDuplicates.mockResolvedValue({ candidates: [{}] });
     const { result } = renderHook(() => useCourseDuplicates(), { wrapper });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(client.getQueryData(queryKeys.courseDuplicatesCount())).toEqual({ total: 1 });
+    expect(client.getQueryData(queryKeys.adminBadgeCounts())).toEqual({ duplicates: 1 });
+  });
+
+  it("never adds a badge the server did not grant", async () => {
+    client.setQueryData(queryKeys.adminBadgeCounts(), { feedback: 1 });
+    listCourseDuplicates.mockResolvedValue({ candidates: [{}] });
+    const { result } = renderHook(() => useCourseDuplicates(), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    expect(client.getQueryData(queryKeys.adminBadgeCounts())).toEqual({ feedback: 1 });
   });
 });

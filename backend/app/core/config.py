@@ -119,6 +119,17 @@ class Settings(BaseSettings):
     feedback_rate_limit_max_per_window: int = 5
     feedback_rate_limit_window_seconds: int = 3600
 
+    # ── Adresse du client (#1533, `core/client_address.py`) ───────────────────
+    # Nombre d'entrées que la plateforme **ajoute** à droite de
+    # `X-Forwarded-For` : Cloudflare (l'IP qui s'est connectée à lui), son bord,
+    # le saut interne de Render. Mesuré sur la preview le 16/10/2026. 0 ignore
+    # l'en-tête ; une chaîne plus courte garde l'adresse de la socket.
+    trusted_proxy_count: int = 3
+    # Secret que `frontend/proxy.ts` joint aux appels `/api/*` du rewrite
+    # Vercel : sa présence seule autorise `X-Vercel-Forwarded-For`. Vide, les
+    # plafonds par IP ne tiennent pas par le front (IP de sortie Vercel tournante).
+    frontend_proxy_secret: str | None = None
+
     # ── Import d'épreuve (#395) ───────────────────────────────────────────────
     # Plafond par IP des deux routes de scraping, **seau commun** (api/deps.py).
     # 10 imports par heure : au-delà du besoin d'un visiteur qui colle une URL,

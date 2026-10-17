@@ -7,6 +7,7 @@ import type {
   ChallengeDetail,
   AthleteSeasonActivity,
   AuthMethod,
+  ClubBestTime,
   ClubSummary,
   CourseDetail,
   CourseQuery,
@@ -69,6 +70,13 @@ function cookieHeader(jar: Awaited<ReturnType<typeof cookies>>): string {
 const SITE_SESSION_COOKIE = "tcn_site_session";
 
 /**
+ * Cookie de l'espace bénévoles, miroir de `volunteer_access.VOLUNTEER_SESSION_COOKIE`.
+ * Les saisies en attente ne sont rendues qu'à son porteur (#1519) : sans lui, un
+ * bénévole ne les verrait plus sur la fiche ni sur l'épreuve.
+ */
+const VOLUNTEER_SESSION_COOKIE = "tcn_benevole_session";
+
+/**
  * Cookie de session SSO (`SESSION_COOKIE` de `app/api/v1/auth.py`), préfixé
  * `__Host-` quand `AUTH_COOKIE_SECURE` est vrai (production).
  */
@@ -77,14 +85,14 @@ const SSO_SESSION_COOKIES = ["tcn_session", "__Host-tcn_session"];
 /**
  * En-tête `cookie` **minimal** relayé par `serverFetch` (#586) : seuls
  * `SITE_SESSION_COOKIE` et la session SSO conditionnent l'accès aux routes
- * qu'elle sert (`require_site_access`, backend — `athletes`, `courses`,
- * `participations`, `stats`) ; aucune ne lit `tcn_benevole_session`, un
- * cookie PostHog ni `NAV_WIDTH_COOKIE`. La session SSO s'y est ajoutée avec
- * #1322 : une session d'adhérent dispense du code d'accès, et sans elle un
- * adhérent connecté recevait un 401 au rendu serveur de chaque page. Elle ne
- * dégrade pas le partage du Data Cache : le cookie de site est déjà unique
- * par visiteur (horodatage signé, ci-dessous), donc aucun partage
- * inter-visiteurs n'existait à perdre. Un allowlist plutôt que l'exclusion de
+ * qu'elle sert (`require_site_access`, backend : `athletes`, `courses`,
+ * `participations`, `stats`), et `VOLUNTEER_SESSION_COOKIE` ce qu'elles
+ * rendent des saisies en attente (#1519) ; aucune ne lit un cookie PostHog
+ * ni `NAV_WIDTH_COOKIE`. La session SSO s'y est ajoutée avec #1322 : une
+ * session d'adhérent dispense du code d'accès, et sans elle un adhérent
+ * connecté recevait un 401 au rendu serveur de chaque page. Elle ne dégrade
+ * pas le partage du Data Cache : le cookie de site est déjà unique par
+ * visiteur (horodatage signé, ci-dessous). Un allowlist plutôt que l'exclusion de
  * `cookieHeader` : la liste de ce qu'une route *ignore* grandit à chaque
  * cookie ajouté au front (SSO, consentement, analytics…), celle de ce dont
  * elle a *besoin* ne bouge que si le backend change de garde.
@@ -105,10 +113,11 @@ const SSO_SESSION_COOKIES = ["tcn_session", "__Host-tcn_session"];
  * production.
  */
 function siteAccessCookieHeader(jar: Awaited<ReturnType<typeof cookies>>): string {
-  return [SITE_SESSION_COOKIE, ...SSO_SESSION_COOKIES]
-    .map((name) => jar.get(name))
-    .filter((cookie) => cookie !== undefined)
-    .map((cookie) => `${cookie.name}=${cookie.value}`)
+  return [SITE_SESSION_COOKIE, VOLUNTEER_SESSION_COOKIE, ...SSO_SESSION_COOKIES]
+    .flatMap((name) => {
+      const cookie = jar.get(name);
+      return cookie ? [`${name}=${cookie.value}`] : [];
+    })
     .join("; ");
 }
 
@@ -265,6 +274,11 @@ export const apiServer = {
     opts: { federal_only?: boolean; podiums?: "preview" } = {},
     fetchOpts: FetchOpts = {},
   ) => serverFetch<ClubSummary>(`/club/summary${toQuery(opts)}`, fetchOpts),
+  /** Meilleur temps du club par format calibré et genre (#1588) ; sans `season`, toutes saisons. */
+  getClubBestTimes: (
+    opts: { season?: number; federal_only?: boolean } = {},
+    fetchOpts: FetchOpts = {},
+  ) => serverFetch<ClubBestTime[]>(`/club/best-times${toQuery(opts)}`, fetchOpts),
   listSeasons: (opts: { scope?: string; federal_only?: boolean } = {}, fetchOpts: FetchOpts = {}) =>
     serverFetch<Season[]>(`/stats/seasons${toQuery(opts)}`, fetchOpts),
   /** Session du visiteur, ou `null` s'il est anonyme (#114). */

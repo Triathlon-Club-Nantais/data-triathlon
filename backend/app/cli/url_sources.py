@@ -6,7 +6,7 @@ pour justifier un module à part, minuscule et testable isolément.
 
 Toute saisie invalide est rejetée par `typer.BadParameter` : message + usage sur
 stderr, code de sortie 2 (convention Click), arrêt **avant** l'ouverture de la
-Session. Même raisonnement que `valider_provider`.
+Session. Même raisonnement que `validate_provider`.
 """
 import click
 import typer
@@ -14,35 +14,35 @@ import typer
 from app.services import sheet_source
 
 
-def _lignes_du_fichier(chemin: str) -> list[str]:
-    """Lit `chemin`, ou **stdin** si `chemin` vaut `-`.
+def _file_lines(path: str) -> list[str]:
+    """Lit `path`, ou **stdin** si `path` vaut `-`.
 
     `click.open_file` gère nativement le tiret = stdin et, avec
     `encoding="utf-8-sig"`, retire un BOM en tête (export Notepad/Excel
     Windows) — fichier comme stdin —, sans rien changer sur une entrée sans BOM.
     """
     try:
-        with click.open_file(chemin, encoding="utf-8-sig") as f:
+        with click.open_file(path, encoding="utf-8-sig") as f:
             return f.read().splitlines()
     except UnicodeDecodeError as exc:
         # Hérite de ValueError, pas de OSError (pas de `strerror`) : bloc à part,
         # avec un message qui pointe l'encodage plutôt que de laisser filer une
         # trace Python brute.
         raise typer.BadParameter(
-            f"fichier d'URLs illisible : « {chemin} » n'est pas encodé en UTF-8 ({exc})."
+            f"fichier d'URLs illisible : « {path} » n'est pas encodé en UTF-8 ({exc})."
         ) from exc
     except OSError as exc:
         raise typer.BadParameter(
-            f"fichier d'URLs illisible : « {chemin} » ({exc.strerror})."
+            f"fichier d'URLs illisible : « {path} » ({exc.strerror})."
         ) from exc
 
 
-def _valider_ligne(ligne: str, origine: str) -> None:
-    if not ligne.startswith(("http://", "https://")):
-        raise typer.BadParameter(f"{origine} n'est pas une URL http(s) : « {ligne} ».")
+def _validate_line(line: str, origin: str) -> None:
+    if not line.startswith(("http://", "https://")):
+        raise typer.BadParameter(f"{origin} n'est pas une URL http(s) : « {line} ».")
 
 
-def charger_urls(urls: list[str] | None, urls_from: str | None) -> list[str] | None:
+def load_urls(urls: list[str] | None, urls_from: str | None) -> list[str] | None:
     """Concatène les `--url` répétés puis le contenu de `--urls-from`.
 
     Renvoie `None` quand **aucun** ciblage n'a été demandé — à distinguer d'une
@@ -67,24 +67,24 @@ def charger_urls(urls: list[str] | None, urls_from: str | None) -> list[str] | N
     if not urls and urls_from is None:
         return None
 
-    collectees: list[str] = []
-    for valeur in urls:
-        ligne = valeur.strip()
-        _valider_ligne(ligne, "--url")
-        collectees.append(ligne)
+    collected: list[str] = []
+    for value in urls:
+        line = value.strip()
+        _validate_line(line, "--url")
+        collected.append(line)
 
     if urls_from is not None:
-        for numero, brute in enumerate(_lignes_du_fichier(urls_from), start=1):
-            ligne = brute.strip()
-            if not ligne or ligne.startswith("#"):
+        for line_number, raw in enumerate(_file_lines(urls_from), start=1):
+            line = raw.strip()
+            if not line or line.startswith("#"):
                 continue
-            _valider_ligne(ligne, f"--urls-from, ligne {numero}")
-            collectees.append(ligne)
+            _validate_line(line, f"--urls-from, ligne {line_number}")
+            collected.append(line)
 
-    return sheet_source.dedupe_links(collectees)
+    return sheet_source.dedupe_links(collected)
 
 
-def valider_single_heat(
+def validate_single_heat(
     *, single_heat: bool, url: list[str], urls_from: str | None,
     provider: str | None, older_than: int | None,
 ) -> None:
@@ -94,7 +94,7 @@ def valider_single_heat(
     URLs explicites (obligatoirement porteuses de `?heat=X` — la validation
     d'URL individuelle est différée à l'import lui-même). Elle ne se combine
     pas à `--provider` / `--older-than` (filtres de base), pour la même raison
-    que `valider_ciblage_exclusif` : ce sont deux modes disjoints.
+    que `validate_exclusive_targeting` : ce sont deux modes disjoints.
     """
     if not single_heat:
         return
@@ -103,14 +103,14 @@ def valider_single_heat(
             "--single-heat exige --url (ou --urls-from) avec un paramètre ?heat= : "
             "c'est une échappatoire ciblée, pas un mode de filtrage de la base."
         )
-    incompatibles = [
+    conflicting = [
         f for f, cond in (("--provider", provider is not None),
                           ("--older-than", older_than is not None))
         if cond
     ]
-    if incompatibles:
+    if conflicting:
         raise typer.BadParameter(
-            f"--single-heat est exclusif de {' et '.join(incompatibles)} : "
+            f"--single-heat est exclusif de {' et '.join(conflicting)} : "
             "l'échappatoire ne cible que des URLs explicites."
         )
     for u in url:
@@ -120,7 +120,7 @@ def valider_single_heat(
             )
 
 
-def valider_ciblage_exclusif(
+def validate_exclusive_targeting(
     *, url: list[str], urls_from: str | None, provider: str | None, older_than: int | None
 ) -> None:
     """Refuse un ciblage par URL combiné à `--provider` ou `--older-than`.
@@ -132,10 +132,10 @@ def valider_ciblage_exclusif(
     ET dont personne ne peut prédire le résultat.
 
     Prend les paramètres **bruts** de la commande (`url`, `urls_from`), pas le
-    résultat de `charger_urls` : un ciblage est demandé dès que `--url` est
+    résultat de `load_urls` : un ciblage est demandé dès que `--url` est
     non vide ou `--urls-from` est renseigné, sans avoir besoin de lire quoi
     que ce soit (fichier ou stdin) pour le savoir. C'est ce qui permet
-    d'appeler cette validation **avant** `charger_urls` — sinon
+    d'appeler cette validation **avant** `load_urls` — sinon
     `--urls-from -` combiné à une option incompatible bloquerait en attente
     d'une saisie stdin qui sera de toute façon rejetée.
 
@@ -144,13 +144,13 @@ def valider_ciblage_exclusif(
     """
     if not url and urls_from is None:
         return
-    incompatibles = []
+    conflicting = []
     if provider is not None:
-        incompatibles.append("--provider")
+        conflicting.append("--provider")
     if older_than is not None:
-        incompatibles.append("--older-than")
-    if incompatibles:
+        conflicting.append("--older-than")
+    if conflicting:
         raise typer.BadParameter(
-            f"--url / --urls-from est exclusif de {' et '.join(incompatibles)} : "
+            f"--url / --urls-from est exclusif de {' et '.join(conflicting)} : "
             "ce sont deux modes de sélection, pas des filtres à composer."
         )

@@ -4,15 +4,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { SessionUser } from "@/lib/types";
 
-const { getSession, countFeedback, countIdentityReview } = vi.hoisted(() => ({
+const { getSession, getAdminBadgeCounts, getProviderQuality } = vi.hoisted(() => ({
   getSession: vi.fn(),
-  countFeedback: vi.fn(),
-  countIdentityReview: vi.fn(),
+  getAdminBadgeCounts: vi.fn(),
+  getProviderQuality: vi.fn(),
 }));
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { getSession, countFeedback, countIdentityReview } };
+  return { ...original, apiClient: { getSession, getAdminBadgeCounts, getProviderQuality } };
 });
 
 import { AdminIndex } from "./AdminIndex";
@@ -24,8 +24,11 @@ const SESSION = (permissions: string[]): SessionUser =>
     display_name: "Bénévole",
     roles: [],
     permissions,
-    // Miroir du marqueur du catalogue backend (#1109) : seul `pages:preview` consulte.
-    can_administer: permissions.some((code) => code !== "pages:preview"),
+    // Miroir du catalogue backend (#1109, #1297) : `pages:preview` consulte, les
+    // pouvoirs de supervision (jeunes, validation des crédits) ne comptent pas.
+    can_administer: permissions.some(
+      (code) => !["pages:preview", "jeunes:read", "jeunes:write", "athletes:volunteer_validate"].includes(code),
+    ),
   }) as unknown as SessionUser;
 
 function afficher() {
@@ -39,11 +42,30 @@ function afficher() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  countFeedback.mockResolvedValue({ nouveau: 0 });
-  countIdentityReview.mockResolvedValue({ total: 0 });
+  getAdminBadgeCounts.mockResolvedValue({ feedback: 0, identities: 0 });
+  getProviderQuality.mockResolvedValue([]);
 });
 
 describe("AdminIndex", () => {
+  it("montre la fiabilité par fournisseur au porteur de `quality:override` (#1366)", async () => {
+    getSession.mockResolvedValue(SESSION(["quality:override"]));
+    afficher();
+
+    expect(
+      await screen.findByRole("heading", { name: "Fiabilité par fournisseur" }),
+    ).toBeInTheDocument();
+    expect(getProviderQuality).toHaveBeenCalled();
+  });
+
+  it("tait la fiabilité par fournisseur sans `quality:override`", async () => {
+    getSession.mockResolvedValue(SESSION(["feedback:read"]));
+    afficher();
+
+    await screen.findByRole("link", { name: /Retours utilisateurs/ });
+    expect(screen.queryByRole("heading", { name: "Fiabilité par fournisseur" })).toBeNull();
+    expect(getProviderQuality).not.toHaveBeenCalled();
+  });
+
   it("désambiguïse les écrans aux noms proches par leur phrase", async () => {
     // Le motif d'ADM-6 : « Groupes d'appartenance » et « Droits des rôles » ne
     // se distinguent pas par leur libellé pour un bénévole non formé.
@@ -104,7 +126,7 @@ describe("AdminIndex", () => {
 
 describe("AdminIndex: work queues first (#1246)", () => {
   it("puts first the queues open to the session, with their count and link", async () => {
-    countFeedback.mockResolvedValue({ nouveau: 3 });
+    getAdminBadgeCounts.mockResolvedValue({ feedback: 3, identities: 0 });
     getSession.mockResolvedValue(SESSION(["feedback:read", "athletes:write", "admin_log:read"]));
     afficher();
 
@@ -117,7 +139,7 @@ describe("AdminIndex: work queues first (#1246)", () => {
   });
 
   it("shows a discreet ellipsis while a counter loads", async () => {
-    countFeedback.mockReturnValue(new Promise(() => {}));
+    getAdminBadgeCounts.mockReturnValue(new Promise(() => {}));
     getSession.mockResolvedValue(SESSION(["feedback:read"]));
     afficher();
 

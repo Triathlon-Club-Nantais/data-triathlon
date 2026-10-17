@@ -167,7 +167,7 @@ Cinq points à ne pas défaire :
   a le droit de donner. Elle se pose **avant** la résolution du rôle : sinon le
   couple 404/201 balaie le catalogue pour qui n'a même pas `roles:read`.
 - **L'invariant du dernier administrateur est celui de #115, réutilisé.**
-  `remove()` s'exécute dans `authorization.administrateurs_preserves(db)`, sans
+  `remove()` s'exécute dans `authorization.preserving_admins(db)`, sans
   argument d'organisation. La règle qui vient à l'esprit — « on ne retire pas sa
   propre adresse » — est trop stricte (un administrateur qui part, alors qu'un
   autre reste, en a le droit) et trop laxiste (retirer *l'autre* verrouille tout

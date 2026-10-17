@@ -141,6 +141,30 @@ def test_event_id_depuis_la_facade_chronoconsult():
     assert raceresult._resolve_event_id(url, client) == "399938"
 
 
+def test_facade_redirigee_vers_la_liste_du_chronometreur():
+    """#1579 : chronoconsult.fr a renvoyé un temps toutes ses pages en 302 vers
+    `my.raceresult.com/timers/946/`, la liste des épreuves du chronométreur. Le
+    946 du path est l'id du chronométreur, pas celui d'une épreuve : il ne doit
+    surtout pas être lu comme eventId."""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "chronoconsult.fr":
+            return httpx.Response(
+                302, headers={"location": "https://my.raceresult.com/timers/946/"}
+            )
+        return httpx.Response(200, text="<title>Chrono Consult : : my.raceresult</title>")
+
+    url = "https://chronoconsult.fr/result/2026-24h-roller-le-mans/"
+    with httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True) as client:
+        with pytest.raises(ValueError) as excinfo:
+            raceresult._resolve_event_id(url, client)
+
+    message = str(excinfo.value)
+    assert "renvoie vers RaceResult" in message
+    assert "my.raceresult.com/timers/946/" in message
+    assert "my.raceresult.com/<id>/" in message
+    assert url in message
+
+
 def test_event_id_depuis_la_facade_espace_competition():
     """C-D, second volet : espace-competition.com sert l'identifiant NU, quand
     chronoconsult.fr le sert entre guillemets. Les deux fixtures sont des
@@ -384,7 +408,7 @@ def _nidifier_if_status(n: int, coeur: str = "[Vélo]") -> str:
     """`n` enveloppes `if([STATUS]<>2;…)` autour de `coeur` — la forme réelle
     de production (contrairement à un `if(1;…)` littéral, dont la condition ne
     comporte aucun opérateur de comparaison et n'exerce donc jamais
-    `_RE_COMPARAISON`)."""
+    `_RE_COMPARISON`)."""
     s = coeur
     for _ in range(n):
         s = f"if([STATUS]<>2;{s})"
@@ -395,7 +419,7 @@ def test_peel_converge_au_dela_des_niveaux_observes_en_production():
     """Le point fixe (pas le repli `max(len)`) résout une imbrication plus
     profonde que celle observée en production (2 niveaux) : chaque enveloppe
     porte une vraie condition `[STATUS]<>2`, donc chaque tour élimine le terme
-    qui compare via `_RE_COMPARAISON` — pas via la longueur."""
+    qui compare via `_RE_COMPARISON` — pas via la longueur."""
     expr = _nidifier_if_status(4)
     assert raceresult._peel(expr) == "velo"
 
@@ -479,7 +503,7 @@ def test_strip_rank_suffix(brut, attendu):
 def test_strip_rank_suffix_segment(brut, attendu):
     """#84 — variante permissive pour les cellules de segment : décolle le rang
     même sans point (`(2)`). Sûr car le pipeline segment qualifie ensuite par
-    `_RE_DUREE`, filet qui n'existe pas pour le texte libre (§12.2)."""
+    `_RE_DURATION`, filet qui n'existe pas pour le texte libre (§12.2)."""
     assert raceresult._strip_rank_suffix_segment(brut) == attendu
 
 
@@ -728,7 +752,7 @@ def test_role_du_vocabulaire_reel(expr, role):
 # `Finish.CHIP` : constaté sur l'épreuve 380823 (Bike & Run de Pontcharra),
 # dont les 58 participants perdaient leur `total_time` faute de rôle reconnu
 # pour `Finish.GUN`. Plutôt que trois entrées de plus (qui échoueraient en
-# silence sur la prochaine variante non relevée), `_RE_TEMPS_SUFFIXE` généralise
+# silence sur la prochaine variante non relevée), `_RE_TIME_SUFFIX` généralise
 # par la forme : préfixe fermé (`temps`/`arrivee`/`finish`) + suffixe fermé
 # (`.gun`/`.chip`/`.text`). Les cas ci-dessous couvrent les deux sens du
 # balancier qui a fait échouer C1 deux fois : la reconnaissance ET sa
@@ -738,12 +762,12 @@ def test_role_du_vocabulaire_reel(expr, role):
 # La racine `finishresult` ajoutée par C1 ne fait **pas** partie de ce préfixe :
 # le suffixe y étant mutualisé, elle y aurait aussi rendu reconnus
 # `finishresult.gun`/`.chip`, jamais observés et de priorité haute. Elle vit
-# dans sa propre constante appariée à `.text` (`_RE_TEMPS_RESULTAT_TEXTE`), ce
+# dans sa propre constante appariée à `.text` (`_RE_FINISH_RESULT_TEXT`), ce
 # qui est précisément ce que vérifient les cas négatifs `FinishResult.GUN` /
 # `FinishResult.CHIP` plus bas.
 
 @pytest.mark.parametrize("expr,role", [
-    # Positif : les trois préfixes de `_RE_TEMPS_SUFFIXE` croisés avec ses trois
+    # Positif : les trois préfixes de `_RE_TIME_SUFFIX` croisés avec ses trois
     # suffixes — dont les variantes qui ne sont apparues sur aucune épreuve du
     # panel mais que la forme couvre. `.text` reçoit un rôle distinct
     # (`temps_texte`, pas `temps`) : cf.
@@ -760,7 +784,7 @@ def test_role_du_vocabulaire_reel(expr, role):
     ("Arrivée.CHIP", "temps"),
     ("Arrivée.TEXT", "temps_texte"),
     # `FinishResult` (C1) : racine distincte, **appariée à son seul suffixe**
-    # `.text` (`_RE_TEMPS_RESULTAT_TEXTE`), donc au rôle le plus faible. Un
+    # `.text` (`_RE_FINISH_RESULT_TEXT`), donc au rôle le plus faible. Un
     # chip ou un gun publié par la même liste continue de primer.
     ("FinishResult.TEXT", "temps_texte"),
     # `Temps` nu (Important 1 de la revue C4) : la table d'égalités exactes
@@ -776,7 +800,7 @@ def test_role_regle_de_forme_temps_gun_chip_text(expr, role):
 
 @pytest.mark.parametrize("expr", [
     # Mineur 3 de la revue C1 : la racine `finishresult` est appariée au seul
-    # suffixe `.text`. Le suffixe de `_RE_TEMPS_SUFFIXE` étant mutualisé, une
+    # suffixe `.text`. Le suffixe de `_RE_TIME_SUFFIX` étant mutualisé, une
     # quatrième entrée dans son préfixe aurait aussi reconnu ces deux formes —
     # et leur aurait donné une priorité **haute**, alors qu'aucune n'a jamais
     # été observée. Les rejeter rend la propriété de sûreté de C1 (« la racine
@@ -814,9 +838,9 @@ def test_map_columns_reconnait_finish_gun_seul():
 
     Ce test porte un **second** invariant, à ne pas retirer en le croyant
     accessoire (M15/M13) : `assert "Finish.OVERALL.GapTop" in extras` verrouille
-    l'exclusion du point de `_RE_TOKEN_SIMPLE`. `Finish.OVERALL.GapTop` n'obtient
+    l'exclusion du point de `_RE_SIMPLE_TOKEN`. `Finish.OVERALL.GapTop` n'obtient
     aucun rôle (`_role` ne couvre que le suffixe `.p`) et sa valeur n'est jamais
-    qualifiée par `_RE_DUREE`, qui n'intervient qu'en aval sur les segments
+    qualifiée par `_RE_DURATION`, qui n'intervient qu'en aval sur les segments
     retenus : c'est le point exclu du motif, et lui seul, qui garde cette
     expression qualifiée en extras plutôt que candidate au rôle de segment —
     où elle disparaîtrait de `raw_data` au lieu d'y être conservée."""
@@ -901,7 +925,7 @@ def test_build_result_un_statut_texte_ne_devient_pas_un_total_time(cellule):
     ne la reconnaît pas (`utils.py`, `return s  # return as-is if
     unrecognized`) — et la ligne serait ensuite marquée `finisher`.
 
-    Le repli `.text` est donc qualifié par `_RE_DUREE`, comme les segments.
+    Le repli `.text` est donc qualifié par `_RE_DURATION`, comme les segments.
     """
     payload = {
         "DataFields": ["BIB", "ID", "FinishResult.TEXT"],
@@ -922,11 +946,11 @@ def test_build_result_un_statut_texte_ne_devient_pas_un_total_time(cellule):
 
 
 def test_build_result_une_colonne_horloge_traverse_sans_garde_de_duree():
-    """L'autre sens : la qualification `_RE_DUREE` ne vaut que pour `.text`.
+    """L'autre sens : la qualification `_RE_DURATION` ne vaut que pour `.text`.
 
     Une colonne d'horloge (`temps`, ou le pistolet déjà promu) ne rend qu'une
     durée ou rien, et doit traverser **y compris** dans les formats que
-    `_RE_DUREE` ne couvre pas mais que `normalize_time` sait lire. Étendre la
+    `_RE_DURATION` ne couvre pas mais que `normalize_time` sait lire. Étendre la
     garde à toutes les colonnes de temps ferait perdre ces formats-là.
     """
     payload = {
@@ -942,7 +966,7 @@ def test_build_result_une_colonne_horloge_traverse_sans_garde_de_duree():
         contest_label="C", status_label="",
     )
 
-    assert not raceresult._RE_DUREE.match("1h23'45"), "prémisse : _RE_DUREE la rejette"
+    assert not raceresult._RE_DURATION.match("1h23'45"), "prémisse : _RE_DURATION la rejette"
     assert r.total_time == "01:23:45"
 
 
@@ -956,7 +980,7 @@ def test_build_result_un_statut_dans_le_role_temps_ne_devient_pas_un_total_time(
     cellule porte « le rang **ou le statut** » — un libellé de statut pouvait
     donc partir en `total_time` comme un chrono, puis la ligne être marquée
     `finisher`. La garde est « `normalize_time` a reconnu la valeur », non
-    `_RE_DUREE` (cf. le test voisin : ce dernier rejette `1h23'45`).
+    `_RE_DURATION` (cf. le test voisin : ce dernier rejette `1h23'45`).
     """
     payload = {
         "DataFields": ["BIB", "ID", "OuStatut([Temps])"],
@@ -1074,7 +1098,7 @@ def test_map_columns_retient_le_texte_faute_de_chip_et_de_gun():
 def test_split_profondeur_ignore_les_separateurs_imbriques():
     """Une découpe naïve sur `;` coupe à l'intérieur du `switch(...)` interne et
     fait perdre la colonne : `if(a;switch(b;c);d)` a TROIS termes, pas quatre."""
-    assert raceresult._split_profondeur(
+    assert raceresult._split_top_level(
         "[Relais]=1;switch([X]=1;[A];[B]);[AfficherNom]", ";"
     ) == ["[Relais]=1", "switch([X]=1;[A];[B])", "[AfficherNom]"]
 
@@ -1134,7 +1158,7 @@ def test_map_columns_exclut_customflag_de_406211():
     Sur l'event 406211, sa colonne est étiquetée `{FR:Nat.|EN:Team}`, soit
     « Nat. » une fois l'i18n retiré (I1) : **indiscernable de « Natation »**, à
     laquelle elle est ici juxtaposée. `peel('CustomFlag') == 'customflag'`
-    passait `_RE_TOKEN_SIMPLE` ; le faux positif n'était neutralisé que parce que
+    passait `_RE_SIMPLE_TOKEN` ; le faux positif n'était neutralisé que parce que
     la valeur `[img:…]` est effacée par `_clean_cell`, donc falsy — par accident
     et non par conception.
 
@@ -1186,7 +1210,7 @@ def test_colonne_exclue_reconnait_les_colonnes_d_agrement(expr):
     """I3 — les cinq formes que le §6 du sondage demandait d'exclure, dans les
     graphies réellement relevées sur le panel (`LienPhotos`, `Lienphotos` et
     `[LienPhotos]` coexistent)."""
-    assert raceresult._colonne_exclue(raceresult._peel(expr)) is True
+    assert raceresult._is_excluded_column(raceresult._peel(expr)) is True
 
 
 @pytest.mark.parametrize("expr", [
@@ -1195,7 +1219,7 @@ def test_colonne_exclue_reconnait_les_colonnes_d_agrement(expr):
     "Transition1", "[Transition_2]",
     # Une liste d'exclusion doit aussi **laisser passer** ce qui n'y figure pas :
     # ces colonnes restent candidates et continuent d'être arbitrées sur la
-    # forme de leurs valeurs (`_RE_DUREE`), comme avant.
+    # forme de leurs valeurs (`_RE_DURATION`), comme avant.
     "TIME19", "DistanceTotale", "Speed", "Year", "License",
     # Voisinages lexicaux : ni un préfixe ni un fragment ne doit suffire.
     "Flag", "Photos", "Icone", "GapTimeTopSplit", "Nation", "CustomFlagTime",
@@ -1208,7 +1232,7 @@ def test_colonne_exclue_laisse_passer_le_reste(expr):
     précision, une liste d'exclusion mord sur des colonnes légitimes, ce qui est
     le symétrique — et le plus coûteux — du faux positif qu'elle corrige.
     """
-    assert raceresult._colonne_exclue(raceresult._peel(expr)) is False
+    assert raceresult._is_excluded_column(raceresult._peel(expr)) is False
 
 
 def test_build_result_ecarte_les_colonnes_qui_ne_sont_pas_des_durees():
@@ -1240,7 +1264,7 @@ def test_build_result_recupere_les_segments_malgre_la_concatenation_imbriquee():
     du Lac d'Annecy, liste Individuel, athlète GOUAULT Pierre) : avant
     correctif, `_peel` s'arrêtait à `[Vélo] & " (" & [Vélo.OVERALL.P] & ")"`
     (composée, donc non reconnue comme segment) ET la valeur brute portait un
-    rang collé (`"2:08:00 (1.)"`) que `_RE_DUREE` rejetait. Les deux causes
+    rang collé (`"2:08:00 (1.)"`) que `_RE_DURATION` rejetait. Les deux causes
     devaient être corrigées pour que ce split réapparaisse."""
     payload = {
         "DataFields": [
@@ -1289,7 +1313,7 @@ def test_build_result_decolle_le_rang_suffixe_dune_valeur_de_segment():
     l'expression `[Vélo] & " (" & [Vélo.OVERALL.P] & ")"` pèle déjà
     correctement — `Vélo` est bien reconnu segment — mais seule la VALEUR
     porte le rang collé (`"2:08:00 (1.)"`), qui faisait rejeter la cellule par
-    `_RE_DUREE`."""
+    `_RE_DURATION`."""
     expr = '[Vélo] & " (" & [Vélo.OVERALL.P] & ")"'
     payload = {
         "DataFields": ["BIB", "ID", expr],
@@ -1310,7 +1334,7 @@ def test_build_result_decolle_le_rang_suffixe_dune_valeur_de_segment():
 def test_build_result_recupere_un_segment_au_rang_suffixe_sans_point():
     """#84, cœur du correctif : une cellule de segment portant un rang SANS
     point (`'2:05:29 (2)'`, forme InterSemi des finishers 410891) est décollée
-    par la variante permissive puis qualifiée par `_RE_DUREE` — le split est
+    par la variante permissive puis qualifiée par `_RE_DURATION` — le split est
     récupéré, là où la variante stricte le laissait rejeter."""
     expr = '[Vélo] & " (" & [Vélo.OVERALL.P] & ")"'
     payload = {
@@ -1330,7 +1354,7 @@ def test_build_result_recupere_un_segment_au_rang_suffixe_sans_point():
 
 def test_build_result_permissif_segment_reste_garde_par_re_duree():
     """Filet de sûreté du permissif : décoller `(2)` d'un contenu non-durée
-    (`'TCN (2)'`) donne `'TCN'`, rejeté par `_RE_DUREE` — aucun faux split.
+    (`'TCN (2)'`) donne `'TCN'`, rejeté par `_RE_DURATION` — aucun faux split.
     C'est ce qui rend le permissif sans danger sur les segments, à la
     différence du texte libre (§12.2)."""
     expr = '[Vélo] & " (" & [Vélo.OVERALL.P] & ")"'
@@ -1458,7 +1482,7 @@ def test_iter_groups_niveau_0_statut_absent_des_contests_devient_statut():
     data = {"#2_Abandons": [["7", "1", "x"]]}
 
     assert raceresult._iter_groups(
-        data, contests_connus=frozenset({"distance m"})
+        data, known_contests=frozenset({"distance m"})
     ) == [("", "Abandons", "", [["7", "1", "x"]])]
 
 
@@ -1469,18 +1493,18 @@ def test_iter_groups_niveau_0_statut_present_dans_contests_reste_contest():
     data = {"#1_Abandons": [["7", "1", "x"]]}
 
     assert raceresult._iter_groups(
-        data, contests_connus=frozenset({"abandons"})
+        data, known_contests=frozenset({"abandons"})
     ) == [("Abandons", "", "", [["7", "1", "x"]])]
 
 
 def test_iter_groups_niveau_0_libelle_neutre_reste_contest():
     """Un libellé de niveau 0 non reconnu comme statut reste un contest, avec ou
-    sans `contests_connus` : la garde ne touche que le vocabulaire de statut."""
+    sans `known_contests` : la garde ne touche que le vocabulaire de statut."""
     data = {"#1_Distance M": [["7", "1", "x"]]}
 
     assert raceresult._iter_groups(data) == [("Distance M", "", "", [["7", "1", "x"]])]
     assert raceresult._iter_groups(
-        data, contests_connus=frozenset({"distance m"})
+        data, known_contests=frozenset({"distance m"})
     ) == [("Distance M", "", "", [["7", "1", "x"]])]
 
 
@@ -1786,7 +1810,7 @@ def test_prefer_un_temps_reel_prime_sur_la_seule_richesse():
 def test_prefer_un_non_finisher_arrivant_en_second_ecrase_une_ligne_muette():
     """M3 : les deux gardes non-finisher de `_prefer` sont **asymétriques**.
 
-    La seconde (`ancien.status …`) protège un DNF déjà retenu ; seule la
+    La seconde (`previous.status …`) protège un DNF déjà retenu ; seule la
     première protège un DNF qui arrive **après** une ligne muette. Sans elle,
     l'ordre des listes déciderait du statut : la ligne muette, plus riche en
     colonnes d'affichage, l'emporterait sur la seule liste qui sait que le
@@ -1828,7 +1852,7 @@ def _res(**kw):
 
 
 def test_identites_incompatibles_deux_noms_pleins_distincts():
-    assert raceresult._identites_incompatibles(
+    assert raceresult._identities_conflict(
         _res(athlete_name="DUPONT", athlete_firstname="Jean"),
         _res(athlete_name="MARTIN", athlete_firstname="Luc"),
     ) is True
@@ -1836,11 +1860,11 @@ def test_identites_incompatibles_deux_noms_pleins_distincts():
 
 def test_identites_incompatibles_un_cote_anonyme_est_un_enrichissement():
     # Une liste sans patronyme : fusion d'enrichissement légitime, pas collision.
-    assert raceresult._identites_incompatibles(
+    assert raceresult._identities_conflict(
         _res(athlete_name="DUPONT", athlete_firstname="Jean"),
         _res(athlete_name="", athlete_firstname=""),
     ) is False
-    assert raceresult._identites_incompatibles(
+    assert raceresult._identities_conflict(
         _res(athlete_name="", athlete_firstname=""),
         _res(athlete_name="MARTIN", athlete_firstname="Luc"),
     ) is False
@@ -1848,14 +1872,14 @@ def test_identites_incompatibles_un_cote_anonyme_est_un_enrichissement():
 
 def test_identites_incompatibles_tolere_casse_et_accents():
     # « José » / « JOSE » : même personne, divergence de casse/accent seulement.
-    assert raceresult._identites_incompatibles(
+    assert raceresult._identities_conflict(
         _res(athlete_name="DUPONT", athlete_firstname="José"),
         _res(athlete_name="dupont", athlete_firstname="JOSE"),
     ) is False
 
 
 def test_identites_incompatibles_meme_identite_pleine():
-    assert raceresult._identites_incompatibles(
+    assert raceresult._identities_conflict(
         _res(athlete_name="DUPONT", athlete_firstname="Jean"),
         _res(athlete_name="DUPONT", athlete_firstname="Jean"),
     ) is False
@@ -1866,7 +1890,7 @@ def test_identites_incompatibles_meme_identite_pleine():
 def test_enrichir_ajoute_les_splits_si_absents():
     existant = _res(athlete_name="DUPONT", total_time="01:00:00", segments=None)
     apport = _res(segments=[("Swim", "10:00"), ("Run", "20:00")])
-    raceresult._enrichir(existant, apport)
+    raceresult._enrich(existant, apport)
     assert existant.segments == [("Swim", "10:00"), ("Run", "20:00")]
     assert existant.athlete_name == "DUPONT", "l'identité du publié est intouchée"
 
@@ -1874,14 +1898,14 @@ def test_enrichir_ajoute_les_splits_si_absents():
 def test_enrichir_ne_fusionne_pas_deux_listes_de_splits():
     existant = _res(segments=[("Swim", "10:00")])
     apport = _res(segments=[("Bike", "30:00")])
-    raceresult._enrichir(existant, apport)
+    raceresult._enrich(existant, apport)
     assert existant.segments == [("Swim", "10:00")], "les splits existants priment"
 
 
 def test_enrichir_remplit_les_scalaires_vides():
     existant = _res(total_time="", club="", category="", gender="")
     apport = _res(total_time="01:23:45", club="TCN", category="V1", gender="M")
-    raceresult._enrichir(existant, apport)
+    raceresult._enrich(existant, apport)
     assert (existant.total_time, existant.club, existant.category, existant.gender) == (
         "01:23:45", "TCN", "V1", "M",
     )
@@ -1895,12 +1919,12 @@ def test_enrichir_promeut_finisher_quand_le_temps_ne_vient_que_du_hidden():
     lignes de son filtre `status == "finisher"` : le correctif ne voit plus
     aucun doublon à renuméroter et laisse les rangs dupliqués intacts.
 
-    `_enrichir` doit reproduire la promotion de `_build_result` (`total_time`
+    `_enrich` doit reproduire la promotion de `_build_result` (`total_time`
     présent + aucun statut de non-finisher déjà établi ⇒ `finisher`) quand
     c'est lui qui comble le `total_time`, pas seulement le laisser vide."""
     existant = _res(status="", total_time="", rank_overall=5)
     apport = _res(status="finisher", total_time="09:17:39")
-    raceresult._enrichir(existant, apport)
+    raceresult._enrich(existant, apport)
     assert existant.total_time == "09:17:39"
     assert existant.status == "finisher"
 
@@ -1912,7 +1936,7 @@ def test_enrichir_ne_promeut_jamais_un_statut_de_non_finisher_deja_etabli():
     la garde ne s'applique qu'à `status==""`, jamais à un statut établi."""
     existant = _res(status="DNF", total_time="", rank_overall=None)
     apport = _res(status="finisher", total_time="09:17:39")
-    raceresult._enrichir(existant, apport)
+    raceresult._enrich(existant, apport)
     assert existant.status == "DNF"
 
 
@@ -1922,7 +1946,7 @@ def test_enrichir_ne_donne_jamais_de_temps_total_a_un_non_finisher(statut):
     d'abandon ; recopié, il donnait un temps d'arrivée à 123 DNF."""
     existant = _res(status=statut, total_time="", rank_overall=None)
     apport = _res(total_time="07:40:11", club="TCN")
-    raceresult._enrichir(existant, apport)
+    raceresult._enrich(existant, apport)
     assert existant.total_time == ""
     assert existant.club == "TCN", "les autres scalaires restent enrichis"
 
@@ -1961,7 +1985,7 @@ def test_scrape_event_all_hors_delai_otl_reste_dnf_malgre_le_temps_hidden(monkey
 def test_enrichir_n_ecrase_jamais_un_scalaire_renseigne():
     existant = _res(total_time="01:00:00", club="ASPTT")
     apport = _res(total_time="09:99:99", club="AUTRE")
-    raceresult._enrichir(existant, apport)
+    raceresult._enrich(existant, apport)
     assert existant.total_time == "01:00:00"
     assert existant.club == "ASPTT"
 
@@ -1975,7 +1999,7 @@ def test_enrichir_ne_touche_ni_identite_ni_rang_ni_statut():
         athlete_name="AUTRE", athlete_firstname="Paul",
         rank_overall=99, status="DNF", segments=[("Swim", "10:00")],
     )
-    raceresult._enrichir(existant, apport)
+    raceresult._enrich(existant, apport)
     assert existant.athlete_name == "DUPONT"
     assert existant.athlete_firstname == "Jean"
     assert existant.rank_overall == 3
@@ -2121,7 +2145,7 @@ def test_scrape_event_all_resolves_the_i18n_contest_label(monkeypatch):
 
 def test_scrape_event_all_statut_de_niveau_0_conserve_le_statut(monkeypatch):
     """Issue #64 : sur une liste `Contest != "0"`, un groupe de niveau 0 qui est
-    un statut (`#2_Abandons`) fabriquait `contest="Abandons", statut=""`. Le
+    un statut (`#2_Abandons`) fabriquait `contest="Abandons", status=""`. Le
     contest « Abandons » était ensuite écrasé par le contest explicite, mais le
     statut vide faisait passer les abandons pour des finishers. Désormais le
     participant reste qualifié par son contest explicite ET garde son statut."""
@@ -2280,12 +2304,12 @@ def test_groupes_zero_fiables_exige_que_tous_les_libelles_recoupent_contests():
     fois. Un seul libellé étranger disqualifie donc le groupement entier.
     """
     contests = {"1": "10 Km", "2": "20 Km"}
-    assert raceresult._groupes_zero_fiables({"10 Km", "20 Km"}, contests) is True
+    assert raceresult._zero_groups_reliable({"10 Km", "20 Km"}, contests) is True
     # Le cas 409130 : un libellé corroboré, un autre non.
-    assert raceresult._groupes_zero_fiables({"14H", "24h DECOUVERTE"}, {"1": "14H"}) is False
+    assert raceresult._zero_groups_reliable({"14H", "24h DECOUVERTE"}, {"1": "14H"}) is False
     # Un groupe vide (liste plate) n'est pas un contest.
-    assert raceresult._groupes_zero_fiables({"10 Km", ""}, contests) is False
-    assert raceresult._groupes_zero_fiables(set(), contests) is False
+    assert raceresult._zero_groups_reliable({"10 Km", ""}, contests) is False
+    assert raceresult._zero_groups_reliable(set(), contests) is False
 
 
 def test_scrape_event_all_groupe_zero_corrobore_qualifie_toujours(monkeypatch):
@@ -2475,17 +2499,17 @@ def test_scrape_event_all_ouvre_le_client_avec_follow_redirects(monkeypatch):
     ("if([Relais]=1;ucase([NomRelais]);[AfficherNom])", "Florian VIDAL", False),
 ])
 def test_est_nom_equipe(expr, valeur, attendu):
-    assert raceresult._est_nom_equipe(expr, valeur) is attendu
+    assert raceresult._is_team_name(expr, valeur) is attendu
 
 
 def test_nom_expression_rend_l_expression_de_la_colonne_nom():
     payload = _payload_401699_relais()
     roles, _segments, _extras = raceresult._map_columns(payload)
-    assert raceresult._nom_expression(payload, roles) == "NomRelais"
+    assert raceresult._name_expression(payload, roles) == "NomRelais"
 
 
 def test_nom_expression_vide_sans_colonne_nom():
-    assert raceresult._nom_expression({"DataFields": ["BIB"]}, {"bib": 0}) == ""
+    assert raceresult._name_expression({"DataFields": ["BIB"]}, {"bib": 0}) == ""
 
 
 @pytest.mark.parametrize("expr,attendu", [
@@ -2498,7 +2522,7 @@ def test_nom_expression_vide_sans_colonne_nom():
     ("AfficherNoms", False),
 ])
 def test_colonne_nom_conditionnelle_equipe(expr, attendu):
-    assert raceresult._colonne_nom_conditionnelle_equipe(expr) is attendu
+    assert raceresult._is_conditional_team_name_column(expr) is attendu
 
 
 def _payload_nom_affichernoms():
@@ -2537,7 +2561,7 @@ def _construire_avec_expr(payload, ligne, contest):
         event_date=date(2026, 6, 21),
         contest_label=contest,
         status_label="",
-        nom_col_expr=raceresult._nom_expression(payload, roles),
+        name_col_expr=raceresult._name_expression(payload, roles),
     )
 
 
@@ -2691,7 +2715,7 @@ def test_scrape_event_all_hidden_dossard_ambigu_est_ignore_et_loggue(monkeypatch
 
 def test_scrape_event_all_hidden_identite_divergente_refuse_l_enrichissement(monkeypatch):
     """#60 : un dossard réutilisé entre contests dont un seul est publié échappe
-    à la garde d'ambiguïté (`len(cles) == 1` côté publié) mais le `hidden` nomme
+    à la garde d'ambiguïté (`len(merge_keys) == 1` côté publié) mais le `hidden` nomme
     un **autre** athlète que le publié sous ce même dossard. Comme pour la garde
     #65, on refuse l'enrichissement plutôt que de rattacher un split étranger :
     le publié reste autorité et intact."""
@@ -2749,7 +2773,7 @@ def test_scrape_event_all_hidden_dnf_ne_propage_pas_son_temps_intermediaire(monk
     la qualifie avant enrichissement. Une ligne `hidden` sous un groupe
     « Abandons » porte parfois une durée intermédiaire nue (verrou C, forme du
     410891). Si le statut de groupe n'était pas consulté, `_build_result`
-    marquerait la ligne `finisher` et `_enrichir` propagerait cette durée comme
+    marquerait la ligne `finisher` et `_enrich` propagerait cette durée comme
     faux `total_time` au publié — dont le temps est vide, précisément parce que
     c'est un abandon. Le statut de groupe vide le `total_time` de l'apport : il
     n'y a plus rien à propager."""
@@ -2869,7 +2893,7 @@ def test_scrape_event_all_410891_hidden_recupere_les_splits_intermediaires(monke
     """#84 : la colonne de split intermédiaire (`InterSemi`) suffixe le rang aux
     finishers SANS point (`'2:05:29 (2)'`) et laisse la durée nue aux
     non-finishers (`'2:04:40'`). Le pipeline segment décolle désormais le rang
-    même sans point (variante permissive, gardée par `_RE_DUREE`) : les 111
+    même sans point (variante permissive, gardée par `_RE_DURATION`) : les 111
     splits réels sont récupérés — 110 finishers + le DNF 804 — là où seul le
     DNF nu fuyait (verrou C, différé par #60, fermé pour les segments ici)."""
     def routeur(listname, contest):
@@ -3579,7 +3603,7 @@ def test_build_result_386706_lfname_virgule_coupe_nom_et_prenom():
     r = raceresult._build_result(
         ["1556", "99", "1", "DEVAUX, BRIAN", "00:35:47"], roles, segments, extras,
         source_url="u", event_name="E", event_date=None, contest_label="XS",
-        status_label="", nom_col_expr="LFNAME",
+        status_label="", name_col_expr="LFNAME",
     )
 
     assert (r.athlete_name, r.athlete_firstname, r.rank_overall) == ("DEVAUX", "BRIAN", 1)
@@ -3743,7 +3767,7 @@ def test_build_result_ne_donne_pas_de_genre_a_une_equipe(contest_label):
     r = raceresult._build_result(
         ["1", "1", "LES DALTON", "TCN", "1:00:00"], roles, segments, extras,
         source_url="u", event_name="E", event_date=None,
-        contest_label=contest_label, status_label="", sexe_label="Masculin",
+        contest_label=contest_label, status_label="", gender_label="Masculin",
     )
 
     assert r.gender == ""
@@ -3831,7 +3855,7 @@ def _build_relais_386706(payload, ligne):
     return raceresult._build_result(
         ligne, roles, segments, extras,
         source_url="u", event_name="E", event_date=None, contest_label="XS Duo",
-        status_label="", nom_col_expr="ATF5",
+        status_label="", name_col_expr="ATF5",
     )
 
 
@@ -3901,7 +3925,7 @@ def test_a_segment_candidate_that_is_not_a_duration_lands_in_raw_data():
     r = raceresult._build_result(
         ["12", "1", "3.", "LES DAUPHINS", "DUPONT", "12:34", "1:05:07"], roles, segments, extras,
         source_url="u", event_name="E", event_date=None, contest_label="Relais",
-        status_label="", nom_col_expr="",
+        status_label="", name_col_expr="",
     )
 
     assert r.segments == [("Nat.", "00:12:34")]
@@ -4110,13 +4134,13 @@ def test_masked_time_merges_only_cells_of_masked_published_bibs(monkeypatch):
     """#1238 : seul un dossard masqué au publié reçoit des cellules `hidden` ;
     celles d'un dossard publié en clair n'entrent dans aucun croisement."""
     appels: list[list[str]] = []
-    vraie = raceresult._fusionner_masques
+    vraie = raceresult._merge_masked
 
     def espion(candidats):
         appels.append(list(candidats))
         return vraie(candidats)
 
-    monkeypatch.setattr(raceresult, "_fusionner_masques", espion)
+    monkeypatch.setattr(raceresult, "_merge_masked", espion)
     _monte_312695(monkeypatch)
 
     raceresult.scrape_event_all("https://my.raceresult.com/312695/results")
@@ -4165,7 +4189,7 @@ def test_masked_time_does_not_mix_cells_across_published_contests(monkeypatch):
     (["Ré_y", "RE_Y", "__my"], "Rémy"),                 # accents neutralisés
 ])
 def test_merge_masked_times(candidats, attendu):
-    assert raceresult._fusionner_masques(candidats) == attendu
+    assert raceresult._merge_masked(candidats) == attendu
 
 
 def _retouche_2227(colonne: str, valeurs: dict[str, str]):

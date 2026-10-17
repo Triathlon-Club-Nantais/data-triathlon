@@ -1549,3 +1549,37 @@ def test_last_seen_at_is_backfilled_from_sessions_then_created_at_and_not_null(s
     finally:
         engine.dispose()
     assert colonne["nullable"] is False
+
+
+def test_the_awaiting_validation_read_uses_its_partial_index(sqlite_url):
+    """Every course page reads the pending queue: no full scan of participations (#1390)."""
+    from sqlalchemy.dialects import sqlite
+
+    from app.core.validation import awaiting_validation_clause
+    from app.models.participation import Participation
+
+    clause = awaiting_validation_clause(
+        Participation.is_pending_validation, Participation.is_rejected
+    ).compile(dialect=sqlite.dialect(), compile_kwargs={"literal_binds": True})
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+
+    plan = _lignes(sqlite_url, f"EXPLAIN QUERY PLAN SELECT id FROM participations WHERE {clause}")
+    assert any("ix_participations_awaiting_validation" in str(row) for row in plan), plan
+
+    command.downgrade(cfg, "3c751af1cc83")
+    assert "ix_participations_awaiting_validation" not in _index_names(sqlite_url, "participations")
+    command.upgrade(cfg, "head")
+    assert "ix_participations_awaiting_validation" in _index_names(sqlite_url, "participations")
+
+
+def test_downgrade_puis_upgrade_de_la_meteo(sqlite_url):
+    """#1370 : les quatre colonnes météo de `courses`."""
+    weather = {"weather_temperature_c", "weather_wind_kmh",
+               "weather_precipitation_mm", "weather_fetched_at"}
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    assert weather <= _columns(sqlite_url, "courses")
+
+    command.downgrade(cfg, "f16822237c78")
+    assert not weather & _columns(sqlite_url, "courses")

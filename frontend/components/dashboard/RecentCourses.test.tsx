@@ -58,7 +58,9 @@ describe("RecentCourses", () => {
   it("affiche un état vide avec un CTA vers /ajouter quand la liste est vide", () => {
     render(<RecentCourses events={[]} />);
     expect(screen.getByText("Aucune épreuve récente à afficher")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Ajouter une épreuve/ })).toHaveAttribute("href", "/ajouter");
+    const ajouter = screen.getByRole("link", { name: "Ajouter une épreuve" });
+    expect(ajouter).toHaveAttribute("href", "/ajouter");
+    expect(ajouter).toHaveClass("tcn-cible-tactile");
   });
 
   // ── Structure de tableau (#481, A11Y-3) ────────────────────────────────────

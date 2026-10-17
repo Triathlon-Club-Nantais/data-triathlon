@@ -45,7 +45,9 @@ import {
   type FiltresCourses,
 } from "@/lib/queries/admin";
 import { useSession } from "@/lib/queries/auth";
+import { queryKeys } from "@/lib/queries/keys";
 import { formatDate } from "@/lib/utils/date";
+import { motCompte } from "@/lib/utils/format";
 import { useRescrapeStream } from "@/hooks/useRescrapeStream";
 import type { CourseBrief } from "@/lib/types";
 import { Champ } from "./AdminFilterField";
@@ -175,6 +177,8 @@ export function QualityQueueTable({
       // `quality_issues` : sans cette invalidation, la ligne reste dans la
       // file avec ses anciennes anomalies malgré le message.
       qc.invalidateQueries({ queryKey: ["admin-courses"] });
+      // Flux SSE, hors `useMutation` : la pastille du rail aussi (#1385).
+      qc.invalidateQueries({ queryKey: queryKeys.adminBadgeCounts() });
     } else if (rescrape.state.phase === "error" && rescrape.state.error) {
       toast.error(rescrape.state.error);
     }
@@ -446,7 +450,7 @@ export function QualityQueueTable({
               className="flex items-center justify-between gap-3 rounded-xl border p-3 text-sm"
             >
               <span aria-current="page">
-                Page {page} sur {pages} — {total} épreuve{total > 1 ? "s" : ""} à revalider
+                Page {page} sur {pages} — {motCompte(total, "épreuve")} à revalider
               </span>
               <div className="flex gap-2">
                 <Button
@@ -541,6 +545,7 @@ function SourcesDepliees({ courseId }: { courseId: number }) {
       onUpdated={() => {
         qc.invalidateQueries({ queryKey: ["admin-courses"] });
         qc.invalidateQueries({ queryKey: ["course-sources", courseId] });
+        qc.invalidateQueries({ queryKey: queryKeys.adminBadgeCounts() });
       }}
     />
   );

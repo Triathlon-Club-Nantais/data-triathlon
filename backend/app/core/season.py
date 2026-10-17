@@ -17,6 +17,16 @@ from app.core.time import utcnow
 SEASON_MIN = 2000
 SEASON_MAX = 2100
 
+#: Barème de validation de saison (#709, FR-012) : épreuves validées requises,
+#: en plus d'une action de bénévolat validée.
+SEASON_QUOTA_EVENTS = 3
+
+
+def season_quota_met(validated_count: int, has_volunteer_action: bool) -> bool:
+    """Seule définition du quota, partagée par `admin_actions.season_quota` et
+    `GET /athletes/season-activity` (#1542)."""
+    return validated_count >= SEASON_QUOTA_EVENTS and has_volunteer_action
+
 
 class SeasonOutOfRangeError(DomainError):
     status_code = 422

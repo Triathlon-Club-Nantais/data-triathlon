@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { AnnonceStatut, Button, Card, Eyebrow } from "@/components/tcn";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RankTypeToggle } from "@/components/layout/RankTypeToggle";
+import { AddEventLink } from "./SeasonEmptyState";
 import {
   ATHLETE_LOST_EVENT,
   clearAthlete,
@@ -51,7 +53,7 @@ function capitaliser(s: string): string {
 /** Hauteur intérieure minimale de la bande, dans ses trois états visibles.
  *
  *  La bande n'est **pas** dans le HTML initial — l'athlète retenu vit en
- *  `localStorage` et n'atteint aucun rendu serveur (`frontend/AGENTS.md:218`).
+ *  `localStorage` et n'atteint aucun rendu serveur (`docs/frontend/athlete-retenu.md`).
  *  Elle apparaît donc à l'hydratation, ce qui décale les compteurs club vers le
  *  bas : coût déjà assumé par #467. Ce qu'on refuse, c'est un **second**
  *  décalage au retour du fetch — d'où un plancher de hauteur posé dès le
@@ -107,7 +109,7 @@ function capitaliser(s: string): string {
  *
  * La région `role="status"` est montée **inconditionnellement**, dans les
  * quatre branches (y compris `chargement` et `echec`) — comme tous les autres
- * usages du dépôt (`StatCardsRank`, `PodiumsList`, `EventList`,
+ * usages du dépôt (`PodiumsList`, `EventList`,
  * `RaceFinishers`). Une région ARIA live injectée déjà pleine (montage
  * conditionnel sur son propre contenu) est le cas que les lecteurs d'écran
  * laissent tomber : seul son **texte** doit changer après l'enregistrement de
@@ -233,7 +235,7 @@ export function MaSaison({
 
   if (etat === "chargement") {
     return (
-      <Bande titre={titre}>
+      <Bande titre={titre} avecRang>
         <AnnonceStatut texte={texteAnnonce ?? ""} busy />
         <div
           data-testid="ma-saison-squelette"
@@ -295,14 +297,7 @@ export function MaSaison({
         <Ligne
           principale={texte}
           secondaire={`Le club en a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`}
-          action={
-            <Link
-              href="/ajouter"
-              className="-my-1 inline-block py-1 text-sm font-semibold text-accent-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--tcn-orange)]"
-            >
-              Ajouter une épreuve →
-            </Link>
-          }
+          action={<AddEventLink />}
         />
       </Bande>
     );
@@ -312,14 +307,23 @@ export function MaSaison({
   const secondaire = `${capitaliser(rang)} · podiums hors relais · le club a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`;
 
   return (
-    <Bande titre={titre}>
+    <Bande titre={titre} avecRang>
       <AnnonceStatut texte={texteAnnonce ?? ""} />
       <Ligne principale={principale} secondaire={secondaire} action={lienProfil} />
     </Bande>
   );
 }
 
-function Bande({ titre, children }: { titre: string; children: React.ReactNode }) {
+// Le sélecteur de rang n'est monté là où il agit (nominal) et pendant le chargement, qui y mène le plus souvent : évite un décalage de mise en page.
+function Bande({
+  titre,
+  avecRang = false,
+  children,
+}: {
+  titre: string;
+  avecRang?: boolean;
+  children: React.ReactNode;
+}) {
   return (
     <div className="mb-4">
       <Card>
@@ -333,7 +337,17 @@ function Bande({ titre, children }: { titre: string; children: React.ReactNode }
             second point d'entrée (la sémantique de landmark) pour un bloc qui
             n'en a nul besoin ailleurs sur la page. */}
         <h2 className="sr-only">{titre}</h2>
-        <Eyebrow>{titre}</Eyebrow>
+        <div className="flex flex-wrap items-end justify-between gap-2">
+          <Eyebrow>{titre}</Eyebrow>
+          {avecRang && (
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", marginBottom: 6 }}>
+                Type de rang
+              </div>
+              <RankTypeToggle />
+            </div>
+          )}
+        </div>
         <div className="flex min-h-[84px] items-center sm:min-h-[68px]">
           {children}
         </div>

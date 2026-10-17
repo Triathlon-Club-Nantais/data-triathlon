@@ -7,6 +7,7 @@ import { RANK_PARAM, rankTypeFromParam } from "@/lib/rank";
 import { eventTypeLabel } from "@/lib/constants";
 import { eventTypeColor } from "@/lib/sport-colors";
 import type { DisciplinePodiumCounts } from "@/lib/types";
+import { motCompte } from "@/lib/utils/format";
 
 /**
  * Performance du club par discipline (podiums), distincte du décompte
@@ -38,7 +39,7 @@ export function DisciplinePerformance({
       entries={entries}
       labeller={(key) => {
         const count = countByDiscipline.get(key) ?? 0;
-        return `${eventTypeLabel(key)} (${count} épreuve${count > 1 ? "s" : ""})`;
+        return `${eventTypeLabel(key)} (${motCompte(count, "épreuve")})`;
       }}
       colorer={eventTypeColor}
       emptyTitle="Aucun podium"

@@ -95,8 +95,10 @@ def test_detection(provider, url):
 @pytest.mark.parametrize("provider, url", sorted(LIVE_URLS.items()))
 def test_scrape_event_all_live(provider, url):
     """L'import d'épreuve renvoie des participants exploitables."""
-    results, _trace = registry.scrape_event_all(url)
-    assert results, f"{provider} : aucun participant renvoyé"
+    results, trace = registry.scrape_event_all(url)
+    # Trace : heats en échec (page heat non 200) ou aucun heat énuméré (épreuve
+    # retirée, ou page d'événement non 200 chez Klikego).
+    assert results, f"{provider} : aucun participant renvoyé ({trace})"
     assert any(r.athlete_name for r in results), f"{provider} : aucun nom d'athlète"
     assert any(r.total_time for r in results), f"{provider} : aucun temps total"
     # Type d'épreuve détecté sur au moins un résultat
@@ -106,7 +108,9 @@ def test_scrape_event_all_live(provider, url):
 @pytest.mark.integration
 def test_sportinnovation_2026_race_url():
     """Forme 2026 results.sportinnovation.fr/race/{slug} (niveau course, API JSON)."""
-    url = "https://results.sportinnovation.fr/race/zmhc-triathlon-m"
+    # Triathlon M de Carnac 2026. Celui de 2025 (`zmhc-triathlon-m`) a disparu
+    # en octobre 2026 : le fournisseur a vidé l'événement de ses courses (#1350).
+    url = "https://results.sportinnovation.fr/race/refl6a-triathlon-m"
     results, _trace = registry.scrape_event_all(url)
     assert results
     assert any(r.athlete_name and r.total_time for r in results)

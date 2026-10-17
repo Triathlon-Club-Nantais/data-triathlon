@@ -13,6 +13,7 @@ from app.core.permissions import P
 from app.core.season import SEASON_MAX, SEASON_MIN, current_season
 from app.core.time import utcnow
 from app.models.user import User
+from app.schemas.ids import DbId
 from app.schemas.member_email import (
     MemberEmailCreate,
     MemberEmailOut,
@@ -62,7 +63,7 @@ def add_member_email(
 
 @router.delete("/admin/member-emails/{entry_id}", status_code=204)
 def remove_member_email(
-    entry_id: int,
+    entry_id: DbId,
     db: Session = Depends(get_db),
     actor: User = Depends(require_permission(P.MEMBER_EMAILS_MANAGE)),
 ):

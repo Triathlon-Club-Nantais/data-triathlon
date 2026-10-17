@@ -82,8 +82,9 @@ const AVEC_ECRITURE: SessionUser = {
   permissions: ["jeunes:read", "jeunes:write"],
   roles: [],
   groups: [],
-  can_administer: true,
   is_member: false,
+  can_administer: false,
+  can_supervise: true,
 };
 
 const LECTURE_SEULE: SessionUser = { ...AVEC_ECRITURE, permissions: ["jeunes:read"] };
@@ -156,6 +157,15 @@ describe("ProfileDetail", () => {
 
     expect(await screen.findByText("Voir avec le club")).toBeInTheDocument();
     expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  it("marque d'un tiret un contact d'urgence vide", async () => {
+    getProfile.mockResolvedValue({ ...PROFIL, emergency_contact: "" });
+
+    afficher();
+
+    expect(await screen.findByText("Contact d'urgence :")).toBeInTheDocument();
+    expect(screen.getByText("Contact d'urgence :").parentElement).toHaveTextContent("Contact d'urgence : —");
   });
 
   it("dit qu'un profil absent est introuvable", async () => {

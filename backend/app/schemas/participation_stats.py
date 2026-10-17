@@ -4,6 +4,8 @@ Tous ces objets sont des agrégats **calculés à la lecture** à partir du
 classement complet de la course. Aucun n'est persisté : c'est ce qui garantit
 qu'un rang affiché ici ne peut pas diverger de celui des autres écrans.
 """
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -32,6 +34,25 @@ class ComparisonRow(BaseModel):
     theirs_seconds: dict[str, int] = Field(default_factory=dict)
 
 
+class MedianRow(BaseModel):
+    """Comparaison de l'athlète à la médiane des classés (#1362).
+
+    Bloc distinct de `ComparisonRow` : une médiane n'occupe aucune position, et
+    `ComparisonRow.rank` est un entier requis du contrat publié (Principe IV).
+    """
+
+    #: `median` (tous classés) ou `category_median` (classés de sa catégorie).
+    kind: Literal["median", "category_median"]
+    label: str
+    #: Classés de la population (tous, ou ceux de la catégorie). Un segment peu publié
+    #: porte sa médiane sur moins de valeurs, jamais sous `MIN_EVALUATED_ROWS`.
+    sample_size: int
+    #: Mêmes clés et même sens que dans `ComparisonRow`, la référence étant la médiane.
+    percentages: dict[str, float]
+    mine_seconds: dict[str, int] = Field(default_factory=dict)
+    theirs_seconds: dict[str, int] = Field(default_factory=dict)
+
+
 class ImprovementRow(BaseModel):
     """Places scratch gagnées si un segment avait été amélioré d'un pourcentage donné."""
 
@@ -53,4 +74,6 @@ class ParticipationStatsOut(BaseModel):
     segments: list[str] = Field(default_factory=list)
     ranking_evolution: list[RankingEvolutionStep] = Field(default_factory=list)
     comparison: list[ComparisonRow] = Field(default_factory=list)
+    #: Ajout #1362 : vide quand l'effectif ne permet aucune médiane.
+    medians: list[MedianRow] = Field(default_factory=list)
     improvement: list[ImprovementRow] = Field(default_factory=list)

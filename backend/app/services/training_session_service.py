@@ -63,8 +63,14 @@ def training_session_view(training_session: TrainingSession, participant_count: 
     }
 
 
-def training_session_detail_view(db: Session, training_session: TrainingSession) -> dict:
-    """La forme rendue par le détail : l'entraînement **et** ses inscrits."""
+def training_session_detail_view(
+    db: Session, training_session: TrainingSession, *, with_emergency_contact: bool = False
+) -> dict:
+    """La forme rendue par le détail : l'entraînement **et** ses inscrits.
+
+    Le contact d'urgence (#1405), donnée personnelle, n'est rendu qu'à la
+    demande de l'appelant, qui s'est assuré du pouvoir `jeunes:read` ; sinon `None`.
+    """
     participants = training_session_repository.list_participants(db, training_session.id)
     return training_session_view(training_session, len(participants)) | {
         "participants": [
@@ -74,6 +80,7 @@ def training_session_detail_view(db: Session, training_session: TrainingSession)
                 "added_manually": participant.added_manually,
                 "category": fftri_category(participant.profile.birth_date, date_.today()),
                 "created_at": participant.created_at,
+                "emergency_contact": participant.profile.emergency_contact if with_emergency_contact else None,
             }
             for participant in participants
         ]
@@ -84,11 +91,11 @@ def list_training_session_views(db: Session) -> list[dict]:
     """Toute la liste du calendrier en trois requêtes, quel que soit le nombre
     de séances : les séances et leurs groupes, puis leurs comptes d'inscrits agrégés."""
     training_sessions = training_session_repository.list_all(db)
-    comptes = training_session_repository.count_participants_by_training_session(
+    counts = training_session_repository.count_participants_by_training_session(
         db, [training_session.id for training_session in training_sessions]
     )
     return [
-        training_session_view(training_session, comptes.get(training_session.id, 0))
+        training_session_view(training_session, counts.get(training_session.id, 0))
         for training_session in training_sessions
     ]
 
@@ -257,10 +264,10 @@ def set_presence(
     d'`add_participant` sur un profil inexistant : cette route ne crée jamais
     d'inscription.
     """
-    resultat = training_session_repository.set_presence(
+    result = training_session_repository.set_presence(
         db, training_session_id=training_session.id, profile_id=profile_id, present=present
     )
-    if resultat is None:
+    if result is None:
         raise NotFoundError("Ce profil n'est pas inscrit à cette séance.")
     logger.info(
         "Presence set: actor=%s training_session=%s profile=%s present=%s",

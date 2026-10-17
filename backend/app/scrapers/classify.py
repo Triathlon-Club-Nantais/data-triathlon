@@ -96,7 +96,7 @@ def _detect_size(t: str) -> str:
 
 # Tailles admises par sport : hors de cette table, un sport n'est jamais suffixé
 # (« Trail du Mont Blanc L » reste `trail`, la distance vivant dans `distance_km`).
-_TAILLES_PAR_SPORT = {
+_SIZES_BY_SPORT = {
     "triathlon": ("xs", "s", "m", "l", "xl"),
     "duathlon": ("xs", "s", "m", "l", "xl"),
     "swimrun": ("s", "m", "l"),
@@ -104,18 +104,18 @@ _TAILLES_PAR_SPORT = {
 }
 
 
-def _avec_taille(base: str, t: str) -> str:
+def _with_size(base: str, t: str) -> str:
     """Sport nu + taille détectée dans `t`, si ce sport en admet une."""
-    tailles = _TAILLES_PAR_SPORT.get(base)
-    if not tailles:
+    sizes = _SIZES_BY_SPORT.get(base)
+    if not sizes:
         return base
     size = _detect_size(t)
-    return f"{base}-{size}" if size in tailles else base
+    return f"{base}-{size}" if size in sizes else base
 
 
-def _course_a_pied(t: str) -> str | None:
+def _running_slug(t: str) -> str | None:
     """Course à pied (route) avec format nommé, ou None si non reconnu."""
-    is_cap = (
+    is_running = (
         "marathon" in t or "semi" in t
         or re.search(r"\b\d+\s*k(m)?\b", t)
         or "course à pied" in t or "course a pied" in t
@@ -123,7 +123,7 @@ def _course_a_pied(t: str) -> str | None:
         or "course pedestre" in t or "foulées" in t or "foulees" in t
         or "corrida" in t or "running" in t
     )
-    if not is_cap:
+    if not is_running:
         return None
     if "semi" in t or "half" in t:
         return "course-a-pied-semi"
@@ -136,14 +136,14 @@ def _course_a_pied(t: str) -> str | None:
     return "course-a-pied"
 
 
-def _cyclisme(t: str) -> str | None:
+def _cycling_slug(t: str) -> str | None:
     """Cyclisme route / CLM, ou None si non reconnu."""
-    is_velo = (
+    is_cycling = (
         "cyclisme" in t or "cyclo" in t or "cyclosport" in t
         or "gran fondo" in t or "granfondo" in t
         or "vélo" in t or "velo" in t
     )
-    if not is_velo:
+    if not is_cycling:
         return None
     if "contre-la-montre" in t or "contre la montre" in t or re.search(r"\bclm\b", t):
         return "cyclisme-clm"
@@ -190,13 +190,13 @@ def _sport_base(t: str) -> str | None:
     # 3. Mono-sports.
     if "trail" in t:
         return "trail"
-    return _cyclisme(t) or _course_a_pied(t)
+    return _cycling_slug(t) or _running_slug(t)
 
 
-def classify_event_type(text: str, *, contexte: str = "") -> str:
+def classify_event_type(text: str, *, context: str = "") -> str:
     """Texte libre (nom d'épreuve, heat+slug, parcours…) → slug canonique.
 
-    `contexte` — texte d'appoint, typiquement le titre de l'événement qui porte
+    `context` — texte d'appoint, typiquement le titre de l'événement qui porte
     l'épreuve. Il est consulté **seulement** si `text` ne nomme aucun sport, et ne
     peut donc pas dégrader une épreuve annexe : le « Trail 12 km » d'un
     « Triathlon de X » reste un trail — sur la concaténation des deux, il sortait
@@ -208,15 +208,15 @@ def classify_event_type(text: str, *, contexte: str = "") -> str:
     t = _norm(text)
     base = _sport_base(t)
     reference = t
-    if base is None and contexte:
-        reference = f"{_norm(contexte)} {t}".strip()
+    if base is None and context:
+        reference = f"{_norm(context)} {t}".strip()
         base = _sport_base(reference)
-    elif contexte and base == _sport_base(_norm(contexte)):
+    elif context and base == _sport_base(_norm(context)):
         # Même sport des deux côtés : le « Triathlon » d'un « Triathlon M de X »
         # prend la taille M. Un sport différent (trail d'un triathlon) ne la prend pas.
-        reference = f"{_norm(contexte)} {t}".strip()
+        reference = f"{_norm(context)} {t}".strip()
     # Repli : triathlon nu (+ taille si déductible : « Sprint … », « Ironman … »).
-    return _avec_taille(base or "triathlon", t if _detect_size(t) else reference)
+    return _with_size(base or "triathlon", t if _detect_size(t) else reference)
 
 
 def normalize_event_type(value: str) -> str:
@@ -241,7 +241,7 @@ def refine_from_splits(event_type: str, *, has_swim: bool, has_bike: bool) -> st
     la page détail d'un participant fournit les deux, ce sont des segments
     impossibles pour ce sport, qui priment sur le libellé et corrigent le slug
     nu `course-a-pied` en `triathlon` (repli bare déjà utilisé par
-    `classify_event_type` — voir `_avec_taille`). Volontairement strict :
+    `classify_event_type` — voir `_with_size`). Volontairement strict :
     seul le slug nu est concerné, jamais ses suffixes de distance
     (`course-a-pied-5k`…), dont le nom est un signal sans ambiguïté contrairement
     à « foulées ». Ne généralise pas non plus à tout `BARE_TYPES` : le mode de

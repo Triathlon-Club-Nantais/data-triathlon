@@ -30,6 +30,7 @@ uv run python -m app.cli reconcile-athletes --yes --by-email <adresse> --plan-fr
 uv run python -m app.cli requalify-challenges         # épreuves qui sont des classements Challenge (--yes --by-email pour convertir, #1008)
 uv run python -m app.cli geocode-courses --limit 300 --json   # coordonnées des épreuves sans géocodage (carte, #975)
 uv run python -m app.cli geocode-courses --course 249 --course 250   # reprend une épreuve mal placée, même déjà géocodée (#1256)
+uv run python -m app.cli weather-courses --limit 500 --json   # météo du jour de course (Open-Meteo, ~600 appels/min gratuits) des épreuves géocodées, idempotente (#1370)
 uv run python -m app.cli purge-retention --dry-run   # durées de conservation publiées (#1158), comptes inactifs 5 ans (#1326) ; sans --dry-run, supprime
 uv run python -m app.cli sync-club-members --json   # licenciés FFTri de la saison en cours (#1202)
 uv run python -m app.cli import-member-emails --season 2026 --file export.xlsx --json   # adresses d'adhérents de l'export AssoConnect (#1334)
@@ -88,7 +89,7 @@ avant** la sortie :
 | Code | Sens |
 | --- | --- |
 | `0` | Succès, y compris **partiel** (quelques épreuves en échec sur N) ou « rien à faire » (zéro épreuve ciblée). Un dry-run sort toujours en 0. |
-| `1` | **Échec total** : aucune des épreuves ciblées n'a abouti (`batch.est_echec_total` : `errors >= épreuves > 0`). Sinon un cron dont les 53 épreuves échouent n'alerterait jamais. |
+| `1` | **Échec total** : aucune des épreuves ciblées n'a abouti (`batch.is_total_failure` : `errors >= events > 0`, `events` comptant les épreuves). Sinon un cron dont les 53 épreuves échouent n'alerterait jamais. |
 | `2` | **Erreur d'usage** (convention Click) : option invalide — notamment `--provider` / `--only-provider` inconnu, rejeté avant tout travail par `cli/validators`. Une `--url` **passive** n'en fait plus partie : elle est redirigée, pas refusée (voir plus bas). |
 | `130` | Ctrl-C. **Prioritaire sur 1** : une interruption est une action de l'opérateur, pas une panne. |
 
@@ -147,7 +148,7 @@ corriger le **fichier**, que la CLI ne réécrit pas.
 
 Deux propriétés à ne pas casser en y touchant : la substitution peut faire
 **doublon** avec une active déjà présente dans le lot — c'est
-`_items_depuis_urls` qui l'absorbe en dédoublonnant, la CLI ne s'en occupe pas ;
+`_items_from_urls` qui l'absorbe en dédoublonnant, la CLI ne s'en occupe pas ;
 et une passive dont l'épreuve n'a **aucune** active (saisie manuelle, #283) part
 **telle quelle**, sans redirection possible : elle est la seule publication
 connue, aucun doublon n'est possible, et la refuser ne scraperait rien du tout.
@@ -182,7 +183,7 @@ les compteurs ne bougent donc pas d'un iota. Les deux commandes listent ces URLs
 sous « Sources enregistrées, non principales (détail) : », avec le message qui
 **nomme l'épreuve** — sans lui, l'opérateur d'un import Sheet de 300 lignes ne
 peut pas distinguer une URL absorbée d'un import ordinaire à zéro nouveauté. Le
-champ `passive_sources` est dans la charge `--json`, et dans `CHAMPS_COMMUNS` :
+champ `passive_sources` est dans la charge `--json`, et dans `SHARED_FIELDS` :
 `run_batch` les collecte pour les deux commandes, deux rendus divergeraient sans
 raison. À ne pas confondre avec la redirection de #282, qui porte sur une URL
 **déjà** passive passée à `--url` : celle-là est corrigée avant le batch, en

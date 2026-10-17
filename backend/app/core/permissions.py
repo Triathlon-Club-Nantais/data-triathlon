@@ -20,6 +20,7 @@ Aucune session, aucun état, aucune sortie : c'est ce qui autorise `core/`
 """
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Literal
 
 #: Fonctionnalités, dans l'ordre d'affichage de `GET /admin/permissions`.
 FEATURE_ROLES = "Rôles et accès"
@@ -59,7 +60,10 @@ FEATURE_MEMBER_EMAILS = "Adresses d'adhérents"
 #: des entraînements, appel de présence. Distincte des autres fonctionnalités :
 #: ces données sont personnelles et sensibles (mineurs), fermées à quiconque
 #: ne porte pas ce pouvoir, quel que soit son rôle par ailleurs.
-FEATURE_JEUNES = "Jeunes"
+FEATURE_YOUTH = "Jeunes"
+
+
+PermissionKind = Literal["administration", "supervision", "consultation"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,10 +79,11 @@ class Permission:
     label: str
     description: str
     feature: str
-    #: Pouvoir de **consultation** (#1109) : il ouvre des pages publiques, aucun
-    #: écran d'administration. Seul critère que lisent la garde `/admin` et son
-    #: sommaire, via le drapeau `can_administer` de `GET /auth/me`.
-    consultation: bool = False
+    #: Ce que le pouvoir ouvre (#1109, #1297). `consultation` : des pages
+    #: publiques, aucun écran d'administration. `supervision` : l'espace
+    #: Encadrement. Seul critère que lisent les gardes `/admin` et
+    #: `/encadrement`, via `can_administer` et `can_supervise` de `GET /auth/me`.
+    kind: PermissionKind = "administration"
 
     def __str__(self) -> str:  # `require_permission(P.X)` journalise le code seul
         return self.code
@@ -130,7 +135,7 @@ class P:
         "sienne comprise. Le geste d'incident, après une fuite de jetons.",
         FEATURE_ROLES,
     )
-    BENEVOLE_ACCESS_MANAGE = Permission(
+    VOLUNTEER_ACCESS_MANAGE = Permission(
         "benevole_access:manage",
         "Gérer l'accès bénévoles",
         "Consulter l'état du mot de passe partagé de la page bénévoles, le "
@@ -247,6 +252,7 @@ class P:
         "attente, puis les accepter ou les refuser pour le quota de "
         "validation de saison.",
         FEATURE_ATHLETES,
+        kind="supervision",
     )
     # `participations:write` a existé (#115) puis a été retiré (#270) :
     # POST /participations est redevenue publique, la mise en quarantaine
@@ -350,25 +356,27 @@ class P:
         "saison et les pages encore marquées « bientôt » — la carte "
         "notamment — avant leur ouverture au grand public.",
         FEATURE_PAGES_PREVIEW,
-        consultation=True,
+        kind="consultation",
     )
     # Deux pouvoirs et non un : un accompagnant peut avoir besoin de consulter
     # un profil ou le calendrier sans pour autant écrire dans le journal de
     # bord d'un jeune, donnée personnelle et sensible.
-    JEUNES_READ = Permission(
+    YOUTH_READ = Permission(
         "jeunes:read",
         "Consulter les jeunes",
         "Voir la liste des jeunes, leur profil (contact d'urgence, âge, "
         "notes, journal de bord) et le calendrier des entraînements.",
-        FEATURE_JEUNES,
+        FEATURE_YOUTH,
+        kind="supervision",
     )
-    JEUNES_WRITE = Permission(
+    YOUTH_WRITE = Permission(
         "jeunes:write",
         "Encadrer les jeunes",
         "Créer et modifier un profil jeune, tenir le calendrier des "
         "entraînements, faire l'appel de présence et ajouter une entrée au "
         "journal de bord.",
-        FEATURE_JEUNES,
+        FEATURE_YOUTH,
+        kind="supervision",
     )
 
 
@@ -381,7 +389,7 @@ ALL: tuple[Permission, ...] = (
     P.USERS_READ,
     P.ALLOWED_EMAILS_MANAGE,
     P.SESSIONS_REVOKE,
-    P.BENEVOLE_ACCESS_MANAGE,
+    P.VOLUNTEER_ACCESS_MANAGE,
     P.SITE_ACCESS_MANAGE,
     P.GROUPS_READ,
     P.GROUPS_WRITE,
@@ -411,11 +419,11 @@ ALL: tuple[Permission, ...] = (
     P.MEMBER_EMAILS_MANAGE,
     P.ADMIN_LOG_READ,
     P.PAGES_PREVIEW,
-    P.JEUNES_READ,
-    P.JEUNES_WRITE,
+    P.YOUTH_READ,
+    P.YOUTH_WRITE,
 )
 
-_BY_CODE: dict[str, Permission] = {pouvoir.code: pouvoir for pouvoir in ALL}
+_BY_CODE: dict[str, Permission] = {permission.code: permission for permission in ALL}
 
 #: Les codes seuls — c'est cet ensemble que la non-amplification intersecte
 #: (FR-011), et c'est ce qui rend un code périmé retirable par tout le monde.
@@ -433,12 +441,22 @@ def is_known(code: str) -> bool:
 
 
 def administers(codes: Iterable[str]) -> bool:
-    """Ces codes ouvrent-ils au moins un écran d'administration ? (#1109)
+    """Ces codes ouvrent-ils au moins un écran du back-office ? (#1109)
 
-    Un pouvoir de consultation ne compte pas, un code inconnu non plus.
+    Ni un pouvoir de consultation ni un pouvoir d'encadrement ne compte, un
+    code inconnu non plus.
     """
+    return _any_of_kind(codes, "administration")
+
+
+def supervises(codes: Iterable[str]) -> bool:
+    """Ces codes ouvrent-ils au moins un écran de l'espace Encadrement ? (#1297)"""
+    return _any_of_kind(codes, "supervision")
+
+
+def _any_of_kind(codes: Iterable[str], kind: PermissionKind) -> bool:
     return any(
-        (pouvoir := _BY_CODE.get(code)) is not None and not pouvoir.consultation
+        (permission := _BY_CODE.get(code)) is not None and permission.kind == kind
         for code in codes
     )
 
@@ -458,11 +476,11 @@ def grouped_by_feature() -> list[FeatureGroup]:
     est le geste qu'on veut éviter — c'est ce regroupement qui rend l'écran
     lisible, et il n'a pas d'autre lecteur.
     """
-    ordre: list[str] = []
-    par_feature: dict[str, list[Permission]] = {}
-    for pouvoir in ALL:
-        if pouvoir.feature not in par_feature:
-            ordre.append(pouvoir.feature)
-            par_feature[pouvoir.feature] = []
-        par_feature[pouvoir.feature].append(pouvoir)
-    return [FeatureGroup(feature, tuple(par_feature[feature])) for feature in ordre]
+    order: list[str] = []
+    by_feature: dict[str, list[Permission]] = {}
+    for permission in ALL:
+        if permission.feature not in by_feature:
+            order.append(permission.feature)
+            by_feature[permission.feature] = []
+        by_feature[permission.feature].append(permission)
+    return [FeatureGroup(feature, tuple(by_feature[feature])) for feature in order]

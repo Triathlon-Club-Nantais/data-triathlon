@@ -189,7 +189,7 @@ describe("CoursePage", () => {
     expect(screen.getByText("1768")).toBeInTheDocument(); // finishers
     expect(screen.getByText("43")).toBeInTheDocument(); // abandons
     expect(screen.getByText(/4 athlètes TCN/)).toBeInTheDocument();
-    expect(screen.getByText("59%")).toBeInTheDocument(); // 1063 / 1810 hommes
+    expect(screen.getByText("59 %")).toBeInTheDocument(); // 1063 / 1810 hommes
     expect(screen.getByText("S2")).toBeInTheDocument();
     expect(screen.getByText("GRAVELINES TRIATHLON")).toBeInTheDocument();
     expect(screen.getByText(/Distribution des temps/)).toBeInTheDocument();
@@ -298,8 +298,8 @@ describe("CoursePage", () => {
     // catégories affichées (500) donnerait 56,8 % — chaque barre gonflée, et
     // un total à 100 % que la réalité ne fait pas.
     await afficher();
-    expect(screen.getByText("28,4%")).toBeInTheDocument();
-    expect(screen.getByText("21,6%")).toBeInTheDocument();
+    expect(screen.getByText("28,4 %")).toBeInTheDocument();
+    expect(screen.getByText("21,6 %")).toBeInTheDocument();
   });
 
   it("ne transforme pas une panne du backend en « épreuve introuvable »", async () => {
@@ -388,6 +388,15 @@ describe("CoursePage", () => {
     expect(screen.queryByText(/Distribution des temps/)).not.toBeInTheDocument();
     expect(screen.getByText("Catégories non renseignées")).toBeInTheDocument();
     expect(screen.getByText("Clubs non renseignés")).toBeInTheDocument();
+  });
+
+  it("annonce la largeur de tranche que l'API a choisie (#1586)", async () => {
+    getCourseSummary.mockResolvedValue({
+      ...SUMMARY,
+      histogram: { bars: [3, 18, 47], start_sec: 30600, bucket_sec: 900 },
+    });
+    await afficher();
+    expect(screen.getByText(/par tranche de 15 minutes/)).toBeInTheDocument();
   });
 
   it("demande les sources en même temps que la synthèse", async () => {

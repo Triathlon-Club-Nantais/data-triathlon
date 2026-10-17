@@ -1,5 +1,5 @@
 """Gestion admin du mot de passe partagé du site (#509) — patron exact de
-`test_admin_benevole_access_api.py`, RBAC (`site_access:manage`).
+`test_admin_volunteer_access_api.py`, RBAC (`site_access:manage`).
 
 `GET`/`PUT /admin/site-access` sont gardées par `require_permission` : 401
 sans session, 403 sans le pouvoir, 200 avec — jamais un 404, le routeur étant

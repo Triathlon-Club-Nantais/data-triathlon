@@ -24,10 +24,10 @@ from app.schemas.athlete_identity import (
     IdentityClubConfirmOut,
     IdentityPairIgnoreCreate,
     IdentityPairIgnoreOut,
-    IdentityReviewCount,
     IdentityReviewList,
     IgnoredIdentityPairList,
 )
+from app.schemas.ids import DbId
 from app.services import athlete_identity_review
 
 router = APIRouter(tags=["admin"])
@@ -39,16 +39,7 @@ def list_identity_cases(
     _: User = Depends(require_permission(P.ATHLETES_WRITE)),
 ) -> IdentityReviewList:
     """Les cas d'identité à trancher, sans pagination : cas du club et reliquat de la reprise."""
-    return IdentityReviewList(candidates=athlete_identity_review.find_candidates(db))
-
-
-@router.get("/admin/identity-review/count", response_model=IdentityReviewCount)
-def count_identity_cases(
-    db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.ATHLETES_WRITE)),
-) -> IdentityReviewCount:
-    """La taille de la liste, pour la pastille de la nav. Même garde que la liste."""
-    return IdentityReviewCount(total=athlete_identity_review.count(db))
+    return IdentityReviewList(candidates=athlete_identity_review.cached_candidates(db))
 
 
 @router.post("/admin/identity-review/ignore", response_model=IdentityPairIgnoreOut, status_code=201)
@@ -91,7 +82,7 @@ def list_ignored_identity_pairs(
 
 @router.delete("/admin/identity-review/ignored/{pair_id}", status_code=204)
 def unignore_identity_pair(
-    pair_id: int,
+    pair_id: DbId,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_WRITE)),
 ) -> None:
@@ -111,7 +102,7 @@ def list_confirmed_identity_clubs(
 
 @router.delete("/admin/identity-review/confirmed-clubs/{known_id}", status_code=204)
 def unconfirm_identity_club(
-    known_id: int,
+    known_id: DbId,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_WRITE)),
 ) -> None:
@@ -143,7 +134,7 @@ def list_dismissed_identity_cases(
 
 @router.delete("/admin/identity-review/dismissed/{case_id}", status_code=204)
 def undismiss_identity_case(
-    case_id: int,
+    case_id: DbId,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_WRITE)),
 ) -> None:

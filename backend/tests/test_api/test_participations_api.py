@@ -6,7 +6,7 @@ from app.models.admin_action_log import AdminActionLog
 from app.models.course import Course
 from app.models.participation import Participation
 from app.scrapers.base import ScrapedResult
-from app.services import scrape_service
+from tests.conftest import save_entry
 from tests.test_api.conftest import valider_toutes_les_participations
 
 
@@ -65,12 +65,6 @@ def test_create_participation_with_segments(client):
         "run1": "00:20:00",
         "swim2": "00:08:00",
     }
-
-
-def test_duplicate_participation_409(client):
-    client.post("/api/v1/participations", json=_payload())
-    dup = client.post("/api/v1/participations", json=_payload())
-    assert dup.status_code == 409
 
 
 def test_list_filters(client, db_session):
@@ -242,25 +236,26 @@ def _scraped(bib, nom="DUPONT", club="TCN", **kw) -> ScrapedResult:
 
 
 def test_stats_is_null_for_a_relay(client, db_session):
-    participation = scrape_service.save_one(db_session, _scraped(bib="9", is_relay=True))
+    participation = save_entry(db_session, _scraped(bib="9", is_relay=True))
     body = client.get(f"/api/v1/participations/{participation.id}").json()
     assert body["stats"] is None
 
 
 def test_stats_is_populated_for_an_eligible_course(client, db_session):
-    scrape_service.save_one(db_session, _scraped(bib="1", nom="DUPONT"))
-    participation = scrape_service.save_one(db_session, _scraped(bib="2", nom="MARTIN"))
+    save_entry(db_session, _scraped(bib="1", nom="DUPONT"))
+    participation = save_entry(db_session, _scraped(bib="2", nom="MARTIN"))
 
     stats = client.get(f"/api/v1/participations/{participation.id}").json()["stats"]
 
     assert stats is not None
-    assert set(stats) == {"segments", "ranking_evolution", "comparison", "improvement"}
+    # #1362 : `medians` s'ajoute, aucun bloc existant renommé ni retiré.
+    assert set(stats) == {"segments", "ranking_evolution", "comparison", "improvement", "medians"}
 
 
 def test_stats_comparison_rows_carry_raw_seconds_additively(client, db_session):
     """US4 (#466) : extension additive de ComparisonRow, ne casse pas la forme existante."""
-    scrape_service.save_one(db_session, _scraped(bib="4", nom="DUPONT"))
-    participation = scrape_service.save_one(db_session, _scraped(bib="5", nom="MARTIN"))
+    save_entry(db_session, _scraped(bib="4", nom="DUPONT"))
+    participation = save_entry(db_session, _scraped(bib="5", nom="MARTIN"))
 
     stats = client.get(f"/api/v1/participations/{participation.id}").json()["stats"]
 
@@ -271,10 +266,27 @@ def test_stats_comparison_rows_carry_raw_seconds_additively(client, db_session):
     assert set(row["theirs_seconds"]) == set(row["percentages"])
 
 
+def test_stats_serves_the_medians_in_their_own_block(client, db_session):
+    """#1362 : bloc additif, `comparison` garde sa forme et ses seules positions."""
+    for index in range(11):
+        participation = save_entry(
+            db_session, _scraped(bib=f"m{index}", nom=f"MEDIAN{index}", rank_overall=index + 1)
+        )
+
+    stats = client.get(f"/api/v1/participations/{participation.id}").json()["stats"]
+
+    assert [row["kind"] for row in stats["medians"]] == ["median", "category_median"]
+    assert all(row["rank"] > 0 for row in stats["comparison"])
+    median = stats["medians"][0]
+    assert set(median) == {"kind", "label", "sample_size", "percentages", "mine_seconds", "theirs_seconds"}
+    assert median["sample_size"] == 11
+    assert median["percentages"]["total"] == 100.0
+
+
 def test_stats_ranking_evolution_steps_carry_cumulative_seconds(client, db_session):
     """US5 (#466) : extension additive de RankingEvolutionStep."""
-    scrape_service.save_one(db_session, _scraped(bib="6", nom="DUPONT"))
-    participation = scrape_service.save_one(db_session, _scraped(bib="7", nom="MARTIN"))
+    save_entry(db_session, _scraped(bib="6", nom="DUPONT"))
+    participation = save_entry(db_session, _scraped(bib="7", nom="MARTIN"))
 
     stats = client.get(f"/api/v1/participations/{participation.id}").json()["stats"]
 
@@ -286,7 +298,7 @@ def test_stats_ranking_evolution_steps_carry_cumulative_seconds(client, db_sessi
 
 def test_stats_ignores_club_membership(client, db_session):
     """FR-004 : les splits sont déjà publics ailleurs, la page n'ajoute aucune confidentialité."""
-    participation = scrape_service.save_one(
+    participation = save_entry(
         db_session, _scraped(bib="3", nom="MARTIN", club="ASPTT")
     )
 
@@ -298,7 +310,7 @@ def test_stats_ignores_club_membership(client, db_session):
 
 def test_course_listing_carries_the_field_without_computing_it(client, db_session):
     """Le champ est additif partout où `ParticipationOut` est sérialisé ; le calcul, lui, ne l'est pas."""
-    participation = scrape_service.save_one(db_session, _scraped(bib="4"))
+    participation = save_entry(db_session, _scraped(bib="4"))
 
     rows = client.get(f"/api/v1/courses/{participation.course_id}").json()["participations"]
 
@@ -451,23 +463,82 @@ def test_le_format_de_temps_accepte_est_exactement_celui_documente(client, temps
     assert statut == (201 if accepte else 422)
 
 
-def test_a_manual_result_for_an_opposed_person_is_refused(client, db_session):
-    """#334 : la saisie manuelle n'a ni source ni dossard fiable, elle est refusée."""
-    from datetime import date
-
+def _oppose_jean_dupont(db_session):
     from app.core.identity import identity_hash
     from app.repositories import opposition_repository
 
-    opposition_repository.create(
+    opposition = opposition_repository.create(
         db_session, identity_hash=identity_hash("DUPONT", "Jean"), requested_on=date(2026, 9, 1),
         applied_by_user_id=None,
     )
     db_session.commit()
+    return opposition
 
-    resp = client.post("/api/v1/participations", json=_payload())
 
-    assert resp.status_code == 422
-    assert "opposée à la publication" in resp.json()["detail"]
+def _stored_rows(db_session):
+    from app.models.athlete import Athlete
+
+    return tuple(db_session.query(model).count() for model in (Participation, Athlete, Course))
+
+
+def _without_ids(body):
+    return {
+        **body, "id": None, "created_at": None,
+        "athlete": {**body["athlete"], "id": None}, "course": {**body["course"], "id": None},
+    }
+
+
+def test_a_manual_result_for_an_opposed_person_answers_like_a_quarantined_entry(client, db_session):
+    """#1514 : la réponse publique ne dit plus qu'une personne s'est opposée, et rien n'est gardé."""
+    opposition = _oppose_jean_dupont(db_session)
+
+    opposed = client.post("/api/v1/participations", json=_payload())
+
+    assert opposed.status_code == 201
+    assert _stored_rows(db_session) == (0, 0, 0)
+
+    db_session.delete(opposition)
+    db_session.commit()
+    accepted = client.post("/api/v1/participations", json=_payload())
+
+    assert accepted.status_code == 201
+    # Les identifiants viennent de séquences, que PostgreSQL ne rembobine pas au rollback.
+    assert _without_ids(opposed.json()) == _without_ids(accepted.json())
+    assert opposed.json()["is_pending_validation"] is True
+
+
+@pytest.mark.parametrize(
+    "identity",
+    [
+        {"athlete_name": "DUPONT Jean / MARTIN Paul", "athlete_firstname": ""},
+        {"athlete_name": "MARTIN", "athlete_firstname": "Paul", "team_name": "DUPONT Jean / MARTIN Paul"},
+        {"athlete_name": "MARTIN", "athlete_firstname": "Paul", "team_name": "Jean Dupont"},
+        {"athlete_name": "MARTIN", "athlete_firstname": "Paul", "team_name": "DUPONT Jean + MARTIN Paul"},
+        {"athlete_name": "MARTIN", "athlete_firstname": "Paul", "team_name": "Paul Martin, Jean Dupont"},
+        {"athlete_name": "Jean DUPONT & Paul MARTIN", "athlete_firstname": ""},
+    ],
+)
+def test_a_manual_relay_naming_an_opposed_person_is_silently_dropped(client, db_session, identity):
+    """#1506, #1514 : un libellé de relais (nom saisi ou nom d'équipe) qui nomme une personne opposée."""
+    _oppose_jean_dupont(db_session)
+
+    resp = client.post("/api/v1/participations", json={**_payload(), "is_relay": True, **identity})
+
+    assert resp.status_code == 201
+    assert "oppos" not in resp.text
+    assert _stored_rows(db_session) == (0, 0, 0)
+
+
+def test_an_opposed_manual_entry_meets_the_other_refusals_like_anyone(client, db_session):
+    """#1514 : une saisie jeune est refusée pareil, qu'elle nomme ou non une personne opposée."""
+    _oppose_jean_dupont(db_session)
+    payload = {**_payload(club="ASPTT"), "category": "MIH"}
+
+    opposed = client.post("/api/v1/participations", json=payload)
+    other = client.post("/api/v1/participations", json={**payload, "athlete_name": "MARTIN"})
+
+    assert opposed.status_code == 422
+    assert (opposed.status_code, opposed.json()) == (other.status_code, other.json())
 
 
 @pytest.mark.parametrize(

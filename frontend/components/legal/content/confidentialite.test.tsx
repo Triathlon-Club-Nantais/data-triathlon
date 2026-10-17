@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
+import { ANALYTICS_CONSENT_COOKIE, RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import { NAV_WIDTH_COOKIE } from "@/lib/nav-cookies";
 import { LegalPage } from "../LegalPage";
 import { PRIVACY_POLICY } from "./confidentialite";
@@ -116,6 +116,7 @@ describe("Politique de confidentialité (#333)", () => {
       "tcn-athlete",
       NAV_WIDTH_COOKIE,
       RETOUR_CONNEXION_KEY,
+      ANALYTICS_CONSENT_COOKIE,
     ]) {
       expect(texte).toContain(traceur);
     }
@@ -128,6 +129,10 @@ describe("Politique de confidentialité (#333)", () => {
     expect(texte).toContain("tcn-analytics-consent");
     expect(screen.getByRole("button", { name: "Refuser la mesure détaillée" })).toBeInTheDocument();
     expect(screen.getByRole("row", { name: /^ph_/ })).toHaveTextContent("1 an");
+  });
+
+  it("ne rattache les actions du back-office au compte qu'avec l'accord (#1359)", () => {
+    expect(rendre()).toMatch(/rattachées à l.identifiant du compte seulement si son titulaire a accepté la mesure détaillée/);
   });
 
   it("annonce la liste des licenciés, sa provenance et sa durée (#1202)", () => {
@@ -190,6 +195,6 @@ describe("Politique de confidentialité (#333)", () => {
   });
 
   it("date la politique du jour de sa dernière modification", () => {
-    expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-12");
+    expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-15");
   });
 });

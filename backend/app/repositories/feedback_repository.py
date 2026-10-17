@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 from app.models.user_feedback import UserFeedback
 
 #: Colonnes de tri autorisées par le contrat (contracts/feedback-api.md).
-_COLONNES_TRI = {
+_SORT_COLUMNS = {
     "created_at": UserFeedback.created_at,
     "type": UserFeedback.type,
     "status": UserFeedback.status,
@@ -61,12 +61,12 @@ def list_sorted(
     modèle porte depuis #267 : (`status`, `created_at`) sert exactement la vue
     par défaut de la file, « les nouveaux, du plus récent au plus ancien ».
     """
-    colonne = _COLONNES_TRI[sort]
-    colonne = colonne.desc() if order == "desc" else colonne.asc()
-    requete = db.query(UserFeedback).options(joinedload(UserFeedback.user))
+    sort_column = _SORT_COLUMNS[sort]
+    sort_column = sort_column.desc() if order == "desc" else sort_column.asc()
+    query = db.query(UserFeedback).options(joinedload(UserFeedback.user))
     if status is not None:
-        requete = requete.filter(UserFeedback.status == status)
-    return requete.order_by(colonne).all()
+        query = query.filter(UserFeedback.status == status)
+    return query.order_by(sort_column).all()
 
 
 def count_by_status(db: Session) -> dict[str, int]:
@@ -75,12 +75,12 @@ def count_by_status(db: Session) -> dict[str, int]:
     Ne rend que les statuts présents : compléter les manquants à zéro est une
     décision d'affichage, elle appartient au routeur qui publie la forme.
     """
-    lignes = (
+    rows = (
         db.query(UserFeedback.status, func.count(UserFeedback.id))
         .group_by(UserFeedback.status)
         .all()
     )
-    return {statut: total for statut, total in lignes}
+    return {status_value: total for status_value, total in rows}
 
 
 def get(db: Session, feedback_id: int) -> UserFeedback | None:

@@ -21,12 +21,12 @@ from app.core.database import get_db
 from app.core.permissions import P
 from app.models.user import User
 from app.schemas.course_duplicates import (
-    DuplicateCandidateCount,
     DuplicateCandidateList,
     DuplicateIgnoreCreate,
     DuplicateIgnoreOut,
     IgnoredDuplicateList,
 )
+from app.schemas.ids import DbId
 from app.services import course_duplicates
 
 router = APIRouter(tags=["admin"])
@@ -44,20 +44,7 @@ def list_duplicates(
     paginée serait le signe que le seuil est à revoir, pas que l'écran manque
     d'outillage.
     """
-    return DuplicateCandidateList(candidates=course_duplicates.find_candidates(db))
-
-
-@router.get("/admin/courses/duplicates/count", response_model=DuplicateCandidateCount)
-def count_duplicates(
-    db: Session = Depends(get_db),
-    _: User = Depends(require_permission(P.COURSES_SOURCES)),
-) -> DuplicateCandidateCount:
-    """La taille de la liste ci-dessus — pour la pastille de la nav (#726).
-
-    Même garde que la liste : quiconque ne peut pas voir les paires ne doit pas
-    non plus en connaître le nombre.
-    """
-    return DuplicateCandidateCount(total=course_duplicates.count(db))
+    return DuplicateCandidateList(candidates=course_duplicates.cached_candidates(db))
 
 
 @router.post(
@@ -75,11 +62,11 @@ def ignore_duplicate(
     qu'enregistrer un arbitrage humain — la même famille de décision que la
     bascule de source (#285), pas une suppression d'épreuve (#287).
     """
-    resultat = course_duplicates.ignore_pair(
+    result = course_duplicates.ignore_pair(
         db, course_id_a=body.course_id_a, course_id_b=body.course_id_b, user_id=user.id
     )
     db.commit()
-    return resultat
+    return result
 
 
 @router.get("/admin/courses/duplicates/ignored", response_model=IgnoredDuplicateList)
@@ -93,7 +80,7 @@ def list_ignored_duplicates(
 
 @router.delete("/admin/courses/duplicates/ignored/{pair_id}", status_code=204)
 def unignore_duplicate(
-    pair_id: int,
+    pair_id: DbId,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.COURSES_SOURCES)),
 ) -> None:

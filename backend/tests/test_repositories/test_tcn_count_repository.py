@@ -2,7 +2,8 @@
 from datetime import date
 
 import pytest
-from sqlalchemy import String, literal, select
+from sqlalchemy import String, literal, or_, select
+from sqlalchemy.orm import aliased
 
 from app.core import counter_scope
 from app.core.club import ClubLabels, counts_by_label, tcn_clause
@@ -14,6 +15,8 @@ from app.models.club_member import (
     SOURCE_FFTRI,
     ClubMember,
 )
+from app.models.course import Course
+from app.models.participation import Participation, ParticipationTeammate
 from app.repositories import (
     athlete_repository,
     course_repository,
@@ -395,3 +398,82 @@ def test_the_course_counter_follows_membership(db_session):
 
     db_session.expire_all()
     assert course.tcn_count == 1
+
+
+def _scope_before_1580(course_ids, athlete_ids):
+    """The `OR` scope #1580 replaced, kept as the oracle of the rows it reaches."""
+    conditions = []
+    if course_ids:
+        on_courses = aliased(Participation)
+        conditions += [
+            Participation.course_id.in_(course_ids),
+            Participation.athlete_id.in_(
+                select(on_courses.athlete_id).where(on_courses.course_id.in_(course_ids))
+            ),
+        ]
+    if athlete_ids:
+        conditions += [
+            Participation.athlete_id.in_(athlete_ids),
+            Participation.id.in_(
+                select(ParticipationTeammate.participation_id).where(
+                    ParticipationTeammate.athlete_id.in_(athlete_ids)
+                )
+            ),
+        ]
+    return or_(*conditions)
+
+
+@pytest.mark.parametrize(
+    ("courses", "athletes"),
+    [
+        (["home"], None),
+        (["relay"], None),
+        (["home", "elsewhere"], None),
+        (["empty"], None),
+        (None, ["anne"]),
+        (None, ["teammate"]),
+        (None, ["anne", "teammate", "loner"]),
+        (["home"], ["teammate"]),
+        (["relay"], ["loner"]),
+    ],
+)
+def test_the_scope_reaches_the_same_rows_as_before_1580(db_session, courses, athletes):
+    people = {
+        name: athlete_repository.get_or_create(db_session, nom=name.upper(), prenom="Test")
+        for name in ("anne", "bob", "teammate", "loner", "carrier")
+    }
+    races = {
+        "home": _dated_course(db_session, name="Home"),
+        "elsewhere": _dated_course(db_session, name="Elsewhere", event_date=date(2026, 6, 1)),
+        "far": _dated_course(db_session, name="Far", event_date=date(2025, 6, 1)),
+        "empty": _dated_course(db_session, name="Empty", event_date=date(2026, 7, 1)),
+    }
+    for bib, (who, where) in enumerate([
+        ("anne", "home"), ("bob", "home"), ("anne", "far"), ("bob", "elsewhere"),
+        ("loner", "far"), ("teammate", "elsewhere"), ("carrier", "far"),
+    ]):
+        _result(db_session, people[who], races[where], str(bib), "ASPTT")
+    relay = _relay(db_session, people["carrier"], people["teammate"])
+    races["relay"] = db_session.get(Course, relay.course_id)
+
+    course_ids = [races[name].id for name in courses] if courses else None
+    athlete_ids = [people[name].id for name in athletes] if athletes else None
+
+    def reached(scope):
+        return set(db_session.scalars(select(Participation.id).where(scope)))
+
+    expected = reached(_scope_before_1580(course_ids, athlete_ids))
+    assert reached(tcn_count_repository._scope(course_ids, athlete_ids)) == expected
+    assert expected or courses == ["empty"]
+
+
+def test_the_scope_is_one_indexable_in_clause_on_postgresql():
+    """#1580: `course_id IN (...) OR athlete_id IN (SELECT ...)` full-scans
+    participations on PostgreSQL, as `carried_by` did before #1391."""
+    from sqlalchemy.dialects import postgresql
+
+    scope = tcn_count_repository._scope([1], [2])
+    sql = str(scope.compile(dialect=postgresql.dialect())).upper()
+
+    assert " OR " not in sql, sql
+    assert sql.count("UNION ALL") == 3, sql

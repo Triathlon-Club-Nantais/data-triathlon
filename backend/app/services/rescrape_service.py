@@ -3,7 +3,7 @@
 Unité de travail : l'**épreuve**, c'est-à-dire une **source active** unique — et
 non la course. La table `course` en porte N par épreuve (heats Breizh Chrono,
 variantes individuel/relais) ; un seul scrape d'épreuve les réimporte toutes.
-Compteurs et `--limit` raisonnent donc en épreuves (cf. `_dedupe_par_url`).
+Compteurs et `--limit` raisonnent donc en épreuves (cf. `_dedupe_by_url`).
 
 **Les sources passives ne sont jamais scrapées** (#282) : ni par la sélection en
 base, ni par un ciblage explicite, qui leur substitue l'active de leur épreuve —
@@ -25,19 +25,18 @@ from sqlalchemy.orm import Session
 from app.core.config import Settings
 from app.models.course import Course
 from app.repositories import athlete_repository, course_repository, course_source_repository
-from app.services import sheet_source
+from app.services import batch, sheet_source
 from app.services.batch import (
     BatchFailure,
     BatchItem,
     copy_totals,
-    est_echec_total,
     run_batch,
 )
 from app.services.import_persistence import PassiveSource
 from app.services.progress import ProgressReporter
 
 
-def _dedupe_par_url(courses: list[Course]) -> list[Course]:
+def _dedupe_by_url(courses: list[Course]) -> list[Course]:
     """Une épreuve par URL de source **active**, en gardant la première course vue.
 
     `course.source_url` est l'URL de la source active (#279), et `iter_all` ne rend
@@ -57,13 +56,13 @@ def _dedupe_par_url(courses: list[Course]) -> list[Course]:
     que rattraper les écarts de casse d'hôte ou de slash final entre deux
     providers. La course retenue fournit le libellé `provider · name`.
     """
-    uniques: dict[str, Course] = {}
+    by_url: dict[str, Course] = {}
     for course in courses:
-        uniques.setdefault(sheet_source.normalize_url(course.source_url), course)
-    return list(uniques.values())
+        by_url.setdefault(sheet_source.normalize_url(course.source_url), course)
+    return list(by_url.values())
 
 
-def _items_depuis_urls(db: Session, urls: list[str]) -> list[BatchItem]:
+def _items_from_urls(db: Session, urls: list[str]) -> list[BatchItem]:
     """Épreuves ciblées **explicitement** : la base ne sert plus qu'à libeller.
 
     Une URL inconnue en base est le cas **nominal** du rejeu d'un échec
@@ -138,25 +137,25 @@ def find_passive_targets(db: Session, urls: list[str]) -> list[PassiveTarget]:
     if not urls:
         return []
 
-    recherchees = {forme for url in urls for forme in (url, sheet_source.normalize_url(url))}
-    par_url: dict[str, list] = defaultdict(list)
-    for source in course_source_repository.list_by_urls(db, sorted(recherchees)):
-        par_url[sheet_source.normalize_url(source.url)].append(source)
+    searched_urls = {variant for url in urls for variant in (url, sheet_source.normalize_url(url))}
+    sources_by_url: dict[str, list] = defaultdict(list)
+    for source in course_source_repository.list_by_urls(db, sorted(searched_urls)):
+        sources_by_url[sheet_source.normalize_url(source.url)].append(source)
 
-    refuses: list[PassiveTarget] = []
+    passive_targets: list[PassiveTarget] = []
     for url in urls:
-        portees = par_url.get(sheet_source.normalize_url(url), [])
-        if not portees or any(source.is_active for source in portees):
+        url_sources = sources_by_url.get(sheet_source.normalize_url(url), [])
+        if not url_sources or any(source.is_active for source in url_sources):
             continue
-        course = portees[0].course
-        refuses.append(
+        course = url_sources[0].course
+        passive_targets.append(
             PassiveTarget(url=url, course_name=course.name, active_url=course.source_url)
         )
-    return refuses
+    return passive_targets
 
 
 @dataclass(frozen=True)
-class IdentiteReconciliee:
+class ReconciledIdentity:
     """Une identité corrigée et son volume : « ancien -> nouveau (N participations) ».
 
     Agrégée par paire (ancien, nouveau) : bornée aux seules réconciliations,
@@ -197,18 +196,18 @@ class RescrapeOutcome:
     orphans_removed: int = 0
     #: La purge des orphelins a échoué (import concurrent) ; rattrapée au run suivant.
     orphan_purge_failed: bool = False
-    #: Dry-run : le batch a scrapé sans persister. Neutralise `echec_total`.
+    #: Dry-run : le batch a scrapé sans persister. Neutralise `is_total_failure`.
     dry_run: bool = False
     #: Détail des identités réconciliées (ancien -> nouveau, volume).
-    reconciliations: list[IdentiteReconciliee] = field(default_factory=list)
+    reconciliations: list[ReconciledIdentity] = field(default_factory=list)
     #: URLs enregistrées en sources passives d'une épreuve déjà connue (#283).
     #: Rare ici — le mode base re-scrape des URLs déjà actives — mais pas
     #: impossible : un fan-out peut publier une URL de heat déjà connue ailleurs.
     passive_sources: list[PassiveSource] = field(default_factory=list)
 
     @property
-    def echec_total(self) -> bool:
-        """Toutes les épreuves ciblées ont échoué (cf. `batch.est_echec_total`).
+    def is_total_failure(self) -> bool:
+        """Toutes les épreuves ciblées ont échoué (cf. `batch.is_total_failure`).
 
         `total` est le nombre d'épreuves soumises au batch (URLs uniques, après
         `--limit`) : c'est à lui qu'`errors` se compare.
@@ -221,7 +220,7 @@ class RescrapeOutcome:
         """
         if self.dry_run:
             return False
-        return est_echec_total(epreuves=self.total, errors=self.errors)
+        return batch.is_total_failure(events=self.total, errors=self.errors)
 
 
 def run_rescrape_db(
@@ -254,18 +253,18 @@ def run_rescrape_db(
     cas ; `force=True`, `delay`, dry-run et Ctrl-C sont inchangés.
     """
     if urls is not None:
-        items = _items_depuis_urls(db, urls)
+        items = _items_from_urls(db, urls)
     else:
         # Pas de second filtre sur `source_url` : `iter_all` joint la source
         # active, donc chaque course rendue en a une par construction (#282).
         courses = course_repository.iter_all(
             db, provider=provider, older_than_days=older_than
         )
-        epreuves = _dedupe_par_url(courses)
+        events = _dedupe_by_url(courses)
         # Le nom de la course vient de la DB : on peut libeller proprement.
         items = [
             BatchItem(url=c.source_url, label=f"{c.provider} · {c.name}")
-            for c in epreuves
+            for c in events
         ]
     if limit is not None:
         items = items[:limit]
@@ -285,10 +284,10 @@ def run_rescrape_db(
 
     outcome.reconciled = totals.reconciled
     outcome.merged = len({r.ancien for r in totals.reassignments if r.fusion})
-    compteur = Counter((r.ancien, r.nouveau) for r in totals.reassignments)
+    counts = Counter((r.ancien, r.nouveau) for r in totals.reassignments)
     outcome.reconciliations = [
-        IdentiteReconciliee(ancien=ancien, nouveau=nouveau, participations=n)
-        for (ancien, nouveau), n in compteur.items()
+        ReconciledIdentity(ancien=old_name, nouveau=new_name, participations=n)
+        for (old_name, new_name), n in counts.items()
     ]
 
     # Nettoyage des orphelins : une seule fois, après tout le batch, et jamais en

@@ -1,11 +1,10 @@
 "use client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import posthog from "posthog-js";
 import { toast } from "sonner";
 import { useAnalyticsConsent } from "@/lib/analytics-consent";
-import { isPostHogEnabled } from "@/lib/posthog";
+import { withPostHog } from "@/lib/posthog";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import { SESSION_QUERY_DEFAULTS, useSession } from "@/lib/queries/auth";
 import { queryKeys } from "@/lib/queries/keys";
@@ -37,17 +36,17 @@ function PostHogSessionSync() {
   const identifiedRef = useRef(false);
 
   useEffect(() => {
-    if (!isPostHogEnabled()) return;
     if (session && consent === "granted") {
       identifiedRef.current = true;
-      posthog.identify(String(session.id), {
+      const properties = {
         email: session.email,
         name: session.display_name,
         roles: session.roles.map((r) => r.slug),
-      });
+      };
+      withPostHog((posthog) => posthog.identify(String(session.id), properties));
     } else if (session === null && identifiedRef.current) {
       identifiedRef.current = false;
-      posthog.reset();
+      withPostHog((posthog) => posthog.reset());
     }
   }, [session, consent]);
 
@@ -102,8 +101,16 @@ function PostLoginReturn() {
 // TCN Design System : thème clair uniquement (le mode sombre a été retiré).
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(() => {
-    const queryClient = new QueryClient({
+    const queryClient: QueryClient = new QueryClient({
       defaultOptions: { queries: { staleTime: 30_000, refetchOnWindowFocus: false } },
+      // Les pastilles du rail tiennent 5 min (#1385) : toute écriture réussie
+      // peut changer une file, comme côté serveur où tout commit vide le cache.
+      mutationCache: new MutationCache({
+        // Sans attendre : la mutation elle-même n'a pas à patienter derrière ce recompte.
+        onSuccess: () => {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.adminBadgeCounts() });
+        },
+      }),
     });
     queryClient.setQueryDefaults(queryKeys.session(), SESSION_QUERY_DEFAULTS);
     return queryClient;

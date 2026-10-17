@@ -12,6 +12,8 @@ en HTTP. La transaction se clôt ici — le service `flush`, la route `commit` �
 ce qui rend l'action et sa trace indissociables (FR-015) : un refus lève avant
 le commit, et rien n'est écrit, ni la donnée ni le journal.
 """
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, Path, Query
 from sqlalchemy.orm import Session
 
@@ -42,13 +44,14 @@ from app.schemas.admin import (
     TeammatesUpdate,
 )
 from app.schemas.course import CourseBrief
+from app.schemas.ids import DbId
 from app.schemas.participation import ParticipationOut
 from app.services import admin_actions, athlete_detach, athlete_merge
 
 router = APIRouter(tags=["admin"])
 
 
-def _fiche(athlete, participations: int) -> AdminAthleteRead:
+def _athlete_record(athlete, participations: int) -> AdminAthleteRead:
     """Une fiche coureur prête à servir. Trois routes la construisent.
 
     Le compte est **fourni**, jamais déduit d'`athlete.participations` : lire la
@@ -81,8 +84,8 @@ def search_athletes(
     l'expose pas — l'y ajouter viderait cette garde de son objet.
     """
     return [
-        _fiche(athlete, nombre)
-        for athlete, nombre in athlete_repository.search_admin(
+        _athlete_record(athlete, count)
+        for athlete, count in athlete_repository.search_admin(
             db, search=search, page=page, page_size=page_size
         )
     ]
@@ -90,7 +93,7 @@ def search_athletes(
 
 @router.get("/admin/athletes/{athlete_id}", response_model=AdminAthleteRead)
 def get_athlete(
-    athlete_id: int,
+    athlete_id: DbId,
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.ATHLETES_READ)),
 ):
@@ -101,14 +104,14 @@ def get_athlete(
     l'enregistrement effacerait une date de naissance qu'il n'a jamais lue.
     """
     athlete = admin_actions.get_athlete(db, athlete_id=athlete_id)
-    return _fiche(athlete, participation_repository.count_for_athlete(db, athlete_id))
+    return _athlete_record(athlete, participation_repository.count_for_athlete(db, athlete_id))
 
 
 @router.post(
     "/admin/participations/{participation_id}/reassign", response_model=ParticipationOut
 )
 def reassign_participation(
-    participation_id: int,
+    participation_id: DbId,
     body: ParticipationReassign,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.PARTICIPATIONS_REASSIGN)),
@@ -135,7 +138,7 @@ def reassign_participation(
     "/admin/participations/{participation_id}/teammates", response_model=ParticipationOut
 )
 def set_participation_teammates(
-    participation_id: int,
+    participation_id: DbId,
     body: TeammatesUpdate,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.PARTICIPATIONS_REASSIGN)),
@@ -166,7 +169,7 @@ def set_participation_teammates(
 
 @router.get("/admin/courses/{course_id}/deletion-impact", response_model=CourseDeletionImpact)
 def course_deletion_impact(
-    course_id: int,
+    course_id: DbId,
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.COURSES_DELETE)),
 ):
@@ -180,7 +183,7 @@ def course_deletion_impact(
 
 @router.delete("/admin/courses/{course_id}", status_code=204)
 def delete_course(
-    course_id: int,
+    course_id: DbId,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.COURSES_DELETE)),
 ):
@@ -260,7 +263,7 @@ def wipe_all_participations(
 
 @router.patch("/admin/athletes/{athlete_id}", response_model=AdminAthleteRead)
 def update_athlete(
-    athlete_id: int,
+    athlete_id: DbId,
     body: AdminAthleteUpdate,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_WRITE)),
@@ -270,26 +273,26 @@ def update_athlete(
     `exclude_unset` et non `exclude_none` : `birth_date: null` est une mise à
     `NULL` légitime, et seule la présence du champ la distingue d'une absence.
     """
-    champs = body.model_dump(exclude_unset=True)
+    changed_fields = body.model_dump(exclude_unset=True)
     athlete = admin_actions.update_athlete(
         db,
         athlete_id=athlete_id,
-        champs=champs,
+        fields=changed_fields,
         user_id=user.id,
     )
     db.commit()
     capture_event(
         "athlete_updated",
         distinct_id=str(user.id),
-        properties={"fields_changed": list(champs.keys())},
+        properties={"fields_changed": list(changed_fields.keys())},
     )
-    return _fiche(athlete, participation_repository.count_for_athlete(db, athlete_id))
+    return _athlete_record(athlete, participation_repository.count_for_athlete(db, athlete_id))
 
 
 @router.get("/admin/athletes/{athlete_id}/merge-impact", response_model=AthleteMergeImpact)
 def athlete_merge_impact(
-    athlete_id: int,
-    absorbed_id: int = Query(...),
+    athlete_id: DbId,
+    absorbed_id: Annotated[DbId, Query()],
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_WRITE)),
     _lecture: User = Depends(require_permission(P.ATHLETES_READ)),
@@ -303,7 +306,7 @@ def athlete_merge_impact(
 
 @router.post("/admin/athletes/{athlete_id}/merge", response_model=AdminAthleteRead)
 def merge_athlete(
-    athlete_id: int,
+    athlete_id: DbId,
     body: AthleteMergeRequest,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_WRITE)),
@@ -312,16 +315,16 @@ def merge_athlete(
     athlete = athlete_merge.merge_athletes(db, kept_id=athlete_id, absorbed_id=body.absorbed_id, user_id=user.id)
     db.commit()
     capture_event("athletes_merged", distinct_id=str(user.id), properties={})
-    return _fiche(athlete, participation_repository.count_for_athlete(db, athlete_id))
+    return _athlete_record(athlete, participation_repository.count_for_athlete(db, athlete_id))
 
 
 @router.post("/admin/athletes/{athlete_id}/detach", response_model=AdminAthleteRead, status_code=201)
 def detach_athlete_results(
-    athlete_id: int,
+    athlete_id: DbId,
     body: AthleteDetachRequest,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_WRITE)),
-    _rattachement: User = Depends(require_permission(P.PARTICIPATIONS_REASSIGN)),
+    _reassign_actor: User = Depends(require_permission(P.PARTICIPATIONS_REASSIGN)),
 ):
     """Sépare des résultats vers une nouvelle fiche d'homonyme (#1209) et la rend.
 
@@ -332,12 +335,12 @@ def detach_athlete_results(
     )
     db.commit()
     capture_event("athlete_detached", distinct_id=str(user.id), properties={"results": len(body.participation_ids)})
-    return _fiche(created, participation_repository.count_for_athlete(db, created.id))
+    return _athlete_record(created, participation_repository.count_for_athlete(db, created.id))
 
 
 @router.get("/admin/athletes/{athlete_id}/aliases", response_model=AthleteAliasList)
 def list_athlete_aliases(
-    athlete_id: int,
+    athlete_id: DbId,
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(P.ATHLETES_WRITE)),
 ):
@@ -347,8 +350,8 @@ def list_athlete_aliases(
 
 @router.delete("/admin/athletes/{athlete_id}/aliases/{alias_id}", status_code=204)
 def remove_athlete_alias(
-    athlete_id: int,
-    alias_id: int,
+    athlete_id: DbId,
+    alias_id: DbId,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_WRITE)),
 ):
@@ -359,7 +362,7 @@ def remove_athlete_alias(
 
 @router.get("/admin/athletes/{athlete_id}/season-quota", response_model=SeasonQuota)
 def get_season_quota(
-    athlete_id: int,
+    athlete_id: DbId,
     season: int = Query(..., ge=SEASON_MIN, le=SEASON_MAX),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_SEASON_VALIDATE)),
@@ -374,7 +377,7 @@ def get_season_quota(
     status_code=201,
 )
 def validate_season(
-    athlete_id: int,
+    athlete_id: DbId,
     body: SeasonValidationCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_SEASON_VALIDATE)),
@@ -392,7 +395,7 @@ def validate_season(
     status_code=204,
 )
 def unvalidate_season(
-    athlete_id: int,
+    athlete_id: DbId,
     season: int = Path(ge=SEASON_MIN, le=SEASON_MAX),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.ATHLETES_SEASON_VALIDATE)),
@@ -404,7 +407,7 @@ def unvalidate_season(
 
 @router.patch("/admin/courses/{course_id}", response_model=CourseBrief)
 def update_course(
-    course_id: int,
+    course_id: DbId,
     body: AdminCourseUpdate,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(P.COURSES_WRITE)),
@@ -413,7 +416,7 @@ def update_course(
     course = admin_actions.update_course(
         db,
         course_id=course_id,
-        champs=body.model_dump(exclude_unset=True),
+        fields=body.model_dump(exclude_unset=True),
         user_id=user.id,
     )
     db.commit()

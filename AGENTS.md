@@ -79,18 +79,12 @@ route. Détail complet : `docs/WORKFLOW-IA.md`.
   rien lancer. Compter ~20-40 % de tokens en plus par feature dès qu'on ouvre un
   cycle complet, quelle que soit la voie.
 
-`docs/superpowers/specs/` mêle deux natures : des **designs de features livrées**
-(valeur historique) et des **rapports de terrain encore normatifs** — sondages et
-audits, cités là où ils s'appliquent.
-
 ## Stack
 
 - **Backend** (`backend/`) : Python 3.13, **uv** (`pyproject.toml` + `uv.lock`), FastAPI,
   SQLAlchemy 2.0 (sync), Pydantic v2 + pydantic-settings, **Alembic** (migrations), PostgreSQL
-  (Azure Flexible Server en prod, Supabase en preview, cf. `docs/infra-azure.md`) / SQLite en dev. Scraping httpx + BeautifulSoup/lxml — **aucun
-  navigateur** : le fallback Playwright a été supprimé avec sa dépendance (#102),
-  et sa sentinelle attrape-tout avec lui — une URL non reconnue ne matche aucun
-  provider. Tests pytest, ruff. API versionnée sous `/api/v1`.
+  (Azure Flexible Server en prod, Supabase en preview, cf. `docs/infra-azure.md`) / SQLite en dev. Scraping httpx + BeautifulSoup/lxml, **aucun
+  navigateur** (#102, cf. `backend/app/scrapers/AGENTS.md`). Tests pytest, ruff. API versionnée sous `/api/v1`.
 - **Frontend** (`frontend/`) : Next.js 16 (App Router) + TypeScript + Tailwind + shadcn/ui.
 - **Déploiement** : backend → Render (`render.yaml`), front → Vercel, DB → Azure PostgreSQL (prod), Supabase (preview).
 
@@ -134,10 +128,6 @@ port éphémère et le publie, son frontend le lit. `docs/dev-multi-worktree.md`
 Deux applications, une archi en couches côté backend dont le flux ne traverse
 qu'une direction : `api → services → repositories → DB`, les repositories étant
 la **seule** couche qui construit des requêtes sur la Session SQLAlchemy.
-L'inventaire module par
-module et le cache TTL sont dans `backend/AGENTS.md`, le front dans
-`frontend/AGENTS.md` — les deux se chargent d'eux-mêmes dès qu'un fichier du
-dossier est lu.
 
 ## Principes de conception
 
@@ -177,11 +167,10 @@ Guidelines d'écriture de code, valables dans les trois voies du workflow IA.
   ce qu'il porte : les noms d'une ou deux lettres sont réservés aux
   liaisons dont la portée tient sous les yeux (compréhension, boucle,
   lambda, `db`). Règle de transition : on ne réécrit pas l'existant, la
-  règle s'applique aux nouveaux ajouts — **à une dérogation près**, la
-  campagne de renommage de l'issue #88, bornée aux lots énumérés dans le
-  Principe I (plan de découpage, pas définition de la fin : la dérogation
-  s'éteint quand `backend/app` ne porte plus d'identifiant français hors de
-  la clause « Pas d'exception de vocabulaire métier » du Principe I).
+  règle s'applique aux nouveaux ajouts. La campagne de renommage de
+  l'issue #88 est close (re-scan de clôture du 2026-10-16, #1538) :
+  `backend/app` ne porte plus d'identifiant français hors de la clause
+  « Pas d'exception de vocabulaire métier » du Principe I.
 - Commits : Conventional Commits (`feat:`, `fix:`…), déjà en place dans l'historique.
 - **Lier une PR à son issue avec un mot-clé GitHub anglais** : `Closes #123`,
   `Fixes #123` ou `Resolves #123`. C'est un **jeton machine**, au même titre que

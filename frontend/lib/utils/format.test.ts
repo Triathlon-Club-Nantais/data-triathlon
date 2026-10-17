@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { disciplineOf, disciplineBreakdownBySeason, formatCount, motCompte, ordinalFr, plural } from "./format";
+import { disciplineOf, disciplineBreakdownBySeason, formatCount, motCompte, ordinalFr, pctFr, plural } from "./format";
 import type { Participation } from "@/lib/types";
 
 let nextId = 1;
@@ -146,5 +146,12 @@ describe("formatCount", () => {
   it("sépare les milliers à la française (#1080)", () => {
     expect(formatCount(161225)).toBe("161\u202f225");
     expect(formatCount(792)).toBe("792");
+  });
+});
+
+describe("pctFr (#1587)", () => {
+  it("renders the sign after a narrow no-break space", () => {
+    expect(pctFr(62.5)).toBe("62,5\u202f%");
+    expect(pctFr(59.4, 0)).toBe("59\u202f%");
   });
 });

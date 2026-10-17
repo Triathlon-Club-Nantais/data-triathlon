@@ -8,6 +8,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.ids import DbId
+
 
 class VolunteerActionSelfCreate(BaseModel):
     """Corps de `POST /api/v1/volunteer-actions` — self-service.
@@ -18,7 +20,7 @@ class VolunteerActionSelfCreate(BaseModel):
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    athlete_id: int
+    athlete_id: DbId
     title: str = Field(min_length=1, max_length=200)
     description: str = Field(min_length=1, max_length=10_000)
 

@@ -1,4 +1,3 @@
-import { FAMILY_ORDER, disciplineFamily, type FamilyName } from "@/lib/sport-colors";
 import type { Participation } from "@/lib/types";
 
 // Jeton court de format pour les FormatChip (XS / S / M / L, ou distance).
@@ -66,30 +65,6 @@ export function disciplineOf(eventType: string | null | undefined): string {
   return best || type;
 }
 
-/** Agrège `by_type` (clés event_type → compte) en familles ordonnées avec %. */
-export function aggregateDisciplines(
-  byType: Record<string, number>,
-): { name: string; color: string; ink: string; count: number; pct: number }[] {
-  const acc = new Map<string, { color: string; ink: string; count: number }>();
-  let total = 0;
-  for (const [type, count] of Object.entries(byType)) {
-    const fam = disciplineFamily(type);
-    total += count;
-    const e = acc.get(fam.name);
-    if (e) e.count += count;
-    else acc.set(fam.name, { color: fam.color, ink: fam.ink, count });
-  }
-  return [...acc.entries()]
-    .map(([name, { color, ink, count }]) => ({
-      name,
-      color,
-      ink,
-      count,
-      pct: total ? (count / total) * 100 : 0,
-    }))
-    .sort((a, b) => FAMILY_ORDER.indexOf(a.name as FamilyName) - FAMILY_ORDER.indexOf(b.name as FamilyName));
-}
-
 export interface SeasonDisciplineBreakdown {
   season: string;
   entries: [string, number][];
@@ -125,10 +100,10 @@ export function disciplineBreakdownBySeason(participations: Participation[]): Se
     }));
 }
 
-/** Formate la valeur numérique d'un pourcentage à la française (« 71,2 »),
- *  sans le symbole « % » (les appelants l'ajoutent eux-mêmes). */
+/** Formate un pourcentage à la française, signe compris : « 71,2 % », avec
+ *  l'espace fine insécable (U+202F) que `Intl` emploie en `fr-FR` (#1587). */
 export function pctFr(pct: number, decimals = 1): string {
-  return pct.toFixed(decimals).replace(".", ",");
+  return `${pct.toFixed(decimals).replace(".", ",")}\u202f%`;
 }
 
 const COMPTE_FR = new Intl.NumberFormat("fr-FR");

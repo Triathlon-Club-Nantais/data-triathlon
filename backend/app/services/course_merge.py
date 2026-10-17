@@ -16,7 +16,7 @@ import logging
 
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import DomainError, NotFoundError
+from app.core.exceptions import DomainError
 from app.models.course import Course
 from app.repositories import (
     absorbed_course_repository,
@@ -28,15 +28,9 @@ from app.repositories import (
     tcn_count_repository,
 )
 from app.services.course_locks import lock_courses_or_409
+from app.services.not_found import course_or_404
 
 logger = logging.getLogger(__name__)
-
-
-def _course_or_404(db: Session, course_id: int) -> Course:
-    course = course_repository.get(db, course_id)
-    if course is None:
-        raise NotFoundError("Épreuve introuvable.")
-    return course
 
 
 def _url_already_known(db: Session, *, target: Course, absorbed: Course) -> bool:
@@ -75,7 +69,7 @@ def _pair_or_400(db: Session, *, course_id: int, absorbed_id: int) -> tuple[Cour
     if course_id == absorbed_id:
         # Rien à absorber, et la fusion supprimerait la cible qu'on croit garder.
         raise DomainError("Une épreuve ne peut pas être fusionnée avec elle-même.")
-    return _course_or_404(db, course_id), _course_or_404(db, absorbed_id)
+    return course_or_404(db, course_id), course_or_404(db, absorbed_id)
 
 
 def _identity(db: Session, course: Course) -> dict:
@@ -161,7 +155,7 @@ def merge_courses(db: Session, *, course_id: int, absorbed_id: int, user_id: int
     lock_courses_or_409(db, course_id, absorbed_id)
     target, absorbed = _pair_or_400(db, course_id=course_id, absorbed_id=absorbed_id)
 
-    resume = {
+    summary = {
         "name": target.name,
         # L'identité complète de l'absorbée, et pas seulement son identifiant : sa
         # ligne est supprimée, cette entrée est la **seule** trace qui reste d'elle.
@@ -177,12 +171,12 @@ def merge_courses(db: Session, *, course_id: int, absorbed_id: int, user_id: int
         },
         "participations_deleted": participation_repository.count_for_course(db, absorbed.id),
     }
-    a_deplacer = (
+    to_move = (
         None
         if _url_already_known(db, target=target, absorbed=absorbed)
         else course_source_repository.get_active(db, absorbed.id)
     )
-    candidats = athlete_repository.only_on_course(db, absorbed.id)
+    candidates = athlete_repository.only_on_course(db, absorbed.id)
     athlete_ids = participation_repository.athlete_ids_on_course(db, absorbed.id)
 
     # L'URL de l'absorbée peut rester active sur ses sœurs, qui la re-scrapent
@@ -190,13 +184,13 @@ def merge_courses(db: Session, *, course_id: int, absorbed_id: int, user_id: int
     # au lieu de la recréer. Avant `move_to`, qui lui retire son URL active.
     absorbed_course_repository.record(db, absorbed=absorbed, target=target)
     absorbed_course_repository.repoint(db, source=absorbed, target=target)
-    if a_deplacer is not None:
-        course_source_repository.move_to(db, source=a_deplacer, course=target)
+    if to_move is not None:
+        course_source_repository.move_to(db, source=to_move, course=target)
     course_repository.delete(db, absorbed)
     db.flush()
     tcn_count_repository.recompute_counts_for_tcn(db, athlete_ids=athlete_ids)
-    resume["athletes_purged"] = len(athlete_repository.delete_orphans_among(db, candidats))
-    resume["source_added"] = a_deplacer is not None
+    summary["athletes_purged"] = len(athlete_repository.delete_orphans_among(db, candidates))
+    summary["source_added"] = to_move is not None
 
     admin_action_log_repository.create(
         db,
@@ -207,21 +201,21 @@ def merge_courses(db: Session, *, course_id: int, absorbed_id: int, user_id: int
         # encore interroger, et l'historique d'une épreuve doit porter les fusions
         # qu'elle a absorbées.
         entity_id=course_id,
-        payload=resume,
+        payload=summary,
     )
     logger.info(
         "Admin %s merged course %s into %s (%s participations deleted, %s athletes purged)",
         user_id,
         absorbed_id,
         course_id,
-        resume["participations_deleted"],
-        resume["athletes_purged"],
+        summary["participations_deleted"],
+        summary["athletes_purged"],
     )
     return {
         "target_id": course_id,
         "absorbed_id": absorbed_id,
-        "participations_deleted": resume["participations_deleted"],
-        "athletes_purged": resume["athletes_purged"],
-        "source_added": resume["source_added"],
+        "participations_deleted": summary["participations_deleted"],
+        "athletes_purged": summary["athletes_purged"],
+        "source_added": summary["source_added"],
         "sources": course_source_repository.list_for_course(db, course_id),
     }

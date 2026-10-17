@@ -542,6 +542,57 @@ def test_save_geocode_attempt_persiste_un_succes(db_session):
     assert course.geocoded_at is not None
 
 
+def test_relocating_a_course_clears_its_weather(db_session):
+    """#1370 : une épreuve déplacée (#1256) redemande la météo de son vrai lieu."""
+    course = course_repository.get_or_create(
+        db_session, name="Tri Déplacé", event_date=date(2026, 5, 1), event_type="triathlon-m"
+    )
+    course.latitude, course.longitude = 16.0, -61.7
+    course.weather_temperature_c, course.weather_fetched_at = 28.0, utcnow()
+    db_session.flush()
+
+    course_repository.save_geocode_attempt(db_session, course, (16.0, -61.7))
+    assert course.weather_temperature_c == 28.0
+
+    course_repository.save_geocode_attempt(db_session, course, (47.8, -1.7))
+    assert course.weather_temperature_c is None
+    assert course.weather_fetched_at is None
+
+
+def _weathered_course(db_session, name):
+    course = course_repository.get_or_create(
+        db_session, name=name, event_date=date(2025, 6, 1), event_type="triathlon-m"
+    )
+    course.latitude, course.longitude = 47.2, -1.55
+    db_session.flush()
+    course_repository.save_weather(
+        db_session, course, temperature_c=21.0, wind_kmh=10.0, precipitation_mm=0.0
+    )
+    return course
+
+
+def test_redating_a_course_clears_its_weather(db_session):
+    """#1468 : la météo d'un autre jour est redemandée après `redate`."""
+    course = _weathered_course(db_session, "Tri Redaté")
+
+    course_repository.redate(db_session, course, date(2025, 9, 14))
+
+    assert course.weather_temperature_c is None
+    assert course.weather_wind_kmh is None
+    assert course.weather_precipitation_mm is None
+    assert course in course_repository.list_missing_weather(db_session, dated_before=date(2026, 1, 1))
+
+
+def test_same_date_keeps_the_weather(db_session):
+    course = _weathered_course(db_session, "Tri Même Date")
+
+    course_repository.redate(db_session, course, date(2025, 6, 1))
+    course_repository.update_identity(db_session, course, event_date=date(2025, 6, 1), name="Tri Même Date")
+
+    assert course.weather_temperature_c == 21.0
+    assert course.weather_fetched_at is not None
+
+
 def test_save_geocode_attempt_persiste_un_echec_sans_coordonnees(db_session):
     course = course_repository.get_or_create(
         db_session, name="Tri Échec", event_date=date(2026, 5, 1), event_type="triathlon-m"

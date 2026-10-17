@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import optional_user
 from app.core.analytics import ANONYMOUS_DISTINCT_ID, capture_event
+from app.core.client_address import rate_limit_key
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.feedback import FeedbackCreate, FeedbackCreated
@@ -27,7 +28,7 @@ router = APIRouter(tags=["feedback"])
 #: Signalement rejeté en silence (honeypot) : même réponse qu'un succès réel,
 #: sans qu'aucune ligne n'existe — `id=0` n'est jamais une clé réelle
 #: (research.md §D2).
-_REPONSE_HONEYPOT = FeedbackCreated(id=0, status="nouveau")
+_HONEYPOT_RESPONSE = FeedbackCreated(id=0, status="nouveau")
 
 
 @router.post("/feedback", status_code=201, response_model=FeedbackCreated)
@@ -44,12 +45,14 @@ def submit_feedback(
         body=body.body,
         page_url=body.page_url,
         user_agent=body.user_agent,
-        ip_address=request.client.host if request.client else None,
+        # La clé de débit et non l'adresse exacte (#1552) : la colonne ne sert
+        # qu'au comptage, qui doit regrouper un /64 IPv6.
+        ip_address=rate_limit_key(request.client.host) if request.client else None,
         user_id=user.id if user else None,
         honeypot=body.honeypot,
     )
     if entry is None:
-        return _REPONSE_HONEYPOT
+        return _HONEYPOT_RESPONSE
     db.commit()
     db.refresh(entry)
     capture_event(

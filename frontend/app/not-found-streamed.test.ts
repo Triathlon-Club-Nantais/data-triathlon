@@ -19,6 +19,7 @@ const ROUTES = [
   { page: "athletes/[id]", loading: "athletes/[id]" },
   { page: "courses/[id]", loading: "courses/[id]" },
   { page: "courses/[id]/participations/[participationId]", loading: "courses/[id]/participations/[participationId]" },
+  { page: "challenges/[id]", loading: "challenges/[id]" },
 ];
 
 describe("fiches dynamiques absentes : 200 streamé et noindex (#1064)", () => {
@@ -26,7 +27,7 @@ describe("fiches dynamiques absentes : 200 streamé et noindex (#1064)", () => {
     const source = readFileSync(join(GROUPE, page, "page.tsx"), "utf8");
     expect(source).toMatch(/notFound\(\)/);
     // Si ce fichier disparaît, la route répond un vrai 404 : le contrat change,
-    // et `frontend/AGENTS.md` avec lui.
+    // et `docs/frontend/ecrans-erreur.md` avec lui.
     expect(existsSync(join(GROUPE, loading, "loading.tsx"))).toBe(true);
   });
 

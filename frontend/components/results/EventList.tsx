@@ -13,11 +13,12 @@ import {
 } from "@/components/ui/select";
 import { useInfiniteEvents } from "@/lib/queries/events";
 import { eventTypeLabel } from "@/lib/constants";
-import { formatCount, formatToken } from "@/lib/utils/format";
+import { formatCount, formatToken, motCompte, plural } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName, pendingOnlyLabel } from "@/lib/utils/event";
 import { groupEventsByCompetition, eventSuffix, type EventGroup } from "@/lib/utils/eventGroups";
 import { ReliabilityMark } from "@/components/results/ReliabilityMark";
+import { SeasonEmptyState } from "@/components/dashboard/SeasonEmptyState";
 import { gridColumns, gridMinWidth, type Track } from "@/lib/utils/table";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 import type { EventOut, EventPage, ParticipationFilters } from "@/lib/types";
@@ -129,10 +130,10 @@ export function EventList({
   const annonce = (
     <AnnonceStatut
       texte={
-        `${formatCount(totalEvents)} épreuve${totalEvents > 1 ? "s" : ""}, ${formatCount(totalParticipations)} résultat${totalParticipations > 1 ? "s" : ""}` +
-        (events.length > 0 ? `, ${events.length} affichée${events.length > 1 ? "s" : ""}` : "") +
+        `${formatCount(totalEvents)} ${plural(totalEvents, "épreuve")}, ${formatCount(totalParticipations)} ${plural(totalParticipations, "résultat")}` +
+        (events.length > 0 ? `, ${motCompte(events.length, "affichée")}` : "") +
         (repliees > 0
-          ? ` dans ${repliees} compétition${repliees > 1 ? "s" : ""} repliée${repliees > 1 ? "s" : ""}`
+          ? ` dans ${motCompte(repliees, "compétition")} ${plural(repliees, "repliée")}`
           : "") +
         (isFetchNextPageError ? ". Impossible de charger la suite des épreuves." : "")
       }
@@ -166,12 +167,17 @@ export function EventList({
         </>
       );
     }
+    // Sans filtre de recherche, seule la saison vide la liste (#1404) : même
+    // état vide que le tableau de bord, qui nomme la saison et en offre la sortie.
+    const withoutSeasons = new URLSearchParams(sp.toString());
+    withoutSeasons.delete("seasons");
+    const currentSeasonQuery = withoutSeasons.toString();
     return (
       <>
         {annonce}
-        <EmptyState
-          title="Aucun résultat"
-          description="Importez une épreuve depuis une URL de chronométrage pour voir apparaître les résultats ici."
+        <SeasonEmptyState
+          seasons={filters.seasons ?? []}
+          currentSeasonHref={`/resultats${currentSeasonQuery ? `?${currentSeasonQuery}` : ""}`}
         />
       </>
     );
@@ -185,6 +191,8 @@ export function EventList({
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 12,
           padding: "20px 26px 16px",
         }}
       >
@@ -193,20 +201,25 @@ export function EventList({
             Toutes les épreuves
           </div>
         </div>
-        <Select value={currentSort} onValueChange={(v) => setSort(v as string)}>
-          <SelectTrigger className="h-9 w-44">
-            <SelectValue>
-              {(v) => sortOptions.find((o) => o.value === v)?.label ?? "Trier"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {sortOptions.map((o) => (
-              <SelectItem key={o.value} value={o.value}>
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+          <span id="libelle-tri-epreuves" style={{ fontSize: 13, fontWeight: 700, color: "var(--tcn-text-muted)" }}>
+            Trier par
+          </span>
+          <Select value={currentSort} onValueChange={(v) => setSort(v as string)}>
+            <SelectTrigger aria-labelledby="libelle-tri-epreuves" className="tcn-cible-tactile h-9 w-44">
+              <SelectValue>
+                {(v) => sortOptions.find((o) => o.value === v)?.label ?? "Trier"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {sortOptions.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div
@@ -363,7 +376,7 @@ function eventDerived(ev: EventOut, label?: string) {
 
 /** Une épreuve qui n'a que des résultats en attente le dit, au lieu de « 0 résultat » (#1273). */
 function libelleResultats(total: number, pendingCount: number | undefined): string {
-  return pendingOnlyLabel(total, pendingCount) ?? `${total} résultat${total > 1 ? "s" : ""}`;
+  return pendingOnlyLabel(total, pendingCount) ?? motCompte(total, "résultat");
 }
 
 /** Même dérivation pour une ligne de compétition parente. */

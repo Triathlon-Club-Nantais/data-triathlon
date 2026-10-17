@@ -17,7 +17,7 @@ contradictoires, et la disqualification prime sur l'abandon), et le repli
 `max(1, 10 %)` de participants chronométrés — jamais à l'égalité stricte à zéro,
 qu'un seul temps saisi à la main suffisait à désarmer, faisant classer toute une
 course d'enfants DNF. Le type de course est classé sur `title_course`, le titre
-d'événement servant d'**appoint** : `classify_event_type(texte, contexte=…)` ne
+d'événement servant d'**appoint** : `classify_event_type(text, context=…)` ne
 consulte le contexte que si l'épreuve ne nomme aucun sport (« Format M
 individuel » d'un SwimRun), et la taille de l'épreuve prime toujours sur celle du
 contexte. Ne pas revenir à la **concaténation** des deux titres : elle classait le
@@ -37,7 +37,7 @@ dans les bilans plutôt que des liens ignorés. Vérité d'API (panel de 21
 
 **Fan-out par course** (#221) — comme Chronoweb, un seul GET rend l'événement
 entier ; le gain n'est pas la requête économisée, mais l'**intégrité du cache
-TTL**. Chaque course de la charge (`charge["data"]`, identifiée par
+TTL**. Chaque course de la charge (`payload["data"]`, identifiée par
 `epreuve_id`) reçoit sa propre `source_url` canonique
 `classement.ok-time.fr/<eventId>/race/<epreuveId>` — donc son propre TTL,
 au lieu d'un TTL commun à l'événement entier qui reconstruisait toutes les

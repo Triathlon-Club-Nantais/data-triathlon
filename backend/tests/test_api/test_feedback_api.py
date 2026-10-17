@@ -5,7 +5,9 @@ Miroir du découpage des routers : la soumission est publique et vit sous
 (`test_admin_feedback_api.py`).
 """
 from app.core.config import get_settings
+from app.models.user_feedback import FEEDBACK_TYPES
 from app.repositories import feedback_repository
+from app.schemas.feedback import FeedbackCreate
 
 _URL = "/api/v1/feedback"
 
@@ -86,38 +88,47 @@ def test_debit_depasse_rend_429(client, monkeypatch):
     assert "réessayez" in reponse.json()["detail"]
 
 
-def test_x_forwarded_for_varie_ne_contourne_pas_le_debit(client, monkeypatch):
-    """Constat A04-1 de l'audit OWASP (#393).
-
-    Render **préfixe** `X-Forwarded-For` de l'IP réelle du client et laisse
-    derrière elle ce que l'appelant a lui-même envoyé. Retenir la dernière
-    entrée — le défaut d'uvicorn — revenait donc à compter sur une valeur
-    choisie par l'appelant : mesuré sur preview, 7 envois portant chacun un
-    `X-Forwarded-For` différent ont tous répondu 201, limite à 5.
+def test_a_forged_leading_forwarded_entry_does_not_bypass_the_limit(client, monkeypatch):
+    """#1533: Cloudflare appends to `X-Forwarded-For`, so its leading entry is
+    whatever the caller wrote. Measured on production on 2026-10-16, 32 calls
+    with a different leading entry never hit a limit of 30.
     """
     client.cookies.clear()
     monkeypatch.setattr(get_settings(), "feedback_rate_limit_max_per_window", 2)
 
-    def envoi(usurpee: str):
-        return client.post(
-            _URL, json=_payload(), headers={"X-Forwarded-For": f"203.0.113.7, {usurpee}"}
-        )
+    def send(forged: str):
+        chain = f"{forged},90.49.125.30, 172.71.119.62, 10.28.198.73"
+        return client.post(_URL, json=_payload(), headers={"X-Forwarded-For": chain})
 
-    assert envoi("198.51.100.1").status_code == 201
-    assert envoi("198.51.100.2").status_code == 201
-    assert envoi("198.51.100.3").status_code == 429
+    assert send("198.51.100.1").status_code == 201
+    assert send("198.51.100.2").status_code == 201
+    assert send("198.51.100.3").status_code == 429
 
 
-def test_l_ip_retenue_est_la_premiere_entree(client, db_session):
-    """Celle que le proxy de la plateforme a posée, pas celle du visiteur."""
+def test_the_stored_ip_is_the_one_cloudflare_saw(client, db_session):
     client.cookies.clear()
 
-    reponse = client.post(
-        _URL, json=_payload(), headers={"X-Forwarded-For": "203.0.113.7, 198.51.100.1"}
-    )
+    chain = "203.0.113.7,90.49.125.30, 172.71.119.62, 10.28.198.73"
+    reponse = client.post(_URL, json=_payload(), headers={"X-Forwarded-For": chain})
 
     entry = feedback_repository.get(db_session, reponse.json()["id"])
-    assert entry.ip_address == "203.0.113.7"
+    assert entry.ip_address == "90.49.125.30"
+
+
+def test_an_ipv6_64_counts_as_one_sender(client, monkeypatch, db_session):
+    """#1552: the count and the stored value both key on the /64."""
+    client.cookies.clear()
+    monkeypatch.setattr(get_settings(), "feedback_rate_limit_max_per_window", 1)
+
+    def send(ip: str):
+        chain = f"{ip}, 172.71.119.62, 10.28.198.73"
+        return client.post(_URL, json=_payload(), headers={"X-Forwarded-For": chain})
+
+    first = send("2001:db8:1:2::1")
+    assert first.status_code == 201
+    assert send("2001:db8:1:2::2").status_code == 429
+    entry = feedback_repository.get(db_session, first.json()["id"])
+    assert entry.ip_address == "2001:db8:1:2::/64"
 
 
 def test_la_soumission_ne_vit_pas_sous_admin(client):
@@ -139,3 +150,10 @@ def test_une_demande_de_retrait_de_donnees_est_un_type_a_part(client, db_session
 
     assert reponse.status_code == 201
     assert feedback_repository.list_sorted(db_session)[0].type == "retrait"
+
+
+def test_the_accepted_types_are_exactly_the_model_nomenclature():
+    """#1585 : `FEEDBACK_TYPES` est la seule source des types acceptés."""
+    accepted = FeedbackCreate.model_json_schema()["properties"]["type"]["enum"]
+
+    assert tuple(accepted) == FEEDBACK_TYPES

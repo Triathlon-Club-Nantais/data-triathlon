@@ -23,7 +23,7 @@ sur une partie des événements et renvoie l'**événement entier**. Mesuré :
 tombe dès que le code de course porte un **espace ou un tiret bas** — est parfaite
 sur le panel, mais **l'implémentation ne s'y fie pas** : la seule vérité est le
 champ `race` porté par chaque ligne, et le regroupement se fait toujours côté
-client (`_lignes_par_course`).
+client (`_rows_by_race`).
 
 S'y fier était le défaut que #269 corrige, et il pesait bien plus lourd que les
 courses manquantes : le scraper mono-course versait l'événement entier dans une
@@ -109,7 +109,7 @@ réécrites en place.
 
 Les réponses « événement entier » pèsent jusqu'à 14,7 Mo et la source rend des
 **500 à corps vide** dessus : mesuré 3 échecs d'affilée sur `indiv/1082/M_relay/`
-puis succès, 4 sur `indiv/1082/S_Light/`. D'où `_ESSAIS_INDIV = 5`, sans
+puis succès, 4 sur `indiv/1082/S_Light/`. D'où `_INDIV_ATTEMPTS = 5`, sans
 temporisation entre les essais (les 500 arrivent immédiatement, ils ne signalent
 pas une surcharge à laisser passer) — et seuls les **5xx** sont rejoués, un 4xx ou
 un `success: false` disent quelque chose de la requête. Sans cette reprise **et**
@@ -163,7 +163,7 @@ pas une donnée supplémentaire (`BikeStart` == `Swim`+`T1`, `BikeEnd` ==
 `Swim`+`T1`+`Bike`, `RunStart` == `Swim`+`T1`+`Bike`+`T2`, à 1 s près).
 
 **Règle retenue** : un champ dont le libellé finit par `start`/`end`
-(`_est_cumule`) n'entre jamais en candidature pour un rôle — il n'ajoute
+(`_is_cumulative`) n'entre jamais en candidature pour un rôle — il n'ajoute
 aucune information que la durée directe ne porte déjà. Sur 979, ceci laisse
 `Bike` seul candidat pour `bike`, `Run` seul candidat pour `run` : les deux se
 résolvent normalement dans leur slot positionnel, comme n'importe quel rôle à

@@ -100,17 +100,17 @@ def _client_factice(monkeypatch, pages=None, defaut=None):
     ],
 )
 def test_uuid_lu_directement_dans_lurl_competitor(url):
-    assert competitor._uuid_depuis_url(url) == SERIE_UUID
+    assert competitor._uuid_from_url(url) == SERIE_UUID
 
 
 def test_uuid_absent_dune_url_ironman():
     """Une page ironman.com ne porte pas l'uuid : il faudra la télécharger."""
-    assert competitor._uuid_depuis_url(URL_IRONMAN) is None
+    assert competitor._uuid_from_url(URL_IRONMAN) is None
 
 
 def test_uuid_resolu_depuis_liframe_de_classement(monkeypatch):
     client = _client_factice(monkeypatch)
-    assert competitor._resoudre_uuid(client, URL_IRONMAN) == SERIE_UUID
+    assert competitor._resolve_uuid(client, URL_IRONMAN) == SERIE_UUID
 
 
 def test_liframe_odiv_et_clubpoints_ne_sont_pas_prises():
@@ -128,7 +128,7 @@ def test_liframe_odiv_et_clubpoints_ne_sont_pas_prises():
 def test_page_sans_iframe_est_rejetee(monkeypatch):
     client = _client_factice(monkeypatch, {"ironman.com": "<html>rien</html>"})
     with pytest.raises(ValueError, match="Aucune iframe de résultats"):
-        competitor._resoudre_uuid(client, URL_IRONMAN)
+        competitor._resolve_uuid(client, URL_IRONMAN)
 
 
 # ── Lecture de __NEXT_DATA__ et choix de l'édition ───────────────────────────
@@ -154,7 +154,7 @@ def test_page_sans_next_data_est_rejetee(monkeypatch):
 def test_uuid_de_serie_selectionne_la_derniere_edition(monkeypatch):
     client = _client_factice(monkeypatch)
     props = competitor._fetch_next_data(client, SERIE_UUID)
-    edition = competitor._choisir_edition(props, SERIE_UUID)
+    edition = competitor._choose_edition(props, SERIE_UUID)
     assert edition["wtc_eventid"] == EDITION_2025
     assert edition["wtc_name"] == "2025 IRONMAN France Nice"
 
@@ -163,24 +163,24 @@ def test_uuid_dedition_selectionne_cette_edition(monkeypatch):
     """L'adressabilité par année que le site n'offre pas."""
     client = _client_factice(monkeypatch)
     props = competitor._fetch_next_data(client, SERIE_UUID)
-    edition = competitor._choisir_edition(props, EDITION_2024)
+    edition = competitor._choose_edition(props, EDITION_2024)
     assert edition["wtc_name"] == "2024 IRONMAN France Nice"
 
 
 def test_date_dedition_lue_en_iso():
-    assert competitor._date_edition({"wtc_eventdate": "2025-06-29T00:00:00Z"}) == date(
+    assert competitor._edition_date({"wtc_eventdate": "2025-06-29T00:00:00Z"}) == date(
         2025, 6, 29
     )
 
 
 def test_date_dedition_repli_sur_la_forme_americaine():
-    assert competitor._date_edition(
+    assert competitor._edition_date(
         {"wtc_eventdate": "", "wtc_eventdate_formatted": "6/29/2025"}
     ) == date(2025, 6, 29)
 
 
 def test_date_dedition_absente_ne_leve_pas():
-    assert competitor._date_edition({}) is None
+    assert competitor._edition_date({}) is None
 
 
 # ── Import complet — édition courante ────────────────────────────────────────
@@ -277,13 +277,13 @@ def test_dns_reconnu(monkeypatch):
 def test_statut_lu_sur_les_quatre_drapeaux_dans_lordre():
     """`wtc_dq` prime, et n'apparaît sur **aucune** ligne du panel sondé (0 /
     1585) : seul un test unitaire peut couvrir la disqualification."""
-    assert competitor._statut({"wtc_dq": True}) == STATUS_DSQ
-    assert competitor._statut({"wtc_dq": True, "wtc_finisher": True}) == STATUS_DSQ
-    assert competitor._statut({"wtc_dns": True}) == STATUS_DNS
-    assert competitor._statut({"wtc_dnf": True}) == STATUS_DNF
-    assert competitor._statut({"wtc_finisher": True}) == STATUS_FINISHER
+    assert competitor._status({"wtc_dq": True}) == STATUS_DSQ
+    assert competitor._status({"wtc_dq": True, "wtc_finisher": True}) == STATUS_DSQ
+    assert competitor._status({"wtc_dns": True}) == STATUS_DNS
+    assert competitor._status({"wtc_dnf": True}) == STATUS_DNF
+    assert competitor._status({"wtc_finisher": True}) == STATUS_FINISHER
     # Mesuré : 3 lignes sur 1585 (Vichy 2024) n'ont aucun des quatre drapeaux.
-    assert competitor._statut({}) == ""
+    assert competitor._status({}) == ""
 
 
 def test_disqualifie_perd_temps_et_rangs():
@@ -317,21 +317,21 @@ def test_aucun_club_publie_par_la_source(monkeypatch):
 
 
 def test_rang_sentinelle_99999_devient_none():
-    assert competitor._rang(99999) is None
-    assert competitor._rang("99999") is None
-    assert competitor._rang(None) is None
-    assert competitor._rang(12) == 12
+    assert competitor._rank(99999) is None
+    assert competitor._rank("99999") is None
+    assert competitor._rank(None) is None
+    assert competitor._rank(12) == 12
 
 
 def test_temps_sentinelle_devient_vide():
-    assert competitor._temps("0:00:00") == ""
-    assert competitor._temps(None) == ""
-    assert competitor._temps("8:59:34") == "08:59:34"
+    assert competitor._time("0:00:00") == ""
+    assert competitor._time(None) == ""
+    assert competitor._time("8:59:34") == "08:59:34"
 
 
 def test_dossard_replie_sur_bibnumber_v2():
-    assert competitor._dossard({"wtc_bibnumber": None, "wtc_bibnumber_v2": "A12"}) == "A12"
-    assert competitor._dossard({}) == ""
+    assert competitor._bib({"wtc_bibnumber": None, "wtc_bibnumber_v2": "A12"}) == "A12"
+    assert competitor._bib({}) == ""
 
 
 # ── Pagination et édition ancienne (via le proxy) ────────────────────────────

@@ -57,6 +57,22 @@ describe("ProgressionChart", () => {
     expect(getByText("Top 10 %")).toBeInTheDocument();
   });
 
+  it("lie chaque « % » à son nombre par une espace fine insécable (#1600)", () => {
+    const { container, getByText } = render(
+      <ProgressionChart
+        points={[
+          point({ participationId: 1, eventDate: "2026-01-10", percent: 40 }),
+          point({ participationId: 2, eventDate: "2026-03-10", percent: 25 }),
+          point({ participationId: 3, eventDate: "2026-05-10", percent: 10 }),
+        ]}
+      />,
+    );
+    expect(getByText("Top 40 %").textContent).toBe("Top 40\u202f%");
+    for (const tick of container.querySelectorAll("[data-tick]")) {
+      expect(tick.textContent).toMatch(/^\d+\u202f%$/);
+    }
+  });
+
   it("ne grade jamais l'axe au-delà de 100 % (#677, revue de code)", () => {
     // Un dernier de course a percent=100 (rankRatio refuse rank > total) : la
     // marge ajoutée à `worst` ne doit pas produire une graduation « 114 % ».

@@ -34,8 +34,8 @@ router = APIRouter(tags=["admin"])
 URLS_MAX = 500
 #: Trois valeurs suffisent à reconnaître une colonne ; tronquées, elles ne
 #: rejouent pas le fichier dans la réponse.
-ECHANTILLONS = 3
-LONGUEUR_ECHANTILLON = 80
+SAMPLE_COUNT = 3
+SAMPLE_LENGTH = 80
 
 
 class ColumnOutOfRangeError(DomainError):
@@ -69,7 +69,7 @@ class TooManyUrlsError(DomainError):
     response_model_exclude_none=True,
 )
 def launch_batch(
-    demande: RescrapeLaunch,
+    launch: RescrapeLaunch,
     user: User = Depends(require_permission(P.BATCH_RUN)),
 ):
     """Lance une reprise filtrée.
@@ -83,19 +83,19 @@ def launch_batch(
     batch_runs.ensure_idle(settings)
     correlation_id = batch_runs.dispatch_batch(
         settings,
-        mode=demande.mode,
-        provider=demande.provider,
-        older_than=demande.older_than,
-        limit=demande.limit,
-        dry_run=demande.dry_run,
+        mode=launch.mode,
+        provider=launch.provider,
+        older_than=launch.older_than,
+        limit=launch.limit,
+        dry_run=launch.dry_run,
     )
     capture_event(
         "batch_launched",
         distinct_id=str(user.id),
         properties={
-            "mode": demande.mode,
-            "dry_run": demande.dry_run,
-            "has_limit": demande.limit is not None,
+            "mode": launch.mode,
+            "dry_run": launch.dry_run,
+            "has_limit": launch.limit is not None,
         },
     )
     return BatchLaunched(correlation_id=correlation_id)
@@ -115,29 +115,29 @@ async def read_sheet_columns(
     navigateur le garde pour le second appel (FR-011). C'est ce qui évite un
     stockage temporaire côté serveur, et la question de sa purge.
     """
-    contenu = await read_bounded_upload(file)
-    entetes, lignes = sheet_source.read_table(contenu, file.filename or "")
+    content = await read_bounded_upload(file)
+    headers, rows = sheet_source.read_table(content, file.filename or "")
 
-    colonnes = [
+    columns = [
         ColumnPreview(
             index=index,
-            header=entete,
-            link_count=sheet_source.links_in_column(lignes, index).count,
+            header=header,
+            link_count=sheet_source.links_in_column(rows, index).count,
             samples=[
-                ligne[index][:LONGUEUR_ECHANTILLON]
-                for ligne in lignes
-                if index < len(ligne) and ligne[index]
-            ][:ECHANTILLONS],
+                row[index][:SAMPLE_LENGTH]
+                for row in rows
+                if index < len(row) and row[index]
+            ][:SAMPLE_COUNT],
         )
-        for index, entete in enumerate(entetes)
+        for index, header in enumerate(headers)
     ]
     # La plus fournie, et `None` si aucune n'en porte : présélectionner au
     # hasard ferait lancer sur la mauvaise colonne (D8).
-    fournie = max(colonnes, key=lambda c: c.link_count, default=None)
+    richest = max(columns, key=lambda c: c.link_count, default=None)
     return SheetColumns(
-        row_count=len(lignes),
-        suggested_index=fournie.index if fournie and fournie.link_count else None,
-        columns=colonnes,
+        row_count=len(rows),
+        suggested_index=richest.index if richest and richest.link_count else None,
+        columns=columns,
     )
 
 
@@ -162,34 +162,34 @@ async def launch_batch_from_file(
     settings = get_settings()
     batch_runs.ensure_idle(settings)
 
-    contenu = await read_bounded_upload(file)
-    entetes, lignes = sheet_source.read_table(contenu, file.filename or "")
-    if not 0 <= url_column < len(entetes):
+    content = await read_bounded_upload(file)
+    headers, rows = sheet_source.read_table(content, file.filename or "")
+    if not 0 <= url_column < len(headers):
         raise ColumnOutOfRangeError
 
-    colonne = sheet_source.links_in_column(lignes, url_column)
-    if not colonne.supported:
+    column = sheet_source.links_in_column(rows, url_column)
+    if not column.supported:
         raise NoUsableLinkError
-    if len(colonne.supported) > URLS_MAX:
+    if len(column.supported) > URLS_MAX:
         raise TooManyUrlsError
 
     correlation_id = batch_runs.dispatch_batch(
-        settings, mode="urls", urls=colonne.supported, dry_run=dry_run
+        settings, mode="urls", urls=column.supported, dry_run=dry_run
     )
     capture_event(
         "batch_launched_from_file",
         distinct_id=str(user.id),
         properties={
-            "url_count": len(colonne.supported),
+            "url_count": len(column.supported),
             "dry_run": dry_run,
         },
     )
     return BatchLaunched(
         correlation_id=correlation_id,
-        epreuves=len(colonne.supported),
+        epreuves=len(column.supported),
         # Annoncés avant même le bilan : ils ne partiront jamais, et les taire
         # ferait chercher des épreuves manquantes dans le rapport.
-        ignored_by_host=colonne.ignored_by_host,
+        ignored_by_host=column.ignored_by_host,
     )
 
 

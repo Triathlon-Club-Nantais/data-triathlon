@@ -70,7 +70,7 @@ const DETAIL_UN_PARTICIPANT: TrainingSessionDetail = {
   group_ids: [],
   recurrence_id: null,
   detached: false,
-  participants: [{ profile_id: 42, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" }],
+  participants: [{ profile_id: 42, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null }],
 };
 
 const DETAIL_VIDE: TrainingSessionDetail = { ...DETAIL_UN_PARTICIPANT, participant_count: 0, participants: [] };
@@ -83,8 +83,9 @@ const AVEC_ECRITURE: SessionUser = {
   permissions: ["jeunes:read", "jeunes:write"],
   roles: [],
   groups: [],
-  can_administer: true,
   is_member: false,
+  can_administer: false,
+  can_supervise: true,
 };
 
 const LECTURE_SEULE: SessionUser = { ...AVEC_ECRITURE, permissions: ["jeunes:read"] };
@@ -134,6 +135,35 @@ describe("AppelPresence", () => {
     afficher();
 
     expect(await screen.findByText("Benjamin")).toBeInTheDocument();
+  });
+
+  it("affiche sur la carte le contact d'urgence, numéro composable (#1405)", async () => {
+    getTrainingSession.mockResolvedValue({
+      ...DETAIL_UN_PARTICIPANT,
+      participants: [{ ...DETAIL_UN_PARTICIPANT.participants[0], emergency_contact: "Mère 06 12 34 56 78" }],
+    });
+
+    afficher();
+
+    const lien = await screen.findByRole("link", { name: "06 12 34 56 78" });
+    expect(lien).toHaveAttribute("href", "tel:0612345678");
+    // Numéro d'un parent de mineur : hors de l'autocapture PostHog (RGPD).
+    expect(lien).toHaveClass("ph-no-capture");
+    expect(screen.getByText(/Mère/)).toBeInTheDocument();
+  });
+
+  it.each(["", null])("n'affiche rien pour un contact d'urgence absent (%j)", async (contact) => {
+    getTrainingSession.mockResolvedValue({
+      ...DETAIL_UN_PARTICIPANT,
+      participants: [{ ...DETAIL_UN_PARTICIPANT.participants[0], emergency_contact: contact }],
+    });
+
+    afficher();
+
+    expect(await screen.findByText("Alix Martin")).toBeInTheDocument();
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Contact d'urgence/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /^0/ })).not.toBeInTheDocument();
   });
 
   it("dit qu'une séance absente est introuvable", async () => {
@@ -256,7 +286,7 @@ describe("AppelPresence", () => {
 
     expect(screen.getByRole("link", { name: /voir le profil/i })).toHaveAttribute(
       "href",
-      "/admin/jeunes/42",
+      "/encadrement/jeunes/42",
     );
   });
 
@@ -268,9 +298,9 @@ describe("AppelPresence", () => {
       recurrence_id: null,
       detached: false,
       participants: [
-        { profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
-        { profile_id: 43, present: false, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
-        { profile_id: 44, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
+        { profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
+        { profile_id: 43, present: false, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
+        { profile_id: 44, present: null, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
       ],
     });
 
@@ -289,8 +319,8 @@ describe("AppelPresence", () => {
       recurrence_id: null,
       detached: false,
       participants: [
-        { profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
-        { profile_id: 43, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" },
+        { profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
+        { profile_id: 43, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null },
       ],
     });
 
@@ -299,10 +329,67 @@ describe("AppelPresence", () => {
     expect(await screen.findByText("2 présents sur 2, 0 absent")).toBeInTheDocument();
   });
 
+  describe("tri et recherche (#1610)", () => {
+    const profil = (id: number, first_name: string, last_name: string): Profile => ({ ...ALIX, id, first_name, last_name });
+    const inscrit = (profile_id: number, present: boolean | null = null) => ({
+      profile_id,
+      present,
+      added_manually: true,
+      category: null,
+      created_at: "2026-09-15T10:00:00Z",
+      emergency_contact: null,
+    });
+
+    beforeEach(() => {
+      listProfiles.mockResolvedValue([ALIX, ZOE, profil(44, "Paul", "Dupont"), profil(45, "Léa", "écuyer")]);
+      getTrainingSession.mockResolvedValue({
+        ...DETAIL_UN_PARTICIPANT,
+        participant_count: 4,
+        participants: [inscrit(43, true), inscrit(42), inscrit(45), inscrit(44, false)],
+      });
+    });
+
+    const ordre = () =>
+      screen.getAllByRole("group", { name: /^Présence de / }).map((groupe) => groupe.getAttribute("aria-label"));
+
+    it("trie les inscrits par nom puis prénom, sans accent ni casse, quel que soit l'ordre d'inscription", async () => {
+      afficher();
+
+      await screen.findByText("Zoé Roux");
+      expect(ordre()).toEqual([
+        "Présence de Paul Dupont",
+        "Présence de Léa écuyer",
+        "Présence de Alix Martin",
+        "Présence de Zoé Roux",
+      ]);
+    });
+
+    it("filtre sur le prénom sans accent, le compteur restant calculé sur tous les inscrits", async () => {
+      afficher();
+
+      await userEvent.type(await screen.findByLabelText("Rechercher un jeune"), "zoe");
+
+      expect(ordre()).toEqual(["Présence de Zoé Roux"]);
+      expect(screen.getByText("1 présent sur 4, 1 absent, 2 à pointer")).toBeInTheDocument();
+    });
+
+    it("dit qu'aucun inscrit ne correspond, sans le confondre avec une séance vide", async () => {
+      afficher();
+
+      await userEvent.type(await screen.findByLabelText("Rechercher un jeune"), "xyz");
+
+      expect(screen.getByText("Aucun jeune ne correspond à « xyz ».")).toBeInTheDocument();
+      expect(screen.queryByText("Aucun jeune inscrit")).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "Effacer la recherche" }));
+      expect(ordre()).toHaveLength(4);
+    });
+  });
+
   it("bascule vers l'appel de fin sans écrire aucune donnée", async () => {
     const detail: TrainingSessionDetail = {
       ...DETAIL_UN_PARTICIPANT,
-      participants: [{ profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z" }],
+      participants: [{ profile_id: 42, present: true, added_manually: true, category: null, created_at: "2026-09-15T10:00:00Z", emergency_contact: null }],
     };
     getTrainingSession.mockResolvedValue(detail);
 

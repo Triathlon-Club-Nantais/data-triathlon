@@ -1,18 +1,20 @@
 "use client";
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { Avatar, Button } from "@/components/tcn";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import { useDeleteAccount, useLogout, useSession } from "@/lib/queries/auth";
 import type { SessionUser } from "@/lib/types";
+
+// Le menu Base UI ne sert qu'à un connecté sur le rail : hors du premier
+// chargement de chaque page, où il pesait ~17 Ko gzip (#1603).
+const UserMenuDropdown = dynamic(
+  () => import("./UserMenuDropdown").then((module) => module.UserMenuDropdown),
+  // Repère muet à la taille de l'avatar : ni décalage du rail, ni annonce.
+  { loading: () => <div aria-hidden style={{ width: 34, height: 34, flex: "none" }} /> },
+);
 
 /**
  * Bouton « Se connecter » si anonyme, menu utilisateur sinon.
@@ -87,7 +89,7 @@ export function UserMenu({
         variant="secondary"
         onClick={() => {
           // Mémorisé côté navigateur seulement (#494) : le backend redirige
-          // vers /admin ou / (FR-026, #1322), `PostLoginReturn` (providers.tsx)
+          // vers le premier espace ouvert (FR-026, #1297, #1322), `PostLoginReturn` (providers.tsx)
           // lit cette clé à l'atterrissage pour ramener au point de départ.
           // `window.location.search` et non `useSearchParams()` : ce dernier
           // impose une frontière Suspense, inutile pour une simple lecture au
@@ -172,46 +174,15 @@ export function UserMenu({
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          aria-label={`Compte — ${session.email}`}
-          style={{
-            display: "inline-flex",
-            padding: 0,
-            border: "none",
-            background: "transparent",
-            borderRadius: 999,
-            cursor: "pointer",
-          }}
-        >
-          <Avatar name={nom} size={34} />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-auto min-w-60 p-1.5">
-          <div style={{ padding: "6px 8px 10px", minWidth: 0 }}>
-            <Identite session={session} />
-          </div>
-          <DropdownMenuSeparator />
-          {/* Entrée « Administration » retirée (revue humaine PR #214) : la
-              catégorie Administration de la nav la porte déjà, et un doublon
-              dans le menu compte alourdit l'interface sans rien apporter. */}
-          <DropdownMenuItem
-            disabled={logout.isPending}
-            onClick={seDeconnecter}
-            className="tcn-cible-tactile px-2 py-2 text-[14px] font-semibold"
-          >
-            Se déconnecter
-          </DropdownMenuItem>
-          {/* La couleur destructive va au seul geste sans retour (#499) : se
-              déconnecter se refait d'un clic. */}
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={ouvrirLaSuppression}
-            className="tcn-cible-tactile px-2 py-2 text-[14px] font-semibold"
-          >
-            Supprimer mon compte
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <UserMenuDropdown
+        email={session.email}
+        nom={nom}
+        deconnexionEnCours={logout.isPending}
+        onDeconnexion={seDeconnecter}
+        onSuppression={ouvrirLaSuppression}
+      >
+        <Identite session={session} />
+      </UserMenuDropdown>
       {dialogDeSuppression}
     </>
   );

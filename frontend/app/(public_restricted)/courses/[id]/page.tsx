@@ -11,10 +11,11 @@ import { ReliabilityMark, SplitCoverageNote } from "@/components/results/Reliabi
 import { CourseSourcesPanel } from "@/components/courses/CourseSourcesPanel";
 import { CourseAdminActions } from "@/components/courses/CourseAdminActions";
 import { ClubBreakdown } from "@/components/courses/ClubBreakdown";
+import { CourseWeather } from "@/components/courses/CourseWeather";
 import { CourseChallengesNote } from "@/components/challenges/CourseChallengesNote";
 import { eventTypeLabel } from "@/lib/constants";
 import { participationStatusLabel } from "@/lib/labels";
-import { formatToken } from "@/lib/utils/format";
+import { formatToken, motCompte } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
 import { Histogram } from "@/components/charts/Histogram";
@@ -168,6 +169,7 @@ export default async function CoursePage({
           <MetaPill label="Type">{eventTypeLabel(course.event_type)}</MetaPill>
           <MetaPill label="Format">{formatToken(course.event_type, course.distance_km)}</MetaPill>
           {course.event_date && <MetaPill label="Date">{formatDate(course.event_date)}</MetaPill>}
+          <CourseWeather course={course} />
           <MetaPill label="Participants">{total}</MetaPill>
           {/* Hors du total, mais dit sur toutes les pages : les lignes en
               attente ne s'affichent qu'en fin de classement (#1273). */}
@@ -177,7 +179,7 @@ export default async function CoursePage({
           {dns > 0 && <MetaPill label={participationStatusLabel("DNS", { form: "many" })}>{dns}</MetaPill>}
           {dsq > 0 && <MetaPill label={participationStatusLabel("DSQ", { form: "many" })}>{dsq}</MetaPill>}
           {unknown > 0 && <MetaPill label="Indéterminés">{unknown}</MetaPill>}
-          {tcnCount > 0 && <MetaPill accent dot>{tcnCount} athlète{tcnCount > 1 ? "s" : ""} TCN</MetaPill>}
+          {tcnCount > 0 && <MetaPill accent dot>{motCompte(tcnCount, "athlète")} TCN</MetaPill>}
           <ReliabilityMark isReliable={course.is_reliable} issues={course.quality_issues} />
           <CourseSourcesPanel courseId={course.id} initialSources={sources ?? []} />
         </div>
@@ -216,7 +218,7 @@ export default async function CoursePage({
       {summary.histogram && (
         <Card padding={28} style={{ marginBottom: 18 }}>
           <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 4 }}>Distribution des temps des arrivants</h2>
-          <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de 5 minutes</div>
+          <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de {summary.histogram.bucket_sec / 60} minutes</div>
           <Histogram
             bars={summary.histogram.bars}
             max={Math.max(...summary.histogram.bars)}

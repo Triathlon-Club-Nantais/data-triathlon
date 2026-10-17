@@ -74,7 +74,8 @@ export function SiteAccessGate({
   }
 
   return (
-    <div style={{ maxWidth: 380, margin: "80px auto" }}>
+    // 412 = carte de 380 px + 2 × 16 px de gouttière mobile (#1564).
+    <div style={{ maxWidth: 412, margin: "80px auto", padding: "0 16px" }}>
       <Card padding={32}>
         <h1
           style={{

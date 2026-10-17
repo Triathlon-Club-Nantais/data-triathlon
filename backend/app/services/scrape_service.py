@@ -1,7 +1,7 @@
 """
 Service de persistance d'un résultat saisi à la main.
 
-`save_one` ne sert qu'à la saisie manuelle (`POST /participations`) : l'import
+`save_public_entry` sert la saisie manuelle (`POST /participations`) : l'import
 d'épreuve complète persiste par `import_service`, sans passer par lui.
 """
 import logging
@@ -13,8 +13,8 @@ from app.core.club import is_tcn
 from app.core.exceptions import DomainError, DuplicateError
 from app.core.youth import is_youth
 from app.models.course import Course
-from app.models.participation import Participation
 from app.repositories import participation_repository
+from app.schemas.participation import ParticipationOut
 from app.scrapers.base import ScrapedResult
 from app.services import mapping, opposition_service
 
@@ -60,22 +60,38 @@ def ensure_rename_keeps_rows_adult(db: Session, course: Course, new_name: str) -
             raise YouthResultError()
 
 
-def save_one(db: Session, scraped: ScrapedResult, event_url: str = "") -> Participation:
-    """Persiste un résultat scrapé/édité (athlète + course + participation)."""
-    opposition_service.ensure_not_opposed(db, scraped.athlete_name, scraped.athlete_firstname)
+def save_public_entry(db: Session, scraped: ScrapedResult) -> ParticipationOut:
+    """Saisie publique (`POST /participations`) : une identité opposée passe par les mêmes
+    contrôles et reçoit la même réponse qu'une autre, puis rien n'est gardé (#1514).
+
+    Un refus distinct dirait à n'importe qui qu'une personne s'est opposée. Pour la
+    même raison, un dossard déjà pris par une saisie en attente ne rend pas `409` :
+    renvoyer la même saisie trahirait qu'elle a été gardée (#1519). La seconde
+    reçoit la réponse d'une saisie acceptée, et rien n'est gardé. Deux saisies
+    simultanées franchissent la lecture : la contrainte les départage, sans 500.
+    """
+    opposed = opposition_service.names_opposed(
+        db, scraped.athlete_name, scraped.athlete_firstname, scraped.team_name
+    )
     ensure_not_youth(scraped.event_name, scraped.event_date, scraped.category, scraped.club)
-    course = mapping.get_or_create_course(db, scraped, event_url).course
-    if scraped.bib_number and participation_repository.exists_for_bib(
-        db, course.id, scraped.bib_number
-    ):
+    course = mapping.get_or_create_course(db, scraped, "").course
+    holder = participation_repository.get_by_bib(db, course.id, scraped.bib_number) if scraped.bib_number else None
+    if holder is not None and not holder.is_pending_validation:
         raise DuplicateError(
             f"Ce résultat existe déjà (dossard {scraped.bib_number} — "
             f"{scraped.event_name} / {scraped.event_type})."
         )
     athlete = mapping.get_or_create_athlete(db, scraped, event_date=course.event_date)
-    participation = participation_repository.create(
-        db, **mapping.participation_fields(scraped, athlete_id=athlete.id, course_id=course.id)
-    )
-    db.commit()
-    db.refresh(participation)
-    return participation
+    fields = mapping.participation_fields(scraped, athlete_id=athlete.id, course_id=course.id)
+    participation = None if holder else participation_repository.create_unless_bib_taken(db, **fields)
+    taken = participation is None
+    if taken:
+        # Sans dossard le temps d'écrire la réponse : il heurterait `uq_participation_bib`.
+        participation = participation_repository.create(db, **fields | {"bib_number": None})
+    answer = ParticipationOut.model_validate(participation_repository.get(db, participation.id))
+    answer.bib_number = fields["bib_number"]
+    if opposed or taken:
+        db.rollback()
+    else:
+        db.commit()
+    return answer

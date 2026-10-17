@@ -7,13 +7,17 @@ retient le meilleur des trois rangs, départagé overall > gender > category
 à égalité.
 """
 from collections import defaultdict
+from datetime import date
 
 from sqlalchemy.orm import Session
 
 from app.core.gender import is_gender_podium
-from app.repositories import athlete_repository, participation_repository
+from app.core.season import current_season
+from app.repositories import athlete_repository, club_member_repository, participation_repository
 from app.schemas.club import (
+    ClubBestTime,
     ClubComposition,
+    ClubLicensees,
     ClubPodiumEntry,
     ClubPodiums,
     ClubPodiumTotals,
@@ -21,91 +25,92 @@ from app.schemas.club import (
     ClubSummary,
     DisciplinePodiumCounts,
 )
+from app.scrapers.utils import to_seconds
 
 _SCOPES = ("overall", "gender", "category")
 
 
-def _meilleur(rangs: dict[str, int | None]) -> tuple[str, int] | None:
-    valides = [(s, r) for s, r in rangs.items() if r is not None and 1 <= r <= 3]
-    if not valides:
+def _best(ranks: dict[str, int | None]) -> tuple[str, int] | None:
+    valid = [(s, r) for s, r in ranks.items() if r is not None and 1 <= r <= 3]
+    if not valid:
         return None
-    return min(valides, key=lambda item: (item[1], _SCOPES.index(item[0])))
+    return min(valid, key=lambda item: (item[1], _SCOPES.index(item[0])))
 
 
-def _entree(row, scope: str, rang: int, equipes: dict[int, list[str]]) -> ClubPodiumEntry:
+def _entry(row, scope: str, rank: int, teammates: dict[int, list[str]]) -> ClubPodiumEntry:
     (pid, _rank_overall, _rank_gender, _rank_category, total_time,
-     athlete_id, prenom, nom, event_name, event_type, is_relay, event_date,
+     athlete_id, first_name, last_name, event_name, event_type, is_relay, event_date,
      _gender) = row
     return ClubPodiumEntry(
         participation_id=pid,
         athlete_id=athlete_id,
-        athlete_name=f"{prenom} {nom}".strip(),
+        athlete_name=f"{first_name} {last_name}".strip(),
         event_name=event_name or "",
         event_type=event_type or "",
         is_relay=bool(is_relay),
         event_date=event_date.isoformat() if event_date else None,
-        rank=rang,
+        rank=rank,
         scope=scope,
         total_time=total_time,
-        teammate_names=equipes.get(pid, []),
+        teammate_names=teammates.get(pid, []),
     )
 
 
-def _trier(entries: list[ClubPodiumEntry]) -> list[ClubPodiumEntry]:
+def _sort_entries(entries: list[ClubPodiumEntry]) -> list[ClubPodiumEntry]:
     # Stable : trier d'abord par date décroissante, puis par rang croissant —
     # à rang égal, l'ordre par date décroissante posé au premier passage survit.
     # Départage final par id : `club_podiums` n'a pas d'ORDER BY, et l'aperçu
     # (`?podiums=preview`) doit être le début exact de la liste complète (#1354).
-    par_id = sorted(entries, key=lambda e: e.participation_id)
-    par_date = sorted(par_id, key=lambda e: e.event_date or "", reverse=True)
-    return sorted(par_date, key=lambda e: e.rank)
+    by_id = sorted(entries, key=lambda e: e.participation_id)
+    by_date = sorted(by_id, key=lambda e: e.event_date or "", reverse=True)
+    return sorted(by_date, key=lambda e: e.rank)
 
 
-def _bucket_podiums(rows, equipes: dict[int, list[str]]) -> ClubPodiums:
+def _bucket_podiums(rows, teammates: dict[int, list[str]]) -> ClubPodiums:
     buckets: dict[str, list[ClubPodiumEntry]] = {
         "scratch": [], "category": [], "gender": [], "all": [],
     }
     for row in rows:
         _, rank_overall, rank_gender, rank_category, *_, gender = row
         if rank_overall is not None and 1 <= rank_overall <= 3:
-            buckets["scratch"].append(_entree(row, "overall", rank_overall, equipes))
+            buckets["scratch"].append(_entry(row, "overall", rank_overall, teammates))
         if rank_category is not None and 1 <= rank_category <= 3:
-            buckets["category"].append(_entree(row, "category", rank_category, equipes))
+            buckets["category"].append(_entry(row, "category", rank_category, teammates))
         # Même règle que le KPI et le roster (`core.gender`, #581, #936).
         if is_gender_podium(rank_gender, gender):
-            buckets["gender"].append(_entree(row, "gender", rank_gender, equipes))
-        meilleur = _meilleur(
+            buckets["gender"].append(_entry(row, "gender", rank_gender, teammates))
+        best = _best(
             {"overall": rank_overall, "gender": rank_gender, "category": rank_category}
         )
-        if meilleur:
-            scope, rang = meilleur
-            buckets["all"].append(_entree(row, scope, rang, equipes))
-    return ClubPodiums(**{k: _trier(v) for k, v in buckets.items()})
+        if best:
+            scope, rank = best
+            buckets["all"].append(_entry(row, scope, rank, teammates))
+    return ClubPodiums(**{k: _sort_entries(v) for k, v in buckets.items()})
 
 
-def _bucket_podiums_par_discipline(rows) -> dict[str, DisciplinePodiumCounts]:
+def _bucket_podiums_by_discipline(rows) -> dict[str, DisciplinePodiumCounts]:
     """Décompte de podiums par discipline (#642, US10) — mêmes conditions que
     `_bucket_podiums`, mais on ne garde que les compteurs, tally par
     `event_type` plutôt qu'une liste d'entrées : `DisciplinePerformance`
     (front) n'a besoin que des totaux, jamais du détail participation par
     participation.
     """
-    compteurs: dict[str, dict[str, int]] = defaultdict(
+    counters: dict[str, dict[str, int]] = defaultdict(
         lambda: {"overall": 0, "gender": 0, "category": 0, "all": 0}
     )
     for row in rows:
         (_, rank_overall, rank_gender, rank_category, *_, event_type, _is_relay,
          _event_date, gender) = row
-        c = compteurs[event_type or ""]
+        c = counters[event_type or ""]
         if rank_overall is not None and 1 <= rank_overall <= 3:
             c["overall"] += 1
         if rank_category is not None and 1 <= rank_category <= 3:
             c["category"] += 1
         if is_gender_podium(rank_gender, gender):
             c["gender"] += 1
-        if _meilleur({"overall": rank_overall, "gender": rank_gender, "category": rank_category}):
+        if _best({"overall": rank_overall, "gender": rank_gender, "category": rank_category}):
             c["all"] += 1
-    return {discipline: DisciplinePodiumCounts(**c) for discipline, c in compteurs.items()}
+    return {discipline: DisciplinePodiumCounts(**c) for discipline, c in counters.items()}
 
 
 def _bucket_composition(rows: list[tuple[str, str | None]]) -> ClubComposition:
@@ -157,10 +162,51 @@ def get_club_summary(db: Session, *, federal_only: bool = False, podiums_preview
         podiums = ClubPodiums(
             **{mode: getattr(podiums, mode)[:PODIUMS_PREVIEW] for mode in ClubPodiumTotals.model_fields}
         )
+    season = current_season()
+    activity = club_member_repository.licensee_activity(db, season)
     return ClubSummary(
         roster=roster,
         podiums=podiums,
         podiums_totals=totals,
-        podiums_by_discipline=_bucket_podiums_par_discipline(podium_rows),
+        podiums_by_discipline=_bucket_podiums_by_discipline(podium_rows),
         composition=_bucket_composition(composition_rows),
+        licensees=ClubLicensees(season=season, total=activity[0], raced=activity[1]) if activity else None,
     )
+
+
+_GENDER_ORDER = ("F", "M")
+
+
+def get_club_best_times(
+    db: Session, *, season: int | None = None, federal_only: bool = False
+) -> list[ClubBestTime]:
+    """Meilleur temps du club par format calibré et par genre (#1588), toutes
+    saisons sans `season`. À temps égal, la première épreuve courue garde la ligne."""
+    best = {}
+    for row in participation_repository.club_best_time_rows(db, season=season, federal_only=federal_only):
+        seconds = to_seconds(row.total_time, strict=True)
+        if not seconds:
+            continue
+        key = (row.event_type, row.gender)
+        order = (seconds, row.event_date or date.max, row.participation_id)
+        if key not in best or order < best[key][0]:
+            best[key] = (order, row)
+
+    def position(row):
+        discipline, size = row.event_type.rsplit("-", 1)
+        return discipline, participation_repository.SIZES.index(size), _GENDER_ORDER.index(row.gender)
+
+    return [
+        ClubBestTime(
+            participation_id=row.participation_id,
+            course_id=row.course_id,
+            athlete_id=row.athlete_id,
+            athlete_name=f"{row.prenom} {row.nom}".strip(),
+            event_name=row.event_name or "",
+            event_type=row.event_type,
+            event_date=row.event_date.isoformat() if row.event_date else None,
+            gender=row.gender,
+            total_time=row.total_time,
+        )
+        for row in sorted((row for _, row in best.values()), key=position)
+    ]

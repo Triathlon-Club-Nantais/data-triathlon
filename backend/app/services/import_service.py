@@ -128,7 +128,11 @@ def iter_import_event(
     """
     Générateur de progression pour le SSE. Émet des dicts de phase :
       {phase: scraping} → {phase: saving, progress, total, imported, updated, skipped}
-      → {phase: done, …}   (ou {phase: error, message})
+      → {phase: done, …}   (ou {phase: error, message, error_kind})
+
+    `error_kind` (#1367) range l'échec pour l'analytics, sans le texte du
+    message, qui peut citer une URL ou un nom : `invalid_url`,
+    `unsupported_provider`, `scraper` ou `persistence`.
 
     La phase `done` porte un contrat stable — `imported`, `updated`, `skipped`,
     `reconciled`, `reassignments`, `passive_sources`, `total`, `courses` — sur
@@ -147,7 +151,7 @@ def iter_import_event(
     try:
         url = import_dispatch.validate_url(url)
     except InvalidUrlError as exc:
-        yield {"phase": "error", "message": exc.message}
+        yield {"phase": "error", "message": exc.message, "error_kind": "invalid_url"}
         return
 
     if not force:
@@ -172,7 +176,8 @@ def iter_import_event(
             url, db, settings, single_heat=single_heat, use_cache_probe=not force,
         )
     except (ProviderNotSupportedError, ScraperError) as exc:
-        yield {"phase": "error", "message": exc.message}
+        kind = "unsupported_provider" if isinstance(exc, ProviderNotSupportedError) else "scraper"
+        yield {"phase": "error", "message": exc.message, "error_kind": kind}
         return
 
     total = len(results)
@@ -193,11 +198,11 @@ def iter_import_event(
         return
 
     attempt_started_at = utcnow()
-    persister = None
+    persisted = None
     try:
         for attempt in deadlock_retries(db, label=url):
             with attempt:
-                persister = None
+                persisted = None
                 yield {"phase": "saving", "total": total, "imported": 0, "updated": 0, "skipped": 0, "progress": 0}
                 cached = _lock_url_and_recheck_cache(db, url, settings, force=force)
                 if cached is not None:
@@ -207,14 +212,14 @@ def iter_import_event(
                         **cached, **import_dispatch.fanout_counters(trace),
                     }
                     return
-                for done, persister in import_persistence.persist_steps(db, url, results):
+                for done, persisted in import_persistence.persist_steps(db, url, results):
                     if done and (done % 20 == 0 or done == total):
                         yield {
                             "phase": "saving",
                             "total": total,
-                            "imported": persister.imported,
-                            "updated": persister.updated,
-                            "skipped": persister.skipped,
+                            "imported": persisted.imported,
+                            "updated": persisted.updated,
+                            "skipped": persisted.skipped,
                             "progress": done,
                         }
                 if persist:
@@ -226,8 +231,8 @@ def iter_import_event(
         confirmed = False
         if persist:
             try:
-                confirmed = persister is not None and _confirm_committed(
-                    db, persister.courses_summary(), attempt_started_at
+                confirmed = persisted is not None and _confirm_committed(
+                    db, persisted.courses_summary(), attempt_started_at
                 )
             except Exception:
                 # La re-vérification elle-même peut échouer (connexion vraiment
@@ -237,7 +242,10 @@ def iter_import_event(
                 logger.exception("Échec de la re-vérification post-commit pour %s", url)
         if not confirmed:
             logger.error("Rollback de l'import streaming %s", url, exc_info=exc)
-            yield {"phase": "error", "message": "Erreur lors de l'enregistrement des résultats."}
+            yield {
+                "phase": "error", "message": "Erreur lors de l'enregistrement des résultats.",
+                "error_kind": "persistence",
+            }
             return
         logger.warning(
             "Accusé de commit perdu mais écriture confirmée en base pour %s", url, exc_info=exc
@@ -245,16 +253,16 @@ def iter_import_event(
 
     yield {
         "phase": "done",
-        "imported": persister.imported,
-        "updated": persister.updated,
-        "skipped": persister.skipped,
-        "reconciled": persister.reconciled,
-        "challenges": persister.challenges,
-        "reassignments": persister.reassignments,
-        "passive_sources": persister.passive_sources,
-        "ambiguous_identities": persister.ambiguous_identities,
-        "homonyms_created": persister.homonyms_created,
+        "imported": persisted.imported,
+        "updated": persisted.updated,
+        "skipped": persisted.skipped,
+        "reconciled": persisted.reconciled,
+        "challenges": persisted.challenges,
+        "reassignments": persisted.reassignments,
+        "passive_sources": persisted.passive_sources,
+        "ambiguous_identities": persisted.ambiguous_identities,
+        "homonyms_created": persisted.homonyms_created,
         "total": total,
-        "courses": import_dispatch.merge_cached_courses(db, persister.courses_summary(), trace),
+        "courses": import_dispatch.merge_cached_courses(db, persisted.courses_summary(), trace),
         **import_dispatch.fanout_counters(trace),
     }

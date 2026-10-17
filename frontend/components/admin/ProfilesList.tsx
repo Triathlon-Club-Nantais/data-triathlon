@@ -147,7 +147,7 @@ export function ProfilesList() {
             {affiches.map((profil) => {
               const age = calculerAge(profil.birth_date);
               return (
-                <Link key={profil.id} href={`/admin/jeunes/${profil.id}`}>
+                <Link key={profil.id} href={`/encadrement/jeunes/${profil.id}`}>
                   <Card className="p-4 transition-colors hover:bg-[var(--tcn-orange-08)]">
                     <div className="font-medium">
                       {profil.first_name} {profil.last_name}

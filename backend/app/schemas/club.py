@@ -66,6 +66,14 @@ class ClubComposition(BaseModel):
     category: dict[str, int]
 
 
+class ClubLicensees(BaseModel):
+    """Licenciés de la saison en cours, et ceux qui ont couru au moins une fois (#1441)."""
+
+    season: int
+    total: int
+    raced: int
+
+
 class ClubSummary(BaseModel):
     roster: list[ClubRosterEntry]
     podiums: ClubPodiums
@@ -74,6 +82,9 @@ class ClubSummary(BaseModel):
     podiums_totals: ClubPodiumTotals
     podiums_by_discipline: dict[str, DisciplinePodiumCounts]
     composition: ClubComposition
+    # Additif (#1441) : `None` quand la saison en cours n'a aucun licencié.
+    # Insensible à `federal_only` : une licence n'a pas de discipline.
+    licensees: ClubLicensees | None = None
 
 
 class ClubRosterRank(BaseModel):
@@ -81,3 +92,19 @@ class ClubRosterRank(BaseModel):
 
     rank: int
     total: int
+
+
+class ClubBestTime(BaseModel):
+    """Meilleur temps du club sur un format calibré, pour un genre (#1588).
+
+    Un meilleur temps, jamais un record : deux M n'ont pas le même parcours."""
+
+    participation_id: int
+    course_id: int
+    athlete_id: int
+    athlete_name: str
+    event_name: str
+    event_type: str
+    event_date: str | None = None
+    gender: str
+    total_time: str

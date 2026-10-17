@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -38,6 +39,7 @@ const SESSION: SessionUser = {
   groups: [],
   can_administer: false,
   is_member: false,
+  can_supervise: false,
 };
 
 function afficher(session: SessionUser | null, props: { pleineLargeur?: boolean; onNavigate?: () => void } = {}) {
@@ -387,5 +389,13 @@ describe("UserMenu: account deletion (#1326)", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Supprimer mon compte" }));
 
     expect(await screen.findByRole("dialog")).toHaveAccessibleName("Supprimer votre compte ?");
+  });
+});
+
+describe("UserMenu, premier chargement (#1603)", () => {
+  it("ne tire le menu Base UI ni par UserMenu ni par select.tsx, chargés sur toutes les pages", () => {
+    for (const fichier of ["components/auth/UserMenu.tsx", "components/ui/select.tsx"]) {
+      expect(readFileSync(fichier, "utf8")).not.toMatch(/from "@\/components\/ui\/dropdown-menu"/);
+    }
   });
 });

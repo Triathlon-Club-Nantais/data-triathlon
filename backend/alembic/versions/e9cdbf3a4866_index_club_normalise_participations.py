@@ -62,7 +62,7 @@ def upgrade() -> None:
     # génériques, aucune fonction propriétaire) — à la différence de `pg_trgm` ou
     # `unaccent`, qui exigent une extension Postgres absente de SQLite. La
     # vérification n'est pas automatisée en CI (pas d'étage Postgres), donc à
-    # rejouer manuellement si `_normalise_sql` change un jour.
+    # rejouer manuellement si `_normalize_sql` change un jour.
     op.create_index(
         "ix_participations_club_normalized",
         "participations",

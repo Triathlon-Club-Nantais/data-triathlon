@@ -16,12 +16,13 @@ const OPTION_VALUES: readonly RankType[] = ["scratch", "category", "gender", "al
  *
  * L'URL est écrite par l'**historique natif**, pas par `router.push` (#328).
  * `?rank=` n'est lu par aucun rendu serveur : les trois consommateurs
- * (`StatCardsRank`, `ClubPodiumKpi`, `PodiumsList`) le relisent par
+ * (`MaSaison`, `ClubPodiumKpi`, `PodiumsList`) le relisent par
  * `useSearchParams` et recalculent en mémoire. Or `/dashboard` et `/club` sont
  * dynamiques et leurs `fetch` passent en `no-store` : un `push` rejouait tout
- * leur rendu serveur — `listEvents(page_size: 200)`, `getStats` et
- * `listSeasons` sur `/dashboard`, plus le `listParticipations(page_size: 1000)`
- * propre à `/club` — pour un résultat que le client tenait déjà. `pushState`
+ * leur rendu serveur (`getStats`, `listEvents`, `listSeasons`, plus le
+ * `listParticipations(page_size: 1000)` propre à `/club`) pour un résultat que
+ * le client tenait déjà. Il se monte dans la bande « Ma saison » de
+ * `/dashboard` et sur `/club`. `pushState`
  * s'intègre au routeur Next, donc `useSearchParams` le reflète et retour/avant
  * restent cohérents.
  *

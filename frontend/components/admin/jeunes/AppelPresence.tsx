@@ -2,16 +2,19 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
+import { AnnonceStatut } from "@/components/tcn";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AjouterNoteJeuneDialog } from "@/components/admin/jeunes/AjouterNoteJeuneDialog";
 import { AppelFin } from "@/components/admin/jeunes/AppelFin";
+import { EmergencyContact } from "@/components/admin/jeunes/EmergencyContact";
 import { NoteSeanceForm } from "@/components/admin/jeunes/NoteSeanceForm";
 import {
   useAddTrainingParticipant,
@@ -22,9 +25,13 @@ import {
 import { useSession } from "@/lib/queries/auth";
 import { messageDeRefus } from "@/lib/api/refus";
 import { formatDate } from "@/lib/utils/date";
+import { motCompte } from "@/lib/utils/format";
+import { foldAccents } from "@/lib/utils/text";
 
 // `sujet` au masculin pluriel : « consulter les … », « Les … n'ont pas pu être chargés ».
 const REFUS = { sujet: "relevés de présence", action: "consulter l'appel" };
+
+const parNom = (a: string, b: string) => a.localeCompare(b, "fr", { sensitivity: "base" });
 
 /**
  * L'appel de début (#869) — un jeune par carte, deux gestes : présent ou
@@ -48,6 +55,7 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
   const setPresence = useSetPresence();
   const ajouter = useAddTrainingParticipant();
   const [jeuneNote, setJeuneNote] = useState<{ id: number; nom: string } | null>(null);
+  const [recherche, setRecherche] = useState("");
 
   // Confort d'affichage seul : chaque écriture porte sa propre garde côté API.
   const peutEcrire = session.data?.permissions.includes("jeunes:write") ?? false;
@@ -59,6 +67,17 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
   const presents = participants.filter((participant) => participant.present === true).length;
   const absents = participants.filter((participant) => participant.present === false).length;
   const aPointer = participants.length - presents - absents;
+
+  // Tri et filtre côté client : l'API rend l'ordre d'inscription (#1610).
+  const terme = foldAccents(recherche.trim());
+  const lignes = participants
+    .map((participant) => {
+      const profil = profilsParId.get(participant.profile_id);
+      const nom = profil ? `${profil.first_name} ${profil.last_name}` : `Jeune n° ${participant.profile_id}`;
+      return { participant, nom, cle: [profil?.last_name ?? nom, profil?.first_name ?? ""] };
+    })
+    .sort((a, b) => parNom(a.cle[0], b.cle[0]) || parNom(a.cle[1], b.cle[1]))
+    .filter(({ nom }) => foldAccents(nom).includes(terme));
 
   async function pointer(profileId: number, present: boolean) {
     try {
@@ -97,8 +116,8 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
         {/* Hors des onglets : le compteur reste sous les yeux pendant les deux appels. */}
         <p aria-live="polite" className="mb-4 text-lg font-medium empty:hidden">
           {participants.length > 0 &&
-            `${presents} présent${presents > 1 ? "s" : ""} sur ${participants.length}, ` +
-            `${absents} absent${absents > 1 ? "s" : ""}` +
+            `${motCompte(presents, "présent")} sur ${participants.length}, ` +
+            `${motCompte(absents, "absent")}` +
             (aPointer > 0 ? `, ${aPointer} à pointer` : "")}
         </p>
         <Tabs defaultValue="debut">
@@ -151,76 +170,107 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
                 description="Ajoutez un jeune pour commencer l'appel."
               />
             ) : (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {participants.map((participant) => {
-                  const profil = profilsParId.get(participant.profile_id);
-                  const nom = profil
-                    ? `${profil.first_name} ${profil.last_name}`
-                    : `Jeune n° ${participant.profile_id}`;
-                  return (
-                    <Card key={participant.profile_id} className="space-y-2 p-4">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="min-w-0">
-                          <span className="font-medium">{nom}</span>
-                          <span className="block text-[var(--tcn-text-faint)] text-xs">
-                            {participant.category ?? "Catégorie inconnue"}
-                          </span>
-                        </span>
-                        {participant.present === true && <Badge>Présent</Badge>}
-                        {participant.present === false && (
-                          <Badge variant="secondary">Absent</Badge>
-                        )}
-                      </div>
-                      {peutEcrire && (
-                        // `aria-pressed` : l'état choisi ne se lisait qu'à la couleur (#1013).
-                        <div className="flex gap-2" role="group" aria-label={`Présence de ${nom}`}>
-                          <Button
-                            size="sm"
-                            variant={participant.present === true ? "default" : "outline"}
-                            className="tcn-cible-tactile"
-                            aria-pressed={participant.present === true}
-                            disabled={setPresence.isPending}
-                            onClick={() => pointer(participant.profile_id, true)}
-                          >
-                            Présent
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={participant.present === false ? "default" : "outline"}
-                            className="tcn-cible-tactile"
-                            aria-pressed={participant.present === false}
-                            disabled={setPresence.isPending}
-                            onClick={() => pointer(participant.profile_id, false)}
-                          >
-                            Absent
-                          </Button>
-                        </div>
-                      )}
-                      <div className="flex gap-2">
-                        {/* Accès profil (FR-010) : jamais gardé par
-                            `peutEcrire`, c'est une navigation, pas une
-                            écriture — un porteur de `jeunes:read` seul y a
-                            droit comme au reste de l'appel. */}
-                        <Link
-                          href={`/admin/jeunes/${participant.profile_id}`}
-                          className={buttonVariants({ variant: "ghost", size: "sm" })}
-                        >
-                          Voir le profil
-                        </Link>
-                        {peutEcrire && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setJeuneNote({ id: participant.profile_id, nom })}
-                          >
-                            Ajouter une note
-                          </Button>
-                        )}
-                      </div>
-                    </Card>
-                  );
-                })}
-              </div>
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="appel-rechercher-jeune">Rechercher un jeune</Label>
+                  <Input
+                    id="appel-rechercher-jeune"
+                    type="search"
+                    className="tcn-cible-tactile"
+                    value={recherche}
+                    onChange={(e) => setRecherche(e.target.value)}
+                  />
+                </div>
+                <AnnonceStatut
+                  texte={terme ? `${motCompte(lignes.length, "jeune")} sur ${participants.length}` : ""}
+                />
+                {lignes.length === 0 ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-[var(--tcn-text-faint)] text-sm">
+                      Aucun jeune ne correspond à « {recherche.trim()} ».
+                    </p>
+                    <Button size="sm" variant="outline" className="tcn-cible-tactile" onClick={() => setRecherche("")}>
+                      Effacer la recherche
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {lignes.map(({ participant, nom }) => {
+                      return (
+                        <Card key={participant.profile_id} className="space-y-3 p-4">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="min-w-0">
+                              <span className="font-medium">{nom}</span>
+                              <span className="block text-[var(--tcn-text-faint)] text-xs">
+                                {participant.category ?? "Catégorie inconnue"}
+                              </span>
+                              {participant.emergency_contact && (
+                                <span className="block break-words text-sm">
+                                  <span className="text-[var(--tcn-text-faint)]">
+                                    Contact d&apos;urgence :{" "}
+                                  </span>
+                                  <EmergencyContact text={participant.emergency_contact} />
+                                </span>
+                              )}
+                            </span>
+                            {participant.present === true && <Badge>Présent</Badge>}
+                            {participant.present === false && (
+                              <Badge variant="secondary">Absent</Badge>
+                            )}
+                          </div>
+                          {peutEcrire && (
+                            // `aria-pressed` : l'état choisi ne se lisait qu'à la couleur (#1013).
+                            <div className="flex gap-2" role="group" aria-label={`Présence de ${nom}`}>
+                              <Button
+                                size="sm"
+                                variant={participant.present === true ? "default" : "outline"}
+                                className="tcn-cible-tactile"
+                                aria-pressed={participant.present === true}
+                                disabled={setPresence.isPending}
+                                onClick={() => pointer(participant.profile_id, true)}
+                              >
+                                Présent
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={participant.present === false ? "default" : "outline"}
+                                className="tcn-cible-tactile"
+                                aria-pressed={participant.present === false}
+                                disabled={setPresence.isPending}
+                                onClick={() => pointer(participant.profile_id, false)}
+                              >
+                                Absent
+                              </Button>
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            {/* Accès profil (FR-010) : jamais gardé par
+                                `peutEcrire`, c'est une navigation, pas une
+                                écriture — un porteur de `jeunes:read` seul y a
+                                droit comme au reste de l'appel. */}
+                            <Link
+                              href={`/encadrement/jeunes/${participant.profile_id}`}
+                              className={buttonVariants({ variant: "ghost", size: "sm", className: "tcn-cible-tactile" })}
+                            >
+                              Voir le profil
+                            </Link>
+                            {peutEcrire && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="tcn-cible-tactile"
+                                onClick={() => setJeuneNote({ id: participant.profile_id, nom })}
+                              >
+                                Ajouter une note
+                              </Button>
+                            )}
+                          </div>
+                        </Card>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
           </TabsContent>
 
@@ -246,7 +296,7 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
       <PageHeader
         title={data ? `Appel du ${formatDate(data.date)}` : "Appel"}
         description={heureEtLieu || undefined}
-        backHref="/admin/jeunes/calendrier"
+        backHref="/encadrement/jeunes/calendrier"
         backLabel="Retour au calendrier"
       />
       <div>{corps}</div>

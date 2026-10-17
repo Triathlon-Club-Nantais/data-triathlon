@@ -8,8 +8,8 @@ import { StatusBadge } from "@/components/results/StatusBadge";
 import { EquipeRelais, nomEquipe } from "@/components/results/EquipeRelais";
 import { isNonFinisher } from "@/lib/utils/raceOrder";
 import { splitColumnsFromKeys } from "@/lib/utils/splits";
-import { secondsFromHms } from "@/lib/utils/time";
-import { genderShort, ordinalFr } from "@/lib/utils/format";
+import { comparableSeconds, secondsFromHms } from "@/lib/utils/time";
+import { genderShort, motCompte, ordinalFr, plural } from "@/lib/utils/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClassementPagination } from "@/components/results/ClassementPagination";
 import { PAGE_SIZE_DEFAUT, PAGE_SIZE_PARAM, boundPageSize, pageSizeOptions, parsePageSize } from "@/lib/pageSize";
@@ -408,7 +408,7 @@ export function RaceFinishers({
 
   /** Temps (en secondes) du participant pour la colonne de tri active. */
   function temps(p: Participation, cle: string): number | null {
-    return secondsFromHms(cle === CLE_TEMPS_TOTAL ? p.total_time : p.splits?.[cle]);
+    return comparableSeconds(cle === CLE_TEMPS_TOTAL ? p.total_time : p.splits?.[cle]);
   }
 
   // Valeurs non temporelles (DNF/DNS/DSQ, segment non publié) envoyées en fin
@@ -452,13 +452,13 @@ export function RaceFinishers({
     .filter(Boolean)
     .join(", ");
   const texteAnnonce =
-    `${lignes.length} résultat${lignes.length > 1 ? "s" : ""} affiché${lignes.length > 1 ? "s" : ""}` +
+    `${motCompte(lignes.length, "résultat")} ${plural(lignes.length, "affiché")}` +
     (perimetreFiltres ? `, ${perimetreFiltres}` : "") +
     (libelleTri
       ? `, trié par ${libelleTri}, ${tri!.direction === "asc" ? "croissant" : "décroissant"}${perimetreTri}`
       : "") +
     (enAttente.length > 0
-      ? `, et ${enAttente.length} résultat${enAttente.length > 1 ? "s" : ""} en attente de validation`
+      ? `, et ${motCompte(enAttente.length, "résultat")} en attente de validation`
       : "");
 
   return (
@@ -468,7 +468,7 @@ export function RaceFinishers({
         {/* `id` : il nomme le tableau plus bas. `/courses/[id]` en porte deux,
             et sans nom un lecteur d'écran les annonce tous deux « tableau »
             sans dire lequel — « Top clubs » l'était déjà (#481). */}
-        <div id="titre-classement" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)" }}>Classement</div>
+        <h2 id="titre-classement" style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0 }}>Classement</h2>
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <form
             role="search"
@@ -487,10 +487,13 @@ export function RaceFinishers({
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
               placeholder="Rechercher un athlète"
+              // `height: 34` reste la densité de bureau : la classe la relève à 44 px sous md (#1539).
+              className="tcn-cible-tactile"
               style={{ height: 34, minWidth: 190, padding: "0 10px", fontSize: 13, borderRadius: 8, border: "1px solid var(--tcn-border)", background: "var(--tcn-surface)", color: "var(--tcn-ink)" }}
             />
             <button
               type="submit"
+              className="tcn-cible-tactile"
               style={{ height: 34, padding: "0 12px", fontSize: 13, fontWeight: 700, borderRadius: 8, border: "1px solid var(--tcn-border)", background: "var(--tcn-fill)", color: "var(--tcn-ink)", cursor: "pointer" }}
             >
               Chercher
@@ -509,7 +512,7 @@ export function RaceFinishers({
               // pas. Stylé en ligne, il ne peut pas déclarer son propre
               // `:focus-visible` — d'où `.tcn-cta-classement`, qui ne porte
               // que l'anneau (globals.css).
-              className="tcn-cta-classement"
+              className="tcn-cta-classement tcn-cible-tactile"
               style={{ height: 34, padding: "0 12px", fontSize: 13, fontWeight: 700, borderRadius: 8, border: "1.5px solid var(--tcn-orange-deep)", background: "var(--tcn-surface)", color: "var(--tcn-orange-deep)", cursor: "pointer" }}
             >
               Aller à ma ligne
@@ -921,7 +924,7 @@ function libelleSelection(
   selection: { recherche: string; filtreClub: boolean; club: string; categorie: string },
   enAttente: number,
 ): string {
-  const tete = `${total} résultat${total > 1 ? "s" : ""} sur ${totalEpreuve}`;
+  const tete = `${motCompte(total, "résultat")} sur ${totalEpreuve}`;
   // Hors des totaux, mais dit : sans lui, « 0 résultat » coiffe des lignes visibles (#1273).
   const attente = enAttente > 0 ? `, et ${enAttente} en attente de validation` : "";
   const morceaux = [];
@@ -1046,14 +1049,14 @@ function ChipRetirable({
 function resumeEpreuve(summary: CourseSummary): string {
   const { total, finishers, dnf, dns, dsq, unknown } = summary;
   const parts = [
-    `${total} participant${total > 1 ? "s" : ""}`,
+    motCompte(total, "participant"),
     participationStatusCount("finisher", finishers),
   ];
   // Mêmes mots que les compteurs de l'en-tête d'épreuve (#1084).
   if (dnf > 0) parts.push(participationStatusCount("DNF", dnf));
   if (dns > 0) parts.push(participationStatusCount("DNS", dns));
   if (dsq > 0) parts.push(participationStatusCount("DSQ", dsq));
-  if (unknown > 0) parts.push(`${unknown} indéterminé${unknown > 1 ? "s" : ""}`);
+  if (unknown > 0) parts.push(motCompte(unknown, "indéterminé"));
   return parts.join(" · ");
 }
 

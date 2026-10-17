@@ -10,17 +10,18 @@ import {
   Card,
   ComparisonTable,
   ImprovementMatrix,
-  RankingEvolutionChart,
   ResultRow,
   UnavailableState,
 } from "@/components/tcn";
+// Direct import: the barrel feeds the root layout, d3 must stay out of every page's first load (#1432).
+import { RankingEvolutionChart } from "@/components/tcn/participation-detail/RankingEvolutionChart";
 import { PageShell } from "@/components/layout/PageShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { formatDate } from "@/lib/utils/date";
 import { ordinalFr } from "@/lib/utils/format";
-import { Histogram } from "@/components/charts/Histogram";
+import { Histogram, isMarkerInRange } from "@/components/charts/Histogram";
 import { CategoryBars } from "@/components/charts/CategoryBars";
-import { secondsFromHms } from "@/lib/utils/time";
+import { comparableSeconds } from "@/lib/utils/time";
 
 export const metadata: Metadata = { title: "Résultat individuel" };
 
@@ -75,7 +76,7 @@ export default async function ParticipationDetailPage({
       ? "rejected"
       : "pending";
   // Repérer le temps déclaré dans la distribution le comparerait aux autres.
-  const markerSec = validation ? null : secondsFromHms(participation.total_time);
+  const markerSec = validation ? null : comparableSeconds(participation.total_time);
 
   return (
     <PageShell>
@@ -96,8 +97,10 @@ export default async function ParticipationDetailPage({
           <>
             <ComparisonTable
               rows={stats.comparison}
+              medians={stats.medians}
               segments={stats.segments}
               eventType={course.event_type}
+              athlete={participation}
             />
             <RankingEvolutionChart
               steps={stats.ranking_evolution}
@@ -115,7 +118,7 @@ export default async function ParticipationDetailPage({
         {summary?.histogram && (
           <Card padding={28} style={{ marginTop: 18 }}>
             <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 4 }}>Distribution des temps des arrivants</h2>
-            <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de 5 minutes{markerSec != null && <> — le temps de l&apos;athlète est repéré</>}</div>
+            <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>Nombre d&apos;athlètes par tranche de {summary.histogram.bucket_sec / 60} minutes{isMarkerInRange(markerSec, summary.histogram.bars.length, summary.histogram.start_sec, summary.histogram.bucket_sec) && <>, le temps de l&apos;athlète est repéré</>}</div>
             <Histogram
               bars={summary.histogram.bars}
               max={Math.max(...summary.histogram.bars)}
@@ -137,7 +140,7 @@ export default async function ParticipationDetailPage({
               )}
             </div>
             <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", marginBottom: 18 }}>
-              Nombre d&apos;athlètes par catégorie — la catégorie de l&apos;athlète est repérée.
+              Nombre d&apos;athlètes par catégorie, la catégorie de l&apos;athlète est repérée.
             </div>
             <CategoryBars
               categories={summary.categories}

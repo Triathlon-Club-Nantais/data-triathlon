@@ -141,6 +141,28 @@ describe("EventsTable", () => {
     expect(screen.getByRole("status")).toHaveTextContent("1 épreuve");
   });
 
+  it("gives the season and discipline filters a 44px touch target under md (#1440)", () => {
+    render(<EventsTable participations={threeSeasons()} athleteId={7} athleteName="Jean DUPONT" />);
+
+    expect(screen.getByRole("combobox", { name: /saison/i })).toHaveClass("tcn-cible-tactile");
+    expect(screen.getByRole("combobox", { name: /discipline/i })).toHaveClass("tcn-cible-tactile");
+  });
+
+  it("offers the athlete's results as a CSV download (#1375)", () => {
+    render(<EventsTable participations={threeSeasons()} athleteId={7} athleteName="Jean DUPONT" />);
+
+    const lien = screen.getByRole("link", { name: /télécharger toute la carrière \(csv\)/i });
+    expect(lien).toHaveAttribute("href", "/api/v1/athletes/7/participations.csv");
+    expect(lien).toHaveAttribute("download");
+    expect(lien).toHaveClass("tcn-cible-tactile");
+  });
+
+  it("offers no CSV download for an athlete without results (#1375)", () => {
+    render(<EventsTable participations={[]} athleteId={7} athleteName="Jean DUPONT" />);
+
+    expect(screen.queryByRole("link", { name: /télécharger toute la carrière \(csv\)/i })).not.toBeInTheDocument();
+  });
+
   it("propose une entrée par saison représentée, la plus récente d'abord", async () => {
     render(<EventsTable participations={threeSeasons()} athleteId={7} athleteName="Jean DUPONT" />);
 
@@ -247,6 +269,11 @@ describe("EventsTable", () => {
     render(<EventsTable participations={[]} athleteId={7} athleteName="Jean DUPONT" />);
 
     expect(screen.getByText("Aucun résultat pour cet athlète")).toBeInTheDocument();
+    // Une saisie en attente n'est montrée qu'aux bénévoles (#1519) : sans ce mot,
+    // qui vient de saisir croirait sa saisie perdue et la referait.
+    expect(
+      screen.getByText("Un résultat que vous venez de saisir apparaîtra ici une fois validé par un bénévole."),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
@@ -379,7 +406,7 @@ describe("relais attribué à ses équipiers (#894)", () => {
     expect(dansLesCartes("epreuves-cartes").texte(LIBELLE)).toBeTruthy();
   });
 
-  it("offre l'attribution quand c'est l'épreuve qui est un relais", () => {
+  it("offre l'attribution quand c'est l'épreuve qui est un relais", async () => {
     // Le serveur accepte `participation.is_relay` **ou** `course.is_relay` :
     // le bouton suit la même règle.
     useSessionMock.mockReturnValue({
@@ -396,7 +423,7 @@ describe("relais attribué à ses équipiers (#894)", () => {
       );
 
       expect(
-        screen.getAllByRole("button", { name: /^Attribuer aux équipiers/ }).length,
+        (await screen.findAllByRole("button", { name: /^Attribuer aux équipiers/ })).length,
       ).toBeGreaterThan(0);
     } finally {
       useSessionMock.mockReturnValue({ data: null });

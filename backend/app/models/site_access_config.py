@@ -1,5 +1,5 @@
 """SiteAccessConfig — mot de passe partagé fermant l'accès public au site
-(#509). Même schéma que `BenevoleAccessConfig` (#271), table distincte :
+(#509). Même schéma que `VolunteerAccessConfig` (#271), table distincte :
 les deux secrets tournent indépendamment, deux populations différentes.
 """
 from datetime import datetime

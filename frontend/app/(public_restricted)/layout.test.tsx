@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DynamicServerError } from "next/dist/client/components/hooks-server-context";
 import { ApiError } from "@/lib/api/client";
 
 const { checkSiteAccess, connexionAdherent } = vi.hoisted(() => ({
@@ -78,6 +79,15 @@ describe("Garde d'accès au site (#509)", () => {
     expect(screen.getByRole("link", { name: /guide/i })).toHaveAttribute("href", "/guide");
   });
 
+  it("gives the Guide link a 44px touch target under md only (#1510)", async () => {
+    checkSiteAccess.mockResolvedValue(true);
+
+    render(await ProtegeLayout({ children: <p>contenu réservé</p> }));
+
+    // `max-md:` rather than `.tcn-cible-tactile`, whose 28px floor would grow the 20px link on desktop.
+    expect(screen.getByRole("link", { name: "Guide" })).toHaveClass("max-md:min-h-11");
+  });
+
   it("rend le formulaire **à la place** des enfants sur un 401 avéré", async () => {
     // Et non une redirection vers `/acces` : un layout serveur ne connaît pas
     // le chemin demandé (Next n'expose ni `pathname` ni `searchParams` à un
@@ -134,5 +144,16 @@ describe("Garde d'accès au site (#509)", () => {
     expect(screen.getByText("contenu réservé")).toBeInTheDocument();
     expect(screen.queryByText(/formulaire de mot de passe/)).not.toBeInTheDocument();
     expect(journal).toHaveBeenCalledWith(expect.stringContaining("session indisponible (502)"));
+  });
+
+  // #1532 : au prérendu, `cookies()` lève le signal de rendu dynamique de Next.
+  // L'avaler le journalisait comme une panne du backend, à chaque build.
+  it("relance le signal de rendu dynamique de Next, sans le journaliser", async () => {
+    checkSiteAccess.mockRejectedValue(new DynamicServerError("cookies"));
+
+    await expect(ProtegeLayout({ children: <p>contenu réservé</p> })).rejects.toBeInstanceOf(
+      DynamicServerError,
+    );
+    expect(journal).not.toHaveBeenCalled();
   });
 });

@@ -5,9 +5,9 @@ la **destination**, jamais le **volume** ; le cache TTL de `services/cache.py`
 limite le re-scraping d'une **même** épreuve, jamais le nombre d'épreuves
 distinctes demandées. Ce plafond est le seul qui borne le volume.
 
-Le plafond n'a de sens que parce que #393 a fixé la chaîne d'IP : c'est la
-**première** entrée de `X-Forwarded-For` qui fait foi, donc celle posée par la
-plateforme et non celle que l'appelant choisit.
+Le plafond n'a de sens que parce que la chaîne d'IP est fixée (#393, #1533) :
+c'est l'entrée de `X-Forwarded-For` posée par Cloudflare, la troisième en
+partant de la droite, qui fait foi, et non celle que l'appelant choisit.
 """
 from datetime import date
 
@@ -18,6 +18,11 @@ from app.core.config import get_settings
 from app.scrapers.base import FanoutTrace, ScrapedResult
 
 _SCRAPE = "/api/v1/scrape/event"
+
+
+def _via_platform(ip: str) -> dict[str, str]:
+    """`X-Forwarded-For` tel que Cloudflare puis Render le livrent (#1533)."""
+    return {"X-Forwarded-For": f"{ip}, 172.71.119.62, 10.28.198.73"}
 _STREAM = "/api/v1/scrape/event/stream"
 _URL = {"url": "https://www.klikego.com/x"}
 
@@ -74,20 +79,32 @@ def test_le_plafond_est_par_ip(client, monkeypatch, scraper_muet):
     monkeypatch.setattr(get_settings(), "scrape_rate_limit_max_per_window", 1)
 
     def envoi(ip: str):
-        return client.post(_SCRAPE, json=_URL, headers={"X-Forwarded-For": ip})
+        return client.post(_SCRAPE, json=_URL, headers=_via_platform(ip))
 
     assert envoi("203.0.113.7").status_code == 200
     assert envoi("203.0.113.8").status_code == 200
     assert envoi("203.0.113.7").status_code == 429
 
 
+def test_une_rotation_dans_un_meme_64_ne_contourne_pas_le_plafond(client, monkeypatch, scraper_muet):
+    """#1552 : un /64 change d'adresse source à chaque requête, il compte pour un."""
+    monkeypatch.setattr(get_settings(), "scrape_rate_limit_max_per_window", 1)
+
+    def envoi(ip: str):
+        return client.post(_SCRAPE, json=_URL, headers=_via_platform(ip))
+
+    assert envoi("2001:db8:1:2::1").status_code == 200
+    assert envoi("2001:db8:1:3::1").status_code == 200
+    assert envoi("2001:db8:1:2::2").status_code == 429
+
+
 def test_l_ip_usurpee_ne_contourne_pas_le_plafond(client, monkeypatch, scraper_muet):
-    """Même piège que #393 : seule la première entrée de l'en-tête fait foi."""
+    """#1533 : ce que l'appelant écrit en tête de l'en-tête ne compte pas."""
     monkeypatch.setattr(get_settings(), "scrape_rate_limit_max_per_window", 1)
 
     def envoi(usurpee: str):
         return client.post(
-            _SCRAPE, json=_URL, headers={"X-Forwarded-For": f"203.0.113.7, {usurpee}"}
+            _SCRAPE, json=_URL, headers=_via_platform(f"{usurpee},203.0.113.7")
         )
 
     assert envoi("198.51.100.1").status_code == 200
@@ -168,7 +185,7 @@ def test_le_plafond_des_ecritures_publiques_est_par_ip(client, monkeypatch):
         # Dossard distinct : deux résultats identiques rendraient 409, et le
         # test ne dirait plus rien du plafond.
         return client.post(
-            _PARTICIPATIONS, json={**_RESULTAT, "bib_number": bib}, headers={"X-Forwarded-For": ip}
+            _PARTICIPATIONS, json={**_RESULTAT, "bib_number": bib}, headers=_via_platform(ip)
         )
 
     assert envoi("203.0.113.7", "1").status_code == 201
@@ -212,7 +229,7 @@ def test_le_plafond_de_la_connexion_au_site_est_par_ip(client, monkeypatch):
     monkeypatch.setattr(deps, "SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW", 1)
 
     def envoi(ip: str):
-        return client.post(_SESSION_SITE, json={"password": "faux"}, headers={"X-Forwarded-For": ip})
+        return client.post(_SESSION_SITE, json={"password": "faux"}, headers=_via_platform(ip))
 
     assert envoi("203.0.113.7").status_code == 401
     assert envoi("203.0.113.8").status_code == 401
@@ -256,7 +273,7 @@ _SESSION_BENEVOLES = "/api/v1/benevoles/session"
 def test_la_connexion_benevoles_est_plafonnee(client, monkeypatch):
     """#917 : même coût scrypt que la connexion au site, route joignable sans
     le cookie du site, et mot de passe possiblement humain (8 caractères)."""
-    monkeypatch.setattr(deps, "BENEVOLE_LOGIN_RATE_LIMIT_MAX_PER_WINDOW", 2)
+    monkeypatch.setattr(deps, "VOLUNTEER_LOGIN_RATE_LIMIT_MAX_PER_WINDOW", 2)
 
     assert client.post(_SESSION_BENEVOLES, json={"password": "faux-1"}).status_code == 401
     assert client.post(_SESSION_BENEVOLES, json={"password": "faux-2"}).status_code == 401
@@ -268,7 +285,7 @@ def test_la_connexion_benevoles_est_plafonnee(client, monkeypatch):
 
 def test_la_connexion_benevoles_a_son_propre_seau(client, monkeypatch):
     monkeypatch.setattr(deps, "SITE_ACCESS_RATE_LIMIT_MAX_PER_WINDOW", 1)
-    monkeypatch.setattr(deps, "BENEVOLE_LOGIN_RATE_LIMIT_MAX_PER_WINDOW", 1)
+    monkeypatch.setattr(deps, "VOLUNTEER_LOGIN_RATE_LIMIT_MAX_PER_WINDOW", 1)
 
     assert client.post(_SESSION_SITE, json={"password": "faux"}).status_code == 401
     assert client.post(_SESSION_SITE, json={"password": "faux"}).status_code == 429
@@ -278,7 +295,7 @@ def test_la_connexion_benevoles_a_son_propre_seau(client, monkeypatch):
 
 def test_la_remise_a_zero_des_compteurs_couvre_le_seau_benevoles(client, monkeypatch):
     """La fixture autouse `_compteurs_de_debit_vierges` passe par `reset_rate_limits`."""
-    monkeypatch.setattr(deps, "BENEVOLE_LOGIN_RATE_LIMIT_MAX_PER_WINDOW", 1)
+    monkeypatch.setattr(deps, "VOLUNTEER_LOGIN_RATE_LIMIT_MAX_PER_WINDOW", 1)
     assert client.post(_SESSION_BENEVOLES, json={"password": "faux"}).status_code == 401
     assert client.post(_SESSION_BENEVOLES, json={"password": "faux"}).status_code == 429
 
@@ -299,7 +316,7 @@ def test_la_purge_des_seaux_n_efface_pas_le_quota_d_une_autre_fenetre(monkeypatc
 
     Un appel sur un seau à fenêtre courte balayait donc les seaux à fenêtre
     longue dont le dernier passage était plus vieux que *sa* fenêtre à lui —
-    ce que le commentaire d'en-tête de `_MAX_SEAUX` promet de ne pas faire.
+    ce que le commentaire d'en-tête de `_MAX_BUCKETS` promet de ne pas faire.
     Inoffensif tant que les quatre fenêtres valent 3600 s, silencieux le jour
     où l'une d'elles change.
     """
@@ -308,7 +325,7 @@ def test_la_purge_des_seaux_n_efface_pas_le_quota_d_une_autre_fenetre(monkeypatc
     from types import SimpleNamespace
 
     deps.reset_rate_limits()
-    monkeypatch.setattr(deps, "_MAX_SEAUX", 1)
+    monkeypatch.setattr(deps, "_MAX_BUCKETS", 1)
 
     long_seau = ("long", "203.0.113.7")
     deps._enforce_rate_limit(
@@ -325,3 +342,45 @@ def test_la_purge_des_seaux_n_efface_pas_le_quota_d_une_autre_fenetre(monkeypatc
     )
 
     assert long_seau in deps._hits
+
+
+_VOLUNTEER_ACTION = "/api/v1/volunteer-actions"
+
+
+def _volunteer_action_body(db_session) -> dict:
+    from app.repositories import athlete_repository
+
+    athlete = athlete_repository.get_or_create(db_session, nom="DUPONT", prenom="Jean", club="TCN")
+    db_session.commit()
+    return {"athlete_id": athlete.id, "title": "Ravitaillement", "description": "Poste eau km 15."}
+
+
+def test_volunteer_action_is_rate_limited(client, db_session, monkeypatch):
+    """#1397 : chaque appel écrit une déclaration en attente, avec pour seule
+    garde en amont le mot de passe partagé du site. Sans plafond, quiconque le
+    détient remplit la file d'attente admin en boucle."""
+    monkeypatch.setattr(deps, "VOLUNTEER_ACTION_RATE_LIMIT_MAX_PER_WINDOW", 2)
+    body = _volunteer_action_body(db_session)
+
+    assert client.post(_VOLUNTEER_ACTION, json=body).status_code == 201
+    assert client.post(_VOLUNTEER_ACTION, json=body).status_code == 201
+
+    refusal = client.post(_VOLUNTEER_ACTION, json=body)
+    assert refusal.status_code == 429
+    assert int(refusal.headers["Retry-After"]) > 0
+    assert "réessayez plus tard" in refusal.text
+
+
+def test_volunteer_action_has_its_own_bucket(client, db_session, monkeypatch):
+    """Elle n'est dans le geste d'aucune écriture publique (import échoué,
+    signalement, saisie manuelle) : partager `public_write` couplerait la
+    saisie d'une saison à la déclaration d'un bénévolat, l'erreur de #513."""
+    monkeypatch.setattr(deps, "PUBLIC_WRITE_RATE_LIMIT_MAX_PER_WINDOW", 1)
+    monkeypatch.setattr(deps, "VOLUNTEER_ACTION_RATE_LIMIT_MAX_PER_WINDOW", 1)
+    body = _volunteer_action_body(db_session)
+
+    assert client.post(_PARTICIPATIONS, json=_RESULTAT).status_code == 201
+    assert client.post(_PARTICIPATIONS, json=_RESULTAT).status_code == 429
+
+    assert client.post(_VOLUNTEER_ACTION, json=body).status_code == 201
+    assert client.post(_VOLUNTEER_ACTION, json=body).status_code == 429

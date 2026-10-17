@@ -15,22 +15,22 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateRole } from "@/lib/queries/admin";
 import type { PermissionGroup } from "@/lib/types";
+import { foldAccents } from "@/lib/utils/text";
 import { PermissionGrid } from "./PermissionGrid";
+
+/** La contrainte de `RoleCreate.slug`, recopiée pour ne pas la découvrir en 422. */
+const SLUG_ATTENDU = /^[a-z][a-z0-9-]*$/;
 
 /**
  * Le nom, ramené à la forme que le serveur exige : `^[a-z][a-z0-9-]*$`.
  *
- * `normalize("NFD")` sépare les accents de leur lettre, la classe `\p{Diacritic}`
- * les retire — « Bénévole » devient « benevole » sans table de correspondance.
+ * `foldAccents` plie casse et accents (« Bénévole » devient « benevole »), puis la
+ * classe `\p{Diacritic}` retire en plus les diacritiques autonomes (`^`, `` ` ``, `¨`)
+ * plutôt que d'en faire un tiret.
  */
-/** La contrainte de `RoleCreate.slug`, recopiée pour ne pas la découvrir en 422. */
-const SLUG_ATTENDU = /^[a-z][a-z0-9-]*$/;
-
 export function slugifier(nom: string): string {
-  return nom
-    .normalize("NFD")
+  return foldAccents(nom)
     .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .replace(/^[0-9-]+/, "");

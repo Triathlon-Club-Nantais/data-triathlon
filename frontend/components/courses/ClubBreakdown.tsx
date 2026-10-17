@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { ClubCount } from "@/lib/types";
+import { motCompte, plural } from "@/lib/utils/format";
 
 /**
  * La carte « Top clubs » d'une épreuve (#486, RES-7).
@@ -63,7 +64,7 @@ export function ClubBreakdown({
                 {hrefFor ? (
                   <Link
                     href={hrefFor(name, own)}
-                    aria-label={`${name}, ${count} athlète${count > 1 ? "s" : ""}. Voir ces participants dans le classement.`}
+                    aria-label={`${name}, ${motCompte(count, "athlète")}. Voir ces participants dans le classement.`}
                     className="tcn-rowlink__cible"
                     style={{ color: own ? "var(--tcn-orange-deeper)" : "var(--tcn-ink)" }}
                   >
@@ -95,7 +96,7 @@ export function ClubBreakdown({
           dans l'arbre d'accessibilité : aucun `aria-*` à ajouter par-dessus. */}
       {restants > 0 && (
         <div style={{ paddingTop: 10, fontSize: 12, color: "var(--tcn-text-muted)" }}>
-          et {restants} autre{restants > 1 ? "s" : ""} club{restants > 1 ? "s" : ""}
+          et {motCompte(restants, "autre")} {plural(restants, "club")}
         </div>
       )}
     </>

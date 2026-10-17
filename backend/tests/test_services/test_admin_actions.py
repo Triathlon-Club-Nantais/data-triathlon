@@ -340,7 +340,7 @@ def test_delete_participation_decremente_les_compteurs_denormalises(db_session, 
     """#623 — la ligne comptait (club TCN, non pendante) : les deux
     compteurs de son épreuve doivent redescendre à zéro avec elle."""
     course, _athlete, ligne = _resultat_complet(db_session)
-    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
+    course.participation_count, course.tcn_count = 1, 1
 
     admin_actions.delete_participation(db_session, participation_id=ligne.id, user_id=auteur.id)
 
@@ -433,7 +433,7 @@ def test_update_athlete_refuse_de_renommer_vers_une_personne_opposee(db_session,
 
     with pytest.raises(OpposedIdentityError):
         admin_actions.update_athlete(
-            db_session, athlete_id=coureur.id, champs={"nom": "DUPONT"}, user_id=auteur.id
+            db_session, athlete_id=coureur.id, fields={"nom": "DUPONT"}, user_id=auteur.id
         )
 
 
@@ -443,7 +443,7 @@ def test_update_athlete_ecrit_les_champs_fournis(db_session, auteur):
     admin_actions.update_athlete(
         db_session,
         athlete_id=coureur.id,
-        champs={"nom": "DUPONT", "birth_date": date(1988, 3, 2)},
+        fields={"nom": "DUPONT", "birth_date": date(1988, 3, 2)},
         user_id=auteur.id,
     )
 
@@ -459,7 +459,7 @@ def test_update_athlete_preserve_l_historique(db_session, auteur):
     _inscrit(db_session, coureur, course, "1")
 
     admin_actions.update_athlete(
-        db_session, athlete_id=coureur.id, champs={"nom": "DUPONT"}, user_id=auteur.id
+        db_session, athlete_id=coureur.id, fields={"nom": "DUPONT"}, user_id=auteur.id
     )
 
     assert len(participation_repository.list_for_athlete(db_session, coureur.id)) == 1
@@ -469,7 +469,7 @@ def test_update_athlete_consigne_l_avant_et_l_apres(db_session, auteur):
     coureur = _coureur(db_session, "DUPOND")
 
     admin_actions.update_athlete(
-        db_session, athlete_id=coureur.id, champs={"nom": "DUPONT"}, user_id=auteur.id
+        db_session, athlete_id=coureur.id, fields={"nom": "DUPONT"}, user_id=auteur.id
     )
 
     entrees = _journal(db_session, "athlete", coureur.id)
@@ -487,7 +487,7 @@ def test_update_athlete_refuse_un_doublon_en_le_nommant(db_session, auteur):
 
     with pytest.raises(DuplicateError) as capture:
         admin_actions.update_athlete(
-            db_session, athlete_id=a_corriger.id, champs={"nom": "DUPONT"}, user_id=auteur.id
+            db_session, athlete_id=a_corriger.id, fields={"nom": "DUPONT"}, user_id=auteur.id
         )
 
     assert str(existant.id) in str(capture.value)
@@ -498,7 +498,7 @@ def test_update_athlete_refuse_un_doublon_en_le_nommant(db_session, auteur):
 def test_update_athlete_sur_coureur_inconnu_refuse(db_session, auteur):
     with pytest.raises(NotFoundError):
         admin_actions.update_athlete(
-            db_session, athlete_id=4242, champs={"nom": "X"}, user_id=auteur.id
+            db_session, athlete_id=4242, fields={"nom": "X"}, user_id=auteur.id
         )
 
 
@@ -507,7 +507,7 @@ def test_update_athlete_sans_changement_ne_consigne_rien(db_session, auteur):
     coureur = _coureur(db_session, "DUPONT", "Jean")
 
     admin_actions.update_athlete(
-        db_session, athlete_id=coureur.id, champs={"nom": "DUPONT"}, user_id=auteur.id
+        db_session, athlete_id=coureur.id, fields={"nom": "DUPONT"}, user_id=auteur.id
     )
 
     assert _journal(db_session, "athlete", coureur.id) == []
@@ -525,7 +525,7 @@ def test_corriger_le_club_verrouille_la_colonne(db_session, auteur):
     admin_actions.update_athlete(
         db_session,
         athlete_id=coureur.id,
-        champs={"club": "TRI CLUB NANTAIS"},
+        fields={"club": "TRI CLUB NANTAIS"},
         user_id=auteur.id,
     )
 
@@ -539,7 +539,7 @@ def test_corriger_l_identite_seule_ne_verrouille_pas_le_club(db_session, auteur)
     coureur = _coureur(db_session, "DUPOND", "Jean", club="ASPTT NANTES")
 
     admin_actions.update_athlete(
-        db_session, athlete_id=coureur.id, champs={"nom": "DUPONT"}, user_id=auteur.id
+        db_session, athlete_id=coureur.id, fields={"nom": "DUPONT"}, user_id=auteur.id
     )
 
     assert athlete_repository.get(db_session, coureur.id).club_locked is False
@@ -554,7 +554,7 @@ def test_corriger_le_club_vers_la_meme_valeur_n_est_pas_un_geste(db_session, aut
     coureur = _coureur(db_session, "IDEM", "Ida", club="TCN")
 
     admin_actions.update_athlete(
-        db_session, athlete_id=coureur.id, champs={"club": "TCN"}, user_id=auteur.id
+        db_session, athlete_id=coureur.id, fields={"club": "TCN"}, user_id=auteur.id
     )
 
     relu = athlete_repository.get(db_session, coureur.id)
@@ -566,7 +566,7 @@ def test_le_journal_porte_le_club_dans_ses_instantanes(db_session, auteur):
     coureur = _coureur(db_session, "TRACE", "Théo", club="ASPTT NANTES")
 
     admin_actions.update_athlete(
-        db_session, athlete_id=coureur.id, champs={"club": None}, user_id=auteur.id
+        db_session, athlete_id=coureur.id, fields={"club": None}, user_id=auteur.id
     )
 
     entree = _journal(db_session, "athlete", coureur.id)[0]
@@ -594,7 +594,7 @@ def test_corriger_le_club_actuel_ne_touche_aucun_club_de_resultat(db_session, au
     admin_actions.update_athlete(
         db_session,
         athlete_id=coureur.id,
-        champs={"club": "TRI CLUB NANTAIS"},
+        fields={"club": "TRI CLUB NANTAIS"},
         user_id=auteur.id,
     )
 
@@ -610,11 +610,45 @@ def test_update_course_ecrit_les_champs_fournis(db_session, auteur):
     admin_actions.update_course(
         db_session,
         course_id=course.id,
-        champs={"name": "Triathlon de Nantes"},
+        fields={"name": "Triathlon de Nantes"},
         user_id=auteur.id,
     )
 
     assert course_repository.get(db_session, course.id).name == "Triathlon de Nantes"
+
+
+def test_update_course_redating_clears_the_weather(db_session, auteur):
+    """#1468 : corriger la date redemande la météo du vrai jour."""
+    course = _epreuve(db_session, event_date=date(2025, 6, 1))
+    course.latitude, course.longitude = 47.2, -1.55
+    course_repository.save_weather(
+        db_session, course, temperature_c=21.0, wind_kmh=10.0, precipitation_mm=0.0
+    )
+
+    admin_actions.update_course(
+        db_session, course_id=course.id, fields={"event_date": date(2025, 9, 14)}, user_id=auteur.id
+    )
+
+    assert course.weather_temperature_c is None
+    assert course in course_repository.list_missing_weather(db_session, dated_before=date(2026, 1, 1))
+
+
+def test_update_course_without_date_change_keeps_the_weather(db_session, auteur):
+    course = _epreuve(db_session, event_date=date(2025, 6, 1))
+    course.latitude, course.longitude = 47.2, -1.55
+    course_repository.save_weather(
+        db_session, course, temperature_c=21.0, wind_kmh=10.0, precipitation_mm=0.0
+    )
+
+    admin_actions.update_course(
+        db_session,
+        course_id=course.id,
+        fields={"name": "Triathlon de Nantes 2", "event_date": date(2025, 6, 1)},
+        user_id=auteur.id,
+    )
+
+    assert course.weather_temperature_c == 21.0
+    assert course.weather_fetched_at is not None
 
 
 def test_update_course_ne_touche_aucun_resultat(db_session, auteur):
@@ -629,7 +663,7 @@ def test_update_course_ne_touche_aucun_resultat(db_session, auteur):
     admin_actions.update_course(
         db_session,
         course_id=course.id,
-        champs={"name": "Triathlon de Nantes", "event_type": "triathlon-s"},
+        fields={"name": "Triathlon de Nantes", "event_type": "triathlon-s"},
         user_id=auteur.id,
     )
 
@@ -651,7 +685,7 @@ def test_update_course_refuse_un_doublon_en_le_nommant(db_session, auteur):
         admin_actions.update_course(
             db_session,
             course_id=a_corriger.id,
-            champs={"name": "Triathlon de Nantes"},
+            fields={"name": "Triathlon de Nantes"},
             user_id=auteur.id,
         )
 
@@ -665,7 +699,7 @@ def test_update_course_consigne_l_avant_et_l_apres(db_session, auteur):
     admin_actions.update_course(
         db_session,
         course_id=course.id,
-        champs={"name": "Triathlon de Nantes"},
+        fields={"name": "Triathlon de Nantes"},
         user_id=auteur.id,
     )
 
@@ -678,7 +712,7 @@ def test_update_course_consigne_l_avant_et_l_apres(db_session, auteur):
 def test_update_course_sur_epreuve_inconnue_refuse(db_session, auteur):
     with pytest.raises(NotFoundError):
         admin_actions.update_course(
-            db_session, course_id=4242, champs={"name": "X"}, user_id=auteur.id
+            db_session, course_id=4242, fields={"name": "X"}, user_id=auteur.id
         )
 
 
@@ -1458,7 +1492,7 @@ def test_wipe_all_participations_remet_les_compteurs_a_zero(db_session, auteur):
     épreuve doivent donc retomber, même sur une épreuve qui n'a pas bougé
     depuis un import réel."""
     course, _ = _epreuve_avec_resultat(db_session, "Tri A", "1")
-    course_repository.set_counts(db_session, course, participation_count=1, tcn_count=1)
+    course.participation_count, course.tcn_count = 1, 1
     db_session.flush()
 
     admin_actions.wipe_all_participations(db_session, user_id=auteur.id)
@@ -1797,7 +1831,7 @@ def test_update_participation_fields_ecrit_les_champs_fournis(db_session, auteur
 
     admin_actions.update_participation_fields(
         db_session, participation_id=ligne.id,
-        champs={"bib_number": "42", "rank_overall": 3, "club": "TCN", "category": "V2"},
+        fields={"bib_number": "42", "rank_overall": 3, "club": "TCN", "category": "V2"},
         user_id=auteur.id,
     )
 
@@ -1818,7 +1852,7 @@ def test_update_participation_fields_ne_touche_pas_les_champs_absents(db_session
     db_session.flush()
 
     admin_actions.update_participation_fields(
-        db_session, participation_id=ligne.id, champs={"bib_number": "42"}, user_id=auteur.id,
+        db_session, participation_id=ligne.id, fields={"bib_number": "42"}, user_id=auteur.id,
     )
 
     assert participation_repository.get(db_session, ligne.id).club == "ASPTT"
@@ -1839,7 +1873,7 @@ def test_update_participation_fields_refuse_un_dossard_deja_pris(db_session, aut
 
     with pytest.raises(DuplicateError):
         admin_actions.update_participation_fields(
-            db_session, participation_id=ligne.id, champs={"bib_number": "2"}, user_id=auteur.id,
+            db_session, participation_id=ligne.id, fields={"bib_number": "2"}, user_id=auteur.id,
         )
 
 
@@ -1854,7 +1888,7 @@ def test_update_participation_fields_autorise_a_garder_son_propre_dossard(db_ses
     db_session.flush()
 
     admin_actions.update_participation_fields(
-        db_session, participation_id=ligne.id, champs={"bib_number": "1", "club": "TCN"}, user_id=auteur.id,
+        db_session, participation_id=ligne.id, fields={"bib_number": "1", "club": "TCN"}, user_id=auteur.id,
     )
 
     assert participation_repository.get(db_session, ligne.id).club == "TCN"
@@ -1870,7 +1904,7 @@ def test_update_participation_fields_consigne_l_avant_et_l_apres(db_session, aut
     db_session.flush()
 
     admin_actions.update_participation_fields(
-        db_session, participation_id=ligne.id, champs={"club": "TCN"}, user_id=auteur.id,
+        db_session, participation_id=ligne.id, fields={"club": "TCN"}, user_id=auteur.id,
     )
 
     entrees = _journal(db_session, "participation", ligne.id)
@@ -1890,7 +1924,7 @@ def test_update_participation_fields_sans_changement_ne_consigne_rien(db_session
     db_session.flush()
 
     admin_actions.update_participation_fields(
-        db_session, participation_id=ligne.id, champs={"club": "TCN"}, user_id=auteur.id,
+        db_session, participation_id=ligne.id, fields={"club": "TCN"}, user_id=auteur.id,
     )
 
     assert _journal(db_session, "participation", ligne.id) == []
@@ -1899,14 +1933,14 @@ def test_update_participation_fields_sans_changement_ne_consigne_rien(db_session
 def test_update_participation_fields_sur_resultat_inconnu_refuse(db_session, auteur):
     with pytest.raises(NotFoundError):
         admin_actions.update_participation_fields(
-            db_session, participation_id=4242, champs={"club": "TCN"}, user_id=auteur.id,
+            db_session, participation_id=4242, fields={"club": "TCN"}, user_id=auteur.id,
         )
 
 
 def test_update_participation_fields_dossard_vide_devient_null(db_session, auteur):
     """Revue finale (#437) : un dossard vide ne doit jamais s'écrire tel quel.
 
-    `if nouveau_dossard and ...` est faux sur une chaîne vide — le contrôle de
+    `if new_bib and ...` est faux sur une chaîne vide — le contrôle de
     conflit se contourne silencieusement, et `""` finirait par heurter la
     contrainte `uq_participation_bib` dès qu'une seconde ligne est aussi
     corrigée vers `""`. La normalisation en `None` doit avoir lieu ici, dans
@@ -1920,7 +1954,7 @@ def test_update_participation_fields_dossard_vide_devient_null(db_session, auteu
     db_session.flush()
 
     admin_actions.update_participation_fields(
-        db_session, participation_id=ligne.id, champs={"bib_number": ""}, user_id=auteur.id,
+        db_session, participation_id=ligne.id, fields={"bib_number": ""}, user_id=auteur.id,
     )
 
     assert participation_repository.get(db_session, ligne.id).bib_number is None
@@ -1944,10 +1978,10 @@ def test_update_participation_fields_deux_dossards_vides_ne_collisionnent_pas(db
     db_session.flush()
 
     admin_actions.update_participation_fields(
-        db_session, participation_id=ligne_1.id, champs={"bib_number": ""}, user_id=auteur.id,
+        db_session, participation_id=ligne_1.id, fields={"bib_number": ""}, user_id=auteur.id,
     )
     admin_actions.update_participation_fields(
-        db_session, participation_id=ligne_2.id, champs={"bib_number": ""}, user_id=auteur.id,
+        db_session, participation_id=ligne_2.id, fields={"bib_number": ""}, user_id=auteur.id,
     )
     db_session.flush()
 
@@ -2054,6 +2088,7 @@ def test_season_quota_reflete_les_trois_signaux(db_session, auteur):
         "has_volunteer_action": True,
         "has_pending_volunteer_action": False,
         "season_validated": True,
+        "quota_met": True,
     }
 
 
@@ -2067,6 +2102,7 @@ def test_season_quota_sur_athlete_sans_activite(db_session, auteur):
         "has_volunteer_action": False,
         "has_pending_volunteer_action": False,
         "season_validated": False,
+        "quota_met": False,
     }
 
 
@@ -2488,7 +2524,7 @@ def test_course_gestures_refuse_a_course_held_by_another_transaction(db_session,
         admin_actions.delete_course(db_session, course_id=course.id, user_id=auteur.id)
     with pytest.raises(course_locks.CourseRescrapeAlreadyRunningError):
         admin_actions.update_course(
-            db_session, course_id=course.id, champs={"name": "Renommée"}, user_id=auteur.id
+            db_session, course_id=course.id, fields={"name": "Renommée"}, user_id=auteur.id
         )
     with pytest.raises(course_locks.CourseRescrapeAlreadyRunningError):
         course_merge.merge_courses(

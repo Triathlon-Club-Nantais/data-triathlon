@@ -11,7 +11,8 @@ export interface AthleteBrief {
 // Miroir de AthleteSeasonActivity backend (#274, #709) — athlète + ses
 // compteurs d'épreuves sur la saison filtrée. Pas de `club` : la route qui
 // l'expose est déjà scopée club côté appelant. `participation_count` reste
-// égal à `club_affiliated_count` (compat, additif seulement).
+// égal à `club_affiliated_count` (compat, additif seulement). `quota_met`
+// (#1542) : barème de `season_quota`, `null` hors saison unique.
 export interface AthleteSeasonActivity {
   id: number;
   nom: string;
@@ -21,6 +22,7 @@ export interface AthleteSeasonActivity {
   validated_count: number;
   club_affiliated_count: number;
   season_validated: boolean | null;
+  quota_met: boolean | null;
 }
 
 // Miroir de AthleteSearchResult backend (#484) — recherche classée par
@@ -49,6 +51,10 @@ export interface CourseBrief {
   // Indice de fiabilité calculé à l'import ; null = course jamais évaluée.
   is_reliable?: boolean | null;
   quality_issues?: Record<string, number> | null;
+  // Météo du jour de course (#1370, Open-Meteo) ; null = pas encore servie.
+  weather_temperature_c?: number | null;
+  weather_wind_kmh?: number | null;
+  weather_precipitation_mm?: number | null;
 }
 
 /** Les trois verdicts d'une épreuve, rendus par `PATCH …/reliability` (#115). */
@@ -83,6 +89,20 @@ export interface ComparisonRow {
   theirs_seconds?: Record<string, number>;
 }
 
+/**
+ * Comparaison à la médiane des classés (#1362). Bloc à part de `ComparisonRow` :
+ * une médiane n'occupe aucune position, et `rank` y est un entier requis.
+ */
+export interface MedianRow {
+  kind: "median" | "category_median";
+  label: string;
+  /** Classés de la population ; un segment peu publié porte sa médiane sur moins de valeurs. */
+  sample_size: number;
+  percentages: Record<string, number>;
+  mine_seconds?: Record<string, number>;
+  theirs_seconds?: Record<string, number>;
+}
+
 /** Places scratch gagnées si un segment avait été amélioré d'un pourcentage donné. */
 export interface ImprovementRow {
   segment: string;
@@ -98,6 +118,8 @@ export interface ParticipationStats {
   segments: string[];
   ranking_evolution: RankingEvolutionStep[];
   comparison: ComparisonRow[];
+  /** Ajout #1362 : optionnel, une réponse antérieure n'en porte pas. */
+  medians?: MedianRow[];
   improvement: ImprovementRow[];
 }
 
@@ -296,6 +318,13 @@ export interface ClubComposition {
 /** Taille complète de chaque mode de `ClubPodiums` (#1354). */
 export type ClubPodiumTotals = Record<keyof ClubPodiums, number>;
 
+/** Licenciés de la saison en cours, et ceux qui ont couru au moins une fois (#1441). */
+export interface ClubLicensees {
+  season: number;
+  total: number;
+  raced: number;
+}
+
 export interface ClubSummary {
   roster: ClubRosterEntry[];
   /** Sous `podiums: "preview"`, les 6 premiers de chaque mode seulement. */
@@ -303,6 +332,21 @@ export interface ClubSummary {
   podiums_totals: ClubPodiumTotals;
   podiums_by_discipline: Record<string, DisciplinePodiumCounts>;
   composition: ClubComposition;
+  /** `null` quand la saison en cours n'a aucun licencié. */
+  licensees: ClubLicensees | null;
+}
+
+/** Meilleur temps du club sur un format calibré, pour un genre (#1588). */
+export interface ClubBestTime {
+  participation_id: number;
+  course_id: number;
+  athlete_id: number;
+  athlete_name: string;
+  event_name: string;
+  event_type: string;
+  event_date: string | null;
+  gender: string;
+  total_time: string;
 }
 
 export interface ClubRosterRank {
@@ -611,6 +655,8 @@ export interface TrainingParticipant {
   /** Catégorie FFTri du jeune, `null` sans date de naissance (#1291). */
   category: string | null;
   created_at: string;
+  /** Contact d'urgence du jeune (#1405), `""` s'il est vide, `null` sans le pouvoir `jeunes:read`. */
+  emergency_contact: string | null;
 }
 
 /** Un entraînement et sa liste de participants inscrits. */
@@ -679,10 +725,11 @@ export interface ProfileLogEntry {
 
 /** Un profil **et** son journal — ce que rend le détail. */
 export interface ProfileDetail extends Profile {
-  emergency_contact: string;
-  notes: string;
+  /** Ces trois champs valent `null` sans le pouvoir `jeunes:read` (#1472). */
+  emergency_contact: string | null;
+  notes: string | null;
   groups: { id: number; name: string }[];
-  log_entries: ProfileLogEntry[];
+  log_entries: ProfileLogEntry[] | null;
 }
 
 /**
@@ -954,6 +1001,8 @@ export interface SessionUser {
    * jamais dans une liste tenue ici.
    */
   can_administer: boolean;
+  /** Au moins un pouvoir d'encadrement (#1297), dérivé du catalogue backend comme `can_administer`. */
+  can_supervise: boolean;
 }
 
 /** Un groupe tel que son membre se le voit — sans membres ni pouvoirs (#197). */
@@ -1516,6 +1565,28 @@ export interface Feedback {
   github_url: string | null;
   created_at: string;
   email: string | null;
+}
+
+/**
+ * `GET /admin/badge-counts` (#1385) : les pastilles du rail, par clé de
+ * `nav.config.ts`. Une pastille que la session ne voit pas est absente.
+ */
+export type AdminBadgeCounts = Partial<
+  Record<
+    "quality" | "duplicates" | "providers" | "feedback" | "identities" | "members" | "volunteer" | "validation",
+    number
+  >
+>;
+
+/**
+ * Une ligne de `GET /admin/quality/providers` (#1366) : `anomalies` compte les
+ * épreuves **non fiables** qui portent chaque code.
+ */
+export interface ProviderQuality {
+  provider: string;
+  course_count: number;
+  unreliable_count: number;
+  anomalies: Record<string, number>;
 }
 
 /**

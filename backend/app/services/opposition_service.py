@@ -9,6 +9,7 @@ arriver anonymes les résultats importés ensuite (`import_service`).
 Les homonymes sont couverts : la clé est le nom et le prénom normalisés
 (`core/identity`), seule identité que les imports connaissent.
 """
+import re
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from zoneinfo import ZoneInfo
@@ -36,6 +37,7 @@ from app.repositories import (
 from app.scrapers.utils import split_relay_teammates
 from app.services import audit
 
+_TEAMMATE_SEPARATOR = re.compile(r"\s*[/+&;]\s*|\s+(?:et|-)\s+", re.IGNORECASE)
 OVERDUE_AFTER_DAYS = 30
 PARIS = ZoneInfo("Europe/Paris")
 REDACTED = "[anonymisé]"
@@ -69,8 +71,36 @@ def is_opposed(db: Session, nom: str, prenom: str) -> bool:
     return opposition_repository.get_by_hash(db, identity_hash(nom, prenom)) is not None
 
 
-def ensure_not_opposed(db: Session, nom: str, prenom: str) -> None:
-    if is_opposed(db, nom, prenom):
+def named_hashes(*labels: str | None) -> set[str]:
+    """Empreinte de chaque personne qu'un libellé nomme : lui entier, ou chaque équipier
+    d'un libellé de relais. Règle commune à l'import et à la saisie (#1506).
+
+    `+`, `&`, `;`, « et » et un tiret entouré d'espaces séparent des équipiers comme `/`
+    (#1514). La virgule aussi, mais elle sépare encore « NOM, Prénom » : elle ne coupe
+    que si chaque côté porte au moins deux mots. Une empreinte en trop anonymise à
+    l'import la ligne d'une autre personne : un fragment de nom n'en produit pas.
+    """
+    hashes = set()
+    for label in filter(None, labels):
+        hashes.add(identity_hash(label, ""))
+        for relay in (label, _TEAMMATE_SEPARATOR.sub("/", label)):
+            hashes.update(identity_hash(*pair) for pair in split_relay_teammates(relay) or ())
+        for segment in _TEAMMATE_SEPARATOR.split(label):
+            hashes.add(identity_hash(segment, ""))
+            parts = segment.split(",")
+            if all(len(part.split()) >= 2 for part in parts):
+                hashes.update(identity_hash(part, "") for part in parts)
+    return hashes
+
+
+def names_opposed(db: Session, nom: str, prenom: str, *labels: str | None) -> bool:
+    """`labels` : autres libellés publiés avec l'identité, comme le nom d'une équipe de relais."""
+    return opposition_repository.any_hash(db, named_hashes(f"{nom} {prenom}", *labels))
+
+
+def ensure_not_opposed(db: Session, nom: str, prenom: str, *labels: str | None) -> None:
+    """Refus explicite, réservé aux gestes des bénévoles : la saisie publique se tait (#1514)."""
+    if names_opposed(db, nom, prenom, *labels):
         raise OpposedIdentityError()
 
 
@@ -89,17 +119,16 @@ def _identity(db: Session, athlete_id: int | None, nom: str | None, prenom: str 
 
 def _names_person(key: str, label: str) -> bool:
     """`label` désigne la personne : son identité même, ou un libellé de relais non découpé qui la nomme."""
-    return opposition_key(label, "") == key or any(
-        opposition_key(*pair) == key for pair in split_relay_teammates(label) or ()
-    )
+    # `key` est déjà normalisée : `identity_hash(key, "")` est l'empreinte de la personne.
+    return identity_hash(key, "") in named_hashes(label)
 
 
 def _matching_athletes(db: Session, nom: str, prenom: str) -> list[Athlete]:
     key = opposition_key(nom, prenom)
     return [
         athlete_repository.get(db, athlete_id)
-        for athlete_id, other_nom, other_prenom in athlete_repository.list_identities(db)
-        if _names_person(key, f"{other_nom} {other_prenom}")
+        for athlete_id, other_last_name, other_first_name in athlete_repository.list_identities(db)
+        if _names_person(key, f"{other_last_name} {other_first_name}")
     ]
 
 
@@ -215,8 +244,8 @@ def _remove_club_members(db: Session, nom: str, prenom: str, athlete_ids: set[in
     key = opposition_key(nom, prenom)
     removed = [
         (member_id, member_athlete_id)
-        for member_id, member_nom, member_prenom, member_athlete_id in club_member_repository.list_identities(db)
-        if member_athlete_id in athlete_ids or opposition_key(member_nom, member_prenom) == key
+        for member_id, member_last_name, member_first_name, member_athlete_id in club_member_repository.list_identities(db)
+        if member_athlete_id in athlete_ids or opposition_key(member_last_name, member_first_name) == key
     ]
     club_member_repository.delete_ids(db, [member_id for member_id, _ in removed])
     # Une ligne rattachée par une variante d'écriture désigne une autre fiche, dont le compte se relit.
@@ -248,12 +277,12 @@ def apply(
     anonymised = sum(_anonymise(db, athlete) for athlete in athletes)
     _redact_log(db, nom, prenom)
 
-    empreinte = identity_hash(nom, prenom)
-    opposition = opposition_repository.get_by_hash(db, empreinte)
+    digest = identity_hash(nom, prenom)
+    opposition = opposition_repository.get_by_hash(db, digest)
     created = opposition is None
     if created:
         opposition = opposition_repository.create(
-            db, identity_hash=empreinte, requested_on=requested_on, applied_by_user_id=actor.id
+            db, identity_hash=digest, requested_on=requested_on, applied_by_user_id=actor.id
         )
     opposition.anonymised_count += anonymised
     audit.record(

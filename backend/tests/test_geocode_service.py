@@ -85,7 +85,7 @@ def test_la_recherche_est_bornee_a_la_metropole(monkeypatch):
 
     params = vues[0].url.params
     assert params["bounded"] == "1"
-    assert params["viewbox"] == geocode_service.VIEWBOX_METROPOLE
+    assert params["viewbox"] == geocode_service.VIEWBOX_MAINLAND
 
 
 def test_un_resultat_hors_metropole_est_refuse(monkeypatch):
@@ -357,7 +357,7 @@ def test_run_geocode_courses_echec_total_si_rien_n_a_abouti(monkeypatch, db_sess
 
     outcome = geocode_service.run_geocode_courses(db_session)
 
-    assert outcome.echec_total is True
+    assert outcome.is_total_failure is True
 
 
 def test_run_geocode_courses_zero_cible_n_est_pas_un_echec(monkeypatch, db_session):
@@ -368,7 +368,7 @@ def test_run_geocode_courses_zero_cible_n_est_pas_un_echec(monkeypatch, db_sessi
     outcome = geocode_service.run_geocode_courses(db_session)
 
     assert outcome.total == 0
-    assert outcome.echec_total is False
+    assert outcome.is_total_failure is False
 
 
 def test_run_geocode_courses_respecte_le_cooldown_par_la_requete(monkeypatch, db_session):
@@ -432,7 +432,7 @@ def test_run_geocode_courses_dry_run_ne_touche_pas_nominatim(monkeypatch, db_ses
     assert outcome.total == 1
     assert outcome.dry_run_names == ["Tri Cible"]
     assert outcome.geocoded == 0
-    assert outcome.echec_total is False
+    assert outcome.is_total_failure is False
 
 
 def test_run_geocode_courses_notifie_on_item_apres_chaque_tentative(monkeypatch, db_session):

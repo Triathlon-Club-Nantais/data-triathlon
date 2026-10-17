@@ -1,7 +1,10 @@
 """DTO du droit d'opposition (#334), aux formes de `contracts/admin-oppositions.md`."""
-from datetime import date, datetime
+from datetime import date
 
-from pydantic import BaseModel, ConfigDict, field_serializer, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
+
+from app.schemas.ids import DbId
+from app.schemas.utc_datetime import UtcDatetime
 
 
 class OppositionIdentity(BaseModel):
@@ -9,7 +12,7 @@ class OppositionIdentity(BaseModel):
 
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
-    athlete_id: int | None = None
+    athlete_id: DbId | None = None
     nom: str | None = None
     prenom: str | None = None
 
@@ -36,12 +39,8 @@ class OppositionPreviewRead(BaseModel):
 class OppositionRead(BaseModel):
     id: int
     requested_on: date
-    applied_at: datetime
+    applied_at: UtcDatetime
     delay_days: int
     overdue: bool
     applied_by_name: str | None
     anonymised_count: int
-
-    @field_serializer("applied_at")
-    def _serialize_utc(self, value: datetime) -> str:
-        return f"{value.isoformat()}Z"

@@ -142,7 +142,7 @@ describe("AthletePage — état vide (ETAT-3)", () => {
  * les autres cellules.
  */
 function ligneDe(container: HTMLElement, href: string): HTMLElement | null {
-  return container.querySelector<HTMLElement>(`a[href='${href}']`)?.closest("tr") ?? null;
+  return container.querySelector<HTMLElement>(`tr a[href='${href}']`)?.closest("tr") ?? null;
 }
 
 describe("AthletePage", () => {
@@ -169,7 +169,7 @@ describe("AthletePage", () => {
     // Le meilleur centile est 42e sur 300 (14 %), pas la meilleure place brute (20e sur 80, 25 %).
     const tile = screen.getByText("Meilleur classement").parentElement?.parentElement as HTMLElement;
     expect(within(tile).getByText("42e")).toBeInTheDocument();
-    expect(within(tile).getByText("sur 300 · Top 14 %")).toBeInTheDocument();
+    expect(within(tile).getByText("sur 300 · Top 14 %").textContent).toBe("sur 300 · Top 14\u202f%");
     expect(screen.queryByText("Meilleure place")).not.toBeInTheDocument();
     expect(screen.queryByText("Meilleur ratio")).not.toBeInTheDocument();
   });
@@ -362,6 +362,18 @@ describe("AthletePage", () => {
     expect(row).not.toBeNull();
     expect(within(row as HTMLElement).getByText("—")).toBeInTheDocument();
     expect(within(row as HTMLElement).queryByText("DNF")).not.toBeInTheDocument();
+  });
+
+  it("affiche la carte Meilleurs temps à partir de trois épreuves validées (#1361)", async () => {
+    await renderAthlete([part({ id: 1 }), part({ id: 2 }), part({ id: 3 })]);
+
+    expect(screen.getByRole("heading", { name: "Meilleurs temps" })).toBeInTheDocument();
+  });
+
+  it("tait la carte Meilleurs temps sous trois épreuves : la tuile Temps dit déjà le temps", async () => {
+    await renderAthlete([part({ id: 1 })]);
+
+    expect(screen.queryByRole("heading", { name: "Meilleurs temps" })).not.toBeInTheDocument();
   });
 
   it("ouvre le détail de la participation, et non plus la page de la course", async () => {
@@ -582,7 +594,9 @@ describe("AthletePage — tuiles proportionnées au volume (PROF-4, #488)", () =
   it("sous le seuil, propose d'ajouter une épreuve", async () => {
     await renderAthlete([part({ id: 1, rank_overall: 12 })]);
 
-    expect(screen.getByRole("link", { name: /Ajouter une épreuve/ })).toHaveAttribute("href", "/ajouter");
+    const ajouter = screen.getByRole("link", { name: "Ajouter une épreuve" });
+    expect(ajouter).toHaveAttribute("href", "/ajouter");
+    expect(ajouter).toHaveClass("tcn-cible-tactile");
   });
 
   it("sans aucune participation, ne rend ni tuile ni second appel à l'action", async () => {
@@ -613,7 +627,7 @@ describe("AthletePage: season validation panel stays out of the header (#927)", 
     quotaCourant.data = { validated_count: 2, has_volunteer_action: false, season_validated: false };
     await renderAthlete([part({ id: 1, rank_overall: 12 })]);
 
-    const bouton = screen.getByRole("button", { name: "Valider la saison" });
+    const bouton = await screen.findByRole("button", { name: "Valider la saison" });
     const titre = screen.getByRole("heading", { level: 1, name: "Jean DUPONT" });
     const entete = titre.closest(".mb-7");
     expect(entete).not.toBeNull();

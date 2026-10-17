@@ -65,6 +65,28 @@ describe("AthleteHeaderActions — sans athletes:write", () => {
 });
 
 describe("AthleteHeaderActions — avec athletes:write", () => {
+  // #1582 : le panneau se charge à la demande ; la sélection ne doit pas
+  // redescendre en secondaire avant que « Corriger la fiche » soit là. Premier
+  // test du bloc : une fois le module en cache, l'état transitoire n'existe plus.
+  it("bascule la hiérarchie d'un seul rendu, panneau chargé", async () => {
+    getSession.mockResolvedValue(session(["athletes:write"]));
+    const intermediaire = vi.fn();
+    const observer = new MutationObserver(() => {
+      const selection = screen.queryByRole("button", { name: /choisir cet athlète/i });
+      if (
+        selection?.classList.contains("tcn-btn--secondary") &&
+        !screen.queryByRole("button", { name: /corriger la fiche/i })
+      )
+        intermediaire();
+    });
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true });
+    afficher();
+
+    await screen.findByRole("button", { name: /corriger la fiche/i });
+    observer.disconnect();
+    expect(intermediaire).not.toHaveBeenCalled();
+  });
+
   it("place « Corriger la fiche » en tête, en primaire", async () => {
     getSession.mockResolvedValue(session(["athletes:write"]));
     afficher();

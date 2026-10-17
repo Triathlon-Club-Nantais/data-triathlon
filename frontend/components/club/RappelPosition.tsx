@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { motCompte } from "@/lib/utils/format";
 
 /**
  * Rappel épinglé de la position de l'athlète retenu (#504) — affiché quand sa
  * ligne/fiche est hors de l'aperçu visible du roster (`/club`,
  * `/club/athletes`). Toujours monté, hauteur réservée par le conteneur : le
  * signifiant n'existe qu'après hydratation (`useSelectedAthlete`, jamais dans
- * le HTML initial, `frontend/AGENTS.md`), et sans réservation son apparition
+ * le HTML initial, `docs/frontend/athlete-retenu.md`), et sans réservation son apparition
  * déplacerait la section sous lui.
  */
 export function RappelPosition({
@@ -31,7 +32,7 @@ export function RappelPosition({
             color: "var(--tcn-orange-deeper)",
           }}
         >
-          Vous : {epreuves} épreuve{epreuves > 1 ? "s" : ""} — {rang}ᵉ du club
+          Vous : {motCompte(epreuves, "épreuve")} — {rang}ᵉ du club
         </Link>
       )}
     </div>

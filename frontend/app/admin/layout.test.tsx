@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DynamicServerError } from "next/dist/client/components/hooks-server-context";
 import { ApiError } from "@/lib/api/client";
 
 const { getSession, listAuthMethods, redirect } = vi.hoisted(() => ({
@@ -15,7 +16,11 @@ const { getSession, listAuthMethods, redirect } = vi.hoisted(() => ({
 vi.mock("@/lib/api/server", () => ({
   apiServer: { getSession, listAuthMethods },
 }));
-vi.mock("next/navigation", () => ({ redirect }));
+// Le vrai `unstable_rethrow` : c'est lui qui reconnaît les signaux internes de Next (#1532).
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  redirect,
+}));
 
 import AdminLayout from "./layout";
 
@@ -173,5 +178,24 @@ describe("Garde des écrans d'administration (FR-040)", () => {
     render(await AdminLayout({ children: <p>contenu réservé</p> }));
 
     expect(screen.getByText("contenu réservé")).toBeInTheDocument();
+  });
+
+  // #1532 : au prérendu, `cookies()` lève le signal de rendu dynamique de Next.
+  // L'avaler le journalisait comme une panne du backend, 48 fois par build.
+  it.each([
+    ["la session", () => getSession.mockRejectedValue(new DynamicServerError("cookies"))],
+    [
+      "les méthodes de connexion",
+      () => listAuthMethods.mockRejectedValue(new DynamicServerError("cookies")),
+    ],
+  ])("relance le signal de rendu dynamique de Next sur %s, sans le journaliser", async (_cas, preparer) => {
+    getSession.mockResolvedValue(SESSION);
+    listAuthMethods.mockResolvedValue(GITHUB);
+    preparer();
+
+    await expect(AdminLayout({ children: <p>contenu réservé</p> })).rejects.toBeInstanceOf(
+      DynamicServerError,
+    );
+    expect(journal).not.toHaveBeenCalled();
   });
 });
