@@ -73,6 +73,16 @@ def get(db: Session, member_id: int) -> ClubMember | None:
     return db.get(ClubMember, member_id)
 
 
+def linked_by_athlete(db: Session, season: int, athlete_ids: list[int]) -> dict[int, ClubMember]:
+    """Le licencié de la saison rattaché à chacune de ces fiches (#1325)."""
+    members = db.scalars(
+        select(ClubMember)
+        .where(ClubMember.season == season, ClubMember.athlete_id.in_(athlete_ids), ClubMember.link_status.in_(LINKED))
+        .order_by(ClubMember.id)
+    )
+    return {member.athlete_id: member for member in members}
+
+
 def has_licence_less_link(db: Session, *, season: int, athlete_id: int, except_id: int) -> bool:
     return db.scalar(
         select(ClubMember.id).where(

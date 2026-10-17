@@ -4,11 +4,16 @@ La transaction reste portée par le service appelant (`services/auth/`), comme
 dans `import_service` et `scrape_service` : on `flush()` pour peupler l'id, on ne
 `commit()` jamais ici.
 """
-from sqlalchemy import func, select, update
+from datetime import datetime
+
+from sqlalchemy import Column, func, select, update
 from sqlalchemy.orm import Session, selectinload
 
+import app.models  # noqa: F401  registers every table on Base.metadata for the reference inventory
+from app.core.database import Base
+from app.core.email import normalize_email
 from app.models.role import Role
-from app.models.user import User
+from app.models.user import SYSTEM_USER_EMAIL, User
 from app.models.user_group import UserGroup
 from app.models.user_role import UserRole
 
@@ -61,7 +66,7 @@ def find_by_email(db: Session, email: str) -> list[User]:
     return list(
         db.scalars(
             select(User)
-            .where(func.lower(User.email) == email.strip().lower())
+            .where(func.lower(User.email) == normalize_email(email))
             .order_by(User.id)
         )
     )
@@ -83,7 +88,7 @@ def emails_with_account(db: Session, emails: list[str]) -> set[str]:
     return set(
         db.scalars(
             select(func.lower(User.email)).where(
-                func.lower(User.email).in_({email.strip().lower() for email in emails})
+                func.lower(User.email).in_({normalize_email(email) for email in emails})
             )
         )
     )
@@ -132,6 +137,91 @@ def set_active(db: Session, users: list[User], *, active: bool) -> int:
         user.is_active = active
     db.flush()
     return len(changes)
+
+
+#: Tables that belong to the account and leave with it through the ORM cascade of `User`.
+_OWNED_TABLES = frozenset({"identities", "user_sessions", "user_roles", "user_groups", "athlete_claims", "season_goals"})
+
+
+def _references_to_users() -> list[Column]:
+    """Every column outside the account's own tables that points to `users.id` (#1326).
+
+    Read from the schema rather than listed by hand: FKs carry no `ondelete` and are
+    only enforced by PostgreSQL, so a forgotten column would surface in production
+    only, as an `IntegrityError`.
+    """
+    return [
+        foreign_key.parent
+        for table in Base.metadata.sorted_tables
+        if table.name not in _OWNED_TABLES
+        for foreign_key in table.foreign_keys
+        if foreign_key.column.table.name == User.__tablename__
+    ]
+
+
+def required_references() -> list[Column]:
+    return [column for column in _references_to_users() if not column.nullable]
+
+
+def optional_references() -> list[Column]:
+    return [column for column in _references_to_users() if column.nullable]
+
+
+def has_required_reference(db: Session, user_id: int) -> bool:
+    return any(
+        db.scalar(select(column).where(column == user_id).limit(1)) is not None
+        for column in required_references()
+    )
+
+
+def detach_optional_references(db: Session, user_id: int) -> None:
+    for column in optional_references():
+        db.execute(update(column.table).where(column == user_id).values({column.name: None}))
+
+
+def touch_last_seen(db: Session, user_id: int, now: datetime) -> None:
+    """Sets `last_seen_at` to `now` unless it is already today: one write per day at most."""
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    db.execute(
+        update(User)
+        .where(User.id == user_id, User.last_seen_at < start_of_day)
+        .values(last_seen_at=now)
+    )
+
+
+def list_inactive_without_role(db: Session, cutoff: datetime) -> list[User]:
+    """Accounts with no role, last seen before `cutoff`, never the system account (#1326)."""
+    return list(db.scalars(
+        select(User)
+        .where(
+            User.last_seen_at < cutoff,
+            User.email != SYSTEM_USER_EMAIL,
+            ~select(UserRole.id).where(UserRole.user_id == User.id).exists(),
+        )
+        .order_by(User.id)
+    ))
+
+
+def delete(db: Session, user: User) -> None:
+    """Deletes the account; identities, sessions, roles and groups follow by ORM cascade."""
+    db.delete(user)
+    db.flush()
+
+
+def count_linked_by_athlete(db: Session, athlete_ids: list[int]) -> dict[int, int]:
+    """Comptes rattachés à chacune de ces fiches (#1325) ; une fiche sans compte est absente."""
+    rows = db.execute(
+        select(User.athlete_id, func.count(User.id))
+        .where(User.athlete_id.in_(athlete_ids))
+        .group_by(User.athlete_id)
+    )
+    return {athlete_id: count for athlete_id, count in rows}
+
+
+def set_athlete(db: Session, user: User, athlete_id: int | None) -> None:
+    """Pose ou retire le rattachement validé du compte (#1325)."""
+    user.athlete_id = athlete_id
+    db.flush()
 
 
 def ids_linked_to_athlete(db: Session, athlete_id: int) -> set[int]:

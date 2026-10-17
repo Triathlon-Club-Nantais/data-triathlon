@@ -10,6 +10,7 @@ from urllib.parse import urlparse, urlunparse
 
 from app.core import http
 from app.core.exceptions import DomainError
+from app.core.text import strip_accents
 from app.scrapers import registry
 
 DEFAULT_SHEET_URL = (
@@ -82,6 +83,16 @@ def read_table(content: bytes, filename: str) -> tuple[list[str], list[list[str]
         cell or f"Colonne {position}" for position, cell in enumerate(rows[0], 1)
     ]
     return headers, rows[1:]
+
+
+def header_key(header: str) -> str:
+    """En-tête comparable : sans accents, ponctuation ni casse (« E-mail » → « email »)."""
+    return "".join(c for c in strip_accents(header) if c.isalnum()).casefold()
+
+
+def column_index(headers: list[str], accepted: set[str]) -> int | None:
+    """Rang de la première colonne dont l'en-tête normalisé est accepté."""
+    return next((i for i, h in enumerate(headers) if header_key(h) in accepted), None)
 
 
 def _csv_rows(content: bytes) -> list[list[str]]:

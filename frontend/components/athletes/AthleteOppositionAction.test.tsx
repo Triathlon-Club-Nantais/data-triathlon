@@ -30,6 +30,9 @@ const ADMIN: SessionUser = {
   roles: [],
   groups: [],
   can_administer: true,
+  is_member: false,
+  athlete: null,
+  athlete_claim: null,
   can_supervise: false,
 };
 

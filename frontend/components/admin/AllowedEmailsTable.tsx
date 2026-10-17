@@ -86,7 +86,10 @@ export function AllowedEmailsTable() {
     if (
       !(await confirmerLeDanger({
         titre: `Retirer « ${acces.email} » ?`,
-        description: "Ses sessions ouvertes seront fermées immédiatement.",
+        // #1322 : le retrait désactive le compte, ce qui ferme aussi sa
+        // connexion d'adhérent, pas seulement le back-office.
+        description:
+          "Son compte sera désactivé et ses sessions fermées immédiatement : le retrait ferme aussi sa connexion d'adhérent.",
         libelleAction: "Retirer",
       }))
     ) {

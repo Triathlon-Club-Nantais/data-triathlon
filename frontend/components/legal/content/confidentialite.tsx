@@ -10,7 +10,7 @@ export const PRIVACY_POLICY: LegalDocument = {
   title: "Politique de confidentialité",
   description:
     "Ce que le Triathlon Club Nantais fait des données de ce site, pourquoi, combien de temps, et comment faire valoir vos droits.",
-  updatedAt: "2026-10-15",
+  updatedAt: "2026-10-17",
   sections: [
     {
       id: "responsable",
@@ -67,14 +67,30 @@ export const PRIVACY_POLICY: LegalDocument = {
             des résultats comme lors de la revue des fiches. Seuls les administrateurs habilités la consultent.
           </p>
           <p>
-            <strong>Les comptes du back-office.</strong> Les bénévoles et administrateurs se connectent avec leur
-            compte GitHub : le site en reçoit l&apos;adresse électronique, le nom affiché et l&apos;identifiant
-            GitHub. Un compte peut être rattaché à la fiche athlète de son titulaire. Le site garde la trace des
-            actions d&apos;administration.
+            <strong>La liste des adresses d&apos;adhérents.</strong> L&apos;adresse électronique des adhérents,
+            saison par saison, importée par un administrateur depuis le fichier des adhérents du club (AssoConnect)
+            ou ajoutée à la main. Seule la colonne d&apos;adresses du fichier est lue : nom, téléphone et autres
+            colonnes ne sont jamais enregistrés. Elle sert uniquement à reconnaître un adhérent quand il se connecte
+            au site ; aucun e-mail ne lui est envoyé. Seuls les administrateurs habilités la consultent.
+          </p>
+          <p>
+            <strong>Les comptes.</strong> Les adhérents peuvent se connecter pour entrer sur le site sans le code
+            d&apos;accès ; les bénévoles et administrateurs se connectent aussi pour le back-office. La connexion
+            passe par GitHub, ou par Google ou par un code reçu par e-mail via Microsoft Entra External ID : le
+            site en reçoit l&apos;adresse électronique, le nom affiché et l&apos;identifiant chez ce fournisseur. Par
+            Google ou par code, la première connexion inscrit aussi l&apos;adresse et le nom dans l&apos;annuaire
+            Microsoft du club ; le club l&apos;efface dans le mois qui suit la suppression du compte, à l&apos;aide de
+            l&apos;identifiant Microsoft que le journal d&apos;administration garde 12 mois à cette seule fin. Un compte n&apos;a, par
+            lui-même, aucun droit d&apos;administration. Un compte peut être rattaché à la fiche athlète de
+            la personne, à la demande de son titulaire, après vérification par le club ; le compte rattaché est
+            reconnu adhérent, et son titulaire s&apos;en détache quand il le souhaite depuis le menu du compte
+            (« Me détacher de ma fiche »). Un compte rattaché peut se fixer des objectifs de saison, que lui seul voit, et qui sont supprimés avec le compte. Le site garde la trace des actions d&apos;administration. Vous pouvez supprimer votre compte
+            vous-même, depuis le menu du compte (« Supprimer mon compte ») : vos résultats et votre fiche athlète
+            restent publiés, seul le compte disparaît.
           </p>
           <p>
             <strong>Les signalements.</strong> Quand vous signalez un problème depuis le site : votre message, la
-            page concernée, votre navigateur, votre adresse IP et, si vous êtes connecté au back-office, votre
+            page concernée, votre navigateur, votre adresse IP et, si vous êtes connecté, votre
             compte. L&apos;adresse IP sert uniquement à limiter le nombre d&apos;envois ; elle n&apos;est jamais
             affichée.
           </p>
@@ -89,8 +105,8 @@ export const PRIVACY_POLICY: LegalDocument = {
             <strong>sans cookie</strong> et sans vous suivre d&apos;un jour à l&apos;autre : le prestataire de
             mesure ne reçoit qu&apos;un identifiant calculé à partir de votre adresse IP et de votre navigateur,
             renouvelé chaque jour. Si vous acceptez la mesure détaillée, il reçoit aussi vos interactions avec les
-            pages (clics) et dépose des cookies ; pour un utilisateur connecté au back-office, la mesure est alors
-            rattachée à son compte : son adresse électronique, son nom affiché et ses rôles lui sont transmis.
+            pages (clics) et dépose des cookies ; pour un utilisateur connecté, la mesure est alors
+            rattachée à son compte : son adresse électronique, son nom affiché, ses rôles, et s&apos;il est adhérent ou rattaché à une fiche lui sont transmis.
             Retirer ensuite votre accord arrête cette mesure détaillée, sans effacer ce qui a déjà été transmis :
             pour cela, exercez votre droit à l&apos;effacement (voir « Vos droits »). Les actions faites dans le
             back-office sont comptées par le serveur du site, rattachées à l&apos;identifiant du compte seulement si
@@ -130,8 +146,10 @@ export const PRIVACY_POLICY: LegalDocument = {
           <p>
             Les données de l&apos;école de triathlon reposent, elles, sur l&apos;adhésion au club (article 6.1.b du
             RGPD : ce qui est nécessaire à l&apos;exécution du contrat d&apos;adhésion) et sur la sécurité des jeunes
-            encadrés. Les comptes du back-office et les signalements reposent sur l&apos;intérêt légitime du club à
-            administrer son site.
+            encadrés. Les comptes et les signalements reposent sur l&apos;intérêt légitime du club à
+            administrer son site et à le réserver à ses adhérents. La liste des adresses d&apos;adhérents repose sur l&apos;intérêt légitime du club à
+            réserver le site à ses adhérents, à partir d&apos;adresses qu&apos;ils lui ont déjà confiées pour leur
+            adhésion.
           </p>
         </>
       ),
@@ -149,10 +167,14 @@ export const PRIVACY_POLICY: LegalDocument = {
               "Liste des licenciés du club",
               "La saison en cours et la précédente ; ensuite, seuls sont gardés la saison et le rattachement à la fiche de résultats (le numéro de licence et le sexe sont effacés, le nom est celui de la fiche)",
             ],
+            ["Liste des adresses d'adhérents", "La saison en cours et la précédente"],
             ["Signalements, adresse IP comprise", "12 mois après leur envoi"],
             ["Journal des actions d'administration", "12 mois"],
-            ["Compte du back-office", "Tant que son titulaire est autorisé à se connecter"],
-            ["Session de connexion au back-office", "7 jours"],
+            [
+              "Compte",
+              "Jusqu'à sa suppression depuis le menu du compte, ou 5 ans sans connexion ; un compte qui porte un rôle est gardé tant qu'il le porte",
+            ],
+            ["Session de connexion", "7 jours"],
             ["Mémorisation du code d'accès au site", "90 jours"],
             ["École de triathlon", "Durée de l'adhésion, plus une saison"],
           ]}
@@ -165,10 +187,11 @@ export const PRIVACY_POLICY: LegalDocument = {
       content: (
         <>
           <p>
-            Les résultats sont consultables par les adhérents du club, qui disposent du code d&apos;accès. Les
+            Les résultats sont consultables par les adhérents du club, qui disposent du code d&apos;accès ou se
+            connectent avec une adresse de la liste des adhérents ou un compte rattaché à leur fiche. Les
             saisies en attente, les dates de naissance et les signalements ne sont visibles que des bénévoles
-            (adhérents ou non) et administrateurs habilités ; la liste des licenciés, que des administrateurs
-            habilités ; les données de l&apos;école de triathlon, que des
+            (adhérents ou non) et administrateurs habilités ; la liste des licenciés et celle des adresses
+            d&apos;adhérents, que des administrateurs habilités ; les données de l&apos;école de triathlon, que des
             encadrants.
           </p>
           <p>Le club s&apos;appuie sur des prestataires techniques, qui n&apos;agissent que pour son compte :</p>
@@ -179,6 +202,7 @@ export const PRIVACY_POLICY: LegalDocument = {
               ["Vercel Inc.", "Hébergement du site", "États-Unis"],
               ["Render Services, Inc.", "Hébergement du serveur de données", "Francfort (Allemagne)"],
               ["Microsoft Ireland Operations Ltd (Azure)", "Base de données", "France"],
+              ["Microsoft Ireland Operations Ltd (Entra External ID)", "Connexion par Google ou par code reçu par e-mail", "Europe"],
               ["Supabase Inc.", "Base de données de test, avant mise en ligne", "Non précisé par le prestataire"],
               ["GitHub, Inc.", "Connexion au back-office, mises à jour des résultats et nettoyages planifiés de la base", "États-Unis"],
               ["PostHog Inc.", "Mesure d'audience", "Union européenne"],
@@ -223,7 +247,8 @@ export const PRIVACY_POLICY: LegalDocument = {
             « Retrait de mes données »,
             écrivez à <ContactEmail />, ou par courrier à Triathlon Club Nantais, 2 boulevard René Coty,
             44100 Nantes. Indiquez votre nom et votre prénom tels qu&apos;ils figurent dans les classements, et
-            l&apos;épreuve concernée (nom et date) : cela suffit à retrouver vos résultats. Le club vous répond dans
+            l&apos;épreuve concernée (nom et date) : cela suffit à retrouver vos résultats. Pour un compte, indiquez
+            l&apos;adresse électronique avec laquelle vous vous connectez. Le club vous répond dans
             un délai d&apos;un mois.
           </p>
         </>
@@ -252,9 +277,9 @@ export const PRIVACY_POLICY: LegalDocument = {
             head={["Nom", "Type", "À quoi il sert", "Durée"]}
             rows={[
               ["tcn_site_session", "cookie", "Mémoriser que vous avez saisi le code d'accès", "90 jours"],
-              ["tcn_session", "cookie", "Maintenir votre connexion au back-office", "7 jours"],
-              ["tcn_logged_in", "cookie", "Savoir qu'une connexion au back-office est ouverte", "7 jours au plus"],
-              ["tcn_auth_state", "cookie", "Sécuriser la connexion par GitHub", "10 minutes"],
+              ["tcn_session", "cookie", "Maintenir votre connexion", "7 jours"],
+              ["tcn_logged_in", "cookie", "Savoir qu'une connexion est ouverte", "7 jours au plus"],
+              ["tcn_auth_state", "cookie", "Sécuriser la connexion", "10 minutes"],
               ["tcn_benevole_session", "cookie", "Mémoriser l'accès à l'espace bénévoles", "Jusqu'à la fermeture du navigateur"],
               [NAV_WIDTH_COOKIE, "cookie", "Retenir si le menu est déplié", "1 an"],
               ["tcn-athlete", "stockage local", "Retenir l'athlète que vous avez choisi comme « moi »", "Jusqu'à ce que vous le changiez"],
@@ -266,7 +291,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             ]}
           />
           <p>
-            Sur le site en ligne, les deux cookies de connexion au back-office portent le préfixe « __Host- »
+            Sur le site en ligne, les deux cookies de connexion portent le préfixe « __Host- »
             (par exemple « __Host-tcn_session »), qui interdit leur partage avec un autre site.
           </p>
           <p>

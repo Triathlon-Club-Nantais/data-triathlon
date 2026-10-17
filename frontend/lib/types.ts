@@ -993,6 +993,11 @@ export interface SessionUser {
    */
   roles: SessionRole[];
   /**
+   * Statut adhérent (#1322), dérivé à chaque requête de la liste des adresses
+   * d'adhérents : dispense du code d'accès au site. Ne donne aucun pouvoir.
+   */
+  is_member: boolean;
+  /**
    * Groupes dont on est membre (#197) — « membre du Codir ». Rendu à tout
    * connecté, **sans exiger `groups:read`** : la question ne porte que sur soi.
    * Ne dit rien des droits, qui se lisent dans `permissions` seul.
@@ -1006,6 +1011,49 @@ export interface SessionUser {
   can_administer: boolean;
   /** Au moins un pouvoir d'encadrement (#1297), dérivé du catalogue backend comme `can_administer`. */
   can_supervise: boolean;
+  /** Fiche rattachée au compte, validée par le club (#1325). */
+  athlete: ClaimedAthlete | null;
+  /** Demande de rattachement en cours (#1325) : en attente, ou refusée jusqu'à la suivante. */
+  athlete_claim: AthleteClaim | null;
+}
+
+export interface ClaimedAthlete {
+  id: number;
+  prenom: string;
+  nom: string;
+}
+
+export interface AthleteClaim {
+  id: number;
+  athlete: ClaimedAthlete;
+  status: "pending" | "rejected";
+  created_at: string;
+}
+
+/** Objectif de saison privé de l'athlète rattaché, et sa progression (#1373). */
+export interface SeasonGoal {
+  id: number;
+  season: number;
+  kind: "time" | "count";
+  event_type: string | null;
+  /** Secondes pour un temps, nombre d'épreuves pour un nombre. */
+  target: number;
+  best_time: string | null;
+  count: number | null;
+  reached: boolean;
+}
+
+export type SeasonGoalWrite = Pick<SeasonGoal, "kind" | "event_type" | "target">;
+
+/** Une demande de la file du back-office, avec ses indices (#1325). */
+export interface AthleteClaimReview {
+  id: number;
+  created_at: string;
+  user: { id: number; display_name: string; email: string };
+  athlete: ClaimedAthlete & { club: string | null };
+  licensee: { prenom: string; nom: string; season: number } | null;
+  email_on_member_list: boolean;
+  linked_accounts: number;
 }
 
 /** Un groupe tel que son membre se le voit — sans membres ni pouvoirs (#197). */
@@ -1675,4 +1723,29 @@ export interface MembersSyncReport {
 export interface ClubMembersSeason extends MembersSyncReport {
   seasons: number[];
   members: ClubMember[];
+}
+
+/** Adresses d'adhérents par saison (#1334). */
+export interface MemberEmail {
+  id: number;
+  email: string;
+  season: number;
+  source: "import" | "manual";
+  created_at: string;
+}
+
+export interface MemberEmailsSeason {
+  season: number;
+  /** Saison qui compte aujourd'hui : l'en cours si elle a une entrée, sinon la précédente. */
+  counting_season: number;
+  seasons: number[];
+  entries: MemberEmail[];
+}
+
+export interface MemberEmailsImportReport {
+  season: number;
+  added: number;
+  removed: number;
+  unchanged: number;
+  ignored: number;
 }

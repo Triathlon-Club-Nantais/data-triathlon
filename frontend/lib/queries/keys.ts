@@ -25,6 +25,8 @@ export const queryKeys = {
   // Les pastilles du rail en une requête (#1385), invalidée par toute
   // mutation réussie (`app/providers.tsx`) : une clé hors des préfixes des listes.
   adminBadgeCounts: () => ["admin-badge-counts"] as const,
+  athleteClaims: () => ["athlete-claims"] as const,
+  seasonGoals: () => ["season-goals"] as const,
   providerQuality: () => ["provider-quality"] as const,
   // Clé distincte de `courseParticipations` : celle-ci stocke un `CourseDetail`,
   // l'autre un `Participation[]`. Même clé, deux formes = un écran qui plante.
@@ -75,6 +77,7 @@ export const queryKeys = {
   counterScope: () => ["counter-scope"] as const,
   clubAliases: () => ["club-aliases"] as const,
   clubMembers: (season: number) => ["club-members", season] as const,
+  memberEmails: (season: number) => ["member-emails", season] as const,
   adminActionLog: (page: number) => ["admin-action-log", page] as const,
   // Chargé à la demande, seulement quand l'athlète retenu est hors de
   // l'aperçu de 12 du roster club (#504, #641) — `RosterApercu`, seul

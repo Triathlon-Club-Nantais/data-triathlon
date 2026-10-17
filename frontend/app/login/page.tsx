@@ -30,7 +30,7 @@ function Connexion() {
   return (
     <div style={{ maxWidth: 460, margin: "64px auto", padding: "0 16px" }}>
       <Card>
-        <Eyebrow>Espace contributeur</Eyebrow>
+        <Eyebrow>Adhérents et contributeurs</Eyebrow>
         <h1
           style={{
             fontFamily: "var(--tcn-font-display)",
@@ -42,8 +42,8 @@ function Connexion() {
           Connexion
         </h1>
         <p style={{ color: "var(--tcn-text-muted)", fontSize: 14, marginBottom: 20 }}>
-          Les résultats se consultent avec le code d&apos;accès du club, sans
-          compte. La connexion GitHub ne sert qu&apos;aux contributeurs.
+          Les résultats se consultent avec le code d&apos;accès du club, ou sans
+          lui une fois connecté si votre adresse figure sur la liste des adhérents.
         </p>
 
         {erreur && (

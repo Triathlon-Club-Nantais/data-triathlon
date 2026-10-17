@@ -12,9 +12,10 @@ from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import DomainError, TooManyRequestsError
 from app.core.permissions import P, Permission
+from app.core.time import utcnow
 from app.models.user import User
 from app.repositories import site_access_config_repository, volunteer_config_repository
-from app.services import shared_password, site_access, volunteer_access
+from app.services import membership, shared_password, site_access, volunteer_access
 from app.services.auth import authorization
 from app.services.auth import session as session_service
 
@@ -164,14 +165,26 @@ def require_site_access(
     RBAC. Distincte de `require_volunteer_access` : secret et cookie propres.
     Fail-closed : configuration absente, cookie absent/invalide/expiré
     rendent tous le même 401, distinct de celui de la garde SSO (#877).
+
+    À défaut de cookie valide, une session d'un compte **adhérent** en dispense
+    (#1322), y compris sans code configuré. Le cookie est éprouvé d'abord : il
+    ne coûte que la lecture de la configuration, quand la session et le statut
+    adhérent coûtent trois requêtes (revue de #1322). Le statut est dérivé à
+    chaque requête : retirer l'adresse de la liste referme dès la suivante, ce
+    qu'un cookie de site posé à la connexion (90 jours) ne permettrait pas. Un
+    compte rattaché à sa fiche (#1325) reste adhérent tant qu'il n'est pas détaché.
     """
     config = site_access_config_repository.get_config(db, with_updated_by=False)
     cookie = request.cookies.get(site_access.SITE_SESSION_COOKIE)
     ttl_seconds = settings.site_access_session_ttl_days * 24 * 60 * 60
-    if config is None or not shared_password.verify_cookie(
+    if config is not None and shared_password.verify_cookie(
         cookie, config.session_secret, max_age_seconds=ttl_seconds
     ):
-        raise SiteAccessRequiredError()
+        return
+    # Appel direct et non `Depends` : la session n'est lue que si le cookie manque.
+    if membership.is_member(db, optional_user(request, db, settings), utcnow().date()):
+        return
+    raise SiteAccessRequiredError()
 
 
 # ── Plafond de débit par IP (#395, constats A04-2 et A07-1 de l'audit OWASP) ──

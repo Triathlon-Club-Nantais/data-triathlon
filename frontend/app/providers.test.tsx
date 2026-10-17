@@ -45,6 +45,9 @@ const SESSION: SessionUser = {
   roles: [],
   groups: [],
   can_administer: false,
+  is_member: false,
+  athlete: null,
+  athlete_claim: null,
   can_supervise: false,
 };
 
@@ -143,6 +146,23 @@ describe("PostHogSessionSync", () => {
     expect(reset).not.toHaveBeenCalled();
   });
 
+  it("marque l'adhérent et le rattachement sur la personne (#1374)", async () => {
+    const athlete = { id: 12, prenom: "Jean", nom: "Dupont" };
+    useSession.mockReturnValue({ data: { ...SESSION, is_member: true, athlete } });
+    const { rerender } = render(<Providers>{null}</Providers>);
+
+    await waitFor(() =>
+      expect(identify).toHaveBeenLastCalledWith("1", expect.objectContaining({ is_member: true, has_claimed_athlete: true })),
+    );
+
+    useSession.mockReturnValue({ data: { ...SESSION } });
+    rerender(<Providers>{null}</Providers>);
+
+    await waitFor(() =>
+      expect(identify).toHaveBeenLastCalledWith("1", expect.objectContaining({ is_member: false, has_claimed_athlete: false })),
+    );
+  });
+
   it("réinitialise PostHog quand la session repasse à null, quelle qu'en soit la cause (logout, 401, révocation)", async () => {
     useSession.mockReturnValue({ data: SESSION });
     const { rerender } = render(<Providers>{null}</Providers>);
@@ -159,6 +179,57 @@ describe("PostHogSessionSync", () => {
     render(<Providers>{null}</Providers>);
 
     expect(reset).not.toHaveBeenCalled();
+  });
+});
+
+describe("SessionAthleteSync (#1325)", () => {
+  const JEAN = { id: 12, prenom: "Jean", nom: "Dupont" };
+  const stock = () => JSON.parse(localStorage.getItem("tcn-athlete") ?? "null");
+
+  beforeEach(() => {
+    localStorage.removeItem("tcn-athlete");
+    localStorage.removeItem("tcn-athlete-from-session");
+  });
+
+  it("puts the account's record in the local selection, over a previous one", async () => {
+    localStorage.setItem("tcn-athlete", JSON.stringify({ id: 7, prenom: "Autre", nom: "Fiche" }));
+    useSession.mockReturnValue({ data: { ...SESSION, athlete: JEAN } });
+    render(<Providers>{null}</Providers>);
+
+    await waitFor(() => expect(stock()).toEqual(JEAN));
+  });
+
+  it("empties the selection when the account detaches", async () => {
+    useSession.mockReturnValue({ data: { ...SESSION, athlete: JEAN } });
+    const { rerender } = render(<Providers>{null}</Providers>);
+    await waitFor(() => expect(stock()).toEqual(JEAN));
+
+    useSession.mockReturnValue({ data: SESSION });
+    rerender(<Providers>{null}</Providers>);
+
+    await waitFor(() => expect(stock()).toBeNull());
+  });
+
+  it("empties the selection on the next load after a detach made elsewhere", async () => {
+    useSession.mockReturnValue({ data: { ...SESSION, athlete: JEAN } });
+    const { unmount } = render(<Providers>{null}</Providers>);
+    await waitFor(() => expect(stock()).toEqual(JEAN));
+    unmount();
+
+    useSession.mockReturnValue({ data: SESSION });
+    render(<Providers>{null}</Providers>);
+
+    await waitFor(() => expect(stock()).toBeNull());
+  });
+
+  it("leaves the selection of a visitor without a linked record alone", () => {
+    localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
+    useSession.mockReturnValue({ data: SESSION });
+    const { rerender } = render(<Providers>{null}</Providers>);
+    useSession.mockReturnValue({ data: null });
+    rerender(<Providers>{null}</Providers>);
+
+    expect(stock()).toEqual(JEAN);
   });
 });
 

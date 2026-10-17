@@ -42,6 +42,10 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String, default="")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    # Horloge de l'expiration (#1326) : un compte sans rôle inactif depuis 5 ans
+    # est supprimé. Posée à l'ouverture d'une session, repoussée au plus une fois
+    # par jour par `session.resolve`.
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
     # Sans `ondelete` : `database.py` n'émet aucun `PRAGMA foreign_keys=ON`, la
     # contrainte serait inerte en SQLite (dev et tests) et active en PostgreSQL.
     #
@@ -76,4 +80,12 @@ class User(Base):
     # supprimé effacerait la composition d'une commission.
     groups: Mapped[list["UserGroup"]] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan"
+    )
+    # La demande de rattachement appartient au compte et part avec lui (#1325).
+    athlete_claim: Mapped["AthleteClaim | None"] = relationship(  # noqa: F821
+        back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
+    # Ses objectifs de saison, privés, partent avec lui (#1373).
+    season_goals: Mapped[list["SeasonGoal"]] = relationship(  # noqa: F821
+        cascade="all, delete-orphan"
     )

@@ -4,6 +4,7 @@ from app.models.admin_action_log import AdminActionLog
 from app.models.allowed_email import AllowedEmail
 from app.models.athlete import Athlete
 from app.models.athlete_alias import AthleteAlias
+from app.models.athlete_claim import AthleteClaim
 from app.models.athlete_known_club import AthleteKnownClub
 from app.models.athlete_opposition import AthleteOpposition
 from app.models.challenge import Challenge, ChallengeCourse, ChallengeResult
@@ -17,6 +18,7 @@ from app.models.identity import Identity
 from app.models.ignored_athlete_pair import IgnoredAthletePair
 from app.models.ignored_course_duplicate import IgnoredCourseDuplicate
 from app.models.ignored_identity_case import IgnoredIdentityCase
+from app.models.member_email import MemberEmail
 from app.models.organisation import Organisation
 from app.models.participation import Participation, ParticipationTeammate
 from app.models.pending_provider import PendingProvider
@@ -24,6 +26,7 @@ from app.models.personal_profile import PersonalProfile
 from app.models.profile_log_entry import ProfileLogEntry
 from app.models.role import Role
 from app.models.role_permission import RolePermission
+from app.models.season_goal import SeasonGoal
 from app.models.season_validation import SeasonValidation
 from app.models.site_access_config import SiteAccessConfig
 from app.models.training_group import TrainingGroup, TrainingGroupMember
@@ -45,6 +48,7 @@ __all__ = [
     "AthleteOpposition",
     "Athlete",
     "AthleteAlias",
+    "AthleteClaim",
     "AthleteKnownClub",
     "VolunteerAccessConfig",
     "Challenge",
@@ -60,12 +64,14 @@ __all__ = [
     "IgnoredAthletePair",
     "IgnoredIdentityCase",
     "IgnoredCourseDuplicate",
+    "MemberEmail",
     "Organisation",
     "Participation",
     "ParticipationTeammate",
     "PendingProvider",
     "PersonalProfile",
     "ProfileLogEntry",
+    "SeasonGoal",
     "Role",
     "RolePermission",
     "SeasonValidation",

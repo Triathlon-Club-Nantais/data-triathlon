@@ -9,9 +9,10 @@ en production est un contournement d'authentification complet.
 
 Les tests l'enregistrent donc par `monkeypatch.setitem(registry.PROVIDERS, …)`,
 et un test normatif vérifie dans un **processus neuf** que le registre chargé à
-froid ne contient que GitHub.
+froid ne contient que les fournisseurs livrés (GitHub et Entra).
 """
 from app.services.auth.idp.base import IdentityProvider
+from app.services.auth.idp.entra import EntraIdentityProvider
 from app.services.auth.idp.github import GithubIdentityProvider
 
 #: Slug -> fournisseur. Public parce que les tests y substituent une entrée ;
@@ -42,3 +43,4 @@ def enabled_methods() -> list[IdentityProvider]:
 
 
 register(GithubIdentityProvider())
+register(EntraIdentityProvider())

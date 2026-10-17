@@ -17,6 +17,7 @@ import {
 import { RankingEvolutionChart } from "@/components/tcn/participation-detail/RankingEvolutionChart";
 import { PageShell } from "@/components/layout/PageShell";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { ResultCardDownload } from "@/components/participations/ResultCardDownload";
 import { formatDate } from "@/lib/utils/date";
 import { ordinalFr } from "@/lib/utils/format";
 import { Histogram, isMarkerInRange } from "@/components/charts/Histogram";
@@ -85,6 +86,7 @@ export default async function ParticipationDetailPage({
         eyebrow="Détail du résultat"
         title={<Link href={`/courses/${id}`}>{course.name}</Link>}
         description={eventDate || undefined}
+        actions={<ResultCardDownload participation={participation} />}
       />
 
       <div style={{ marginTop: 26 }}>

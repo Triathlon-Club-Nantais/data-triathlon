@@ -5,6 +5,7 @@ import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
 import { InvitationAthlete } from "@/components/dashboard/InvitationAthlete";
 import { MaSaison } from "@/components/dashboard/MaSaison";
+import { SeasonGoals } from "@/components/dashboard/SeasonGoals";
 import { RecentCourses } from "@/components/dashboard/RecentCourses";
 import { SeasonSelector, SeasonTags } from "@/components/dashboard/SeasonSelector";
 import { currentSeason, parseSeasonsParam, seasonSelectionLabel, serializeSeasons } from "@/lib/utils/season";
@@ -121,6 +122,7 @@ export default async function DashboardPage({
               qui n'a encore rien choisi — les deux sont mutuellement exclusifs. */}
           <MaSaison clubEvents={stats.events} seasons={serializeSeasons(selected)} federalOnly={federal_only} />
           <InvitationAthlete />
+          <SeasonGoals />
 
           <RecentCourses events={recentEvents} />
 
