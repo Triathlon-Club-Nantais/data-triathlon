@@ -56,7 +56,7 @@ disparaît.
   sous `prefers-reduced-motion: reduce`, où ils s'affichent directement. La
   valeur finale est dans le HTML serveur : l'animation est un pur décor.
 - sans sortie (aucune course TCN validée cette saison, ou appel en échec) : le
-  bloc de gauche dit « Pas encore de course cette saison » ; les chiffres de la
+  bloc de gauche dit « Pas encore d'épreuve cette saison » ; les chiffres de la
   saison et l'histogramme restent.
 
 **Tuiles d'espaces** (cartes `tcn/Card`, une ligne d'info chacune, toute la
@@ -71,9 +71,11 @@ tuile est le lien, cible tactile de 44 px au moins) :
 | Back-office | `can_administer` | badge du total « à traiter » | `useNavBadges`, client |
 
 Les tuiles qui dépendent de la session ou du navigateur se montent côté client,
-comme le rail : la page serveur ne lit aucune session et reste en cache. Leur
-emplacement est réservé sans rien affirmer pendant la lecture de la session
-(règle #954).
+comme le rail : la page serveur ne lit aucune session et reste en cache. Les tuiles
+Encadrement et Back-office n'apparaissent qu'une fois la session lue et le
+pouvoir confirmé, en fin de grille : rien au-dessus d'elles ne bouge. Aucun
+emplacement réservé, qui laisserait un trou permanent à la majorité sans
+pouvoir (règle #954).
 
 ### `/mon-espace` : Mon espace
 
@@ -105,10 +107,12 @@ vers `/mon-espace`.
 Paramètre : `federal_only` (même sens que sur `/stats`). Réponse :
 
 ```json
-{ "start": "2026-09-05", "end": "2026-09-06", "events": 3, "athletes": 48, "podiums": 9 }
+{ "end_date": "2026-09-06", "events": 3, "athletes": 48, "podiums": 9 }
 ```
 
 ou `null` quand la saison en cours n'a aucune course TCN validée.
+
+`end_date` est la date de la dernière course ; la fenêtre n'est pas renvoyée (un samedi seul ferait mentir une date de début).
 
 - **Sortie** : soit `d` la date d'épreuve la plus récente portant au moins une
   participation TCN validée, dans la saison en cours. La fenêtre est
@@ -145,7 +149,7 @@ TDD, Principe III.
   `federal_only` respecté, forme de la réponse.
 - **Frontend** (vitest) :
   - bandeau : « Ce week-end » contre « Dernière sortie · … » selon la date,
-    repli « Pas encore de course cette saison », valeurs finales présentes sans
+    repli « Pas encore d'épreuve cette saison », valeurs finales présentes sans
     animation sous `prefers-reduced-motion`, résumé accessible de
     l'histogramme ;
   - tuiles : Encadrement et Back-office absentes sans pouvoir et pendant la

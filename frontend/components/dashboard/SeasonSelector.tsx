@@ -23,7 +23,7 @@ import {
  * sauf `rank`, purement client (#425), retiré comme le fait `DisciplineToggle`.
  *
  * `pathname` est un paramètre explicite (pas de défaut) plutôt qu'une valeur
- * codée en dur : le composant sert `/dashboard` **et** `/club/athletes`
+ * codée en dur : le composant sert `/mon-espace` **et** `/club/athletes`
  * (#274), deux pages qui lisent `?seasons=` côté serveur.
  */
 export function buildSeasonsHref(
@@ -195,7 +195,7 @@ export function SeasonSelector({ seasons }: { seasons: Season[] }) {
  *
  * L'alignement vient de `className`, jamais d'ici : le déclencheur passe à
  * gauche quand l'en-tête s'empile, et chaque page s'empile à sa propre largeur
- * (`lg` sur /dashboard, `sm` via `PageHeader` sur /club/athletes). Codé en dur,
+ * (`lg` sur /mon-espace, `sm` via `PageHeader` sur /club/athletes). Codé en dur,
  * un `justify-end` laissait les tags à droite pendant que le bouton qui les
  * commande était à gauche.
  *

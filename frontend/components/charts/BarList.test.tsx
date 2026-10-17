@@ -65,7 +65,7 @@ describe("BarList", () => {
     // mauvaise variable ne casse rien en apparence côté test — jsdom ne résout
     // jamais `var()` — mais dans un vrai navigateur la propriété retombe sur sa
     // valeur initiale (`transparent`), rendant toute barre sans `colorer`
-    // invisible sur son fond `bg-muted` (Performance du club sur /dashboard,
+    // invisible sur son fond `bg-muted` (Performance du club sur /mon-espace,
     // composition du club, format sur la fiche athlète).
     const { container } = render(<BarList entries={[["a", 1]]} labeller={(k) => k} />);
     const bar = container.querySelector("[data-bar]") as HTMLElement;

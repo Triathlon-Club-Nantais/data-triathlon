@@ -115,7 +115,7 @@ Ouvre `frontend/app/`. Une route = un dossier. Les pages de résultats vivent
 sous le groupe `app/(public_restricted)/`, invisible dans l'URL et gardé par le
 code d'accès du site (#509) :
 
-- `(public_restricted)/dashboard/` — vue d'accueil, `StatCardsRank` + `RecentCourses`.
+- `(public_restricted)/page.tsx` — l'accueil carrefour ; `(public_restricted)/mon-espace/` — la page personnelle, `StatCardsRank` + `RecentCourses`.
 - `(public_restricted)/resultats/` — liste filtrable.
 - `(public_restricted)/athletes/[id]/` — fiche athlète.
 - `(public_restricted)/courses/[id]/` — fiche épreuve.
