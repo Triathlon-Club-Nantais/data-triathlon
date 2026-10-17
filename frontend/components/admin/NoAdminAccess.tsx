@@ -16,7 +16,7 @@ export function NoAdminAccess({ space = "admin" }: { space?: "admin" | "encadrem
       action={
         // Cible de 44 px sous `md` (patron #953).
         <Link
-          href="/dashboard"
+          href="/"
           className="tcn-cible-tactile inline-flex items-center text-sm font-semibold text-accent-ink hover:underline"
         >
           Retour au site

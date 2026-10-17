@@ -8,7 +8,7 @@ const ATHLETE = { id: 12, prenom: "Jean", nom: "Dupont" };
 const AUTRE = { id: 99, prenom: "Marie", nom: "Gaudin" };
 
 const BENEFICE =
-  "Choisir cet athlète pour retrouver ses résultats en un geste et voir sa saison en tête du tableau de bord";
+  "Choisir cet athlète pour retrouver ses résultats en un geste et voir sa saison en tête de Mon espace";
 
 const TEXTE_CHOISIR = "Choisir cet athlète";
 const TEXTE_RELACHER = "Ne plus choisir cet athlète";
@@ -118,11 +118,11 @@ describe("AthleteSelection", () => {
     expect(await screen.findByRole("button", { name: LABEL_RELACHER })).toHaveClass("tcn-btn--secondary");
   });
 
-  it("nomme le bénéfice réellement rendu par le tableau de bord (#502)", () => {
+  it("nomme le bénéfice réellement rendu par Mon espace (#502)", () => {
     render(<AthleteSelection athlete={ATHLETE} />);
     expect(
       screen.getByText(
-        "Choisir cet athlète pour retrouver ses résultats en un geste et voir sa saison en tête du tableau de bord",
+        "Choisir cet athlète pour retrouver ses résultats en un geste et voir sa saison en tête de Mon espace",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/se comparer au club/)).not.toBeInTheDocument();

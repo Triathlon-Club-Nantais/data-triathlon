@@ -27,7 +27,7 @@ describe("GuidePage", () => {
     render(await GuidePage());
     expect(screen.getByRole("heading", { name: /guide/i, level: 1 })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Sommaire du guide" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Tableau de bord" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Accueil et Mon espace" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Espace club" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Résultats" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Fiche athlète" })).toBeInTheDocument();

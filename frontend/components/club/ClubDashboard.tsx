@@ -29,7 +29,7 @@ export function ClubDashboard({
   summary: ClubSummary;
   recent: Participation[];
   /** Total scopé à la saison en cours (#649), même filtre que le compteur
-   *  « Résultats » de `/dashboard` (repli sur `currentSeason()`).
+   *  « Résultats » de `/mon-espace` (repli sur `currentSeason()`).
    *  Distinct de `stats.total`, toutes saisons confondues, que les autres KPI
    *  de cette page continuent d'utiliser : d'où la sous-ligne de saison (#1111). */
   resultsTotal: number;

@@ -39,7 +39,7 @@ attribut du DOM. Deux bornes à connaître avant de s'y fier :
   un pliage/dépliage à la main, contre 1 pour `/resultats`). Sans conséquence
   à l'atterrissage, où ils ne montent qu'une fois. Le bouton de catégorie est
   resté hors périmètre de #428.
-- **La barre mobile garde ses doublons.** Son logo (`/dashboard`) et son
+- **La barre mobile garde ses doublons.** Son logo (`/`) et son
   bouton « Ajouter une course » doublent deux entrées du tiroir, exactement
   comme le logo du rail corrigé ici. Hors périmètre de #428 également : sous
   `md` le rail est en `display:none`, le coût réel est celui de l'ouverture
@@ -63,7 +63,7 @@ par `can_supervise` via `components/layout/space-guard.tsx`, partagé avec
 ## Rail replié, cookie de largeur, nav mobile (#482)
 
 **Rail replié, cookie de largeur, nav mobile** (#482) — le rail replié
-porte désormais un monogramme texte lié à `/dashboard` en plus du bouton de
+porte désormais un monogramme texte lié à `/` en plus du bouton de
 pliage (l'en-tête passe en colonne à cet état, faute de place pour les
 deux côte à côte), et ses six `title` sont remplacés par
 `components/ui/tooltip.tsx` (`@base-ui/react/tooltip`, délai ramené à
@@ -97,7 +97,10 @@ pendant que le tiroir est ouvert (le `Sheet` passe par-dessus), donc un
 visiteur dont la barre porte tout (anonyme, ou adhérent sans pouvoir) se
 retrouvait sans aucune destination à l'écran une fois le tiroir ouvert par
 le hamburger. `sectionsRepli` (`AppNav.tsx`) retombe alors sur les sections
-de l'espace courant (`sections`) ; c'est le seul cas de doublon avec la barre. Le
+de l'espace courant (`sections`) ; c'est le seul cas de doublon avec la barre. Dans l'espace public, le tiroir porte
+toujours l'arbre complet, barre comprise (Accueil, Résultats, Club et « Mon espace »),
+même quand ce dernier rend le reste non vide (#1620) ; encadrement et back-office
+gardent le repli seulement si le reste est vide. Le
 pied du tiroir ne ferme plus au clic : `UserMenu` ferme lui-même via
 `onNavigate`, au moment où la navigation a réellement lieu (immédiat pour la
 connexion, après le succès de la mutation pour la déconnexion) — jamais au

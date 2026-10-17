@@ -106,7 +106,7 @@ describe("AdminIndex", () => {
     afficher();
 
     expect(await screen.findByText(/vous êtes connecté/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Retour au site" })).toHaveAttribute("href", "/dashboard");
+    expect(screen.getByRole("link", { name: "Retour au site" })).toHaveAttribute("href", "/");
   });
 
   it("ne confond pas une session illisible avec une absence de pouvoirs", async () => {

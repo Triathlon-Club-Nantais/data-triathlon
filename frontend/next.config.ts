@@ -50,13 +50,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-  // #1505 : appliquée au routage, avant toute fonction et avant `proxy.ts`. Une
-  // page `redirect()` rendait le layout racine dynamique à chaque visite pour
-  // un 307 dont le corps partait à la poubelle. La garde du site reste celle de
-  // `/dashboard`. Temporaire (307) : une 308 se fige dans le cache navigateur.
-  async redirects() {
-    return [{ source: "/", destination: "/dashboard", permanent: false }];
-  },
   async rewrites() {
     return [
       { source: "/api/:path*", destination: `${BACKEND_URL}/api/:path*` },
