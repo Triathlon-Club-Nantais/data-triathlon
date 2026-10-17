@@ -1,4 +1,5 @@
 import type { EventOut } from "@/lib/types";
+import { motCompte } from "@/lib/utils/format";
 
 /** Nom d'épreuve affiché, suffixé « (Relais) » quand la course est un relais. */
 export function formatEventName(name: string, isRelay: boolean): string {
@@ -12,7 +13,7 @@ export function formatEventName(name: string, isRelay: boolean): string {
  */
 export function pendingOnlyLabel(total: number, pendingCount: number | undefined): string | null {
   if (total > 0 || !pendingCount) return null;
-  return `${pendingCount} résultat${pendingCount > 1 ? "s" : ""} en attente`;
+  return `${motCompte(pendingCount, "résultat")} en attente`;
 }
 
 /**

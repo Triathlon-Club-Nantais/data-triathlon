@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Card } from "@/components/tcn";
 import type { CourseChallenge } from "@/lib/types";
+import { plural } from "@/lib/utils/format";
 
 /** Les classements Challenge auxquels compte l'épreuve (#1008). */
 export function CourseChallengesNote({ challenges }: { challenges: CourseChallenge[] }) {
@@ -15,7 +16,7 @@ export function CourseChallengesNote({ challenges }: { challenges: CourseChallen
             <Link href={`/challenges/${challenge.id}`} className="underline underline-offset-2">
               {challenge.name}
             </Link>{" "}
-            ({challenge.ranked_count} {challenge.ranked_count > 1 ? "classés" : "classé"})
+            ({challenge.ranked_count} {plural(challenge.ranked_count, "classé")})
           </span>
         ))}
       </p>

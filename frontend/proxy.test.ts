@@ -283,3 +283,22 @@ describe("proxy, appels /api/* du rewrite (#1533)", () => {
     }
   });
 });
+
+describe("proxy, relais PostHog /ingest/* (#1604)", () => {
+  const COOKIES = "__Host-tcn_session=JETON; tcn_site_access=SITE; tcn_volunteer_access=BENEVOLE";
+
+  it("ne transmet aucun cookie à PostHog, ingestion comme assets", () => {
+    for (const url of ["https://exemple.fr/ingest", "https://exemple.fr/ingest/e/", "https://exemple.fr/ingest/static/array.js"]) {
+      const reponse = proxy(new NextRequest(url, { headers: { cookie: COOKIES } }));
+
+      expect(reponse.headers.get("x-middleware-override-headers")?.split(",")).not.toContain("cookie");
+      expect(reponse.headers.get("x-middleware-request-cookie")).toBeNull();
+    }
+  });
+
+  it("transmet toujours les cookies au backend sur /api/*", () => {
+    const reponse = proxy(new NextRequest("https://exemple.fr/api/v1/auth/me", { headers: { cookie: COOKIES } }));
+
+    expect(reponse.headers.get("x-middleware-request-cookie")).toBe(COOKIES);
+  });
+});

@@ -24,11 +24,8 @@ import {
   useUnlinkClubMember,
 } from "@/lib/queries/admin";
 import type { ClubMember, ClubMembersSeason } from "@/lib/types";
+import { motCompte, plural } from "@/lib/utils/format";
 import { seasonLabel } from "@/lib/utils/season";
-
-function licencies(n: number): string {
-  return `${n} licencié${n > 1 ? "s" : ""}`;
-}
 
 const MOTIF: Record<ClubMember["link_status"], string> = {
   auto: "Rattaché",
@@ -76,7 +73,7 @@ export function ClubMembersPanel({
               relire.mutate(undefined, {
                 onSuccess: (r) => {
                   onSeasonChange(r.season);
-                  toast.success(`${licencies(r.total)} lu${r.total > 1 ? "s" : ""} pour la ${seasonLabel(r.season).toLowerCase()}.`);
+                  toast.success(`${motCompte(r.total, "licencié")} ${plural(r.total, "lu")} pour la ${seasonLabel(r.season).toLowerCase()}.`);
                 },
                 onError: (erreur: Error) => toast.error(erreur.message),
               })
@@ -90,7 +87,7 @@ export function ClubMembersPanel({
           <Skeleton className="h-6 w-64" />
         ) : data ? (
           <p className="text-sm">
-            {`${licencies(data.total)} : ${data.linked} rattaché${data.linked > 1 ? "s" : ""}, ${data.unlinked} sans fiche, ${data.ambiguous} à départager.`}
+            {`${motCompte(data.total, "licencié")} : ${motCompte(data.linked, "rattaché")}, ${data.unlinked} sans fiche, ${data.ambiguous} à départager.`}
           </p>
         ) : null}
         {data && data.total === 0 && (
@@ -246,7 +243,7 @@ export function ClubMembersImport({ defaultSeason }: { defaultSeason: number }) 
               {
                 onSuccess: (r) => {
                   toast.success(
-                    `${licencies(r.total)} importé${r.total > 1 ? "s" : ""} pour la ${seasonLabel(r.season).toLowerCase()}.`,
+                    `${motCompte(r.total, "licencié")} ${plural(r.total, "importé")} pour la ${seasonLabel(r.season).toLowerCase()}.`,
                   );
                   setFichier(null);
                   setChamp((n) => n + 1);

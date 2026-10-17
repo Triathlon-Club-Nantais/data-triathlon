@@ -23,6 +23,15 @@ describe("FeedbackButton", () => {
     expect(screen.getByRole("button", { name: /signaler un bug/i })).toBeInTheDocument();
   });
 
+  it("borde la description à 3:1 sur son fond, comme le champ Titre (#1609)", async () => {
+    const user = userEvent.setup();
+    render(<FeedbackButton />);
+
+    await user.click(screen.getByRole("button", { name: /signaler un bug/i }));
+
+    expect(screen.getByLabelText("Description").getAttribute("style")).toContain("1.5px solid var(--tcn-text-faint)");
+  });
+
   it("bloque la soumission si le titre et la description sont vides", async () => {
     const user = userEvent.setup();
     render(<FeedbackButton />);

@@ -328,6 +328,63 @@ describe("AppelPresence", () => {
     expect(await screen.findByText("2 présents sur 2, 0 absent")).toBeInTheDocument();
   });
 
+  describe("tri et recherche (#1610)", () => {
+    const profil = (id: number, first_name: string, last_name: string): Profile => ({ ...ALIX, id, first_name, last_name });
+    const inscrit = (profile_id: number, present: boolean | null = null) => ({
+      profile_id,
+      present,
+      added_manually: true,
+      category: null,
+      created_at: "2026-09-15T10:00:00Z",
+      emergency_contact: null,
+    });
+
+    beforeEach(() => {
+      listProfiles.mockResolvedValue([ALIX, ZOE, profil(44, "Paul", "Dupont"), profil(45, "Léa", "écuyer")]);
+      getTrainingSession.mockResolvedValue({
+        ...DETAIL_UN_PARTICIPANT,
+        participant_count: 4,
+        participants: [inscrit(43, true), inscrit(42), inscrit(45), inscrit(44, false)],
+      });
+    });
+
+    const ordre = () =>
+      screen.getAllByRole("group", { name: /^Présence de / }).map((groupe) => groupe.getAttribute("aria-label"));
+
+    it("trie les inscrits par nom puis prénom, sans accent ni casse, quel que soit l'ordre d'inscription", async () => {
+      afficher();
+
+      await screen.findByText("Zoé Roux");
+      expect(ordre()).toEqual([
+        "Présence de Paul Dupont",
+        "Présence de Léa écuyer",
+        "Présence de Alix Martin",
+        "Présence de Zoé Roux",
+      ]);
+    });
+
+    it("filtre sur le prénom sans accent, le compteur restant calculé sur tous les inscrits", async () => {
+      afficher();
+
+      await userEvent.type(await screen.findByLabelText("Rechercher un jeune"), "zoe");
+
+      expect(ordre()).toEqual(["Présence de Zoé Roux"]);
+      expect(screen.getByText("1 présent sur 4, 1 absent, 2 à pointer")).toBeInTheDocument();
+    });
+
+    it("dit qu'aucun inscrit ne correspond, sans le confondre avec une séance vide", async () => {
+      afficher();
+
+      await userEvent.type(await screen.findByLabelText("Rechercher un jeune"), "xyz");
+
+      expect(screen.getByText("Aucun jeune ne correspond à « xyz ».")).toBeInTheDocument();
+      expect(screen.queryByText("Aucun jeune inscrit")).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "Effacer la recherche" }));
+      expect(ordre()).toHaveLength(4);
+    });
+  });
+
   it("bascule vers l'appel de fin sans écrire aucune donnée", async () => {
     const detail: TrainingSessionDetail = {
       ...DETAIL_UN_PARTICIPANT,

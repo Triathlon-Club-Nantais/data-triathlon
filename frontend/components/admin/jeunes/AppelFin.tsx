@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { TrainingParticipant, Profile } from "@/lib/types";
+import { motCompte, plural } from "@/lib/utils/format";
 
 /**
  * L'appel de fin (#869, US2) — reboucle sur les jeunes marqués présents à
@@ -56,7 +57,7 @@ export function AppelFin({
       <p aria-live="polite" className="text-lg font-medium">
         {manquants === 0
           ? "Tous les jeunes présents à l'appel de début ont été retrouvés."
-          : `${manquants} jeune${manquants > 1 ? "s" : ""} restant${manquants > 1 ? "s" : ""} à vérifier.`}
+          : `${motCompte(manquants, "jeune")} ${plural(manquants, "restant")} à vérifier.`}
       </p>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {presents.map((participant) => {

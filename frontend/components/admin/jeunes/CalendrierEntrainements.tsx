@@ -14,6 +14,7 @@ import { messageDeRefus } from "@/lib/api/refus";
 import { cn } from "@/lib/utils";
 import { formatDate, localToday } from "@/lib/utils/date";
 import type { TrainingSession } from "@/lib/types";
+import { motCompte } from "@/lib/utils/format";
 
 const REFUS = { sujet: "entraînements", action: "consulter le calendrier des entraînements" };
 
@@ -93,8 +94,7 @@ export function CalendrierEntrainements() {
             <span />
           )}
           <span className="text-[var(--tcn-text-faint)] text-xs">
-            {entrainement.participant_count} inscrit
-            {entrainement.participant_count > 1 ? "s" : ""}
+            {motCompte(entrainement.participant_count, "inscrit")}
           </span>
         </div>
       </Card>

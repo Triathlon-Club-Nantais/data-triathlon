@@ -23,13 +23,9 @@ from app.models.course import Course
 from app.models.participation import Participation, ParticipationTeammate
 from app.repositories import club_alias_repository, course_repository
 from app.repositories.athlete_repository import credits, name_filter, unaccent_like
+from app.repositories.dialect import is_postgres
 from app.scrapers.base import STATUS_DNF, STATUS_DNS, STATUS_DSQ, STATUS_FINISHER
 from app.scrapers.classify import CANONICAL_TYPES
-
-
-def _is_postgres(db: Session) -> bool:
-    """Vrai si le moteur est PostgreSQL (prod) — sinon SQLite (dev)."""
-    return db.bind is not None and db.bind.dialect.name == "postgresql"
 
 
 def get(db: Session, participation_id: int) -> Participation | None:
@@ -1520,7 +1516,7 @@ def _events_order(db: Session, sort: str, event_name: str | None):
     else:
         # date_desc par défaut : dates nulles en dernier.
         order = (Course.event_date.desc().nullslast(), Course.name, Course.id)
-    if event_name and _is_postgres(db):
+    if event_name and is_postgres(db):
         return (course_repository.name_similarity(event_name).desc(), *order)
     return order
 

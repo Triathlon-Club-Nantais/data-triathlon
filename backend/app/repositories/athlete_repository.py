@@ -21,8 +21,6 @@ from sqlalchemy import (
 from sqlalchemy import (
     delete as sql_delete,
 )
-from sqlalchemy.dialects.postgresql import insert as postgresql_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.orm.attributes import set_committed_value
 from sqlalchemy.sql.elements import ColumnElement
@@ -42,6 +40,7 @@ from app.models.participation import Participation, ParticipationTeammate
 from app.models.season_validation import SeasonValidation
 from app.models.user import User
 from app.models.volunteer_action import VolunteerAction
+from app.repositories.dialect import dialect_insert
 from app.repositories.tcn_count_repository import linked_member
 from app.scrapers.base import STATUS_FINISHER
 
@@ -278,7 +277,7 @@ def create_batch(
     by_key: dict[IdentityKey, Athlete] = {}
     inserted_ids: set[int] = set()
     if rows:
-        insert = postgresql_insert if db.get_bind().dialect.name == "postgresql" else sqlite_insert
+        insert = dialect_insert(db)
         inserted = db.scalars(
             insert(Athlete)
             .values(rows)
@@ -334,7 +333,7 @@ def create_homonym(db: Session, fields: dict) -> Athlete:
         "last_name_key": key[0],
         "first_name_key": key[1],
     }
-    insert = postgresql_insert if db.get_bind().dialect.name == "postgresql" else sqlite_insert
+    insert = dialect_insert(db)
     rank = _highest_homonym_rank(db, key)
     for _ in range(_HOMONYM_ATTEMPTS):
         rank += 1

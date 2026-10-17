@@ -12,6 +12,7 @@ import { apiClient } from "@/lib/api/client";
 import { useHydratedSession } from "@/lib/queries/auth";
 import { providerLabel } from "@/lib/labels";
 import type { CourseSource } from "@/lib/types";
+import { motCompte, plural } from "@/lib/utils/format";
 
 const TITRE_LIEN = "Ouvrir les résultats du chronométreur dans un nouvel onglet";
 
@@ -26,11 +27,11 @@ const TITRE_LIEN = "Ouvrir les résultats du chronométreur dans un nouvel ongle
 function messageFinRescrape(state: RescrapeState): string {
   if (state.imported === 0 && state.updated === 0) {
     return state.total > 0
-      ? `Déjà à jour — ${state.total} participant${state.total > 1 ? "s" : ""} vérifié${state.total > 1 ? "s" : ""}, aucun changement chez le chronométreur.`
+      ? `Déjà à jour — ${motCompte(state.total, "participant")} ${plural(state.total, "vérifié")}, aucun changement chez le chronométreur.`
       : "Déjà à jour, aucun changement chez le chronométreur.";
   }
   const parts: string[] = [];
-  if (state.imported > 0) parts.push(`${state.imported} ajouté${state.imported > 1 ? "s" : ""}`);
+  if (state.imported > 0) parts.push(motCompte(state.imported, "ajouté"));
   if (state.updated > 0) parts.push(`${state.updated} mis à jour`);
   return `Résultats à jour : ${parts.join(", ")} (sur ${state.total} participants).`;
 }
@@ -223,7 +224,7 @@ export function CourseSourcesPanel({
       {bascule.state.phase === "scraping" && <span>{bascule.state.message}</span>}
       {bascule.state.phase === "saving" && (
         <span>
-          Enregistrement de {bascule.state.total} participant{bascule.state.total > 1 ? "s" : ""}…
+          Enregistrement de {motCompte(bascule.state.total, "participant")}…
         </span>
       )}
     </div>

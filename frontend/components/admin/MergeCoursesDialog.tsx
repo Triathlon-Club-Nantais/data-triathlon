@@ -37,7 +37,7 @@ function CarteEpreuve({
       <span className="text-[var(--tcn-text-faint)] block text-xs">
         {course.name}
         {course.event_date ? ` · ${formatDate(course.event_date)}` : ""} ·{" "}
-        {eventTypeLabel(course.event_type)} · {course.total} résultat{course.total > 1 ? "s" : ""}
+        {eventTypeLabel(course.event_type)} · {motCompte(course.total, "résultat")}
         {course.tcn_count > 0 ? ` (dont ${course.tcn_count} TCN)` : ""}
       </span>
     </button>

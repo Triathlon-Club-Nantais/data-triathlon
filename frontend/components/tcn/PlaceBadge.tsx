@@ -3,15 +3,13 @@ import type { CSSProperties, ReactNode } from "react";
 /** Pastille de classement (Anton). Teinte automatique selon la place. */
 export function PlaceBadge({
   place,
-  tier,
   style,
 }: {
   place?: ReactNode;
-  tier?: "podium" | "top" | "rest";
   style?: CSSProperties;
 }) {
   const n = typeof place === "number" ? place : parseInt(String(place ?? ""), 10);
-  const resolved = tier || (n <= 3 ? "podium" : n <= 10 ? "top" : "rest");
+  const resolved = n <= 3 ? "podium" : n <= 10 ? "top" : "rest";
 
   const tiers: Record<string, CSSProperties> = {
     podium: { background: "var(--tcn-orange-12)", color: "var(--tcn-orange-deeper)" },

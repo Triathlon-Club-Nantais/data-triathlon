@@ -10,6 +10,7 @@ import { messageDeRefus } from "@/lib/api/refus";
 import { eventTypeLabel } from "@/lib/constants";
 import { CLUB_NAME_SHORT } from "@/lib/club";
 import { formatMonth } from "@/lib/utils/date";
+import { motCompte } from "@/lib/utils/format";
 import { upcomingEvents, sortByDistance } from "@/lib/utils/map-filters";
 import type { GeoEvent } from "@/lib/types";
 import { COULEURS_CARTE, LIBELLE_CHARGEMENT } from "./carte";
@@ -230,11 +231,11 @@ export function MapView({ scope }: { scope?: string }) {
                     {ev.event_type && <div className="text-[var(--tcn-text-body)]">{eventTypeLabel(ev.event_type)}</div>}
                     {ev.event_date && <div className="text-xs">{formatMonth(ev.event_date.slice(0, 7))}</div>}
                     <div>
-                      {ev.count} participant{ev.count > 1 ? "s" : ""}
+                      {motCompte(ev.count, "participant")}
                     </div>
                     {ev.tcn_count > 0 && (
                       <div className="font-semibold text-[var(--tcn-danger-text)]">
-                        {ev.tcn_count} membre{ev.tcn_count > 1 ? "s" : ""} {CLUB_NAME_SHORT}
+                        {motCompte(ev.tcn_count, "membre")} {CLUB_NAME_SHORT}
                       </div>
                     )}
                   </div>

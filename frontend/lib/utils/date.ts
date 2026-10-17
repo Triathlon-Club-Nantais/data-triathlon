@@ -1,3 +1,5 @@
+import { motCompte } from "@/lib/utils/format";
+
 export function formatDate(d: string | null | undefined): string {
   if (!d) return "";
   const m = String(d).match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -69,5 +71,5 @@ export function timeAgo(iso: string | null | undefined): string {
   if (days < 30) return `il y a ${days} j`;
   if (days < 365) return `il y a ${Math.floor(days / 30)} mois`;
   const years = Math.floor(days / 365);
-  return `il y a ${years} an${years > 1 ? "s" : ""}`;
+  return `il y a ${motCompte(years, "an")}`;
 }

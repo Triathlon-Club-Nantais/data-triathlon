@@ -16,6 +16,7 @@ from app.models.course_source import CourseSource
 from app.models.participation import Participation
 from app.repositories import ignored_course_duplicate_repository
 from app.repositories.athlete_repository import escape_like, unaccent_like
+from app.repositories.dialect import is_postgres
 
 
 def get(db: Session, course_id: int) -> Course | None:
@@ -28,10 +29,6 @@ def get_fresh(db: Session, course_id: int) -> Course | None:
     return db.get(Course, course_id, populate_existing=True)
 
 
-def _is_postgres(db: Session) -> bool:
-    return db.bind is not None and db.bind.dialect.name == "postgresql"
-
-
 def name_filter(db: Session, term: str):
     """Nom d'épreuve contenant `term`, sans casse ni accents, jokers LIKE littéraux.
 
@@ -41,7 +38,7 @@ def name_filter(db: Session, term: str):
     """
     plain = deaccent(term).lower()
     contains = unaccent_like(Course.name, f"%{escape_like(plain)}%")
-    if _is_postgres(db):
+    if is_postgres(db):
         return or_(contains, func.unaccent(func.lower(Course.name)).op("%")(plain))
     return contains
 

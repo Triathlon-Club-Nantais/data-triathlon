@@ -185,7 +185,8 @@ export function FeedbackButton() {
                 style={{
                   padding: "13px 16px",
                   background: "var(--tcn-fill)",
-                  border: "1.5px solid var(--tcn-border)",
+                  // Défaut d'`Input` : `--tcn-border` ne vaut que 1,10:1 sur `--tcn-fill` (#1609).
+                  border: "1.5px solid var(--tcn-text-faint)",
                   borderRadius: "var(--tcn-radius-xl)",
                   color: "var(--tcn-text)",
                   fontFamily: "var(--tcn-font-body)",

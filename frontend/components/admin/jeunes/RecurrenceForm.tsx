@@ -23,14 +23,11 @@ import {
   useUpdateTrainingRecurrence,
 } from "@/lib/queries/admin";
 import { formatDate } from "@/lib/utils/date";
+import { motCompte, plural } from "@/lib/utils/format";
 import type { TrainingGroup, TrainingRecurrence, TrainingRecurrenceInput } from "@/lib/types";
 
 /** Indexés comme `date.weekday()` côté serveur : 0 = lundi. */
 const JOURS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
-
-function pluriel(n: number, mot: string): string {
-  return `${n} ${mot}${n > 1 ? "s" : ""}`;
-}
 
 /** « du mercredi à 14:00 » : distingue les commandes d'une récurrence de celles des autres. */
 function creneau(recurrence: TrainingRecurrence): string {
@@ -154,9 +151,9 @@ export function RecurrenceForm({
           "Calcul du nombre de séances…"
         ) : nombre !== undefined ? (
           recurrence ? (
-            `La période compte ${pluriel(nombre, "séance")}.`
+            `La période compte ${motCompte(nombre, "séance")}.`
           ) : (
-            `${pluriel(nombre, "séance")} ${nombre > 1 ? "seront créées" : "sera créée"}.`
+            `${motCompte(nombre, "séance")} ${plural(nombre, "sera créée", "seront créées")}.`
           )
         ) : (
           ""
@@ -181,7 +178,7 @@ export function RecurrencesSection({ groupes, peutEcrire }: { groupes: TrainingG
   async function creerRecurrence(champs: TrainingRecurrenceInput) {
     try {
       const creee = await creer.mutateAsync(champs);
-      toast.success(`${pluriel(creee.created_session_count, "séance")} créée${creee.created_session_count > 1 ? "s" : ""}.`);
+      toast.success(`${motCompte(creee.created_session_count, "séance")} ${plural(creee.created_session_count, "créée")}.`);
       setEdition(null);
     } catch (e) {
       toast.error((e as Error).message);
@@ -201,14 +198,14 @@ export function RecurrencesSection({ groupes, peutEcrire }: { groupes: TrainingG
   async function detruire(recurrence: TrainingRecurrence) {
     const accord = await confirmer({
       titre: "Supprimer la récurrence ?",
-      description: `${pluriel(recurrence.upcoming_session_count, "séance")} à venir ${recurrence.upcoming_session_count > 1 ? "seront supprimées" : "sera supprimée"}. Les séances passées, pointées ou modifiées une par une restent au calendrier.`,
+      description: `${motCompte(recurrence.upcoming_session_count, "séance")} à venir ${plural(recurrence.upcoming_session_count, "sera supprimée", "seront supprimées")}. Les séances passées, pointées ou modifiées une par une restent au calendrier.`,
       libelleAction: "Supprimer la récurrence",
     });
     if (!accord) return;
     try {
       const bilan = await supprimer.mutateAsync(recurrence.id);
       toast.success(
-        `Récurrence supprimée, ${pluriel(bilan.deleted_session_count, "séance")} supprimée${bilan.deleted_session_count > 1 ? "s" : ""}.`,
+        `Récurrence supprimée, ${motCompte(bilan.deleted_session_count, "séance")} ${plural(bilan.deleted_session_count, "supprimée")}.`,
       );
     } catch (e) {
       toast.error((e as Error).message);
@@ -241,7 +238,7 @@ export function RecurrencesSection({ groupes, peutEcrire }: { groupes: TrainingG
             <Card key={recurrence.id} className="space-y-2 p-4">
               <div className="font-medium">{decrire(recurrence)}</div>
               <div className="text-[var(--tcn-text-faint)] text-sm">
-                {pluriel(recurrence.upcoming_session_count, "séance")} à venir
+                {motCompte(recurrence.upcoming_session_count, "séance")} à venir
                 {recurrence.group_ids.length > 0 &&
                   ` · ${groupes
                     .filter((groupe) => recurrence.group_ids.includes(groupe.id))

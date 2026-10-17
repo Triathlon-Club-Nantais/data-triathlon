@@ -49,7 +49,7 @@ function Conflits({ candidate }: { candidate: IdentityReviewCandidate }) {
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium">
-        {total} épreuve{total > 1 ? "s" : ""} en conflit
+        {motCompte(total, "épreuve")} en conflit
       </p>
       {candidate.conflicts.map((conflit) => (
         <div key={conflit.course_id} className="text-sm">

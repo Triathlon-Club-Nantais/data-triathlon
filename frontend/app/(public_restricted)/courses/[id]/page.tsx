@@ -15,7 +15,7 @@ import { CourseWeather } from "@/components/courses/CourseWeather";
 import { CourseChallengesNote } from "@/components/challenges/CourseChallengesNote";
 import { eventTypeLabel } from "@/lib/constants";
 import { participationStatusLabel } from "@/lib/labels";
-import { formatToken } from "@/lib/utils/format";
+import { formatToken, motCompte } from "@/lib/utils/format";
 import { formatDate } from "@/lib/utils/date";
 import { formatEventName } from "@/lib/utils/event";
 import { Histogram } from "@/components/charts/Histogram";
@@ -179,7 +179,7 @@ export default async function CoursePage({
           {dns > 0 && <MetaPill label={participationStatusLabel("DNS", { form: "many" })}>{dns}</MetaPill>}
           {dsq > 0 && <MetaPill label={participationStatusLabel("DSQ", { form: "many" })}>{dsq}</MetaPill>}
           {unknown > 0 && <MetaPill label="Indéterminés">{unknown}</MetaPill>}
-          {tcnCount > 0 && <MetaPill accent dot>{tcnCount} athlète{tcnCount > 1 ? "s" : ""} TCN</MetaPill>}
+          {tcnCount > 0 && <MetaPill accent dot>{motCompte(tcnCount, "athlète")} TCN</MetaPill>}
           <ReliabilityMark isReliable={course.is_reliable} issues={course.quality_issues} />
           <CourseSourcesPanel courseId={course.id} initialSources={sources ?? []} />
         </div>

@@ -14,6 +14,7 @@ import { messageDeRefus } from "@/lib/api/refus";
 import { eventTypeLabel } from "@/lib/constants";
 import { providerLabel } from "@/lib/labels";
 import { formatDate } from "@/lib/utils/date";
+import { motCompte } from "@/lib/utils/format";
 import type { DuplicateCandidate, DuplicateCourse } from "@/lib/types";
 import { MergeCoursesDialog } from "./MergeCoursesDialog";
 
@@ -55,7 +56,7 @@ function LigneEpreuve({ course }: { course: DuplicateCourse }) {
       <span className="font-medium">{providerLabel(course.provider)}</span>{" · "}
       {course.name}
       {course.event_date ? ` · ${formatDate(course.event_date)}` : ""} ·{" "}
-      {eventTypeLabel(course.event_type)} · {course.total} résultat{course.total > 1 ? "s" : ""}
+      {eventTypeLabel(course.event_type)} · {motCompte(course.total, "résultat")}
       {course.tcn_count > 0 ? ` (dont ${course.tcn_count} TCN)` : ""}
       <span className="text-[var(--tcn-text-faint)]"> · importée le {formatDate(course.created_at)}</span>
     </div>

@@ -185,6 +185,24 @@ describe("TcnScrapeForm — navigation vers les courses importées (#135)", () =
     expect(link.getAttribute("href")).toBe("/courses/1");
   });
 
+  it("multi : le sélecteur tient dans le bandeau à 360 px et borde le champ à 3:1 (#1608, #1609)", () => {
+    importMock.set({
+      phase: "done",
+      imported: 300,
+      skipped: 0,
+      courses: [
+        { id: 1, name: "Triathlon S", event_type: "triathlon-s" },
+        { id: 2, name: "Triathlon M", event_type: "triathlon-m" },
+      ],
+    });
+    renderForm();
+    const field = screen.getByRole("combobox", { name: /Choisir l'épreuve/ }).closest("label")!;
+    expect(field.style.minWidth).toBe("0px");
+    expect(field.getAttribute("style")).toContain("1.5px solid var(--tcn-text-faint)");
+    fireEvent.focus(screen.getByRole("combobox", { name: /Choisir l'épreuve/ }));
+    expect(field.style.outline).toBe("2px solid var(--tcn-orange)");
+  });
+
   it("multi : sélectionner une autre course met à jour la cible du bouton", async () => {
     importMock.set({
       phase: "done",

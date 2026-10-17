@@ -2,6 +2,7 @@ import Link from "next/link";
 import { eventTypeLabel } from "@/lib/constants";
 import { CLUB_NAME_SHORT } from "@/lib/club";
 import { formatMonth } from "@/lib/utils/date";
+import { motCompte } from "@/lib/utils/format";
 import type { GeoEvent } from "@/lib/types";
 
 /**
@@ -23,7 +24,7 @@ export function ListeEpreuves({ events }: { events: GeoEvent[] }) {
   return (
     <details className="rounded-[var(--tcn-radius-xl)] border border-[var(--tcn-border)] bg-[var(--tcn-surface)] px-4 py-3">
       <summary className="tcn-rowlink text-sm font-semibold text-[var(--tcn-text-body)]">
-        Les {events.length} épreuve{events.length > 1 ? "s" : ""} de la carte, en texte
+        Les {motCompte(events.length, "épreuve")} de la carte, en texte
       </summary>
       <table className="mt-3 w-full text-left text-sm">
         <thead>
@@ -50,11 +51,11 @@ export function ListeEpreuves({ events }: { events: GeoEvent[] }) {
                 {ev.event_date ? formatMonth(ev.event_date.slice(0, 7)) : "date inconnue"}
               </td>
               <td className="num py-1.5 pr-3 text-[var(--tcn-text-body)]">
-                {ev.count} participant{ev.count > 1 ? "s" : ""}
+                {motCompte(ev.count, "participant")}
               </td>
               <td className="py-1.5 text-[var(--tcn-text-body)]">
                 {ev.tcn_count > 0
-                  ? `${ev.tcn_count} membre${ev.tcn_count > 1 ? "s" : ""}`
+                  ? motCompte(ev.tcn_count, "membre")
                   : "aucun membre"}
               </td>
             </tr>
