@@ -1439,7 +1439,7 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
     expect(within(barre()).getByRole("button", { name: "Plus" })).toBeInTheDocument();
   });
 
-  it("« Plus » ouvre le tiroir, qui porte le reste sans répéter la barre", async () => {
+  it("« Plus » ouvre le tiroir, qui porte l'arbre public complet (#1620)", async () => {
     afficher(habilite("pages:preview"));
     await waitFor(() => expect(screen.getByRole("button", { name: /^Compte/ })).toBeInTheDocument());
     const plus = within(barre()).getByRole("button", { name: "Plus" });
@@ -1452,9 +1452,9 @@ describe("AppNav — barre basse mobile (#482, NAV-4, #1012)", () => {
     expect(plus).toHaveAttribute("aria-expanded", "true");
     expect(within(tiroir).getByRole("link", { name: "Athlètes par saison" })).toHaveAttribute("href", "/club/athletes");
     expect(within(tiroir).getByRole("link", { name: "Bénévolat" })).toHaveAttribute("href", "/benevolat");
-    expect(within(tiroir).queryByRole("link", { name: "Validation des épreuves" })).not.toBeInTheDocument();
-    expect(within(tiroir).queryByRole("link", { name: "Accueil" })).not.toBeInTheDocument();
-    expect(within(tiroir).queryByRole("link", { name: "Espace club" })).not.toBeInTheDocument();
+    expect(within(tiroir).getByRole("link", { name: "Validation des épreuves" })).toBeInTheDocument();
+    expect(within(tiroir).getByRole("link", { name: "Accueil" })).toBeInTheDocument();
+    expect(within(tiroir).getByRole("link", { name: "Espace club" })).toBeInTheDocument();
   });
 
   // Le libellé **visible** raccourcit ; le nom accessible reste entier.
@@ -1562,7 +1562,10 @@ describe("AppNav — repli sur les sections publiques quand le tiroir n'a aucune
     await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
 
     const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).getByRole("link", { name: "Accueil" })).toHaveAttribute("href", "/");
     expect(within(tiroir).getByRole("link", { name: "Mon espace" })).toHaveAttribute("href", "/mon-espace");
+    expect(within(tiroir).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats");
+    expect(within(tiroir).getByText("Club")).toBeInTheDocument();
   });
 
   it("affiche les sections publiques dans le tiroir pour un connecté sans aucun pouvoir d'administration", async () => {
@@ -1571,7 +1574,9 @@ describe("AppNav — repli sur les sections publiques quand le tiroir n'a aucune
     await userEvent.click(screen.getByRole("button", { name: "Ouvrir le menu" }));
 
     const tiroir = await screen.findByRole("dialog");
+    expect(within(tiroir).getByRole("link", { name: "Accueil" })).toHaveAttribute("href", "/");
     expect(within(tiroir).getByRole("link", { name: "Mon espace" })).toHaveAttribute("href", "/mon-espace");
+    expect(within(tiroir).getByRole("link", { name: "Résultats" })).toHaveAttribute("href", "/resultats");
   });
 });
 

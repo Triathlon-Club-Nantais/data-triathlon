@@ -188,7 +188,8 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
   // par-dessus), donc un visiteur dont la barre porte tout (anonyme, ou
   // adhérent sans pouvoir) se retrouvait sans aucune destination à l'écran une
   // fois le tiroir ouvert par le hamburger ou « Plus ». Seul cas de doublon avec la barre.
-  const sectionsRepli = sectionsReste.length > 0 ? sectionsReste : sections;
+  // Espace public : toujours l'arbre complet, la barre étant masquée tiroir ouvert.
+  const sectionsRepli = espaceAffiche === "public" || sectionsReste.length === 0 ? sections : sectionsReste;
 
   const countEncadrement = toutesSections
     .filter((s) => s.space === "encadrement")

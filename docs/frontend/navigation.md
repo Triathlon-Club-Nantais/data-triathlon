@@ -97,7 +97,10 @@ pendant que le tiroir est ouvert (le `Sheet` passe par-dessus), donc un
 visiteur dont la barre porte tout (anonyme, ou adhérent sans pouvoir) se
 retrouvait sans aucune destination à l'écran une fois le tiroir ouvert par
 le hamburger. `sectionsRepli` (`AppNav.tsx`) retombe alors sur les sections
-de l'espace courant (`sections`) ; c'est le seul cas de doublon avec la barre. Le
+de l'espace courant (`sections`) ; c'est le seul cas de doublon avec la barre. Dans l'espace public, le tiroir porte
+toujours l'arbre complet, barre comprise (Accueil, Résultats, Club et « Mon espace »),
+même quand ce dernier rend le reste non vide (#1620) ; encadrement et back-office
+gardent le repli seulement si le reste est vide. Le
 pied du tiroir ne ferme plus au clic : `UserMenu` ferme lui-même via
 `onNavigate`, au moment où la navigation a réellement lieu (immédiat pour la
 connexion, après le succès de la mutation pour la déconnexion) — jamais au
