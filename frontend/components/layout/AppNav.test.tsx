@@ -109,6 +109,8 @@ const SESSION: SessionUser = {
   groups: [],
   can_administer: false,
   is_member: false,
+  athlete: null,
+  athlete_claim: null,
   can_supervise: false,
 };
 
@@ -486,6 +488,15 @@ describe("AppNav — ne plus suivre l'athlète retenu (#442)", () => {
 
     expect(readAthlete()).toBeNull();
     expect(screen.queryByRole("link", { name: "Mon athlète — Jean Dupont" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Ne plus choisir Jean Dupont" })).not.toBeInTheDocument();
+  });
+
+  it("n'offre pas la croix à un compte rattaché, sa fiche n'est pas un choix (#1325)", async () => {
+    window.localStorage.setItem("tcn-athlete", JSON.stringify(JEAN));
+    afficher({ ...SESSION, athlete: JEAN });
+    await deplier();
+
+    expect(await screen.findByRole("link", { name: "Mon athlète — Jean Dupont" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Ne plus choisir Jean Dupont" })).not.toBeInTheDocument();
   });
 

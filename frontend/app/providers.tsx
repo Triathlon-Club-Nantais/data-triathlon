@@ -9,6 +9,7 @@ import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import { SESSION_QUERY_DEFAULTS, useSession } from "@/lib/queries/auth";
 import { queryKeys } from "@/lib/queries/keys";
 import { ImportStreamProvider } from "@/components/scrape/ImportStreamProvider";
+import { clearAthlete, readAthlete, writeAthlete } from "@/components/layout/AthletePicker";
 
 /**
  * Synchronise l'identité PostHog avec la session courante.
@@ -56,7 +57,7 @@ function PostHogSessionSync() {
 /**
  * Ramène au point de départ après connexion (#494).
  *
- * Le backend redirige vers `/admin` pour qui administre, `/` sinon (FR-026 :
+ * Le backend redirige vers le premier espace ouvert (FR-026 :
  * destination fixée par la configuration, aucun `next` ne circule côté
  * serveur ; #1322 pour la seconde). `UserMenu`
  * mémorise le chemin d'origine dans `sessionStorage` avant de router vers
@@ -98,6 +99,33 @@ function PostLoginReturn() {
   return null;
 }
 
+/**
+ * La fiche rattachée au compte (#1325) devient l'athlète retenu du stock local :
+ * toutes les surfaces qui lisent `useSelectedAthlete` la suivent sans rien
+ * savoir de la session (`docs/frontend/athlete-retenu.md`). Le détachement vide
+ * le stock ; une déconnexion le laisse, comme avant.
+ */
+function SessionAthleteSync() {
+  const { data: session } = useSession();
+  const rattacheRef = useRef(false);
+
+  useEffect(() => {
+    const athlete = session?.athlete;
+    if (athlete) {
+      rattacheRef.current = true;
+      const retenu = readAthlete();
+      if (retenu?.id !== athlete.id || retenu.nom !== athlete.nom || retenu.prenom !== athlete.prenom) {
+        writeAthlete({ id: athlete.id, prenom: athlete.prenom, nom: athlete.nom });
+      }
+    } else if (session && rattacheRef.current) {
+      rattacheRef.current = false;
+      clearAthlete();
+    }
+  }, [session]);
+
+  return null;
+}
+
 // TCN Design System : thème clair uniquement (le mode sombre a été retiré).
 export function Providers({ children }: { children: ReactNode }) {
   const [client] = useState(() => {
@@ -119,6 +147,7 @@ export function Providers({ children }: { children: ReactNode }) {
     <QueryClientProvider client={client}>
       <PostHogSessionSync />
       <PostLoginReturn />
+      <SessionAthleteSync />
       <ImportStreamProvider>{children}</ImportStreamProvider>
     </QueryClientProvider>
   );

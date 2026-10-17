@@ -7,11 +7,13 @@ import { ApiError } from "@/lib/api/client";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 import type { SessionUser } from "@/lib/types";
 
-const { push, getSession, logout, deleteAccount, captureEvent } = vi.hoisted(() => ({
+const { push, getSession, logout, deleteAccount, detachAthlete, cancelAthleteClaim, captureEvent } = vi.hoisted(() => ({
   push: vi.fn(),
   getSession: vi.fn(),
   logout: vi.fn(),
   deleteAccount: vi.fn(),
+  detachAthlete: vi.fn(),
+  cancelAthleteClaim: vi.fn(),
   captureEvent: vi.fn(),
 }));
 
@@ -24,7 +26,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { getSession, logout, deleteAccount } };
+  return { ...original, apiClient: { getSession, logout, deleteAccount, detachAthlete, cancelAthleteClaim } };
 });
 
 import { UserMenu } from "./UserMenu";
@@ -39,6 +41,8 @@ const SESSION: SessionUser = {
   groups: [],
   can_administer: false,
   is_member: false,
+  athlete: null,
+  athlete_claim: null,
   can_supervise: false,
 };
 
@@ -397,5 +401,50 @@ describe("UserMenu, premier chargement (#1603)", () => {
     for (const fichier of ["components/auth/UserMenu.tsx", "components/ui/select.tsx"]) {
       expect(readFileSync(fichier, "utf8")).not.toMatch(/from "@\/components\/ui\/dropdown-menu"/);
     }
+  });
+});
+
+describe("UserMenu: athlete record (#1325)", () => {
+  const JEAN = { id: 12, prenom: "Jean", nom: "Dupont" };
+  const claim = (status: "pending" | "rejected") => ({ id: 3, athlete: JEAN, status, created_at: "2026-10-17T10:00:00Z" });
+
+  it("shows the linked record and detaches after confirmation", async () => {
+    detachAthlete.mockResolvedValue(null);
+    afficher({ ...SESSION, athlete: JEAN });
+    const { menu } = await ouvrirLeMenu();
+
+    expect(menu).toHaveTextContent("Fiche : Jean Dupont");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Me détacher de ma fiche" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toHaveAccessibleName("Vous détacher de votre fiche ?");
+    expect(detachAthlete).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: "Me détacher" }));
+    await waitFor(() => expect(detachAthlete).toHaveBeenCalled());
+  });
+
+  it("shows a pending claim and cancels it without confirmation", async () => {
+    cancelAthleteClaim.mockResolvedValue(null);
+    afficher({ ...SESSION, athlete_claim: claim("pending") });
+    const { menu } = await ouvrirLeMenu();
+
+    expect(menu).toHaveTextContent("Demande en attente : Jean Dupont");
+    await userEvent.click(screen.getByRole("menuitem", { name: "Annuler la demande" }));
+    await waitFor(() => expect(cancelAthleteClaim).toHaveBeenCalled());
+  });
+
+  it("says a claim was rejected", async () => {
+    afficher({ ...SESSION, athlete_claim: claim("rejected") });
+    const { menu } = await ouvrirLeMenu();
+
+    expect(menu).toHaveTextContent("Demande refusée : Jean Dupont");
+    expect(screen.queryByRole("menuitem", { name: "Annuler la demande" })).not.toBeInTheDocument();
+  });
+
+  it("offers the same gestures in the mobile drawer", async () => {
+    afficher({ ...SESSION, athlete: JEAN }, { pleineLargeur: true });
+
+    expect(await screen.findByText("Fiche : Jean Dupont")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Me détacher de ma fiche" })).toBeInTheDocument();
   });
 });

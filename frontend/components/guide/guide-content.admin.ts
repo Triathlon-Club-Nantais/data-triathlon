@@ -187,6 +187,19 @@ export const GUIDE_ADMIN: GuideSection[] = [
     captures: [],
   },
   {
+    id: "rattachements",
+    titre: "Rattachements de fiche",
+    casUsage:
+      "Les demandes d'utilisateurs connectés qui se reconnaissent sur une fiche athlète (« C'est moi »). Aucune n'est validée d'office, même quand l'adresse du compte figure sur la liste d'adhérents : la liste ne porte que des adresses, pas de nom. Un compte rattaché retrouve sa fiche sur l'accueil et est reconnu adhérent.",
+    etapes: [
+      "Ouvrir « Rattachements de fiche » depuis la navigation admin. La pastille compte les demandes en attente.",
+      "Pour chaque demande, comparer le compte (nom affiché, adresse) à la fiche demandée, avec les indices : licencié TCN de la saison rattaché à la fiche, adresse présente sur la liste d'adhérents, comptes déjà rattachés à la fiche (une même personne peut avoir plusieurs comptes).",
+      "« Valider » rattache la fiche au compte ; « Refuser » laisse le compte sans fiche, l'utilisateur voit la demande refusée dans son menu. Les deux gestes sont inscrits au journal d'administration.",
+      "L'utilisateur peut se détacher lui-même depuis son menu ; une nouvelle demande repasse alors par cette file.",
+    ],
+    captures: [],
+  },
+  {
     id: "oppositions",
     titre: "Oppositions",
     casUsage:

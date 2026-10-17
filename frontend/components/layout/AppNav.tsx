@@ -228,6 +228,7 @@ export function AppNav({ initialExpanded = false }: { initialExpanded?: boolean 
       sections={listeSections}
       isActive={isActive}
       athlete={athlete}
+      athleteDuCompte={Boolean(session?.athlete)}
       kbd={kbd}
       onNavigate={fermer}
       onOpenPicker={
@@ -591,6 +592,7 @@ function NavContent({
   sections,
   isActive,
   athlete,
+  athleteDuCompte,
   kbd,
   onOpenPicker,
   onNavigate,
@@ -600,6 +602,8 @@ function NavContent({
   sections: SectionRendue[];
   isActive: (href: string) => boolean;
   athlete: PickedAthlete | null;
+  /** La fiche rattachée au compte (#1325) : rien à désélectionner. */
+  athleteDuCompte: boolean;
   kbd: string;
   /** Absent là où la recherche ne peut qu'échouer (`/acces`, #953). */
   onOpenPicker?: () => void;
@@ -779,33 +783,35 @@ function NavContent({
                       rappel à faire descendre jusqu'ici. Le nom complet, et non
                       le prénom, parce qu'un libellé d'action se lit hors
                       contexte. */}
-                  <button
-                    type="button"
-                    onClick={() => clearAthlete()}
-                    aria-label={`Ne plus choisir ${nomComplet(athlete)}`}
-                    title="Ne plus choisir"
-                    className="tcn-icon-btn"
-                    style={{
-                      flex: "none",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      // 44 px, le plancher tactile de la grille : la croix est
-                      // aussi rendue dans le tiroir mobile, où le rail est
-                      // déplié. La hauteur est gratuite, la tuile en fait déjà
-                      // autant ; la largeur coûte 16 px à la colonne du prénom,
-                      // que `tronque` écourtait déjà.
-                      width: 44,
-                      height: 44,
-                      borderRadius: "var(--tcn-radius-sm)",
-                      border: "none",
-                      background: "transparent",
-                      color: "var(--tcn-orange-deep)",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <X size={16} />
-                  </button>
+                  {!athleteDuCompte && (
+                    <button
+                      type="button"
+                      onClick={() => clearAthlete()}
+                      aria-label={`Ne plus choisir ${nomComplet(athlete)}`}
+                      title="Ne plus choisir"
+                      className="tcn-icon-btn"
+                      style={{
+                        flex: "none",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        // 44 px, le plancher tactile de la grille : la croix est
+                        // aussi rendue dans le tiroir mobile, où le rail est
+                        // déplié. La hauteur est gratuite, la tuile en fait déjà
+                        // autant ; la largeur coûte 16 px à la colonne du prénom,
+                        // que `tronque` écourtait déjà.
+                        width: 44,
+                        height: 44,
+                        borderRadius: "var(--tcn-radius-sm)",
+                        border: "none",
+                        background: "transparent",
+                        color: "var(--tcn-orange-deep)",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
                 </>
               )}
             </div>

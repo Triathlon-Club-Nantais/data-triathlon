@@ -1003,6 +1003,34 @@ export interface SessionUser {
   can_administer: boolean;
   /** Au moins un pouvoir d'encadrement (#1297), dérivé du catalogue backend comme `can_administer`. */
   can_supervise: boolean;
+  /** Fiche rattachée au compte, validée par le club (#1325). */
+  athlete: ClaimedAthlete | null;
+  /** Demande de rattachement en cours (#1325) : en attente, ou refusée jusqu'à la suivante. */
+  athlete_claim: AthleteClaim | null;
+}
+
+export interface ClaimedAthlete {
+  id: number;
+  prenom: string;
+  nom: string;
+}
+
+export interface AthleteClaim {
+  id: number;
+  athlete: ClaimedAthlete;
+  status: "pending" | "rejected";
+  created_at: string;
+}
+
+/** Une demande de la file du back-office, avec ses indices (#1325). */
+export interface AthleteClaimReview {
+  id: number;
+  created_at: string;
+  user: { id: number; display_name: string; email: string };
+  athlete: ClaimedAthlete & { club: string | null };
+  licensee: { prenom: string; nom: string; season: number } | null;
+  email_on_member_list: boolean;
+  linked_accounts: number;
 }
 
 /** Un groupe tel que son membre se le voit — sans membres ni pouvoirs (#197). */

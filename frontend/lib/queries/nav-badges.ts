@@ -78,6 +78,8 @@ export function libelleCompteur(badge: string | undefined, n: number): string {
       return `${motCompte(n, "déclaration")} de bénévolat en attente`;
     case "validation":
       return `${motCompte(n, "résultat")} à valider`;
+    case "claims":
+      return `${motCompte(n, "demande")} de rattachement`;
     case "backoffice":
       return `${motCompte(n, "élément")} à traiter`;
     default:

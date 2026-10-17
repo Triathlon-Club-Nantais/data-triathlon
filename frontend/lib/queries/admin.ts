@@ -1636,3 +1636,24 @@ export function useRemoveMemberEmail() {
     onSuccess: () => qc.invalidateQueries({ queryKey: MEMBER_EMAILS }),
   });
 }
+
+// ── Rattachements de fiche (#1325) ───────────────────────────────────────────
+// La pastille suit d'elle-même : toute mutation réussie invalide les compteurs
+// du rail (`app/providers.tsx`).
+
+export function useAthleteClaims() {
+  return useQuery({
+    queryKey: queryKeys.athleteClaims(),
+    queryFn: () => apiClient.getAthleteClaims(),
+    retry: false,
+  });
+}
+
+export function useDecideAthleteClaim() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, decision }: { id: number; decision: "approve" | "reject" }) =>
+      decision === "approve" ? apiClient.approveAthleteClaim(id) : apiClient.rejectAthleteClaim(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.athleteClaims() }),
+  });
+}

@@ -37,6 +37,8 @@ function session(permissions: string[]): SessionUser {
     groups: [],
     can_administer: true,
     is_member: false,
+    athlete: null,
+    athlete_claim: null,
     can_supervise: false,
   };
 }

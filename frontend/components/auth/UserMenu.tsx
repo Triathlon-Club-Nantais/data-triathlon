@@ -5,7 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { Avatar, Button } from "@/components/tcn";
 import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
-import { useDeleteAccount, useLogout, useSession } from "@/lib/queries/auth";
+import { nomComplet } from "@/components/layout/AthletePicker";
+import { useCancelAthleteClaim, useDeleteAccount, useDetachAthlete, useLogout, useSession } from "@/lib/queries/auth";
 import type { SessionUser } from "@/lib/types";
 
 // Le menu Base UI ne sert qu'à un connecté sur le rail : hors du premier
@@ -44,6 +45,9 @@ export function UserMenu({
   const logout = useLogout();
   const suppression = useDeleteAccount();
   const [suppressionOuverte, setSuppressionOuverte] = useState(false);
+  const detachement = useDetachAthlete();
+  const annulation = useCancelAthleteClaim();
+  const [detachementOuvert, setDetachementOuvert] = useState(false);
   const router = useRouter();
   const chemin = usePathname();
 
@@ -150,6 +154,30 @@ export function UserMenu({
     />
   );
 
+  // #1325 : le geste qui suit l'état de la fiche, à côté de « Se déconnecter ».
+  const actionsFiche = session.athlete
+    ? [{ label: "Me détacher de ma fiche", onClick: () => { detachement.reset(); setDetachementOuvert(true); } }]
+    : session.athlete_claim?.status === "pending"
+      ? [{ label: "Annuler la demande", onClick: () => annulation.mutate() }]
+      : [];
+  const dialogDeDetachement = session.athlete && (
+    <DangerConfirm
+      open={detachementOuvert}
+      onOpenChange={setDetachementOuvert}
+      titre="Vous détacher de votre fiche ?"
+      description={
+        <>
+          Votre compte ne sera plus lié à la fiche de {nomComplet(session.athlete)}, qui reste publiée avec ses
+          résultats. Pour la rattacher de nouveau, il faudra une nouvelle demande validée par le club.
+        </>
+      }
+      libelleAction="Me détacher"
+      avertissement={detachement.error?.message}
+      enAttente={detachement.isPending}
+      onConfirm={() => detachement.mutate(undefined, { onSuccess: () => setDetachementOuvert(false) })}
+    />
+  );
+
   // Tiroir mobile : l'état connecté se déplie **à plat**. Un menu déroulant
   // dans un tiroir serait un menu dans un menu, et son popup sortirait du
   // piège de focus du tiroir. Le lien « Administration » a été retiré (revue
@@ -164,10 +192,16 @@ export function UserMenu({
         <Button variant="secondary" disabled={logout.isPending} onClick={seDeconnecter}>
           Se déconnecter
         </Button>
+        {actionsFiche.map((action) => (
+          <Button key={action.label} variant="secondary" onClick={action.onClick}>
+            {action.label}
+          </Button>
+        ))}
         <Button variant="destructive" onClick={ouvrirLaSuppression}>
           Supprimer mon compte
         </Button>
         {dialogDeSuppression}
+        {dialogDeDetachement}
       </div>
     );
   }
@@ -180,10 +214,12 @@ export function UserMenu({
         deconnexionEnCours={logout.isPending}
         onDeconnexion={seDeconnecter}
         onSuppression={ouvrirLaSuppression}
+        actions={actionsFiche}
       >
         <Identite session={session} />
       </UserMenuDropdown>
       {dialogDeSuppression}
+      {dialogDeDetachement}
     </>
   );
 }
@@ -232,6 +268,7 @@ function Identite({ session }: { session: SessionUser }) {
       <div style={{ fontSize: 13, color: "var(--tcn-text-muted)", ...tronque }}>
         {session.email}
       </div>
+      <EtatFiche session={session} />
       {session.groups.length > 0 && (
         <div style={{ fontSize: 12, color: "var(--tcn-text-muted)", marginTop: 4 }}>
           Membre de {session.groups.map((groupe) => groupe.name).join(" · ")}
@@ -239,4 +276,14 @@ function Identite({ session }: { session: SessionUser }) {
       )}
     </div>
   );
+}
+
+/** Fiche rattachée ou demande en cours (#1325), sous l'adresse. */
+function EtatFiche({ session }: { session: SessionUser }) {
+  const style = { fontSize: 12, color: "var(--tcn-text-muted)", marginTop: 4 } as const;
+  if (session.athlete) return <div style={style}>Fiche : {nomComplet(session.athlete)}</div>;
+  const demande = session.athlete_claim;
+  if (!demande) return null;
+  const etat = demande.status === "pending" ? "Demande en attente" : "Demande refusée";
+  return <div style={style}>{etat} : {nomComplet(demande.athlete)}</div>;
 }

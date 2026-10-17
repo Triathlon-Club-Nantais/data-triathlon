@@ -52,6 +52,8 @@ const MOI: SessionUser = {
   permissions: ["groups:read", "groups:write", "groups:assign", "users:read"],
   can_administer: true,
   is_member: false,
+  athlete: null,
+  athlete_claim: null,
   can_supervise: false,
   roles: [],
   groups: [],

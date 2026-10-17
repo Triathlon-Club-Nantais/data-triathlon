@@ -10,7 +10,7 @@ export const PRIVACY_POLICY: LegalDocument = {
   title: "Politique de confidentialité",
   description:
     "Ce que le Triathlon Club Nantais fait des données de ce site, pourquoi, combien de temps, et comment faire valoir vos droits.",
-  updatedAt: "2026-10-15",
+  updatedAt: "2026-10-17",
   sections: [
     {
       id: "responsable",
@@ -81,8 +81,10 @@ export const PRIVACY_POLICY: LegalDocument = {
             Google ou par code, la première connexion inscrit aussi l&apos;adresse et le nom dans l&apos;annuaire
             Microsoft du club ; le club l&apos;efface dans le mois qui suit la suppression du compte, à l&apos;aide de
             l&apos;identifiant Microsoft que le journal d&apos;administration garde 12 mois à cette seule fin. Un compte n&apos;a, par
-            lui-même, aucun droit d&apos;administration. Un compte peut être rattaché à la fiche athlète de son
-            titulaire. Le site garde la trace des actions d&apos;administration. Vous pouvez supprimer votre compte
+            lui-même, aucun droit d&apos;administration. Un compte peut être rattaché à la fiche athlète de
+            la personne, à la demande de son titulaire, après vérification par le club ; le compte rattaché est
+            reconnu adhérent, et son titulaire s&apos;en détache quand il le souhaite depuis le menu du compte
+            (« Me détacher de ma fiche »). Le site garde la trace des actions d&apos;administration. Vous pouvez supprimer votre compte
             vous-même, depuis le menu du compte (« Supprimer mon compte ») : vos résultats et votre fiche athlète
             restent publiés, seul le compte disparaît.
           </p>
@@ -186,7 +188,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         <>
           <p>
             Les résultats sont consultables par les adhérents du club, qui disposent du code d&apos;accès ou se
-            connectent avec une adresse de la liste des adhérents. Les
+            connectent avec une adresse de la liste des adhérents ou un compte rattaché à leur fiche. Les
             saisies en attente, les dates de naissance et les signalements ne sont visibles que des bénévoles
             (adhérents ou non) et administrateurs habilités ; la liste des licenciés et celle des adresses
             d&apos;adhérents, que des administrateurs habilités ; les données de l&apos;école de triathlon, que des

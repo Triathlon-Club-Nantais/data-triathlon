@@ -41,6 +41,8 @@ const ACTION_LABELS: Record<string, string> = {
   "member_emails.import": "Import de la liste des adresses d'adhérents",
   "member_emails.add": "Ajout d'une adresse d'adhérent",
   "member_emails.remove": "Retrait d'une adresse d'adhérent",
+  "athlete_claim.approve": "Rattachement d'un compte à sa fiche athlète",
+  "athlete_claim.reject": "Refus d'un rattachement de fiche",
   "counter_scope.entry_ambiguous": "Libellé de la portée marqué ambigu ou clair",
   "course_duplicate.ignore": "Paire de doublons suspects écartée",
   "course_duplicate.unignore": "Annulation de la mise à l'écart d'une paire de doublons suspects",

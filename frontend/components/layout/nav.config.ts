@@ -356,6 +356,19 @@ export const NAV: NavSection[] = [
         permission: "member_emails:manage",
         group: "Données",
       },
+      // Jamais d'office (#1325) : chaque rattachement d'un compte à sa fiche
+      // passe par cette file, la liste d'adhérents n'y est qu'un indice.
+      {
+        id: "a-rattachements",
+        label: "Rattachements de fiche",
+        description:
+          "Les demandes d'utilisateurs connectés qui se reconnaissent sur une fiche athlète. Valider rattache la fiche au compte et le reconnaît adhérent.",
+        href: "/admin/rattachements",
+        helpAnchor: "rattachements",
+        permission: "athlete_claims:review",
+        badge: "claims",
+        group: "Données",
+      },
       // L'écran promis par cette entrée existe depuis #47. `batch:run` et non
       // `batch:read` : `permission` ne porte qu'un code, et c'est le lancement
       // qui donne son nom à l'écran — même arbitrage que `u-roles`.
