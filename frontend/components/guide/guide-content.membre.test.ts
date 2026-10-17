@@ -33,6 +33,6 @@ describe("GUIDE_MEMBRE athlete page (#1041)", () => {
     const texte = GUIDE_MEMBRE.find((s) => s.id === "fiche-athlete")!.etapes.join(" ");
     expect(texte).toMatch(/Ctrl K/);
     expect(texte).toMatch(/« Choisir cet athlète »/);
-    expect(texte).toMatch(/tableau de bord/i);
+    expect(texte).toMatch(/Mon espace/);
   });
 });

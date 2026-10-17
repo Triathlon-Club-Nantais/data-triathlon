@@ -396,7 +396,7 @@ def test_the_callback_opens_a_session_with_entra(client, db_session, monkeypatch
     )
 
     assert response.status_code == 302
-    assert response.headers["location"] == f"{get_settings().auth_redirect_base_url}/dashboard"
+    assert response.headers["location"] == f"{get_settings().auth_redirect_base_url}/"
     user = session.resolve(db_session, client.cookies[session_cookie_name(get_settings())])
     assert user is not None
     assert user.email == "adherent@exemple.fr"

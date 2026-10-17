@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Athlètes par saison" };
 
 // Page dédiée, distincte de /club (#274) : toujours scopée club, saison en
 // cours par défaut. `?seasons=` est lu ici (rendu serveur), comme sur
-// /dashboard — c'est ce qui impose `router.push` plutôt que `pushState` dans
+// /mon-espace — c'est ce qui impose `router.push` plutôt que `pushState` dans
 // `SeasonSelector` (cf. docs/frontend/donnees-serveur.md).
 export default async function AthletesSeasonPage({
   searchParams,

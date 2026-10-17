@@ -36,8 +36,8 @@ export default function NotFound() {
           <Link href="/ajouter" className="inline-flex min-h-[24px] items-center underline">
             Ajouter une épreuve
           </Link>
-          <Link href="/dashboard" className="inline-flex min-h-[24px] items-center underline">
-            Revenir au tableau de bord
+          <Link href="/" className="inline-flex min-h-[24px] items-center underline">
+            Retour à l&apos;accueil
           </Link>
         </nav>
       </div>

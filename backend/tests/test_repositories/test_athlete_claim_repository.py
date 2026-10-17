@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from app.models.athlete import Athlete
 from app.models.athlete_claim import STATUS_PENDING, STATUS_REJECTED, AthleteClaim
 from app.repositories import athlete_claim_repository, user_repository
+from app.repositories.dialect import is_postgres
 
 
 def _athlete(db, nom="Martin") -> Athlete:
@@ -91,6 +92,8 @@ def test_a_first_claim_survives_a_concurrent_insert(db_session):
 
 def test_list_pending_skips_a_claim_whose_athlete_is_gone(db_session):
     """SQLite applies no `ON DELETE CASCADE`: a dangling claim must not break the queue."""
+    if is_postgres(db_session):
+        pytest.skip("PostgreSQL enforces the foreign key: no dangling claim can exist")
     user = _user(db_session)
     db_session.add(AthleteClaim(user_id=user.id, athlete_id=999_999, status=STATUS_PENDING))
     db_session.flush()
