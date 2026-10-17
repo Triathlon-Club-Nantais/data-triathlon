@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useHydrated } from "@/hooks/useHydrated";
 import { ApiError, apiClient } from "@/lib/api/client";
-import type { AuthMethod, SessionUser } from "@/lib/types";
+import type { AuthMethod, SeasonGoalWrite, SessionUser } from "@/lib/types";
 import { queryKeys } from "./keys";
 
 /**
@@ -113,6 +113,34 @@ export function useCancelAthleteClaim() {
 
 export function useDetachAthlete() {
   return useSessionMutation(() => apiClient.detachAthlete());
+}
+
+/** Objectifs de saison du compte rattaché (#1373) ; `enabled` faux sans fiche. */
+export function useSeasonGoals(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.seasonGoals(),
+    queryFn: () => apiClient.getSeasonGoals(),
+    enabled,
+    retry: false,
+  });
+}
+
+function useGoalMutation<T>(mutationFn: (arg: T) => Promise<unknown>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.seasonGoals() }),
+  });
+}
+
+export function useSaveSeasonGoal() {
+  return useGoalMutation(({ id, body }: { id: number | null; body: SeasonGoalWrite }) =>
+    id === null ? apiClient.createSeasonGoal(body) : apiClient.updateSeasonGoal(id, body),
+  );
+}
+
+export function useDeleteSeasonGoal() {
+  return useGoalMutation((id: number) => apiClient.deleteSeasonGoal(id));
 }
 
 /** Suppression du compte de la session, puis déconnexion (#1326). */

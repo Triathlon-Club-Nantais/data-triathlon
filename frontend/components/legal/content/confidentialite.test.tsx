@@ -131,6 +131,10 @@ describe("Politique de confidentialité (#333)", () => {
     expect(screen.getByRole("row", { name: /^ph_/ })).toHaveTextContent("1 an");
   });
 
+  it("mentionne les objectifs de saison, privés et supprimés avec le compte (#1373)", () => {
+    expect(rendre()).toMatch(/objectifs de saison, que lui seul voit, et qui sont supprimés avec le compte/);
+  });
+
   it("dit comment un compte se rattache à sa fiche et s'en détache (#1325)", () => {
     expect(rendre()).toMatch(/à la demande de son titulaire, après vérification par le club/);
     expect(rendre()).toMatch(/Me détacher de ma fiche/);

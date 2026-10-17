@@ -444,3 +444,13 @@ adresses qui reconnaissent un adhérent, importées de l'export AssoConnect
 - **Possédée par le compte** (cascade ORM `User.athlete_claim`, table de
   `user_repository._OWNED_TABLES`) : elle part avec lui et ne bloque jamais sa
   suppression. **Suit sa fiche** : `ON DELETE CASCADE`, report à la fusion.
+
+## Objectifs de saison (#1373)
+
+`season_goals` (`id`, `user_id`, `season`, `kind`, `event_type`, `target`,
+`created_at`) : un objectif privé du compte rattaché, `time` (secondes, format
+requis) ou `count` (nombre d'épreuves, format facultatif). Seul point de
+passage : `season_goal_repository`, toujours par compte. **Possédé** (cascade
+ORM `User.season_goals`, `_OWNED_TABLES`). La progression se calcule à la
+lecture (`participation_repository.athlete_season_times` et
+`athlete_season_count`), jamais stockée.

@@ -1022,6 +1022,21 @@ export interface AthleteClaim {
   created_at: string;
 }
 
+/** Objectif de saison privé de l'athlète rattaché, et sa progression (#1373). */
+export interface SeasonGoal {
+  id: number;
+  season: number;
+  kind: "time" | "count";
+  event_type: string | null;
+  /** Secondes pour un temps, nombre d'épreuves pour un nombre. */
+  target: number;
+  best_time: string | null;
+  count: number | null;
+  reached: boolean;
+}
+
+export type SeasonGoalWrite = Pick<SeasonGoal, "kind" | "event_type" | "target">;
+
 /** Une demande de la file du back-office, avec ses indices (#1325). */
 export interface AthleteClaimReview {
   id: number;

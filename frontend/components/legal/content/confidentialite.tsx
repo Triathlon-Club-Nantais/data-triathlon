@@ -84,7 +84,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             lui-même, aucun droit d&apos;administration. Un compte peut être rattaché à la fiche athlète de
             la personne, à la demande de son titulaire, après vérification par le club ; le compte rattaché est
             reconnu adhérent, et son titulaire s&apos;en détache quand il le souhaite depuis le menu du compte
-            (« Me détacher de ma fiche »). Le site garde la trace des actions d&apos;administration. Vous pouvez supprimer votre compte
+            (« Me détacher de ma fiche »). Un compte rattaché peut se fixer des objectifs de saison, que lui seul voit, et qui sont supprimés avec le compte. Le site garde la trace des actions d&apos;administration. Vous pouvez supprimer votre compte
             vous-même, depuis le menu du compte (« Supprimer mon compte ») : vos résultats et votre fiche athlète
             restent publiés, seul le compte disparaît.
           </p>

@@ -344,7 +344,7 @@ groupes par la cascade ORM de `User`.
 
 - **L'inventaire des références est lu dans le schéma**
   (`user_repository.required_references` / `optional_references`, toute FK vers
-  `users.id` hors des cinq tables possédées, `athlete_claims` comprise, #1325). Une colonne nullable est mise à
+  `users.id` hors des six tables possédées, `athlete_claims` (#1325) et `season_goals` (#1373) comprises). Une colonne nullable est mise à
   vide ; une colonne `NOT NULL` qui cite le compte **bloque** : 409 « Contactez
   le club » en libre service, compte sauté et compté par la purge. Une FK
   ajoutée demain est donc classée sans qu'on y pense ; un test fige la liste

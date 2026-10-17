@@ -36,6 +36,8 @@ import type {
   MemberEmail,
   AthleteClaim,
   AthleteClaimReview,
+  SeasonGoal,
+  SeasonGoalWrite,
   MemberEmailsImportReport,
   MemberEmailsSeason,
   CounterScope,
@@ -926,6 +928,13 @@ export const apiClient = {
   cancelAthleteClaim: () => request<null>("/auth/me/athlete-claim", { method: "DELETE" }),
   detachAthlete: () => request<null>("/auth/me/athlete", { method: "DELETE" }),
   getAthleteClaims: () => request<AthleteClaimReview[]>("/admin/athlete-claims"),
+  // ── Objectifs de saison (#1373), privés au compte ───────────────────────────
+  getSeasonGoals: () => request<SeasonGoal[]>("/auth/me/goals"),
+  createSeasonGoal: (body: SeasonGoalWrite) =>
+    request<SeasonGoal>("/auth/me/goals", { method: "POST", body: JSON.stringify(body) }),
+  updateSeasonGoal: (id: number, body: SeasonGoalWrite) =>
+    request<SeasonGoal>(`/auth/me/goals/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteSeasonGoal: (id: number) => request<null>(`/auth/me/goals/${id}`, { method: "DELETE" }),
   approveAthleteClaim: (id: number) =>
     request<null>(`/admin/athlete-claims/${id}/approve`, { method: "POST" }),
   rejectAthleteClaim: (id: number) =>
