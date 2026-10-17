@@ -78,17 +78,18 @@ export function drawResultCard(ctx: CanvasRenderingContext2D, model: ResultCardM
   ctx.fillStyle = "#ffffff";
   ctx.textBaseline = "alphabetic";
 
-  const ligne = (texte: string, taille: number, police: string, y: number) => {
-    ctx.font = `${taille}px ${police}`;
+  // Raccourci CSS : graisse, taille, puis famille ; un autre ordre est ignoré par le canvas.
+  const ligne = (texte: string, taille: number, police: string, y: number, graisse = "") => {
+    ctx.font = `${graisse ? `${graisse} ` : ""}${taille}px ${police}`;
     ctx.fillText(texte, MARGE, y, CARD_WIDTH - 2 * MARGE);
   };
 
-  ligne(model.club.toUpperCase(), 40, `600 ${fonts.body}`, 170);
+  ligne(model.club.toUpperCase(), 40, fonts.body, 170, "600");
   ligne(model.event, 76, fonts.display, 330);
   ligne([model.discipline, model.date].filter(Boolean).join(" · "), 44, fonts.body, 410);
   ligne(model.athlete, 96, fonts.display, 700);
   ligne(model.result, 200, fonts.display, 940);
-  model.ranks.forEach((rang, i) => ligne(rang, 56, `600 ${fonts.body}`, 1090 + i * 80));
+  model.ranks.forEach((rang, i) => ligne(rang, 56, fonts.body, 1090 + i * 80, "600"));
 }
 
 /** Rend la carte dans un canvas hors DOM et la télécharge en PNG. */
@@ -104,7 +105,9 @@ export async function downloadResultCard(model: ResultCardModel, fileName: strin
     display: style.getPropertyValue("--font-anton").trim() || "sans-serif",
     body: style.getPropertyValue("--font-barlow").trim() || "sans-serif",
   };
-  await document.fonts?.ready;
+  // `ready` n'attend que les polices déjà demandées par la page : charger celles de la carte.
+  await Promise.all([`96px ${fonts.display}`, `600 56px ${fonts.body}`, `44px ${fonts.body}`]
+    .map((font) => document.fonts?.load(font).catch(() => [])));
   drawResultCard(ctx, model, fonts);
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) throw new Error("L'image n'a pas pu être produite.");
@@ -113,5 +116,6 @@ export async function downloadResultCard(model: ResultCardModel, fileName: strin
   lien.href = url;
   lien.download = fileName;
   lien.click();
-  URL.revokeObjectURL(url);
+  // Révoquée au tour suivant : Safari perd le téléchargement si l'URL tombe dans le même tour.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
