@@ -52,7 +52,7 @@ describe("HomePage", () => {
 
     await afficher();
 
-    expect(screen.getByText("Pas encore de course cette saison")).toBeInTheDocument();
+    expect(screen.getByText("Pas encore d'épreuve cette saison")).toBeInTheDocument();
     expect(screen.getByText("312")).toBeInTheDocument();
   });
 });

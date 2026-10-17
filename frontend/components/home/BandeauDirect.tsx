@@ -55,7 +55,7 @@ export function BandeauDirect({ sortie, stats, season, today }: { sortie: ClubLa
               </p>
             </>
           ) : (
-            <p style={{ ...display, margin: 0, fontSize: 28 }}>Pas encore de course cette saison</p>
+            <p style={{ ...display, margin: 0, fontSize: 28 }}>Pas encore d&apos;épreuve cette saison</p>
           )}
           <div style={{ display: "flex", gap: 24, flexWrap: "wrap", marginTop: 20 }}>
             <Chiffre valeur={stats.total} libelle="résultats" />

@@ -15,7 +15,7 @@ function Tuile({ href, titre, ligne, badge }: { href: string; titre: string; lig
     <Link href={href} className="tcn-tuile-espace block rounded-[var(--tcn-radius-3xl)]">
       <Card style={{ height: "100%", background: "var(--tuile-fond, var(--tcn-surface))" }}>
         <div className="flex items-center justify-between gap-2">
-          <span style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, color: "var(--tcn-ink)" }}>{titre}</span>
+          <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: "inherit", margin: 0, color: "var(--tcn-ink)" }}>{titre}</h2>
           <span aria-hidden="true" className="text-accent-ink" style={{ fontWeight: 800 }}>→</span>
         </div>
         {(ligne || badge) && (

@@ -45,6 +45,13 @@ describe("TuilesEspaces", () => {
     expect(screen.getByRole("link", { name: /Mon espace.*Choisissez votre nom/ })).toHaveAttribute("href", "/mon-espace");
   });
 
+  it("exposes each tile title as a level 2 heading", () => {
+    getSession.mockResolvedValue(null);
+    afficher();
+    const titres = screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent);
+    expect(titres).toEqual(["Résultats", "Club", "Mon espace"]);
+  });
+
   it("names the selected athlete on the Mon espace tile", () => {
     getSession.mockResolvedValue(null);
     athlete.current = { id: 7, prenom: "Léa", nom: "Écuyer" };

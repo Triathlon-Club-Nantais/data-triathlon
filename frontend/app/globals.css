@@ -639,7 +639,7 @@
   /* Tuile d'espace de l'accueil (#1621) : survol visible sur --tcn-fill, focus opaque. */
   .tcn-tuile-espace { min-height: 44px; transition: transform var(--tcn-dur-fast); }
   .tcn-tuile-espace:hover { transform: translateY(-2px); }
-  .tcn-tuile-espace:hover { --tuile-fond: var(--tcn-orange-08); }
+  .tcn-tuile-espace:hover { --tuile-fond: linear-gradient(var(--tcn-orange-08), var(--tcn-orange-08)), var(--tcn-surface); }
   .tcn-tuile-espace:focus-visible { outline: 2px solid var(--tcn-orange); outline-offset: 2px; }
   @media (prefers-reduced-motion: reduce) { .tcn-tuile-espace:hover { transform: none; } }
   /* Bouton posé **dans** un champ TCN (effacer, coller) : 44px de cible

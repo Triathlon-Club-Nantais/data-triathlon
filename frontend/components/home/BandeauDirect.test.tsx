@@ -31,7 +31,7 @@ describe("BandeauDirect", () => {
 
   it("falls back when the season has no outing yet, season figures stay", () => {
     render(<BandeauDirect sortie={null} stats={STATS} season={2026} today={TODAY} />);
-    expect(screen.getByText("Pas encore de course cette saison")).toBeInTheDocument();
+    expect(screen.getByText("Pas encore d'épreuve cette saison")).toBeInTheDocument();
     expect(screen.getByText("312")).toBeInTheDocument();
     expect(screen.getByText("27")).toBeInTheDocument();
   });
