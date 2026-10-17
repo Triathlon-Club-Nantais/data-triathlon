@@ -13,7 +13,8 @@ vi.mock("server-only", () => ({}));
  * (la page, ou le layout d'une page client) est listé ici.
  */
 const TITRES: [string, () => Promise<{ metadata?: Metadata }>, string][] = [
-  ["/dashboard", () => import("./(public_restricted)/dashboard/page"), "Tableau de bord"],
+  ["/", () => import("./(public_restricted)/(accueil)/page"), "Accueil"],
+  ["/mon-espace", () => import("./(public_restricted)/mon-espace/page"), "Mon espace"],
   ["/resultats", () => import("./(public_restricted)/resultats/page"), "Résultats"],
   ["/club", () => import("./(public_restricted)/club/page"), "Espace club"],
   ["/club/athletes", () => import("./(public_restricted)/club/athletes/page"), "Athlètes par saison"],

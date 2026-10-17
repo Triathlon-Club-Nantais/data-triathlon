@@ -29,9 +29,9 @@ describe("app/not-found", () => {
       "href",
       "/ajouter",
     );
-    expect(screen.getByRole("link", { name: /tableau de bord/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /accueil/i })).toHaveAttribute(
       "href",
-      "/dashboard",
+      "/",
     );
   });
 

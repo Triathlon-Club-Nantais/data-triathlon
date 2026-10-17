@@ -314,7 +314,7 @@ export function AthletePicker({
       footer={
         designation ? (
           <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", textAlign: "center" }}>
-            Votre saison s&apos;affichera en tête du tableau de bord.
+            Votre saison s&apos;affichera en tête de Mon espace.
           </div>
         ) : null
       }

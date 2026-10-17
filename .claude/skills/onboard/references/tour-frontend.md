@@ -70,7 +70,8 @@ Chaque sous-dossier est une route. Les pages de résultats vivent sous le
 groupe `app/(public_restricted)/`, invisible dans l'URL et gardé par le code
 d'accès du site (#509). Fais le tour rapide :
 
-- `app/(public_restricted)/dashboard/` — page d'accueil du club : agrégats, KPIs, tendances.
+- `app/(public_restricted)/page.tsx` — l'accueil carrefour (`/`) : bandeau du direct et tuiles vers les espaces.
+- `app/(public_restricted)/mon-espace/` — la page personnelle : agrégats, KPIs, ma saison.
 - `app/(public_restricted)/resultats/` — liste des résultats avec filtres (recherche, sport, date).
 - `app/(public_restricted)/athletes/[id]/` — fiche athlète (route dynamique).
 - `app/(public_restricted)/courses/[id]/` — fiche épreuve avec le classement.
@@ -84,7 +85,7 @@ d'accès du site (#509). Fais le tour rapide :
 
 Ouvre **deux** pages représentatives pour prendre le pli :
 
-- `app/(public_restricted)/dashboard/page.tsx` — agrégats avec toggles (scope, federal_only).
+- `app/(public_restricted)/mon-espace/page.tsx` — agrégats avec toggles (scope, federal_only).
 - `app/(public_restricted)/resultats/page.tsx` — liste + filtres.
 
 ## 6. Le client API — `frontend/lib/api/client.ts`

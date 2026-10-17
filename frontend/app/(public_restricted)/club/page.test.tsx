@@ -108,7 +108,7 @@ describe("ClubPage", () => {
   // `/club/summary`, quand « Résultats » du dashboard filtre sur
   // la saison en cours (repli par défaut de `currentSeason()`) — deux
   // compteurs pour ce qui semble à l'utilisateur la même donnée.
-  it("scope le total du KPI Résultats à la saison en cours, comme /dashboard", async () => {
+  it("scope le total du KPI Résultats à la saison en cours, comme /mon-espace", async () => {
     getStats.mockImplementation((opts: { seasons?: number[] }) =>
       Promise.resolve(opts?.seasons ? { ...STATS, total: 7 } : { ...STATS, total: 42 }),
     );

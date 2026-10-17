@@ -8,7 +8,7 @@ let searchParams = new URLSearchParams();
 // qui permet d'affirmer qu'aucune navigation n'est déclenchée (#328).
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, refresh: vi.fn() }),
-  usePathname: () => "/dashboard",
+  usePathname: () => "/mon-espace",
   useSearchParams: () => searchParams,
 }));
 
@@ -78,12 +78,12 @@ describe("RankTypeToggle", () => {
   it("clic sur Genre → l'URL passe à ?rank=gender par l'historique, sans navigation", () => {
     // Aucun rendu serveur ne lit `?rank=` : les trois consommateurs le relisent
     // par `useSearchParams` et recalculent en mémoire. Un `router.push` rejouait
-    // donc tout le rendu de /dashboard — dont `listEvents(page_size: 200)`,
+    // donc tout le rendu de /mon-espace — dont `listEvents(page_size: 200)`,
     // `getStats` et `listSeasons` — pour un résultat que le client tenait
     // déjà (#328).
     render(<RankTypeToggle />);
     fireEvent.click(screen.getByRole("button", { name: "Genre" }));
-    expect(pushState).toHaveBeenCalledWith(null, "", "/dashboard?rank=gender");
+    expect(pushState).toHaveBeenCalledWith(null, "", "/mon-espace?rank=gender");
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -94,7 +94,7 @@ describe("RankTypeToggle", () => {
     searchParams = new URLSearchParams("rank=category");
     render(<RankTypeToggle />);
     fireEvent.click(screen.getByRole("button", { name: "Général" }));
-    expect(pushState).toHaveBeenCalledWith(null, "", "/dashboard");
+    expect(pushState).toHaveBeenCalledWith(null, "", "/mon-espace");
     expect(push).not.toHaveBeenCalled();
   });
 
