@@ -140,7 +140,7 @@ def set_active(db: Session, users: list[User], *, active: bool) -> int:
 
 
 #: Tables that belong to the account and leave with it through the ORM cascade of `User`.
-_OWNED_TABLES = frozenset({"identities", "user_sessions", "user_roles", "user_groups"})
+_OWNED_TABLES = frozenset({"identities", "user_sessions", "user_roles", "user_groups", "athlete_claims"})
 
 
 def _references_to_users() -> list[Column]:
@@ -205,6 +205,22 @@ def list_inactive_without_role(db: Session, cutoff: datetime) -> list[User]:
 def delete(db: Session, user: User) -> None:
     """Deletes the account; identities, sessions, roles and groups follow by ORM cascade."""
     db.delete(user)
+    db.flush()
+
+
+def count_linked_by_athlete(db: Session, athlete_ids: list[int]) -> dict[int, int]:
+    """Comptes rattachés à chacune de ces fiches (#1325) ; une fiche sans compte est absente."""
+    rows = db.execute(
+        select(User.athlete_id, func.count(User.id))
+        .where(User.athlete_id.in_(athlete_ids))
+        .group_by(User.athlete_id)
+    )
+    return {athlete_id: count for athlete_id, count in rows}
+
+
+def set_athlete(db: Session, user: User, athlete_id: int | None) -> None:
+    """Pose ou retire le rattachement validé du compte (#1325)."""
+    user.athlete_id = athlete_id
     db.flush()
 
 

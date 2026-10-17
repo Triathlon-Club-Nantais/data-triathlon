@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.permissions import P
 from app.core.season import current_season
 from app.repositories import (
+    athlete_claim_repository,
     club_member_repository,
     course_repository,
     feedback_repository,
@@ -37,6 +38,7 @@ _BADGES: dict[str, tuple[str, Callable[[Session], int]]] = {
         lambda db: club_member_repository.count_to_settle(db, current_season()),
     ),
     "volunteer": (P.ATHLETES_VOLUNTEER_VALIDATE.code, volunteer_action_repository.count_pending),
+    "claims": (P.ATHLETE_CLAIMS_REVIEW.code, athlete_claim_repository.count_pending),
 }
 
 

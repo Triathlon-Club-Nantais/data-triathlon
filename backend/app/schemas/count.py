@@ -12,3 +12,4 @@ class BadgeCounts(BaseModel):
     members: int | None = None
     volunteer: int | None = None
     validation: int | None = None
+    claims: int | None = None

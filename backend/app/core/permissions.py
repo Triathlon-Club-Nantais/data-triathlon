@@ -342,6 +342,14 @@ class P:
         "l'importer depuis l'export AssoConnect, y ajouter ou en retirer une adresse.",
         FEATURE_MEMBER_EMAILS,
     )
+    ATHLETE_CLAIMS_REVIEW = Permission(
+        "athlete_claims:review",
+        "Valider les rattachements de fiche",
+        "Voir les demandes de rattachement d'un compte à sa fiche athlète, avec "
+        "leurs indices (licencié, adresse d'adhérent), et les valider ou les refuser. "
+        "Un compte rattaché est reconnu adhérent.",
+        FEATURE_MEMBER_EMAILS,
+    )
     ADMIN_LOG_READ = Permission(
         "admin_log:read",
         "Consulter le journal d'administration",
@@ -417,6 +425,7 @@ ALL: tuple[Permission, ...] = (
     P.CLUB_ALIASES_MANAGE,
     P.CLUB_MEMBERS_MANAGE,
     P.MEMBER_EMAILS_MANAGE,
+    P.ATHLETE_CLAIMS_REVIEW,
     P.ADMIN_LOG_READ,
     P.PAGES_PREVIEW,
     P.YOUTH_READ,

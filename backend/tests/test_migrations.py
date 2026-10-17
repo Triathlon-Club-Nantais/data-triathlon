@@ -1583,3 +1583,15 @@ def test_downgrade_puis_upgrade_de_la_meteo(sqlite_url):
 
     command.downgrade(cfg, "f16822237c78")
     assert not weather & _columns(sqlite_url, "courses")
+
+
+def test_athlete_claims_table_up_and_down(sqlite_url):
+    """#1325: one claim per account, pointing to an athlete."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    assert _columns(sqlite_url, "athlete_claims") == {
+        "id", "user_id", "athlete_id", "status", "created_at", "decided_at",
+    }
+
+    command.downgrade(cfg, "a7d3c91e4b20")
+    assert "athlete_claims" not in _tables(sqlite_url)

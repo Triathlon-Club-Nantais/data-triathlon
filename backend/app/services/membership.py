@@ -16,7 +16,8 @@ from app.services.auth.idp.base import ExternalIdentity
 def is_member(db: Session, user: User | None, today: date) -> bool:
     if user is None or not user.is_active or user.email == SYSTEM_USER_EMAIL:
         return False
-    return member_email_repository.counts(db, user.email, today)
+    # Un rattachement validé par le club vaut reconnaissance (#1325).
+    return user.athlete_id is not None or member_email_repository.counts(db, user.email, today)
 
 
 def retained_email(db: Session, identity: ExternalIdentity, today: date) -> str:

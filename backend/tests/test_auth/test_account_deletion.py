@@ -191,3 +191,17 @@ def test_signing_in_again_creates_a_fresh_account_without_role_or_group(db, alix
     assert db.query(User).filter(User.email != SYSTEM_USER_EMAIL).count() == 1
     assert user_role_repository.list_for_user(db, fresh.id) == []
     assert db.query(UserGroup).filter_by(user_id=fresh.id).count() == 0
+
+
+def test_a_claim_is_owned_and_goes_with_the_account(db, alix):
+    """#1325: `athlete_claims` belongs to the account, it never blocks its deletion."""
+    from app.models.athlete_claim import AthleteClaim
+
+    db.add(AthleteClaim(user_id=alix.id, athlete_id=_athlete(db).id, status="pending"))
+    db.flush()
+    user_id = alix.id
+
+    accounts.delete_account(db, alix, origin="request")
+    db.commit()
+
+    assert db.query(AthleteClaim).filter_by(user_id=user_id).count() == 0

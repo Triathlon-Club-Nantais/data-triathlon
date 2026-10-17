@@ -81,3 +81,7 @@ class User(Base):
     groups: Mapped[list["UserGroup"]] = relationship(  # noqa: F821
         back_populates="user", cascade="all, delete-orphan"
     )
+    # La demande de rattachement appartient au compte et part avec lui (#1325).
+    athlete_claim: Mapped["AthleteClaim | None"] = relationship(  # noqa: F821
+        back_populates="user", cascade="all, delete-orphan", uselist=False
+    )

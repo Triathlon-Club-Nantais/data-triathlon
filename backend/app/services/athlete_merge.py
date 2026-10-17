@@ -21,6 +21,7 @@ from app.models.athlete import Athlete
 from app.models.athlete_alias import AthleteAlias
 from app.repositories import (
     athlete_alias_repository,
+    athlete_claim_repository,
     athlete_known_club_repository,
     athlete_repository,
     challenge_repository,
@@ -190,6 +191,7 @@ def merge_athletes(db: Session, *, kept_id: int, absorbed_id: int, user_id: int)
         ),
     }
     athlete_alias_repository.repoint(db, from_athlete_id=absorbed.id, to_athlete_id=kept.id)
+    athlete_claim_repository.repoint(db, from_athlete_id=absorbed.id, to_athlete_id=kept.id)
     ignored_athlete_pair_repository.repoint(db, from_athlete_id=absorbed.id, to_athlete_id=kept.id)
     club_member_repository.repoint(db, from_athlete_id=absorbed.id, to_athlete_id=kept.id)
     athlete_known_club_repository.repoint(db, from_athlete_id=absorbed.id, to_athlete_id=kept.id)

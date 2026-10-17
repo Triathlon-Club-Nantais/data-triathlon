@@ -64,6 +64,7 @@ CODES_ATTENDUS = {
     "club_aliases:manage",
     "club_members:manage",
     "member_emails:manage",
+    "athlete_claims:review",
     "admin_log:read",
     "pages:preview",
     "jeunes:read",

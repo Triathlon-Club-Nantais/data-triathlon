@@ -15,6 +15,7 @@ def test_an_admin_gets_every_badge(client):
         "identities": 0,
         "members": 0,
         "volunteer": 0,
+        "claims": 0,
         "validation": 0,
     }
 

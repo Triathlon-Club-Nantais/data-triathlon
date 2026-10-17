@@ -101,6 +101,16 @@ def counts(db: Session, email: str, today: date) -> bool:
     ) is not None
 
 
+def counting_among(db: Session, emails: list[str], today: date) -> set[str]:
+    """Celles de ces adresses (normalisées) qui comptent aujourd'hui, même règle que `counts`."""
+    seasons = {counting_season(db, today), season_of(today)}
+    return set(db.scalars(
+        select(MemberEmail.email).where(
+            MemberEmail.email.in_([normalize(email) for email in emails]), MemberEmail.season.in_(seasons)
+        )
+    ))
+
+
 def purge_before(db: Session, season: int, *, dry_run: bool) -> int:
     """Tient la durée de conservation : supprime les saisons antérieures à `season`."""
     old = MemberEmail.season < season

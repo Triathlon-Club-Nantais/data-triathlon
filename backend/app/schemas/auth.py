@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.athlete_claim import AthleteClaimRead, ClaimedAthleteRead
 from app.schemas.utc_datetime import UtcDatetime
 
 
@@ -71,3 +72,6 @@ class SessionUserRead(BaseModel):
     can_supervise: bool = False
     #: #1322 : statut adhérent dérivé à la requête, jamais stocké sur le compte.
     is_member: bool = False
+    #: #1325 : la fiche rattachée (validée par le club) et la demande en cours.
+    athlete: ClaimedAthleteRead | None = None
+    athlete_claim: AthleteClaimRead | None = None
