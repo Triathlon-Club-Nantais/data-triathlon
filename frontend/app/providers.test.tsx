@@ -146,6 +146,23 @@ describe("PostHogSessionSync", () => {
     expect(reset).not.toHaveBeenCalled();
   });
 
+  it("marque l'adhérent et le rattachement sur la personne (#1374)", async () => {
+    const athlete = { id: 12, prenom: "Jean", nom: "Dupont" };
+    useSession.mockReturnValue({ data: { ...SESSION, is_member: true, athlete } });
+    const { rerender } = render(<Providers>{null}</Providers>);
+
+    await waitFor(() =>
+      expect(identify).toHaveBeenLastCalledWith("1", expect.objectContaining({ is_member: true, has_claimed_athlete: true })),
+    );
+
+    useSession.mockReturnValue({ data: { ...SESSION } });
+    rerender(<Providers>{null}</Providers>);
+
+    await waitFor(() =>
+      expect(identify).toHaveBeenLastCalledWith("1", expect.objectContaining({ is_member: false, has_claimed_athlete: false })),
+    );
+  });
+
   it("réinitialise PostHog quand la session repasse à null, quelle qu'en soit la cause (logout, 401, révocation)", async () => {
     useSession.mockReturnValue({ data: SESSION });
     const { rerender } = render(<Providers>{null}</Providers>);

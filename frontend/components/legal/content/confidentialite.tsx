@@ -106,7 +106,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             mesure ne reçoit qu&apos;un identifiant calculé à partir de votre adresse IP et de votre navigateur,
             renouvelé chaque jour. Si vous acceptez la mesure détaillée, il reçoit aussi vos interactions avec les
             pages (clics) et dépose des cookies ; pour un utilisateur connecté, la mesure est alors
-            rattachée à son compte : son adresse électronique, son nom affiché et ses rôles lui sont transmis.
+            rattachée à son compte : son adresse électronique, son nom affiché, ses rôles, et s&apos;il est adhérent ou rattaché à une fiche lui sont transmis.
             Retirer ensuite votre accord arrête cette mesure détaillée, sans effacer ce qui a déjà été transmis :
             pour cela, exercez votre droit à l&apos;effacement (voir « Vos droits »). Les actions faites dans le
             back-office sont comptées par le serveur du site, rattachées à l&apos;identifiant du compte seulement si
