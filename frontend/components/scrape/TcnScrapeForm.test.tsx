@@ -199,6 +199,8 @@ describe("TcnScrapeForm — navigation vers les courses importées (#135)", () =
     const field = screen.getByRole("combobox", { name: /Choisir l'épreuve/ }).closest("label")!;
     expect(field.style.minWidth).toBe("0px");
     expect(field.getAttribute("style")).toContain("1.5px solid var(--tcn-text-faint)");
+    fireEvent.focus(screen.getByRole("combobox", { name: /Choisir l'épreuve/ }));
+    expect(field.style.outline).toBe("2px solid var(--tcn-orange)");
   });
 
   it("multi : sélectionner une autre course met à jour la cible du bouton", async () => {

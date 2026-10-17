@@ -768,6 +768,10 @@ function CourseSelectField({
         background: "var(--tcn-fill)",
         border: `1.5px solid ${focused ? "var(--tcn-orange)" : "var(--tcn-text-faint)"}`,
         borderRadius: "var(--tcn-radius-xl)",
+        // Le `<select>` est transparent : l'anneau global ne s'y voit pas, et le
+        // passage de la bordure à l'orange ne vaut que 1,42:1 (#1609).
+        outline: focused ? "2px solid var(--tcn-orange)" : undefined,
+        outlineOffset: 2,
         transition: "border-color var(--tcn-dur-fast)",
         cursor: "pointer",
       }}

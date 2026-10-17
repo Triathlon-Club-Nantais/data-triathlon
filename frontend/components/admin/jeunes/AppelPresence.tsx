@@ -185,9 +185,14 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
                   texte={terme ? `${motCompte(lignes.length, "jeune")} sur ${participants.length}` : ""}
                 />
                 {lignes.length === 0 ? (
-                  <p className="text-[var(--tcn-text-faint)] text-sm">
-                    Aucun inscrit ne correspond à « {recherche.trim()} ».
-                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-[var(--tcn-text-faint)] text-sm">
+                      Aucun jeune ne correspond à « {recherche.trim()} ».
+                    </p>
+                    <Button size="sm" variant="outline" className="tcn-cible-tactile" onClick={() => setRecherche("")}>
+                      Effacer la recherche
+                    </Button>
+                  </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     {lignes.map(({ participant, nom }) => {
@@ -245,7 +250,7 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
                                 droit comme au reste de l'appel. */}
                             <Link
                               href={`/encadrement/jeunes/${participant.profile_id}`}
-                              className={buttonVariants({ variant: "ghost", size: "sm" })}
+                              className={buttonVariants({ variant: "ghost", size: "sm", className: "tcn-cible-tactile" })}
                             >
                               Voir le profil
                             </Link>
@@ -253,6 +258,7 @@ export function AppelPresence({ sessionId }: { sessionId: number }) {
                               <Button
                                 size="sm"
                                 variant="ghost"
+                                className="tcn-cible-tactile"
                                 onClick={() => setJeuneNote({ id: participant.profile_id, nom })}
                               >
                                 Ajouter une note

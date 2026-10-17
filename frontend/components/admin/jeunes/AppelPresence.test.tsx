@@ -377,8 +377,11 @@ describe("AppelPresence", () => {
 
       await userEvent.type(await screen.findByLabelText("Rechercher un jeune"), "xyz");
 
-      expect(screen.getByText("Aucun inscrit ne correspond à « xyz ».")).toBeInTheDocument();
+      expect(screen.getByText("Aucun jeune ne correspond à « xyz ».")).toBeInTheDocument();
       expect(screen.queryByText("Aucun jeune inscrit")).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole("button", { name: "Effacer la recherche" }));
+      expect(ordre()).toHaveLength(4);
     });
   });
 

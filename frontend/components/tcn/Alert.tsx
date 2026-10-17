@@ -47,7 +47,9 @@ export function Alert({
         ...style,
       }}
     >
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+      {/* `minWidth: 0` sur la ligne et le corps : sans eux, un contenu insécable
+          (nom d'épreuve en ellipse) impose sa largeur et fait défiler la page (#1608). */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 12, minWidth: 0 }}>
         <div
           style={{
             flex: "none",
@@ -66,7 +68,7 @@ export function Alert({
         >
           {p.glyph}
         </div>
-        <div>
+        <div style={{ minWidth: 0 }}>
           <div style={{ fontWeight: 800, color: p.title, fontSize: 14 }}>{title}</div>
           {children ? <div style={{ fontSize: 13, color: p.body, marginTop: 3, lineHeight: 1.5 }}>{children}</div> : null}
         </div>
