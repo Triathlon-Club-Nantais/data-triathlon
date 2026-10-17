@@ -160,13 +160,13 @@ TDD, Principe III.
 
 ## Découpage et exécution
 
-Une epic « Accueil carrefour », workflow epic de
+Epic #1618 « Accueil carrefour », workflow epic de
 `docs/gestion-de-projet.md` (branche d'epic, une PR par sous-issue) :
 
-1. `feat(club): expose the club's last outing` : l'endpoint backend.
-2. `feat(nav): move the personal dashboard to /mon-espace` : déplacement de
+1. #1619 `feat(club): expose the club's last outing` : l'endpoint backend.
+2. #1620 `feat(nav): move the personal dashboard to /mon-espace` : déplacement de
    la page, références, navigation.
-3. `feat(home): turn / into a hub with the club's live banner and space tiles` :
+3. #1621 `feat(home): turn / into a hub with the club's live banner and space tiles` :
    l'accueil.
 
 L'ordre 1 → 2 → 3 garde un produit qui marche à chaque étape : après 2, `/`
