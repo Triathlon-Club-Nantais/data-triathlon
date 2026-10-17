@@ -77,7 +77,7 @@ def test_le_callback_nominal_ouvre_une_session(client, doublure, db_session):
 
     assert reponse.status_code == 302
     # Sans rôle : l'accueil (#1322), le back-office lui serait inutilisable.
-    assert reponse.headers["location"] == f"{get_settings().auth_redirect_base_url}/dashboard"
+    assert reponse.headers["location"] == f"{get_settings().auth_redirect_base_url}/"
 
     settings = get_settings()
     jeton = client.cookies[session_cookie_name(settings)]
@@ -150,8 +150,8 @@ def test_un_callback_rejoue_est_refuse(client, doublure, db_session):
     [
         ({P.QUALITY_OVERRIDE.code, P.YOUTH_READ.code}, "/admin"),
         ({P.YOUTH_READ.code}, "/encadrement"),
-        ({P.PAGES_PREVIEW.code}, "/dashboard"),
-        (set(), "/dashboard"),
+        ({P.PAGES_PREVIEW.code}, "/"),
+        (set(), "/"),
     ],
 )
 def test_landing_goes_to_the_first_open_space(codes, expected):

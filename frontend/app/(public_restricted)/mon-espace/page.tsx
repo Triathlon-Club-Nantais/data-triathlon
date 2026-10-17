@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import Link from "next/link";
 import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
@@ -10,11 +9,11 @@ import { RecentCourses } from "@/components/dashboard/RecentCourses";
 import { SeasonSelector, SeasonTags } from "@/components/dashboard/SeasonSelector";
 import { currentSeason, parseSeasonsParam, seasonSelectionLabel, serializeSeasons } from "@/lib/utils/season";
 import { sortEventsByDateDesc } from "@/lib/utils/event";
-import { Card, Eyebrow } from "@/components/tcn";
+import { Eyebrow } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { SeasonEmptyState } from "@/components/dashboard/SeasonEmptyState";
 
-export const metadata: Metadata = { title: "Tableau de bord" };
+export const metadata: Metadata = { title: "Mon espace" };
 
 /** Petit libellé visuel au-dessus d'un contrôle de filtrage (NAV-5, #483). */
 function FieldLabel({ children }: { children: ReactNode }) {
@@ -39,7 +38,7 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  // Page d'accueil = vitrine du club : portée TCN forcée, pas de choix « Tous »
+  // Mon espace = vitrine du club : portée TCN forcée, pas de choix « Tous »
   // (validé par Vincent, issue #6). Le paramètre `?scope` est volontairement
   // ignoré, mais on lit `?seasons` pour le sélecteur de saison (issue #7) et
   // `?sports` pour le filtre fédéral/hors-fédération (issue #76).
@@ -75,11 +74,8 @@ export default async function DashboardPage({
       if (value !== undefined && key !== "seasons") params.set(key, value);
     }
     const qs = params.toString();
-    return qs ? `/dashboard?${qs}` : "/dashboard";
+    return qs ? `/mon-espace?${qs}` : "/mon-espace";
   })();
-
-  const isCurrentSeasonSelected = selected.length === 1 && selected[0] === currentSeason();
-  const clubHref = sp.sports !== undefined ? `/club?sports=${encodeURIComponent(sp.sports)}` : "/club";
 
   return (
     <PageShell>
@@ -93,7 +89,7 @@ export default async function DashboardPage({
       <div className="space-y-3" style={{ marginBottom: 26 }}>
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <Eyebrow>Participations aux épreuves</Eyebrow>
+            <Eyebrow>Mon espace</Eyebrow>
             <h1 style={{ fontFamily: "var(--tcn-font-display)", fontSize: "clamp(28px, 5vw, 40px)", fontWeight: 400, color: "var(--tcn-ink)", lineHeight: 1, margin: 0, marginTop: 6 }}>{seasonSelectionLabel(selected)}</h1>
             <div style={{ fontSize: 15, color: "var(--tcn-text-muted)", marginTop: 8, fontWeight: 500 }}>Votre saison et les dernières épreuves du club</div>
           </div>
@@ -128,15 +124,6 @@ export default async function DashboardPage({
 
           <RecentCourses events={recentEvents} />
 
-          <Card className="mt-4">
-            <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 24, fontWeight: 400, color: "var(--tcn-ink)", margin: 0, marginBottom: 8 }}>Le club</h2>
-            <p style={{ fontSize: 15, color: "var(--tcn-text-muted)", margin: 0, marginBottom: 12 }}>
-              Podiums, compteurs, disciplines et athlètes du club.{!isCurrentSeasonSelected && " Sur la saison en cours."}
-            </p>
-            <Link href={clubHref} className="tcn-cible-tactile inline-flex items-center text-sm font-semibold text-accent-ink hover:underline">
-              Voir la page Club <span aria-hidden>→</span>
-            </Link>
-          </Card>
         </>
       )}
     </PageShell>

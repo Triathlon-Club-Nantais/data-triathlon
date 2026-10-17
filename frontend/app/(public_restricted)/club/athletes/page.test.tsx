@@ -95,7 +95,7 @@ describe("/club/athletes", () => {
     expect(screen.getByLabelText("Choisir les saisons")).toBeInTheDocument();
   });
 
-  it("filtre aux disciplines fédérales par défaut, comme /dashboard et /club (#382)", async () => {
+  it("filtre aux disciplines fédérales par défaut, comme /mon-espace et /club (#382)", async () => {
     await renderPage();
 
     expect(listAthleteSeasonActivity).toHaveBeenCalledWith(

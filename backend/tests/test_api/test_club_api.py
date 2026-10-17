@@ -228,3 +228,30 @@ def test_club_best_times_filters_by_season(client, db_session):
 
 def test_club_best_times_rejects_an_absurd_season(client, db_session):
     assert client.get("/api/v1/club/best-times?season=1").status_code == 422
+
+
+def test_last_outing_is_null_without_any_race(client, db_session, monkeypatch):
+    monkeypatch.setattr(season, "utcnow", lambda: datetime(2026, 10, 15, 12, 0, 0))
+
+    resp = client.get("/api/v1/club/last-outing")
+
+    assert resp.status_code == 200
+    assert resp.json() is None
+
+
+def test_last_outing_shape(client, db_session, monkeypatch):
+    monkeypatch.setattr(season, "utcnow", lambda: datetime(2026, 10, 15, 12, 0, 0))
+    ath = athlete_repository.get_or_create(db_session, nom="A", prenom="Alice", club="TCN")
+    course = course_repository.get_or_create(
+        db_session, name="C", event_date=date(2026, 10, 11), event_type="triathlon-m"
+    )
+    participation_repository.create(
+        db_session, athlete_id=ath.id, course_id=course.id, bib_number="1",
+        club="TCN", status="finisher", rank_overall=1,
+    )
+    db_session.commit()
+
+    resp = client.get("/api/v1/club/last-outing?federal_only=true")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"end_date": "2026-10-11", "events": 1, "athletes": 1, "podiums": 1}

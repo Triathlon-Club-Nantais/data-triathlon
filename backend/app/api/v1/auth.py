@@ -99,7 +99,7 @@ def _landing_path(codes: Iterable[str]) -> str:
         return "/admin"
     if permissions.supervises(codes):
         return "/encadrement"
-    return "/dashboard"
+    return "/"
 
 
 def _redirect_to(url: str) -> RedirectResponse:

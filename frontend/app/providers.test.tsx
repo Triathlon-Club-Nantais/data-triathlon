@@ -28,7 +28,7 @@ vi.mock("@/lib/queries/auth", async (importOriginal) => ({
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn() } }));
 
-const { replace, pathname } = vi.hoisted(() => ({ replace: vi.fn(), pathname: { value: "/dashboard" } }));
+const { replace, pathname } = vi.hoisted(() => ({ replace: vi.fn(), pathname: { value: "/mon-espace" } }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
   usePathname: () => pathname.value,
@@ -168,8 +168,8 @@ describe("PostLoginReturn (#494)", () => {
     replace.mockClear();
     vi.mocked(toast.success).mockClear();
     sessionStorage.clear();
-    pathname.value = "/dashboard";
-    window.history.pushState({}, "", "/dashboard");
+    pathname.value = "/mon-espace";
+    window.history.pushState({}, "", "/mon-espace");
   });
 
   it("ramène vers le chemin mémorisé quand il diffère de l'atterrissage, et confirme la connexion", async () => {
@@ -204,7 +204,7 @@ describe("PostLoginReturn (#494)", () => {
   });
 
   it("efface la clé sans rediriger quand elle vaut déjà le chemin d'atterrissage", () => {
-    sessionStorage.setItem(RETOUR_CONNEXION_KEY, "/dashboard");
+    sessionStorage.setItem(RETOUR_CONNEXION_KEY, "/mon-espace");
     useSession.mockReturnValue({ data: SESSION });
 
     render(<Providers>{null}</Providers>);
@@ -223,12 +223,12 @@ describe("PostLoginReturn (#494)", () => {
 
     // L'utilisateur navigue ailleurs avant que la session ne soit connue : le
     // chemin courant n'est plus celui de l'atterrissage.
-    pathname.value = "/dashboard";
-    window.history.pushState({}, "", "/dashboard");
+    pathname.value = "/mon-espace";
+    window.history.pushState({}, "", "/mon-espace");
     useSession.mockReturnValue({ data: SESSION });
     rerender(<Providers>{null}</Providers>);
 
-    // Comparer au chemin courant (/dashboard) renverrait à tort vers /carte,
+    // Comparer au chemin courant (/mon-espace) renverrait à tort vers /carte,
     // écrasant la navigation que l'utilisateur vient de faire lui-même.
     expect(replace).not.toHaveBeenCalled();
   });

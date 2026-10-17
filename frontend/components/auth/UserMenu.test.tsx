@@ -18,7 +18,7 @@ const { push, getSession, logout, deleteAccount, captureEvent } = vi.hoisted(() 
 vi.mock("@/lib/posthog", () => ({ captureEvent }));
 
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/dashboard",
+  usePathname: () => "/mon-espace",
   useRouter: () => ({ push, refresh: vi.fn() }),
 }));
 
@@ -151,22 +151,22 @@ describe("UserMenu — anonyme (AC5)", () => {
   });
 
   it("mémorise le chemin courant avant de router vers /login (#494)", async () => {
-    // `usePathname` est mocké à "/dashboard" en tête de fichier : c'est la
+    // `usePathname` est mocké à "/mon-espace" en tête de fichier : c'est la
     // page depuis laquelle ce clic est censé partir dans ce test.
     afficher(null);
 
     await userEvent.click(await screen.findByRole("button", { name: "Se connecter" }));
 
-    expect(sessionStorage.getItem(RETOUR_CONNEXION_KEY)).toBe("/dashboard");
+    expect(sessionStorage.getItem(RETOUR_CONNEXION_KEY)).toBe("/mon-espace");
   });
 
   it("mémorise aussi la chaîne de requête, sans quoi un filtre d'URL se perd au retour (#494)", async () => {
     afficher(null);
-    window.history.pushState({}, "", "/dashboard?scope=club");
+    window.history.pushState({}, "", "/mon-espace?scope=club");
 
     await userEvent.click(await screen.findByRole("button", { name: "Se connecter" }));
 
-    expect(sessionStorage.getItem(RETOUR_CONNEXION_KEY)).toBe("/dashboard?scope=club");
+    expect(sessionStorage.getItem(RETOUR_CONNEXION_KEY)).toBe("/mon-espace?scope=club");
   });
 });
 

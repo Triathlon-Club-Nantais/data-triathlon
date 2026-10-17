@@ -22,7 +22,7 @@ const url = vi.hoisted(() => ({ qs: "" }));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn() }),
-  usePathname: () => "/dashboard",
+  usePathname: () => "/mon-espace",
   useSearchParams: () => new URLSearchParams(url.qs),
 }));
 
@@ -77,7 +77,7 @@ vi.mock("@/components/dashboard/InvitationAthlete", () => ({
   InvitationAthlete: () => <div data-testid="invitation-athlete-stub" />,
 }));
 
-import DashboardPage from "./page";
+import MonEspacePage from "./page";
 
 const ZERO_BUCKET = { victories: 0, podiums: 0, top10: 0 };
 const STATS = {
@@ -109,11 +109,11 @@ beforeEach(() => {
 });
 
 async function renderDashboard(searchParams: Record<string, string | undefined> = {}) {
-  const ui = await DashboardPage({ searchParams: Promise.resolve(searchParams) });
+  const ui = await MonEspacePage({ searchParams: Promise.resolve(searchParams) });
   return render(ui);
 }
 
-describe("DashboardPage — états vides (ETAT-3)", () => {
+describe("MonEspacePage — états vides (ETAT-3)", () => {
   it("propose d'ajouter une épreuve quand la liste des dernières épreuves est vide", async () => {
     // `EVENTS_PAGE` par défaut a déjà `items: []` : l'état vide est le cas
     // par défaut de la fixture, pas un cas à construire.
@@ -124,7 +124,13 @@ describe("DashboardPage — états vides (ETAT-3)", () => {
   });
 });
 
-describe("DashboardPage", () => {
+describe("MonEspacePage", () => {
+  it("porte l'eyebrow « Mon espace »", async () => {
+    await renderDashboard({});
+
+    expect(screen.getByText("Mon espace")).toBeInTheDocument();
+  });
+
   it("force la portée club sur tous les appels API, même sans ?scope=club", async () => {
     await renderDashboard({});
 
@@ -212,10 +218,9 @@ describe("DashboardPage", () => {
     expect(screen.getByRole("heading", { level: 1, name: "2 saisons sélectionnées" })).toBeInTheDocument();
   });
 
-  it("rend les titres de carte comme des <h2> (A11Y-2)", async () => {
+  it("rend le titre de carte comme un <h2> (A11Y-2)", async () => {
     await renderDashboard({});
 
-    expect(screen.getByRole("heading", { level: 2, name: "Le club" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 2, name: "Dernières épreuves" })).toBeInTheDocument();
   });
 
@@ -278,7 +283,7 @@ describe("DashboardPage", () => {
   });
 });
 
-describe("DashboardPage — état vide unifié (NAV-6)", () => {
+describe("MonEspacePage — état vide unifié (NAV-6)", () => {
   const STATS_VIDE = { ...STATS, total: 0, athletes: 0, events: 0, by_type: {} };
   const EVENTS_PAGE_VIDE = { items: [], total_events: 0, total_participations: 0 };
 
@@ -289,7 +294,6 @@ describe("DashboardPage — état vide unifié (NAV-6)", () => {
     await renderDashboard({ seasons: "2015" });
 
     expect(screen.getByText("Aucun résultat enregistré pour la saison 2015 — 2016")).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { level: 2, name: "Le club" })).not.toBeInTheDocument();
   });
 
   it("propose « Voir la saison en cours » quand la sélection n'est pas la saison en cours", async () => {
@@ -299,7 +303,7 @@ describe("DashboardPage — état vide unifié (NAV-6)", () => {
     await renderDashboard({ seasons: "2015" });
 
     const voir = screen.getByRole("link", { name: "Voir la saison en cours" });
-    expect(voir).toHaveAttribute("href", "/dashboard");
+    expect(voir).toHaveAttribute("href", "/mon-espace");
     expect(voir).toHaveClass("tcn-cible-tactile");
   });
 
@@ -324,7 +328,7 @@ describe("DashboardPage — état vide unifié (NAV-6)", () => {
   });
 });
 
-describe("DashboardPage — bande « Ma saison » (#502, NAV-9)", () => {
+describe("MonEspacePage — bande « Ma saison » (#502, NAV-9)", () => {
   it("monte la bande avec les compteurs club et les filtres de la page, sur une sélection non vide", async () => {
     getStats.mockResolvedValue({ ...STATS, events: 32 });
 
@@ -357,7 +361,7 @@ describe("DashboardPage — bande « Ma saison » (#502, NAV-9)", () => {
   });
 });
 
-describe("DashboardPage — invitation à choisir un athlète (#588)", () => {
+describe("MonEspacePage — invitation à choisir un athlète (#588)", () => {
   it("monte l'invitation sur une sélection non vide", async () => {
     await renderDashboard({});
 
@@ -383,9 +387,7 @@ describe("DashboardPage — invitation à choisir un athlète (#588)", () => {
   });
 });
 
-describe("DashboardPage: personal home, collective on Club (#1299)", () => {
-  const clubLink = () => screen.getByRole("link", { name: /Voir la page Club/ });
-
+describe("MonEspacePage: personal page, the home page leads to the club (#1299, #1620)", () => {
   it("no longer renders the club aggregates", async () => {
     await renderDashboard({});
 
@@ -393,43 +395,11 @@ describe("DashboardPage: personal home, collective on Club (#1299)", () => {
     expect(screen.queryByRole("heading", { name: "Type d'épreuves" })).toBeNull();
   });
 
-  it("links to Club for the collective view", async () => {
+  it("drops the « Le club » card, the home page now leads to the club (#1620)", async () => {
     await renderDashboard({});
 
-    expect(clubLink()).toHaveAttribute("href", "/club");
-  });
-
-  it("names the Club link as a page, not a space", async () => {
-    await renderDashboard({});
-
-    expect(screen.queryByText(/espace club/i)).toBeNull();
-    expect(clubLink()).toHaveAttribute("href", "/club");
-  });
-
-  it("says the Club figures are for the current season when another season is selected", async () => {
-    await renderDashboard({ seasons: "2019" });
-
-    expect(screen.getByText(/saison en cours/)).toBeInTheDocument();
-  });
-
-  it("does not mention the season scope when the current season is selected", async () => {
-    await renderDashboard({});
-
-    expect(screen.queryByText(/saison en cours/)).toBeNull();
-  });
-
-  it("keeps the sports filter on the Club link", async () => {
-    await renderDashboard({ sports: "all" });
-
-    expect(clubLink()).toHaveAttribute("href", expect.stringContaining("sports=all"));
-  });
-
-  it("does not render the Club link on the empty season state", async () => {
-    getStats.mockResolvedValue({ ...STATS, total: 0, athletes: 0, events: 0, by_type: {} });
-    listEvents.mockResolvedValue({ items: [], total_events: 0, total_participations: 0 });
-
-    await renderDashboard({ seasons: "2019" });
-
+    expect(screen.queryByRole("heading", { name: "Le club" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Voir la page Club/ })).toBeNull();
+    expect(screen.getByRole("heading", { level: 1 })).toBeInTheDocument();
   });
 });

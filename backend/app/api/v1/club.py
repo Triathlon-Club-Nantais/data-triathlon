@@ -8,9 +8,9 @@ from app.core.database import get_db
 from app.core.exceptions import NotFoundError
 from app.core.season import SEASON_MAX, SEASON_MIN
 from app.repositories import athlete_repository
-from app.schemas.club import ClubBestTime, ClubPodiums, ClubRosterRank, ClubSummary
+from app.schemas.club import ClubBestTime, ClubLastOuting, ClubPodiums, ClubRosterRank, ClubSummary
 from app.schemas.ids import DbId
-from app.services import club_service
+from app.services import club_service, stats_service
 
 router = APIRouter(tags=["club"])
 
@@ -60,6 +60,18 @@ def get_club_best_times(
 ):
     """Meilleur temps du club par format calibré (XS à XL) et par genre (#1588)."""
     return club_service.get_club_best_times(db, season=season, federal_only=federal_only)
+
+
+@router.get("/club/last-outing", response_model=ClubLastOuting | None)
+def get_club_last_outing(
+    federal_only: bool = Query(
+        False,
+        description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
+    ),
+    db: Session = Depends(get_db),
+):
+    """Dernière sortie du club dans la saison en cours, `null` sans course TCN (#1619)."""
+    return stats_service.get_last_outing(db, federal_only=federal_only)
 
 
 @router.get("/club/roster/rank/{athlete_id}", response_model=ClubRosterRank)

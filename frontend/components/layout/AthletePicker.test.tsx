@@ -52,7 +52,7 @@ describe("microcopie — un seul nom pour l'objet (#502)", () => {
   it("énonce la promesse au moment du choix", () => {
     render(<AthletePicker mode="select" onClose={() => {}} onPick={() => {}} />);
     expect(
-      screen.getByText("Votre saison s'affichera en tête du tableau de bord."),
+      screen.getByText("Votre saison s'affichera en tête de Mon espace."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Pas de blocage d'accès/)).not.toBeInTheDocument();
     expect(
