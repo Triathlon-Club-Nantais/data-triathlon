@@ -300,8 +300,15 @@ def test_a_token_response_without_id_token_is_a_provider_error():
 
 @pytest.mark.parametrize(
     "overrides",
-    [{"email": None}, {"xms_edov": None}, {"xms_edov": False}, {"xms_edov": "true"}],
-    ids=["no-email", "no-xms_edov", "xms_edov-false", "xms_edov-string"],
+    [
+        {"email": None}, {"xms_edov": None}, {"xms_edov": False}, {"xms_edov": "true"},
+        {"email": None, "idp": "google.com"},
+        {"xms_edov": False, "idp": "facebook.com"}, {"xms_edov": False, "idp": "Google.com"},
+    ],
+    ids=[
+        "no-email", "no-xms_edov", "xms_edov-false", "xms_edov-string",
+        "google-without-email", "other-idp", "idp-not-exact",
+    ],
 )
 def test_an_address_not_established_as_verified_is_not_certified(overrides):
     identity = _provider(FakeEntra(id_token=_id_token(**overrides))).fetch_identity(
@@ -312,6 +319,17 @@ def test_an_address_not_established_as_verified_is_not_certified(overrides):
     assert identity.verified_emails == ()
 
 
+def test_an_address_federated_from_google_is_certified():
+    """FR-021 measured on the preview: `xms_edov` is false for a gmail.com address,
+    since it speaks of the domain owner; Google only hands out verified addresses."""
+    identity = _provider(
+        FakeEntra(id_token=_id_token(xms_edov=False, idp="google.com"))
+    ).fetch_identity(code="code-1", round_trip=ROUND_TRIP)
+
+    assert identity.email_verified is True
+    assert identity.verified_emails == ("adherent@exemple.fr",)
+
+
 def test_an_uncertified_address_logs_the_claim_names_never_the_address(caplog):
     """FR-021 on the preview: tell which claim is missing without logging the address."""
     with caplog.at_level("WARNING"):
@@ -320,7 +338,7 @@ def test_an_uncertified_address_logs_the_claim_names_never_the_address(caplog):
         )
 
     message = next(r.getMessage() for r in caplog.records if "certified" in r.getMessage())
-    assert "email" in message and "xms_edov=None" in message
+    assert "email" in message and "xms_edov=None" in message and "idp=None" in message
     assert "@" not in message
 
 
