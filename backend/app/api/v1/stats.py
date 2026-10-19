@@ -1,4 +1,6 @@
 """Router Stats : agrégations club, saisons disponibles et géolocalisation."""
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -21,6 +23,9 @@ def get_stats(
         False,
         description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
     ),
+    gender: Literal["M", "F"] | None = Query(
+        None, description="Sexe de l'athlète ; absent, les deux sexes (et les athlètes sans sexe connu)."
+    ),
     db: Session = Depends(get_db),
 ):
     """Stats agrégées du club, filtrables par saison(s) (CSV d'années)."""
@@ -29,6 +34,7 @@ def get_stats(
         club_only=is_club_scope(scope),
         seasons=parse_seasons(seasons),
         federal_only=federal_only,
+        gender=gender,
     )
 
 

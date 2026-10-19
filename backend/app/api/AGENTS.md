@@ -297,6 +297,12 @@ finishers, non classés) suivent dans l'ordre actuel, `gender_place` nul.
 `participation_repository.gender_places` calcule les places sur l'épreuve
 entière : ni `q`, ni `club`, ni la page ne les décalent. Les deux champs sont
 nuls hors de ce filtre et sur les lignes en attente.
+`gender` (#1646) est aussi facultatif sur `GET /stats`, `/club/summary`,
+`/club/podiums` et `/participations`, avec le même 422 hors `M`/`F`. Il restreint
+les agrégats au sexe demandé : `_stats_filters` et `club_podiums` par
+`_gender_clause` (sous-requête sur `Athlete`, sans jointure), le roster et la
+composition sur `Athlete.gender` qu'ils joignent déjà. `licensees` (membres
+FFTri) et `/club/best-times` (déjà un résultat par sexe) ne bougent pas.
 Design : `docs/superpowers/specs/2026-10-19-results-by-sex-design.md`.
 
 ## Sources multiples d'une épreuve : sources, bascule, re-scrape, fusion (epic #275)

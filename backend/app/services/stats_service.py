@@ -69,6 +69,7 @@ def get_stats(
     club_only: bool = False,
     seasons: list[int] | None = None,
     federal_only: bool = False,
+    gender: str | None = None,
 ) -> dict:
     """Stats agrégées : total, athlètes, épreuves, répartition par type/mois, récents.
 
@@ -79,7 +80,7 @@ def get_stats(
     de `Participation` que `for_stats` chargeait.
     """
     total, athletes, events = participation_repository.stats_totals(
-        db, club_only=club_only, seasons=seasons, federal_only=federal_only
+        db, club_only=club_only, seasons=seasons, federal_only=federal_only, gender=gender
     )
     if not total:
         return {
@@ -88,16 +89,16 @@ def get_stats(
         }
 
     by_type_rows = participation_repository.stats_by_type(
-        db, club_only=club_only, seasons=seasons, federal_only=federal_only
+        db, club_only=club_only, seasons=seasons, federal_only=federal_only, gender=gender
     )
     by_month_rows = participation_repository.stats_by_month_rows(
-        db, club_only=club_only, seasons=seasons, federal_only=federal_only
+        db, club_only=club_only, seasons=seasons, federal_only=federal_only, gender=gender
     )
     recent_rows = participation_repository.stats_recent_rows(
-        db, club_only=club_only, seasons=seasons, federal_only=federal_only, limit=20
+        db, club_only=club_only, seasons=seasons, federal_only=federal_only, gender=gender, limit=20
     )
     rank_rows = participation_repository.stats_rank_rows(
-        db, club_only=club_only, seasons=seasons, federal_only=federal_only
+        db, club_only=club_only, seasons=seasons, federal_only=federal_only, gender=gender
     )
 
     by_month: Counter[str] = Counter()

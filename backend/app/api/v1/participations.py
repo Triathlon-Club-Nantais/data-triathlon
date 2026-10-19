@@ -1,4 +1,6 @@
 """Router Participations : création manuelle, liste filtrée, détail, suppression."""
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
@@ -120,6 +122,9 @@ def list_participations(
     ),
     page: int = Query(1, ge=1, le=MAX_PAGE),
     page_size: int = Query(20, ge=1, le=5000),
+    gender: Literal["M", "F"] | None = Query(
+        None, description="Sexe de l'athlète ; absent, les deux sexes (et les athlètes sans sexe connu)."
+    ),
     db: Session = Depends(get_db),
 ):
     return participation_repository.list_participations(
@@ -133,6 +138,7 @@ def list_participations(
         seasons=parse_seasons(seasons),
         course_id=course_id,
         federal_only=federal_only,
+        gender=gender,
         page=page,
         page_size=page_size,
     )

@@ -906,7 +906,9 @@ def _season_clause(seasons: list[int]):
     return season_clause(seasons)
 
 
-def _club_roster_query(db: Session, *, federal_only: bool, seasons: list[int] | None = None):
+def _club_roster_query(
+    db: Session, *, federal_only: bool, seasons: list[int] | None = None, gender: str | None = None
+):
     """Bâtit la requête d'agrégation partagée par `club_roster` et `club_rank`
     (#641) : même tri, même filtrage, pour que le rang calculé au-delà de
     l'aperçu de 12 corresponde exactement à l'ordre affiché.
@@ -941,11 +943,18 @@ def _club_roster_query(db: Session, *, federal_only: bool, seasons: list[int] | 
         query = query.filter(federal_clause(Course.event_type))
     if seasons:
         query = query.filter(_season_clause(seasons))
+    if gender:
+        query = query.filter(Athlete.gender == gender)
     return query.order_by(total.desc(), podiums.desc(), Athlete.nom, Athlete.prenom), total, podiums
 
 
 def club_roster(
-    db: Session, *, federal_only: bool = False, limit: int = 12, seasons: list[int] | None = None
+    db: Session,
+    *,
+    federal_only: bool = False,
+    limit: int = 12,
+    seasons: list[int] | None = None,
+    gender: str | None = None,
 ) -> list[tuple[Athlete, int, int, int, int, int]]:
     """Top athlètes du club par volume, podiums ventilés par portée (#581).
 
@@ -955,7 +964,7 @@ def club_roster(
     indépendants, une même participation pouvant incrémenter les trois à la
     fois (cf. #488 côté front, comportement repris à l'identique).
     """
-    query, _total, _podiums = _club_roster_query(db, federal_only=federal_only, seasons=seasons)
+    query, _total, _podiums = _club_roster_query(db, federal_only=federal_only, seasons=seasons, gender=gender)
     return query.limit(limit).all()
 
 
@@ -977,7 +986,7 @@ def club_rank(
 
 
 def club_composition(
-    db: Session, *, federal_only: bool = False, seasons: list[int] | None = None
+    db: Session, *, federal_only: bool = False, seasons: list[int] | None = None, gender: str | None = None
 ) -> list[tuple[str, str | None]]:
     """Genre et catégorie d'âge du club entier, un couple par athlète (#642).
 
@@ -1016,6 +1025,8 @@ def club_composition(
         ranked = ranked.filter(federal_clause(Course.event_type))
     if seasons:
         ranked = ranked.filter(_season_clause(seasons))
+    if gender:
+        ranked = ranked.filter(Athlete.gender == gender)
     ranked = ranked.subquery()
     return (
         db.query(ranked.c.gender, ranked.c.category)
