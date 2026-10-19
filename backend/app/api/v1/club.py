@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.exceptions import NotFoundError
-from app.core.season import SEASON_MAX, SEASON_MIN
+from app.core.season import SEASON_MAX, SEASON_MIN, parse_seasons
 from app.repositories import athlete_repository
 from app.schemas.club import ClubBestTime, ClubLastOuting, ClubPodiums, ClubRosterRank, ClubSummary
 from app.schemas.ids import DbId
@@ -26,10 +26,13 @@ def get_club_summary(
         description="`preview` : seulement les 6 premiers podiums de chaque mode, la liste complète "
         "étant servie par `/club/podiums` ; `podiums_totals` donne les tailles complètes.",
     ),
+    seasons: str | None = Query(None, description="Saisons (années de début, CSV) ; absentes, toutes saisons."),
     db: Session = Depends(get_db),
 ):
     """Roster (top 12) et podiums (4 modes de rang) du club, agrégés côté serveur."""
-    return club_service.get_club_summary(db, federal_only=federal_only, podiums_preview=podiums == "preview")
+    return club_service.get_club_summary(
+        db, federal_only=federal_only, podiums_preview=podiums == "preview", seasons=parse_seasons(seasons)
+    )
 
 
 @router.get("/club/podiums", response_model=ClubPodiums)
@@ -38,10 +41,11 @@ def get_club_podiums(
         False,
         description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
     ),
+    seasons: str | None = Query(None, description="Saisons (années de début, CSV) ; absentes, toutes saisons."),
     db: Session = Depends(get_db),
 ):
     """Tous les podiums du club, par mode de rang : la liste dépliée de /club (#1354)."""
-    return club_service.get_club_podiums(db, federal_only=federal_only)
+    return club_service.get_club_podiums(db, federal_only=federal_only, seasons=parse_seasons(seasons))
 
 
 @router.get("/club/best-times", response_model=list[ClubBestTime])
@@ -68,10 +72,11 @@ def get_club_last_outing(
         False,
         description="Exclut les disciplines hors fédération triathlon (trail, course à pied, cyclisme).",
     ),
+    seasons: str | None = Query(None, description="Saisons (années de début, CSV) ; absentes, la saison en cours."),
     db: Session = Depends(get_db),
 ):
-    """Dernière sortie du club dans la saison en cours, `null` sans course TCN (#1619)."""
-    return stats_service.get_last_outing(db, federal_only=federal_only)
+    """Dernière sortie du club dans les saisons demandées (la courante par défaut), `null` sans course TCN (#1619)."""
+    return stats_service.get_last_outing(db, federal_only=federal_only, seasons=parse_seasons(seasons))
 
 
 @router.get("/club/roster/rank/{athlete_id}", response_model=ClubRosterRank)

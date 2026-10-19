@@ -255,3 +255,33 @@ def test_last_outing_shape(client, db_session, monkeypatch):
 
     assert resp.status_code == 200
     assert resp.json() == {"end_date": "2026-10-11", "events": 1, "athletes": 1, "podiums": 1}
+
+
+def _two_season_results(db_session):
+    for nom, day, rank in (("OLD", date(2026, 5, 10), 1), ("NEW", date(2026, 10, 11), 2)):
+        ath = athlete_repository.get_or_create(db_session, nom=nom, prenom="Jean", club="TCN")
+        course = course_repository.get_or_create(
+            db_session, name=f"C {nom}", event_date=day, event_type="triathlon-m"
+        )
+        participation_repository.create(
+            db_session, athlete_id=ath.id, course_id=course.id, bib_number=nom,
+            club="TCN", status="finisher", rank_overall=rank,
+        )
+    db_session.commit()
+
+
+def test_club_summary_accepts_seasons(client, db_session):
+    _two_season_results(db_session)
+
+    assert len(client.get("/api/v1/club/summary").json()["roster"]) == 2
+    only_2025 = client.get("/api/v1/club/summary?seasons=2025").json()
+    assert [e["nom"] for e in only_2025["roster"]] == ["OLD"]
+    assert len(client.get("/api/v1/club/podiums?seasons=2025").json()["scratch"]) == 1
+
+
+def test_last_outing_accepts_seasons(client, db_session, monkeypatch):
+    monkeypatch.setattr(season, "utcnow", lambda: datetime(2026, 10, 15, 12, 0, 0))
+    _two_season_results(db_session)
+
+    assert client.get("/api/v1/club/last-outing").json()["end_date"] == "2026-10-11"
+    assert client.get("/api/v1/club/last-outing?seasons=2025").json()["end_date"] == "2026-05-10"

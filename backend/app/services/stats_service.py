@@ -131,19 +131,19 @@ def get_stats(
     }
 
 
-def get_last_outing(db: Session, *, federal_only: bool = False) -> dict | None:
-    """Dernière sortie du club dans la saison en cours (#1619).
+def get_last_outing(db: Session, *, federal_only: bool = False, seasons: list[int] | None = None) -> dict | None:
+    """Dernière sortie du club dans les saisons demandées, la courante par défaut (#1619).
 
     La fenêtre `[d − 1 jour, d]` réunit samedi et dimanche ; `podiums` passe par
     `_rank_counters`, pour ne jamais diverger du compteur « tous rangs » de /club.
     """
-    current = season_module.current_season()
-    end = participation_repository.latest_club_event_date(db, season=current, federal_only=federal_only)
+    seasons = seasons or [season_module.current_season()]
+    end = participation_repository.latest_club_event_date(db, seasons=seasons, federal_only=federal_only)
     if end is None:
         return None
     filters = {
         "club_only": True,
-        "seasons": [current],
+        "seasons": seasons,
         "federal_only": federal_only,
         "dates": (end - timedelta(days=1), end),
     }
