@@ -375,4 +375,10 @@ describe("animations de l'accueil (#1642)", () => {
     expect(css).toContain(`@keyframes ${nom}`);
     expect(reduit).toContain(selecteur);
   });
+
+  it("garde le reflet et l'anneau invisibles au repos, pour l'animation figée comme pour la fin", () => {
+    expect(rule(".tcn-carte-sortie::after")).toMatch(/opacity:\s*0;/);
+    expect(rule(".tcn-pouls::after")).toMatch(/opacity:\s*0;/);
+    expect(/@keyframes tcn-reflet \{[^]*?to \{[^}]*opacity:\s*0/.test(css)).toBe(true);
+  });
 });

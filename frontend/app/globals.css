@@ -939,8 +939,9 @@
   from { transform: scaleY(0); }
 }
 @keyframes tcn-reflet {
-  from { transform: translateX(-120%) skewX(-20deg); }
-  to { transform: translateX(320%) skewX(-20deg); }
+  from { opacity: 0; transform: translateX(-120%) skewX(-20deg); }
+  15%, 85% { opacity: 0.25; }
+  to { opacity: 0; transform: translateX(320%) skewX(-20deg); }
 }
 @keyframes tcn-pouls {
   from { opacity: 0.6; transform: scale(1); }
@@ -951,7 +952,7 @@
 .tcn-barre { transform-origin: bottom; animation: tcn-pousse 500ms ease-out both; animation-delay: calc(var(--i) * 30ms); }
 .tcn-carte-sortie { position: relative; overflow: hidden; }
 .tcn-carte-sortie::after {
-  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 30%; opacity: 0.25; pointer-events: none;
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 30%; opacity: 0; pointer-events: none;
   background: linear-gradient(90deg, transparent, #fff, transparent);
   animation: tcn-reflet 1.2s ease-in-out 300ms 1 both;
 }

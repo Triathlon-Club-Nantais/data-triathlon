@@ -15,20 +15,20 @@ import { currentSeason } from "@/lib/utils/season";
 function Tuile({ index, href, titre, ligne, badge }: { index: number; href: string; titre: string; ligne?: ReactNode; badge?: ReactNode }) {
   return (
     <div className="tcn-tuile-entree" style={{ "--i": index } as CSSProperties}>
-    <Link href={href} className="tcn-tuile-espace block h-full rounded-[var(--tcn-radius-3xl)]">
-      <Card style={{ height: "100%", background: "var(--tuile-fond, var(--tcn-surface))" }}>
-        <div className="flex items-center justify-between gap-2">
-          <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: "inherit", margin: 0, color: "var(--tcn-ink)" }}>{titre}</h2>
-          <span aria-hidden="true" className="tcn-tuile-fleche"><ArrowRight size={18} /></span>
-        </div>
-        {(ligne || badge) && (
-          <div className="mt-1 flex items-center gap-2" style={{ fontSize: 14, color: "var(--tcn-text-muted)" }}>
-            {badge}
-            {ligne}
+      <Link href={href} className="tcn-tuile-espace block h-full rounded-[var(--tcn-radius-3xl)]">
+        <Card style={{ height: "100%", background: "var(--tuile-fond, var(--tcn-surface))" }}>
+          <div className="flex items-center justify-between gap-2">
+            <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: "inherit", margin: 0, color: "var(--tcn-ink)" }}>{titre}</h2>
+            <span aria-hidden="true" className="tcn-tuile-fleche"><ArrowRight size={18} /></span>
           </div>
-        )}
-      </Card>
-    </Link>
+          {(ligne || badge) && (
+            <div className="mt-1 flex items-center gap-2" style={{ fontSize: 14, color: "var(--tcn-text-muted)" }}>
+              {badge}
+              {ligne}
+            </div>
+          )}
+        </Card>
+      </Link>
     </div>
   );
 }
