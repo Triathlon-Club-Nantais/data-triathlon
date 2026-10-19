@@ -55,7 +55,8 @@ export function ClubMembersPanel({
         <div className="flex flex-wrap items-end gap-4">
           <div className="space-y-2">
             <Label htmlFor="saison-membres">Saison</Label>
-            <Select value={String(season)} onValueChange={(v) => onSeasonChange(Number(v))}>
+            {/* `null` quand l'option retenue quitte la liste, pendant le chargement de la saison choisie. */}
+            <Select value={String(season)} onValueChange={(v) => v !== null && onSeasonChange(Number(v))}>
               <SelectTrigger id="saison-membres" className="w-56">
                 <SelectValue>{(v) => seasonLabel(Number(v))}</SelectValue>
               </SelectTrigger>
