@@ -42,6 +42,12 @@ export function parseSeasonsParam(raw?: string | null): number[] {
   return out;
 }
 
+/** Sélection `?seasons=` lue telle quelle, ou la saison en cours à défaut. */
+export function selectedSeasonsOrCurrent(raw?: string | null): number[] {
+  const parsed = parseSeasonsParam(raw);
+  return parsed.length > 0 ? parsed : [currentSeason()];
+}
+
 /** Sérialise une liste d'années en CSV. */
 export function serializeSeasons(years: number[]): string {
   return years.join(",");
@@ -59,6 +65,12 @@ export function seasonSelectionLabel(years: number[]): string {
   if (years.length === 0) return seasonLabel(currentSeason());
   if (years.length === 1) return seasonLabel(years[0]);
   return `${years.length} saisons sélectionnées`;
+}
+
+/** « cette saison » pour la seule saison en cours, sinon « sur la saison X — Y » / « sur les N saisons sélectionnées ». */
+export function seasonPeriodLabel(years: number[]): string {
+  if (years.length === 1 && years[0] === currentSeason()) return "cette saison";
+  return `sur ${seasonAbsenceLabel(years)}`;
 }
 
 /** Formulation « la saison X — Y » (singulier) ou « les N saisons

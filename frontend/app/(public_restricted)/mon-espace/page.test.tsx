@@ -210,7 +210,7 @@ describe("MonEspacePage", () => {
     await renderDashboard({});
 
     expect(listSeasons).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }), expect.anything());
-    expect(screen.getByLabelText("Choisir les saisons")).toBeTruthy();
+    expect(screen.getByLabelText(/choisir les saisons/i)).toBeTruthy();
   });
 
   it("rend le titre de saison comme un <h1> (A11Y-2)", async () => {
@@ -237,7 +237,7 @@ describe("MonEspacePage", () => {
     const barre = screen.getByTestId("dashboard-toolbar");
     const tags = screen.getByTestId("season-tags");
 
-    expect(barre).toContainElement(screen.getByLabelText("Choisir les saisons"));
+    expect(barre).toContainElement(screen.getByLabelText(/choisir les saisons/i));
     expect(barre).toContainElement(screen.getByLabelText("Inclure les autres disciplines"));
     expect(barre).not.toContainElement(tags);
     expect(tags).toHaveTextContent("Saison 2026");
@@ -252,7 +252,7 @@ describe("MonEspacePage", () => {
     expect(screen.getByText("Saisons")).toBeInTheDocument();
     expect(screen.queryByText("Type de rang")).toBeNull();
     expect(barre).toContainElement(screen.getByLabelText("Inclure les autres disciplines"));
-    expect(barre).toContainElement(screen.getByLabelText("Choisir les saisons"));
+    expect(barre).toContainElement(screen.getByLabelText(/choisir les saisons/i));
   });
 
   it("aligne les tags comme la barre d'outils, au palier où l'en-tête cesse de s'empiler (revue UI/UX)", async () => {

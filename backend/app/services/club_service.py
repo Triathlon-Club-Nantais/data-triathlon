@@ -130,21 +130,23 @@ def _bucket_composition(rows: list[tuple[str, str | None]]) -> ClubComposition:
 PODIUMS_PREVIEW = 6
 
 
-def get_club_podiums(db: Session, *, federal_only: bool = False) -> ClubPodiums:
+def get_club_podiums(db: Session, *, federal_only: bool = False, seasons: list[int] | None = None) -> ClubPodiums:
     """Les podiums complets des quatre modes, chargés au dépliage de la liste (#1354)."""
-    rows = participation_repository.club_podiums(db, federal_only=federal_only)
+    rows = participation_repository.club_podiums(db, federal_only=federal_only, seasons=seasons)
     return _bucket_podiums(rows, participation_repository.teammate_names(db, (row[0] for row in rows)))
 
 
-def get_club_summary(db: Session, *, federal_only: bool = False, podiums_preview: bool = False) -> ClubSummary:
+def get_club_summary(
+    db: Session, *, federal_only: bool = False, podiums_preview: bool = False, seasons: list[int] | None = None
+) -> ClubSummary:
     """Roster (top 12), podiums (4 modes de rang), podiums par discipline et
     composition (genre/catégorie) du club, agrégés côté serveur.
 
     `podiums_preview` ne garde que les `PODIUMS_PREVIEW` premiers de chaque
     mode : la liste complète pesait 215 ko de la charge de `/club` (#1354)."""
-    roster_rows = athlete_repository.club_roster(db, federal_only=federal_only)
-    podium_rows = participation_repository.club_podiums(db, federal_only=federal_only)
-    composition_rows = athlete_repository.club_composition(db, federal_only=federal_only)
+    roster_rows = athlete_repository.club_roster(db, federal_only=federal_only, seasons=seasons)
+    podium_rows = participation_repository.club_podiums(db, federal_only=federal_only, seasons=seasons)
+    composition_rows = athlete_repository.club_composition(db, federal_only=federal_only, seasons=seasons)
     roster = [
         ClubRosterEntry(
             athlete_id=a.id, prenom=a.prenom, nom=a.nom,
@@ -162,7 +164,7 @@ def get_club_summary(db: Session, *, federal_only: bool = False, podiums_preview
         podiums = ClubPodiums(
             **{mode: getattr(podiums, mode)[:PODIUMS_PREVIEW] for mode in ClubPodiumTotals.model_fields}
         )
-    season = current_season()
+    season = max(seasons) if seasons else current_season()
     activity = club_member_repository.licensee_activity(db, season)
     return ClubSummary(
         roster=roster,

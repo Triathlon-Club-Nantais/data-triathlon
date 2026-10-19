@@ -299,7 +299,7 @@ export const apiClient = {
 
   // Liste complète des podiums, chargée au dépliage de `PodiumsList` : `/club`
   // n'en transporte que l'aperçu (#1354).
-  getClubPodiums: (opts: { federal_only?: boolean } = {}) =>
+  getClubPodiums: (opts: { federal_only?: boolean; seasons?: number[] } = {}) =>
     request<ClubPodiums>(`/club/podiums${toQuery(opts as Record<string, unknown>)}`),
   // Rang exact d'un athlète dans le roster club, au-delà de l'aperçu de 12
   // (#504, #641) — appelé côté client, jamais transporté dans la page
@@ -307,7 +307,7 @@ export const apiClient = {
   // sort). `null` sur 404 : hors roster est un état normal, pas une panne.
   getClubRosterRank: async (
     athleteId: number,
-    opts: { federal_only?: boolean } = {},
+    opts: { federal_only?: boolean; seasons?: number[] } = {},
   ): Promise<ClubRosterRank | null> => {
     try {
       return await request<ClubRosterRank>(

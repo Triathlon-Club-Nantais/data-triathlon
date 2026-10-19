@@ -1243,19 +1243,19 @@ def stats_rank_rows(
     return q.all()
 
 
-def latest_club_event_date(db: Session, *, season: int, federal_only: bool = False) -> date | None:
-    """Date de la dernière épreuve de `season` portant un résultat TCN validé (#1619)."""
+def latest_club_event_date(db: Session, *, seasons: list[int], federal_only: bool = False) -> date | None:
+    """Date de la dernière épreuve des `seasons` portant un résultat TCN validé (#1619)."""
     q = (
         db.query(func.max(Course.event_date))
         .select_from(Participation)
         .join(Course, Participation.course_id == Course.id)
         .filter(validated_clause(Participation.is_pending_validation))
     )
-    q = _stats_filters(q, club_only=True, seasons=[season], federal_only=federal_only)
+    q = _stats_filters(q, club_only=True, seasons=seasons, federal_only=federal_only)
     return q.scalar()
 
 
-def club_podiums(db: Session, *, federal_only: bool = False):
+def club_podiums(db: Session, *, federal_only: bool = False, seasons: list[int] | None = None):
     """Participations podium du club (rang ≤3 sur au moins une portée), #581.
 
     Colonnes utiles seulement — jamais l'entité `Participation` complète
@@ -1297,6 +1297,8 @@ def club_podiums(db: Session, *, federal_only: bool = False):
     )
     if federal_only:
         q = q.filter(federal_clause(Course.event_type))
+    if seasons:
+        q = q.filter(season_clause(seasons))
     return q.all()
 
 

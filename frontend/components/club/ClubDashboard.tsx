@@ -2,8 +2,7 @@ import Link from "next/link";
 import { StatCard } from "@/components/tcn";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { EmptyState } from "@/components/ui/empty-state";
-import { AddEventLink } from "@/components/dashboard/SeasonEmptyState";
+import { SeasonEmptyState } from "@/components/dashboard/SeasonEmptyState";
 import { ResultCard } from "@/components/results/ResultCard";
 import { BarList } from "@/components/charts/BarList";
 import { MonthlyTrend } from "@/components/charts/MonthlyTrend";
@@ -17,33 +16,26 @@ import { LienDestination } from "@/components/layout/LienDestination";
 import { DisciplinePerformance } from "./DisciplinePerformance";
 import { ClubComposition } from "./ClubComposition";
 import { formatCount } from "@/lib/utils/format";
-import { currentSeason, seasonLabel } from "@/lib/utils/season";
+import { seasonLabel, serializeSeasons, seasonSelectionLabel } from "@/lib/utils/season";
 
 export function ClubDashboard({
   stats,
   summary,
   recent,
-  resultsTotal,
+  seasons,
 }: {
   stats: Stats;
   summary: ClubSummary;
   recent: Participation[];
-  /** Total scopé à la saison en cours (#649), même filtre que le compteur
-   *  « Résultats » de `/mon-espace` (repli sur `currentSeason()`).
-   *  Distinct de `stats.total`, toutes saisons confondues, que les autres KPI
-   *  de cette page continuent d'utiliser : d'où la sous-ligne de saison (#1111). */
-  resultsTotal: number;
+  /** Sélection de saisons que `stats` et `summary` portent déjà. */
+  seasons: number[];
 }) {
   const roster = summary.roster;
   const licensees = summary.licensees;
 
   if (stats.total === 0) {
     return (
-      <EmptyState
-        title="Aucun résultat de club"
-        description="Importez une épreuve : les membres du club apparaîtront automatiquement ici."
-        action={<AddEventLink />}
-      />
+      <SeasonEmptyState seasons={seasons} currentSeasonHref="/club" />
     );
   }
 
@@ -53,7 +45,7 @@ export function ClubDashboard({
           Le KPI Podiums, lui, suit `?rank=…` via un composant client (#132). */}
       {/* Cinq tuiles à 68 px ne tiennent qu'en `xl` : en `lg`, trois puis deux. */}
       <div className={`grid gap-4 sm:grid-cols-2 ${licensees ? "lg:grid-cols-3 xl:grid-cols-5" : "lg:grid-cols-4"}`}>
-        <KpiCard label="Résultats" value={resultsTotal} hint={seasonLabel(currentSeason())} accent />
+        <KpiCard label="Résultats" value={stats.total} hint={seasonSelectionLabel(seasons)} accent />
         <KpiCard label="Athlètes" value={stats.athletes} />
         <KpiCard label="Épreuves" value={stats.events} />
         <ClubPodiumKpi rankCounters={stats.rank_counters} />
@@ -136,12 +128,9 @@ export function ClubDashboard({
           </h2>
           {/* Soumis à la visibilité du rail (#925) : /club/athletes est
               réservé à `pages:preview` (#811). Indépendant du nombre
-              d'athlètes. Le libellé dit la destination et non un décompte :
-              /club/athletes ouvre sur la saison en cours seule, quand
-              `roster.length` agrège toutes les saisons ; le total du club vit
-              dans le KPI « Athlètes », qui le tient déjà. */}
+              d'athlètes. */}
           <LienDestination
-            href="/club/athletes"
+            href={`/club/athletes?seasons=${serializeSeasons(seasons)}`}
             className="shrink-0 text-sm font-medium text-accent-ink hover:underline"
           >
             Voir saison par saison →
@@ -168,7 +157,7 @@ export function ClubDashboard({
         <div className="flex items-baseline justify-between">
           <h2 className="font-heading text-lg font-semibold">Résultats récents</h2>
           <Link
-            href="/resultats?scope=club"
+            href={`/resultats?scope=club&seasons=${serializeSeasons(seasons)}`}
             className="text-sm font-medium text-accent-ink hover:underline"
           >
             Tout voir →

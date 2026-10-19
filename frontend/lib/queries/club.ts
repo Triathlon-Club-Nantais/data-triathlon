@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
+import { serializeSeasons } from "@/lib/utils/season";
 import { queryKeys } from "./keys";
 
 /**
@@ -10,11 +11,11 @@ import { queryKeys } from "./keys";
  */
 export function useClubRosterRank(
   athleteId: number,
-  { federalOnly = false, enabled }: { federalOnly?: boolean; enabled: boolean },
+  { federalOnly = false, seasons, enabled }: { federalOnly?: boolean; seasons: number[]; enabled: boolean },
 ) {
   return useQuery({
-    queryKey: queryKeys.clubRosterRank(athleteId, federalOnly),
-    queryFn: () => apiClient.getClubRosterRank(athleteId, { federal_only: federalOnly }),
+    queryKey: queryKeys.clubRosterRank(athleteId, federalOnly, serializeSeasons(seasons)),
+    queryFn: () => apiClient.getClubRosterRank(athleteId, { federal_only: federalOnly, seasons }),
     enabled,
   });
 }

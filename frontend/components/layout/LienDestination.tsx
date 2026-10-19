@@ -4,11 +4,11 @@ import type { ComponentProps } from "react";
 import { useHydratedSession } from "@/lib/queries/auth";
 import { ROLE, destinationVisible } from "./nav.config";
 
-/** Le rail rend-il `href` à cette session ? Faux tant qu'elle n'est pas lue. */
+/** Le rail rend-il `href` à cette session ? Faux tant qu'elle n'est pas lue. Query et ancre ignorées. */
 export function useDestinationVisible(href: string): boolean {
   const { data: session } = useHydratedSession();
   const rank = session ? ROLE.CONNECTED : ROLE.ANON;
-  return destinationVisible(href, new Set(session?.permissions ?? []), rank);
+  return destinationVisible(href.split(/[?#]/)[0], new Set(session?.permissions ?? []), rank);
 }
 
 /** Lien vers une destination du rail, rendu seulement si le rail la montre. */
