@@ -18,6 +18,7 @@ export interface AthleteSeasonActivity {
   id: number;
   nom: string;
   prenom: string;
+  gender: string;
   participation_count: number;
   total_count: number;
   validated_count: number;

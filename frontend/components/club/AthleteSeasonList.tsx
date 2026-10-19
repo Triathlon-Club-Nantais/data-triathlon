@@ -9,6 +9,8 @@ import { trouverRang } from "@/lib/utils/rang";
 import { foldAccents } from "@/lib/utils/text";
 import { motCompte, plural } from "@/lib/utils/format";
 import { SEUIL_RAPPEL_POSITION } from "@/lib/club";
+import { SEXE_PARAM, genderFromSexeParam } from "@/lib/scope";
+import { SexeToggle } from "@/components/layout/SexeToggle";
 import { AthleteSortToggle, SORT_DEFAULT, SORT_PARAM, sortTypeFromParam } from "./AthleteSortToggle";
 import { RappelPosition } from "./RappelPosition";
 
@@ -72,6 +74,7 @@ function sortAthletes(
 export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivity[] }) {
   const sp = useSearchParams();
   const sort = sortTypeFromParam(sp.get(SORT_PARAM) ?? undefined);
+  const gender = genderFromSexeParam(sp.get(SEXE_PARAM));
   const [query, setQuery] = useState("");
   // #709 — le statut de validation n'est significatif que sur une saison
   // unique (research.md D9) : l'API rend `season_validated` uniforme (`null`
@@ -92,7 +95,10 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
     );
   }
 
-  const parNom = filterAthletes(athletes, query);
+  const parNom = filterAthletes(
+    gender ? athletes.filter((a) => a.gender === gender) : athletes,
+    query,
+  );
   const filtered = filterByValidation(parNom, singleSeason ? filtreValidation : "tous");
   const sorted = sortAthletes(filtered, sort);
 
@@ -123,6 +129,7 @@ export function AthleteSeasonList({ athletes }: { athletes: AthleteSeasonActivit
           containerStyle={{ maxWidth: 320, flex: 1 }}
         />
         <AthleteSortToggle />
+        <SexeToggle />
         {singleSeason && (
           <div role="radiogroup" aria-label="Statut de validation" style={{ display: "inline-flex", flexWrap: "wrap", gap: 8 }}>
             {(

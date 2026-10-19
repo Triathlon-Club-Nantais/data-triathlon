@@ -19,6 +19,7 @@ function athlete(over: Partial<AthleteSeasonActivity> & { id: number }): Athlete
   return {
     nom: "NOM",
     prenom: "Prénom",
+    gender: "",
     participation_count,
     total_count: participation_count,
     validated_count: participation_count,
@@ -488,5 +489,28 @@ describe("AthleteSeasonList — retrouver sa ligne (#504)", () => {
     render(<AthleteSeasonList athletes={athletes} />);
 
     expect(screen.getByRole("link", { name: /13ᵉ du club/ })).toBeInTheDocument();
+  });
+
+  describe("sexe", () => {
+    const mixed = [
+      athlete({ id: 1, nom: "HOMME", gender: "M" }),
+      athlete({ id: 2, nom: "FEMME", gender: "F" }),
+    ];
+
+    it("filters the list by sexe=F", () => {
+      searchParams = new URLSearchParams("sexe=F");
+      render(<AthleteSeasonList athletes={mixed} />);
+      expect(rowNames()).toEqual(["FEMME"]);
+    });
+
+    it("renders the sexe toggle", () => {
+      render(<AthleteSeasonList athletes={mixed} />);
+      expect(screen.getByRole("group", { name: "Sexe" })).toBeInTheDocument();
+    });
+
+    it("shows everyone without sexe", () => {
+      render(<AthleteSeasonList athletes={mixed} />);
+      expect(rowNames().sort()).toEqual(["FEMME", "HOMME"]);
+    });
   });
 });
