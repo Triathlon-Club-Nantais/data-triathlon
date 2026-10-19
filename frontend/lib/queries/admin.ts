@@ -1654,6 +1654,26 @@ export function useDecideAthleteClaim() {
   return useMutation({
     mutationFn: ({ id, decision }: { id: number; decision: "approve" | "reject" }) =>
       decision === "approve" ? apiClient.approveAthleteClaim(id) : apiClient.rejectAthleteClaim(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.athleteClaims() }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.athleteClaims() });
+      // Une validation ajoute un compte à la liste des rattachés (#1633).
+      return qc.invalidateQueries({ queryKey: queryKeys.athleteLinks() });
+    },
+  });
+}
+
+export function useAthleteLinks() {
+  return useQuery({
+    queryKey: queryKeys.athleteLinks(),
+    queryFn: () => apiClient.getAthleteLinks(),
+    retry: false,
+  });
+}
+
+export function useDetachAthleteLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: number) => apiClient.detachAthleteLink(userId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.athleteLinks() }),
   });
 }

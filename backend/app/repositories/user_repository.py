@@ -174,6 +174,22 @@ def has_required_reference(db: Session, user_id: int) -> bool:
     )
 
 
+def required_reference_counts(db: Session, user_id: int) -> dict[str, int]:
+    """Lignes qui citent le compte, par `table.colonne` obligatoire ; les zéros omis (#1634)."""
+    counts = {
+        f"{column.table.name}.{column.name}": db.scalar(
+            select(func.count()).select_from(column.table).where(column == user_id)
+        ) or 0
+        for column in required_references()
+    }
+    return {key: count for key, count in counts.items() if count}
+
+
+def reassign_required_references(db: Session, *, from_user_id: int, to_user_id: int) -> None:
+    for column in required_references():
+        db.execute(update(column.table).where(column == from_user_id).values({column.name: to_user_id}))
+
+
 def detach_optional_references(db: Session, user_id: int) -> None:
     for column in optional_references():
         db.execute(update(column.table).where(column == user_id).values({column.name: None}))
@@ -206,6 +222,11 @@ def delete(db: Session, user: User) -> None:
     """Deletes the account; identities, sessions, roles and groups follow by ORM cascade."""
     db.delete(user)
     db.flush()
+
+
+def list_linked(db: Session) -> list[User]:
+    """Les comptes rattachés à une fiche (#1633)."""
+    return list(db.scalars(select(User).where(User.athlete_id.is_not(None)).order_by(User.id)))
 
 
 def count_linked_by_athlete(db: Session, athlete_ids: list[int]) -> dict[int, int]:

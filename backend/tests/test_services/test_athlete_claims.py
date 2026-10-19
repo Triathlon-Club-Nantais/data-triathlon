@@ -133,13 +133,47 @@ def test_detach_unlinks_and_is_idempotent(db_session, lea):
 
 
 def test_detaching_drops_the_membership_it_gave(db_session, lea):
-    lea.athlete_id = _athlete(db_session).id
+    athlete = _athlete(db_session)
+    db_session.add(ClubMember(season=current_season(), nom="MARTIN", prenom="Léa", athlete_id=athlete.id,
+                              link_status=LINK_AUTO, source=SOURCE_FFTRI))
+    lea.athlete_id = athlete.id
     db_session.flush()
     assert membership.is_member(db_session, lea, date.today())
 
     athlete_claims.detach(db_session, lea)
 
     assert not membership.is_member(db_session, lea, date.today())
+
+
+def test_the_club_lists_linked_accounts_with_their_membership_this_season(db_session, lea):
+    """#1633: the queue page also lists who is linked, and whether that still counts."""
+    licensed, lapsed = _athlete(db_session), _athlete(db_session, "Durand")
+    db_session.add(ClubMember(season=current_season(), nom="MARTIN", prenom="Léa", athlete_id=licensed.id,
+                              link_status=LINK_AUTO, source=SOURCE_FFTRI))
+    lea.athlete_id = licensed.id
+    other = user_repository.create(db_session, email="ancien@exemple.fr", display_name="Ancien")
+    other.athlete_id = lapsed.id
+    db_session.flush()
+
+    links = athlete_claims.list_links(db_session, date.today())
+
+    assert [(link.user.id, link.athlete.id, link.licensed_this_season) for link in links] == [
+        (other.id, lapsed.id, False), (lea.id, licensed.id, True),
+    ]
+
+
+def test_the_club_detaches_an_account_and_logs_it(db_session, lea, reviewer):
+    athlete = _athlete(db_session)
+    lea.athlete_id = athlete.id
+    db_session.flush()
+
+    athlete_claims.admin_detach(db_session, lea.id, actor_id=reviewer.id)
+
+    assert lea.athlete_id is None
+    log = db_session.query(AdminActionLog).one()
+    assert (log.action, log.entity_id, log.payload) == ("athlete_claim.detach", lea.id, {"athlete_id": athlete.id})
+    with pytest.raises(NotFoundError):
+        athlete_claims.admin_detach(db_session, lea.id, actor_id=reviewer.id)
 
 
 def test_the_review_list_carries_its_hints(db_session, lea, reviewer):

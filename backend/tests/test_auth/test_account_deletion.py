@@ -139,6 +139,80 @@ def test_an_account_cited_by_a_required_reference_is_refused_and_kept(db, alix):
     assert db.query(Identity).filter_by(user_id=alix.id).count() == 1
 
 
+def _cited(db, alix, system_user):
+    """An account cited by a season validation and a log line it authored (#1634)."""
+    validation = SeasonValidation(athlete_id=_athlete(db).id, season=2026, validated_by_user_id=alix.id)
+    log = AdminActionLog(user_id=alix.id, action="course.update", entity_type="course", entity_id=1)
+    db.add_all([validation, log])
+    db.flush()
+    return validation, log
+
+
+def test_the_operator_dry_run_counts_the_required_references_and_changes_nothing(db, alix, system_user):
+    _cited(db, alix, system_user)
+
+    counts = accounts.force_delete_account(db, alix, dry_run=True)
+
+    assert counts == {"admin_action_log.user_id": 1, "season_validations.validated_by_user_id": 1}
+    assert db.get(User, alix.id) is not None
+
+
+def test_the_operator_hands_the_references_to_the_club_then_deletes(db, alix, system_user):
+    validation, log = _cited(db, alix, system_user)
+    user_id = alix.id
+
+    accounts.force_delete_account(db, alix, dry_run=False)
+    db.commit()
+
+    assert db.get(User, user_id) is None
+    db.refresh(validation)
+    db.refresh(log)
+    assert (validation.validated_by_user_id, log.user_id) == (system_user.id, system_user.id)
+    deletion = db.query(AdminActionLog).filter_by(action="account.delete").one()
+    assert (deletion.entity_id, deletion.payload["origin"]) == (user_id, "operator")
+
+
+def test_the_operator_never_deletes_the_system_account(db, system_user):
+    with pytest.raises(accounts.SystemAccountDeletionError):
+        accounts.force_delete_account(db, system_user, dry_run=False)
+
+
+def test_the_operator_keeps_the_last_administrator(db, alix, system_user, organisation):
+    admin = Role(slug="admin", name="Administrateur", is_system=True, is_superuser=True)
+    db.add(admin)
+    db.flush()
+    user_role_repository.grant(db, user_id=alix.id, role_id=admin.id, organisation_id=organisation.id)
+    _cited(db, alix, system_user)
+    db.commit()
+
+    with pytest.raises(LastAdministratorError):
+        accounts.force_delete_account(db, alix, dry_run=False)
+    db.rollback()
+
+    assert db.get(User, alix.id) is not None
+    assert db.query(SeasonValidation).one().validated_by_user_id == alix.id
+
+
+def test_pending_entra_deletions_since_a_date_skip_empty_and_older_ones(db, system_user):
+    """#1635: what is left to erase in the Entra directory, oldest first."""
+    from datetime import datetime
+
+    def deleted(when, oids, entity_id):
+        db.add(AdminActionLog(user_id=system_user.id, action="account.delete", entity_type="user",
+                              entity_id=entity_id, payload={"origin": "request", "entra_oids": oids},
+                              created_at=when))
+
+    deleted(datetime(2026, 9, 1), ["old-oid"], 1)
+    deleted(datetime(2026, 10, 12), ["oid-b"], 3)
+    deleted(datetime(2026, 10, 10), ["oid-a1", "oid-a2"], 2)
+    deleted(datetime(2026, 10, 11), [], 4)
+    db.flush()
+
+    pending = accounts.pending_entra_deletions(db, since=datetime(2026, 10, 1))
+
+    assert [(p.user_id, p.oids) for p in pending] == [(2, ["oid-a1", "oid-a2"]), (3, ["oid-b"])]
+
+
 def test_the_last_administrator_is_refused_and_kept(db, alix, organisation):
     admin = Role(slug="admin", name="Administrateur", is_system=True, is_superuser=True)
     db.add(admin)

@@ -114,6 +114,9 @@ jobs:
     # peut atteindre la borne (run du 2026-09-25) et finit alors en rouge : la
     # borner par `provider`, `older_than` ou `limit`.
     timeout-minutes: 120
+    # Lu par `entra-reminder` (#1635) : vide hors planification.
+    outputs:
+      entra_pending: ${{ steps.entra.outputs.count }}
     # Un environment par base — `batch-preview` ou `batch-production` —, chacun
     # portant son `DATABASE_URL`. C'est lui, et lui seul, qui décide de la base
     # écrite : rien dans le script ne la nomme.
@@ -277,6 +280,22 @@ jobs:
           { echo '## Athlètes orphelins'; echo '```'; cat orphans.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           exit $code
 
+      # Effacements Entra à finir à la main (#1635) : le nombre seul, publié en
+      # sortie de job pour `entra-reminder`. Les `oid` ne sortent jamais d'ici :
+      # le dépôt est public. Sans effet sur le reste du run.
+      - name: Count pending Entra deletions
+        id: entra
+        if: ${{ !cancelled() && github.event_name == 'schedule' }}
+        continue-on-error: true
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          since=$(date -u -d '7 days ago' +%F)
+          count=$(uv run python -m app.cli entra-deletions --since "$since" --count | tail -n 1)
+          echo "count=$count" >> "$GITHUB_OUTPUT"
+          echo "Identifiants Entra à effacer depuis $since : $count"
+
       - name: Run batch
         id: batch
         # Une purge en échec rougit le run, mais ne prive pas la base de sa reprise.
@@ -399,6 +418,19 @@ jobs:
             --resource-group "$RG" --server-name "$SERVER" \
             --name "$RULE_NAME" --yes \
             --only-show-errors --output none || true
+
+  # Rappel des effacements Entra (#1635) : une issue `ops` ouverte ou complétée
+  # quand la semaine a laissé des utilisateurs dans l'annuaire du tenant. Le
+  # nombre seul et la commande à lancer en local, jamais les identifiants.
+  entra-reminder:
+    needs: [run]
+    if: ${{ always() && github.event_name == 'schedule' && needs.run.outputs.entra_pending != '' && needs.run.outputs.entra_pending != '0' }}
+    permissions:
+      contents: read
+      issues: write
+    uses: ./.github/workflows/entra-reminder.yml
+    with:
+      count: ${{ needs.run.outputs.entra_pending }}
 
   # Alerte d'équipe sur un échec planifié (#922). Les lancements manuels en sont
   # exclus : leur auteur suit le run, depuis l'écran ou l'onglet Actions.

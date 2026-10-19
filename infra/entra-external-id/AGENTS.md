@@ -139,30 +139,31 @@ et à cette seule fin. **Ne jamais comparer l'annuaire à une base** : le tenant
 sert à la préproduction comme à la production, et une comparaison contre la
 mauvaise base supprimerait des comptes vivants.
 
-Une fois par mois, sur la base de **production** (nommée explicitement ; même
-geste à part sur celle de préproduction si on le souhaite, jamais les deux
-mêlées) :
+**Rappel** (#1635) : la reprise planifiée du lundi (`batch.yml`) compte les
+identifiants à effacer de la semaine et, s'il y en a, ouvre ou complète l'issue
+`ops` « Entra directory deletions to finish » (le nombre seul : le dépôt est
+public). Au plus tard à ce rappel, et au moins une fois par mois, sur la base de
+**production** (nommée explicitement ; même geste à part sur celle de
+préproduction si on le souhaite, jamais les deux mêlées) :
 
-1. relever les suppressions depuis le dernier nettoyage, dont la date est notée
-   à la fin de l'étape 4 :
-   ```sql
-   SELECT created_at, entity_id, payload
-   FROM admin_action_log
-   WHERE action = 'account.delete' AND created_at > '<date du dernier nettoyage>'
-   ORDER BY created_at;
-   ```
-2. réunir les `oid` de `payload.entra_oids` (liste vide = connexion GitHub
-   seule, rien à faire dans l'annuaire) ;
-3. `az login --tenant <tid> --allow-no-subscriptions`, puis **à blanc** pour
+1. relever les identifiants depuis le dernier nettoyage, dont la date est notée
+   à la fin de l'étape 3 :
+   `uv run python -m app.cli entra-deletions --since <date du dernier nettoyage>`
+   (depuis `backend/`, `DATABASE_URL` de production). Elle lit le journal
+   `account.delete` et rend chaque `oid` avec sa commande `az rest` ; une
+   suppression sans `oid` (connexion GitHub seule) n'y figure pas ;
+2. `az login --tenant <tid> --allow-no-subscriptions`, puis **à blanc** pour
    chaque `oid` : `az rest --method get --url https://graph.microsoft.com/v1.0/users/<oid>`.
    Un 404 veut dire déjà supprimé ; relire la liste avant d'aller plus loin ;
-4. supprimer chacun :
+3. supprimer chacun (les commandes rendues à l'étape 1) :
    `az rest --method delete --url https://graph.microsoft.com/v1.0/users/<oid>`,
    puis noter la date du nettoyage.
 
 Une demande d'effacement adressée au club pour un compte encore cité par une
 donnée du club (refus 409 de la suppression en libre service) se traite de la
-même façon, une fois le compte supprimé par l'exploitant.
+même façon, une fois le compte supprimé par l'exploitant :
+`python -m app.cli delete-account --user-id <id>` (passe à blanc), puis avec
+`--yes` (#1634). Les données du club qui le citent passent au compte système.
 
 ## Ce qui n'est pas automatisé
 
@@ -170,8 +171,8 @@ même façon, une fois le compte supprimé par l'exploitant.
 - le fournisseur Google, le parcours et le rattachement des applications
   (étape 4), et la rotation du secret Google, au portail du tenant ;
 - le retrait des anciens secrets client après rotation ;
-- la suppression de l'utilisateur Entra après celle du compte (relevé mensuel
-  du journal ci-dessus) ;
+- la suppression de l'utilisateur Entra après celle du compte (relevé par
+  `entra-deletions`, rappelé chaque lundi par une issue `ops`, #1635) ;
 - la validation avant modification : `az bicep build`, `what-if`, et
   `uvx --from shellcheck-py shellcheck configure-tenant.sh`. Le premier
   déploiement (2026-10-15) a révélé deux valeurs que la référence ARM donnait

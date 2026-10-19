@@ -13,6 +13,7 @@ from app.core.time import utcnow
 from app.models.user import User
 from app.schemas.athlete_claim import (
     AthleteClaimReviewRead,
+    AthleteLinkRead,
     ClaimantRead,
     LicenseeRead,
     ReviewedAthleteRead,
@@ -40,6 +41,26 @@ def list_athlete_claims(
         )
         for review in athlete_claims.list_pending_with_hints(db, utcnow().date())
     ]
+
+
+@router.get("/admin/athlete-links", response_model=list[AthleteLinkRead])
+def list_athlete_links(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.ATHLETE_CLAIMS_REVIEW)),
+):
+    """Comptes rattachés, et si leur fiche est licenciée au club cette saison (#1633)."""
+    return [AthleteLinkRead.model_validate(link) for link in athlete_claims.list_links(db, utcnow().date())]
+
+
+@router.delete("/admin/athlete-links/{user_id}", status_code=204)
+def detach_athlete_link(
+    user_id: DbId,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_permission(P.ATHLETE_CLAIMS_REVIEW)),
+):
+    athlete_claims.admin_detach(db, user_id, actor_id=actor.id)
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.post("/admin/athlete-claims/{claim_id}/approve", status_code=204)

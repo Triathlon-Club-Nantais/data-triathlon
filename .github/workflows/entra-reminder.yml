@@ -1,0 +1,40 @@
+name: Entra deletions reminder
+
+# Rappel des effacements Entra (#1635), appelé par la reprise planifiée de
+# `batch.yml` quand la semaine a laissé des utilisateurs dans l'annuaire du
+# tenant : une issue `ops` ouverte, ou complétée. Le nombre seul et la commande
+# à lancer en local, jamais les identifiants : le dépôt est public.
+on:
+  workflow_call:
+    inputs:
+      count:
+        description: Nombre d'identifiants Entra à effacer.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  issue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ouvrir ou compléter l'issue de rappel
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          COUNT: ${{ inputs.count }}
+        run: |
+          set -euo pipefail
+          titre="Entra directory deletions to finish"
+          since=$(date -u -d '7 days ago' +%F)
+          corps="$COUNT identifiant(s) Entra à effacer dans l'annuaire du tenant (suppressions depuis le $since). En local, sur la base de production : \`uv run python -m app.cli entra-deletions --since $since\`, puis les commandes \`az rest\` rendues (procédure : \`infra/entra-external-id/AGENTS.md\`)."
+          numero=$(gh issue list --state open --label ops --search "\"$titre\" in:title" \
+            --json number,title --jq "[.[] | select(.title == \"$titre\")][0].number // empty")
+          if [ -z "$numero" ]; then
+            gh issue create --title "$titre" --label ops --body "$corps"
+          else
+            gh issue comment "$numero" --body "$corps"
+          fi
