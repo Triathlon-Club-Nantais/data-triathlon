@@ -1,6 +1,8 @@
 """Derived member status and retained address (#1322)."""
 from datetime import date
 
+from app.models.athlete import Athlete
+from app.models.club_member import LINK_AMBIGUOUS, LINK_AUTO, SOURCE_FFTRI, ClubMember
 from app.models.member_email import SOURCE_IMPORT, SOURCE_MANUAL, MemberEmail
 from app.models.user import SYSTEM_USER_EMAIL
 from app.repositories import allowed_email_repository, member_email_repository, user_repository
@@ -56,6 +58,41 @@ def test_removing_the_address_takes_effect_immediately(db_session):
     assert membership.is_member(db_session, user, TODAY)
     member_email_repository.remove(db_session, entry.id)
     assert not membership.is_member(db_session, user, TODAY)
+
+
+def _linked(db, *, season=None, status=LINK_AUTO):
+    """A user linked to an athlete record (#1325), licensed TCN for `season` if given (#1633)."""
+    athlete = Athlete(nom="Martin", prenom="Léa")
+    db.add(athlete)
+    db.flush()
+    if season is not None:
+        db.add(ClubMember(season=season, nom="MARTIN", prenom="Léa", athlete_id=athlete.id,
+                          link_status=status, source=SOURCE_FFTRI))
+    user = _user(db)
+    user.athlete_id = athlete.id
+    db.flush()
+    return user
+
+
+def test_a_linked_account_licensed_this_season_is_a_member(db_session):
+    assert membership.is_member(db_session, _linked(db_session, season=2026), TODAY)
+
+
+def test_a_linked_account_licensed_only_last_season_is_not_a_member(db_session):
+    """#1633: the link alone no longer counts, the licence of the season does."""
+    user = _linked(db_session, season=2025)
+
+    assert not membership.is_member(db_session, user, TODAY)
+    assert user.athlete_id is not None
+
+
+def test_an_unsettled_licence_does_not_count(db_session):
+    assert not membership.is_member(db_session, _linked(db_session, season=2026, status=LINK_AMBIGUOUS), TODAY)
+
+
+def test_a_linked_account_on_the_member_list_stays_a_member(db_session):
+    _list(db_session, "adherent@exemple.fr")
+    assert membership.is_member(db_session, _linked(db_session), TODAY)
 
 
 def test_no_user_is_not_a_member(db_session):

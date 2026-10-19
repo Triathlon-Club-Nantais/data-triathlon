@@ -93,6 +93,41 @@ def reject(db: Session, claim_id: int, *, actor_id: int) -> None:
     )
 
 
+def admin_detach(db: Session, user_id: int, *, actor_id: int) -> None:
+    """Le club détache un compte de sa fiche (#1633), par exemple au départ d'un adhérent."""
+    user = user_repository.get(db, user_id)
+    if user is None or user.athlete_id is None:
+        raise NotFoundError("Ce compte n'est rattaché à aucune fiche.")
+    athlete_id = user.athlete_id
+    user_repository.set_athlete(db, user, None)
+    audit.record(
+        db, actor_id, action="athlete_claim.detach", entity_type=_ENTITY, entity_id=user_id,
+        payload={"athlete_id": athlete_id},
+    )
+
+
+@dataclass(frozen=True)
+class AthleteLink:
+    user: User
+    athlete: Athlete
+    #: La fiche est licenciée au club cette saison : le rattachement vaut adhésion (#1633).
+    licensed_this_season: bool
+
+
+def list_links(db: Session, today: date) -> list[AthleteLink]:
+    """Les comptes rattachés, ceux dont la licence ne court plus d'abord."""
+    users = user_repository.list_linked(db)
+    athlete_ids = [user.athlete_id for user in users]
+    athletes = athlete_repository.get_many(db, athlete_ids)
+    licensed = club_member_repository.linked_by_athlete(db, season_of(today), athlete_ids)
+    links = [
+        AthleteLink(user=user, athlete=athletes[user.athlete_id], licensed_this_season=user.athlete_id in licensed)
+        for user in users
+        if user.athlete_id in athletes
+    ]
+    return sorted(links, key=lambda link: (link.licensed_this_season, link.user.id))
+
+
 @dataclass(frozen=True)
 class ClaimReview:
     """Une demande en attente et ce qui aide à la juger, d'un seul coup d'œil."""

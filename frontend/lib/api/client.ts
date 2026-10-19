@@ -36,6 +36,7 @@ import type {
   MemberEmail,
   AthleteClaim,
   AthleteClaimReview,
+  AthleteLink,
   MemberEmailsImportReport,
   MemberEmailsSeason,
   CounterScope,
@@ -926,6 +927,9 @@ export const apiClient = {
   cancelAthleteClaim: () => request<null>("/auth/me/athlete-claim", { method: "DELETE" }),
   detachAthlete: () => request<null>("/auth/me/athlete", { method: "DELETE" }),
   getAthleteClaims: () => request<AthleteClaimReview[]>("/admin/athlete-claims"),
+  getAthleteLinks: () => request<AthleteLink[]>("/admin/athlete-links"),
+  detachAthleteLink: (userId: number) =>
+    request<null>(`/admin/athlete-links/${userId}`, { method: "DELETE" }),
   approveAthleteClaim: (id: number) =>
     request<null>(`/admin/athlete-claims/${id}/approve`, { method: "POST" }),
   rejectAthleteClaim: (id: number) =>

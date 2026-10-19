@@ -224,6 +224,11 @@ def delete(db: Session, user: User) -> None:
     db.flush()
 
 
+def list_linked(db: Session) -> list[User]:
+    """Les comptes rattachés à une fiche (#1633)."""
+    return list(db.scalars(select(User).where(User.athlete_id.is_not(None)).order_by(User.id)))
+
+
 def count_linked_by_athlete(db: Session, athlete_ids: list[int]) -> dict[int, int]:
     """Comptes rattachés à chacune de ces fiches (#1325) ; une fiche sans compte est absente."""
     rows = db.execute(

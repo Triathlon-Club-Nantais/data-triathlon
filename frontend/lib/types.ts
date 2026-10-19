@@ -1030,6 +1030,13 @@ export interface AthleteClaim {
   created_at: string;
 }
 
+/** Un compte rattaché vu du club, et si sa licence court cette saison (#1633). */
+export interface AthleteLink {
+  user: { id: number; display_name: string; email: string };
+  athlete: ClaimedAthlete & { club: string | null };
+  licensed_this_season: boolean;
+}
+
 /** Une demande de la file du back-office, avec ses indices (#1325). */
 export interface AthleteClaimReview {
   id: number;

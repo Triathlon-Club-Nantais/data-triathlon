@@ -118,6 +118,36 @@ def test_the_queue_requires_the_permission(client, db_session):
     assert "claims" not in client.get("/api/v1/admin/badge-counts").json()
 
 
+LINKS = "/api/v1/admin/athlete-links"
+
+
+def test_the_club_lists_and_detaches_linked_accounts(client, db_session, athlete):
+    """#1633."""
+    user = _member(client, db_session)
+    db_session.get(User, user.id).athlete_id = athlete.id
+    db_session.commit()
+    _session_etroite(client, db_session, "athlete_claims:review", email="rev@exemple.fr", slug="rev")
+
+    (link,) = client.get(LINKS).json()
+    assert link == {
+        "user": {"id": user.id, "display_name": "", "email": "lea@exemple.fr"},
+        "athlete": {"id": athlete.id, "prenom": "Léa", "nom": "Martin", "club": "TRIATHLON CLUB NANTAIS"},
+        "licensed_this_season": False,
+    }
+    assert client.delete(f"{LINKS}/{user.id}").status_code == 204
+    assert client.delete(f"{LINKS}/{user.id}").status_code == 404
+    assert client.get(LINKS).json() == []
+
+
+def test_linked_accounts_require_the_permission(client, db_session):
+    _session_etroite(client, db_session, "member_emails:manage")
+
+    assert client.get(LINKS).status_code == 403
+    assert client.delete(f"{LINKS}/1").status_code == 403
+    client.cookies.clear()
+    assert client.get(LINKS).status_code == 401
+
+
 @pytest.fixture
 def real_site_gate(client):
     app.dependency_overrides.pop(require_site_access, None)

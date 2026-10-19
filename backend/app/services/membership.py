@@ -8,16 +8,26 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
+from app.core.season import season_of
 from app.models.user import SYSTEM_USER_EMAIL, User
-from app.repositories import allowed_email_repository, member_email_repository
+from app.repositories import (
+    allowed_email_repository,
+    club_member_repository,
+    member_email_repository,
+)
 from app.services.auth.idp.base import ExternalIdentity
 
 
 def is_member(db: Session, user: User | None, today: date) -> bool:
     if user is None or not user.is_active or user.email == SYSTEM_USER_EMAIL:
         return False
-    # Un rattachement validé par le club vaut reconnaissance (#1325).
-    return user.athlete_id is not None or member_email_repository.counts(db, user.email, today)
+    # Un rattachement validé (#1325) ne vaut reconnaissance que si la fiche est
+    # licenciée au club pour la saison (#1633) : il s'éteint seul au renouvellement.
+    if user.athlete_id is not None and club_member_repository.is_linked_licensee(
+        db, user.athlete_id, season_of(today)
+    ):
+        return True
+    return member_email_repository.counts(db, user.email, today)
 
 
 def retained_email(db: Session, identity: ExternalIdentity, today: date) -> str:

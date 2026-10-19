@@ -50,6 +50,16 @@ class LicenseeRead(BaseModel):
     season: int
 
 
+class AthleteLinkRead(BaseModel):
+    """Un compte rattaché, vu du club (#1633)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    user: ClaimantRead
+    athlete: ReviewedAthleteRead
+    licensed_this_season: bool
+
+
 class AthleteClaimReviewRead(BaseModel):
     """Une demande de la file, avec ses indices (contracts/admin-athlete-claims.md)."""
 

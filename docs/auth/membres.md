@@ -70,7 +70,13 @@ d'appui du statut adhérent de #1322.
 
 Un compte est **adhérent** si son adresse retenue (`users.email`) compte
 (`member_email_repository.counts`), **ou** s'il est rattaché à une fiche
-(`users.athlete_id`, rattachement validé par le club, #1325). La liste ne
+(`users.athlete_id`, rattachement validé par le club, #1325) **licenciée au
+club pour la saison en cours** (`club_member_repository.is_linked_licensee`,
+statut `auto` ou `manual`, #1633). Le rattachement reste hors saison (il sert
+l'espace personnel), il ne vaut simplement plus adhésion : un ancien adhérent
+non relicencié perd la dispense du code au renouvellement, sans geste du club.
+Le club peut aussi détacher un compte (« Comptes rattachés » de
+`/admin/rattachements`, `athlete_claim.detach` au journal). La liste ne
 valide jamais un rattachement d'office : elle ne porte que des adresses, sans
 nom ; la file `/admin/rattachements` l'affiche comme indice. `services/membership.is_member(db, user,
 today)` le dérive **à chaque requête** : jamais stocké sur `users` (invariant
