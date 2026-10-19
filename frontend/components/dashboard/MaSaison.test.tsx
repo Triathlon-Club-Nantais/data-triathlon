@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, act, within, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, act, within } from "@testing-library/react";
 import type { Participation } from "@/lib/types";
 
 let searchParams = new URLSearchParams();
@@ -127,67 +127,17 @@ describe("MaSaison — état rempli", () => {
     await waitFor(() => expect(getAthlete).toHaveBeenCalledTimes(2));
   });
 
-  // Même arbitrage que RankTypeToggle (#328) : le mode de rang ne change que
-  // la lecture d'un champ déjà en main.
-  it("ne refetch pas au changement de ?rank=, mais recompte le podium", async () => {
+  it("compte les podiums tous rangs confondus, même avec ?rank=scratch dans l'URL", async () => {
+    searchParams = new URLSearchParams("rank=scratch");
     getAthlete.mockResolvedValue({
       athlete: ATHLETE,
-      participations: [ligne(1, { rank_overall: 40, rank_category: 2 })],
-    });
-    const { rerender } = render(
-      <MaSaison clubEvents={32} seasons="2025" federalOnly={true} />,
-    );
-    const ligneVisible = await screen.findByTestId("ma-saison-ligne");
-    expect(within(ligneVisible).getByText(/0 podium/)).toBeInTheDocument();
-
-    searchParams = new URLSearchParams("rank=category");
-    rerender(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
-
-    expect(await within(ligneVisible).findByText(/1 podium/)).toBeInTheDocument();
-    expect(getAthlete).toHaveBeenCalledTimes(1);
-  });
-
-  it("monte le sélecteur de type de rang dans la bande, qui écrit ?rank= dans l'URL", async () => {
-    getAthlete.mockResolvedValue({
-      athlete: ATHLETE,
-      participations: [ligne(1, { rank_overall: 40, rank_category: 2 })],
+      participations: [ligne(1, { rank_overall: 40, rank_category: 1 })],
     });
     render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
-    await screen.findByTestId("ma-saison-ligne");
-
-    const groupe = screen.getByRole("group", { name: "Type de rang" });
-    expect(screen.getByText("Type de rang")).toBeVisible();
-    const boutons = within(groupe).getAllByRole("button");
-    const parCategorie = boutons.find((b) => /cat/i.test(b.textContent ?? ""));
-    expect(parCategorie).toBeDefined();
-    fireEvent.click(parCategorie!);
-
-    expect(new URLSearchParams(window.location.search).get("rank")).toBe("category");
-    window.history.pushState(null, "", "/");
-  });
-
-  // #502, revue UI/UX item 1 : le rang a quitté la ligne principale (471px en
-  // Anton 20px, ne tenait sur une ligne qu'au-delà de ~814px de viewport) pour
-  // ouvrir la ligne secondaire, capitalisé — `all` s'y dit « meilleur
-  // classement », ce qu'il est réellement.
-  it("ouvre la ligne secondaire par le rang, capitalisé, `all` compris", async () => {
-    getAthlete.mockResolvedValue({
-      athlete: ATHLETE,
-      participations: [ligne(1, { rank_overall: 2 })],
-    });
-    const { rerender } = render(
-      <MaSaison clubEvents={32} seasons="2025" federalOnly={true} />,
-    );
     const ligneVisible = await screen.findByTestId("ma-saison-ligne");
-    expect(within(ligneVisible).getByText(/^Classement général ·/)).toBeInTheDocument();
-    // La ligne principale ne porte plus le parenthétique.
-    expect(within(ligneVisible).queryByText(/\(classement général\)/)).not.toBeInTheDocument();
-
-    searchParams = new URLSearchParams("rank=all");
-    rerender(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
-
+    expect(within(ligneVisible).getByText(/1 podium/)).toBeInTheDocument();
     expect(
-      await within(ligneVisible).findByText(/^Meilleur classement ·/),
+      within(ligneVisible).getByText(/^Toutes catégories confondues ·/),
     ).toBeInTheDocument();
   });
 
@@ -239,44 +189,14 @@ describe("MaSaison — états dégradés", () => {
     expect(ajouter).toHaveClass("tcn-cible-tactile");
   });
 
-  describe("rank toggle only where it acts", () => {
-    const toggle = () => screen.queryByRole("group", { name: "Type de rang" });
-
-    it("is present while loading", () => {
-      getAthlete.mockReturnValue(new Promise(() => {}));
-      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
-      expect(screen.getByTestId("ma-saison-squelette")).toBeInTheDocument();
-      expect(toggle()).not.toBeNull();
-    });
-
-    it("is absent when the athlete is lost", async () => {
-      getAthlete.mockRejectedValue(new ApiError(404, "Not Found"));
-      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
-      await screen.findByText(/votre fiche a changé/i);
-      expect(toggle()).toBeNull();
-      expect(screen.queryByText("Type de rang")).toBeNull();
-    });
-
-    it("is absent on failure", async () => {
-      getAthlete.mockRejectedValue(new TypeError("Failed to fetch"));
-      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
-      await screen.findByText(/chiffres indisponibles/i);
-      expect(toggle()).toBeNull();
-    });
-
-    it("is absent when there is no event", async () => {
-      getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [] });
-      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
-      await screen.findByText(/aucune épreuve/i);
-      expect(toggle()).toBeNull();
-    });
-
-    it("is present with at least one event", async () => {
-      getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [ligne(1)] });
-      render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
-      await screen.findByTestId("ma-saison-ligne");
-      expect(toggle()).not.toBeNull();
-    });
+  it("ne monte aucun sélecteur de type de rang", async () => {
+    getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: [ligne(1)] });
+    render(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
+    expect(screen.queryByText("Type de rang")).toBeNull();
+    await screen.findByTestId("ma-saison-ligne");
+    expect(screen.queryByText("Type de rang")).toBeNull();
+    expect(screen.queryByRole("group", { name: "Type de rang" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /général|catégorie|genre|tous/i })).toBeNull();
   });
 
   describe("échec réseau (#502, item 5)", () => {
@@ -430,25 +350,6 @@ describe("MaSaison — annonce (#477)", () => {
     // Le nœud existe dès la première peinture (montage inconditionnel) : seul
     // son texte reste vide tant qu'aucun changement n'a eu lieu.
     expect(screen.getByRole("status")).toHaveTextContent("");
-  });
-
-  it("annonce le nouveau résumé après un changement de ?rank=", async () => {
-    getAthlete.mockResolvedValue({
-      athlete: ATHLETE,
-      participations: [ligne(1, { rank_overall: 40, rank_category: 2 })],
-    });
-    const { rerender } = render(
-      <MaSaison clubEvents={32} seasons="2025" federalOnly={true} />,
-    );
-    await screen.findByTestId("ma-saison-ligne");
-    expect(screen.getByRole("status")).toHaveTextContent("");
-
-    searchParams = new URLSearchParams("rank=category");
-    rerender(<MaSaison clubEvents={32} seasons="2025" federalOnly={true} />);
-
-    await waitFor(() =>
-      expect(screen.getByRole("status")).toHaveTextContent(/1 podium/),
-    );
   });
 
   it("annonce le nouveau résumé après un changement de saison", async () => {
