@@ -104,4 +104,20 @@ describe("TuilesEspaces", () => {
     expect(screen.getByRole("link", { name: /Club.*27 podiums sur la sélection/ })).toBeInTheDocument();
     expect(getAthlete).toHaveBeenCalledWith(7, expect.objectContaining({ seasons: "2024,2025" }));
   });
+
+  it("draws a decorative arrow pastille in every tile without changing the link names", async () => {
+    getSession.mockResolvedValue({ ...BASE, can_supervise: true, can_administer: true });
+    afficher();
+    await screen.findByRole("link", { name: /Back-office/ });
+    const liens = screen.getAllByRole("link");
+    expect(liens).toHaveLength(5);
+    for (const lien of liens) {
+      const fleche = lien.querySelector(".tcn-tuile-fleche");
+      expect(fleche).toHaveAttribute("aria-hidden", "true");
+      expect(fleche?.querySelector("svg")).not.toBeNull();
+    }
+    expect(liens.map((l) => l.textContent)).not.toContain("→");
+    expect(screen.getByRole("link", { name: /^Résultats Tri de Saint-Gilles M/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Encadrement Jeunes, appel, bénévolat$/ })).toBeInTheDocument();
+  });
 });

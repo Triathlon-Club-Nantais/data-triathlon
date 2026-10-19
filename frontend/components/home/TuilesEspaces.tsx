@@ -1,4 +1,5 @@
 "use client";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Card } from "@/components/tcn";
@@ -17,7 +18,7 @@ function Tuile({ href, titre, ligne, badge }: { href: string; titre: string; lig
       <Card style={{ height: "100%", background: "var(--tuile-fond, var(--tcn-surface))" }}>
         <div className="flex items-center justify-between gap-2">
           <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: "inherit", margin: 0, color: "var(--tcn-ink)" }}>{titre}</h2>
-          <span aria-hidden="true" className="text-accent-ink" style={{ fontWeight: 800 }}>→</span>
+          <span aria-hidden="true" className="tcn-tuile-fleche"><ArrowRight size={18} /></span>
         </div>
         {(ligne || badge) && (
           <div className="mt-1 flex items-center gap-2" style={{ fontSize: 14, color: "var(--tcn-text-muted)" }}>

@@ -641,7 +641,9 @@
   .tcn-tuile-espace:hover { transform: translateY(-2px); }
   .tcn-tuile-espace:hover { --tuile-fond: linear-gradient(var(--tcn-orange-08), var(--tcn-orange-08)), var(--tcn-surface); }
   .tcn-tuile-espace:focus-visible { outline: 2px solid var(--tcn-orange); outline-offset: 2px; }
-  @media (prefers-reduced-motion: reduce) { .tcn-tuile-espace:hover { transform: none; } }
+  .tcn-tuile-fleche { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9999px; background: var(--tcn-orange-12); color: var(--tcn-orange-deeper); transition: transform var(--tcn-dur-fast), background-color var(--tcn-dur-fast), color var(--tcn-dur-fast); }
+  .tcn-tuile-espace:hover .tcn-tuile-fleche, .tcn-tuile-espace:focus-visible .tcn-tuile-fleche { background: var(--tcn-orange); color: #fff; transform: translateX(3px); }
+  @media (prefers-reduced-motion: reduce) { .tcn-tuile-espace:hover { transform: none; } .tcn-tuile-espace:hover .tcn-tuile-fleche, .tcn-tuile-espace:focus-visible .tcn-tuile-fleche { transform: none; } }
   /* Bouton posé **dans** un champ TCN (effacer, coller) : 44px de cible
      tactile, le seuil au doigt, sans agrandir la boîte — le champ resserre son
      rembourrage vertical dès qu'il porte des actions (#492, ACT-5). */
