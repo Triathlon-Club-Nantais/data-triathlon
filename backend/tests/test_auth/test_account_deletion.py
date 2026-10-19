@@ -193,6 +193,26 @@ def test_the_operator_keeps_the_last_administrator(db, alix, system_user, organi
     assert db.query(SeasonValidation).one().validated_by_user_id == alix.id
 
 
+def test_pending_entra_deletions_since_a_date_skip_empty_and_older_ones(db, system_user):
+    """#1635: what is left to erase in the Entra directory, oldest first."""
+    from datetime import datetime
+
+    def deleted(when, oids, entity_id):
+        db.add(AdminActionLog(user_id=system_user.id, action="account.delete", entity_type="user",
+                              entity_id=entity_id, payload={"origin": "request", "entra_oids": oids},
+                              created_at=when))
+
+    deleted(datetime(2026, 9, 1), ["old-oid"], 1)
+    deleted(datetime(2026, 10, 12), ["oid-b"], 3)
+    deleted(datetime(2026, 10, 10), ["oid-a1", "oid-a2"], 2)
+    deleted(datetime(2026, 10, 11), [], 4)
+    db.flush()
+
+    pending = accounts.pending_entra_deletions(db, since=datetime(2026, 10, 1))
+
+    assert [(p.user_id, p.oids) for p in pending] == [(2, ["oid-a1", "oid-a2"]), (3, ["oid-b"])]
+
+
 def test_the_last_administrator_is_refused_and_kept(db, alix, organisation):
     admin = Role(slug="admin", name="Administrateur", is_system=True, is_superuser=True)
     db.add(admin)

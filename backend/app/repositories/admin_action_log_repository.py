@@ -100,6 +100,15 @@ def delete_created_before(db: Session, cutoff: datetime) -> int:
     return db.execute(delete(AdminActionLog).where(AdminActionLog.created_at < cutoff)).rowcount
 
 
+def list_action_since(db: Session, *, action: str, since: datetime) -> list[AdminActionLog]:
+    """Entrées d'une action depuis une date, plus anciennes d'abord (#1635)."""
+    return list(db.scalars(
+        select(AdminActionLog)
+        .where(AdminActionLog.action == action, AdminActionLog.created_at >= since)
+        .order_by(AdminActionLog.created_at, AdminActionLog.id)
+    ))
+
+
 def list_with_payload(db: Session) -> list[AdminActionLog]:
     """Entrées portant une charge, pour en masquer un nom (#334). Bornées par la rétention de 12 mois."""
     return list(db.scalars(select(AdminActionLog).where(AdminActionLog.payload.is_not(None))))

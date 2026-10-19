@@ -33,6 +33,7 @@ uv run python -m app.cli geocode-courses --course 249 --course 250   # reprend u
 uv run python -m app.cli weather-courses --limit 500 --json   # météo du jour de course (Open-Meteo, ~600 appels/min gratuits) des épreuves géocodées, idempotente (#1370)
 uv run python -m app.cli purge-retention --dry-run   # durées de conservation publiées (#1158), comptes inactifs 5 ans (#1326) ; sans --dry-run, supprime
 uv run python -m app.cli delete-account --email a@b.fr   # compte refusé en 409 (#1634) : passe à blanc, puis --yes ; les références passent au compte système
+uv run python -m app.cli entra-deletions --since 2026-10-01   # oid Entra à effacer à la main, avec leur commande az rest (#1635) ; --count pour le total
 uv run python -m app.cli sync-club-members --json   # licenciés FFTri de la saison en cours (#1202)
 uv run python -m app.cli import-member-emails --season 2026 --file export.xlsx --json   # adresses d'adhérents de l'export AssoConnect (#1334)
 uv run python -m app.cli purge-orphans               # athlètes sans résultat ni autre référence (#1271)

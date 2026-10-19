@@ -10,6 +10,7 @@ Le journal est signé par le compte système : le compte supprimé ne peut pas �
 l'auteur d'une ligne dont la FK l'exige, et la purge n'a pas d'acteur.
 """
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
@@ -17,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.core.exceptions import DomainError
 from app.models.user import SYSTEM_USER_EMAIL, User
-from app.repositories import user_repository
+from app.repositories import admin_action_log_repository, user_repository
 from app.services import audit, volunteer_access
 from app.services.auth import authorization
 
@@ -84,6 +85,23 @@ def force_delete_account(db: Session, user: User, *, dry_run: bool) -> dict[str,
         )
         delete_account(db, user, origin="operator")
     return counts
+
+
+@dataclass(frozen=True)
+class PendingEntraDeletion:
+    deleted_at: datetime
+    user_id: int
+    oids: list[str]
+
+
+def pending_entra_deletions(db: Session, *, since: datetime) -> list[PendingEntraDeletion]:
+    """Les utilisateurs Entra à effacer à la main, depuis `since` (#1635) : lus
+    dans le journal des suppressions, jamais en comparant l'annuaire à une base."""
+    return [
+        PendingEntraDeletion(entry.created_at, entry.entity_id, oids)
+        for entry in admin_action_log_repository.list_action_since(db, action="account.delete", since=since)
+        if (oids := (entry.payload or {}).get("entra_oids"))
+    ]
 
 
 def inactivity_cutoff(now: datetime) -> datetime:
