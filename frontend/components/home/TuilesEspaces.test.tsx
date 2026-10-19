@@ -21,11 +21,11 @@ const BASE: SessionUser = {
   permissions: [], roles: [], groups: [], can_administer: false, can_supervise: false,
 };
 
-function afficher() {
+function afficher(query = "") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <TuilesEspaces derniereEpreuve={{ nom: "Tri de Saint-Gilles M", date: "2026-10-11" }} podiumsSaison={27} />
+      <TuilesEspaces derniereEpreuve={{ nom: "Tri de Saint-Gilles M", date: "2026-10-11" }} podiumsSaison={27} query={query} />
     </QueryClientProvider>,
   );
 }
@@ -84,5 +84,13 @@ describe("TuilesEspaces", () => {
     expect(backOffice).toHaveAttribute("href", "/admin");
     expect(await within(backOffice).findByText("4")).toBeInTheDocument();
     expect(backOffice).toHaveAccessibleName(/4 éléments à traiter/);
+  });
+
+  it("carries the season selection to Résultats, Club and Mon espace", () => {
+    getSession.mockResolvedValue(null);
+    afficher("?seasons=2025");
+    expect(screen.getByRole("link", { name: /Résultats/ })).toHaveAttribute("href", "/resultats?seasons=2025");
+    expect(screen.getByRole("link", { name: /Club/ })).toHaveAttribute("href", "/club?seasons=2025");
+    expect(screen.getByRole("link", { name: /Mon espace/ })).toHaveAttribute("href", "/mon-espace?seasons=2025");
   });
 });

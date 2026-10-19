@@ -18,26 +18,37 @@ describe("BandeauDirect", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("shows a recent outing as « Ce week-end » with its figures", () => {
-    render(<BandeauDirect sortie={{ end_date: "2026-10-11", events: 3, athletes: 48, podiums: 9 }} stats={STATS} season={2026} today={TODAY} />);
+    render(<BandeauDirect sortie={{ end_date: "2026-10-11", events: 3, athletes: 48, podiums: 9 }} stats={STATS} seasons={[2026]} today={TODAY} />);
     expect(screen.getByText("Ce week-end")).toBeInTheDocument();
     expect(screen.getByText("48 TCN")).toBeInTheDocument();
     expect(screen.getByText(/3 épreuves · 9 podiums/)).toBeInTheDocument();
   });
 
   it("dates an older outing", () => {
-    render(<BandeauDirect sortie={{ end_date: "2026-09-06", events: 1, athletes: 5, podiums: 0 }} stats={STATS} season={2026} today={TODAY} />);
+    render(<BandeauDirect sortie={{ end_date: "2026-09-06", events: 1, athletes: 5, podiums: 0 }} stats={STATS} seasons={[2026]} today={TODAY} />);
     expect(screen.getByText("Dernière sortie · 6 sept.")).toBeInTheDocument();
   });
 
   it("falls back when the season has no outing yet, season figures stay", () => {
-    render(<BandeauDirect sortie={null} stats={STATS} season={2026} today={TODAY} />);
+    render(<BandeauDirect sortie={null} stats={STATS} seasons={[2026]} today={TODAY} />);
     expect(screen.getByText("Pas encore d'épreuve cette saison")).toBeInTheDocument();
     expect(screen.getByText("312")).toBeInTheDocument();
     expect(screen.getByText("27")).toBeInTheDocument();
   });
 
   it("summarises the monthly chart for screen readers", () => {
-    render(<BandeauDirect sortie={null} stats={STATS} season={2026} today={TODAY} />);
+    render(<BandeauDirect sortie={null} stats={STATS} seasons={[2026]} today={TODAY} />);
     expect(screen.getByRole("img", { name: /Résultats par mois.*sept\. : 120.*oct\. : 192/ })).toBeInTheDocument();
+  });
+
+  it("names the selection in the title and the latest season on the chart", () => {
+    render(<BandeauDirect sortie={null} stats={STATS} seasons={[2025, 2026]} today={TODAY} />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("2 saisons sélectionnées");
+    expect(screen.getByText("Résultats par mois · Saison 2026 — 2027")).toBeInTheDocument();
+  });
+
+  it("dates a past season's outing", () => {
+    render(<BandeauDirect sortie={{ end_date: "2026-05-10", events: 1, athletes: 5, podiums: 0 }} stats={STATS} seasons={[2025]} today={TODAY} />);
+    expect(screen.getByText("Dernière sortie · 10 mai")).toBeInTheDocument();
   });
 });

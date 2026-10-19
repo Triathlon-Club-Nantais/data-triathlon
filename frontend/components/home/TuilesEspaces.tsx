@@ -30,7 +30,7 @@ function Tuile({ href, titre, ligne, badge }: { href: string; titre: string; lig
 }
 
 /** Les portes de l'accueil (#1621) ; les espaces réservés n'apparaissent qu'une fois la session lue. */
-export function TuilesEspaces({ derniereEpreuve, podiumsSaison }: { derniereEpreuve: { nom: string; date: string | null } | null; podiumsSaison: number }) {
+export function TuilesEspaces({ derniereEpreuve, podiumsSaison, query }: { derniereEpreuve: { nom: string; date: string | null } | null; podiumsSaison: number; query: string }) {
   const { data: session } = useHydratedSession();
   const athlete = useSelectedAthlete();
   const epreuves = useEpreuvesSaison(athlete?.id);
@@ -47,12 +47,12 @@ export function TuilesEspaces({ derniereEpreuve, podiumsSaison }: { derniereEpre
   return (
     <nav aria-label="Espaces" className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <Tuile
-        href="/resultats"
+        href={`/resultats${query}`}
         titre="Résultats"
         ligne={derniereEpreuve ? `${derniereEpreuve.nom}${derniereEpreuve.date ? ` · ${formatDate(derniereEpreuve.date)}` : ""}` : "Toutes les épreuves du club"}
       />
-      <Tuile href="/club" titre="Club" ligne={`${motCompte(podiumsSaison, "podium")} cette saison`} />
-      <Tuile href="/mon-espace" titre="Mon espace" ligne={athlete ? (epreuves === undefined ? nomComplet(athlete) : `${nomComplet(athlete)} · ${motCompte(epreuves, "épreuve")} cette saison`) : "Choisissez votre nom"} />
+      <Tuile href={`/club${query}`} titre="Club" ligne={`${motCompte(podiumsSaison, "podium")} cette saison`} />
+      <Tuile href={`/mon-espace${query}`} titre="Mon espace" ligne={athlete ? (epreuves === undefined ? nomComplet(athlete) : `${nomComplet(athlete)} · ${motCompte(epreuves, "épreuve")} cette saison`) : "Choisissez votre nom"} />
       {session?.can_supervise && <Tuile href="/encadrement" titre="Encadrement" ligne="Jeunes, appel, bénévolat" />}
       {session?.can_administer && (
         <Tuile
