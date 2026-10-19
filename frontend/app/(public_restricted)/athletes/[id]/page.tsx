@@ -9,7 +9,7 @@ import { PageShell } from "@/components/layout/PageShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { AthleteAvatar } from "./AthleteAvatar";
 import { AthleteHeaderActions } from "./AthleteHeaderActions";
-import { EventsTable } from "./EventsTable";
+import { EventsTable } from "@/components/athletes/EventsTable";
 import { AthleteChallenges } from "@/components/challenges/AthleteChallenges";
 import {
   SeasonValidationPanel,

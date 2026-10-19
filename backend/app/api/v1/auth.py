@@ -40,7 +40,15 @@ from app.schemas.auth import (
 )
 from app.schemas.ids import DbId
 from app.schemas.season_goal import SeasonGoalRead, SeasonGoalWrite
-from app.services import athlete_claims, membership, result_claims, season_goals, volunteer_access
+from app.schemas.volunteer_action import AdminVolunteerActionOut
+from app.services import (
+    athlete_claims,
+    membership,
+    result_claims,
+    season_goals,
+    volunteer_access,
+    volunteer_action_service,
+)
 from app.services.auth import accounts, authorization, flow
 from app.services.auth import session as session_service
 from app.services.auth.errors import ERROR_CODES, LoginError
@@ -449,6 +457,14 @@ def delete_goal(goal_id: DbId, user: User = Depends(current_user), db: Session =
     season_goals.delete(db, user, goal_id)
     db.commit()
     return Response(status_code=204, headers=NO_STORE_HEADERS)
+
+
+@router.get("/auth/me/volunteer-actions", response_model=list[AdminVolunteerActionOut])
+def list_my_volunteer_actions(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Mes actions de bénévolat validées (#1696) ; liste vide sans fiche rattachée."""
+    if user.athlete_id is None:
+        return []
+    return volunteer_action_service.list_validated_for_athlete(db, athlete_id=user.athlete_id)
 
 
 @router.get("/auth/me", response_model=SessionUserRead)

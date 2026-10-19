@@ -2,13 +2,13 @@
 
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { SeasonGoals } from "@/components/dashboard/SeasonGoals";
 import { apiClient } from "@/lib/api/client";
 import { chiffresSaison, fenetreSaisonPrecedente } from "@/lib/mon-espace";
 import { useHydratedSession } from "@/lib/queries/auth";
 import { serializeSeasons } from "@/lib/utils/season";
 import { InvitationMonEspace } from "./InvitationMonEspace";
 import { MesChiffres } from "./MesChiffres";
+import { OngletsMonEspace } from "./OngletsMonEspace";
 import { SqueletteMonEspace } from "./SqueletteMonEspace";
 
 /** Grille de Mon espace : la navigation est le rail de l'application, à gauche. */
@@ -33,8 +33,7 @@ export function MonEspace({ seasons, federalOnly }: { seasons: number[]; federal
 
   const courant = useQuery({
     queryKey: ["mon-espace", "chiffres", athlete?.id, serializeSeasons(seasons), federalOnly],
-    queryFn: async () =>
-      chiffresSaison((await apiClient.getAthlete(athlete!.id, { seasons: serializeSeasons(seasons), ...filters })).participations),
+    queryFn: () => apiClient.getAthlete(athlete!.id, { seasons: serializeSeasons(seasons), ...filters }),
     enabled: athlete !== null,
     retry: false,
   });
@@ -65,8 +64,13 @@ export function MonEspace({ seasons, federalOnly }: { seasons: number[]; federal
     <MonEspaceLayout
       centre={
         <>
-          <MesChiffres courant={courant.data} precedent={precedent.data ?? null} />
-          <SeasonGoals />
+          <MesChiffres courant={chiffresSaison(courant.data.participations)} precedent={precedent.data ?? null} />
+          <OngletsMonEspace
+            athleteId={athlete.id}
+            athleteName={`${athlete.prenom} ${athlete.nom}`}
+            participations={courant.data.participations}
+            challenges={courant.data.challenges}
+          />
         </>
       }
       droite={null}

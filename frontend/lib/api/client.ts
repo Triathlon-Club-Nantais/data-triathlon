@@ -932,6 +932,7 @@ export const apiClient = {
   detachAthlete: () => request<null>("/auth/me/athlete", { method: "DELETE" }),
   getAthleteClaims: () => request<AthleteClaimReview[]>("/admin/athlete-claims"),
   // ── Objectifs de saison (#1373), privés au compte ───────────────────────────
+  getMyVolunteerActions: () => request<AdminVolunteerActionOut[]>("/auth/me/volunteer-actions"),
   getSeasonGoals: () => request<SeasonGoal[]>("/auth/me/goals"),
   createSeasonGoal: (body: SeasonGoalWrite) =>
     request<SeasonGoal>("/auth/me/goals", { method: "POST", body: JSON.stringify(body) }),

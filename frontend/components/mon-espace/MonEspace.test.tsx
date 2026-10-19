@@ -8,7 +8,9 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return { ...original, apiClient: { ...original.apiClient, getSession, getAthlete } };
 });
-vi.mock("@/components/dashboard/SeasonGoals", () => ({ SeasonGoals: () => <div data-testid="goals" /> }));
+vi.mock("./OngletsMonEspace", () => ({
+  OngletsMonEspace: ({ participations }: { participations: unknown[] }) => <div data-testid="onglets">{participations.length}</div>,
+}));
 
 import { MonEspace } from "./MonEspace";
 
@@ -80,7 +82,7 @@ describe("MonEspace access", () => {
 
     expect(await screen.findByTestId("mon-espace-centre")).toBeInTheDocument();
     expect(screen.getByTestId("mon-espace-droite")).toBeInTheDocument();
-    expect(screen.getByTestId("goals")).toBeInTheDocument();
+    expect(screen.getByTestId("onglets")).toHaveTextContent("2");
     expect(getAthlete).toHaveBeenCalledWith(42, { seasons: "2026", federal_only: true });
     expect(getAthlete).toHaveBeenCalledWith(42, { seasons: "2025", federal_only: true });
     // The 2025-11-20 result is after the same date a year earlier and does not count: +1.
