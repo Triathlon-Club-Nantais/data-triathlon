@@ -9,6 +9,7 @@ const getStats = vi.fn();
 const getClubSummary = vi.fn();
 const listParticipations = vi.fn();
 const getClubBestTimes = vi.fn();
+const listSeasons = vi.fn();
 
 vi.mock("@/lib/api/server", () => ({
   apiServer: {
@@ -16,6 +17,7 @@ vi.mock("@/lib/api/server", () => ({
     getClubSummary: (opts: unknown, fetchOpts?: unknown) => getClubSummary(opts, fetchOpts),
     listParticipations: (filters: unknown, fetchOpts?: unknown) => listParticipations(filters, fetchOpts),
     getClubBestTimes: (opts: unknown, fetchOpts?: unknown) => getClubBestTimes(opts, fetchOpts),
+    listSeasons: (opts: unknown, fetchOpts?: unknown) => listSeasons(opts, fetchOpts),
   },
   SHORT_REVALIDATE_SECONDS: 30,
 }));
@@ -50,6 +52,11 @@ const SUMMARY: ClubSummary = {
   licensees: null,
 };
 
+const SEASONS = [
+  { start_year: 2026, label: "Saison 2026", event_count: 5, participation_count: 42, is_current: true },
+  { start_year: 2025, label: "Saison 2025", event_count: 3, participation_count: 20, is_current: false },
+];
+
 function part(over: Partial<Participation> & { id: number }): Participation {
   return {
     id: over.id,
@@ -71,6 +78,7 @@ beforeEach(() => {
   getClubSummary.mockResolvedValue(SUMMARY);
   listParticipations.mockResolvedValue([part({ id: 1 })]);
   getClubBestTimes.mockResolvedValue([]);
+  listSeasons.mockResolvedValue(SEASONS);
 });
 
 // `RosterApercu` appelle `useClubRosterRank` (#641) : un `QueryClientProvider`
@@ -104,26 +112,61 @@ describe("ClubPage", () => {
     );
   });
 
-  // #649 : le KPI « Résultats » affichait le total toutes saisons de
-  // `/club/summary`, quand « Résultats » du dashboard filtre sur
-  // la saison en cours (repli par défaut de `currentSeason()`) — deux
-  // compteurs pour ce qui semble à l'utilisateur la même donnée.
-  it("scope le total du KPI Résultats à la saison en cours, comme /mon-espace", async () => {
-    getStats.mockImplementation((opts: { seasons?: number[] }) =>
-      Promise.resolve(opts?.seasons ? { ...STATS, total: 7 } : { ...STATS, total: 42 }),
-    );
+  it("scopes every figure to ?seasons and takes the max season for the best times", async () => {
+    await renderClub({ seasons: "2024,2025" });
 
+    expect(getStats).toHaveBeenCalledTimes(1);
+    expect(getStats).toHaveBeenCalledWith(
+      expect.objectContaining({ seasons: [2024, 2025] }),
+      expect.anything(),
+    );
+    expect(getClubSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ seasons: [2024, 2025] }),
+      expect.anything(),
+    );
+    expect(listParticipations).toHaveBeenCalledWith(
+      expect.objectContaining({ seasons: [2024, 2025] }),
+      expect.anything(),
+    );
+    expect(getClubBestTimes).toHaveBeenCalledWith(
+      expect.objectContaining({ season: 2025 }),
+      expect.anything(),
+    );
+  });
+
+  it("falls back to the current season without ?seasons and makes a single stats call", async () => {
     await renderClub({});
 
+    expect(getStats).toHaveBeenCalledTimes(1);
     expect(getStats).toHaveBeenCalledWith(
       expect.objectContaining({ seasons: [currentSeason()] }),
       expect.anything(),
     );
-    const carte = screen.getByText("Résultats").parentElement!.parentElement!;
-    expect(carte.querySelector(".tcn-stat-value")).toHaveTextContent("7");
+    expect(getClubSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ seasons: [currentSeason()] }),
+      expect.anything(),
+    );
   });
 
-  it("asks the club best times for the current season and for all seasons (#1588)", async () => {
+  it("renders the season selector", async () => {
+    await renderClub({});
+
+    expect(listSeasons).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: "club" }),
+      expect.anything(),
+    );
+    expect(screen.getByText("Saisons")).toBeInTheDocument();
+  });
+
+  it("renders the empty state for a season without results", async () => {
+    getStats.mockResolvedValue({ ...STATS, total: 0 });
+
+    await renderClub({ seasons: "2020" });
+
+    expect(screen.getByText("Aucun résultat de club")).toBeInTheDocument();
+  });
+
+  it("asks the club best times for the selected season and for all seasons (#1588)", async () => {
     await renderClub({ sports: "federal" });
 
     expect(getClubBestTimes).toHaveBeenCalledWith(

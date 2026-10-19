@@ -12,6 +12,7 @@ vi.mock("next/navigation", () => ({
 const { getClubPodiums } = vi.hoisted(() => ({ getClubPodiums: vi.fn() }));
 vi.mock("@/lib/api/client", () => ({ apiClient: { getClubPodiums } }));
 
+import { currentSeason } from "@/lib/utils/season";
 import { PodiumsList, APERCU_PODIUMS } from "./PodiumsList";
 
 function entry(over: Partial<ClubPodiumEntry> & { participation_id: number }): ClubPodiumEntry {
@@ -201,7 +202,19 @@ describe("PodiumsList — aperçu servi seul, liste chargée au dépliage (#1354
     await user.click(screen.getByRole("button", { name: "Voir les 3 autres podiums" }));
 
     expect(await screen.findAllByRole("listitem")).toHaveLength(9);
-    expect(getClubPodiums).toHaveBeenCalledWith({ federal_only: true });
+    expect(getClubPodiums).toHaveBeenCalledWith({ federal_only: true, seasons: [currentSeason()] });
+  });
+
+  it("charge la liste complète sur les saisons de l'URL", async () => {
+    searchParams = new URLSearchParams("seasons=2024,2025");
+    getClubPodiums.mockResolvedValue({ ...EMPTY, scratch: NEUF });
+    const user = userEvent.setup();
+    render(<PodiumsList podiums={APERCU} totals={TOTAUX} />);
+
+    await user.click(screen.getByRole("button", { name: "Voir les 3 autres podiums" }));
+
+    await screen.findAllByRole("listitem");
+    expect(getClubPodiums).toHaveBeenCalledWith({ federal_only: true, seasons: [2024, 2025] });
   });
 
   it("oublie la liste chargée quand le filtre de disciplines change", async () => {

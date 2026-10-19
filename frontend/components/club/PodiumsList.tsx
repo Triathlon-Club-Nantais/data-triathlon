@@ -12,6 +12,7 @@ import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
 import { SPORTS_PARAM, federalOnlyFromParam } from "@/lib/scope";
 import { apiClient } from "@/lib/api/client";
 import type { ClubPodiumTotals, ClubPodiums } from "@/lib/types";
+import { currentSeason, parseSeasonsParam } from "@/lib/utils/season";
 import { motCompte, plural } from "@/lib/utils/format";
 
 /**
@@ -35,12 +36,14 @@ export const APERCU_PODIUMS = 6;
  */
 export function PodiumsList(props: { podiums: ClubPodiums; totals?: ClubPodiumTotals }) {
   const sp = useSearchParams();
-  return <Podiums key={sp.get(SPORTS_PARAM) ?? ""} {...props} />;
+  return <Podiums key={`${sp.get(SPORTS_PARAM) ?? ""}|${sp.get("seasons") ?? ""}`} {...props} />;
 }
 
 function Podiums({ podiums, totals }: { podiums: ClubPodiums; totals?: ClubPodiumTotals }) {
   const sp = useSearchParams();
   const rankType = rankTypeFromParam(sp.get(RANK_PARAM) ?? undefined);
+  const fromUrl = parseSeasonsParam(sp.get("seasons"));
+  const selectedSeasons = fromUrl.length > 0 ? fromUrl : [currentSeason()];
   const [etendu, setEtendu] = useState(false);
   const [complet, setComplet] = useState<ClubPodiums | null>(null);
   const [chargement, setChargement] = useState(false);
@@ -59,7 +62,10 @@ function Podiums({ podiums, totals }: { podiums: ClubPodiums; totals?: ClubPodiu
       setChargement(true);
       setEchec(false);
       try {
-        setComplet(await apiClient.getClubPodiums({ federal_only: federalOnlyFromParam(sp.get(SPORTS_PARAM)) }));
+        setComplet(await apiClient.getClubPodiums({
+          federal_only: federalOnlyFromParam(sp.get(SPORTS_PARAM)),
+          seasons: selectedSeasons,
+        }));
         setEtendu(true);
       } catch {
         setEchec(true);

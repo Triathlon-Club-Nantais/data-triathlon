@@ -261,7 +261,7 @@ export const apiServer = {
     fetchOpts: FetchOpts = {},
   ) => serverFetch<Stats>(`/stats${toQuery(opts)}`, fetchOpts),
   getClubSummary: (
-    opts: { federal_only?: boolean; podiums?: "preview" } = {},
+    opts: { federal_only?: boolean; podiums?: "preview"; seasons?: number[] } = {},
     fetchOpts: FetchOpts = {},
   ) => serverFetch<ClubSummary>(`/club/summary${toQuery(opts)}`, fetchOpts),
   /** Meilleur temps du club par format calibré et genre (#1588) ; sans `season`, toutes saisons. */
@@ -270,7 +270,7 @@ export const apiServer = {
     fetchOpts: FetchOpts = {},
   ) => serverFetch<ClubBestTime[]>(`/club/best-times${toQuery(opts)}`, fetchOpts),
   /** Dernière sortie du club dans la saison en cours (#1619), `null` sans course TCN. */
-  getClubLastOuting: (opts: { federal_only?: boolean } = {}, fetchOpts: FetchOpts = {}) =>
+  getClubLastOuting: (opts: { federal_only?: boolean; seasons?: number[] } = {}, fetchOpts: FetchOpts = {}) =>
     serverFetch<ClubLastOuting | null>(`/club/last-outing${toQuery(opts)}`, fetchOpts),
   listSeasons: (opts: { scope?: string; federal_only?: boolean } = {}, fetchOpts: FetchOpts = {}) =>
     serverFetch<Season[]>(`/stats/seasons${toQuery(opts)}`, fetchOpts),

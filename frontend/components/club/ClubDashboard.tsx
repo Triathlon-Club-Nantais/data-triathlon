@@ -17,22 +17,19 @@ import { LienDestination } from "@/components/layout/LienDestination";
 import { DisciplinePerformance } from "./DisciplinePerformance";
 import { ClubComposition } from "./ClubComposition";
 import { formatCount } from "@/lib/utils/format";
-import { currentSeason, seasonLabel } from "@/lib/utils/season";
+import { seasonLabel, seasonSelectionLabel } from "@/lib/utils/season";
 
 export function ClubDashboard({
   stats,
   summary,
   recent,
-  resultsTotal,
+  seasons,
 }: {
   stats: Stats;
   summary: ClubSummary;
   recent: Participation[];
-  /** Total scopé à la saison en cours (#649), même filtre que le compteur
-   *  « Résultats » de `/mon-espace` (repli sur `currentSeason()`).
-   *  Distinct de `stats.total`, toutes saisons confondues, que les autres KPI
-   *  de cette page continuent d'utiliser : d'où la sous-ligne de saison (#1111). */
-  resultsTotal: number;
+  /** Sélection de saisons que `stats` et `summary` portent déjà. */
+  seasons: number[];
 }) {
   const roster = summary.roster;
   const licensees = summary.licensees;
@@ -53,7 +50,7 @@ export function ClubDashboard({
           Le KPI Podiums, lui, suit `?rank=…` via un composant client (#132). */}
       {/* Cinq tuiles à 68 px ne tiennent qu'en `xl` : en `lg`, trois puis deux. */}
       <div className={`grid gap-4 sm:grid-cols-2 ${licensees ? "lg:grid-cols-3 xl:grid-cols-5" : "lg:grid-cols-4"}`}>
-        <KpiCard label="Résultats" value={resultsTotal} hint={seasonLabel(currentSeason())} accent />
+        <KpiCard label="Résultats" value={stats.total} hint={seasonSelectionLabel(seasons)} accent />
         <KpiCard label="Athlètes" value={stats.athletes} />
         <KpiCard label="Épreuves" value={stats.events} />
         <ClubPodiumKpi rankCounters={stats.rank_counters} />
