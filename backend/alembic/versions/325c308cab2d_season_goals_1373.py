@@ -1,7 +1,7 @@
 """season goals (#1373)
 
 Revision ID: 325c308cab2d
-Revises: cd0a7061e41f
+Revises: 2901789fc3c8
 Create Date: 2026-10-17 16:57:04.352451
 """
 from typing import Sequence, Union
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 
 revision: str = '325c308cab2d'
-down_revision: Union[str, None] = 'cd0a7061e41f'
+down_revision: Union[str, None] = '2901789fc3c8'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
