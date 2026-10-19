@@ -70,6 +70,7 @@ export function MonEspace({ seasons, federalOnly }: { seasons: number[]; federal
             athleteName={`${athlete.prenom} ${athlete.nom}`}
             participations={courant.data.participations}
             challenges={courant.data.challenges}
+            federalOnly={federalOnly}
           />
         </>
       }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Participation } from "@/lib/types";
-import { chiffresSaison, ecart, fenetreSaisonPrecedente, formatTempsTotal } from "./mon-espace";
+import { chiffresSaison, ecart, fenetreSaisonPrecedente, formatTempsTotal, recordsPersonnels } from "./mon-espace";
 
 let id = 0;
 function part(extra: Omit<Partial<Participation>, "course"> & { course?: Partial<Participation["course"]> } = {}): Participation {
@@ -42,4 +42,38 @@ describe("fenetreSaisonPrecedente", () => {
 describe("ecart and formatTempsTotal", () => {
   it("subtracts", () => expect(ecart(5, 3)).toBe(2));
   it("formats hours and minutes", () => expect(formatTempsTotal(3600 * 12 + 300)).toBe("12 h 05"));
+});
+
+describe("recordsPersonnels", () => {
+  const ancien = part({ total_time: "2:10:00", course: { event_date: "2025-06-01" } });
+  const battu = part({ total_time: "2:00:00" });
+  const sprint = (extra = {}) => part({ course: { event_type: "triathlon-s", distance_km: 25 }, ...extra });
+
+  it("flags a personal record beaten in the selection", () => {
+    const [ligne] = recordsPersonnels([battu], [ancien, battu]);
+    expect(ligne).toMatchObject({ format: "M", discipline: "triathlon", badge: "record" });
+    expect(ligne.meilleur.participation).toBe(battu);
+    expect(ligne.record.temps).toBe("2:00:00");
+  });
+
+  it("shows no badge when the career record is older than the selection", () => {
+    const record = part({ total_time: "1:50:00", course: { event_date: "2024-06-01" } });
+    const [ligne] = recordsPersonnels([battu], [record, battu]);
+    expect(ligne.badge).toBeNull();
+    expect(ligne.record.participation).toBe(record);
+    expect(ligne.meilleur.temps).toBe("2:00:00");
+  });
+
+  it("flags the first ever result on a format", () => {
+    const premier = sprint();
+    const lignes = recordsPersonnels([battu, premier], [ancien, battu, premier]);
+    expect(lignes.find((l) => l.format === "S")?.badge).toBe("premiere");
+    expect(lignes.find((l) => l.format === "M")?.badge).toBe("record");
+  });
+
+  it("ignores relays and unreliable courses", () => {
+    const relais = part({ is_relay: true, course: { is_relay: true } });
+    const douteux = part({ course: { is_reliable: false } });
+    expect(recordsPersonnels([relais, douteux], [relais, douteux])).toEqual([]);
+  });
 });

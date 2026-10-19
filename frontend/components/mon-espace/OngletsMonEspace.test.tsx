@@ -20,6 +20,7 @@ vi.mock("@/components/athletes/EventsTable", () => ({
 vi.mock("@/components/challenges/AthleteChallenges", () => ({
   AthleteChallenges: ({ challenges }: { challenges: unknown[] }) => <div data-testid="challenges">{challenges.length} challenges</div>,
 }));
+vi.mock("./OngletRecords", () => ({ OngletRecords: ({ federalOnly }: { federalOnly: boolean }) => <div data-testid="records">{String(federalOnly)}</div> }));
 vi.mock("@/components/dashboard/SeasonGoals", () => ({ SeasonGoals: () => <div data-testid="goals" /> }));
 
 import { OngletsMonEspace } from "./OngletsMonEspace";
@@ -30,6 +31,7 @@ const arbre = () => (
     <OngletsMonEspace
       athleteId={42}
       athleteName="Léa Martin"
+      federalOnly
       participations={[{ id: 1 }, { id: 2 }] as unknown as Participation[]}
       challenges={[{ id: 9 }] as unknown as AthleteChallenge[]}
     />
@@ -47,10 +49,19 @@ beforeEach(() => {
 });
 
 describe("OngletsMonEspace", () => {
-  it("lists the tabs in order and opens my races with their challenges by default", () => {
+  it("lists the tabs in order and opens the records by default", () => {
     afficher();
 
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Épreuves", "Bénévolat", "Objectifs"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Records", "Épreuves", "Bénévolat", "Objectifs"]);
+    expect(screen.getByRole("tab", { name: "Records" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("records")).toHaveTextContent("true");
+    expect(getMyVolunteerActions).not.toHaveBeenCalled();
+  });
+
+  it("shows my races with their challenges in their tab", () => {
+    searchParams = new URLSearchParams("onglet=epreuves");
+    afficher();
+
     expect(screen.getByRole("tab", { name: "Épreuves" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("events")).toHaveTextContent("2 épreuves");
     expect(screen.getByTestId("challenges")).toHaveTextContent("1 challenges");
@@ -81,7 +92,7 @@ describe("OngletsMonEspace", () => {
     searchParams = new URLSearchParams("onglet=zzz");
     afficher();
 
-    expect(screen.getByRole("tab", { name: "Épreuves" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Records" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("shows my goals in their tab", () => {
