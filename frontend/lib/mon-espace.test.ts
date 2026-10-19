@@ -20,8 +20,9 @@ describe("chiffresSaison", () => {
       part({ rank_overall: 2, course_finishers: 100 }),
       part({ rank_overall: 10, course_finishers: 50, course: { is_reliable: false, distance_km: 20 }, total_time: "1:00:00" }),
       part({ is_relay: true, rank_overall: 1, course: { is_relay: true, distance_km: 100 }, total_time: "5:00:00" }),
+      part({ course: { is_relay: true, distance_km: 30 }, total_time: "3:00:00" }),
     ]);
-    expect(result).toEqual({ epreuves: 3, podiums: 1, km: 70, tempsSecondes: 10800, meilleurRatio: 2 });
+    expect(result).toEqual({ epreuves: 4, podiums: 1, km: 70, tempsSecondes: 10800, meilleurRatio: 2 });
   });
 
   it("has a null best ratio and zeros when empty", () => {

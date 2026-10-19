@@ -1,4 +1,5 @@
 import type { Participation } from "@/lib/types";
+import { estRelais } from "@/lib/utils/relais";
 import { compteMaSaison } from "@/lib/utils/ma-saison";
 import { rankRatio } from "@/lib/utils/ranking";
 import { secondsFromHms } from "@/lib/utils/time";
@@ -23,7 +24,7 @@ export function chiffresSaison(participations: Participation[]): ChiffresSaison 
   let tempsSecondes = 0;
   let meilleurRatio: number | null = null;
   for (const p of validees) {
-    if (p.is_relay) continue;
+    if (estRelais(p)) continue;
     km += p.course.distance_km ?? 0;
     tempsSecondes += secondsFromHms(p.total_time) ?? 0;
     const pourcent = rankRatio(p).ratio?.percent;

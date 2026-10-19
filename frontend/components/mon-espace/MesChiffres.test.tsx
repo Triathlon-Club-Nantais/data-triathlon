@@ -23,7 +23,13 @@ describe("MesChiffres", () => {
     render(<MesChiffres courant={COURANT} precedent={PRECEDENT} />);
 
     const ecarts = screen.getAllByTestId("ecart").map((node) => node.textContent);
-    expect(ecarts).toEqual(["+3", "−1", "+10", "=", "−3 pts"]);
+    expect(ecarts).toEqual(["+3", "−1", "+10", "=", "mieux de 3 pts"]);
+  });
+
+  it("words a worse ranking as a loss", () => {
+    render(<MesChiffres courant={COURANT} precedent={{ ...PRECEDENT, meilleurRatio: 10 }} />);
+
+    expect(screen.getAllByTestId("ecart")[4]).toHaveTextContent("moins bien de 2 pts");
   });
 
   it("shows a placeholder when there is no ranking", () => {

@@ -7,6 +7,12 @@ function signe(valeur: number, unite = ""): string {
   return `${valeur > 0 ? "+" : "−"}${Math.abs(valeur)}${unite}`;
 }
 
+// Un top % plus petit est une amélioration : le signe brut se lirait comme une perte.
+function ecartClassement(valeur: number): string {
+  if (valeur === 0) return "=";
+  return `${valeur < 0 ? "mieux" : "moins bien"} de ${Math.abs(valeur)} pts`;
+}
+
 /** « Mes chiffres » de Mon espace : cinq chiffres de la sélection, écart face à la saison précédente à date égale quand `precedent` est fourni. */
 export function MesChiffres({ courant, precedent }: { courant: ChiffresSaison; precedent: ChiffresSaison | null }) {
   const chiffres: { libelle: string; valeur: string; ecart: string | null }[] = [
@@ -23,7 +29,7 @@ export function MesChiffres({ courant, precedent }: { courant: ChiffresSaison; p
       valeur: courant.meilleurRatio === null ? "n/d" : `Top ${courant.meilleurRatio} %`,
       ecart:
         precedent && courant.meilleurRatio !== null && precedent.meilleurRatio !== null
-          ? signe(ecart(courant.meilleurRatio, precedent.meilleurRatio), " pts")
+          ? ecartClassement(ecart(courant.meilleurRatio, precedent.meilleurRatio))
           : null,
     },
   ];
