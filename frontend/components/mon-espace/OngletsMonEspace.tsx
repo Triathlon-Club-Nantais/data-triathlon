@@ -13,6 +13,7 @@ import { messageDeRefus } from "@/lib/api/refus";
 import { useMyVolunteerActions } from "@/lib/queries/auth";
 import type { AthleteChallenge, Participation } from "@/lib/types";
 import { formatDate } from "@/lib/utils/date";
+import { OngletDisciplines } from "./OngletDisciplines";
 import { OngletProgression } from "./OngletProgression";
 import { OngletRecords } from "./OngletRecords";
 
@@ -82,6 +83,7 @@ export function OngletsMonEspace({
   const onglets = [
     { value: "progression", label: "Progression" },
     { value: "records", label: "Records" },
+    { value: "disciplines", label: "Disciplines" },
     { value: "epreuves", label: "Épreuves" },
     { value: "benevolat", label: "Bénévolat" },
     { value: "objectifs", label: "Objectifs" },
@@ -109,7 +111,10 @@ export function OngletsMonEspace({
       <TabsContent value="records">
         <OngletRecords athleteId={athleteId} federalOnly={federalOnly} selection={participations} />
       </TabsContent>
-      <TabsContent value="epreuves" className="space-y-6">
+      <TabsContent value="disciplines">
+        <OngletDisciplines participations={participations} federalOnly={federalOnly} seasons={seasons} />
+      </TabsContent>
+      <TabsContent value="epreuves"className="space-y-6">
         <EventsTable participations={participations} athleteId={athleteId} athleteName={athleteName} />
         <AthleteChallenges challenges={challenges} />
       </TabsContent>

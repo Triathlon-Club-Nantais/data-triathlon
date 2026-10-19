@@ -20,6 +20,7 @@ vi.mock("@/components/athletes/EventsTable", () => ({
 vi.mock("@/components/challenges/AthleteChallenges", () => ({
   AthleteChallenges: ({ challenges }: { challenges: unknown[] }) => <div data-testid="challenges">{challenges.length} challenges</div>,
 }));
+vi.mock("./OngletDisciplines", () => ({ OngletDisciplines: () => <div data-testid="disciplines" /> }));
 vi.mock("./OngletProgression", () => ({ OngletProgression: () => <div data-testid="progression" /> }));
 vi.mock("./OngletRecords", () => ({ OngletRecords: ({ federalOnly }: { federalOnly: boolean }) => <div data-testid="records">{String(federalOnly)}</div> }));
 vi.mock("@/components/dashboard/SeasonGoals", () => ({ SeasonGoals: () => <div data-testid="goals" /> }));
@@ -55,7 +56,7 @@ describe("OngletsMonEspace", () => {
   it("lists the tabs in order and opens the progression by default", () => {
     afficher();
 
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Progression", "Records", "Épreuves", "Bénévolat", "Objectifs"]);
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Progression", "Records", "Disciplines", "Épreuves", "Bénévolat", "Objectifs"]);
     expect(screen.getByRole("tab", { name: "Progression" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("progression")).toBeInTheDocument();
     expect(getMyVolunteerActions).not.toHaveBeenCalled();

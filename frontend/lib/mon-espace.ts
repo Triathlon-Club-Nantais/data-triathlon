@@ -1,5 +1,6 @@
 import type { Participation } from "@/lib/types";
-import { bestTimes } from "@/lib/utils/best-times";
+import { bestTimes, countsAsPerformance } from "@/lib/utils/best-times";
+import { disciplineOf, formatToken } from "@/lib/utils/format";
 import { estRelais } from "@/lib/utils/relais";
 import { compteMaSaison } from "@/lib/utils/ma-saison";
 import { rankRatio } from "@/lib/utils/ranking";
@@ -41,6 +42,65 @@ export function fenetreSaisonPrecedente(season: number, today: Date): { start: s
   anPlusTot.setUTCFullYear(today.getUTCFullYear() - 1);
   const end = [anPlusTot.toISOString().slice(0, 10), `${season}-08-31`].sort()[0];
   return { start, end: end < start ? start : end };
+}
+
+/** Mes épreuves (hors relais et saisies en attente) comptées par (discipline, format), les plus courues d'abord. */
+export function repartitionDisciplines(participations: Participation[]): [string, number][] {
+  const compte = new Map<string, number>();
+  for (const p of participations) {
+    if (p.is_pending_validation || estRelais(p)) continue;
+    const cle = `${disciplineOf(p.course.event_type)}|${formatToken(p.course.event_type, p.course.distance_km)}`;
+    compte.set(cle, (compte.get(cle) ?? 0) + 1);
+  }
+  return [...compte].sort((a, b) => b[1] - a[1]);
+}
+
+export const SEGMENTS = [
+  { cle: "swim", libelle: "Natation" },
+  { cle: "bike", libelle: "Vélo" },
+  { cle: "run", libelle: "Course à pied" },
+] as const;
+
+export type CleSegment = (typeof SEGMENTS)[number]["cle"];
+
+/**
+ * Ma médiane de natation, vélo et course par `event_type`. Seules comptent les lignes
+ * dont les splits sont évaluables côté serveur (`split_gap_ratio`) et qui valent
+ * performance : la même fiabilité que la médiane du club.
+ */
+export function mesMediansDeSplits(participations: Participation[]): Map<string, Record<CleSegment, number>> {
+  const valeurs = new Map<string, Record<CleSegment, number[]>>();
+  for (const p of participations) {
+    if (!countsAsPerformance(p) || p.split_gap_ratio == null) continue;
+    const secondes = SEGMENTS.map(({ cle }) => secondsFromHms(p.splits?.[cle]));
+    if (secondes.some((s) => !s)) continue;
+    const type = p.course.event_type;
+    const cible = valeurs.get(type) ?? { swim: [], bike: [], run: [] };
+    SEGMENTS.forEach(({ cle }, i) => cible[cle].push(secondes[i]!));
+    valeurs.set(type, cible);
+  }
+  const mediane = (v: number[]) => {
+    const tri = [...v].sort((a, b) => a - b);
+    const milieu = tri.length >> 1;
+    return tri.length % 2 ? tri[milieu] : (tri[milieu - 1] + tri[milieu]) / 2;
+  };
+  return new Map([...valeurs].map(([type, v]) => [type, { swim: mediane(v.swim), bike: mediane(v.bike), run: mediane(v.run) }]));
+}
+
+/** `m:ss` sous l'heure, `h:mm:ss` au-delà. */
+export function formatDuree(secondes: number): string {
+  const s = Math.round(secondes);
+  const ss = String(s % 60).padStart(2, "0");
+  if (s < 3600) return `${Math.floor(s / 60)}:${ss}`;
+  return `${Math.floor(s / 3600)}:${String(Math.floor((s % 3600) / 60)).padStart(2, "0")}:${ss}`;
+}
+
+/** Écart de mon temps face au club en une phrase, « au même niveau » sous 30 s. */
+export function ecartAuClub(moi: number, club: number): string {
+  const delta = moi - club;
+  if (Math.abs(delta) < 30) return "au même niveau";
+  const minutes = Math.max(1, Math.round(Math.abs(delta) / 60));
+  return `${minutes} min ${delta < 0 ? "plus rapide" : "plus lente"}`;
 }
 
 export function ecart(a: number, b: number): number {

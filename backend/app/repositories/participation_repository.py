@@ -1374,6 +1374,30 @@ def club_best_time_rows(db: Session, *, season: int | None = None, federal_only:
     return q.all()
 
 
+def club_split_rows(db: Session, *, event_type: str, federal_only: bool = False, seasons: list[int] | None = None):
+    """Participations du club avec splits, d'un format donné (#1699), pour la médiane des inters.
+
+    Mêmes exclusions de ligne que `club_best_time_rows`. La fiabilité du fournisseur
+    (`Course.provider` n'a pas d'expression SQL) se juge côté service, sur l'entité.
+    """
+    q = (
+        db.query(Participation)
+        .join(Course, Participation.course_id == Course.id)
+        .options(contains_eager(Participation.course).selectinload(Course.sources))
+        .filter(validated_clause(Participation.is_pending_validation))
+        .filter(Participation.counts_for_tcn.is_(True))
+        .filter(Participation.is_relay.is_(False), func.coalesce(Course.is_relay, False).is_(False))
+        .filter(Participation.status == STATUS_FINISHER)
+        .filter(Participation.splits.isnot(None))
+        .filter(Course.event_type == event_type)
+    )
+    if federal_only:
+        q = q.filter(federal_clause(Course.event_type))
+    if seasons:
+        q = q.filter(season_clause(seasons))
+    return q.all()
+
+
 def _grouped_events_query(
     db: Session,
     *,

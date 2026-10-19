@@ -359,6 +359,15 @@ export interface ClubLastOuting {
   courses: { id: number; name: string; event_type: string; tcn: number; podiums: number }[];
 }
 
+/** Médiane club des splits d'un format (#1699) : `sample` lignes fiables, `null` sans valeur. */
+export interface ClubSplitMedians {
+  event_type: string;
+  sample: number;
+  swim: string | null;
+  bike: string | null;
+  run: string | null;
+}
+
 export interface ClubRosterRank {
   rank: number;
   total: number;

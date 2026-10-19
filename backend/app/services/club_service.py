@@ -6,6 +6,7 @@ Le bucketing par mode de rang reprend la sémantique déjà posée par
 retient le meilleur des trois rangs, départagé overall > gender > category
 à égalité.
 """
+import statistics
 from collections import defaultdict
 from datetime import date
 
@@ -13,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.core.gender import is_gender_podium
 from app.core.season import current_season
+from app.core.splits_reliability import is_stats_eligible
 from app.repositories import athlete_repository, club_member_repository, participation_repository
 from app.schemas.club import (
     ClubBestTime,
@@ -22,10 +24,12 @@ from app.schemas.club import (
     ClubPodiums,
     ClubPodiumTotals,
     ClubRosterEntry,
+    ClubSplitMedians,
     ClubSummary,
     DisciplinePodiumCounts,
 )
 from app.scrapers.utils import to_seconds
+from app.services import split_gap
 
 _SCOPES = ("overall", "gender", "category")
 
@@ -212,3 +216,53 @@ def get_club_best_times(
         )
         for row in sorted((row for _, row in best.values()), key=position)
     ]
+
+
+def get_club_split_medians(
+    db: Session, *, event_type: str, federal_only: bool = False, seasons: list[int] | None = None
+) -> ClubSplitMedians:
+    """Médiane club des temps de natation, vélo et course d'un format (#1699).
+
+    Ne retient que les lignes dont les splits sont fiables et évaluables, hors lignes
+    aberrantes face à la médiane d'écart de leur épreuve. `sample` compte ces lignes.
+    shortcut: la médiane d'écart d'une épreuve ne porte que sur ses lignes du club, donc
+    une épreuve de moins de 10 lignes club ne rejette rien, à relever si les inters TCN dérivent.
+    """
+    rows = [
+        row
+        for row in participation_repository.club_split_rows(
+            db, event_type=event_type, federal_only=federal_only, seasons=seasons
+        )
+        if is_stats_eligible(row.course)
+    ]
+    gaps = {
+        row.id: split_gap.gap(row.total_time, row.splits, event_type=event_type, is_relay=False) for row in rows
+    }
+    by_course = defaultdict(list)
+    for row in rows:
+        by_course[row.course_id].append(gaps[row.id])
+    values = {key: [] for key in ("swim", "bike", "run")}
+    sample = 0
+    for row in rows:
+        gap = gaps[row.id]
+        if gap is None:
+            continue
+        course_gaps = by_course[row.course_id]
+        if split_gap.is_outlier(
+            gap,
+            median=split_gap.median(course_gaps),
+            evaluated_rows=sum(1 for value in course_gaps if value is not None),
+            total_seconds=to_seconds(row.total_time, strict=True),
+        ):
+            continue
+        sample += 1
+        for key, seconds in values.items():
+            seconds.append(to_seconds(row.splits.get(key), strict=True))
+    medians = {key: _format_seconds(statistics.median(v)) if (v := [x for x in seconds if x]) else None
+               for key, seconds in values.items()}
+    return ClubSplitMedians(event_type=event_type, sample=sample, **medians)
+
+
+def _format_seconds(seconds: float) -> str:
+    total = round(seconds)
+    return f"{total // 3600:02d}:{total % 3600 // 60:02d}:{total % 60:02d}"

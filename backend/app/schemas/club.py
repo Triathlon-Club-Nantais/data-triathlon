@@ -129,3 +129,13 @@ class ClubBestTime(BaseModel):
     event_date: str | None = None
     gender: str
     total_time: str
+
+
+class ClubSplitMedians(BaseModel):
+    """Médiane du club par discipline sur un format, à partir des splits fiables (#1699)."""
+
+    event_type: str
+    sample: int
+    swim: str | None = None
+    bike: str | None = None
+    run: str | None = None
