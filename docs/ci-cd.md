@@ -89,8 +89,9 @@ Le gating repose sur `needs: ci` : si un job CI échoue, le job de déploiement
 n'est jamais exécuté. Et le front n'est publié que **devant un backend en
 ligne** (#921) : après le deploy hook, `.github/scripts/wait-render-deploy.sh`
 retrouve le déploiement Render du commit (`GET /v1/services/{id}/deploys`),
-l'attend jusqu'à `live` (15 min au plus), puis vérifie que
-`/api/v1/version` rend bien la version poussée. `build_failed`, `update_failed`,
+l'attend jusqu'à `live` (15 min au plus), puis interroge `/api/v1/version`
+dans le même délai jusqu'à ce qu'il rende la version poussée (l'ancienne
+instance répond encore quelques secondes après `live`, #1655). `build_failed`, `update_failed`,
 `pre_deploy_failed`, `canceled` ou `deactivated` font échouer le job avant
 Vercel. Sur un `workflow_dispatch` depuis une branche de PR, si Render ne sait
 pas déployer ce commit hors de `main`, l'attente échoue au bout du délai : le
