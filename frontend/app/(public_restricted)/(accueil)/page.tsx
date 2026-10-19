@@ -19,10 +19,10 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
   const [stats, eventsPage, sortie, seasonList] = await Promise.all([
     apiServer.getStats({ scope: SCOPE_CLUB, seasons, federal_only }, revalidateOpts),
-    apiServer.listEvents({ scope: SCOPE_CLUB, federal_only, page_size: 1 }, revalidateOpts),
+    apiServer.listEvents({ scope: SCOPE_CLUB, federal_only, seasons, page_size: 1 }, revalidateOpts),
     // Décor de l'accueil : sa panne ne doit pas emporter la page.
     apiServer.getClubLastOuting({ federal_only, seasons }, revalidateOpts).catch(() => null),
-    apiServer.listSeasons({ scope: SCOPE_CLUB, federal_only }, revalidateOpts),
+    apiServer.listSeasons({ scope: SCOPE_CLUB, federal_only }, revalidateOpts).catch(() => []),
   ]);
   const derniere = sortEventsByDateDesc(eventsPage.items)[0];
 

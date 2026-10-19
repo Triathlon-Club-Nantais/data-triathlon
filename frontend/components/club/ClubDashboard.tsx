@@ -133,10 +133,7 @@ export function ClubDashboard({
           </h2>
           {/* Soumis à la visibilité du rail (#925) : /club/athletes est
               réservé à `pages:preview` (#811). Indépendant du nombre
-              d'athlètes. Le libellé dit la destination et non un décompte :
-              /club/athletes ouvre sur la saison en cours seule, quand
-              `roster.length` agrège toutes les saisons ; le total du club vit
-              dans le KPI « Athlètes », qui le tient déjà. */}
+              d'athlètes. */}
           <LienDestination
             href={`/club/athletes?seasons=${serializeSeasons(seasons)}`}
             className="shrink-0 text-sm font-medium text-accent-ink hover:underline"

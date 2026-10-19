@@ -3,7 +3,7 @@ import { render as renderRTL, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import type { ClubSummary, Participation, Stats } from "@/lib/types";
-import { currentSeason } from "@/lib/utils/season";
+import { currentSeason, seasonLabel } from "@/lib/utils/season";
 
 const getStats = vi.fn();
 const getClubSummary = vi.fn();
@@ -155,6 +155,21 @@ describe("ClubPage", () => {
       expect.objectContaining({ scope: "club" }),
       expect.anything(),
     );
+    expect(screen.getByText("Saisons")).toBeInTheDocument();
+  });
+
+  it("labels the best-times tab with the selected season", async () => {
+    getClubBestTimes.mockResolvedValue([{
+      participation_id: 1, course_id: 2, athlete_id: 3, athlete_name: "A B", event_name: "C",
+      event_type: "triathlon-m", event_date: "2024-05-16", total_time: "02:00:00", gender: "F",
+    }]);
+    await renderClub({ seasons: "2024" });
+    expect(screen.getByRole("tab", { name: seasonLabel(2024) })).toBeInTheDocument();
+  });
+
+  it("still renders when the season list call fails", async () => {
+    listSeasons.mockRejectedValue(new Error("down"));
+    await renderClub({});
     expect(screen.getByText("Saisons")).toBeInTheDocument();
   });
 

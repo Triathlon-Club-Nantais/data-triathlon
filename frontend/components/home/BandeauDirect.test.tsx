@@ -50,6 +50,13 @@ describe("BandeauDirect", () => {
     expect(screen.getByText("27")).toBeInTheDocument();
   });
 
+  it("says the selection has no outing when it is not exactly the current season", () => {
+    const { rerender } = render(<BandeauDirect sortie={null} stats={STATS} seasons={[2025]} today={TODAY} />);
+    expect(screen.getByText("Aucune épreuve sur la sélection")).toBeInTheDocument();
+    rerender(<BandeauDirect sortie={null} stats={STATS} seasons={[2025, 2026]} today={TODAY} />);
+    expect(screen.getByText("Aucune épreuve sur la sélection")).toBeInTheDocument();
+  });
+
   it("summarises the monthly chart for screen readers", () => {
     render(<BandeauDirect sortie={null} stats={STATS} seasons={[2026]} today={TODAY} />);
     expect(screen.getByRole("img", { name: /Résultats par mois.*sept\. : 120.*oct\. : 192/ })).toBeInTheDocument();

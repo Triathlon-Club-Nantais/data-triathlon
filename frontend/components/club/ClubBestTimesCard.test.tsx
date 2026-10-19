@@ -21,7 +21,7 @@ function line(id: number, over: Partial<ClubBestTime> = {}): ClubBestTime {
 
 describe("ClubBestTimesCard", () => {
   it("renders nothing when the club has no comparable time", () => {
-    const { container } = render(<ClubBestTimesCard seasonLines={[]} allLines={[]} />);
+    const { container } = render(<ClubBestTimesCard seasonLines={[]} allLines={[]} seasonLabel="Saison 2026 — 2027" />);
 
     expect(container).toBeEmptyDOMElement();
   });
@@ -31,6 +31,7 @@ describe("ClubBestTimesCard", () => {
       <ClubBestTimesCard
         seasonLines={[line(1), line(2, { gender: "M", athlete_name: "Jean MARTIN", total_time: "01:58:00" })]}
         allLines={[line(1)]}
+        seasonLabel="Saison 2026 — 2027"
       />,
     );
 
@@ -50,13 +51,13 @@ describe("ClubBestTimesCard", () => {
   });
 
   it("opens on all seasons when the current season has no time yet, and says so in its tab", async () => {
-    render(<ClubBestTimesCard seasonLines={[]} allLines={[line(1)]} />);
+    render(<ClubBestTimesCard seasonLines={[]} allLines={[line(1)]} seasonLabel="Saison 2026 — 2027" />);
 
     expect(screen.getByRole("tab", { name: "Toutes les saisons" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("link", { name: /meilleur temps sur M/ })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("tab", { name: "Saison en cours" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Saison 2026 — 2027" }));
 
-    expect(screen.getByText(/Aucun temps comparable cette saison/)).toBeInTheDocument();
+    expect(screen.getByText(/Aucun temps comparable sur cette saison/)).toBeInTheDocument();
   });
 });

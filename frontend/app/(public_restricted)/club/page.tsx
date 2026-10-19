@@ -9,7 +9,7 @@ import { ClubDashboard } from "@/components/club/ClubDashboard";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { CLUB_NAME } from "@/lib/club";
 import { SeasonSelector, SeasonTags } from "@/components/dashboard/SeasonSelector";
-import { currentSeason, parseSeasonsParam } from "@/lib/utils/season";
+import { currentSeason, parseSeasonsParam, seasonLabel } from "@/lib/utils/season";
 
 export const metadata: Metadata = { title: "Espace club" };
 
@@ -38,7 +38,8 @@ export default async function ClubPage({
     // L'onglet « saison » suit la plus récente de la sélection.
     apiServer.getClubBestTimes({ season: Math.max(...selected), federal_only }, revalidateOpts),
     apiServer.getClubBestTimes({ federal_only }, revalidateOpts),
-    apiServer.listSeasons({ scope: SCOPE_CLUB, federal_only }, revalidateOpts),
+    // Sélecteur décoratif : sa panne ne doit pas emporter la page.
+    apiServer.listSeasons({ scope: SCOPE_CLUB, federal_only }, revalidateOpts).catch(() => []),
   ]);
 
   return (
@@ -68,7 +69,11 @@ export default async function ClubPage({
           recent={recent}
           seasons={selected}
         />
-        <ClubBestTimesCard seasonLines={seasonBestTimes} allLines={allBestTimes} />
+        <ClubBestTimesCard
+          seasonLines={seasonBestTimes}
+          allLines={allBestTimes}
+          seasonLabel={seasonLabel(Math.max(...selected))}
+        />
       </div>
     </PageShell>
   );

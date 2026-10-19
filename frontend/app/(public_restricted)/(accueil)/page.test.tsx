@@ -68,6 +68,17 @@ describe("HomePage", () => {
     expect(screen.getByText("312")).toBeInTheDocument();
   });
 
+  it("still renders when the season list call fails", async () => {
+    getStats.mockResolvedValue(STATS);
+    listEvents.mockResolvedValue({ items: [], total_events: 0, total_participations: 0 });
+    getClubLastOuting.mockResolvedValue(null);
+    listSeasons.mockRejectedValue(new Error("down"));
+
+    await afficher();
+
+    expect(screen.getByText("312")).toBeInTheDocument();
+  });
+
   it("follows ?seasons= for the figures, the last outing and the selector", async () => {
     getStats.mockResolvedValue(STATS);
     listEvents.mockResolvedValue({ items: [], total_events: 0, total_participations: 0 });
@@ -77,6 +88,7 @@ describe("HomePage", () => {
 
     expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ seasons: [2025] }), { revalidateSeconds: 30 });
     expect(getClubLastOuting).toHaveBeenCalledWith({ federal_only: true, seasons: [2025] }, { revalidateSeconds: 30 });
+    expect(listEvents).toHaveBeenCalledWith(expect.objectContaining({ seasons: [2025] }), { revalidateSeconds: 30 });
     expect(screen.getByText("Saisons")).toBeInTheDocument();
   });
 });

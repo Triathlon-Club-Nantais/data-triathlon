@@ -4,7 +4,7 @@ import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
 import { estToutRecent, moisDeSaison, titreSortie } from "@/lib/home";
 import type { ClubLastOuting, Stats } from "@/lib/types";
 import { formatCount, motCompte } from "@/lib/utils/format";
-import { seasonLabel, seasonSelectionLabel } from "@/lib/utils/season";
+import { currentSeason, seasonLabel, seasonSelectionLabel } from "@/lib/utils/season";
 import { ChiffreAnime } from "./ChiffreAnime";
 
 const display = { fontFamily: "var(--tcn-font-display)", fontWeight: 400, lineHeight: 1 } as const;
@@ -44,7 +44,7 @@ export function BandeauDirect({ sortie, stats, seasons, today }: { sortie: ClubL
       <section
         aria-label="Dernière sortie"
         className="tcn-carte-sortie"
-        style={{ minWidth: 0, background: "var(--tcn-orange-grad)", color: "#fff", borderRadius: "var(--tcn-radius-xl)", padding: "24px clamp(18px, 4vw, 32px)", boxShadow: "var(--tcn-shadow-orange-lg)" }}
+        style={{ minWidth: 0, background: "var(--tcn-orange-grad)", color: "#fff", borderRadius: "var(--tcn-radius-3xl)", padding: "24px clamp(18px, 4vw, 32px)", boxShadow: "var(--tcn-shadow-orange-lg)" }}
       >
         {sortie ? (
           <>
@@ -60,7 +60,7 @@ export function BandeauDirect({ sortie, stats, seasons, today }: { sortie: ClubL
             </p>
           </>
         ) : (
-          <p style={{ ...display, margin: 0, fontSize: 28 }}>Pas encore d&apos;épreuve cette saison</p>
+          <p style={{ ...display, margin: 0, fontSize: 28 }}>{seasons.length === 1 && seasons[0] === currentSeason() ? "Pas encore d'épreuve cette saison" : "Aucune épreuve sur la sélection"}</p>
         )}
       </section>
       <section aria-labelledby="bandeau-saison-titre" style={{ minWidth: 0 }}>
