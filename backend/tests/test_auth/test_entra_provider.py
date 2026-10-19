@@ -312,6 +312,18 @@ def test_an_address_not_established_as_verified_is_not_certified(overrides):
     assert identity.verified_emails == ()
 
 
+def test_an_uncertified_address_logs_the_claim_names_never_the_address(caplog):
+    """FR-021 on the preview: tell which claim is missing without logging the address."""
+    with caplog.at_level("WARNING"):
+        _provider(FakeEntra(id_token=_id_token(xms_edov=None))).fetch_identity(
+            code="code-1", round_trip=ROUND_TRIP
+        )
+
+    message = next(r.getMessage() for r in caplog.records if "certified" in r.getMessage())
+    assert "email" in message and "xms_edov=None" in message
+    assert "@" not in message
+
+
 # --- fetch_identity: network --------------------------------------------------
 
 

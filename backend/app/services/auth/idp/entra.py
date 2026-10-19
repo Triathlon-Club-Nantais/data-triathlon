@@ -105,6 +105,12 @@ class EntraIdentityProvider:
         # n'est pas certifiée et le provisionnement refuse (FR-021 avant production).
         email = str(claims.get("email") or "").strip()
         verified = bool(email) and claims.get("xms_edov") is True
+        if not verified:
+            # Noms des claims seulement, jamais leurs valeurs : de quoi constater FR-021.
+            logger.warning(
+                "Entra identity without a certified address: claims=%s xms_edov=%r",
+                sorted(claims), claims.get("xms_edov"),
+            )
         return ExternalIdentity(
             provider=self.slug,
             subject=claims["oid"],
