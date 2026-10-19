@@ -64,13 +64,20 @@ while :; do
 done
 
 # `live` dit que Render a basculé, pas que c'est bien la version poussée qui
-# répond : `APP_VERSION` est lue au démarrage (#162).
+# répond : `APP_VERSION` est lue au démarrage (#162), et l'ancienne instance
+# sert encore quelques secondes après `live` (#1655), d'où l'interrogation en
+# boucle jusqu'à l'échéance.
 backend_url=$(render_api "https://api.render.com/v1/services/$service_id" | jq -r '.serviceDetails.url // empty')
 [ -n "$backend_url" ] || { echo "::error::URL du service introuvable dans l'API Render"; exit 1; }
-served=$(curl -sS --fail-with-body --retry 5 --retry-all-errors --retry-delay 10 --max-time 60 \
-  "$backend_url/api/v1/version" | jq -r '.version // empty')
-if [ "$served" != "$EXPECTED_VERSION" ]; then
-  echo "::error::Le backend répond la version « $served », « $EXPECTED_VERSION » attendue."
-  exit 1
-fi
+while :; do
+  served=$(curl -sS --fail-with-body --max-time 60 "$backend_url/api/v1/version" \
+    | jq -r '.version // empty' || true)
+  [ "$served" = "$EXPECTED_VERSION" ] && break
+  if [ "$(date +%s)" -ge "$deadline" ]; then
+    echo "::error::Le backend répond la version « $served », « $EXPECTED_VERSION » attendue."
+    exit 1
+  fi
+  echo "Le backend répond encore « $served », « $EXPECTED_VERSION » attendue."
+  sleep "$poll_seconds"
+done
 echo "Backend en ligne, version $served."
