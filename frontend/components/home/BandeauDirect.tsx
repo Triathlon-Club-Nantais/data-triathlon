@@ -80,6 +80,7 @@ export function BandeauDirect({ sortie, stats, seasons, today }: { sortie: ClubL
         className="tcn-carte-sortie"
         style={{ minWidth: 0, background: "var(--tcn-orange-grad)", color: "#fff", borderRadius: "var(--tcn-radius-3xl)", padding: "24px clamp(18px, 4vw, 32px)", boxShadow: "var(--tcn-shadow-orange-lg)" }}
       >
+        <div className="tcn-carte-sortie-contenu">
         {sortie ? (
           <>
             <h2 style={{ margin: 0, fontSize: "inherit", fontWeight: 800, display: "flex", alignItems: "center", gap: 10 }}>
@@ -96,6 +97,7 @@ export function BandeauDirect({ sortie, stats, seasons, today }: { sortie: ClubL
         ) : (
           <p style={{ ...display, margin: 0, fontSize: 28 }}>{seasons.length === 1 && seasons[0] === currentSeason() ? "Pas encore d'épreuve cette saison" : `Aucune épreuve pour ${seasonAbsenceLabel(seasons)}`}</p>
         )}
+        </div>
       </section>
       <section aria-labelledby="bandeau-saison-titre" style={{ minWidth: 0 }}>
         <Card padding="24px clamp(18px, 4vw, 32px)" style={{ height: "100%", minWidth: 0 }}>

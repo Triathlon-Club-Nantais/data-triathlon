@@ -109,6 +109,7 @@ describe("BandeauDirect", () => {
     expect(within(outing).getByText("Ce week-end")).toBeInTheDocument();
     expect(within(outing).getByText("48 TCN")).toBeInTheDocument();
     expect(outing).toHaveClass("tcn-carte-sortie");
+    expect(outing.querySelector(".tcn-carte-sortie-contenu")).toContainElement(within(outing).getByText("Ce week-end"));
     const season = screen.getByRole("region", { name: /Triathlon Club/ });
     expect(within(season).getByRole("heading", { level: 1 })).toBeInTheDocument();
     expect(within(season).getByText("312")).toBeInTheDocument();
