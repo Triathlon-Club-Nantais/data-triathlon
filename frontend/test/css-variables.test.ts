@@ -12,6 +12,7 @@ const racine = fileURLToPath(new URL("..", import.meta.url));
 
 /** Posées à l'exécution, hors de toute feuille : `next/font` et un `style` en ligne. */
 const POSEES_A_L_EXECUTION = new Set([
+  "--i",
   "--font-anton",
   "--font-barlow",
   "--font-barlow-cond",

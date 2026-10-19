@@ -15,9 +15,11 @@ const GENDER_LABELS: Record<string, string> = { F: "Femmes", M: "Hommes" };
 export function ClubBestTimesCard({
   seasonLines,
   allLines,
+  seasonLabel,
 }: {
   seasonLines: ClubBestTime[];
   allLines: ClubBestTime[];
+  seasonLabel: string;
 }) {
   if (allLines.length === 0 && seasonLines.length === 0) return null;
 
@@ -42,7 +44,7 @@ export function ClubBestTimesCard({
       </div>
       <Tabs defaultValue={seasonLines.length > 0 ? "season" : "all"}>
         <TabsList className="mx-[26px] h-11">
-          <TabsTrigger value="season">Saison en cours</TabsTrigger>
+          <TabsTrigger value="season">{seasonLabel}</TabsTrigger>
           <TabsTrigger value="all">Toutes les saisons</TabsTrigger>
         </TabsList>
         <TabsContent value="season">
@@ -51,7 +53,7 @@ export function ClubBestTimesCard({
           ) : (
             // Seul cet onglet peut être vide : la saison est incluse dans toutes les saisons.
             <p style={{ margin: 0, padding: "12px 26px 20px", fontSize: 14, color: "var(--tcn-text-faint)" }}>
-              Aucun temps comparable cette saison pour l&apos;instant. Les meilleurs temps des saisons
+              Aucun temps comparable sur cette saison. Les meilleurs temps des saisons
               précédentes sont sous « Toutes les saisons ».
             </p>
           )}

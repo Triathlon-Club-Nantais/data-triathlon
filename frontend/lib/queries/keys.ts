@@ -84,8 +84,8 @@ export const queryKeys = {
   // appelant. `federalOnly` fait partie de la clé : c'est un filtre distinct
   // du roster affiché, un rang calculé sur l'autre base afficherait un nombre
   // incohérent avec la liste sous les yeux.
-  clubRosterRank: (athleteId: number, federalOnly: boolean) =>
-    ["club-roster-rank", athleteId, federalOnly] as const,
+  clubRosterRank: (athleteId: number, federalOnly: boolean, seasons: string) =>
+    ["club-roster-rank", athleteId, federalOnly, seasons] as const,
   epreuvesSaison: (athleteId: number, seasons: string, federalOnly: boolean) =>
     ["epreuves-saison", athleteId, seasons, federalOnly] as const,
   pendingVolunteerActions: () => ["pending-volunteer-actions"] as const,

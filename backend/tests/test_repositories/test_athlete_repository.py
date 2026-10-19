@@ -973,6 +973,23 @@ def test_club_rank_renvoie_le_rang_et_le_total_au_dela_de_laperçu(db_session):
     assert athlete_repository.club_rank(db_session, bob.id) == (2, 3)
 
 
+def test_club_rank_restreint_le_classement_aux_saisons(db_session):
+    ancienne = course_repository.get_or_create(
+        db_session, name="Ancienne", event_date=date(2025, 5, 10), event_type="triathlon-m"
+    )
+    recente = _course(db_session, "Recente")
+    alice = athlete_repository.get_or_create(db_session, nom="ALICE", prenom="A", club="TCN")
+    bob = athlete_repository.get_or_create(db_session, nom="BOB", prenom="B", club="TCN")
+    for i in range(3):
+        _part(db_session, alice, ancienne, f"a{i}")
+    _part(db_session, bob, recente, "b0")
+    db_session.flush()
+
+    assert athlete_repository.club_rank(db_session, bob.id) == (2, 2)
+    assert athlete_repository.club_rank(db_session, bob.id, seasons=[2025]) == (1, 1)
+    assert athlete_repository.club_rank(db_session, alice.id, seasons=[2025]) is None
+
+
 def test_club_rank_renvoie_none_hors_roster(db_session):
     alice = athlete_repository.get_or_create(db_session, nom="ALICE", prenom="A", club="TCN")
 

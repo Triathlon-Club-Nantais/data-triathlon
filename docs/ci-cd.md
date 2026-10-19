@@ -255,9 +255,10 @@ secret, elle répond 503 sur Vercel (`VERCEL_ENV` défini) plutôt que de s'ouvr
    100 par jour ; chaque fusion en brûlait deux (un par projet), jusqu'au
    « Deployment rate limited » du 16/10/2026. Le fichier ne porte que la clé
    `git` : toute clé de build ou de routage changerait aussi `vercel build`.
-   L'ancien *Ignored Build Step* du dashboard (Settings → Git) n'a plus
-   d'effet ; le vider sur les deux projets évite de le prendre pour le
-   mécanisme en place.
+   L'ancien *Ignored Build Step* du dashboard (Settings → Build and
+   Deployment) reste sur « Automatic » : passé à « Don't build anything », il
+   n'aurait plus d'effet mais se prendrait pour le mécanisme en place (remis à
+   « Automatic » sur les deux projets le 19/10/2026).
 3. Relever `VERCEL_ORG_ID` et `VERCEL_PROJECT_ID` (non committés, dépôt public) :
    - via la CLI : `vercel link` puis lire `.vercel/project.json`
      (`orgId` → `VERCEL_ORG_ID`, `projectId` → `VERCEL_PROJECT_ID`) ;
@@ -291,6 +292,13 @@ secret, elle répond 503 sur Vercel (`VERCEL_ENV` défini) plutôt que de s'ouvr
      l'icône reste l'orange de marque.
 5. Sur `data-triathlon-preview` seul : configurer la protection de déploiement /
    SSO sur son URL fixe, désormais stable.
+6. **Région des fonctions = `cdg1` (Paris)** (#1433) : Settings → Functions →
+   Function Region. Les backends Render sont à Francfort (`render.yaml`) ; à la
+   région par défaut (`iad1`, Washington), chaque `serverFetch` traverse
+   l'Atlantique et le TTFB gagne une à deux centaines de millisecondes (mesuré
+   sur la preview le 15/10/2026). Rien dans le dépôt ne fixe la région, et le
+   réglage ne prend effet qu'au déploiement suivant. Contrôle :
+   `curl -sI <url>/cgu | grep x-vercel-id` rend `cdg1::cdg1::…`.
 
 Puis, une fois pour le compte : créer un **`VERCEL_TOKEN`** (Account Settings →
 Tokens), commun aux deux projets.

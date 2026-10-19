@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Stats } from "@/lib/types";
 import { BandeauDirect } from "./BandeauDirect";
@@ -18,26 +18,87 @@ describe("BandeauDirect", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("shows a recent outing as « Ce week-end » with its figures", () => {
-    render(<BandeauDirect sortie={{ end_date: "2026-10-11", events: 3, athletes: 48, podiums: 9 }} stats={STATS} season={2026} today={TODAY} />);
+    render(<BandeauDirect sortie={{ end_date: "2026-10-11", events: 3, athletes: 48, podiums: 9 }} stats={STATS} seasons={[2026]} today={TODAY} />);
     expect(screen.getByText("Ce week-end")).toBeInTheDocument();
     expect(screen.getByText("48 TCN")).toBeInTheDocument();
     expect(screen.getByText(/3 épreuves · 9 podiums/)).toBeInTheDocument();
   });
 
+  it("pulses next to « Ce week-end » only for a very recent outing", () => {
+    const { container, rerender } = render(<BandeauDirect sortie={{ end_date: "2026-10-14", events: 1, athletes: 5, podiums: 0 }} stats={STATS} seasons={[2026]} today={TODAY} />);
+    expect(container.querySelector(".tcn-pouls")).toHaveAttribute("aria-hidden", "true");
+    rerender(<BandeauDirect sortie={{ end_date: "2026-10-10", events: 1, athletes: 5, podiums: 0 }} stats={STATS} seasons={[2026]} today={TODAY} />);
+    expect(container.querySelector(".tcn-pouls")).toBeNull();
+  });
+
+  it("indexes each histogram bar for the staggered growth", () => {
+    const { container } = render(<BandeauDirect sortie={null} stats={STATS} seasons={[2026]} today={TODAY} />);
+    const barres = [...container.querySelectorAll(".tcn-barre")];
+    expect(barres).toHaveLength(12);
+    barres.forEach((barre, i) => expect(barre.getAttribute("style")).toContain(`--i: ${i}`));
+  });
+
   it("dates an older outing", () => {
-    render(<BandeauDirect sortie={{ end_date: "2026-09-06", events: 1, athletes: 5, podiums: 0 }} stats={STATS} season={2026} today={TODAY} />);
+    render(<BandeauDirect sortie={{ end_date: "2026-09-06", events: 1, athletes: 5, podiums: 0 }} stats={STATS} seasons={[2026]} today={TODAY} />);
     expect(screen.getByText("Dernière sortie · 6 sept.")).toBeInTheDocument();
   });
 
   it("falls back when the season has no outing yet, season figures stay", () => {
-    render(<BandeauDirect sortie={null} stats={STATS} season={2026} today={TODAY} />);
+    render(<BandeauDirect sortie={null} stats={STATS} seasons={[2026]} today={TODAY} />);
     expect(screen.getByText("Pas encore d'épreuve cette saison")).toBeInTheDocument();
     expect(screen.getByText("312")).toBeInTheDocument();
     expect(screen.getByText("27")).toBeInTheDocument();
   });
 
+  it("says the selection has no outing when it is not exactly the current season", () => {
+    const { rerender } = render(<BandeauDirect sortie={null} stats={STATS} seasons={[2025]} today={TODAY} />);
+    expect(screen.getByText("Aucune épreuve pour la saison 2025 — 2026")).toBeInTheDocument();
+    rerender(<BandeauDirect sortie={null} stats={STATS} seasons={[2025, 2026]} today={TODAY} />);
+    expect(screen.getByText("Aucune épreuve pour les 2 saisons sélectionnées")).toBeInTheDocument();
+  });
+
   it("summarises the monthly chart for screen readers", () => {
-    render(<BandeauDirect sortie={null} stats={STATS} season={2026} today={TODAY} />);
+    render(<BandeauDirect sortie={null} stats={STATS} seasons={[2026]} today={TODAY} />);
     expect(screen.getByRole("img", { name: /Résultats par mois.*sept\. : 120.*oct\. : 192/ })).toBeInTheDocument();
+  });
+
+  it("names the selection in the title and the latest season on the chart", () => {
+    render(<BandeauDirect sortie={null} stats={STATS} seasons={[2025, 2026]} today={TODAY} />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("2 saisons sélectionnées");
+    expect(screen.getByText("Résultats par mois · Saison 2026 — 2027")).toBeInTheDocument();
+  });
+
+  it("dates a past season's outing", () => {
+    render(<BandeauDirect sortie={{ end_date: "2026-05-10", events: 1, athletes: 5, podiums: 0 }} stats={STATS} seasons={[2025]} today={TODAY} />);
+    expect(screen.getByText("Dernière sortie · 10 mai 2026")).toBeInTheDocument();
+  });
+
+  it("heads the outing with an h2 so heading navigation reaches it", () => {
+    render(<BandeauDirect sortie={{ end_date: "2026-10-11", events: 3, athletes: 48, podiums: 9 }} stats={STATS} seasons={[2026]} today={TODAY} />);
+    expect(screen.getByRole("heading", { level: 2, name: "Ce week-end" })).toBeInTheDocument();
+  });
+
+  it("splits the banner into an outing card and a season card", () => {
+    render(<BandeauDirect sortie={{ end_date: "2026-10-11", events: 3, athletes: 48, podiums: 9 }} stats={STATS} seasons={[2026]} today={TODAY} />);
+    const outing = screen.getByRole("region", { name: "Dernière sortie" });
+    expect(within(outing).getByText("Ce week-end")).toBeInTheDocument();
+    expect(within(outing).getByText("48 TCN")).toBeInTheDocument();
+    expect(outing).toHaveClass("tcn-carte-sortie");
+    const season = screen.getByRole("region", { name: /Triathlon Club/ });
+    expect(within(season).getByRole("heading", { level: 1 })).toBeInTheDocument();
+    expect(within(season).getByText("312")).toBeInTheDocument();
+    expect(within(season).getByText("87")).toBeInTheDocument();
+    expect(within(season).getByText("27")).toBeInTheDocument();
+    expect(within(season).getByRole("img", { name: /Résultats par mois/ })).toBeInTheDocument();
+    expect(within(outing).queryByRole("img")).toBeNull();
+  });
+
+  it("keeps the fallback in the outing card and draws bars in orange on the white card", () => {
+    const { container } = render(<BandeauDirect sortie={null} stats={STATS} seasons={[2026]} today={TODAY} />);
+    const outing = screen.getByRole("region", { name: "Dernière sortie" });
+    expect(within(outing).getByText("Pas encore d'épreuve cette saison")).toBeInTheDocument();
+    const bars = container.querySelectorAll<HTMLElement>(".tcn-barre");
+    expect(bars).toHaveLength(12);
+    expect([...bars].some((bar) => bar.style.background === "var(--tcn-orange)")).toBe(true);
   });
 });

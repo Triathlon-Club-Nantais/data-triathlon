@@ -5,6 +5,7 @@ import { Avatar, VousChip } from "@/components/tcn";
 import { useSelectedAthlete } from "@/components/layout/AthletePicker";
 import { useDestinationVisible } from "@/components/layout/LienDestination";
 import { useClubRosterRank } from "@/lib/queries/club";
+import { selectedSeasonsOrCurrent, serializeSeasons } from "@/lib/utils/season";
 import { SPORTS_PARAM, federalOnlyFromParam } from "@/lib/scope";
 import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
 import type { PodiumScope } from "@/lib/podium-scope";
@@ -29,9 +30,11 @@ export function RosterApercu({ roster }: { roster: ClubRosterEntry[] }) {
   const athleteRetenu = useSelectedAthlete();
   const horsApercu = athleteRetenu != null && !roster.some((r) => r.athlete_id === athleteRetenu.id);
   const sp = useSearchParams();
+  const seasons = selectedSeasonsOrCurrent(sp.get("seasons"));
   const federalOnly = federalOnlyFromParam(sp.get(SPORTS_PARAM)) ?? false;
   const { data: classement } = useClubRosterRank(athleteRetenu?.id ?? 0, {
     federalOnly,
+    seasons,
     enabled: horsApercu,
   });
 
@@ -52,7 +55,7 @@ export function RosterApercu({ roster }: { roster: ClubRosterEntry[] }) {
         {horsApercu &&
           (listeVisible ? (
             <Link
-              href={`/club/athletes#athlete-${athleteRetenu.id}`}
+              href={`/club/athletes?seasons=${serializeSeasons(seasons)}#athlete-${athleteRetenu.id}`}
               className={rappelClassName}
               style={rappelStyle}
             >
