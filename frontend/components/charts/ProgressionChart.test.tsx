@@ -178,3 +178,13 @@ describe("ProgressionChart comparaison", () => {
     expect(container.querySelectorAll("svg path")[1]).toHaveAttribute("stroke-dasharray");
   });
 });
+
+describe("ProgressionChart alignement", () => {
+  it("puts the same calendar day of two seasons at the same x", () => {
+    const courant = [point({ participationId: 1, eventDate: "2026-10-15", percent: 30 }), point({ participationId: 2, eventDate: "2027-01-10", percent: 20 }), point({ participationId: 3, eventDate: "2027-03-10", percent: 10 })];
+    const precedent = [point({ participationId: 10, eventDate: "2025-09-20", percent: 50 }), point({ participationId: 11, eventDate: "2025-10-15", percent: 40 }), point({ participationId: 12, eventDate: "2026-02-10", percent: 35 })];
+    const { container } = render(<ProgressionChart points={courant} comparaison={precedent} />);
+    const [plein, tirets] = Array.from(container.querySelectorAll("svg path")).map((p) => p.getAttribute("d")!);
+    expect(plein.split("L")[0].slice(1).split(",")[0]).toBe(tirets.split("L")[1].split(",")[0]);
+  });
+});

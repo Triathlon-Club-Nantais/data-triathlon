@@ -38,6 +38,21 @@ describe("OngletProgression", () => {
     expect(screen.getByText(/1 épreuve non fiable absente/)).toBeInTheDocument();
   });
 
+  it("counts the unreliable races of both seasons, in the summary too", () => {
+    const prec = [...precedent, resultat("2025-06-10", 5, { is_reliable: false })];
+    const fiable = [...courant, resultat("2026-06-10", 5, { is_reliable: false })];
+    render(<OngletProgression courant={fiable} precedent={prec} seasons={[2025]} />);
+
+    expect(screen.getByText(/2 épreuves non fiables absentes/)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Évolution du classement/ }).getAttribute("aria-label")).toContain("2 épreuves non fiables absentes");
+  });
+
+  it("hides the legend while the current curve is not drawn", () => {
+    render(<OngletProgression courant={courant.slice(0, 2)} precedent={precedent} seasons={[2025]} />);
+
+    expect(screen.queryByText(/Trait plein/)).toBeNull();
+  });
+
   it("counts my races per month in the histogram", () => {
     render(<OngletProgression courant={[...courant, resultat("2026-03-20", 12)]} precedent={null} seasons={[2025]} />);
 
