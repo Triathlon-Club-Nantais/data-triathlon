@@ -540,10 +540,10 @@ export function RaceFinishers({
           />
         </div>
       </div>
-      {(placesRecalculees || unknownGenderCount > 0) && (
+      {(placesRecalculees || (!!gender && unknownGenderCount > 0)) && (
         <div style={{ padding: "8px 26px", borderBottom: "1px solid var(--tcn-border)", fontSize: 13, color: "var(--tcn-text-muted)" }}>
           {placesRecalculees && <p style={{ margin: 0 }}>Classement par sexe : places recalculées, la source ne publie pas toutes les places par sexe.</p>}
-          {unknownGenderCount > 0 && (
+          {gender && unknownGenderCount > 0 && (
             <p style={{ margin: 0 }}>
               {unknownGenderCount} {plural(unknownGenderCount, "résultat")} sans sexe connu {plural(unknownGenderCount, "non compté", "non comptés")}
             </p>

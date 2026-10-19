@@ -1792,14 +1792,19 @@ describe("RaceFinishers par sexe (#1645)", () => {
     expect(screen.queryByText(/recalculée/)).not.toBeInTheDocument();
   });
 
+  it("does not announce unknown-sex rows without a gender filter", () => {
+    afficher({ unknownGenderCount: 3 });
+    expect(screen.queryByText(/sans sexe connu/)).not.toBeInTheDocument();
+  });
+
   it("announces unknown-sex rows", () => {
-    const { unmount } = afficher({ unknownGenderCount: 3 });
+    const { unmount } = afficher({ gender: "F", unknownGenderCount: 3 });
     expect(screen.getByText("3 résultats sans sexe connu non comptés")).toBeInTheDocument();
     unmount();
-    const second = afficher({ unknownGenderCount: 1 });
+    const second = afficher({ gender: "F", unknownGenderCount: 1 });
     expect(screen.getByText("1 résultat sans sexe connu non compté")).toBeInTheDocument();
     second.unmount();
-    afficher({ unknownGenderCount: 0 });
+    afficher({ gender: "F", unknownGenderCount: 0 });
     expect(screen.queryByText(/sans sexe connu/)).not.toBeInTheDocument();
   });
 });
