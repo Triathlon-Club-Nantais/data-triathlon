@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Stats } from "@/lib/types";
 import { BandeauDirect } from "./BandeauDirect";
@@ -50,5 +50,29 @@ describe("BandeauDirect", () => {
   it("dates a past season's outing", () => {
     render(<BandeauDirect sortie={{ end_date: "2026-05-10", events: 1, athletes: 5, podiums: 0 }} stats={STATS} seasons={[2025]} today={TODAY} />);
     expect(screen.getByText("Dernière sortie · 10 mai")).toBeInTheDocument();
+  });
+
+  it("splits the banner into an outing card and a season card", () => {
+    render(<BandeauDirect sortie={{ end_date: "2026-10-11", events: 3, athletes: 48, podiums: 9 }} stats={STATS} seasons={[2026]} today={TODAY} />);
+    const outing = screen.getByRole("region", { name: "Dernière sortie" });
+    expect(within(outing).getByText("Ce week-end")).toBeInTheDocument();
+    expect(within(outing).getByText("48 TCN")).toBeInTheDocument();
+    expect(outing).toHaveClass("tcn-carte-sortie");
+    const season = screen.getByRole("region", { name: /Triathlon Club/ });
+    expect(within(season).getByRole("heading", { level: 1 })).toBeInTheDocument();
+    expect(within(season).getByText("312")).toBeInTheDocument();
+    expect(within(season).getByText("87")).toBeInTheDocument();
+    expect(within(season).getByText("27")).toBeInTheDocument();
+    expect(within(season).getByRole("img", { name: /Résultats par mois/ })).toBeInTheDocument();
+    expect(within(outing).queryByRole("img")).toBeNull();
+  });
+
+  it("keeps the fallback in the outing card and draws bars in orange on the white card", () => {
+    const { container } = render(<BandeauDirect sortie={null} stats={STATS} seasons={[2026]} today={TODAY} />);
+    const outing = screen.getByRole("region", { name: "Dernière sortie" });
+    expect(within(outing).getByText("Pas encore d'épreuve cette saison")).toBeInTheDocument();
+    const bars = container.querySelectorAll<HTMLElement>(".tcn-barre");
+    expect(bars).toHaveLength(12);
+    expect([...bars].some((bar) => bar.style.background === "var(--tcn-orange)")).toBe(true);
   });
 });
