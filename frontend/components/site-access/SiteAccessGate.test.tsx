@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api/client";
+import { RETOUR_CONNEXION_KEY } from "@/lib/constants";
 
 const { siteAccessLogin, push, refresh } = vi.hoisted(() => ({
   siteAccessLogin: vi.fn(),
@@ -190,6 +191,41 @@ describe("SiteAccessGate — retour vers l'écran refusé (#877, revue UI/UX)", 
     await userEvent.click(screen.getByRole("button", { name: /entrer|valider|accéder/i }));
 
     expect(push).toHaveBeenCalledWith("/admin/utilisateurs");
+  });
+});
+
+describe("SiteAccessGate, connexion des adhérents (#1322)", () => {
+  it("propose de se connecter quand un moyen de connexion existe", () => {
+    render(<SiteAccessGate connexion="proposee" />);
+
+    const lien = screen.getByRole("link", { name: /adhérent du club \? se connecter/i });
+    expect(lien).toHaveAttribute("href", "/login");
+  });
+
+  it("mémorise la page demandée pour y revenir après la connexion (#494)", async () => {
+    window.history.pushState({}, "", "/courses/42?page=2");
+    sessionStorage.clear();
+    render(<SiteAccessGate connexion="proposee" />);
+
+    fireEvent.click(screen.getByRole("link", { name: /se connecter/i }));
+
+    expect(sessionStorage.getItem(RETOUR_CONNEXION_KEY)).toBe("/courses/42?page=2");
+  });
+
+  it("ne propose rien sans moyen de connexion", () => {
+    render(<SiteAccessGate />);
+
+    expect(screen.queryByRole("link", { name: /se connecter/i })).not.toBeInTheDocument();
+  });
+
+  it("explique à un compte connecté qu'il n'est pas reconnu comme adhérent", () => {
+    render(<SiteAccessGate connexion="non-adherent" />);
+
+    expect(screen.getByText(/votre compte n'est pas reconnu comme adhérent/i)).toBeInTheDocument();
+    expect(screen.getByText(/demandez l'ajout de votre adresse/i)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /se connecter/i })).not.toBeInTheDocument();
+    // Le code reste le moyen d'entrer.
+    expect(screen.getByLabelText(/code d'accès/i)).toBeInTheDocument();
   });
 });
 

@@ -73,6 +73,32 @@ def get(db: Session, member_id: int) -> ClubMember | None:
     return db.get(ClubMember, member_id)
 
 
+def counting_season(db: Session, season: int) -> int:
+    """La saison en cours dès qu'elle a un licencié, sinon la précédente : même règle
+    que la liste d'adhérents, pour que le 1er septembre ne coupe personne (#1633)."""
+    has_rows = db.scalar(select(ClubMember.id).where(ClubMember.season == season).limit(1)) is not None
+    return season if has_rows else season - 1
+
+
+def is_linked_licensee(db: Session, athlete_id: int, season: int) -> bool:
+    """La fiche est-elle un licencié du club rattaché pour cette saison (#1633) ?"""
+    return db.scalar(
+        select(ClubMember.id)
+        .where(ClubMember.season == season, ClubMember.athlete_id == athlete_id, ClubMember.link_status.in_(LINKED))
+        .limit(1)
+    ) is not None
+
+
+def linked_by_athlete(db: Session, season: int, athlete_ids: list[int]) -> dict[int, ClubMember]:
+    """Le licencié de la saison rattaché à chacune de ces fiches (#1325)."""
+    members = db.scalars(
+        select(ClubMember)
+        .where(ClubMember.season == season, ClubMember.athlete_id.in_(athlete_ids), ClubMember.link_status.in_(LINKED))
+        .order_by(ClubMember.id)
+    )
+    return {member.athlete_id: member for member in members}
+
+
 def has_licence_less_link(db: Session, *, season: int, athlete_id: int, except_id: int) -> bool:
     return db.scalar(
         select(ClubMember.id).where(

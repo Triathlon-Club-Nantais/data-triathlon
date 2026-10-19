@@ -6,6 +6,7 @@ import { SiteAccessGate } from "@/components/site-access/SiteAccessGate";
 import { SiteAccessOpenMarker } from "@/components/site-access/site-access-open";
 import { ApiError } from "@/lib/api/client";
 import { apiServer } from "@/lib/api/server";
+import { connexionAdherent } from "@/lib/site-access-login";
 
 /**
  * Garde d'accès au site (#509) — ferme tout ce qui vit sous ce groupe de
@@ -61,7 +62,7 @@ export default async function ProtegeLayout({ children }: { children: ReactNode 
   // point d'entrée après une déconnexion : c'est le même formulaire, avec
   // `apres="accueil"` puisqu'il n'y a là aucune page demandée à rejouer.
   if (acces === false) {
-    return <SiteAccessGate />;
+    return <SiteAccessGate connexion={await connexionAdherent()} />;
   }
   return (
     <>

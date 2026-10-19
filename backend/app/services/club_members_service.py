@@ -15,8 +15,7 @@ from app.core.athlete_identity import athlete_identity_keys
 from app.core.exceptions import DomainError, NotFoundError
 from app.core.gender import normalize_gender
 from app.core.identity import identity_hash
-from app.core.season import SEASON_MAX, SEASON_MIN, current_season
-from app.core.text import strip_accents
+from app.core.season import SEASON_MAX, SEASON_MIN, SeasonOutOfRangeError, current_season
 from app.models.club_member import (
     LINK_AMBIGUOUS,
     LINK_AUTO,
@@ -57,11 +56,6 @@ class RosterUnavailableError(DomainError):
 class MissingMemberColumnsError(DomainError):
     status_code = 422
     message = "Colonnes « Nom » et « Prénom » introuvables dans ce fichier."
-
-
-class SeasonOutOfRangeError(DomainError):
-    status_code = 422
-    message = "Saison hors de la plage acceptée."
 
 
 @dataclass(frozen=True)
@@ -122,9 +116,12 @@ def _replace(db: Session, season: int, incoming: list[RosterMember], source: str
     opposed = opposition_repository.all_hashes(db)
     incoming = [m for m in incoming if identity_hash(m.nom, m.prenom) not in opposed]
     previous = club_member_repository.list_season(db, season)
+    # Les rattachements faits à la main suivent la personne d'une saison à la
+    # suivante : sans quoi la première synchro de septembre rendait « ambigu » un
+    # homonyme déjà tranché, et son compte rattaché perdait l'adhésion (#1633).
     manual = {
         _identity(m): m.athlete_id
-        for m in previous
+        for m in [*club_member_repository.list_season(db, season - 1), *previous]
         if m.link_status == LINK_MANUAL and m.athlete_id is not None
     }
     touched_athletes = {m.athlete_id for m in previous if m.athlete_id is not None}
@@ -166,25 +163,18 @@ def sync_from_fftri(db: Session, *, user_id: int | None) -> MembersSyncReport:
     return report_of(season, rows)
 
 
-def _header_key(header: str) -> str:
-    return "".join(c for c in strip_accents(header) if c.isalnum()).casefold()
-
-
-def _column(headers: list[str], accepted: set[str]) -> int | None:
-    return next((i for i, h in enumerate(headers) if _header_key(h) in accepted), None)
-
-
 def import_file(
     db: Session, *, season: int, content: bytes, filename: str, user_id: int | None
 ) -> MembersSyncReport:
     if not SEASON_MIN <= season <= SEASON_MAX:
         raise SeasonOutOfRangeError
     headers, lines = sheet_source.read_table(content, filename)
-    last_name_at = _column(headers, _LAST_NAME_HEADERS)
-    first_name_at = _column(headers, _FIRST_NAME_HEADERS)
+    last_name_at = sheet_source.column_index(headers, _LAST_NAME_HEADERS)
+    first_name_at = sheet_source.column_index(headers, _FIRST_NAME_HEADERS)
     if last_name_at is None or first_name_at is None:
         raise MissingMemberColumnsError
-    gender_at, licence_at = _column(headers, _GENDER_HEADERS), _column(headers, _LICENCE_HEADERS)
+    gender_at = sheet_source.column_index(headers, _GENDER_HEADERS)
+    licence_at = sheet_source.column_index(headers, _LICENCE_HEADERS)
 
     def cell(line: list[str], at: int | None) -> str:
         return line[at].strip() if at is not None and at < len(line) else ""

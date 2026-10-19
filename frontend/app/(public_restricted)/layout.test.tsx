@@ -3,13 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DynamicServerError } from "next/dist/client/components/hooks-server-context";
 import { ApiError } from "@/lib/api/client";
 
-const { checkSiteAccess } = vi.hoisted(() => ({ checkSiteAccess: vi.fn() }));
+const { checkSiteAccess, connexionAdherent } = vi.hoisted(() => ({
+  checkSiteAccess: vi.fn(),
+  connexionAdherent: vi.fn(),
+}));
 
 vi.mock("@/lib/api/server", () => ({
   apiServer: { checkSiteAccess },
 }));
+vi.mock("@/lib/site-access-login", () => ({ connexionAdherent }));
 vi.mock("@/components/site-access/SiteAccessGate", () => ({
-  SiteAccessGate: () => <p>formulaire de mot de passe</p>,
+  SiteAccessGate: ({ connexion }: { connexion?: string | null }) => (
+    <p>formulaire de mot de passe {connexion ?? ""}</p>
+  ),
 }));
 
 import ProtegeLayout from "./layout";
@@ -40,7 +46,7 @@ describe("Garde d'accès au site (#509)", () => {
     render(await ProtegeLayout({ children: <p>contenu réservé</p> }));
 
     expect(screen.getByText("contenu réservé")).toBeInTheDocument();
-    expect(screen.queryByText("formulaire de mot de passe")).not.toBeInTheDocument();
+    expect(screen.queryByText(/formulaire de mot de passe/)).not.toBeInTheDocument();
   });
 
   // #1057 : le geste « Oublier le code d'accès » du pied de page ne se montre
@@ -94,8 +100,25 @@ describe("Garde d'accès au site (#509)", () => {
 
     render(await ProtegeLayout({ children: <p>secret</p> }));
 
-    expect(screen.getByText("formulaire de mot de passe")).toBeInTheDocument();
+    expect(screen.getByText(/formulaire de mot de passe/)).toBeInTheDocument();
     expect(screen.queryByText("secret")).not.toBeInTheDocument();
+  });
+
+  it("transmet au formulaire ce qu'il dit de la connexion des adhérents (#1322)", async () => {
+    checkSiteAccess.mockResolvedValue(false);
+    connexionAdherent.mockResolvedValue("proposee");
+
+    render(await ProtegeLayout({ children: <p>secret</p> }));
+
+    expect(screen.getByText("formulaire de mot de passe proposee")).toBeInTheDocument();
+  });
+
+  it("ne lit la connexion des adhérents que sur un refus", async () => {
+    checkSiteAccess.mockResolvedValue(true);
+
+    render(await ProtegeLayout({ children: <p>contenu réservé</p> }));
+
+    expect(connexionAdherent).not.toHaveBeenCalled();
   });
 
   it("laisse passer quand le backend est en panne (erreur réseau)", async () => {
@@ -107,7 +130,7 @@ describe("Garde d'accès au site (#509)", () => {
     render(await ProtegeLayout({ children: <p>contenu réservé</p> }));
 
     expect(screen.getByText("contenu réservé")).toBeInTheDocument();
-    expect(screen.queryByText("formulaire de mot de passe")).not.toBeInTheDocument();
+    expect(screen.queryByText(/formulaire de mot de passe/)).not.toBeInTheDocument();
     expect(journal).toHaveBeenCalledWith(
       expect.stringContaining("session indisponible (sans réponse)"),
     );
@@ -119,7 +142,7 @@ describe("Garde d'accès au site (#509)", () => {
     render(await ProtegeLayout({ children: <p>contenu réservé</p> }));
 
     expect(screen.getByText("contenu réservé")).toBeInTheDocument();
-    expect(screen.queryByText("formulaire de mot de passe")).not.toBeInTheDocument();
+    expect(screen.queryByText(/formulaire de mot de passe/)).not.toBeInTheDocument();
     expect(journal).toHaveBeenCalledWith(expect.stringContaining("session indisponible (502)"));
   });
 

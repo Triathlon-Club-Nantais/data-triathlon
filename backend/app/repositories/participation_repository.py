@@ -1839,3 +1839,43 @@ def replace_teammate(db: Session, *, participation_id: int, old_athlete_id: int,
         ParticipationTeammate.athlete_id == old_athlete_id,
     ).update({ParticipationTeammate.athlete_id: new_athlete_id}, synchronize_session=False)
     db.flush()
+
+
+def athlete_season_times(db: Session, athlete_id: int, season: int, event_type: str) -> list[str]:
+    """Temps totaux candidats au meilleur temps d'une fiche, une saison et un
+    format (#1373). Mêmes exclusions que `club_best_time_rows` : en attente,
+    relais, épreuve non fiable, non classé. Le plus rapide se choisit côté service."""
+    return list(db.scalars(
+        select(Participation.total_time)
+        .join(Course, Participation.course_id == Course.id)
+        .where(
+            Participation.athlete_id == athlete_id,
+            validated_clause(Participation.is_pending_validation),
+            Participation.is_relay.is_(False),
+            func.coalesce(Course.is_relay, False).is_(False),
+            func.coalesce(Course.is_reliable, True).is_(True),
+            func.upper(func.coalesce(Participation.status, "")).notin_((STATUS_DNF, STATUS_DNS, STATUS_DSQ)),
+            Course.event_type == event_type,
+            Course.event_date.between(*season_bounds(season)),
+            Participation.total_time.is_not(None),
+        )
+    ))
+
+
+def athlete_season_count(db: Session, athlete_id: int, season: int, event_type: str | None) -> int:
+    """Épreuves courues par une fiche sur une saison, relais compris (`carried_by`,
+    #1373) : résultats validés, hors non-partants (un abandon ou une
+    disqualification a bien été couru)."""
+    query = (
+        select(func.count(Participation.id))
+        .join(Course, Participation.course_id == Course.id)
+        .where(
+            carried_by(athlete_id),
+            validated_clause(Participation.is_pending_validation),
+            func.upper(func.coalesce(Participation.status, "")) != STATUS_DNS,
+            Course.event_date.between(*season_bounds(season)),
+        )
+    )
+    if event_type is not None:
+        query = query.where(Course.event_type == event_type)
+    return db.scalar(query) or 0

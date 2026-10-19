@@ -68,6 +68,26 @@ describe("AdminActionLogTable", () => {
     expect(screen.getByText(/Triathlon de Nantes/)).toBeInTheDocument();
   });
 
+  it("shows « Système » as the author of an account deletion (#1326)", async () => {
+    getActionLog.mockResolvedValue(page({
+      entries: [{
+        id: 2,
+        created_at: "2026-10-12T10:15:00Z",
+        user_name: "Bénévoles (accès partagé)",
+        action: "account.delete",
+        entity_type: "user",
+        entity_id: 7,
+        payload: { origin: "request", entra_oids: [] },
+      }],
+    }));
+
+    afficher();
+
+    expect(await screen.findByText("Suppression d'un compte")).toBeInTheDocument();
+    expect(screen.getByText("Système")).toBeInTheDocument();
+    expect(screen.queryByText("Bénévoles (accès partagé)")).not.toBeInTheDocument();
+  });
+
   it("affiche un état vide", async () => {
     getActionLog.mockResolvedValue(page({ entries: [], total: 0 }));
 

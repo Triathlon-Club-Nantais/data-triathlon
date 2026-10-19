@@ -58,6 +58,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
     etapes: [
       "Ouvrir « Droits des rôles » depuis la navigation admin (section « Gestion des utilisateurs »).",
       "Sélectionner un rôle, puis cocher ou décocher les pouvoirs qu'il porte.",
+      "Rôles fournis, à ajuster librement : « Bureau » (accès, adhérents, licenciés, rattachements, groupes, oppositions, retours), « Bénévole data » (épreuves, fiches, homonymes, chronométreurs signalés, rattachements), « Validation » (saisons et bénévolat), « Encadrant jeunes ». Ils se cumulent. Les suppressions, purges, lancements de batch et l'attribution des rôles restent à l'administrateur.",
     ],
     captures: [{ src: "/guide/admin/droits.jpg", alt: "Composition des pouvoirs d'un rôle" }],
   },
@@ -169,6 +170,35 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "« Licenciés à rattacher » liste ceux sans fiche à leur nom ou avec plusieurs fiches à ce nom. « Rattacher à une fiche » : rechercher l'athlète, puis le choisir.",
       "Revenir sur un rattachement : déplier « Rattachements faits à la main », puis « Annuler ». Le licencié reprend son rattachement automatique, ou revient dans les licenciés à rattacher.",
       "Saison passée : choisir l'année de début et un fichier .csv ou .xlsx avec une colonne « Nom » et une colonne « Prénom », puis « Importer ». Le fichier remplace toute la liste de cette saison.",
+    ],
+    captures: [],
+  },
+  {
+    id: "adresses-adherents",
+    titre: "Adresses d'adhérents",
+    casUsage:
+      "Les adresses e-mail des adhérents, saison par saison. Elles reconnaissent un adhérent à la connexion. Distinctes des adresses autorisées au back-office : y figurer ne donne aucun pouvoir d'administration.",
+    etapes: [
+      "Ouvrir « Adresses d'adhérents » depuis la navigation admin, puis choisir la saison.",
+      "Exporter les contacts depuis AssoConnect (.xlsx ou .csv), choisir le fichier puis « Importer ». Seule la colonne « Email » (ou « E-mail », « Courriel ») est lue. L'import remplace les adresses importées de la saison : une adresse absente du fichier est retirée, les adresses ajoutées à la main restent. Le compte rendu donne les adresses ajoutées, retirées, inchangées et les lignes ignorées.",
+      "Un adhérent dont l'adresse de connexion diffère de celle d'AssoConnect : saisir son adresse dans « Adresse à ajouter », puis « Ajouter ». Elle survit aux imports suivants.",
+      "« Retirer » ôte une adresse, après confirmation, quelle que soit son origine.",
+      "La saison qui compte est la saison en cours dès qu'elle a une adresse importée ; avant le premier import de septembre, celle de la saison précédente continue de compter, et les adresses ajoutées à la main pour la saison en cours comptent aussi. Les saisons plus anciennes sont supprimées par la purge hebdomadaire.",
+    ],
+    captures: [],
+  },
+  {
+    id: "rattachements",
+    titre: "Rattachements de fiche et de résultats",
+    casUsage:
+      "Les demandes d'utilisateurs connectés qui se reconnaissent sur une fiche athlète (« C'est moi »). Aucune n'est validée d'office, même quand l'adresse du compte figure sur la liste d'adhérents : la liste ne porte que des adresses, pas de nom. Un compte rattaché retrouve sa fiche dans Mon espace, et il est reconnu adhérent tant que sa fiche est licenciée au club pour la saison.",
+    etapes: [
+      "Ouvrir « Rattachements de fiche » depuis la navigation admin. La pastille compte les demandes en attente.",
+      "Pour chaque demande, comparer le compte (nom affiché, adresse) à la fiche demandée, avec les indices : licencié TCN de la saison rattaché à la fiche, adresse présente sur la liste d'adhérents, comptes déjà rattachés à la fiche (une même personne peut avoir plusieurs comptes).",
+      "« Valider » rattache la fiche au compte ; « Refuser » laisse le compte sans fiche, l'utilisateur voit la demande refusée dans son menu. Les deux gestes sont inscrits au journal d'administration.",
+      "L'utilisateur peut se détacher lui-même depuis son menu ; une nouvelle demande repasse alors par cette file.",
+      "« Résultats réclamés » : un adhérent déjà rattaché dit « Ce résultat est à moi » sur un résultat rangé sur une autre fiche (un homonyme, souvent). La ligne montre l'épreuve, le dossard, la fiche actuelle (et si elle sera supprimée, vidée par le déplacement), la fiche de destination et le licencié de la saison. « Déplacer le résultat » le passe sur la fiche du compte et le fige contre les réimports ; « Refuser » le laisse en place. Une pastille « Fiche entière » ou « Un résultat » distingue les deux sortes de demandes.",
+      "« Comptes rattachés », sous la file, liste les comptes et dit si leur fiche est licenciée cette saison (ceux dont la licence ne court plus en tête). « Détacher », après confirmation, retire la fiche d'un compte, par exemple au départ d'un adhérent ; le geste est journalisé.",
     ],
     captures: [],
   },

@@ -38,6 +38,14 @@ const ACTION_LABELS: Record<string, string> = {
   "club_members.import": "Import d'une liste de licenciés",
   "club_member.link": "Rattachement d'un licencié à une fiche athlète",
   "club_member.unlink": "Annulation du rattachement d'un licencié à une fiche athlète",
+  "member_emails.import": "Import de la liste des adresses d'adhérents",
+  "member_emails.add": "Ajout d'une adresse d'adhérent",
+  "member_emails.remove": "Retrait d'une adresse d'adhérent",
+  "athlete_claim.approve": "Rattachement d'un compte à sa fiche athlète",
+  "athlete_claim.reject": "Refus d'un rattachement de fiche",
+  "athlete_claim.detach": "Détachement d'un compte de sa fiche par le club",
+  "result_claim.approve": "Résultat réclamé déplacé sur la fiche de son auteur",
+  "result_claim.reject": "Refus d'une réclamation de résultat",
   "counter_scope.entry_ambiguous": "Libellé de la portée marqué ambigu ou clair",
   "course_duplicate.ignore": "Paire de doublons suspects écartée",
   "course_duplicate.unignore": "Annulation de la mise à l'écart d'une paire de doublons suspects",
@@ -68,12 +76,25 @@ const ACTION_LABELS: Record<string, string> = {
   "allowed_email.add": "Ajout d'une adresse autorisée",
   "allowed_email.remove": "Retrait d'une adresse autorisée",
   "sessions.revoke": "Fermeture de sessions",
+  "account.delete": "Suppression d'un compte",
   "pending_provider.handle": "Traitement d'un chronométreur signalé",
 };
 
 /** Le libellé français d'un geste, ou son code brut si le catalogue l'ignore. */
 export function actionLabel(action: string): string {
   return ACTION_LABELS[action] ?? action;
+}
+
+/**
+ * Gestes sans auteur humain, journalisés par le compte système faute d'acteur
+ * (#1326) : le nom de ce compte, « Bénévoles (accès partagé) », laisserait croire
+ * qu'un bénévole a supprimé le compte.
+ */
+const GESTES_SYSTEME = new Set(["account.delete"]);
+
+/** L'auteur affiché d'une entrée du journal. */
+export function actorLabel(entree: { action: string; user_name: string }): string {
+  return GESTES_SYSTEME.has(entree.action) ? "Système" : entree.user_name;
 }
 
 const PAYLOAD_KEY_LABELS: Record<string, string> = {
@@ -119,6 +140,10 @@ const PAYLOAD_KEY_LABELS: Record<string, string> = {
   course_id_a: "Première épreuve",
   course_id_b: "Seconde épreuve",
   season: "Saison",
+  added: "Adresses ajoutées",
+  removed: "Adresses retirées",
+  unchanged: "Adresses inchangées",
+  ignored: "Lignes ignorées",
   club_key: "Club confirmé",
   alias_id: "Variante",
   last_name_key: "Nom de la variante",
@@ -144,6 +169,8 @@ const PAYLOAD_KEY_LABELS: Record<string, string> = {
   scope: "Portée",
   sessions: "Sessions fermées",
   accounts: "Comptes touchés",
+  origin: "Origine",
+  entra_oids: "Identifiants Microsoft Entra à effacer",
 };
 
 /** Clés qui désignent un coureur ou une épreuve : rendues en lien vers sa page. */
@@ -166,6 +193,8 @@ const ENTITES: Record<string, { label: string; href?: string }> = {
   club_alias: { label: "Variante de club" },
   club_member: { label: "Licencié" },
   club_members_season: { label: "Liste des licenciés de la saison" },
+  member_email: { label: "Adresse d'adhérent" },
+  member_emails_season: { label: "Adresses d'adhérents de la saison" },
   counter_scope_entry: { label: "Libellé de la portée des compteurs" },
   site_access_config: { label: "Code d'accès du site" },
   benevole_access_config: { label: "Mot de passe bénévoles" },
@@ -183,6 +212,7 @@ export type LigneDetail = { label: string; value: string; href?: string };
 /** Valeurs codées traduites, par clé : le backend écrit `scope: "all"` (#935). */
 const PAYLOAD_VALUE_LABELS: Record<string, Record<string, string>> = {
   scope: { all: "tous les comptes" },
+  origin: { request: "à la demande de son titulaire", inactivity: "5 ans sans activité", operator: "par l'exploitant, données du club passées au compte système" },
   status: FEEDBACK_STATUS_LABELS,
 };
 

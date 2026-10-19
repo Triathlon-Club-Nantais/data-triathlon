@@ -1,13 +1,17 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionUser } from "@/lib/types";
 import { AthleteHeaderActions } from "./AthleteHeaderActions";
 
-const { getSession } = vi.hoisted(() => ({ getSession: vi.fn() }));
+const { getSession, requestAthleteClaim } = vi.hoisted(() => ({
+  getSession: vi.fn(),
+  requestAthleteClaim: vi.fn(),
+}));
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { ...original.apiClient, getSession } };
+  return { ...original, apiClient: { ...original.apiClient, getSession, requestAthleteClaim } };
 });
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
@@ -112,5 +116,62 @@ describe("AthleteHeaderActions — avec athletes:write", () => {
 
     await screen.findByRole("button", { name: /corriger la fiche/i });
     expect(screen.getByText(BENEFICE)).toBeInTheDocument();
+  });
+});
+
+describe("AthleteHeaderActions, rattachement de la fiche (#1325)", () => {
+  const JEAN = { id: 12, prenom: "Jean", nom: "Dupont" };
+  const AUTRE = { id: 99, prenom: "Marie", nom: "Gaudin" };
+
+  function avec(extra: Partial<SessionUser>): SessionUser {
+    return { ...session([]), athlete: null, athlete_claim: null, ...extra };
+  }
+
+  it("propose « C'est moi » à un connecté sans rattachement, et envoie la demande", async () => {
+    getSession.mockResolvedValue(avec({}));
+    requestAthleteClaim.mockResolvedValue({});
+    afficher();
+
+    await userEvent.click(await screen.findByRole("button", { name: /c'est moi/i }));
+
+    expect(requestAthleteClaim).toHaveBeenCalledWith(12);
+    expect(screen.getByText(/le club valide/i)).toBeInTheDocument();
+  });
+
+  it("dit qu'une demande sur cette fiche est en attente, sans la reproposer", async () => {
+    getSession.mockResolvedValue(
+      avec({ athlete_claim: { id: 1, athlete: JEAN, status: "pending", created_at: "2026-10-17T10:00:00Z" } }),
+    );
+    afficher();
+
+    expect(await screen.findByText(/demande de rattachement en attente/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /c'est moi/i })).not.toBeInTheDocument();
+  });
+
+  it("marque la fiche du compte rattaché, sans rien à choisir ni à demander", async () => {
+    getSession.mockResolvedValue(avec({ athlete: JEAN }));
+    afficher();
+
+    expect(await screen.findByText(/votre fiche/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /choisir cet athlète/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /c'est moi/i })).not.toBeInTheDocument();
+  });
+
+  it("ne propose ni de choisir ni de demander une autre fiche à un compte rattaché", async () => {
+    getSession.mockResolvedValue(avec({ athlete: AUTRE }));
+    afficher();
+
+    await screen.findByText((_, el) => el?.tagName === "P" && el.textContent === "Fiche de votre compte : Marie Gaudin");
+    expect(screen.getByRole("link", { name: "Marie Gaudin" })).toHaveAttribute("href", "/athletes/99");
+    expect(screen.queryByRole("button", { name: /choisir cet athlète/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /c'est moi/i })).not.toBeInTheDocument();
+  });
+
+  it("ne propose rien à un anonyme", async () => {
+    getSession.mockResolvedValue(null);
+    afficher();
+
+    await screen.findByRole("button", { name: /choisir cet athlète/i });
+    expect(screen.queryByRole("button", { name: /c'est moi/i })).not.toBeInTheDocument();
   });
 });

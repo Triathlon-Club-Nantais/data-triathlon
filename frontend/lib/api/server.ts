@@ -49,10 +49,10 @@ export const SHORT_REVALIDATE_SECONDS = 30;
  * exactement la fenêtre de partage inter-visiteurs que #352 cherche à
  * préserver le plus possible.
  *
- * Réservée à `serverFetchAuthed`/`serverFetchAuthedRaw` (#586) : ces deux
- * variantes lisent des cookies que `serverFetch` n'a jamais besoin de
- * connaître (`tcn_session`, la session SSO), donc une exclusion reste le bon
- * outil. `serverFetch`, lui, prend un allowlist — voir `siteAccessCookieHeader`.
+ * Réservée à `serverFetchAuthed`/`serverFetchAuthedRaw`/`serverFetchPermissioned`
+ * (#586), qui ne servent aucune fenêtre de revalidation : une exclusion y reste
+ * le bon outil. `serverFetch`, lui, prend un allowlist — voir
+ * `siteAccessCookieHeader`.
  */
 function cookieHeader(jar: Awaited<ReturnType<typeof cookies>>): string {
   return jar
@@ -78,12 +78,22 @@ const SITE_SESSION_COOKIE = "tcn_site_session";
 const VOLUNTEER_SESSION_COOKIE = "tcn_benevole_session";
 
 /**
- * En-tête `cookie` **minimal** relayé par `serverFetch` (#586) : seul
- * `SITE_SESSION_COOKIE` conditionne l'accès aux routes qu'elle sert
- * (`require_site_access`, backend — `athletes`, `courses`, `participations`,
- * `stats`), et `VOLUNTEER_SESSION_COOKIE` ce qu'elles rendent des saisies en
- * attente (#1519) ; aucune ne lit `tcn_session` (SSO), un
- * cookie PostHog ni `NAV_WIDTH_COOKIE`. Un allowlist plutôt que l'exclusion de
+ * Cookie de session SSO (`SESSION_COOKIE` de `app/api/v1/auth.py`), préfixé
+ * `__Host-` quand `AUTH_COOKIE_SECURE` est vrai (production).
+ */
+const SSO_SESSION_COOKIES = ["tcn_session", "__Host-tcn_session"];
+
+/**
+ * En-tête `cookie` **minimal** relayé par `serverFetch` (#586) : seuls
+ * `SITE_SESSION_COOKIE` et la session SSO conditionnent l'accès aux routes
+ * qu'elle sert (`require_site_access`, backend : `athletes`, `courses`,
+ * `participations`, `stats`), et `VOLUNTEER_SESSION_COOKIE` ce qu'elles
+ * rendent des saisies en attente (#1519) ; aucune ne lit un cookie PostHog
+ * ni `NAV_WIDTH_COOKIE`. La session SSO s'y est ajoutée avec #1322 : une
+ * session d'adhérent dispense du code d'accès, et sans elle un adhérent
+ * connecté recevait un 401 au rendu serveur de chaque page. Elle ne dégrade
+ * pas le partage du Data Cache : le cookie de site est déjà unique par
+ * visiteur (horodatage signé, ci-dessous). Un allowlist plutôt que l'exclusion de
  * `cookieHeader` : la liste de ce qu'une route *ignore* grandit à chaque
  * cookie ajouté au front (SSO, consentement, analytics…), celle de ce dont
  * elle a *besoin* ne bouge que si le backend change de garde.
@@ -104,7 +114,7 @@ const VOLUNTEER_SESSION_COOKIE = "tcn_benevole_session";
  * production.
  */
 function siteAccessCookieHeader(jar: Awaited<ReturnType<typeof cookies>>): string {
-  return [SITE_SESSION_COOKIE, VOLUNTEER_SESSION_COOKIE]
+  return [SITE_SESSION_COOKIE, VOLUNTEER_SESSION_COOKIE, ...SSO_SESSION_COOKIES]
     .flatMap((name) => {
       const cookie = jar.get(name);
       return cookie ? [`${name}=${cookie.value}`] : [];
@@ -172,8 +182,9 @@ async function serverFetchAuthed<T>(path: string): Promise<T | null> {
  * Variante de `serverFetch` pour une route protégée par un pouvoir RBAC
  * (`require_permission`), en plus du mot de passe du site (#845).
  *
- * `serverFetch` ne relaie que le cookie d'accès au site (#586) — suffisant
- * pour les six routes ouvertes à tout adhérent du site. `GET
+ * `serverFetch` ne relaie que le cookie d'accès au site et la session SSO
+ * (#586, #1322), suffisant pour les six routes ouvertes à tout adhérent du
+ * site. `GET
  * /athletes/season-activity` exige en plus `current_user` (pouvoir
  * `pages:preview`, #811/#825), jamais relayé par `serverFetch` : un admin qui
  * porte ce pouvoir recevait quand même un 401 systématique de la part du
@@ -282,8 +293,8 @@ export const apiServer = {
    * Publique, et exemptée de `require_site_access` : elle **répond** sans
    * session, ce qui permet à la garde `/admin` de distinguer « pas connecté »
    * (liste non vide → rediriger) de « aucune connexion possible » (liste vide →
-   * laisser passer, FR-036). Le cookie que `serverFetch` relaie (#526, réduit
-   * au seul cookie d'accès au site par #586) n'y change rien : ce qui compte
+   * laisser passer, FR-036). Le cookie que `serverFetch` relaie (#526, réduit par #586
+   * au cookie de site et à la session SSO) n'y change rien : ce qui compte
    * est qu'elle n'en exige aucun, pas qu'on s'abstienne de l'envoyer.
    */
   listAuthMethods: () => serverFetch<AuthMethod[]>("/auth/methods"),

@@ -73,14 +73,14 @@ est leur lecture du 401, et quels cookies elles envoient :
 - `serverFetch` — lève une `ApiError` sur tout non-OK, 401 compris. Relais
   **minimal** depuis #586 : le cookie de session d'accès au site part, et
   depuis #1519 le cookie bénévoles (une saisie en attente n'est rendue qu'à
-  lui) ; le reste du jar (SSO, PostHog…) est ignoré, voir plus bas.
-  Conséquence : en rendu serveur, un bénévole n'est reconnu **que** par
-  `tcn_benevole_session`. Un compte SSO qui porte `benevole_access:manage`
-  sans ce cookie ne voit pas les saisies en attente sur `/courses/[id]` ni
-  `/athletes/[id]`, et reçoit un 404 sur `/courses/[id]/participations/[pid]`
-  d'une saisie en attente : la session SSO n'est pas relayée, pour ne pas faire
-  varier la clé du Data Cache (#586). Il les voit toujours dans la file de
-  validation, lue côté client par le rewrite `/api/*`.
+  lui), et depuis #1322 la session SSO (`tcn_session` ou
+  `__Host-tcn_session`) : une session d'adhérent dispense du code d'accès, et
+  sans elle un adhérent connecté prenait un 401 au rendu serveur de chaque
+  page. Le reste du jar (PostHog…) est ignoré, voir plus bas. Le cookie de
+  site étant déjà unique par visiteur, relayer la session SSO ne retire aucun
+  partage inter-visiteurs du Data Cache. Effet de bord : un compte SSO qui
+  porte `benevole_access:manage` est reconnu bénévole en rendu serveur, sans
+  le cookie bénévoles.
 - `serverFetchAuthed` — rend `null` sur 401 (anonyme est un état normal),
   lève sur le reste. Sert `/auth/me`, donc relaie le jar entier (hors
   `NAV_WIDTH_COOKIE`) : c'est la session SSO qu'elle a besoin de lire.
@@ -109,8 +109,8 @@ Conséquence assumée sur #352 : relayer le jar entier faisait varier la clé du
 Data Cache sur **chaque** cookie du navigateur, y compris ceux dont l'API ne
 fait jamais rien (session SSO, PostHog…) — cassant, pour un même visiteur
 rechargeant sa propre page, jusqu'au partage *intra-visiteur* que #526 avait
-laissé intact. #586 réduit `serverFetch` au seul cookie que `require_site_access`
-lit (`siteAccessCookieHeader` dans `server.ts`), ce qui restaure ce partage
+laissé intact. #586 réduit `serverFetch` aux cookies que l'API lit
+(`siteAccessCookieHeader` dans `server.ts`), ce qui restaure ce partage
 intra-visiteur mais **ne restaure pas** le partage inter-visiteurs des 30 s :
 le cookie de session d'accès au site porte lui-même l'horodatage de son
 émission (`shared_password.sign_cookie`), donc reste unique par visiteur quel

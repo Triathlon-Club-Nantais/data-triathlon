@@ -9,6 +9,7 @@ import typer
 from app.services.bulk_import_service import SheetOutcome
 from app.services.club_members_service import MembersSyncReport
 from app.services.geocode_service import GeocodeOutcome
+from app.services.member_emails_service import MemberEmailsImportReport
 from app.services.rescrape_service import RescrapeOutcome
 from app.services.retention_service import RetentionOutcome
 from app.services.weather_service import WeatherOutcome
@@ -212,6 +213,12 @@ def render_retention_report(outcome: RetentionOutcome) -> str:
         _line(f"Entrées du journal {verb}", outcome.admin_log),
         _line(f"Profils jeunes {verb}", outcome.profiles),
         _line(f"Licenciés de saisons anciennes {verb}", outcome.club_members),
+        _line(
+            f"Adresses d'adhérents de saisons anciennes {'à supprimer' if outcome.dry_run else 'supprimées'}",
+            outcome.member_emails,
+        ),
+        _line(f"Comptes inactifs depuis 5 ans {verb}", outcome.accounts_deleted),
+        _line("Comptes inactifs conservés (cités par le club)", outcome.accounts_skipped),
     ])
 
 
@@ -445,4 +452,16 @@ def render_members_sync_report(report: MembersSyncReport) -> str:
         _line("Rattachés à une fiche", report.linked),
         _line("Sans fiche", report.unlinked),
         _line("Plusieurs fiches possibles", report.ambiguous),
+    ])
+
+
+def render_member_emails_import_report(report: MemberEmailsImportReport) -> str:
+    """Import de l'export AssoConnect (#1334)."""
+    return "\n".join([
+        "=== ADRESSES D'ADHÉRENTS ===",
+        f"Saison {report.season}",
+        _line("Adresses ajoutées", report.added),
+        _line("Adresses retirées", report.removed),
+        _line("Adresses inchangées", report.unchanged),
+        _line("Lignes ignorées", report.ignored),
     ])

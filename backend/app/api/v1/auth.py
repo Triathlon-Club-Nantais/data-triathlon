@@ -11,26 +11,37 @@ défaut reconnu de la PR #159.
 import logging
 from collections.abc import Iterable
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import authorize_rate_limit, current_user
+from app.api.deps import authorize_rate_limit, current_user, require_site_access
 from app.core import permissions
 from app.core.analytics import capture_event, set_person_properties
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import AuthUnavailableError, NotFoundError
+from app.core.season import SEASON_MAX, SEASON_MIN, current_season
+from app.core.time import utcnow
 from app.models.user import User
 from app.repositories import user_repository
+from app.schemas.athlete_claim import (
+    AthleteClaimCreate,
+    AthleteClaimRead,
+    ClaimedAthleteRead,
+    ResultClaimCreate,
+    ResultClaimRead,
+)
 from app.schemas.auth import (
     AuthMethodRead,
     SessionGroupRead,
     SessionRoleRead,
     SessionUserRead,
 )
-from app.services import volunteer_access
-from app.services.auth import authorization, flow
+from app.schemas.ids import DbId
+from app.schemas.season_goal import SeasonGoalRead, SeasonGoalWrite
+from app.services import athlete_claims, membership, result_claims, season_goals, volunteer_access
+from app.services.auth import accounts, authorization, flow
 from app.services.auth import session as session_service
 from app.services.auth.errors import ERROR_CODES, LoginError
 from app.services.auth.idp import registry
@@ -236,7 +247,8 @@ def callback(
             "user_logged_in", distinct_id=str(user.id), properties={"provider": provider}
         )
         # La destination reste **fixée par le code** (FR-026) : aucun paramètre
-        # d'entrée n'y entre, la redirection ouverte reste fermée.
+        # d'entrée n'y entre, la redirection ouverte reste fermée. Un compte sans
+        # rôle (adhérent, #1322) arrive sur l'accueil.
         effective = authorization.effective_permissions(db, user)
         response = _redirect_to(f"{settings.auth_redirect_base_url}{_landing_path(effective)}")
         session_max_age = settings.auth_session_ttl_days * 24 * 60 * 60
@@ -295,6 +307,10 @@ def logout(
     if logging_out_user is not None:
         capture_event("user_logged_out", distinct_id=str(logging_out_user.id))
 
+    return _signed_out_response(settings)
+
+
+def _signed_out_response(settings: Settings) -> Response:
     response = Response(status_code=204, headers=NO_STORE_HEADERS)
     _clear_auth_cookie(response, name=session_cookie_name(settings), settings=settings)
     _clear_auth_cookie(
@@ -305,6 +321,134 @@ def logout(
     # survivre à sa déconnexion. Mêmes attributs qu'à la pose.
     _clear_auth_cookie(response, name=volunteer_access.VOLUNTEER_SESSION_COOKIE, settings=settings)
     return response
+
+
+@router.delete("/auth/me", status_code=204)
+def delete_me(
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+):
+    """Supprime le compte de la session, puis déconnecte ce navigateur (#1326).
+
+    Protégée comme `logout` : `SameSite=Lax` écarte le cross-site, `core/origin_guard`
+    le same-site. Les refus (référence obligatoire, dernier administrateur) sortent
+    en 409 par le handler de `DomainError`, sans rien supprimer.
+    """
+    user_id = user.id
+    accounts.delete_account(db, user, origin="request")
+    db.commit()
+    capture_event("user_account_deleted", distinct_id=str(user_id))
+    return _signed_out_response(settings)
+
+
+@router.post(
+    "/auth/me/athlete-claim",
+    response_model=AthleteClaimRead,
+    status_code=201,
+    # Le routeur `auth` est exempté de la garde du site, mais la réponse nomme la
+    # fiche : sans elle, un compte quelconque énumérerait les athlètes (revue de #1624).
+    dependencies=[Depends(require_site_access)],
+)
+def request_athlete_claim(
+    body: AthleteClaimCreate,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    """Demande le rattachement de sa fiche (#1325), toujours soumis à la file du club."""
+    claim = athlete_claims.request_claim(db, user, body.athlete_id)
+    db.commit()
+    return AthleteClaimRead.model_validate(claim)
+
+
+@router.delete("/auth/me/athlete-claim", status_code=204)
+def cancel_athlete_claim(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    athlete_claims.cancel_claim(db, user)
+    db.commit()
+    return Response(status_code=204, headers=NO_STORE_HEADERS)
+
+
+@router.get("/auth/me/result-claims", response_model=list[ResultClaimRead])
+def list_my_result_claims(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Mes réclamations de résultat (#1637), en attente ou refusées."""
+    return [ResultClaimRead.model_validate(claim) for claim in result_claims.list_mine(db, user)]
+
+
+@router.post(
+    "/auth/me/result-claims",
+    response_model=ResultClaimRead,
+    status_code=201,
+    # Même raison que la demande de fiche : le routeur `auth` échappe à la garde du site.
+    dependencies=[Depends(require_site_access)],
+)
+def request_result_claim(body: ResultClaimCreate, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """« Ce résultat est à moi » (#1637), toujours soumis à la file du club."""
+    claim = result_claims.request_claim(db, user, body.participation_id)
+    db.commit()
+    return ResultClaimRead.model_validate(claim)
+
+
+@router.delete("/auth/me/result-claims/{claim_id}", status_code=204)
+def cancel_result_claim(claim_id: DbId, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    result_claims.cancel_claim(db, user, claim_id)
+    db.commit()
+    return Response(status_code=204, headers=NO_STORE_HEADERS)
+
+
+@router.delete("/auth/me/athlete", status_code=204)
+def detach_athlete(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Se détache de sa fiche ; la fiche et ses résultats restent (#1325)."""
+    athlete_claims.detach(db, user)
+    db.commit()
+    return Response(status_code=204, headers=NO_STORE_HEADERS)
+
+
+def _goal_read(progress: season_goals.GoalProgress) -> SeasonGoalRead:
+    goal = progress.goal
+    return SeasonGoalRead(
+        id=goal.id, season=goal.season, kind=goal.kind, event_type=goal.event_type, target=goal.target,
+        best_time=progress.best_time, count=progress.count, reached=progress.reached,
+    )
+
+
+def _progress_of(db: Session, user: User, goal) -> SeasonGoalRead:
+    (progress,) = [p for p in season_goals.list_with_progress(db, user, goal.season) if p.goal.id == goal.id]
+    return _goal_read(progress)
+
+
+@router.get("/auth/me/goals", response_model=list[SeasonGoalRead])
+def list_goals(
+    season: int | None = Query(None, ge=SEASON_MIN, le=SEASON_MAX),
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    """Objectifs de saison du compte et leur progression (#1373), privés."""
+    return [_goal_read(p) for p in season_goals.list_with_progress(db, user, season or current_season())]
+
+
+@router.post("/auth/me/goals", response_model=SeasonGoalRead, status_code=201)
+def create_goal(body: SeasonGoalWrite, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    goal = season_goals.create(
+        db, user, season=current_season(), kind=body.kind, event_type=body.event_type, target=body.target
+    )
+    db.commit()
+    return _progress_of(db, user, goal)
+
+
+@router.put("/auth/me/goals/{goal_id}", response_model=SeasonGoalRead)
+def update_goal(
+    goal_id: DbId, body: SeasonGoalWrite, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    goal = season_goals.update(db, user, goal_id, kind=body.kind, event_type=body.event_type, target=body.target)
+    db.commit()
+    return _progress_of(db, user, goal)
+
+
+@router.delete("/auth/me/goals/{goal_id}", status_code=204)
+def delete_goal(goal_id: DbId, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    season_goals.delete(db, user, goal_id)
+    db.commit()
+    return Response(status_code=204, headers=NO_STORE_HEADERS)
 
 
 @router.get("/auth/me", response_model=SessionUserRead)
@@ -327,7 +471,10 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
     """
     loaded_user = user_repository.get_with_roles_and_groups(db, user.id) or user
     effective = authorization.effective_permissions(db, loaded_user, attributions=loaded_user.roles)
+    athlete, claim = athlete_claims.session_view(db, loaded_user)
     return SessionUserRead(
+        athlete=ClaimedAthleteRead.model_validate(athlete) if athlete else None,
+        athlete_claim=AthleteClaimRead.model_validate(claim) if claim else None,
         id=loaded_user.id,
         email=loaded_user.email,
         display_name=loaded_user.display_name,
@@ -335,6 +482,7 @@ def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
         permissions=sorted(effective),
         can_administer=permissions.administers(effective),
         can_supervise=permissions.supervises(effective),
+        is_member=membership.is_member(db, loaded_user, utcnow().date()),
         roles=[
             SessionRoleRead(
                 id=attribution.role.id,

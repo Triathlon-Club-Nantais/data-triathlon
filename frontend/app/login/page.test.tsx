@@ -67,12 +67,13 @@ describe("Page de connexion — méthodes", () => {
   });
 
   // #1031 : sans le code d'accès, rien ne se consulte ; la phrase le dit.
+  // #1322 : un adhérent connecté en est dispensé.
   it("annonce le code d'accès du club, pas un site consultable sans rien", async () => {
     afficher([]);
 
     expect(
       screen.getByText(
-        "Les résultats se consultent avec le code d'accès du club, sans compte. La connexion GitHub ne sert qu'aux contributeurs.",
+        "Les résultats se consultent avec le code d'accès du club, ou sans lui une fois connecté si votre adresse figure sur la liste des adhérents.",
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/entièrement consultable/)).not.toBeInTheDocument();
@@ -123,7 +124,7 @@ describe("Page de connexion — refus (US3)", () => {
   it.each([
     ["state_mismatch", /expiré|vérifi/i],
     ["email_unverified", /adresse e-mail vérifiée/i],
-    ["account_not_allowed", /n'est pas autorisée/i],
+    ["account_not_allowed", /compte a été désactivé/i],
     ["provider_error", /refusée ou interrompue/i],
     ["provider_unavailable", /injoignable/i],
   ])("affiche un message français pour %s", async (code, attendu) => {

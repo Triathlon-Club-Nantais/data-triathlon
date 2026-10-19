@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SiteAccessGate } from "@/components/site-access/SiteAccessGate";
 import { cheminDeRetour } from "@/lib/site-access-return";
+import { connexionAdherent } from "@/lib/site-access-login";
 
 export const metadata: Metadata = { title: "Code d'accès" };
 
@@ -16,6 +17,6 @@ export default async function AccesPage({
 }: {
   searchParams: Promise<{ retour?: string }>;
 }) {
-  const { retour } = await searchParams;
-  return <SiteAccessGate apres="accueil" retour={cheminDeRetour(retour)} />;
+  const [{ retour }, connexion] = await Promise.all([searchParams, connexionAdherent()]);
+  return <SiteAccessGate apres="accueil" retour={cheminDeRetour(retour)} connexion={connexion} />;
 }

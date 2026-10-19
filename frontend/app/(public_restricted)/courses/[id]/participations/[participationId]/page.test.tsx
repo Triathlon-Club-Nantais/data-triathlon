@@ -6,6 +6,9 @@ const getParticipation = vi.fn();
 const getCourseSummary = vi.fn();
 const notFound = vi.fn();
 
+// Bouton client à session (#1371), éprouvé dans son propre test.
+vi.mock("@/components/participations/ResultCardDownload", () => ({ ResultCardDownload: () => null }));
+vi.mock("@/components/participations/ResultClaimAction", () => ({ ResultClaimAction: () => null }));
 vi.mock("@/lib/api/server", () => ({
   apiServer: {
     getParticipation: (id: number) => getParticipation(id),

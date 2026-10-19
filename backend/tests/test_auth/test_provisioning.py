@@ -1,9 +1,8 @@
-"""Politique de provisionnement — certification, liste d'autorisation, résolution.
+"""Politique de provisionnement : certification, adresse retenue, résolution.
 
-Depuis #170 la liste d'autorisation vit **en base** : les tests l'alimentent par
-la fixture `autoriser`, jamais par une variable d'environnement. C'est ce qui
-rend le portail réévaluable sans redémarrage, et c'est éprouvé ici même
-(`test_une_adresse_ajoutee_est_effective_sans_redemarrage`).
+Depuis #1322 la liste d'autorisation ne conditionne plus la connexion : elle
+porte le rôle du premier jour et départage l'adresse retenue (FR-016). Une
+adresse certifiée hors liste ouvre un compte **sans rôle**.
 """
 import logging
 
@@ -29,7 +28,7 @@ def _identity(**surcharges) -> ExternalIdentity:
     return ExternalIdentity(**valeurs)
 
 
-def test_une_premiere_connexion_cree_utilisateur_et_identite(db_session):
+def test_une_premiere_connexion_cree_utilisateur_et_identity(db_session):
     user = provisioning.resolve_user(db_session, _identity())
     db_session.commit()
 
@@ -117,17 +116,10 @@ def test_une_adresse_non_certifiee_est_refusee(db_session):
     assert refus.value.code == "email_unverified"
 
 
-def test_la_certification_est_examinee_avant_la_liste(
+def test_une_liste_vide_n_ouvre_pas_une_adresse_non_certifiee(
     db_session, vider_la_liste_autorisation
 ):
-    """FR-005 : l'ordre ne se voit que sur une adresse qui échoue aux **deux**
-    contrôles — c'est le seul cas où les deux codes sont candidats, et où celui
-    qui est rendu dit lequel des deux a tranché.
-
-    Le test précédent ne le prouve pas : la fixture autouse `liste_autorisation`
-    autorise l'adresse de `_identity()`, donc la seconde porte y est ouverte et
-    ne peut rien refuser.
-    """
+    """FR-011 : la certification reste exigée, liste vide ou non."""
     vider_la_liste_autorisation()
 
     with pytest.raises(LoginError) as refus:
@@ -136,27 +128,23 @@ def test_la_certification_est_examinee_avant_la_liste(
     assert refus.value.code == "email_unverified"
 
 
-def test_une_adresse_hors_liste_est_refusee(db_session):
-    with pytest.raises(LoginError) as refus:
-        provisioning.resolve_user(db_session, _identity(email="inconnu@exemple.fr"))
+def test_une_adresse_hors_liste_ouvre_un_compte_sans_role(db_session):
+    """FR-011 / FR-015 (#1322) : la connexion n'exige plus la liste."""
+    user = provisioning.resolve_user(db_session, _identity(email="inconnu@exemple.fr"))
+    db_session.commit()
 
-    assert refus.value.code == "account_not_allowed"
+    assert user.email == "inconnu@exemple.fr"
+    assert user.roles == []
 
 
-def test_un_refus_hors_liste_journalise_l_adresse(db_session, caplog):
-    """Sans elle, un refus n'est pas diagnosticable.
-
-    Le code d'erreur rendu au visiteur est volontairement muet (FR-030) : il ne
-    dit pas *quelle* adresse a été soumise. Côté exploitant, c'est la seule
-    information qui permette d'agir — ajouter l'adresse à la liste, ou constater
-    qu'elle n'a rien à y faire. Une adresse n'est pas un secret au sens de
-    FR-038, que `test_no_secret_logged` borne aux jetons et aux clés.
-    """
+def test_un_compte_sans_role_est_journalise(db_session, caplog):
+    """Trace d'exploitation : un compte est né sans rôle. L'adresse n'y figure
+    pas, l'identifiant du compte suffit à le retrouver."""
     with caplog.at_level(logging.INFO):
-        with pytest.raises(LoginError):
-            provisioning.resolve_user(db_session, _identity(email="inconnu@exemple.fr"))
+        user = provisioning.resolve_user(db_session, _identity(email="inconnu@exemple.fr"))
 
-    assert "inconnu@exemple.fr" in caplog.text
+    assert f"Account created without role: user={user.id}" in caplog.text
+    assert "inconnu@exemple.fr" not in caplog.text
 
 
 def test_une_adresse_non_certifiee_n_est_pas_journalisee(db_session, caplog):
@@ -175,18 +163,14 @@ def test_une_adresse_non_certifiee_n_est_pas_journalisee(db_session, caplog):
     assert "usurpee@exemple.fr" not in caplog.text
 
 
-def test_une_liste_vide_interdit_toute_connexion(db_session, vider_la_liste_autorisation):
-    """FR-004, fail-closed : vide n'a jamais valu « tout le monde ».
-
-    Le garde de configuration ne pèse plus la liste depuis #170 : c'est **ici**,
-    et nulle part ailleurs, que le fail-closed se joue.
-    """
+def test_une_liste_vide_n_interdit_plus_la_connexion(db_session, vider_la_liste_autorisation):
+    """#1322 : une liste vide n'ouvre aucun pouvoir, mais n'interdit plus de
+    se connecter. Le fail-closed est passé aux gardes (pouvoir, code du site)."""
     vider_la_liste_autorisation()
 
-    with pytest.raises(LoginError) as refus:
-        provisioning.resolve_user(db_session, _identity())
+    user = provisioning.resolve_user(db_session, _identity())
 
-    assert refus.value.code == "account_not_allowed"
+    assert user.roles == []
 
 
 def test_la_liste_ignore_la_casse_et_les_espaces(
@@ -206,9 +190,9 @@ def test_la_liste_ignore_la_casse_et_les_espaces(
     assert user.email == "contributeur@exemple.fr"
 
 
-def test_un_refus_ne_laisse_ni_utilisateur_ni_identite(db_session):
+def test_un_refus_ne_laisse_ni_utilisateur_ni_identity(db_session):
     """FR-006 / SC-003 : un échec n'enregistre **jamais** personne."""
-    for identite in (_identity(email_verified=False), _identity(email="inconnu@exemple.fr")):
+    for identite in (_identity(email_verified=False), _identity(email="")):
         with pytest.raises(LoginError):
             provisioning.resolve_user(db_session, identite)
 
@@ -235,42 +219,36 @@ def test_aucune_liaison_implicite_entre_deux_identites(db_session):
     assert db_session.query(Identity).filter_by(user_id=user.id).count() == 1
 
 
-def test_une_adresse_ajoutee_est_effective_sans_redemarrage(
+def test_l_adresse_retenue_est_reevaluee_a_chaque_connexion(
     db_session, vider_la_liste_autorisation, autoriser
 ):
-    """FR-002 : la liste est relue à **chaque** tentative, sans cache.
-
-    C'est la propriété qui *est* la feature. Le défaut que #170 corrige était un
-    `lru_cache` sur `Settings` : la liste n'était lue qu'au démarrage, et ajouter
-    un contributeur exigeait un redéploiement. Le test refuse, inscrit, puis
-    retente **dans le même processus**, sans rien réinitialiser — ni cache vidé,
-    ni session rouverte.
-    """
+    """La liste est relue à **chaque** tentative, sans cache : une adresse
+    inscrite après une première connexion devient l'adresse retenue à la
+    suivante."""
     vider_la_liste_autorisation()
-    with pytest.raises(LoginError) as refus:
-        provisioning.resolve_user(db_session, _identity())
-    assert refus.value.code == "account_not_allowed"
+    identite = _identity(
+        email="perso@gmail.com", verified_emails=("perso@gmail.com", "prenom.nom@club.fr")
+    )
+    user = provisioning.resolve_user(db_session, identite)
+    db_session.commit()
+    assert user.email == "perso@gmail.com"
 
-    autoriser("contributeur@exemple.fr")
+    autoriser("prenom.nom@club.fr")
 
+    provisioning.resolve_user(db_session, identite)
+    db_session.commit()
+    assert user.email == "prenom.nom@club.fr"
+
+
+def test_un_compte_desactive_reste_refuse(db_session):
+    """FR-012 : la désactivation (retrait de la liste) ferme la connexion."""
     user = provisioning.resolve_user(db_session, _identity())
+    user.is_active = False
     db_session.commit()
-    assert user.email == "contributeur@exemple.fr"
-
-
-def test_un_retrait_est_effectif_a_la_tentative_suivante(
-    db_session, vider_la_liste_autorisation
-):
-    """Le pendant du précédent : retirer ferme la connexion suivante."""
-    provisioning.resolve_user(db_session, _identity())
-    db_session.commit()
-
-    vider_la_liste_autorisation()
 
     with pytest.raises(LoginError) as refus:
         provisioning.resolve_user(db_session, _identity())
     assert refus.value.code == "account_not_allowed"
-
 
 
 def test_une_secondaire_verifiee_autorisee_ouvre_la_connexion(
@@ -307,16 +285,101 @@ def test_la_primaire_l_emporte_quand_plusieurs_adresses_sont_autorisees(db_sessi
     assert user.email == "perso@gmail.com"
 
 
-def test_aucune_adresse_verifiee_autorisee_reste_refusee(
+def test_sans_adresse_autorisee_la_principale_est_retenue(
     db_session, autoriser, vider_la_liste_autorisation
 ):
     vider_la_liste_autorisation()
     autoriser("autre@exemple.fr")
 
-    with pytest.raises(LoginError) as refus:
-        provisioning.resolve_user(
-            db_session,
-            _identity(email="perso@gmail.com", verified_emails=("perso@gmail.com", "b@exemple.fr")),
-        )
+    user = provisioning.resolve_user(
+        db_session,
+        _identity(email="perso@gmail.com", verified_emails=("perso@gmail.com", "b@exemple.fr")),
+    )
 
+    assert user.email == "perso@gmail.com"
+
+
+def test_une_adresse_d_adherent_est_retenue_apres_la_liste_d_autorisation(
+    db_session, vider_la_liste_autorisation
+):
+    """FR-016 : autorisation, puis liste d'adhérents qui compte, puis principale."""
+    from app.core.season import season_of
+    from app.core.time import utcnow
+    from app.models.member_email import MemberEmail
+    from app.services import membership
+
+    vider_la_liste_autorisation()
+    db_session.add(MemberEmail(email="prenom.nom@club.fr", season=season_of(utcnow().date()), source="import"))
+    db_session.flush()
+
+    user = provisioning.resolve_user(
+        db_session,
+        _identity(email="perso@gmail.com", verified_emails=("perso@gmail.com", "prenom.nom@club.fr")),
+    )
+
+    assert user.email == "prenom.nom@club.fr"
+    assert membership.is_member(db_session, user, utcnow().date())
+
+
+def test_le_role_du_premier_jour_reste_reserve_a_la_liste(
+    db_session, vider_la_liste_autorisation, organisation
+):
+    """FR-012 : une adresse hors liste naît sans rôle ; une adresse inscrite
+    avec un rôle le reçoit à la création, comme avant #1322."""
+    from app.models.role import Role
+    from app.repositories import allowed_email_repository
+
+    vider_la_liste_autorisation()
+    role = Role(slug="benevole", name="Bénévole", organisation_id=organisation.id)
+    db_session.add(role)
+    entree, _ = allowed_email_repository.add(db_session, email="inscrit@club.fr")
+    allowed_email_repository.set_initial_role(db_session, entree, role_id=role.id)
+    db_session.commit()
+
+    hors_liste = provisioning.resolve_user(db_session, _identity(subject="1", email="x@exemple.fr"))
+    inscrit = provisioning.resolve_user(db_session, _identity(subject="2", email="inscrit@club.fr"))
+    db_session.commit()
+
+    assert hors_liste.roles == []
+    assert [attribution.role_id for attribution in inscrit.roles] == [role.id]
+
+
+def test_une_adresse_autorisee_n_est_pas_remplacee_par_une_adresse_hors_liste(
+    db_session, vider_la_liste_autorisation, autoriser
+):
+    """Revue de #1322 : le retrait d'une adresse doit encore fermer le compte.
+
+    A certifiée et inscrite à la création, puis le fournisseur ne certifie plus
+    que B. Si `users.email` passait à B, retirer A ne désactiverait personne
+    (`allowed_emails.remove` cherche les comptes par leur adresse).
+    """
+    from app.services.auth import allowed_emails
+
+    vider_la_liste_autorisation()
+    autoriser("a@club.fr")
+    acteur = user_repository.create(db_session, email="admin@club.fr", display_name="")
+    user = provisioning.resolve_user(db_session, _identity(email="a@club.fr"))
+    db_session.commit()
+
+    provisioning.resolve_user(db_session, _identity(email="b@gmail.com"))
+    db_session.commit()
+    assert user.email == "a@club.fr"
+
+    from app.repositories import allowed_email_repository
+
+    allowed_emails.remove(db_session, acteur, allowed_email_repository.get_by_email(db_session, "a@club.fr"))
+    db_session.commit()
+    assert user.is_active is False
+
+    with pytest.raises(LoginError) as refus:
+        provisioning.resolve_user(db_session, _identity(email="b@gmail.com"))
     assert refus.value.code == "account_not_allowed"
+
+
+def test_une_adresse_autorisee_peut_remplacer_une_autre_adresse_autorisee(db_session, autoriser):
+    """La règle ne fige que le passage d'une adresse inscrite à une adresse hors liste."""
+    autoriser("nouvelle@club.fr")
+    user = provisioning.resolve_user(db_session, _identity())
+    provisioning.resolve_user(db_session, _identity(email="nouvelle@club.fr"))
+
+    assert user.email == "nouvelle@club.fr"

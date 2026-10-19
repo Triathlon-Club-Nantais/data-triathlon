@@ -154,8 +154,10 @@ const AUTH_ERROR_LABELS: Record<string, string> = {
     "Votre demande de connexion a expiré ou n'a pas pu être vérifiée. Merci de recommencer.",
   email_unverified:
     "Votre fournisseur ne certifie aucune adresse e-mail vérifiée pour ce compte.",
+  // #1322 : la liste d'autorisation ne refuse plus une adresse, seul un compte
+  // désactivé reçoit ce code.
   account_not_allowed:
-    "Cette adresse n'est pas autorisée à accéder à l'espace contributeur.",
+    "Ce compte a été désactivé. Contactez un administrateur du club.",
   provider_error: "La connexion a été refusée ou interrompue. Merci de réessayer.",
   provider_unavailable:
     "Le service de connexion est momentanément injoignable. Merci de réessayer plus tard.",
@@ -173,7 +175,7 @@ export function authErrorLabel(code: string | null | undefined): string {
 /**
  * Clé `sessionStorage` du chemin à retrouver après connexion (#494).
  *
- * Le backend redirige toujours vers `/admin`, destination fixée par la
+ * Le backend redirige vers `/admin` ou `/` (#1322), destination fixée par la
  * configuration (FR-026) : aucun paramètre `next` ne circule côté serveur, la
  * redirection ouverte reste fermée. Le retour au point de départ est donc
  * entièrement client — posé par `UserMenu` avant de router vers `/login`, lu

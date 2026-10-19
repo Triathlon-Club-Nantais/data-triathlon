@@ -39,11 +39,11 @@
   `UNIQUE(last_name_key, first_name_key)`, `athlete_id` en `ON DELETE CASCADE`.
   L'import la résout comme l'identité de sa fiche, après l'identité directe et
   avant le repli. Une fusion repointe les variantes de la fiche absorbée et y
-  ajoute la sienne. **Une fusion déplace neuf références** : `participations`,
+  ajoute la sienne. **Une fusion déplace dix références** : `participations`,
   `participation_teammates`, `volunteer_actions`, `season_validations`
   (dédoublonnées par saison), `users.athlete_id`, `challenge_results`,
-  `athlete_aliases`, `ignored_athlete_pairs` et `athlete_known_clubs` (sans
-  compter `club_members`, repointé aussi) ; une nouvelle table qui pointe vers `athletes.id`
+  `athlete_aliases`, `ignored_athlete_pairs`, `athlete_known_clubs` et
+  `athlete_claims` (sans compter `club_members`, repointé aussi) ; une nouvelle table qui pointe vers `athletes.id`
   doit rejoindre `athlete_merge.merge_athletes`.
 - **IgnoredAthletePair** (#908) — une paire de fiches qu'un admin a déclarées
   deux personnes depuis la revue d'identité, `UNIQUE(athlete_id_low,
@@ -64,9 +64,10 @@
   conflit jugées : une épreuve de plus rouvre le cas. Une fusion **ne le
   reporte pas**, elle l'efface (`athlete_merge`) : la fiche conservée réunit
   d'autres épreuves que celles jugées.
-- **Les quatre seules tables en `ON DELETE CASCADE` vers `athletes.id`** sont
-  `athlete_aliases`, `athlete_known_clubs`, `ignored_athlete_pairs` et
-  `ignored_identity_cases` : la suppression d'une fiche
+- **Les cinq seules tables en `ON DELETE CASCADE` vers `athletes.id`** sont
+  `athlete_aliases`, `athlete_known_clubs`, `ignored_athlete_pairs`,
+  `ignored_identity_cases` et `athlete_claims` (l'opposition supprime aussi
+  celle-ci explicitement) : la suppression d'une fiche
   (purge d'orphelins, opposition, fusion) les emporte en PostgreSQL, mais
   **pas en SQLite**, où `database.py` n'émet aucun `PRAGMA foreign_keys=ON`.
   Les tests qui en dépendent passent par `db_session_fk`.
@@ -414,3 +415,54 @@ fichier. Seul point de passage : `club_member_repository`.
   fiche et saison ; celles dont la fiche a disparu sont supprimées), numéro de
   licence effacé, nom et prénom remplacés par ceux de la fiche. Les résultats
   passés continuent ainsi de compter sans second exemplaire de la donnée.
+
+## Adresses d'adhérents par saison (#1334)
+
+`member_emails` (`id`, `email`, `season`, `source`, `created_at`) liste les
+adresses qui reconnaissent un adhérent, importées de l'export AssoConnect
+(`import`) ou ajoutées à la main (`manual`). Seul point de passage :
+`member_email_repository`, qui range l'adresse normalisée (`core.email.normalize_email`).
+
+- **`UNIQUE(email, season)`** : une adresse au plus une fois par saison ; sert
+  aussi d'index à la recherche du statut adhérent.
+- **Aucune clé étrangère** : la liste ne connaît ni `users` ni `club_members`, et
+  ne porte aucune autre donnée de l'export (minimisation).
+- **Distincte d'`allowed_emails`** : autre source, autre cycle de vie, autre
+  conservation (saison en cours et précédente, `purge_before`). Détail :
+  `docs/auth/membres.md`.
+
+## Demandes de rattachement à une fiche (#1325)
+
+`athlete_claims` (`id`, `user_id` **UNIQUE**, `athlete_id`, `status`,
+`created_at`, `decided_at`) : la demande d'un compte de rattacher sa fiche,
+`pending` ou `rejected`. Seul point de passage : `athlete_claim_repository`.
+
+- **Une au plus par compte** : une nouvelle demande remplace la précédente.
+- **Validée, elle disparaît** : le rattachement vit sur `users.athlete_id`,
+  l'historique est le journal d'administration (`athlete_claim.approve`,
+  `athlete_claim.reject`).
+- **Possédée par le compte** (cascade ORM `User.athlete_claim`, table de
+  `user_repository._OWNED_TABLES`) : elle part avec lui et ne bloque jamais sa
+  suppression. **Suit sa fiche** : `ON DELETE CASCADE`, report à la fusion.
+
+## Objectifs de saison (#1373)
+
+`season_goals` (`id`, `user_id`, `season`, `kind`, `event_type`, `target`,
+`created_at`) : un objectif privé du compte rattaché, `time` (secondes, format
+requis) ou `count` (nombre d'épreuves, format facultatif). Seul point de
+passage : `season_goal_repository`, toujours par compte. **Possédé** (cascade
+ORM `User.season_goals`, `_OWNED_TABLES`). La progression se calcule à la
+lecture (`participation_repository.athlete_season_times` et
+`athlete_season_count`), jamais stockée.
+
+## Réclamations de résultat (#1637)
+
+`result_claims` (`id`, `user_id`, `participation_id`, `status`, `created_at`,
+`decided_at`), `UNIQUE(user_id, participation_id)` : un compte rattaché réclame
+un résultat rangé sur une autre fiche. Seul point de passage :
+`result_claim_repository`. **Possédée** par le compte (`User.result_claims`,
+`_OWNED_TABLES`), **suit son résultat** (`ON DELETE CASCADE` ; la file joint
+`participations` pour ignorer une ligne orpheline en SQLite). Validée, elle
+disparaît : le déplacement passe par `admin_actions.reassign_participation`
+(résultat figé, fiche vidée purgée, journal `participation.reassign` et
+`result_claim.approve`).

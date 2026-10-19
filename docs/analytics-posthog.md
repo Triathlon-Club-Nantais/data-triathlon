@@ -81,6 +81,15 @@ qu'il compte une seule fois et hors de portée des bloqueurs (#1033).
   qu'en soit la cause (déconnexion explicite, 401, expiration, révocation
   admin). Centraliser ici plutôt que dans le bouton « Se déconnecter » est ce
   qui couvre les sorties de session qui ne passent pas par ce bouton.
+  Propriétés de personne posées par cet `identify` : `email`, `name`, `roles`,
+  et depuis #1374 deux booléens, `is_member` (statut adhérent dérivé, #1322) et
+  `has_claimed_athlete` (fiche rattachée, #1325). Rejouées à chaque changement
+  de session, elles suivent un rattachement ou un détachement. Aucune ne nomme
+  la fiche. **Cohortes et rétention** se construisent dans l'interface PostHog :
+  *People → Cohorts → New cohort*, « Person property `is_member` = true »
+  (ou `has_claimed_athlete`), puis *Product analytics → Retention* filtré sur
+  cette cohorte. Seules les personnes qui ont accepté la mesure détaillée y
+  figurent.
 - **Capture** — `frontend/lib/posthog.ts` (`captureEvent`) passe
   `posthog.capture()` par `withPostHog`, donc par la garde sur le token, pour ne pas dupliquer ce `if`
   à chaque site d'appel ni laisser `posthog-js` logguer un `console.error` par

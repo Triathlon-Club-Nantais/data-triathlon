@@ -73,12 +73,13 @@ describe("serverFetch — relais du cookie d'accès au site (#526)", () => {
     expect(options.headers).toEqual({ cookie: "tcn_site_session=jeton-de-test" });
   });
 
-  it("n'envoie que les cookies d'accès au site et des bénévoles — pas la session SSO, ni PostHog (#586, #1519)", async () => {
+  it("n'envoie que les cookies d'accès au site, des bénévoles et la session SSO, ni PostHog (#586, #1322, #1519)", async () => {
     getAll.mockReturnValue([
       { name: "tcn_site_session", value: "jeton-de-test" },
       { name: "tcn_session", value: "session-sso" },
       { name: "tcn_logged_in", value: "1" },
       { name: "tcn_benevole_session", value: "session-benevoles" },
+      { name: "tcn_auth_state", value: "etat" },
       { name: "ph_phc_test", value: "device-id" },
       { name: NAV_WIDTH_COOKIE, value: "1" },
     ]);
@@ -89,18 +90,38 @@ describe("serverFetch — relais du cookie d'accès au site (#526)", () => {
     // Avant #586, `serverFetch` relayait le jar entier (hors NAV_WIDTH_COOKIE) :
     // un cookie que `require_site_access` ne lit jamais faisait quand même
     // varier la clé du Data Cache, jusqu'à casser le partage *intra-visiteur*
-    // qu'un simple rechargement de page devrait garder — un cookie PostHog qui
-    // tourne, ou `tcn_session` posé/retiré par une connexion SSO, suffisait.
-    // Le cookie bénévoles, lui, part depuis #1519 : une saisie en attente n'est
-    // plus rendue qu'à un bénévole, sur la fiche comme sur l'épreuve.
+    // qu'un simple rechargement de page devrait garder, un cookie PostHog qui
+    // tourne suffisait. Le cookie bénévoles part depuis #1519 : une saisie en
+    // attente n'est plus rendue qu'à un bénévole. La session SSO depuis #1322 :
+    // la garde la lit, un adhérent connecté est dispensé du code.
     const [, options] = fetchMock.mock.calls[0];
     expect(options.headers).toEqual({
-      cookie: "tcn_site_session=jeton-de-test; tcn_benevole_session=session-benevoles",
+      cookie: "tcn_site_session=jeton-de-test; tcn_benevole_session=session-benevoles; tcn_session=session-sso",
     });
   });
 
-  it("n'envoie aucun cookie si le visiteur n'a pas encore ouvert de session d'accès au site", async () => {
+  it("relaie la session SSO seule, pour un adhérent connecté sans code d'accès (#1322)", async () => {
     getAll.mockReturnValue([{ name: "tcn_session", value: "session-sso" }]);
+    const fetchMock = mockFetchOk([]);
+
+    await apiServer.listParticipations({ scope: "club" });
+
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.headers).toEqual({ cookie: "tcn_session=session-sso" });
+  });
+
+  it("relaie la session SSO préfixée `__Host-` en production (#1322)", async () => {
+    getAll.mockReturnValue([{ name: "__Host-tcn_session", value: "session-sso" }]);
+    const fetchMock = mockFetchOk([]);
+
+    await apiServer.listParticipations({ scope: "club" });
+
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.headers).toEqual({ cookie: "__Host-tcn_session=session-sso" });
+  });
+
+  it("n'envoie aucun cookie à un visiteur sans code d'accès ni session", async () => {
+    getAll.mockReturnValue([{ name: "tcn_logged_in", value: "1" }]);
     const fetchMock = mockFetchOk([]);
 
     await apiServer.listParticipations({ scope: "club" });

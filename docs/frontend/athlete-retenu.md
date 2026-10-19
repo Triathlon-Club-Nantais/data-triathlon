@@ -135,3 +135,28 @@ Les gestes se rangent sous un seul menu « Gérer l'épreuve » (#1301), chaque 
 sous son pouvoir, la fusion et la suppression en `variant="destructive"` :
 quatre boutons côte à côte repoussaient le classement sous la ligne de
 flottaison sur mobile.
+
+## La fiche du compte rattaché (#1325)
+
+Un compte rattaché à sa fiche (`session.athlete`) n'a plus de choix à faire :
+`SessionAthleteSync` (`app/providers.tsx`) écrit cette fiche dans le stock
+`tcn-athlete`, et toutes les surfaces ci-dessus la suivent sans lire la
+session. Le détachement vide le stock, y compris fait depuis un autre appareil
+(marqueur `tcn-athlete-from-session` posé à côté du stock) ; une déconnexion le laisse, comme
+avant. Les gestes de changement sont masqués pour lui : ni « Choisir cet
+athlète » ni « C'est moi » sur une fiche (`AthleteHeaderActions` rend « Votre
+fiche » ou le lien vers la sienne), ni la croix de la tuile du rail, et la
+palette demandée par `OPEN_PICKER_EVENT` s'ouvre en simple recherche. Un
+connecté sans rattachement garde la sélection locale et se voit proposer
+« C'est moi » (`components/athletes/AthleteClaimAction.tsx`).
+
+## Carte résultat à télécharger (#1371)
+
+« Télécharger l'image » sur la page détail d'un résultat, pour le seul compte
+rattaché à la fiche du résultat, validé et individuel (un relais nomme des
+équipiers). PNG 1080×1350 rendu **dans le navigateur** : `lib/result-card.ts`
+sépare le modèle (`resultCardModel`, la seule ligne de l'adhérent), le dessin
+(`drawResultCard`, un contexte 2D quelconque) et le téléchargement. Cette
+séparation permet de passer le dessin côté serveur (`next/og`) si les appareils
+des adhérents s'avèrent trop lents. Aucune URL publique ni balise OG : le site
+reste derrière le code d'accès.

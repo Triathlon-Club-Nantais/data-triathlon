@@ -9,6 +9,7 @@ from datetime import MAXYEAR, MINYEAR, date
 from sqlalchemy import Integer, case, cast, extract
 from sqlalchemy.sql.elements import ColumnElement
 
+from app.core.exceptions import DomainError
 from app.core.time import utcnow
 
 #: Plage d'une saison saisie par un client (#1054) : au-delà, `season_bounds`
@@ -25,6 +26,11 @@ def season_quota_met(validated_count: int, has_volunteer_action: bool) -> bool:
     """Seule définition du quota, partagée par `admin_actions.season_quota` et
     `GET /athletes/season-activity` (#1542)."""
     return validated_count >= SEASON_QUOTA_EVENTS and has_volunteer_action
+
+
+class SeasonOutOfRangeError(DomainError):
+    status_code = 422
+    message = "Saison hors de la plage acceptée."
 
 
 def season_of(d: date) -> int:

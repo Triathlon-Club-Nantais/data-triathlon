@@ -24,6 +24,7 @@ from app.models.athlete_opposition import AthleteOpposition
 from app.models.user import User
 from app.repositories import (
     admin_action_log_repository,
+    athlete_claim_repository,
     athlete_repository,
     challenge_repository,
     club_member_repository,
@@ -232,6 +233,7 @@ def _anonymise(db: Session, athlete: Athlete) -> int:
         athlete_ids=teammates | {participation.athlete_id for participation in touched},
     )
     user_repository.detach_athlete(db, athlete.id)
+    athlete_claim_repository.delete_for_athlete(db, athlete.id)
     volunteer_action_repository.delete_for_athlete(db, athlete.id)
     season_validation_repository.delete_for_athlete(db, athlete.id)
     db.expire(athlete)

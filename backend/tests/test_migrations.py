@@ -245,7 +245,7 @@ def test_la_migration_seme_exactement_trois_roles_systeme(base_migree):
     """
     roles = _lignes(
         base_migree,
-        "SELECT slug, is_system, is_superuser, organisation_id FROM roles ORDER BY slug",
+        "SELECT slug, is_system, is_superuser, organisation_id FROM roles WHERE is_system ORDER BY slug",
     )
 
     assert [ligne[0] for ligne in roles] == ["admin", "moderator", "validator"]
@@ -1513,6 +1513,44 @@ def test_downgrade_then_upgrade_of_athlete_known_clubs(sqlite_url, monkeypatch):
     assert "athlete_known_clubs" in _tables(sqlite_url)
 
 
+def test_last_seen_at_is_backfilled_from_sessions_then_created_at_and_not_null(sqlite_url):
+    """#1326: last activity starts at the latest session opening, else at account creation."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "cf8130e7fb21")
+    engine = sa.create_engine(sqlite_url)
+    try:
+        with engine.begin() as connexion:
+            connexion.execute(sa.text(
+                "INSERT INTO users (email, display_name, is_active, created_at) "
+                "VALUES ('ancien@exemple.fr', '', 1, '2021-03-04 05:06:07'), "
+                "('connecte@exemple.fr', '', 1, '2021-03-04 05:06:07')"
+            ))
+            connexion.execute(sa.text(
+                "INSERT INTO user_sessions (user_id, token_hash, expires_at, created_at) "
+                "SELECT users.id, opened.h, '2026-01-01 00:00:00', opened.c FROM users, "
+                "(SELECT 'a' AS h, '2025-06-01 10:00:00' AS c UNION SELECT 'b', '2025-07-02 11:00:00') AS opened "
+                "WHERE users.email = 'connecte@exemple.fr'"
+            ))
+    finally:
+        engine.dispose()
+
+    command.upgrade(cfg, "head")
+
+    assert _lignes(sqlite_url, "SELECT last_seen_at FROM users WHERE email = 'ancien@exemple.fr'") == [
+        ("2021-03-04 05:06:07",)
+    ]
+    # The latest session opening is the best known activity.
+    assert _lignes(sqlite_url, "SELECT last_seen_at FROM users WHERE email = 'connecte@exemple.fr'") == [
+        ("2025-07-02 11:00:00",)
+    ]
+    engine = sa.create_engine(sqlite_url)
+    try:
+        colonne = next(c for c in sa.inspect(engine).get_columns("users") if c["name"] == "last_seen_at")
+    finally:
+        engine.dispose()
+    assert colonne["nullable"] is False
+
+
 def test_the_awaiting_validation_read_uses_its_partial_index(sqlite_url):
     """Every course page reads the pending queue: no full scan of participations (#1390)."""
     from sqlalchemy.dialects import sqlite
@@ -1545,3 +1583,124 @@ def test_downgrade_puis_upgrade_de_la_meteo(sqlite_url):
 
     command.downgrade(cfg, "f16822237c78")
     assert not weather & _columns(sqlite_url, "courses")
+
+
+def test_athlete_claims_table_up_and_down(sqlite_url):
+    """#1325: one claim per account, pointing to an athlete."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    assert _columns(sqlite_url, "athlete_claims") == {
+        "id", "user_id", "athlete_id", "status", "created_at", "decided_at",
+    }
+
+    command.downgrade(cfg, "a7d3c91e4b20")
+    assert "athlete_claims" not in _tables(sqlite_url)
+
+
+def test_season_goals_table_up_and_down(sqlite_url):
+    """#1373: private goals owned by the account."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    assert _columns(sqlite_url, "season_goals") == {
+        "id", "user_id", "season", "kind", "event_type", "target", "created_at",
+    }
+
+    command.downgrade(cfg, "2901789fc3c8")
+    assert "season_goals" not in _tables(sqlite_url)
+
+
+def test_result_claims_table_up_and_down(sqlite_url):
+    """#1637: a member's claim on a result filed under another record."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    assert _columns(sqlite_url, "result_claims") == {
+        "id", "user_id", "participation_id", "status", "created_at", "decided_at",
+    }
+
+    command.downgrade(cfg, "325c308cab2d")
+    assert "result_claims" not in _tables(sqlite_url)
+
+
+CLUB_ROLES = {
+    "bureau": [
+        "admin_log:read", "allowed_emails:manage", "athlete_claims:review", "benevole_access:manage",
+        "club_members:manage", "feedback:manage", "feedback:read", "groups:assign", "groups:read",
+        "groups:write", "member_emails:manage", "oppositions:manage", "pages:preview", "roles:read",
+        "site_access:manage", "users:read",
+    ],
+    "data": [
+        "athlete_claims:review", "athletes:read", "athletes:write", "batch:read", "club_aliases:manage",
+        "counter_scope:manage", "courses:sources", "courses:write", "feedback:read", "pages:preview",
+        "participations:reassign", "pending_providers:handle", "pending_providers:read", "quality:override",
+    ],
+    "encadrant": ["jeunes:read", "jeunes:write"],
+    "validation": ["athletes:season_validate", "athletes:volunteer_validate", "benevole_access:manage"],
+}
+SUPERUSER_ONLY = {
+    "courses:delete", "courses:wipe_all", "participations:delete", "participations:wipe_all",
+    "batch:run", "roles:write", "roles:assign", "sessions:revoke",
+}
+
+
+def _compositions(url: str, slugs) -> dict[str, list[str]]:
+    rows = _lignes(
+        url,
+        "SELECT roles.slug, role_permissions.permission_code FROM roles"
+        " JOIN role_permissions ON role_permissions.role_id = roles.id"
+        f" WHERE roles.slug IN ({', '.join(repr(s) for s in slugs)}) ORDER BY roles.slug, permission_code",
+    )
+    compositions: dict[str, list[str]] = {}
+    for slug, code in rows:
+        compositions.setdefault(slug, []).append(code)
+    return compositions
+
+
+def test_club_roles_are_seeded_with_their_composition(base_migree):
+    """#1654: four editable roles for the board, data volunteers, validation and coaches."""
+    from app.core.permissions import ALL
+
+    roles = _lignes(
+        base_migree,
+        "SELECT slug, is_system, is_superuser, organisation_id FROM roles"
+        f" WHERE slug IN ({', '.join(repr(s) for s in CLUB_ROLES)}) ORDER BY slug",
+    )
+
+    assert roles == [(slug, False, False, None) for slug in sorted(CLUB_ROLES)]
+    assert _compositions(base_migree, CLUB_ROLES) == CLUB_ROLES
+    seeded = {code for codes in CLUB_ROLES.values() for code in codes}
+    assert seeded <= {permission.code for permission in ALL}
+    assert not seeded & SUPERUSER_ONLY
+
+
+def test_club_roles_never_overwrite_a_role_made_by_hand(sqlite_url):
+    """A `bureau` composed by the club before the migration keeps its composition."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "cd0a7061e41f")
+    engine = sa.create_engine(sqlite_url)
+    with engine.begin() as connexion:
+        connexion.execute(sa.text(
+            "INSERT INTO roles (slug, name, description, is_system, is_superuser, created_at)"
+            " VALUES ('bureau', 'Bureau du club', '', 0, 0, '2026-10-01')"
+        ))
+        connexion.execute(sa.text(
+            "INSERT INTO role_permissions (role_id, permission_code)"
+            " SELECT id, 'users:read' FROM roles WHERE slug = 'bureau'"
+        ))
+    engine.dispose()
+
+    command.upgrade(cfg, "head")
+
+    assert _lignes(sqlite_url, "SELECT name FROM roles WHERE slug = 'bureau'") == [("Bureau du club",)]
+    assert _compositions(sqlite_url, ["bureau"]) == {"bureau": ["users:read"]}
+    assert _compositions(sqlite_url, ["data"]) == {"data": CLUB_ROLES["data"]}
+
+
+def test_downgrade_puis_upgrade_des_roles_du_club(sqlite_url):
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+
+    command.downgrade(cfg, "cd0a7061e41f")
+    assert _lignes(sqlite_url, "SELECT slug FROM roles WHERE NOT is_system") == []
+
+    command.upgrade(cfg, "head")
+    assert _compositions(sqlite_url, CLUB_ROLES) == CLUB_ROLES

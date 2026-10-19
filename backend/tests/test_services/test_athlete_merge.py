@@ -13,6 +13,7 @@ from app.models.participation import Participation
 from app.models.season_validation import SeasonValidation
 from app.models.volunteer_action import VolunteerAction
 from app.repositories import (
+    athlete_claim_repository,
     athlete_known_club_repository,
     challenge_repository,
     course_repository,
@@ -47,6 +48,18 @@ def _athlete(db, nom: str, prenom: str, **fields) -> Athlete:
 @pytest.fixture
 def admin(db_session_fk):
     return user_repository.create(db_session_fk, email="admin@exemple.fr")
+
+
+def test_a_merge_carries_a_pending_claim_to_the_kept_record(db_session_fk, admin):
+    """#1325: `athlete_claims` points to `athletes.id`, the claim follows the person."""
+    db = db_session_fk
+    kept, absorbed = _athlete(db, "DUPONT", "Jean"), _athlete(db, "DUPOMT", "Jean")
+    claimant = user_repository.create(db, email="jean@exemple.fr")
+    athlete_claim_repository.replace_pending(db, user_id=claimant.id, athlete_id=absorbed.id)
+
+    athlete_merge.merge_athletes(db, kept_id=kept.id, absorbed_id=absorbed.id, user_id=admin.id)
+
+    assert athlete_claim_repository.get_for_user(db, claimant.id).athlete_id == kept.id
 
 
 def test_a_merge_moves_every_reference_and_deletes_the_absorbed_record(db_session_fk, admin):

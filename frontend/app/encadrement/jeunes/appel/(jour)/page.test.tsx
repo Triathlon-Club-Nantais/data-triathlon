@@ -58,6 +58,9 @@ function session(permissions: string[]): SessionUser {
     permissions,
     roles: [],
     groups: [],
+    is_member: false,
+    athlete: null,
+    athlete_claim: null,
     can_administer: false,
     can_supervise: true,
   };
