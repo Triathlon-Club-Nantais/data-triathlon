@@ -1,7 +1,7 @@
 """Accès données des réclamations de résultat (#1637)."""
 from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.time import utcnow
@@ -12,6 +12,16 @@ from app.repositories.dialect import dialect_insert
 
 def get_for_user(db: Session, user_id: int, claim_id: int) -> ResultClaim | None:
     return db.scalar(select(ResultClaim).where(ResultClaim.id == claim_id, ResultClaim.user_id == user_id))
+
+
+def get_for_participation(db: Session, user_id: int, participation_id: int) -> ResultClaim | None:
+    return db.scalar(
+        select(ResultClaim).where(ResultClaim.user_id == user_id, ResultClaim.participation_id == participation_id)
+    )
+
+
+def delete_for_user(db: Session, user_id: int) -> None:
+    db.execute(delete(ResultClaim).where(ResultClaim.user_id == user_id))
 
 
 def get_pending(db: Session, claim_id: int) -> ResultClaim | None:

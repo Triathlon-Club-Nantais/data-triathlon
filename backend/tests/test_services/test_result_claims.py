@@ -11,7 +11,7 @@ from app.models.participation import Participation
 from app.models.result_claim import STATUS_PENDING, STATUS_REJECTED, ResultClaim
 from app.models.user import SYSTEM_USER_EMAIL
 from app.repositories import user_repository
-from app.services import result_claims
+from app.services import athlete_claims, result_claims
 from app.services.auth import accounts
 
 _NUMBER = iter(range(1, 10_000))
@@ -174,6 +174,33 @@ def test_the_queue_carries_its_hints(db_session, lea, homonym, reviewer):
         result.id, homonym.id, 2,
     )
     assert (review.user.id, review.claimant_athlete.id) == (lea.id, lea.athlete_id)
+
+
+def test_asking_again_for_a_pending_claim_keeps_it_as_is(db_session, lea, homonym):
+    """Review: a second click must not move the claim to the back of the queue,
+    nor be refused at the cap."""
+    claims = [result_claims.request_claim(db_session, lea, _result(db_session, homonym).id)
+              for _ in range(result_claims.MAX_PENDING)]
+    first = claims[0]
+    created_at = first.created_at
+
+    again = result_claims.request_claim(db_session, lea, first.participation_id)
+
+    assert (again.id, again.created_at) == (first.id, created_at)
+
+
+@pytest.mark.parametrize("change", ["self_detach", "club_detach"])
+def test_changing_the_link_drops_the_claims_made_for_the_old_record(db_session, lea, homonym, reviewer, change):
+    """Review: a claim targets the record linked when it was made; once that link
+    goes, approving it would move the result elsewhere."""
+    result_claims.request_claim(db_session, lea, _result(db_session, homonym).id)
+
+    if change == "self_detach":
+        athlete_claims.detach(db_session, lea)
+    else:
+        athlete_claims.admin_detach(db_session, lea.id, actor_id=reviewer.id)
+
+    assert db_session.query(ResultClaim).count() == 0
 
 
 def test_claims_go_with_the_account(db_session, lea, homonym):

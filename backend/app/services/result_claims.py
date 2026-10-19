@@ -19,7 +19,7 @@ from app.core.time import utcnow
 from app.models.athlete import Athlete
 from app.models.club_member import ClubMember
 from app.models.participation import Participation
-from app.models.result_claim import ResultClaim
+from app.models.result_claim import STATUS_PENDING, ResultClaim
 from app.models.user import User
 from app.repositories import (
     athlete_repository,
@@ -62,6 +62,9 @@ def request_claim(db: Session, user: User, participation_id: int) -> ResultClaim
         raise NotFoundError("Résultat introuvable.")
     if participation.athlete_id == user.athlete_id or participation.is_pending_validation or participation.is_relay:
         raise UnclaimableResultError()
+    existing = result_claim_repository.get_for_participation(db, user.id, participation_id)
+    if existing is not None and existing.status == STATUS_PENDING:
+        return existing  # un second clic ne la renvoie pas en fin de file
     if result_claim_repository.count_pending_for_user(db, user.id) >= MAX_PENDING:
         raise TooManyClaimsError()
     claim = result_claim_repository.replace_pending(db, user_id=user.id, participation_id=participation_id)
