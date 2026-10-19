@@ -172,7 +172,7 @@ def get_club_summary(
             **{mode: getattr(podiums, mode)[:PODIUMS_PREVIEW] for mode in ClubPodiumTotals.model_fields}
         )
     season = max(seasons) if seasons else current_season()
-    activity = club_member_repository.licensee_activity(db, season)
+    activity = club_member_repository.licensee_activity(db, season, gender)
     return ClubSummary(
         roster=roster,
         podiums=podiums,

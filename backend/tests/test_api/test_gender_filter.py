@@ -3,6 +3,8 @@ from datetime import date
 
 import pytest
 
+from app.core import season
+from app.models.club_member import LINK_UNLINKED, SOURCE_FFTRI, ClubMember
 from app.repositories import athlete_repository, course_repository, participation_repository
 
 ENDPOINTS = ["/api/v1/stats", "/api/v1/club/summary", "/api/v1/club/podiums", "/api/v1/participations"]
@@ -53,3 +55,16 @@ def test_participations_gender_filter(client, mixed_club):
 @pytest.mark.parametrize("url", ENDPOINTS)
 def test_gender_param_rejects_unknown_value(client, url):
     assert client.get(url, params={"gender": "X"}).status_code == 422
+
+
+def test_club_summary_gender_filters_licensees_by_licence_gender(client, db_session):
+    year = season.current_season()
+    db_session.add_all([
+        ClubMember(season=year, nom="A", prenom="Alice", gender="F", licence_id="L1",
+                   link_status=LINK_UNLINKED, source=SOURCE_FFTRI),
+        ClubMember(season=year, nom="B", prenom="Bob", gender="M", licence_id="L2",
+                   link_status=LINK_UNLINKED, source=SOURCE_FFTRI),
+    ])
+    db_session.commit()
+    assert client.get("/api/v1/club/summary").json()["licensees"]["total"] == 2
+    assert client.get("/api/v1/club/summary", params={"gender": "F"}).json()["licensees"]["total"] == 1

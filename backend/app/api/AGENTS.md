@@ -301,8 +301,9 @@ nuls hors de ce filtre et sur les lignes en attente.
 `/club/podiums` et `/participations`, avec le même 422 hors `M`/`F`. Il restreint
 les agrégats au sexe demandé : `_stats_filters` et `club_podiums` par
 `_gender_clause` (sous-requête sur `Athlete`, sans jointure), le roster et la
-composition sur `Athlete.gender` qu'ils joignent déjà. `licensees` (membres
-FFTri) et `/club/best-times` (déjà un résultat par sexe) ne bougent pas.
+composition sur `Athlete.gender` qu'ils joignent déjà, `licensees` sur
+`ClubMember.gender` (un licencié sans athlète lié reste compté). `/club/best-times`
+(déjà un résultat par sexe) ne bouge pas.
 Design : `docs/superpowers/specs/2026-10-19-results-by-sex-design.md`.
 
 ## Sources multiples d'une épreuve : sources, bascule, re-scrape, fusion (epic #275)
