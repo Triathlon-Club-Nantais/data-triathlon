@@ -45,9 +45,7 @@ export function MonEspace({ seasons, federalOnly }: { seasons: number[]; federal
     queryFn: async () => {
       const { start, end } = fenetreSaisonPrecedente(saison!, new Date());
       const { participations } = await apiClient.getAthlete(athlete!.id, { seasons: String(saison! - 1), ...filters });
-      return chiffresSaison(
-        participations.filter((p) => p.course.event_date !== null && p.course.event_date >= start && p.course.event_date <= end),
-      );
+      return participations.filter((p) => p.course.event_date !== null && p.course.event_date >= start && p.course.event_date <= end);
     },
     enabled: athlete !== null && saison !== null,
     retry: false,
@@ -64,13 +62,15 @@ export function MonEspace({ seasons, federalOnly }: { seasons: number[]; federal
     <MonEspaceLayout
       centre={
         <>
-          <MesChiffres courant={chiffresSaison(courant.data.participations)} precedent={precedent.data ?? null} />
+          <MesChiffres courant={chiffresSaison(courant.data.participations)} precedent={precedent.data ? chiffresSaison(precedent.data) : null} />
           <OngletsMonEspace
             athleteId={athlete.id}
             athleteName={`${athlete.prenom} ${athlete.nom}`}
             participations={courant.data.participations}
             challenges={courant.data.challenges}
             federalOnly={federalOnly}
+            precedent={precedent.data ?? null}
+            seasons={seasons}
           />
         </>
       }

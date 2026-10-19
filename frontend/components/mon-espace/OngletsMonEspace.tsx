@@ -13,6 +13,7 @@ import { messageDeRefus } from "@/lib/api/refus";
 import { useMyVolunteerActions } from "@/lib/queries/auth";
 import type { AthleteChallenge, Participation } from "@/lib/types";
 import { formatDate } from "@/lib/utils/date";
+import { OngletProgression } from "./OngletProgression";
 import { OngletRecords } from "./OngletRecords";
 
 const ONGLET_PARAM = "onglet";
@@ -65,8 +66,12 @@ export function OngletsMonEspace({
   participations,
   challenges,
   federalOnly,
+  precedent,
+  seasons,
 }: {
   federalOnly: boolean;
+  precedent: Participation[] | null;
+  seasons: number[];
   athleteId: number;
   athleteName: string;
   participations: Participation[];
@@ -75,6 +80,7 @@ export function OngletsMonEspace({
   const pathname = usePathname();
   const sp = useSearchParams();
   const onglets = [
+    { value: "progression", label: "Progression" },
     { value: "records", label: "Records" },
     { value: "epreuves", label: "Épreuves" },
     { value: "benevolat", label: "Bénévolat" },
@@ -97,6 +103,9 @@ export function OngletsMonEspace({
           </TabsTrigger>
         ))}
       </TabsList>
+      <TabsContent value="progression">
+        <OngletProgression courant={participations} precedent={precedent} seasons={seasons} />
+      </TabsContent>
       <TabsContent value="records">
         <OngletRecords athleteId={athleteId} federalOnly={federalOnly} selection={participations} />
       </TabsContent>

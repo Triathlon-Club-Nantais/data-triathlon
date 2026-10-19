@@ -57,7 +57,7 @@ function labelBox(index: number, count: number) {
  * de chaque point est donc écrit en permanence (#677) plutôt que réservé à une
  * infobulle au survol, qui exigerait un composant client.
  */
-export function ProgressionChart({ points }: { points: ProgressionPoint[] }) {
+export function ProgressionChart({ points, comparaison }: { points: ProgressionPoint[]; comparaison?: ProgressionPoint[] }) {
   if (points.length < MIN_POINTS) {
     return (
       <EmptyState
@@ -69,7 +69,9 @@ export function ProgressionChart({ points }: { points: ProgressionPoint[] }) {
     );
   }
 
-  const percents = points.map((p) => p.percent);
+  // Une série de comparaison d'un seul point ne trace aucun segment.
+  const autre = comparaison && comparaison.length >= 2 ? comparaison : null;
+  const percents = [...points, ...(autre ?? [])].map((p) => p.percent);
   const best = Math.min(...percents);
   const worst = Math.max(...percents);
   const margin = Math.max(1, Math.round((worst - best) * 0.15));
@@ -82,6 +84,11 @@ export function ProgressionChart({ points }: { points: ProgressionPoint[] }) {
   const yScale = scaleLinear().domain([top, bottom]).range([TOP, BOTTOM]);
   const xOf = (index: number) => (points.length === 1 ? W / 2 : (W / (points.length - 1)) * index);
 
+  const tracer = (serie: ProgressionPoint[]) =>
+    d3Line<{ x: number; y: number }>()
+      .x((point) => point.x)
+      .y((point) => point.y)
+      .curve(curveLinear)(serie.map((p, index) => ({ x: (W / (serie.length - 1)) * index, y: yScale(p.percent) }))) ?? "";
   const linePoints = points.map((p, index) => ({ x: xOf(index), y: yScale(p.percent) }));
   // Tracé droit, pas lissé (#677) : avec 3 à quelques points seulement, une
   // courbe lissée (l'ancien `curveMonotoneX`) dessine un creux ou un sommet
@@ -102,9 +109,8 @@ export function ProgressionChart({ points }: { points: ProgressionPoint[] }) {
     Math.round(top + ((bottom - top) * index) / (TICKS - 1)),
   );
 
-  const summary = points
-    .map((p) => `${formatDate(p.eventDate)} top ${p.percent} pour cent`)
-    .join(", ");
+  const resume = (serie: ProgressionPoint[]) => serie.map((p) => `${formatDate(p.eventDate)} top ${p.percent} pour cent`).join(", ");
+  const summary = autre ? `Cette saison : ${resume(points)}. Saison précédente : ${resume(autre)}` : resume(points);
 
   return (
     <div>
@@ -153,6 +159,9 @@ export function ProgressionChart({ points }: { points: ProgressionPoint[] }) {
             />
           ))}
           <path d={line} fill="none" stroke="var(--tcn-orange)" strokeWidth={2.5} vectorEffect="non-scaling-stroke" />
+          {autre && (
+            <path d={tracer(autre)} fill="none" stroke="var(--tcn-text-faint)" strokeWidth={2} strokeDasharray="6 5" vectorEffect="non-scaling-stroke" />
+          )}
         </svg>
 
         {/* Points de la courbe, en HTML : un <circle> dans un viewBox étiré non

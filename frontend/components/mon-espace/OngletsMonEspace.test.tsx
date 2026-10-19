@@ -20,6 +20,7 @@ vi.mock("@/components/athletes/EventsTable", () => ({
 vi.mock("@/components/challenges/AthleteChallenges", () => ({
   AthleteChallenges: ({ challenges }: { challenges: unknown[] }) => <div data-testid="challenges">{challenges.length} challenges</div>,
 }));
+vi.mock("./OngletProgression", () => ({ OngletProgression: () => <div data-testid="progression" /> }));
 vi.mock("./OngletRecords", () => ({ OngletRecords: ({ federalOnly }: { federalOnly: boolean }) => <div data-testid="records">{String(federalOnly)}</div> }));
 vi.mock("@/components/dashboard/SeasonGoals", () => ({ SeasonGoals: () => <div data-testid="goals" /> }));
 
@@ -29,6 +30,8 @@ const client = new QueryClient({ defaultOptions: { queries: { retry: false } } }
 const arbre = () => (
   <QueryClientProvider client={client}>
     <OngletsMonEspace
+      precedent={null}
+      seasons={[2026]}
       athleteId={42}
       athleteName="Léa Martin"
       federalOnly
@@ -49,12 +52,12 @@ beforeEach(() => {
 });
 
 describe("OngletsMonEspace", () => {
-  it("lists the tabs in order and opens the records by default", () => {
+  it("lists the tabs in order and opens the progression by default", () => {
     afficher();
 
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Records", "Épreuves", "Bénévolat", "Objectifs"]);
-    expect(screen.getByRole("tab", { name: "Records" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByTestId("records")).toHaveTextContent("true");
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(["Progression", "Records", "Épreuves", "Bénévolat", "Objectifs"]);
+    expect(screen.getByRole("tab", { name: "Progression" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("progression")).toBeInTheDocument();
     expect(getMyVolunteerActions).not.toHaveBeenCalled();
   });
 
@@ -92,7 +95,7 @@ describe("OngletsMonEspace", () => {
     searchParams = new URLSearchParams("onglet=zzz");
     afficher();
 
-    expect(screen.getByRole("tab", { name: "Records" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Progression" })).toHaveAttribute("aria-selected", "true");
   });
 
   it("shows my goals in their tab", () => {

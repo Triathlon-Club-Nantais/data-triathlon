@@ -169,3 +169,12 @@ describe("ProgressionChart", () => {
     expect(container.querySelector("svg")).toBeNull();
   });
 });
+
+describe("ProgressionChart comparaison", () => {
+  it("draws the comparison dashed", () => {
+    const serie = [10, 20, 30].map((percent, i) => point({ participationId: i + 1, eventDate: `2026-0${i + 1}-10`, percent }));
+    const { container } = render(<ProgressionChart points={serie} comparaison={serie.map((p) => ({ ...p, participationId: p.participationId + 10 }))} />);
+    expect(container.querySelectorAll("svg path")).toHaveLength(2);
+    expect(container.querySelectorAll("svg path")[1]).toHaveAttribute("stroke-dasharray");
+  });
+});
