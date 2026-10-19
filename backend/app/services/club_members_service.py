@@ -116,9 +116,12 @@ def _replace(db: Session, season: int, incoming: list[RosterMember], source: str
     opposed = opposition_repository.all_hashes(db)
     incoming = [m for m in incoming if identity_hash(m.nom, m.prenom) not in opposed]
     previous = club_member_repository.list_season(db, season)
+    # Les rattachements faits à la main suivent la personne d'une saison à la
+    # suivante : sans quoi la première synchro de septembre rendait « ambigu » un
+    # homonyme déjà tranché, et son compte rattaché perdait l'adhésion (#1633).
     manual = {
         _identity(m): m.athlete_id
-        for m in previous
+        for m in [*club_member_repository.list_season(db, season - 1), *previous]
         if m.link_status == LINK_MANUAL and m.athlete_id is not None
     }
     touched_athletes = {m.athlete_id for m in previous if m.athlete_id is not None}

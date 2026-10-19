@@ -80,10 +80,18 @@ def test_a_linked_account_licensed_this_season_is_a_member(db_session):
 
 def test_a_linked_account_licensed_only_last_season_is_not_a_member(db_session):
     """#1633: the link alone no longer counts, the licence of the season does."""
+    db_session.add(ClubMember(season=2026, nom="AUTRE", prenom="Licencié", link_status=LINK_AUTO,
+                              source=SOURCE_FFTRI))  # the 2026 roster is synced
     user = _linked(db_session, season=2025)
 
     assert not membership.is_member(db_session, user, TODAY)
     assert user.athlete_id is not None
+
+
+def test_last_season_licence_counts_until_the_first_sync_of_the_new_season(db_session):
+    """Review of #1633: same rule as the member list, the previous season counts
+    until the current one has any licensee, so September 1st cuts nobody off."""
+    assert membership.is_member(db_session, _linked(db_session, season=2025), TODAY)
 
 
 def test_an_unsettled_licence_does_not_count(db_session):

@@ -96,6 +96,22 @@ def test_a_manual_link_survives_the_next_sync(db_session, admin, roster):
     assert (again.athlete_id, again.link_status) == (chosen.id, LINK_MANUAL)
 
 
+def test_a_manual_link_carries_over_to_the_next_season(db_session, admin, roster, monkeypatch):
+    """Review of #1633: a homonym settled by hand must not fall back to ambiguous at
+    the first sync of the next season, or a link-based member loses the site exemption."""
+    chosen = _athlete(db_session, "DURAND", "Paul")
+    _athlete(db_session, "DURAND", "Paul", homonym_rank=1)
+    club_members_service.sync_from_fftri(db_session, user_id=admin.id)
+    ambiguous = next(m for m in club_member_repository.list_season(db_session, 2026) if m.licence_id == "C2")
+    club_members_service.link_member(db_session, member_id=ambiguous.id, athlete_id=chosen.id, user_id=admin.id)
+
+    monkeypatch.setattr(club_members_service, "current_season", lambda: 2027)
+    club_members_service.sync_from_fftri(db_session, user_id=admin.id)
+
+    carried = next(m for m in club_member_repository.list_season(db_session, 2027) if m.licence_id == "C2")
+    assert (carried.athlete_id, carried.link_status) == (chosen.id, LINK_MANUAL)
+
+
 def test_sync_recomputes_the_tcn_counters(db_session, admin, roster):
     martin = _athlete(db_session, "MARTIN", "Anne")
     course = course_repository.get_or_create(

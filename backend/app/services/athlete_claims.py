@@ -119,7 +119,9 @@ def list_links(db: Session, today: date) -> list[AthleteLink]:
     users = user_repository.list_linked(db)
     athlete_ids = [user.athlete_id for user in users]
     athletes = athlete_repository.get_many(db, athlete_ids)
-    licensed = club_member_repository.linked_by_athlete(db, season_of(today), athlete_ids)
+    licensed = club_member_repository.linked_by_athlete(
+        db, club_member_repository.counting_season(db, season_of(today)), athlete_ids
+    )
     links = [
         AthleteLink(user=user, athlete=athletes[user.athlete_id], licensed_this_season=user.athlete_id in licensed)
         for user in users

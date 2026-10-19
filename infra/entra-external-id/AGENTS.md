@@ -142,7 +142,8 @@ mauvaise base supprimerait des comptes vivants.
 **Rappel** (#1635) : la reprise planifiée du lundi (`batch.yml`) compte les
 identifiants à effacer de la semaine et, s'il y en a, ouvre ou complète l'issue
 `ops` « Entra directory deletions to finish » (le nombre seul : le dépôt est
-public). Au plus tard à ce rappel, et au moins une fois par mois, sur la base de
+public). Une reprise du lundi manquée ne rappelle pas sa semaine : le relevé
+mensuel, sur 35 jours par défaut, la rattrape. Au plus tard à ce rappel, et au moins une fois par mois, sur la base de
 **production** (nommée explicitement ; même geste à part sur celle de
 préproduction si on le souhaite, jamais les deux mêlées) :
 

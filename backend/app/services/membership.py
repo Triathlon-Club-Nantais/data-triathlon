@@ -24,7 +24,7 @@ def is_member(db: Session, user: User | None, today: date) -> bool:
     # Un rattachement validé (#1325) ne vaut reconnaissance que si la fiche est
     # licenciée au club pour la saison (#1633) : il s'éteint seul au renouvellement.
     if user.athlete_id is not None and club_member_repository.is_linked_licensee(
-        db, user.athlete_id, season_of(today)
+        db, user.athlete_id, club_member_repository.counting_season(db, season_of(today))
     ):
         return True
     return member_email_repository.counts(db, user.email, today)
