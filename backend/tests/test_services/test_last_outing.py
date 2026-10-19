@@ -75,3 +75,21 @@ def test_federal_only_skips_non_federal_races(db_session):
 
     assert stats_service.get_last_outing(db_session)["end_date"] == date(2026, 10, 12)
     assert stats_service.get_last_outing(db_session, federal_only=True)["end_date"] == date(2026, 10, 11)
+
+
+def test_last_outing_in_a_past_season(db_session):
+    _race(db_session, date(2026, 5, 10), nom="PRINTEMPS")
+    _race(db_session, date(2026, 10, 11), nom="AUTOMNE")
+
+    outing = stats_service.get_last_outing(db_session, seasons=[2025])
+
+    assert outing["end_date"] == date(2026, 5, 10)
+
+
+def test_last_outing_across_several_seasons_takes_the_latest(db_session):
+    _race(db_session, date(2026, 5, 10), nom="PRINTEMPS")
+    _race(db_session, date(2026, 10, 11), nom="AUTOMNE")
+
+    outing = stats_service.get_last_outing(db_session, seasons=[2025, 2026])
+
+    assert outing["end_date"] == date(2026, 10, 11)

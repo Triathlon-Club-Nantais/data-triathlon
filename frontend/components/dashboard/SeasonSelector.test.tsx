@@ -69,7 +69,7 @@ describe("SeasonSelector", () => {
     // classe qui l'exploite, sans quoi l'attribut ne sert à rien (piège
     // relevé sur RankTypeToggle, qui ne portait qu'un `style` en ligne).
     render(<SeasonSelector seasons={SEASONS} />);
-    expect(screen.getByLabelText("Choisir les saisons").className).toContain(
+    expect(screen.getByLabelText(/choisir les saisons/i).className).toContain(
       "data-pending:opacity-70"
     );
   });
@@ -82,7 +82,7 @@ describe("SeasonSelector", () => {
     // déclencheur répond mal à « l'utilisateur voit-il que son clic a été
     // pris en compte ? »).
     render(<SeasonSelector seasons={SEASONS} />);
-    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+    fireEvent.click(screen.getByLabelText(/choisir les saisons/i));
     const list = screen.getByText("Saison 2023 — 2024").closest("[data-slot='popover-content']");
     expect(list).not.toBeNull();
     expect(list?.className).toContain("data-pending:opacity-70");
@@ -90,7 +90,7 @@ describe("SeasonSelector", () => {
 
   it("gives the trigger a 44px touch target under md, 28px above (#479, #1510)", () => {
     render(<SeasonSelector seasons={SEASONS} />);
-    const declencheur = screen.getByRole("button", { name: "Choisir les saisons" });
+    const declencheur = screen.getByRole("button", { name: /choisir les saisons/i });
     expect(declencheur).toHaveClass("tcn-cible-tactile");
     // An inline min-height would beat the class media query.
     expect(declencheur.style.minHeight).toBe("");
@@ -103,8 +103,8 @@ describe("SeasonSelector — sélection exclusive par défaut (#694)", () => {
     // `?seasons=<CS>,2023` (union avec la saison en cours déjà cochée par
     // défaut), pas `?seasons=2023` seul.
     render(<SeasonSelector seasons={SEASONS} />);
-    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
-    fireEvent.click(screen.getByLabelText("Saison 2023 — 2024", { exact: false }));
+    fireEvent.click(screen.getByLabelText(/choisir les saisons/i));
+    fireEvent.click(screen.getByLabelText("Saison 2023 — 2024", { exact: false, selector: "input" }));
 
     expect(push).toHaveBeenCalledWith("/mon-espace?seasons=2023");
   });
@@ -112,48 +112,48 @@ describe("SeasonSelector — sélection exclusive par défaut (#694)", () => {
   it("garde « Inclure les autres disciplines » en changeant de saison (#987)", () => {
     url.qs = "sports=all";
     render(<SeasonSelector seasons={SEASONS} />);
-    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
-    fireEvent.click(screen.getByLabelText("Saison 2023 — 2024", { exact: false }));
+    fireEvent.click(screen.getByLabelText(/choisir les saisons/i));
+    fireEvent.click(screen.getByLabelText("Saison 2023 — 2024", { exact: false, selector: "input" }));
 
     expect(push).toHaveBeenCalledWith("/mon-espace?sports=all&seasons=2023");
   });
 
   it("les saisons sont des boutons radio hors mode comparaison — un seul choix possible", () => {
     render(<SeasonSelector seasons={SEASONS} />);
-    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+    fireEvent.click(screen.getByLabelText(/choisir les saisons/i));
 
     for (const s of SEASONS) {
-      expect(screen.getByLabelText(s.label, { exact: false })).toHaveAttribute("type", "radio");
+      expect(screen.getByLabelText(s.label, { exact: false, selector: "input" })).toHaveAttribute("type", "radio");
     }
   });
 
   it("le mode comparaison est désactivé par défaut quand une seule saison est sélectionnée", () => {
     render(<SeasonSelector seasons={SEASONS} />);
-    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+    fireEvent.click(screen.getByLabelText(/choisir les saisons/i));
 
     expect(screen.getByLabelText("Comparer plusieurs saisons")).not.toBeChecked();
   });
 
   it("activer le mode comparaison bascule les saisons en cases à cocher, additives", () => {
     render(<SeasonSelector seasons={SEASONS} />);
-    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+    fireEvent.click(screen.getByLabelText(/choisir les saisons/i));
     fireEvent.click(screen.getByLabelText("Comparer plusieurs saisons"));
 
     for (const s of SEASONS) {
-      expect(screen.getByLabelText(s.label, { exact: false })).toHaveAttribute("type", "checkbox");
+      expect(screen.getByLabelText(s.label, { exact: false, selector: "input" })).toHaveAttribute("type", "checkbox");
     }
 
-    fireEvent.click(screen.getByLabelText("Saison 2023 — 2024", { exact: false }));
+    fireEvent.click(screen.getByLabelText("Saison 2023 — 2024", { exact: false, selector: "input" }));
     expect(push).toHaveBeenCalledWith(`/mon-espace?seasons=${CS}%2C2023`);
   });
 
   it("le mode comparaison s'active automatiquement si l'URL porte déjà plusieurs saisons", () => {
     url.qs = `seasons=${CS},2023`;
     render(<SeasonSelector seasons={SEASONS} />);
-    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+    fireEvent.click(screen.getByLabelText(/choisir les saisons/i));
 
     expect(screen.getByLabelText("Comparer plusieurs saisons")).toBeChecked();
-    expect(screen.getByLabelText(SEASONS[0].label, { exact: false })).toHaveAttribute(
+    expect(screen.getByLabelText(SEASONS[0].label, { exact: false, selector: "input" })).toHaveAttribute(
       "type",
       "checkbox",
     );
@@ -162,7 +162,7 @@ describe("SeasonSelector — sélection exclusive par défaut (#694)", () => {
   it("désactiver le mode comparaison réduit la sélection à sa première saison", () => {
     url.qs = `seasons=${CS},2023`;
     render(<SeasonSelector seasons={SEASONS} />);
-    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+    fireEvent.click(screen.getByLabelText(/choisir les saisons/i));
     fireEvent.click(screen.getByLabelText("Comparer plusieurs saisons"));
 
     // Première saison retenue = la saison en cours (URL `seasons=${CS},2023`) :
@@ -172,10 +172,10 @@ describe("SeasonSelector — sélection exclusive par défaut (#694)", () => {
 
   it("décocher la dernière saison en mode comparaison retombe sur la saison en cours (comportement assumé, hors #694)", () => {
     render(<SeasonSelector seasons={SEASONS} />);
-    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+    fireEvent.click(screen.getByLabelText(/choisir les saisons/i));
     fireEvent.click(screen.getByLabelText("Comparer plusieurs saisons"));
     // Seule saison cochée par défaut : la saison en cours.
-    fireEvent.click(screen.getByLabelText(SEASONS[0].label, { exact: false }));
+    fireEvent.click(screen.getByLabelText(SEASONS[0].label, { exact: false, selector: "input" }));
 
     expect(push).toHaveBeenCalledWith("/mon-espace");
   });
@@ -186,14 +186,14 @@ describe("SeasonSelector — sélection exclusive par défaut (#694)", () => {
     // plutôt que de rester figé sur l'état d'avant la navigation.
     url.qs = `seasons=${CS},2023`;
     const { rerender } = render(<SeasonSelector seasons={SEASONS} />);
-    fireEvent.click(screen.getByLabelText("Choisir les saisons"));
+    fireEvent.click(screen.getByLabelText(/choisir les saisons/i));
     expect(screen.getByLabelText("Comparer plusieurs saisons")).toBeChecked();
 
     url.qs = "seasons=2023";
     rerender(<SeasonSelector seasons={SEASONS} />);
 
     expect(screen.getByLabelText("Comparer plusieurs saisons")).not.toBeChecked();
-    expect(screen.getByLabelText(SEASONS[1].label, { exact: false })).toHaveAttribute(
+    expect(screen.getByLabelText(SEASONS[1].label, { exact: false, selector: "input" })).toHaveAttribute(
       "type",
       "radio",
     );
@@ -210,7 +210,7 @@ describe("SeasonSelector — le déclencheur ne porte plus les tags (#445)", () 
     render(<SeasonSelector seasons={SEASONS} />);
 
     expect(screen.queryByTestId("season-tags")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Choisir les saisons")).toHaveTextContent(
+    expect(screen.getByLabelText(/choisir les saisons/i)).toHaveTextContent(
       "2 saisons sélectionnées",
     );
   });

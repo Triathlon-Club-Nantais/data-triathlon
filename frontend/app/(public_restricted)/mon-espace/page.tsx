@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import type { ReactNode } from "react";
 import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
@@ -10,28 +9,11 @@ import { SeasonSelector, SeasonTags } from "@/components/dashboard/SeasonSelecto
 import { currentSeason, parseSeasonsParam, seasonSelectionLabel, serializeSeasons } from "@/lib/utils/season";
 import { sortEventsByDateDesc } from "@/lib/utils/event";
 import { Eyebrow } from "@/components/tcn";
+import { FieldLabel } from "@/components/layout/FieldLabel";
 import { PageShell } from "@/components/layout/PageShell";
 import { SeasonEmptyState } from "@/components/dashboard/SeasonEmptyState";
 
 export const metadata: Metadata = { title: "Mon espace" };
-
-/** Petit libellé visuel au-dessus d'un contrôle de filtrage (NAV-5, #483). */
-function FieldLabel({ children }: { children: ReactNode }) {
-  return (
-    <div
-      style={{
-        fontSize: 12,
-        fontWeight: 700,
-        textTransform: "uppercase",
-        letterSpacing: ".04em",
-        color: "var(--tcn-text-faint)",
-        marginBottom: 6,
-      }}
-    >
-      {children}
-    </div>
-  );
-}
 
 export default async function DashboardPage({
   searchParams,

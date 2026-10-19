@@ -1,6 +1,9 @@
 """Bucketing des podiums par mode de rang pour /club/summary (#581)."""
 from datetime import date
 
+import pytest
+
+from app.models.club_member import LINK_AUTO, SOURCE_FFTRI, ClubMember
 from app.repositories import athlete_repository, course_repository, participation_repository
 from app.services import club_service
 
@@ -214,3 +217,43 @@ def test_get_club_summary_marks_a_relay_result_on_a_mixed_course(db_session):
     summary = club_service.get_club_summary(db_session)
 
     assert [entry.is_relay for entry in summary.podiums.scratch] == [True]
+
+
+@pytest.fixture
+def two_seasons(db_session):
+    """Un résultat TCN en saison 2025 (rang 1) et un en 2026 (rang 2), deux athlètes."""
+    for nom, day, rank in (("OLD", date(2026, 5, 10), 1), ("NEW", date(2026, 10, 11), 2)):
+        ath = athlete_repository.get_or_create(db_session, nom=nom, prenom="Jean", club="TCN")
+        course = course_repository.get_or_create(
+            db_session, name=f"C {nom}", event_date=day, event_type="triathlon-m"
+        )
+        participation_repository.create(
+            db_session, athlete_id=ath.id, course_id=course.id, bib_number=nom,
+            club="TCN", status="finisher", rank_overall=rank,
+        )
+    db_session.flush()
+
+
+def test_club_summary_restricts_roster_podiums_and_composition_to_seasons(db_session, two_seasons):
+    both = club_service.get_club_summary(db_session)
+    only_2026 = club_service.get_club_summary(db_session, seasons=[2026])
+
+    assert (len(both.roster), both.podiums_totals.scratch, sum(both.composition.gender.values())) == (2, 2, 2)
+    assert [e.nom for e in only_2026.roster] == ["NEW"]
+    assert only_2026.podiums_totals.scratch == 1
+    assert sum(only_2026.composition.gender.values()) == 1
+
+
+def test_club_summary_licensees_follow_the_latest_selected_season(db_session, two_seasons):
+    ath = athlete_repository.get_or_create(db_session, nom="OLD", prenom="Jean", club="TCN")
+    db_session.add(ClubMember(season=2025, nom="OLD", prenom="Jean", licence_id="L1", athlete_id=ath.id,
+                              link_status=LINK_AUTO, source=SOURCE_FFTRI))
+    db_session.flush()
+
+    summary = club_service.get_club_summary(db_session, seasons=[2025])
+
+    assert summary.licensees.season == 2025
+
+
+def test_club_podiums_restricted_to_seasons(db_session, two_seasons):
+    assert len(club_service.get_club_podiums(db_session, seasons=[2025]).scratch) == 1

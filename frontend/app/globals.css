@@ -641,7 +641,9 @@
   .tcn-tuile-espace:hover { transform: translateY(-2px); }
   .tcn-tuile-espace:hover { --tuile-fond: linear-gradient(var(--tcn-orange-08), var(--tcn-orange-08)), var(--tcn-surface); }
   .tcn-tuile-espace:focus-visible { outline: 2px solid var(--tcn-orange); outline-offset: 2px; }
-  @media (prefers-reduced-motion: reduce) { .tcn-tuile-espace:hover { transform: none; } }
+  .tcn-tuile-fleche { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9999px; background: var(--tcn-orange-12); color: var(--tcn-orange-deeper); transition: transform var(--tcn-dur-fast), background-color var(--tcn-dur-fast), color var(--tcn-dur-fast); }
+  .tcn-tuile-espace:hover .tcn-tuile-fleche, .tcn-tuile-espace:focus-visible .tcn-tuile-fleche { background: var(--tcn-orange); color: #fff; transform: translateX(3px); }
+  @media (prefers-reduced-motion: reduce) { .tcn-tuile-espace:hover { transform: none; } .tcn-tuile-espace:hover .tcn-tuile-fleche, .tcn-tuile-espace:focus-visible .tcn-tuile-fleche { transform: none; } }
   /* Bouton posé **dans** un champ TCN (effacer, coller) : 44px de cible
      tactile, le seuil au doigt, sans agrandir la boîte — le champ resserre son
      rembourrage vertical dès qu'il porte des actions (#492, ACT-5). */
@@ -927,4 +929,38 @@
 
 .tcn-barre-indeterminee {
   animation: tcn-barre-indeterminee 1.4s ease-in-out infinite;
+}
+
+/* Animations d'accueil (#1642) : transform et opacity seulement, une seule fois. */
+@keyframes tcn-entree {
+  from { opacity: 0; transform: translateY(8px); }
+}
+@keyframes tcn-pousse {
+  from { transform: scaleY(0); }
+}
+@keyframes tcn-reflet {
+  from { opacity: 0; transform: translateX(-120%) skewX(-20deg); }
+  15%, 85% { opacity: 0.25; }
+  to { opacity: 0; transform: translateX(320%) skewX(-20deg); }
+}
+@keyframes tcn-pouls {
+  from { opacity: 0.6; transform: scale(1); }
+  to { opacity: 0; transform: scale(2.2); }
+}
+/* Le wrapper porte l'entrée : le translateY du survol reste sur le lien. */
+.tcn-tuile-entree { animation: tcn-entree 360ms ease-out both; animation-delay: calc(var(--i) * 50ms); }
+.tcn-barre { transform-origin: bottom; animation: tcn-pousse 500ms ease-out both; animation-delay: calc(var(--i) * 30ms); }
+.tcn-carte-sortie { position: relative; overflow: hidden; }
+.tcn-carte-sortie::after {
+  content: ""; position: absolute; top: 40%; bottom: 0; left: 0; width: 30%; opacity: 0; pointer-events: none;
+  background: linear-gradient(90deg, transparent, #fff, transparent);
+  animation: tcn-reflet 1.2s ease-in-out 300ms 1 both;
+}
+.tcn-pouls { position: relative; flex: none; width: 8px; height: 8px; border-radius: 9999px; background: #fff; }
+.tcn-pouls::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; background: #fff; opacity: 0;
+  animation: tcn-pouls 1.6s ease-out 3 both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tcn-tuile-entree, .tcn-barre, .tcn-carte-sortie::after, .tcn-pouls::after { animation: none; }
 }
