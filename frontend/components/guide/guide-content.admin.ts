@@ -58,6 +58,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
     etapes: [
       "Ouvrir « Droits des rôles » depuis la navigation admin (section « Gestion des utilisateurs »).",
       "Sélectionner un rôle, puis cocher ou décocher les pouvoirs qu'il porte.",
+      "Rôles fournis, à ajuster librement : « Bureau » (accès, adhérents, licenciés, rattachements, groupes, oppositions, retours), « Bénévole data » (épreuves, fiches, homonymes, chronométreurs signalés, rattachements), « Validation » (saisons et bénévolat), « Encadrant jeunes ». Ils se cumulent. Les suppressions, purges, lancements de batch et l'attribution des rôles restent à l'administrateur.",
     ],
     captures: [{ src: "/guide/admin/droits.jpg", alt: "Composition des pouvoirs d'un rôle" }],
   },
