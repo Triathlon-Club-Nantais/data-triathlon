@@ -114,8 +114,11 @@ au premier déploiement le 2026-10-15), consentement ou pas.
 ## Constat FR-021 et repli
 
 Le backend ne tient une adresse pour vérifiée que si l'`id_token` porte `email`
-**et** `xms_edov: true` ; sinon la connexion est refusée en `email_unverified`.
-Que le tenant réel émette bien ces deux claims n'a pas été constaté. Sur la
+**et** soit `xms_edov: true`, soit `idp: google.com` ; sinon la connexion est
+refusée en `email_unverified`, avec un WARNING qui donne les noms des claims,
+`xms_edov` et `idp` (jamais l'adresse). Constaté le 19/10/2026 pour Google :
+`xms_edov` vaut `false` pour une adresse gmail.com, d'où la règle sur `idp`.
+Reste à constater le code par e-mail. Sur la
 preview, se connecter une fois par Google et une fois par code e-mail, décoder
 l'`id_token` reçu (journal de débogage local, jamais en production), et
 consigner le résultat dans la section « Résultat du test sur tenant » de

@@ -180,10 +180,19 @@ testé sans réseau, contre un fournisseur simulé ; aucun tenant réel n'a enco
 été interrogé. Procédure : `infra/entra-external-id/AGENTS.md`, § « Constat
 FR-021 et repli ».
 
-| Moyen | `email` présent | `xms_edov` | Date | Constaté par |
-|---|---|---|---|---|
-| Google | à constater | à constater | | |
-| Code par e-mail | à constater | à constater | | |
+| Moyen | `email` présent | `xms_edov` | `idp` | Date | Constaté par |
+|---|---|---|---|---|---|
+| Google (adresse gmail.com) | oui | `false` | présent, valeur à confirmer (`google.com` attendu) | 19/10/2026 | mainteneur, preview |
+| Code par e-mail | à constater | à constater | à constater | | |
+
+Claims reçus pour Google : `aud, email, exp, iat, idp, iss, name, nbf, nonce,
+oid, preferred_username, rh, sid, sub, tid, uti, ver, xms_edov`. `xms_edov`
+parle du propriétaire du **domaine** de l'adresse, pas de l'adresse : il vaut
+`false` pour toute adresse gmail.com, et la règle d'origine refusait donc tout
+compte Google. Règle retenue (#1664) : adresse certifiée si `xms_edov` vaut
+`true`, **ou** si `idp` vaut exactement `google.com`, Google ne délivrant
+qu'une adresse vérifiée. Le journal `Entra identity without a certified
+address` donne les noms des claims, `xms_edov` et `idp`, jamais l'adresse.
 
 Si l'un des deux ne porte pas `email` avec `xms_edov: true`, la connexion par
 ce moyen est refusée (`email_unverified`) : ne pas activer `AUTH_ENTRA_*` en
