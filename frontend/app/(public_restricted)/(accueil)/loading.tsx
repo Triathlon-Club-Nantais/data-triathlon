@@ -16,6 +16,7 @@ export default function Loading() {
           <Skeleton key={i} className="h-24 w-full rounded-lg" />
         ))}
       </div>
+      <Skeleton className="mt-6 h-[26rem] w-full rounded-lg" />
     </PageShell>
   );
 }

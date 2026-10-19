@@ -3,9 +3,8 @@ import type { PodiumScope } from "@/lib/podium-scope";
 import type { Feedback } from "@/lib/types";
 
 /**
- * Libellés utilisateur du vocabulaire de rang. Une seule source pour les trois
- * sites d'affichage — toggle (RankTypeToggle), bande « Ma saison » (MaSaison),
- * badge de podium (PodiumsList) — cf. #133. Un renommage (« Genre » → « Sexe »)
+ * Libellés utilisateur du vocabulaire de rang. Une seule source pour les deux
+ * sites d'affichage — toggle (RankTypeToggle) et badge de podium (PodiumsList) — cf. #133. Un renommage (« Genre » → « Sexe »)
  * ne touche plus qu'ici.
  *
  * `scratch` (mode du toggle) et `overall` (scope résultant d'un podium) désignent

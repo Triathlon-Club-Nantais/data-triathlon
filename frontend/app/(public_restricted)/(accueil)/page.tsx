@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { BandeauDirect } from "@/components/home/BandeauDirect";
+import { RecentCourses } from "@/components/dashboard/RecentCourses";
 import { TuilesEspaces } from "@/components/home/TuilesEspaces";
 import { FieldLabel } from "@/components/layout/FieldLabel";
 import { PageShell } from "@/components/layout/PageShell";
@@ -20,12 +21,12 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
   const [stats, eventsPage, sortie, seasonList] = await Promise.all([
     apiServer.getStats({ scope: SCOPE_CLUB, seasons, federal_only }, revalidateOpts),
-    apiServer.listEvents({ scope: SCOPE_CLUB, federal_only, seasons, page_size: 1 }, revalidateOpts),
+    apiServer.listEvents({ scope: SCOPE_CLUB, federal_only, seasons, page_size: 6 }, revalidateOpts),
     // Décor de l'accueil : sa panne ne doit pas emporter la page.
     apiServer.getClubLastOuting({ federal_only, seasons }, revalidateOpts).catch(() => null),
     apiServer.listSeasons({ scope: SCOPE_CLUB, federal_only }, revalidateOpts).catch(() => []),
   ]);
-  const derniere = sortEventsByDateDesc(eventsPage.items)[0];
+  const recentEvents = sortEventsByDateDesc(eventsPage.items).slice(0, 6);
 
   return (
     <PageShell>
@@ -40,11 +41,13 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       </div>
       <BandeauDirect sortie={sortie} stats={stats} seasons={seasons} today={new Date()} />
       <TuilesEspaces
-        derniereEpreuve={derniere ? { nom: derniere.event_name, date: derniere.event_date } : null}
         podiumsSaison={stats.rank_counters.all.podiums}
         seasons={seasons}
         query={query ? `?${query}` : ""}
       />
+      <div className="mt-6">
+        <RecentCourses events={recentEvents} href={query ? `/resultats?${query}` : "/resultats"} />
+      </div>
     </PageShell>
   );
 }

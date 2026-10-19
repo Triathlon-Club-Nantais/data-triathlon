@@ -2,10 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { AnnonceStatut, Button, Card, Eyebrow } from "@/components/tcn";
 import { Skeleton } from "@/components/ui/skeleton";
-import { RankTypeToggle } from "@/components/layout/RankTypeToggle";
 import { AddEventLink } from "./SeasonEmptyState";
 import {
   ATHLETE_LOST_EVENT,
@@ -15,8 +13,8 @@ import {
   useSelectedAthlete,
 } from "@/components/layout/AthletePicker";
 import { ApiError, apiClient } from "@/lib/api/client";
-import { RANK_PARAM, rankTypeFromParam, type RankType } from "@/lib/rank";
 import type { Participation } from "@/lib/types";
+import { rankTypeLabel } from "@/lib/labels";
 import { motCompte } from "@/lib/utils/format";
 import { compteMaSaison } from "@/lib/utils/ma-saison";
 import { parseSeasonsParam } from "@/lib/utils/season";
@@ -27,28 +25,8 @@ import { parseSeasonsParam } from "@/lib/utils/season";
 // affichée pour porter l'invitation à en choisir un autre.
 type Etat = "chargement" | "ok" | "echec" | "perdu";
 
-/**
- * Parenthétique de rang de la bande (#502) — pas `RANK_LABEL_LONG`
- * (`lib/labels.ts`), qui documente sa forme comme le delta minuscule affiché
- * *sous* les compteurs, pas comme de la prose enchâssée dans une phrase à
- * 20px : son « général, genre ou catégorie » y pèse trop lourd. Le mode `all`
- * prend ici un libellé propre — « meilleur classement » — puisque c'est
- * exactement ce qu'il désigne, le meilleur des trois.
- */
-const LIBELLE_RANG_BANDE: Record<RankType, string> = {
-  scratch: "classement général",
-  category: "classement catégorie",
-  gender: "classement genre",
-  all: "meilleur classement",
-};
-
-/** Première lettre en capitale — le libellé de rang ouvre la ligne
- *  secondaire (#502, revue UI/UX) et y tient donc le rôle du premier mot de
- *  la phrase, quand `LIBELLE_RANG_BANDE` le garde en minuscules pour son
- *  usage entre parenthèses de `resumeCourant`. */
-function capitaliser(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
+/** Rangs comptés par les podiums de la bande (#502, #1656) : tous, sans sélecteur de type. */
+const LIBELLE_RANG_BANDE = rankTypeLabel("all", { form: "long" });
 
 /** Hauteur intérieure minimale de la bande, dans ses trois états visibles.
  *
@@ -94,17 +72,11 @@ function capitaliser(s: string): string {
  * L'écran d'atterrissage ne parlait que du club en agrégat : le membre qui
  * avait désigné son nom n'y trouvait rien de lui, et le geste de choix restait
  * sans récompense. La bande met ses deux chiffres en regard de ceux du club
- * **sur la même sélection** — mêmes saisons, mêmes disciplines, même type de
- * rang, sans quoi la comparaison serait bancale.
+ * **sur la même sélection** : mêmes saisons, mêmes disciplines. Les podiums
+ * comptent tous les rangs (#1656), sans sélecteur de type.
  *
- * `?rank=` ne déclenche aucun fetch : il ne change que le champ lu dans des
- * participations déjà en main. Même arbitrage que `RankTypeToggle` (#328) et
- * qu'`EventsTable` (#489).
- *
- * Accessibilité (#477) : `AnnonceStatut` sur changement de saison, de
- * discipline **ou** de rang — les trois se répercutent sur le résumé calculé
- * (`resumeCourant`), donc un seul mécanisme de comparaison au résumé
- * précédent couvre les trois. Muette à la **première** apparition, qui serait
+ * Accessibilité (#477) : `AnnonceStatut` sur changement de saison ou de
+ * discipline, qui se répercutent sur le résumé calculé (`resumeCourant`). Muette à la **première** apparition, qui serait
  * du bruit à chaque chargement de page.
  *
  * La région `role="status"` est montée **inconditionnellement**, dans les
@@ -134,8 +106,6 @@ export function MaSaison({
   federalOnly: boolean | undefined;
 }) {
   const athlete = useSelectedAthlete();
-  const sp = useSearchParams();
-  const mode = rankTypeFromParam(sp.get(RANK_PARAM) ?? undefined);
 
   const [etat, setEtat] = useState<Etat>("chargement");
   const [participations, setParticipations] = useState<Participation[]>([]);
@@ -193,8 +163,8 @@ export function MaSaison({
   // coût négligeable) : un Hook ne peut pas suivre un retour anticipé, et
   // l'effet d'annonce ci-dessous a besoin du résumé à chaque rendu.
   const nom = athlete ? nomComplet(athlete) : "";
-  const { epreuves, podiums } = compteMaSaison(participations, mode);
-  const rang = LIBELLE_RANG_BANDE[mode];
+  const { epreuves, podiums } = compteMaSaison(participations, "all");
+  const rang = LIBELLE_RANG_BANDE;
   const resumeCourant =
     etat === "ok"
       ? epreuves === 0
@@ -235,7 +205,7 @@ export function MaSaison({
 
   if (etat === "chargement") {
     return (
-      <Bande titre={titre} avecRang>
+      <Bande titre={titre}>
         <AnnonceStatut texte={texteAnnonce ?? ""} busy />
         <div
           data-testid="ma-saison-squelette"
@@ -304,24 +274,21 @@ export function MaSaison({
   }
 
   const principale = `${nom} — ${motCompte(epreuves, "épreuve")} · ${motCompte(podiums, "podium")}`;
-  const secondaire = `${capitaliser(rang)} · podiums hors relais · le club a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`;
+  const secondaire = `Podiums : ${rang} · hors relais · le club a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`;
 
   return (
-    <Bande titre={titre} avecRang>
+    <Bande titre={titre}>
       <AnnonceStatut texte={texteAnnonce ?? ""} />
       <Ligne principale={principale} secondaire={secondaire} action={lienProfil} />
     </Bande>
   );
 }
 
-// Le sélecteur de rang n'est monté là où il agit (nominal) et pendant le chargement, qui y mène le plus souvent : évite un décalage de mise en page.
 function Bande({
   titre,
-  avecRang = false,
   children,
 }: {
   titre: string;
-  avecRang?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -339,14 +306,6 @@ function Bande({
         <h2 className="sr-only">{titre}</h2>
         <div className="flex flex-wrap items-end justify-between gap-2">
           <Eyebrow>{titre}</Eyebrow>
-          {avecRang && (
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".04em", color: "var(--tcn-text-faint)", marginBottom: 6 }}>
-                Type de rang
-              </div>
-              <RankTypeToggle />
-            </div>
-          )}
         </div>
         <div className="flex min-h-[84px] items-center sm:min-h-[68px]">
           {children}
