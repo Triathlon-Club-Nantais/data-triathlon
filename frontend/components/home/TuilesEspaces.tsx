@@ -1,7 +1,7 @@
 "use client";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Card } from "@/components/tcn";
 import { nomComplet, useSelectedAthlete } from "@/components/layout/AthletePicker";
 import { NAV, ROLE, estVisible } from "@/components/layout/nav.config";
@@ -12,9 +12,10 @@ import { formatDate } from "@/lib/utils/date";
 import { motCompte } from "@/lib/utils/format";
 import { currentSeason } from "@/lib/utils/season";
 
-function Tuile({ href, titre, ligne, badge }: { href: string; titre: string; ligne?: ReactNode; badge?: ReactNode }) {
+function Tuile({ index, href, titre, ligne, badge }: { index: number; href: string; titre: string; ligne?: ReactNode; badge?: ReactNode }) {
   return (
-    <Link href={href} className="tcn-tuile-espace block rounded-[var(--tcn-radius-3xl)]">
+    <div className="tcn-tuile-entree" style={{ "--i": index } as CSSProperties}>
+    <Link href={href} className="tcn-tuile-espace block h-full rounded-[var(--tcn-radius-3xl)]">
       <Card style={{ height: "100%", background: "var(--tuile-fond, var(--tcn-surface))" }}>
         <div className="flex items-center justify-between gap-2">
           <h2 style={{ fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: "inherit", margin: 0, color: "var(--tcn-ink)" }}>{titre}</h2>
@@ -28,6 +29,7 @@ function Tuile({ href, titre, ligne, badge }: { href: string; titre: string; lig
         )}
       </Card>
     </Link>
+    </div>
   );
 }
 
@@ -50,15 +52,17 @@ export function TuilesEspaces({ derniereEpreuve, podiumsSaison, query, seasons }
   return (
     <nav aria-label="Espaces" className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <Tuile
+        index={0}
         href={`/resultats${query}`}
         titre="Résultats"
         ligne={derniereEpreuve ? `${derniereEpreuve.nom}${derniereEpreuve.date ? ` · ${formatDate(derniereEpreuve.date)}` : ""}` : "Toutes les épreuves du club"}
       />
-      <Tuile href={`/club${query}`} titre="Club" ligne={`${motCompte(podiumsSaison, "podium")} ${periode}`} />
-      <Tuile href={`/mon-espace${query}`} titre="Mon espace" ligne={athlete ? (epreuves === undefined ? nomComplet(athlete) : `${nomComplet(athlete)} · ${motCompte(epreuves, "épreuve")} ${periode}`) : "Choisissez votre nom"} />
-      {session?.can_supervise && <Tuile href="/encadrement" titre="Encadrement" ligne="Jeunes, appel, bénévolat" />}
+      <Tuile index={1} href={`/club${query}`} titre="Club" ligne={`${motCompte(podiumsSaison, "podium")} ${periode}`} />
+      <Tuile index={2} href={`/mon-espace${query}`} titre="Mon espace" ligne={athlete ? (epreuves === undefined ? nomComplet(athlete) : `${nomComplet(athlete)} · ${motCompte(epreuves, "épreuve")} ${periode}`) : "Choisissez votre nom"} />
+      {session?.can_supervise && <Tuile index={3} href="/encadrement" titre="Encadrement" ligne="Jeunes, appel, bénévolat" />}
       {session?.can_administer && (
         <Tuile
+          index={4}
           href="/admin"
           titre="Back-office"
           badge={aTraiter ? <span className="rounded-full px-2 text-xs font-extrabold text-white" style={{ background: "var(--tcn-orange-deeper)" }}><span aria-hidden="true">{aTraiter}</span><span className="sr-only">{libelleCompteur("backoffice", aTraiter)}</span></span> : undefined}

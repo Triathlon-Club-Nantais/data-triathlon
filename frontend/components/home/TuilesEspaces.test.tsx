@@ -46,6 +46,14 @@ describe("TuilesEspaces", () => {
     expect(screen.getByRole("link", { name: /Mon espace.*Choisissez votre nom/ })).toHaveAttribute("href", "/mon-espace");
   });
 
+  it("indexes each tile for the cascade entrance", () => {
+    getSession.mockResolvedValue(null);
+    const { container } = afficher();
+    const entrees = [...container.querySelectorAll(".tcn-tuile-entree")];
+    expect(entrees).toHaveLength(3);
+    entrees.forEach((entree, i) => expect(entree.getAttribute("style")).toContain(`--i: ${i}`));
+  });
+
   it("exposes each tile title as a level 2 heading", () => {
     getSession.mockResolvedValue(null);
     afficher();

@@ -361,3 +361,18 @@ describe("rang de catégorie dans « ma ligne » (#1381)", () => {
     }
   });
 });
+
+describe("animations de l'accueil (#1642)", () => {
+  const reduit = /@media \(prefers-reduced-motion: reduce\) \{\s*([^{}]*)\{\s*animation: none;/.exec(css.slice(css.indexOf("Animations d'accueil")))?.[1] ?? "";
+  const SELECTEURS: Record<string, string> = {
+    "tcn-entree": ".tcn-tuile-entree",
+    "tcn-pousse": ".tcn-barre",
+    "tcn-reflet": ".tcn-carte-sortie::after",
+    "tcn-pouls": ".tcn-pouls::after",
+  };
+
+  it.each(Object.entries(SELECTEURS))("%s est neutralisée sous prefers-reduced-motion", (nom, selecteur) => {
+    expect(css).toContain(`@keyframes ${nom}`);
+    expect(reduit).toContain(selecteur);
+  });
+});

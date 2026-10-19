@@ -930,3 +930,36 @@
 .tcn-barre-indeterminee {
   animation: tcn-barre-indeterminee 1.4s ease-in-out infinite;
 }
+
+/* Animations d'accueil (#1642) : transform et opacity seulement, une seule fois. */
+@keyframes tcn-entree {
+  from { opacity: 0; transform: translateY(8px); }
+}
+@keyframes tcn-pousse {
+  from { transform: scaleY(0); }
+}
+@keyframes tcn-reflet {
+  from { transform: translateX(-120%) skewX(-20deg); }
+  to { transform: translateX(320%) skewX(-20deg); }
+}
+@keyframes tcn-pouls {
+  from { opacity: 0.6; transform: scale(1); }
+  to { opacity: 0; transform: scale(2.2); }
+}
+/* Le wrapper porte l'entrée : le translateY du survol reste sur le lien. */
+.tcn-tuile-entree { animation: tcn-entree 360ms ease-out both; animation-delay: calc(var(--i) * 50ms); }
+.tcn-barre { transform-origin: bottom; animation: tcn-pousse 500ms ease-out both; animation-delay: calc(var(--i) * 30ms); }
+.tcn-carte-sortie { position: relative; overflow: hidden; }
+.tcn-carte-sortie::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 30%; opacity: 0.25; pointer-events: none;
+  background: linear-gradient(90deg, transparent, #fff, transparent);
+  animation: tcn-reflet 1.2s ease-in-out 300ms 1 both;
+}
+.tcn-pouls { position: relative; flex: none; width: 8px; height: 8px; border-radius: 9999px; background: #fff; }
+.tcn-pouls::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; background: #fff; opacity: 0;
+  animation: tcn-pouls 1.6s ease-out 3 both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tcn-tuile-entree, .tcn-barre, .tcn-carte-sortie::after, .tcn-pouls::after { animation: none; }
+}

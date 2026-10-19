@@ -1,6 +1,7 @@
+import type { CSSProperties } from "react";
 import { Card } from "@/components/tcn/Card";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
-import { moisDeSaison, titreSortie } from "@/lib/home";
+import { estToutRecent, moisDeSaison, titreSortie } from "@/lib/home";
 import type { ClubLastOuting, Stats } from "@/lib/types";
 import { formatCount, motCompte } from "@/lib/utils/format";
 import { seasonLabel, seasonSelectionLabel } from "@/lib/utils/season";
@@ -25,8 +26,8 @@ function Histogramme({ stats, seasons }: { stats: Stats; seasons: number[] }) {
   return (
     <figure role="img" aria-label={`Résultats par mois. ${resume || "Aucun pour l'instant"}.`} style={{ margin: 0 }}>
       <div aria-hidden="true" style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 72 }}>
-        {mois.map((m) => (
-          <span key={m.mois} className="tcn-barre" style={{ flex: 1, height: `${Math.max(4, (m.valeur / max) * 100)}%`, borderRadius: 3, background: m.valeur ? "var(--tcn-orange)" : "var(--tcn-grey-300)" }} />
+        {mois.map((m, i) => (
+          <span key={m.mois} className="tcn-barre" style={{ "--i": i, flex: 1, height: `${Math.max(4, (m.valeur / max) * 100)}%`, borderRadius: 3, background: m.valeur ? "var(--tcn-orange)" : "var(--tcn-grey-300)" } as CSSProperties} />
         ))}
       </div>
       <figcaption aria-hidden="true" style={{ fontSize: 12, fontWeight: 700, marginTop: 6, color: "var(--tcn-text-muted)" }}>
@@ -47,7 +48,10 @@ export function BandeauDirect({ sortie, stats, seasons, today }: { sortie: ClubL
       >
         {sortie ? (
           <>
-            <p style={{ margin: 0, fontWeight: 800 }}>{titreSortie(sortie.end_date, today)}</p>
+            <p style={{ margin: 0, fontWeight: 800, display: "flex", alignItems: "center", gap: 10 }}>
+              {titreSortie(sortie.end_date, today)}
+              {estToutRecent(sortie.end_date, today) && <span aria-hidden="true" className="tcn-pouls" />}
+            </p>
             <p style={{ ...display, margin: "6px 0 0", fontSize: "clamp(40px, 9vw, 64px)" }}>
               <ChiffreAnime valeur={sortie.athletes} /> {CLUB_NAME_SHORT}
             </p>

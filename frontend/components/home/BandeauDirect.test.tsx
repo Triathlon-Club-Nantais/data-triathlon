@@ -24,6 +24,20 @@ describe("BandeauDirect", () => {
     expect(screen.getByText(/3 épreuves · 9 podiums/)).toBeInTheDocument();
   });
 
+  it("pulses next to « Ce week-end » only for a very recent outing", () => {
+    const { container, rerender } = render(<BandeauDirect sortie={{ end_date: "2026-10-14", events: 1, athletes: 5, podiums: 0 }} stats={STATS} seasons={[2026]} today={TODAY} />);
+    expect(container.querySelector(".tcn-pouls")).toHaveAttribute("aria-hidden", "true");
+    rerender(<BandeauDirect sortie={{ end_date: "2026-10-10", events: 1, athletes: 5, podiums: 0 }} stats={STATS} seasons={[2026]} today={TODAY} />);
+    expect(container.querySelector(".tcn-pouls")).toBeNull();
+  });
+
+  it("indexes each histogram bar for the staggered growth", () => {
+    const { container } = render(<BandeauDirect sortie={null} stats={STATS} seasons={[2026]} today={TODAY} />);
+    const barres = [...container.querySelectorAll(".tcn-barre")];
+    expect(barres).toHaveLength(12);
+    barres.forEach((barre, i) => expect(barre.getAttribute("style")).toContain(`--i: ${i}`));
+  });
+
   it("dates an older outing", () => {
     render(<BandeauDirect sortie={{ end_date: "2026-09-06", events: 1, athletes: 5, podiums: 0 }} stats={STATS} seasons={[2026]} today={TODAY} />);
     expect(screen.getByText("Dernière sortie · 6 sept.")).toBeInTheDocument();

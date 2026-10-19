@@ -1,10 +1,20 @@
 const MOIS_COURTS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 
+function joursDepuis(endDate: string, today: Date): number {
+  const [annee, mois, jour] = endDate.split("-").map(Number);
+  return Math.floor((today.getTime() - new Date(annee, mois - 1, jour).getTime()) / 86_400_000);
+}
+
+/** Vrai quand la sortie s'est terminée il y a 0 à 2 jours (le point qui pulse). */
+export function estToutRecent(endDate: string, today: Date): boolean {
+  const jours = joursDepuis(endDate, today);
+  return jours >= 0 && jours <= 2;
+}
+
 /** « Ce week-end » jusqu'à 7 jours après la dernière course, sinon sa date. */
 export function titreSortie(endDate: string, today: Date): string {
-  const [annee, mois, jour] = endDate.split("-").map(Number);
-  const fin = new Date(annee, mois - 1, jour);
-  const jours = Math.floor((today.getTime() - fin.getTime()) / 86_400_000);
+  const [, mois, jour] = endDate.split("-").map(Number);
+  const jours = joursDepuis(endDate, today);
   return jours < 7 ? "Ce week-end" : `Dernière sortie · ${jour} ${MOIS_COURTS[mois - 1]}`;
 }
 
