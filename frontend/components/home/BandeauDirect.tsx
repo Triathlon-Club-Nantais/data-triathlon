@@ -28,11 +28,11 @@ function Histogramme({ stats, seasons }: { stats: Stats; seasons: number[] }) {
   const resume = saisons
     .map((saison, k) => {
       const valeurs = mois.filter((m) => m.valeurs[k] > 0).map((m) => `${m.libelle} : ${m.valeurs[k]}`).join(", ");
-      return `${compare ? `${seasonLabel(saison)} : ` : ""}${valeurs || "Aucun pour l'instant"}`;
+      return `${compare ? `${seasonLabel(saison)} : ` : ""}${valeurs || (saison === currentSeason() ? "Aucun pour l'instant" : "Aucun résultat")}`;
     })
     .join(". ");
   return (
-    <figure role="img" aria-label={`Résultats par mois. ${resume}.${tronque ? " 3 saisons les plus récentes." : ""}`} style={{ margin: 0 }}>
+    <figure role="img" aria-label={`Résultats par mois. ${resume}.${tronque ? " Seules les 3 saisons les plus récentes sont comparées." : ""}`} style={{ margin: 0 }}>
       <div aria-hidden="true" style={{ display: "flex", gap: compare ? 6 : 4 }}>
         {mois.map((m) => (
           <div key={m.index} style={{ flex: 1, minWidth: 0 }}>
@@ -47,8 +47,8 @@ function Histogramme({ stats, seasons }: { stats: Stats; seasons: number[] }) {
               ))}
             </div>
             <div style={{ marginTop: 4, textAlign: "center", fontSize: 11, color: "var(--tcn-text-muted)" }}>
-              <span className="hidden lg:inline">{m.libelle}</span>
-              <span className="lg:hidden">{m.libelle[0].toUpperCase()}</span>
+              <span className="hidden sm:inline md:hidden lg:inline">{m.libelle}</span>
+              <span className="sm:hidden md:inline lg:hidden">{m.libelle[0].toUpperCase()}</span>
             </div>
           </div>
         ))}
@@ -65,7 +65,7 @@ function Histogramme({ stats, seasons }: { stats: Stats; seasons: number[] }) {
             ))}
           </span>
         )}
-        {tronque && <span style={{ display: "block", fontWeight: 400 }}>3 saisons les plus récentes</span>}
+        {tronque && <span style={{ display: "block", fontWeight: 400 }}>Seules les 3 saisons les plus récentes sont comparées.</span>}
       </figcaption>
     </figure>
   );

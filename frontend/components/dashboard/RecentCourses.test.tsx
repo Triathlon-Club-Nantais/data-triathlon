@@ -35,6 +35,13 @@ const EVENT: EventOut = {
 };
 
 describe("RecentCourses", () => {
+  it("lie vers tous les résultats, avec l'href fourni quand il y en a un", () => {
+    const { rerender } = render(<RecentCourses events={[EVENT]} />);
+    expect(screen.getByRole("link", { name: /Toutes les épreuves/ })).toHaveAttribute("href", "/resultats");
+    rerender(<RecentCourses events={[EVENT]} href="/resultats?seasons=2025" />);
+    expect(screen.getByRole("link", { name: /Toutes les épreuves/ })).toHaveAttribute("href", "/resultats?seasons=2025");
+  });
+
   it("rend la date, le nom et le lien de chaque épreuve, sans prefetch (#425)", () => {
     render(<RecentCourses events={[EVENT]} />);
 

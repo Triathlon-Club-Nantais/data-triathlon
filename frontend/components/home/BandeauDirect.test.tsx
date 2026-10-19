@@ -90,9 +90,14 @@ describe("BandeauDirect", () => {
 
   it("notes that only the 3 most recent seasons are drawn", () => {
     const { container } = render(<BandeauDirect sortie={null} stats={STATS} seasons={[2022, 2023, 2024, 2025]} today={TODAY} />);
-    expect(screen.getByText("3 saisons les plus récentes")).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /3 saisons les plus récentes\.$/ })).toBeInTheDocument();
+    expect(screen.getByText("Seules les 3 saisons les plus récentes sont comparées.")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Seules les 3 saisons les plus récentes sont comparées\.$/ })).toBeInTheDocument();
     expect(container.querySelectorAll(".tcn-barre")).toHaveLength(36);
+  });
+
+  it("says \"Aucun résultat\" for a closed season without results in compare mode", () => {
+    render(<BandeauDirect sortie={null} stats={STATS} seasons={[2019, 2026]} today={TODAY} />);
+    expect(screen.getByRole("img", { name: /Saison 2019 — 2020 : Aucun résultat/ })).toBeInTheDocument();
   });
 
   it("dates a past season's outing", () => {

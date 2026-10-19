@@ -9,12 +9,11 @@ export default function Loading() {
           <div className="space-y-2">
             <Skeleton className="h-3 w-40" />
             <Skeleton className="h-9 w-64" />
-            <Skeleton className="h-4 w-80" />
           </div>
           <Skeleton className="h-9 w-72" />
         </div>
       </div>
-      <Skeleton className="h-24 w-full rounded-lg" />
+      <Skeleton className="h-40 w-full rounded-lg" />
     </PageShell>
   );
 }

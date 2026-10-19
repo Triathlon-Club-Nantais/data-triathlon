@@ -10,6 +10,6 @@ describe("DashboardPage — squelette de chargement (ETAT-2)", () => {
     // sans lui, le squelette ne fait pas la même largeur que la vraie page et
     // le contenu saute au remplacement.
     expect(container.querySelector(".mx-auto")).toBeInTheDocument();
-    expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThanOrEqual(5);
+    expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBe(4);
   });
 });

@@ -14,6 +14,7 @@ import {
 } from "@/components/layout/AthletePicker";
 import { ApiError, apiClient } from "@/lib/api/client";
 import type { Participation } from "@/lib/types";
+import { rankTypeLabel } from "@/lib/labels";
 import { motCompte } from "@/lib/utils/format";
 import { compteMaSaison } from "@/lib/utils/ma-saison";
 import { parseSeasonsParam } from "@/lib/utils/season";
@@ -24,17 +25,8 @@ import { parseSeasonsParam } from "@/lib/utils/season";
 // affichée pour porter l'invitation à en choisir un autre.
 type Etat = "chargement" | "ok" | "echec" | "perdu";
 
-/** Parenthétique de rang de la bande (#502, #1656) : les podiums comptent tous
- *  les rangs, sans sélecteur de type. */
-const LIBELLE_RANG_BANDE = "toutes catégories confondues";
-
-/** Première lettre en capitale — le libellé de rang ouvre la ligne
- *  secondaire (#502, revue UI/UX) et y tient donc le rôle du premier mot de
- *  la phrase, quand `LIBELLE_RANG_BANDE` le garde en minuscules pour son
- *  usage entre parenthèses de `resumeCourant`. */
-function capitaliser(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
+/** Rangs comptés par les podiums de la bande (#502, #1656) : tous, sans sélecteur de type. */
+const LIBELLE_RANG_BANDE = rankTypeLabel("all", { form: "long" });
 
 /** Hauteur intérieure minimale de la bande, dans ses trois états visibles.
  *
@@ -282,7 +274,7 @@ export function MaSaison({
   }
 
   const principale = `${nom} — ${motCompte(epreuves, "épreuve")} · ${motCompte(podiums, "podium")}`;
-  const secondaire = `${capitaliser(rang)} · podiums hors relais · le club a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`;
+  const secondaire = `Podiums : ${rang} · hors relais · le club a couru ${motCompte(clubEvents, "épreuve")} sur la même sélection.`;
 
   return (
     <Bande titre={titre}>

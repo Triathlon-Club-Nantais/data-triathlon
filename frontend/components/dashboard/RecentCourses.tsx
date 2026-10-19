@@ -19,9 +19,10 @@ const GRID_COLUMNS = "88px 1fr auto auto";
  * `lib/utils/event.ts`, appelé côté page (`(accueil)/page.tsx`). Ce
  * composant ne fait que rendre, dans l'ordre reçu.
  */
-export function RecentCourses({ events }: { events: EventOut[] }) {
+export function RecentCourses({ events, href = "/resultats" }: { events: EventOut[]; href?: string }) {
   return (
     <Card>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "4px 16px", marginBottom: 18 }}>
       <h2
         style={{
           fontFamily: "var(--tcn-font-display)",
@@ -29,11 +30,18 @@ export function RecentCourses({ events }: { events: EventOut[] }) {
           fontWeight: 400,
           color: "var(--tcn-ink)",
           margin: 0,
-          marginBottom: 18,
         }}
       >
         Dernières épreuves
       </h2>
+      <Link
+        href={href}
+        prefetch={false}
+        style={{ display: "inline-flex", alignItems: "center", minHeight: 44, fontWeight: 700, fontSize: 15, color: "var(--tcn-ink)", textDecoration: "underline" }}
+      >
+        Toutes les épreuves →
+      </Link>
+      </div>
       {events.length === 0 ? (
         <EmptyState
           bare

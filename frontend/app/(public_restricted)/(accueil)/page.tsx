@@ -46,7 +46,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         query={query ? `?${query}` : ""}
       />
       <div className="mt-6">
-        <RecentCourses events={recentEvents} />
+        <RecentCourses events={recentEvents} href={query ? `/resultats?${query}` : "/resultats"} />
       </div>
     </PageShell>
   );
