@@ -350,7 +350,7 @@ groupes par la cascade ORM de `User`.
   ajoutée demain est donc classée sans qu'on y pense ; un test fige la liste
   des cinq obligatoires du jour pour qu'un changement de nullabilité se voie.
 - **Le journal est signé par le compte système** (`volunteer_access.system_user_id`),
-  payload `{"origin": "request" | "inactivity", "entra_oids": [...]}` et
+  payload `{"origin": "request" | "inactivity" | "operator", "entra_oids": [...]}` et
   l'identifiant seul, sans adresse ni nom : le compte supprimé ne peut pas être
   l'auteur d'une ligne dont la FK l'exige. Le journal l'affiche « Système »
   (`actorLabel` du front), le nom du compte système désignant les bénévoles.

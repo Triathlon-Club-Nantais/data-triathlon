@@ -23,7 +23,7 @@ from app.services.auth import authorization
 
 logger = logging.getLogger(__name__)
 
-Origin = Literal["request", "inactivity"]
+Origin = Literal["request", "inactivity", "operator"]
 
 #: Durée publiée par la politique de confidentialité : changer l'une sans l'autre la rend fausse.
 INACTIVITY_YEARS = 5
@@ -63,6 +63,27 @@ def delete_account(db: Session, user: User, *, origin: Origin) -> None:
         db, volunteer_access.system_user_id(db), action="account.delete", entity_type="user", entity_id=user_id,
         payload={"origin": origin, "entra_oids": entra_oids},
     )
+
+
+def force_delete_account(db: Session, user: User, *, dry_run: bool) -> dict[str, int]:
+    """Efface un compte que la libre service refuse en 409 (#1634). Rend le
+    décompte des références obligatoires par `table.colonne`.
+
+    Les données du club restent : elles passent au compte système, qui signe déjà
+    le journal des suppressions. Le dernier administrateur reste protégé, et un
+    refus annule aussi la réattribution. Ne commite pas.
+    """
+    if user.email == SYSTEM_USER_EMAIL:
+        raise SystemAccountDeletionError()
+    counts = user_repository.required_reference_counts(db, user.id)
+    if dry_run:
+        return counts
+    with db.begin_nested():
+        user_repository.reassign_required_references(
+            db, from_user_id=user.id, to_user_id=volunteer_access.system_user_id(db)
+        )
+        delete_account(db, user, origin="operator")
+    return counts
 
 
 def inactivity_cutoff(now: datetime) -> datetime:

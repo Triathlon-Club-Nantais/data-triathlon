@@ -209,7 +209,7 @@ export type LigneDetail = { label: string; value: string; href?: string };
 /** Valeurs codées traduites, par clé : le backend écrit `scope: "all"` (#935). */
 const PAYLOAD_VALUE_LABELS: Record<string, Record<string, string>> = {
   scope: { all: "tous les comptes" },
-  origin: { request: "à la demande de son titulaire", inactivity: "5 ans sans activité" },
+  origin: { request: "à la demande de son titulaire", inactivity: "5 ans sans activité", operator: "par l'exploitant, données du club passées au compte système" },
   status: FEEDBACK_STATUS_LABELS,
 };
 

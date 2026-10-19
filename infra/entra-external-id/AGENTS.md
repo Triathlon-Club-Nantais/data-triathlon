@@ -162,7 +162,9 @@ mêlées) :
 
 Une demande d'effacement adressée au club pour un compte encore cité par une
 donnée du club (refus 409 de la suppression en libre service) se traite de la
-même façon, une fois le compte supprimé par l'exploitant.
+même façon, une fois le compte supprimé par l'exploitant :
+`python -m app.cli delete-account --user-id <id>` (passe à blanc), puis avec
+`--yes` (#1634). Les données du club qui le citent passent au compte système.
 
 ## Ce qui n'est pas automatisé
 

@@ -123,6 +123,9 @@ describe("catalogue coverage (#1043)", () => {
     expect(formatPayload({ origin: "inactivity" })).toEqual([
       { label: "Origine", value: "5 ans sans activité" },
     ]);
+    expect(formatPayload({ origin: "operator" })).toEqual([
+      { label: "Origine", value: "par l'exploitant, données du club passées au compte système" },
+    ]);
     expect(formatPayload({ entra_oids: ["oid-1"] })).toEqual([
       { label: "Identifiants Microsoft Entra à effacer", value: "1 (oid-1)" },
     ]);
