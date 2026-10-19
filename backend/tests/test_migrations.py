@@ -1607,3 +1607,15 @@ def test_season_goals_table_up_and_down(sqlite_url):
 
     command.downgrade(cfg, "cd0a7061e41f")
     assert "season_goals" not in _tables(sqlite_url)
+
+
+def test_result_claims_table_up_and_down(sqlite_url):
+    """#1637: a member's claim on a result filed under another record."""
+    cfg = _alembic_config()
+    command.upgrade(cfg, "head")
+    assert _columns(sqlite_url, "result_claims") == {
+        "id", "user_id", "participation_id", "status", "created_at", "decided_at",
+    }
+
+    command.downgrade(cfg, "325c308cab2d")
+    assert "result_claims" not in _tables(sqlite_url)

@@ -25,7 +25,13 @@ from app.core.season import SEASON_MAX, SEASON_MIN, current_season
 from app.core.time import utcnow
 from app.models.user import User
 from app.repositories import user_repository
-from app.schemas.athlete_claim import AthleteClaimCreate, AthleteClaimRead, ClaimedAthleteRead
+from app.schemas.athlete_claim import (
+    AthleteClaimCreate,
+    AthleteClaimRead,
+    ClaimedAthleteRead,
+    ResultClaimCreate,
+    ResultClaimRead,
+)
 from app.schemas.auth import (
     AuthMethodRead,
     SessionGroupRead,
@@ -34,7 +40,7 @@ from app.schemas.auth import (
 )
 from app.schemas.ids import DbId
 from app.schemas.season_goal import SeasonGoalRead, SeasonGoalWrite
-from app.services import athlete_claims, membership, season_goals, volunteer_access
+from app.services import athlete_claims, membership, result_claims, season_goals, volunteer_access
 from app.services.auth import accounts, authorization, flow
 from app.services.auth import session as session_service
 from app.services.auth.errors import ERROR_CODES, LoginError
@@ -358,6 +364,33 @@ def request_athlete_claim(
 @router.delete("/auth/me/athlete-claim", status_code=204)
 def cancel_athlete_claim(user: User = Depends(current_user), db: Session = Depends(get_db)):
     athlete_claims.cancel_claim(db, user)
+    db.commit()
+    return Response(status_code=204, headers=NO_STORE_HEADERS)
+
+
+@router.get("/auth/me/result-claims", response_model=list[ResultClaimRead])
+def list_my_result_claims(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Mes réclamations de résultat (#1637), en attente ou refusées."""
+    return [ResultClaimRead.model_validate(claim) for claim in result_claims.list_mine(db, user)]
+
+
+@router.post(
+    "/auth/me/result-claims",
+    response_model=ResultClaimRead,
+    status_code=201,
+    # Même raison que la demande de fiche : le routeur `auth` échappe à la garde du site.
+    dependencies=[Depends(require_site_access)],
+)
+def request_result_claim(body: ResultClaimCreate, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """« Ce résultat est à moi » (#1637), toujours soumis à la file du club."""
+    claim = result_claims.request_claim(db, user, body.participation_id)
+    db.commit()
+    return ResultClaimRead.model_validate(claim)
+
+
+@router.delete("/auth/me/result-claims/{claim_id}", status_code=204)
+def cancel_result_claim(claim_id: DbId, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    result_claims.cancel_claim(db, user, claim_id)
     db.commit()
     return Response(status_code=204, headers=NO_STORE_HEADERS)
 

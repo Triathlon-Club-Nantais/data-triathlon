@@ -60,6 +60,46 @@ class AthleteLinkRead(BaseModel):
     licensed_this_season: bool
 
 
+class ResultClaimCreate(BaseModel):
+    participation_id: DbId
+
+
+class ResultClaimRead(BaseModel):
+    """Une réclamation de résultat, vue de son auteur (#1637)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    participation_id: int
+    status: Literal["pending", "rejected"]
+    created_at: UtcDatetime
+
+
+class ClaimedResultRead(BaseModel):
+    id: int
+    course_id: int
+    course_name: str
+    event_date: str | None
+    event_type: str
+    bib_number: str | None
+    total_time: str | None
+    club: str | None
+    category: str | None
+
+
+class ResultClaimReviewRead(BaseModel):
+    """Une réclamation de la file, avec ses indices (#1637)."""
+
+    id: int
+    created_at: UtcDatetime
+    user: ClaimantRead
+    participation: ClaimedResultRead
+    current_athlete: ReviewedAthleteRead
+    current_athlete_results: int
+    claimant_athlete: ReviewedAthleteRead | None
+    licensee: LicenseeRead | None
+
+
 class AthleteClaimReviewRead(BaseModel):
     """Une demande de la file, avec ses indices (contracts/admin-athlete-claims.md)."""
 

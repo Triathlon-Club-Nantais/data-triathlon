@@ -140,7 +140,7 @@ def set_active(db: Session, users: list[User], *, active: bool) -> int:
 
 
 #: Tables that belong to the account and leave with it through the ORM cascade of `User`.
-_OWNED_TABLES = frozenset({"identities", "user_sessions", "user_roles", "user_groups", "athlete_claims", "season_goals"})
+_OWNED_TABLES = frozenset({"identities", "user_sessions", "user_roles", "user_groups", "athlete_claims", "season_goals", "result_claims"})
 
 
 def _references_to_users() -> list[Column]:

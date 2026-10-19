@@ -24,6 +24,7 @@ from app.models.participation import Participation, ParticipationTeammate
 from app.models.pending_provider import PendingProvider
 from app.models.personal_profile import PersonalProfile
 from app.models.profile_log_entry import ProfileLogEntry
+from app.models.result_claim import ResultClaim
 from app.models.role import Role
 from app.models.role_permission import RolePermission
 from app.models.season_goal import SeasonGoal
@@ -71,6 +72,7 @@ __all__ = [
     "PendingProvider",
     "PersonalProfile",
     "ProfileLogEntry",
+    "ResultClaim",
     "SeasonGoal",
     "Role",
     "RolePermission",
