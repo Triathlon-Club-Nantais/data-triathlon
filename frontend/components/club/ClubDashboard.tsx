@@ -14,6 +14,7 @@ import { ClubPodiumKpi } from "./ClubPodiumKpi";
 import { RosterApercu } from "./RosterApercu";
 import { LienDestination } from "@/components/layout/LienDestination";
 import { DisciplinePerformance } from "./DisciplinePerformance";
+import type { Gender } from "@/lib/scope";
 import { ClubComposition } from "./ClubComposition";
 import { formatCount } from "@/lib/utils/format";
 import { seasonLabel, serializeSeasons, seasonSelectionLabel } from "@/lib/utils/season";
@@ -23,12 +24,15 @@ export function ClubDashboard({
   summary,
   recent,
   seasons,
+  gender,
 }: {
   stats: Stats;
   summary: ClubSummary;
   recent: Participation[];
   /** Sélection de saisons que `stats` et `summary` portent déjà. */
   seasons: number[];
+  /** Filtre `?sexe=` : la composition par genre n'a plus de sens. */
+  gender?: Gender;
 }) {
   const roster = summary.roster;
   const licensees = summary.licensees;
@@ -67,7 +71,7 @@ export function ClubDashboard({
             <CardTitle>Podiums & performances</CardTitle>
           </CardHeader>
           <CardContent>
-            <PodiumsList podiums={summary.podiums} totals={summary.podiums_totals} />
+            <PodiumsList podiums={summary.podiums} totals={summary.podiums_totals} gender={gender} />
           </CardContent>
         </Card>
 
@@ -83,7 +87,7 @@ export function ClubDashboard({
                   <TabsTrigger value="type">Par discipline</TabsTrigger>
                   <TabsTrigger value="performance">Performance</TabsTrigger>
                   <TabsTrigger value="month">Par mois</TabsTrigger>
-                  <TabsTrigger value="composition">Composition</TabsTrigger>
+                  {!gender && <TabsTrigger value="composition">Composition</TabsTrigger>}
                 </TabsList>
               </div>
               <TabsContent value="type" className="pt-4">
@@ -112,9 +116,11 @@ export function ClubDashboard({
                   plus structurant du jeu de données selon l'audit UX). Un
                   athlète compte une fois, pas une fois par épreuve : la
                   composition porte sur des personnes. */}
-              <TabsContent value="composition" className="pt-4">
-                <ClubComposition composition={summary.composition} />
-              </TabsContent>
+              {!gender && (
+                <TabsContent value="composition" className="pt-4">
+                  <ClubComposition composition={summary.composition} />
+                </TabsContent>
+              )}
             </Tabs>
           </CardContent>
         </Card>

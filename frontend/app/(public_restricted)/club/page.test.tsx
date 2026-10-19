@@ -204,4 +204,32 @@ describe("ClubPage", () => {
 
     expect(screen.getByRole("heading", { name: "Meilleurs temps du club" })).toBeInTheDocument();
   });
+
+  it("passes gender to stats, summary and recent results when sexe=F", async () => {
+    await renderClub({ sexe: "F" });
+
+    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ gender: "F" }), expect.anything());
+    expect(getClubSummary).toHaveBeenCalledWith(expect.objectContaining({ gender: "F" }), expect.anything());
+    expect(listParticipations).toHaveBeenCalledWith(expect.objectContaining({ gender: "F" }), expect.anything());
+  });
+
+  it("maps sexe=H to gender M", async () => {
+    await renderClub({ sexe: "H" });
+
+    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ gender: "M" }), expect.anything());
+  });
+
+  it("sends no gender for an invalid sexe value", async () => {
+    await renderClub({ sexe: "X" });
+
+    expect(getStats.mock.calls[0][0].gender).toBeUndefined();
+    expect(getClubSummary.mock.calls[0][0].gender).toBeUndefined();
+    expect(listParticipations.mock.calls[0][0].gender).toBeUndefined();
+  });
+
+  it("renders the sexe toggle", async () => {
+    await renderClub({});
+
+    expect(screen.getByRole("group", { name: "Sexe" })).toBeInTheDocument();
+  });
 });

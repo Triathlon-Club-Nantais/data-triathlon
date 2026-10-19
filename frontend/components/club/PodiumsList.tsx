@@ -9,7 +9,7 @@ import { formatEventName } from "@/lib/utils/event";
 import { RANK_PARAM, rankTypeFromParam } from "@/lib/rank";
 import { podiumScopeLabel } from "@/lib/labels";
 import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
-import { SPORTS_PARAM, federalOnlyFromParam } from "@/lib/scope";
+import { SPORTS_PARAM, federalOnlyFromParam, type Gender } from "@/lib/scope";
 import { apiClient } from "@/lib/api/client";
 import type { ClubPodiumTotals, ClubPodiums } from "@/lib/types";
 import { currentSeason, selectedSeasonsOrCurrent } from "@/lib/utils/season";
@@ -34,12 +34,20 @@ export const APERCU_PODIUMS = 6;
  * `?sports=` remonte la liste quand le filtre change : `router.push` garde le
  * composant monté, et la liste chargée sous l'autre filtre survivrait sinon.
  */
-export function PodiumsList(props: { podiums: ClubPodiums; totals?: ClubPodiumTotals }) {
+export function PodiumsList(props: { podiums: ClubPodiums; totals?: ClubPodiumTotals; gender?: Gender }) {
   const sp = useSearchParams();
-  return <Podiums key={`${sp.get(SPORTS_PARAM) ?? ""}|${sp.get("seasons") ?? ""}`} {...props} />;
+  return <Podiums key={`${sp.get(SPORTS_PARAM) ?? ""}|${sp.get("seasons") ?? ""}|${props.gender ?? ""}`} {...props} />;
 }
 
-function Podiums({ podiums, totals }: { podiums: ClubPodiums; totals?: ClubPodiumTotals }) {
+function Podiums({
+  podiums,
+  totals,
+  gender,
+}: {
+  podiums: ClubPodiums;
+  totals?: ClubPodiumTotals;
+  gender?: Gender;
+}) {
   const sp = useSearchParams();
   const rankType = rankTypeFromParam(sp.get(RANK_PARAM) ?? undefined);
   const selectedSeasons = selectedSeasonsOrCurrent(sp.get("seasons"));
@@ -64,6 +72,7 @@ function Podiums({ podiums, totals }: { podiums: ClubPodiums; totals?: ClubPodiu
         setComplet(await apiClient.getClubPodiums({
           federal_only: federalOnlyFromParam(sp.get(SPORTS_PARAM)),
           seasons: selectedSeasons,
+          gender,
         }));
         setEtendu(true);
       } catch {

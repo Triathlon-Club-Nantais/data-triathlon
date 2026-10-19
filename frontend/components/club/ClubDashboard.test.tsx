@@ -279,4 +279,10 @@ describe("ClubDashboard — smoke", () => {
     render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={[part({ id: 1 })]} seasons={[currentSeason()]} />);
     expect(screen.queryByText(/derniers résultats importés/)).not.toBeInTheDocument();
   });
+
+  it("hides the composition card under a gender filter", () => {
+    render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={[]} seasons={[currentSeason()]} gender="F" />);
+
+    expect(screen.queryByRole("tab", { name: "Composition" })).not.toBeInTheDocument();
+  });
 });

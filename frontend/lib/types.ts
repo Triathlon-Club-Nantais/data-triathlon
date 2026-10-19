@@ -1,3 +1,4 @@
+import type { Gender } from "@/lib/scope";
 // Miroir des schémas Pydantic backend. Source de vérité : app/schemas/*.py.
 
 export interface AthleteBrief {
@@ -888,7 +889,7 @@ export interface CourseQuery {
   /** Code **exact** de catégorie, tel que rendu par `/summary` (#486). */
   category?: string;
   /** Sexe du classement (`?sexe=` côté URL) : ajoute `gender_place` aux lignes. */
-  gender?: "M" | "F";
+  gender?: Gender;
 }
 
 interface CategoryCount {
@@ -963,6 +964,7 @@ export interface ParticipationFilters {
   sort?: string; // "date_desc" | "date_asc" | "name" (épreuves)
   page?: number;
   page_size?: number;
+  gender?: Gender;
 }
 
 // ── Authentification (#114) ──────────────────────────────────────────────────

@@ -60,4 +60,13 @@ describe("ClubBestTimesCard", () => {
 
     expect(screen.getByText(/Aucun temps comparable sur cette saison/)).toBeInTheDocument();
   });
+
+  it("shows only the selected sex best times", () => {
+    const m = line(2, { gender: "M", athlete_name: "Jean MARTIN" });
+    render(<ClubBestTimesCard seasonLines={[line(1), m]} allLines={[line(1), m]} seasonLabel="S" gender="F" />);
+
+    expect(screen.getAllByRole("link", { name: /meilleur temps sur M/ })).toHaveLength(1);
+    expect(screen.queryByText(/Jean MARTIN/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Alice DUPONT/)).toBeInTheDocument();
+  });
 });

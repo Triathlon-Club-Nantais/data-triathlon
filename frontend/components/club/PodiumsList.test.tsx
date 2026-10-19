@@ -254,4 +254,16 @@ describe("PodiumsList — aperçu servi seul, liste chargée au dépliage (#1354
     await waitFor(() => expect(screen.getAllByRole("listitem")).toHaveLength(9));
     expect(getClubPodiums).toHaveBeenCalledTimes(1);
   });
+
+  it("requests full podiums with the gender filter", async () => {
+    searchParams = new URLSearchParams();
+    getClubPodiums.mockResolvedValue({ ...EMPTY, scratch: NEUF });
+    const user = userEvent.setup();
+    render(<PodiumsList podiums={APERCU} totals={TOTAUX} gender="F" />);
+
+    await user.click(screen.getByRole("button", { name: "Voir les 3 autres podiums" }));
+
+    await screen.findAllByRole("listitem");
+    expect(getClubPodiums).toHaveBeenCalledWith({ federal_only: true, seasons: [currentSeason()], gender: "F" });
+  });
 });

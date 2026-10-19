@@ -1,6 +1,7 @@
 import { Card, FormatChip, LigneCarte } from "@/components/tcn";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { eventTypeLabel } from "@/lib/constants";
+import type { Gender } from "@/lib/scope";
 import type { ClubBestTime } from "@/lib/types";
 import { formatDate } from "@/lib/utils/date";
 import { disciplineOf, formatToken } from "@/lib/utils/format";
@@ -16,11 +17,18 @@ export function ClubBestTimesCard({
   seasonLines,
   allLines,
   seasonLabel,
+  gender,
 }: {
   seasonLines: ClubBestTime[];
   allLines: ClubBestTime[];
   seasonLabel: string;
+  gender?: Gender;
 }) {
+  // `/club/best-times` renvoie une ligne par genre : le filtre se fait ici.
+  if (gender) {
+    seasonLines = seasonLines.filter((l) => l.gender === gender);
+    allLines = allLines.filter((l) => l.gender === gender);
+  }
   if (allLines.length === 0 && seasonLines.length === 0) return null;
 
   return (
