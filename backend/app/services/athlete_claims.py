@@ -24,6 +24,7 @@ from app.repositories import (
     athlete_repository,
     club_member_repository,
     member_email_repository,
+    result_claim_repository,
     user_repository,
 )
 from app.services import audit
@@ -67,6 +68,8 @@ def detach(db: Session, user: User) -> None:
         return
     logger.info("Athlete detached: user=%s athlete=%s", user.id, user.athlete_id)
     user_repository.set_athlete(db, user, None)
+    # Les réclamations de résultat visaient l'ancienne fiche (#1637).
+    result_claim_repository.delete_for_user(db, user.id)
 
 
 def approve(db: Session, claim_id: int, *, actor_id: int) -> None:
@@ -75,6 +78,7 @@ def approve(db: Session, claim_id: int, *, actor_id: int) -> None:
         raise _claim_not_pending()
     user, athlete_id = claim.user, claim.athlete_id
     user_repository.set_athlete(db, user, athlete_id)
+    result_claim_repository.delete_for_user(db, user.id)
     athlete_claim_repository.delete_claim(db, claim)
     audit.record(
         db, actor_id, action="athlete_claim.approve", entity_type=_ENTITY, entity_id=user.id,
@@ -100,6 +104,8 @@ def admin_detach(db: Session, user_id: int, *, actor_id: int) -> None:
         raise NotFoundError("Ce compte n'est rattaché à aucune fiche.")
     athlete_id = user.athlete_id
     user_repository.set_athlete(db, user, None)
+    # Les réclamations de résultat visaient l'ancienne fiche (#1637).
+    result_claim_repository.delete_for_user(db, user.id)
     audit.record(
         db, actor_id, action="athlete_claim.detach", entity_type=_ENTITY, entity_id=user_id,
         payload={"athlete_id": athlete_id},

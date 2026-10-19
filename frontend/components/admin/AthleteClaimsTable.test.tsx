@@ -56,6 +56,7 @@ describe("AthleteClaimsTable (#1325)", () => {
     expect(ligne).toHaveTextContent("Licencié 2026 : Léa MARTIN");
     expect(ligne).toHaveTextContent("Adresse sur la liste d'adhérents");
     expect(ligne).toHaveTextContent("1 compte déjà rattaché");
+    expect(within(ligne).getByText("Fiche entière")).toBeInTheDocument();
   });
 
   it("says what is missing when no hint backs the claim", async () => {
@@ -76,7 +77,7 @@ describe("AthleteClaimsTable (#1325)", () => {
     rejectAthleteClaim.mockResolvedValue(null);
     afficher();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Valider la demande de Léa M." }));
+    await userEvent.click(await screen.findByRole("button", { name: "Rattacher la fiche demandée par Léa M." }));
     await waitFor(() => expect(approveAthleteClaim).toHaveBeenCalledWith(7));
     await userEvent.click(screen.getByRole("button", { name: "Refuser la demande de Léa M." }));
     await waitFor(() => expect(rejectAthleteClaim).toHaveBeenCalledWith(7));

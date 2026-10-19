@@ -44,6 +44,8 @@ const ACTION_LABELS: Record<string, string> = {
   "athlete_claim.approve": "Rattachement d'un compte à sa fiche athlète",
   "athlete_claim.reject": "Refus d'un rattachement de fiche",
   "athlete_claim.detach": "Détachement d'un compte de sa fiche par le club",
+  "result_claim.approve": "Résultat réclamé déplacé sur la fiche de son auteur",
+  "result_claim.reject": "Refus d'une réclamation de résultat",
   "counter_scope.entry_ambiguous": "Libellé de la portée marqué ambigu ou clair",
   "course_duplicate.ignore": "Paire de doublons suspects écartée",
   "course_duplicate.unignore": "Annulation de la mise à l'écart d'une paire de doublons suspects",

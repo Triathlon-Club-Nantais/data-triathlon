@@ -1662,6 +1662,23 @@ export function useDecideAthleteClaim() {
   });
 }
 
+export function useResultClaims() {
+  return useQuery({
+    queryKey: queryKeys.resultClaims(),
+    queryFn: () => apiClient.getResultClaims(),
+    retry: false,
+  });
+}
+
+export function useDecideResultClaim() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, decision }: { id: number; decision: "approve" | "reject" }) =>
+      decision === "approve" ? apiClient.approveResultClaim(id) : apiClient.rejectResultClaim(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.resultClaims() }),
+  });
+}
+
 export function useAthleteLinks() {
   return useQuery({
     queryKey: queryKeys.athleteLinks(),

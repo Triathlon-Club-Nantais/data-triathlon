@@ -36,7 +36,11 @@ import type {
   MemberEmail,
   AthleteClaim,
   AthleteClaimReview,
+  SeasonGoal,
+  SeasonGoalWrite,
   AthleteLink,
+  ResultClaim,
+  ResultClaimReview,
   MemberEmailsImportReport,
   MemberEmailsSeason,
   CounterScope,
@@ -927,7 +931,25 @@ export const apiClient = {
   cancelAthleteClaim: () => request<null>("/auth/me/athlete-claim", { method: "DELETE" }),
   detachAthlete: () => request<null>("/auth/me/athlete", { method: "DELETE" }),
   getAthleteClaims: () => request<AthleteClaimReview[]>("/admin/athlete-claims"),
+  // ── Objectifs de saison (#1373), privés au compte ───────────────────────────
+  getSeasonGoals: () => request<SeasonGoal[]>("/auth/me/goals"),
+  createSeasonGoal: (body: SeasonGoalWrite) =>
+    request<SeasonGoal>("/auth/me/goals", { method: "POST", body: JSON.stringify(body) }),
+  updateSeasonGoal: (id: number, body: SeasonGoalWrite) =>
+    request<SeasonGoal>(`/auth/me/goals/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteSeasonGoal: (id: number) => request<null>(`/auth/me/goals/${id}`, { method: "DELETE" }),
   getAthleteLinks: () => request<AthleteLink[]>("/admin/athlete-links"),
+  // ── Réclamations de résultat (#1637) ────────────────────────────────────────
+  getMyResultClaims: () => request<ResultClaim[]>("/auth/me/result-claims"),
+  requestResultClaim: (participationId: number) =>
+    request<ResultClaim>("/auth/me/result-claims", {
+      method: "POST",
+      body: JSON.stringify({ participation_id: participationId }),
+    }),
+  cancelResultClaim: (id: number) => request<null>(`/auth/me/result-claims/${id}`, { method: "DELETE" }),
+  getResultClaims: () => request<ResultClaimReview[]>("/admin/result-claims"),
+  approveResultClaim: (id: number) => request<null>(`/admin/result-claims/${id}/approve`, { method: "POST" }),
+  rejectResultClaim: (id: number) => request<null>(`/admin/result-claims/${id}/reject`, { method: "POST" }),
   detachAthleteLink: (userId: number) =>
     request<null>(`/admin/athlete-links/${userId}`, { method: "DELETE" }),
   approveAthleteClaim: (id: number) =>

@@ -43,6 +43,9 @@ function PostHogSessionSync() {
         email: session.email,
         name: session.display_name,
         roles: session.roles.map((r) => r.slug),
+        // Cohortes et rétention des adhérents (#1374) : deux booléens, jamais la fiche.
+        is_member: session.is_member,
+        has_claimed_athlete: session.athlete !== null,
       };
       withPostHog((posthog) => posthog.identify(String(session.id), properties));
     } else if (session === null && identifiedRef.current) {

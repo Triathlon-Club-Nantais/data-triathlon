@@ -73,6 +73,8 @@ vi.mock("@/components/dashboard/MaSaison", () => ({
 // `InvitationAthlete` (#588) est un composant client sans props, testé pour
 // lui-même (`components/dashboard/InvitationAthlete.test.tsx`) : ici on ne
 // vérifie que sa présence et sa place dans le document.
+// Carte client à session (#1373), éprouvée dans son propre test.
+vi.mock("@/components/dashboard/SeasonGoals", () => ({ SeasonGoals: () => null }));
 vi.mock("@/components/dashboard/InvitationAthlete", () => ({
   InvitationAthlete: () => <div data-testid="invitation-athlete-stub" />,
 }));

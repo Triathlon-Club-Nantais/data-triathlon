@@ -84,7 +84,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             lui-même, aucun droit d&apos;administration. Un compte peut être rattaché à la fiche athlète de
             la personne, à la demande de son titulaire, après vérification par le club ; le compte rattaché est
             reconnu adhérent tant que la fiche est licenciée au club pour la saison, et son titulaire s&apos;en détache quand il le souhaite depuis le menu du compte
-            (« Me détacher de ma fiche »). Le site garde la trace des actions d&apos;administration. Vous pouvez supprimer votre compte
+            (« Me détacher de ma fiche »). Un compte rattaché peut se fixer des objectifs de saison, que lui seul voit, et qui sont supprimés avec le compte. Il peut aussi réclamer un résultat rangé sur une autre fiche ; le club vérifie la demande avant de le déplacer, et la demande part avec le compte. Le site garde la trace des actions d&apos;administration. Vous pouvez supprimer votre compte
             vous-même, depuis le menu du compte (« Supprimer mon compte ») : vos résultats et votre fiche athlète
             restent publiés, seul le compte disparaît.
           </p>
@@ -106,7 +106,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             mesure ne reçoit qu&apos;un identifiant calculé à partir de votre adresse IP et de votre navigateur,
             renouvelé chaque jour. Si vous acceptez la mesure détaillée, il reçoit aussi vos interactions avec les
             pages (clics) et dépose des cookies ; pour un utilisateur connecté, la mesure est alors
-            rattachée à son compte : son adresse électronique, son nom affiché et ses rôles lui sont transmis.
+            rattachée à son compte : son adresse électronique, son nom affiché, ses rôles, et s&apos;il est adhérent ou rattaché à une fiche lui sont transmis.
             Retirer ensuite votre accord arrête cette mesure détaillée, sans effacer ce qui a déjà été transmis :
             pour cela, exercez votre droit à l&apos;effacement (voir « Vos droits »). Les actions faites dans le
             back-office sont comptées par le serveur du site, rattachées à l&apos;identifiant du compte seulement si

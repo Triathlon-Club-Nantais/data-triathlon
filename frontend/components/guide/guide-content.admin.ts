@@ -189,7 +189,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
   },
   {
     id: "rattachements",
-    titre: "Rattachements de fiche",
+    titre: "Rattachements de fiche et de résultats",
     casUsage:
       "Les demandes d'utilisateurs connectés qui se reconnaissent sur une fiche athlète (« C'est moi »). Aucune n'est validée d'office, même quand l'adresse du compte figure sur la liste d'adhérents : la liste ne porte que des adresses, pas de nom. Un compte rattaché retrouve sa fiche dans Mon espace, et il est reconnu adhérent tant que sa fiche est licenciée au club pour la saison.",
     etapes: [
@@ -197,6 +197,7 @@ export const GUIDE_ADMIN: GuideSection[] = [
       "Pour chaque demande, comparer le compte (nom affiché, adresse) à la fiche demandée, avec les indices : licencié TCN de la saison rattaché à la fiche, adresse présente sur la liste d'adhérents, comptes déjà rattachés à la fiche (une même personne peut avoir plusieurs comptes).",
       "« Valider » rattache la fiche au compte ; « Refuser » laisse le compte sans fiche, l'utilisateur voit la demande refusée dans son menu. Les deux gestes sont inscrits au journal d'administration.",
       "L'utilisateur peut se détacher lui-même depuis son menu ; une nouvelle demande repasse alors par cette file.",
+      "« Résultats réclamés » : un adhérent déjà rattaché dit « Ce résultat est à moi » sur un résultat rangé sur une autre fiche (un homonyme, souvent). La ligne montre l'épreuve, le dossard, la fiche actuelle (et si elle sera supprimée, vidée par le déplacement), la fiche de destination et le licencié de la saison. « Déplacer le résultat » le passe sur la fiche du compte et le fige contre les réimports ; « Refuser » le laisse en place. Une pastille « Fiche entière » ou « Un résultat » distingue les deux sortes de demandes.",
       "« Comptes rattachés », sous la file, liste les comptes et dit si leur fiche est licenciée cette saison (ceux dont la licence ne court plus en tête). « Détacher », après confirmation, retire la fiche d'un compte, par exemple au départ d'un adhérent ; le geste est journalisé.",
     ],
     captures: [],

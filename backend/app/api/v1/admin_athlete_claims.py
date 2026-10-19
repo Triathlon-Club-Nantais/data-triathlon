@@ -15,11 +15,13 @@ from app.schemas.athlete_claim import (
     AthleteClaimReviewRead,
     AthleteLinkRead,
     ClaimantRead,
+    ClaimedResultRead,
     LicenseeRead,
+    ResultClaimReviewRead,
     ReviewedAthleteRead,
 )
 from app.schemas.ids import DbId
-from app.services import athlete_claims
+from app.services import athlete_claims, result_claims
 
 router = APIRouter(tags=["admin"])
 
@@ -41,6 +43,61 @@ def list_athlete_claims(
         )
         for review in athlete_claims.list_pending_with_hints(db, utcnow().date())
     ]
+
+
+@router.get("/admin/result-claims", response_model=list[ResultClaimReviewRead])
+def list_result_claims(
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission(P.ATHLETE_CLAIMS_REVIEW)),
+):
+    """Réclamations de résultat en attente (#1637), avec leurs indices."""
+    return [
+        ResultClaimReviewRead(
+            id=review.claim.id,
+            created_at=review.claim.created_at,
+            user=ClaimantRead.model_validate(review.user),
+            participation=ClaimedResultRead(
+                id=review.participation.id,
+                course_id=review.participation.course_id,
+                course_name=review.participation.course.name,
+                event_date=review.participation.course.event_date.isoformat()
+                if review.participation.course.event_date else None,
+                event_type=review.participation.course.event_type,
+                bib_number=review.participation.bib_number,
+                total_time=review.participation.total_time,
+                club=review.participation.club,
+                category=review.participation.category,
+            ),
+            current_athlete=ReviewedAthleteRead.model_validate(review.current_athlete),
+            current_athlete_results=review.current_athlete_results,
+            claimant_athlete=ReviewedAthleteRead.model_validate(review.claimant_athlete)
+            if review.claimant_athlete else None,
+            licensee=LicenseeRead.model_validate(review.claimant_licensee) if review.claimant_licensee else None,
+        )
+        for review in result_claims.list_pending_with_hints(db, utcnow().date())
+    ]
+
+
+@router.post("/admin/result-claims/{claim_id}/approve", status_code=204)
+def approve_result_claim(
+    claim_id: DbId,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_permission(P.ATHLETE_CLAIMS_REVIEW)),
+):
+    result_claims.approve(db, claim_id, actor_id=actor.id)
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.post("/admin/result-claims/{claim_id}/reject", status_code=204)
+def reject_result_claim(
+    claim_id: DbId,
+    db: Session = Depends(get_db),
+    actor: User = Depends(require_permission(P.ATHLETE_CLAIMS_REVIEW)),
+):
+    result_claims.reject(db, claim_id, actor_id=actor.id)
+    db.commit()
+    return Response(status_code=204)
 
 
 @router.get("/admin/athlete-links", response_model=list[AthleteLinkRead])

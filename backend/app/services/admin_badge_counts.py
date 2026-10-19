@@ -17,6 +17,7 @@ from app.repositories import (
     feedback_repository,
     participation_repository,
     pending_provider_repository,
+    result_claim_repository,
     volunteer_action_repository,
 )
 from app.services import athlete_identity_review, course_duplicates
@@ -38,7 +39,11 @@ _BADGES: dict[str, tuple[str, Callable[[Session], int]]] = {
         lambda db: club_member_repository.count_to_settle(db, current_season()),
     ),
     "volunteer": (P.ATHLETES_VOLUNTEER_VALIDATE.code, volunteer_action_repository.count_pending),
-    "claims": (P.ATHLETE_CLAIMS_REVIEW.code, athlete_claim_repository.count_pending),
+    # File commune (#1637) : demandes de fiche et réclamations de résultat.
+    "claims": (
+        P.ATHLETE_CLAIMS_REVIEW.code,
+        lambda db: athlete_claim_repository.count_pending(db) + result_claim_repository.count_pending(db),
+    ),
 }
 
 

@@ -11,7 +11,7 @@ défaut reconnu de la PR #159.
 import logging
 from collections.abc import Iterable
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -21,17 +21,26 @@ from app.core.analytics import capture_event, set_person_properties
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.core.exceptions import AuthUnavailableError, NotFoundError
+from app.core.season import SEASON_MAX, SEASON_MIN, current_season
 from app.core.time import utcnow
 from app.models.user import User
 from app.repositories import user_repository
-from app.schemas.athlete_claim import AthleteClaimCreate, AthleteClaimRead, ClaimedAthleteRead
+from app.schemas.athlete_claim import (
+    AthleteClaimCreate,
+    AthleteClaimRead,
+    ClaimedAthleteRead,
+    ResultClaimCreate,
+    ResultClaimRead,
+)
 from app.schemas.auth import (
     AuthMethodRead,
     SessionGroupRead,
     SessionRoleRead,
     SessionUserRead,
 )
-from app.services import athlete_claims, membership, volunteer_access
+from app.schemas.ids import DbId
+from app.schemas.season_goal import SeasonGoalRead, SeasonGoalWrite
+from app.services import athlete_claims, membership, result_claims, season_goals, volunteer_access
 from app.services.auth import accounts, authorization, flow
 from app.services.auth import session as session_service
 from app.services.auth.errors import ERROR_CODES, LoginError
@@ -359,10 +368,85 @@ def cancel_athlete_claim(user: User = Depends(current_user), db: Session = Depen
     return Response(status_code=204, headers=NO_STORE_HEADERS)
 
 
+@router.get("/auth/me/result-claims", response_model=list[ResultClaimRead])
+def list_my_result_claims(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Mes réclamations de résultat (#1637), en attente ou refusées."""
+    return [ResultClaimRead.model_validate(claim) for claim in result_claims.list_mine(db, user)]
+
+
+@router.post(
+    "/auth/me/result-claims",
+    response_model=ResultClaimRead,
+    status_code=201,
+    # Même raison que la demande de fiche : le routeur `auth` échappe à la garde du site.
+    dependencies=[Depends(require_site_access)],
+)
+def request_result_claim(body: ResultClaimCreate, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """« Ce résultat est à moi » (#1637), toujours soumis à la file du club."""
+    claim = result_claims.request_claim(db, user, body.participation_id)
+    db.commit()
+    return ResultClaimRead.model_validate(claim)
+
+
+@router.delete("/auth/me/result-claims/{claim_id}", status_code=204)
+def cancel_result_claim(claim_id: DbId, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    result_claims.cancel_claim(db, user, claim_id)
+    db.commit()
+    return Response(status_code=204, headers=NO_STORE_HEADERS)
+
+
 @router.delete("/auth/me/athlete", status_code=204)
 def detach_athlete(user: User = Depends(current_user), db: Session = Depends(get_db)):
     """Se détache de sa fiche ; la fiche et ses résultats restent (#1325)."""
     athlete_claims.detach(db, user)
+    db.commit()
+    return Response(status_code=204, headers=NO_STORE_HEADERS)
+
+
+def _goal_read(progress: season_goals.GoalProgress) -> SeasonGoalRead:
+    goal = progress.goal
+    return SeasonGoalRead(
+        id=goal.id, season=goal.season, kind=goal.kind, event_type=goal.event_type, target=goal.target,
+        best_time=progress.best_time, count=progress.count, reached=progress.reached,
+    )
+
+
+def _progress_of(db: Session, user: User, goal) -> SeasonGoalRead:
+    (progress,) = [p for p in season_goals.list_with_progress(db, user, goal.season) if p.goal.id == goal.id]
+    return _goal_read(progress)
+
+
+@router.get("/auth/me/goals", response_model=list[SeasonGoalRead])
+def list_goals(
+    season: int | None = Query(None, ge=SEASON_MIN, le=SEASON_MAX),
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+):
+    """Objectifs de saison du compte et leur progression (#1373), privés."""
+    return [_goal_read(p) for p in season_goals.list_with_progress(db, user, season or current_season())]
+
+
+@router.post("/auth/me/goals", response_model=SeasonGoalRead, status_code=201)
+def create_goal(body: SeasonGoalWrite, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    goal = season_goals.create(
+        db, user, season=current_season(), kind=body.kind, event_type=body.event_type, target=body.target
+    )
+    db.commit()
+    return _progress_of(db, user, goal)
+
+
+@router.put("/auth/me/goals/{goal_id}", response_model=SeasonGoalRead)
+def update_goal(
+    goal_id: DbId, body: SeasonGoalWrite, user: User = Depends(current_user), db: Session = Depends(get_db)
+):
+    goal = season_goals.update(db, user, goal_id, kind=body.kind, event_type=body.event_type, target=body.target)
+    db.commit()
+    return _progress_of(db, user, goal)
+
+
+@router.delete("/auth/me/goals/{goal_id}", status_code=204)
+def delete_goal(goal_id: DbId, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    season_goals.delete(db, user, goal_id)
     db.commit()
     return Response(status_code=204, headers=NO_STORE_HEADERS)
 
