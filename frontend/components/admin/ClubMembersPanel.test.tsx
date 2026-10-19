@@ -1,4 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { ClubMember, ClubMembersSeason } from "@/lib/types";
 
@@ -58,6 +59,23 @@ describe("ClubMembersPanel", () => {
     rerender(<ClubMembersPanel {...props} season={2024} data={saison({ season: 2024 })} />);
 
     expect(screen.getByLabelText(/saison \(année de début\)/i)).toHaveValue(2023);
+  });
+
+  // Base UI rend `null` à `onValueChange` quand l'option retenue quitte la
+  // liste : c'est le cas pendant le chargement de la saison choisie, `data`
+  // retombant à `undefined`. `Number(null)` demandait la saison 0 (422).
+  it("ne demande jamais la saison 0 pendant le chargement de la saison choisie", async () => {
+    const onSeasonChange = vi.fn();
+    const { rerender } = render(
+      <ClubMembersPanel {...props} onSeasonChange={onSeasonChange} data={saison({ seasons: [2026, 2025, 2024] })} />,
+    );
+
+    await userEvent.click(screen.getByRole("combobox", { name: /^saison$/i }));
+    await userEvent.click(await screen.findByRole("option", { name: /2024/ }));
+    rerender(<ClubMembersPanel {...props} season={2024} onSeasonChange={onSeasonChange} data={undefined} isLoading />);
+    rerender(<ClubMembersPanel {...props} season={2024} onSeasonChange={onSeasonChange} data={saison({ season: 2024, seasons: [2026, 2025, 2024] })} />);
+
+    expect(onSeasonChange.mock.calls).toEqual([[2024]]);
   });
 
   it("invite à relire la liste ou à importer quand la saison est vide", () => {
