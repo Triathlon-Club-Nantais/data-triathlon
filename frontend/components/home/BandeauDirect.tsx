@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { Card } from "@/components/tcn/Card";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
-import { estToutRecent, moisDeSaison, titreSortie } from "@/lib/home";
+import { estToutRecent, moisComparesParSaison, titreSortie } from "@/lib/home";
 import type { ClubLastOuting, Stats } from "@/lib/types";
 import { formatCount, motCompte } from "@/lib/utils/format";
 import { currentSeason, seasonAbsenceLabel, seasonLabel, seasonSelectionLabel } from "@/lib/utils/season";
@@ -18,20 +18,54 @@ function Chiffre({ valeur, libelle }: { valeur: number; libelle: string }) {
   );
 }
 
+const COULEURS_SERIES = ["var(--tcn-text-faint)", "var(--tcn-ink)", "var(--tcn-orange)"];
+
 function Histogramme({ stats, seasons }: { stats: Stats; seasons: number[] }) {
-  const season = Math.max(...seasons);
-  const mois = moisDeSaison(stats.by_month, season);
-  const max = Math.max(1, ...mois.map((m) => m.valeur));
-  const resume = mois.filter((m) => m.valeur > 0).map((m) => `${m.libelle} : ${m.valeur}`).join(", ");
+  const { saisons, tronque, mois } = moisComparesParSaison(stats.by_month, seasons);
+  const couleurs = COULEURS_SERIES.slice(-saisons.length);
+  const compare = saisons.length > 1;
+  const max = Math.max(1, ...mois.flatMap((m) => m.valeurs));
+  const resume = saisons
+    .map((saison, k) => {
+      const valeurs = mois.filter((m) => m.valeurs[k] > 0).map((m) => `${m.libelle} : ${m.valeurs[k]}`).join(", ");
+      return `${compare ? `${seasonLabel(saison)} : ` : ""}${valeurs || "Aucun pour l'instant"}`;
+    })
+    .join(". ");
   return (
-    <figure role="img" aria-label={`Résultats par mois. ${resume || "Aucun pour l'instant"}.`} style={{ margin: 0 }}>
-      <div aria-hidden="true" style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 72 }}>
-        {mois.map((m, i) => (
-          <span key={m.mois} className="tcn-barre" style={{ "--i": i, flex: 1, height: `${Math.max(4, (m.valeur / max) * 100)}%`, borderRadius: 3, background: m.valeur ? "var(--tcn-orange)" : "var(--tcn-grey-300)" } as CSSProperties} />
+    <figure role="img" aria-label={`Résultats par mois. ${resume}.`} style={{ margin: 0 }}>
+      <div aria-hidden="true" style={{ display: "flex", gap: compare ? 6 : 4 }}>
+        {mois.map((m) => (
+          <div key={m.index} style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 1, height: 72 }}>
+              {m.valeurs.map((valeur, k) => (
+                <span
+                  key={saisons[k]}
+                  className="tcn-barre"
+                  title={`${m.libelle} : ${valeur}`}
+                  style={{ "--i": m.index, flex: 1, minWidth: 0, height: `${Math.max(4, (valeur / max) * 100)}%`, borderRadius: 3, background: valeur ? couleurs[k] : "var(--tcn-grey-300)" } as CSSProperties}
+                />
+              ))}
+            </div>
+            <div style={{ marginTop: 4, textAlign: "center", fontSize: 11, color: "var(--tcn-text-muted)" }}>
+              <span className="hidden sm:inline">{m.libelle}</span>
+              <span className="sm:hidden">{m.libelle[0].toUpperCase()}</span>
+            </div>
+          </div>
         ))}
       </div>
       <figcaption aria-hidden="true" style={{ fontSize: 12, fontWeight: 700, marginTop: 6, color: "var(--tcn-text-muted)" }}>
-        Résultats par mois{seasons.length > 1 && ` · ${seasonLabel(season)}`}
+        Résultats par mois
+        {compare && (
+          <span style={{ display: "flex", flexWrap: "wrap", gap: "2px 12px", marginTop: 4 }}>
+            {saisons.map((saison, k) => (
+              <span key={saison} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: couleurs[k] }} />
+                {seasonLabel(saison)}
+              </span>
+            ))}
+          </span>
+        )}
+        {tronque && <span style={{ display: "block", fontWeight: 400 }}>3 saisons les plus récentes</span>}
       </figcaption>
     </figure>
   );

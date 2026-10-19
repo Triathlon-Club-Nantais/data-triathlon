@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estToutRecent, moisDeSaison, titreSortie } from "./home";
+import { estToutRecent, moisComparesParSaison, moisDeSaison, titreSortie } from "./home";
 
 describe("titreSortie", () => {
   it("says « Ce week-end » within 7 days", () => {
@@ -24,6 +24,23 @@ describe("moisDeSaison", () => {
     expect(mois[1].valeur).toBe(0);
     expect(mois[2].valeur).toBe(5);
     expect(mois[11].mois).toBe("2027-08");
+  });
+});
+
+describe("moisComparesParSaison", () => {
+  it("lines up the selected seasons month by month, oldest first", () => {
+    const r = moisComparesParSaison({ "2025-09": 3, "2026-09": 5, "2026-10": 2 }, [2025, 2026]);
+    expect(r.saisons).toEqual([2025, 2026]);
+    expect(r.tronque).toBe(false);
+    expect(r.mois).toHaveLength(12);
+    expect(r.mois[0]).toEqual({ index: 0, libelle: "sept.", valeurs: [3, 5] });
+    expect(r.mois[1].valeurs).toEqual([0, 2]);
+  });
+
+  it("keeps the 3 most recent seasons and flags the truncation", () => {
+    const r = moisComparesParSaison({}, [2022, 2023, 2024, 2025]);
+    expect(r.saisons).toEqual([2023, 2024, 2025]);
+    expect(r.tronque).toBe(true);
   });
 });
 

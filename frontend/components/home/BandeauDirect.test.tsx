@@ -62,10 +62,35 @@ describe("BandeauDirect", () => {
     expect(screen.getByRole("img", { name: /Résultats par mois.*sept\. : 120.*oct\. : 192/ })).toBeInTheDocument();
   });
 
-  it("names the selection in the title and the latest season on the chart", () => {
+  it("names the selection in the title", () => {
     render(<BandeauDirect sortie={null} stats={STATS} seasons={[2025, 2026]} today={TODAY} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("2 saisons sélectionnées");
-    expect(screen.getByText("Résultats par mois · Saison 2026 — 2027")).toBeInTheDocument();
+  });
+
+  it("labels the twelve months under the bars and titles each bar with its value", () => {
+    const { container } = render(<BandeauDirect sortie={null} stats={STATS} seasons={[2026]} today={TODAY} />);
+    for (const libelle of ["sept.", "oct.", "nov.", "déc.", "janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août"]) {
+      expect(screen.getByText(libelle).closest("[aria-hidden='true']")).not.toBeNull();
+    }
+    const bars = container.querySelectorAll(".tcn-barre");
+    expect(bars[0]).toHaveAttribute("title", "sept. : 120");
+    expect(bars[1]).toHaveAttribute("title", "oct. : 192");
+  });
+
+  it("draws one bar per season and month with a legend when several seasons are selected", () => {
+    const stats = { ...STATS, by_month: { ...STATS.by_month, "2025-09": 7 } };
+    const { container } = render(<BandeauDirect sortie={null} stats={stats} seasons={[2025, 2026]} today={TODAY} />);
+    expect(container.querySelectorAll(".tcn-barre")).toHaveLength(24);
+    expect(screen.getByText("Saison 2025 — 2026")).toBeInTheDocument();
+    expect(screen.getByText("Saison 2026 — 2027")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Saison 2025 — 2026 : sept\. : 7.*Saison 2026 — 2027 : sept\. : 120/ })).toBeInTheDocument();
+    expect(screen.queryByText(/saisons les plus récentes/)).toBeNull();
+  });
+
+  it("notes that only the 3 most recent seasons are drawn", () => {
+    const { container } = render(<BandeauDirect sortie={null} stats={STATS} seasons={[2022, 2023, 2024, 2025]} today={TODAY} />);
+    expect(screen.getByText("3 saisons les plus récentes")).toBeInTheDocument();
+    expect(container.querySelectorAll(".tcn-barre")).toHaveLength(36);
   });
 
   it("dates a past season's outing", () => {
