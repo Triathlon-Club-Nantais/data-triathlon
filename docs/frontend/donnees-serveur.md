@@ -10,7 +10,8 @@ Renvoyé depuis `frontend/AGENTS.md`, table « Où lire quoi ».
 consommateurs (`MaSaison`, `ClubPodiumKpi`, `PodiumsList`) recalculent en
 mémoire : zéro requête (#328). `?scope`, `?sports` et `?seasons` **le sont**
 (`app/club/page.tsx`, `app/(public_restricted)/mon-espace/page.tsx`), donc `ScopeToggle` et
-`DisciplineToggle` gardent `router.push` — les basculer serait un bug
+`DisciplineToggle` gardent `router.push`, comme `SexeToggle` (`?sexe=H|F`, #1643,
+mapper `genderFromSexeParam` dans `lib/scope.ts`) — les basculer serait un bug
 silencieux, la page continuant de lire l'ancienne valeur sans erreur visible.
 L'asymétrie est voulue ; elle se re-tranche paramètre par paramètre, jamais
 par harmonisation. `?season=` et `?discipline=`, les deux filtres du tableau

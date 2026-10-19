@@ -43,3 +43,16 @@ export const SPORTS_ALL = "all";
 export function federalOnlyFromParam(sports?: string | null): true | undefined {
   return sports === SPORTS_ALL ? undefined : true;
 }
+
+/** Nom du paramètre d'URL filtrant par sexe (`?sexe=H|F`, absent = Tous). */
+export const SEXE_PARAM = "sexe";
+
+/** Valeur de `gender` attendue par l'API. */
+export type Gender = "M" | "F";
+
+/** `?sexe=H` → `"M"`, `?sexe=F` → `"F"` ; toute autre valeur = aucun filtre. */
+export function genderFromSexeParam(sexe?: string | null): Gender | undefined {
+  if (sexe === "H") return "M";
+  if (sexe === "F") return "F";
+  return undefined;
+}
