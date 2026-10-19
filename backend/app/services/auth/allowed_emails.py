@@ -1,4 +1,5 @@
-"""Gestion de la liste d'autorisation — qui a le droit d'ouvrir une session (#170).
+"""Gestion de la liste d'autorisation (#170) : rôle du premier jour et adresse
+retenue. Elle ne conditionne plus l'ouverture d'une session depuis #1322.
 
 Distinct de `provisioning.py`, qui **lit** cette liste au passage d'une
 connexion : ici on l'**écrit**, depuis le back-office ou depuis la CLI
@@ -113,6 +114,7 @@ def add(
             # garde — et c'est la forme exacte qui a produit le défaut d'origine.
             raise ValueError("Nommer un rôle initial exige un acteur.")
         _assert_may_choose(db, actor, address, role_id)
+        _assert_no_account_for_initial_role(db, address, role_id)
 
     entry, created = allowed_email_repository.add(
         db, email=address, created_by_user_id=actor.id if actor else None
@@ -139,6 +141,28 @@ def add(
         },
     )
     return entry, created, reactivated
+
+
+class AccountAlreadyExistsError(DomainError):
+    status_code = 409
+    message = (
+        "Un compte existe déjà pour cette adresse : attribuez-lui le rôle depuis "
+        "l'écran « Rôles des utilisateurs »."
+    )
+
+
+def _assert_no_account_for_initial_role(db: Session, email: str, role_id: int | None) -> None:
+    """Revue de #1322 : depuis la connexion ouverte, un compte peut exister avant
+    l'autorisation. Le rôle du premier jour ne s'appliquerait jamais (il se pose
+    à la création), et le donner par l'adresse serait l'appariement que #114
+    interdit. Redire le rôle déjà posé reste permis : rien ne change de mains."""
+    if role_id is None:
+        return
+    entry = allowed_email_repository.get_by_email(db, email)
+    if entry is not None and entry.role_id == role_id:
+        return
+    if user_repository.find_by_email(db, email):
+        raise AccountAlreadyExistsError()
 
 
 def _assert_may_choose(

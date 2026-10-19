@@ -1596,3 +1596,84 @@ export function useUnlinkClubMember() {
     onSuccess: () => qc.invalidateQueries(),
   });
 }
+
+// ── Adresses d'adhérents (#1334) ─────────────────────────────────────────────
+// Aucun compteur n'en dépend : une écriture ne périme que la liste, toutes
+// saisons confondues (`counting_season` et `seasons` bougent avec elle).
+
+const MEMBER_EMAILS = ["member-emails"] as const;
+
+export function useMemberEmails(season: number) {
+  return useQuery({
+    queryKey: queryKeys.memberEmails(season),
+    queryFn: () => apiClient.getMemberEmails(season),
+    retry: false,
+  });
+}
+
+export function useImportMemberEmails() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ season, file }: { season: number; file: File }) =>
+      apiClient.importMemberEmails(season, file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: MEMBER_EMAILS }),
+  });
+}
+
+export function useAddMemberEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ email, season }: { email: string; season: number }) =>
+      apiClient.addMemberEmail(email, season),
+    onSuccess: () => qc.invalidateQueries({ queryKey: MEMBER_EMAILS }),
+  });
+}
+
+export function useRemoveMemberEmail() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => apiClient.removeMemberEmail(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: MEMBER_EMAILS }),
+  });
+}
+
+// ── Rattachements de fiche (#1325) ───────────────────────────────────────────
+// La pastille suit d'elle-même : toute mutation réussie invalide les compteurs
+// du rail (`app/providers.tsx`).
+
+export function useAthleteClaims() {
+  return useQuery({
+    queryKey: queryKeys.athleteClaims(),
+    queryFn: () => apiClient.getAthleteClaims(),
+    retry: false,
+  });
+}
+
+export function useDecideAthleteClaim() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, decision }: { id: number; decision: "approve" | "reject" }) =>
+      decision === "approve" ? apiClient.approveAthleteClaim(id) : apiClient.rejectAthleteClaim(id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: queryKeys.athleteClaims() });
+      // Une validation ajoute un compte à la liste des rattachés (#1633).
+      return qc.invalidateQueries({ queryKey: queryKeys.athleteLinks() });
+    },
+  });
+}
+
+export function useAthleteLinks() {
+  return useQuery({
+    queryKey: queryKeys.athleteLinks(),
+    queryFn: () => apiClient.getAthleteLinks(),
+    retry: false,
+  });
+}
+
+export function useDetachAthleteLink() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: number) => apiClient.detachAthleteLink(userId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.athleteLinks() }),
+  });
+}

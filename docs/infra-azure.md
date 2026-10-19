@@ -74,6 +74,18 @@ qu'environ 1,50 € par mois, au prix d'un redémarrage à ordonner avant le lev
 du backend. Une offre Azure pour associations, si le club y est éligible,
 serait le seul moyen de ramener la facture à zéro.
 
+## Tenant Entra External ID (#1323)
+
+Un tenant **externe** (`Microsoft.AzureActiveDirectory/ciamDirectories`,
+rattaché au groupe `TCN_Data_BDD`) porte la connexion des adhérents par Google
+ou par code e-mail. Décrit dans le dépôt : `infra/entra-external-id/main.bicep`
+pour le tenant, `configure-tenant.sh` (Microsoft Graph) pour l'application, le
+fournisseur Google et le parcours d'inscription. **0 €** jusqu'à 50 000
+utilisateurs actifs par mois ; domaine personnalisé, SMS et *client
+credentials* sont payants et exclus. Ordre de déploiement, étape manuelle du
+client Google et constat à mener avant production :
+`infra/entra-external-id/AGENTS.md`. Pas encore déployé à l'écriture.
+
 ## Ce que le réseau public change
 
 Le serveur n'est **pas** dans un VNet privé : c'est le pare-feu applicatif du

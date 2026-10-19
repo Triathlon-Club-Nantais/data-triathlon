@@ -23,8 +23,9 @@ def test_la_liste_d_autorisation_n_est_pas_interrogee(
     mesuré à 40 et toutes les routes du projet sont `def` : c'est le levier de
     charge que #114 a fermé sur le retour de parcours.
 
-    Le fail-closed n'est pas perdu, il est déplacé là où il décide :
-    `provisioning` refuse en `account_not_allowed`, liste vide comprise.
+    Depuis #1322 la liste ne conditionne plus du tout la connexion : un compte
+    hors liste naît sans rôle, et ce sont les gardes (pouvoir, code du site)
+    qui ferment.
     """
     vider_la_liste_autorisation()
 

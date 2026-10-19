@@ -11,6 +11,7 @@ from app.models.club_member import LINK_AUTO, SOURCE_FFTRI, ClubMember
 from app.models.season_validation import SeasonValidation
 from app.models.volunteer_action import VolunteerAction
 from app.repositories import (
+    athlete_claim_repository,
     athlete_repository,
     club_member_repository,
     course_repository,
@@ -180,6 +181,8 @@ def test_apply_cuts_every_other_link_to_the_record(db, course, admin):
         db, athlete_id=jean.id, season=2025, declared_by_user_id=None, title="Ravitaillement", description="",
     )
     season_validation_repository.create(db, athlete_id=jean.id, season=2025, validated_by_user_id=admin.id)
+    autre = user_repository.create(db, email="autre@exemple.fr", display_name="")
+    athlete_claim_repository.replace_pending(db, user_id=autre.id, athlete_id=jean.id)
     db.flush()
 
     opposition_service.apply(db, admin, athlete_id=jean.id, requested_on=TODAY, today=TODAY)
@@ -188,6 +191,7 @@ def test_apply_cuts_every_other_link_to_the_record(db, course, admin):
     assert compte.athlete_id is None
     assert db.query(VolunteerAction).count() == 0
     assert db.query(SeasonValidation).count() == 0
+    assert athlete_claim_repository.get_for_user(db, autre.id) is None
 
 
 def test_apply_is_logged_with_both_dates_and_without_the_name(db, course, admin):

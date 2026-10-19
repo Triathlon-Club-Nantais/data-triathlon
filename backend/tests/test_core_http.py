@@ -524,16 +524,21 @@ def test_le_detecteur_ignore_ce_qui_nouvre_aucune_connexion():
     assert _httpx_nu("import httpx\ntry: ...\nexcept httpx.HTTPError: ...\n") == []
 
 
-#: Les deux seuls fichiers qui construisent un client. `core/http.py` est la
-#: fabrique elle-même ; `services/auth/idp/github.py` construit l'`OAuth2Client`
-#: d'Authlib, à qui il passe `guarded_transport()` — le détecteur lit l'AST, il
-#: ne peut pas juger *quel* transport est passé. Cette exemption est donc
-#: doublée d'un test **positif** côté authentification
-#: (`test_le_transport_par_defaut_est_le_transport_garde`), sans lequel elle
+#: Les seuls fichiers qui construisent un client. `core/http.py` est la
+#: fabrique elle-même ; `services/auth/idp/github.py` et `entra.py` construisent
+#: l'`OAuth2Client` d'Authlib, à qui ils passent `guarded_transport()` — le
+#: détecteur lit l'AST, il ne peut pas juger *quel* transport est passé. Chaque
+#: exemption est donc doublée d'un test **positif** côté authentification
+#: (`test_le_transport_par_defaut_est_le_transport_garde`,
+#: `test_the_default_transport_is_the_guarded_one`), sans lequel elle
 #: serait un trou : le fichier pourrait cesser de garder sans que rien n'échoue.
 #: Nominative, jamais un motif de dossier — un second fichier ajouté dans `idp/`
 #: doit repasser par la fabrique.
-_FABRIQUES = ("core/http.py", "services/auth/idp/github.py")
+_FABRIQUES = (
+    "core/http.py",
+    "services/auth/idp/entra.py",
+    "services/auth/idp/github.py",
+)
 
 
 def test_meta_aucun_httpx_nu_dans_app():

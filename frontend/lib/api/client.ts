@@ -33,6 +33,12 @@ import type {
   ClubMember,
   ClubMembersSeason,
   MembersSyncReport,
+  MemberEmail,
+  AthleteClaim,
+  AthleteClaimReview,
+  AthleteLink,
+  MemberEmailsImportReport,
+  MemberEmailsSeason,
   CounterScope,
   CounterScopeEntry,
   CourseBrief,
@@ -354,6 +360,7 @@ export const apiClient = {
   listAuthMethods: () => request<AuthMethod[]>("/auth/methods"),
   getSession: () => request<SessionUser>("/auth/me"),
   logout: () => request<null>("/auth/logout", { method: "POST" }),
+  deleteAccount: () => request<null>("/auth/me", { method: "DELETE" }),
 
   // ── Administration des données (#117) ──────────────────────────────────────
   // Six ressources, six pouvoirs distincts côté serveur : l'écran ne fait que
@@ -893,6 +900,40 @@ export const apiClient = {
     }),
   unlinkClubMember: (memberId: number) =>
     request<ClubMember>(`/admin/club-members/${memberId}/link`, { method: "DELETE" }),
+
+  // ── Adresses d'adhérents (#1334) ───────────────────────────────────────────
+  getMemberEmails: (season: number) =>
+    request<MemberEmailsSeason>(`/admin/member-emails?season=${season}`),
+  importMemberEmails: (season: number, file: File) => {
+    const form = new FormData();
+    form.append("season", String(season));
+    form.append("file", file);
+    return upload<MemberEmailsImportReport>("/admin/member-emails/import", form);
+  },
+  addMemberEmail: (email: string, season: number) =>
+    request<MemberEmail>("/admin/member-emails", {
+      method: "POST",
+      body: JSON.stringify({ email, season }),
+    }),
+  removeMemberEmail: (id: number) =>
+    request<null>(`/admin/member-emails/${id}`, { method: "DELETE" }),
+
+  // ── Rattachement à une fiche athlète (#1325) ─────────────────────────────────
+  requestAthleteClaim: (athleteId: number) =>
+    request<AthleteClaim>("/auth/me/athlete-claim", {
+      method: "POST",
+      body: JSON.stringify({ athlete_id: athleteId }),
+    }),
+  cancelAthleteClaim: () => request<null>("/auth/me/athlete-claim", { method: "DELETE" }),
+  detachAthlete: () => request<null>("/auth/me/athlete", { method: "DELETE" }),
+  getAthleteClaims: () => request<AthleteClaimReview[]>("/admin/athlete-claims"),
+  getAthleteLinks: () => request<AthleteLink[]>("/admin/athlete-links"),
+  detachAthleteLink: (userId: number) =>
+    request<null>(`/admin/athlete-links/${userId}`, { method: "DELETE" }),
+  approveAthleteClaim: (id: number) =>
+    request<null>(`/admin/athlete-claims/${id}/approve`, { method: "POST" }),
+  rejectAthleteClaim: (id: number) =>
+    request<null>(`/admin/athlete-claims/${id}/reject`, { method: "POST" }),
 
   // ── Retours utilisateurs (#267) ────────────────────────────────────────────
   // Route publique, et son chemin le dit : `/feedback`, hors de `/admin` où

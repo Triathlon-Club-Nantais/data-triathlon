@@ -184,6 +184,10 @@ uv run ruff check .                  # lint
 | `AUTH_SESSION_SECRET_KEY` | *(vide)* | Signe le jeton d'état du parcours. **≥ 32 caractères** ou le démarrage échoue ; vide = authentification non configurée |
 | `AUTH_GITHUB_CLIENT_ID` | *(vide)* | Application OAuth GitHub |
 | `AUTH_GITHUB_CLIENT_SECRET` | *(vide)* | Application OAuth GitHub |
+| `AUTH_ENTRA_SUBDOMAIN` | *(vide)* | Entra External ID : sous-domaine `<nom>.ciamlogin.com` du tenant (`infra/entra-external-id/AGENTS.md`). Les quatre `AUTH_ENTRA_*` ou aucun |
+| `AUTH_ENTRA_TENANT_ID` | *(vide)* | Entra External ID : identifiant du tenant externe |
+| `AUTH_ENTRA_CLIENT_ID` | *(vide)* | Entra External ID : identifiant d'application |
+| `AUTH_ENTRA_CLIENT_SECRET` | *(vide)* | Entra External ID : secret client, affiché une fois par `configure-tenant.sh` |
 | `AUTH_REDIRECT_BASE_URL` | *(vide)* | Origine de l'**interface** (jamais celle de l'API) : destination de retour, base de `/login?error=…` et du `redirect_uri` envoyé au fournisseur. **Sans défaut** — un défaut localhost faisait passer pour configuré un déploiement qui l'oubliait, et l'échec tombait alors chez GitHub |
 | `AUTH_COOKIE_SECURE` | `true` | `false` en développement sans TLS — retire alors le préfixe `__Host-` du nom des cookies |
 | `AUTH_SESSION_TTL_DAYS` | `7` | Durée de session, sans prolongation glissante |

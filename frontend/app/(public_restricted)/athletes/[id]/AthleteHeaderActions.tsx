@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useHydratedSession } from "@/lib/queries/auth";
 import type { AthleteAdminPanel as Panel, CoureurACorriger } from "@/components/athletes/AthleteAdminPanel";
 import { AthleteOppositionAction } from "@/components/athletes/AdminGates";
+import { AthleteClaimAction, LinkedAthleteMark } from "@/components/athletes/AthleteClaimAction";
 import { AthleteSelection } from "./AthleteSelection";
 
 /**
@@ -35,19 +36,23 @@ export function AthleteHeaderActions({ athlete }: { athlete: CoureurACorriger })
     );
   }, [peutCorriger]);
 
-  if (peutCorriger && AthleteAdminPanel) {
-    return (
-      <>
-        <AthleteAdminPanel athlete={athlete} primary />
-        <AthleteSelection athlete={athlete} primary={false} />
-        <AthleteOppositionAction athlete={athlete} />
-      </>
-    );
-  }
+  const panneauEnTete = peutCorriger && AthleteAdminPanel;
+  // #1325 : un compte rattaché ne choisit plus d'athlète, sa fiche tient lieu de
+  // sélection ; un connecté sans rattachement peut demander celle-ci.
+  const rattachee = session.data?.athlete;
+  const selection = rattachee ? (
+    <LinkedAthleteMark athlete={athlete} linked={rattachee} />
+  ) : (
+    <>
+      <AthleteSelection athlete={athlete} primary={!panneauEnTete} />
+      {session.data && <AthleteClaimAction athlete={athlete} session={session.data} />}
+    </>
+  );
 
   return (
     <>
-      <AthleteSelection athlete={athlete} />
+      {panneauEnTete && <AthleteAdminPanel athlete={athlete} primary />}
+      {selection}
       <AthleteOppositionAction athlete={athlete} />
     </>
   );

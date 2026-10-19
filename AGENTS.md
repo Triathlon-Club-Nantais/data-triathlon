@@ -34,12 +34,12 @@ n'accueille que ce qu'on voudrait relire à chaque session.
 | Modèle normalisé et splits | `backend/app/models/AGENTS.md` |
 | Observabilité SQL | `backend/app/core/AGENTS.md` |
 | Authentification SSO (#114) | `backend/app/services/auth/AGENTS.md` |
-| Liste d'autorisation (#170) ou groupes d'appartenance (#197) en détail | `docs/auth/<sujet>.md` |
+| Liste d'autorisation (#170), groupes d'appartenance (#197) ou adresses d'adhérents (#1334, `membres.md`) en détail | `docs/auth/<sujet>.md` |
 | Architecture frontend | `frontend/AGENTS.md` |
 | Worktree par issue/PR : la règle, les ports, `.worktreeinclude` | `docs/dev-multi-worktree.md` |
 | CI/CD, déploiements, variables par environnement | `docs/ci-cd.md` |
 | Infrastructure Azure (base de production PostgreSQL, contrainte budget zéro) | `docs/infra-azure.md` |
-| Azure Function keep-warm : planning, App Settings, déploiement | `infra/azure-functions/AGENTS.md` |
+| Azure Function keep-warm ; tenant Entra External ID (#1323) : déploiement, procédures manuelles | `infra/azure-functions/AGENTS.md`, `infra/entra-external-id/AGENTS.md` |
 
 ## Workflow IA
 

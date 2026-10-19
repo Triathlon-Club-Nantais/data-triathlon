@@ -9,11 +9,11 @@ from app.services.auth.idp.base import AuthorizationRequest, ExternalIdentity
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_github_est_le_seul_fournisseur_livre():
-    assert registry.slugs() == ["github"]
+def test_github_et_entra_sont_les_seuls_fournisseurs_livres():
+    assert registry.slugs() == ["entra", "github"]
 
 
-def test_le_registre_importe_a_froid_ne_contient_que_github():
+def test_le_registre_importe_a_froid_ne_contient_que_les_fournisseurs_livres():
     """SC-012 : aucune doublure de test n'est atteignable en production (FR-034).
 
     Vérifié dans un **processus neuf** : dans celui-ci, une fixture a pu
@@ -32,7 +32,7 @@ def test_le_registre_importe_a_froid_ne_contient_que_github():
         text=True,
         check=True,
     )
-    assert sortie.stdout.strip() == "['github']"
+    assert sortie.stdout.strip() == "['entra', 'github']"
 
 
 def test_une_doublure_enregistree_par_fixture_est_visible(doublure):

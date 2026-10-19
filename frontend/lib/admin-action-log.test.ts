@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { actionLabel, detailLines, formatPayload } from "./admin-action-log";
+import { actionLabel, actorLabel, detailLines, formatPayload } from "./admin-action-log";
 
 describe("actionLabel", () => {
   it("traduit un geste connu", () => {
@@ -102,6 +102,38 @@ describe("catalogue coverage (#1043)", () => {
     const codes = [...new Set(codesEmis(join(__dirname, "..", "..", "backend", "app")))];
     expect(codes.length).toBeGreaterThan(20);
     expect(codes.filter((code) => actionLabel(code) === code)).toEqual([]);
+  });
+
+  it("translates the member e-mail import counters (#1334)", () => {
+    const lignes = formatPayload({ added: 2, removed: 1, unchanged: 3, ignored: 4 });
+
+    expect(lignes).toEqual([
+      { label: "Adresses ajoutées", value: "2" },
+      { label: "Adresses retirées", value: "1" },
+      { label: "Adresses inchangées", value: "3" },
+      { label: "Lignes ignorées", value: "4" },
+    ]);
+  });
+
+  it("translates an account deletion and its origin, never the raw code (#1326)", () => {
+    expect(actionLabel("account.delete")).toBe("Suppression d'un compte");
+    expect(formatPayload({ origin: "request" })).toEqual([
+      { label: "Origine", value: "à la demande de son titulaire" },
+    ]);
+    expect(formatPayload({ origin: "inactivity" })).toEqual([
+      { label: "Origine", value: "5 ans sans activité" },
+    ]);
+    expect(formatPayload({ origin: "operator" })).toEqual([
+      { label: "Origine", value: "par l'exploitant, données du club passées au compte système" },
+    ]);
+    expect(formatPayload({ entra_oids: ["oid-1"] })).toEqual([
+      { label: "Identifiants Microsoft Entra à effacer", value: "1 (oid-1)" },
+    ]);
+  });
+
+  it("names the system, not the volunteers' shared account, as author of an account deletion (#1326)", () => {
+    expect(actorLabel({ action: "account.delete", user_name: "Bénévoles (accès partagé)" })).toBe("Système");
+    expect(actorLabel({ action: "course.delete", user_name: "Jean Dupont" })).toBe("Jean Dupont");
   });
 
   it("translates the season, volunteering and source payload keys", () => {

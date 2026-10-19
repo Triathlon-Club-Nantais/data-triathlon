@@ -131,6 +131,11 @@ describe("Politique de confidentialité (#333)", () => {
     expect(screen.getByRole("row", { name: /^ph_/ })).toHaveTextContent("1 an");
   });
 
+  it("dit comment un compte se rattache à sa fiche et s'en détache (#1325)", () => {
+    expect(rendre()).toMatch(/à la demande de son titulaire, après vérification par le club/);
+    expect(rendre()).toMatch(/Me détacher de ma fiche/);
+  });
+
   it("ne rattache les actions du back-office au compte qu'avec l'accord (#1359)", () => {
     expect(rendre()).toMatch(/rattachées à l.identifiant du compte seulement si son titulaire a accepté la mesure détaillée/);
   });
@@ -151,7 +156,50 @@ describe("Politique de confidentialité (#333)", () => {
     expect(rendre()).toMatch(/retiré[^.]*de la liste des licenciés/i);
   });
 
+  it("announces the member e-mail list, its purpose, minimisation and retention (#1334)", () => {
+    const texte = rendre();
+    expect(texte).toMatch(/liste des adresses d.adhérents/i);
+    expect(texte).toMatch(/AssoConnect/);
+    expect(texte).toMatch(/reconnaître un adhérent quand il se connecte/i);
+    expect(texte).toMatch(/jamais enregistrés/i);
+    expect(screen.getByRole("row", { name: /adresses d.adhérents/i })).toHaveTextContent(
+      "La saison en cours et la précédente",
+    );
+  });
+
+  it("annonce les comptes ouverts aux adhérents, plus seulement au back-office (#1322)", () => {
+    const texte = rendre();
+    expect(texte).toMatch(/les adhérents peuvent se connecter/i);
+    expect(texte).toMatch(/aucun droit d.administration/i);
+    expect(texte).not.toMatch(/Les comptes du back-office\./);
+    expect(screen.getByRole("row", { name: /^tcn_session/ })).not.toHaveTextContent(/back-office/);
+  });
+
+  it("announces account deletion from the menu and the 5-year inactivity limit (#1326)", () => {
+    const texte = rendre();
+    expect(screen.getByRole("row", { name: /^Compte / })).toHaveTextContent(
+      "Jusqu'à sa suppression depuis le menu du compte, ou 5 ans sans connexion",
+    );
+    expect(screen.getByRole("row", { name: /^Compte / })).toHaveTextContent(
+      /un compte qui porte un rôle est gardé tant qu.il le porte/,
+    );
+    expect(screen.getByRole("row", { name: /^Compte / })).not.toHaveTextContent(/bénévole/);
+    expect(texte).toMatch(/« Supprimer mon compte »/);
+    expect(texte).toMatch(/vos résultats et votre fiche athlète restent/i);
+  });
+
+  it("names Microsoft Entra External ID as the sign-in processor (#1323)", () => {
+    const texte = rendre();
+    expect(texte).toMatch(/Google ou par un code reçu par e-mail/);
+    expect(screen.getByRole("row", { name: /Entra External ID/ })).toHaveTextContent(/connexion/i);
+    expect(screen.getByRole("row", { name: /^tcn_auth_state/ })).not.toHaveTextContent(/GitHub/);
+  });
+
+  it("says the Entra directory entry is erased by the club after the account (#1323, #1326)", () => {
+    expect(rendre()).toMatch(/annuaire Microsoft du club[^.]*le club l.efface dans le mois qui suit la suppression du compte/i);
+  });
+
   it("date la politique du jour de sa dernière modification", () => {
-    expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-15");
+    expect(PRIVACY_POLICY.updatedAt).toBe("2026-10-17");
   });
 });

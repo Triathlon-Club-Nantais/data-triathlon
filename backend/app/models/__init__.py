@@ -4,6 +4,7 @@ from app.models.admin_action_log import AdminActionLog
 from app.models.allowed_email import AllowedEmail
 from app.models.athlete import Athlete
 from app.models.athlete_alias import AthleteAlias
+from app.models.athlete_claim import AthleteClaim
 from app.models.athlete_known_club import AthleteKnownClub
 from app.models.athlete_opposition import AthleteOpposition
 from app.models.challenge import Challenge, ChallengeCourse, ChallengeResult
@@ -17,6 +18,7 @@ from app.models.identity import Identity
 from app.models.ignored_athlete_pair import IgnoredAthletePair
 from app.models.ignored_course_duplicate import IgnoredCourseDuplicate
 from app.models.ignored_identity_case import IgnoredIdentityCase
+from app.models.member_email import MemberEmail
 from app.models.organisation import Organisation
 from app.models.participation import Participation, ParticipationTeammate
 from app.models.pending_provider import PendingProvider
@@ -45,6 +47,7 @@ __all__ = [
     "AthleteOpposition",
     "Athlete",
     "AthleteAlias",
+    "AthleteClaim",
     "AthleteKnownClub",
     "VolunteerAccessConfig",
     "Challenge",
@@ -60,6 +63,7 @@ __all__ = [
     "IgnoredAthletePair",
     "IgnoredIdentityCase",
     "IgnoredCourseDuplicate",
+    "MemberEmail",
     "Organisation",
     "Participation",
     "ParticipationTeammate",
