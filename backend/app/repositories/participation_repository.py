@@ -1,7 +1,7 @@
 """Accès données pour Participation, incluant les filtres de la liste publique."""
 from collections.abc import Iterable, Sequence
 from datetime import date, datetime
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 from sqlalchemy import and_, case, exists, func, literal, or_, select, union_all
 from sqlalchemy import update as sql_update
@@ -821,6 +821,38 @@ def _display_order():
     )
 
 
+#: Population classée par sexe (#1645) : finishers individuels portant un rang.
+_GENDER_RANKED = and_(
+    _DISPLAY_GROUP == 0,
+    Participation.rank_overall.is_not(None),
+    Participation.is_relay.is_(False),
+)
+
+
+def gender_places(db: Session, course_id: int, gender: Literal["M", "F"]) -> tuple[dict[int, int], bool]:
+    """Place par sexe de chaque ligne classée de l'épreuve, et son caractère officiel.
+
+    Officielle (`rank_gender`) si **toutes** les lignes de la population en
+    portent un ; sinon recalculée par position dans `_display_order`. Calculée
+    sur l'épreuve entière, une recherche ou une page ne la décale donc pas.
+    """
+    rows = db.execute(
+        select(Participation.id, Participation.rank_gender)
+        .join(Athlete, Participation.athlete_id == Athlete.id)
+        .where(
+            Participation.course_id == course_id,
+            validated_clause(Participation.is_pending_validation),
+            Athlete.gender == gender,
+            _GENDER_RANKED,
+        )
+        .order_by(*_display_order())
+    ).all()
+    official = bool(rows) and all(rank is not None for _, rank in rows)
+    if official:
+        return {participation_id: rank for participation_id, rank in rows}, True
+    return {participation_id: position for position, (participation_id, _) in enumerate(rows, start=1)}, False
+
+
 def _club_filter_targets(db: Session, club: str, course_id: int) -> set[str]:
     """Les formes normalisées qu'un filtre `club=` doit retenir (#635).
 
@@ -864,6 +896,8 @@ def list_page_for_course(
     club_only: bool = False,
     club: str | None = None,
     category: str | None = None,
+    gender: Literal["M", "F"] | None = None,
+    official_gender_order: bool = False,
 ) -> tuple[list[Participation], int]:
     """Tranche ordonnée du classement d'une épreuve, et total de la sélection.
 
@@ -893,9 +927,15 @@ def list_page_for_course(
     par `list_pending_for_course` (#1273).
     """
     query = _course_rows(
-        db, course_id, q=q, club_only=club_only, club=club, category=category
+        db, course_id, q=q, club_only=club_only, club=club, category=category, gender=gender
     ).filter(validated_clause(Participation.is_pending_validation))
     total = query.count()
+    if gender:
+        # La population classée d'abord, dans l'ordre de `gender_places`.
+        query = query.order_by(case((_GENDER_RANKED, 0), else_=1))
+        if official_gender_order:
+            # Nul hors population : les lignes suivantes gardent l'ordre actuel.
+            query = query.order_by(case((_GENDER_RANKED, Participation.rank_gender), else_=None))
     query = query.order_by(*_display_order())
     if page_size is not None:
         query = query.offset((page - 1) * page_size).limit(page_size)
@@ -944,6 +984,7 @@ def list_pending_for_course(
     club_only: bool = False,
     club: str | None = None,
     category: str | None = None,
+    gender: Literal["M", "F"] | None = None,
 ) -> list[Participation]:
     """Les résultats en attente non refusés d'une épreuve, à afficher (#1273).
 
@@ -955,7 +996,7 @@ def list_pending_for_course(
     Plafonnés à `PENDING_ROWS_CAP`, catégories et épreuves jeunes exclues.
     """
     return (
-        _course_rows(db, course_id, q=q, club_only=club_only, club=club, category=category)
+        _course_rows(db, course_id, q=q, club_only=club_only, club=club, category=category, gender=gender)
         .filter(_shown_awaiting(db))
         .order_by(func.lower(Athlete.nom), func.lower(Athlete.prenom), Participation.id)
         .limit(PENDING_ROWS_CAP)
@@ -963,7 +1004,7 @@ def list_pending_for_course(
     )
 
 
-def _course_rows(db: Session, course_id: int, *, q, club_only, club, category):
+def _course_rows(db: Session, course_id: int, *, q, club_only, club, category, gender=None):
     """Lignes d'une épreuve aux filtres du classement, **sans** clause de validation :
     chaque appelant pose la sienne."""
     query = (
@@ -988,6 +1029,8 @@ def _course_rows(db: Session, course_id: int, *, q, club_only, club, category):
         query = query.filter(_normalize_sql(Participation.club).in_(_club_filter_targets(db, club, course_id)))
     if category:
         query = query.filter(Participation.category == category)
+    if gender:
+        query = query.filter(Athlete.gender == gender)
     term = (q or "").strip()
     if term:
         query = query.filter(name_filter(term, also=_relay_name_matches))

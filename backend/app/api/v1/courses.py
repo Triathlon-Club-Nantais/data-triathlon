@@ -249,6 +249,9 @@ def get_course(
         None,
         description="Code **exact** de catégorie, tel que rendu par `/summary`.",
     ),
+    gender: Literal["M", "F"] | None = Query(
+        None, description="Sexe de l'athlète ; ajoute la place par sexe à chaque ligne classée."
+    ),
     db: Session = Depends(get_db),
     volunteer: bool = Depends(is_volunteer),
 ):
@@ -268,21 +271,35 @@ def get_course(
     `pending_participations` (#1273) : les résultats en attente de validation,
     aux mêmes filtres, hors de `participations` et de `total`. Lisibles des
     seuls bénévoles (#1519), vides pour le public ; comptés nulle part.
+
+    `gender` (#1645) restreint au sexe demandé et pose `gender_place` sur les
+    finishers classés, rangés en tête ; les autres lignes du sexe suivent.
     """
     course = course_repository.get(db, course_id)
     if not course:
         raise NotFoundError("Course introuvable")
     resolved_page_size = _resolve_page_size(page_size)
-    filters = {"q": q, "club_only": is_club_scope(scope), "club": club, "category": category}
+    filters = {
+        "q": q, "club_only": is_club_scope(scope), "club": club, "category": category, "gender": gender,
+    }
+    places, official = (
+        participation_repository.gender_places(db, course_id, gender) if gender else ({}, False)
+    )
     participations, total = participation_repository.list_page_for_course(
-        db, course_id, page=page, page_size=resolved_page_size, **filters
+        db, course_id, page=page, page_size=resolved_page_size, official_gender_order=official, **filters
     )
     pending = (
         participation_repository.list_pending_for_course(db, course_id, **filters) if volunteer else []
     )
+    rows = [ParticipationOut.model_validate(p) for p in participations]
     return {
         "course": CourseBrief.model_validate(course),
-        "participations": [ParticipationOut.model_validate(p) for p in participations],
+        "participations": [
+            row.model_copy(update={"gender_place": places[row.id], "gender_place_official": official})
+            if row.id in places
+            else row
+            for row in rows
+        ],
         "total": total,
         "page": page,
         "page_size": resolved_page_size,

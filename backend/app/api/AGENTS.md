@@ -281,6 +281,24 @@ une page vide.
 
 Spec, plan et tâches : `specs/20260803-195212-course-pagination/`.
 
+### Filtre par sexe et place par sexe (#1645)
+
+`gender` sur `GET /courses/{id}` est **facultatif** ; absent, la réponse est
+identique à avant (Principe IV). Il filtre sur `Athlete.gender` (lignes
+validées comme lignes en attente) et toute autre valeur que `M` ou `F` rend
+un 422 (`Literal`). Une ligne sans sexe connu n'apparaît sous aucun des deux.
+
+La **population classée** est celle des finishers validés, non relais, à
+`rank_overall` non nul, du sexe demandé (`_GENDER_RANKED`). Elle passe en tête,
+chaque ligne portant `gender_place` : le `rank_gender` officiel si **toutes**
+ses lignes en ont un, sinon la position recalculée dans `_display_order`
+(`gender_place_official` dit lequel). Les autres lignes du sexe (relais, non
+finishers, non classés) suivent dans l'ordre actuel, `gender_place` nul.
+`participation_repository.gender_places` calcule les places sur l'épreuve
+entière : ni `q`, ni `club`, ni la page ne les décalent. Les deux champs sont
+nuls hors de ce filtre et sur les lignes en attente.
+Design : `docs/superpowers/specs/2026-10-19-results-by-sex-design.md`.
+
 ## Sources multiples d'une épreuve : sources, bascule, re-scrape, fusion (epic #275)
 
 Quatre ressources sous `/admin/courses/{id}/...` (sources #284, bascule #285,

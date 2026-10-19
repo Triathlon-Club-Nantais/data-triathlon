@@ -69,6 +69,10 @@ class ParticipationOut(BaseModel):
     #: (`GET /participations/{id}`). Ailleurs — liste des finishers, fiche athlète —
     #: le champ existe mais reste `None` : aucun classement n'est parcouru pour lui.
     stats: ParticipationStatsOut | None = None
+    #: Place parmi les finishers du sexe filtré (`GET /courses/{id}?gender=`, #1645),
+    #: officielle (`rank_gender`) ou recalculée ; `None` hors de ce filtre.
+    gender_place: int | None = None
+    gender_place_official: bool | None = None
 
     @computed_field
     @property
