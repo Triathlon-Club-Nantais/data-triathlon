@@ -92,7 +92,7 @@ describe("/club/athletes", () => {
     await renderPage();
 
     expect(listSeasons).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }));
-    expect(screen.getByLabelText("Choisir les saisons")).toBeInTheDocument();
+    expect(screen.getByLabelText(/choisir les saisons/i)).toBeInTheDocument();
   });
 
   it("filtre aux disciplines fédérales par défaut, comme /mon-espace et /club (#382)", async () => {

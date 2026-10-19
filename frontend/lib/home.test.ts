@@ -7,6 +7,10 @@ describe("titreSortie", () => {
     expect(titreSortie("2026-10-11", new Date("2026-10-17T23:00:00"))).toBe("Ce week-end");
   });
 
+  it("adds the year when the outing is not in the current season", () => {
+    expect(titreSortie("2024-06-10", new Date("2026-10-15T12:00:00"))).toBe("Dernière sortie · 10 juin 2024");
+  });
+
   it("dates an older outing", () => {
     expect(titreSortie("2026-09-06", new Date("2026-10-15T12:00:00"))).toBe("Dernière sortie · 6 sept.");
   });

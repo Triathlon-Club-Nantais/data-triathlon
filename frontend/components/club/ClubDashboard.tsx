@@ -2,8 +2,7 @@ import Link from "next/link";
 import { StatCard } from "@/components/tcn";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { EmptyState } from "@/components/ui/empty-state";
-import { AddEventLink } from "@/components/dashboard/SeasonEmptyState";
+import { SeasonEmptyState } from "@/components/dashboard/SeasonEmptyState";
 import { ResultCard } from "@/components/results/ResultCard";
 import { BarList } from "@/components/charts/BarList";
 import { MonthlyTrend } from "@/components/charts/MonthlyTrend";
@@ -36,11 +35,7 @@ export function ClubDashboard({
 
   if (stats.total === 0) {
     return (
-      <EmptyState
-        title="Aucun résultat de club"
-        description="Importez une épreuve : les membres du club apparaîtront automatiquement ici."
-        action={<AddEventLink />}
-      />
+      <SeasonEmptyState seasons={seasons} currentSeasonHref="/club" />
     );
   }
 

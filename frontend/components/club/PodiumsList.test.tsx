@@ -87,6 +87,12 @@ describe("PodiumsList — filtrage selon ?rank= (#104, #132, #581)", () => {
     expect(screen.getByText("Genre")).toBeInTheDocument();
   });
 
+  it("liste vide d'une saison passée → pas de « pas encore »", () => {
+    searchParams = new URLSearchParams(`seasons=${currentSeason() - 2}`);
+    render(<PodiumsList podiums={EMPTY} />);
+    expect(screen.getByText("Aucun podium enregistré.")).toBeInTheDocument();
+  });
+
   it("liste vide → message d'attente, aucun badge", () => {
     searchParams = new URLSearchParams();
     render(<PodiumsList podiums={EMPTY} />);

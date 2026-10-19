@@ -105,7 +105,7 @@ export function SeasonSelector({ seasons }: { seasons: Season[] }) {
   return (
     <Popover>
       <PopoverTrigger
-        aria-label="Choisir les saisons"
+        aria-label={`${seasonSelectionLabel(selected)} : choisir les saisons`}
         data-pending={pending || undefined}
         // 44 px sous md, 28 px au-delà (#479, #1510) : en classe, un `minHeight`
         // en ligne l'emporterait sur la media query.

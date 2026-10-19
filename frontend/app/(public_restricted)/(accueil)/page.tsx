@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { BandeauDirect } from "@/components/home/BandeauDirect";
 import { TuilesEspaces } from "@/components/home/TuilesEspaces";
+import { FieldLabel } from "@/components/layout/FieldLabel";
 import { PageShell } from "@/components/layout/PageShell";
 import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { SCOPE_CLUB, federalOnlyFromParam } from "@/lib/scope";
@@ -31,7 +32,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       <div className="mb-4 space-y-2">
         <div className="flex flex-wrap items-end gap-3 lg:justify-end">
           <div>
-            <div className="micro-label mb-1.5">Saisons</div>
+            <FieldLabel>Saisons</FieldLabel>
             <SeasonSelector seasons={seasonList} />
           </div>
         </div>

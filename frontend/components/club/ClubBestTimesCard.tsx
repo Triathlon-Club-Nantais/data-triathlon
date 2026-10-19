@@ -53,7 +53,7 @@ export function ClubBestTimesCard({
           ) : (
             // Seul cet onglet peut être vide : la saison est incluse dans toutes les saisons.
             <p style={{ margin: 0, padding: "12px 26px 20px", fontSize: 14, color: "var(--tcn-text-faint)" }}>
-              Aucun temps comparable sur cette saison pour l&apos;instant. Les meilleurs temps des saisons
+              Aucun temps comparable sur cette saison. Les meilleurs temps des saisons
               précédentes sont sous « Toutes les saisons ».
             </p>
           )}

@@ -103,13 +103,19 @@ describe("TuilesEspaces", () => {
     expect(screen.getByRole("link", { name: /Mon espace/ })).toHaveAttribute("href", "/mon-espace?seasons=2025&sports=all");
   });
 
+  it("names the single past season in the counts", () => {
+    getSession.mockResolvedValue(null);
+    afficher("?seasons=2024", [2024]);
+    expect(screen.getByRole("link", { name: /Club.*27 podiums sur la saison 2024 — 2025/ })).toBeInTheDocument();
+  });
+
   it("words the counts per period and requests the selected seasons", async () => {
     getSession.mockResolvedValue(null);
     athlete.current = { id: 7, prenom: "Léa", nom: "Écuyer" };
     getAthlete.mockResolvedValue({ participations: [{ course: { id: 1 }, is_pending_validation: false }] });
     afficher("?seasons=2024,2025", [2024, 2025]);
-    expect(await screen.findByRole("link", { name: /Mon espace.*1 épreuve sur la sélection/ })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Club.*27 podiums sur la sélection/ })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: /Mon espace.*1 épreuve sur les 2 saisons sélectionnées/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Club.*27 podiums sur les 2 saisons sélectionnées/ })).toBeInTheDocument();
     expect(getAthlete).toHaveBeenCalledWith(7, expect.objectContaining({ seasons: "2024,2025" }));
   });
 

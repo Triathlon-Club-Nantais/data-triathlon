@@ -1,3 +1,5 @@
+import { currentSeason, seasonOf } from "@/lib/utils/season";
+
 const MOIS_COURTS = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 
 function joursDepuis(endDate: string, today: Date): number {
@@ -13,9 +15,10 @@ export function estToutRecent(endDate: string, today: Date): boolean {
 
 /** « Ce week-end » jusqu'à 7 jours après la dernière course, sinon sa date. */
 export function titreSortie(endDate: string, today: Date): string {
-  const [, mois, jour] = endDate.split("-").map(Number);
-  const jours = joursDepuis(endDate, today);
-  return jours < 7 ? "Ce week-end" : `Dernière sortie · ${jour} ${MOIS_COURTS[mois - 1]}`;
+  const [annee, mois, jour] = endDate.split("-").map(Number);
+  if (joursDepuis(endDate, today) < 7) return "Ce week-end";
+  const date = `${jour} ${MOIS_COURTS[mois - 1]}`;
+  return `Dernière sortie · ${seasonOf(endDate) === currentSeason(today) ? date : `${date} ${annee}`}`;
 }
 
 /** Les douze mois de la saison `season` (septembre à août), à zéro quand vides. */

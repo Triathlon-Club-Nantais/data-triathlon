@@ -8,5 +8,6 @@ describe("HomePage, squelette de chargement", () => {
 
     expect(container.querySelector(".mx-auto")).toBeInTheDocument();
     expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBe(6);
+    expect(container.querySelectorAll(".h-60")).toHaveLength(2);
   });
 });

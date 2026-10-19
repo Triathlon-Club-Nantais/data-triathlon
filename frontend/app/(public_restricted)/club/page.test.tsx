@@ -178,7 +178,7 @@ describe("ClubPage", () => {
 
     await renderClub({ seasons: "2020" });
 
-    expect(screen.getByText("Aucun résultat de club")).toBeInTheDocument();
+    expect(screen.getByText(/Aucun résultat enregistré pour la saison 2020 — 2021/)).toBeInTheDocument();
   });
 
   it("asks the club best times for the selected season and for all seasons (#1588)", async () => {

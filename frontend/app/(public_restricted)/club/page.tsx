@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { apiServer, SHORT_REVALIDATE_SECONDS } from "@/lib/api/server";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { FieldLabel } from "@/components/layout/FieldLabel";
 import { PageShell } from "@/components/layout/PageShell";
 import { DisciplineToggle } from "@/components/layout/DisciplineToggle";
 import { RankTypeToggle } from "@/components/layout/RankTypeToggle";
@@ -50,19 +51,18 @@ export default async function ClubPage({
           title="Espace club"
           description={`Synthèse, podiums et athlètes du ${CLUB_NAME}.`}
           actions={
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-end gap-3">
-                <RankTypeToggle />
-                <DisciplineToggle />
-                <div>
-                  <div className="micro-label mb-1.5">Saisons</div>
-                  <SeasonSelector seasons={seasonList} />
-                </div>
+            <div className="flex flex-wrap items-end gap-3">
+              <RankTypeToggle />
+              <DisciplineToggle />
+              <div>
+                <FieldLabel>Saisons</FieldLabel>
+                <SeasonSelector seasons={seasonList} />
               </div>
-              <SeasonTags seasons={seasonList} className="justify-start lg:justify-end" />
             </div>
           }
         />
+        {/* Sous l'en-tête, jamais dans le slot d'actions (#445). */}
+        <SeasonTags seasons={seasonList} className="justify-start sm:justify-end" />
         <ClubDashboard
           stats={stats}
           summary={summary}

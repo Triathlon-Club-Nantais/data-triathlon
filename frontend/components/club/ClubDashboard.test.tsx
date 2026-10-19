@@ -130,7 +130,8 @@ describe("ClubDashboard — smoke", () => {
         seasons={[currentSeason()]}
       />,
     );
-    expect(screen.getByText("Aucun résultat de club")).toBeInTheDocument();
+    expect(screen.getByText(/Aucun résultat enregistré pour la saison/)).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Voir la saison en cours" })).toBeNull();
     const ajouter = screen.getByRole("link", { name: "Ajouter une épreuve" });
     expect(ajouter).toHaveAttribute("href", "/ajouter");
     expect(ajouter).toHaveClass("tcn-cible-tactile");

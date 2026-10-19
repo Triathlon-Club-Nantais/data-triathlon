@@ -10,7 +10,7 @@ import { useEpreuvesSaison } from "@/lib/queries/ma-saison";
 import { libelleCompteur, totalATraiter, useNavBadges } from "@/lib/queries/nav-badges";
 import { formatDate } from "@/lib/utils/date";
 import { motCompte } from "@/lib/utils/format";
-import { currentSeason } from "@/lib/utils/season";
+import { seasonPeriodLabel } from "@/lib/utils/season";
 
 function Tuile({ index, href, titre, ligne, badge }: { index: number; href: string; titre: string; ligne?: ReactNode; badge?: ReactNode }) {
   return (
@@ -39,7 +39,7 @@ export function TuilesEspaces({ derniereEpreuve, podiumsSaison, query, seasons }
   const athlete = useSelectedAthlete();
   const epreuves = useEpreuvesSaison(athlete?.id, seasons);
   const { counts } = useNavBadges(Boolean(session?.can_administer));
-  const periode = seasons.length === 1 && seasons[0] === currentSeason() ? "cette saison" : "sur la sélection";
+  const periode = seasonPeriodLabel(seasons);
   const pouvoirs = new Set(session?.permissions ?? []);
   const aTraiter = session?.can_administer
     ? totalATraiter(

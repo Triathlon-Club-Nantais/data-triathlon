@@ -12,7 +12,7 @@ import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
 import { SPORTS_PARAM, federalOnlyFromParam } from "@/lib/scope";
 import { apiClient } from "@/lib/api/client";
 import type { ClubPodiumTotals, ClubPodiums } from "@/lib/types";
-import { selectedSeasonsOrCurrent } from "@/lib/utils/season";
+import { currentSeason, selectedSeasonsOrCurrent } from "@/lib/utils/season";
 import { motCompte, plural } from "@/lib/utils/format";
 
 /**
@@ -97,7 +97,7 @@ function Podiums({ podiums, totals }: { podiums: ClubPodiums; totals?: ClubPodiu
       <>
         {annonce}
         <p className="py-6 text-center text-sm text-[var(--tcn-text-faint)]">
-          Pas encore de podium enregistré.
+          {selectedSeasons.includes(currentSeason()) ? "Pas encore de podium enregistré." : "Aucun podium enregistré."}
         </p>
       </>
     );

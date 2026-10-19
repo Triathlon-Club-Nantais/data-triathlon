@@ -52,9 +52,9 @@ describe("BandeauDirect", () => {
 
   it("says the selection has no outing when it is not exactly the current season", () => {
     const { rerender } = render(<BandeauDirect sortie={null} stats={STATS} seasons={[2025]} today={TODAY} />);
-    expect(screen.getByText("Aucune épreuve sur la sélection")).toBeInTheDocument();
+    expect(screen.getByText("Aucune épreuve pour la saison 2025 — 2026")).toBeInTheDocument();
     rerender(<BandeauDirect sortie={null} stats={STATS} seasons={[2025, 2026]} today={TODAY} />);
-    expect(screen.getByText("Aucune épreuve sur la sélection")).toBeInTheDocument();
+    expect(screen.getByText("Aucune épreuve pour les 2 saisons sélectionnées")).toBeInTheDocument();
   });
 
   it("summarises the monthly chart for screen readers", () => {
@@ -70,7 +70,12 @@ describe("BandeauDirect", () => {
 
   it("dates a past season's outing", () => {
     render(<BandeauDirect sortie={{ end_date: "2026-05-10", events: 1, athletes: 5, podiums: 0 }} stats={STATS} seasons={[2025]} today={TODAY} />);
-    expect(screen.getByText("Dernière sortie · 10 mai")).toBeInTheDocument();
+    expect(screen.getByText("Dernière sortie · 10 mai 2026")).toBeInTheDocument();
+  });
+
+  it("heads the outing with an h2 so heading navigation reaches it", () => {
+    render(<BandeauDirect sortie={{ end_date: "2026-10-11", events: 3, athletes: 48, podiums: 9 }} stats={STATS} seasons={[2026]} today={TODAY} />);
+    expect(screen.getByRole("heading", { level: 2, name: "Ce week-end" })).toBeInTheDocument();
   });
 
   it("splits the banner into an outing card and a season card", () => {

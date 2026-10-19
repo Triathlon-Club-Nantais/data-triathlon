@@ -67,6 +67,12 @@ export function seasonSelectionLabel(years: number[]): string {
   return `${years.length} saisons sélectionnées`;
 }
 
+/** « cette saison » pour la seule saison en cours, sinon « sur la saison X — Y » / « sur les N saisons sélectionnées ». */
+export function seasonPeriodLabel(years: number[]): string {
+  if (years.length === 1 && years[0] === currentSeason()) return "cette saison";
+  return `sur ${seasonAbsenceLabel(years)}`;
+}
+
 /** Formulation « la saison X — Y » (singulier) ou « les N saisons
  *  sélectionnées » (pluriel), pour l'état vide du dashboard (#483, NAV-6).
  *  Contrairement à `seasonSelectionLabel`, la phrase porte son article et sa
