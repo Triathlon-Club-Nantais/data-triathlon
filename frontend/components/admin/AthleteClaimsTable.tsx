@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ClaimKind } from "@/components/admin/ClaimKind";
 import { nomComplet } from "@/components/layout/AthletePicker";
 import { useAthleteClaims, useDecideAthleteClaim } from "@/lib/queries/admin";
 import { messageDeRefus } from "@/lib/api/refus";
@@ -49,6 +50,7 @@ export function AthleteClaimsTable() {
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>Sorte</TableHead>
             <TableHead>Compte</TableHead>
             <TableHead>Fiche demandée</TableHead>
             <TableHead>Indices</TableHead>
@@ -61,6 +63,9 @@ export function AthleteClaimsTable() {
             const qui = demande.user.display_name || demande.user.email;
             return (
               <TableRow key={demande.id}>
+                <TableCell>
+                  <ClaimKind kind="record" />
+                </TableCell>
                 <TableCell>
                   {demande.user.display_name && <div className="font-semibold">{demande.user.display_name}</div>}
                   <div className="text-sm text-muted-foreground">{demande.user.email}</div>
@@ -100,9 +105,9 @@ export function AthleteClaimsTable() {
                       size="sm"
                       onClick={() => decide(demande, "approve")}
                       disabled={decider.isPending}
-                      aria-label={`Valider la demande de ${qui}`}
+                      aria-label={`Rattacher la fiche demandée par ${qui}`}
                     >
-                      Valider
+                      Rattacher la fiche
                     </Button>
                     <Button
                       size="sm"

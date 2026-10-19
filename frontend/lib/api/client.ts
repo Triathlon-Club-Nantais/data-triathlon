@@ -39,6 +39,8 @@ import type {
   SeasonGoal,
   SeasonGoalWrite,
   AthleteLink,
+  ResultClaim,
+  ResultClaimReview,
   MemberEmailsImportReport,
   MemberEmailsSeason,
   CounterScope,
@@ -937,6 +939,17 @@ export const apiClient = {
     request<SeasonGoal>(`/auth/me/goals/${id}`, { method: "PUT", body: JSON.stringify(body) }),
   deleteSeasonGoal: (id: number) => request<null>(`/auth/me/goals/${id}`, { method: "DELETE" }),
   getAthleteLinks: () => request<AthleteLink[]>("/admin/athlete-links"),
+  // ── Réclamations de résultat (#1637) ────────────────────────────────────────
+  getMyResultClaims: () => request<ResultClaim[]>("/auth/me/result-claims"),
+  requestResultClaim: (participationId: number) =>
+    request<ResultClaim>("/auth/me/result-claims", {
+      method: "POST",
+      body: JSON.stringify({ participation_id: participationId }),
+    }),
+  cancelResultClaim: (id: number) => request<null>(`/auth/me/result-claims/${id}`, { method: "DELETE" }),
+  getResultClaims: () => request<ResultClaimReview[]>("/admin/result-claims"),
+  approveResultClaim: (id: number) => request<null>(`/admin/result-claims/${id}/approve`, { method: "POST" }),
+  rejectResultClaim: (id: number) => request<null>(`/admin/result-claims/${id}/reject`, { method: "POST" }),
   detachAthleteLink: (userId: number) =>
     request<null>(`/admin/athlete-links/${userId}`, { method: "DELETE" }),
   approveAthleteClaim: (id: number) =>

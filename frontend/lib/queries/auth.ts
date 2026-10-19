@@ -115,6 +115,32 @@ export function useDetachAthlete() {
   return useSessionMutation(() => apiClient.detachAthlete());
 }
 
+/** Mes réclamations de résultat (#1637) ; `enabled` faux sans fiche rattachée. */
+export function useMyResultClaims(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.myResultClaims(),
+    queryFn: () => apiClient.getMyResultClaims(),
+    enabled,
+    retry: false,
+  });
+}
+
+function useResultClaimMutation<T>(mutationFn: (arg: T) => Promise<unknown>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn,
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.myResultClaims() }),
+  });
+}
+
+export function useRequestResultClaim() {
+  return useResultClaimMutation((participationId: number) => apiClient.requestResultClaim(participationId));
+}
+
+export function useCancelResultClaim() {
+  return useResultClaimMutation((claimId: number) => apiClient.cancelResultClaim(claimId));
+}
+
 /** Objectifs de saison du compte rattaché (#1373) ; `enabled` faux sans fiche. */
 export function useSeasonGoals(enabled: boolean) {
   return useQuery({

@@ -1045,6 +1045,37 @@ export interface SeasonGoal {
 
 export type SeasonGoalWrite = Pick<SeasonGoal, "kind" | "event_type" | "target">;
 
+/** Ma réclamation d'un résultat rangé sur une autre fiche (#1637). */
+export interface ResultClaim {
+  id: number;
+  participation_id: number;
+  status: "pending" | "rejected";
+  created_at: string;
+}
+
+/** Une réclamation de résultat dans la file du back-office, avec ses indices (#1637). */
+export interface ResultClaimReview {
+  id: number;
+  created_at: string;
+  user: { id: number; display_name: string; email: string };
+  participation: {
+    id: number;
+    course_id: number;
+    course_name: string;
+    event_date: string | null;
+    event_type: string;
+    bib_number: string | null;
+    total_time: string | null;
+    club: string | null;
+    category: string | null;
+  };
+  current_athlete: ClaimedAthlete & { club: string | null };
+  /** Résultats de la fiche actuelle, celui-ci compris : 1 veut dire qu'elle sera purgée. */
+  current_athlete_results: number;
+  claimant_athlete: (ClaimedAthlete & { club: string | null }) | null;
+  licensee: { prenom: string; nom: string; season: number } | null;
+}
+
 /** Un compte rattaché vu du club, et si sa licence court cette saison (#1633). */
 export interface AthleteLink {
   user: { id: number; display_name: string; email: string };

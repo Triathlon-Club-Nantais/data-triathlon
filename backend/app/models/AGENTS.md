@@ -454,3 +454,15 @@ passage : `season_goal_repository`, toujours par compte. **Possédé** (cascade
 ORM `User.season_goals`, `_OWNED_TABLES`). La progression se calcule à la
 lecture (`participation_repository.athlete_season_times` et
 `athlete_season_count`), jamais stockée.
+
+## Réclamations de résultat (#1637)
+
+`result_claims` (`id`, `user_id`, `participation_id`, `status`, `created_at`,
+`decided_at`), `UNIQUE(user_id, participation_id)` : un compte rattaché réclame
+un résultat rangé sur une autre fiche. Seul point de passage :
+`result_claim_repository`. **Possédée** par le compte (`User.result_claims`,
+`_OWNED_TABLES`), **suit son résultat** (`ON DELETE CASCADE` ; la file joint
+`participations` pour ignorer une ligne orpheline en SQLite). Validée, elle
+disparaît : le déplacement passe par `admin_actions.reassign_participation`
+(résultat figé, fiche vidée purgée, journal `participation.reassign` et
+`result_claim.approve`).

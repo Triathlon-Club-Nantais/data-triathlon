@@ -364,7 +364,7 @@ export const NAV: NavSection[] = [
         id: "a-rattachements",
         label: "Rattachements de fiche",
         description:
-          "Les demandes d'utilisateurs connectés qui se reconnaissent sur une fiche athlète. Valider rattache la fiche au compte et le reconnaît adhérent.",
+          "Les demandes des adhérents : une fiche athlète entière à rattacher à leur compte, ou un seul résultat rangé sur une autre fiche à déplacer sur la leur. Et les comptes déjà rattachés.",
         href: "/admin/rattachements",
         helpAnchor: "rattachements",
         permission: "athlete_claims:review",
