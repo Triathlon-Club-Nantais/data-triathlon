@@ -7,6 +7,6 @@ describe("HomePage, squelette de chargement", () => {
     const { container } = render(<Loading />);
 
     expect(container.querySelector(".mx-auto")).toBeInTheDocument();
-    expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBe(4);
+    expect(container.querySelectorAll('[data-slot="skeleton"]').length).toBe(5);
   });
 });

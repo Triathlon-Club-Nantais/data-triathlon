@@ -9,6 +9,7 @@ import { useEpreuvesSaison } from "@/lib/queries/ma-saison";
 import { libelleCompteur, totalATraiter, useNavBadges } from "@/lib/queries/nav-badges";
 import { formatDate } from "@/lib/utils/date";
 import { motCompte } from "@/lib/utils/format";
+import { currentSeason } from "@/lib/utils/season";
 
 function Tuile({ href, titre, ligne, badge }: { href: string; titre: string; ligne?: ReactNode; badge?: ReactNode }) {
   return (
@@ -30,11 +31,12 @@ function Tuile({ href, titre, ligne, badge }: { href: string; titre: string; lig
 }
 
 /** Les portes de l'accueil (#1621) ; les espaces réservés n'apparaissent qu'une fois la session lue. */
-export function TuilesEspaces({ derniereEpreuve, podiumsSaison, query }: { derniereEpreuve: { nom: string; date: string | null } | null; podiumsSaison: number; query: string }) {
+export function TuilesEspaces({ derniereEpreuve, podiumsSaison, query, seasons }: { derniereEpreuve: { nom: string; date: string | null } | null; podiumsSaison: number; query: string; seasons: number[] }) {
   const { data: session } = useHydratedSession();
   const athlete = useSelectedAthlete();
-  const epreuves = useEpreuvesSaison(athlete?.id);
+  const epreuves = useEpreuvesSaison(athlete?.id, seasons);
   const { counts } = useNavBadges(Boolean(session?.can_administer));
+  const periode = seasons.length === 1 && seasons[0] === currentSeason() ? "cette saison" : "sur la sélection";
   const pouvoirs = new Set(session?.permissions ?? []);
   const aTraiter = session?.can_administer
     ? totalATraiter(
@@ -51,8 +53,8 @@ export function TuilesEspaces({ derniereEpreuve, podiumsSaison, query }: { derni
         titre="Résultats"
         ligne={derniereEpreuve ? `${derniereEpreuve.nom}${derniereEpreuve.date ? ` · ${formatDate(derniereEpreuve.date)}` : ""}` : "Toutes les épreuves du club"}
       />
-      <Tuile href={`/club${query}`} titre="Club" ligne={`${motCompte(podiumsSaison, "podium")} cette saison`} />
-      <Tuile href={`/mon-espace${query}`} titre="Mon espace" ligne={athlete ? (epreuves === undefined ? nomComplet(athlete) : `${nomComplet(athlete)} · ${motCompte(epreuves, "épreuve")} cette saison`) : "Choisissez votre nom"} />
+      <Tuile href={`/club${query}`} titre="Club" ligne={`${motCompte(podiumsSaison, "podium")} ${periode}`} />
+      <Tuile href={`/mon-espace${query}`} titre="Mon espace" ligne={athlete ? (epreuves === undefined ? nomComplet(athlete) : `${nomComplet(athlete)} · ${motCompte(epreuves, "épreuve")} ${periode}`) : "Choisissez votre nom"} />
       {session?.can_supervise && <Tuile href="/encadrement" titre="Encadrement" ligne="Jeunes, appel, bénévolat" />}
       {session?.can_administer && (
         <Tuile

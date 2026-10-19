@@ -14,6 +14,7 @@ vi.mock("@/components/layout/AthletePicker", async (importOriginal) => ({
   useSelectedAthlete: () => athlete.current,
 }));
 
+import { currentSeason } from "@/lib/utils/season";
 import { TuilesEspaces } from "./TuilesEspaces";
 
 const BASE: SessionUser = {
@@ -21,11 +22,11 @@ const BASE: SessionUser = {
   permissions: [], roles: [], groups: [], can_administer: false, can_supervise: false,
 };
 
-function afficher(query = "") {
+function afficher(query = "", seasons = [currentSeason()]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <TuilesEspaces derniereEpreuve={{ nom: "Tri de Saint-Gilles M", date: "2026-10-11" }} podiumsSaison={27} query={query} />
+      <TuilesEspaces derniereEpreuve={{ nom: "Tri de Saint-Gilles M", date: "2026-10-11" }} podiumsSaison={27} query={query} seasons={seasons} />
     </QueryClientProvider>,
   );
 }
@@ -88,9 +89,19 @@ describe("TuilesEspaces", () => {
 
   it("carries the season selection to Résultats, Club and Mon espace", () => {
     getSession.mockResolvedValue(null);
-    afficher("?seasons=2025");
-    expect(screen.getByRole("link", { name: /Résultats/ })).toHaveAttribute("href", "/resultats?seasons=2025");
-    expect(screen.getByRole("link", { name: /Club/ })).toHaveAttribute("href", "/club?seasons=2025");
-    expect(screen.getByRole("link", { name: /Mon espace/ })).toHaveAttribute("href", "/mon-espace?seasons=2025");
+    afficher("?seasons=2025&sports=all", [2025]);
+    expect(screen.getByRole("link", { name: /Résultats/ })).toHaveAttribute("href", "/resultats?seasons=2025&sports=all");
+    expect(screen.getByRole("link", { name: /Club/ })).toHaveAttribute("href", "/club?seasons=2025&sports=all");
+    expect(screen.getByRole("link", { name: /Mon espace/ })).toHaveAttribute("href", "/mon-espace?seasons=2025&sports=all");
+  });
+
+  it("words the counts per period and requests the selected seasons", async () => {
+    getSession.mockResolvedValue(null);
+    athlete.current = { id: 7, prenom: "Léa", nom: "Écuyer" };
+    getAthlete.mockResolvedValue({ participations: [{ course: { id: 1 }, is_pending_validation: false }] });
+    afficher("?seasons=2024,2025", [2024, 2025]);
+    expect(await screen.findByRole("link", { name: /Mon espace.*1 épreuve sur la sélection/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Club.*27 podiums sur la sélection/ })).toBeInTheDocument();
+    expect(getAthlete).toHaveBeenCalledWith(7, expect.objectContaining({ seasons: "2024,2025" }));
   });
 });

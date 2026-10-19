@@ -41,6 +41,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       <TuilesEspaces
         derniereEpreuve={derniere ? { nom: derniere.event_name, date: derniere.event_date } : null}
         podiumsSaison={stats.rank_counters.all.podiums}
+        seasons={seasons}
         query={query ? `?${query}` : ""}
       />
     </PageShell>
