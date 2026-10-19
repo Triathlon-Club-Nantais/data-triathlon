@@ -291,7 +291,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           set -euo pipefail
-          since=$(date -u -d '7 days ago' +%F)
+          since=$(date -u -d '7 days ago' +%FT%T)  # à la seconde : une semaine exacte, sans double compte
           count=$(uv run python -m app.cli entra-deletions --since "$since" --count | tail -n 1)
           echo "count=$count" >> "$GITHUB_OUTPUT"
           echo "Identifiants Entra à effacer depuis $since : $count"

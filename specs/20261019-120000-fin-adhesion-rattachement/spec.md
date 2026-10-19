@@ -51,4 +51,4 @@
 
 ## Assumptions
 
-- La synchro FFTri (#1347) écrit dans la saison en cours ; en début de saison, l'ancienne liste y est recopiée jusqu'aux renouvellements, ce qui évite une coupure au 1er septembre.
+- La saison qui compte suit la règle de la liste d'adhérents : la saison en cours dès qu'elle a un licencié, sinon la précédente (`club_member_repository.counting_season`), ce qui évite une coupure au 1er septembre. Les rattachements faits à la main (homonymes tranchés) suivent la personne à la saison suivante, sans quoi la première synchro les rendait ambigus (revue).

@@ -73,6 +73,13 @@ def get(db: Session, member_id: int) -> ClubMember | None:
     return db.get(ClubMember, member_id)
 
 
+def counting_season(db: Session, season: int) -> int:
+    """La saison en cours dès qu'elle a un licencié, sinon la précédente : même règle
+    que la liste d'adhérents, pour que le 1er septembre ne coupe personne (#1633)."""
+    has_rows = db.scalar(select(ClubMember.id).where(ClubMember.season == season).limit(1)) is not None
+    return season if has_rows else season - 1
+
+
 def is_linked_licensee(db: Session, athlete_id: int, season: int) -> bool:
     """La fiche est-elle un licencié du club rattaché pour cette saison (#1633) ?"""
     return db.scalar(

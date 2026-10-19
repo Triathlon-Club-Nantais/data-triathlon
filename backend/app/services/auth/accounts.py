@@ -77,13 +77,21 @@ def force_delete_account(db: Session, user: User, *, dry_run: bool) -> dict[str,
     if user.email == SYSTEM_USER_EMAIL:
         raise SystemAccountDeletionError()
     counts = user_repository.required_reference_counts(db, user.id)
-    if dry_run:
-        return counts
-    with db.begin_nested():
+    # La passe à blanc joue le vrai geste puis l'annule : elle refuse donc
+    # exactement ce que l'application refuserait (dernier administrateur).
+    savepoint = db.begin_nested()
+    try:
         user_repository.reassign_required_references(
             db, from_user_id=user.id, to_user_id=volunteer_access.system_user_id(db)
         )
         delete_account(db, user, origin="operator")
+    except Exception:
+        savepoint.rollback()
+        raise
+    if dry_run:
+        savepoint.rollback()
+    else:
+        savepoint.commit()
     return counts
 
 

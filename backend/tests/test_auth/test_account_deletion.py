@@ -185,6 +185,9 @@ def test_the_operator_keeps_the_last_administrator(db, alix, system_user, organi
     _cited(db, alix, system_user)
     db.commit()
 
+    # Review of #1634: the dry run tells the same refusal as the real run.
+    with pytest.raises(LastAdministratorError):
+        accounts.force_delete_account(db, alix, dry_run=True)
     with pytest.raises(LastAdministratorError):
         accounts.force_delete_account(db, alix, dry_run=False)
     db.rollback()

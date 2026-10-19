@@ -20,7 +20,8 @@ DEFAULT_WINDOW_DAYS = 35
 
 def entra_deletions(
     since: datetime | None = typer.Option(
-        None, "--since", formats=["%Y-%m-%d"], help="Date de début (AAAA-MM-JJ), 35 jours par défaut."
+        None, "--since", formats=["%Y-%m-%d", "%Y-%m-%dT%H:%M:%S"],
+        help="Début (AAAA-MM-JJ ou AAAA-MM-JJTHH:MM:SS), 35 jours par défaut."
     ),
     count: bool = typer.Option(False, "--count", help="Le seul nombre d'identifiants, sans détail."),
 ) -> None:
