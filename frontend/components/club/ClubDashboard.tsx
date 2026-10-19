@@ -17,7 +17,7 @@ import { LienDestination } from "@/components/layout/LienDestination";
 import { DisciplinePerformance } from "./DisciplinePerformance";
 import { ClubComposition } from "./ClubComposition";
 import { formatCount } from "@/lib/utils/format";
-import { seasonLabel, seasonSelectionLabel } from "@/lib/utils/season";
+import { seasonLabel, serializeSeasons, seasonSelectionLabel } from "@/lib/utils/season";
 
 export function ClubDashboard({
   stats,
@@ -138,7 +138,7 @@ export function ClubDashboard({
               `roster.length` agrège toutes les saisons ; le total du club vit
               dans le KPI « Athlètes », qui le tient déjà. */}
           <LienDestination
-            href="/club/athletes"
+            href={`/club/athletes?seasons=${serializeSeasons(seasons)}`}
             className="shrink-0 text-sm font-medium text-accent-ink hover:underline"
           >
             Voir saison par saison →
@@ -165,7 +165,7 @@ export function ClubDashboard({
         <div className="flex items-baseline justify-between">
           <h2 className="font-heading text-lg font-semibold">Résultats récents</h2>
           <Link
-            href="/resultats?scope=club"
+            href={`/resultats?scope=club&seasons=${serializeSeasons(seasons)}`}
             className="text-sm font-medium text-accent-ink hover:underline"
           >
             Tout voir →

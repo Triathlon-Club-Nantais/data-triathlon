@@ -43,6 +43,12 @@ export function parseSeasonsParam(raw?: string | null): number[] {
 }
 
 /** Sérialise une liste d'années en CSV. */
+/** Sélection `?seasons=` lue telle quelle, ou la saison en cours à défaut. */
+export function selectedSeasonsOrCurrent(raw?: string | null): number[] {
+  const parsed = parseSeasonsParam(raw);
+  return parsed.length > 0 ? parsed : [currentSeason()];
+}
+
 export function serializeSeasons(years: number[]): string {
   return years.join(",");
 }

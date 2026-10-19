@@ -109,6 +109,24 @@ def test_club_roster_rank_renvoie_le_rang(client, db_session):
     assert resp.json() == {"rank": 1, "total": 1}
 
 
+def test_club_roster_rank_restreint_aux_saisons(client, db_session):
+    ath = athlete_repository.get_or_create(db_session, nom="A", prenom="Alice", club="TCN")
+    course = course_repository.get_or_create(
+        db_session, name="C", event_date=date(2026, 5, 16), event_type="triathlon-m"
+    )
+    participation_repository.create(
+        db_session, athlete_id=ath.id, course_id=course.id, bib_number="1",
+        club="TCN", status="finisher",
+    )
+    db_session.commit()
+
+    hors = client.get(f"/api/v1/club/roster/rank/{ath.id}", params={"seasons": "2020"})
+    dans = client.get(f"/api/v1/club/roster/rank/{ath.id}", params={"seasons": "2025"})
+
+    assert hors.status_code == 404
+    assert dans.json() == {"rank": 1, "total": 1}
+
+
 def test_club_roster_rank_404_hors_roster(client, db_session):
     ath = athlete_repository.get_or_create(db_session, nom="A", prenom="Alice", club="TCN")
     db_session.commit()

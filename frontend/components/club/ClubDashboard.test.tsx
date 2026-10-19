@@ -107,6 +107,20 @@ describe("ClubDashboard — smoke", () => {
     expect(hints[0]).toHaveTextContent(seasonSelectionLabel([2024, 2025]));
   });
 
+  it("les liens vers les listes gardent la sélection de saisons", () => {
+    render(
+      <ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={[part({ id: 1 })]} seasons={[2024, 2025]} />,
+    );
+    expect(screen.getByRole("link", { name: /Tout voir/ })).toHaveAttribute(
+      "href",
+      "/resultats?scope=club&seasons=2024,2025",
+    );
+    expect(screen.getByRole("link", { name: /Voir saison par saison/ })).toHaveAttribute(
+      "href",
+      "/club/athletes?seasons=2024,2025",
+    );
+  });
+
   it("empty state quand aucun résultat", () => {
     render(
       <ClubDashboard
@@ -164,7 +178,7 @@ describe("ClubDashboard — smoke", () => {
     expect(section?.querySelectorAll('a[href^="/athletes/"]')).toHaveLength(APERCU_ROSTER);
     expect(screen.getByRole("link", { name: "Voir saison par saison →" })).toHaveAttribute(
       "href",
-      "/club/athletes",
+      `/club/athletes?seasons=${currentSeason()}`,
     );
   });
 

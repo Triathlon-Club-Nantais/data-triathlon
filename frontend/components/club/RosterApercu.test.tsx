@@ -5,8 +5,10 @@ import type { ReactElement } from "react";
 import { RosterApercu } from "./RosterApercu";
 import { writeAthlete } from "@/components/layout/AthletePicker";
 import type { ClubRosterEntry } from "@/lib/types";
+import { currentSeason } from "@/lib/utils/season";
 
-vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
+const url = vi.hoisted(() => ({ qs: "" }));
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams(url.qs) }));
 
 const { getClubRosterRank, session } = vi.hoisted(() => ({
   getClubRosterRank: vi.fn(),
@@ -53,6 +55,7 @@ describe("RosterApercu — retrouver sa ligne (#504)", () => {
         clear: () => stock.clear(),
       },
     });
+    url.qs = "";
     getClubRosterRank.mockReset();
     getClubRosterRank.mockResolvedValue(null);
     session.permissions = ["pages:preview"];
@@ -88,7 +91,7 @@ describe("RosterApercu — retrouver sa ligne (#504)", () => {
 
     expect(screen.queryByText("Vous")).not.toBeInTheDocument();
     const rappel = screen.getByRole("link", { name: /n'êtes pas parmi les 12 athlètes/ });
-    expect(rappel).toHaveAttribute("href", "/club/athletes#athlete-99");
+    expect(rappel).toHaveAttribute("href", `/club/athletes?seasons=${currentSeason()}#athlete-99`);
   });
 
   it("affiche le rang exact une fois la requête résolue, hors de l'aperçu (#641)", async () => {
@@ -99,8 +102,20 @@ describe("RosterApercu — retrouver sa ligne (#504)", () => {
     render(<RosterApercu roster={roster} />);
 
     const rappel = await screen.findByRole("link", { name: /47ᵉ des 350 athlètes du club/ });
-    expect(rappel).toHaveAttribute("href", "/club/athletes#athlete-99");
+    expect(rappel).toHaveAttribute("href", `/club/athletes?seasons=${currentSeason()}#athlete-99`);
     expect(screen.queryByText(/n'êtes pas parmi/)).not.toBeInTheDocument();
+  });
+
+  it("demande le rang sur les saisons de l'URL", async () => {
+    url.qs = "seasons=2024,2025";
+    const roster = Array.from({ length: 12 }, (_, i) => entry({ athlete_id: i + 1, count: 12 - i + 1 }));
+    writeAthlete({ id: 99, prenom: "M", nom: "Moi" });
+    getClubRosterRank.mockResolvedValue({ rank: 5, total: 20 });
+
+    render(<RosterApercu roster={roster} />);
+
+    await screen.findByRole("link", { name: /5ᵉ des 20/ });
+    expect(getClubRosterRank).toHaveBeenCalledWith(99, { federal_only: true, seasons: [2024, 2025] });
   });
 
   it("garde le rappel générique si le rang ne peut pas être calculé", async () => {
@@ -111,7 +126,7 @@ describe("RosterApercu — retrouver sa ligne (#504)", () => {
     render(<RosterApercu roster={roster} />);
 
     const rappel = await screen.findByRole("link", { name: /n'êtes pas parmi les 12 athlètes/ });
-    expect(rappel).toHaveAttribute("href", "/club/athletes#athlete-99");
+    expect(rappel).toHaveAttribute("href", `/club/athletes?seasons=${currentSeason()}#athlete-99`);
   });
 
   it("garde le rang sans lien vers /club/athletes sans le pouvoir pages:preview (#925)", async () => {

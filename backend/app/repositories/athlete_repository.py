@@ -960,7 +960,7 @@ def club_roster(
 
 
 def club_rank(
-    db: Session, athlete_id: int, *, federal_only: bool = False
+    db: Session, athlete_id: int, *, federal_only: bool = False, seasons: list[int] | None = None
 ) -> tuple[int, int] | None:
     """Rang (1-based) et taille du club, même ordre que `club_roster` (#641).
 
@@ -969,7 +969,7 @@ def club_rank(
     individuelle — `None` si l'athlète n'a aucune participation validée au
     club (absent du roster).
     """
-    query, _total, _podiums = _club_roster_query(db, federal_only=federal_only)
+    query, _total, _podiums = _club_roster_query(db, federal_only=federal_only, seasons=seasons)
     ids = [a.id for a, *_ in query.all()]
     if athlete_id not in ids:
         return None
