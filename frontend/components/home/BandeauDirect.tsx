@@ -1,6 +1,9 @@
+import { Medal } from "lucide-react";
+import Link from "next/link";
 import type { CSSProperties } from "react";
 import { Card } from "@/components/tcn/Card";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
+import { eventTypeLabel } from "@/lib/constants";
 import { estToutRecent, moisComparesParSaison, titreSortie } from "@/lib/home";
 import type { ClubLastOuting, Stats } from "@/lib/types";
 import { formatCount, motCompte } from "@/lib/utils/format";
@@ -71,8 +74,62 @@ function Histogramme({ stats, seasons }: { stats: Stats; seasons: number[] }) {
   );
 }
 
+const LIGNES_BUREAU = 3;
+const LIGNES_MOBILE = 2;
+
+/** « triathlon-m » se lit « M » dans une pastille ; les autres types gardent leur libellé. */
+function pastilleFormat(type: string): string {
+  const format = /-(xxs|xs|s|m|l|xl|xxl)$/.exec(type);
+  return format ? format[1].toUpperCase() : eventTypeLabel(type);
+}
+
+function LignesEpreuves({ courses, resultatsHref }: { courses: ClubLastOuting["courses"]; resultatsHref: string }) {
+  if (courses.length === 0) return null;
+  const restantesBureau = courses.length - LIGNES_BUREAU;
+  const restantesMobile = courses.length - LIGNES_MOBILE;
+  return (
+    <ul style={{ listStyle: "none", margin: "16px 0 0", padding: 0, display: "grid", gap: 4 }}>
+      {courses.slice(0, LIGNES_BUREAU).map((course, i) => (
+        <li key={course.id}>
+          <Link
+            href={`/courses/${course.id}`}
+            className={`tcn-ligne-sortie ${i >= LIGNES_MOBILE ? "hidden md:flex" : "flex"} items-center gap-3 rounded-xl px-1`}
+            style={{ minHeight: 44, color: "#fff", textDecoration: "none" }}
+          >
+            <span style={{ flex: "none", minWidth: 32, textAlign: "center", padding: "2px 8px", borderRadius: 999, background: "#fff", color: "var(--tcn-orange-deeper)", fontSize: 12, fontWeight: 800 }}>
+              {pastilleFormat(course.event_type)}
+            </span>
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 700 }}>{course.name}</span>
+            <span style={{ flex: "none", fontWeight: 800 }}>{course.tcn}</span>
+            {course.podiums > 0 && (
+              <span data-podiums className="hidden md:inline-flex items-center gap-1" style={{ flex: "none" }}>
+                <Medal aria-hidden="true" size={16} />
+                <span aria-hidden="true">{course.podiums}</span>
+                <span className="sr-only">{motCompte(course.podiums, "podium")}</span>
+              </span>
+            )}
+            <span aria-hidden="true">→</span>
+          </Link>
+        </li>
+      ))}
+      {restantesMobile > 0 && (
+        <li>
+          <Link
+            href={resultatsHref}
+            className={`tcn-ligne-sortie flex items-center rounded-xl px-1 font-bold underline ${restantesBureau > 0 ? "" : "md:hidden"}`}
+            style={{ minHeight: 44, color: "#fff" }}
+          >
+            <span className="md:hidden">et {motCompte(restantesMobile, "autre")} {restantesMobile > 1 ? "épreuves" : "épreuve"} →</span>
+            {restantesBureau > 0 && <span className="hidden md:inline">et {motCompte(restantesBureau, "autre")} {restantesBureau > 1 ? "épreuves" : "épreuve"} →</span>}
+          </Link>
+        </li>
+      )}
+    </ul>
+  );
+}
+
 /** Le pouls du club en tête d'accueil (#1621) : carte de la dernière sortie, carte de la saison. */
-export function BandeauDirect({ sortie, stats, seasons, today }: { sortie: ClubLastOuting | null; stats: Stats; seasons: number[]; today: Date }) {
+export function BandeauDirect({ sortie, stats, seasons, today, resultatsHref }: { sortie: ClubLastOuting | null; stats: Stats; seasons: number[]; today: Date; resultatsHref: string }) {
   return (
     <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
       <section
@@ -93,6 +150,7 @@ export function BandeauDirect({ sortie, stats, seasons, today }: { sortie: ClubL
             <p style={{ margin: "6px 0 0", fontWeight: 700 }}>
               {motCompte(sortie.events, "épreuve")} · {motCompte(sortie.podiums, "podium")}
             </p>
+            <LignesEpreuves courses={sortie.courses} resultatsHref={resultatsHref} />
           </>
         ) : (
           <p style={{ ...display, margin: 0, fontSize: 28 }}>{seasons.length === 1 && seasons[0] === currentSeason() ? "Pas encore d'épreuve cette saison" : `Aucune épreuve pour ${seasonAbsenceLabel(seasons)}`}</p>

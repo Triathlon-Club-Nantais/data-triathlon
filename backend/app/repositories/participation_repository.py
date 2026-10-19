@@ -1243,6 +1243,31 @@ def stats_rank_rows(
     return q.all()
 
 
+def club_outing_rank_rows(
+    db: Session,
+    *,
+    seasons: list[int],
+    federal_only: bool,
+    dates: tuple[date, date],
+) -> list[tuple]:
+    """`(course_id, nom, type, rank_overall, rank_category, rank_gender, gender)`
+    des résultats TCN validés de la fenêtre, une ligne par participation (#1660)."""
+    q = (
+        db.query(
+            Course.id, Course.name, Course.event_type,
+            Participation.rank_overall, Participation.rank_category,
+            Participation.rank_gender, Athlete.gender,
+        )
+        .select_from(Participation)
+        .join(Athlete, Participation.athlete_id == Athlete.id)
+        .join(Course, Participation.course_id == Course.id)
+        .filter(validated_clause(Participation.is_pending_validation))
+    )
+    return _stats_filters(
+        q, club_only=True, seasons=seasons, federal_only=federal_only, dates=dates
+    ).all()
+
+
 def latest_club_event_date(db: Session, *, seasons: list[int], federal_only: bool = False) -> date | None:
     """Date de la dernière épreuve des `seasons` portant un résultat TCN validé (#1619)."""
     q = (

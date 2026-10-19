@@ -957,6 +957,7 @@
   animation: tcn-reflet 1.2s ease-in-out 300ms 1 both;
 }
 .tcn-carte-sortie-contenu { position: relative; z-index: 1; }
+.tcn-ligne-sortie:focus-visible { outline-color: #fff; outline-offset: -2px; }
 .tcn-pouls { position: relative; flex: none; width: 8px; height: 8px; border-radius: 9999px; background: #fff; }
 .tcn-pouls::after {
   content: ""; position: absolute; inset: 0; border-radius: inherit; background: #fff; opacity: 0;

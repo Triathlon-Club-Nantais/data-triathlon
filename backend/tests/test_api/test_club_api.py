@@ -272,7 +272,10 @@ def test_last_outing_shape(client, db_session, monkeypatch):
     resp = client.get("/api/v1/club/last-outing?federal_only=true")
 
     assert resp.status_code == 200
-    assert resp.json() == {"end_date": "2026-10-11", "events": 1, "athletes": 1, "podiums": 1}
+    assert resp.json() == {
+        "end_date": "2026-10-11", "events": 1, "athletes": 1, "podiums": 1,
+        "courses": [{"id": course.id, "name": "C", "event_type": "triathlon-m", "tcn": 1, "podiums": 1}],
+    }
 
 
 def _two_season_results(db_session):

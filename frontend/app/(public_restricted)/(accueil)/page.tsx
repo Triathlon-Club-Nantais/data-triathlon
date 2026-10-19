@@ -39,7 +39,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
         </div>
         <SeasonTags seasons={seasonList} className="justify-start lg:justify-end" />
       </div>
-      <BandeauDirect sortie={sortie} stats={stats} seasons={seasons} today={new Date()} />
+      <BandeauDirect resultatsHref={`/resultats${query ? `?${query}` : ""}`} sortie={sortie} stats={stats} seasons={seasons} today={new Date()} />
       <TuilesEspaces
         podiumsSaison={stats.rank_counters.all.podiums}
         seasons={seasons}

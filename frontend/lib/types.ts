@@ -355,6 +355,8 @@ export interface ClubLastOuting {
   events: number;
   athletes: number;
   podiums: number;
+  /** Épreuves de la sortie portant un TCN, par `tcn` décroissant (#1660). */
+  courses: { id: number; name: string; event_type: string; tcn: number; podiums: number }[];
 }
 
 export interface ClubRosterRank {
