@@ -13,7 +13,8 @@ import { genderShort, motCompte, ordinalFr, plural } from "@/lib/utils/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClassementPagination } from "@/components/results/ClassementPagination";
 import { PAGE_SIZE_DEFAUT, PAGE_SIZE_PARAM, boundPageSize, pageSizeOptions, parsePageSize } from "@/lib/pageSize";
-import { CATEGORY_PARAM, CLUB_PARAM, SCOPE_CLUB, SCOPE_PARAM } from "@/lib/scope";
+import { CATEGORY_PARAM, CLUB_PARAM, SCOPE_CLUB, SCOPE_PARAM, type Gender } from "@/lib/scope";
+import { SexeToggle } from "@/components/layout/SexeToggle";
 import { CLUB_NAME } from "@/lib/club";
 import { nomComplet, useSelectedAthlete } from "@/components/layout/AthletePicker";
 import { categoryTitle } from "@/lib/categories";
@@ -250,13 +251,15 @@ function donneesLigne(p: Participation) {
  * tiret d'absence. `stylePlace` reste un paramètre : seule la grille resserre
  * `PlaceBadge` (`minWidth`, `fontSize`), la carte n'a pas cette contrainte.
  */
-function marqueurRang(p: Participation, nf: boolean, enAttente: boolean, stylePlace?: CSSProperties) {
+function marqueurRang(p: Participation, nf: boolean, enAttente: boolean, stylePlace?: CSSProperties, gender?: Gender) {
   // Le statut d'abord : un abandon en attente reste un abandon, et son badge
   // est sa seule marque non chromatique (WCAG 1.4.1). Un rang déclaré, lui,
   // n'est pas un rang tant que la ligne n'est pas validée (#1273).
   if (nf) return <StatusBadge status={p.status} />;
   if (enAttente) return <span style={{ color: "var(--tcn-text-faint)" }}>—</span>;
-  if (p.rank_overall != null) return <PlaceBadge place={p.rank_overall} style={stylePlace} />;
+  // Sous un filtre de sexe, la place est celle du sexe, jamais le rang général.
+  const place = gender ? p.gender_place : p.rank_overall;
+  if (place != null) return <PlaceBadge place={place} style={stylePlace} />;
   return <span style={{ color: "var(--tcn-text-faint)" }}>—</span>;
 }
 
@@ -268,6 +271,8 @@ export function RaceFinishers({
   pageSize,
   eventType,
   pending: lignesEnAttente = [],
+  gender,
+  unknownGenderCount = 0,
 }: {
   /** La tranche courante, **déjà ordonnée par le backend** — ne pas la retrier. */
   participations: Participation[];
@@ -285,6 +290,10 @@ export function RaceFinishers({
   /** `null` quand tout le classement a été demandé. */
   pageSize: number | null;
   eventType?: string | null;
+  /** Sexe du classement : la colonne de place affiche alors `gender_place`. */
+  gender?: Gender;
+  /** Lignes de l'épreuve sans sexe connu, hors de tout classement par sexe. */
+  unknownGenderCount?: number;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -392,6 +401,7 @@ export function RaceFinishers({
 
   const nbPages = pageSize ? Math.max(1, Math.ceil(total / pageSize)) : 1;
   const enAttente = page === nbPages ? lignesEnAttente : [];
+  const placesRecalculees = !!gender && participations.some((p) => p.gender_place_official === false);
 
   /**
    * État du tri **de la colonne**, pour l'aide technique (#481, WCAG 1.3.1).
@@ -518,6 +528,7 @@ export function RaceFinishers({
               Aller à ma ligne
             </button>
           )}
+          <SexeToggle />
           <SegmentedControl
             tone="ink"
             value={filtreClub ? "tcn" : "all"}
@@ -529,6 +540,16 @@ export function RaceFinishers({
           />
         </div>
       </div>
+      {(placesRecalculees || unknownGenderCount > 0) && (
+        <div style={{ padding: "8px 26px", borderBottom: "1px solid var(--tcn-border)", fontSize: 13, color: "var(--tcn-text-muted)" }}>
+          {placesRecalculees && <p style={{ margin: 0 }}>Classement par sexe : places recalculées, la source ne publie pas toutes les places par sexe.</p>}
+          {unknownGenderCount > 0 && (
+            <p style={{ margin: 0 }}>
+              {unknownGenderCount} {plural(unknownGenderCount, "résultat")} sans sexe connu {plural(unknownGenderCount, "non compté", "non comptés")}
+            </p>
+          )}
+        </div>
+      )}
       {(rechercheUrl || filtreClub || clubChoisi || categorieChoisie) && (
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", padding: "10px 26px", borderBottom: "1px solid var(--tcn-border)", fontSize: 13, color: "var(--tcn-text-body)" }}>
           <span>
@@ -623,7 +644,7 @@ export function RaceFinishers({
                 // reste l'athlète retenu, d'où le gris réservé aux autres lignes.
                 className={`tcn-rowlink tcn-classement-ligne${own ? " tcn-classement-ligne--club" : ""}${moi ? " tcn-rowlink--moi" : nf ? " tcn-classement-ligne--nf" : ""}`}
               >
-                <td role="cell">{marqueurRang(p, nf, attente, { minWidth: 28, fontSize: 16 })}</td>
+                <td role="cell">{marqueurRang(p, nf, attente, { minWidth: 28, fontSize: 16 }, gender)}</td>
                 {/* `minWidth: 0` remplace l'`overflow: hidden` que portait la
                     cellule, et l'ellipsis descend sur le `<span>` intérieur.
                     Les deux faisaient le même travail sur la piste `1fr` — mais
@@ -759,7 +780,7 @@ export function RaceFinishers({
               href={detailHref(p)}
               accent={p.is_tcn}
               attenue={nf}
-              marqueur={marqueurRang(p, nf, attente)}
+              marqueur={marqueurRang(p, nf, attente, undefined, gender)}
               titre={
                 <>
                   {name}

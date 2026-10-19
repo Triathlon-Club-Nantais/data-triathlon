@@ -156,6 +156,10 @@ export interface Participation {
   rank_overall: number | null;
   rank_category: number | null;
   rank_gender: number | null;
+  /** Place au sein du sexe demandé (`gender`), `null` sans filtre ou hors population classée. */
+  gender_place?: number | null;
+  /** `false` : place recalculée, la source ne publie pas tous les rangs par sexe. */
+  gender_place_official?: boolean | null;
   total_time: string | null;
   status: string;
   is_relay: boolean;
@@ -883,6 +887,8 @@ export interface CourseQuery {
   club?: string;
   /** Code **exact** de catégorie, tel que rendu par `/summary` (#486). */
   category?: string;
+  /** Sexe du classement (`?sexe=` côté URL) : ajoute `gender_place` aux lignes. */
+  gender?: "M" | "F";
 }
 
 interface CategoryCount {

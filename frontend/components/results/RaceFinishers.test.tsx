@@ -1756,3 +1756,50 @@ describe("RaceFinishers — résultats en attente de validation (#1273)", () => 
     expect(dansLesCartes("classement-cartes").texte("En attente de validation")).toBeInTheDocument();
   });
 });
+
+describe("RaceFinishers par sexe (#1645)", () => {
+  const femmes = [
+    { ...p({ id: 1, nom: "ALPHA", rank_overall: 10, total_time: "01:00:00" }), gender_place: 1, gender_place_official: true },
+    { ...p({ id: 2, nom: "BETA", rank_overall: 11, total_time: "01:01:00" }), gender_place: 2, gender_place_official: true },
+  ];
+
+  it("renders the sexe toggle", () => {
+    afficher();
+    expect(screen.getByRole("group", { name: "Sexe" })).toBeInTheDocument();
+  });
+
+  it("shows gender_place in the place column under a gender filter", () => {
+    afficher({ participations: femmes, gender: "F" });
+    const grille = screen.getByTestId("classement-grille");
+    expect(within(grille).getByText("2")).toBeInTheDocument();
+    expect(within(grille).queryByText("11")).not.toBeInTheDocument();
+  });
+
+  it("keeps the current place column without gender", () => {
+    afficher({ participations: femmes });
+    const grille = screen.getByTestId("classement-grille");
+    expect(within(grille).getByText("11")).toBeInTheDocument();
+  });
+
+  it("flags recalculated places", () => {
+    const recalculees = femmes.map((f) => ({ ...f, gender_place_official: false }));
+    afficher({ participations: recalculees, gender: "F" });
+    expect(screen.getByText(/places recalculées/)).toBeInTheDocument();
+  });
+
+  it("does not flag official places", () => {
+    afficher({ participations: femmes, gender: "F" });
+    expect(screen.queryByText(/recalculée/)).not.toBeInTheDocument();
+  });
+
+  it("announces unknown-sex rows", () => {
+    const { unmount } = afficher({ unknownGenderCount: 3 });
+    expect(screen.getByText("3 résultats sans sexe connu non comptés")).toBeInTheDocument();
+    unmount();
+    const second = afficher({ unknownGenderCount: 1 });
+    expect(screen.getByText("1 résultat sans sexe connu non compté")).toBeInTheDocument();
+    second.unmount();
+    afficher({ unknownGenderCount: 0 });
+    expect(screen.queryByText(/sans sexe connu/)).not.toBeInTheDocument();
+  });
+});
