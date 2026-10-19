@@ -13,6 +13,7 @@ from collections import Counter
 from collections.abc import Set
 from dataclasses import dataclass, field
 from datetime import date
+from typing import Literal
 
 from sqlalchemy.orm import Session
 
@@ -178,7 +179,7 @@ def for_course(db: Session, course_id: int) -> list[dict]:
     return [{"id": c.id, "name": c.name, "ranked_count": counts.get(c.id, 0)} for c in challenges]
 
 
-def detail(db: Session, challenge_id: int) -> dict | None:
+def detail(db: Session, challenge_id: int, gender: Literal["M", "F"] | None = None) -> dict | None:
     challenge = challenge_repository.get(db, challenge_id)
     if challenge is None:
         return None
@@ -186,13 +187,28 @@ def detail(db: Session, challenge_id: int) -> dict | None:
         challenge.results,
         key=lambda r: (r.rank_overall is None, r.rank_overall or 0, r.athlete.nom),
     )
+    places: dict[int, int] = {}
+    official = None
+    unknown = None
+    if gender:
+        unknown = sum(r.athlete.gender not in ("M", "F") for r in results)
+        results = [r for r in results if r.athlete.gender == gender]
+        ranked = [r for r in results if r.status == "finisher" and r.rank_overall is not None]
+        official = all(r.rank_gender is not None for r in ranked)
+        if official:
+            ranked.sort(key=lambda r: r.rank_gender)
+        places = {r.id: r.rank_gender if official else position for position, r in enumerate(ranked, 1)}
+        results = ranked + [r for r in results if r.id not in places]
     return {
         "id": challenge.id, "name": challenge.name, "event_date": challenge.event_date,
-        "courses": _courses(challenge),
+        "courses": _courses(challenge), "unknown_gender_count": unknown,
         "results": [
             {
                 "athlete_id": r.athlete_id, "nom": r.athlete.nom, "prenom": r.athlete.prenom,
                 "rank_overall": r.rank_overall, "total_time": r.total_time, "status": r.status,
+                "gender": r.athlete.gender, "rank_gender": r.rank_gender,
+                "gender_place": places.get(r.id),
+                "gender_place_official": official if r.id in places else None,
             }
             for r in results
         ],

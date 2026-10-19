@@ -260,7 +260,8 @@ export const apiServer = {
    * pas (#163).
    */
   getCourseSummary: (id: number) => serverFetch<CourseSummary>(`/courses/${id}/summary`),
-  getChallenge: (id: number) => serverFetch<ChallengeDetail>(`/challenges/${id}`),
+  getChallenge: (id: number, opts: { gender?: Gender } = {}) =>
+    serverFetch<ChallengeDetail>(`/challenges/${id}${toQuery(opts)}`),
   /** Sources connues de l'épreuve, active en tête (#284) — lecture publique (D4). */
   getCourseSources: (id: number) => serverFetch<CourseSource[]>(`/courses/${id}/sources`),
   listEvents: (filters: ParticipationFilters = {}, fetchOpts: FetchOpts = {}) =>

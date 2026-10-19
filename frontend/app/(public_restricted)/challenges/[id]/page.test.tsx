@@ -6,7 +6,11 @@ import { ApiError } from "@/lib/api/client";
 const getChallenge = vi.fn();
 
 vi.mock("@/lib/api/server", () => ({
-  apiServer: { getChallenge: (id: number) => getChallenge(id) },
+  apiServer: { getChallenge: (id: number, opts?: unknown) => getChallenge(id, opts) },
+}));
+
+vi.mock("@/components/layout/SexeToggle", () => ({
+  SexeToggle: () => <div role="group" aria-label="Sexe" />,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -23,13 +27,13 @@ const CHALLENGE: ChallengeDetail = {
   event_date: "2026-05-13",
   courses: [{ id: 284, name: "MEDOC 2026 - XS" }],
   results: [
-    { athlete_id: 1, nom: "DUPONT", prenom: "Jean", rank_overall: 1, total_time: "06:50:33", status: "finisher" },
-    { athlete_id: 2, nom: "MARTIN", prenom: "Paul", rank_overall: null, total_time: null, status: "DNF" },
+    { athlete_id: 1, nom: "DUPONT", prenom: "Jean", rank_overall: 1, total_time: "06:50:33", status: "finisher", gender: "F", rank_gender: 1 },
+    { athlete_id: 2, nom: "MARTIN", prenom: "Paul", rank_overall: null, total_time: null, status: "DNF", gender: "F", rank_gender: null },
   ],
 };
 
-async function afficher(id = "7") {
-  render(await ChallengePage({ params: Promise.resolve({ id }) }));
+async function afficher(id = "7", searchParams: Record<string, string | undefined> = {}) {
+  render(await ChallengePage({ params: Promise.resolve({ id }), searchParams: Promise.resolve(searchParams) }));
 }
 
 describe("ChallengePage", () => {
@@ -51,5 +55,52 @@ describe("ChallengePage", () => {
   it("appelle notFound sur un challenge inconnu", async () => {
     getChallenge.mockRejectedValue(new ApiError(404, "Challenge introuvable"));
     await expect(afficher("999")).rejects.toThrow("notFound");
+  });
+
+  it("passe gender à getChallenge quand sexe=F", async () => {
+    getChallenge.mockResolvedValue(CHALLENGE);
+    await afficher("7", { sexe: "F" });
+    expect(getChallenge).toHaveBeenCalledWith(7, { gender: "F" });
+  });
+
+  it("n'envoie aucun filtre sans sexe", async () => {
+    getChallenge.mockResolvedValue(CHALLENGE);
+    await afficher();
+    expect(getChallenge).toHaveBeenCalledWith(7, { gender: undefined });
+    expect(screen.queryByText(/sans sexe connu/)).toBeNull();
+  });
+
+  it("affiche gender_place sous le filtre", async () => {
+    const results = [{ ...CHALLENGE.results[0], gender_place: 2, gender_place_official: true }];
+    getChallenge.mockResolvedValue({ ...CHALLENGE, results, unknown_gender_count: 0 });
+    await afficher("7", { sexe: "F" });
+    const ligne = within(screen.getByRole("table", { name: "Classement du challenge" })).getAllByRole("row")[1];
+    expect(within(ligne).getByText("2")).toBeInTheDocument();
+    expect(screen.queryByText(/places recalculées/)).toBeNull();
+  });
+
+  it("signale les places recalculées", async () => {
+    const results = [{ ...CHALLENGE.results[0], gender_place: 1, gender_place_official: false }];
+    getChallenge.mockResolvedValue({ ...CHALLENGE, results, unknown_gender_count: 0 });
+    await afficher("7", { sexe: "F" });
+    expect(screen.getByText(/places recalculées/)).toBeInTheDocument();
+  });
+
+  it("annonce les résultats sans sexe connu", async () => {
+    getChallenge.mockResolvedValue({ ...CHALLENGE, unknown_gender_count: 3 });
+    await afficher("7", { sexe: "F" });
+    expect(screen.getByText("3 résultats sans sexe connu non comptés")).toBeInTheDocument();
+  });
+
+  it("accorde au singulier", async () => {
+    getChallenge.mockResolvedValue({ ...CHALLENGE, unknown_gender_count: 1 });
+    await afficher("7", { sexe: "F" });
+    expect(screen.getByText("1 résultat sans sexe connu non compté")).toBeInTheDocument();
+  });
+
+  it("rend le bouton de sexe", async () => {
+    getChallenge.mockResolvedValue(CHALLENGE);
+    await afficher();
+    expect(screen.getByRole("group", { name: "Sexe" })).toBeInTheDocument();
   });
 });

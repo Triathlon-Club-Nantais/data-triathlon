@@ -304,6 +304,9 @@ les agrégats au sexe demandé : `_stats_filters` et `club_podiums` par
 composition sur `Athlete.gender` qu'ils joignent déjà, `licensees` sur
 `ClubMember.gender` (un licencié sans athlète lié reste compté). `/club/best-times`
 (déjà un résultat par sexe) ne bouge pas.
+`gender` (#1647) est aussi facultatif sur `GET /challenges/{id}` : mêmes règles de place
+(`status == finisher` et `rank_overall` non nul, officielle si toutes ont `rank_gender`),
+calculées dans `challenge_service.detail`, et `unknown_gender_count` (nul hors filtre).
 Design : `docs/superpowers/specs/2026-10-19-results-by-sex-design.md`.
 
 ## Sources multiples d'une épreuve : sources, bascule, re-scrape, fusion (epic #275)

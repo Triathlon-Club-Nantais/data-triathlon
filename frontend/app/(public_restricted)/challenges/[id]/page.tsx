@@ -9,6 +9,9 @@ import { nonFinisherLabel } from "@/components/results/StatusBadge";
 import { Card } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { SexeToggle } from "@/components/layout/SexeToggle";
+import { SEXE_PARAM, genderFromSexeParam } from "@/lib/scope";
+import { plural } from "@/lib/utils/format";
 
 export const metadata: Metadata = { title: "Classement Challenge" };
 
@@ -17,10 +20,19 @@ export const metadata: Metadata = { title: "Classement Challenge" };
  * liées. Un vrai `<table>` natif, sans `.tcn-table` : trois colonnes ne
  * débordent pas un écran étroit, et la sémantique native suffit.
  */
-export default async function ChallengePage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ChallengePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
+}) {
   const { id } = await params;
-  const challenge = await apiServer.getChallenge(idDeRoute(id)).catch(rendreNullSi404);
+  const gender = genderFromSexeParam((await searchParams)[SEXE_PARAM]);
+  const challenge = await apiServer.getChallenge(idDeRoute(id), { gender }).catch(rendreNullSi404);
   if (!challenge) notFound();
+  const unknown = challenge.unknown_gender_count ?? 0;
+  const recalcules = !!gender && challenge.results.some((row) => row.gender_place_official === false);
 
   return (
     <PageShell>
@@ -40,6 +52,17 @@ export default async function ChallengePage({ params }: { params: Promise<{ id: 
           </p>
         </Card>
         <Card>
+          <SexeToggle />
+          {(recalcules || (!!gender && unknown > 0)) && (
+            <div className="my-3 text-sm" style={{ color: "var(--tcn-text-muted)" }}>
+              {recalcules && <p style={{ margin: 0 }}>Classement par sexe : places recalculées, la source ne publie pas toutes les places par sexe.</p>}
+              {gender && unknown > 0 && (
+                <p style={{ margin: 0 }}>
+                  {unknown} {plural(unknown, "résultat")} sans sexe connu {plural(unknown, "non compté", "non comptés")}
+                </p>
+              )}
+            </div>
+          )}
           <table className="w-full" aria-label="Classement du challenge">
             <thead>
               <tr>
@@ -52,7 +75,7 @@ export default async function ChallengePage({ params }: { params: Promise<{ id: 
               {challenge.results.map((row, index) => (
                 // Une fusion de fiches peut réunir deux lignes sur un même athlète.
                 <tr key={`${row.athlete_id}-${index}`}>
-                  <td>{row.rank_overall ?? nonFinisherLabel(row.status)}</td>
+                  <td>{(gender ? row.gender_place : row.rank_overall) ?? nonFinisherLabel(row.status)}</td>
                   <td>
                     <Link href={`/athletes/${row.athlete_id}`} className="underline underline-offset-2">
                       {row.prenom} {row.nom}
