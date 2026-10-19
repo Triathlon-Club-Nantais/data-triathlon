@@ -85,11 +85,13 @@ describe("BandeauDirect", () => {
     expect(screen.getByText("Saison 2026 — 2027")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: /Saison 2025 — 2026 : sept\. : 7.*Saison 2026 — 2027 : sept\. : 120/ })).toBeInTheDocument();
     expect(screen.queryByText(/saisons les plus récentes/)).toBeNull();
+    expect(container.querySelectorAll(".tcn-barre")[0]).toHaveAttribute("title", "Saison 2025 — 2026 · sept. : 7");
   });
 
   it("notes that only the 3 most recent seasons are drawn", () => {
     const { container } = render(<BandeauDirect sortie={null} stats={STATS} seasons={[2022, 2023, 2024, 2025]} today={TODAY} />);
     expect(screen.getByText("3 saisons les plus récentes")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /3 saisons les plus récentes\.$/ })).toBeInTheDocument();
     expect(container.querySelectorAll(".tcn-barre")).toHaveLength(36);
   });
 

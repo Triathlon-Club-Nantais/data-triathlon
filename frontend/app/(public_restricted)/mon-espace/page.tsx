@@ -87,7 +87,7 @@ export default async function DashboardPage({
         <SeasonEmptyState seasons={selected} currentSeasonHref={voirSaisonEnCoursHref} />
       ) : (
         <>
-          {/* Le collectif vit sur `/club` (#1299). Au-dessus des dernières épreuves, à dessein (#502, NAV-9) : l'écran
+          {/* Le collectif vit sur `/club` (#1299). En tête de page, à dessein (#502, NAV-9) : l'écran
               d'atterrissage ne parlait que du club en agrégat. La bande n'existe
               que pour qui a désigné son nom — elle se monte donc côté client et
               n'est pas dans le HTML initial (arbitrage #467, `docs/frontend/athlete-retenu.md`).

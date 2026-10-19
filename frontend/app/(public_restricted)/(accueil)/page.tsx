@@ -27,7 +27,6 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     apiServer.listSeasons({ scope: SCOPE_CLUB, federal_only }, revalidateOpts).catch(() => []),
   ]);
   const recentEvents = sortEventsByDateDesc(eventsPage.items).slice(0, 6);
-  const derniere = recentEvents[0];
 
   return (
     <PageShell>
@@ -42,7 +41,6 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
       </div>
       <BandeauDirect sortie={sortie} stats={stats} seasons={seasons} today={new Date()} />
       <TuilesEspaces
-        derniereEpreuve={derniere ? { nom: derniere.event_name, date: derniere.event_date } : null}
         podiumsSaison={stats.rank_counters.all.podiums}
         seasons={seasons}
         query={query ? `?${query}` : ""}

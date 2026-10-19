@@ -26,7 +26,7 @@ function afficher(query = "", seasons = [currentSeason()]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <TuilesEspaces derniereEpreuve={{ nom: "Tri de Saint-Gilles M", date: "2026-10-11" }} podiumsSaison={27} query={query} seasons={seasons} />
+      <TuilesEspaces podiumsSaison={27} query={query} seasons={seasons} />
     </QueryClientProvider>,
   );
 }
@@ -41,7 +41,7 @@ describe("TuilesEspaces", () => {
   it("links every visitor to Résultats, Club and Mon espace, with their fresh line", async () => {
     getSession.mockResolvedValue(null);
     afficher();
-    expect(screen.getByRole("link", { name: /Résultats.*Tri de Saint-Gilles M/ })).toHaveAttribute("href", "/resultats");
+    expect(screen.getByRole("link", { name: /Résultats.*Toutes les épreuves du club/ })).toHaveAttribute("href", "/resultats");
     expect(screen.getByRole("link", { name: /Club.*27 podiums/ })).toHaveAttribute("href", "/club");
     expect(screen.getByRole("link", { name: /Mon espace.*Choisissez votre nom/ })).toHaveAttribute("href", "/mon-espace");
   });
@@ -131,7 +131,7 @@ describe("TuilesEspaces", () => {
       expect(fleche?.querySelector("svg")).not.toBeNull();
     }
     expect(liens.map((l) => l.textContent)).not.toContain("→");
-    expect(screen.getByRole("link", { name: /^Résultats Tri de Saint-Gilles M/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Résultats Toutes les épreuves du club$/ })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /^Encadrement Jeunes, appel, bénévolat$/ })).toBeInTheDocument();
   });
 });

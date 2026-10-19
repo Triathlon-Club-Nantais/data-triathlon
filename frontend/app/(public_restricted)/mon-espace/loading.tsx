@@ -14,9 +14,7 @@ export default function Loading() {
           <Skeleton className="h-9 w-72" />
         </div>
       </div>
-      <Skeleton className="mb-4 h-24 w-full rounded-lg" />
-      <Skeleton className="h-72 w-full rounded-lg" />
-      <Skeleton className="mt-4 h-28 w-full rounded-lg" />
+      <Skeleton className="h-24 w-full rounded-lg" />
     </PageShell>
   );
 }

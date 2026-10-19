@@ -22,9 +22,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("@/components/home/TuilesEspaces", () => ({
-  TuilesEspaces: ({ derniereEpreuve }: { derniereEpreuve: { nom: string } | null }) => (
-    <nav aria-label="Espaces">{derniereEpreuve?.nom}</nav>
-  ),
+  TuilesEspaces: () => <nav aria-label="Espaces" />,
 }));
 
 import { currentSeason } from "@/lib/utils/season";
@@ -118,7 +116,6 @@ describe("HomePage", () => {
       const tuiles = screen.getByRole("navigation", { name: "Espaces" });
       const titre = screen.getByRole("heading", { level: 2, name: "Dernières épreuves" });
       expect(tuiles.compareDocumentPosition(titre) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(tuiles).toHaveTextContent("Ironman Nantes");
       const liens = screen.getAllByRole("link", { name: /Petit format|Ironman Nantes/ });
       expect(liens[0]).toHaveTextContent("Ironman Nantes");
     });

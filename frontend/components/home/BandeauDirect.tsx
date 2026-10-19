@@ -32,7 +32,7 @@ function Histogramme({ stats, seasons }: { stats: Stats; seasons: number[] }) {
     })
     .join(". ");
   return (
-    <figure role="img" aria-label={`Résultats par mois. ${resume}.`} style={{ margin: 0 }}>
+    <figure role="img" aria-label={`Résultats par mois. ${resume}.${tronque ? " 3 saisons les plus récentes." : ""}`} style={{ margin: 0 }}>
       <div aria-hidden="true" style={{ display: "flex", gap: compare ? 6 : 4 }}>
         {mois.map((m) => (
           <div key={m.index} style={{ flex: 1, minWidth: 0 }}>
@@ -41,14 +41,14 @@ function Histogramme({ stats, seasons }: { stats: Stats; seasons: number[] }) {
                 <span
                   key={saisons[k]}
                   className="tcn-barre"
-                  title={`${m.libelle} : ${valeur}`}
+                  title={`${compare ? `${seasonLabel(saisons[k])} · ` : ""}${m.libelle} : ${valeur}`}
                   style={{ "--i": m.index, flex: 1, minWidth: 0, height: `${Math.max(4, (valeur / max) * 100)}%`, borderRadius: 3, background: valeur ? couleurs[k] : "var(--tcn-grey-300)" } as CSSProperties}
                 />
               ))}
             </div>
             <div style={{ marginTop: 4, textAlign: "center", fontSize: 11, color: "var(--tcn-text-muted)" }}>
-              <span className="hidden sm:inline">{m.libelle}</span>
-              <span className="sm:hidden">{m.libelle[0].toUpperCase()}</span>
+              <span className="hidden lg:inline">{m.libelle}</span>
+              <span className="lg:hidden">{m.libelle[0].toUpperCase()}</span>
             </div>
           </div>
         ))}
