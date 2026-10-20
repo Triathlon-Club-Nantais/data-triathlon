@@ -98,7 +98,7 @@ export function OngletsMonEspace({
 
   return (
     <Tabs value={courant} onValueChange={choisir}>
-      <TabsList variant="line" aria-label="Mon espace" activateOnFocus className="h-auto max-w-full pb-2 justify-start overflow-x-auto">
+      <TabsList variant="line" aria-label="Mon espace" activateOnFocus className="h-auto group-data-horizontal/tabs:h-auto max-w-full pb-2 justify-start overflow-x-auto overflow-y-hidden">
         {onglets.map((o) => (
           <TabsTrigger key={o.value} value={o.value} className="min-h-11">
             {o.label}
