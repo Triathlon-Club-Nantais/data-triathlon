@@ -10,7 +10,8 @@ import { Card } from "@/components/tcn";
 import { PageShell } from "@/components/layout/PageShell";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { SexeToggle } from "@/components/layout/SexeToggle";
-import { SEXE_PARAM, genderFromSexeParam } from "@/lib/scope";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SEXE_PARAM, chezLesSexe, genderFromSexeParam } from "@/lib/scope";
 import { plural } from "@/lib/utils/format";
 
 export const metadata: Metadata = { title: "Classement Challenge" };
@@ -52,21 +53,38 @@ export default async function ChallengePage({
           </p>
         </Card>
         <Card>
-          <SexeToggle />
-          {(recalcules || (!!gender && unknown > 0)) && (
-            <div className="my-3 text-sm" style={{ color: "var(--tcn-text-muted)" }}>
-              {recalcules && <p style={{ margin: 0 }}>Classement par sexe : places recalculées, la source ne publie pas toutes les places par sexe.</p>}
-              {gender && unknown > 0 && (
-                <p style={{ margin: 0 }}>
-                  {unknown} {plural(unknown, "résultat")} sans sexe connu {plural(unknown, "non compté", "non comptés")}
-                </p>
-              )}
-            </div>
-          )}
+          <div className="mb-4 space-y-2">
+            <SexeToggle />
+            {(recalcules || (!!gender && unknown > 0)) && (
+              <div className="space-y-1 text-[13px]" style={{ color: "var(--tcn-text-muted)" }}>
+                {recalcules && <p style={{ margin: 0 }}>Classement par sexe : places recalculées, la source ne publie pas toutes les places par sexe.</p>}
+                {gender && unknown > 0 && (
+                  <p style={{ margin: 0 }}>
+                    {unknown} {plural(unknown, "résultat")} sans sexe connu,{" "}
+                    {plural(unknown, "absent", "absents")} de ce classement.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+          {gender && challenge.results.length === 0 ? (
+            <EmptyState
+              bare
+              title={`Aucun classé ${chezLesSexe(gender)} sur ce challenge.`}
+              action={
+                <Link
+                  href={`/challenges/${challenge.id}`}
+                  className="tcn-cible-tactile inline-flex items-center text-sm font-semibold text-accent-ink hover:underline"
+                >
+                  Retirer le filtre par sexe
+                </Link>
+              }
+            />
+          ) : (
           <table className="w-full" aria-label="Classement du challenge">
             <thead>
               <tr>
-                <th scope="col" className="text-left">Rang</th>
+                <th scope="col" className="text-left">{gender ? `Place (${gender === "M" ? "H" : "F"})` : "Rang"}</th>
                 <th scope="col" className="text-left">Athlète</th>
                 <th scope="col" className="text-right">Temps cumulé</th>
               </tr>
@@ -86,6 +104,7 @@ export default async function ChallengePage({
               ))}
             </tbody>
           </table>
+          )}
         </Card>
       </div>
     </PageShell>

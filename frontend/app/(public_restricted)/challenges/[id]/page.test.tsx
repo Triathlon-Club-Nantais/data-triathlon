@@ -89,13 +89,39 @@ describe("ChallengePage", () => {
   it("annonce les résultats sans sexe connu", async () => {
     getChallenge.mockResolvedValue({ ...CHALLENGE, unknown_gender_count: 3 });
     await afficher("7", { sexe: "F" });
-    expect(screen.getByText("3 résultats sans sexe connu non comptés")).toBeInTheDocument();
+    expect(screen.getByText("3 résultats sans sexe connu, absents de ce classement.")).toBeInTheDocument();
   });
 
   it("accorde au singulier", async () => {
     getChallenge.mockResolvedValue({ ...CHALLENGE, unknown_gender_count: 1 });
     await afficher("7", { sexe: "F" });
-    expect(screen.getByText("1 résultat sans sexe connu non compté")).toBeInTheDocument();
+    expect(screen.getByText("1 résultat sans sexe connu, absent de ce classement.")).toBeInTheDocument();
+  });
+
+  it("remplace le tableau vide par un état vide nommant le sexe, avec un lien qui retire le filtre", async () => {
+    getChallenge.mockResolvedValue({ ...CHALLENGE, results: [], unknown_gender_count: 0 });
+    await afficher("7", { sexe: "F" });
+    expect(screen.getByText("Aucun classé chez les femmes sur ce challenge.")).toBeInTheDocument();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByRole("link", { name: "Retirer le filtre par sexe" })).toHaveAttribute("href", "/challenges/7");
+  });
+
+  it("intitule la colonne Place (F) sous le filtre, Rang sans", async () => {
+    getChallenge.mockResolvedValue({ ...CHALLENGE, unknown_gender_count: 0 });
+    await afficher("7", { sexe: "F" });
+    expect(screen.getByRole("columnheader", { name: "Place (F)" })).toBeInTheDocument();
+  });
+
+  it("garde Rang sans filtre", async () => {
+    getChallenge.mockResolvedValue(CHALLENGE);
+    await afficher();
+    expect(screen.getByRole("columnheader", { name: "Rang" })).toBeInTheDocument();
+  });
+
+  it("rend les notes en 13 px", async () => {
+    getChallenge.mockResolvedValue({ ...CHALLENGE, unknown_gender_count: 2 });
+    await afficher("7", { sexe: "F" });
+    expect(screen.getByText(/sans sexe connu/).parentElement).toHaveClass("text-[13px]");
   });
 
   it("rend le bouton de sexe", async () => {
