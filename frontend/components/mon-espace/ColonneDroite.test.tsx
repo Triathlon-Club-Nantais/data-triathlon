@@ -3,12 +3,12 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Participation, SessionUser } from "@/lib/types";
 
-const { getSession, getClubRosterRank, getAthlete, getMyTeammates, getEventsGeo, getMySeasonQuota } = vi.hoisted(() => ({
-  getSession: vi.fn(), getClubRosterRank: vi.fn(), getAthlete: vi.fn(), getMyTeammates: vi.fn(), getEventsGeo: vi.fn(), getMySeasonQuota: vi.fn(),
+const { getSession, getClubRosterRank, getAthlete, getMyTeammates, getEventsGeo, getMySeasonQuota, getSeasonGoals } = vi.hoisted(() => ({
+  getSession: vi.fn(), getClubRosterRank: vi.fn(), getAthlete: vi.fn(), getMyTeammates: vi.fn(), getEventsGeo: vi.fn(), getMySeasonQuota: vi.fn(), getSeasonGoals: vi.fn(),
 }));
 vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
-  return { ...original, apiClient: { ...original.apiClient, getSession, getClubRosterRank, getAthlete, getMyTeammates, getEventsGeo, getMySeasonQuota } };
+  return { ...original, apiClient: { ...original.apiClient, getSession, getClubRosterRank, getAthlete, getMyTeammates, getEventsGeo, getMySeasonQuota, getSeasonGoals } };
 });
 
 import { currentSeason } from "@/lib/utils/season";
@@ -36,6 +36,7 @@ beforeEach(() => {
   getMyTeammates.mockResolvedValue([]);
   getEventsGeo.mockResolvedValue([]);
   getMySeasonQuota.mockResolvedValue(null);
+  getSeasonGoals.mockResolvedValue([]);
   document.cookie = "tcn_logged_in=1; path=/";
   getSession.mockResolvedValue({ id: 1, athlete: LEA, permissions: [], roles: [], groups: [] } as unknown as SessionUser);
 });
