@@ -198,6 +198,17 @@ function Compte({
         )}
       </Card>
 
+      <Card>
+        <h2 style={TITRE}>Mes données</h2>
+        <p style={{ ...DISCRET, marginBottom: 12 }}>
+          Une copie de votre compte, de vos connexions, demandes, objectifs, déclarations de bénévolat et des
+          résultats de votre fiche, dans un fichier JSON.
+        </p>
+        <a href="/api/v1/auth/me/export" download className="tcn-btn tcn-btn--secondary tcn-cible-tactile">
+          Télécharger mes données
+        </a>
+      </Card>
+
       <Card style={{ borderColor: "var(--tcn-danger-border)" }}>
         <h2 style={TITRE}>Zone sensible</h2>
         <p ref={statut} role="status" tabIndex={-1} className="mb-3 empty:mb-0">
