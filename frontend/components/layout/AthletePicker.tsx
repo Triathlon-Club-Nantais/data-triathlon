@@ -301,7 +301,7 @@ export function AthletePicker({
       footer={
         designation ? (
           <div style={{ fontSize: 13, color: "var(--tcn-text-faint)", textAlign: "center" }}>
-            Vous demanderez ensuite le lien avec « C&apos;est moi ».
+            Vous pourrez ensuite faire le lien avec « C&apos;est moi ».
           </div>
         ) : null
       }

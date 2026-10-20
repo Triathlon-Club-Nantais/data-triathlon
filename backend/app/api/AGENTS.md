@@ -32,8 +32,8 @@ feature).
 
 `app/core/validation.py` (`validated_clause`) est le point
 **unique** de la règle, sur le patron de `core/club.tcn_clause` et
-`core/discipline.federal_clause`. Appliqué à vingt-cinq fonctions (dont `list_for_athlete`, décrite plus bas), réparties sur
-quatre repositories :
+`core/discipline.federal_clause`. Appliqué à trente-cinq fonctions (dont `list_for_athlete`, décrite plus bas), réparties sur
+cinq repositories (le tableau ne liste que les principales) :
 
 | Fonction | Fichier | Alimente |
 | --- | --- | --- |
