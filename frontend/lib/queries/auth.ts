@@ -82,6 +82,15 @@ export function useAuthMethods() {
   });
 }
 
+/** Moyens de connexion liés au compte de la session (#1663). */
+export function useMyIdentities() {
+  return useQuery({
+    queryKey: queryKeys.myIdentities(),
+    queryFn: () => apiClient.getMyIdentities(),
+    retry: false,
+  });
+}
+
 /** Déconnexion de **cet** appareil seul (FR-014). */
 export function useLogout() {
   const qc = useQueryClient();

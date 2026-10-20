@@ -66,6 +66,7 @@ export const queryKeys = {
   // qu'au déploiement, d'où le `staleTime: Infinity` de son hook.
   adminPermissions: () => ["admin-permissions"] as const,
   session: () => ["session"] as const,
+  myIdentities: () => ["my-identities"] as const,
   authMethods: () => ["auth-methods"] as const,
   providers: () => ["providers"] as const,
   batchRuns: () => ["batch-runs"] as const,

@@ -34,6 +34,7 @@ const TITRES: [string, () => Promise<{ metadata?: Metadata }>, string][] = [
   ["/confidentialite", () => import("./confidentialite/page"), "Politique de confidentialité"],
   ["/cgu", () => import("./cgu/page"), "Conditions d'utilisation"],
   ["/login", () => import("./login/layout"), "Connexion"],
+  ["/mon-compte", () => import("./mon-compte/page"), "Mon compte"],
   ["/benevoles", () => import("./benevoles/layout"), "Vérification des résultats"],
   ["404", () => import("./not-found"), "Page introuvable"],
   ["/admin", () => import("./admin/page"), "Back-office"],
