@@ -56,3 +56,8 @@ export function genderFromSexeParam(sexe?: string | null): Gender | undefined {
   if (sexe === "F") return "F";
   return undefined;
 }
+
+/** Inverse de `genderFromSexeParam` : suffixe `&sexe=H|F` à accoler à une query, vide sans filtre. */
+export function sexeQuerySuffix(gender?: Gender): string {
+  return gender ? `&${SEXE_PARAM}=${gender === "M" ? "H" : "F"}` : "";
+}

@@ -285,4 +285,28 @@ describe("ClubDashboard — smoke", () => {
 
     expect(screen.queryByRole("tab", { name: "Composition" })).not.toBeInTheDocument();
   });
+
+  it("falls back to the default tab when Composition is open and a gender is picked", async () => {
+    const props = { stats: STATS, summary: EMPTY_SUMMARY, recent: [], seasons: [currentSeason()] };
+    const { rerender } = render(<ClubDashboard {...props} />);
+    await userEvent.click(screen.getByRole("tab", { name: "Composition" }));
+
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <ClubDashboard {...props} gender="F" />
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByRole("tab", { name: "Par discipline" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByTestId("barlist")).toBeVisible();
+  });
+
+  it("keeps the sexe in the link to the season list", () => {
+    render(<ClubDashboard stats={STATS} summary={EMPTY_SUMMARY} recent={[]} seasons={[2025]} gender="M" />);
+
+    expect(screen.getByRole("link", { name: /saison par saison/ })).toHaveAttribute(
+      "href",
+      "/club/athletes?seasons=2025&sexe=H",
+    );
+  });
 });

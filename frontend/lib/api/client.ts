@@ -308,7 +308,7 @@ export const apiClient = {
   // sort). `null` sur 404 : hors roster est un état normal, pas une panne.
   getClubRosterRank: async (
     athleteId: number,
-    opts: { federal_only?: boolean; seasons?: number[] } = {},
+    opts: { federal_only?: boolean; seasons?: number[]; gender?: "M" | "F" } = {},
   ): Promise<ClubRosterRank | null> => {
     try {
       return await request<ClubRosterRank>(

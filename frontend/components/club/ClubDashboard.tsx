@@ -14,7 +14,7 @@ import { ClubPodiumKpi } from "./ClubPodiumKpi";
 import { RosterApercu } from "./RosterApercu";
 import { LienDestination } from "@/components/layout/LienDestination";
 import { DisciplinePerformance } from "./DisciplinePerformance";
-import type { Gender } from "@/lib/scope";
+import { sexeQuerySuffix, type Gender } from "@/lib/scope";
 import { ClubComposition } from "./ClubComposition";
 import { formatCount } from "@/lib/utils/format";
 import { seasonLabel, serializeSeasons, seasonSelectionLabel } from "@/lib/utils/season";
@@ -81,7 +81,8 @@ export function ClubDashboard({
             <CardTitle>Répartition & tendances</CardTitle>
           </CardHeader>
           <CardContent>
-            <Tabs defaultValue="type">
+            {/* `key` : sans Composition, l'onglet ouvert ne doit pas rester actif. */}
+            <Tabs key={gender ?? "tous"} defaultValue="type">
               <div className="overflow-x-auto">
                 <TabsList className="w-full">
                   <TabsTrigger value="type">Par discipline</TabsTrigger>
@@ -136,7 +137,7 @@ export function ClubDashboard({
               réservé à `pages:preview` (#811). Indépendant du nombre
               d'athlètes. */}
           <LienDestination
-            href={`/club/athletes?seasons=${serializeSeasons(seasons)}`}
+            href={`/club/athletes?seasons=${serializeSeasons(seasons)}${sexeQuerySuffix(gender)}`}
             className="shrink-0 text-sm font-medium text-accent-ink hover:underline"
           >
             Voir saison par saison →

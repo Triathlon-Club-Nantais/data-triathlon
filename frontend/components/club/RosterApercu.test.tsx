@@ -118,6 +118,19 @@ describe("RosterApercu — retrouver sa ligne (#504)", () => {
     expect(getClubRosterRank).toHaveBeenCalledWith(99, { federal_only: true, seasons: [2024, 2025] });
   });
 
+  it("classe parmi le sexe de l'URL et le garde dans le lien vers la liste", async () => {
+    url.qs = "sexe=F";
+    const roster = Array.from({ length: 12 }, (_, i) => entry({ athlete_id: i + 1, count: 12 - i + 1 }));
+    writeAthlete({ id: 99, prenom: "M", nom: "Moi" });
+    getClubRosterRank.mockResolvedValue({ rank: 3, total: 9 });
+
+    render(<RosterApercu roster={roster} />);
+
+    const rappel = await screen.findByRole("link", { name: /3ᵉ des 9/ });
+    expect(getClubRosterRank).toHaveBeenCalledWith(99, expect.objectContaining({ gender: "F" }));
+    expect(rappel).toHaveAttribute("href", `/club/athletes?seasons=${currentSeason()}&sexe=F#athlete-99`);
+  });
+
   it("garde le rappel générique si le rang ne peut pas être calculé", async () => {
     const roster = Array.from({ length: 12 }, (_, i) => entry({ athlete_id: i + 1, count: 12 - i + 1 }));
     writeAthlete({ id: 99, prenom: "M", nom: "Moi" });
