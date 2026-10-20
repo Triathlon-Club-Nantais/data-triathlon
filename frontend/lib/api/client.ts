@@ -938,6 +938,9 @@ export const apiClient = {
     }),
   cancelAthleteClaim: () => request<null>("/auth/me/athlete-claim", { method: "DELETE" }),
   detachAthlete: () => request<null>("/auth/me/athlete", { method: "DELETE" }),
+  // Droit d'opposition exercé par le membre rattaché lui-même (#1673).
+  previewMyOpposition: () => request<OppositionPreview>("/auth/me/opposition/preview", { method: "POST" }),
+  applyMyOpposition: () => request<null>("/auth/me/opposition", { method: "POST" }),
   getAthleteClaims: () => request<AthleteClaimReview[]>("/admin/athlete-claims"),
   // ── Objectifs de saison (#1373), privés au compte ───────────────────────────
   getMyVolunteerActions: () => request<MyVolunteerActionOut[]>("/auth/me/volunteer-actions"),

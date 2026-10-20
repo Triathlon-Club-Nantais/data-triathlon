@@ -4,10 +4,20 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DangerConfirm } from "@/components/admin/DangerConfirm";
 import { nomComplet } from "@/components/layout/AthletePicker";
+import { ContactEmail } from "@/components/legal/blocks";
 import { Button, Card } from "@/components/tcn";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCancelAthleteClaim, useDeleteAccount, useDetachAthlete, useMyIdentities, useSession } from "@/lib/queries/auth";
-import type { SessionUser } from "@/lib/types";
+import { apiClient } from "@/lib/api/client";
+import { messageApplique } from "@/lib/opposition";
+import {
+  useApplyMyOpposition,
+  useCancelAthleteClaim,
+  useDeleteAccount,
+  useDetachAthlete,
+  useMyIdentities,
+  useSession,
+} from "@/lib/queries/auth";
+import type { OppositionPreview, SessionUser } from "@/lib/types";
 import { formatDate } from "@/lib/utils/date";
 
 const TITRE = { fontFamily: "var(--tcn-font-display)", fontSize: 22, fontWeight: 400, color: "var(--tcn-ink)", margin: "0 0 12px" } as const;
@@ -81,6 +91,26 @@ function Compte({
   const [detachementOuvert, setDetachementOuvert] = useState(false);
   const annulation = useCancelAthleteClaim();
   const demande = session.athlete_claim;
+  const opposition = useApplyMyOpposition();
+  const [oppositionOuverte, setOppositionOuverte] = useState(false);
+  const [apercu, setApercu] = useState<OppositionPreview | null>(null);
+  const [apercuEchoue, setApercuEchoue] = useState(false);
+
+  async function ouvrirOpposition() {
+    opposition.reset();
+    setApercu(null);
+    setApercuEchoue(false);
+    setOppositionOuverte(true);
+    try {
+      setApercu(await apiClient.previewMyOpposition());
+    } catch {
+      setApercuEchoue(true);
+    }
+  }
+
+  const erreurOpposition = apercuEchoue
+    ? "Les résultats concernés n'ont pas pu être comptés. Fermez puis rouvrez pour réessayer."
+    : opposition.error?.message;
 
   return (
     <div className="space-y-6">
@@ -157,29 +187,70 @@ function Compte({
 
       <Card style={{ borderColor: "var(--tcn-danger-border)" }}>
         <h2 style={TITRE}>Zone sensible</h2>
-        <Button
-          variant="destructive"
-          onClick={() => {
-            suppression.reset();
-            setSuppressionOuverte(true);
-          }}
-        >
-          Supprimer mon compte
-        </Button>
-        <DangerConfirm
-          open={suppressionOuverte}
-          onOpenChange={setSuppressionOuverte}
-          titre="Supprimer votre compte ?"
-          description={
+        <p role="status" className="mb-3 empty:mb-0">
+          {opposition.isSuccess && apercu ? messageApplique(apercu.results) : ""}
+        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          {session.athlete && (
             <>
-              Votre compte, vos connexions, rôles et groupes sont effacés. Vos résultats et votre fiche athlète
-              restent publiés. Vous pourrez vous reconnecter plus tard : un compte neuf, sans rôle, sera créé.
+              <Button variant="destructive" onClick={() => void ouvrirOpposition()}>
+                Masquer mes résultats
+              </Button>
+              <DangerConfirm
+                open={oppositionOuverte}
+                onOpenChange={setOppositionOuverte}
+                titre="Masquer vos résultats ?"
+                description={
+                  !apercu ? (
+                    !apercuEchoue && "Calcul des résultats concernés…"
+                  ) : apercu.athletes > 1 ? (
+                    <>
+                      Votre nom correspond à plusieurs fiches. Écrivez au club à <ContactEmail /> pour exercer
+                      votre droit d&apos;opposition.
+                    </>
+                  ) : (
+                    <>
+                      {apercu.results > 1
+                        ? `${apercu.results} résultats deviendront anonymes`
+                        : `${apercu.results} résultat deviendra anonyme`}
+                      {" "}: le temps et le rang restent dans les classements, sans votre nom. Votre fiche athlète est
+                      supprimée et votre compte n&apos;y est plus rattaché. Vous ne pourrez pas revenir en arrière
+                      vous-même : seul le club peut lever l&apos;opposition.
+                    </>
+                  )
+                }
+                avertissement={erreurOpposition && <span role="alert" style={ERREUR}>{erreurOpposition}</span>}
+                actionBloquee={!apercu || apercu.athletes !== 1}
+                libelleAction="Masquer définitivement"
+                enAttente={opposition.isPending}
+                onConfirm={() => opposition.mutate(undefined, { onSuccess: () => setOppositionOuverte(false) })}
+              />
             </>
-          }
-          avertissement={suppression.error?.message}
-          enAttente={suppression.isPending}
-          onConfirm={onSupprimer}
-        />
+          )}
+          <Button
+            variant="destructive"
+            onClick={() => {
+              suppression.reset();
+              setSuppressionOuverte(true);
+            }}
+          >
+            Supprimer mon compte
+          </Button>
+          <DangerConfirm
+            open={suppressionOuverte}
+            onOpenChange={setSuppressionOuverte}
+            titre="Supprimer votre compte ?"
+            description={
+              <>
+                Votre compte, vos connexions, rôles et groupes sont effacés. Vos résultats et votre fiche athlète
+                restent publiés. Vous pourrez vous reconnecter plus tard : un compte neuf, sans rôle, sera créé.
+              </>
+            }
+            avertissement={suppression.error?.message}
+            enAttente={suppression.isPending}
+            onConfirm={onSupprimer}
+          />
+        </div>
       </Card>
     </div>
   );

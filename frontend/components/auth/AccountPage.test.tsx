@@ -5,8 +5,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/client";
 import type { AccountIdentity, SessionUser } from "@/lib/types";
 
-const { push, getSession, getMyIdentities, deleteAccount, detachAthlete, cancelAthleteClaim } = vi.hoisted(() => ({
+const {
+  push,
+  getSession,
+  getMyIdentities,
+  deleteAccount,
+  detachAthlete,
+  cancelAthleteClaim,
+  previewMyOpposition,
+  applyMyOpposition,
+} = vi.hoisted(() => ({
   push: vi.fn(),
+  previewMyOpposition: vi.fn(),
+  applyMyOpposition: vi.fn(),
   getSession: vi.fn(),
   getMyIdentities: vi.fn(),
   deleteAccount: vi.fn(),
@@ -23,7 +34,15 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api/client")>();
   return {
     ...original,
-    apiClient: { getSession, getMyIdentities, deleteAccount, detachAthlete, cancelAthleteClaim },
+    apiClient: {
+      getSession,
+      getMyIdentities,
+      deleteAccount,
+      detachAthlete,
+      cancelAthleteClaim,
+      previewMyOpposition,
+      applyMyOpposition,
+    },
   };
 });
 
@@ -68,6 +87,8 @@ beforeEach(() => {
   deleteAccount.mockResolvedValue(null);
   detachAthlete.mockResolvedValue(null);
   cancelAthleteClaim.mockResolvedValue(null);
+  previewMyOpposition.mockResolvedValue({ athletes: 1, results: 3, already_opposed: false });
+  applyMyOpposition.mockResolvedValue(null);
 });
 
 describe("AccountPage: account section", () => {
@@ -205,6 +226,85 @@ describe("AccountPage: sensitive zone", () => {
 
     await waitFor(() => expect(dialog).toHaveTextContent("Contactez le club pour le faire supprimer."));
     expect(push).not.toHaveBeenCalled();
+  });
+});
+
+describe("AccountPage: hide my results (#1673)", () => {
+  async function ouvrirLOpposition() {
+    afficher({ ...SESSION, athlete: JEAN });
+    await userEvent.click(await screen.findByRole("button", { name: "Masquer mes résultats" }));
+    return screen.findByRole("dialog");
+  }
+
+  it("is offered to a linked member only", async () => {
+    afficher(SESSION);
+
+    await screen.findByRole("button", { name: "Supprimer mon compte" });
+    expect(screen.queryByRole("button", { name: "Masquer mes résultats" })).not.toBeInTheDocument();
+  });
+
+  it("blocks the action until the preview arrives, then announces its impact", async () => {
+    let livrer: (apercu: unknown) => void = () => {};
+    previewMyOpposition.mockReturnValue(new Promise((resoudre) => (livrer = resoudre)));
+    const dialog = await ouvrirLOpposition();
+
+    expect(dialog).toHaveAccessibleName("Masquer vos résultats ?");
+    expect(previewMyOpposition).toHaveBeenCalled();
+    expect(within(dialog).getByRole("button", { name: "Masquer définitivement" })).toBeDisabled();
+    livrer({ athletes: 1, results: 3, already_opposed: false });
+
+    await waitFor(() => expect(dialog).toHaveTextContent("3 résultats deviendront anonymes"));
+    expect(dialog).toHaveTextContent(/fiche athlète est supprimée/);
+    expect(dialog).toHaveTextContent(/votre compte n.y est plus rattaché/);
+    expect(dialog).toHaveTextContent(/seul le club peut lever l.opposition/);
+    expect(within(dialog).getByRole("button", { name: "Masquer définitivement" })).toBeEnabled();
+    expect(applyMyOpposition).not.toHaveBeenCalled();
+  });
+
+  it("applies the opposition, then shows no linked record and a success message", async () => {
+    const dialog = await ouvrirLOpposition();
+    await waitFor(() => expect(dialog).toHaveTextContent("3 résultats deviendront anonymes"));
+    getSession.mockResolvedValue({ ...SESSION, athlete: null });
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Masquer définitivement" }));
+
+    await waitFor(() => expect(applyMyOpposition).toHaveBeenCalled());
+    expect(await screen.findByText(/Aucune fiche athlète n.est rattachée/)).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Opposition appliquée : 3 résultats anonymisés.");
+    expect(screen.queryByRole("button", { name: "Masquer mes résultats" })).not.toBeInTheDocument();
+  });
+
+  it("sends a member whose name matches several records to the club, without confirmation", async () => {
+    previewMyOpposition.mockResolvedValue({ athletes: 2, results: 5, already_opposed: false });
+    const dialog = await ouvrirLOpposition();
+
+    await waitFor(() => expect(dialog).toHaveTextContent(/plusieurs fiches/));
+    expect(dialog).toHaveTextContent(/Écrivez au club/);
+    expect(within(dialog).getByRole("link", { name: "president@triathlon-club-nantais.com" })).toHaveAttribute(
+      "href",
+      "mailto:president@triathlon-club-nantais.com",
+    );
+    expect(within(dialog).getByRole("button", { name: "Masquer définitivement" })).toBeDisabled();
+  });
+
+  it("shows a failed application in the error colour", async () => {
+    applyMyOpposition.mockRejectedValue(new ApiError(500, "L'opposition n'a pas pu être appliquée."));
+    const dialog = await ouvrirLOpposition();
+    await waitFor(() => expect(dialog).toHaveTextContent("3 résultats deviendront anonymes"));
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Masquer définitivement" }));
+
+    const alerte = await within(dialog).findByRole("alert");
+    expect(alerte).toHaveTextContent("L'opposition n'a pas pu être appliquée.");
+    expect(alerte).toHaveStyle({ color: "var(--tcn-danger-text)" });
+  });
+
+  it("says when the preview cannot be read, and keeps the action blocked", async () => {
+    previewMyOpposition.mockRejectedValue(new ApiError(500, "boom"));
+    const dialog = await ouvrirLOpposition();
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/n.ont pas pu être comptés/);
+    expect(within(dialog).getByRole("button", { name: "Masquer définitivement" })).toBeDisabled();
   });
 });
 

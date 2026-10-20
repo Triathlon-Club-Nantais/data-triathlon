@@ -124,6 +124,15 @@ export function useDetachAthlete() {
   return useSessionMutation(() => apiClient.detachAthlete());
 }
 
+/** Opposition du membre rattaché (#1673) : sa fiche et ses résultats changent partout, tout le cache est périmé. */
+export function useApplyMyOpposition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.applyMyOpposition(),
+    onSuccess: () => qc.invalidateQueries(),
+  });
+}
+
 /** Mes réclamations de résultat (#1637) ; `enabled` faux sans fiche rattachée. */
 export function useMyResultClaims(enabled: boolean) {
   return useQuery({

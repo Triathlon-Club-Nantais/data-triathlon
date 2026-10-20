@@ -229,7 +229,9 @@ export const PRIVACY_POLICY: LegalDocument = {
               classement, sans votre nom, votre club ni votre catégorie) et votre fiche est supprimée. Pour que
               les imports suivants ne vous fassent pas réapparaître, le site garde une empreinte de votre nom et
               de votre prénom, jamais le nom lui-même ; les résultats publiés ensuite à ce nom arrivent anonymes.
-              Vous êtes aussi retiré de la liste des licenciés du club, et ses relectures suivantes vous en écartent ;
+              Vous êtes aussi retiré de la liste des licenciés du club, et ses relectures suivantes vous en écartent.
+              Si votre compte est rattaché à votre fiche, vous pouvez exercer ce droit vous-même depuis la page Mon
+              compte (« Masquer mes résultats ») ; seul le club peut ensuite lever l&apos;opposition ;
             </li>
             <li>
               <strong>accéder</strong> aux données qui vous concernent et en obtenir une copie ;
