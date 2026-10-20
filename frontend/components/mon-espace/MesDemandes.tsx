@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { nomComplet } from "@/components/layout/AthletePicker";
 import { Alert, Button, Card, Eyebrow } from "@/components/tcn";
-import { useCancelAthleteClaim, useCancelResultClaim, useHydratedSession, useMyResultClaims } from "@/lib/queries/auth";
+import { useCancelResultClaim, useHydratedSession, useMyResultClaims } from "@/lib/queries/auth";
 import { formatDate } from "@/lib/utils/date";
 
 const STATUT = { pending: "En attente", rejected: "Refusée" } as const;
@@ -60,16 +59,14 @@ function Demande({
   );
 }
 
-/** Mes demandes en cours (#1670) : rattachement de fiche et réclamations de résultat, avec leur statut. */
+/** Mes réclamations de résultat en cours (#1670), avec leur statut. */
 export function MesDemandes() {
   const session = useHydratedSession();
   const fiche = session.data?.athlete ?? null;
-  const rattachement = session.data?.athlete_claim ?? null;
   const reclamations = useMyResultClaims(fiche !== null).data ?? [];
-  const annulerRattachement = useCancelAthleteClaim();
   const annulerReclamation = useCancelResultClaim();
 
-  if (rattachement === null && reclamations.length === 0) return null;
+  if (reclamations.length === 0) return null;
   return (
     <Card padding={20}>
       <Eyebrow>
@@ -79,26 +76,16 @@ export function MesDemandes() {
         Une réclamation acceptée disparaît : le résultat est alors sur votre fiche.
       </p>
       <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 16 }}>
-        {rattachement !== null && (
-          <Demande
-            titre={<span style={{ fontSize: 15, fontWeight: 600 }}>Rattachement à la fiche de {nomComplet(rattachement.athlete)}</span>}
-            detail={formatDate(rattachement.created_at)}
-            status={rattachement.status}
-            nomAction={`rattachement à la fiche de ${nomComplet(rattachement.athlete)}`}
-            onCancel={() => annulerRattachement.mutate()}
-            isPending={annulerRattachement.isPending}
-            error={annulerRattachement.error}
-          />
-        )}
         {reclamations.map((c) => (
           <Demande
             key={c.id}
             titre={
               <Link href={`/courses/${c.course_id}`} className="tcn-cible-tactile underline underline-offset-2" style={{ fontSize: 15, fontWeight: 600 }}>
                 {c.course_name}
+                {c.event_date && ` · ${formatDate(c.event_date)}`}
               </Link>
             }
-            detail={formatDate(c.event_date)}
+            detail={`Demandée le ${formatDate(c.created_at)}`}
             status={c.status}
             nomAction={c.course_name}
             onCancel={() => annulerReclamation.mutate(c.id)}

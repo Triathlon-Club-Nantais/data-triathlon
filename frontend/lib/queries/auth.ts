@@ -129,7 +129,7 @@ function useResultClaimMutation<T>(mutationFn: (arg: T) => Promise<unknown>) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn,
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.myResultClaims() }),
+    onSettled: () => qc.invalidateQueries({ queryKey: queryKeys.myResultClaims() }),
   });
 }
 

@@ -20,8 +20,8 @@ const claim = (extra = {}) => ({
   status: "pending", created_at: "2026-10-19T10:00:00Z", ...extra,
 });
 
-function session(athlete_claim: unknown = null) {
-  return { id: 1, athlete: LEA, permissions: [], roles: [], groups: [], athlete_claim } as unknown as SessionUser;
+function session() {
+  return { id: 1, athlete: LEA, permissions: [], roles: [], groups: [], athlete_claim: null } as unknown as SessionUser;
 }
 
 function afficher() {
@@ -44,16 +44,15 @@ describe("MesDemandes (#1670)", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("lists the athlete claim and result claims with status and date", async () => {
-    getSession.mockResolvedValue(session({ id: 1, athlete: { id: 7, prenom: "Léa", nom: "Martin" }, status: "pending", created_at: "2026-10-18T10:00:00Z" }));
-    getMyResultClaims.mockResolvedValue([claim({ status: "rejected" })]);
+  it("lists result claims with status and date", async () => {
+    getMyResultClaims.mockResolvedValue([claim(), claim({ id: 4, status: "rejected", event_date: null })]);
     afficher();
 
     expect(await screen.findByRole("heading", { name: "Mes demandes" })).toBeInTheDocument();
     expect(await screen.findByText("En attente")).toBeInTheDocument();
     expect(await screen.findByText("Refusée")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Tri de Nantes/ })).toHaveAttribute("href", "/courses/9");
-    expect(screen.getByText(/17\/05\/2026/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Tri de Nantes · 17/05/2026" })).toHaveAttribute("href", "/courses/9");
+    expect(screen.getAllByText(/Demandée le 19\/10\/2026/)).toHaveLength(2);
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: /Annuler la demande/ })).toHaveLength(1);
   });
@@ -80,5 +79,6 @@ describe("MesDemandes (#1670)", () => {
     await userEvent.click(screen.getByRole("button", { name: /Confirmer/ }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Cette demande a déjà été traitée.");
+    await waitFor(() => expect(getMyResultClaims).toHaveBeenCalledTimes(2));
   });
 });
