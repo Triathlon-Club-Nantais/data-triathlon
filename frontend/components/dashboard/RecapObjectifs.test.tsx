@@ -60,6 +60,17 @@ describe("RecapObjectifs (#1669)", () => {
     expect(nombre).not.toHaveTextContent("Non atteint");
   });
 
+  it("shows no result for a target race without result", async () => {
+    getSeasonGoals.mockResolvedValue([{
+      ...TEMPS, id: 3, kind: "race", target: null, event_type: null, best_time: null,
+      race_name: "Triathlon de Nantes", race_date: "2024-06-01", outcome: "awaiting_results",
+    }]);
+    afficher();
+    const course = (await screen.findByText(/Triathlon de Nantes/)).closest("li") as HTMLElement;
+    expect(course).toHaveTextContent("Sans résultat");
+    expect(course).not.toHaveTextContent("Non atteint");
+  });
+
   it("renders nothing without goals", async () => {
     getSeasonGoals.mockResolvedValue([]);
     const { container, client } = afficher();

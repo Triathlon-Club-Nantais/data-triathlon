@@ -19,7 +19,11 @@ export function RecapObjectifs({ season }: { season: number }) {
               <div style={{ fontWeight: 700 }}>{libelle(goal)}</div>
               <div style={{ fontSize: 13, color: "var(--tcn-text-muted)" }}>{progression(goal)}</div>
             </div>
-            {goal.reached ? <MetaPill accent dot>Atteint</MetaPill> : <MetaPill>Non atteint</MetaPill>}
+            {goal.reached ? (
+              <MetaPill accent dot>Atteint</MetaPill>
+            ) : (
+              <MetaPill>{goal.outcome === "awaiting_results" ? "Sans résultat" : "Non atteint"}</MetaPill>
+            )}
           </li>
         ))}
       </ul>
