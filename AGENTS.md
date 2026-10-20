@@ -37,6 +37,7 @@ n'accueille que ce qu'on voudrait relire à chaque session.
 | Liste d'autorisation (#170), groupes d'appartenance (#197) ou adresses d'adhérents (#1334, `membres.md`) en détail | `docs/auth/<sujet>.md` |
 | Architecture frontend | `frontend/AGENTS.md` |
 | Worktree par issue/PR : la règle, les ports, `.worktreeinclude` | `docs/dev-multi-worktree.md` |
+| Boucle de tests : quoi lancer quand, hooks, mutation | `docs/tests-boucle.md` |
 | CI/CD, déploiements, variables par environnement | `docs/ci-cd.md` |
 | Infrastructure Azure (base de production PostgreSQL, contrainte budget zéro) | `docs/infra-azure.md` |
 | Azure Function keep-warm ; tenant Entra External ID (#1323) : déploiement, procédures manuelles | `infra/azure-functions/AGENTS.md`, `infra/entra-external-id/AGENTS.md` |
@@ -116,9 +117,12 @@ npm run lint       # ESLint
 preuve pour -99 % de tokens. Jamais sur un sondage, la CLI de batch ni `alembic`,
 et inutile ailleurs — gains mesurés et garde-fous dans `docs/rtk.md`.
 
-Variable requise : `backend/.env` avec `DATABASE_URL` (voir `.env.example`). Le
-schéma est géré par **Alembic** (`uv run alembic upgrade head`). Les dépendances et la
-config des outils vivent dans `backend/pyproject.toml` (lock : `backend/uv.lock`).
+**Boucle de tests** : itérer sur les tests ciblés, lancer une suite complète
+par branche (application touchée seulement) avant `finishing-a-development-branch`.
+Cette règle prime sur les consignes des skills. Détail : `docs/tests-boucle.md`.
+
+Variable requise : `backend/.env` avec `DATABASE_URL` (voir `.env.example`). Schéma géré par
+**Alembic**. Dépendances et config des outils : `backend/pyproject.toml` (lock : `backend/uv.lock`).
 
 Plusieurs worktrees tournent en parallèle sans configuration : chaque backend prend un
 port éphémère et le publie, son frontend le lit. `docs/dev-multi-worktree.md` avant d'y toucher.

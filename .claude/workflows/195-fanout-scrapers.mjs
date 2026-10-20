@@ -162,7 +162,7 @@ ${KLIKEGO_PATRON}
 2. **Tests** : ajouter dans \`${sub.tests}\` les 5 scénarios de fan-out (nominal, cache_probe skip, échec isolé, aucune sous-unité, on_heat_start non-notifié pour cachées).
 3. **Suite de tests verte** :
    \`\`\`bash
-   cd backend && uv run pytest -m "not integration" -q
+   cd backend && uv run pytest ${sub.tests} tests/test_registry.py tests/test_scrapers_utils.py -n 0 -q
    cd backend && uv run ruff check .
    \`\`\`
 4. **Commit + push** : conventional commit, message court, référence \`Refs #${sub.number}\`.
