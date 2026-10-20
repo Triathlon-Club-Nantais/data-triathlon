@@ -43,8 +43,11 @@ export function ResultClaimsTable() {
   async function decide(reclamation: ResultClaimReview, decision: "approve" | "reject") {
     try {
       await decider.mutateAsync({ id: reclamation.id, decision });
+      const equipe = reclamation.kind === "team";
       toast.success(
-        decision === "reject" ? "Réclamation refusée." : reclamation.kind === "team" ? "Demande traitée." : "Résultat déplacé.",
+        decision === "reject"
+          ? equipe ? "Demande refusée." : "Réclamation refusée."
+          : !equipe ? "Résultat déplacé." : reclamation.proposed_teammates ? "Ajouté à l'équipe." : "Demande close.",
       );
     } catch (e) {
       toast.error((e as Error).message);
@@ -97,9 +100,13 @@ export function ResultClaimsTable() {
                       <li>
                         {r.proposed_teammates
                           ? `Après validation : ${noms(r.proposed_teammates)}`
-                          : "À composer : la composition a été posée à la main."}
+                          : "Composition posée à la main : composez l'équipe, puis closez la demande."}
                       </li>
-                      {r.claimant_has_result_on_course && <li>Cet athlète a déjà un résultat sur cette épreuve.</li>}
+                      {r.claimant_has_result_on_course && (
+                        <li id={`deja-resultat-${r.id}`}>
+                          L&apos;auteur de la demande a déjà un résultat sur cette épreuve : l&apos;ajout serait refusé.
+                        </li>
+                      )}
                     </ul>
                   ) : (
                     <ul className="space-y-1 text-sm">
@@ -125,8 +132,9 @@ export function ResultClaimsTable() {
                         <Button
                           size="sm"
                           onClick={() => decide(r, "approve")}
-                          disabled={decider.isPending}
+                          disabled={decider.isPending || r.claimant_has_result_on_course}
                           aria-label={`Ajouter à l'équipe (${qui})`}
+                          aria-describedby={r.claimant_has_result_on_course ? `deja-resultat-${r.id}` : undefined}
                         >
                           Ajouter à l&apos;équipe
                         </Button>

@@ -3,8 +3,9 @@ import { FileUser, Medal, Users } from "lucide-react";
 /**
  * La sorte d'une demande de la file commune (#1637) : rattacher une fiche
  * entière (#1325), déplacer un seul résultat, ou ajouter l'auteur à la
- * composition d'un relais (#1739). Pastille, icône et teinte distinctes,
- * pour ne jamais confondre les gestes.
+ * composition d'un relais (#1739). Pastille et icône distinctes
+ * (un contour pour les sortes autres que la fiche entière), pour ne jamais
+ * confondre les gestes.
  */
 const SORTES = {
   record: { Icone: FileUser, libelle: "Fiche entière" },
