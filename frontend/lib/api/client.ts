@@ -79,6 +79,7 @@ import type {
   GroupDetail,
   Participation,
   ParticipationFilters,
+  ParticipationSubmitted,
   ParticipationsWipeImpact,
   ParticipationsWipeResult,
   PendingProvider,
@@ -294,7 +295,7 @@ export const apiClient = {
     request<{ providers: string[] }>("/scrape/providers").then((r) => r.providers),
 
   saveParticipation: (data: Partial<ScrapedPreview>) =>
-    request<Participation>("/participations", {
+    request<ParticipationSubmitted>("/participations", {
       method: "POST",
       body: JSON.stringify(data),
     }),

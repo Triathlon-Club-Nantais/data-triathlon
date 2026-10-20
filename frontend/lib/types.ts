@@ -423,6 +423,12 @@ export interface ScrapedPreview {
   raw_data: Record<string, unknown>;
 }
 
+// Réponse de `POST /participations` : la saisie reçue, sans aucun identifiant (#1724).
+export type ParticipationSubmitted = Omit<ScrapedPreview, "provider" | "source_url" | "raw_data"> & {
+  segments: [string, string][] | null;
+  is_pending_validation: true;
+};
+
 // Une course touchée par un import (heat, épreuve d'un multi-événement…).
 // Émis par le SSE `done` et par `POST /scrape/event` — sert à câbler
 // « Voir les résultats » sur /ajouter (#135).

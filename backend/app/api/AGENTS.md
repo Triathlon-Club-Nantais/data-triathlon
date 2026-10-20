@@ -147,12 +147,16 @@ même `201` au lieu d'un `500` que n'aurait pas une personne opposée. Coût ass
 seconde saisie qui heurte par erreur le dossard d'une saisie en attente est
 perdue sans message.
 
-**Ce qui reste, suivi par #1615** : les identifiants `athlete.id` et
-`course.id` rendus par `POST /participations` (réutilisés pour une personne
-non opposée, neufs sinon), et l'existence même de la fiche et de l'épreuve
-qu'une saisie en attente crée (`GET /athletes/{id}`, `GET /courses/{id}`,
-`GET /athletes/search`). Les fermer demande de ne plus rendre d'identifiants
-au public ou de masquer ces fiches, deux arbitrages de contrat.
+**`POST /participations` ne rend aucun identifiant (#1724).** Ses `id`,
+`athlete.id` et `course.id`, réutilisés pour une personne non opposée et neufs
+sinon, trahissaient l'annulation. La réponse (`ParticipationSubmitted`) est la
+saisie reçue plus `is_pending_validation: true`, bâtie sur la seule requête :
+la même qu'une personne soit opposée ou non. Changement de contrat assumé au
+titre du Principe IV, noté dans les notes de version de v0.9.0 (#1613).
+
+**Ce qui reste, suivi par #1615** : l'existence même de la fiche et de
+l'épreuve qu'une saisie en attente crée (`GET /athletes/{id}`,
+`GET /courses/{id}`, `GET /athletes/search`).
 Preuve : `tests/test_api/test_private_pending_entries.py`.
 
 ## Classement d'une épreuve : paginé, et l'ordre est en base (#163)

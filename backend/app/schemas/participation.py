@@ -213,3 +213,15 @@ class ParticipationCreate(BaseModel):
                 f"{', '.join(sorted(CANONICAL_TYPES))}."
             )
         return value
+
+
+class ParticipationSubmitted(ParticipationCreate):
+    """Réponse de `POST /participations` (#1724) : la saisie reçue, sans aucun identifiant.
+
+    Un identifiant consommé ou réutilisé disait si une saisie nommant une personne
+    opposée avait été annulée. Bâtie sur la seule requête, la réponse est la même
+    dans les deux cas. `ParticipationOut` reste le schéma des lectures.
+    """
+
+    source_url: str = Field("", exclude=True)
+    is_pending_validation: bool = True
