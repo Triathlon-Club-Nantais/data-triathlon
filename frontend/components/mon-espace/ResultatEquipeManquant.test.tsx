@@ -21,7 +21,10 @@ const EQUIPE: TeamResult = {
   event_date: "2026-05-10", rank_overall: 3, total_time: "3:12:45", teammates: ["Paul Durand", "Ana Roy"],
 };
 const demande = (status: ResultClaim["status"], kind: ResultClaim["kind"] = "team"): ResultClaim =>
-  ({ id: 1, participation_id: 5, kind, status, created_at: "2026-10-01T10:00:00Z" });
+  ({
+    id: 1, participation_id: 5, kind, status, created_at: "2026-10-01T10:00:00Z",
+    course_id: 9, course_name: "Swimrun de Nantes", event_date: "2026-05-10",
+  });
 
 function afficher() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
