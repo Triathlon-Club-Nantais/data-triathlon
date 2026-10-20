@@ -132,10 +132,21 @@ export function ResultClaimsTable() {
                         </Button>
                       ) : (
                         <>
-                          <Button size="sm" variant="outline" onClick={() => setAComposer(r)} disabled={decider.isPending}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setAComposer(r)}
+                            disabled={decider.isPending}
+                            aria-label={`Composer l'équipe (${qui})`}
+                          >
                             Composer l&apos;équipe
                           </Button>
-                          <Button size="sm" onClick={() => decide(r, "approve")} disabled={decider.isPending}>
+                          <Button
+                            size="sm"
+                            onClick={() => decide(r, "approve")}
+                            disabled={decider.isPending}
+                            aria-label={`Clore la demande (${qui})`}
+                          >
                             Clore la demande
                           </Button>
                         </>

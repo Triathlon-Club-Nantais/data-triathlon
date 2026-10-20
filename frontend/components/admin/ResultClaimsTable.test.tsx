@@ -129,9 +129,9 @@ describe("ResultClaimsTable (#1637)", () => {
 
     expect(await screen.findByText(/À composer : la composition a été posée à la main\./)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Ajouter à l.équipe/ })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Composer l'équipe" }));
+    await userEvent.click(screen.getByRole("button", { name: "Composer l'équipe (Léa M.)" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("Ana Roux|Bob Lenoir|Léa Martin");
-    await userEvent.click(screen.getByRole("button", { name: "Clore la demande" }));
+    await userEvent.click(screen.getByRole("button", { name: "Clore la demande (Léa M.)" }));
     await waitFor(() => expect(approveResultClaim).toHaveBeenCalledWith(8));
   });
 
