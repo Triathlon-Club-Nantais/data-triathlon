@@ -9,7 +9,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/test_gate.py\""
+            "command": "f=\"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/test_gate.py\"; if [ -f \"$f\" ]; then python3 \"$f\"; fi"
           }
         ]
       }
