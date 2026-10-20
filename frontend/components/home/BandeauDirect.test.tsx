@@ -154,7 +154,7 @@ describe("BandeauDirect", () => {
 
     it("declares a shrinkable grid column so long names truncate instead of widening the rows", () => {
       render(<BandeauDirect resultatsHref="/resultats" sortie={sortie(trois)} stats={STATS} seasons={[2026]} today={TODAY} />);
-      const liste = within(outing()).getAllByRole("listitem")[0].parentElement;
+      const liste = within(outing()).getByRole("list");
       expect(liste?.style.gridTemplateColumns).toBe("minmax(0, 1fr)");
     });
 
