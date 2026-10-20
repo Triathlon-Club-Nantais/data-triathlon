@@ -92,6 +92,16 @@ describe("MonEspace access", () => {
     expect(screen.getByText("Épreuves").nextSibling).toHaveTextContent("2");
   });
 
+  it("shows a friendly message and a reload instruction when the athlete cannot be loaded", async () => {
+    getSession.mockResolvedValue(session({ athlete: LEA }));
+    getAthlete.mockRejectedValue(new Error("boom 500 internal"));
+    afficher();
+
+    const alerte = await screen.findByRole("alert");
+    expect(alerte).toHaveTextContent("Rechargez la page.");
+    expect(alerte).not.toHaveTextContent("boom 500 internal");
+  });
+
   it("does not compare when several seasons are selected", async () => {
     getSession.mockResolvedValue(session({ athlete: LEA }));
     getAthlete.mockResolvedValue(detail([resultat("2026-10-01")]));

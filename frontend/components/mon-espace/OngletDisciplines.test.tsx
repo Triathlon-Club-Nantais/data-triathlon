@@ -41,6 +41,9 @@ describe("OngletDisciplines", () => {
     afficher([resultat(), resultat(), resultat({ type: "duathlon-s" }), resultat({ relay: true })]);
 
     expect(await screen.findByRole("img", { name: /Triathlon M 2, Duathlon S 1/ })).toBeInTheDocument();
+    const fonds = [...document.querySelectorAll<HTMLElement>("[style*='background']")].map((n) => n.getAttribute("style") ?? "");
+    expect(fonds.some((f) => f.includes("color-mix") && f.includes("--tcn-orange-300"))).toBe(true);
+    expect(fonds.some((f) => /background: var\(--tcn-orange-300\)/.test(f))).toBe(false);
   });
 
   it("compares my median split with the club median on the same format", async () => {

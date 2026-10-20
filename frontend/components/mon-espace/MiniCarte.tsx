@@ -8,6 +8,7 @@ import { motCompte } from "@/lib/utils/format";
 const LARGEUR = 240;
 const HAUTEUR = 160;
 const MARGE = 16;
+const LIGNES_LIEUX = 3;
 
 // Projection équirectangulaire recadrée sur mes épreuves. Une carte à tuiles
 // (MapView) ferait charger Leaflet pour une vignette de quelques points.
@@ -54,13 +55,18 @@ export function MiniCarte({ courseIds }: { courseIds: number[] }) {
       >
         {lieux.map((e) => {
           const { x, y } = placer(e);
-          return <circle key={e.course_id} cx={x} cy={y} r={6} fill="var(--tcn-orange)" stroke="var(--tcn-ink)" strokeWidth={1.5} />;
+          return (
+            <circle key={e.course_id} cx={x} cy={y} r={6} fill="var(--tcn-orange)" stroke="var(--tcn-ink)" strokeWidth={1.5}>
+              <title>{e.event_name}</title>
+            </circle>
+          );
         })}
       </svg>
-      <ul className="sr-only">
-        {noms.map((nom) => (
+      <ul style={{ margin: "12px 0 0", padding: 0, listStyle: "none", fontSize: 13, color: "var(--tcn-text-muted)" }}>
+        {noms.slice(0, LIGNES_LIEUX).map((nom) => (
           <li key={nom}>{nom}</li>
         ))}
+        {noms.length > LIGNES_LIEUX && <li>et {motCompte(noms.length - LIGNES_LIEUX, "autre")}</li>}
       </ul>
     </Card>
   );

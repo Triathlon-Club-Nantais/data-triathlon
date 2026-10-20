@@ -60,7 +60,7 @@ function MesActionsBenevolat() {
   );
 }
 
-/** Carte à onglets de Mon espace (#1696) : l'onglet vit dans `?onglet=`, écrit par l'historique natif comme `EventsTable`. */
+/** Carte à onglets de Mon espace (#1696) : l'onglet vit dans `?onglet=`, écrit par `replaceState` (vue, pas navigation). */
 export function OngletsMonEspace({
   athleteId,
   athleteName,
@@ -93,14 +93,14 @@ export function OngletsMonEspace({
   function choisir(valeur: unknown) {
     const params = new URLSearchParams(sp.toString());
     params.set(ONGLET_PARAM, String(valeur));
-    window.history.pushState(null, "", `${pathname}?${params.toString()}`);
+    window.history.replaceState(null, "", `${pathname}?${params.toString()}`);
   }
 
   return (
     <Tabs value={courant} onValueChange={choisir}>
-      <TabsList variant="line" aria-label="Mon espace" activateOnFocus className="h-11 max-w-full justify-start overflow-x-auto">
+      <TabsList variant="line" aria-label="Mon espace" activateOnFocus className="h-auto max-w-full pb-2 justify-start overflow-x-auto">
         {onglets.map((o) => (
-          <TabsTrigger key={o.value} value={o.value}>
+          <TabsTrigger key={o.value} value={o.value} className="min-h-11">
             {o.label}
           </TabsTrigger>
         ))}

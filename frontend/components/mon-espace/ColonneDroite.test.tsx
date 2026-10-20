@@ -129,6 +129,8 @@ describe("DernierResultat", () => {
   it("says there is no result yet", () => {
     afficher(<DernierResultat participation={null} record={false} />);
     expect(screen.getByText(/Aucun résultat sur cette sélection/)).toBeInTheDocument();
+    expect(screen.getByText(/Changez de saison ou/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "ajoutez une épreuve" })).toHaveAttribute("href", "/ajouter");
   });
 });
 
@@ -165,6 +167,7 @@ describe("ProchainPalier", () => {
     afficher(<ProchainPalier palier={{ type: "epreuves", reste: 2, cible: 12 }} />);
     expect(screen.getByText(/Encore 2 épreuves pour égaler votre meilleure saison/)).toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "10");
+    expect(screen.getByRole("progressbar")).toHaveStyle({ background: "var(--tcn-grey-300)" });
   });
 
   it("uses the singular and podiums", () => {

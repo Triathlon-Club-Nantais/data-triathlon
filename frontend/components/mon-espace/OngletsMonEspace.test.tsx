@@ -47,7 +47,7 @@ beforeEach(() => {
   searchParams = new URLSearchParams();
   getMyVolunteerActions.mockReset().mockResolvedValue([]);
   // Next reflects pushState in useSearchParams; the mock does the same.
-  vi.spyOn(window.history, "pushState").mockImplementation((_s, _t, url) => {
+  vi.spyOn(window.history, "replaceState").mockImplementation((_s, _t, url) => {
     searchParams = new URLSearchParams(String(url).split("?")[1]);
   });
 });
@@ -65,7 +65,8 @@ describe("OngletsMonEspace", () => {
   it("keeps 44 px tabs that scroll sideways instead of overflowing the page", () => {
     afficher();
 
-    expect(screen.getByRole("tablist")).toHaveClass("h-11", "max-w-full", "justify-start", "overflow-x-auto");
+    expect(screen.getByRole("tablist")).toHaveClass("h-auto", "pb-2", "max-w-full", "justify-start", "overflow-x-auto");
+    for (const tab of screen.getAllByRole("tab")) expect(tab).toHaveClass("min-h-11");
   });
 
   it("shows my races with their challenges in their tab", () => {
@@ -113,7 +114,7 @@ describe("OngletsMonEspace", () => {
     expect(screen.getByTestId("goals")).toBeInTheDocument();
   });
 
-  it("moves with the arrow keys and writes the tab in the URL, keeping other params", async () => {
+  it("moves with the arrow keys and replaces the URL (no history entry per tab), keeping other params", async () => {
     searchParams = new URLSearchParams("seasons=2026");
     const { rerender } = afficher();
 
@@ -122,6 +123,6 @@ describe("OngletsMonEspace", () => {
     rerender(arbre());
 
     expect(screen.getByRole("tab", { name: "Bénévolat" })).toHaveAttribute("aria-selected", "true");
-    expect(window.history.pushState).toHaveBeenCalledWith(null, "", "/mon-espace?seasons=2026&onglet=benevolat");
+    expect(window.history.replaceState).toHaveBeenCalledWith(null, "", "/mon-espace?seasons=2026&onglet=benevolat");
   });
 });

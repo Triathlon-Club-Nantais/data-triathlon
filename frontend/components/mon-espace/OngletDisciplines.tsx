@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { apiClient } from "@/lib/api/client";
 import { eventTypeLabel } from "@/lib/constants";
 import { ecartAuClub, formatDuree, mesMediansDeSplits, repartitionDisciplines, SEGMENTS } from "@/lib/mon-espace";
-import { eventTypeColor } from "@/lib/sport-colors";
+import { eventTypeColor, inkColor } from "@/lib/sport-colors";
 import type { Participation } from "@/lib/types";
 import { serializeSeasons } from "@/lib/utils/season";
 import { secondsFromHms } from "@/lib/utils/time";
@@ -61,7 +61,7 @@ export function OngletDisciplines({
               const [discipline, format] = cle.split("|");
               return `${eventTypeLabel(discipline)} ${format}`;
             }}
-            colorer={(cle) => eventTypeColor(cle.split("|")[0])}
+            colorer={(cle) => inkColor(eventTypeColor(cle.split("|")[0]))}
             subjectLabel="discipline et format"
             emptyTitle="Aucune épreuve sur cette sélection"
           />

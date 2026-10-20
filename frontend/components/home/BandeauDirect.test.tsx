@@ -157,12 +157,16 @@ describe("BandeauDirect", () => {
       const lien = within(outing()).getByRole("link", { name: /Triathlon de Nantes/ });
       expect(within(lien).getByText("36 athlètes du club")).toHaveClass("sr-only");
       expect(within(lien).getByText("36")).toHaveAttribute("aria-hidden", "true");
+      expect(within(lien).getByText("36").parentElement?.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
     });
 
-    it("keeps the podium count off the mobile layout and shows two rows there", () => {
+    it("keeps a compact medal and podium count visible on mobile and shows two rows there", () => {
       render(<BandeauDirect resultatsHref="/resultats" sortie={sortie(trois)} stats={STATS} seasons={[2026]} today={TODAY} />);
       const [premiere, , troisieme] = within(outing()).getAllByRole("link");
-      expect(premiere.querySelector("[data-podiums]")).toHaveClass("hidden", "md:inline-flex");
+      const podiums = premiere.querySelector("[data-podiums]");
+      expect(podiums).toHaveClass("inline-flex");
+      expect(podiums).not.toHaveClass("hidden");
+      expect(within(podiums as HTMLElement).getByText("5")).toBeInTheDocument();
       expect(troisieme).toHaveClass("hidden", "md:flex");
       expect(premiere).not.toHaveClass("hidden");
     });

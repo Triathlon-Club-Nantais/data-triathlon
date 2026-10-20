@@ -26,7 +26,7 @@ export function MesChiffres({ courant, precedent }: { courant: ChiffresSaison; p
     },
     {
       libelle: "Meilleur classement",
-      valeur: courant.meilleurRatio === null ? "n/d" : `Top ${courant.meilleurRatio} %`,
+      valeur: courant.meilleurRatio === null ? "Pas encore de classement" : `Top ${courant.meilleurRatio} %`,
       ecart:
         precedent && courant.meilleurRatio !== null && precedent.meilleurRatio !== null
           ? ecartClassement(ecart(courant.meilleurRatio, precedent.meilleurRatio))
@@ -57,6 +57,7 @@ export function MesChiffres({ courant, precedent }: { courant: ChiffresSaison; p
           </div>
         ))}
       </dl>
+      {precedent && <p style={{ margin: "12px 0 0", fontSize: 12, color: "var(--tcn-text-muted)" }}>Écart face à la saison précédente, à date égale</p>}
     </Card>
   );
 }

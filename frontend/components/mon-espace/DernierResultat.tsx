@@ -11,7 +11,16 @@ export function DernierResultat({ participation, record }: { participation: Part
     <Card padding={20}>
       <Eyebrow>Mon dernier résultat</Eyebrow>
       {participation === null ? (
-        <p style={{ margin: "12px 0 0", fontSize: 14, color: "var(--tcn-text-muted)" }}>Aucun résultat sur cette sélection.</p>
+        <>
+          <p style={{ margin: "12px 0 0", fontSize: 14, color: "var(--tcn-text-muted)" }}>Aucun résultat sur cette sélection.</p>
+          <p style={{ margin: "6px 0 0", fontSize: 14, color: "var(--tcn-text-muted)" }}>
+            Changez de saison ou{" "}
+            <Link href="/ajouter" className="font-semibold text-accent-ink underline underline-offset-2">
+              ajoutez une épreuve
+            </Link>
+            .
+          </p>
+        </>
       ) : (
         <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 6 }}>
           <Link

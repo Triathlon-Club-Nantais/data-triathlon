@@ -1,4 +1,4 @@
-import { Medal } from "lucide-react";
+import { Medal, Users } from "lucide-react";
 import Link from "next/link";
 import { Card } from "@/components/tcn/Card";
 import { CLUB_NAME, CLUB_NAME_SHORT } from "@/lib/club";
@@ -47,12 +47,13 @@ function LignesEpreuves({ courses, resultatsHref }: { courses: ClubLastOuting["c
               {pastilleFormat(course.event_type)}
             </span>
             <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 700 }}>{course.name}</span>
-            <span style={{ flex: "none", fontWeight: 800 }}>
+            <span className="inline-flex items-center gap-1" style={{ flex: "none", fontWeight: 800 }}>
+              <Users aria-hidden="true" size={16} />
               <span aria-hidden="true">{course.tcn}</span>
               <span className="sr-only">{motCompte(course.tcn, "athlète")} du club</span>
             </span>
             {course.podiums > 0 && (
-              <span data-podiums className="hidden md:inline-flex items-center gap-1" style={{ flex: "none" }}>
+              <span data-podiums className="inline-flex items-center gap-1" style={{ flex: "none" }}>
                 <Medal aria-hidden="true" size={16} />
                 <span aria-hidden="true">{course.podiums}</span>
                 <span className="sr-only">{motCompte(course.podiums, "podium")}</span>

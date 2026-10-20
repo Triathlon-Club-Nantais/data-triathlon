@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { apiClient } from "@/lib/api/client";
+import { messageDeRefus } from "@/lib/api/refus";
 import { chiffresSaison, fenetreSaisonPrecedente } from "@/lib/mon-espace";
 import { useHydratedSession } from "@/lib/queries/auth";
 import { serializeSeasons } from "@/lib/utils/season";
@@ -11,6 +12,8 @@ import { InvitationMonEspace } from "./InvitationMonEspace";
 import { MesChiffres } from "./MesChiffres";
 import { OngletsMonEspace } from "./OngletsMonEspace";
 import { SqueletteMonEspace } from "./SqueletteMonEspace";
+
+const REFUS = { sujet: "résultats", action: "consulter vos résultats" };
 
 /** Grille de Mon espace : la navigation est le rail de l'application, à gauche. */
 export function MonEspaceLayout({ centre, droite }: { centre: ReactNode; droite: ReactNode }) {
@@ -56,7 +59,10 @@ export function MonEspace({ seasons, federalOnly }: { seasons: number[]; federal
     return session.error ? <p role="alert">{session.error.message}</p> : <SqueletteMonEspace />;
   }
   if (athlete === null) return <InvitationMonEspace session={session.data} />;
-  if (courant.error) return <p role="alert">{courant.error.message}</p>;
+  if (courant.error) {
+    const { title, description } = messageDeRefus(courant.error, REFUS);
+    return <p role="alert">{title}. {description} Rechargez la page.</p>;
+  }
   if (courant.isPending) return <SqueletteMonEspace />;
 
   return (

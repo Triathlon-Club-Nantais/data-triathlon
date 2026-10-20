@@ -20,7 +20,16 @@ export function MesCoequipiers({ athleteId, seasons, federalOnly }: { athleteId:
     <Card padding={20}>
       <Eyebrow>Mes coéquipiers de course</Eyebrow>
       {coequipiers.data.length === 0 ? (
-        <p style={{ margin: "12px 0 0", fontSize: 14, color: "var(--tcn-text-muted)" }}>Aucun coéquipier de course sur cette sélection.</p>
+        <>
+          <p style={{ margin: "12px 0 0", fontSize: 14, color: "var(--tcn-text-muted)" }}>Aucun coéquipier de course sur cette sélection.</p>
+          <p style={{ margin: "6px 0 0", fontSize: 14, color: "var(--tcn-text-muted)" }}>
+            Changez de saison ou{" "}
+            <Link href="/ajouter" className="font-semibold text-accent-ink underline underline-offset-2">
+              ajoutez une épreuve
+            </Link>
+            .
+          </p>
+        </>
       ) : (
         <ul style={{ margin: "12px 0 0", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12 }}>
           {coequipiers.data.map((c) => {
