@@ -29,10 +29,26 @@ Les deux suites sont lancées ensemble quand la branche change :
 - le contrat API consommé par le front ;
 - les dépendances ;
 - la configuration de test ;
-- les workflows CI.
+- les workflows CI ;
+- `backend/alembic/` ou `backend/app/models/` : la suite backend se lance alors
+  avec `--migrations` (voir ci-dessous).
 
 Une suite complète n'est jamais relancée tant qu'aucun fichier n'a été modifié
 depuis le dernier vert.
+
+## Migrations
+
+Les tests marqués `migrations` (`backend/tests/test_migrations.py`) sont
+désélectionnés par défaut, quel que soit `-m`. Seul le test fumée
+`test_upgrade_head_sur_base_vierge` (`test_migrations_smoke.py`) reste dans la
+boucle. `--migrations` les réintègre :
+
+```bash
+uv run pytest -m "not integration" --migrations
+uv run pytest tests/test_migrations.py --migrations -n 0
+```
+
+La CI passe toujours `--migrations`.
 
 ## Précédence
 
