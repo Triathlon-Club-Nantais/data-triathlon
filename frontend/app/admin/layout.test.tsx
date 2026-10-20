@@ -39,7 +39,7 @@ const SANS_POUVOIR = { ...SESSION, permissions: [], can_administer: false };
 /** `pages:preview` est un pouvoir de consultation, pas d'administration (#1109). */
 const CONSULTATION_SEULE = { ...SESSION, permissions: ["pages:preview"], can_administer: false };
 
-const GITHUB = [{ slug: "github", label: "GitHub" }];
+const GITHUB = [{ slug: "github", label: "GitHub", audience: "admin" }];
 
 describe("Garde des écrans d'administration (FR-040)", () => {
   // Sans cela, `expect(redirect).not.toHaveBeenCalled()` mesurerait les appels

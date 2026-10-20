@@ -122,6 +122,8 @@ describe("Page de connexion — méthodes", () => {
 
 const ENTRA: AuthMethod = { slug: "entra", label: "Google ou code par e-mail", audience: "member" };
 const GITHUB: AuthMethod = { slug: "github", label: "GitHub", audience: "admin" };
+const INDISPONIBLE =
+  "La connexion adhérent n'est pas encore disponible sur ce site. Les résultats du club se consultent avec le code d'accès.";
 
 function region(nom: string) {
   return screen.getByRole("region", { name: nom });
@@ -149,6 +151,7 @@ describe("Page de connexion — deux parcours (#1666)", () => {
     await screen.findByRole("link", { name: "Continuer avec GitHub" });
     expect(screen.queryByRole("region", { name: "Espace adhérent" })).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Administration" })).toBeInTheDocument();
+    expect(screen.getByText(INDISPONIBLE)).toBeInTheDocument();
   });
 
   it("sans méthode admin, ne rend pas le bloc administration", async () => {
@@ -156,6 +159,7 @@ describe("Page de connexion — deux parcours (#1666)", () => {
 
     await screen.findByRole("link", { name: "Continuer avec Google ou code par e-mail" });
     expect(screen.queryByRole("heading", { name: "Administration" })).not.toBeInTheDocument();
+    expect(screen.queryByText(INDISPONIBLE)).not.toBeInTheDocument();
   });
 
   it.each([
