@@ -7,6 +7,11 @@ export function useCreateVolunteerAction() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: VolunteerActionSelfCreate) => apiClient.createVolunteerAction(body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.myVolunteerDeclarations() }),
+    // La carte « Ma saison au club » compte l'action déclarée.
+    onSuccess: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: queryKeys.myVolunteerDeclarations() }),
+        qc.invalidateQueries({ queryKey: queryKeys.mySeasonQuota() }),
+      ]),
   });
 }
