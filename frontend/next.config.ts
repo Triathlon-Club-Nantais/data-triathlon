@@ -50,6 +50,11 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // #1725 : l'ancien tableau de bord vit sous /mon-espace (#1618). Les signets
+  // et liens externes continuent d'atterrir au bon endroit, query string comprise.
+  async redirects() {
+    return [{ source: "/dashboard", destination: "/mon-espace", permanent: true }];
+  },
   async rewrites() {
     return [
       { source: "/api/:path*", destination: `${BACKEND_URL}/api/:path*` },
