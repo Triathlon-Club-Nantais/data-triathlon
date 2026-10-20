@@ -376,6 +376,11 @@ describe("animations de l'accueil (#1642)", () => {
     expect(reduit).toContain(selecteur);
   });
 
+  it("fait traverser le reflet toute la hauteur de la carte orange, sous son texte", () => {
+    expect(rule(".tcn-carte-sortie::after")).toMatch(/top:\s*0;/);
+    expect(rule(".tcn-carte-sortie-contenu")).toMatch(/position:\s*relative;[^}]*z-index:\s*1/);
+  });
+
   it("garde le reflet et l'anneau invisibles au repos, pour l'animation figée comme pour la fin", () => {
     expect(rule(".tcn-carte-sortie::after")).toMatch(/opacity:\s*0;/);
     expect(rule(".tcn-pouls::after")).toMatch(/opacity:\s*0;/);

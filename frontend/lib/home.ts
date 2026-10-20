@@ -30,3 +30,18 @@ export function moisDeSaison(byMonth: Record<string, number>, season: number) {
     return { mois, libelle: MOIS_COURTS[index], valeur: byMonth[mois] ?? 0 };
   });
 }
+
+/** Les mois de septembre à août des trois saisons les plus récentes de la sélection, côte à côte. */
+export function moisComparesParSaison(byMonth: Record<string, number>, seasons: number[]) {
+  const saisons = [...seasons].sort((a, b) => a - b).slice(-3);
+  const parSaison = saisons.map((saison) => moisDeSaison(byMonth, saison));
+  return {
+    saisons,
+    tronque: seasons.length > 3,
+    mois: Array.from({ length: 12 }, (_, index) => ({
+      index,
+      libelle: parSaison[0][index].libelle,
+      valeurs: parSaison.map((mois) => mois[index].valeur),
+    })),
+  };
+}

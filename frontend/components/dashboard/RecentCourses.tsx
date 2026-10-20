@@ -16,12 +16,13 @@ const GRID_COLUMNS = "88px 1fr auto auto";
  * "qu'est-ce qui vient de se passer", pas à "que fait-on le plus souvent".
  *
  * Reçoit déjà la liste triée et tronquée — `sortEventsByDateDesc` vit dans
- * `lib/utils/event.ts`, appelé côté page (`dashboard/page.tsx`). Ce
+ * `lib/utils/event.ts`, appelé côté page (`(accueil)/page.tsx`). Ce
  * composant ne fait que rendre, dans l'ordre reçu.
  */
-export function RecentCourses({ events }: { events: EventOut[] }) {
+export function RecentCourses({ events, href = "/resultats" }: { events: EventOut[]; href?: string }) {
   return (
     <Card>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "4px 16px", marginBottom: 18 }}>
       <h2
         style={{
           fontFamily: "var(--tcn-font-display)",
@@ -29,11 +30,18 @@ export function RecentCourses({ events }: { events: EventOut[] }) {
           fontWeight: 400,
           color: "var(--tcn-ink)",
           margin: 0,
-          marginBottom: 18,
         }}
       >
         Dernières épreuves
       </h2>
+      <Link
+        href={href}
+        prefetch={false}
+        style={{ display: "inline-flex", alignItems: "center", minHeight: 44, fontWeight: 700, fontSize: 15, color: "var(--tcn-ink)", textDecoration: "underline" }}
+      >
+        Toutes les épreuves →
+      </Link>
+      </div>
       {events.length === 0 ? (
         <EmptyState
           bare
@@ -87,7 +95,7 @@ export function RecentCourses({ events }: { events: EventOut[] }) {
                 <td role="cell" style={{ color: "var(--tcn-ink)", fontWeight: 600 }}>
                   {/* prefetch={false} (#425) : jusqu'à 6 liens au-dessus de la
                       ligne de flottaison, next/link les prefetch tous par défaut
-                      dès l'atterrissage sur /mon-espace — un coût réseau pour des
+                      dès l'atterrissage sur l'accueil — un coût réseau pour des
                       épreuves au hasard, rarement celle que le visiteur ouvrira. */}
                   <Link href={`/courses/${e.id}`} prefetch={false} className="tcn-rowlink__cible">
                     {formatEventName(e.event_name, e.is_relay)}

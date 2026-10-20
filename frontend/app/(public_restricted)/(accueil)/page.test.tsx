@@ -21,7 +21,9 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
   useSearchParams: () => new URLSearchParams(),
 }));
-vi.mock("@/components/home/TuilesEspaces", () => ({ TuilesEspaces: () => <nav aria-label="Espaces" /> }));
+vi.mock("@/components/home/TuilesEspaces", () => ({
+  TuilesEspaces: () => <nav aria-label="Espaces" />,
+}));
 
 import { currentSeason } from "@/lib/utils/season";
 import HomePage from "./page";
@@ -53,7 +55,7 @@ describe("HomePage", () => {
     expect(screen.getByRole("heading", { level: 1, name: /Triathlon Club Nantais/ })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: "Espaces" })).toBeInTheDocument();
     expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ scope: "club", federal_only: true }), { revalidateSeconds: 30 });
-    expect(listEvents).toHaveBeenCalledWith(expect.objectContaining({ page_size: 1 }), { revalidateSeconds: 30 });
+    expect(listEvents).toHaveBeenCalledWith(expect.objectContaining({ page_size: 6 }), { revalidateSeconds: 30 });
     expect(getClubLastOuting).toHaveBeenCalledWith({ federal_only: true, seasons: [currentSeason()] }, { revalidateSeconds: 30 });
   });
 
@@ -90,5 +92,42 @@ describe("HomePage", () => {
     expect(getClubLastOuting).toHaveBeenCalledWith({ federal_only: true, seasons: [2025] }, { revalidateSeconds: 30 });
     expect(listEvents).toHaveBeenCalledWith(expect.objectContaining({ seasons: [2025] }), { revalidateSeconds: 30 });
     expect(screen.getByText("Saisons")).toBeInTheDocument();
+  });
+
+  describe("latest races (#1661)", () => {
+    const EVENTS = {
+      items: [
+        { id: 1, event_name: "Petit format", event_date: "2026-01-10", event_type: "Triathlon S", is_relay: false, distance_km: null, total: 50, tcn_count: 5 },
+        { id: 2, event_name: "Ironman Nantes", event_date: "2026-06-14", event_type: "Triathlon L", is_relay: false, distance_km: 113, total: 5, tcn_count: 5 },
+      ],
+      total_events: 2,
+      total_participations: 55,
+    };
+
+    it("lists them under the space tiles, from one call, newest first", async () => {
+      getStats.mockResolvedValue(STATS);
+      listEvents.mockResolvedValue(EVENTS);
+      getClubLastOuting.mockResolvedValue(null);
+
+      await afficher({ seasons: "2025" });
+
+      expect(listEvents).toHaveBeenCalledTimes(1);
+      expect(listEvents).toHaveBeenCalledWith(expect.objectContaining({ page_size: 6, seasons: [2025] }), { revalidateSeconds: 30 });
+      const tuiles = screen.getByRole("navigation", { name: "Espaces" });
+      const titre = screen.getByRole("heading", { level: 2, name: "Dernières épreuves" });
+      expect(tuiles.compareDocumentPosition(titre) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      const liens = screen.getAllByRole("link", { name: /Petit format|Ironman Nantes/ });
+      expect(liens[0]).toHaveTextContent("Ironman Nantes");
+    });
+
+    it("shows the empty state for an empty season", async () => {
+      getStats.mockResolvedValue(STATS);
+      listEvents.mockResolvedValue({ items: [], total_events: 0, total_participations: 0 });
+      getClubLastOuting.mockResolvedValue(null);
+
+      await afficher();
+
+      expect(screen.getByText("Aucune épreuve récente à afficher")).toBeInTheDocument();
+    });
   });
 });

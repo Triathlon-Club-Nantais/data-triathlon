@@ -6,8 +6,8 @@ Renvoyé depuis `frontend/AGENTS.md`, table « Où lire quoi ».
 
 **Sélecteurs d'URL : `pushState` ou `router.push`, et la question qui tranche**
 — *un rendu serveur lit-il ce paramètre ?* `?rank=` ne l'est par aucun, donc
-`RankTypeToggle` écrit l'URL par `window.history.pushState` et les trois
-consommateurs (`MaSaison`, `ClubPodiumKpi`, `PodiumsList`) recalculent en
+`RankTypeToggle` écrit l'URL par `window.history.pushState` et les deux
+consommateurs (`ClubPodiumKpi`, `PodiumsList`) recalculent en
 mémoire : zéro requête (#328). `?scope`, `?sports` et `?seasons` **le sont**
 (`app/club/page.tsx`, `app/(public_restricted)/mon-espace/page.tsx`), donc `ScopeToggle` et
 `DisciplineToggle` gardent `router.push`, comme `SexeToggle` (`?sexe=H|F`, #1643,

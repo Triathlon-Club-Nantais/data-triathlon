@@ -33,6 +33,8 @@ SCOPE = "openid profile email"
 TIMEOUT = httpx.Timeout(10.0)
 CACHE_TTL_SECONDS = 3600
 LEEWAY_SECONDS = 120
+#: Fournisseurs fédérés qui ne délivrent qu'une adresse vérifiée.
+VERIFYING_IDPS = frozenset({"google.com"})
 
 
 class EntraIdentityProvider:
@@ -100,11 +102,20 @@ class EntraIdentityProvider:
             token = self._fetch_token(client, code=code, verifier=round_trip.get("verifier", ""))
             claims = self._validated_claims(client, token, nonce=nonce)
 
-        # Entra n'émet pas `email_verified` : `xms_edov` vaut vrai pour une
-        # adresse venue de Google ou du code e-mail. Absent ou faux, l'adresse
-        # n'est pas certifiée et le provisionnement refuse (FR-021 avant production).
+        # Entra n'émet pas `email_verified`. `xms_edov` dit que le propriétaire du
+        # *domaine* est vérifié : faux pour toute adresse gmail.com (constaté sur la
+        # preview, FR-021). Une adresse fédérée par Google (`idp` exact) est vérifiée
+        # par Google, qui n'en délivre pas d'autre. Hors de ces deux cas, refus.
         email = str(claims.get("email") or "").strip()
-        verified = bool(email) and claims.get("xms_edov") is True
+        verified = bool(email) and (
+            claims.get("xms_edov") is True or claims.get("idp") in VERIFYING_IDPS
+        )
+        if not verified:
+            # Noms des claims et deux marques, jamais l'adresse.
+            logger.warning(
+                "Entra identity without a certified address: claims=%s xms_edov=%r idp=%r",
+                sorted(claims), claims.get("xms_edov"), claims.get("idp"),
+            )
         return ExternalIdentity(
             provider=self.slug,
             subject=claims["oid"],

@@ -8,7 +8,6 @@ import { NAV, ROLE, estVisible } from "@/components/layout/nav.config";
 import { useHydratedSession } from "@/lib/queries/auth";
 import { useEpreuvesSaison } from "@/lib/queries/ma-saison";
 import { libelleCompteur, totalATraiter, useNavBadges } from "@/lib/queries/nav-badges";
-import { formatDate } from "@/lib/utils/date";
 import { motCompte } from "@/lib/utils/format";
 import { seasonPeriodLabel } from "@/lib/utils/season";
 
@@ -34,7 +33,7 @@ function Tuile({ index, href, titre, ligne, badge }: { index: number; href: stri
 }
 
 /** Les portes de l'accueil (#1621) ; les espaces réservés n'apparaissent qu'une fois la session lue. */
-export function TuilesEspaces({ derniereEpreuve, podiumsSaison, query, seasons }: { derniereEpreuve: { nom: string; date: string | null } | null; podiumsSaison: number; query: string; seasons: number[] }) {
+export function TuilesEspaces({ podiumsSaison, query, seasons }: { podiumsSaison: number; query: string; seasons: number[] }) {
   const { data: session } = useHydratedSession();
   const athlete = useSelectedAthlete();
   const epreuves = useEpreuvesSaison(athlete?.id, seasons);
@@ -55,7 +54,7 @@ export function TuilesEspaces({ derniereEpreuve, podiumsSaison, query, seasons }
         index={0}
         href={`/resultats${query}`}
         titre="Résultats"
-        ligne={derniereEpreuve ? `${derniereEpreuve.nom}${derniereEpreuve.date ? ` · ${formatDate(derniereEpreuve.date)}` : ""}` : "Toutes les épreuves du club"}
+        ligne="Toutes les épreuves du club"
       />
       <Tuile index={1} href={`/club${query}`} titre="Club" ligne={`${motCompte(podiumsSaison, "podium")} ${periode}`} />
       <Tuile index={2} href={`/mon-espace${query}`} titre="Mon espace" ligne={athlete ? (epreuves === undefined ? nomComplet(athlete) : `${nomComplet(athlete)} · ${motCompte(epreuves, "épreuve")} ${periode}`) : "Choisissez votre nom"} />

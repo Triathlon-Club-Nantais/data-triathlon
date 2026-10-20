@@ -136,8 +136,12 @@ d'Authlib (émetteur lu dans la découverte, audience **passée explicitement**,
 sans quoi elle n'est pas vérifiée, nonce, expiration) ; tout échec rend
 `provider_error`, un réseau injoignable `provider_unavailable`. **Règle
 `xms_edov`** : Entra n'émet pas `email_verified`, l'adresse n'est certifiée que
-si `email` est présent **et** `xms_edov` vaut exactement `true` ; sinon
-`email_unverified`, jamais accepté par défaut. **Clé de résolution : `oid`**,
+si `email` est présent **et** que `xms_edov` vaut exactement `true` ou que
+`idp` vaut exactement `google.com` ; sinon `email_unverified`, jamais accepté
+par défaut. `xms_edov` dit que le propriétaire du **domaine** est vérifié : il
+vaut `false` pour une adresse gmail.com (constaté sur la preview, FR-021), d'où
+la liste `VERIFYING_IDPS` des fournisseurs fédérés qui ne délivrent qu'une
+adresse vérifiée. **Clé de résolution : `oid`**,
 jamais `sub` : `sub` est propre à l'inscription d'application, et la recréer
 rendrait orphelins tous les comptes sans recours (l'appariement par adresse est
 interdit). Un `oid` absent est un `provider_error`. La découverte elle-même est

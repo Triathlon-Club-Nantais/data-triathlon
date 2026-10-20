@@ -115,17 +115,6 @@ async function renderDashboard(searchParams: Record<string, string | undefined> 
   return render(ui);
 }
 
-describe("MonEspacePage — états vides (ETAT-3)", () => {
-  it("propose d'ajouter une épreuve quand la liste des dernières épreuves est vide", async () => {
-    // `EVENTS_PAGE` par défaut a déjà `items: []` : l'état vide est le cas
-    // par défaut de la fixture, pas un cas à construire.
-    await renderDashboard({});
-
-    expect(screen.getByText("Aucune épreuve récente à afficher")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Ajouter une épreuve/ })).toHaveAttribute("href", "/ajouter");
-  });
-});
-
 describe("MonEspacePage", () => {
   it("porte l'eyebrow « Mon espace »", async () => {
     await renderDashboard({});
@@ -137,60 +126,15 @@ describe("MonEspacePage", () => {
     await renderDashboard({});
 
     expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ scope: "club" }), expect.anything());
-    expect(listEvents).toHaveBeenCalledWith(
-      expect.objectContaining({ scope: "club" }),
-      expect.anything(),
-    );
+    expect(listEvents).not.toHaveBeenCalled();
+    expect(screen.queryByRole("heading", { name: "Dernières épreuves" })).toBeNull();
   });
 
-  it("demande 6 dernières épreuves, pas 200 (#581)", async () => {
-    await renderDashboard({});
-
-    expect(listEvents).toHaveBeenCalledWith(
-      expect.objectContaining({ page_size: 6 }),
-      expect.anything(),
-    );
-  });
-
-  it("demande une fenêtre de revalidation courte sur les trois appels (#352)", async () => {
+  it("demande une fenêtre de revalidation courte sur les appels (#352)", async () => {
     await renderDashboard({});
 
     expect(getStats).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
-    expect(listEvents).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
     expect(listSeasons).toHaveBeenCalledWith(expect.anything(), { revalidateSeconds: 30 });
-  });
-
-  it("désactive le prefetch des liens « Dernières épreuves » (#425) — au-dessus de la ligne de flottaison, jusqu'à 6 à la fois, prefetchées au hasard sans intérêt", async () => {
-    listEvents.mockResolvedValue({
-      items: [
-        { id: 5, event_name: "Ironman Nantes", event_date: null, event_type: "Triathlon L", is_relay: false, distance_km: 113, total: 30, tcn_count: 5 },
-      ],
-      total_events: 1,
-      total_participations: 30,
-    });
-
-    await renderDashboard({});
-
-    const lien = screen.getByRole("link", { name: /Ironman Nantes/ });
-    expect(lien).toHaveAttribute("href", "/courses/5");
-    expect(lien).toHaveAttribute("data-prefetch", "false");
-  });
-
-  it("trie les dernières épreuves par date décroissante plutôt que par volume (NAV-7)", async () => {
-    listEvents.mockResolvedValue({
-      items: [
-        { id: 1, event_name: "Petit format", event_date: "2026-01-10", event_type: "Triathlon S", is_relay: false, distance_km: null, total: 50, tcn_count: 5 },
-        { id: 2, event_name: "Ironman Nantes", event_date: "2026-06-14", event_type: "Triathlon L", is_relay: false, distance_km: 113, total: 5, tcn_count: 5 },
-      ],
-      total_events: 2,
-      total_participations: 55,
-    });
-
-    await renderDashboard({});
-
-    const liens = screen.getAllByRole("link", { name: /Petit format|Ironman Nantes/ });
-    expect(liens[0]).toHaveTextContent("Ironman Nantes");
-    expect(liens[1]).toHaveTextContent("Petit format");
   });
 
   it("ignore ?scope et reste sur le club même si l'URL demande « tous »", async () => {
@@ -218,12 +162,6 @@ describe("MonEspacePage", () => {
     await renderDashboard({ seasons: "2026,2025" });
 
     expect(screen.getByRole("heading", { level: 1, name: "2 saisons sélectionnées" })).toBeInTheDocument();
-  });
-
-  it("rend le titre de carte comme un <h2> (A11Y-2)", async () => {
-    await renderDashboard({});
-
-    expect(screen.getByRole("heading", { level: 2, name: "Dernières épreuves" })).toBeInTheDocument();
   });
 
   it("garde les tags de saison hors de la barre d'outils, pour que les boutons ne bougent pas (#445)", async () => {
@@ -352,15 +290,6 @@ describe("MonEspacePage — bande « Ma saison » (#502, NAV-9)", () => {
     expect(screen.getByText(/Aucun résultat enregistré/)).toBeInTheDocument();
     expect(screen.queryByTestId("ma-saison-stub")).not.toBeInTheDocument();
   });
-
-  it("place la bande au-dessus des dernières épreuves, dans l'ordre du document", async () => {
-    await renderDashboard({});
-
-    const bande = screen.getByTestId("ma-saison-stub");
-    const dernieres = screen.getByRole("heading", { level: 2, name: "Dernières épreuves" });
-
-    expect(bande.compareDocumentPosition(dernieres) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
 });
 
 describe("MonEspacePage — invitation à choisir un athlète (#588)", () => {
@@ -377,15 +306,6 @@ describe("MonEspacePage — invitation à choisir un athlète (#588)", () => {
     await renderDashboard({ seasons: "2019" });
 
     expect(screen.queryByTestId("invitation-athlete-stub")).not.toBeInTheDocument();
-  });
-
-  it("place l'invitation au-dessus des dernières épreuves, dans l'ordre du document", async () => {
-    await renderDashboard({});
-
-    const invitation = screen.getByTestId("invitation-athlete-stub");
-    const dernieres = screen.getByRole("heading", { level: 2, name: "Dernières épreuves" });
-
-    expect(invitation.compareDocumentPosition(dernieres) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 
