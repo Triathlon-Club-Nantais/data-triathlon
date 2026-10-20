@@ -735,6 +735,8 @@ class SeasonQuota(BaseModel):
     season_validated: bool
     # Additif (#1542) : le barème lui-même, `core.season.season_quota_met`.
     quota_met: bool
+    season: int
+    required_events: int
 
 
 class AthleteMergeRequest(BaseModel):
