@@ -588,7 +588,10 @@ seul, `can_supervise` est indéfini et `/encadrement` refuse tout le monde.
 `GET /auth/me/teammates` (#1701), `GET /auth/me/volunteer-actions` (#1696) et
 `GET /auth/me/identities` (#1663) ne portent, comme `GET /auth/me`, que sur soi : liste vide quand aucun athlète
 n'est rattaché à son compte ; la seconde rend `MyVolunteerActionOut`, sans
-identité de fiche ni auteur de la déclaration.
+identité de fiche ni auteur de la déclaration. `GET /auth/me/volunteer-declarations`
+(#1672) rend l'autre face : les déclarations **faites par le compte**
+(`declared_by_user_id`), tous statuts, pour toute fiche, avec le nom de la fiche
+créditée ; elle ne dépend pas d'un rattachement.
 
 `POST /auth/me/opposition` et sa prévisualisation (#1673) ne visent que la fiche rattachée à la session ; sans fiche, `403` ; `409` quand le nom est partagé avec une autre personne connue du club, qui doit alors écrire au club.
 
