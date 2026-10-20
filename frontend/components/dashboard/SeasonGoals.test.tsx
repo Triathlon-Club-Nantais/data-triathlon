@@ -18,6 +18,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
   };
 });
 
+import { currentSeason, seasonLabel } from "@/lib/utils/season";
 import { SeasonGoals } from "./SeasonGoals";
 
 const LEA = { id: 42, prenom: "Léa", nom: "Martin" };
@@ -33,11 +34,11 @@ function session(athlete: SessionUser["athlete"]): SessionUser {
   return { id: 1, email: "lea@exemple.fr", permissions: [], roles: [], groups: [], athlete, athlete_claim: null } as unknown as SessionUser;
 }
 
-function afficher() {
+function afficher(seasons: number[] = [currentSeason()]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <SeasonGoals />
+      <SeasonGoals seasons={seasons} />
     </QueryClientProvider>,
   );
 }
@@ -110,10 +111,32 @@ describe("SeasonGoals (#1373)", () => {
     await waitFor(() => expect(deleteSeasonGoal).toHaveBeenCalledWith(2));
   });
 
-  it("links to the recap of the last closed season (#1372)", async () => {
+  it("names the season in the card title and no longer repeats the recap link", async () => {
     afficher();
 
-    expect(await screen.findByRole("link", { name: "Récap de la saison passée" })).toHaveAttribute("href", "/mon-espace/recap");
+    expect(await screen.findByRole("heading", { level: 2, name: `Objectifs, ${seasonLabel(currentSeason())}` })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Récap de la saison passée" })).toBeNull();
+    expect(getSeasonGoals).toHaveBeenCalledWith(currentSeason());
+  });
+
+  it("shows a past season's goals read only", async () => {
+    const passee = currentSeason() - 1;
+    afficher([passee]);
+
+    expect(await screen.findByRole("heading", { level: 2, name: `Objectifs, ${seasonLabel(passee)}` })).toBeInTheDocument();
+    expect(await screen.findByText("6 épreuves cette saison")).toBeInTheDocument();
+    expect(getSeasonGoals).toHaveBeenCalledWith(passee);
+    expect(screen.queryByRole("button", { name: "Ajouter un objectif" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Modifier|Supprimer/ })).toBeNull();
+  });
+
+  it("falls back to the current season and says so when several seasons are selected", async () => {
+    afficher([currentSeason(), currentSeason() - 1]);
+
+    expect(await screen.findByRole("heading", { level: 2, name: `Objectifs, ${seasonLabel(currentSeason())}` })).toBeInTheDocument();
+    expect(screen.getByText(/Plusieurs saisons sont sélectionnées/)).toBeInTheDocument();
+    expect(getSeasonGoals).toHaveBeenCalledWith(currentSeason());
+    expect(await screen.findByRole("button", { name: "Ajouter un objectif" })).toBeInTheDocument();
   });
 
   it("shows nothing without a claimed athlete", async () => {
@@ -121,7 +144,7 @@ describe("SeasonGoals (#1373)", () => {
     afficher();
 
     await waitFor(() => expect(getSession).toHaveBeenCalled());
-    expect(screen.queryByText("Mes objectifs")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 2 })).not.toBeInTheDocument();
     expect(getSeasonGoals).not.toHaveBeenCalled();
   });
 });

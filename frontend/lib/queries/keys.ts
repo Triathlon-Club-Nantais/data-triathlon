@@ -28,7 +28,8 @@ export const queryKeys = {
   athleteClaims: () => ["athlete-claims"] as const,
   myTeammates: (seasons: number[], federalOnly: boolean) => ["my-teammates", federalOnly, seasons] as const,
   myVolunteerActions: () => ["my-volunteer-actions"] as const,
-  seasonGoals: () => ["season-goals"] as const,
+  // Sans saison : préfixe commun, utilisé pour invalider toutes les saisons.
+  seasonGoals: (season?: number) => (season === undefined ? ["season-goals"] : ["season-goals", season]) as readonly unknown[],
   athleteLinks: () => ["athlete-links"] as const,
   resultClaims: () => ["result-claims"] as const,
   myResultClaims: () => ["my-result-claims"] as const,

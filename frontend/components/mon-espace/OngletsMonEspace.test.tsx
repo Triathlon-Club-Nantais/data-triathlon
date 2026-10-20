@@ -23,7 +23,7 @@ vi.mock("@/components/challenges/AthleteChallenges", () => ({
 vi.mock("./OngletDisciplines", () => ({ OngletDisciplines: () => <div data-testid="disciplines" /> }));
 vi.mock("./OngletProgression", () => ({ OngletProgression: () => <div data-testid="progression" /> }));
 vi.mock("./OngletRecords", () => ({ OngletRecords: ({ federalOnly }: { federalOnly: boolean }) => <div data-testid="records">{String(federalOnly)}</div> }));
-vi.mock("@/components/dashboard/SeasonGoals", () => ({ SeasonGoals: () => <div data-testid="goals" /> }));
+vi.mock("@/components/dashboard/SeasonGoals", () => ({ SeasonGoals: ({ seasons }: { seasons: number[] }) => <div data-testid="goals">{seasons.join(",")}</div> }));
 
 import { OngletsMonEspace } from "./OngletsMonEspace";
 
