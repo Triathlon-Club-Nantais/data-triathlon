@@ -55,8 +55,8 @@ class TooManyClaimsError(DomainError):
 class CompositionToDecideError(DomainError):
     status_code = 409
     message = (
-        "La composition de cette équipe a été posée à la main : composez l'équipe dans "
-        "« Attribuer aux équipiers », puis validez la demande."
+        "La composition de cette équipe a été posée à la main : composez l'équipe avec "
+        "« Composer l'équipe », puis cliquez sur « Clore la demande »."
     )
 
 

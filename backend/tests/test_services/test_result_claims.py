@@ -374,6 +374,8 @@ def test_approving_a_hand_composed_team_asks_the_admin(db_session, lea, reviewer
         result_claims.approve(db_session, claim.id, actor_id=reviewer.id)
 
     assert refused.value.status_code == 409
+    assert "« Composer l'équipe »" in refused.value.message
+    assert "« Clore la demande »" in refused.value.message
     assert claim.status == STATUS_PENDING
     assert _composition(db_session, relay) == [first.id, second.id]
 
