@@ -36,11 +36,11 @@ afterEach(() => {
 });
 
 describe("RankTypeToggle", () => {
-  it("rend les 4 boutons canoniques (Général, Catégorie, Genre, Tous)", () => {
+  it("rend les 4 boutons canoniques (Général, Catégorie, Sexe, Tous)", () => {
     render(<RankTypeToggle />);
     expect(screen.getByRole("button", { name: "Général" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Catégorie" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Genre" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sexe" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tous" })).toBeInTheDocument();
   });
 
@@ -75,14 +75,14 @@ describe("RankTypeToggle", () => {
     expect(isActive(screen.getByRole("button", { name: "Général" }))).toBe(true);
   });
 
-  it("clic sur Genre → l'URL passe à ?rank=gender par l'historique, sans navigation", () => {
+  it("clic sur Sexe → l'URL passe à ?rank=gender par l'historique, sans navigation", () => {
     // Aucun rendu serveur ne lit `?rank=` : les trois consommateurs le relisent
     // par `useSearchParams` et recalculent en mémoire. Un `router.push` rejouait
     // donc tout le rendu de /mon-espace — dont `listEvents(page_size: 200)`,
     // `getStats` et `listSeasons` — pour un résultat que le client tenait
     // déjà (#328).
     render(<RankTypeToggle />);
-    fireEvent.click(screen.getByRole("button", { name: "Genre" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sexe" }));
     expect(pushState).toHaveBeenCalledWith(null, "", "/mon-espace?rank=gender");
     expect(push).not.toHaveBeenCalled();
   });

@@ -231,5 +231,6 @@ describe("ClubPage", () => {
     await renderClub({});
 
     expect(screen.getByRole("group", { name: "Sexe" })).toBeInTheDocument();
+    expect(screen.getByText("Sexe", { selector: "div" })).toBeVisible();
   });
 });

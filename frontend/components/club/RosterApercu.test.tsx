@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { render as renderRTL, screen, type RenderResult } from "@testing-library/react";
+import { render as renderRTL, screen, waitFor, type RenderResult } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { RosterApercu } from "./RosterApercu";
@@ -129,6 +129,30 @@ describe("RosterApercu — retrouver sa ligne (#504)", () => {
     const rappel = await screen.findByRole("link", { name: /3ᵉ des 9/ });
     expect(getClubRosterRank).toHaveBeenCalledWith(99, expect.objectContaining({ gender: "F" }));
     expect(rappel).toHaveAttribute("href", `/club/athletes?seasons=${currentSeason()}&sexe=F#athlete-99`);
+  });
+
+  it("qualifie le rang du sexe filtré", async () => {
+    url.qs = "sexe=F";
+    const roster = Array.from({ length: 12 }, (_, i) => entry({ athlete_id: i + 1, count: 12 - i + 1 }));
+    writeAthlete({ id: 99, prenom: "M", nom: "Moi" });
+    getClubRosterRank.mockResolvedValue({ rank: 3, total: 9 });
+
+    render(<RosterApercu roster={roster} />);
+
+    expect(await screen.findByRole("link", { name: /3ᵉ des 9 femmes du club/ })).toBeInTheDocument();
+  });
+
+  it("masque le rappel sous un filtre de sexe quand je n'en suis pas (rang nul)", async () => {
+    url.qs = "sexe=H";
+    const roster = Array.from({ length: 12 }, (_, i) => entry({ athlete_id: i + 1, count: 12 - i + 1 }));
+    writeAthlete({ id: 99, prenom: "M", nom: "Moi" });
+    getClubRosterRank.mockResolvedValue(null);
+
+    render(<RosterApercu roster={roster} />);
+
+    await waitFor(() => expect(getClubRosterRank).toHaveBeenCalled());
+    expect(screen.queryByText(/n'êtes pas parmi/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Vous :/)).not.toBeInTheDocument();
   });
 
   it("garde le rappel générique si le rang ne peut pas être calculé", async () => {

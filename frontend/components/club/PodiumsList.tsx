@@ -9,7 +9,8 @@ import { formatEventName } from "@/lib/utils/event";
 import { RANK_PARAM, rankTypeFromParam } from "@/lib/rank";
 import { podiumScopeLabel } from "@/lib/labels";
 import { PODIUM_SCOPE_META } from "@/lib/podium-scope";
-import { SPORTS_PARAM, federalOnlyFromParam, type Gender } from "@/lib/scope";
+import { SPORTS_PARAM, chezLesSexe, federalOnlyFromParam, type Gender } from "@/lib/scope";
+import { RetirerFiltreSexe } from "@/components/layout/RetirerFiltreSexe";
 import { apiClient } from "@/lib/api/client";
 import type { ClubPodiumTotals, ClubPodiums } from "@/lib/types";
 import { currentSeason, selectedSeasonsOrCurrent } from "@/lib/utils/season";
@@ -105,9 +106,16 @@ function Podiums({
     return (
       <>
         {annonce}
-        <p className="py-6 text-center text-sm text-[var(--tcn-text-faint)]">
-          {selectedSeasons.includes(currentSeason()) ? "Pas encore de podium enregistré." : "Aucun podium enregistré."}
-        </p>
+        <div className="py-6 text-center text-sm text-[var(--tcn-text-faint)]">
+          <p>
+            {gender
+              ? `Aucun podium enregistré ${chezLesSexe(gender)}.`
+              : selectedSeasons.includes(currentSeason())
+                ? "Pas encore de podium enregistré."
+                : "Aucun podium enregistré."}
+          </p>
+          {gender && <RetirerFiltreSexe />}
+        </div>
       </>
     );
   }

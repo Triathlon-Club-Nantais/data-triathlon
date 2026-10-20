@@ -26,6 +26,20 @@ describe("ClubBestTimesCard", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("names the sex when the filter leaves no record", () => {
+    render(
+      <ClubBestTimesCard
+        seasonLines={[line(2, { gender: "M" })]}
+        allLines={[line(2, { gender: "M" })]}
+        seasonLabel="Saison 2026 — 2027"
+        gender="F"
+      />,
+    );
+
+    expect(screen.getByText("Aucun record chez les femmes.")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+  });
+
   it("renders one line per format and gender, linking to the participation", () => {
     render(
       <ClubBestTimesCard

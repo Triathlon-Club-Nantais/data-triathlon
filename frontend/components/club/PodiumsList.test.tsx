@@ -7,6 +7,7 @@ let searchParams = new URLSearchParams();
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => searchParams,
+  usePathname: () => "/club",
 }));
 
 const { getClubPodiums } = vi.hoisted(() => ({ getClubPodiums: vi.fn() }));
@@ -69,7 +70,7 @@ describe("PodiumsList — filtrage selon ?rank= (#104, #132, #581)", () => {
     render(<PodiumsList podiums={PODIUMS} />);
     expect(screen.getByText("Général")).toBeInTheDocument();
     expect(screen.queryByText("Catégorie")).not.toBeInTheDocument();
-    expect(screen.queryByText("Genre")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sexe")).not.toBeInTheDocument();
   });
 
   it("?rank=category : n'affiche que les badges « Catégorie »", () => {
@@ -84,13 +85,24 @@ describe("PodiumsList — filtrage selon ?rank= (#104, #132, #581)", () => {
     render(<PodiumsList podiums={PODIUMS} />);
     expect(screen.getByText("Général")).toBeInTheDocument();
     expect(screen.getByText("Catégorie")).toBeInTheDocument();
-    expect(screen.getByText("Genre")).toBeInTheDocument();
+    expect(screen.getByText("Sexe")).toBeInTheDocument();
   });
 
   it("liste vide d'une saison passée → pas de « pas encore »", () => {
     searchParams = new URLSearchParams(`seasons=${currentSeason() - 2}`);
     render(<PodiumsList podiums={EMPTY} />);
     expect(screen.getByText("Aucun podium enregistré.")).toBeInTheDocument();
+  });
+
+  it("liste vide sous un filtre de sexe → nomme le sexe et propose de le retirer", () => {
+    searchParams = new URLSearchParams("sexe=F&seasons=2025");
+    render(<PodiumsList podiums={EMPTY} gender="F" />);
+    expect(screen.getByText("Aucun podium enregistré chez les femmes.")).toBeInTheDocument();
+    expect(screen.queryByText("Pas encore de podium enregistré.")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Retirer le filtre par sexe" })).toHaveAttribute(
+      "href",
+      "/club?seasons=2025",
+    );
   });
 
   it("liste vide → message d'attente, aucun badge", () => {

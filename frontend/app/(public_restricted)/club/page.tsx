@@ -55,7 +55,10 @@ export default async function ClubPage({
           actions={
             <div className="flex flex-wrap items-end gap-3">
               <RankTypeToggle />
-              <SexeToggle />
+              <div>
+                <FieldLabel>Sexe</FieldLabel>
+                <SexeToggle />
+              </div>
               <DisciplineToggle />
               <div>
                 <FieldLabel>Saisons</FieldLabel>

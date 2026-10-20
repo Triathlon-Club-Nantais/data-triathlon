@@ -54,6 +54,6 @@ describe("ClubPodiumKpi — lit rank_counters (#581)", () => {
 
     searchParams = new URLSearchParams("rank=all");
     render(<ClubPodiumKpi rankCounters={RANK_COUNTERS} />);
-    expect(screen.getByText("général, genre ou catégorie")).toBeInTheDocument();
+    expect(screen.getByText("général, sexe ou catégorie")).toBeInTheDocument();
   });
 });

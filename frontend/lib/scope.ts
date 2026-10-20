@@ -61,3 +61,17 @@ export function genderFromSexeParam(sexe?: string | null): Gender | undefined {
 export function sexeQuerySuffix(gender?: Gender): string {
   return gender ? `&${SEXE_PARAM}=${gender === "M" ? "H" : "F"}` : "";
 }
+
+/** « chez les hommes » / « chez les femmes » : le sexe filtré, dit dans les états vides. */
+export function chezLesSexe(gender: Gender): string {
+  return gender === "M" ? "chez les hommes" : "chez les femmes";
+}
+
+/** `pathname` + query sans `sexe` (ni pagination) : l'action « Voir tous » des états vides filtrés par sexe. */
+export function hrefSansSexe(pathname: string, params: URLSearchParams): string {
+  const next = new URLSearchParams(params.toString());
+  next.delete(SEXE_PARAM);
+  next.delete("page");
+  const qs = next.toString();
+  return qs ? `${pathname}?${qs}` : pathname;
+}

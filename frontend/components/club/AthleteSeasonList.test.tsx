@@ -514,6 +514,47 @@ describe("AthleteSeasonList — retrouver sa ligne (#504)", () => {
       expect(screen.queryByText(/ᵉ du club/)).not.toBeInTheDocument();
     });
 
+    it("names the sex and offers to drop it when nobody of that sex is active", () => {
+      searchParams = new URLSearchParams("seasons=2025&sexe=F");
+      render(<AthleteSeasonList athletes={[athlete({ id: 1, nom: "HOMME", gender: "M" })]} />);
+      expect(screen.getByText("Aucun athlète actif chez les femmes sur cette saison.")).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Voir tous les athlètes" })).toHaveAttribute(
+        "href",
+        "/club/athletes?seasons=2025",
+      );
+    });
+
+    it("names the sex filter, not only the name, when the search misses that sex", async () => {
+      searchParams = new URLSearchParams("sexe=F");
+      render(<AthleteSeasonList athletes={mixed} />);
+      await userEvent.type(screen.getByRole("searchbox", { name: "Rechercher un athlète" }), "homme");
+      expect(
+        screen.getByText("Aucun athlète ne correspond à « homme » chez les femmes."),
+      ).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Voir tous les athlètes" })).toHaveAttribute("href", "/club/athletes");
+    });
+
+    it("qualifies the recall rank with the filtered sex and hides it for the other sex", () => {
+      searchParams = new URLSearchParams("sexe=F");
+      const many = [
+        ...Array.from({ length: 12 }, (_, i) => athlete({ id: 100 + i, nom: `F${i}`, gender: "F", participation_count: 50 - i })),
+        athlete({ id: 2, nom: "FEMME", gender: "F", participation_count: 1 }),
+        athlete({ id: 3, nom: "HOMME", gender: "M", participation_count: 1 }),
+      ];
+      writeAthlete({ id: 2, prenom: "P", nom: "FEMME" });
+      const { unmount } = render(<AthleteSeasonList athletes={many} />);
+      expect(screen.getByRole("link", { name: /13ᵉ chez les femmes du club/ })).toBeInTheDocument();
+      unmount();
+      writeAthlete({ id: 3, prenom: "P", nom: "HOMME" });
+      render(<AthleteSeasonList athletes={many} />);
+      expect(screen.queryByText(/ᵉ .*du club/)).not.toBeInTheDocument();
+    });
+
+    it("renders a visible Sexe label next to the toggle", () => {
+      render(<AthleteSeasonList athletes={mixed} />);
+      expect(screen.getByText("Sexe")).toBeVisible();
+    });
+
     it("renders the sexe toggle", () => {
       render(<AthleteSeasonList athletes={mixed} />);
       expect(screen.getByRole("group", { name: "Sexe" })).toBeInTheDocument();

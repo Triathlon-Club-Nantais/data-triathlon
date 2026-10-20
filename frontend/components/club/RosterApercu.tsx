@@ -48,13 +48,16 @@ export function RosterApercu({ roster }: { roster: ClubRosterEntry[] }) {
     color: "var(--tcn-orange-deeper)",
   };
   const rappel = classement
-    ? `Vous : ${classement.rank}ᵉ des ${classement.total} athlètes du club`
+    ? `Vous : ${classement.rank}ᵉ des ${classement.total} ${gender ? (gender === "M" ? "hommes" : "femmes") : "athlètes"} du club`
     : `Vous n'êtes pas parmi les ${roster.length} athlètes les plus actifs`;
 
   return (
     <>
       <div className="min-h-11">
+        {/* Sous filtre, un rang nul veut dire « pas parmi ce sexe » : le rappel
+            générique mentirait pour un athlète de l'autre sexe. */}
         {horsApercu &&
+          (!gender || classement) &&
           (listeVisible ? (
             <Link
               href={`/club/athletes?seasons=${serializeSeasons(seasons)}${sexeQuerySuffix(gender)}#athlete-${athleteRetenu.id}`}

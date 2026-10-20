@@ -7,7 +7,10 @@ import type { ClubSummary, Participation, Stats } from "@/lib/types";
 
 vi.mock("@/components/charts/BarList", () => ({ BarList: () => <div data-testid="barlist" /> }));
 vi.mock("@/components/charts/MonthlyTrend", () => ({ MonthlyTrend: () => <div data-testid="monthly" /> }));
-vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => "/club",
+}));
 const { session } = vi.hoisted(() => ({ session: { permissions: ["pages:preview"] as string[] } }));
 vi.mock("@/lib/queries/auth", () => ({
   useSession: () => ({ data: session }),
@@ -15,7 +18,7 @@ vi.mock("@/lib/queries/auth", () => ({
 }));
 
 import { ClubDashboard } from "./ClubDashboard";
-import { currentSeason, seasonLabel, seasonSelectionLabel } from "@/lib/utils/season";
+import { currentSeason, seasonAbsenceLabel, seasonLabel, seasonSelectionLabel } from "@/lib/utils/season";
 
 // `RosterApercu` appelle `useClubRosterRank` (#641), inconditionnellement
 // (l'`enabled` du hook ne change rien à l'obligation d'un `QueryClientProvider`
@@ -299,6 +302,16 @@ describe("ClubDashboard — smoke", () => {
 
     expect(screen.getByRole("tab", { name: "Par discipline" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("barlist")).toBeVisible();
+  });
+
+  it("names the sex and offers to drop it when the filter leaves no result", () => {
+    render(
+      <ClubDashboard stats={{ ...STATS, total: 0 }} summary={EMPTY_SUMMARY} recent={[]} seasons={[2025]} gender="F" />,
+    );
+
+    expect(screen.getByText(`Aucun résultat enregistré chez les femmes pour ${seasonAbsenceLabel([2025])}.`)).toBeInTheDocument();
+    expect(screen.queryByText(/Aucun résultat enregistré pour/)).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Retirer le filtre par sexe" })).toHaveAttribute("href", "/club");
   });
 
   it("keeps the sexe in the link to the season list", () => {

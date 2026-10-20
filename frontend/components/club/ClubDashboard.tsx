@@ -14,10 +14,12 @@ import { ClubPodiumKpi } from "./ClubPodiumKpi";
 import { RosterApercu } from "./RosterApercu";
 import { LienDestination } from "@/components/layout/LienDestination";
 import { DisciplinePerformance } from "./DisciplinePerformance";
-import { sexeQuerySuffix, type Gender } from "@/lib/scope";
+import { EmptyState } from "@/components/ui/empty-state";
+import { RetirerFiltreSexe } from "@/components/layout/RetirerFiltreSexe";
+import { chezLesSexe, sexeQuerySuffix, type Gender } from "@/lib/scope";
 import { ClubComposition } from "./ClubComposition";
 import { formatCount } from "@/lib/utils/format";
-import { seasonLabel, serializeSeasons, seasonSelectionLabel } from "@/lib/utils/season";
+import { seasonAbsenceLabel, seasonLabel, serializeSeasons, seasonSelectionLabel } from "@/lib/utils/season";
 
 export function ClubDashboard({
   stats,
@@ -38,6 +40,15 @@ export function ClubDashboard({
   const licensees = summary.licensees;
 
   if (stats.total === 0) {
+    if (gender) {
+      return (
+        <EmptyState
+          title={`Aucun résultat enregistré ${chezLesSexe(gender)} pour ${seasonAbsenceLabel(seasons)}.`}
+          description="Retirez le filtre par sexe ou changez de saison."
+          action={<RetirerFiltreSexe />}
+        />
+      );
+    }
     return (
       <SeasonEmptyState seasons={seasons} currentSeasonHref="/club" />
     );
