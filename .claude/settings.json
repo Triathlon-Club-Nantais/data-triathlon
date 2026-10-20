@@ -13,6 +13,17 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$(git rev-parse --show-toplevel 2>/dev/null)/.claude/hooks/targeted_tests.py\"; if [ -f \"$f\" ]; then python3 \"$f\"; fi",
+            "timeout": 200
+          }
+        ]
+      }
     ]
   },
   "permissions": {
