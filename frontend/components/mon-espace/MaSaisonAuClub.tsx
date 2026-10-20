@@ -30,12 +30,12 @@ function Manque({ quota }: { quota: SeasonQuota }) {
 
 /** Avancement vers la validation de la saison, tel que l'API le dit (#1671). */
 export function MaSaisonAuClub() {
-  const { data, isPending, isError } = useMySeasonQuota(true);
+  const { data, isPending, isError } = useMySeasonQuota();
   if (!isPending && !isError && data === null) return null;
   return (
     <Card padding={20}>
       <Eyebrow role="heading" aria-level={2}>
-        {data ? `Ma saison au club, ${seasonLabel(data.season)}` : "Ma saison au club"}
+        {data ? `Ma saison au club, ${seasonLabel(data.season).toLowerCase()}` : "Ma saison au club"}
       </Eyebrow>
       {isPending && <Skeleton style={{ height: 20, marginTop: 12 }} />}
       {isError && <p style={corps}>Impossible d&rsquo;afficher votre saison pour le moment.</p>}
