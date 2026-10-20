@@ -109,6 +109,23 @@ def test_challenge_detail_gender_recalculated_places(client, db_session):
     assert all(r["gender_place_official"] is False for r in body["results"])
 
 
+def test_challenge_detail_gender_recalculates_when_rank_gender_collides(client, db_session):
+    rows = [*WOMEN_AMONG_MEN[:3], ("D", "F", 8, 2, "finisher")]
+    challenge = _seed_by_sex(db_session, rows)
+    body = client.get(f"/api/v1/challenges/{challenge.id}?gender=F").json()
+    assert [r["gender_place"] for r in body["results"]] == [1, 2, 3]
+    assert all(r["gender_place_official"] is False for r in body["results"])
+
+
+def test_challenge_detail_gender_recalculates_place_beyond_field_on_complete_ranking(client, db_session):
+    rows = [(nom, gender, overall, rank_gender, status) for overall, (nom, gender, _, rank_gender, status)
+            in enumerate(WOMEN_AMONG_MEN, start=1)]
+    challenge = _seed_by_sex(db_session, rows)
+    body = client.get(f"/api/v1/challenges/{challenge.id}?gender=F").json()
+    assert [r["gender_place"] for r in body["results"]] == [1, 2, 3]
+    assert all(r["gender_place_official"] is False for r in body["results"])
+
+
 def test_challenge_detail_gender_unranked_follow_without_place(client, db_session):
     rows = [("A", "F", None, None, "DNF"), ("B", "F", 2, 1, "finisher")]
     challenge = _seed_by_sex(db_session, rows)

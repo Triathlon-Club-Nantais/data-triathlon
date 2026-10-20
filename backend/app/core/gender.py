@@ -8,6 +8,7 @@ l'import, et le « podium de genre » a une seule définition, en Python et en S
 sur le patron `is_tcn` / `tcn_clause`.
 """
 import re
+from collections.abc import Sequence
 
 from sqlalchemy import and_
 
@@ -42,3 +43,24 @@ def is_gender_podium(rank_gender: int | None, gender: str | None) -> bool:
 def gender_podium_clause(rank_gender_column, gender_column):
     """Forme SQL d'`is_gender_podium`, les colonnes passées par l'appelant."""
     return and_(rank_gender_column.between(1, 3), gender_column.in_(GENDERS))
+
+
+def gender_places(ranked: Sequence[tuple[int, int | None]], *, complete: bool) -> tuple[dict[int, int], bool]:
+    """Place par sexe de la population classée `(id, rank_gender)`, dans l'ordre d'affichage.
+
+    Officielle (`rank_gender`) si toutes les lignes en portent un, sans doublon,
+    et, sur un classement `complete`, sans place au delà de l'effectif : un sexe
+    enregistré qui contredit le fournisseur reprend sinon le rang de l'autre sexe
+    (#1730). Sur un classement partiel (club seul), les trous sont légitimes.
+    Sinon recalculée par position. Règle unique de l'épreuve et du challenge.
+    """
+    ranks = [rank for _, rank in ranked]
+    official = (
+        bool(ranks)
+        and None not in ranks
+        and len(set(ranks)) == len(ranks)
+        and not (complete and max(ranks) > len(ranks))
+    )
+    if official:
+        return dict(ranked), True
+    return {key: position for position, (key, _) in enumerate(ranked, start=1)}, False

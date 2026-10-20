@@ -15,6 +15,7 @@ from app.core import counter_scope
 from app.core.club import _normalize_sql, broad_club_key, is_tcn, normalize_club
 from app.core.discipline import federal_clause
 from app.core.gender import GENDERS
+from app.core.gender import gender_places as core_gender_places
 from app.core.season import season_bounds, season_of
 from app.core.validation import awaiting_validation_clause, validated_clause
 from app.core.youth import is_youth
@@ -834,12 +835,14 @@ _GENDER_RANKED = and_(
 )
 
 
-def gender_places(db: Session, course_id: int, gender: Literal["M", "F"]) -> tuple[dict[int, int], bool]:
+def gender_places(
+    db: Session, course_id: int, gender: Literal["M", "F"], *, complete: bool
+) -> tuple[dict[int, int], bool]:
     """Place par sexe de chaque ligne classée de l'épreuve, et son caractère officiel.
 
-    Officielle (`rank_gender`) si **toutes** les lignes de la population en
-    portent un ; sinon recalculée par position dans `_display_order`. Calculée
-    sur l'épreuve entière, une recherche ou une page ne la décale donc pas.
+    La règle est `core.gender.gender_places`, appliquée à la population classée
+    dans `_display_order`. Calculée sur l'épreuve entière, une recherche ou une
+    page ne la décale donc pas.
     """
     rows = db.execute(
         select(Participation.id, Participation.rank_gender)
@@ -852,10 +855,7 @@ def gender_places(db: Session, course_id: int, gender: Literal["M", "F"]) -> tup
         )
         .order_by(*_display_order())
     ).all()
-    official = bool(rows) and all(rank is not None for _, rank in rows)
-    if official:
-        return {participation_id: rank for participation_id, rank in rows}, True
-    return {participation_id: position for position, (participation_id, _) in enumerate(rows, start=1)}, False
+    return core_gender_places([tuple(row) for row in rows], complete=complete)
 
 
 def _club_filter_targets(db: Session, club: str, course_id: int) -> set[str]:

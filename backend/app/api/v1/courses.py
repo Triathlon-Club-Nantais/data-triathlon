@@ -25,7 +25,7 @@ from app.schemas.course import (
 )
 from app.schemas.ids import DbId
 from app.schemas.participation import CourseParticipationPage, ParticipationOut
-from app.services import challenge_service, stats_service
+from app.services import challenge_service, quality, stats_service
 
 router = APIRouter(tags=["courses"])
 
@@ -283,7 +283,11 @@ def get_course(
         "q": q, "club_only": is_club_scope(scope), "club": club, "category": category, "gender": gender,
     }
     places, official = (
-        participation_repository.gender_places(db, course_id, gender) if gender else ({}, False)
+        participation_repository.gender_places(
+            db, course_id, gender, complete=quality.has_complete_ranking(course.quality_issues)
+        )
+        if gender
+        else ({}, False)
     )
     participations, total = participation_repository.list_page_for_course(
         db, course_id, page=page, page_size=resolved_page_size, official_gender_order=official, **filters
