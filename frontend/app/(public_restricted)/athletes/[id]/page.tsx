@@ -41,6 +41,7 @@ export default async function AthletePage({
   if (!data) notFound();
   const { athlete, participations, challenges } = data;
   const fullName = [athlete.prenom, athlete.nom].filter(Boolean).join(" ");
+  const preselect = Number.isInteger(comparer) && comparer > 0 && comparer !== athlete.id ? comparer : undefined;
 
   // Les tuiles ne portent que sur les participations déjà validées : une saisie
   // manuelle « en attente de validation » (#270) ne doit pas fausser les KPI
@@ -262,7 +263,13 @@ export default async function AthletePage({
           </Card>
         )}
 
-        {validated.length > 0 && <AthleteComparisonChart mine={validated} preselect={Number.isInteger(comparer) && comparer > 0 && comparer !== athlete.id ? comparer : undefined} />}
+        {validated.length > 0 ? (
+          <AthleteComparisonChart mine={validated} preselect={preselect} />
+        ) : (
+          preselect !== undefined && (
+            <p className="text-sm text-[var(--tcn-text-faint)]">Vous n&apos;avez pas encore de résultat validé à comparer.</p>
+          )
+        )}
 
         <EventsTable participations={participations} athleteId={athlete.id} athleteName={fullName} />
 

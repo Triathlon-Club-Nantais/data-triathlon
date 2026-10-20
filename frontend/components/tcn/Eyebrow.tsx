@@ -1,4 +1,4 @@
-import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
+import type { ComponentProps, CSSProperties, ReactNode } from "react";
 
 /** Overline TCN : capitales orange espacées au-dessus des titres. */
 export function Eyebrow({
@@ -10,7 +10,7 @@ export function Eyebrow({
   tone?: "orange" | "muted";
   children?: ReactNode;
   style?: CSSProperties;
-} & Omit<HTMLAttributes<HTMLDivElement>, "style">) {
+} & Omit<ComponentProps<"div">, "style">) {
   const colors = { orange: "var(--tcn-orange-deeper)", muted: "var(--tcn-text-faint)" } as const;
   return (
     <div

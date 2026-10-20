@@ -156,6 +156,18 @@ describe("AthletePage ?comparer= (#1701)", () => {
     await vi.waitFor(() => expect(charger).toHaveBeenCalledWith(9));
     charger.mockRestore();
   });
+
+  it("says why there is nothing to compare when the page has no validated result (#1675)", async () => {
+    const pending = [part({ id: 1, is_pending_validation: true })];
+    getAthlete.mockResolvedValue({ athlete: ATHLETE, participations: pending, challenges: [] });
+    renderPage(await AthletePage({ params: Promise.resolve({ id: "7" }), searchParams: Promise.resolve({ comparer: "9" }) }));
+    expect(screen.getByText("Vous n'avez pas encore de résultat validé à comparer.")).toBeInTheDocument();
+  });
+
+  it("stays silent about the comparison without `?comparer=`", async () => {
+    await renderAthlete([part({ id: 1, is_pending_validation: true })]);
+    expect(screen.queryByText("Vous n'avez pas encore de résultat validé à comparer.")).not.toBeInTheDocument();
+  });
 });
 
 describe("AthletePage", () => {

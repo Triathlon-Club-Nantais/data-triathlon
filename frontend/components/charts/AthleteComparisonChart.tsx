@@ -224,6 +224,8 @@ export function AthleteComparisonChart({ mine, preselect }: { mine: Participatio
   const champRecherche = useRef<HTMLInputElement>(null);
   const zoneEtat = useRef<HTMLDivElement>(null);
   const focusApresChanger = useRef(false);
+  const carte = useRef<HTMLDivElement>(null);
+  const titre = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!selected && focusApresChanger.current) {
@@ -234,8 +236,11 @@ export function AthleteComparisonChart({ mine, preselect }: { mine: Participatio
 
   // `?comparer=<id>` (#1701) : le coéquipier arrive déjà choisi ; sans le paramètre, rien ne change.
   // Le nom provisoire est remplacé par celui de la réponse, y compris après « Réessayer ».
+  // Arrivée par « Me comparer » (#1675) : la carte est loin sous l'en-tête, on l'amène à l'écran.
   useEffect(() => {
     if (preselect === undefined) return;
+    carte.current?.scrollIntoView({ block: "start" });
+    titre.current?.focus({ preventScroll: true });
     const provisoire = { id: preselect, prenom: "cet", nom: "athlète", gender: "", club: null, participation_count: 0 };
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelected(provisoire);
@@ -310,8 +315,10 @@ export function AthleteComparisonChart({ mine, preselect }: { mine: Participatio
     // Pas de marge inline ici : l'espacement avec les cartes voisines de
     // `/athletes/[id]` vient du `space-y-6` posé par la page (#654) — une
     // marge locale y ferait à nouveau cumuler deux systèmes.
-    <Card>
-      <Eyebrow>Comparer avec un coéquipier</Eyebrow>
+    <Card id="comparaison" ref={carte}>
+      <Eyebrow ref={titre} tabIndex={-1} className="outline-none">
+        Comparer avec un coéquipier
+      </Eyebrow>
       <AnnonceStatut
         texte={
           selected && etat === "echec"

@@ -1,4 +1,4 @@
-import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
+import type { ComponentProps, CSSProperties, ReactNode } from "react";
 
 /** Surface de base TCN. `hero` = dégradé orange avec orbe décoratif. */
 export function Card({
@@ -12,7 +12,7 @@ export function Card({
   padding?: number | string;
   children?: ReactNode;
   style?: CSSProperties;
-} & Omit<HTMLAttributes<HTMLDivElement>, "style">) {
+} & Omit<ComponentProps<"div">, "style">) {
   if (variant === "hero") {
     return (
       <div
