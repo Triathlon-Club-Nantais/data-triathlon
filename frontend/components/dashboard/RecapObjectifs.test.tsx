@@ -21,10 +21,17 @@ const NOMBRE: SeasonGoal = {
 
 function afficher() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
+  const rendu = render(
     <QueryClientProvider client={client}>
       <RecapObjectifs season={2024} />
     </QueryClientProvider>,
+  );
+  return { ...rendu, client };
+}
+
+function settled(client: QueryClient) {
+  return vi.waitFor(() => expect(client.isFetching()).toBe(0)).then(() =>
+    expect(client.getQueryCache().getAll().every((q) => q.state.status !== "pending")).toBe(true),
   );
 }
 
@@ -53,17 +60,15 @@ describe("RecapObjectifs (#1669)", () => {
 
   it("renders nothing without goals", async () => {
     getSeasonGoals.mockResolvedValue([]);
-    const { container } = afficher();
-    await vi.waitFor(() => expect(getSeasonGoals).toHaveBeenCalled());
-    await new Promise((r) => setTimeout(r, 0));
+    const { container, client } = afficher();
+    await settled(client);
     expect(container).toBeEmptyDOMElement();
   });
 
   it("renders nothing when goals fail to load", async () => {
     getSeasonGoals.mockRejectedValue(new Error("boom"));
-    const { container } = afficher();
-    await vi.waitFor(() => expect(getSeasonGoals).toHaveBeenCalled());
-    await new Promise((r) => setTimeout(r, 0));
+    const { container, client } = afficher();
+    await settled(client);
     expect(container).toBeEmptyDOMElement();
   });
 
