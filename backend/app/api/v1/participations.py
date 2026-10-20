@@ -21,7 +21,7 @@ from app.core.season import parse_seasons
 from app.models.user import User
 from app.repositories import participation_repository
 from app.schemas.ids import DbId
-from app.schemas.participation import ParticipationCreate, ParticipationOut
+from app.schemas.participation import ParticipationCreate, ParticipationOut, ParticipationSubmitted
 from app.scrapers.base import ScrapedResult
 from app.services import admin_actions, participation_stats_service, scrape_service
 
@@ -74,7 +74,7 @@ def _to_scraped(body: ParticipationCreate) -> ScrapedResult:
 
 @router.post(
     "/participations",
-    response_model=ParticipationOut,
+    response_model=ParticipationSubmitted,
     status_code=201,
     dependencies=[Depends(public_write_rate_limit)],
 )
@@ -94,7 +94,7 @@ def create_participation(
     agrégat public jusqu'à la validation d'un bénévole (#271). `DELETE`,
     destructif, reste gardé.
     """
-    participation = scrape_service.save_public_entry(db, _to_scraped(body))
+    scrape_service.save_public_entry(db, _to_scraped(body))
     capture_event(
         "participation_created",
         distinct_id=str(user.id) if user else ANONYMOUS_DISTINCT_ID,
@@ -103,7 +103,7 @@ def create_participation(
             "is_relay": body.is_relay,
         },
     )
-    return participation
+    return ParticipationSubmitted(**body.model_dump())
 
 
 @router.get("/participations", response_model=list[ParticipationOut])

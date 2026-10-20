@@ -13,7 +13,7 @@ from app.models.user import User
 from app.models.volunteer_access_config import VolunteerAccessConfig
 from app.repositories import participation_repository
 from app.services import shared_password, volunteer_access
-from tests.test_api.test_participations_api import _oppose_jean_dupont, _payload, _without_ids
+from tests.test_api.test_participations_api import _created, _oppose_jean_dupont, _payload
 
 
 @pytest.fixture
@@ -32,10 +32,9 @@ def volunteer(visitor, db_session):
 @pytest.fixture
 def entries(client, db_session):
     """Une saisie en attente et une saisie refusée, posées sur la même épreuve neuve."""
-    pending = client.post("/api/v1/participations", json=_payload(bib="1", nom="ATTENTE")).json()
-    rejected = client.post("/api/v1/participations", json=_payload(bib="2", nom="REFUS")).json()
-    row = participation_repository.get(db_session, rejected["id"])
-    participation_repository.update(db_session, row, is_rejected=True)
+    pending = _created(client, db_session, _payload(bib="1", nom="ATTENTE"))
+    rejected = _created(client, db_session, _payload(bib="2", nom="REFUS"))
+    participation_repository.update(db_session, rejected, is_rejected=True)
     db_session.commit()
     return pending, rejected
 
@@ -45,30 +44,30 @@ def test_a_visitor_reads_a_pending_entry_as_a_missing_one(visitor, entries):
     missing = visitor.get("/api/v1/participations/999999")
 
     for entry in (pending, rejected):
-        answer = visitor.get(f"/api/v1/participations/{entry['id']}")
+        answer = visitor.get(f"/api/v1/participations/{entry.id}")
         assert (answer.status_code, answer.json()) == (missing.status_code, missing.json())
     assert missing.status_code == 404
 
 
 def test_a_volunteer_still_reads_a_pending_entry(volunteer, entries):
     pending, _ = entries
-    assert volunteer.get(f"/api/v1/participations/{pending['id']}").status_code == 200
+    assert volunteer.get(f"/api/v1/participations/{pending.id}").status_code == 200
 
 
 def test_the_course_page_hides_pending_rows_from_a_visitor_only(visitor, entries, db_session):
     pending, _ = entries
-    course_id = pending["course"]["id"]
+    course_id = pending.course_id
 
     assert visitor.get(f"/api/v1/courses/{course_id}").json()["pending_participations"] == []
 
     _volunteer_cookie(visitor, db_session)
     shown = visitor.get(f"/api/v1/courses/{course_id}").json()["pending_participations"]
-    assert [p["id"] for p in shown] == [pending["id"]]
+    assert [p["id"] for p in shown] == [pending.id]
 
 
 def test_the_event_list_hides_pending_only_events_from_a_visitor(visitor, entries, db_session):
     pending, _ = entries
-    course_id = pending["course"]["id"]
+    course_id = pending.course_id
 
     listed = {e["id"] for e in visitor.get("/api/v1/courses/events").json()["items"]}
     assert course_id not in listed
@@ -84,15 +83,15 @@ def test_the_athlete_page_and_csv_hide_pending_rows_from_a_visitor(visitor, entr
     pending, rejected = entries
 
     for entry in (pending, rejected):
-        athlete_id = entry["athlete"]["id"]
+        athlete_id = entry.athlete_id
         assert visitor.get(f"/api/v1/athletes/{athlete_id}").json()["participations"] == []
         csv = visitor.get(f"/api/v1/athletes/{athlete_id}/participations.csv").text
         assert len(csv.strip().splitlines()) == 1, "en-tête seul"
 
     _volunteer_cookie(visitor, db_session)
-    athlete_id = pending["athlete"]["id"]
+    athlete_id = pending.athlete_id
     shown = visitor.get(f"/api/v1/athletes/{athlete_id}").json()["participations"]
-    assert [p["id"] for p in shown] == [pending["id"]]
+    assert [p["id"] for p in shown] == [pending.id]
     assert "Triathlon de Nantes" in visitor.get(f"/api/v1/athletes/{athlete_id}/participations.csv").text
 
 
@@ -102,7 +101,7 @@ def test_resending_a_pending_entry_answers_201_and_stores_nothing_more(visitor, 
 
     assert (first.status_code, again.status_code) == (201, 201)
     assert db_session.query(Participation).count() == 1
-    assert _without_ids(again.json()) == _without_ids(first.json())
+    assert again.json() == first.json()
 
 
 def test_two_simultaneous_entries_with_one_bib_both_answer_201(visitor, db_session, monkeypatch):
@@ -116,7 +115,7 @@ def test_two_simultaneous_entries_with_one_bib_both_answer_201(visitor, db_sessi
 
     assert (first.status_code, again.status_code) == (201, 201)
     assert db_session.query(Participation).count() == 1
-    assert _without_ids(again.json()) == _without_ids(first.json())
+    assert again.json() == first.json()
 
 
 def test_a_bib_held_by_a_published_result_is_still_refused(visitor, db_session):
@@ -131,25 +130,17 @@ def test_a_bib_held_by_a_published_result_is_still_refused(visitor, db_session):
 
 
 def test_a_visitor_cannot_tell_an_opposed_entry_from_another(visitor, db_session):
-    """Les oracles de #1519 en séquence : seuls les identifiants peuvent différer."""
+    """Les oracles de #1519 en séquence. Sans identifiant dans la réponse (#1724),
+    il ne reste à un visiteur que les statuts d'une saisie et de son renvoi."""
 
     def probe(nom):
-        created = visitor.post("/api/v1/participations", json=_payload(nom=nom, bib=nom))
-        body = created.json()
-        return (
-            created.status_code,
-            visitor.get(f"/api/v1/participations/{body['id']}").status_code,
-            visitor.post("/api/v1/participations", json=_payload(nom=nom, bib=nom)).status_code,
-            visitor.get(f"/api/v1/courses/{body['course']['id']}").json().get("pending_participations"),
-            visitor.get(f"/api/v1/athletes/{body['athlete']['id']}").json().get("participations"),
-        )
+        payload = _payload(nom=nom, bib=nom)
+        created = visitor.post("/api/v1/participations", json=payload)
+        return created.status_code, visitor.post("/api/v1/participations", json=payload).status_code
 
     _oppose_jean_dupont(db_session)
-    opposed = probe("DUPONT")
-    other = probe("MARTIN")
 
-    assert opposed[:3] == other[:3] == (201, 404, 201)
-    assert other[3:] == ([], [])
+    assert probe("DUPONT") == probe("MARTIN") == (201, 201)
 
 
 def _volunteer_cookie(client, db_session):
@@ -161,3 +152,27 @@ def _volunteer_cookie(client, db_session):
     client.cookies.set(
         volunteer_access.VOLUNTEER_SESSION_COOKIE, shared_password.sign_cookie(config.session_secret)
     )
+
+
+def _ids_in(value):
+    """Toute clé d'identifiant, à n'importe quelle profondeur."""
+    if isinstance(value, dict):
+        own = [key for key in value if key == "id" or key.endswith("_id")]
+        return own + [found for nested in value.values() for found in _ids_in(nested)]
+    if isinstance(value, list):
+        return [found for nested in value for found in _ids_in(nested)]
+    return []
+
+
+def test_the_public_entry_answer_carries_no_id_opposed_or_not(visitor, db_session):
+    """#1724 : un identifiant consommé ou réutilisé trahissait une saisie annulée."""
+    _oppose_jean_dupont(db_session)
+    relay = {"is_relay": True, "team_name": "Les Nantais"}
+
+    opposed = visitor.post("/api/v1/participations", json={**_payload(), **relay})
+    other = visitor.post("/api/v1/participations", json={**_payload(nom="MARTIN", bib="43"), **relay})
+
+    assert (opposed.status_code, other.status_code) == (201, 201)
+    assert _ids_in(opposed.json()) == _ids_in(other.json()) == []
+    assert opposed.json() == {**other.json(), "athlete_name": "DUPONT", "bib_number": "42"}
+    assert opposed.json()["is_pending_validation"] is True

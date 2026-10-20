@@ -17,7 +17,7 @@ import { useImportStream, type ImportState } from "@/hooks/useImportStream";
 import { echecImport, estDoublon, estPartiel, motifEchec as motifEchecDe } from "@/lib/import-outcome";
 import { ProviderDetector, ID_VERDICT } from "./ProviderDetector";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { ImportedCourse, Participation, ScrapedPreview } from "@/lib/types";
+import type { ImportedCourse, ParticipationSubmitted, ScrapedPreview } from "@/lib/types";
 
 // Le formulaire embarque zod : chargé à l'ouverture de la saisie manuelle, il ne
 // pèse rien sur qui colle simplement une adresse reconnue (#1395).
@@ -57,7 +57,7 @@ export function TcnScrapeForm() {
   const [maintenant, setMaintenant] = useState(() => Date.now());
   // Le résultat saisi à la main, gardé après l'enregistrement : c'est lui que
   // l'accusé de réception affiche (ACT-1).
-  const [saved, setSaved] = useState<Participation | null>(null);
+  const [saved, setSaved] = useState<ParticipationSubmitted | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   // Refus par champ d'un 422 (#1019), affichés sous les champs concernés.
   const [saveFieldErrors, setSaveFieldErrors] = useState<Record<string, FieldError> | undefined>(undefined);
@@ -250,9 +250,8 @@ export function TcnScrapeForm() {
   const persist = useCallback(
     async (data: Partial<ScrapedPreview>) => {
       try {
-        // La `Participation` rendue porte son `id` et son épreuve : c'est ce qui
-        // permet à l'accusé de réception de mener au résultat créé plutôt que de
-        // refermer la carte sur un toast fugace (ACT-1).
+        // Un accusé de réception persistant plutôt qu'un toast fugace (ACT-1).
+        // La réponse ne porte aucun identifiant (#1724) : elle ne sert qu'à l'afficher.
         setSaveError(null);
         setSaveFieldErrors(undefined);
         setSaved(await save.mutateAsync(data));

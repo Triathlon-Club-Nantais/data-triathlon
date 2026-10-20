@@ -835,9 +835,12 @@ describe("TcnScrapeForm — accusé de réception de la saisie manuelle (ACT-1)"
   }
 
   function participationCreee() {
+    // Sans aucun identifiant (#1724) : la confirmation n'en a pas besoin.
     vi.mocked(apiClient.saveParticipation).mockResolvedValue({
-      id: 77,
-      course: { id: 42, name: "Triathlon de Nantes", event_type: "triathlon-m" },
+      athlete_name: "DUPONT",
+      event_name: "Triathlon de Nantes",
+      event_type: "triathlon-m",
+      is_pending_validation: true,
     } as never);
   }
 

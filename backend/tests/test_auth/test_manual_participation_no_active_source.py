@@ -11,15 +11,17 @@ from datetime import date
 from app.repositories import course_repository
 from app.scrapers.base import ScrapedResult
 from tests.conftest import save_entry
+from tests.test_api.test_participations_api import _created
 
 
 def test_source_url_et_provider_hostiles_ne_creent_aucune_source_active(client, db_session):
     """Reproduction de l'issue : sans cookie de session, `source_url` +
     `provider` fournis par l'appelant ne doivent influencer ni l'un ni
     l'autre l'épreuve créée (#565, option 1)."""
-    reponse = client.post(
-        "/api/v1/participations",
-        json={
+    created = _created(
+        client,
+        db_session,
+        {
             "athlete_name": "DUPONT",
             "event_name": "Epreuve Inventee",
             "event_date": "2026-05-16",
@@ -29,10 +31,9 @@ def test_source_url_et_provider_hostiles_ne_creent_aucune_source_active(client, 
         },
     )
 
-    assert reponse.status_code == 201
     assert not client.cookies, "le test doit passer sans le moindre cookie"
 
-    course = course_repository.get(db_session, reponse.json()["course"]["id"])
+    course = created.course
     assert course.sources == []
     assert course.provider == ""
     assert course.source_url == ""
@@ -84,9 +85,10 @@ def test_ne_detourne_pas_une_epreuve_existante_via_la_regle_r(client, db_session
     # Même (platform_event_id, heat_slug) que l'épreuve légitime, mais une
     # chaîne d'URL différente et un événement sans rapport.
     url_hostile = "https://www.klikego.com/resultats/AUTRE-NOM/duathlon-m?heat=serie-1&extra=1"
-    reponse = client.post(
-        "/api/v1/participations",
-        json={
+    created = _created(
+        client,
+        db_session,
+        {
             "athlete_name": "ATTAQUANT",
             "event_name": "Epreuve Bidon Sans Rapport",
             "event_date": "1999-01-01",
@@ -95,10 +97,9 @@ def test_ne_detourne_pas_une_epreuve_existante_via_la_regle_r(client, db_session
             "provider": "klikego",
         },
     )
-    assert reponse.status_code == 201
     assert not client.cookies
 
-    assert reponse.json()["course"]["id"] != course_id_legitime, (
+    assert created.course_id != course_id_legitime, (
         "la participation forgée ne doit pas atterrir sur l'épreuve légitime existante"
     )
 

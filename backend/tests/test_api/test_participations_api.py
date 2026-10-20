@@ -36,21 +36,26 @@ def _payload(bib="42", nom="DUPONT", club="TCN"):
     }
 
 
-def test_create_and_get_participation(client):
-    resp = client.post("/api/v1/participations", json=_payload())
-    assert resp.status_code == 201
-    body = resp.json()
-    pid = body["id"]
-    assert body["athlete"]["nom"] == "DUPONT"
-    assert body["course"]["name"] == "Triathlon de Nantes"
-    assert body["splits"] == {"swim": "00:20:00", "bike": "01:00:00", "run": "00:39:00"}
+def _created(client, db_session, payload=None):
+    """Saisie publique, puis sa ligne relue en base : la réponse ne porte plus d'identifiant (#1724)."""
+    resp = client.post("/api/v1/participations", json=payload or _payload())
+    assert resp.status_code == 201, resp.text
+    return db_session.query(Participation).order_by(Participation.id.desc()).first()
+
+
+def test_create_and_get_participation(client, db_session):
+    pid = _created(client, db_session).id
 
     got = client.get(f"/api/v1/participations/{pid}")
     assert got.status_code == 200
-    assert got.json()["bib_number"] == "42"
+    body = got.json()
+    assert body["athlete"]["nom"] == "DUPONT"
+    assert body["course"]["name"] == "Triathlon de Nantes"
+    assert body["splits"] == {"swim": "00:20:00", "bike": "01:00:00", "run": "00:39:00"}
+    assert body["bib_number"] == "42"
 
 
-def test_create_participation_with_segments(client):
+def test_create_participation_with_segments(client, db_session):
     # Chemin générique : segments étiquetés libres, déplafonnés, priment sur les slots.
     payload = _payload(bib="77")
     payload.pop("swim_time", None)
@@ -58,9 +63,8 @@ def test_create_participation_with_segments(client):
     payload.pop("run_time", None)
     payload["event_type"] = "swimrun-l"
     payload["segments"] = [["swim1", "00:10:00"], ["run1", "00:20:00"], ["swim2", "00:08:00"]]
-    resp = client.post("/api/v1/participations", json=payload)
-    assert resp.status_code == 201
-    assert resp.json()["splits"] == {
+    pid = _created(client, db_session, payload).id
+    assert client.get(f"/api/v1/participations/{pid}").json()["splits"] == {
         "swim1": "00:10:00",
         "run1": "00:20:00",
         "swim2": "00:08:00",
@@ -80,8 +84,8 @@ def test_list_filters(client, db_session):
     assert by_club.json()[0]["club"] == "TCN"
 
 
-def test_delete_participation(client):
-    pid = client.post("/api/v1/participations", json=_payload()).json()["id"]
+def test_delete_participation(client, db_session):
+    pid = _created(client, db_session).id
     # La suppression est hors de l'`assert` : sous `python -O` elle ne partirait
     # pas, et le 404 attendu ensuite ne prouverait plus rien.
     suppression = client.delete(f"/api/v1/participations/{pid}")
@@ -91,7 +95,7 @@ def test_delete_participation(client):
 
 def test_delete_participation_consigne_une_entree_au_journal(client, db_session):
     """#439 — le geste le plus irréversible de l'API ne laissait aucune trace."""
-    pid = client.post("/api/v1/participations", json=_payload()).json()["id"]
+    pid = _created(client, db_session).id
 
     suppression = client.delete(f"/api/v1/participations/{pid}")
     assert suppression.status_code == 204
@@ -108,7 +112,7 @@ def test_supprimer_deux_fois_rend_404_et_n_ecrit_rien_de_plus(client, db_session
     Un second 204 laisserait croire à une seconde suppression, et une seconde
     entrée au journal ferait compter deux gestes là où il n'y en a eu qu'un.
     """
-    pid = client.post("/api/v1/participations", json=_payload()).json()["id"]
+    pid = _created(client, db_session).id
     client.delete(f"/api/v1/participations/{pid}")
 
     seconde = client.delete(f"/api/v1/participations/{pid}")
@@ -126,9 +130,9 @@ def test_supprimer_un_resultat_en_attente_de_validation_rend_204_et_journalise(
     supprimer est le même geste, avec la même trace. Côté page, sa disparition
     ne bouge aucun indicateur — les cinq sont calculés sur les validés.
     """
-    creation = client.post("/api/v1/participations", json=_payload())
-    assert creation.json()["is_pending_validation"] is True
-    pid = creation.json()["id"]
+    creation = _created(client, db_session)
+    assert creation.is_pending_validation is True
+    pid = creation.id
 
     suppression = client.delete(f"/api/v1/participations/{pid}")
     assert suppression.status_code == 204
@@ -148,14 +152,12 @@ def test_is_pending_validation_est_force_a_la_creation(client):
     assert resp.json()["is_pending_validation"] is True
 
 
-def test_distance_km_saisie_est_transmise_a_l_epreuve(client):
+def test_distance_km_saisie_est_transmise_a_l_epreuve(client, db_session):
     """FR-009 — distance totale des disciplines sans format normalisé."""
     payload = _payload(bib="88")
     payload["event_type"] = "raid-multisport"
     payload["distance_km"] = 42.5
-    resp = client.post("/api/v1/participations", json=payload)
-    assert resp.status_code == 201
-    assert resp.json()["course"]["distance_km"] == 42.5
+    assert _created(client, db_session, payload).course.distance_km == 42.5
 
 
 def test_sortie_porte_les_nouveaux_champs(client):
@@ -176,8 +178,7 @@ def test_evidence_url_ne_cree_aucune_source_de_scraping(client, db_session):
 
     payload = _payload(bib="100", nom="VERIF")
     payload["evidence_url"] = "https://club.example/resultats-officiels"
-    resp = client.post("/api/v1/participations", json=payload)
-    course_id = resp.json()["course"]["id"]
+    course_id = _created(client, db_session, payload).course_id
 
     course = course_repository.get(db_session, course_id)
     assert course.sources == []
@@ -198,9 +199,9 @@ def test_is_tcn_expose_le_verdict_du_backend(client, db_session):
     assert par_club["RACING CLUB NANTAIS *"] is False
 
 
-def test_stats_is_null_when_provider_is_not_eligible(client):
+def test_stats_is_null_when_provider_is_not_eligible(client, db_session):
     """Une saisie manuelle n'ouvre jamais l'état détaillé, quel que soit son contenu (FR-003)."""
-    pid = client.post("/api/v1/participations", json=_payload()).json()["id"]
+    pid = _created(client, db_session).id
     assert client.get(f"/api/v1/participations/{pid}").json()["stats"] is None
 
 
@@ -317,8 +318,8 @@ def test_course_listing_carries_the_field_without_computing_it(client, db_sessio
     assert [row["stats"] for row in rows] == [None]
 
 
-def test_un_resultat_non_attribue_rend_teammates_vide(client):
-    pid = client.post("/api/v1/participations", json=_payload()).json()["id"]
+def test_un_resultat_non_attribue_rend_teammates_vide(client, db_session):
+    pid = _created(client, db_session).id
 
     assert client.get(f"/api/v1/participations/{pid}").json()["teammates"] == []
 
@@ -326,7 +327,7 @@ def test_un_resultat_non_attribue_rend_teammates_vide(client):
 def test_un_relais_attribue_rend_ses_equipiers_dans_l_ordre(client, db_session):
     from app.repositories import athlete_repository, participation_repository
 
-    pid = client.post("/api/v1/participations", json=_payload()).json()["id"]
+    pid = _created(client, db_session).id
     participation = participation_repository.get(db_session, pid)
     paul = athlete_repository.get_or_create(db_session, nom="MARTIN", prenom="Paul")
     participation_repository.replace_teammates(
@@ -348,21 +349,19 @@ def test_a_pending_declaration_never_rewrites_an_existing_athlete_club(client, d
     db_session.add(existing)
     db_session.commit()
 
-    resp = client.post("/api/v1/participations", json=_payload(club="AUTRE CLUB"))
+    created = _created(client, db_session, _payload(club="AUTRE CLUB"))
 
-    assert resp.status_code == 201
     db_session.refresh(existing)
-    assert resp.json()["athlete"]["id"] == existing.id
+    assert created.athlete_id == existing.id
     assert existing.club == "TRIATHLON CLUB NANTAIS"
 
 
 def test_a_pending_declaration_still_gives_a_new_athlete_its_declared_club(client, db_session):
     from app.models.athlete import Athlete
 
-    resp = client.post("/api/v1/participations", json=_payload(nom="NOUVEAU", club="AUTRE CLUB"))
+    created = _created(client, db_session, _payload(nom="NOUVEAU", club="AUTRE CLUB"))
 
-    assert resp.status_code == 201
-    assert db_session.get(Athlete, resp.json()["athlete"]["id"]).club == "AUTRE CLUB"
+    assert db_session.get(Athlete, created.athlete_id).club == "AUTRE CLUB"
 
 
 
@@ -427,10 +426,10 @@ def test_une_saisie_conforme_reste_acceptee(client, champ, valeur):
     assert client.post("/api/v1/participations", json=payload).status_code == 201
 
 
-def test_les_noms_sont_debarrasses_des_blancs(client):
+def test_les_noms_sont_debarrasses_des_blancs(client, db_session):
     payload = _payload(nom="  DUPONT  ")
 
-    assert client.post("/api/v1/participations", json=payload).json()["athlete"]["nom"] == "DUPONT"
+    assert _created(client, db_session, payload).athlete.nom == "DUPONT"
 
 
 def test_raw_data_envoye_est_ignore_et_jamais_persiste(client, db_session):
@@ -481,13 +480,6 @@ def _stored_rows(db_session):
     return tuple(db_session.query(model).count() for model in (Participation, Athlete, Course))
 
 
-def _without_ids(body):
-    return {
-        **body, "id": None, "created_at": None,
-        "athlete": {**body["athlete"], "id": None}, "course": {**body["course"], "id": None},
-    }
-
-
 def test_a_manual_result_for_an_opposed_person_answers_like_a_quarantined_entry(client, db_session):
     """#1514 : la réponse publique ne dit plus qu'une personne s'est opposée, et rien n'est gardé."""
     opposition = _oppose_jean_dupont(db_session)
@@ -502,8 +494,7 @@ def test_a_manual_result_for_an_opposed_person_answers_like_a_quarantined_entry(
     accepted = client.post("/api/v1/participations", json=_payload())
 
     assert accepted.status_code == 201
-    # Les identifiants viennent de séquences, que PostgreSQL ne rembobine pas au rollback.
-    assert _without_ids(opposed.json()) == _without_ids(accepted.json())
+    assert opposed.json() == accepted.json()
     assert opposed.json()["is_pending_validation"] is True
 
 
