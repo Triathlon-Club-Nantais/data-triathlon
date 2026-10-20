@@ -248,6 +248,21 @@ describe("AthleteComparisonChart preselect", () => {
     expect(getAthlete).toHaveBeenCalledTimes(2);
   });
 
+  it("brings the card into view and focuses its title when `preselect` is applied (#1675)", async () => {
+    const original = Element.prototype.scrollIntoView;
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    getAthlete.mockResolvedValue({ athlete: { id: 7, nom: "Durand", prenom: "Paul" }, participations: [] });
+    try {
+      render(<AthleteComparisonChart mine={[participation(1, 10, "2026-06-01", "02:00:00")]} preselect={7} />);
+
+      await waitFor(() => expect(screen.getByText("Comparer avec un coéquipier")).toHaveFocus());
+      expect(scrollIntoView.mock.contexts[0]).toHaveAttribute("id", "comparaison");
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
   it("keeps the search field without `preselect`", () => {
     render(<AthleteComparisonChart mine={[participation(1, 10, "2026-06-01", "02:00:00")]} />);
 

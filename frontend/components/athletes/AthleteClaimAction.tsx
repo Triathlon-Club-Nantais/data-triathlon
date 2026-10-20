@@ -65,20 +65,19 @@ export function LinkedAthleteMark({ athlete, linked }: { athlete: ClaimedAthlete
     );
   }
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 6 }}>
       <p style={texteDiscret}>
         Fiche de votre compte :{" "}
         <Link href={`/athletes/${linked.id}`} className="underline underline-offset-2">
           {nomComplet(linked)}
         </Link>
       </p>
-      {/* #1675 : sa fiche s'ouvre avec ce coéquipier déjà choisi (`?comparer=`, #1701). */}
       <Link
         href={`/athletes/${linked.id}?comparer=${athlete.id}`}
         aria-label={`Me comparer à ${nomComplet(athlete)}`}
         className="tcn-cible-tactile inline-flex items-center text-sm font-semibold text-accent-ink hover:underline"
       >
-        Me comparer
+        Me comparer →
       </Link>
     </div>
   );
