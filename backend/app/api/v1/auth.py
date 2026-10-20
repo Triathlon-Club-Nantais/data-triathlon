@@ -465,7 +465,7 @@ def _goal_read(progress: season_goals.GoalProgress) -> SeasonGoalRead:
         best_time=progress.best_time, count=progress.count, reached=progress.reached,
         course_id=goal.course_id, race_name=goal.race_name,
         race_date=goal.race_date.isoformat() if goal.race_date else None, major=goal.major,
-        outcome="reached" if progress.reached else "upcoming",
+        outcome=progress.outcome,
     )
 
 

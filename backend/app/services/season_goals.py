@@ -8,9 +8,11 @@ peut être « majeur ». La progression se calcule
 la réponse ne confirme pas qu'il existe.
 """
 from dataclasses import dataclass
+from typing import Literal
 
 from sqlalchemy.orm import Session
 
+from app.core import season as season_clock
 from app.core.exceptions import DomainError, NotFoundError
 from app.core.season import current_season, season_of
 from app.models.season_goal import KIND_COUNT, KIND_RACE, KIND_TIME, SeasonGoal
@@ -134,6 +136,7 @@ class GoalProgress:
     #: Nombre d'épreuves de la saison (objectif nombre), sinon `None`.
     count: int | None
     reached: bool
+    outcome: Literal["upcoming", "awaiting_results", "reached", "missed"] = "upcoming"
 
 
 def list_with_progress(db: Session, user: User, season: int) -> list[GoalProgress]:
@@ -141,18 +144,44 @@ def list_with_progress(db: Session, user: User, season: int) -> list[GoalProgres
     return [_progress(db, user.athlete_id, goal) for goal in goals]
 
 
+def _closed(goal: SeasonGoal, reached: bool) -> str:
+    if reached:
+        return "reached"
+    return "missed" if goal.season < current_season() else "upcoming"
+
+
+def _race_progress(db: Session, athlete_id: int, goal: SeasonGoal) -> GoalProgress:
+    times = participation_repository.athlete_race_times(
+        db, athlete_id, course_id=goal.course_id, event_date=goal.race_date, event_type=goal.event_type
+    )
+    if not times:
+        outcome = "upcoming" if goal.race_date >= season_clock.utcnow().date() else "awaiting_results"
+        return GoalProgress(goal=goal, best_time=None, count=None, reached=False, outcome=outcome)
+    if goal.target is None:
+        return GoalProgress(goal=goal, best_time=None, count=None, reached=True, outcome="reached")
+    best = min(((seconds, text) for text in times if text and (seconds := parse_duration(text))), default=None)
+    if best is None:
+        return GoalProgress(goal=goal, best_time=None, count=None, reached=False, outcome="awaiting_results")
+    reached = best[0] <= goal.target
+    return GoalProgress(
+        goal=goal, best_time=best[1], count=None, reached=reached, outcome="reached" if reached else "missed"
+    )
+
+
 def _progress(db: Session, athlete_id: int | None, goal: SeasonGoal) -> GoalProgress:
     if athlete_id is None:
         return GoalProgress(goal=goal, best_time=None, count=None, reached=False)
     if goal.kind == KIND_RACE:
-        return GoalProgress(goal=goal, best_time=None, count=None, reached=False)
+        return _race_progress(db, athlete_id, goal)
     if goal.kind == KIND_TIME:
         times = participation_repository.athlete_season_times(db, athlete_id, goal.season, goal.event_type or "")
         readable = [(seconds, text) for text in times if (seconds := parse_duration(text))]
         best = min(readable, default=None)
+        reached = best is not None and best[0] <= goal.target
         return GoalProgress(
-            goal=goal, best_time=best[1] if best else None, count=None,
-            reached=best is not None and best[0] <= goal.target,
+            goal=goal, best_time=best[1] if best else None, count=None, reached=reached,
+            outcome=_closed(goal, reached),
         )
     count = participation_repository.athlete_season_count(db, athlete_id, goal.season, goal.event_type)
-    return GoalProgress(goal=goal, best_time=None, count=count, reached=count >= goal.target)
+    reached = count >= goal.target
+    return GoalProgress(goal=goal, best_time=None, count=count, reached=reached, outcome=_closed(goal, reached))
