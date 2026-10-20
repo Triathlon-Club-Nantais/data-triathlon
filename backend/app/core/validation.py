@@ -13,7 +13,7 @@ d'épreuves, par une lecture distincte (`awaiting_validation_clause`) qui ne
 sert jamais à compter.
 """
 
-from sqlalchemy import and_, exists
+from sqlalchemy import and_, exists, or_
 
 
 def validated_clause(column):
@@ -47,15 +47,21 @@ def is_actionable_pending(participation) -> bool:
     return bool(participation.is_pending_validation) and not bool(participation.is_rejected)
 
 
-def pending_only_clause(involves, pending_column):
-    """Clause SQLAlchemy : les résultats que désigne `involves` existent, et aucun
+def pending_only_clause(paths, pending_column):
+    """Clause SQLAlchemy : les résultats que désignent `paths` existent, et aucun
     n'est validé (#1615). Ce que seules des saisies en attente ou refusées font exister.
 
-    `involves` relie `Participation` à la fiche ou à l'épreuve examinée ;
-    `pending_column` est `Participation.is_pending_validation`. Une ligne sans
-    aucun résultat n'est pas visée : un membre sans résultat reste trouvable (#562).
+    Chaque chemin est un tuple de conditions qui relie `Participation` à la fiche
+    ou à l'épreuve examinée, et devient son propre `EXISTS` à un seul niveau : un
+    `EXISTS` imbriqué ne se corrèle pas à la requête englobante, et un `OR` dans
+    l'`EXISTS` priverait la base de ses index. `pending_column` est
+    `Participation.is_pending_validation`. L'appelant ne doit pas déjà avoir
+    `participations` dans son `FROM`, sinon la table serait corrélée au lieu
+    d'être parcourue. Une ligne sans aucun résultat n'est pas visée : un membre
+    sans résultat reste trouvable (#562).
     """
-    return and_(
-        exists().where(involves, pending_column.is_(True)),
-        ~exists().where(involves, validated_clause(pending_column)),
-    )
+
+    def any_result(condition):
+        return or_(*(exists().where(*path, condition) for path in paths))
+
+    return and_(any_result(pending_column.is_(True)), ~any_result(validated_clause(pending_column)))

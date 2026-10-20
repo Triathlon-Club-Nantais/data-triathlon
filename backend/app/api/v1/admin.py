@@ -124,7 +124,7 @@ def set_course_reliability(
     Rend les **trois** valeurs, et c'est délibéré : elles ne se déduisent pas
     l'une de l'autre, et c'est ce qu'une interface de revue doit montrer.
     """
-    course = not_found.course_or_404(db, course_id, message="Épreuve introuvable")
+    course = not_found.course_or_404(db, course_id, message="Épreuve introuvable", hide_pending_only=False)
     course_review.set_override(
         db,
         course,

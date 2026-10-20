@@ -1845,5 +1845,5 @@ def test_event_name_filter_reads_like_wildcards_literally(db_session):
 def test_course_catalogue_name_filter_ignores_accents(db_session):
     course = _event_named(db_session, "Duathlon Nozéen")
 
-    assert [c.id for c in course_repository.list_all(db_session, name="nozeen")] == [course.id]
-    assert course_repository.list_all(db_session, name="_") == []
+    assert [c.id for c in course_repository.list_all(db_session, name="nozeen", hide_pending_only=False)] == [course.id]
+    assert course_repository.list_all(db_session, name="_", hide_pending_only=False) == []

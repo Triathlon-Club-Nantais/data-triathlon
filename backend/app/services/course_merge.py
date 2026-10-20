@@ -69,7 +69,7 @@ def _pair_or_400(db: Session, *, course_id: int, absorbed_id: int) -> tuple[Cour
     if course_id == absorbed_id:
         # Rien à absorber, et la fusion supprimerait la cible qu'on croit garder.
         raise DomainError("Une épreuve ne peut pas être fusionnée avec elle-même.")
-    return course_or_404(db, course_id), course_or_404(db, absorbed_id)
+    return course_or_404(db, course_id, hide_pending_only=False), course_or_404(db, absorbed_id, hide_pending_only=False)
 
 
 def _identity(db: Session, course: Course) -> dict:

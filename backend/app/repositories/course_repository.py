@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta
 
 from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session, load_only, selectinload
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.text import deaccent
 from app.core.time import utcnow
@@ -21,21 +22,21 @@ from app.repositories.dialect import is_postgres
 
 def get(db: Session, course_id: int, *, hide_pending_only: bool = False) -> Course | None:
     """`hide_pending_only` : une épreuve que seules des saisies en attente font exister
-    se lit comme une absente, pour le public (#1615)."""
-    course = db.get(Course, course_id)
-    if course is not None and hide_pending_only and db.scalar(select(pending_only(course_id))):
-        return None
-    return course
+    se lit comme une absente, pour le public (#1615), en une seule requête pour ne
+    pas se distinguer d'une absente au temps de réponse."""
+    if not hide_pending_only:
+        return db.get(Course, course_id)
+    return db.scalar(select(Course).where(Course.id == course_id, ~pending_only(Course.id)))
 
 
-def pending_only(course_id):
+def pending_only(course_id) -> ColumnElement[bool]:
     """Une épreuve dont tous les résultats sont en attente ou refusés (#1615).
 
     Masquée au public, comme la fiche (`athlete_repository.pending_only`) : sinon
     elle trahit qu'une saisie a été gardée, là où celle d'une personne opposée
     est annulée (#1514).
     """
-    return pending_only_clause(Participation.course_id == course_id, Participation.is_pending_validation)
+    return pending_only_clause([(Participation.course_id == course_id,)], Participation.is_pending_validation)
 
 
 def get_fresh(db: Session, course_id: int) -> Course | None:
@@ -655,7 +656,7 @@ def list_all(
     awaiting_review: bool = False,
     page: int = 1,
     page_size: int = 50,
-    hide_pending_only: bool = False,
+    hide_pending_only: bool,
 ) -> list[Course]:
     q = _filtered(
         db,
@@ -694,7 +695,7 @@ def count_all(
     date_to: date | None = None,
     unreliable: bool = False,
     awaiting_review: bool = False,
-    hide_pending_only: bool = False,
+    hide_pending_only: bool,
 ) -> int:
     """Combien d'épreuves la liste rendrait sans pagination — le « sur 7 »."""
     return _filtered(
@@ -718,7 +719,7 @@ def count_awaiting_review(db: Session) -> int:
     par défaut : un avis posé sort l'épreuve de la file, qu'il la déclare
     fiable ou non.
     """
-    return count_all(db, awaiting_review=True)
+    return count_all(db, awaiting_review=True, hide_pending_only=False)
 
 
 @dataclass(frozen=True)

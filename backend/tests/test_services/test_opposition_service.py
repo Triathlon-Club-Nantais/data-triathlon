@@ -90,7 +90,7 @@ def test_apply_anonymises_the_rows_and_keeps_everyone_elses_rank(db, course, adm
     db.refresh(voisine)
     assert voisine.rank_overall == 13 and voisine.athlete_id == autre.id
     assert db.get(Athlete, jean.id) is None
-    assert athlete_repository.search(db, name="Dupont") == []
+    assert athlete_repository.search(db, name="Dupont", hide_pending_only=False) == []
 
 
 def test_apply_lowers_the_club_counter_of_a_club_member(db, course, admin):

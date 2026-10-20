@@ -141,7 +141,7 @@ def search_athletes(
     naissance** — celle-ci reste réservée à `search_admin` et à son pouvoir
     RBAC (`athletes:read`, cf. `athlete_repository.search_admin`).
     """
-    return athlete_repository.search(db, name=name, page_size=_SEARCH_PAGE_SIZE)
+    return athlete_repository.search(db, name=name, page_size=_SEARCH_PAGE_SIZE, hide_pending_only=False)
 
 
 @router.patch(

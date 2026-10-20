@@ -164,12 +164,12 @@ def test_l_impact_annonce_est_exactement_ce_qui_est_supprime(db_session, auteur)
     partage = _coureur(db_session, "PARTAGE")
     _inscrit(db_session, partage, cible, "9")
     _inscrit(db_session, partage, autre, "9")
-    avant = athlete_repository.search(db_session, page_size=500)
+    avant = athlete_repository.search(db_session, page_size=500, hide_pending_only=False)
 
     impact = admin_actions.course_deletion_impact(db_session, course_id=cible.id)
     admin_actions.delete_course(db_session, course_id=cible.id, user_id=auteur.id)
 
-    apres = athlete_repository.search(db_session, page_size=500)
+    apres = athlete_repository.search(db_session, page_size=500, hide_pending_only=False)
     assert impact["participations"] == 4
     assert impact["athletes"] == 3
     assert len(avant) - len(apres) == impact["athletes"]
@@ -1559,7 +1559,7 @@ def test_wipe_all_courses_supprime_courses_sources_et_resultats(db_session, aute
     # périme pas l'identity map (même choix que `participation_repository
     # .delete_all`) — les relire par ORM sur cette session testerait une
     # staleté connue et acceptée, pas le comportement du service.
-    assert course_repository.count_all(db_session) == 0
+    assert course_repository.count_all(db_session, hide_pending_only=False) == 0
     assert participation_repository.count_all(db_session) == 0
     assert athlete_repository.count_all(db_session) == 0
 

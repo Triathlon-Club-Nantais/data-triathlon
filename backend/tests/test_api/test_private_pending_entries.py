@@ -293,3 +293,55 @@ def test_a_member_cannot_claim_a_pending_only_athlete(client, db_session):
     assert (hidden.status_code, hidden.json()) == (missing.status_code, missing.json()) == (
         404, {"detail": "Fiche athlète introuvable."}
     )
+
+
+def test_a_validated_relay_elsewhere_does_not_unhide_a_pending_only_athlete(visitor, entries, db_session):
+    """Revue de #1756 : la sous-requête des équipiers, non corrélée, voyait n'importe quel relais."""
+    relay = _published(
+        visitor, db_session, {**_payload(bib="R", nom="RELAIS"), "event_name": "Relais public", "is_relay": True}
+    )
+    _relay_teammate(db_session, relay)
+
+    for path in ("/api/v1/athletes/search?q=ATTENTE", "/api/v1/athletes?name=ATTENTE"):
+        assert visitor.get(path).json() == []
+
+
+def test_a_volunteer_action_cannot_reach_or_unhide_a_pending_only_athlete(visitor, entries, db_session):
+    """Revue de #1756 : un 201 au lieu d'un 404 servait d'oracle, et l'action rendait la fiche publique."""
+    from app.repositories import volunteer_action_repository
+
+    pending, _ = entries
+    body = {"title": "Ravitaillement", "description": "Course des jeunes"}
+    missing = visitor.post("/api/v1/volunteer-actions", json={**body, "athlete_id": 999999})
+    hidden = visitor.post("/api/v1/volunteer-actions", json={**body, "athlete_id": pending.athlete_id})
+    assert (hidden.status_code, hidden.json()) == (missing.status_code, missing.json())
+    assert missing.status_code == 404
+
+    action = volunteer_action_repository.create_pending(
+        db_session, athlete_id=pending.athlete_id, season=2026, declared_by_user_id=None,
+        title="Ravitaillement", description="",
+    )
+    db_session.commit()
+    assert visitor.get(f"/api/v1/athletes/{pending.athlete_id}").status_code == 404
+    volunteer_action_repository.set_status(db_session, action.id, "validee")
+    db_session.commit()
+    assert visitor.get(f"/api/v1/athletes/{pending.athlete_id}").status_code == 200
+
+
+def test_claiming_a_pending_result_answers_like_an_unknown_one(client, entries, db_session):
+    """Revue de #1756 : un 409 sur une saisie en attente, un 404 sur un id inconnu (#1637)."""
+    from app.models.athlete import Athlete
+    from tests.test_api.test_athlete_claims_api import _member
+
+    pending, _ = entries
+    mine = Athlete(nom="MOI", prenom="Léa")
+    db_session.add(mine)
+    user = _member(client, db_session)
+    db_session.get(User, user.id).athlete_id = mine.id
+    db_session.commit()
+
+    missing = client.post("/api/v1/auth/me/result-claims", json={"participation_id": 999999})
+    hidden = client.post("/api/v1/auth/me/result-claims", json={"participation_id": pending.id})
+
+    assert (hidden.status_code, hidden.json()) == (missing.status_code, missing.json())
+    assert missing.json() == {"detail": "Résultat introuvable."}

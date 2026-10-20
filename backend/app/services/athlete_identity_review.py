@@ -246,7 +246,7 @@ def ignore_pair(db: Session, *, athlete_id_a: int, athlete_id_b: int, user_id: i
     if athlete_id_a == athlete_id_b:
         raise DomainError("Une fiche ne forme pas une paire avec elle-même.")
     for athlete_id in (athlete_id_a, athlete_id_b):
-        athlete_or_404(db, athlete_id)
+        athlete_or_404(db, athlete_id, hide_pending_only=False)
     if ignored_athlete_pair_repository.exists(db, athlete_id_a=athlete_id_a, athlete_id_b=athlete_id_b):
         raise DuplicateError("Cette paire est déjà écartée.")
     ignored = ignored_athlete_pair_repository.create(
@@ -269,7 +269,7 @@ def confirm_club(db: Session, *, athlete_id: int, club_key: str, user_id: int) -
     key = club_key.strip()
     if not key:
         raise DomainError("Le club à confirmer est vide.")
-    athlete_or_404(db, athlete_id)
+    athlete_or_404(db, athlete_id, hide_pending_only=False)
     labels = athlete_repository.club_labels_by_athlete(db, [athlete_id]).get(athlete_id, {})
     if key not in _significant_clubs(labels, club_alias_repository.canonical_map(db)):
         raise DomainError("Ce club ne figure pas parmi les clubs des résultats de cette fiche.")
@@ -366,7 +366,7 @@ def dismiss_case(db: Session, *, athlete_id: int, reason: str, user_id: int) -> 
     """Écarte un cas à une seule fiche, jugé faux positif, sans toucher aux résultats
     (#1252). Seul `same_course_bibs` s'écarte ainsi : `multi_club` se règle par la
     confirmation du club. `flush` sans commit."""
-    athlete_or_404(db, athlete_id)
+    athlete_or_404(db, athlete_id, hide_pending_only=False)
     courses = _two_bibs_courses(db).get(athlete_id)
     if courses is None:
         raise DomainError("Cette fiche n'a pas de cas à écarter dans la revue.")

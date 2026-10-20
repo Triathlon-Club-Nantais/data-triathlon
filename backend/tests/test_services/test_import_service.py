@@ -975,7 +975,7 @@ def test_import_refuses_event_without_name(db_session, patch_scraper):
     with pytest.raises(ScraperError):
         import_service.import_event(db_session, URL, _settings())
 
-    assert course_repository.list_all(db_session) == []
+    assert course_repository.list_all(db_session, hide_pending_only=False) == []
     assert participation_repository.list_participations(db_session, page_size=100) == []
 
 
@@ -987,7 +987,7 @@ def test_iter_import_refuses_event_without_name(db_session, patch_scraper):
 
     assert phases[-1]["phase"] == "error"
     assert "nom" in phases[-1]["message"].lower()
-    assert course_repository.list_all(db_session) == []
+    assert course_repository.list_all(db_session, hide_pending_only=False) == []
 
 
 # ── Réconciliation d'identité au re-scrape (issue #66) ───────────────────────
@@ -1032,7 +1032,7 @@ def test_reconciliation_fusionne_vers_un_athlete_existant(db_session, patch_scra
     patch_scraper([_result("7", "LE BERRE", "Audrey", event_name="Autre Tri")])
     import_service.import_event(db_session, url2, _settings())
 
-    nb_athletes = len(athlete_repository.search(db_session, page_size=500))
+    nb_athletes = len(athlete_repository.search(db_session, page_size=500, hide_pending_only=False))
 
     # Re-scrape de la 1re épreuve : la graphie fautive fusionne vers l'existante.
     patch_scraper([_result("1", "LE BERRE", "Audrey")])
@@ -1044,7 +1044,7 @@ def test_reconciliation_fusionne_vers_un_athlete_existant(db_session, patch_scra
     assert done["reassignments"][0].ancien == "BERRE | Audrey LE"
     assert done["reassignments"][0].nouveau == "LE BERRE | Audrey"
     # Aucun athlète créé : fusion, pas renommage.
-    assert len(athlete_repository.search(db_session, page_size=500)) == nb_athletes
+    assert len(athlete_repository.search(db_session, page_size=500, hide_pending_only=False)) == nb_athletes
 
 
 def test_reconciliation_ne_vide_jamais_le_prenom(db_session, patch_scraper):
@@ -1075,14 +1075,14 @@ def test_reconciliation_refusee_ne_cree_pas_d_orphelin(db_session, patch_scraper
 
     patch_scraper([_result("1", "BERGE", "LOLA")])
     import_service.import_event(db_session, URL, _settings())
-    nb_athletes = len(athlete_repository.search(db_session, page_size=500))
+    nb_athletes = len(athlete_repository.search(db_session, page_size=500, hide_pending_only=False))
 
     # Le re-scrape produirait ("LOLA BERGE", "") — correction refusée.
     patch_scraper([_result("1", "LOLA BERGE", "")])
     out = import_service.import_event(db_session, URL, _settings(), force=True)
 
     assert out["reconciled"] == 0
-    assert len(athlete_repository.search(db_session, page_size=500)) == nb_athletes
+    assert len(athlete_repository.search(db_session, page_size=500, hide_pending_only=False)) == nb_athletes
     assert athlete_repository.get_by_identity_keys(db_session, "LOLA BERGE", "") is None
 
 
@@ -1134,7 +1134,7 @@ def test_persist_false_scrape_mais_n_ecrit_rien(db_session, patch_scraper):
     assert out["imported"] == 2  # calculé
     db_session.expire_all()
     assert participation_repository.list_participations(db_session, page_size=100) == []
-    assert course_repository.list_all(db_session) == []
+    assert course_repository.list_all(db_session, hide_pending_only=False) == []
 
 
 def test_iter_persist_false_annule_la_transaction(db_session, patch_scraper):
@@ -2249,7 +2249,7 @@ def test_deux_lignes_du_meme_scrape_pour_le_meme_athlete_neuf_ne_creent_qu_une_f
     out = import_service.import_event(db_session, URL, _settings())
 
     assert _counters(out) == {"imported": 2, "updated": 0, "skipped": 0, "reconciled": 0}
-    athletes = athlete_repository.search(db_session, name="Collision")
+    athletes = athlete_repository.search(db_session, name="Collision", hide_pending_only=False)
     assert len(athletes) == 1
 
 

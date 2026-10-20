@@ -385,7 +385,7 @@ def test_l_impact_de_purge_des_epreuves_chiffre_courses_participations_et_athlet
 def test_l_impact_de_purge_des_epreuves_ne_modifie_rien(client, base_avec_resultats, db_session):
     client.get("/api/v1/admin/courses/wipe-impact")
 
-    assert course_repository.count_all(db_session) == 2
+    assert course_repository.count_all(db_session, hide_pending_only=False) == 2
     assert participation_repository.count_all(db_session) == 2
 
 
@@ -413,7 +413,7 @@ def test_purger_les_epreuves_rend_le_decompte_reel_et_vide_le_catalogue(
 
     assert reponse.status_code == 200
     assert reponse.json() == {"courses_deleted": 2, "athletes_purged": 2}
-    assert course_repository.count_all(db_session) == 0
+    assert course_repository.count_all(db_session, hide_pending_only=False) == 0
     assert participation_repository.count_all(db_session) == 0
     assert athlete_repository.count_all(db_session) == 0
 
@@ -472,7 +472,7 @@ def test_un_refus_de_pouvoir_ne_purge_pas_les_epreuves(client, db_session, base_
 
     client.delete("/api/v1/admin/courses")
 
-    assert course_repository.count_all(db_session) == 2
+    assert course_repository.count_all(db_session, hide_pending_only=False) == 2
     assert participation_repository.count_all(db_session) == 2
 
 
