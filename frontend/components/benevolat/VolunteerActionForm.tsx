@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { toast } from "sonner";
 import { Button, Card, Input } from "@/components/tcn";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -77,6 +78,11 @@ export function VolunteerActionForm() {
       });
   }, [debounced]);
 
+  function changerAthlete() {
+    flushSync(() => setChoix(null));
+    document.getElementById("benevolat-athlete")?.focus();
+  }
+
   function choisir(trouve: AthleteBrief) {
     setChoix(trouve);
     setRecherche("");
@@ -106,7 +112,7 @@ export function VolunteerActionForm() {
       // La saison créditée est celle de la saisie (#778) : la dire, pour qu'une
       // activité de juin déclarée en septembre ne change pas de saison en silence (#956).
       toast.success(
-        `Déclaration enregistrée pour la ${seasonLabel(cree?.season ?? currentSeason()).toLowerCase()}, en attente de validation.`,
+        `Déclaration enregistrée pour ${nomComplet(athlete)}, ${seasonLabel(cree?.season ?? currentSeason()).toLowerCase()}, en attente de validation.`,
       );
     } catch (e) {
       toast.error(
@@ -125,7 +131,7 @@ export function VolunteerActionForm() {
             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Athlète</div>
             <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
               <strong>{nomComplet(athlete)}</strong>
-              <Button variant="ghost" onClick={() => setChoix(null)} disabled={create.isPending}>
+              <Button variant="ghost" onClick={changerAthlete} disabled={create.isPending}>
                 Changer d&apos;athlète
               </Button>
             </div>
@@ -141,10 +147,19 @@ export function VolunteerActionForm() {
             <Input
               id="benevolat-athlete"
               value={recherche}
-              onChange={(e) => setRecherche(e.target.value)}
+              onChange={(e) => {
+                // Une frappe avant l'arrivée de la session fige la recherche : la fiche ne la remplace plus.
+                if (choix === undefined) setChoix(null);
+                setRecherche(e.target.value);
+              }}
               placeholder="Nom de l'athlète"
               aria-describedby={rechercheErreur ? rechercheErreurId : undefined}
             />
+            {choix === null && maFiche && (
+              <Button variant="ghost" onClick={() => setChoix(undefined)} style={{ marginTop: 8 }}>
+                Revenir à ma fiche
+              </Button>
+            )}
             {rechercheEnCours && (
               <div role="status" style={{ color: "var(--tcn-text-faint)", fontSize: 13, marginTop: 8 }}>
                 Recherche…
