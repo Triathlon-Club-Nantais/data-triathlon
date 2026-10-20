@@ -39,9 +39,9 @@ def list_validated_for_athlete(db: Session, *, athlete_id: int) -> list[Voluntee
     return volunteer_action_repository.list_validated_for_athlete(db, athlete_id=athlete_id)
 
 
-
 def list_declared_by(db: Session, *, user_id: int) -> list[VolunteerAction]:
     return volunteer_action_repository.list_declared_by(db, user_id=user_id)
+
 
 def _get_action_or_404(db: Session, action_id: int) -> VolunteerAction:
     action = volunteer_action_repository.get(db, action_id)
