@@ -19,9 +19,9 @@ export function ProchainPalier({ palier }: { palier: Palier | null }) {
         aria-valuemin={0}
         aria-valuemax={palier.cible}
         aria-valuenow={fait}
-        style={{ height: 8, borderRadius: 4, background: "var(--tcn-grey-300)", overflow: "hidden" }}
+        style={{ height: 8, borderRadius: 4, background: "var(--tcn-paper)", overflow: "hidden" }}
       >
-        <div style={{ width: `${(fait / palier.cible) * 100}%`, height: "100%", background: "var(--tcn-orange)" }} />
+        <div style={{ width: `${(fait / palier.cible) * 100}%`, height: "100%", background: "var(--tcn-orange-deep)" }} />
       </div>
     </Card>
   );

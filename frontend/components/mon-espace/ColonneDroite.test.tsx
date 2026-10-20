@@ -50,6 +50,20 @@ describe("ColonneDroite", () => {
   });
 });
 
+describe("ColonneDroite ties", () => {
+  it("keeps the highest id when two results share the latest date", async () => {
+    const course = (id: number, name: string) => ({ id, name, event_date: "2026-10-01", event_type: "triathlon-m" }) as Participation["course"];
+    const premier = resultat({ id: 5, course: course(5, "Premiere") });
+    const second = resultat({ id: 9, course: course(9, "Seconde") });
+    getAthlete.mockResolvedValue({ athlete: LEA, participations: [], challenges: [] });
+    getClubRosterRank.mockResolvedValue(null);
+    afficher(<ColonneDroite athleteId={42} selection={[second, premier]} seasons={[2026]} federalOnly />);
+
+    expect(await screen.findByRole("link", { name: /Seconde/ })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Premiere/ })).toBeNull();
+  });
+});
+
 describe("DernierResultat", () => {
   it("shows the race, time, place, record badge, link and card button", async () => {
     afficher(<DernierResultat participation={resultat()} record />);

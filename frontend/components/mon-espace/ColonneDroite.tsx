@@ -30,7 +30,12 @@ export function ColonneDroite({
   });
   const validees = selection.filter((p) => !p.is_pending_validation && p.course.event_date !== null);
   const dernier = validees.reduce<Participation | null>(
-    (plus, p) => (plus === null || p.course.event_date! > plus.course.event_date! ? p : plus),
+    // Même jour : le plus grand id l'emporte, pour un résultat stable.
+    (plus, p) => {
+      if (plus === null) return p;
+      const [a, b] = [p.course.event_date!, plus.course.event_date!];
+      return a > b || (a === b && p.id > plus.id) ? p : plus;
+    },
     null,
   );
   const toutes = carriere.data?.participations;

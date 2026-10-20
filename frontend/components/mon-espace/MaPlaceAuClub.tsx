@@ -11,7 +11,7 @@ function evolution(avant: number, apres: number): string {
 /** Rang parmi les athlètes actifs du club sur la sélection, masqué sans rang (#1700). */
 export function MaPlaceAuClub({ athleteId, seasons, federalOnly }: { athleteId: number; seasons: number[]; federalOnly: boolean }) {
   const rang = useClubRosterRank(athleteId, { federalOnly, seasons, enabled: true });
-  // Écart seulement sur une saison, comme « Mes chiffres ».
+  // Écart seulement sur une saison, comme « Mes chiffres ». Le rang précédent porte sur la saison précédente entière, pas à date égale.
   const unique = seasons.length === 1;
   const avant = useClubRosterRank(athleteId, { federalOnly, seasons: unique ? [seasons[0] - 1] : [], enabled: unique });
 
